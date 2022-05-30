@@ -1200,6 +1200,15 @@ void syncNodeVoteForSelf(SSyncNode* pSyncNode) {
   syncRequestVoteReplyDestroy(pMsg);
 }
 
+// snapshot --------------
+bool syncNodeIsInSnapshot(SSyncNode* pSyncNode, SyncIndex index) { return true; }
+
+int32_t syncNodeGetLastIndexTerm(SSyncNode* pSyncNode, SyncIndex* pLastIndex, SyncTerm* pLastTerm) { return 0; }
+
+int32_t syncNodeGetPreIndexTerm(SSyncNode* pSyncNode, SyncIndex index, SyncIndex* pPreIndex, SyncTerm* pPreTerm) {
+  return 0;
+}
+
 // for debug --------------
 void syncNodePrint(SSyncNode* pObj) {
   char* serialized = syncNode2Str(pObj);

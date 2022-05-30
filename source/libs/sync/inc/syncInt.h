@@ -219,6 +219,11 @@ void syncNodeCandidate2Follower(SSyncNode* pSyncNode);
 void syncNodeVoteForTerm(SSyncNode* pSyncNode, SyncTerm term, SRaftId* pRaftId);
 void syncNodeVoteForSelf(SSyncNode* pSyncNode);
 
+// snapshot --------------
+bool    syncNodeIsInSnapshot(SSyncNode* pSyncNode, SyncIndex index);
+int32_t syncNodeGetLastIndexTerm(SSyncNode* pSyncNode, SyncIndex* pLastIndex, SyncTerm* pLastTerm);
+int32_t syncNodeGetPreIndexTerm(SSyncNode* pSyncNode, SyncIndex index, SyncIndex* pPreIndex, SyncTerm* pPreTerm);
+
 // for debug --------------
 void syncNodePrint(SSyncNode* pObj);
 void syncNodePrint2(char* s, SSyncNode* pObj);
