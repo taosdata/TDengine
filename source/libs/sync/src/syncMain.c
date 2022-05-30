@@ -1236,7 +1236,7 @@ int32_t syncNodeGetPreIndexTerm(SSyncNode* pSyncNode, SyncIndex index, SyncIndex
     *pPreIndex = snapshot.lastApplyIndex;
     *pPreTerm = snapshot.lastApplyTerm;
   } else {
-    SSyncRaftEntry *pPreEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, preIndex);
+    SSyncRaftEntry* pPreEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, preIndex);
     ASSERT(pPreEntry != NULL);
     *pPreIndex = pPreEntry->index;
     *pPreTerm = pPreEntry->term;
