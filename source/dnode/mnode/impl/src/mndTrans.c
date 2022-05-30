@@ -464,15 +464,15 @@ static void mndTransTestStopFunc(SMnode *pMnode, void *param, int32_t paramLen) 
   mInfo("test trans stop, param:%s, len:%d", (char *)param, paramLen);
 }
 
-static TransCbFp mndTransGetCbFp(ETrnFuncType ftype) {
+static TransCbFp mndTransGetCbFp(ETrnFunc ftype) {
   switch (ftype) {
-    case TEST_TRANS_START_FUNC:
+    case TRANS_START_FUNC_TEST:
       return mndTransTestStartFunc;
-    case TEST_TRANS_STOP_FUNC:
+    case TRANS_STOP_FUNC_TEST:
       return mndTransTestStopFunc;
-    case MQ_REB_TRANS_START_FUNC:
+    case TRANS_START_FUNC_MQ_REB:
       return mndRebCntInc;
-    case MQ_REB_TRANS_STOP_FUNC:
+    case TRANS_STOP_FUNC_TEST_MQ_REB:
       return mndRebCntDec;
     default:
       return NULL;
@@ -657,7 +657,7 @@ void mndTransSetRpcRsp(STrans *pTrans, void *pCont, int32_t contLen) {
   pTrans->rpcRspLen = contLen;
 }
 
-void mndTransSetCb(STrans *pTrans, ETrnFuncType startFunc, ETrnFuncType stopFunc, void *param, int32_t paramLen) {
+void mndTransSetCb(STrans *pTrans, ETrnFunc startFunc, ETrnFunc stopFunc, void *param, int32_t paramLen) {
   pTrans->startFunc = startFunc;
   pTrans->stopFunc = stopFunc;
   pTrans->param = param;
