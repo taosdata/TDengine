@@ -179,9 +179,9 @@ namespace TDengineExample
 
 1. "Unable to establish connection", "Unable to resolve FQDN"
 
-  Usually, it cause by the FQDN configuration is incorrect, you can refer to [How to understand TDengine's FQDN (Chinese)](https://www.taosdata.com/blog/2021/07/29/2741.html) to solve it. 2.
+  Usually, it cause by the FQDN configuration is incorrect, you can refer to [How to understand TDengine's FQDN (Chinese)](https://www.taosdata.com/blog/2021/07/29/2741.html) to solve it. 
 
-Unhandled exception. System.DllNotFoundException: Unable to load DLL 'taos' or one of its dependencies: The specified module cannot be found.
+2. Unhandled exception. System.DllNotFoundException: Unable to load DLL 'taos' or one of its dependencies: The specified module cannot be found.
 
   This is usually because the program did not find the dependent client driver. The solution is to copy `C:\TDengine\driver\taos.dll` to the `C:\Windows\System32\` directory on Windows, and create the following soft link on Linux `ln -s /usr/local/taos/driver/libtaos.so.x.x .x.x /usr/lib/libtaos.so` will work.
 
