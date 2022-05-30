@@ -14,6 +14,8 @@ python3 ./test.py -f 0-others/udf_restart_taosd.py
 python3 ./test.py -f 0-others/user_control.py
 python3 ./test.py -f 0-others/fsync.py
 
+python3 ./test.py -f 1-insert/opentsdb_telnet_line_taosc_insert.py
+
 python3 ./test.py -f 2-query/between.py
 python3 ./test.py -f 2-query/distinct.py
 python3 ./test.py -f 2-query/varchar.py
