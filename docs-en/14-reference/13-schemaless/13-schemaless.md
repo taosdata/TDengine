@@ -1,11 +1,11 @@
 ---
 title: Schemaless Writing
-description: "The Schemaless write method eliminates the need to create super tables/sub tables in advance and automatically creates the storage structure corresponding to the data as it is written to the interface."
+description: "The Schemaless write method eliminates the need to create super tables/sub tables in advance and automatically creates the storage structure corresponding to the data, as it is written to the interface."
 ---
 
-In IoT applications, many data items are often collected for intelligent control, business analysis, device monitoring, etc. Due to the version upgrades of the application logic, or the hardware adjustment of the devices themselves, the data collection items may change frequently. To facilitate the data logging work in such cases, TDengine starting from version 2.2.0.0 provides a series of interfaces to the schemaless writing method, which eliminate the need to create super tables and subtables in advance by automatically creating the storage structure corresponding to the data as the data is written to the interface. And when necessary, schemaless writing will automatically add the required columns to ensure that the data written by the user is stored correctly.
+In IoT applications, data is collected for many purposes such as intelligent control, business analysis, device monitoring and so on. Due to changes in business or functional requirements or changes in device hardware, the application logic and even the data collected may change. To provide the flexibility needed in such cases and in a rapidly changing IoT landscape, TDengine starting from version 2.2.0.0, provides a series of interfaces for the schemaless writing method. These interfaces eliminate the need to create super tables and subtables in advance by automatically creating the storage structure corresponding to the data as the data is written to the interface. When necessary, schemaless writing will automatically add the required columns to ensure that the data written by the user is stored correctly.
 
-The schemaless writing method creates super tables and their corresponding subtables completely indistinguishable from the super tables and subtables created directly via SQL. You can write data directly to them via SQL statements. Note that the names of tables created by schemaless writing are based on fixed mapping rules for tag values, so they are not explicitly ideographic and lack readability.
+The schemaless writing method creates super tables and their corresponding subtables. These are completely indistinguishable from the super tables and subtables created directly via SQL. You can write data directly to them via SQL statements. Note that the names of tables created by schemaless writing are based on fixed mapping rules for tag values, so they are not explicitly ideographic and they lack readability.
 
 ## Schemaless Writing Line Protocol
 
@@ -76,8 +76,7 @@ If the subtable obtained by the parse line protocol does not exist, Schemaless c
 8. Errors encountered throughout the processing will interrupt the writing process and return an error code.
 
 :::tip
-All processing logic of schemaless will still follow TDengine's underlying restrictions on data structures, such as the total length of each row of data cannot exceed
-48k bytes. See [TAOS SQL Boundary Limits](/taos-sql/limit) for specific constraints in this area.
+All processing logic of schemaless will still follow TDengine's underlying restrictions on data structures, such as the total length of each row of data cannot exceed 48k bytes. See [TAOS SQL Boundary Limits](/taos-sql/limit) for specific constraints in this area.
 :::
 
 ## Time resolution recognition
@@ -87,7 +86,7 @@ Three specified modes are supported in the schemaless writing process, as follow
 | **Serial** | **Value** | **Description** |
 | -------- | ------------------- | ------------------------------- |
 | 1 | SML_LINE_PROTOCOL | InfluxDB Line Protocol |
-| 2 | SML_TELNET_PROTOCOL | OpenTSDB Text Line Protocol | | 2 | SML_TELNET_PROTOCOL | OpenTSDB Text Line Protocol
+| 2 | SML_TELNET_PROTOCOL | OpenTSDB Text Line Protocol |
 | 3 | SML_JSON_PROTOCOL | JSON protocol format |
 
 In the SML_LINE_PROTOCOL parsing mode, the user is required to specify the time resolution of the input timestamp. The available time resolutions are shown in the following table.
@@ -106,8 +105,11 @@ In SML_TELNET_PROTOCOL and SML_JSON_PROTOCOL modes, the time precision is determ
 
 ## Data schema mapping rules
 
-This section describes how data for line protocols are mapped to data with a schema. The data measurement in each line protocol is mapped to
-The tag name in tag_set is the name of the tag in the data schema, and the name in field_set is the column's name. The following data is used as an example to illustrate the mapping rules.
+This section describes how data for line protocols are mapped to data with a schema. The data measurement in each line protocol is mapped as follows:
+- The tag name in tag_set is the name of the tag in the data schema
+- The name in field_set is the column's name. 
+
+The following data is used as an example to illustrate the mapping rules.
 
 ```json
 st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4f64 1626006833639000000
@@ -139,7 +141,7 @@ st,t1=3,t2=4,t3=t3 c1=3i64,c5="pass" 1626006833639000000
 st,t1=3,t2=4,t3=t3 c1=3i64,c5="passit" 1626006833640000000
 ```
 
-The first line of the line protocol parsing will declare column c5 is a BINARY(4) field, the second line data write will extract column c5 is still a BINARY column. Still, its width is 6, then you need to increase the width of the BINARY field to be able to accommodate the new string.
+The first line of the line protocol parsing will declare column c5 is a BINARY(4) field. The second line data write will parse column c5 as a BINARY column. But in the second line, c5's width is 6 so you need to increase the width of the BINARY field to be able to accommodate the new string.
 
 ```json
 st,t1=3,t2=4,t3=t3 c1=3i64 1626006833639000000
