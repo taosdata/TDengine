@@ -767,7 +767,7 @@ static int32_t saveResult(SResultRow* result, uint64_t groupId, SArray* pUpdated
 }
 
 static void hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResultRowInfo, SSDataBlock* pBlock,
-                               int32_t scanFlag, SArray* pUpdated) {
+                            int32_t scanFlag, SArray* pUpdated) {
   SIntervalAggOperatorInfo* pInfo = (SIntervalAggOperatorInfo*)pOperatorInfo->info;
 
   SExecTaskInfo* pTaskInfo = pOperatorInfo->pTaskInfo;
@@ -1286,8 +1286,6 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
       qDebug("%s clear existed time window results for updates checked", GET_TASKID(pTaskInfo));
       continue;
     }
-
-    hashIntervalAgg(pOperator, &pInfo->binfo.resultRowInfo, pBlock, MAIN_SCAN, pUpdated);
 
     pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, pBlock->info.window.ekey);
     hashIntervalAgg(pOperator, &pInfo->binfo.resultRowInfo, pBlock, MAIN_SCAN, pUpdated);
