@@ -16,6 +16,15 @@
 #include "syncRaftLog.h"
 #include "wal.h"
 
+static SSyncRaftEntry* logStoreGetLastEntry(SSyncLogStore* pLogStore);
+static SyncIndex       logStoreLastIndex(SSyncLogStore* pLogStore);
+static SyncTerm        logStoreLastTerm(SSyncLogStore* pLogStore);
+static SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index);
+static int32_t         logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry);
+static int32_t         logStoreTruncate(SSyncLogStore* pLogStore, SyncIndex fromIndex);
+static int32_t         logStoreUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index);
+static SyncIndex       logStoreGetCommitIndex(SSyncLogStore* pLogStore);
+
 SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
   SSyncLogStore* pLogStore = taosMemoryMalloc(sizeof(SSyncLogStore));
   assert(pLogStore != NULL);
@@ -78,7 +87,9 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
 
   if (index >= SYNC_INDEX_BEGIN && index <= logStoreLastIndex(pLogStore)) {
     SWalReadHandle* pWalHandle = walOpenReadHandle(pWal);
-    int32_t         code = walReadWithHandle(pWalHandle, index);
+    ASSERT(pWalHandle != NULL);
+
+    int32_t code = walReadWithHandle(pWalHandle, index);
     if (code != 0) {
       int32_t     err = terrno;
       const char* errStr = tstrerror(err);
@@ -179,7 +190,7 @@ SSyncRaftEntry* logStoreGetLastEntry(SSyncLogStore* pLogStore) {
 }
 
 cJSON* logStore2Json(SSyncLogStore* pLogStore) {
-  char               u64buf[128];
+  char               u64buf[128] = {0};
   SSyncLogStoreData* pData = (SSyncLogStoreData*)pLogStore->data;
   cJSON*             pRoot = cJSON_CreateObject();
 
@@ -216,7 +227,7 @@ char* logStore2Str(SSyncLogStore* pLogStore) {
 }
 
 cJSON* logStoreSimple2Json(SSyncLogStore* pLogStore) {
-  char               u64buf[128];
+  char               u64buf[128] = {0};
   SSyncLogStoreData* pData = (SSyncLogStoreData*)pLogStore->data;
   cJSON*             pRoot = cJSON_CreateObject();
 

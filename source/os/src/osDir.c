@@ -204,7 +204,7 @@ void taosRemoveOldFiles(const char *dirname, int32_t keepDays) {
 int32_t taosExpandDir(const char *dirname, char *outname, int32_t maxlen) {
   wordexp_t full_path;
   if (0 != wordexp(dirname, &full_path, 0)) {
-    // printf("failed to expand path:%s since %s", dirname, strerror(errno));
+    printf("failed to expand path:%s since %s", dirname, strerror(errno));
     wordfree(&full_path);
     return -1;
   }

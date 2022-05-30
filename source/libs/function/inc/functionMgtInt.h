@@ -44,9 +44,7 @@ extern "C" {
 
 #define FUNC_MGT_TEST_MASK(val, mask) (((val) & (mask)) != 0)
 
-#define FUNC_UDF_ID_START     5000
-#define FUNC_AGGREGATE_UDF_ID 5001
-#define FUNC_SCALAR_UDF_ID    5002
+#define FUNC_UDF_ID_START 5000
 
 extern const int funcMgtUdfNum;
 

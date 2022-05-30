@@ -815,7 +815,7 @@ int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, S
 }
 
 cJSON* syncNode2Json(const SSyncNode* pSyncNode) {
-  char   u64buf[128];
+  char   u64buf[128] = {0};
   cJSON* pRoot = cJSON_CreateObject();
 
   if (pSyncNode != NULL) {
@@ -981,6 +981,7 @@ char* syncNode2SimpleStr(const SSyncNode* pSyncNode) {
 }
 
 void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* newConfig, bool* isDrop) {
+  SSyncCfg oldConfig = pSyncNode->pRaftCfg->cfg;
   pSyncNode->pRaftCfg->cfg = *newConfig;
   int32_t ret = 0;
 
@@ -1014,6 +1015,15 @@ void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* newConfig, bool* isDro
 
   // isDrop
   *isDrop = true;
+  bool IamInOld, IamInNew;
+  for (int i = 0; i < oldConfig.replicaNum; ++i) {
+    if (strcmp((oldConfig.nodeInfo)[i].nodeFqdn, pSyncNode->myNodeInfo.nodeFqdn) == 0 &&
+        (oldConfig.nodeInfo)[i].nodePort == pSyncNode->myNodeInfo.nodePort) {
+      *isDrop = false;
+      break;
+    }
+  }
+
   for (int i = 0; i < newConfig->replicaNum; ++i) {
     if (strcmp((newConfig->nodeInfo)[i].nodeFqdn, pSyncNode->myNodeInfo.nodeFqdn) == 0 &&
         (newConfig->nodeInfo)[i].nodePort == pSyncNode->myNodeInfo.nodePort) {
@@ -1328,7 +1338,7 @@ static int32_t syncNodeAppendNoop(SSyncNode* ths) {
 // on message ----
 int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg) {
   // log state
-  char logBuf[1024];
+  char logBuf[1024] = {0};
   snprintf(logBuf, sizeof(logBuf),
            "==syncNodeOnPingCb== vgId:%d, state: %d, %s, term:%lu electTimerLogicClock:%lu, "
            "electTimerLogicClockUser:%lu, electTimerMS:%d",

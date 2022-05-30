@@ -20,13 +20,13 @@
 #include "tconfig.h"
 #include "tjson.h"
 
-#define TMP_DNODE_DIR           "/tmp/dumpsdb"
-#define TMP_MNODE_DIR           "/tmp/dumpsdb/mnode"
-#define TMP_SDB_DATA_DIR        "/tmp/dumpsdb/mnode/data"
-#define TMP_SDB_SYNC_DIR        "/tmp/dumpsdb/mnode/sync"
-#define TMP_SDB_DATA_FILE       "/tmp/dumpsdb/mnode/data/sdb.data"
-#define TMP_SDB_RAFT_CFG_FILE   "/tmp/dumpsdb/mnode/sync/raft_config.json"
-#define TMP_SDB_RAFT_STORE_FILE "/tmp/dumpsdb/mnode/sync/raft_store.json"
+#define TMP_DNODE_DIR           TD_TMP_DIR_PATH "dumpsdb"
+#define TMP_MNODE_DIR           TD_TMP_DIR_PATH "dumpsdb/mnode"
+#define TMP_SDB_DATA_DIR        TD_TMP_DIR_PATH "dumpsdb/mnode/data"
+#define TMP_SDB_SYNC_DIR        TD_TMP_DIR_PATH "dumpsdb/mnode/sync"
+#define TMP_SDB_DATA_FILE       TD_TMP_DIR_PATH "dumpsdb/mnode/data/sdb.data"
+#define TMP_SDB_RAFT_CFG_FILE   TD_TMP_DIR_PATH "dumpsdb/mnode/sync/raft_config.json"
+#define TMP_SDB_RAFT_STORE_FILE TD_TMP_DIR_PATH "dumpsdb/mnode/sync/raft_store.json"
 
 void reportStartup(const char *name, const char *desc) {}
 

@@ -38,7 +38,7 @@ class Node:
     def buildTaosd(self):
         try:
             print(self.conn)
-            # self.conn.run('echo "1234" > /home/chr/installtest/test.log')
+            # self.conn.run('echo 1234 > /home/chr/installtest/test.log')
             self.conn.run("cd /home/chr/installtest/ && tar -xvf  %s " %self.verName)
             self.conn.run("cd /home/chr/installtest/%s && ./install.sh " % self.installPath)
         except Exception as e:
@@ -49,7 +49,7 @@ class Node:
     def rebuildTaosd(self):
         try:
             print(self.conn)
-            # self.conn.run('echo "1234" > /home/chr/installtest/test.log')
+            # self.conn.run('echo 1234 > /home/chr/installtest/test.log')
             self.conn.run("cd /home/chr/installtest/%s && ./install.sh " % self.installPath)
         except Exception as e:
             print("Build Taosd error for node %d " % self.index)
@@ -108,7 +108,7 @@ class oneNode:
         # install TDengine at 192.168.103/104/141
         try:
             node = Node(id, username, IP, passwd, version)
-            node.conn.run('echo "start taosd"')
+            node.conn.run('echo start taosd')
             node.buildTaosd()
             # clear DataPath  , if need clear data 
             node.clearData()
@@ -128,7 +128,7 @@ class oneNode:
         # start TDengine 
         try:
             node = Node(id, username, IP, passwd, version)
-            node.conn.run('echo "restart taosd"')
+            node.conn.run('echo restart taosd')
             # clear DataPath  , if need clear data 
             node.clearData()
             node.restartTaosd()
@@ -149,14 +149,14 @@ class oneNode:
         verName = "TDengine-enterprise-server-%s-Linux-x64.tar.gz" % version
         # installPath = "TDengine-enterprise-server-%s" % self.version
         node131 = Node(131, 'ubuntu', '192.168.1.131', 'tbase125!', '2.0.20.0')
-        node131.conn.run('echo "upgrade cluster"')
+        node131.conn.run('echo upgrade cluster')
         node131.conn.run('sshpass  -p  tbase125! scp /nas/TDengine/v%s/enterprise/%s root@192.168.1.%d:/home/chr/installtest/' % (version,verName,id))
         node131.conn.close() 
         # upgrade TDengine at 192.168.103/104/141
         try:
             node = Node(id, username, IP, passwd, version)
-            node.conn.run('echo "start taosd"')
-            node.conn.run('echo "1234" > /home/chr/test.log')
+            node.conn.run('echo start taosd')
+            node.conn.run('echo 1234 > /home/chr/test.log')
             node.buildTaosd()
             time.sleep(5)
             node.startTaosd()
@@ -176,7 +176,7 @@ class oneNode:
         # backCluster TDengine at 192.168.103/104/141
         try:
             node = Node(id, username, IP, passwd, version)
-            node.conn.run('echo "rollback taos"')
+            node.conn.run('echo rollback taos')
             node.rebuildTaosd()
             time.sleep(5)
             node.startTaosd()

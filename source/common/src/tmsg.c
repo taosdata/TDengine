@@ -665,22 +665,24 @@ void tFreeSMAltertbReq(SMAlterStbReq *pReq) {
   taosArrayDestroy(pReq->pFields);
   pReq->pFields = NULL;
 }
-int32_t tSerializeSMEpSet(void *buf, int32_t bufLen, SMEpSet *pReq) {
+
+int32_t tSerializeSEpSet(void *buf, int32_t bufLen, const SEpSet *pEpset) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
   if (tStartEncode(&encoder) < 0) return -1;
-  if (tEncodeSEpSet(&encoder, &pReq->epSet) < 0) return -1;
+  if (tEncodeSEpSet(&encoder, pEpset) < 0) return -1;
 
   tEndEncode(&encoder);
   int32_t tlen = encoder.pos;
   tEncoderClear(&encoder);
   return tlen;
 }
-int32_t tDeserializeSMEpSet(void *buf, int32_t bufLen, SMEpSet *pReq) {
+
+int32_t tDeserializeSEpSet(void *buf, int32_t bufLen, SEpSet *pEpset) {
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, bufLen);
   if (tStartDecode(&decoder) < 0) return -1;
-  if (tDecodeSEpSet(&decoder, &pReq->epSet) < 0) return -1;
+  if (tDecodeSEpSet(&decoder, pEpset) < 0) return -1;
 
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
@@ -3506,31 +3508,6 @@ int32_t tDeserializeSSchedulerHbRsp(void *buf, int32_t bufLen, SSchedulerHbRsp *
 }
 
 void tFreeSSchedulerHbRsp(SSchedulerHbRsp *pRsp) { taosArrayDestroy(pRsp->taskStatus); }
-
-int32_t tSerializeSQueryTableRsp(void *buf, int32_t bufLen, SQueryTableRsp *pRsp) {
-  SEncoder encoder = {0};
-  tEncoderInit(&encoder, buf, bufLen);
-
-  if (tStartEncode(&encoder) < 0) return -1;
-  if (tEncodeI32(&encoder, pRsp->code) < 0) return -1;
-  tEndEncode(&encoder);
-
-  int32_t tlen = encoder.pos;
-  tEncoderClear(&encoder);
-  return tlen;
-}
-
-int32_t tDeserializeSQueryTableRsp(void *buf, int32_t bufLen, SQueryTableRsp *pRsp) {
-  SDecoder decoder = {0};
-  tDecoderInit(&decoder, buf, bufLen);
-
-  if (tStartDecode(&decoder) < 0) return -1;
-  if (tDecodeI32(&decoder, &pRsp->code) < 0) return -1;
-  tEndDecode(&decoder);
-
-  tDecoderClear(&decoder);
-  return 0;
-}
 
 int32_t tSerializeSVCreateTbBatchRsp(void *buf, int32_t bufLen, SVCreateTbBatchRsp *pRsp) {
   // SEncoder encoder = {0};

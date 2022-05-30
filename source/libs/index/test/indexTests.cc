@@ -272,7 +272,7 @@ void validateFst() {
   }
   delete m;
 }
-static std::string logDir = "/tmp/log";
+static std::string logDir = TD_TMP_DIR_PATH "log";
 
 static void initLog() {
   const char*   defaultLogFileNamePrefix = "taoslog";
@@ -411,12 +411,12 @@ class TFileObj {
       //
       //
     }
-    SIdxTempResult* tr = sIdxTempResultCreate();
+    SIdxTRslt* tr = idxTRsltCreate();
 
     int ret = tfileReaderSearch(reader_, query, tr);
 
-    sIdxTempResultMergeTo(result, tr);
-    sIdxTempResultDestroy(tr);
+    idxTRsltMergeTo(tr, result);
+    idxTRsltDestroy(tr);
     return ret;
   }
   ~TFileObj() {
@@ -531,11 +531,11 @@ class CacheObj {
     indexCacheDebug(cache);
   }
   int Get(SIndexTermQuery* query, int16_t colId, int32_t version, SArray* result, STermValueType* s) {
-    SIdxTempResult* tr = sIdxTempResultCreate();
+    SIdxTRslt* tr = idxTRsltCreate();
 
     int ret = indexCacheSearch(cache, query, tr, s);
-    sIdxTempResultMergeTo(result, tr);
-    sIdxTempResultDestroy(tr);
+    idxTRsltMergeTo(tr, result);
+    idxTRsltDestroy(tr);
 
     if (ret != 0) {
       std::cout << "failed to get from cache:" << ret << std::endl;
@@ -916,7 +916,7 @@ TEST_F(IndexEnv2, testIndexOpen) {
   }
 }
 TEST_F(IndexEnv2, testEmptyIndexOpen) {
-  std::string path = "/tmp/test";
+  std::string path = TD_TMP_DIR_PATH "test";
   if (index->Init(path) != 0) {
     std::cout << "failed to init index" << std::endl;
     exit(1);

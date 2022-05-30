@@ -113,7 +113,7 @@ class BuildDockerCluser:
 
     def cfg(self, option, value, nodeIndex):
         cfgPath = "%s/node%d/cfg/taos.cfg" % (self.dockerDir, nodeIndex)
-        cmd = "echo '%s %s' >> %s" % (option, value, cfgPath)
+        cmd = "echo %s %s >> %s" % (option, value, cfgPath)
         self.execCmd(cmd)
     
     def updateLocalhosts(self):
@@ -122,7 +122,7 @@ class BuildDockerCluser:
         print(result)
         if result is None or result.isspace():
             print("==========")
-            cmd = "echo '172.27.0.7 tdnode1' >> /etc/hosts"
+            cmd = "echo 172.27.0.7 tdnode1 >> /etc/hosts"
             display = "echo %s" % cmd
             self.execCmd(display)
             self.execCmd(cmd)

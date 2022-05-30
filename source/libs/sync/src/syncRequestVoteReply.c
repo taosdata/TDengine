@@ -39,7 +39,7 @@
 int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg) {
   int32_t ret = 0;
 
-  char logBuf[128];
+  char logBuf[128] = {0};
   snprintf(logBuf, sizeof(logBuf), "==syncNodeOnRequestVoteReplyCb== term:%lu", ths->pRaftStore->currentTerm);
   syncRequestVoteReplyLog2(logBuf, pMsg);
 
@@ -56,7 +56,7 @@ int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg)
   //   }
 
   if (pMsg->term > ths->pRaftStore->currentTerm) {
-    char logBuf[128];
+    char logBuf[128] = {0};
     snprintf(logBuf, sizeof(logBuf), "syncNodeOnRequestVoteReplyCb error term, receive:%lu current:%lu", pMsg->term,
              ths->pRaftStore->currentTerm);
     syncNodePrint2(logBuf, ths);

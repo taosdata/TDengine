@@ -11,18 +11,18 @@ import TabItem from "@theme/TabItem";
 `taospy` is the official Python connector for TDengine. `taospy` provides a rich set of APIs that makes it easy for Python applications to access TDengine. `taospy` wraps both the [native interface](/reference/connector/cpp) and [REST interface](/reference/rest-api) of TDengine, which correspond to the `taos` and `taosrest` modules of the `taospy` package, respectively.
 In addition to wrapping the native and REST interfaces, `taospy` also provides a set of programming interfaces that conforms to the [Python Data Access Specification (PEP 249)](https://peps.python.org/pep-0249/). It is easy to integrate `taospy` with many third-party tools, such as [SQLAlchemy](https://www.sqlalchemy.org/) and [pandas](https://pandas.pydata.org/).
 
-The connection to the server directly using the native interface provided by the client driver is referred to hereinafter as a "native connection"; the connection to the server using the REST interface provided by taosAdapter is referred to hereinafter as a "REST connection".
+The direct connection to the server using the native interface provided by the client driver is referred to hereinafter as a "native connection"; the connection to the server using the REST interface provided by taosAdapter is referred to hereinafter as a "REST connection".
 
 The source code for the Python connector is hosted on [GitHub](https://github.com/taosdata/taos-connector-python).
 
 ## Supported Platforms
 
-- The native connection [supported platforms](/reference/connector/#supported-platforms) is the same as the one supported by the TDengine client.
+- The [supported platforms](/reference/connector/#supported-platforms) for the native connection are the same as the ones supported by the TDengine client.
 - REST connections are supported on all platforms that can run Python.
 
 ## Version selection
 
-We recommend using the latest version of `taospy`, regardless what the version of TDengine is.
+We recommend using the latest version of `taospy`, regardless of the version of TDengine.
 
 ## Supported features
 
@@ -53,7 +53,7 @@ Earlier TDengine client software includes the Python connector. If the Python co
 
 :::
 
-#### to install `taospy`
+#### To install `taospy`
 
 <Tabs>
 <TabItem label="Install from PyPI" value="pypi">
@@ -139,7 +139,7 @@ The FQDN above can be the FQDN of any dnode in the cluster, and the PORT is the 
 </TabItem>
 <TabItem value="rest" label="REST connection" groupId="connect">
 
-For REST connections and making sure the cluster is up, make sure the taosAdapter component is up. This can be tested using the following `curl ` command.
+For REST connections, make sure the cluster and taosAdapter component, are running. This can be tested using the following `curl ` command.
 
 ```
 curl -u root:taosdata http://<FQDN>:<PORT>/rest/sql -d "select server_version()"
@@ -312,7 +312,7 @@ For a more detailed description of the `sql()` method, please refer to [RestClie
 
 ### Exception handling
 
-All database operations will be thrown directly if an exception occurs. The application is responsible for exception handling. For example:
+All errors from database operations are thrown directly as exceptions and the error message from the database is passed up the exception stack. The application is responsible for exception handling. For example:
 
 ```python
 {{#include docs-examples/python/handle_exception.py}}
@@ -320,7 +320,7 @@ All database operations will be thrown directly if an exception occurs. The appl
 
 ### About nanoseconds
 
-Due to the current imperfection of Python's nanosecond support (see link below), the current implementation returns integers at nanosecond precision instead of the `datetime` type produced by `ms and `us`, which application developers will need to handle on their own. And it is recommended to use pandas' to_datetime(). The Python Connector may modify the interface in the future if Python officially supports nanoseconds in full.
+Due to the current imperfection of Python's nanosecond support (see link below), the current implementation returns integers at nanosecond precision instead of the `datetime` type produced by `ms` and `us`, which application developers will need to handle on their own. And it is recommended to use pandas' to_datetime(). The Python Connector may modify the interface in the future if Python officially supports nanoseconds in full.
 
 1. https://stackoverflow.com/questions/10611328/parsing-datetime-strings-containing-nanoseconds
 2. https://www.python.org/dev/peps/pep-0564/
@@ -328,7 +328,7 @@ Due to the current imperfection of Python's nanosecond support (see link below),
 
 ## Frequently Asked Questions
 
-Welcome to [ask questions or report questions] (https://github.com/taosdata/taos-connector-python/issues).
+Welcome to [ask questions or report questions](https://github.com/taosdata/taos-connector-python/issues).
 
 ## Important Update
 
