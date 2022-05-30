@@ -63,44 +63,49 @@ fi
 function run() {
     local i=0
     while read line; do
-        i=$(( i + 1 ))
         echo "$line" | grep -q "^#"
-        if [ $? -ne 0 ]; then
-            date
-            echo -e "\e[33m $i >>>>> \e[0m $line"
-            cmd="$line"
-            echo "$cmd" | grep -q "\-\-setup"
+        if [ $? -eq 0 ]; then
+            continue
+        fi
+        echo "$line" | grep -q "^$"
+        if [ $? -eq 0 ]; then
+            continue
+        fi
+        i=$(( i + 1 ))
+        date
+        echo -e "\e[33m $i >>>>> \e[0m $line"
+        cmd="$line"
+        echo "$cmd" | grep -q "\-\-setup"
+        if [ $? -eq 0 ]; then
+            local setup_param=`echo "$cmd" | grep "\-\-setup.*"`
+            local setup_file=""
+            echo "$setup_param" | grep -q "\-\-setup="
             if [ $? -eq 0 ]; then
-                local setup_param=`echo "$cmd" | grep "\-\-setup.*"`
-                local setup_file=""
-                echo "$setup_param" | grep -q "\-\-setup="
-                if [ $? -eq 0 ]; then
-                    setup_file=`echo "$setup_param" | cut -d= -f2 | cut -d' ' -f1`
-                else
-                    setup_file=`echo "$setup_param" | awk '{print $2}'`
-                fi
-                if [ ! -z "$setup_file" ]; then
-                    grep -q "$setup_file" $env_file
-                    if [ $? -ne 0 ]; then
-                        echo "$setup_file" >>$env_file
-                    fi
-                fi
-                if [ ! -z "$server_pkg" ]; then
-                    cmd="$cmd --server-pkg=$server_pkg"
-                fi
-                if [ ! -z "$client_pkg" ]; then
-                    cmd="$cmd --client-pkg=$client_pkg"
-                fi
-            fi
-            echo "execute command: $cmd"
-            $cmd
-            if [ $? -ne 0 ]; then
-                ret=1
-                echo -e "$line \e[31m FAILED\e[0m"
-                echo -e "$line \e[31m FAILED\e[0m" >>$failed_case_file
+                setup_file=`echo "$setup_param" | cut -d= -f2 | cut -d' ' -f1`
             else
-                echo -e "$line \e[32m SUCCESS\e[0m"
+                setup_file=`echo "$setup_param" | awk '{print $2}'`
             fi
+            if [ ! -z "$setup_file" ]; then
+                grep -q "$setup_file" $env_file
+                if [ $? -ne 0 ]; then
+                    echo "$setup_file" >>$env_file
+                fi
+            fi
+            if [ ! -z "$server_pkg" ]; then
+                cmd="$cmd --server-pkg=$server_pkg"
+            fi
+            if [ ! -z "$client_pkg" ]; then
+                cmd="$cmd --client-pkg=$client_pkg"
+            fi
+        fi
+        echo "execute command: $cmd"
+        $cmd
+        if [ $? -ne 0 ]; then
+            ret=1
+            echo -e "$line \e[31m FAILED\e[0m"
+            echo -e "$line \e[31m FAILED\e[0m" >>$failed_case_file
+        else
+            echo -e "$line \e[32m SUCCESS\e[0m"
         fi
     done <${case_file}
 }
