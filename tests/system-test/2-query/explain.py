@@ -62,10 +62,10 @@ class TDTestCase:
         for char_col in CHAR_COL:
             query_condition.extend(
                 (
-                    f"sum(cast({tbname}.{char_col}) as bigint)",
-                    f"max(cast({tbname}.{char_col}) as bigint)",
-                    f"min(cast({tbname}.{char_col}) as bigint)",
-                    f"avg(cast({tbname}.{char_col}) as bigint)",
+                    f"sum(cast({tbname}.{char_col} as bigint ))",
+                    f"max(cast({tbname}.{char_col} as bigint ))",
+                    f"min(cast({tbname}.{char_col} as bigint ))",
+                    f"avg(cast({tbname}.{char_col} as bigint ))",
                 )
             )
         query_condition.extend(
