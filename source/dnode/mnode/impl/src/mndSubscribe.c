@@ -493,7 +493,7 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
   // 4. TODO commit log: modification log
 
   // 5. set cb
-  mndTransSetCb(pTrans, MQ_REB_TRANS_START_FUNC, MQ_REB_TRANS_STOP_FUNC, NULL, 0);
+  mndTransSetCb(pTrans, TRANS_START_FUNC_MQ_REB, TRANS_STOP_FUNC_TEST_MQ_REB, NULL, 0);
 
   // 6. execution
   if (mndTransPrepare(pMnode, pTrans) != 0) goto REB_FAIL;
