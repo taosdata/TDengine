@@ -1839,6 +1839,8 @@ SELECT TIMEDIFF(ts_val1 | datetime_string1 | ts_col1, ts_val2 | datetime_string2
   1u(microsecond),1a(millisecond),1s(second),1m(minute),1h(hour),1d(day).
 - The precision of the returned timestamp is same as the precision set for the current data base in use
 
+**Applicable versions**:Since version 2.6.0.0
+
 **Examples**:
 
 ```sql
