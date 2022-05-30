@@ -60,14 +60,12 @@ typedef enum {
 
 typedef enum {
   TRN_STAGE_PREPARE = 0,
-  TRN_STAGE_REDO_LOG = 1,
-  TRN_STAGE_REDO_ACTION = 2,
-  TRN_STAGE_ROLLBACK = 3,
-  TRN_STAGE_UNDO_ACTION = 4,
-  TRN_STAGE_UNDO_LOG = 5,
-  TRN_STAGE_COMMIT = 6,
-  TRN_STAGE_COMMIT_LOG = 7,
-  TRN_STAGE_FINISHED = 8
+  TRN_STAGE_REDO_ACTION = 1,
+  TRN_STAGE_ROLLBACK = 2,
+  TRN_STAGE_UNDO_ACTION = 3,
+  TRN_STAGE_COMMIT = 4,
+  TRN_STAGE_COMMIT_ACTION = 5,
+  TRN_STAGE_FINISHED = 6
 } ETrnStage;
 
 typedef enum {
@@ -168,16 +166,16 @@ typedef struct {
   SRpcHandleInfo rpcInfo;
   void*          rpcRsp;
   int32_t        rpcRspLen;
-  SArray*        redoLogs;
-  SArray*        undoLogs;
-  SArray*        commitLogs;
+  int32_t        redoActionPos;
   SArray*        redoActions;
   SArray*        undoActions;
+  SArray*        commitActions;
   int64_t        createdTime;
   int64_t        lastExecTime;
   int64_t        dbUid;
   char           dbname[TSDB_DB_FNAME_LEN];
   char           lastError[TSDB_TRANS_ERROR_LEN];
+  char           desc[TSDB_TRANS_DESC_LEN];
   int32_t        startFunc;
   int32_t        stopFunc;
   int32_t        paramLen;

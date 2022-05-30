@@ -26,31 +26,23 @@ typedef enum {
   TRANS_START_FUNC_TEST = 1,
   TRANS_STOP_FUNC_TEST = 2,
   TRANS_START_FUNC_MQ_REB = 3,
-  TRANS_STOP_FUNC_TEST_MQ_REB = 4,
+  TRANS_STOP_FUNC_MQ_REB = 4,
 } ETrnFunc;
 
 typedef struct {
-  SEpSet  epSet;
-  tmsg_t  msgType;
-  int8_t  msgSent;
-  int8_t  msgReceived;
-  int32_t errCode;
-  int32_t acceptableCode;
-  int32_t contLen;
-  void   *pCont;
-} STransAction;
-
-typedef struct {
+  int32_t  id;
+  tmsg_t   msgType;
+  int8_t   msgSent;
+  int8_t   msgReceived;
+  int8_t   isRaw;
+  int8_t   rawWritten;
   SSdbRaw *pRaw;
-} STransLog;
-
-typedef struct {
-  ETrnStep stepType;
-  STransAction redoAction;
-  STransAction undoAction;
-  STransLog    redoLog;
-  STransLog    undoLog;
-} STransStep;
+  SEpSet   epSet;
+  int32_t  errCode;
+  int32_t  acceptableCode;
+  int32_t  contLen;
+  void    *pCont;
+} STransAction;
 
 typedef void (*TransCbFp)(SMnode *pMnode, void *param, int32_t paramLen);
 
