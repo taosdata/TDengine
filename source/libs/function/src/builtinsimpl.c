@@ -3776,6 +3776,7 @@ static void tailAssignResult(STailItem* pItem, char *data, int32_t colBytes, TSK
   if (isNull) {
     pItem->isNull = true;
   } else {
+    pItem->isNull = false;
     memcpy(pItem->data, data, colBytes);
   }
 }
