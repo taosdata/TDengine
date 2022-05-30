@@ -149,6 +149,7 @@ typedef struct STscObj {
   int32_t       numOfReqs;  // number of sqlObj bound to this connection
   SAppInstInfo* pAppInfo;
   SHashObj*     pRequests;
+  int8_t        schemalessType;
 } STscObj;
 
 typedef struct SResultColumn {

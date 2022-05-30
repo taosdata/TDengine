@@ -302,6 +302,7 @@ typedef struct {
   int8_t  hashMethod;  // default is 1
   int32_t numOfRetensions;
   SArray* pRetensions;
+  int8_t  schemaless;
 } SDbCfg;
 
 typedef struct {

@@ -86,6 +86,7 @@ void dumpDb(SSdb *pSdb, SJson *json) {
     tjsonAddIntegerToObject(item, "cacheLastRow", pObj->cfg.cacheLastRow);
     tjsonAddIntegerToObject(item, "hashMethod", pObj->cfg.hashMethod);
     tjsonAddIntegerToObject(item, "numOfRetensions", pObj->cfg.numOfRetensions);
+    tjsonAddIntegerToObject(item, "schemaless", pObj->cfg.schemaless);
 
     sdbRelease(pSdb, pObj);
   }

@@ -2619,6 +2619,11 @@ static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt
   if (TSDB_CODE_SUCCESS == code) {
     code = checkTableSchema(pCxt, pStmt);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    if(pCxt->pParseCxt->schemalessType == 0 && isNotSchemalessDb(pCxt->pParseCxt) != TSDB_CODE_SUCCESS){
+      code = TSDB_CODE_SML_INVALID_DB_CONF;
+    }
+  }
   return code;
 }
 
@@ -4350,6 +4355,9 @@ static SArray* serializeVgroupsCreateTableBatch(int32_t acctId, SHashObj* pVgrou
 }
 
 static int32_t rewriteCreateMultiTable(STranslateContext* pCxt, SQuery* pQuery) {
+  if(pCxt->pParseCxt->schemalessType == 0 && isNotSchemalessDb(pCxt->pParseCxt) != TSDB_CODE_SUCCESS){
+    return TSDB_CODE_SML_INVALID_DB_CONF;
+  }
   SCreateMultiTableStmt* pStmt = (SCreateMultiTableStmt*)pQuery->pRoot;
 
   SHashObj* pVgroupHashmap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
@@ -4766,6 +4774,9 @@ static int32_t buildModifyVnodeArray(STranslateContext* pCxt, SAlterTableStmt* p
 }
 
 static int32_t rewriteAlterTable(STranslateContext* pCxt, SQuery* pQuery) {
+  if(pCxt->pParseCxt->schemalessType == 0 && isNotSchemalessDb(pCxt->pParseCxt) != TSDB_CODE_SUCCESS){
+    return TSDB_CODE_SML_INVALID_DB_CONF;
+  }
   SAlterTableStmt* pStmt = (SAlterTableStmt*)pQuery->pRoot;
 
   STableMeta* pTableMeta = NULL;

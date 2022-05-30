@@ -2318,6 +2318,28 @@ cleanup:
   return code;
 }
 
+static int32_t isSchemalessDb(SSmlHandle* info){
+  SName          name;
+  tNameSetDbName(&name, info->taos->acctId, info->taos->db, strlen(info->taos->db));
+  char dbFname[TSDB_DB_FNAME_LEN] = {0};
+  tNameGetFullDbName(&name, dbFname);
+  SDbCfgInfo pInfo = {0};
+  SEpSet ep = getEpSet_s(&info->taos->pAppInfo->mgmtEp);
+
+  int32_t code = catalogGetDBCfg(info->pCatalog, info->taos->pAppInfo->pTransporter, &ep, dbFname, &pInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    info->pRequest->code = code;
+    smlBuildInvalidDataMsg(&info->msgBuf, "catalogGetDBCfg error, code:", tstrerror(code));
+    return code;
+  }
+  if (!pInfo.schemaless){
+    info->pRequest->code = TSDB_CODE_SML_INVALID_DB_CONF;
+    smlBuildInvalidDataMsg(&info->msgBuf, "can not insert into schemaless db:", dbFname);
+    return TSDB_CODE_SML_INVALID_DB_CONF;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 /**
  * taos_schemaless_insert() parse and insert data points into database according to
  * different protocol.
@@ -2349,6 +2371,17 @@ TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int pr
   SSmlHandle* info = smlBuildSmlInfo(taos, request, (SMLProtocolType)protocol, precision);
   if(!info){
     return (TAOS_RES*)request;
+  }
+
+  info->taos->schemalessType = 1;
+  if(request->pDb == NULL){
+    request->code = TSDB_CODE_PAR_DB_NOT_SPECIFIED;
+    smlBuildInvalidDataMsg(&info->msgBuf, "Database not specified", NULL);
+    goto end;
+  }
+
+  if(isSchemalessDb(info) != TSDB_CODE_SUCCESS){
+    goto end;
   }
 
   if (!lines) {

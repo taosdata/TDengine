@@ -2226,6 +2226,7 @@ int32_t tSerializeSDbCfgRsp(void *buf, int32_t bufLen, const SDbCfgRsp *pRsp) {
     if (tEncodeI8(&encoder, pRetension->freqUnit) < 0) return -1;
     if (tEncodeI8(&encoder, pRetension->keepUnit) < 0) return -1;
   }
+  if (tEncodeI8(&encoder, pRsp->schemaless) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -2274,6 +2275,7 @@ int32_t tDeserializeSDbCfgRsp(void *buf, int32_t bufLen, SDbCfgRsp *pRsp) {
       return -1;
     }
   }
+  if (tDecodeI8(&decoder, &pRsp->schemaless) < 0) return -1;
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);

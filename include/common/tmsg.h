@@ -779,6 +779,7 @@ typedef struct {
   int8_t  cacheLastRow;
   int32_t numOfRetensions;
   SArray* pRetensions;
+  int8_t  schemaless;
 } SDbCfgRsp;
 
 int32_t tSerializeSDbCfgRsp(void* buf, int32_t bufLen, const SDbCfgRsp* pRsp);
@@ -1009,6 +1010,7 @@ typedef struct {
   SReplica replicas[TSDB_MAX_REPLICA];
   int32_t  numOfRetensions;
   SArray*  pRetensions;  // SRetention
+  int8_t   schemaless;
 
   // for tsma
   int8_t isTsma;
