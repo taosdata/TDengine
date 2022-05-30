@@ -315,13 +315,13 @@ password:             taosdata
      taoslog-td2:
    ```
 
-  :::note
+:::note
 - The `VERSION` environment variable is used to set the tdengine image tag
     - `TAOS_FIRST_EP` must be set on the newly created instance so that it can join the TDengine cluster; if there is a high availability requirement, `TAOS_SECOND_EP` needs to be used at the same time
     - `TAOS_REPLICA` is used to set the default number of database replicas. Its value range is [1,3]
-      We recommend setting with `TAOS_ARBITRATOR` to use arbitrator in a two-nodes environment.
-  :::
-
+      We recommend setting it with `TAOS_ARBITRATOR` to use arbitrator in a two-nodes environment.
+ 
+ :::
 
 2. Start the cluster
 

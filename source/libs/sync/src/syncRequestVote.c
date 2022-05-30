@@ -44,7 +44,7 @@
 int32_t syncNodeOnRequestVoteCb(SSyncNode* ths, SyncRequestVote* pMsg) {
   int32_t ret = 0;
 
-  char logBuf[128];
+  char logBuf[128] = {0};
   snprintf(logBuf, sizeof(logBuf), "==syncNodeOnRequestVoteCb== term:%lu", ths->pRaftStore->currentTerm);
   syncRequestVoteLog2(logBuf, pMsg);
 

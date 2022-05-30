@@ -9,7 +9,7 @@ Keyword `STable`, abbreviated for super table, is supported since version 2.0.15
 
 :::
 
-## Crate STable
+## Create STable
 
 ```
 CREATE STable [IF NOT EXISTS] stb_name (timestamp_field_name TIMESTAMP, field1_name data_type1 [, field2_name data_type2 ...]) TAGS (tag1_name tag_type1, tag2_name tag_type2 [, tag3_name tag_type3]);
@@ -19,7 +19,7 @@ The SQL statement of creating a STable is similar to that of creating a table, b
 
 :::info
 
-1. The tag types specified in TAGS should NOT be timestamp. Since 2.1.3.0 timestamp type can be used in TAGS column, but its value must be fixed and arithmetic operation can't be applied on it.
+1. A tag can be of type timestamp, since version 2.1.3.0, but its value must be fixed and arithmetic operations cannot be performed on it. Prior to version 2.1.3.0, tag types specified in TAGS could not be of type timestamp.
 2. The tag names specified in TAGS should NOT be the same as other columns.
 3. The tag names specified in TAGS should NOT be the same as any reserved keywords.(Please refer to [keywords](/taos-sql/keywords/)
 4. The maximum number of tags specified in TAGS is 128, there must be at least one tag, and the total length of all tag columns should NOT exceed 16KB.
@@ -76,7 +76,7 @@ ALTER STable stb_name DROP COLUMN field_name;
 ALTER STable stb_name MODIFY COLUMN field_name data_type(length);
 ```
 
-This command can be used to change (or increase, more specifically) the length of a column of variable length types, like BINARY or NCHAR.
+This command can be used to change (or more specifically, increase) the length of a column of variable length types, like BINARY or NCHAR.
 
 ## Change Tags of A STable
 
@@ -94,7 +94,7 @@ This command is used to add a new tag for a STable and specify the tag type.
 ALTER STable stb_name DROP TAG tag_name;
 ```
 
-The tag will be removed automatically from all the subtables created using the super table as template once a tag is removed from a super table.
+The tag will be removed automatically from all the subtables, created using the super table as template, once a tag is removed from a super table.
 
 ### Change A Tag
 
@@ -102,7 +102,7 @@ The tag will be removed automatically from all the subtables created using the s
 ALTER STable stb_name CHANGE TAG old_tag_name new_tag_name;
 ```
 
-The tag name will be changed automatically for all the subtables created using the super table as template once a tag name is changed for a super table.
+The tag name will be changed automatically for all the subtables, created using the super table as template, once a tag name is changed for a super table.
 
 ### Change Tag Length
 
@@ -110,7 +110,7 @@ The tag name will be changed automatically for all the subtables created using t
 ALTER STable stb_name MODIFY TAG tag_name data_type(length);
 ```
 
-This command can be used to change (or increase, more specifically) the length of a tag of variable length types, like BINARY or NCHAR.
+This command can be used to change (or more specifically, increase) the length of a tag of variable length types, like BINARY or NCHAR.
 
 :::note
 Changing tag values can be applied to only subtables. All other tag operations, like add tag, remove tag, however, can be applied to only STable. If a new tag is added for a STable, the tag will be added with NULL value for all its subtables.

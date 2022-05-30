@@ -26,19 +26,19 @@ int32_t mndProcessQueryMsg(SRpcMsg *pMsg) {
   mTrace("msg:%p, in query queue is processing", pMsg);
   switch (pMsg->msgType) {
     case TDMT_VND_QUERY:
-      code = qWorkerProcessQueryMsg(&handle, pMnode->pQuery, pMsg);
+      code = qWorkerProcessQueryMsg(&handle, pMnode->pQuery, pMsg, 0);
       break;
     case TDMT_VND_QUERY_CONTINUE:
-      code = qWorkerProcessCQueryMsg(&handle, pMnode->pQuery, pMsg);
+      code = qWorkerProcessCQueryMsg(&handle, pMnode->pQuery, pMsg, 0);
       break;
     case TDMT_VND_FETCH:
-      code = qWorkerProcessFetchMsg(pMnode, pMnode->pQuery, pMsg);
+      code = qWorkerProcessFetchMsg(pMnode, pMnode->pQuery, pMsg, 0);
       break;
     case TDMT_VND_DROP_TASK:
-      code = qWorkerProcessDropMsg(pMnode, pMnode->pQuery, pMsg);
+      code = qWorkerProcessDropMsg(pMnode, pMnode->pQuery, pMsg, 0);
       break;
     case TDMT_VND_QUERY_HEARTBEAT:
-      code = qWorkerProcessHbMsg(pMnode, pMnode->pQuery, pMsg);
+      code = qWorkerProcessHbMsg(pMnode, pMnode->pQuery, pMsg, 0);
       break;
     default:
       terrno = TSDB_CODE_VND_APP_ERROR;

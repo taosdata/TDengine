@@ -1,17 +1,17 @@
 ---
 title: Data Types
-description: "The data types supported by TDengine include timestamp, float, JSON, etc"
+description: "TDengine supports a variety of data types including timestamp, float, JSON and many others."
 ---
 
-When using TDengine to store and query data, the most important part of the data is timestamp. Timestamp must be specified when creating and inserting data rows or querying data, timestamp must follow the rules below:
+When using TDengine to store and query data, the most important part of the data is timestamp. Timestamp must be specified when creating and inserting data rows. Timestamp must follow the rules below:
 
-- the format must be `YYYY-MM-DD HH:mm:ss.MS`, the default time precision is millisecond (ms), for example `2017-08-12 18:25:58.128`
-- internal function `now` can be used to get the current timestamp of the client side
-- the current timestamp of the client side is applied when `now` is used to insert data
+- The format must be `YYYY-MM-DD HH:mm:ss.MS`, the default time precision is millisecond (ms), for example `2017-08-12 18:25:58.128`
+- Internal function `now` can be used to get the current timestamp on the client side
+- The current timestamp of the client side is applied when `now` is used to insert data
 - Epoch Time：timestamp can also be a long integer number, which means the number of seconds, milliseconds or nanoseconds, depending on the time precision, from 1970-01-01 00:00:00.000 (UTC/GMT)
-- timestamp can be applied with add/subtract operation, for example `now-2h` means 2 hours back from the time at which query is executed，the unit can be b(nanosecond), u(microsecond), a(millisecond), s(second), m(minute), h(hour), d(day), or w(week). So `select * from t1 where ts > now-2w and ts <= now-1w` means the data between two weeks ago and one week ago. The time unit can also be n (calendar month) or y (calendar year) when specifying the time window for down sampling operation.
+- Add/subtract operations can be carried out on timestamps. For example `now-2h` means 2 hours prior to the time at which query is executed. The units of time in operations can be b(nanosecond), u(microsecond), a(millisecond), s(second), m(minute), h(hour), d(day), or w(week). So `select * from t1 where ts > now-2w and ts <= now-1w` means the data between two weeks ago and one week ago. The time unit can also be n (calendar month) or y (calendar year) when specifying the time window for down sampling operations.
 
-Time precision in TDengine can be set by the `PRECISION` parameter when executing `CREATE DATABASE`, like below, the default time precision is millisecond.
+Time precision in TDengine can be set by the `PRECISION` parameter when executing `CREATE DATABASE`. The default time precision is millisecond. In the statement below, the precision is set to nanonseconds.
 
 ```sql
 CREATE DATABASE db_name PRECISION 'ns';
@@ -30,8 +30,8 @@ In TDengine, the data types below can be used when specifying a column or tag.
 | 7   | SMALLINT  | 2         | Short integer, the value range is [-32767, 32767], while -32768 is treated as NULL  |
 | 8   |  TINYINT  | 1         | Single-byte integer, the value range is [-127, 127], while -128 is treated as NULL |
 | 9   |   BOOL    | 1         | Bool, the value range is {true, false}   |
-| 10  | NCHAR     | User Defined| Multiple-Byte string that can include like Chinese characters. Each character of NCHAR type consumes 4 bytes storage. The string value should be quoted with single quotes. Literal single quote inside the string must be preceded with backslash, like `\’`. The length must be specified when defining a column or tag of NCHAR type, for example nchar(10) means it can store at most 10 characters of nchar type and will consume fixed storage of 40 bytes. An error will be reported if the string value exceeds the length defined.   |
-| 11  |   JSON    |           | json type can only be used on tag, a tag of json type is excluded with any other tags of any other type |
+| 10  | NCHAR     | User Defined| Multi-Byte string that can include multi byte characters like Chinese characters. Each character of NCHAR type consumes 4 bytes storage. The string value should be quoted with single quotes. Literal single quote inside the string must be preceded with backslash, like `\’`. The length must be specified when defining a column or tag of NCHAR type, for example nchar(10) means it can store at most 10 characters of nchar type and will consume fixed storage of 40 bytes. An error will be reported if the string value exceeds the length defined.   |
+| 11  |   JSON    |           | JSON type can only be used on tags. A tag of json type is excluded with any other tags of any other type |
 
 :::tip
 TDengine is case insensitive and treats any characters in the sql command as lower case by default, case sensitive strings must be quoted with single quotes.
@@ -39,7 +39,7 @@ TDengine is case insensitive and treats any characters in the sql command as low
 :::
 
 :::note
-Only ASCII visible characters are suggested to be used in a column or tag of BINARY type. Multiple-byte characters must be stored in NCHAR type.
+Only ASCII visible characters are suggested to be used in a column or tag of BINARY type. Multi-byte characters must be stored in NCHAR type.
 
 :::
 

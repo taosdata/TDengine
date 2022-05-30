@@ -74,7 +74,7 @@ int32_t syncIOSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
   {
     syncUtilMsgNtoH(pMsg->pCont);
 
-    char logBuf[256];
+    char logBuf[256] = {0};
     snprintf(logBuf, sizeof(logBuf), "==syncIOSendMsg== %s:%d", pEpSet->eps[0].fqdn, pEpSet->eps[0].port);
     syncRpcMsgLog2(logBuf, pMsg);
 
@@ -89,7 +89,7 @@ int32_t syncIOSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
 
 int32_t syncIOEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
   int32_t ret = 0;
-  char    logBuf[128];
+  char    logBuf[128] = {0};
   syncRpcMsgLog2((char *)"==syncIOEqMsg==", pMsg);
 
   SRpcMsg *pTemp;

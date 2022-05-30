@@ -36,13 +36,14 @@ if $data(2)[4] != ready then
   goto step1
 endi
 
-print =============== create drop mnode 1
 sql_error create mnode on dnode 1
 sql_error drop mnode on dnode 1
+
+print =============== create mnode 2
 sql create mnode on dnode 2
 
 $x = 0
-step1: 
+step2: 
 	$x = $x + 1
 	sleep 1000
 	if $x == 20 then
@@ -65,11 +66,11 @@ if $data(2)[0] != 2 then
   return -1
 endi
 if $data(2)[2] != FOLLOWER then 
-  goto step1
+  goto step2
 endi
 
 sleep 2000
-print ============ drop mnodes
+print ============ drop mnode 2
 sql drop mnode on dnode 2
 sql show mnodes
 if $rows != 1 then 

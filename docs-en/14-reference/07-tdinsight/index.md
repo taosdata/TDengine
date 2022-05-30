@@ -61,7 +61,7 @@ sudo yum install \
 
 ## Automated deployment of TDinsight
 
-We provide an installation script [`TDinsight.sh`](https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh) script to allow users to configure the installation automatically and quickly.
+We provide an installation script [`TDinsight.sh`](https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh) to allow users to configure the installation automatically and quickly.
 
 You can download the script via `wget` or other tools:
 
@@ -300,7 +300,7 @@ This section contains the current information and status of the cluster, the ale
 
 ![TDengine Database TDinsight mnodes overview](./assets/TDinsight-3-mnodes.webp)
 
-1. **MNodes Status**: a simple table view of `show mnodes`. 2.
+1. **MNodes Status**: a simple table view of `show mnodes`.
 2. **MNodes Number**: similar to `DNodes Number`, the number of MNodes changes.
 
 ### Request
@@ -317,9 +317,9 @@ This section contains the current information and status of the cluster, the ale
 
 Database usage, repeated for each value of the variable `$database` i.e. multiple rows per database.
 
-1. **STables**: number of super tables. 2.
-2. **Total Tables**: number of all tables. 3.
-3. **Sub Tables**: the number of all super table sub-tables. 4.
+1. **STables**: number of super tables.
+2. **Total Tables**: number of all tables.
+3. **Sub Tables**: the number of all super table subtables.
 4. **Tables**: graph of all normal table numbers over time.
 5. **Tables Number Foreach VGroups**: The number of tables contained in each VGroups.
 
@@ -330,18 +330,18 @@ Database usage, repeated for each value of the variable `$database` i.e. multipl
 Data node resource usage display with repeated multiple rows for the variable `$fqdn` i.e., each data node. Includes.
 
 1. **Uptime**: the time elapsed since the dnode was created.
-2. **Has MNodes?**: whether the current dnode is a mnode. 3.
-3. **CPU Cores**: the number of CPU cores. 4.
-4. **VNodes Number**: the number of VNodes in the current dnode. 5.
-5. **VNodes Masters**: the number of vnodes in the master role. 6.
+2. **Has MNodes?**: whether the current dnode is a mnode.
+3. **CPU Cores**: the number of CPU cores.
+4. **VNodes Number**: the number of VNodes in the current dnode.
+5. **VNodes Masters**: the number of vnodes in the master role.
 6. **Current CPU Usage of taosd**: CPU usage rate of taosd processes.
 7. **Current Memory Usage of taosd**: memory usage of taosd processes.
 8. **Disk Used**: The total disk usage percentage of the taosd data directory.
-9. **CPU Usage**: Process and system CPU usage. 10.
+9. **CPU Usage**: Process and system CPU usage.
 10. **RAM Usage**: Time series view of RAM usage metrics.
 11. **Disk Used**: Disks used at each level of multi-level storage (default is level0).
 12. **Disk Increasing Rate per Minute**: Percentage increase or decrease in disk usage per minute.
-13. **Disk IO**: Disk IO rate. 14.
+13. **Disk IO**: Disk IO rate.
 14. **Net IO**: Network IO, the aggregate network IO rate in addition to the local network.
 
 ### Login History
@@ -376,7 +376,7 @@ TDinsight installed via the `TDinsight.sh` script can be cleaned up using the co
 To completely uninstall TDinsight during a manual installation, you need to clean up the following.
 
 1. the TDinsight Dashboard in Grafana.
-2. the Data Source in Grafana. 3.
+2. the Data Source in Grafana.
 3. remove the `tdengine-datasource` plugin from the plugin installation directory.
 
 ## Integrated Docker Example

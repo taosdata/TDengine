@@ -62,7 +62,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     dmProcessNetTestReq(pDnode, pRpc);
     return;
   } else if (pRpc->msgType == TDMT_MND_SYSTABLE_RETRIEVE_RSP || pRpc->msgType == TDMT_VND_FETCH_RSP) {
-    qWorkerProcessFetchRsp(NULL, NULL, pRpc);
+    qWorkerProcessFetchRsp(NULL, NULL, pRpc, 0);
     return;
   } else if (pRpc->msgType == TDMT_MND_STATUS_RSP && pEpSet != NULL) {
     dmSetMnodeEpSet(&pDnode->data, pEpSet);

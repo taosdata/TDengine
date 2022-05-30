@@ -42,6 +42,9 @@ void ctgFreeSMetaData(SMetaData* pData) {
   }
   taosArrayDestroy(pData->pDbCfg);
   pData->pDbCfg = NULL;
+
+  taosArrayDestroy(pData->pDbInfo);
+  pData->pDbInfo = NULL;
   
   taosArrayDestroy(pData->pIndex);
   pData->pIndex = NULL;
@@ -293,9 +296,12 @@ void ctgFreeTask(SCtgTask* pTask) {
     }
     case CTG_TASK_GET_DB_CFG: {
       taosMemoryFreeClear(pTask->taskCtx);      
-      if (pTask->res) {
-        taosMemoryFreeClear(pTask->res);
-      }
+      taosMemoryFreeClear(pTask->res);
+      break;
+    }
+    case CTG_TASK_GET_DB_INFO: {
+      taosMemoryFreeClear(pTask->taskCtx);      
+      taosMemoryFreeClear(pTask->res);
       break;
     }
     case CTG_TASK_GET_TB_HASH: {

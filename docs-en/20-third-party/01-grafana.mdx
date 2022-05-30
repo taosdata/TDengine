@@ -23,7 +23,7 @@ You can download The Grafana plugin for TDengine from <https://github.com/taosda
 
 Recommend using the [``grafana-cli`` command-line tool](https://grafana.com/docs/grafana/latest/administration/cli/) for plugin installation.
 
-``bash
+```bash
 sudo -u grafana grafana-cli \
   --pluginUrl https://github.com/taosdata/grafanaplugin/releases/download/v3.1.4/tdengine-datasource-3.1.4.zip \
   plugins install tdengine-datasource
@@ -88,7 +88,7 @@ Go back to the main interface to create the Dashboard, click Add Query to enter 
 
 As shown above, select the `TDengine` data source in the `Query` and enter the corresponding SQL in the query box below for query.
 
-- INPUT SQL: enter the statement to be queried (the result set of the SQL statement should be two columns and multiple rows), for example: `select avg(mem_system) from log.dn where ts >= $from and ts < $to interval($interval)`, where, from, to and interval are built-in variables of the TDengine plugin, indicating the range and time interval of queries fetched from the Grafana plugin panel. In addition to the built-in variables, ` custom template variables are also supported.
+- INPUT SQL: enter the statement to be queried (the result set of the SQL statement should be two columns and multiple rows), for example: `select avg(mem_system) from log.dn where ts >= $from and ts < $to interval($interval)`, where, from, to and interval are built-in variables of the TDengine plugin, indicating the range and time interval of queries fetched from the Grafana plugin panel. In addition to the built-in variables, custom template variables are also supported.
 - ALIAS BY: This allows you to set the current query alias.
 - GENERATE SQL: Clicking this button will automatically replace the corresponding variables and generate the final executed statement.
 

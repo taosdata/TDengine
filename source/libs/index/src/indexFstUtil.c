@@ -93,14 +93,15 @@ FstSlice fstSliceCreate(uint8_t* data, uint64_t len) {
 // just shallow copy
 FstSlice fstSliceCopy(FstSlice* s, int32_t start, int32_t end) {
   FstString* str = s->str;
-  str->ref++;
+  atomic_add_fetch_32(&str->ref, 1);
 
   FstSlice t = {.str = str, .start = start + s->start, .end = end + s->start};
   return t;
 }
 FstSlice fstSliceDeepCopy(FstSlice* s, int32_t start, int32_t end) {
-  int32_t  tlen = end - start + 1;
-  int32_t  slen;
+  int32_t tlen = end - start + 1;
+  int32_t slen;
+
   uint8_t* data = fstSliceData(s, &slen);
   assert(tlen <= slen);
 
@@ -129,8 +130,9 @@ uint8_t* fstSliceData(FstSlice* s, int32_t* size) {
 }
 void fstSliceDestroy(FstSlice* s) {
   FstString* str = s->str;
-  str->ref--;
-  if (str->ref == 0) {
+
+  int32_t ref = atomic_sub_fetch_32(&str->ref, 1);
+  if (ref == 0) {
     taosMemoryFree(str->data);
     taosMemoryFree(str);
     s->str = NULL;

@@ -105,13 +105,15 @@ tsdbReaderT  tsdbQueryCacheLast(SVnode *pVnode, SQueryTableDataCond *pCond, STab
                                 void *pMemRef);
 int32_t      tsdbGetFileBlocksDistInfo(tsdbReaderT *pReader, STableBlockDistInfo *pTableBlockInfo);
 bool         isTsdbCacheLastRow(tsdbReaderT *pReader);
-int32_t      tsdbGetAllTableList(SMeta* pMeta, uint64_t uid, SArray* list);
+int32_t      tsdbGetAllTableList(SMeta *pMeta, uint64_t uid, SArray *list);
+void *       tsdbGetIdx(SMeta *pMeta);
 int64_t      tsdbGetNumOfRowsInMemTable(tsdbReaderT *pHandle);
-bool         tsdbNextDataBlock(tsdbReaderT pTsdbReadHandle);
-void         tsdbRetrieveDataBlockInfo(tsdbReaderT *pTsdbReadHandle, SDataBlockInfo *pBlockInfo);
+
+bool    tsdbNextDataBlock(tsdbReaderT pTsdbReadHandle);
+void    tsdbRetrieveDataBlockInfo(tsdbReaderT *pTsdbReadHandle, SDataBlockInfo *pBlockInfo);
 int32_t tsdbRetrieveDataBlockStatisInfo(tsdbReaderT *pTsdbReadHandle, SColumnDataAgg ***pBlockStatis, bool *allHave);
 SArray *tsdbRetrieveDataBlock(tsdbReaderT *pTsdbReadHandle, SArray *pColumnIdList);
-void    tsdbResetReadHandle(tsdbReaderT queryHandle, SQueryTableDataCond *pCond);
+void    tsdbResetReadHandle(tsdbReaderT queryHandle, SQueryTableDataCond *pCond, int32_t tWinIdx);
 void    tsdbCleanupReadHandle(tsdbReaderT queryHandle);
 
 // tq
@@ -174,7 +176,7 @@ struct SMetaEntry {
   int64_t  version;
   int8_t   type;
   tb_uid_t uid;
-  char    *name;
+  char *   name;
   union {
     struct {
       SSchemaWrapper schemaRow;
@@ -202,17 +204,17 @@ struct SMetaEntry {
 
 struct SMetaReader {
   int32_t    flags;
-  SMeta     *pMeta;
+  SMeta *    pMeta;
   SDecoder   coder;
   SMetaEntry me;
-  void      *pBuf;
+  void *     pBuf;
   int32_t    szBuf;
 };
 
 struct SMTbCursor {
-  TBC        *pDbc;
-  void       *pKey;
-  void       *pVal;
+  TBC *       pDbc;
+  void *      pKey;
+  void *      pVal;
   int32_t     kLen;
   int32_t     vLen;
   SMetaReader mr;

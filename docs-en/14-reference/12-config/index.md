@@ -65,7 +65,7 @@ taos --dump-config
 | ------------- | ------------------------------------------------------------------------ |
 | Applicable    | Server Only                                                              |
 | Meaning       | The FQDN of the host where `taosd` will be started. It can be IP address |
-| Default Value | The first hostname configured for the hos                                |
+| Default Value | The first hostname configured for the host                               |
 | Note          | It should be within 96 bytes                                             |
 
 ### serverPort
@@ -78,7 +78,7 @@ taos --dump-config
 | Note          | REST service is provided by `taosd` before 2.4.0.0 but by `taosAdapter` after 2.4.0.0, the default port of REST service is 6041 |
 
 :::note
-TDengine uses continuous 13 ports, both TCP and TCP, from the port specified by `serverPort`. These ports need to be kept as open if firewall is enabled. Below table describes the ports used by TDengine in details.
+TDengine uses continuous 13 ports, both TCP and UDP, from the port specified by `serverPort`. These ports need to be kept open if firewall is enabled. Below table describes the ports used by TDengine in details.
 
 :::
 
@@ -182,8 +182,8 @@ TDengine uses continuous 13 ports, both TCP and TCP, from the port specified by 
 | ------------- | -------------------------------------------- |
 | Applicable    | Server Only                                  |
 | Meaning       | The maximum number of distinct rows returned |
-| Value Range   | [100,000 - 100, 000, 000]                    |
-| Default Value | 100, 000                                     |
+| Value Range   | [100,000 - 100,000,000]                      |
+| Default Value | 100,000                                      |
 | Note          | After version 2.3.0.0                        |
 
 ## Locale Parameters
@@ -240,7 +240,7 @@ To avoid the problems of using time strings, Unix timestamp can be used directly
 | Default Value | Locale configured in host |
 
 :::info
-A specific type "nchar" is provided in TDengine to store non-ASCII characters such as Chinese, Japanese, Korean. The characters to be stored in nchar type are firstly encoded in UCS4-LE before sending to server side. To store non-ASCII characters correctly, the encoding format of the client side needs to be set properly.
+A specific type "nchar" is provided in TDengine to store non-ASCII characters such as Chinese, Japanese, and Korean. The characters to be stored in nchar type are firstly encoded in UCS4-LE before sending to server side. To store non-ASCII characters correctly, the encoding format of the client side needs to be set properly.
 
 The characters input on the client side are encoded using the default system encoding, which is UTF-8 on Linux, or GB18030 or GBK on some systems in Chinese, POSIX in docker, CP936 on Windows in Chinese. The encoding of the operating system in use must be set correctly so that the characters in nchar type can be converted to UCS4-LE.
 
@@ -779,7 +779,7 @@ To prevent system resource from being exhausted by multiple concurrent streams, 
 
 :::note
 HTTP server had been provided by `taosd` prior to version 2.4.0.0, now is provided by `taosAdapter` after version 2.4.0.0.
-The parameters described in this section are only application in versions prior to 2.4.0.0. If you are using any version from 2.4.0.0, please refer to [taosAdapter]](/reference/taosadapter/).
+The parameters described in this section are only application in versions prior to 2.4.0.0. If you are using any version from 2.4.0.0, please refer to [taosAdapter](/reference/taosadapter/).
 
 :::
 

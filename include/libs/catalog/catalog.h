@@ -52,23 +52,31 @@ typedef struct SUserAuthInfo {
   AUTH_TYPE type;
 } SUserAuthInfo;
 
+typedef struct SDbInfo {
+  int32_t vgVer;
+  int32_t tbNum;
+  int64_t dbId;
+} SDbInfo;
+
 typedef struct SCatalogReq {
-  SArray *pTableMeta;     // element is SNAME
   SArray *pDbVgroup;      // element is db full name
+  SArray *pDbCfg;         // element is db full name
+  SArray *pDbInfo;        // element is db full name
+  SArray *pTableMeta;     // element is SNAME
   SArray *pTableHash;     // element is SNAME
   SArray *pUdf;           // element is udf name
-  SArray *pDbCfg;         // element is db full name
   SArray *pIndex;         // element is index name
   SArray *pUser;          // element is SUserAuthInfo
   bool    qNodeRequired;  // valid qnode
 } SCatalogReq;
 
 typedef struct SMetaData {
-  SArray    *pTableMeta;  // SArray<STableMeta*>
   SArray    *pDbVgroup;   // SArray<SArray<SVgroupInfo>*>
+  SArray    *pDbCfg;      // SArray<SDbCfgInfo>
+  SArray    *pDbInfo;     // SArray<SDbInfo>
+  SArray    *pTableMeta;  // SArray<STableMeta*>
   SArray    *pTableHash;  // SArray<SVgroupInfo>
   SArray    *pUdfList;    // SArray<SFuncInfo>
-  SArray    *pDbCfg;      // SArray<SDbCfgInfo>
   SArray    *pIndex;      // SArray<SIndexInfo>
   SArray    *pUser;       // SArray<bool>
   SArray    *pQnodeList;  // SArray<SQueryNodeAddr>
@@ -268,6 +276,8 @@ int32_t catalogGetUdfInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, co
 int32_t catalogChkAuth(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* user, const char* dbFName, AUTH_TYPE type, bool *pass);
 
 int32_t catalogUpdateUserAuthInfo(SCatalog* pCtg, SGetUserAuthRsp* pAuth);
+
+int32_t catalogUpdateVgEpSet(SCatalog* pCtg, const char* dbFName, int32_t vgId, SEpSet *epSet);
 
 
 int32_t ctgdLaunchAsyncCall(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, uint64_t reqId);

@@ -51,7 +51,7 @@ typedef struct SScalarCtx {
 
 int32_t doConvertDataType(SValueNode* pValueNode, SScalarParam* out);
 SColumnInfoData* createColumnInfoData(SDataType* pType, int32_t numOfRows);
-void sclConvertToTsValueNode(int8_t precision, SValueNode* valueNode);
+int32_t sclConvertToTsValueNode(int8_t precision, SValueNode* valueNode);
 
 #define GET_PARAM_TYPE(_c)      ((_c)->columnData->info.type)
 #define GET_PARAM_BYTES(_c)     ((_c)->columnData->info.bytes)
