@@ -36,6 +36,12 @@ def sync_source() {
                 git clean -fxd
                 git checkout 2.4
             '''
+        } else if (env.CHANGE_TARGET == '2.6') {
+            sh '''
+                cd ${WKC}
+                git clean -fxd
+                git checkout 2.6
+            '''
         } else {
             sh '''
                 cd ${WKC}
@@ -67,6 +73,11 @@ def sync_source() {
             sh '''
                 cd ${WK}
                 git checkout 2.4
+            '''
+        } else if (env.CHANGE_TARGET == '2.6') {
+            sh '''
+                cd ${WK}
+                git checkout 2.6
             '''
         } else {
             sh '''
