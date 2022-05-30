@@ -220,7 +220,7 @@ void syncNodeVoteForTerm(SSyncNode* pSyncNode, SyncTerm term, SRaftId* pRaftId);
 void syncNodeVoteForSelf(SSyncNode* pSyncNode);
 
 // snapshot --------------
-bool    syncNodeIsInSnapshot(SSyncNode* pSyncNode, SyncIndex index);
+bool    syncNodeIsIndexInSnapshot(SSyncNode* pSyncNode, SyncIndex index);
 int32_t syncNodeGetLastIndexTerm(SSyncNode* pSyncNode, SyncIndex* pLastIndex, SyncTerm* pLastTerm);
 int32_t syncNodeGetPreIndexTerm(SSyncNode* pSyncNode, SyncIndex index, SyncIndex* pPreIndex, SyncTerm* pPreTerm);
 
