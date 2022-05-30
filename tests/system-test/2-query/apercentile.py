@@ -21,23 +21,21 @@ class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
-
         self.rowNum = 10
         self.ts = 1537146000000
         
-    def check_apercentile(self,data,expect_data,param,percent):
+    def check_apercentile(self,data,expect_data,param,percent,column):
         if param == "default":
             if abs((expect_data-data) <= expect_data * 0.2):
-                tdLog.info(f"apercentile function values check success with param={param},percent={percent}")
+                tdLog.info(f"apercentile function values check success with col{column}, param = {param},percent = {percent}")
             else:
-                tdLog.notice(f"apercentile function value has not as expected with param={param},percent={percent}")
+                tdLog.notice(f"apercentile function value has not as expected with col{column}, param = {param},percent = {percent}")
                 sys.exit(1)
-            
         elif param == "t-digest":
             if abs((expect_data-data) <= expect_data * 0.2):
-                tdLog.info(f"apercentile function values check success with param={param},percent={percent}")
+                tdLog.info(f"apercentile function values check success with col{column}, param = {param},percent = {percent}")
             else:
-                tdLog.notice(f"apercentile function value has not as expected with param={param},percent={percent}")
+                tdLog.notice(f"apercentile function value has not as expected with col{column}, param = {param},percent = {percent}")
                 sys.exit(1)
 
     def run(self):
@@ -45,7 +43,8 @@ class TDTestCase:
 
         intData = []        
         floatData = []
-
+        percent_list = [0,50,100]
+        param_list = ['default','t-digest']
         tdSql.execute('''create table test(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 float, col6 double, 
                     col7 bool, col8 binary(20), col9 nchar(20), col11 tinyint unsigned, col12 smallint unsigned, col13 int unsigned, col14 bigint unsigned)''')
         for i in range(self.rowNum):
@@ -62,8 +61,7 @@ class TDTestCase:
         tdSql.error("select apercentile(col9 ,20) from test")    
 
         column_list = [1,2,3,4,5,6,11,12,13,14]
-        percent_list = [0,50,100]
-        param_list = ['default','t-digest']
+        
         for i in column_list:
             for j in percent_list:
                 for k in param_list:
@@ -71,7 +69,11 @@ class TDTestCase:
                     data = tdSql.getData(0, 0)
                     tdSql.query(f"select percentile(col{i},{j}) from test")
                     expect_data = tdSql.getData(0, 0)
-                    self.check_apercentile(data,expect_data,k) 
+                    self.check_apercentile(data,expect_data,k,j,i) 
+
+        error_param_list = [-1,101,'"a"']
+        for i in error_param_list:
+            tdSql.error(f'select apercentile(col1,{i}) from test')
 
         tdSql.execute("create table meters (ts timestamp, voltage int) tags(loc nchar(20))")
         tdSql.execute("create table t0 using meters tags('beijing')")
@@ -80,17 +82,23 @@ class TDTestCase:
             tdSql.execute("insert into t0 values(%d, %d)" % (self.ts + i, i + 1))            
             tdSql.execute("insert into t1 values(%d, %d)" % (self.ts + i, i + 1))            
         
-        tdSql.query("select apercentile(voltage, 20) from meters")
-        print("apercentile result: %s" % tdSql.getData(0, 0))
-
+        column_list = ['voltage']
+        for i in column_list:
+            for j in percent_list:
+                for k in param_list:
+                    tdSql.query(f"select apercentile({i}, {j},'{k}') from t0")
+                    data = tdSql.getData(0, 0)
+                    tdSql.query(f"select percentile({i},{j}) from t0")
+                    expect_data = tdSql.getData(0,0)
+                    self.check_apercentile(data,expect_data,k,j,i)
+                    tdSql.query(f"select apercentile({i}, {j},'{k}') from meters")
+                    tdSql.checkRows(1) 
+        table_list = ["meters","t0"]
+        for i in error_param_list:
+            for j in table_list:
+                for k in column_list:
+                    tdSql.error(f'select apercentile({k},{i}) from {j}')
  
-        tdSql.execute("create table st(ts timestamp, k int)")
-        tdSql.execute("insert into st values(now, -100)(now+1a,-99)")
-        tdSql.query("select apercentile(k, 20) from st")
-        tdSql.checkData(0, 0, -100.00)
-
-
-        
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
