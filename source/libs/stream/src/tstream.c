@@ -67,7 +67,7 @@ static int32_t streamBuildExecMsg(SStreamTask* pTask, SArray* data, SRpcMsg* pMs
 
   } else if (pTask->dispatchType == TASK_DISPATCH__SHUFFLE) {
     // TODO use general name rule of schemaless
-    char ctbName[TSDB_TABLE_FNAME_LEN + 22];
+    char ctbName[TSDB_TABLE_FNAME_LEN + 22] = {0};
     // all groupId must be the same in an array
     SSDataBlock* pBlock = taosArrayGet(data, 0);
     sprintf(ctbName, "%s:%ld", pTask->shuffleDispatcher.stbFullName, pBlock->info.groupId);

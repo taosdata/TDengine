@@ -190,7 +190,7 @@ SSyncRaftEntry* logStoreGetLastEntry(SSyncLogStore* pLogStore) {
 }
 
 cJSON* logStore2Json(SSyncLogStore* pLogStore) {
-  char               u64buf[128];
+  char               u64buf[128] = {0};
   SSyncLogStoreData* pData = (SSyncLogStoreData*)pLogStore->data;
   cJSON*             pRoot = cJSON_CreateObject();
 
@@ -227,7 +227,7 @@ char* logStore2Str(SSyncLogStore* pLogStore) {
 }
 
 cJSON* logStoreSimple2Json(SSyncLogStore* pLogStore) {
-  char               u64buf[128];
+  char               u64buf[128] = {0};
   SSyncLogStoreData* pData = (SSyncLogStoreData*)pLogStore->data;
   cJSON*             pRoot = cJSON_CreateObject();
 

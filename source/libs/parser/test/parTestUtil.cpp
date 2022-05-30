@@ -50,7 +50,7 @@ int32_t g_logLevel = 131;
 int32_t g_skipSql = 0;
 
 void setAsyncFlag(const char* pFlag) { g_testAsyncApis = stoi(pFlag) > 0 ? true : false; }
-void setSkipSqlNum(const char* pNum) { g_skipSql = stoi(optarg); }
+void setSkipSqlNum(const char* pNum) { g_skipSql = stoi(pNum); }
 
 struct TerminateFlag : public exception {
   const char* what() const throw() { return "success and terminate"; }

@@ -68,35 +68,9 @@ void mndRestoreFinish(struct SSyncFSM *pFsm) {
     mInfo("mnode sync restore finished");
     mndTransPullup(pMnode);
     mndSetRestore(pMnode, true);
+  } else {
+    mInfo("mnode sync restore finished, and will set ready after first deploy");
   }
-}
-
-int32_t mndSnapshotRead(struct SSyncFSM *pFsm, const SSnapshot *pSnapshot, void **ppIter, char **ppBuf, int32_t *len) {
-  SMnode *pMnode = pFsm->data;
-  mInfo("start to read snapshot from sdb");
-
-  // sdbStartRead
-  // sdbDoRead
-  // sdbStopRead
-
-  return 0;
-}
-
-int32_t mndSnapshotApply(struct SSyncFSM *pFsm, const SSnapshot *pSnapshot, char *pBuf, int32_t len) {
-  SMnode *pMnode = pFsm->data;
-
-  // sdbStartWrite
-  // sdbDoWrite
-
-  mndSetRestore(pMnode, false);
-  mInfo("start to apply snapshot to sdb");
-
-  // sdbStopWrite
-  mInfo("successfully to apply snapshot to sdb");
-  mndSetRestore(pMnode, true);
-
-  // taosMemoryFree(pBuf);
-  return 0;
 }
 
 void mndReConfig(struct SSyncFSM *pFsm, SSyncCfg newCfg, SReConfigCbMeta cbMeta) {
@@ -115,20 +89,55 @@ void mndReConfig(struct SSyncFSM *pFsm, SSyncCfg newCfg, SReConfigCbMeta cbMeta)
   }
 }
 
+int32_t mndSnapshotStartRead(struct SSyncFSM *pFsm, void **ppReader) {
+  mInfo("start to read snapshot from sdb");
+  SMnode *pMnode = pFsm->data;
+  return sdbStartRead(pMnode->pSdb, (SSdbIter **)ppReader);
+}
+
+int32_t mndSnapshotStopRead(struct SSyncFSM *pFsm, void *pReader) {
+  mInfo("stop to read snapshot from sdb");
+  SMnode *pMnode = pFsm->data;
+  return sdbStopRead(pMnode->pSdb, pReader);
+}
+
+int32_t mndSnapshotDoRead(struct SSyncFSM *pFsm, void *pReader, void **ppBuf, int32_t *len) {
+  SMnode *pMnode = pFsm->data;
+  return sdbDoRead(pMnode->pSdb, pReader, ppBuf, len);
+}
+
+int32_t mndSnapshotStartWrite(struct SSyncFSM *pFsm, void **ppWriter) {
+  mInfo("start to apply snapshot to sdb");
+  SMnode *pMnode = pFsm->data;
+  return sdbStartWrite(pMnode->pSdb, (SSdbIter **)ppWriter);
+}
+
+int32_t mndSnapshotStopWrite(struct SSyncFSM *pFsm, void *pWriter, bool isApply) {
+  mInfo("stop to apply snapshot to sdb, apply:%d", isApply);
+  SMnode *pMnode = pFsm->data;
+  return sdbStopWrite(pMnode->pSdb, pWriter, isApply);
+}
+
+int32_t mndSnapshotDoWrite(struct SSyncFSM *pFsm, void *pWriter, void *pBuf, int32_t len) {
+  SMnode *pMnode = pFsm->data;
+  return sdbDoWrite(pMnode->pSdb, pWriter, pBuf, len);
+}
+
 SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
   SSyncFSM *pFsm = taosMemoryCalloc(1, sizeof(SSyncFSM));
   pFsm->data = pMnode;
-
   pFsm->FpCommitCb = mndSyncCommitMsg;
   pFsm->FpPreCommitCb = NULL;
   pFsm->FpRollBackCb = NULL;
-
-  pFsm->FpGetSnapshot = mndSyncGetSnapshot;
   pFsm->FpRestoreFinishCb = mndRestoreFinish;
-  pFsm->FpSnapshotRead = mndSnapshotRead;
-  pFsm->FpSnapshotApply = mndSnapshotApply;
   pFsm->FpReConfigCb = mndReConfig;
-
+  pFsm->FpGetSnapshot = mndSyncGetSnapshot;
+  pFsm->FpSnapshotStartRead = mndSnapshotStartRead;
+  pFsm->FpSnapshotStopRead = mndSnapshotStopRead;
+  pFsm->FpSnapshotDoRead = mndSnapshotDoRead;
+  pFsm->FpSnapshotStartWrite = mndSnapshotStartWrite;
+  pFsm->FpSnapshotStopWrite = mndSnapshotStopWrite;
+  pFsm->FpSnapshotDoWrite = mndSnapshotDoWrite;
   return pFsm;
 }
 

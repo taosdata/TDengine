@@ -145,7 +145,7 @@ void subscribe_callback(TAOS_SUB* tsub, TAOS_RES *res, void* param, int code) {
 taos_unsubscribe(tsub, keep);
 ```
 
-其第二个参数，用于决定是否在客户端保留订阅的进度信息。如果这个参数是**false**（**0**），那无论下次调用 `taos_subscribe` 时的 `restart` 参数是什么，订阅都只能重新开始。另外，进度信息的保存位置是 _{DataDir}/subscribe/_ 这个目录下，每个订阅有一个与其 `topic` 同名的文件，删掉某个文件，同样会导致下次创建其对应的订阅时只能重新开始。
+其第二个参数，用于决定是否在客户端保留订阅的进度信息。如果这个参数是**false**（**0**），那无论下次调用 `taos_subscribe` 时的 `restart` 参数是什么，订阅都只能重新开始。另外，进度信息的保存位置是 _{DataDir}/subscribe/_ 这个目录下（注：`taos.cfg` 配置文件中 `DataDir` 参数值默认为 **/var/lib/taos/**,但是 Windows 服务器上本身不存在该目录，所以需要在 Windows 的配置文件中修改 `DataDir` 参数值为相应的已存在目录"），每个订阅有一个与其 `topic` 同名的文件，删掉某个文件，同样会导致下次创建其对应的订阅时只能重新开始。
 
 代码介绍完毕，我们来看一下实际的运行效果。假设：
 
