@@ -80,7 +80,7 @@ void vnodeSyncCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) 
   }
 
   if (cbMeta.index > beginIndex) {
-    char logBuf[256];
+    char logBuf[256] = {0};
     snprintf(
         logBuf, sizeof(logBuf),
         "==callback== ==CommitCb== execute, pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s, beginIndex :%ld\n",
@@ -115,7 +115,7 @@ void vnodeSyncCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) 
     tmsgPutToQueue(&(pVnode->msgCb), APPLY_QUEUE, &applyMsg);
 
   } else {
-    char logBuf[256];
+    char logBuf[256] = {0};
     snprintf(logBuf, sizeof(logBuf),
              "==callback== ==CommitCb== do not execute, pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s, "
              "beginIndex :%ld\n",
@@ -126,7 +126,7 @@ void vnodeSyncCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) 
 }
 
 void vnodeSyncPreCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
-  char logBuf[256];
+  char logBuf[256] = {0};
   snprintf(logBuf, sizeof(logBuf),
            "==callback== ==PreCommitCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s \n", pFsm, cbMeta.index,
            cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state));
@@ -134,7 +134,7 @@ void vnodeSyncPreCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMet
 }
 
 void vnodeSyncRollBackMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
-  char logBuf[256];
+  char logBuf[256] = {0};
   snprintf(logBuf, sizeof(logBuf), "==callback== ==RollBackCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s \n",
            pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state));
   syncRpcMsgLog2(logBuf, (SRpcMsg *)pMsg);
@@ -142,14 +142,13 @@ void vnodeSyncRollBackMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta
 
 SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   SSyncFSM *pFsm = taosMemoryCalloc(1, sizeof(SSyncFSM));
+  memset(pFsm, 0, sizeof(*pFsm));
   pFsm->data = pVnode;
   pFsm->FpCommitCb = vnodeSyncCommitMsg;
   pFsm->FpPreCommitCb = vnodeSyncPreCommitMsg;
   pFsm->FpRollBackCb = vnodeSyncRollBackMsg;
   pFsm->FpGetSnapshot = vnodeSyncGetSnapshot;
   pFsm->FpRestoreFinishCb = NULL;
-  pFsm->FpSnapshotRead = NULL;
-  pFsm->FpSnapshotApply = NULL;
   pFsm->FpReConfigCb = NULL;
 
   return pFsm;
