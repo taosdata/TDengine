@@ -169,8 +169,13 @@ class TDDnode:
         self.cfgDict.update({option: value})
 
     def remoteExec(self, updateCfgDict, execCmd):
-        remote_conn = Connection(self.remoteIP, port=22, user='root', connect_kwargs={'password':'123456'})
-        remote_top_dir = '~/test'
+        try:
+            config = eval(self.remoteIP)
+            remote_conn = Connection(host=config["host"], port=config["port"], user=config["user"], connect_kwargs={'password':config["password"]})
+            remote_top_dir = config["path"]
+        except Exception as r:
+            remote_conn = Connection(host=self.remoteIP, port=22, user='root', connect_kwargs={'password':'123456'})
+            remote_top_dir = '~/test'
         valgrindStr = ''
         if (self.valgrind==1):
             valgrindStr = '-g'

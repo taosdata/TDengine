@@ -145,7 +145,11 @@ if __name__ == "__main__":
     if masterIp == "":
         host = '127.0.0.1'
     else:
-        host = masterIp
+        try:
+            config = eval(masterIp)
+            host = config["host"]
+        except Exception as r:
+            host = masterIp
 
     tdLog.info("Procedures for tdengine deployed in %s" % (host))
     if windows:
