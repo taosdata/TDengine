@@ -85,7 +85,7 @@ struct STable {
 #define TABLE_TID(t) (t)->tid
 #define TABLE_UID(t) (t)->uid
 
-int     tsdbPrepareCommit(STsdb *pTsdb);
+int tsdbPrepareCommit(STsdb *pTsdb);
 typedef enum {
   TSDB_FILE_HEAD = 0,  // .head
   TSDB_FILE_DATA,      // .data
@@ -181,7 +181,6 @@ int tsdbUnlockRepo(STsdb *pTsdb);
 
 static FORCE_INLINE STSchema *tsdbGetTableSchemaImpl(STsdb *pTsdb, STable *pTable, bool lock, bool copy,
                                                      int32_t version) {
-
   if ((version != -1) && (schemaVersion(pTable->pSchema) != version)) {
     taosMemoryFreeClear(pTable->pSchema);
     pTable->pSchema = metaGetTbTSchema(REPO_META(pTsdb), pTable->uid, version);
