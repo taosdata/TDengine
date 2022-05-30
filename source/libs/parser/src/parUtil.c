@@ -671,20 +671,30 @@ int32_t putMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMet
   return code;
 }
 
-static int32_t reserveTableReqInCache(int32_t acctId, const char* pDb, const char* pTable, SHashObj** pTables) {
+static int32_t reserveTableReqInCacheImpl(const char* pTbFName, int32_t len, SHashObj** pTables) {
   if (NULL == *pTables) {
     *pTables = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
     if (NULL == *pTables) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
+  return taosHashPut(*pTables, pTbFName, len, &pTables, POINTER_BYTES);
+}
+
+static int32_t reserveTableReqInCache(int32_t acctId, const char* pDb, const char* pTable, SHashObj** pTables) {
   char    fullName[TSDB_TABLE_FNAME_LEN];
   int32_t len = snprintf(fullName, sizeof(fullName), "%d.%s.%s", acctId, pDb, pTable);
-  return taosHashPut(*pTables, fullName, len, &pTables, POINTER_BYTES);
+  return reserveTableReqInCacheImpl(fullName, len, pTables);
 }
 
 int32_t reserveTableMetaInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache) {
   return reserveTableReqInCache(acctId, pDb, pTable, &pMetaCache->pTableMeta);
+}
+
+int32_t reserveTableMetaInCacheExt(const SName* pName, SParseMetaCache* pMetaCache) {
+  char fullName[TSDB_TABLE_FNAME_LEN];
+  tNameExtractFullName(pName, fullName);
+  return reserveTableReqInCacheImpl(fullName, strlen(fullName), &pMetaCache->pTableMeta);
 }
 
 int32_t getTableMetaFromCache(SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta) {
@@ -736,6 +746,12 @@ int32_t reserveTableVgroupInCache(int32_t acctId, const char* pDb, const char* p
   return reserveTableReqInCache(acctId, pDb, pTable, &pMetaCache->pTableVgroup);
 }
 
+int32_t reserveTableVgroupInCacheExt(const SName* pName, SParseMetaCache* pMetaCache) {
+  char fullName[TSDB_TABLE_FNAME_LEN];
+  tNameExtractFullName(pName, fullName);
+  return reserveTableReqInCacheImpl(fullName, strlen(fullName), &pMetaCache->pTableVgroup);
+}
+
 int32_t getTableVgroupFromCache(SParseMetaCache* pMetaCache, const SName* pName, SVgroupInfo* pVgroup) {
   char fullName[TSDB_TABLE_FNAME_LEN];
   tNameExtractFullName(pName, fullName);
@@ -776,18 +792,30 @@ int32_t getDbCfgFromCache(SParseMetaCache* pMetaCache, const char* pDbFName, SDb
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t reserveUserAuthInCache(int32_t acctId, const char* pUser, const char* pDb, AUTH_TYPE type,
-                               SParseMetaCache* pMetaCache) {
+static int32_t reserveUserAuthInCacheImpl(const char* pKey, int32_t len, SParseMetaCache* pMetaCache) {
   if (NULL == pMetaCache->pUserAuth) {
     pMetaCache->pUserAuth = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
     if (NULL == pMetaCache->pUserAuth) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
+  bool pass = false;
+  return taosHashPut(pMetaCache->pUserAuth, pKey, len, &pass, sizeof(pass));
+}
+
+int32_t reserveUserAuthInCache(int32_t acctId, const char* pUser, const char* pDb, AUTH_TYPE type,
+                               SParseMetaCache* pMetaCache) {
   char    key[USER_AUTH_KEY_MAX_LEN] = {0};
   int32_t len = userAuthToString(acctId, pUser, pDb, type, key);
-  bool    pass = false;
-  return taosHashPut(pMetaCache->pUserAuth, key, len, &pass, sizeof(pass));
+  return reserveUserAuthInCacheImpl(key, len, pMetaCache);
+}
+
+int32_t reserveUserAuthInCacheExt(const char* pUser, const SName* pName, AUTH_TYPE type, SParseMetaCache* pMetaCache) {
+  char dbFName[TSDB_DB_FNAME_LEN] = {0};
+  tNameGetFullDbName(pName, dbFName);
+  char    key[USER_AUTH_KEY_MAX_LEN] = {0};
+  int32_t len = userAuthToStringExt(pUser, dbFName, type, key);
+  return reserveUserAuthInCacheImpl(key, len, pMetaCache);
 }
 
 int32_t getUserAuthFromCache(SParseMetaCache* pMetaCache, const char* pUser, const char* pDbFName, AUTH_TYPE type,

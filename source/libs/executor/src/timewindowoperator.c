@@ -880,14 +880,14 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
     hashIntervalAgg(pOperator, &pInfo->binfo.resultRowInfo, pBlock, pBlock->info.groupId, NULL);
 
 #if 0  // test for encode/decode result info
-    if(pOperator->encodeResultRow){
+    if(pOperator->fpSet.encodeResultRow){
       char *result = NULL;
       int32_t length = 0;
       SAggSupporter   *pSup = &pInfo->aggSup;
-      pOperator->encodeResultRow(pOperator, pSup, &pInfo->binfo, &result, &length);
+      pOperator->fpSet.encodeResultRow(pOperator, &result, &length);
       taosHashClear(pSup->pResultRowHashTable);
       pInfo->binfo.resultRowInfo.size = 0;
-      pOperator->decodeResultRow(pOperator, pSup, &pInfo->binfo, result, length);
+      pOperator->fpSet.decodeResultRow(pOperator, result);
       if(result){
         taosMemoryFree(result);
       }

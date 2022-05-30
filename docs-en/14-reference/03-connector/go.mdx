@@ -15,9 +15,9 @@ import GoOpenTSDBTelnet from "../../07-develop/03-insert-data/_go_opts_telnet.md
 import GoOpenTSDBJson from "../../07-develop/03-insert-data/_go_opts_json.mdx"
 import GoQuery from "../../07-develop/04-query-data/_go.mdx"
 
-`driver-go` is the official Go language connector for TDengine, which implements the interface to the Go language [database/sql](https://golang.org/pkg/database/sql/) package. Go developers can use it to develop applications that access TDengine cluster data.
+`driver-go` is the official Go language connector for TDengine. It implements the [database/sql](https://golang.org/pkg/database/sql/) package, the generic Go language interface to SQL databases. Go developers can use it to develop applications that access TDengine cluster data.
 
-`driver-go` provides two ways to establish connections. One is **native connection**, which connects to TDengine instances natively through the TDengine client driver (taosc), supporting data writing, querying, subscriptions, schemaless writing, and bind interface. The other is the **REST connection**, which connects to TDengine instances via the REST interface provided by taosAdapter. The set of features implemented by the REST connection differs slightly from the native connection.
+`driver-go` provides two ways to establish connections. One is **native connection**, which connects to TDengine instances natively through the TDengine client driver (taosc), supporting data writing, querying, subscriptions, schemaless writing, and bind interface. The other is the **REST connection**, which connects to TDengine instances via the REST interface provided by taosAdapter. The set of features implemented by the REST connection differs slightly from those implemented by the native connection.
 
 This article describes how to install `driver-go` and connect to TDengine clusters and perform basic operations such as data query and data writing through `driver-go`.
 
@@ -213,7 +213,7 @@ func main() {
 
 Since the REST interface is stateless, the `use db` syntax will not work. You need to put the db name into the SQL command, e.g. `create table if not exists tb1 (ts timestamp, a int)` to `create table if not exists test.tb1 (ts timestamp, a int)` otherwise it will report the error `[0x217] Database not specified or available`.
 
-You can also put the db name in the DSN by changing `root:taosdata@http(localhost:6041)/` to `root:taosdata@http(localhost:6041)/test`. This method is supported by taosAdapter in TDengine 2.4.0.5. is supported since TDengine 2.4.0.5. Executing the `create database` statement when the specified db does not exist will not report an error while executing other queries or writing against that db will report an error.
+You can also put the db name in the DSN by changing `root:taosdata@http(localhost:6041)/` to `root:taosdata@http(localhost:6041)/test`. This method is supported by taosAdapter since TDengine 2.4.0.5. Executing the `create database` statement when the specified db does not exist will not report an error while executing other queries or writing against that db will report an error.
 
 The complete example is as follows.
 
@@ -289,7 +289,7 @@ func main() {
 
 6. `readBufferSize` parameter has no significant effect after being increased
 
-  If you increase `readBufferSize` will reduce the number of `syscall` calls when fetching results. If the query result is smaller, modifying this parameter will not improve significantly. If you increase the parameter value too much, the bottleneck will be parsing JSON data. If you need to optimize the query speed, you must adjust the value according to the actual situation to achieve the best query result.
+  Increasing `readBufferSize` will reduce the number of `syscall` calls when fetching results. If the query result is smaller, modifying this parameter will not improve performance significantly. If you increase the parameter value too much, the bottleneck will be parsing JSON data. If you need to optimize the query speed, you must adjust the value based on the actual situation to achieve the best query performance.
 
 7. `disableCompression` parameter is set to `false` when the query efficiency is reduced
 
