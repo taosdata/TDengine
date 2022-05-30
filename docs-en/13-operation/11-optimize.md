@@ -2,19 +2,19 @@
 title: Performance Optimization
 ---
 
-After a TDengine cluster has been running for a long enough time, because of updating data, deleting tables and deleting expired data, there may be fragments in data files and query performance may be impacted. To resolve the problem of fragments, from version 2.1.3.0 a new SQL command `COMPACT` can be used to defragment the data files.
+After a TDengine cluster has been running for a long enough time, because of data insertion, table deletion and deletion of expired data, there may be fragments in data files and query performance may be impacted. To resolve the problem of fragments, since version 2.1.3.0 a new SQL command `COMPACT` can be used to defragment data files.
 
 ```sql
 COMPACT VNODES IN (vg_id1, vg_id2, ...)
 ```
 
-`COMPACT` can be used to defragment one or more vgroups. The defragmentation work will be put in task queue for scheduling execution by TDengine. `SHOW VGROUPS` command can be used to get the vgroup ids to be used in `COMPACT` command. There is a column `compacting` in the output of `SHOW GROUPS` to indicate the compacting status of the vgroup: 2 means the vgroup is waiting in task queue for compacting, 1 means compacting is in progress, and 0 means the vgroup has nothing to do with compacting.
+`COMPACT` can be used to defragment one or more vgroups. The defragmentation work will be scheduled in the task queue for execution by TDengine. `SHOW VGROUPS` command can be used to get the vgroup ids to be used in `COMPACT` command. There is a column `compacting` in the output of `SHOW GROUPS` to indicate the compaction status of the vgroup: 2 means the vgroup is waiting in task queue for compaction, 1 means compaction is in progress, and 0 means the vgroup has not been scheduled for compaction.
 
-Please note that a lot of disk I/O is required for defragementation operations, during which the performance may be impacted significantly for data insertion and query, data insertion may be blocked shortly in extreme cases.
+Please note that a lot of disk I/O is required for defragementation operations. During defragmentation the performance may be impacted significantly for data insertion and query. Data insertion may even be blocked for very short periods, in extreme cases.
 
 ## Optimize Storage Parameters
 
-The data in different use cases may have different characteristics, such as the days to keep, number of replicas, collection interval, record size, number of collection points, compression or not, etc. To achieve best efficiency in storage, the parameters in the table below can be used, all of them can either be configured in `taos.cfg` as default the configuration or in the command `create database`. For detailed definition of these parameters please refer to [Configuration Parameters](/reference/config/).
+The data in different use cases may have different characteristics, such as the days to keep, number of replicas, collection interval, record size, number of collection points, compression or not, etc. To achieve best efficiency in storage, the parameters in the table below can be used. All of them can either be configured in `taos.cfg`, as default parameters, or can be set in the command `create database`. For detailed definition of these parameters please refer to [Configuration Parameters](/reference/config/).
 
 | #   | Parameter | Unit | Definition                                                                     | **Value Range**                                                                                 | **Default Value** |
 | --- | --------- | ---- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- | ----------------- |
@@ -33,13 +33,13 @@ The data in different use cases may have different characteristics, such as the 
 | 13  | update    | none | Whether to allow updating data                                                 | 0: not allowed; 1: a whole row must be updated; 2: a portion of columns in a row can be updated | 0                 |
 | 14  | cacheLast | none | Whether the latest data of a table is cached in memory                         | 0: not cached; 1: the last row is cached; 2: the latest non-NULL value of each column is cached | 0                 |
 
-For a specific use case, there may be multiple kinds of data with different characteristics, it's best to put data with the same characteristics in the same database. There may be multiple databases in a system while each database can be configured with different storage parameters to achieve best performance. The above parameters can be used when creating a database to override the default setting in the configuration file.
+Even for a specific use case, there may be multiple kinds of data with different characteristics. In this case it's best to put data with the same characteristics in the same database. There may be multiple databases in a system and each database can be configured with different storage parameters to achieve the best performance. The above parameters can be used when creating a database to override the default setting in the configuration file.
 
 ```sql
  CREATE DATABASE demo DAYS 10 CACHE 32 BLOCKS 8 REPLICA 3 UPDATE 1;
 ```
 
-The above SQL statement creates a database named as `demo`, in which each data file stores data across 10 days, the size of each memory block is 32 MB and each vnode is allocated with 8 blocks, the replica is set to 3, update operation is allowed, and all other parameters not specified in the command follow the default configuration in `taos.cfg`.
+The above SQL statement creates a database named `demo`, in which each data file stores 10 days of data, the size of each memory block is 32 MB and 8 blocks are allocated to each vnode, there are 3 replicas and update operations are allowed. All other parameters not specified in the command, will default to the values in the configuration file `taos.cfg`.
 
 Once a database is created, only some parameters can be changed and be effective immediately while others are can't.
 
