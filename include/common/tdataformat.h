@@ -128,9 +128,23 @@ struct STagVal {
     int16_t cid;
     char   *pKey;
   };
-  int8_t   type;
-  uint32_t nData;
-  uint8_t *pData;
+  int8_t type;
+  union {
+    int8_t   i8;
+    uint8_t  u8;
+    int16_t  i16;
+    uint16_t u16;
+    int32_t  i32;
+    uint32_t u32;
+    int64_t  i64;
+    uint64_t u64;
+    float    f;
+    double   d;
+    struct {
+      uint32_t nData;
+      uint8_t *pData;
+    };
+  };
 };
 
 static FORCE_INLINE void tTagValPush(SArray *pTagArray, void *key, int8_t type, uint8_t *pData, uint32_t nData,
@@ -218,8 +232,7 @@ struct STag {
 #define schemaColAt(s, i) ((s)->columns + i)
 #define tdFreeSchema(s)   taosMemoryFreeClear((s))
 
-    STSchema       *
-    tdDupSchema(const STSchema *pSchema);
+STSchema *tdDupSchema(const STSchema *pSchema);
 int32_t   tdEncodeSchema(void **buf, STSchema *pSchema);
 void     *tdDecodeSchema(void *buf, STSchema **pRSchema);
 
@@ -402,8 +415,6 @@ SDataCols *tdDupDataCols(SDataCols *pCols, bool keepData);
 SDataCols *tdFreeDataCols(SDataCols *pCols);
 int32_t    tdMergeDataCols(SDataCols *target, SDataCols *source, int32_t rowsToMerge, int32_t *pOffset, bool update,
                            TDRowVerT maxVer);
-
-
 
 #endif
 

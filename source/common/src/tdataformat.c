@@ -574,28 +574,28 @@ static void debugPrintTagVal(int8_t type, const void *val, int32_t vlen, const c
   }
 }
 
-  // if (isLarge) {
-  //   p = (uint8_t *)&((int16_t *)pTag->idx)[pTag->nTag];
-  // } else {
-  //   p = (uint8_t *)&pTag->idx[pTag->nTag];
-  // }
+// if (isLarge) {
+//   p = (uint8_t *)&((int16_t *)pTag->idx)[pTag->nTag];
+// } else {
+//   p = (uint8_t *)&pTag->idx[pTag->nTag];
+// }
 
-  // (*ppArray) = taosArrayInit(pTag->nTag + 1, sizeof(STagVal));
-  // if (*ppArray == NULL) {
-  //   code = TSDB_CODE_OUT_OF_MEMORY;
-  //   goto _err;
-  // }
+// (*ppArray) = taosArrayInit(pTag->nTag + 1, sizeof(STagVal));
+// if (*ppArray == NULL) {
+//   code = TSDB_CODE_OUT_OF_MEMORY;
+//   goto _err;
+// }
 
-  // for (int16_t iTag = 0; iTag < pTag->nTag; iTag++) {
-  //   if (isLarge) {
-  //     offset = ((int16_t *)pTag->idx)[iTag];
-  //   } else {
-  //     offset = pTag->idx[iTag];
-  //   }
+// for (int16_t iTag = 0; iTag < pTag->nTag; iTag++) {
+//   if (isLarge) {
+//     offset = ((int16_t *)pTag->idx)[iTag];
+//   } else {
+//     offset = pTag->idx[iTag];
+//   }
 
 void debugPrintSTag(STag *pTag, const char *tag, int32_t ln) {
-  int8_t isJson = pTag->flags & TD_TAG_JSON;
-  int8_t isLarge = pTag->flags & TD_TAG_LARGE;
+  int8_t   isJson = pTag->flags & TD_TAG_JSON;
+  int8_t   isLarge = pTag->flags & TD_TAG_LARGE;
   uint8_t *p = NULL;
   int16_t  offset = 0;
 
@@ -642,9 +642,45 @@ static int32_t tPutTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson) {
   if (IS_VAR_DATA_TYPE(pTagVal->type)) {
     n += tPutBinary(p ? p + n : p, pTagVal->pData, pTagVal->nData);
   } else {
-    ASSERT(pTagVal->nData == TYPE_BYTES[pTagVal->type]);
-    if (p) memcpy(p + n, pTagVal->pData, pTagVal->nData);
-    n += pTagVal->nData;
+    p = p ? p + n : p;
+    switch (pTagVal->type) {
+      case TSDB_DATA_TYPE_BOOL:
+        n += tPutI8(p, pTagVal->i8 ? 1 : 0);
+        break;
+      case TSDB_DATA_TYPE_TINYINT:
+        n += tPutI8(p, pTagVal->i8);
+        break;
+      case TSDB_DATA_TYPE_SMALLINT:
+        n += tPutI16(p, pTagVal->i16);
+        break;
+      case TSDB_DATA_TYPE_INT:
+        n += tPutI32(p, pTagVal->i32);
+        break;
+      case TSDB_DATA_TYPE_TIMESTAMP:
+      case TSDB_DATA_TYPE_BIGINT:
+        n += tPutI64(p, pTagVal->i64);
+        break;
+      case TSDB_DATA_TYPE_FLOAT:
+        n += tPutFloat(p, pTagVal->f);
+        break;
+      case TSDB_DATA_TYPE_DOUBLE:
+        n += tPutDouble(p, pTagVal->d);
+        break;
+      case TSDB_DATA_TYPE_UTINYINT:
+        n += tPutU8(p, pTagVal->u8);
+        break;
+      case TSDB_DATA_TYPE_USMALLINT:
+        n += tPutU16(p, pTagVal->u16);
+        break;
+      case TSDB_DATA_TYPE_UINT:
+        n += tPutU32(p, pTagVal->u32);
+        break;
+      case TSDB_DATA_TYPE_UBIGINT:
+        n += tPutU64(p, pTagVal->u64);
+        break;
+      default:
+        ASSERT(0);
+    }
   }
 
   return n;
@@ -666,9 +702,42 @@ static int32_t tGetTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson) {
   if (IS_VAR_DATA_TYPE(pTagVal->type)) {
     n += tGetBinary(p + n, &pTagVal->pData, &pTagVal->nData);
   } else {
-    pTagVal->pData = p + n;
-    pTagVal->nData = TYPE_BYTES[pTagVal->type];
-    n += pTagVal->nData;
+    switch (pTagVal->type) {
+      case TSDB_DATA_TYPE_BOOL:
+      case TSDB_DATA_TYPE_TINYINT:
+        n += tGetI8(p + n, &pTagVal->i8);
+        break;
+      case TSDB_DATA_TYPE_SMALLINT:
+        n += tGetI16(p, &pTagVal->i16);
+        break;
+      case TSDB_DATA_TYPE_INT:
+        n += tGetI32(p, &pTagVal->i32);
+        break;
+      case TSDB_DATA_TYPE_TIMESTAMP:
+      case TSDB_DATA_TYPE_BIGINT:
+        n += tGetI64(p, &pTagVal->i64);
+        break;
+      case TSDB_DATA_TYPE_FLOAT:
+        n += tGetFloat(p, &pTagVal->f);
+        break;
+      case TSDB_DATA_TYPE_DOUBLE:
+        n += tGetDouble(p, &pTagVal->d);
+        break;
+      case TSDB_DATA_TYPE_UTINYINT:
+        n += tGetU8(p, &pTagVal->u8);
+        break;
+      case TSDB_DATA_TYPE_USMALLINT:
+        n += tGetU16(p, &pTagVal->u16);
+        break;
+      case TSDB_DATA_TYPE_UINT:
+        n += tGetU32(p, &pTagVal->u32);
+        break;
+      case TSDB_DATA_TYPE_UBIGINT:
+        n += tGetU64(p, &pTagVal->u64);
+        break;
+      default:
+        ASSERT(0);
+    }
   }
 
   return n;
@@ -785,9 +854,7 @@ bool tTagGet(const STag *pTag, STagVal *pTagVal) {
     } else if (c > 0) {
       lidx = midx + 1;
     } else {
-      pTagVal->type = tv.type;
-      pTagVal->nData = tv.nData;
-      pTagVal->pData = tv.pData;
+      memcpy(pTagVal, &tv, sizeof(tv));
       return true;
     }
   }
