@@ -86,8 +86,6 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SExplainOptions));
     case QUERY_NODE_STREAM_OPTIONS:
       return makeNode(type, sizeof(SStreamOptions));
-    case QUERY_NODE_TOPIC_OPTIONS:
-      return makeNode(type, sizeof(STopicOptions));
     case QUERY_NODE_LEFT_VALUE:
       return makeNode(type, sizeof(SLeftValueNode));
     case QUERY_NODE_SET_OPERATOR:

@@ -2534,7 +2534,7 @@ static const char* jkSessionWindowTsPrimaryKey = "TsPrimaryKey";
 static const char* jkSessionWindowGap = "Gap";
 
 static int32_t sessionWindowNodeToJson(const void* pObj, SJson* pJson) {
-  const SSessionWindowNode * pNode = (const SSessionWindowNode*)pObj;
+  const SSessionWindowNode* pNode = (const SSessionWindowNode*)pObj;
 
   int32_t code = tjsonAddObject(pJson, jkSessionWindowTsPrimaryKey, nodeToJson, pNode->pCol);
   if (TSDB_CODE_SUCCESS == code) {
@@ -2546,9 +2546,9 @@ static int32_t sessionWindowNodeToJson(const void* pObj, SJson* pJson) {
 static int32_t jsonToSessionWindowNode(const SJson* pJson, void* pObj) {
   SSessionWindowNode* pNode = (SSessionWindowNode*)pObj;
 
-  int32_t code = jsonToNodeObject(pJson, jkSessionWindowTsPrimaryKey, (SNode **)&pNode->pCol);
+  int32_t code = jsonToNodeObject(pJson, jkSessionWindowTsPrimaryKey, (SNode**)&pNode->pCol);
   if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeObject(pJson, jkSessionWindowGap, (SNode **)&pNode->pGap);
+    code = jsonToNodeObject(pJson, jkSessionWindowGap, (SNode**)&pNode->pGap);
   }
   return code;
 }
@@ -2987,7 +2987,7 @@ static int32_t createTopicStmtToJson(const void* pObj, SJson* pJson) {
 
   int32_t code = tjsonAddStringToObject(pJson, jkCreateTopicStmtTopicName, pNode->topicName);
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddStringToObject(pJson, jkCreateTopicStmtSubscribeDbName, pNode->subscribeDbName);
+    code = tjsonAddStringToObject(pJson, jkCreateTopicStmtSubscribeDbName, pNode->subDbName);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkCreateTopicStmtIgnoreExists, pNode->ignoreExists);
@@ -3004,7 +3004,7 @@ static int32_t jsonToCreateTopicStmt(const SJson* pJson, void* pObj) {
 
   int32_t code = tjsonGetStringValue(pJson, jkCreateTopicStmtTopicName, pNode->topicName);
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetStringValue(pJson, jkCreateTopicStmtSubscribeDbName, pNode->subscribeDbName);
+    code = tjsonGetStringValue(pJson, jkCreateTopicStmtSubscribeDbName, pNode->subDbName);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkCreateTopicStmtIgnoreExists, &pNode->ignoreExists);

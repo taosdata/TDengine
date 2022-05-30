@@ -2666,27 +2666,23 @@ int32_t tDeserializeSMDropCgroupReq(void *buf, int32_t bufLen, SMDropCgroupReq *
 }
 
 int32_t tSerializeSCMCreateTopicReq(void *buf, int32_t bufLen, const SCMCreateTopicReq *pReq) {
-  int32_t sqlLen = 0;
-  int32_t astLen = 0;
-  if (pReq->sql != NULL) sqlLen = (int32_t)strlen(pReq->sql);
-  if (pReq->ast != NULL) astLen = (int32_t)strlen(pReq->ast);
-
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
 
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->igExists) < 0) return -1;
-  /*if (tEncodeI8(&encoder, pReq->withTbName) < 0) return -1;*/
-  /*if (tEncodeI8(&encoder, pReq->withSchema) < 0) return -1;*/
-  /*if (tEncodeI8(&encoder, pReq->withTag) < 0) return -1;*/
   if (tEncodeI8(&encoder, pReq->subType) < 0) return -1;
-  if (tEncodeCStr(&encoder, pReq->subDbName) < 0) return -1;
-  /*if (tEncodeCStr(&encoder, pReq->subStbName) < 0) return -1;*/
-  if (tEncodeI32(&encoder, sqlLen) < 0) return -1;
-  if (tEncodeI32(&encoder, astLen) < 0) return -1;
-  if (sqlLen > 0 && tEncodeCStr(&encoder, pReq->sql) < 0) return -1;
-  if (astLen > 0 && tEncodeCStr(&encoder, pReq->ast) < 0) return -1;
+  if (TOPIC_SUB_TYPE__DB == pReq->subType) {
+    if (tEncodeCStr(&encoder, pReq->subDbName) < 0) return -1;
+  } else if (TOPIC_SUB_TYPE__TABLE == pReq->subType) {
+    if (tEncodeCStr(&encoder, pReq->subStbName) < 0) return -1;
+  } else {
+    if (tEncodeI32(&encoder, strlen(pReq->ast)) < 0) return -1;
+    if (tEncodeCStr(&encoder, pReq->ast) < 0) return -1;
+  }
+  if (tEncodeI32(&encoder, strlen(pReq->sql)) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->sql) < 0) return -1;
 
   tEndEncode(&encoder);
 
@@ -2705,28 +2701,24 @@ int32_t tDeserializeSCMCreateTopicReq(void *buf, int32_t bufLen, SCMCreateTopicR
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->igExists) < 0) return -1;
-  /*if (tDecodeI8(&decoder, &pReq->withTbName) < 0) return -1;*/
-  /*if (tDecodeI8(&decoder, &pReq->withSchema) < 0) return -1;*/
-  /*if (tDecodeI8(&decoder, &pReq->withTag) < 0) return -1;*/
   if (tDecodeI8(&decoder, &pReq->subType) < 0) return -1;
-  if (tDecodeCStrTo(&decoder, pReq->subDbName) < 0) return -1;
-  /*if (pReq->subType == TOPIC_SUB_TYPE__TABLE) {*/
-  /*if (tDecodeCStrTo(&decoder, pReq->subStbName) < 0) return -1;*/
-  /*}*/
+  if (TOPIC_SUB_TYPE__DB == pReq->subType) {
+    if (tDecodeCStrTo(&decoder, pReq->subDbName) < 0) return -1;
+  } else if (TOPIC_SUB_TYPE__TABLE == pReq->subType) {
+    if (tDecodeCStrTo(&decoder, pReq->subStbName) < 0) return -1;
+  } else {
+    if (tDecodeI32(&decoder, &astLen) < 0) return -1;
+    if (astLen > 0) {
+      pReq->ast = taosMemoryCalloc(1, astLen + 1);
+      if (pReq->ast == NULL) return -1;
+      if (tDecodeCStrTo(&decoder, pReq->ast) < 0) return -1;
+    }
+  }
   if (tDecodeI32(&decoder, &sqlLen) < 0) return -1;
-  if (tDecodeI32(&decoder, &astLen) < 0) return -1;
-
   if (sqlLen > 0) {
     pReq->sql = taosMemoryCalloc(1, sqlLen + 1);
     if (pReq->sql == NULL) return -1;
     if (tDecodeCStrTo(&decoder, pReq->sql) < 0) return -1;
-  }
-
-  if (astLen > 0) {
-    pReq->ast = taosMemoryCalloc(1, astLen + 1);
-    if (pReq->ast == NULL) return -1;
-    if (tDecodeCStrTo(&decoder, pReq->ast) < 0) return -1;
-  } else {
   }
 
   tEndDecode(&decoder);
@@ -2737,7 +2729,9 @@ int32_t tDeserializeSCMCreateTopicReq(void *buf, int32_t bufLen, SCMCreateTopicR
 
 void tFreeSCMCreateTopicReq(SCMCreateTopicReq *pReq) {
   taosMemoryFreeClear(pReq->sql);
-  taosMemoryFreeClear(pReq->ast);
+  if (TOPIC_SUB_TYPE__COLUMN == pReq->subType) {
+    taosMemoryFreeClear(pReq->ast);
+  }
 }
 
 int32_t tSerializeSCMCreateTopicRsp(void *buf, int32_t bufLen, const SCMCreateTopicRsp *pRsp) {
