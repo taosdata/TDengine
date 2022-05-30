@@ -1324,7 +1324,7 @@ StreamWithStateResult* streamWithStateNextWith(StreamWithState* sws, StreamCallb
       if (FST_NODE_ADDR(p->node) != fstGetRootAddr(sws->fst)) {
         taosArrayPop(sws->inp);
       }
-      // streamStateDestroy(p);
+      streamStateDestroy(p);
       continue;
     }
     FstTransition trn;

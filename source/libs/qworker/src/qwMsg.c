@@ -248,7 +248,7 @@ int32_t qwRegisterHbBrokenLinkArg(SQWorker *mgmt, uint64_t sId, SRpcHandleInfo *
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
+int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts) {
   if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg) {
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
@@ -256,6 +256,8 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   int32_t       code = 0;
   SSubQueryMsg *msg = pMsg->pCont;
   SQWorker *    mgmt = (SQWorker *)qWorkerMgmt;
+
+  qwUpdateWaitTimeInQueue(mgmt, ts, QUERY_QUEUE);
 
   if (NULL == msg || pMsg->contLen <= sizeof(*msg)) {
     QW_ELOG("invalid query msg, msg:%p, msgLen:%d", msg, pMsg->contLen);
@@ -286,7 +288,7 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qWorkerProcessCQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
+int32_t qWorkerProcessCQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts) {
   int32_t            code = 0;
   int8_t             status = 0;
   bool               queryDone = false;
@@ -294,6 +296,8 @@ int32_t qWorkerProcessCQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   bool               needStop = false;
   SQWTaskCtx *       handles = NULL;
   SQWorker *         mgmt = (SQWorker *)qWorkerMgmt;
+
+  qwUpdateWaitTimeInQueue(mgmt, ts, QUERY_QUEUE);
 
   if (NULL == msg || pMsg->contLen < sizeof(*msg)) {
     QW_ELOG("invalid cquery msg, msg:%p, msgLen:%d", msg, pMsg->contLen);
@@ -316,13 +320,15 @@ int32_t qWorkerProcessCQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qWorkerProcessFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
+int32_t qWorkerProcessFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts) {
   if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg) {
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
 
   SResFetchReq *msg = pMsg->pCont;
   SQWorker *    mgmt = (SQWorker *)qWorkerMgmt;
+
+  qwUpdateWaitTimeInQueue(mgmt, ts, FETCH_QUEUE);
 
   if (NULL == msg || pMsg->contLen < sizeof(*msg)) {
     QW_ELOG("invalid fetch msg, msg:%p, msgLen:%d", msg, pMsg->contLen);
@@ -349,13 +355,16 @@ int32_t qWorkerProcessFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qWorkerProcessFetchRsp(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
+int32_t qWorkerProcessFetchRsp(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts) {
+  SQWorker *      mgmt = (SQWorker *)qWorkerMgmt;
+  qwUpdateWaitTimeInQueue(mgmt, ts, FETCH_QUEUE);
+
   qProcessFetchRsp(NULL, pMsg, NULL);
   pMsg->pCont = NULL;
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qWorkerProcessCancelMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
+int32_t qWorkerProcessCancelMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts) {
   if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg) {
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
@@ -363,6 +372,9 @@ int32_t qWorkerProcessCancelMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   SQWorker *      mgmt = (SQWorker *)qWorkerMgmt;
   int32_t         code = 0;
   STaskCancelReq *msg = pMsg->pCont;
+
+  qwUpdateWaitTimeInQueue(mgmt, ts, FETCH_QUEUE);
+
   if (NULL == msg || pMsg->contLen < sizeof(*msg)) {
     qError("invalid task cancel msg");
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
@@ -390,7 +402,7 @@ _return:
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qWorkerProcessDropMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
+int32_t qWorkerProcessDropMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts) {
   if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg) {
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
@@ -398,6 +410,8 @@ int32_t qWorkerProcessDropMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   int32_t       code = 0;
   STaskDropReq *msg = pMsg->pCont;
   SQWorker *    mgmt = (SQWorker *)qWorkerMgmt;
+
+  qwUpdateWaitTimeInQueue(mgmt, ts, FETCH_QUEUE);
 
   if (NULL == msg || pMsg->contLen < sizeof(*msg)) {
     QW_ELOG("invalid task drop msg, msg:%p, msgLen:%d", msg, pMsg->contLen);
@@ -429,7 +443,7 @@ int32_t qWorkerProcessDropMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qWorkerProcessHbMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
+int32_t qWorkerProcessHbMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts) {
   if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg) {
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
@@ -437,6 +451,8 @@ int32_t qWorkerProcessHbMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   int32_t         code = 0;
   SSchedulerHbReq req = {0};
   SQWorker *      mgmt = (SQWorker *)qWorkerMgmt;
+
+  qwUpdateWaitTimeInQueue(mgmt, ts, FETCH_QUEUE);
 
   if (NULL == pMsg->pCont) {
     QW_ELOG("invalid hb msg, msg:%p, msgLen:%d", pMsg->pCont, pMsg->contLen);

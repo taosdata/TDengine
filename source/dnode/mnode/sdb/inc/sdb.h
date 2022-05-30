@@ -187,6 +187,7 @@ typedef struct SSdb {
 typedef struct SSdbIter {
   TdFilePtr file;
   int64_t   total;
+  char     *name;
 } SSdbIter;
 
 typedef struct {
@@ -380,8 +381,13 @@ SSdbRow *sdbAllocRow(int32_t objSize);
 void    *sdbGetRowObj(SSdbRow *pRow);
 void     sdbFreeRow(SSdb *pSdb, SSdbRow *pRow, bool callFunc);
 
-int32_t sdbReadSnapshot(SSdb *pSdb, SSdbIter **ppIter, char **ppBuf, int32_t *len);
-int32_t sdbApplySnapshot(SSdb *pSdb, char *pBuf, int32_t len);
+int32_t sdbStartRead(SSdb *pSdb, SSdbIter **ppIter);
+int32_t sdbStopRead(SSdb *pSdb, SSdbIter *pIter);
+int32_t sdbDoRead(SSdb *pSdb, SSdbIter *pIter, void **ppBuf, int32_t *len);
+
+int32_t sdbStartWrite(SSdb *pSdb, SSdbIter **ppIter);
+int32_t sdbStopWrite(SSdb *pSdb, SSdbIter *pIter, bool isApply);
+int32_t sdbDoWrite(SSdb *pSdb, SSdbIter *pIter, void *pBuf, int32_t len);
 
 const char *sdbTableName(ESdbType type);
 void        sdbPrintOper(SSdb *pSdb, SSdbRow *pRow, const char *oper);

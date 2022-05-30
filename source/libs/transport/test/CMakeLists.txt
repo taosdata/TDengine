@@ -111,10 +111,12 @@ target_link_libraries (pushServer
 )
 
 
-add_test(
-  NAME transUT 
-  COMMAND transUT 
-)
+if(NOT TD_WINDOWS)
+  add_test(
+    NAME transUT 
+    COMMAND transUT 
+  )
+endif(NOT TD_WINDOWS)
 add_test(
   NAME transUtilUt 
   COMMAND transportTest
