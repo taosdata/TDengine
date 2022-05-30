@@ -52,7 +52,7 @@ For more details about `INSERT` please refer to [INSERT](/taos-sql/insert).
 
 :::info
 
-- Inserting in batches can improve performance. Normally, the higher the batch size, the better the performance. Please note that a single row can't exceed 16K bytes and each SQL statement can't exceed 1MB.
+- Inserting in batches can improve performance. Normally, the higher the batch size, the better the performance. Please note that a single row can't exceed 48K bytes and each SQL statement can't exceed 1MB.
 - Inserting with multiple threads can also improve performance. However, depending on the system resources on the application side and the server side, when the number of inserting threads grows beyond a specific point the performance may drop instead of improving. The proper number of threads needs to be tested in a specific environment to find the best number.
 
 :::
