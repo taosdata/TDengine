@@ -121,6 +121,8 @@ class TDTestCase:
                 col = col[4:-1]
             elif col.startswith("min"):
                 col = col[4:-1]
+            elif col.startswith("avg"):
+                col = col[4:-1]
         return f" group by {col} having {having}" if having else f" group by {col} "
 
     def __single_sql(self, select_clause, from_clause, where_condition="", group_condition=""):
