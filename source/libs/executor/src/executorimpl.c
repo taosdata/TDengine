@@ -356,8 +356,7 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
   if (pResultRowInfo->cur.pageId != -1 && ((pResult == NULL) || (pResult->pageId != pResultRowInfo->cur.pageId &&
                                                                  pResult->offset != pResultRowInfo->cur.offset))) {
     SResultRowPosition pos = pResultRowInfo->cur;
-    SFilePage*
-    pPage = getBufPage(pResultBuf, pos.pageId);
+    SFilePage* pPage = getBufPage(pResultBuf, pos.pageId);
     releaseBufPage(pResultBuf, pPage);
   }
 
@@ -2523,46 +2522,7 @@ int32_t setSDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadI
                                   int32_t compLen, int32_t numOfOutput, int64_t startTs, uint64_t* total,
                                   SArray* pColList) {
   if (pColList == NULL) {  // data from other sources
-    blockDataEnsureCapacity(pRes, numOfRows);
-
-    int32_t dataLen = *(int32_t*)pData;
-    pData += sizeof(int32_t);
-
-    pRes->info.groupId = *(uint64_t*)pData;
-    pData += sizeof(uint64_t);
-
-    int32_t* colLen = (int32_t*)pData;
-
-    char* pStart = pData + sizeof(int32_t) * numOfOutput;
-    for (int32_t i = 0; i < numOfOutput; ++i) {
-      colLen[i] = htonl(colLen[i]);
-      ASSERT(colLen[i] >= 0);
-
-      SColumnInfoData* pColInfoData = taosArrayGet(pRes->pDataBlock, i);
-      if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-        pColInfoData->varmeta.length = colLen[i];
-        pColInfoData->varmeta.allocLen = colLen[i];
-
-        memcpy(pColInfoData->varmeta.offset, pStart, sizeof(int32_t) * numOfRows);
-        pStart += sizeof(int32_t) * numOfRows;
-
-        if (colLen[i] > 0) {
-          pColInfoData->pData = taosMemoryMalloc(colLen[i]);
-        }
-      } else {
-        memcpy(pColInfoData->nullbitmap, pStart, BitmapLen(numOfRows));
-        pStart += BitmapLen(numOfRows);
-      }
-
-      if (colLen[i] > 0) {
-        memcpy(pColInfoData->pData, pStart, colLen[i]);
-      }
-
-      // TODO setting this flag to true temporarily so aggregate function on stable will
-      // examine NULL value for non-primary key column
-      pColInfoData->hasNull = true;
-      pStart += colLen[i];
-    }
+    blockCompressDecode(pRes, numOfOutput, numOfRows, pData);
   } else {  // extract data according to pColList
     ASSERT(numOfOutput == taosArrayGetSize(pColList));
     char* pStart = pData;
