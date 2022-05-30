@@ -178,6 +178,7 @@ SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, boo
     if (me.type == TSDB_SUPER_TABLE) {
       pSchema = tCloneSSchemaWrapper(&me.stbEntry.schemaRow);
     } else if (me.type == TSDB_NORMAL_TABLE) {
+      pSchema = tCloneSSchemaWrapper(&me.ntbEntry.schemaRow);
     } else {
       ASSERT(0);
     }
