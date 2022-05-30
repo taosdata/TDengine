@@ -3448,14 +3448,14 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
     }
 
 #if 0  // test for encode/decode result info
-    if(pOperator->encodeResultRow){
+    if(pOperator->fpSet.encodeResultRow){
       char *result = NULL;
       int32_t length = 0;
-      SAggSupporter   *pSup = &pAggInfo->aggSup;
-      pOperator->encodeResultRow(pOperator, pSup, pInfo, &result, &length);
+      pOperator->fpSet.encodeResultRow(pOperator, &result, &length);
+      SAggSupporter* pSup = &pAggInfo->aggSup;
       taosHashClear(pSup->pResultRowHashTable);
       pInfo->resultRowInfo.size = 0;
-      pOperator->decodeResultRow(pOperator, pSup, pInfo, result, length);
+      pOperator->fpSet.decodeResultRow(pOperator, result);
       if(result){
         taosMemoryFree(result);
       }
@@ -3567,17 +3567,20 @@ int32_t aggEncodeResultRow(SOperatorInfo* pOperator, char** result, int32_t* len
   return TDB_CODE_SUCCESS;
 }
 
-int32_t aggDecodeResultRow(SOperatorInfo* pOperator, char* result, int32_t length) {
-  if(result == NULL || length <= 0){
+int32_t aggDecodeResultRow(SOperatorInfo* pOperator, char* result) {
+  if(result == NULL){
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
   SOptrBasicInfo* pInfo = (SOptrBasicInfo*)(pOperator->info);
   SAggSupporter* pSup = (SAggSupporter*)POINTER_SHIFT(pOperator->info, sizeof(SOptrBasicInfo));
 
   //  int32_t size = taosHashGetSize(pSup->pResultRowHashTable);
-  int32_t count = *(int32_t*)(result);
-
+  int32_t length = *(int32_t*)(result);
   int32_t offset = sizeof(int32_t);
+
+  int32_t count = *(int32_t*)(result + offset);
+  offset += sizeof(int32_t);
+
   while (count-- > 0 && length > offset) {
     int32_t keyLen = *(int32_t*)(result + offset);
     offset += sizeof(int32_t);
@@ -5048,17 +5051,19 @@ int32_t encodeOperator(SOperatorInfo* ops, char** result, int32_t *length){
 int32_t decodeOperator(SOperatorInfo* ops, char* result, int32_t length){
   int32_t code = TDB_CODE_SUCCESS;
   if(ops->fpSet.decodeResultRow){
-    if(result == NULL || length <= 0){
+    if(result == NULL){
       return TSDB_CODE_TSC_INVALID_INPUT;
     }
-    char* data = result + 2 * sizeof(int32_t);
-    int32_t dataLength = *(int32_t*)(result + sizeof(int32_t));
-    code = ops->fpSet.decodeResultRow(ops, data, dataLength - sizeof(int32_t));
+    ASSERT(length == *(int32_t*)result);
+    char* data = result + sizeof(int32_t);
+    code = ops->fpSet.decodeResultRow(ops, data);
     if(code != TDB_CODE_SUCCESS){
       return code;
     }
 
     int32_t totalLength = *(int32_t*)result;
+    int32_t dataLength = *(int32_t*)data;
+
     if(totalLength == dataLength + sizeof(int32_t)) { // the last data
       result = NULL;
       length = 0;
