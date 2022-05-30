@@ -254,8 +254,9 @@ class TestDB(TDCase):
 
     def run(self) -> bool:
         self.dbname_length_check()
-        self.db_params_check()
-        self.alter_db()
+        # tfz: these two cases are moved to db_param_*.py
+        # self.db_params_check()
+        # self.alter_db()
         self.dbname_backquote_check()
         self.upper_lower_dbname_check()
         self.illegal_dbsql_check()
