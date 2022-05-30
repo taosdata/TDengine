@@ -222,23 +222,11 @@ TDengine 中时间戳的时区总是由客户端进行处理，而与服务端�
 
 ### 23. TDengine 2.0 都会用到哪些网络端口？
 
-在 TDengine 2.0 版本中，会用到以下这些网络端口（以默认端口 6030 为前提进行说明，如果修改了配置文件中的设置，那么这里列举的端口都会随之出现变化），管理员可以参考这里的信息调整防火墙设置：
+使用到的网络端口请看文档：[serverport](/reference/config/#serverport)
 
-| 协议 | 默认端口   | 用途说明                         | 修改方法                        |
-| :--- | :-------- | :---------------------------------- | :------------------------------- |
-| TCP | 6030      | 客户端与服务端之间通讯。            | 由配置文件设置 serverPort 决定。 |
-| TCP | 6035      | 多节点集群的节点间通讯。            | 随 serverPort 端口变化。        |
-| TCP | 6040      | 多节点集群的节点间数据同步。        | 随 serverPort 端口变化。         |
-| TCP | 6041      | 客户端与服务端之间的 RESTful 通讯。 | 随 serverPort 端口变化。2.4.0.0 及以上版本由 taosAdapter 配置。  |
-| TCP | 6042      | Arbitrator 的服务端口。           | 随 Arbitrator 启动参数设置变化。 |
-| TCP | 6043      | TaosKeeper 监控服务端口。         | 随 TaosKeeper 启动参数设置变化。 |
-| TCP | 6044      | 支持 StatsD 的数据接入端口。       | 随 taosAdapter 启动参数设置变化（ 2.4.0.0 及以上版本）。 |
-| UDP | 6045      | 支持 collectd 数据接入端口。       | 随 taosAdapter 启动参数设置变化（ 2.4.0.0 及以上版本）。 |
-| TCP | 6060      | 企业版内 Monitor 服务的网络端口。   |                               |
-| UDP | 6030-6034 | 客户端与服务端之间通讯。            | 随 serverPort 端口变化。        |
-| UDP | 6035-6039 | 多节点集群的节点间通讯。            | 随 serverPort 端口变化。        |
+需要注意，文档上列举的端口号都是以默认端口 6030 为前提进行说明，如果修改了配置文件中的设置，那么列举的端口都会随之出现变化，管理员可以参考上述的信息调整防火墙设置。
 
-### 24. 为什么 RESTful 接口无响应、Grafana 无法添加 TDengine 为数据源、TDengineGUI 选了 6041 端口还是无法连接成功？？
+### 24. 为什么 RESTful 接口无响应、Grafana 无法添加 TDengine 为数据源、TDengineGUI 选了 6041 端口还是无法连接成功？
 
 taosAdapter 从 TDengine 2.4.0.0 版本开始成为 TDengine 服务端软件的组成部分，是 TDengine 集群和应用程序之间的桥梁和适配器。在此之前 RESTful 接口等功能是由 taosd 内置的 HTTP 服务提供的，而如今要实现上述功能需要执行：```systemctl start taosadapter``` 命令来启动 taosAdapter 服务。
 
