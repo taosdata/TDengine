@@ -318,7 +318,20 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
   //    updateNumOfRowsInResultRows(pInfo->binfo.pCtx, pOperator->numOfExprs, &pInfo->binfo.resultRowInfo,
   //    pInfo->binfo.rowCellInfoOffset);
   //  }
-
+#if 0
+  if(pOperator->fpSet.encodeResultRow){
+    char *result = NULL;
+    int32_t length = 0;
+    pOperator->fpSet.encodeResultRow(pOperator, &result, &length);
+    SAggSupporter* pSup = &pInfo->aggSup;
+    taosHashClear(pSup->pResultRowHashTable);
+    pInfo->binfo.resultRowInfo.size = 0;
+    pOperator->fpSet.decodeResultRow(pOperator, result);
+    if(result){
+      taosMemoryFree(result);
+    }
+  }
+#endif
   blockDataEnsureCapacity(pRes, pOperator->resultInfo.capacity);
   initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, 0);
 
