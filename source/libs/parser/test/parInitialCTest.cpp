@@ -228,7 +228,44 @@ TEST_F(ParserInitialCTest, createDnode) {
   run("CREATE DNODE 1.1.1.1 PORT 9000");
 }
 
-// todo CREATE FUNCTION
+// CREATE [AGGREGATE] FUNCTION [IF NOT EXISTS] func_name AS library_path OUTPUTTYPE type_name [BUFSIZE value]
+TEST_F(ParserInitialCTest, createFunction) {
+  useDb("root", "test");
+
+  SCreateFuncReq expect = {0};
+
+  auto setCreateFuncReqFunc = [&](const char* pUdfName, int8_t outputType, int32_t outputBytes = 0,
+                                  int8_t funcType = TSDB_FUNC_TYPE_SCALAR, int8_t igExists = 0, int32_t bufSize = 0) {
+    memset(&expect, 0, sizeof(SCreateFuncReq));
+    strcpy(expect.name, pUdfName);
+    expect.igExists = igExists;
+    expect.funcType = funcType;
+    expect.scriptType = TSDB_FUNC_SCRIPT_BIN_LIB;
+    expect.outputType = outputType;
+    expect.outputLen = outputBytes > 0 ? outputBytes : tDataTypes[outputType].bytes;
+    expect.bufSize = bufSize;
+  };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_FUNCTION_STMT);
+    SCreateFuncReq req = {0};
+    ASSERT_TRUE(TSDB_CODE_SUCCESS == tDeserializeSCreateFuncReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+
+    ASSERT_EQ(std::string(req.name), std::string(expect.name));
+    ASSERT_EQ(req.igExists, expect.igExists);
+    ASSERT_EQ(req.funcType, expect.funcType);
+    ASSERT_EQ(req.scriptType, expect.scriptType);
+    ASSERT_EQ(req.outputType, expect.outputType);
+    ASSERT_EQ(req.outputLen, expect.outputLen);
+    ASSERT_EQ(req.bufSize, expect.bufSize);
+  });
+
+  setCreateFuncReqFunc("udf1", TSDB_DATA_TYPE_INT);
+  // run("CREATE FUNCTION udf1 AS './build/lib/libudf1.so' OUTPUTTYPE INT");
+
+  setCreateFuncReqFunc("udf2", TSDB_DATA_TYPE_DOUBLE, 0, TSDB_FUNC_TYPE_AGGREGATE, 1, 8);
+  // run("CREATE AGGREGATE FUNCTION IF NOT EXISTS udf2 AS './build/lib/libudf2.so' OUTPUTTYPE DOUBLE BUFSIZE 8");
+}
 
 TEST_F(ParserInitialCTest, createIndexSma) {
   useDb("root", "test");

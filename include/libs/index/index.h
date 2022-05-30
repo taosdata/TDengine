@@ -192,11 +192,16 @@ void        indexTermDestroy(SIndexTerm* p);
 void indexInit();
 
 /* index filter */
+typedef struct SIndexMetaArg {
+  void*    metaHandle;
+  uint64_t suid;
+} SIndexMetaArg;
+
 typedef enum { SFLT_NOT_INDEX, SFLT_COARSE_INDEX, SFLT_ACCURATE_INDEX } SIdxFltStatus;
 
 SIdxFltStatus idxGetFltStatus(SNode* pFilterNode);
 
-int32_t doFilterTag(const SNode* pFilterNode, SArray* result);
+int32_t doFilterTag(const SNode* pFilterNode, SIndexMetaArg* metaArg, SArray* result);
 /*
  * destory index env
  *

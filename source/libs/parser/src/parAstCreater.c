@@ -38,7 +38,7 @@
 
 SToken nil_token = {.type = TK_NK_NIL, .n = 0, .z = NULL};
 
-int32_t initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt) {
+void initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt) {
   memset(pCxt, 0, sizeof(SAstCreateContext));
   pCxt->pQueryCxt = pParseCxt;
   pCxt->msgBuf.buf = pParseCxt->pMsg;
@@ -48,13 +48,6 @@ int32_t initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt) 
   pCxt->placeholderNo = 0;
   pCxt->pPlaceholderValues = NULL;
   pCxt->errCode = TSDB_CODE_SUCCESS;
-  if (pParseCxt->async) {
-    pCxt->pMetaCache = taosMemoryCalloc(1, sizeof(SParseMetaCache));
-    if (NULL == pCxt->pMetaCache) {
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-  }
-  return TSDB_CODE_SUCCESS;
 }
 
 static void copyStringFormStringToken(SToken* pToken, char* pBuf, int32_t len) {
@@ -472,13 +465,6 @@ SNode* createRealTableNode(SAstCreateContext* pCxt, SToken* pDbName, SToken* pTa
     strncpy(realTable->table.tableAlias, pTableName->z, pTableName->n);
   }
   strncpy(realTable->table.tableName, pTableName->z, pTableName->n);
-  if (NULL != pCxt->pMetaCache) {
-    if (TSDB_CODE_SUCCESS != reserveTableMetaInCache(pCxt->pQueryCxt->acctId, realTable->table.dbName,
-                                                     realTable->table.tableName, pCxt->pMetaCache)) {
-      nodesDestroyNode(realTable);
-      CHECK_OUT_OF_MEM(NULL);
-    }
-  }
   return (SNode*)realTable;
 }
 

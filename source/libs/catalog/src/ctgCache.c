@@ -19,37 +19,43 @@
 #include "catalogInt.h"
 #include "systable.h"
 
-SCtgAction gCtgAction[CTG_ACT_MAX] = {
+SCtgOperation gCtgCacheOperation[CTG_OP_MAX] = {
   {
-    CTG_ACT_UPDATE_VG,
+    CTG_OP_UPDATE_VGROUP,
     "update vgInfo",
-    ctgActUpdateVg
+    ctgOpUpdateVgroup
   },
   {
-    CTG_ACT_UPDATE_TBL,
+    CTG_OP_UPDATE_TB_META,
     "update tbMeta",
-    ctgActUpdateTb
+    ctgOpUpdateTbMeta
   },
   {
-    CTG_ACT_REMOVE_DB,
-    "remove DB",
-    ctgActRemoveDB
+    CTG_OP_DROP_DB_CACHE,
+    "drop DB",
+    ctgOpDropDbCache
   },
   {
-    CTG_ACT_REMOVE_STB,
-    "remove stbMeta",
-    ctgActRemoveStb
+    CTG_OP_DROP_STB_META,
+    "drop stbMeta",
+    ctgOpDropStbMeta
   },
   {
-    CTG_ACT_REMOVE_TBL,
-    "remove tbMeta",
-    ctgActRemoveTb
+    CTG_OP_DROP_TB_META,
+    "drop tbMeta",
+    ctgOpDropTbMeta
   },
   {
-    CTG_ACT_UPDATE_USER,
+    CTG_OP_UPDATE_USER,
     "update user",
-    ctgActUpdateUser
+    ctgOpUpdateUser
+  },
+  {
+    CTG_OP_UPDATE_VG_EPSET,
+    "update epset",
+    ctgOpUpdateEpset
   }
+  
 };
 
 
@@ -405,7 +411,7 @@ int32_t ctgReadTbVerFromCache(SCatalog *pCtg, const SName *pTableName, int32_t *
 }
 
 
-int32_t ctgGetTbTypeFromCache(SCatalog* pCtg, const char* dbFName, const char *tableName, int32_t *tbType) {
+int32_t ctgReadTbTypeFromCache(SCatalog* pCtg, const char* dbFName, const char *tableName, int32_t *tbType) {
   if (NULL == pCtg->dbCache) {
     ctgWarn("empty db cache, dbFName:%s, tbName:%s", dbFName, tableName);  
     return TSDB_CODE_SUCCESS;
@@ -491,7 +497,7 @@ _return:
 }
 
 
-void ctgWaitAction(SCtgMetaAction *action) {
+void ctgWaitOpDone(SCtgCacheOperation *action) {
   while (true) {
     tsem_wait(&gCtgMgmt.queue.rspSem);
     
@@ -509,7 +515,7 @@ void ctgWaitAction(SCtgMetaAction *action) {
   }
 }
 
-void ctgPopAction(SCtgMetaAction **action) {
+void ctgDequeue(SCtgCacheOperation **op) {
   SCtgQNode *orig = gCtgMgmt.queue.head;
   
   SCtgQNode *node = gCtgMgmt.queue.head->next;
@@ -519,20 +525,20 @@ void ctgPopAction(SCtgMetaAction **action) {
   
   taosMemoryFreeClear(orig);
 
-  *action = &node->action;
+  *op = &node->op;
 }
 
 
-int32_t ctgPushAction(SCatalog* pCtg, SCtgMetaAction *action) {
+int32_t ctgEnqueue(SCatalog* pCtg, SCtgCacheOperation *operation) {
   SCtgQNode *node = taosMemoryCalloc(1, sizeof(SCtgQNode));
   if (NULL == node) {
     qError("calloc %d failed", (int32_t)sizeof(SCtgQNode));
     CTG_RET(TSDB_CODE_CTG_MEM_ERROR);
   }
 
-  action->seqId = atomic_add_fetch_64(&gCtgMgmt.queue.seqId, 1);
+  operation->seqId = atomic_add_fetch_64(&gCtgMgmt.queue.seqId, 1);
   
-  node->action = *action;
+  node->op = *operation;
 
   CTG_LOCK(CTG_WRITE, &gCtgMgmt.queue.qlock);
   gCtgMgmt.queue.tail->next = node;
@@ -544,19 +550,19 @@ int32_t ctgPushAction(SCatalog* pCtg, SCtgMetaAction *action) {
 
   tsem_post(&gCtgMgmt.queue.reqSem);
 
-  ctgDebug("action [%s] added into queue", gCtgAction[action->act].name);
+  ctgDebug("action [%s] added into queue", gCtgCacheOperation[operation->opId].name);
 
-  if (action->syncReq) {
-    ctgWaitAction(action);
+  if (operation->syncReq) {
+    ctgWaitOpDone(operation);
   }
 
   return TSDB_CODE_SUCCESS;
 }
 
 
-int32_t ctgPutRmDBToQueue(SCatalog* pCtg, const char *dbFName, int64_t dbId) {
+int32_t ctgDropDbCacheEnqueue(SCatalog* pCtg, const char *dbFName, int64_t dbId) {
   int32_t code = 0;
-  SCtgMetaAction action= {.act = CTG_ACT_REMOVE_DB};
+  SCtgCacheOperation action= {.opId = CTG_OP_DROP_DB_CACHE};
   SCtgRemoveDBMsg *msg = taosMemoryMalloc(sizeof(SCtgRemoveDBMsg));
   if (NULL == msg) {
     ctgError("malloc %d failed", (int32_t)sizeof(SCtgRemoveDBMsg));
@@ -574,7 +580,7 @@ int32_t ctgPutRmDBToQueue(SCatalog* pCtg, const char *dbFName, int64_t dbId) {
 
   action.data = msg;
 
-  CTG_ERR_JRET(ctgPushAction(pCtg, &action));
+  CTG_ERR_JRET(ctgEnqueue(pCtg, &action));
 
   return TSDB_CODE_SUCCESS;
 
@@ -585,9 +591,9 @@ _return:
 }
 
 
-int32_t ctgPutRmStbToQueue(SCatalog* pCtg, const char *dbFName, int64_t dbId, const char *stbName, uint64_t suid, bool syncReq) {
+int32_t ctgDropStbMetaEnqueue(SCatalog* pCtg, const char *dbFName, int64_t dbId, const char *stbName, uint64_t suid, bool syncReq) {
   int32_t code = 0;
-  SCtgMetaAction action= {.act = CTG_ACT_REMOVE_STB, .syncReq = syncReq};
+  SCtgCacheOperation action= {.opId = CTG_OP_DROP_STB_META, .syncReq = syncReq};
   SCtgRemoveStbMsg *msg = taosMemoryMalloc(sizeof(SCtgRemoveStbMsg));
   if (NULL == msg) {
     ctgError("malloc %d failed", (int32_t)sizeof(SCtgRemoveStbMsg));
@@ -602,7 +608,7 @@ int32_t ctgPutRmStbToQueue(SCatalog* pCtg, const char *dbFName, int64_t dbId, co
 
   action.data = msg;
 
-  CTG_ERR_JRET(ctgPushAction(pCtg, &action));
+  CTG_ERR_JRET(ctgEnqueue(pCtg, &action));
 
   return TSDB_CODE_SUCCESS;
 
@@ -614,9 +620,9 @@ _return:
 
 
 
-int32_t ctgPutRmTbToQueue(SCatalog* pCtg, const char *dbFName, int64_t dbId, const char *tbName, bool syncReq) {
+int32_t ctgDropTbMetaEnqueue(SCatalog* pCtg, const char *dbFName, int64_t dbId, const char *tbName, bool syncReq) {
   int32_t code = 0;
-  SCtgMetaAction action= {.act = CTG_ACT_REMOVE_TBL, .syncReq = syncReq};
+  SCtgCacheOperation action= {.opId = CTG_OP_DROP_TB_META, .syncReq = syncReq};
   SCtgRemoveTblMsg *msg = taosMemoryMalloc(sizeof(SCtgRemoveTblMsg));
   if (NULL == msg) {
     ctgError("malloc %d failed", (int32_t)sizeof(SCtgRemoveTblMsg));
@@ -630,7 +636,7 @@ int32_t ctgPutRmTbToQueue(SCatalog* pCtg, const char *dbFName, int64_t dbId, con
 
   action.data = msg;
 
-  CTG_ERR_JRET(ctgPushAction(pCtg, &action));
+  CTG_ERR_JRET(ctgEnqueue(pCtg, &action));
 
   return TSDB_CODE_SUCCESS;
 
@@ -640,9 +646,9 @@ _return:
   CTG_RET(code);
 }
 
-int32_t ctgPutUpdateVgToQueue(SCatalog* pCtg, const char *dbFName, int64_t dbId, SDBVgInfo* dbInfo, bool syncReq) {
+int32_t ctgUpdateVgroupEnqueue(SCatalog* pCtg, const char *dbFName, int64_t dbId, SDBVgInfo* dbInfo, bool syncReq) {
   int32_t code = 0;
-  SCtgMetaAction action= {.act = CTG_ACT_UPDATE_VG, .syncReq = syncReq};
+  SCtgCacheOperation action= {.opId = CTG_OP_UPDATE_VGROUP, .syncReq = syncReq};
   SCtgUpdateVgMsg *msg = taosMemoryMalloc(sizeof(SCtgUpdateVgMsg));
   if (NULL == msg) {
     ctgError("malloc %d failed", (int32_t)sizeof(SCtgUpdateVgMsg));
@@ -662,7 +668,7 @@ int32_t ctgPutUpdateVgToQueue(SCatalog* pCtg, const char *dbFName, int64_t dbId,
 
   action.data = msg;
 
-  CTG_ERR_JRET(ctgPushAction(pCtg, &action));
+  CTG_ERR_JRET(ctgEnqueue(pCtg, &action));
 
   return TSDB_CODE_SUCCESS;
 
@@ -673,9 +679,9 @@ _return:
   CTG_RET(code);
 }
 
-int32_t ctgPutUpdateTbToQueue(SCatalog* pCtg, STableMetaOutput *output, bool syncReq) {
+int32_t ctgUpdateTbMetaEnqueue(SCatalog* pCtg, STableMetaOutput *output, bool syncReq) {
   int32_t code = 0;
-  SCtgMetaAction action= {.act = CTG_ACT_UPDATE_TBL, .syncReq = syncReq};
+  SCtgCacheOperation action= {.opId = CTG_OP_UPDATE_TB_META, .syncReq = syncReq};
   SCtgUpdateTblMsg *msg = taosMemoryMalloc(sizeof(SCtgUpdateTblMsg));
   if (NULL == msg) {
     ctgError("malloc %d failed", (int32_t)sizeof(SCtgUpdateTblMsg));
@@ -692,7 +698,7 @@ int32_t ctgPutUpdateTbToQueue(SCatalog* pCtg, STableMetaOutput *output, bool syn
 
   action.data = msg;
 
-  CTG_ERR_JRET(ctgPushAction(pCtg, &action));
+  CTG_ERR_JRET(ctgEnqueue(pCtg, &action));
 
   return TSDB_CODE_SUCCESS;
   
@@ -703,9 +709,38 @@ _return:
   CTG_RET(code);
 }
 
-int32_t ctgPutUpdateUserToQueue(SCatalog* pCtg, SGetUserAuthRsp *pAuth, bool syncReq) {
+int32_t ctgUpdateVgEpsetEnqueue(SCatalog* pCtg, char *dbFName, int32_t vgId, SEpSet* pEpSet) {
   int32_t code = 0;
-  SCtgMetaAction action= {.act = CTG_ACT_UPDATE_USER, .syncReq = syncReq};
+  SCtgCacheOperation operation= {.opId = CTG_OP_UPDATE_VG_EPSET};
+  SCtgUpdateEpsetMsg *msg = taosMemoryMalloc(sizeof(SCtgUpdateEpsetMsg));
+  if (NULL == msg) {
+    ctgError("malloc %d failed", (int32_t)sizeof(SCtgUpdateEpsetMsg));
+    CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
+  }
+
+  msg->pCtg = pCtg;
+  strcpy(msg->dbFName, dbFName);
+  msg->vgId = vgId;
+  msg->epSet = *pEpSet;
+
+  operation.data = msg;
+
+  CTG_ERR_JRET(ctgEnqueue(pCtg, &operation));
+
+  return TSDB_CODE_SUCCESS;
+  
+_return:
+
+  taosMemoryFreeClear(msg);
+  
+  CTG_RET(code);
+}
+
+
+
+int32_t ctgUpdateUserEnqueue(SCatalog* pCtg, SGetUserAuthRsp *pAuth, bool syncReq) {
+  int32_t code = 0;
+  SCtgCacheOperation action= {.opId = CTG_OP_UPDATE_USER, .syncReq = syncReq};
   SCtgUpdateUserMsg *msg = taosMemoryMalloc(sizeof(SCtgUpdateUserMsg));
   if (NULL == msg) {
     ctgError("malloc %d failed", (int32_t)sizeof(SCtgUpdateUserMsg));
@@ -717,7 +752,7 @@ int32_t ctgPutUpdateUserToQueue(SCatalog* pCtg, SGetUserAuthRsp *pAuth, bool syn
 
   action.data = msg;
 
-  CTG_ERR_JRET(ctgPushAction(pCtg, &action));
+  CTG_ERR_JRET(ctgEnqueue(pCtg, &action));
   
   return TSDB_CODE_SUCCESS;
   
@@ -1219,7 +1254,7 @@ int32_t ctgUpdateTbMetaToCache(SCatalog* pCtg, STableMetaOutput* pOut, bool sync
   int32_t code = 0;
   
   CTG_ERR_RET(ctgCloneMetaOutput(pOut, &pOutput));
-  CTG_ERR_JRET(ctgPutUpdateTbToQueue(pCtg, pOutput, syncReq));
+  CTG_ERR_JRET(ctgUpdateTbMetaEnqueue(pCtg, pOutput, syncReq));
 
   return TSDB_CODE_SUCCESS;
   
@@ -1230,9 +1265,9 @@ _return:
 }
 
 
-int32_t ctgActUpdateVg(SCtgMetaAction *action) {
+int32_t ctgOpUpdateVgroup(SCtgCacheOperation *operation) {
   int32_t code = 0;
-  SCtgUpdateVgMsg *msg = action->data;
+  SCtgUpdateVgMsg *msg = operation->data;
   
   CTG_ERR_JRET(ctgWriteDBVgInfoToCache(msg->pCtg, msg->dbFName, msg->dbId, &msg->dbInfo));
 
@@ -1244,9 +1279,9 @@ _return:
   CTG_RET(code);
 }
 
-int32_t ctgActRemoveDB(SCtgMetaAction *action) {
+int32_t ctgOpDropDbCache(SCtgCacheOperation *operation) {
   int32_t code = 0;
-  SCtgRemoveDBMsg *msg = action->data;
+  SCtgRemoveDBMsg *msg = operation->data;
   SCatalog* pCtg = msg->pCtg;
 
   SCtgDBCache *dbCache = NULL;
@@ -1270,9 +1305,9 @@ _return:
 }
 
 
-int32_t ctgActUpdateTb(SCtgMetaAction *action) {
+int32_t ctgOpUpdateTbMeta(SCtgCacheOperation *operation) {
   int32_t code = 0;
-  SCtgUpdateTblMsg *msg = action->data;
+  SCtgUpdateTblMsg *msg = operation->data;
   SCatalog* pCtg = msg->pCtg;
   STableMetaOutput* output = msg->output;
   SCtgDBCache *dbCache = NULL;
@@ -1316,9 +1351,9 @@ _return:
 }
 
 
-int32_t ctgActRemoveStb(SCtgMetaAction *action) {
+int32_t ctgOpDropStbMeta(SCtgCacheOperation *operation) {
   int32_t code = 0;
-  SCtgRemoveStbMsg *msg = action->data;
+  SCtgRemoveStbMsg *msg = operation->data;
   SCatalog* pCtg = msg->pCtg;
 
   SCtgDBCache *dbCache = NULL;
@@ -1362,9 +1397,9 @@ _return:
   CTG_RET(code);
 }
 
-int32_t ctgActRemoveTb(SCtgMetaAction *action) {
+int32_t ctgOpDropTbMeta(SCtgCacheOperation *operation) {
   int32_t code = 0;
-  SCtgRemoveTblMsg *msg = action->data;
+  SCtgRemoveTblMsg *msg = operation->data;
   SCatalog* pCtg = msg->pCtg;
 
   SCtgDBCache *dbCache = NULL;
@@ -1397,9 +1432,9 @@ _return:
   CTG_RET(code);
 }
 
-int32_t ctgActUpdateUser(SCtgMetaAction *action) {
+int32_t ctgOpUpdateUser(SCtgCacheOperation *operation) {
   int32_t code = 0;
-  SCtgUpdateUserMsg *msg = action->data;
+  SCtgUpdateUserMsg *msg = operation->data;
   SCatalog* pCtg = msg->pCtg;
 
   if (NULL == pCtg->userCache) {
@@ -1460,14 +1495,60 @@ _return:
   CTG_RET(code);
 }
 
-void ctgUpdateThreadFuncUnexpectedStopped(void) {
+int32_t ctgOpUpdateEpset(SCtgCacheOperation *operation) {
+  int32_t code = 0;
+  SCtgUpdateEpsetMsg *msg = operation->data;
+  SCatalog* pCtg = msg->pCtg;
+  
+  SCtgDBCache *dbCache = NULL;
+  CTG_ERR_RET(ctgAcquireDBCache(pCtg, msg->dbFName, &dbCache));
+  if (NULL == dbCache) {
+    ctgDebug("db %s not exist, ignore epset update", msg->dbFName);
+    goto _return;
+  }
+
+  SDBVgInfo *vgInfo = NULL;
+  CTG_ERR_RET(ctgWAcquireVgInfo(pCtg, dbCache));
+  
+  if (NULL == dbCache->vgInfo) {
+    ctgWReleaseVgInfo(dbCache);
+    ctgDebug("vgroup in db %s not cached, ignore epset update", msg->dbFName);
+    goto _return;
+  }
+  
+  SVgroupInfo* pInfo = taosHashGet(dbCache->vgInfo->vgHash, &msg->vgId, sizeof(msg->vgId));
+  if (NULL == pInfo) {
+    ctgWReleaseVgInfo(dbCache);
+    ctgDebug("no vgroup %d in db %s, ignore epset update", msg->vgId, msg->dbFName);
+    goto _return;
+  }
+
+  pInfo->epSet = msg->epSet;
+
+  ctgDebug("epset in vgroup %d updated, dbFName:%s", pInfo->vgId, msg->dbFName);
+
+  ctgWReleaseVgInfo(dbCache);
+
+_return:
+
+  if (dbCache) {
+    ctgReleaseDBCache(msg->pCtg, dbCache);
+  }
+
+  taosMemoryFreeClear(msg);
+  
+  CTG_RET(code);
+}
+
+
+void ctgUpdateThreadUnexpectedStopped(void) {
   if (CTG_IS_LOCKED(&gCtgMgmt.lock) > 0) CTG_UNLOCK(CTG_READ, &gCtgMgmt.lock);
 }
 
 void* ctgUpdateThreadFunc(void* param) {
   setThreadName("catalog");
 #ifdef WINDOWS
-  atexit(ctgUpdateThreadFuncUnexpectedStopped);
+  atexit(ctgUpdateThreadUnexpectedStopped);
 #endif
   qInfo("catalog update thread started");
 
@@ -1483,17 +1564,17 @@ void* ctgUpdateThreadFunc(void* param) {
       break;
     }
 
-    SCtgMetaAction *action = NULL;
-    ctgPopAction(&action);
-    SCatalog *pCtg = ((SCtgUpdateMsgHeader *)action->data)->pCtg;
+    SCtgCacheOperation *operation = NULL;
+    ctgDequeue(&operation);
+    SCatalog *pCtg = ((SCtgUpdateMsgHeader *)operation->data)->pCtg;
 
-    ctgDebug("process [%s] action", gCtgAction[action->act].name);
+    ctgDebug("process [%s] operation", gCtgCacheOperation[operation->opId].name);
     
-    (*gCtgAction[action->act].func)(action);
+    (*gCtgCacheOperation[operation->opId].func)(operation);
 
-    gCtgMgmt.queue.seqDone = action->seqId;
+    gCtgMgmt.queue.seqDone = operation->seqId;
 
-    if (action->syncReq) {
+    if (operation->syncReq) {
       tsem_post(&gCtgMgmt.queue.rspSem);
     }
 

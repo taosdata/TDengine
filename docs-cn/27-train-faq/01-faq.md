@@ -33,15 +33,15 @@ title: 常见问题及反馈
 
 ### 2. Windows 平台下 JDBCDriver 找不到动态链接库，怎么办？
 
-请看为此问题撰写的[技术博客](https://www.taosdata.com/blog/2019/12/03/950.html)。
+请看为此问题撰写的 [技术博客](https://www.taosdata.com/blog/2019/12/03/950.html)。
 
 ### 3. 创建数据表时提示 more dnodes are needed
 
-请看为此问题撰写的[技术博客](https://www.taosdata.com/blog/2019/12/03/965.html)。
+请看为此问题撰写的 [技术博客](https://www.taosdata.com/blog/2019/12/03/965.html)。
 
 ### 4. 如何让 TDengine crash 时生成 core 文件？
 
-请看为此问题撰写的[技术博客](https://www.taosdata.com/blog/2019/12/06/974.html)。
+请看为此问题撰写的 [技术博客](https://www.taosdata.com/blog/2019/12/06/974.html)。
 
 ### 5. 遇到错误“Unable to establish connection” 怎么办？
 
@@ -128,19 +128,30 @@ properties.setProperty(TSDBDriver.LOCALE_KEY, "UTF-8");
 Connection = DriverManager.getConnection(url, properties);
 ```
 
-### 13.JDBC 报错： the executed SQL is not a DML or a DDL？
+### 13.  Windows 系统下客户端无法正常显示中文字符？
+
+Windows 系统中一般是采用 GBK/GB18030 存储中文字符，而 TDengine 的默认字符集为 UTF-8 ，在 Windows 系统中使用 TDengine 客户端时，客户端驱动会将字符统一转换为 UTF-8 编码后发送到服务端存储，因此在应用开发过程中，调用接口时正确配置当前的中文字符集即可。
+
+【 v2.2.1.5以后版本 】在 Windows 10 环境下运行 TDengine 客户端命令行工具 taos 时，若无法正常输入、显示中文，可以对客户端 taos.cfg 做如下配置：
+
+```
+locale C 
+charset UTF-8
+```
+
+### 14. JDBC 报错： the executed SQL is not a DML or a DDL？
 
 请更新至最新的 JDBC 驱动，参考 [Java 连接器](/reference/connector/java)
 
-### 14. taos connect failed, reason&#58; invalid timestamp
+### 15. taos connect failed, reason&#58; invalid timestamp
 
 常见原因是服务器和客户端时间没有校准，可以通过和时间服务器同步的方式（Linux 下使用 ntpdate 命令，Windows 在系统时间设置中选择自动同步）校准。
 
-### 15. 表名显示不全
+### 16. 表名显示不全
 
 由于 taos shell 在终端中显示宽度有限，有可能比较长的表名显示不全，如果按照显示的不全的表名进行相关操作会发生 Table does not exist 错误。解决方法可以是通过修改 taos.cfg 文件中的设置项 maxBinaryDisplayWidth， 或者直接输入命令 set max_binary_display_width 100。或者在命令结尾使用 \G 参数来调整结果的显示方式。
 
-### 16. 如何进行数据迁移？
+### 17. 如何进行数据迁移？
 
 TDengine 是根据 hostname 唯一标志一台机器的，在数据文件从机器 A 移动机器 B 时，注意如下两件事：
 
@@ -148,7 +159,7 @@ TDengine 是根据 hostname 唯一标志一台机器的，在数据文件从机�
  - 2.0.7.0 及以后的版本，到/var/lib/taos/dnode 下，修复 dnodeEps.json 的 dnodeId 对应的 FQDN，重启。确保机器内所有机器的此文件是完全相同的。
  - 1.x 和 2.x 版本的存储结构不兼容，需要使用迁移工具或者自己开发应用导出导入数据。
 
-### 17. 如何在命令行程序 taos 中临时调整日志级别
+### 18. 如何在命令行程序 taos 中临时调整日志级别
 
 为了调试方便，从 2.0.16 版本开始，命令行程序 taos 新增了与日志记录相关的两条指令：
 
@@ -169,7 +180,7 @@ ALTER LOCAL RESETLOG;
 
 <a class="anchor" id="timezone"></a>
 
-### 18. go 语言编写组件编译失败怎样解决？
+### 19. go 语言编写组件编译失败怎样解决？
 
 TDengine 2.3.0.0 及之后的版本包含一个使用 go 语言开发的 taosAdapter 独立组件，需要单独运行，取代之前 taosd 内置的 httpd ，提供包含原 httpd 功能以及支持多种其他软件（Prometheus、Telegraf、collectd、StatsD 等）的数据接入功能。
 使用最新 develop 分支代码编译需要先 `git submodule update --init --recursive` 下载 taosAdapter 仓库代码后再编译。
@@ -184,7 +195,7 @@ go env -w GOPROXY=https://goproxy.cn,direct
 如果希望继续使用之前的内置 httpd，可以关闭 taosAdapter 编译，使用
 `cmake .. -DBUILD_HTTP=true` 使用原来内置的 httpd。
 
-### 19. 如何查询数据占用的存储空间大小？
+### 20. 如何查询数据占用的存储空间大小？
 
 默认情况下，TDengine 的数据文件存储在 /var/lib/taos ，日志文件存储在 /var/log/taos 。
 
@@ -193,3 +204,50 @@ go env -w GOPROXY=https://goproxy.cn,direct
 若想查看单个数据库占用的大小，可在命令行程序 taos 内指定要查看的数据库后执行 `show vgroups;` ，通过得到的 VGroup id 去 /var/lib/taos/vnode 下查看包含的文件夹大小。
 
 若仅仅想查看指定（超级）表的数据块分布及大小，可查看[_block_dist 函数](https://docs.taosdata.com/taos-sql/select/#_block_dist-%E5%87%BD%E6%95%B0)
+
+### 21. 客户端连接串如何保证高可用？
+
+请看为此问题撰写的 [技术博客](https://www.taosdata.com/blog/2021/04/16/2287.html)
+
+### 22. 时间戳的时区信息是怎样处理的？
+
+TDengine 中时间戳的时区总是由客户端进行处理，而与服务端无关。具体来说，客户端会对 SQL 语句中的时间戳进行时区转换，转为 UTC 时区（即 Unix 时间戳——Unix Timestamp）再交由服务端进行写入和查询；在读取数据时，服务端也是采用 UTC 时区提供原始数据，客户端收到后再根据本地设置，把时间戳转换为本地系统所要求的时区进行显示。
+
+客户端在处理时间戳字符串时，会采取如下逻辑：
+
+1. 在未做特殊设置的情况下，客户端默认使用所在操作系统的时区设置。
+2. 如果在 taos.cfg 中设置了 timezone 参数，则客户端会以这个配置文件中的设置为准。
+3. 如果在 C/C++/Java/Python 等各种编程语言的 Connector Driver 中，在建立数据库连接时显式指定了 timezone，那么会以这个指定的时区设置为准。例如 Java Connector 的 JDBC URL 中就有 timezone 参数。
+4. 在书写 SQL 语句时，也可以直接使用 Unix 时间戳（例如 `1554984068000`）或带有时区的时间戳字符串，也即以 RFC 3339 格式（例如 `2013-04-12T15:52:01.123+08:00`）或 ISO-8601 格式（例如 `2013-04-12T15:52:01.123+0800`）来书写时间戳，此时这些时间戳的取值将不再受其他时区设置的影响。
+
+### 23. TDengine 2.0 都会用到哪些网络端口？
+
+在 TDengine 2.0 版本中，会用到以下这些网络端口（以默认端口 6030 为前提进行说明，如果修改了配置文件中的设置，那么这里列举的端口都会随之出现变化），管理员可以参考这里的信息调整防火墙设置：
+
+| 协议 | 默认端口   | 用途说明                         | 修改方法                        |
+| :--- | :-------- | :---------------------------------- | :------------------------------- |
+| TCP | 6030      | 客户端与服务端之间通讯。            | 由配置文件设置 serverPort 决定。 |
+| TCP | 6035      | 多节点集群的节点间通讯。            | 随 serverPort 端口变化。        |
+| TCP | 6040      | 多节点集群的节点间数据同步。        | 随 serverPort 端口变化。         |
+| TCP | 6041      | 客户端与服务端之间的 RESTful 通讯。 | 随 serverPort 端口变化。2.4.0.0 及以上版本由 taosAdapter 配置。  |
+| TCP | 6042      | Arbitrator 的服务端口。           | 随 Arbitrator 启动参数设置变化。 |
+| TCP | 6043      | TaosKeeper 监控服务端口。         | 随 TaosKeeper 启动参数设置变化。 |
+| TCP | 6044      | 支持 StatsD 的数据接入端口。       | 随 taosAdapter 启动参数设置变化（ 2.4.0.0 及以上版本）。 |
+| UDP | 6045      | 支持 collectd 数据接入端口。       | 随 taosAdapter 启动参数设置变化（ 2.4.0.0 及以上版本）。 |
+| TCP | 6060      | 企业版内 Monitor 服务的网络端口。   |                               |
+| UDP | 6030-6034 | 客户端与服务端之间通讯。            | 随 serverPort 端口变化。        |
+| UDP | 6035-6039 | 多节点集群的节点间通讯。            | 随 serverPort 端口变化。        |
+
+### 24. 为什么 RESTful 接口无响应、Grafana 无法添加 TDengine 为数据源、TDengineGUI 选了 6041 端口还是无法连接成功？？
+
+taosAdapter 从 TDengine 2.4.0.0 版本开始成为 TDengine 服务端软件的组成部分，是 TDengine 集群和应用程序之间的桥梁和适配器。在此之前 RESTful 接口等功能是由 taosd 内置的 HTTP 服务提供的，而如今要实现上述功能需要执行：```systemctl start taosadapter``` 命令来启动 taosAdapter 服务。
+
+需要说明的是，taosAdapter 的日志路径 path 需要单独配置，默认路径是 /var/log/taos ；日志等级 logLevel 有 8 个等级，默认等级是 info ，配置成 panic 可关闭日志输出。请注意操作系统 / 目录的空间大小，可通过命令行参数、环境变量或配置文件来修改配置，默认配置文件是 /etc/taos/taosadapter.toml 。
+
+有关 taosAdapter 组件的详细介绍请看文档：[taosAdapter](https://docs.taosdata.com/reference/taosadapter/)
+
+### 25. 发生了 OOM 怎么办？
+
+OOM 是操作系统的保护机制，当操作系统内存(包括 SWAP )不足时，会杀掉某些进程，从而保证操作系统的稳定运行。通常内存不足主要是如下两个原因导致，一是剩余内存小于 vm.min_free_kbytes ；二是程序请求的内存大于剩余内存。还有一种情况是内存充足但程序占用了特殊的内存地址，也会触发 OOM 。
+
+TDengine 会预先为每个 VNode 分配好内存，每个 Database 的 VNode 个数受 maxVgroupsPerDb 影响，每个 VNode 占用的内存大小受 Blocks 和 Cache 影响。要防止 OOM，需要在项目建设之初合理规划内存，并合理设置 SWAP ，除此之外查询过量的数据也有可能导致内存暴涨，这取决于具体的查询语句。TDengine 企业版对内存管理做了优化，采用了新的内存分配器，对稳定性有更高要求的用户可以考虑选择企业版。

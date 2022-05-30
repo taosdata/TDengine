@@ -40,37 +40,46 @@ void qndClose(SQnode *pQnode) {
   taosMemoryFree(pQnode);
 }
 
-int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad) { return 0; }
+int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad) { 
+  SMsgCb* pCb = &pQnode->msgCb;
 
-int32_t qndProcessQueryMsg(SQnode *pQnode, SRpcMsg *pMsg) {
+  pLoad->numOfQueryInQueue = pCb->qsizeFp(pCb->mgmt, pQnode->qndId, QUERY_QUEUE);
+  pLoad->numOfFetchInQueue = pCb->qsizeFp(pCb->mgmt, pQnode->qndId, FETCH_QUEUE);
+  pLoad->waitTimeInQueryQUeue = qWorkerGetWaitTimeInQueue(pQnode->pQuery, QUERY_QUEUE);
+  pLoad->waitTimeInFetchQUeue = qWorkerGetWaitTimeInQueue(pQnode->pQuery, FETCH_QUEUE);
+  
+  return 0; 
+}
+
+int32_t qndProcessQueryMsg(SQnode *pQnode, int64_t ts, SRpcMsg *pMsg) {
   int32_t     code = -1;
   SReadHandle handle = {.pMsgCb = &pQnode->msgCb};
   qTrace("message in qnode queue is processing");
 
   switch (pMsg->msgType) {
     case TDMT_VND_QUERY:
-      code = qWorkerProcessQueryMsg(&handle, pQnode->pQuery, pMsg);
+      code = qWorkerProcessQueryMsg(&handle, pQnode->pQuery, pMsg, ts);
       break;
     case TDMT_VND_QUERY_CONTINUE:
-      code = qWorkerProcessCQueryMsg(&handle, pQnode->pQuery, pMsg);
+      code = qWorkerProcessCQueryMsg(&handle, pQnode->pQuery, pMsg, ts);
       break;
     case TDMT_VND_FETCH:
-      code = qWorkerProcessFetchMsg(pQnode, pQnode->pQuery, pMsg);
+      code = qWorkerProcessFetchMsg(pQnode, pQnode->pQuery, pMsg, ts);
       break;
     case TDMT_VND_FETCH_RSP:
-      code = qWorkerProcessFetchRsp(pQnode, pQnode->pQuery, pMsg);
+      code = qWorkerProcessFetchRsp(pQnode, pQnode->pQuery, pMsg, ts);
       break;
     case TDMT_VND_CANCEL_TASK:
-      code = qWorkerProcessCancelMsg(pQnode, pQnode->pQuery, pMsg);
+      code = qWorkerProcessCancelMsg(pQnode, pQnode->pQuery, pMsg, ts);
       break;
     case TDMT_VND_DROP_TASK:
-      code = qWorkerProcessDropMsg(pQnode, pQnode->pQuery, pMsg);
+      code = qWorkerProcessDropMsg(pQnode, pQnode->pQuery, pMsg, ts);
       break;
     case TDMT_VND_CONSUME:
       // code =  tqProcessConsumeReq(pQnode->pTq, pMsg);
       // break;
     case TDMT_VND_QUERY_HEARTBEAT:
-      code = qWorkerProcessHbMsg(pQnode, pQnode->pQuery, pMsg);
+      code = qWorkerProcessHbMsg(pQnode, pQnode->pQuery, pMsg, ts);
       break;
     default:
       qError("unknown msg type:%d in qnode queue", pMsg->msgType);
