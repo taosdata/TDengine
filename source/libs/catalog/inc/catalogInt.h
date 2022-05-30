@@ -49,19 +49,21 @@ enum {
 };
 
 enum {
-  CTG_ACT_UPDATE_VG = 0,
-  CTG_ACT_UPDATE_TBL,
-  CTG_ACT_REMOVE_DB,
-  CTG_ACT_REMOVE_STB,
-  CTG_ACT_REMOVE_TBL,
-  CTG_ACT_UPDATE_USER,
-  CTG_ACT_MAX
+  CTG_OP_UPDATE_VGROUP = 0,
+  CTG_OP_UPDATE_TB_META,
+  CTG_OP_DROP_DB_CACHE,
+  CTG_OP_DROP_STB_META,
+  CTG_OP_DROP_TB_META,
+  CTG_OP_UPDATE_USER,
+  CTG_OP_UPDATE_VG_EPSET,
+  CTG_OP_MAX
 };
 
 typedef enum {
   CTG_TASK_GET_QNODE = 0,
   CTG_TASK_GET_DB_VGROUP,
   CTG_TASK_GET_DB_CFG,
+  CTG_TASK_GET_DB_INFO,
   CTG_TASK_GET_TB_META,
   CTG_TASK_GET_TB_HASH,
   CTG_TASK_GET_INDEX,
@@ -97,6 +99,10 @@ typedef struct SCtgDbVgCtx {
 typedef struct SCtgDbCfgCtx {
   char dbFName[TSDB_DB_FNAME_LEN];
 } SCtgDbCfgCtx;
+
+typedef struct SCtgDbInfoCtx {
+  char dbFName[TSDB_DB_FNAME_LEN];
+} SCtgDbInfoCtx;
 
 typedef struct SCtgTbHashCtx {
   char dbFName[TSDB_DB_FNAME_LEN];
@@ -182,6 +188,7 @@ typedef struct SCtgJob {
   int32_t          dbCfgNum;
   int32_t          indexNum;
   int32_t          userNum;
+  int32_t          dbInfoNum;
 } SCtgJob;
 
 typedef struct SCtgMsgCtx {
@@ -285,16 +292,22 @@ typedef struct SCtgUpdateUserMsg {
   SGetUserAuthRsp userAuth;
 } SCtgUpdateUserMsg;
 
+typedef struct SCtgUpdateEpsetMsg {
+  SCatalog* pCtg;
+  char  dbFName[TSDB_DB_FNAME_LEN];
+  int32_t vgId;
+  SEpSet  epSet;
+} SCtgUpdateEpsetMsg;
 
-typedef struct SCtgMetaAction {
-  int32_t  act;
+typedef struct SCtgCacheOperation {
+  int32_t  opId;
   void    *data;
   bool     syncReq;
   uint64_t seqId;
-} SCtgMetaAction;
+} SCtgCacheOperation;
 
 typedef struct SCtgQNode {
-  SCtgMetaAction         action;
+  SCtgCacheOperation     op;
   struct SCtgQNode      *next;
 } SCtgQNode;
 
@@ -321,13 +334,13 @@ typedef struct SCatalogMgmt {
 } SCatalogMgmt;
 
 typedef uint32_t (*tableNameHashFp)(const char *, uint32_t);
-typedef int32_t (*ctgActFunc)(SCtgMetaAction *);
+typedef int32_t (*ctgOpFunc)(SCtgCacheOperation *);
 
-typedef struct SCtgAction {
-  int32_t    actId;
+typedef struct SCtgOperation {
+  int32_t    opId;
   char       name[32];
-  ctgActFunc func;
-} SCtgAction;
+  ctgOpFunc func;
+} SCtgOperation;
 
 #define CTG_QUEUE_ADD() atomic_add_fetch_64(&gCtgMgmt.queue.qRemainNum, 1)
 #define CTG_QUEUE_SUB() atomic_sub_fetch_64(&gCtgMgmt.queue.qRemainNum, 1)
@@ -435,12 +448,13 @@ int32_t ctgdShowCacheInfo(void);
 int32_t ctgRemoveTbMetaFromCache(SCatalog* pCtg, SName* pTableName, bool syncReq);
 int32_t ctgGetTbMetaFromCache(CTG_PARAMS, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta);
 
-int32_t ctgActUpdateVg(SCtgMetaAction *action);
-int32_t ctgActUpdateTb(SCtgMetaAction *action);
-int32_t ctgActRemoveDB(SCtgMetaAction *action);
-int32_t ctgActRemoveStb(SCtgMetaAction *action);
-int32_t ctgActRemoveTb(SCtgMetaAction *action);
-int32_t ctgActUpdateUser(SCtgMetaAction *action);
+int32_t ctgOpUpdateVgroup(SCtgCacheOperation *action);
+int32_t ctgOpUpdateTbMeta(SCtgCacheOperation *action);
+int32_t ctgOpDropDbCache(SCtgCacheOperation *action);
+int32_t ctgOpDropStbMeta(SCtgCacheOperation *action);
+int32_t ctgOpDropTbMeta(SCtgCacheOperation *action);
+int32_t ctgOpUpdateUser(SCtgCacheOperation *action);
+int32_t ctgOpUpdateEpset(SCtgCacheOperation *operation);
 int32_t ctgAcquireVgInfoFromCache(SCatalog* pCtg, const char *dbFName, SCtgDBCache **pCache);
 void ctgReleaseDBCache(SCatalog *pCtg, SCtgDBCache *dbCache);
 void ctgReleaseVgInfo(SCtgDBCache *dbCache);
@@ -449,12 +463,13 @@ int32_t ctgTbMetaExistInCache(SCatalog* pCtg, char *dbFName, char* tbName, int32
 int32_t ctgReadTbMetaFromCache(SCatalog* pCtg, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta);
 int32_t ctgReadTbVerFromCache(SCatalog *pCtg, const SName *pTableName, int32_t *sver, int32_t *tver, int32_t *tbType, uint64_t *suid, char *stbName);
 int32_t ctgChkAuthFromCache(SCatalog* pCtg, const char* user, const char* dbFName, AUTH_TYPE type, bool *inCache, bool *pass);
-int32_t ctgPutRmDBToQueue(SCatalog* pCtg, const char *dbFName, int64_t dbId);
-int32_t ctgPutRmStbToQueue(SCatalog* pCtg, const char *dbFName, int64_t dbId, const char *stbName, uint64_t suid, bool syncReq);
-int32_t ctgPutRmTbToQueue(SCatalog* pCtg, const char *dbFName, int64_t dbId, const char *tbName, bool syncReq);
-int32_t ctgPutUpdateVgToQueue(SCatalog* pCtg, const char *dbFName, int64_t dbId, SDBVgInfo* dbInfo, bool syncReq);
-int32_t ctgPutUpdateTbToQueue(SCatalog* pCtg, STableMetaOutput *output, bool syncReq);
-int32_t ctgPutUpdateUserToQueue(SCatalog* pCtg, SGetUserAuthRsp *pAuth, bool syncReq);
+int32_t ctgDropDbCacheEnqueue(SCatalog* pCtg, const char *dbFName, int64_t dbId);
+int32_t ctgDropStbMetaEnqueue(SCatalog* pCtg, const char *dbFName, int64_t dbId, const char *stbName, uint64_t suid, bool syncReq);
+int32_t ctgDropTbMetaEnqueue(SCatalog* pCtg, const char *dbFName, int64_t dbId, const char *tbName, bool syncReq);
+int32_t ctgUpdateVgroupEnqueue(SCatalog* pCtg, const char *dbFName, int64_t dbId, SDBVgInfo* dbInfo, bool syncReq);
+int32_t ctgUpdateTbMetaEnqueue(SCatalog* pCtg, STableMetaOutput *output, bool syncReq);
+int32_t ctgUpdateUserEnqueue(SCatalog* pCtg, SGetUserAuthRsp *pAuth, bool syncReq);
+int32_t ctgUpdateVgEpsetEnqueue(SCatalog* pCtg, char *dbFName, int32_t vgId, SEpSet* pEpSet);
 int32_t ctgMetaRentInit(SCtgRentMgmt *mgmt, uint32_t rentSec, int8_t type);
 int32_t ctgMetaRentAdd(SCtgRentMgmt *mgmt, void *meta, int64_t id, int32_t size);
 int32_t ctgMetaRentGet(SCtgRentMgmt *mgmt, void **res, uint32_t *num, int32_t size);

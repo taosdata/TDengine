@@ -1159,7 +1159,9 @@ void colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows) {
   if (IS_VAR_DATA_TYPE(pColumn->info.type)) {
     pColumn->varmeta.length = 0;
   } else {
-    memset(pColumn->nullbitmap, 0, BitmapLen(numOfRows));
+    if (pColumn->nullbitmap != NULL) {
+      memset(pColumn->nullbitmap, 0, BitmapLen(numOfRows));
+    }
   }
 }
 
@@ -1466,7 +1468,7 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
 }
 
 void blockDebugShowData(const SArray* dataBlocks) {
-  char    pBuf[128];
+  char    pBuf[128] = {0};
   int32_t sz = taosArrayGetSize(dataBlocks);
   for (int32_t i = 0; i < sz; i++) {
     SSDataBlock* pDataBlock = taosArrayGet(dataBlocks, i);
@@ -1838,6 +1840,7 @@ const char* blockCompressDecode(SSDataBlock* pBlock, int32_t numOfCols, int32_t 
       pStart += sizeof(int32_t) * numOfRows;
 
       if (colLen[i] > 0) {
+        taosMemoryFreeClear(pColInfoData->pData);
         pColInfoData->pData = taosMemoryMalloc(colLen[i]);
       }
     } else {

@@ -28,10 +28,12 @@ extern "C" {
 #include "taosdef.h"
 
 typedef struct SSyncSnapshotSender {
-  bool       isStart;
-  int32_t    progressIndex;
+  int32_t    sending;
+  int32_t    received;
+  bool       finish;
   void *     pCurrentBlock;
-  int32_t    len;
+  int32_t    blockLen;
+  int64_t    sendingMS;
   SSnapshot *pSnapshot;
   SSyncNode *pSyncNode;
 } SSyncSnapshotSender;
@@ -43,7 +45,8 @@ cJSON *              snapshotSender2Json(SSyncSnapshotSender *pSender);
 char *               snapshotSender2Str(SSyncSnapshotSender *pSender);
 
 typedef struct SSyncSnapshotReceiver {
-  bool       isStart;
+  bool       start;
+  int32_t    received;
   int32_t    progressIndex;
   void *     pCurrentBlock;
   int32_t    len;

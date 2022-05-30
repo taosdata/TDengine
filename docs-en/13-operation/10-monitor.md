@@ -2,13 +2,13 @@
 title: TDengine Monitoring
 ---
 
-After TDengine is started, a database named `log` for monitoring is created automatically. The information about CPU, memory, disk, bandwidth, number of requests, disk I/O speed, slow query is written into `log` database on the basis of a predefined interval. Additionally, some important system operations, like logon, create user, drop database, and alerts and warnings generated in TDengine are written into the `log` database too. A system operator can view the data in `log` database from TDengine CLI or from a web console.
+After TDengine is started, a database named `log` is created automatically to help with monitoring. Information that includes CPU, memory and disk usage, bandwidth, number of requests, disk I/O speed, slow queries, is written into the `log` database at a predefined interval. Additionally, some important system operations, like logon, create user, drop database, and alerts and warnings generated in TDengine are written into the `log` database too. A system operator can view the data in `log` database from TDengine CLI or from a web console.
 
 The collection of the monitoring information is enabled by default, but can be disabled by parameter `monitor` in the configuration file. 
 
 ## TDinsight 
 
-TDinsight is a complete solution which uses the monitor database `log` mentioned previously and Grafana to monitor a TDengine cluster.
+TDinsight is a complete solution which uses the monitoring database `log` mentioned previously, and Grafana, to monitor a TDengine cluster.
 
 From version 2.3.3.0, more monitoring data has been added in the `log` database. Please refer to [TDinsight Grafana Dashboard](https://grafana.com/grafana/dashboards/15167) to learn more details about using TDinsight to monitor TDengine.
 

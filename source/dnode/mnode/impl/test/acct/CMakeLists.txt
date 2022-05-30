@@ -5,7 +5,9 @@ target_link_libraries(
     PUBLIC sut
 )
 
-add_test(
-    NAME acctTest
-    COMMAND acctTest
-)
+if(NOT TD_WINDOWS)
+    add_test(
+        NAME acctTest
+        COMMAND acctTest
+    )
+endif(NOT TD_WINDOWS)

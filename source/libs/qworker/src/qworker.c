@@ -950,4 +950,9 @@ void qWorkerDestroy(void **qWorkerMgmt) {
   }
 }
 
+int64_t qWorkerGetWaitTimeInQueue(void *qWorkerMgmt, EQueueType type) {
+  return qwGetWaitTimeInQueue((SQWorker *)qWorkerMgmt, type);
+}
+
+
 

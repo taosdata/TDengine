@@ -893,7 +893,7 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
         memmove(tzInfo + fracLen, tzInfo, strlen(tzInfo));
       }
 
-      char tmp[32];
+      char tmp[32] = {0};
       sprintf(tmp, ".%s", fraction);
       memcpy(tzInfo, tmp, fracLen);
       len += fracLen;

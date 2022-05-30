@@ -493,7 +493,7 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
   // 4. TODO commit log: modification log
 
   // 5. set cb
-  mndTransSetCb(pTrans, MQ_REB_TRANS_START_FUNC, MQ_REB_TRANS_STOP_FUNC, NULL, 0);
+  mndTransSetCb(pTrans, TRANS_START_FUNC_MQ_REB, TRANS_STOP_FUNC_TEST_MQ_REB, NULL, 0);
 
   // 6. execution
   if (mndTransPrepare(pMnode, pTrans) != 0) goto REB_FAIL;
@@ -940,7 +940,7 @@ static int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     }
 
     // do not show for cleared subscription
-#if 0
+#if 1
     int32_t sz = taosArrayGetSize(pSub->unassignedVgs);
     for (int32_t i = 0; i < sz; i++) {
       SMqVgEp *pVgEp = taosArrayGetP(pSub->unassignedVgs, i);
