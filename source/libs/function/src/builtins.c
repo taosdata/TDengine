@@ -688,7 +688,7 @@ static int32_t translateLastRow(SFunctionNode* pFunc, char* pErrBuf, int32_t len
 static int32_t translateFirstLast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // first(col_list) will be rewritten as first(col)
   if (1 != LIST_LENGTH(pFunc->pParameterList)) {
-    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+    return TSDB_CODE_SUCCESS;
   }
 
   SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
