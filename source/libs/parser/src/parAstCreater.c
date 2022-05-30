@@ -1265,28 +1265,22 @@ SNode* createDropComponentNodeStmt(SAstCreateContext* pCxt, ENodeType type, cons
   return (SNode*)pStmt;
 }
 
-SNode* createTopicOptions(SAstCreateContext* pCxt) {
-  CHECK_PARSER_STATUS(pCxt);
-  STopicOptions* pOptions = nodesMakeNode(QUERY_NODE_TOPIC_OPTIONS);
-  CHECK_OUT_OF_MEM(pOptions);
-  pOptions->withTable = false;
-  pOptions->withSchema = false;
-  pOptions->withTag = false;
-  return (SNode*)pOptions;
-}
-
 SNode* createCreateTopicStmt(SAstCreateContext* pCxt, bool ignoreExists, const SToken* pTopicName, SNode* pQuery,
-                             const SToken* pSubscribeDbName, SNode* pOptions) {
+                             const SToken* pSubDbName, SNode* pRealTable) {
   CHECK_PARSER_STATUS(pCxt);
   SCreateTopicStmt* pStmt = nodesMakeNode(QUERY_NODE_CREATE_TOPIC_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   strncpy(pStmt->topicName, pTopicName->z, pTopicName->n);
   pStmt->ignoreExists = ignoreExists;
-  pStmt->pQuery = pQuery;
-  if (NULL != pSubscribeDbName) {
-    strncpy(pStmt->subscribeDbName, pSubscribeDbName->z, pSubscribeDbName->n);
+  if (NULL != pRealTable) {
+    strcpy(pStmt->subDbName, ((SRealTableNode*)pRealTable)->table.dbName);
+    strcpy(pStmt->subSTbName, ((SRealTableNode*)pRealTable)->table.tableName);
+    nodesDestroyNode(pRealTable);
+  } else if (NULL != pSubDbName) {
+    strncpy(pStmt->subDbName, pSubDbName->z, pSubDbName->n);
+  } else {
+    pStmt->pQuery = pQuery;
   }
-  pStmt->pOptions = (STopicOptions*)pOptions;
   return (SNode*)pStmt;
 }
 

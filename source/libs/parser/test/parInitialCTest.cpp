@@ -440,13 +440,62 @@ TEST_F(ParserInitialCTest, createTable) {
 TEST_F(ParserInitialCTest, createTopic) {
   useDb("root", "test");
 
+  SCMCreateTopicReq expect = {0};
+
+  auto setCreateTopicReqFunc = [&](const char* pTopicName, int8_t igExists, const char* pSql, const char* pAst,
+                                   const char* pDbName = nullptr, const char* pTbname = nullptr) {
+    memset(&expect, 0, sizeof(SMCreateStbReq));
+    snprintf(expect.name, sizeof(expect.name), "0.%s", pTopicName);
+    expect.igExists = igExists;
+    expect.sql = (char*)pSql;
+    if (nullptr != pTbname) {
+      expect.subType = TOPIC_SUB_TYPE__TABLE;
+      snprintf(expect.subStbName, sizeof(expect.subStbName), "0.%s.%s", pDbName, pTbname);
+    } else if (nullptr != pAst) {
+      expect.subType = TOPIC_SUB_TYPE__COLUMN;
+      expect.ast = (char*)pAst;
+    } else {
+      expect.subType = TOPIC_SUB_TYPE__DB;
+      snprintf(expect.subStbName, sizeof(expect.subStbName), "0.%s", pDbName);
+    }
+  };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_TOPIC_STMT);
+    SCMCreateTopicReq req = {0};
+    ASSERT_TRUE(TSDB_CODE_SUCCESS ==
+                tDeserializeSCMCreateTopicReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+
+    ASSERT_EQ(std::string(req.name), std::string(expect.name));
+    ASSERT_EQ(req.igExists, expect.igExists);
+    ASSERT_EQ(req.subType, expect.subType);
+    ASSERT_EQ(std::string(req.sql), std::string(expect.sql));
+    switch (expect.subType) {
+      case TOPIC_SUB_TYPE__DB:
+        ASSERT_EQ(std::string(req.subDbName), std::string(expect.subDbName));
+        break;
+      case TOPIC_SUB_TYPE__TABLE:
+        ASSERT_EQ(std::string(req.subStbName), std::string(expect.subStbName));
+        break;
+      case TOPIC_SUB_TYPE__COLUMN:
+        ASSERT_NE(req.ast, nullptr);
+        break;
+      default:
+        ASSERT_TRUE(false);
+    }
+  });
+
+  setCreateTopicReqFunc("tp1", 0, "create topic tp1 as select * from t1", "ast");
   run("CREATE TOPIC tp1 AS SELECT * FROM t1");
 
-  run("CREATE TOPIC IF NOT EXISTS tp1 AS SELECT * FROM t1");
+  setCreateTopicReqFunc("tp1", 1, "create topic if not exists tp1 as select ts, ceil(c1) from t1", "ast");
+  run("CREATE TOPIC IF NOT EXISTS tp1 AS SELECT ts, CEIL(c1) FROM t1");
 
-  run("CREATE TOPIC tp1 AS test");
+  setCreateTopicReqFunc("tp1", 0, "create topic tp1 as database test", nullptr, "test");
+  run("CREATE TOPIC tp1 AS DATABASE test");
 
-  run("CREATE TOPIC IF NOT EXISTS tp1 AS test");
+  setCreateTopicReqFunc("tp1", 1, "create topic if not exists tp1 as stable st1", nullptr, "test", "st1");
+  run("CREATE TOPIC IF NOT EXISTS tp1 AS STABLE st1");
 }
 
 TEST_F(ParserInitialCTest, createUser) {
