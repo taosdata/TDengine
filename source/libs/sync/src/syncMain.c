@@ -555,11 +555,19 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
   pSyncNode->FpOnPing = syncNodeOnPingCb;
   pSyncNode->FpOnPingReply = syncNodeOnPingReplyCb;
   pSyncNode->FpOnClientRequest = syncNodeOnClientRequestCb;
-  pSyncNode->FpOnRequestVote = syncNodeOnRequestVoteCb;
-  pSyncNode->FpOnRequestVoteReply = syncNodeOnRequestVoteReplyCb;
-  pSyncNode->FpOnAppendEntries = syncNodeOnAppendEntriesCb;
-  pSyncNode->FpOnAppendEntriesReply = syncNodeOnAppendEntriesReplyCb;
   pSyncNode->FpOnTimeout = syncNodeOnTimeoutCb;
+
+  if (pSyncNode->pRaftCfg->snapshotEnable) {
+    pSyncNode->FpOnRequestVote = syncNodeOnRequestVoteCb;
+    pSyncNode->FpOnRequestVoteReply = syncNodeOnRequestVoteReplyCb;
+    pSyncNode->FpOnAppendEntries = syncNodeOnAppendEntriesCb;
+    pSyncNode->FpOnAppendEntriesReply = syncNodeOnAppendEntriesReplyCb;
+  } else {
+    pSyncNode->FpOnRequestVote = syncNodeOnRequestVoteSnapshotCb;
+    pSyncNode->FpOnRequestVoteReply = syncNodeOnRequestVoteReplySnapshotCb;
+    pSyncNode->FpOnAppendEntries = syncNodeOnAppendEntriesSnapshotCb;
+    pSyncNode->FpOnAppendEntriesReply = syncNodeOnAppendEntriesReplySnapshotCb;
+  }
 
   // tools
   pSyncNode->pSyncRespMgr = syncRespMgrCreate(NULL, 0);
@@ -674,6 +682,9 @@ void syncNodeClose(SSyncNode* pSyncNode) {
   // free memory in syncFreeNode
   // taosMemoryFree(pSyncNode);
 }
+
+// option
+bool syncNodeSnapshotEnable(SSyncNode* pSyncNode) { return pSyncNode->pRaftCfg->snapshotEnable; }
 
 // ping --------------
 int32_t syncNodePing(SSyncNode* pSyncNode, const SRaftId* destRaftId, SyncPing* pMsg) {

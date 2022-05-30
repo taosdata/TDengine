@@ -15,6 +15,7 @@
 
 #include "syncElection.h"
 #include "syncMessage.h"
+#include "syncRaftCfg.h"
 #include "syncRaftStore.h"
 #include "syncVoteMgr.h"
 
@@ -73,7 +74,12 @@ int32_t syncNodeElect(SSyncNode* pSyncNode) {
     return ret;
   }
 
-  ret = syncNodeRequestVotePeers(pSyncNode);
+  if (pSyncNode->pRaftCfg->snapshotEnable) {
+    ret = syncNodeRequestVotePeersSnapshot(pSyncNode);
+  } else {
+    ret = syncNodeRequestVotePeers(pSyncNode);
+  }
+
   assert(ret == 0);
   syncNodeResetElectTimer(pSyncNode);
 

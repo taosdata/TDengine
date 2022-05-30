@@ -137,14 +137,25 @@ typedef struct SSyncNode {
   uint64_t          heartbeatTimerCounter;
 
   // callback
+  FpOnPingCb               FpOnPing;
+  FpOnPingReplyCb          FpOnPingReply;
+  FpOnClientRequestCb      FpOnClientRequest;
+  FpOnTimeoutCb            FpOnTimeout;
+  FpOnRequestVoteCb        FpOnRequestVote;
+  FpOnRequestVoteReplyCb   FpOnRequestVoteReply;
+  FpOnAppendEntriesCb      FpOnAppendEntries;
+  FpOnAppendEntriesReplyCb FpOnAppendEntriesReply;
+
+  /*
   int32_t (*FpOnPing)(SSyncNode* ths, SyncPing* pMsg);
   int32_t (*FpOnPingReply)(SSyncNode* ths, SyncPingReply* pMsg);
   int32_t (*FpOnClientRequest)(SSyncNode* ths, SyncClientRequest* pMsg);
+  int32_t (*FpOnTimeout)(SSyncNode* pSyncNode, SyncTimeout* pMsg);
   int32_t (*FpOnRequestVote)(SSyncNode* ths, SyncRequestVote* pMsg);
   int32_t (*FpOnRequestVoteReply)(SSyncNode* ths, SyncRequestVoteReply* pMsg);
   int32_t (*FpOnAppendEntries)(SSyncNode* ths, SyncAppendEntries* pMsg);
   int32_t (*FpOnAppendEntriesReply)(SSyncNode* ths, SyncAppendEntriesReply* pMsg);
-  int32_t (*FpOnTimeout)(SSyncNode* pSyncNode, SyncTimeout* pMsg);
+  */
 
   // tools
   SSyncRespMgr* pSyncRespMgr;
@@ -163,6 +174,9 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo);
 void       syncNodeStart(SSyncNode* pSyncNode);
 void       syncNodeStartStandBy(SSyncNode* pSyncNode);
 void       syncNodeClose(SSyncNode* pSyncNode);
+
+// option
+bool syncNodeSnapshotEnable(SSyncNode* pSyncNode);
 
 // ping --------------
 int32_t syncNodePing(SSyncNode* pSyncNode, const SRaftId* destRaftId, SyncPing* pMsg);

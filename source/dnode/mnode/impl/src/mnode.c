@@ -368,41 +368,84 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
   syncRpcMsgLog2(logBuf, pMsg);
   taosMemoryFree(syncNodeStr);
 
-  if (pMsg->msgType == TDMT_VND_SYNC_TIMEOUT) {
-    SyncTimeout *pSyncMsg = syncTimeoutFromRpcMsg2(pMsg);
-    code = syncNodeOnTimeoutCb(pSyncNode, pSyncMsg);
-    syncTimeoutDestroy(pSyncMsg);
-  } else if (pMsg->msgType == TDMT_VND_SYNC_PING) {
-    SyncPing *pSyncMsg = syncPingFromRpcMsg2(pMsg);
-    code = syncNodeOnPingCb(pSyncNode, pSyncMsg);
-    syncPingDestroy(pSyncMsg);
-  } else if (pMsg->msgType == TDMT_VND_SYNC_PING_REPLY) {
-    SyncPingReply *pSyncMsg = syncPingReplyFromRpcMsg2(pMsg);
-    code = syncNodeOnPingReplyCb(pSyncNode, pSyncMsg);
-    syncPingReplyDestroy(pSyncMsg);
-  } else if (pMsg->msgType == TDMT_VND_SYNC_CLIENT_REQUEST) {
-    SyncClientRequest *pSyncMsg = syncClientRequestFromRpcMsg2(pMsg);
-    code = syncNodeOnClientRequestCb(pSyncNode, pSyncMsg);
-    syncClientRequestDestroy(pSyncMsg);
-  } else if (pMsg->msgType == TDMT_VND_SYNC_REQUEST_VOTE) {
-    SyncRequestVote *pSyncMsg = syncRequestVoteFromRpcMsg2(pMsg);
-    code = syncNodeOnRequestVoteCb(pSyncNode, pSyncMsg);
-    syncRequestVoteDestroy(pSyncMsg);
-  } else if (pMsg->msgType == TDMT_VND_SYNC_REQUEST_VOTE_REPLY) {
-    SyncRequestVoteReply *pSyncMsg = syncRequestVoteReplyFromRpcMsg2(pMsg);
-    code = syncNodeOnRequestVoteReplyCb(pSyncNode, pSyncMsg);
-    syncRequestVoteReplyDestroy(pSyncMsg);
-  } else if (pMsg->msgType == TDMT_VND_SYNC_APPEND_ENTRIES) {
-    SyncAppendEntries *pSyncMsg = syncAppendEntriesFromRpcMsg2(pMsg);
-    code = syncNodeOnAppendEntriesCb(pSyncNode, pSyncMsg);
-    syncAppendEntriesDestroy(pSyncMsg);
-  } else if (pMsg->msgType == TDMT_VND_SYNC_APPEND_ENTRIES_REPLY) {
-    SyncAppendEntriesReply *pSyncMsg = syncAppendEntriesReplyFromRpcMsg2(pMsg);
-    code = syncNodeOnAppendEntriesReplyCb(pSyncNode, pSyncMsg);
-    syncAppendEntriesReplyDestroy(pSyncMsg);
+
+  // ugly! use function pointer 
+  if (syncNodeSnapshotEnable(pSyncNode)) {
+    if (pMsg->msgType == TDMT_VND_SYNC_TIMEOUT) {
+      SyncTimeout *pSyncMsg = syncTimeoutFromRpcMsg2(pMsg);
+      code = syncNodeOnTimeoutCb(pSyncNode, pSyncMsg);
+      syncTimeoutDestroy(pSyncMsg);
+    } else if (pMsg->msgType == TDMT_VND_SYNC_PING) {
+      SyncPing *pSyncMsg = syncPingFromRpcMsg2(pMsg);
+      code = syncNodeOnPingCb(pSyncNode, pSyncMsg);
+      syncPingDestroy(pSyncMsg);
+    } else if (pMsg->msgType == TDMT_VND_SYNC_PING_REPLY) {
+      SyncPingReply *pSyncMsg = syncPingReplyFromRpcMsg2(pMsg);
+      code = syncNodeOnPingReplyCb(pSyncNode, pSyncMsg);
+      syncPingReplyDestroy(pSyncMsg);
+    } else if (pMsg->msgType == TDMT_VND_SYNC_CLIENT_REQUEST) {
+      SyncClientRequest *pSyncMsg = syncClientRequestFromRpcMsg2(pMsg);
+      code = syncNodeOnClientRequestCb(pSyncNode, pSyncMsg);
+      syncClientRequestDestroy(pSyncMsg);
+
+    } else if (pMsg->msgType == TDMT_VND_SYNC_REQUEST_VOTE) {
+      SyncRequestVote *pSyncMsg = syncRequestVoteFromRpcMsg2(pMsg);
+      code = syncNodeOnRequestVoteSnapshotCb(pSyncNode, pSyncMsg);
+      syncRequestVoteDestroy(pSyncMsg);
+    } else if (pMsg->msgType == TDMT_VND_SYNC_REQUEST_VOTE_REPLY) {
+      SyncRequestVoteReply *pSyncMsg = syncRequestVoteReplyFromRpcMsg2(pMsg);
+      code = syncNodeOnRequestVoteReplySnapshotCb(pSyncNode, pSyncMsg);
+      syncRequestVoteReplyDestroy(pSyncMsg);
+    } else if (pMsg->msgType == TDMT_VND_SYNC_APPEND_ENTRIES) {
+      SyncAppendEntries *pSyncMsg = syncAppendEntriesFromRpcMsg2(pMsg);
+      code = syncNodeOnAppendEntriesSnapshotCb(pSyncNode, pSyncMsg);
+      syncAppendEntriesDestroy(pSyncMsg);
+    } else if (pMsg->msgType == TDMT_VND_SYNC_APPEND_ENTRIES_REPLY) {
+      SyncAppendEntriesReply *pSyncMsg = syncAppendEntriesReplyFromRpcMsg2(pMsg);
+      code = syncNodeOnAppendEntriesReplySnapshotCb(pSyncNode, pSyncMsg);
+      syncAppendEntriesReplyDestroy(pSyncMsg);
+    } else {
+      mError("failed to process msg:%p since invalid type:%s", pMsg, TMSG_INFO(pMsg->msgType));
+      code = TAOS_SYNC_PROPOSE_OTHER_ERROR;
+    }
+
   } else {
-    mError("failed to process msg:%p since invalid type:%s", pMsg, TMSG_INFO(pMsg->msgType));
-    code = TAOS_SYNC_PROPOSE_OTHER_ERROR;
+    if (pMsg->msgType == TDMT_VND_SYNC_TIMEOUT) {
+      SyncTimeout *pSyncMsg = syncTimeoutFromRpcMsg2(pMsg);
+      code = syncNodeOnTimeoutCb(pSyncNode, pSyncMsg);
+      syncTimeoutDestroy(pSyncMsg);
+    } else if (pMsg->msgType == TDMT_VND_SYNC_PING) {
+      SyncPing *pSyncMsg = syncPingFromRpcMsg2(pMsg);
+      code = syncNodeOnPingCb(pSyncNode, pSyncMsg);
+      syncPingDestroy(pSyncMsg);
+    } else if (pMsg->msgType == TDMT_VND_SYNC_PING_REPLY) {
+      SyncPingReply *pSyncMsg = syncPingReplyFromRpcMsg2(pMsg);
+      code = syncNodeOnPingReplyCb(pSyncNode, pSyncMsg);
+      syncPingReplyDestroy(pSyncMsg);
+    } else if (pMsg->msgType == TDMT_VND_SYNC_CLIENT_REQUEST) {
+      SyncClientRequest *pSyncMsg = syncClientRequestFromRpcMsg2(pMsg);
+      code = syncNodeOnClientRequestCb(pSyncNode, pSyncMsg);
+      syncClientRequestDestroy(pSyncMsg);
+    } else if (pMsg->msgType == TDMT_VND_SYNC_REQUEST_VOTE) {
+      SyncRequestVote *pSyncMsg = syncRequestVoteFromRpcMsg2(pMsg);
+      code = syncNodeOnRequestVoteCb(pSyncNode, pSyncMsg);
+      syncRequestVoteDestroy(pSyncMsg);
+    } else if (pMsg->msgType == TDMT_VND_SYNC_REQUEST_VOTE_REPLY) {
+      SyncRequestVoteReply *pSyncMsg = syncRequestVoteReplyFromRpcMsg2(pMsg);
+      code = syncNodeOnRequestVoteReplyCb(pSyncNode, pSyncMsg);
+      syncRequestVoteReplyDestroy(pSyncMsg);
+    } else if (pMsg->msgType == TDMT_VND_SYNC_APPEND_ENTRIES) {
+      SyncAppendEntries *pSyncMsg = syncAppendEntriesFromRpcMsg2(pMsg);
+      code = syncNodeOnAppendEntriesCb(pSyncNode, pSyncMsg);
+      syncAppendEntriesDestroy(pSyncMsg);
+    } else if (pMsg->msgType == TDMT_VND_SYNC_APPEND_ENTRIES_REPLY) {
+      SyncAppendEntriesReply *pSyncMsg = syncAppendEntriesReplyFromRpcMsg2(pMsg);
+      code = syncNodeOnAppendEntriesReplyCb(pSyncNode, pSyncMsg);
+      syncAppendEntriesReplyDestroy(pSyncMsg);
+    } else {
+      mError("failed to process msg:%p since invalid type:%s", pMsg, TMSG_INFO(pMsg->msgType));
+      code = TAOS_SYNC_PROPOSE_OTHER_ERROR;
+    }
   }
 
   return code;

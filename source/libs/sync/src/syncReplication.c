@@ -16,6 +16,7 @@
 #include "syncReplication.h"
 #include "syncIndexMgr.h"
 #include "syncMessage.h"
+#include "syncRaftCfg.h"
 #include "syncRaftEntry.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
@@ -113,9 +114,17 @@ int32_t syncNodeAppendEntriesPeers(SSyncNode* pSyncNode) {
   return ret;
 }
 
+int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) { return 0; }
+
 int32_t syncNodeReplicate(SSyncNode* pSyncNode) {
   // start replicate
-  int32_t ret = syncNodeAppendEntriesPeers(pSyncNode);
+  int32_t ret = 0;
+
+  if (pSyncNode->pRaftCfg->snapshotEnable) {
+    ret = syncNodeAppendEntriesPeersSnapshot(pSyncNode);
+  } else {
+    ret = syncNodeAppendEntriesPeers(pSyncNode);
+  }
   return ret;
 }
 
