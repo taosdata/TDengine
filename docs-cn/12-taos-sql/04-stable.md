@@ -86,7 +86,7 @@ ALTER STABLE stb_name MODIFY COLUMN field_name data_type(length);
 ALTER STABLE stb_name ADD TAG new_tag_name tag_type;
 ```
 
-为 STable 增加一个新的标签，并指定新标签的类型。标签总数不能超过 128 个，总长度不超过 16k 个字符。
+为 STable 增加一个新的标签，并指定新标签的类型。标签总数不能超过 128 个，总长度不超过 16KB 。
 
 ### 删除标签
 
