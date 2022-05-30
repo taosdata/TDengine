@@ -445,6 +445,11 @@ static int32_t translateStateCount(SFunctionNode* pFunc, char* pErrBuf, int32_t 
   }
 
   // param0
+  SNode* pParaNode0 = nodesListGetNode(pFunc->pParameterList, 0);
+  if (QUERY_NODE_COLUMN != nodeType(pParaNode0)) {
+    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                           "The input parameter of STATECOUNT function can only be column");
+  }
   uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
   if (!IS_NUMERIC_TYPE(colType)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
@@ -480,6 +485,11 @@ static int32_t translateStateDuration(SFunctionNode* pFunc, char* pErrBuf, int32
   }
 
   // param0
+  SNode* pParaNode0 = nodesListGetNode(pFunc->pParameterList, 0);
+  if (QUERY_NODE_COLUMN != nodeType(pParaNode0)) {
+    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                           "The input parameter of STATEDURATION function can only be column");
+  }
   uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
   if (!IS_NUMERIC_TYPE(colType)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
