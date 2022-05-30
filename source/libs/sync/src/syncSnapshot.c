@@ -19,6 +19,10 @@ SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode) { return NULL; }
 
 void snapshotSenderDestroy(SSyncSnapshotSender *pSender) {}
 
+void snapshotSenderStart(SSyncSnapshotSender *pSender) {}
+
+void snapshotSenderStop(SSyncSnapshotSender *pSender) {}
+
 int32_t snapshotSend(SSyncSnapshotSender *pSender) { return 0; }
 
 cJSON *snapshotSender2Json(SSyncSnapshotSender *pSender) { return NULL; }

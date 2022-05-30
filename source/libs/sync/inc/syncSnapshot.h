@@ -40,6 +40,8 @@ typedef struct SSyncSnapshotSender {
 
 SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode);
 void                 snapshotSenderDestroy(SSyncSnapshotSender *pSender);
+void                 snapshotSenderStart(SSyncSnapshotSender *pSender);
+void                 snapshotSenderStop(SSyncSnapshotSender *pSender);
 int32_t              snapshotSend(SSyncSnapshotSender *pSender);
 cJSON *              snapshotSender2Json(SSyncSnapshotSender *pSender);
 char *               snapshotSender2Str(SSyncSnapshotSender *pSender);
