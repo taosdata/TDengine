@@ -1,0 +1,42 @@
+{
+  "filetype": "query",
+  "cfgdir": "/etc/taos",
+  "host": "test216",
+  "port": 6030,
+  "user": "root",
+  "password": "taosdata",
+  "confirm_parameter_prompt": "no",
+  "databases": "db",
+  "query_times": 100,
+  "query_mode": "taosc",
+  "specified_table_query": {
+    "query_interval": 0,
+    "threads": 8,
+    "sqls": [
+      {
+        "sql": "select count(*) from stb_0 ",
+        "result": "./query_res0.txt"
+      },
+      {
+        "sql": "select last_row(*) from stb_1 ",
+        "result": "./query_res1.txt"
+      },
+      {
+        "sql": "select last(*) from stb_2 ",
+        "result": "./query_res2.txt"
+      },
+      {
+        "sql": "select first(*) from stb_3 ",
+        "result": "./query_res3.txt"
+      },
+      {
+        "sql": "select avg(c0),min(c2),max(c1) from stb_4",
+        "result": "./query_res4.txt"
+      },
+      {
+        "sql": "select avg(c0),min(c2),max(c1) from stb_5 where  ts <= '2022-05-01 20:00:00.500' and ts >= '2022-05-01 00:00:00.000' ",
+        "result": "./query_res5.txt"
+      }
+    ]
+  }
+}

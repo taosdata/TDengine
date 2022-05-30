@@ -132,11 +132,11 @@ class TDTestCase:
             querystmt.bind_param(queryparam)
             querystmt.execute() 
             result=querystmt.use_result()
-            rows=result.fetch_all()
-            print( querystmt.use_result())
+            # rows=result.fetch_all()
+            # print( querystmt.use_result())
 
             # result = conn.query("select * from log")
-            # rows=result.fetch_all()
+            rows=result.fetch_all()
             # rows=result.fetch_all()
             print(rows)
             assert rows[1][0] == "ts"
@@ -247,10 +247,9 @@ class TDTestCase:
         config = buildPath+ "../sim/dnode1/cfg/"
         host="localhost"
         connectstmt=self.newcon(host,config)
-        print(connectstmt)
         self.test_stmt_insert_multi(connectstmt)
-        connectstmt=self.newcon(host,config)
-        self.test_stmt_set_tbname_tag(connectstmt)
+        # connectstmt=self.newcon(host,config)
+        # self.test_stmt_set_tbname_tag(connectstmt)
 
         return 
 
