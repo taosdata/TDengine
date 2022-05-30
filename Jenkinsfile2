@@ -136,6 +136,16 @@ def sync_source() {
         cd ${WKC}
         git submodule update --init --recursive
     '''
+    sh '''
+        cd ${WKC}
+        git branch
+        git log -5
+    '''
+    sh '''
+        cd ${WK}
+        git branch
+        git log -5
+    '''
 }
 def pre_test() {
     sync_source()
