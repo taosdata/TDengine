@@ -1464,35 +1464,6 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 - 该函数适用于内层查询和外层查询。
 - 版本2.6.0.x后支持
 
-### 四则运算
-
-```
-SELECT field_name [+|-|*|/|%][Value|field_name] FROM { tb_name | stb_name }  [WHERE clause];
-```
-
-**功能说明**：统计表/超级表中某列或多列间的值加、减、乘、除、取余计算结果。
-
-**返回数据类型**：双精度浮点数。
-
-**应用字段**：不能应用在 timestamp、binary、nchar、bool 类型字段。
-
-**适用于**：表、超级表。
-
-**使用说明**：
-
-- 支持两列或多列之间进行计算，可使用括号控制计算优先级；
-- NULL 字段不参与计算，如果参与计算的某行中包含 NULL，该行的计算结果为 NULL。
-
-```
-taos> SELECT current + voltage * phase FROM d1001;
-(current+(voltage*phase)) |
-============================
-            78.190000713 |
-            84.540003240 |
-            80.810000718 |
-Query OK, 3 row(s) in set (0.001046s)
-```
-
 ### STATECOUNT
 
 ```
