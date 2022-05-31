@@ -127,10 +127,10 @@ class TDTestCase:
                 col = col[4:-1]
         return f" group by {col} having {having}" if having else f" group by {col} "
 
-    def __single_sql(self, select_clause, from_clause, where_condition="", group_condition=""):
+    def __single_sql(self, select_clause, from_clause, start_val=0, step_val=0, where_condition="", group_condition=""):
         if isinstance(select_clause, str) and "on" not in from_clause and select_clause.split(".")[0].split("(")[-1] != from_clause.split(".")[0]:
             return
-        return f"explain select {select_clause} from {from_clause} {where_condition} {group_condition}"
+        return f"select leastsquares({select_clause}, {start_val}, {step_val}) from {from_clause} {where_condition} {group_condition}"
 
     @property
     def __tb_list(self):
@@ -142,8 +142,23 @@ class TDTestCase:
             "stb1",
         ]
 
+    @property
+    def start_step_val(self):
+        return [
+            1,
+            0,
+            1.25,
+            -2.5,
+            True,
+            False,
+            None,
+            "",
+            "str",
+        ]
+
     def sql_list(self):
-        sqls = []
+        current_sqls = []
+        err_sqls = []
         __no_join_tblist = self.__tb_list
         for tb in __no_join_tblist:
                 select_claus_list = self.__query_condition(tb)
@@ -151,17 +166,26 @@ class TDTestCase:
                     group_claus = self.__group_condition(col=select_claus)
                     where_claus = self.__where_condition(query_conditon=select_claus)
                     having_claus = self.__group_condition(col=select_claus, having=f"{select_claus} is not null")
-                    sqls.extend(
-                        (
-                            self.__single_sql(select_claus, tb, where_claus, having_claus),
-                            self.__single_sql(select_claus, tb,),
-                            self.__single_sql(select_claus, tb, where_condition=where_claus),
-                            self.__single_sql(select_claus, tb, group_condition=group_claus),
-                        )
-                    )
+                    for arg in self.start_step_val:
+                        if not  isinstance(arg,int):
+                            err_sqls.extend(
+                                (
+                                    self.__single_sql(select_clause=select_claus, from_clause=tb, start_val=arg),
+                                    self.__single_sql(select_clause=select_claus, from_clause=tb, step_val=arg, group_condition=group_claus),
+                                    self.__single_sql(select_clause=select_claus, from_clause=tb, start_val=arg, step_val=arg, where_condition=where_claus, group_condition=having_claus),
+                                )
+                            )
+                        else:
+                            current_sqls.extend(
+                                (
+                                    self.__single_sql(select_clause=select_claus, from_clause=tb, start_val=arg),
+                                    self.__single_sql(select_clause=select_claus, from_clause=tb, step_val=arg, group_condition=group_claus),
+                                    self.__single_sql(select_clause=select_claus, from_clause=tb, start_val=arg, step_val=arg, where_condition=where_claus, group_condition=having_claus),
+                                )
+                            )
 
         # return filter(None, sqls)
-        return list(filter(None, sqls))
+        return list(filter(None, current_sqls)), list(filter(None, err_sqls))
 
     def __get_type(self, col):
         if tdSql.cursor.istype(col, "BOOL"):
@@ -195,12 +219,16 @@ class TDTestCase:
         if tdSql.cursor.istype(col, "BIGINT UNSIGNED"):
             return "BIGINT UNSIGNED"
 
-    def explain_check(self):
-        sqls = self.sql_list()
+    def leastsquares_check(self):
+        current_sqls, err_sqls = self.sql_list()
+        for i in range(len(err_sqls)):
+            tdSql.error(err_sqls[i])
+
         tdLog.printNoPrefix("===step 1: curent case, must return query OK")
-        for i in range(len(sqls)):
-            tdLog.info(f"sql: {sqls[i]}")
-            tdSql.query(sqls[i])
+        for i in range(len(current_sqls)):
+            tdLog.info(f"sql: {current_sqls[i]}")
+            tdSql.query(current_sqls[i])
+
 
     def __test_current(self):
         tdSql.query("explain select c1 from ct1")
@@ -210,7 +238,7 @@ class TDTestCase:
         tdSql.query("explain select ct2.c3 from ct4 join ct2 on ct4.ts=ct2.ts")
         tdSql.query("explain select c1 from stb1 where c1 is not null and c1 in (0, 1, 2) or c1 between 2 and 100 ")
 
-        self.explain_check()
+        self.leastsquares_check()
 
     def __test_error(self):
 
