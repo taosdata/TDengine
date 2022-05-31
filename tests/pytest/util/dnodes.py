@@ -494,6 +494,7 @@ class TDDnodes:
         self.simDeployed = False
         self.testCluster = False
         self.valgrind = 0
+        self.killValgrind = 1
 
     def init(self, path, remoteIP = ""):
         psCmd = "ps -ef|grep -w taosd| grep -v grep| grep -v defunct | awk '{print $2}'"
@@ -505,14 +506,15 @@ class TDDnodes:
             processID = subprocess.check_output(
                 psCmd, shell=True).decode("utf-8")
 
-        psCmd = "ps -ef|grep -w valgrind.bin| grep -v grep | awk '{print $2}'"
-        processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
-        while(processID):
-            killCmd = "kill -9 %s > /dev/null 2>&1" % processID
-            os.system(killCmd)
-            time.sleep(1)
-            processID = subprocess.check_output(
-                psCmd, shell=True).decode("utf-8")
+        if self.killValgrind == 1:
+            psCmd = "ps -ef|grep -w valgrind.bin| grep -v grep | awk '{print $2}'"
+            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
+            while(processID):
+                killCmd = "kill -9 %s > /dev/null 2>&1" % processID
+                os.system(killCmd)
+                time.sleep(1)
+                processID = subprocess.check_output(
+                    psCmd, shell=True).decode("utf-8")
 
         binPath = self.dnodes[0].getPath() + "/../../../"
         # tdLog.debug("binPath %s" % (binPath))
@@ -548,6 +550,9 @@ class TDDnodes:
 
     def setValgrind(self, value):
         self.valgrind = value
+
+    def setKillValgrind(self, value):
+        self.killValgrind = value
 
     def deploy(self, index, *updatecfgDict):
         self.sim.setTestCluster(self.testCluster)
@@ -622,14 +627,15 @@ class TDDnodes:
             processID = subprocess.check_output(
                 psCmd, shell=True).decode("utf-8")
 
-        psCmd = "ps -ef|grep -w valgrind.bin| grep -v grep | awk '{print $2}'"
-        processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
-        while(processID):
-            killCmd = "kill -TERM %s > /dev/null 2>&1" % processID
-            os.system(killCmd)
-            time.sleep(1)
-            processID = subprocess.check_output(
-                psCmd, shell=True).decode("utf-8")
+        if self.killValgrind == 1:
+            psCmd = "ps -ef|grep -w valgrind.bin| grep -v grep | awk '{print $2}'"
+            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
+            while(processID):
+                killCmd = "kill -TERM %s > /dev/null 2>&1" % processID
+                os.system(killCmd)
+                time.sleep(1)
+                processID = subprocess.check_output(
+                    psCmd, shell=True).decode("utf-8")
 
         # if os.system(cmd) != 0 :
         # tdLog.exit(cmd)
