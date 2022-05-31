@@ -248,6 +248,15 @@ def pre_test_build_win() {
     '''
     return 1
 }
+def run_win_test() {
+    bat '''
+        echo "windows ctest ..."
+        time /t
+        cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\debug
+        ctest -j 6 || exit 7
+        time /t
+    '''
+}
 
 pipeline {
     agent none
@@ -266,6 +275,7 @@ pipeline {
                     steps {
                         pre_test_win()
                         pre_test_build_win()
+                        run_win_test()
                     }
                 }
                 stage('linux test') {
