@@ -327,6 +327,32 @@ taos> SELECT HISTOGRAM(voltage, 'log_bin', '{"start": 1, "factor": 3, "count": 3
    {"lower_bin":27, "upper_bin":inf, "count":1}                     |
 ```
 
+### ELAPSED
+
+```mysql
+SELECT ELAPSED(field_name[, time_unit]) FROM { tb_name | stb_name } [WHERE clause] [INTERVAL(interval [, offset]) [SLIDING sliding]];
+```
+
+**Description**：`elapsed` function can be used to calculate the continuous time length in which there is valid data. If it's used with `INTERVAL` clause, the returned result is the calcualted time length within each time window. If it's used without `INTERVAL` caluse, the returned result is the calculated time length within the specified time range. Please be noted that the return value of `elapsed` is the number of `time_unit` in the calculated time length.
+
+**Return value type**：Double
+
+**Applicable Column type**：Timestamp
+
+**Applicable versions**：Sicne version 2.6.0.0 
+
+**Applicable tables**: table, STable, outter in nested query
+
+**Explanations**：
+- `field_name` parameter can only be the first column of a table, i.e. timestamp primary key.
+- The minimum value of `time_unit` is the time precision of the database. If `time_unit` is not specified, the time precision of the database is used as the default ime unit.
+- It can be used with `INTERVAL` to get the time valid time length of each time window. Please be noted that the return value is same as the time window for all time windows except for the first and the last time window.
+- `order by asc/desc` has no effect on the result.
+- `group by tbname` must be used together when `elapsed` is used against a STable.
+- `group by` must NOT be used together when `elapsed` is used against a table or sub table.
+- When used in nested query, it's only applicable when the inner query outputs an implicit timestamp column as the primary key. For example, `select elapsed(ts) from (select diff(value) from sub1)` is legal usage while `select elapsed(ts) from (select * from sub1)` is not. 
+- It can't be used with `leastsquares`, `diff`, `derivative`, `top`, `bottom`, `last_row`, `interp`.
+
 ## Selection Functions
 
 When any select function is used, timestamp column or tag columns including `tbname` can be specified to show that the selected value are from which rows.
