@@ -282,7 +282,6 @@ void dumpTrans(SSdb *pSdb, SJson *json) {
     tjsonAddIntegerToObject(item, "conflict", pObj->conflict);
     tjsonAddIntegerToObject(item, "exec", pObj->exec);
     tjsonAddStringToObject(item, "createdTime", i642str(pObj->createdTime));
-    tjsonAddStringToObject(item, "dbUid", i642str(pObj->dbUid));
     tjsonAddStringToObject(item, "dbname", pObj->dbname);
     tjsonAddIntegerToObject(item, "commitLogNum", taosArrayGetSize(pObj->commitActions));
     tjsonAddIntegerToObject(item, "redoActionNum", taosArrayGetSize(pObj->redoActions));
