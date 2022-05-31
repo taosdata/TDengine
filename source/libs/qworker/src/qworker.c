@@ -79,7 +79,11 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryEnd) {
     if (taskHandle) {
       code = qExecTask(taskHandle, &pRes, &useconds);
       if (code) {
-        QW_TASK_ELOG("qExecTask failed, code:%x - %s", code, tstrerror(code));
+        if (code != TSDB_CODE_OPS_NOT_SUPPORT) {
+          QW_TASK_ELOG("qExecTask failed, code:%x - %s", code, tstrerror(code));
+        } else {
+          QW_TASK_DLOG("qExecTask failed, code:%x - %s", code, tstrerror(code));
+        }
         QW_ERR_RET(code);
       }
     }
