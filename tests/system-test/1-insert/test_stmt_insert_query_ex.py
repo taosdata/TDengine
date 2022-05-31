@@ -230,9 +230,20 @@ class TDTestCase:
             querystmt1.execute() 
             result1=querystmt1.use_result()
             rows1=result1.fetch_all()
-            assert str(rows1[0][0]) == "2021-07-21 17:56:32.589111"
-            assert rows1[0][10] == 3
-            assert rows1[1][10] == 4
+            print(rows1)
+            querystmt2=conn.statement("select abs(?) from log where bu < ?")
+            queryparam2=new_bind_params(2)
+            print(type(queryparam1))
+            queryparam2[0].int(5)
+            queryparam2[1].int(5)
+            querystmt2.bind_param(queryparam2)
+            querystmt2.execute() 
+            result2=querystmt2.use_result()
+            rows2=result2.fetch_all()
+            print(rows2)
+            # assert str(rows1[0][0]) == "2021-07-21 17:56:32.589111"
+            # assert rows1[0][10] == 3
+            # assert rows1[1][10] == 4
 
             # conn.execute("drop database if exists %s" % dbname)
             conn.close()
@@ -248,8 +259,8 @@ class TDTestCase:
         host="localhost"
         connectstmt=self.newcon(host,config)
         self.test_stmt_insert_multi(connectstmt)
-        # connectstmt=self.newcon(host,config)
-        # self.test_stmt_set_tbname_tag(connectstmt)
+        connectstmt=self.newcon(host,config)
+        self.test_stmt_set_tbname_tag(connectstmt)
 
         return 
 
