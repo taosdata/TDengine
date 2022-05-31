@@ -183,7 +183,7 @@ static int32_t translatePercentile(SFunctionNode* pFunc, char* pErrBuf, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
-static bool validateAperventileAlgo(const SValueNode* pVal) {
+static bool validateApercentileAlgo(const SValueNode* pVal) {
   if (TSDB_DATA_TYPE_BINARY != pVal->node.resType.type) {
     return false;
   }
@@ -231,7 +231,7 @@ static int32_t translateApercentile(SFunctionNode* pFunc, char* pErrBuf, int32_t
     }
 
     SNode* pParamNode2 = nodesListGetNode(pFunc->pParameterList, 2);
-    if (QUERY_NODE_VALUE != nodeType(pParamNode2) || !validateAperventileAlgo((SValueNode*)pParamNode2)) {
+    if (QUERY_NODE_VALUE != nodeType(pParamNode2) || !validateApercentileAlgo((SValueNode*)pParamNode2)) {
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
                              "Third parameter algorithm of apercentile must be 'default' or 't-digest'");
     }
