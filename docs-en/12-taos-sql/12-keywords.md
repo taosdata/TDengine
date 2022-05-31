@@ -46,3 +46,44 @@ There are about 200 keywords reserved by TDengine, they can't be used as the nam
 | CONNECTIONS | HAVING     | NOT       | SOFFSET    | VNODES       |
 | CONNS       | ID         | NOTNULL   | STable     | WAL          |
 | COPY        | IF         | NOW       | STableS    | WHERE        |
+| _C0         | _QSTART    | _QSTOP    | _QDURATION | _WSTART      |
+| _WSTOP      | _WDURATION |
+
+## Explanations
+### TBNAME
+`TBNAME` can be considered as a special tag, which represents the name of the subtable, in STable.
+
+Get the table name and tag values of all subtables in a STable.
+```mysql
+SELECT TBNAME, location FROM meters;
+
+Count the number of subtables in a STable.
+```mysql
+SELECT COUNT(TBNAME) FROM meters;
+```
+
+Only filter on TAGS can be used in WHERE clause in the above two query statements.
+```mysql
+taos> SELECT TBNAME, location FROM meters;
+             tbname             |            location            |
+==================================================================
+ d1004                          | California.SanFrancisco        |
+ d1003                          | California.SanFrancisco        |
+ d1002                          | California.LosAngeles          |
+ d1001                          | California.LosAngeles          |
+Query OK, 4 row(s) in set (0.000881s)
+
+taos> SELECT COUNT(tbname) FROM meters WHERE groupId > 2;
+     count(tbname)     |
+========================
+                     2 |
+Query OK, 1 row(s) in set (0.001091s)
+```
+### _QSTART/_QSTOP/_QDURATION
+The start, stop and duration of a query time window (Since version 2.6.0.0).
+
+### _WSTART/_WSTOP/_WDURATION
+The start, stop and duration of aggegate query by time window, like interval, session window, state window (Since version 2.6.0.0).
+
+### _c0
+The first column of a table or STable.
