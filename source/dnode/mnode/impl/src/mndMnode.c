@@ -90,7 +90,7 @@ static int32_t mndCreateDefaultMnode(SMnode *pMnode) {
   if (pRaw == NULL) return -1;
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
-  mDebug("mnode:%d, will be created while deploy sdb, raw:%p", mnodeObj.id, pRaw);
+  mDebug("mnode:%d, will be created when deploying, raw:%p", mnodeObj.id, pRaw);
 
 #if 0
   return sdbWrite(pMnode->pSdb, pRaw);
@@ -367,7 +367,7 @@ static int32_t mndCreateMnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, 
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to create mnode:%d", pTrans->id, pCreate->dnodeId);
-  mndTransSetExecOneByOne(pTrans);
+  mndTransSetNoParallel(pTrans);
   if (mndSetCreateMnodeRedoLogs(pMnode, pTrans, &mnodeObj) != 0) goto _OVER;
   if (mndSetCreateMnodeCommitLogs(pMnode, pTrans, &mnodeObj) != 0) goto _OVER;
   if (mndSetCreateMnodeRedoActions(pMnode, pTrans, pDnode, &mnodeObj) != 0) goto _OVER;
@@ -539,7 +539,7 @@ static int32_t mndDropMnode(SMnode *pMnode, SRpcMsg *pReq, SMnodeObj *pObj) {
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to drop mnode:%d", pTrans->id, pObj->id);
-  mndTransSetExecOneByOne(pTrans);
+  mndTransSetNoParallel(pTrans);
   if (mndSetDropMnodeRedoLogs(pMnode, pTrans, pObj) != 0) goto _OVER;
   if (mndSetDropMnodeCommitLogs(pMnode, pTrans, pObj) != 0) goto _OVER;
   if (mndSetDropMnodeRedoActions(pMnode, pTrans, pObj->pDnode, pObj) != 0) goto _OVER;
