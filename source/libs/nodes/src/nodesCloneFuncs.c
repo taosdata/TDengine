@@ -305,6 +305,7 @@ static SNode* logicNodeCopy(const SLogicNode* pSrc, SLogicNode* pDst) {
   CLONE_NODE_FIELD(pConditions);
   CLONE_NODE_LIST_FIELD(pChildren);
   COPY_SCALAR_FIELD(optimizedFlag);
+  COPY_SCALAR_FIELD(precision);
   return (SNode*)pDst;
 }
 
