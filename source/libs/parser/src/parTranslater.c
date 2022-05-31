@@ -3310,6 +3310,7 @@ static int32_t buildCreateTopicReq(STranslateContext* pCxt, SCreateTopicStmt* pS
   if ('\0' != pStmt->subSTbName[0]) {
     pReq->subType = TOPIC_SUB_TYPE__TABLE;
     toName(pCxt->pParseCxt->acctId, pStmt->subDbName, pStmt->subSTbName, &name);
+    tNameGetFullDbName(&name, pReq->subDbName);
     tNameExtractFullName(&name, pReq->subStbName);
   } else if ('\0' != pStmt->subDbName[0]) {
     pReq->subType = TOPIC_SUB_TYPE__DB;
