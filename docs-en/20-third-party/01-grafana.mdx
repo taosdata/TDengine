@@ -3,13 +3,13 @@ sidebar_label: Grafana
 title: Grafana
 ---
 
-TDengine can be quickly integrated with the open-source data visualization system [Grafana](https://www.grafana.com/) to build a data monitoring and alerting system. The whole process does not require any code development. And you can visualize the contents of the data tables in TDengine on a DashBoard.
+TDengine can be quickly integrated with the open-source data visualization system [Grafana](https://www.grafana.com/) to build a data monitoring and alerting system. The whole process does not require any code development. And you can visualize the contents of the data tables in TDengine on a dashboard.
 
 You can learn more about using the TDengine plugin on [GitHub](https://github.com/taosdata/grafanaplugin/blob/master/README.md).
 
 ## Prerequisites
 
-In order for Grafana to add the TDengine data source successfully, the following preparations are required:
+In order for Grafana to add the TDengine data source successfully, the following preparation is required:
 1. The TDengine cluster is deployed and functioning properly
 2. taosAdapter is installed and running properly. Please refer to the taosAdapter manual for details.
 
@@ -36,7 +36,7 @@ GF_VERSION=3.1.4
 wget https://github.com/taosdata/grafanaplugin/releases/download/v$GF_VERSION/tdengine-datasource-$GF_VERSION.zip
 ```
 
-Take CentOS 7.2 for example, extract the plugin package to /var/lib/grafana/plugins directory, and restart grafana.
+In CentOS 7.2 for example, extract the plugin package to /var/lib/grafana/plugins directory, and restart grafana.
 
 ```bash
 sudo unzip tdengine-datasource-$GF_VERSION.zip -d /var/lib/grafana/plugins/
@@ -76,13 +76,13 @@ Enter the datasource configuration page, and follow the default prompts to modif
 - User: TDengine user name.
 - Password: TDengine user password.
 
-Click `Save & Test` to test. Follows are a success.
+Click `Save & Test` to test. You should see a success message if the test worked.
 
 ![TDengine Database TDinsight plugin add database 4](./grafana/add_datasource4.webp)
 
 ### Create Dashboard
 
-Go back to the main interface to create the Dashboard, click Add Query to enter the panel query page:
+Go back to the main interface to create a dashboard and click Add Query to enter the panel query page:
 
 ![TDengine Database TDinsight plugin create dashboard 1](./grafana/create_dashboard1.webp)
 
