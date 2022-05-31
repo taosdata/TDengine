@@ -408,7 +408,7 @@ cmd ::= CREATE TOPIC not_exists_opt(A)
 cmd ::= CREATE TOPIC not_exists_opt(A)
   topic_name(B) topic_options(D) AS db_name(C).                                   { pCxt->pRootNode = createCreateTopicStmt(pCxt, A, &B, NULL, &C, D); }
 cmd ::= DROP TOPIC exists_opt(A) topic_name(B).                                   { pCxt->pRootNode = createDropTopicStmt(pCxt, A, &B); }
-cmd ::= DROP CGROUP exists_opt(A) cgroup_name(B) ON topic_name(C).                { pCxt->pRootNode = createDropCGroupStmt(pCxt, A, &B, &C); }
+cmd ::= DROP CONSUMER GROUP exists_opt(A) cgroup_name(B) ON topic_name(C).        { pCxt->pRootNode = createDropCGroupStmt(pCxt, A, &B, &C); }
 
 topic_options(A) ::= .                                                            { A = createTopicOptions(pCxt); }
 topic_options(A) ::= topic_options(B) WITH TABLE.                                 { ((STopicOptions*)B)->withTable = true; A = B; }
