@@ -452,17 +452,17 @@ int32_t tEncodeSMqOffsetObj(void** buf, const SMqOffsetObj* pOffset);
 void*   tDecodeSMqOffsetObj(void* buf, SMqOffsetObj* pOffset);
 
 typedef struct {
-  char           name[TSDB_TOPIC_FNAME_LEN];
-  char           db[TSDB_DB_FNAME_LEN];
-  int64_t        createTime;
-  int64_t        updateTime;
-  int64_t        uid;
-  int64_t        dbUid;
-  int32_t        version;
-  int8_t         subType;  // db or table
-  int8_t         withTbName;
-  int8_t         withSchema;
-  int8_t         withTag;
+  char    name[TSDB_TOPIC_FNAME_LEN];
+  char    db[TSDB_DB_FNAME_LEN];
+  int64_t createTime;
+  int64_t updateTime;
+  int64_t uid;
+  int64_t dbUid;
+  int32_t version;
+  int8_t  subType;  // column, db or stable
+  // int8_t         withTbName;
+  // int8_t         withSchema;
+  // int8_t         withTag;
   SRWLatch       lock;
   int32_t        consumerCnt;
   int32_t        sqlLen;
@@ -525,14 +525,14 @@ int32_t        tEncodeSMqConsumerEp(void** buf, const SMqConsumerEp* pEp);
 void*          tDecodeSMqConsumerEp(const void* buf, SMqConsumerEp* pEp);
 
 typedef struct {
-  char      key[TSDB_SUBSCRIBE_KEY_LEN];
-  SRWLatch  lock;
-  int64_t   dbUid;
-  int32_t   vgNum;
-  int8_t    subType;
-  int8_t    withTbName;
-  int8_t    withSchema;
-  int8_t    withTag;
+  char     key[TSDB_SUBSCRIBE_KEY_LEN];
+  SRWLatch lock;
+  int64_t  dbUid;
+  int32_t  vgNum;
+  int8_t   subType;
+  // int8_t    withTbName;
+  // int8_t    withSchema;
+  // int8_t    withTag;
   SHashObj* consumerHash;   // consumerId -> SMqConsumerEp
   SArray*   unassignedVgs;  // SArray<SMqVgEp*>
 } SMqSubscribeObj;
