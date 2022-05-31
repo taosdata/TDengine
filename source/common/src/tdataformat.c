@@ -99,44 +99,44 @@ static int32_t tGetValue(uint8_t *p, SValue *pValue, int8_t type) {
   int32_t n = 0;
 
   if (IS_VAR_DATA_TYPE(type)) {
-    n += tGetBinary(p, pValue ? &pValue->pData : NULL, pValue ? &pValue->nData : NULL);
+    n += tGetBinary(p, &pValue->pData, pValue ? &pValue->nData : NULL);
   } else {
     switch (type) {
       case TSDB_DATA_TYPE_BOOL:
-        n += tGetI8(p, pValue ? &pValue->i8 : NULL);
+        n += tGetI8(p, &pValue->i8);
         break;
       case TSDB_DATA_TYPE_TINYINT:
-        n += tGetI8(p, pValue ? &pValue->i8 : NULL);
+        n += tGetI8(p, &pValue->i8);
         break;
       case TSDB_DATA_TYPE_SMALLINT:
-        n += tGetI16(p, pValue ? &pValue->i16 : NULL);
+        n += tGetI16(p, &pValue->i16);
         break;
       case TSDB_DATA_TYPE_INT:
-        n += tGetI32(p, pValue ? &pValue->i32 : NULL);
+        n += tGetI32(p, &pValue->i32);
         break;
       case TSDB_DATA_TYPE_BIGINT:
-        n += tGetI64(p, pValue ? &pValue->i64 : NULL);
+        n += tGetI64(p, &pValue->i64);
         break;
       case TSDB_DATA_TYPE_FLOAT:
-        n += tGetFloat(p, pValue ? &pValue->f : NULL);
+        n += tGetFloat(p, &pValue->f);
         break;
       case TSDB_DATA_TYPE_DOUBLE:
-        n += tGetDouble(p, pValue ? &pValue->d : NULL);
+        n += tGetDouble(p, &pValue->d);
         break;
       case TSDB_DATA_TYPE_TIMESTAMP:
-        n += tGetI64(p, pValue ? &pValue->ts : NULL);
+        n += tGetI64(p, &pValue->ts);
         break;
       case TSDB_DATA_TYPE_UTINYINT:
-        n += tGetU8(p, pValue ? &pValue->u8 : NULL);
+        n += tGetU8(p, &pValue->u8);
         break;
       case TSDB_DATA_TYPE_USMALLINT:
-        n += tGetU16(p, pValue ? &pValue->u16 : NULL);
+        n += tGetU16(p, &pValue->u16);
         break;
       case TSDB_DATA_TYPE_UINT:
-        n += tGetU32(p, pValue ? &pValue->u32 : NULL);
+        n += tGetU32(p, &pValue->u32);
         break;
       case TSDB_DATA_TYPE_UBIGINT:
-        n += tGetU64(p, pValue ? &pValue->u64 : NULL);
+        n += tGetU64(p, &pValue->u64);
         break;
       default:
         ASSERT(0);
@@ -169,20 +169,17 @@ static int32_t tPutColVal(uint8_t *p, SColVal *pColVal, int8_t type, int8_t isTu
 
 static int32_t tGetColVal(uint8_t *p, SColVal *pColVal, int8_t type, int8_t isTuple) {
   int32_t n = 0;
-  int16_t cid;
 
+  memset(pColVal, 0, sizeof(*pColVal));
   if (isTuple) {
-    n += tGetValue(p + n, pColVal ? &pColVal->value : NULL, type);
+    n += tGetValue(p + n, &pColVal->value, type);
   } else {
-    n += tGetI16v(p + n, &cid);
-    if (cid < 0) {
-      if (pColVal) {
-        pColVal->isNull = 1;
-        pColVal->cid = -cid;
-      }
+    n += tGetI16v(p + n, &pColVal->cid);
+    if (pColVal->cid < 0) {
+      pColVal->isNull = 1;
+      pColVal->cid = -pColVal->cid;
     } else {
-      if (pColVal) pColVal->cid = cid;
-      n += tGetValue(p ? p + n : p, pColVal ? &pColVal->value : NULL, type);
+      n += tGetValue(p + n, &pColVal->value, type);
     }
   }
 
