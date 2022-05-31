@@ -33,6 +33,7 @@ extern "C" {
 // clang-format on
 
 // tsdbMemTable ================
+typedef struct STsdbRow      STsdbRow;
 typedef struct STbData       STbData;
 typedef struct STsdbMemTable STsdbMemTable;
 typedef struct SMergeInfo    SMergeInfo;
@@ -844,6 +845,11 @@ static FORCE_INLINE int tsdbUnLockFS(STsdbFS *pFs) {
   }
   return 0;
 }
+
+struct STsdbRow {
+  int64_t version;
+  STSRow  row;
+};
 
 #endif
 

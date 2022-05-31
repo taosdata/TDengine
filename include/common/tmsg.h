@@ -2632,6 +2632,22 @@ typedef struct {
 int32_t tEncodeSVSubmitReq(SEncoder* pCoder, const SVSubmitReq* pReq);
 int32_t tDecodeSVSubmitReq(SDecoder* pCoder, SVSubmitReq* pReq);
 
+// TDMT_VND_DELETE
+typedef struct {
+  TSKEY sKey;
+  TSKEY eKey;
+
+  // super table
+  char* stbName;
+
+  // child/normal
+  char* tbName;
+} SVDeleteReq;
+
+typedef struct {
+  // TODO
+} SVDeleteRsp;
+
 #pragma pack(pop)
 
 #ifdef __cplusplus
