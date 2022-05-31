@@ -26,7 +26,7 @@ struct SMemData {
   TSDBKEY  minKey;
   TSDBKEY  maxKey;
   int64_t  nRows;
-  SDelOp  *pDelList;
+  SArray  *aDelOp;  // SArray<SDelOp>
 };
 
 struct SMemTable {
@@ -35,8 +35,10 @@ struct SMemTable {
   TSDBKEY minKey;
   TSDBKEY maxKey;
   int64_t nRows;
-  SArray *pArray;
+  SArray *pArray;  // SArray<SMemData>
 };
+
+static int32_t tsdbGetOrCreateTbData(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SMemData **ppMemData);
 
 // SMemTable ==============================================
 int32_t tsdbMemTableCreate2(STsdb *pTsdb, SMemTable **ppMemTable) {
@@ -69,11 +71,61 @@ _err:
 }
 
 void tsdbMemTableDestroy2(SMemTable *pMemTable) {
-  ASSERT(0);
-  // TODO
+  taosArrayDestroyEx(pMemTable->pArray, NULL /*TODO*/);
+  taosMemoryFree(pMemTable);
 }
 
-#if 0
+int32_t tsdbInsertTableData2(STsdb *pTsdb, int64_t version, SVSubmitBlk *pSubmitBlk) {
+  int32_t   code = 0;
+  SMemData *pMemData;
+
+  // check if table exists
+  {
+    // TODO
+  }
+
+  code = tsdbGetOrCreateTbData(pTsdb, pSubmitBlk->suid, pSubmitBlk->uid, &pMemData);
+  if (code) {
+    tsdbError("vgId:%d failed to create/get table data since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+    goto _err;
+  }
+
+  // do insert
+
+  return code;
+
+_err:
+  return code;
+}
+
+int32_t tsdbDeleteTableData2(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+static int32_t tsdbGetOrCreateTbData(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SMemData **ppMemData) {
+  int32_t    code = 0;
+  SMemData  *pMemData = NULL;
+  SMemTable *pMemTable = (SMemTable *)pTsdb->mem;
+
+  // search
+  pMemData = (SMemData *)taosbsearch(NULL, pMemTable->pArray->pData, taosArrayGetSize(pMemTable->pArray),
+                                     sizeof(SMemData *), NULL, TD_GE);
+
+  if (pMemData == NULL) {
+    // not found, create one
+  }
+
+  *ppMemData = pMemData;
+  return code;
+
+_err:
+  *ppMemData = NULL;
+  return code;
+}
+
+#if 0  //====================================================================================
 
 #define SL_MAX_LEVEL 5
 

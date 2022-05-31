@@ -32,6 +32,7 @@ extern "C" {
 #define tsdbTrace(...) do { if (tsdbDebugFlag & DEBUG_TRACE) { taosPrintLog("TSDB ", DEBUG_TRACE, tsdbDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
+typedef struct TSDBROW TSDBROW;
 typedef struct TSDBKEY TSDBKEY;
 typedef struct SDelOp  SDelOp;
 
@@ -855,9 +856,9 @@ static FORCE_INLINE int tsdbUnLockFS(STsdbFS *pFs) {
   return 0;
 }
 
-struct STsdbRow {
-  int64_t version;
-  STSRow  row;
+struct TSDBROW {
+  int64_t  version;
+  STSRow2 *pRow;
 };
 
 struct TSDBKEY {
@@ -869,7 +870,6 @@ struct SDelOp {
   int64_t version;
   TSKEY   sKey;  // included
   TSKEY   eKey;  // included
-  SDelOp *pNext;
 };
 
 #endif
