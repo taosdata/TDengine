@@ -84,6 +84,11 @@ typedef struct SProjectLogicNode {
   int64_t    soffset;
 } SProjectLogicNode;
 
+typedef struct SIndefRowsFuncLogicNode {
+  SLogicNode node;
+  SNodeList* pVectorFuncs;
+} SIndefRowsFuncLogicNode;
+
 typedef struct SVnodeModifLogicNode {
   SLogicNode     node;
   int32_t        msgType;
@@ -235,6 +240,12 @@ typedef struct SProjectPhysiNode {
   int64_t    slimit;
   int64_t    soffset;
 } SProjectPhysiNode;
+
+typedef struct SIndefRowsFuncPhysiNode {
+  SPhysiNode node;
+  SNodeList* pExprs;
+  SNodeList* pVectorFuncs;
+} SIndefRowsFuncPhysiNode;
 
 typedef struct SJoinPhysiNode {
   SPhysiNode node;
