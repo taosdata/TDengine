@@ -462,7 +462,7 @@ TEST_F(ParserInitialCTest, createTable) {
       "TAGS (a1 TIMESTAMP, a2 INT, a3 INT UNSIGNED, a4 BIGINT, a5 BIGINT UNSIGNED, a6 FLOAT, a7 DOUBLE, a8 BINARY(20), "
       "a9 SMALLINT, a10 SMALLINT UNSIGNED COMMENT 'test column comment', a11 TINYINT, a12 TINYINT UNSIGNED, a13 BOOL, "
       "a14 NCHAR(30), a15 VARCHAR(50)) "
-      "TTL 100 COMMENT 'test create table' SMA(c1, c2, c3) ROLLUP (MIN) FILE_FACTOR 0.1 DELAY 2");
+      "TTL 100 COMMENT 'test create table' SMA(c1, c2, c3) ROLLUP (MIN) FILE_FACTOR 0.1");
 
   run("CREATE TABLE IF NOT EXISTS t1 USING st1 TAGS(1, 'wxy')");
 

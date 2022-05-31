@@ -72,7 +72,9 @@ python3 ./test.py -f 2-query/arccos.py
 python3 ./test.py -f 2-query/arctan.py
 python3 ./test.py -f 2-query/query_cols_tags_and_or.py
 # python3 ./test.py -f 2-query/nestedQuery.py
-python3 ./test.py -f 2-query/nestedQuery_str.py
+# TD-15983 subquery output duplicate name column. 
+# Please Xiangyang Guo modify the following script
+# python3 ./test.py -f 2-query/nestedQuery_str.py
 python3 ./test.py -f 2-query/avg.py
 python3 ./test.py -f 2-query/elapsed.py
 python3 ./test.py -f 2-query/csum.py
