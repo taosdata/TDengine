@@ -172,13 +172,13 @@ static int32_t mndCreateDefaultCluster(SMnode *pMnode) {
   clusterObj.id = mndGenerateUid(clusterObj.name, TSDB_CLUSTER_ID_LEN);
   clusterObj.id = (clusterObj.id >= 0 ? clusterObj.id : -clusterObj.id);
   pMnode->clusterId = clusterObj.id;
-  mDebug("cluster:%" PRId64 ", name is %s", clusterObj.id, clusterObj.name);
+  mInfo("cluster:%" PRId64 ", name is %s", clusterObj.id, clusterObj.name);
 
   SSdbRaw *pRaw = mndClusterActionEncode(&clusterObj);
   if (pRaw == NULL) return -1;
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
-  mDebug("cluster:%" PRId64 ", will be created while deploy sdb, raw:%p", clusterObj.id, pRaw);
+  mDebug("cluster:%" PRId64 ", will be created when deploying, raw:%p", clusterObj.id, pRaw);
 #if 0
   return sdbWrite(pMnode->pSdb, pRaw);
 #else
