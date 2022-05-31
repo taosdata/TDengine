@@ -870,6 +870,7 @@ struct SDelOp {
   int64_t version;
   TSKEY   sKey;  // included
   TSKEY   eKey;  // included
+  SDelOp *pNext;
 };
 
 #endif
