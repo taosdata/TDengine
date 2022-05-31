@@ -79,7 +79,8 @@ struct STsdb {
 struct STable {
   uint64_t  tid;
   uint64_t  uid;
-  STSchema *pSchema;
+  STSchema *pSchema;       // latest schema
+  STSchema *pCacheSchema;  // cached cache
 };
 
 #define TABLE_TID(t) (t)->tid
@@ -181,12 +182,15 @@ int tsdbUnlockRepo(STsdb *pTsdb);
 
 static FORCE_INLINE STSchema *tsdbGetTableSchemaImpl(STsdb *pTsdb, STable *pTable, bool lock, bool copy,
                                                      int32_t version) {
-  if ((version != -1) && (schemaVersion(pTable->pSchema) != version)) {
-    taosMemoryFreeClear(pTable->pSchema);
-    pTable->pSchema = metaGetTbTSchema(REPO_META(pTsdb), pTable->uid, version);
+  if ((version < 0) || (schemaVersion(pTable->pSchema) == version)) {
+    return pTable->pSchema;
   }
 
-  return pTable->pSchema;
+  if (!pTable->pCacheSchema || (schemaVersion(pTable->pCacheSchema) != version)) {
+    taosMemoryFreeClear(pTable->pCacheSchema);
+    pTable->pCacheSchema = metaGetTbTSchema(REPO_META(pTsdb), pTable->uid, version);
+  }
+  return pTable->pCacheSchema;
 }
 
 // tsdbMemTable.h

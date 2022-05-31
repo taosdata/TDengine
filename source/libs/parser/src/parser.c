@@ -34,7 +34,7 @@ bool qIsInsertSql(const char* pStr, size_t length) {
   } while (1);
 }
 
-static int32_t semanticAnalysis(SParseContext* pCxt, SQuery* pQuery) {
+static int32_t analyseSemantic(SParseContext* pCxt, SQuery* pQuery) {
   int32_t code = authenticate(pCxt, pQuery);
 
   if (TSDB_CODE_SUCCESS == code && pQuery->placeholderNum > 0) {
@@ -54,12 +54,12 @@ static int32_t semanticAnalysis(SParseContext* pCxt, SQuery* pQuery) {
 static int32_t parseSqlIntoAst(SParseContext* pCxt, SQuery** pQuery) {
   int32_t code = parse(pCxt, pQuery);
   if (TSDB_CODE_SUCCESS == code) {
-    code = semanticAnalysis(pCxt, *pQuery);
+    code = analyseSemantic(pCxt, *pQuery);
   }
   return code;
 }
 
-static int32_t syntaxParseSql(SParseContext* pCxt, SQuery** pQuery) {
+static int32_t parseSqlSyntax(SParseContext* pCxt, SQuery** pQuery) {
   int32_t code = parse(pCxt, pQuery);
   if (TSDB_CODE_SUCCESS == code) {
     code = collectMetaKey(pCxt, *pQuery);
@@ -192,12 +192,12 @@ int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery) {
   return code;
 }
 
-int32_t qSyntaxParseSql(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq* pCatalogReq) {
+int32_t qParseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq* pCatalogReq) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (qIsInsertSql(pCxt->pSql, pCxt->sqlLen)) {
-    // todo insert sql
+    code = parseInsertSyntax(pCxt, pQuery);
   } else {
-    code = syntaxParseSql(pCxt, pQuery);
+    code = parseSqlSyntax(pCxt, pQuery);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCatalogReq((*pQuery)->pMetaCache, pCatalogReq);
@@ -206,13 +206,13 @@ int32_t qSyntaxParseSql(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq
   return code;
 }
 
-int32_t qSemanticAnalysisSql(SParseContext* pCxt, const struct SCatalogReq* pCatalogReq,
-                             const struct SMetaData* pMetaData, SQuery* pQuery) {
+int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCatalogReq,
+                            const struct SMetaData* pMetaData, SQuery* pQuery) {
   int32_t code = putMetaDataToCache(pCatalogReq, pMetaData, pQuery->pMetaCache);
   if (NULL == pQuery->pRoot) {
-    // todo insert sql
+    return parseInsertSql(pCxt, &pQuery);
   }
-  return semanticAnalysis(pCxt, pQuery);
+  return analyseSemantic(pCxt, pQuery);
 }
 
 void qDestroyQuery(SQuery* pQueryNode) { nodesDestroyNode(pQueryNode); }

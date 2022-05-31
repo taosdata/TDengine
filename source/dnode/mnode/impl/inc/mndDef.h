@@ -54,6 +54,11 @@ typedef enum {
 } EAuthOp;
 
 typedef enum {
+  TRN_STEP_LOG = 1,
+  TRN_STEP_ACTION = 2,
+} ETrnStep;
+
+typedef enum {
   TRN_STAGE_PREPARE = 0,
   TRN_STAGE_REDO_LOG = 1,
   TRN_STAGE_REDO_ACTION = 2,
@@ -468,7 +473,7 @@ typedef struct {
   char*          ast;
   char*          physicalPlan;
   SSchemaWrapper schema;
-  int32_t        refConsumerCnt;
+  // int32_t        refConsumerCnt;
 } SMqTopicObj;
 
 typedef struct {
