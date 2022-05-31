@@ -15,6 +15,7 @@
 
 #include "tsdb.h"
 
+#if 0
 typedef struct SMemTable          SMemTable;
 typedef struct SMemData           SMemData;
 typedef struct SMemSkipList       SMemSkipList;
@@ -378,3 +379,4 @@ static SMemSkipListNode *tsdbMemSkipListNodeCreate(SVBufPool *pPool, SMemSkipLis
 
   return pNode;
 }
+#endif
