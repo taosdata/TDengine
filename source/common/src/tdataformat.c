@@ -43,6 +43,109 @@ typedef struct {
 
 static FORCE_INLINE int tSKVIdxCmprFn(const void *p1, const void *p2);
 
+// SValue
+static int32_t tPutSValue(uint8_t *p, SValue *pValue, int8_t type) {
+  int32_t n = 0;
+
+  if (IS_VAR_DATA_TYPE(type)) {
+    n += tPutBinary(p ? p + n : p, pValue->pData, pValue->nData);
+  } else {
+    switch (type) {
+      case TSDB_DATA_TYPE_BOOL:
+        n += tPutI8(p ? p + n : p, pValue->i8 ? 1 : 0);
+        break;
+      case TSDB_DATA_TYPE_TINYINT:
+        n += tPutI8(p ? p + n : p, pValue->i8);
+        break;
+      case TSDB_DATA_TYPE_SMALLINT:
+        n += tPutI16(p ? p + n : p, pValue->i16);
+        break;
+      case TSDB_DATA_TYPE_INT:
+        n += tPutI32(p ? p + n : p, pValue->i32);
+        break;
+      case TSDB_DATA_TYPE_BIGINT:
+        n += tPutI64(p ? p + n : p, pValue->i64);
+        break;
+      case TSDB_DATA_TYPE_FLOAT:
+        n += tPutFloat(p ? p + n : p, pValue->f);
+        break;
+      case TSDB_DATA_TYPE_DOUBLE:
+        n += tPutDouble(p ? p + n : p, pValue->d);
+        break;
+      case TSDB_DATA_TYPE_TIMESTAMP:
+        n += tPutI64(p ? p + n : p, pValue->ts);
+        break;
+      case TSDB_DATA_TYPE_UTINYINT:
+        n += tPutU8(p ? p + n : p, pValue->u8);
+        break;
+      case TSDB_DATA_TYPE_USMALLINT:
+        n += tPutU16(p ? p + n : p, pValue->u16);
+        break;
+      case TSDB_DATA_TYPE_UINT:
+        n += tPutU32(p ? p + n : p, pValue->u32);
+        break;
+      case TSDB_DATA_TYPE_UBIGINT:
+        n += tPutU64(p ? p + n : p, pValue->u64);
+        break;
+      default:
+        ASSERT(0);
+    }
+  }
+
+  return n;
+}
+
+static int32_t tGetSValue(uint8_t *p, SValue *pValue, int8_t type) {
+  int32_t n = 0;
+
+  if (IS_VAR_DATA_TYPE(type)) {
+    n += tGetBinary(p, pValue ? &pValue->pData : NULL, pValue ? &pValue->nData : NULL);
+  } else {
+    switch (type) {
+      case TSDB_DATA_TYPE_BOOL:
+        n += tGetI8(p, &pValue->i8);
+        break;
+      case TSDB_DATA_TYPE_TINYINT:
+        n += tGetI8(p, &pValue->i8);
+        break;
+      case TSDB_DATA_TYPE_SMALLINT:
+        n += tGetI16(p, &pValue->i16);
+        break;
+      case TSDB_DATA_TYPE_INT:
+        n += tGetI32(p, &pValue->i32);
+        break;
+      case TSDB_DATA_TYPE_BIGINT:
+        n += tGetI64(p, &pValue->i64);
+        break;
+      case TSDB_DATA_TYPE_FLOAT:
+        n += tGetFloat(p, &pValue->f);
+        break;
+      case TSDB_DATA_TYPE_DOUBLE:
+        n += tGetDouble(p, &pValue->d);
+        break;
+      case TSDB_DATA_TYPE_TIMESTAMP:
+        n += tGetI64(p, &pValue->ts);
+        break;
+      case TSDB_DATA_TYPE_UTINYINT:
+        n += tGetU8(p, &pValue->u8);
+        break;
+      case TSDB_DATA_TYPE_USMALLINT:
+        n += tGetU16(p, &pValue->u16);
+        break;
+      case TSDB_DATA_TYPE_UINT:
+        n += tGetU32(p, &pValue->u32);
+        break;
+      case TSDB_DATA_TYPE_UBIGINT:
+        n += tGetU64(p, &pValue->u64);
+        break;
+      default:
+        ASSERT(0);
+    }
+  }
+
+  return n;
+}
+
 // STSRow2
 int32_t tPutTSRow(uint8_t *p, STSRow2 *pRow) {
   int32_t n = 0;

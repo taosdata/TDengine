@@ -30,6 +30,7 @@ extern "C" {
 typedef struct SSchema       SSchema;
 typedef struct STColumn      STColumn;
 typedef struct STSchema      STSchema;
+typedef struct SValue        SValue;
 typedef struct SColVal       SColVal;
 typedef struct STSRow2       STSRow2;
 typedef struct STSRowBuilder STSRowBuilder;
@@ -114,6 +115,26 @@ struct STSRowBuilder {
   int32_t   vlenKV;
   int32_t   vlenTP;
   STSRow2   row;
+};
+
+struct SValue {
+  union {
+    int8_t   i8;
+    uint8_t  u8;
+    int16_t  i16;
+    uint16_t u16;
+    int32_t  i32;
+    uint32_t u32;
+    int64_t  i64;
+    uint64_t u64;
+    TSKEY    ts;
+    float    f;
+    double   d;
+    struct {
+      uint32_t nData;
+      uint8_t *pData;
+    };
+  };
 };
 
 typedef enum { COL_VAL_NONE = 0, COL_VAL_NULL = 1, COL_VAL_DATA = 2 } EColValT;
