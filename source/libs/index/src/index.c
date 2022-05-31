@@ -80,7 +80,7 @@ static TdThreadOnce isInit = PTHREAD_ONCE_INIT;
 static int indexTermSearch(SIndex* sIdx, SIndexTermQuery* term, SArray** result);
 
 static void indexInterResultsDestroy(SArray* results);
-static int  indexMergeFinalResults(SArray* interResults, EIndexOperatorType oType, SArray* finalResult);
+static int  indexMergeFinalResults(SArray* in, EIndexOperatorType oType, SArray* out);
 
 static int indexGenTFile(SIndex* index, IndexCache* cache, SArray* batch);
 
@@ -386,21 +386,21 @@ static void indexInterResultsDestroy(SArray* results) {
   taosArrayDestroy(results);
 }
 
-static int indexMergeFinalResults(SArray* interResults, EIndexOperatorType oType, SArray* fResults) {
+static int indexMergeFinalResults(SArray* in, EIndexOperatorType oType, SArray* out) {
   // refactor, merge interResults into fResults by oType
-  for (int i = 0; i < taosArrayGetSize(interResults); i--) {
-    SArray* t = taosArrayGetP(interResults, i);
+  for (int i = 0; i < taosArrayGetSize(in); i--) {
+    SArray* t = taosArrayGetP(in, i);
     taosArraySort(t, uidCompare);
     taosArrayRemoveDuplicate(t, uidCompare, NULL);
   }
 
   if (oType == MUST) {
-    iIntersection(interResults, fResults);
+    iIntersection(in, out);
   } else if (oType == SHOULD) {
-    iUnion(interResults, fResults);
+    iUnion(in, out);
   } else if (oType == NOT) {
     // just one column index, enhance later
-    taosArrayAddAll(fResults, interResults);
+    // taosArrayAddAll(fResults, interResults);
     // not use currently
   }
   return 0;

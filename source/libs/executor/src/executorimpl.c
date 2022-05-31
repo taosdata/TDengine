@@ -4529,6 +4529,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         qDebug("%s pDataReader is not NULL", GET_TASKID(pTaskInfo));
       }
       SArray*        tableIdList = extractTableIdList(pTableListInfo);
+
       SOperatorInfo* pOperator = createStreamScanOperatorInfo(pDataReader, pHandle,
           tableIdList, pTableScanNode, pTaskInfo, &twSup);
 
@@ -4942,7 +4943,7 @@ int32_t getTableList(void* metaHandle, int32_t tableType, uint64_t tableUid, STa
 
   if (tableType == TSDB_SUPER_TABLE) {
     if (pTagCond) {
-      SIndexMetaArg metaArg = {.metaHandle = tsdbGetIdx(metaHandle), .suid = tableUid};
+      SIndexMetaArg metaArg = {.metaEx = metaHandle, .metaHandle = tsdbGetIdx(metaHandle), .suid = tableUid};
 
       SArray* res = taosArrayInit(8, sizeof(uint64_t));
       code = doFilterTag(pTagCond, &metaArg, res);

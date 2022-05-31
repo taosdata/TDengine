@@ -194,6 +194,7 @@ void indexInit();
 /* index filter */
 typedef struct SIndexMetaArg {
   void*    metaHandle;
+  void*    metaEx;
   uint64_t suid;
 } SIndexMetaArg;
 
