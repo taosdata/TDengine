@@ -59,7 +59,6 @@ typedef enum EDatabaseOptionType {
 
 typedef enum ETableOptionType {
   TABLE_OPTION_COMMENT = 1,
-  TABLE_OPTION_DELAY,
   TABLE_OPTION_FILE_FACTOR,
   TABLE_OPTION_ROLLUP,
   TABLE_OPTION_TTL,
