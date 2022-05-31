@@ -791,18 +791,23 @@ typedef struct {
 int32_t tSerializeSQnodeListReq(void* buf, int32_t bufLen, SQnodeListReq* pReq);
 int32_t tDeserializeSQnodeListReq(void* buf, int32_t bufLen, SQnodeListReq* pReq);
 
+typedef struct SQueryNodeAddr {
+  int32_t nodeId;  // vgId or qnodeId
+  SEpSet  epSet;
+} SQueryNodeAddr;
+
 typedef struct {
-  SArray* addrsList;  // SArray<SQueryNodeAddr>
+  SQueryNodeAddr addr;
+  uint64_t       load;
+} SQueryNodeLoad;
+
+typedef struct {
+  SArray* qnodeList;  // SArray<SQueryNodeLoad>
 } SQnodeListRsp;
 
 int32_t tSerializeSQnodeListRsp(void* buf, int32_t bufLen, SQnodeListRsp* pRsp);
 int32_t tDeserializeSQnodeListRsp(void* buf, int32_t bufLen, SQnodeListRsp* pRsp);
 void    tFreeSQnodeListRsp(SQnodeListRsp* pRsp);
-
-typedef struct SQueryNodeAddr {
-  int32_t nodeId;  // vgId or qnodeId
-  SEpSet  epSet;
-} SQueryNodeAddr;
 
 typedef struct {
   SArray* pArray;  // Array of SUseDbRsp
@@ -927,6 +932,21 @@ typedef struct {
 } SMnodeLoad;
 
 typedef struct {
+  int32_t dnodeId;
+  int64_t numOfProcessedQuery;
+  int64_t numOfProcessedCQuery;
+  int64_t numOfProcessedFetch;
+  int64_t numOfProcessedDrop;
+  int64_t numOfProcessedHb;
+  int64_t cacheDataSize;
+  int64_t numOfQueryInQueue;
+  int64_t numOfFetchInQueue;
+  int64_t timeInQueryQueue;
+  int64_t timeInFetchQueue;
+} SQnodeLoad;
+
+
+typedef struct {
   int32_t     sver;      // software version
   int64_t     dnodeVer;  // dnode table version in sdb
   int32_t     dnodeId;
@@ -937,6 +957,7 @@ typedef struct {
   int32_t     numOfSupportVnodes;
   char        dnodeEp[TSDB_EP_LEN];
   SMnodeLoad  mload;
+  SQnodeLoad  qload;
   SClusterCfg clusterCfg;
   SArray*     pVloads;  // array of SVnodeLoad
 } SStatusReq;
@@ -1946,6 +1967,7 @@ typedef struct {
   int8_t   killConnection;
   int8_t   align[3];
   SEpSet   epSet;
+  SArray  *pQnodeList;
 } SQueryHbRspBasic;
 
 typedef struct {
@@ -2025,7 +2047,10 @@ static FORCE_INLINE void tFreeClientKv(void* pKv) {
 
 static FORCE_INLINE void tFreeClientHbRsp(void* pRsp) {
   SClientHbRsp* rsp = (SClientHbRsp*)pRsp;
-  taosMemoryFreeClear(rsp->query);
+  if (rsp->query) {
+    taosArrayDestroy(rsp->query->pQnodeList);
+    taosMemoryFreeClear(rsp->query);
+  }
   if (rsp->info) taosArrayDestroyEx(rsp->info, tFreeClientKv);
 }
 

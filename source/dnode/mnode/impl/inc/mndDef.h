@@ -219,6 +219,7 @@ typedef struct {
   int64_t    createdTime;
   int64_t    updateTime;
   SDnodeObj* pDnode;
+  SQnodeLoad load;  
 } SQnodeObj;
 
 typedef struct {

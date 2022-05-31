@@ -17,6 +17,7 @@
 #include "mndDnode.h"
 #include "mndAuth.h"
 #include "mndMnode.h"
+#include "mndQnode.h"
 #include "mndShow.h"
 #include "mndTrans.h"
 #include "mndUser.h"
@@ -386,6 +387,12 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
       pObj->stateStartTime = taosGetTimestampMs();
     }
     mndReleaseMnode(pMnode, pObj);
+  }
+
+  SQnodeObj *pQnode = mndAcquireQnode(pMnode, statusReq.qload.dnodeId);
+  if (pQnode != NULL) {
+    pQnode->load = statusReq.qload;
+    mndReleaseQnode(pMnode, pQnode);
   }
 
   int64_t dnodeVer = sdbGetTableVer(pMnode->pSdb, SDB_DNODE) + sdbGetTableVer(pMnode->pSdb, SDB_MNODE);
