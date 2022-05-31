@@ -567,14 +567,16 @@ SArray *metaGetSmaTbUids(SMeta *pMeta) {
 const void *metaGetTableTagVal(SMetaEntry *pEntry, int16_t type, STagVal *val) {
   ASSERT(pEntry->type == TSDB_CHILD_TABLE);
   STag *tag = (STag *)pEntry->ctbEntry.pTags;
-  tTagGet(tag, val);
+  if (type == TSDB_DATA_TYPE_JSON){
+    if(tag->nTag == 0){
+      return NULL;
+    }
+    return tag;
+  }
+  bool find = tTagGet(tag, val);
 
-  if(val->type == TSDB_DATA_TYPE_NULL){
+  if(!find){
     return NULL;
   }
-  if (type == TSDB_DATA_TYPE_JSON){
-    return tag;
-  }else{
-    return val;
-  }
+  return val;
 }

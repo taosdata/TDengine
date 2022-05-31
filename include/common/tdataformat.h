@@ -120,6 +120,7 @@ struct SColVal {
   uint8_t *pData;
 };
 
+#pragma pack(push, 1)
 struct STagVal {
   union {
     int16_t cid;
@@ -135,7 +136,6 @@ struct STagVal {
   };
 };
 
-#pragma pack(push, 1)
 #define TD_TAG_JSON  ((int8_t)0x40)   // distinguish JSON string and JSON value with the highest bit
 #define TD_TAG_LARGE ((int8_t)0x20)
 struct STag {

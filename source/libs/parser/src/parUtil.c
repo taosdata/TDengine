@@ -330,6 +330,9 @@ static bool isValidateTag(char* input) {
 
 int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag **ppTag, SMsgBuf* pMsgBuf) {
   int32_t   retCode = TSDB_CODE_SUCCESS;
+  cJSON* root = NULL;
+  SHashObj* keyHash = NULL;
+  int32_t size = 0;
   // set json NULL data
   if (!json || strtrim((char*)json) == 0 || strcasecmp(json, TSDB_DATA_NULL_STR_L) == 0) {
     retCode = TSDB_CODE_SUCCESS;
@@ -337,19 +340,19 @@ int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag **ppTag, SMs
   }
 
   // set json real data
-  cJSON* root = cJSON_Parse(json);
+  root = cJSON_Parse(json);
   if (root == NULL) {
     retCode = buildSyntaxErrMsg(pMsgBuf, "json parse error", json);
     goto end;
   }
 
-  int32_t size = cJSON_GetArraySize(root);
+  size = cJSON_GetArraySize(root);
   if (!cJSON_IsObject(root)) {
     retCode = buildSyntaxErrMsg(pMsgBuf, "json error invalide value", json);
     goto end;
   }
 
-  SHashObj* keyHash = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, false);
+  keyHash = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, false);
   for (int32_t i = 0; i < size; i++) {
     cJSON* item = cJSON_GetArrayItem(root, i);
     if (!item) {

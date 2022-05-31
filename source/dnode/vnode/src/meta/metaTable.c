@@ -787,10 +787,16 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
 
   pTagColumn = &stbEntry.stbEntry.schemaTag.pSchema[0];
 
-  STagVal tagVal = {.cid = pTagColumn->colId};
-  tTagGet((const STag *)pCtbEntry->ctbEntry.pTags, &tagVal);
-  pTagData = tagVal.pData;
-  nTagData = (int32_t)tagVal.nData;
+  if(pTagColumn->type != TSDB_DATA_TYPE_JSON){
+    STagVal tagVal = {.cid = pTagColumn->colId};
+    tTagGet((const STag *)pCtbEntry->ctbEntry.pTags, &tagVal);
+    pTagData = tagVal.pData;
+    nTagData = (int32_t)tagVal.nData;
+  }else{
+    //pTagData = pCtbEntry->ctbEntry.pTags;
+    //nTagData = ((const STag *)pCtbEntry->ctbEntry.pTags)->len;
+  }
+
 
   // update tag index
 #ifdef USE_INVERTED_INDEX
