@@ -11,38 +11,21 @@ DISABLE_ADAPTER=${TAOS_DISABLE_ADAPTER:-0}
 unset TAOS_DISABLE_ADAPTER
 
 # to get mnodeEpSet from data dir
-DATA_DIR=${TAOS_DATA_DIR:-/var/lib/taos}
+DATA_DIR=$(taosd -C|grep -E 'dataDir.*(\S+)' -o |head -n1|sed 's/dataDir *//')
+DATA_DIR=${DATA_DIR:-/var/lib/taos}
 
-# append env to custom taos.cfg
-CFG_DIR=/tmp/taos
-CFG_FILE=$CFG_DIR/taos.cfg
 
-mkdir -p $CFG_DIR >/dev/null 2>&1
-
-[ -f /etc/taos/taos.cfg ] && cat /etc/taos/taos.cfg | grep -E -v "^#|^\s*$" >$CFG_FILE
-env-to-cfg >>$CFG_FILE
-
-FQDN=$(cat $CFG_FILE | grep -E -v "^#|^$" | grep fqdn | tail -n1 | sed -E 's/.*fqdn\s+//')
-
+FQDN=$(taosd -C|grep -E 'fqdn.*(\S+)' -o |head -n1|sed 's/fqdn *//')
 # ensure the fqdn is resolved as localhost
 grep "$FQDN" /etc/hosts >/dev/null || echo "127.0.0.1 $FQDN" >>/etc/hosts
-
+FIRSET_EP=$(taosd -C|grep -E 'firstEp.*(\S+)' -o |head -n1|sed 's/firstEp *//')
 # parse first ep host and port
-FIRST_EP_HOST=${TAOS_FIRST_EP%:*}
-FIRST_EP_PORT=${TAOS_FIRST_EP#*:}
+FIRST_EP_HOST=${FIRSET_EP%:*}
+FIRST_EP_PORT=${FIRSET_EP#*:}
 
 # in case of custom server port
-SERVER_PORT=$(cat $CFG_FILE | grep -E -v "^#|^$" | grep serverPort | tail -n1 | sed -E 's/.*serverPort\s+//')
+SERVER_PORT=$(taosd -C|grep -E 'serverPort.*(\S+)' -o |head -n1|sed 's/serverPort *//')
 SERVER_PORT=${SERVER_PORT:-6030}
-
-# for other binaries like interpreters
-if echo $1 | grep -E "taosd$" - >/dev/null; then
-    true # will run taosd
-else
-    cp -f $CFG_FILE /etc/taos/taos.cfg || true
-    $@
-    exit $?
-fi
 
 set +e
 ulimit -c unlimited
@@ -62,22 +45,23 @@ fi
 # if has mnode ep set or the host is first ep or not for cluster, just start.
 if [ -f "$DATA_DIR/dnode/mnodeEpSet.json" ] ||
     [ "$TAOS_FQDN" = "$FIRST_EP_HOST" ]; then
-    $@ -c $CFG_DIR
+    $@
 # others will first wait the first ep ready.
 else
     if [ "$TAOS_FIRST_EP" = "" ]; then
         echo "run TDengine with single node."
-        $@ -c $CFG_DIR
+        $@
         exit $?
     fi
     while true; do
-        es=0
-        taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -n startup >/dev/null || es=$?
-        if [ "$es" -eq 0 ]; then
+        es=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT --check)
+        echo ${es}
+        if [ "${es%%:*}" -eq 2 ]; then
+            echo "execute create dnode"
             taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create dnode \"$FQDN:$SERVER_PORT\";"
             break
         fi
         sleep 1s
     done
-    $@ -c $CFG_DIR
+    $@
 fi

@@ -321,6 +321,32 @@ taos> SELECT HISTOGRAM(voltage, 'log_bin', '{"start": 1, "factor": 3, "count": 3
      {"lower_bin":27, "upper_bin":inf, "count":1}                     |
 ```
 
+### ELAPSED
+
+```mysql
+SELECT ELAPSED(field_name[, time_unit]) FROM { tb_name | stb_name } [WHERE clause] [INTERVAL(interval [, offset]) [SLIDING sliding]];
+```
+
+**功能说明**：elapsed函数表达了统计周期内连续的时间长度，和twa函数配合使用可以计算统计曲线下的面积。在通过INTERVAL子句指定窗口的情况下，统计在给定时间范围内的每个窗口内有数据覆盖的时间范围；如果没有INTERVAL子句，则返回整个给定时间范围内的有数据覆盖的时间范围。注意，ELAPSED返回的并不是时间范围的绝对值，而是绝对值除以time_unit所得到的单位个数。
+
+**返回结果类型**：Double
+
+**应用字段**：Timestamp类型
+
+**支持的版本**：2.6.0.0 及以后的版本。
+
+**适用于**: 表，超级表，嵌套查询的外层查询
+
+**说明**：
+- field_name参数只能是表的第一列，即timestamp主键列。
+- 按time_unit参数指定的时间单位返回，最小是数据库的时间分辨率。time_unit参数未指定时，以数据库的时间分辨率为时间单位。
+- 可以和interval组合使用，返回每个时间窗口的时间戳差值。需要特别注意的是，除第一个时间窗口和最后一个时间窗口外，中间窗口的时间戳差值均为窗口长度。
+- order by asc/desc不影响差值的计算结果。
+- 对于超级表，需要和group by tbname子句组合使用，不可以直接使用。
+- 对于普通表，不支持和group by子句组合使用。
+- 对于嵌套查询，仅当内层查询会输出隐式时间戳列时有效。例如select elapsed(ts) from (select diff(value) from sub1)语句，diff函数会让内层查询输出隐式时间戳列，此为主键列，可以用于elapsed函数的第一个参数。相反，例如select elapsed(ts) from (select * from sub1) 语句，ts列输出到外层时已经没有了主键列的含义，无法使用elapsed函数。此外，elapsed函数作为一个与时间线强依赖的函数，形如select elapsed(ts) from (select diff(value) from st group by tbname)尽管会返回一条计算结果，但并无实际意义，这种用法后续也将被限制。
+- 不支持与leastsquares、diff、derivative、top、bottom、last_row、interp等函数混合使用。
+
 ## 选择函数
 
 在使用所有的选择函数的时候，可以同时指定输出 ts 列或标签列（包括 tbname），这样就可以方便地知道被选出的值是源于哪个数据行的。
@@ -1437,35 +1463,6 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 - 该函数可以应用在普通表和超级表上。
 - 该函数适用于内层查询和外层查询。
 - 版本2.6.0.x后支持
-
-### 四则运算
-
-```
-SELECT field_name [+|-|*|/|%][Value|field_name] FROM { tb_name | stb_name }  [WHERE clause];
-```
-
-**功能说明**：统计表/超级表中某列或多列间的值加、减、乘、除、取余计算结果。
-
-**返回数据类型**：双精度浮点数。
-
-**应用字段**：不能应用在 timestamp、binary、nchar、bool 类型字段。
-
-**适用于**：表、超级表。
-
-**使用说明**：
-
-- 支持两列或多列之间进行计算，可使用括号控制计算优先级；
-- NULL 字段不参与计算，如果参与计算的某行中包含 NULL，该行的计算结果为 NULL。
-
-```
-taos> SELECT current + voltage * phase FROM d1001;
-(current+(voltage*phase)) |
-============================
-            78.190000713 |
-            84.540003240 |
-            80.810000718 |
-Query OK, 3 row(s) in set (0.001046s)
-```
 
 ### STATECOUNT
 

@@ -12,28 +12,3 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
-#ifndef _TD_MND_SCHEDULER_H_
-#define _TD_MND_SCHEDULER_H_
-
-#include "mndInt.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-int32_t mndInitScheduler(SMnode* pMnode);
-void    mndCleanupScheduler(SMnode* pMnode);
-
-int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscribeObj* pSub);
-
-int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream);
-
-int32_t mndConvertRSmaTask(const char* ast, int64_t uid, int8_t triggerType, int64_t watermark, char** pStr,
-                           int32_t* pLen, double filesFactor);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif /*_TD_MND_SCHEDULER_H_ */

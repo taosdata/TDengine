@@ -26,31 +26,24 @@ typedef enum {
   TRANS_START_FUNC_TEST = 1,
   TRANS_STOP_FUNC_TEST = 2,
   TRANS_START_FUNC_MQ_REB = 3,
-  TRANS_STOP_FUNC_TEST_MQ_REB = 4,
+  TRANS_STOP_FUNC_MQ_REB = 4,
 } ETrnFunc;
 
 typedef struct {
-  SEpSet  epSet;
-  tmsg_t  msgType;
-  int8_t  msgSent;
-  int8_t  msgReceived;
-  int32_t errCode;
-  int32_t acceptableCode;
-  int32_t contLen;
-  void   *pCont;
-} STransAction;
-
-typedef struct {
+  int32_t  id;
+  int32_t  errCode;
+  int32_t  acceptableCode;
+  int8_t   stage;
+  int8_t   isRaw;
+  int8_t   rawWritten;
+  int8_t   msgSent;
+  int8_t   msgReceived;
+  tmsg_t   msgType;
+  SEpSet   epSet;
+  int32_t  contLen;
+  void    *pCont;
   SSdbRaw *pRaw;
-} STransLog;
-
-typedef struct {
-  ETrnStep stepType;
-  STransAction redoAction;
-  STransAction undoAction;
-  STransLog    redoLog;
-  STransLog    undoLog;
-} STransStep;
+} STransAction;
 
 typedef void (*TransCbFp)(SMnode *pMnode, void *param, int32_t paramLen);
 
@@ -69,7 +62,7 @@ int32_t mndTransAppendUndoAction(STrans *pTrans, STransAction *pAction);
 void    mndTransSetRpcRsp(STrans *pTrans, void *pCont, int32_t contLen);
 void    mndTransSetCb(STrans *pTrans, ETrnFunc startFunc, ETrnFunc stopFunc, void *param, int32_t paramLen);
 void    mndTransSetDbInfo(STrans *pTrans, SDbObj *pDb);
-void    mndTransSetExecOneByOne(STrans *pTrans);
+void    mndTransSetNoParallel(STrans *pTrans);
 
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans);
 void    mndTransProcessRsp(SRpcMsg *pRsp);
