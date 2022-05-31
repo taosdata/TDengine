@@ -922,12 +922,13 @@ static void doReleaseVec(SColumnInfoData* pCol, int32_t type) {
   }
 }
 
-STagVal *getJsonValue(char *json, STagVal *tagVal) {
-  bool find = tTagGet(((const STag *)json), tagVal);  // json value is null and not exist is different
-  if(!find){
-     return NULL;
+STagVal getJsonValue(char *json, char *key, bool *isExist) {
+  STagVal val = {.pKey = key};
+  bool find = tTagGet(((const STag *)json), &val);  // json value is null and not exist is different
+  if(isExist){
+    *isExist = find;
   }
-  return tagVal;
+  return val;
 }
 
 void vectorJsonArrow(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
@@ -939,6 +940,8 @@ void vectorJsonArrow(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pO
   pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
 
   char *pRightData = colDataGetVarData(pRight->columnData, 0);
+  char *jsonKey = taosMemoryCalloc(1, varDataLen(pRightData) + 1);
+  memcpy(jsonKey, varDataVal(pRightData), varDataLen(pRightData));
   for (; i >= 0 && i < pLeft->numOfRows; i += step) {
     if (colDataIsNull_var(pLeft->columnData, i)) {
       colDataSetNull_var(pOutputCol, i);
@@ -946,14 +949,15 @@ void vectorJsonArrow(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pO
       continue;
     }
     char *pLeftData = colDataGetVarData(pLeft->columnData, i);
-    STagVal val = {.pKey = pRightData};
-    STagVal *value = getJsonValue(pLeftData, &val);
-    char *data = tTagValToData(value, true);
+    bool isExist = false;
+    STagVal value = getJsonValue(pLeftData, jsonKey, &isExist);
+    char *data = isExist ? tTagValToData(&value, true) : NULL;
     colDataAppend(pOutputCol, i, data, data == NULL);
-    if(value && IS_VAR_DATA_TYPE(value->type) && data){
+    if(isExist && IS_VAR_DATA_TYPE(value.type) && data){
       taosMemoryFree(data);
     }
   }
+  taosMemoryFree(jsonKey);
 }
 
 void vectorMathAdd(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {

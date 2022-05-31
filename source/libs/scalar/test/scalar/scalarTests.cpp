@@ -217,7 +217,7 @@ void scltMakeOpNode(SNode **pNode, EOperatorType opType, int32_t resType, SNode 
   SOperatorNode *onode = (SOperatorNode *)node;
   onode->node.resType.type = resType;
   onode->node.resType.bytes = tDataTypes[resType].bytes;
-  
+
   onode->opType = opType;
   onode->pLeft = pLeft;
   onode->pRight = pRight;

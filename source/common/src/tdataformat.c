@@ -672,8 +672,8 @@ static int32_t tGetTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson) {
   if (IS_VAR_DATA_TYPE(pTagVal->type)) {
     n += tGetBinary(p + n, &pTagVal->pData, &pTagVal->nData);
   } else {
-    n += tDataTypes[pTagVal->type].bytes;
     memcpy(&(pTagVal->i64), p + n, tDataTypes[pTagVal->type].bytes);
+    n += tDataTypes[pTagVal->type].bytes;
   }
 
   return n;
