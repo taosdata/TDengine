@@ -226,6 +226,7 @@ typedef struct SUniqueInfo {
   int32_t   numOfPoints;
   uint8_t   colType;
   int16_t   colBytes;
+  bool      hasNull; //null is not hashable, handle separately
   SHashObj  *pHash;
   char      pItems[];
 } SUniqueInfo;
@@ -3878,10 +3879,11 @@ static void doUniqueAdd(SUniqueInfo* pInfo, char *data, TSKEY ts, bool isNull) {
   if (isNull == true) {
     int32_t size = sizeof(SUniqueItem) + pInfo->colBytes;
     SUniqueItem *pItem = (SUniqueItem *)(pInfo->pItems + pInfo->numOfPoints * size);
-    if (pItem->isNull == false) {
+    if (pInfo->hasNull == false && pItem->isNull == false) {
       pItem->timestamp = ts;
       pItem->isNull = true;
       pInfo->numOfPoints++;
+      pInfo->hasNull = true;
     } else if (pItem->timestamp > ts && pItem->isNull == true) {
       pItem->timestamp = ts;
     }
