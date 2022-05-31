@@ -1010,7 +1010,6 @@ typedef struct {
   SReplica replicas[TSDB_MAX_REPLICA];
   int32_t  numOfRetensions;
   SArray*  pRetensions;  // SRetention
-  int8_t   schemaless;
 
   // for tsma
   int8_t isTsma;
