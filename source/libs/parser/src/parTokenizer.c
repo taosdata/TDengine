@@ -68,7 +68,6 @@ static SKeyword keywordTable[] = {
     {"DATABASES",     TK_DATABASES},
     {"DAYS",          TK_DAYS},
     {"DBS",           TK_DBS},
-    {"DELAY",         TK_DELAY},
     {"DESC",          TK_DESC},
     {"DESCRIBE",      TK_DESCRIBE},
     {"DISTINCT",      TK_DISTINCT},
