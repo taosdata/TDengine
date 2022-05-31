@@ -1044,9 +1044,9 @@ static int32_t mndDropDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
 
   if (mndSetDropDbRedoLogs(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndSetDropDbCommitLogs(pMnode, pTrans, pDb) != 0) goto _OVER;
-  /*if (mndDropOffsetByDB(pMnode, pTrans, pDb) != 0) goto _OVER;*/
-  /*if (mndDropSubByDB(pMnode, pTrans, pDb) != 0) goto _OVER;*/
-  /*if (mndDropTopicByDB(pMnode, pTrans, pDb) != 0) goto _OVER;*/
+  if (mndDropOffsetByDB(pMnode, pTrans, pDb) != 0) goto _OVER;
+  if (mndDropSubByDB(pMnode, pTrans, pDb) != 0) goto _OVER;
+  if (mndDropTopicByDB(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndSetDropDbRedoActions(pMnode, pTrans, pDb) != 0) goto _OVER;
 
   SUserObj *pUser = mndAcquireUser(pMnode, pDb->createUser);

@@ -21,6 +21,7 @@
 #include "mndMnode.h"
 #include "mndShow.h"
 #include "mndStb.h"
+#include "mndTopic.h"
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
@@ -188,7 +189,15 @@ static int32_t mndProcessCommitOffsetReq(SRpcMsg *pMsg) {
     bool          create = false;
     SMqOffsetObj *pOffsetObj = mndAcquireOffset(pMnode, key);
     if (pOffsetObj == NULL) {
+      SMqTopicObj *pTopic = mndAcquireTopic(pMnode, pOffset->topicName);
+      if (pTopic == NULL) {
+        terrno = TSDB_CODE_MND_TOPIC_NOT_EXIST;
+        mError("submit offset to topic %s failed since  %s", pOffset->topicName, terrstr());
+        continue;
+      }
       pOffsetObj = taosMemoryMalloc(sizeof(SMqOffsetObj));
+      pOffsetObj->dbUid = pTopic->dbUid;
+      mndReleaseTopic(pMnode, pTopic);
       memcpy(pOffsetObj->key, key, TSDB_PARTITION_KEY_LEN);
       create = true;
     }

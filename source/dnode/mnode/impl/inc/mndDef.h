@@ -418,7 +418,7 @@ typedef struct {
   char*          ast;
   char*          physicalPlan;
   SSchemaWrapper schema;
-  int32_t        refConsumerCnt;
+  // int32_t        refConsumerCnt;
 } SMqTopicObj;
 
 typedef struct {
