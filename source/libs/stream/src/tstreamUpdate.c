@@ -73,8 +73,8 @@ static int64_t adjustInterval(int64_t interval, int32_t precision) {
 }
 
 static int64_t adjustWatermark(int64_t adjInterval, int64_t originInt, int64_t watermark) {
-  if (watermark <= 0) {
-    watermark = TMIN(originInt/adjInterval, 1) * adjInterval;
+  if (watermark <= adjInterval) {
+    watermark = TMAX(originInt/adjInterval, 1) * adjInterval;
   } else if (watermark > MAX_NUM_SCALABLE_BF * adjInterval) {
     watermark = MAX_NUM_SCALABLE_BF * adjInterval;
   }/* else if (watermark < MIN_NUM_SCALABLE_BF * adjInterval) {

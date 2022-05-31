@@ -86,7 +86,7 @@ title: TDengine 参数限制与保留关键字
 | CONNS       | ID         | NOTNULL   | STABLE     | WAL          |
 | COPY        | IF         | NOW       | STABLES    | WHERE        |
 | _C0         | _QSTART    | _QSTOP    | _QDURATION | _WSTART      |
-| _WSTOP      | _WDURATION |
+| _WSTOP      | _WDURATION | _ROWTS    |
 
 ## 特殊说明
 ### TBNAME
@@ -119,10 +119,10 @@ taos> SELECT COUNT(tbname) FROM meters WHERE groupId > 2;
 Query OK, 1 row(s) in set (0.001091s)
 ```
 ### _QSTART/_QSTOP/_QDURATION
-表示查询过滤窗口的起始，结束以及持续时间 (从2.6.0.0版本开始支持)
+表示查询过滤窗口的起始，结束以及持续时间。
 
 ### _WSTART/_WSTOP/_WDURATION
-窗口切分聚合查询（例如 interval/session window/state window）中表示每个切分窗口的起始，结束以及持续时间（从 2.6.0.0 版本开始支持）
+窗口切分聚合查询（例如 interval/session window/state window）中表示每个切分窗口的起始，结束以及持续时间。
 
-### _c0
-表示表或超级表的第一列
+### _c0/_ROWTS
+_c0 _ROWTS 等价，表示表或超级表的第一列
