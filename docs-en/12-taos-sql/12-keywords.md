@@ -47,11 +47,11 @@ There are about 200 keywords reserved by TDengine, they can't be used as the nam
 | CONNS       | ID         | NOTNULL   | STable     | WAL          |
 | COPY        | IF         | NOW       | STableS    | WHERE        |
 | _C0         | _QSTART    | _QSTOP    | _QDURATION | _WSTART      |
-| _WSTOP      | _WDURATION |
+| _WSTOP      | _WDURATION | _ROWTS    |
 
 ## Explanations
 ### TBNAME
-`TBNAME` can be considered as a special tag, which represents the name of the subtable, in STable.
+`TBNAME` can be considered as a special tag, which represents the name of the subtable, in a STable.
 
 Get the table name and tag values of all subtables in a STable.
 ```mysql
@@ -85,5 +85,5 @@ The start, stop and duration of a query time window (Since version 2.6.0.0).
 ### _WSTART/_WSTOP/_WDURATION
 The start, stop and duration of aggegate query by time window, like interval, session window, state window (Since version 2.6.0.0).
 
-### _c0
-The first column of a table or STable.
+### _c0/_ROWTS
+_c0 is equal to _ROWTS, it means the first column of a table or STable.
