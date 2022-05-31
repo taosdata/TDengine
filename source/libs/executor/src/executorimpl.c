@@ -4495,8 +4495,8 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN == type) {
       SScanPhysiNode*      pScanPhyNode = (SScanPhysiNode*)pPhyNode;  // simple child table.
       STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pPhyNode;
-      STimeWindowAggSupp twSup = {.waterMark = pTableScanNode->watermark,
-          .calTrigger = pTableScanNode->triggerType, .maxTs = INT64_MIN};
+      STimeWindowAggSupp   twSup = {
+          .waterMark = pTableScanNode->watermark, .calTrigger = pTableScanNode->triggerType, .maxTs = INT64_MIN};
       tsdbReaderT pDataReader = NULL;
       if (pHandle->vnode) {
         pDataReader = doCreateDataReader(pTableScanNode, pHandle, pTableListInfo, (uint64_t)queryId, taskId, pTagCond);
@@ -4510,9 +4510,9 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       } else {
         qDebug("%s pDataReader is not NULL", GET_TASKID(pTaskInfo));
       }
-      SArray* tableIdList = extractTableIdList(pTableListInfo);
-      SOperatorInfo* pOperator = createStreamScanOperatorInfo(pDataReader, pHandle,
-          tableIdList, pTableScanNode, pTaskInfo, &twSup, pTableScanNode->tsColId);
+      SArray*        tableIdList = extractTableIdList(pTableListInfo);
+      SOperatorInfo* pOperator = createStreamScanOperatorInfo(pDataReader, pHandle, tableIdList, pTableScanNode,
+                                                              pTaskInfo, &twSup, pTableScanNode->tsColId);
 
       taosArrayDestroy(tableIdList);
       return pOperator;
@@ -4912,7 +4912,7 @@ int32_t getTableList(void* metaHandle, int32_t tableType, uint64_t tableUid, STa
 
   if (tableType == TSDB_SUPER_TABLE) {
     if (pTagCond) {
-      SIndexMetaArg metaArg = {.metaHandle = tsdbGetIdx(metaHandle), .suid = tableUid};
+      SIndexMetaArg metaArg = {.metaEx = metaHandle, .metaHandle = tsdbGetIdx(metaHandle), .suid = tableUid};
 
       SArray* res = taosArrayInit(8, sizeof(uint64_t));
       code = doFilterTag(pTagCond, &metaArg, res);
