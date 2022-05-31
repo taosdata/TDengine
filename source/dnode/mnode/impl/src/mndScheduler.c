@@ -506,7 +506,7 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
   SQueryPlan* pPlan = NULL;
   SSubplan*   plan = NULL;
 
-  if (pTopic->subType == TOPIC_SUB_TYPE__TABLE) {
+  if (pTopic->subType == TOPIC_SUB_TYPE__COLUMN) {
     pPlan = qStringToQueryPlan(pTopic->physicalPlan);
     if (pPlan == NULL) {
       terrno = TSDB_CODE_QRY_INVALID_INPUT;
@@ -552,7 +552,7 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
 
     mDebug("init subscription %s, assign vg: %d", pSub->key, pVgEp->vgId);
 
-    if (pTopic->subType == TOPIC_SUB_TYPE__TABLE) {
+    if (pTopic->subType == TOPIC_SUB_TYPE__COLUMN) {
       int32_t msgLen;
 
       plan->execNode.epSet = pVgEp->epSet;
