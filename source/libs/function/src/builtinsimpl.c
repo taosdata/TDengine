@@ -14,6 +14,7 @@
  */
 
 #include "builtinsimpl.h"
+#include "tglobal.h"
 #include "cJSON.h"
 #include "function.h"
 #include "querynodes.h"
@@ -356,7 +357,7 @@ bool getCountFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
   return true;
 }
 
-static FORCE_INLINE int32_t getNumofElem(SqlFunctionCtx* pCtx) {
+static FORCE_INLINE int32_t getNumOfElems(SqlFunctionCtx* pCtx) {
   int32_t numOfElem = 0;
 
   /*
@@ -391,11 +392,12 @@ static FORCE_INLINE int32_t getNumofElem(SqlFunctionCtx* pCtx) {
  * count function does not use the pCtx->interResBuf to keep the intermediate buffer
  */
 int32_t countFunction(SqlFunctionCtx* pCtx) {
-  int32_t numOfElem = getNumofElem(pCtx);
-  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  int32_t numOfElem = getNumOfElems(pCtx);
 
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SInputColumnInfoData* pInput = &pCtx->input;
-  int32_t type   = pInput->pData[0]->info.type;
+
+  int32_t type = pInput->pData[0]->info.type;
 
   char* buf = GET_ROWCELL_INTERBUF(pResInfo);
   if (IS_NULL_TYPE(type)) {
@@ -406,12 +408,17 @@ int32_t countFunction(SqlFunctionCtx* pCtx) {
     *((int64_t*)buf) += numOfElem;
   }
 
-  SET_VAL(pResInfo, numOfElem, 1);
+  if (tsCountAlwaysReturnValue) {
+    pResInfo->numOfRes = 1;
+  } else {
+    SET_VAL(pResInfo, 1, 1);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t countInvertFunction(SqlFunctionCtx* pCtx) {
-  int32_t numOfElem = getNumofElem(pCtx);
+  int32_t numOfElem = getNumOfElems(pCtx);
 
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   char*                buf = GET_ROWCELL_INTERBUF(pResInfo);
@@ -3236,12 +3243,12 @@ static uint64_t hllCountCnt(uint8_t *buckets) {
     z += buckethisto[j];
     z *= 0.5;
   }
+
   z += m * hllSigma(buckethisto[0]/(double)m);
   double E = (double)llroundl(HLL_ALPHA_INF*m*m/z);
 
   return (uint64_t) E;
 }
-
 
 int32_t hllFunction(SqlFunctionCtx *pCtx) {
   SHLLInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
@@ -3275,7 +3282,6 @@ int32_t hllFunction(SqlFunctionCtx *pCtx) {
     if (count > oldcount) {
       pInfo->buckets[index] = count;
     }
-
   }
 
   SET_VAL(GET_RES_INFO(pCtx), numOfElems, 1);
@@ -3283,9 +3289,13 @@ int32_t hllFunction(SqlFunctionCtx *pCtx) {
 }
 
 int32_t hllFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
-  SHLLInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  SResultRowEntryInfo *pInfo = GET_RES_INFO(pCtx);
 
-  pInfo->result = hllCountCnt(pInfo->buckets);
+  SHLLInfo* pHllInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  pHllInfo->result = hllCountCnt(pHllInfo->buckets);
+  if (tsCountAlwaysReturnValue && pHllInfo->result == 0) {
+    pInfo->numOfRes = 1;
+  }
 
   return functionFinalize(pCtx, pBlock);
 }
