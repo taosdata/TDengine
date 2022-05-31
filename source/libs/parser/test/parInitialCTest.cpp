@@ -491,7 +491,7 @@ TEST_F(ParserInitialCTest, createTopic) {
       expect.ast = (char*)pAst;
     } else {
       expect.subType = TOPIC_SUB_TYPE__DB;
-      snprintf(expect.subStbName, sizeof(expect.subStbName), "0.%s", pDbName);
+      snprintf(expect.subDbName, sizeof(expect.subDbName), "0.%s", pDbName);
     }
   };
 
