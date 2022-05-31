@@ -875,7 +875,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
     if (rows == 0) {
       pOperator->status = OP_EXEC_DONE;
     } else if (pInfo->pUpdateInfo) {
-      SSDataBlock* upRes = getUpdateDataBlock(pInfo, true);  // TODO(liuyao) get invertible from plan
+      SSDataBlock* upRes = getUpdateDataBlock(pInfo, true);
       if (upRes) {
         pInfo->pUpdateRes = upRes;
         if (upRes->info.type == STREAM_REPROCESS) {
@@ -894,7 +894,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
 
 SOperatorInfo* createStreamScanOperatorInfo(void* pDataReader, SReadHandle* pHandle,
     SArray* pTableIdList, STableScanPhysiNode* pTableScanNode, SExecTaskInfo* pTaskInfo,
-    STimeWindowAggSupp* pTwSup, int16_t tsColId) {
+    STimeWindowAggSupp* pTwSup) {
   SStreamBlockScanInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamBlockScanInfo));
   SOperatorInfo*        pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -939,8 +939,12 @@ SOperatorInfo* createStreamScanOperatorInfo(void* pDataReader, SReadHandle* pHan
     goto _error;
   }
 
-  pInfo->primaryTsIndex = tsColId;
-  if (pSTInfo->interval.interval > 0) {
+  if (isSmaStream(pTableScanNode->triggerType)) {
+    pTwSup->waterMark = getSmaWaterMark(pSTInfo->interval.interval,
+        pTableScanNode->filesFactor);
+  }
+  pInfo->primaryTsIndex = 0; // pTableScanNode->tsColId;
+  if (pSTInfo->interval.interval > 0 && pDataReader) {
     pInfo->pUpdateInfo = updateInfoInitP(&pSTInfo->interval, pTwSup->waterMark);
   } else {
     pInfo->pUpdateInfo = NULL;

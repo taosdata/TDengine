@@ -465,20 +465,22 @@ static bool isPrimaryKey(STempTableNode* pTable, SNode* pExpr) {
   return isPrimaryKeyImpl(pTable, pExpr);
 }
 
-static bool findAndSetColumn(SColumnNode** pColRef, const STableNode* pTable) {
+static int32_t findAndSetColumn(STranslateContext* pCxt, SColumnNode** pColRef, const STableNode* pTable,
+                                bool* pFound) {
   SColumnNode* pCol = *pColRef;
-  bool         found = false;
+  *pFound = false;
   if (QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
     const STableMeta* pMeta = ((SRealTableNode*)pTable)->pMeta;
     if (isInternalPrimaryKey(pCol)) {
       setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema, false, pCol);
-      return true;
+      *pFound = true;
+      return TSDB_CODE_SUCCESS;
     }
     int32_t nums = pMeta->tableInfo.numOfTags + pMeta->tableInfo.numOfColumns;
     for (int32_t i = 0; i < nums; ++i) {
       if (0 == strcmp(pCol->colName, pMeta->schema[i].name)) {
         setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, (i >= pMeta->tableInfo.numOfColumns), pCol);
-        found = true;
+        *pFound = true;
         break;
       }
     }
@@ -489,13 +491,15 @@ static bool findAndSetColumn(SColumnNode** pColRef, const STableNode* pTable) {
       SExprNode* pExpr = (SExprNode*)pNode;
       if (0 == strcmp(pCol->colName, pExpr->aliasName) ||
           (isPrimaryKey((STempTableNode*)pTable, pNode) && isInternalPrimaryKey(pCol))) {
+        if (*pFound) {
+          return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_AMBIGUOUS_COLUMN, pCol->colName);
+        }
         setColumnInfoByExpr(pTable, pExpr, pColRef);
-        found = true;
-        break;
+        *pFound = true;
       }
     }
   }
-  return found;
+  return TSDB_CODE_SUCCESS;
 }
 
 static EDealRes translateColumnWithPrefix(STranslateContext* pCxt, SColumnNode** pCol) {
@@ -506,7 +510,12 @@ static EDealRes translateColumnWithPrefix(STranslateContext* pCxt, SColumnNode**
     STableNode* pTable = taosArrayGetP(pTables, i);
     if (belongTable(pCxt->pParseCxt->db, (*pCol), pTable)) {
       foundTable = true;
-      if (findAndSetColumn(pCol, pTable)) {
+      bool foundCol = false;
+      pCxt->errCode = findAndSetColumn(pCxt, pCol, pTable, &foundCol);
+      if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+        return DEAL_RES_ERROR;
+      }
+      if (foundCol) {
         break;
       }
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_COLUMN, (*pCol)->colName);
@@ -525,14 +534,19 @@ static EDealRes translateColumnWithoutPrefix(STranslateContext* pCxt, SColumnNod
   bool    isInternalPk = isInternalPrimaryKey(*pCol);
   for (size_t i = 0; i < nums; ++i) {
     STableNode* pTable = taosArrayGetP(pTables, i);
-    if (findAndSetColumn(pCol, pTable)) {
+    bool        foundCol = false;
+    pCxt->errCode = findAndSetColumn(pCxt, pCol, pTable, &foundCol);
+    if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+      return DEAL_RES_ERROR;
+    }
+    if (foundCol) {
       if (found) {
         return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_AMBIGUOUS_COLUMN, (*pCol)->colName);
       }
       found = true;
-      if (isInternalPk) {
-        break;
-      }
+    }
+    if (isInternalPk) {
+      break;
     }
   }
   if (!found) {
@@ -1939,7 +1953,9 @@ static int32_t createPrimaryKeyColByTable(STranslateContext* pCxt, STableNode* p
   }
   pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
   strcpy(pCol->colName, PK_TS_COL_INTERNAL_NAME);
-  if (!findAndSetColumn(&pCol, pTable)) {
+  bool    found = false;
+  int32_t code = findAndSetColumn(pCxt, &pCol, pTable, &found);
+  if (TSDB_CODE_SUCCESS != code || !found) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TIMELINE_FUNC);
   }
   *pPrimaryKey = (SNode*)pCol;
@@ -2617,10 +2633,7 @@ static int32_t checkTableSchema(STranslateContext* pCxt, SCreateTableStmt* pStmt
 }
 
 static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt) {
-  int32_t code = checkRangeOption(pCxt, "delay", pStmt->pOptions->delay, TSDB_MIN_ROLLUP_DELAY, TSDB_MAX_ROLLUP_DELAY);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = checTableFactorOption(pCxt, pStmt->pOptions->filesFactor);
-  }
+  int32_t code = checTableFactorOption(pCxt, pStmt->pOptions->filesFactor);
   if (TSDB_CODE_SUCCESS == code) {
     code = checkTableRollupOption(pCxt, pStmt->pOptions->pRollupFuncs);
   }
@@ -2861,7 +2874,6 @@ static int32_t buildRollupAst(STranslateContext* pCxt, SCreateTableStmt* pStmt, 
 static int32_t buildCreateStbReq(STranslateContext* pCxt, SCreateTableStmt* pStmt, SMCreateStbReq* pReq) {
   pReq->igExists = pStmt->ignoreExists;
   pReq->xFilesFactor = pStmt->pOptions->filesFactor;
-  pReq->delay = pStmt->pOptions->delay;
   pReq->ttl = pStmt->pOptions->ttl;
   columnDefNodeToField(pStmt->pCols, &pReq->pColumns);
   columnDefNodeToField(pStmt->pTags, &pReq->pTags);
