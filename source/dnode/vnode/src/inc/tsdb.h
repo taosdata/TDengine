@@ -45,7 +45,7 @@ typedef struct SMergeInfo    SMergeInfo;
 typedef struct STable        STable;
 
 int  tsdbMemTableCreate(STsdb *pTsdb, STsdbMemTable **ppMemTable);
-void tsdbMemTableDestroy(STsdb *pTsdb, STsdbMemTable *pMemTable);
+void tsdbMemTableDestroy(STsdbMemTable *pMemTable);
 int  tsdbLoadDataFromCache(STsdb *pTsdb, STable *pTable, SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead,
                            SDataCols *pCols, TKEY *filterKeys, int nFilterKeys, bool keepDup, SMergeInfo *pMergeInfo);
 

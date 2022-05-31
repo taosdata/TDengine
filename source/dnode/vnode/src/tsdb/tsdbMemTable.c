@@ -60,7 +60,7 @@ int tsdbMemTableCreate(STsdb *pTsdb, STsdbMemTable **ppMemTable) {
   return 0;
 }
 
-void tsdbMemTableDestroy(STsdb *pTsdb, STsdbMemTable *pMemTable) {
+void tsdbMemTableDestroy(STsdbMemTable *pMemTable) {
   if (pMemTable) {
     taosHashCleanup(pMemTable->pHashIdx);
     SSkipListIterator *pIter = tSkipListCreateIter(pMemTable->pSlIdx);
