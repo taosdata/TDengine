@@ -1597,7 +1597,7 @@ static int32_t mndProcessTableMetaReq(SRpcMsg *pReq) {
   pReq->info.rspLen = rspLen;
   code = 0;
 
-  mDebug("stb:%s.%s, meta is retrieved", infoReq.dbFName, infoReq.tbName);
+  mTrace("%s.%s, meta is retrieved", infoReq.dbFName, infoReq.tbName);
 
 _OVER:
   if (code != 0) {

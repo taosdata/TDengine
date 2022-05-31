@@ -90,7 +90,7 @@ static int32_t mndCreateDefaultMnode(SMnode *pMnode) {
   if (pRaw == NULL) return -1;
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
-  mDebug("mnode:%d, will be created while deploy sdb, raw:%p", mnodeObj.id, pRaw);
+  mDebug("mnode:%d, will be created when deploying, raw:%p", mnodeObj.id, pRaw);
 
 #if 0
   return sdbWrite(pMnode->pSdb, pRaw);

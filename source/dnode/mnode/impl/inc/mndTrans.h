@@ -31,17 +31,18 @@ typedef enum {
 
 typedef struct {
   int32_t  id;
-  tmsg_t   msgType;
-  int8_t   msgSent;
-  int8_t   msgReceived;
-  int8_t   isRaw;
-  int8_t   rawWritten;
-  SSdbRaw *pRaw;
-  SEpSet   epSet;
   int32_t  errCode;
   int32_t  acceptableCode;
+  int8_t   stage;
+  int8_t   isRaw;
+  int8_t   rawWritten;
+  int8_t   msgSent;
+  int8_t   msgReceived;
+  tmsg_t   msgType;
+  SEpSet   epSet;
   int32_t  contLen;
   void    *pCont;
+  SSdbRaw *pRaw;
 } STransAction;
 
 typedef void (*TransCbFp)(SMnode *pMnode, void *param, int32_t paramLen);
