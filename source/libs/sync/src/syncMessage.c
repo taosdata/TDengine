@@ -1806,7 +1806,6 @@ cJSON* syncSnapshotSend2Json(const SyncSnapshotSend* pMsg) {
     cJSON_AddStringToObject(pRoot, "lastTerm", u64buf);
 
     cJSON_AddNumberToObject(pRoot, "seq", pMsg->seq);
-    cJSON_AddNumberToObject(pRoot, "ack", pMsg->ack);
 
     cJSON_AddNumberToObject(pRoot, "dataLen", pMsg->dataLen);
     char* s;
@@ -1858,7 +1857,7 @@ void syncSnapshotSendLog2(char* s, const SyncSnapshotSend* pMsg) {
 }
 
 // ---------------------------------------------
-SyncSnapshotRsp* syncSnapshotRspBuild(uint32_t dataLen, int32_t vgId) {
+SyncSnapshotRsp* syncSnapshotRspBuild(int32_t vgId) {
   uint32_t         bytes = sizeof(SyncSnapshotRsp);
   SyncSnapshotRsp* pMsg = taosMemoryMalloc(bytes);
   memset(pMsg, 0, bytes);
@@ -1969,7 +1968,6 @@ cJSON* syncSnapshotRsp2Json(const SyncSnapshotRsp* pMsg) {
     snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->lastTerm);
     cJSON_AddStringToObject(pRoot, "lastTerm", u64buf);
 
-    cJSON_AddNumberToObject(pRoot, "seq", pMsg->seq);
     cJSON_AddNumberToObject(pRoot, "ack", pMsg->ack);
   }
 

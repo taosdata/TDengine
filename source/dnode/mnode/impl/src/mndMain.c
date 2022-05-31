@@ -412,6 +412,16 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
       SyncAppendEntriesReply *pSyncMsg = syncAppendEntriesReplyFromRpcMsg2(pMsg);
       code = syncNodeOnAppendEntriesReplySnapshotCb(pSyncNode, pSyncMsg);
       syncAppendEntriesReplyDestroy(pSyncMsg);
+
+      } else if (pMsg->msgType == TDMT_VND_SYNC_SNAPSHOT_SEND) {
+        SyncSnapshotSend *pSyncMsg = syncSnapshotSendFromRpcMsg2(pMsg);
+        code = syncNodeOnSnapshotSendCb(pSyncNode, pSyncMsg);
+        syncSnapshotSendDestroy(pSyncMsg);
+      } else if (pMsg->msgType == TDMT_VND_SYNC_SNAPSHOT_RSP) {
+        SyncSnapshotRsp *pSyncMsg = syncSnapshotRspFromRpcMsg2(pMsg);
+        code = syncNodeOnSnapshotRspCb(pSyncNode, pSyncMsg);
+        syncSnapshotRspDestroy(pSyncMsg);
+
     } else {
       mError("failed to process msg:%p since invalid type:%s", pMsg, TMSG_INFO(pMsg->msgType));
       code = TAOS_SYNC_PROPOSE_OTHER_ERROR;

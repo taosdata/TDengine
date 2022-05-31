@@ -14,27 +14,247 @@
  */
 
 #include "syncSnapshot.h"
+#include "syncRaftStore.h"
+#include "syncUtil.h"
 
-SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode) { return NULL; }
+static void snapshotSenderDoStart(SSyncSnapshotSender *pSender);
 
-void snapshotSenderDestroy(SSyncSnapshotSender *pSender) {}
+SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaIndex) {
+  ASSERT(pSyncNode->pFsm->FpSnapshotStartRead != NULL);
+  ASSERT(pSyncNode->pFsm->FpSnapshotStopRead != NULL);
+  ASSERT(pSyncNode->pFsm->FpSnapshotDoRead != NULL);
 
-void snapshotSenderStart(SSyncSnapshotSender *pSender) {}
+  SSyncSnapshotSender *pSender = taosMemoryMalloc(sizeof(SSyncSnapshotSender));
+  ASSERT(pSender != NULL);
+  memset(pSender, 0, sizeof(*pSender));
 
-void snapshotSenderStop(SSyncSnapshotSender *pSender) {}
+  pSender->start = false;
+  pSender->seq = SYNC_SNAPSHOT_SEQ_INVALID;
+  pSender->ack = SYNC_SNAPSHOT_SEQ_INVALID;
+  pSender->pReader = NULL;
+  pSender->pCurrentBlock = NULL;
+  pSender->blockLen = 0;
+  pSender->sendingMS = 5000;
+  pSender->pSyncNode = pSyncNode;
+  pSender->replicaIndex = replicaIndex;
+  pSender->term = pSyncNode->pRaftStore->currentTerm;
 
-int32_t snapshotSend(SSyncSnapshotSender *pSender) { return 0; }
+  return pSender;
+}
 
-cJSON *snapshotSender2Json(SSyncSnapshotSender *pSender) { return NULL; }
+void snapshotSenderDestroy(SSyncSnapshotSender *pSender) {
+  if (pSender != NULL) {
+    taosMemoryFree(pSender);
+  }
+}
 
-char *snapshotSender2Str(SSyncSnapshotSender *pSender) { return NULL; }
+static void snapshotSenderDoStart(SSyncSnapshotSender *pSender) {
+  pSender->term = pSender->pSyncNode->pRaftStore->currentTerm;
+  pSender->seq = SYNC_SNAPSHOT_SEQ_BEGIN;
+  pSender->ack = SYNC_SNAPSHOT_SEQ_INVALID;
 
+  int32_t ret = pSender->pSyncNode->pFsm->FpSnapshotStartRead(pSender->pSyncNode->pFsm, &(pSender->pReader));
+  ASSERT(ret == 0);
+
+  pSender->pSyncNode->pFsm->FpGetSnapshot(pSender->pSyncNode->pFsm, &(pSender->snapshot));
+
+  SyncSnapshotSend *pMsg = syncSnapshotSendBuild(0, pSender->pSyncNode->vgId);
+  pMsg->srcId = pSender->pSyncNode->myRaftId;
+  pMsg->destId = (pSender->pSyncNode->replicasId)[pSender->replicaIndex];
+  pMsg->term = pSender->pSyncNode->pRaftStore->currentTerm;
+  pMsg->lastIndex = pSender->snapshot.lastApplyIndex;
+  pMsg->lastTerm = pSender->snapshot.lastApplyTerm;
+  pMsg->seq = pSender->seq;
+
+  SRpcMsg rpcMsg;
+  syncSnapshotSend2RpcMsg(pMsg, &rpcMsg);
+  syncNodeSendMsgById(&(pMsg->destId), pSender->pSyncNode, &rpcMsg);
+  syncSnapshotSendDestroy(pMsg);
+}
+
+void snapshotSenderStart(SSyncSnapshotSender *pSender) {
+  if (!(pSender->start)) {
+    snapshotSenderDoStart(pSender);
+    pSender->start = true;
+  } else {
+    ASSERT(pSender->pSyncNode->pRaftStore->currentTerm >= pSender->term);
+
+    // leader change
+    if (pSender->pSyncNode->pRaftStore->currentTerm > pSender->term) {
+      // force peer rollback
+      SyncSnapshotSend *pMsg = syncSnapshotSendBuild(0, pSender->pSyncNode->vgId);
+      pMsg->srcId = pSender->pSyncNode->myRaftId;
+      pMsg->destId = (pSender->pSyncNode->replicasId)[pSender->replicaIndex];
+      pMsg->term = pSender->pSyncNode->pRaftStore->currentTerm;
+      pMsg->lastIndex = pSender->snapshot.lastApplyIndex;
+      pMsg->lastTerm = pSender->snapshot.lastApplyTerm;
+      pMsg->seq = SYNC_SNAPSHOT_SEQ_FORCE_CLOSE;
+
+      SRpcMsg rpcMsg;
+      syncSnapshotSend2RpcMsg(pMsg, &rpcMsg);
+      syncNodeSendMsgById(&(pMsg->destId), pSender->pSyncNode, &rpcMsg);
+      syncSnapshotSendDestroy(pMsg);
+
+      // close reader
+      int32_t ret = pSender->pSyncNode->pFsm->FpSnapshotStopRead(pSender->pSyncNode->pFsm, pSender->pReader);
+      ASSERT(ret == 0);
+
+      // start again
+      snapshotSenderDoStart(pSender);
+    } else {
+      // do nothing
+    }
+  }
+}
+
+void snapshotSenderStop(SSyncSnapshotSender *pSender) {
+  int32_t ret = pSender->pSyncNode->pFsm->FpSnapshotStopRead(pSender->pSyncNode->pFsm, pSender->pReader);
+  ASSERT(ret == 0);
+
+  if (pSender->pCurrentBlock != NULL) {
+    taosMemoryFree(pSender->pCurrentBlock);
+    pSender->blockLen = 0;
+  }
+
+  ret = pSender->pSyncNode->pFsm->FpSnapshotDoRead(pSender->pSyncNode->pFsm, pSender->pReader,
+                                                   &(pSender->pCurrentBlock), &(pSender->blockLen));
+  ASSERT(ret == 0);
+}
+
+// send msg from seq, seq is already updated
+int32_t snapshotSend(SSyncSnapshotSender *pSender) {
+  // free memory last time (seq - 1)
+  if (pSender->pCurrentBlock != NULL) {
+    taosMemoryFree(pSender->pCurrentBlock);
+    pSender->blockLen = 0;
+  }
+
+  // read data
+  int32_t ret = pSender->pSyncNode->pFsm->FpSnapshotDoRead(pSender->pSyncNode->pFsm, pSender->pReader,
+                                                           &(pSender->pCurrentBlock), &(pSender->blockLen));
+  ASSERT(ret == 0);
+
+  SyncSnapshotSend *pMsg = syncSnapshotSendBuild(pSender->blockLen, pSender->pSyncNode->vgId);
+  pMsg->srcId = pSender->pSyncNode->myRaftId;
+  pMsg->destId = (pSender->pSyncNode->replicasId)[pSender->replicaIndex];
+  pMsg->term = pSender->pSyncNode->pRaftStore->currentTerm;
+  pMsg->lastIndex = pSender->snapshot.lastApplyIndex;
+  pMsg->lastTerm = pSender->snapshot.lastApplyTerm;
+  pMsg->seq = pSender->seq;
+  memcpy(pMsg->data, pSender->pCurrentBlock, pSender->blockLen);
+
+  SRpcMsg rpcMsg;
+  syncSnapshotSend2RpcMsg(pMsg, &rpcMsg);
+  syncNodeSendMsgById(&(pMsg->destId), pSender->pSyncNode, &rpcMsg);
+  syncSnapshotSendDestroy(pMsg);
+
+  return 0;
+}
+
+cJSON *snapshotSender2Json(SSyncSnapshotSender *pSender) {
+  char   u64buf[128];
+  cJSON *pRoot = cJSON_CreateObject();
+
+  if (pSender != NULL) {
+    cJSON_AddNumberToObject(pRoot, "start", pSender->start);
+    cJSON_AddNumberToObject(pRoot, "seq", pSender->seq);
+    cJSON_AddNumberToObject(pRoot, "ack", pSender->ack);
+
+    snprintf(u64buf, sizeof(u64buf), "%p", pSender->pReader);
+    cJSON_AddStringToObject(pRoot, "pReader", u64buf);
+
+    snprintf(u64buf, sizeof(u64buf), "%p", pSender->pCurrentBlock);
+    cJSON_AddStringToObject(pRoot, "pCurrentBlock", u64buf);
+    cJSON_AddNumberToObject(pRoot, "blockLen", pSender->blockLen);
+
+    if (pSender->pCurrentBlock != NULL) {
+      char *s;
+      s = syncUtilprintBin((char *)(pSender->pCurrentBlock), pSender->blockLen);
+      cJSON_AddStringToObject(pRoot, "pCurrentBlock", s);
+      taosMemoryFree(s);
+      s = syncUtilprintBin2((char *)(pSender->pCurrentBlock), pSender->blockLen);
+      cJSON_AddStringToObject(pRoot, "pCurrentBlock2", s);
+      taosMemoryFree(s);
+    }
+
+    cJSON *pSnapshot = cJSON_CreateObject();
+    snprintf(u64buf, sizeof(u64buf), "%lu", pSender->snapshot.lastApplyIndex);
+    cJSON_AddStringToObject(pRoot, "lastApplyIndex", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%lu", pSender->snapshot.lastApplyTerm);
+    cJSON_AddStringToObject(pRoot, "lastApplyTerm", u64buf);
+    cJSON_AddItemToObject(pRoot, "snapshot", pSnapshot);
+
+    snprintf(u64buf, sizeof(u64buf), "%lu", pSender->sendingMS);
+    cJSON_AddStringToObject(pRoot, "sendingMS", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%p", pSender->pSyncNode);
+    cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
+    cJSON_AddNumberToObject(pRoot, "replicaIndex", pSender->replicaIndex);
+    snprintf(u64buf, sizeof(u64buf), "%lu", pSender->term);
+    cJSON_AddStringToObject(pRoot, "term", u64buf);
+  }
+
+  cJSON *pJson = cJSON_CreateObject();
+  cJSON_AddItemToObject(pJson, "SSyncSnapshotSender", pRoot);
+  return pJson;
+}
+
+char *snapshotSender2Str(SSyncSnapshotSender *pSender) {
+  cJSON *pJson = snapshotSender2Json(pSender);
+  char  *serialized = cJSON_Print(pJson);
+  cJSON_Delete(pJson);
+  return serialized;
+}
+
+// -------------------------------------
 SSyncSnapshotReceiver *snapshotReceiverCreate(SSyncNode *pSyncNode) { return NULL; }
 
 void snapshotReceiverDestroy(SSyncSnapshotReceiver *pReceiver) {}
+
+void snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver) {}
+
+void snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver) {}
 
 int32_t snapshotReceive(SSyncSnapshotReceiver *pReceiver) { return 0; }
 
 cJSON *snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver) { return NULL; }
 
 char *snapshotReceiver2Str(SSyncSnapshotReceiver *pReceiver) { return NULL; }
+
+int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
+  SSyncSnapshotReceiver *pReceiver = NULL;
+  for (int i = 0; i < pSyncNode->replicaNum; ++i) {
+    if (syncUtilSameId(&(pMsg->srcId), &((pSyncNode->replicasId)[i]))) {
+      pReceiver = (pSyncNode->receivers)[i];
+    }
+  }
+  ASSERT(pReceiver != NULL);
+
+  SyncSnapshotRsp *pRspMsg = syncSnapshotRspBuild(pSyncNode->vgId);
+  pRspMsg->srcId = pSyncNode->myRaftId;
+  pRspMsg->destId = pMsg->srcId;
+  pRspMsg->term = pSyncNode->pRaftStore->currentTerm;
+  pRspMsg->lastIndex = pMsg->lastIndex;
+  pRspMsg->lastTerm = pMsg->lastTerm;
+  pRspMsg->ack = pMsg->seq;
+
+  if (pMsg->seq == 0) {
+    // begin
+    snapshotReceiverStart(pReceiver);
+
+  } else if (pMsg->seq == -1) {
+    // end
+    snapshotReceiverStop(pReceiver);
+    // apply msg finish
+
+  } else {
+    // transfering
+    // apply msg
+  }
+
+  SRpcMsg rpcMsg;
+  syncSnapshotRsp2RpcMsg(pRspMsg, &rpcMsg);
+  syncNodeSendMsgById(&(pRspMsg->destId), pSyncNode, &rpcMsg);
+  return 0;
+}
+
+int32_t syncNodeOnSnapshotRspCb(SSyncNode *ths, SyncSnapshotRsp *pMsg) { return 0; }

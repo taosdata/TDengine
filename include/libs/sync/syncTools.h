@@ -397,7 +397,6 @@ typedef struct SyncSnapshotSend {
   SyncIndex lastIndex;
   SyncTerm  lastTerm;
   int32_t   seq;
-  int32_t   ack;
   uint32_t  dataLen;
   char      data[];
 } SyncSnapshotSend;
@@ -431,11 +430,10 @@ typedef struct SyncSnapshotRsp {
   SyncTerm  term;
   SyncIndex lastIndex;
   SyncTerm  lastTerm;
-  int32_t   seq;
   int32_t   ack;
 } SyncSnapshotRsp;
 
-SyncSnapshotRsp* syncSnapshotRspBuild(uint32_t dataLen, int32_t vgId);
+SyncSnapshotRsp* syncSnapshotRspBuild(int32_t vgId);
 void             syncSnapshotRspDestroy(SyncSnapshotRsp* pMsg);
 void             syncSnapshotRspSerialize(const SyncSnapshotRsp* pMsg, char* buf, uint32_t bufLen);
 void             syncSnapshotRspDeserialize(const char* buf, uint32_t len, SyncSnapshotRsp* pMsg);
@@ -466,6 +464,9 @@ int32_t syncNodeOnRequestVoteSnapshotCb(SSyncNode* ths, SyncRequestVote* pMsg);
 int32_t syncNodeOnRequestVoteReplySnapshotCb(SSyncNode* ths, SyncRequestVoteReply* pMsg);
 int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMsg);
 int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntriesReply* pMsg);
+
+int32_t syncNodeOnSnapshotSendCb(SSyncNode* ths, SyncSnapshotSend* pMsg);
+int32_t syncNodeOnSnapshotRspCb(SSyncNode* ths, SyncSnapshotRsp* pMsg);
 
 // -----------------------------------------
 typedef int32_t (*FpOnPingCb)(SSyncNode* ths, SyncPing* pMsg);
