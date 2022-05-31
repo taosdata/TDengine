@@ -286,7 +286,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
   pStream->tasks = taosArrayInit(totLevel, sizeof(void*));
 
   bool hasExtraSink = false;
-  if (totLevel == 2) {
+  if (totLevel == 2 || strcmp(pStream->sourceDb, pStream->targetDb) != 0) {
     SArray* taskOneLevel = taosArrayInit(0, sizeof(void*));
     taosArrayPush(pStream->tasks, &taskOneLevel);
     // add extra sink
@@ -407,7 +407,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
 
           /*pTask->dispatchMsgType = TDMT_VND_TASK_WRITE_EXEC;*/
           pTask->dispatchMsgType = TDMT_VND_TASK_DISPATCH;
-          SDbObj* pDb = mndAcquireDb(pMnode, pStream->sourceDb);
+          SDbObj* pDb = mndAcquireDb(pMnode, pStream->targetDb);
           ASSERT(pDb);
           if (mndExtractDbInfo(pMnode, pDb, &pTask->shuffleDispatcher.dbInfo, NULL) < 0) {
             sdbRelease(pSdb, pDb);

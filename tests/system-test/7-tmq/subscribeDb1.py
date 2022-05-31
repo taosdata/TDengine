@@ -22,8 +22,8 @@ class TDTestCase:
 
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
-        #tdSql.init(conn.cursor())
-        tdSql.init(conn.cursor(), logSql)  # output sql.txt file
+        tdSql.init(conn.cursor())
+        #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -198,7 +198,7 @@ class TDTestCase:
         event.wait()
 
         tdLog.info("start consume processor")
-        pollDelay = 5
+        pollDelay = 100
         showMsg   = 1
         showRow   = 1
         self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
@@ -276,7 +276,7 @@ class TDTestCase:
         event.wait()
 
         tdLog.info("start consume processor")
-        pollDelay = 5
+        pollDelay = 100
         showMsg   = 1
         showRow   = 1
         self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
@@ -354,7 +354,7 @@ class TDTestCase:
         event.wait()
 
         tdLog.info("start consume processor")
-        pollDelay = 15
+        pollDelay = 100
         showMsg   = 1
         showRow   = 1
         self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
@@ -382,6 +382,7 @@ class TDTestCase:
             tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt))
             tdLog.exit("tmq consume rows error!")
 
+        time.sleep(15)
         tdSql.query("drop topic %s"%topicName1)
 
         tdLog.printNoPrefix("======== test case 10 end ...... ")
@@ -425,7 +426,7 @@ class TDTestCase:
         event.wait()
 
         tdLog.info("start consume processor")
-        pollDelay = 5
+        pollDelay = 100
         showMsg   = 1
         showRow   = 1
         self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
@@ -453,6 +454,7 @@ class TDTestCase:
             tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt))
             tdLog.exit("tmq consume rows error!")
 
+        time.sleep(15)
         tdSql.query("drop topic %s"%topicName1)
 
         tdLog.printNoPrefix("======== test case 11 end ...... ")

@@ -38,7 +38,7 @@
 int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* pMsg) {
   int32_t ret = 0;
 
-  char logBuf[128];
+  char logBuf[128] = {0};
   snprintf(logBuf, sizeof(logBuf), "==syncNodeOnAppendEntriesReplyCb== term:%lu", ths->pRaftStore->currentTerm);
   syncAppendEntriesReplyLog2(logBuf, pMsg);
 
@@ -57,7 +57,7 @@ int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* p
   //  }
 
   if (pMsg->term > ths->pRaftStore->currentTerm) {
-    char logBuf[128];
+    char logBuf[128] = {0};
     snprintf(logBuf, sizeof(logBuf), "syncNodeOnAppendEntriesReplyCb error term, receive:%lu current:%lu", pMsg->term,
              ths->pRaftStore->currentTerm);
     syncNodeLog2(logBuf, ths);

@@ -55,9 +55,9 @@ int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);
 bool    qIsInsertSql(const char* pStr, size_t length);
 
 // for async mode
-int32_t qSyntaxParseSql(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq* pCatalogReq);
-int32_t qSemanticAnalysisSql(SParseContext* pCxt, const struct SCatalogReq* pCatalogReq,
-                             const struct SMetaData* pMetaData, SQuery* pQuery);
+int32_t qParseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq* pCatalogReq);
+int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCatalogReq,
+                            const struct SMetaData* pMetaData, SQuery* pQuery);
 
 void qDestroyQuery(SQuery* pQueryNode);
 

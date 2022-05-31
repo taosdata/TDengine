@@ -32,7 +32,9 @@ if(${BUILD_WINGETOPT})
     target_link_libraries(plannerTest PUBLIC wingetopt)
 endif()
 
-add_test(
-    NAME plannerTest
-    COMMAND plannerTest
-)
+if(NOT TD_WINDOWS)
+    add_test(
+        NAME plannerTest
+        COMMAND plannerTest
+    )
+endif(NOT TD_WINDOWS)

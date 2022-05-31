@@ -123,7 +123,7 @@ class MndTestTrans2 : public ::testing::Test {
     sdbSetRawStatus(pUndoRaw, SDB_STATUS_DROPPED);
 
     char *param = strdup("====> test log <=====");
-    mndTransSetCb(pTrans, TEST_TRANS_START_FUNC, TEST_TRANS_STOP_FUNC, param, strlen(param) + 1);
+    mndTransSetCb(pTrans, TRANS_START_FUNC_TEST, TRANS_STOP_FUNC_TEST, param, strlen(param) + 1);
 
     if (pDb != NULL) {
       mndTransSetDbInfo(pTrans, pDb);
@@ -156,7 +156,7 @@ class MndTestTrans2 : public ::testing::Test {
     sdbSetRawStatus(pUndoRaw, SDB_STATUS_DROPPED);
 
     char *param = strdup("====> test action <=====");
-    mndTransSetCb(pTrans, TEST_TRANS_START_FUNC, TEST_TRANS_STOP_FUNC, param, strlen(param) + 1);
+    mndTransSetCb(pTrans, TRANS_START_FUNC_TEST, TRANS_STOP_FUNC_TEST, param, strlen(param) + 1);
 
     {
       STransAction action = {0};
@@ -228,7 +228,7 @@ class MndTestTrans2 : public ::testing::Test {
     sdbSetRawStatus(pUndoRaw, SDB_STATUS_DROPPED);
 
     char *param = strdup("====> test log <=====");
-    mndTransSetCb(pTrans, TEST_TRANS_START_FUNC, TEST_TRANS_STOP_FUNC, param, strlen(param) + 1);
+    mndTransSetCb(pTrans, TRANS_START_FUNC_TEST, TRANS_STOP_FUNC_TEST, param, strlen(param) + 1);
 
     int32_t code = mndTransPrepare(pMnode, pTrans);
     mndTransDrop(pTrans);

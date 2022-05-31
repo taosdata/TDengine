@@ -223,6 +223,9 @@ static void setScanWindowInfo(SScanLogicNode* pScan) {
     pScan->sliding = ((SWindowLogicNode*)pScan->node.pParent)->sliding;
     pScan->intervalUnit = ((SWindowLogicNode*)pScan->node.pParent)->intervalUnit;
     pScan->slidingUnit = ((SWindowLogicNode*)pScan->node.pParent)->slidingUnit;
+    pScan->triggerType = ((SWindowLogicNode*)pScan->node.pParent)->triggerType;
+    pScan->watermark = ((SWindowLogicNode*)pScan->node.pParent)->watermark;
+    pScan->tsColId = ((SColumnNode*)((SWindowLogicNode*)pScan->node.pParent)->pTspk)->colId;
   }
 }
 

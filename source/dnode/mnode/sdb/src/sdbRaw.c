@@ -16,9 +16,14 @@
 #define _DEFAULT_SOURCE
 #include "sdb.h"
 
-int32_t sdbGetIdFromRaw(SSdbRaw *pRaw) {
-  int32_t id = *((int32_t *)(pRaw->pData));
-  return id;
+int32_t sdbGetIdFromRaw(SSdb *pSdb, SSdbRaw *pRaw) {
+  EKeyType keytype = pSdb->keyTypes[pRaw->type];
+  if (keytype == SDB_KEY_INT32) {
+    int32_t id = *((int32_t *)(pRaw->pData));
+    return id;
+  } else {
+    return -2;
+  }
 }
 
 SSdbRaw *sdbAllocRaw(ESdbType type, int8_t sver, int32_t dataLen) {

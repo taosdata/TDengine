@@ -41,7 +41,6 @@
 namespace {
 
 extern "C" int32_t ctgdGetClusterCacheNum(struct SCatalog* pCatalog, int32_t type);
-extern "C" int32_t ctgOpUpdateTbMeta(SCtgCacheOperation *action);
 extern "C" int32_t ctgdEnableDebug(char *option);
 extern "C" int32_t ctgdGetStatNum(char *option, void *res);
 
