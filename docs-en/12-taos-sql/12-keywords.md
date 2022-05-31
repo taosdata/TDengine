@@ -80,10 +80,10 @@ taos> SELECT COUNT(tbname) FROM meters WHERE groupId > 2;
 Query OK, 1 row(s) in set (0.001091s)
 ```
 ### _QSTART/_QSTOP/_QDURATION
-The start, stop and duration of a query time window (Since version 2.6.0.0).
+The start, stop and duration of a query time window.
 
 ### _WSTART/_WSTOP/_WDURATION
-The start, stop and duration of aggegate query by time window, like interval, session window, state window (Since version 2.6.0.0).
+The start, stop and duration of aggegate query by time window, like interval, session window, state window.
 
 ### _c0/_ROWTS
 _c0 is equal to _ROWTS, it means the first column of a table or STable.
