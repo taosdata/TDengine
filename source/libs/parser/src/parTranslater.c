@@ -752,18 +752,30 @@ static bool isMultiResFunc(SNode* pNode) {
   return (QUERY_NODE_COLUMN == nodeType(pParam) ? 0 == strcmp(((SColumnNode*)pParam)->colName, "*") : false);
 }
 
-static EDealRes translateUnaryOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
+static int32_t rewriteNegativeOperator(SNode** pOp) {
+  SNode*  pRes = NULL;
+  int32_t code = scalarCalculateConstants(*pOp, &pRes);
+  if (TSDB_CODE_SUCCESS == code) {
+    *pOp = pRes;
+  }
+  return code;
+}
+
+static EDealRes translateUnaryOperator(STranslateContext* pCxt, SOperatorNode** pOpRef) {
+  SOperatorNode* pOp = *pOpRef;
   if (OP_TYPE_MINUS == pOp->opType) {
     if (!IS_MATHABLE_TYPE(((SExprNode*)(pOp->pLeft))->resType.type)) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pLeft))->aliasName);
     }
     pOp->node.resType.type = TSDB_DATA_TYPE_DOUBLE;
     pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+
+    pCxt->errCode = rewriteNegativeOperator((SNode**)pOpRef);
   } else {
     pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
     pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
   }
-  return DEAL_RES_CONTINUE;
+  return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
 }
 
 static EDealRes translateArithmeticOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
@@ -824,7 +836,9 @@ static EDealRes translateJsonOperator(STranslateContext* pCxt, SOperatorNode* pO
   return DEAL_RES_CONTINUE;
 }
 
-static EDealRes translateOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
+static EDealRes translateOperator(STranslateContext* pCxt, SOperatorNode** pOpRef) {
+  SOperatorNode* pOp = *pOpRef;
+
   if (isMultiResFunc(pOp->pLeft)) {
     return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pLeft))->aliasName);
   }
@@ -833,7 +847,7 @@ static EDealRes translateOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
   }
 
   if (nodesIsUnaryOp(pOp)) {
-    return translateUnaryOperator(pCxt, pOp);
+    return translateUnaryOperator(pCxt, pOpRef);
   } else if (nodesIsArithmeticOp(pOp)) {
     return translateArithmeticOperator(pCxt, pOp);
   } else if (nodesIsComparisonOp(pOp)) {
@@ -992,7 +1006,7 @@ static EDealRes doTranslateExpr(SNode** pNode, void* pContext) {
     case QUERY_NODE_VALUE:
       return translateValue(pCxt, (SValueNode*)*pNode);
     case QUERY_NODE_OPERATOR:
-      return translateOperator(pCxt, (SOperatorNode*)*pNode);
+      return translateOperator(pCxt, (SOperatorNode**)pNode);
     case QUERY_NODE_FUNCTION:
       return translateFunction(pCxt, (SFunctionNode*)*pNode);
     case QUERY_NODE_LOGIC_CONDITION:
@@ -1891,9 +1905,9 @@ static int32_t translatePartitionBy(STranslateContext* pCxt, SNodeList* pPartiti
   return translateExprList(pCxt, pPartitionByList);
 }
 
-static int32_t translateWhere(STranslateContext* pCxt, SNode* pWhere) {
+static int32_t translateWhere(STranslateContext* pCxt, SNode** pWhere) {
   pCxt->currClause = SQL_CLAUSE_WHERE;
-  return translateExpr(pCxt, &pWhere);
+  return translateExpr(pCxt, pWhere);
 }
 
 static int32_t translateFrom(STranslateContext* pCxt, SSelectStmt* pSelect) {
@@ -1964,7 +1978,7 @@ static int32_t translateSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->pCurrStmt = pSelect;
   int32_t code = translateFrom(pCxt, pSelect);
   if (TSDB_CODE_SUCCESS == code) {
-    code = translateWhere(pCxt, pSelect->pWhere);
+    code = translateWhere(pCxt, &pSelect->pWhere);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translatePartitionBy(pCxt, pSelect->pPartitionByList);

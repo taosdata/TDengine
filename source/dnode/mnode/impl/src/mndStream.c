@@ -393,6 +393,15 @@ static int32_t mndCreateStream(SMnode *pMnode, SRpcMsg *pReq, SCMCreateStreamReq
   streamObj.trigger = pCreate->triggerType;
   streamObj.waterMark = pCreate->watermark;
 
+  if (streamObj.targetSTbName[0]) {
+    pDb = mndAcquireDbByStb(pMnode, streamObj.targetSTbName);
+    if (pDb == NULL) {
+      terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
+      return -1;
+    }
+    tstrncpy(streamObj.targetDb, pDb->name, TSDB_DB_FNAME_LEN);
+  }
+
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_STREAM, pReq);
   if (pTrans == NULL) {
     mError("stream:%s, failed to create since %s", pCreate->name, terrstr());

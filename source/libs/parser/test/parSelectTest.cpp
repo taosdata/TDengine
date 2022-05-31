@@ -44,6 +44,8 @@ TEST_F(ParserSelectTest, constant) {
       "timestamp '2022-02-09 17:30:20', true, false, 15s FROM t1");
 
   run("SELECT 123 + 45 FROM t1 WHERE 2 - 1");
+
+  run("SELECT * FROM t1 WHERE -2");
 }
 
 TEST_F(ParserSelectTest, expression) {
@@ -74,6 +76,12 @@ TEST_F(ParserSelectTest, pseudoColumnSemanticCheck) {
   useDb("root", "test");
 
   run("SELECT TBNAME FROM (SELECT * FROM st1s1)", TSDB_CODE_PAR_INVALID_TBNAME, PARSER_STAGE_TRANSLATE);
+}
+
+TEST_F(ParserSelectTest, aggFunc) {
+  useDb("root", "test");
+
+  run("SELECT LEASTSQUARES(c1, -1, 1) FROM t1");
 }
 
 TEST_F(ParserSelectTest, multiResFunc) {
