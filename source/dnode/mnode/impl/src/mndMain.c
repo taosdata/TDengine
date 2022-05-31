@@ -369,15 +369,14 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
     mError("failed to process sync msg:%p type:%s since %s", pMsg, TMSG_INFO(pMsg->msgType), terrstr());
     return TAOS_SYNC_PROPOSE_OTHER_ERROR;
   }
- 
+
   char  logBuf[512] = {0};
   char *syncNodeStr = sync2SimpleStr(pMgmt->sync);
   snprintf(logBuf, sizeof(logBuf), "==vnodeProcessSyncReq== msgType:%d, syncNode: %s", pMsg->msgType, syncNodeStr);
   syncRpcMsgLog2(logBuf, pMsg);
   taosMemoryFree(syncNodeStr);
 
-
-  // ugly! use function pointer 
+  // ToDo: ugly! use function pointer
   if (syncNodeSnapshotEnable(pSyncNode)) {
     if (pMsg->msgType == TDMT_VND_SYNC_TIMEOUT) {
       SyncTimeout *pSyncMsg = syncTimeoutFromRpcMsg2(pMsg);
@@ -413,14 +412,14 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
       code = syncNodeOnAppendEntriesReplySnapshotCb(pSyncNode, pSyncMsg);
       syncAppendEntriesReplyDestroy(pSyncMsg);
 
-      } else if (pMsg->msgType == TDMT_VND_SYNC_SNAPSHOT_SEND) {
-        SyncSnapshotSend *pSyncMsg = syncSnapshotSendFromRpcMsg2(pMsg);
-        code = syncNodeOnSnapshotSendCb(pSyncNode, pSyncMsg);
-        syncSnapshotSendDestroy(pSyncMsg);
-      } else if (pMsg->msgType == TDMT_VND_SYNC_SNAPSHOT_RSP) {
-        SyncSnapshotRsp *pSyncMsg = syncSnapshotRspFromRpcMsg2(pMsg);
-        code = syncNodeOnSnapshotRspCb(pSyncNode, pSyncMsg);
-        syncSnapshotRspDestroy(pSyncMsg);
+    } else if (pMsg->msgType == TDMT_VND_SYNC_SNAPSHOT_SEND) {
+      SyncSnapshotSend *pSyncMsg = syncSnapshotSendFromRpcMsg2(pMsg);
+      code = syncNodeOnSnapshotSendCb(pSyncNode, pSyncMsg);
+      syncSnapshotSendDestroy(pSyncMsg);
+    } else if (pMsg->msgType == TDMT_VND_SYNC_SNAPSHOT_RSP) {
+      SyncSnapshotRsp *pSyncMsg = syncSnapshotRspFromRpcMsg2(pMsg);
+      code = syncNodeOnSnapshotRspCb(pSyncNode, pSyncMsg);
+      syncSnapshotRspDestroy(pSyncMsg);
 
     } else {
       mError("failed to process msg:%p since invalid type:%s", pMsg, TMSG_INFO(pMsg->msgType));

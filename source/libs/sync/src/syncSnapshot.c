@@ -299,6 +299,7 @@ char *snapshotReceiver2Str(SSyncSnapshotReceiver *pReceiver) {
   return serialized;
 }
 
+// receiver do something
 int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
   SSyncSnapshotReceiver *pReceiver = NULL;
   for (int i = 0; i < pSyncNode->replicaNum; ++i) {
@@ -308,32 +309,64 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
   }
   ASSERT(pReceiver != NULL);
 
-  SyncSnapshotRsp *pRspMsg = syncSnapshotRspBuild(pSyncNode->vgId);
-  pRspMsg->srcId = pSyncNode->myRaftId;
-  pRspMsg->destId = pMsg->srcId;
-  pRspMsg->term = pSyncNode->pRaftStore->currentTerm;
-  pRspMsg->lastIndex = pMsg->lastIndex;
-  pRspMsg->lastTerm = pMsg->lastTerm;
-  pRspMsg->ack = pMsg->seq;
+  // state, term, seq/ack
+  if (pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER) {
+    SyncSnapshotRsp *pRspMsg = syncSnapshotRspBuild(pSyncNode->vgId);
+    pRspMsg->srcId = pSyncNode->myRaftId;
+    pRspMsg->destId = pMsg->srcId;
+    pRspMsg->term = pSyncNode->pRaftStore->currentTerm;
+    pRspMsg->lastIndex = pMsg->lastIndex;
+    pRspMsg->lastTerm = pMsg->lastTerm;
+    pRspMsg->ack = pMsg->seq;
 
-  if (pMsg->seq == 0) {
-    // begin
-    snapshotReceiverStart(pReceiver);
+    if (pMsg->seq == SYNC_SNAPSHOT_SEQ_BEGIN) {
+      // begin
+      snapshotReceiverStart(pReceiver);
 
-  } else if (pMsg->seq == -1) {
-    // end
-    snapshotReceiverStop(pReceiver);
-    // apply msg finish
+    } else if (pMsg->seq == SYNC_SNAPSHOT_SEQ_END) {
+      // end
+      pSyncNode->pFsm->FpSnapshotDoWrite(pSyncNode->pFsm, pReceiver->pWriter, pMsg->data, pMsg->dataLen);
+      pSyncNode->pFsm->FpSnapshotStopWrite(pSyncNode->pFsm, pReceiver->pWriter, true);
+      snapshotReceiverStop(pReceiver);
 
-  } else {
-    // transfering
-    // apply msg
+    } else if (pMsg->seq == SYNC_SNAPSHOT_SEQ_FORCE_CLOSE) {
+      pSyncNode->pFsm->FpSnapshotStopWrite(pSyncNode->pFsm, pReceiver->pWriter, false);
+      snapshotReceiverStop(pReceiver);
+
+    } else {
+      // transfering
+      if (pMsg->seq == pReceiver->ack + 1) {
+        pSyncNode->pFsm->FpSnapshotDoWrite(pSyncNode->pFsm, pReceiver->pWriter, pMsg->data, pMsg->dataLen);
+      }
+    }
+
+    SRpcMsg rpcMsg;
+    syncSnapshotRsp2RpcMsg(pRspMsg, &rpcMsg);
+    syncNodeSendMsgById(&(pRspMsg->destId), pSyncNode, &rpcMsg);
   }
-
-  SRpcMsg rpcMsg;
-  syncSnapshotRsp2RpcMsg(pRspMsg, &rpcMsg);
-  syncNodeSendMsgById(&(pRspMsg->destId), pSyncNode, &rpcMsg);
   return 0;
 }
 
-int32_t syncNodeOnSnapshotRspCb(SSyncNode *ths, SyncSnapshotRsp *pMsg) { return 0; }
+// sender do something
+int32_t syncNodeOnSnapshotRspCb(SSyncNode *pSyncNode, SyncSnapshotRsp *pMsg) {
+  SSyncSnapshotSender *pSender = NULL;
+  for (int i = 0; i < pSyncNode->replicaNum; ++i) {
+    if (syncUtilSameId(&(pMsg->srcId), &((pSyncNode->replicasId)[i]))) {
+      pSender = (pSyncNode->senders)[i];
+    }
+  }
+  ASSERT(pSender != NULL);
+
+  // state, term, seq/ack
+  if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
+    if (pMsg->term == pSyncNode->pRaftStore->currentTerm) {
+      if (pMsg->ack == pSender->seq) {
+        pSender->ack = pMsg->ack;
+        snapshotSend(pSender);
+        (pSender->seq)++;
+      }
+    }
+  }
+
+  return 0;
+}
