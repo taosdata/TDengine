@@ -15,6 +15,7 @@
 
 #include "mndTopic.h"
 #include "mndAuth.h"
+#include "mndConsumer.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
@@ -121,7 +122,7 @@ SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic) {
     SDB_SET_BINARY(pRaw, dataPos, swBuf, schemaLen, TOPIC_ENCODE_OVER);
   }
 
-  SDB_SET_INT32(pRaw, dataPos, pTopic->refConsumerCnt, TOPIC_ENCODE_OVER);
+  /*SDB_SET_INT32(pRaw, dataPos, pTopic->refConsumerCnt, TOPIC_ENCODE_OVER);*/
 
   SDB_SET_RESERVE(pRaw, dataPos, MND_TOPIC_RESERVE_SIZE, TOPIC_ENCODE_OVER);
   SDB_SET_DATALEN(pRaw, dataPos, TOPIC_ENCODE_OVER);
@@ -221,7 +222,7 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
     pTopic->schema.pSchema = NULL;
   }
 
-  SDB_GET_INT32(pRaw, dataPos, &pTopic->refConsumerCnt, TOPIC_DECODE_OVER);
+  /*SDB_GET_INT32(pRaw, dataPos, &pTopic->refConsumerCnt, TOPIC_DECODE_OVER);*/
 
   SDB_GET_RESERVE(pRaw, dataPos, MND_TOPIC_RESERVE_SIZE, TOPIC_DECODE_OVER);
 
@@ -253,7 +254,7 @@ static int32_t mndTopicActionUpdate(SSdb *pSdb, SMqTopicObj *pOldTopic, SMqTopic
   atomic_exchange_64(&pOldTopic->updateTime, pNewTopic->updateTime);
   atomic_exchange_32(&pOldTopic->version, pNewTopic->version);
 
-  atomic_store_32(&pOldTopic->refConsumerCnt, pNewTopic->refConsumerCnt);
+  /*atomic_store_32(&pOldTopic->refConsumerCnt, pNewTopic->refConsumerCnt);*/
 
   /*taosWLockLatch(&pOldTopic->lock);*/
 
@@ -327,7 +328,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   topicObj.version = 1;
   topicObj.sql = strdup(pCreate->sql);
   topicObj.sqlLen = strlen(pCreate->sql) + 1;
-  topicObj.refConsumerCnt = 0;
+  /*topicObj.refConsumerCnt = 0;*/
 
   if (pCreate->ast && pCreate->ast[0]) {
     topicObj.ast = strdup(pCreate->ast);
@@ -492,8 +493,8 @@ static int32_t mndDropTopic(SMnode *pMnode, STrans *pTrans, SRpcMsg *pReq, SMqTo
 }
 
 static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
-  SMnode *pMnode = pReq->info.node;
-  /*SSdb          *pSdb = pMnode->pSdb;*/
+  SMnode        *pMnode = pReq->info.node;
+  SSdb          *pSdb = pMnode->pSdb;
   SMDropTopicReq dropReq = {0};
 
   if (tDeserializeSMDropTopicReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
@@ -513,12 +514,36 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
     }
   }
 
+  void           *pIter = NULL;
+  SMqConsumerObj *pConsumer;
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_CONSUMER, pIter, (void **)&pConsumer);
+    if (pIter == NULL) break;
+
+    if (pConsumer->status == MQ_CONSUMER_STATUS__LOST_REBD) continue;
+    int32_t sz = taosArrayGetSize(pConsumer->assignedTopics);
+    for (int32_t i = 0; i < sz; i++) {
+      char *name = taosArrayGetP(pConsumer->assignedTopics, i);
+      if (strcmp(name, pTopic->name) == 0) {
+        mndReleaseConsumer(pMnode, pConsumer);
+        mndReleaseTopic(pMnode, pTopic);
+        terrno = TSDB_CODE_MND_TOPIC_SUBSCRIBED;
+        mError("topic:%s, failed to drop since subscribed by consumer %ld from cgroup %s", dropReq.name,
+               pConsumer->consumerId, pConsumer->cgroup);
+        return -1;
+      }
+    }
+    sdbRelease(pSdb, pConsumer);
+  }
+
+#if 0
   if (pTopic->refConsumerCnt != 0) {
     mndReleaseTopic(pMnode, pTopic);
     terrno = TSDB_CODE_MND_TOPIC_SUBSCRIBED;
     mError("topic:%s, failed to drop since %s", dropReq.name, terrstr());
     return -1;
   }
+#endif
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_DROP_TOPIC, pReq);
   if (pTrans == NULL) {
