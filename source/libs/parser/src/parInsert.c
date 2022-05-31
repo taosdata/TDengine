@@ -959,6 +959,7 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
   SToken   sToken;
   bool     isParseBindParam = false;
   bool isJson = false;
+  STag* pTag = NULL;
   for (int i = 0; i < pCxt->tags.numOfBound; ++i) {
     NEXT_TOKEN_WITH_PREV(pCxt->pSql, sToken);
 
@@ -990,7 +991,7 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
         taosMemoryFree(tmpTokenBuf);
         goto end;
       }
-      code = parseJsontoTagData(sToken.z, pTagVals, &pCxt->msg);
+      code = parseJsontoTagData(sToken.z, pTagVals, &pTag, &pCxt->msg);
       taosMemoryFree(tmpTokenBuf);
       if(code != TSDB_CODE_SUCCESS){
         goto end;
@@ -1015,9 +1016,7 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
     goto end;
   }
 
-  STag* pTag = NULL;
-  code = tTagNew(pTagVals, 1, isJson, &pTag);
-  if (code != TSDB_CODE_SUCCESS) {
+  if(!isJson && (code = tTagNew(pTagVals, 1, false, &pTag)) != TSDB_CODE_SUCCESS) {
     goto end;
   }
 
@@ -1528,6 +1527,8 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, char* tN
   SSchema* pSchema = pDataBlock->pTableMeta->schema;
 
   bool isJson = false;
+  STag* pTag = NULL;
+
   for (int c = 0; c < tags->numOfBound; ++c) {
     if (bind[c].is_null && bind[c].is_null[0]) {
       continue;
@@ -1548,7 +1549,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, char* tN
       isJson = true;
       char *tmp = taosMemoryCalloc(1, colLen + 1);
       memcpy(tmp, bind[c].buffer, colLen);
-      code = parseJsontoTagData(tmp, pTagArray, &pBuf);
+      code = parseJsontoTagData(tmp, pTagArray, &pTag, &pBuf);
       taosMemoryFree(tmp);
       if(code != TSDB_CODE_SUCCESS){
         goto end;
@@ -1586,10 +1587,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, char* tN
     }
   }
 
-  STag* pTag = NULL;
-
-  if (0 != tTagNew(pTagArray, 1, isJson, &pTag)) {
-    code = buildInvalidOperationMsg(&pBuf, "out of memory");
+  if (!isJson && (code = tTagNew(pTagArray, 1, false, &pTag)) != TSDB_CODE_SUCCESS) {
     goto end;
   }
 

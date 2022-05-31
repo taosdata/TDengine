@@ -1112,9 +1112,8 @@ TEST(columnTest, json_column_arith_op) {
   char rightv[256] = {0};
   memcpy(rightv, rightvTmp, strlen(rightvTmp));
   SArray *tags = taosArrayInit(1, sizeof(STagVal));
-  parseJsontoTagData(rightv, tags, NULL);
   STag* row = NULL;
-  tTagNew(tags, 1, true, &row);
+  parseJsontoTagData(rightv, tags, &row, NULL);
 
   const int32_t len = 8;
   EOperatorType op[len] = {OP_TYPE_ADD, OP_TYPE_SUB, OP_TYPE_MULTI, OP_TYPE_DIV,
@@ -1189,9 +1188,8 @@ TEST(columnTest, json_column_logic_op) {
   char rightv[256] = {0};
   memcpy(rightv, rightvTmp, strlen(rightvTmp));
   SArray *tags = taosArrayInit(1, sizeof(STagVal));
-  parseJsontoTagData(rightv, tags, NULL);
   STag* row = NULL;
-  tTagNew(tags, 1, true, &row);
+  parseJsontoTagData(rightv, tags, &row, NULL);
 
   const int32_t len = 9;
   const int32_t len1 = 4;

@@ -136,8 +136,8 @@ struct STagVal {
 };
 
 #pragma pack(push, 1)
-#define TD_TAG_JSON  ((int8_t)0x80)   // distinguish JSON string and JSON value with the highest bit
-#define TD_TAG_LARGE ((int8_t)0x40)
+#define TD_TAG_JSON  ((int8_t)0x40)   // distinguish JSON string and JSON value with the highest bit
+#define TD_TAG_LARGE ((int8_t)0x20)
 struct STag {
   int8_t  flags;
   int16_t len;

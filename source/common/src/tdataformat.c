@@ -567,6 +567,9 @@ static void debugPrintTagVal(int8_t type, const void *val, int32_t vlen, const c
     case TSDB_DATA_TYPE_UBIGINT:
       printf("%s:%d type:%d vlen:%d, val:%" PRIu64 "\n", tag, ln, (int32_t)type, vlen, *(uint64_t *)val);
       break;
+    case TSDB_DATA_TYPE_NULL:
+      printf("%s:%d type:%d vlen:%d, val:%" PRIi8 "\n", tag, ln, (int32_t)type, vlen, *(int8_t *)val);
+      break;
     default:
       ASSERT(0);
       break;

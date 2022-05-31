@@ -4218,7 +4218,7 @@ static int32_t buildKVRowForBindTags(STranslateContext* pCxt, SCreateSubTableCla
       }
 
       isJson = true;
-      code = parseJsontoTagData(pVal->literal, pTagArray, &pCxt->msgBuf);
+      code = parseJsontoTagData(pVal->literal, pTagArray, ppTag, &pCxt->msgBuf);
       if(code != TSDB_CODE_SUCCESS){
         goto end;
       }
@@ -4235,7 +4235,7 @@ static int32_t buildKVRowForBindTags(STranslateContext* pCxt, SCreateSubTableCla
     }
   }
 
-  code = tTagNew(pTagArray, 1, isJson, ppTag);
+  if(!isJson) code = tTagNew(pTagArray, 1, false, ppTag);
 
 end:
   if(isJson){
@@ -4285,7 +4285,7 @@ static int32_t buildKVRowForAllTags(STranslateContext* pCxt, SCreateSubTableClau
       }
 
       isJson = true;
-      code = parseJsontoTagData(pVal->literal, pTagArray, &pCxt->msgBuf);
+      code = parseJsontoTagData(pVal->literal, pTagArray, ppTag, &pCxt->msgBuf);
       if(code != TSDB_CODE_SUCCESS){
         goto end;
       }
@@ -4302,7 +4302,7 @@ static int32_t buildKVRowForAllTags(STranslateContext* pCxt, SCreateSubTableClau
     }
     ++index;
   }
-  code = tTagNew(pTagArray, 1, isJson, ppTag);
+  if(!isJson) code = tTagNew(pTagArray, 1, false, ppTag);
 
 end:
   if(isJson){
@@ -4580,11 +4580,10 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
     int32_t code = TSDB_CODE_SUCCESS;
     STag* pTag = NULL;
     do{
-      code = parseJsontoTagData(pStmt->pVal->literal, pTagVals, &pCxt->msgBuf);
+      code = parseJsontoTagData(pStmt->pVal->literal, pTagVals, &pTag, &pCxt->msgBuf);
       if (TSDB_CODE_SUCCESS != code) {
         break;
       }
-      code = tTagNew(pTagVals, 1, true, &pTag);
     }while(0);
     for (int i = 0; i < taosArrayGetSize(pTagVals); ++i) {
       STagVal *p = (STagVal *)taosArrayGet(pTagVals, i);
