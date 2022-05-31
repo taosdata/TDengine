@@ -455,6 +455,12 @@ int32_t taosKeepTcpAlive(SOCKET sockFd) {
     return -1;
   }
 
+  if (taosSetSockOpt(sockFd, SOL_SOCKET, SO_RCVTIMEO, (void *)&tv, sizeof(tv)) < 0) {
+    uError("setsockopt SO_RCVTIMEO failed: %d (%s)", errno, strerror(errno));
+    taosCloseSocket(sockFd);
+    return -1;
+  }
+
   return 0;
 }
 
