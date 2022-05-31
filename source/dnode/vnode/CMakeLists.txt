@@ -49,6 +49,7 @@ target_sources(
 
     # tq
     "src/tq/tq.c"
+    "src/tq/tqExec.c"
     "src/tq/tqCommit.c"
     "src/tq/tqOffset.c"
     "src/tq/tqPush.c"
