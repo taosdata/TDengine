@@ -416,14 +416,13 @@ int32_t taosKeepTcpAlive(SOCKET sockFd) {
     return -1;
   }
 
-  int32_t alivetime = 10;
-  if (taosSetSockOpt(sockFd, SOL_TCP, TCP_KEEPIDLE, (void *)&alivetime, sizeof(alivetime)) < 0) {
+  if (taosSetSockOpt(sockFd, SOL_TCP, TCP_KEEPIDLE, (void *)&tsTcpAliveTime, sizeof(tsTcpAliveTime)) < 0) {
     uError("fd:%d setsockopt SO_KEEPIDLE failed: %d (%s)", sockFd, errno, strerror(errno));
     taosCloseSocket(sockFd);
     return -1;
   }
 
-  int32_t interval = 3;
+  int32_t interval = tsTcpAliveTime / probes;
   if (taosSetSockOpt(sockFd, SOL_TCP, TCP_KEEPINTVL, (void *)&interval, sizeof(interval)) < 0) {
     uError("fd:%d setsockopt SO_KEEPINTVL failed: %d (%s)", sockFd, errno, strerror(errno));
     taosCloseSocket(sockFd);

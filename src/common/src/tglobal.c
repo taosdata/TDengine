@@ -50,6 +50,7 @@ int64_t  tsDnodeStartTime = 0;
 int8_t   tsDnodeNopLoop = 0;
 int32_t  tsTcpConnTimeout = 1000; // timeout for tcp client connection in ms.
 int32_t  tsSyncCheckInterval = 1500; // peer sync check interval in ms.
+int32_t  tsTcpAliveTime = 10; // timeout for tcp keepalive in s.
 
 // common
 int32_t tsRpcTimer = 300;
@@ -655,6 +656,16 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 10000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_MS;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "tcpAliveTime";
+  cfg.ptr = &tsTcpAliveTime;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 3;
+  cfg.maxValue = 30;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_SECOND;
   taosInitConfigOption(cfg);
 
   cfg.option = "balance";
