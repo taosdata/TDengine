@@ -21,12 +21,12 @@ typedef struct SMemData SMemData;
 // typedef struct SMemSkipListCurosr SMemSkipListCurosr;
 
 struct SMemData {
-  tb_uid_t  suid;
-  tb_uid_t  uid;
-  TSDBKEY   minKey;
-  TSDBKEY   maxKey;
-  int64_t   nRows;
-  SMemData *pHashNext;
+  tb_uid_t suid;
+  tb_uid_t uid;
+  TSDBKEY  minKey;
+  TSDBKEY  maxKey;
+  int64_t  nRows;
+  SDelOp  *pDelList;
 };
 
 struct SMemTable {
@@ -38,16 +38,39 @@ struct SMemTable {
   SArray *pArray;
 };
 
-int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable) {
-  int32_t code = 0;
-  // TODO
+// SMemTable ==============================================
+int32_t tsdbMemTableCreate2(STsdb *pTsdb, SMemTable **ppMemTable) {
+  int32_t    code = 0;
+  SMemTable *pMemTable = NULL;
+
+  pMemTable = (SMemTable *)taosMemoryCalloc(1, sizeof(*pMemTable));
+  if (pMemTable == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+  pMemTable->pTsdb = pTsdb;
+  pMemTable->nRef = 1;
+  pMemTable->minKey = (TSDBKEY){.version = -1, .ts = TSKEY_MAX};
+  pMemTable->maxKey = (TSDBKEY){.version = INT64_MAX, .ts = TSKEY_MIN};
+  pMemTable->nRows = 0;
+  pMemTable->pArray = taosArrayInit(512, sizeof(SMemData *));
+  if (pMemTable->pArray == NULL) {
+    taosMemoryFree(pMemTable);
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+
+  *ppMemTable = pMemTable;
+  return code;
+
+_err:
+  *ppMemTable = NULL;
   return code;
 }
 
-int32_t tsdbMemTableDestroy(SMemTable *pMemTable) {
-  int32_t code = 0;
+void tsdbMemTableDestroy2(SMemTable *pMemTable) {
+  ASSERT(0);
   // TODO
-  return code;
 }
 
 #if 0
@@ -106,49 +129,6 @@ static int32_t tsdbMemSkipListCursorMoveToPrev(SMemSkipListCurosr *pSlc);
 static SMemSkipListNode *tsdbMemSkipListNodeCreate(SVBufPool *pPool, SMemSkipList *pSl, const STsdbRow *pTRow);
 
 // SMemTable ========================
-int32_t tsdbMemTableCreate2(STsdb *pTsdb, SMemTable **ppMemTb) {
-  SMemTable *pMemTb = NULL;
-
-  pMemTb = taosMemoryCalloc(1, sizeof(*pMemTb));
-  if (pMemTb == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  pMemTb->pTsdb = pTsdb;
-  pMemTb->minKey = TSKEY_MAX;
-  pMemTb->maxKey = TSKEY_MIN;
-  pMemTb->minVer = -1;
-  pMemTb->maxVer = -1;
-  pMemTb->nRows = 0;
-  pMemTb->nHash = 0;
-  pMemTb->nBucket = 1024;
-  pMemTb->pBuckets = taosMemoryCalloc(pMemTb->nBucket, sizeof(*pMemTb->pBuckets));
-  if (pMemTb->pBuckets == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    taosMemoryFree(pMemTb);
-    return -1;
-  }
-  if (tsdbMemSkipListCursorCreate(pTsdb->pVnode->config.tsdbCfg.slLevel, &pMemTb->pSlc) < 0) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    taosMemoryFree(pMemTb->pBuckets);
-    taosMemoryFree(pMemTb);
-  }
-
-  *ppMemTb = pMemTb;
-  return 0;
-}
-
-int32_t tsdbMemTableDestroy2(STsdb *pTsdb, SMemTable *pMemTb) {
-  if (pMemTb) {
-    // loop to destroy the contents (todo)
-    tsdbMemSkipListCursorDestroy(pMemTb->pSlc);
-    taosMemoryFree(pMemTb->pBuckets);
-    taosMemoryFree(pMemTb);
-  }
-  return 0;
-}
-
 int32_t tsdbInsertData2(SMemTable *pMemTb, int64_t version, const SVSubmitBlk *pSubmitBlk) {
   SMemData  *pMemData;
   STsdb     *pTsdb = pMemTb->pTsdb;

@@ -33,9 +33,13 @@ extern "C" {
 // clang-format on
 
 typedef struct TSDBKEY TSDBKEY;
+typedef struct SDelOp  SDelOp;
 
 // tsdbMemTable2.c ==============================================================================================
 typedef struct SMemTable SMemTable;
+
+int32_t tsdbMemTableCreate2(STsdb *pTsdb, SMemTable **ppMemTable);
+void    tsdbMemTableDestroy2(SMemTable *pMemTable);
 
 // tsdbMemTable ================
 typedef struct STsdbRow      STsdbRow;
@@ -859,6 +863,13 @@ struct STsdbRow {
 struct TSDBKEY {
   int64_t version;
   TSKEY   ts;
+};
+
+struct SDelOp {
+  int64_t version;
+  TSKEY   sKey;  // included
+  TSKEY   eKey;  // included
+  SDelOp *pNext;
 };
 
 #endif
