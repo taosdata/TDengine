@@ -440,6 +440,7 @@ typedef struct STimeWindowSupp {
   int64_t          waterMark;
   TSKEY            maxTs;
   SColumnInfoData  timeWindowData;     // query time window info for scalar function execution.
+  SHashObj        *winMap;
 } STimeWindowAggSupp;
 
 typedef struct SIntervalAggOperatorInfo {
@@ -758,7 +759,7 @@ SOperatorInfo* createDataBlockInfoScanOperator(void* dataReader, SExecTaskInfo* 
 
 SOperatorInfo* createStreamScanOperatorInfo(void* pDataReader, SReadHandle* pHandle,
     SArray* pTableIdList, STableScanPhysiNode* pTableScanNode, SExecTaskInfo* pTaskInfo,
-    STimeWindowAggSupp* pTwSup, int16_t tsColId);
+    STimeWindowAggSupp* pTwSup);
 
 
 SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfCols,
@@ -837,6 +838,8 @@ SResultWindowInfo* getSessionTimeWindow(SArray* pWinInfos, TSKEY ts, int64_t gap
 int32_t updateSessionWindowInfo(SResultWindowInfo* pWinInfo, TSKEY* pTs, int32_t rows,
     int32_t start, int64_t gap, SHashObj* pStDeleted);
 bool functionNeedToExecute(SqlFunctionCtx* pCtx);
+int64_t getSmaWaterMark(int64_t interval, double filesFactor);
+bool isSmaStream(int8_t triggerType);
 
 int32_t compareTimeWindow(const void* p1, const void* p2, const void* param);
 #ifdef __cplusplus
