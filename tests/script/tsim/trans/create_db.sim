@@ -76,7 +76,7 @@ if $data[0][3] != d1 then
   return -1
 endi
 
-if $data[0][4] != create-db then
+if $data[0][4] != todo then
   return -1
 endi
 
@@ -126,7 +126,7 @@ if $data[0][3] != d2 then
   return -1
 endi
 
-if $data[0][4] != create-db then
+if $data[0][4] != todo then
   return -1
 endi
 

@@ -117,8 +117,8 @@ static SSdbRaw *mndTransActionEncode(STrans *pTrans) {
   SDB_SET_INT32(pRaw, dataPos, pTrans->id, _OVER)
   SDB_SET_INT16(pRaw, dataPos, pTrans->stage, _OVER)
   SDB_SET_INT16(pRaw, dataPos, pTrans->policy, _OVER)
-  SDB_SET_INT16(pRaw, dataPos, pTrans->type, _OVER)
-  SDB_SET_INT16(pRaw, dataPos, pTrans->parallel, _OVER)
+  SDB_SET_INT16(pRaw, dataPos, pTrans->conflict, _OVER)
+  SDB_SET_INT16(pRaw, dataPos, pTrans->exec, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pTrans->createdTime, _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pTrans->dbname, TSDB_DB_FNAME_LEN, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pTrans->redoActionPos, _OVER)
@@ -250,16 +250,16 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
 
   int16_t stage = 0;
   int16_t policy = 0;
-  int16_t type = 0;
-  int16_t parallel = 0;
+  int16_t conflict = 0;
+  int16_t exec = 0;
   SDB_GET_INT16(pRaw, dataPos, &stage, _OVER)
   SDB_GET_INT16(pRaw, dataPos, &policy, _OVER)
-  SDB_GET_INT16(pRaw, dataPos, &type, _OVER)
-  SDB_GET_INT16(pRaw, dataPos, &parallel, _OVER)
+  SDB_GET_INT16(pRaw, dataPos, &conflict, _OVER)
+  SDB_GET_INT16(pRaw, dataPos, &exec, _OVER)
   pTrans->stage = stage;
   pTrans->policy = policy;
-  pTrans->type = type;
-  pTrans->parallel = parallel;
+  pTrans->conflict = conflict;
+  pTrans->exec = exec;
   SDB_GET_INT64(pRaw, dataPos, &pTrans->createdTime, _OVER)
   SDB_GET_BINARY(pRaw, dataPos, pTrans->dbname, TSDB_DB_FNAME_LEN, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pTrans->redoActionPos, _OVER)
@@ -408,81 +408,6 @@ static const char *mndTransStr(ETrnStage stage) {
   }
 }
 
-static const char *mndTransType(ETrnType type) {
-  switch (type) {
-    case TRN_TYPE_CREATE_USER:
-      return "create-user";
-    case TRN_TYPE_ALTER_USER:
-      return "alter-user";
-    case TRN_TYPE_DROP_USER:
-      return "drop-user";
-    case TRN_TYPE_CREATE_FUNC:
-      return "create-func";
-    case TRN_TYPE_DROP_FUNC:
-      return "drop-func";
-    case TRN_TYPE_CREATE_SNODE:
-      return "create-snode";
-    case TRN_TYPE_DROP_SNODE:
-      return "drop-snode";
-    case TRN_TYPE_CREATE_QNODE:
-      return "create-qnode";
-    case TRN_TYPE_DROP_QNODE:
-      return "drop-qnode";
-    case TRN_TYPE_CREATE_BNODE:
-      return "create-bnode";
-    case TRN_TYPE_DROP_BNODE:
-      return "drop-bnode";
-    case TRN_TYPE_CREATE_MNODE:
-      return "create-mnode";
-    case TRN_TYPE_DROP_MNODE:
-      return "drop-mnode";
-    case TRN_TYPE_CREATE_TOPIC:
-      return "create-topic";
-    case TRN_TYPE_DROP_TOPIC:
-      return "drop-topic";
-    case TRN_TYPE_SUBSCRIBE:
-      return "subscribe";
-    case TRN_TYPE_REBALANCE:
-      return "rebalance";
-    case TRN_TYPE_COMMIT_OFFSET:
-      return "commit-offset";
-    case TRN_TYPE_CREATE_STREAM:
-      return "create-stream";
-    case TRN_TYPE_DROP_STREAM:
-      return "drop-stream";
-    case TRN_TYPE_CONSUMER_LOST:
-      return "consumer-lost";
-    case TRN_TYPE_CONSUMER_RECOVER:
-      return "consumer-recover";
-    case TRN_TYPE_CREATE_DNODE:
-      return "create-qnode";
-    case TRN_TYPE_DROP_DNODE:
-      return "drop-qnode";
-    case TRN_TYPE_CREATE_DB:
-      return "create-db";
-    case TRN_TYPE_ALTER_DB:
-      return "alter-db";
-    case TRN_TYPE_DROP_DB:
-      return "drop-db";
-    case TRN_TYPE_SPLIT_VGROUP:
-      return "split-vgroup";
-    case TRN_TYPE_MERGE_VGROUP:
-      return "merge-vgroup";
-    case TRN_TYPE_CREATE_STB:
-      return "create-stb";
-    case TRN_TYPE_ALTER_STB:
-      return "alter-stb";
-    case TRN_TYPE_DROP_STB:
-      return "drop-stb";
-    case TRN_TYPE_CREATE_SMA:
-      return "create-sma";
-    case TRN_TYPE_DROP_SMA:
-      return "drop-sma";
-    default:
-      return "invalid";
-  }
-}
-
 static void mndTransTestStartFunc(SMnode *pMnode, void *param, int32_t paramLen) {
   mInfo("test trans start, param:%s, len:%d", (char *)param, paramLen);
 }
@@ -594,7 +519,7 @@ void mndReleaseTrans(SMnode *pMnode, STrans *pTrans) {
   sdbRelease(pSdb, pTrans);
 }
 
-STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnType type, const SRpcMsg *pReq) {
+STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, const SRpcMsg *pReq) {
   STrans *pTrans = taosMemoryCalloc(1, sizeof(STrans));
   if (pTrans == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -605,8 +530,8 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnType type, const S
   pTrans->id = sdbGetMaxId(pMnode->pSdb, SDB_TRANS);
   pTrans->stage = TRN_STAGE_PREPARE;
   pTrans->policy = policy;
-  pTrans->type = type;
-  pTrans->parallel = TRN_EXEC_PARALLEL;
+  pTrans->conflict = conflict;
+  pTrans->exec = TRN_EXEC_PRARLLEL;
   pTrans->createdTime = taosGetTimestampMs();
   pTrans->redoActions = taosArrayInit(TRANS_ARRAY_SIZE, sizeof(STransAction));
   pTrans->undoActions = taosArrayInit(TRANS_ARRAY_SIZE, sizeof(STransAction));
@@ -698,7 +623,7 @@ void mndTransSetDbInfo(STrans *pTrans, SDbObj *pDb) {
   memcpy(pTrans->dbname, pDb->name, TSDB_DB_FNAME_LEN);
 }
 
-void mndTransSetNoParallel(STrans *pTrans) { pTrans->parallel = TRN_EXEC_NO_PARALLEL; }
+void mndTransSetSerial(STrans *pTrans) { pTrans->exec = TRN_EXEC_SERIAL; }
 
 static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
   SSdbRaw *pRaw = mndTransActionEncode(pTrans);
@@ -721,76 +646,43 @@ static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
   return 0;
 }
 
-static bool mndIsBasicTrans(STrans *pTrans) {
-  return pTrans->type > TRN_TYPE_BASIC_SCOPE && pTrans->type < TRN_TYPE_BASIC_SCOPE_END;
-}
-
-static bool mndIsGlobalTrans(STrans *pTrans) {
-  return pTrans->type > TRN_TYPE_GLOBAL_SCOPE && pTrans->type < TRN_TYPE_GLOBAL_SCOPE_END;
-}
-
-static bool mndIsDbTrans(STrans *pTrans) {
-  return pTrans->type > TRN_TYPE_DB_SCOPE && pTrans->type < TRN_TYPE_DB_SCOPE_END;
-}
-
-static bool mndIsStbTrans(STrans *pTrans) {
-  return pTrans->type > TRN_TYPE_STB_SCOPE && pTrans->type < TRN_TYPE_STB_SCOPE_END;
-}
-
 static bool mndCheckTransConflict(SMnode *pMnode, STrans *pNewTrans) {
   STrans *pTrans = NULL;
   void   *pIter = NULL;
   bool    conflict = false;
 
-  if (mndIsBasicTrans(pNewTrans)) return conflict;
+  if (pNewTrans->conflict == TRN_CONFLICT_NOTHING) return conflict;
 
   while (1) {
     pIter = sdbFetch(pMnode->pSdb, SDB_TRANS, pIter, (void **)&pTrans);
     if (pIter == NULL) break;
 
-    if (mndIsGlobalTrans(pNewTrans)) {
-      if (mndIsDbTrans(pTrans) || mndIsStbTrans(pTrans)) {
+    if (pNewTrans->conflict == TRN_CONFLICT_GLOBAL) {
+      mError("trans:%d, can't execute since trans:%d in progress", pNewTrans->id, pTrans->id);
+      conflict = true;
+    } else if (pNewTrans->conflict == TRN_CONFLICT_DB) {
+      if (pTrans->conflict == TRN_CONFLICT_GLOBAL || strcmp(pNewTrans->dbname, pTrans->dbname) == 0) {
         mError("trans:%d, can't execute since trans:%d in progress db:%s", pNewTrans->id, pTrans->id, pTrans->dbname);
         conflict = true;
-      } else {
       }
-    }
-
-    else if (mndIsDbTrans(pNewTrans)) {
-      if (mndIsGlobalTrans(pTrans)) {
-        mError("trans:%d, can't execute since trans:%d in progress", pNewTrans->id, pTrans->id);
-        conflict = true;
-      } else if (mndIsDbTrans(pTrans) || mndIsStbTrans(pTrans)) {
-        if (strcmp(pNewTrans->dbname, pTrans->dbname) == 0) {
-          mError("trans:%d, can't execute since trans:%d in progress db:%s", pNewTrans->id, pTrans->id, pTrans->dbname);
-          conflict = true;
-        }
-      } else {
-      }
-    }
-
-    else if (mndIsStbTrans(pNewTrans)) {
-      if (mndIsGlobalTrans(pTrans)) {
-        mError("trans:%d, can't execute since trans:%d in progress", pNewTrans->id, pTrans->id);
-        conflict = true;
-      } else if (mndIsDbTrans(pTrans)) {
-        if (strcmp(pNewTrans->dbname, pTrans->dbname) == 0) {
-          mError("trans:%d, can't execute since trans:%d in progress db:%s", pNewTrans->id, pTrans->id, pTrans->dbname);
-          conflict = true;
-        }
-      } else {
-      }
+    } else {
     }
 
     sdbRelease(pMnode->pSdb, pTrans);
   }
 
-  sdbCancelFetch(pMnode->pSdb, pIter);
-  sdbRelease(pMnode->pSdb, pTrans);
   return conflict;
 }
 
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
+  if (pTrans->conflict == TRN_CONFLICT_DB) {
+    if (strlen(pTrans->dbname) == 0) {
+      terrno = TSDB_CODE_MND_TRANS_CONFLICT;
+      mError("trans:%d, failed to prepare conflict db not set", pTrans->id);
+      return -1;
+    }
+  }
+
   if (mndCheckTransConflict(pMnode, pTrans)) {
     terrno = TSDB_CODE_MND_TRANS_CONFLICT;
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
@@ -1144,7 +1036,7 @@ static bool mndTransPerformRedoActionStage(SMnode *pMnode, STrans *pTrans) {
   bool    continueExec = true;
   int32_t code = 0;
 
-  if (pTrans->parallel == TRN_EXEC_NO_PARALLEL) {
+  if (pTrans->exec == TRN_EXEC_SERIAL) {
     code = mndTransExecuteRedoActionsNoParallel(pMnode, pTrans);
   } else {
     code = mndTransExecuteRedoActions(pMnode, pTrans);
@@ -1456,7 +1348,7 @@ static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     colDataAppend(pColInfo, numOfRows, (const char *)dbname, false);
 
     char type[TSDB_TRANS_TYPE_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(type, mndTransType(pTrans->type), pShow->pMeta->pSchemas[cols].bytes);
+    STR_WITH_MAXSIZE_TO_VARSTR(type, "todo", pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)type, false);
 
