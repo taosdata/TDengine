@@ -422,7 +422,9 @@ if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$2" != "unit" ]  && [ "$2" !=
   nohup build/bin/taosd -c /etc/taos/ > /dev/null 2>&1 &
   sleep 30
   
-  cd $tests_dir/../src/connector/jdbc  
+  # cd $tests_dir/../src/connector/jdbc  
+  git clone git@github.com:taosdata/taos-connector-jdbc.git --branch main --single-branch --depth 1
+  cd taos-connector-jdbc
   
   mvn test > jdbc-out.log 2>&1
   tail -n 20 jdbc-out.log
