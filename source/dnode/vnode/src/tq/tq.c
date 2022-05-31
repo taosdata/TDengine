@@ -441,13 +441,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
       break;
     }
 
-    tqDebug("tmq poll vg %d: offset %ld msgType %d", pTq->pVnode->config.vgId, fetchOffset,
-            pHeadWithCkSum->head.msgType);
-
     SWalReadHead* pHead = &pHeadWithCkSum->head;
-
-    tqDebug("tmq poll vg %d: offset %ld msgType %d", pTq->pVnode->config.vgId, fetchOffset,
-            pHeadWithCkSum->head.msgType);
 
 #if 0
     SWalReadHead* pHead;
@@ -499,6 +493,8 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
     // TODO continue scan until meeting batch requirement
     if (rsp.blockNum > 0 /* threshold */) {
       break;
+    } else {
+      fetchOffset++;
     }
   }
 
