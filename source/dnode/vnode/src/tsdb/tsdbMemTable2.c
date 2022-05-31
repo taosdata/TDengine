@@ -15,7 +15,6 @@
 
 #include "tsdb.h"
 
-#if 0
 typedef struct SMemTable          SMemTable;
 typedef struct SMemData           SMemData;
 typedef struct SMemSkipList       SMemSkipList;
@@ -100,7 +99,7 @@ static int32_t tsdbMemSkipListCursorMoveToNext(SMemSkipListCurosr *pSlc);
 static int32_t tsdbMemSkipListCursorMoveToPrev(SMemSkipListCurosr *pSlc);
 static SMemSkipListNode *tsdbMemSkipListNodeCreate(SVBufPool *pPool, SMemSkipList *pSl, const STsdbRow *pTRow);
 
-// SMemTable
+// SMemTable ========================
 int32_t tsdbMemTableCreate2(STsdb *pTsdb, SMemTable **ppMemTb) {
   SMemTable *pMemTb = NULL;
 
@@ -379,4 +378,3 @@ static SMemSkipListNode *tsdbMemSkipListNodeCreate(SVBufPool *pPool, SMemSkipLis
 
   return pNode;
 }
-#endif

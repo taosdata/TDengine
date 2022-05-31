@@ -142,69 +142,6 @@ int tsdbLoadDataFromCache(STsdb *pTsdb, STable *pTable, SSkipListIterator *pIter
       } else {
         fKey = tdGetKey(filterKeys[filterIter]);
       }
-#if 0
-    } else if (fKey > rowKey) {
-      if (isRowDel) {
-        pMergeInfo->rowsDeleteFailed++;
-      } else {
-        if (pMergeInfo->rowsInserted - pMergeInfo->rowsDeleteSucceed >= maxRowsToRead) break;
-        if (pCols && pMergeInfo->nOperations >= pCols->maxPoints) break;
-
-        pMergeInfo->rowsInserted++;
-        pMergeInfo->nOperations++;
-        pMergeInfo->keyFirst = TMIN(pMergeInfo->keyFirst, rowKey);
-        pMergeInfo->keyLast = TMAX(pMergeInfo->keyLast, rowKey);
-        tsdbAppendTableRowToCols(pTable, pCols, &pSchema, row);
-      }
-
-      tSkipListIterNext(pIter);
-      row = tsdbNextIterRow(pIter);
-      if (row == NULL || TD_ROW_KEY(row) > maxKey) {
-        rowKey = INT64_MAX;
-        isRowDel = false;
-      } else {
-        rowKey = TD_ROW_KEY(row);
-        isRowDel = TD_ROW_IS_DELETED(row);
-      }
-    } else {
-      if (isRowDel) {
-        ASSERT(!keepDup);
-        if (pCols && pMergeInfo->nOperations >= pCols->maxPoints) break;
-        pMergeInfo->rowsDeleteSucceed++;
-        pMergeInfo->nOperations++;
-        tsdbAppendTableRowToCols(pTable, pCols, &pSchema, row);
-      } else {
-        if (keepDup) {
-          if (pCols && pMergeInfo->nOperations >= pCols->maxPoints) break;
-          pMergeInfo->rowsUpdated++;
-          pMergeInfo->nOperations++;
-          pMergeInfo->keyFirst = TMIN(pMergeInfo->keyFirst, rowKey);
-          pMergeInfo->keyLast = TMAX(pMergeInfo->keyLast, rowKey);
-          tsdbAppendTableRowToCols(pTable, pCols, &pSchema, row);
-        } else {
-          pMergeInfo->keyFirst = TMIN(pMergeInfo->keyFirst, fKey);
-          pMergeInfo->keyLast = TMAX(pMergeInfo->keyLast, fKey);
-        }
-      }
-
-      tSkipListIterNext(pIter);
-      row = tsdbNextIterRow(pIter);
-      if (row == NULL || TD_ROW_KEY(row) > maxKey) {
-        rowKey = INT64_MAX;
-        isRowDel = false;
-      } else {
-        rowKey = TD_ROW_KEY(row);
-        isRowDel = TD_ROW_IS_DELETED(row);
-      }
-
-      filterIter++;
-      if (filterIter >= nFilterKeys) {
-        fKey = INT64_MAX;
-      } else {
-        fKey = tdGetKey(filterKeys[filterIter]);
-      }
-    }
-#endif
 #if 1
     } else if (fKey > rowKey) {
       if (isRowDel) {
