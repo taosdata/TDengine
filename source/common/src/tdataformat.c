@@ -44,7 +44,7 @@ typedef struct {
 static FORCE_INLINE int tSKVIdxCmprFn(const void *p1, const void *p2);
 
 // SValue
-static int32_t tPutSValue(uint8_t *p, SValue *pValue, int8_t type) {
+static int32_t tPutValue(uint8_t *p, SValue *pValue, int8_t type) {
   int32_t n = 0;
 
   if (IS_VAR_DATA_TYPE(type)) {
@@ -95,7 +95,7 @@ static int32_t tPutSValue(uint8_t *p, SValue *pValue, int8_t type) {
   return n;
 }
 
-static int32_t tGetSValue(uint8_t *p, SValue *pValue, int8_t type) {
+static int32_t tGetValue(uint8_t *p, SValue *pValue, int8_t type) {
   int32_t n = 0;
 
   if (IS_VAR_DATA_TYPE(type)) {
@@ -140,6 +140,49 @@ static int32_t tGetSValue(uint8_t *p, SValue *pValue, int8_t type) {
         break;
       default:
         ASSERT(0);
+    }
+  }
+
+  return n;
+}
+
+// SColVal
+static int32_t tPutColVal(uint8_t *p, SColVal *pColVal, int8_t type, int8_t isTuple) {
+  int32_t n = 0;
+
+  ASSERT(pColVal->isNone == 0);
+  if (isTuple) {
+    ASSERT(pColVal->isNull == 0);
+    n += tPutValue(p ? p + n : p, &pColVal->value, type);
+  } else {
+    if (pColVal->isNull) {
+      // -cid means NULL
+      n += tPutI16v(p ? p + n : p, -pColVal->cid);
+    } else {
+      n += tPutI16v(p ? p + n : p, pColVal->cid);
+      n += tPutValue(p ? p + n : p, &pColVal->value, type);
+    }
+  }
+
+  return n;
+}
+
+static int32_t tGetColVal(uint8_t *p, SColVal *pColVal, int8_t type, int8_t isTuple) {
+  int32_t n = 0;
+  int16_t cid;
+
+  if (isTuple) {
+    n += tGetValue(p + n, pColVal ? &pColVal->value : NULL, type);
+  } else {
+    n += tGetI16v(p + n, &cid);
+    if (cid < 0) {
+      if (pColVal) {
+        pColVal->isNull = 1;
+        pColVal->cid = -cid;
+      }
+    } else {
+      if (pColVal) pColVal->cid = cid;
+      n += tGetValue(p ? p + n : p, pColVal ? &pColVal->value : NULL, type);
     }
   }
 
