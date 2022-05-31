@@ -77,7 +77,7 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   if (pRaw == NULL) return -1;
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
-  mDebug("user:%s, will be created while deploy sdb, raw:%p", userObj.user, pRaw);
+  mDebug("user:%s, will be created when deploying, raw:%p", userObj.user, pRaw);
 
 #if 0
   return sdbWrite(pMnode->pSdb, pRaw);

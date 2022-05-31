@@ -132,11 +132,11 @@ class TDTestCase:
             querystmt.bind_param(queryparam)
             querystmt.execute() 
             result=querystmt.use_result()
-            rows=result.fetch_all()
-            print( querystmt.use_result())
+            # rows=result.fetch_all()
+            # print( querystmt.use_result())
 
             # result = conn.query("select * from log")
-            # rows=result.fetch_all()
+            rows=result.fetch_all()
             # rows=result.fetch_all()
             print(rows)
             assert rows[1][0] == "ts"
@@ -213,7 +213,7 @@ class TDTestCase:
             params[11].float([3, None, 1])
             params[12].double([3, None, 1.2])
             params[13].binary(["abc", "dddafadfadfadfadfa", None])
-            params[14].nchar(["涛思数据", None, "a long string with 中文字符"])
+            params[14].nchar(["涛思数据", None, "a? long string with 中文字符"])
             params[15].timestamp([None, None, 1626861392591])
             
             stmt.bind_param_batch(params)
@@ -230,9 +230,31 @@ class TDTestCase:
             querystmt1.execute() 
             result1=querystmt1.use_result()
             rows1=result1.fetch_all()
-            assert str(rows1[0][0]) == "2021-07-21 17:56:32.589111"
-            assert rows1[0][10] == 3
-            assert rows1[1][10] == 4
+            print("1",rows1)
+
+            querystmt2=conn.statement("select abs(?) from log where bu < ?")
+            queryparam2=new_bind_params(2)
+            print(type(queryparam2))
+            queryparam2[0].int(5)
+            queryparam2[1].int(5)
+            querystmt2.bind_param(queryparam2)
+            querystmt2.execute() 
+            result2=querystmt2.use_result()
+            rows2=result2.fetch_all()
+            print("2",rows2)
+
+            querystmt3=conn.statement("select abs(?) from log where  nn= 'a? long string with 中文字符' ")
+            queryparam3=new_bind_params(1)
+            print(type(queryparam3))
+            queryparam3[0].int(5)
+            querystmt3.bind_param(queryparam3)
+            querystmt3.execute() 
+            result3=querystmt3.use_result()
+            rows3=result3.fetch_all()
+            print("3",rows3)
+            # assert str(rows1[0][0]) == "2021-07-21 17:56:32.589111"
+            # assert rows1[0][10] == 3
+            # assert rows1[1][10] == 4
 
             # conn.execute("drop database if exists %s" % dbname)
             conn.close()
@@ -247,7 +269,6 @@ class TDTestCase:
         config = buildPath+ "../sim/dnode1/cfg/"
         host="localhost"
         connectstmt=self.newcon(host,config)
-        print(connectstmt)
         self.test_stmt_insert_multi(connectstmt)
         connectstmt=self.newcon(host,config)
         self.test_stmt_set_tbname_tag(connectstmt)

@@ -254,6 +254,7 @@ typedef enum ELogicConditionType {
 #define TSDB_TRANS_STAGE_LEN 12
 #define TSDB_TRANS_TYPE_LEN  16
 #define TSDB_TRANS_ERROR_LEN 64
+#define TSDB_TRANS_DESC_LEN  128
 
 #define TSDB_STEP_NAME_LEN 32
 #define TSDB_STEP_DESC_LEN 128
@@ -344,9 +345,6 @@ typedef enum ELogicConditionType {
 #define TSDB_MIN_ROLLUP_FILE_FACTOR     0
 #define TSDB_MAX_ROLLUP_FILE_FACTOR     1
 #define TSDB_DEFAULT_ROLLUP_FILE_FACTOR 0.1
-#define TSDB_MIN_ROLLUP_DELAY           1
-#define TSDB_MAX_ROLLUP_DELAY           10
-#define TSDB_DEFAULT_ROLLUP_DELAY       2
 #define TSDB_MIN_TABLE_TTL              0
 #define TSDB_DEFAULT_TABLE_TTL          0
 
