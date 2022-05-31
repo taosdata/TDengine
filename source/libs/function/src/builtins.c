@@ -478,7 +478,7 @@ static int32_t translateStateCount(SFunctionNode* pFunc, char* pErrBuf, int32_t 
 
     if (i == 1 && !validateStateOper(pValue)) {
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                             "Second parameter of STATECOUNT/STATEDURATION function"
+                             "Second parameter of STATECOUNT function"
                              "must be one of the following: 'GE', 'GT', 'LE', 'LT', 'EQ', 'NE'");
     }
 
@@ -524,9 +524,13 @@ static int32_t translateStateDuration(SFunctionNode* pFunc, char* pErrBuf, int32
 
     if (i == 1 && !validateStateOper(pValue)) {
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                             "Second parameter of STATECOUNT/STATEDURATION function"
+                             "Second parameter of STATEDURATION function"
                              "must be one of the following: 'GE', 'GT', 'LE', 'LT', 'EQ', 'NE'");
+    } else if (i == 3 && pValue->datum.i == 0) {
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                             "STATEDURATION function time unit parameter should be greater than db precision");
     }
+
 
     pValue->notReserved = true;
   }
