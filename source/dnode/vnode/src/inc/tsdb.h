@@ -32,6 +32,11 @@ extern "C" {
 #define tsdbTrace(...) do { if (tsdbDebugFlag & DEBUG_TRACE) { taosPrintLog("TSDB ", DEBUG_TRACE, tsdbDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
+typedef struct TSDBKEY TSDBKEY;
+
+// tsdbMemTable2.c ==============================================================================================
+typedef struct SMemTable SMemTable;
+
 // tsdbMemTable ================
 typedef struct STsdbRow      STsdbRow;
 typedef struct STbData       STbData;
@@ -849,6 +854,11 @@ static FORCE_INLINE int tsdbUnLockFS(STsdbFS *pFs) {
 struct STsdbRow {
   int64_t version;
   STSRow  row;
+};
+
+struct TSDBKEY {
+  int64_t version;
+  TSKEY   ts;
 };
 
 #endif

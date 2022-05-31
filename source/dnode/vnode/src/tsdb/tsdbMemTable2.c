@@ -15,26 +15,44 @@
 
 #include "tsdb.h"
 
-typedef struct SMemTable          SMemTable;
-typedef struct SMemData           SMemData;
-typedef struct SMemSkipList       SMemSkipList;
-typedef struct SMemSkipListNode   SMemSkipListNode;
-typedef struct SMemSkipListCurosr SMemSkipListCurosr;
+typedef struct SMemData SMemData;
+// typedef struct SMemSkipList       SMemSkipList;
+// typedef struct SMemSkipListNode   SMemSkipListNode;
+// typedef struct SMemSkipListCurosr SMemSkipListCurosr;
 
-#define SL_MAX_LEVEL 5
+struct SMemData {
+  tb_uid_t  suid;
+  tb_uid_t  uid;
+  TSDBKEY   minKey;
+  TSDBKEY   maxKey;
+  int64_t   nRows;
+  SMemData *pHashNext;
+};
 
 struct SMemTable {
-  STsdb              *pTsdb;
-  TSKEY               minKey;
-  TSKEY               maxKey;
-  int64_t             minVer;
-  int64_t             maxVer;
-  int64_t             nRows;
-  int32_t             nHash;
-  int32_t             nBucket;
-  SMemData          **pBuckets;
-  SMemSkipListCurosr *pSlc;
+  STsdb  *pTsdb;
+  int32_t nRef;
+  TSDBKEY minKey;
+  TSDBKEY maxKey;
+  int64_t nRows;
+  SArray *pArray;
 };
+
+int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbMemTableDestroy(SMemTable *pMemTable) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+#if 0
+
+#define SL_MAX_LEVEL 5
 
 struct SMemSkipListNode {
   int8_t            level;
@@ -47,18 +65,6 @@ struct SMemSkipList {
   int8_t           level;
   int32_t          size;
   SMemSkipListNode pHead[1];  // Windows does not allow 0
-};
-
-struct SMemData {
-  SMemData    *pHashNext;
-  tb_uid_t     suid;
-  tb_uid_t     uid;
-  TSKEY        minKey;
-  TSKEY        maxKey;
-  int64_t      minVer;
-  int64_t      maxVer;
-  int64_t      nRows;
-  SMemSkipList sl;
 };
 
 struct SMemSkipListCurosr {
@@ -378,3 +384,4 @@ static SMemSkipListNode *tsdbMemSkipListNodeCreate(SVBufPool *pPool, SMemSkipLis
 
   return pNode;
 }
+#endif
