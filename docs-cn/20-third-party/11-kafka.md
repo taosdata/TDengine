@@ -84,7 +84,7 @@ mvn clean package
 unzip -d $CONFLUENT_HOME/share/java/ target/components/packages/taosdata-kafka-connect-tdengine-*.zip
 ```
 
-以上脚本先 clone 项目源码，然后用 Maven 编译打包。打包完成后在 `target/components/packages/` 目录生成了插件的 zip 包。把这个 zip 包解压到安装插件的路径即可。安装插件的路径在配置文件 `$CONFLUENT_HOME/etc/kafka/connect-standalone.properties` 中。上面的示例中使用了内置的插件路径： `$CONFLUENT_HOME/share/java/`。
+以上脚本先 clone 项目源码，然后用 Maven 编译打包。打包完成后在 `target/components/packages/` 目录生成了插件的 zip 包。把这个 zip 包解压到安装插件的路径即可。上面的示例中使用了内置的插件安装路径： `$CONFLUENT_HOME/share/java/`。
 
 ### 用 confluent-hub 安装
 
