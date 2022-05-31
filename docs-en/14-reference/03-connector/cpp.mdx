@@ -4,7 +4,7 @@ sidebar_label: C/C++
 title: C/C++ Connector
 ---
 
-C/C++ developers can use TDengine's client driver and the C/C++ connector, to develop their applications to connect to TDengine clusters for data writing, querying, and other functions. To use it, you need to include the TDengine header file _taos.h_, which lists the function prototypes of the provided APIs; the application also needs to link to the corresponding dynamic libraries on the platform where it is located.
+C/C++ developers can use TDengine's client driver and the C/C++ connector, to develop their applications to connect to TDengine clusters for data writing, querying, and other functions. To use the C/C++ connector you must include the TDengine header file _taos.h_, which lists the function prototypes of the provided APIs. The application also needs to link to the corresponding dynamic libraries on the platform where it is located.
 
 ```c
 #include <taos.h>
@@ -26,7 +26,7 @@ Please refer to [list of supported platforms](/reference/connector#supported-pla
 
 ## Supported versions
 
-The version number of the TDengine client driver and the version number of the TDengine server require one-to-one correspondence and recommend using the same version of client driver as what the TDengine server version is. Although a lower version of the client driver is compatible to work with a higher version of the server, if the first three version numbers are the same (i.e., only the fourth version number is different), but it is not recommended. It is strongly discouraged to use a higher version of the client driver to access a lower version of the TDengine server.
+The version number of the TDengine client driver and the version number of the TDengine server should be the same. A lower version of the client driver is compatible with a higher version of the server, if the first three version numbers are the same (i.e., only the fourth version number is different). For e.g. if the client version is x.y.z.1 and the server version is x.y.z.2 the client and server are compatible. But in general we do not recommend using a lower client version with a newer server version. It is also strongly discouraged to use a higher version of the client driver to access a lower version of the TDengine server.
 
 ## Installation steps
 
@@ -55,7 +55,7 @@ In the above example code, `taos_connect()` establishes a connection to port 603
 
 :::note
 
-- If not specified, when the return value of the API is an integer, _0_ means success, the others are error codes representing the reason for failure, and when the return value is a pointer, _NULL_ means failure.
+- If not specified, when the return value of the API is an integer, _0_ means success. All others are error codes representing the reason for failure. When the return value is a pointer, _NULL_ means failure.
 - All error codes and their corresponding causes are described in the `taoserror.h` file.
 
 :::
@@ -140,13 +140,12 @@ The base API is used to do things like create database connections and provide a
 
 - `void taos_cleanup()`
 
-  Clean up the runtime environment and should be called before the application exits.
+  Cleans up the runtime environment and should be called before the application exits.
 
 - ` int taos_options(TSDB_OPTION option, const void * arg, ...) `
 
   Set client options, currently supports region setting (`TSDB_OPTION_LOCALE`), character set 
-(`TSDB_OPTION_CHARSET`), time zone
-(`TSDB_OPTION_TIMEZONE`), configuration file path (`TSDB_OPTION_CONFIGDIR`) . The region setting, character set, and time zone default to the current settings of the operating system.
+(`TSDB_OPTION_CHARSET`), time zone (`TSDB_OPTION_TIMEZONE`), configuration file path (`TSDB_OPTION_CONFIGDIR`). The region setting, character set, and time zone default to the current settings of the operating system.
 
 - `char *taos_get_client_info()`
 
@@ -159,7 +158,7 @@ The base API is used to do things like create database connections and provide a
   - host: FQDN of any node in the TDengine cluster
   - user: user name
   - pass: password
-  - db: database name, if the user does not provide, it can also be connected correctly, the user can create a new database through this connection, if the user provides the database name, it means that the database user has already created, the default use of the database
+  - db: the database name. Even if the user does not provide this, the connection will still work correctly. The user can create a new database through this connection. If the user provides the database name, it means that the database has already been created and the connection can be used for regular operations on the database.
   - port: the port the taosd program is listening on
 
   NULL indicates a failure. The application needs to save the returned parameters for subsequent use.
@@ -187,7 +186,7 @@ The APIs described in this subsection are all synchronous interfaces. After bein
 
 - `TAOS_RES* taos_query(TAOS *taos, const char *sql)`
 
-  Executes an SQL command, either a DQL, DML, or DDL statement. The `taos` parameter is a handle obtained with `taos_connect()`. You can't tell if the result failed by whether the return value is `NULL`, but by parsing the error code in the result set with the `taos_errno()` function.
+  Executes an SQL command, either a DQL, DML, or DDL statement. The `taos` parameter is a handle obtained with `taos_connect()`. If the return value is `NULL` this does not necessarily indicate a failure. You can get the error code, if any, by parsing the error code in the result set with the `taos_errno()` function.
 
 - `int taos_result_precision(TAOS_RES *res)`
 
@@ -231,7 +230,7 @@ typedef struct taosField {
 
 - ` void taos_free_result(TAOS_RES *res)`
 
-  Frees the query result set and the associated resources. Be sure to call this API to free the resources after the query is completed. Otherwise, it may lead to a memory leak in the application. However, note that the application will crash if you call a function like `taos_consume()` to get the query results after freeing the resources.
+  Frees the query result set and the associated resources. Be sure to call this API to free the resources after the query is completed. Failing to call this, may lead to a memory leak in the application. However, note that the application will crash if you call a function like `taos_consume()` to get the query results after freeing the resources.
 
 - `char *taos_errstr(TAOS_RES *res)`
 
@@ -242,7 +241,7 @@ typedef struct taosField {
   Get the reason for the last API call failure. The return value is the error code.
 
 :::note
-TDengine version 2.0 and above recommends that each thread of a database application create a separate connection or a connection pool based on threads. It is not recommended to pass the connection (TAOS\*) structure to different threads for shared use in the application. Queries, writes, etc., issued based on TAOS structures are multi-thread safe, but state quantities such as "USE statement" may interfere between threads. In addition, the C connector can dynamically create new database-oriented connections on demand (this procedure is not visible to the user), and it is recommended that `taos_close()` be called only at the final exit of the program to close the connection.
+TDengine version 2.0 and above recommends that each thread of a database application create a separate connection or a connection pool based on threads. It is not recommended to pass the connection (TAOS\*) structure to different threads for shared use in the application. Queries, writes, and other operations issued that are based on TAOS structures are multi-thread safe, but state quantities such as the "USE statement" may interfere between threads. In addition, the C connector can dynamically create new database-oriented connections on demand (this procedure is not visible to the user), and it is recommended that `taos_close()` be called only at the final exit of the program to close the connection.
 
 :::
 
@@ -274,12 +273,12 @@ All TDengine's asynchronous APIs use a non-blocking call pattern. Applications c
 
 ### Parameter Binding API
 
-In addition to direct calls to `taos_query()` to perform queries, TDengine also provides a set of `bind` APIs that supports parameter binding, similar in style to MySQL, and currently only supports using a question mark `? ` to represent the parameter to be bound.
+In addition to direct calls to `taos_query()` to perform queries, TDengine also provides a set of `bind` APIs that supports parameter binding, similar in style to MySQL. TDengine currently only supports using a question mark `? ` to represent the parameter to be bound.
 
-Starting with versions 2.1.1.0 and 2.1.2.0, TDengine has significantly improved the bind APIs to support for data writing (INSERT) scenarios. This avoids the resource consumption of SQL syntax parsing when writing data through the parameter binding interface, thus significantly improving write performance in most cases. A typical operation, in this case, is as follows.
+Starting with versions 2.1.1.0 and 2.1.2.0, TDengine has significantly improved the bind APIs to support data writing (INSERT) scenarios. This avoids the resource consumption of SQL syntax parsing when writing data through the parameter binding interface, thus significantly improving write performance in most cases. A typical operation, in this case, is as follows.
 
 1. call `taos_stmt_init()` to create the parameter binding object.
-2. call `taos_stmt_prepare()` to parse the INSERT statement. 3.
+2. call `taos_stmt_prepare()` to parse the INSERT statement.
 3. call `taos_stmt_set_tbname()` to set the table name if it is reserved in the INSERT statement but not the TAGS.
 4. call `taos_stmt_set_tbname_tags()` to set the table name and TAGS values if the table name and TAGS are reserved in the INSERT statement (for example, if the INSERT statement takes an automatic table build).
 5. call `taos_stmt_bind_param_batch()` to set the value of VALUES in multiple columns, or call `taos_stmt_bind_param()` to set the value of VALUES in a single row.
@@ -383,7 +382,7 @@ In addition to writing data using the SQL method or the parameter binding API, w
   **return value**
   TAOS_RES structure, application can get error message by using `taos_errstr()` and also error code by using `taos_errno()`.
   In some cases, the returned TAOS_RES is `NULL`, and it is still possible to call `taos_errno()` to safely get the error code information.
-  The returned TAOS_RES needs to be freed by the caller. Otherwise, a memory leak will occur.
+  The returned TAOS_RES needs to be freed by the caller in order to avoid memory leaks.
 
   **Description**
   The protocol type is enumerated and contains the following three formats.
@@ -416,13 +415,13 @@ The Subscription API currently supports subscribing to one or more tables and co
 
   This function is responsible for starting the subscription service, returning the subscription object on success and `NULL` on failure, with the following parameters.
 
-  - taos: the database connection that has been established
-  - restart: if the subscription already exists, whether to restart or continue the previous subscription
-  - topic: the topic of the subscription (i.e., the name). This parameter is the unique identifier of the subscription
-  - sql: the query statement of the subscription, this statement can only be _select_ statement, only the original data should be queried, only the data can be queried in time order
-  - fp: the callback function when the query result is received (the function prototype will be introduced later), only used when called asynchronously. This parameter should be passed `NULL` when called synchronously
-  - param: additional parameter when calling the callback function, the system API will pass it to the callback function as it is, without any processing
-  - interval: polling period in milliseconds. The callback function will be called periodically according to this parameter when called asynchronously. not recommended to set this parameter too small To avoid impact on system performance when called synchronously. If the interval between two calls to `taos_consume()` is less than this period, the API will block until the interval exceeds this period.
+  - taos: the database connection that has been established.
+  - restart: if the subscription already exists, whether to restart or continue the previous subscription.
+  - topic: the topic of the subscription (i.e., the name). This parameter is the unique identifier of the subscription.
+  - sql: the query statement of the subscription which can only be a _select_ statement. Only the original data should be queried, and data can only be queried in temporal order.
+  - fp: the callback function when the query result is received only used when called asynchronously. This parameter should be passed `NULL` when called synchronously. The function prototype is described below.
+  - param: additional parameter when calling the callback function. The system API will pass it to the callback function as is, without any processing.
+  - interval: polling period in milliseconds. The callback function will be called periodically according to this parameter when called asynchronously. The interval should not be too small to avoid impact on system performance when called synchronously. If the interval between two calls to `taos_consume()` is less than this period, the API will block until the interval exceeds this period.
 
 - ` typedef void (*TAOS_SUBSCRIBE_CALLBACK)(TAOS_SUB* tsub, TAOS_RES *res, void* param, int code)`
 

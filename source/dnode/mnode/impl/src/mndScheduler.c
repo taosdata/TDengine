@@ -36,7 +36,7 @@
 extern bool tsStreamSchedV;
 
 int32_t mndConvertRSmaTask(const char* ast, int64_t uid, int8_t triggerType, int64_t watermark, char** pStr,
-                           int32_t* pLen) {
+                           int32_t* pLen, double filesFactor) {
   SNode*      pAst = NULL;
   SQueryPlan* pPlan = NULL;
   terrno = TSDB_CODE_SUCCESS;
@@ -58,6 +58,7 @@ int32_t mndConvertRSmaTask(const char* ast, int64_t uid, int8_t triggerType, int
       .rSmaQuery = true,
       .triggerType = triggerType,
       .watermark = watermark,
+      .filesFactor = filesFactor,
   };
   if (qCreateQueryPlan(&cxt, &pPlan, NULL) < 0) {
     terrno = TSDB_CODE_QRY_INVALID_INPUT;
@@ -286,7 +287,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
   pStream->tasks = taosArrayInit(totLevel, sizeof(void*));
 
   bool hasExtraSink = false;
-  if (totLevel == 2) {
+  if (totLevel == 2 || strcmp(pStream->sourceDb, pStream->targetDb) != 0) {
     SArray* taskOneLevel = taosArrayInit(0, sizeof(void*));
     taosArrayPush(pStream->tasks, &taskOneLevel);
     // add extra sink
@@ -407,7 +408,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
 
           /*pTask->dispatchMsgType = TDMT_VND_TASK_WRITE_EXEC;*/
           pTask->dispatchMsgType = TDMT_VND_TASK_DISPATCH;
-          SDbObj* pDb = mndAcquireDb(pMnode, pStream->sourceDb);
+          SDbObj* pDb = mndAcquireDb(pMnode, pStream->targetDb);
           ASSERT(pDb);
           if (mndExtractDbInfo(pMnode, pDb, &pTask->shuffleDispatcher.dbInfo, NULL) < 0) {
             sdbRelease(pSdb, pDb);

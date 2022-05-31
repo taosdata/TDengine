@@ -29,14 +29,14 @@ if $data00 != 3 then
 endi
 
 print ========= step3
-sql import into tb values(now-23d, -23, 0)
-sql import into tb values(now-21d, -21, 0)
+sql insert into tb values(now-23d, -23, 0)
+sql insert into tb values(now-21d, -21, 0)
 sql select count(b) from tb
 if $data00 != 5 then
   return -1
 endi
 
-sql import into tb values(now-29d, -29, 0)
+sql insert into tb values(now-29d, -29, 0)
 sql select count(b) from tb
 if $data00 != 6 then
   return -1

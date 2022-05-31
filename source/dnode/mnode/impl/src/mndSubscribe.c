@@ -157,6 +157,7 @@ static int32_t mndPersistSubChangeVgReq(SMnode *pMnode, STrans *pTrans, const SM
   int32_t vgId = pRebVg->pVgEp->vgId;
   SVgObj *pVgObj = mndAcquireVgroup(pMnode, vgId);
   if (pVgObj == NULL) {
+    ASSERT(0);
     taosMemoryFree(buf);
     return -1;
   }
@@ -451,6 +452,7 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
     taosArrayPush(pConsumerNew->rebNewTopics, &topic);
     mndReleaseConsumer(pMnode, pConsumerOld);
     if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) {
+      ASSERT(0);
       goto REB_FAIL;
     }
   }
@@ -469,9 +471,11 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
     taosArrayPush(pConsumerNew->rebRemovedTopics, &topic);
     mndReleaseConsumer(pMnode, pConsumerOld);
     if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) {
+      ASSERT(0);
       goto REB_FAIL;
     }
   }
+#if 0
   if (consumerNum) {
     char topic[TSDB_TOPIC_FNAME_LEN];
     char cgroup[TSDB_CGROUP_LEN];
@@ -486,17 +490,24 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
       pTopic->refConsumerCnt = topicObj.refConsumerCnt;
       mInfo("subscribe topic %s unref %d consumer cgroup %s, refcnt %d", pTopic->name, consumerNum, cgroup,
             topicObj.refConsumerCnt);
-      if (mndSetTopicCommitLogs(pMnode, pTrans, &topicObj) != 0) goto REB_FAIL;
+      if (mndSetTopicCommitLogs(pMnode, pTrans, &topicObj) != 0) {
+        ASSERT(0);
+        goto REB_FAIL;
+      }
     }
   }
+#endif
 
   // 4. TODO commit log: modification log
 
   // 5. set cb
-  mndTransSetCb(pTrans, MQ_REB_TRANS_START_FUNC, MQ_REB_TRANS_STOP_FUNC, NULL, 0);
+  mndTransSetCb(pTrans, TRANS_START_FUNC_MQ_REB, TRANS_STOP_FUNC_TEST_MQ_REB, NULL, 0);
 
   // 6. execution
-  if (mndTransPrepare(pMnode, pTrans) != 0) goto REB_FAIL;
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
+    ASSERT(0);
+    goto REB_FAIL;
+  }
 
   mndTransDrop(pTrans);
   return 0;

@@ -382,6 +382,7 @@ class TDTestCase:
             tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt))
             tdLog.exit("tmq consume rows error!")
 
+        time.sleep(15)
         tdSql.query("drop topic %s"%topicName1)
 
         tdLog.printNoPrefix("======== test case 10 end ...... ")
@@ -453,6 +454,7 @@ class TDTestCase:
             tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt))
             tdLog.exit("tmq consume rows error!")
 
+        time.sleep(15)
         tdSql.query("drop topic %s"%topicName1)
 
         tdLog.printNoPrefix("======== test case 11 end ...... ")

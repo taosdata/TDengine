@@ -2498,7 +2498,7 @@ TEST(ScalarFunctionTest, tanFunction_column) {
   code = tanFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_NEAR(*((double *)colDataGetData(pOutput->columnData, i)), result[i], 1e-15);
     PRINTF("tiny_int after TAN:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(pInput);
@@ -2517,7 +2517,7 @@ TEST(ScalarFunctionTest, tanFunction_column) {
   code = tanFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_NEAR(*((double *)colDataGetData(pOutput->columnData, i)), result[i], 1e-15);
     PRINTF("float after TAN:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
