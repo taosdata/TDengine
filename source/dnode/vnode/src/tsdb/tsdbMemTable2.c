@@ -38,7 +38,6 @@ struct SMemData {
   tb_uid_t     uid;
   TSDBKEY      minKey;
   TSDBKEY      maxKey;
-  int64_t      nRows;
   SDelOp      *delOpHead;
   SDelOp      *delOpTail;
   SMemSkipList sl;
@@ -58,6 +57,9 @@ struct SMemTable {
 #define SL_NODE_FORWARD(n, l)  ((n)->forwards[l])
 #define SL_NODE_BACKWARD(n, l) ((n)->forwards[(n)->level + (l)])
 #define SL_NODE_DATA(n)        (&SL_NODE_BACKWARD(n, (n)->level))
+
+#define SL_HEAD_FORWARD(sl, l)  SL_NODE_FORWARD((sl)->pHead, l)
+#define SL_TAIL_BACKWARD(sl, l) SL_NODE_FORWARD((sl)->pTail, l)
 
 static int32_t tsdbGetOrCreateMemData(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t uid, SMemData **ppMemData);
 static int     memDataPCmprFn(const void *p1, const void *p2);
@@ -144,8 +146,6 @@ int32_t tsdbInsertTableData2(STsdb *pTsdb, int64_t version, SVSubmitBlk *pSubmit
 
     // put the node (todo)
 
-    pMemData->nRows++;
-
     // set info
     if (tsdbKeyCmprFn(&row, &pMemData->minKey) < 0) pMemData->minKey = *(TSDBKEY *)&row;
     if (tsdbKeyCmprFn(&row, &pMemData->maxKey) > 0) pMemData->maxKey = *(TSDBKEY *)&row;
@@ -217,6 +217,7 @@ static int32_t tsdbGetOrCreateMemData(SMemTable *pMemTable, tb_uid_t suid, tb_ui
   SMemData  *pMemDataT = &(SMemData){.suid = suid, .uid = uid};
   SMemData  *pMemData = NULL;
   SVBufPool *pPool = pMemTable->pTsdb->pVnode->inUse;
+  int8_t     maxLevel = pMemTable->pTsdb->pVnode->config.tsdbCfg.slLevel;
 
   // get
   idx = taosArraySearchIdx(pMemTable->pArray, &pMemDataT, memDataPCmprFn, TD_GE);
@@ -226,7 +227,7 @@ static int32_t tsdbGetOrCreateMemData(SMemTable *pMemTable, tb_uid_t suid, tb_ui
   }
 
   // create
-  pMemData = vnodeBufPoolMalloc(pPool, sizeof(*pMemData));
+  pMemData = vnodeBufPoolMalloc(pPool, sizeof(*pMemData) + SL_NODE_HALF_SIZE(maxLevel) * 2);
   if (pMemData == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
@@ -235,8 +236,18 @@ static int32_t tsdbGetOrCreateMemData(SMemTable *pMemTable, tb_uid_t suid, tb_ui
   pMemData->uid = uid;
   pMemData->minKey = (TSDBKEY){.version = INT64_MAX, .ts = TSKEY_MAX};
   pMemData->maxKey = (TSDBKEY){.version = -1, .ts = TSKEY_MIN};
-  pMemData->nRows = 0;
   pMemData->delOpHead = pMemData->delOpTail = NULL;
+  pMemData->sl.seed = taosRand();
+  pMemData->sl.size = 0;
+  pMemData->sl.maxLevel = maxLevel;
+  pMemData->sl.level = 0;
+  pMemData->sl.pHead = (SMemSkipListNode *)&pMemData[1];
+  pMemData->sl.pTail = (SMemSkipListNode *)POINTER_SHIFT(pMemData->sl.pHead, SL_NODE_HALF_SIZE(maxLevel));
+
+  for (int8_t iLevel = 0; iLevel < pMemData->sl.maxLevel; iLevel++) {
+    SL_HEAD_FORWARD(&pMemData->sl, iLevel) = pMemData->sl.pTail;
+    SL_TAIL_BACKWARD(&pMemData->sl, iLevel) = pMemData->sl.pHead;
+  }
 
   if (idx < 0) idx = 0;
   if (taosArrayInsert(pMemTable->pArray, idx, &pMemData) == NULL) {
