@@ -78,6 +78,7 @@ int32_t mndInitSubscribe(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_MQ_DO_REBALANCE, mndProcessRebalanceReq);
   mndSetMsgHandle(pMnode, TDMT_MND_MQ_DO_REBALANCE, mndProcessRebalanceReq);
   mndSetMsgHandle(pMnode, TDMT_MND_MQ_DROP_CGROUP, mndProcessDropCgroupReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_MQ_DROP_CGROUP_RSP, mndProcessSubscribeInternalRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_SUBSCRIPTIONS, mndRetrieveSubscribe);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_TOPICS, mndCancelGetNextSubscribe);
@@ -596,8 +597,8 @@ static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
 }
 
 static int32_t mndProcessDropCgroupReq(SRpcMsg *pReq) {
-  SMnode *pMnode = pReq->info.node;
-  /*SSdb          *pSdb = pMnode->pSdb;*/
+  SMnode         *pMnode = pReq->info.node;
+  SSdb           *pSdb = pMnode->pSdb;
   SMDropCgroupReq dropReq = {0};
 
   if (tDeserializeSMDropCgroupReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
@@ -617,15 +618,17 @@ static int32_t mndProcessDropCgroupReq(SRpcMsg *pReq) {
     }
   }
 
-  if (taosHashGetSize(pSub->consumerHash) == 0) {
+  if (taosHashGetSize(pSub->consumerHash) != 0) {
     terrno = TSDB_CODE_MND_CGROUP_USED;
     mError("cgroup:%s on topic:%s, failed to drop since %s", dropReq.cgroup, dropReq.topic, terrstr());
+    mndReleaseSubscribe(pMnode, pSub);
     return -1;
   }
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_DROP_CGROUP, pReq);
   if (pTrans == NULL) {
     mError("cgroup: %s on topic:%s, failed to drop since %s", dropReq.cgroup, dropReq.topic, terrstr());
+    mndReleaseSubscribe(pMnode, pSub);
     return -1;
   }
 
@@ -633,13 +636,17 @@ static int32_t mndProcessDropCgroupReq(SRpcMsg *pReq) {
 
   if (mndDropOffsetBySubKey(pMnode, pTrans, pSub->key) < 0) {
     ASSERT(0);
+    mndReleaseSubscribe(pMnode, pSub);
     return -1;
   }
 
   if (mndSetDropSubCommitLogs(pMnode, pTrans, pSub) < 0) {
     mError("cgroup %s on topic:%s, failed to drop since %s", dropReq.cgroup, dropReq.topic, terrstr());
+    mndReleaseSubscribe(pMnode, pSub);
     return -1;
   }
+
+  mndTransPrepare(pMnode, pTrans);
 
   mndReleaseSubscribe(pMnode, pSub);
 
