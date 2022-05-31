@@ -110,7 +110,7 @@ class TDTestCase:
             "select unique(NULL) from stb1 partition by tbname",
             "select unique('') from stb1 partition by tbname",
             "select unique(c%) from stb1 partition by tbname",
-            "select unique(t1) from stb1 partition by tbname",
+            #"select unique(t1) from stb1 partition by tbname",
             "select unique(True) from stb1 partition by tbname",
             "select unique(c1) , count(c1) from stb1 partition by tbname",
             "select unique(c1) , avg(c1) from stb1 partition by tbname",
