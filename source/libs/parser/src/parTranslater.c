@@ -4235,7 +4235,7 @@ static int32_t buildKVRowForBindTags(STranslateContext* pCxt, SCreateSubTableCla
     }
   }
 
-  code = tTagNew(pTagArray, 1, false, ppTag);
+  code = tTagNew(pTagArray, 1, isJson, ppTag);
 
 end:
   if(isJson){
@@ -4302,7 +4302,7 @@ static int32_t buildKVRowForAllTags(STranslateContext* pCxt, SCreateSubTableClau
     }
     ++index;
   }
-  code = tTagNew(pTagArray, 1, false, ppTag);
+  code = tTagNew(pTagArray, 1, isJson, ppTag);
 
 end:
   if(isJson){
@@ -4584,7 +4584,7 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
       if (TSDB_CODE_SUCCESS != code) {
         break;
       }
-      code = tTagNew(pTagVals, 1, false, &pTag);
+      code = tTagNew(pTagVals, 1, true, &pTag);
     }while(0);
     for (int i = 0; i < taosArrayGetSize(pTagVals); ++i) {
       STagVal *p = (STagVal *)taosArrayGet(pTagVals, i);

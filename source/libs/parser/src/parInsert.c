@@ -958,6 +958,7 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
   SArray *pTagVals = taosArrayInit(pCxt->tags.numOfBound, sizeof(STagVal));
   SToken   sToken;
   bool     isParseBindParam = false;
+  bool isJson = false;
   for (int i = 0; i < pCxt->tags.numOfBound; ++i) {
     NEXT_TOKEN_WITH_PREV(pCxt->pSql, sToken);
 
@@ -994,6 +995,7 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
       if(code != TSDB_CODE_SUCCESS){
         goto end;
       }
+      isJson = true;
     }else{
       STagVal val = {0};
       code = parseTagToken(&pCxt->pSql, &sToken, pTagSchema, precision, tmpTokenBuf, &val, &pCxt->msg);
@@ -1014,7 +1016,7 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
   }
 
   STag* pTag = NULL;
-  code = tTagNew(pTagVals, 1, false, &pTag);
+  code = tTagNew(pTagVals, 1, isJson, &pTag);
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }
@@ -1404,7 +1406,6 @@ int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery) {
       .pSubTableHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_NO_LOCK),
       .pTableNameHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_NO_LOCK),
       .totalNum = 0,
-      .pTagVals = NULL,
       .pOutput = (SVnodeModifOpStmt*)nodesMakeNode(QUERY_NODE_VNODE_MODIF_STMT),
       .pStmtCb = pContext->pStmtCb};
 
@@ -1526,6 +1527,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, char* tN
   int32_t code = TSDB_CODE_SUCCESS;
   SSchema* pSchema = pDataBlock->pTableMeta->schema;
 
+  bool isJson = false;
   for (int c = 0; c < tags->numOfBound; ++c) {
     if (bind[c].is_null && bind[c].is_null[0]) {
       continue;
@@ -1537,42 +1539,56 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, char* tN
     if (IS_VAR_DATA_TYPE(pTagSchema->type)) {
       colLen = bind[c].length[0];
     }
-
-    STagVal val = {0};
-    if(pTagSchema->type == TSDB_DATA_TYPE_BINARY){
-      val.pData = (uint8_t*)bind[c].buffer;
-      val.nData = colLen;
-    }else if(pTagSchema->type == TSDB_DATA_TYPE_NCHAR){
-      int32_t output = 0;
-      void *p = taosMemoryCalloc(1, colLen * TSDB_NCHAR_SIZE);
-      if(p == NULL){
-        code = TSDB_CODE_OUT_OF_MEMORY;
+    if (pTagSchema->type == TSDB_DATA_TYPE_JSON) {
+      if (colLen > (TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
+        code = buildSyntaxErrMsg(&pBuf, "json string too long than 4095", bind[c].buffer);
         goto end;
       }
-      if (!taosMbsToUcs4(bind[c].buffer, colLen, (TdUcs4*)(p), pSchema->bytes - VARSTR_HEADER_SIZE, &output)) {
-        if (errno == E2BIG) {
-          taosMemoryFree(p);
-          code = generateSyntaxErrMsg(&pBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
+
+      isJson = true;
+      char *tmp = taosMemoryCalloc(1, colLen + 1);
+      memcpy(tmp, bind[c].buffer, colLen);
+      code = parseJsontoTagData(tmp, pTagArray, &pBuf);
+      taosMemoryFree(tmp);
+      if(code != TSDB_CODE_SUCCESS){
+        goto end;
+      }
+    }else{
+      STagVal val = {0};
+      if(pTagSchema->type == TSDB_DATA_TYPE_BINARY){
+        val.pData = (uint8_t*)bind[c].buffer;
+        val.nData = colLen;
+      }else if(pTagSchema->type == TSDB_DATA_TYPE_NCHAR){
+        int32_t output = 0;
+        void *p = taosMemoryCalloc(1, colLen * TSDB_NCHAR_SIZE);
+        if(p == NULL){
+          code = TSDB_CODE_OUT_OF_MEMORY;
           goto end;
         }
-        char buf[512] = {0};
-        snprintf(buf, tListLen(buf), " taosMbsToUcs4 error:%s", strerror(errno));
-        taosMemoryFree(p);
-        code = buildSyntaxErrMsg(&pBuf, buf, bind[c].buffer);
-        goto end;
+        if (!taosMbsToUcs4(bind[c].buffer, colLen, (TdUcs4*)(p), pSchema->bytes - VARSTR_HEADER_SIZE, &output)) {
+          if (errno == E2BIG) {
+            taosMemoryFree(p);
+            code = generateSyntaxErrMsg(&pBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
+            goto end;
+          }
+          char buf[512] = {0};
+          snprintf(buf, tListLen(buf), " taosMbsToUcs4 error:%s", strerror(errno));
+          taosMemoryFree(p);
+          code = buildSyntaxErrMsg(&pBuf, buf, bind[c].buffer);
+          goto end;
+        }
+        val.pData = p;
+        val.nData = output;
+      }else{
+        memcpy(&val.i64, bind[c].buffer, colLen);
       }
-      val.pData = p;
-      val.nData = output;
-    }else{
-      memcpy(&val.i64, bind[c].buffer, colLen);
+      taosArrayPush(pTagArray, &val);
     }
-    taosArrayPush(pTagArray, &val);
   }
 
   STag* pTag = NULL;
 
-  // TODO: stmt support json
-  if (0 != tTagNew(pTagArray, 1, false, &pTag)) {
+  if (0 != tTagNew(pTagArray, 1, isJson, &pTag)) {
     code = buildInvalidOperationMsg(&pBuf, "out of memory");
     goto end;
   }

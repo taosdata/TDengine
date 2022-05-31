@@ -951,7 +951,7 @@ void vectorJsonArrow(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pO
     char *data = tTagValToData(value, true);
     colDataAppend(pOutputCol, i, data, data == NULL);
     if(value && IS_VAR_DATA_TYPE(value->type) && data){
-      taosMemoryFree(data)
+      taosMemoryFree(data);
     }
   }
 }
