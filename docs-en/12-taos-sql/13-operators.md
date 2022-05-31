@@ -63,4 +63,4 @@ TDengine provides 2 set operators: `UNION ALL` and `UNION`. `UNION ALL` combines
 | 1   |     AND      | BOOL           | Logical AND, return TRUE if both conditions are TRUE; return FALSE if any one is FALSE. |
 | 2   |      OR      | BOOL           | Logical OR, return TRUE if any condition is TRUE; return FALSE if both are FALSE        |
 
-TDengine employs shortcircut optimization when performing logical operations. For AND operator, if the first condition is evaluated to FALSE, then the second one is not evaluated. For OR operator, if the first condition is evaluated to TRUE, then the second one is not evaluated.
+TDengine uses shortcircut optimization when performing logical operations. For AND operator, if the first condition is evaluated to FALSE, then the second one is not evaluated. For OR operator, if the first condition is evaluated to TRUE, then the second one is not evaluated.
