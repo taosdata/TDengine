@@ -129,7 +129,7 @@ typedef enum {
 
 typedef enum {
   TRN_EXEC_PARALLEL = 0,
-  TRN_EXEC_ONE_BY_ONE = 1,
+  TRN_EXEC_NO_PARALLEL = 1,
 } ETrnExecType;
 
 typedef enum {
