@@ -462,7 +462,10 @@ int indexFlushCacheToTFile(SIndex* sIdx, void* cache) {
 
   int64_t st = taosGetTimestampUs();
 
-  IndexCache*  pCache = (IndexCache*)cache;
+  IndexCache* pCache = (IndexCache*)cache;
+
+  while (sIdx->quit && atomic_load_32(&pCache->merging) == 1) {
+  }
   TFileReader* pReader = tfileGetReaderByCol(sIdx->tindex, pCache->suid, pCache->colName);
   if (pReader == NULL) {
     indexWarn("empty tfile reader found");
@@ -475,9 +478,9 @@ int indexFlushCacheToTFile(SIndex* sIdx, void* cache) {
     tfileReaderUnRef(pReader);
     if (sIdx->quit) {
       indexPost(sIdx);
-      // indexCacheBroadcast(pCache);
     }
     indexReleaseRef(sIdx->refId);
+    atomic_store_32(&pCache->merging, 0);
     return 0;
   }
 
@@ -539,6 +542,7 @@ int indexFlushCacheToTFile(SIndex* sIdx, void* cache) {
   if (sIdx->quit) {
     indexPost(sIdx);
   }
+  atomic_store_32(&pCache->merging, 0);
   indexReleaseRef(sIdx->refId);
 
   return ret;
@@ -605,6 +609,7 @@ static int indexGenTFile(SIndex* sIdx, IndexCache* cache, SArray* batch) {
   taosThreadMutexLock(&tf->mtx);
   tfileCachePut(tf->cache, &key, reader);
   taosThreadMutexUnlock(&tf->mtx);
+
   return ret;
 END:
   if (tw != NULL) {
