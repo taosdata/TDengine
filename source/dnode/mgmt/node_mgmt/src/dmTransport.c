@@ -130,7 +130,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
 
 _OVER:
   if (code != 0) {
-    dError("msg:%p, failed to process since %s", pMsg, terrstr());
+    dError("msg:%s, failed to process since %s", TMSG_INFO(pRpc->msgType), terrstr());
     if (terrno != 0) code = terrno;
 
     if (IsReq(pRpc)) {

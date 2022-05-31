@@ -22,6 +22,8 @@
 #include "tglobal.h"
 #include "tqueue.h"
 
+extern SDataSinkStat gDataSinkStat;
+
 typedef struct SDataDispatchBuf {
   int32_t useSize;
   int32_t allocSize;
@@ -45,6 +47,7 @@ typedef struct SDataDispatchHandle {
   int32_t             status;
   bool                queryEnd;
   uint64_t            useconds;
+  uint64_t            cachedSize;
   TdThreadMutex       mutex;
 } SDataDispatchHandle;
 
@@ -71,7 +74,7 @@ static bool needCompress(const SSDataBlock* pData, int32_t numOfCols) {
 // +----------------+--------------+----------+--------------------------------------+-------------+-----------+-------------+-----------+
 // The length of bitmap is decided by number of rows of this data block, and the length of each column data is
 // recorded in the first segment, next to the struct header
-static void toDataCacheEntry(const SDataDispatchHandle* pHandle, const SInputData* pInput, SDataDispatchBuf* pBuf) {
+static void toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* pInput, SDataDispatchBuf* pBuf) {
   int32_t numOfCols = LIST_LENGTH(pHandle->pSchema->pSlots);
 
   SDataCacheEntry* pEntry = (SDataCacheEntry*)pBuf->pData;
@@ -84,6 +87,9 @@ static void toDataCacheEntry(const SDataDispatchHandle* pHandle, const SInputDat
   blockCompressEncode(pInput->pData, pEntry->data, &pEntry->dataLen, numOfCols, pEntry->compressed);
 
   pBuf->useSize += pEntry->dataLen;
+  
+  atomic_add_fetch_64(&pHandle->cachedSize, pEntry->dataLen); 
+  atomic_add_fetch_64(&gDataSinkStat.cachedSize, pEntry->dataLen); 
 }
 
 static bool allocBuf(SDataDispatchHandle* pDispatcher, const SInputData* pInput, SDataDispatchBuf* pBuf) {
@@ -156,6 +162,7 @@ static void getDataLength(SDataSinkHandle* pHandle, int32_t* pLen, bool* pQueryE
   taosFreeQitem(pBuf);
   *pLen = ((SDataCacheEntry*)(pDispatcher->nextOutput.pData))->dataLen;
   *pQueryEnd = pDispatcher->queryEnd;
+  qDebug("got data len %d, row num %d in sink", *pLen, ((SDataCacheEntry*)(pDispatcher->nextOutput.pData))->numOfRows);
 }
 
 static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
@@ -173,6 +180,10 @@ static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
   pOutput->numOfRows = pEntry->numOfRows;
   pOutput->numOfCols = pEntry->numOfCols;
   pOutput->compressed = pEntry->compressed;
+
+  atomic_sub_fetch_64(&pDispatcher->cachedSize, pEntry->dataLen);  
+  atomic_sub_fetch_64(&gDataSinkStat.cachedSize, pEntry->dataLen); 
+
   taosMemoryFreeClear(pDispatcher->nextOutput.pData);  // todo persistent
   pOutput->bufStatus = updateStatus(pDispatcher);
   taosThreadMutexLock(&pDispatcher->mutex);
@@ -180,11 +191,14 @@ static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
   pOutput->useconds = pDispatcher->useconds;
   pOutput->precision = pDispatcher->pSchema->precision;
   taosThreadMutexUnlock(&pDispatcher->mutex);
+
+  
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
+  atomic_sub_fetch_64(&gDataSinkStat.cachedSize, pDispatcher->cachedSize);
   taosMemoryFreeClear(pDispatcher->nextOutput.pData);
   while (!taosQueueEmpty(pDispatcher->pDataBlocks)) {
     SDataDispatchBuf* pBuf = NULL;
@@ -194,6 +208,13 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   }
   taosCloseQueue(pDispatcher->pDataBlocks);
   taosThreadMutexDestroy(&pDispatcher->mutex);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t getCacheSize(struct SDataSinkHandle* pHandle, uint64_t* size) {
+  SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
+
+  *size = atomic_load_64(&pDispatcher->cachedSize);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -208,6 +229,7 @@ int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pD
   dispatcher->sink.fGetLen = getDataLength;
   dispatcher->sink.fGetData = getDataBlock;
   dispatcher->sink.fDestroy = destroyDataSinker;
+  dispatcher->sink.fGetCacheSize = getCacheSize;
   dispatcher->pManager = pManager;
   dispatcher->pSchema = pDataSink->pInputDataBlockDesc;
   dispatcher->status = DS_BUF_EMPTY;

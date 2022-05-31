@@ -170,3 +170,17 @@ void dmGetMnodeLoads(SMonMloadInfo *pInfo) {
     dmReleaseWrapper(pWrapper);
   }
 }
+
+void dmGetQnodeLoads(SQnodeLoad *pInfo) {
+  SDnode       *pDnode = dmInstance();
+  SMgmtWrapper *pWrapper = &pDnode->wrappers[QNODE];
+  if (dmMarkWrapper(pWrapper) == 0) {
+    if (tsMultiProcess) {
+      dmSendLocalRecv(pDnode, TDMT_MON_QM_LOAD, tDeserializeSQnodeLoad, pInfo);
+    } else if (pWrapper->pMgmt != NULL) {
+      qmGetQnodeLoads(pWrapper->pMgmt, pInfo);
+    }
+    dmReleaseWrapper(pWrapper);
+  }
+}
+

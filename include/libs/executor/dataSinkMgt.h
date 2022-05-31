@@ -32,6 +32,10 @@ extern "C" {
 struct SDataSink;
 struct SSDataBlock;
 
+typedef struct SDataSinkStat {
+  uint64_t cachedSize;
+} SDataSinkStat;
+
 typedef struct SDataSinkMgtCfg {
   uint32_t maxDataBlockNum;           // todo: this should be numOfRows?
   uint32_t maxDataBlockNumPerQuery;
@@ -62,6 +66,8 @@ typedef struct SOutputData {
  */
 int32_t dsCreateDataSinker(const SDataSinkNode* pDataSink, DataSinkHandle* pHandle);
 
+int32_t dsDataSinkGetCacheSize(SDataSinkStat *pStat);
+
 /**
  * Put the result set returned by the executor into datasinker.
  * @param handle
@@ -87,6 +93,8 @@ void dsGetDataLength(DataSinkHandle handle, int32_t* pLen, bool* pQueryEnd);
  * @return error code
  */
 int32_t dsGetDataBlock(DataSinkHandle handle, SOutputData* pOutput);
+
+int32_t dsGetCacheSize(DataSinkHandle handle, uint64_t *pSize);
 
 /**
  * After dsGetStatus returns DS_NEED_SCHEDULE, the caller need to put this into the work queue.

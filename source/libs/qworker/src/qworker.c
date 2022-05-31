@@ -1,4 +1,3 @@
-#include "qworker.h"
 #include "dataSinkMgt.h"
 #include "executor.h"
 #include "planner.h"
@@ -8,6 +7,7 @@
 #include "tcommon.h"
 #include "tmsg.h"
 #include "tname.h"
+#include "qworker.h"
 
 SQWorkerMgmt gQwMgmt = {
     .lock = 0,
@@ -950,8 +950,29 @@ void qWorkerDestroy(void **qWorkerMgmt) {
   }
 }
 
-int64_t qWorkerGetWaitTimeInQueue(void *qWorkerMgmt, EQueueType type) {
-  return qwGetWaitTimeInQueue((SQWorker *)qWorkerMgmt, type);
+int32_t qWorkerGetStat(SReadHandle *handle, void *qWorkerMgmt, SQWorkerStat *pStat) {
+  if (NULL == handle || NULL == qWorkerMgmt || NULL == pStat) {
+    QW_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+
+  SQWorker *mgmt = (SQWorker *)qWorkerMgmt;
+  SDataSinkStat sinkStat = {0};
+  
+  dsDataSinkGetCacheSize(&sinkStat);
+  pStat->cacheDataSize = sinkStat.cachedSize;
+  
+  pStat->queryProcessed = QW_STAT_GET(mgmt->stat.msgStat.queryProcessed);
+  pStat->cqueryProcessed = QW_STAT_GET(mgmt->stat.msgStat.cqueryProcessed);
+  pStat->fetchProcessed = QW_STAT_GET(mgmt->stat.msgStat.fetchProcessed);
+  pStat->dropProcessed = QW_STAT_GET(mgmt->stat.msgStat.dropProcessed);
+  pStat->hbProcessed = QW_STAT_GET(mgmt->stat.msgStat.hbProcessed);
+
+  pStat->numOfQueryInQueue = handle->pMsgCb->qsizeFp(handle->pMsgCb->mgmt, mgmt->nodeId, QUERY_QUEUE);
+  pStat->numOfFetchInQueue = handle->pMsgCb->qsizeFp(handle->pMsgCb->mgmt, mgmt->nodeId, FETCH_QUEUE);
+  pStat->timeInQueryQueue = qwGetTimeInQueue((SQWorker *)qWorkerMgmt, QUERY_QUEUE);
+  pStat->timeInFetchQueue = qwGetTimeInQueue((SQWorker *)qWorkerMgmt, FETCH_QUEUE);
+
+  return TSDB_CODE_SUCCESS;
 }
 
 

@@ -41,12 +41,24 @@ void qndClose(SQnode *pQnode) {
 }
 
 int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad) { 
-  SMsgCb* pCb = &pQnode->msgCb;
+  SReadHandle handle = {.pMsgCb = &pQnode->msgCb};
+  SQWorkerStat stat = {0};
 
-  pLoad->numOfQueryInQueue = pCb->qsizeFp(pCb->mgmt, pQnode->qndId, QUERY_QUEUE);
-  pLoad->numOfFetchInQueue = pCb->qsizeFp(pCb->mgmt, pQnode->qndId, FETCH_QUEUE);
-  pLoad->waitTimeInQueryQUeue = qWorkerGetWaitTimeInQueue(pQnode->pQuery, QUERY_QUEUE);
-  pLoad->waitTimeInFetchQUeue = qWorkerGetWaitTimeInQueue(pQnode->pQuery, FETCH_QUEUE);
+  int32_t code = qWorkerGetStat(&handle, pQnode->pQuery, &stat);
+  if (code) {
+    return code;
+  }
+
+  pLoad->numOfQueryInQueue = stat.numOfQueryInQueue;
+  pLoad->numOfFetchInQueue = stat.numOfFetchInQueue;
+  pLoad->timeInQueryQueue = stat.timeInQueryQueue;
+  pLoad->timeInFetchQueue = stat.timeInFetchQueue;
+  pLoad->cacheDataSize = stat.cacheDataSize;
+  pLoad->numOfProcessedQuery = stat.queryProcessed;
+  pLoad->numOfProcessedCQuery = stat.cqueryProcessed;
+  pLoad->numOfProcessedFetch = stat.fetchProcessed;
+  pLoad->numOfProcessedDrop = stat.dropProcessed;
+  pLoad->numOfProcessedHb = stat.hbProcessed;
   
   return 0; 
 }

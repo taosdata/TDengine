@@ -117,7 +117,8 @@ TAOS* taos_connect_internal(const char* ip, const char* user, const char* pass, 
   SAppInstInfo* p = NULL;
   if (pInst == NULL) {
     p = taosMemoryCalloc(1, sizeof(struct SAppInstInfo));
-    p->mgmtEp = epSet;
+    p->mgmtEp = epSet;    
+    taosThreadMutexInit(&p->qnodeMutex, NULL);
     p->pTransporter = openTransporter(user, secretEncrypt, tsNumOfCores);
     p->pAppHbMgr = appHbMgrInit(p, key);
     taosHashPut(appInfo.pInstMap, key, strlen(key), &p, POINTER_BYTES);
@@ -228,7 +229,61 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray* pNodeList) {
+int compareQueryNodeLoad(const void* elem1, const void* elem2) {
+  SQueryNodeLoad *node1 = (SQueryNodeLoad *)elem1;
+  SQueryNodeLoad *node2 = (SQueryNodeLoad *)elem2;
+
+  if (node1->load < node2->load) {
+    return -1;
+  }
+  
+  return node1->load > node2->load;
+}
+
+int32_t updateQnodeList(SAppInstInfo*pInfo, SArray* pNodeList) {
+  taosThreadMutexLock(&pInfo->qnodeMutex);
+  if (pInfo->pQnodeList) {
+    taosArrayDestroy(pInfo->pQnodeList);
+    pInfo->pQnodeList = NULL;
+  }
+  
+  if (pNodeList) {
+    pInfo->pQnodeList = taosArrayDup(pNodeList);
+    taosArraySort(pInfo->pQnodeList, compareQueryNodeLoad);
+  }
+  taosThreadMutexUnlock(&pInfo->qnodeMutex);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t getQnodeList(SRequestObj* pRequest, SArray** pNodeList) {
+  SAppInstInfo*pInfo = pRequest->pTscObj->pAppInfo;
+  int32_t code = 0;
+  
+  taosThreadMutexLock(&pInfo->qnodeMutex);
+  if (pInfo->pQnodeList) {
+    *pNodeList = taosArrayDup(pInfo->pQnodeList);
+  }
+  taosThreadMutexUnlock(&pInfo->qnodeMutex);
+
+  if (NULL == *pNodeList) {
+    SEpSet       mgmtEpSet = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp);
+    SCatalog*    pCatalog = NULL;
+    code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
+    if (TSDB_CODE_SUCCESS == code) {
+      *pNodeList = taosArrayInit(5, sizeof(SQueryNodeLoad));
+      code = catalogGetQnodeList(pCatalog, pRequest->pTscObj->pAppInfo->pTransporter, &mgmtEpSet, *pNodeList);
+    }
+    
+    if (TSDB_CODE_SUCCESS == code && *pNodeList) {
+      code = updateQnodeList(pInfo, *pNodeList);
+    }
+  }
+
+  return code;
+}
+
+int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray** pNodeList) {
   pRequest->type = pQuery->msgType;
   SPlanContext cxt = {.queryId = pRequest->requestId,
                       .acctId = pRequest->pTscObj->acctId,
@@ -237,14 +292,10 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
                       .showRewrite = pQuery->showRewrite,
                       .pMsg = pRequest->msgBuf,
                       .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE};
-  SEpSet       mgmtEpSet = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp);
-  SCatalog*    pCatalog = NULL;
-  int32_t      code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
+
+  int32_t code = getQnodeList(pRequest, pNodeList);
   if (TSDB_CODE_SUCCESS == code) {
-    code = catalogGetQnodeList(pCatalog, pRequest->pTscObj->pAppInfo->pTransporter, &mgmtEpSet, pNodeList);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = qCreateQueryPlan(&cxt, pPlan, pNodeList);
+    code = qCreateQueryPlan(&cxt, pPlan, *pNodeList);
   }
   return code;
 }
@@ -369,8 +420,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
 }
 
 int32_t getQueryPlan(SRequestObj* pRequest, SQuery* pQuery, SArray** pNodeList) {
-  *pNodeList = taosArrayInit(4, sizeof(struct SQueryNodeAddr));
-  return getPlan(pRequest, pQuery, &pRequest->body.pDag, *pNodeList);
+  return getPlan(pRequest, pQuery, &pRequest->body.pDag, pNodeList);
 }
 
 int32_t validateSversion(SRequestObj* pRequest, void* res) {
@@ -456,8 +506,8 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, int32_t code
         code = execDdlQuery(pRequest, pQuery);
         break;
       case QUERY_EXEC_MODE_SCHEDULE: {
-        SArray* pNodeList = taosArrayInit(4, sizeof(struct SQueryNodeAddr));
-        code = getPlan(pRequest, pQuery, &pRequest->body.pDag, pNodeList);
+        SArray* pNodeList = NULL;
+        code = getPlan(pRequest, pQuery, &pRequest->body.pDag, &pNodeList);
         if (TSDB_CODE_SUCCESS == code) {
           code = scheduleQuery(pRequest, pRequest->body.pDag, pNodeList, &pRes);
           if (NULL != pRes) {

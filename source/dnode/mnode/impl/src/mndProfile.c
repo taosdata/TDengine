@@ -18,6 +18,7 @@
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
+#include "mndQnode.h"
 #include "mndShow.h"
 #include "mndStb.h"
 #include "mndUser.h"
@@ -382,6 +383,9 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
     rspBasic->totalDnodes = mndGetDnodeSize(pMnode);
     rspBasic->onlineDnodes = 1;  // TODO
     mndGetMnodeEpSet(pMnode, &rspBasic->epSet);
+
+    mndCreateQnodeList(pMnode, &rspBasic->pQnodeList, -1);
+    
     mndReleaseConn(pMnode, pConn);
 
     hbRsp.query = rspBasic;
