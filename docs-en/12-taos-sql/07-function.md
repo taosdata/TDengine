@@ -1537,37 +1537,6 @@ SELECT SUBSTR(str,pos[,len]) FROM { tb_name | stb_name } [WHERE clause]
 - Parameter `pos` can be an positive or negative integer; If it's positive, the starting position will be counted from the beginning of the string; if it's negative, the starting position will be counted from the end of the string.
 - If `len` is not specified, it means from `pos` to the end.
 
-### Arithmetic Operations
-
-```
-SELECT field_name [+|-|*|/|%][Value|field_name] FROM { tb_name | stb_name }  [WHERE clause];
-```
-
-**Description**: The sum, difference, product, quotient, or remainder between one or more columns
-
-**Return value type**: Double precision floating point
-
-**Applicable column types**: Data types except for timestamp, binary, nchar, bool
-
-**Applicable table types**: table, STable
-
-**More explanations**:
-
-- Arithmetic operations can be performed on two or more columns, Parentheses `()` can be used to control the order of precedence.
-- NULL doesn't participate in the operation i.e. if one of the operands is NULL then result is NULL.
-
-**Examples**:
-
-```
-taos> SELECT current + voltage * phase FROM d1001;
-(current+(voltage*phase)) |
-============================
-            78.190000713 |
-            84.540003240 |
-            80.810000718 |
-Query OK, 3 row(s) in set (0.001046s)
-```
-
 ### STATECOUNT
 
 ```
