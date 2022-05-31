@@ -40,6 +40,8 @@ add_executable(syncApplyMsgTest "")
 add_executable(syncConfigChangeTest "")
 add_executable(syncSnapshotSendTest "")
 add_executable(syncSnapshotRspTest "")
+add_executable(syncSnapshotSenderTest "")
+add_executable(syncSnapshotReceiverTest "")
 
 
 target_sources(syncTest
@@ -209,6 +211,14 @@ target_sources(syncSnapshotSendTest
 target_sources(syncSnapshotRspTest
     PRIVATE
     "syncSnapshotRspTest.cpp"
+)
+target_sources(syncSnapshotSenderTest
+    PRIVATE
+    "syncSnapshotSenderTest.cpp"
+)
+target_sources(syncSnapshotReceiverTest
+    PRIVATE
+    "syncSnapshotReceiverTest.cpp"
 )
 
 
@@ -422,6 +432,16 @@ target_include_directories(syncSnapshotRspTest
     "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
+target_include_directories(syncSnapshotSenderTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncSnapshotReceiverTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
 
 
 target_link_libraries(syncTest
@@ -589,6 +609,14 @@ target_link_libraries(syncSnapshotSendTest
     gtest_main
 )
 target_link_libraries(syncSnapshotRspTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncSnapshotSenderTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncSnapshotReceiverTest
     sync
     gtest_main
 )

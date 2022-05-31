@@ -175,9 +175,9 @@ cJSON *snapshotSender2Json(SSyncSnapshotSender *pSender) {
 
     cJSON *pSnapshot = cJSON_CreateObject();
     snprintf(u64buf, sizeof(u64buf), "%lu", pSender->snapshot.lastApplyIndex);
-    cJSON_AddStringToObject(pRoot, "lastApplyIndex", u64buf);
+    cJSON_AddStringToObject(pSnapshot, "lastApplyIndex", u64buf);
     snprintf(u64buf, sizeof(u64buf), "%lu", pSender->snapshot.lastApplyTerm);
-    cJSON_AddStringToObject(pRoot, "lastApplyTerm", u64buf);
+    cJSON_AddStringToObject(pSnapshot, "lastApplyTerm", u64buf);
     cJSON_AddItemToObject(pRoot, "snapshot", pSnapshot);
 
     snprintf(u64buf, sizeof(u64buf), "%lu", pSender->sendingMS);
