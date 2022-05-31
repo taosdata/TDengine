@@ -218,6 +218,8 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   createReq.hashMethod = pDb->cfg.hashMethod;
   createReq.numOfRetensions = pDb->cfg.numOfRetensions;
   createReq.pRetensions = pDb->cfg.pRetensions;
+  createReq.isTsma = pVgroup->isTsma;
+  createReq.pTsma = pVgroup->pTsma;
 
   for (int32_t v = 0; v < pVgroup->replica; ++v) {
     SReplica  *pReplica = &createReq.replicas[v];

@@ -2921,6 +2921,11 @@ int32_t tSerializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *pR
   }
 
   if (tEncodeI8(&encoder, pReq->isTsma) < 0) return -1;
+  if (pReq->isTsma) {
+    uint32_t tsmaLen = (uint32_t)(htonl(((SMsgHead *)pReq->pTsma)->contLen));
+    if (tEncodeBinary(&encoder, (const uint8_t *)pReq->pTsma, tsmaLen) < 0) return -1;
+  }
+
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -2984,6 +2989,9 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
   }
 
   if (tDecodeI8(&decoder, &pReq->isTsma) < 0) return -1;
+  if (pReq->isTsma) {
+    if (tDecodeBinaryAlloc(&decoder, &pReq->pTsma, NULL) < 0) return -1;
+  }
 
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
@@ -2993,6 +3001,9 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
 int32_t tFreeSCreateVnodeReq(SCreateVnodeReq *pReq) {
   taosArrayDestroy(pReq->pRetensions);
   pReq->pRetensions = NULL;
+  if(pReq->isTsma) {
+    taosMemoryFreeClear(pReq->pTsma);
+  }
   return 0;
 }
 

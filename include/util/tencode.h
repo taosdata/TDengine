@@ -179,23 +179,23 @@ static int32_t tDecodeCStrTo(SDecoder* pCoder, char* val);
   TD_CODER_MOVE_POS(CODER, sizeof(*(PVAL)));                             \
   return 0;
 
-#define TD_DECODE_VARIANT_MACRO(CODER, PVAL, TYPE)           \
-  int32_t i = 0;                                             \
-  *(PVAL) = 0;                                               \
-  for (;;) {                                                 \
-    if (TD_CODER_CHECK_CAPACITY_FAILED(CODER, 1)) return -1; \
-    TYPE tval = TD_CODER_CURRENT(CODER)[0];                  \
-    if (tval < ENCODE_LIMIT) {                               \
-      *(PVAL) |= (tval << (7 * i));                          \
-      TD_CODER_MOVE_POS(pCoder, 1);                          \
-      break;                                                 \
-    } else {                                                 \
-      *(PVAL) |= (((tval) & (ENCODE_LIMIT - 1)) << (7 * i)); \
-      i++;                                                   \
-      TD_CODER_MOVE_POS(pCoder, 1);                          \
-    }                                                        \
-  }                                                          \
-                                                             \
+#define TD_DECODE_VARIANT_MACRO(CODER, PVAL, TYPE)                     \
+  int32_t i = 0;                                                       \
+  if (PVAL) *(PVAL) = 0;                                               \
+  for (;;) {                                                           \
+    if (TD_CODER_CHECK_CAPACITY_FAILED(CODER, 1)) return -1;           \
+    TYPE tval = TD_CODER_CURRENT(CODER)[0];                            \
+    if (tval < ENCODE_LIMIT) {                                         \
+      if (PVAL) *(PVAL) |= (tval << (7 * i));                          \
+      TD_CODER_MOVE_POS(pCoder, 1);                                    \
+      break;                                                           \
+    } else {                                                           \
+      if (PVAL) *(PVAL) |= (((tval) & (ENCODE_LIMIT - 1)) << (7 * i)); \
+      i++;                                                             \
+      TD_CODER_MOVE_POS(pCoder, 1);                                    \
+    }                                                                  \
+  }                                                                    \
+                                                                       \
   return 0;
 
 // 8
@@ -378,14 +378,16 @@ static FORCE_INLINE int32_t tDecodeDouble(SDecoder* pCoder, double* val) {
 }
 
 static FORCE_INLINE int32_t tDecodeBinary(SDecoder* pCoder, uint8_t** val, uint32_t* len) {
-  if (tDecodeU32v(pCoder, len) < 0) return -1;
+  uint32_t length = 0;
+  if (tDecodeU32v(pCoder, &length) < 0) return -1;
+  if (len) *len = length;
 
-  if (TD_CODER_CHECK_CAPACITY_FAILED(pCoder, *len)) return -1;
+  if (TD_CODER_CHECK_CAPACITY_FAILED(pCoder, length)) return -1;
   if (val) {
     *val = (uint8_t*)TD_CODER_CURRENT(pCoder);
   }
 
-  TD_CODER_MOVE_POS(pCoder, *len);
+  TD_CODER_MOVE_POS(pCoder, length);
   return 0;
 }
 
@@ -410,14 +412,16 @@ static int32_t tDecodeCStrTo(SDecoder* pCoder, char* val) {
 }
 
 static FORCE_INLINE int32_t tDecodeBinaryAlloc(SDecoder* pCoder, void** val, uint64_t* len) {
-  if (tDecodeU64v(pCoder, len) < 0) return -1;
+  uint64_t length = 0;
+  if (tDecodeU64v(pCoder, &length) < 0) return -1;
+  if (len) *len = length;
 
-  if (TD_CODER_CHECK_CAPACITY_FAILED(pCoder, *len)) return -1;
-  *val = taosMemoryMalloc(*len);
+  if (TD_CODER_CHECK_CAPACITY_FAILED(pCoder, length)) return -1;
+  *val = taosMemoryMalloc(length);
   if (*val == NULL) return -1;
-  memcpy(*val, TD_CODER_CURRENT(pCoder), *len);
+  memcpy(*val, TD_CODER_CURRENT(pCoder), length);
 
-  TD_CODER_MOVE_POS(pCoder, *len);
+  TD_CODER_MOVE_POS(pCoder, length);
   return 0;
 }
 
