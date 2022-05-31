@@ -16,6 +16,7 @@ from taostest.util.common import TDCom
 from taostest.util.remote import Remote
 import time
 import sys
+import random
 
 class TestVgroups(TDCase):
     def init(self):
@@ -58,6 +59,10 @@ class TestVgroups(TDCase):
         self.tdSql.execute('create table tandem_ct1 using tandem_stb1 tags(1);')
         self.tdSql.execute('create table if not exists tandem_stb2 (ts timestamp, c1 int, c2 double, c3 binary(20), c4 binary(20), c5 nchar(20)) tags (t1 int);')
         self.tdSql.execute('create table tandem_ct2 using tandem_stb2 tags(1);')
+
+        self.tdSql.execute('create table if not exists disorder_data_stb (ts timestamp, c1 int, c2 double, c3 varchar(100), c4 bool) tags (t1 int, t2 double, t3 varchar(100), t4 bool);')
+        self.tdSql.execute('create table disorder_data_ct1 using disorder_data_stb tags(10, 10.1, "Beijing", True);')
+        self.tdSql.execute('create table if not exists disorder_data_tb (ts timestamp, c1 int, c2 double, c3 varchar(100), c4 bool);')
 
     def set_tb_name(self, tbname):
         """
@@ -185,9 +190,6 @@ class TestVgroups(TDCase):
         count = 1
         step_count = 1
         for i in range(1, 10):
-            print(i)
-            import time
-            time.sleep(2)
             if i % 2 == 0:
                 step_count += i
                 for j in range(count, step_count):
@@ -197,10 +199,9 @@ class TestVgroups(TDCase):
                 # expectd_res = count - 1
             else:
                 step_count += 1
-                # ! TD-16132
-                # for i in range(2):
-                self.tdSql.execute(f'insert into downsampling_ct1 values (1653547828591+{count}1m, 60, 60.3, "heilongjiang", True);')
-                self.tdSql.execute(f'insert into downsampling_tb values (1653547828591+{count}1m, 70, 70.3, "heilongjiang", True);')
+                for i in range(2):
+                    self.tdSql.execute(f'insert into downsampling_ct1 values (1653547828591+{count}1m, 60, 60.3, "heilongjiang", True);')
+                    self.tdSql.execute(f'insert into downsampling_tb values (1653547828591+{count}1m, 70, 70.3, "heilongjiang", True);')
                 count += 1
                 # expectd_res = count
             # check result
@@ -269,7 +270,7 @@ class TestVgroups(TDCase):
 
         count = 1
         step_count = 1
-        for i in range(1, 10):
+        for i in range(1, 20):
             if i % 2 == 0:
                 step_count += i
                 for j in range(count, step_count):
@@ -372,14 +373,73 @@ class TestVgroups(TDCase):
         self.tdSql.execute(f'insert into tandem_ct1 values ({self.date_time}+1s, -50, -50.1, "tianjin", "taosdata", "Taosdata");')
         self.tdSql.execute(f'insert into tandem_ct1 values ({self.date_time}+2s, 0, Null, "hebei", "TDengine", Null);')
 
+    def stb_disorder_insert(self):
+        """
+        stb_disorder_insert
+        """
+        dbname = self.tdCom.get_long_name(length=5, mode="letters")
+        self.tdSql.execute(f'create database if not exists {dbname} precision "ms"')
+        self.tdSql.execute(f'create table {dbname}.stb (ts timestamp, c11 int, c12 float ) TAGS(t11 int, t12 int )')
+        self.tdSql.execute(f'create table {dbname}.tb using {dbname}.stb TAGS(1, 1)')
+        timestamp = self.tdCom.genTs("ms")[0]
+        ts_list = list()
+        for i in range(1, 101):
+            ts = timestamp - 1000 + i
+            ts_list.append(ts)
+        random.shuffle(ts_list)
+        for ts in ts_list:
+            sql = f'insert into {dbname}.tb values ({ts}, 1, 1)'
+            self.tdSql.execute(sql)
+        self.tdSql.query(f'select count(*) from {dbname}.tb')
+        self.tdSql.checkEqual(self.tdSql.query_data[0][0], 100)
+
+    def disorder_data(self):
+        self.case_name = sys._getframe().f_code.co_name
+        self.write_latency(self.case_name)
+        # # stb
+        # self.tdSql.execute(f'create stream stb_disorder_data_stream into output_disorder_data_stb as select count(*) from disorder_data_stb;')
+        # # ctb
+        # self.tdSql.execute(f'create stream ctb_disorder_data_stream into output_disorder_data_ctb as select count(*) from disorder_data_ct1;')
+        # # tb
+        # self.tdSql.execute(f'create stream tb_disorder_data_stream into output_disorder_data_tb as select count(*) from disorder_data_tb;')
+        # stb
+        self.tdSql.execute(f'create stream stb_disorder_data_stream into output_disorder_data_stb as select * from disorder_data_stb;')
+        # ctb
+        self.tdSql.execute(f'create stream ctb_disorder_data_stream into output_disorder_data_ctb as select * from disorder_data_ct1;')
+        # tb
+        self.tdSql.execute(f'create stream tb_disorder_data_stream into output_disorder_data_tb as select * from disorder_data_tb;')
+        for tbname in ["disorder_data_ct1", "disorder_data_tb"]:
+            self.tdSql.execute(f'insert into {tbname} values (1653547828591, 100, 100.1, "Beijing", True);')
+            self.tdSql.execute(f'insert into {tbname} values (1653547828591+1s, -100, -100.1, "Tianjin", False);')
+            self.tdSql.execute(f'insert into {tbname} values (1653547828591+2s, 50, 50.3, "HeBei", False);')
+
+        self.check_stream('select count(*) from output_disorder_data_stb;', 'select count(*) from disorder_data_stb;', 1)
+        self.check_stream('select count(*) from output_disorder_data_ctb;', 'select count(*) from disorder_data_ct1;', 1)
+        self.check_stream('select count(*) from output_disorder_data_tb;', 'select count(*) from disorder_data_tb;', 1)
+        timestamp = self.tdCom.genTs("ms")[0]
+        ts_list = list()
+        for i in range(1, 98):
+            ts = timestamp - 1000 + i
+            ts_list.append(ts)
+        random.shuffle(ts_list)
+        # ts_counter = 3
+        for ts in ts_list:
+            # ts_counter += 1
+            self.tdSql.execute(f'insert into disorder_data_ct1 values ({ts}, 60, 60.3, "heilongjiang", True)')
+            self.tdSql.execute(f'insert into disorder_data_tb values ({ts}, 60, 60.3, "heilongjiang", True)')
+            self.check_stream('select count(*) from output_disorder_data_stb;', 'select count(*) from disorder_data_stb;', 1)
+            self.check_stream('select count(*) from output_disorder_data_ctb;', 'select count(*) from disorder_data_ct1;', 1)
+            self.check_stream('select count(*) from output_disorder_data_tb;', 'select count(*) from disorder_data_tb;', 1)
+
     def run(self) -> bool:
         self.prepare_stream_data()
         # self.downsampling()
-        self.scalar_function()
+        # ! TD-16145
+        # self.scalar_function()
         # self.data_filter()
         # self.life_cycle()
         # self.stream_tandem()
-
+        self.disorder_data()
 
     def cleanup(self):
         pass
