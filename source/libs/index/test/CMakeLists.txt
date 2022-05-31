@@ -97,11 +97,11 @@ if(NOT TD_WINDOWS)
     NAME idxtest
     COMMAND idxTest
   )
+  add_test(
+    NAME idxJsonUT
+    COMMAND idxJsonUT 
+  )
 endif(NOT TD_WINDOWS)
-add_test(
-  NAME idxJsonUT
-  COMMAND idxJsonUT 
-)
 add_test(
   NAME idxUtilUT 
   COMMAND idxUtilUT 

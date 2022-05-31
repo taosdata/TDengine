@@ -124,6 +124,7 @@ static int32_t createChildLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelec
   SLogicNode* pNode = NULL;
   int32_t     code = func(pCxt, pSelect, &pNode);
   if (TSDB_CODE_SUCCESS == code && NULL != pNode) {
+    pNode->precision = pSelect->precision;
     code = pushLogicNode(pCxt, pRoot, pNode);
   }
   if (TSDB_CODE_SUCCESS != code) {
@@ -400,6 +401,7 @@ static int32_t createLogicNodeByTable(SLogicPlanContext* pCxt, SSelectStmt* pSel
       nodesDestroyNode(pNode);
       return TSDB_CODE_OUT_OF_MEMORY;
     }
+    pNode->precision = pSelect->precision;
     *pLogicNode = pNode;
   }
   return code;
@@ -483,6 +485,10 @@ static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStm
   if (pCxt->pPlanCxt->streamQuery) {
     pWindow->triggerType = pCxt->pPlanCxt->triggerType;
     pWindow->watermark = pCxt->pPlanCxt->watermark;
+  }
+
+  if (pCxt->pPlanCxt->rSmaQuery) {
+    pWindow->filesFactor = pCxt->pPlanCxt->filesFactor;
   }
 
   if (TSDB_CODE_SUCCESS == code) {

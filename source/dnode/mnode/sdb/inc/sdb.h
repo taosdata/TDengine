@@ -168,6 +168,7 @@ typedef struct SSdb {
   char          *currDir;
   char          *tmpDir;
   int64_t        lastCommitVer;
+  int64_t        lastCommitTerm;
   int64_t        curVer;
   int64_t        curTerm;
   int64_t        tableVer[SDB_MAX];

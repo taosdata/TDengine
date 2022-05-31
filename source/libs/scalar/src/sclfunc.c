@@ -633,7 +633,7 @@ static int32_t doTrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
       continue;
     }
 
-    char *input = colDataGetData(pInput[0].columnData, i);
+    char *input = colDataGetData(pInputData, i);
     int32_t len = varDataLen(input);
     int32_t charLen = (type == TSDB_DATA_TYPE_VARCHAR) ? len : len / TSDB_NCHAR_SIZE;
     trimFn(input, output, type, charLen);
@@ -893,7 +893,7 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
         memmove(tzInfo + fracLen, tzInfo, strlen(tzInfo));
       }
 
-      char tmp[32];
+      char tmp[32] = {0};
       sprintf(tmp, ".%s", fraction);
       memcpy(tzInfo, tmp, fracLen);
       len += fracLen;

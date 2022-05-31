@@ -165,7 +165,10 @@ int32_t tdFetchTbUidList(SSma *pSma, STbUidStore **ppStore, tb_uid_t suid, tb_ui
  * @param pReq
  * @return int32_t
  */
-int32_t tdProcessRSmaCreate(SSma *pSma, SMeta *pMeta, SVCreateStbReq *pReq, SMsgCb *pMsgCb) {
+int32_t tdProcessRSmaCreate(SVnode *pVnode, SVCreateStbReq *pReq) {
+  SSma *pSma = pVnode->pSma;
+  SMeta *pMeta = pVnode->pMeta;
+  SMsgCb *pMsgCb = &pVnode->msgCb;
   if (!pReq->rollup) {
     smaTrace("vgId:%d return directly since no rollup for stable %s %" PRIi64, SMA_VID(pSma), pReq->name, pReq->suid);
     return TSDB_CODE_SUCCESS;
@@ -210,6 +213,7 @@ int32_t tdProcessRSmaCreate(SSma *pSma, SMeta *pMeta, SVCreateStbReq *pReq, SMsg
       .reader = pReadHandle,
       .meta = pMeta,
       .pMsgCb = pMsgCb,
+      .vnode = pVnode,
   };
 
   if (param->qmsg1) {
@@ -441,7 +445,7 @@ static int32_t tdExecuteRSma(SSma *pSma, const void *pMsg, int32_t inputType, tb
 
   if (inputType == STREAM_DATA_TYPE_SUBMIT_BLOCK) {
     // TODO: use the proper schema instead of 0, and cache STSchema in cache
-    STSchema *pTSchema = metaGetTbTSchema(SMA_META(pSma), suid, 1);
+    STSchema *pTSchema = metaGetTbTSchema(SMA_META(pSma), suid, -1);
     if (!pTSchema) {
       terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;
       return TSDB_CODE_FAILED;

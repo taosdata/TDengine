@@ -4,13 +4,13 @@ title: Problem Diagnostics
 
 ## Network Connection Diagnostics
 
-When the client is unable to access the server, the network connection between the client side and the server side needs to be checked to find out the root cause and resolve problems.
+When a TDengine client is unable to access a TDengine server, the network connection between the client side and the server side must be checked to find the root cause and resolve problems.
 
-The diagnostic for network connection can be executed between Linux and Linux or between Linux and Windows.
+Diagnostics for network connections can be executed between Linux and Linux or between Linux and Windows.
 
 Diagnostic steps：
 
-1. If the port range to be diagnosed are being occupied by a `taosd` server process, please first stop `taosd.
+1. If the port range to be diagnosed is being occupied by a `taosd` server process, please first stop `taosd.
 2. On the server side, execute command `taos -n server -P <port> -l <pktlen>` to monitor the port range starting from the port specified by `-P` parameter with the role of "server".
 3. On the client side, execute command `taos -n client -h <fqdn of server> -P <port> -l <pktlen>` to send a testing package to the specified server and port.
  
@@ -65,13 +65,13 @@ Output of the client side for the example is below:
 12/21 14:50:22.721274 0x7fc95d859200 UTL successed to test UDP port:6011
 ```
 
-The output needs to be checked carefully for the system operator to find out the root cause and solve the problem.
+The output needs to be checked carefully for the system operator to find the root cause and resolve the problem.
 
 ## Startup Status and RPC Diagnostic
 
-`taos -n startup -h <fqdn of server>` can be used to check the startup status of a `taosd` process. This is a comman task for a system operator to do to determine whether `taosd` has been started successfully, especially in case of cluster.
+`taos -n startup -h <fqdn of server>` can be used to check the startup status of a `taosd` process. This is a common task which should be performed by a system operator, especially in the case of a cluster, to determine whether `taosd` has been started successfully.
 
-`taos -n rpc -h <fqdn of server>` can be used to check whether the port of a started `taosd` can be accessed or not. If `taosd` process doesn't respond or is working abnormally, this command can be used to initiate a rpc communication with the specified fqdn to determine whether it's a network problem or `taosd` is abnormal.
+`taos -n rpc -h <fqdn of server>` can be used to check whether the port of a started `taosd` can be accessed or not. If `taosd` process doesn't respond or is working abnormally, this command can be used to initiate a rpc communication with the specified fqdn to determine whether it's a network problem or whether `taosd` is abnormal.
 
 ## Sync and Arbitrator Diagnostic
 
@@ -80,13 +80,13 @@ taos -n sync -P 6040 -h <fqdn of server>
 taos -n sync -P 6042 -h <fqdn of server>
 ```
 
-The above commands can be executed on Linux Shell to check whether the port for sync is working well and whether the sync module on the server side is working well. Additionally, `-P 6042` is used to check whether the arbitrator is configured properly and is working well.
+The above commands can be executed in a Linux shell to check whether the port for sync is working well and whether the sync module on the server side is working well. Additionally, `-P 6042` is used to check whether the arbitrator is configured properly and is working well.
 
 ## Network Speed Diagnostic
 
 `taos -n speed -h <fqdn of server> -P 6030 -N 10 -l 10000000 -S TCP`
 
-From version 2.2.0.0, the above command can be executed on Linux Shell to test the network speed, it sends uncompressed package to a running `taosd` server process or a simulated server process started by `taos -n server` to test the network speed. Parameters can be used when testing network speed are as below:
+From version 2.2.0.0 onwards, the above command can be executed in a Linux shell to test network speed. The command sends uncompressed packages to a running `taosd` server process or a simulated server process started by `taos -n server` to test the network speed. Parameters can be used when testing network speed are as below:
 
 -n：When set to "speed", it means testing network speed. 
 -h：The FQDN or IP of the server process to be connected to; if not set, the FQDN configured in `taos.cfg` is used. 
@@ -99,23 +99,23 @@ From version 2.2.0.0, the above command can be executed on Linux Shell to test t
 
 `taos -n fqdn -h <fqdn of server>`
 
-From version 2.2.0.0, the above command can be executed on Linux Shell to test the resolution speed of FQDN. It can be used to try to resolve a FQDN to an IP address and record the time spent in this process. The parameters that can be used for this purpose are as below:
+From version 2.2.0.0 onward, the above command can be executed in a Linux shell to test the resolution speed of FQDN. It can be used to try to resolve a FQDN to an IP address and record the time spent in this process. The parameters that can be used for this purpose are as below:
 
 -n：When set to "fqdn", it means testing the speed of resolving FQDN. 
 -h：The FQDN to be resolved. If not set, the `FQDN` parameter in `taos.cfg` is used by default.  
 
 ## Server Log
 
-The parameter `debugFlag` is used to control the log level of the `taosd` server process. The default value is 131, for debug purpose it needs to be escalated to 135 or 143. 
+The parameter `debugFlag` is used to control the log level of the `taosd` server process. The default value is 131. For debugging and tracing, it needs to be set to either 135 or 143 respectively. 
 
-Once this parameter is set to 135 or 143, the log file grows very quickly especially when there is a huge volume of data insertion and data query requests. If all the logs are stored together, some important information may be missed very easily, so on server side important information is stored at different place from other logs.
+Once this parameter is set to 135 or 143, the log file grows very quickly especially when there is a huge volume of data insertion and data query requests. If all the logs are stored together, some important information may be missed very easily and so on the server side, important information is stored in a different place from other logs.
 
 - The log at level of INFO, WARNING and ERROR is stored in `taosinfo` so that it is easy to find important information 
 - The log at level of DEBUG (135) and TRACE (143) and other information not handled by `taosinfo` are stored in `taosdlog`
 
 ## Client Log
 
-An independent log file, named as "taoslog+<seq num\>" is generated for each client program, i.e. a client process. The default value of `debugFlag` is also 131 and only logs at level of INFO/ERROR/WARNING are recorded, for debugging purposes it needs to be changed to 135 or 143 so that logs at DEBUG or TRACE level can be recorded.
+An independent log file, named as "taoslog+<seq num\>" is generated for each client program, i.e. a client process. The default value of `debugFlag` is also 131 and only logs at level of INFO/ERROR/WARNING are recorded. As stated above, for debugging and tracing, it needs to be changed to 135 or 143 respectively, so that logs at DEBUG or TRACE level can be recorded.
 
 The maximum length of a single log file is controlled by parameter `numOfLogLines` and only 2 log files are kept for each `taosd` server process.
 

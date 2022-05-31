@@ -1395,7 +1395,7 @@ static int32_t handleDataMergeIfNeeded(STsdbReadHandle* pTsdbReadHandle, SBlock*
     }
 
     if (pTsdbReadHandle->outputCapacity >= binfo.rows) {
-      ASSERT(cur->blockCompleted);
+      ASSERT(cur->blockCompleted || cur->mixBlock);
     }
 
     if (cur->rows == binfo.rows) {

@@ -2,10 +2,10 @@
 title: REST API
 ---
 
-To support the development of various types of platforms, TDengine provides an API that conforms to the REST principle, namely REST API. To minimize the learning cost, different from the other database REST APIs, TDengine directly requests the SQL command contained in the request BODY through HTTP POST to operate the database and only requires a URL.
+To support the development of various types of applications and platforms, TDengine provides an API that conforms to REST principles; namely REST API. To minimize the learning cost, unlike REST APIs for other database engines, TDengine allows insertion of SQL commands in the BODY of an HTTP POST request, to operate the database.
 
 :::note 
-One difference from the native connector is that the REST interface is stateless, so the `USE db_name` command has no effect. All references to table names and super table names need to specify the database name prefix. (Since version 2.2.0.0, it is supported to specify db_name in RESTful URL. If the database name prefix is not specified in the SQL command, the `db_name` specified in the URL will be used. Since version 2.4.0.0, REST service is provided by taosAdapter by default. And it requires that the `db_name` must be specified in the URL.)
+One difference from the native connector is that the REST interface is stateless and so the `USE db_name` command has no effect. All references to table names and super table names need to specify the database name in the prefix. (Since version 2.2.0.0, TDengine supports specification of the db_name in RESTful URL. If the database name prefix is not specified in the SQL command, the `db_name` specified in the URL will be used. Since version 2.4.0.0, REST service is provided by taosAdapter by default and it requires that the `db_name` must be specified in the URL.)
 :::
 
 ## Installation
@@ -16,9 +16,9 @@ The REST interface does not rely on any TDengine native library, so the client a
 
 If the TDengine server is already installed, it can be verified as follows:
 
-The following is an Ubuntu environment using the `curl` tool (to confirm that it is installed) to verify that the REST interface is working.
+The following example is in an Ubuntu environment and uses the `curl` tool to verify that the REST interface is working. Note that the `curl` tool may need to be installed in your environment.
 
-The following example lists all databases, replacing `h1.taosdata.com` and `6041` (the default port) with the actual running TDengine service FQDN and port number.
+The following example lists all databases on the host h1.taosdata.com. To use it in your environment, replace `h1.taosdata.com` and `6041` (the default port) with the actual running TDengine service FQDN and port number.
 
 ```html
 curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'show databases;' h1.taosdata.com:6041/rest/sql
@@ -89,7 +89,7 @@ For example, `http://h1.taos.com:6041/rest/sql/test` is a URL to `h1.taos.com:60
 
 TDengine supports both Basic authentication and custom authentication mechanisms, and subsequent versions will provide a standard secure digital signature mechanism for authentication.
 
-- The custom authentication information is as follows (Let's introduce token later)
+- The custom authentication information is as follows. More details about "token" later.
 
   ```
   Authorization: Taosd <TOKEN>
@@ -136,7 +136,7 @@ The return result is in JSON format, as follows:
 
 Description:
 
-- status: tell if the operation result is success or failure.
+- status: tells you whethre the operation result is success or failure.
 - head: the definition of the table, or just one column "affected_rows" if no result set is returned. (As of version 2.0.17.0, it is recommended not to rely on the head return value to determine the data column type but rather use column_meta. In later versions, the head item may be removed from the return value.)
 - column_meta: this item is added to the return value to indicate the data type of each column in the data with version 2.0.17.0 and later versions. Each column is described by three values: column name, column type, and type length. For example, `["current",6,4]` means that the column name is "current", the column type is 6, which is the float type, and the type length is 4, which is the float type with 4 bytes. If the column type is binary or nchar, the type length indicates the maximum length of content stored in the column, not the length of the specific data in this return value. When the column type is nchar, the type length indicates the number of Unicode characters that can be saved, not bytes.
 - data: The exact data returned, presented row by row, or just [[affected_rows]] if no result set is returned. The order of the data columns in each row of data is the same as that of the data columns described in column_meta.
