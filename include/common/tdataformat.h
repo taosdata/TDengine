@@ -42,11 +42,13 @@ int32_t tTSchemaCreate(int32_t sver, SSchema *pSchema, int32_t nCols, STSchema *
 void    tTSchemaDestroy(STSchema *pTSchema);
 
 // SColVal
-#define ColValNONE               ((SColVal){.type = COL_VAL_NONE, .nData = 0, .pData = NULL})
-#define ColValNULL               ((SColVal){.type = COL_VAL_NULL, .nData = 0, .pData = NULL})
-#define ColValDATA(nData, pData) ((SColVal){.type = COL_VAL_DATA, .nData = (nData), .pData = (pData)})
+// #define ColValNONE               ((SColVal){.type = COL_VAL_NONE, .nData = 0, .pData = NULL})
+// #define ColValNULL               ((SColVal){.type = COL_VAL_NULL, .nData = 0, .pData = NULL})
+// #define ColValDATA(nData, pData) ((SColVal){.type = COL_VAL_DATA, .nData = (nData), .pData = (pData)})
 
 // STSRow2
+int32_t tTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow2 **ppRow);
+
 int32_t tPutTSRow(uint8_t *p, STSRow2 *pRow);
 int32_t tGetTSRow(uint8_t *p, STSRow2 *pRow);
 int32_t tTSRowDup(const STSRow2 *pRow, STSRow2 **ppRow);
@@ -54,11 +56,13 @@ void    tTSRowFree(STSRow2 *pRow);
 int32_t tTSRowGet(const STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
 
 // STSRowBuilder
+#if 0
 int32_t tTSRowBuilderInit(STSRowBuilder *pBuilder, int32_t sver, int32_t nCols, SSchema *pSchema);
 void    tTSRowBuilderClear(STSRowBuilder *pBuilder);
 void    tTSRowBuilderReset(STSRowBuilder *pBuilder);
 int32_t tTSRowBuilderPut(STSRowBuilder *pBuilder, int32_t cid, uint8_t *pData, uint32_t nData);
 int32_t tTSRowBuilderGetRow(STSRowBuilder *pBuilder, const STSRow2 **ppRow);
+#endif
 
 // STagVal
 static FORCE_INLINE void tTagValPush(SArray *pTagArray, void *key, int8_t type, uint8_t *pData, uint32_t nData,
@@ -137,11 +141,12 @@ struct SValue {
   };
 };
 
-typedef enum { COL_VAL_NONE = 0, COL_VAL_NULL = 1, COL_VAL_DATA = 2 } EColValT;
 struct SColVal {
-  EColValT type;
-  uint32_t nData;
-  uint8_t *pData;
+  int8_t  isNone;
+  int8_t  isNull;
+  int8_t  type;
+  int16_t cid;
+  SValue  value;
 };
 
 struct STagVal {

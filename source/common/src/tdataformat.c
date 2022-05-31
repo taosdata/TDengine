@@ -146,7 +146,13 @@ static int32_t tGetSValue(uint8_t *p, SValue *pValue, int8_t type) {
   return n;
 }
 
-// STSRow2
+// STSRow2 ========================================================================
+int32_t tTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow2 **ppRow) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
 int32_t tPutTSRow(uint8_t *p, STSRow2 *pRow) {
   int32_t n = 0;
 
@@ -215,6 +221,7 @@ void tTSRowFree(STSRow2 *pRow) {
 }
 
 int32_t tTSRowGet(const STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
+#if 0
   uint32_t  n;
   uint8_t  *p;
   uint8_t   v;
@@ -310,6 +317,7 @@ int32_t tTSRowGet(const STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal
     }
   }
 
+#endif
   return 0;
 }
 
@@ -354,6 +362,7 @@ void tTSchemaDestroy(STSchema *pTSchema) {
 }
 
 // STSRowBuilder
+#if 0
 int32_t tTSRowBuilderInit(STSRowBuilder *pBuilder, int32_t sver, int32_t nCols, SSchema *pSchema) {
   if (tTSchemaCreate(sver, pSchema, nCols, &pBuilder->pTSchema) < 0) return -1;
 
@@ -612,6 +621,7 @@ int32_t tTSRowBuilderGetRow(STSRowBuilder *pBuilder, const STSRow2 **ppRow) {
 
   return 0;
 }
+#endif
 
 static int tTagValCmprFn(const void *p1, const void *p2) {
   if (((STagVal *)p1)->cid < ((STagVal *)p2)->cid) {
