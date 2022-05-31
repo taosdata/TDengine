@@ -289,8 +289,9 @@ class TDTestCase:
             tdSql.query(f"select {col} from {table_expr} {re.sub('limit [0-9]*|offset [0-9]*','',condition)}")
             offset_val = condition.split("offset")[1].split(" ")[1] if "offset" in condition else 0
             # print(f"select {col} from {table_expr} {re.sub('limit [0-9]*|offset [0-9]*','',condition)}")
-            pre_result = np.array(tdSql.queryResult)[np.array(tdSql.queryResult) != None]
-            if pre_result is pre_result.any:
+            if not tdSql.queryResult:
+                pre_result = np.array(tdSql.queryResult)[np.array(tdSql.queryResult) != None]
+            
                 pre_mavg = pre_mavg = np.convolve(pre_result, np.ones(k), "valid")[offset_val:]/k
                 tdSql.query(self.mavg_query_form(
                     sel=sel, func=func, col=col, m_comm=m_comm, k=k, r_comm=r_comm, alias=alias, fr=fr,
