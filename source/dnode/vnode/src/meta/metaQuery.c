@@ -564,9 +564,17 @@ SArray *metaGetSmaTbUids(SMeta *pMeta) {
 
 #endif
 
-const void *metaGetTableTagVal(SMetaEntry *pEntry, int16_t cid) {
+const void *metaGetTableTagVal(SMetaEntry *pEntry, int16_t type, STagVal *val) {
   ASSERT(pEntry->type == TSDB_CHILD_TABLE);
-  STagVal tagVal = {.cid = cid};
-  tTagGet((const STag *)pEntry->ctbEntry.pTags, &tagVal);
-  return tagVal.pData;
+  STag *tag = (STag *)pEntry->ctbEntry.pTags;
+  tTagGet(tag, val);
+
+  if(val->type == TSDB_DATA_TYPE_NULL){
+    return NULL;
+  }
+  if (type == TSDB_DATA_TYPE_JSON){
+    return tag;
+  }else{
+    return val;
+  }
 }

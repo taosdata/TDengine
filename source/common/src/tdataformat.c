@@ -123,7 +123,7 @@ int32_t tTSRowGet(const STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal
   ASSERT(iCol != 0);
   ASSERT(pTColumn->colId != 0);
 
-  ASSERT(pRow->flags & 0xf != 0);
+  ASSERT((pRow->flags & 0xf) != 0);
   switch (pRow->flags & 0xf) {
     case TSROW_HAS_NONE:
       *pColVal = ColValNONE;
@@ -432,7 +432,6 @@ static void setBitMap(uint8_t *p, STSchema *pTSchema, uint8_t flags) {
 }
 int32_t tTSRowBuilderGetRow(STSRowBuilder *pBuilder, const STSRow2 **ppRow) {
   int32_t   nDataTP, nDataKV;
-  uint32_t  flags;
   STSKVRow *pTSKVRow = (STSKVRow *)pBuilder->pKVBuf;
   int32_t   nCols = pBuilder->pTSchema->numOfCols;
 
@@ -446,7 +445,7 @@ int32_t tTSRowBuilderGetRow(STSRowBuilder *pBuilder, const STSRow2 **ppRow) {
     pBuilder->row.flags |= TSROW_HAS_NONE;
   }
 
-  ASSERT(pBuilder->row.flags & 0xf != 0);
+  ASSERT((pBuilder->row.flags & 0xf) != 0);
   *(ppRow) = &pBuilder->row;
   switch (pBuilder->row.flags & 0xf) {
     case TSROW_HAS_NONE:
@@ -476,7 +475,7 @@ int32_t tTSRowBuilderGetRow(STSRowBuilder *pBuilder, const STSRow2 **ppRow) {
   if (nDataKV < nDataTP) {
     // generate KV row
 
-    ASSERT(pBuilder->row.flags & 0xf != TSROW_HAS_VAL);
+    ASSERT((pBuilder->row.flags & 0xf) != TSROW_HAS_VAL);
 
     pBuilder->row.flags |= TSROW_KV_ROW;
     pBuilder->row.nData = nDataKV;
@@ -492,12 +491,12 @@ int32_t tTSRowBuilderGetRow(STSRowBuilder *pBuilder, const STSRow2 **ppRow) {
     pBuilder->row.nData = nDataTP;
 
     uint8_t *p;
-    uint8_t  flags = pBuilder->row.flags & 0xf;
+    uint8_t  flags = (pBuilder->row.flags & 0xf);
 
     if (flags == TSROW_HAS_VAL) {
       pBuilder->row.pData = pBuilder->pTPBuf + pBuilder->szBitMap2;
     } else {
-      if (flags == TSROW_HAS_VAL | TSROW_HAS_NULL | TSROW_HAS_NONE) {
+      if (flags == (TSROW_HAS_VAL | TSROW_HAS_NULL | TSROW_HAS_NONE)) {
         pBuilder->row.pData = pBuilder->pTPBuf;
       } else {
         pBuilder->row.pData = pBuilder->pTPBuf + pBuilder->szBitMap2 - pBuilder->szBitMap1;
@@ -620,7 +619,11 @@ void debugPrintSTag(STag *pTag, const char *tag, int32_t ln) {
     }
     printf("%s:%d loop[%d-%d] offset=%d\n", __func__, __LINE__, (int32_t)pTag->nTag, (int32_t)n, (int32_t)offset);
     tGetTagVal(p + offset, &tagVal, isJson);
-    debugPrintTagVal(tagVal.type, tagVal.pData, tagVal.nData, __func__, __LINE__);
+    if(IS_VAR_DATA_TYPE(tagVal.type)){
+      debugPrintTagVal(tagVal.type, tagVal.pData, tagVal.nData, __func__, __LINE__);
+    }else{
+      debugPrintTagVal(tagVal.type, &tagVal.i64, tDataTypes[tagVal.type].bytes, __func__, __LINE__);
+    }
   }
   printf("\n");
 }
@@ -643,44 +646,8 @@ static int32_t tPutTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson) {
     n += tPutBinary(p ? p + n : p, pTagVal->pData, pTagVal->nData);
   } else {
     p = p ? p + n : p;
-    switch (pTagVal->type) {
-      case TSDB_DATA_TYPE_BOOL:
-        n += tPutI8(p, pTagVal->i8 ? 1 : 0);
-        break;
-      case TSDB_DATA_TYPE_TINYINT:
-        n += tPutI8(p, pTagVal->i8);
-        break;
-      case TSDB_DATA_TYPE_SMALLINT:
-        n += tPutI16(p, pTagVal->i16);
-        break;
-      case TSDB_DATA_TYPE_INT:
-        n += tPutI32(p, pTagVal->i32);
-        break;
-      case TSDB_DATA_TYPE_TIMESTAMP:
-      case TSDB_DATA_TYPE_BIGINT:
-        n += tPutI64(p, pTagVal->i64);
-        break;
-      case TSDB_DATA_TYPE_FLOAT:
-        n += tPutFloat(p, pTagVal->f);
-        break;
-      case TSDB_DATA_TYPE_DOUBLE:
-        n += tPutDouble(p, pTagVal->d);
-        break;
-      case TSDB_DATA_TYPE_UTINYINT:
-        n += tPutU8(p, pTagVal->u8);
-        break;
-      case TSDB_DATA_TYPE_USMALLINT:
-        n += tPutU16(p, pTagVal->u16);
-        break;
-      case TSDB_DATA_TYPE_UINT:
-        n += tPutU32(p, pTagVal->u32);
-        break;
-      case TSDB_DATA_TYPE_UBIGINT:
-        n += tPutU64(p, pTagVal->u64);
-        break;
-      default:
-        ASSERT(0);
-    }
+    n += tDataTypes[pTagVal->type].bytes;
+    if(p) memcpy(p, &(pTagVal->i64), tDataTypes[pTagVal->type].bytes);
   }
 
   return n;
@@ -702,42 +669,8 @@ static int32_t tGetTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson) {
   if (IS_VAR_DATA_TYPE(pTagVal->type)) {
     n += tGetBinary(p + n, &pTagVal->pData, &pTagVal->nData);
   } else {
-    switch (pTagVal->type) {
-      case TSDB_DATA_TYPE_BOOL:
-      case TSDB_DATA_TYPE_TINYINT:
-        n += tGetI8(p + n, &pTagVal->i8);
-        break;
-      case TSDB_DATA_TYPE_SMALLINT:
-        n += tGetI16(p, &pTagVal->i16);
-        break;
-      case TSDB_DATA_TYPE_INT:
-        n += tGetI32(p, &pTagVal->i32);
-        break;
-      case TSDB_DATA_TYPE_TIMESTAMP:
-      case TSDB_DATA_TYPE_BIGINT:
-        n += tGetI64(p, &pTagVal->i64);
-        break;
-      case TSDB_DATA_TYPE_FLOAT:
-        n += tGetFloat(p, &pTagVal->f);
-        break;
-      case TSDB_DATA_TYPE_DOUBLE:
-        n += tGetDouble(p, &pTagVal->d);
-        break;
-      case TSDB_DATA_TYPE_UTINYINT:
-        n += tGetU8(p, &pTagVal->u8);
-        break;
-      case TSDB_DATA_TYPE_USMALLINT:
-        n += tGetU16(p, &pTagVal->u16);
-        break;
-      case TSDB_DATA_TYPE_UINT:
-        n += tGetU32(p, &pTagVal->u32);
-        break;
-      case TSDB_DATA_TYPE_UBIGINT:
-        n += tGetU64(p, &pTagVal->u64);
-        break;
-      default:
-        ASSERT(0);
-    }
+    n += tDataTypes[pTagVal->type].bytes;
+    memcpy(&(pTagVal->i64), p + n, tDataTypes[pTagVal->type].bytes);
   }
 
   return n;
@@ -812,6 +745,26 @@ _err:
 
 void tTagFree(STag *pTag) {
   if (pTag) taosMemoryFree(pTag);
+}
+
+char *tTagValToData(const STagVal *value, bool isJson){
+  if(!value) return NULL;
+  char *data = NULL;
+  int8_t typeBytes = 0;
+  if (isJson) {
+    typeBytes = CHAR_BYTES;
+  }
+  if(IS_VAR_DATA_TYPE(value->type)){
+    data = taosMemoryCalloc(1, typeBytes + VARSTR_HEADER_SIZE + value->nData);
+    if(data == NULL) return NULL;
+    if(isJson) *data = value->type;
+    varDataLen(data + typeBytes) = value->nData;
+    memcpy(varDataVal(data + typeBytes), value->pData, value->nData);
+  }else{
+    data = ((char*)&(value->i64)) - typeBytes;  // json with type
+  }
+
+  return data;
 }
 
 bool tTagGet(const STag *pTag, STagVal *pTagVal) {

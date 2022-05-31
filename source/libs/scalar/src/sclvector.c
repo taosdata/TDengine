@@ -922,29 +922,12 @@ static void doReleaseVec(SColumnInfoData* pCol, int32_t type) {
   }
 }
 
-char *getJsonValue(char *json, char *key) {  // todo
-  json++;                                    // jump type
-
-  STagVal tagVal = {.pKey = key};
-  tTagGet(((const STag *)json), &tagVal);
-  return (char *)tagVal.pData;
-#if 0
-  int16_t cols = kvRowNCols(json);
-  for (int i = 0; i < cols; ++i) {
-    SColIdx *pColIdx = kvRowColIdxAt(json, i);
-    char *data = kvRowColVal(json, pColIdx);
-    if(i == 0){
-      if(*data == TSDB_DATA_TYPE_NULL) {
-        return NULL;
-      }
-      continue;
-    }
-    if(memcmp(key, data, varDataTLen(data)) == 0){
-      return data + varDataTLen(data);
-    }
+STagVal *getJsonValue(char *json, STagVal *tagVal) {
+  bool find = tTagGet(((const STag *)json), tagVal);  // json value is null and not exist is different
+  if(!find){
+     return NULL;
   }
-  return NULL;
-#endif
+  return tagVal;
 }
 
 void vectorJsonArrow(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
@@ -963,13 +946,13 @@ void vectorJsonArrow(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pO
       continue;
     }
     char *pLeftData = colDataGetVarData(pLeft->columnData, i);
-    char *value = getJsonValue(pLeftData, pRightData);
-    if (!value) {
-      colDataSetNull_var(pOutputCol, i);
-      pOutputCol->hasNull = true;
-      continue;
+    STagVal val = {.pKey = pRightData};
+    STagVal *value = getJsonValue(pLeftData, &val);
+    char *data = tTagValToData(value, true);
+    colDataAppend(pOutputCol, i, data, data == NULL);
+    if(value && IS_VAR_DATA_TYPE(value->type) && data){
+      taosMemoryFree(data)
     }
-    colDataAppend(pOutputCol, i, value, false);
   }
 }
 

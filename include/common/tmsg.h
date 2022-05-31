@@ -287,7 +287,7 @@ typedef struct SSchema {
   char     name[TSDB_COL_NAME_LEN];
 } SSchema;
 
-#define COL_IS_SET(FLG)  ((FLG) & (COL_SET_VAL | COL_SET_NULL) != 0)
+#define COL_IS_SET(FLG)  (((FLG) & (COL_SET_VAL | COL_SET_NULL)) != 0)
 #define COL_CLR_SET(FLG) ((FLG) &= (~(COL_SET_VAL | COL_SET_NULL)))
 
 #define IS_BSMA_ON(s) (((s)->flags & 0x01) == COL_SMA_ON)
