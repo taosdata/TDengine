@@ -1277,24 +1277,38 @@ static void doShiftBitmap(char* nullBitmap, size_t n, size_t total) {
     memmove(nullBitmap, nullBitmap + n / 8, newLen);
   } else {
     int32_t tail = n % 8;
-    int32_t i = 0;
-
+    int32_t  i = 0;
     uint8_t* p = (uint8_t*)nullBitmap;
-    while (i < len) {
-      uint8_t v = p[i];
 
-      p[i] = 0;
-      p[i] = (v << tail);
+    if (n < 8) {
+      while (i < len) {
+        uint8_t v = p[i];  // source bitmap value
+        p[i] = (v << tail);
 
-      if (i < len - 1) {
-        uint8_t next = p[i + 1];
-        p[i] |= (next >> (8 - tail));
+        if (i < len - 1) {
+          uint8_t next = p[i + 1];
+          p[i] |= (next >> (8 - tail));
+        }
+
+        i += 1;
       }
+    } else if (n > 8) {
+      int32_t gap = len - newLen;
+      while(i < newLen) {
+        uint8_t v = p[i + gap];
+        p[i] = (v << tail);
 
-      i += 1;
+        if (i < newLen - 1) {
+          uint8_t next = p[i + gap + 1];
+          p[i] |= (next >> (8 - tail));
+        }
+
+        i += 1;
+      }
     }
   }
 }
+
 
 static void colDataTrimFirstNRows(SColumnInfoData* pColInfoData, size_t n, size_t total) {
   if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
