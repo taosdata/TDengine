@@ -342,6 +342,36 @@ int32_t schRecordTaskExecNode(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *ad
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t schDropTaskExecNode(SSchJob *pJob, SSchTask *pTask, void *handle) {
+  if (NULL == pTask->execNodes) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t num = taosArrayGetSize(pTask->execNodes);
+  for (int32_t i = 0; i < num; ++i) {
+    SSchNodeInfo* pNode = taosArrayGet(pTask->execNodes, i);
+    if (pNode->handle == handle) {
+      taosArrayRemove(pTask->execNodes, i);
+      break;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t schUpdateTaskHandle(SSchJob *pJob, SSchTask *pTask, int32_t msgType, void *handle, int32_t rspCode) {
+  SCH_SET_TASK_HANDLE(pTask, handle);
+
+  schUpdateTaskExecNodeHandle(pTask, handle, rspCode);
+
+  if (msgType == TDMT_SCH_LINK_BROKEN) {
+    schDropTaskExecNode(pJob, pTask, handle);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t schRecordQueryDataSrc(SSchJob *pJob, SSchTask *pTask) {
   if (!SCH_IS_DATA_SRC_QRY_TASK(pTask)) {
     return TSDB_CODE_SUCCESS;
@@ -1009,19 +1039,19 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
   */
 
   for (int32_t i = 0; i < parentNum; ++i) {
-    SSchTask *par = *(SSchTask **)taosArrayGet(pTask->parents, i);
-    int32_t   readyNum = atomic_add_fetch_32(&par->childReady, 1);
+    SSchTask *parent = *(SSchTask **)taosArrayGet(pTask->parents, i);
+    int32_t   readyNum = atomic_add_fetch_32(&parent->childReady, 1);
 
-    SCH_LOCK(SCH_WRITE, &par->lock);
+    SCH_LOCK(SCH_WRITE, &parent->lock);
     SDownstreamSourceNode source = {.type = QUERY_NODE_DOWNSTREAM_SOURCE,
                                     .taskId = pTask->taskId,
                                     .schedId = schMgmt.sId,
                                     .addr = pTask->succeedAddr};
-    qSetSubplanExecutionNode(par->plan, pTask->plan->id.groupId, &source);
-    SCH_UNLOCK(SCH_WRITE, &par->lock);
+    qSetSubplanExecutionNode(parent->plan, pTask->plan->id.groupId, &source);
+    SCH_UNLOCK(SCH_WRITE, &parent->lock);
 
-    if (SCH_TASK_READY_FOR_LAUNCH(readyNum, par)) {
-      SCH_ERR_RET(schLaunchTask(pJob, par));
+    if (SCH_TASK_READY_FOR_LAUNCH(readyNum, parent)) {
+      SCH_ERR_RET(schLaunchTask(pJob, parent));
     }
   }
 
@@ -1095,7 +1125,7 @@ int32_t schSaveJobQueryRes(SSchJob *pJob, SQueryTableRsp *rsp) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t schGetTaskFromTaskList(SHashObj *pTaskList, uint64_t taskId, SSchTask **pTask) {
+int32_t schGetTaskFromList(SHashObj *pTaskList, uint64_t taskId, SSchTask **pTask) {
   int32_t s = taosHashGetSize(pTaskList);
   if (s <= 0) {
     return TSDB_CODE_SUCCESS;
@@ -1110,6 +1140,21 @@ int32_t schGetTaskFromTaskList(SHashObj *pTaskList, uint64_t taskId, SSchTask **
 
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t schGetTaskInJob(SSchJob *pJob, uint64_t taskId, SSchTask **pTask) {
+  schGetTaskFromList(pJob->execTasks, taskId, pTask);
+  if (NULL == *pTask) {
+    schGetTaskFromList(pJob->succTasks, taskId, pTask);
+
+    if (NULL == *pTask) {
+      SCH_JOB_ELOG("task not found in execList & succList, taskId:%" PRIx64, taskId);
+      SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 
 int32_t schUpdateTaskExecNodeHandle(SSchTask *pTask, void *handle, int32_t rspCode) {
   if (rspCode || NULL == pTask->execNodes || taosArrayGetSize(pTask->execNodes) > 1 ||
