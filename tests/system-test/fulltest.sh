@@ -55,8 +55,8 @@ python3 ./test.py -f 2-query/Timediff.py
 
 python3 ./test.py -f 2-query/top.py
 python3 ./test.py -f 2-query/bottom.py
-
-
+python3 ./test.py -f 2-query/percentile.py
+python3 ./test.py -f 2-query/apercentile.py
 python3 ./test.py -f 2-query/abs.py
 python3 ./test.py -f 2-query/ceil.py
 python3 ./test.py -f 2-query/floor.py
