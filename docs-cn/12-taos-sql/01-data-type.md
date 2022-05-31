@@ -63,5 +63,5 @@ TDengine支持多个类型的常量，细节如下表：
 | 4 | 'abc' | BINARY | 单引号括住的内容为字符串字面值，其类型为BINARY，BINARY的size为实际的字符个数。对于字符串内的单引号，可以用转义字符反斜线加单引号来表示，即 \'。|
 | 5 | "abc" | BINARY | 双引号括住的内容为字符串字面值，其类型为BINARY，BINARY的size为实际的字符个数。对于字符串内的双引号，可以用转义字符反斜线加单引号来表示，即 \"。 |
 | 6 | TIMESTAMP {'literal' \| "literal"} | TIMESTAMP | TIMESTAMP关键字表示后面的字符串字面量需要被解释为TIMESTAMP类型。字符串需要满足YYYY-MM-DD HH:mm:ss.MS格式，其时间分辨率为当前数据库的时间分辨率。 |
-| 7 | {TRUE | FALSE} | BOOL | 布尔类型字面量。 |
+| 7 | {TRUE \| FALSE} | BOOL | 布尔类型字面量。 |
 | 8 | {'' \| "" \| '\t' \| "\t" \| ' ' \| " " \| NULL } | -- | 空值字面量。可以用于任意类型。|
