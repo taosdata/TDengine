@@ -1314,7 +1314,7 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, 
 
     SDbObj *pDb = mndAcquireDb(pMnode, pDbVgVersion->dbFName);
     if (pDb == NULL) {
-      mDebug("db:%s, no exist", pDbVgVersion->dbFName);
+      mTrace("db:%s, no exist", pDbVgVersion->dbFName);
       memcpy(usedbRsp.db, pDbVgVersion->dbFName, TSDB_DB_FNAME_LEN);
       usedbRsp.uid = pDbVgVersion->dbId;
       usedbRsp.vgVersion = -1;

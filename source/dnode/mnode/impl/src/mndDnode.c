@@ -17,6 +17,7 @@
 #include "mndDnode.h"
 #include "mndAuth.h"
 #include "mndMnode.h"
+#include "mndQnode.h"
 #include "mndShow.h"
 #include "mndTrans.h"
 #include "mndUser.h"
@@ -98,7 +99,7 @@ static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
   if (pRaw == NULL) return -1;
   if (sdbSetRawStatus(pRaw, SDB_STATUS_READY) != 0) return -1;
 
-  mDebug("dnode:%d, will be created while deploy sdb, raw:%p", dnodeObj.id, pRaw);
+  mDebug("dnode:%d, will be created when deploying, raw:%p", dnodeObj.id, pRaw);
 
 #if 0
   return sdbWrite(pMnode->pSdb, pRaw);
@@ -388,9 +389,16 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     mndReleaseMnode(pMnode, pObj);
   }
 
+  SQnodeObj *pQnode = mndAcquireQnode(pMnode, statusReq.qload.dnodeId);
+  if (pQnode != NULL) {
+    pQnode->load = statusReq.qload;
+    mndReleaseQnode(pMnode, pQnode);
+  }
+
+  int64_t dnodeVer = sdbGetTableVer(pMnode->pSdb, SDB_DNODE) + sdbGetTableVer(pMnode->pSdb, SDB_MNODE);
   int64_t curMs = taosGetTimestampMs();
   bool    online = mndIsDnodeOnline(pMnode, pDnode, curMs);
-  bool    dnodeChanged = (statusReq.dnodeVer != sdbGetTableVer(pMnode->pSdb, SDB_DNODE));
+  bool    dnodeChanged = (statusReq.dnodeVer != dnodeVer);
   bool    reboot = (pDnode->rebootTime != statusReq.rebootTime);
   bool    needCheck = !online || dnodeChanged || reboot;
 
@@ -433,7 +441,8 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     if (!online) {
       mInfo("dnode:%d, from offline to online", pDnode->id);
     } else {
-      mDebug("dnode:%d, send dnode eps", pDnode->id);
+      mDebug("dnode:%d, send dnode epset, online:%d ver:% " PRId64 ":%" PRId64 " reboot:%d", pDnode->id, online,
+             statusReq.dnodeVer, dnodeVer, reboot);
     }
 
     pDnode->rebootTime = statusReq.rebootTime;
@@ -441,7 +450,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     pDnode->numOfSupportVnodes = statusReq.numOfSupportVnodes;
 
     SStatusRsp statusRsp = {0};
-    statusRsp.dnodeVer = sdbGetTableVer(pMnode->pSdb, SDB_DNODE) + sdbGetTableVer(pMnode->pSdb, SDB_MNODE);
+    statusRsp.dnodeVer = dnodeVer;
     statusRsp.dnodeCfg.dnodeId = pDnode->id;
     statusRsp.dnodeCfg.clusterId = pMnode->clusterId;
     statusRsp.pDnodeEps = taosArrayInit(mndGetDnodeSize(pMnode), sizeof(SDnodeEp));

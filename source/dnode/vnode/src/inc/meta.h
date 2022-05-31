@@ -16,8 +16,8 @@
 #ifndef _TD_VNODE_META_H_
 #define _TD_VNODE_META_H_
 
-#include "vnodeInt.h"
 #include "index.h"
+#include "vnodeInt.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -44,8 +44,6 @@ int32_t metaULock(SMeta* pMeta);
 // metaEntry ==================
 int metaEncodeEntry(SEncoder* pCoder, const SMetaEntry* pME);
 int metaDecodeEntry(SDecoder* pCoder, SMetaEntry* pME);
-
-// metaTable ==================
 
 // metaQuery ==================
 int metaGetTableEntryByVersion(SMetaReader* pReader, int64_t version, tb_uid_t uid);
@@ -117,6 +115,10 @@ typedef struct {
   tb_uid_t uid;
   int64_t  smaUid;
 } SSmaIdxKey;
+
+// metaTable ==================
+int metaCreateTagIdxKey(tb_uid_t suid, int32_t cid, const void* pTagData, int8_t type, tb_uid_t uid,
+                        STagIdxKey** ppTagIdxKey, int32_t* nTagIdxKey);
 
 #ifndef META_REFACT
 // SMetaDB

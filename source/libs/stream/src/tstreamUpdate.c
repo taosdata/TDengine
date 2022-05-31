@@ -42,7 +42,7 @@ static void windowSBfAdd(SUpdateInfo *pInfo, uint64_t count) {
 }
 
 static void windowSBfDelete(SUpdateInfo *pInfo, uint64_t count) {
-  if (count < pInfo->numSBFs - 1) {
+  if (count < pInfo->numSBFs) {
     for (uint64_t i = 0; i < count; ++i) {
       SScalableBf *pTsSBFs = taosArrayGetP(pInfo->pTsSBFs, 0);
       tScalableBfDestroy(pTsSBFs);

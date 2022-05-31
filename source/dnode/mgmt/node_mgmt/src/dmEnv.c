@@ -178,6 +178,7 @@ SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper) {
       .sendMonitorReportFp = dmSendMonitorReport,
       .getVnodeLoadsFp = dmGetVnodeLoads,
       .getMnodeLoadsFp = dmGetMnodeLoads,
+      .getQnodeLoadsFp = dmGetQnodeLoads,
   };
 
   opt.msgCb = dmGetMsgcb(pWrapper->pDnode);

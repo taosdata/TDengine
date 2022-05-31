@@ -14,11 +14,13 @@
  */
 
 #include "index.h"
+#include "indexComm.h"
 #include "indexInt.h"
 #include "nodes.h"
 #include "querynodes.h"
 #include "scalar.h"
 #include "tdatablock.h"
+#include "vnode.h"
 
 // clang-format off
 #define SIF_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
@@ -259,10 +261,52 @@ static int32_t sifExecFunction(SFunctionNode *node, SIFCtx *ctx, SIFParam *outpu
   indexError("index-filter not support buildin function");
   return TSDB_CODE_QRY_INVALID_INPUT;
 }
+
+typedef int (*Filter)(void *a, void *b, int16_t dtype);
+
+int sifGreaterThan(void *a, void *b, int16_t dtype) {
+  __compar_fn_t func = indexGetCompar(dtype);
+  return tDoCompare(func, QUERY_GREATER_THAN, a, b);
+}
+int sifGreaterEqual(void *a, void *b, int16_t dtype) {
+  __compar_fn_t func = indexGetCompar(dtype);
+  return tDoCompare(func, QUERY_GREATER_EQUAL, a, b);
+}
+int sifLessEqual(void *a, void *b, int16_t dtype) {
+  __compar_fn_t func = indexGetCompar(dtype);
+  return tDoCompare(func, QUERY_LESS_EQUAL, a, b);
+}
+int sifLessThan(void *a, void *b, int16_t dtype) {
+  __compar_fn_t func = indexGetCompar(dtype);
+  return (int)tDoCompare(func, QUERY_LESS_THAN, a, b);
+}
+int sifEqual(void *a, void *b, int16_t dtype) {
+  __compar_fn_t func = indexGetCompar(dtype);
+  return (int)tDoCompare(func, QUERY_TERM, a, b);
+}
+static Filter sifGetFilterFunc(EIndexQueryType type, bool *reverse) {
+  if (type == QUERY_LESS_EQUAL || type == QUERY_LESS_THAN) {
+    *reverse = true;
+  } else {
+    *reverse = false;
+  }
+  if (type == QUERY_LESS_EQUAL)
+    return sifLessEqual;
+  else if (type == QUERY_LESS_THAN)
+    return sifLessThan;
+  else if (type == QUERY_GREATER_EQUAL)
+    return sifGreaterEqual;
+  else if (type == QUERY_GREATER_THAN)
+    return sifGreaterThan;
+  else if (type == QUERY_TERM) {
+    return sifEqual;
+  }
+  return NULL;
+}
 static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFParam *output) {
-#ifdef USE_INVERTED_INDEX
   SIndexMetaArg *arg = &output->arg;
-  SIndexTerm *   tm = indexTermCreate(arg->suid, DEFAULT, left->colValType, left->colName, strlen(left->colName),
+#ifdef USE_INVERTED_INDEX
+  SIndexTerm *tm = indexTermCreate(arg->suid, DEFAULT, left->colValType, left->colName, strlen(left->colName),
                                    right->condValue, strlen(right->condValue));
   if (tm == NULL) {
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
@@ -278,8 +322,22 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
   indexMultiTermQueryDestroy(mtm);
   return ret;
 #else
-  return 0;
+  EIndexQueryType qtype = 0;
+  SIF_ERR_RET(sifGetFuncFromSql(operType, &qtype));
+  bool   reverse;
+  Filter filterFunc = sifGetFilterFunc(qtype, &reverse);
+
+  SMetaFltParam param = {.suid = arg->suid,
+                         .cid = left->colId,
+                         .type = left->colValType,
+                         .val = right->condValue,
+                         .reverse = reverse,
+                         .filterFunc = filterFunc};
+
+  int ret = metaFilteTableIds(arg->metaEx, &param, output->result);
+  return ret;
 #endif
+  return 0;
 }
 
 static int32_t sifLessThanFunc(SIFParam *left, SIFParam *right, SIFParam *output) {

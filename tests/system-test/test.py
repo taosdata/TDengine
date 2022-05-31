@@ -37,6 +37,7 @@ if __name__ == "__main__":
     masterIp = ""
     testCluster = False
     valgrind = 0
+    killValgrind = 1
     logSql = True
     stop = 0
     restart = False
@@ -45,8 +46,8 @@ if __name__ == "__main__":
         windows = 1
     updateCfgDict = {}
     execCmd = ""
-    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:e:', [
-        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'execCmd'])
+    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:', [
+        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'killv', 'execCmd'])
     for key, value in opts:
         if key in ['-h', '--help']:
             tdLog.printNoPrefix(
@@ -60,6 +61,7 @@ if __name__ == "__main__":
             tdLog.printNoPrefix('-g valgrind Test Flag')
             tdLog.printNoPrefix('-r taosd restart test')
             tdLog.printNoPrefix('-d update cfg dict, base64 json str')
+            tdLog.printNoPrefix('-k not kill valgrind processer')
             tdLog.printNoPrefix('-e eval str to run')
             sys.exit(0)
 
@@ -99,6 +101,9 @@ if __name__ == "__main__":
             except:
                 print('updateCfgDict convert fail.')
                 sys.exit(0)
+
+        if key in ['-k', '--killValgrind']:
+            killValgrind = 0
 
         if key in ['-e', '--execCmd']:
             try:
@@ -189,6 +194,7 @@ if __name__ == "__main__":
         else:
             tdCases.runAllWindows(conn)
     else:
+        tdDnodes.setKillValgrind(killValgrind)
         tdDnodes.init(deployPath, masterIp)
         tdDnodes.setTestCluster(testCluster)
         tdDnodes.setValgrind(valgrind)

@@ -60,14 +60,12 @@ typedef enum {
 
 typedef enum {
   TRN_STAGE_PREPARE = 0,
-  TRN_STAGE_REDO_LOG = 1,
-  TRN_STAGE_REDO_ACTION = 2,
-  TRN_STAGE_ROLLBACK = 3,
-  TRN_STAGE_UNDO_ACTION = 4,
-  TRN_STAGE_UNDO_LOG = 5,
-  TRN_STAGE_COMMIT = 6,
-  TRN_STAGE_COMMIT_LOG = 7,
-  TRN_STAGE_FINISHED = 8
+  TRN_STAGE_REDO_ACTION = 1,
+  TRN_STAGE_ROLLBACK = 2,
+  TRN_STAGE_UNDO_ACTION = 3,
+  TRN_STAGE_COMMIT = 4,
+  TRN_STAGE_COMMIT_ACTION = 5,
+  TRN_STAGE_FINISHED = 6
 } ETrnStage;
 
 typedef enum {
@@ -131,7 +129,7 @@ typedef enum {
 
 typedef enum {
   TRN_EXEC_PARALLEL = 0,
-  TRN_EXEC_ONE_BY_ONE = 1,
+  TRN_EXEC_NO_PARALLEL = 1,
 } ETrnExecType;
 
 typedef enum {
@@ -168,16 +166,16 @@ typedef struct {
   SRpcHandleInfo rpcInfo;
   void*          rpcRsp;
   int32_t        rpcRspLen;
-  SArray*        redoLogs;
-  SArray*        undoLogs;
-  SArray*        commitLogs;
+  int32_t        redoActionPos;
   SArray*        redoActions;
   SArray*        undoActions;
+  SArray*        commitActions;
   int64_t        createdTime;
   int64_t        lastExecTime;
   int64_t        dbUid;
   char           dbname[TSDB_DB_FNAME_LEN];
   char           lastError[TSDB_TRANS_ERROR_LEN];
+  char           desc[TSDB_TRANS_DESC_LEN];
   int32_t        startFunc;
   int32_t        stopFunc;
   int32_t        paramLen;
@@ -221,6 +219,7 @@ typedef struct {
   int64_t    createdTime;
   int64_t    updateTime;
   SDnodeObj* pDnode;
+  SQnodeLoad load;  
 } SQnodeObj;
 
 typedef struct {
@@ -454,17 +453,17 @@ int32_t tEncodeSMqOffsetObj(void** buf, const SMqOffsetObj* pOffset);
 void*   tDecodeSMqOffsetObj(void* buf, SMqOffsetObj* pOffset);
 
 typedef struct {
-  char           name[TSDB_TOPIC_FNAME_LEN];
-  char           db[TSDB_DB_FNAME_LEN];
-  int64_t        createTime;
-  int64_t        updateTime;
-  int64_t        uid;
-  int64_t        dbUid;
-  int32_t        version;
-  int8_t         subType;  // db or table
-  int8_t         withTbName;
-  int8_t         withSchema;
-  int8_t         withTag;
+  char    name[TSDB_TOPIC_FNAME_LEN];
+  char    db[TSDB_DB_FNAME_LEN];
+  int64_t createTime;
+  int64_t updateTime;
+  int64_t uid;
+  int64_t dbUid;
+  int32_t version;
+  int8_t  subType;  // column, db or stable
+  // int8_t         withTbName;
+  // int8_t         withSchema;
+  // int8_t         withTag;
   SRWLatch       lock;
   int32_t        consumerCnt;
   int32_t        sqlLen;
@@ -527,14 +526,14 @@ int32_t        tEncodeSMqConsumerEp(void** buf, const SMqConsumerEp* pEp);
 void*          tDecodeSMqConsumerEp(const void* buf, SMqConsumerEp* pEp);
 
 typedef struct {
-  char      key[TSDB_SUBSCRIBE_KEY_LEN];
-  SRWLatch  lock;
-  int64_t   dbUid;
-  int32_t   vgNum;
-  int8_t    subType;
-  int8_t    withTbName;
-  int8_t    withSchema;
-  int8_t    withTag;
+  char     key[TSDB_SUBSCRIBE_KEY_LEN];
+  SRWLatch lock;
+  int64_t  dbUid;
+  int32_t  vgNum;
+  int8_t   subType;
+  // int8_t    withTbName;
+  // int8_t    withSchema;
+  // int8_t    withTag;
   SHashObj* consumerHash;   // consumerId -> SMqConsumerEp
   SArray*   unassignedVgs;  // SArray<SMqVgEp*>
 } SMqSubscribeObj;
