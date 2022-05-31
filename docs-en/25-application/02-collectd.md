@@ -5,17 +5,17 @@ title: Quickly build an IT DevOps visualization system using TDengine + collectd
 
 ## Background
 
-TDengine is a big data platform designed and optimized for IoT (Internet of Things), Vehicle Telematics, Industrial Internet, IT DevOps, etc. by TAOSData. Since it opened its source code in July 2019, it has won the favor of a large number of time-series data developers with its innovative data modeling design, convenient installation, easy-to-use programming interface, and powerful data writing and query performance.
+TDengine is a big data platform designed and optimized for IoT (Internet of Things), Vehicle Telemetry, Industrial Internet, IT DevOps and other applications. Since it was open-sourced in July 2019, it has won the favor of a large number of time-series data developers with its innovative data modeling design, convenient installation, easy-to-use programming interface, and powerful data writing and query performance.
 
 IT DevOps metric data usually are time sensitive, for example:
 
 - System resource metrics: CPU, memory, IO, bandwidth, etc.
 - Software system metrics: health status, number of connections, number of requests, number of timeouts, number of errors, response time, service type, and other business-related metrics.
 
-The current mainstream IT DevOps visualization system usually contains a data collection module, a data persistent module, and a visual display module. collectd/StatsD, as an old-fashion open source data collection tool, has a wide user base. However, collectd/StatsD has limited functionality, and often needs to be combined with Telegraf, Grafana, and a time-series database to build a complete monitoring system.
+The current mainstream IT DevOps visualization system usually contains a data collection module, a data persistence module, and a visual display module. collectd/StatsD, as an old-fashion open source data collection tool, has a wide user base. However, collectd/StatsD has limited functionality, and often needs to be combined with Telegraf, Grafana, and a time-series database to build a complete monitoring system.
 The new version of TDengine supports multiple data protocols and can accept data from collectd and StatsD directly, and provides Grafana dashboard for graphical display.
 
-This article introduces how to quickly build an IT DevOps visualization system based on TDengine + collectd / StatsD + Grafana without writing even a single line of code but by simply modifying a few lines of configuration files. The architecture is shown in the following figure.
+This article introduces how to quickly build an IT DevOps visualization system based on TDengine + collectd / StatsD + Grafana without writing even a single line of code but by simply modifying a few lines in configuration files. The architecture is shown in the following figure.
 
 ![TDengine Database IT-DevOps-Solutions-Collectd-StatsD](./IT-DevOps-Solutions-Collectd-StatsD.webp)
 
@@ -99,6 +99,6 @@ Download the dashboard json from `https://github.com/taosdata/grafanaplugin/blob
 
 ## Wrap-up
 
-TDengine, as an emerging time-series big data platform, has the advantages of high performance, high reliability, easy management and easy maintenance. Thanks to the new schemaless protocol parsing function in TDengine version 2.4.0.0 and the powerful ecological software adaptation capability, users can build an efficient and easy-to-use IT DevOps visualization system or adapt to an existing system in just a few minutes.
+TDengine, as an emerging time-series big data platform, has the advantages of high performance, high reliability, easy management and easy maintenance. Thanks to the new schemaless protocol parsing feature in TDengine version 2.4.0.0 and ability to integrate easily with a large software ecosystem, users can build an efficient and easy-to-use IT DevOps visualization system, or adapt an existing system, in just a few minutes.
 
 For TDengine's powerful data writing and querying performance and other features, please refer to the official documentation and successful product implementation cases.

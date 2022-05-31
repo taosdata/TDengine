@@ -414,6 +414,7 @@ static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
       goto SUBSCRIBE_OVER;
     }
 
+#if 0
     // ref topic to prevent drop
     // TODO make topic complete
     SMqTopicObj topicObj = {0};
@@ -422,6 +423,7 @@ static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
     mInfo("subscribe topic %s by consumer %ld cgroup %s, refcnt %d", pTopic->name, consumerId, cgroup,
           topicObj.refConsumerCnt);
     if (mndSetTopicCommitLogs(pMnode, pTrans, &topicObj) != 0) goto SUBSCRIBE_OVER;
+#endif
 
     mndReleaseTopic(pMnode, pTopic);
   }
