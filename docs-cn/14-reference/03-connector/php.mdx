@@ -8,6 +8,8 @@ title: PHP Connector
 
 PHP 连接器依赖 TDengine 客户端驱动，其安装方式与 C/C++ 驱动相同。
 
+项目地址：<https://github.com/Yurunsoft/php-tdengine>
+
 TDengine 服务端或客户端安装后，`taos.h` 位于：
 
 - Linux：`/usr/local/taos/include`
@@ -39,6 +41,16 @@ TDengine 客户端驱动的版本号与 TDengine 服务端的版本号是一一�
 TDengine 客户端驱动的安装请参考 [安装指南](/reference/connector#安装步骤)
 
 ### 编译安装 php-tdengine
+
+**下载代码并解压：**
+
+```shell
+curl -L -o php-tdengine.tar.gz https://github.com/Yurunsoft/php-tdengine/archive/refs/tags/v1.0.2.tar.gz \
+&& mkdir php-tdengine \
+&& tar -xzf php-tdengine.tar.gz -C php-tdengine --strip-components=1
+```
+
+> 版本 `v1.0.2` 可替换为任意更新的版本，可在 Release 中查看最新版本。
 
 **非 Swoole 环境：**
 
