@@ -3,15 +3,15 @@ sidebar_label: TDengine in Docker
 title: Deploy TDengine in Docker
 ---
 
-Even though it's not recommended to deploy TDengine using docker in production system, docker is still very useful in development environment, especially when your host is not Linux. From version 2.0.14.0, the official image of TDengine can support X86-64, X86, arm64, and rm32 .
+We do not recommend deploying TDengine using Docker in a production system. However, Docker is still very useful in a development environment, especially when your host is not Linux. From version 2.0.14.0, the official image of TDengine can support X86-64, X86, arm64, and rm32 .
 
-In this chapter a simple step by step guide of using TDengine in docker is introduced.
+In this chapter we introduce a simple step by step guide to use TDengine in Docker.
 
 ## Install Docker
 
-The installation of docker please refer to [Get Docker](https://docs.docker.com/get-docker/).
+To install Docker please refer to [Get Docker](https://docs.docker.com/get-docker/).
 
-After docker is installed, you can check whether Docker is installed properly by displaying Docker version.
+After Docker is installed, you can check whether Docker is installed properly by displaying Docker version.
 
 ```bash
 $ docker -v
@@ -27,7 +27,7 @@ $ docker run -d -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdeng
 526aa188da767ae94b244226a2b2eec2b5f17dd8eff592893d9ec0cd0f3a1ccd
 ```
 
-In the above command, a docker container is started to run TDengine server, the port range 6030-6049 of the container is mapped to host port range 6030-6049. If port range 6030-6049 has been occupied on the host, please change to an available host port range. Regarding the requirements about ports on the host, please refer to [Port Configuration](/reference/config/#serverport).
+In the above command, a docker container is started to run TDengine server, the port range 6030-6049 of the container is mapped to host port range 6030-6049. If port range 6030-6049 has been occupied on the host, please change to an available host port range. For port requirements on the host, please refer to [Port Configuration](/reference/config/#serverport).
 
 - **docker run**: Launch a docker container
 - **-d**: the container will run in background mode
@@ -72,7 +72,7 @@ $ docker exec -it tdengine /bin/bash
 root@tdengine-server:~/TDengine-server-2.4.0.4#
 ```
 
-- **docker exec**: Attach to the continaer
+- **docker exec**: Attach to the container
 - **-i**: Interactive mode
 - **-t**: Use terminal
 - **tdengine**: Container name, up to the output of `docker ps`
@@ -95,7 +95,7 @@ In TDengine CLI, SQL commands can be executed to create/drop databases, tables, 
 
 ### Access TDengine from host
 
-If `-p` used to map ports properly between host and container, it's also able to access TDengine in container from the host as long as `firstEp` is configured correctly for the client on host.
+If option `-p` used to map ports properly between host and container, it's also able to access TDengine in container from the host as long as `firstEp` is configured correctly for the client on host.
 
 ```
 $ taos
@@ -118,7 +118,7 @@ Output is like below:
 {"status":"succ","head":["name","created_time","ntables","vgroups","replica","quorum","days","keep0,keep1,keep(D)","cache(MB)","blocks","minrows","maxrows","wallevel","fsync","comp","cachelast","precision","update","status"],"column_meta":[["name",8,32],["created_time",9,8],["ntables",4,4],["vgroups",4,4],["replica",3,2],["quorum",3,2],["days",3,2],["keep0,keep1,keep(D)",8,24],["cache(MB)",4,4],["blocks",4,4],["minrows",4,4],["maxrows",4,4],["wallevel",2,1],["fsync",4,4],["comp",2,1],["cachelast",2,1],["precision",8,3],["update",2,1],["status",8,10]],"data":[["test","2021-08-18 06:01:11.021",10000,4,1,1,10,"3650,3650,3650",16,6,100,4096,1,3000,2,0,"ms",0,"ready"],["log","2021-08-18 05:51:51.065",4,1,1,1,10,"30,30,30",1,3,100,4096,1,3000,2,0,"us",0,"ready"]],"rows":2}
 ```
 
-For details of REST API please refer to [REST API]](/reference/rest-api/).
+For details of REST API please refer to [REST API](/reference/rest-api/).
 
 ### Run TDengine server and taosAdapter inside container
 
@@ -156,7 +156,7 @@ Below is an example output:
 {"status":"succ","head":["name","created_time","ntables","vgroups","replica","quorum","days","keep","cache(MB)","blocks","minrows","maxrows","wallevel","fsync","comp","cachelast","precision","update","status"],"column_meta":[["name",8,32],["created_time",9,8],["ntables",4,4],["vgroups",4,4],["replica",3,2],["quorum",3,2],["days",3,2],["keep",8,24],["cache(MB)",4,4],["blocks",4,4],["minrows",4,4],["maxrows",4,4],["wallevel",2,1],["fsync",4,4],["comp",2,1],["cachelast",2,1],["precision",8,3],["update",2,1],["status",8,10]],"data":[["log","2021-12-28 09:18:55.765",10,1,1,1,10,"30",1,3,100,4096,1,3000,2,0,"us",0,"ready"]],"rows":1}
 ```
 
-### Use taosBenchmark on host to access TDenginer server in container
+### Use taosBenchmark on host to access TDengine server in container
 
 1. Run `taosBenchmark`, named as `taosdemo` previously, on the host:
 
@@ -265,13 +265,13 @@ Below is an example output:
    $ taos> select groupid, location from test.d0;
       groupid   |     location     |
    =================================
-              0 | shanghai         |
+              0 | California.SanDiego         |
    Query OK, 1 row(s) in set (0.003490s)
    ```
 
 ### Access TDengine from 3rd party tools
 
-A lot of 3rd party tools can be used to write data into TDengine through `taosAdapter` , for details please refer to [3rd party tools](/third-party/).
+A lot of 3rd party tools can be used to write data into TDengine through `taosAdapter`, for details please refer to [3rd party tools](/third-party/).
 
 There is nothing different from the 3rd party side to access TDengine server inside a container, as long as the end point is specified correctly, the end point should be the FQDN and the mapped port of the host.
 

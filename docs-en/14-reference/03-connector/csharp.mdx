@@ -8,18 +8,18 @@ title: C# Connector
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-import Preparition from "./_preparition.mdx"
-import CSInsert from "../../04-develop/03-insert-data/_cs_sql.mdx"
-import CSInfluxLine from "../../04-develop/03-insert-data/_cs_line.mdx"
-import CSOpenTSDBTelnet from "../../04-develop/03-insert-data/_cs_opts_telnet.mdx"
-import CSOpenTSDBJson from "../../04-develop/03-insert-data/_cs_opts_json.mdx"
-import CSQuery from "../../04-develop/04-query-data/_cs.mdx"
-import CSAsyncQuery from "../../04-develop/04-query-data/_cs_async.mdx"
+import Preparation from "./_preparation.mdx"
+import CSInsert from "../../07-develop/03-insert-data/_cs_sql.mdx"
+import CSInfluxLine from "../../07-develop/03-insert-data/_cs_line.mdx"
+import CSOpenTSDBTelnet from "../../07-develop/03-insert-data/_cs_opts_telnet.mdx"
+import CSOpenTSDBJson from "../../07-develop/03-insert-data/_cs_opts_json.mdx"
+import CSQuery from "../../07-develop/04-query-data/_cs.mdx"
+import CSAsyncQuery from "../../07-develop/04-query-data/_cs_async.mdx"
 
 
 `TDengine.Connector` is a C# language connector provided by TDengine that allows C# developers to develop C# applications that access TDengine cluster data.
 
-The `TDengine.Connector` connector supports connect to TDengine instances via the TDengine client driver (taosc), providing data writing, querying, subscription, schemaless writing, bind interface, etc. The `TDengine.Connector` currently does not provide a REST connection interface. Developers can write their RESTful application by referring to the [RESTful APIs](https://docs.taosdata.com//reference/restful-api/) documentation.
+The `TDengine.Connector` connector supports connect to TDengine instances via the TDengine client driver (taosc), providing data writing, querying, subscription, schemaless writing, bind interface, etc. The `TDengine.Connector` currently does not provide a REST connection interface. Developers can write their RESTful application by referring to the [REST API](/reference/rest-api/) documentation.
 
 This article describes how to install `TDengine.Connector` in a Linux or Windows environment and connect to TDengine clusters via `TDengine.Connector` to perform basic operations such as data writing and querying.
 
@@ -35,7 +35,7 @@ Please refer to [version support list](/reference/connector#version-support)
 
 ## Supported features
 
-1. Connection Mmanagement
+1. Connection Management
 2. General Query
 3. Continuous Query
 4. Parameter Binding
@@ -179,11 +179,11 @@ namespace TDengineExample
 
 1. "Unable to establish connection", "Unable to resolve FQDN"
 
-  Usually, it cause by the FQDN configuration is incorrect, you can refer to [How to understand TDengine's FQDN (Chinese)](https://www.taosdata.com/blog/2021/07/29/2741.html) to solve it. 2.
+  Usually, it's caused by an incorrect FQDN configuration. Please refer to this section in the [FAQ](https://docs.tdengine.com/2.4/train-faq/faq/#2-how-to-handle-unable-to-establish-connection) to troubleshoot. 
 
-Unhandled exception. System.DllNotFoundException: Unable to load DLL 'taos' or one of its dependencies: The specified module cannot be found.
+2. Unhandled exception. System.DllNotFoundException: Unable to load DLL 'taos' or one of its dependencies: The specified module cannot be found.
 
-  This is usually because the program did not find the dependent client driver. The solution is to copy `C:\TDengine\driver\taos.dll` to the `C:\Windows\System32\` directory on Windows, and create the following softlink on Linux `ln -s /usr/local/taos/driver/libtaos.so.x.x .x.x /usr/lib/libtaos.so` will work.
+  This is usually because the program did not find the dependent client driver. The solution is to copy `C:\TDengine\driver\taos.dll` to the `C:\Windows\System32\` directory on Windows, and create the following soft link on Linux `ln -s /usr/local/taos/driver/libtaos.so.x.x .x.x /usr/lib/libtaos.so` will work.
 
 ## API Reference
 

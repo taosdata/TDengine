@@ -128,7 +128,7 @@ int main() {
   }
   TAOS_RES *res = taos_query(taos, "SELECT * FROM meters LIMIT 2");
   if (taos_errno(res) != 0) {
-    printf("failed to exeuce taos_query. error: %s\n", taos_errstr(res));
+    printf("failed to execute taos_query. error: %s\n", taos_errstr(res));
     exit(EXIT_FAILURE);
   }
   printResult(res);
@@ -139,5 +139,5 @@ int main() {
 
 // output:
 // ts current voltage phase location groupid 
-// 1648432611249 10.300000 219 0.310000 Beijing.Chaoyang 2
-// 1648432611749 12.600000 218 0.330000 Beijing.Chaoyang 2
+// 1648432611249 10.300000 219 0.310000 California.SanFrancisco 2
+// 1648432611749 12.600000 218 0.330000 California.SanFrancisco 2

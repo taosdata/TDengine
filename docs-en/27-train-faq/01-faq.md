@@ -5,38 +5,38 @@ title: Frequently Asked Questions
 
 ## Submit an Issue
 
-If the tips in FAQ don't help much, please submit an issue on [GitHub](https://github.com/taosdata/TDengine) to describe your problem description, including TDengine version, hardware and OS information, the steps to reproduce the problem, etc. It would be very helpful if you package the contents in `/var/log/taos` and `/etc/taos` and upload. These two are the default directories used by TDengine, if they have been changed in your configuration, please use according to the actual configuration. It's recommended to firstly set `debugFlag` to 135 in `taos.cfg`, restart `taosd`, then reproduce the problem and collect logs. If you don't want to restart, an alternative way of setting `debugFlag` is executing `alter dnode <dnode_id> debugFlag 135` command in TDengine CLI `taos`. During normal running, however, please make sure `debugFlag` is set to 131.
+If the tips in FAQ don't help much, please submit an issue on [GitHub](https://github.com/taosdata/TDengine) to describe your problem. In your description please include the TDengine version, hardware and OS information, the steps to reproduce the problem and any other relevant information. It would be very helpful if you can package the contents in `/var/log/taos` and `/etc/taos` and upload. These two are the default directories used by TDengine. If you have changed the default directories in your configuration, please package the files in your configured directories. We recommended setting `debugFlag` to 135 in `taos.cfg`, restarting `taosd`, then reproducing the problem and collecting the logs. If you don't want to restart, an alternative way of setting `debugFlag` is executing `alter dnode <dnode_id> debugFlag 135` command in TDengine CLI `taos`. During normal running, however, please make sure `debugFlag` is set to 131.
 
 ## Frequently Asked Questions
 
 ### 1. How to upgrade to TDengine 2.0 from older version?
 
-version 2.x is not compatible with version 1.x regarding configuration file and data file, please do following before upgrading:
+version 2.x is not compatible with version 1.x. With regard to the configuration and data files, please perform the following steps before upgrading. Please follow data integrity, security, backup and other relevant SOPs, best practices before removing/deleting any data. 
 
-1. Delete configuration  files:  `sudo rm -rf /etc/taos/taos.cfg`
+1. Delete configuration files:  `sudo rm -rf /etc/taos/taos.cfg`
 2. Delete log files:  `sudo rm -rf /var/log/taos/`
 3. Delete data files if the data doesn't need to be kept: `sudo rm -rf /var/lib/taos/`
-4. Install latests 2.x version
-5. If the data needs to be kept and migrated to newer version, please contact professional service of TDengine for assistance
+4. Install latest 2.x version
+5. If the data needs to be kept and migrated to newer version, please contact professional service at TDengine for assistance.
 
 ### 2. How to handle "Unable to establish connection"？
 
-When the client is unable to connect to the server, you can try following ways to find out why.
+When the client is unable to connect to the server, you can try the following ways to troubleshoot and resolve the problem.
 
 1. Check the network
 
- - Check if the hosts where the client and server are running can be accessible to each other, for example by `ping` command.
- - Check if the TCP/UDP on port 6030-6042 are open for access if firewall is enabled. It's better to firstly disable firewall for diagnostics.
- - Check if the FQDN and serverPort are configured correctly in `taos.cfg` used by the server side
- - Check if the `firstEp` is set properly in the `taos.cfg` used by the client side
+ - Check if the hosts where the client and server are running are accessible to each other, for example by `ping` command.
+ - Check if the TCP/UDP on port 6030-6042 are open for access if firewall is enabled. If possible, disable the firewall for diagnostics, but please ensure that you are following security and other relevant protocols.
+ - Check if the FQDN and serverPort are configured correctly in `taos.cfg` used by the server side.
+ - Check if the `firstEp` is set properly in the `taos.cfg` used by the client side.
 
 2. Make sure the client version and server version are same.
 
 3. On server side, check the running status of `taosd` by executing `systemctl status taosd` . If your server is started using another way instead of `systemctl`, use the proper method to check whether the server process is running normally.
 
-4. If using connector of Python, Java, Go, Rust, C#, node.JS on Linux to connect toe the server, please make sure `libtaos.so` is in directory `/usr/local/taos/driver` and `/usr/local/taos/driver` is in system lib search environment variable `LD_LIBRARY_PATH`.
+4. If using connector of Python, Java, Go, Rust, C#, node.JS on Linux to connect to the server, please make sure `libtaos.so` is in directory `/usr/local/taos/driver` and `/usr/local/taos/driver` is in system lib search environment variable `LD_LIBRARY_PATH`.
 
-5. If using connector on Windows, please make sure `C:\TDengine\driver\taos.dll` is in your system lib search path, it's suggested to put `taos.dll` under `C:\Windows\System32`.
+5. If using connector on Windows, please make sure `C:\TDengine\driver\taos.dll` is in your system lib search path. We recommend putting `taos.dll` under `C:\Windows\System32`.
 
 6. Some advanced network diagnostics tools
 
@@ -45,7 +45,7 @@ When the client is unable to connect to the server, you can try following ways t
    Check whether a TCP port on server side is open: `nc -l {port}`
    Check whether a TCP port on client side is open: `nc {hostIP} {port}`
 
- - On Windows system `Net-TestConnection -ComputerName {fqdn} -Port {port}` on PowerShell can be used to check whether the port on serer side is open for access.
+ - On Windows system `Net-TestConnection -ComputerName {fqdn} -Port {port}` on PowerShell can be used to check whether the port on server side is open for access.
 
 7.  TDengine CLI `taos` can also be used to check network, please refer to [TDengine CLI](/reference/taos-shell).
 
@@ -80,7 +80,7 @@ From version 2.1.7.0, at most 4096 columns can be defined for a table.
 
 Inserting data in batch is a good practice. Single SQL statement can insert data for one or multiple tables in batch.
 
-### 9. JDBC Error： the excuted SQL is not a DML or a DDL？
+### 9. JDBC Error： the executed SQL is not a DML or a DDL？
 
 Please upgrade to latest JDBC driver, for details please refer to [Java Connector](/reference/connector/java)
 
@@ -104,7 +104,7 @@ ALTER LOCAL flag_name flag_value;
 
 <a class="anchor" id="timezone"></a>
 
-### 13. Hhat to do if go compilation fails?
+### 13. What to do if go compilation fails?
 
 From version 2.3.0.0, a new component named `taosAdapter` is introduced. Its' developed in Go. If you want to compile from source code and meet go compilation problems, try to do below steps to resolve Go environment problems.
 

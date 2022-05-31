@@ -69,7 +69,7 @@ static void doFillOneRowResult(SFillInfo* pFillInfo, void** data, char** srcData
 
   // set the other values
   if (pFillInfo->type == TSDB_FILL_PREV) {
-    char* p = FILL_IS_ASC_FILL(pFillInfo) ? prev : next;
+    char* p = prev;
 
     if (p != NULL) {
       for (int32_t i = 1; i < pFillInfo->numOfCols; ++i) {
@@ -85,7 +85,7 @@ static void doFillOneRowResult(SFillInfo* pFillInfo, void** data, char** srcData
       setNullValueForRow(pFillInfo, data, pFillInfo->numOfCols, index);
     }
   } else if (pFillInfo->type == TSDB_FILL_NEXT) {
-    char* p = FILL_IS_ASC_FILL(pFillInfo)? next : prev;
+    char* p = next;
 
     if (p != NULL) {
       for (int32_t i = 1; i < pFillInfo->numOfCols; ++i) {
@@ -178,8 +178,6 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, void** data, int32_t outputR
 
   if (FILL_IS_ASC_FILL(pFillInfo)) {
     assert(pFillInfo->currentKey >= pFillInfo->start);
-  } else {
-    assert(pFillInfo->currentKey <= pFillInfo->start);
   }
 
   while (pFillInfo->numOfCurrent < outputRows) {
@@ -451,6 +449,27 @@ void taosFillSetInputDataBlock(SFillInfo* pFillInfo, const SSDataBlock* pInput) 
       memcpy(pTag->tagVal, pColData->pData, pCol->col.bytes);  // TODO not memcpy??
     }
   }
+
+  // check currentKey validate
+  if (!FILL_IS_ASC_FILL(pFillInfo)) {
+    int64_t* tsList = (int64_t*) pFillInfo->pData[0];
+    int32_t numOfRows = taosNumOfRemainRows(pFillInfo);
+    int64_t numOfRes = -1;
+    if (numOfRows > 0) {
+      TSKEY lastKey = tsList[pFillInfo->numOfRows - 1];
+      numOfRes = taosTimeCountInterval(
+        lastKey,
+        pFillInfo->currentKey,
+        pFillInfo->interval.sliding,
+        pFillInfo->interval.slidingUnit,
+        pFillInfo->precision);
+      numOfRes += 1;
+      if(numOfRes < numOfRows || pFillInfo->currentKey < lastKey) {
+        // set currentKey max
+        pFillInfo->currentKey = tsList[0];
+      }
+    }
+  }
 }
 
 bool taosFillHasMoreResults(SFillInfo* pFillInfo) {
@@ -459,8 +478,7 @@ bool taosFillHasMoreResults(SFillInfo* pFillInfo) {
     return true;
   }
 
-  if (pFillInfo->numOfTotal > 0 && (((pFillInfo->end > pFillInfo->start) && FILL_IS_ASC_FILL(pFillInfo)) ||
-                                    (pFillInfo->end < pFillInfo->start && !FILL_IS_ASC_FILL(pFillInfo)))) {
+  if (pFillInfo->numOfTotal > 0 && pFillInfo->end > pFillInfo->start) {
     return getNumOfResultsAfterFillGap(pFillInfo, pFillInfo->end, 4096) > 0;
   }
 

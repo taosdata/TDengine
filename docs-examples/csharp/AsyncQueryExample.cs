@@ -224,15 +224,15 @@ namespace TDengineExample
 }
 
 //output:
-//Connect to TDengine success
-//8 rows async retrieved
+// Connect to TDengine success
+// 8 rows async retrieved
 
-//1538548685000   |       10.3    |       219     |       0.31    |       beijing.chaoyang        |       2       |
-//1538548695000   |       12.6    |       218     |       0.33    |       beijing.chaoyang        |       2       |
-//1538548696800   |       12.3    |       221     |       0.31    |       beijing.chaoyang        |       2       |
-//1538548696650   |       10.3    |       218     |       0.25    |       beijing.chaoyang        |       3       |
-//1538548685500   |       11.8    |       221     |       0.28    |       beijing.haidian         |       2       |
-//1538548696600   |       13.4    |       223     |       0.29    |       beijing.haidian         |       2       |
-//1538548685000   |       10.8    |       223     |       0.29    |       beijing.haidian         |       3       |
-//1538548686500   |       11.5    |       221     |       0.35    |       beijing.haidian         |       3       |
-//async retrieve complete.
+// 1538548685500   |       11.8    |       221     |       0.28    |       california.losangeles   |       2       |
+// 1538548696600   |       13.4    |       223     |       0.29    |       california.losangeles   |       2       |
+// 1538548685000   |       10.8    |       223     |       0.29    |       california.losangeles   |       3       |
+// 1538548686500   |       11.5    |       221     |       0.35    |       california.losangeles   |       3       |
+// 1538548685000   |       10.3    |       219     |       0.31    |       california.sanfrancisco         |       2       |
+// 1538548695000   |       12.6    |       218     |       0.33    |       california.sanfrancisco         |       2       |
+// 1538548696800   |       12.3    |       221     |       0.31    |       california.sanfrancisco         |       2       |
+// 1538548696650   |       10.3    |       218     |       0.25    |       california.sanfrancisco         |       3       |
+// async retrieve complete.
