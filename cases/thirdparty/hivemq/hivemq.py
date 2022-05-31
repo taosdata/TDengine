@@ -25,9 +25,10 @@ class HiveMQTest(TDCase):
             raise Exception("failed to compile_plugin")
 
     def config_rest(self):
-        result = self.remote.cmd(self.target_host, 'sed -i "s/127.0.0.1/192.168.0.41/" /root/hivemq-tdengine-extension/tdengine.xml')
-        if result is None:
-            raise Exception("failed to config plugin for rest connection")
+        # result = self.remote.cmd(self.target_host, 'sed -i "s/127.0.0.1/192.168.0.41/" /root/hivemq-tdengine-extension/tdengine.xml')
+        # if result is None:
+        #     raise Exception("failed to config plugin for rest connection")
+        pass  # default config is using rest connection
 
     def config_native(self):
         result = self.remote.cmd(self.target_host, ['sed -i "s/6041/6030/" /root/hivemq-tdengine-extension/tdengine.xml',
@@ -63,15 +64,16 @@ class HiveMQTest(TDCase):
         self.tdSql.execute("drop database if exists hivemq")
         self.config_rest()
         self.run_container()
-        time.sleep(20)
+        time.sleep(15)
         self.send_test_data(3)
-        # self.config_native()
+        self.config_native()
         # kill and start container to make new configuration take effect
-        # self.run_container()
-        # self.send_test_data(3)
+        self.run_container()
+        time.sleep(15)
+        self.send_test_data(3)
         time.sleep(3)
         self.tdSql.query("select count(*) from hivemq.mqtt_payload")
-        self.tdSql.checkData(0, 0, 3)
+        self.tdSql.checkData(0, 0, 6)
 
     def desc(self) -> str:
         return "Test HiveMQ TDengine Extension"
