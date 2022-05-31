@@ -38,8 +38,7 @@ for row in data:
 # inserted row count: 8
 # queried row count: 3
 # ['ts', 'current', 'voltage', 'phase', 'location', 'groupid']
-# [datetime.datetime(2018, 10, 3, 14, 38, 5, tzinfo=datetime.timezone(datetime.timedelta(seconds=28800), '+08:00')), 10.3, 219, 0.31, 'beijing.chaoyang', 2]
-# [datetime.datetime(2018, 10, 3, 14, 38, 15, tzinfo=datetime.timezone(datetime.timedelta(seconds=28800), '+08:00')), 12.6, 218, 0.33, 'beijing.chaoyang', 2]
-# [datetime.datetime(2018, 10, 3, 14, 38, 16, 800000, tzinfo=datetime.timezone(datetime.timedelta(seconds=28800), '+08:00')), 12.3, 221, 0.31, 'beijing.chaoyang', 2]
-
+# [datetime.datetime(2018, 10, 3, 14, 38, 5, 500000, tzinfo=datetime.timezone(datetime.timedelta(seconds=28800), '+08:00')), 11.8, 221, 0.28, 'california.losangeles', 2]
+# [datetime.datetime(2018, 10, 3, 14, 38, 16, 600000, tzinfo=datetime.timezone(datetime.timedelta(seconds=28800), '+08:00')), 13.4, 223, 0.29, 'california.losangeles', 2]
+# [datetime.datetime(2018, 10, 3, 14, 38, 5, tzinfo=datetime.timezone(datetime.timedelta(seconds=28800), '+08:00')), 10.8, 223, 0.29, 'california.losangeles', 3]
 # ANCHOR_END: basic

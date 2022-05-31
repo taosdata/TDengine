@@ -56,6 +56,10 @@ typedef struct SScanLogicNode {
   int8_t             intervalUnit;
   int8_t             slidingUnit;
   SNode*             pTagCond;
+  int8_t             triggerType;
+  int64_t            watermark;
+  int16_t            tsColId;
+  double             filesFactor;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -110,6 +114,7 @@ typedef struct SWindowLogicNode {
   SNode*      pStateExpr;
   int8_t      triggerType;
   int64_t     watermark;
+  double       filesFactor;
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
@@ -216,6 +221,10 @@ typedef struct STableScanPhysiNode {
   int64_t        sliding;
   int8_t         intervalUnit;
   int8_t         slidingUnit;
+  int8_t         triggerType;
+  int64_t        watermark;
+  int16_t        tsColId;
+  double         filesFactor;
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;
@@ -266,6 +275,7 @@ typedef struct SWinodwPhysiNode {
   SNode*     pTspk;  // timestamp primary key
   int8_t     triggerType;
   int64_t    watermark;
+  double     filesFactor;
 } SWinodwPhysiNode;
 
 typedef struct SIntervalPhysiNode {

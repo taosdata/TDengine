@@ -171,6 +171,7 @@ void    tFreeSMonVmInfo(SMonVmInfo *pInfo);
 typedef struct {
   SMonSysInfo sys;
   SMonLogs    log;
+  SQnodeLoad  load;
 } SMonQmInfo;
 
 int32_t tSerializeSMonQmInfo(void *buf, int32_t bufLen, SMonQmInfo *pInfo);
@@ -209,6 +210,10 @@ typedef struct {
 
 int32_t tSerializeSMonMloadInfo(void *buf, int32_t bufLen, SMonMloadInfo *pInfo);
 int32_t tDeserializeSMonMloadInfo(void *buf, int32_t bufLen, SMonMloadInfo *pInfo);
+
+int32_t tSerializeSQnodeLoad(void *buf, int32_t bufLen, SQnodeLoad *pInfo);
+int32_t tDeserializeSQnodeLoad(void *buf, int32_t bufLen, SQnodeLoad *pInfo);
+
 
 typedef struct {
   const char *server;

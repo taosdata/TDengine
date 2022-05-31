@@ -5,11 +5,11 @@ sidebar_label: TDinsight
 
 TDinsight is a solution for monitoring TDengine using the builtin native monitoring database and [Grafana].
 
-After TDengine starts, it will automatically create a monitoring database `log`. TDengine will automatically write many metrics in specific intervals into the `log` database. The metrics may include the server's CPU, memory, hard disk space, network bandwidth, number of requests, disk read/write speed, slow queries, other information like important system operations (user login, database creation, database deletion, etc.), and error alarms. With [Grafana] and [TDengine Data Source Plugin](https://github.com/taosdata/grafanaplugin/releases), TDinsight can visualize cluster status, node information, insertion and query requests, resource usage, etc., and also vnode, dnode, and mnode status, and exception alerts. Developers monitoring TDengine cluster operation status in real-time can be very convinient. This article will guide users to install the Grafana server, automatically install the TDengine data source plug-in, and deploy the TDinsight visualization panel through `TDinsight.sh` installation script.
+After TDengine starts, it will automatically create a monitoring database `log`. TDengine will automatically write many metrics in specific intervals into the `log` database. The metrics may include the server's CPU, memory, hard disk space, network bandwidth, number of requests, disk read/write speed, slow queries, other information like important system operations (user login, database creation, database deletion, etc.), and error alarms. With [Grafana] and [TDengine Data Source Plugin](https://github.com/taosdata/grafanaplugin/releases), TDinsight can visualize cluster status, node information, insertion and query requests, resource usage, vnode, dnode, and mnode status, exception alerts and many other metrics. This is very convenient for developers who want to monitor TDengine cluster status in real-time. This article will guide users to install the Grafana server, automatically install the TDengine data source plug-in, and deploy the TDinsight visualization panel using the `TDinsight.sh` installation script.
 
 ## System Requirements
 
-To deploy TDinsight, a single-node TDengine server or a multi-nodes TDengine cluster and a [Grafana] server are required. This dashboard requires TDengine 2.3.3.0 and above, with the `log` database enabled (`monitor = 1`).
+To deploy TDinsight, a single-node TDengine server or a multi-node TDengine cluster and a [Grafana] server are required. This dashboard requires TDengine 2.3.3.0 and above, with the `log` database enabled (`monitor = 1`).
 
 ## Installing Grafana
 
@@ -17,7 +17,7 @@ We recommend using the latest [Grafana] version 7 or 8 here. You can install Gra
 
 ### Installing Grafana on Debian or Ubuntu
 
-For Debian or Ubuntu operating systems, we recommend the Grafana image repository and Use the following command to install from scratch.
+For Debian or Ubuntu operating systems, we recommend the Grafana image repository and using the following command to install from scratch.
 
 ```bash
 sudo apt-get install -y apt-transport-https
@@ -61,7 +61,7 @@ sudo yum install \
 
 ## Automated deployment of TDinsight
 
-We provide an installation script [`TDinsight.sh`](https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh) script to allow users to configure the installation automatically and quickly.
+We provide an installation script [`TDinsight.sh`](https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh) to allow users to configure the installation automatically and quickly.
 
 You can download the script via `wget` or other tools:
 
@@ -71,7 +71,7 @@ chmod +x TDinsight.sh
 ./TDinsight.sh
 ```
 
-This script will automatically download the latest [Grafana TDengine data source plugin](https://github.com/taosdata/grafanaplugin/releases/latest) and [TDinsight dashboard](https://grafana.com/grafana/dashboards/15167) with configurable parameters from the command-line options to the [Grafana Provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/) configuration file to automate deployment and updates, etc. With the alert setting options provided by this script, you can also get built-in support for AliCloud SMS alert notifications.
+This script will automatically download the latest [Grafana TDengine data source plugin](https://github.com/taosdata/grafanaplugin/releases/latest) and [TDinsight dashboard](https://grafana.com/grafana/dashboards/15167) with configurable parameters for command-line options to the [Grafana Provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/) configuration file to automate deployment and updates, etc. With the alert setting options provided by this script, you can also get built-in support for AliCloud SMS alert notifications.
 
 Assume you use TDengine and Grafana's default services on the same host. Run `. /TDinsight.sh` and open the Grafana browser window to see the TDinsight dashboard.
 
@@ -300,7 +300,7 @@ This section contains the current information and status of the cluster, the ale
 
 ![TDengine Database TDinsight mnodes overview](./assets/TDinsight-3-mnodes.webp)
 
-1. **MNodes Status**: a simple table view of `show mnodes`. 2.
+1. **MNodes Status**: a simple table view of `show mnodes`.
 2. **MNodes Number**: similar to `DNodes Number`, the number of MNodes changes.
 
 ### Request
@@ -317,9 +317,9 @@ This section contains the current information and status of the cluster, the ale
 
 Database usage, repeated for each value of the variable `$database` i.e. multiple rows per database.
 
-1. **STables**: number of super tables. 2.
-2. **Total Tables**: number of all tables. 3.
-3. **Sub Tables**: the number of all super table sub-tables. 4.
+1. **STables**: number of super tables.
+2. **Total Tables**: number of all tables.
+3. **Sub Tables**: the number of all super table subtables.
 4. **Tables**: graph of all normal table numbers over time.
 5. **Tables Number Foreach VGroups**: The number of tables contained in each VGroups.
 
@@ -330,18 +330,18 @@ Database usage, repeated for each value of the variable `$database` i.e. multipl
 Data node resource usage display with repeated multiple rows for the variable `$fqdn` i.e., each data node. Includes.
 
 1. **Uptime**: the time elapsed since the dnode was created.
-2. **Has MNodes?**: whether the current dnode is a mnode. 3.
-3. **CPU Cores**: the number of CPU cores. 4.
-4. **VNodes Number**: the number of VNodes in the current dnode. 5.
-5. **VNodes Masters**: the number of vnodes in the master role. 6.
+2. **Has MNodes?**: whether the current dnode is a mnode.
+3. **CPU Cores**: the number of CPU cores.
+4. **VNodes Number**: the number of VNodes in the current dnode.
+5. **VNodes Masters**: the number of vnodes in the master role.
 6. **Current CPU Usage of taosd**: CPU usage rate of taosd processes.
 7. **Current Memory Usage of taosd**: memory usage of taosd processes.
 8. **Disk Used**: The total disk usage percentage of the taosd data directory.
-9. **CPU Usage**: Process and system CPU usage. 10.
+9. **CPU Usage**: Process and system CPU usage.
 10. **RAM Usage**: Time series view of RAM usage metrics.
 11. **Disk Used**: Disks used at each level of multi-level storage (default is level0).
 12. **Disk Increasing Rate per Minute**: Percentage increase or decrease in disk usage per minute.
-13. **Disk IO**: Disk IO rate. 14.
+13. **Disk IO**: Disk IO rate.
 14. **Net IO**: Network IO, the aggregate network IO rate in addition to the local network.
 
 ### Login History
@@ -376,7 +376,7 @@ TDinsight installed via the `TDinsight.sh` script can be cleaned up using the co
 To completely uninstall TDinsight during a manual installation, you need to clean up the following.
 
 1. the TDinsight Dashboard in Grafana.
-2. the Data Source in Grafana. 3.
+2. the Data Source in Grafana.
 3. remove the `tdengine-datasource` plugin from the plugin installation directory.
 
 ## Integrated Docker Example

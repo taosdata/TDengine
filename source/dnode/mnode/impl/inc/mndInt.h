@@ -75,13 +75,12 @@ typedef struct {
 } STelemMgmt;
 
 typedef struct {
-  SWal      *pWal;
-  sem_t      syncSem;
-  int64_t    sync;
-  bool       standby;
-  bool       restored;
-  int32_t    errCode;
-  int32_t    transId;
+  SWal   *pWal;
+  sem_t   syncSem;
+  int64_t sync;
+  bool    standby;
+  int32_t errCode;
+  int32_t transId;
 } SSyncMgmt;
 
 typedef struct {
@@ -90,33 +89,44 @@ typedef struct {
 } SGrantInfo;
 
 typedef struct SMnode {
-  int32_t       selfDnodeId;
-  int64_t       clusterId;
-  TdThread      thread;
-  bool          deploy;
-  bool          stopped;
-  int8_t        replica;
-  int8_t        selfIndex;
-  SReplica      replicas[TSDB_MAX_REPLICA];
-  char         *path;
-  int64_t       checkTime;
-  SSdb         *pSdb;
-  SMgmtWrapper *pWrapper;
-  SArray       *pSteps;
-  SQHandle     *pQuery;
-  SShowMgmt     showMgmt;
-  SProfileMgmt  profileMgmt;
-  STelemMgmt    telemMgmt;
-  SSyncMgmt     syncMgmt;
-  SHashObj     *infosMeta;
-  SHashObj     *perfsMeta;
-  SGrantInfo    grant;
-  MndMsgFp      msgFp[TDMT_MAX];
-  SMsgCb        msgCb;
+  int32_t        selfDnodeId;
+  int64_t        clusterId;
+  TdThread       thread;
+  TdThreadRwlock lock;
+  int32_t        rpcRef;
+  int32_t        syncRef;
+  bool           stopped;
+  bool           restored;
+  bool           deploy;
+  int8_t         replica;
+  int8_t         selfIndex;
+  SReplica       replicas[TSDB_MAX_REPLICA];
+  char          *path;
+  int64_t        checkTime;
+  SSdb          *pSdb;
+  SArray        *pSteps;
+  SQHandle      *pQuery;
+  SHashObj      *infosMeta;
+  SHashObj      *perfsMeta;
+  SShowMgmt      showMgmt;
+  SProfileMgmt   profileMgmt;
+  STelemMgmt     telemMgmt;
+  SSyncMgmt      syncMgmt;
+  SGrantInfo     grant;
+  MndMsgFp       msgFp[TDMT_MAX];
+  SMsgCb         msgCb;
 } SMnode;
 
 void    mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);
 int64_t mndGenerateUid(char *name, int32_t len);
+
+int32_t mndAcquireRpcRef(SMnode *pMnode);
+void    mndReleaseRpcRef(SMnode *pMnode);
+void    mndSetRestore(SMnode *pMnode, bool restored);
+void    mndSetStop(SMnode *pMnode);
+bool    mndGetStop(SMnode *pMnode);
+int32_t mndAcquireSyncRef(SMnode *pMnode);
+void    mndReleaseSyncRef(SMnode *pMnode);
 
 #ifdef __cplusplus
 }

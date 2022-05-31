@@ -468,6 +468,7 @@ static int32_t createTagScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubpla
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
+  SQueryNodeLoad node = {.addr = pSubplan->execNode, .load = 0};
   taosArrayPush(pCxt->pExecNodeList, &pSubplan->execNode);
   return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pTagScan, pPhyNode);
 }
@@ -489,7 +490,8 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
     pSubplan->execNodeStat.tableNum = pScanLogicNode->pVgroupList->vgroups[0].numOfTable;
   }
   if (pCxt->pExecNodeList) {
-    taosArrayPush(pCxt->pExecNodeList, &pSubplan->execNode);
+    SQueryNodeLoad node = {.addr = pSubplan->execNode, .load = 0};
+    taosArrayPush(pCxt->pExecNodeList, &node);
   }
   tNameGetFullDbName(&pScanLogicNode->tableName, pSubplan->dbFName);
   pTableScan->dataRequired = pScanLogicNode->dataRequired;
@@ -503,6 +505,10 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
   pTableScan->sliding = pScanLogicNode->sliding;
   pTableScan->intervalUnit = pScanLogicNode->intervalUnit;
   pTableScan->slidingUnit = pScanLogicNode->slidingUnit;
+  pTableScan->triggerType = pScanLogicNode->triggerType;
+  pTableScan->watermark = pScanLogicNode->watermark;
+  pTableScan->tsColId = pScanLogicNode->tsColId;
+  pTableScan->filesFactor = pScanLogicNode->filesFactor;
 
   return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pTableScan, pPhyNode);
 }
@@ -520,10 +526,11 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
   pScan->accountId = pCxt->pPlanCxt->acctId;
   if (0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_USER_TABLES)) {
     vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
+    SQueryNodeLoad node = { .addr = pSubplan->execNode, .load = 0};
     taosArrayPush(pCxt->pExecNodeList, &pSubplan->execNode);
   } else {
-    SQueryNodeAddr addr = {.nodeId = MNODE_HANDLE, .epSet = pCxt->pPlanCxt->mgmtEpSet};
-    taosArrayPush(pCxt->pExecNodeList, &addr);
+    SQueryNodeLoad node = { .addr = {.nodeId = MNODE_HANDLE, .epSet = pCxt->pPlanCxt->mgmtEpSet}, .load = 0};
+    taosArrayPush(pCxt->pExecNodeList, &node);
   }
   pScan->mgmtEpSet = pCxt->pPlanCxt->mgmtEpSet;
   tNameGetFullDbName(&pScanLogicNode->tableName, pSubplan->dbFName);
@@ -914,6 +921,7 @@ static int32_t createWindowPhysiNodeFinalize(SPhysiPlanContext* pCxt, SNodeList*
 
   pWindow->triggerType = pWindowLogicNode->triggerType;
   pWindow->watermark = pWindowLogicNode->watermark;
+  pWindow->filesFactor = pWindowLogicNode->filesFactor;
 
   if (TSDB_CODE_SUCCESS == code) {
     *pPhyNode = (SPhysiNode*)pWindow;
@@ -1243,7 +1251,8 @@ static int32_t createPhysiSubplan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogic
     SVnodeModifLogicNode* pModif = (SVnodeModifLogicNode*)pLogicSubplan->pNode;
     pSubplan->msgType = pModif->msgType;
     pSubplan->execNode.epSet = pModif->pVgDataBlocks->vg.epSet;
-    taosArrayPush(pCxt->pExecNodeList, &pSubplan->execNode);
+    SQueryNodeLoad node = {.addr = pSubplan->execNode, .load = 0};
+    taosArrayPush(pCxt->pExecNodeList, &node);
     code = createDataInserter(pCxt, pModif->pVgDataBlocks, &pSubplan->pDataSink);
   } else {
     pSubplan->msgType = TDMT_VND_QUERY;

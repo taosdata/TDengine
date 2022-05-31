@@ -62,7 +62,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     dmProcessNetTestReq(pDnode, pRpc);
     return;
   } else if (pRpc->msgType == TDMT_MND_SYSTABLE_RETRIEVE_RSP || pRpc->msgType == TDMT_VND_FETCH_RSP) {
-    qWorkerProcessFetchRsp(NULL, NULL, pRpc);
+    qWorkerProcessFetchRsp(NULL, NULL, pRpc, 0);
     return;
   } else if (pRpc->msgType == TDMT_MND_STATUS_RSP && pEpSet != NULL) {
     dmSetMnodeEpSet(&pDnode->data, pEpSet);
@@ -130,7 +130,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
 
 _OVER:
   if (code != 0) {
-    dError("msg:%p, failed to process since %s", pMsg, terrstr());
+    dTrace("msg:%p, failed to process since %s, type:%s", pMsg, terrstr(), TMSG_INFO(pRpc->msgType));
     if (terrno != 0) code = terrno;
 
     if (IsReq(pRpc)) {

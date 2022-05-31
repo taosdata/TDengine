@@ -587,6 +587,8 @@ int32_t shellCalcColWidth(TAOS_FIELD *field, int32_t precision) {
   int32_t width = (int32_t)strlen(field->name);
 
   switch (field->type) {
+    case TSDB_DATA_TYPE_NULL:
+      return TMAX(4, width);  // null
     case TSDB_DATA_TYPE_BOOL:
       return TMAX(5, width);  // 'false'
 

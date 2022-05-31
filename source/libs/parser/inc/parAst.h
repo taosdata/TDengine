@@ -27,14 +27,13 @@ extern "C" {
 #include "querynodes.h"
 
 typedef struct SAstCreateContext {
-  SParseContext*   pQueryCxt;
-  SMsgBuf          msgBuf;
-  bool             notSupport;
-  SNode*           pRootNode;
-  int16_t          placeholderNo;
-  SArray*          pPlaceholderValues;
-  int32_t          errCode;
-  SParseMetaCache* pMetaCache;
+  SParseContext* pQueryCxt;
+  SMsgBuf        msgBuf;
+  bool           notSupport;
+  SNode*         pRootNode;
+  int16_t        placeholderNo;
+  SArray*        pPlaceholderValues;
+  int32_t        errCode;
 } SAstCreateContext;
 
 typedef enum EDatabaseOptionType {
@@ -60,7 +59,6 @@ typedef enum EDatabaseOptionType {
 
 typedef enum ETableOptionType {
   TABLE_OPTION_COMMENT = 1,
-  TABLE_OPTION_DELAY,
   TABLE_OPTION_FILE_FACTOR,
   TABLE_OPTION_ROLLUP,
   TABLE_OPTION_TTL,
@@ -75,7 +73,7 @@ typedef struct SAlterOption {
 
 extern SToken nil_token;
 
-int32_t initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt);
+void initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt);
 
 SNode* createRawExprNode(SAstCreateContext* pCxt, const SToken* pToken, SNode* pNode);
 SNode* createRawExprNodeExt(SAstCreateContext* pCxt, const SToken* pStart, const SToken* pEnd, SNode* pNode);
@@ -169,7 +167,7 @@ SNode* createCreateComponentNodeStmt(SAstCreateContext* pCxt, ENodeType type, co
 SNode* createDropComponentNodeStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pDnodeId);
 SNode* createTopicOptions(SAstCreateContext* pCxt);
 SNode* createCreateTopicStmt(SAstCreateContext* pCxt, bool ignoreExists, const SToken* pTopicName, SNode* pQuery,
-                             const SToken* pSubscribeDbName, SNode* pOptions);
+                             const SToken* pSubDbName, SNode* pRealTable);
 SNode* createDropTopicStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const SToken* pTopicName);
 SNode* createDropCGroupStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const SToken* pCGroupId,
                             const SToken* pTopicName);

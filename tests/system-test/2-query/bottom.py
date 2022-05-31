@@ -80,6 +80,9 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.checkEqual(tdSql.queryResult,[(2,),(1,)])
 
+        tdSql.query("select bottom(col13,50) from test")
+        tdSql.checkRows(10)
+
         tdSql.query("select bottom(col14, 2) from test")
         tdSql.checkRows(2)
         tdSql.checkEqual(tdSql.queryResult,[(2,),(1,)])
@@ -90,6 +93,7 @@ class TDTestCase:
         
         tdSql.query('select bottom(col2,1) from test interval(1y) order by col2')
         tdSql.checkData(0,0,1)
+
 
         tdSql.error('select * from test where bottom(col2,1)=1')
         

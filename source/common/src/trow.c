@@ -605,6 +605,10 @@ static int32_t tdAppendKvRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols
  * @param pCols
  */
 int32_t tdAppendSTSRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols *pCols, bool isMerge) {
+#ifdef TD_DEBUG_PRINT_TSDB_LOAD_DCOLS
+  printf("%s:%d ts: %" PRIi64 " sver:%d maxCols:%" PRIi16 " nCols:%" PRIi16 ", nRows:%d\n", __func__, __LINE__,
+         TD_ROW_KEY(pRow), TD_ROW_SVER(pRow), pCols->maxCols, pCols->numOfCols, pCols->numOfRows);
+#endif
   if (TD_IS_TP_ROW(pRow)) {
     return tdAppendTpRowToDataCol(pRow, pSchema, pCols, isMerge);
   } else if (TD_IS_KV_ROW(pRow)) {

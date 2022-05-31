@@ -14,6 +14,11 @@ python3 ./test.py -f 0-others/udf_restart_taosd.py
 python3 ./test.py -f 0-others/user_control.py
 python3 ./test.py -f 0-others/fsync.py
 
+python3 ./test.py -f 1-insert/influxdb_line_taosc_insert.py
+python3 ./test.py -f 1-insert/opentsdb_telnet_line_taosc_insert.py
+python3 ./test.py -f 1-insert/opentsdb_json_taosc_insert.py
+python3 ./test.py -f 1-insert/test_stmt_muti_insert_query.py
+
 python3 ./test.py -f 2-query/between.py
 python3 ./test.py -f 2-query/distinct.py
 python3 ./test.py -f 2-query/varchar.py
@@ -53,8 +58,8 @@ python3 ./test.py -f 2-query/Timediff.py
 
 python3 ./test.py -f 2-query/top.py
 python3 ./test.py -f 2-query/bottom.py
-
-
+python3 ./test.py -f 2-query/percentile.py
+python3 ./test.py -f 2-query/apercentile.py
 python3 ./test.py -f 2-query/abs.py
 python3 ./test.py -f 2-query/ceil.py
 python3 ./test.py -f 2-query/floor.py
@@ -70,11 +75,28 @@ python3 ./test.py -f 2-query/arccos.py
 python3 ./test.py -f 2-query/arctan.py
 python3 ./test.py -f 2-query/query_cols_tags_and_or.py
 # python3 ./test.py -f 2-query/nestedQuery.py
+# TD-15983 subquery output duplicate name column. 
+# Please Xiangyang Guo modify the following script
+# python3 ./test.py -f 2-query/nestedQuery_str.py
+python3 ./test.py -f 2-query/avg.py
+python3 ./test.py -f 2-query/elapsed.py
+python3 ./test.py -f 2-query/csum.py
+python3 ./test.py -f 2-query/mavg.py
+python3 ./test.py -f 2-query/diff.py
+python3 ./test.py -f 2-query/sample.py
+python3 ./test.py -f 2-query/function_diff.py
+python3 ./test.py -f 2-query/unique.py
+python3 ./test.py -f 2-query/stateduration.py
+python3 ./test.py -f 2-query/function_stateduration.py
+python3 ./test.py -f 2-query/statecount.py
 
 python3 ./test.py -f 7-tmq/basic5.py
 python3 ./test.py -f 7-tmq/subscribeDb.py
+python3 ./test.py -f 7-tmq/subscribeDb0.py
 python3 ./test.py -f 7-tmq/subscribeDb1.py
 python3 ./test.py -f 7-tmq/subscribeStb.py
 python3 ./test.py -f 7-tmq/subscribeStb0.py
 python3 ./test.py -f 7-tmq/subscribeStb1.py
 python3 ./test.py -f 7-tmq/subscribeStb2.py
+python3 ./test.py -f 7-tmq/subscribeStb3.py
+python3 ./test.py -f 7-tmq/subscribeStb4.py

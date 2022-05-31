@@ -635,7 +635,7 @@ void *queryThread(void *param) {
 
   while (!qwtTestStop) {
     qwtBuildQueryReqMsg(&queryRpc);
-    qWorkerProcessQueryMsg(mockPointer, mgmt, &queryRpc);    
+    qWorkerProcessQueryMsg(mockPointer, mgmt, &queryRpc, 0);    
     if (qwtTestEnableSleep) {
       taosUsleep(taosRand()%5);
     }
@@ -657,7 +657,7 @@ void *fetchThread(void *param) {
 
   while (!qwtTestStop) {
     qwtBuildFetchReqMsg(&fetchMsg, &fetchRpc);
-    code = qWorkerProcessFetchMsg(mockPointer, mgmt, &fetchRpc);
+    code = qWorkerProcessFetchMsg(mockPointer, mgmt, &fetchRpc, 0);
     if (qwtTestEnableSleep) {
       taosUsleep(taosRand()%5);
     }
@@ -679,7 +679,7 @@ void *dropThread(void *param) {
 
   while (!qwtTestStop) {
     qwtBuildDropReqMsg(&dropMsg, &dropRpc);
-    code = qWorkerProcessDropMsg(mockPointer, mgmt, &dropRpc);
+    code = qWorkerProcessDropMsg(mockPointer, mgmt, &dropRpc, 0);
     if (qwtTestEnableSleep) {
       taosUsleep(taosRand()%5);
     }
@@ -758,9 +758,9 @@ void *queryQueueThread(void *param) {
     }
     
     if (TDMT_VND_QUERY == queryRpc->msgType) {
-      qWorkerProcessQueryMsg(mockPointer, mgmt, queryRpc);
+      qWorkerProcessQueryMsg(mockPointer, mgmt, queryRpc, 0);
     } else if (TDMT_VND_QUERY_CONTINUE == queryRpc->msgType) {
-      qWorkerProcessCQueryMsg(mockPointer, mgmt, queryRpc);
+      qWorkerProcessCQueryMsg(mockPointer, mgmt, queryRpc, 0);
     } else {
       printf("unknown msg in query queue, type:%d\n", queryRpc->msgType);
       assert(0);
@@ -815,13 +815,13 @@ void *fetchQueueThread(void *param) {
 
     switch (fetchRpc->msgType) {
       case TDMT_VND_FETCH:
-        qWorkerProcessFetchMsg(mockPointer, mgmt, fetchRpc);
+        qWorkerProcessFetchMsg(mockPointer, mgmt, fetchRpc, 0);
         break;
       case TDMT_VND_CANCEL_TASK:
-        qWorkerProcessCancelMsg(mockPointer, mgmt, fetchRpc);
+        qWorkerProcessCancelMsg(mockPointer, mgmt, fetchRpc, 0);
         break;
       case TDMT_VND_DROP_TASK:
-        qWorkerProcessDropMsg(mockPointer, mgmt, fetchRpc);
+        qWorkerProcessDropMsg(mockPointer, mgmt, fetchRpc, 0);
         break;
       default:
         printf("unknown msg type:%d in fetch queue", fetchRpc->msgType);
@@ -878,16 +878,16 @@ TEST(seqTest, normalCase) {
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
-  code = qWorkerProcessQueryMsg(mockPointer, mgmt, &queryRpc);
+  code = qWorkerProcessQueryMsg(mockPointer, mgmt, &queryRpc, 0);
   ASSERT_EQ(code, 0);
 
   //code = qWorkerProcessReadyMsg(mockPointer, mgmt, &readyRpc);
   //ASSERT_EQ(code, 0);
 
-  code = qWorkerProcessFetchMsg(mockPointer, mgmt, &fetchRpc);
+  code = qWorkerProcessFetchMsg(mockPointer, mgmt, &fetchRpc, 0);
   ASSERT_EQ(code, 0);
 
-  code = qWorkerProcessDropMsg(mockPointer, mgmt, &dropRpc);
+  code = qWorkerProcessDropMsg(mockPointer, mgmt, &dropRpc, 0);
   ASSERT_EQ(code, 0);
 
   qWorkerDestroy(&mgmt);
@@ -914,10 +914,10 @@ TEST(seqTest, cancelFirst) {
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
-  code = qWorkerProcessDropMsg(mockPointer, mgmt, &dropRpc);
+  code = qWorkerProcessDropMsg(mockPointer, mgmt, &dropRpc, 0);
   ASSERT_EQ(code, 0);
 
-  code = qWorkerProcessQueryMsg(mockPointer, mgmt, &queryRpc);
+  code = qWorkerProcessQueryMsg(mockPointer, mgmt, &queryRpc, 0);
   ASSERT_TRUE(0 != code);
 
   qWorkerDestroy(&mgmt);
@@ -959,7 +959,7 @@ TEST(seqTest, randCase) {
     if (r >= 0 && r < maxr/5) {
       printf("Query,%d\n", t++);      
       qwtBuildQueryReqMsg(&queryRpc);
-      code = qWorkerProcessQueryMsg(mockPointer, mgmt, &queryRpc);
+      code = qWorkerProcessQueryMsg(mockPointer, mgmt, &queryRpc, 0);
     } else if (r >= maxr/5 && r < maxr * 2/5) {
       //printf("Ready,%d\n", t++);
       //qwtBuildReadyReqMsg(&readyMsg, &readyRpc);
@@ -970,14 +970,14 @@ TEST(seqTest, randCase) {
     } else if (r >= maxr * 2/5 && r < maxr* 3/5) {
       printf("Fetch,%d\n", t++);
       qwtBuildFetchReqMsg(&fetchMsg, &fetchRpc);
-      code = qWorkerProcessFetchMsg(mockPointer, mgmt, &fetchRpc);
+      code = qWorkerProcessFetchMsg(mockPointer, mgmt, &fetchRpc, 0);
       if (qwtTestEnableSleep) {
         taosUsleep(1);
       }
     } else if (r >= maxr * 3/5 && r < maxr * 4/5) {
       printf("Drop,%d\n", t++);
       qwtBuildDropReqMsg(&dropMsg, &dropRpc);
-      code = qWorkerProcessDropMsg(mockPointer, mgmt, &dropRpc);
+      code = qWorkerProcessDropMsg(mockPointer, mgmt, &dropRpc, 0);
       if (qwtTestEnableSleep) {
         taosUsleep(1);
       }

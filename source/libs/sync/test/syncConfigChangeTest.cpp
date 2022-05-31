@@ -42,7 +42,7 @@ void CommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
   }
 
   if (cbMeta.index > beginIndex) {
-    char logBuf[256];
+    char logBuf[256] = {0};
     snprintf(logBuf, sizeof(logBuf),
              "==callback== ==CommitCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s flag:%lu\n", pFsm,
              cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state), cbMeta.flag);
@@ -53,7 +53,7 @@ void CommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
 }
 
 void PreCommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
-  char logBuf[256];
+  char logBuf[256] = {0};
   snprintf(logBuf, sizeof(logBuf),
            "==callback== ==PreCommitCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s flag:%lu\n", pFsm,
            cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state), cbMeta.flag);
@@ -84,14 +84,15 @@ void ReConfigCb(struct SSyncFSM* pFsm, SSyncCfg newCfg, SReConfigCbMeta cbMeta) 
 
 SSyncFSM* createFsm() {
   SSyncFSM* pFsm = (SSyncFSM*)taosMemoryMalloc(sizeof(SSyncFSM));
+  memset(pFsm, 0, sizeof(*pFsm));
+
   pFsm->FpCommitCb = CommitCb;
   pFsm->FpPreCommitCb = PreCommitCb;
   pFsm->FpRollBackCb = RollBackCb;
 
   pFsm->FpGetSnapshot = GetSnapshotCb;
   pFsm->FpRestoreFinishCb = RestoreFinishCb;
-  pFsm->FpSnapshotApply = NULL;
-  pFsm->FpSnapshotRead = NULL;
+
 
   pFsm->FpReConfigCb = ReConfigCb;
 

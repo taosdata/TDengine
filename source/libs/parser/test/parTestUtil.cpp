@@ -44,23 +44,40 @@ namespace ParserTest {
     }                                                                                                                \
   } while (0);
 
-bool g_dump = false;
-bool g_testAsyncApis = false;
+bool    g_dump = false;
+bool    g_testAsyncApis = true;
+int32_t g_logLevel = 131;
+int32_t g_skipSql = 0;
+
+void setAsyncFlag(const char* pFlag) { g_testAsyncApis = stoi(pFlag) > 0 ? true : false; }
+void setSkipSqlNum(const char* pNum) { g_skipSql = stoi(pNum); }
 
 struct TerminateFlag : public exception {
   const char* what() const throw() { return "success and terminate"; }
 };
 
+void setLogLevel(const char* pLogLevel) { g_logLevel = stoi(pLogLevel); }
+
+int32_t getLogLevel() { return g_logLevel; }
+
 class ParserTestBaseImpl {
  public:
   ParserTestBaseImpl(ParserTestBase* pBase) : pBase_(pBase) {}
 
+  void login(const std::string& user) { caseEnv_.user_ = user; }
+
   void useDb(const string& acctId, const string& db) {
     caseEnv_.acctId_ = acctId;
     caseEnv_.db_ = db;
+    caseEnv_.nsql_ = g_skipSql;
   }
 
   void run(const string& sql, int32_t expect, ParserStage checkStage) {
+    if (caseEnv_.nsql_ > 0) {
+      --(caseEnv_.nsql_);
+      return;
+    }
+
     reset(expect, checkStage);
     try {
       SParseContext cxt = {0};
@@ -68,6 +85,8 @@ class ParserTestBaseImpl {
 
       SQuery* pQuery = nullptr;
       doParse(&cxt, &pQuery);
+
+      doAuthenticate(&cxt, pQuery);
 
       doTranslate(&cxt, pQuery);
 
@@ -89,59 +108,14 @@ class ParserTestBaseImpl {
     }
   }
 
-  void runAsync(const string& sql, int32_t expect, ParserStage checkStage) {
-    reset(expect, checkStage);
-    try {
-      SParseContext cxt = {0};
-      setParseContext(sql, &cxt, true);
-
-      SQuery* pQuery = nullptr;
-      doParse(&cxt, &pQuery);
-
-      SCatalogReq catalogReq = {0};
-      doBuildCatalogReq(pQuery->pMetaCache, &catalogReq);
-
-      string err;
-      thread t1([&]() {
-        try {
-          SMetaData metaData = {0};
-          doGetAllMeta(&catalogReq, &metaData);
-
-          doPutMetaDataToCache(&catalogReq, &metaData, pQuery->pMetaCache);
-
-          doTranslate(&cxt, pQuery);
-
-          doCalculateConstant(&cxt, pQuery);
-        } catch (const TerminateFlag& e) {
-          // success and terminate
-        } catch (const runtime_error& e) {
-          err = e.what();
-        } catch (...) {
-          err = "unknown error";
-        }
-      });
-
-      t1.join();
-      if (!err.empty()) {
-        throw runtime_error(err);
-      }
-
-      if (g_dump) {
-        dump();
-      }
-    } catch (const TerminateFlag& e) {
-      // success and terminate
-      return;
-    } catch (...) {
-      dump();
-      throw;
-    }
-  }
-
  private:
   struct caseEnv {
-    string acctId_;
-    string db_;
+    string  acctId_;
+    string  user_;
+    string  db_;
+    int32_t nsql_;
+
+    caseEnv() : user_("wangxiaoyu"), nsql_(0) {}
   };
 
   struct stmtEnv {
@@ -207,6 +181,8 @@ class ParserTestBaseImpl {
 
     pCxt->acctId = atoi(caseEnv_.acctId_.c_str());
     pCxt->db = caseEnv_.db_.c_str();
+    pCxt->pUser = caseEnv_.user_.c_str();
+    pCxt->isSuperUser = caseEnv_.user_ == "root";
     pCxt->pSql = stmtEnv_.sql_.c_str();
     pCxt->sqlLen = stmtEnv_.sql_.length();
     pCxt->pMsg = stmtEnv_.msgBuf_.data();
@@ -220,6 +196,11 @@ class ParserTestBaseImpl {
     res_.parsedAst_ = toString((*pQuery)->pRoot);
   }
 
+  void doCollectMetaKey(SParseContext* pCxt, SQuery* pQuery) {
+    DO_WITH_THROW(collectMetaKey, pCxt, pQuery);
+    ASSERT_NE(pQuery->pMetaCache, nullptr);
+  }
+
   void doBuildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalogReq) {
     DO_WITH_THROW(buildCatalogReq, pMetaCache, pCatalogReq);
   }
@@ -231,6 +212,8 @@ class ParserTestBaseImpl {
   void doPutMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMetaData, SParseMetaCache* pMetaCache) {
     DO_WITH_THROW(putMetaDataToCache, pCatalogReq, pMetaData, pMetaCache);
   }
+
+  void doAuthenticate(SParseContext* pCxt, SQuery* pQuery) { DO_WITH_THROW(authenticate, pCxt, pQuery); }
 
   void doTranslate(SParseContext* pCxt, SQuery* pQuery) {
     DO_WITH_THROW(translate, pCxt, pQuery);
@@ -254,6 +237,59 @@ class ParserTestBaseImpl {
 
   void checkQuery(const SQuery* pQuery, ParserStage stage) { pBase_->checkDdl(pQuery, stage); }
 
+  void runAsync(const string& sql, int32_t expect, ParserStage checkStage) {
+    reset(expect, checkStage);
+    try {
+      SParseContext cxt = {0};
+      setParseContext(sql, &cxt, true);
+
+      SQuery* pQuery = nullptr;
+      doParse(&cxt, &pQuery);
+
+      doCollectMetaKey(&cxt, pQuery);
+
+      SCatalogReq catalogReq = {0};
+      doBuildCatalogReq(pQuery->pMetaCache, &catalogReq);
+
+      string err;
+      thread t1([&]() {
+        try {
+          SMetaData metaData = {0};
+          doGetAllMeta(&catalogReq, &metaData);
+
+          doPutMetaDataToCache(&catalogReq, &metaData, pQuery->pMetaCache);
+
+          doAuthenticate(&cxt, pQuery);
+
+          doTranslate(&cxt, pQuery);
+
+          doCalculateConstant(&cxt, pQuery);
+        } catch (const TerminateFlag& e) {
+          // success and terminate
+        } catch (const runtime_error& e) {
+          err = e.what();
+        } catch (...) {
+          err = "unknown error";
+        }
+      });
+
+      t1.join();
+      if (!err.empty()) {
+        throw runtime_error(err);
+      }
+
+      if (g_dump) {
+        dump();
+      }
+    } catch (const TerminateFlag& e) {
+      // success and terminate
+      return;
+    } catch (...) {
+      dump();
+      throw;
+    }
+  }
+
   caseEnv         caseEnv_;
   stmtEnv         stmtEnv_;
   stmtRes         res_;
@@ -264,14 +300,12 @@ ParserTestBase::ParserTestBase() : impl_(new ParserTestBaseImpl(this)) {}
 
 ParserTestBase::~ParserTestBase() {}
 
+void ParserTestBase::login(const std::string& user) { return impl_->login(user); }
+
 void ParserTestBase::useDb(const std::string& acctId, const std::string& db) { impl_->useDb(acctId, db); }
 
 void ParserTestBase::run(const std::string& sql, int32_t expect, ParserStage checkStage) {
   return impl_->run(sql, expect, checkStage);
-}
-
-void ParserTestBase::runAsync(const std::string& sql, int32_t expect, ParserStage checkStage) {
-  return impl_->runAsync(sql, expect, checkStage);
 }
 
 void ParserTestBase::checkDdl(const SQuery* pQuery, ParserStage stage) { return; }

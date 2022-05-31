@@ -1,6 +1,6 @@
 ---
 sidebar_label: UDF
-title: User Defined Functions
+title: User Defined Functions(UDF)
 description: "Scalar functions and aggregate functions developed by users can be utilized by the query framework to expand query capability"
 ---
 

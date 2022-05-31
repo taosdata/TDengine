@@ -18,6 +18,6 @@ TARGET_INCLUDE_DIRECTORIES(
         PRIVATE "${TD_SOURCE_DIR}/source/libs/scalar/inc"
 )
 add_test(
-    NAME scalarTest
-    COMMAND scalarTest
+        NAME scalarTest
+        COMMAND scalarTest
 )

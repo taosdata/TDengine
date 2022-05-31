@@ -94,6 +94,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
   if (schJobNeedToStop(pJob, &status)) {
     SCH_TASK_ELOG("rsp not processed cause of job status, job status:%s, rspCode:0x%x", jobTaskStatusStr(status),
                   rspCode);
+    taosMemoryFreeClear(msg);              
     SCH_RET(atomic_load_32(&pJob->errCode));
   }
 
@@ -121,6 +122,8 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
       }
 
       SCH_ERR_JRET(rspCode);
+      taosMemoryFreeClear(msg);              
+      
       SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
       break;
     }
@@ -145,6 +148,8 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
       }
 
       SCH_ERR_JRET(rspCode);
+      taosMemoryFreeClear(msg);              
+      
       SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
       break;
     }
@@ -164,6 +169,9 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
       if (NULL == msg) {
         SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
       }
+
+      taosMemoryFreeClear(msg);              
+      
       SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
       break;
     }
@@ -210,6 +218,8 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
         SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
       }
 
+      taosMemoryFreeClear(msg);              
+
       SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
 
       break;
@@ -224,6 +234,8 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
       SCH_ERR_JRET(rsp->code);
 
       SCH_ERR_JRET(schSaveJobQueryRes(pJob, rsp));
+
+      taosMemoryFreeClear(msg);              
       
       SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
 
@@ -275,12 +287,16 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
             SCH_ERR_JRET(schProcessOnExplainDone(pJob, pTask, pRsp));
           }
 
+          taosMemoryFreeClear(msg);              
+
           return TSDB_CODE_SUCCESS;
         }
 
         atomic_val_compare_exchange_32(&pJob->remoteFetch, 1, 0);
 
         SCH_ERR_JRET(schFetchFromRemote(pJob));
+
+        taosMemoryFreeClear(msg);              
 
         return TSDB_CODE_SUCCESS;
       }
@@ -299,6 +315,8 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
       }
 
       SCH_TASK_DLOG("got fetch rsp, rows:%d, complete:%d", htonl(rsp->numOfRows), rsp->completed);
+
+      msg = NULL;              
 
       schProcessOnDataFetched(pJob);
       break;
@@ -322,6 +340,8 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
 
 _return:
 
+  taosMemoryFreeClear(msg);              
+
   SCH_RET(schProcessOnTaskFailure(pJob, pTask, code));
 }
 
@@ -338,27 +358,11 @@ int32_t schHandleCallback(void *param, const SDataBuf *pMsg, int32_t msgType, in
     SCH_ERR_JRET(TSDB_CODE_QRY_JOB_FREED);
   }
 
-  schGetTaskFromTaskList(pJob->execTasks, pParam->taskId, &pTask);
-  if (NULL == pTask) {
-    if (TDMT_VND_EXPLAIN_RSP == msgType) {
-      schGetTaskFromTaskList(pJob->succTasks, pParam->taskId, &pTask);
-    } else {
-      SCH_JOB_ELOG("task not found in execTask list, refId:%" PRIx64 ", taskId:%" PRIx64, pParam->refId,
-                   pParam->taskId);
-      SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
-    }
-  }
-
-  if (NULL == pTask) {
-    SCH_JOB_ELOG("task not found in execList & succList, refId:%" PRIx64 ", taskId:%" PRIx64, pParam->refId,
-                 pParam->taskId);
-    SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
-  }
+  SCH_ERR_JRET(schGetTaskInJob(pJob, pParam->taskId, &pTask));
 
   SCH_TASK_DLOG("rsp msg received, type:%s, handle:%p, code:%s", TMSG_INFO(msgType), pMsg->handle, tstrerror(rspCode));
 
-  SCH_SET_TASK_HANDLE(pTask, pMsg->handle);
-  schUpdateTaskExecNodeHandle(pTask, pMsg->handle, rspCode);
+  SCH_ERR_JRET(schUpdateTaskHandle(pJob, pTask, msgType, pMsg->handle, rspCode));
   
   SCH_ERR_JRET(schHandleResponseMsg(pJob, pTask, msgType, pMsg->pData, pMsg->len, rspCode));
 

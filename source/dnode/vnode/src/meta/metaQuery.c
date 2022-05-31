@@ -31,7 +31,7 @@ void metaReaderClear(SMetaReader *pReader) {
 }
 
 int metaGetTableEntryByVersion(SMetaReader *pReader, int64_t version, tb_uid_t uid) {
-  SMeta   *pMeta = pReader->pMeta;
+  SMeta *  pMeta = pReader->pMeta;
   STbDbKey tbDbKey = {.version = version, .uid = uid};
 
   // query table.db
@@ -54,7 +54,7 @@ _err:
 }
 
 int metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
-  SMeta  *pMeta = pReader->pMeta;
+  SMeta * pMeta = pReader->pMeta;
   int64_t version;
 
   // query uid.idx
@@ -68,7 +68,7 @@ int metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
 }
 
 int metaGetTableEntryByName(SMetaReader *pReader, const char *name) {
-  SMeta   *pMeta = pReader->pMeta;
+  SMeta *  pMeta = pReader->pMeta;
   tb_uid_t uid;
 
   // query name.idx
@@ -82,7 +82,7 @@ int metaGetTableEntryByName(SMetaReader *pReader, const char *name) {
 }
 
 tb_uid_t metaGetTableEntryUidByName(SMeta *pMeta, const char *name) {
-  void    *pData = NULL;
+  void *   pData = NULL;
   int      nData = 0;
   tb_uid_t uid = 0;
 
@@ -134,7 +134,7 @@ void metaCloseTbCursor(SMTbCursor *pTbCur) {
 
 int metaTbCursorNext(SMTbCursor *pTbCur) {
   int    ret;
-  void  *pBuf;
+  void * pBuf;
   STbCfg tbCfg;
 
   for (;;) {
@@ -155,52 +155,61 @@ int metaTbCursorNext(SMTbCursor *pTbCur) {
 }
 
 SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, bool isinline) {
-  void           *pKey = NULL;
-  void           *pVal = NULL;
-  int             kLen = 0;
-  int             vLen = 0;
-  int             ret;
-  SSkmDbKey       skmDbKey;
-  SSchemaWrapper *pSW = NULL;
-  SSchema        *pSchema = NULL;
-  void           *pBuf;
-  SDecoder        coder = {0};
+  void *          pData = NULL;
+  int             nData = 0;
+  int64_t         version;
+  SSchemaWrapper  schema = {0};
+  SSchemaWrapper *pSchema = NULL;
+  SDecoder        dc = {0};
 
-  // fetch
-  skmDbKey.uid = uid;
-  skmDbKey.sver = sver;
-  pKey = &skmDbKey;
-  kLen = sizeof(skmDbKey);
   metaRLock(pMeta);
-  ret = tdbTbGet(pMeta->pSkmDb, pKey, kLen, &pVal, &vLen);
-  metaULock(pMeta);
-  if (ret < 0) {
-    return NULL;
+  if (sver < 0) {
+    if (tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pData, &nData) < 0) {
+      goto _err;
+    }
+
+    version = *(int64_t *)pData;
+
+    tdbTbGet(pMeta->pTbDb, &(STbDbKey){.uid = uid, .version = version}, sizeof(STbDbKey), &pData, &nData);
+
+    SMetaEntry me = {0};
+    tDecoderInit(&dc, pData, nData);
+    metaDecodeEntry(&dc, &me);
+    if (me.type == TSDB_SUPER_TABLE) {
+      pSchema = tCloneSSchemaWrapper(&me.stbEntry.schemaRow);
+    } else if (me.type == TSDB_NORMAL_TABLE) {
+      pSchema = tCloneSSchemaWrapper(&me.ntbEntry.schemaRow);
+    } else {
+      ASSERT(0);
+    }
+    tDecoderClear(&dc);
+  } else {
+    if (tdbTbGet(pMeta->pSkmDb, &(SSkmDbKey){.uid = uid, .sver = sver}, sizeof(SSkmDbKey), &pData, &nData) < 0) {
+      goto _err;
+    }
+
+    tDecoderInit(&dc, pData, nData);
+    tDecodeSSchemaWrapper(&dc, &schema);
+    pSchema = tCloneSSchemaWrapper(&schema);
+    tDecoderClear(&dc);
   }
 
-  // decode
-  pBuf = pVal;
-  pSW = taosMemoryMalloc(sizeof(SSchemaWrapper));
+  metaULock(pMeta);
+  tdbFree(pData);
+  return pSchema;
 
-  tDecoderInit(&coder, pVal, vLen);
-  tDecodeSSchemaWrapper(&coder, pSW);
-  pSchema = taosMemoryMalloc(sizeof(SSchema) * pSW->nCols);
-  memcpy(pSchema, pSW->pSchema, sizeof(SSchema) * pSW->nCols);
-  tDecoderClear(&coder);
-
-  pSW->pSchema = pSchema;
-
-  tdbFree(pVal);
-
-  return pSW;
+_err:
+  metaULock(pMeta);
+  tdbFree(pData);
+  return NULL;
 }
 
 struct SMCtbCursor {
-  SMeta   *pMeta;
-  TBC     *pCur;
+  SMeta *  pMeta;
+  TBC *    pCur;
   tb_uid_t suid;
-  void    *pKey;
-  void    *pVal;
+  void *   pKey;
+  void *   pVal;
   int      kLen;
   int      vLen;
 };
@@ -272,10 +281,10 @@ tb_uid_t metaCtbCursorNext(SMCtbCursor *pCtbCur) {
 STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver) {
   tb_uid_t        quid;
   SMetaReader     mr = {0};
-  STSchema       *pTSchema = NULL;
+  STSchema *      pTSchema = NULL;
   SSchemaWrapper *pSW = NULL;
   STSchemaBuilder sb = {0};
-  SSchema        *pSchema;
+  SSchema *       pSchema;
 
   metaReaderInit(&mr, pMeta, 0);
   metaGetTableEntryByUid(&mr, uid);
@@ -291,7 +300,7 @@ STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver) {
   pSW = metaGetTableSchema(pMeta, quid, sver, 0);
   if (!pSW) return NULL;
 
-  tdInitTSchemaBuilder(&sb, sver);
+  tdInitTSchemaBuilder(&sb, pSW->version);
   for (int i = 0; i < pSW->nCols; i++) {
     pSchema = pSW->pSchema + i;
     tdAddColToSchema(&sb, pSchema->type, pSchema->flags, pSchema->colId, pSchema->bytes);
@@ -312,11 +321,11 @@ int metaGetTbNum(SMeta *pMeta) {
 }
 
 typedef struct {
-  SMeta   *pMeta;
-  TBC     *pCur;
+  SMeta *  pMeta;
+  TBC *    pCur;
   tb_uid_t uid;
-  void    *pKey;
-  void    *pVal;
+  void *   pKey;
+  void *   pVal;
   int      kLen;
   int      vLen;
 } SMSmaCursor;
@@ -388,7 +397,7 @@ tb_uid_t metaSmaCursorNext(SMSmaCursor *pSmaCur) {
 
 STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid, bool deepCopy) {
   STSmaWrapper *pSW = NULL;
-  SArray       *pSmaIds = NULL;
+  SArray *      pSmaIds = NULL;
 
   if (!(pSmaIds = metaGetSmaIdsByTable(pMeta, uid))) {
     return NULL;
@@ -412,7 +421,7 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid, bool deepCopy) {
   metaReaderInit(&mr, pMeta, 0);
   int64_t smaId;
   int     smaIdx = 0;
-  STSma  *pTSma = NULL;
+  STSma * pTSma = NULL;
   for (int i = 0; i < pSW->number; ++i) {
     smaId = *(tb_uid_t *)taosArrayGet(pSmaIds, i);
     if (metaGetTableEntryByUid(&mr, smaId) < 0) {
@@ -460,7 +469,7 @@ _err:
 }
 
 STSma *metaGetSmaInfoByIndex(SMeta *pMeta, int64_t indexUid) {
-  STSma      *pTSma = NULL;
+  STSma *     pTSma = NULL;
   SMetaReader mr = {0};
   metaReaderInit(&mr, pMeta, 0);
   if (metaGetTableEntryByUid(&mr, indexUid) < 0) {
@@ -482,7 +491,7 @@ STSma *metaGetSmaInfoByIndex(SMeta *pMeta, int64_t indexUid) {
 }
 
 SArray *metaGetSmaIdsByTable(SMeta *pMeta, tb_uid_t uid) {
-  SArray     *pUids = NULL;
+  SArray *    pUids = NULL;
   SSmaIdxKey *pSmaIdxKey = NULL;
 
   SMSmaCursor *pCur = metaOpenSmaCursor(pMeta, uid);
@@ -520,7 +529,7 @@ SArray *metaGetSmaIdsByTable(SMeta *pMeta, tb_uid_t uid) {
 }
 
 SArray *metaGetSmaTbUids(SMeta *pMeta) {
-  SArray     *pUids = NULL;
+  SArray *    pUids = NULL;
   SSmaIdxKey *pSmaIdxKey = NULL;
   tb_uid_t    lastUid = 0;
 

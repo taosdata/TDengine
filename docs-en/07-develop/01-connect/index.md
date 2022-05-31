@@ -1,6 +1,6 @@
 ---
-sidebar_label: Connection
-title: Connect to TDengine
+sidebar_label: Connect
+title: Connect
 description: "This document explains how to establish connections to TDengine, and briefly introduces how to install and use TDengine connectors."
 ---
 
