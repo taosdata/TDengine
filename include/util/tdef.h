@@ -344,9 +344,6 @@ typedef enum ELogicConditionType {
 #define TSDB_MIN_ROLLUP_FILE_FACTOR     0
 #define TSDB_MAX_ROLLUP_FILE_FACTOR     1
 #define TSDB_DEFAULT_ROLLUP_FILE_FACTOR 0.1
-#define TSDB_MIN_ROLLUP_DELAY           1
-#define TSDB_MAX_ROLLUP_DELAY           10
-#define TSDB_DEFAULT_ROLLUP_DELAY       2
 #define TSDB_MIN_TABLE_TTL              0
 #define TSDB_DEFAULT_TABLE_TTL          0
 
@@ -368,7 +365,11 @@ typedef enum ELogicConditionType {
 #define PRIMARYKEY_TIMESTAMP_COL_ID    1
 #define COL_REACH_END(colId, maxColId) ((colId) > (maxColId))
 
+#ifdef WINDOWS
+#define TSDB_MAX_RPC_THREADS 4  // windows pipe only support 4 connections.
+#else
 #define TSDB_MAX_RPC_THREADS 5
+#endif
 
 #define TSDB_QUERY_TYPE_NON_TYPE      0x00u  // none type
 #define TSDB_QUERY_TYPE_FREE_RESOURCE 0x01u  // free qhandle at vnode

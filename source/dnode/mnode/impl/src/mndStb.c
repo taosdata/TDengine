@@ -397,13 +397,13 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
     req.pRSmaParam.xFilesFactor = pStb->xFilesFactor;
     req.pRSmaParam.delay = pStb->delay;
     if (pStb->ast1Len > 0) {
-      if (mndConvertRSmaTask(pStb->pAst1, pStb->uid, 0, 0, &req.pRSmaParam.qmsg1, &req.pRSmaParam.qmsg1Len) !=
+      if (mndConvertRSmaTask(pStb->pAst1, pStb->uid, 0, 0, &req.pRSmaParam.qmsg1, &req.pRSmaParam.qmsg1Len, req.pRSmaParam.xFilesFactor) !=
           TSDB_CODE_SUCCESS) {
         return NULL;
       }
     }
     if (pStb->ast2Len > 0) {
-      if (mndConvertRSmaTask(pStb->pAst2, pStb->uid, 0, 0, &req.pRSmaParam.qmsg2, &req.pRSmaParam.qmsg2Len) !=
+      if (mndConvertRSmaTask(pStb->pAst2, pStb->uid, 0, 0, &req.pRSmaParam.qmsg2, &req.pRSmaParam.qmsg2Len, req.pRSmaParam.xFilesFactor) !=
           TSDB_CODE_SUCCESS) {
         return NULL;
       }

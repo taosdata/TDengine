@@ -149,7 +149,7 @@ int32_t tdUpdateExpireWindow(SSma* pSma, SSubmitReq* pMsg, int64_t version);
 int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
 int32_t tdProcessTSmaInsert(SSma* pSma, int64_t indexUid, const char* msg);
 
-int32_t tdProcessRSmaCreate(SSma* pSma, SMeta* pMeta, SVCreateStbReq* pReq, SMsgCb* pMsgCb);
+int32_t tdProcessRSmaCreate(SVnode *pVnode, SVCreateStbReq* pReq);
 int32_t tdProcessRSmaSubmit(SSma* pSma, void* pMsg, int32_t inputType);
 int32_t tdFetchTbUidList(SSma* pSma, STbUidStore** ppStore, tb_uid_t suid, tb_uid_t uid);
 int32_t tdUpdateTbUidList(SSma* pSma, STbUidStore* pUidStore);
