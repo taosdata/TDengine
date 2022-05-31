@@ -181,16 +181,16 @@ static int32_t tDecodeCStrTo(SDecoder* pCoder, char* val);
 
 #define TD_DECODE_VARIANT_MACRO(CODER, PVAL, TYPE)                     \
   int32_t i = 0;                                                       \
-  if (PVAL) *(PVAL) = 0;                                               \
+  *(PVAL) = 0;                                               \
   for (;;) {                                                           \
     if (TD_CODER_CHECK_CAPACITY_FAILED(CODER, 1)) return -1;           \
     TYPE tval = TD_CODER_CURRENT(CODER)[0];                            \
     if (tval < ENCODE_LIMIT) {                                         \
-      if (PVAL) *(PVAL) |= (tval << (7 * i));                          \
+      *(PVAL) |= (tval << (7 * i));                          \
       TD_CODER_MOVE_POS(pCoder, 1);                                    \
       break;                                                           \
     } else {                                                           \
-      if (PVAL) *(PVAL) |= (((tval) & (ENCODE_LIMIT - 1)) << (7 * i)); \
+      *(PVAL) |= (((tval) & (ENCODE_LIMIT - 1)) << (7 * i)); \
       i++;                                                             \
       TD_CODER_MOVE_POS(pCoder, 1);                                    \
     }                                                                  \
