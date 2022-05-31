@@ -108,6 +108,7 @@
 ./test.sh -f tsim/stable/alter_insert1.sim
 ./test.sh -f tsim/stable/alter_insert2.sim
 ./test.sh -f tsim/stable/alter_import.sim
+./test.sh -f tsim/stable/tag_filter.sim
 
 # --- for multi process mode
 ./test.sh -f tsim/user/basic1.sim -m

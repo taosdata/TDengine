@@ -3299,9 +3299,6 @@ static int32_t buildCreateTopicReq(STranslateContext* pCxt, SCreateTopicStmt* pS
   tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->topicName, strlen(pStmt->topicName));
   tNameGetFullDbName(&name, pReq->name);
   pReq->igExists = pStmt->ignoreExists;
-  pReq->withTbName = pStmt->pOptions->withTable;
-  pReq->withSchema = pStmt->pOptions->withSchema;
-  pReq->withTag = pStmt->pOptions->withTag;
 
   pReq->sql = strdup(pCxt->pParseCxt->pSql);
   if (NULL == pReq->sql) {
@@ -3310,19 +3307,26 @@ static int32_t buildCreateTopicReq(STranslateContext* pCxt, SCreateTopicStmt* pS
 
   int32_t code = TSDB_CODE_SUCCESS;
 
-  const char* dbName;
-  if (NULL != pStmt->pQuery) {
-    dbName = ((SRealTableNode*)(((SSelectStmt*)pStmt->pQuery)->pFromTable))->table.dbName;
+  if ('\0' != pStmt->subSTbName[0]) {
+    pReq->subType = TOPIC_SUB_TYPE__TABLE;
+    toName(pCxt->pParseCxt->acctId, pStmt->subDbName, pStmt->subSTbName, &name);
+    tNameGetFullDbName(&name, pReq->subDbName);
+    tNameExtractFullName(&name, pReq->subStbName);
+  } else if ('\0' != pStmt->subDbName[0]) {
+    pReq->subType = TOPIC_SUB_TYPE__DB;
+    tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->subDbName, strlen(pStmt->subDbName));
+    tNameGetFullDbName(&name, pReq->subDbName);
+  } else {
+    pReq->subType = TOPIC_SUB_TYPE__COLUMN;
+    char* dbName = ((SRealTableNode*)(((SSelectStmt*)pStmt->pQuery)->pFromTable))->table.dbName;
+    tNameSetDbName(&name, pCxt->pParseCxt->acctId, dbName, strlen(dbName));
+    tNameGetFullDbName(&name, pReq->subDbName);
     pCxt->pParseCxt->topicQuery = true;
     code = translateQuery(pCxt, pStmt->pQuery);
     if (TSDB_CODE_SUCCESS == code) {
       code = nodesNodeToString(pStmt->pQuery, false, &pReq->ast, NULL);
     }
-  } else {
-    dbName = pStmt->subscribeDbName;
   }
-  tNameSetDbName(&name, pCxt->pParseCxt->acctId, dbName, strlen(dbName));
-  tNameGetFullDbName(&name, pReq->subscribeDbName);
 
   return code;
 }
@@ -3377,7 +3381,7 @@ static int32_t translateDropCGroup(STranslateContext* pCxt, SDropCGroupStmt* pSt
   dropReq.igNotExists = pStmt->ignoreNotExists;
   strcpy(dropReq.cgroup, pStmt->cgroup);
 
-  return buildCmdMsg(pCxt, TDMT_MND_DROP_CGROUP, (FSerializeFunc)tSerializeSMDropCgroupReq, &dropReq);
+  return buildCmdMsg(pCxt, TDMT_MND_MQ_DROP_CGROUP, (FSerializeFunc)tSerializeSMDropCgroupReq, &dropReq);
 }
 
 static int32_t translateAlterLocal(STranslateContext* pCxt, SAlterLocalStmt* pStmt) {
