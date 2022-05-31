@@ -32,7 +32,7 @@ TEST_F(ParserInitialDTest, dropBnode) {
   run("DROP BNODE ON DNODE 1");
 }
 
-// DROP CGROUP [ IF EXISTS ] cgroup_name ON topic_name
+// DROP CONSUMER GROUP [ IF EXISTS ] cgroup_name ON topic_name
 TEST_F(ParserInitialDTest, dropCGroup) {
   useDb("root", "test");
 
@@ -56,10 +56,10 @@ TEST_F(ParserInitialDTest, dropCGroup) {
   });
 
   setDropCgroupReqFunc("tp1", "cg1");
-  run("DROP CGROUP cg1 ON tp1");
+  run("DROP CONSUMER GROUP cg1 ON tp1");
 
   setDropCgroupReqFunc("tp1", "cg1", 1);
-  run("DROP CGROUP IF EXISTS cg1 ON tp1");
+  run("DROP CONSUMER GROUP IF EXISTS cg1 ON tp1");
 }
 
 // todo drop database

@@ -2601,6 +2601,7 @@ int32_t setSDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadI
         pStart += sizeof(int32_t) * numOfRows;
 
         if (colLen[i] > 0) {
+          taosMemoryFreeClear(pColInfoData->pData);
           pColInfoData->pData = taosMemoryMalloc(colLen[i]);
         }
       } else {
@@ -2758,6 +2759,7 @@ static SSDataBlock* concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SEx
                pExchangeInfo->loadInfo.totalRows);
         pDataInfo->status = EX_SOURCE_DATA_EXHAUSTED;
         completed += 1;
+        taosMemoryFreeClear(pDataInfo->pRsp);
         continue;
       }
 
@@ -2765,6 +2767,7 @@ static SSDataBlock* concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SEx
       code = setSDataBlockFromFetchRsp(pExchangeInfo->pResult, pLoadInfo, pTableRsp->numOfRows, pTableRsp->data,
                                        pTableRsp->compLen, pTableRsp->numOfCols, startTs, &pDataInfo->totalRows, NULL);
       if (code != 0) {
+        taosMemoryFreeClear(pDataInfo->pRsp);
         goto _error;
       }
 
@@ -2785,10 +2788,12 @@ static SSDataBlock* concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SEx
         pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
         code = doSendFetchDataRequest(pExchangeInfo, pTaskInfo, i);
         if (code != TSDB_CODE_SUCCESS) {
+          taosMemoryFreeClear(pDataInfo->pRsp);
           goto _error;
         }
       }
 
+      taosMemoryFreeClear(pDataInfo->pRsp);
       return pExchangeInfo->pResult;
     }
 
@@ -2891,6 +2896,7 @@ static SSDataBlock* seqLoadRemoteData(SOperatorInfo* pOperator) {
 
       pDataInfo->status = EX_SOURCE_DATA_EXHAUSTED;
       pExchangeInfo->current += 1;
+      taosMemoryFreeClear(pDataInfo->pRsp);
       continue;
     }
 
@@ -2916,6 +2922,7 @@ static SSDataBlock* seqLoadRemoteData(SOperatorInfo* pOperator) {
     }
 
     pOperator->resultInfo.totalRows += pRes->info.rows;
+    taosMemoryFreeClear(pDataInfo->pRsp);
     return pExchangeInfo->pResult;
   }
 }
@@ -3377,7 +3384,7 @@ int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scan
   // todo add more information about exchange operation
   int32_t type = pOperator->operatorType;
   if (type == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE || type == QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN ||
-      type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+      type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN || type == QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN) {
     *order = TSDB_ORDER_ASC;
     *scanFlag = MAIN_SCAN;
     return TSDB_CODE_SUCCESS;
@@ -3441,14 +3448,14 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
     }
 
 #if 0  // test for encode/decode result info
-    if(pOperator->encodeResultRow){
+    if(pOperator->fpSet.encodeResultRow){
       char *result = NULL;
       int32_t length = 0;
-      SAggSupporter   *pSup = &pAggInfo->aggSup;
-      pOperator->encodeResultRow(pOperator, pSup, pInfo, &result, &length);
+      pOperator->fpSet.encodeResultRow(pOperator, &result, &length);
+      SAggSupporter* pSup = &pAggInfo->aggSup;
       taosHashClear(pSup->pResultRowHashTable);
       pInfo->resultRowInfo.size = 0;
-      pOperator->decodeResultRow(pOperator, pSup, pInfo, result, length);
+      pOperator->fpSet.decodeResultRow(pOperator, result);
       if(result){
         taosMemoryFree(result);
       }
@@ -3491,17 +3498,25 @@ static SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
   return (rows == 0) ? NULL : pInfo->pRes;
 }
 
-void aggEncodeResultRow(SOperatorInfo* pOperator, SAggSupporter* pSup, SOptrBasicInfo* pInfo, char** result,
-                        int32_t* length) {
-  int32_t size = taosHashGetSize(pSup->pResultRowHashTable);
-  size_t  keyLen = sizeof(uint64_t) * 2;  // estimate the key length
-  int32_t totalSize = sizeof(int32_t) + size * (sizeof(int32_t) + keyLen + sizeof(int32_t) + pSup->resultRowSize);
-  *result = taosMemoryCalloc(1, totalSize);
-  if (*result == NULL) {
-    longjmp(pOperator->pTaskInfo->env, TSDB_CODE_OUT_OF_MEMORY);
+int32_t aggEncodeResultRow(SOperatorInfo* pOperator, char** result, int32_t* length) {
+  if (result == NULL || length == NULL) {
+    return TSDB_CODE_TSC_INVALID_INPUT;
   }
-  *(int32_t*)(*result) = size;
+  SOptrBasicInfo* pInfo = (SOptrBasicInfo*)(pOperator->info);
+  SAggSupporter*  pSup = (SAggSupporter*)POINTER_SHIFT(pOperator->info, sizeof(SOptrBasicInfo));
+  int32_t         size = taosHashGetSize(pSup->pResultRowHashTable);
+  size_t          keyLen = sizeof(uint64_t) * 2;  // estimate the key length
+  int32_t         totalSize =
+      sizeof(int32_t) + sizeof(int32_t) + size * (sizeof(int32_t) + keyLen + sizeof(int32_t) + pSup->resultRowSize);
+
+  *result = (char*)taosMemoryCalloc(1, totalSize);
+  if (*result == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   int32_t offset = sizeof(int32_t);
+  *(int32_t*)(*result + offset) = size;
+  offset += sizeof(int32_t);
 
   // prepare memory
   SResultRowPosition* pos = &pInfo->resultRowInfo.cur;
@@ -3523,12 +3538,11 @@ void aggEncodeResultRow(SOperatorInfo* pOperator, SAggSupporter* pSup, SOptrBasi
     // recalculate the result size
     int32_t realTotalSize = offset + sizeof(int32_t) + keyLen + sizeof(int32_t) + pSup->resultRowSize;
     if (realTotalSize > totalSize) {
-      char* tmp = taosMemoryRealloc(*result, realTotalSize);
+      char* tmp = (char*)taosMemoryRealloc(*result, realTotalSize);
       if (tmp == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
         taosMemoryFree(*result);
         *result = NULL;
-        longjmp(pOperator->pTaskInfo->env, TSDB_CODE_OUT_OF_MEMORY);
+        return TSDB_CODE_OUT_OF_MEMORY;
       } else {
         *result = tmp;
       }
@@ -3548,22 +3562,26 @@ void aggEncodeResultRow(SOperatorInfo* pOperator, SAggSupporter* pSup, SOptrBasi
     pIter = taosHashIterate(pSup->pResultRowHashTable, pIter);
   }
 
-  if (length) {
-    *length = offset;
-  }
-  return;
+  *(int32_t*)(*result) = offset;
+  *length = offset;
+
+  return TDB_CODE_SUCCESS;
 }
 
-bool aggDecodeResultRow(SOperatorInfo* pOperator, SAggSupporter* pSup, SOptrBasicInfo* pInfo, char* result,
-                        int32_t length) {
-  if (!result || length <= 0) {
-    return false;
+int32_t aggDecodeResultRow(SOperatorInfo* pOperator, char* result) {
+  if (result == NULL) {
+    return TSDB_CODE_TSC_INVALID_INPUT;
   }
+  SOptrBasicInfo* pInfo = (SOptrBasicInfo*)(pOperator->info);
+  SAggSupporter*  pSup = (SAggSupporter*)POINTER_SHIFT(pOperator->info, sizeof(SOptrBasicInfo));
 
   //  int32_t size = taosHashGetSize(pSup->pResultRowHashTable);
-  int32_t count = *(int32_t*)(result);
-
+  int32_t length = *(int32_t*)(result);
   int32_t offset = sizeof(int32_t);
+
+  int32_t count = *(int32_t*)(result + offset);
+  offset += sizeof(int32_t);
+
   while (count-- > 0 && length > offset) {
     int32_t keyLen = *(int32_t*)(result + offset);
     offset += sizeof(int32_t);
@@ -3571,7 +3589,7 @@ bool aggDecodeResultRow(SOperatorInfo* pOperator, SAggSupporter* pSup, SOptrBasi
     uint64_t    tableGroupId = *(uint64_t*)(result + offset);
     SResultRow* resultRow = getNewResultRow_rv(pSup->pResultBuf, tableGroupId, pSup->resultRowSize);
     if (!resultRow) {
-      longjmp(pOperator->pTaskInfo->env, TSDB_CODE_TSC_INVALID_INPUT);
+      return TSDB_CODE_TSC_INVALID_INPUT;
     }
 
     // add a new result set for a new group
@@ -3581,7 +3599,7 @@ bool aggDecodeResultRow(SOperatorInfo* pOperator, SAggSupporter* pSup, SOptrBasi
     offset += keyLen;
     int32_t valueLen = *(int32_t*)(result + offset);
     if (valueLen != pSup->resultRowSize) {
-      longjmp(pOperator->pTaskInfo->env, TSDB_CODE_TSC_INVALID_INPUT);
+      return TSDB_CODE_TSC_INVALID_INPUT;
     }
     offset += sizeof(int32_t);
     int32_t pageId = resultRow->pageId;
@@ -3600,9 +3618,9 @@ bool aggDecodeResultRow(SOperatorInfo* pOperator, SAggSupporter* pSup, SOptrBasi
   }
 
   if (offset != length) {
-    longjmp(pOperator->pTaskInfo->env, TSDB_CODE_TSC_INVALID_INPUT);
+    return TSDB_CODE_TSC_INVALID_INPUT;
   }
-  return true;
+  return TDB_CODE_SUCCESS;
 }
 
 enum {
@@ -4496,7 +4514,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       SScanPhysiNode*      pScanPhyNode = (SScanPhysiNode*)pPhyNode;  // simple child table.
       STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pPhyNode;
       STimeWindowAggSupp   twSup = {
-          .waterMark = pTableScanNode->watermark, .calTrigger = pTableScanNode->triggerType, .maxTs = INT64_MIN};
+            .waterMark = pTableScanNode->watermark, .calTrigger = pTableScanNode->triggerType, .maxTs = INT64_MIN};
       tsdbReaderT pDataReader = NULL;
       if (pHandle->vnode) {
         pDataReader = doCreateDataReader(pTableScanNode, pHandle, pTableListInfo, (uint64_t)queryId, taskId, pTagCond);
@@ -4511,8 +4529,9 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         qDebug("%s pDataReader is not NULL", GET_TASKID(pTaskInfo));
       }
       SArray*        tableIdList = extractTableIdList(pTableListInfo);
-      SOperatorInfo* pOperator = createStreamScanOperatorInfo(pDataReader, pHandle, tableIdList, pTableScanNode,
-                                                              pTaskInfo, &twSup, pTableScanNode->tsColId);
+
+      SOperatorInfo* pOperator = createStreamScanOperatorInfo(pDataReader, pHandle,
+          tableIdList, pTableScanNode, pTaskInfo, &twSup);
 
       taosArrayDestroy(tableIdList);
       return pOperator;
@@ -4613,7 +4632,19 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
 
     STimeWindowAggSupp as = {.waterMark = pIntervalPhyNode->window.watermark,
                              .calTrigger = pIntervalPhyNode->window.triggerType,
-                             .maxTs = INT64_MIN};
+                             .maxTs = INT64_MIN,
+                             .winMap = NULL,};
+    if (isSmaStream(pIntervalPhyNode->window.triggerType)) {
+      if (FLT_LESS(pIntervalPhyNode->window.filesFactor, 1.000000)) {
+        as.calTrigger = STREAM_TRIGGER_AT_ONCE_SMA;
+      } else {
+        _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_TIMESTAMP);
+        as.winMap = taosHashInit(64, hashFn, true, HASH_NO_LOCK);
+        as.waterMark = getSmaWaterMark(interval.interval,
+            pIntervalPhyNode->window.filesFactor);
+        as.calTrigger = STREAM_TRIGGER_WINDOW_CLOSE_SMA;
+      }
+    }
 
     int32_t tsSlotId = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->slotId;
     pOptr = createIntervalOperatorInfo(ops[0], pExprInfo, num, pResBlock, &interval, tsSlotId, &as, pTaskInfo);
@@ -4979,6 +5010,93 @@ _error:
   return NULL;
 }
 
+int32_t encodeOperator(SOperatorInfo* ops, char** result, int32_t* length) {
+  int32_t code = TDB_CODE_SUCCESS;
+  char*   pCurrent = NULL;
+  int32_t currLength = 0;
+  if (ops->fpSet.encodeResultRow) {
+    if (result == NULL || length == NULL) {
+      return TSDB_CODE_TSC_INVALID_INPUT;
+    }
+    code = ops->fpSet.encodeResultRow(ops, &pCurrent, &currLength);
+
+    if (code != TDB_CODE_SUCCESS) {
+      if (*result != NULL) {
+        taosMemoryFree(*result);
+        *result = NULL;
+      }
+      return code;
+    }
+
+    if (*result == NULL) {
+      *result = (char*)taosMemoryCalloc(1, currLength + sizeof(int32_t));
+      if (*result == NULL) {
+        taosMemoryFree(pCurrent);
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      memcpy(*result + sizeof(int32_t), pCurrent, currLength);
+      *(int32_t*)(*result) = currLength + sizeof(int32_t);
+    } else {
+      int32_t sizePre = *(int32_t*)(*result);
+      char*   tmp = (char*)taosMemoryRealloc(*result, sizePre + currLength);
+      if (tmp == NULL) {
+        taosMemoryFree(pCurrent);
+        taosMemoryFree(*result);
+        *result = NULL;
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      *result = tmp;
+      memcpy(*result + sizePre, pCurrent, currLength);
+      *(int32_t*)(*result) += currLength;
+    }
+    taosMemoryFree(pCurrent);
+    *length = *(int32_t*)(*result);
+  }
+
+  for (int32_t i = 0; i < ops->numOfDownstream; ++i) {
+    code = encodeOperator(ops->pDownstream[i], result, length);
+    if (code != TDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+  return TDB_CODE_SUCCESS;
+}
+
+int32_t decodeOperator(SOperatorInfo* ops, char* result, int32_t length) {
+  int32_t code = TDB_CODE_SUCCESS;
+  if (ops->fpSet.decodeResultRow) {
+    if (result == NULL) {
+      return TSDB_CODE_TSC_INVALID_INPUT;
+    }
+    ASSERT(length == *(int32_t*)result);
+    char* data = result + sizeof(int32_t);
+    code = ops->fpSet.decodeResultRow(ops, data);
+    if (code != TDB_CODE_SUCCESS) {
+      return code;
+    }
+
+    int32_t totalLength = *(int32_t*)result;
+    int32_t dataLength = *(int32_t*)data;
+
+    if (totalLength == dataLength + sizeof(int32_t)) {  // the last data
+      result = NULL;
+      length = 0;
+    } else {
+      result += dataLength;
+      *(int32_t*)(result) = totalLength - dataLength;
+      length = totalLength - dataLength;
+    }
+  }
+
+  for (int32_t i = 0; i < ops->numOfDownstream; ++i) {
+    code = decodeOperator(ops->pDownstream[i], result, length);
+    if (code != TDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+  return TDB_CODE_SUCCESS;
+}
+
 int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
                                EOPTR_EXEC_MODEL model) {
   uint64_t queryId = pPlan->id.queryId;
@@ -5194,4 +5312,19 @@ int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, const char* pKey) {
     bufSize = pageSize * 4;
   }
   return createDiskbasedBuf(&pSup->pResultBuf, pageSize, bufSize, pKey, TD_TMP_DIR_PATH);
+}
+
+int64_t getSmaWaterMark(int64_t interval, double filesFactor) {
+  int64_t waterMark = 0;
+  ASSERT(FLT_GREATEREQUAL(filesFactor,0.000000));
+  waterMark = -1 * filesFactor;
+  return waterMark;
+}
+
+bool isSmaStream(int8_t triggerType) {
+  if (triggerType == STREAM_TRIGGER_AT_ONCE ||
+      triggerType == STREAM_TRIGGER_WINDOW_CLOSE) {
+    return false;
+  }
+  return true;
 }

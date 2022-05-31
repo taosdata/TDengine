@@ -333,68 +333,22 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromSetOperator(pCxt, (SSetOperator*)pStmt);
     case QUERY_NODE_SELECT_STMT:
       return collectMetaKeyFromSelect(pCxt, (SSelectStmt*)pStmt);
-    case QUERY_NODE_VNODE_MODIF_STMT:
-    case QUERY_NODE_CREATE_DATABASE_STMT:
-    case QUERY_NODE_DROP_DATABASE_STMT:
-    case QUERY_NODE_ALTER_DATABASE_STMT:
-      break;
     case QUERY_NODE_CREATE_TABLE_STMT:
       return collectMetaKeyFromCreateTable(pCxt, (SCreateTableStmt*)pStmt);
-    case QUERY_NODE_CREATE_SUBTABLE_CLAUSE:
-      break;
     case QUERY_NODE_CREATE_MULTI_TABLE_STMT:
       return collectMetaKeyFromCreateMultiTable(pCxt, (SCreateMultiTableStmt*)pStmt);
-    case QUERY_NODE_DROP_TABLE_CLAUSE:
-    case QUERY_NODE_DROP_TABLE_STMT:
-    case QUERY_NODE_DROP_SUPER_TABLE_STMT:
-      break;
     case QUERY_NODE_ALTER_TABLE_STMT:
       return collectMetaKeyFromAlterTable(pCxt, (SAlterTableStmt*)pStmt);
-    case QUERY_NODE_CREATE_USER_STMT:
-    case QUERY_NODE_ALTER_USER_STMT:
-    case QUERY_NODE_DROP_USER_STMT:
-      break;
     case QUERY_NODE_USE_DATABASE_STMT:
       return collectMetaKeyFromUseDatabase(pCxt, (SUseDatabaseStmt*)pStmt);
-    case QUERY_NODE_CREATE_DNODE_STMT:
-    case QUERY_NODE_DROP_DNODE_STMT:
-    case QUERY_NODE_ALTER_DNODE_STMT:
-      break;
     case QUERY_NODE_CREATE_INDEX_STMT:
       return collectMetaKeyFromCreateIndex(pCxt, (SCreateIndexStmt*)pStmt);
-    case QUERY_NODE_DROP_INDEX_STMT:
-    case QUERY_NODE_CREATE_QNODE_STMT:
-    case QUERY_NODE_DROP_QNODE_STMT:
-    case QUERY_NODE_CREATE_BNODE_STMT:
-    case QUERY_NODE_DROP_BNODE_STMT:
-    case QUERY_NODE_CREATE_SNODE_STMT:
-    case QUERY_NODE_DROP_SNODE_STMT:
-    case QUERY_NODE_CREATE_MNODE_STMT:
-    case QUERY_NODE_DROP_MNODE_STMT:
-      break;
     case QUERY_NODE_CREATE_TOPIC_STMT:
       return collectMetaKeyFromCreateTopic(pCxt, (SCreateTopicStmt*)pStmt);
-    case QUERY_NODE_DROP_TOPIC_STMT:
-    case QUERY_NODE_DROP_CGROUP_STMT:
-    case QUERY_NODE_ALTER_LOCAL_STMT:
-      break;
     case QUERY_NODE_EXPLAIN_STMT:
       return collectMetaKeyFromExplain(pCxt, (SExplainStmt*)pStmt);
-    case QUERY_NODE_DESCRIBE_STMT:
-    case QUERY_NODE_RESET_QUERY_CACHE_STMT:
-    case QUERY_NODE_COMPACT_STMT:
-    case QUERY_NODE_CREATE_FUNCTION_STMT:
-    case QUERY_NODE_DROP_FUNCTION_STMT:
-      break;
     case QUERY_NODE_CREATE_STREAM_STMT:
       return collectMetaKeyFromCreateStream(pCxt, (SCreateStreamStmt*)pStmt);
-    case QUERY_NODE_DROP_STREAM_STMT:
-    case QUERY_NODE_MERGE_VGROUP_STMT:
-    case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:
-    case QUERY_NODE_SPLIT_VGROUP_STMT:
-    case QUERY_NODE_SYNCDB_STMT:
-    case QUERY_NODE_GRANT_STMT:
-    case QUERY_NODE_REVOKE_STMT:
     case QUERY_NODE_SHOW_DNODES_STMT:
       return collectMetaKeyFromShowDnodes(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_MNODES_STMT:
@@ -407,8 +361,6 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromShowSnodes(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_BNODES_STMT:
       return collectMetaKeyFromShowBnodes(pCxt, (SShowStmt*)pStmt);
-    case QUERY_NODE_SHOW_CLUSTER_STMT:
-      break;
     case QUERY_NODE_SHOW_DATABASES_STMT:
       return collectMetaKeyFromShowDatabases(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_FUNCTIONS_STMT:
@@ -429,25 +381,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromShowVgroups(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_TOPICS_STMT:
       return collectMetaKeyFromShowTopics(pCxt, (SShowStmt*)pStmt);
-    case QUERY_NODE_SHOW_CONSUMERS_STMT:
-    case QUERY_NODE_SHOW_SUBSCRIBES_STMT:
-    case QUERY_NODE_SHOW_SMAS_STMT:
-    case QUERY_NODE_SHOW_CONFIGS_STMT:
-    case QUERY_NODE_SHOW_CONNECTIONS_STMT:
-    case QUERY_NODE_SHOW_QUERIES_STMT:
-    case QUERY_NODE_SHOW_VNODES_STMT:
-    case QUERY_NODE_SHOW_APPS_STMT:
-    case QUERY_NODE_SHOW_SCORES_STMT:
-    case QUERY_NODE_SHOW_VARIABLE_STMT:
-    case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
-    case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
-    case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
-      break;
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
       return collectMetaKeyFromShowTransactions(pCxt, (SShowStmt*)pStmt);
-    case QUERY_NODE_KILL_CONNECTION_STMT:
-    case QUERY_NODE_KILL_QUERY_STMT:
-    case QUERY_NODE_KILL_TRANSACTION_STMT:
     default:
       break;
   }

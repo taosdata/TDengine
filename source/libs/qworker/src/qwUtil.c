@@ -499,4 +499,43 @@ int32_t qwOpenRef(void) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t qwUpdateWaitTimeInQueue(SQWorker *mgmt, int64_t ts, EQueueType type) {
+  if (ts <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int64_t duration = taosGetTimestampUs() - ts;
+  switch (type) {
+    case QUERY_QUEUE:
+      ++mgmt->stat.msgWait[0].num;
+      mgmt->stat.msgWait[0].total += duration;
+      break;
+    case FETCH_QUEUE:
+      ++mgmt->stat.msgWait[1].num;
+      mgmt->stat.msgWait[1].total += duration;
+      break;
+    default:
+      qError("unsupported queue type %d", type);
+      return TSDB_CODE_APP_ERROR;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int64_t qwGetWaitTimeInQueue(SQWorker *mgmt, EQueueType type) {
+  SQWWaitTimeStat *pStat = NULL;
+  switch (type) {
+    case QUERY_QUEUE:
+      pStat = &mgmt->stat.msgWait[0];
+      return pStat->num ? (pStat->total/pStat->num) : 0;
+    case FETCH_QUEUE:
+      pStat = &mgmt->stat.msgWait[1];
+      return pStat->num ? (pStat->total/pStat->num) : 0;
+    default:
+      qError("unsupported queue type %d", type);
+      return -1;
+  }
+}
+
+
 

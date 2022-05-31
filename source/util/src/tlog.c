@@ -491,7 +491,7 @@ void taosDumpData(unsigned char *msg, int32_t len) {
   if (!osLogSpaceAvailable()) return;
   taosUpdateLogNums(DEBUG_DUMP);
 
-  char    temp[256];
+  char    temp[256] = {0};
   int32_t i, pos = 0, c = 0;
 
   for (i = 0; i < len; ++i) {
