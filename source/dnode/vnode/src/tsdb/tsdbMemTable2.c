@@ -81,6 +81,7 @@ int32_t tsdbInsertTableData2(STsdb *pTsdb, int64_t version, SVSubmitBlk *pSubmit
   int32_t    code = 0;
   SMemTable *pMemTable = (SMemTable *)pTsdb->mem;  // TODO
   SMemData  *pMemData;
+  TSDBROW    row = {.version = version};
 
   ASSERT(pMemTable);
 
@@ -95,6 +96,15 @@ int32_t tsdbInsertTableData2(STsdb *pTsdb, int64_t version, SVSubmitBlk *pSubmit
   }
 
   // do insert
+  uint32_t n = 0;
+  uint8_t *p = pSubmitBlk->pData;
+  while (n < pSubmitBlk->nData) {
+    n += tGetTSRow(p + n, &row.tsRow);
+
+    ASSERT(n <= pSubmitBlk->nData);
+
+    // TODO
+  }
 
   return code;
 

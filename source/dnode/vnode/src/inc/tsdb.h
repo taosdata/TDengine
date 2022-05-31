@@ -857,8 +857,8 @@ static FORCE_INLINE int tsdbUnLockFS(STsdbFS *pFs) {
 }
 
 struct TSDBROW {
-  int64_t  version;
-  STSRow2 *pRow;
+  int64_t version;
+  STSRow2 tsRow;
 };
 
 struct TSDBKEY {
