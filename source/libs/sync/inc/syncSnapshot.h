@@ -56,20 +56,22 @@ cJSON               *snapshotSender2Json(SSyncSnapshotSender *pSender);
 char                *snapshotSender2Str(SSyncSnapshotSender *pSender);
 
 typedef struct SSyncSnapshotReceiver {
-  bool       start;
-  int32_t    ack;
-  void      *pWriter;
-  void      *pCurrentBlock;
-  int32_t    len;
+  bool start;
+
+  int32_t  ack;
+  void    *pWriter;
+  void    *pCurrentBlock;
+  int32_t  blockLen;
+  SyncTerm term;
+
   SSyncNode *pSyncNode;
   int32_t    replicaIndex;
 } SSyncSnapshotReceiver;
 
-SSyncSnapshotReceiver *snapshotReceiverCreate(SSyncNode *pSyncNode);
+SSyncSnapshotReceiver *snapshotReceiverCreate(SSyncNode *pSyncNode, int32_t replicaIndex);
 void                   snapshotReceiverDestroy(SSyncSnapshotReceiver *pReceiver);
 void                   snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver);
 void                   snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver);
-int32_t                snapshotReceive(SSyncSnapshotReceiver *pReceiver);
 cJSON                 *snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver);
 char                  *snapshotReceiver2Str(SSyncSnapshotReceiver *pReceiver);
 
