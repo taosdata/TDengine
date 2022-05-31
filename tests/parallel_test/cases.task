@@ -270,6 +270,7 @@
 24,,script,./test.sh -f general/connection/test_old_data.sim 
 24,,script,./test.sh -f general/cache/restart_metrics.sim 
 24,,script,./test.sh -f general/alter/insert2.sim 
+24,,pytest,python3 test.py -f multilevel/addAnotherLevel.py 
 24,,pytest,python3 test.py -f tag_lite/datatype-without-alter.py 
 23,,script,./test.sh -f general/parser/select_from_cache_disk.sim 
 23,,script,./test.sh -f general/parser/mixed_blocks.sim 
@@ -319,6 +320,7 @@
 20,,pytest,python3 test.py -f table/create.py
 19,,script,./test.sh -f unique/stable/dnode2.sim 
 19,,script,./test.sh -f general/db/vnodes.sim 
+19,,pytest,python3 test.py -f multilevel/addAnotherDir.py 
 19,,pytest,python3 test.py -f tools/taosdumpTest3.py 
 19,,pytest,python3 test.py -f query/udf.py 
 19,,pytest,python3 test.py -f import_merge/importLastTPO.py 
