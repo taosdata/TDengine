@@ -261,6 +261,92 @@ taos> select hyperloglog(dbig) from shll;
 Query OK, 1 row(s) in set (0.008388s)
 ```
 
+### HISTOGRAM
+
+```
+SELECT HISTOGRAM(field_name，bin_type, bin_description, normalized) FROM tb_name [WHERE clause];
+```
+
+**功能说明**：统计数据按照用户指定区间的分布。
+
+**返回结果类型**：如归一化参数 normalized 设置为 1，返回结果为双精度浮点类型 DOUBLE，否则为长整形 INT64。
+
+**应用字段**：数值型字段。
+
+**支持的版本**：2.6.0.0 及以后的版本。
+
+**适用于**: 表和超级表。
+
+**说明**：
+1. bin_type 用户指定的分桶类型, 有效输入类型为"user_input“, ”linear_bin", "log_bin"。
+2. bin_description 描述如何生成分桶区间，针对三种桶类型，分别为以下描述格式(均为 JSON 格式字符串)：       
+    - "user_input": "[1, 3, 5, 7]" 
+       用户指定 bin 的具体数值。
+       
+    - "linear_bin": "{"start": 0.0, "width": 5.0, "count": 5, "infinity": true}"
+       "start" 表示数据起始点，"width" 表示每次 bin 偏移量, "count" 为 bin 的总数，"infinity" 表示是否添加（-inf, inf）作为区间起点跟终点，
+       生成区间为[-inf, 0.0, 5.0, 10.0, 15.0, 20.0, +inf]。
+ 
+    - "log_bin": "{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}"
+       "start" 表示数据起始点，"factor" 表示按指数递增的因子，"count" 为 bin 的总数，"infinity" 表示是否添加（-inf, inf）作为区间起点跟终点，
+       生成区间为[-inf, 1.0, 2.0, 4.0, 8.0, 16.0, +inf]。
+3. normalized 是否将返回结果归一化到 0~1 之间 。有效输入为 0 和 1。
+
+**示例**：
+
+```mysql
+taos> SELECT HISTOGRAM(voltage, "user_input", "[1,3,5,7]", 1) FROM meters;
+         histogram(voltage, "user_input", "[1,3,5,7]", 1) |
+     =======================================================
+     {"lower_bin":1, "upper_bin":3, "count":0.333333}     |
+     {"lower_bin":3, "upper_bin":5, "count":0.333333}     |
+     {"lower_bin":5, "upper_bin":7, "count":0.333333}     |
+     Query OK, 3 row(s) in set (0.004273s)
+     
+taos> SELECT HISTOGRAM(voltage, 'linear_bin', '{"start": 1, "width": 3, "count": 3, "infinity": false}', 0) FROM meters;
+         histogram(voltage, 'linear_bin', '{"start": 1, "width": 3, " |
+     ===================================================================
+     {"lower_bin":1, "upper_bin":4, "count":3}                        |
+     {"lower_bin":4, "upper_bin":7, "count":3}                        |
+     {"lower_bin":7, "upper_bin":10, "count":3}                       |
+     Query OK, 3 row(s) in set (0.004887s)
+    
+taos> SELECT HISTOGRAM(voltage, 'log_bin', '{"start": 1, "factor": 3, "count": 3, "infinity": true}', 0) FROM meters;
+     histogram(voltage, 'log_bin', '{"start": 1, "factor": 3, "count" |
+     ===================================================================
+     {"lower_bin":-inf, "upper_bin":1, "count":3}                     |
+     {"lower_bin":1, "upper_bin":3, "count":2}                        |
+     {"lower_bin":3, "upper_bin":9, "count":6}                        |
+     {"lower_bin":9, "upper_bin":27, "count":3}                       |
+     {"lower_bin":27, "upper_bin":inf, "count":1}                     |
+```
+
+### ELAPSED
+
+```mysql
+SELECT ELAPSED(field_name[, time_unit]) FROM { tb_name | stb_name } [WHERE clause] [INTERVAL(interval [, offset]) [SLIDING sliding]];
+```
+
+**功能说明**：elapsed函数表达了统计周期内连续的时间长度，和twa函数配合使用可以计算统计曲线下的面积。在通过INTERVAL子句指定窗口的情况下，统计在给定时间范围内的每个窗口内有数据覆盖的时间范围；如果没有INTERVAL子句，则返回整个给定时间范围内的有数据覆盖的时间范围。注意，ELAPSED返回的并不是时间范围的绝对值，而是绝对值除以time_unit所得到的单位个数。
+
+**返回结果类型**：Double
+
+**应用字段**：Timestamp类型
+
+**支持的版本**：2.6.0.0 及以后的版本。
+
+**适用于**: 表，超级表，嵌套查询的外层查询
+
+**说明**：
+- field_name参数只能是表的第一列，即timestamp主键列。
+- 按time_unit参数指定的时间单位返回，最小是数据库的时间分辨率。time_unit参数未指定时，以数据库的时间分辨率为时间单位。
+- 可以和interval组合使用，返回每个时间窗口的时间戳差值。需要特别注意的是，除第一个时间窗口和最后一个时间窗口外，中间窗口的时间戳差值均为窗口长度。
+- order by asc/desc不影响差值的计算结果。
+- 对于超级表，需要和group by tbname子句组合使用，不可以直接使用。
+- 对于普通表，不支持和group by子句组合使用。
+- 对于嵌套查询，仅当内层查询会输出隐式时间戳列时有效。例如select elapsed(ts) from (select diff(value) from sub1)语句，diff函数会让内层查询输出隐式时间戳列，此为主键列，可以用于elapsed函数的第一个参数。相反，例如select elapsed(ts) from (select * from sub1) 语句，ts列输出到外层时已经没有了主键列的含义，无法使用elapsed函数。此外，elapsed函数作为一个与时间线强依赖的函数，形如select elapsed(ts) from (select diff(value) from st group by tbname)尽管会返回一条计算结果，但并无实际意义，这种用法后续也将被限制。
+- 不支持与leastsquares、diff、derivative、top、bottom、last_row、interp等函数混合使用。
+
 ## 选择函数
 
 在使用所有的选择函数的时候，可以同时指定输出 ts 列或标签列（包括 tbname），这样就可以方便地知道被选出的值是源于哪个数据行的。

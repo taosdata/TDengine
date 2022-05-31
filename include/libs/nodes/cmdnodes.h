@@ -80,7 +80,6 @@ typedef struct SAlterDatabaseStmt {
 typedef struct STableOptions {
   ENodeType  type;
   char       comment[TSDB_TB_COMMENT_LEN];
-  int32_t    delay;
   float      filesFactor;
   SNodeList* pRollupFuncs;
   int32_t    ttl;

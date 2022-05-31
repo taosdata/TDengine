@@ -313,7 +313,6 @@ tags_def(A) ::= TAGS NK_LP column_def_list(B) NK_RP.                            
 
 table_options(A) ::= .                                                            { A = createDefaultTableOptions(pCxt); }
 table_options(A) ::= table_options(B) COMMENT NK_STRING(C).                       { A = setTableOption(pCxt, B, TABLE_OPTION_COMMENT, &C); }
-table_options(A) ::= table_options(B) DELAY NK_INTEGER(C).                        { A = setTableOption(pCxt, B, TABLE_OPTION_DELAY, &C); }
 table_options(A) ::= table_options(B) FILE_FACTOR NK_FLOAT(C).                    { A = setTableOption(pCxt, B, TABLE_OPTION_FILE_FACTOR, &C); }
 table_options(A) ::= table_options(B) ROLLUP NK_LP func_name_list(C) NK_RP.       { A = setTableOption(pCxt, B, TABLE_OPTION_ROLLUP, C); }
 table_options(A) ::= table_options(B) TTL NK_INTEGER(C).                          { A = setTableOption(pCxt, B, TABLE_OPTION_TTL, &C); }
@@ -408,7 +407,7 @@ cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) AS DATABASE db_name(C).    
 cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B)
   AS STABLE full_table_name(C).                                                   { pCxt->pRootNode = createCreateTopicStmt(pCxt, A, &B, NULL, NULL, C); }
 cmd ::= DROP TOPIC exists_opt(A) topic_name(B).                                   { pCxt->pRootNode = createDropTopicStmt(pCxt, A, &B); }
-cmd ::= DROP CGROUP exists_opt(A) cgroup_name(B) ON topic_name(C).                { pCxt->pRootNode = createDropCGroupStmt(pCxt, A, &B, &C); }
+cmd ::= DROP CONSUMER GROUP exists_opt(A) cgroup_name(B) ON topic_name(C).        { pCxt->pRootNode = createDropCGroupStmt(pCxt, A, &B, &C); }
 
 /************************************************ desc/describe *******************************************************/
 cmd ::= DESC full_table_name(A).                                                  { pCxt->pRootNode = createDescribeStmt(pCxt, A); }

@@ -1483,9 +1483,9 @@ typedef struct {
   int8_t igExists;
   int8_t subType;
   char*  sql;
+  char   subDbName[TSDB_DB_FNAME_LEN];
   union {
     char* ast;
-    char  subDbName[TSDB_DB_FNAME_LEN];
     char  subStbName[TSDB_TABLE_FNAME_LEN];
   };
 } SCMCreateTopicReq;

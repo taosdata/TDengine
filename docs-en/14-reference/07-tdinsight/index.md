@@ -5,11 +5,11 @@ sidebar_label: TDinsight
 
 TDinsight is a solution for monitoring TDengine using the builtin native monitoring database and [Grafana].
 
-After TDengine starts, it will automatically create a monitoring database `log`. TDengine will automatically write many metrics in specific intervals into the `log` database. The metrics may include the server's CPU, memory, hard disk space, network bandwidth, number of requests, disk read/write speed, slow queries, other information like important system operations (user login, database creation, database deletion, etc.), and error alarms. With [Grafana] and [TDengine Data Source Plugin](https://github.com/taosdata/grafanaplugin/releases), TDinsight can visualize cluster status, node information, insertion and query requests, resource usage, etc., and also vnode, dnode, and mnode status, and exception alerts. Developers monitoring TDengine cluster operation status in real-time can be very convinient. This article will guide users to install the Grafana server, automatically install the TDengine data source plug-in, and deploy the TDinsight visualization panel through `TDinsight.sh` installation script.
+After TDengine starts, it will automatically create a monitoring database `log`. TDengine will automatically write many metrics in specific intervals into the `log` database. The metrics may include the server's CPU, memory, hard disk space, network bandwidth, number of requests, disk read/write speed, slow queries, other information like important system operations (user login, database creation, database deletion, etc.), and error alarms. With [Grafana] and [TDengine Data Source Plugin](https://github.com/taosdata/grafanaplugin/releases), TDinsight can visualize cluster status, node information, insertion and query requests, resource usage, vnode, dnode, and mnode status, exception alerts and many other metrics. This is very convenient for developers who want to monitor TDengine cluster status in real-time. This article will guide users to install the Grafana server, automatically install the TDengine data source plug-in, and deploy the TDinsight visualization panel using the `TDinsight.sh` installation script.
 
 ## System Requirements
 
-To deploy TDinsight, a single-node TDengine server or a multi-nodes TDengine cluster and a [Grafana] server are required. This dashboard requires TDengine 2.3.3.0 and above, with the `log` database enabled (`monitor = 1`).
+To deploy TDinsight, a single-node TDengine server or a multi-node TDengine cluster and a [Grafana] server are required. This dashboard requires TDengine 2.3.3.0 and above, with the `log` database enabled (`monitor = 1`).
 
 ## Installing Grafana
 
@@ -17,7 +17,7 @@ We recommend using the latest [Grafana] version 7 or 8 here. You can install Gra
 
 ### Installing Grafana on Debian or Ubuntu
 
-For Debian or Ubuntu operating systems, we recommend the Grafana image repository and Use the following command to install from scratch.
+For Debian or Ubuntu operating systems, we recommend the Grafana image repository and using the following command to install from scratch.
 
 ```bash
 sudo apt-get install -y apt-transport-https
@@ -71,7 +71,7 @@ chmod +x TDinsight.sh
 ./TDinsight.sh
 ```
 
-This script will automatically download the latest [Grafana TDengine data source plugin](https://github.com/taosdata/grafanaplugin/releases/latest) and [TDinsight dashboard](https://grafana.com/grafana/dashboards/15167) with configurable parameters from the command-line options to the [Grafana Provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/) configuration file to automate deployment and updates, etc. With the alert setting options provided by this script, you can also get built-in support for AliCloud SMS alert notifications.
+This script will automatically download the latest [Grafana TDengine data source plugin](https://github.com/taosdata/grafanaplugin/releases/latest) and [TDinsight dashboard](https://grafana.com/grafana/dashboards/15167) with configurable parameters for command-line options to the [Grafana Provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/) configuration file to automate deployment and updates, etc. With the alert setting options provided by this script, you can also get built-in support for AliCloud SMS alert notifications.
 
 Assume you use TDengine and Grafana's default services on the same host. Run `. /TDinsight.sh` and open the Grafana browser window to see the TDinsight dashboard.
 
