@@ -5,7 +5,7 @@ title: TDengine Kafka Connector 使用教程
 
 TDengine Kafka Connector 包含两个插件: TDengine Source Connector 和 TDengine Sink Connector。用户只需提供简单的配置文件，就可以将 Kafka 中指定 topic 的数据（批量或实时）同步到 TDengine， 或将 TDengine 中指定数据库的数据（批量或实时）同步到 Kafka。
 
-## 什么是 Kafka Connect？
+## 什么是 Kafka Connect？{#What-is-Kafka-Connect}
 
 Kafka Connect 是 [Apache Kafka](https://kafka.apache.org/) 的一个组件，用于使其它系统，比如数据库、云服务、文件系统等能方便地连接到 Kafka。数据既可以通过 Kafka Connect 从其它系统流向 Kafka, 也可以通过 Kafka Connect 从 Kafka 流向其它系统。从其它系统读数据的插件称为 Source Connector, 写数据到其它系统的插件称为 Sink Connector。Source Connector 和 Sink Connector 都不会直接连接 Kafka Broker，Source Connector 把数据转交给 Kafka Connect。Sink Connector 从 Kafka Connect 接收数据。
 
@@ -15,7 +15,7 @@ TDengine Source Connector 用于把数据实时地从 TDengine 读出来发送�
 
 ![TDengine Database Kafka Connector -- streaming integration with kafka connect](kafka/streaming-integration-with-kafka-connect.webp)
 
-## 什么是 Confluent？
+## 什么是 Confluent？{#What-is-Confluent}
 
 [Confluent](https://www.confluent.io/) 在 Kafka 的基础上增加很多扩展功能。包括：
 
@@ -30,7 +30,7 @@ TDengine Source Connector 用于把数据实时地从 TDengine 读出来发送�
 
 Confluent 企业版提供了 `confluent` 命令行工具管理各个组件。
 
-## 前置条件
+## 前置条件 {#prerequisites}
 
 运行本教程中示例的前提条件。
 
@@ -39,7 +39,7 @@ Confluent 企业版提供了 `confluent` 命令行工具管理各个组件。
 3. 已安装 Git
 4. 已安装并启动 TDengine。如果还没有可参考[安装和卸载](/operation/pkg-install)
 
-## 安装 Confluent
+## 安装 Confluent {#install-Confluent}
 
 Confluent 提供了 Docker 和二进制包两种安装方式。本文仅介绍二进制包方式安装。
 
@@ -73,9 +73,9 @@ Go Version:  go1.17.6 (linux/amd64)
 Development: false
 ```
 
-## 安装 TDengine Connector 插件
+## 安装 TDengine Connector 插件 {#install-TDengine-Connector-plugin}
 
-### 从源码安装
+### 从源码安装 {#Install-from-source-code}
 
 ```
 git clone https://github.com:taosdata/kafka-connect-tdengine.git
@@ -86,12 +86,12 @@ unzip -d $CONFLUENT_HOME/share/java/ target/components/packages/taosdata-kafka-c
 
 以上脚本先 clone 项目源码，然后用 Maven 编译打包。打包完成后在 `target/components/packages/` 目录生成了插件的 zip 包。把这个 zip 包解压到安装插件的路径即可。上面的示例中使用了内置的插件安装路径： `$CONFLUENT_HOME/share/java/`。
 
-### 用 confluent-hub 安装
+### 用 confluent-hub 安装 {#Install-with-confluent-hub}
 
 [Confluent Hub](https://www.confluent.io/hub) 提供下载 Kafka Connect 插件的服务。在 TDengine Kafka Connector 发布到 Confluent Hub 后可以使用命令工具 `confluent-hub` 安装。
 **TDengine Kafka Connector 目前没有正式发布，不能用这种方式安装**。
 
-## 启动 Confluent
+## 启动 Confluent {#Start-Confluent}
 
 ```
 confluent local services start
@@ -125,7 +125,7 @@ Control Center is [UP]
 清空数据可执行 `rm -rf /tmp/confluent.106668`。
 :::
 
-### 验证各个组件是否启动成功
+### 验证各个组件是否启动成功 {#Check-Confluent-Services-Status}
 
 输入命令：
 
@@ -145,7 +145,7 @@ Schema Registry is [UP]
 ZooKeeper is [UP]
 ```
 
-### 验证插件是否安装成功
+### 验证插件是否安装成功 {#Check-Successfully-Loaded-Plugin}
 
 在 Kafka Connect 组件完全启动后，可用以下命令列出成功加载的插件：
 
@@ -180,7 +180,7 @@ echo `cat /tmp/confluent.current`/connect/connect.stdout
 与日志文件 `connect.stdout` 同一目录，还有一个文件名为： `connect.properties`。在这个文件的末尾，可以看到最终生效的 `plugin.path`， 它是一系列用逗号分割的路径。如果插件安装失败，很可能是因为实际的安装路径不包含在 `plugin.path` 中。
 
 
-## TDengine Sink Connector 的使用
+## TDengine Sink Connector 的使用 {#The-use-of-TDengine-Sink-Connector}
 
 TDengine Sink Connector 的作用是同步指定 topic 的数据到 TDengine。用户无需提前创建数据库和超级表。可手动指定目标数据库的名字（见配置参数 connection.database）， 也可按一定规则生成(见配置参数 connection.database.prefix)。
 
@@ -188,7 +188,7 @@ TDengine Sink Connector 内部使用 TDengine [无模式写入接口](/reference
 
 下面的示例将主题 meters 的数据，同步到目标数据库 power。数据格式为 InfluxDB Line 协议格式。
 
-### 添加配置文件
+### 添加配置文件 {#Add-configuration-file}
 
 ```
 mkdir ~/test
@@ -218,7 +218,7 @@ value.converter=org.apache.kafka.connect.storage.StringConverter
 1. `topics=meters` 和 `connection.database=power`, 表示订阅主题 meters 的数据，并写入数据库 power。
 2. `db.schemaless=line`, 表示使用 InfluxDB Line 协议格式的数据。
 
-### 创建 Connector 实例
+### 创建 Connector 实例 {#Create-Connector-instance}
 
 ```
 confluent local services connect connector load TDengineSinkConnector --config ./sink-demo.properties
@@ -248,7 +248,7 @@ confluent local services connect connector load TDengineSinkConnector --config .
 }
 ```
 
-### 写入测试数据
+### 写入测试数据 {#Write-test-data}
 
 准备测试数据的文本文件，内容如下：
 
@@ -269,7 +269,7 @@ cat test-data.txt | kafka-console-producer --broker-list localhost:9092 --topic 
 如果目标数据库 power 不存在，那么 TDengine Sink Connector 会自动创建数据库。自动创建数据库使用的时间精度为纳秒，这就要求写入数据的时间戳精度也是纳秒。如果写入数据的时间戳精度不是纳秒，将会抛异常。
 :::
 
-### 验证同步是否成功
+### 验证同步是否成功 {#Verify-that-the-sync-was-successful}
 
 使用 TDengine CLI 验证同步是否成功。
 
@@ -289,7 +289,7 @@ Query OK, 4 row(s) in set (0.004208s)
 
 若看到了以上数据，则说明同步成功。若没有，请检查 Kafka Connect 的日志。配置参数的详细说明见[配置参考](#配置参考)。
 
-## TDengine Source Connector 的使用
+## TDengine Source Connector 的使用 {#The-use-of-TDengine-Source-Connector}
 
 TDengine Source Connector 的作用是将 TDengine 某个数据库某一时刻之后的数据全部推送到 Kafka。TDengine Source Connector 的实现原理是，先分批拉取历史数据，再用定时查询的策略同步增量数据。同时会监控表的变化，可以自动同步新增的表。如果重启 Kafka Connect, 会从上次中断的位置继续同步。
 
@@ -297,7 +297,7 @@ TDengine Source Connector 会将 TDengine 数据表中的数据转换成 [Influx
 
 下面的示例程序同步数据库 test 中的数据到主题 tdengine-source-test。
 
-### 添加配置文件
+### 添加配置文件 {#Add-configuration-file}
 
 ```
 vi source-demo.properties
@@ -323,7 +323,7 @@ key.converter=org.apache.kafka.connect.storage.StringConverter
 value.converter=org.apache.kafka.connect.storage.StringConverter
 ```
 
-### 准备测试数据
+### 准备测试数据 {#Prepare-test-data}
 
 准备生成测试数据的 SQL 文件。
 
@@ -341,13 +341,13 @@ INSERT INTO d1001 USING meters TAGS(California.SanFrancisco, 2) VALUES('2018-10-
 taos -f prepare-source-data.sql
 ```
 
-### 创建 Connector 实例
+### 创建 Connector 实例 {#Create-Connector-instance}
 
 ```
 confluent local services connect connector load TDengineSourceConnector --config source-demo.properties
 ```
 
-### 查看 topic 数据
+### 查看 topic 数据 {#View-topic-data}
 
 使用 kafka-console-consumer 命令行工具监控主题 tdengine-source-test 中的数据。一开始会输出所有历史数据， 往 TDengine 插入两条新的数据之后，kafka-console-consumer 也立即输出了新增的两条数据。
 
@@ -374,7 +374,7 @@ INSERT INTO d1002 VALUES (now, 16.3, 233, 0.22);
 
 再切换回 kafka-console-consumer， 此时命令行窗口已经打印出刚插入的 2 条数据。
 
-### unload 插件
+### unload 插件 {#unload-plugin}
 
 测试完毕之后，用 unload 命令停止已加载的 connector。
 
@@ -391,9 +391,9 @@ confluent local services connect connector unload TDengineSourceConnector
 confluent local services connect connector unload TDengineSourceConnector
 ```
 
-## 配置参考
+## 配置参考 {#Configuration-reference}
 
-### 通用配置
+### 通用配置 {#General-configuration}
 
 以下配置项对 TDengine Sink Connector 和 TDengine Source Connector 均适用。
 
@@ -407,7 +407,7 @@ confluent local services connect connector unload TDengineSourceConnector
 8. `connection.attempts` ：最大尝试连接次数。默认 3。
 9. `connection.backoff.ms` ： 创建连接失败重试时间隔时间，单位为 ms。 默认 5000。
 
-### TDengine Sink Connector 特有的配置
+### TDengine Sink Connector 特有的配置 {#TDengine-Sink-Connector-specific-configuration}
 
 1. `connection.database`： 目标数据库名。如果指定的数据库不存在会则自动创建。自动建库使用的时间精度为纳秒。默认值为 null。为 null 时目标数据库命名规则参考 `connection.database.prefix` 参数的说明
 2. `connection.database.prefix`： 当 connection.database 为 null 时, 目标数据库的前缀。可以包含占位符 '${topic}'。 比如 kafka_${topic}, 对于主题 'orders' 将写入数据库 'kafka_orders'。 默认 null。当为 null 时，目标数据库的名字和主题的名字是一致的。
@@ -423,7 +423,7 @@ confluent local services connect connector unload TDengineSourceConnector
    2. us ： 表示微秒
    3. ns ： 表示纳秒。默认为纳秒。
 
-### TDengine Source Connector 特有的配置
+### TDengine Source Connector 特有的配置 {#TDengine-Source-Connector-specific-configuration}
 
 1. `connection.database`: 源数据库名称，无缺省值。
 2. `topic.prefix`： 数据导入 kafka 后 topic 名称前缀。 使用 `topic.prefix` + `connection.database` 名称作为完整 topic 名。默认为空字符串 ""。
@@ -432,16 +432,16 @@ confluent local services connect connector unload TDengineSourceConnector
 5. `fetch.max.rows` : 检索数据库时最大检索条数。 默认为 100。
 6. `out.format`: 数据格式。取值 line 或 json。line 表示 InfluxDB Line 协议格式， json 表示 OpenTSDB JSON 格式。默认为 line。
 
-## 其他说明
+## 其他说明 {#other-notes}
 
 1. 插件的安装位置可以自定义，请参考官方文档：https://docs.confluent.io/home/connect/self-managed/install.html#install-connector-manually。
 2. 本教程的示例程序使用了 Confluent 平台，但是 TDengine Kafka Connector 本身同样适用于独立安装的 Kafka, 且配置方法相同。关于如何在独立安装的 Kafka 环境使用 Kafka Connect 插件， 请参考官方文档： https://kafka.apache.org/documentation/#connect。
 
-## 问题反馈
+## 问题反馈 {#Feedback}
 
 无论遇到任何问题，都欢迎在本项目的 Github 仓库反馈： https://github.com/taosdata/kafka-connect-tdengine/issues。
 
-## 参考
+## 参考 {#Reference}
 
 1. https://www.confluent.io/what-is-apache-kafka
 2. https://developer.confluent.io/learn-kafka/kafka-connect/intro
