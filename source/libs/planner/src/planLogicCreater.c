@@ -487,6 +487,10 @@ static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStm
     pWindow->watermark = pCxt->pPlanCxt->watermark;
   }
 
+  if (pCxt->pPlanCxt->rSmaQuery) {
+    pWindow->filesFactor = pCxt->pPlanCxt->filesFactor;
+  }
+
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteExprForSelect(pWindow->pFuncs, pSelect, SQL_CLAUSE_WINDOW);
   }

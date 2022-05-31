@@ -329,6 +329,10 @@ static SNode* logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_SCALAR_FIELD(intervalUnit);
   COPY_SCALAR_FIELD(slidingUnit);
   CLONE_NODE_FIELD(pTagCond);
+  COPY_SCALAR_FIELD(triggerType);
+  COPY_SCALAR_FIELD(watermark);
+  COPY_SCALAR_FIELD(tsColId);
+  COPY_SCALAR_FIELD(filesFactor);
   return (SNode*)pDst;
 }
 
@@ -385,6 +389,7 @@ static SNode* logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* pD
   CLONE_NODE_FIELD(pStateExpr);
   COPY_SCALAR_FIELD(triggerType);
   COPY_SCALAR_FIELD(watermark);
+  COPY_SCALAR_FIELD(filesFactor);
   return (SNode*)pDst;
 }
 
