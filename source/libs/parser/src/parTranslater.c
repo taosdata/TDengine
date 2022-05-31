@@ -3317,9 +3317,8 @@ static int32_t buildCreateTopicReq(STranslateContext* pCxt, SCreateTopicStmt* pS
     tNameGetFullDbName(&name, pReq->subDbName);
   } else {
     pReq->subType = TOPIC_SUB_TYPE__COLUMN;
-    tNameSetDbName(&name, pCxt->pParseCxt->acctId,
-                   ((SRealTableNode*)(((SSelectStmt*)pStmt->pQuery)->pFromTable))->table.dbName,
-                   strlen(pStmt->subDbName));
+    char* dbName = ((SRealTableNode*)(((SSelectStmt*)pStmt->pQuery)->pFromTable))->table.dbName;
+    tNameSetDbName(&name, pCxt->pParseCxt->acctId, dbName, strlen(dbName));
     tNameGetFullDbName(&name, pReq->subDbName);
     pCxt->pParseCxt->topicQuery = true;
     code = translateQuery(pCxt, pStmt->pQuery);
