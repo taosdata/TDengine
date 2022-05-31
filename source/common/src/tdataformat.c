@@ -103,40 +103,40 @@ static int32_t tGetSValue(uint8_t *p, SValue *pValue, int8_t type) {
   } else {
     switch (type) {
       case TSDB_DATA_TYPE_BOOL:
-        n += tGetI8(p, &pValue->i8);
+        n += tGetI8(p, pValue ? &pValue->i8 : NULL);
         break;
       case TSDB_DATA_TYPE_TINYINT:
-        n += tGetI8(p, &pValue->i8);
+        n += tGetI8(p, pValue ? &pValue->i8 : NULL);
         break;
       case TSDB_DATA_TYPE_SMALLINT:
-        n += tGetI16(p, &pValue->i16);
+        n += tGetI16(p, pValue ? &pValue->i16 : NULL);
         break;
       case TSDB_DATA_TYPE_INT:
-        n += tGetI32(p, &pValue->i32);
+        n += tGetI32(p, pValue ? &pValue->i32 : NULL);
         break;
       case TSDB_DATA_TYPE_BIGINT:
-        n += tGetI64(p, &pValue->i64);
+        n += tGetI64(p, pValue ? &pValue->i64 : NULL);
         break;
       case TSDB_DATA_TYPE_FLOAT:
-        n += tGetFloat(p, &pValue->f);
+        n += tGetFloat(p, pValue ? &pValue->f : NULL);
         break;
       case TSDB_DATA_TYPE_DOUBLE:
-        n += tGetDouble(p, &pValue->d);
+        n += tGetDouble(p, pValue ? &pValue->d : NULL);
         break;
       case TSDB_DATA_TYPE_TIMESTAMP:
-        n += tGetI64(p, &pValue->ts);
+        n += tGetI64(p, pValue ? &pValue->ts : NULL);
         break;
       case TSDB_DATA_TYPE_UTINYINT:
-        n += tGetU8(p, &pValue->u8);
+        n += tGetU8(p, pValue ? &pValue->u8 : NULL);
         break;
       case TSDB_DATA_TYPE_USMALLINT:
-        n += tGetU16(p, &pValue->u16);
+        n += tGetU16(p, pValue ? &pValue->u16 : NULL);
         break;
       case TSDB_DATA_TYPE_UINT:
-        n += tGetU32(p, &pValue->u32);
+        n += tGetU32(p, pValue ? &pValue->u32 : NULL);
         break;
       case TSDB_DATA_TYPE_UBIGINT:
-        n += tGetU64(p, &pValue->u64);
+        n += tGetU64(p, pValue ? &pValue->u64 : NULL);
         break;
       default:
         ASSERT(0);
