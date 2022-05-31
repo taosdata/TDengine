@@ -96,7 +96,7 @@ confluent local services start
 ```
 
 :::note
-Be sure to install the plugin before starting Confluent. Otherwise, Kafka Connect will failed to discover the plugins.
+Be sure to install the plugin before starting Confluent. Otherwise, Kafka Connect will fail to discover the plugins.
 :::
 
 :::tip
