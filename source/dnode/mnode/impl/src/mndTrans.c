@@ -813,9 +813,6 @@ void mndTransProcessRsp(SRpcMsg *pRsp) {
   if (pAction != NULL) {
     pAction->msgReceived = 1;
     pAction->errCode = pRsp->code;
-    if (pAction->errCode != 0) {
-      tstrncpy(pTrans->lastError, tstrerror(pAction->errCode), TSDB_TRANS_ERROR_LEN);
-    }
   }
 
   mDebug("trans:%d, %s:%d response is received, code:0x%x, accept:0x%x", transId, mndTransStr(pAction->stage), action,
@@ -924,24 +921,36 @@ static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pA
     return -1;
   }
 
-  int32_t numOfExecuted = 0;
-  int32_t errCode = 0;
+  int32_t       numOfExecuted = 0;
+  int32_t       errCode = 0;
+  STransAction *pErrAction = NULL;
   for (int32_t action = 0; action < numOfActions; ++action) {
     STransAction *pAction = taosArrayGet(pArray, action);
     if (pAction->msgReceived || pAction->rawWritten) {
       numOfExecuted++;
       if (pAction->errCode != 0 && pAction->errCode != pAction->acceptableCode) {
         errCode = pAction->errCode;
+        pErrAction = pAction;
       }
     }
   }
 
   if (numOfExecuted == numOfActions) {
     if (errCode == 0) {
+      pTrans->lastErrorAction = 0;
+      pTrans->lastErrorNo = 0;
+      pTrans->lastErrorMsgType = 0;
+      memset(&pTrans->lastErrorEpset, 0, sizeof(pTrans->lastErrorEpset));
       mDebug("trans:%d, all %d actions execute successfully", pTrans->id, numOfActions);
       return 0;
     } else {
       mError("trans:%d, all %d actions executed, code:0x%x", pTrans->id, numOfActions, errCode & 0XFFFF);
+      if (pErrAction != NULL) {
+        pTrans->lastErrorMsgType = pErrAction->msgType;
+        pTrans->lastErrorAction = pErrAction->id;
+        pTrans->lastErrorNo = pErrAction->errCode;
+        pTrans->lastErrorEpset = pErrAction->epSet;
+      }
       mndTransResetActions(pMnode, pTrans, pArray);
       terrno = errCode;
       return errCode;
@@ -976,7 +985,7 @@ static int32_t mndTransExecuteCommitActions(SMnode *pMnode, STrans *pTrans) {
   return code;
 }
 
-static int32_t mndTransExecuteRedoActionsNoParallel(SMnode *pMnode, STrans *pTrans) {
+static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) {
   int32_t code = 0;
   int32_t numOfActions = taosArrayGetSize(pTrans->redoActions);
   if (numOfActions == 0) return code;
@@ -1001,6 +1010,18 @@ static int32_t mndTransExecuteRedoActionsNoParallel(SMnode *pMnode, STrans *pTra
           code = pAction->errCode;
         }
       }
+    }
+
+    if (code == 0) {
+      pTrans->lastErrorAction = 0;
+      pTrans->lastErrorNo = 0;
+      pTrans->lastErrorMsgType = 0;
+      memset(&pTrans->lastErrorEpset, 0, sizeof(pTrans->lastErrorEpset));
+    } else {
+      pTrans->lastErrorMsgType = pAction->msgType;
+      pTrans->lastErrorAction = action;
+      pTrans->lastErrorNo = pAction->errCode;
+      pTrans->lastErrorEpset = pAction->epSet;
     }
 
     if (code == 0) {
@@ -1037,7 +1058,7 @@ static bool mndTransPerformRedoActionStage(SMnode *pMnode, STrans *pTrans) {
   int32_t code = 0;
 
   if (pTrans->exec == TRN_EXEC_SERIAL) {
-    code = mndTransExecuteRedoActionsNoParallel(pMnode, pTrans);
+    code = mndTransExecuteRedoActionsSerial(pMnode, pTrans);
   } else {
     code = mndTransExecuteRedoActions(pMnode, pTrans);
   }
@@ -1347,11 +1368,6 @@ static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)dbname, false);
 
-    char type[TSDB_TRANS_TYPE_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(type, "todo", pShow->pMeta->pSchemas[cols].bytes);
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)type, false);
-
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&pTrans->failedTimes, false);
 
@@ -1359,7 +1375,20 @@ static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     colDataAppend(pColInfo, numOfRows, (const char *)&pTrans->lastExecTime, false);
 
     char lastError[TSDB_TRANS_ERROR_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(lastError, pTrans->lastError, pShow->pMeta->pSchemas[cols].bytes);
+    char detail[TSDB_TRANS_ERROR_LEN] = {0};
+    if (pTrans->lastErrorNo != 0) {
+      int32_t len = snprintf(detail, sizeof(detail), "action:%d errno:0x%x(%s) ", pTrans->lastErrorAction,
+                             pTrans->lastErrorNo & 0xFFFF, tstrerror(pTrans->lastErrorNo));
+      SEpSet  epset = pTrans->lastErrorEpset;
+      if (epset.numOfEps > 0) {
+        len += snprintf(detail + len, sizeof(detail) - len, "msgType:%s numOfEps:%d inUse:%d ",
+                        TMSG_INFO(pTrans->lastErrorMsgType), epset.numOfEps, epset.inUse);
+      }
+      for (int32_t i = 0; i < pTrans->lastErrorEpset.numOfEps; ++i) {
+        len += snprintf(detail + len, sizeof(detail) - len, "ep:%d-%s:%u ", i, epset.eps[i].fqdn, epset.eps[i].port);
+      }
+    }
+    STR_WITH_MAXSIZE_TO_VARSTR(lastError, detail, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)lastError, false);
 

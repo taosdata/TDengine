@@ -119,9 +119,11 @@ typedef struct {
   SArray*        commitActions;
   int64_t        createdTime;
   int64_t        lastExecTime;
+  int32_t        lastErrorAction;
+  int32_t        lastErrorNo;
+  tmsg_t         lastErrorMsgType;
+  SEpSet         lastErrorEpset;
   char           dbname[TSDB_DB_FNAME_LEN];
-  char           lastError[TSDB_TRANS_ERROR_LEN];
-  char           desc[TSDB_TRANS_DESC_LEN];
   int32_t        startFunc;
   int32_t        stopFunc;
   int32_t        paramLen;
