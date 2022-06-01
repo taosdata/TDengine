@@ -66,12 +66,12 @@ struct STqReadHandle {
 // tqPush
 
 typedef struct {
-  int64_t  consumerId;
-  int32_t  epoch;
-  int32_t  skipLogNum;
-  int64_t  reqOffset;
-  SRWLatch lock;
-  SRpcMsg* handle;
+  int64_t        consumerId;
+  int32_t        epoch;
+  int32_t        skipLogNum;
+  int64_t        reqOffset;
+  SRpcHandleInfo info;
+  SRWLatch       lock;
 } STqPushHandle;
 
 #if 0
