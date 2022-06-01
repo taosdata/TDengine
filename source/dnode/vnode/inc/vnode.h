@@ -177,6 +177,7 @@ struct SVnodeCfg {
   uint32_t hashBegin;
   uint32_t hashEnd;
   int8_t   hashMethod;
+  int8_t   standby;
 };
 
 typedef struct {

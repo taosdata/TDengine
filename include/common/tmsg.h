@@ -1002,7 +1002,6 @@ typedef struct {
 
 typedef struct {
   int32_t  vgId;
-  int32_t  dnodeId;
   char     db[TSDB_DB_FNAME_LEN];
   int64_t  dbUid;
   int32_t  vgVersion;
@@ -1025,15 +1024,13 @@ typedef struct {
   int8_t   compression;
   int8_t   strict;
   int8_t   cacheLastRow;
+  int8_t   isTsma;
+  int8_t   standby;
   int8_t   replica;
   int8_t   selfIndex;
   SReplica replicas[TSDB_MAX_REPLICA];
   int32_t  numOfRetensions;
   SArray*  pRetensions;  // SRetention
-
-  // for tsma
-  int8_t isTsma;
-
 } SCreateVnodeReq;
 
 int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);
@@ -1071,8 +1068,8 @@ typedef struct {
   int8_t   walLevel;
   int8_t   strict;
   int8_t   cacheLastRow;
-  int8_t   replica;
   int8_t   selfIndex;
+  int8_t   replica;
   SReplica replicas[TSDB_MAX_REPLICA];
 } SAlterVnodeReq;
 
