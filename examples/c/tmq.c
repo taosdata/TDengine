@@ -165,7 +165,6 @@ tmq_t* build_consumer() {
   tmq_conf_set(conf, "group.id", "tg2");
   tmq_conf_set(conf, "td.connect.user", "root");
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
-  /*tmq_conf_set(conf, "td.connect.db", "abc1");*/
   tmq_conf_set(conf, "msg.with.table.name", "true");
   tmq_conf_set(conf, "enable.auto.commit", "false");
   tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
@@ -191,7 +190,6 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
     return;
   }
   int32_t cnt = 0;
-  /*clock_t startTime = clock();*/
   while (running) {
     TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, 0);
     if (tmqmessage) {
@@ -204,8 +202,6 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
       /*break;*/
     }
   }
-  /*clock_t endTime = clock();*/
-  /*printf("log cnt: %d %f s\n", cnt, (double)(endTime - startTime) / CLOCKS_PER_SEC);*/
 
   err = tmq_consumer_close(tmq);
   if (err)

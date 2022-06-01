@@ -68,6 +68,7 @@ void    vnodeGetInfo(SVnode *pVnode, const char **dbname, int32_t *vgId);
 int32_t vnodeSnapshotReaderOpen(SVnode *pVnode, SVSnapshotReader **ppReader, int64_t sver, int64_t ever);
 int32_t vnodeSnapshotReaderClose(SVSnapshotReader *pReader);
 int32_t vnodeSnapshotRead(SVSnapshotReader *pReader, const void **ppData, uint32_t *nData);
+int32_t vnodeProcessCreateTSma(SVnode *pVnode, void *pCont, uint32_t contLen);
 
 // meta
 typedef struct SMeta       SMeta;  // todo: remove
@@ -78,7 +79,7 @@ void        metaReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags);
 void        metaReaderClear(SMetaReader *pReader);
 int32_t     metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid);
 int32_t     metaReadNext(SMetaReader *pReader);
-const void *metaGetTableTagVal(SMetaEntry *pEntry, int16_t cid);
+const void *metaGetTableTagVal(SMetaEntry *pEntry, int16_t type, STagVal *tagVal);
 
 typedef struct SMetaFltParam {
   tb_uid_t suid;
@@ -172,7 +173,9 @@ struct SVnodeCfg {
   bool     isHeap;
   bool     isWeak;
   int8_t   isTsma;
+  int8_t   isRsma;
   int8_t   hashMethod;
+  int8_t   standby;
   STsdbCfg tsdbCfg;
   SWalCfg  walCfg;
   SSyncCfg syncCfg;

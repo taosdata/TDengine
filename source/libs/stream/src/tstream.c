@@ -35,6 +35,16 @@ void* streamDataBlockDecode(const void* buf, SStreamDataBlock* pInput) {
   return (void*)buf;
 }
 
+SStreamDataSubmit* streamSubmitRefClone(SStreamDataSubmit* pSubmit) {
+  SStreamDataSubmit* pSubmitClone = taosAllocateQitem(sizeof(SStreamDataSubmit), DEF_QITEM);
+  if (pSubmitClone == NULL) {
+    return NULL;
+  }
+  streamDataSubmitRefInc(pSubmit);
+  memcpy(pSubmitClone, pSubmit, sizeof(SStreamDataSubmit));
+  return pSubmitClone;
+}
+
 static int32_t streamBuildDispatchMsg(SStreamTask* pTask, SArray* data, SRpcMsg* pMsg, SEpSet** ppEpSet) {
   SStreamDispatchReq req = {
       .streamId = pTask->streamId,
@@ -207,7 +217,6 @@ int32_t streamExec(SStreamTask* pTask, SMsgCb* pMsgCb) {
   if (pRes == NULL) return -1;
   while (1) {
     int8_t execStatus = atomic_val_compare_exchange_8(&pTask->status, TASK_STATUS__IDLE, TASK_STATUS__EXECUTING);
-    void*  exec = pTask->exec.executor;
     if (execStatus == TASK_STATUS__IDLE) {
       // first run, from qall, handle failure from last exec
       pRes = streamExecForQall(pTask, pRes);

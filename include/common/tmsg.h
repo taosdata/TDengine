@@ -244,7 +244,7 @@ typedef struct {
   const void* pMsg;
 } SSubmitMsgIter;
 
-int32_t tInitSubmitMsgIter(SSubmitReq* pMsg, SSubmitMsgIter* pIter);
+int32_t tInitSubmitMsgIter(const SSubmitReq* pMsg, SSubmitMsgIter* pIter);
 int32_t tGetSubmitMsgNext(SSubmitMsgIter* pIter, SSubmitBlk** pPBlock);
 int32_t tInitSubmitBlkIter(SSubmitMsgIter* pMsgIter, SSubmitBlk* pBlock, SSubmitBlkIter* pIter);
 STSRow* tGetSubmitBlkNext(SSubmitBlkIter* pIter);
@@ -287,7 +287,7 @@ typedef struct SSchema {
   char     name[TSDB_COL_NAME_LEN];
 } SSchema;
 
-#define COL_IS_SET(FLG)  ((FLG) & (COL_SET_VAL | COL_SET_NULL) != 0)
+#define COL_IS_SET(FLG)  (((FLG) & (COL_SET_VAL | COL_SET_NULL)) != 0)
 #define COL_CLR_SET(FLG) ((FLG) &= (~(COL_SET_VAL | COL_SET_NULL)))
 
 #define IS_BSMA_ON(s) (((s)->flags & 0x01) == COL_SMA_ON)
@@ -946,7 +946,6 @@ typedef struct {
   int64_t timeInFetchQueue;
 } SQnodeLoad;
 
-
 typedef struct {
   int32_t     sver;      // software version
   int64_t     dnodeVer;  // dnode table version in sdb
@@ -1003,7 +1002,6 @@ typedef struct {
 
 typedef struct {
   int32_t  vgId;
-  int32_t  dnodeId;
   char     db[TSDB_DB_FNAME_LEN];
   int64_t  dbUid;
   int32_t  vgVersion;
@@ -1026,16 +1024,14 @@ typedef struct {
   int8_t   compression;
   int8_t   strict;
   int8_t   cacheLastRow;
+  int8_t   isTsma;
+  int8_t   standby;
   int8_t   replica;
   int8_t   selfIndex;
   SReplica replicas[TSDB_MAX_REPLICA];
   int32_t  numOfRetensions;
   SArray*  pRetensions;  // SRetention
-
-  // for tsma
-  int8_t isTsma;
-  void*  pTsma;
-
+  void*    pTsma;
 } SCreateVnodeReq;
 
 int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);
@@ -1073,8 +1069,8 @@ typedef struct {
   int8_t   walLevel;
   int8_t   strict;
   int8_t   cacheLastRow;
-  int8_t   replica;
   int8_t   selfIndex;
+  int8_t   replica;
   SReplica replicas[TSDB_MAX_REPLICA];
 } SAlterVnodeReq;
 
@@ -1779,6 +1775,15 @@ typedef struct SVCreateTbReq {
 int tEncodeSVCreateTbReq(SEncoder* pCoder, const SVCreateTbReq* pReq);
 int tDecodeSVCreateTbReq(SDecoder* pCoder, SVCreateTbReq* pReq);
 
+static FORCE_INLINE void tdDestroySVCreateTbReq(SVCreateTbReq* req) {
+  taosMemoryFreeClear(req->name);
+  if (req->type == TSDB_CHILD_TABLE) {
+    taosMemoryFreeClear(req->ctb.pTag);
+  } else if (req->type == TSDB_NORMAL_TABLE) {
+    taosMemoryFreeClear(req->ntb.schemaRow.pSchema);
+  }
+}
+
 typedef struct {
   int32_t nReqs;
   union {
@@ -1969,7 +1974,7 @@ typedef struct {
   int8_t   killConnection;
   int8_t   align[3];
   SEpSet   epSet;
-  SArray  *pQnodeList;
+  SArray*  pQnodeList;
 } SQueryHbRspBasic;
 
 typedef struct {
@@ -2297,6 +2302,7 @@ typedef struct {
   int8_t   intervalUnit;  // MACRO: TIME_UNIT_XXX
   int8_t   slidingUnit;   // MACRO: TIME_UNIT_XXX
   int8_t   timezoneInt;   // sma data expired if timezone changes.
+  int32_t  dstVgId;
   char     indexName[TSDB_INDEX_NAME_LEN];
   int32_t  exprLen;
   int32_t  tagsFilterLen;
@@ -2653,6 +2659,23 @@ typedef struct {
 
 int32_t tEncodeSVSubmitReq(SEncoder* pCoder, const SVSubmitReq* pReq);
 int32_t tDecodeSVSubmitReq(SDecoder* pCoder, SVSubmitReq* pReq);
+
+// TDMT_VND_DELETE
+typedef struct {
+  TSKEY sKey;
+  TSKEY eKey;
+
+  // super table
+  char* stbName;
+
+  // child/normal
+  char* tbName;
+} SVDeleteReq;
+
+typedef struct {
+  int32_t code;
+  // TODO
+} SVDeleteRsp;
 
 #pragma pack(pop)
 
