@@ -4,8 +4,8 @@ import jenkins.model.CauseOfInterruption
 node {
 }
 
-def skipbuild=0
-def win_stop=0
+win_test_stage = 0
+linux_ready = 0
 
 def abortPreviousBuilds() {
     def currentJobName = env.JOB_NAME
@@ -248,12 +248,21 @@ def pre_test_build_win() {
     '''
     return 1
 }
-def run_win_test() {
+def run_win_ctest() {
     bat '''
         echo "windows ctest ..."
         time /t
         cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\debug
         ctest -j 6 || exit 7
+        time /t
+    '''
+}
+def run_win_test() {
+    bat '''
+        echo "windows test ..."
+        time /t
+        cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\community\\tests\\system-test
+        echo "testing ..."
         time /t
     '''
 }
@@ -273,9 +282,20 @@ pipeline {
                 stage('windows test') {
                     agent{label " windows10_01 || windows10_02 || windows10_03 || windows10_04 "}
                     steps {
-                        pre_test_win()
-                        pre_test_build_win()
-                        run_win_test()
+                        catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                            timeout(time: 40, unit: 'MINUTES'){
+                                pre_test_win()
+                                pre_test_build_win()
+                                run_win_ctest()
+                                while(linux_ready == 0) {
+                                    sleep(8)
+                                }
+                                run_win_test()
+                            }
+                        }
+                        script {
+                            win_test_stage = 1
+                        }
                     }
                 }
                 stage('linux test') {
@@ -285,22 +305,47 @@ pipeline {
                         changeRequest()
                     }
                     steps {
-                        timeout(time: 40, unit: 'MINUTES'){
-                            pre_test()
-                            script {
-                                sh '''
-                                    cd ${WKC}/tests/parallel_test
-                                    date
-                                    time ./container_build.sh -w ${WKDIR} -t 8 -e
-                                    rm -f /tmp/cases.task
-                                    ./collect_cases.sh -e
-                                '''
-                                sh '''
-                                    cd ${WKC}/tests/parallel_test
-                                    export DEFAULT_RETRY_TIME=2
-                                    date
-                                    timeout 2100 time ./run.sh -e -m /home/m.json -t /tmp/cases.task -b ${BRANCH_NAME}_${BUILD_ID} -l ${WKDIR}/log -o 480
-                                '''
+                        catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                            timeout(time: 40, unit: 'MINUTES'){
+                                pre_test()
+                                script {
+                                    sh '''
+                                        cd ${WKC}/tests/parallel_test
+                                        date
+                                        time ./container_build.sh -w ${WKDIR} -t 8 -e
+                                        rm -f /tmp/cases.task
+                                        ./collect_cases.sh -e
+                                    '''
+                                    sh '''
+                                        echo "packaging ..."
+                                        date
+                                        cd ${WKC}/packaging
+                                        ./release.sh -v cluster -n 3.0.0.100 -s static
+                                        cd ${WKC}/release
+                                        tar xzf TDengine-enterprise-server-3.0.0.100-Linux-x64.tar.gz
+                                        cd TDengine-enterprise-server
+                                        service taosd stop || :
+                                        rm -rf /var/lib/taos
+                                        ./install.sh -e no
+                                        service taosd start
+                                        sleep 20
+                                        service taosd status
+                                    '''
+                                    script {
+                                        linux_ready = 1
+                                    }
+                                    sh '''
+                                        cd ${WKC}/tests/parallel_test
+                                        export DEFAULT_RETRY_TIME=2
+                                        date
+                                        timeout 2100 time ./run.sh -e -m /home/m.json -t /tmp/cases.task -b ${BRANCH_NAME}_${BUILD_ID} -l ${WKDIR}/log -o 480
+                                    '''
+                                    script {
+                                        while(win_test_stage == 0){
+                                            sleep(12)
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
