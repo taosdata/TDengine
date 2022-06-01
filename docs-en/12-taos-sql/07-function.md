@@ -1,5 +1,5 @@
 ---
-title: SQL Functions
+title: Functions
 toc_max_heading_level: 4
 ---
 

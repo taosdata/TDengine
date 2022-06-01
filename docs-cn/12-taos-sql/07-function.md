@@ -1,6 +1,6 @@
 ---
-sidebar_label: SQL 函数
-title: SQL 函数
+sidebar_label: 函数
+title: 函数
 toc_max_heading_level: 4
 ---
 
