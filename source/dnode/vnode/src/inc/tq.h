@@ -168,6 +168,13 @@ int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalHead*
 
 int32_t tqDataExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataBlkRsp* pRsp, int32_t workerId);
 
+// tqMeta
+
+int32_t tqMetaOpen(STQ* pTq);
+int32_t tqMetaClose(STQ* pTq);
+int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle);
+int32_t tqMetaDeleteHandle(STQ* pTq, const char* key);
+
 // tqOffset
 STqOffsetStore* STqOffsetOpen(STqOffsetCfg*);
 void            STqOffsetClose(STqOffsetStore*);
