@@ -849,6 +849,11 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
 int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int32_t type = GET_PARAM_TYPE(pInput);
 
+  char* tz;
+  int32_t tzLen;
+  tz = varDataVal(pInput[1].columnData->pData);
+  tzLen = varDataLen(pInput[1].columnData->pData);
+
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
     if (colDataIsNull_s(pInput[0].columnData, i)) {
       colDataAppendNULL(pOutput->columnData, i);
@@ -880,8 +885,12 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
     }
 
     struct tm *tmInfo = taosLocalTime((const time_t *)&timeVal, NULL);
-    strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S%z", tmInfo);
+    strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", tmInfo);
     int32_t len = (int32_t)strlen(buf);
+
+    //add timezone string
+    snprintf(buf + len, tzLen + 1, "%s", tz);
+    len += tzLen;
 
     if (hasFraction) {
       int32_t fracLen = (int32_t)strlen(fraction) + 1;

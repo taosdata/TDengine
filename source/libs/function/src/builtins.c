@@ -921,16 +921,108 @@ static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return TSDB_CODE_SUCCESS;
 }
 
+/* Following are valid ISO-8601 timezone format:
+ * 1 z/Z
+ * 2 ±hh:mm
+ * 3 ±hhmm
+ * 4 ±hh
+ *
+ */
+
+static bool validateTimezoneFormat(const SValueNode* pVal) {
+  if (TSDB_DATA_TYPE_BINARY != pVal->node.resType.type) {
+    return false;
+  }
+
+  char *tz    = varDataVal(pVal->datum.p);
+  int32_t len = varDataLen(pVal->datum.p);
+
+  if (len == 0) {
+    return false;
+  } else if (len == 1 && (tz[0] == 'z' || tz[0] == 'Z')) {
+    return true;
+  } else if ((tz[0] == '+' || tz[0] == '-')) {
+    switch (len) {
+      case 3:
+      case 5: {
+        for (int32_t i = 1; i < len; ++i) {
+          if (!isdigit(tz[i])) {
+            return false;
+          }
+        }
+        break;
+      }
+      case 6: {
+        for (int32_t i = 1; i < len; ++i) {
+          if (i == 3) {
+            if (tz[i] != ':') {
+              return false;
+            }
+            continue;
+          }
+          if (!isdigit(tz[i])) {
+            return false;
+          }
+        }
+        break;
+      }
+      default: {
+        return false;
+      }
+    }
+  } else {
+    return false;
+  }
+
+  return true;
+}
+
+void static addTimezoneParam(SNodeList* pList) {
+  char buf[6] = {0};
+  time_t t = taosTime(NULL);
+  struct tm *tmInfo = taosLocalTime(&t, NULL);
+  strftime(buf, sizeof(buf), "%z", tmInfo);
+  int32_t len = (int32_t)strlen(buf);
+
+  SValueNode* pVal = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  pVal->literal = strndup(buf, len);
+  pVal->isDuration =false;
+  pVal->translate = true;
+  pVal->node.resType.type = TSDB_DATA_TYPE_BINARY;
+  pVal->node.resType.bytes = len + VARSTR_HEADER_SIZE;
+  pVal->node.resType.precision = TSDB_TIME_PRECISION_MILLI;
+  pVal->datum.p = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE +1);
+  varDataSetLen(pVal->datum.p, len);
+  strncpy(varDataVal(pVal->datum.p), pVal->literal, len);
+
+  nodesListAppend(pList, pVal);
+}
+
 static int32_t translateToIso8601(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  if (1 != numOfParams && 2 != numOfParams) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
+  //param0
   uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
   if (!IS_INTEGER_TYPE(paraType) && TSDB_DATA_TYPE_TIMESTAMP != paraType) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
+  //param1
+  if (numOfParams == 2) {
+    SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
+
+    if (!validateTimezoneFormat(pValue)) {
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                             "Invalid timzone format");
+    }
+  } else { //add default client timezone
+    addTimezoneParam(pFunc->pParameterList);
+  }
+
+  //set result type
   pFunc->node.resType = (SDataType){.bytes = 64, .type = TSDB_DATA_TYPE_BINARY};
   return TSDB_CODE_SUCCESS;
 }
