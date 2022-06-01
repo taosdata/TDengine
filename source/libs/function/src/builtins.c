@@ -817,11 +817,20 @@ static int32_t translateConcatImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t 
   int32_t resultBytes = 0;
   int32_t sepBytes = 0;
 
+  //concat_ws separator should be constant string
+  if (hasSep) {
+    SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
+    if (nodeType(pPara) != QUERY_NODE_VALUE) {
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                             "The first parameter of CONCAT_WS function can only be constant string");
+    }
+  }
+
   /* For concat/concat_ws function, if params have NCHAR type, promote the final result to NCHAR */
   for (int32_t i = 0; i < numOfParams; ++i) {
     SNode*  pPara = nodesListGetNode(pFunc->pParameterList, i);
     uint8_t paraType = ((SExprNode*)pPara)->resType.type;
-    if (!IS_VAR_DATA_TYPE(paraType)) {
+    if (!IS_VAR_DATA_TYPE(paraType) && TSDB_DATA_TYPE_NULL != paraType) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
     if (TSDB_DATA_TYPE_NCHAR == paraType) {
