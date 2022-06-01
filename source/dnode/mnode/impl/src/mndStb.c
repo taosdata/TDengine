@@ -1207,13 +1207,54 @@ static int32_t mndSetAlterStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
   return 0;
 }
 
+static int32_t mndBuildSMAlterStbRsp(SDbObj *pDb, const SMAlterStbReq *pAlter, SStbObj *pObj, void **pCont, int32_t *pLen) {
+  int           ret;
+  SEncoder      ec = {0};
+  uint32_t      contLen = 0; 
+  SMAlterStbRsp alterRsp = {0};
+  SName name = {0};
+  tNameFromString(&name, pAlter->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+
+  alterRsp.pMeta = taosMemoryCalloc(1, sizeof(STableMetaRsp));
+  if (NULL == alterRsp.pMeta) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+  
+  ret = mndBuildStbSchemaImp(pDb, pObj, name.tname, &alterRsp.meta);
+  if (ret) {
+    tFreeSMAlterStbRsp(&alterRsp);
+    return ret;
+  }
+  
+  tEncodeSize(tEncodeSMAlterStbRsp, &alterRsp, contLen, ret);
+  if (ret) {
+    tFreeSMAlterStbRsp(&alterRsp);
+    return ret;
+  }
+
+  void* cont = taosMemoryMalloc(contLen);
+  tEncoderInit(&ec, cont, contLen);
+  tEncodeSMAlterStbRsp(&ec, &alterRsp);
+  tEncoderClear(&ec);
+
+  tFreeSMAlterStbRsp(&alterRsp);
+
+  *pCont = cont;
+  *pLen = contLen;
+  
+  return 0;
+}
+
 static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *pAlter, SDbObj *pDb, SStbObj *pOld) {
+  bool needRsp = true;
   SStbObj stbObj = {0};
   taosRLockLatch(&pOld->lock);
   memcpy(&stbObj, pOld, sizeof(SStbObj));
   stbObj.pColumns = NULL;
   stbObj.pTags = NULL;
   stbObj.updateTime = taosGetTimestampMs();
+  stbObj.lock = 0;
   taosRUnLockLatch(&pOld->lock);
 
   int32_t code = -1;
@@ -1247,9 +1288,11 @@ static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *p
       code = mndAlterStbColumnBytes(pOld, &stbObj, pField0);
       break;
     case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
+      needRsp = false;
       code = mndUpdateStbCommentAndTTL(pOld, &stbObj, pAlter->comment, pAlter->commentLen, pAlter->ttl);
       break;
     default:
+      needRsp = false;
       terrno = TSDB_CODE_OPS_NOT_SUPPORT;
       break;
   }
@@ -1263,6 +1306,13 @@ static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *p
   mDebug("trans:%d, used to alter stb:%s", pTrans->id, pAlter->name);
   mndTransSetDbInfo(pTrans, pDb);
 
+  if (needRsp) {
+    void* pCont = NULL;
+    int32_t contLen = 0;
+    if (mndBuildSMAlterStbRsp(pDb, pAlter, &stbObj, &pCont, &contLen)) goto _OVER;
+    mndTransSetRpcRsp(pTrans, pCont, contLen);
+  }
+  
   if (mndSetAlterStbRedoLogs(pMnode, pTrans, pDb, &stbObj) != 0) goto _OVER;
   if (mndSetAlterStbCommitLogs(pMnode, pTrans, pDb, &stbObj) != 0) goto _OVER;
   if (mndSetAlterStbRedoActions(pMnode, pTrans, pDb, &stbObj) != 0) goto _OVER;

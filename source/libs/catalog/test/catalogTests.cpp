@@ -1380,7 +1380,7 @@ TEST(tableMeta, updateStbMeta) {
   STableMetaRsp rsp = {0};
   ctgTestBuildSTableMetaRsp(&rsp);
 
-  code = catalogUpdateSTableMeta(pCtg, &rsp);
+  code = catalogUpdateTableMeta(pCtg, &rsp);
   ASSERT_EQ(code, 0);
   taosMemoryFreeClear(rsp.pSchemas);
 

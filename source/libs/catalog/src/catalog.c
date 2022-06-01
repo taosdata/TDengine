@@ -314,6 +314,36 @@ _return:
   CTG_RET(code);
 }
 
+int32_t ctgUpdateTbMeta(SCatalog* pCtg, STableMetaRsp *rspMsg, bool syncOp) {
+  STableMetaOutput *output = taosMemoryCalloc(1, sizeof(STableMetaOutput));
+  if (NULL == output) {
+    ctgError("malloc %d failed", (int32_t)sizeof(STableMetaOutput));
+    CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
+  }
+  
+  int32_t code = 0;
+
+  strcpy(output->dbFName, rspMsg->dbFName);
+  strcpy(output->tbName, rspMsg->tbName);
+
+  output->dbId = rspMsg->dbId;
+  
+  SET_META_TYPE_TABLE(output->metaType);
+  
+  CTG_ERR_JRET(queryCreateTableMetaFromMsg(rspMsg, rspMsg->tableType == TSDB_SUPER_TABLE, &output->tbMeta));
+
+  CTG_ERR_JRET(ctgUpdateTbMetaEnqueue(pCtg, output, syncOp));
+
+  return TSDB_CODE_SUCCESS;
+  
+_return:
+
+  taosMemoryFreeClear(output->tbMeta);
+  taosMemoryFreeClear(output);
+  
+  CTG_RET(code);
+}
+
 
 int32_t ctgChkAuth(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, const char* user, const char* dbFName, AUTH_TYPE type, bool *pass) {
   bool inCache = false;
@@ -779,38 +809,17 @@ int32_t catalogGetSTableMeta(SCatalog* pCtg, void * pTrans, const SEpSet* pMgmtE
   CTG_API_LEAVE(ctgGetTbMeta(CTG_PARAMS_LIST(), &ctx, pTableMeta));
 }
 
-int32_t catalogUpdateSTableMeta(SCatalog* pCtg, STableMetaRsp *rspMsg) {
+int32_t catalogUpdateTableMeta(SCatalog* pCtg, STableMetaRsp *pMsg) {
   CTG_API_ENTER();
 
-  if (NULL == pCtg || NULL == rspMsg) {
+  if (NULL == pCtg || NULL == pMsg) {
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  STableMetaOutput *output = taosMemoryCalloc(1, sizeof(STableMetaOutput));
-  if (NULL == output) {
-    ctgError("malloc %d failed", (int32_t)sizeof(STableMetaOutput));
-    CTG_API_LEAVE(TSDB_CODE_CTG_MEM_ERROR);
-  }
-  
   int32_t code = 0;
-
-  strcpy(output->dbFName, rspMsg->dbFName);
-  strcpy(output->tbName, rspMsg->tbName);
-
-  output->dbId = rspMsg->dbId;
-  
-  SET_META_TYPE_TABLE(output->metaType);
-  
-  CTG_ERR_JRET(queryCreateTableMetaFromMsg(rspMsg, true, &output->tbMeta));
-
-  CTG_ERR_JRET(ctgUpdateTbMetaEnqueue(pCtg, output, false));
-
-  CTG_API_LEAVE(code);
+  CTG_ERR_JRET(ctgUpdateTbMeta(pCtg, pMsg, true));
   
 _return:
-
-  taosMemoryFreeClear(output->tbMeta);
-  taosMemoryFreeClear(output);
   
   CTG_API_LEAVE(code);
 }

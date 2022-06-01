@@ -223,10 +223,32 @@ int32_t processDropDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   return code;
 }
 
+int32_t processAlterStbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
+  SRequestObj* pRequest = param;
+  if (code != TSDB_CODE_SUCCESS) {
+    setErrno(pRequest, code);
+    tsem_post(&pRequest->body.rspSem);
+    return code;
+  }
+
+  SMAlterStbRsp alterRsp = {0};
+  SDecoder coder = {0};
+  tDecoderInit(&coder, pMsg->pData, pMsg->len);
+  tDecodeSMAlterStbRsp(&coder, &alterRsp);
+  tDecoderClear(&coder);
+  
+  pRequest->body.resInfo.pExecRes = alterRsp.pMeta;
+
+  tsem_post(&pRequest->body.rspSem);
+  return code;
+}
+
+
 void initMsgHandleFp() {
   handleRequestRspFp[TMSG_INDEX(TDMT_MND_CONNECT)] = processConnectRsp;
   handleRequestRspFp[TMSG_INDEX(TDMT_MND_CREATE_DB)] = processCreateDbRsp;
   handleRequestRspFp[TMSG_INDEX(TDMT_MND_USE_DB)] = processUseDbRsp;
   handleRequestRspFp[TMSG_INDEX(TDMT_MND_CREATE_STB)] = processCreateTableRsp;
   handleRequestRspFp[TMSG_INDEX(TDMT_MND_DROP_DB)] = processDropDbRsp;
+  handleRequestRspFp[TMSG_INDEX(TDMT_MND_ALTER_STB)] = processAlterStbRsp;
 }

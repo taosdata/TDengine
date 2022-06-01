@@ -162,6 +162,8 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
         tDecoderClear(&coder);
         SCH_ERR_JRET(code);
         SCH_ERR_JRET(rsp.code);
+        
+        pJob->queryRes = rsp.pMeta;
       }
 
       SCH_ERR_JRET(rspCode);

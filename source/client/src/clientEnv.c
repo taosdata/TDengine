@@ -212,6 +212,31 @@ void doFreeReqResultInfo(SReqResultInfo *pResInfo) {
   }
 }
 
+static void destroyExecRes(SRequestObj* pRequest) {
+  if (NULL == pRequest || NULL == pRequest->body.resInfo.pExecRes) {
+    return;
+  }
+
+  switch (pRequest->type) {
+    case TDMT_VND_ALTER_TABLE:
+    case TDMT_MND_ALTER_STB: {
+      tFreeSTableMetaRsp((STableMetaRsp *)pRequest->body.resInfo.pExecRes);
+      taosMemoryFree(pRequest->body.resInfo.pExecRes);
+      break;
+    }
+    case TDMT_VND_SUBMIT: {
+      tFreeSSubmitRsp((SSubmitRsp*)pRequest->body.resInfo.pExecRes);
+      break;
+    } 
+    case TDMT_VND_QUERY: {
+      taosArrayDestroy((SArray*)pRequest->body.resInfo.pExecRes);
+      break;
+    }
+    default:
+      tscError("invalid exec result for request type %d", pRequest->type);
+  }
+}
+
 static void doDestroyRequest(void *p) {
   assert(p != NULL);
   SRequestObj *pRequest = (SRequestObj *)p;
@@ -233,6 +258,8 @@ static void doDestroyRequest(void *p) {
 
   taosArrayDestroy(pRequest->tableList);
   taosArrayDestroy(pRequest->dbList);
+
+  destroyExecRes(pRequest);
 
   deregisterRequest(pRequest);
   taosMemoryFreeClear(pRequest);
