@@ -1253,10 +1253,11 @@ void syncNodeVoteForSelf(SSyncNode* pSyncNode) {
 bool syncNodeIsIndexInSnapshot(SSyncNode* pSyncNode, SyncIndex index) {
   SSnapshot snapshot;
   pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
-  bool b = index <= snapshot.lastApplyIndex;
+  bool b = (index <= snapshot.lastApplyIndex);
   return b;
 }
 
+// get last index and term along with snapshot
 int32_t syncNodeGetLastIndexTerm(SSyncNode* pSyncNode, SyncIndex* pLastIndex, SyncTerm* pLastTerm) {
   SyncIndex logLastIndex = pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore);
   SSnapshot snapshot;
@@ -1266,13 +1267,17 @@ int32_t syncNodeGetLastIndexTerm(SSyncNode* pSyncNode, SyncIndex* pLastIndex, Sy
   if (logLastIndex > snapshotLastIndex) {
     *pLastIndex = logLastIndex;
     *pLastTerm = pSyncNode->pLogStore->getLastTerm(pSyncNode->pLogStore);
-  } else {
+  } else if (logLastIndex == snapshotLastIndex) {
     *pLastIndex = snapshotLastIndex;
     *pLastTerm = snapshot.lastApplyTerm;
+  } else {
+    ASSERT(0);
   }
+
   return 0;
 }
 
+// get pre index and term of "index"
 int32_t syncNodeGetPreIndexTerm(SSyncNode* pSyncNode, SyncIndex index, SyncIndex* pPreIndex, SyncTerm* pPreTerm) {
   ASSERT(index >= SYNC_INDEX_BEGIN);
   int ret = 0;
@@ -1282,6 +1287,7 @@ int32_t syncNodeGetPreIndexTerm(SSyncNode* pSyncNode, SyncIndex index, SyncIndex
     SSnapshot snapshot;
     pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
     ASSERT(preIndex == snapshot.lastApplyIndex);
+
     *pPreIndex = snapshot.lastApplyIndex;
     *pPreTerm = snapshot.lastApplyTerm;
   } else {
