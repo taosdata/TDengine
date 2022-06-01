@@ -2087,7 +2087,7 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
       switch (tag_state) {
       case tag_common:
         if (back_slash == true) {
-          if (*cur != ',' && *cur != '=' && *cur != ' ') {
+          if (*cur != ',' && *cur != '=' && *cur != ' ' && *cur != 'n' ) {
             tscError("SML:0x%"PRIx64" tag value: state(%d), incorrect character(%c) escaped", info->id, tag_state, *cur);
             ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
             goto error;
@@ -2152,7 +2152,7 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
         break;
       case tag_lqoute:
         if (back_slash == true) {
-          if (*cur != ',' && *cur != '=' && *cur != ' ') {
+          if (*cur != ',' && *cur != '=' && *cur != ' ' && *cur != 'n') {
             tscError("SML:0x%"PRIx64" tag value: state(%d), incorrect character(%c) escaped", info->id, tag_state, *cur);
             ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
             goto error;
@@ -2223,7 +2223,7 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
       switch (val_state) {
       case val_common:
         if (back_slash == true) {
-          if (*cur != '\\' && *cur != '"') {
+          if (*cur != '\\' && *cur != '"' && *cur != 'n') {
             tscError("SML:0x%"PRIx64" field value: state(%d), incorrect character(%c) escaped", info->id, val_state, *cur);
             ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
             goto error;
@@ -2318,7 +2318,7 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
         break;
       case val_lqoute:
         if (back_slash == true) {
-          if (*cur != '\\' && *cur != '"') {
+          if (*cur != '\\' && *cur != '"' && *cur != 'n') {
             tscError("SML:0x%"PRIx64" field value: state(%d), incorrect character(%c) escaped", info->id, val_state, *cur);
             ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
             goto error;
@@ -2488,12 +2488,15 @@ static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
   if (isField) {
     capacity = 64;
     *pKVs = malloc(capacity * sizeof(TAOS_SML_KV));
+    memset(*pKVs, 0, capacity * sizeof(TAOS_SML_KV));
     // leave space for timestamp;
     pkv = *pKVs;
     pkv++;
+    *num_kvs = 1; // ts fixed column
   } else {
     capacity = 8;
     *pKVs = malloc(capacity * sizeof(TAOS_SML_KV));
+    memset(*pKVs, 0, capacity * sizeof(TAOS_SML_KV));
     pkv = *pKVs;
   }
 
@@ -2554,7 +2557,7 @@ static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
     *pKVs = more_kvs;
     //move pKV points to next TAOS_SML_KV block
     if (isField) {
-      pkv = *pKVs + *num_kvs + 1;
+      pkv = *pKVs + *num_kvs; // first ts column reserved
     } else {
       pkv = *pKVs + *num_kvs;
     }
@@ -2576,7 +2579,7 @@ static void moveTimeStampToFirstKv(TAOS_SML_DATA_POINT** smlData, TAOS_SML_KV *t
   tsField->key = malloc(strlen(ts->key) + 1);
   memcpy(tsField->key, ts->key, strlen(ts->key) + 1);
   memcpy(tsField->value, ts->value, ts->length);
-  (*smlData)->fieldNum = (*smlData)->fieldNum + 1;
+  //(*smlData)->fieldNum = (*smlData)->fieldNum + 1;  // already reserved for first ts column
 
   free(ts->key);
   free(ts->value);
@@ -2634,14 +2637,21 @@ int32_t tscParseLine(const char* sql, TAOS_SML_DATA_POINT* smlData, SSmlLinesInf
 //=========================================================================
 
 void destroySmlDataPoint(TAOS_SML_DATA_POINT* point) {
+  TAOS_SML_KV *pkv;
   for (int i=0; i<point->tagNum; ++i) {
-    free((point->tags+i)->key);
-    free((point->tags+i)->value);
+    pkv = point->tags + i;
+    if (pkv->key)
+      free(pkv->key);
+    if (pkv->value)
+      free(pkv->value);
   }
   free(point->tags);
   for (int i=0; i<point->fieldNum; ++i) {
-    free((point->fields+i)->key);
-    free((point->fields+i)->value);
+    pkv = point->fields + i;
+    if (pkv->key)
+      free(pkv->key);
+    if (pkv->value)
+      free(pkv->value);
   }
   free(point->fields);
   free(point->stableName);

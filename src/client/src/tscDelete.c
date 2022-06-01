@@ -198,6 +198,10 @@ int32_t executeDelete(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
   
   SSubqueryState *pState = &pSql->subState;
   int32_t numOfSub = pTableMetaInfo->vgroupList->numOfVgroups;
+  if(numOfSub == 0) {
+    tscInfo(":CDEL SQL:%p tablename=%s numOfVgroups is zero, maybe empty table.", pSql, pTableMetaInfo->name.tname);
+    return TSDB_CODE_FAILED;
+  }
 
   ret = doInitSubState(pSql, numOfSub);
   if (ret != 0) {
