@@ -35,8 +35,8 @@ TDengine provides 2 set operators: `UNION ALL` and `UNION`. `UNION ALL` combines
 | --- | :---------------: | ------------------------------------------------------------------- | ----------------------------------------------- |
 | 1   |         =         | Except for BLOB, MEDIUMBLOB and JSON                                | Equal                                           |
 | 2   |      <\>, !=      | Except for BLOB, MEDIUMBLOB, JSON and primary key of timestamp type | Not equal                                       |
-| 3   |      \>, \<       | Except for BLOB, MEDIUMBLOB and JSON                                | Greater than, less than                         |
-| 4   |     \>=, \<=      | Except for BLOB, MEDIUMBLOB and JSON                                | Greater than or equal to, less than or equal to |
+| 3   |      \>, <       | Except for BLOB, MEDIUMBLOB and JSON                                | Greater than, less than                         |
+| 4   |     \>=, <=      | Except for BLOB, MEDIUMBLOB and JSON                                | Greater than or equal to, less than or equal to |
 | 5   |   IS [NOT] NULL   | Any types                                                           | Is NULL or NOT                                  |
 | 6   | [NOT] BETWEEN AND | Except for BLOB, MEDIUMBLOB and JSON                                | In a value range or not                         |
 | 7   |        IN         | Except for BLOB, MEDIUMBLOB, JSON and primary key of timestamp type | In a list of values or not                      |

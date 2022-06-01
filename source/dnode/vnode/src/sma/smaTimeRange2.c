@@ -979,7 +979,7 @@ static int32_t tdSetExpiredWindow(SSma *pSma, SHashObj *pItemsHash, int64_t inde
  * @param msg SSubmitReq
  * @return int32_t
  */
-int32_t tdUpdateExpiredWindowImpl(SSma *pSma, SSubmitReq *pMsg, int64_t version) {
+int32_t tdUpdateExpiredWindowImpl(SSma *pSma, const SSubmitReq *pMsg, int64_t version) {
   // no time-range-sma, just return success
   if (atomic_load_16(&SMA_TSMA_NUM(pSma)) <= 0) {
     smaTrace("vgId:%d not update expire window since no tSma", SMA_VID(pSma));

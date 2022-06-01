@@ -281,7 +281,7 @@ SELECT CONCAT(str1|column1, str2|column2, ...) FROM { tb_name | stb_name } [WHER
 
 **Return value type**: If all input strings are VARCHAR type, the result is VARCHAR type too. If any one of input strings is NCHAR type, then the result is NCHAR.
 
-**Applicable data types**: VARCHAR, NCHAR. Can't be used on tag columns. At least 2 input strings are requird, and at most 8 input strings are allowed. 
+**Applicable data types**: VARCHAR, NCHAR.  At least 2 input strings are requird, and at most 8 input strings are allowed. 
 
 **Applicable table types**: table, STable
 
@@ -297,7 +297,7 @@ SELECT CONCAT_WS(separator, str1|column1, str2|column2, ...) FROM { tb_name | st
 
 **Return value type**: If all input strings are VARCHAR type, the result is VARCHAR type too. If any one of input strings is NCHAR type, then the result is NCHAR.
 
-**Applicable data types**: VARCHAR, NCHAR. Can't be used on tag columns. At least 3 input strings are requird, and at most 9 input strings are allowed. 
+**Applicable data types**: VARCHAR, NCHAR. At least 3 input strings are requird, and at most 9 input strings are allowed. 
 
 **Applicable table types**: table, STable
 

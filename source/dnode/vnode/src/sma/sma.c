@@ -15,7 +15,6 @@
 
 #include "sma.h"
 
-
 // TODO: Who is responsible for resource allocate and release?
 int32_t tdProcessTSmaInsert(SSma* pSma, int64_t indexUid, const char* msg) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -37,7 +36,7 @@ int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg) {
   return code;
 }
 
-int32_t tdUpdateExpireWindow(SSma* pSma, SSubmitReq* pMsg, int64_t version) {
+int32_t tdUpdateExpireWindow(SSma* pSma, const SSubmitReq* pMsg, int64_t version) {
   int32_t code = TSDB_CODE_SUCCESS;
   if ((code = tdUpdateExpiredWindowImpl(pSma, pMsg, version)) < 0) {
     smaWarn("vgId:%d update expired sma window failed since %s", SMA_VID(pSma), tstrerror(terrno));
