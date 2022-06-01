@@ -1169,7 +1169,15 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode) {
   for (int i = 0; i < pSyncNode->pNextIndex->replicaNum; ++i) {
     // maybe overwrite myself, no harm
     // just do it!
-    pSyncNode->pNextIndex->index[i] = pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore) + 1;
+
+    // pSyncNode->pNextIndex->index[i] = pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore) + 1;
+
+    // maybe wal is deleted
+    SyncIndex lastIndex;
+    SyncTerm  lastTerm;
+    int32_t   code = syncNodeGetLastIndexTerm(pSyncNode, &lastIndex, &lastTerm);
+    ASSERT(code == 0);
+    pSyncNode->pNextIndex->index[i] = lastIndex + 1;
   }
 
   for (int i = 0; i < pSyncNode->pMatchIndex->replicaNum; ++i) {
@@ -1299,9 +1307,13 @@ int32_t syncNodeGetPreIndexTerm(SSyncNode* pSyncNode, SyncIndex index, SyncIndex
     *pPreTerm = snapshot.lastApplyTerm;
   } else {
     SSyncRaftEntry* pPreEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, preIndex);
-    ASSERT(pPreEntry != NULL);
-    *pPreIndex = pPreEntry->index;
-    *pPreTerm = pPreEntry->term;
+    if (pPreEntry != NULL) {
+      *pPreIndex = pPreEntry->index;
+      *pPreTerm = pPreEntry->term;
+    } else {
+      *pPreIndex = SYNC_INDEX_INVALID;
+      *pPreTerm = 0;
+    }
   }
 
   return 0;

@@ -126,7 +126,6 @@ int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
   for (int i = 0; i < pSyncNode->peersNum; ++i) {
     SRaftId* pDestId = &(pSyncNode->peersId[i]);
 
-    // set prevLogIndex
     SyncIndex nextIndex = syncIndexMgrGetIndex(pSyncNode->pNextIndex, pDestId);
 
     SyncIndex preLogIndex;
@@ -139,6 +138,12 @@ int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
     // SyncIndex lastIndex = syncUtilMinIndex(pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore), nextIndex);
 
     if (syncNodeIsIndexInSnapshot(pSyncNode, nextIndex)) {
+      // will send this msg until snapshot receive finish!
+      SSnapshot snapshot;
+      pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
+      sInfo("nextIndex:%ld in snapshot: <lastApplyIndex:%ld, lastApplyTerm:%lu>, begin snapshot", nextIndex,
+            snapshot.lastApplyIndex, snapshot.lastApplyTerm);
+
       // to claim leader
       SyncAppendEntries* pMsg = syncAppendEntriesBuild(0, pSyncNode->vgId);
       assert(pMsg != NULL);
@@ -163,7 +168,6 @@ int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
         }
       }
       ASSERT(pSender != NULL);
-
       snapshotSenderStart(pSender);
 
     } else {
