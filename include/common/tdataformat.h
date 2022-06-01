@@ -55,13 +55,6 @@ int32_t tPutTSRow(uint8_t *p, STSRow2 *pRow);
 int32_t tGetTSRow(uint8_t *p, STSRow2 *pRow);
 
 // STSRowBuilder
-#if 0
-int32_t tTSRowBuilderInit(STSRowBuilder *pBuilder, int32_t sver, int32_t nCols, SSchema *pSchema);
-void    tTSRowBuilderClear(STSRowBuilder *pBuilder);
-void    tTSRowBuilderReset(STSRowBuilder *pBuilder);
-int32_t tTSRowBuilderPut(STSRowBuilder *pBuilder, int32_t cid, uint8_t *pData, uint32_t nData);
-int32_t tTSRowBuilderGetRow(STSRowBuilder *pBuilder, const STSRow2 **ppRow);
-#endif
 
 // STag
 int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag);
