@@ -1033,6 +1033,7 @@ typedef struct {
 
   // for tsma
   int8_t isTsma;
+  void*  pTsma;
 
 } SCreateVnodeReq;
 

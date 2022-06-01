@@ -171,12 +171,13 @@ struct SVnodeCfg {
   uint64_t szBuf;
   bool     isHeap;
   bool     isWeak;
+  int8_t   isTsma;
+  int8_t   hashMethod;
   STsdbCfg tsdbCfg;
   SWalCfg  walCfg;
   SSyncCfg syncCfg;
   uint32_t hashBegin;
   uint32_t hashEnd;
-  int8_t   hashMethod;
 };
 
 typedef struct {
