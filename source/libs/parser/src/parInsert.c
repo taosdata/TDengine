@@ -1525,13 +1525,13 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, char* tN
   SKvParam param = {.builder = &tagBuilder};
 
   for (int c = 0; c < tags->numOfBound; ++c) {
+    SSchema* pTagSchema = &pSchema[tags->boundColumns[c]];
+    param.schema = pTagSchema;
+
     if (bind[c].is_null && bind[c].is_null[0]) {
       KvRowAppend(&pBuf, NULL, 0, &param);
       continue;
     }
-
-    SSchema* pTagSchema = &pSchema[tags->boundColumns[c]];
-    param.schema = pTagSchema;
 
     int32_t colLen = pTagSchema->bytes;
     if (IS_VAR_DATA_TYPE(pTagSchema->type)) {
@@ -1731,16 +1731,16 @@ int32_t buildBoundFields(SParsedDataColInfo* boundInfo, SSchema* pSchema, int32_
       return TSDB_CODE_OUT_OF_MEMORY;
     }
 
-    SSchema* pSchema = &pSchema[boundInfo->boundColumns[0]];
-    if (TSDB_DATA_TYPE_TIMESTAMP == pSchema->type) {
+    SSchema* schema = &pSchema[boundInfo->boundColumns[0]];
+    if (TSDB_DATA_TYPE_TIMESTAMP == schema->type) {
       (*fields)[0].precision = timePrec;
     }
     
     for (int32_t i = 0; i < boundInfo->numOfBound; ++i) {
-      SSchema* pSchema = &pSchema[boundInfo->boundColumns[i]];
-      strcpy((*fields)[i].name, pSchema->name);
-      (*fields)[i].type = pSchema->type;
-      (*fields)[i].bytes = pSchema->bytes;
+      schema = &pSchema[boundInfo->boundColumns[i]];
+      strcpy((*fields)[i].name, schema->name);
+      (*fields)[i].type = schema->type;
+      (*fields)[i].bytes = schema->bytes;
     }
   }
 
