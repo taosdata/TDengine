@@ -52,3 +52,11 @@ int32_t tdGetTSmaData(SSma* pSma, char* pData, int64_t indexUid, TSKEY querySKey
   }
   return code;
 }
+
+int32_t smaGetTSmaDays(SVnodeCfg* pCfg, void* pCont, uint32_t contLen, int32_t *days) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if ((code = tdGetTSmaDaysImpl(pCfg, pCont, contLen, days)) < 0) {
+    smaWarn("vgId:%d get tSma days failed since %s", pCfg->vgId, tstrerror(terrno));
+  }
+  return code;
+}

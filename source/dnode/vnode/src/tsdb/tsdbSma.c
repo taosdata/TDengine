@@ -515,7 +515,7 @@ static SSmaStatItem *tsdbNewSmaStatItem(int8_t state) {
 
 static void *tsdbFreeSmaStatItem(SSmaStatItem *pSmaStatItem) {
   if (pSmaStatItem) {
-    tdDestroyTSma(pSmaStatItem->pSma);
+    tDestroyTSma(pSmaStatItem->pSma);
     taosMemoryFreeClear(pSmaStatItem->pSma);
     taosHashCleanup(pSmaStatItem->expiredWindows);
     taosMemoryFreeClear(pSmaStatItem);
@@ -718,25 +718,25 @@ int32_t tsdbUpdateExpiredWindowImpl(STsdb *pTsdb, SSubmitReq *pMsg, int64_t vers
 
     SSubmitBlkIter blkIter = {0};
     if (tInitSubmitBlkIter(&msgIter, pBlock, &blkIter) != TSDB_CODE_SUCCESS) {
-      pSW = tdFreeTSmaWrapper(pSW);
+      pSW = tFreeTSmaWrapper(pSW);
       break;
     }
 
     while (true) {
       STSRow *row = tGetSubmitBlkNext(&blkIter);
       if (!row) {
-        tdFreeTSmaWrapper(pSW);
+        tFreeTSmaWrapper(pSW);
         break;
       }
       if (!pSW || (pTSma->tableUid != pBlock->suid)) {
         if (pSW) {
-          pSW = tdFreeTSmaWrapper(pSW);
+          pSW = tFreeTSmaWrapper(pSW);
         }
         if (!(pSW = metaGetSmaInfoByTable(REPO_META(pTsdb), pBlock->suid))) {
           break;
         }
         if ((pSW->number) <= 0 || !pSW->tSma) {
-          pSW = tdFreeTSmaWrapper(pSW);
+          pSW = tFreeTSmaWrapper(pSW);
           break;
         }
 
@@ -1649,13 +1649,13 @@ int32_t tsdbCreateTSma(STsdb *pTsdb, char *pMsg) {
     // TODO: handle error
     tsdbWarn("vgId:%d tsma %s:%" PRIi64 " create failed for table %" PRIi64 " since %s", REPO_ID(pTsdb),
              vCreateSmaReq.tSma.indexName, vCreateSmaReq.tSma.indexUid, vCreateSmaReq.tSma.tableUid, terrstr(terrno));
-    tdDestroyTSma(&vCreateSmaReq.tSma);
+    tDestroyTSma(&vCreateSmaReq.tSma);
     return -1;
   }
 
   tsdbTSmaAdd(pTsdb, 1);
 
-  tdDestroyTSma(&vCreateSmaReq.tSma);
+  tDestroyTSma(&vCreateSmaReq.tSma);
   // TODO: return directly or go on follow steps?
   return TSDB_CODE_SUCCESS;
 }
@@ -1669,7 +1669,7 @@ int32_t tsdbDropTSma(STsdb *pTsdb, char *pMsg) {
 
   // TODO: send msg to stream computing to drop tSma
   // if ((send msg to stream computing) < 0) {
-  //   tdDestroyTSma(&vCreateSmaReq);
+  //   tDestroyTSma(&vCreateSmaReq);
   //   return -1;
   // }
   //

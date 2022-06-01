@@ -229,7 +229,7 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
     }
     memcpy(data, msg, msgLen);
 
-    tqProcessStreamTrigger(pTq, data);
+    // tqProcessStreamTrigger(pTq, data);
   }
 
   return 0;

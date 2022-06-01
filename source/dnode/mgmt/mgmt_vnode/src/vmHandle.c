@@ -194,6 +194,15 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SVnodeCfg vnodeCfg = {0};
   vmGenerateVnodeCfg(&createReq, &vnodeCfg);
 
+  if (createReq.isTsma) {
+    SMsgHead *smaMsg = createReq.pTsma;
+    uint32_t  contLen = (uint32_t)(htonl(smaMsg->contLen) - sizeof(SMsgHead));
+    if (smaGetTSmaDays(&vnodeCfg, POINTER_SHIFT(smaMsg, sizeof(SMsgHead)), contLen, &vnodeCfg.tsdbCfg.days) < 0) {
+      dError("vgId:%d, failed to get tsma days since %s", createReq.vgId, terrstr());
+      return -1;
+    }
+  }
+
   SWrapperCfg wrapperCfg = {0};
   vmGenerateWrapperCfg(pMgmt, &createReq, &wrapperCfg);
 
