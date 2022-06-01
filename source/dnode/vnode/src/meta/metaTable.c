@@ -563,29 +563,39 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
     }
     memcpy((void *)ctbEntry.ctbEntry.pTags, pAlterTbReq->pTagVal, pAlterTbReq->nTagVal);
   } else {
-    SKVRowBuilder kvrb = {0};
-    const SKVRow  pOldTag = (const SKVRow)ctbEntry.ctbEntry.pTags;
-    SKVRow        pNewTag = NULL;
-
-    tdInitKVRowBuilder(&kvrb);
+    const STag *pOldTag = (const STag *)ctbEntry.ctbEntry.pTags;
+    STag       *pNewTag = NULL;
+    SArray     *pTagArray = taosArrayInit(pTagSchema->nCols, sizeof(STagVal));
+    if (!pTagArray) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto _err;
+    }
     for (int32_t i = 0; i < pTagSchema->nCols; i++) {
       SSchema *pCol = &pTagSchema->pSchema[i];
       if (iCol == i) {
-        tdAddColToKVRow(&kvrb, pCol->colId, pAlterTbReq->pTagVal, pAlterTbReq->nTagVal);
+        STagVal val = {0};
+        val.type = pCol->type;
+        val.cid = pCol->colId;
+        if (IS_VAR_DATA_TYPE(pCol->type)) {
+          val.pData = pAlterTbReq->pTagVal;
+          val.nData = pAlterTbReq->nTagVal;
+        }else{
+          memcpy(&val.i64, pAlterTbReq->pTagVal, pAlterTbReq->nTagVal);
+        }
+        taosArrayPush(pTagArray, &val);
       } else {
-        void *p = tdGetKVRowValOfCol(pOldTag, pCol->colId);
-        if (p) {
-          if (IS_VAR_DATA_TYPE(pCol->type)) {
-            tdAddColToKVRow(&kvrb, pCol->colId, p, varDataTLen(p));
-          } else {
-            tdAddColToKVRow(&kvrb, pCol->colId, p, pCol->bytes);
-          }
+        STagVal val = {0};
+        if (tTagGet(pOldTag, &val)) {
+          taosArrayPush(pTagArray, &val);
         }
       }
     }
-
-    ctbEntry.ctbEntry.pTags = tdGetKVRowFromBuilder(&kvrb);
-    tdDestroyKVRowBuilder(&kvrb);
+    if ((terrno = tTagNew(pTagArray, pTagSchema->version, false, &pNewTag)) < 0) {
+      taosArrayDestroy(pTagArray);
+      goto _err;
+    }
+    ctbEntry.ctbEntry.pTags = (uint8_t *)pNewTag;
+    taosArrayDestroy(pTagArray);
   }
 
   // save to table.db
@@ -721,17 +731,17 @@ static int metaUpdateCtbIdx(SMeta *pMeta, const SMetaEntry *pME) {
   return tdbTbInsert(pMeta->pCtbIdx, &ctbIdxKey, sizeof(ctbIdxKey), NULL, 0, &pMeta->txn);
 }
 
-int metaCreateTagIdxKey(tb_uid_t suid, int32_t cid, const void *pTagData, int8_t type, tb_uid_t uid,
-                        STagIdxKey **ppTagIdxKey, int32_t *nTagIdxKey) {
-  int32_t nTagData = 0;
+int metaCreateTagIdxKey(tb_uid_t suid, int32_t cid, const void *pTagData, int32_t nTagData, int8_t type, tb_uid_t uid,
+                               STagIdxKey **ppTagIdxKey, int32_t *nTagIdxKey) {
+  // int32_t nTagData = 0;
 
-  if (pTagData) {
-    if (IS_VAR_DATA_TYPE(type)) {
-      nTagData = varDataTLen(pTagData);
-    } else {
-      nTagData = tDataTypes[type].bytes;
-    }
-  }
+  // if (pTagData) {
+  //   if (IS_VAR_DATA_TYPE(type)) {
+  //     nTagData = varDataTLen(pTagData);
+  //   } else {
+  //     nTagData = tDataTypes[type].bytes;
+  //   }
+  // }
   *nTagIdxKey = sizeof(STagIdxKey) + nTagData + sizeof(tb_uid_t);
 
   *ppTagIdxKey = (STagIdxKey *)taosMemoryMalloc(*nTagIdxKey);
@@ -762,7 +772,8 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
   STagIdxKey *   pTagIdxKey = NULL;
   int32_t        nTagIdxKey;
   const SSchema *pTagColumn;       // = &stbEntry.stbEntry.schema.pSchema[0];
-  const void *   pTagData = NULL;  //
+  const void    *pTagData = NULL;  //
+  int32_t        nTagData = 0;
   SDecoder       dc = {0};
 
   // get super table
@@ -775,7 +786,22 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
   metaDecodeEntry(&dc, &stbEntry);
 
   pTagColumn = &stbEntry.stbEntry.schemaTag.pSchema[0];
-  pTagData = tdGetKVRowValOfCol((const SKVRow)pCtbEntry->ctbEntry.pTags, pTagColumn->colId);
+
+  STagVal tagVal = {.cid = pTagColumn->colId};
+  if(pTagColumn->type != TSDB_DATA_TYPE_JSON){
+    tTagGet((const STag *)pCtbEntry->ctbEntry.pTags, &tagVal);
+    if(IS_VAR_DATA_TYPE(pTagColumn->type)){
+      pTagData = tagVal.pData;
+      nTagData = (int32_t)tagVal.nData;
+    }else{
+      pTagData = &(tagVal.i64);
+      nTagData = tDataTypes[pTagColumn->type].bytes;
+    }
+  }else{
+    //pTagData = pCtbEntry->ctbEntry.pTags;
+    //nTagData = ((const STag *)pCtbEntry->ctbEntry.pTags)->len;
+  }
+
 
   // update tag index
 #ifdef USE_INVERTED_INDEX
@@ -790,7 +816,7 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
   int ret = indexPut((SIndex *)pMeta->pTagIvtIdx, tmGroup, tuid);
   indexMultiTermDestroy(tmGroup);
 #else
-  if (metaCreateTagIdxKey(pCtbEntry->ctbEntry.suid, pTagColumn->colId, pTagData, pTagColumn->type, pCtbEntry->uid,
+  if (metaCreateTagIdxKey(pCtbEntry->ctbEntry.suid, pTagColumn->colId, pTagData, nTagData, pTagColumn->type, pCtbEntry->uid,
                           &pTagIdxKey, &nTagIdxKey) < 0) {
     return -1;
   }

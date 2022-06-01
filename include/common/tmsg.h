@@ -287,7 +287,7 @@ typedef struct SSchema {
   char     name[TSDB_COL_NAME_LEN];
 } SSchema;
 
-#define COL_IS_SET(FLG)  ((FLG) & (COL_SET_VAL | COL_SET_NULL) != 0)
+#define COL_IS_SET(FLG)  (((FLG) & (COL_SET_VAL | COL_SET_NULL)) != 0)
 #define COL_CLR_SET(FLG) ((FLG) &= (~(COL_SET_VAL | COL_SET_NULL)))
 
 #define IS_BSMA_ON(s) (((s)->flags & 0x01) == COL_SMA_ON)
@@ -1777,6 +1777,15 @@ typedef struct SVCreateTbReq {
 
 int tEncodeSVCreateTbReq(SEncoder* pCoder, const SVCreateTbReq* pReq);
 int tDecodeSVCreateTbReq(SDecoder* pCoder, SVCreateTbReq* pReq);
+
+static FORCE_INLINE void tdDestroySVCreateTbReq(SVCreateTbReq* req) {
+  taosMemoryFreeClear(req->name);
+  if (req->type == TSDB_CHILD_TABLE) {
+    taosMemoryFreeClear(req->ctb.pTag);
+  } else if (req->type == TSDB_NORMAL_TABLE) {
+    taosMemoryFreeClear(req->ntb.schemaRow.pSchema);
+  }
+}
 
 typedef struct {
   int32_t nReqs;

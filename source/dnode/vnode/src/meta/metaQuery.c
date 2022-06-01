@@ -573,10 +573,23 @@ SArray *metaGetSmaTbUids(SMeta *pMeta) {
 
 #endif
 
-const void *metaGetTableTagVal(SMetaEntry *pEntry, int16_t cid) {
+const void *metaGetTableTagVal(SMetaEntry *pEntry, int16_t type, STagVal *val) {
   ASSERT(pEntry->type == TSDB_CHILD_TABLE);
-  return tdGetKVRowValOfCol((const SKVRow)pEntry->ctbEntry.pTags, cid);
+  STag *tag = (STag *)pEntry->ctbEntry.pTags;
+  if (type == TSDB_DATA_TYPE_JSON){
+    if(tag->nTag == 0){
+      return NULL;
+    }
+    return tag;
+  }
+  bool find = tTagGet(tag, val);
+
+  if(!find){
+    return NULL;
+  }
+  return val;
 }
+
 typedef struct {
   SMeta *  pMeta;
   TBC *    pCur;
@@ -609,7 +622,13 @@ int32_t metaFilteTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
   STagIdxKey *pKey = NULL;
   int32_t     nKey = 0;
 
-  ret = metaCreateTagIdxKey(pCursor->suid, pCursor->cid, param->val, pCursor->type,
+  int32_t nTagData = 0;
+  if(IS_VAR_DATA_TYPE(param->type)){
+    nTagData = strlen(param->val);
+  }else{
+    nTagData = tDataTypes[param->type].bytes;
+  }
+  ret = metaCreateTagIdxKey(pCursor->suid, pCursor->cid, param->val, nTagData, pCursor->type,
                             param->reverse ? INT64_MAX : INT64_MIN, &pKey, &nKey);
   if (ret != 0) {
     goto END;
