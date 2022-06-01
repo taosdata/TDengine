@@ -26,8 +26,6 @@ SELECT ABS(field_name) FROM { tb_name | stb_name } [WHERE clause]
 **Applicable nested query**: Inner query and Outer query.
 
 **More explanations**:
-
-- Can't be used with tags.
 - Can't be used with aggregate functions.
 
 #### ACOS
@@ -47,8 +45,6 @@ SELECT ACOS(field_name) FROM { tb_name | stb_name } [WHERE clause]
 **Applicable nested query**: Inner query and Outer query
 
 **More explanations**:
-
-- Can't be used with tags
 - Can't be used with aggregate functions
 
 #### ASIN
@@ -68,8 +64,6 @@ SELECT ASIN(field_name) FROM { tb_name | stb_name } [WHERE clause]
 **Applicable nested query**: Inner query and Outer query
 
 **More explanations**:
-
-- Can't be used with tags
 - Can't be used with aggregate functions
 
 #### ATAN
@@ -91,8 +85,6 @@ SELECT ATAN(field_name) FROM { tb_name | stb_name } [WHERE clause]
 **Applicable nested query**: Inner query and Outer query
 
 **More explanations**:
-
-- Can't be used with tags
 - Can't be used with aggregate functions
 
 #### CEIL
@@ -112,8 +104,6 @@ SELECT CEIL(field_name) FROM { tb_name | stb_name } [WHERE clause];
 **Applicable nested query**: Inner query and outer query
 
 **More explanations**:
-
-- Can't be used on any tags of any type
 - Arithmetic operation can be performed on the result of `ceil` function
 - Can't be used with aggregate functions
 
@@ -136,8 +126,6 @@ SELECT COS(field_name) FROM { tb_name | stb_name } [WHERE clause]
 **Applicable nested query**: Inner query and Outer query
 
 **More explanations**:
-
-- Can't be used with tags
 - Can't be used with aggregate functions
 
 #### FLOOR
@@ -167,8 +155,6 @@ SELECT LOG(field_name, base) FROM { tb_name | stb_name } [WHERE clause]
 **Applicable nested query**: Inner query and Outer query
 
 **More explanations**:
-
-- Can't be used with tags
 - Can't be used with aggregate functions
 
 #### POW
@@ -188,8 +174,6 @@ SELECT POW(field_name, power) FROM { tb_name | stb_name } [WHERE clause]
 **Applicable nested query**: Inner query and Outer query
 
 **More explanations**:
-
-- Can't be used with tags
 - Can't be used with aggregate functions
 
 #### ROUND
@@ -221,8 +205,6 @@ SELECT SIN(field_name) FROM { tb_name | stb_name } [WHERE clause]
 **Applicable nested query**: Inner query and Outer query
 
 **More explanations**:
-
-- Can't be used with tags
 - Can't be used with aggregate functions
 
 #### SQRT
@@ -242,8 +224,6 @@ SELECT SQRT(field_name) FROM { tb_name | stb_name } [WHERE clause]
 **Applicable nested query**: Inner query and Outer query
 
 **More explanations**:
-
-- Can't be used with tags
 - Can't be used with aggregate functions
 
 #### TAN
@@ -265,8 +245,6 @@ SELECT TAN(field_name) FROM { tb_name | stb_name } [WHERE clause]
 **Applicable nested query**: Inner query and Outer query
 
 **More explanations**:
-
-- Can't be used with tags
 - Can't be used with aggregate functions
 
 ### String Functions
@@ -283,7 +261,7 @@ SELECT CHAR_LENGTH(str|column) FROM { tb_name | stb_name } [WHERE clause]
 
 **Return value type**: Integer
 
-**Applicable data types**: BINARY or NCHAR, can't be used on tags
+**Applicable data types**: VARCHAR or NCHAR
 
 **Applicable table types**: table, STable
 
@@ -301,9 +279,9 @@ SELECT CONCAT(str1|column1, str2|column2, ...) FROM { tb_name | stb_name } [WHER
 
 **Description**: The concatenation result of two or more strings, the number of strings to be concatenated is at least 2 and at most 8
 
-**Return value type**: If all input strings are BINARY type, the result is BINARY type too. If any one of input strings is NCHAR type, then the result is NCHAR.
+**Return value type**: If all input strings are VARCHAR type, the result is VARCHAR type too. If any one of input strings is NCHAR type, then the result is NCHAR.
 
-**Applicable data types**: BINARY, NCHAR. Can't be used on tag columns. At least 2 input strings are requird, and at most 8 input strings are allowed. 
+**Applicable data types**: VARCHAR, NCHAR. Can't be used on tag columns. At least 2 input strings are requird, and at most 8 input strings are allowed. 
 
 **Applicable table types**: table, STable
 
@@ -317,9 +295,9 @@ SELECT CONCAT_WS(separator, str1|column1, str2|column2, ...) FROM { tb_name | st
 
 **Description**: The concatenation result of two or more strings with separator, the number of strings to be concatenated is at least 3 and at most 9
 
-**Return value type**: If all input strings are BINARY type, the result is BINARY type too. If any one of input strings is NCHAR type, then the result is NCHAR.
+**Return value type**: If all input strings are VARCHAR type, the result is VARCHAR type too. If any one of input strings is NCHAR type, then the result is NCHAR.
 
-**Applicable data types**: BINARY, NCHAR. Can't be used on tag columns. At least 3 input strings are requird, and at most 9 input strings are allowed. 
+**Applicable data types**: VARCHAR, NCHAR. Can't be used on tag columns. At least 3 input strings are requird, and at most 9 input strings are allowed. 
 
 **Applicable table types**: table, STable
 
@@ -339,8 +317,7 @@ SELECT LENGTH(str|column) FROM { tb_name | stb_name } [WHERE clause]
 
 **Return value type**: Integer
 
-**Applicable data types**: BINARY or NCHAR, can't be used on tags
-
+**Applicable data types**: VARCHAR or NCHAR
 **Applicable table types**: table, STable
 
 **Applicable nested query**: Inner query and Outer query
@@ -359,7 +336,7 @@ SELECT LOWER(str|column) FROM { tb_name | stb_name } [WHERE clause]
 
 **Return value type**: Same as input
 
-**Applicable data types**: BINARY or NCHAR, can't be used on tags
+**Applicable data types**: VARCHAR or NCHAR
 
 **Applicable table types**: table, STable
 
@@ -379,7 +356,7 @@ SELECT LTRIM(str|column) FROM { tb_name | stb_name } [WHERE clause]
 
 **Return value type**: Same as input
 
-**Applicable data types**: BINARY or NCHAR, can't be used on tags
+**Applicable data types**: VARCHAR or NCHAR
 
 **Applicable table types**: table, STable
 
@@ -399,7 +376,7 @@ SELECT RTRIM(str|column) FROM { tb_name | stb_name } [WHERE clause]
 
 **Return value type**: Same as input
 
-**Applicable data types**: BINARY or NCHAR, can't be used on tags
+**Applicable data types**: VARCHAR or NCHAR
 
 **Applicable table types**: table, STable
 
@@ -419,7 +396,7 @@ SELECT SUBSTR(str,pos[,len]) FROM { tb_name | stb_name } [WHERE clause]
 
 **Return value type**: Same as input
 
-**Applicable data types**: BINARY or NCHAR, can't be used on tags
+**Applicable data types**: VARCHAR or NCHAR
 
 **Applicable table types**: table, STable
 
@@ -441,7 +418,7 @@ SELECT UPPER(str|column) FROM { tb_name | stb_name } [WHERE clause]
 
 **Return value type**: Same as input
 
-**Applicable data types**: BINARY or NCHAR, can't be used on tags
+**Applicable data types**: VARCHAR or NCHAR
 
 **Applicable table types**: table, STable
 
@@ -461,21 +438,21 @@ This kind of functions convert from one data type to another one.
 SELECT CAST(expression AS type_name) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
-**Description**: It's used for type casting. The input parameter `expression` can be data columns, constants, scalar functions or arithmetic between them. Can't be used with tags, and can only be used in `select` clause.
+**Description**: It's used for type casting. The input parameter `expression` can be data columns, constants, scalar functions or arithmetic between them. 
 
 **Return value type**: The type specified by parameter `type_name`
 
 **Applicable data types**:
 
-- Parameter `expression` can be any data type except for JSON, more specifically it can be any of BOOL/TINYINT/SMALLINT/INT/BIGINT/FLOAT/DOUBLE/BINARY(M)/TIMESTAMP/NCHAR(M)/TINYINT UNSIGNED/SMALLINT UNSIGNED/INT UNSIGNED/BIGINT UNSIGNED
-- The output data type specified by `type_name` can only be one of BIGINT/BINARY(N)/TIMESTAMP/NCHAR(N)/BIGINT UNSIGNED
+- Parameter `expression` can be any data type except for JSON
+- The output data type specified by `type_name` can only be one of BIGINT/VARCHAR(N)/TIMESTAMP/NCHAR(N)/BIGINT UNSIGNED
 
 **More explanations**:
 
 - Error will be reported for unsupported type casting
 - NULL will be returned if the input value is NULL
 - Some values of some supported data types may not be casted, below are known issues:
-  1）When casting BINARY/NCHAR to BIGINT/BIGINT UNSIGNED, some characters may be treated as illegal, for example "a" may be converted to 0.
+  1）When casting VARCHAR/NCHAR to BIGINT/BIGINT UNSIGNED, some characters may be treated as illegal, for example "a" may be converted to 0.
   2）There may be overflow when casting singed integer or TIMESTAMP to unsigned BIGINT
   3）There may be overflow when casting unsigned BIGINT to BIGINT
   4）There may be overflow when casting FLOAT/DOUBLE to BIGINT or UNSIGNED BIGINT
@@ -488,7 +465,7 @@ SELECT TO_ISO8601(ts_val | ts_col) FROM { tb_name | stb_name } [WHERE clause];
 
 **Description**: The ISO8601 date/time format converted from a UNIX timestamp, plus the timezone of the client side system
 
-**Return value type**: BINARY
+**Return value type**: VARCHAR
 
 **Applicable column types**: TIMESTAMP, constant or a column
 
@@ -525,7 +502,7 @@ SELECT TO_UNIXTIMESTAMP(datetime_string | ts_col) FROM { tb_name | stb_name } [W
 
 **Return value type**: Long integer
 
-**Applicable column types**: Constant or column of BINARY/NCHAR
+**Applicable column types**: Constant or column of VARCHAR/NCHAR
 
 **Applicable table types**: table, STable
 
@@ -608,7 +585,7 @@ SELECT TIMEZONE() FROM { tb_name | stb_name } [WHERE clause];
 
 **Description**: The timezone of the client side system
 
-**Return value type**: BINARY
+**Return value type**: VARCHAR
 
 **Applicable column types**: None
 
@@ -650,7 +627,7 @@ SELECT AVG(field_name) FROM tb_name [WHERE clause];
 
 **Return value type**: Double precision floating number
 
-**Applicable column types**: Data types except for timestamp, binary, nchar and bool
+**Applicable column types**: Numeric type
 
 **Applicable table types**: table, STable
 
@@ -708,7 +685,7 @@ SELECT LEASTSQUARES(field_name, start_val, step_val) FROM tb_name [WHERE clause]
 
 **Return value type**: A string in the format of "(slope, intercept)"
 
-**Applicable column types**: Data types except for timestamp, binary, nchar and bool
+**Applicable column types**: Numeric types
 
 **Applicable table types**: table only
 
@@ -718,7 +695,7 @@ SELECT LEASTSQUARES(field_name, start_val, step_val) FROM tb_name [WHERE clause]
 SELECT MODE(field_name) FROM tb_name [WHERE clause];
 ```
 
-**Description**:The value which has the highest frequency of occurrence. NULL is returned if there are multiple values which have highest frequency of occurrence. It can't be used on timestamp column or tags.
+**Description**:The value which has the highest frequency of occurrence. NULL is returned if there are multiple values which have highest frequency of occurrence. It can't be used on timestamp column.
 
 **Return value type**:Same as the data type of the column being operated upon
 
@@ -736,7 +713,7 @@ SELECT SPREAD(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **Return value type**: Double precision floating point
 
-**Applicable column types**: Data types except for binary, nchar, and bool
+**Applicable column types**: Numeric types
 
 **Applicable table types**: table, STable
 
@@ -752,7 +729,7 @@ SELECT STDDEV(field_name) FROM tb_name [WHERE clause];
 
 **Return value type**: Double precision floating number
 
-**Applicable column types**: Data types except for timestamp, binary, nchar and bool
+**Applicable column types**: Numeric types
 
 **Applicable table types**: table, STable
 
@@ -766,7 +743,7 @@ SELECT SUM(field_name) FROM tb_name [WHERE clause];
 
 **Return value type**: Double precision floating number or long integer
 
-**Applicable column types**: Data types except for timestamp, binary, nchar and bool
+**Applicable column types**: Numeric types
 
 **Applicable table types**: table, STable
 
@@ -836,7 +813,7 @@ FROM { tb_name | stb_name } [WHERE clause]
 
 **Return value type**: Double precision floating point
 
-**Applicable column types**: Data types except for timestamp, binary, nchar and bool
+**Applicable column types**: Numeric types
 
 **Applicable table types**: table, STable
 
@@ -858,7 +835,7 @@ SELECT BOTTOM(field_name, K) FROM { tb_name | stb_name } [WHERE clause];
 
 **Return value type**: Same as the column being operated upon
 
-**Applicable column types**: Data types except for timestamp, binary, nchar and bool
+**Applicable column types**: Numeric types
 
 **Applicable table types**: table, STable
 
@@ -961,7 +938,7 @@ SELECT MAX(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **Return value type**: Same as the data type of the column being operated upon
 
-**Applicable column types**: Data types except for timestamp, binary, nchar and bool
+**Applicable column types**: Numeric types
 
 **Applicable table types**: table, STable
 
@@ -975,7 +952,7 @@ SELECT MIN(field_name) FROM {tb_name | stb_name} [WHERE clause];
 
 **Return value type**: Same as the data type of the column being operated upon
 
-**Applicable column types**: Data types except for timestamp, binary, nchar and bool
+**Applicable column types**: Numeric types
 
 **Applicable table types**: table, STable
 
@@ -989,7 +966,7 @@ SELECT PERCENTILE(field_name, P) FROM { tb_name } [WHERE clause];
 
 **Return value type**: Double precision floating point
 
-**Applicable column types**: Data types except for timestamp, binary, nchar and bool
+**Applicable column types**: Numeric types
 
 **Applicable table types**: table
 
@@ -1019,7 +996,7 @@ SELECT TOP(field_name, K) FROM { tb_name | stb_name } [WHERE clause];
 
 **Return value type**: Same as the column being operated upon
 
-**Applicable column types**: Data types except for timestamp, binary, nchar and bool
+**Applicable column types**: Numeric types
 
 **Applicable table types**: table, STable
 
@@ -1060,15 +1037,13 @@ TDengine provides a set of time-series specific functions to better meet the req
 
 **Return value type**: Long integer for integers; Double for floating points. Timestamp is returned for each row.
 
-**Applicable data types**: Data types except for timestamp, binary, nchar, and bool
+**Applicable data types**: Numeric types
 
 **Applicable table types**: table, STable
 
 **Applicable nested query**: Inner query and Outer query
 
 **More explanations**:
-
-- Can't be used on tags when it's used on STable
 - Arithmetic operation can't be performed on the result of `csum` function
 - Can only be used with aggregate functions
 - `Group by tbname` must be used together on a STable to force the result on a single timeline
@@ -1083,7 +1058,7 @@ SELECT DERIVATIVE(field_name, time_interval, ignore_negative) FROM tb_name [WHER
 
 **Return value type**: Double precision floating point
 
-**Applicable column types**: Data types except for timestamp, binary, nchar and bool
+**Applicable column types**: Numeric types
 
 **Applicable table types**: table, STable
 
@@ -1102,7 +1077,7 @@ SELECT {DIFF(field_name, ignore_negative) | DIFF(field_name)} FROM tb_name [WHER
 
 **Return value type**: Same as the column being operated upon
 
-**Applicable column types**: Data types except for timestamp, binary, nchar and bool
+**Applicable column types**: Numeric types
 
 **Applicable table types**: table, STable
 
@@ -1121,7 +1096,7 @@ SELECT IRATE(field_name) FROM tb_name WHERE clause;
 
 **Return value type**: Double precision floating number
 
-**Applicable column types**: Data types except for timestamp, binary, nchar and bool
+**Applicable column types**: Numeric types
 
 **Applicable table types**: table, STable
 
@@ -1139,7 +1114,7 @@ SELECT IRATE(field_name) FROM tb_name WHERE clause;
 
 **Return value type**: Double precision floating point
 
-**Applicable data types**: Data types except for timestamp, binary, nchar, and bool
+**Applicable data types**: Numeric types
 
 **Applicable nested query**: Inner query and Outer query
 
@@ -1148,7 +1123,6 @@ SELECT IRATE(field_name) FROM tb_name WHERE clause;
 **More explanations**:
 
 - Arithmetic operation can't be performed on the result of `MAVG`.
-- Can only be used with data columns, can't be used with tags.
 - Can't be used with aggregate functions.
 - Must be used with `GROUP BY tbname` when it's used on a STable to force the result on each single timeline.
 
@@ -1188,7 +1162,7 @@ SELECT STATECOUNT(field_name, oper, val) FROM { tb_name | stb_name } [WHERE clau
 
 **Return value type**: Integer
 
-**Applicable data types**: Data types excpet for timestamp, binary, nchar, bool
+**Applicable data types**: Numeric types
 
 **Applicable table types**: table, STable
 
@@ -1215,7 +1189,7 @@ SELECT stateDuration(field_name, oper, val, unit) FROM { tb_name | stb_name } [W
 
 **Return value type**: Integer
 
-**Applicable data types**: Data types excpet for timestamp, binary, nchar, bool
+**Applicable data types**: Numeric types
 
 **Applicable table types**: table, STable
 
@@ -1236,7 +1210,7 @@ SELECT TWA(field_name) FROM tb_name WHERE clause;
 
 **Return value type**: Double precision floating number
 
-**Applicable column types**: Data types except for timestamp, binary, nchar and bool
+**Applicable column types**: Numeric types
 
 **Applicable table types**: table, STable
 

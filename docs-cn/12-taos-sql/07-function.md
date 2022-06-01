@@ -20,7 +20,7 @@ toc_max_heading_level: 4
 
 **返回结果类型**：如果输入值为整数，输出值是 UBIGINT 类型。如果输入值是 FLOAT/DOUBLE 数据类型，输出值是 DOUBLE 数据类型。
 
-**适用数据类型**：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在 tag 列
+**适用数据类型**：数值类型。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -38,7 +38,7 @@ toc_max_heading_level: 4
 
 **返回结果类型**：DOUBLE。如果输入值为 NULL，输出值也为 NULL
 
-**适用数据类型**：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在 tag 列
+**适用数据类型**：数值类型。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -56,7 +56,7 @@ toc_max_heading_level: 4
 
 **返回结果类型**：DOUBLE。如果输入值为 NULL，输出值也为 NULL
 
-**适用数据类型**：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在 tag 列
+**适用数据类型**：数值类型。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -75,7 +75,7 @@ toc_max_heading_level: 4
 
 **返回结果类型**：DOUBLE。如果输入值为 NULL，输出值也为 NULL
 
-**适用数据类型**：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在 tag 列
+**适用数据类型**：数值类型。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -94,7 +94,7 @@ SELECT CEIL(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **返回结果类型**：与指定列的原始数据类型一致。例如，如果指定列的原始数据类型为 Float，那么返回的数据类型也为 Float；如果指定列的原始数据类型为 Double，那么返回的数据类型也为 Double。
 
-**适用数据类型**：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在 tag 列，无论 tag 列的类型是什么类型。
+**适用数据类型**：数值类型。
 
 **适用于**: 普通表、超级表。
 
@@ -115,7 +115,7 @@ SELECT CEIL(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **返回结果类型**：DOUBLE。如果输入值为 NULL，输出值也为 NULL
 
-**适用数据类型**：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在 tag 列
+**适用数据类型**：数值类型。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -142,7 +142,7 @@ SELECT FLOOR(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **返回结果类型**：DOUBLE。如果输入值为 NULL，输出值也为 NULL
 
-**适用数据类型**：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在 tag 列
+**适用数据类型**：数值类型。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -161,7 +161,7 @@ SELECT FLOOR(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **返回结果类型**：DOUBLE。如果输入值为 NULL，输出值也为 NULL
 
-**适用数据类型**：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在 tag 列
+**适用数据类型**：数值类型。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -190,7 +190,7 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **返回结果类型**：DOUBLE。如果输入值为 NULL，输出值也为 NULL
 
-**适用数据类型**：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在 tag 列
+**适用数据类型**：数值类型。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -208,7 +208,7 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **返回结果类型**：DOUBLE。如果输入值为 NULL，输出值也为 NULL
 
-**适用数据类型**：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在 tag 列
+**适用数据类型**：数值类型。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -226,7 +226,7 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **返回结果类型**：DOUBLE。如果输入值为 NULL，输出值也为 NULL
 
-**适用数据类型**：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在 tag 列
+**适用数据类型**：数值类型。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -248,7 +248,7 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **返回结果类型**：INT。如果输入值为NULL，输出值为NULL。
 
-**适用数据类型**：输入参数是 BINARY 类型或者 NCHAR 类型的字符串或者列。不能应用在 TAG 列。
+**适用数据类型**：VARCHAR, NCHAR
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -262,9 +262,9 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **功能说明**：字符串连接函数。
 
-**返回结果类型**：如果所有参数均为BINARY类型，则结果类型为BINARY。如果参数包含NCHAR类型，则结果类型为NCHAR。如果输入值为NULL，输出值为NULL。
+**返回结果类型**：如果所有参数均为 VARCHAR 类型，则结果类型为 VARCHAR。如果参数包含NCHAR类型，则结果类型为NCHAR。如果输入值为NULL，输出值为NULL。
 
-**适用数据类型**：BINARY, NCHAR。不能应用在 TAG 列。 该函数最小参数个数为2个，最大参数个数为8个。
+**适用数据类型**：VARCHAR, NCHAR。 该函数最小参数个数为2个，最大参数个数为8个。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -279,9 +279,9 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **功能说明**：带分隔符的字符串连接函数。
 
-**返回结果类型**：如果所有参数均为BINARY类型，则结果类型为BINARY。如果参数包含NCHAR类型，则结果类型为NCHAR。如果输入值为NULL，输出值为NULL。如果separator值不为NULL，其他输入为NULL，输出为空串。
+**返回结果类型**：如果所有参数均为VARCHAR类型，则结果类型为VARCHAR。如果参数包含NCHAR类型，则结果类型为NCHAR。如果输入值为NULL，输出值为NULL。如果separator值不为NULL，其他输入为NULL，输出为空串。
 
-**适用数据类型**：BINARY, NCHAR。不能应用在 TAG 列。 该函数最小参数个数为3个，最大参数个数为9个。
+**适用数据类型**：VARCHAR, NCHAR。 该函数最小参数个数为3个，最大参数个数为9个。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -298,7 +298,7 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **返回结果类型**：INT。
 
-**适用数据类型**：输入参数是 BINARY 类型或者 NCHAR 类型的字符串或者列。不能应用在 TAG 列。
+**适用数据类型**：输入参数是 VARCHAR 类型或者 NCHAR 类型的字符串或者列。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -315,7 +315,7 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **返回结果类型**：同输入类型。如果输入值为NULL，输出值为NULL。
 
-**适用数据类型**：输入参数是 BINARY 类型或者 NCHAR 类型的字符串或者列。不能应用在 TAG 列。
+**适用数据类型**：输入参数是 VARCHAR 类型或者 NCHAR 类型的字符串或者列。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -332,7 +332,7 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **返回结果类型**：同输入类型。如果输入值为NULL，输出值为NULL。
 
-**适用数据类型**：输入参数是 BINARY 类型或者 NCHAR 类型的字符串或者列。不能应用在 TAG 列。
+**适用数据类型**：输入参数是 VARCHAR 类型或者 NCHAR 类型的字符串或者列。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -349,7 +349,7 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **返回结果类型**：同输入类型。如果输入值为NULL，输出值为NULL。
 
-**适用数据类型**：输入参数是 BINARY 类型或者 NCHAR 类型的字符串或者列。不能应用在 TAG 列。
+**适用数据类型**：输入参数是 VARCHAR 类型或者 NCHAR 类型的字符串或者列。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -366,7 +366,7 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **返回结果类型**：同输入类型。如果输入值为NULL，输出值为NULL。
 
-**适用数据类型**：输入参数是 BINARY 类型或者 NCHAR 类型的字符串或者列。不能应用在 TAG 列。输入参数pos可以为正数，也可以为负数。如果pos是正数，表示开始位置从字符串开头正数计算。如果pos为负数，表示开始位置从字符串结尾倒数计算。如果输入参数len被忽略，返回的子串包含从pos开始的整个字串。
+**适用数据类型**：输入参数是 VARCHAR 类型或者 NCHAR 类型的字符串或者列。输入参数pos可以为正数，也可以为负数。如果pos是正数，表示开始位置从字符串开头正数计算。如果pos为负数，表示开始位置从字符串结尾倒数计算。如果输入参数len被忽略，返回的子串包含从pos开始的整个字串。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -383,7 +383,7 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **返回结果类型**：同输入类型。如果输入值为NULL，输出值为NULL。
 
-**适用数据类型**：输入参数是 BINARY 类型或者 NCHAR 类型的字符串或者列。不能应用在 TAG 列。
+**适用数据类型**：输入参数是 VARCHAR 类型或者 NCHAR 类型的字符串或者列。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -400,7 +400,7 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
   SELECT CAST(expression AS type_name) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
-**功能说明**：数据类型转换函数，输入参数 expression 支持普通列、常量、标量函数及它们之间的四则运算，不支持 tag 列，只适用于 select 子句中。
+**功能说明**：数据类型转换函数，输入参数 expression 支持普通列、常量、标量函数及它们之间的四则运算，只适用于 select 子句中。
 
 **返回结果类型**：CAST 中指定的类型（type_name），可以是 BIGINT、BIGINT UNSIGNED、BINARY、VARCHAR、NCHAR和TIMESTAMP。
 
@@ -423,7 +423,7 @@ SELECT TO_ISO8601(ts_val | ts_col) FROM { tb_name | stb_name } [WHERE clause];
 
 **功能说明**：将 UNIX 时间戳转换成为 ISO8601 标准的日期时间格式，并附加客户端时区信息。
 
-**返回结果数据类型**：BINARY 类型。
+**返回结果数据类型**：VARCHAR 类型。
 
 **适用数据类型**：UNIX 时间戳常量或是 TIMESTAMP 类型的列
 
@@ -462,7 +462,7 @@ SELECT TO_UNIXTIMESTAMP(datetime_string | ts_col) FROM { tb_name | stb_name } [W
 
 **返回结果数据类型**：长整型 INT64。
 
-**应用字段**：字符串常量或是 BINARY/NCHAR 类型的列。
+**应用字段**：字符串常量或是 VARCHAR/NCHAR 类型的列。
 
 **适用于**：表、超级表。
 
@@ -549,7 +549,7 @@ SELECT TIMEZONE() FROM { tb_name | stb_name } [WHERE clause];
 
 **功能说明**：返回客户端当前时区信息。
 
-**返回结果数据类型**：BINARY 类型。
+**返回结果数据类型**：VARCHAR 类型。
 
 **应用字段**：无
 
@@ -1005,7 +1005,7 @@ SELECT UNIQUE(field_name) FROM {tb_name | stb_name} [WHERE clause];
 
 **返回结果类型**： 输入列如果是整数类型返回值为长整型 （int64_t），浮点数返回值为双精度浮点数（Double）。无符号整数类型返回值为无符号长整型（uint64_t）。 返回结果中同时带有每行记录对应的时间戳。
 
-**适用数据类型**：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在标签之上。
+**适用数据类型**：数值类型。
 
 **嵌套子查询支持**： 适用于内层查询和外层查询。
 
@@ -1076,7 +1076,7 @@ SELECT IRATE(field_name) FROM tb_name WHERE clause;
 
   **返回结果类型**： 返回双精度浮点数类型。
 
-  **适用数据类型**： 不能应用在 timestamp、binary、nchar、bool 类型上；在超级表查询中使用时，不能应用在标签之上。
+  **适用数据类型**： 数值类型。
 
   **嵌套子查询支持**： 适用于内层查询和外层查询。
 
@@ -1124,7 +1124,7 @@ SELECT STATECOUNT(field_name, oper, val) FROM { tb_name | stb_name } [WHERE clau
 
 **返回结果类型**：整形。
 
-**适用数据类型**：不能应用在 timestamp、binary、nchar、bool 类型字段上。
+**适用数据类型**：数值类型。
 
 **嵌套子查询支持**：不支持应用在子查询上。
 
@@ -1152,7 +1152,7 @@ SELECT stateDuration(field_name, oper, val, unit) FROM { tb_name | stb_name } [W
 
 **返回结果类型**：整形。
 
-**适用数据类型**：不能应用在 timestamp、binary、nchar、bool 类型字段上。
+**适用数据类型**：数值类型。
 
 **嵌套子查询支持**：不支持应用在子查询上。
 
