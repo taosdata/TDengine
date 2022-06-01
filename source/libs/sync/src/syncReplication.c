@@ -144,6 +144,14 @@ int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
       sInfo("nextIndex:%ld in snapshot: <lastApplyIndex:%ld, lastApplyTerm:%lu>, begin snapshot", nextIndex,
             snapshot.lastApplyIndex, snapshot.lastApplyTerm);
 
+      SyncIndex lastIndex;
+      SyncTerm  lastTerm;
+      ret = syncNodeGetLastIndexTerm(pSyncNode, &lastIndex, &lastTerm);
+      ASSERT(ret == 0);
+
+      ret = syncNodeGetPreIndexTerm(pSyncNode, lastIndex + 1, &preLogIndex, &preLogTerm);
+      ASSERT(ret == 0);
+
       // to claim leader
       SyncAppendEntries* pMsg = syncAppendEntriesBuild(0, pSyncNode->vgId);
       assert(pMsg != NULL);
