@@ -287,8 +287,10 @@ pipeline {
                                 pre_test_win()
                                 pre_test_build_win()
                                 run_win_ctest()
-                                while(linux_ready == 0) {
-                                    sleep(8)
+                                script {
+                                    while(linux_ready == 0) {
+                                        sleep(8)
+                                    }
                                 }
                                 run_win_test()
                             }
@@ -331,19 +333,15 @@ pipeline {
                                         sleep 20
                                         service taosd status
                                     '''
-                                    script {
-                                        linux_ready = 1
-                                    }
+                                    linux_ready = 1
                                     sh '''
                                         cd ${WKC}/tests/parallel_test
                                         export DEFAULT_RETRY_TIME=2
                                         date
                                         timeout 2100 time ./run.sh -e -m /home/m.json -t /tmp/cases.task -b ${BRANCH_NAME}_${BUILD_ID} -l ${WKDIR}/log -o 480
                                     '''
-                                    script {
-                                        while(win_test_stage == 0){
-                                            sleep(12)
-                                        }
+                                    while(win_test_stage == 0){
+                                        sleep(12)
                                     }
                                 }
                             }
