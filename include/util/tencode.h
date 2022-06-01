@@ -538,7 +538,8 @@ static FORCE_INLINE int32_t tPutFloat(uint8_t* p, float f) {
   union {
     uint32_t ui;
     float    f;
-  } v = {.f = f};
+  } v;
+  v.f = f;
 
   return tPutU32(p, v.ui);
 }
@@ -547,7 +548,8 @@ static FORCE_INLINE int32_t tPutDouble(uint8_t* p, double d) {
   union {
     uint64_t ui;
     double   d;
-  } v = {.d = d};
+  } v;
+  v.d = d;
 
   return tPutU64(p, v.ui);
 }
