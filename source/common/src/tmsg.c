@@ -3654,6 +3654,7 @@ int32_t tEncodeTSma(SEncoder *pCoder, const STSma *pSma) {
   if (tEncodeI8(pCoder, pSma->intervalUnit) < 0) return -1;
   if (tEncodeI8(pCoder, pSma->slidingUnit) < 0) return -1;
   if (tEncodeI8(pCoder, pSma->timezoneInt) < 0) return -1;
+  if (tEncodeI32(pCoder, pSma->dstVgId) < 0) return -1;
   if (tEncodeCStr(pCoder, pSma->indexName) < 0) return -1;
   if (tEncodeI32(pCoder, pSma->exprLen) < 0) return -1;
   if (tEncodeI32(pCoder, pSma->tagsFilterLen) < 0) return -1;
@@ -3676,6 +3677,7 @@ int32_t tDecodeTSma(SDecoder *pCoder, STSma *pSma) {
   if (tDecodeI8(pCoder, &pSma->version) < 0) return -1;
   if (tDecodeI8(pCoder, &pSma->intervalUnit) < 0) return -1;
   if (tDecodeI8(pCoder, &pSma->slidingUnit) < 0) return -1;
+  if (tDecodeI32(pCoder, &pSma->dstVgId) < 0) return -1;
   if (tDecodeI8(pCoder, &pSma->timezoneInt) < 0) return -1;
   if (tDecodeCStrTo(pCoder, pSma->indexName) < 0) return -1;
   if (tDecodeI32(pCoder, &pSma->exprLen) < 0) return -1;
@@ -3909,7 +3911,7 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
 
   if (pReq->type == TSDB_CHILD_TABLE) {
     if (tEncodeI64(pCoder, pReq->ctb.suid) < 0) return -1;
-    if (tEncodeBinary(pCoder, pReq->ctb.pTag, kvRowLen(pReq->ctb.pTag)) < 0) return -1;
+    if (tEncodeTag(pCoder, (const STag *)pReq->ctb.pTag) < 0) return -1;
   } else if (pReq->type == TSDB_NORMAL_TABLE) {
     if (tEncodeSSchemaWrapper(pCoder, &pReq->ntb.schemaRow) < 0) return -1;
   } else {
@@ -3921,8 +3923,6 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
 }
 
 int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
-  uint32_t len;
-
   if (tStartDecode(pCoder) < 0) return -1;
 
   if (tDecodeI32v(pCoder, &pReq->flags) < 0) return -1;
@@ -3934,7 +3934,7 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
 
   if (pReq->type == TSDB_CHILD_TABLE) {
     if (tDecodeI64(pCoder, &pReq->ctb.suid) < 0) return -1;
-    if (tDecodeBinary(pCoder, &pReq->ctb.pTag, &len) < 0) return -1;
+    if (tDecodeTag(pCoder, (STag **)&pReq->ctb.pTag) < 0) return -1;
   } else if (pReq->type == TSDB_NORMAL_TABLE) {
     if (tDecodeSSchemaWrapper(pCoder, &pReq->ntb.schemaRow) < 0) return -1;
   } else {

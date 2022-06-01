@@ -333,7 +333,7 @@ static void setQueryTimewindow(STsdbReadHandle* pTsdbReadHandle, SQueryTableData
 }
 
 static STsdb* getTsdbByRetentions(SVnode* pVnode, STsdbReadHandle* pReadHandle, TSKEY winSKey, SRetention* retentions) {
-  if (vnodeIsRollup(pVnode)) {
+  if (VND_IS_RSMA(pVnode)) {
     int     level = 0;
     int64_t now = taosGetTimestamp(pVnode->config.tsdbCfg.precision);
 
