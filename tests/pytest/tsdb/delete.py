@@ -78,10 +78,16 @@ class TDTestCase:
     def create_tables(self):
         # super table
         tdSql.execute("create table st(ts timestamp, i1 int) tags(area int)")
+        # test delete empty super table
+        tdSql.execute("delete from st")
+
         # child table
         for i in range(10):
           sql = "create table t%d using st tags(%d)"%(i, i)
           tdSql.execute(sql)
+
+        # test delete empty table
+        tdSql.execute("delete from t0")
         
         return 
 
