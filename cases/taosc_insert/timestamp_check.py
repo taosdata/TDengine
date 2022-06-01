@@ -27,13 +27,17 @@ class TestTimestamp(TDCase):
             dbname = self.tdCom.get_long_name(length=10, mode="letters")
             self.tdSql.execute(f'create database if not exists {dbname} precision "{ts}"')
             self.tdSql.query('show databases')
-            res = self.tdSql.getOneRow(0, dbname)
-            self.tdSql.checkEqual(res[0][16], ts)
+            res = self.tdSql.get_db_field_kv(0, dbname)
+            self.tdSql.checkEqual(res["precision"], ts)
+            self.tdSql.execute(f'create table if not exists {dbname}.stb (ts timestamp, c1 int) tags (t1 int)')
+            self.tdSql.execute(f'create table if not exists {dbname}.tb using {dbname}.stb tags (1)')
             self.tdSql.execute(f'create table if not exists {dbname}.{dbname} (ts timestamp, c1 int)')
             timestamp, dt = self.tdCom.genTs(ts)
+            self.tdSql.execute(f'insert into {dbname}.tb values ({timestamp}, 1)')
             self.tdSql.execute(f'insert into {dbname}.{dbname} values ({timestamp}, 1)')
-            self.tdSql.query(f'select ts from {dbname}.{dbname}')
-            self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), str(dt))
+            for tbname in [f"{dbname}.{dbname}", f"{dbname}.stb", f"{dbname}.tb"]:
+                self.tdSql.query(f'select ts from {tbname}')
+                self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), str(dt))
             self.tdSql.execute(f'drop database if exists {dbname}')
 
     def h_m_s_check(self):
@@ -43,46 +47,51 @@ class TestTimestamp(TDCase):
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
         self.tdSql.execute(f'create database if not exists {dbname} precision "ms"')
         self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 int) tags (tag_ts timestamp, t1 int)')
-        self.tdSql.execute(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now, 1)')
+        self.tdSql.execute(f'create table if not exists {dbname}.ctb using {dbname}.stb tags (now, 1)')
+        self.tdSql.execute(f'create table if not exists {dbname}.tb (col_ts timestamp, c1 int)')
+        self.tdSql.execute(f'insert into {dbname}.ctb values ("2022-01-16 21:17:01", 1)')
         self.tdSql.execute(f'insert into {dbname}.tb values ("2022-01-16 21:17:01", 1)')
-        self.tdSql.query(f'select * from {dbname}.tb where c1 = 1')
-        self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), "2022-01-16 21:17:01")
+        for tbname in [f"{dbname}.ctb", f"{dbname}.stb", f"{dbname}.tb"]:
+            self.tdSql.query(f'select * from {tbname} where c1 = 1')
+            self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), "2022-01-16 21:17:01")
+        self.tdSql.execute(f'insert into {dbname}.ctb values ("2022-01-16 21:17:61", 2)')
         self.tdSql.execute(f'insert into {dbname}.tb values ("2022-01-16 21:17:61", 2)')
-        self.tdSql.query(f'select * from {dbname}.tb where c1 = 2')
-        self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), "2022-01-16 21:18:01")
+        for tbname in [f"{dbname}.ctb", f"{dbname}.stb", f"{dbname}.tb"]:
+            self.tdSql.query(f'select * from {tbname} where c1 = 2')
+            self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), "2022-01-16 21:18:01")
+        self.tdSql.execute(f'insert into {dbname}.ctb values ("2022-01-16 21:17:121", 3)')
         self.tdSql.execute(f'insert into {dbname}.tb values ("2022-01-16 21:17:121", 3)')
-        self.tdSql.query(f'select * from {dbname}.tb where c1 = 3')
-        self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), "2022-01-16 21:17:12")
+        for tbname in [f"{dbname}.ctb", f"{dbname}.stb", f"{dbname}.tb"]:
+            self.tdSql.query(f'select * from {tbname} where c1 = 3')
+            self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), "2022-01-16 21:17:12")
         # TODO confirm
+        self.tdSql.error(f'insert into {dbname}.ctb values ("2022-01-16 21:17:62", 2)')
         self.tdSql.error(f'insert into {dbname}.tb values ("2022-01-16 21:17:62", 2)')
         self.tdSql.execute(f'drop database if exists {dbname}')
 
-    # ! bug
     def human_date_check(self):
         """
         human date check
         """
-        for ts in ["ms"]:
+        for ts in ["ms", "us", "ns"]:
             dbname = self.tdCom.get_long_name(length=10, mode="letters")
             dbname = dbname + '_' + ts
             timestamp = self.tdCom.genTs(ts)[1]
             self.tdSql.execute(f'create database if not exists {dbname} precision "{ts}"')
             self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 int) tags (tag_ts timestamp, t1 int)')
-            self.tdSql.execute(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now, 1)')
+            self.tdSql.execute(f'create table if not exists {dbname}.ctb using {dbname}.stb tags (now, 1)')
+            self.tdSql.execute(f'create table if not exists {dbname}.tb (col_ts timestamp, c1 int)')
             for ts_unit in self.tdCom.gen_ts_support_unit_list():
                 if ts_unit == "b" or ts_unit == "u" or ts_unit == "a":
                     step = 10000000
                 else:
                     step = 1
-                # tdSql.execute(f'create table if not exists {dbname}.{ts_unit}{step}_add using {dbname}.stb tags ("{timestamp}+1000{ts_unit}", 1)')
-                # tdSql.execute(f'create table if not exists {dbname}.{ts_unit}{step}_sub using {dbname}.stb tags ("{timestamp}-1{ts_unit}", 1)')
-                self.tdSql.execute(f'insert into {dbname}.tb values ("{timestamp}+1{ts_unit}", 1)')
-                self.tdSql.execute(f'insert into {dbname}.tb values ("{timestamp}-1{ts_unit}", 1)')
-            self.tdSql.query(f'select count(*) from {dbname}.tb')
-            self.tdSql.checkEqual(self.tdSql.query_data[0][0], 16)
-            self.tdSql.query(f'show {dbname}.stables')
-            self.tdSql.checkEqual(self.tdSql.query_data[0][4], 17)
-            self.tdSql.execute(f'drop database if exists {dbname}')
+                self.tdSql.error(f'create table if not exists {dbname}.{ts_unit}{step}_add using {dbname}.stb tags ("{timestamp}+1000{ts_unit}", 1)')
+                self.tdSql.error(f'create table if not exists {dbname}.{ts_unit}{step}_sub using {dbname}.stb tags ("{timestamp}-1{ts_unit}", 1)')
+                self.tdSql.error(f'insert into {dbname}.ctb values ("{timestamp}+1{ts_unit}", 1)')
+                self.tdSql.error(f'insert into {dbname}.tb values ("{timestamp}+1{ts_unit}", 1)')
+                self.tdSql.error(f'insert into {dbname}.ctb values ("{timestamp}-1{ts_unit}", 1)')
+                self.tdSql.error(f'insert into {dbname}.tb values ("{timestamp}-1{ts_unit}", 1)')
 
     def now_check(self):
         """
@@ -93,20 +102,27 @@ class TestTimestamp(TDCase):
             dbname = dbname + '_' + ts
             self.tdSql.execute(f'create database if not exists {dbname} precision "{ts}"')
             self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 int) tags (tag_ts timestamp, t1 int)')
-            self.tdSql.execute(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now, 1)')
+            self.tdSql.execute(f'create table if not exists {dbname}.ctb using {dbname}.stb tags (now, 1)')
+            self.tdSql.execute(f'create table if not exists {dbname}.tb (col_ts timestamp, c1 int)')
             for ts_unit in self.tdCom.gen_ts_support_unit_list():
                 if ts_unit == "b" or ts_unit == "u" or ts_unit == "a":
                     step = 10000000
                 else:
                     step = 1
-                self.tdSql.execute(f'create table if not exists {dbname}.{ts_unit}{step}_add using {dbname}.stb tags (now+{step}{ts_unit}, 1)')
-                self.tdSql.execute(f'create table if not exists {dbname}.{ts_unit}{step}_sub using {dbname}.stb tags (now-{step}{ts_unit}, 1)')
+                # ! TD-16217
+                # self.tdSql.execute(f'create table if not exists {dbname}.{ts_unit}{step}_add using {dbname}.stb tags (now+{step}{ts_unit}, 1)')
+                # self.tdSql.execute(f'create table if not exists {dbname}.{ts_unit}{step}_sub using {dbname}.stb tags (now-{step}{ts_unit}, 1)')
+                self.tdSql.execute(f'insert into {dbname}.ctb values (now+{step}{ts_unit}, 1)')
+                self.tdSql.execute(f'insert into {dbname}.ctb values (now-{step}{ts_unit}, 1)')
                 self.tdSql.execute(f'insert into {dbname}.tb values (now+{step}{ts_unit}, 1)')
                 self.tdSql.execute(f'insert into {dbname}.tb values (now-{step}{ts_unit}, 1)')
+            self.tdSql.query(f'select count(*) from {dbname}.ctb')
+            self.tdSql.checkEqual(self.tdSql.query_data[0][0], 16)
             self.tdSql.query(f'select count(*) from {dbname}.tb')
             self.tdSql.checkEqual(self.tdSql.query_data[0][0], 16)
-            self.tdSql.query(f'show {dbname}.stables')
-            self.tdSql.checkEqual(self.tdSql.query_data[0][4], 17)
+            # ! TD-16217
+            # self.tdSql.query(f'show {dbname}.stables')
+            # self.tdSql.checkEqual(self.tdSql.query_data[0][4], 17)
             self.tdSql.execute(f'drop database if exists {dbname}')
 
     def epoch_check(self):
@@ -165,8 +181,6 @@ class TestTimestamp(TDCase):
                 f'insert into {dbname}.tb values ("2022-13-14 00:05:55", 1)',
                 f'insert into {dbname}.tb values ("2022-01-00 00:05:55", 1)',
                 f'insert into {dbname}.tb values ("2022-01-32 00:05:55", 1)',
-                f'insert into {dbname}.tb values ("2022-02-31 00:05:55", 1)',
-                f'insert into {dbname}.tb values ("2022-04-31 00:05:55", 1)',
                 f'insert into {dbname}.tb values ("2022-01-14 25:05:55", 1)',
                 f'insert into {dbname}.tb values ("2022-01-14 00:61:55", 1)',
                 f'insert into {dbname}.tb values (now + 1n, 1)',
@@ -174,17 +188,17 @@ class TestTimestamp(TDCase):
                 f'insert into {dbname}.tb values (now + 1y, 1)',
                 f'insert into {dbname}.tb values (now - 1y, 1)'
                 ]:
+                # f'insert into {dbname}.tb values ("2022-04-31 00:05:55", 1)',
+                # f'insert into {dbname}.tb values ("2022-02-31 00:05:55", 1)',
                 self.tdSql.error(error_sql)
 
     def run(self) -> bool:
         self.ms_us_ns_db_check()
         self.h_m_s_check()
-        #! bug
-        # self.human_date_check()
+        self.human_date_check()
         self.now_check()
         self.epoch_check()
         self.error_check()
-
 
     def cleanup(self):
         pass

@@ -12,6 +12,7 @@ settings:
             dataDir: /var/lib/taos
             logDir: /var/log/taos
             debugFlag: 135
+            supportVnodes: 128
   - name: taospy
     fqdn: [ceph01]
     spec:

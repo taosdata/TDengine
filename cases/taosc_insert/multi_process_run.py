@@ -113,6 +113,7 @@ class TestMultiProcessRun(TDCase):
             self.tdSql.checkEqual(int(process_count), check_count)
 
     def multi_process_batch_insert(self, batch, col_type="col", data_type="binary", data_length=10000):
+        self.taosd.update_cfg('/tmp', self.taosd_setting, {"multiProcess": 1}, self.endpoint, True)
         self.tdCom.drop_all_db()
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
         self.tdSql.execute(f'create database if not exists {dbname}')
@@ -143,7 +144,7 @@ class TestMultiProcessRun(TDCase):
         #     self.tdSql.checkEqual(self.tdSql.query_row, batch*threads_count)
         # else:
         #     self.tdSql.checkNotEqual(self.tdSql.query_row, batch*threads_count)
-        self.tdSql.execute(f'drop database if exists {dbname}')
+        # self.tdSql.execute(f'drop database if exists {dbname}')
 
     def kill_auto_restore(self):
         self._remote.cmd(self.fqdn, [f'ps -ef | grep taosm | grep -v grep | xargs kill -9'])
@@ -153,11 +154,11 @@ class TestMultiProcessRun(TDCase):
         self.process_count_check(0)
 
     def run(self):
-        self.check_default_shmsize()
-        self.check_shmsize_delivery()
-        self.boundary_check()
-        self.multi_process_batch_insert(batch=100, data_length=10160)
-        # self.multi_process_threads_batch_insert(threads_count=3, batch=100, data_length=10160)
+        # self.check_default_shmsize()
+        # self.check_shmsize_delivery()
+        # self.boundary_check()
+        # self.multi_process_batch_insert(batch=100, data_length=10160)
+        self.multi_process_threads_batch_insert(threads_count=3, batch=100, data_length=10160)
         # ! bug TD-15580
         # self.kill_auto_restore()
 
