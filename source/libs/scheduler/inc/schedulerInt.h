@@ -300,7 +300,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask);
 int32_t schSaveJobQueryRes(SSchJob *pJob, SQueryTableRsp *rsp);
 int32_t schProcessOnExplainDone(SSchJob *pJob, SSchTask *pTask, SRetrieveTableRsp *pRsp);
 void schProcessOnDataFetched(SSchJob *job);
-int32_t schGetTaskFromTaskList(SHashObj *pTaskList, uint64_t taskId, SSchTask **pTask);
+int32_t schGetTaskInJob(SSchJob *pJob, uint64_t taskId, SSchTask **pTask);
 int32_t schUpdateTaskExecNodeHandle(SSchTask *pTask, void *handle, int32_t rspCode);
 void schFreeRpcCtxVal(const void *arg);
 int32_t schMakeBrokenLinkVal(SSchJob *pJob, SSchTask *pTask, SRpcBrokenlinkVal *brokenVal, bool isHb);
@@ -314,12 +314,11 @@ int32_t schCancelJob(SSchJob *pJob);
 int32_t schProcessOnJobDropped(SSchJob *pJob, int32_t errCode);
 uint64_t schGenTaskId(void);
 void schCloseJobRef(void);
-int32_t schExecJob(void *pTrans, SArray *pNodeList, SQueryPlan *pDag, int64_t *pJob, const char *sql,
-                         int64_t startTs, SSchResInfo *pRes);
-int32_t schAsyncExecJob(void *pTrans, SArray *pNodeList, SQueryPlan *pDag, int64_t *pJob, const char *sql,
-                                int64_t startTs, SSchResInfo *pRes);
+int32_t schExecJob(void *pTrans, SArray *pNodeList, SQueryPlan *pDag, int64_t *pJob, const char *sql, int64_t startTs, SSchResInfo *pRes);
+int32_t schAsyncExecJob(void *pTrans, SArray *pNodeList, SQueryPlan *pDag, int64_t *pJob, const char *sql, int64_t startTs, SSchResInfo *pRes);
 int32_t schFetchRows(SSchJob *pJob);
 int32_t schAsyncFetchRows(SSchJob *pJob);
+int32_t schUpdateTaskHandle(SSchJob *pJob, SSchTask *pTask, int32_t msgType, void *handle, int32_t rspCode);
 
 
 #ifdef __cplusplus

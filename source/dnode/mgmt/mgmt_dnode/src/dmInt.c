@@ -48,6 +48,7 @@ static int32_t dmOpenMgmt(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   pMgmt->sendMonitorReportFp = pInput->sendMonitorReportFp;
   pMgmt->getVnodeLoadsFp = pInput->getVnodeLoadsFp;
   pMgmt->getMnodeLoadsFp = pInput->getMnodeLoadsFp;
+  pMgmt->getQnodeLoadsFp = pInput->getQnodeLoadsFp;
 
   if (dmStartWorker(pMgmt) != 0) {
     return -1;

@@ -17,6 +17,7 @@
 #include "mndDnode.h"
 #include "mndAuth.h"
 #include "mndMnode.h"
+#include "mndQnode.h"
 #include "mndShow.h"
 #include "mndTrans.h"
 #include "mndUser.h"
@@ -100,10 +101,7 @@ static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
 
   mDebug("dnode:%d, will be created when deploying, raw:%p", dnodeObj.id, pRaw);
 
-#if 0
-  return sdbWrite(pMnode->pSdb, pRaw);
-#else
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_CREATE_DNODE, NULL);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, NULL);
   if (pTrans == NULL) {
     mError("dnode:%s, failed to create since %s", dnodeObj.ep, terrstr());
     return -1;
@@ -125,7 +123,6 @@ static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
 
   mndTransDrop(pTrans);
   return 0;
-#endif
 }
 
 static SSdbRaw *mndDnodeActionEncode(SDnodeObj *pDnode) {
@@ -388,6 +385,12 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     mndReleaseMnode(pMnode, pObj);
   }
 
+  SQnodeObj *pQnode = mndAcquireQnode(pMnode, statusReq.qload.dnodeId);
+  if (pQnode != NULL) {
+    pQnode->load = statusReq.qload;
+    mndReleaseQnode(pMnode, pQnode);
+  }
+
   int64_t dnodeVer = sdbGetTableVer(pMnode->pSdb, SDB_DNODE) + sdbGetTableVer(pMnode->pSdb, SDB_MNODE);
   int64_t curMs = taosGetTimestampMs();
   bool    online = mndIsDnodeOnline(pMnode, pDnode, curMs);
@@ -481,7 +484,7 @@ static int32_t mndCreateDnode(SMnode *pMnode, SRpcMsg *pReq, SCreateDnodeReq *pC
   memcpy(dnodeObj.fqdn, pCreate->fqdn, TSDB_FQDN_LEN);
   snprintf(dnodeObj.ep, TSDB_EP_LEN, "%s:%u", dnodeObj.fqdn, dnodeObj.port);
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_DNODE, pReq);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_GLOBAL, pReq);
   if (pTrans == NULL) {
     mError("dnode:%s, failed to create since %s", dnodeObj.ep, terrstr());
     return -1;
@@ -557,7 +560,7 @@ CREATE_DNODE_OVER:
 }
 
 static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode) {
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_DROP_DNODE, pReq);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_GLOBAL, pReq);
   if (pTrans == NULL) {
     mError("dnode:%d, failed to drop since %s", pDnode->id, terrstr());
     return -1;

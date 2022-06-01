@@ -183,7 +183,7 @@ static int32_t translatePercentile(SFunctionNode* pFunc, char* pErrBuf, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
-static bool validAperventileAlgo(const SValueNode* pVal) {
+static bool validateApercentileAlgo(const SValueNode* pVal) {
   if (TSDB_DATA_TYPE_BINARY != pVal->node.resType.type) {
     return false;
   }
@@ -231,7 +231,7 @@ static int32_t translateApercentile(SFunctionNode* pFunc, char* pErrBuf, int32_t
     }
 
     SNode* pParamNode2 = nodesListGetNode(pFunc->pParameterList, 2);
-    if (QUERY_NODE_VALUE != nodeType(pParamNode2) || !validAperventileAlgo((SValueNode*)pParamNode2)) {
+    if (QUERY_NODE_VALUE != nodeType(pParamNode2) || !validateApercentileAlgo((SValueNode*)pParamNode2)) {
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
                              "Third parameter algorithm of apercentile must be 'default' or 't-digest'");
     }
@@ -438,6 +438,18 @@ static int32_t translateHLL(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return TSDB_CODE_SUCCESS;
 }
 
+static bool validateStateOper(const SValueNode* pVal) {
+  if (TSDB_DATA_TYPE_BINARY != pVal->node.resType.type) {
+    return false;
+  }
+  return (0 == strcasecmp(varDataVal(pVal->datum.p), "GT") ||
+          0 == strcasecmp(varDataVal(pVal->datum.p), "GE") ||
+          0 == strcasecmp(varDataVal(pVal->datum.p), "LT") ||
+          0 == strcasecmp(varDataVal(pVal->datum.p), "LE") ||
+          0 == strcasecmp(varDataVal(pVal->datum.p), "EQ") ||
+          0 == strcasecmp(varDataVal(pVal->datum.p), "NE"));
+}
+
 static int32_t translateStateCount(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   if (3 != numOfParams) {
@@ -463,6 +475,12 @@ static int32_t translateStateCount(SFunctionNode* pFunc, char* pErrBuf, int32_t 
     }
 
     SValueNode* pValue = (SValueNode*)pParamNode;
+
+    if (i == 1 && !validateStateOper(pValue)) {
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                             "Second parameter of STATECOUNT function"
+                             "must be one of the following: 'GE', 'GT', 'LE', 'LT', 'EQ', 'NE'");
+    }
 
     pValue->notReserved = true;
   }
@@ -503,6 +521,16 @@ static int32_t translateStateDuration(SFunctionNode* pFunc, char* pErrBuf, int32
     }
 
     SValueNode* pValue = (SValueNode*)pParamNode;
+
+    if (i == 1 && !validateStateOper(pValue)) {
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                             "Second parameter of STATEDURATION function"
+                             "must be one of the following: 'GE', 'GT', 'LE', 'LT', 'EQ', 'NE'");
+    } else if (i == 3 && pValue->datum.i == 0) {
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                             "STATEDURATION function time unit parameter should be greater than db precision");
+    }
+
 
     pValue->notReserved = true;
   }
