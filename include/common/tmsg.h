@@ -2305,6 +2305,7 @@ typedef struct {
   int8_t   intervalUnit;  // MACRO: TIME_UNIT_XXX
   int8_t   slidingUnit;   // MACRO: TIME_UNIT_XXX
   int8_t   timezoneInt;   // sma data expired if timezone changes.
+  int32_t  dstVgId;
   char     indexName[TSDB_INDEX_NAME_LEN];
   int32_t  exprLen;
   int32_t  tagsFilterLen;

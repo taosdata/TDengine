@@ -776,8 +776,7 @@ _exit:
 
   // TODO: the partial success scenario and the error case
   // TODO: refactor
-  if ((terrno == TSDB_CODE_SUCCESS || terrno == TSDB_CODE_TDB_TABLE_ALREADY_EXIST) &&
-      (pRsp->code == TSDB_CODE_SUCCESS)) {
+  if ((terrno == TSDB_CODE_SUCCESS) && (pRsp->code == TSDB_CODE_SUCCESS)) {
     tdProcessRSmaSubmit(pVnode->pSma, pReq, STREAM_DATA_TYPE_SUBMIT_BLOCK);
   }
 
@@ -788,16 +787,19 @@ static int vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *pReq
   SVCreateTSmaReq req = {0};
   SDecoder        coder;
 
-  pRsp->msgType = TDMT_VND_CREATE_SMA_RSP;
-  pRsp->code = TSDB_CODE_SUCCESS;
-  pRsp->pCont = NULL;
-  pRsp->contLen = 0;
+  if (pRsp) {
+    pRsp->msgType = TDMT_VND_CREATE_SMA_RSP;
+    pRsp->code = TSDB_CODE_SUCCESS;
+    pRsp->pCont = NULL;
+    pRsp->contLen = 0;
+  }
 
   // decode and process req
   tDecoderInit(&coder, pReq, len);
 
   if (tDecodeSVCreateTSmaReq(&coder, &req) < 0) {
-    pRsp->code = terrno;
+    terrno = TSDB_CODE_MSG_DECODE_ERROR;
+    if (pRsp) pRsp->code = terrno;
     goto _err;
   }
 
@@ -805,18 +807,30 @@ static int vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *pReq
   req.timezoneInt = tsTimezone;
 
   if (tdProcessTSmaCreate(pVnode->pSma, version, (const char *)&req) < 0) {
-    pRsp->code = terrno;
+    if (pRsp) pRsp->code = terrno;
     goto _err;
   }
 
   tDecoderClear(&coder);
-  vDebug("vgId:%d success to create tsma %s:%" PRIi64 " for table %" PRIi64, TD_VID(pVnode), req.indexName,
-         req.indexUid, req.tableUid);
+  vDebug("vgId:%d success to create tsma %s:%" PRIi64 " version %" PRIi64 " for table %" PRIi64, TD_VID(pVnode),
+         req.indexName, req.indexUid, version, req.tableUid);
   return 0;
 
 _err:
   tDecoderClear(&coder);
-  vError("vgId:%d failed to create tsma %s:%" PRIi64 " for table %" PRIi64 " since %s", TD_VID(pVnode), req.indexName,
-         req.indexUid, req.tableUid, terrstr(terrno));
+  vError("vgId:%d failed to create tsma %s:%" PRIi64 " version %" PRIi64 "for table %" PRIi64 " since %s",
+         TD_VID(pVnode), req.indexName, req.indexUid, version, req.tableUid, terrstr(terrno));
   return -1;
+}
+
+/**
+ * @brief specific for smaDstVnode
+ *
+ * @param pVnode
+ * @param pCont
+ * @param contLen
+ * @return int32_t
+ */
+int32_t vnodeProcessCreateTSma(SVnode *pVnode, void *pCont, uint32_t contLen) {
+  return vnodeProcessCreateTSmaReq(pVnode, 1, pCont, contLen, NULL);
 }
