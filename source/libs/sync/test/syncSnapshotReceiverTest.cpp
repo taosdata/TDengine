@@ -45,9 +45,6 @@ SSyncSnapshotReceiver* createReceiver() {
   pReceiver->start = true;
   pReceiver->ack = 20;
   pReceiver->pWriter = (void*)0x11;
-  pReceiver->blockLen = 20;
-  pReceiver->pCurrentBlock = taosMemoryMalloc(pReceiver->blockLen);
-  snprintf((char*)(pReceiver->pCurrentBlock), pReceiver->blockLen, "%s", "hello");
   pReceiver->term = 66;
 
   return pReceiver;

@@ -54,6 +54,7 @@ void                 snapshotSenderDestroy(SSyncSnapshotSender *pSender);
 void                 snapshotSenderStart(SSyncSnapshotSender *pSender);
 void                 snapshotSenderStop(SSyncSnapshotSender *pSender);
 int32_t              snapshotSend(SSyncSnapshotSender *pSender);
+int32_t              snapshotReSend(SSyncSnapshotSender *pSender);
 cJSON               *snapshotSender2Json(SSyncSnapshotSender *pSender);
 char                *snapshotSender2Str(SSyncSnapshotSender *pSender);
 
@@ -62,8 +63,6 @@ typedef struct SSyncSnapshotReceiver {
 
   int32_t  ack;
   void    *pWriter;
-  void    *pCurrentBlock;
-  int32_t  blockLen;
   SyncTerm term;
 
   SSyncNode *pSyncNode;
