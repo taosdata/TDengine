@@ -76,7 +76,6 @@ void* rpcOpen(const SRpcInit* pInit) {
   if (pInit->user) {
     memcpy(pRpc->user, pInit->user, strlen(pInit->user));
   }
-  // pRpc->refMgt = transOpenExHandleMgt(50000);
   return pRpc;
 }
 void rpcClose(void* arg) {

@@ -472,8 +472,8 @@ bool transEpSetIsEqual(SEpSet* a, SEpSet* b) {
 }
 
 void transInitEnv() {
+  //
   uv_os_setenv("UV_TCP_SINGLE_ACCEPT", "1");
-  // uvOpenExHandleMgt(10000);
 }
 int32_t transOpenExHandleMgt(int size) {
   // added into once later

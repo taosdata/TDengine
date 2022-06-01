@@ -20,7 +20,7 @@
 static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 
 static char*   notify = "a";
-static int     tranSSvrInst = 0;
+static int32_t tranSSvrInst = 0;
 static int32_t refMgt = 0;
 
 typedef struct {
@@ -878,8 +878,8 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   uv_loop_init(srv->loop);
 
   // taosThreadOnce(&transModuleInit, uvInitEnv);
-  tranSSvrInst++;
-  if (tranSSvrInst == 1) {
+  int ref = atomic_add_fetch_32(&tranSSvrInst, 1);
+  if (ref == 1) {
     refMgt = transOpenExHandleMgt(50000);
   }
 
@@ -940,43 +940,6 @@ End:
   transCloseServer(srv);
   return NULL;
 }
-
-// void uvInitEnv() {
-//  uv_os_setenv("UV_TCP_SINGLE_ACCEPT", "1");
-//  uvOpenExHandleMgt(10000);
-//}
-// void uvOpenExHandleMgt(int size) {
-//  // added into once later
-//  exHandlesMgt = taosOpenRef(size, uvDestoryExHandle);
-//}
-// void uvCloseExHandleMgt() {
-//  // close ref
-//  taosCloseRef(exHandlesMgt);
-//}
-// int64_t uvAddExHandle(void* p) {
-//  // acquire extern handle
-//  return taosAddRef(exHandlesMgt, p);
-//}
-// int32_t uvRemoveExHandle(int64_t refId) {
-//  // acquire extern handle
-//  return taosRemoveRef(exHandlesMgt, refId);
-//}
-//
-// SExHandle* uvAcquireExHandle(int64_t refId) {
-//  // acquire extern handle
-//  return (SExHandle*)taosAcquireRef(exHandlesMgt, refId);
-//}
-//
-// int32_t uvReleaseExHandle(int64_t refId) {
-//  // release extern handle
-//  return taosReleaseRef(exHandlesMgt, refId);
-//}
-// void uvDestoryExHandle(void* handle) {
-//  if (handle == NULL) {
-//    return;
-//  }
-//  taosMemoryFree(handle);
-//}
 
 void uvHandleQuit(SSvrMsg* msg, SWorkThrdObj* thrd) {
   thrd->quit = true;
@@ -1072,8 +1035,8 @@ void transCloseServer(void* arg) {
 
   taosMemoryFree(srv);
 
-  tranSSvrInst--;
-  if (tranSSvrInst == 0) {
+  int ref = atomic_sub_fetch_32(&tranSSvrInst, 1);
+  if (ref == 0) {
     // TdThreadOnce tmpInit = PTHREAD_ONCE_INIT;
     // memcpy(&transModuleInit, &tmpInit, sizeof(TdThreadOnce));
     transCloseExHandleMgt(refMgt);
