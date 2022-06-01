@@ -150,8 +150,13 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->tsdbCfg.minRows = pCreate->minRows;
   pCfg->tsdbCfg.maxRows = pCreate->maxRows;
   for (size_t i = 0; i < taosArrayGetSize(pCreate->pRetensions); ++i) {
-    memcpy(&pCfg->tsdbCfg.retentions[i], taosArrayGet(pCreate->pRetensions, i), sizeof(SRetention));
+    SRetention *pRetention = &pCfg->tsdbCfg.retentions[i];
+    memcpy(pRetention, taosArrayGet(pCreate->pRetensions, i), sizeof(SRetention));
+    if (i == 0) {
+      if ((pRetention->freq > 0 && pRetention->keep > 0)) pCfg->isRsma = 1;
+    }
   }
+
   pCfg->walCfg.vgId = pCreate->vgId;
   pCfg->hashBegin = pCreate->hashBegin;
   pCfg->hashEnd = pCreate->hashEnd;
@@ -218,7 +223,18 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   code = vmOpenVnode(pMgmt, &wrapperCfg, pImpl);
   if (code != 0) {
     dError("vgId:%d, failed to open vnode since %s", createReq.vgId, terrstr());
+    code = terrno;
     goto _OVER;
+  }
+
+  if (createReq.isTsma) {
+    SMsgHead *smaMsg = createReq.pTsma;
+    uint32_t  contLen = (uint32_t)(htonl(smaMsg->contLen) - sizeof(SMsgHead));
+    if (vnodeProcessCreateTSma(pImpl, POINTER_SHIFT(smaMsg, sizeof(SMsgHead)), contLen) < 0) {
+      dError("vgId:%d, failed to create tsma since %s", createReq.vgId, terrstr());
+      code = terrno;
+      goto _OVER;
+    };
   }
 
   code = vnodeStart(pImpl);
@@ -228,7 +244,10 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   code = vmWriteVnodeListToFile(pMgmt);
-  if (code != 0) goto _OVER;
+  if (code != 0) {
+    code = terrno;
+    goto _OVER;
+  }
 
 _OVER:
   if (code != 0) {

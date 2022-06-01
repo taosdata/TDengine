@@ -3654,6 +3654,7 @@ int32_t tEncodeTSma(SEncoder *pCoder, const STSma *pSma) {
   if (tEncodeI8(pCoder, pSma->intervalUnit) < 0) return -1;
   if (tEncodeI8(pCoder, pSma->slidingUnit) < 0) return -1;
   if (tEncodeI8(pCoder, pSma->timezoneInt) < 0) return -1;
+  if (tEncodeI32(pCoder, pSma->dstVgId) < 0) return -1;
   if (tEncodeCStr(pCoder, pSma->indexName) < 0) return -1;
   if (tEncodeI32(pCoder, pSma->exprLen) < 0) return -1;
   if (tEncodeI32(pCoder, pSma->tagsFilterLen) < 0) return -1;
@@ -3676,6 +3677,7 @@ int32_t tDecodeTSma(SDecoder *pCoder, STSma *pSma) {
   if (tDecodeI8(pCoder, &pSma->version) < 0) return -1;
   if (tDecodeI8(pCoder, &pSma->intervalUnit) < 0) return -1;
   if (tDecodeI8(pCoder, &pSma->slidingUnit) < 0) return -1;
+  if (tDecodeI32(pCoder, &pSma->dstVgId) < 0) return -1;
   if (tDecodeI8(pCoder, &pSma->timezoneInt) < 0) return -1;
   if (tDecodeCStrTo(pCoder, pSma->indexName) < 0) return -1;
   if (tDecodeI32(pCoder, &pSma->exprLen) < 0) return -1;

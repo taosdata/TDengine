@@ -104,7 +104,7 @@ int32_t smaOpen(SVnode *pVnode) {
   taosThreadMutexInit(&pSma->mutex, NULL);
   pSma->locked = false;
 
-  if (vnodeIsRollup(pVnode)) {
+  if (VND_IS_RSMA(pVnode)) {
     STsdbKeepCfg keepCfg = {0};
     for (int i = 0; i < TSDB_RETENTION_MAX; ++i) {
       if (i == TSDB_RETENTION_L0) {
