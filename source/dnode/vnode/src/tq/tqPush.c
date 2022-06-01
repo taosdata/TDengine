@@ -15,6 +15,11 @@
 
 #include "tq.h"
 
+void tqTmrRspFunc(void* param, void* tmrId) {
+  STqHandle* pHandle = (STqHandle*)param;
+  atomic_store_8(&pHandle->pushHandle.tmrStopped, 1);
+}
+
 int32_t tqExecFromInputQ(STQ* pTq, STqHandle* pHandle) {
   // 1. guard and set status executing
   // 2. check processedVer
@@ -50,12 +55,15 @@ int32_t tqOpenPushHandle(STQ* pTq, STqHandle* pHandle) {
   return 0;
 }
 
-void tqPreparePush(STQ* pTq, STqHandle* pHandle, int64_t reqId, const SRpcHandleInfo* pInfo, int64_t processedVer) {
+int32_t tqPreparePush(STQ* pTq, STqHandle* pHandle, int64_t reqId, const SRpcHandleInfo* pInfo, int64_t processedVer,
+                      int64_t timeout) {
   memcpy(&pHandle->pushHandle.rpcInfo, pInfo, sizeof(SRpcHandleInfo));
   atomic_store_64(&pHandle->pushHandle.reqId, reqId);
   atomic_store_64(&pHandle->pushHandle.processedVer, processedVer);
   atomic_store_8(&pHandle->pushHandle.inputStatus, TASK_INPUT_STATUS__NORMAL);
-  // set timeout timer
+  atomic_store_8(&pHandle->pushHandle.tmrStopped, 0);
+  taosTmrReset(tqTmrRspFunc, (int32_t)timeout, pHandle, tqMgmt.timer, &pHandle->pushHandle.timerId);
+  return 0;
 }
 
 int32_t tqEnqueue(STqHandle* pHandle, SStreamDataSubmit* pSubmit) {
