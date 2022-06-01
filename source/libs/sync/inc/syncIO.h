@@ -57,6 +57,9 @@ typedef struct SSyncIO {
   int32_t (*FpOnSyncAppendEntriesReply)(SSyncNode *pSyncNode, SyncAppendEntriesReply *pMsg);
   int32_t (*FpOnSyncTimeout)(SSyncNode *pSyncNode, SyncTimeout *pMsg);
 
+  int32_t (*FpOnSyncSnapshotSend)(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg);
+  int32_t (*FpOnSyncSnapshotRsp)(SSyncNode *pSyncNode, SyncSnapshotRsp *pMsg);
+
   int8_t isStart;
 
 } SSyncIO;

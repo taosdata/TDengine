@@ -558,6 +558,9 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
   pSyncNode->FpOnClientRequest = syncNodeOnClientRequestCb;
   pSyncNode->FpOnTimeout = syncNodeOnTimeoutCb;
 
+  pSyncNode->FpOnSnapshotSend = syncNodeOnSnapshotSendCb;
+  pSyncNode->FpOnSnapshotRsp = syncNodeOnSnapshotRspCb;
+
   if (pSyncNode->pRaftCfg->snapshotEnable) {
     pSyncNode->FpOnRequestVote = syncNodeOnRequestVoteCb;
     pSyncNode->FpOnRequestVoteReply = syncNodeOnRequestVoteReplyCb;

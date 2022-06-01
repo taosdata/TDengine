@@ -279,7 +279,7 @@ cJSON *snapshotSender2Json(SSyncSnapshotSender *pSender) {
 
 char *snapshotSender2Str(SSyncSnapshotSender *pSender) {
   cJSON *pJson = snapshotSender2Json(pSender);
-  char  *serialized = cJSON_Print(pJson);
+  char * serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
 }
@@ -393,7 +393,7 @@ cJSON *snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver) {
 
 char *snapshotReceiver2Str(SSyncSnapshotReceiver *pReceiver) {
   cJSON *pJson = snapshotReceiver2Json(pReceiver);
-  char  *serialized = cJSON_Print(pJson);
+  char * serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
 }

@@ -478,6 +478,8 @@ typedef int32_t (*FpOnRequestVoteReplyCb)(SSyncNode* ths, SyncRequestVoteReply* 
 typedef int32_t (*FpOnAppendEntriesCb)(SSyncNode* ths, SyncAppendEntries* pMsg);
 typedef int32_t (*FpOnAppendEntriesReplyCb)(SSyncNode* ths, SyncAppendEntriesReply* pMsg);
 typedef int32_t (*FpOnTimeoutCb)(SSyncNode* pSyncNode, SyncTimeout* pMsg);
+typedef int32_t (*FpOnSnapshotSendCb)(SSyncNode* ths, SyncSnapshotSend* pMsg);
+typedef int32_t (*FpOnSnapshotRspCb)(SSyncNode* ths, SyncSnapshotRsp* pMsg);
 
 // option ----------------------------------
 bool syncNodeSnapshotEnable(SSyncNode* pSyncNode);
