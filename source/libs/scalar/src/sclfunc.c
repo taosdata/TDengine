@@ -851,10 +851,8 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
 
   char* tz;
   int32_t tzLen;
-  if (inputNum == 2) {
-    tz = varDataVal(pInput[1].columnData->pData);
-    tzLen = varDataLen(pInput[1].columnData->pData);
-  }
+  tz = varDataVal(pInput[1].columnData->pData);
+  tzLen = varDataLen(pInput[1].columnData->pData);
 
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
     if (colDataIsNull_s(pInput[0].columnData, i)) {
