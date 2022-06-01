@@ -225,6 +225,8 @@ enum {
   TD_DEF_MSG_TYPE(TDMT_VND_ALTER_REPLICA, "vnode-alter-replica", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_COMPACT, "vnode-compact", NULL, NULL)
 
+  TD_DEF_MSG_TYPE(TDMT_VND_DELETE, "vnode-delete-data", SVDeleteReq, SVDeleteRsp)
+
   // Requests handled by QNODE
   TD_NEW_MSG_SEG(TDMT_QND_MSG)
 
