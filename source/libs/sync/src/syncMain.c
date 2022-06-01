@@ -601,6 +601,8 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
     (pSyncNode->receivers)[i] = pReceiver;
   }
 
+  pSyncNode->pNewNodeReceiver = snapshotReceiverCreate(pSyncNode, 100);
+
   // start in syncNodeStart
   // start raft
   // syncNodeBecomeFollower(pSyncNode);
@@ -611,6 +613,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
 void syncNodeStart(SSyncNode* pSyncNode) {
   // start raft
   if (pSyncNode->replicaNum == 1) {
+    raftStoreNextTerm(pSyncNode->pRaftStore);
     syncNodeBecomeLeader(pSyncNode);
 
     syncNodeLog2("==state change become leader immediately==", pSyncNode);
@@ -704,6 +707,11 @@ void syncNodeClose(SSyncNode* pSyncNode) {
       snapshotReceiverDestroy((pSyncNode->receivers)[i]);
       (pSyncNode->receivers)[i] = NULL;
     }
+  }
+
+  if (pSyncNode->pNewNodeReceiver != NULL) {
+    snapshotReceiverDestroy(pSyncNode->pNewNodeReceiver);
+    pSyncNode->pNewNodeReceiver = NULL;
   }
 
   /*
@@ -1294,7 +1302,7 @@ int32_t syncNodeGetLastIndexTerm(SSyncNode* pSyncNode, SyncIndex* pLastIndex, Sy
 // get pre index and term of "index"
 int32_t syncNodeGetPreIndexTerm(SSyncNode* pSyncNode, SyncIndex index, SyncIndex* pPreIndex, SyncTerm* pPreTerm) {
   ASSERT(index >= SYNC_INDEX_BEGIN);
-  ASSERT(!syncNodeIsIndexInSnapshot(pSyncNode, index));
+  // ASSERT(!syncNodeIsIndexInSnapshot(pSyncNode, index));
   int ret = 0;
 
   SyncIndex preIndex = index - 1;

@@ -319,6 +319,23 @@ static void *syncIOConsumerFunc(void *param) {
           io->FpOnSyncTimeout(io->pSyncNode, pSyncMsg);
           syncTimeoutDestroy(pSyncMsg);
         }
+
+      } else if (pRpcMsg->msgType == TDMT_VND_SYNC_SNAPSHOT_SEND) {
+        if (io->FpOnSyncSnapshotSend != NULL) {
+          SyncSnapshotSend *pSyncMsg = syncSnapshotSendFromRpcMsg2(pRpcMsg);
+          assert(pSyncMsg != NULL);
+          io->FpOnSyncSnapshotSend(io->pSyncNode, pSyncMsg);
+          syncSnapshotSendDestroy(pSyncMsg);
+        }
+
+      } else if (pRpcMsg->msgType == TDMT_VND_SYNC_SNAPSHOT_RSP) {
+        if (io->FpOnSyncSnapshotRsp != NULL) {
+          SyncSnapshotRsp *pSyncMsg = syncSnapshotRspFromRpcMsg2(pRpcMsg);
+          assert(pSyncMsg != NULL);
+          io->FpOnSyncSnapshotRsp(io->pSyncNode, pSyncMsg);
+          syncSnapshotRspDestroy(pSyncMsg);
+        }
+
       } else {
         sTrace("unknown msgType:%d, no operator", pRpcMsg->msgType);
       }

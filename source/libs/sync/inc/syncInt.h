@@ -157,6 +157,7 @@ typedef struct SSyncNode {
   // SSnapshot*             pSnapshot;
   SSyncSnapshotSender*   senders[TSDB_MAX_REPLICA];
   SSyncSnapshotReceiver* receivers[TSDB_MAX_REPLICA];
+  SSyncSnapshotReceiver* pNewNodeReceiver;
 
 } SSyncNode;
 

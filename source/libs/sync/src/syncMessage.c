@@ -65,6 +65,16 @@ cJSON* syncRpcMsg2Json(SRpcMsg* pRpcMsg) {
     pRoot = syncAppendEntriesReply2Json(pSyncMsg);
     syncAppendEntriesReplyDestroy(pSyncMsg);
 
+  } else if (pRpcMsg->msgType == TDMT_VND_SYNC_SNAPSHOT_SEND) {
+    SyncSnapshotSend* pSyncMsg = syncSnapshotSendDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
+    pRoot = syncSnapshotSend2Json(pSyncMsg);
+    syncSnapshotSendDestroy(pSyncMsg);
+
+  } else if (pRpcMsg->msgType == TDMT_VND_SYNC_SNAPSHOT_RSP) {
+    SyncSnapshotRsp* pSyncMsg = syncSnapshotRspDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
+    pRoot = syncSnapshotRsp2Json(pSyncMsg);
+    syncSnapshotRspDestroy(pSyncMsg);
+
   } else if (pRpcMsg->msgType == TDMT_VND_SYNC_COMMON_RESPONSE) {
     pRoot = cJSON_CreateObject();
     char* s;

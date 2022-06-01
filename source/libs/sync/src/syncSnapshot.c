@@ -407,7 +407,11 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
       pReceiver = (pSyncNode->receivers)[i];
     }
   }
-  ASSERT(pReceiver != NULL);
+
+  // add new replica
+  if (pReceiver == NULL) {
+    pReceiver = pSyncNode->pNewNodeReceiver;
+  }
 
   bool needRsp = false;
 
@@ -430,7 +434,7 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
         pSyncNode->pFsm->FpSnapshotStopWrite(pSyncNode->pFsm, pReceiver->pWriter, true);
         snapshotReceiverStop(pReceiver);
         pReceiver->ack = pMsg->seq;
-        needRsp = true;
+        needRsp = false;
 
         char *msgStr = syncSnapshotSend2Str(pMsg);
         sTrace("snapshot recv end ack:%d recv msg:%s", pReceiver->ack, msgStr);

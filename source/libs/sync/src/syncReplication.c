@@ -61,6 +61,7 @@ int32_t syncNodeAppendEntriesPeers(SSyncNode* pSyncNode) {
 
     // set prevLogIndex
     SyncIndex nextIndex = syncIndexMgrGetIndex(pSyncNode->pNextIndex, pDestId);
+
     SyncIndex preLogIndex = nextIndex - 1;
 
     // set preLogTerm
@@ -127,12 +128,8 @@ int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
     SRaftId* pDestId = &(pSyncNode->peersId[i]);
 
     SyncIndex nextIndex = syncIndexMgrGetIndex(pSyncNode->pNextIndex, pDestId);
-
     SyncIndex preLogIndex;
     SyncTerm  preLogTerm;
-
-    ret = syncNodeGetPreIndexTerm(pSyncNode, nextIndex, &preLogIndex, &preLogTerm);
-    ASSERT(ret == 0);
 
     // batch optimized
     // SyncIndex lastIndex = syncUtilMinIndex(pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore), nextIndex);
@@ -181,6 +178,9 @@ int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
       snapshotSenderStart(pSender);
 
     } else {
+      ret = syncNodeGetPreIndexTerm(pSyncNode, nextIndex, &preLogIndex, &preLogTerm);
+      ASSERT(ret == 0);
+
       SyncAppendEntries* pMsg = NULL;
       SSyncRaftEntry*    pEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, nextIndex);
       if (pEntry != NULL) {
