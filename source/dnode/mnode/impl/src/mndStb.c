@@ -754,7 +754,7 @@ _OVER:
 }
 
 int32_t mndAddStbToTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb) {
-  mndTransSetDbInfo(pTrans, pDb);
+  mndTransSetDbName(pTrans, pDb->name);
   if (mndSetCreateStbRedoLogs(pMnode, pTrans, pDb, pStb) != 0) return -1;
   if (mndSetCreateStbUndoLogs(pMnode, pTrans, pDb, pStb) != 0) return -1;
   if (mndSetCreateStbCommitLogs(pMnode, pTrans, pDb, pStb) != 0) return -1;
@@ -1261,7 +1261,7 @@ static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *p
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to alter stb:%s", pTrans->id, pAlter->name);
-  mndTransSetDbInfo(pTrans, pDb);
+  mndTransSetDbName(pTrans, pDb->name);
 
   if (mndSetAlterStbRedoLogs(pMnode, pTrans, pDb, &stbObj) != 0) goto _OVER;
   if (mndSetAlterStbCommitLogs(pMnode, pTrans, pDb, &stbObj) != 0) goto _OVER;
@@ -1407,7 +1407,7 @@ static int32_t mndDropStb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *p
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to drop stb:%s", pTrans->id, pStb->name);
-  mndTransSetDbInfo(pTrans, pDb);
+  mndTransSetDbName(pTrans, pDb->name);
 
   if (mndSetDropStbRedoLogs(pMnode, pTrans, pStb) != 0) goto _OVER;
   if (mndSetDropStbCommitLogs(pMnode, pTrans, pStb) != 0) goto _OVER;
