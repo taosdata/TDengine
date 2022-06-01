@@ -921,11 +921,11 @@ static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return TSDB_CODE_SUCCESS;
 }
 
-/* Following are valid iso-8601 timezone format:
- * z/Z
- * ±hh:mm
- * ±hhmm
- * ±hh
+/* Following are valid ISO-8601 timezone format:
+ * 1 z/Z
+ * 2 ±hh:mm
+ * 3 ±hhmm
+ * 4 ±hh
  *
  */
 
@@ -934,8 +934,8 @@ static bool validateTimezoneFormat(const SValueNode* pVal) {
     return false;
   }
 
-  char *tz = pVal->datum.p;
-  int32_t len = (int32_t)strlen(tz);
+  char *tz    = varDataVal(pVal->datum.p);
+  int32_t len = varDataLen(pVal->datum.p);
 
   if (len == 0) {
     return false;
@@ -944,16 +944,27 @@ static bool validateTimezoneFormat(const SValueNode* pVal) {
   } else if ((tz[0] == '+' || tz[0] == '-')) {
     switch (len) {
       case 3:
-      case 5:
+      case 5: {
+        for (int32_t i = 1; i < len; ++i) {
+          if (!isdigit(tz[i])) {
+            return false;
+          }
+        }
+        break;
+      }
       case 6: {
         for (int32_t i = 1; i < len; ++i) {
-          if (len == 6 && i == 3 && tz[i] != ':') {
-            return false;
+          if (i == 3) {
+            if (tz[i] != ':') {
+              return false;
+            }
+            continue;
           }
           if (!isdigit(tz[i])) {
             return false;
           }
         }
+        break;
       }
       default: {
         return false;
