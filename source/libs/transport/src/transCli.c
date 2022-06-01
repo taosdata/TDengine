@@ -15,6 +15,9 @@
 #ifdef USE_UV
 #include "transComm.h"
 
+static int32_t transSCliInst = 0;
+static int32_t refMgt = 0;
+
 typedef struct SCliConn {
   T_REF_DECLARE()
   uv_connect_t connReq;
@@ -846,6 +849,11 @@ void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads,
     }
     cli->pThreadObj[i] = pThrd;
   }
+  int ref = atomic_add_fetch_32(&transSCliInst, 1);
+  if (ref == 1) {
+    refMgt = transOpenExHandleMgt(50000);
+  }
+
   return cli;
 }
 
@@ -1019,6 +1027,10 @@ void transCloseClient(void* arg) {
   }
   taosMemoryFree(cli->pThreadObj);
   taosMemoryFree(cli);
+  int ref = atomic_sub_fetch_32(&transSCliInst, 1);
+  if (ref == 0) {
+    transCloseExHandleMgt(refMgt);
+  }
 }
 void transRefCliHandle(void* handle) {
   if (handle == NULL) {
