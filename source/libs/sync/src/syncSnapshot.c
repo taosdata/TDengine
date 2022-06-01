@@ -80,6 +80,11 @@ static void snapshotSenderDoStart(SSyncSnapshotSender *pSender) {
   SRpcMsg rpcMsg;
   syncSnapshotSend2RpcMsg(pMsg, &rpcMsg);
   syncNodeSendMsgById(&(pMsg->destId), pSender->pSyncNode, &rpcMsg);
+
+  char *msgStr = syncSnapshotSend2Str(pMsg);
+  sTrace("snapshot send begin seq:%d ack:%d msg:%s", pSender->seq, pSender->ack, msgStr);
+  taosMemoryFree(msgStr);
+
   syncSnapshotSendDestroy(pMsg);
 }
 
@@ -107,6 +112,11 @@ void snapshotSenderStart(SSyncSnapshotSender *pSender) {
       SRpcMsg rpcMsg;
       syncSnapshotSend2RpcMsg(pMsg, &rpcMsg);
       syncNodeSendMsgById(&(pMsg->destId), pSender->pSyncNode, &rpcMsg);
+
+      char *msgStr = syncSnapshotSend2Str(pMsg);
+      sTrace("snapshot send force close seq:%d ack:%d msg:%s", pSender->seq, pSender->ack, msgStr);
+      taosMemoryFree(msgStr);
+
       syncSnapshotSendDestroy(pMsg);
 
       // close reader
@@ -122,6 +132,10 @@ void snapshotSenderStart(SSyncSnapshotSender *pSender) {
       ASSERT(pSender->pSyncNode->pRaftStore->currentTerm == pSender->term);
     }
   }
+
+  char *s = snapshotSender2Str(pSender);
+  sInfo("snapshotSenderStart %s", s);
+  taosMemoryFree(s);
 }
 
 void snapshotSenderStop(SSyncSnapshotSender *pSender) {
@@ -138,6 +152,10 @@ void snapshotSenderStop(SSyncSnapshotSender *pSender) {
   }
 
   pSender->start = false;
+
+  char *s = snapshotSender2Str(pSender);
+  sInfo("snapshotSenderStop %s", s);
+  taosMemoryFree(s);
 }
 
 // when sender receiver ack, call this function to send msg from seq
@@ -173,6 +191,15 @@ int32_t snapshotSend(SSyncSnapshotSender *pSender) {
   SRpcMsg rpcMsg;
   syncSnapshotSend2RpcMsg(pMsg, &rpcMsg);
   syncNodeSendMsgById(&(pMsg->destId), pSender->pSyncNode, &rpcMsg);
+
+  char *msgStr = syncSnapshotSend2Str(pMsg);
+  if (pSender->seq == SYNC_SNAPSHOT_SEQ_END) {
+    sTrace("snapshot send finish seq:%d ack:%d msg:%s", pSender->seq, pSender->ack, msgStr);
+  } else {
+    sTrace("snapshot send sending seq:%d ack:%d msg:%s", pSender->seq, pSender->ack, msgStr);
+  }
+  taosMemoryFree(msgStr);
+
   syncSnapshotSendDestroy(pMsg);
 
   return 0;
@@ -193,6 +220,11 @@ int32_t snapshotReSend(SSyncSnapshotSender *pSender) {
     SRpcMsg rpcMsg;
     syncSnapshotSend2RpcMsg(pMsg, &rpcMsg);
     syncNodeSendMsgById(&(pMsg->destId), pSender->pSyncNode, &rpcMsg);
+
+    char *msgStr = syncSnapshotSend2Str(pMsg);
+    sTrace("snapshot send resend seq:%d ack:%d msg:%s", pSender->seq, pSender->ack, msgStr);
+    taosMemoryFree(msgStr);
+
     syncSnapshotSendDestroy(pMsg);
   }
   return 0;
@@ -417,6 +449,7 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
         SRpcMsg rpcMsg;
         syncSnapshotRsp2RpcMsg(pRspMsg, &rpcMsg);
         syncNodeSendMsgById(&(pRspMsg->destId), pSyncNode, &rpcMsg);
+
         syncSnapshotRspDestroy(pRspMsg);
       }
     }
