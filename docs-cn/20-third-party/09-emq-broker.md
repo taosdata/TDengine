@@ -21,18 +21,17 @@ MQTT 是流行的物联网数据传输协议，[EMQX](https://github.com/emqx/em
 ### 以 Docker 安装 TDengine 为例
 
 ```bash
-    docker exec -it tdengine bash
-    taos
+docker exec -it tdengine bash
+taos
 ```
 
 ### 创建数据库和表
 
 ```sql
-    create database test;
-    use test;
-    create table:
-
-    CREATE TABLE sensor_data (ts timestamp, temperature float, humidity float, volume float, PM10 float, pm25 float, SO2 float, NO2 float, CO float, sensor_id NCHAR(255), area TINYINT, coll_time timestamp);
+create database test;
+use test;
+create table:
+CREATE TABLE sensor_data (ts timestamp, temperature float, humidity float, volume float, PM10 float, pm25 float, SO2 float, NO2 float, CO float, sensor_id NCHAR(255), area TINYINT, coll_time timestamp);
 ```
 
 注：表结构以博客[数据传输、存储、展现，EMQX + TDengine 搭建 MQTT 物联网数据可视化平台](https://www.taosdata.com/blog/2020/08/04/1722.html)为例。后续操作均以此博客场景为例进行，请你根据实际应用场景进行修改。
