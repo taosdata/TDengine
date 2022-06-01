@@ -1594,7 +1594,8 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
         }
         colDataAppend(pDst, count, data, (data == NULL));
 
-        if(pDst->info.type != TSDB_DATA_TYPE_JSON && IS_VAR_DATA_TYPE(((const STagVal *)p)->type) && data){
+        if(pDst->info.type != TSDB_DATA_TYPE_JSON && p != NULL
+            && IS_VAR_DATA_TYPE(((const STagVal *)p)->type) && data != NULL){
           taosMemoryFree(data);
         }
       }

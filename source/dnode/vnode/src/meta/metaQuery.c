@@ -626,7 +626,7 @@ int32_t metaFilteTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
   if(IS_VAR_DATA_TYPE(param->type)){
     nTagData = strlen(param->val);
   }else{
-    nTagData = tDataTypes[param->type].bytes
+    nTagData = tDataTypes[param->type].bytes;
   }
   ret = metaCreateTagIdxKey(pCursor->suid, pCursor->cid, param->val, nTagData, pCursor->type,
                             param->reverse ? INT64_MAX : INT64_MIN, &pKey, &nKey);

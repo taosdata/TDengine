@@ -787,11 +787,16 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
 
   pTagColumn = &stbEntry.stbEntry.schemaTag.pSchema[0];
 
+  STagVal tagVal = {.cid = pTagColumn->colId};
   if(pTagColumn->type != TSDB_DATA_TYPE_JSON){
-    STagVal tagVal = {.cid = pTagColumn->colId};
     tTagGet((const STag *)pCtbEntry->ctbEntry.pTags, &tagVal);
-    pTagData = tagVal.pData;
-    nTagData = (int32_t)tagVal.nData;
+    if(IS_VAR_DATA_TYPE(pTagColumn->type)){
+      pTagData = tagVal.pData;
+      nTagData = (int32_t)tagVal.nData;
+    }else{
+      pTagData = &(tagVal.i64);
+      nTagData = tDataTypes[pTagColumn->type].bytes;
+    }
   }else{
     //pTagData = pCtbEntry->ctbEntry.pTags;
     //nTagData = ((const STag *)pCtbEntry->ctbEntry.pTags)->len;
