@@ -115,6 +115,7 @@ static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
     SDB_SET_INT8(pRaw, dataPos, pRetension->freqUnit, _OVER)
     SDB_SET_INT8(pRaw, dataPos, pRetension->keepUnit, _OVER)
   }
+  SDB_SET_INT8(pRaw, dataPos, pDb->cfg.schemaless, _OVER)
 
   SDB_SET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
@@ -192,6 +193,7 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
       }
     }
   }
+  SDB_GET_INT8(pRaw, dataPos, &pDb->cfg.schemaless, _OVER)
 
   SDB_GET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   taosInitRWLatch(&pDb->lock);
@@ -380,6 +382,7 @@ static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->replications < TSDB_MIN_DB_REPLICA || pCfg->replications > TSDB_MAX_DB_REPLICA) return -1;
   if (pCfg->replications != 1 && pCfg->replications != 3) return -1;
   if (pCfg->strict < TSDB_DB_STRICT_OFF || pCfg->strict > TSDB_DB_STRICT_ON) return -1;
+  if (pCfg->schemaless < TSDB_DB_SCHEMALESS_OFF || pCfg->schemaless > TSDB_DB_SCHEMALESS_ON) return -1;
   if (pCfg->cacheLastRow < TSDB_MIN_DB_CACHE_LAST_ROW || pCfg->cacheLastRow > TSDB_MAX_DB_CACHE_LAST_ROW) return -1;
   if (pCfg->hashMethod != 1) return -1;
   if (pCfg->replications > mndGetDnodeSize(pMnode)) {
@@ -411,6 +414,8 @@ static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->strict < 0) pCfg->strict = TSDB_DEFAULT_DB_STRICT;
   if (pCfg->cacheLastRow < 0) pCfg->cacheLastRow = TSDB_DEFAULT_CACHE_LAST_ROW;
   if (pCfg->numOfRetensions < 0) pCfg->numOfRetensions = 0;
+  if (pCfg->schemaless < 0) pCfg->schemaless = TSDB_DB_SCHEMALESS_OFF;
+
 }
 
 static int32_t mndSetCreateDbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups) {
@@ -521,6 +526,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       .strict = pCreate->strict,
       .cacheLastRow = pCreate->cacheLastRow,
       .hashMethod = 1,
+      .schemaless = pCreate->schemaless,
   };
 
   dbObj.cfg.numOfRetensions = pCreate->numOfRetensions;
@@ -899,6 +905,7 @@ static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
   cfgRsp.cacheLastRow = pDb->cfg.cacheLastRow;
   cfgRsp.numOfRetensions = pDb->cfg.numOfRetensions;
   cfgRsp.pRetensions = pDb->cfg.pRetensions;
+  cfgRsp.schemaless = pDb->cfg.schemaless;
 
   int32_t contLen = tSerializeSDbCfgRsp(NULL, 0, &cfgRsp);
   void   *pRsp = rpcMallocCont(contLen);
@@ -1542,8 +1549,12 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.numOfStables, false);
 
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.schemaless, false);
+
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     colDataAppend(pColInfo, rows, (const char *)statusB, false);
+
   }
 }
 

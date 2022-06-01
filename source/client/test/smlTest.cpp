@@ -1259,3 +1259,25 @@ TEST(testCase, sml_TD15742_Test) {
   destroyRequest(request);
   smlDestroyInfo(info);
 }
+
+TEST(testCase, sml_params_Test) {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists param");
+  taos_free_result(pRes);
+
+  const char *sql[] = {
+      "test_ms,t0=t c0=f 1626006833641",
+  };
+  TAOS_RES* res = taos_schemaless_insert(taos, (char**)sql, 1, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+  ASSERT_EQ(taos_errno(res), TSDB_CODE_PAR_DB_NOT_SPECIFIED);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use param");
+  taos_free_result(pRes);
+
+  res = taos_schemaless_insert(taos, (char**)sql, 1, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+  ASSERT_EQ(taos_errno(res), TSDB_CODE_SML_INVALID_DB_CONF);
+  taos_free_result(pRes);
+}

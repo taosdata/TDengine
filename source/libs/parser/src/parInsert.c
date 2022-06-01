@@ -1404,6 +1404,23 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
   return buildOutput(pCxt);
 }
 
+int32_t isNotSchemalessDb(SParseContext* pContext){
+  SName          name;
+  tNameSetDbName(&name, pContext->acctId, pContext->db, strlen(pContext->db));
+  char dbFname[TSDB_DB_FNAME_LEN] = {0};
+  tNameGetFullDbName(&name, dbFname);
+  SDbCfgInfo pInfo = {0};
+  int32_t code = catalogGetDBCfg(pContext->pCatalog, pContext->pTransporter, &pContext->mgmtEpSet, dbFname, &pInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    parserError("catalogGetDBCfg error, code:%s, dbFName:%s", tstrerror(code), dbFname);
+    return code;
+  }
+  if (pInfo.schemaless){
+    parserError("can not insert into schemaless db:%s", dbFname);
+    return TSDB_CODE_SML_INVALID_DB_CONF;
+  }
+  return TSDB_CODE_SUCCESS;
+}
 // INSERT INTO
 //   tb_name
 //       [USING stb_name [(tag1_name, ...)] TAGS (tag1_value, ...)]
@@ -1451,6 +1468,11 @@ int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery) {
   (*pQuery)->msgType = TDMT_VND_SUBMIT;
   (*pQuery)->pRoot = (SNode*)context.pOutput;
 
+  int32_t code = isNotSchemalessDb(pContext);
+  if(code != TSDB_CODE_SUCCESS){
+    return code;
+  }
+
   if (NULL == (*pQuery)->pTableList) {
     (*pQuery)->pTableList = taosArrayInit(taosHashGetSize(context.pTableNameHashObj), sizeof(SName));
     if (NULL == (*pQuery)->pTableList) {
@@ -1460,7 +1482,7 @@ int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery) {
 
   context.pOutput->payloadType = PAYLOAD_TYPE_KV;
 
-  int32_t code = skipInsertInto(&context.pSql, &context.msg);
+  code = skipInsertInto(&context.pSql, &context.msg);
   if (TSDB_CODE_SUCCESS == code) {
     code = parseInsertBody(&context);
   }
