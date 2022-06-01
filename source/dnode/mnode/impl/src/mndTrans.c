@@ -1006,6 +1006,9 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
         if (pAction->msgReceived) {
           if (pAction->errCode != 0 && pAction->errCode != pAction->acceptableCode) {
             code = pAction->errCode;
+            pAction->msgSent = 0;
+            pAction->msgReceived = 0;
+            mDebug("trans:%d, %s:%d execute status is reset", pTrans->id, mndTransStr(pAction->stage), action);
           }
         } else {
           code = TSDB_CODE_ACTION_IN_PROGRESS;
