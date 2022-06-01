@@ -1034,7 +1034,7 @@ SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
     SELECT MAVG(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
 ```
 
-**Description**: The moving average of continuous _k_ values of a specific column. If the number of input rows is less than _k_, nothing is returned. The applicable range is _k_ is [1,1000].
+**Description**: The moving average of continuous _k_ values of a specific column. If the number of input rows is less than _k_, nothing is returned. The applicable range of _k_ is [1,1000].
 
 **Return value type**: Double precision floating point
 
@@ -1875,9 +1875,9 @@ taos> SELECT TO_UNIXTIMESTAMP(col_binary) FROM meters;
 SELECT TIMETRUNCATE(ts_val | datetime_string | ts_col, time_unit) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
-**Description**: Truncate the input timestamp with unit specified by `time_unit`\
+**Description**: Truncate the input timestamp with unit specified by `time_unit`
 
-**Return value type**: TIMESTAMP\
+**Return value type**: TIMESTAMP
 
 **Applicable column types**: UNIX timestamp constant, string constant of date/time format, or a column of timestamp
 
