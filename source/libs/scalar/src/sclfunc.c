@@ -444,7 +444,8 @@ int32_t concatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   for (int32_t k = 0; k < numOfRows; ++k) {
     bool hasNull = false;
     for (int32_t i = 0; i < inputNum; ++i) {
-      if (colDataIsNull_s(pInputData[i], k)) {
+      if (colDataIsNull_s(pInputData[i], k) ||
+          GET_PARAM_TYPE(&pInput[i]) == TSDB_DATA_TYPE_NULL) {
         colDataAppendNULL(pOutputData, k);
         hasNull = true;
         break;
@@ -520,7 +521,8 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
   char *output = outputBuf;
 
   for (int32_t k = 0; k < numOfRows; ++k) {
-    if (colDataIsNull_s(pInputData[0], k)) {
+    if (colDataIsNull_s(pInputData[0], k) ||
+        GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NULL) {
       colDataAppendNULL(pOutputData, k);
       continue;
     }
@@ -528,7 +530,8 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
     int16_t dataLen = 0;
     bool hasNull = false;
     for (int32_t i = 1; i < inputNum; ++i) {
-      if (colDataIsNull_s(pInputData[i], k)) {
+      if (colDataIsNull_s(pInputData[i], k) ||
+          GET_PARAM_TYPE(&pInput[i]) == TSDB_DATA_TYPE_NULL) {
         hasNull = true;
         break;
       }
