@@ -75,7 +75,7 @@ int32_t syncIOSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
     syncUtilMsgNtoH(pMsg->pCont);
 
     char logBuf[256] = {0};
-    snprintf(logBuf, sizeof(logBuf), "==syncIOSendMsg== %s:%d", pEpSet->eps[0].fqdn, pEpSet->eps[0].port);
+    snprintf(logBuf, sizeof(logBuf), "==syncIOSendMsg== %s:%d msgType:%d", pEpSet->eps[0].fqdn, pEpSet->eps[0].port, pMsg->msgType);
     syncRpcMsgLog2(logBuf, pMsg);
 
     syncUtilMsgHtoN(pMsg->pCont);
@@ -253,7 +253,9 @@ static void *syncIOConsumerFunc(void *param) {
 
     for (int i = 0; i < numOfMsgs; ++i) {
       taosGetQitem(qall, (void **)&pRpcMsg);
-      syncRpcMsgLog2((char *)"==syncIOConsumerFunc==", pRpcMsg);
+      char logBuf[128];
+      snprintf(logBuf, sizeof(logBuf), "==syncIOConsumerFunc== msgType:%d", pRpcMsg->msgType);
+      syncRpcMsgLog2(logBuf, pRpcMsg);
 
       // use switch case instead of if else
       if (pRpcMsg->msgType == TDMT_VND_SYNC_PING) {
