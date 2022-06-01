@@ -95,9 +95,13 @@ class TDCom:
         stb_list = map(lambda x: x[0], res_row_list)
         for stb in stb_list:
             if type == "taosc":
-                tdSql.execute(f'drop table if exists {stb}')
+                tdSql.execute(f'drop table if exists `{stb}`')
+                if not stb[0].isdigit():
+                    tdSql.execute(f'drop table if exists {stb}')
             elif type == "restful":
-                self.restApiPost(f"drop table if exists {stb}")
+                self.restApiPost(f"drop table if exists `{stb}`")
+                if not stb[0].isdigit():
+                    self.restApiPost(f"drop table if exists {stb}")
 
     def dateToTs(self, datetime_input):
         return int(time.mktime(time.strptime(datetime_input, "%Y-%m-%d %H:%M:%S.%f")))

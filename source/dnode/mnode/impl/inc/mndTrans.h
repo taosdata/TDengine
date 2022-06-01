@@ -34,7 +34,7 @@ typedef struct {
   int32_t  errCode;
   int32_t  acceptableCode;
   int8_t   stage;
-  int8_t   isRaw;
+  int8_t   actionType; // 0-msg, 1-raw
   int8_t   rawWritten;
   int8_t   msgSent;
   int8_t   msgReceived;
@@ -52,7 +52,7 @@ void    mndCleanupTrans(SMnode *pMnode);
 STrans *mndAcquireTrans(SMnode *pMnode, int32_t transId);
 void    mndReleaseTrans(SMnode *pMnode, STrans *pTrans);
 
-STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnType type, const SRpcMsg *pReq);
+STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, const SRpcMsg *pReq);
 void    mndTransDrop(STrans *pTrans);
 int32_t mndTransAppendRedolog(STrans *pTrans, SSdbRaw *pRaw);
 int32_t mndTransAppendUndolog(STrans *pTrans, SSdbRaw *pRaw);
@@ -62,7 +62,7 @@ int32_t mndTransAppendUndoAction(STrans *pTrans, STransAction *pAction);
 void    mndTransSetRpcRsp(STrans *pTrans, void *pCont, int32_t contLen);
 void    mndTransSetCb(STrans *pTrans, ETrnFunc startFunc, ETrnFunc stopFunc, void *param, int32_t paramLen);
 void    mndTransSetDbInfo(STrans *pTrans, SDbObj *pDb);
-void    mndTransSetNoParallel(STrans *pTrans);
+void    mndTransSetSerial(STrans *pTrans);
 
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans);
 void    mndTransProcessRsp(SRpcMsg *pRsp);

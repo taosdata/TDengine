@@ -96,9 +96,9 @@ SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic) {
   SDB_SET_INT64(pRaw, dataPos, pTopic->dbUid, TOPIC_ENCODE_OVER);
   SDB_SET_INT32(pRaw, dataPos, pTopic->version, TOPIC_ENCODE_OVER);
   SDB_SET_INT8(pRaw, dataPos, pTopic->subType, TOPIC_ENCODE_OVER);
-  SDB_SET_INT8(pRaw, dataPos, pTopic->withTbName, TOPIC_ENCODE_OVER);
-  SDB_SET_INT8(pRaw, dataPos, pTopic->withSchema, TOPIC_ENCODE_OVER);
-  SDB_SET_INT8(pRaw, dataPos, pTopic->withTag, TOPIC_ENCODE_OVER);
+  /*SDB_SET_INT8(pRaw, dataPos, pTopic->withTbName, TOPIC_ENCODE_OVER);*/
+  /*SDB_SET_INT8(pRaw, dataPos, pTopic->withSchema, TOPIC_ENCODE_OVER);*/
+  /*SDB_SET_INT8(pRaw, dataPos, pTopic->withTag, TOPIC_ENCODE_OVER);*/
 
   SDB_SET_INT32(pRaw, dataPos, pTopic->consumerCnt, TOPIC_ENCODE_OVER);
   SDB_SET_INT32(pRaw, dataPos, pTopic->sqlLen, TOPIC_ENCODE_OVER);
@@ -168,9 +168,9 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, dataPos, &pTopic->dbUid, TOPIC_DECODE_OVER);
   SDB_GET_INT32(pRaw, dataPos, &pTopic->version, TOPIC_DECODE_OVER);
   SDB_GET_INT8(pRaw, dataPos, &pTopic->subType, TOPIC_DECODE_OVER);
-  SDB_GET_INT8(pRaw, dataPos, &pTopic->withTbName, TOPIC_DECODE_OVER);
-  SDB_GET_INT8(pRaw, dataPos, &pTopic->withSchema, TOPIC_DECODE_OVER);
-  SDB_GET_INT8(pRaw, dataPos, &pTopic->withTag, TOPIC_DECODE_OVER);
+  /*SDB_GET_INT8(pRaw, dataPos, &pTopic->withTbName, TOPIC_DECODE_OVER);*/
+  /*SDB_GET_INT8(pRaw, dataPos, &pTopic->withSchema, TOPIC_DECODE_OVER);*/
+  /*SDB_GET_INT8(pRaw, dataPos, &pTopic->withTag, TOPIC_DECODE_OVER);*/
 
   SDB_GET_INT32(pRaw, dataPos, &pTopic->consumerCnt, TOPIC_DECODE_OVER);
 
@@ -308,11 +308,19 @@ static SDDropTopicReq *mndBuildDropTopicMsg(SMnode *pMnode, SVgObj *pVgroup, SMq
 }
 
 static int32_t mndCheckCreateTopicReq(SCMCreateTopicReq *pCreate) {
-  if (pCreate->name[0] == 0 || pCreate->sql == NULL || pCreate->sql[0] == 0 || pCreate->subscribeDbName[0] == 0) {
-    terrno = TSDB_CODE_MND_INVALID_TOPIC;
-    return -1;
+  terrno = TSDB_CODE_MND_INVALID_TOPIC;
+
+  if (pCreate->sql == NULL) return -1;
+
+  if (pCreate->subType == TOPIC_SUB_TYPE__COLUMN) {
+    if (pCreate->ast == NULL || pCreate->ast[0] == 0) return -1;
+  } else if (pCreate->subType == TOPIC_SUB_TYPE__TABLE) {
+    if (pCreate->subStbName[0] == 0) return -1;
+  } else if (pCreate->subType == TOPIC_SUB_TYPE__DB) {
+    if (pCreate->subDbName[0] == 0) return -1;
   }
 
+  terrno = TSDB_CODE_SUCCESS;
   return 0;
 }
 
@@ -328,14 +336,13 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   topicObj.version = 1;
   topicObj.sql = strdup(pCreate->sql);
   topicObj.sqlLen = strlen(pCreate->sql) + 1;
-  /*topicObj.refConsumerCnt = 0;*/
+  topicObj.subType = pCreate->subType;
 
-  if (pCreate->ast && pCreate->ast[0]) {
+  if (pCreate->subType == TOPIC_SUB_TYPE__COLUMN) {
     topicObj.ast = strdup(pCreate->ast);
     topicObj.astLen = strlen(pCreate->ast) + 1;
-    topicObj.subType = TOPIC_SUB_TYPE__TABLE;
-    topicObj.withTbName = pCreate->withTbName;
-    topicObj.withSchema = pCreate->withSchema;
+    /*topicObj.withTbName = pCreate->withTbName;*/
+    /*topicObj.withSchema = pCreate->withSchema;*/
 
     SNode *pAst = NULL;
     if (nodesStringToNode(pCreate->ast, &pAst) != 0) {
@@ -368,16 +375,15 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
       taosMemoryFree(topicObj.sql);
       return -1;
     }
-  } else {
-    topicObj.ast = NULL;
-    topicObj.astLen = 0;
-    topicObj.physicalPlan = NULL;
-    topicObj.subType = TOPIC_SUB_TYPE__DB;
-    topicObj.withTbName = 1;
-    topicObj.withSchema = 1;
+    /*} else if (pCreate->subType == TOPIC_SUB_TYPE__DB) {*/
+    /*topicObj.ast = NULL;*/
+    /*topicObj.astLen = 0;*/
+    /*topicObj.physicalPlan = NULL;*/
+    /*topicObj.withTbName = 1;*/
+    /*topicObj.withSchema = 1;*/
   }
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_TOPIC, pReq);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq);
   if (pTrans == NULL) {
     mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
     taosMemoryFreeClear(topicObj.ast);
@@ -442,7 +448,7 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
     goto CREATE_TOPIC_OVER;
   }
 
-  pDb = mndAcquireDb(pMnode, createTopicReq.subscribeDbName);
+  pDb = mndAcquireDb(pMnode, createTopicReq.subDbName);
   if (pDb == NULL) {
     terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
     goto CREATE_TOPIC_OVER;
@@ -545,7 +551,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   }
 #endif
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_DROP_TOPIC, pReq);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq);
   if (pTrans == NULL) {
     mError("topic:%s, failed to drop since %s", pTopic->name, terrstr());
     return -1;
