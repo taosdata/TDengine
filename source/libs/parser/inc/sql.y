@@ -15,11 +15,15 @@
 #include <assert.h>
 #include <stdbool.h>
 
+#define ALLOW_FORBID_FUNC
+
 #include "functionMgt.h"
 #include "nodes.h"
 #include "parToken.h"
 #include "ttokendef.h"
 #include "parAst.h"
+
+#define YYSTACKDEPTH 0
 }
 
 %syntax_error {
