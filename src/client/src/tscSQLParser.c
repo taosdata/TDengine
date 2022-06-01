@@ -8831,13 +8831,16 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
     free(row);
     
     bool dbIncluded2 = false;
+    char tmp[TSDB_TABLE_FNAME_LEN] = {0};
+    SStrToken tbName = taosTokenDup(&pCreateTableInfo->name, tmp, tListLen(tmp));
+
     // table name
-    if (tscValidateName(&(pCreateTableInfo->name), true, &dbIncluded2) != TSDB_CODE_SUCCESS) {
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
+    if (tscValidateName(&tbName, true, &dbIncluded2) != TSDB_CODE_SUCCESS) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), STR_INVALID_TABLE_NAME);
     }
 
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, TABLE_INDEX);
-    ret = tscSetTableFullName(&pTableMetaInfo->name, &pCreateTableInfo->name, pSql, dbIncluded2);
+    ret = tscSetTableFullName(&pTableMetaInfo->name, &tbName, pSql, dbIncluded2);    
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
