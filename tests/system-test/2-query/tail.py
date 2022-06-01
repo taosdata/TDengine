@@ -1,4 +1,3 @@
-from math import floor
 from random import randint, random
 from numpy import equal
 import taos
@@ -80,7 +79,7 @@ class TDTestCase:
             "select tail(c1 ,c2 ) from t1",
             "select tail(c1 ,NULL) from t1",
             "select tail(,) from t1;",
-            "select tail(floor(c1) ab from t1)",
+            "select tail(tail(c1) ab from t1)",
             "select tail(c1) as int from t1",
             "select tail('c1') from t1",
             "select tail(NULL) from t1",
@@ -104,7 +103,7 @@ class TDTestCase:
             "select tail(c1 ,c2 ) from stb1 partition by tbname",
             "select tail(c1 ,NULL) from stb1 partition by tbname",
             "select tail(,) from stb1 partition by tbname;",
-            "select tail(floor(c1) ab from stb1 partition by tbname)",
+            "select tail(tail(c1) ab from stb1 partition by tbname)",
             "select tail(c1) as int from stb1 partition by tbname",
             "select tail('c1') from stb1 partition by tbname",
             "select tail(NULL) from stb1 partition by tbname",
@@ -194,6 +193,7 @@ class TDTestCase:
         tail_result = tdSql.queryResult
 
         tdSql.query(equal_sql)
+        print(equal_sql)
 
         equal_result = tdSql.queryResult
 
@@ -233,6 +233,9 @@ class TDTestCase:
         col_lists_rows = tdSql.queryResult
         col_lists = []
         for col_name in col_lists_rows:
+            if col_name[0] =="ts":
+                continue
+            
             col_lists.append(col_name[0])
  
         for col in col_lists:
@@ -419,11 +422,11 @@ class TDTestCase:
 
         self.support_types()
 
-        tdLog.printNoPrefix("==========step4: floor basic query ============") 
+        tdLog.printNoPrefix("==========step4: tail basic query ============") 
 
         self.basic_tail_function()
 
-        tdLog.printNoPrefix("==========step5: floor boundary query ============") 
+        tdLog.printNoPrefix("==========step5: tail boundary query ============") 
 
         self.check_boundary_values()
 
