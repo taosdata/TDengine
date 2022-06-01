@@ -71,7 +71,7 @@ endif(${BUILD_TEST})
 add_subdirectory(community/source)
 add_subdirectory(community/tools)
 add_subdirectory(community/tests)
-add_subdirectory(community/example)
+add_subdirectory(community/examples/c)
 
 # docs 
 add_subdirectory(community/docs)
