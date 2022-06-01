@@ -396,6 +396,11 @@ static int32_t mndProcessCreateMnodeReq(SRpcMsg *pReq) {
 
   mDebug("mnode:%d, start to create", createReq.dnodeId);
 
+  if (sdbGetSize(pMnode->pSdb, SDB_MNODE) > 3) {
+     terrno = TSDB_CODE_MND_TOO_MANY_MNODES;
+     goto _OVER;
+  }
+
   pObj = mndAcquireMnode(pMnode, createReq.dnodeId);
   if (pObj != NULL) {
     terrno = TSDB_CODE_MND_MNODE_ALREADY_EXIST;
