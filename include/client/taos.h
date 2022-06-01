@@ -230,7 +230,7 @@ DLL_EXPORT const char *tmq_err2str(tmq_resp_err_t);
 DLL_EXPORT tmq_resp_err_t tmq_subscribe(tmq_t *tmq, const tmq_list_t *topic_list);
 DLL_EXPORT tmq_resp_err_t tmq_unsubscribe(tmq_t *tmq);
 DLL_EXPORT tmq_resp_err_t tmq_subscription(tmq_t *tmq, tmq_list_t **topics);
-DLL_EXPORT TAOS_RES      *tmq_consumer_poll(tmq_t *tmq, int64_t wait_time);
+DLL_EXPORT TAOS_RES      *tmq_consumer_poll(tmq_t *tmq, int64_t timeout);
 DLL_EXPORT tmq_resp_err_t tmq_consumer_close(tmq_t *tmq);
 DLL_EXPORT tmq_resp_err_t tmq_commit_sync(tmq_t *tmq, const tmq_topic_vgroup_list_t *offsets);
 DLL_EXPORT void tmq_commit_async(tmq_t *tmq, const tmq_topic_vgroup_list_t *offsets, tmq_commit_cb *cb, void *param);
