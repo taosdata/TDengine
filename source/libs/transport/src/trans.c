@@ -36,6 +36,8 @@ static int32_t transValidLocalFqdn(const char* localFqdn, uint32_t* ip) {
   return 0;
 }
 void* rpcOpen(const SRpcInit* pInit) {
+  transInitEnv();
+
   SRpcInfo* pRpc = taosMemoryCalloc(1, sizeof(SRpcInfo));
   if (pRpc == NULL) {
     return NULL;
@@ -74,12 +76,15 @@ void* rpcOpen(const SRpcInit* pInit) {
   if (pInit->user) {
     memcpy(pRpc->user, pInit->user, strlen(pInit->user));
   }
+  // pRpc->refMgt = transOpenExHandleMgt(50000);
   return pRpc;
 }
 void rpcClose(void* arg) {
   SRpcInfo* pRpc = (SRpcInfo*)arg;
   (*taosCloseHandle[pRpc->connType])(pRpc->tcphandle);
+  transCloseExHandleMgt(pRpc->refMgt);
   taosMemoryFree(pRpc);
+
   return;
 }
 
