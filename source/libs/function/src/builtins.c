@@ -921,16 +921,75 @@ static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return TSDB_CODE_SUCCESS;
 }
 
+/* Following are valid iso-8601 timezone format:
+ * z/Z
+ * ±hh:mm
+ * ±hhmm
+ * ±hh
+ *
+ */
+
+static bool validateTimezoneFormat(const SValueNode* pVal) {
+  if (TSDB_DATA_TYPE_BINARY != pVal->node.resType.type) {
+    return false;
+  }
+
+  char *tz = pVal->datum.p;
+  int32_t len = (int32_t)strlen(tz);
+
+  if (len == 0) {
+    return false;
+  } else if (len == 1 && (tz[0] == 'z' || tz[0] == 'Z')) {
+    return true;
+  } else if ((tz[0] == '+' || tz[0] == '-')) {
+    switch (len) {
+      case 3:
+      case 5:
+      case 6: {
+        for (int32_t i = 1; i < len; ++i) {
+          if (len == 6 && i == 3 && tz[i] != ':') {
+            return false;
+          }
+          if (!isdigit(tz[i])) {
+            return false;
+          }
+        }
+      }
+      default: {
+        return false;
+      }
+    }
+  } else {
+    return false;
+  }
+
+  return true;
+}
+
 static int32_t translateToIso8601(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  if (1 != numOfParams && 2 != numOfParams) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
+  //param0
   uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
   if (!IS_INTEGER_TYPE(paraType) && TSDB_DATA_TYPE_TIMESTAMP != paraType) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
+  //param1
+  if (numOfParams == 2) {
+    SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
+
+    if (!validateTimezoneFormat(pValue)) {
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                             "Invalid timzone format");
+    }
+  } else { //add default client timezone
+  }
+
+  //set result type
   pFunc->node.resType = (SDataType){.bytes = 64, .type = TSDB_DATA_TYPE_BINARY};
   return TSDB_CODE_SUCCESS;
 }
