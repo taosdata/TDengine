@@ -174,6 +174,9 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
 
   ASSERT(taosArrayGetSize(rsp.blockData) == rsp.blockNum);
   ASSERT(taosArrayGetSize(rsp.blockDataLen) == rsp.blockNum);
+  if (rsp.withSchema) {
+    ASSERT(taosArrayGetSize(rsp.blockSchema) == rsp.blockNum);
+  }
 
   rsp.rspOffset = fetchOffset;
 
