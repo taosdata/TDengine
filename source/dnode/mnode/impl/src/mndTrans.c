@@ -667,12 +667,10 @@ static bool mndCheckTransConflict(SMnode *pMnode, STrans *pNew) {
       if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
       if (pTrans->conflict == TRN_CONFLICT_DB && strcmp(pNew->dbname, pTrans->dbname) == 0) conflict = true;
     }
+    mError("trans:%d, can't execute since conflict with trans:%d, db:%s", pNew->id, pTrans->id, pTrans->dbname);
     sdbRelease(pMnode->pSdb, pTrans);
   }
 
-  if (conflict) {
-    mError("trans:%d, can't execute since conflict with trans:%d, db:%s", pNew->id, pTrans->id, pTrans->dbname);
-  }
   return conflict;
 }
 
