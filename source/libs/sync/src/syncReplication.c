@@ -144,6 +144,8 @@ int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
       sInfo("nextIndex:%ld in snapshot: <lastApplyIndex:%ld, lastApplyTerm:%lu>, begin snapshot", nextIndex,
             snapshot.lastApplyIndex, snapshot.lastApplyTerm);
 
+      // do not use next index
+      // always send from new last index + 1
       SyncIndex lastIndex;
       SyncTerm  lastTerm;
       ret = syncNodeGetLastIndexTerm(pSyncNode, &lastIndex, &lastTerm);
