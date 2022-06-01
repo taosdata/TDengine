@@ -13,7 +13,7 @@ The TDengine image starts with the HTTP service activated by default, using the 
 docker run -d --name tdengine -p 6041:6041 tdengine/tdengine
 ```
 
-The above command starts a container named "tdengine" and maps the HTTP service end 6041 to the host port 6041. You can verify that the HTTP service provided in this container is available using the following command.
+The above command starts a container named "tdengine" and maps the HTTP service port 6041 to the host port 6041. You can verify that the HTTP service provided in this container is available using the following command.
 
 ```shell
 curl -u root:taosdata -d "show databases" localhost:6041/rest/sql
@@ -34,7 +34,7 @@ taos> show databases;
 Query OK, 1 row(s) in set (0.002843s)
 ```
 
-The TDengine server running in the container uses the container's hostname to establish a connection. Using TDengine CLI or various connectors (such as JDBC-JNI) to access the TDengine inside the container from outside the container is more complicated. So the above is the simplest way to access the TDengine service in the container and is suitable for some simple scenarios. Please refer to the next section if you want to access the TDengine service in the container from containerized using TDengine CLI or various connectors in some complex scenarios.
+The TDengine server running in the container uses the container's hostname to establish a connection. Using TDengine CLI or various connectors (such as JDBC-JNI) to access the TDengine inside the container from outside the container is more complicated. So the above is the simplest way to access the TDengine service in the container and is suitable for some simple scenarios. Please refer to the next section if you want to access the TDengine service in the container from outside the container using TDengine CLI or various connectors for complex scenarios.
 
 ## Start TDengine on the host network
 
@@ -42,7 +42,7 @@ The TDengine server running in the container uses the container's hostname to es
 docker run -d --name tdengine --network host tdengine/tdengine
 ```
 
-The above command starts TDengine on the host network and uses the host's FQDN to establish a connection instead of the container's hostname. It works too, like using `systemctl` to start TDengine on the host. If the TDengine client is already installed on the host, you can access it directly with the following command.
+The above command starts TDengine on the host network and uses the host's FQDN to establish a connection instead of the container's hostname. It is the equivalent of using `systemctl` to start TDengine on the host. If the TDengine client is already installed on the host, you can access it directly with the following command.
 
 ```shell
 $ taos
@@ -382,7 +382,7 @@ password:             taosdata
     Suppose you want to deploy multiple taosAdapters to improve throughput and provide high availability. In that case, the recommended configuration method uses a reverse proxy such as Nginx to offer a unified access entry. For specific configuration methods, please refer to the official documentation of Nginx. Here is an example:
 
    ```docker
-   ersion: "3"
+   version: "3"
 
    networks:
      inter:

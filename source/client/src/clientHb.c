@@ -160,6 +160,10 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
         taos_close(pTscObj);
       }
 
+      if (pRsp->query->pQnodeList) {
+        updateQnodeList(pTscObj->pAppInfo, pRsp->query->pQnodeList);
+      }
+
       releaseTscObj(pRsp->connKey.tscRid);
     }
   }

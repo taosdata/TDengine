@@ -333,7 +333,7 @@ static void setQueryTimewindow(STsdbReadHandle* pTsdbReadHandle, SQueryTableData
 }
 
 static STsdb* getTsdbByRetentions(SVnode* pVnode, STsdbReadHandle* pReadHandle, TSKEY winSKey, SRetention* retentions) {
-  if (vnodeIsRollup(pVnode)) {
+  if (VND_IS_RSMA(pVnode)) {
     int     level = 0;
     int64_t now = taosGetTimestamp(pVnode->config.tsdbCfg.precision);
 
@@ -1395,7 +1395,7 @@ static int32_t handleDataMergeIfNeeded(STsdbReadHandle* pTsdbReadHandle, SBlock*
     }
 
     if (pTsdbReadHandle->outputCapacity >= binfo.rows) {
-      ASSERT(cur->blockCompleted);
+      ASSERT(cur->blockCompleted || cur->mixBlock);
     }
 
     if (cur->rows == binfo.rows) {

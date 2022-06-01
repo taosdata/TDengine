@@ -17,7 +17,7 @@ password = "taosdata"
 ...
 ```
 
-The taosAdapter writes to the database with the default name `tcollector`. You can also modify the taosAdapter configuration file dbs entry to specify a different name. user and password fill in the actual TDengine configuration values. After changing the configuration file, you need to restart the taosAdapter.
+The taosAdapter writes to the database with the default name `tcollector`. You can also modify the taosAdapter configuration file dbs entry to specify a different name. Fill in the actual user and password for TDengine. After changing the configuration file, you need to restart the taosAdapter.
 
 - You can also enable taosAdapter to receive tcollector data by using the taosAdapter command-line parameters or setting environment variables.
 
@@ -25,7 +25,7 @@ The taosAdapter writes to the database with the default name `tcollector`. You c
 
 To use TCollector, you need to download its [source code](https://github.com/OpenTSDB/tcollector). Its configuration items are in its source code. Note: TCollector differs significantly from version to version, so here is an example of the latest code for the current master branch (git commit: 37ae920).
 
-Modify the contents of the `collectors/etc/config.py` and `tcollector.py` files. Change the address of the OpenTSDB host to the domain name or IP address of the server where taosAdapter is deployed, and change the port to the port that taosAdapter supports TCollector on (default is 6049).
+Modify the contents of the `collectors/etc/config.py` and `tcollector.py` files. Change the address of the OpenTSDB host to the domain name or IP address of the server where taosAdapter is deployed, and change the port to the port on which taosAdapter supports TCollector (default is 6049).
 
 Example of git diff output of source code changes.
 

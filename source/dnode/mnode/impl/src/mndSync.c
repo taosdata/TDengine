@@ -65,7 +65,7 @@ int32_t mndSyncGetSnapshot(struct SSyncFSM *pFsm, SSnapshot *pSnapshot) {
 void mndRestoreFinish(struct SSyncFSM *pFsm) {
   SMnode *pMnode = pFsm->data;
   if (!pMnode->deploy) {
-    mInfo("mnode sync restore finished");
+    mInfo("mnode sync restore finished, and will handle outstanding transactions");
     mndTransPullup(pMnode);
     mndSetRestore(pMnode, true);
   } else {
@@ -244,7 +244,7 @@ void mndSyncStart(SMnode *pMnode) {
   } else {
     syncStart(pMgmt->sync);
   }
-  mDebug("sync:%" PRId64 " is started, standby:%d", pMgmt->sync, pMgmt->standby);
+  mDebug("mnode sync started, id:%" PRId64 " standby:%d", pMgmt->sync, pMgmt->standby);
 }
 
 void mndSyncStop(SMnode *pMnode) {}

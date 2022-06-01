@@ -10,6 +10,9 @@
 #include "../../../include/client/taos.h"
 
 #define FUNCTION_TEST_IDX 1
+#define TIME_PRECISION_MILLI   0
+#define TIME_PRECISION_MICRO   1
+#define TIME_PRECISION_NANO    2
 
 int32_t shortColList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_INT};
 int32_t fullColList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_BOOL, TSDB_DATA_TYPE_TINYINT, TSDB_DATA_TYPE_UTINYINT, TSDB_DATA_TYPE_SMALLINT, TSDB_DATA_TYPE_USMALLINT, TSDB_DATA_TYPE_INT, TSDB_DATA_TYPE_UINT, TSDB_DATA_TYPE_BIGINT, TSDB_DATA_TYPE_UBIGINT, TSDB_DATA_TYPE_FLOAT, TSDB_DATA_TYPE_DOUBLE, TSDB_DATA_TYPE_BINARY, TSDB_DATA_TYPE_NCHAR};
@@ -31,6 +34,8 @@ typedef enum {
   BP_BIND_TAG = 1,
   BP_BIND_COL,
 } BP_BIND_TYPE;
+
+#define BP_BIND_TYPE_STR(t) (((t) == BP_BIND_COL) ? "column" : "tag")
 
 OperInfo operInfo[] = {
   {">",        2, false},
@@ -57,11 +62,12 @@ FuncInfo funcInfo[] = {
   {"min",   1},
 };
 
+#define BP_STARTUP_TS 1591060628000
+
 char *bpStbPrefix = "st";
 char *bpTbPrefix = "t";
 int32_t bpDefaultStbId = 1;
-
-
+int64_t bpTs;
 
 //char *operatorList[] = {">", ">=", "<", "<=", "=", "<>", "in", "not in"};
 //char *varoperatorList[] = {">", ">=", "<", "<=", "=", "<>", "in", "not in", "like", "not like", "match", "nmatch"};
@@ -188,8 +194,10 @@ typedef struct {
   bool     printCreateTblSql;
   bool     printQuerySql;
   bool     printStmtSql;
+  bool     printVerbose;
   bool     autoCreateTbl;
   bool     numericParam;
+  uint8_t  precision;
   int32_t  rowNum;               //row num for one table
   int32_t  bindColNum;
   int32_t  bindTagNum;
@@ -209,12 +217,15 @@ typedef struct {
   int32_t  caseRunNum;           // total run case num
 } CaseCtrl;
 
-#if 1
+#if 0
 CaseCtrl gCaseCtrl = { // default
+  .precision = TIME_PRECISION_MICRO,
   .bindNullNum = 0,
   .printCreateTblSql = false,
   .printQuerySql = true,
   .printStmtSql = true,
+  .printVerbose = false,
+  .printRes = false,
   .autoCreateTbl = false,
   .numericParam = false,
   .rowNum = 0,
@@ -230,7 +241,6 @@ CaseCtrl gCaseCtrl = { // default
   .funcIdxListNum = 0,
   .funcIdxList = NULL,
   .checkParamNum = false,
-  .printRes = false,
   .runTimes = 0,
   .caseIdx = -1,
   .caseNum = -1,
@@ -240,26 +250,35 @@ CaseCtrl gCaseCtrl = { // default
 #endif
 
 
-#if 0
+#if 1
 CaseCtrl gCaseCtrl = {
+  .precision = TIME_PRECISION_MILLI,
   .bindNullNum = 0,
-  .printCreateTblSql = true,
+  .printCreateTblSql = false,
   .printQuerySql = true,
   .printStmtSql = true,
+  .printVerbose = false,
+  .printRes = true,
   .autoCreateTbl = false,
+  .numericParam = false,
   .rowNum = 0,
   .bindColNum = 0,
   .bindTagNum = 0,
   .bindRowNum = 0,
+  .bindColTypeNum = 0,
+  .bindColTypeList = NULL,
   .bindTagTypeNum = 0,
   .bindTagTypeList = NULL,
+  .optrIdxListNum = 0,
+  .optrIdxList = NULL,
+  .funcIdxListNum = 0,
+  .funcIdxList = NULL,
   .checkParamNum = false,
-  .printRes = false,
   .runTimes = 0,
-  .caseIdx = 1,
-  .caseNum = 1,
+  .caseIdx = -1,
+  .caseNum = -1,
   .caseRunIdx = -1,
-  .caseRunNum = 1,
+  .caseRunNum = -1,
 };
 #endif
 
@@ -891,7 +910,6 @@ int32_t prepareColData(BP_BIND_TYPE bType, BindData *data, int32_t bindIdx, int3
 
 
 int32_t prepareInsertData(BindData *data) {
-  static int64_t tsData = 1591060628000;
   uint64_t allRowNum = gCurCase->rowNum * gCurCase->tblNum;
   
   data->colNum = 0;
@@ -918,7 +936,7 @@ int32_t prepareInsertData(BindData *data) {
   }
   
   for (int32_t i = 0; i < allRowNum; ++i) {
-    data->tsData[i] = tsData++;
+    data->tsData[i] = bpTs++;
     data->boolData[i] = (bool)(i % 2);
     data->tinyData[i] = (int8_t)i;
     data->utinyData[i] = (uint8_t)(i+1);
@@ -956,7 +974,6 @@ int32_t prepareInsertData(BindData *data) {
 }
 
 int32_t prepareQueryCondData(BindData *data, int32_t tblIdx) {
-  static int64_t tsData = 1591060628000;
   uint64_t bindNum = gCurCase->rowNum / gCurCase->bindRowNum;
   
   data->colNum = 0;
@@ -982,7 +999,7 @@ int32_t prepareQueryCondData(BindData *data, int32_t tblIdx) {
   }
   
   for (int32_t i = 0; i < bindNum; ++i) {
-    data->tsData[i] = tsData + tblIdx*gCurCase->rowNum + rand()%gCurCase->rowNum;
+    data->tsData[i] = bpTs + tblIdx*gCurCase->rowNum + rand()%gCurCase->rowNum;
     data->boolData[i] = (bool)(tblIdx*gCurCase->rowNum + rand() % gCurCase->rowNum);
     data->tinyData[i] = (int8_t)(tblIdx*gCurCase->rowNum + rand() % gCurCase->rowNum);
     data->utinyData[i] = (uint8_t)(tblIdx*gCurCase->rowNum + rand() % gCurCase->rowNum);
@@ -1014,7 +1031,6 @@ int32_t prepareQueryCondData(BindData *data, int32_t tblIdx) {
 
 
 int32_t prepareQueryMiscData(BindData *data, int32_t tblIdx) {
-  static int64_t tsData = 1591060628000;
   uint64_t bindNum = gCurCase->rowNum / gCurCase->bindRowNum;
   
   data->colNum = 0;
@@ -1040,7 +1056,7 @@ int32_t prepareQueryMiscData(BindData *data, int32_t tblIdx) {
   }
   
   for (int32_t i = 0; i < bindNum; ++i) {
-    data->tsData[i] = tsData + tblIdx*gCurCase->rowNum + rand()%gCurCase->rowNum;
+    data->tsData[i] = bpTs + tblIdx*gCurCase->rowNum + rand()%gCurCase->rowNum;
     data->boolData[i] = (bool)(tblIdx*gCurCase->rowNum + rand() % gCurCase->rowNum);
     data->tinyData[i] = (int8_t)(tblIdx*gCurCase->rowNum + rand() % gCurCase->rowNum);
     data->utinyData[i] = (uint8_t)(tblIdx*gCurCase->rowNum + rand() % gCurCase->rowNum);
@@ -1202,39 +1218,7 @@ int32_t bpAppendValueString(char *buf, int type, void *value, int32_t valueLen, 
 }
 
 
-int32_t bpBindParam(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
-  static int32_t n = 0;
-  
-  if (gCurCase->bindRowNum > 1) {
-    if (0 == (n++%2)) {
-      if (taos_stmt_bind_param_batch(stmt, bind)) {
-        printf("!!!taos_stmt_bind_param_batch error:%s\n", taos_stmt_errstr(stmt));
-        exit(1);
-      }
-    } else {
-      for (int32_t i = 0; i < gCurCase->bindColNum; ++i) {
-        if (taos_stmt_bind_single_param_batch(stmt, bind++, i)) {
-          printf("!!!taos_stmt_bind_single_param_batch error:%s\n", taos_stmt_errstr(stmt));
-          exit(1);
-        }
-      }
-    }
-  } else {
-    if (0 == (n++%2)) {
-      if (taos_stmt_bind_param_batch(stmt, bind)) {
-        printf("!!!taos_stmt_bind_param_batch error:%s\n", taos_stmt_errstr(stmt));
-        exit(1);
-      }
-    } else {
-      if (taos_stmt_bind_param(stmt, bind)) {
-        printf("!!!taos_stmt_bind_param error:%s\n", taos_stmt_errstr(stmt));
-        exit(1);
-      }
-    }
-  }
 
-  return 0;
-}
 
 void bpCheckIsInsert(TAOS_STMT *stmt, int32_t insert) {
   int32_t isInsert = 0;
@@ -1280,15 +1264,12 @@ void bpCheckAffectedRowsOnce(TAOS_STMT *stmt, int32_t expectedNum) {
 }
 
 void bpCheckQueryResult(TAOS_STMT *stmt, TAOS *taos, char *stmtSql, TAOS_MULTI_BIND* bind) {
-  TAOS_RES* res = taos_stmt_use_result(stmt);
-  int32_t sqlResNum = 0;
-  int32_t stmtResNum = 0;
-  bpFetchRows(res, gCaseCtrl.printRes, &stmtResNum);
-
+  // query using sql
   char sql[1024];
   int32_t len = 0;
   char* p = stmtSql;
   char* s = NULL;
+  int32_t sqlResNum = 0;
 
   for (int32_t i = 0; true; ++i, p=s+1) {
     s = strchr(p, '?');
@@ -1313,6 +1294,12 @@ void bpCheckQueryResult(TAOS_STMT *stmt, TAOS *taos, char *stmtSql, TAOS_MULTI_B
   }
 
   bpExecQuery(taos, sql, gCaseCtrl.printRes, &sqlResNum);
+
+  // query using stmt
+  TAOS_RES* res = taos_stmt_use_result(stmt);
+  int32_t stmtResNum = 0;
+  bpFetchRows(res, gCaseCtrl.printRes, &stmtResNum);
+
   if (sqlResNum != stmtResNum) {
     printf("!!!sql res num %d mis-match stmt res num %d\n", sqlResNum, stmtResNum);
     exit(1);
@@ -1321,9 +1308,165 @@ void bpCheckQueryResult(TAOS_STMT *stmt, TAOS *taos, char *stmtSql, TAOS_MULTI_B
   printf("***sql res num match stmt res num %d\n", stmtResNum);
 }
 
+void bpCheckColTagFields(TAOS_STMT *stmt, int32_t fieldNum, TAOS_FIELD_E* pFields, int32_t expecteNum, TAOS_MULTI_BIND* pBind, BP_BIND_TYPE type) {
+  int32_t code = 0;
+  
+  if (fieldNum != expecteNum) {
+    printf("!!!%s field num %d mis-match expect num %d\n", BP_BIND_TYPE_STR(type),  fieldNum, expecteNum);
+    exit(1);
+  }
+
+  if (type == BP_BIND_COL) {
+    if (pFields[0].precision != gCaseCtrl.precision) {
+      printf("!!!db precision %d mis-match expect %d\n", pFields[0].precision, gCaseCtrl.precision);
+      exit(1);
+    }
+  }
+
+  for (int32_t i = 0; i < fieldNum; ++i) {
+    if (pFields[i].type != pBind[i].buffer_type) {
+      printf("!!!%s %dth field type %d mis-match expect type %d\n", BP_BIND_TYPE_STR(type), i, pFields[i].type, pBind[i].buffer_type);
+      exit(1);
+    }
+
+    if (pFields[i].type == TSDB_DATA_TYPE_BINARY) {
+      if (pFields[i].bytes != (pBind[i].buffer_length + 2)) {
+        printf("!!!%s %dth field len %d mis-match expect len %d\n", BP_BIND_TYPE_STR(type), i, pFields[i].bytes, (pBind[i].buffer_length + 2));
+        exit(1);
+      }
+    } else if (pFields[i].type == TSDB_DATA_TYPE_NCHAR) {
+      if (pFields[i].bytes != (pBind[i].buffer_length * 4 + 2)) {
+        printf("!!!%s %dth field len %d mis-match expect len %d\n", BP_BIND_TYPE_STR(type), i, pFields[i].bytes, (pBind[i].buffer_length + 2));
+        exit(1);
+      }
+    } else if (pFields[i].bytes != pBind[i].buffer_length) {
+      printf("!!!%s %dth field len %d mis-match expect len %d\n", BP_BIND_TYPE_STR(type), i, pFields[i].bytes, pBind[i].buffer_length);
+      exit(1);
+    }
+  }
+
+  if (type == BP_BIND_COL) {
+    int fieldType = 0;
+    int fieldBytes = 0;
+    for (int32_t i = 0; i < fieldNum; ++i) {    
+      code = taos_stmt_get_param(stmt, i, &fieldType, &fieldBytes);
+      if (code) {
+        printf("!!!taos_stmt_get_param error:%s\n", taos_stmt_errstr(stmt));
+        exit(1);
+      }
+      
+      if (pFields[i].type != fieldType) {
+        printf("!!!%s %dth field type %d mis-match expect type %d\n", BP_BIND_TYPE_STR(type), i, fieldType, pFields[i].type);
+        exit(1);
+      }
+    
+      if (pFields[i].bytes != fieldBytes) {
+        printf("!!!%s %dth field len %d mis-match expect len %d\n", BP_BIND_TYPE_STR(type), i, fieldBytes, pFields[i].bytes);
+        exit(1);
+      }
+    }
+  }
+
+  if (gCaseCtrl.printVerbose) {
+    printf("%s fields check passed\n", BP_BIND_TYPE_STR(type));
+  }
+}
+
+
+void bpCheckTagFields(TAOS_STMT *stmt, TAOS_MULTI_BIND* pBind) {
+  int32_t code = 0;
+  int fieldNum = 0;
+  TAOS_FIELD_E* pFields = NULL;
+  code = taos_stmt_get_tag_fields(stmt, &fieldNum, &pFields);
+  if (code != 0){
+    printf("!!!taos_stmt_get_tag_fields error:%s\n", taos_stmt_errstr(stmt));
+    exit(1);
+  }
+  
+  bpCheckColTagFields(stmt, fieldNum, pFields, gCurCase->bindTagNum, pBind, BP_BIND_TAG);
+}
+
+void bpCheckColFields(TAOS_STMT *stmt, TAOS_MULTI_BIND* pBind) {
+  if (gCurCase->testType == TTYPE_QUERY) {
+    return;
+  }
+  
+  int32_t code = 0;
+  int fieldNum = 0;
+  TAOS_FIELD_E* pFields = NULL;
+  code = taos_stmt_get_col_fields(stmt, &fieldNum, &pFields);
+  if (code != 0){
+    printf("!!!taos_stmt_get_col_fields error:%s\n", taos_stmt_errstr(stmt));
+    exit(1);
+  }
+  
+  bpCheckColTagFields(stmt, fieldNum, pFields, gCurCase->bindColNum, pBind, BP_BIND_COL);
+}
+
+void bpShowBindParam(TAOS_MULTI_BIND *bind, int32_t num) {
+  for (int32_t i = 0; i < num; ++i) {
+    TAOS_MULTI_BIND* b = &bind[i];
+    printf("Bind %d: type[%d],buf[%p],buflen[%d],len[%],null[%d],num[%d]\n", 
+      i, b->buffer_type, b->buffer, b->buffer_length, b->length ? *b->length : 0, b->is_null ? *b->is_null : 0, b->num);
+  }
+}
+
+int32_t bpBindParam(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
+  static int32_t n = 0;
+
+  bpCheckColFields(stmt, bind);
+  
+  if (gCurCase->bindRowNum > 1) {
+    if (0 == (n++%2)) {
+      if (taos_stmt_bind_param_batch(stmt, bind)) {
+        printf("!!!taos_stmt_bind_param_batch error:%s\n", taos_stmt_errstr(stmt));
+        bpShowBindParam(bind, gCurCase->bindColNum);
+        exit(1);
+      }
+    } else {
+      for (int32_t i = 0; i < gCurCase->bindColNum; ++i) {
+        if (taos_stmt_bind_single_param_batch(stmt, bind+i, i)) {
+          printf("!!!taos_stmt_bind_single_param_batch %d error:%s\n", taos_stmt_errstr(stmt), i);
+          bpShowBindParam(bind, gCurCase->bindColNum);
+          exit(1);
+        }
+      }
+    }
+  } else {
+    if (0 == (n++%2)) {
+      if (taos_stmt_bind_param_batch(stmt, bind)) {
+        printf("!!!taos_stmt_bind_param_batch error:%s\n", taos_stmt_errstr(stmt));
+        bpShowBindParam(bind, gCurCase->bindColNum);
+        exit(1);
+      }
+    } else {
+      if (taos_stmt_bind_param(stmt, bind)) {
+        printf("!!!taos_stmt_bind_param error:%s\n", taos_stmt_errstr(stmt));
+        bpShowBindParam(bind, gCurCase->bindColNum);        
+        exit(1);
+      }
+    }
+  }
+
+  return 0;
+}
+
 int32_t bpSetTableNameTags(BindData *data, int32_t tblIdx, char *tblName, TAOS_STMT *stmt) {
+  int32_t code = 0;
   if (gCurCase->bindTagNum > 0) {
-    return taos_stmt_set_tbname_tags(stmt, tblName, data->pTags + tblIdx * gCurCase->bindTagNum);  
+    if ((rand() % 2) == 0) {
+      code = taos_stmt_set_tbname(stmt, tblName);
+      if (code != 0){
+        printf("!!!taos_stmt_set_tbname error:%s\n", taos_stmt_errstr(stmt));
+        exit(1);
+      }
+
+      bpCheckTagFields(stmt, data->pTags + tblIdx * gCurCase->bindTagNum);
+      
+      return taos_stmt_set_tags(stmt, data->pTags + tblIdx * gCurCase->bindTagNum);
+    } else {
+      return taos_stmt_set_tbname_tags(stmt, tblName, data->pTags + tblIdx * gCurCase->bindTagNum);  
+    }
   } else {
     return taos_stmt_set_tbname(stmt, tblName);
   }
@@ -1755,7 +1898,7 @@ int insertAUTOTest1(TAOS_STMT *stmt, TAOS *taos) {
       if (gCurCase->tblNum > 1) {
         char buf[32];
         sprintf(buf, "t%d", t);
-        code = taos_stmt_set_tbname_tags(stmt, buf, data.pTags + t * gCurCase->bindTagNum);
+        code = bpSetTableNameTags(&data, t, buf, stmt);
         if (code != 0){
           printf("!!!taos_stmt_set_tbname_tags error:%s\n", taos_stmt_errstr(stmt));
           exit(1);
@@ -2223,14 +2366,48 @@ void generateCreateTableSQL(char *buf, int32_t tblIdx, int32_t colNum, int32_t *
   }
 }
 
+char *bpPrecisionStr(uint8_t precision) {
+  switch (precision) {
+    case TIME_PRECISION_MILLI:
+      return "ms";
+    case TIME_PRECISION_MICRO:
+      return "us";
+    case TIME_PRECISION_NANO:
+      return "ns";
+    default:
+      return "unknwon";
+  }
+}
+
+void bpSetStartupTs() {
+  switch (gCaseCtrl.precision) {
+    case TIME_PRECISION_MILLI:
+      bpTs = BP_STARTUP_TS;
+      break;
+    case TIME_PRECISION_MICRO:
+      bpTs = BP_STARTUP_TS * 1000;
+      break;
+    case TIME_PRECISION_NANO:
+      bpTs = BP_STARTUP_TS * 1000000;
+      break;
+    default:
+      bpTs = BP_STARTUP_TS;
+      break;
+  }
+}
+
 void prepare(TAOS     *taos, int32_t colNum, int32_t *colList, int prepareStb) {
   TAOS_RES *result;
   int      code;
+  char createDbSql[128] = {0};
 
   result = taos_query(taos, "drop database demo"); 
   taos_free_result(result);
 
-  result = taos_query(taos, "create database demo keep 36500");
+  sprintf(createDbSql, "create database demo keep 36500 precision \"%s\"", bpPrecisionStr(gCaseCtrl.precision));
+  printf("\tCreate Database SQL:%s\n", createDbSql);
+  
+  result = taos_query(taos, createDbSql);
   code = taos_errno(result);
   if (code != 0) {
     printf("!!!failed to create database, reason:%s\n", taos_errstr(result));
@@ -2278,6 +2455,8 @@ int32_t runCase(TAOS *taos, int32_t caseIdx, int32_t caseRunIdx, bool silent) {
   CaseCfg cfg = gCase[caseIdx];
   CaseCfg cfgBk;
   gCurCase = &cfg;
+
+  bpSetStartupTs();
   
   if ((gCaseCtrl.bindColTypeNum || gCaseCtrl.bindColNum) && (gCurCase->colNum != gFullColNum)) {
     return 1;
@@ -2413,22 +2592,28 @@ void* runCaseList(TAOS *taos) {
 }
 
 void runAll(TAOS *taos) {
-#if 1
-
-  strcpy(gCaseCtrl.caseCatalog, "Normal Test");
+  strcpy(gCaseCtrl.caseCatalog, "Default Test");
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   runCaseList(taos);
 
+  strcpy(gCaseCtrl.caseCatalog, "Micro DB precision Test");
+  printf("%s Begin\n", gCaseCtrl.caseCatalog);
+  gCaseCtrl.precision = TIME_PRECISION_MICRO;
+  runCaseList(taos);
+  gCaseCtrl.precision = TIME_PRECISION_MILLI;
 
+  strcpy(gCaseCtrl.caseCatalog, "Nano DB precision Test");
+  printf("%s Begin\n", gCaseCtrl.caseCatalog);
+  gCaseCtrl.precision = TIME_PRECISION_NANO;
+  runCaseList(taos);
+  gCaseCtrl.precision = TIME_PRECISION_MILLI;
+  
   strcpy(gCaseCtrl.caseCatalog, "Auto Create Table Test");
   gCaseCtrl.autoCreateTbl = true;
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   runCaseList(taos);
   gCaseCtrl.autoCreateTbl = false;
-  
-#endif
 
-/*
   strcpy(gCaseCtrl.caseCatalog, "Null Test");
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   gCaseCtrl.bindNullNum = 1;
@@ -2441,6 +2626,7 @@ void runAll(TAOS *taos) {
   runCaseList(taos);
   gCaseCtrl.bindRowNum = 0;
 
+#if 0
   strcpy(gCaseCtrl.caseCatalog, "Row Num Test");
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   gCaseCtrl.rowNum = 1000;
@@ -2448,23 +2634,21 @@ void runAll(TAOS *taos) {
   runCaseList(taos);
   gCaseCtrl.rowNum = 0;
   gCaseCtrl.printRes = true;
-*/
 
   strcpy(gCaseCtrl.caseCatalog, "Runtimes Test");
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   gCaseCtrl.runTimes = 2;
   runCaseList(taos);
   gCaseCtrl.runTimes = 0;
+#endif
 
-#if 1
   strcpy(gCaseCtrl.caseCatalog, "Check Param Test");
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   gCaseCtrl.checkParamNum = true;
   runCaseList(taos);
   gCaseCtrl.checkParamNum = false;
-#endif
 
-/*
+#if 0
   strcpy(gCaseCtrl.caseCatalog, "Bind Col Num Test");
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   gCaseCtrl.bindColNum = 6;
@@ -2476,7 +2660,7 @@ void runAll(TAOS *taos) {
   gCaseCtrl.bindColTypeNum = tListLen(bindColTypeList);
   gCaseCtrl.bindColTypeList = bindColTypeList;  
   runCaseList(taos);
-*/
+#endif
 
   printf("All Test End\n");  
 }

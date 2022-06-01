@@ -37,6 +37,7 @@ void bmGetMonitorInfo(void *pMgmt, SMonBmInfo *pInfo);
 
 void vmGetVnodeLoads(void *pMgmt, SMonVloadInfo *pInfo);
 void mmGetMnodeLoads(void *pMgmt, SMonMloadInfo *pInfo);
+void qmGetQnodeLoads(void *pMgmt, SQnodeLoad *pInfo);
 
 #ifdef __cplusplus
 }

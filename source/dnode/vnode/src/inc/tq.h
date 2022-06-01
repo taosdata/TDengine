@@ -44,56 +44,99 @@ extern "C" {
 typedef struct STqOffsetCfg   STqOffsetCfg;
 typedef struct STqOffsetStore STqOffsetStore;
 
+// tqRead
+
 struct STqReadHandle {
   int64_t           ver;
-  SHashObj*         tbIdHash;
   const SSubmitReq* pMsg;
   SSubmitBlk*       pBlock;
   SSubmitMsgIter    msgIter;
   SSubmitBlkIter    blkIter;
-  SMeta*            pVnodeMeta;
-  SArray*           pColIdList;  // SArray<int16_t>
-  int32_t           sver;
-  int64_t           cachedSchemaUid;
-  SSchemaWrapper*   pSchemaWrapper;
-  STSchema*         pSchema;
+
+  SMeta*    pVnodeMeta;
+  SHashObj* tbIdHash;
+  SArray*   pColIdList;  // SArray<int16_t>
+
+  int32_t         cachedSchemaVer;
+  int64_t         cachedSchemaUid;
+  SSchemaWrapper* pSchemaWrapper;
+  STSchema*       pSchema;
 };
 
+// tqPush
+
 typedef struct {
-  int64_t  consumerId;
-  int32_t  epoch;
-  int32_t  skipLogNum;
-  int64_t  reqOffset;
-  SRWLatch lock;
-  SRpcMsg* handle;
+  STaosQueue* queue;
+  STaosQall*  qall;
+  void*       qItem;
+} STqInputQ;
+
+typedef struct {
+  // msg info
+  int64_t consumerId;
+  int64_t reqOffset;
+  int64_t processedVer;
+  int32_t epoch;
+  int32_t skipLogNum;
+  // rpc info
+  int64_t        reqId;
+  SRpcHandleInfo rpcInfo;
+  tmr_h          timerId;
+  int8_t         tmrStopped;
+  // exec
+  int8_t    inputStatus;
+  int8_t    execStatus;
+  STqInputQ inputQ;
+  SRWLatch  lock;
 } STqPushHandle;
 
-typedef struct {
-  char          subKey[TSDB_SUBSCRIBE_KEY_LEN];
-  int64_t       consumerId;
-  int32_t       epoch;
-  int8_t        subType;
-  int8_t        withTbName;
-  int8_t        withSchema;
-  int8_t        withTag;
-  char*         qmsg;
-  SHashObj*     pDropTbUid;
-  STqPushHandle pushHandle;
-  // SRWLatch        lock;
-  SWalReadHandle* pWalReader;
-  // task number should be the same with fetch thread
-  STqReadHandle* pExecReader[5];
-  qTaskInfo_t    task[5];
-} STqExec;
+// tqExec
 
-int32_t tEncodeSTqExec(SEncoder* pEncoder, const STqExec* pExec);
-int32_t tDecodeSTqExec(SDecoder* pDecoder, STqExec* pExec);
+typedef struct {
+  char*       qmsg;
+  qTaskInfo_t task[5];
+} STqExecCol;
+
+typedef struct {
+  int64_t suid;
+} STqExecTb;
+
+typedef struct {
+  SHashObj* pFilterOutTbUid;
+} STqExecDb;
+
+typedef struct {
+  int8_t subType;
+
+  STqReadHandle* pExecReader[5];
+  union {
+    STqExecCol execCol;
+    STqExecTb  execTb;
+    STqExecDb  execDb;
+  } exec;
+} STqExecHandle;
+
+typedef struct {
+  // info
+  char    subKey[TSDB_SUBSCRIBE_KEY_LEN];
+  int64_t consumerId;
+  int32_t epoch;
+
+  // reader
+  SWalReadHandle* pWalReader;
+
+  // push
+  STqPushHandle pushHandle;
+
+  // exec
+  STqExecHandle execHandle;
+} STqHandle;
 
 struct STQ {
   char*     path;
-  SHashObj* pushMgr;  // consumerId -> STqExec*
-  SHashObj* execs;    // subKey -> STqExec
-  SHashObj* pStreamTasks;
+  SHashObj* pushMgr;       // consumerId -> STqHandle*
+  SHashObj* handles;       // subKey -> STqHandle
+  SHashObj* pStreamTasks;  // taksId -> SStreamTask
   SVnode*   pVnode;
   SWal*     pWal;
   TDB*      pMetaStore;
@@ -107,18 +150,28 @@ typedef struct {
 
 static STqMgmt tqMgmt = {0};
 
-// init once
-int  tqInit();
-void tqCleanUp();
+// tqRead
+int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalHead** pHeadWithCkSum);
+
+// tqExec
+int32_t tqDataExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataBlkRsp* pRsp, int32_t workerId);
+
+// tqMeta
+int32_t tqMetaOpen(STQ* pTq);
+int32_t tqMetaClose(STQ* pTq);
+int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle);
+int32_t tqMetaDeleteHandle(STQ* pTq, const char* key);
+
+// tqSink
+void tqTableSink(SStreamTask* pTask, void* vnode, int64_t ver, void* data);
 
 // tqOffset
-STqOffsetStore* STqOffsetOpen(STqOffsetCfg*);
-void            STqOffsetClose(STqOffsetStore*);
-
-int64_t tqOffsetFetch(STqOffsetStore* pStore, const char* subscribeKey);
-int32_t tqOffsetCommit(STqOffsetStore* pStore, const char* subscribeKey, int64_t offset);
-int32_t tqOffsetPersist(STqOffsetStore* pStore, const char* subscribeKey);
-int32_t tqOffsetPersistAll(STqOffsetStore* pStore);
+STqOffsetStore* tqOffsetOpen(STqOffsetCfg*);
+void            tqOffsetClose(STqOffsetStore*);
+int64_t         tqOffsetFetch(STqOffsetStore* pStore, const char* subscribeKey);
+int32_t         tqOffsetCommit(STqOffsetStore* pStore, const char* subscribeKey, int64_t offset);
+int32_t         tqOffsetPersist(STqOffsetStore* pStore, const char* subscribeKey);
+int32_t         tqOffsetPersistAll(STqOffsetStore* pStore);
 
 #ifdef __cplusplus
 }

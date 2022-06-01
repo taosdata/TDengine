@@ -16,7 +16,7 @@
 #include "tdbInt.h"
 
 struct STTB {
-  TDB    *pEnv;
+  TDB *   pEnv;
   SBTree *pBt;
 };
 
@@ -25,11 +25,11 @@ struct STBC {
 };
 
 int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprFn, TDB *pEnv, TTB **ppTb) {
-  TTB    *pTb;
+  TTB *   pTb;
   SPager *pPager;
   int     ret;
   char    fFullName[TDB_FILENAME_LEN];
-  SPage  *pPage;
+  SPage * pPage;
   SPgno   pgno;
 
   *ppTb = NULL;

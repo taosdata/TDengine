@@ -24,6 +24,7 @@ extern "C" {
 #include "parUtil.h"
 #include "parser.h"
 
+int32_t parseInsertSyntax(SParseContext* pContext, SQuery** pQuery);
 int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery);
 int32_t parse(SParseContext* pParseCxt, SQuery** pQuery);
 int32_t collectMetaKey(SParseContext* pParseCxt, SQuery* pQuery);

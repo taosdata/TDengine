@@ -125,6 +125,8 @@ int32_t      tsdbSnapshotReaderClose(STsdbSnapshotReader* pReader);
 int32_t      tsdbSnapshotRead(STsdbSnapshotReader* pReader, void** ppData, uint32_t* nData);
 
 // tq
+int     tqInit();
+void    tqCleanUp();
 STQ*    tqOpen(const char* path, SVnode* pVnode, SWal* pWal);
 void    tqClose(STQ*);
 int     tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver);
@@ -145,11 +147,11 @@ int32_t tqProcessTaskRecoverRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t smaOpen(SVnode* pVnode);
 int32_t smaClose(SSma* pSma);
 
-int32_t tdUpdateExpireWindow(SSma* pSma, SSubmitReq* pMsg, int64_t version);
+int32_t tdUpdateExpireWindow(SSma* pSma, const SSubmitReq* pMsg, int64_t version);
 int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
 int32_t tdProcessTSmaInsert(SSma* pSma, int64_t indexUid, const char* msg);
 
-int32_t tdProcessRSmaCreate(SSma* pSma, SMeta* pMeta, SVCreateStbReq* pReq, SMsgCb* pMsgCb);
+int32_t tdProcessRSmaCreate(SVnode* pVnode, SVCreateStbReq* pReq);
 int32_t tdProcessRSmaSubmit(SSma* pSma, void* pMsg, int32_t inputType);
 int32_t tdFetchTbUidList(SSma* pSma, STbUidStore** ppStore, tb_uid_t suid, tb_uid_t uid);
 int32_t tdUpdateTbUidList(SSma* pSma, STbUidStore* pUidStore);
@@ -239,6 +241,8 @@ struct SVnode {
 #define VND_RSMA1(vnd)      ((vnd)->pSma->pRSmaTsdb1)
 #define VND_RSMA2(vnd)      ((vnd)->pSma->pRSmaTsdb2)
 #define VND_RETENTIONS(vnd) (&(vnd)->config.tsdbCfg.retentions)
+#define VND_IS_RSMA(v)      ((v)->config.isRsma == 1)
+#define VND_IS_TSMA(v)      ((v)->config.isTsma == 1)
 
 struct STbUidStore {
   tb_uid_t  suid;
@@ -270,11 +274,6 @@ struct SSma {
 #define SMA_RSMA_TSDB0(s) ((s)->pVnode->pTsdb)
 #define SMA_RSMA_TSDB1(s) ((s)->pRSmaTsdb1)
 #define SMA_RSMA_TSDB2(s) ((s)->pRSmaTsdb2)
-
-static FORCE_INLINE bool vnodeIsRollup(SVnode* pVnode) {
-  SRetention* pRetention = &(pVnode->config.tsdbCfg.retentions[0]);
-  return (pRetention->freq > 0 && pRetention->keep > 0);
-}
 
 // sma
 void smaHandleRes(void* pVnode, int64_t smaId, const SArray* data);
