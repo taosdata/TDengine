@@ -808,6 +808,25 @@ SELECT BOTTOM(field_name, K) FROM { tb_name | stb_name } [WHERE clause];
 - 系统同时返回该记录关联的时间戳列；
 - 限制：BOTTOM 函数不支持 FILL 子句。
 
+### FIRST
+
+```
+SELECT FIRST(field_name) FROM { tb_name | stb_name } [WHERE clause];
+```
+
+**功能说明**：统计表/超级表中某列的值最先写入的非 NULL 值。
+
+**返回数据类型**：同应用的字段。
+
+**适用数据类型**：所有字段。
+
+**适用于**：表和超级表。
+
+**使用说明**:
+
+- 如果要返回各个列的首个（时间戳最小）非 NULL 值，可以使用 FIRST(\*)；
+- 如果结果集中的某列全部为 NULL 值，则该列的返回结果也是 NULL；
+- 如果结果集中所有列全部为 NULL 值，则不返回结果。
 
 ### INTERP
 
@@ -919,25 +938,6 @@ SELECT PERCENTILE(field_name, P) FROM { tb_name } [WHERE clause];
 
 **使用说明**：*P*值取值范围 0≤*P*≤100，为 0 的时候等同于 MIN，为 100 的时候等同于 MAX。
 
-### FIRST
-
-```
-SELECT FIRST(field_name) FROM { tb_name | stb_name } [WHERE clause];
-```
-
-**功能说明**：统计表/超级表中某列的值最先写入的非 NULL 值。
-
-**返回数据类型**：同应用的字段。
-
-**适用数据类型**：所有字段。
-
-**适用于**：表和超级表。
-
-**使用说明**:
-
-- 如果要返回各个列的首个（时间戳最小）非 NULL 值，可以使用 FIRST(\*)；
-- 如果结果集中的某列全部为 NULL 值，则该列的返回结果也是 NULL；
-- 如果结果集中所有列全部为 NULL 值，则不返回结果。
 
 ### TAIL
 
