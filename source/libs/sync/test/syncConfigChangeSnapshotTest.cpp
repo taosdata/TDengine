@@ -75,6 +75,66 @@ int32_t GetSnapshotCb(struct SSyncFSM* pFsm, SSnapshot* pSnapshot) {
   return 0;
 }
 
+int32_t SnapshotStartRead(struct SSyncFSM* pFsm, void** ppReader) {
+  *ppReader = (void*)0xABCD;
+  char logBuf[256] = {0};
+  snprintf(logBuf, sizeof(logBuf), "==callback== ==SnapshotStartRead== pFsm:%p, *ppReader:%p", pFsm, *ppReader);
+  sTrace("%s", logBuf);
+  return 0;
+}
+
+int32_t SnapshotStopRead(struct SSyncFSM* pFsm, void* pReader) {
+  char logBuf[256] = {0};
+  snprintf(logBuf, sizeof(logBuf), "==callback== ==SnapshotStopRead== pFsm:%p, pReader:%p", pFsm, pReader);
+  sTrace("%s", logBuf);
+  return 0;
+}
+
+int32_t SnapshotDoRead(struct SSyncFSM* pFsm, void* pReader, void** ppBuf, int32_t* len) {
+  static int readIter = 0;
+
+  if (readIter == 5) {
+    *len = 20;
+    *ppBuf = taosMemoryMalloc(*len);
+    snprintf((char*)*ppBuf, *len, "data iter:%d", readIter);
+  } else {
+    *len = 0;
+    *ppBuf = NULL;
+  }
+
+  char logBuf[256] = {0};
+  snprintf(logBuf, sizeof(logBuf), "==callback== ==SnapshotDoRead== pFsm:%p, pReader:%p, *len:%d *ppBuf:%s", pFsm,
+           pReader, *len, (char*)(*ppBuf));
+  sTrace("%s", logBuf);
+
+  readIter++;
+  return 0;
+}
+
+int32_t SnapshotStartWrite(struct SSyncFSM* pFsm, void** ppWriter) {
+  *ppWriter = (void*)0xCDEF;
+  char logBuf[256] = {0};
+  snprintf(logBuf, sizeof(logBuf), "==callback== ==SnapshotStartWrite== pFsm:%p, *ppWriter:%p", pFsm, *ppWriter);
+  sTrace("%s", logBuf);
+  return 0;
+}
+
+int32_t SnapshotStopWrite(struct SSyncFSM* pFsm, void* pWriter, bool isApply) {
+  char logBuf[256] = {0};
+  snprintf(logBuf, sizeof(logBuf), "==callback== ==SnapshotStopWrite== pFsm:%p, pWriter:%p, isApply:%d", pFsm, pWriter,
+           isApply);
+  sTrace("%s", logBuf);
+  return 0;
+}
+
+int32_t SnapshotDoWrite(struct SSyncFSM* pFsm, void* pWriter, void* pBuf, int32_t len) {
+  char logBuf[256] = {0};
+  snprintf(logBuf, sizeof(logBuf), "==callback== ==SnapshotDoWrite== pFsm:%p, pWriter:%p, len:%d pBuf:%s", pFsm,
+           pWriter, len, (char*)pBuf);
+  sTrace("%s", logBuf);
+  return 0;
+}
+
 void RestoreFinishCb(struct SSyncFSM* pFsm) { sTrace("==callback== ==RestoreFinishCb=="); }
 
 void ReConfigCb(struct SSyncFSM* pFsm, SSyncCfg newCfg, SReConfigCbMeta cbMeta) {
@@ -92,6 +152,12 @@ SSyncFSM* createFsm() {
 
   pFsm->FpGetSnapshot = GetSnapshotCb;
   pFsm->FpRestoreFinishCb = RestoreFinishCb;
+  pFsm->FpSnapshotStartRead = SnapshotStartRead;
+  pFsm->FpSnapshotStopRead = SnapshotStopRead;
+  pFsm->FpSnapshotDoRead = SnapshotDoRead;
+  pFsm->FpSnapshotStartWrite = SnapshotStartWrite;
+  pFsm->FpSnapshotStopWrite = SnapshotStopWrite;
+  pFsm->FpSnapshotDoWrite = SnapshotDoWrite;
 
   pFsm->FpReConfigCb = ReConfigCb;
 
