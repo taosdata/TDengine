@@ -945,7 +945,6 @@ typedef struct {
   int64_t timeInFetchQueue;
 } SQnodeLoad;
 
-
 typedef struct {
   int32_t     sver;      // software version
   int64_t     dnodeVer;  // dnode table version in sdb
@@ -1977,7 +1976,7 @@ typedef struct {
   int8_t   killConnection;
   int8_t   align[3];
   SEpSet   epSet;
-  SArray  *pQnodeList;
+  SArray*  pQnodeList;
 } SQueryHbRspBasic;
 
 typedef struct {
@@ -2662,6 +2661,23 @@ typedef struct {
 
 int32_t tEncodeSVSubmitReq(SEncoder* pCoder, const SVSubmitReq* pReq);
 int32_t tDecodeSVSubmitReq(SDecoder* pCoder, SVSubmitReq* pReq);
+
+// TDMT_VND_DELETE
+typedef struct {
+  TSKEY sKey;
+  TSKEY eKey;
+
+  // super table
+  char* stbName;
+
+  // child/normal
+  char* tbName;
+} SVDeleteReq;
+
+typedef struct {
+  int32_t code;
+  // TODO
+} SVDeleteRsp;
 
 #pragma pack(pop)
 

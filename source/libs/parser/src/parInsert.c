@@ -780,8 +780,8 @@ static void buildCreateTbReq(SVCreateTbReq* pTbReq, const char* tname, STag* pTa
   return;
 }
 
-static int32_t parseTagToken(char** end, SToken* pToken, SSchema* pSchema,
-                             int16_t timePrec, STagVal *val, SMsgBuf* pMsgBuf) {
+static int32_t parseTagToken(char** end, SToken* pToken, SSchema* pSchema, int16_t timePrec, STagVal* val,
+                             SMsgBuf* pMsgBuf) {
   int64_t  iv;
   uint64_t uv;
   char*    endptr = NULL;
@@ -937,8 +937,8 @@ static int32_t parseTagToken(char** end, SToken* pToken, SSchema* pSchema,
 
     case TSDB_DATA_TYPE_NCHAR: {
       int32_t output = 0;
-      void *p = taosMemoryCalloc(1, pToken->n * TSDB_NCHAR_SIZE);
-      if(p == NULL){
+      void*   p = taosMemoryCalloc(1, pToken->n * TSDB_NCHAR_SIZE);
+      if (p == NULL) {
         return TSDB_CODE_OUT_OF_MEMORY;
       }
       if (!taosMbsToUcs4(pToken->z, pToken->n, (TdUcs4*)(p), pSchema->bytes - VARSTR_HEADER_SIZE, &output)) {
@@ -971,11 +971,11 @@ static int32_t parseTagToken(char** end, SToken* pToken, SSchema* pSchema,
 // pSql -> tag1_value, ...)
 static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint8_t precision, const char* tName) {
   int32_t code = TSDB_CODE_SUCCESS;
-  SArray *pTagVals = taosArrayInit(pCxt->tags.numOfBound, sizeof(STagVal));
-  SToken   sToken;
-  bool     isParseBindParam = false;
-  bool isJson = false;
-  STag* pTag = NULL;
+  SArray* pTagVals = taosArrayInit(pCxt->tags.numOfBound, sizeof(STagVal));
+  SToken  sToken;
+  bool    isParseBindParam = false;
+  bool    isJson = false;
+  STag*   pTag = NULL;
   for (int i = 0; i < pCxt->tags.numOfBound; ++i) {
     NEXT_TOKEN_WITH_PREV(pCxt->pSql, sToken);
 
@@ -995,13 +995,13 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
     }
 
     SSchema* pTagSchema = &pSchema[pCxt->tags.boundColumns[i]];
-    char *tmpTokenBuf = taosMemoryCalloc(1, sToken.n); // this can be optimize with parse column
+    char*    tmpTokenBuf = taosMemoryCalloc(1, sToken.n);  // this can be optimize with parse column
     code = checkAndTrimValue(&sToken, tmpTokenBuf, &pCxt->msg);
     if (code != TSDB_CODE_SUCCESS) {
       taosMemoryFree(tmpTokenBuf);
       goto end;
     }
-    if(pTagSchema->type == TSDB_DATA_TYPE_JSON){
+    if (pTagSchema->type == TSDB_DATA_TYPE_JSON) {
       if (sToken.n > (TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
         code = buildSyntaxErrMsg(&pCxt->msg, "json string too long than 4095", sToken.z);
         taosMemoryFree(tmpTokenBuf);
@@ -1009,18 +1009,18 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
       }
       code = parseJsontoTagData(sToken.z, pTagVals, &pTag, &pCxt->msg);
       taosMemoryFree(tmpTokenBuf);
-      if(code != TSDB_CODE_SUCCESS){
+      if (code != TSDB_CODE_SUCCESS) {
         goto end;
       }
       isJson = true;
-    }else{
+    } else {
       STagVal val = {0};
       code = parseTagToken(&pCxt->pSql, &sToken, pTagSchema, precision, &val, &pCxt->msg);
       if (TSDB_CODE_SUCCESS != code) {
         taosMemoryFree(tmpTokenBuf);
         goto end;
       }
-      if (pTagSchema->type != TSDB_DATA_TYPE_BINARY){
+      if (pTagSchema->type != TSDB_DATA_TYPE_BINARY) {
         taosMemoryFree(tmpTokenBuf);
       }
       taosArrayPush(pTagVals, &val);
@@ -1032,7 +1032,7 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
     goto end;
   }
 
-  if(!isJson && (code = tTagNew(pTagVals, 1, false, &pTag)) != TSDB_CODE_SUCCESS) {
+  if (!isJson && (code = tTagNew(pTagVals, 1, false, &pTag)) != TSDB_CODE_SUCCESS) {
     goto end;
   }
 
@@ -1040,8 +1040,8 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
 
 end:
   for (int i = 0; i < taosArrayGetSize(pTagVals); ++i) {
-    STagVal *p = (STagVal *)taosArrayGet(pTagVals, i);
-    if(IS_VAR_DATA_TYPE(p->type)){
+    STagVal* p = (STagVal*)taosArrayGet(pTagVals, i);
+    if (IS_VAR_DATA_TYPE(p->type)) {
       taosMemoryFree(p->pData);
     }
   }
@@ -1701,10 +1701,10 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, char* tN
     return buildInvalidOperationMsg(&pBuf, "out of memory");
   }
 
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t  code = TSDB_CODE_SUCCESS;
   SSchema* pSchema = pDataBlock->pTableMeta->schema;
 
-  bool isJson = false;
+  bool  isJson = false;
   STag* pTag = NULL;
 
   for (int c = 0; c < tags->numOfBound; ++c) {
@@ -1713,7 +1713,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, char* tN
     }
 
     SSchema* pTagSchema = &pSchema[tags->boundColumns[c]];
-    int32_t colLen = pTagSchema->bytes;
+    int32_t  colLen = pTagSchema->bytes;
     if (IS_VAR_DATA_TYPE(pTagSchema->type)) {
       colLen = bind[c].length[0];
     }
@@ -1724,22 +1724,22 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, char* tN
       }
 
       isJson = true;
-      char *tmp = taosMemoryCalloc(1, colLen + 1);
+      char* tmp = taosMemoryCalloc(1, colLen + 1);
       memcpy(tmp, bind[c].buffer, colLen);
       code = parseJsontoTagData(tmp, pTagArray, &pTag, &pBuf);
       taosMemoryFree(tmp);
-      if(code != TSDB_CODE_SUCCESS){
+      if (code != TSDB_CODE_SUCCESS) {
         goto end;
       }
-    }else{
+    } else {
       STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
-      if(pTagSchema->type == TSDB_DATA_TYPE_BINARY){
+      if (pTagSchema->type == TSDB_DATA_TYPE_BINARY) {
         val.pData = (uint8_t*)bind[c].buffer;
         val.nData = colLen;
-      }else if(pTagSchema->type == TSDB_DATA_TYPE_NCHAR){
+      } else if (pTagSchema->type == TSDB_DATA_TYPE_NCHAR) {
         int32_t output = 0;
-        void *p = taosMemoryCalloc(1, colLen * TSDB_NCHAR_SIZE);
-        if(p == NULL){
+        void*   p = taosMemoryCalloc(1, colLen * TSDB_NCHAR_SIZE);
+        if (p == NULL) {
           code = TSDB_CODE_OUT_OF_MEMORY;
           goto end;
         }
@@ -1757,7 +1757,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, char* tN
         }
         val.pData = p;
         val.nData = output;
-      }else{
+      } else {
         memcpy(&val.i64, bind[c].buffer, colLen);
       }
       taosArrayPush(pTagArray, &val);
@@ -1775,8 +1775,8 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, char* tN
 
 end:
   for (int i = 0; i < taosArrayGetSize(pTagArray); ++i) {
-    STagVal *p = (STagVal *)taosArrayGet(pTagArray, i);
-    if(p->type == TSDB_DATA_TYPE_NCHAR){
+    STagVal* p = (STagVal*)taosArrayGet(pTagArray, i);
+    if (p->type == TSDB_DATA_TYPE_NCHAR) {
       taosMemoryFree(p->pData);
     }
   }
@@ -1951,7 +1951,8 @@ int32_t qBindStmtSingleColValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBu
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t buildBoundFields(SParsedDataColInfo* boundInfo, SSchema* pSchema, int32_t* fieldNum, TAOS_FIELD_E** fields, uint8_t timePrec) {
+int32_t buildBoundFields(SParsedDataColInfo* boundInfo, SSchema* pSchema, int32_t* fieldNum, TAOS_FIELD_E** fields,
+                         uint8_t timePrec) {
   if (fields) {
     *fields = taosMemoryCalloc(boundInfo->numOfBound, sizeof(TAOS_FIELD));
     if (NULL == *fields) {
@@ -1962,7 +1963,7 @@ int32_t buildBoundFields(SParsedDataColInfo* boundInfo, SSchema* pSchema, int32_
     if (TSDB_DATA_TYPE_TIMESTAMP == schema->type) {
       (*fields)[0].precision = timePrec;
     }
-    
+
     for (int32_t i = 0; i < boundInfo->numOfBound; ++i) {
       schema = &pSchema[boundInfo->boundColumns[i]];
       strcpy((*fields)[i].name, schema->name);
@@ -2008,7 +2009,8 @@ int32_t qBuildStmtColFields(void* pBlock, int32_t* fieldNum, TAOS_FIELD_E** fiel
     return TSDB_CODE_SUCCESS;
   }
 
-  CHECK_CODE(buildBoundFields(&pDataBlock->boundColumnInfo, pSchema, fieldNum, fields, pDataBlock->pTableMeta->tableInfo.precision));
+  CHECK_CODE(buildBoundFields(&pDataBlock->boundColumnInfo, pSchema, fieldNum, fields,
+                              pDataBlock->pTableMeta->tableInfo.precision));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -2122,16 +2124,16 @@ static int32_t smlBuildTagRow(SArray* cols, SParsedDataColInfo* tags, SSchema* p
   int32_t code = TSDB_CODE_SUCCESS;
   for (int i = 0; i < tags->numOfBound; ++i) {
     SSchema* pTagSchema = &pSchema[tags->boundColumns[i]];
-    SSmlKv* kv = taosArrayGetP(cols, i);
+    SSmlKv*  kv = taosArrayGetP(cols, i);
 
     STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
-    if(pTagSchema->type == TSDB_DATA_TYPE_BINARY){
-      val.pData = (uint8_t *)kv->value;
+    if (pTagSchema->type == TSDB_DATA_TYPE_BINARY) {
+      val.pData = (uint8_t*)kv->value;
       val.nData = kv->length;
-    }else if(pTagSchema->type == TSDB_DATA_TYPE_NCHAR){
+    } else if (pTagSchema->type == TSDB_DATA_TYPE_NCHAR) {
       int32_t output = 0;
-      void *p = taosMemoryCalloc(1, pTagSchema->bytes - VARSTR_HEADER_SIZE);
-      if(p == NULL){
+      void*   p = taosMemoryCalloc(1, pTagSchema->bytes - VARSTR_HEADER_SIZE);
+      if (p == NULL) {
         code = TSDB_CODE_OUT_OF_MEMORY;
         goto end;
       }
@@ -2149,7 +2151,7 @@ static int32_t smlBuildTagRow(SArray* cols, SParsedDataColInfo* tags, SSchema* p
       }
       val.pData = p;
       val.nData = output;
-    }else{
+    } else {
       memcpy(&val.i64, &(kv->value), kv->length);
     }
     taosArrayPush(pTagArray, &val);
@@ -2158,8 +2160,8 @@ static int32_t smlBuildTagRow(SArray* cols, SParsedDataColInfo* tags, SSchema* p
   code = tTagNew(pTagArray, 1, false, ppTag);
 end:
   for (int i = 0; i < taosArrayGetSize(pTagArray); ++i) {
-    STagVal *p = (STagVal *)taosArrayGet(pTagArray, i);
-    if(p->type == TSDB_DATA_TYPE_NCHAR){
+    STagVal* p = (STagVal*)taosArrayGet(pTagArray, i);
+    if (p->type == TSDB_DATA_TYPE_NCHAR) {
       taosMemoryFree(p->pData);
     }
   }
