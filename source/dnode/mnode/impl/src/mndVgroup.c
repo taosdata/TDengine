@@ -218,6 +218,8 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   createReq.hashMethod = pDb->cfg.hashMethod;
   createReq.numOfRetensions = pDb->cfg.numOfRetensions;
   createReq.pRetensions = pDb->cfg.pRetensions;
+  createReq.isTsma = pVgroup->isTsma;
+  createReq.pTsma = pVgroup->pTsma;
 
   for (int32_t v = 0; v < pVgroup->replica; ++v) {
     SReplica  *pReplica = &createReq.replicas[v];
@@ -501,7 +503,7 @@ int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups) {
   *ppVgroups = pVgroups;
   code = 0;
 
-  mInfo("db:%s, %d vgroups is alloced, replica:%d", pDb->name, pDb->cfg.numOfVgroups, pDb->cfg.replications);
+  mInfo("db:%s, total %d vgroups is alloced, replica:%d", pDb->name, pDb->cfg.numOfVgroups, pDb->cfg.replications);
 
 _OVER:
   if (code != 0) taosMemoryFree(pVgroups);
@@ -539,7 +541,7 @@ int32_t mndAddVnodeToVgroup(SMnode *pMnode, SVgObj *pVgroup, SArray *pArray) {
     pVgid->role = TAOS_SYNC_STATE_FOLLOWER;
     pDnode->numOfVnodes++;
 
-    mInfo("db:%s, vgId:%d, vn:%d dnode:%d is added", pVgroup->dbName, pVgroup->vgId, maxPos, pVgid->dnodeId);
+    mInfo("db:%s, vgId:%d, vnode_index:%d dnode:%d is added", pVgroup->dbName, pVgroup->vgId, maxPos, pVgid->dnodeId);
     maxPos++;
     if (maxPos == 3) return 0;
   }

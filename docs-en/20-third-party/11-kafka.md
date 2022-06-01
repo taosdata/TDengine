@@ -7,7 +7,7 @@ TDengine Kafka Connector contains two plugins: TDengine Source Connector and TDe
 
 ## What is Kafka Connect?
 
-Kafka Connect is a component of Apache Kafka that enables other systems, such as databases, cloud services, file systems, etc., to connect to Kafka easily. Data can flow from other software to Kafka via Kafka Connect and Kafka to other systems via Kafka Connect. Plugins that read data from other software are called Source Connectors, and plugins that write data to other software are called Sink Connectors. Neither Source Connector nor Sink Connector will directly connect to Kafka Broker, and Source Connector transfers data to Kafka Connect. Sink Connector receives data from Kafka Connect.
+Kafka Connect is a component of [Apache Kafka](https://kafka.apache.org/) that enables other systems, such as databases, cloud services, file systems, etc., to connect to Kafka easily. Data can flow from other software to Kafka via Kafka Connect and Kafka to other systems via Kafka Connect. Plugins that read data from other software are called Source Connectors, and plugins that write data to other software are called Sink Connectors. Neither Source Connector nor Sink Connector will directly connect to Kafka Broker, and Source Connector transfers data to Kafka Connect. Sink Connector receives data from Kafka Connect.
 
 ![TDengine Database Kafka Connector -- Kafka Connect](kafka/Kafka_Connect.webp)
 
@@ -17,7 +17,7 @@ TDengine Source Connector is used to read data from TDengine in real-time and se
 
 ## What is Confluent?
 
-Confluent adds many extensions to Kafka. include:
+[Confluent](https://www.confluent.io/) adds many extensions to Kafka. include:
 
 1. Schema Registry
 2. REST Proxy
@@ -79,10 +79,10 @@ Development: false
 git clone https://github.com:taosdata/kafka-connect-tdengine.git
 cd kafka-connect-tdengine
 mvn clean package
-unzip -d $CONFLUENT_HOME/share/confluent-hub-components/ target/components/packages/taosdata-kafka-connect-tdengine-0.1.0.zip
+unzip -d $CONFLUENT_HOME/share/java/ target/components/packages/taosdata-kafka-connect-tdengine-*.zip
 ```
 
-The above script first clones the project source code and then compiles and packages it with Maven. After the package is complete, the zip package of the plugin is generated in the `target/components/packages/` directory. Unzip this zip package to the path where the plugin is installed. The path to install the plugin is in the configuration file `$CONFLUENT_HOME/etc/kafka/connect-standalone.properties`. The default path is `$CONFLUENT_HOME/share/confluent-hub-components/`.
+The above script first clones the project source code and then compiles and packages it with Maven. After the package is complete, the zip package of the plugin is generated in the `target/components/packages/` directory. Unzip this zip package to plugin path. We used `$CONFLUENT_HOME/share/java/` above because it's a build in plugin path.
 
 ### Install with confluent-hub
 
@@ -96,7 +96,7 @@ confluent local services start
 ```
 
 :::note
-Be sure to install the plugin before starting Confluent. Otherwise, there will be a class not found error. The log of Kafka Connect (default path: /tmp/confluent.xxxx/connect/logs/connect.log) will output the successfully installed plugin, which users can use to determine whether the plugin is installed successfully.
+Be sure to install the plugin before starting Confluent. Otherwise, Kafka Connect will fail to discover the plugins.
 :::
 
 :::tip
@@ -123,6 +123,59 @@ Control Center is [UP]
 To clear data, execute `rm -rf /tmp/confluent.106668`.
 :::
 
+### Check Confluent Services Status
+
+Use command bellow to check the status of all service:
+
+```
+confluent local services status
+```
+
+The expected output is:
+```
+Connect is [UP]
+Control Center is [UP]
+Kafka is [UP]
+Kafka REST is [UP]
+ksqlDB Server is [UP]
+Schema Registry is [UP]
+ZooKeeper is [UP]
+```
+
+### Check Successfully Loaded Plugin
+
+After Kafka Connect was completely started, you can use bellow command to check if our plugins are installed successfully:
+```
+confluent local services connect plugin list
+```
+
+The output should contains `TDengineSinkConnector` and `TDengineSourceConnector` as bellow:
+
+```
+Available Connect Plugins:
+[
+  {
+    "class": "com.taosdata.kafka.connect.sink.TDengineSinkConnector",
+    "type": "sink",
+    "version": "1.0.0"
+  },
+  {
+    "class": "com.taosdata.kafka.connect.source.TDengineSourceConnector",
+    "type": "source",
+    "version": "1.0.0"
+  },
+......
+```
+
+If not, please check the log file of Kafka Connect. To view the log file path, please execute:
+
+```
+echo `cat /tmp/confluent.current`/connect/connect.stdout
+```
+It should produce a path like:`/tmp/confluent.104086/connect/connect.stdout`
+
+Besides log file `connect.stdout` there is a file named `connect.properties`. At the end of this file you can see the effective `plugin.path` which is a series of paths joined by comma. If Kafka Connect not found our plugins, it's probably because the installed path is not included in `plugin.path`.
+
 ## The use of TDengine Sink Connector
 
 The role of the TDengine Sink Connector is to synchronize the data of the specified topic to TDengine. Users do not need to create databases and super tables in advance. The name of the target database can be specified manually (see the configuration parameter connection.database), or it can be generated according to specific rules (see the configuration parameter connection.database.prefix).
@@ -142,7 +195,7 @@ vi sink-demo.properties
 sink-demo.properties' content is following:
 
 ```ini title="sink-demo.properties"
-name=tdengine-sink-demo
+name=TDengineSinkConnector
 connector.class=com.taosdata.kafka.connect.sink.TDengineSinkConnector
 tasks.max=1
 topics=meters
@@ -151,6 +204,7 @@ connection.user=root
 connection.password=taosdata
 connection.database=power
 db.schemaless=line
+data.precision=ns
 key.converter=org.apache.kafka.connect.storage.StringConverter
 value.converter=org.apache.kafka.connect.storage.StringConverter
 ```
@@ -177,6 +231,7 @@ If the above command is executed successfully, the output is as follows:
     "connection.url": "jdbc:TAOS://127.0.0.1:6030",
     "connection.user": "root",
     "connector.class": "com.taosdata.kafka.connect.sink.TDengineSinkConnector",
+    "data.precision": "ns",
     "db.schemaless": "line",
     "key.converter": "org.apache.kafka.connect.storage.StringConverter",
     "tasks.max": "1",
@@ -221,10 +276,10 @@ Database changed.
 taos> select * from meters;
               ts               |          current          |          voltage          |           phase           | groupid |            location            |
 ===============================================================================================================================================================
- 2022-03-28 09:56:51.249000000 |              11.800000000 |             221.000000000 |               0.280000000 | 2       | California.LoSangeles                |
- 2022-03-28 09:56:51.250000000 |              13.400000000 |             223.000000000 |               0.290000000 | 2       | California.LoSangeles                |
- 2022-03-28 09:56:51.249000000 |              10.800000000 |             223.000000000 |               0.290000000 | 3       | California.LoSangeles                |
- 2022-03-28 09:56:51.250000000 |              11.300000000 |             221.000000000 |               0.350000000 | 3       | California.LoSangeles                |
+ 2022-03-28 09:56:51.249000000 |              11.800000000 |             221.000000000 |               0.280000000 | 2       | California.LosAngeles          |
+ 2022-03-28 09:56:51.250000000 |              13.400000000 |             223.000000000 |               0.290000000 | 2       | California.LosAngeles          |
+ 2022-03-28 09:56:51.249000000 |              10.800000000 |             223.000000000 |               0.290000000 | 3       | California.LosAngeles          |
+ 2022-03-28 09:56:51.250000000 |              11.300000000 |             221.000000000 |               0.350000000 | 3       | California.LosAngeles          |
 Query OK, 4 row(s) in set (0.004208s)
 ```
 
@@ -356,6 +411,7 @@ The following configuration items apply to TDengine Sink Connector and TDengine 
 4. `max.retries`: The maximum number of retries when an error occurs. Defaults to 1.
 5. `retry.backoff.ms`: The time interval for retry when sending an error. The unit is milliseconds. The default is 3000.
 6. `db.schemaless`: Data format, could be one of `line`, `json`, and `telnet`. Represent InfluxDB line protocol format, OpenTSDB JSON format, and OpenTSDB Telnet line protocol format.
+7. `data.precision`: The time precision when use InfluxDB line protocol format data, could be one of `ms`, `us` and `ns`. The default is `ns`.
 
 ### TDengine Source Connector specific configuration
 
@@ -366,7 +422,13 @@ The following configuration items apply to TDengine Sink Connector and TDengine 
 5. `fetch.max.rows`: The maximum number of rows retrieved when retrieving the database. Default is 100.
 6. `out.format`: The data format. The value could be line or json. The line represents the InfluxDB Line protocol format, and json represents the OpenTSDB JSON format. Default is `line`.
 
-## feedback
+
+## Other notes
+
+1. To install plugin to a customized location, refer to https://docs.confluent.io/home/connect/self-managed/install.html#install-connector-manually.
+2. To use Kafka Connect without confluent, refer to  https://kafka.apache.org/documentation/#connect.
+
+## Feedback
 
 https://github.com/taosdata/kafka-connect-tdengine/issues
 

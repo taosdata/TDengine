@@ -195,7 +195,7 @@ class TDTestCase:
         tdLog.info("create topics from db")
         topicName1 = 'topic_db1'
         
-        tdSql.execute("create topic %s as %s" %(topicName1, parameterDict['dbName']))
+        tdSql.execute("create topic %s as database %s" %(topicName1, parameterDict['dbName']))
         
         consumerId   = 0
         expectrowcnt = parameterDict["rowsPerTbl"] * parameterDict["ctbNum"] +  parameterDict2["rowsPerTbl"] * parameterDict2["ctbNum"]
@@ -272,7 +272,7 @@ class TDTestCase:
         tdLog.info("create topics from db")
         topicName1 = 'topic_db1'
         
-        tdSql.execute("create topic %s as %s" %(topicName1, parameterDict['dbName']))
+        tdSql.execute("create topic %s as database %s" %(topicName1, parameterDict['dbName']))
         
         consumerId   = 0
         expectrowcnt = parameterDict["rowsPerTbl"] * parameterDict["ctbNum"] +  parameterDict2["rowsPerTbl"] * parameterDict2["ctbNum"]
@@ -358,8 +358,8 @@ class TDTestCase:
         topicName1 = 'topic_db60'
         topicName2 = 'topic_db61'
         
-        tdSql.execute("create topic %s as %s" %(topicName1, parameterDict['dbName']))        
-        tdSql.execute("create topic %s as %s" %(topicName2, parameterDict2['dbName']))
+        tdSql.execute("create topic %s as database %s" %(topicName1, parameterDict['dbName']))        
+        tdSql.execute("create topic %s as database %s" %(topicName2, parameterDict2['dbName']))
         
         consumerId   = 0
         expectrowcnt = parameterDict["rowsPerTbl"] * parameterDict["ctbNum"] +  parameterDict2["rowsPerTbl"] * parameterDict2["ctbNum"]
@@ -443,8 +443,8 @@ class TDTestCase:
         topicName1 = 'topic_db60'
         topicName2 = 'topic_db61'
         
-        tdSql.execute("create topic %s as %s" %(topicName1, parameterDict['dbName']))        
-        tdSql.execute("create topic %s as %s" %(topicName2, parameterDict2['dbName']))
+        tdSql.execute("create topic %s as database %s" %(topicName1, parameterDict['dbName']))        
+        tdSql.execute("create topic %s as database %s" %(topicName2, parameterDict2['dbName']))
         
         consumerId   = 0
         expectrowcnt = parameterDict["rowsPerTbl"] * parameterDict["ctbNum"] +  parameterDict2["rowsPerTbl"] * parameterDict2["ctbNum"]

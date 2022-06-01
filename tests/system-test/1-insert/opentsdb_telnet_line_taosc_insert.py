@@ -36,10 +36,10 @@ class TDTestCase:
             
         if db_update_tag == 0:
             tdSql.execute(f"drop database if exists {name}")
-            tdSql.execute(f"create database if not exists {name} precision 'ms'")
+            tdSql.execute(f"create database if not exists {name} precision 'us'")
         else:
             tdSql.execute(f"drop database if exists {name}")
-            tdSql.execute(f"create database if not exists {name} precision 'ms' update 1")
+            tdSql.execute(f"create database if not exists {name} precision 'ns' update 1")
         tdSql.execute(f'use {name}')
 
     def timeTrans(self, time_value, ts_type):

@@ -104,7 +104,7 @@ static void vmProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
 
     dTrace("msg:%p, get from vnode-write queue", pMsg);
     if (taosArrayPush(pArray, &pMsg) == NULL) {
-      dTrace("msg:%p, failed to process since %s", pMsg, terrstr());
+      dTrace("msg:%p, failed to push to array since %s", pMsg, terrstr());
       vmSendRsp(pMsg, TSDB_CODE_OUT_OF_MEMORY);
     }
   }

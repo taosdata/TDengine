@@ -242,6 +242,8 @@ class MockCatalogServiceImpl {
     info->outputType = outputType;
     info->outputLen = outputLen;
     info->bufSize = bufSize;
+    info->pCode = nullptr;
+    info->pComment = nullptr;
     udf_.insert(std::make_pair(func, info));
   }
 

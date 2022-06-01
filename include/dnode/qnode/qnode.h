@@ -26,20 +26,6 @@ extern "C" {
 typedef struct SQnode SQnode;
 
 typedef struct {
-  int64_t numOfProcessedQuery;
-  int64_t numOfProcessedCQuery;
-  int64_t numOfProcessedFetch;
-  int64_t numOfProcessedDrop;
-  int64_t memSizeInCache;
-  int64_t dataSizeSend;
-  int64_t dataSizeRecv;
-  int64_t numOfQueryInQueue;
-  int64_t numOfFetchInQueue;
-  int64_t waitTimeInQueryQUeue;
-  int64_t waitTimeInFetchQUeue;
-} SQnodeLoad;
-
-typedef struct {
   SMsgCb msgCb;
 } SQnodeOpt;
 

@@ -80,6 +80,18 @@ int32_t     metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid);
 int32_t     metaReadNext(SMetaReader *pReader);
 const void *metaGetTableTagVal(SMetaEntry *pEntry, int16_t cid);
 
+typedef struct SMetaFltParam {
+  tb_uid_t suid;
+  int16_t  cid;
+  int16_t  type;
+  char *   val;
+  bool     reverse;
+  int (*filterFunc)(void *a, void *b, int16_t type);
+
+} SMetaFltParam;
+
+int32_t metaFilteTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *results);
+
 #if 1  // refact APIs below (TODO)
 typedef SVCreateTbReq   STbCfg;
 typedef SVCreateTSmaReq SSmaCfg;
@@ -159,12 +171,13 @@ struct SVnodeCfg {
   uint64_t szBuf;
   bool     isHeap;
   bool     isWeak;
+  int8_t   isTsma;
+  int8_t   hashMethod;
   STsdbCfg tsdbCfg;
   SWalCfg  walCfg;
   SSyncCfg syncCfg;
   uint32_t hashBegin;
   uint32_t hashEnd;
-  int8_t   hashMethod;
 };
 
 typedef struct {

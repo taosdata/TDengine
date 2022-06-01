@@ -35,6 +35,7 @@ typedef struct SDnodeMgmt {
   SendMonitorReportFp sendMonitorReportFp;
   GetVnodeLoadsFp     getVnodeLoadsFp;
   GetMnodeLoadsFp     getMnodeLoadsFp;
+  GetQnodeLoadsFp     getQnodeLoadsFp;
 } SDnodeMgmt;
 
 // dmHandle.c
