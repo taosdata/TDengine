@@ -589,3 +589,85 @@ const void *metaGetTableTagVal(SMetaEntry *pEntry, int16_t type, STagVal *val) {
   }
   return val;
 }
+
+typedef struct {
+  SMeta *  pMeta;
+  TBC *    pCur;
+  tb_uid_t suid;
+  int16_t  cid;
+  int16_t  type;
+  void *   pKey;
+  void *   pVal;
+  int32_t  kLen;
+  int32_t  vLen;
+} SIdxCursor;
+
+int32_t metaFilteTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
+  SIdxCursor *pCursor = NULL;
+
+  char *tagData = param->val;
+
+  int32_t ret = 0, valid = 0;
+  pCursor = (SIdxCursor *)taosMemoryCalloc(1, sizeof(SIdxCursor));
+  pCursor->pMeta = pMeta;
+  pCursor->suid = param->suid;
+  pCursor->cid = param->cid;
+  pCursor->type = param->type;
+
+  metaRLock(pMeta);
+  ret = tdbTbcOpen(pMeta->pTagIdx, &pCursor->pCur, NULL);
+  if (ret < 0) {
+    goto END;
+  }
+  STagIdxKey *pKey = NULL;
+  int32_t     nKey = 0;
+
+  int32_t nTagData = 0;
+  if(IS_VAR_DATA_TYPE(param->type)){
+    nTagData = strlen(param->val);
+  }else{
+    nTagData = tDataTypes[param->type].bytes
+  }
+  ret = metaCreateTagIdxKey(pCursor->suid, pCursor->cid, param->val, nTagData, pCursor->type,
+                            param->reverse ? INT64_MAX : INT64_MIN, &pKey, &nKey);
+  if (ret != 0) {
+    goto END;
+  }
+  int cmp = 0;
+  if (tdbTbcMoveTo(pCursor->pCur, pKey, nKey, &cmp) < 0) {
+    goto END;
+  }
+  void *  entryKey = NULL, *entryVal = NULL;
+  int32_t nEntryKey, nEntryVal;
+  while (1) {
+    valid = tdbTbcGet(pCursor->pCur, (const void **)&entryKey, &nEntryKey, (const void **)&entryVal, &nEntryVal);
+    if (valid < 0) {
+      break;
+    }
+    STagIdxKey *p = entryKey;
+    if (p != NULL) {
+      int32_t cmp = (*param->filterFunc)(p->data, pKey->data, pKey->type);
+      if (cmp == 0) {
+        // match
+        tb_uid_t tuid = *(tb_uid_t *)(p->data + tDataTypes[pCursor->type].bytes);
+        taosArrayPush(pUids, &tuid);
+      } else if (cmp == 1) {
+        // not match but should continue to iter
+      } else {
+        // not match and no more result
+        break;
+      }
+    }
+    valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
+    if (valid < 0) {
+      break;
+    }
+  }
+END:
+  if (pCursor->pMeta) metaULock(pCursor->pMeta);
+  if (pCursor->pCur) tdbTbcClose(pCursor->pCur);
+
+  taosMemoryFree(pCursor);
+
+  return ret;
+}
