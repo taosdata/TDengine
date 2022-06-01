@@ -10,7 +10,11 @@ target_include_directories(
     PUBLIC "${TD_SOURCE_DIR}/contrib/msvcregex"
 )
 # iconv
-find_path(IconvApiIncludes iconv.h PATHS)
+if(TD_WINDOWS)
+    find_path(IconvApiIncludes iconv.h "${TD_SOURCE_DIR}/contrib/iconv")
+else()
+    find_path(IconvApiIncludes iconv.h PATHS)
+endif(TD_WINDOWS)
 if(NOT IconvApiIncludes)
     add_definitions(-DDISALLOW_NCHAR_WITHOUT_ICONV) 
 endif ()

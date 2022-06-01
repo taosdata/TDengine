@@ -70,11 +70,11 @@ void osDefaultInit() {
 
 #elif defined(_TD_DARWIN_64)
   if (configDir[0] == 0) {
-    strcpy(configDir, "/tmp/taosd");
+    strcpy(configDir, "/usr/local/etc/taos");
   }
   strcpy(tsDataDir, "/usr/local/var/lib/taos");
   strcpy(tsLogDir, "/usr/local/var/log/taos");
-  strcpy(tsTempDir, "/usr/local/etc/taos");
+  strcpy(tsTempDir, "/tmp/taosd");
   strcpy(tsOsName, "Darwin");
 
 #else

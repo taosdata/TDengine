@@ -66,12 +66,12 @@ struct STqReadHandle {
 // tqPush
 
 typedef struct {
-  int64_t  consumerId;
-  int32_t  epoch;
-  int32_t  skipLogNum;
-  int64_t  reqOffset;
-  SRWLatch lock;
-  SRpcMsg* handle;
+  int64_t        consumerId;
+  int32_t        epoch;
+  int32_t        skipLogNum;
+  int64_t        reqOffset;
+  SRpcHandleInfo info;
+  SRWLatch       lock;
 } STqPushHandle;
 
 #if 0
@@ -167,6 +167,13 @@ int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle);
 int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalHead** pHeadWithCkSum);
 
 int32_t tqDataExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataBlkRsp* pRsp, int32_t workerId);
+
+// tqMeta
+
+int32_t tqMetaOpen(STQ* pTq);
+int32_t tqMetaClose(STQ* pTq);
+int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle);
+int32_t tqMetaDeleteHandle(STQ* pTq, const char* key);
 
 // tqOffset
 STqOffsetStore* STqOffsetOpen(STqOffsetCfg*);
