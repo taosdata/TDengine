@@ -333,14 +333,14 @@ class TDTestCase:
 
 
         # verify function results after delete
-    def test_case3(self):
+    def test_case4(self):
         tdSql.execute("create database test1")
         tdSql.execute("use test1")
 
         tdSql.execute("create table tb(ts timestamp, c1 int)")
-        tdSql.execute("delete table tb where ts = '2021-05-31 00:00:00 000'")
+        tdSql.execute("delete from tb where ts = '2021-05-31 00:00:00 000'")
         tdSql.checkAffectedRows(0)
-        tdSql.execute("delete table tb where ts = '2021-05-31 00:00:00 000'")
+        tdSql.execute("delete from tb where ts = '2021-05-31 00:00:00 000'")
         tdSql.checkAffectedRows(0)
 
         tdSql.execute("insert into tb values(now, 1)")
@@ -359,7 +359,7 @@ class TDTestCase:
         tdSql.checkRows(1)
 
         tdSql.execute("create table t2 using stb tags(2)")
-        tdSql.query("select tbanme from stb")
+        tdSql.query("select tbname from stb")
         tdSql.checkRows(2)
 
         
