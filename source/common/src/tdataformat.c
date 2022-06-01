@@ -351,11 +351,33 @@ static void tMapTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow2 *pRow) {
     nv += tPutColVal(pv ? pv + nv : pv, pColVal, pTColumn->type, 0);
     continue;
   }
+
+  if (nv <= UINT8_MAX) {
+    // small
+  } else if (nv <= UINT16_MAX) {
+    // mid
+  } else {
+    // large
+  }
 }
 
+// try-decide-build
 int32_t tTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow2 **ppRow) {
   int32_t code = 0;
-  // TODO
+  STSRow2 rowT = {0};
+  STSRow2 rowM = {0};
+
+  // try
+  tTupleTSRowNew(pArray, pTSchema, &rowT);
+  tMapTSRowNew(pArray, pTSchema, &rowM);
+
+  // decide & build
+  if (rowT.nData <= rowM.nData) {
+    tTupleTSRowNew(pArray, pTSchema, &rowT);
+  } else {
+    tMapTSRowNew(pArray, pTSchema, &rowM);
+  }
+
   return code;
 }
 
