@@ -461,9 +461,23 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
   ret = syncNodeGetLastIndexTerm(ths, &localLastIndex, &localLastTerm);
   ASSERT(ret == 0);
 
-  bool logOK = (pMsg->prevLogIndex == SYNC_INDEX_INVALID) ||
-               ((pMsg->prevLogIndex >= SYNC_INDEX_BEGIN) && (pMsg->prevLogIndex <= localLastIndex) &&
-                (pMsg->prevLogTerm == localPreLogTerm));
+  bool logOK;
+  if (syncNodeIsIndexInSnapshot(ths, pMsg->prevLogIndex)) {
+    SSnapshot snapshot;
+    ths->pFsm->FpGetSnapshot(ths->pFsm, &snapshot);
+
+    // maybe this assert is error, because replica take takesnapshot separately
+    // leader will reset next index to newest
+    ASSERT(pMsg->prevLogIndex == snapshot.lastApplyIndex);
+
+    logOK = (pMsg->prevLogIndex == snapshot.lastApplyIndex) && (pMsg->prevLogTerm == snapshot.lastApplyTerm);
+
+  } else {
+    logOK = (pMsg->prevLogIndex == SYNC_INDEX_INVALID) ||
+            ((pMsg->prevLogIndex >= SYNC_INDEX_BEGIN) &&
+             (pMsg->prevLogIndex <= ths->pLogStore->getLastIndex(ths->pLogStore)) &&
+             (pMsg->prevLogTerm == localPreLogTerm));
+  }
 
   // reject request
   if ((pMsg->term < ths->pRaftStore->currentTerm) ||
