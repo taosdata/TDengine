@@ -80,7 +80,7 @@ static int32_t mndCreateDefaultAcct(SMnode *pMnode) {
 
   mDebug("acct:%s, will be created when deploying, raw:%p", acctObj.acct, pRaw);
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_CREATE_ACCT, NULL);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL);
   if (pTrans == NULL) {
     mError("acct:%s, failed to create since %s", acctObj.acct, terrstr());
     return -1;
