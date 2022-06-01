@@ -81,6 +81,8 @@ typedef struct {
   // rpc info
   int64_t        reqId;
   SRpcHandleInfo rpcInfo;
+  tmr_h          timerId;
+  int8_t         tmrStopped;
   // exec
   int8_t    inputStatus;
   int8_t    execStatus;
@@ -164,13 +166,12 @@ int32_t tqMetaDeleteHandle(STQ* pTq, const char* key);
 void tqTableSink(SStreamTask* pTask, void* vnode, int64_t ver, void* data);
 
 // tqOffset
-STqOffsetStore* STqOffsetOpen(STqOffsetCfg*);
-void            STqOffsetClose(STqOffsetStore*);
-
-int64_t tqOffsetFetch(STqOffsetStore* pStore, const char* subscribeKey);
-int32_t tqOffsetCommit(STqOffsetStore* pStore, const char* subscribeKey, int64_t offset);
-int32_t tqOffsetPersist(STqOffsetStore* pStore, const char* subscribeKey);
-int32_t tqOffsetPersistAll(STqOffsetStore* pStore);
+STqOffsetStore* tqOffsetOpen(STqOffsetCfg*);
+void            tqOffsetClose(STqOffsetStore*);
+int64_t         tqOffsetFetch(STqOffsetStore* pStore, const char* subscribeKey);
+int32_t         tqOffsetCommit(STqOffsetStore* pStore, const char* subscribeKey, int64_t offset);
+int32_t         tqOffsetPersist(STqOffsetStore* pStore, const char* subscribeKey);
+int32_t         tqOffsetPersistAll(STqOffsetStore* pStore);
 
 #ifdef __cplusplus
 }
