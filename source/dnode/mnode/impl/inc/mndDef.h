@@ -57,6 +57,7 @@ typedef enum {
   TRN_CONFLICT_NOTHING = 0,
   TRN_CONFLICT_GLOBAL = 1,
   TRN_CONFLICT_DB = 2,
+  TRN_CONFLICT_DB_INSIDE = 3,
 } ETrnConflct;
 
 typedef enum {

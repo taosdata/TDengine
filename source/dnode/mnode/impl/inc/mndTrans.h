@@ -34,7 +34,7 @@ typedef struct {
   int32_t  errCode;
   int32_t  acceptableCode;
   int8_t   stage;
-  int8_t   isRaw;
+  int8_t   actionType; // 0-msg, 1-raw
   int8_t   rawWritten;
   int8_t   msgSent;
   int8_t   msgReceived;
