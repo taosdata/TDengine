@@ -298,3 +298,38 @@ int tqReadHandleRemoveTbUidList(STqReadHandle* pHandle, const SArray* tbUidList)
 
   return 0;
 }
+
+int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
+  void* pIter = NULL;
+  while (1) {
+    pIter = taosHashIterate(pTq->handles, pIter);
+    if (pIter == NULL) break;
+    STqHandle* pExec = (STqHandle*)pIter;
+    if (pExec->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
+      for (int32_t i = 0; i < 5; i++) {
+        int32_t code = qUpdateQualifiedTableId(pExec->execHandle.exec.execCol.task[i], tbUidList, isAdd);
+        ASSERT(code == 0);
+      }
+    } else if (pExec->execHandle.subType == TOPIC_SUB_TYPE__DB) {
+      if (!isAdd) {
+        int32_t sz = taosArrayGetSize(tbUidList);
+        for (int32_t i = 0; i < sz; i++) {
+          int64_t tbUid = *(int64_t*)taosArrayGet(tbUidList, i);
+          taosHashPut(pExec->execHandle.exec.execDb.pFilterOutTbUid, &tbUid, sizeof(int64_t), NULL, 0);
+        }
+      }
+    } else {
+      // tq update id
+    }
+  }
+  while (1) {
+    pIter = taosHashIterate(pTq->pStreamTasks, pIter);
+    if (pIter == NULL) break;
+    SStreamTask* pTask = (SStreamTask*)pIter;
+    if (pTask->inputType == STREAM_INPUT__DATA_SUBMIT) {
+      int32_t code = qUpdateQualifiedTableId(pTask->exec.executor, tbUidList, isAdd);
+      ASSERT(code == 0);
+    }
+  }
+  return 0;
+}
