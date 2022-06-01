@@ -1733,7 +1733,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, char* tN
         goto end;
       }
     }else{
-      STagVal val = {0};
+      STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
       if(pTagSchema->type == TSDB_DATA_TYPE_BINARY){
         val.pData = (uint8_t*)bind[c].buffer;
         val.nData = colLen;
@@ -2120,7 +2120,7 @@ static int32_t smlBuildTagRow(SArray* cols, SParsedDataColInfo* tags, SSchema* p
     SSchema* pTagSchema = &pSchema[tags->boundColumns[i]];
     SSmlKv* kv = taosArrayGetP(cols, i);
 
-    STagVal val = {0};
+    STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
     if(pTagSchema->type == TSDB_DATA_TYPE_BINARY){
       val.pData = (uint8_t *)kv->value;
       val.nData = kv->length;
@@ -2131,10 +2131,10 @@ static int32_t smlBuildTagRow(SArray* cols, SParsedDataColInfo* tags, SSchema* p
         code = TSDB_CODE_OUT_OF_MEMORY;
         goto end;
       }
-      if (!taosMbsToUcs4(kv->value, kv->length, (TdUcs4*)(p), pSchema->bytes - VARSTR_HEADER_SIZE, &output)) {
+      if (!taosMbsToUcs4(kv->value, kv->length, (TdUcs4*)(p), pTagSchema->bytes - VARSTR_HEADER_SIZE, &output)) {
         if (errno == E2BIG) {
           taosMemoryFree(p);
-          code = generateSyntaxErrMsg(msg, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
+          code = generateSyntaxErrMsg(msg, TSDB_CODE_PAR_VALUE_TOO_LONG, pTagSchema->name);
           goto end;
         }
         char buf[512] = {0};
