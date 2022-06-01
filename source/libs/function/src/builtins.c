@@ -977,6 +977,27 @@ static bool validateTimezoneFormat(const SValueNode* pVal) {
   return true;
 }
 
+void static addTimezoneParam(SNodeList* pList) {
+  char buf[6] = {0};
+  time_t t = taosTime(NULL);
+  struct tm *tmInfo = taosLocalTime(&t, NULL);
+  strftime(buf, sizeof(buf), "%z", tmInfo);
+  int32_t len = (int32_t)strlen(buf);
+
+  SValueNode* pVal = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  pVal->literal = strndup(buf, len);
+  pVal->isDuration =false;
+  pVal->translate = true;
+  pVal->node.resType.type = TSDB_DATA_TYPE_BINARY;
+  pVal->node.resType.bytes = len + VARSTR_HEADER_SIZE;
+  pVal->node.resType.precision = TSDB_TIME_PRECISION_MILLI;
+  pVal->datum.p = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE +1);
+  varDataSetLen(pVal->datum.p, len);
+  strncpy(varDataVal(pVal->datum.p), pVal->literal, len);
+
+  nodesListAppend(pList, pVal);
+}
+
 static int32_t translateToIso8601(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   if (1 != numOfParams && 2 != numOfParams) {
@@ -998,6 +1019,7 @@ static int32_t translateToIso8601(SFunctionNode* pFunc, char* pErrBuf, int32_t l
                              "Invalid timzone format");
     }
   } else { //add default client timezone
+    addTimezoneParam(pFunc->pParameterList);
   }
 
   //set result type
