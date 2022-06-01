@@ -666,7 +666,38 @@ int taos_stmt_set_tbname(TAOS_STMT *stmt, const char *name) {
   return stmtSetTbName(stmt, name);
 }
 
+int taos_stmt_set_tags(TAOS_STMT *stmt, TAOS_MULTI_BIND *tags) {
+  if (stmt == NULL || tags == NULL) {
+    tscError("NULL parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  return stmtSetTbTags(stmt, tags);
+}
+
+
 int taos_stmt_set_sub_tbname(TAOS_STMT *stmt, const char *name) { return taos_stmt_set_tbname(stmt, name); }
+
+int taos_stmt_get_tag_fields(TAOS_STMT *stmt, int* fieldNum, TAOS_FIELD_E** fields) {
+  if (stmt == NULL || NULL == fieldNum) {
+    tscError("NULL parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+  
+  return stmtGetTagFields(stmt, fieldNum, fields);
+}
+
+int taos_stmt_get_col_fields(TAOS_STMT *stmt, int* fieldNum, TAOS_FIELD_E** fields) {
+  if (stmt == NULL || NULL == fieldNum) {
+    tscError("NULL parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+  
+  return stmtGetColFields(stmt, fieldNum, fields);
+}
 
 int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
   if (stmt == NULL || bind == NULL) {
@@ -770,6 +801,16 @@ int taos_stmt_num_params(TAOS_STMT *stmt, int *nums) {
   }
 
   return stmtGetParamNum(stmt, nums);
+}
+
+int taos_stmt_get_param(TAOS_STMT *stmt, int idx, int *type, int *bytes) {
+  if (stmt == NULL || type == NULL || NULL == bytes || idx < 0) {
+    tscError("invalid parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  return stmtGetParam(stmt, idx, type, bytes);
 }
 
 TAOS_RES *taos_stmt_use_result(TAOS_STMT *stmt) {

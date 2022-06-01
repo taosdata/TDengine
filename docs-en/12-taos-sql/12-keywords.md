@@ -56,6 +56,7 @@ There are about 200 keywords reserved by TDengine, they can't be used as the nam
 Get the table name and tag values of all subtables in a STable.
 ```mysql
 SELECT TBNAME, location FROM meters;
+```
 
 Count the number of subtables in a STable.
 ```mysql
