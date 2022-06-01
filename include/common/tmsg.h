@@ -287,7 +287,7 @@ typedef struct SSchema {
   char     name[TSDB_COL_NAME_LEN];
 } SSchema;
 
-#define COL_IS_SET(FLG)  ((FLG) & (COL_SET_VAL | COL_SET_NULL) != 0)
+#define COL_IS_SET(FLG)  (((FLG) & (COL_SET_VAL | COL_SET_NULL)) != 0)
 #define COL_CLR_SET(FLG) ((FLG) &= (~(COL_SET_VAL | COL_SET_NULL)))
 
 #define IS_BSMA_ON(s) (((s)->flags & 0x01) == COL_SMA_ON)
@@ -791,18 +791,23 @@ typedef struct {
 int32_t tSerializeSQnodeListReq(void* buf, int32_t bufLen, SQnodeListReq* pReq);
 int32_t tDeserializeSQnodeListReq(void* buf, int32_t bufLen, SQnodeListReq* pReq);
 
+typedef struct SQueryNodeAddr {
+  int32_t nodeId;  // vgId or qnodeId
+  SEpSet  epSet;
+} SQueryNodeAddr;
+
 typedef struct {
-  SArray* addrsList;  // SArray<SQueryNodeAddr>
+  SQueryNodeAddr addr;
+  uint64_t       load;
+} SQueryNodeLoad;
+
+typedef struct {
+  SArray* qnodeList;  // SArray<SQueryNodeLoad>
 } SQnodeListRsp;
 
 int32_t tSerializeSQnodeListRsp(void* buf, int32_t bufLen, SQnodeListRsp* pRsp);
 int32_t tDeserializeSQnodeListRsp(void* buf, int32_t bufLen, SQnodeListRsp* pRsp);
 void    tFreeSQnodeListRsp(SQnodeListRsp* pRsp);
-
-typedef struct SQueryNodeAddr {
-  int32_t nodeId;  // vgId or qnodeId
-  SEpSet  epSet;
-} SQueryNodeAddr;
 
 typedef struct {
   SArray* pArray;  // Array of SUseDbRsp
@@ -927,6 +932,21 @@ typedef struct {
 } SMnodeLoad;
 
 typedef struct {
+  int32_t dnodeId;
+  int64_t numOfProcessedQuery;
+  int64_t numOfProcessedCQuery;
+  int64_t numOfProcessedFetch;
+  int64_t numOfProcessedDrop;
+  int64_t numOfProcessedHb;
+  int64_t cacheDataSize;
+  int64_t numOfQueryInQueue;
+  int64_t numOfFetchInQueue;
+  int64_t timeInQueryQueue;
+  int64_t timeInFetchQueue;
+} SQnodeLoad;
+
+
+typedef struct {
   int32_t     sver;      // software version
   int64_t     dnodeVer;  // dnode table version in sdb
   int32_t     dnodeId;
@@ -937,6 +957,7 @@ typedef struct {
   int32_t     numOfSupportVnodes;
   char        dnodeEp[TSDB_EP_LEN];
   SMnodeLoad  mload;
+  SQnodeLoad  qload;
   SClusterCfg clusterCfg;
   SArray*     pVloads;  // array of SVnodeLoad
 } SStatusReq;
@@ -1012,6 +1033,7 @@ typedef struct {
 
   // for tsma
   int8_t isTsma;
+  void*  pTsma;
 
 } SCreateVnodeReq;
 
@@ -1955,6 +1977,7 @@ typedef struct {
   int8_t   killConnection;
   int8_t   align[3];
   SEpSet   epSet;
+  SArray  *pQnodeList;
 } SQueryHbRspBasic;
 
 typedef struct {
@@ -2034,7 +2057,10 @@ static FORCE_INLINE void tFreeClientKv(void* pKv) {
 
 static FORCE_INLINE void tFreeClientHbRsp(void* pRsp) {
   SClientHbRsp* rsp = (SClientHbRsp*)pRsp;
-  taosMemoryFreeClear(rsp->query);
+  if (rsp->query) {
+    taosArrayDestroy(rsp->query->pQnodeList);
+    taosMemoryFreeClear(rsp->query);
+  }
   if (rsp->info) taosArrayDestroyEx(rsp->info, tFreeClientKv);
 }
 
@@ -2279,6 +2305,7 @@ typedef struct {
   int8_t   intervalUnit;  // MACRO: TIME_UNIT_XXX
   int8_t   slidingUnit;   // MACRO: TIME_UNIT_XXX
   int8_t   timezoneInt;   // sma data expired if timezone changes.
+  int32_t  dstVgId;
   char     indexName[TSDB_INDEX_NAME_LEN];
   int32_t  exprLen;
   int32_t  tagsFilterLen;
@@ -2421,7 +2448,7 @@ typedef struct {
   int32_t  epoch;
   uint64_t reqId;
   int64_t  consumerId;
-  int64_t  waitTime;
+  int64_t  timeout;
   int64_t  currentOffset;
 } SMqPollReq;
 

@@ -74,7 +74,7 @@ void scltInitLogFile() {
 
   tsAsyncLog = 0;
   qDebugFlag = 159;
-  strcpy(tsLogDir, "/var/log/taos");
+  strcpy(tsLogDir, TD_LOG_DIR_PATH);
 
   if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum) < 0) {
     printf("failed to open log file in directory:%s\n", tsLogDir);
@@ -217,7 +217,7 @@ void scltMakeOpNode(SNode **pNode, EOperatorType opType, int32_t resType, SNode 
   SOperatorNode *onode = (SOperatorNode *)node;
   onode->node.resType.type = resType;
   onode->node.resType.bytes = tDataTypes[resType].bytes;
-  
+
   onode->opType = opType;
   onode->pLeft = pLeft;
   onode->pRight = pRight;
@@ -1105,24 +1105,15 @@ void makeCalculate(void *json, void *key, int32_t rightType, void *rightData, do
   nodesDestroyNode(opNode);
 }
 
-#if 0
 TEST(columnTest, json_column_arith_op) {
   scltInitLogFile();
   char *rightvTmp= "{\"k1\":4,\"k2\":\"hello\",\"k3\":null,\"k4\":true,\"k5\":5.44}";
 
   char rightv[256] = {0};
   memcpy(rightv, rightvTmp, strlen(rightvTmp));
-  SKVRowBuilder kvRowBuilder;
-  tdInitKVRowBuilder(&kvRowBuilder);
-  parseJsontoTagData(rightv, &kvRowBuilder, NULL, 0);
-  SKVRow row = tdGetKVRowFromBuilder(&kvRowBuilder);
-  char *tmp = (char *)taosMemoryRealloc(row, kvRowLen(row)+1);
-  if(tmp == NULL){
-    ASSERT_TRUE(0);
-  }
-  memmove(tmp+1, tmp, kvRowLen(tmp));
-  *tmp = TSDB_DATA_TYPE_JSON;
-  row = tmp;
+  SArray *tags = taosArrayInit(1, sizeof(STagVal));
+  STag* row = NULL;
+  parseJsontoTagData(rightv, tags, &row, NULL);
 
   const int32_t len = 8;
   EOperatorType op[len] = {OP_TYPE_ADD, OP_TYPE_SUB, OP_TYPE_MULTI, OP_TYPE_DIV,
@@ -1176,10 +1167,10 @@ TEST(columnTest, json_column_arith_op) {
     makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes5[i], op[i]);
   }
 
-  tdDestroyKVRowBuilder(&kvRowBuilder);
+  taosArrayDestroy(tags);
   taosMemoryFree(row);
 }
-#endif
+
 void *prepareNchar(char* rightData){
   int32_t len = 0;
   int32_t inputLen = strlen(rightData);
@@ -1189,24 +1180,16 @@ void *prepareNchar(char* rightData){
   varDataSetLen(t, len);
   return t;
 }
-#if 0
+
 TEST(columnTest, json_column_logic_op) {
   scltInitLogFile();
   char *rightvTmp= "{\"k1\":4,\"k2\":\"hello\",\"k3\":null,\"k4\":true,\"k5\":5.44,\"k6\":\"6.6hello\"}";
 
   char rightv[256] = {0};
   memcpy(rightv, rightvTmp, strlen(rightvTmp));
-  SKVRowBuilder kvRowBuilder;
-  tdInitKVRowBuilder(&kvRowBuilder);
-  parseJsontoTagData(rightv, &kvRowBuilder, NULL, 0);
-  SKVRow row = tdGetKVRowFromBuilder(&kvRowBuilder);
-  char *tmp = (char *)taosMemoryRealloc(row, kvRowLen(row)+1);
-  if(tmp == NULL){
-    ASSERT_TRUE(0);
-  }
-  memmove(tmp+1, tmp, kvRowLen(tmp));
-  *tmp = TSDB_DATA_TYPE_JSON;
-  row = tmp;
+  SArray *tags = taosArrayInit(1, sizeof(STagVal));
+  STag* row = NULL;
+  parseJsontoTagData(rightv, tags, &row, NULL);
 
   const int32_t len = 9;
   const int32_t len1 = 4;
@@ -1306,10 +1289,9 @@ TEST(columnTest, json_column_logic_op) {
     taosMemoryFree(rightData);
   }
 
-  tdDestroyKVRowBuilder(&kvRowBuilder);
+  taosArrayDestroy(tags);
   taosMemoryFree(row);
 }
-#endif
 
 TEST(columnTest, smallint_value_add_int_column) {
   scltInitLogFile();

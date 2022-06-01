@@ -85,6 +85,14 @@ typedef struct taosField {
   int32_t bytes;
 } TAOS_FIELD;
 
+typedef struct TAOS_FIELD_E {
+  char    name[65];
+  int8_t  type;
+  uint8_t precision;
+  uint8_t scale;
+  int32_t bytes;
+} TAOS_FIELD_E;
+
 #ifdef WINDOWS
 #define DLL_EXPORT __declspec(dllexport)
 #else
@@ -134,7 +142,10 @@ DLL_EXPORT TAOS_STMT *taos_stmt_init(TAOS *taos);
 DLL_EXPORT int        taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length);
 DLL_EXPORT int        taos_stmt_set_tbname_tags(TAOS_STMT *stmt, const char *name, TAOS_MULTI_BIND *tags);
 DLL_EXPORT int        taos_stmt_set_tbname(TAOS_STMT *stmt, const char *name);
+DLL_EXPORT int        taos_stmt_set_tags(TAOS_STMT *stmt, TAOS_MULTI_BIND *tags);
 DLL_EXPORT int        taos_stmt_set_sub_tbname(TAOS_STMT *stmt, const char *name);
+DLL_EXPORT int        taos_stmt_get_tag_fields(TAOS_STMT *stmt, int* fieldNum, TAOS_FIELD_E** fields);
+DLL_EXPORT int        taos_stmt_get_col_fields(TAOS_STMT *stmt, int* fieldNum, TAOS_FIELD_E** fields);
 
 DLL_EXPORT int       taos_stmt_is_insert(TAOS_STMT *stmt, int *insert);
 DLL_EXPORT int       taos_stmt_num_params(TAOS_STMT *stmt, int *nums);
@@ -230,7 +241,7 @@ DLL_EXPORT const char *tmq_err2str(tmq_resp_err_t);
 DLL_EXPORT tmq_resp_err_t tmq_subscribe(tmq_t *tmq, const tmq_list_t *topic_list);
 DLL_EXPORT tmq_resp_err_t tmq_unsubscribe(tmq_t *tmq);
 DLL_EXPORT tmq_resp_err_t tmq_subscription(tmq_t *tmq, tmq_list_t **topics);
-DLL_EXPORT TAOS_RES      *tmq_consumer_poll(tmq_t *tmq, int64_t wait_time);
+DLL_EXPORT TAOS_RES      *tmq_consumer_poll(tmq_t *tmq, int64_t timeout);
 DLL_EXPORT tmq_resp_err_t tmq_consumer_close(tmq_t *tmq);
 DLL_EXPORT tmq_resp_err_t tmq_commit_sync(tmq_t *tmq, const tmq_topic_vgroup_list_t *offsets);
 DLL_EXPORT void tmq_commit_async(tmq_t *tmq, const tmq_topic_vgroup_list_t *offsets, tmq_commit_cb *cb, void *param);

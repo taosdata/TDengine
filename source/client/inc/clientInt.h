@@ -119,6 +119,8 @@ typedef struct SHeartBeatInfo {
 struct SAppInstInfo {
   int64_t          numOfConns;
   SCorEpSet        mgmtEp;
+  TdThreadMutex    qnodeMutex;
+  SArray*          pQnodeList;
   SInstanceSummary summary;
   SList*           pConnList;  // STscObj linked list
   uint64_t         clusterId;
@@ -290,7 +292,7 @@ SRequestObj* launchQuery(STscObj* pTscObj, const char* sql, int sqlLen);
 
 int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtCallback* pStmtCb);
 
-int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray* pNodeList);
+int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray** pNodeList);
 
 int32_t buildRequest(STscObj* pTscObj, const char* sql, int sqlLen, SRequestObj** pRequest);
 
@@ -317,6 +319,7 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, int32_t code
 int32_t      getQueryPlan(SRequestObj* pRequest, SQuery* pQuery, SArray** pNodeList);
 int32_t      scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList, void** res);
 int32_t      refreshMeta(STscObj* pTscObj, SRequestObj* pRequest);
+int32_t updateQnodeList(SAppInstInfo*pInfo, SArray* pNodeList);
 
 #ifdef __cplusplus
 }

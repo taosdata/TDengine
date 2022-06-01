@@ -116,22 +116,23 @@ int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, con
 
   int32_t type = pColumnInfoData->info.type;
   if (IS_VAR_DATA_TYPE(type)) {
-    int32_t dataLen = varDataTLen(pData);
+    int32_t dataLen = 0;
     if (type == TSDB_DATA_TYPE_JSON) {
       if (*pData == TSDB_DATA_TYPE_NULL) {
-        dataLen = 0;
-      } else if (*pData == TSDB_DATA_TYPE_NCHAR) {
-        dataLen = varDataTLen(pData + CHAR_BYTES);
-      } else if (*pData == TSDB_DATA_TYPE_DOUBLE) {
-        dataLen = DOUBLE_BYTES;
-      } else if (*pData == TSDB_DATA_TYPE_BOOL) {
         dataLen = CHAR_BYTES;
-      } else if (*pData == TSDB_DATA_TYPE_JSON) {
-        dataLen = ((STag*)(pData + CHAR_BYTES))->len;
+      } else if (*pData == TSDB_DATA_TYPE_NCHAR) {
+        dataLen = varDataTLen(pData + CHAR_BYTES) + CHAR_BYTES;
+      } else if (*pData == TSDB_DATA_TYPE_DOUBLE) {
+        dataLen = DOUBLE_BYTES + CHAR_BYTES;
+      } else if (*pData == TSDB_DATA_TYPE_BOOL) {
+        dataLen = CHAR_BYTES + CHAR_BYTES;
+      } else if (*pData == TD_TAG_JSON) {   // json string
+        dataLen = ((STag*)(pData))->len;
       } else {
         ASSERT(0);
       }
-      dataLen += CHAR_BYTES;
+    }else {
+      dataLen = varDataTLen(pData);
     }
 
     SVarColAttr* pAttr = &pColumnInfoData->varmeta;

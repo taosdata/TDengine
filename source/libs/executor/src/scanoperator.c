@@ -303,7 +303,9 @@ void addTagPseudoColumnData(SReadHandle *pHandle, SExprInfo* pPseudoExpr, int32_
     int32_t dstSlotId = pExpr->base.resSchema.slotId;
 
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, dstSlotId);
+    
     colInfoDataEnsureCapacity(pColInfoData, 0, pBlock->info.rows);
+    colInfoDataCleanup(pColInfoData, pBlock->info.rows);
 
     int32_t functionId = pExpr->pExpr->_function.functionId;
 
@@ -311,29 +313,23 @@ void addTagPseudoColumnData(SReadHandle *pHandle, SExprInfo* pPseudoExpr, int32_
     if (fmIsScanPseudoColumnFunc(functionId)) {
       setTbNameColData(pHandle->meta, pBlock, pColInfoData, functionId);
     } else {  // these are tags
-      const char* p = NULL;
-      if (pColInfoData->info.type == TSDB_DATA_TYPE_JSON) {
-        const STag* tmp = (const STag*)mr.me.ctbEntry.pTags;
+      STagVal tagVal = {0};
+      tagVal.cid = pExpr->base.pParam[0].pCol->colId;
+      const char *p = metaGetTableTagVal(&mr.me, pColInfoData->info.type, &tagVal);
 
-        char* data = taosMemoryCalloc(tmp->len + 1, 1);
-        if (data == NULL) {
-          metaReaderClear(&mr);
-          qError("doTagScan calloc error:%d", tmp->len + 1);
-          return;
-        }
-
-        *data = TSDB_DATA_TYPE_JSON;
-        memcpy(data + 1, tmp, tmp->len);
-        p = data;
-      } else {
-        p = metaGetTableTagVal(&mr.me, pExpr->base.pParam[0].pCol->colId);
+      char *data = NULL;
+      if(pColInfoData->info.type != TSDB_DATA_TYPE_JSON && p != NULL){
+        data = tTagValToData((const STagVal *)p, false);
+      }else {
+        data = (char*)p;
       }
 
       for (int32_t i = 0; i < pBlock->info.rows; ++i) {
-        colDataAppend(pColInfoData, i, p, (p == NULL));
+        colDataAppend(pColInfoData, i, data, (data == NULL));
       }
-      if (pColInfoData->info.type == TSDB_DATA_TYPE_JSON) {
-        taosMemoryFree((void*)p);
+      if(pColInfoData->info.type != TSDB_DATA_TYPE_JSON && p != NULL &&
+          IS_VAR_DATA_TYPE(((const STagVal *)p)->type) && data){
+        taosMemoryFree(data);
       }
     }
   }
@@ -1587,22 +1583,21 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
         STR_TO_VARSTR(str, mr.me.name);
         colDataAppend(pDst, count, str, false);
       } else {  // it is a tag value
-        if (pDst->info.type == TSDB_DATA_TYPE_JSON) {
-          const STag* tmp = (const STag*)mr.me.ctbEntry.pTags;
-          // TODO opt perf by realloc memory
-          char* data = taosMemoryCalloc(tmp->len + 1, 1);
-          if (data == NULL) {
-            qError("%s failed to malloc memory, size:%d", GET_TASKID(pTaskInfo), tmp->len + 1);
-            longjmp(pTaskInfo->env, TSDB_CODE_OUT_OF_MEMORY);
-          }
+        STagVal val = {0};
+        val.cid = pExprInfo[j].base.pParam[0].pCol->colId;
+        const char* p = metaGetTableTagVal(&mr.me, pDst->info.type, &val);
 
-          *data = TSDB_DATA_TYPE_JSON;
-          memcpy(data + 1, tmp, tmp->len);
-          colDataAppend(pDst, count, data, false);
+        char *data = NULL;
+        if(pDst->info.type != TSDB_DATA_TYPE_JSON && p != NULL){
+          data = tTagValToData((const STagVal *)p, false);
+        }else {
+          data = (char*)p;
+        }
+        colDataAppend(pDst, count, data, (data == NULL));
+
+        if(pDst->info.type != TSDB_DATA_TYPE_JSON && p != NULL
+            && IS_VAR_DATA_TYPE(((const STagVal *)p)->type) && data != NULL){
           taosMemoryFree(data);
-        } else {
-          const char* p = metaGetTableTagVal(&mr.me, pExprInfo[j].base.pParam[0].pCol->colId);
-          colDataAppend(pDst, count, p, (p == NULL));
         }
       }
     }

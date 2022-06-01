@@ -573,15 +573,20 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
     for (int32_t i = 0; i < pTagSchema->nCols; i++) {
       SSchema *pCol = &pTagSchema->pSchema[i];
       if (iCol == i) {
-        tTagValPush(pTagArray, &pCol->colId, pCol->type, pAlterTbReq->pTagVal, pAlterTbReq->nTagVal, false);
+        STagVal val = {0};
+        val.type = pCol->type;
+        val.cid = pCol->colId;
+        if (IS_VAR_DATA_TYPE(pCol->type)) {
+          val.pData = pAlterTbReq->pTagVal;
+          val.nData = pAlterTbReq->nTagVal;
+        } else {
+          memcpy(&val.i64, pAlterTbReq->pTagVal, pAlterTbReq->nTagVal);
+        }
+        taosArrayPush(pTagArray, &val);
       } else {
-        STagVal tagVal = {.cid = pCol->colId};
-        if (tTagGet(pOldTag, &tagVal) && tagVal.pData) {
-          if (IS_VAR_DATA_TYPE(pCol->type)) {
-            tTagValPush(pTagArray, &pCol->colId, pCol->type, varDataVal(tagVal.pData), varDataLen(tagVal.pData), false);
-          } else {
-            tTagValPush(pTagArray, &pCol->colId, pCol->type, tagVal.pData, pCol->bytes, false);
-          }
+        STagVal val = {0};
+        if (tTagGet(pOldTag, &val)) {
+          taosArrayPush(pTagArray, &val);
         }
       }
     }
@@ -726,8 +731,8 @@ static int metaUpdateCtbIdx(SMeta *pMeta, const SMetaEntry *pME) {
   return tdbTbInsert(pMeta->pCtbIdx, &ctbIdxKey, sizeof(ctbIdxKey), NULL, 0, &pMeta->txn);
 }
 
-static int metaCreateTagIdxKey(tb_uid_t suid, int32_t cid, const void *pTagData, int32_t nTagData, int8_t type,
-                               tb_uid_t uid, STagIdxKey **ppTagIdxKey, int32_t *nTagIdxKey) {
+int metaCreateTagIdxKey(tb_uid_t suid, int32_t cid, const void *pTagData, int32_t nTagData, int8_t type, tb_uid_t uid,
+                        STagIdxKey **ppTagIdxKey, int32_t *nTagIdxKey) {
   // int32_t nTagData = 0;
 
   // if (pTagData) {
@@ -783,9 +788,19 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
   pTagColumn = &stbEntry.stbEntry.schemaTag.pSchema[0];
 
   STagVal tagVal = {.cid = pTagColumn->colId};
-  tTagGet((const STag *)pCtbEntry->ctbEntry.pTags, &tagVal);
-  pTagData = tagVal.pData;
-  nTagData = (int32_t)tagVal.nData;
+  if (pTagColumn->type != TSDB_DATA_TYPE_JSON) {
+    tTagGet((const STag *)pCtbEntry->ctbEntry.pTags, &tagVal);
+    if (IS_VAR_DATA_TYPE(pTagColumn->type)) {
+      pTagData = tagVal.pData;
+      nTagData = (int32_t)tagVal.nData;
+    } else {
+      pTagData = &(tagVal.i64);
+      nTagData = tDataTypes[pTagColumn->type].bytes;
+    }
+  } else {
+    // pTagData = pCtbEntry->ctbEntry.pTags;
+    // nTagData = ((const STag *)pCtbEntry->ctbEntry.pTags)->len;
+  }
 
   // update tag index
 #ifdef USE_INVERTED_INDEX

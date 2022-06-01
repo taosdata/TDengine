@@ -62,14 +62,11 @@ int32_t tTSRowBuilderPut(STSRowBuilder *pBuilder, int32_t cid, uint8_t *pData, u
 int32_t tTSRowBuilderGetRow(STSRowBuilder *pBuilder, const STSRow2 **ppRow);
 #endif
 
-// STagVal
-static FORCE_INLINE void tTagValPush(SArray *pTagArray, void *key, int8_t type, uint8_t *pData, uint32_t nData,
-                                     bool isJson);
-
 // STag
 int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag);
 void    tTagFree(STag *pTag);
 bool    tTagGet(const STag *pTag, STagVal *pTagVal);
+char*   tTagValToData(const STagVal *pTagVal, bool isJson);
 int32_t tEncodeTag(SEncoder *pEncoder, const STag *pTag);
 int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag);
 int32_t tTagToValArray(const STag *pTag, SArray **ppArray);
@@ -148,6 +145,7 @@ struct SColVal {
   SValue  value;
 };
 
+#pragma pack(push, 1)
 struct STagVal {
   union {
     int16_t cid;
@@ -155,16 +153,7 @@ struct STagVal {
   };
   int8_t type;
   union {
-    int8_t   i8;
-    uint8_t  u8;
-    int16_t  i16;
-    uint16_t u16;
-    int32_t  i32;
-    uint32_t u32;
     int64_t  i64;
-    uint64_t u64;
-    float    f;
-    double   d;
     struct {
       uint32_t nData;
       uint8_t *pData;
@@ -172,24 +161,8 @@ struct STagVal {
   };
 };
 
-static FORCE_INLINE void tTagValPush(SArray *pTagArray, void *key, int8_t type, uint8_t *pData, uint32_t nData,
-                                     bool isJson) {
-  STagVal tagVal = {0};
-  if (isJson) {
-    tagVal.pKey = (char *)key;
-  } else {
-    tagVal.cid = *(int16_t *)key;
-  }
-
-  tagVal.type = type;
-  tagVal.pData = pData;
-  tagVal.nData = nData;
-  taosArrayPush(pTagArray, &tagVal);
-}
-
-#pragma pack(push, 1)
-#define TD_TAG_JSON  ((int8_t)0x1)
-#define TD_TAG_LARGE ((int8_t)0x2)
+#define TD_TAG_JSON  ((int8_t)0x40)   // distinguish JSON string and JSON value with the highest bit
+#define TD_TAG_LARGE ((int8_t)0x20)
 struct STag {
   int8_t  flags;
   int16_t len;
@@ -449,14 +422,3 @@ int32_t    tdMergeDataCols(SDataCols *target, SDataCols *source, int32_t rowsToM
 
 #endif /*_TD_COMMON_DATA_FORMAT_H_*/
 
-// SKVRowBuilder;
-
-// int32_t tdInitKVRowBuilder(SKVRowBuilder *pBuilder);
-// void    tdDestroyKVRowBuilder(SKVRowBuilder *pBuilder);
-// void    tdResetKVRowBuilder(SKVRowBuilder *pBuilder);
-// SKVRow  tdGetKVRowFromBuilder(SKVRowBuilder *pBuilder);
-
-// static FORCE_INLINE int32_t tdAddColToKVRow(SKVRowBuilder *pBuilder, col_id_t colId, const void *value, int32_t tlen)
-
-// #ifdef JSON_TAG_REFACTOR
-// TODO: JSON_TAG_TODO

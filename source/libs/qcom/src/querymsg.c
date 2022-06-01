@@ -373,7 +373,7 @@ int32_t queryProcessQnodeListRsp(void *output, char *msg, int32_t msgSize) {
     return code;
   }
 
-  out.addrsList = (SArray *)output;
+  out.qnodeList = (SArray *)output;
   if (tDeserializeSQnodeListRsp(msg, msgSize, &out) != 0) {
     qError("invalid qnode list rsp msg, msgSize:%d", msgSize);
     code = TSDB_CODE_INVALID_MSG;
