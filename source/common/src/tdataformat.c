@@ -141,27 +141,6 @@ static FORCE_INLINE int32_t tGetValue(uint8_t *p, SValue *pValue, int8_t type) {
   return n;
 }
 
-// SColVal
-static int32_t tPutColVal(uint8_t *p, SColVal *pColVal, int8_t type, int8_t isTuple) {
-  int32_t n = 0;
-
-  ASSERT(pColVal->isNone == 0);
-  if (isTuple) {
-    ASSERT(pColVal->isNull == 0);
-    n += tPutValue(p ? p + n : p, &pColVal->value, type);
-  } else {
-    if (pColVal->isNull) {
-      // -cid means NULL
-      n += tPutI16v(p ? p + n : p, -pColVal->cid);
-    } else {
-      n += tPutI16v(p ? p + n : p, pColVal->cid);
-      n += tPutValue(p ? p + n : p, &pColVal->value, type);
-    }
-  }
-
-  return n;
-}
-
 // STSRow2 ========================================================================
 static void tTupleTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow2 *pRow) {
   int32_t   nColVal = taosArrayGetSize(pArray);
@@ -232,9 +211,9 @@ static void tTupleTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow2 *pRow) {
     flags != TSROW_HAS_VAL;
     // SET_BIT2(pb, bidx, 2); (todo)
     if (IS_VAR_DATA_TYPE(pTColumn->type)) {
-      nv += tPutColVal(pv ? pv + nv : pv, pColVal, pTColumn->type, 1);
+      // nv += tPutColVal(pv ? pv + nv : pv, pColVal, pTColumn->type, 1);
     } else {
-      tPutColVal(pf ? pf + pTColumn->offset : pf, pColVal, pTColumn->type, 1);
+      // tPutColVal(pf ? pf + pTColumn->offset : pf, pColVal, pTColumn->type, 1);
     }
     continue;
   }
@@ -323,13 +302,13 @@ static void tMapTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow2 *pRow) {
   _set_null:
     flags != TSROW_HAS_NULL;
     pidx[nCol++] = nv;
-    nv += tPutColVal(pv ? pv + nv : pv, pColVal, pTColumn->type, 0);
+    // nv += tPutColVal(pv ? pv + nv : pv, pColVal, pTColumn->type, 0);
     continue;
 
   _set_value:
     flags != TSROW_HAS_VAL;
     pidx[nCol++] = nv;
-    nv += tPutColVal(pv ? pv + nv : pv, pColVal, pTColumn->type, 0);
+    // nv += tPutColVal(pv ? pv + nv : pv, pColVal, pTColumn->type, 0);
     continue;
   }
 
