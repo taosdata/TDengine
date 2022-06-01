@@ -46,6 +46,7 @@ void    tTSchemaDestroy(STSchema *pTSchema);
 #define COL_VAL_NULL(CID)     ((SColVal){.cid = (CID), .isNull = 1})
 #define COL_VAL_VALUE(CID, V) ((SColVal){.cid = (CID), .value = (V)})
 
+int32_t tTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow2 **ppRow);
 int32_t tTSRowClone(const STSRow2 *pRow, STSRow2 **ppRow);
 void    tTSRowFree(STSRow2 *pRow);
 void    tTSRowGet(STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
@@ -66,7 +67,7 @@ int32_t tTSRowBuilderGetRow(STSRowBuilder *pBuilder, const STSRow2 **ppRow);
 int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag);
 void    tTagFree(STag *pTag);
 bool    tTagGet(const STag *pTag, STagVal *pTagVal);
-char*   tTagValToData(const STagVal *pTagVal, bool isJson);
+char   *tTagValToData(const STagVal *pTagVal, bool isJson);
 int32_t tEncodeTag(SEncoder *pEncoder, const STag *pTag);
 int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag);
 int32_t tTagToValArray(const STag *pTag, SArray **ppArray);
@@ -153,7 +154,7 @@ struct STagVal {
   };
   int8_t type;
   union {
-    int64_t  i64;
+    int64_t i64;
     struct {
       uint32_t nData;
       uint8_t *pData;
@@ -161,7 +162,7 @@ struct STagVal {
   };
 };
 
-#define TD_TAG_JSON  ((int8_t)0x40)   // distinguish JSON string and JSON value with the highest bit
+#define TD_TAG_JSON  ((int8_t)0x40)  // distinguish JSON string and JSON value with the highest bit
 #define TD_TAG_LARGE ((int8_t)0x20)
 struct STag {
   int8_t  flags;
@@ -421,4 +422,3 @@ int32_t    tdMergeDataCols(SDataCols *target, SDataCols *source, int32_t rowsToM
 #endif
 
 #endif /*_TD_COMMON_DATA_FORMAT_H_*/
-

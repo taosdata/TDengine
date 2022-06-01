@@ -953,25 +953,6 @@ static void debugPrintTagVal(int8_t type, const void *val, int32_t vlen, const c
   }
 }
 
-// if (isLarge) {
-//   p = (uint8_t *)&((int16_t *)pTag->idx)[pTag->nTag];
-// } else {
-//   p = (uint8_t *)&pTag->idx[pTag->nTag];
-// }
-
-// (*ppArray) = taosArrayInit(pTag->nTag + 1, sizeof(STagVal));
-// if (*ppArray == NULL) {
-//   code = TSDB_CODE_OUT_OF_MEMORY;
-//   goto _err;
-// }
-
-// for (int16_t iTag = 0; iTag < pTag->nTag; iTag++) {
-//   if (isLarge) {
-//     offset = ((int16_t *)pTag->idx)[iTag];
-//   } else {
-//     offset = pTag->idx[iTag];
-//   }
-
 void debugPrintSTag(STag *pTag, const char *tag, int32_t ln) {
   int8_t   isJson = pTag->flags & TD_TAG_JSON;
   int8_t   isLarge = pTag->flags & TD_TAG_LARGE;
