@@ -127,6 +127,12 @@ int32_t SnapshotStopWrite(struct SSyncFSM* pFsm, void* pWriter, bool isApply) {
   snprintf(logBuf, sizeof(logBuf), "==callback== ==SnapshotStopWrite== pFsm:%p, pWriter:%p, isApply:%d", pFsm, pWriter,
            isApply);
   sTrace("%s", logBuf);
+
+  if (isApply) {
+    gSnapshotLastApplyIndex = 7;
+    gSnapshotLastApplyTerm = 1;
+  }
+
   return 0;
 }
 
