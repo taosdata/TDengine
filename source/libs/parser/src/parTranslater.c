@@ -830,7 +830,8 @@ static EDealRes translateComparisonOperator(STranslateContext* pCxt, SOperatorNo
     if (!IS_VAR_DATA_TYPE(((SExprNode*)(pOp->pLeft))->resType.type)) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pLeft))->aliasName);
     }
-    if (QUERY_NODE_VALUE != nodeType(pOp->pRight) || !IS_STR_DATA_TYPE(((SExprNode*)(pOp->pRight))->resType.type)) {
+    if (QUERY_NODE_VALUE != nodeType(pOp->pRight) || 
+      ((!IS_STR_DATA_TYPE(((SExprNode*)(pOp->pRight))->resType.type)) && (((SExprNode*)(pOp->pRight))->resType.type != TSDB_DATA_TYPE_NULL))) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pRight))->aliasName);
     }
   }
