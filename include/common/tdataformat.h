@@ -42,7 +42,10 @@ int32_t tTSchemaCreate(int32_t sver, SSchema *pSchema, int32_t nCols, STSchema *
 void    tTSchemaDestroy(STSchema *pTSchema);
 
 // STSRow2
-int32_t tTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow2 **ppRow);
+#define COL_VAL_NONE(CID)     ((SColVal){.cid = (CID), .isNone = 1})
+#define COL_VAL_NULL(CID)     ((SColVal){.cid = (CID), .isNull = 1})
+#define COL_VAL_VALUE(CID, V) ((SColVal){.cid = (CID), .value = (V)})
+
 int32_t tTSRowClone(const STSRow2 *pRow, STSRow2 **ppRow);
 void    tTSRowFree(STSRow2 *pRow);
 void    tTSRowGet(STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);

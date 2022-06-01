@@ -389,11 +389,9 @@ void tTSRowGet(STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal
   }
 
   if (flags == TSROW_HAS_NONE) {
-    *pColVal = (SColVal){.isNone = 1, .cid = pTColumn->colId};
-    return;
+    goto _return_none;
   } else if (flags == TSROW_HAS_NONE) {
-    *pColVal = (SColVal){.isNull = 1, .cid = pTColumn->colId};
-    return;
+    goto _return_null;
   }
 
   ASSERT(pRow->nData && pRow->pData);
@@ -510,15 +508,15 @@ void tTSRowGet(STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal
   }
 
 _return_none:
-  *pColVal = (SColVal){.cid = pTColumn->colId, .isNone = 1};
+  *pColVal = COL_VAL_NONE(pTColumn->colId);
   return;
 
 _return_null:
-  *pColVal = (SColVal){.cid = pTColumn->colId, .isNull = 1};
+  *pColVal = COL_VAL_NULL(pTColumn->colId);
   return;
 
 _return_value:
-  *pColVal = (SColVal){.cid = pTColumn->colId, .value = value};
+  *pColVal = COL_VAL_VALUE(pTColumn->colId, value);
   return;
 }
 
