@@ -93,10 +93,13 @@ title: TDengine 参数限制与保留关键字
 `TBNAME` 可以视为超级表中一个特殊的标签，代表子表的表名。
 
 获取一个超级表所有的子表名及相关的标签信息：
+
 ```mysql
 SELECT TBNAME, location FROM meters;
+```
 
 统计超级表下辖子表数量：
+
 ```mysql
 SELECT COUNT(TBNAME) FROM meters;
 ```
