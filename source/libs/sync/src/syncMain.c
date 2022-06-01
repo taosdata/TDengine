@@ -29,6 +29,7 @@
 #include "syncRequestVote.h"
 #include "syncRequestVoteReply.h"
 #include "syncRespMgr.h"
+#include "syncSnapshot.h"
 #include "syncTimeout.h"
 #include "syncUtil.h"
 #include "syncVoteMgr.h"
@@ -583,6 +584,20 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
   // }
   // tsem_init(&(pSyncNode->restoreSem), 0, 0);
 
+  // snapshot senders
+  for (int i = 0; i < TSDB_MAX_REPLICA; ++i) {
+    SSyncSnapshotSender* pSender = snapshotSenderCreate(pSyncNode, i);
+    // ASSERT(pSender != NULL);
+    (pSyncNode->senders)[i] = pSender;
+  }
+
+  // snapshot receivers
+  for (int i = 0; i < TSDB_MAX_REPLICA; ++i) {
+    SSyncSnapshotReceiver* pReceiver = snapshotReceiverCreate(pSyncNode, i);
+    // ASSERT(pReceiver != NULL);
+    (pSyncNode->receivers)[i] = pReceiver;
+  }
+
   // start in syncNodeStart
   // start raft
   // syncNodeBecomeFollower(pSyncNode);
@@ -672,6 +687,20 @@ void syncNodeClose(SSyncNode* pSyncNode) {
 
   if (pSyncNode->pFsm != NULL) {
     taosMemoryFree(pSyncNode->pFsm);
+  }
+
+  for (int i = 0; i < TSDB_MAX_REPLICA; ++i) {
+    if ((pSyncNode->senders)[i] != NULL) {
+      snapshotSenderDestroy((pSyncNode->senders)[i]);
+      (pSyncNode->senders)[i] = NULL;
+    }
+  }
+
+  for (int i = 0; i < TSDB_MAX_REPLICA; ++i) {
+    if ((pSyncNode->receivers)[i] != NULL) {
+      snapshotReceiverDestroy((pSyncNode->receivers)[i]);
+      (pSyncNode->receivers)[i] = NULL;
+    }
   }
 
   /*
@@ -969,6 +998,23 @@ cJSON* syncNode2Json(const SSyncNode* pSyncNode) {
     cJSON_AddStringToObject(pRoot, "FpOnAppendEntriesReply", u64buf);
     snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpOnTimeout);
     cJSON_AddStringToObject(pRoot, "FpOnTimeout", u64buf);
+
+    // restoreFinish
+    cJSON_AddNumberToObject(pRoot, "restoreFinish", pSyncNode->restoreFinish);
+
+    // snapshot senders
+    cJSON* pSenders = cJSON_CreateArray();
+    cJSON_AddItemToObject(pRoot, "senders", pSenders);
+    for (int i = 0; i < TSDB_MAX_REPLICA; ++i) {
+      cJSON_AddItemToArray(pSenders, snapshotSender2Json((pSyncNode->senders)[i]));
+    }
+
+    // snapshot receivers
+    cJSON* pReceivers = cJSON_CreateArray();
+    cJSON_AddItemToObject(pRoot, "receivers", pReceivers);
+    for (int i = 0; i < TSDB_MAX_REPLICA; ++i) {
+      cJSON_AddItemToArray(pReceivers, snapshotReceiver2Json((pSyncNode->receivers)[i]));
+    }
   }
 
   cJSON* pJson = cJSON_CreateObject();

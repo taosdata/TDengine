@@ -394,8 +394,8 @@ typedef struct SyncSnapshotSend {
   SRaftId  destId;
 
   SyncTerm  term;
-  SyncIndex lastIndex;
-  SyncTerm  lastTerm;
+  SyncIndex lastIndex;  // lastIndex of snapshot
+  SyncTerm  lastTerm;   // lastTerm of snapshot
   int32_t   seq;
   uint32_t  dataLen;
   char      data[];

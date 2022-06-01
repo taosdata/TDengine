@@ -33,12 +33,14 @@ extern "C" {
 #define SYNC_SNAPSHOT_SEQ_BEGIN 0
 #define SYNC_SNAPSHOT_SEQ_END 0x7FFFFFFF
 
+#define SYNC_SNAPSHOT_RETRY_MS 5000
+
 typedef struct SSyncSnapshotSender {
   bool       start;
   int32_t    seq;
   int32_t    ack;
-  void *     pReader;
-  void *     pCurrentBlock;
+  void      *pReader;
+  void      *pCurrentBlock;
   int32_t    blockLen;
   SSnapshot  snapshot;
   int64_t    sendingMS;
@@ -52,15 +54,15 @@ void                 snapshotSenderDestroy(SSyncSnapshotSender *pSender);
 void                 snapshotSenderStart(SSyncSnapshotSender *pSender);
 void                 snapshotSenderStop(SSyncSnapshotSender *pSender);
 int32_t              snapshotSend(SSyncSnapshotSender *pSender);
-cJSON *              snapshotSender2Json(SSyncSnapshotSender *pSender);
-char *               snapshotSender2Str(SSyncSnapshotSender *pSender);
+cJSON               *snapshotSender2Json(SSyncSnapshotSender *pSender);
+char                *snapshotSender2Str(SSyncSnapshotSender *pSender);
 
 typedef struct SSyncSnapshotReceiver {
   bool start;
 
   int32_t  ack;
-  void *   pWriter;
-  void *   pCurrentBlock;
+  void    *pWriter;
+  void    *pCurrentBlock;
   int32_t  blockLen;
   SyncTerm term;
 
@@ -72,8 +74,8 @@ SSyncSnapshotReceiver *snapshotReceiverCreate(SSyncNode *pSyncNode, int32_t repl
 void                   snapshotReceiverDestroy(SSyncSnapshotReceiver *pReceiver);
 void                   snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver);
 void                   snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver);
-cJSON *                snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver);
-char *                 snapshotReceiver2Str(SSyncSnapshotReceiver *pReceiver);
+cJSON                 *snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver);
+char                  *snapshotReceiver2Str(SSyncSnapshotReceiver *pReceiver);
 
 int32_t syncNodeOnSnapshotSendCb(SSyncNode *ths, SyncSnapshotSend *pMsg);
 int32_t syncNodeOnSnapshotRspCb(SSyncNode *ths, SyncSnapshotRsp *pMsg);

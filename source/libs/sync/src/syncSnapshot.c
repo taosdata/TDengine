@@ -20,24 +20,28 @@
 static void snapshotSenderDoStart(SSyncSnapshotSender *pSender);
 
 SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaIndex) {
-  ASSERT(pSyncNode->pFsm->FpSnapshotStartRead != NULL);
-  ASSERT(pSyncNode->pFsm->FpSnapshotStopRead != NULL);
-  ASSERT(pSyncNode->pFsm->FpSnapshotDoRead != NULL);
+  bool condition = (pSyncNode->pFsm->FpSnapshotStartRead != NULL) && (pSyncNode->pFsm->FpSnapshotStopRead != NULL) &&
+                   (pSyncNode->pFsm->FpSnapshotDoRead != NULL);
 
-  SSyncSnapshotSender *pSender = taosMemoryMalloc(sizeof(SSyncSnapshotSender));
-  ASSERT(pSender != NULL);
-  memset(pSender, 0, sizeof(*pSender));
+  SSyncSnapshotSender *pSender = NULL;
+  if (condition) {
+    pSender = taosMemoryMalloc(sizeof(SSyncSnapshotSender));
+    ASSERT(pSender != NULL);
+    memset(pSender, 0, sizeof(*pSender));
 
-  pSender->start = false;
-  pSender->seq = SYNC_SNAPSHOT_SEQ_INVALID;
-  pSender->ack = SYNC_SNAPSHOT_SEQ_INVALID;
-  pSender->pReader = NULL;
-  pSender->pCurrentBlock = NULL;
-  pSender->blockLen = 0;
-  pSender->sendingMS = 5000;
-  pSender->pSyncNode = pSyncNode;
-  pSender->replicaIndex = replicaIndex;
-  pSender->term = pSyncNode->pRaftStore->currentTerm;
+    pSender->start = false;
+    pSender->seq = SYNC_SNAPSHOT_SEQ_INVALID;
+    pSender->ack = SYNC_SNAPSHOT_SEQ_INVALID;
+    pSender->pReader = NULL;
+    pSender->pCurrentBlock = NULL;
+    pSender->blockLen = 0;
+    pSender->sendingMS = SYNC_SNAPSHOT_RETRY_MS;
+    pSender->pSyncNode = pSyncNode;
+    pSender->replicaIndex = replicaIndex;
+    pSender->term = pSyncNode->pRaftStore->currentTerm;
+  } else {
+    sInfo("snapshotSenderCreate cannot create sender");
+  }
 
   return pSender;
 }
@@ -48,38 +52,47 @@ void snapshotSenderDestroy(SSyncSnapshotSender *pSender) {
   }
 }
 
+// begin send snapshot (current term, seq begin)
 static void snapshotSenderDoStart(SSyncSnapshotSender *pSender) {
   pSender->term = pSender->pSyncNode->pRaftStore->currentTerm;
   pSender->seq = SYNC_SNAPSHOT_SEQ_BEGIN;
   pSender->ack = SYNC_SNAPSHOT_SEQ_INVALID;
 
+  // open snapshot reader
+  ASSERT(pSender->pReader == NULL);
   int32_t ret = pSender->pSyncNode->pFsm->FpSnapshotStartRead(pSender->pSyncNode->pFsm, &(pSender->pReader));
   ASSERT(ret == 0);
 
+  // get current snapshot info
   pSender->pSyncNode->pFsm->FpGetSnapshot(pSender->pSyncNode->pFsm, &(pSender->snapshot));
 
+  // build begin msg
   SyncSnapshotSend *pMsg = syncSnapshotSendBuild(0, pSender->pSyncNode->vgId);
   pMsg->srcId = pSender->pSyncNode->myRaftId;
   pMsg->destId = (pSender->pSyncNode->replicasId)[pSender->replicaIndex];
   pMsg->term = pSender->pSyncNode->pRaftStore->currentTerm;
   pMsg->lastIndex = pSender->snapshot.lastApplyIndex;
   pMsg->lastTerm = pSender->snapshot.lastApplyTerm;
-  pMsg->seq = pSender->seq;
+  pMsg->seq = pSender->seq;  // SYNC_SNAPSHOT_SEQ_BEGIN
 
+  // send
   SRpcMsg rpcMsg;
   syncSnapshotSend2RpcMsg(pMsg, &rpcMsg);
   syncNodeSendMsgById(&(pMsg->destId), pSender->pSyncNode, &rpcMsg);
   syncSnapshotSendDestroy(pMsg);
 }
 
+// when entry in snapshot, start sender
 void snapshotSenderStart(SSyncSnapshotSender *pSender) {
   if (!(pSender->start)) {
+    // start
     snapshotSenderDoStart(pSender);
     pSender->start = true;
   } else {
+    // already start
     ASSERT(pSender->pSyncNode->pRaftStore->currentTerm >= pSender->term);
 
-    // leader change
+    // if current term is higher, need start again
     if (pSender->pSyncNode->pRaftStore->currentTerm > pSender->term) {
       // force peer rollback
       SyncSnapshotSend *pMsg = syncSnapshotSendBuild(0, pSender->pSyncNode->vgId);
@@ -98,30 +111,40 @@ void snapshotSenderStart(SSyncSnapshotSender *pSender) {
       // close reader
       int32_t ret = pSender->pSyncNode->pFsm->FpSnapshotStopRead(pSender->pSyncNode->pFsm, pSender->pReader);
       ASSERT(ret == 0);
+      pSender->pReader = NULL;
 
       // start again
       snapshotSenderDoStart(pSender);
     } else {
-      // do nothing
+      // current term, do nothing
+      ASSERT(pSender->pSyncNode->pRaftStore->currentTerm == pSender->term);
     }
   }
 }
 
 void snapshotSenderStop(SSyncSnapshotSender *pSender) {
-  int32_t ret = pSender->pSyncNode->pFsm->FpSnapshotStopRead(pSender->pSyncNode->pFsm, pSender->pReader);
-  ASSERT(ret == 0);
+  if (pSender->pReader != NULL) {
+    int32_t ret = pSender->pSyncNode->pFsm->FpSnapshotStopRead(pSender->pSyncNode->pFsm, pSender->pReader);
+    ASSERT(ret == 0);
+    pSender->pReader = NULL;
+  }
 
   if (pSender->pCurrentBlock != NULL) {
     taosMemoryFree(pSender->pCurrentBlock);
+    pSender->pCurrentBlock = NULL;
     pSender->blockLen = 0;
   }
+
+  pSender->start = false;
 }
 
-// send msg from seq, seq is already updated
+// when sender receiver ack, call this function to send msg from seq
+// seq = ack + 1, already updated
 int32_t snapshotSend(SSyncSnapshotSender *pSender) {
   // free memory last time (seq - 1)
   if (pSender->pCurrentBlock != NULL) {
     taosMemoryFree(pSender->pCurrentBlock);
+    pSender->pCurrentBlock = NULL;
     pSender->blockLen = 0;
   }
 
@@ -129,6 +152,12 @@ int32_t snapshotSend(SSyncSnapshotSender *pSender) {
   int32_t ret = pSender->pSyncNode->pFsm->FpSnapshotDoRead(pSender->pSyncNode->pFsm, pSender->pReader,
                                                            &(pSender->pCurrentBlock), &(pSender->blockLen));
   ASSERT(ret == 0);
+  if (pSender->blockLen > 0) {
+    // has read data
+  } else {
+    // read finish
+    pSender->seq = SYNC_SNAPSHOT_SEQ_END;
+  }
 
   SyncSnapshotSend *pMsg = syncSnapshotSendBuild(pSender->blockLen, pSender->pSyncNode->vgId);
   pMsg->srcId = pSender->pSyncNode->myRaftId;
@@ -347,8 +376,10 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
   return 0;
 }
 
-// sender do something
+// sender receives ack, set seq = ack + 1, send msg from seq
+// if ack == SYNC_SNAPSHOT_SEQ_END, stop sender
 int32_t syncNodeOnSnapshotRspCb(SSyncNode *pSyncNode, SyncSnapshotRsp *pMsg) {
+  // get sender
   SSyncSnapshotSender *pSender = NULL;
   for (int i = 0; i < pSyncNode->replicaNum; ++i) {
     if (syncUtilSameId(&(pMsg->srcId), &((pSyncNode->replicasId)[i]))) {
@@ -360,10 +391,18 @@ int32_t syncNodeOnSnapshotRspCb(SSyncNode *pSyncNode, SyncSnapshotRsp *pMsg) {
   // state, term, seq/ack
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
     if (pMsg->term == pSyncNode->pRaftStore->currentTerm) {
+      // receiver ack is finish, close sender
+      if (pMsg->ack == SYNC_SNAPSHOT_SEQ_END) {
+        snapshotSenderStop(pSender);
+        return 0;
+      }
+
+      // send next msg
       if (pMsg->ack == pSender->seq) {
+        // update sender ack
         pSender->ack = pMsg->ack;
-        snapshotSend(pSender);
         (pSender->seq)++;
+        snapshotSend(pSender);
       }
     }
   }
