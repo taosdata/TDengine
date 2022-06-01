@@ -52,8 +52,9 @@ target_sources(
     "src/tq/tqMeta.c"
     "src/tq/tqRead.c"
     "src/tq/tqOffset.c"
-    #"src/tq/tqPush.c"
-    #"src/tq/tqCommit.c"
+    "src/tq/tqPush.c"
+    "src/tq/tqSink.c"
+    "src/tq/tqCommit.c"
 )
 target_include_directories(
     vnode

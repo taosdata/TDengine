@@ -22,7 +22,7 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, 
 static int vnodeProcessAlterTbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int vnodeProcessDropTbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
-static int vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *pReq, int len, SRpcMsg *pRsp);
+static int vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 
 int32_t vnodePreprocessReq(SVnode *pVnode, SRpcMsg *pMsg) {
   SDecoder dc = {0};
@@ -87,6 +87,9 @@ int32_t vnodePreprocessReq(SVnode *pVnode, SRpcMsg *pMsg) {
         }
       }
 
+    } break;
+    case TDMT_VND_ALTER_REPLICA: {
+      vnodeSyncAlter(pVnode, pMsg);
     } break;
     default:
       break;
@@ -154,7 +157,7 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
                               pMsg->contLen - sizeof(SMsgHead)) < 0) {
       }
     } break;
-    case TDMT_VND_ALTER_VNODE:
+    case TDMT_VND_ALTER_CONFIG:
       break;
     default:
       ASSERT(0);
@@ -783,7 +786,7 @@ _exit:
   return 0;
 }
 
-static int vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *pReq, int len, SRpcMsg *pRsp) {
+static int vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
   SVCreateTSmaReq req = {0};
   SDecoder        coder;
 
