@@ -125,6 +125,8 @@ int32_t      tsdbSnapshotReaderClose(STsdbSnapshotReader* pReader);
 int32_t      tsdbSnapshotRead(STsdbSnapshotReader* pReader, void** ppData, uint32_t* nData);
 
 // tq
+int     tqInit();
+void    tqCleanUp();
 STQ*    tqOpen(const char* path, SVnode* pVnode, SWal* pWal);
 void    tqClose(STQ*);
 int     tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver);
@@ -145,11 +147,11 @@ int32_t tqProcessTaskRecoverRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t smaOpen(SVnode* pVnode);
 int32_t smaClose(SSma* pSma);
 
-int32_t tdUpdateExpireWindow(SSma* pSma, SSubmitReq* pMsg, int64_t version);
+int32_t tdUpdateExpireWindow(SSma* pSma, const SSubmitReq* pMsg, int64_t version);
 int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
 int32_t tdProcessTSmaInsert(SSma* pSma, int64_t indexUid, const char* msg);
 
-int32_t tdProcessRSmaCreate(SVnode *pVnode, SVCreateStbReq* pReq);
+int32_t tdProcessRSmaCreate(SVnode* pVnode, SVCreateStbReq* pReq);
 int32_t tdProcessRSmaSubmit(SSma* pSma, void* pMsg, int32_t inputType);
 int32_t tdFetchTbUidList(SSma* pSma, STbUidStore** ppStore, tb_uid_t suid, tb_uid_t uid);
 int32_t tdUpdateTbUidList(SSma* pSma, STbUidStore* pUidStore);

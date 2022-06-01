@@ -244,7 +244,7 @@ typedef struct {
   const void* pMsg;
 } SSubmitMsgIter;
 
-int32_t tInitSubmitMsgIter(SSubmitReq* pMsg, SSubmitMsgIter* pIter);
+int32_t tInitSubmitMsgIter(const SSubmitReq* pMsg, SSubmitMsgIter* pIter);
 int32_t tGetSubmitMsgNext(SSubmitMsgIter* pIter, SSubmitBlk** pPBlock);
 int32_t tInitSubmitBlkIter(SSubmitMsgIter* pMsgIter, SSubmitBlk* pBlock, SSubmitBlkIter* pIter);
 STSRow* tGetSubmitBlkNext(SSubmitBlkIter* pIter);
@@ -944,7 +944,6 @@ typedef struct {
   int64_t timeInQueryQueue;
   int64_t timeInFetchQueue;
 } SQnodeLoad;
-
 
 typedef struct {
   int32_t     sver;      // software version
@@ -1968,7 +1967,7 @@ typedef struct {
   int8_t   killConnection;
   int8_t   align[3];
   SEpSet   epSet;
-  SArray  *pQnodeList;
+  SArray*  pQnodeList;
 } SQueryHbRspBasic;
 
 typedef struct {

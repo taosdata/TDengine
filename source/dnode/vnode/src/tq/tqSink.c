@@ -15,7 +15,20 @@
 
 #include "tq.h"
 
-int tqCommit(STQ* pTq) {
-  // do nothing
-  return 0;
+void tqTableSink(SStreamTask* pTask, void* vnode, int64_t ver, void* data) {
+  const SArray* pRes = (const SArray*)data;
+  SVnode*       pVnode = (SVnode*)vnode;
+
+  ASSERT(pTask->tbSink.pTSchema);
+  SSubmitReq* pReq = tdBlockToSubmit(pRes, pTask->tbSink.pTSchema, true, pTask->tbSink.stbUid,
+                                     pTask->tbSink.stbFullName, pVnode->config.vgId);
+  /*tPrintFixedSchemaSubmitReq(pReq, pTask->tbSink.pTSchema);*/
+  // build write msg
+  SRpcMsg msg = {
+      .msgType = TDMT_VND_SUBMIT,
+      .pCont = pReq,
+      .contLen = ntohl(pReq->length),
+  };
+
+  ASSERT(tmsgPutToQueue(&pVnode->msgCb, WRITE_QUEUE, &msg) == 0);
 }
