@@ -781,7 +781,7 @@ static void buildCreateTbReq(SVCreateTbReq* pTbReq, const char* tname, STag* pTa
 }
 
 static int32_t parseTagToken(char** end, SToken* pToken, SSchema* pSchema,
-                             int16_t timePrec, char* tmpTokenBuf, STagVal *val, SMsgBuf* pMsgBuf) {
+                             int16_t timePrec, STagVal *val, SMsgBuf* pMsgBuf) {
   int64_t  iv;
   uint64_t uv;
   char*    endptr = NULL;
@@ -795,7 +795,7 @@ static int32_t parseTagToken(char** end, SToken* pToken, SSchema* pSchema,
   }
 
   val->cid = pSchema->colId;
-  val->type = pSchema->bytes;
+  val->type = pSchema->type;
 
   switch (pSchema->type) {
     case TSDB_DATA_TYPE_BOOL: {
@@ -955,12 +955,6 @@ static int32_t parseTagToken(char** end, SToken* pToken, SSchema* pSchema,
       val->nData = output;
       break;
     }
-    case TSDB_DATA_TYPE_JSON: {
-      if (pToken->n > (TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
-        return buildSyntaxErrMsg(pMsgBuf, "json string too long than 4095", pToken->z);
-      }
-      //return func(pMsgBuf, pToken->z, pToken->n, param);
-    }
     case TSDB_DATA_TYPE_TIMESTAMP: {
       if (parseTime(end, pToken, timePrec, &iv, pMsgBuf) != TSDB_CODE_SUCCESS) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp", pToken->z);
@@ -971,7 +965,7 @@ static int32_t parseTagToken(char** end, SToken* pToken, SSchema* pSchema,
     }
   }
 
-  return TSDB_CODE_FAILED;
+  return TSDB_CODE_SUCCESS;
 }
 
 // pSql -> tag1_value, ...)
@@ -1021,7 +1015,7 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
       isJson = true;
     }else{
       STagVal val = {0};
-      code = parseTagToken(&pCxt->pSql, &sToken, pTagSchema, precision, tmpTokenBuf, &val, &pCxt->msg);
+      code = parseTagToken(&pCxt->pSql, &sToken, pTagSchema, precision, &val, &pCxt->msg);
       if (TSDB_CODE_SUCCESS != code) {
         taosMemoryFree(tmpTokenBuf);
         goto end;
