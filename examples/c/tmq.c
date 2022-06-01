@@ -176,8 +176,8 @@ tmq_t* build_consumer() {
 
 tmq_list_t* build_topic_list() {
   tmq_list_t* topic_list = tmq_list_new();
-  tmq_list_append(topic_list, "topic_ctb_column");
-  /*tmq_list_append(topic_list, "tmq_test_db_multi_insert_topic");*/
+  /*tmq_list_append(topic_list, "topic_ctb_column");*/
+  tmq_list_append(topic_list, "tmq_test_db_multi_insert_topic");
   return topic_list;
 }
 
@@ -195,7 +195,7 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
     if (tmqmessage) {
       cnt++;
       msg_process(tmqmessage);
-      if (cnt >= 2) break;
+      /*if (cnt >= 2) break;*/
       /*printf("get data\n");*/
       taos_free_result(tmqmessage);
       /*} else {*/
