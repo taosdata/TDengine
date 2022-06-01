@@ -116,6 +116,7 @@ void snapshotSenderStart(SSyncSnapshotSender *pSender) {
 
       // start again
       snapshotSenderDoStart(pSender);
+      pSender->start = true;
     } else {
       // current term, do nothing
       ASSERT(pSender->pSyncNode->pRaftStore->currentTerm == pSender->term);
@@ -297,6 +298,7 @@ void snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver) {
   if (!(pReceiver->start)) {
     // start
     snapshotReceiverDoStart(pReceiver);
+    pReceiver->start = true;
 
   } else {
     // already start
@@ -309,6 +311,7 @@ void snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver) {
 
     // start again
     snapshotReceiverDoStart(pReceiver);
+    pReceiver->start = true;
 
     ASSERT(0);
   }
