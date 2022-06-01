@@ -30,6 +30,7 @@ extern "C" {
 typedef struct SSchema       SSchema;
 typedef struct STColumn      STColumn;
 typedef struct STSchema      STSchema;
+typedef struct SValue        SValue;
 typedef struct SColVal       SColVal;
 typedef struct STSRow2       STSRow2;
 typedef struct STSRowBuilder STSRowBuilder;
@@ -40,24 +41,26 @@ typedef struct STag          STag;
 int32_t tTSchemaCreate(int32_t sver, SSchema *pSchema, int32_t nCols, STSchema **ppTSchema);
 void    tTSchemaDestroy(STSchema *pTSchema);
 
-// SColVal
-#define ColValNONE               ((SColVal){.type = COL_VAL_NONE, .nData = 0, .pData = NULL})
-#define ColValNULL               ((SColVal){.type = COL_VAL_NULL, .nData = 0, .pData = NULL})
-#define ColValDATA(nData, pData) ((SColVal){.type = COL_VAL_DATA, .nData = (nData), .pData = (pData)})
-
 // STSRow2
+#define COL_VAL_NONE(CID)     ((SColVal){.cid = (CID), .isNone = 1})
+#define COL_VAL_NULL(CID)     ((SColVal){.cid = (CID), .isNull = 1})
+#define COL_VAL_VALUE(CID, V) ((SColVal){.cid = (CID), .value = (V)})
+
+int32_t tTSRowClone(const STSRow2 *pRow, STSRow2 **ppRow);
+void    tTSRowFree(STSRow2 *pRow);
+void    tTSRowGet(STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
+int32_t tTSRowToArray(STSRow2 *pRow, STSchema *pTSchema, SArray **ppArray);
 int32_t tPutTSRow(uint8_t *p, STSRow2 *pRow);
 int32_t tGetTSRow(uint8_t *p, STSRow2 *pRow);
-int32_t tTSRowDup(const STSRow2 *pRow, STSRow2 **ppRow);
-void    tTSRowFree(STSRow2 *pRow);
-int32_t tTSRowGet(const STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
 
 // STSRowBuilder
+#if 0
 int32_t tTSRowBuilderInit(STSRowBuilder *pBuilder, int32_t sver, int32_t nCols, SSchema *pSchema);
 void    tTSRowBuilderClear(STSRowBuilder *pBuilder);
 void    tTSRowBuilderReset(STSRowBuilder *pBuilder);
 int32_t tTSRowBuilderPut(STSRowBuilder *pBuilder, int32_t cid, uint8_t *pData, uint32_t nData);
 int32_t tTSRowBuilderGetRow(STSRowBuilder *pBuilder, const STSRow2 **ppRow);
+#endif
 
 // STag
 int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag);
@@ -90,7 +93,9 @@ struct STSchema {
 #define TSROW_HAS_NONE ((uint8_t)0x1)
 #define TSROW_HAS_NULL ((uint8_t)0x2U)
 #define TSROW_HAS_VAL  ((uint8_t)0x4U)
-#define TSROW_KV_ROW   ((uint8_t)0x10U)
+#define TSROW_KV_SMALL ((uint8_t)0x10U)
+#define TSROW_KV_MID   ((uint8_t)0x20U)
+#define TSROW_KV_BIG   ((uint8_t)0x40U)
 struct STSRow2 {
   TSKEY    ts;
   uint8_t  flags;
@@ -113,11 +118,31 @@ struct STSRowBuilder {
   STSRow2   row;
 };
 
-typedef enum { COL_VAL_NONE = 0, COL_VAL_NULL = 1, COL_VAL_DATA = 2 } EColValT;
+struct SValue {
+  union {
+    int8_t   i8;   // TSDB_DATA_TYPE_BOOL||TSDB_DATA_TYPE_TINYINT
+    uint8_t  u8;   // TSDB_DATA_TYPE_UTINYINT
+    int16_t  i16;  // TSDB_DATA_TYPE_SMALLINT
+    uint16_t u16;  // TSDB_DATA_TYPE_USMALLINT
+    int32_t  i32;  // TSDB_DATA_TYPE_INT
+    uint32_t u32;  // TSDB_DATA_TYPE_UINT
+    int64_t  i64;  // TSDB_DATA_TYPE_BIGINT
+    uint64_t u64;  // TSDB_DATA_TYPE_UBIGINT
+    TSKEY    ts;   // TSDB_DATA_TYPE_TIMESTAMP
+    float    f;    // TSDB_DATA_TYPE_FLOAT
+    double   d;    // TSDB_DATA_TYPE_DOUBLE
+    struct {
+      uint32_t nData;
+      uint8_t *pData;
+    };
+  };
+};
+
 struct SColVal {
-  EColValT type;
-  uint32_t nData;
-  uint8_t *pData;
+  int16_t cid;
+  int8_t  isNone;
+  int8_t  isNull;
+  SValue  value;
 };
 
 #pragma pack(push, 1)

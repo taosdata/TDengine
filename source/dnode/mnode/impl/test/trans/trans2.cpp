@@ -128,7 +128,7 @@ class MndTestTrans2 : public ::testing::Test {
     mndTransSetCb(pTrans, TRANS_START_FUNC_TEST, TRANS_STOP_FUNC_TEST, param, strlen(param) + 1);
 
     if (pDb != NULL) {
-      mndTransSetDbInfo(pTrans, pDb);
+      mndTransSetDbName(pTrans, pDb->name);
     }
 
     int32_t code = mndTransPrepare(pMnode, pTrans);
@@ -201,7 +201,7 @@ class MndTestTrans2 : public ::testing::Test {
     }
 
     if (pDb != NULL) {
-      mndTransSetDbInfo(pTrans, pDb);
+      mndTransSetDbName(pTrans, pDb->name);
     }
 
     int32_t code = mndTransPrepare(pMnode, pTrans);

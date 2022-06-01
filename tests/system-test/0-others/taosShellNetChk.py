@@ -86,6 +86,12 @@ class TDTestCase:
     #updatecfgDict = {'clientCfg': {'serverPort': 7080, 'firstEp': 'trd02:7080', 'secondEp':'trd02:7080'},\
     #                 'serverPort': 7080, 'firstEp': 'trd02:7080'}
     hostname = socket.gethostname()
+    if (platform.system().lower() == 'windows' and not tdDnodes.dnodes[0].remoteIP == ""):
+        try:
+            config = eval(tdDnodes.dnodes[0].remoteIP )
+            hostname = config["host"]
+        except Exception:
+            hostname = tdDnodes.dnodes[0].remoteIP
     serverPort = '7080'
     rpcDebugFlagVal = '143'
     clientCfgDict = {'serverPort': '', 'firstEp': '', 'secondEp':'', 'rpcDebugFlag':'135', 'fqdn':''}
@@ -196,7 +202,7 @@ class TDTestCase:
         pktNum = '10'
         role   = 'client'
         if platform.system().lower() == 'windows':
-            taosCmd = buildPath + '\\build\\bin\\taos.exe -c ' + keyDict['c']
+            taosCmd = buildPath + '\\build\\bin\\taos.exe -h 127.0.0.1 -c ' + keyDict['c']
             taosCmd = taosCmd.replace('\\','\\\\')
         else:
             taosCmd = buildPath + '/build/bin/taos -c ' + keyDict['c']

@@ -668,7 +668,7 @@ SELECT LEASTSQUARES(field_name, start_val, step_val) FROM tb_name [WHERE clause]
 SELECT MODE(field_name) FROM tb_name [WHERE clause];
 ```
 
-**功能说明**：返回出现频率最高的值，若存在多个频率相同的最高值，输出空。不能匹配标签、时间戳输出。
+**功能说明**：返回出现频率最高的值，若存在多个频率相同的最高值，输出空。
 
 **返回数据类型**：同应用的字段。
 
