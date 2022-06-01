@@ -619,8 +619,8 @@ void mndTransSetCb(STrans *pTrans, ETrnFunc startFunc, ETrnFunc stopFunc, void *
   pTrans->paramLen = paramLen;
 }
 
-void mndTransSetDbInfo(STrans *pTrans, SDbObj *pDb) {
-  memcpy(pTrans->dbname, pDb->name, TSDB_DB_FNAME_LEN);
+void mndTransSetDbName(STrans *pTrans, const char *dbname) {
+  memcpy(pTrans->dbname, dbname, TSDB_DB_FNAME_LEN);
 }
 
 void mndTransSetSerial(STrans *pTrans) { pTrans->exec = TRN_EXEC_SERIAL; }
