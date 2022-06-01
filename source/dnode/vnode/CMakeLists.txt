@@ -35,7 +35,6 @@ target_sources(
     "src/sma/smaTimeRange.c"
 
     # tsdb
-    # "src/tsdb/tsdbTDBImpl.c"
     "src/tsdb/tsdbCommit.c"
     "src/tsdb/tsdbCommit2.c"
     "src/tsdb/tsdbFile.c"
@@ -45,7 +44,6 @@ target_sources(
     "src/tsdb/tsdbMemTable2.c"
     "src/tsdb/tsdbRead.c"
     "src/tsdb/tsdbReadImpl.c"
-    # "src/tsdb/tsdbSma.c"
     "src/tsdb/tsdbWrite.c"
     "src/tsdb/tsdbSnapshot.c"
 
