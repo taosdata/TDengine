@@ -1,10 +1,10 @@
-#include "qworker.h"
 #include "dataSinkMgt.h"
 #include "executor.h"
 #include "planner.h"
 #include "query.h"
 #include "qwInt.h"
 #include "qwMsg.h"
+#include "qworker.h"
 #include "tcommon.h"
 #include "tmsg.h"
 #include "tname.h"
@@ -406,7 +406,6 @@ int32_t qwDropTask(QW_FPARAMS_DEF) {
   return TSDB_CODE_SUCCESS;
 }
 
-
 void qwSetHbParam(int64_t refId, SQWHbParam **pParam) {
   int32_t paramIdx = 0;
   int32_t newParamIdx = 0;
@@ -430,11 +429,10 @@ void qwSetHbParam(int64_t refId, SQWHbParam **pParam) {
   *pParam = &gQwMgmt.param[paramIdx];
 }
 
-
-void qwSaveTbVersionInfo(qTaskInfo_t       pTaskInfo, SQWTaskCtx *ctx) {
+void qwSaveTbVersionInfo(qTaskInfo_t pTaskInfo, SQWTaskCtx *ctx) {
   char dbFName[TSDB_DB_FNAME_LEN];
   char tbName[TSDB_TABLE_NAME_LEN];
-  
+
   qGetQueriedTableSchemaVersion(pTaskInfo, dbFName, tbName, &ctx->tbInfo.sversion, &ctx->tbInfo.tversion);
 
   if (dbFName[0] && tbName[0]) {
@@ -443,7 +441,6 @@ void qwSaveTbVersionInfo(qTaskInfo_t       pTaskInfo, SQWTaskCtx *ctx) {
     ctx->tbInfo.tbFName[0] = 0;
   }
 }
-
 
 void qwCloseRef(void) {
   taosWLockLatch(&gQwMgmt.lock);
@@ -454,13 +451,13 @@ void qwCloseRef(void) {
   taosWUnLockLatch(&gQwMgmt.lock);
 }
 
-
 void qwDestroySchStatus(SQWSchStatus *pStatus) { taosHashCleanup(pStatus->tasksHash); }
 
 void qwDestroyImpl(void *pMgmt) {
   SQWorker *mgmt = (SQWorker *)pMgmt;
 
-  taosTmrStopA(&mgmt->hbTimer);
+  taosTmrStop(mgmt->hbTimer);
+  mgmt->hbTimer = NULL;
   taosTmrCleanUp(mgmt->timer);
 
   // TODO STOP ALL QUERY
@@ -527,16 +524,14 @@ int64_t qwGetTimeInQueue(SQWorker *mgmt, EQueueType type) {
   switch (type) {
     case QUERY_QUEUE:
       pStat = &mgmt->stat.msgStat.waitTime[0];
-      return pStat->num ? (pStat->total/pStat->num) : 0;
+      return pStat->num ? (pStat->total / pStat->num) : 0;
     case FETCH_QUEUE:
       pStat = &mgmt->stat.msgStat.waitTime[1];
-      return pStat->num ? (pStat->total/pStat->num) : 0;
+      return pStat->num ? (pStat->total / pStat->num) : 0;
     default:
       qError("unsupported queue type %d", type);
   }
 
   return -1;
 }
-
-
 
