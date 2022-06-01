@@ -18,9 +18,9 @@
 #include "mndAuth.h"
 #include "mndDnode.h"
 #include "mndShow.h"
+#include "mndSync.h"
 #include "mndTrans.h"
 #include "mndUser.h"
-#include "mndSync.h"
 
 #define MNODE_VER_NUMBER   1
 #define MNODE_RESERVE_SIZE 64
@@ -392,9 +392,9 @@ static int32_t mndProcessCreateMnodeReq(SRpcMsg *pReq) {
 
   mDebug("mnode:%d, start to create", createReq.dnodeId);
 
-  if (sdbGetSize(pMnode->pSdb, SDB_MNODE) > 3) {
-     terrno = TSDB_CODE_MND_TOO_MANY_MNODES;
-     goto _OVER;
+  if (sdbGetSize(pMnode->pSdb, SDB_MNODE) >= 3) {
+    terrno = TSDB_CODE_MND_TOO_MANY_MNODES;
+    goto _OVER;
   }
 
   pObj = mndAcquireMnode(pMnode, createReq.dnodeId);
