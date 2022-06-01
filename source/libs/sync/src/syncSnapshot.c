@@ -82,7 +82,7 @@ static void snapshotSenderDoStart(SSyncSnapshotSender *pSender) {
   syncNodeSendMsgById(&(pMsg->destId), pSender->pSyncNode, &rpcMsg);
 
   char *msgStr = syncSnapshotSend2Str(pMsg);
-  sTrace("snapshot send begin seq:%d ack:%d msg:%s", pSender->seq, pSender->ack, msgStr);
+  sTrace("snapshot send begin seq:%d ack:%d send msg:%s", pSender->seq, pSender->ack, msgStr);
   taosMemoryFree(msgStr);
 
   syncSnapshotSendDestroy(pMsg);
@@ -114,7 +114,7 @@ void snapshotSenderStart(SSyncSnapshotSender *pSender) {
       syncNodeSendMsgById(&(pMsg->destId), pSender->pSyncNode, &rpcMsg);
 
       char *msgStr = syncSnapshotSend2Str(pMsg);
-      sTrace("snapshot send force close seq:%d ack:%d msg:%s", pSender->seq, pSender->ack, msgStr);
+      sTrace("snapshot send force close seq:%d ack:%d send msg:%s", pSender->seq, pSender->ack, msgStr);
       taosMemoryFree(msgStr);
 
       syncSnapshotSendDestroy(pMsg);
@@ -194,9 +194,9 @@ int32_t snapshotSend(SSyncSnapshotSender *pSender) {
 
   char *msgStr = syncSnapshotSend2Str(pMsg);
   if (pSender->seq == SYNC_SNAPSHOT_SEQ_END) {
-    sTrace("snapshot send finish seq:%d ack:%d msg:%s", pSender->seq, pSender->ack, msgStr);
+    sTrace("snapshot send finish seq:%d ack:%d send msg:%s", pSender->seq, pSender->ack, msgStr);
   } else {
-    sTrace("snapshot send sending seq:%d ack:%d msg:%s", pSender->seq, pSender->ack, msgStr);
+    sTrace("snapshot send sending seq:%d ack:%d send msg:%s", pSender->seq, pSender->ack, msgStr);
   }
   taosMemoryFree(msgStr);
 
@@ -222,7 +222,7 @@ int32_t snapshotReSend(SSyncSnapshotSender *pSender) {
     syncNodeSendMsgById(&(pMsg->destId), pSender->pSyncNode, &rpcMsg);
 
     char *msgStr = syncSnapshotSend2Str(pMsg);
-    sTrace("snapshot send resend seq:%d ack:%d msg:%s", pSender->seq, pSender->ack, msgStr);
+    sTrace("snapshot send resend seq:%d ack:%d send msg:%s", pSender->seq, pSender->ack, msgStr);
     taosMemoryFree(msgStr);
 
     syncSnapshotSendDestroy(pMsg);
@@ -347,6 +347,10 @@ void snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver) {
 
     ASSERT(0);
   }
+
+  char *s = snapshotReceiver2Str(pReceiver);
+  sInfo("snapshotReceiverStart %s", s);
+  taosMemoryFree(s);
 }
 
 void snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver) {
@@ -358,6 +362,10 @@ void snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver) {
   }
 
   pReceiver->start = false;
+
+  char *s = snapshotReceiver2Str(pReceiver);
+  sInfo("snapshotReceiverStop %s", s);
+  taosMemoryFree(s);
 }
 
 cJSON *snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver) {
@@ -412,6 +420,10 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
         pReceiver->ack = pMsg->seq;
         needRsp = true;
 
+        char *msgStr = syncSnapshotSend2Str(pMsg);
+        sTrace("snapshot recv begin ack:%d recv msg:%s", pReceiver->ack, msgStr);
+        taosMemoryFree(msgStr);
+
       } else if (pMsg->seq == SYNC_SNAPSHOT_SEQ_END) {
         // end, finish FSM
         pSyncNode->pFsm->FpSnapshotDoWrite(pSyncNode->pFsm, pReceiver->pWriter, pMsg->data, pMsg->dataLen);
@@ -420,10 +432,18 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
         pReceiver->ack = pMsg->seq;
         needRsp = true;
 
+        char *msgStr = syncSnapshotSend2Str(pMsg);
+        sTrace("snapshot recv end ack:%d recv msg:%s", pReceiver->ack, msgStr);
+        taosMemoryFree(msgStr);
+
       } else if (pMsg->seq == SYNC_SNAPSHOT_SEQ_FORCE_CLOSE) {
         pSyncNode->pFsm->FpSnapshotStopWrite(pSyncNode->pFsm, pReceiver->pWriter, false);
         snapshotReceiverStop(pReceiver);
         needRsp = false;
+
+        char *msgStr = syncSnapshotSend2Str(pMsg);
+        sTrace("snapshot recv force close ack:%d recv msg:%s", pReceiver->ack, msgStr);
+        taosMemoryFree(msgStr);
 
       } else if (pMsg->seq > SYNC_SNAPSHOT_SEQ_BEGIN && pMsg->seq < SYNC_SNAPSHOT_SEQ_END) {
         // transfering
@@ -432,6 +452,10 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
           pReceiver->ack = pMsg->seq;
         }
         needRsp = true;
+
+        char *msgStr = syncSnapshotSend2Str(pMsg);
+        sTrace("snapshot recv receiving ack:%d recv msg:%s", pReceiver->ack, msgStr);
+        taosMemoryFree(msgStr);
 
       } else {
         ASSERT(0);
