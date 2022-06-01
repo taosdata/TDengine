@@ -1033,6 +1033,7 @@ typedef struct {
 
   // for tsma
   int8_t isTsma;
+  void*  pTsma;
 
 } SCreateVnodeReq;
 
@@ -2446,7 +2447,7 @@ typedef struct {
   int32_t  epoch;
   uint64_t reqId;
   int64_t  consumerId;
-  int64_t  waitTime;
+  int64_t  timeout;
   int64_t  currentOffset;
 } SMqPollReq;
 

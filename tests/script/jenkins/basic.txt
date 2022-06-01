@@ -57,7 +57,6 @@
 # ---- mnode
 ./test.sh -f tsim/mnode/basic1.sim
 ./test.sh -f tsim/mnode/basic2.sim
-./test.sh -f tsim/mnode/basic3.sim
 
 # ---- show
 ./test.sh -f tsim/show/basic.sim

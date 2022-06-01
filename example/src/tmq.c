@@ -196,8 +196,9 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
     TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, 0);
     if (tmqmessage) {
       cnt++;
+      msg_process(tmqmessage);
+      if (cnt >= 2) break;
       /*printf("get data\n");*/
-      /*msg_process(tmqmessage);*/
       taos_free_result(tmqmessage);
       /*} else {*/
       /*break;*/
@@ -253,39 +254,6 @@ void sync_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
     fprintf(stderr, "%% Consumer closed\n");
 }
 
-void perf_loop(tmq_t* tmq, tmq_list_t* topics) {
-  tmq_resp_err_t err;
-
-  if ((err = tmq_subscribe(tmq, topics))) {
-    fprintf(stderr, "%% Failed to start consuming topics: %s\n", tmq_err2str(err));
-    printf("subscribe err\n");
-    return;
-  }
-  int32_t batchCnt = 0;
-  int32_t skipLogNum = 0;
-  clock_t startTime = clock();
-  while (running) {
-    TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, 500);
-    if (tmqmessage) {
-      batchCnt++;
-      /*skipLogNum += tmqGetSkipLogNum(tmqmessage);*/
-      /*msg_process(tmqmessage);*/
-      taos_free_result(tmqmessage);
-    } else {
-      break;
-    }
-  }
-  clock_t endTime = clock();
-  printf("log batch cnt: %d, skip log cnt: %d, time used:%f s\n", batchCnt, skipLogNum,
-         (double)(endTime - startTime) / CLOCKS_PER_SEC);
-
-  err = tmq_consumer_close(tmq);
-  if (err)
-    fprintf(stderr, "%% Failed to close consumer: %s\n", tmq_err2str(err));
-  else
-    fprintf(stderr, "%% Consumer closed\n");
-}
-
 int main(int argc, char* argv[]) {
   if (argc > 1) {
     printf("env init\n");
@@ -296,7 +264,6 @@ int main(int argc, char* argv[]) {
   }
   tmq_t*      tmq = build_consumer();
   tmq_list_t* topic_list = build_topic_list();
-  /*perf_loop(tmq, topic_list);*/
-  /*basic_consume_loop(tmq, topic_list);*/
-  sync_consume_loop(tmq, topic_list);
+  basic_consume_loop(tmq, topic_list);
+  /*sync_consume_loop(tmq, topic_list);*/
 }

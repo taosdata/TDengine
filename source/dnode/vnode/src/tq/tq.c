@@ -180,40 +180,6 @@ void tqClose(STQ* pTq) {
   // TODO
 }
 
-#if 0
-int32_t tEncodeSTqExec(SEncoder* pEncoder, const STqExec* pExec) {
-  if (tStartEncode(pEncoder) < 0) return -1;
-  if (tEncodeCStr(pEncoder, pExec->subKey) < 0) return -1;
-  if (tEncodeI64(pEncoder, pExec->consumerId) < 0) return -1;
-  if (tEncodeI32(pEncoder, pExec->epoch) < 0) return -1;
-  if (tEncodeI8(pEncoder, pExec->subType) < 0) return -1;
-  /*if (tEncodeI8(pEncoder, pExec->withTbName) < 0) return -1;*/
-  /*if (tEncodeI8(pEncoder, pExec->withSchema) < 0) return -1;*/
-  /*if (tEncodeI8(pEncoder, pExec->withTag) < 0) return -1;*/
-  if (pExec->subType == TOPIC_SUB_TYPE__COLUMN) {
-    if (tEncodeCStr(pEncoder, pExec->qmsg) < 0) return -1;
-  }
-  tEndEncode(pEncoder);
-  return pEncoder->pos;
-}
-
-int32_t tDecodeSTqExec(SDecoder* pDecoder, STqExec* pExec) {
-  if (tStartDecode(pDecoder) < 0) return -1;
-  if (tDecodeCStrTo(pDecoder, pExec->subKey) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pExec->consumerId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pExec->epoch) < 0) return -1;
-  if (tDecodeI8(pDecoder, &pExec->subType) < 0) return -1;
-  /*if (tDecodeI8(pDecoder, &pExec->withTbName) < 0) return -1;*/
-  /*if (tDecodeI8(pDecoder, &pExec->withSchema) < 0) return -1;*/
-  /*if (tDecodeI8(pDecoder, &pExec->withTag) < 0) return -1;*/
-  if (pExec->subType == TOPIC_SUB_TYPE__COLUMN) {
-    if (tDecodeCStrAlloc(pDecoder, &pExec->qmsg) < 0) return -1;
-  }
-  tEndDecode(pDecoder);
-  return 0;
-}
-#endif
-
 int32_t tEncodeSTqHandle(SEncoder* pEncoder, const STqHandle* pHandle) {
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeCStr(pEncoder, pHandle->subKey) < 0) return -1;
@@ -290,8 +256,8 @@ int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_
 
     taosWLockLatch(&pHandle->pushHandle.lock);
 
-    SRpcMsg* pMsg = atomic_load_ptr(&pHandle->pushHandle.handle);
-    ASSERT(pMsg);
+    /*SRpcHandleInfo* pInfo = atomic_load_ptr(&pHandle->pushHandle.pInfo);*/
+    /*ASSERT(pInfo);*/
 
     SMqDataBlkRsp rsp = {0};
     rsp.reqOffset = pHandle->pushHandle.reqOffset;
@@ -318,7 +284,7 @@ int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_
     int32_t tlen = sizeof(SMqRspHead) + tEncodeSMqDataBlkRsp(NULL, &rsp);
     void*   buf = rpcMallocCont(tlen);
     if (buf == NULL) {
-      pMsg->code = -1;
+      // todo free
       return -1;
     }
 
@@ -329,10 +295,16 @@ int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_
     void* abuf = POINTER_SHIFT(buf, sizeof(SMqRspHead));
     tEncodeSMqDataBlkRsp(&abuf, &rsp);
 
-    SRpcMsg resp = {.info = handleInfo, .pCont = buf, .contLen = tlen, .code = 0};
+    SRpcMsg resp = {
+        .info = pHandle->pushHandle.info,
+        .pCont = buf,
+        .contLen = tlen,
+        .code = 0,
+    };
     tmsgSendRsp(&resp);
 
-    atomic_store_ptr(&pHandle->pushHandle.handle, NULL);
+    /*atomic_store_ptr(&pHandle->pushHandle.pInfo, NULL);*/
+    memset(&pHandle->pushHandle.info, 0, sizeof(SRpcHandleInfo));
     taosWUnLockLatch(&pHandle->pushHandle.lock);
 
     tqDebug("vg %d offset %ld from consumer %ld (epoch %d) send rsp, block num: %d, reqOffset: %ld, rspOffset: %ld",
@@ -374,7 +346,7 @@ int tqCommit(STQ* pTq) {
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   SMqPollReq* pReq = pMsg->pCont;
   int64_t     consumerId = pReq->consumerId;
-  int64_t     waitTime = pReq->waitTime;
+  int64_t     waitTime = pReq->timeout;
   int32_t     reqEpoch = pReq->epoch;
   int64_t     fetchOffset;
 
@@ -410,23 +382,21 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
 
   rsp.blockData = taosArrayInit(0, sizeof(void*));
   rsp.blockDataLen = taosArrayInit(0, sizeof(int32_t));
-  rsp.blockSchema = taosArrayInit(0, sizeof(void*));
-  rsp.blockTbName = taosArrayInit(0, sizeof(void*));
 
   rsp.withTbName = pReq->withTbName;
+  if (rsp.withTbName) {
+    rsp.blockTbName = taosArrayInit(0, sizeof(void*));
+  }
   if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
     rsp.withSchema = false;
+
     rsp.withTag = false;
   } else {
     rsp.withSchema = true;
+    rsp.blockSchema = taosArrayInit(0, sizeof(void*));
+
     rsp.withTag = false;
   }
-
-  /*int8_t withTbName = pExec->withTbName;*/
-  /*if (pReq->withTbName != -1) {*/
-  /*withTbName = pReq->withTbName;*/
-  /*}*/
-  /*rsp.withTbName = withTbName;*/
 
   while (1) {
     consumerEpoch = atomic_load_32(&pHandle->epoch);
@@ -442,15 +412,6 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
     }
 
     SWalReadHead* pHead = &pHeadWithCkSum->head;
-
-#if 0
-    SWalReadHead* pHead;
-    if (walReadWithHandle_s(pExec->pWalReader, fetchOffset, &pHead) < 0) {
-      // TODO: no more log, set timer to wait blocking time
-      // if data inserted during waiting, launch query and
-      // response to user
-      tqDebug("tmq poll: consumer %ld (epoch %d) vg %d offset %ld, no more log to return", consumerId, pReq->epoch,
-             TD_VID(pTq->pVnode), fetchOffset);
 
 #if 0
       // add to pushMgr
@@ -471,10 +432,6 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
       taosArrayDestroy(rsp.blockData);
       taosArrayDestroy(rsp.blockDataLen);
       return 0;
-#endif
-
-    break;
-  }
 #endif
 
     tqDebug("tmq poll: consumer %ld (epoch %d) iter log, vg %d offset %ld msgType %d", consumerId, pReq->epoch,
@@ -533,8 +490,14 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   // TODO wrap in destroy func
   taosArrayDestroy(rsp.blockData);
   taosArrayDestroy(rsp.blockDataLen);
-  taosArrayDestroyP(rsp.blockSchema, (FDelete)tDeleteSSchemaWrapper);
-  taosArrayDestroyP(rsp.blockTbName, (FDelete)taosMemoryFree);
+
+  if (rsp.withSchema) {
+    taosArrayDestroyP(rsp.blockSchema, (FDelete)tDeleteSSchemaWrapper);
+  }
+
+  if (rsp.withTbName) {
+    taosArrayDestroyP(rsp.blockTbName, (FDelete)taosMemoryFree);
+  }
 
   return 0;
 }

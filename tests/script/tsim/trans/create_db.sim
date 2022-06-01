@@ -76,14 +76,6 @@ if $data[0][3] != d1 then
   return -1
 endi
 
-if $data[0][4] != create-db then
-  return -1
-endi
-
-if $data[0][7] != @Unable to establish connection@ then
-  return -1
-endi
-
 sql_error create database d1 vgroups 2;
 
 print =============== start dnode2
@@ -125,15 +117,7 @@ endi
 if $data[0][3] != d2 then
   return -1
 endi
-
-if $data[0][4] != create-db then
-  return -1
-endi
-
-if $data[0][7] != @Unable to establish connection@ then
-  return -1
-endi
-
+return
 sql_error create database d2 vgroups 2;
 
 print =============== kill transaction

@@ -140,6 +140,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->szCache = pCreate->pages;
   pCfg->szBuf = (uint64_t)pCreate->buffer * 1024 * 1024;
   pCfg->isWeak = true;
+  pCfg->isTsma = pCreate->isTsma;
   pCfg->tsdbCfg.compression = pCreate->compression;
   pCfg->tsdbCfg.precision = pCreate->precision;
   pCfg->tsdbCfg.days = pCreate->daysPerFile;
@@ -209,7 +210,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   SVnode *pImpl = vnodeOpen(path, pMgmt->pTfs, pMgmt->msgCb);
   if (pImpl == NULL) {
-    dError("vgId:%d, failed to create vnode since %s", createReq.vgId, terrstr());
+    dError("vgId:%d, failed to open vnode since %s", createReq.vgId, terrstr());
     code = terrno;
     goto _OVER;
   }
