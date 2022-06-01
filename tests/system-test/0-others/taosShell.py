@@ -84,7 +84,7 @@ class TDTestCase:
     #updatecfgDict = {'clientCfg': {'serverPort': 7080, 'firstEp': 'trd02:7080', 'secondEp':'trd02:7080'},\
     #                 'serverPort': 7080, 'firstEp': 'trd02:7080'}
     hostname = socket.gethostname()
-    if (not tdDnodes.dnodes[0].remoteIP == ""):
+    if (platform.system().lower() == 'windows' and not tdDnodes.dnodes[0].remoteIP == ""):
         try:
             config = eval(tdDnodes.dnodes[0].remoteIP)
             hostname = config["host"]
