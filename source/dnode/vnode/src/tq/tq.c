@@ -14,7 +14,6 @@
  */
 
 #include "tq.h"
-#include "tdbInt.h"
 
 int32_t tqInit() {
   int8_t old;
@@ -47,51 +46,6 @@ void tqCleanUp() {
   }
 }
 
-int tqExecKeyCompare(const void* pKey1, int32_t kLen1, const void* pKey2, int32_t kLen2) {
-  return strcmp(pKey1, pKey2);
-}
-
-int32_t tqStoreHandle(STQ* pTq, const char* key, const STqHandle* pHandle) {
-  int32_t code;
-  int32_t vlen;
-  tEncodeSize(tEncodeSTqHandle, pHandle, vlen, code);
-  ASSERT(code == 0);
-
-  void* buf = taosMemoryCalloc(1, vlen);
-  if (buf == NULL) {
-    ASSERT(0);
-  }
-
-  SEncoder encoder;
-  tEncoderInit(&encoder, buf, vlen);
-
-  if (tEncodeSTqHandle(&encoder, pHandle) < 0) {
-    ASSERT(0);
-  }
-
-  TXN txn;
-
-  if (tdbTxnOpen(&txn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
-    ASSERT(0);
-  }
-
-  if (tdbBegin(pTq->pMetaStore, &txn) < 0) {
-    ASSERT(0);
-  }
-
-  if (tdbTbUpsert(pTq->pExecStore, key, (int)strlen(key), buf, vlen, &txn) < 0) {
-    ASSERT(0);
-  }
-
-  if (tdbCommit(pTq->pMetaStore, &txn) < 0) {
-    ASSERT(0);
-  }
-
-  tEncoderClear(&encoder);
-  taosMemoryFree(buf);
-  return 0;
-}
-
 STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal) {
   STQ* pTq = taosMemoryMalloc(sizeof(STQ));
   if (pTq == NULL) {
@@ -108,60 +62,7 @@ STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal) {
 
   pTq->pushMgr = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
 
-  if (tdbOpen(path, 16 * 1024, 1, &pTq->pMetaStore) < 0) {
-    ASSERT(0);
-  }
-
-  if (tdbTbOpen("handles", -1, -1, tqExecKeyCompare, pTq->pMetaStore, &pTq->pExecStore) < 0) {
-    ASSERT(0);
-  }
-
-  TXN txn;
-
-  if (tdbTxnOpen(&txn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, 0) < 0) {
-    ASSERT(0);
-  }
-
-  TBC* pCur;
-  if (tdbTbcOpen(pTq->pExecStore, &pCur, &txn) < 0) {
-    ASSERT(0);
-  }
-
-  void* pKey;
-  int   kLen;
-  void* pVal;
-  int   vLen;
-
-  tdbTbcMoveToFirst(pCur);
-  SDecoder decoder;
-
-  while (tdbTbcNext(pCur, &pKey, &kLen, &pVal, &vLen) == 0) {
-    STqHandle handle;
-    tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
-    tDecodeSTqHandle(&decoder, &handle);
-    handle.pWalReader = walOpenReadHandle(pTq->pVnode->pWal);
-    for (int32_t i = 0; i < 5; i++) {
-      handle.execHandle.pExecReader[i] = tqInitSubmitMsgScanner(pTq->pVnode->pMeta);
-    }
-    if (handle.execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
-      for (int32_t i = 0; i < 5; i++) {
-        SReadHandle reader = {
-            .reader = handle.execHandle.pExecReader[i],
-            .meta = pTq->pVnode->pMeta,
-            .pMsgCb = &pTq->pVnode->msgCb,
-        };
-        handle.execHandle.exec.execCol.task[i] =
-            qCreateStreamExecTaskInfo(handle.execHandle.exec.execCol.qmsg, &reader);
-        ASSERT(handle.execHandle.exec.execCol.task[i]);
-      }
-    } else {
-      handle.execHandle.exec.execDb.pFilterOutTbUid =
-          taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
-    }
-    taosHashPut(pTq->handles, pKey, kLen, &handle, sizeof(STqHandle));
-  }
-
-  if (tdbTxnClose(&txn) < 0) {
+  if (tqMetaOpen(pTq) < 0) {
     ASSERT(0);
   }
 
@@ -174,7 +75,7 @@ void tqClose(STQ* pTq) {
     taosHashCleanup(pTq->handles);
     taosHashCleanup(pTq->pStreamTasks);
     taosHashCleanup(pTq->pushMgr);
-    tdbClose(pTq->pMetaStore);
+    tqMetaClose(pTq);
     taosMemoryFree(pTq);
   }
   // TODO
@@ -256,9 +157,6 @@ int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_
 
     taosWLockLatch(&pHandle->pushHandle.lock);
 
-    /*SRpcHandleInfo* pInfo = atomic_load_ptr(&pHandle->pushHandle.pInfo);*/
-    /*ASSERT(pInfo);*/
-
     SMqDataBlkRsp rsp = {0};
     rsp.reqOffset = pHandle->pushHandle.reqOffset;
     rsp.blockData = taosArrayInit(0, sizeof(void*));
@@ -303,7 +201,6 @@ int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_
     };
     tmsgSendRsp(&resp);
 
-    /*atomic_store_ptr(&pHandle->pushHandle.pInfo, NULL);*/
     memset(&pHandle->pushHandle.info, 0, sizeof(SRpcHandleInfo));
     taosWUnLockLatch(&pHandle->pushHandle.lock);
 
@@ -508,24 +405,9 @@ int32_t tqProcessVgDeleteReq(STQ* pTq, char* msg, int32_t msgLen) {
   int32_t code = taosHashRemove(pTq->handles, pReq->subKey, strlen(pReq->subKey));
   ASSERT(code == 0);
 
-  TXN txn;
-
-  if (tdbTxnOpen(&txn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
+  if (tqMetaDeleteHandle(pTq, pReq->subKey) < 0) {
     ASSERT(0);
   }
-
-  if (tdbBegin(pTq->pMetaStore, &txn) < 0) {
-    ASSERT(0);
-  }
-
-  if (tdbTbDelete(pTq->pExecStore, pReq->subKey, (int)strlen(pReq->subKey), &txn) < 0) {
-    /*ASSERT(0);*/
-  }
-
-  if (tdbCommit(pTq->pMetaStore, &txn) < 0) {
-    ASSERT(0);
-  }
-
   return 0;
 }
 
@@ -583,7 +465,7 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
     atomic_add_fetch_32(&pHandle->epoch, 1);
   }
 
-  if (tqStoreHandle(pTq, req.subKey, pHandle) < 0) {
+  if (tqMetaSaveHandle(pTq, req.subKey, pHandle) < 0) {
     // TODO
   }
   return 0;
