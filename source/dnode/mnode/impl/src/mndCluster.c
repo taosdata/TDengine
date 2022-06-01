@@ -179,10 +179,8 @@ static int32_t mndCreateDefaultCluster(SMnode *pMnode) {
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
   mDebug("cluster:%" PRId64 ", will be created when deploying, raw:%p", clusterObj.id, pRaw);
-#if 0
-  return sdbWrite(pMnode->pSdb, pRaw);
-#else
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_CREATE_CLUSTER, NULL);
+
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL);
   if (pTrans == NULL) {
     mError("cluster:%" PRId64 ", failed to create since %s", clusterObj.id, terrstr());
     return -1;
@@ -204,7 +202,6 @@ static int32_t mndCreateDefaultCluster(SMnode *pMnode) {
 
   mndTransDrop(pTrans);
   return 0;
-#endif
 }
 
 static int32_t mndRetrieveClusters(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {

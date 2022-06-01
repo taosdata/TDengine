@@ -394,8 +394,8 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
   mInfo("rebalance calculation completed, rebalanced vg:");
   for (int32_t i = 0; i < taosArrayGetSize(pOutput->rebVgs); i++) {
     SMqRebOutputVg *pOutputRebVg = taosArrayGet(pOutput->rebVgs, i);
-    mInfo("vg: %d moved from consumer %ld to consumer %ld", pOutputRebVg->pVgEp->vgId, pOutputRebVg->oldConsumerId,
-          pOutputRebVg->newConsumerId);
+    mInfo("vgId:%d moved from consumer %" PRId64 " to consumer %" PRId64, pOutputRebVg->pVgEp->vgId,
+          pOutputRebVg->oldConsumerId, pOutputRebVg->newConsumerId);
   }
 
   // 9. clear
@@ -405,10 +405,9 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
 }
 
 static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOutputObj *pOutput) {
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_REBALANCE, pMsg);
-  if (pTrans == NULL) {
-    return -1;
-  }
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pMsg);
+  if (pTrans == NULL) return -1;
+
   // make txn:
   // 1. redo action: action to all vg
   const SArray *rebVgs = pOutput->rebVgs;
@@ -625,7 +624,7 @@ static int32_t mndProcessDropCgroupReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_DROP_CGROUP, pReq);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq);
   if (pTrans == NULL) {
     mError("cgroup: %s on topic:%s, failed to drop since %s", dropReq.cgroup, dropReq.topic, terrstr());
     mndReleaseSubscribe(pMnode, pSub);
