@@ -2126,7 +2126,7 @@ static int32_t smlBuildTagRow(SArray* cols, SParsedDataColInfo* tags, SSchema* p
       val.nData = kv->length;
     }else if(pTagSchema->type == TSDB_DATA_TYPE_NCHAR){
       int32_t output = 0;
-      void *p = taosMemoryCalloc(1, kv->length * TSDB_NCHAR_SIZE);
+      void *p = taosMemoryCalloc(1, pTagSchema->bytes - VARSTR_HEADER_SIZE);
       if(p == NULL){
         code = TSDB_CODE_OUT_OF_MEMORY;
         goto end;
