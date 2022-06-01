@@ -44,14 +44,7 @@ Take CentOS 7.2 for example, extract the plugin package to /var/lib/grafana/plug
 sudo unzip tdengine-datasource-$GF_VERSION.zip -d /var/lib/grafana/plugins/
 ```
 
-Grafana versions 7.3+ / 8.x do signature checks on plugins, so you also need to add the following line to the grafana.ini file to use the plugin correctly.
-
-```ini
-[plugins]
-allow_loading_unsigned_plugins = tdengine-datasource
-```
-
-The TDengine plugin can be automatically installed and set up using the following environment variable settings in a Docker environment.
+If Grafana is running in a Docker environment, the TDengine plugin can be automatically installed and set up using the following environment variable settings:
 
 ```bash
 GF_INSTALL_PLUGINS=tdengine-datasource
