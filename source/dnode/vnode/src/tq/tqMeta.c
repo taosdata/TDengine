@@ -15,6 +15,32 @@
 #include "tdbInt.h"
 #include "tq.h"
 
+static int32_t tEncodeSTqHandle(SEncoder* pEncoder, const STqHandle* pHandle) {
+  if (tStartEncode(pEncoder) < 0) return -1;
+  if (tEncodeCStr(pEncoder, pHandle->subKey) < 0) return -1;
+  if (tEncodeI64(pEncoder, pHandle->consumerId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pHandle->epoch) < 0) return -1;
+  if (tEncodeI8(pEncoder, pHandle->execHandle.subType) < 0) return -1;
+  if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
+    if (tEncodeCStr(pEncoder, pHandle->execHandle.exec.execCol.qmsg) < 0) return -1;
+  }
+  tEndEncode(pEncoder);
+  return pEncoder->pos;
+}
+
+static int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle) {
+  if (tStartDecode(pDecoder) < 0) return -1;
+  if (tDecodeCStrTo(pDecoder, pHandle->subKey) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pHandle->consumerId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pHandle->epoch) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pHandle->execHandle.subType) < 0) return -1;
+  if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
+    if (tDecodeCStrAlloc(pDecoder, &pHandle->execHandle.exec.execCol.qmsg) < 0) return -1;
+  }
+  tEndDecode(pDecoder);
+  return 0;
+}
+
 int tqExecKeyCompare(const void* pKey1, int32_t kLen1, const void* pKey2, int32_t kLen2) {
   return strcmp(pKey1, pKey2);
 }

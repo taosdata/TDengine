@@ -57,6 +57,7 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   if (tjsonAddIntegerToObject(pJson, "isHeap", pCfg->isHeap) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "isWeak", pCfg->isWeak) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "isTsma", pCfg->isTsma) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "isRsma", pCfg->isRsma) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "precision", pCfg->tsdbCfg.precision) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "update", pCfg->tsdbCfg.update) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "compression", pCfg->tsdbCfg.compression) < 0) return -1;
@@ -132,6 +133,8 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   tjsonGetNumberValue(pJson, "isWeak", pCfg->isWeak, code);
   if(code < 0) return -1;
   tjsonGetNumberValue(pJson, "isTsma", pCfg->isTsma, code);
+  if(code < 0) return -1;
+  tjsonGetNumberValue(pJson, "isRsma", pCfg->isRsma, code);
   if(code < 0) return -1;
   tjsonGetNumberValue(pJson, "precision", pCfg->tsdbCfg.precision, code);
   if(code < 0) return -1;

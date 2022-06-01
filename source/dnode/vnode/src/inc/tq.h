@@ -66,33 +66,27 @@ struct STqReadHandle {
 // tqPush
 
 typedef struct {
-  int64_t        consumerId;
-  int32_t        epoch;
-  int32_t        skipLogNum;
-  int64_t        reqOffset;
-  SRpcHandleInfo info;
-  SRWLatch       lock;
-} STqPushHandle;
+  STaosQueue* queue;
+  STaosQall*  qall;
+  void*       qItem;
+} STqInputQ;
 
-#if 0
 typedef struct {
-  char    subKey[TSDB_SUBSCRIBE_KEY_LEN];
+  // msg info
   int64_t consumerId;
+  int64_t reqOffset;
+  int64_t processedVer;
   int32_t epoch;
-  int8_t  subType;
-  // int8_t        withTbName;
-  // int8_t        withSchema;
-  // int8_t        withTag;
-  char*         qmsg;
-  SHashObj*     pDropTbUid;
-  STqPushHandle pushHandle;
-  // SRWLatch        lock;
-  SWalReadHandle* pWalReader;
-  // task number should be the same with fetch thread
-  STqReadHandle* pExecReader[5];
-  qTaskInfo_t    task[5];
-} STqExec;
-#endif
+  int32_t skipLogNum;
+  // rpc info
+  int64_t        reqId;
+  SRpcHandleInfo rpcInfo;
+  // exec
+  int8_t    inputStatus;
+  int8_t    execStatus;
+  STqInputQ inputQ;
+  SRWLatch  lock;
+} STqPushHandle;
 
 // tqExec
 
@@ -154,26 +148,20 @@ typedef struct {
 
 static STqMgmt tqMgmt = {0};
 
-// init once
-int  tqInit();
-void tqCleanUp();
-
-// int32_t tEncodeSTqExec(SEncoder* pEncoder, const STqExec* pExec);
-// int32_t tDecodeSTqExec(SDecoder* pDecoder, STqExec* pExec);
-
-int32_t tEncodeSTqHandle(SEncoder* pEncoder, const STqHandle* pHandle);
-int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle);
-
+// tqRead
 int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalHead** pHeadWithCkSum);
 
+// tqExec
 int32_t tqDataExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataBlkRsp* pRsp, int32_t workerId);
 
 // tqMeta
-
 int32_t tqMetaOpen(STQ* pTq);
 int32_t tqMetaClose(STQ* pTq);
 int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle);
 int32_t tqMetaDeleteHandle(STQ* pTq, const char* key);
+
+// tqSink
+void tqTableSink(SStreamTask* pTask, void* vnode, int64_t ver, void* data);
 
 // tqOffset
 STqOffsetStore* STqOffsetOpen(STqOffsetCfg*);
