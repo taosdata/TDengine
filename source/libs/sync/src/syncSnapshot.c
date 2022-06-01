@@ -477,7 +477,10 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
         syncSnapshotRspDestroy(pRspMsg);
       }
     }
+  } else {
+    syncNodeLog2("syncNodeOnSnapshotSendCb not follower", pSyncNode);
   }
+
   return 0;
 }
 
@@ -514,6 +517,8 @@ int32_t syncNodeOnSnapshotRspCb(SSyncNode *pSyncNode, SyncSnapshotRsp *pMsg) {
         ASSERT(0);
       }
     }
+  } else {
+    syncNodeLog2("syncNodeOnSnapshotRspCb not leader", pSyncNode);
   }
 
   return 0;
