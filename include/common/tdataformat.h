@@ -48,11 +48,11 @@ void    tTSchemaDestroy(STSchema *pTSchema);
 
 // STSRow2
 int32_t tTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow2 **ppRow);
+void    tTSRowFree(STSRow2 *pRow);
 
 int32_t tPutTSRow(uint8_t *p, STSRow2 *pRow);
 int32_t tGetTSRow(uint8_t *p, STSRow2 *pRow);
 int32_t tTSRowDup(const STSRow2 *pRow, STSRow2 **ppRow);
-void    tTSRowFree(STSRow2 *pRow);
 int32_t tTSRowGet(const STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
 
 // STSRowBuilder
@@ -123,17 +123,17 @@ struct STSRowBuilder {
 
 struct SValue {
   union {
-    int8_t   i8;
-    uint8_t  u8;
-    int16_t  i16;
-    uint16_t u16;
-    int32_t  i32;
-    uint32_t u32;
-    int64_t  i64;
-    uint64_t u64;
-    TSKEY    ts;
-    float    f;
-    double   d;
+    int8_t   i8;   // TSDB_DATA_TYPE_BOOL||TSDB_DATA_TYPE_TINYINT
+    uint8_t  u8;   // TSDB_DATA_TYPE_UTINYINT
+    int16_t  i16;  // TSDB_DATA_TYPE_SMALLINT
+    uint16_t u16;  // TSDB_DATA_TYPE_USMALLINT
+    int32_t  i32;  // TSDB_DATA_TYPE_INT
+    uint32_t u32;  // TSDB_DATA_TYPE_UINT
+    int64_t  i64;  // TSDB_DATA_TYPE_BIGINT
+    uint64_t u64;  // TSDB_DATA_TYPE_UBIGINT
+    TSKEY    ts;   // TSDB_DATA_TYPE_TIMESTAMP
+    float    f;    // TSDB_DATA_TYPE_FLOAT
+    double   d;    // TSDB_DATA_TYPE_DOUBLE
     struct {
       uint32_t nData;
       uint8_t *pData;
