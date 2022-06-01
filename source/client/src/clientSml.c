@@ -2381,6 +2381,8 @@ TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int pr
   }
 
   if(isSchemalessDb(info) != TSDB_CODE_SUCCESS){
+    request->code = TSDB_CODE_SML_INVALID_DB_CONF;
+    smlBuildInvalidDataMsg(&info->msgBuf, "Cannot write data to a non schemaless database", NULL);
     goto end;
   }
 
