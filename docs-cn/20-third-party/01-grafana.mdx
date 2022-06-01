@@ -42,17 +42,7 @@ wget -O tdengine-datasource-$GF_VERSION.zip https://grafana.com/api/plugins/tden
 sudo unzip tdengine-datasource-$GF_VERSION.zip -d /var/lib/grafana/plugins/
 ```
 
-:::note
-3.1.6 和更早版本未签名，会在 Grafana 7.3+ / 8.x 版本签名检查时失败导致无法加载插件，需要在 `grafana.ini` 文件中修改配置如下：
-
-```ini
-[plugins]
-allow_loading_unsigned_plugins = tdengine-datasource
-```
-
-:::
-
-在 Docker 环境下，可以使用如下的环境变量设置自动安装 TDengine 数据源插件：
+如果 Grafana 在 Docker 环境下运行，可以使用如下的环境变量设置自动安装 TDengine 数据源插件：
 
 ```bash
 GF_INSTALL_PLUGINS=tdengine-datasource
@@ -62,7 +52,7 @@ GF_INSTALL_PLUGINS=tdengine-datasource
 
 ### 配置数据源
 
-用户可以直接通过 http://localhost:3000 的网址，登录 Grafana 服务器（用户名/密码：admin/admin），通过左侧 `Configuration -> Data Sources` 可以添加数据源，如下图所示：
+用户可以直接通过 <http://localhost:3000> 的网址，登录 Grafana 服务器（用户名/密码：admin/admin），通过左侧 `Configuration -> Data Sources` 可以添加数据源，如下图所示：
 
 ![TDengine Database Grafana plugin add data source](./add_datasource1.webp)
 
@@ -74,7 +64,7 @@ GF_INSTALL_PLUGINS=tdengine-datasource
 
 ![TDengine Database Grafana plugin add data source](./add_datasource3.webp)
 
-- Host： TDengine 集群中提供 REST 服务 （在 2.4 之前由 taosd 提供， 从 2.4 开始由 taosAdapter 提供）的组件所在服务器的 IP 地址与 TDengine REST 服务的端口号(6041)，默认 http://localhost:6041。
+- Host： TDengine 集群中提供 REST 服务 （在 2.4 之前由 taosd 提供， 从 2.4 开始由 taosAdapter 提供）的组件所在服务器的 IP 地址与 TDengine REST 服务的端口号(6041)，默认 <http://localhost:6041>。
 - User：TDengine 用户名。
 - Password：TDengine 用户密码。
 
