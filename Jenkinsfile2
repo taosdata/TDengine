@@ -227,6 +227,16 @@ def pre_test_win(){
         cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\community
         git submodule update --init --recursive
     '''
+    bat '''
+        cd C:\\workspace\\%EXECUTOR_NUMBER%\\taos-connector-python
+        git branch
+        git reset --hard
+        git pull
+    '''
+    bat '''
+        cd C:\\workspace\\%EXECUTOR_NUMBER%\\taos-connector-python
+        git log -5
+    '''
 }
 def pre_test_build_win() {
     bat '''
@@ -245,6 +255,10 @@ def pre_test_build_win() {
         time /t
         jom -j 6 || exit 8
         time /t
+    '''
+    bat '''
+        cd C:\\workspace\\%EXECUTOR_NUMBER%\\taos-connector-python
+        python -m pip install .
     '''
     return 1
 }
@@ -325,6 +339,7 @@ pipeline {
                                         service taosd start
                                         sleep 20
                                         service taosd status
+                                        rm -rf ${WKC}/debug
                                     '''
                                     sh '''
                                         cd ${WKC}/tests/parallel_test
