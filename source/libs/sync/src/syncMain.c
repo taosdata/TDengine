@@ -1273,16 +1273,20 @@ int32_t syncNodeGetLastIndexTerm(SSyncNode* pSyncNode, SyncIndex* pLastIndex, Sy
   } else if (logLastIndex == snapshotLastIndex) {
     *pLastIndex = snapshotLastIndex;
     *pLastTerm = snapshot.lastApplyTerm;
+  } else if (logLastIndex < snapshotLastIndex) {
+    // maybe wal is deleted
+    *pLastIndex = snapshotLastIndex;
+    *pLastTerm = snapshot.lastApplyTerm;
   } else {
     ASSERT(0);
   }
-
   return 0;
 }
 
 // get pre index and term of "index"
 int32_t syncNodeGetPreIndexTerm(SSyncNode* pSyncNode, SyncIndex index, SyncIndex* pPreIndex, SyncTerm* pPreTerm) {
   ASSERT(index >= SYNC_INDEX_BEGIN);
+  ASSERT(!syncNodeIsIndexInSnapshot(pSyncNode, index));
   int ret = 0;
 
   SyncIndex preIndex = index - 1;
