@@ -8836,7 +8836,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
 
     // table name
     if (tscValidateName(&tbName, true, &dbIncluded2) != TSDB_CODE_SUCCESS) {
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), STR_INVALID_TABLE_NAME);
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
 
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, TABLE_INDEX);
