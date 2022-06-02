@@ -18,20 +18,16 @@
 
 SVnodeObj *vmAcquireVnode(SVnodeMgmt *pMgmt, int32_t vgId) {
   SVnodeObj *pVnode = NULL;
-  int32_t    refCount = 0;
 
   taosThreadRwlockRdlock(&pMgmt->lock);
   taosHashGetDup(pMgmt->hash, &vgId, sizeof(int32_t), (void *)&pVnode);
   if (pVnode == NULL) {
     terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
   } else {
-    refCount = atomic_add_fetch_32(&pVnode->refCount, 1);
+    int32_t refCount = atomic_add_fetch_32(&pVnode->refCount, 1);
+    dTrace("vgId:%d, acquire vnode, ref:%d", pVnode->vgId, refCount);
   }
   taosThreadRwlockUnlock(&pMgmt->lock);
-
-  if (pVnode != NULL) {
-    dTrace("vgId:%d, acquire vnode, refCount:%d", pVnode->vgId, refCount);
-  }
 
   return pVnode;
 }
@@ -41,8 +37,8 @@ void vmReleaseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
 
   taosThreadRwlockRdlock(&pMgmt->lock);
   int32_t refCount = atomic_sub_fetch_32(&pVnode->refCount, 1);
+  dTrace("vgId:%d, release vnode, ref:%d", pVnode->vgId, refCount);
   taosThreadRwlockUnlock(&pMgmt->lock);
-  dTrace("vgId:%d, release vnode, refCount:%d", pVnode->vgId, refCount);
 }
 
 int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
@@ -138,7 +134,7 @@ static void *vmOpenVnodeInThread(void *param) {
     }
   }
 
-  dDebug("thread:%d, total vnodes:%d, opened:%d failed:%d", pThread->threadIndex, pThread->vnodeNum, pThread->opened,
+  dDebug("thread:%d, numOfVnodes:%d, opened:%d failed:%d", pThread->threadIndex, pThread->vnodeNum, pThread->opened,
          pThread->failed);
   return NULL;
 }
@@ -160,7 +156,7 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
 
   pMgmt->state.totalVnodes = numOfVnodes;
 
-  int32_t threadNum = 1;  // tsNumOfCores;
+  int32_t threadNum = tsNumOfCores;
   int32_t vnodesPerThread = numOfVnodes / threadNum + 1;
 
   SVnodeThread *threads = taosMemoryCalloc(threadNum, sizeof(SVnodeThread));
