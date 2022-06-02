@@ -144,8 +144,8 @@ DLL_EXPORT int        taos_stmt_set_tbname_tags(TAOS_STMT *stmt, const char *nam
 DLL_EXPORT int        taos_stmt_set_tbname(TAOS_STMT *stmt, const char *name);
 DLL_EXPORT int        taos_stmt_set_tags(TAOS_STMT *stmt, TAOS_MULTI_BIND *tags);
 DLL_EXPORT int        taos_stmt_set_sub_tbname(TAOS_STMT *stmt, const char *name);
-DLL_EXPORT int        taos_stmt_get_tag_fields(TAOS_STMT *stmt, int* fieldNum, TAOS_FIELD_E** fields);
-DLL_EXPORT int        taos_stmt_get_col_fields(TAOS_STMT *stmt, int* fieldNum, TAOS_FIELD_E** fields);
+DLL_EXPORT int        taos_stmt_get_tag_fields(TAOS_STMT *stmt, int *fieldNum, TAOS_FIELD_E **fields);
+DLL_EXPORT int        taos_stmt_get_col_fields(TAOS_STMT *stmt, int *fieldNum, TAOS_FIELD_E **fields);
 
 DLL_EXPORT int       taos_stmt_is_insert(TAOS_STMT *stmt, int *insert);
 DLL_EXPORT int       taos_stmt_num_params(TAOS_STMT *stmt, int *nums);
@@ -269,6 +269,7 @@ DLL_EXPORT void           tmq_conf_set_auto_commit_cb(tmq_conf_t *conf, tmq_comm
 /* -------------------------TMQ MSG HANDLE INTERFACE---------------------- */
 
 DLL_EXPORT const char *tmq_get_topic_name(TAOS_RES *res);
+DLL_EXPORT const char *tmq_get_db_name(TAOS_RES *res);
 DLL_EXPORT int32_t     tmq_get_vgroup_id(TAOS_RES *res);
 DLL_EXPORT const char *tmq_get_table_name(TAOS_RES *res);
 
