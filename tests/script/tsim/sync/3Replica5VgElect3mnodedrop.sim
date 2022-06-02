@@ -511,6 +511,36 @@ if $data[4][4] != ready then
   goto check_dnode_ready3
 endi
 
+print ===> 1:if create users sucessfully，then drop mnode leader
+sql  create user chr pass '123' 
+$loop_cnt = 0
+check_user_ready:
+$loop_cnt = $loop_cnt + 1
+print $loop_cnt
+sleep 200
+if $loop_cnt == 300 then
+  print ====> vgroups not ready!
+	return -1
+endi
+
+sql show users
+print ===> rows: $rows
+print ===> $rows $data[0][0] $data[0][1] $data[0][2]
+print ===> $rows $data[1][0] $data[1][1] $data[1][2]
+if $rows != 2 then
+  goto check_user_ready
+endi
+
+if $data[0][0] == chr then
+   goto check_user_ready_suc
+elif $data[1][0] == chr
+   goto check_user_ready_suc
+else
+   print ====> creating user failed
+   goto check_user_ready
+endi 
+
+check_user_ready_suc:
 
 $loop_cnt = 0
 check_mnode_ready_3:
@@ -553,18 +583,15 @@ if $data[2][2] == LEADER then
    endi
 endi
 
-
+sleep 2000
 # stop leader and drop dnode
 system sh/exec.sh -n dnode1 -s stop
-sleep 1000
-system sh/exec.sh -n dnode1 -s start
-sleep 1000
+sleep 2000
 
-
-print ===> if create users sucessfully，then drop mnode leader
-sql  create user chr pass '123' 
+print ===> 2:if create users sucessfully，then drop mnode leader
+sql  create user chr2 pass '123' 
 $loop_cnt = 0
-check_user_ready:
+check_user_ready2:
 $loop_cnt = $loop_cnt + 1
 print $loop_cnt
 sleep 200
@@ -572,67 +599,29 @@ if $loop_cnt == 300 then
   print ====> vgroups not ready!
 	return -1
 endi
+sql show mnodes
+print ===> $rows $data[0][0] $data[0][1] $data[0][2] $data[0][3]
+print ===> $rows $data[1][0] $data[1][1] $data[1][2] $data[1][3]
+print ===> $rows $data[2][0] $data[2][1] $data[2][2] $data[2][3]
 
 sql show users
 print ===> rows: $rows
 print ===> $rows $data[0][0] $data[0][1] $data[0][2]
 print ===> $rows $data[1][0] $data[1][1] $data[1][2]
-if $rows != 2 then
-  goto check_user_ready
+print ===> $rows $data[2][0] $data[2][1] $data[2][2]
+
+if $rows != 3 then
+  goto check_user_ready2
 endi
 
-if $data[0][0] == chr then
-   goto check_user_ready_suc
-elif $data[1][0] == chr
-   goto check_user_ready_suc
+if $data[0][0] == chr2 then
+   goto check_user_ready2_suc
+elif $data[1][0] == chr2
+   goto check_user_ready2_suc
 else
    print ====> creating user failed
-   goto check_user_ready
+   goto check_user_ready2
 endi 
 
-check_user_ready_suc:
-
-
-$loop_cnt = 0
-check_mnode_ready_3:
-	$loop_cnt = $loop_cnt + 1
-	sleep 200
-	if $loop_cnt == 100 then
-	   print ====> third: mnode not ready!
-	   return -1
-	endi
-sql show mnodes
-print ===> $rows $data[0][0] $data[0][1] $data[0][2] $data[0][3]
-print ===> $rows $data[1][0] $data[1][1] $data[1][2] $data[1][3]
-print ===> $rows $data[2][0] $data[2][1] $data[2][2] $data[2][3]
-if $data[0][0] != 1 then
-  return -1
-endi
-
-if $data[0][2] == LEADER then
-   if $data[1][2] != FOLLOWER then
-     goto check_mnode_ready_3
-   endi
-   if $data[2][2] != FOLLOWER then
-   goto check_mnode_ready_3
-   endi
-endi
-if $data[1][2] == LEADER then
-   if $data[0][2] != FOLLOWER then
-     goto check_mnode_ready_3
-   endi
-   if $data[2][2] != FOLLOWER then
-   goto check_mnode_ready_3
-   endi
-endi
-if $data[2][2] == LEADER then
-   if $data[1][2] != FOLLOWER then
-     goto check_mnode_ready_3
-   endi
-   if $data[0][2] != FOLLOWER then
-   goto check_mnode_ready_3
-   endi
-endi
-
-
+check_user_ready2_suc:
 
