@@ -327,11 +327,11 @@ pipeline {
                     steps {
                         script {
                             linux_node_ip = sh (
-                                script: 'jq .ip /home/node_info.json | sed "s/\"//g"',
+                                script: 'jq .ip /home/node_info.json | sed "s/\\\"//g"',
                                 returnStdout: true
                             ).trim()
                             linux_node_pass = sh (
-                                script: 'jq .password /home/node_info.json | sed "s/\"//g"',
+                                script: 'jq .password /home/node_info.json | sed "s/\\\"//g"',
                                 returnStdout: true
                             ).trim()
                         }
