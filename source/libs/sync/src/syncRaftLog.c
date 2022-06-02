@@ -258,6 +258,12 @@ char* logStoreSimple2Str(SSyncLogStore* pLogStore) {
   return serialized;
 }
 
+SyncIndex logStoreFirstIndex(SSyncLogStore* pLogStore) {
+  SSyncLogStoreData* pData = pLogStore->data;
+  SWal*              pWal = pData->pWal;
+  return walGetFirstVer(pWal);
+}
+
 // for debug -----------------
 void logStorePrint(SSyncLogStore* pLogStore) {
   char* serialized = logStore2Str(pLogStore);

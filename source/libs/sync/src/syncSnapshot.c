@@ -41,6 +41,8 @@ SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaI
     pSender->pSyncNode = pSyncNode;
     pSender->replicaIndex = replicaIndex;
     pSender->term = pSyncNode->pRaftStore->currentTerm;
+    pSender->pSyncNode->pFsm->FpGetSnapshot(pSender->pSyncNode->pFsm, &(pSender->snapshot));
+
     pSender->finish = false;
   } else {
     sInfo("snapshotSenderCreate cannot create sender");

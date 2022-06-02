@@ -454,16 +454,16 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
 
   SyncIndex localPreLogIndex;
   SyncTerm  localPreLogTerm;
-  ret = syncNodeGetPreIndexTerm(ths, pMsg->prevLogIndex + 1, &localPreLogIndex, &localPreLogTerm);
-  ASSERT(ret == 0);
-
-  SyncIndex localLastIndex;
-  SyncTerm  localLastTerm;
-  ret = syncNodeGetLastIndexTerm(ths, &localLastIndex, &localLastTerm);
-  ASSERT(ret == 0);
 
   bool logOK;
-  if (syncNodeIsIndexInSnapshot(ths, pMsg->prevLogIndex)) {
+
+  SyncIndex logFirstIndex = logStoreFirstIndex(ths->pLogStore);
+  SSnapshot snapshot;
+  ths->pFsm->FpGetSnapshot(ths->pFsm, &snapshot);
+  if (logFirstIndex > snapshot.lastApplyIndex) {
+    logOK = false;
+
+  } else if (syncNodeIsIndexInSnapshot(ths, pMsg->prevLogIndex)) {
     SSnapshot snapshot;
     ths->pFsm->FpGetSnapshot(ths->pFsm, &snapshot);
 
@@ -478,6 +478,9 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
         logOK, pMsg->prevLogIndex, snapshot.lastApplyIndex, pMsg->prevLogTerm, snapshot.lastApplyTerm);
 
   } else {
+    ret = syncNodeGetPreIndexTerm(ths, pMsg->prevLogIndex + 1, &localPreLogIndex, &localPreLogTerm);
+    ASSERT(ret == 0);
+
     logOK = (pMsg->prevLogIndex == SYNC_INDEX_INVALID) ||
             ((pMsg->prevLogIndex >= SYNC_INDEX_BEGIN) &&
              (pMsg->prevLogIndex <= ths->pLogStore->getLastIndex(ths->pLogStore)) &&
@@ -508,6 +511,21 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
     syncAppendEntriesReplyDestroy(pReply);
 
     return ret;
+  }
+
+  SyncIndex localLastIndex;
+  SyncTerm  localLastTerm;
+  if (logFirstIndex == SYNC_INDEX_INVALID) {
+    localLastIndex = ths->pLogStore->getLastIndex(ths->pLogStore);
+    localLastTerm = ths->pLogStore->getLastTerm(ths->pLogStore);
+
+  } else if (logFirstIndex > snapshot.lastApplyIndex) {
+    localLastIndex = ths->pLogStore->getLastIndex(ths->pLogStore);
+    localLastTerm = ths->pLogStore->getLastTerm(ths->pLogStore);
+
+  } else {
+    ret = syncNodeGetLastIndexTerm(ths, &localLastIndex, &localLastTerm);
+    ASSERT(ret == 0);
   }
 
   // return to follower state

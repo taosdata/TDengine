@@ -39,6 +39,8 @@ char*          logStore2Str(SSyncLogStore* pLogStore);
 cJSON*         logStoreSimple2Json(SSyncLogStore* pLogStore);
 char*          logStoreSimple2Str(SSyncLogStore* pLogStore);
 
+SyncIndex logStoreFirstIndex(SSyncLogStore* pLogStore);
+
 // SSyncRaftEntry* logStoreGetLastEntry(SSyncLogStore* pLogStore);
 // SyncIndex       logStoreLastIndex(SSyncLogStore* pLogStore);
 // SyncTerm        logStoreLastTerm(SSyncLogStore* pLogStore);

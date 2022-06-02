@@ -151,8 +151,8 @@ int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
     if ((syncNodeIsIndexInSnapshot(pSyncNode, nextIndex - 1) && !snapshotSendingFinish) ||
         syncNodeIsIndexInSnapshot(pSyncNode, nextIndex)) {
       // will send this msg until snapshot receive finish!
-      SSnapshot snapshot;
-      pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
+
+      SSnapshot snapshot = pSender->snapshot;
       sInfo("nextIndex:%ld in snapshot: <lastApplyIndex:%ld, lastApplyTerm:%lu>, begin snapshot", nextIndex,
             snapshot.lastApplyIndex, snapshot.lastApplyTerm);
 
@@ -161,6 +161,9 @@ int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
 
       preLogIndex = snapshot.lastApplyIndex;
       preLogTerm = snapshot.lastApplyTerm;
+
+      // update next index!
+      syncIndexMgrSetIndex(pSyncNode->pNextIndex, pDestId, snapshot.lastApplyIndex + 1);
 
       // to claim leader
       SyncAppendEntries* pMsg = syncAppendEntriesBuild(0, pSyncNode->vgId);
