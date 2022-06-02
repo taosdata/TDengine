@@ -13,7 +13,7 @@ IF (TD_LINUX)
   #TARGET_LINK_LIBRARIES(epoll taos_static trpc tutil pthread lua)
 
   add_executable(tmq "")
-  add_executable(tstream "")
+  add_executable(stream_demo "")
   add_executable(demoapi "")
 
   target_sources(tmq
@@ -21,9 +21,9 @@ IF (TD_LINUX)
       "tmq.c"
       )
 
-  target_sources(tstream
+  target_sources(stream_demo
       PRIVATE
-      "tstream.c"
+      "stream_demo.c"
       )
 
   target_sources(demoapi
@@ -35,7 +35,7 @@ IF (TD_LINUX)
       taos_static
       )
 
-  target_link_libraries(tstream
+  target_link_libraries(stream_demo
       taos_static
       )
 
@@ -48,7 +48,7 @@ IF (TD_LINUX)
       PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
       )
 
-  target_include_directories(tstream
+  target_include_directories(stream_demo
       PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
       )
 
@@ -59,7 +59,7 @@ IF (TD_LINUX)
       )
 
   SET_TARGET_PROPERTIES(tmq PROPERTIES OUTPUT_NAME tmq)
-  SET_TARGET_PROPERTIES(tstream PROPERTIES OUTPUT_NAME tstream)
+  SET_TARGET_PROPERTIES(stream_demo PROPERTIES OUTPUT_NAME stream_demo)
   SET_TARGET_PROPERTIES(demoapi PROPERTIES OUTPUT_NAME demoapi)
 ENDIF ()
 IF (TD_DARWIN)

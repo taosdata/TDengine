@@ -351,6 +351,23 @@ bool transEpSetIsEqual(SEpSet* a, SEpSet* b);
  */
 void transThreadOnce();
 
+// ref mgt
+// handle
+typedef struct SExHandle {
+  void*   handle;
+  int64_t refId;
+  void*   pThrd;
+} SExHandle;
+
+void       transInitEnv();
+int32_t    transOpenExHandleMgt(int size);
+void       transCloseExHandleMgt(int32_t mgt);
+int64_t    transAddExHandle(int32_t mgt, void* p);
+int32_t    transRemoveExHandle(int32_t mgt, int64_t refId);
+SExHandle* transAcquireExHandle(int32_t mgt, int64_t refId);
+int32_t    transReleaseExHandle(int32_t mgt, int64_t refId);
+void       transDestoryExHandle(void* handle);
+
 #ifdef __cplusplus
 }
 #endif
