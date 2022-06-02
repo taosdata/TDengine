@@ -101,3 +101,4 @@ python3 ./test.py -f 7-tmq/subscribeStb1.py
 python3 ./test.py -f 7-tmq/subscribeStb2.py
 python3 ./test.py -f 7-tmq/subscribeStb3.py
 python3 ./test.py -f 7-tmq/subscribeStb4.py
+python3 ./test.py -f 7-tmq/db.py

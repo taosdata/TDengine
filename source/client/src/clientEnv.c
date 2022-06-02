@@ -162,6 +162,7 @@ void *createTscObj(const char *user, const char *auth, const char *db, int32_t c
 
   taosThreadMutexInit(&pObj->mutex, NULL);
   pObj->id = taosAddRef(clientConnRefPool, pObj);
+  pObj->schemalessType = 0;
 
   tscDebug("connObj created, 0x%" PRIx64, pObj->id);
   return pObj;

@@ -20,6 +20,28 @@ void tqTmrRspFunc(void* param, void* tmrId) {
   atomic_store_8(&pHandle->pushHandle.tmrStopped, 1);
 }
 
+static int32_t tqLoopExecFromQueue(STQ* pTq, STqHandle* pHandle, SStreamDataSubmit** ppSubmit, SMqDataBlkRsp* pRsp) {
+  SStreamDataSubmit* pSubmit = *ppSubmit;
+  while (pSubmit != NULL) {
+    ASSERT(pSubmit->ver == pHandle->pushHandle.processedVer + 1);
+    if (tqDataExec(pTq, &pHandle->execHandle, pSubmit->data, pRsp, 0) < 0) {
+      /*ASSERT(0);*/
+    }
+    // update processed
+    atomic_store_64(&pHandle->pushHandle.processedVer, pSubmit->ver);
+    streamQSetSuccess(&pHandle->pushHandle.inputQ);
+    streamDataSubmitRefDec(pSubmit);
+    if (pRsp->blockNum > 0) {
+      *ppSubmit = pSubmit;
+      return 0;
+    } else {
+      pSubmit = streamQNextItem(&pHandle->pushHandle.inputQ);
+    }
+  }
+  *ppSubmit = pSubmit;
+  return -1;
+}
+
 int32_t tqExecFromInputQ(STQ* pTq, STqHandle* pHandle) {
   SMqDataBlkRsp rsp = {0};
   // 1. guard and set status executing
@@ -42,38 +64,14 @@ int32_t tqExecFromInputQ(STQ* pTq, STqHandle* pHandle) {
     }
     // 3. exec, after each success, update processed ver
     // first run
-    while (pSubmit != NULL) {
-      ASSERT(pSubmit->ver == pHandle->pushHandle.processedVer + 1);
-      if (tqDataExec(pTq, &pHandle->execHandle, pSubmit->data, &rsp, 0) < 0) {
-        /*ASSERT(0);*/
-      }
-      // update processed
-      atomic_store_64(&pHandle->pushHandle.processedVer, pSubmit->ver);
-      streamQSetSuccess(&pHandle->pushHandle.inputQ);
-      streamDataSubmitRefDec(pSubmit);
-      if (rsp.blockNum > 0) {
-        goto SEND_RSP;
-      } else {
-        pSubmit = streamQNextItem(&pHandle->pushHandle.inputQ);
-      }
+    if (tqLoopExecFromQueue(pTq, pHandle, &pSubmit, &rsp) == 0) {
+      goto SEND_RSP;
     }
     // set exec status closing
     atomic_store_8(&pHandle->pushHandle.execStatus, TASK_STATUS__CLOSING);
     // second run
-    while (pSubmit != NULL) {
-      ASSERT(pSubmit->ver == pHandle->pushHandle.processedVer + 1);
-      if (tqDataExec(pTq, &pHandle->execHandle, pSubmit->data, &rsp, 0) < 0) {
-        /*ASSERT(0);*/
-      }
-      // update processed
-      atomic_store_64(&pHandle->pushHandle.processedVer, pSubmit->ver);
-      streamQSetSuccess(&pHandle->pushHandle.inputQ);
-      streamDataSubmitRefDec(pSubmit);
-      if (rsp.blockNum > 0) {
-        goto SEND_RSP;
-      } else {
-        pSubmit = streamQNextItem(&pHandle->pushHandle.inputQ);
-      }
+    if (tqLoopExecFromQueue(pTq, pHandle, &pSubmit, &rsp) == 0) {
+      goto SEND_RSP;
     }
     // set exec status idle
     atomic_store_8(&pHandle->pushHandle.execStatus, TASK_STATUS__IDLE);

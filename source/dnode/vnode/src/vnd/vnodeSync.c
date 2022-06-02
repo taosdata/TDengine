@@ -50,13 +50,11 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
   return 0;
 }
 
-void vnodeSyncAlter(SVnode *pVnode, SRpcMsg *pMsg) {
+int32_t vnodeSyncAlter(SVnode *pVnode, SRpcMsg *pMsg) {
   SAlterVnodeReq req = {0};
   if (tDeserializeSAlterVnodeReq((char *)pMsg->pCont + sizeof(SMsgHead), pMsg->contLen - sizeof(SMsgHead), &req) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
-    vError("vgId:%d, failed to alter replica since %s", TD_VID(pVnode), terrstr());
-    SRpcMsg rsp = {.info = pMsg->info, .code = terrno};
-    tmsgSendRsp(&rsp);
+    return TSDB_CODE_INVALID_MSG;
   }
 
   vInfo("vgId:%d, start to alter vnode replica to %d", TD_VID(pVnode), req.replica);
@@ -68,11 +66,15 @@ void vnodeSyncAlter(SVnode *pVnode, SRpcMsg *pMsg) {
     vInfo("vgId:%d, replica:%d %s:%u", TD_VID(pVnode), r, pNode->nodeFqdn, pNode->nodePort);
   }
 
-  if (syncReconfig(pVnode->sync, &cfg) != 0) {
-    vError("vgId:%d, failed to propose sync reconfig since %s", TD_VID(pVnode), terrstr());
+  int32_t code = syncReconfig(pVnode->sync, &cfg);
+  if (code == TAOS_SYNC_PROPOSE_SUCCESS) {
+    // todo refactor
     SRpcMsg rsp = {.info = pMsg->info, .code = terrno};
     tmsgSendRsp(&rsp);
+    return TSDB_CODE_ACTION_IN_PROGRESS;
   }
+
+  return code;
 }
 
 void vnodeSyncStart(SVnode *pVnode) {
