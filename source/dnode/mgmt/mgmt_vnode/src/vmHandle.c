@@ -192,7 +192,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
-  dDebug("vgId:%d, create vnode req is received, tsma:%d standby:%d", createReq.vgId, createReq.isTsma,
+  dDebug("vgId:%d, start to create vnode, tsma:%d standby:%d", createReq.vgId, createReq.isTsma,
          createReq.standby);
   vmGenerateVnodeCfg(&createReq, &vnodeCfg);
   vmGenerateWrapperCfg(pMgmt, &createReq, &wrapperCfg);
@@ -270,7 +270,7 @@ int32_t vmProcessDropVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   int32_t vgId = dropReq.vgId;
-  dDebug("vgId:%d, drop vnode req is received", vgId);
+  dDebug("vgId:%d, start to drop vnode", vgId);
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, vgId);
   if (pVnode == NULL) {
