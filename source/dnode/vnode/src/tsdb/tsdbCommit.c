@@ -87,6 +87,7 @@ static bool tsdbCanAddSubBlock(SCommitH *pCommith, SBlock *pBlock, SMergeInfo *p
 static void tsdbLoadAndMergeFromCache(STsdb *pTsdb, SDataCols *pDataCols, int *iter, SCommitIter *pCommitIter,
                                       SDataCols *pTarget, TSKEY maxKey, int maxRows, int8_t update);
 int         tsdbWriteBlockIdx(SDFile *pHeadf, SArray *pIdxA, void **ppBuf);
+static int  tsdbApplyRtnOnFSet(STsdb *pRepo, SDFileSet *pSet, SRtn *pRtn);
 
 int tsdbBegin(STsdb *pTsdb) {
   if (!pTsdb) return 0;
@@ -97,57 +98,6 @@ int tsdbBegin(STsdb *pTsdb) {
     return -1;
   }
 
-  return 0;
-}
-
-int tsdbApplyRtnOnFSet(STsdb *pRepo, SDFileSet *pSet, SRtn *pRtn) {
-  SDiskID   did;
-  SDFileSet nSet = {0};
-  STsdbFS  *pfs = REPO_FS(pRepo);
-  int       level;
-
-  ASSERT(pSet->fid >= pRtn->minFid);
-
-  level = tsdbGetFidLevel(pSet->fid, pRtn);
-
-  if (tfsAllocDisk(pRepo->pVnode->pTfs, level, &did) < 0) {
-    terrno = TSDB_CODE_TDB_NO_AVAIL_DISK;
-    return -1;
-  }
-
-  if (did.level > TSDB_FSET_LEVEL(pSet)) {
-    // Need to move the FSET to higher level
-    tsdbInitDFileSet(pRepo, &nSet, did, pSet->fid, FS_TXN_VERSION(pfs));
-
-    if (tsdbCopyDFileSet(pSet, &nSet) < 0) {
-      tsdbError("vgId:%d, failed to copy FSET %d from level %d to level %d since %s", REPO_ID(pRepo), pSet->fid,
-                TSDB_FSET_LEVEL(pSet), did.level, tstrerror(terrno));
-      return -1;
-    }
-
-    if (tsdbUpdateDFileSet(pfs, &nSet) < 0) {
-      return -1;
-    }
-
-    tsdbInfo("vgId:%d, FSET %d is copied from level %d disk id %d to level %d disk id %d", REPO_ID(pRepo), pSet->fid,
-             TSDB_FSET_LEVEL(pSet), TSDB_FSET_ID(pSet), did.level, did.id);
-  } else {
-    // On a correct level
-    if (tsdbUpdateDFileSet(pfs, pSet) < 0) {
-      return -1;
-    }
-  }
-
-  return 0;
-}
-
-int tsdbPrepareCommit(STsdb *pTsdb) {
-  if (pTsdb->mem == NULL) return 0;
-
-  ASSERT(pTsdb->imem == NULL);
-
-  pTsdb->imem = pTsdb->mem;
-  pTsdb->mem = NULL;
   return 0;
 }
 
@@ -220,6 +170,57 @@ int tsdbCommit(STsdb *pRepo) {
   tsdbDestroyCommitH(&commith);
   tsdbEndCommit(pRepo, TSDB_CODE_SUCCESS);
 
+  return 0;
+}
+
+static int tsdbApplyRtnOnFSet(STsdb *pRepo, SDFileSet *pSet, SRtn *pRtn) {
+  SDiskID   did;
+  SDFileSet nSet = {0};
+  STsdbFS  *pfs = REPO_FS(pRepo);
+  int       level;
+
+  ASSERT(pSet->fid >= pRtn->minFid);
+
+  level = tsdbGetFidLevel(pSet->fid, pRtn);
+
+  if (tfsAllocDisk(pRepo->pVnode->pTfs, level, &did) < 0) {
+    terrno = TSDB_CODE_TDB_NO_AVAIL_DISK;
+    return -1;
+  }
+
+  if (did.level > TSDB_FSET_LEVEL(pSet)) {
+    // Need to move the FSET to higher level
+    tsdbInitDFileSet(pRepo, &nSet, did, pSet->fid, FS_TXN_VERSION(pfs));
+
+    if (tsdbCopyDFileSet(pSet, &nSet) < 0) {
+      tsdbError("vgId:%d, failed to copy FSET %d from level %d to level %d since %s", REPO_ID(pRepo), pSet->fid,
+                TSDB_FSET_LEVEL(pSet), did.level, tstrerror(terrno));
+      return -1;
+    }
+
+    if (tsdbUpdateDFileSet(pfs, &nSet) < 0) {
+      return -1;
+    }
+
+    tsdbInfo("vgId:%d, FSET %d is copied from level %d disk id %d to level %d disk id %d", REPO_ID(pRepo), pSet->fid,
+             TSDB_FSET_LEVEL(pSet), TSDB_FSET_ID(pSet), did.level, did.id);
+  } else {
+    // On a correct level
+    if (tsdbUpdateDFileSet(pfs, pSet) < 0) {
+      return -1;
+    }
+  }
+
+  return 0;
+}
+
+int tsdbPrepareCommit(STsdb *pTsdb) {
+  if (pTsdb->mem == NULL) return 0;
+
+  ASSERT(pTsdb->imem == NULL);
+
+  pTsdb->imem = pTsdb->mem;
+  pTsdb->mem = NULL;
   return 0;
 }
 
@@ -543,8 +544,8 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
       return -1;
     }
 
-    tsdbDebug("vgId:%d, FSET %d at level %d disk id %d is opened to read to commit", REPO_ID(pRepo), TSDB_FSET_FID(pSet),
-              TSDB_FSET_LEVEL(pSet), TSDB_FSET_ID(pSet));
+    tsdbDebug("vgId:%d, FSET %d at level %d disk id %d is opened to read to commit", REPO_ID(pRepo),
+              TSDB_FSET_FID(pSet), TSDB_FSET_LEVEL(pSet), TSDB_FSET_ID(pSet));
   } else {
     pCommith->isRFileSet = false;
   }

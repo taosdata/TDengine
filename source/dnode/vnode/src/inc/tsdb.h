@@ -43,6 +43,8 @@ typedef struct SMemTable SMemTable;
 
 int32_t tsdbMemTableCreate2(STsdb *pTsdb, SMemTable **ppMemTable);
 void    tsdbMemTableDestroy2(SMemTable *pMemTable);
+int32_t tsdbInsertTableData2(STsdb *pTsdb, int64_t version, SVSubmitBlk *pSubmitBlk);
+int32_t tsdbDeleteTableData2(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
 
 // tsdbMemTable ================
 typedef struct STsdbRow      STsdbRow;
