@@ -375,13 +375,14 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
       taosMemoryFree(topicObj.sql);
       return -1;
     }
-    /*} else if (pCreate->subType == TOPIC_SUB_TYPE__DB) {*/
-    /*topicObj.ast = NULL;*/
-    /*topicObj.astLen = 0;*/
-    /*topicObj.physicalPlan = NULL;*/
-    /*topicObj.withTbName = 1;*/
-    /*topicObj.withSchema = 1;*/
+  } else if (pCreate->subType == TOPIC_SUB_TYPE__TABLE) {
   }
+  /*} else if (pCreate->subType == TOPIC_SUB_TYPE__DB) {*/
+  /*topicObj.ast = NULL;*/
+  /*topicObj.astLen = 0;*/
+  /*topicObj.physicalPlan = NULL;*/
+  /*topicObj.withTbName = 1;*/
+  /*topicObj.withSchema = 1;*/
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq);
   if (pTrans == NULL) {

@@ -143,6 +143,7 @@ typedef struct {
 typedef struct {
   // subscribe info
   char* topicName;
+  char  db[TSDB_DB_FNAME_LEN];
 
   SArray* vgs;  // SArray<SMqClientVg>
 
@@ -1039,6 +1040,7 @@ bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, SMqAskEpRsp* pRsp) {
     topic.schema = pTopicEp->schema;
     taosHashClear(pHash);
     topic.topicName = strdup(pTopicEp->topic);
+    tstrncpy(topic.db, pTopicEp->db, TSDB_DB_FNAME_LEN);
 
     tscDebug("consumer %ld update topic: %s", tmq->consumerId, topic.topicName);
     int32_t topicNumCur = taosArrayGetSize(tmq->clientTopics);
@@ -1283,7 +1285,8 @@ SMqPollReq* tmqBuildConsumeReqImpl(tmq_t* tmq, int64_t timeout, SMqClientTopic* 
 SMqRspObj* tmqBuildRspFromWrapper(SMqPollRspWrapper* pWrapper) {
   SMqRspObj* pRspObj = taosMemoryCalloc(1, sizeof(SMqRspObj));
   pRspObj->resType = RES_TYPE__TMQ;
-  strncpy(pRspObj->topic, pWrapper->topicHandle->topicName, TSDB_TOPIC_FNAME_LEN);
+  tstrncpy(pRspObj->topic, pWrapper->topicHandle->topicName, TSDB_TOPIC_FNAME_LEN);
+  tstrncpy(pRspObj->db, pWrapper->topicHandle->db, TSDB_DB_FNAME_LEN);
   pRspObj->vgId = pWrapper->vgHandle->vgId;
   pRspObj->resIter = -1;
   memcpy(&pRspObj->rsp, &pWrapper->msg, sizeof(SMqDataBlkRsp));
@@ -1501,6 +1504,15 @@ const char* tmq_get_topic_name(TAOS_RES* res) {
   if (TD_RES_TMQ(res)) {
     SMqRspObj* pRspObj = (SMqRspObj*)res;
     return strchr(pRspObj->topic, '.') + 1;
+  } else {
+    return NULL;
+  }
+}
+
+const char* tmq_get_db_name(TAOS_RES* res) {
+  if (TD_RES_TMQ(res)) {
+    SMqRspObj* pRspObj = (SMqRspObj*)res;
+    return strchr(pRspObj->db, '.') + 1;
   } else {
     return NULL;
   }

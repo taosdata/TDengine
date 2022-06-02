@@ -168,7 +168,7 @@ typedef struct {
   int64_t    createdTime;
   int64_t    updateTime;
   SDnodeObj* pDnode;
-  SQnodeLoad load;  
+  SQnodeLoad load;
 } SQnodeObj;
 
 typedef struct {
@@ -422,6 +422,7 @@ typedef struct {
   char*          ast;
   char*          physicalPlan;
   SSchemaWrapper schema;
+  int64_t        stbUid;
   // int32_t        refConsumerCnt;
 } SMqTopicObj;
 
@@ -535,7 +536,7 @@ typedef struct {
 } SMqRebOutputObj;
 
 typedef struct {
-  char           name[TSDB_TOPIC_FNAME_LEN];
+  char           name[TSDB_STREAM_FNAME_LEN];
   char           sourceDb[TSDB_DB_FNAME_LEN];
   char           targetDb[TSDB_DB_FNAME_LEN];
   char           targetSTbName[TSDB_TABLE_FNAME_LEN];
