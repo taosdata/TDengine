@@ -36,6 +36,7 @@ extern "C" {
 #define planTrace(param, ...)  qTrace("PLAN: " param, __VA_ARGS__)
 
 int32_t generateUsageErrMsg(char* pBuf, int32_t len, int32_t errCode, ...);
+int32_t createColumnByRewriteExps(SNodeList* pExprs, SNodeList** pList);
 
 int32_t createLogicPlan(SPlanContext* pCxt, SLogicNode** pLogicNode);
 int32_t optimizeLogicPlan(SPlanContext* pCxt, SLogicNode* pLogicNode);

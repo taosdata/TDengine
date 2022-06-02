@@ -20,22 +20,73 @@ void tqTmrRspFunc(void* param, void* tmrId) {
   atomic_store_8(&pHandle->pushHandle.tmrStopped, 1);
 }
 
+static int32_t tqLoopExecFromQueue(STQ* pTq, STqHandle* pHandle, SStreamDataSubmit** ppSubmit, SMqDataBlkRsp* pRsp) {
+  SStreamDataSubmit* pSubmit = *ppSubmit;
+  while (pSubmit != NULL) {
+    ASSERT(pSubmit->ver == pHandle->pushHandle.processedVer + 1);
+    if (tqDataExec(pTq, &pHandle->execHandle, pSubmit->data, pRsp, 0) < 0) {
+      /*ASSERT(0);*/
+    }
+    // update processed
+    atomic_store_64(&pHandle->pushHandle.processedVer, pSubmit->ver);
+    streamQSetSuccess(&pHandle->pushHandle.inputQ);
+    streamDataSubmitRefDec(pSubmit);
+    if (pRsp->blockNum > 0) {
+      *ppSubmit = pSubmit;
+      return 0;
+    } else {
+      pSubmit = streamQNextItem(&pHandle->pushHandle.inputQ);
+    }
+  }
+  *ppSubmit = pSubmit;
+  return -1;
+}
+
 int32_t tqExecFromInputQ(STQ* pTq, STqHandle* pHandle) {
+  SMqDataBlkRsp rsp = {0};
   // 1. guard and set status executing
-  // 2. check processedVer
-  // 2.1. if not missed, get msg from queue
-  // 2.2. if missed, scan wal
-  //
-  // 3. exec, after each success, update processed ver
-  // first run
-  // set exec status closing
-  // second run
-  // set exec status idle
-  //
+  int8_t execStatus =
+      atomic_val_compare_exchange_8(&pHandle->pushHandle.execStatus, TASK_STATUS__IDLE, TASK_STATUS__EXECUTING);
+  if (execStatus == TASK_STATUS__IDLE) {
+    SStreamDataSubmit* pSubmit = NULL;
+    // 2. check processedVer
+    // 2.1. if not missed, get msg from queue
+    // 2.2. if missed, scan wal
+    pSubmit = streamQNextItem(&pHandle->pushHandle.inputQ);
+    while (pHandle->pushHandle.processedVer <= pSubmit->ver) {
+      // read from wal
+    }
+    while (pHandle->pushHandle.processedVer > pSubmit->ver + 1) {
+      streamQSetSuccess(&pHandle->pushHandle.inputQ);
+      streamDataSubmitRefDec(pSubmit);
+      pSubmit = streamQNextItem(&pHandle->pushHandle.inputQ);
+      if (pSubmit == NULL) break;
+    }
+    // 3. exec, after each success, update processed ver
+    // first run
+    if (tqLoopExecFromQueue(pTq, pHandle, &pSubmit, &rsp) == 0) {
+      goto SEND_RSP;
+    }
+    // set exec status closing
+    atomic_store_8(&pHandle->pushHandle.execStatus, TASK_STATUS__CLOSING);
+    // second run
+    if (tqLoopExecFromQueue(pTq, pHandle, &pSubmit, &rsp) == 0) {
+      goto SEND_RSP;
+    }
+    // set exec status idle
+    atomic_store_8(&pHandle->pushHandle.execStatus, TASK_STATUS__IDLE);
+  }
+SEND_RSP:
   // 4. if get result
   // 4.1 set exec input status blocked and exec status idle
+  atomic_store_8(&pHandle->pushHandle.execStatus, TASK_STATUS__IDLE);
   // 4.2 rpc send
+  rsp.rspOffset = pHandle->pushHandle.processedVer;
+  /*if (tqSendPollRsp(pTq, pMsg, pReq, &rsp) < 0) {*/
+  /*return -1;*/
+  /*}*/
   // 4.3 clear rpc info
+  memset(&pHandle->pushHandle.rpcInfo, 0, sizeof(SRpcHandleInfo));
   return 0;
 }
 

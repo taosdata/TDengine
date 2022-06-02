@@ -36,10 +36,10 @@ class TDTestCase:
             
         if db_update_tag == 0:
             tdSql.execute(f"drop database if exists {name}")
-            tdSql.execute(f"create database if not exists {name} precision 'ms'")
+            tdSql.execute(f"create database if not exists {name} precision 'ms' schemaless 1")
         else:
             tdSql.execute(f"drop database if exists {name}")
-            tdSql.execute(f"create database if not exists {name} precision 'ms' update 1")
+            tdSql.execute(f"create database if not exists {name} precision 'ms' update 1 schemaless 1")
         tdSql.execute(f'use {name}')
 
     def timeTrans(self, time_value):
@@ -535,7 +535,7 @@ class TDTestCase:
         # check result
         #! bug
         tdSql.execute(f"drop database if exists test_ts")
-        tdSql.execute(f"create database if not exists test_ts precision 'ms'")
+        tdSql.execute(f"create database if not exists test_ts precision 'ms' schemaless 1")
         tdSql.execute("use test_ts")
         input_json = [{"metric": "test_ms", "timestamp": {"value": 1626006833640, "type": "ms"}, "value": True, "tags": {"t0": True}},
                     {"metric": "test_ms", "timestamp": {"value": 1626006833641, "type": "ms"}, "value": False, "tags": {"t0": True}}]
@@ -545,7 +545,7 @@ class TDTestCase:
         tdSql.checkEqual(str(res[1][0]), "2021-07-11 20:33:53.641000")
 
         tdSql.execute(f"drop database if exists test_ts")
-        tdSql.execute(f"create database if not exists test_ts precision 'us'")
+        tdSql.execute(f"create database if not exists test_ts precision 'us' schemaless 1")
         tdSql.execute("use test_ts")
         input_json = [{"metric": "test_us", "timestamp": {"value": 1626006833639000, "type": "us"}, "value": True, "tags": {"t0": True}},
                     {"metric": "test_us", "timestamp": {"value": 1626006833639001, "type": "us"}, "value": False, "tags": {"t0": True}}]
@@ -555,7 +555,7 @@ class TDTestCase:
         tdSql.checkEqual(str(res[1][0]), "2021-07-11 20:33:53.639001")
 
         tdSql.execute(f"drop database if exists test_ts")
-        tdSql.execute(f"create database if not exists test_ts precision 'ns'")
+        tdSql.execute(f"create database if not exists test_ts precision 'ns' schemaless 1")
         tdSql.execute("use test_ts")
         input_json = [{"metric": "test_ns", "timestamp": {"value": 1626006833639000000, "type": "ns"}, "value": True, "tags": {"t0": True}},
                     {"metric": "test_ns", "timestamp": {"value": 1626006833639000001, "type": "ns"}, "value": False, "tags": {"t0": True}}]

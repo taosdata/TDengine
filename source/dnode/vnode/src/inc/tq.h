@@ -66,12 +66,6 @@ struct STqReadHandle {
 // tqPush
 
 typedef struct {
-  STaosQueue* queue;
-  STaosQall*  qall;
-  void*       qItem;
-} STqInputQ;
-
-typedef struct {
   // msg info
   int64_t consumerId;
   int64_t reqOffset;
@@ -84,10 +78,10 @@ typedef struct {
   tmr_h          timerId;
   int8_t         tmrStopped;
   // exec
-  int8_t    inputStatus;
-  int8_t    execStatus;
-  STqInputQ inputQ;
-  SRWLatch  lock;
+  int8_t   inputStatus;
+  int8_t   execStatus;
+  SStreamQ inputQ;
+  SRWLatch lock;
 } STqPushHandle;
 
 // tqExec
@@ -155,6 +149,7 @@ int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalHead*
 
 // tqExec
 int32_t tqDataExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataBlkRsp* pRsp, int32_t workerId);
+int32_t tqSendPollRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataBlkRsp* pRsp);
 
 // tqMeta
 int32_t tqMetaOpen(STQ* pTq);

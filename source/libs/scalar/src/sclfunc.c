@@ -15,7 +15,11 @@ typedef void (*_trim_fn)(char *, char*, int32_t, int32_t);
 typedef int16_t (*_len_fn)(char *, int32_t);
 
 /** Math functions **/
-static double tlog(double v, double base) {
+static double tlog(double v) {
+  return log(v);
+}
+
+static double tlog2(double v, double base) {
   double a = log(v);
   double b = log(base);
   if (isnan(a) || isinf(a)) {
@@ -444,7 +448,8 @@ int32_t concatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   for (int32_t k = 0; k < numOfRows; ++k) {
     bool hasNull = false;
     for (int32_t i = 0; i < inputNum; ++i) {
-      if (colDataIsNull_s(pInputData[i], k)) {
+      if (colDataIsNull_s(pInputData[i], k) ||
+          GET_PARAM_TYPE(&pInput[i]) == TSDB_DATA_TYPE_NULL) {
         colDataAppendNULL(pOutputData, k);
         hasNull = true;
         break;
@@ -520,7 +525,8 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
   char *output = outputBuf;
 
   for (int32_t k = 0; k < numOfRows; ++k) {
-    if (colDataIsNull_s(pInputData[0], k)) {
+    if (colDataIsNull_s(pInputData[0], k) ||
+        GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NULL) {
       colDataAppendNULL(pOutputData, k);
       continue;
     }
@@ -528,7 +534,8 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
     int16_t dataLen = 0;
     bool hasNull = false;
     for (int32_t i = 1; i < inputNum; ++i) {
-      if (colDataIsNull_s(pInputData[i], k)) {
+      if (colDataIsNull_s(pInputData[i], k) ||
+          GET_PARAM_TYPE(&pInput[i]) == TSDB_DATA_TYPE_NULL) {
         hasNull = true;
         break;
       }
@@ -1374,7 +1381,11 @@ int32_t powFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
 }
 
 int32_t logFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  return doScalarFunctionUnique2(pInput, inputNum, pOutput, tlog);
+  if (inputNum == 1) {
+    return doScalarFunctionUnique(pInput, inputNum, pOutput, tlog);
+  } else {
+    return doScalarFunctionUnique2(pInput, inputNum, pOutput, tlog2);
+  }
 }
 
 int32_t sqrtFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {

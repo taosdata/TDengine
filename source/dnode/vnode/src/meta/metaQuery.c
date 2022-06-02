@@ -464,7 +464,7 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid, bool deepCopy) {
 _err:
   metaReaderClear(&mr);
   taosArrayDestroy(pSmaIds);
-  tdFreeTSmaWrapper(pSW, deepCopy);
+  tFreeTSmaWrapper(pSW, deepCopy);
   return NULL;
 }
 

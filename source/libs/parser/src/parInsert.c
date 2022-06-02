@@ -60,6 +60,7 @@ typedef struct SInsertParseContext {
   SHashObj*          pSubTableHashObj;    // global
   SArray*            pVgDataBlocks;       // global
   SHashObj*          pTableNameHashObj;   // global
+  SHashObj*          pDbFNameHashObj;     // global
   int32_t            totalNum;
   SVnodeModifOpStmt* pOutput;
   SStmtCallback*     pStmtCb;
@@ -1153,6 +1154,10 @@ static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks,
       continue;
     }
 
+    if (TK_NK_RP == sToken.type) {
+      return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_INVALID_COLUMNS_NUM);
+    }
+
     if (isParseBindParam) {
       return buildInvalidOperationMsg(&pCxt->msg, "no mix usage for ? and values");
     }
@@ -1271,6 +1276,7 @@ static void destroyInsertParseContext(SInsertParseContext* pCxt) {
   taosHashCleanup(pCxt->pVgroupsHashObj);
   taosHashCleanup(pCxt->pSubTableHashObj);
   taosHashCleanup(pCxt->pTableNameHashObj);
+  taosHashCleanup(pCxt->pDbFNameHashObj);
 
   destroyBlockHashmap(pCxt->pTableBlockHashObj);
   destroyBlockArrayList(pCxt->pVgDataBlocks);
@@ -1329,8 +1335,13 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
     SName name;
     CHECK_CODE(createSName(&name, &tbnameToken, pCxt->pComCxt->acctId, pCxt->pComCxt->db, &pCxt->msg));
 
+    CHECK_CODE(isNotSchemalessDb(pCxt->pComCxt, name.dbname));
+
     tNameExtractFullName(&name, tbFName);
     CHECK_CODE(taosHashPut(pCxt->pTableNameHashObj, tbFName, strlen(tbFName), &name, sizeof(SName)));
+    char dbFName[TSDB_DB_FNAME_LEN];
+    tNameGetFullDbName(&name, dbFName);
+    CHECK_CODE(taosHashPut(pCxt->pDbFNameHashObj, dbFName, strlen(dbFName), dbFName, sizeof(dbFName)));
 
     // USING clause
     if (TK_USING == sToken.type) {
@@ -1338,8 +1349,6 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
       NEXT_TOKEN(pCxt->pSql, sToken);
       autoCreateTbl = true;
     } else {
-      char dbFName[TSDB_DB_FNAME_LEN];
-      tNameGetFullDbName(&name, dbFName);
       CHECK_CODE(getTableMeta(pCxt, &name, dbFName));
     }
 
@@ -1404,6 +1413,23 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
   return buildOutput(pCxt);
 }
 
+int32_t isNotSchemalessDb(SParseContext* pContext, char *dbName){
+  SName          name;
+  tNameSetDbName(&name, pContext->acctId, dbName, strlen(dbName));
+  char dbFname[TSDB_DB_FNAME_LEN] = {0};
+  tNameGetFullDbName(&name, dbFname);
+  SDbCfgInfo pInfo = {0};
+  int32_t code = catalogGetDBCfg(pContext->pCatalog, pContext->pTransporter, &pContext->mgmtEpSet, dbFname, &pInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    parserError("catalogGetDBCfg error, code:%s, dbFName:%s", tstrerror(code), dbFname);
+    return code;
+  }
+  if (pInfo.schemaless){
+    parserError("can not insert into schemaless db:%s", dbFname);
+    return TSDB_CODE_SML_INVALID_DB_CONF;
+  }
+  return TSDB_CODE_SUCCESS;
+}
 // INSERT INTO
 //   tb_name
 //       [USING stb_name [(tag1_name, ...)] TAGS (tag1_value, ...)]
@@ -1418,6 +1444,7 @@ int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery) {
       .pTableMeta = NULL,
       .pSubTableHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_NO_LOCK),
       .pTableNameHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_NO_LOCK),
+      .pDbFNameHashObj = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_NO_LOCK),
       .totalNum = 0,
       .pOutput = (SVnodeModifOpStmt*)nodesMakeNode(QUERY_NODE_VNODE_MODIF_STMT),
       .pStmtCb = pContext->pStmtCb};
@@ -1432,7 +1459,7 @@ int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery) {
   }
 
   if (NULL == context.pVgroupsHashObj || NULL == context.pTableBlockHashObj || NULL == context.pSubTableHashObj ||
-      NULL == context.pTableNameHashObj || NULL == context.pOutput) {
+      NULL == context.pTableNameHashObj || NULL == context.pDbFNameHashObj || NULL == context.pOutput) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
@@ -1458,6 +1485,13 @@ int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery) {
     }
   }
 
+  if (NULL == (*pQuery)->pDbList) {
+    (*pQuery)->pDbList = taosArrayInit(taosHashGetSize(context.pDbFNameHashObj), TSDB_DB_FNAME_LEN);
+    if (NULL == (*pQuery)->pDbList) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
   context.pOutput->payloadType = PAYLOAD_TYPE_KV;
 
   int32_t code = skipInsertInto(&context.pSql, &context.msg);
@@ -1469,6 +1503,12 @@ int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery) {
     while (NULL != pTable) {
       taosArrayPush((*pQuery)->pTableList, pTable);
       pTable = taosHashIterate(context.pTableNameHashObj, pTable);
+    }
+
+    char* pDb = taosHashIterate(context.pDbFNameHashObj, NULL);
+    while (NULL != pDb) {
+      taosArrayPush((*pQuery)->pDbList, pDb);
+      pDb = taosHashIterate(context.pDbFNameHashObj, pDb);
     }
   }
   destroyInsertParseContext(&context);
