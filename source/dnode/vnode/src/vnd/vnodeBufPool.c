@@ -30,7 +30,7 @@ int vnodeOpenBufPool(SVnode *pVnode, int64_t size) {
     // create pool
     ret = vnodeBufPoolCreate(size, &pPool);
     if (ret < 0) {
-      vError("vgId:%d failed to open vnode buffer pool since %s", TD_VID(pVnode), tstrerror(terrno));
+      vError("vgId:%d, failed to open vnode buffer pool since %s", TD_VID(pVnode), tstrerror(terrno));
       vnodeCloseBufPool(pVnode);
       return -1;
     }
@@ -40,7 +40,7 @@ int vnodeOpenBufPool(SVnode *pVnode, int64_t size) {
     pVnode->pPool = pPool;
   }
 
-  vDebug("vgId:%d vnode buffer pool is opened, pool size: %" PRId64, TD_VID(pVnode), size);
+  vDebug("vgId:%d, vnode buffer pool is opened, pool size: %" PRId64, TD_VID(pVnode), size);
 
   return 0;
 }
@@ -53,7 +53,7 @@ int vnodeCloseBufPool(SVnode *pVnode) {
     vnodeBufPoolDestroy(pPool);
   }
 
-  vDebug("vgId:%d vnode buffer pool is closed", TD_VID(pVnode));
+  vDebug("vgId:%d, vnode buffer pool is closed", TD_VID(pVnode));
 
   return 0;
 }

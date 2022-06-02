@@ -277,6 +277,8 @@ _OVER:
   if (code != 0) {
     vnodeClose(pImpl);
     vnodeDestroy(path, pMgmt->pTfs);
+  } else {
+    dInfo("vgId:%d, vnode is created", createReq.vgId);
   }
 
   tFreeSCreateVnodeReq(&createReq);
