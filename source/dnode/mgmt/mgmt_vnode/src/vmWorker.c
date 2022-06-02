@@ -304,14 +304,9 @@ int32_t vmPutMsgToMonitorQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return 0;
 }
 
-static int32_t vmPutRpcMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pRpc, EQueueType qtype) {
+int32_t vmPutRpcMsgToQueue(SVnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM);
-  if (pMsg == NULL) {
-    rpcFreeCont(pRpc->pCont);
-    pRpc->pCont = NULL;
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
+  if (pMsg == NULL) return -1;
 
   SMsgHead *pHead = pRpc->pCont;
   pHead->contLen = htonl(pHead->contLen);
@@ -320,28 +315,6 @@ static int32_t vmPutRpcMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pRpc, EQueueType q
 
   dTrace("msg:%p, is created and will put into vnode queue", pMsg);
   return vmPutMsgToQueue(pMgmt, pMsg, qtype);
-}
-
-int32_t vmPutRpcMsgToWriteQueue(SVnodeMgmt *pMgmt, SRpcMsg *pRpc) {
-  return vmPutRpcMsgToQueue(pMgmt, pRpc, WRITE_QUEUE);
-}
-
-int32_t vmPutRpcMsgToSyncQueue(SVnodeMgmt *pMgmt, SRpcMsg *pRpc) { return vmPutRpcMsgToQueue(pMgmt, pRpc, SYNC_QUEUE); }
-
-int32_t vmPutRpcMsgToApplyQueue(SVnodeMgmt *pMgmt, SRpcMsg *pRpc) {
-  return vmPutRpcMsgToQueue(pMgmt, pRpc, APPLY_QUEUE);
-}
-
-int32_t vmPutRpcMsgToQueryQueue(SVnodeMgmt *pMgmt, SRpcMsg *pRpc) {
-  return vmPutRpcMsgToQueue(pMgmt, pRpc, QUERY_QUEUE);
-}
-
-int32_t vmPutRpcMsgToFetchQueue(SVnodeMgmt *pMgmt, SRpcMsg *pRpc) {
-  return vmPutRpcMsgToQueue(pMgmt, pRpc, FETCH_QUEUE);
-}
-
-int32_t vmPutRpcMsgToMergeQueue(SVnodeMgmt *pMgmt, SRpcMsg *pRpc) {
-  return vmPutRpcMsgToQueue(pMgmt, pRpc, MERGE_QUEUE);
 }
 
 int32_t vmGetQueueSize(SVnodeMgmt *pMgmt, int32_t vgId, EQueueType qtype) {

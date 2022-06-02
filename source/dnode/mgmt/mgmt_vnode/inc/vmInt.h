@@ -44,26 +44,26 @@ typedef struct SVnodeMgmt {
 } SVnodeMgmt;
 
 typedef struct {
-  int32_t  vgId;
-  int32_t  vgVersion;
-  int8_t   dropped;
-  char     path[PATH_MAX + 20];
+  int32_t vgId;
+  int32_t vgVersion;
+  int8_t  dropped;
+  char    path[PATH_MAX + 20];
 } SWrapperCfg;
 
 typedef struct {
-  int32_t       vgId;
-  int32_t       refCount;
-  int32_t       vgVersion;
-  int8_t        dropped;
-  int8_t        accessState;
-  char         *path;
-  SVnode       *pImpl;
-  STaosQueue   *pWriteQ;
-  STaosQueue   *pSyncQ;
-  STaosQueue   *pApplyQ;
-  STaosQueue   *pQueryQ;
-  STaosQueue   *pFetchQ;
-  STaosQueue   *pMergeQ;
+  int32_t     vgId;
+  int32_t     refCount;
+  int32_t     vgVersion;
+  int8_t      dropped;
+  int8_t      accessState;
+  char       *path;
+  SVnode     *pImpl;
+  STaosQueue *pWriteQ;
+  STaosQueue *pSyncQ;
+  STaosQueue *pApplyQ;
+  STaosQueue *pQueryQ;
+  STaosQueue *pFetchQ;
+  STaosQueue *pMergeQ;
 } SVnodeObj;
 
 typedef struct {
@@ -100,13 +100,8 @@ void    vmStopWorker(SVnodeMgmt *pMgmt);
 int32_t vmAllocQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode);
 void    vmFreeQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode);
 
-int32_t vmPutRpcMsgToWriteQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
-int32_t vmPutRpcMsgToSyncQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
-int32_t vmPutRpcMsgToApplyQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
-int32_t vmPutRpcMsgToQueryQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
-int32_t vmPutRpcMsgToFetchQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
-int32_t vmPutRpcMsgToMergeQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmGetQueueSize(SVnodeMgmt *pMgmt, int32_t vgId, EQueueType qtype);
+int32_t vmPutRpcMsgToQueue(SVnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc);
 
 int32_t vmPutMsgToWriteQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToSyncQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
