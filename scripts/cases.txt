@@ -53,3 +53,6 @@ taostest --use=common_insert.yaml --case=taosc_insert/ubigint_boundary_check.py 
 taostest --use=common_insert.yaml --case=taosc_insert/uint_boundary_check.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/usmallint_boundary_check.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/utinyint_boundary_check.py --keep --containers
+
+#Query
+taostest --use=common_insert.yaml --case=Query/queryscript/table_query/table_query_null.py --keep --containers
