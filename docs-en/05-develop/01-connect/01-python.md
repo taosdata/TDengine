@@ -47,7 +47,7 @@ password = os.environ["TDENGINE_PASSWORD"]
 
 conn = taosrest.connect(host=host,
                         port=port,
-                        username="root",
-                        password="taosdata",
+                        username=user,
+                        password=password,
                         token=token)
 ```
