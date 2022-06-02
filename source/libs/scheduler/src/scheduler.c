@@ -79,12 +79,19 @@ int32_t schedulerExecJob(void *pTrans, SArray *pNodeList, SQueryPlan *pDag, int6
 
 int32_t schedulerAsyncExecJob(void *pTrans, SArray *pNodeList, SQueryPlan *pDag, int64_t *pJob, const char *sql,
                          int64_t startTs, schedulerExecCallback fp, void* param) {
-   if (NULL == pTrans || NULL == pDag || NULL == pDag->pSubplans || NULL == pJob || NULL == fp || NULL == param) {
-     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
-   }
-   
-   SSchResInfo resInfo = {.execFp = fp, .userParam = param};                      
-   SCH_RET(schAsyncExecJob(pTrans, pNodeList, pDag, pJob, sql, startTs, &resInfo));
+  int32_t code = 0;
+  if (NULL == pTrans || NULL == pDag || NULL == pDag->pSubplans || NULL == pJob || NULL == fp) {
+    code = TSDB_CODE_QRY_INVALID_INPUT;
+  } else {
+    SSchResInfo resInfo = {.execFp = fp, .userParam = param};
+    code = schAsyncExecJob(pTrans, pNodeList, pDag, pJob, sql, startTs, &resInfo);
+  }
+
+  if (code != TSDB_CODE_SUCCESS) {
+    fp(NULL, param, code);
+  }
+
+  return code;
 }
 
 int32_t schedulerFetchRows(int64_t job, void **pData) {

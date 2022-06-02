@@ -121,8 +121,6 @@ void schedulerFreeJob(int64_t job);
 void schedulerDestroy(void);
 
 void schdExecCallback(SQueryResult* pResult, void* param, int32_t code);
-void schdFetchCallback(void* pResult, void* param, int32_t code);
-
 
 #ifdef __cplusplus
 }

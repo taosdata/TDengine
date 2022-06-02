@@ -179,7 +179,9 @@ typedef struct SReqResultInfo {
 
 typedef struct SRequestSendRecvBody {
   tsem_t             rspSem;  // not used now
-  void*              fp;
+  __taos_async_fn_t  queryFp;
+  __taos_async_fn_t  fetchFp;
+  void*              param;
   SDataBuf           requestMsg;
   int64_t            queryJob;  // query job, created according to sql query DAG.
   struct SQueryPlan* pDag;      // the query dag, generated according to the sql statement.
@@ -214,12 +216,20 @@ typedef struct SRequestObj {
   SRequestSendRecvBody body;
 } SRequestObj;
 
+typedef struct SSyncQueryParam {
+  tsem_t       sem;
+  SRequestObj* pRequest;
+} SSyncQueryParam;
+
+void*   doAsyncFetchRow(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4);
 void*   doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4);
+
 void    doSetOneRowPtr(SReqResultInfo* pResultInfo);
 void    setResPrecision(SReqResultInfo* pResInfo, int32_t precision);
 int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp, bool convertUcs4);
 void    setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols);
 void    doFreeReqResultInfo(SReqResultInfo* pResInfo);
+SRequestObj* execQuery(STscObj* pTscObj, const char* sql, int sqlLen);
 
 static FORCE_INLINE SReqResultInfo* tmqGetCurResInfo(TAOS_RES* res) {
   SMqRspObj* msg = (SMqRspObj*)res;
@@ -265,7 +275,7 @@ int32_t  releaseTscObj(int64_t rid);
 
 uint64_t generateRequestId();
 
-void*        createRequest(STscObj* pObj, __taos_async_fn_t fp, void* param, int32_t type);
+void*        createRequest(STscObj* pObj, void* param, int32_t type);
 void         destroyRequest(SRequestObj* pRequest);
 SRequestObj* acquireRequest(int64_t rid);
 int32_t      releaseRequest(int64_t rid);
@@ -313,8 +323,8 @@ int hbAddConnInfo(SAppHbMgr* pAppHbMgr, SClientHbKey connKey, void* key, void* v
 // --- mq
 void hbMgrInitMqHbRspHandle();
 
-SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, int32_t code, bool keepQuery, void** res);
-int32_t      getQueryPlan(SRequestObj* pRequest, SQuery* pQuery, SArray** pNodeList);
+SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void** res);
+void         launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery);
 int32_t      scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList, void** res);
 int32_t      refreshMeta(STscObj* pTscObj, SRequestObj* pRequest);
 

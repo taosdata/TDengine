@@ -33,7 +33,11 @@ int32_t genericRspCallback(void* param, const SDataBuf* pMsg, int32_t code) {
   setErrno(pRequest, code);
 
   taosMemoryFree(pMsg->pData);
-  tsem_post(&pRequest->body.rspSem);
+  if (pRequest->body.queryFp != NULL) {
+    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
+  } else {
+    tsem_post(&pRequest->body.rspSem);
+  }
   return code;
 }
 
@@ -117,7 +121,12 @@ int32_t processCreateDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   if (code != TSDB_CODE_SUCCESS) {
     setErrno(pRequest, code);
   }
-  tsem_post(&pRequest->body.rspSem);
+
+  if (pRequest->body.queryFp) {
+    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
+  } else {
+    tsem_post(&pRequest->body.rspSem);
+  }
   return code;
 }
 
@@ -146,7 +155,13 @@ int32_t processUseDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   if (code != TSDB_CODE_SUCCESS) {
     taosMemoryFree(pMsg->pData);
     setErrno(pRequest, code);
-    tsem_post(&pRequest->body.rspSem);
+
+    if (pRequest->body.queryFp != NULL) {
+      pRequest->body.queryFp(pRequest->body.param, pRequest, pRequest->code);
+    } else {
+      tsem_post(&pRequest->body.rspSem);
+    }
+
     return code;
   }
 
@@ -185,7 +200,12 @@ int32_t processUseDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
 
   setConnectionDB(pRequest->pTscObj, db);
   taosMemoryFree(pMsg->pData);
-  tsem_post(&pRequest->body.rspSem);
+
+  if (pRequest->body.queryFp != NULL) {
+    pRequest->body.queryFp(pRequest->body.param, pRequest, pRequest->code);
+  } else {
+    tsem_post(&pRequest->body.rspSem);
+  }
   return 0;
 }
 
@@ -196,11 +216,13 @@ int32_t processCreateTableRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   taosMemoryFree(pMsg->pData);
   if (code != TSDB_CODE_SUCCESS) {
     setErrno(pRequest, code);
-    tsem_post(&pRequest->body.rspSem);
-    return code;
   }
 
-  tsem_post(&pRequest->body.rspSem);
+  if (pRequest->body.queryFp != NULL) {
+    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
+  } else {
+    tsem_post(&pRequest->body.rspSem);
+  }
   return code;
 }
 
@@ -208,21 +230,24 @@ int32_t processDropDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
   if (code != TSDB_CODE_SUCCESS) {
     setErrno(pRequest, code);
-    tsem_post(&pRequest->body.rspSem);
-    return code;
+  } else {
+    SDropDbRsp dropdbRsp = {0};
+    tDeserializeSDropDbRsp(pMsg->pData, pMsg->len, &dropdbRsp);
+
+    struct SCatalog* pCatalog = NULL;
+    catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
+    catalogRemoveDB(pCatalog, dropdbRsp.db, dropdbRsp.uid);
   }
 
-  SDropDbRsp dropdbRsp = {0};
-  tDeserializeSDropDbRsp(pMsg->pData, pMsg->len, &dropdbRsp);
-
-  struct SCatalog* pCatalog = NULL;
-  catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
-  catalogRemoveDB(pCatalog, dropdbRsp.db, dropdbRsp.uid);
-
-  tsem_post(&pRequest->body.rspSem);
+  if (pRequest->body.queryFp != NULL) {
+    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
+  } else {
+    tsem_post(&pRequest->body.rspSem);
+  }
   return code;
 }
 
+// todo refactor: this arraylist is too large
 void initMsgHandleFp() {
   handleRequestRspFp[TMSG_INDEX(TDMT_MND_CONNECT)] = processConnectRsp;
   handleRequestRspFp[TMSG_INDEX(TDMT_MND_CREATE_DB)] = processCreateDbRsp;
