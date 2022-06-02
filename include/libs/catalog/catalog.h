@@ -183,7 +183,7 @@ int32_t catalogGetTableMeta(SCatalog* pCatalog, void * pTransporter, const SEpSe
  */
 int32_t catalogGetSTableMeta(SCatalog* pCatalog, void * pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, STableMeta** pTableMeta);
 
-int32_t catalogUpdateSTableMeta(SCatalog* pCatalog, STableMetaRsp *rspMsg);
+int32_t catalogUpdateTableMeta(SCatalog* pCatalog, STableMetaRsp *rspMsg);
 
 
 /**

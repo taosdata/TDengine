@@ -22,7 +22,7 @@ extern "C" {
 
 #include "tmsgcb.h"
 #include "trpc.h"
-
+#include "executor.h"
 
 enum {
   NODE_TYPE_VNODE = 1,
@@ -40,13 +40,19 @@ typedef struct SQWorkerCfg {
 } SQWorkerCfg;
 
 typedef struct {
-  uint64_t numOfStartTask;
-  uint64_t numOfStopTask;
-  uint64_t numOfRecvedFetch;
-  uint64_t numOfSentHb;
-  uint64_t numOfSentFetch;
-  uint64_t numOfTaskInQueue;
+  uint64_t cacheDataSize;
+  
+  uint64_t queryProcessed;
+  uint64_t cqueryProcessed;
+  uint64_t fetchProcessed;
+  uint64_t dropProcessed;
+  uint64_t hbProcessed;
+  
+  uint64_t numOfQueryInQueue;
   uint64_t numOfFetchInQueue;
+  uint64_t timeInQueryQueue;
+  uint64_t timeInFetchQueue;
+  
   uint64_t numOfErrors;
 } SQWorkerStat;
 
@@ -68,7 +74,7 @@ int32_t qWorkerProcessHbMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_
 
 void qWorkerDestroy(void **qWorkerMgmt);
 
-int64_t qWorkerGetWaitTimeInQueue(void *qWorkerMgmt, EQueueType type);
+int32_t qWorkerGetStat(SReadHandle *handle, void *qWorkerMgmt, SQWorkerStat *pStat);
 
 #ifdef __cplusplus
 }

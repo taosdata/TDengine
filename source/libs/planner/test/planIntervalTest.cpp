@@ -51,3 +51,9 @@ TEST_F(PlanIntervalTest, selectFunc) {
   // select function along with the columns of select row, and with INTERVAL clause
   run("SELECT MAX(c1), c2 FROM t1 INTERVAL(10s)");
 }
+
+TEST_F(PlanIntervalTest, stable) {
+  useDb("root", "test");
+
+  run("SELECT COUNT(*) FROM st1 INTERVAL(10s)");
+}

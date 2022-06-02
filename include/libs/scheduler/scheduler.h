@@ -56,7 +56,7 @@ typedef struct SQueryProfileSummary {
 typedef struct SQueryResult {
   int32_t         code;
   uint64_t        numOfRows;
-  void           *res;
+  SQueryExecRes   res;
 } SQueryResult;
 
 typedef struct STaskInfo {

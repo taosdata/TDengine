@@ -86,8 +86,6 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SExplainOptions));
     case QUERY_NODE_STREAM_OPTIONS:
       return makeNode(type, sizeof(SStreamOptions));
-    case QUERY_NODE_TOPIC_OPTIONS:
-      return makeNode(type, sizeof(STopicOptions));
     case QUERY_NODE_LEFT_VALUE:
       return makeNode(type, sizeof(SLeftValueNode));
     case QUERY_NODE_SET_OPERATOR:
@@ -222,6 +220,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SVnodeModifLogicNode));
     case QUERY_NODE_LOGIC_PLAN_EXCHANGE:
       return makeNode(type, sizeof(SExchangeLogicNode));
+    case QUERY_NODE_LOGIC_PLAN_MERGE:
+      return makeNode(type, sizeof(SMergeLogicNode));
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
       return makeNode(type, sizeof(SWindowLogicNode));
     case QUERY_NODE_LOGIC_PLAN_FILL:
@@ -252,6 +252,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SAggPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE:
       return makeNode(type, sizeof(SExchangePhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE:
+      return makeNode(type, sizeof(SMergePhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_SORT:
       return makeNode(type, sizeof(SSortPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_INTERVAL:

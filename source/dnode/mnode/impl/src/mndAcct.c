@@ -78,11 +78,9 @@ static int32_t mndCreateDefaultAcct(SMnode *pMnode) {
   if (pRaw == NULL) return -1;
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
-  mDebug("acct:%s, will be created while deploy sdb, raw:%p", acctObj.acct, pRaw);
-#if 0
-  return sdbWrite(pMnode->pSdb, pRaw);
-#else
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_CREATE_ACCT, NULL);
+  mDebug("acct:%s, will be created when deploying, raw:%p", acctObj.acct, pRaw);
+
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL);
   if (pTrans == NULL) {
     mError("acct:%s, failed to create since %s", acctObj.acct, terrstr());
     return -1;
@@ -94,7 +92,6 @@ static int32_t mndCreateDefaultAcct(SMnode *pMnode) {
     mndTransDrop(pTrans);
     return -1;
   }
-  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
@@ -104,7 +101,6 @@ static int32_t mndCreateDefaultAcct(SMnode *pMnode) {
 
   mndTransDrop(pTrans);
   return 0;
-#endif
 }
 
 static SSdbRaw *mndAcctActionEncode(SAcctObj *pAcct) {

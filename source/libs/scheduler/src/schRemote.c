@@ -162,6 +162,9 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
         tDecoderClear(&coder);
         SCH_ERR_JRET(code);
         SCH_ERR_JRET(rsp.code);
+        
+        pJob->execRes.res = rsp.pMeta;
+        pJob->execRes.msgType = TDMT_VND_ALTER_TABLE;
       }
 
       SCH_ERR_JRET(rspCode);
@@ -204,8 +207,8 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
         SCH_TASK_DLOG("submit succeed, affectedRows:%d", rsp->affectedRows);
 
         SCH_LOCK(SCH_WRITE, &pJob->resLock);
-        if (pJob->queryRes) {
-          SSubmitRsp *sum = pJob->queryRes;
+        if (pJob->execRes.res) {
+          SSubmitRsp *sum = pJob->execRes.res;
           sum->affectedRows += rsp->affectedRows;
           sum->nBlocks += rsp->nBlocks;
           sum->pBlocks = taosMemoryRealloc(sum->pBlocks, sum->nBlocks * sizeof(*sum->pBlocks));
@@ -213,7 +216,8 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
           taosMemoryFree(rsp->pBlocks);
           taosMemoryFree(rsp);
         } else {
-          pJob->queryRes = rsp;
+          pJob->execRes.res = rsp;
+          pJob->execRes.msgType = TDMT_VND_SUBMIT;
         }
         SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
       }
@@ -358,27 +362,11 @@ int32_t schHandleCallback(void *param, const SDataBuf *pMsg, int32_t msgType, in
     SCH_ERR_JRET(TSDB_CODE_QRY_JOB_FREED);
   }
 
-  schGetTaskFromTaskList(pJob->execTasks, pParam->taskId, &pTask);
-  if (NULL == pTask) {
-    if (TDMT_VND_EXPLAIN_RSP == msgType) {
-      schGetTaskFromTaskList(pJob->succTasks, pParam->taskId, &pTask);
-    } else {
-      SCH_JOB_ELOG("task not found in execTask list, refId:%" PRIx64 ", taskId:%" PRIx64, pParam->refId,
-                   pParam->taskId);
-      SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
-    }
-  }
-
-  if (NULL == pTask) {
-    SCH_JOB_ELOG("task not found in execList & succList, refId:%" PRIx64 ", taskId:%" PRIx64, pParam->refId,
-                 pParam->taskId);
-    SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
-  }
+  SCH_ERR_JRET(schGetTaskInJob(pJob, pParam->taskId, &pTask));
 
   SCH_TASK_DLOG("rsp msg received, type:%s, handle:%p, code:%s", TMSG_INFO(msgType), pMsg->handle, tstrerror(rspCode));
 
-  SCH_SET_TASK_HANDLE(pTask, pMsg->handle);
-  schUpdateTaskExecNodeHandle(pTask, pMsg->handle, rspCode);
+  SCH_ERR_JRET(schUpdateTaskHandle(pJob, pTask, msgType, pMsg->handle, rspCode));
   
   SCH_ERR_JRET(schHandleResponseMsg(pJob, pTask, msgType, pMsg->pData, pMsg->len, rspCode));
 

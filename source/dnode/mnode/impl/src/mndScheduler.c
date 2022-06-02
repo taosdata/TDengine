@@ -36,7 +36,7 @@
 extern bool tsStreamSchedV;
 
 int32_t mndConvertRSmaTask(const char* ast, int64_t uid, int8_t triggerType, int64_t watermark, char** pStr,
-                           int32_t* pLen) {
+                           int32_t* pLen, double filesFactor) {
   SNode*      pAst = NULL;
   SQueryPlan* pPlan = NULL;
   terrno = TSDB_CODE_SUCCESS;
@@ -58,6 +58,7 @@ int32_t mndConvertRSmaTask(const char* ast, int64_t uid, int8_t triggerType, int
       .rSmaQuery = true,
       .triggerType = triggerType,
       .watermark = watermark,
+      .filesFactor = filesFactor,
   };
   if (qCreateQueryPlan(&cxt, &pPlan, NULL) < 0) {
     terrno = TSDB_CODE_QRY_INVALID_INPUT;
@@ -506,7 +507,7 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
   SQueryPlan* pPlan = NULL;
   SSubplan*   plan = NULL;
 
-  if (pTopic->subType == TOPIC_SUB_TYPE__TABLE) {
+  if (pTopic->subType == TOPIC_SUB_TYPE__COLUMN) {
     pPlan = qStringToQueryPlan(pTopic->physicalPlan);
     if (pPlan == NULL) {
       terrno = TSDB_CODE_QRY_INVALID_INPUT;
@@ -552,7 +553,7 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
 
     mDebug("init subscription %s, assign vg: %d", pSub->key, pVgEp->vgId);
 
-    if (pTopic->subType == TOPIC_SUB_TYPE__TABLE) {
+    if (pTopic->subType == TOPIC_SUB_TYPE__COLUMN) {
       int32_t msgLen;
 
       plan->execNode.epSet = pVgEp->epSet;

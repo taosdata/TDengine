@@ -145,13 +145,30 @@ typedef struct SQWSchStatus {
   SHashObj      *tasksHash;  // key:queryId+taskId, value: SQWTaskStatus
 } SQWSchStatus;
 
-typedef struct SQWWaitTimeStat {
+typedef struct SQWTimeInQ {
   uint64_t num;
   uint64_t total;
-} SQWWaitTimeStat;
+} SQWTimeInQ;
+
+typedef struct SQWMsgStat {
+  SQWTimeInQ waitTime[2];
+  uint64_t queryProcessed;
+  uint64_t cqueryProcessed;
+  uint64_t fetchProcessed;
+  uint64_t fetchRspProcessed;
+  uint64_t cancelProcessed;
+  uint64_t dropProcessed;
+  uint64_t hbProcessed;
+} SQWMsgStat;
+
+typedef struct SQWRTStat {
+  uint64_t startTaskNum;
+  uint64_t stopTaskNum;
+} SQWRTStat;
 
 typedef struct SQWStat {
-  SQWWaitTimeStat msgWait[2];
+  SQWMsgStat   msgStat;
+  SQWRTStat    rtStat;
 } SQWStat;
 
 // Qnode/Vnode level task management
@@ -182,10 +199,13 @@ typedef struct SQWorkerMgmt {
 #define QW_IDS()       sId, qId, tId, rId
 #define QW_FPARAMS()   mgmt, QW_IDS()
 
-#define QW_GET_EVENT_VALUE(ctx, event) atomic_load_8(&(ctx)->events[event])
+#define QW_STAT_INC(_item, _n) atomic_add_fetch_64(&(_item), _n)
+#define QW_STAT_DEC(_item, _n) atomic_sub_fetch_64(&(_item), _n)
+#define QW_STAT_GET(_item) atomic_load_64(&(_item))
 
-#define QW_IS_EVENT_RECEIVED(ctx, event)   (atomic_load_8(&(ctx)->events[event]) == QW_EVENT_RECEIVED)
-#define QW_IS_EVENT_PROCESSED(ctx, event)  (atomic_load_8(&(ctx)->events[event]) == QW_EVENT_PROCESSED)
+#define QW_GET_EVENT(ctx, event) atomic_load_8(&(ctx)->events[event])
+#define QW_IS_EVENT_RECEIVED(ctx, event)   (QW_GET_EVENT(ctx, event) == QW_EVENT_RECEIVED)
+#define QW_IS_EVENT_PROCESSED(ctx, event)  (QW_GET_EVENT(ctx, event) == QW_EVENT_PROCESSED)
 #define QW_SET_EVENT_RECEIVED(ctx, event)  atomic_store_8(&(ctx)->events[event], QW_EVENT_RECEIVED)
 #define QW_SET_EVENT_PROCESSED(ctx, event) atomic_store_8(&(ctx)->events[event], QW_EVENT_PROCESSED)
 
@@ -332,8 +352,8 @@ int32_t qwDropTask(QW_FPARAMS_DEF);
 void qwSaveTbVersionInfo(qTaskInfo_t       pTaskInfo, SQWTaskCtx *ctx);
 int32_t qwOpenRef(void);
 void qwSetHbParam(int64_t refId, SQWHbParam **pParam);
-int32_t qwUpdateWaitTimeInQueue(SQWorker *mgmt, int64_t ts, EQueueType type);
-int64_t qwGetWaitTimeInQueue(SQWorker *mgmt, EQueueType type);
+int32_t qwUpdateTimeInQueue(SQWorker *mgmt, int64_t ts, EQueueType type);
+int64_t qwGetTimeInQueue(SQWorker *mgmt, EQueueType type);
 
 void qwDbgDumpMgmtInfo(SQWorker *mgmt);
 int32_t qwDbgValidateStatus(QW_FPARAMS_DEF, int8_t oriStatus, int8_t newStatus, bool *ignore);
