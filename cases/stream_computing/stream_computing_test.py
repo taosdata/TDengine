@@ -433,10 +433,10 @@ class TestVgroups(TDCase):
 
     def run(self) -> bool:
         self.prepare_stream_data()
-        # self.downsampling()
+        self.downsampling()
         # ! TD-16145
         # self.scalar_function()
-        # self.data_filter()
+        self.data_filter()
         # self.life_cycle()
         # self.stream_tandem()
         self.disorder_data()
