@@ -2648,8 +2648,8 @@ static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt
     code = checkTableSchema(pCxt, pStmt);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    if(pCxt->pParseCxt->schemalessType == 0 && isNotSchemalessDb(pCxt->pParseCxt) != TSDB_CODE_SUCCESS){
-      code = TSDB_CODE_SML_INVALID_DB_CONF;
+    if(pCxt->pParseCxt->schemalessType == 0){
+      code = isNotSchemalessDb(pCxt->pParseCxt, pStmt->dbName);
     }
   }
   return code;
@@ -4430,9 +4430,7 @@ static SArray* serializeVgroupsCreateTableBatch(int32_t acctId, SHashObj* pVgrou
 }
 
 static int32_t rewriteCreateMultiTable(STranslateContext* pCxt, SQuery* pQuery) {
-  if(pCxt->pParseCxt->schemalessType == 0 && isNotSchemalessDb(pCxt->pParseCxt) != TSDB_CODE_SUCCESS){
-    return TSDB_CODE_SML_INVALID_DB_CONF;
-  }
+
   SCreateMultiTableStmt* pStmt = (SCreateMultiTableStmt*)pQuery->pRoot;
 
   SHashObj* pVgroupHashmap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
@@ -4443,6 +4441,10 @@ static int32_t rewriteCreateMultiTable(STranslateContext* pCxt, SQuery* pQuery) 
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pNode;
   FOREACH(pNode, pStmt->pSubTables) {
+    if(pCxt->pParseCxt->schemalessType == 0 &&
+        (code = isNotSchemalessDb(pCxt->pParseCxt, ((SCreateSubTableClause*)pNode)->dbName)) != TSDB_CODE_SUCCESS){
+      return code;
+    }
     code = rewriteCreateSubTable(pCxt, (SCreateSubTableClause*)pNode, pVgroupHashmap);
     if (TSDB_CODE_SUCCESS != code) {
       taosHashCleanup(pVgroupHashmap);
@@ -4853,13 +4855,15 @@ static int32_t buildModifyVnodeArray(STranslateContext* pCxt, SAlterTableStmt* p
 }
 
 static int32_t rewriteAlterTable(STranslateContext* pCxt, SQuery* pQuery) {
-  if(pCxt->pParseCxt->schemalessType == 0 && isNotSchemalessDb(pCxt->pParseCxt) != TSDB_CODE_SUCCESS){
-    return TSDB_CODE_SML_INVALID_DB_CONF;
-  }
   SAlterTableStmt* pStmt = (SAlterTableStmt*)pQuery->pRoot;
+  int32_t     code = TSDB_CODE_SUCCESS;
+  if(pCxt->pParseCxt->schemalessType == 0 &&
+      (code = isNotSchemalessDb(pCxt->pParseCxt, pStmt->dbName)) != TSDB_CODE_SUCCESS){
+    return code;
+  }
 
   STableMeta* pTableMeta = NULL;
-  int32_t     code = getTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pTableMeta);
+  code = getTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pTableMeta);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }

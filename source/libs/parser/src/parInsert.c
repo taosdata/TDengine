@@ -1404,9 +1404,9 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
   return buildOutput(pCxt);
 }
 
-int32_t isNotSchemalessDb(SParseContext* pContext){
+int32_t isNotSchemalessDb(SParseContext* pContext, char *dbName){
   SName          name;
-  tNameSetDbName(&name, pContext->acctId, pContext->db, strlen(pContext->db));
+  tNameSetDbName(&name, pContext->acctId, dbName, strlen(dbName));
   char dbFname[TSDB_DB_FNAME_LEN] = {0};
   tNameGetFullDbName(&name, dbFname);
   SDbCfgInfo pInfo = {0};
