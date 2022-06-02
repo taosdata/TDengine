@@ -1151,7 +1151,6 @@ void transSetDefaultAddr(void* ahandle, const char* ip, const char* fqdn) {
     SCliThrdObj* thrd = ((SCliObj*)pTransInst->tcphandle)->pThreadObj[i];
     tDebug("update epset at thread:%d, threadID:%" PRId64 "", i, thrd->thread);
 
-    tsem_t* pSem = pCtx->pSem;
     transSendAsync(thrd->asyncPool, &(cliMsg->q));
   }
 }
