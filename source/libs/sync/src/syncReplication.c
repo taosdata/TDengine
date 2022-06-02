@@ -178,15 +178,17 @@ int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
       syncNodeAppendEntries(pSyncNode, pDestId, pMsg);
       syncAppendEntriesDestroy(pMsg);
 
-      SSyncSnapshotSender* pSender = NULL;
-      for (int i = 0; i < pSyncNode->replicaNum; ++i) {
-        if (syncUtilSameId(&((pSyncNode->replicasId)[i]), pDestId)) {
-          pSender = (pSyncNode->senders)[i];
-          break;
+      if (!snapshotSendingFinish) {
+        SSyncSnapshotSender* pSender = NULL;
+        for (int i = 0; i < pSyncNode->replicaNum; ++i) {
+          if (syncUtilSameId(&((pSyncNode->replicasId)[i]), pDestId)) {
+            pSender = (pSyncNode->senders)[i];
+            break;
+          }
         }
+        ASSERT(pSender != NULL);
+        snapshotSenderStart(pSender);
       }
-      ASSERT(pSender != NULL);
-      snapshotSenderStart(pSender);
 
     } else {
       ret = syncNodeGetPreIndexTerm(pSyncNode, nextIndex, &preLogIndex, &preLogTerm);
