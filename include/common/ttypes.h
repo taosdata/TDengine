@@ -180,8 +180,11 @@ typedef struct {
     }                                                                                  \
   } while (0)
 
-// TODO: use varchar(0) to represent NULL type
+
+//TODO: use varchar(0) to represent NULL type
+#define IS_VAR_NULL_TYPE(_t, _b)     ((_t) == TSDB_DATA_TYPE_VARCHAR && (_b) == 0)
 #define IS_NULL_TYPE(_t)             ((_t) == TSDB_DATA_TYPE_NULL)
+
 #define IS_SIGNED_NUMERIC_TYPE(_t)   ((_t) >= TSDB_DATA_TYPE_TINYINT && (_t) <= TSDB_DATA_TYPE_BIGINT)
 #define IS_UNSIGNED_NUMERIC_TYPE(_t) ((_t) >= TSDB_DATA_TYPE_UTINYINT && (_t) <= TSDB_DATA_TYPE_UBIGINT)
 #define IS_FLOAT_TYPE(_t)            ((_t) == TSDB_DATA_TYPE_FLOAT || (_t) == TSDB_DATA_TYPE_DOUBLE)
