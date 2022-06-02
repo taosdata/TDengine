@@ -89,8 +89,8 @@ static const SSysDbTableSchema userDBSchema[] = {
     {.name = "cachelast", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
     {.name = "precision", .bytes = 2 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "single_stable", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
-    {.name = "schemaless", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
     {.name = "status", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "schemaless", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
 
     // {.name = "update", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},  // disable update
 };
