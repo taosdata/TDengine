@@ -17,7 +17,7 @@ You'll need to have Python3 installed.
 
 Run this command in your terminal to save connect parameters as environment variables:
 
-```
+```bash
 export TDENGINE_CLOUD_HOST=<host>
 export TDENGINE_CLOUD_PORT=<port>
 export TDENGINE_CLOUD_TOKEN=<token>

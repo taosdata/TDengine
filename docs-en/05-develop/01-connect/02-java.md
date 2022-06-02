@@ -7,7 +7,7 @@ title: Connect with Java Connector
 
 Build with Maven
 
-```
+```xml
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
@@ -27,7 +27,7 @@ dependencies {
 
 Run this command in your terminal to save connect parameters as environment variables:
 
-```
+```bash
 export TDENGINE_CLOUD_HOST=<host>
 export TDENGINE_CLOUD_PORT=<port>
 export TDENGINE_CLOUD_TOKEN=<token>
