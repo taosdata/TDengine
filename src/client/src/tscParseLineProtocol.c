@@ -2096,8 +2096,8 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
           back_slash = false;
           cur++;
           len++;
-	  break;
-	}
+          break;
+        }
 
         if (*cur == '"') {
           if (cur == *index) {
@@ -2190,18 +2190,6 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
           cur++;
           len++;
           break;
-
-        case ',':
-          /* fall through */
-        case '=':
-          /* fall through */
-        case ' ':
-          if (*(cur - 1) != '\\') {
-            tscError("SML:0x%"PRIx64" tag value: state(%d), character(%c) not escaped", info->id, tag_state, *cur);
-            ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
-            kv_done = true;
-	  }
-	  break;
 
         case '\0':
           tscError("SML:0x%"PRIx64" tag value: state(%d), closing \" not found", info->id, tag_state);
