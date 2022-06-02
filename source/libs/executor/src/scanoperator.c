@@ -327,8 +327,8 @@ void addTagPseudoColumnData(SReadHandle *pHandle, SExprInfo* pPseudoExpr, int32_
       for (int32_t i = 0; i < pBlock->info.rows; ++i) {
         colDataAppend(pColInfoData, i, data, (data == NULL));
       }
-      if(pColInfoData->info.type != TSDB_DATA_TYPE_JSON && p != NULL &&
-          IS_VAR_DATA_TYPE(((const STagVal *)p)->type) && data){
+      if (data && (pColInfoData->info.type != TSDB_DATA_TYPE_JSON) && p != NULL &&
+          IS_VAR_DATA_TYPE(((const STagVal*)p)->type)) {
         taosMemoryFree(data);
       }
     }
