@@ -117,7 +117,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   if (pMsg == NULL) {
     goto _OVER;
   }
-  dTrace("msg:%p, is created", pMsg);
+  dTrace("msg:%p, is created, type:%s", pMsg, TMSG_INFO(pRpc->msgType));
 
   if (dmBuildNodeMsg(pMsg, pRpc) != 0) {
     goto _OVER;

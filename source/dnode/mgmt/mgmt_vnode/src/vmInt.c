@@ -25,7 +25,7 @@ SVnodeObj *vmAcquireVnode(SVnodeMgmt *pMgmt, int32_t vgId) {
     terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
   } else {
     int32_t refCount = atomic_add_fetch_32(&pVnode->refCount, 1);
-    dTrace("vgId:%d, acquire vnode, ref:%d", pVnode->vgId, refCount);
+    // dTrace("vgId:%d, acquire vnode, ref:%d", pVnode->vgId, refCount);
   }
   taosThreadRwlockUnlock(&pMgmt->lock);
 
@@ -37,7 +37,7 @@ void vmReleaseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
 
   taosThreadRwlockRdlock(&pMgmt->lock);
   int32_t refCount = atomic_sub_fetch_32(&pVnode->refCount, 1);
-  dTrace("vgId:%d, release vnode, ref:%d", pVnode->vgId, refCount);
+  // dTrace("vgId:%d, release vnode, ref:%d", pVnode->vgId, refCount);
   taosThreadRwlockUnlock(&pMgmt->lock);
 }
 

@@ -128,7 +128,6 @@ if $data[0][8] != follower then
 endi
 
 print ============= step5: stop dnode 2
-return
 
 sql select * from db.stb
 if $rows != 1 then
