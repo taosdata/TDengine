@@ -1138,8 +1138,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = functionFinalize,
     .invertFunc   = countInvertFunction,
     .combineFunc = combineFunction,
-    .pPartialFunc = "count",
-    .pMergeFunc   = "sum"
+    // .pPartialFunc = "count",
+    // .pMergeFunc   = "sum"
   },
   {
     .name = "sum",
