@@ -204,7 +204,7 @@ typedef struct SSchJob {
   SSchTask        *fetchTask;
   int32_t          errCode;
   SRWLatch         resLock;
-  void            *queryRes;
+  SQueryExecRes    execRes;
   void            *resData;         //TODO free it or not
   int32_t          resNumOfRows;
   SSchResInfo      userRes;

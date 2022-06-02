@@ -251,6 +251,13 @@ void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data) {
   tdProcessTSmaInsert(((SVnode *)pVnode)->pSma, smaId, (const char *)data);
 }
 
+void vnodeUpdateMetaRsp(SVnode *pVnode, STableMetaRsp *pMetaRsp) {
+  strcpy(pMetaRsp->dbFName, pVnode->config.dbname);
+  pMetaRsp->dbId = pVnode->config.dbId;
+  pMetaRsp->vgId = TD_VID(pVnode);
+  pMetaRsp->precision = pVnode->config.tsdbCfg.precision;
+}
+
 int vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   int32_t ret = TAOS_SYNC_PROPOSE_OTHER_ERROR;
 
@@ -520,12 +527,13 @@ _exit:
 }
 
 static int vnodeProcessAlterTbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  SVAlterTbReq vAlterTbReq = {0};
-  SVAlterTbRsp vAlterTbRsp = {0};
-  SDecoder     dc = {0};
-  int          rcode = 0;
-  int          ret;
-  SEncoder     ec = {0};
+  SVAlterTbReq  vAlterTbReq = {0};
+  SVAlterTbRsp  vAlterTbRsp = {0};
+  SDecoder      dc = {0};
+  int           rcode = 0;
+  int           ret;
+  SEncoder      ec = {0};
+  STableMetaRsp vMetaRsp = {0};
 
   pRsp->msgType = TDMT_VND_ALTER_TABLE_RSP;
   pRsp->pCont = NULL;
@@ -543,13 +551,18 @@ static int vnodeProcessAlterTbReq(SVnode *pVnode, int64_t version, void *pReq, i
   }
 
   // process
-  if (metaAlterTable(pVnode->pMeta, version, &vAlterTbReq) < 0) {
+  if (metaAlterTable(pVnode->pMeta, version, &vAlterTbReq, &vMetaRsp) < 0) {
     vAlterTbRsp.code = TSDB_CODE_INVALID_MSG;
     tDecoderClear(&dc);
     rcode = -1;
     goto _exit;
   }
   tDecoderClear(&dc);
+
+  if (NULL != vMetaRsp.pSchemas) {
+    vnodeUpdateMetaRsp(pVnode, &vMetaRsp);
+    vAlterTbRsp.pMeta = &vMetaRsp;
+  }
 
 _exit:
   tEncodeSize(tEncodeSVAlterTbRsp, &vAlterTbRsp, pRsp->contLen, ret);

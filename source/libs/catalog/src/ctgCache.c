@@ -552,7 +552,7 @@ int32_t ctgEnqueue(SCatalog* pCtg, SCtgCacheOperation *operation) {
 
   ctgDebug("action [%s] added into queue", gCtgCacheOperation[operation->opId].name);
 
-  if (operation->syncReq) {
+  if (operation->syncOp) {
     ctgWaitOpDone(operation);
   }
 
@@ -591,9 +591,9 @@ _return:
 }
 
 
-int32_t ctgDropStbMetaEnqueue(SCatalog* pCtg, const char *dbFName, int64_t dbId, const char *stbName, uint64_t suid, bool syncReq) {
+int32_t ctgDropStbMetaEnqueue(SCatalog* pCtg, const char *dbFName, int64_t dbId, const char *stbName, uint64_t suid, bool syncOp) {
   int32_t code = 0;
-  SCtgCacheOperation action= {.opId = CTG_OP_DROP_STB_META, .syncReq = syncReq};
+  SCtgCacheOperation action= {.opId = CTG_OP_DROP_STB_META, .syncOp = syncOp};
   SCtgRemoveStbMsg *msg = taosMemoryMalloc(sizeof(SCtgRemoveStbMsg));
   if (NULL == msg) {
     ctgError("malloc %d failed", (int32_t)sizeof(SCtgRemoveStbMsg));
@@ -620,9 +620,9 @@ _return:
 
 
 
-int32_t ctgDropTbMetaEnqueue(SCatalog* pCtg, const char *dbFName, int64_t dbId, const char *tbName, bool syncReq) {
+int32_t ctgDropTbMetaEnqueue(SCatalog* pCtg, const char *dbFName, int64_t dbId, const char *tbName, bool syncOp) {
   int32_t code = 0;
-  SCtgCacheOperation action= {.opId = CTG_OP_DROP_TB_META, .syncReq = syncReq};
+  SCtgCacheOperation action= {.opId = CTG_OP_DROP_TB_META, .syncOp = syncOp};
   SCtgRemoveTblMsg *msg = taosMemoryMalloc(sizeof(SCtgRemoveTblMsg));
   if (NULL == msg) {
     ctgError("malloc %d failed", (int32_t)sizeof(SCtgRemoveTblMsg));
@@ -646,9 +646,9 @@ _return:
   CTG_RET(code);
 }
 
-int32_t ctgUpdateVgroupEnqueue(SCatalog* pCtg, const char *dbFName, int64_t dbId, SDBVgInfo* dbInfo, bool syncReq) {
+int32_t ctgUpdateVgroupEnqueue(SCatalog* pCtg, const char *dbFName, int64_t dbId, SDBVgInfo* dbInfo, bool syncOp) {
   int32_t code = 0;
-  SCtgCacheOperation action= {.opId = CTG_OP_UPDATE_VGROUP, .syncReq = syncReq};
+  SCtgCacheOperation action= {.opId = CTG_OP_UPDATE_VGROUP, .syncOp = syncOp};
   SCtgUpdateVgMsg *msg = taosMemoryMalloc(sizeof(SCtgUpdateVgMsg));
   if (NULL == msg) {
     ctgError("malloc %d failed", (int32_t)sizeof(SCtgUpdateVgMsg));
@@ -679,9 +679,9 @@ _return:
   CTG_RET(code);
 }
 
-int32_t ctgUpdateTbMetaEnqueue(SCatalog* pCtg, STableMetaOutput *output, bool syncReq) {
+int32_t ctgUpdateTbMetaEnqueue(SCatalog* pCtg, STableMetaOutput *output, bool syncOp) {
   int32_t code = 0;
-  SCtgCacheOperation action= {.opId = CTG_OP_UPDATE_TB_META, .syncReq = syncReq};
+  SCtgCacheOperation action= {.opId = CTG_OP_UPDATE_TB_META, .syncOp = syncOp};
   SCtgUpdateTblMsg *msg = taosMemoryMalloc(sizeof(SCtgUpdateTblMsg));
   if (NULL == msg) {
     ctgError("malloc %d failed", (int32_t)sizeof(SCtgUpdateTblMsg));
@@ -738,9 +738,9 @@ _return:
 
 
 
-int32_t ctgUpdateUserEnqueue(SCatalog* pCtg, SGetUserAuthRsp *pAuth, bool syncReq) {
+int32_t ctgUpdateUserEnqueue(SCatalog* pCtg, SGetUserAuthRsp *pAuth, bool syncOp) {
   int32_t code = 0;
-  SCtgCacheOperation action= {.opId = CTG_OP_UPDATE_USER, .syncReq = syncReq};
+  SCtgCacheOperation action= {.opId = CTG_OP_UPDATE_USER, .syncOp = syncOp};
   SCtgUpdateUserMsg *msg = taosMemoryMalloc(sizeof(SCtgUpdateUserMsg));
   if (NULL == msg) {
     ctgError("malloc %d failed", (int32_t)sizeof(SCtgUpdateUserMsg));
@@ -1574,7 +1574,7 @@ void* ctgUpdateThreadFunc(void* param) {
 
     gCtgMgmt.queue.seqDone = operation->seqId;
 
-    if (operation->syncReq) {
+    if (operation->syncOp) {
       tsem_post(&gCtgMgmt.queue.rspSem);
     }
 
