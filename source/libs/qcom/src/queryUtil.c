@@ -199,3 +199,30 @@ SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* nam
   tstrncpy(s.name, name, tListLen(s.name));
   return s;
 }
+
+void destroyQueryExecRes(SQueryExecRes* pRes) {
+  if (NULL == pRes || NULL == pRes->res) {
+    return;
+  }
+
+  switch (pRes->msgType) {
+    case TDMT_VND_ALTER_TABLE:
+    case TDMT_MND_ALTER_STB: {
+      tFreeSTableMetaRsp((STableMetaRsp *)pRes->res);
+      taosMemoryFreeClear(pRes->res);
+      break;
+    }
+    case TDMT_VND_SUBMIT: {
+      tFreeSSubmitRsp((SSubmitRsp*)pRes->res);
+      break;
+    } 
+    case TDMT_VND_QUERY: {
+      taosArrayDestroy((SArray*)pRes->res);
+      break;
+    }
+    default:
+      qError("invalid exec result for request type %d", pRes->msgType);
+  }
+}
+
+

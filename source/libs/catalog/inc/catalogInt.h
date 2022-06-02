@@ -302,7 +302,7 @@ typedef struct SCtgUpdateEpsetMsg {
 typedef struct SCtgCacheOperation {
   int32_t  opId;
   void    *data;
-  bool     syncReq;
+  bool     syncOp;
   uint64_t seqId;
 } SCtgCacheOperation;
 

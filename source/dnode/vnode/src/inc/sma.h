@@ -223,6 +223,8 @@ int32_t tdUpdateExpiredWindowImpl(SSma *pSma, const SSubmitReq *pMsg, int64_t ve
 // TODO: This is the basic params, and should wrap the params to a queryHandle.
 int32_t tdGetTSmaDataImpl(SSma *pSma, char *pData, int64_t indexUid, TSKEY querySKey, int32_t nMaxResult);
 
+int32_t tdGetTSmaDaysImpl(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);
+
 #ifdef __cplusplus
 }
 #endif

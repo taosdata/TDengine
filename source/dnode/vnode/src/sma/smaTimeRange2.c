@@ -19,11 +19,14 @@
 typedef STsdbCfg STSmaKeepCfg;
 
 #undef _TEST_SMA_PRINT_DEBUG_LOG_
+#define SMA_STORAGE_MINUTES_MAX  86400
+#define SMA_STORAGE_MINUTES_DAY  1440
+#define SMA_STORAGE_MINUTES_MIN  1440
 #define SMA_STORAGE_TSDB_MINUTES 86400
 #define SMA_STORAGE_TSDB_TIMES   10
-#define SMA_STORAGE_SPLIT_FACTOR 144  // least records in tsma file
-#define SMA_KEY_LEN              16   // TSKEY+groupId 8+8
-#define SMA_DROP_EXPIRED_TIME    10   // default is 10 seconds
+#define SMA_STORAGE_SPLIT_FACTOR 14400  // least records in tsma file TODO: the feasible value?
+#define SMA_KEY_LEN              16     // TSKEY+groupId 8+8
+#define SMA_DROP_EXPIRED_TIME    10     // default is 10 seconds
 
 #define SMA_STATE_ITEM_HASH_SLOT 32
 
@@ -74,6 +77,50 @@ static int32_t tdInsertTSmaBlocks(STSmaWriteH *pSmaH, void *smaKey, int32_t keyL
 static int32_t tdSetExpiredWindow(SSma *pSma, SHashObj *pItemsHash, int64_t indexUid, int64_t winSKey, int64_t version);
 static int32_t tdResetExpiredWindow(SSma *pSma, SSmaStat *pStat, int64_t indexUid, TSKEY skey);
 static int32_t tdDropTSmaDataImpl(SSma *pSma, int64_t indexUid);
+
+/**
+ * @brief Judge the tsma file split days
+ *
+ * @param pCfg
+ * @param pCont
+ * @param contLen
+ * @param days unit is minute
+ * @return int32_t
+ */
+int32_t tdGetTSmaDaysImpl(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days) {
+  SDecoder coder = {0};
+  tDecoderInit(&coder, pCont, contLen);
+
+  STSma tsma = {0};
+  if (tDecodeSVCreateTSmaReq(&coder, &tsma) < 0) {
+    terrno = TSDB_CODE_MSG_DECODE_ERROR;
+    goto _err;
+  }
+  STsdbCfg *pTsdbCfg = &pCfg->tsdbCfg;
+  int64_t   mInterval = convertTimeFromPrecisionToUnit(tsma.interval, pTsdbCfg->precision, TIME_UNIT_MINUTE);
+  int64_t records = pTsdbCfg->days / mInterval;
+
+  if (records >= SMA_STORAGE_SPLIT_FACTOR) {
+    *days = pTsdbCfg->days;
+  } else {
+    int64_t daysPerFile = mInterval * SMA_STORAGE_MINUTES_DAY * 2;
+
+    if (daysPerFile > SMA_STORAGE_MINUTES_MAX) {
+      *days = SMA_STORAGE_MINUTES_MAX;
+    } else {
+      *days = (int32_t)daysPerFile;
+    }
+
+    if(*days < pTsdbCfg->days) {
+      *days = pTsdbCfg->days;
+    }
+  }
+  tDecoderClear(&coder);
+  return 0;
+_err:
+  tDecoderClear(&coder);
+  return -1;
+}
 
 // read data
 

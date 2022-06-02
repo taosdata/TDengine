@@ -572,13 +572,6 @@ int32_t tDeserializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* 
 void    tFreeSGetUserAuthRsp(SGetUserAuthRsp* pRsp);
 
 typedef struct {
-  int16_t colId;     // column id
-  int16_t colIndex;  // column index in colList if it is a normal column or index in tagColList if a tag
-  int16_t flag;      // denote if it is a tag or a normal column
-  char    name[TSDB_DB_FNAME_LEN];
-} SColIndex;
-
-typedef struct {
   int16_t lowerRelOptr;
   int16_t upperRelOptr;
   int16_t filterstr;  // denote if current column is char(binary/nchar)
@@ -779,6 +772,7 @@ typedef struct {
   int8_t  cacheLastRow;
   int32_t numOfRetensions;
   SArray* pRetensions;
+  int8_t  schemaless;
 } SDbCfgRsp;
 
 int32_t tSerializeSDbCfgRsp(void* buf, int32_t bufLen, const SDbCfgRsp* pRsp);
@@ -1126,6 +1120,14 @@ typedef struct {
   int32_t  vgId;
   SSchema* pSchemas;
 } STableMetaRsp;
+
+typedef struct {  
+  STableMetaRsp* pMeta;
+} SMAlterStbRsp;
+
+int32_t tEncodeSMAlterStbRsp(SEncoder *pEncoder, const SMAlterStbRsp *pRsp);
+int32_t tDecodeSMAlterStbRsp(SDecoder *pDecoder, SMAlterStbRsp *pRsp);
+void tFreeSMAlterStbRsp(SMAlterStbRsp* pRsp);
 
 int32_t tSerializeSTableMetaRsp(void* buf, int32_t bufLen, STableMetaRsp* pRsp);
 int32_t tDeserializeSTableMetaRsp(void* buf, int32_t bufLen, STableMetaRsp* pRsp);
@@ -1880,7 +1882,8 @@ int32_t tEncodeSVAlterTbReq(SEncoder* pEncoder, const SVAlterTbReq* pReq);
 int32_t tDecodeSVAlterTbReq(SDecoder* pDecoder, SVAlterTbReq* pReq);
 
 typedef struct {
-  int32_t code;
+  int32_t        code;
+  STableMetaRsp* pMeta;
 } SVAlterTbRsp;
 
 int32_t tEncodeSVAlterTbRsp(SEncoder* pEncoder, const SVAlterTbRsp* pRsp);
@@ -2344,19 +2347,19 @@ typedef struct {
   STSma*  tSma;
 } STSmaWrapper;
 
-static FORCE_INLINE void tdDestroyTSma(STSma* pSma) {
+static FORCE_INLINE void tDestroyTSma(STSma* pSma) {
   if (pSma) {
     taosMemoryFreeClear(pSma->expr);
     taosMemoryFreeClear(pSma->tagsFilter);
   }
 }
 
-static FORCE_INLINE void tdDestroyTSmaWrapper(STSmaWrapper* pSW, bool deepCopy) {
+static FORCE_INLINE void tDestroyTSmaWrapper(STSmaWrapper* pSW, bool deepCopy) {
   if (pSW) {
     if (pSW->tSma) {
       if (deepCopy) {
         for (uint32_t i = 0; i < pSW->number; ++i) {
-          tdDestroyTSma(pSW->tSma + i);
+          tDestroyTSma(pSW->tSma + i);
         }
       }
       taosMemoryFreeClear(pSW->tSma);
@@ -2364,8 +2367,8 @@ static FORCE_INLINE void tdDestroyTSmaWrapper(STSmaWrapper* pSW, bool deepCopy) 
   }
 }
 
-static FORCE_INLINE void* tdFreeTSmaWrapper(STSmaWrapper* pSW, bool deepCopy) {
-  tdDestroyTSmaWrapper(pSW, deepCopy);
+static FORCE_INLINE void* tFreeTSmaWrapper(STSmaWrapper* pSW, bool deepCopy) {
+  tDestroyTSmaWrapper(pSW, deepCopy);
   taosMemoryFreeClear(pSW);
   return NULL;
 }
@@ -2391,6 +2394,17 @@ static int32_t tDecodeTSmaWrapper(SDecoder* pDecoder, STSmaWrapper* pReq) {
   }
   return 0;
 }
+
+typedef struct {
+  int64_t tsmaIndexUid;
+  STimeWindow queryWindow;
+} SVGetTsmaExpWndsReq;
+
+typedef struct {
+  int64_t tsmaIndexUid;
+  int32_t numExpWnds;
+  TSKEY*  expWndsStartTs;
+} SVGetTsmaExpWndsRsp;
 
 typedef struct {
   int idx;
