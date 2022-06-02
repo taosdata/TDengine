@@ -12,11 +12,11 @@ sql connect
 print =============== step1: create dnodes
 sql create dnode $hostname port 7200
 
-$loop_cnt = 0
+$x = 0
 step1:
-	$loop_cnt = $loop_cnt + 1
+	$ = $x + 1
 	sleep 1000
-	if $loop_cnt == 10 then
+	if $x == 10 then
 	  print ====> dnode not ready!
 		return -1
 	endi
@@ -73,11 +73,11 @@ print =============== step3: create dnodes
 sql create dnode $hostname port 7300
 sql create dnode $hostname port 7400
 
-$loop_cnt = 0
+$x = 0
 step3:
-	$loop_cnt = $loop_cnt + 1
+	$x = $x + 1
 	sleep 1000
-	if $loop_cnt == 10 then
+	if $x == 10 then
 	  print ====> dnode not ready!
 		return -1
 	endi
@@ -118,7 +118,7 @@ if $rows != 1 then
   return -1
 endi
 
-
+return
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
 system sh/exec.sh -n dnode3 -s stop -x SIGINT

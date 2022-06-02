@@ -91,51 +91,52 @@ static void vmProcessFetchQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
 }
 
 static void vmProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
+  int32_t    code = 0;
+  SRpcMsg   *pMsg = NULL;
   SVnodeObj *pVnode = pInfo->ahandle;
-  SArray    *pArray = taosArrayInit(numOfMsgs, sizeof(SRpcMsg *));
-  if (pArray == NULL) {
-    dError("failed to process %d msgs in write-queue since %s", numOfMsgs, terrstr());
-    return;
-  }
+  int64_t    sync = vnodeGetSyncHandle(pVnode->pImpl);
+  SArray    *pArray = taosArrayInit(numOfMsgs, sizeof(SRpcMsg **));
 
-  for (int32_t i = 0; i < numOfMsgs; ++i) {
-    SRpcMsg *pMsg = NULL;
+  for (int32_t m = 0; m < numOfMsgs; m++) {
     if (taosGetQitem(qall, (void **)&pMsg) == 0) continue;
+    dTrace("vgId:%d, get msg:%p from vnode-write queue, type:%s", pVnode->vgId, pMsg, TMSG_INFO(pMsg->msgType));
 
-    dTrace("msg:%p, get from vnode-write queue", pMsg);
     if (taosArrayPush(pArray, &pMsg) == NULL) {
-      dTrace("msg:%p, failed to push to array since %s", pMsg, terrstr());
+      dError("vgId:%d, failed to push msg:%p to vnode-write array", pVnode->vgId, pMsg);
       vmSendRsp(pMsg, TSDB_CODE_OUT_OF_MEMORY);
     }
   }
 
-  for (int i = 0; i < taosArrayGetSize(pArray); i++) {
-    SRpcMsg *pMsg = *(SRpcMsg **)taosArrayGet(pArray, i);
-    SRpcMsg  rsp = {.info = pMsg->info};
+  for (int32_t m = 0; m < taosArrayGetSize(pArray); m++) {
+    pMsg = *(SRpcMsg **)taosArrayGet(pArray, m);
+    code = vnodePreprocessReq(pVnode->pImpl, pMsg);
 
-    vnodePreprocessReq(pVnode->pImpl, pMsg);
+    if (code == TSDB_CODE_ACTION_IN_PROGRESS) continue;
+    if (code != 0) {
+      dError("vgId:%d, msg:%p failed to process since %s", pVnode->vgId, pMsg, tstrerror(code));
+      vmSendRsp(pMsg, code);
+      continue;
+    }
 
-    int32_t ret = syncPropose(vnodeGetSyncHandle(pVnode->pImpl), pMsg, false);
-    if (ret == TAOS_SYNC_PROPOSE_NOT_LEADER) {
-      dTrace("msg:%p, is redirect since not leader, vgId:%d ", pMsg, pVnode->vgId);
-      rsp.code = TSDB_CODE_RPC_REDIRECT;
-      SEpSet newEpSet;
-      syncGetEpSet(vnodeGetSyncHandle(pVnode->pImpl), &newEpSet);
+    code = syncPropose(sync, pMsg, false);
+    if (code == TAOS_SYNC_PROPOSE_SUCCESS) {
+      continue;
+    } else if (code == TAOS_SYNC_PROPOSE_NOT_LEADER) {
+      dTrace("vgId:%d, msg:%p is redirect since not leader", pVnode->vgId, pMsg);
+      SEpSet newEpSet = {0};
+      syncGetEpSet(sync, &newEpSet);
       newEpSet.inUse = (newEpSet.inUse + 1) % newEpSet.numOfEps;
+      SRpcMsg rsp = {.code = TSDB_CODE_RPC_REDIRECT, .info = pMsg->info};
       tmsgSendRedirectRsp(&rsp, &newEpSet);
-    } else if (ret == TAOS_SYNC_PROPOSE_OTHER_ERROR) {
-      rsp.code = TSDB_CODE_SYN_INTERNAL_ERROR;
-      tmsgSendRsp(&rsp);
-    } else if (ret == TAOS_SYNC_PROPOSE_SUCCESS) {
-      // send response in applyQ
     } else {
-      assert(0);
+      dError("vgId:%d, msg:%p failed to process since %s", pVnode->vgId, pMsg, tstrerror(code));
+      vmSendRsp(pMsg, code);
     }
   }
 
   for (int32_t i = 0; i < numOfMsgs; i++) {
-    SRpcMsg *pMsg = *(SRpcMsg **)taosArrayGet(pArray, i);
-    dTrace("msg:%p, is freed", pMsg);
+    pMsg = *(SRpcMsg **)taosArrayGet(pArray, i);
+    dTrace("vgId:%d, msg:%p, is freed", pVnode->vgId, pMsg);
     rpcFreeCont(pMsg->pCont);
     taosFreeQitem(pMsg);
   }

@@ -25,6 +25,7 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, in
 static int vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 
 int32_t vnodePreprocessReq(SVnode *pVnode, SRpcMsg *pMsg) {
+  int32_t  code = 0;
   SDecoder dc = {0};
 
   switch (pMsg->msgType) {
@@ -89,13 +90,13 @@ int32_t vnodePreprocessReq(SVnode *pVnode, SRpcMsg *pMsg) {
 
     } break;
     case TDMT_VND_ALTER_REPLICA: {
-      vnodeSyncAlter(pVnode, pMsg);
+      code = vnodeSyncAlter(pVnode, pMsg);
     } break;
     default:
       break;
   }
 
-  return 0;
+  return code;
 }
 
 int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg *pRsp) {
