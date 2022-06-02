@@ -6,6 +6,8 @@ node {
 
 win_test_stage = 0
 linux_ready = 0
+linux_node_ip = ""
+linux_node_pass = ""
 
 def abortPreviousBuilds() {
     def currentJobName = env.JOB_NAME
@@ -272,11 +274,13 @@ def run_win_ctest() {
     '''
 }
 def run_win_test() {
+    echo "LINUX NODE: ${linux_node_ip} - ${linux_node_pass}"
     bat '''
         echo "windows test ..."
         time /t
         cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\community\\tests\\system-test
         echo "testing ..."
+        test-all.bat  "{\"host\":\"''' + linux_node_ip + '''\",\"port\":22,\"user\":\"root\",\"password\":\"''' + linux_node_pass + '''\",\"path\":\"/var/lib/jenkins/workspace/TDinternal\"}"
         time /t
     '''
 }
@@ -321,6 +325,16 @@ pipeline {
                         changeRequest()
                     }
                     steps {
+                        script {
+                            linux_node_ip = sh (
+                                script: 'jq .ip /home/node_info.json | sed "s/\"//g"',
+                                returnStdout: true
+                            ).trim()
+                            linux_node_pass = sh (
+                                script: 'jq .password /home/node_info.json | sed "s/\"//g"',
+                                returnStdout: true
+                            ).trim()
+                        }
                         catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
                             timeout(time: 15, unit: 'MINUTES'){
                                 pre_test()
@@ -328,6 +342,7 @@ pipeline {
                                     sh '''
                                         echo "packaging ..."
                                         date
+                                        rm -rf ${WKC}/release/*
                                         cd ${WKC}/packaging
                                         ./release.sh -v cluster -n 3.0.0.100 -s static
                                         cd ${WKC}/release
