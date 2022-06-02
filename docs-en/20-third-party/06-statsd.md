@@ -7,7 +7,7 @@ import StatsD from "../14-reference/_statsd.mdx"
 
 StatsD is a simple daemon for aggregating application metrics, which has evolved rapidly in recent years into a unified protocol for collecting application performance metrics.
 
-You can write StatsD data to TDengine by simply modifying in the configuration file of StatsD with the domain name (or IP address) of the server running taosAdapter and the corresponding port. It can take full advantage of TDengine's efficient storage query performance and clustering capabilities for time-series data.
+You can write StatsD data to TDengine by simply modifying the configuration file of StatsD with the domain name (or IP address) of the server running taosAdapter and the corresponding port. It can take full advantage of TDengine's efficient storage query performance and clustering capabilities for time-series data.
 
 ## Prerequisites
 

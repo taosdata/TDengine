@@ -558,7 +558,7 @@ int32_t catalogGetHandle(uint64_t clusterId, SCatalog** catalogHandle) {
 
   *catalogHandle = clusterCtg;
 
-  CTG_CACHE_STAT_ADD(clusterNum, 1);
+  CTG_CACHE_STAT_INC(clusterNum, 1);
   
   return TSDB_CODE_SUCCESS;
 
@@ -579,7 +579,7 @@ void catalogFreeHandle(SCatalog* pCtg) {
     return;
   }
 
-  CTG_CACHE_STAT_SUB(clusterNum, 1);
+  CTG_CACHE_STAT_DEC(clusterNum, 1);
 
   uint64_t clusterId = pCtg->clusterId;
   
@@ -990,7 +990,7 @@ int32_t catalogGetAllMeta(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, 
   }
 
   if (pReq->qNodeRequired) {
-    pRsp->pQnodeList = taosArrayInit(10, sizeof(SQueryNodeAddr));
+    pRsp->pQnodeList = taosArrayInit(10, sizeof(SQueryNodeLoad));
     CTG_ERR_JRET(ctgGetQnodeListFromMnode(CTG_PARAMS_LIST(), pRsp->pQnodeList, NULL));
   }
 

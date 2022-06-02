@@ -275,7 +275,7 @@ int32_t ctgGetQnodeListFromMnode(CTG_PARAMS, SArray *out, SCtgTask* pTask) {
   }
 
   if (pTask) {
-    void* pOut = taosArrayInit(4, sizeof(struct SQueryNodeAddr));
+    void* pOut = taosArrayInit(4, sizeof(SQueryNodeLoad));
     if (NULL == pOut) {
       CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }

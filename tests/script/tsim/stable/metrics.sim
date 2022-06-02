@@ -93,9 +93,6 @@ $i = 2
 $tb = $tbPrefix . $i
 sql insert into $tb values (now + 1m , 1 )
 
-print sleep 2000
-sleep 2000
-
 print =============== step6
 
 # sql select * from $mt

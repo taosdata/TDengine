@@ -118,6 +118,7 @@ TAOS* taos_connect_internal(const char* ip, const char* user, const char* pass, 
   if (pInst == NULL) {
     p = taosMemoryCalloc(1, sizeof(struct SAppInstInfo));
     p->mgmtEp = epSet;
+    taosThreadMutexInit(&p->qnodeMutex, NULL);
     p->pTransporter = openTransporter(user, secretEncrypt, tsNumOfCores);
     p->pAppHbMgr = appHbMgrInit(p, key);
     taosHashPut(appInfo.pInstMap, key, strlen(key), &p, POINTER_BYTES);
@@ -202,7 +203,7 @@ int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   SRetrieveTableRsp* pRsp = NULL;
   int32_t            code = qExecCommand(pQuery->pRoot, &pRsp);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
-    code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false);
+    code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false, false);
   }
   return code;
 }
@@ -228,7 +229,61 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray* pNodeList) {
+int compareQueryNodeLoad(const void* elem1, const void* elem2) {
+  SQueryNodeLoad* node1 = (SQueryNodeLoad*)elem1;
+  SQueryNodeLoad* node2 = (SQueryNodeLoad*)elem2;
+
+  if (node1->load < node2->load) {
+    return -1;
+  }
+
+  return node1->load > node2->load;
+}
+
+int32_t updateQnodeList(SAppInstInfo* pInfo, SArray* pNodeList) {
+  taosThreadMutexLock(&pInfo->qnodeMutex);
+  if (pInfo->pQnodeList) {
+    taosArrayDestroy(pInfo->pQnodeList);
+    pInfo->pQnodeList = NULL;
+  }
+
+  if (pNodeList) {
+    pInfo->pQnodeList = taosArrayDup(pNodeList);
+    taosArraySort(pInfo->pQnodeList, compareQueryNodeLoad);
+  }
+  taosThreadMutexUnlock(&pInfo->qnodeMutex);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t getQnodeList(SRequestObj* pRequest, SArray** pNodeList) {
+  SAppInstInfo* pInfo = pRequest->pTscObj->pAppInfo;
+  int32_t       code = 0;
+
+  taosThreadMutexLock(&pInfo->qnodeMutex);
+  if (pInfo->pQnodeList) {
+    *pNodeList = taosArrayDup(pInfo->pQnodeList);
+  }
+  taosThreadMutexUnlock(&pInfo->qnodeMutex);
+
+  if (NULL == *pNodeList) {
+    SEpSet    mgmtEpSet = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp);
+    SCatalog* pCatalog = NULL;
+    code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
+    if (TSDB_CODE_SUCCESS == code) {
+      *pNodeList = taosArrayInit(5, sizeof(SQueryNodeLoad));
+      code = catalogGetQnodeList(pCatalog, pRequest->pTscObj->pAppInfo->pTransporter, &mgmtEpSet, *pNodeList);
+    }
+
+    if (TSDB_CODE_SUCCESS == code && *pNodeList) {
+      code = updateQnodeList(pInfo, *pNodeList);
+    }
+  }
+
+  return code;
+}
+
+int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray** pNodeList) {
   pRequest->type = pQuery->msgType;
   SPlanContext cxt = {.queryId = pRequest->requestId,
                       .acctId = pRequest->pTscObj->acctId,
@@ -237,14 +292,10 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
                       .showRewrite = pQuery->showRewrite,
                       .pMsg = pRequest->msgBuf,
                       .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE};
-  SEpSet       mgmtEpSet = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp);
-  SCatalog*    pCatalog = NULL;
-  int32_t      code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
+
+  int32_t code = getQnodeList(pRequest, pNodeList);
   if (TSDB_CODE_SUCCESS == code) {
-    code = catalogGetQnodeList(pCatalog, pRequest->pTscObj->pAppInfo->pTransporter, &mgmtEpSet, pNodeList);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = qCreateQueryPlan(&cxt, pPlan, pNodeList);
+    code = qCreateQueryPlan(&cxt, pPlan, *pNodeList);
   }
   return code;
 }
@@ -291,13 +342,13 @@ void setResPrecision(SReqResultInfo* pResInfo, int32_t precision) {
 
 int32_t scheduleAsyncQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList, void** pRes) {
   void* pTransporter = pRequest->pTscObj->pAppInfo->pTransporter;
-  
+
   tsem_init(&schdRspSem, 0, 0);
 
   SQueryResult res = {.code = 0, .numOfRows = 0};
   int32_t      code = schedulerAsyncExecJob(pTransporter, pNodeList, pDag, &pRequest->body.queryJob, pRequest->sqlstr,
-                                       pRequest->metric.start, schdExecCallback, &res);
-  while (true) {                                       
+                                            pRequest->metric.start, schdExecCallback, &res);
+  while (true) {
     if (code != TSDB_CODE_SUCCESS) {
       if (pRequest->body.queryJob != 0) {
         schedulerFreeJob(pRequest->body.queryJob);
@@ -310,7 +361,7 @@ int32_t scheduleAsyncQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNod
       return pRequest->code;
     } else {
       tsem_wait(&schdRspSem);
-      
+
       if (res.code) {
         code = res.code;
       } else {
@@ -333,7 +384,6 @@ int32_t scheduleAsyncQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNod
   terrno = res.code;
   return pRequest->code;
 }
-
 
 int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList, void** pRes) {
   void* pTransporter = pRequest->pTscObj->pAppInfo->pTransporter;
@@ -369,8 +419,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
 }
 
 int32_t getQueryPlan(SRequestObj* pRequest, SQuery* pQuery, SArray** pNodeList) {
-  *pNodeList = taosArrayInit(4, sizeof(struct SQueryNodeAddr));
-  return getPlan(pRequest, pQuery, &pRequest->body.pDag, *pNodeList);
+  return getPlan(pRequest, pQuery, &pRequest->body.pDag, pNodeList);
 }
 
 int32_t validateSversion(SRequestObj* pRequest, void* res) {
@@ -456,8 +505,8 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, int32_t code
         code = execDdlQuery(pRequest, pQuery);
         break;
       case QUERY_EXEC_MODE_SCHEDULE: {
-        SArray* pNodeList = taosArrayInit(4, sizeof(struct SQueryNodeAddr));
-        code = getPlan(pRequest, pQuery, &pRequest->body.pDag, pNodeList);
+        SArray* pNodeList = NULL;
+        code = getPlan(pRequest, pQuery, &pRequest->body.pDag, &pNodeList);
         if (TSDB_CODE_SUCCESS == code) {
           code = scheduleQuery(pRequest, pRequest->body.pDag, pNodeList, &pRes);
           if (NULL != pRes) {
@@ -733,7 +782,7 @@ void updateTargetEpSet(SMsgSendInfo* pSendInfo, STscObj* pTscObj, SRpcMsg* pMsg,
   if (NULL == pEpSet) {
     return;
   }
-  
+
   switch (pSendInfo->target.type) {
     case TARGET_TYPE_MNODE:
       if (NULL == pTscObj) {
@@ -741,7 +790,7 @@ void updateTargetEpSet(SMsgSendInfo* pSendInfo, STscObj* pTscObj, SRpcMsg* pMsg,
         return;
       }
 
-      updateEpSet_s(&pTscObj->pAppInfo->mgmtEp, pEpSet);   
+      updateEpSet_s(&pTscObj->pAppInfo->mgmtEp, pEpSet);
       break;
     case TARGET_TYPE_VNODE: {
       if (NULL == pTscObj) {
@@ -750,12 +799,13 @@ void updateTargetEpSet(SMsgSendInfo* pSendInfo, STscObj* pTscObj, SRpcMsg* pMsg,
       }
 
       SCatalog* pCatalog = NULL;
-      int32_t code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog);
+      int32_t   code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog);
       if (code != TSDB_CODE_SUCCESS) {
-        tscError("fail to get catalog handle, clusterId:%" PRIx64 ", error %s", pTscObj->pAppInfo->clusterId, tstrerror(code));
+        tscError("fail to get catalog handle, clusterId:%" PRIx64 ", error %s", pTscObj->pAppInfo->clusterId,
+                 tstrerror(code));
         return;
       }
-    
+
       catalogUpdateVgEpSet(pCatalog, pSendInfo->target.dbFName, pSendInfo->target.vgId, pEpSet);
       break;
     }
@@ -765,12 +815,11 @@ void updateTargetEpSet(SMsgSendInfo* pSendInfo, STscObj* pTscObj, SRpcMsg* pMsg,
   }
 }
 
-
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->info.ahandle;
   assert(pMsg->info.ahandle != NULL);
   SRequestObj* pRequest = NULL;
-  STscObj* pTscObj = NULL;
+  STscObj*     pTscObj = NULL;
 
   if (pSendInfo->requestObjRefId != 0) {
     SRequestObj* pRequest = (SRequestObj*)taosAcquireRef(clientReqRefPool, pSendInfo->requestObjRefId);
@@ -897,7 +946,8 @@ void* doAsyncFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertU
       return NULL;
     }
 
-    pRequest->code = setQueryResultFromRsp(&pRequest->body.resInfo, (SRetrieveTableRsp*)pResInfo->pData, convertUcs4);
+    pRequest->code =
+        setQueryResultFromRsp(&pRequest->body.resInfo, (SRetrieveTableRsp*)pResInfo->pData, convertUcs4, true);
     if (pRequest->code != TSDB_CODE_SUCCESS) {
       pResultInfo->numOfRows = 0;
       return NULL;
@@ -919,9 +969,8 @@ void* doAsyncFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertU
   return pResultInfo->row;
 }
 
-
 void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) {
-  //return doAsyncFetchRows(pRequest, setupOneRowPtr, convertUcs4);
+  // return doAsyncFetchRows(pRequest, setupOneRowPtr, convertUcs4);
   assert(pRequest != NULL);
 
   SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
@@ -939,7 +988,8 @@ void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) 
       return NULL;
     }
 
-    pRequest->code = setQueryResultFromRsp(&pRequest->body.resInfo, (SRetrieveTableRsp*)pResInfo->pData, convertUcs4);
+    pRequest->code =
+        setQueryResultFromRsp(&pRequest->body.resInfo, (SRetrieveTableRsp*)pResInfo->pData, convertUcs4, true);
     if (pRequest->code != TSDB_CODE_SUCCESS) {
       pResultInfo->numOfRows = 0;
       return NULL;
@@ -983,27 +1033,20 @@ static char* parseTagDatatoJson(void* p) {
     goto end;
   }
 
-  int16_t nCols = kvRowNCols(p);
+  SArray* pTagVals = NULL;
+  if (tTagToValArray((const STag*)p, &pTagVals) != 0) {
+    goto end;
+  }
+
+  int16_t nCols = taosArrayGetSize(pTagVals);
   char    tagJsonKey[256] = {0};
   for (int j = 0; j < nCols; ++j) {
-    SColIdx* pColIdx = kvRowColIdxAt(p, j);
-    char*    val = (char*)(kvRowColVal(p, pColIdx));
-    if (j == 0) {
-      if (*val == TSDB_DATA_TYPE_NULL) {
-        string = taosMemoryCalloc(1, 8);
-        sprintf(string, "%s", TSDB_DATA_NULL_STR_L);
-        goto end;
-      }
-      continue;
-    }
-
+    STagVal* pTagVal = (STagVal*)taosArrayGet(pTagVals, j);
     // json key  encode by binary
     memset(tagJsonKey, 0, sizeof(tagJsonKey));
-    memcpy(tagJsonKey, varDataVal(val), varDataLen(val));
+    memcpy(tagJsonKey, pTagVal->pKey, strlen(pTagVal->pKey));
     // json value
-    val += varDataTLen(val);
-    char* realData = POINTER_SHIFT(val, CHAR_BYTES);
-    char  type = *val;
+    char type = pTagVal->type;
     if (type == TSDB_DATA_TYPE_NULL) {
       cJSON* value = cJSON_CreateNull();
       if (value == NULL) {
@@ -1012,11 +1055,12 @@ static char* parseTagDatatoJson(void* p) {
       cJSON_AddItemToObject(json, tagJsonKey, value);
     } else if (type == TSDB_DATA_TYPE_NCHAR) {
       cJSON* value = NULL;
-      if (varDataLen(realData) > 0) {
-        char*   tagJsonValue = taosMemoryCalloc(varDataLen(realData), 1);
-        int32_t length = taosUcs4ToMbs((TdUcs4*)varDataVal(realData), varDataLen(realData), tagJsonValue);
+      if (pTagVal->nData > 0) {
+        char*   tagJsonValue = taosMemoryCalloc(pTagVal->nData, 1);
+        int32_t length = taosUcs4ToMbs((TdUcs4*)pTagVal->pData, pTagVal->nData, tagJsonValue);
         if (length < 0) {
-          tscError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, val);
+          tscError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
+                   pTagVal->pData);
           taosMemoryFree(tagJsonValue);
           goto end;
         }
@@ -1025,7 +1069,7 @@ static char* parseTagDatatoJson(void* p) {
         if (value == NULL) {
           goto end;
         }
-      } else if (varDataLen(realData) == 0) {
+      } else if (pTagVal->nData == 0) {
         value = cJSON_CreateString("");
       } else {
         ASSERT(0);
@@ -1033,22 +1077,14 @@ static char* parseTagDatatoJson(void* p) {
 
       cJSON_AddItemToObject(json, tagJsonKey, value);
     } else if (type == TSDB_DATA_TYPE_DOUBLE) {
-      double jsonVd = *(double*)(realData);
+      double jsonVd = *(double*)(&pTagVal->i64);
       cJSON* value = cJSON_CreateNumber(jsonVd);
       if (value == NULL) {
         goto end;
       }
       cJSON_AddItemToObject(json, tagJsonKey, value);
-      //    }else if(type == TSDB_DATA_TYPE_BIGINT){
-      //      int64_t jsonVd = *(int64_t*)(realData);
-      //      cJSON* value = cJSON_CreateNumber((double)jsonVd);
-      //      if (value == NULL)
-      //      {
-      //        goto end;
-      //      }
-      //      cJSON_AddItemToObject(json, tagJsonKey, value);
     } else if (type == TSDB_DATA_TYPE_BOOL) {
-      char   jsonVd = *(char*)(realData);
+      char   jsonVd = *(char*)(&pTagVal->i64);
       cJSON* value = cJSON_CreateBool(jsonVd);
       if (value == NULL) {
         goto end;
@@ -1113,7 +1149,7 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t numOfRows, int
           if (jsonInnerType == TSDB_DATA_TYPE_NULL) {
             sprintf(varDataVal(dst), "%s", TSDB_DATA_NULL_STR_L);
             varDataSetLen(dst, strlen(varDataVal(dst)));
-          } else if (jsonInnerType == TSDB_DATA_TYPE_JSON) {
+          } else if (jsonInnerType == TD_TAG_JSON) {
             char* jsonString = parseTagDatatoJson(jsonInnerData);
             STR_TO_VARSTR(dst, jsonString);
             taosMemoryFree(jsonString);
@@ -1131,10 +1167,6 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t numOfRows, int
           } else if (jsonInnerType == TSDB_DATA_TYPE_DOUBLE) {
             double jsonVd = *(double*)(jsonInnerData);
             sprintf(varDataVal(dst), "%.9lf", jsonVd);
-            varDataSetLen(dst, strlen(varDataVal(dst)));
-          } else if (jsonInnerType == TSDB_DATA_TYPE_BIGINT) {
-            int64_t jsonVd = *(int64_t*)(jsonInnerData);
-            sprintf(varDataVal(dst), "%" PRId64, jsonVd);
             varDataSetLen(dst, strlen(varDataVal(dst)));
           } else if (jsonInnerType == TSDB_DATA_TYPE_BOOL) {
             sprintf(varDataVal(dst), "%s", (*((char*)jsonInnerData) == 1) ? "true" : "false");
@@ -1246,11 +1278,12 @@ void resetConnectDB(STscObj* pTscObj) {
   taosThreadMutexUnlock(&pTscObj->mutex);
 }
 
-int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp, bool convertUcs4) {
+int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp, bool convertUcs4,
+                              bool freeAfterUse) {
   assert(pResultInfo != NULL && pRsp != NULL);
 
-  taosMemoryFreeClear(pResultInfo->pRspMsg);
-  
+  if (freeAfterUse) taosMemoryFreeClear(pResultInfo->pRspMsg);
+
   pResultInfo->pRspMsg = (const char*)pRsp;
   pResultInfo->pData = (void*)pRsp->data;
   pResultInfo->numOfRows = htonl(pRsp->numOfRows);

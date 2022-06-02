@@ -29,6 +29,7 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
       .isStandBy = false,
       .snapshotEnable = false,
       .vgId = pVnode->config.vgId,
+      .isStandBy = pVnode->config.standby,
       .syncCfg = pVnode->config.syncCfg,
       .pWal = pVnode->pWal,
       .msgcb = NULL,
@@ -51,26 +52,70 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
   return 0;
 }
 
+void vnodeSyncAlter(SVnode *pVnode, SRpcMsg *pMsg) {
+  SAlterVnodeReq req = {0};
+  if (tDeserializeSAlterVnodeReq((char *)pMsg->pCont + sizeof(SMsgHead), pMsg->contLen - sizeof(SMsgHead), &req) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    vError("vgId:%d, failed to alter replica since %s", TD_VID(pVnode), terrstr());
+    SRpcMsg rsp = {.info = pMsg->info, .code = terrno};
+    tmsgSendRsp(&rsp);
+  }
+
+  vInfo("vgId:%d, start to alter vnode replica to %d", TD_VID(pVnode), req.replica);
+  SSyncCfg cfg = {.replicaNum = req.replica, .myIndex = req.selfIndex};
+  for (int32_t r = 0; r < req.replica; ++r) {
+    SNodeInfo *pNode = &cfg.nodeInfo[r];
+    tstrncpy(pNode->nodeFqdn, req.replicas[r].fqdn, sizeof(pNode->nodeFqdn));
+    pNode->nodePort = req.replicas[r].port;
+    vInfo("vgId:%d, replica:%d %s:%u", TD_VID(pVnode), r, pNode->nodeFqdn, pNode->nodePort);
+  }
+
+  if (syncReconfig(pVnode->sync, &cfg) != 0) {
+    vError("vgId:%d, failed to propose sync reconfig since %s", TD_VID(pVnode), terrstr());
+    SRpcMsg rsp = {.info = pMsg->info, .code = terrno};
+    tmsgSendRsp(&rsp);
+  }
+}
+
 void vnodeSyncStart(SVnode *pVnode) {
   syncSetMsgCb(pVnode->sync, &pVnode->msgCb);
-  syncStart(pVnode->sync);
+  if (pVnode->config.standby) {
+    syncStartStandBy(pVnode->sync);
+  } else {
+    syncStart(pVnode->sync);
+  }
 }
 
 void vnodeSyncClose(SVnode *pVnode) { syncStop(pVnode->sync); }
 
-int32_t vnodeSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) { 
+int32_t vnodeSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
   int32_t code = tmsgPutToQueue(msgcb, SYNC_QUEUE, pMsg);
   if (code != 0) {
     rpcFreeCont(pMsg->pCont);
+    pMsg->pCont = NULL;
   }
   return code;
 }
 
-int32_t vnodeSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) { return tmsgSendReq(pEpSet, pMsg); }
+int32_t vnodeSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
+  int32_t code = tmsgSendReq(pEpSet, pMsg);
+  if (code != 0) {
+    rpcFreeCont(pMsg->pCont);
+    pMsg->pCont = NULL;
+  }
+  return code;
+}
 
 int32_t vnodeSyncGetSnapshot(SSyncFSM *pFsm, SSnapshot *pSnapshot) {
   vnodeGetSnapshot(pFsm->data, pSnapshot);
   return 0;
+}
+
+void vnodeSyncReconfig(struct SSyncFSM *pFsm, SSyncCfg newCfg, SReConfigCbMeta cbMeta) {
+  SVnode *pVnode = pFsm->data;
+  vInfo("vgId:%d, sync reconfig is confirmed", TD_VID(pVnode));
+
+  // todo rpc response here
 }
 
 void vnodeSyncCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
@@ -89,19 +134,11 @@ void vnodeSyncCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) 
         pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state), beginIndex);
     syncRpcMsgLog2(logBuf, (SRpcMsg *)pMsg);
 
-    SVnode       *pVnode = (SVnode *)(pFsm->data);
+    SVnode       *pVnode = pFsm->data;
     SyncApplyMsg *pSyncApplyMsg = syncApplyMsgBuild2(pMsg, pVnode->config.vgId, &cbMeta);
     SRpcMsg       applyMsg;
     syncApplyMsg2RpcMsg(pSyncApplyMsg, &applyMsg);
     syncApplyMsgDestroy(pSyncApplyMsg);
-
-    /*
-        SRpcMsg applyMsg;
-        applyMsg = *pMsg;
-        applyMsg.pCont = rpcMallocCont(applyMsg.contLen);
-        assert(applyMsg.contLen == pMsg->contLen);
-        memcpy(applyMsg.pCont, pMsg->pCont, applyMsg.contLen);
-    */
 
     // recover handle for response
     SRpcMsg saveRpcMsg;
@@ -144,14 +181,13 @@ void vnodeSyncRollBackMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta
 
 SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   SSyncFSM *pFsm = taosMemoryCalloc(1, sizeof(SSyncFSM));
-  memset(pFsm, 0, sizeof(*pFsm));
   pFsm->data = pVnode;
   pFsm->FpCommitCb = vnodeSyncCommitMsg;
   pFsm->FpPreCommitCb = vnodeSyncPreCommitMsg;
   pFsm->FpRollBackCb = vnodeSyncRollBackMsg;
   pFsm->FpGetSnapshot = vnodeSyncGetSnapshot;
   pFsm->FpRestoreFinishCb = NULL;
-  pFsm->FpReConfigCb = NULL;
+  pFsm->FpReConfigCb = vnodeSyncReconfig;
 
   return pFsm;
 }

@@ -165,7 +165,10 @@ int32_t tdFetchTbUidList(SSma *pSma, STbUidStore **ppStore, tb_uid_t suid, tb_ui
  * @param pReq
  * @return int32_t
  */
-int32_t tdProcessRSmaCreate(SSma *pSma, SMeta *pMeta, SVCreateStbReq *pReq, SMsgCb *pMsgCb) {
+int32_t tdProcessRSmaCreate(SVnode *pVnode, SVCreateStbReq *pReq) {
+  SSma *pSma = pVnode->pSma;
+  SMeta *pMeta = pVnode->pMeta;
+  SMsgCb *pMsgCb = &pVnode->msgCb;
   if (!pReq->rollup) {
     smaTrace("vgId:%d return directly since no rollup for stable %s %" PRIi64, SMA_VID(pSma), pReq->name, pReq->suid);
     return TSDB_CODE_SUCCESS;
@@ -210,6 +213,7 @@ int32_t tdProcessRSmaCreate(SSma *pSma, SMeta *pMeta, SVCreateStbReq *pReq, SMsg
       .reader = pReadHandle,
       .meta = pMeta,
       .pMsgCb = pMsgCb,
+      .vnode = pVnode,
   };
 
   if (param->qmsg1) {
@@ -410,7 +414,7 @@ static FORCE_INLINE int32_t tdExecuteRSmaImpl(SSma *pSma, const void *pMsg, int3
     }
     taosMemoryFreeClear(pReq);
   } else {
-    smaWarn("vgId:%d no rsma % " PRIi8 " data generated since %s", SMA_VID(pSma), level, tstrerror(terrno));
+    smaDebug("vgId:%d no rsma % " PRIi8 " data generated since %s", SMA_VID(pSma), level, tstrerror(terrno));
   }
 
   taosArrayDestroy(pResult);

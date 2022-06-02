@@ -557,3 +557,49 @@ int32_t tDeserializeSMonMloadInfo(void *buf, int32_t bufLen, SMonMloadInfo *pInf
   tDecoderClear(&decoder);
   return 0;
 }
+
+
+int32_t tSerializeSQnodeLoad(void *buf, int32_t bufLen, SQnodeLoad *pInfo) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeI64(&encoder, pInfo->numOfProcessedQuery) < 0) return -1;
+  if (tEncodeI64(&encoder, pInfo->numOfProcessedCQuery) < 0) return -1;
+  if (tEncodeI64(&encoder, pInfo->numOfProcessedFetch) < 0) return -1;
+  if (tEncodeI64(&encoder, pInfo->numOfProcessedDrop) < 0) return -1;
+  if (tEncodeI64(&encoder, pInfo->numOfProcessedHb) < 0) return -1;
+  if (tEncodeI64(&encoder, pInfo->cacheDataSize) < 0) return -1;
+  if (tEncodeI64(&encoder, pInfo->numOfQueryInQueue) < 0) return -1;
+  if (tEncodeI64(&encoder, pInfo->numOfFetchInQueue) < 0) return -1;
+  if (tEncodeI64(&encoder, pInfo->timeInQueryQueue) < 0) return -1;
+  if (tEncodeI64(&encoder, pInfo->timeInFetchQueue) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSQnodeLoad(void *buf, int32_t bufLen, SQnodeLoad *pInfo) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI64(&decoder, &pInfo->numOfProcessedQuery) < 0) return -1;
+  if (tDecodeI64(&decoder, &pInfo->numOfProcessedCQuery) < 0) return -1;
+  if (tDecodeI64(&decoder, &pInfo->numOfProcessedFetch) < 0) return -1;
+  if (tDecodeI64(&decoder, &pInfo->numOfProcessedDrop) < 0) return -1;
+  if (tDecodeI64(&decoder, &pInfo->numOfProcessedHb) < 0) return -1;
+  if (tDecodeI64(&decoder, &pInfo->cacheDataSize) < 0) return -1;
+  if (tDecodeI64(&decoder, &pInfo->numOfQueryInQueue) < 0) return -1;
+  if (tDecodeI64(&decoder, &pInfo->numOfFetchInQueue) < 0) return -1;
+  if (tDecodeI64(&decoder, &pInfo->timeInQueryQueue) < 0) return -1;
+  if (tDecodeI64(&decoder, &pInfo->timeInFetchQueue) < 0) return -1;
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+
