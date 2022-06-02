@@ -28,12 +28,12 @@ typedef struct SMetaDB  SMetaDB;
 
 // metaDebug ==================
 // clang-format off
-#define metaFatal(...) do { if (metaDebugFlag & DEBUG_FATAL) { taosPrintLog("META FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
-#define metaError(...) do { if (metaDebugFlag & DEBUG_ERROR) { taosPrintLog("META ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}     while(0)
-#define metaWarn(...)  do { if (metaDebugFlag & DEBUG_WARN)  { taosPrintLog("META WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}       while(0)
-#define metaInfo(...)  do { if (metaDebugFlag & DEBUG_INFO)  { taosPrintLog("META ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
-#define metaDebug(...) do { if (metaDebugFlag & DEBUG_DEBUG) { taosPrintLog("META ", DEBUG_DEBUG, metaDebugFlag, __VA_ARGS__); }} while(0)
-#define metaTrace(...) do { if (metaDebugFlag & DEBUG_TRACE) { taosPrintLog("META ", DEBUG_TRACE, metaDebugFlag, __VA_ARGS__); }} while(0)
+#define metaFatal(...) do { if (metaDebugFlag & DEBUG_FATAL) { taosPrintLog("MTA FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
+#define metaError(...) do { if (metaDebugFlag & DEBUG_ERROR) { taosPrintLog("MTA ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}     while(0)
+#define metaWarn(...)  do { if (metaDebugFlag & DEBUG_WARN)  { taosPrintLog("MTA WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}       while(0)
+#define metaInfo(...)  do { if (metaDebugFlag & DEBUG_INFO)  { taosPrintLog("MTA ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
+#define metaDebug(...) do { if (metaDebugFlag & DEBUG_DEBUG) { taosPrintLog("MTA ", DEBUG_DEBUG, metaDebugFlag, __VA_ARGS__); }} while(0)
+#define metaTrace(...) do { if (metaDebugFlag & DEBUG_TRACE) { taosPrintLog("MTA ", DEBUG_TRACE, metaDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
 // metaOpen ==================
