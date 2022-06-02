@@ -340,7 +340,7 @@ void setResPrecision(SReqResultInfo* pResInfo, int32_t precision) {
   pResInfo->precision = precision;
 }
 
-int32_t scheduleAsyncQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList, void** pRes) {
+int32_t scheduleAsyncQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList) {
   void* pTransporter = pRequest->pTscObj->pAppInfo->pTransporter;
   
   tsem_init(&schdRspSem, 0, 0);
@@ -348,13 +348,14 @@ int32_t scheduleAsyncQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNod
   SQueryResult res = {.code = 0, .numOfRows = 0};
   int32_t      code = schedulerAsyncExecJob(pTransporter, pNodeList, pDag, &pRequest->body.queryJob, pRequest->sqlstr,
                                        pRequest->metric.start, schdExecCallback, &res);
+
+  pRequest->body.resInfo.execRes = res.res;
+
   while (true) {                                       
     if (code != TSDB_CODE_SUCCESS) {
       if (pRequest->body.queryJob != 0) {
         schedulerFreeJob(pRequest->body.queryJob);
       }
-
-      *pRes = res.res;
 
       pRequest->code = code;
       terrno = code;
@@ -378,8 +379,6 @@ int32_t scheduleAsyncQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNod
     }
   }
 
-  *pRes = res.res;
-
   pRequest->code = res.code;
   terrno = res.code;
   return pRequest->code;
@@ -393,13 +392,12 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
   int32_t      code = schedulerExecJob(pTransporter, pNodeList, pDag, &pRequest->body.queryJob, pRequest->sqlstr,
                                        pRequest->metric.start, &res);
 
-  pRequest->body.resInfo.pExecRes = res.res;
+  pRequest->body.resInfo.execRes = res.res;
 
   if (code != TSDB_CODE_SUCCESS) {
     if (pRequest->body.queryJob != 0) {
       schedulerFreeJob(pRequest->body.queryJob);
     }
-
 
     pRequest->code = code;
     terrno = code;
@@ -489,6 +487,10 @@ int32_t handleAlterTbExecRes(void* res, SCatalog* pCatalog) {
 }
 
 int32_t handleExecRes(SRequestObj* pRequest) {
+  if (NULL == pRequest->body.resInfo.execRes.res) {
+    return TSDB_CODE_SUCCESS;
+  }
+  
   int32_t code = 0;
   SCatalog* pCatalog = NULL;
   code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
@@ -497,19 +499,20 @@ int32_t handleExecRes(SRequestObj* pRequest) {
   }
   
   SEpSet epset = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp);
-
-  switch (pRequest->type) {
+  SQueryExecRes* pRes = &pRequest->body.resInfo.execRes;
+  
+  switch (pRes->msgType) {
     case TDMT_VND_ALTER_TABLE: 
     case TDMT_MND_ALTER_STB: {
-      code = handleAlterTbExecRes(pRequest->body.resInfo.pExecRes, pCatalog);
+      code = handleAlterTbExecRes(pRes->res, pCatalog);
       break;
     }
     case TDMT_VND_SUBMIT: {
-      code = handleSubmitExecRes(pRequest, pRequest->body.resInfo.pExecRes, pCatalog, &epset);
+      code = handleSubmitExecRes(pRequest, pRes->res, pCatalog, &epset);
       break;
     } 
     case TDMT_VND_QUERY: {
-      code = handleQueryExecRes(pRequest, pRequest->body.resInfo.pExecRes, pCatalog, &epset);
+      code = handleQueryExecRes(pRequest, pRes->res, pCatalog, &epset);
       break;
     }
     default:
@@ -550,17 +553,15 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, int32_t code
     qDestroyQuery(pQuery);
   }
 
-  if (NULL != pRequest->body.resInfo.pExecRes) {
-    handleExecRes(pRequest);
-  }
+  handleExecRes(pRequest);
 
   if (NULL != pRequest && TSDB_CODE_SUCCESS != code) {
     pRequest->code = terrno;
   }
 
   if (res) {
-    *res = pRequest->body.resInfo.pExecRes;
-    pRequest->body.resInfo.pExecRes = NULL;
+    *res = pRequest->body.resInfo.execRes.res;
+    pRequest->body.resInfo.execRes.res = NULL;
   }
 
   return pRequest;

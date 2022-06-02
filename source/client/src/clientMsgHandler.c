@@ -236,8 +236,9 @@ int32_t processAlterStbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   tDecoderInit(&coder, pMsg->pData, pMsg->len);
   tDecodeSMAlterStbRsp(&coder, &alterRsp);
   tDecoderClear(&coder);
-  
-  pRequest->body.resInfo.pExecRes = alterRsp.pMeta;
+
+  pRequest->body.resInfo.execRes.msgType = TDMT_MND_ALTER_STB;
+  pRequest->body.resInfo.execRes.res = alterRsp.pMeta;
 
   tsem_post(&pRequest->body.rspSem);
   return code;
