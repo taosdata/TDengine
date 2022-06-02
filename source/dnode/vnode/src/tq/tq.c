@@ -260,18 +260,14 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
     pHandle->epoch = -1;
 
     pHandle->execHandle.subType = req.subType;
-    /*pExec->withTbName = req.withTbName;*/
-    /*pExec->withSchema = req.withSchema;*/
-    /*pExec->withTag = req.withTag;*/
-
-    pHandle->execHandle.exec.execCol.qmsg = req.qmsg;
-    req.qmsg = NULL;
 
     pHandle->pWalReader = walOpenReadHandle(pTq->pVnode->pWal);
     for (int32_t i = 0; i < 5; i++) {
       pHandle->execHandle.pExecReader[i] = tqInitSubmitMsgScanner(pTq->pVnode->pMeta);
     }
     if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
+      pHandle->execHandle.exec.execCol.qmsg = req.qmsg;
+      req.qmsg = NULL;
       for (int32_t i = 0; i < 5; i++) {
         SReadHandle handle = {
             .reader = pHandle->execHandle.pExecReader[i],
@@ -286,6 +282,18 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
       pHandle->execHandle.exec.execDb.pFilterOutTbUid =
           taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
     } else if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
+      pHandle->execHandle.exec.execTb.suid = req.suid;
+      SArray* tbUidList = taosArrayInit(0, sizeof(int64_t));
+      tsdbGetCtbIdList(pTq->pVnode->pMeta, req.suid, tbUidList);
+      tqDebug("vg %d, tq try get suid: %ld", pTq->pVnode->config.vgId, req.suid);
+      for (int32_t i = 0; i < taosArrayGetSize(tbUidList); i++) {
+        int64_t tbUid = *(int64_t*)taosArrayGet(tbUidList, i);
+        tqDebug("vg %d, idx %d, uid: %ld", pTq->pVnode->config.vgId, i, tbUid);
+      }
+      for (int32_t i = 0; i < 5; i++) {
+        tqReadHandleSetTbUidList(pHandle->execHandle.pExecReader[i], tbUidList);
+      }
+      taosArrayDestroy(tbUidList);
     }
     taosHashPut(pTq->handles, req.subKey, strlen(req.subKey), pHandle, sizeof(STqHandle));
   } else {
