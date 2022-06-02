@@ -464,12 +464,9 @@ static bool validateStateOper(const SValueNode* pVal) {
   if (TSDB_DATA_TYPE_BINARY != pVal->node.resType.type) {
     return false;
   }
-  return (0 == strcasecmp(varDataVal(pVal->datum.p), "GT") ||
-          0 == strcasecmp(varDataVal(pVal->datum.p), "GE") ||
-          0 == strcasecmp(varDataVal(pVal->datum.p), "LT") ||
-          0 == strcasecmp(varDataVal(pVal->datum.p), "LE") ||
-          0 == strcasecmp(varDataVal(pVal->datum.p), "EQ") ||
-          0 == strcasecmp(varDataVal(pVal->datum.p), "NE"));
+  return (0 == strcasecmp(varDataVal(pVal->datum.p), "GT") || 0 == strcasecmp(varDataVal(pVal->datum.p), "GE") ||
+          0 == strcasecmp(varDataVal(pVal->datum.p), "LT") || 0 == strcasecmp(varDataVal(pVal->datum.p), "LE") ||
+          0 == strcasecmp(varDataVal(pVal->datum.p), "EQ") || 0 == strcasecmp(varDataVal(pVal->datum.p), "NE"));
 }
 
 static int32_t translateStateCount(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
@@ -552,7 +549,6 @@ static int32_t translateStateDuration(SFunctionNode* pFunc, char* pErrBuf, int32
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
                              "STATEDURATION function time unit parameter should be greater than db precision");
     }
-
 
     pValue->notReserved = true;
   }
@@ -838,7 +834,7 @@ static int32_t translateConcatImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t 
   int32_t resultBytes = 0;
   int32_t sepBytes = 0;
 
-  //concat_ws separator should be constant string
+  // concat_ws separator should be constant string
   if (hasSep) {
     SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
     if (nodeType(pPara) != QUERY_NODE_VALUE) {
@@ -964,7 +960,7 @@ static bool validateTimezoneFormat(const SValueNode* pVal) {
     return false;
   }
 
-  char *tz    = varDataVal(pVal->datum.p);
+  char*   tz = varDataVal(pVal->datum.p);
   int32_t len = varDataLen(pVal->datum.p);
 
   if (len == 0) {
@@ -1008,20 +1004,20 @@ static bool validateTimezoneFormat(const SValueNode* pVal) {
 }
 
 void static addTimezoneParam(SNodeList* pList) {
-  char buf[6] = {0};
-  time_t t = taosTime(NULL);
-  struct tm *tmInfo = taosLocalTime(&t, NULL);
+  char       buf[6] = {0};
+  time_t     t = taosTime(NULL);
+  struct tm* tmInfo = taosLocalTime(&t, NULL);
   strftime(buf, sizeof(buf), "%z", tmInfo);
   int32_t len = (int32_t)strlen(buf);
 
   SValueNode* pVal = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
   pVal->literal = strndup(buf, len);
-  pVal->isDuration =false;
+  pVal->isDuration = false;
   pVal->translate = true;
   pVal->node.resType.type = TSDB_DATA_TYPE_BINARY;
   pVal->node.resType.bytes = len + VARSTR_HEADER_SIZE;
   pVal->node.resType.precision = TSDB_TIME_PRECISION_MILLI;
-  pVal->datum.p = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE +1);
+  pVal->datum.p = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE + 1);
   varDataSetLen(pVal->datum.p, len);
   strncpy(varDataVal(pVal->datum.p), pVal->literal, len);
 
@@ -1034,25 +1030,24 @@ static int32_t translateToIso8601(SFunctionNode* pFunc, char* pErrBuf, int32_t l
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  //param0
+  // param0
   uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
   if (!IS_INTEGER_TYPE(paraType) && TSDB_DATA_TYPE_TIMESTAMP != paraType) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  //param1
+  // param1
   if (numOfParams == 2) {
     SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
 
     if (!validateTimezoneFormat(pValue)) {
-      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                             "Invalid timzone format");
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR, "Invalid timzone format");
     }
-  } else { //add default client timezone
+  } else {  // add default client timezone
     addTimezoneParam(pFunc->pParameterList);
   }
 
-  //set result type
+  // set result type
   pFunc->node.resType = (SDataType){.bytes = 64, .type = TSDB_DATA_TYPE_BINARY};
   return TSDB_CODE_SUCCESS;
 }
@@ -1143,8 +1138,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = functionFinalize,
     .invertFunc   = countInvertFunction,
     .combineFunc = combineFunction,
-    // .pPartialFunc = "count",
-    // .pMergeFunc   = "sum"
+    .pPartialFunc = "count",
+    .pMergeFunc   = "sum"
   },
   {
     .name = "sum",

@@ -230,6 +230,10 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiInterval";
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
       return "PhysiStreamInterval";
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
+      return "PhysiStreamFinalInterval";
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
+      return "PhysiStreamSemiInterval";
     case QUERY_NODE_PHYSICAL_PLAN_FILL:
       return "PhysiFill";
     case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
@@ -3611,6 +3615,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return physiSortNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
       return physiIntervalNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_FILL:
       return physiFillNodeToJson(pObj, pJson);
@@ -3728,6 +3734,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToPhysiSortNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
       return jsonToPhysiIntervalNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_FILL:
       return jsonToPhysiFillNode(pJson, pObj);

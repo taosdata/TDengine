@@ -106,21 +106,28 @@ typedef struct SMergeLogicNode {
 
 typedef enum EWindowType { WINDOW_TYPE_INTERVAL = 1, WINDOW_TYPE_SESSION, WINDOW_TYPE_STATE } EWindowType;
 
+typedef enum EStreamIntervalAlgorithm {
+  STREAM_INTERVAL_ALGO_FINAL = 1,
+  STREAM_INTERVAL_ALGO_SEMI,
+  STREAM_INTERVAL_ALGO_SINGLE
+} EStreamIntervalAlgorithm;
+
 typedef struct SWindowLogicNode {
-  SLogicNode  node;
-  EWindowType winType;
-  SNodeList*  pFuncs;
-  int64_t     interval;
-  int64_t     offset;
-  int64_t     sliding;
-  int8_t      intervalUnit;
-  int8_t      slidingUnit;
-  int64_t     sessionGap;
-  SNode*      pTspk;
-  SNode*      pStateExpr;
-  int8_t      triggerType;
-  int64_t     watermark;
-  double       filesFactor;
+  SLogicNode               node;
+  EWindowType              winType;
+  SNodeList*               pFuncs;
+  int64_t                  interval;
+  int64_t                  offset;
+  int64_t                  sliding;
+  int8_t                   intervalUnit;
+  int8_t                   slidingUnit;
+  int64_t                  sessionGap;
+  SNode*                   pTspk;
+  SNode*                   pStateExpr;
+  int8_t                   triggerType;
+  int64_t                  watermark;
+  double                   filesFactor;
+  EStreamIntervalAlgorithm stmInterAlgo;
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
@@ -301,6 +308,8 @@ typedef struct SIntervalPhysiNode {
 } SIntervalPhysiNode;
 
 typedef SIntervalPhysiNode SStreamIntervalPhysiNode;
+typedef SIntervalPhysiNode SStreamFinalIntervalPhysiNode;
+typedef SIntervalPhysiNode SStreamSemiIntervalPhysiNode;
 
 typedef struct SFillPhysiNode {
   SPhysiNode  node;
