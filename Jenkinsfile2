@@ -283,7 +283,7 @@ def run_win_test() {
         time /t
         cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\community\\tests\\system-test
         echo "testing ..."
-        test-all.bat  "{\"host\":\"''' + linux_node_ip + '''\",\"port\":22,\"user\":\"root\",\"password\":\"''' + linux_node_pass + '''\",\"path\":\"/var/lib/jenkins/workspace/TDinternal\"}"
+        test-all.bat  "{\\\"host\\\":\\\"''' + linux_node_ip + '''\\\",\\\"port\\\":22,\\\"user\\\":\\\"root\\\",\\\"password\\\":\\\"''' + linux_node_pass + '''\\\",\\\"path\\\":\\\"/var/lib/jenkins/workspace/TDinternal\\\"}"
         time /t
     '''
 }
@@ -337,13 +337,16 @@ pipeline {
                                 script: 'jq .password /home/node_info.json | sed "s/\\\"//g"',
                                 returnStdout: true
                             ).trim()
+                            echo "${linux_node_ip}:${linux_node_pass}"
                         }
                         catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
                             timeout(time: 40, unit: 'MINUTES'){
+                                pre_test()
                                 script {
                                     sh '''
                                         date
                                         rm -rf ${WKC}/debug
+                                        cd ${WKC}/tests/parallel_test
                                         time ./container_build.sh -w ${WKDIR} -t 8 -e
                                         rm -f /tmp/cases.task
                                         ./collect_cases.sh -e
@@ -359,7 +362,6 @@ pipeline {
                         }
                         catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
                             timeout(time: 15, unit: 'MINUTES'){
-                                pre_test()
                                 script {
                                     sh '''
                                         echo "packaging ..."
