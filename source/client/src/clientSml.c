@@ -960,10 +960,10 @@ static int32_t smlParseInfluxString(const char* sql, SSmlLineInfo *elements, SSm
     return TSDB_CODE_SML_INVALID_DATA;
   }
   elements->colsLen = sql - elements->cols;
-//  if(elements->colsLen == 0) {
-//    smlBuildInvalidDataMsg(msg, "cols is empty", NULL);
-//    return TSDB_CODE_SML_INVALID_DATA;
-//  }
+  if(elements->colsLen == 0) {
+    smlBuildInvalidDataMsg(msg, "cols is empty", NULL);
+    return TSDB_CODE_SML_INVALID_DATA;
+  }
 
   // parse timestamp
   JUMP_SPACE(sql)
