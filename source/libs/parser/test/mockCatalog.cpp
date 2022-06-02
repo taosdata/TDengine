@@ -188,8 +188,8 @@ int32_t __catalogGetDBVgVersion(SCatalog* pCtg, const char* dbFName, int32_t* ve
 }
 
 int32_t __catalogGetDBVgInfo(SCatalog* pCtg, void* pRpc, const SEpSet* pMgmtEps, const char* dbFName,
-                             SArray** vgroupList) {
-  return 0;
+                             SArray** pVgList) {
+  return g_mockCatalogService->catalogGetDBVgInfo(dbFName, pVgList);
 }
 
 int32_t __catalogGetDBCfg(SCatalog* pCtg, void* pRpc, const SEpSet* pMgmtEps, const char* dbFName, SDbCfgInfo* pDbCfg) {

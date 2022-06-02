@@ -3,6 +3,10 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/deploy.sh -n dnode2 -i 2
 system sh/deploy.sh -n dnode3 -i 3
 system sh/deploy.sh -n dnode4 -i 4
+system sh/cfg.sh -n dnode1 -c transPullupInterval -v 1
+system sh/cfg.sh -n dnode2 -c transPullupInterval -v 1
+system sh/cfg.sh -n dnode3 -c transPullupInterval -v 1
+system sh/cfg.sh -n dnode4 -c transPullupInterval -v 1
 system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode2 -s start
 system sh/exec.sh -n dnode3 -s start
@@ -18,7 +22,7 @@ $x = 0
 step1: 
 	$x = $x + 1
 	sleep 1000
-	if $x == 50 then
+	if $x == 10 then
 		return -1
 	endi
 sql show dnodes -x step1
@@ -41,7 +45,7 @@ $x = 0
 step2: 
 	$x = $x + 1
 	sleep 1000
-	if $x == 50 then
+	if $x == 10 then
 		return -1
 	endi
 sql show mnodes -x step2
@@ -72,7 +76,7 @@ $x = 0
 step4: 
 	$x = $x + 1
 	sleep 1000
-	if $x == 50 then
+	if $x == 10 then
 		return -1
 	endi
 sql show mnodes -x step4
@@ -102,7 +106,7 @@ $x = 0
 step5: 
 	$x = $x + 1
 	sleep 1000
-	if $x == 50 then
+	if $x == 10 then
 		return -1
 	endi
 sql show mnodes -x step5
@@ -127,7 +131,7 @@ $x = 0
 step6: 
 	$x = $x + 1
 	sleep 1000
-	if $x == 50 then
+	if $x == 10 then
 		return -1
 	endi
 sql show mnodes -x step6

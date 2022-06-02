@@ -24,6 +24,7 @@ static void msg_process(TAOS_RES* msg) {
   char buf[1024];
   /*memset(buf, 0, 1024);*/
   printf("topic: %s\n", tmq_get_topic_name(msg));
+  printf("db: %s\n", tmq_get_db_name(msg));
   printf("vg: %d\n", tmq_get_vgroup_id(msg));
   while (1) {
     TAOS_ROW row = taos_fetch_row(msg);
@@ -195,7 +196,7 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
     if (tmqmessage) {
       cnt++;
       msg_process(tmqmessage);
-      if (cnt >= 2) break;
+      /*if (cnt >= 2) break;*/
       /*printf("get data\n");*/
       taos_free_result(tmqmessage);
       /*} else {*/

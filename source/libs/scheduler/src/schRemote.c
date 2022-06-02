@@ -162,6 +162,9 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
         tDecoderClear(&coder);
         SCH_ERR_JRET(code);
         SCH_ERR_JRET(rsp.code);
+        
+        pJob->execRes.res = rsp.pMeta;
+        pJob->execRes.msgType = TDMT_VND_ALTER_TABLE;
       }
 
       SCH_ERR_JRET(rspCode);
@@ -204,8 +207,8 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
         SCH_TASK_DLOG("submit succeed, affectedRows:%d", rsp->affectedRows);
 
         SCH_LOCK(SCH_WRITE, &pJob->resLock);
-        if (pJob->queryRes) {
-          SSubmitRsp *sum = pJob->queryRes;
+        if (pJob->execRes.res) {
+          SSubmitRsp *sum = pJob->execRes.res;
           sum->affectedRows += rsp->affectedRows;
           sum->nBlocks += rsp->nBlocks;
           sum->pBlocks = taosMemoryRealloc(sum->pBlocks, sum->nBlocks * sizeof(*sum->pBlocks));
@@ -213,7 +216,8 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
           taosMemoryFree(rsp->pBlocks);
           taosMemoryFree(rsp);
         } else {
-          pJob->queryRes = rsp;
+          pJob->execRes.res = rsp;
+          pJob->execRes.msgType = TDMT_VND_SUBMIT;
         }
         SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
       }

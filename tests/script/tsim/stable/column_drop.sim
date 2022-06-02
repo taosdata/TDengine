@@ -129,7 +129,8 @@ endi
 
 print ========== step2 drop column c5
 sql alter table db.stb drop column c5
-sql insert into db.ctb values(now+2s, 1, 2, 3, 4, 5)
+sql_error insert into db.ctb values(now+2s, 1, 2, 3, 4, 5)
+sql insert into db.ctb values(now+2s, 1, 2, 3, 4)
 sql insert into db.ctb values(now+3s, 1, 2, 3, 4)
 sql_error insert into db.ctb values(now+2s, 1, 2, 3, 4, 5)
 

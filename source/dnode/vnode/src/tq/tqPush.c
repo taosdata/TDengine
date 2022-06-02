@@ -15,22 +15,80 @@
 
 #include "tq.h"
 
+void tqTmrRspFunc(void* param, void* tmrId) {
+  STqHandle* pHandle = (STqHandle*)param;
+  atomic_store_8(&pHandle->pushHandle.tmrStopped, 1);
+}
+
 int32_t tqExecFromInputQ(STQ* pTq, STqHandle* pHandle) {
+  SMqDataBlkRsp rsp = {0};
   // 1. guard and set status executing
-  // 2. check processedVer
-  // 2.1. if not missed, get msg from queue
-  // 2.2. if missed, scan wal
-  //
-  // 3. exec, after each success, update processed ver
-  // first run
-  // set exec status closing
-  // second run
-  // set exec status idle
-  //
+  int8_t execStatus =
+      atomic_val_compare_exchange_8(&pHandle->pushHandle.execStatus, TASK_STATUS__IDLE, TASK_STATUS__EXECUTING);
+  if (execStatus == TASK_STATUS__IDLE) {
+    SStreamDataSubmit* pSubmit = NULL;
+    // 2. check processedVer
+    // 2.1. if not missed, get msg from queue
+    // 2.2. if missed, scan wal
+    pSubmit = streamQNextItem(&pHandle->pushHandle.inputQ);
+    while (pHandle->pushHandle.processedVer <= pSubmit->ver) {
+      // read from wal
+    }
+    while (pHandle->pushHandle.processedVer > pSubmit->ver + 1) {
+      streamQSetSuccess(&pHandle->pushHandle.inputQ);
+      streamDataSubmitRefDec(pSubmit);
+      pSubmit = streamQNextItem(&pHandle->pushHandle.inputQ);
+      if (pSubmit == NULL) break;
+    }
+    // 3. exec, after each success, update processed ver
+    // first run
+    while (pSubmit != NULL) {
+      ASSERT(pSubmit->ver == pHandle->pushHandle.processedVer + 1);
+      if (tqDataExec(pTq, &pHandle->execHandle, pSubmit->data, &rsp, 0) < 0) {
+        /*ASSERT(0);*/
+      }
+      // update processed
+      atomic_store_64(&pHandle->pushHandle.processedVer, pSubmit->ver);
+      streamQSetSuccess(&pHandle->pushHandle.inputQ);
+      streamDataSubmitRefDec(pSubmit);
+      if (rsp.blockNum > 0) {
+        goto SEND_RSP;
+      } else {
+        pSubmit = streamQNextItem(&pHandle->pushHandle.inputQ);
+      }
+    }
+    // set exec status closing
+    atomic_store_8(&pHandle->pushHandle.execStatus, TASK_STATUS__CLOSING);
+    // second run
+    while (pSubmit != NULL) {
+      ASSERT(pSubmit->ver == pHandle->pushHandle.processedVer + 1);
+      if (tqDataExec(pTq, &pHandle->execHandle, pSubmit->data, &rsp, 0) < 0) {
+        /*ASSERT(0);*/
+      }
+      // update processed
+      atomic_store_64(&pHandle->pushHandle.processedVer, pSubmit->ver);
+      streamQSetSuccess(&pHandle->pushHandle.inputQ);
+      streamDataSubmitRefDec(pSubmit);
+      if (rsp.blockNum > 0) {
+        goto SEND_RSP;
+      } else {
+        pSubmit = streamQNextItem(&pHandle->pushHandle.inputQ);
+      }
+    }
+    // set exec status idle
+    atomic_store_8(&pHandle->pushHandle.execStatus, TASK_STATUS__IDLE);
+  }
+SEND_RSP:
   // 4. if get result
   // 4.1 set exec input status blocked and exec status idle
+  atomic_store_8(&pHandle->pushHandle.execStatus, TASK_STATUS__IDLE);
   // 4.2 rpc send
+  rsp.rspOffset = pHandle->pushHandle.processedVer;
+  /*if (tqSendPollRsp(pTq, pMsg, pReq, &rsp) < 0) {*/
+  /*return -1;*/
+  /*}*/
   // 4.3 clear rpc info
+  memset(&pHandle->pushHandle.rpcInfo, 0, sizeof(SRpcHandleInfo));
   return 0;
 }
 
@@ -50,12 +108,15 @@ int32_t tqOpenPushHandle(STQ* pTq, STqHandle* pHandle) {
   return 0;
 }
 
-void tqPreparePush(STQ* pTq, STqHandle* pHandle, int64_t reqId, const SRpcHandleInfo* pInfo, int64_t processedVer) {
+int32_t tqPreparePush(STQ* pTq, STqHandle* pHandle, int64_t reqId, const SRpcHandleInfo* pInfo, int64_t processedVer,
+                      int64_t timeout) {
   memcpy(&pHandle->pushHandle.rpcInfo, pInfo, sizeof(SRpcHandleInfo));
   atomic_store_64(&pHandle->pushHandle.reqId, reqId);
   atomic_store_64(&pHandle->pushHandle.processedVer, processedVer);
   atomic_store_8(&pHandle->pushHandle.inputStatus, TASK_INPUT_STATUS__NORMAL);
-  // set timeout timer
+  atomic_store_8(&pHandle->pushHandle.tmrStopped, 0);
+  taosTmrReset(tqTmrRspFunc, (int32_t)timeout, pHandle, tqMgmt.timer, &pHandle->pushHandle.timerId);
+  return 0;
 }
 
 int32_t tqEnqueue(STqHandle* pHandle, SStreamDataSubmit* pSubmit) {
