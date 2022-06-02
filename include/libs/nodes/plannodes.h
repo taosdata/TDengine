@@ -94,8 +94,14 @@ typedef struct SVnodeModifLogicNode {
 typedef struct SExchangeLogicNode {
   SLogicNode node;
   int32_t    srcGroupId;
-  uint8_t    precision;
 } SExchangeLogicNode;
+
+typedef struct SMergeLogicNode {
+  SLogicNode node;
+  SNodeList* pMergeKeys;
+  int32_t    numOfChannels;
+  int32_t    srcGroupId;
+} SMergeLogicNode;
 
 typedef enum EWindowType { WINDOW_TYPE_INTERVAL = 1, WINDOW_TYPE_SESSION, WINDOW_TYPE_STATE } EWindowType;
 
@@ -264,6 +270,13 @@ typedef struct SExchangePhysiNode {
   int32_t    srcGroupId;     // group id of datasource suplans
   SNodeList* pSrcEndPoints;  // element is SDownstreamSource, scheduler fill by calling qSetSuplanExecutionNode
 } SExchangePhysiNode;
+
+typedef struct SMergePhysiNode {
+  SPhysiNode node;
+  SNodeList* pMergeKeys;
+  int32_t    numOfChannels;
+  int32_t    srcGroupId;
+} SMergePhysiNode;
 
 typedef struct SWinodwPhysiNode {
   SPhysiNode node;

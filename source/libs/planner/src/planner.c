@@ -58,16 +58,19 @@ static int32_t setSubplanExecutionNode(SPhysiNode* pNode, int32_t groupId, SDown
   if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == nodeType(pNode)) {
     SExchangePhysiNode* pExchange = (SExchangePhysiNode*)pNode;
     if (pExchange->srcGroupId == groupId) {
-      if (NULL == pExchange->pSrcEndPoints) {
-        pExchange->pSrcEndPoints = nodesMakeList();
-        if (NULL == pExchange->pSrcEndPoints) {
-          return TSDB_CODE_OUT_OF_MEMORY;
-        }
+      return nodesListMakeStrictAppend(&pExchange->pSrcEndPoints, nodesCloneNode(pSource));
+    }
+  } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE == nodeType(pNode)) {
+    SMergePhysiNode* pMerge = (SMergePhysiNode*)pNode;
+    if (pMerge->srcGroupId == groupId) {
+      SExchangePhysiNode* pExchange =
+          (SExchangePhysiNode*)nodesListGetNode(pMerge->node.pChildren, pMerge->numOfChannels - 1);
+      if (1 == pMerge->numOfChannels) {
+        pMerge->numOfChannels = LIST_LENGTH(pMerge->node.pChildren);
+      } else {
+        --(pMerge->numOfChannels);
       }
-      if (TSDB_CODE_SUCCESS != nodesListStrictAppend(pExchange->pSrcEndPoints, nodesCloneNode(pSource))) {
-        return TSDB_CODE_OUT_OF_MEMORY;
-      }
-      return TSDB_CODE_SUCCESS;
+      return nodesListMakeStrictAppend(&pExchange->pSrcEndPoints, nodesCloneNode(pSource));
     }
   }
 
