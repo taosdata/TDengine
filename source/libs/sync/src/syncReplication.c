@@ -134,7 +134,22 @@ int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
     // batch optimized
     // SyncIndex lastIndex = syncUtilMinIndex(pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore), nextIndex);
 
-    if (syncNodeIsIndexInSnapshot(pSyncNode, nextIndex)) {
+    // sending snapshot finish?
+    bool                 snapshotSendingFinish = false;
+    SSyncSnapshotSender* pSender = NULL;
+    for (int i = 0; i < pSyncNode->replicaNum; ++i) {
+      if (syncUtilSameId(pDestId, &((pSyncNode->replicasId)[i]))) {
+        pSender = (pSyncNode->senders)[i];
+      }
+    }
+    ASSERT(pSender != NULL);
+    snapshotSendingFinish = (pSender->finish) && (pSender->term == pSyncNode->pRaftStore->currentTerm);
+    if (snapshotSendingFinish) {
+      sInfo("snapshotSendingFinish! term:%lu", pSender->term);
+    }
+
+    if ((syncNodeIsIndexInSnapshot(pSyncNode, nextIndex - 1) && !snapshotSendingFinish) ||
+        syncNodeIsIndexInSnapshot(pSyncNode, nextIndex)) {
       // will send this msg until snapshot receive finish!
       SSnapshot snapshot;
       pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
@@ -142,14 +157,10 @@ int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
             snapshot.lastApplyIndex, snapshot.lastApplyTerm);
 
       // do not use next index
-      // always send from new last index + 1
-      SyncIndex lastIndex;
-      SyncTerm  lastTerm;
-      ret = syncNodeGetLastIndexTerm(pSyncNode, &lastIndex, &lastTerm);
-      ASSERT(ret == 0);
+      // always send from snapshot.lastApplyIndex + 1, and wait for snapshot transfer finish
 
-      ret = syncNodeGetPreIndexTerm(pSyncNode, lastIndex + 1, &preLogIndex, &preLogTerm);
-      ASSERT(ret == 0);
+      preLogIndex = snapshot.lastApplyIndex;
+      preLogTerm = snapshot.lastApplyTerm;
 
       // to claim leader
       SyncAppendEntries* pMsg = syncAppendEntriesBuild(0, pSyncNode->vgId);

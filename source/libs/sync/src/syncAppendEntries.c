@@ -471,12 +471,18 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
     ASSERT(pMsg->prevLogIndex == snapshot.lastApplyIndex);
 
     logOK = (pMsg->prevLogIndex == snapshot.lastApplyIndex) && (pMsg->prevLogTerm == snapshot.lastApplyTerm);
+    sTrace(
+        "1 - logOK:%d, pMsg->prevLogIndex:%ld, snapshot.lastApplyIndex:%ld, pMsg->prevLogTerm:%lu, "
+        "snapshot.lastApplyTerm:%lu",
+        logOK, pMsg->prevLogIndex, snapshot.lastApplyIndex, pMsg->prevLogTerm, snapshot.lastApplyTerm);
 
   } else {
     logOK = (pMsg->prevLogIndex == SYNC_INDEX_INVALID) ||
             ((pMsg->prevLogIndex >= SYNC_INDEX_BEGIN) &&
              (pMsg->prevLogIndex <= ths->pLogStore->getLastIndex(ths->pLogStore)) &&
              (pMsg->prevLogTerm == localPreLogTerm));
+    sTrace("2 - logOK:%d, pMsg->prevLogIndex:%ld, getLastIndex:%ld, pMsg->prevLogTerm:%lu, localPreLogTerm:%lu", logOK,
+           pMsg->prevLogIndex, ths->pLogStore->getLastIndex(ths->pLogStore), pMsg->prevLogTerm, localPreLogTerm);
   }
 
   // reject request

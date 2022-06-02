@@ -75,7 +75,8 @@ int32_t syncIOSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
     syncUtilMsgNtoH(pMsg->pCont);
 
     char logBuf[256] = {0};
-    snprintf(logBuf, sizeof(logBuf), "==syncIOSendMsg== %s:%d msgType:%d", pEpSet->eps[0].fqdn, pEpSet->eps[0].port, pMsg->msgType);
+    snprintf(logBuf, sizeof(logBuf), "==syncIOSendMsg== %s:%d msgType:%d", pEpSet->eps[0].fqdn, pEpSet->eps[0].port,
+             pMsg->msgType);
     syncRpcMsgLog2(logBuf, pMsg);
 
     syncUtilMsgHtoN(pMsg->pCont);

@@ -40,6 +40,7 @@ SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaI
     pSender->pSyncNode = pSyncNode;
     pSender->replicaIndex = replicaIndex;
     pSender->term = pSyncNode->pRaftStore->currentTerm;
+    pSender->finish = false;
   } else {
     sInfo("snapshotSenderCreate cannot create sender");
   }
@@ -270,6 +271,7 @@ cJSON *snapshotSender2Json(SSyncSnapshotSender *pSender) {
     cJSON_AddNumberToObject(pRoot, "replicaIndex", pSender->replicaIndex);
     snprintf(u64buf, sizeof(u64buf), "%lu", pSender->term);
     cJSON_AddStringToObject(pRoot, "term", u64buf);
+    cJSON_AddNumberToObject(pRoot, "finish", pSender->finish);
   }
 
   cJSON *pJson = cJSON_CreateObject();
@@ -435,7 +437,7 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
         pReceiver->pWriter = NULL;
         snapshotReceiverStop(pReceiver);
         pReceiver->ack = pMsg->seq;
-        needRsp = false;
+        needRsp = true;
 
         char *msgStr = syncSnapshotSend2Str(pMsg);
         sTrace("snapshot recv end ack:%d recv msg:%s", pReceiver->ack, msgStr);
@@ -506,6 +508,7 @@ int32_t syncNodeOnSnapshotRspCb(SSyncNode *pSyncNode, SyncSnapshotRsp *pMsg) {
     if (pMsg->term == pSyncNode->pRaftStore->currentTerm) {
       // receiver ack is finish, close sender
       if (pMsg->ack == SYNC_SNAPSHOT_SEQ_END) {
+        pSender->finish = true;
         snapshotSenderStop(pSender);
         return 0;
       }

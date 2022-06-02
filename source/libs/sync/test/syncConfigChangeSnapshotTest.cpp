@@ -129,7 +129,7 @@ int32_t SnapshotStopWrite(struct SSyncFSM* pFsm, void* pWriter, bool isApply) {
   sTrace("%s", logBuf);
 
   if (isApply) {
-    gSnapshotLastApplyIndex = 7;
+    gSnapshotLastApplyIndex = 10;
     gSnapshotLastApplyTerm = 1;
   }
 
