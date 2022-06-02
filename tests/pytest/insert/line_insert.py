@@ -208,6 +208,14 @@ class TDTestCase:
 
         tdSql.query("select * from type_json5")
         tdSql.checkData(0, 2, '''{"jsonC":"0"}''')
+        try:
+            self._conn.schemaless_insert([
+                                    "measurement,host=host1 field1=12i,field2=2.0,fieldKey=\"Launch\" 1654078242716",
+                                    "measurement,host=host1"
+                                    ], TDSmlProtocolType.LINE.value, TDSmlTimestampType.MILLI_SECOND.value)
+            tdLog.exit("%s failed: no exception happen here" % __file__)           
+        except Exception as e:
+            pass
 
     def stop(self):
         tdSql.close()
