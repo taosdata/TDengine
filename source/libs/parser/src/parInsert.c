@@ -1329,6 +1329,8 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
     SName name;
     CHECK_CODE(createSName(&name, &tbnameToken, pCxt->pComCxt->acctId, pCxt->pComCxt->db, &pCxt->msg));
 
+    CHECK_CODE(isNotSchemalessDb(pCxt->pComCxt, name.dbname));
+
     tNameExtractFullName(&name, tbFName);
     CHECK_CODE(taosHashPut(pCxt->pTableNameHashObj, tbFName, strlen(tbFName), &name, sizeof(SName)));
 
@@ -1468,11 +1470,6 @@ int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery) {
   (*pQuery)->msgType = TDMT_VND_SUBMIT;
   (*pQuery)->pRoot = (SNode*)context.pOutput;
 
-  int32_t code = isNotSchemalessDb(pContext);
-  if(code != TSDB_CODE_SUCCESS){
-    return code;
-  }
-
   if (NULL == (*pQuery)->pTableList) {
     (*pQuery)->pTableList = taosArrayInit(taosHashGetSize(context.pTableNameHashObj), sizeof(SName));
     if (NULL == (*pQuery)->pTableList) {
@@ -1482,7 +1479,7 @@ int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery) {
 
   context.pOutput->payloadType = PAYLOAD_TYPE_KV;
 
-  code = skipInsertInto(&context.pSql, &context.msg);
+  int32_t code = skipInsertInto(&context.pSql, &context.msg);
   if (TSDB_CODE_SUCCESS == code) {
     code = parseInsertBody(&context);
   }

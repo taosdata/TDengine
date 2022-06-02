@@ -960,10 +960,10 @@ static int32_t smlParseInfluxString(const char* sql, SSmlLineInfo *elements, SSm
     return TSDB_CODE_SML_INVALID_DATA;
   }
   elements->colsLen = sql - elements->cols;
-  if(elements->colsLen == 0) {
-    smlBuildInvalidDataMsg(msg, "cols is empty", NULL);
-    return TSDB_CODE_SML_INVALID_DATA;
-  }
+//  if(elements->colsLen == 0) {
+//    smlBuildInvalidDataMsg(msg, "cols is empty", NULL);
+//    return TSDB_CODE_SML_INVALID_DATA;
+//  }
 
   // parse timestamp
   JUMP_SPACE(sql)
@@ -1124,7 +1124,7 @@ static int32_t smlParseTelnetString(SSmlHandle *info, const char* sql, SSmlTable
 }
 
 static int32_t smlParseCols(const char* data, int32_t len, SArray *cols, char *childTableName, bool isTag, SHashObj *dumplicateKey, SSmlMsgBuf *msg){
-  if(isTag && len == 0){
+  if(len == 0){
     return TSDB_CODE_SUCCESS;
   }
 
@@ -2407,6 +2407,7 @@ TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int pr
   info->pRequest->code = smlProcess(info, lines, numLines);
 
 end:
+  uDebug("result:%s", info->msgBuf.buf);
   smlDestroyInfo(info);
   return (TAOS_RES*)request;
 }
