@@ -80,7 +80,7 @@ static TdThreadOnce isInit = PTHREAD_ONCE_INIT;
 static int indexTermSearch(SIndex* sIdx, SIndexTermQuery* term, SArray** result);
 
 static void indexInterResultsDestroy(SArray* results);
-static int  indexMergeFinalResults(SArray* interResults, EIndexOperatorType oType, SArray* finalResult);
+static int  indexMergeFinalResults(SArray* in, EIndexOperatorType oType, SArray* out);
 
 static int indexGenTFile(SIndex* index, IndexCache* cache, SArray* batch);
 
@@ -150,6 +150,7 @@ void indexClose(SIndex* sIdx) {
       indexCacheForceToMerge((void*)(*pCache));
       indexInfo("%s wait to merge", (*pCache)->colName);
       indexWait((void*)(sIdx));
+      indexInfo("%s finish to wait", (*pCache)->colName);
       iter = taosHashIterate(sIdx->colObj, iter);
       indexCacheUnRef(*pCache);
     }
@@ -386,21 +387,21 @@ static void indexInterResultsDestroy(SArray* results) {
   taosArrayDestroy(results);
 }
 
-static int indexMergeFinalResults(SArray* interResults, EIndexOperatorType oType, SArray* fResults) {
+static int indexMergeFinalResults(SArray* in, EIndexOperatorType oType, SArray* out) {
   // refactor, merge interResults into fResults by oType
-  for (int i = 0; i < taosArrayGetSize(interResults); i--) {
-    SArray* t = taosArrayGetP(interResults, i);
+  for (int i = 0; i < taosArrayGetSize(in); i--) {
+    SArray* t = taosArrayGetP(in, i);
     taosArraySort(t, uidCompare);
     taosArrayRemoveDuplicate(t, uidCompare, NULL);
   }
 
   if (oType == MUST) {
-    iIntersection(interResults, fResults);
+    iIntersection(in, out);
   } else if (oType == SHOULD) {
-    iUnion(interResults, fResults);
+    iUnion(in, out);
   } else if (oType == NOT) {
     // just one column index, enhance later
-    taosArrayAddAll(fResults, interResults);
+    // taosArrayAddAll(fResults, interResults);
     // not use currently
   }
   return 0;
@@ -454,7 +455,7 @@ static void indexDestroyFinalResult(SArray* result) {
   taosArrayDestroy(result);
 }
 
-int indexFlushCacheToTFile(SIndex* sIdx, void* cache) {
+int indexFlushCacheToTFile(SIndex* sIdx, void* cache, bool quit) {
   if (sIdx == NULL) {
     return -1;
   }
@@ -462,7 +463,10 @@ int indexFlushCacheToTFile(SIndex* sIdx, void* cache) {
 
   int64_t st = taosGetTimestampUs();
 
-  IndexCache*  pCache = (IndexCache*)cache;
+  IndexCache* pCache = (IndexCache*)cache;
+
+  while (quit && atomic_load_32(&pCache->merging) == 1) {
+  }
   TFileReader* pReader = tfileGetReaderByCol(sIdx->tindex, pCache->suid, pCache->colName);
   if (pReader == NULL) {
     indexWarn("empty tfile reader found");
@@ -473,9 +477,9 @@ int indexFlushCacheToTFile(SIndex* sIdx, void* cache) {
     indexError("%p immtable is empty, ignore merge opera", pCache);
     indexCacheDestroyImm(pCache);
     tfileReaderUnRef(pReader);
-    if (sIdx->quit) {
+    atomic_store_32(&pCache->merging, 0);
+    if (quit) {
       indexPost(sIdx);
-      // indexCacheBroadcast(pCache);
     }
     indexReleaseRef(sIdx->refId);
     return 0;
@@ -536,7 +540,8 @@ int indexFlushCacheToTFile(SIndex* sIdx, void* cache) {
   } else {
     indexInfo("success to merge , time cost: %" PRId64 "ms", cost / 1000);
   }
-  if (sIdx->quit) {
+  atomic_store_32(&pCache->merging, 0);
+  if (quit) {
     indexPost(sIdx);
   }
   indexReleaseRef(sIdx->refId);
@@ -605,6 +610,7 @@ static int indexGenTFile(SIndex* sIdx, IndexCache* cache, SArray* batch) {
   taosThreadMutexLock(&tf->mtx);
   tfileCachePut(tf->cache, &key, reader);
   taosThreadMutexUnlock(&tf->mtx);
+
   return ret;
 END:
   if (tw != NULL) {

@@ -59,6 +59,7 @@ typedef struct SScanLogicNode {
   int8_t             triggerType;
   int64_t            watermark;
   int16_t            tsColId;
+  double             filesFactor;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -94,8 +95,14 @@ typedef struct SVnodeModifLogicNode {
 typedef struct SExchangeLogicNode {
   SLogicNode node;
   int32_t    srcGroupId;
-  uint8_t    precision;
 } SExchangeLogicNode;
+
+typedef struct SMergeLogicNode {
+  SLogicNode node;
+  SNodeList* pMergeKeys;
+  int32_t    numOfChannels;
+  int32_t    srcGroupId;
+} SMergeLogicNode;
 
 typedef enum EWindowType { WINDOW_TYPE_INTERVAL = 1, WINDOW_TYPE_SESSION, WINDOW_TYPE_STATE } EWindowType;
 
@@ -113,6 +120,7 @@ typedef struct SWindowLogicNode {
   SNode*      pStateExpr;
   int8_t      triggerType;
   int64_t     watermark;
+  double       filesFactor;
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
@@ -222,6 +230,7 @@ typedef struct STableScanPhysiNode {
   int8_t         triggerType;
   int64_t        watermark;
   int16_t        tsColId;
+  double         filesFactor;
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;
@@ -265,6 +274,13 @@ typedef struct SExchangePhysiNode {
   SNodeList* pSrcEndPoints;  // element is SDownstreamSource, scheduler fill by calling qSetSuplanExecutionNode
 } SExchangePhysiNode;
 
+typedef struct SMergePhysiNode {
+  SPhysiNode node;
+  SNodeList* pMergeKeys;
+  int32_t    numOfChannels;
+  int32_t    srcGroupId;
+} SMergePhysiNode;
+
 typedef struct SWinodwPhysiNode {
   SPhysiNode node;
   SNodeList* pExprs;  // these are expression list of parameter expression of function
@@ -272,6 +288,7 @@ typedef struct SWinodwPhysiNode {
   SNode*     pTspk;  // timestamp primary key
   int8_t     triggerType;
   int64_t    watermark;
+  double     filesFactor;
 } SWinodwPhysiNode;
 
 typedef struct SIntervalPhysiNode {

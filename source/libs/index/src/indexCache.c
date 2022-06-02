@@ -494,16 +494,19 @@ static void indexCacheMakeRoomForWrite(IndexCache* cache) {
       // TODO: wake up by condition variable
       indexCacheWait(cache);
     } else {
-      bool notifyQuit = cache->occupiedMem >= MEM_SIGNAL_QUIT ? true : false;
+      bool quit = cache->occupiedMem >= MEM_SIGNAL_QUIT ? true : false;
 
       indexCacheRef(cache);
       cache->imm = cache->mem;
       cache->mem = indexInternalCacheCreate(cache->type);
       cache->mem->pCache = cache;
       cache->occupiedMem = 0;
+      if (quit == false) {
+        atomic_store_32(&cache->merging, 1);
+      }
       // sched to merge
       // unref cache in bgwork
-      indexCacheSchedToMerge(cache, notifyQuit);
+      indexCacheSchedToMerge(cache, quit);
     }
   }
 }
@@ -725,9 +728,9 @@ static void doMergeWork(SSchedMsg* msg) {
   IndexCache* pCache = msg->ahandle;
   SIndex*     sidx = (SIndex*)pCache->index;
 
-  sidx->quit = msg->thandle ? true : false;
+  int quit = msg->thandle ? true : false;
   taosMemoryFree(msg->thandle);
-  indexFlushCacheToTFile(sidx, pCache);
+  indexFlushCacheToTFile(sidx, pCache, quit);
 }
 static bool indexCacheIteratorNext(Iterate* itera) {
   SSkipListIterator* iter = itera->iter;

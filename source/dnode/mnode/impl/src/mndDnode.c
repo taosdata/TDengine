@@ -17,6 +17,7 @@
 #include "mndDnode.h"
 #include "mndAuth.h"
 #include "mndMnode.h"
+#include "mndQnode.h"
 #include "mndShow.h"
 #include "mndTrans.h"
 #include "mndUser.h"
@@ -98,12 +99,9 @@ static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
   if (pRaw == NULL) return -1;
   if (sdbSetRawStatus(pRaw, SDB_STATUS_READY) != 0) return -1;
 
-  mDebug("dnode:%d, will be created while deploy sdb, raw:%p", dnodeObj.id, pRaw);
+  mDebug("dnode:%d, will be created when deploying, raw:%p", dnodeObj.id, pRaw);
 
-#if 0
-  return sdbWrite(pMnode->pSdb, pRaw);
-#else
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_CREATE_DNODE, NULL);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, NULL);
   if (pTrans == NULL) {
     mError("dnode:%s, failed to create since %s", dnodeObj.ep, terrstr());
     return -1;
@@ -125,7 +123,6 @@ static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
 
   mndTransDrop(pTrans);
   return 0;
-#endif
 }
 
 static SSdbRaw *mndDnodeActionEncode(SDnodeObj *pDnode) {
@@ -259,7 +256,7 @@ int32_t mndGetDnodeSize(SMnode *pMnode) {
 
 bool mndIsDnodeOnline(SMnode *pMnode, SDnodeObj *pDnode, int64_t curMs) {
   int64_t interval = TABS(pDnode->lastAccessTime - curMs);
-  if (interval > 30000 * tsStatusInterval) {
+  if (interval > 5000 * tsStatusInterval) {
     if (pDnode->rebootTime > 0) {
       pDnode->offlineReason = DND_REASON_STATUS_MSG_TIMEOUT;
     }
@@ -388,9 +385,16 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     mndReleaseMnode(pMnode, pObj);
   }
 
+  SQnodeObj *pQnode = mndAcquireQnode(pMnode, statusReq.qload.dnodeId);
+  if (pQnode != NULL) {
+    pQnode->load = statusReq.qload;
+    mndReleaseQnode(pMnode, pQnode);
+  }
+
+  int64_t dnodeVer = sdbGetTableVer(pMnode->pSdb, SDB_DNODE) + sdbGetTableVer(pMnode->pSdb, SDB_MNODE);
   int64_t curMs = taosGetTimestampMs();
   bool    online = mndIsDnodeOnline(pMnode, pDnode, curMs);
-  bool    dnodeChanged = (statusReq.dnodeVer != sdbGetTableVer(pMnode->pSdb, SDB_DNODE));
+  bool    dnodeChanged = (statusReq.dnodeVer != dnodeVer);
   bool    reboot = (pDnode->rebootTime != statusReq.rebootTime);
   bool    needCheck = !online || dnodeChanged || reboot;
 
@@ -433,7 +437,8 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     if (!online) {
       mInfo("dnode:%d, from offline to online", pDnode->id);
     } else {
-      mDebug("dnode:%d, send dnode eps", pDnode->id);
+      mDebug("dnode:%d, send dnode epset, online:%d ver:% " PRId64 ":%" PRId64 " reboot:%d", pDnode->id, online,
+             statusReq.dnodeVer, dnodeVer, reboot);
     }
 
     pDnode->rebootTime = statusReq.rebootTime;
@@ -441,7 +446,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     pDnode->numOfSupportVnodes = statusReq.numOfSupportVnodes;
 
     SStatusRsp statusRsp = {0};
-    statusRsp.dnodeVer = sdbGetTableVer(pMnode->pSdb, SDB_DNODE) + sdbGetTableVer(pMnode->pSdb, SDB_MNODE);
+    statusRsp.dnodeVer = dnodeVer;
     statusRsp.dnodeCfg.dnodeId = pDnode->id;
     statusRsp.dnodeCfg.clusterId = pMnode->clusterId;
     statusRsp.pDnodeEps = taosArrayInit(mndGetDnodeSize(pMnode), sizeof(SDnodeEp));
@@ -479,7 +484,7 @@ static int32_t mndCreateDnode(SMnode *pMnode, SRpcMsg *pReq, SCreateDnodeReq *pC
   memcpy(dnodeObj.fqdn, pCreate->fqdn, TSDB_FQDN_LEN);
   snprintf(dnodeObj.ep, TSDB_EP_LEN, "%s:%u", dnodeObj.fqdn, dnodeObj.port);
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_DNODE, pReq);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_GLOBAL, pReq);
   if (pTrans == NULL) {
     mError("dnode:%s, failed to create since %s", dnodeObj.ep, terrstr());
     return -1;
@@ -555,7 +560,7 @@ CREATE_DNODE_OVER:
 }
 
 static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode) {
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_DROP_DNODE, pReq);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_GLOBAL, pReq);
   if (pTrans == NULL) {
     mError("dnode:%d, failed to drop since %s", pDnode->id, terrstr());
     return -1;
@@ -608,7 +613,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
 
   pMObj = mndAcquireMnode(pMnode, dropReq.dnodeId);
   if (pMObj != NULL) {
-    terrno = TSDB_CODE_MND_MNODE_DEPLOYED;
+    terrno = TSDB_CODE_MND_MNODE_NOT_EXIST;
     goto DROP_DNODE_OVER;
   }
 

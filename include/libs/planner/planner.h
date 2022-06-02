@@ -36,6 +36,7 @@ typedef struct SPlanContext {
   int64_t  watermark;
   char*    pMsg;
   int32_t  msgLen;
+  double    filesFactor;
 } SPlanContext;
 
 // Create the physical plan for the query, according to the AST.

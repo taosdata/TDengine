@@ -789,9 +789,14 @@ static void hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
     longjmp(pTaskInfo->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
-  if (pInfo->execModel == OPTR_EXEC_MODEL_STREAM &&
-      (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE || pInfo->twAggSup.calTrigger == 0)) {
-    saveResult(pResult, tableGroupId, pUpdated);
+  if (pInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
+    if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE ||
+        pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE_SMA) {
+      saveResult(pResult, tableGroupId, pUpdated);
+    }
+    if (pInfo->twAggSup.winMap) {
+      taosHashRemove(pInfo->twAggSup.winMap, &win.skey, sizeof(TSKEY));
+    }
   }
 
   TSKEY   ekey = ascScan? win.ekey:win.skey;
@@ -836,9 +841,15 @@ static void hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
       longjmp(pTaskInfo->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
 
-    if (pInfo->execModel == OPTR_EXEC_MODEL_STREAM &&
-        (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE || pInfo->twAggSup.calTrigger == 0)) {
-      saveResult(pResult, tableGroupId, pUpdated);
+
+    if (pInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
+      if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE ||
+          pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE_SMA) {
+        saveResult(pResult, tableGroupId, pUpdated);
+      }
+      if (pInfo->twAggSup.winMap) {
+        taosHashRemove(pInfo->twAggSup.winMap, &win.skey, sizeof(TSKEY));
+      }
     }
 
     ekey = ascScan? nextWin.ekey:nextWin.skey;
@@ -1218,15 +1229,23 @@ static int32_t closeIntervalWindow(SHashObj *pHashMap, STimeWindowAggSupp *pSup,
     void* key = taosHashGetKey(pIte, &keyLen);
     uint64_t groupId = *(uint64_t*) key;
     ASSERT(keyLen == GET_RES_WINDOW_KEY_LEN(sizeof(TSKEY)));
-    TSKEY ts = *(uint64_t*) ((char*)key + sizeof(uint64_t));
+    TSKEY ts = *(int64_t*) ((char*)key + sizeof(uint64_t));
     SResultRowInfo dumyInfo;
     dumyInfo.cur.pageId = -1;
     STimeWindow win = getActiveTimeWindow(NULL, &dumyInfo, ts, pInterval,
         pInterval->precision, NULL);
     if (win.ekey < pSup->maxTs - pSup->waterMark) {
+      if (pSup->calTrigger == STREAM_TRIGGER_WINDOW_CLOSE_SMA) {
+        if (taosHashGet(pSup->winMap, &win.skey, sizeof(TSKEY))) {
+          continue;
+        }
+      }
       char keyBuf[GET_RES_WINDOW_KEY_LEN(sizeof(TSKEY))];
       SET_RES_WINDOW_KEY(keyBuf, &ts, sizeof(TSKEY), groupId);
-      taosHashRemove(pHashMap, keyBuf, keyLen);
+      if (pSup->calTrigger != STREAM_TRIGGER_AT_ONCE_SMA &&
+          pSup->calTrigger != STREAM_TRIGGER_WINDOW_CLOSE_SMA) {
+        taosHashRemove(pHashMap, keyBuf, keyLen);
+      }
       SResKeyPos* pos = taosMemoryMalloc(sizeof(SResKeyPos) + sizeof(uint64_t));
       if (pos == NULL) {
         return TSDB_CODE_OUT_OF_MEMORY;
@@ -1238,6 +1257,7 @@ static int32_t closeIntervalWindow(SHashObj *pHashMap, STimeWindowAggSupp *pSup,
         taosMemoryFree(pos);
         return TSDB_CODE_OUT_OF_MEMORY;
       }
+      taosHashPut(pSup->winMap, &win.skey, sizeof(TSKEY), NULL, 0);
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -1291,9 +1311,12 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
     hashIntervalAgg(pOperator, &pInfo->binfo.resultRowInfo, pBlock, MAIN_SCAN, pUpdated);
   }
 
-  closeIntervalWindow(pInfo->aggSup.pResultRowHashTable, &pInfo->twAggSup, &pInfo->interval, pClosed);
-  finalizeUpdatedResult(pOperator->numOfExprs, pInfo->aggSup.pResultBuf, pClosed, pInfo->binfo.rowCellInfoOffset);
-  if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER__WINDOW_CLOSE) {
+  closeIntervalWindow(pInfo->aggSup.pResultRowHashTable, &pInfo->twAggSup,
+      &pInfo->interval, pClosed);
+  finalizeUpdatedResult(pOperator->numOfExprs, pInfo->aggSup.pResultBuf, pClosed,
+      pInfo->binfo.rowCellInfoOffset);
+  if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE ||
+      pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE_SMA) {
     taosArrayAddAll(pUpdated, pClosed);
   }
 
@@ -2509,7 +2532,7 @@ int32_t closeSessionWindow(SArray *pWins, STimeWindowAggSupp *pTwSup, SArray *pC
           return TSDB_CODE_OUT_OF_MEMORY;
         }
         pSeWin->isClosed = true;
-        if (calTrigger == STREAM_TRIGGER__WINDOW_CLOSE) {
+        if (calTrigger == STREAM_TRIGGER_WINDOW_CLOSE) {
           pSeWin->isOutput = true;
         }
       }
@@ -2583,7 +2606,7 @@ static SSDataBlock* doStreamSessionWindowAgg(SOperatorInfo* pOperator) {
   SArray* pUpdated = taosArrayInit(16, POINTER_BYTES);
   copyUpdateResult(pStUpdated, pUpdated, pBInfo->pRes->info.groupId);
   taosHashCleanup(pStUpdated);
-  if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER__WINDOW_CLOSE) {
+  if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE) {
     taosArrayAddAll(pUpdated, pClosed);
   }
 

@@ -58,6 +58,7 @@
 ./test.sh -f tsim/mnode/basic1.sim
 ./test.sh -f tsim/mnode/basic2.sim
 ./test.sh -f tsim/mnode/basic3.sim
+#./test.sh -f tsim/mnode/basic4.sim
 
 # ---- show
 ./test.sh -f tsim/show/basic.sim
@@ -108,6 +109,7 @@
 ./test.sh -f tsim/stable/alter_insert1.sim
 ./test.sh -f tsim/stable/alter_insert2.sim
 ./test.sh -f tsim/stable/alter_import.sim
+./test.sh -f tsim/stable/tag_filter.sim
 
 # --- for multi process mode
 ./test.sh -f tsim/user/basic1.sim -m
@@ -133,5 +135,8 @@
 ./test.sh -f tsim/sync/3Replica5VgElect.sim
 ./test.sh -f tsim/sync/oneReplica1VgElect.sim
 ./test.sh -f tsim/sync/oneReplica5VgElect.sim
+
+# --- catalog
+./test.sh -f tsim/catalog/alterInCurrent.sim
 
 #======================b1-end===============

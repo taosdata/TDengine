@@ -1655,8 +1655,8 @@ bool leastSQRFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInf
 
   pInfo->startVal = IS_FLOAT_TYPE(pCtx->param[1].param.nType) ? pCtx->param[1].param.d :
                                                                 (double)pCtx->param[1].param.i;
-  pInfo->stepVal = IS_FLOAT_TYPE(pCtx->param[1].param.nType) ? pCtx->param[2].param.d :
-                                                                (double)pCtx->param[1].param.i;
+  pInfo->stepVal = IS_FLOAT_TYPE(pCtx->param[2].param.nType) ? pCtx->param[2].param.d :
+                                                                (double)pCtx->param[2].param.i;
   return true;
 }
 
@@ -1763,6 +1763,11 @@ int32_t leastSQRFunction(SqlFunctionCtx* pCtx) {
       }
       break;
     }
+    case TSDB_DATA_TYPE_NULL: {
+      GET_RES_INFO(pCtx)->isNullRes = 1;
+      numOfElem = 1;
+      break;
+    }
 
     default:
       break;
@@ -1806,7 +1811,7 @@ int32_t leastSQRFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   size_t len = snprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE, "{slop:%.6lf, intercept:%.6lf}", param[0][2], param[1][2]);
   varDataSetLen(buf, len);
 
-  colDataAppend(pCol, currentRow, buf, false);
+  colDataAppend(pCol, currentRow, buf, pResInfo->isNullRes);
 
   return pResInfo->numOfRes;
 }

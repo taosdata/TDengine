@@ -230,7 +230,7 @@ int vnodeCommit(SVnode *pVnode) {
     return -1;
   }
 
-  if(vnodeIsRollup(pVnode)) {
+  if (VND_IS_RSMA(pVnode)) {
     if (tsdbCommit(VND_RSMA0(pVnode)) < 0) {
       ASSERT(0);
       return -1;
@@ -250,7 +250,6 @@ int vnodeCommit(SVnode *pVnode) {
     }
   }
 
-  
   if (tqCommit(pVnode->pTq) < 0) {
     ASSERT(0);
     return -1;

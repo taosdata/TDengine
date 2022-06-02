@@ -140,6 +140,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->szCache = pCreate->pages;
   pCfg->szBuf = (uint64_t)pCreate->buffer * 1024 * 1024;
   pCfg->isWeak = true;
+  pCfg->isTsma = pCreate->isTsma;
   pCfg->tsdbCfg.compression = pCreate->compression;
   pCfg->tsdbCfg.precision = pCreate->precision;
   pCfg->tsdbCfg.days = pCreate->daysPerFile;
@@ -149,20 +150,26 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->tsdbCfg.minRows = pCreate->minRows;
   pCfg->tsdbCfg.maxRows = pCreate->maxRows;
   for (size_t i = 0; i < taosArrayGetSize(pCreate->pRetensions); ++i) {
-    memcpy(&pCfg->tsdbCfg.retentions[i], taosArrayGet(pCreate->pRetensions, i), sizeof(SRetention));
+    SRetention *pRetention = &pCfg->tsdbCfg.retentions[i];
+    memcpy(pRetention, taosArrayGet(pCreate->pRetensions, i), sizeof(SRetention));
+    if (i == 0) {
+      if ((pRetention->freq > 0 && pRetention->keep > 0)) pCfg->isRsma = 1;
+    }
   }
+
   pCfg->walCfg.vgId = pCreate->vgId;
   pCfg->hashBegin = pCreate->hashBegin;
   pCfg->hashEnd = pCreate->hashEnd;
   pCfg->hashMethod = pCreate->hashMethod;
 
+  pCfg->standby = pCfg->standby;
   pCfg->syncCfg.myIndex = pCreate->selfIndex;
   pCfg->syncCfg.replicaNum = pCreate->replica;
   memset(&pCfg->syncCfg.nodeInfo, 0, sizeof(pCfg->syncCfg.nodeInfo));
   for (int i = 0; i < pCreate->replica; ++i) {
-    pCfg->syncCfg.nodeInfo[i].nodePort = pCreate->replicas[i].port;
-    snprintf(pCfg->syncCfg.nodeInfo[i].nodeFqdn, sizeof(pCfg->syncCfg.nodeInfo[i].nodeFqdn), "%s",
-             pCreate->replicas[i].fqdn);
+    SNodeInfo *pNode = &pCfg->syncCfg.nodeInfo[i];
+    pNode->nodePort = pCreate->replicas[i].port;
+    tstrncpy(pNode->nodeFqdn, pCreate->replicas[i].fqdn, sizeof(pNode->nodeFqdn));
   }
 }
 
@@ -175,6 +182,8 @@ static void vmGenerateWrapperCfg(SVnodeMgmt *pMgmt, SCreateVnodeReq *pCreate, SW
 
 int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SCreateVnodeReq createReq = {0};
+  SVnodeCfg       vnodeCfg = {0};
+  SWrapperCfg     wrapperCfg = {0};
   int32_t         code = -1;
   char            path[TSDB_FILENAME_LEN] = {0};
 
@@ -183,12 +192,9 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
-  dDebug("vgId:%d, create vnode req is received, tsma:%d", createReq.vgId, createReq.isTsma);
-
-  SVnodeCfg vnodeCfg = {0};
+  dDebug("vgId:%d, create vnode req is received, tsma:%d standby:%d", createReq.vgId, createReq.isTsma,
+         createReq.standby);
   vmGenerateVnodeCfg(&createReq, &vnodeCfg);
-
-  SWrapperCfg wrapperCfg = {0};
   vmGenerateWrapperCfg(pMgmt, &createReq, &wrapperCfg);
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, createReq.vgId);
@@ -209,7 +215,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   SVnode *pImpl = vnodeOpen(path, pMgmt->pTfs, pMgmt->msgCb);
   if (pImpl == NULL) {
-    dError("vgId:%d, failed to create vnode since %s", createReq.vgId, terrstr());
+    dError("vgId:%d, failed to open vnode since %s", createReq.vgId, terrstr());
     code = terrno;
     goto _OVER;
   }
@@ -217,7 +223,18 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   code = vmOpenVnode(pMgmt, &wrapperCfg, pImpl);
   if (code != 0) {
     dError("vgId:%d, failed to open vnode since %s", createReq.vgId, terrstr());
+    code = terrno;
     goto _OVER;
+  }
+
+  if (createReq.isTsma) {
+    SMsgHead *smaMsg = createReq.pTsma;
+    uint32_t  contLen = (uint32_t)(htonl(smaMsg->contLen) - sizeof(SMsgHead));
+    if (vnodeProcessCreateTSma(pImpl, POINTER_SHIFT(smaMsg, sizeof(SMsgHead)), contLen) < 0) {
+      dError("vgId:%d, failed to create tsma since %s", createReq.vgId, terrstr());
+      code = terrno;
+      goto _OVER;
+    };
   }
 
   code = vnodeStart(pImpl);
@@ -227,7 +244,10 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   code = vmWriteVnodeListToFile(pMgmt);
-  if (code != 0) goto _OVER;
+  if (code != 0) {
+    code = terrno;
+    goto _OVER;
+  }
 
 _OVER:
   if (code != 0) {
@@ -313,8 +333,9 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_VND_TASK_DISPATCH, vmPutNodeMsgToFetchQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TASK_RECOVER, vmPutNodeMsgToFetchQueue, 0) == NULL) goto _OVER;
 
-  if (dmSetMgmtHandle(pArray, TDMT_VND_ALTER_VNODE, vmPutNodeMsgToWriteQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_VND_COMPACT_VNODE, vmPutNodeMsgToWriteQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_ALTER_REPLICA, vmPutNodeMsgToWriteQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_ALTER_CONFIG, vmPutNodeMsgToWriteQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_COMPACT, vmPutNodeMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_VNODE, vmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_DROP_VNODE, vmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
 

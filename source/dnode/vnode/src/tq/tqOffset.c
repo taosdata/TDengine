@@ -30,7 +30,7 @@ struct STqOffsetStore {
   SHashObj*    pHash;  // SHashObj<subscribeKey, offset>
 };
 
-STqOffsetStore* STqOffsetOpen(STqOffsetCfg* pCfg) {
+STqOffsetStore* tqOffsetOpen(STqOffsetCfg* pCfg) {
   STqOffsetStore* pStore = taosMemoryMalloc(sizeof(STqOffsetStore));
   if (pStore == NULL) {
     return NULL;

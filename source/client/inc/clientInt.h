@@ -119,6 +119,8 @@ typedef struct SHeartBeatInfo {
 struct SAppInstInfo {
   int64_t          numOfConns;
   SCorEpSet        mgmtEp;
+  TdThreadMutex    qnodeMutex;
+  SArray*          pQnodeList;
   SInstanceSummary summary;
   SList*           pConnList;  // STscObj linked list
   uint64_t         clusterId;
@@ -160,6 +162,7 @@ typedef struct SResultColumn {
 } SResultColumn;
 
 typedef struct SReqResultInfo {
+  SQueryExecRes  execRes;
   const char*    pRspMsg;
   const char*    pData;
   TAOS_FIELD*    fields;      // todo, column names are not needed.
@@ -191,6 +194,7 @@ typedef struct SRequestSendRecvBody {
 typedef struct {
   int8_t         resType;
   char           topic[TSDB_TOPIC_FNAME_LEN];
+  char           db[TSDB_DB_FNAME_LEN];
   int32_t        vgId;
   SSchemaWrapper schema;
   int32_t        resIter;
@@ -226,7 +230,8 @@ void*   doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4
 
 void    doSetOneRowPtr(SReqResultInfo* pResultInfo);
 void    setResPrecision(SReqResultInfo* pResInfo, int32_t precision);
-int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp, bool convertUcs4);
+int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp, bool convertUcs4,
+                              bool freeAfterUse);
 void    setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols);
 void    doFreeReqResultInfo(SReqResultInfo* pResInfo);
 SRequestObj* execQuery(STscObj* pTscObj, const char* sql, int sqlLen);
@@ -249,7 +254,7 @@ static FORCE_INLINE SReqResultInfo* tmqGetNextResInfo(TAOS_RES* res, bool conver
       taosMemoryFreeClear(msg->resInfo.length);
       taosMemoryFreeClear(msg->resInfo.convertBuf);
     }
-    setQueryResultFromRsp(&msg->resInfo, pRetrieve, convertUcs4);
+    setQueryResultFromRsp(&msg->resInfo, pRetrieve, convertUcs4, false);
     return &msg->resInfo;
   }
   return NULL;
@@ -300,7 +305,7 @@ SRequestObj* launchQuery(STscObj* pTscObj, const char* sql, int sqlLen);
 
 int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtCallback* pStmtCb);
 
-int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray* pNodeList);
+int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray** pNodeList);
 
 int32_t buildRequest(STscObj* pTscObj, const char* sql, int sqlLen, SRequestObj** pRequest);
 
@@ -323,10 +328,14 @@ int hbAddConnInfo(SAppHbMgr* pAppHbMgr, SClientHbKey connKey, void* key, void* v
 // --- mq
 void hbMgrInitMqHbRspHandle();
 
+SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, int32_t code, bool keepQuery, void** res);
+int32_t      getQueryPlan(SRequestObj* pRequest, SQuery* pQuery, SArray** pNodeList);
+int32_t      scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList);
 SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void** res);
 void         launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery);
 int32_t      scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList, void** res);
 int32_t      refreshMeta(STscObj* pTscObj, SRequestObj* pRequest);
+int32_t      updateQnodeList(SAppInstInfo* pInfo, SArray* pNodeList);
 
 #ifdef __cplusplus
 }

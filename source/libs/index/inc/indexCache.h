@@ -36,6 +36,7 @@ typedef struct MemTable {
 typedef struct IndexCache {
   T_REF_DECLARE()
   MemTable *mem, *imm;
+  int32_t   merging;
   SIndex*   index;
   char*     colName;
   int64_t   version;

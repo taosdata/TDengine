@@ -34,6 +34,7 @@
 
 #include "dnode.h"
 #include "mnode.h"
+#include "qnode.h"
 #include "monitor.h"
 #include "sync.h"
 #include "wal.h"
@@ -92,6 +93,7 @@ typedef int32_t (*ProcessDropNodeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
 typedef void (*SendMonitorReportFp)();
 typedef void (*GetVnodeLoadsFp)(SMonVloadInfo *pInfo);
 typedef void (*GetMnodeLoadsFp)(SMonMloadInfo *pInfo);
+typedef void (*GetQnodeLoadsFp)(SQnodeLoad *pInfo);
 
 typedef struct {
   int32_t        dnodeId;
@@ -118,6 +120,7 @@ typedef struct {
   SendMonitorReportFp sendMonitorReportFp;
   GetVnodeLoadsFp     getVnodeLoadsFp;
   GetMnodeLoadsFp     getMnodeLoadsFp;
+  GetQnodeLoadsFp     getQnodeLoadsFp;
 } SMgmtInputOpt;
 
 typedef struct {

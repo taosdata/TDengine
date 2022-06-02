@@ -78,6 +78,7 @@ int32_t mndInitSubscribe(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_MQ_DO_REBALANCE, mndProcessRebalanceReq);
   mndSetMsgHandle(pMnode, TDMT_MND_MQ_DO_REBALANCE, mndProcessRebalanceReq);
   mndSetMsgHandle(pMnode, TDMT_MND_MQ_DROP_CGROUP, mndProcessDropCgroupReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_MQ_DROP_CGROUP_RSP, mndProcessSubscribeInternalRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_SUBSCRIPTIONS, mndRetrieveSubscribe);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_TOPICS, mndCancelGetNextSubscribe);
@@ -92,10 +93,8 @@ static SMqSubscribeObj *mndCreateSub(SMnode *pMnode, const SMqTopicObj *pTopic, 
     return NULL;
   }
   pSub->dbUid = pTopic->dbUid;
+  pSub->stbUid = pTopic->stbUid;
   pSub->subType = pTopic->subType;
-  pSub->withTbName = pTopic->withTbName;
-  pSub->withSchema = pTopic->withSchema;
-  pSub->withTag = pTopic->withTag;
 
   ASSERT(pSub->unassignedVgs->size == 0);
   ASSERT(taosHashGetSize(pSub->consumerHash) == 0);
@@ -120,9 +119,7 @@ static int32_t mndBuildSubChangeReq(void **pBuf, int32_t *pLen, const SMqSubscri
   req.vgId = pRebVg->pVgEp->vgId;
   req.qmsg = pRebVg->pVgEp->qmsg;
   req.subType = pSub->subType;
-  req.withTbName = pSub->withTbName;
-  req.withSchema = pSub->withSchema;
-  req.withTag = pSub->withTag;
+  req.suid = pSub->stbUid;
   strncpy(req.subKey, pSub->key, TSDB_SUBSCRIBE_KEY_LEN);
 
   int32_t tlen = sizeof(SMsgHead) + tEncodeSMqRebVgReq(NULL, &req);
@@ -393,8 +390,8 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
   mInfo("rebalance calculation completed, rebalanced vg:");
   for (int32_t i = 0; i < taosArrayGetSize(pOutput->rebVgs); i++) {
     SMqRebOutputVg *pOutputRebVg = taosArrayGet(pOutput->rebVgs, i);
-    mInfo("vg: %d moved from consumer %ld to consumer %ld", pOutputRebVg->pVgEp->vgId, pOutputRebVg->oldConsumerId,
-          pOutputRebVg->newConsumerId);
+    mInfo("vgId:%d moved from consumer %" PRId64 " to consumer %" PRId64, pOutputRebVg->pVgEp->vgId,
+          pOutputRebVg->oldConsumerId, pOutputRebVg->newConsumerId);
   }
 
   // 9. clear
@@ -404,10 +401,9 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
 }
 
 static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOutputObj *pOutput) {
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_REBALANCE, pMsg);
-  if (pTrans == NULL) {
-    return -1;
-  }
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pMsg);
+  if (pTrans == NULL) return -1;
+
   // make txn:
   // 1. redo action: action to all vg
   const SArray *rebVgs = pOutput->rebVgs;
@@ -501,7 +497,7 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
   // 4. TODO commit log: modification log
 
   // 5. set cb
-  mndTransSetCb(pTrans, TRANS_START_FUNC_MQ_REB, TRANS_STOP_FUNC_TEST_MQ_REB, NULL, 0);
+  mndTransSetCb(pTrans, TRANS_START_FUNC_MQ_REB, TRANS_STOP_FUNC_MQ_REB, NULL, 0);
 
   // 6. execution
   if (mndTransPrepare(pMnode, pTrans) != 0) {
@@ -596,8 +592,8 @@ static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
 }
 
 static int32_t mndProcessDropCgroupReq(SRpcMsg *pReq) {
-  SMnode *pMnode = pReq->info.node;
-  /*SSdb          *pSdb = pMnode->pSdb;*/
+  SMnode         *pMnode = pReq->info.node;
+  SSdb           *pSdb = pMnode->pSdb;
   SMDropCgroupReq dropReq = {0};
 
   if (tDeserializeSMDropCgroupReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
@@ -617,15 +613,17 @@ static int32_t mndProcessDropCgroupReq(SRpcMsg *pReq) {
     }
   }
 
-  if (taosHashGetSize(pSub->consumerHash) == 0) {
+  if (taosHashGetSize(pSub->consumerHash) != 0) {
     terrno = TSDB_CODE_MND_CGROUP_USED;
     mError("cgroup:%s on topic:%s, failed to drop since %s", dropReq.cgroup, dropReq.topic, terrstr());
+    mndReleaseSubscribe(pMnode, pSub);
     return -1;
   }
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_DROP_CGROUP, pReq);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq);
   if (pTrans == NULL) {
     mError("cgroup: %s on topic:%s, failed to drop since %s", dropReq.cgroup, dropReq.topic, terrstr());
+    mndReleaseSubscribe(pMnode, pSub);
     return -1;
   }
 
@@ -633,13 +631,17 @@ static int32_t mndProcessDropCgroupReq(SRpcMsg *pReq) {
 
   if (mndDropOffsetBySubKey(pMnode, pTrans, pSub->key) < 0) {
     ASSERT(0);
+    mndReleaseSubscribe(pMnode, pSub);
     return -1;
   }
 
   if (mndSetDropSubCommitLogs(pMnode, pTrans, pSub) < 0) {
     mError("cgroup %s on topic:%s, failed to drop since %s", dropReq.cgroup, dropReq.topic, terrstr());
+    mndReleaseSubscribe(pMnode, pSub);
     return -1;
   }
+
+  mndTransPrepare(pMnode, pTrans);
 
   mndReleaseSubscribe(pMnode, pSub);
 
