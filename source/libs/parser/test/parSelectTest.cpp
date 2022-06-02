@@ -33,6 +33,8 @@ TEST_F(ParserSelectTest, basic) {
   run("SELECT ts, t.c1 FROM (SELECT * FROM t1) t");
 
   run("SELECT * FROM t1 tt1, t1 tt2 WHERE tt1.c1 = tt2.c1");
+
+  run("SELECT * FROM st1");
 }
 
 TEST_F(ParserSelectTest, constant) {
