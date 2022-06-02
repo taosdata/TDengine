@@ -151,6 +151,7 @@ typedef struct STscObj {
   int32_t       numOfReqs;  // number of sqlObj bound to this connection
   SAppInstInfo* pAppInfo;
   SHashObj*     pRequests;
+  int8_t        schemalessType;
 } STscObj;
 
 typedef struct SResultColumn {
@@ -162,6 +163,7 @@ typedef struct SResultColumn {
 } SResultColumn;
 
 typedef struct SReqResultInfo {
+  SQueryExecRes  execRes;
   const char*    pRspMsg;
   const char*    pData;
   TAOS_FIELD*    fields;      // todo, column names are not needed.
@@ -191,6 +193,7 @@ typedef struct SRequestSendRecvBody {
 typedef struct {
   int8_t         resType;
   char           topic[TSDB_TOPIC_FNAME_LEN];
+  char           db[TSDB_DB_FNAME_LEN];
   int32_t        vgId;
   SSchemaWrapper schema;
   int32_t        resIter;
@@ -318,7 +321,7 @@ void hbMgrInitMqHbRspHandle();
 
 SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, int32_t code, bool keepQuery, void** res);
 int32_t      getQueryPlan(SRequestObj* pRequest, SQuery* pQuery, SArray** pNodeList);
-int32_t      scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList, void** res);
+int32_t      scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList);
 int32_t      refreshMeta(STscObj* pTscObj, SRequestObj* pRequest);
 int32_t      updateQnodeList(SAppInstInfo* pInfo, SArray* pNodeList);
 

@@ -18,6 +18,14 @@
 #include "tchecksum.h"
 #include "walInt.h"
 
+void walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
+  /*pWal->vers.firstVer = -1;*/
+  pWal->vers.lastVer = ver;
+  pWal->vers.commitVer = ver - 1;
+  pWal->vers.snapshotVer = ver - 1;
+  pWal->vers.verInSnapshotting = -1;
+}
+
 int32_t walCommit(SWal *pWal, int64_t ver) {
   ASSERT(pWal->vers.commitVer >= pWal->vers.snapshotVer);
   ASSERT(pWal->vers.commitVer <= pWal->vers.lastVer);

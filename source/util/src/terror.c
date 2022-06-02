@@ -470,6 +470,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_UDF_INVALID_OUTPUT_TYPE,      "udf invalid output ty
 TAOS_DEFINE_ERROR(TSDB_CODE_SML_INVALID_PROTOCOL_TYPE,    "Invalid line protocol type")
 TAOS_DEFINE_ERROR(TSDB_CODE_SML_INVALID_PRECISION_TYPE,   "Invalid timestamp precision type")
 TAOS_DEFINE_ERROR(TSDB_CODE_SML_INVALID_DATA,             "Invalid data type")
+TAOS_DEFINE_ERROR(TSDB_CODE_SML_INVALID_DB_CONF,          "Invalid schemaless db config")
 
 #ifdef TAOS_ERROR_C
 };

@@ -168,7 +168,7 @@ typedef struct {
   int64_t    createdTime;
   int64_t    updateTime;
   SDnodeObj* pDnode;
-  SQnodeLoad load;  
+  SQnodeLoad load;
 } SQnodeObj;
 
 typedef struct {
@@ -255,6 +255,7 @@ typedef struct {
   int8_t  hashMethod;  // default is 1
   int32_t numOfRetensions;
   SArray* pRetensions;
+  int8_t  schemaless;
 } SDbCfg;
 
 typedef struct {
@@ -403,26 +404,22 @@ int32_t tEncodeSMqOffsetObj(void** buf, const SMqOffsetObj* pOffset);
 void*   tDecodeSMqOffsetObj(void* buf, SMqOffsetObj* pOffset);
 
 typedef struct {
-  char    name[TSDB_TOPIC_FNAME_LEN];
-  char    db[TSDB_DB_FNAME_LEN];
-  int64_t createTime;
-  int64_t updateTime;
-  int64_t uid;
-  int64_t dbUid;
-  int32_t version;
-  int8_t  subType;  // column, db or stable
-  // int8_t         withTbName;
-  // int8_t         withSchema;
-  // int8_t         withTag;
+  char           name[TSDB_TOPIC_FNAME_LEN];
+  char           db[TSDB_DB_FNAME_LEN];
+  int64_t        createTime;
+  int64_t        updateTime;
+  int64_t        uid;
+  int64_t        dbUid;
+  int32_t        version;
+  int8_t         subType;  // column, db or stable
   SRWLatch       lock;
-  int32_t        consumerCnt;
   int32_t        sqlLen;
   int32_t        astLen;
   char*          sql;
   char*          ast;
   char*          physicalPlan;
   SSchemaWrapper schema;
-  // int32_t        refConsumerCnt;
+  int64_t        stbUid;
 } SMqTopicObj;
 
 typedef struct {
@@ -476,14 +473,12 @@ int32_t        tEncodeSMqConsumerEp(void** buf, const SMqConsumerEp* pEp);
 void*          tDecodeSMqConsumerEp(const void* buf, SMqConsumerEp* pEp);
 
 typedef struct {
-  char     key[TSDB_SUBSCRIBE_KEY_LEN];
-  SRWLatch lock;
-  int64_t  dbUid;
-  int32_t  vgNum;
-  int8_t   subType;
-  // int8_t    withTbName;
-  // int8_t    withSchema;
-  // int8_t    withTag;
+  char      key[TSDB_SUBSCRIBE_KEY_LEN];
+  SRWLatch  lock;
+  int64_t   dbUid;
+  int32_t   vgNum;
+  int8_t    subType;
+  int64_t   stbUid;
   SHashObj* consumerHash;   // consumerId -> SMqConsumerEp
   SArray*   unassignedVgs;  // SArray<SMqVgEp*>
 } SMqSubscribeObj;
@@ -535,7 +530,7 @@ typedef struct {
 } SMqRebOutputObj;
 
 typedef struct {
-  char           name[TSDB_TOPIC_FNAME_LEN];
+  char           name[TSDB_STREAM_FNAME_LEN];
   char           sourceDb[TSDB_DB_FNAME_LEN];
   char           targetDb[TSDB_DB_FNAME_LEN];
   char           targetSTbName[TSDB_TABLE_FNAME_LEN];

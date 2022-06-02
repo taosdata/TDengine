@@ -2646,6 +2646,11 @@ static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt
   if (TSDB_CODE_SUCCESS == code) {
     code = checkTableSchema(pCxt, pStmt);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    if(pCxt->pParseCxt->schemalessType == 0){
+      code = isNotSchemalessDb(pCxt->pParseCxt, pStmt->dbName);
+    }
+  }
   return code;
 }
 
@@ -4424,6 +4429,7 @@ static SArray* serializeVgroupsCreateTableBatch(int32_t acctId, SHashObj* pVgrou
 }
 
 static int32_t rewriteCreateMultiTable(STranslateContext* pCxt, SQuery* pQuery) {
+
   SCreateMultiTableStmt* pStmt = (SCreateMultiTableStmt*)pQuery->pRoot;
 
   SHashObj* pVgroupHashmap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
@@ -4434,6 +4440,10 @@ static int32_t rewriteCreateMultiTable(STranslateContext* pCxt, SQuery* pQuery) 
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pNode;
   FOREACH(pNode, pStmt->pSubTables) {
+    if(pCxt->pParseCxt->schemalessType == 0 &&
+        (code = isNotSchemalessDb(pCxt->pParseCxt, ((SCreateSubTableClause*)pNode)->dbName)) != TSDB_CODE_SUCCESS){
+      return code;
+    }
     code = rewriteCreateSubTable(pCxt, (SCreateSubTableClause*)pNode, pVgroupHashmap);
     if (TSDB_CODE_SUCCESS != code) {
       taosHashCleanup(pVgroupHashmap);
@@ -4845,9 +4855,14 @@ static int32_t buildModifyVnodeArray(STranslateContext* pCxt, SAlterTableStmt* p
 
 static int32_t rewriteAlterTable(STranslateContext* pCxt, SQuery* pQuery) {
   SAlterTableStmt* pStmt = (SAlterTableStmt*)pQuery->pRoot;
+  int32_t     code = TSDB_CODE_SUCCESS;
+  if(pCxt->pParseCxt->schemalessType == 0 &&
+      (code = isNotSchemalessDb(pCxt->pParseCxt, pStmt->dbName)) != TSDB_CODE_SUCCESS){
+    return code;
+  }
 
   STableMeta* pTableMeta = NULL;
-  int32_t     code = getTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pTableMeta);
+  code = getTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pTableMeta);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
@@ -4936,6 +4951,47 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
   return code;
 }
 
+static int32_t toMsgType(ENodeType type) {
+  switch (type) {
+    case QUERY_NODE_CREATE_TABLE_STMT:
+      return TDMT_VND_CREATE_TABLE;
+    case QUERY_NODE_ALTER_TABLE_STMT:
+      return TDMT_VND_ALTER_TABLE;
+    case QUERY_NODE_DROP_TABLE_STMT:
+      return TDMT_VND_DROP_TABLE;
+    default:
+      break;
+  }
+  return TDMT_VND_CREATE_TABLE;
+}
+
+static int32_t setRefreshMate(STranslateContext* pCxt, SQuery* pQuery) {
+  if (NULL != pCxt->pDbs) {
+    pQuery->pDbList = taosArrayInit(taosHashGetSize(pCxt->pDbs), TSDB_DB_FNAME_LEN);
+    if (NULL == pQuery->pDbList) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    SFullDatabaseName* pDb = taosHashIterate(pCxt->pDbs, NULL);
+    while (NULL != pDb) {
+      taosArrayPush(pQuery->pDbList, pDb->fullDbName);
+      pDb = taosHashIterate(pCxt->pDbs, pDb);
+    }
+  }
+
+  if (NULL != pCxt->pTables) {
+    pQuery->pTableList = taosArrayInit(taosHashGetSize(pCxt->pTables), sizeof(SName));
+    if (NULL == pQuery->pTableList) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    SName* pTable = taosHashIterate(pCxt->pTables, NULL);
+    while (NULL != pTable) {
+      taosArrayPush(pQuery->pTableList, pTable);
+      pTable = taosHashIterate(pCxt->pTables, pTable);
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
   switch (nodeType(pQuery->pRoot)) {
     case QUERY_NODE_SELECT_STMT:
@@ -4947,7 +5003,7 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
       break;
     case QUERY_NODE_VNODE_MODIF_STMT:
       pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
-      pQuery->msgType = TDMT_VND_CREATE_TABLE;
+      pQuery->msgType = toMsgType(((SVnodeModifOpStmt*)pQuery->pRoot)->sqlNodeType);
       break;
     case QUERY_NODE_DESCRIBE_STMT:
       pQuery->execMode = QUERY_EXEC_MODE_LOCAL;
@@ -4975,30 +5031,6 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
     }
   }
 
-  if (NULL != pCxt->pDbs) {
-    pQuery->pDbList = taosArrayInit(taosHashGetSize(pCxt->pDbs), TSDB_DB_FNAME_LEN);
-    if (NULL == pQuery->pDbList) {
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-    SFullDatabaseName* pDb = taosHashIterate(pCxt->pDbs, NULL);
-    while (NULL != pDb) {
-      taosArrayPush(pQuery->pDbList, pDb->fullDbName);
-      pDb = taosHashIterate(pCxt->pDbs, pDb);
-    }
-  }
-
-  if (NULL != pCxt->pTables) {
-    pQuery->pTableList = taosArrayInit(taosHashGetSize(pCxt->pTables), sizeof(SName));
-    if (NULL == pQuery->pTableList) {
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-    SName* pTable = taosHashIterate(pCxt->pTables, NULL);
-    while (NULL != pTable) {
-      taosArrayPush(pQuery->pTableList, pTable);
-      pTable = taosHashIterate(pCxt->pTables, pTable);
-    }
-  }
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -5018,6 +5050,7 @@ int32_t translate(SParseContext* pParseCxt, SQuery* pQuery) {
   if (TSDB_CODE_SUCCESS == code) {
     code = setQuery(&cxt, pQuery);
   }
+  setRefreshMate(&cxt, pQuery);
   destroyTranslateContext(&cxt);
   return code;
 }

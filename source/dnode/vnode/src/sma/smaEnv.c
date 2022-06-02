@@ -278,7 +278,7 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType) {
 
 void *tdFreeSmaStatItem(SSmaStatItem *pSmaStatItem) {
   if (pSmaStatItem) {
-    tdDestroyTSma(pSmaStatItem->pTSma);
+    tDestroyTSma(pSmaStatItem->pTSma);
     taosMemoryFreeClear(pSmaStatItem->pTSma);
     taosHashCleanup(pSmaStatItem->expiredWindows);
     taosMemoryFreeClear(pSmaStatItem);
