@@ -265,23 +265,24 @@ static int32_t sifExecFunction(SFunctionNode *node, SIFCtx *ctx, SIFParam *outpu
 typedef int (*Filter)(void *a, void *b, int16_t dtype);
 
 int sifGreaterThan(void *a, void *b, int16_t dtype) {
-  __compar_fn_t func = indexGetCompar(dtype);
+  __compar_fn_t func = getComparFunc(dtype, 0);
   return tDoCompare(func, QUERY_GREATER_THAN, a, b);
 }
 int sifGreaterEqual(void *a, void *b, int16_t dtype) {
-  __compar_fn_t func = indexGetCompar(dtype);
+  __compar_fn_t func = getComparFunc(dtype, 0);
   return tDoCompare(func, QUERY_GREATER_EQUAL, a, b);
 }
 int sifLessEqual(void *a, void *b, int16_t dtype) {
-  __compar_fn_t func = indexGetCompar(dtype);
+  __compar_fn_t func = getComparFunc(dtype, 0);
   return tDoCompare(func, QUERY_LESS_EQUAL, a, b);
 }
 int sifLessThan(void *a, void *b, int16_t dtype) {
-  __compar_fn_t func = indexGetCompar(dtype);
+  __compar_fn_t func = getComparFunc(dtype, 0);
   return (int)tDoCompare(func, QUERY_LESS_THAN, a, b);
 }
 int sifEqual(void *a, void *b, int16_t dtype) {
-  __compar_fn_t func = indexGetCompar(dtype);
+  __compar_fn_t func = getComparFunc(dtype, 0);
+  //__compar_fn_t func = indexGetCompar(dtype);
   return (int)tDoCompare(func, QUERY_TERM, a, b);
 }
 static Filter sifGetFilterFunc(EIndexQueryType type, bool *reverse) {
@@ -397,38 +398,62 @@ static int32_t sifDefaultFunc(SIFParam *left, SIFParam *right, SIFParam *output)
   return TSDB_CODE_QRY_INVALID_INPUT;
 }
 
-static sif_func_t sifGetOperFn(int32_t funcId) {
+static int32_t sifGetOperFn(int32_t funcId, sif_func_t *func, SIdxFltStatus *status) {
   // impl later
+  *status = SFLT_ACCURATE_INDEX;
   switch (funcId) {
     case OP_TYPE_GREATER_THAN:
-      return sifGreaterThanFunc;
+      *func = sifGreaterThanFunc;
+      return 0;
     case OP_TYPE_GREATER_EQUAL:
-      return sifGreaterEqualFunc;
+      *func = sifGreaterEqualFunc;
+      return 0;
     case OP_TYPE_LOWER_THAN:
-      return sifLessThanFunc;
+      *func = sifLessThanFunc;
+      return 0;
     case OP_TYPE_LOWER_EQUAL:
-      return sifLessEqualFunc;
+      *func = sifLessEqualFunc;
+      return 0;
     case OP_TYPE_EQUAL:
-      return sifEqualFunc;
+      *func = sifEqualFunc;
+      return 0;
     case OP_TYPE_NOT_EQUAL:
-      return sifNotEqualFunc;
+      *status = SFLT_NOT_INDEX;
+      *func = sifNotEqualFunc;
+      return 0;
     case OP_TYPE_IN:
-      return sifInFunc;
+      *status = SFLT_NOT_INDEX;
+      *func = sifInFunc;
+      return 0;
     case OP_TYPE_NOT_IN:
-      return sifNotInFunc;
+      *status = SFLT_NOT_INDEX;
+      *func = sifNotInFunc;
+      return 0;
     case OP_TYPE_LIKE:
-      return sifLikeFunc;
+      *status = SFLT_NOT_INDEX;
+      *func = sifLikeFunc;
+      return 0;
     case OP_TYPE_NOT_LIKE:
-      return sifNotLikeFunc;
+      *status = SFLT_NOT_INDEX;
+      *func = sifNotLikeFunc;
+      return 0;
     case OP_TYPE_MATCH:
-      return sifMatchFunc;
+      *status = SFLT_NOT_INDEX;
+      *func = sifMatchFunc;
+      return 0;
     case OP_TYPE_NMATCH:
-      return sifNotMatchFunc;
+      *status = SFLT_NOT_INDEX;
+      *func = sifNotMatchFunc;
+      return 0;
     default:
-      return sifNullFunc;
+      *status = SFLT_NOT_INDEX;
+      *func = sifNullFunc;
+      return 0;
   }
-  return sifNullFunc;
+  return 0;
 }
+// typedef struct filterFuncDict {
+
 static int32_t sifExecOper(SOperatorNode *node, SIFCtx *ctx, SIFParam *output) {
   int32_t code = 0;
   int32_t nParam = sifGetOperParamNum(node->opType);
@@ -441,18 +466,14 @@ static int32_t sifExecOper(SOperatorNode *node, SIFCtx *ctx, SIFParam *output) {
 
   // ugly code, refactor later
   output->arg = ctx->arg;
-  sif_func_t operFn = sifGetOperFn(node->opType);
-  if (ctx->noExec && operFn == NULL) {
-    output->status = SFLT_NOT_INDEX;
-  } else {
-    output->status = SFLT_ACCURATE_INDEX;
-  }
 
+  sif_func_t operFn = sifNullFunc;
+  code = sifGetOperFn(node->opType, &operFn, &output->status);
   if (ctx->noExec) {
     SIF_RET(code);
+  } else {
+    return operFn(&params[0], nParam > 1 ? &params[1] : NULL, output);
   }
-
-  return operFn(&params[0], nParam > 1 ? &params[1] : NULL, output);
 _return:
   taosMemoryFree(params);
   SIF_RET(code);
@@ -477,7 +498,7 @@ static int32_t sifExecLogic(SLogicConditionNode *node, SIFCtx *ctx, SIFParam *ou
       } else if (node->condType == LOGIC_COND_TYPE_OR) {
         taosArrayAddAll(output->result, params[m].result);
       } else if (node->condType == LOGIC_COND_TYPE_NOT) {
-        taosArrayAddAll(output->result, params[m].result);
+        // taosArrayAddAll(output->result, params[m].result);
       }
     }
   } else {
