@@ -24,16 +24,17 @@ class TestIllegalType(TDCase):
         error_type_value_list = ['contain letters', 'contain illegal symbols', 'contain spaces', 'bool values']
         """
         int_type_list = ['tinyint', 'smallint', 'int', 'bigint', 'tinyint unsigned', 'smallint unsigned', 'int unsigned', 'bigint unsigned']
-        # TODO confirm bool values: bool in tag: create ok and trans to 1, bool in insert: insert error
         error_type_value_list = ['a10', '1b0', '10c', '%10', '1$0', '10*', '1 0']
         for test_type in int_type_list:
             dbname = self.tdCom.get_long_name(length=5, mode="letters")
             self.tdSql.execute(f'create database if not exists {dbname} precision "ms"')
             self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 {test_type}) tags (tag_ts timestamp, t1 {test_type})')
             self.tdSql.execute(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now, 1)')
+            self.tdSql.execute(f'create table if not exists {dbname}.tb1 (col_ts timestamp, c1 {test_type})')
             for error_type_value in error_type_value_list:
                 self.tdSql.error(f'create table if not exists {dbname}.tb_error using {dbname}.stb tags (now, {error_type_value})')
             self.tdSql.error(f'insert into {dbname}.tb values (now, {error_type_value})')
+            self.tdSql.error(f'insert into {dbname}.tb1 values (now, {error_type_value})')
             self.tdSql.execute(f'drop database if exists {dbname}')
 
     def float_illegal_type_value_check(self):
@@ -42,16 +43,17 @@ class TestIllegalType(TDCase):
         error_type_value_list = ['contain letters', 'contain illegal symbols', 'contain spaces', 'bool values']
         """
         float_type_list = ['float', 'double']
-        # TODO confirm bool values: bool in tag: create ok and trans to 1, bool in insert: insert error
         error_type_value_list = ['a1.1', '1b.1', '1.1c', '%1.1', '1$.1', '1.1*', '1 .0', '1. 0']
         for test_type in float_type_list:
             dbname = self.tdCom.get_long_name(length=5, mode="letters")
             self.tdSql.execute(f'create database if not exists {dbname} precision "ms"')
             self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 {test_type}) tags (tag_ts timestamp, t1 {test_type})')
             self.tdSql.execute(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now, 1.1)')
+            self.tdSql.execute(f'create table if not exists {dbname}.tb1 (col_ts timestamp, c1 {test_type})')
             for error_type_value in error_type_value_list:
                 self.tdSql.error(f'create table if not exists {dbname}.tb_error using {dbname}.stb tags (now, {error_type_value})')
             self.tdSql.error(f'insert into {dbname}.tb values (now, {error_type_value})')
+            self.tdSql.error(f'insert into {dbname}.tb1 values (now, {error_type_value})')
             self.tdSql.execute(f'drop database if exists {dbname}')
 
     def bool_illegal_type_value_check(self):
@@ -66,9 +68,11 @@ class TestIllegalType(TDCase):
             self.tdSql.execute(f'create database if not exists {dbname} precision "ms"')
             self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 {test_type}) tags (tag_ts timestamp, t1 {test_type})')
             self.tdSql.execute(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now, True)')
+            self.tdSql.execute(f'create table if not exists {dbname}.tb1 (col_ts timestamp, c1 {test_type})')
             for error_type_value in error_type_value_list:
                 self.tdSql.error(f'create table if not exists {dbname}.tb_error using {dbname}.stb tags (now, {error_type_value})')
             self.tdSql.error(f'insert into {dbname}.tb values (now, {error_type_value})')
+            self.tdSql.error(f'insert into {dbname}.tb1 values (now, {error_type_value})')
             self.tdSql.execute(f'drop database if exists {dbname}')
 
     def binary_illegal_type_value_check(self):
@@ -77,16 +81,17 @@ class TestIllegalType(TDCase):
         error_type_value_list = ['contain illegal symbols', 'contain spaces']
         """
         binary_type_list = ['binary(16)', 'nchar(16)']
-        # TODO confirm bool values: bool in tag: create ok and trans to 1, bool in insert: insert error
         error_type_value_list = ['%hh', 'h$h', 'hh*', 'h h']
         for test_type in binary_type_list:
             dbname = self.tdCom.get_long_name(length=5, mode="letters")
             self.tdSql.execute(f'create database if not exists {dbname} precision "ms"')
             self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 {test_type}) tags (tag_ts timestamp, t1 {test_type})')
             self.tdSql.execute(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now, 1.1)')
+            self.tdSql.execute(f'create table if not exists {dbname}.tb1 (col_ts timestamp, c1 {test_type})')
             for error_type_value in error_type_value_list:
                 self.tdSql.error(f'create table if not exists {dbname}.tb_error using {dbname}.stb tags (now, {error_type_value})')
             self.tdSql.error(f'insert into {dbname}.tb values (now, {error_type_value})')
+            self.tdSql.error(f'insert into {dbname}.tb1 values (now, {error_type_value})')
             self.tdSql.execute(f'drop database if exists {dbname}')
 
     def run(self):

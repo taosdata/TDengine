@@ -29,6 +29,9 @@ class TestAlterInsert(TDCase):
         self.tdSql.execute(f'insert into {dbname}.tb values (now, 1, 1)')
         # drop column
         self.tdSql.execute(f'alter stable {dbname}.stb drop column c2')
+        #! TD-16200	
+        import time
+        time.sleep(2)
         self.tdSql.execute(f'insert into {dbname}.tb values (now-1m, 2)')
         self.tdSql.error(f'insert into {dbname}.tb values (now-1m, 2, 2)')
         self.tdSql.error(f'select t1, t2, c1, c2 from {dbname}.tb')
@@ -59,4 +62,3 @@ class TestAlterInsert(TDCase):
 
     def tags(self):
         return T.Write.TaoscSql.Stable.Alter
-

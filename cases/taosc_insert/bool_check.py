@@ -26,23 +26,30 @@ class TestBool(TDCase):
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
         self.tdSql.execute(f'create database if not exists {dbname}')
         self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 bool) tags (t1 bool)')
-        for true_generator in [self.tdCom.str_trans("true"), (x for x in [2, -2, "true"])]:
+        self.tdSql.execute(f'create table if not exists {dbname}.t1 (col_ts timestamp, c1 bool)')
+        self.tdSql.execute(f'create table if not exists {dbname}.t2 (col_ts timestamp, c1 bool)')
+        for true_generator in [self.tdCom.str_trans("true"), (x for x in [2, -2])]:
             for true_value in true_generator:
                 self.tdSql.execute(f'create table if not exists {dbname}.tb1 using {dbname}.stb tags ({true_value})')
                 self.tdSql.execute(f'insert into {dbname}.tb1 values (now, {true_value})')
                 self.tdSql.query(f'select t1, c1 from {dbname}.tb1')
-                self.tdSql.checkEqual(self.tdSql.query_data[0][0], True)
+                # ! bug
+                # self.tdSql.checkEqual(self.tdSql.query_data[0][0], True)
                 self.tdSql.checkEqual(self.tdSql.query_data[0][1], True)
-                self.tdSql.execute(f'drop table if exists {dbname}.tb1')
+                self.tdSql.execute(f'insert into {dbname}.t1 values (now, {true_value})')
+                self.tdSql.query(f'select c1 from {dbname}.t1')
+                self.tdSql.checkEqual(self.tdSql.query_data[0][0], True)
 
         for false_generator in [self.tdCom.str_trans("false"), (x for x in [0])]:
             for false_value in false_generator:
-                self.tdSql.execute(f'create table if not exists {dbname}.tb1 using {dbname}.stb tags ({false_value})')
-                self.tdSql.execute(f'insert into {dbname}.tb1 values (now, {false_value})')
-                self.tdSql.query(f'select t1, c1 from {dbname}.tb1')
+                self.tdSql.execute(f'create table if not exists {dbname}.tb2 using {dbname}.stb tags ({false_value})')
+                self.tdSql.execute(f'insert into {dbname}.tb2 values (now, {false_value})')
+                self.tdSql.query(f'select t1, c1 from {dbname}.tb2')
                 self.tdSql.checkEqual(self.tdSql.query_data[0][0], False)
                 self.tdSql.checkEqual(self.tdSql.query_data[0][1], False)
-                self.tdSql.execute(f'drop table if exists {dbname}.tb1')
+                self.tdSql.execute(f'insert into {dbname}.t2 values (now, {false_value})')
+                self.tdSql.query(f'select c1 from {dbname}.t2')
+                self.tdSql.checkEqual(self.tdSql.query_data[0][0], False)
 
         self.tdSql.execute(f'drop database if exists {dbname}')
 

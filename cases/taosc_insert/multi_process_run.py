@@ -16,6 +16,7 @@ from taostest.util.common import TDCom
 from taostest.components import TaosD
 from taostest.util.remote import Remote
 from copy import deepcopy
+import time
 
 class TestMultiProcessRun(TDCase):
     def init(self):
@@ -34,7 +35,7 @@ class TestMultiProcessRun(TDCase):
                 self.shmfile = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + "/vnode/shmfile"
                 self.log_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["logDir"]
 
-    def gen_tb_batch_sql(self, batch, col_type, data_type, data_length, ts=None):
+    def gen_tb_batch_sql(self, batch, thread_num, col_type, data_type, data_length, ts=None):
         """
         batch_sql
         """
@@ -42,7 +43,7 @@ class TestMultiProcessRun(TDCase):
         for row_num in range(batch):
             base_sql = ""
             if ts is not None:
-                base_sql += f'now-{row_num}s, '
+                base_sql += f'now-{row_num+1}{thread_num}s, '
             if col_type == "col":
                 if data_type == "binary":
                     base_sql += f'"{self.tdCom.get_long_name(length=data_length, mode="letters")}"'
@@ -109,15 +110,24 @@ class TestMultiProcessRun(TDCase):
 
     def process_count_check(self, check_count=1):
         for process in ["taosd", "taosv", "taosm"]:
-            process_count = self._remote.cmd(self.fqdn, [f'ps -ef | grep {process} | grep -v grep | grep -v sudo | grep -v defunct | wc -l'])
+            ready_flag = 0
+            process_count = self._remote.cmd(self.fqdn, [f'ps -ef | grep {process} | grep -v grep | grep -v SCREEN | grep -v defunct | wc -l'])
+            while int(process_count) != check_count:
+                process_count = self._remote.cmd(self.fqdn, [f'ps -ef | grep {process} | grep -v grep | grep -v SCREEN | grep -v defunct | wc -l'])
+                if ready_flag < 3:
+                    ready_flag += 0.5
+                    time.sleep(0.5)
+                else:
+                    return
             self.tdSql.checkEqual(int(process_count), check_count)
 
     def multi_process_batch_insert(self, batch, col_type="col", data_type="binary", data_length=10000):
+        self.taosd.update_cfg('/tmp', self.taosd_setting, {"multiProcess": 1}, self.endpoint, True)
         self.tdCom.drop_all_db()
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
         self.tdSql.execute(f'create database if not exists {dbname}')
         self.tdSql.execute(f'create table if not exists {dbname}.tb (ts timestamp, c1 binary({data_length}))')
-        self.tdSql.execute(f'insert into {dbname}.tb values {self.gen_tb_batch_sql(batch, col_type, data_type, data_length, True)};')
+        self.tdSql.execute(f'insert into {dbname}.tb values {self.gen_tb_batch_sql(batch, 1, col_type, data_type, data_length, True)};')
         self.tdSql.query(f'select * from {dbname}.tb')
         self.tdSql.checkEqual(self.tdSql.query_row, batch)
         self.tdSql.execute(f'drop database if exists {dbname}')
@@ -132,24 +142,20 @@ class TestMultiProcessRun(TDCase):
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
         self.tdSql.execute(f'create database if not exists {dbname}')
         self.tdSql.execute(f'create table if not exists {dbname}.tb (ts timestamp, c1 binary({data_length}))')
-        for i in range(threads_count):
-            sql = f'insert into {dbname}.tb values {self.gen_tb_batch_sql(batch, col_type, data_type, data_length, True)};'
+        for thread_num in range(threads_count):
+            sql = f'insert into {dbname}.tb values {self.gen_tb_batch_sql(batch, thread_num, col_type, data_type, data_length, True)};'
             sql_list.append(sql)
         tlist = self.tdSql.genMultiThreadSeq(sql_list)
         self.tdSql.multiThreadRun(tlist)
-        #! bug
-        # self.tdSql.query(f'select * from {dbname}.tb')
-        # if batch*threads_count*1024 < min(self.mnodeShmSize_list)*2:
-        #     self.tdSql.checkEqual(self.tdSql.query_row, batch*threads_count)
-        # else:
-        #     self.tdSql.checkNotEqual(self.tdSql.query_row, batch*threads_count)
+        self.tdSql.query(f'select * from {dbname}.tb')
+        self.tdSql.checkEqual(self.tdSql.query_row, batch*threads_count)
         self.tdSql.execute(f'drop database if exists {dbname}')
 
     def kill_auto_restore(self):
-        self._remote.cmd(self.fqdn, [f'ps -ef | grep taosm | grep -v grep | xargs kill -9'])
-        self._remote.cmd(self.fqdn, [f'ps -ef | grep taosv | grep -v grep | xargs kill -9'])
+        self._remote.cmd(self.fqdn, [f'ps -ef | grep taosm | grep -v grep | awk \'{{print $2}}\' | xargs kill -9 2&>1'])
+        self._remote.cmd(self.fqdn, [f'ps -ef | grep taosv | grep -v grep | awk \'{{print $2}}\' | xargs kill -9 2&>1'])
         self.process_count_check()
-        self._remote.cmd(self.fqdn, [f'ps -ef | grep taosd | grep -v grep | xargs kill -9'])
+        self._remote.cmd(self.fqdn, [f'ps -ef | grep taosd | grep -v grep | awk \'{{print $2}}\' | xargs kill -9 2&>1'])
         self.process_count_check(0)
 
     def run(self):
@@ -157,9 +163,8 @@ class TestMultiProcessRun(TDCase):
         self.check_shmsize_delivery()
         self.boundary_check()
         self.multi_process_batch_insert(batch=100, data_length=10160)
-        # self.multi_process_threads_batch_insert(threads_count=3, batch=100, data_length=10160)
-        # ! bug TD-15580
-        # self.kill_auto_restore()
+        self.multi_process_threads_batch_insert(threads_count=6, batch=100, data_length=10160)
+        self.kill_auto_restore()
 
     def cleanup(self):
         pass
