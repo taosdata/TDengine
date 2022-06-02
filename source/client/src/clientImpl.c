@@ -1086,7 +1086,7 @@ void* doAsyncFetchRow(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUc
     tsem_wait(&pParam->sem);
   }
 
-  if (setupOneRowPtr) {
+  if (pRequest->code == TSDB_CODE_SUCCESS && setupOneRowPtr) {
     doSetOneRowPtr(pResultInfo);
     pResultInfo->current += 1;
   }

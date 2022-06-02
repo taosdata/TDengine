@@ -474,7 +474,7 @@ TEST(testCase, create_multiple_tables) {
 
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create table t_2 using st1 tags(1)");
+  pRes = taos_query(pConn, "create table if not exists t_2 using st1 tags(1)");
   if (taos_errno(pRes) != 0) {
     printf("failed to create multiple tables, reason:%s\n", taos_errstr(pRes));
     taos_free_result(pRes);
@@ -482,7 +482,7 @@ TEST(testCase, create_multiple_tables) {
   }
 
   taos_free_result(pRes);
-  pRes = taos_query(pConn, "create table t_3 using st1 tags(2)");
+  pRes = taos_query(pConn, "create table if not exists t_3 using st1 tags(2)");
   if (taos_errno(pRes) != 0) {
     printf("failed to create multiple tables, reason:%s\n", taos_errstr(pRes));
     taos_free_result(pRes);
@@ -590,6 +590,7 @@ TEST(testCase, generated_request_id_test) {
   taosHashCleanup(phash);
 }
 
+
 TEST(testCase, insert_test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
@@ -645,7 +646,7 @@ TEST(testCase, projection_query_tables) {
   }
   taos_free_result(pRes);
 
-  for(int32_t i = 0; i < 10000; i += 20) {
+  for(int32_t i = 0; i < 1000; i += 20) {
     char sql[1024] = {0};
     sprintf(sql,
             "insert into tu values(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"

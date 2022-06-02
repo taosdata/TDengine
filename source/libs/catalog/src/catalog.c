@@ -1034,10 +1034,10 @@ int32_t catalogAsyncGetAllMeta(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmt
 
   CTG_ERR_JRET(ctgLaunchJob(pJob));
 
-  *jobId = pJob->refId;
+  // NOTE: here the assignment of jobId is invalid, may over-write the true scheduler created query job.
+//  *jobId = pJob->refId;
   
 _return:
-
   if (pJob) {
     taosReleaseRef(gCtgMgmt.jobPool, pJob->refId);
 

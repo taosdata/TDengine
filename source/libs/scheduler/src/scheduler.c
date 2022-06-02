@@ -102,7 +102,7 @@ int32_t schedulerFetchRows(int64_t job, void **pData) {
   int32_t  code = 0;
   SSchJob *pJob = schAcquireJob(job);
   if (NULL == pJob) {
-    qError("acquire job from jobRef list failed, may be dropped, refId:%" PRIx64, job);
+    qError("acquire job from jobRef list failed, may be dropped, jobId:0x%" PRIx64, job);
     SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
   }
 
@@ -115,28 +115,26 @@ int32_t schedulerFetchRows(int64_t job, void **pData) {
   SCH_RET(code);
 }
 
-int32_t schedulerAsyncFetchRows(int64_t job, schedulerFetchCallback fp, void* param) {
+void schedulerAsyncFetchRows(int64_t job, schedulerFetchCallback fp, void* param) {
   if (NULL == fp || NULL == param) {
-    SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+    fp(NULL, param, TSDB_CODE_QRY_INVALID_INPUT);
+    return;
   }
 
-  int32_t  code = 0;
   SSchJob *pJob = schAcquireJob(job);
   if (NULL == pJob) {
-    qError("acquire job from jobRef list failed, may be dropped, refId:%" PRIx64, job);
+    qError("acquire job from jobRef list failed, may be dropped, jobId:0x%" PRIx64, job);
     fp(NULL, param, TSDB_CODE_SCH_STATUS_ERROR);
-    return TSDB_CODE_SCH_STATUS_ERROR;
+    return;
   }
 
   pJob->attr.syncSchedule = false;
   pJob->userRes.fetchFp = fp;
   pJob->userRes.userParam = param;
   
-  code = schAsyncFetchRows(pJob);
+  /*code = */schAsyncFetchRows(pJob);
 
   schReleaseJob(job);
-
-  SCH_RET(code);
 }
 
 int32_t schedulerGetTasksStatus(int64_t job, SArray *pSub) {
@@ -173,7 +171,7 @@ _return:
 int32_t scheduleCancelJob(int64_t job) {
   SSchJob *pJob = schAcquireJob(job);
   if (NULL == pJob) {
-    qError("acquire job from jobRef list failed, may be dropped, refId:%" PRIx64, job);
+    qError("acquire job from jobRef list failed, may be dropped, jobId:0x%" PRIx64, job);
     SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
   }
 
@@ -187,7 +185,7 @@ int32_t scheduleCancelJob(int64_t job) {
 void schedulerFreeJob(int64_t job) {
   SSchJob *pJob = schAcquireJob(job);
   if (NULL == pJob) {
-    qDebug("acquire job from jobRef list failed, may be dropped, refId:%" PRIx64, job);
+    qError("acquire job from jobRef list failed, may be dropped, jobId:0x%" PRIx64, job);
     return;
   }
 

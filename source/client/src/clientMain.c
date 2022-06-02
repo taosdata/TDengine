@@ -793,7 +793,7 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
     }
   }
 
-  pRequest->code = schedulerAsyncFetchRows(pRequest->body.queryJob, fetchCallback, pRequest);
+  schedulerAsyncFetchRows(pRequest->body.queryJob, fetchCallback, pRequest);
 }
 
 TAOS_SUB *taos_subscribe(TAOS *taos, int restart, const char *topic, const char *sql, TAOS_SUBSCRIBE_CALLBACK fp,

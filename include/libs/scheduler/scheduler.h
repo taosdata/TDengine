@@ -100,7 +100,7 @@ int32_t schedulerExecJob(void *transport, SArray *nodeList, SQueryPlan *pDag, in
  */
 int32_t schedulerFetchRows(int64_t job, void **data);
 
-int32_t schedulerAsyncFetchRows(int64_t job, schedulerFetchCallback fp, void* param);
+void schedulerAsyncFetchRows(int64_t job, schedulerFetchCallback fp, void* param);
 
 int32_t schedulerGetTasksStatus(int64_t job, SArray *pSub);
 
