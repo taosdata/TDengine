@@ -16,6 +16,7 @@
 #include "syncSnapshot.h"
 #include "syncRaftStore.h"
 #include "syncUtil.h"
+#include "wal.h"
 
 static void snapshotSenderDoStart(SSyncSnapshotSender *pSender);
 static void snapshotReceiverDoStart(SSyncSnapshotReceiver *pReceiver);
@@ -434,6 +435,10 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
         // end, finish FSM
         pSyncNode->pFsm->FpSnapshotDoWrite(pSyncNode->pFsm, pReceiver->pWriter, pMsg->data, pMsg->dataLen);
         pSyncNode->pFsm->FpSnapshotStopWrite(pSyncNode->pFsm, pReceiver->pWriter, true);
+
+        walRestoreFromSnapshot(pSyncNode->pWal, pMsg->lastIndex);
+        sInfo("walRestoreFromSnapshot lastIndex:%ld", pMsg->lastIndex);
+
         pReceiver->pWriter = NULL;
         snapshotReceiverStop(pReceiver);
         pReceiver->ack = pMsg->seq;

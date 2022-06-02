@@ -20,6 +20,7 @@
 #include "syncRaftStore.h"
 #include "syncUtil.h"
 #include "syncVoteMgr.h"
+#include "wal.h"
 
 // TLA+ Spec
 // HandleAppendEntriesRequest(i, j, m) ==
@@ -687,7 +688,10 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
         // execute fsm
         if (ths->pFsm != NULL) {
           for (SyncIndex i = beginIndex; i <= endIndex; ++i) {
-            if (i != SYNC_INDEX_INVALID) {
+            // notice! wal maybe deleted, update firstVer
+            SyncIndex walFirstVer = walGetFirstVer(ths->pWal);
+
+            if (i != SYNC_INDEX_INVALID && i >= walFirstVer) {
               SSyncRaftEntry* pEntry = ths->pLogStore->getEntry(ths->pLogStore, i);
               assert(pEntry != NULL);
 

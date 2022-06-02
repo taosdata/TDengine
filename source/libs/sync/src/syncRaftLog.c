@@ -208,9 +208,13 @@ cJSON* logStore2Json(SSyncLogStore* pLogStore) {
     cJSON_AddItemToObject(pRoot, "pEntries", pEntries);
     SyncIndex lastIndex = logStoreLastIndex(pLogStore);
     for (SyncIndex i = 0; i <= lastIndex; ++i) {
-      SSyncRaftEntry* pEntry = logStoreGetEntry(pLogStore, i);
-      cJSON_AddItemToArray(pEntries, syncEntry2Json(pEntry));
-      syncEntryDestory(pEntry);
+      SyncIndex walFirstVer = walGetFirstVer(pData->pWal);
+
+      if (i != SYNC_INDEX_INVALID && i >= walFirstVer) {
+        SSyncRaftEntry* pEntry = logStoreGetEntry(pLogStore, i);
+        cJSON_AddItemToArray(pEntries, syncEntry2Json(pEntry));
+        syncEntryDestory(pEntry);
+      }
     }
   }
 
