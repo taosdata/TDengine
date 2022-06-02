@@ -49,6 +49,7 @@ class TDTestQuery(TDCase):
     
     #basic_param
     db = "table_null"
+    service_host = "ceph01"
     table_list = ['regular_table_1','stable_1_1','regular_table_2','stable_1_2','stable_2_1']
     table = str(random.sample(table_list,1)).replace("[","").replace("]","").replace("'","")
     table_null_list = ['regular_table_null','stable_1_3','stable_1_4','stable_2_2','stable_null_data_1']
@@ -61,9 +62,10 @@ class TDTestQuery(TDCase):
         os.system("touch %s/%s.sql" % (self.testcasePath,self.testcaseFilename))   
         self.tdCreateData.dropandcreateDB_random("%s" % self.db, 1) 
 
-        conn1 = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos/")
+        # conn1 = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos/")
+        conn1 = taos.connect(host="%s" %self.service_host, user="root", password="taosdata", config="/etc/taos/")
         cur1 = conn1.cursor()        
-        cur1.execute('use "%s";' %self.db)
+        cur1.execute('use %s;' %self.db)
         sql = 'select * from regular_table_1 limit 5;'
         cur1.execute(sql)
 
@@ -80,10 +82,12 @@ class TDTestQuery(TDCase):
 
         for i in range(2):
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
                 print(conn1)
-                cur1.execute('use "%s";' %self.db)                 
+                # cur1.execute('use "%s";' %self.db)                 
+                cur1.execute('use %s;' %self.db)                 
 
                 regular_where_null = tdWhere.regular_where_null()
                 sql1 = 'select * from %s;'  % self.table
@@ -100,12 +104,12 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s where %s %s %s )" %(self.table,q_where,q_like_match,q_in_where)
-                        self.tdCreateData.result_0(sql2)
+                        #self.tdCreateData.result_0(sql2) #TD-16240
                         cur1.execute(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s) where %s %s %s " %(self.table,q_where,q_like_match,q_in_where)
-                        self.tdCreateData.result_0(sql2)
+                        #self.tdCreateData.result_0(sql2) #TD-16240
                         cur1.execute(sql2)
                         sql= sql + sql2
 
@@ -128,10 +132,12 @@ class TDTestQuery(TDCase):
 
         for i in range(2):
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
                 print(conn1)
-                cur1.execute('use "%s";' %self.db)                 
+                # cur1.execute('use "%s";' %self.db)                 
+                cur1.execute('use %s;' %self.db)                 
 
                 regular_where_null = tdWhere.regular_where_null()
                 sql1 = 'select * from %s ;' % self.table
@@ -158,12 +164,12 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s) where %s %s %s order by ts" %(self.table,q_where,q_like_match,q_in_where)
-                        self.tdCreateData.result_0(sql2)
+                        #self.tdCreateData.result_0(sql2) #TD-16240
                         cur1.execute(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s order by ts) where %s %s %s " %(self.table,q_where,q_like_match,q_in_where)
-                        self.tdCreateData.result_0(sql2)
+                        #self.tdCreateData.result_0(sql2) #TD-16240
                         cur1.execute(sql2)
                         sql= sql + sql2
 
@@ -197,12 +203,12 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s) where %s %s %s order by ts desc" %(self.table,q_where,q_like_match,q_in_where)
-                        self.tdCreateData.result_0(sql2)
+                        #self.tdCreateData.result_0(sql2) #TD-16240
                         cur1.execute(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s order by ts desc ) where %s %s %s " %(self.table,q_where,q_like_match,q_in_where)
-                        self.tdCreateData.result_0(sql2)
+                        #self.tdCreateData.result_0(sql2) #TD-16240
                         cur1.execute(sql2)
                         sql= sql + sql2
 
@@ -235,10 +241,12 @@ class TDTestQuery(TDCase):
 
         for i in range(2):
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
                 print(conn1)
-                cur1.execute('use "%s";' %self.db)                 
+                # cur1.execute('use "%s";' %self.db)                 
+                cur1.execute('use %s;' %self.db)                 
 
                 regular_where_null = tdWhere.regular_where_null()
                 sql1 = 'select * from %s;' % self.table
@@ -270,17 +278,17 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s) where %s %s %s order by ts limit 10" %(self.table,q_where,q_like_match,q_in_where)
-                        self.tdCreateData.result_0(sql2)
+                        #self.tdCreateData.result_0(sql2) #TD-16240
                         cur1.execute(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s order by ts limit 10 ) where %s %s %s " %(self.table,q_where,q_like_match,q_in_where)
-                        self.tdCreateData.result_0(sql2)
+                        #self.tdCreateData.result_0(sql2) #TD-16240
                         cur1.execute(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s order by ts limit 10 ) where %s %s %s order by ts limit 10 " %(self.table,q_where,q_like_match,q_in_where)
-                        self.tdCreateData.result_0(sql2)
+                        #self.tdCreateData.result_0(sql2) #TD-16240
                         cur1.execute(sql2)
                         sql= sql + sql2
 
@@ -308,10 +316,12 @@ class TDTestQuery(TDCase):
 
         for i in range(2):
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
                 print(conn1)
-                cur1.execute('use "%s";' %self.db)                 
+                # cur1.execute('use "%s";' %self.db)                 
+                cur1.execute('use %s;' %self.db)                  
 
                 regular_where_null = tdWhere.regular_where_null()
                 sql1 = 'select * from %s limit 10 offset 5;' % self.table
@@ -348,7 +358,7 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s) where %s %s %s order by ts limit 10 offset 5" %(self.table,q_where,q_like_match,q_in_where)
-                        self.tdCreateData.result_0(sql2)
+                        #self.tdCreateData.result_0(sql2) #TD-16240
                         cur1.execute(sql2)
                         sql= sql + sql2
 
@@ -401,10 +411,12 @@ class TDTestQuery(TDCase):
 
         for i in range(2):
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
                 print(conn1)
-                cur1.execute('use "%s";' %self.db)                 
+                # cur1.execute('use "%s";' %self.db)                 
+                cur1.execute('use %s;' %self.db)                 
 
                 regular_where = tdWhere.regular_where()
                 sql1 = 'select * from %s interval(3s) sliding(3n) Fill(NEXT);'  % self.table
@@ -435,6 +447,7 @@ class TDTestQuery(TDCase):
 
     def rm_sql(self):
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
+        #taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
         
     def run(self)-> bool:
         
