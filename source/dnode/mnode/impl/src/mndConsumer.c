@@ -306,6 +306,7 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
       SMqTopicObj *pTopic = mndAcquireTopic(pMnode, topic);
       ASSERT(pTopic);
       taosRLockLatch(&pTopic->lock);
+      tstrncpy(topicEp.db, pTopic->db, TSDB_DB_FNAME_LEN);
       topicEp.schema.nCols = pTopic->schema.nCols;
       if (topicEp.schema.nCols) {
         topicEp.schema.pSchema = taosMemoryCalloc(topicEp.schema.nCols, sizeof(SSchema));

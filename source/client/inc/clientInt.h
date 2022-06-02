@@ -191,6 +191,7 @@ typedef struct SRequestSendRecvBody {
 typedef struct {
   int8_t         resType;
   char           topic[TSDB_TOPIC_FNAME_LEN];
+  char           db[TSDB_DB_FNAME_LEN];
   int32_t        vgId;
   SSchemaWrapper schema;
   int32_t        resIter;
@@ -219,7 +220,8 @@ typedef struct SRequestObj {
 void*   doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4);
 void    doSetOneRowPtr(SReqResultInfo* pResultInfo);
 void    setResPrecision(SReqResultInfo* pResInfo, int32_t precision);
-int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp, bool convertUcs4);
+int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp, bool convertUcs4,
+                              bool freeAfterUse);
 void    setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols);
 void    doFreeReqResultInfo(SReqResultInfo* pResInfo);
 
@@ -241,7 +243,7 @@ static FORCE_INLINE SReqResultInfo* tmqGetNextResInfo(TAOS_RES* res, bool conver
       taosMemoryFreeClear(msg->resInfo.length);
       taosMemoryFreeClear(msg->resInfo.convertBuf);
     }
-    setQueryResultFromRsp(&msg->resInfo, pRetrieve, convertUcs4);
+    setQueryResultFromRsp(&msg->resInfo, pRetrieve, convertUcs4, false);
     return &msg->resInfo;
   }
   return NULL;
@@ -319,7 +321,7 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, int32_t code
 int32_t      getQueryPlan(SRequestObj* pRequest, SQuery* pQuery, SArray** pNodeList);
 int32_t      scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList, void** res);
 int32_t      refreshMeta(STscObj* pTscObj, SRequestObj* pRequest);
-int32_t updateQnodeList(SAppInstInfo*pInfo, SArray* pNodeList);
+int32_t      updateQnodeList(SAppInstInfo* pInfo, SArray* pNodeList);
 
 #ifdef __cplusplus
 }
