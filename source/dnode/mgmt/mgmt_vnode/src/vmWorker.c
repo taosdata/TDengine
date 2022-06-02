@@ -29,11 +29,11 @@ static inline void vmSendRsp(SRpcMsg *pMsg, int32_t code) {
   tmsgSendRsp(&rsp);
 }
 
-static void vmProcessQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
+static void vmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SVnodeMgmt *pMgmt = pInfo->ahandle;
   int32_t     code = -1;
-  dTrace("msg:%p, get from vnode queue, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
 
+  dTrace("msg:%p, get from vnode-mgmt queue", pMsg);
   switch (pMsg->msgType) {
     case TDMT_MON_VM_INFO:
       code = vmProcessGetMonitorInfoReq(pMgmt, pMsg);
@@ -49,11 +49,14 @@ static void vmProcessQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
       break;
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
-      dError("msg:%p, not processed in vnode queue", pMsg);
+      dError("msg:%p, not processed in vnode-mgmt queue", pMsg);
   }
 
   if (IsReq(pMsg)) {
-    if (code != 0 && terrno != 0) code = terrno;
+    if (code != 0 && terrno != 0) {
+      dError("msg:%p failed to process since %s", pMsg, terrstr());
+      code = terrno;
+    }
     vmSendRsp(pMsg, code);
   }
 
@@ -65,13 +68,15 @@ static void vmProcessQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
 static void vmProcessQueryQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SVnodeObj *pVnode = pInfo->ahandle;
 
-  dTrace("msg:%p, get from vnode-query queue", pMsg);
+  dTrace("vgId:%d, msg:%p get from vnode-query queue", pVnode->vgId, pMsg);
   int32_t code = vnodeProcessQueryMsg(pVnode->pImpl, pMsg);
   if (code != 0) {
     if (terrno != 0) code = terrno;
+    dError("vgId:%d, msg:%p failed to query since %s", pVnode->vgId, pMsg, terrstr());
     vmSendRsp(pMsg, code);
   }
-  dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
+
+  dTrace("vgId:%d, msg:%p is freed, code:0x%x", pVnode->vgId, pMsg, code);
   rpcFreeCont(pMsg->pCont);
   taosFreeQitem(pMsg);
 }
@@ -79,13 +84,15 @@ static void vmProcessQueryQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
 static void vmProcessFetchQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SVnodeObj *pVnode = pInfo->ahandle;
 
-  dTrace("msg:%p, get from vnode-fetch queue", pMsg);
+  dTrace("vgId:%d, msg:%p get from vnode-fetch queue", pVnode->vgId, pMsg);
   int32_t code = vnodeProcessFetchMsg(pVnode->pImpl, pMsg, pInfo);
   if (code != 0) {
     if (terrno != 0) code = terrno;
+    dError("vgId:%d, msg:%p failed to fetch since %s", pVnode->vgId, pMsg, terrstr());
     vmSendRsp(pMsg, code);
   }
-  dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
+
+  dTrace("vgId:%d, msg:%p is freed, code:0x%x", pVnode->vgId, pMsg, code);
   rpcFreeCont(pMsg->pCont);
   taosFreeQitem(pMsg);
 }
@@ -99,7 +106,7 @@ static void vmProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
 
   for (int32_t m = 0; m < numOfMsgs; m++) {
     if (taosGetQitem(qall, (void **)&pMsg) == 0) continue;
-    dTrace("vgId:%d, get msg:%p from vnode-write queue, type:%s", pVnode->vgId, pMsg, TMSG_INFO(pMsg->msgType));
+    dTrace("vgId:%d, msg:%p get from vnode-write queue", pVnode->vgId, pMsg);
 
     if (taosArrayPush(pArray, &pMsg) == NULL) {
       dError("vgId:%d, failed to push msg:%p to vnode-write array", pVnode->vgId, pMsg);
@@ -113,7 +120,7 @@ static void vmProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
 
     if (code == TSDB_CODE_ACTION_IN_PROGRESS) continue;
     if (code != 0) {
-      dError("vgId:%d, msg:%p failed to process since %s", pVnode->vgId, pMsg, tstrerror(code));
+      dError("vgId:%d, msg:%p failed to write since %s", pVnode->vgId, pMsg, tstrerror(code));
       vmSendRsp(pMsg, code);
       continue;
     }
@@ -129,14 +136,14 @@ static void vmProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
       SRpcMsg rsp = {.code = TSDB_CODE_RPC_REDIRECT, .info = pMsg->info};
       tmsgSendRedirectRsp(&rsp, &newEpSet);
     } else {
-      dError("vgId:%d, msg:%p failed to process since %s", pVnode->vgId, pMsg, tstrerror(code));
+      dError("vgId:%d, msg:%p failed to write since %s", pVnode->vgId, pMsg, tstrerror(code));
       vmSendRsp(pMsg, code);
     }
   }
 
   for (int32_t i = 0; i < numOfMsgs; i++) {
     pMsg = *(SRpcMsg **)taosArrayGet(pArray, i);
-    dTrace("vgId:%d, msg:%p, is freed", pVnode->vgId, pMsg);
+    dTrace("vgId:%d, msg:%p is freed", pVnode->vgId, pMsg);
     rpcFreeCont(pMsg->pCont);
     taosFreeQitem(pMsg);
   }
@@ -146,10 +153,11 @@ static void vmProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
 
 static void vmProcessApplyQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
   SVnodeObj *pVnode = pInfo->ahandle;
+  SRpcMsg   *pMsg = NULL;
 
   for (int32_t i = 0; i < numOfMsgs; ++i) {
-    SRpcMsg *pMsg = NULL;
-    taosGetQitem(qall, (void **)&pMsg);
+    if (taosGetQitem(qall, (void **)&pMsg) == 0) continue;
+    dTrace("vgId:%d, msg:%p get from vnode-apply queue", pVnode->vgId, pMsg);
 
     // init response rpc msg
     SRpcMsg rsp = {0};
@@ -164,7 +172,7 @@ static void vmProcessApplyQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
     // apply data into tsdb
     if (vnodeProcessWriteReq(pVnode->pImpl, &originalRpcMsg, pSyncApplyMsg->fsmMeta.index, &rsp) < 0) {
       rsp.code = terrno;
-      dTrace("msg:%p, process write error since %s", pMsg, terrstr());
+      dError("vgId:%d, msg:%p failed to apply since %s", pVnode->vgId, pMsg, terrstr());
     }
 
     syncApplyMsgDestroy(pSyncApplyMsg);
@@ -176,6 +184,7 @@ static void vmProcessApplyQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
       tmsgSendRsp(&rsp);
     }
 
+    dTrace("vgId:%d, msg:%p is freed, code:0x%x", pVnode->vgId, pMsg, rsp.code);
     rpcFreeCont(pMsg->pCont);
     taosFreeQitem(pMsg);
   }
@@ -183,23 +192,22 @@ static void vmProcessApplyQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
 
 static void vmProcessSyncQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
   SVnodeObj *pVnode = pInfo->ahandle;
+  SRpcMsg   *pMsg = NULL;
 
   for (int32_t i = 0; i < numOfMsgs; ++i) {
-    SRpcMsg *pMsg = NULL;
-    taosGetQitem(qall, (void **)&pMsg);
+    if (taosGetQitem(qall, (void **)&pMsg) == 0) continue;
+    dTrace("vgId:%d, msg:%p get from vnode-sync queue", pVnode->vgId, pMsg);
 
     int32_t code = vnodeProcessSyncReq(pVnode->pImpl, pMsg, NULL);
     if (code != 0) {
+      dError("vgId:%d, msg:%p failed to sync since %s", pVnode->vgId, pMsg, terrstr());
       if (pMsg->info.handle != NULL) {
-        SRpcMsg rsp = {
-            .code = (terrno < 0) ? terrno : code,
-            .info = pMsg->info,
-        };
-        dTrace("msg:%p, failed to process sync queue since %s", pMsg, terrstr());
-        tmsgSendRsp(&rsp);
+        if (terrno != 0) code = terrno;
+        vmSendRsp(pMsg, code);
       }
     }
 
+    dTrace("vgId:%d, msg:%p is freed, code:0x%x", pVnode->vgId, pMsg, code);
     rpcFreeCont(pMsg->pCont);
     taosFreeQitem(pMsg);
   }
@@ -207,24 +215,26 @@ static void vmProcessSyncQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOf
 
 static void vmProcessMergeQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
   SVnodeObj *pVnode = pInfo->ahandle;
+  SRpcMsg   *pMsg = NULL;
 
   for (int32_t i = 0; i < numOfMsgs; ++i) {
-    SRpcMsg *pMsg = NULL;
-    taosGetQitem(qall, (void **)&pMsg);
+    if (taosGetQitem(qall, (void **)&pMsg) == 0) continue;
+    dTrace("vgId:%d, msg:%p get from vnode-merge queue", pVnode->vgId, pMsg);
 
-    dTrace("msg:%p, get from vnode-merge queue", pMsg);
     int32_t code = vnodeProcessFetchMsg(pVnode->pImpl, pMsg, pInfo);
     if (code != 0) {
+      dError("vgId:%d, msg:%p failed to merge since %s", pVnode->vgId, pMsg, terrstr());
       if (terrno != 0) code = terrno;
       vmSendRsp(pMsg, code);
     }
+
     dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
     rpcFreeCont(pMsg->pCont);
     taosFreeQitem(pMsg);
   }
 }
 
-static int32_t vmPutNodeMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtype) {
+static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtype) {
   SMsgHead *pHead = pMsg->pCont;
   int32_t   code = 0;
 
@@ -233,30 +243,34 @@ static int32_t vmPutNodeMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType 
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, pHead->vgId);
   if (pVnode == NULL) {
-    dError("vgId:%d, failed to put msg:%p into vnode-queue since %s", pHead->vgId, pMsg, terrstr());
+    dError("vgId:%d, failed to put msg:%p into vnode queue since %s", pHead->vgId, pMsg, terrstr());
     return terrno != 0 ? terrno : -1;
   }
 
   switch (qtype) {
     case QUERY_QUEUE:
-      dTrace("msg:%p, put into vnode-query worker, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
+      dTrace("vgId:%d, msg:%p put into vnode-query queue, type:%s", pVnode->vgId, pMsg, TMSG_INFO(pMsg->msgType));
       taosWriteQitem(pVnode->pQueryQ, pMsg);
       break;
     case FETCH_QUEUE:
-      dTrace("msg:%p, put into vnode-fetch worker, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
+      dTrace("vgId:%d, msg:%p put into vnode-fetch queue, type:%s", pVnode->vgId, pMsg, TMSG_INFO(pMsg->msgType));
       taosWriteQitem(pVnode->pFetchQ, pMsg);
       break;
     case WRITE_QUEUE:
-      dTrace("msg:%p, put into vnode-write worker, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
+      dTrace("vgId:%d, msg:%p put into vnode-write queue, type:%s", pVnode->vgId, pMsg, TMSG_INFO(pMsg->msgType));
       taosWriteQitem(pVnode->pWriteQ, pMsg);
       break;
     case SYNC_QUEUE:
-      dTrace("msg:%p, put into vnode-sync worker, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
+      dTrace("vgId:%d, msg:%p put into vnode-sync queue, type:%s", pVnode->vgId, pMsg, TMSG_INFO(pMsg->msgType));
       taosWriteQitem(pVnode->pSyncQ, pMsg);
       break;
     case MERGE_QUEUE:
-      dTrace("msg:%p, put into vnode-merge worker, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
+      dTrace("vgId:%d, msg:%p put into vnode-merge queue, type:%s", pVnode->vgId, pMsg, TMSG_INFO(pMsg->msgType));
       taosWriteQitem(pVnode->pMergeQ, pMsg);
+      break;
+    case APPLY_QUEUE:
+      dTrace("vgId:%d, msg:%p put into vnode-apply queue, type:%s", pVnode->vgId, pMsg, TMSG_INFO(pMsg->msgType));
+      taosWriteQitem(pVnode->pApplyQ, pMsg);
       break;
     default:
       code = -1;
@@ -268,110 +282,39 @@ static int32_t vmPutNodeMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType 
   return code;
 }
 
-int32_t vmPutNodeMsgToSyncQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  return vmPutNodeMsgToQueue(pMgmt, pMsg, SYNC_QUEUE);
-}
+int32_t vmPutMsgToSyncQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) { return vmPutMsgToQueue(pMgmt, pMsg, SYNC_QUEUE); }
 
-int32_t vmPutNodeMsgToWriteQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  return vmPutNodeMsgToQueue(pMgmt, pMsg, WRITE_QUEUE);
-}
+int32_t vmPutMsgToWriteQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) { return vmPutMsgToQueue(pMgmt, pMsg, WRITE_QUEUE); }
 
-int32_t vmPutNodeMsgToQueryQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  return vmPutNodeMsgToQueue(pMgmt, pMsg, QUERY_QUEUE);
-}
+int32_t vmPutMsgToQueryQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) { return vmPutMsgToQueue(pMgmt, pMsg, QUERY_QUEUE); }
 
-int32_t vmPutNodeMsgToFetchQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  return vmPutNodeMsgToQueue(pMgmt, pMsg, FETCH_QUEUE);
-}
+int32_t vmPutMsgToFetchQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) { return vmPutMsgToQueue(pMgmt, pMsg, FETCH_QUEUE); }
 
-int32_t vmPutNodeMsgToMergeQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  return vmPutNodeMsgToQueue(pMgmt, pMsg, MERGE_QUEUE);
-}
+int32_t vmPutMsgToMergeQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) { return vmPutMsgToQueue(pMgmt, pMsg, MERGE_QUEUE); }
 
-int32_t vmPutNodeMsgToMgmtQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  SSingleWorker *pWorker = &pMgmt->mgmtWorker;
-  dTrace("msg:%p, put into vnode-mgmt worker, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
-  taosWriteQitem(pWorker->queue, pMsg);
+int32_t vmPutMsgToMgmtQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  dTrace("msg:%p, put into vnode-mgmt queue, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
+  taosWriteQitem(pMgmt->mgmtWorker.queue, pMsg);
   return 0;
 }
 
-int32_t vmPutNodeMsgToMonitorQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  SSingleWorker *pWorker = &pMgmt->monitorWorker;
-  dTrace("msg:%p, put into vnode-monitor worker, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
-  taosWriteQitem(pWorker->queue, pMsg);
+int32_t vmPutMsgToMonitorQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  dTrace("msg:%p, put into vnode-monitor queue, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
+  taosWriteQitem(pMgmt->monitorWorker.queue, pMsg);
   return 0;
 }
 
-static int32_t vmPutRpcMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pRpc, EQueueType qtype) {
-  SMsgHead  *pHead = pRpc->pCont;
-  SVnodeObj *pVnode = vmAcquireVnode(pMgmt, pHead->vgId);
-  if (pVnode == NULL) return -1;
-
+int32_t vmPutRpcMsgToQueue(SVnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM);
-  int32_t  code = 0;
+  if (pMsg == NULL) return -1;
 
-  if (pMsg == NULL) {
-    rpcFreeCont(pRpc->pCont);
-    pRpc->pCont = NULL;
-    code = -1;
-  } else {
-    memcpy(pMsg, pRpc, sizeof(SRpcMsg));
-    switch (qtype) {
-      case WRITE_QUEUE:
-        dTrace("msg:%p, create and put into vnode-write worker, type:%s", pMsg, TMSG_INFO(pRpc->msgType));
-        taosWriteQitem(pVnode->pWriteQ, pMsg);
-        break;
-      case QUERY_QUEUE:
-        dTrace("msg:%p, create and put into vnode-query queue, type:%s", pMsg, TMSG_INFO(pRpc->msgType));
-        taosWriteQitem(pVnode->pQueryQ, pMsg);
-        break;
-      case FETCH_QUEUE:
-        dTrace("msg:%p, create and put into vnode-fetch queue, type:%s", pMsg, TMSG_INFO(pRpc->msgType));
-        taosWriteQitem(pVnode->pFetchQ, pMsg);
-        break;
-      case APPLY_QUEUE:
-        dTrace("msg:%p, create and put into vnode-apply queue, type:%s", pMsg, TMSG_INFO(pRpc->msgType));
-        taosWriteQitem(pVnode->pApplyQ, pMsg);
-        break;
-      case MERGE_QUEUE:
-        dTrace("msg:%p, create and put into vnode-merge queue, type:%s", pMsg, TMSG_INFO(pRpc->msgType));
-        taosWriteQitem(pVnode->pMergeQ, pMsg);
-        break;
-      case SYNC_QUEUE:
-        dTrace("msg:%p, create and put into vnode-sync queue, type:%s", pMsg, TMSG_INFO(pRpc->msgType));
-        taosWriteQitem(pVnode->pSyncQ, pMsg);
-        break;
-      default:
-        code = -1;
-        terrno = TSDB_CODE_INVALID_PARA;
-        break;
-    }
-  }
+  SMsgHead *pHead = pRpc->pCont;
+  pHead->contLen = htonl(pHead->contLen);
+  pHead->vgId = htonl(pHead->vgId);
+  memcpy(pMsg, pRpc, sizeof(SRpcMsg));
 
-  vmReleaseVnode(pMgmt, pVnode);
-  return code;
-}
-
-int32_t vmPutRpcMsgToWriteQueue(SVnodeMgmt *pMgmt, SRpcMsg *pRpc) {
-  return vmPutRpcMsgToQueue(pMgmt, pRpc, WRITE_QUEUE);
-}
-
-int32_t vmPutRpcMsgToSyncQueue(SVnodeMgmt *pMgmt, SRpcMsg *pRpc) { return vmPutRpcMsgToQueue(pMgmt, pRpc, SYNC_QUEUE); }
-
-int32_t vmPutRpcMsgToApplyQueue(SVnodeMgmt *pMgmt, SRpcMsg *pRpc) {
-  return vmPutRpcMsgToQueue(pMgmt, pRpc, APPLY_QUEUE);
-}
-
-int32_t vmPutRpcMsgToQueryQueue(SVnodeMgmt *pMgmt, SRpcMsg *pRpc) {
-  return vmPutRpcMsgToQueue(pMgmt, pRpc, QUERY_QUEUE);
-}
-
-int32_t vmPutRpcMsgToFetchQueue(SVnodeMgmt *pMgmt, SRpcMsg *pRpc) {
-  return vmPutRpcMsgToQueue(pMgmt, pRpc, FETCH_QUEUE);
-}
-
-int32_t vmPutRpcMsgToMergeQueue(SVnodeMgmt *pMgmt, SRpcMsg *pRpc) {
-  return vmPutRpcMsgToQueue(pMgmt, pRpc, MERGE_QUEUE);
+  dTrace("msg:%p, is created and will put into vnode queue", pMsg);
+  return vmPutMsgToQueue(pMgmt, pMsg, qtype);
 }
 
 int32_t vmGetQueueSize(SVnodeMgmt *pMgmt, int32_t vgId, EQueueType qtype) {
@@ -467,29 +410,23 @@ int32_t vmStartWorker(SVnodeMgmt *pMgmt) {
   pMPool->max = tsNumOfVnodeMergeThreads;
   if (tWWorkerInit(pMPool) != 0) return -1;
 
-  SSingleWorkerCfg cfg = {
+  SSingleWorkerCfg mgmtCfg = {
       .min = 1,
       .max = 1,
       .name = "vnode-mgmt",
-      .fp = (FItem)vmProcessQueue,
+      .fp = (FItem)vmProcessMgmtQueue,
       .param = pMgmt,
   };
-  if (tSingleWorkerInit(&pMgmt->mgmtWorker, &cfg) != 0) {
-    dError("failed to start vnode-mgmt worker since %s", terrstr());
-    return -1;
-  }
+  if (tSingleWorkerInit(&pMgmt->mgmtWorker, &mgmtCfg) != 0) return -1;
 
-  SSingleWorkerCfg mCfg = {
+  SSingleWorkerCfg monitorCfg = {
       .min = 1,
       .max = 1,
       .name = "vnode-monitor",
-      .fp = (FItem)vmProcessQueue,
+      .fp = (FItem)vmProcessMgmtQueue,
       .param = pMgmt,
   };
-  if (tSingleWorkerInit(&pMgmt->monitorWorker, &mCfg) != 0) {
-    dError("failed to start vnode-monitor worker since %s", terrstr());
-    return -1;
-  }
+  if (tSingleWorkerInit(&pMgmt->monitorWorker, &monitorCfg) != 0) return -1;
 
   dDebug("vnode workers are initialized");
   return 0;
