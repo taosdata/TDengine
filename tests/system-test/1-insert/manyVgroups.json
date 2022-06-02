@@ -10,7 +10,7 @@
     "result_file": "./insert_res.txt",
     "confirm_parameter_prompt": "no",
     "insert_interval": 0,
-    "interlace_rows": 100000,
+    "interlace_rows": 0,
     "num_of_records_per_req": 100,
     "databases": [
         {
@@ -29,8 +29,8 @@
                     "batch_create_tbl_num": 50000,
                     "data_source": "rand",
                     "insert_mode": "taosc",
-                    "insert_rows": 10,
-                    "interlace_rows": 100000,
+                    "insert_rows": 1,
+                    "interlace_rows": 0,
                     "insert_interval": 0,
                     "max_sql_len": 10000000,
                     "disorder_ratio": 0,

@@ -2,7 +2,7 @@ import taos
 import sys
 import time
 import socket
-import pexpect
+# import pexpect
 import os
 import http.server
 import gzip

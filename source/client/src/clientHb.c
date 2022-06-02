@@ -120,7 +120,7 @@ static int32_t hbProcessStbInfoRsp(void *value, int32_t valueLen, struct SCatalo
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
 
-      catalogUpdateSTableMeta(pCatalog, rsp);
+      catalogUpdateTableMeta(pCatalog, rsp);
     }
   }
 
@@ -140,8 +140,10 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
     STscObj *pTscObj = (STscObj *)acquireTscObj(pRsp->connKey.tscRid);
     if (NULL == pTscObj) {
       tscDebug("tscObj rid %" PRIx64 " not exist", pRsp->connKey.tscRid);
-    } else {
-      updateEpSet_s(&pTscObj->pAppInfo->mgmtEp, &pRsp->query->epSet);
+    } else {      
+      if (pRsp->query->totalDnodes > 1 && !isEpsetEqual(&pTscObj->pAppInfo->mgmtEp.epSet, &pRsp->query->epSet)) {
+        updateEpSet_s(&pTscObj->pAppInfo->mgmtEp, &pRsp->query->epSet);
+      }
       pTscObj->connId = pRsp->query->connId;
 
       if (pRsp->query->killRid) {
@@ -156,6 +158,10 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
 
       if (pRsp->query->killConnection) {
         taos_close(pTscObj);
+      }
+
+      if (pRsp->query->pQnodeList) {
+        updateQnodeList(pTscObj->pAppInfo, pRsp->query->pQnodeList);
       }
 
       releaseTscObj(pRsp->connKey.tscRid);
@@ -580,8 +586,15 @@ void hbClearReqInfo(SAppHbMgr *pAppHbMgr) {
   }
 }
 
+void hbThreadFuncUnexpectedStopped(void) {
+  atomic_store_8(&clientHbMgr.threadStop, 2);
+}
+
 static void *hbThreadFunc(void *param) {
   setThreadName("hb");
+#ifdef WINDOWS
+  atexit(hbThreadFuncUnexpectedStopped);
+#endif
   while (1) {
     int8_t threadStop = atomic_val_compare_exchange_8(&clientHbMgr.threadStop, 1, 2);
     if (1 == threadStop) {

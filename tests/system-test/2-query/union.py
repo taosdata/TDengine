@@ -35,8 +35,6 @@ class TDTestCase:
         for char_col in CHAR_COL:
             query_condition.extend(
                 (
-                    f"rtrim( {tbname}.{char_col} )",
-                    f"substr( {tbname}.{char_col}, 1 )",
                     f"count( {tbname}.{char_col} )",
                     f"cast( {tbname}.{char_col} as nchar(3) )",
                 )
@@ -45,11 +43,7 @@ class TDTestCase:
         for num_col in NUM_COL:
             query_condition.extend(
                 (
-                    f"{tbname}.{num_col}",
-                    f"floor( {tbname}.{num_col} )",
                     f"log( {tbname}.{num_col},  {tbname}.{num_col})",
-                    f"sin( {tbname}.{num_col} )",
-                    f"sqrt( {tbname}.{num_col} )",
                 )
             )
 
@@ -96,7 +90,6 @@ class TDTestCase:
 
         return ""
 
-
     def __group_condition(self, col, having = None):
         if isinstance(col, str):
             if col.startswith("count"):
@@ -114,15 +107,10 @@ class TDTestCase:
             return
         return f"select {select_clause} from {from_clause} {where_condition} {group_condition}"
 
-
     @property
     def __join_tblist(self):
         return [
-            ["ct1", "ct2"],
-            ["ct1", "ct4"],
             ["ct1", "t1"],
-            ["ct2", "ct4"],
-            ["ct2", "t1"],
             ["ct4", "t1"],
             # ["ct1", "ct2", "ct4"],
             # ["ct1", "ct2", "t1"],
@@ -135,9 +123,7 @@ class TDTestCase:
     def __tb_liast(self):
         return [
             "ct1",
-            "ct2",
             "ct4",
-            "t1",
         ]
 
     def sql_list(self):
@@ -152,15 +138,7 @@ class TDTestCase:
                     having_claus = self.__group_condition( col=select_claus, having=f"{select_claus} is not null")
                     sqls.extend(
                         (
-                            self.__single_sql(select_claus, join_tb, where_claus, group_claus),
-                            self.__single_sql(select_claus, join_tb, where_claus, having_claus),
-                            self.__single_sql(select_claus, self.__join_condition(join_tblist), where_claus, having_claus),
                             self.__single_sql(select_claus, self.__join_condition(join_tblist, INNER=True), where_claus, having_claus),
-                            self.__single_sql(select_claus, join_tb, where_claus),
-                            self.__single_sql(select_claus, join_tb, having_claus),
-                            self.__single_sql(select_claus, join_tb, group_claus),
-                            self.__single_sql(select_claus, join_tb),
-
                         )
                     )
         __no_join_tblist = self.__tb_liast
@@ -172,12 +150,7 @@ class TDTestCase:
                     having_claus = self.__group_condition(col=select_claus, having=f"{select_claus} is not null")
                     sqls.extend(
                         (
-                            self.__single_sql(select_claus, join_tb, where_claus, group_claus),
-                            self.__single_sql(select_claus, join_tb, where_claus, having_claus),
-                            self.__single_sql(select_claus, join_tb, where_claus),
-                            self.__single_sql(select_claus, join_tb, group_claus),
-                            self.__single_sql(select_claus, join_tb, having_claus),
-                            self.__single_sql(select_claus, join_tb),
+                            self.__single_sql(select_claus, tb, where_claus, having_claus),
                         )
                     )
 
@@ -221,6 +194,8 @@ class TDTestCase:
         for i in range(len(sqls)):
             tdSql.query(sqls[i])
             res1_type = self.__get_type(0)
+            # if i % 5 == 0:
+            #         tdLog.success(f"{i} : sql is already executing!")
             for j in range(len(sqls[i:])):
                 tdSql.query(sqls[j+i])
                 order_union_type = False
@@ -246,22 +221,12 @@ class TDTestCase:
                     rev_order_type = True
 
                 if all_union_type:
-                    tdSql.query(f"{sqls[i]} union {sqls[j+i]}")
-                    tdSql.query(f"{sqls[j+i]} union {sqls[i]}")
-                    tdSql.checkCols(1)
-                    tdSql.query(f"{sqls[i]} union all {sqls[j+i]}")
-                    tdSql.query(f"{sqls[j+i]} union all {sqls[i]}")
-                    tdSql.checkCols(1)
+                    tdSql.execute(f"{sqls[i]} union {sqls[j+i]}")
+                    tdSql.execute(f"{sqls[j+i]} union all {sqls[i]}")
                 elif order_union_type:
-                    tdSql.query(f"{sqls[i]} union {sqls[j+i]}")
-                    tdSql.checkCols(1)
-                    tdSql.query(f"{sqls[i]} union all {sqls[j+i]}")
-                    tdSql.checkCols(1)
+                    tdSql.execute(f"{sqls[i]} union all {sqls[j+i]}")
                 elif rev_order_type:
-                    tdSql.query(f"{sqls[j+i]} union {sqls[i]}")
-                    tdSql.checkCols(1)
-                    tdSql.query(f"{sqls[j+i]} union all {sqls[i]}")
-                    tdSql.checkCols(1)
+                    tdSql.execute(f"{sqls[j+i]} union {sqls[i]}")
                 else:
                     tdSql.error(f"{sqls[i]} union {sqls[j+i]}")
 
@@ -273,7 +238,7 @@ class TDTestCase:
         tdSql.error( "select c1 from ct1 union all drop table ct3" )
         tdSql.error( "select c1 from ct1 union all '' " )
         tdSql.error( " '' union all select c1 from ct1 " )
-        tdSql.error( "select c1 from ct1 union select c1 from ct2 union select c1 from ct4 ")
+        # tdSql.error( "select c1 from ct1 union select c1 from ct2 union select c1 from ct4 ")
 
     def all_test(self):
         self.__test_error()

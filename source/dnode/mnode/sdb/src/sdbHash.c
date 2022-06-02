@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "sdbInt.h"
+#include "sdb.h"
 
 static void sdbCheckRow(SSdb *pSdb, SSdbRow *pRow);
 
@@ -361,6 +361,34 @@ void *sdbFetch(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj) {
     atomic_add_fetch_32(&pRow->refCount, 1);
     sdbPrintOper(pSdb, pRow, "fetch");
     *ppObj = pRow->pObj;
+    break;
+  }
+  taosThreadRwlockUnlock(pLock);
+
+  return ppRow;
+}
+
+void *sdbFetchAll(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj, ESdbStatus *status) {
+  *ppObj = NULL;
+
+  SHashObj *hash = sdbGetHash(pSdb, type);
+  if (hash == NULL) return NULL;
+
+  TdThreadRwlock *pLock = &pSdb->locks[type];
+  taosThreadRwlockRdlock(pLock);
+
+  SSdbRow **ppRow = taosHashIterate(hash, pIter);
+  while (ppRow != NULL) {
+    SSdbRow *pRow = *ppRow;
+    if (pRow == NULL) {
+      ppRow = taosHashIterate(hash, ppRow);
+      continue;
+    }
+
+    atomic_add_fetch_32(&pRow->refCount, 1);
+    sdbPrintOper(pSdb, pRow, "fetch");
+    *ppObj = pRow->pObj;
+    *status = pRow->status;
     break;
   }
   taosThreadRwlockUnlock(pLock);

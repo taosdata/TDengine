@@ -61,7 +61,7 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, void* streamReadHandle);
  * @param type
  * @return
  */
-int32_t qSetStreamInput(qTaskInfo_t tinfo, const void* input, int32_t type);
+int32_t qSetStreamInput(qTaskInfo_t tinfo, const void* input, int32_t type, bool assignUid);
 
 /**
  * Set multiple input data blocks for the stream scan.
@@ -71,7 +71,7 @@ int32_t qSetStreamInput(qTaskInfo_t tinfo, const void* input, int32_t type);
  * @param type
  * @return
  */
-int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type);
+int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type, bool assignUid);
 
 /**
  * Update the table id list, add or remove.
@@ -155,18 +155,6 @@ int64_t qGetQueriedTableUid(qTaskInfo_t tinfo);
  * @return
  */
 int32_t qGetQualifiedTableIdList(void* pTableList, const char* tagCond, int32_t tagCondLen, SArray* pTableIdList);
-
-/**
- * Create the table group according to the group by tags info
- * @param pTableIdList
- * @param skey
- * @param groupInfo
- * @param groupByIndex
- * @param numOfIndex
- * @return
- */
-// int32_t qCreateTableGroupByGroupExpr(SArray* pTableIdList, TSKEY skey, STableGroupInfo groupInfo, SColIndex*
-// groupByIndex, int32_t numOfIndex);
 
 /**
  * Update the table id list of a given query.

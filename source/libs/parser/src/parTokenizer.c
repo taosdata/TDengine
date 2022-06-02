@@ -61,13 +61,13 @@ static SKeyword keywordTable[] = {
     {"CONNS",         TK_CONNS},
     {"CONNECTION",    TK_CONNECTION},
     {"CONNECTIONS",   TK_CONNECTIONS},
+    {"CONSUMER",      TK_CONSUMER},
     {"COUNT",         TK_COUNT},
     {"CREATE",        TK_CREATE},
     {"DATABASE",      TK_DATABASE},
     {"DATABASES",     TK_DATABASES},
     {"DAYS",          TK_DAYS},
     {"DBS",           TK_DBS},
-    {"DELAY",         TK_DELAY},
     {"DESC",          TK_DESC},
     {"DESCRIBE",      TK_DESCRIBE},
     {"DISTINCT",      TK_DISTINCT},
@@ -155,7 +155,7 @@ static SKeyword keywordTable[] = {
     {"RETENTIONS",    TK_RETENTIONS},
     {"REVOKE",        TK_REVOKE},
     {"ROLLUP",        TK_ROLLUP},
-    {"SCHEMA",        TK_SCHEMA},
+    {"SCHEMALESS",    TK_SCHEMALESS},
     {"SCORES",        TK_SCORES},
     {"SELECT",        TK_SELECT},
     {"SESSION",       TK_SESSION},
@@ -212,7 +212,6 @@ static SKeyword keywordTable[] = {
     {"WATERMARK",     TK_WATERMARK},
     {"WHERE",         TK_WHERE},
     {"WINDOW_CLOSE",  TK_WINDOW_CLOSE},
-    {"WITH",          TK_WITH},
     {"WRITE",         TK_WRITE},
     {"_C0",           TK_ROWTS},
     {"_QENDTS",       TK_QENDTS},
@@ -605,12 +604,12 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
       }
       return i;
     }
-    case '[': {
-      for (i = 1; z[i] && z[i - 1] != ']'; i++) {
-      }
-      *tokenId = TK_NK_ID;
-      return i;
-    }
+    // case '[': {
+    //   for (i = 1; z[i] && z[i - 1] != ']'; i++) {
+    //   }
+    //   *tokenId = TK_NK_ID;
+    //   return i;
+    // }
     case 'T':
     case 't':
     case 'F':

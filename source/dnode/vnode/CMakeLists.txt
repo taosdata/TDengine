@@ -13,6 +13,8 @@ target_sources(
     "src/vnd/vnodeModule.c"
     "src/vnd/vnodeSvr.c"
     "src/vnd/vnodeSync.c"
+    "src/vnd/vnodeSnapshot.c"
+    "src/vnd/vnodeUtil.c"
 
     # meta
     "src/meta/metaOpen.c"
@@ -22,6 +24,7 @@ target_sources(
     "src/meta/metaQuery.c"
     "src/meta/metaCommit.c"
     "src/meta/metaEntry.c"
+    "src/meta/metaSnapshot.c"
 
     # sma
     "src/sma/sma.c"
@@ -29,10 +32,9 @@ target_sources(
     "src/sma/smaEnv.c"
     "src/sma/smaOpen.c"
     "src/sma/smaRollup.c"
-    "src/sma/smaTimeRange.c"
+    "src/sma/smaTimeRange2.c"
 
     # tsdb
-    # "src/tsdb/tsdbTDBImpl.c"
     "src/tsdb/tsdbCommit.c"
     "src/tsdb/tsdbCommit2.c"
     "src/tsdb/tsdbFile.c"
@@ -42,15 +44,18 @@ target_sources(
     "src/tsdb/tsdbMemTable2.c"
     "src/tsdb/tsdbRead.c"
     "src/tsdb/tsdbReadImpl.c"
-    # "src/tsdb/tsdbSma.c"
     "src/tsdb/tsdbWrite.c"
+    "src/tsdb/tsdbSnapshot.c"
 
     # tq
     "src/tq/tq.c"
-    "src/tq/tqCommit.c"
+    "src/tq/tqExec.c"
+    "src/tq/tqMeta.c"
+    "src/tq/tqRead.c"
     "src/tq/tqOffset.c"
     "src/tq/tqPush.c"
-    "src/tq/tqRead.c"
+    "src/tq/tqSink.c"
+    "src/tq/tqCommit.c"
 )
 target_include_directories(
     vnode

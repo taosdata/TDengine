@@ -2,7 +2,7 @@ import taos
 import sys
 import time
 import socket
-import pexpect
+# import pexpect
 import os
 import http.server
 import gzip
@@ -75,7 +75,7 @@ def telemetryInfoCheck(infoDict=''):
         if k not in infoDict["cluster_info"]["dnodes"][0] or v != infoDict["cluster_info"]["dnodes"][0][k] :
             tdLog.exit("dnodes info is null!")
     
-    mnodes_info = { "mnode_id":1, "mnode_ep":f"{hostname}:{serverPort}","role": "LEADER" }
+    mnodes_info = { "mnode_id":1, "mnode_ep":f"{hostname}:{serverPort}","role": "leader" }
 
     for k ,v in mnodes_info.items():
         if k not in infoDict["cluster_info"]["mnodes"][0] or v != infoDict["cluster_info"]["mnodes"][0][k] :

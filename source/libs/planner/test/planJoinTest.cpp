@@ -44,3 +44,9 @@ TEST_F(PlanJoinTest, withWhere) {
   run("SELECT t1.c1, t2.c1 FROM st1s1 t1 JOIN st1s2 t2 ON t1.ts = t2.ts "
       "WHERE t1.c1 > t2.c1 AND t1.c2 = 'abc' AND t2.c2 = 'qwe'");
 }
+
+TEST_F(PlanJoinTest, multiJoin) {
+  useDb("root", "test");
+
+  run("SELECT t1.c1, t2.c1 FROM st1s1 t1 JOIN st1s2 t2 ON t1.ts = t2.ts JOIN st1s3 t3 ON t1.ts = t3.ts");
+}

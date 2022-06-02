@@ -243,7 +243,7 @@ void console(SRaftServer *pRaftServer) {
 
 
 		} else if (strcmp(cmd, "dropnode") == 0) {
-			char host[HOST_LEN];
+			char host[HOST_LEN] = {0};
 			uint32_t port;
 			parseAddr(param1, host, HOST_LEN, &port);
 			uint64_t rid = raftId(host, port);
@@ -258,7 +258,7 @@ void console(SRaftServer *pRaftServer) {
 
 
 		} else if (strcmp(cmd, "put") == 0) {
-			char buf[256];
+			char buf[256] = {0};
 			snprintf(buf, sizeof(buf), "%s--%s", param1, param2);
 			putValue(&pRaftServer->raft, buf);
 

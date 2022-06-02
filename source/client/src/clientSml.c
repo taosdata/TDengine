@@ -24,7 +24,6 @@
 #define EQUAL '='
 #define QUOTE '"'
 #define SLASH '\\'
-#define tsMaxSQLStringLen (1024*1024)
 
 #define JUMP_SPACE(sql) while (*sql != '\0'){if(*sql == SPACE) sql++;else break;}
 // comma ,
@@ -63,12 +62,11 @@ for (int i = 1; i < keyLen; ++i) {      \
 
 #define TS              "_ts"
 #define TS_LEN          3
-#define VALUE           "value"
-#define VALUE_LEN       5
+#define VALUE           "_value"
+#define VALUE_LEN       6
 
 #define BINARY_ADD_LEN 2        // "binary"   2 means " "
 #define NCHAR_ADD_LEN 3         // L"nchar"   3 means L" "
-#define CHAR_SAVE_LENGTH 8
 //=================================================================================================
 typedef TSDB_SML_PROTOCOL_TYPE SMLProtocolType;
 
@@ -253,12 +251,20 @@ static int32_t smlGenerateSchemaAction(SSchema* colField, SHashObj* colHash, SSm
   return 0;
 }
 
+static int32_t smlFindNearestPowerOf2(int32_t length){
+  int32_t result = 1;
+  while(result <= length){
+    result *= 2;
+  }
+  return result;
+}
+
 static int32_t smlBuildColumnDescription(SSmlKv* field, char* buf, int32_t bufSize, int32_t* outBytes) {
   uint8_t type = field->type;
   char    tname[TSDB_TABLE_NAME_LEN] = {0};
   memcpy(tname, field->key, field->keyLen);
   if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
-    int32_t bytes = field->length > CHAR_SAVE_LENGTH ? (2*field->length) : CHAR_SAVE_LENGTH;
+    int32_t bytes = smlFindNearestPowerOf2(field->length);
     int out = snprintf(buf, bufSize, "`%s` %s(%d)",
                        tname, tDataTypes[field->type].name, bytes);
     *outBytes = out;
@@ -273,8 +279,8 @@ static int32_t smlBuildColumnDescription(SSmlKv* field, char* buf, int32_t bufSi
 static int32_t smlApplySchemaAction(SSmlHandle* info, SSchemaAction* action) {
   int32_t code = 0;
   int32_t outBytes = 0;
-  char *result = (char *)taosMemoryCalloc(1, tsMaxSQLStringLen+1);
-  int32_t capacity = tsMaxSQLStringLen +  1;
+  char *result = (char *)taosMemoryCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN);
+  int32_t capacity = TSDB_MAX_ALLOWED_SQL_LEN;
 
   uDebug("SML:0x%"PRIx64" apply schema action. action: %d", info->id, action->action);
   switch (action->action) {
@@ -398,7 +404,7 @@ static int32_t smlApplySchemaAction(SSmlHandle* info, SSchemaAction* action) {
       }
       if(taosArrayGetSize(cols) == 0){
         outBytes = snprintf(pos, freeBytes,"`%s` %s(%d)",
-                            tsSmlTagName, tDataTypes[TSDB_DATA_TYPE_NCHAR].name, CHAR_SAVE_LENGTH);
+                            tsSmlTagName, tDataTypes[TSDB_DATA_TYPE_NCHAR].name, 1);
         pos += outBytes; freeBytes -= outBytes;
         *pos = ','; ++pos; --freeBytes;
       }
@@ -505,6 +511,11 @@ static int32_t smlModifyDBSchemas(SSmlHandle* info) {
       }
       code = smlProcessSchemaAction(info, pTableMeta->schema, hashTmp, sTableData->cols, &schemaAction, false);
       taosHashCleanup(hashTmp);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+
+      code = catalogRefreshTableMeta(info->pCatalog, info->taos->pAppInfo->pTransporter, &ep, &pName, -1);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
@@ -1113,7 +1124,7 @@ static int32_t smlParseTelnetString(SSmlHandle *info, const char* sql, SSmlTable
 }
 
 static int32_t smlParseCols(const char* data, int32_t len, SArray *cols, char *childTableName, bool isTag, SHashObj *dumplicateKey, SSmlMsgBuf *msg){
-  if(isTag && len == 0){
+  if(len == 0){
     return TSDB_CODE_SUCCESS;
   }
 
@@ -2307,6 +2318,28 @@ cleanup:
   return code;
 }
 
+static int32_t isSchemalessDb(SSmlHandle* info){
+  SName          name;
+  tNameSetDbName(&name, info->taos->acctId, info->taos->db, strlen(info->taos->db));
+  char dbFname[TSDB_DB_FNAME_LEN] = {0};
+  tNameGetFullDbName(&name, dbFname);
+  SDbCfgInfo pInfo = {0};
+  SEpSet ep = getEpSet_s(&info->taos->pAppInfo->mgmtEp);
+
+  int32_t code = catalogGetDBCfg(info->pCatalog, info->taos->pAppInfo->pTransporter, &ep, dbFname, &pInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    info->pRequest->code = code;
+    smlBuildInvalidDataMsg(&info->msgBuf, "catalogGetDBCfg error, code:", tstrerror(code));
+    return code;
+  }
+  if (!pInfo.schemaless){
+    info->pRequest->code = TSDB_CODE_SML_INVALID_DB_CONF;
+    smlBuildInvalidDataMsg(&info->msgBuf, "can not insert into schemaless db:", dbFname);
+    return TSDB_CODE_SML_INVALID_DB_CONF;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 /**
  * taos_schemaless_insert() parse and insert data points into database according to
  * different protocol.
@@ -2340,6 +2373,19 @@ TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int pr
     return (TAOS_RES*)request;
   }
 
+  info->taos->schemalessType = 1;
+  if(request->pDb == NULL){
+    request->code = TSDB_CODE_PAR_DB_NOT_SPECIFIED;
+    smlBuildInvalidDataMsg(&info->msgBuf, "Database not specified", NULL);
+    goto end;
+  }
+
+  if(isSchemalessDb(info) != TSDB_CODE_SUCCESS){
+    request->code = TSDB_CODE_SML_INVALID_DB_CONF;
+    smlBuildInvalidDataMsg(&info->msgBuf, "Cannot write data to a non schemaless database", NULL);
+    goto end;
+  }
+
   if (!lines) {
     request->code = TSDB_CODE_SML_INVALID_DATA;
     smlBuildInvalidDataMsg(&info->msgBuf, "lines is null", NULL);
@@ -2361,6 +2407,7 @@ TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int pr
   info->pRequest->code = smlProcess(info, lines, numLines);
 
 end:
+  uDebug("result:%s", info->msgBuf.buf);
   smlDestroyInfo(info);
   return (TAOS_RES*)request;
 }

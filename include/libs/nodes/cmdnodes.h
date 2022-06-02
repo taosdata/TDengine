@@ -50,6 +50,7 @@ typedef struct SDatabaseOptions {
   int32_t     numOfVgroups;
   int8_t      singleStable;
   SNodeList*  pRetentions;
+  int8_t      schemaless;
 } SDatabaseOptions;
 
 typedef struct SCreateDatabaseStmt {
@@ -79,8 +80,7 @@ typedef struct SAlterDatabaseStmt {
 typedef struct STableOptions {
   ENodeType  type;
   char       comment[TSDB_TB_COMMENT_LEN];
-  int32_t    delay;
-  float      filesFactor;
+  double     filesFactor;
   SNodeList* pRollupFuncs;
   int32_t    ttl;
   SNodeList* pSma;
@@ -238,20 +238,13 @@ typedef struct SDropComponentNodeStmt {
   int32_t   dnodeId;
 } SDropComponentNodeStmt;
 
-typedef struct STopicOptions {
-  ENodeType type;
-  bool      withTable;
-  bool      withSchema;
-  bool      withTag;
-} STopicOptions;
-
 typedef struct SCreateTopicStmt {
-  ENodeType      type;
-  char           topicName[TSDB_TABLE_NAME_LEN];
-  char           subscribeDbName[TSDB_DB_NAME_LEN];
-  bool           ignoreExists;
-  SNode*         pQuery;
-  STopicOptions* pOptions;
+  ENodeType type;
+  char      topicName[TSDB_TABLE_NAME_LEN];
+  char      subDbName[TSDB_DB_NAME_LEN];
+  char      subSTbName[TSDB_TABLE_NAME_LEN];
+  bool      ignoreExists;
+  SNode*    pQuery;
 } SCreateTopicStmt;
 
 typedef struct SDropTopicStmt {
@@ -259,6 +252,13 @@ typedef struct SDropTopicStmt {
   char      topicName[TSDB_TABLE_NAME_LEN];
   bool      ignoreNotExists;
 } SDropTopicStmt;
+
+typedef struct SDropCGroupStmt {
+  ENodeType type;
+  char      topicName[TSDB_TABLE_NAME_LEN];
+  char      cgroup[TSDB_CGROUP_LEN];
+  bool      ignoreNotExists;
+} SDropCGroupStmt;
 
 typedef struct SAlterLocalStmt {
   ENodeType type;

@@ -606,7 +606,7 @@ TEST(testCase, projection_query_tables) {
   }
   taos_free_result(pRes);
 
-  for(int32_t i = 0; i < 100000; i += 20) {
+  for(int32_t i = 0; i < 1000000; i += 20) {
     char sql[1024] = {0};
     sprintf(sql,
             "insert into tu values(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
@@ -626,23 +626,23 @@ TEST(testCase, projection_query_tables) {
 
   printf("start to insert next table\n");
 
-  for(int32_t i = 0; i < 100000; i += 20) {
-    char sql[1024] = {0};
-    sprintf(sql,
-            "insert into tu2 values(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
-            "(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
-            "(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
-            "(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)",
-            i, i, i + 1, i + 1, i + 2, i + 2, i + 3, i + 3, i + 4, i + 4, i + 5, i + 5, i + 6, i + 6, i + 7, i + 7,
-            i + 8, i + 8, i + 9, i + 9, i + 10, i + 10, i + 11, i + 11, i + 12, i + 12, i + 13, i + 13, i + 14, i + 14,
-            i + 15, i + 15, i + 16, i + 16, i + 17, i + 17, i + 18, i + 18, i + 19, i + 19);
-    TAOS_RES* p = taos_query(pConn, sql);
-    if (taos_errno(p) != 0) {
-      printf("failed to insert data, reason:%s\n", taos_errstr(p));
-    }
-
-    taos_free_result(p);
-  }
+//  for(int32_t i = 0; i < 1000000; i += 20) {
+//    char sql[1024] = {0};
+//    sprintf(sql,
+//            "insert into tu2 values(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
+//            "(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
+//            "(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
+//            "(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)",
+//            i, i, i + 1, i + 1, i + 2, i + 2, i + 3, i + 3, i + 4, i + 4, i + 5, i + 5, i + 6, i + 6, i + 7, i + 7,
+//            i + 8, i + 8, i + 9, i + 9, i + 10, i + 10, i + 11, i + 11, i + 12, i + 12, i + 13, i + 13, i + 14, i + 14,
+//            i + 15, i + 15, i + 16, i + 16, i + 17, i + 17, i + 18, i + 18, i + 19, i + 19);
+//    TAOS_RES* p = taos_query(pConn, sql);
+//    if (taos_errno(p) != 0) {
+//      printf("failed to insert data, reason:%s\n", taos_errstr(p));
+//    }
+//
+//    taos_free_result(p);
+//  }
 
 //  pRes = taos_query(pConn, "select * from tu");
 //  if (taos_errno(pRes) != 0) {
@@ -664,7 +664,7 @@ TEST(testCase, projection_query_tables) {
 //  taos_free_result(pRes);
   taos_close(pConn);
 }
-
+#if 0
 TEST(testCase, projection_query_stables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
@@ -705,7 +705,7 @@ TEST(testCase, agg_query_tables) {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "select tbname from st1");
+  pRes = taos_query(pConn, "explain analyze select count(*) from tu interval(1s)");
   if (taos_errno(pRes) != 0) {
     printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
     taos_free_result(pRes);
@@ -733,5 +733,6 @@ TEST(testCase, agg_query_tables) {
   taos_free_result(pRes);
   taos_close(pConn);
 }
+#endif
 
 #pragma GCC diagnostic pop

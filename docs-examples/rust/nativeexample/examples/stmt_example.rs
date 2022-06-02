@@ -12,7 +12,7 @@ async fn main() -> Result<(), Error> {
     stmt.set_tbname_tags(
         "d1001",
         [
-            Field::Binary(BString::from("Beijing.Chaoyang")),
+            Field::Binary(BString::from("California.SanFrancisco")),
             Field::Int(2),
         ],
     )?;

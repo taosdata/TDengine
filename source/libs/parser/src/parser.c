@@ -19,7 +19,7 @@
 #include "parInt.h"
 #include "parToken.h"
 
-bool isInsertSql(const char* pStr, size_t length) {
+bool qIsInsertSql(const char* pStr, size_t length) {
   if (NULL == pStr) {
     return false;
   }
@@ -34,22 +34,35 @@ bool isInsertSql(const char* pStr, size_t length) {
   } while (1);
 }
 
-static int32_t parseSqlIntoAst(SParseContext* pCxt, SQuery** pQuery) {
-  int32_t code = parse(pCxt, pQuery);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = authenticate(pCxt, *pQuery);
-  }
+static int32_t analyseSemantic(SParseContext* pCxt, SQuery* pQuery) {
+  int32_t code = authenticate(pCxt, pQuery);
 
-  if (TSDB_CODE_SUCCESS == code && (*pQuery)->placeholderNum > 0) {
-    TSWAP((*pQuery)->pPrepareRoot, (*pQuery)->pRoot);
+  if (TSDB_CODE_SUCCESS == code && pQuery->placeholderNum > 0) {
+    TSWAP(pQuery->pPrepareRoot, pQuery->pRoot);
     return TSDB_CODE_SUCCESS;
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = translate(pCxt, *pQuery);
+    code = translate(pCxt, pQuery);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = calculateConstant(pCxt, *pQuery);
+    code = calculateConstant(pCxt, pQuery);
+  }
+  return code;
+}
+
+static int32_t parseSqlIntoAst(SParseContext* pCxt, SQuery** pQuery) {
+  int32_t code = parse(pCxt, pQuery);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = analyseSemantic(pCxt, *pQuery);
+  }
+  return code;
+}
+
+static int32_t parseSqlSyntax(SParseContext* pCxt, SQuery** pQuery) {
+  int32_t code = parse(pCxt, pQuery);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = collectMetaKey(pCxt, *pQuery);
   }
   return code;
 }
@@ -63,28 +76,8 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
   int32_t inputSize = (NULL != pParam->length ? *(pParam->length) : tDataTypes[pParam->buffer_type].bytes);
   pVal->node.resType.type = pParam->buffer_type;
   pVal->node.resType.bytes = inputSize;
+  
   switch (pParam->buffer_type) {
-    case TSDB_DATA_TYPE_BOOL:
-      pVal->datum.b = *((bool*)pParam->buffer);
-      break;
-    case TSDB_DATA_TYPE_TINYINT:
-      pVal->datum.i = *((int8_t*)pParam->buffer);
-      break;
-    case TSDB_DATA_TYPE_SMALLINT:
-      pVal->datum.i = *((int16_t*)pParam->buffer);
-      break;
-    case TSDB_DATA_TYPE_INT:
-      pVal->datum.i = *((int32_t*)pParam->buffer);
-      break;
-    case TSDB_DATA_TYPE_BIGINT:
-      pVal->datum.i = *((int64_t*)pParam->buffer);
-      break;
-    case TSDB_DATA_TYPE_FLOAT:
-      pVal->datum.d = *((float*)pParam->buffer);
-      break;
-    case TSDB_DATA_TYPE_DOUBLE:
-      pVal->datum.d = *((double*)pParam->buffer);
-      break;
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
       pVal->datum.p = taosMemoryCalloc(1, pVal->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
@@ -93,6 +86,7 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
       }
       varDataSetLen(pVal->datum.p, pVal->node.resType.bytes);
       strncpy(varDataVal(pVal->datum.p), (const char*)pParam->buffer, pVal->node.resType.bytes);
+      pVal->node.resType.bytes += VARSTR_HEADER_SIZE;
       break;
     case TSDB_DATA_TYPE_NCHAR: {
       pVal->node.resType.bytes *= TSDB_NCHAR_SIZE;
@@ -107,31 +101,16 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
         return errno;
       }
       varDataSetLen(pVal->datum.p, output);
-      pVal->node.resType.bytes = output;
+      pVal->node.resType.bytes = output + VARSTR_HEADER_SIZE;
       break;
     }
-    case TSDB_DATA_TYPE_TIMESTAMP:
-      pVal->datum.i = *((int64_t*)pParam->buffer);
+    default: {
+      int32_t code = nodesSetValueNodeValue(pVal, pParam->buffer);
+      if (code) {
+        return code;
+      }
       break;
-    case TSDB_DATA_TYPE_UTINYINT:
-      pVal->datum.u = *((uint8_t*)pParam->buffer);
-      break;
-    case TSDB_DATA_TYPE_USMALLINT:
-      pVal->datum.u = *((uint16_t*)pParam->buffer);
-      break;
-    case TSDB_DATA_TYPE_UINT:
-      pVal->datum.u = *((uint32_t*)pParam->buffer);
-      break;
-    case TSDB_DATA_TYPE_UBIGINT:
-      pVal->datum.u = *((uint64_t*)pParam->buffer);
-      break;
-    case TSDB_DATA_TYPE_JSON:
-    case TSDB_DATA_TYPE_DECIMAL:
-    case TSDB_DATA_TYPE_BLOB:
-    case TSDB_DATA_TYPE_MEDIUMBLOB:
-      // todo
-    default:
-      break;
+    }
   }
   pVal->translate = true;
   return TSDB_CODE_SUCCESS;
@@ -169,7 +148,7 @@ static void rewriteExprAlias(SNode* pRoot) {
 
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery) {
   int32_t code = TSDB_CODE_SUCCESS;
-  if (isInsertSql(pCxt->pSql, pCxt->sqlLen)) {
+  if (qIsInsertSql(pCxt->pSql, pCxt->sqlLen)) {
     code = parseInsertSql(pCxt, pQuery);
   } else {
     code = parseSqlIntoAst(pCxt, pQuery);
@@ -178,10 +157,45 @@ int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery) {
   return code;
 }
 
+int32_t qParseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq* pCatalogReq) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (qIsInsertSql(pCxt->pSql, pCxt->sqlLen)) {
+    code = parseInsertSyntax(pCxt, pQuery);
+  } else {
+    code = parseSqlSyntax(pCxt, pQuery);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildCatalogReq((*pQuery)->pMetaCache, pCatalogReq);
+  }
+  terrno = code;
+  return code;
+}
+
+int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCatalogReq,
+                            const struct SMetaData* pMetaData, SQuery* pQuery) {
+  int32_t code = putMetaDataToCache(pCatalogReq, pMetaData, pQuery->pMetaCache);
+  if (NULL == pQuery->pRoot) {
+    return parseInsertSql(pCxt, &pQuery);
+  }
+  return analyseSemantic(pCxt, pQuery);
+}
+
 void qDestroyQuery(SQuery* pQueryNode) { nodesDestroyNode(pQueryNode); }
 
 int32_t qExtractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema) {
   return extractResultSchema(pRoot, numOfCols, pSchema);
+}
+
+int32_t qSetSTableIdForRSma(SNode* pStmt, int64_t uid) {
+  if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
+    SNode* pTable = ((SSelectStmt*)pStmt)->pFromTable;
+    if (QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
+      ((SRealTableNode*)pTable)->pMeta->uid = uid;
+      ((SRealTableNode*)pTable)->pMeta->suid = uid;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+  return TSDB_CODE_FAILED;
 }
 
 int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx) {

@@ -137,6 +137,14 @@ void* tsortGetValue(STupleHandle* pVHandle, int32_t colId);
  */
 SSDataBlock* tsortGetSortedDataBlock(const SSortHandle* pSortHandle);
 
+/**
+ * return the sort execution information.
+ *
+ * @param pHandle
+ * @return
+ */
+SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle);
+
 #ifdef __cplusplus
 }
 #endif

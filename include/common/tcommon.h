@@ -53,10 +53,9 @@ typedef enum EStreamType {
 } EStreamType;
 
 typedef struct {
-  uint32_t  numOfTables;
-  SArray*   pGroupList;
+  SArray*   pTableList;
   SHashObj* map;  // speedup acquire the tableQueryInfo by table uid
-} STableGroupInfo;
+} STableListInfo;
 
 typedef struct SColumnDataAgg {
   int16_t colId;
@@ -106,12 +105,14 @@ typedef struct SColumnInfoData {
 } SColumnInfoData;
 
 typedef struct SQueryTableDataCond {
-  STimeWindow  twindow;
+  //STimeWindow  twindow;
   int32_t      order;  // desc|asc order to iterate the data block
   int32_t      numOfCols;
   SColumnInfo *colList;
   bool         loadExternalRows;  // load external rows or not
   int32_t      type;              // data block load type:
+  int32_t      numOfTWindows;
+  STimeWindow *twindows;
 } SQueryTableDataCond;
 
 void*   blockDataDestroy(SSDataBlock* pBlock);
@@ -218,6 +219,16 @@ typedef struct {
 #define QUERY_DESC_FORWARD_STEP -1
 
 #define GET_FORWARD_DIRECTION_FACTOR(ord) (((ord) == TSDB_ORDER_ASC) ? QUERY_ASC_FORWARD_STEP : QUERY_DESC_FORWARD_STEP)
+
+#define SORT_QSORT_T 0x1
+#define SORT_SPILLED_MERGE_SORT_T 0x2
+typedef struct SSortExecInfo {
+  int32_t sortMethod;
+  int32_t sortBuffer;
+  int32_t loops;       // loop count
+  int32_t writeBytes;  // write io bytes
+  int32_t readBytes;   // read io bytes
+} SSortExecInfo;
 
 #ifdef __cplusplus
 }

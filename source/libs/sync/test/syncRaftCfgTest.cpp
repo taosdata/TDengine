@@ -15,6 +15,21 @@ void logTest() {
   sFatal("--- sync log test: fatal");
 }
 
+SRaftCfg* createRaftCfg() {
+  SRaftCfg* pCfg = (SRaftCfg*)taosMemoryMalloc(sizeof(SRaftCfg));
+  memset(pCfg, 0, sizeof(SRaftCfg));
+
+  pCfg->cfg.replicaNum = 3;
+  pCfg->cfg.myIndex = 1;
+  for (int i = 0; i < pCfg->cfg.replicaNum; ++i) {
+    ((pCfg->cfg.nodeInfo)[i]).nodePort = i * 100;
+    snprintf(((pCfg->cfg.nodeInfo)[i]).nodeFqdn, sizeof(((pCfg->cfg.nodeInfo)[i]).nodeFqdn), "100.200.300.%d", i);
+  }
+  pCfg->isStandBy = taosGetTimestampSec() % 100;
+
+  return pCfg;
+}
+
 SSyncCfg* createSyncCfg() {
   SSyncCfg* pCfg = (SSyncCfg*)taosMemoryMalloc(sizeof(SSyncCfg));
   memset(pCfg, 0, sizeof(SSyncCfg));
@@ -56,7 +71,7 @@ void test3() {
   if (taosCheckExistFile(s)) {
     printf("%s file: %s already exist! \n", (char*)__FUNCTION__, s);
   } else {
-    syncCfgCreateFile(pCfg, s);
+    raftCfgCreateFile(pCfg, 7, s);
     printf("%s create json file: %s \n", (char*)__FUNCTION__, s);
   }
 
@@ -78,6 +93,7 @@ void test5() {
   assert(pCfg != NULL);
 
   pCfg->cfg.myIndex = taosGetTimestampSec();
+  pCfg->isStandBy += 2;
   raftCfgPersist(pCfg);
 
   printf("%s update json file: %s myIndex->%d \n", (char*)__FUNCTION__, "./test3_raft_cfg.json", pCfg->cfg.myIndex);

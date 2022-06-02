@@ -31,6 +31,7 @@ typedef struct SLogicNode {
   SNodeList*         pChildren;
   struct SLogicNode* pParent;
   int32_t            optimizedFlag;
+  uint8_t            precision;
 } SLogicNode;
 
 typedef enum EScanType { SCAN_TYPE_TAG = 1, SCAN_TYPE_TABLE, SCAN_TYPE_SYSTEM_TABLE, SCAN_TYPE_STREAM } EScanType;
@@ -55,12 +56,17 @@ typedef struct SScanLogicNode {
   int8_t             intervalUnit;
   int8_t             slidingUnit;
   SNode*             pTagCond;
+  int8_t             triggerType;
+  int64_t            watermark;
+  int16_t            tsColId;
+  double             filesFactor;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
   SLogicNode node;
   EJoinType  joinType;
   SNode*     pOnConditions;
+  bool       isSingleTableJoin;
 } SJoinLogicNode;
 
 typedef struct SAggLogicNode {
@@ -89,25 +95,39 @@ typedef struct SVnodeModifLogicNode {
 typedef struct SExchangeLogicNode {
   SLogicNode node;
   int32_t    srcGroupId;
-  uint8_t    precision;
 } SExchangeLogicNode;
+
+typedef struct SMergeLogicNode {
+  SLogicNode node;
+  SNodeList* pMergeKeys;
+  int32_t    numOfChannels;
+  int32_t    srcGroupId;
+} SMergeLogicNode;
 
 typedef enum EWindowType { WINDOW_TYPE_INTERVAL = 1, WINDOW_TYPE_SESSION, WINDOW_TYPE_STATE } EWindowType;
 
+typedef enum EStreamIntervalAlgorithm {
+  STREAM_INTERVAL_ALGO_FINAL = 1,
+  STREAM_INTERVAL_ALGO_SEMI,
+  STREAM_INTERVAL_ALGO_SINGLE
+} EStreamIntervalAlgorithm;
+
 typedef struct SWindowLogicNode {
-  SLogicNode  node;
-  EWindowType winType;
-  SNodeList*  pFuncs;
-  int64_t     interval;
-  int64_t     offset;
-  int64_t     sliding;
-  int8_t      intervalUnit;
-  int8_t      slidingUnit;
-  int64_t     sessionGap;
-  SNode*      pTspk;
-  SNode*      pStateExpr;
-  int8_t      triggerType;
-  int64_t     watermark;
+  SLogicNode               node;
+  EWindowType              winType;
+  SNodeList*               pFuncs;
+  int64_t                  interval;
+  int64_t                  offset;
+  int64_t                  sliding;
+  int8_t                   intervalUnit;
+  int8_t                   slidingUnit;
+  int64_t                  sessionGap;
+  SNode*                   pTspk;
+  SNode*                   pStateExpr;
+  int8_t                   triggerType;
+  int64_t                  watermark;
+  double                   filesFactor;
+  EStreamIntervalAlgorithm stmInterAlgo;
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
@@ -214,6 +234,10 @@ typedef struct STableScanPhysiNode {
   int64_t        sliding;
   int8_t         intervalUnit;
   int8_t         slidingUnit;
+  int8_t         triggerType;
+  int64_t        watermark;
+  int16_t        tsColId;
+  double         filesFactor;
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;
@@ -257,6 +281,13 @@ typedef struct SExchangePhysiNode {
   SNodeList* pSrcEndPoints;  // element is SDownstreamSource, scheduler fill by calling qSetSuplanExecutionNode
 } SExchangePhysiNode;
 
+typedef struct SMergePhysiNode {
+  SPhysiNode node;
+  SNodeList* pMergeKeys;
+  int32_t    numOfChannels;
+  int32_t    srcGroupId;
+} SMergePhysiNode;
+
 typedef struct SWinodwPhysiNode {
   SPhysiNode node;
   SNodeList* pExprs;  // these are expression list of parameter expression of function
@@ -264,6 +295,7 @@ typedef struct SWinodwPhysiNode {
   SNode*     pTspk;  // timestamp primary key
   int8_t     triggerType;
   int64_t    watermark;
+  double     filesFactor;
 } SWinodwPhysiNode;
 
 typedef struct SIntervalPhysiNode {
@@ -276,6 +308,8 @@ typedef struct SIntervalPhysiNode {
 } SIntervalPhysiNode;
 
 typedef SIntervalPhysiNode SStreamIntervalPhysiNode;
+typedef SIntervalPhysiNode SStreamFinalIntervalPhysiNode;
+typedef SIntervalPhysiNode SStreamSemiIntervalPhysiNode;
 
 typedef struct SFillPhysiNode {
   SPhysiNode  node;
@@ -295,6 +329,8 @@ typedef struct SSessionWinodwPhysiNode {
   SWinodwPhysiNode window;
   int64_t          gap;
 } SSessionWinodwPhysiNode;
+
+typedef SSessionWinodwPhysiNode SStreamSessionWinodwPhysiNode;
 
 typedef struct SStateWinodwPhysiNode {
   SWinodwPhysiNode window;

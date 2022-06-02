@@ -99,7 +99,8 @@ static bool osdMayBeOptimized(SLogicNode* pNode) {
     return false;
   }
   // todo: release after function splitting
-  if (TSDB_SUPER_TABLE == ((SScanLogicNode*)pNode)->pMeta->tableType) {
+  if (TSDB_SUPER_TABLE == ((SScanLogicNode*)pNode)->pMeta->tableType &&
+      SCAN_TYPE_STREAM != ((SScanLogicNode*)pNode)->scanType) {
     return false;
   }
   if (NULL == pNode->pParent || (QUERY_NODE_LOGIC_PLAN_WINDOW != nodeType(pNode->pParent) &&
@@ -223,6 +224,10 @@ static void setScanWindowInfo(SScanLogicNode* pScan) {
     pScan->sliding = ((SWindowLogicNode*)pScan->node.pParent)->sliding;
     pScan->intervalUnit = ((SWindowLogicNode*)pScan->node.pParent)->intervalUnit;
     pScan->slidingUnit = ((SWindowLogicNode*)pScan->node.pParent)->slidingUnit;
+    pScan->triggerType = ((SWindowLogicNode*)pScan->node.pParent)->triggerType;
+    pScan->watermark = ((SWindowLogicNode*)pScan->node.pParent)->watermark;
+    pScan->tsColId = ((SColumnNode*)((SWindowLogicNode*)pScan->node.pParent)->pTspk)->colId;
+    pScan->filesFactor = ((SWindowLogicNode*)pScan->node.pParent)->filesFactor;
   }
 }
 

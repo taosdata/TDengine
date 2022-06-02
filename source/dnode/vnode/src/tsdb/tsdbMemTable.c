@@ -20,7 +20,8 @@ static void     tsdbFreeTbData(STbData *pTbData);
 static char    *tsdbGetTsTupleKey(const void *data);
 static int      tsdbTbDataComp(const void *arg1, const void *arg2);
 static char    *tsdbTbDataGetUid(const void *arg);
-static int tsdbAppendTableRowToCols(STable *pTable, SDataCols *pCols, STSchema **ppSchema, STSRow *row, bool merge);
+static int tsdbAppendTableRowToCols(STsdb *pTsdb, STable *pTable, SDataCols *pCols, STSchema **ppSchema, STSRow *row,
+                                    bool merge);
 
 int tsdbMemTableCreate(STsdb *pTsdb, STsdbMemTable **ppMemTable) {
   STsdbMemTable *pMemTable;
@@ -59,7 +60,7 @@ int tsdbMemTableCreate(STsdb *pTsdb, STsdbMemTable **ppMemTable) {
   return 0;
 }
 
-void tsdbMemTableDestroy(STsdb *pTsdb, STsdbMemTable *pMemTable) {
+void tsdbMemTableDestroy(STsdbMemTable *pMemTable) {
   if (pMemTable) {
     taosHashCleanup(pMemTable->pHashIdx);
     SSkipListIterator *pIter = tSkipListCreateIter(pMemTable->pSlIdx);
@@ -88,8 +89,8 @@ void tsdbMemTableDestroy(STsdb *pTsdb, STsdbMemTable *pMemTable) {
  *
  * The function tries to procceed AS MUCH AS POSSIBLE.
  */
-int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead, SDataCols *pCols,
-                          TKEY *filterKeys, int nFilterKeys, bool keepDup, SMergeInfo *pMergeInfo) {
+int tsdbLoadDataFromCache(STsdb *pTsdb, STable *pTable, SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead,
+                          SDataCols *pCols, TKEY *filterKeys, int nFilterKeys, bool keepDup, SMergeInfo *pMergeInfo) {
   ASSERT(maxRowsToRead > 0 && nFilterKeys >= 0);
   if (pIter == NULL) return 0;
   STSchema *pSchema = NULL;
@@ -141,69 +142,6 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
       } else {
         fKey = tdGetKey(filterKeys[filterIter]);
       }
-#if 0
-    } else if (fKey > rowKey) {
-      if (isRowDel) {
-        pMergeInfo->rowsDeleteFailed++;
-      } else {
-        if (pMergeInfo->rowsInserted - pMergeInfo->rowsDeleteSucceed >= maxRowsToRead) break;
-        if (pCols && pMergeInfo->nOperations >= pCols->maxPoints) break;
-
-        pMergeInfo->rowsInserted++;
-        pMergeInfo->nOperations++;
-        pMergeInfo->keyFirst = TMIN(pMergeInfo->keyFirst, rowKey);
-        pMergeInfo->keyLast = TMAX(pMergeInfo->keyLast, rowKey);
-        tsdbAppendTableRowToCols(pTable, pCols, &pSchema, row);
-      }
-
-      tSkipListIterNext(pIter);
-      row = tsdbNextIterRow(pIter);
-      if (row == NULL || TD_ROW_KEY(row) > maxKey) {
-        rowKey = INT64_MAX;
-        isRowDel = false;
-      } else {
-        rowKey = TD_ROW_KEY(row);
-        isRowDel = TD_ROW_IS_DELETED(row);
-      }
-    } else {
-      if (isRowDel) {
-        ASSERT(!keepDup);
-        if (pCols && pMergeInfo->nOperations >= pCols->maxPoints) break;
-        pMergeInfo->rowsDeleteSucceed++;
-        pMergeInfo->nOperations++;
-        tsdbAppendTableRowToCols(pTable, pCols, &pSchema, row);
-      } else {
-        if (keepDup) {
-          if (pCols && pMergeInfo->nOperations >= pCols->maxPoints) break;
-          pMergeInfo->rowsUpdated++;
-          pMergeInfo->nOperations++;
-          pMergeInfo->keyFirst = TMIN(pMergeInfo->keyFirst, rowKey);
-          pMergeInfo->keyLast = TMAX(pMergeInfo->keyLast, rowKey);
-          tsdbAppendTableRowToCols(pTable, pCols, &pSchema, row);
-        } else {
-          pMergeInfo->keyFirst = TMIN(pMergeInfo->keyFirst, fKey);
-          pMergeInfo->keyLast = TMAX(pMergeInfo->keyLast, fKey);
-        }
-      }
-
-      tSkipListIterNext(pIter);
-      row = tsdbNextIterRow(pIter);
-      if (row == NULL || TD_ROW_KEY(row) > maxKey) {
-        rowKey = INT64_MAX;
-        isRowDel = false;
-      } else {
-        rowKey = TD_ROW_KEY(row);
-        isRowDel = TD_ROW_IS_DELETED(row);
-      }
-
-      filterIter++;
-      if (filterIter >= nFilterKeys) {
-        fKey = INT64_MAX;
-      } else {
-        fKey = tdGetKey(filterKeys[filterIter]);
-      }
-    }
-#endif
 #if 1
     } else if (fKey > rowKey) {
       if (isRowDel) {
@@ -222,12 +160,12 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
             if (lastKey != TSKEY_INITIAL_VAL) {
               ++pCols->numOfRows;
             }
-            tsdbAppendTableRowToCols(pTable, pCols, &pSchema, row, false);
+            tsdbAppendTableRowToCols(pTsdb, pTable, pCols, &pSchema, row, false);
           }
           lastKey = rowKey;
         } else {
           if (keepDup) {
-            tsdbAppendTableRowToCols(pTable, pCols, &pSchema, row, true);
+            tsdbAppendTableRowToCols(pTsdb, pTable, pCols, &pSchema, row, true);
           } else {
             // discard
           }
@@ -249,7 +187,7 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
         if (pCols && pMergeInfo->nOperations >= pCols->maxPoints) break;
         pMergeInfo->rowsDeleteSucceed++;
         pMergeInfo->nOperations++;
-        tsdbAppendTableRowToCols(pTable, pCols, &pSchema, row, false);
+        tsdbAppendTableRowToCols(pTsdb, pTable, pCols, &pSchema, row, false);
       } else {
         if (keepDup) {
           if (pCols && pMergeInfo->nOperations >= pCols->maxPoints) break;
@@ -262,11 +200,11 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
               if (lastKey != TSKEY_INITIAL_VAL) {
                 ++pCols->numOfRows;
               }
-              tsdbAppendTableRowToCols(pTable, pCols, &pSchema, row, false);
+              tsdbAppendTableRowToCols(pTsdb, pTable, pCols, &pSchema, row, false);
             }
             lastKey = rowKey;
           } else {
-            tsdbAppendTableRowToCols(pTable, pCols, &pSchema, row, true);
+            tsdbAppendTableRowToCols(pTsdb, pTable, pCols, &pSchema, row, true);
           }
         } else {
           pMergeInfo->keyFirst = TMIN(pMergeInfo->keyFirst, fKey);
@@ -320,13 +258,13 @@ int tsdbInsertTableData(STsdb *pTsdb, SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlo
     terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
     return -1;
   }
-  strcat(pRsp->tblFName, mr.me.name);
-  
+  if (pRsp->tblFName) strcat(pRsp->tblFName, mr.me.name);
+
   if (mr.me.type == TSDB_NORMAL_TABLE) {
-    sverNew = mr.me.ntbEntry.schema.sver;
+    sverNew = mr.me.ntbEntry.schemaRow.version;
   } else {
     metaGetTableEntryByUid(&mr, mr.me.ctbEntry.suid);
-    sverNew = mr.me.stbEntry.schema.sver;
+    sverNew = mr.me.stbEntry.schemaRow.version;
   }
   metaReaderClear(&mr);
 
@@ -431,10 +369,12 @@ static char *tsdbTbDataGetUid(const void *arg) {
   STbData *pTbData = (STbData *)arg;
   return (char *)(&(pTbData->uid));
 }
-static int tsdbAppendTableRowToCols(STable *pTable, SDataCols *pCols, STSchema **ppSchema, STSRow *row, bool merge) {
+
+static int tsdbAppendTableRowToCols(STsdb *pTsdb, STable *pTable, SDataCols *pCols, STSchema **ppSchema, STSRow *row,
+                                    bool merge) {
   if (pCols) {
     if (*ppSchema == NULL || schemaVersion(*ppSchema) != TD_ROW_SVER(row)) {
-      *ppSchema = tsdbGetTableSchemaImpl(pTable, false, false, TD_ROW_SVER(row));
+      *ppSchema = tsdbGetTableSchemaImpl(pTsdb, pTable, false, false, TD_ROW_SVER(row));
       if (*ppSchema == NULL) {
         ASSERT(false);
         return -1;

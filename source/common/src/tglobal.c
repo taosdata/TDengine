@@ -79,9 +79,10 @@ uint16_t tsTelemPort = 80;
 
 // schemaless
 char tsSmlTagName[TSDB_COL_NAME_LEN] = "_tag_null";
-char tsSmlChildTableName[TSDB_TABLE_NAME_LEN] = ""; //user defined child table name can be specified in tag value.
-                                                     //If set to empty system will generate table name using MD5 hash.
-bool tsSmlDataFormat = true;  // true means that the name and order of cols in each line are the same(only for influx protocol)
+char tsSmlChildTableName[TSDB_TABLE_NAME_LEN] = "";  // user defined child table name can be specified in tag value.
+                                                     // If set to empty system will generate table name using MD5 hash.
+bool tsSmlDataFormat =
+    true;  // true means that the name and order of cols in each line are the same(only for influx protocol)
 
 // query
 int32_t tsQueryPolicy = 1;
@@ -108,8 +109,11 @@ int32_t tsCompressColData = -1;
  */
 int32_t tsCompatibleModel = 1;
 
+// count/hyperloglog function always return values in case of all NULL data or Empty data set.
+int32_t tsCountAlwaysReturnValue = 1;
+
 // 10 ms for sliding time, the value will changed in case of time precision changed
-int32_t tsMinSlidingTime = 10;
+int32_t   tsMinSlidingTime = 10;
 
 // the maxinum number of distict query result
 int32_t tsMaxNumOfDistinctResults = 1000 * 10000;
@@ -129,7 +133,6 @@ int32_t tsRetryStreamCompDelay = 10 * 1000;
 // The delayed computing ration. 10% of the whole computing time window by default.
 float tsStreamComputDelayRatio = 0.1f;
 
-int32_t tsProjectExecInterval = 10000;   // every 10sec, the projection will be executed once
 int64_t tsMaxRetentWindow = 24 * 3600L;  // maximum time window tolerance
 
 // the maximum allowed query buffer size during query processing for each data node.
@@ -292,6 +295,7 @@ int32_t taosAddClientLogCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "jniDebugFlag", jniDebugFlag, 0, 255, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "simDebugFlag", 143, 0, 255, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "debugFlag", 0, 0, 255, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "idxDebugFlag", idxDebugFlag, 0, 255, 1) != 0) return -1;
   return 0;
 }
 
@@ -307,6 +311,7 @@ static int32_t taosAddServerLogCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "fsDebugFlag", fsDebugFlag, 0, 255, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "fnDebugFlag", fnDebugFlag, 0, 255, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "smaDebugFlag", smaDebugFlag, 0, 255, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "idxDebugFlag", idxDebugFlag, 0, 255, 0) != 0) return -1;
   return 0;
 }
 
@@ -371,6 +376,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "minSlidingTime", tsMinSlidingTime, 10, 1000000, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "minIntervalTime", tsMinIntervalTime, 1, 1000000, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxNumOfDistinctRes", tsMaxNumOfDistinctResults, 10 * 10000, 10000 * 10000, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "countAlwaysReturnValue", tsCountAlwaysReturnValue, 0, 1, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxStreamCompDelay", tsMaxStreamComputDelay, 10, 1000000000, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxFirstStreamCompDelay", tsStreamCompStartDelay, 1000, 1000000000, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "retryStreamCompDelay", tsRetryStreamCompDelay, 10, 1000000000, 0) != 0) return -1;
@@ -479,6 +485,7 @@ static void taosSetClientLogCfg(SConfig *pCfg) {
   rpcDebugFlag = cfgGetItem(pCfg, "rpcDebugFlag")->i32;
   tmrDebugFlag = cfgGetItem(pCfg, "tmrDebugFlag")->i32;
   jniDebugFlag = cfgGetItem(pCfg, "jniDebugFlag")->i32;
+  idxDebugFlag = cfgGetItem(pCfg, "idxDebugFlag")->i32;
 }
 
 static void taosSetServerLogCfg(SConfig *pCfg) {
@@ -493,6 +500,7 @@ static void taosSetServerLogCfg(SConfig *pCfg) {
   fsDebugFlag = cfgGetItem(pCfg, "fsDebugFlag")->i32;
   fnDebugFlag = cfgGetItem(pCfg, "fnDebugFlag")->i32;
   smaDebugFlag = cfgGetItem(pCfg, "smaDebugFlag")->i32;
+  idxDebugFlag = cfgGetItem(pCfg, "idxDebugFlag")->i32;
 }
 
 static int32_t taosSetClientCfg(SConfig *pCfg) {
@@ -562,6 +570,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsMinSlidingTime = cfgGetItem(pCfg, "minSlidingTime")->i32;
   tsMinIntervalTime = cfgGetItem(pCfg, "minIntervalTime")->i32;
   tsMaxNumOfDistinctResults = cfgGetItem(pCfg, "maxNumOfDistinctRes")->i32;
+  tsCountAlwaysReturnValue = cfgGetItem(pCfg, "countAlwaysReturnValue")->i32;
   tsMaxStreamComputDelay = cfgGetItem(pCfg, "maxStreamCompDelay")->i32;
   tsStreamCompStartDelay = cfgGetItem(pCfg, "maxFirstStreamCompDelay")->i32;
   tsRetryStreamCompDelay = cfgGetItem(pCfg, "retryStreamCompDelay")->i32;

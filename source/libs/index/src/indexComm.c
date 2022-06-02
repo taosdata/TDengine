@@ -75,7 +75,7 @@ char* indexInt2str(int64_t val, char* dst, int radix) {
     ;
   return dst - 1;
 }
-static __compar_fn_t indexGetCompar(int8_t type) {
+__compar_fn_t indexGetCompar(int8_t type) {
   if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
     return (__compar_fn_t)strcmp;
   }
@@ -181,6 +181,9 @@ TExeCond tDoCompare(__compar_fn_t func, int8_t comparType, void* a, void* b) {
     }
     case QUERY_GREATER_EQUAL: {
       if (ret >= 0) return MATCH;
+    }
+    case QUERY_TERM: {
+      if (ret == 0) return MATCH;
     }
   }
   return CONTINUE;

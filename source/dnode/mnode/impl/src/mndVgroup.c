@@ -51,9 +51,10 @@ int32_t mndInitVgroup(SMnode *pMnode) {
   };
 
   mndSetMsgHandle(pMnode, TDMT_DND_CREATE_VNODE_RSP, mndProcessCreateVnodeRsp);
-  mndSetMsgHandle(pMnode, TDMT_VND_ALTER_VNODE_RSP, mndProcessAlterVnodeRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_ALTER_REPLICA_RSP, mndProcessAlterVnodeRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_ALTER_CONFIG_RSP, mndProcessAlterVnodeRsp);
   mndSetMsgHandle(pMnode, TDMT_DND_DROP_VNODE_RSP, mndProcessDropVnodeRsp);
-  mndSetMsgHandle(pMnode, TDMT_VND_COMPACT_VNODE_RSP, mndProcessCompactVnodeRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_COMPACT_RSP, mndProcessCompactVnodeRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_VGROUP, mndRetrieveVgroups);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_VGROUP, mndCancelGetNextVgroup);
@@ -80,6 +81,7 @@ SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup) {
   SDB_SET_INT32(pRaw, dataPos, pVgroup->hashEnd, _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pVgroup->dbName, TSDB_DB_FNAME_LEN, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pVgroup->dbUid, _OVER)
+  SDB_SET_INT8(pRaw, dataPos, pVgroup->isTsma, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pVgroup->replica, _OVER)
   for (int8_t i = 0; i < pVgroup->replica; ++i) {
     SVnodeGid *pVgid = &pVgroup->vnodeGid[i];
@@ -127,6 +129,7 @@ SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &pVgroup->hashEnd, _OVER)
   SDB_GET_BINARY(pRaw, dataPos, pVgroup->dbName, TSDB_DB_FNAME_LEN, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pVgroup->dbUid, _OVER)
+  SDB_GET_INT8(pRaw, dataPos, &pVgroup->isTsma, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pVgroup->replica, _OVER)
   for (int8_t i = 0; i < pVgroup->replica; ++i) {
     SVnodeGid *pVgid = &pVgroup->vnodeGid[i];
@@ -167,6 +170,7 @@ static int32_t mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOld, SVgObj *pNew) {
   pOld->hashBegin = pNew->hashBegin;
   pOld->hashEnd = pNew->hashEnd;
   pOld->replica = pNew->replica;
+  pOld->isTsma = pNew->isTsma;
   memcpy(pOld->vnodeGid, pNew->vnodeGid, TSDB_MAX_REPLICA * sizeof(SVnodeGid));
   return 0;
 }
@@ -185,10 +189,10 @@ void mndReleaseVgroup(SMnode *pMnode, SVgObj *pVgroup) {
   sdbRelease(pSdb, pVgroup);
 }
 
-void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup, int32_t *pContLen) {
+void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup, int32_t *pContLen,
+                             bool standby) {
   SCreateVnodeReq createReq = {0};
   createReq.vgId = pVgroup->vgId;
-  createReq.dnodeId = pDnode->id;
   memcpy(createReq.db, pDb->name, TSDB_DB_FNAME_LEN);
   createReq.dbUid = pDb->uid;
   createReq.vgVersion = pVgroup->version;
@@ -215,6 +219,9 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   createReq.hashMethod = pDb->cfg.hashMethod;
   createReq.numOfRetensions = pDb->cfg.numOfRetensions;
   createReq.pRetensions = pDb->cfg.pRetensions;
+  createReq.standby = standby;
+  createReq.isTsma = pVgroup->isTsma;
+  createReq.pTsma = pVgroup->pTsma;
 
   for (int32_t v = 0; v < pVgroup->replica; ++v) {
     SReplica  *pReplica = &createReq.replicas[v];
@@ -271,7 +278,6 @@ void *mndBuildAlterVnodeReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup, int32_
   alterReq.strict = pDb->cfg.strict;
   alterReq.cacheLastRow = pDb->cfg.cacheLastRow;
   alterReq.replica = pVgroup->replica;
-  alterReq.selfIndex = -1;
 
   for (int32_t v = 0; v < pVgroup->replica; ++v) {
     SReplica  *pReplica = &alterReq.replicas[v];
@@ -286,13 +292,6 @@ void *mndBuildAlterVnodeReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup, int32_
     memcpy(pReplica->fqdn, pVgidDnode->fqdn, TSDB_FQDN_LEN);
     mndReleaseDnode(pMnode, pVgidDnode);
   }
-
-#if 0
-  if (alterReq.selfIndex == -1) {
-    terrno = TSDB_CODE_MND_APP_ERROR;
-    return NULL;
-  }
-#endif
 
   int32_t contLen = tSerializeSAlterVnodeReq(NULL, 0, &alterReq);
   if (contLen < 0) {
@@ -426,6 +425,25 @@ static int32_t mndGetAvailableDnode(SMnode *pMnode, SVgObj *pVgroup, SArray *pAr
   return 0;
 }
 
+int32_t mndAllocSmaVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup) {
+  SArray *pArray = mndBuildDnodesArray(pMnode);
+  if (pArray == NULL) return -1;
+
+  pVgroup->vgId = sdbGetMaxId(pMnode->pSdb, SDB_VGROUP);
+  pVgroup->isTsma = 1;
+  pVgroup->createdTime = taosGetTimestampMs();
+  pVgroup->updateTime = pVgroup->createdTime;
+  pVgroup->version = 1;
+  memcpy(pVgroup->dbName, pDb->name, TSDB_DB_FNAME_LEN);
+  pVgroup->dbUid = pDb->uid;
+  pVgroup->replica = 1;
+
+  if (mndGetAvailableDnode(pMnode, pVgroup, pArray) != 0) return -1;
+
+  mInfo("db:%s, sma vgId:%d is alloced", pDb->name, pVgroup->vgId);
+  return 0;
+}
+
 int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups) {
   int32_t code = -1;
   SArray *pArray = NULL;
@@ -479,7 +497,7 @@ int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups) {
   *ppVgroups = pVgroups;
   code = 0;
 
-  mInfo("db:%s, %d vgroups is alloced, replica:%d", pDb->name, pDb->cfg.numOfVgroups, pDb->cfg.replications);
+  mInfo("db:%s, total %d vgroups is alloced, replica:%d", pDb->name, pDb->cfg.numOfVgroups, pDb->cfg.replications);
 
 _OVER:
   if (code != 0) taosMemoryFree(pVgroups);
@@ -514,10 +532,10 @@ int32_t mndAddVnodeToVgroup(SMnode *pMnode, SVgObj *pVgroup, SArray *pArray) {
 
     SVnodeGid *pVgid = &pVgroup->vnodeGid[maxPos];
     pVgid->dnodeId = pDnode->id;
-    pVgid->role = TAOS_SYNC_STATE_FOLLOWER;
+    pVgid->role = TAOS_SYNC_STATE_ERROR;
     pDnode->numOfVnodes++;
 
-    mInfo("db:%s, vgId:%d, vn:%d dnode:%d is added", pVgroup->dbName, pVgroup->vgId, maxPos, pVgid->dnodeId);
+    mInfo("db:%s, vgId:%d, vnode_index:%d dnode:%d is added", pVgroup->dbName, pVgroup->vgId, maxPos, pVgid->dnodeId);
     maxPos++;
     if (maxPos == 3) return 0;
   }
@@ -527,14 +545,13 @@ int32_t mndAddVnodeToVgroup(SMnode *pMnode, SVgObj *pVgroup, SArray *pArray) {
 }
 
 int32_t mndRemoveVnodeFromVgroup(SMnode *pMnode, SVgObj *pVgroup, SArray *pArray, SVnodeGid *del1, SVnodeGid *del2) {
-  int32_t removedNum = 0;
-
   taosArraySort(pArray, (__compar_fn_t)mndCompareDnodeVnodes);
   for (int32_t i = 0; i < taosArrayGetSize(pArray); ++i) {
     SDnodeObj *pDnode = taosArrayGet(pArray, i);
     mDebug("dnode:%d, equivalent vnodes:%d", pDnode->id, pDnode->numOfVnodes);
   }
 
+  int32_t removedNum = 0;
   for (int32_t d = taosArrayGetSize(pArray) - 1; d >= 0; --d) {
     SDnodeObj *pDnode = taosArrayGet(pArray, d);
 
@@ -640,6 +657,7 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
   int32_t numOfRows = 0;
   SVgObj *pVgroup = NULL;
   int32_t cols = 0;
+  int64_t curMs = taosGetTimestampMs();
 
   SDbObj *pDb = NULL;
   if (strlen(pShow->db) > 0) {
@@ -679,12 +697,15 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
       if (i < pVgroup->replica) {
         colDataAppend(pColInfo, numOfRows, (const char *)&pVgroup->vnodeGid[i].dnodeId, false);
 
+        bool       online = false;
+        SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgroup->vnodeGid[i].dnodeId);
+        if (pDnode != NULL) {
+          online = mndIsDnodeOnline(pMnode, pDnode, curMs);
+          mndReleaseDnode(pMnode, pDnode);
+        }
+
         char        buf1[20] = {0};
-        SDnodeObj *pDnodeObj = mndAcquireDnode(pMnode, pVgroup->vnodeGid[i].dnodeId);
-        ASSERT(pDnodeObj != NULL);
-        bool isOffLine = !mndIsDnodeOnline(pMnode, pDnodeObj, taosGetTimestampMs());
-        const char *role = isOffLine ? "OFFLINE" : syncStr(pVgroup->vnodeGid[i].role);
-        
+        const char *role = online ? syncStr(pVgroup->vnodeGid[i].role) : "offline";
         STR_WITH_MAXSIZE_TO_VARSTR(buf1, role, pShow->pMeta->pSchemas[cols].bytes);
 
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -702,8 +723,11 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppendNULL(pColInfo, numOfRows);
 
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppendNULL(pColInfo, numOfRows);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pVgroup->isTsma, false);
 
     numOfRows++;
     sdbRelease(pSdb, pVgroup);

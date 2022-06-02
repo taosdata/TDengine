@@ -61,11 +61,8 @@ enum {
 };
 
 typedef struct {
-  int8_t type;
-
-  int32_t sourceVg;
-  int64_t sourceVer;
-
+  int8_t      type;
+  int64_t     ver;
   int32_t*    dataRef;
   SSubmitReq* data;
 } SStreamDataSubmit;
@@ -83,16 +80,48 @@ typedef struct {
   int8_t type;
 } SStreamCheckpoint;
 
+typedef struct {
+  STaosQueue* queue;
+  STaosQall*  qall;
+  void*       qItem;
+  int8_t      failed;
+} SStreamQ;
+
+static FORCE_INLINE void* streamQCurItem(SStreamQ* queue) {
+  //
+  return queue->qItem;
+}
+
+static FORCE_INLINE void* streamQNextItem(SStreamQ* queue) {
+  int8_t failed = atomic_load_8(&queue->failed);
+  if (failed) {
+    ASSERT(queue->qItem != NULL);
+    return streamQCurItem(queue);
+  } else {
+    taosGetQitem(queue->qall, &queue->qItem);
+    if (queue->qItem == NULL) {
+      taosReadAllQitems(queue->queue, queue->qall);
+      taosGetQitem(queue->qall, &queue->qItem);
+    }
+    return streamQCurItem(queue);
+  }
+}
+
+static FORCE_INLINE void streamQSetFail(SStreamQ* queue) { atomic_store_8(&queue->failed, 1); }
+
+static FORCE_INLINE void streamQSetSuccess(SStreamQ* queue) { atomic_store_8(&queue->failed, 0); }
+
 static FORCE_INLINE SStreamDataSubmit* streamDataSubmitNew(SSubmitReq* pReq) {
-  SStreamDataSubmit* pDataSubmit = (SStreamDataSubmit*)taosMemoryCalloc(1, sizeof(SStreamDataSubmit));
+  SStreamDataSubmit* pDataSubmit = (SStreamDataSubmit*)taosAllocateQitem(sizeof(SStreamDataSubmit), DEF_QITEM);
   if (pDataSubmit == NULL) return NULL;
-  pDataSubmit->data = pReq;
   pDataSubmit->dataRef = (int32_t*)taosMemoryMalloc(sizeof(int32_t));
-  if (pDataSubmit->data == NULL) goto FAIL;
+  if (pDataSubmit->dataRef == NULL) goto FAIL;
+  pDataSubmit->data = pReq;
   *pDataSubmit->dataRef = 1;
+  pDataSubmit->type = STREAM_INPUT__DATA_SUBMIT;
   return pDataSubmit;
 FAIL:
-  taosMemoryFree(pDataSubmit);
+  taosFreeQitem(pDataSubmit);
   return NULL;
 }
 
@@ -107,9 +136,10 @@ static FORCE_INLINE void streamDataSubmitRefDec(SStreamDataSubmit* pDataSubmit) 
   if (ref == 0) {
     taosMemoryFree(pDataSubmit->data);
     taosMemoryFree(pDataSubmit->dataRef);
-    // taosFreeQitem(pDataSubmit);
   }
 }
+
+SStreamDataSubmit* streamSubmitRefClone(SStreamDataSubmit* pSubmit);
 
 int32_t streamDataBlockEncode(void** buf, const SStreamDataBlock* pOutput);
 void*   streamDataBlockDecode(const void* buf, SStreamDataBlock* pInput);
@@ -142,6 +172,7 @@ typedef void FTbSink(SStreamTask* pTask, void* vnode, int64_t ver, void* data);
 
 typedef struct {
   int64_t         stbUid;
+  char            stbFullName[TSDB_TABLE_FNAME_LEN];
   SSchemaWrapper* pSchemaWrapper;
   // not applicable to encoder and decoder
   void*     vnode;
@@ -207,8 +238,6 @@ struct SStreamTask {
 
   int32_t nodeId;
   SEpSet  epSet;
-
-  // source preprocess
 
   // exec
   STaskExec exec;
@@ -316,8 +345,6 @@ int32_t streamEnqueueDataBlk(SStreamTask* pTask, SStreamDataBlock* input);
 int32_t streamDequeueOutput(SStreamTask* pTask, void** output);
 
 int32_t streamTaskRun(SStreamTask* pTask);
-
-int32_t streamTaskHandleInput(SStreamTask* pTask, void* data);
 
 int32_t streamTaskProcessRunReq(SStreamTask* pTask, SMsgCb* pMsgCb);
 int32_t streamProcessDispatchReq(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDispatchReq* pReq, SRpcMsg* pMsg);

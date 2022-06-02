@@ -36,19 +36,19 @@ class TDTestCase:
             concat_condition.extend(
                 (
                     char_col,
-                    f"upper( {char_col} )",
+                    # f"upper( {char_col} )",
                 )
             )
             concat_condition.extend( f"cast( {num_col} as binary(16) ) " for num_col in NUM_COL)
             concat_condition.extend( f"cast( {char_col} + {num_col} as binary(16) ) " for num_col in NUM_COL )
-            concat_condition.extend( f"cast( {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
-            concat_condition.extend( f"cast( {char_col} + {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
+            # concat_condition.extend( f"cast( {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
+            # concat_condition.extend( f"cast( {char_col} + {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
             concat_condition.extend( f"cast( {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL )
             # concat_condition.extend( f"cast( {char_col} + {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL )
             concat_condition.extend( f"cast( {char_col} + {char_col_2} as binary(16) ) " for char_col_2 in CHAR_COL )
 
         for num_col in NUM_COL:
-            concat_condition.extend( f"cast( {num_col} + {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
+            # concat_condition.extend( f"cast( {num_col} + {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
             concat_condition.extend( f"cast( {num_col} + {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL if num_col is not FLOAT_COL and num_col is not DOUBLE_COL)
 
         concat_condition.extend( f"cast( {bool_col} + {ts_col} as binary(16) )" for bool_col in BOOLEAN_COL for ts_col in TS_TYPE_COL )
@@ -96,7 +96,6 @@ class TDTestCase:
 
             [ tdSql.query(f"select concat( {','.join( condition ) })  from {tbname} {where_condition}  {group} ") for group in groups ]
 
-
     def __concat_err_check(self,tbname):
         sqls = []
 
@@ -139,7 +138,11 @@ class TDTestCase:
 
     def __test_current(self):  # sourcery skip: use-itertools-product
         tdLog.printNoPrefix("==========current sql condition check , must return query ok==========")
-        tbname = ["ct1", "ct2", "ct4", "t1", "stb1"]
+        tbname = [
+            "ct1",
+            "ct2",
+            "ct4",
+        ]
         for tb in tbname:
             for i in range(2,8):
                 self.__concat_check(tb,i)
@@ -147,7 +150,10 @@ class TDTestCase:
 
     def __test_error(self):
         tdLog.printNoPrefix("==========err sql condition check , must return error==========")
-        tbname = ["ct1", "ct2", "ct4", "t1", "stb1"]
+        tbname = [
+            "t1",
+            "stb1",
+        ]
 
         for tb in tbname:
             for errsql in self.__concat_err_check(tb):

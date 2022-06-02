@@ -181,7 +181,7 @@ static int tsdbScanAndTryFixDFile(STsdb *pRepo, SDFile *pDFile) {
   tsdbInitDFileEx(&df, pDFile);
 
   if (!taosCheckExistFile(TSDB_FILE_FULL_NAME(pDFile))) {
-    tsdbError("vgId:%d data file %s not exit, report to upper layer to fix it", REPO_ID(pRepo),
+    tsdbError("vgId:%d, data file %s not exit, report to upper layer to fix it", REPO_ID(pRepo),
               TSDB_FILE_FULL_NAME(pDFile));
     // pRepo->state |= TSDB_STATE_BAD_DATA;
     TSDB_FILE_SET_STATE(pDFile, TSDB_FILE_STATE_BAD);
@@ -211,17 +211,17 @@ static int tsdbScanAndTryFixDFile(STsdb *pRepo, SDFile *pDFile) {
     }
 
     tsdbCloseDFile(&df);
-    tsdbInfo("vgId:%d file %s is truncated from %" PRId64 " to %" PRId64, REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile),
+    tsdbInfo("vgId:%d, file %s is truncated from %" PRId64 " to %" PRId64, REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile),
              file_size, pDFile->info.size);
   } else if (pDFile->info.size > file_size) {
-    tsdbError("vgId:%d data file %s has wrong size %" PRId64 " expected %" PRId64 ", report to upper layer to fix it",
+    tsdbError("vgId:%d, data file %s has wrong size %" PRId64 " expected %" PRId64 ", report to upper layer to fix it",
               REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile), file_size, pDFile->info.size);
     // pRepo->state |= TSDB_STATE_BAD_DATA;
     TSDB_FILE_SET_STATE(pDFile, TSDB_FILE_STATE_BAD);
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
     return 0;
   } else {
-    tsdbDebug("vgId:%d file %s passes the scan", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile));
+    tsdbDebug("vgId:%d, file %s passes the scan", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile));
   }
 
   return 0;

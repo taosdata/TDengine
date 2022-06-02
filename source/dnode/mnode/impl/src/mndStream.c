@@ -393,7 +393,16 @@ static int32_t mndCreateStream(SMnode *pMnode, SRpcMsg *pReq, SCMCreateStreamReq
   streamObj.trigger = pCreate->triggerType;
   streamObj.waterMark = pCreate->watermark;
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_STREAM, pReq);
+  if (streamObj.targetSTbName[0]) {
+    pDb = mndAcquireDbByStb(pMnode, streamObj.targetSTbName);
+    if (pDb == NULL) {
+      terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
+      return -1;
+    }
+    tstrncpy(streamObj.targetDb, pDb->name, TSDB_DB_FNAME_LEN);
+  }
+
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq);
   if (pTrans == NULL) {
     mError("stream:%s, failed to create since %s", pCreate->name, terrstr());
     return -1;
@@ -456,7 +465,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto CREATE_STREAM_OVER;
   }
 
-  pDb = mndAcquireDbByStream(pMnode, createStreamReq.name);
+  pDb = mndAcquireDb(pMnode, createStreamReq.sourceDB);
   if (pDb == NULL) {
     terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
     goto CREATE_STREAM_OVER;

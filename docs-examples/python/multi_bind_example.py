@@ -3,10 +3,10 @@ from datetime import datetime
 
 # ANCHOR: bind_batch
 table_tags = {
-    "d1001": ('Beijing.Chaoyang', 2),
-    "d1002": ('Beijing.Chaoyang', 3),
-    "d1003": ('Beijing.Haidian', 2),
-    "d1004": ('Beijing.Haidian', 3)
+    "d1001": ('California.SanFrancisco', 2),
+    "d1002": ('California.SanFrancisco', 3),
+    "d1003": ('California.LosAngeles', 2),
+    "d1004": ('California.LosAngeles', 3)
 }
 
 table_values = {

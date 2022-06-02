@@ -16,14 +16,17 @@
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
 #include "mndInt.h"
-#include "sdbInt.h"
+#include "sdb.h"
 #include "tconfig.h"
 #include "tjson.h"
 
-#define TMP_SDB_DATA_DIR  "/tmp/dumpsdb"
-#define TMP_SDB_MNODE_DIR "/tmp/dumpsdb/mnode"
-#define TMP_SDB_FILE      "/tmp/dumpsdb/mnode/data/sdb.data"
-#define TMP_SDB_PATH      "/tmp/dumpsdb/mnode/data"
+#define TMP_DNODE_DIR           TD_TMP_DIR_PATH "dumpsdb"
+#define TMP_MNODE_DIR           TD_TMP_DIR_PATH "dumpsdb" TD_DIRSEP "mnode"
+#define TMP_SDB_DATA_DIR        TD_TMP_DIR_PATH "dumpsdb" TD_DIRSEP "mnode" TD_DIRSEP "data"
+#define TMP_SDB_SYNC_DIR        TD_TMP_DIR_PATH "dumpsdb" TD_DIRSEP "mnode" TD_DIRSEP "sync"
+#define TMP_SDB_DATA_FILE       TD_TMP_DIR_PATH "dumpsdb" TD_DIRSEP "mnode" TD_DIRSEP "data" TD_DIRSEP "sdb.data"
+#define TMP_SDB_RAFT_CFG_FILE   TD_TMP_DIR_PATH "dumpsdb" TD_DIRSEP "mnode" TD_DIRSEP "sync" TD_DIRSEP "raft_config.json"
+#define TMP_SDB_RAFT_STORE_FILE TD_TMP_DIR_PATH "dumpsdb" TD_DIRSEP "mnode" TD_DIRSEP "sync" TD_DIRSEP "raft_store.json"
 
 void reportStartup(const char *name, const char *desc) {}
 
@@ -83,6 +86,7 @@ void dumpDb(SSdb *pSdb, SJson *json) {
     tjsonAddIntegerToObject(item, "cacheLastRow", pObj->cfg.cacheLastRow);
     tjsonAddIntegerToObject(item, "hashMethod", pObj->cfg.hashMethod);
     tjsonAddIntegerToObject(item, "numOfRetensions", pObj->cfg.numOfRetensions);
+    tjsonAddIntegerToObject(item, "schemaless", pObj->cfg.schemaless);
 
     sdbRelease(pSdb, pObj);
   }
@@ -107,7 +111,6 @@ void dumpStb(SSdb *pSdb, SJson *json) {
     tjsonAddStringToObject(item, "updateTime", i642str(pObj->updateTime));
     tjsonAddStringToObject(item, "uid", i642str(pObj->uid));
     tjsonAddStringToObject(item, "dbUid", i642str(pObj->dbUid));
-    tjsonAddIntegerToObject(item, "version", pObj->version);
     tjsonAddIntegerToObject(item, "tagVer", pObj->tagVer);
     tjsonAddIntegerToObject(item, "colVer", pObj->colVer);
     tjsonAddIntegerToObject(item, "nextColId", pObj->nextColId);
@@ -277,13 +280,11 @@ void dumpTrans(SSdb *pSdb, SJson *json) {
     tjsonAddIntegerToObject(item, "id", pObj->id);
     tjsonAddIntegerToObject(item, "stage", pObj->stage);
     tjsonAddIntegerToObject(item, "policy", pObj->policy);
-    tjsonAddIntegerToObject(item, "type", pObj->type);
+    tjsonAddIntegerToObject(item, "conflict", pObj->conflict);
+    tjsonAddIntegerToObject(item, "exec", pObj->exec);
     tjsonAddStringToObject(item, "createdTime", i642str(pObj->createdTime));
-    tjsonAddStringToObject(item, "dbUid", i642str(pObj->dbUid));
     tjsonAddStringToObject(item, "dbname", pObj->dbname);
-    tjsonAddIntegerToObject(item, "redoLogNum", taosArrayGetSize(pObj->redoLogs));
-    tjsonAddIntegerToObject(item, "undoLogNum", taosArrayGetSize(pObj->undoLogs));
-    tjsonAddIntegerToObject(item, "commitLogNum", taosArrayGetSize(pObj->commitLogs));
+    tjsonAddIntegerToObject(item, "commitLogNum", taosArrayGetSize(pObj->commitActions));
     tjsonAddIntegerToObject(item, "redoActionNum", taosArrayGetSize(pObj->redoActions));
     tjsonAddIntegerToObject(item, "undoActionNum", taosArrayGetSize(pObj->undoActions));
 
@@ -318,6 +319,10 @@ void dumpHeader(SSdb *pSdb, SJson *json) {
 }
 
 int32_t dumpSdb() {
+  wDebugFlag = 0;
+  mDebugFlag = 0;
+  sDebugFlag = 0;
+
   SMsgCb msgCb = {0};
   msgCb.reportStartupFp = reportStartup;
   msgCb.sendReqFp = sendReq;
@@ -325,9 +330,10 @@ int32_t dumpSdb() {
   msgCb.mgmt = (SMgmtWrapper *)(&msgCb);  // hack
   tmsgSetDefault(&msgCb);
   walInit();
+  syncInit();
 
   SMnodeOpt opt = {.msgCb = msgCb};
-  SMnode   *pMnode = mndOpen(TMP_SDB_MNODE_DIR, &opt);
+  SMnode   *pMnode = mndOpen(TMP_MNODE_DIR, &opt);
   if (pMnode == NULL) return -1;
 
   SSdb  *pSdb = pMnode->pSdb;
@@ -369,13 +375,11 @@ int32_t dumpSdb() {
   taosCloseFile(&pFile);
   tjsonDelete(json);
   taosMemoryFree(pCont);
-  taosRemoveDir(TMP_SDB_DATA_DIR);
+  taosRemoveDir(TMP_DNODE_DIR);
   return 0;
 }
 
 int32_t parseArgs(int32_t argc, char *argv[]) {
-  char file[PATH_MAX] = {0};
-
   for (int32_t i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-c") == 0) {
       if (i < argc - 1) {
@@ -388,20 +392,8 @@ int32_t parseArgs(int32_t argc, char *argv[]) {
         printf("'-c' requires a parameter, default is %s\n", configDir);
         return -1;
       }
-    } else if (strcmp(argv[i], "-f") == 0) {
-      if (i < argc - 1) {
-        if (strlen(argv[++i]) >= PATH_MAX) {
-          printf("file path overflow");
-          return -1;
-        }
-        tstrncpy(file, argv[i], PATH_MAX);
-      } else {
-        printf("'-f' requires a parameter, default is %s\n", configDir);
-        return -1;
-      }
     } else {
       printf("-c Configuration directory. \n");
-      printf("-f Input sdb.data file. \n");
       return -1;
     }
   }
@@ -416,13 +408,39 @@ int32_t parseArgs(int32_t argc, char *argv[]) {
     return -1;
   }
 
-  if (file[0] == 0) {
-    snprintf(file, PATH_MAX, "%s/mnode/data/sdb.data", tsDataDir);
-  }
+  char dataFile[PATH_MAX] = {0};
+  char raftCfgFile[PATH_MAX] = {0};
+  char raftStoreFile[PATH_MAX] = {0};
+  snprintf(dataFile, PATH_MAX, "%s" TD_DIRSEP "mnode" TD_DIRSEP "data" TD_DIRSEP "sdb.data", tsDataDir);
+  snprintf(raftCfgFile, PATH_MAX, "%s" TD_DIRSEP "mnode" TD_DIRSEP "sync" TD_DIRSEP "raft_config.json", tsDataDir);
+  snprintf(raftStoreFile, PATH_MAX, "%s" TD_DIRSEP "mnode" TD_DIRSEP "sync" TD_DIRSEP "raft_store.json", tsDataDir);
 
-  strcpy(tsDataDir, TMP_SDB_DATA_DIR);
-  taosMulMkDir(TMP_SDB_PATH);
-  taosCopyFile(file, TMP_SDB_FILE);
+  char cmd[PATH_MAX * 2] = {0};
+  snprintf(cmd, sizeof(cmd), "rm -rf %s", TMP_DNODE_DIR);
+  system(cmd);
+#ifdef WINDOWS
+  taosMulMkDir(TMP_SDB_DATA_DIR);
+  taosMulMkDir(TMP_SDB_SYNC_DIR);
+  snprintf(cmd, sizeof(cmd), "cp %s %s 2>nul", dataFile, TMP_SDB_DATA_FILE);
+  system(cmd);
+  snprintf(cmd, sizeof(cmd), "cp %s %s 2>nul", raftCfgFile, TMP_SDB_RAFT_CFG_FILE);
+  system(cmd);
+  snprintf(cmd, sizeof(cmd), "cp %s %s 2>nul", raftStoreFile, TMP_SDB_RAFT_STORE_FILE);
+  system(cmd);
+#else
+  snprintf(cmd, sizeof(cmd), "mkdir -p %s", TMP_SDB_DATA_DIR);
+  system(cmd);
+  snprintf(cmd, sizeof(cmd), "mkdir -p %s", TMP_SDB_SYNC_DIR);
+  system(cmd);
+  snprintf(cmd, sizeof(cmd), "cp %s %s 2>/dev/null", dataFile, TMP_SDB_DATA_FILE);
+  system(cmd);
+  snprintf(cmd, sizeof(cmd), "cp %s %s 2>/dev/null", raftCfgFile, TMP_SDB_RAFT_CFG_FILE);
+  system(cmd);
+  snprintf(cmd, sizeof(cmd), "cp %s %s 2>/dev/null", raftStoreFile, TMP_SDB_RAFT_STORE_FILE);
+  system(cmd);
+#endif
+
+  strcpy(tsDataDir, TMP_DNODE_DIR);
   return 0;
 }
 

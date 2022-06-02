@@ -209,7 +209,7 @@ typedef enum ELogicConditionType {
 #define TSDB_INDEX_FNAME_LEN     (TSDB_DB_FNAME_LEN + TSDB_INDEX_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
 #define TSDB_TYPE_STR_MAX_LEN    32
 #define TSDB_TABLE_FNAME_LEN     (TSDB_DB_FNAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
-#define TSDB_TOPIC_FNAME_LEN     TSDB_TABLE_FNAME_LEN
+#define TSDB_TOPIC_FNAME_LEN     (TSDB_ACCT_ID_LEN + TSDB_TABLE_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
 #define TSDB_STREAM_FNAME_LEN    TSDB_TABLE_FNAME_LEN
 #define TSDB_SUBSCRIBE_KEY_LEN   (TSDB_CGROUP_LEN + TSDB_TOPIC_FNAME_LEN + 2)
 #define TSDB_PARTITION_KEY_LEN   (TSDB_SUBSCRIBE_KEY_LEN + 20)
@@ -247,13 +247,13 @@ typedef enum ELogicConditionType {
 #define TSDB_EP_LEN             (TSDB_FQDN_LEN + 6)
 #define TSDB_IPv4ADDR_LEN       16
 #define TSDB_FILENAME_LEN       128
-#define TSDB_SHOW_SQL_LEN       512
+#define TSDB_SHOW_SQL_LEN       1024
 #define TSDB_SLOW_QUERY_SQL_LEN 512
 #define TSDB_SHOW_SUBQUERY_LEN  1000
 
 #define TSDB_TRANS_STAGE_LEN 12
 #define TSDB_TRANS_TYPE_LEN  16
-#define TSDB_TRANS_ERROR_LEN 64
+#define TSDB_TRANS_ERROR_LEN 512
 
 #define TSDB_STEP_NAME_LEN 32
 #define TSDB_STEP_DESC_LEN 128
@@ -334,16 +334,16 @@ typedef enum ELogicConditionType {
 #define TSDB_DB_STREAM_MODE_OFF         0
 #define TSDB_DB_STREAM_MODE_ON          1
 #define TSDB_DEFAULT_DB_STREAM_MODE     0
-#define TSDB_DB_SINGLE_STABLE_ON        0
-#define TSDB_DB_SINGLE_STABLE_OFF       1
-#define TSDB_DEFAULT_DB_SINGLE_STABLE   0
+#define TSDB_DB_SINGLE_STABLE_ON        1
+#define TSDB_DB_SINGLE_STABLE_OFF       0
+#define TSDB_DEFAULT_DB_SINGLE_STABLE   TSDB_DB_SINGLE_STABLE_OFF
+#define TSDB_DB_SCHEMALESS_ON           1
+#define TSDB_DB_SCHEMALESS_OFF          0
+#define TSDB_DEFAULT_DB_SCHEMALESS      TSDB_DB_SCHEMALESS_OFF
 
 #define TSDB_MIN_ROLLUP_FILE_FACTOR     0
-#define TSDB_MAX_ROLLUP_FILE_FACTOR     1
+#define TSDB_MAX_ROLLUP_FILE_FACTOR     10
 #define TSDB_DEFAULT_ROLLUP_FILE_FACTOR 0.1
-#define TSDB_MIN_ROLLUP_DELAY           1
-#define TSDB_MAX_ROLLUP_DELAY           10
-#define TSDB_DEFAULT_ROLLUP_DELAY       2
 #define TSDB_MIN_TABLE_TTL              0
 #define TSDB_DEFAULT_TABLE_TTL          0
 
@@ -365,7 +365,11 @@ typedef enum ELogicConditionType {
 #define PRIMARYKEY_TIMESTAMP_COL_ID    1
 #define COL_REACH_END(colId, maxColId) ((colId) > (maxColId))
 
+#ifdef WINDOWS
+#define TSDB_MAX_RPC_THREADS 4  // windows pipe only support 4 connections.
+#else
 #define TSDB_MAX_RPC_THREADS 5
+#endif
 
 #define TSDB_QUERY_TYPE_NON_TYPE      0x00u  // none type
 #define TSDB_QUERY_TYPE_FREE_RESOURCE 0x01u  // free qhandle at vnode
@@ -428,11 +432,11 @@ enum {
 };
 
 #define DEFAULT_HANDLE 0
-#define MNODE_HANDLE   -1
-#define QNODE_HANDLE   -2
-#define SNODE_HANDLE   -3
-#define VNODE_HANDLE   -4
-#define BNODE_HANDLE   -5
+#define MNODE_HANDLE   1
+#define QNODE_HANDLE   -1
+#define SNODE_HANDLE   -2
+#define VNODE_HANDLE   -3
+#define BNODE_HANDLE   -4
 
 #define TSDB_CONFIG_OPTION_LEN 16
 #define TSDB_CONIIG_VALUE_LEN  48

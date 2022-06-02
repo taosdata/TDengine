@@ -98,9 +98,7 @@ SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
     // todo extract method
     if (pJoinInfo->pLeft == NULL || pJoinInfo->leftPos >= pJoinInfo->pLeft->info.rows) {
       SOperatorInfo* ds1 = pOperator->pDownstream[0];
-      publishOperatorProfEvent(ds1, QUERY_PROF_BEFORE_OPERATOR_EXEC);
       pJoinInfo->pLeft = ds1->fpSet.getNextFn(ds1);
-      publishOperatorProfEvent(ds1, QUERY_PROF_AFTER_OPERATOR_EXEC);
 
       pJoinInfo->leftPos = 0;
       if (pJoinInfo->pLeft == NULL) {
@@ -111,9 +109,7 @@ SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
 
     if (pJoinInfo->pRight == NULL || pJoinInfo->rightPos >= pJoinInfo->pRight->info.rows) {
       SOperatorInfo* ds2 = pOperator->pDownstream[1];
-      publishOperatorProfEvent(ds2, QUERY_PROF_BEFORE_OPERATOR_EXEC);
       pJoinInfo->pRight = ds2->fpSet.getNextFn(ds2);
-      publishOperatorProfEvent(ds2, QUERY_PROF_AFTER_OPERATOR_EXEC);
 
       pJoinInfo->rightPos = 0;
       if (pJoinInfo->pRight == NULL) {

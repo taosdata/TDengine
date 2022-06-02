@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "sdbInt.h"
+#include "sdb.h"
 
 SSdbRow *sdbAllocRow(int32_t objSize) {
   SSdbRow *pRow = taosMemoryCalloc(1, objSize + sizeof(SSdbRow));

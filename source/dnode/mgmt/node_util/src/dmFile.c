@@ -135,7 +135,7 @@ TdFilePtr dmCheckRunning(const char *dataDir) {
     return NULL;
   }
 
-  dDebug("file:%s is locked", filepath);
+  dDebug("lock file:%s to prevent repeated starts", filepath);
   return pFile;
 }
 

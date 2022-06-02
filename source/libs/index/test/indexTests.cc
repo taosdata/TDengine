@@ -272,14 +272,14 @@ void validateFst() {
   }
   delete m;
 }
-static std::string logDir = "/tmp/log";
+static std::string logDir = TD_TMP_DIR_PATH "log";
 
 static void initLog() {
   const char*   defaultLogFileNamePrefix = "taoslog";
   const int32_t maxLogFileNum = 10;
 
   tsAsyncLog = 0;
-  sDebugFlag = 143;
+  idxDebugFlag = 143;
   strcpy(tsLogDir, logDir.c_str());
   taosRemoveDir(tsLogDir);
   taosMkDir(tsLogDir);
@@ -387,7 +387,7 @@ class TFileObj {
     std::string path(path_);
     int         colId = 2;
     char        buf[64] = {0};
-    sprintf(buf, "%" PRIu64 "-%d-%d.tindex", header.suid, colId_, header.version);
+    sprintf(buf, "%" PRIu64 "-%d-%" PRId64 ".tindex", header.suid, colId_, header.version);
     path.append("/").append(buf);
 
     fileName_ = path;
@@ -411,12 +411,12 @@ class TFileObj {
       //
       //
     }
-    SIdxTempResult* tr = sIdxTempResultCreate();
+    SIdxTRslt* tr = idxTRsltCreate();
 
     int ret = tfileReaderSearch(reader_, query, tr);
 
-    sIdxTempResultMergeTo(result, tr);
-    sIdxTempResultDestroy(tr);
+    idxTRsltMergeTo(tr, result);
+    idxTRsltDestroy(tr);
     return ret;
   }
   ~TFileObj() {
@@ -531,11 +531,11 @@ class CacheObj {
     indexCacheDebug(cache);
   }
   int Get(SIndexTermQuery* query, int16_t colId, int32_t version, SArray* result, STermValueType* s) {
-    SIdxTempResult* tr = sIdxTempResultCreate();
+    SIdxTRslt* tr = idxTRsltCreate();
 
     int ret = indexCacheSearch(cache, query, tr, s);
-    sIdxTempResultMergeTo(result, tr);
-    sIdxTempResultDestroy(tr);
+    idxTRsltMergeTo(tr, result);
+    idxTRsltDestroy(tr);
 
     if (ret != 0) {
       std::cout << "failed to get from cache:" << ret << std::endl;
@@ -794,10 +794,10 @@ class IndexObj {
     }
     int sz = taosArrayGetSize(result);
     indexMultiTermQueryDestroy(mq);
-    taosArrayDestroy(result);
     assert(sz == 1);
     uint64_t* ret = (uint64_t*)taosArrayGet(result, 0);
     assert(val = *ret);
+    taosArrayDestroy(result);
 
     return sz;
   }
@@ -916,7 +916,7 @@ TEST_F(IndexEnv2, testIndexOpen) {
   }
 }
 TEST_F(IndexEnv2, testEmptyIndexOpen) {
-  std::string path = "/tmp/test";
+  std::string path = TD_TMP_DIR_PATH "test";
   if (index->Init(path) != 0) {
     std::cout << "failed to init index" << std::endl;
     exit(1);
@@ -953,8 +953,8 @@ TEST_F(IndexEnv2, testIndex_TrigeFlush) {
 }
 
 static void single_write_and_search(IndexObj* idx) {
-  int target = idx->SearchOne("tag1", "Hello");
-  target = idx->SearchOne("tag2", "Test");
+  // int target = idx->SearchOne("tag1", "Hello");
+  // target = idx->SearchOne("tag2", "Test");
 }
 static void multi_write_and_search(IndexObj* idx) {
   idx->PutOne("tag1", "Hello");

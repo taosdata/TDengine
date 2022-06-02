@@ -34,6 +34,7 @@ class ParserTestBase : public testing::Test {
   ParserTestBase();
   virtual ~ParserTestBase();
 
+  void login(const std::string& user);
   void useDb(const std::string& acctId, const std::string& db);
   void run(const std::string& sql, int32_t expect = TSDB_CODE_SUCCESS, ParserStage checkStage = PARSER_STAGE_ALL);
 
@@ -63,7 +64,12 @@ class ParserDdlTest : public ParserTestBase {
   std::function<void(const SQuery*, ParserStage)> checkDdl_;
 };
 
-extern bool g_isDump;
+extern bool g_dump;
+
+extern void    setAsyncFlag(const char* pFlag);
+extern void    setLogLevel(const char* pLogLevel);
+extern int32_t getLogLevel();
+extern void    setSkipSqlNum(const char* pNum);
 
 }  // namespace ParserTest
 

@@ -31,20 +31,16 @@ struct STupleHandle {
 
 struct SSortHandle {
   int32_t           type;
-
   int32_t           pageSize;
   int32_t           numOfPages;
   SDiskbasedBuf    *pBuf;
 
   SArray           *pSortInfo;
-  SArray           *pIndexMap;
   SArray           *pOrderedSource;
 
-  _sort_fetch_block_fn_t  fetchfp;
-  _sort_merge_compar_fn_t comparFn;
-  SMultiwayMergeTreeInfo *pMergeTree;
-  int64_t           startTs;
+  int32_t           loops;
   uint64_t          sortElapsed;
+  int64_t           startTs;
   uint64_t          totalElapsed;
 
   int32_t           sourceId;
@@ -53,13 +49,15 @@ struct SSortHandle {
   int32_t           numOfCompletedSources;
   bool              opened;
   const char       *idStr;
-
   bool              inMemSort;
   bool              needAdjust;
   STupleHandle      tupleHandle;
-
   void             *param;
   void (*beforeFp)(SSDataBlock* pBlock, void* param);
+
+  _sort_fetch_block_fn_t  fetchfp;
+  _sort_merge_compar_fn_t comparFn;
+  SMultiwayMergeTreeInfo *pMergeTree;
 };
 
 static int32_t msortComparFn(const void *pLeft, const void *pRight, void *param);
@@ -80,7 +78,7 @@ SSortHandle* tsortCreateSortHandle(SArray* pSortInfo, SArray* pIndexMap, int32_t
   pSortHandle->pageSize   = pageSize;
   pSortHandle->numOfPages = numOfPages;
   pSortHandle->pSortInfo  = pSortInfo;
-  pSortHandle->pIndexMap  = pIndexMap;
+  pSortHandle->loops      = 0;
 
   if (pBlock != NULL) {
     pSortHandle->pDataBlock = createOneDataBlock(pBlock, false);
@@ -415,6 +413,9 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
   int32_t numOfRows = blockDataGetCapacityInRow(pHandle->pDataBlock, pHandle->pageSize);
   blockDataEnsureCapacity(pHandle->pDataBlock, numOfRows);
 
+  // the initial pass + sortPass + final mergePass
+  pHandle->loops = sortPass + 2;
+
   size_t numOfSorted = taosArrayGetSize(pHandle->pOrderedSource);
   for(int32_t t = 0; t < sortPass; ++t) {
     int64_t st = taosGetTimestampUs();
@@ -502,12 +503,13 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
   return 0;
 }
 
-static int32_t createInitialSortedMultiSources(SSortHandle* pHandle) {
+static int32_t createInitialSources(SSortHandle* pHandle) {
   size_t sortBufSize = pHandle->numOfPages * pHandle->pageSize;
 
   if (pHandle->type == SORT_SINGLESOURCE_SORT) {
     SSortSource* source = taosArrayGetP(pHandle->pOrderedSource, 0);
     taosArrayClear(pHandle->pOrderedSource);
+    
     while (1) {
       SSDataBlock* pBlock = pHandle->fetchfp(source->param);
       if (pBlock == NULL) {
@@ -524,6 +526,7 @@ static int32_t createInitialSortedMultiSources(SSortHandle* pHandle) {
         } else {
           pHandle->pageSize = 4096;
         }
+        
         // todo!!
         pHandle->numOfPages = 1024;
         sortBufSize = pHandle->numOfPages * pHandle->pageSize;
@@ -535,7 +538,7 @@ static int32_t createInitialSortedMultiSources(SSortHandle* pHandle) {
       }
 
       // todo relocate the columns
-      int32_t code = blockDataMerge(pHandle->pDataBlock, pBlock, pHandle->pIndexMap);
+      int32_t code = blockDataMerge(pHandle->pDataBlock, pBlock);
       if (code != 0) {
         return code;
       }
@@ -569,6 +572,7 @@ static int32_t createInitialSortedMultiSources(SSortHandle* pHandle) {
         pHandle->cmpParam.numOfSources = 1;
         pHandle->inMemSort = true;
 
+        pHandle->loops = 1;
         pHandle->tupleHandle.rowIndex  = -1;
         pHandle->tupleHandle.pBlock = pHandle->pDataBlock;
         return 0;
@@ -592,7 +596,7 @@ int32_t tsortOpen(SSortHandle* pHandle) {
 
   pHandle->opened = true;
 
-  int32_t code = createInitialSortedMultiSources(pHandle);
+  int32_t code = createInitialSources(pHandle);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -692,3 +696,20 @@ void* tsortGetValue(STupleHandle* pVHandle, int32_t colIndex) {
   SColumnInfoData* pColInfo = TARRAY_GET_ELEM(pVHandle->pBlock->pDataBlock, colIndex);
   return colDataGetData(pColInfo, pVHandle->rowIndex);
 }
+
+SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle) {
+  SSortExecInfo info = {0};
+
+  info.sortBuffer = pHandle->pageSize * pHandle->numOfPages;
+  info.sortMethod = pHandle->inMemSort? SORT_QSORT_T:SORT_SPILLED_MERGE_SORT_T;
+  info.loops  = pHandle->loops;
+
+  if (pHandle->pBuf != NULL) {
+    SDiskbasedBufStatis st = getDBufStatis(pHandle->pBuf);
+    info.writeBytes = st.flushBytes;
+    info.readBytes = st.loadBytes;
+  }
+
+  return info;
+}
+

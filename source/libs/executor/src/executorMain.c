@@ -30,13 +30,6 @@
 #include "tlosertree.h"
 #include "ttypes.h"
 
-typedef struct STaskMgmt {
-  TdThreadMutex lock;
-  SCacheObj      *qinfoPool;      // query handle pool
-  int32_t         vgId;
-  bool            closed;
-} STaskMgmt;
-
 int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, SSubplan* pSubplan,
     qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, EOPTR_EXEC_MODEL model) {
   assert(readHandle != NULL && pSubplan != NULL);
@@ -131,36 +124,30 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t *useconds) {
   // error occurs, record the error code and return to client
   int32_t ret = setjmp(pTaskInfo->env);
   if (ret != TSDB_CODE_SUCCESS) {
-    publishQueryAbortEvent(pTaskInfo, ret);
     pTaskInfo->code = ret;
     cleanUpUdfs();
-    qDebug("%s task abort due to error/cancel occurs, code:%s", GET_TASKID(pTaskInfo),
-           tstrerror(pTaskInfo->code));
+    qDebug("%s task abort due to error/cancel occurs, code:%s", GET_TASKID(pTaskInfo), tstrerror(pTaskInfo->code));
     return pTaskInfo->code;
   }
 
   qDebug("%s execTask is launched", GET_TASKID(pTaskInfo));
-
-  publishOperatorProfEvent(pTaskInfo->pRoot, QUERY_PROF_BEFORE_OPERATOR_EXEC);
 
   int64_t st = taosGetTimestampUs();
   *pRes = pTaskInfo->pRoot->fpSet.getNextFn(pTaskInfo->pRoot);
   uint64_t el = (taosGetTimestampUs() - st);
 
   pTaskInfo->cost.elapsedTime += el;
-
-  publishOperatorProfEvent(pTaskInfo->pRoot, QUERY_PROF_AFTER_OPERATOR_EXEC);
-
   if (NULL == *pRes) {
     *useconds = pTaskInfo->cost.elapsedTime;
   }
 
-  int32_t current = (*pRes != NULL)? (*pRes)->info.rows:0;
-  pTaskInfo->totalRows += current;
-
   cleanUpUdfs();
+
+  int32_t current = (*pRes != NULL)? (*pRes)->info.rows:0;
+  uint64_t total = pTaskInfo->pRoot->resultInfo.totalRows;
+
   qDebug("%s task suspended, %d rows returned, total:%" PRId64 " rows, in sinkNode:%d, elapsed:%.2f ms",
-         GET_TASKID(pTaskInfo), current, pTaskInfo->totalRows, 0, el/1000.0);
+         GET_TASKID(pTaskInfo), current, total, 0, el/1000.0);
 
   atomic_store_64(&pTaskInfo->owner, 0);
   return pTaskInfo->code;
@@ -210,7 +197,7 @@ int32_t qIsTaskCompleted(qTaskInfo_t qinfo) {
 
 void qDestroyTask(qTaskInfo_t qTaskHandle) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*) qTaskHandle;
-  qDebug("%s execTask completed, numOfRows:%"PRId64, GET_TASKID(pTaskInfo), pTaskInfo->totalRows);
+  qDebug("%s execTask completed, numOfRows:%"PRId64, GET_TASKID(pTaskInfo), pTaskInfo->pRoot->resultInfo.totalRows);
 
   queryCostStatis(pTaskInfo);   // print the query cost summary
   doDestroyTask(pTaskInfo);

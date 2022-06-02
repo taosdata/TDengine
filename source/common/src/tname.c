@@ -127,7 +127,7 @@ int32_t tNameExtractFullName(const SName* name, char* dst) {
 
   size_t tnameLen = strlen(name->tname);
   if (tnameLen > 0) {
-    assert(name->type == TSDB_TABLE_NAME_T);
+    /*assert(name->type == TSDB_TABLE_NAME_T);*/
     dst[len] = TS_PATH_DELIMITER[0];
 
     memcpy(dst + len + 1, name->tname, tnameLen);
@@ -314,9 +314,9 @@ void buildChildTableName(RandTableName* rName) {
   for (int j = 0; j < taosArrayGetSize(rName->tags); ++j) {
     SSmlKv* tagKv = taosArrayGetP(rName->tags, j);
     taosStringBuilderAppendStringLen(&sb, tagKv->key, tagKv->keyLen);
-    if(IS_VAR_DATA_TYPE(tagKv->type)){
+    if (IS_VAR_DATA_TYPE(tagKv->type)) {
       taosStringBuilderAppendStringLen(&sb, tagKv->value, tagKv->length);
-    }else{
+    } else {
       taosStringBuilderAppendStringLen(&sb, (char*)(&(tagKv->value)), tagKv->length);
     }
   }

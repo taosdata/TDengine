@@ -134,7 +134,7 @@ class TDTestCase:
 
     def create_udf_function(self):
 
-        for i in range(10):
+        for i in range(5):
             # create  scalar functions
             tdSql.execute("create function udf1 as '/tmp/udf/libudf1.so' outputtype int bufSize 8;")
 
@@ -644,16 +644,12 @@ class TDTestCase:
         self.create_udf_function()
         self.basic_udf_query()
         self.loop_kill_udfd()
-        
-        self.unexpected_create()
         tdSql.execute(" drop function udf1 ")
         tdSql.execute(" drop function udf2 ")
         self.create_udf_function()
         time.sleep(2)
         self.basic_udf_query()
         self.test_function_name()
-        self.restart_taosd_query_udf()
-       
         
 
     def stop(self):

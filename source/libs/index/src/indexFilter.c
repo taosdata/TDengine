@@ -14,11 +14,13 @@
  */
 
 #include "index.h"
+#include "indexComm.h"
 #include "indexInt.h"
 #include "nodes.h"
 #include "querynodes.h"
 #include "scalar.h"
 #include "tdatablock.h"
+#include "vnode.h"
 
 // clang-format off
 #define SIF_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
@@ -37,12 +39,15 @@ typedef struct SIFParam {
   int64_t       suid;  // add later
   char          dbName[TSDB_DB_NAME_LEN];
   char          colName[TSDB_COL_NAME_LEN];
+
+  SIndexMetaArg arg;
 } SIFParam;
 
 typedef struct SIFCtx {
-  int32_t   code;
-  SHashObj *pRes;    /* element is SIFParam */
-  bool      noExec;  // true: just iterate condition tree, and add hint to executor plan
+  int32_t       code;
+  SHashObj *    pRes;    /* element is SIFParam */
+  bool          noExec;  // true: just iterate condition tree, and add hint to executor plan
+  SIndexMetaArg arg;
   // SIdxFltStatus st;
 } SIFCtx;
 
@@ -256,8 +261,52 @@ static int32_t sifExecFunction(SFunctionNode *node, SIFCtx *ctx, SIFParam *outpu
   indexError("index-filter not support buildin function");
   return TSDB_CODE_QRY_INVALID_INPUT;
 }
+
+typedef int (*Filter)(void *a, void *b, int16_t dtype);
+
+int sifGreaterThan(void *a, void *b, int16_t dtype) {
+  __compar_fn_t func = indexGetCompar(dtype);
+  return tDoCompare(func, QUERY_GREATER_THAN, a, b);
+}
+int sifGreaterEqual(void *a, void *b, int16_t dtype) {
+  __compar_fn_t func = indexGetCompar(dtype);
+  return tDoCompare(func, QUERY_GREATER_EQUAL, a, b);
+}
+int sifLessEqual(void *a, void *b, int16_t dtype) {
+  __compar_fn_t func = indexGetCompar(dtype);
+  return tDoCompare(func, QUERY_LESS_EQUAL, a, b);
+}
+int sifLessThan(void *a, void *b, int16_t dtype) {
+  __compar_fn_t func = indexGetCompar(dtype);
+  return (int)tDoCompare(func, QUERY_LESS_THAN, a, b);
+}
+int sifEqual(void *a, void *b, int16_t dtype) {
+  __compar_fn_t func = indexGetCompar(dtype);
+  return (int)tDoCompare(func, QUERY_TERM, a, b);
+}
+static Filter sifGetFilterFunc(EIndexQueryType type, bool *reverse) {
+  if (type == QUERY_LESS_EQUAL || type == QUERY_LESS_THAN) {
+    *reverse = true;
+  } else {
+    *reverse = false;
+  }
+  if (type == QUERY_LESS_EQUAL)
+    return sifLessEqual;
+  else if (type == QUERY_LESS_THAN)
+    return sifLessThan;
+  else if (type == QUERY_GREATER_EQUAL)
+    return sifGreaterEqual;
+  else if (type == QUERY_GREATER_THAN)
+    return sifGreaterThan;
+  else if (type == QUERY_TERM) {
+    return sifEqual;
+  }
+  return NULL;
+}
 static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFParam *output) {
-  SIndexTerm *tm = indexTermCreate(left->suid, DEFAULT, left->colValType, left->colName, strlen(left->colName),
+  SIndexMetaArg *arg = &output->arg;
+#ifdef USE_INVERTED_INDEX
+  SIndexTerm *tm = indexTermCreate(arg->suid, DEFAULT, left->colValType, left->colName, strlen(left->colName),
                                    right->condValue, strlen(right->condValue));
   if (tm == NULL) {
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
@@ -268,9 +317,27 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
 
   SIndexMultiTermQuery *mtm = indexMultiTermQueryCreate(MUST);
   indexMultiTermQueryAdd(mtm, tm, qtype);
-  int ret = indexSearch(NULL, mtm, output->result);
+  int ret = indexSearch(arg->metaHandle, mtm, output->result);
+  indexDebug("index filter data size: %d", (int)taosArrayGetSize(output->result));
   indexMultiTermQueryDestroy(mtm);
   return ret;
+#else
+  EIndexQueryType qtype = 0;
+  SIF_ERR_RET(sifGetFuncFromSql(operType, &qtype));
+  bool   reverse;
+  Filter filterFunc = sifGetFilterFunc(qtype, &reverse);
+
+  SMetaFltParam param = {.suid = arg->suid,
+                         .cid = left->colId,
+                         .type = left->colValType,
+                         .val = right->condValue,
+                         .reverse = reverse,
+                         .filterFunc = filterFunc};
+
+  int ret = metaFilteTableIds(arg->metaEx, &param, output->result);
+  return ret;
+#endif
+  return 0;
 }
 
 static int32_t sifLessThanFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
@@ -372,6 +439,8 @@ static int32_t sifExecOper(SOperatorNode *node, SIFCtx *ctx, SIFParam *output) {
   SIFParam *params = NULL;
   SIF_ERR_RET(sifInitOperParams(&params, node, ctx));
 
+  // ugly code, refactor later
+  output->arg = ctx->arg;
   sif_func_t operFn = sifGetOperFn(node->opType);
   if (ctx->noExec && operFn == NULL) {
     output->status = SFLT_NOT_INDEX;
@@ -423,7 +492,7 @@ _return:
 
 static EDealRes sifWalkFunction(SNode *pNode, void *context) {
   SFunctionNode *node = (SFunctionNode *)pNode;
-  SIFParam       output = {0};
+  SIFParam       output = {.result = taosArrayInit(8, sizeof(uint64_t))};
 
   SIFCtx *ctx = context;
   ctx->code = sifExecFunction(node, ctx, &output);
@@ -439,7 +508,8 @@ static EDealRes sifWalkFunction(SNode *pNode, void *context) {
 }
 static EDealRes sifWalkLogic(SNode *pNode, void *context) {
   SLogicConditionNode *node = (SLogicConditionNode *)pNode;
-  SIFParam             output = {0};
+
+  SIFParam output = {.result = taosArrayInit(8, sizeof(uint64_t))};
 
   SIFCtx *ctx = context;
   ctx->code = sifExecLogic(node, ctx, &output);
@@ -455,7 +525,7 @@ static EDealRes sifWalkLogic(SNode *pNode, void *context) {
 }
 static EDealRes sifWalkOper(SNode *pNode, void *context) {
   SOperatorNode *node = (SOperatorNode *)pNode;
-  SIFParam       output = {0};
+  SIFParam       output = {.result = taosArrayInit(8, sizeof(uint64_t))};
 
   SIFCtx *ctx = context;
   ctx->code = sifExecOper(node, ctx, &output);
@@ -507,8 +577,9 @@ static int32_t sifCalculate(SNode *pNode, SIFParam *pDst) {
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
   int32_t code = 0;
-  SIFCtx  ctx = {.code = 0, .noExec = false};
+  SIFCtx  ctx = {.code = 0, .noExec = false, .arg = pDst->arg};
   ctx.pRes = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+
   if (NULL == ctx.pRes) {
     indexError("index-filter failed to taosHashInit");
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
@@ -523,7 +594,9 @@ static int32_t sifCalculate(SNode *pNode, SIFParam *pDst) {
       indexError("no valid res in hash, node:(%p), type(%d)", (void *)&pNode, nodeType(pNode));
       SIF_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
     }
-    taosArrayAddAll(pDst->result, res->result);
+    if (res->result != NULL) {
+      taosArrayAddAll(pDst->result, res->result);
+    }
 
     sifFreeParam(res);
     taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES);
@@ -561,7 +634,7 @@ static int32_t sifGetFltHint(SNode *pNode, SIdxFltStatus *status) {
   SIF_RET(code);
 }
 
-int32_t doFilterTag(const SNode *pFilterNode, SArray *result) {
+int32_t doFilterTag(const SNode *pFilterNode, SIndexMetaArg *metaArg, SArray *result) {
   if (pFilterNode == NULL) {
     return TSDB_CODE_SUCCESS;
   }
@@ -570,10 +643,12 @@ int32_t doFilterTag(const SNode *pFilterNode, SArray *result) {
   // todo move to the initialization function
   // SIF_ERR_RET(filterInitFromNode((SNode *)pFilterNode, &filter, 0));
 
-  SIFParam param = {0};
+  SArray * output = taosArrayInit(8, sizeof(uint64_t));
+  SIFParam param = {.arg = *metaArg, .result = output};
   SIF_ERR_RET(sifCalculate((SNode *)pFilterNode, &param));
 
   taosArrayAddAll(result, param.result);
+  // taosArrayAddAll(result, param.result);
   sifFreeParam(&param);
   SIF_RET(TSDB_CODE_SUCCESS);
 }

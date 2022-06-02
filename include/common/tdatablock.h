@@ -198,7 +198,7 @@ void    colDataTrim(SColumnInfoData* pColumnInfoData);
 size_t blockDataGetNumOfCols(const SSDataBlock* pBlock);
 size_t blockDataGetNumOfRows(const SSDataBlock* pBlock);
 
-int32_t blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc, SArray* pIndexMap);
+int32_t blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc);
 int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startIndex, int32_t* stopIndex,
                            int32_t pageSize);
 int32_t blockDataToBuf(char* buf, const SSDataBlock* pBlock);
@@ -227,12 +227,16 @@ int32_t blockDataTrimFirstNRows(SSDataBlock* pBlock, size_t n);
 
 SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData);
 
+void  blockCompressEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen, int32_t numOfCols, int8_t needCompress);
+const char* blockCompressDecode(SSDataBlock* pBlock, int32_t numOfCols, int32_t numOfRows, const char* pData);
+
 void blockDebugShowData(const SArray* dataBlocks);
 
 int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks, STSchema* pTSchema, int32_t vgId,
-                                    tb_uid_t uid, tb_uid_t suid);
+                                    tb_uid_t suid);
 
-SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pSchema, bool createTb, int64_t suid, int32_t vgId);
+SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pSchema, bool createTb, int64_t suid,
+                            const char* stbFullName, int32_t vgId);
 
 static FORCE_INLINE int32_t blockGetEncodeSize(const SSDataBlock* pBlock) {
   return blockDataGetSerialMetaSize(pBlock) + blockDataGetSize(pBlock);
@@ -245,57 +249,8 @@ static FORCE_INLINE int32_t blockCompressColData(SColumnInfoData* pColRes, int32
                                                       colSize + COMP_OVERFLOW_BYTES, compressed, NULL, 0);
 }
 
-static FORCE_INLINE void blockCompressEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen, int32_t numOfCols,
-                                             int8_t needCompress) {
-  int32_t* actualLen = (int32_t*)data;
-  data += sizeof(int32_t);
-
-  uint64_t* groupId = (uint64_t*)data;
-  data += sizeof(uint64_t);
-
-  int32_t* colSizes = (int32_t*)data;
-  data += numOfCols * sizeof(int32_t);
-
-  *dataLen = (numOfCols * sizeof(int32_t) + sizeof(uint64_t) + sizeof(int32_t));
-
-  int32_t numOfRows = pBlock->info.rows;
-  for (int32_t col = 0; col < numOfCols; ++col) {
-    SColumnInfoData* pColRes = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, col);
-
-    // copy the null bitmap
-    if (IS_VAR_DATA_TYPE(pColRes->info.type)) {
-      size_t metaSize = numOfRows * sizeof(int32_t);
-      memcpy(data, pColRes->varmeta.offset, metaSize);
-      data += metaSize;
-      (*dataLen) += metaSize;
-    } else {
-      int32_t len = BitmapLen(numOfRows);
-      memcpy(data, pColRes->nullbitmap, len);
-      data += len;
-      (*dataLen) += len;
-    }
-
-    if (needCompress) {
-      colSizes[col] = blockCompressColData(pColRes, numOfRows, data, needCompress);
-      data += colSizes[col];
-      (*dataLen) += colSizes[col];
-    } else {
-      colSizes[col] = colDataGetLength(pColRes, numOfRows);
-      (*dataLen) += colSizes[col];
-      memmove(data, pColRes->pData, colSizes[col]);
-      data += colSizes[col];
-    }
-
-    colSizes[col] = htonl(colSizes[col]);
-  }
-
-  *actualLen = *dataLen;
-  *groupId = pBlock->info.groupId;
-}
-
 #ifdef __cplusplus
 }
 #endif
 
 #endif /*_TD_COMMON_EP_H_*/
-

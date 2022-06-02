@@ -64,7 +64,7 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
 
   if (mer1.me.type == TSDB_SUPER_TABLE) {
     strcpy(metaRsp.stbName, mer1.me.name);
-    schema = mer1.me.stbEntry.schema;
+    schema = mer1.me.stbEntry.schemaRow;
     schemaTag = mer1.me.stbEntry.schemaTag;
     metaRsp.suid = mer1.me.uid;
   } else if (mer1.me.type == TSDB_CHILD_TABLE) {
@@ -73,10 +73,10 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
 
     strcpy(metaRsp.stbName, mer2.me.name);
     metaRsp.suid = mer2.me.uid;
-    schema = mer2.me.stbEntry.schema;
+    schema = mer2.me.stbEntry.schemaRow;
     schemaTag = mer2.me.stbEntry.schemaTag;
   } else if (mer1.me.type == TSDB_NORMAL_TABLE) {
-    schema = mer1.me.ntbEntry.schema;
+    schema = mer1.me.ntbEntry.schemaRow;
   } else {
     ASSERT(0);
   }
@@ -84,7 +84,7 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   metaRsp.numOfTags = schemaTag.nCols;
   metaRsp.numOfColumns = schema.nCols;
   metaRsp.precision = pVnode->config.tsdbCfg.precision;
-  metaRsp.sversion = schema.sver;
+  metaRsp.sversion = schema.version;
   metaRsp.pSchemas = (SSchema *)taosMemoryMalloc(sizeof(SSchema) * (metaRsp.numOfColumns + metaRsp.numOfTags));
 
   memcpy(metaRsp.pSchemas, schema.pSchema, sizeof(SSchema) * schema.nCols);
@@ -147,16 +147,10 @@ void vnodeGetInfo(SVnode *pVnode, const char **dbname, int32_t *vgId) {
 }
 
 // wrapper of tsdb read interface
-tsdbReaderT tsdbQueryCacheLast(SVnode *pVnode, SQueryTableDataCond *pCond, STableGroupInfo *groupList, uint64_t qId,
+tsdbReaderT tsdbQueryCacheLast(SVnode *pVnode, SQueryTableDataCond *pCond, STableListInfo* tableList, uint64_t qId,
                                void *pMemRef) {
 #if 0
   return tsdbQueryCacheLastT(pVnode->pTsdb, pCond, groupList, qId, pMemRef);
-#endif
-  return 0;
-}
-int32_t tsdbGetTableGroupFromIdList(SVnode *pVnode, SArray *pTableIdList, STableGroupInfo *pGroupInfo) {
-#if 0
-  return tsdbGetTableGroupFromIdListT(pVnode->pTsdb, pTableIdList, pGroupInfo);
 #endif
   return 0;
 }

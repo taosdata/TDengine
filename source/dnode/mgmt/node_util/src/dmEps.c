@@ -148,7 +148,6 @@ int32_t dmReadEps(SDnodeData *pData) {
 
   code = 0;
   dDebug("succcessed to read file %s", file);
-  dmPrintEps(pData);
 
 _OVER:
   if (content != NULL) taosMemoryFree(content);
@@ -162,6 +161,7 @@ _OVER:
     taosArrayPush(pData->dnodeEps, &dnodeEp);
   }
 
+  dDebug("reset dnode list on startup");
   dmResetEps(pData, pData->dnodeEps);
 
   if (dmIsEpChanged(pData, pData->dnodeId, tsLocalEp)) {
@@ -236,11 +236,13 @@ void dmUpdateEps(SDnodeData *pData, SArray *eps) {
 
   int32_t numOfEpsOld = (int32_t)taosArrayGetSize(pData->dnodeEps);
   if (numOfEps != numOfEpsOld) {
+    dDebug("new dnode list get from mnode");
     dmResetEps(pData, eps);
     dmWriteEps(pData);
   } else {
     int32_t size = numOfEps * sizeof(SDnodeEp);
     if (memcmp(pData->dnodeEps->pData, eps->pData, size) != 0) {
+      dDebug("new dnode list get from mnode");
       dmResetEps(pData, eps);
       dmWriteEps(pData);
     }
@@ -282,7 +284,7 @@ static void dmResetEps(SDnodeData *pData, SArray *dnodeEps) {
 
 static void dmPrintEps(SDnodeData *pData) {
   int32_t numOfEps = (int32_t)taosArrayGetSize(pData->dnodeEps);
-  dDebug("print dnode ep list, num:%d", numOfEps);
+  dDebug("print dnode list, num:%d", numOfEps);
   for (int32_t i = 0; i < numOfEps; i++) {
     SDnodeEp *pEp = taosArrayGet(pData->dnodeEps, i);
     dDebug("dnode:%d, fqdn:%s port:%u is_mnode:%d", pEp->id, pEp->ep.fqdn, pEp->ep.port, pEp->isMnode);
@@ -326,6 +328,7 @@ void dmGetMnodeEpSetForRedirect(SDnodeData *pData, SRpcMsg *pMsg, SEpSet *pEpSet
 }
 
 void dmSetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet) {
+  if (memcmp(pEpSet, &pData->mnodeEps, sizeof(SEpSet)) == 0) return;
   taosThreadRwlockWrlock(&pData->lock);
   pData->mnodeEps = *pEpSet;
   taosThreadRwlockUnlock(&pData->lock);

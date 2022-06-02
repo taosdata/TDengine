@@ -15,7 +15,11 @@ typedef void (*_trim_fn)(char *, char*, int32_t, int32_t);
 typedef int16_t (*_len_fn)(char *, int32_t);
 
 /** Math functions **/
-static double tlog(double v, double base) {
+static double tlog(double v) {
+  return log(v);
+}
+
+static double tlog2(double v, double base) {
   double a = log(v);
   double b = log(base);
   if (isnan(a) || isinf(a)) {
@@ -444,7 +448,8 @@ int32_t concatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   for (int32_t k = 0; k < numOfRows; ++k) {
     bool hasNull = false;
     for (int32_t i = 0; i < inputNum; ++i) {
-      if (colDataIsNull_s(pInputData[i], k)) {
+      if (colDataIsNull_s(pInputData[i], k) ||
+          GET_PARAM_TYPE(&pInput[i]) == TSDB_DATA_TYPE_NULL) {
         colDataAppendNULL(pOutputData, k);
         hasNull = true;
         break;
@@ -520,7 +525,8 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
   char *output = outputBuf;
 
   for (int32_t k = 0; k < numOfRows; ++k) {
-    if (colDataIsNull_s(pInputData[0], k)) {
+    if (colDataIsNull_s(pInputData[0], k) ||
+        GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NULL) {
       colDataAppendNULL(pOutputData, k);
       continue;
     }
@@ -528,7 +534,8 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
     int16_t dataLen = 0;
     bool hasNull = false;
     for (int32_t i = 1; i < inputNum; ++i) {
-      if (colDataIsNull_s(pInputData[i], k)) {
+      if (colDataIsNull_s(pInputData[i], k) ||
+          GET_PARAM_TYPE(&pInput[i]) == TSDB_DATA_TYPE_NULL) {
         hasNull = true;
         break;
       }
@@ -633,7 +640,7 @@ static int32_t doTrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
       continue;
     }
 
-    char *input = colDataGetData(pInput[0].columnData, i);
+    char *input = colDataGetData(pInputData, i);
     int32_t len = varDataLen(input);
     int32_t charLen = (type == TSDB_DATA_TYPE_VARCHAR) ? len : len / TSDB_NCHAR_SIZE;
     trimFn(input, output, type, charLen);
@@ -707,6 +714,7 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
 
 int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int16_t inputType  = GET_PARAM_TYPE(&pInput[0]);
+  int16_t inputLen   = GET_PARAM_BYTES(&pInput[0]);
   int16_t outputType = GET_PARAM_TYPE(&pOutput[0]);
   int64_t outputLen  = GET_PARAM_BYTES(&pOutput[0]);
 
@@ -718,15 +726,15 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
       colDataAppendNULL(pOutput->columnData, i);
       continue;
     }
+
     char *input = colDataGetData(pInput[0].columnData, i);
 
     switch(outputType) {
       case TSDB_DATA_TYPE_BIGINT: {
         if (inputType == TSDB_DATA_TYPE_BINARY) {
-          memcpy(output, varDataVal(input), varDataLen(input));
-          *(int64_t *)output = taosStr2Int64(output, NULL, 10);
+          *(int64_t *)output = taosStr2Int64(varDataVal(input), NULL, 10);
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
-          char *newBuf = taosMemoryCalloc(1, outputLen * TSDB_NCHAR_SIZE + 1);
+          char *newBuf = taosMemoryCalloc(1, inputLen);
           int32_t len  = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), newBuf);
           if (len < 0) {
             taosMemoryFree(newBuf);
@@ -742,10 +750,9 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
       }
       case TSDB_DATA_TYPE_UBIGINT: {
         if (inputType == TSDB_DATA_TYPE_BINARY) {
-          memcpy(output, varDataVal(input), varDataLen(input));
-          *(uint64_t *)output = taosStr2UInt64(output, NULL, 10);
+          *(uint64_t *)output = taosStr2UInt64(varDataVal(input), NULL, 10);
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
-          char *newBuf = taosMemoryCalloc(1, outputLen * TSDB_NCHAR_SIZE + 1);
+          char *newBuf = taosMemoryCalloc(1, inputLen);
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), newBuf);
           if (len < 0) {
             taosMemoryFree(newBuf);
@@ -849,6 +856,11 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
 int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int32_t type = GET_PARAM_TYPE(pInput);
 
+  char* tz;
+  int32_t tzLen;
+  tz = varDataVal(pInput[1].columnData->pData);
+  tzLen = varDataLen(pInput[1].columnData->pData);
+
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
     if (colDataIsNull_s(pInput[0].columnData, i)) {
       colDataAppendNULL(pOutput->columnData, i);
@@ -880,8 +892,12 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
     }
 
     struct tm *tmInfo = taosLocalTime((const time_t *)&timeVal, NULL);
-    strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S%z", tmInfo);
+    strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", tmInfo);
     int32_t len = (int32_t)strlen(buf);
+
+    //add timezone string
+    snprintf(buf + len, tzLen + 1, "%s", tz);
+    len += tzLen;
 
     if (hasFraction) {
       int32_t fracLen = (int32_t)strlen(fraction) + 1;
@@ -893,7 +909,7 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
         memmove(tzInfo + fracLen, tzInfo, strlen(tzInfo));
       }
 
-      char tmp[32];
+      char tmp[32] = {0};
       sprintf(tmp, ".%s", fraction);
       memcpy(tzInfo, tmp, fracLen);
       len += fracLen;
@@ -925,10 +941,9 @@ int32_t toUnixtimestampFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
     int32_t ret = convertStringToTimestamp(type, input, timePrec, &timeVal);
     if (ret != TSDB_CODE_SUCCESS) {
       colDataAppendNULL(pOutput->columnData, i);
-      continue;
+    } else {
+      colDataAppend(pOutput->columnData, i, (char *)&timeVal, false);
     }
-
-    colDataAppend(pOutput->columnData, i, (char *)&timeVal, false);
   }
 
   pOutput->numOfRows = pInput->numOfRows;
@@ -1366,7 +1381,11 @@ int32_t powFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
 }
 
 int32_t logFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
-  return doScalarFunctionUnique2(pInput, inputNum, pOutput, tlog);
+  if (inputNum == 1) {
+    return doScalarFunctionUnique(pInput, inputNum, pOutput, tlog);
+  } else {
+    return doScalarFunctionUnique2(pInput, inputNum, pOutput, tlog2);
+  }
 }
 
 int32_t sqrtFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
