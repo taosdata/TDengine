@@ -48,8 +48,8 @@ class TDTestCase:
 
         # test duplicate key using the first one. elimate empty key
         tdSql.execute("CREATE TABLE if not exists jsons1_8 using jsons1 tags('{\"tag1\":null, \"tag1\":true, \"tag1\":45, \"1tag$\":2, \" \":90, \"\":32}')")
-        #tdSql.query("select jtag from jsons1_8")
-        #tdSql.checkData(0, 0, '{"tag1":null,"1tag$":2," ":90}')
+        tdSql.query("select jtag from jsons1_8")
+        tdSql.checkData(0, 0, '{" ":90,"1tag$":2,"tag1":null}')
 
         # test empty json string, save as jtag is NULL
         tdSql.execute("insert into jsons1_9  using jsons1 tags('\t') values (1591062328000, 24, NULL, '你就会', '2sdw')")
@@ -95,8 +95,8 @@ class TDTestCase:
         tdSql.error("ALTER TABLE jsons1 MODIFY TAG jtag nchar(128)")
         #
         tdSql.execute("ALTER TABLE jsons1_1 SET TAG jtag='{\"tag1\":\"femail\",\"tag2\":35,\"tag3\":true}'")
-        # tdSql.query("select jtag from jsons1_1")
-        # tdSql.checkData(0, 0, '{"tag1":"femail","tag2":35,"tag3":true}')
+        tdSql.query("select jtag from jsons1_1")
+        tdSql.checkData(0, 0, '{"tag1":"femail","tag2":35,"tag3":true}')
         tdSql.execute("ALTER TABLE jsons1 rename TAG jtag jtag_new")
         tdSql.execute("ALTER TABLE jsons1 rename TAG jtag_new jtag")
 
@@ -106,18 +106,18 @@ class TDTestCase:
         #
         # print("============== STEP 3 ===== query table")
         # # test error syntax
-        # tdSql.error("select * from jsons1 where jtag->tag1='beijing'")
-        # tdSql.error("select * from jsons1 where jtag->'location'")
-        # tdSql.error("select * from jsons1 where jtag->''")
-        # tdSql.error("select * from jsons1 where jtag->''=9")
-        # tdSql.error("select -> from jsons1")
-        # tdSql.error("select * from jsons1 where contains")
-        # tdSql.error("select * from jsons1 where jtag->")
-        # tdSql.error("select jtag->location from jsons1")
-        # tdSql.error("select jtag contains location from jsons1")
-        # tdSql.error("select * from jsons1 where jtag contains location")
-        # tdSql.error("select * from jsons1 where jtag contains''")
-        # tdSql.error("select * from jsons1 where jtag contains 'location'='beijing'")
+        tdSql.error("select * from jsons1 where jtag->tag1='beijing'")
+        #tdSql.error("select * from jsons1 where jtag->'location'")
+        #tdSql.error("select * from jsons1 where jtag->''")
+        #tdSql.error("select * from jsons1 where jtag->''=9")
+        tdSql.error("select -> from jsons1")
+        tdSql.error("select * from jsons1 where contains")
+        tdSql.error("select * from jsons1 where jtag->")
+        tdSql.error("select jtag->location from jsons1")
+        tdSql.error("select jtag contains location from jsons1")
+        tdSql.error("select * from jsons1 where jtag contains location")
+        tdSql.error("select * from jsons1 where jtag contains''")
+        tdSql.error("select * from jsons1 where jtag contains 'location'='beijing'")
         #
         # # test function error
         # tdSql.error("select avg(jtag->'tag1') from jsons1")
@@ -128,47 +128,47 @@ class TDTestCase:
         # tdSql.error("select ceil(jtag) from jsons1")
         #
         # # test select normal column
-        # tdSql.query("select dataint from jsons1")
-        # tdSql.checkRows(9)
-        # tdSql.checkData(1, 0, 1)
+        tdSql.query("select dataint from jsons1")
+        tdSql.checkRows(9)
+        tdSql.checkData(1, 0, 1)
 
         # test select json tag
-        # tdSql.query("select * from jsons1")
-        # tdSql.checkRows(8)
-        # tdSql.query("select jtag from jsons1")
-        # tdSql.checkRows(7)
+        tdSql.query("select * from jsons1")
+        tdSql.checkRows(9)
+        tdSql.query("select jtag from jsons1")
+        tdSql.checkRows(13)
         # tdSql.query("select jtag from jsons1 where jtag is null")
         # tdSql.checkRows(5)
         # tdSql.query("select jtag from jsons1 where jtag is not null")
         # tdSql.checkRows(8)
 
         # test jtag is NULL
-        #tdSql.query("select jtag from jsons1_9")
-        #tdSql.checkData(0, 0, None)
+        tdSql.query("select jtag from jsons1_9")
+        tdSql.checkData(0, 0, None)
 
         # # test select json tag->'key', value is string
-        # tdSql.query("select jtag->'tag1' from jsons1_1")
-        # tdSql.checkData(0, 0, '"femail"')
-        # tdSql.query("select jtag->'tag2' from jsons1_6")
-        # tdSql.checkData(0, 0, '""')
-        # # test select json tag->'key', value is int
-        # tdSql.query("select jtag->'tag2' from jsons1_1")
-        # tdSql.checkData(0, 0, 35)
-        # # test select json tag->'key', value is bool
-        # tdSql.query("select jtag->'tag3' from jsons1_1")
-        # tdSql.checkData(0, 0, "true")
-        # # test select json tag->'key', value is null
-        # tdSql.query("select jtag->'tag1' from jsons1_4")
-        # tdSql.checkData(0, 0, "null")
-        # # test select json tag->'key', value is double
-        # tdSql.query("select jtag->'tag1' from jsons1_5")
-        # tdSql.checkData(0, 0, "1.232000000")
-        # # test select json tag->'key', key is not exist
-        # tdSql.query("select jtag->'tag10' from jsons1_4")
-        # tdSql.checkData(0, 0, None)
+        tdSql.query("select jtag->'tag1' from jsons1_1")
+        tdSql.checkData(0, 0, '"femail"')
+        tdSql.query("select jtag->'tag2' from jsons1_6")
+        tdSql.checkData(0, 0, '""')
+        # test select json tag->'key', value is int
+        tdSql.query("select jtag->'tag2' from jsons1_1")
+        tdSql.checkData(0, 0, "35.000000000")
+        # test select json tag->'key', value is bool
+        tdSql.query("select jtag->'tag3' from jsons1_1")
+        tdSql.checkData(0, 0, "true")
+        # test select json tag->'key', value is null
+        tdSql.query("select jtag->'tag1' from jsons1_4")
+        tdSql.checkData(0, 0, "null")
+        # test select json tag->'key', value is double
+        tdSql.query("select jtag->'tag1' from jsons1_5")
+        tdSql.checkData(0, 0, "1.232000000")
+        # test select json tag->'key', key is not exist
+        tdSql.query("select jtag->'tag10' from jsons1_4")
+        tdSql.checkData(0, 0, None)
         #
-        # tdSql.query("select jtag->'tag1' from jsons1")
-        # tdSql.checkRows(13)
+        tdSql.query("select jtag->'tag1' from jsons1")
+        tdSql.checkRows(13)
         # test header name
         res = tdSql.getColNameList("select jtag->'tag1' from jsons1")
         cname_list = []
