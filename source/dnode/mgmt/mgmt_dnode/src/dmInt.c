@@ -55,7 +55,7 @@ static int32_t dmOpenMgmt(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   }
 
   if (udfStartUdfd(pMgmt->pData->dnodeId) != 0) {
-    return -1;
+    dError("failed to start udfd");
   }
 
   pOutput->pMgmt = pMgmt;
