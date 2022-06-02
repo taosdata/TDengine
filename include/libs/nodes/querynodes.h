@@ -331,8 +331,8 @@ typedef struct SQuery {
   int8_t                  precision;
   SCmdMsgInfo*            pCmdMsg;
   int32_t                 msgType;
-  SArray*                 pDbList;
   SArray*                 pTableList;
+  SArray*                 pDbList;
   bool                    showRewrite;
   int32_t                 placeholderNum;
   SArray*                 pPlaceholderValues;

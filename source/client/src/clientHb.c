@@ -120,7 +120,7 @@ static int32_t hbProcessStbInfoRsp(void *value, int32_t valueLen, struct SCatalo
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
 
-      catalogUpdateSTableMeta(pCatalog, rsp);
+      catalogUpdateTableMeta(pCatalog, rsp);
     }
   }
 
