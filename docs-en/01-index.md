@@ -1,5 +1,5 @@
 ---
-title: TDengine Documentation
+title: TDengine Cloud Documentation
 sidebar_label: Documentation Home
 slug: /
 ---
