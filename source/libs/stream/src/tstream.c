@@ -35,6 +35,24 @@ void* streamDataBlockDecode(const void* buf, SStreamDataBlock* pInput) {
   return (void*)buf;
 }
 
+SStreamDataSubmit* streamSubmitRefClone(SStreamDataSubmit* pSubmit) {
+  SStreamDataSubmit* pSubmitClone = taosAllocateQitem(sizeof(SStreamDataSubmit), DEF_QITEM);
+  if (pSubmitClone == NULL) {
+    return NULL;
+  }
+  streamDataSubmitRefInc(pSubmit);
+  memcpy(pSubmitClone, pSubmit, sizeof(SStreamDataSubmit));
+  return pSubmitClone;
+}
+
+static int32_t streamBuildDispatchMsg(SStreamTask* pTask, SArray* data, SRpcMsg* pMsg, SEpSet** ppEpSet) {
+  SStreamDispatchReq req = {
+      .streamId = pTask->streamId,
+      .data = data,
+  };
+  return 0;
+}
+
 static int32_t streamBuildExecMsg(SStreamTask* pTask, SArray* data, SRpcMsg* pMsg, SEpSet** ppEpSet) {
   SStreamTaskExecReq req = {
       .streamId = pTask->streamId,
@@ -59,7 +77,7 @@ static int32_t streamBuildExecMsg(SStreamTask* pTask, SArray* data, SRpcMsg* pMs
 
   } else if (pTask->dispatchType == TASK_DISPATCH__SHUFFLE) {
     // TODO use general name rule of schemaless
-    char ctbName[TSDB_TABLE_FNAME_LEN + 22];
+    char ctbName[TSDB_TABLE_FNAME_LEN + 22] = {0};
     // all groupId must be the same in an array
     SSDataBlock* pBlock = taosArrayGet(data, 0);
     sprintf(ctbName, "%s:%ld", pTask->shuffleDispatcher.stbFullName, pBlock->info.groupId);
@@ -141,13 +159,13 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) 
     SStreamDataSubmit* pSubmit = (SStreamDataSubmit*)data;
     ASSERT(pSubmit->type == STREAM_INPUT__DATA_SUBMIT);
 
-    qSetStreamInput(exec, pSubmit->data, STREAM_DATA_TYPE_SUBMIT_BLOCK);
+    qSetStreamInput(exec, pSubmit->data, STREAM_DATA_TYPE_SUBMIT_BLOCK, false);
   } else if (pTask->inputType == STREAM_INPUT__DATA_BLOCK) {
     SStreamDataBlock* pBlock = (SStreamDataBlock*)data;
     ASSERT(pBlock->type == STREAM_INPUT__DATA_BLOCK);
 
     SArray* blocks = pBlock->blocks;
-    qSetMultiStreamInput(exec, blocks->pData, blocks->size, STREAM_DATA_TYPE_SSDATA_BLOCK);
+    qSetMultiStreamInput(exec, blocks->pData, blocks->size, STREAM_DATA_TYPE_SSDATA_BLOCK, false);
   }
 
   // exec
@@ -199,7 +217,6 @@ int32_t streamExec(SStreamTask* pTask, SMsgCb* pMsgCb) {
   if (pRes == NULL) return -1;
   while (1) {
     int8_t execStatus = atomic_val_compare_exchange_8(&pTask->status, TASK_STATUS__IDLE, TASK_STATUS__EXECUTING);
-    void*  exec = pTask->exec.executor;
     if (execStatus == TASK_STATUS__IDLE) {
       // first run, from qall, handle failure from last exec
       pRes = streamExecForQall(pTask, pRes);
@@ -404,6 +421,26 @@ int32_t streamProcessRecoverReq(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamTaskR
 
 int32_t streamProcessRecoverRsp(SStreamTask* pTask, SStreamTaskRecoverRsp* pRsp) {
   //
+  return 0;
+}
+
+int32_t tEncodeStreamDispatchReq(SEncoder* pEncoder, const SStreamDispatchReq* pReq) {
+  if (tStartEncode(pEncoder) < 0) return -1;
+  if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->taskId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->sourceTaskId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->sourceVg) < 0) return -1;
+  tEndEncode(pEncoder);
+  return 0;
+}
+
+int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq) {
+  if (tStartDecode(pDecoder) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pReq->streamId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->taskId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->sourceTaskId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->sourceVg) < 0) return -1;
+  tEndDecode(pDecoder);
   return 0;
 }
 

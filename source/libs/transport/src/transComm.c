@@ -190,6 +190,7 @@ SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, int sz, void* arg, AsyncCB cb)
   }
   return pool;
 }
+
 void transDestroyAsyncPool(SAsyncPool* pool) {
   for (int i = 0; i < pool->nAsync; i++) {
     uv_async_t* async = &(pool->asyncs[i]);
@@ -452,10 +453,58 @@ void transPrintEpSet(SEpSet* pEpSet) {
     tTrace("NULL epset");
     return;
   }
-  tTrace("epset begin: inUse: %d", pEpSet->inUse);
+  tTrace("epset begin  inUse: %d", pEpSet->inUse);
   for (int i = 0; i < pEpSet->numOfEps; i++) {
     tTrace("ip: %s, port: %d", pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
   }
   tTrace("epset end");
+}
+bool transEpSetIsEqual(SEpSet* a, SEpSet* b) {
+  if (a->numOfEps != b->numOfEps || a->inUse != b->inUse) {
+    return false;
+  }
+  for (int i = 0; i < a->numOfEps; i++) {
+    if (strncmp(a->eps[i].fqdn, b->eps[i].fqdn, TSDB_FQDN_LEN) != 0 || a->eps[i].port != b->eps[i].port) {
+      return false;
+    }
+  }
+  return true;
+}
+
+void transInitEnv() {
+  //
+  uv_os_setenv("UV_TCP_SINGLE_ACCEPT", "1");
+}
+int32_t transOpenExHandleMgt(int size) {
+  // added into once later
+  return taosOpenRef(size, transDestoryExHandle);
+}
+void transCloseExHandleMgt(int32_t mgt) {
+  // close ref
+  taosCloseRef(mgt);
+}
+int64_t transAddExHandle(int32_t mgt, void* p) {
+  // acquire extern handle
+  return taosAddRef(mgt, p);
+}
+int32_t transRemoveExHandle(int32_t mgt, int64_t refId) {
+  // acquire extern handle
+  return taosRemoveRef(mgt, refId);
+}
+
+SExHandle* transAcquireExHandle(int32_t mgt, int64_t refId) {
+  // acquire extern handle
+  return (SExHandle*)taosAcquireRef(mgt, refId);
+}
+
+int32_t transReleaseExHandle(int32_t mgt, int64_t refId) {
+  // release extern handle
+  return taosReleaseRef(mgt, refId);
+}
+void transDestoryExHandle(void* handle) {
+  if (handle == NULL) {
+    return;
+  }
+  taosMemoryFree(handle);
 }
 #endif

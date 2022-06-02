@@ -273,7 +273,7 @@ static int32_t queryConvertTableMetaMsg(STableMetaRsp *pMetaMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isSuperTable, STableMeta **pMeta) {
+int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta **pMeta) {
   int32_t total = msg->numOfColumns + msg->numOfTags;
   int32_t metaSize = sizeof(STableMeta) + sizeof(SSchema) * total;
 
@@ -283,14 +283,14 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isSuperTable, STabl
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  pTableMeta->vgId = isSuperTable ? 0 : msg->vgId;
-  pTableMeta->tableType = isSuperTable ? TSDB_SUPER_TABLE : msg->tableType;
-  pTableMeta->uid = isSuperTable ? msg->suid : msg->tuid;
+  pTableMeta->vgId = isStb ? 0 : msg->vgId;
+  pTableMeta->tableType = isStb ? TSDB_SUPER_TABLE : msg->tableType;
+  pTableMeta->uid = isStb ? msg->suid : msg->tuid;
   pTableMeta->suid = msg->suid;
   pTableMeta->sversion = msg->sversion;
   pTableMeta->tversion = msg->tversion;
 
-  if (isSuperTable) {
+  if (isStb) {
     qDebug("stable %s meta returned, suid:%" PRIx64, msg->stbName, pTableMeta->suid);
   }
 
@@ -373,7 +373,7 @@ int32_t queryProcessQnodeListRsp(void *output, char *msg, int32_t msgSize) {
     return code;
   }
 
-  out.addrsList = (SArray *)output;
+  out.qnodeList = (SArray *)output;
   if (tDeserializeSQnodeListRsp(msg, msgSize, &out) != 0) {
     qError("invalid qnode list rsp msg, msgSize:%d", msgSize);
     code = TSDB_CODE_INVALID_MSG;

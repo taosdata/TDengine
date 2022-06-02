@@ -168,6 +168,7 @@ int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
 void dmSendMonitorReport();
 void dmGetVnodeLoads(SMonVloadInfo *pInfo);
 void dmGetMnodeLoads(SMonMloadInfo *pInfo);
+void dmGetQnodeLoads(SQnodeLoad *pInfo);
 
 #ifdef __cplusplus
 }

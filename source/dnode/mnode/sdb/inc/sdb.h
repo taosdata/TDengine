@@ -166,9 +166,9 @@ typedef struct SSdbRow {
 typedef struct SSdb {
   SMnode        *pMnode;
   char          *currDir;
-  char          *syncDir;
   char          *tmpDir;
   int64_t        lastCommitVer;
+  int64_t        lastCommitTerm;
   int64_t        curVer;
   int64_t        curTerm;
   int64_t        tableVer[SDB_MAX];
@@ -182,11 +182,13 @@ typedef struct SSdb {
   SdbDeployFp    deployFps[SDB_MAX];
   SdbEncodeFp    encodeFps[SDB_MAX];
   SdbDecodeFp    decodeFps[SDB_MAX];
+  TdThreadMutex  filelock;
 } SSdb;
 
 typedef struct SSdbIter {
   TdFilePtr file;
-  int64_t   readlen;
+  int64_t   total;
+  char     *name;
 } SSdbIter;
 
 typedef struct {
@@ -299,6 +301,7 @@ void sdbRelease(SSdb *pSdb, void *pObj);
  * @return void* The next iterator of the table.
  */
 void *sdbFetch(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj);
+void *sdbFetchAll(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj, ESdbStatus *status) ;
 
 /**
  * @brief Cancel a traversal
@@ -380,11 +383,17 @@ SSdbRow *sdbAllocRow(int32_t objSize);
 void    *sdbGetRowObj(SSdbRow *pRow);
 void     sdbFreeRow(SSdb *pSdb, SSdbRow *pRow, bool callFunc);
 
-SSdbIter *sdbIterInit(SSdb *pSdb);
-SSdbIter *sdbIterRead(SSdb *pSdb, SSdbIter *iter, char **ppBuf, int32_t *len);
+int32_t sdbStartRead(SSdb *pSdb, SSdbIter **ppIter);
+int32_t sdbStopRead(SSdb *pSdb, SSdbIter *pIter);
+int32_t sdbDoRead(SSdb *pSdb, SSdbIter *pIter, void **ppBuf, int32_t *len);
+
+int32_t sdbStartWrite(SSdb *pSdb, SSdbIter **ppIter);
+int32_t sdbStopWrite(SSdb *pSdb, SSdbIter *pIter, bool isApply);
+int32_t sdbDoWrite(SSdb *pSdb, SSdbIter *pIter, void *pBuf, int32_t len);
 
 const char *sdbTableName(ESdbType type);
 void        sdbPrintOper(SSdb *pSdb, SSdbRow *pRow, const char *oper);
+int32_t     sdbGetIdFromRaw(SSdb *pSdb, SSdbRaw *pRaw);
 
 #ifdef __cplusplus
 }

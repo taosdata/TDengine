@@ -41,7 +41,7 @@ uint64_t schGenUUID(void) {
   static int32_t requestSerialId = 0;
 
   if (hashId == 0) {
-    char    uid[64];
+    char    uid[64] = {0};
     int32_t code = taosGetSystemUUID(uid, tListLen(uid));
     if (code != TSDB_CODE_SUCCESS) {
       qError("Failed to get the system uid, reason:%s", tstrerror(TAOS_SYSTEM_ERROR(errno)));

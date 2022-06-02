@@ -55,7 +55,9 @@ SSdb *sdbInit(SSdbOpt *pOption) {
   pSdb->curVer = -1;
   pSdb->curTerm = -1;
   pSdb->lastCommitVer = -1;
+  pSdb->lastCommitTerm = -1;
   pSdb->pMnode = pOption->pMnode;
+  taosThreadMutexInit(&pSdb->filelock, NULL);
   mDebug("sdb init successfully");
   return pSdb;
 }
@@ -69,11 +71,8 @@ void sdbCleanup(SSdb *pSdb) {
     taosMemoryFreeClear(pSdb->currDir);
   }
 
-  if (pSdb->syncDir != NULL) {
-    taosMemoryFreeClear(pSdb->syncDir);
-  }
-
   if (pSdb->tmpDir != NULL) {
+    taosRemoveDir(pSdb->tmpDir);
     taosMemoryFreeClear(pSdb->tmpDir);
   }
 
@@ -104,6 +103,7 @@ void sdbCleanup(SSdb *pSdb) {
     mDebug("sdb table:%s is cleaned up", sdbTableName(i));
   }
 
+  taosThreadMutexDestroy(&pSdb->filelock);
   taosMemoryFree(pSdb);
   mDebug("sdb is cleaned up");
 }

@@ -6,7 +6,7 @@ description: Install, Uninstall, Start, Stop and Upgrade
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-TDengine community version provides dev and rpm packages for users to choose based on the system environment. deb supports Debian, Ubuntu and systems derived from them. rpm supports CentOS, RHEL, SUSE and systems derived from them. Furthermore, tar.gz package is provided for enterprise customers.
+TDengine community version provides deb and rpm packages for users to choose from, based on their system environment. The deb package supports Debian, Ubuntu and derivative systems. The rpm package supports CentOS, RHEL, SUSE and derivative systems. Furthermore, a tar.gz package is provided for TDengine Enterprise customers.
 
 ## Install
 
@@ -124,7 +124,7 @@ taoskeeper is installed, enable it by `systemctl enable taoskeeper`
 ```
 
 :::info
-Some configuration will be prompted for users to provide when install.sh is executing, the interactive mode can be disabled by executing `./install.sh -e no`. `./install -h` can show all parameters and detailed explanation.
+Users will be prompted to enter some configuration information when install.sh is executing. The interactive mode can be disabled by executing `./install.sh -e no`. `./install.sh -h` can show all parameters with detailed explanation.
 
 :::
 
@@ -132,7 +132,7 @@ Some configuration will be prompted for users to provide when install.sh is exec
 </Tabs>
 
 :::note
-When installing on the first node in the cluster, when "Enter FQDN:" is prompted, nothing needs to be provided. When installing on following nodes, when "Enter FQDN:" is prompted, the end point of the first dnode in the cluster can be input if it is already up; or just ignore it and configure later after installation is done.
+When installing on the first node in the cluster, at the "Enter FQDN:" prompt, nothing needs to be provided. When installing on subsequent nodes, at the "Enter FQDN:" prompt, you must enter the end point of the first dnode in the cluster if it is already up. You can also just ignore it and configure it later after installation is finished.
 
 :::
 
@@ -181,14 +181,14 @@ taosKeeper is removed successfully!
 
 :::note
 
-- It's strongly suggested not to use multiple kinds of installation packages on a single host TDengine
-- After deb package is installed, if the installation directory is removed manually so that uninstall or reinstall can't succeed, it can be resolved by cleaning up TDengine package information as in the command below and then reinstalling.
+- We strongly recommend not to use multiple kinds of installation packages on a single host TDengine. 
+- After deb package is installed, if the installation directory is removed manually, uninstall or reinstall will not work. This issue can be resolved by using the command below which cleans up TDengine package information. You can then reinstall if needed.
 
 ```bash
    $ sudo rm -f /var/lib/dpkg/info/tdengine*
 ```
 
-- After rpm package is installed, if the installation directory is removed manually so that uninstall or reinstall can't succeed, it can be resolved by cleaning up TDengine package information as in the command below and then reinstalling.
+- After rpm package is installed, if the installation directory is removed manually, uninstall or reinstall will not work. This issue can be resolved by using the command below which cleans up TDengine package information. You can then reinstall if needed.
 
 ```bash
    $ sudo rpm -e --noscripts tdengine
@@ -219,7 +219,7 @@ lrwxrwxrwx  1 root root   13 Feb 22 09:34 log -> /var/log/taos/
 During the installation process:
 
 - Configuration directory, data directory, and log directory are created automatically if they don't exist
-- The default configuration file is located at /etc/taos/taos.cfg, which is a copy of /usr/local/taos/cfg/taos.cfg if not existing
+- The default configuration file is located at /etc/taos/taos.cfg, which is a copy of /usr/local/taos/cfg/taos.cfg
 - The default data directory is /var/lib/taos, which is a soft link to /usr/local/taos/data
 - The default log directory is /var/log/taos, which is a soft link to /usr/local/taos/log
 - The executables at /usr/local/taos/bin are linked to /usr/bin
@@ -228,7 +228,7 @@ During the installation process:
 
 :::note
 
-- When TDengine is uninstalled, the configuration /etc/taos/taos.cfg, data directory /var/lib/taos, log directory /var/log/taos are kept. They can be deleted manually with caution because data can't be recovered
+- When TDengine is uninstalled, the configuration /etc/taos/taos.cfg, data directory /var/lib/taos, log directory /var/log/taos are kept. They can be deleted manually with caution, because data can't be recovered. Please follow data integrity, security, backup or relevant SOPs before deleting any data.
 - When reinstalling TDengine, if the default configuration file /etc/taos/taos.cfg exists, it will be kept and the configuration file in the installation package will be renamed to taos.cfg.orig and stored at /usr/local/taos/cfg to be used as configuration sample. Otherwise the configuration file in the installation package will be installed to /etc/taos/taos.cfg and used.
 
 ## Start and Stop
@@ -263,18 +263,19 @@ Active: inactive (dead)
 
 There are two aspects in upgrade operation: upgrade installation package and upgrade a running server.
 
-Upgrading package should follow the steps mentioned previously to first uninstall the old version then install the new version.
+To upgrade a package, follow the steps mentioned previously to first uninstall the old version then install the new version.
 
-Upgrading a running server is much more complex. First please check the version number of the old version and the new version. The version number of TDengine consists of 4 sections, only if the first 3 section match can the old version be upgraded to the new version. The steps of upgrading a running server are as below:
+Upgrading a running server is much more complex. First please check the version number of the old version and the new version. The version number of TDengine consists of 4 sections, only if the first 3 sections match can the old version be upgraded to the new version. The steps of upgrading a running server are as below:
 
 - Stop inserting data
-- Make sure all data are persisted into disk
+- Make sure all data is persisted to disk
+- Make some simple queries (Such as total rows in stables, tables and so on. Note down the values. Follow best practices and relevant SOPs.)
 - Stop the cluster of TDengine
 - Uninstall old version and install new version
 - Start the cluster of TDengine
-- Make some simple queries to make sure no data loss
-- Make some simple data insertion to make sure the cluster works well
-- Restore business data
+- Execute simple queries, such as the ones executed prior to installing the new package, to make sure there is no data loss
+- Run some simple data insertion statements to make sure the cluster works well
+- Restore business services
 
 :::warning
 

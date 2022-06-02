@@ -27,7 +27,7 @@ title: OpenTSDB 应用迁移到 TDengine 的最佳实践
 一个典型的 DevOps 应用场景的系统整体的架构如下图（图 1） 所示。
 
 **图 1. DevOps 场景中典型架构**
-![IT-DevOps-Solutions-Immigrate-OpenTSDB-Arch](./IT-DevOps-Solutions-Immigrate-OpenTSDB-Arch.webp "图1. DevOps 场景中典型架构")
+![TDengine Database IT-DevOps-Solutions-Immigrate-OpenTSDB-Arch](./IT-DevOps-Solutions-Immigrate-OpenTSDB-Arch.webp "图1. DevOps 场景中典型架构")
 
 在该应用场景中，包含了部署在应用环境中负责收集机器度量（Metrics）、网络度量（Metrics）以及应用度量（Metrics）的 Agent 工具、汇聚 Agent 收集信息的数据收集器，数据持久化存储和管理的系统以及监控数据可视化工具（例如：Grafana 等）。
 
@@ -70,7 +70,7 @@ LoadPlugin write_tsdb
 TDengine 提供了默认的两套 Dashboard 模板，用户只需要将 Grafana 目录下的模板导入到 Grafana 中即可激活使用。
 
 **图 2. 导入 Grafana 模板**
-![](./IT-DevOps-Solutions-Immigrate-OpenTSDB-Dashboard.webp "图2. 导入 Grafana 模板")
+![TDengine Database IT-DevOps-Solutions-Immigrate-OpenTSDB-Dashboard](./IT-DevOps-Solutions-Immigrate-OpenTSDB-Dashboard.webp "图2. 导入 Grafana 模板")
 
 操作完以上步骤后，就完成了将 OpenTSDB 替换成为 TDengine 的迁移工作。可以看到整个流程非常简单，不需要写代码，只需要对某些配置文件进行调整即可完成全部的迁移工作。
 
@@ -83,7 +83,7 @@ TDengine 提供了默认的两套 Dashboard 模板，用户只需要将 Grafana 
 如果你的应用特别复杂，或者应用领域并不是 DevOps 场景，你可以继续阅读后续的章节，更加全面深入地了解将 OpenTSDB 的应用迁移到 TDengine 的高级话题。
 
 **图 3. 迁移完成后的系统架构**
-![IT-DevOps-Solutions-Immigrate-TDengine-Arch](./IT-DevOps-Solutions-Immigrate-TDengine-Arch.webp "图 3. 迁移完成后的系统架构")
+![TDengine Database IT-DevOps-Solutions-Immigrate-TDengine-Arch](./IT-DevOps-Solutions-Immigrate-TDengine-Arch.webp "图 3. 迁移完成后的系统架构")
 
 ## 其他场景的迁移评估与策略
 

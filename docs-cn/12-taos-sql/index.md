@@ -7,8 +7,6 @@ description: "TAOS SQL 支持的语法规则、主要查询功能、支持的 SQ
 
 TAOS SQL 是用户对 TDengine 进行数据写入和查询的主要工具。TAOS SQL 为了便于用户快速上手，在一定程度上提供与标准 SQL 类似的风格和模式。严格意义上，TAOS SQL 并不是也不试图提供标准的 SQL 语法。此外，由于 TDengine 针对的时序性结构化数据不提供删除功能，因此在 TAO SQL 中不提供数据删除的相关功能。
 
-TAOS SQL 不支持关键字的缩写，例如 DESCRIBE 不能缩写为 DESC。
-
 本章节 SQL 语法遵循如下约定：
 
 - <\> 里的内容是用户需要输入的，但不要输入 <\> 本身

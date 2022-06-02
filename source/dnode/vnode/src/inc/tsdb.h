@@ -32,14 +32,27 @@ extern "C" {
 #define tsdbTrace(...) do { if (tsdbDebugFlag & DEBUG_TRACE) { taosPrintLog("TSDB ", DEBUG_TRACE, tsdbDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
+typedef struct TSDBROW TSDBROW;
+typedef struct TSDBKEY TSDBKEY;
+typedef struct SDelOp  SDelOp;
+
+static int tsdbKeyCmprFn(const void *p1, const void *p2);
+
+// tsdbMemTable2.c ==============================================================================================
+typedef struct SMemTable SMemTable;
+
+int32_t tsdbMemTableCreate2(STsdb *pTsdb, SMemTable **ppMemTable);
+void    tsdbMemTableDestroy2(SMemTable *pMemTable);
+
 // tsdbMemTable ================
+typedef struct STsdbRow      STsdbRow;
 typedef struct STbData       STbData;
 typedef struct STsdbMemTable STsdbMemTable;
 typedef struct SMergeInfo    SMergeInfo;
 typedef struct STable        STable;
 
 int  tsdbMemTableCreate(STsdb *pTsdb, STsdbMemTable **ppMemTable);
-void tsdbMemTableDestroy(STsdb *pTsdb, STsdbMemTable *pMemTable);
+void tsdbMemTableDestroy(STsdbMemTable *pMemTable);
 int  tsdbLoadDataFromCache(STsdb *pTsdb, STable *pTable, SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead,
                            SDataCols *pCols, TKEY *filterKeys, int nFilterKeys, bool keepDup, SMergeInfo *pMergeInfo);
 
@@ -79,13 +92,14 @@ struct STsdb {
 struct STable {
   uint64_t  tid;
   uint64_t  uid;
-  STSchema *pSchema;
+  STSchema *pSchema;       // latest schema
+  STSchema *pCacheSchema;  // cached cache
 };
 
 #define TABLE_TID(t) (t)->tid
 #define TABLE_UID(t) (t)->uid
 
-int     tsdbPrepareCommit(STsdb *pTsdb);
+int tsdbPrepareCommit(STsdb *pTsdb);
 typedef enum {
   TSDB_FILE_HEAD = 0,  // .head
   TSDB_FILE_DATA,      // .data
@@ -181,13 +195,15 @@ int tsdbUnlockRepo(STsdb *pTsdb);
 
 static FORCE_INLINE STSchema *tsdbGetTableSchemaImpl(STsdb *pTsdb, STable *pTable, bool lock, bool copy,
                                                      int32_t version) {
-
-  if ((version != -1) && (schemaVersion(pTable->pSchema) != version)) {
-    taosMemoryFreeClear(pTable->pSchema);
-    pTable->pSchema = metaGetTbTSchema(REPO_META(pTsdb), pTable->uid, version);
+  if ((version < 0) || (schemaVersion(pTable->pSchema) == version)) {
+    return pTable->pSchema;
   }
 
-  return pTable->pSchema;
+  if (!pTable->pCacheSchema || (schemaVersion(pTable->pCacheSchema) != version)) {
+    taosMemoryFreeClear(pTable->pCacheSchema);
+    pTable->pCacheSchema = metaGetTbTSchema(REPO_META(pTsdb), pTable->uid, version);
+  }
+  return pTable->pCacheSchema;
 }
 
 // tsdbMemTable.h
@@ -839,6 +855,42 @@ static FORCE_INLINE int tsdbUnLockFS(STsdbFS *pFs) {
     terrno = TAOS_SYSTEM_ERROR(code);
     return -1;
   }
+  return 0;
+}
+
+struct TSDBROW {
+  int64_t version;
+  STSRow2 tsRow;
+};
+
+struct TSDBKEY {
+  int64_t version;
+  TSKEY   ts;
+};
+
+struct SDelOp {
+  int64_t version;
+  TSKEY   sKey;  // included
+  TSKEY   eKey;  // included
+  SDelOp *pNext;
+};
+
+static FORCE_INLINE int tsdbKeyCmprFn(const void *p1, const void *p2) {
+  TSDBKEY *pKey1 = (TSDBKEY *)p1;
+  TSDBKEY *pKey2 = (TSDBKEY *)p2;
+
+  if (pKey1->ts < pKey2->ts) {
+    return -1;
+  } else if (pKey1->ts > pKey2->ts) {
+    return 1;
+  }
+
+  if (pKey1->version < pKey2->version) {
+    return -1;
+  } else if (pKey1->version > pKey2->version) {
+    return 1;
+  }
+
   return 0;
 }
 

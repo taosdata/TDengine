@@ -215,7 +215,7 @@ SyncTimeout* syncTimeoutFromRpcMsg2(const SRpcMsg* pRpcMsg) {
 }
 
 cJSON* syncTimeout2Json(const SyncTimeout* pMsg) {
-  char   u64buf[128];
+  char   u64buf[128] = {0};
   cJSON* pRoot = cJSON_CreateObject();
 
   if (pMsg != NULL) {
@@ -442,7 +442,7 @@ SyncPing* syncPingFromRpcMsg2(const SRpcMsg* pRpcMsg) {
 }
 
 cJSON* syncPing2Json(const SyncPing* pMsg) {
-  char   u64buf[128];
+  char   u64buf[128] = {0};
   cJSON* pRoot = cJSON_CreateObject();
 
   if (pMsg != NULL) {
@@ -456,7 +456,7 @@ cJSON* syncPing2Json(const SyncPing* pMsg) {
     {
       uint64_t u64 = pMsg->srcId.addr;
       cJSON*   pTmp = pSrcId;
-      char     host[128];
+      char     host[128] = {0};
       uint16_t port;
       syncUtilU642Addr(u64, host, sizeof(host), &port);
       cJSON_AddStringToObject(pTmp, "addr_host", host);
@@ -471,7 +471,7 @@ cJSON* syncPing2Json(const SyncPing* pMsg) {
     {
       uint64_t u64 = pMsg->destId.addr;
       cJSON*   pTmp = pDestId;
-      char     host[128];
+      char     host[128] = {0};
       uint16_t port;
       syncUtilU642Addr(u64, host, sizeof(host), &port);
       cJSON_AddStringToObject(pTmp, "addr_host", host);
@@ -702,7 +702,7 @@ SyncPingReply* syncPingReplyFromRpcMsg2(const SRpcMsg* pRpcMsg) {
 }
 
 cJSON* syncPingReply2Json(const SyncPingReply* pMsg) {
-  char   u64buf[128];
+  char   u64buf[128] = {0};
   cJSON* pRoot = cJSON_CreateObject();
 
   if (pMsg != NULL) {
@@ -716,7 +716,7 @@ cJSON* syncPingReply2Json(const SyncPingReply* pMsg) {
     {
       uint64_t u64 = pMsg->srcId.addr;
       cJSON*   pTmp = pSrcId;
-      char     host[128];
+      char     host[128] = {0};
       uint16_t port;
       syncUtilU642Addr(u64, host, sizeof(host), &port);
       cJSON_AddStringToObject(pTmp, "addr_host", host);
@@ -731,7 +731,7 @@ cJSON* syncPingReply2Json(const SyncPingReply* pMsg) {
     {
       uint64_t u64 = pMsg->destId.addr;
       cJSON*   pTmp = pDestId;
-      char     host[128];
+      char     host[128] = {0};
       uint16_t port;
       syncUtilU642Addr(u64, host, sizeof(host), &port);
       cJSON_AddStringToObject(pTmp, "addr_host", host);
@@ -869,7 +869,7 @@ SyncClientRequest* syncClientRequestFromRpcMsg2(const SRpcMsg* pRpcMsg) {
 }
 
 cJSON* syncClientRequest2Json(const SyncClientRequest* pMsg) {
-  char   u64buf[128];
+  char   u64buf[128] = {0};
   cJSON* pRoot = cJSON_CreateObject();
 
   if (pMsg != NULL) {
@@ -995,7 +995,7 @@ SyncRequestVote* syncRequestVoteFromRpcMsg2(const SRpcMsg* pRpcMsg) {
 }
 
 cJSON* syncRequestVote2Json(const SyncRequestVote* pMsg) {
-  char   u64buf[128];
+  char   u64buf[128] = {0};
   cJSON* pRoot = cJSON_CreateObject();
 
   if (pMsg != NULL) {
@@ -1009,7 +1009,7 @@ cJSON* syncRequestVote2Json(const SyncRequestVote* pMsg) {
     {
       uint64_t u64 = pMsg->srcId.addr;
       cJSON*   pTmp = pSrcId;
-      char     host[128];
+      char     host[128] = {0};
       uint16_t port;
       syncUtilU642Addr(u64, host, sizeof(host), &port);
       cJSON_AddStringToObject(pTmp, "addr_host", host);
@@ -1023,7 +1023,7 @@ cJSON* syncRequestVote2Json(const SyncRequestVote* pMsg) {
     {
       uint64_t u64 = pMsg->destId.addr;
       cJSON*   pTmp = pDestId;
-      char     host[128];
+      char     host[128] = {0};
       uint16_t port;
       syncUtilU642Addr(u64, host, sizeof(host), &port);
       cJSON_AddStringToObject(pTmp, "addr_host", host);
@@ -1144,7 +1144,7 @@ SyncRequestVoteReply* syncRequestVoteReplyFromRpcMsg2(const SRpcMsg* pRpcMsg) {
 }
 
 cJSON* syncRequestVoteReply2Json(const SyncRequestVoteReply* pMsg) {
-  char   u64buf[128];
+  char   u64buf[128] = {0};
   cJSON* pRoot = cJSON_CreateObject();
 
   if (pMsg != NULL) {
@@ -1158,7 +1158,7 @@ cJSON* syncRequestVoteReply2Json(const SyncRequestVoteReply* pMsg) {
     {
       uint64_t u64 = pMsg->srcId.addr;
       cJSON*   pTmp = pSrcId;
-      char     host[128];
+      char     host[128] = {0};
       uint16_t port;
       syncUtilU642Addr(u64, host, sizeof(host), &port);
       cJSON_AddStringToObject(pTmp, "addr_host", host);
@@ -1172,7 +1172,7 @@ cJSON* syncRequestVoteReply2Json(const SyncRequestVoteReply* pMsg) {
     {
       uint64_t u64 = pMsg->destId.addr;
       cJSON*   pTmp = pDestId;
-      char     host[128];
+      char     host[128] = {0};
       uint16_t port;
       syncUtilU642Addr(u64, host, sizeof(host), &port);
       cJSON_AddStringToObject(pTmp, "addr_host", host);
@@ -1292,7 +1292,7 @@ SyncAppendEntries* syncAppendEntriesFromRpcMsg2(const SRpcMsg* pRpcMsg) {
 }
 
 cJSON* syncAppendEntries2Json(const SyncAppendEntries* pMsg) {
-  char   u64buf[128];
+  char   u64buf[128] = {0};
   cJSON* pRoot = cJSON_CreateObject();
 
   if (pMsg != NULL) {
@@ -1306,7 +1306,7 @@ cJSON* syncAppendEntries2Json(const SyncAppendEntries* pMsg) {
     {
       uint64_t u64 = pMsg->srcId.addr;
       cJSON*   pTmp = pSrcId;
-      char     host[128];
+      char     host[128] = {0};
       uint16_t port;
       syncUtilU642Addr(u64, host, sizeof(host), &port);
       cJSON_AddStringToObject(pTmp, "addr_host", host);
@@ -1321,7 +1321,7 @@ cJSON* syncAppendEntries2Json(const SyncAppendEntries* pMsg) {
     {
       uint64_t u64 = pMsg->destId.addr;
       cJSON*   pTmp = pDestId;
-      char     host[128];
+      char     host[128] = {0};
       uint16_t port;
       syncUtilU642Addr(u64, host, sizeof(host), &port);
       cJSON_AddStringToObject(pTmp, "addr_host", host);
@@ -1456,7 +1456,7 @@ SyncAppendEntriesReply* syncAppendEntriesReplyFromRpcMsg2(const SRpcMsg* pRpcMsg
 }
 
 cJSON* syncAppendEntriesReply2Json(const SyncAppendEntriesReply* pMsg) {
-  char   u64buf[128];
+  char   u64buf[128] = {0};
   cJSON* pRoot = cJSON_CreateObject();
 
   if (pMsg != NULL) {
@@ -1470,7 +1470,7 @@ cJSON* syncAppendEntriesReply2Json(const SyncAppendEntriesReply* pMsg) {
     {
       uint64_t u64 = pMsg->srcId.addr;
       cJSON*   pTmp = pSrcId;
-      char     host[128];
+      char     host[128] = {0};
       uint16_t port;
       syncUtilU642Addr(u64, host, sizeof(host), &port);
       cJSON_AddStringToObject(pTmp, "addr_host", host);
@@ -1485,7 +1485,7 @@ cJSON* syncAppendEntriesReply2Json(const SyncAppendEntriesReply* pMsg) {
     {
       uint64_t u64 = pMsg->destId.addr;
       cJSON*   pTmp = pDestId;
-      char     host[128];
+      char     host[128] = {0};
       uint16_t port;
       syncUtilU642Addr(u64, host, sizeof(host), &port);
       cJSON_AddStringToObject(pTmp, "addr_host", host);
@@ -1624,7 +1624,7 @@ void syncApplyMsg2OriginalRpcMsg(const SyncApplyMsg* pMsg, SRpcMsg* pOriginalRpc
 }
 
 cJSON* syncApplyMsg2Json(const SyncApplyMsg* pMsg) {
-  char   u64buf[128];
+  char   u64buf[128] = {0};
   cJSON* pRoot = cJSON_CreateObject();
 
   if (pMsg != NULL) {

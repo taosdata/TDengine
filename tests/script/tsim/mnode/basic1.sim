@@ -15,7 +15,7 @@ if $data00 != 1 then
   return -1
 endi
 
-if $data02 != LEADER then 
+if $data02 != leader then 
   return -1
 endi
 
@@ -36,46 +36,11 @@ if $data(2)[4] != ready then
   goto step1
 endi
 
-print =============== create drop mnode 1
 sql_error create mnode on dnode 1
 sql_error drop mnode on dnode 1
+
+print =============== create mnode 2
 sql create mnode on dnode 2
-
-$x = 0
-step1: 
-	$x = $x + 1
-	sleep 1000
-	if $x == 20 then
-		return -1
-	endi
-sql show mnodes
-print $data(1)[0] $data(1)[1] $data(1)[2] 
-print $data(2)[0] $data(2)[1] $data(2)[2] 
-
-if $rows != 2 then 
-  return -1
-endi
-if $data(1)[0] != 1 then 
-  return -1
-endi
-if $data(1)[2] != LEADER then 
-  return -1
-endi
-if $data(2)[0] != 2 then 
-  return -1
-endi
-if $data(2)[2] != FOLLOWER then 
-  goto step1
-endi
-
-sleep 2000
-print ============ drop mnodes
-sql drop mnode on dnode 2
-sql show mnodes
-if $rows != 1 then 
-  return -1
-endi
-sql_error drop mnode on dnode 2
 
 $x = 0
 step2: 
@@ -94,19 +59,55 @@ endi
 if $data(1)[0] != 1 then 
   return -1
 endi
-if $data(1)[2] != LEADER then 
+if $data(1)[2] != leader then 
   return -1
 endi
-if $data(2)[0] != NULL then 
+if $data(2)[0] != 2 then 
+  return -1
+endi
+if $data(2)[2] != follower then 
   goto step2
 endi
-if $data(2)[2] != NULL then 
+
+sleep 2000
+print ============ drop mnode 2
+sql drop mnode on dnode 2
+sql show mnodes
+if $rows != 1 then 
+  return -1
+endi
+sql_error drop mnode on dnode 2
+
+$x = 0
+step2: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 20 then
+		return -1
+	endi
+sql show mnodes
+print $data(1)[0] $data(1)[1] $data(1)[2] 
+print $data(2)[0] $data(2)[1] $data(2)[2] 
+
+if $rows != 1 then 
+  return -1
+endi
+if $data(1)[0] != 1 then 
+  return -1
+endi
+if $data(1)[2] != leader then 
+  return -1
+endi
+if $data(2)[0] != null then 
+  goto step2
+endi
+if $data(2)[2] != null then 
   goto step2
 endi
 
 sleep 2000
 
-print =============== create drop mnodes
+print =============== create mnodes
 sql create mnode on dnode 2
 sql show mnodes
 if $rows != 2 then 
@@ -130,13 +131,13 @@ endi
 if $data(1)[0] != 1 then 
   return -1
 endi
-if $data(1)[2] != LEADER then 
+if $data(1)[2] != leader then 
   return -1
 endi
 if $data(2)[0] != 2 then 
   return -1
 endi
-if $data(2)[2] != FOLLOWER then 
+if $data(2)[2] != follower then 
   goto step3
 endi
 

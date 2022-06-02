@@ -15,7 +15,7 @@ if $data00 != 1 then
   return -1
 endi
 
-if $data02 != LEADER then 
+if $data02 != leader then 
   return -1
 endi
 
@@ -56,13 +56,13 @@ endi
 if $data(1)[0] != 1 then 
   return -1
 endi
-if $data(1)[2] != LEADER then 
+if $data(1)[2] != leader then 
   return -1
 endi
 if $data(2)[0] != 2 then 
   return -1
 endi
-if $data(2)[2] != FOLLOWER then 
+if $data(2)[2] != follower then 
   goto step2
 endi
 
@@ -119,9 +119,16 @@ if $data(2)[4] != ready then
 endi
 
 print =============== insert data
-#sql create table db.stb (ts timestamp, c1 int, c2 binary(4)) tags(t1 int, t2 float, t3 binary(16)) comment "abd"
-#sql create table db.ctb using db.stb tags(101, 102, "103")
-#sql insert into db.ctb values(now, 1, "2")
+sql create table db.stb (ts timestamp, c1 int, c2 binary(4)) tags(t1 int, t2 float, t3 binary(16)) comment "abd"
+sql create table db.ctb using db.stb tags(101, 102, "103")
+sql insert into db.ctb values(now, 1, "2")
+
+sql select * from db.ctb
+print $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] $data[0][5] $data[0][6]
+
+if $rows != 1 then
+  return -1
+endi
 
 system sh/exec.sh -n dnode1 -s stop
 system sh/exec.sh -n dnode2 -s stop

@@ -16,7 +16,7 @@ IT 运维监测数据通常都是对时间特性比较敏感的数据，例如�
 
 本文介绍不需要写一行代码，通过简单修改几行配置文件，就可以快速搭建一个基于 TDengine + collectd / statsD + Grafana 的 IT 运维系统。架构如下图：
 
-![IT-DevOps-Solutions-Collectd-StatsD.webp](./IT-DevOps-Solutions-Collectd-StatsD.webp)
+![TDengine Database IT-DevOps-Solutions-Collectd-StatsD](./IT-DevOps-Solutions-Collectd-StatsD.webp)
 
 ## 安装步骤
 
@@ -81,12 +81,12 @@ repeater 部分添加 { host:'<TDengine server/cluster host>', port: <port for S
 
 从 https://github.com/taosdata/grafanaplugin/blob/master/examples/collectd/grafana/dashboards/collect-metrics-with-tdengine-v0.1.0.json 下载 dashboard json 文件，点击左侧加号图标并选择 `Import`，按照界面提示选择 JSON 文件导入。之后可以看到如下界面的仪表盘：
 
-![IT-DevOps-Solutions-collectd-dashboard.webp](./IT-DevOps-Solutions-collectd-dashboard.webp)
+![TDengine Database IT-DevOps-Solutions-collectd-dashboard](./IT-DevOps-Solutions-collectd-dashboard.webp)
 
 #### 导入 StatsD 仪表盘
 
 从 `https://github.com/taosdata/grafanaplugin/blob/master/examples/statsd/dashboards/statsd-with-tdengine-v0.1.0.json` 下载 dashboard json 文件，点击左侧加号图标并选择 `Import`，按照界面提示导入 JSON 文件。之后可以看到如下界面的仪表盘：
-![IT-DevOps-Solutions-statsd-dashboard.webp](./IT-DevOps-Solutions-statsd-dashboard.webp)
+![TDengine Database IT-DevOps-Solutions-statsd-dashboard](./IT-DevOps-Solutions-statsd-dashboard.webp)
 
 ## 总结
 

@@ -124,6 +124,7 @@ static int32_t createChildLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelec
   SLogicNode* pNode = NULL;
   int32_t     code = func(pCxt, pSelect, &pNode);
   if (TSDB_CODE_SUCCESS == code && NULL != pNode) {
+    pNode->precision = pSelect->precision;
     code = pushLogicNode(pCxt, pRoot, pNode);
   }
   if (TSDB_CODE_SUCCESS != code) {
@@ -132,56 +133,56 @@ static int32_t createChildLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelec
   return code;
 }
 
-typedef struct SCreateColumnCxt {
-  int32_t    errCode;
-  SNodeList* pList;
-} SCreateColumnCxt;
+// typedef struct SCreateColumnCxt {
+//   int32_t    errCode;
+//   SNodeList* pList;
+// } SCreateColumnCxt;
 
-static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
-  SCreateColumnCxt* pCxt = (SCreateColumnCxt*)pContext;
-  switch (nodeType(pNode)) {
-    case QUERY_NODE_COLUMN: {
-      SNode* pCol = nodesCloneNode(pNode);
-      if (NULL == pCol) {
-        return DEAL_RES_ERROR;
-      }
-      return (TSDB_CODE_SUCCESS == nodesListAppend(pCxt->pList, pCol) ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
-    }
-    case QUERY_NODE_OPERATOR:
-    case QUERY_NODE_LOGIC_CONDITION:
-    case QUERY_NODE_FUNCTION: {
-      SExprNode*   pExpr = (SExprNode*)pNode;
-      SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
-      if (NULL == pCol) {
-        return DEAL_RES_ERROR;
-      }
-      pCol->node.resType = pExpr->resType;
-      strcpy(pCol->colName, pExpr->aliasName);
-      return (TSDB_CODE_SUCCESS == nodesListAppend(pCxt->pList, pCol) ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
-    }
-    default:
-      break;
-  }
+// static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
+//   SCreateColumnCxt* pCxt = (SCreateColumnCxt*)pContext;
+//   switch (nodeType(pNode)) {
+//     case QUERY_NODE_COLUMN: {
+//       SNode* pCol = nodesCloneNode(pNode);
+//       if (NULL == pCol) {
+//         return DEAL_RES_ERROR;
+//       }
+//       return (TSDB_CODE_SUCCESS == nodesListAppend(pCxt->pList, pCol) ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
+//     }
+//     case QUERY_NODE_OPERATOR:
+//     case QUERY_NODE_LOGIC_CONDITION:
+//     case QUERY_NODE_FUNCTION: {
+//       SExprNode*   pExpr = (SExprNode*)pNode;
+//       SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
+//       if (NULL == pCol) {
+//         return DEAL_RES_ERROR;
+//       }
+//       pCol->node.resType = pExpr->resType;
+//       strcpy(pCol->colName, pExpr->aliasName);
+//       return (TSDB_CODE_SUCCESS == nodesListAppend(pCxt->pList, pCol) ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
+//     }
+//     default:
+//       break;
+//   }
 
-  return DEAL_RES_CONTINUE;
-}
+//   return DEAL_RES_CONTINUE;
+// }
 
-static int32_t createColumnByRewriteExps(SLogicPlanContext* pCxt, SNodeList* pExprs, SNodeList** pList) {
-  SCreateColumnCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pList = (NULL == *pList ? nodesMakeList() : *pList)};
-  if (NULL == cxt.pList) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
+// static int32_t createColumnByRewriteExps(SNodeList* pExprs, SNodeList** pList) {
+//   SCreateColumnCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pList = (NULL == *pList ? nodesMakeList() : *pList)};
+//   if (NULL == cxt.pList) {
+//     return TSDB_CODE_OUT_OF_MEMORY;
+//   }
 
-  nodesWalkExprs(pExprs, doCreateColumn, &cxt);
-  if (TSDB_CODE_SUCCESS != cxt.errCode) {
-    nodesDestroyList(cxt.pList);
-    return cxt.errCode;
-  }
-  if (NULL == *pList) {
-    *pList = cxt.pList;
-  }
-  return cxt.errCode;
-}
+//   nodesWalkExprs(pExprs, doCreateColumn, &cxt);
+//   if (TSDB_CODE_SUCCESS != cxt.errCode) {
+//     nodesDestroyList(cxt.pList);
+//     return cxt.errCode;
+//   }
+//   if (NULL == *pList) {
+//     *pList = cxt.pList;
+//   }
+//   return cxt.errCode;
+// }
 
 static EScanType getScanType(SLogicPlanContext* pCxt, SNodeList* pScanPseudoCols, SNodeList* pScanCols,
                              STableMeta* pMeta) {
@@ -293,10 +294,10 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 
   // set output
   if (TSDB_CODE_SUCCESS == code) {
-    code = createColumnByRewriteExps(pCxt, pScan->pScanCols, &pScan->node.pTargets);
+    code = createColumnByRewriteExps(pScan->pScanCols, &pScan->node.pTargets);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = createColumnByRewriteExps(pCxt, pScan->pScanPseudoCols, &pScan->node.pTargets);
+    code = createColumnByRewriteExps(pScan->pScanPseudoCols, &pScan->node.pTargets);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -400,6 +401,7 @@ static int32_t createLogicNodeByTable(SLogicPlanContext* pCxt, SSelectStmt* pSel
       nodesDestroyNode(pNode);
       return TSDB_CODE_OUT_OF_MEMORY;
     }
+    pNode->precision = pSelect->precision;
     *pLogicNode = pNode;
   }
   return code;
@@ -461,10 +463,10 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
 
   // set the output
   if (TSDB_CODE_SUCCESS == code && NULL != pAgg->pGroupKeys) {
-    code = createColumnByRewriteExps(pCxt, pAgg->pGroupKeys, &pAgg->node.pTargets);
+    code = createColumnByRewriteExps(pAgg->pGroupKeys, &pAgg->node.pTargets);
   }
   if (TSDB_CODE_SUCCESS == code && NULL != pAgg->pAggFuncs) {
-    code = createColumnByRewriteExps(pCxt, pAgg->pAggFuncs, &pAgg->node.pTargets);
+    code = createColumnByRewriteExps(pAgg->pAggFuncs, &pAgg->node.pTargets);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -485,12 +487,16 @@ static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStm
     pWindow->watermark = pCxt->pPlanCxt->watermark;
   }
 
+  if (pCxt->pPlanCxt->rSmaQuery) {
+    pWindow->filesFactor = pCxt->pPlanCxt->filesFactor;
+  }
+
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteExprForSelect(pWindow->pFuncs, pSelect, SQL_CLAUSE_WINDOW);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = createColumnByRewriteExps(pCxt, pWindow->pFuncs, &pWindow->node.pTargets);
+    code = createColumnByRewriteExps(pWindow->pFuncs, &pWindow->node.pTargets);
   }
 
   pSelect->hasAggFuncs = false;
@@ -556,6 +562,7 @@ static int32_t createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SInterva
   pWindow->sliding = (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->datum.i : pWindow->interval);
   pWindow->slidingUnit =
       (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->unit : pWindow->intervalUnit);
+  pWindow->stmInterAlgo = STREAM_INTERVAL_ALGO_SINGLE;
 
   pWindow->pTspk = nodesCloneNode(pInterval->pCol);
   if (NULL == pWindow->pTspk) {
@@ -760,7 +767,7 @@ static int32_t createDistinctLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSe
 
   // set the output
   if (TSDB_CODE_SUCCESS == code) {
-    code = createColumnByRewriteExps(pCxt, pAgg->pGroupKeys, &pAgg->node.pTargets);
+    code = createColumnByRewriteExps(pAgg->pGroupKeys, &pAgg->node.pTargets);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -907,7 +914,7 @@ static int32_t createSetOpAggLogicNode(SLogicPlanContext* pCxt, SSetOperator* pS
 
   // set the output
   if (TSDB_CODE_SUCCESS == code) {
-    code = createColumnByRewriteExps(pCxt, pAgg->pGroupKeys, &pAgg->node.pTargets);
+    code = createColumnByRewriteExps(pAgg->pGroupKeys, &pAgg->node.pTargets);
   }
 
   if (TSDB_CODE_SUCCESS == code) {

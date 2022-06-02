@@ -71,6 +71,16 @@ void ctgdUserCallback(SMetaData* pResult, void* param, int32_t code) {
     qDebug("empty db vgroup");
   }
 
+  if (pResult->pDbInfo && taosArrayGetSize(pResult->pDbInfo) > 0) {
+    num = taosArrayGetSize(pResult->pDbInfo);
+    for (int32_t i = 0; i < num; ++i) {
+      SDbInfo *pDb = taosArrayGet(pResult->pDbInfo, i);
+      qDebug("db %d dbInfo: vgVer:%d, tbNum:%d, dbId:%" PRIx64, i, pDb->vgVer, pDb->tbNum, pDb->dbId);
+    }
+  } else {
+    qDebug("empty db info");
+  }
+
   if (pResult->pTableHash && taosArrayGetSize(pResult->pTableHash) > 0) {
     num = taosArrayGetSize(pResult->pTableHash);
     for (int32_t i = 0; i < num; ++i) {
@@ -127,6 +137,7 @@ int32_t ctgdLaunchAsyncCall(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps
   SCatalogReq req = {0};
   req.pTableMeta = taosArrayInit(2, sizeof(SName));
   req.pDbVgroup = taosArrayInit(2, TSDB_DB_FNAME_LEN);
+  req.pDbInfo = taosArrayInit(2, TSDB_DB_FNAME_LEN);
   req.pTableHash = taosArrayInit(2, sizeof(SName));
   req.pUdf = taosArrayInit(2, TSDB_FUNC_NAME_LEN);
   req.pDbCfg = taosArrayInit(2, TSDB_DB_FNAME_LEN);
@@ -149,9 +160,11 @@ int32_t ctgdLaunchAsyncCall(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps
   strcpy(dbFName, "1.db1");
   taosArrayPush(req.pDbVgroup, dbFName);
   taosArrayPush(req.pDbCfg, dbFName);
+  taosArrayPush(req.pDbInfo, dbFName);
   strcpy(dbFName, "1.db2");
   taosArrayPush(req.pDbVgroup, dbFName);
   taosArrayPush(req.pDbCfg, dbFName);
+  taosArrayPush(req.pDbInfo, dbFName);
 
   strcpy(funcName, "udf1");
   taosArrayPush(req.pUdf, funcName);

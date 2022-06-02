@@ -41,9 +41,9 @@ int32_t ctgRemoveTbMetaFromCache(SCatalog* pCtg, SName* pTableName, bool syncReq
   tNameGetFullDbName(pTableName, dbFName);
   
   if (TSDB_SUPER_TABLE == tblMeta->tableType) {
-    CTG_ERR_JRET(ctgPutRmStbToQueue(pCtg, dbFName, tbCtx.tbInfo.dbId, pTableName->tname, tblMeta->suid, syncReq));
+    CTG_ERR_JRET(ctgDropStbMetaEnqueue(pCtg, dbFName, tbCtx.tbInfo.dbId, pTableName->tname, tblMeta->suid, syncReq));
   } else {
-    CTG_ERR_JRET(ctgPutRmTbToQueue(pCtg, dbFName, tbCtx.tbInfo.dbId, pTableName->tname, syncReq));
+    CTG_ERR_JRET(ctgDropTbMetaEnqueue(pCtg, dbFName, tbCtx.tbInfo.dbId, pTableName->tname, syncReq));
   }
  
 _return:
@@ -72,7 +72,7 @@ int32_t ctgGetDBVgInfo(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, con
 
   CTG_ERR_JRET(ctgCloneVgInfo(DbOut.dbVgroup, pInfo));
 
-  CTG_ERR_RET(ctgPutUpdateVgToQueue(pCtg, dbFName, DbOut.dbId, DbOut.dbVgroup, false));
+  CTG_ERR_RET(ctgUpdateVgroupEnqueue(pCtg, dbFName, DbOut.dbId, DbOut.dbVgroup, false));
 
   return TSDB_CODE_SUCCESS;
 
@@ -108,13 +108,13 @@ int32_t ctgRefreshDBVgInfo(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps,
   if (code) {
     if (CTG_DB_NOT_EXIST(code) && (NULL != dbCache)) {
       ctgDebug("db no longer exist, dbFName:%s, dbId:%" PRIx64, input.db, input.dbId);
-      ctgPutRmDBToQueue(pCtg, input.db, input.dbId);
+      ctgDropDbCacheEnqueue(pCtg, input.db, input.dbId);
     }
 
     CTG_ERR_RET(code);
   }
 
-  CTG_ERR_RET(ctgPutUpdateVgToQueue(pCtg, dbFName, DbOut.dbId, DbOut.dbVgroup, true));
+  CTG_ERR_RET(ctgUpdateVgroupEnqueue(pCtg, dbFName, DbOut.dbId, DbOut.dbVgroup, true));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -201,7 +201,7 @@ int32_t ctgRefreshTbMeta(CTG_PARAMS, SCtgTbMetaCtx* ctx, STableMetaOutput **pOut
     CTG_ERR_JRET(ctgCloneMetaOutput(output, pOutput));
   }
 
-  CTG_ERR_JRET(ctgPutUpdateTbToQueue(pCtg, output, syncReq));
+  CTG_ERR_JRET(ctgUpdateTbMetaEnqueue(pCtg, output, syncReq));
 
   return TSDB_CODE_SUCCESS;
 
@@ -298,9 +298,9 @@ _return:
     }
 
     if (TSDB_SUPER_TABLE == ctx->tbInfo.tbType) {
-      ctgPutRmStbToQueue(pCtg, dbFName, ctx->tbInfo.dbId, ctx->pName->tname, ctx->tbInfo.suid, false);
+      ctgDropStbMetaEnqueue(pCtg, dbFName, ctx->tbInfo.dbId, ctx->pName->tname, ctx->tbInfo.suid, false);
     } else {
-      ctgPutRmTbToQueue(pCtg, dbFName, ctx->tbInfo.dbId, ctx->pName->tname, false);
+      ctgDropTbMetaEnqueue(pCtg, dbFName, ctx->tbInfo.dbId, ctx->pName->tname, false);
     }
   }
 
@@ -311,6 +311,36 @@ _return:
     ctgdShowTableMeta(pCtg, ctx->pName->tname, *pTableMeta);
   }
 
+  CTG_RET(code);
+}
+
+int32_t ctgUpdateTbMeta(SCatalog* pCtg, STableMetaRsp *rspMsg, bool syncOp) {
+  STableMetaOutput *output = taosMemoryCalloc(1, sizeof(STableMetaOutput));
+  if (NULL == output) {
+    ctgError("malloc %d failed", (int32_t)sizeof(STableMetaOutput));
+    CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
+  }
+  
+  int32_t code = 0;
+
+  strcpy(output->dbFName, rspMsg->dbFName);
+  strcpy(output->tbName, rspMsg->tbName);
+
+  output->dbId = rspMsg->dbId;
+  
+  SET_META_TYPE_TABLE(output->metaType);
+  
+  CTG_ERR_JRET(queryCreateTableMetaFromMsg(rspMsg, rspMsg->tableType == TSDB_SUPER_TABLE, &output->tbMeta));
+
+  CTG_ERR_JRET(ctgUpdateTbMetaEnqueue(pCtg, output, syncOp));
+
+  return TSDB_CODE_SUCCESS;
+  
+_return:
+
+  taosMemoryFreeClear(output->tbMeta);
+  taosMemoryFreeClear(output);
+  
   CTG_RET(code);
 }
 
@@ -348,7 +378,7 @@ int32_t ctgChkAuth(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, const c
 
 _return:
 
-  ctgPutUpdateUserToQueue(pCtg, &authRsp, false);
+  ctgUpdateUserEnqueue(pCtg, &authRsp, false);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -558,7 +588,7 @@ int32_t catalogGetHandle(uint64_t clusterId, SCatalog** catalogHandle) {
 
   *catalogHandle = clusterCtg;
 
-  CTG_CACHE_STAT_ADD(clusterNum, 1);
+  CTG_CACHE_STAT_INC(clusterNum, 1);
   
   return TSDB_CODE_SUCCESS;
 
@@ -579,7 +609,7 @@ void catalogFreeHandle(SCatalog* pCtg) {
     return;
   }
 
-  CTG_CACHE_STAT_SUB(clusterNum, 1);
+  CTG_CACHE_STAT_DEC(clusterNum, 1);
 
   uint64_t clusterId = pCtg->clusterId;
   
@@ -670,7 +700,7 @@ int32_t catalogUpdateDBVgInfo(SCatalog* pCtg, const char* dbFName, uint64_t dbId
     CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  code = ctgPutUpdateVgToQueue(pCtg, dbFName, dbId, dbInfo, false);
+  code = ctgUpdateVgroupEnqueue(pCtg, dbFName, dbId, dbInfo, false);
 
 _return:
 
@@ -691,7 +721,7 @@ int32_t catalogRemoveDB(SCatalog* pCtg, const char* dbFName, uint64_t dbId) {
     CTG_API_LEAVE(TSDB_CODE_SUCCESS);
   }
 
-  CTG_ERR_JRET(ctgPutRmDBToQueue(pCtg, dbFName, dbId));
+  CTG_ERR_JRET(ctgDropDbCacheEnqueue(pCtg, dbFName, dbId));
 
   CTG_API_LEAVE(TSDB_CODE_SUCCESS);
   
@@ -701,7 +731,19 @@ _return:
 }
 
 int32_t catalogUpdateVgEpSet(SCatalog* pCtg, const char* dbFName, int32_t vgId, SEpSet *epSet) {
-  return 0;
+  CTG_API_ENTER();
+
+  int32_t code = 0;
+  
+  if (NULL == pCtg || NULL == dbFName || NULL == epSet) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  CTG_ERR_JRET(ctgUpdateVgEpsetEnqueue(pCtg, (char*)dbFName, vgId, epSet));
+
+_return:
+  
+  CTG_API_LEAVE(code);
 }
 
 int32_t catalogRemoveTableMeta(SCatalog* pCtg, SName* pTableName) {
@@ -738,7 +780,7 @@ int32_t catalogRemoveStbMeta(SCatalog* pCtg, const char* dbFName, uint64_t dbId,
     CTG_API_LEAVE(TSDB_CODE_SUCCESS);
   }
 
-  CTG_ERR_JRET(ctgPutRmStbToQueue(pCtg, dbFName, dbId, stbName, suid, true));
+  CTG_ERR_JRET(ctgDropStbMetaEnqueue(pCtg, dbFName, dbId, stbName, suid, true));
 
   CTG_API_LEAVE(TSDB_CODE_SUCCESS);
   
@@ -767,38 +809,17 @@ int32_t catalogGetSTableMeta(SCatalog* pCtg, void * pTrans, const SEpSet* pMgmtE
   CTG_API_LEAVE(ctgGetTbMeta(CTG_PARAMS_LIST(), &ctx, pTableMeta));
 }
 
-int32_t catalogUpdateSTableMeta(SCatalog* pCtg, STableMetaRsp *rspMsg) {
+int32_t catalogUpdateTableMeta(SCatalog* pCtg, STableMetaRsp *pMsg) {
   CTG_API_ENTER();
 
-  if (NULL == pCtg || NULL == rspMsg) {
+  if (NULL == pCtg || NULL == pMsg) {
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  STableMetaOutput *output = taosMemoryCalloc(1, sizeof(STableMetaOutput));
-  if (NULL == output) {
-    ctgError("malloc %d failed", (int32_t)sizeof(STableMetaOutput));
-    CTG_API_LEAVE(TSDB_CODE_CTG_MEM_ERROR);
-  }
-  
   int32_t code = 0;
-
-  strcpy(output->dbFName, rspMsg->dbFName);
-  strcpy(output->tbName, rspMsg->tbName);
-
-  output->dbId = rspMsg->dbId;
-  
-  SET_META_TYPE_TABLE(output->metaType);
-  
-  CTG_ERR_JRET(queryCreateTableMetaFromMsg(rspMsg, true, &output->tbMeta));
-
-  CTG_ERR_JRET(ctgPutUpdateTbToQueue(pCtg, output, false));
-
-  CTG_API_LEAVE(code);
+  CTG_ERR_JRET(ctgUpdateTbMeta(pCtg, pMsg, true));
   
 _return:
-
-  taosMemoryFreeClear(output->tbMeta);
-  taosMemoryFreeClear(output);
   
   CTG_API_LEAVE(code);
 }
@@ -978,7 +999,7 @@ int32_t catalogGetAllMeta(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, 
   }
 
   if (pReq->qNodeRequired) {
-    pRsp->pQnodeList = taosArrayInit(10, sizeof(SQueryNodeAddr));
+    pRsp->pQnodeList = taosArrayInit(10, sizeof(SQueryNodeLoad));
     CTG_ERR_JRET(ctgGetQnodeListFromMnode(CTG_PARAMS_LIST(), pRsp->pQnodeList, NULL));
   }
 
@@ -1152,7 +1173,7 @@ int32_t catalogUpdateUserAuthInfo(SCatalog* pCtg, SGetUserAuthRsp* pAuth) {
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  CTG_API_LEAVE(ctgPutUpdateUserToQueue(pCtg, pAuth, false));
+  CTG_API_LEAVE(ctgUpdateUserEnqueue(pCtg, pAuth, false));
 }
 
 
@@ -1194,7 +1215,7 @@ void catalogDestroy(void) {
   taosHashCleanup(gCtgMgmt.pCluster);
   gCtgMgmt.pCluster = NULL;
 
-  CTG_UNLOCK(CTG_WRITE, &gCtgMgmt.lock);
+  if (CTG_IS_LOCKED(&gCtgMgmt.lock) == TD_RWLATCH_WRITE_FLAG_COPY) CTG_UNLOCK(CTG_WRITE, &gCtgMgmt.lock);
 
   qInfo("catalog destroyed");
 }

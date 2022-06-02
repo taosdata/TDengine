@@ -141,7 +141,7 @@ int32_t schedulerGetTasksStatus(int64_t job, SArray *pSub) {
 
   if (pJob->status < JOB_TASK_STATUS_NOT_START || pJob->levelNum <= 0 || NULL == pJob->levels) {
     qDebug("job not initialized or not executable job, refId:%" PRIx64, job);
-    SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
+    SCH_ERR_JRET(TSDB_CODE_SCH_STATUS_ERROR);
   }
 
   for (int32_t i = pJob->levelNum - 1; i >= 0; --i) {
@@ -155,7 +155,11 @@ int32_t schedulerGetTasksStatus(int64_t job, SArray *pSub) {
     }
   }
 
-  return TSDB_CODE_SUCCESS;
+_return:
+
+  schReleaseJob(job);
+
+  SCH_RET(code);
 }
 
 int32_t scheduleCancelJob(int64_t job) {

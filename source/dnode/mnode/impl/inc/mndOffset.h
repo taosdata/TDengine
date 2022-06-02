@@ -39,6 +39,7 @@ static FORCE_INLINE int32_t mndMakePartitionKey(char *key, const char *cgroup, c
 
 int32_t mndDropOffsetByDB(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
 int32_t mndDropOffsetByTopic(SMnode *pMnode, STrans *pTrans, const char *topic);
+int32_t mndDropOffsetBySubKey(SMnode *pMnode, STrans *pTrans, const char *subKey);
 
 bool mndOffsetFromTopic(SMqOffsetObj *pOffset, const char *topic);
 
