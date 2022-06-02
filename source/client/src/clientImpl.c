@@ -443,10 +443,6 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
   return pRequest->code;
 }
 
-int32_t getQueryPlan(SRequestObj* pRequest, SQuery* pQuery, SArray** pNodeList) {
-  return getPlan(pRequest, pQuery, &pRequest->body.pDag, pNodeList);
-}
-
 int32_t handleSubmitExecRes(SRequestObj* pRequest, void* res, SCatalog* pCatalog, SEpSet *epset) {
   int32_t code = 0;
   SArray* pArray = NULL;
@@ -556,30 +552,30 @@ void schedulerExecCb(SQueryResult* pResult, void* param, int32_t code) {
   pRequest->body.queryFp(pRequest->body.param, pRequest, code);
 }
 
-SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, int32_t code, bool keepQuery, void** res) {
-  if (TSDB_CODE_SUCCESS == code) {
-    switch (pQuery->execMode) {
-      case QUERY_EXEC_MODE_LOCAL:
-        code = execLocalCmd(pRequest, pQuery);
-        break;
-      case QUERY_EXEC_MODE_RPC:
-        code = execDdlQuery(pRequest, pQuery);
-        break;
-      case QUERY_EXEC_MODE_SCHEDULE: {
-        SArray* pNodeList = NULL;
-        code = getPlan(pRequest, pQuery, &pRequest->body.pDag, &pNodeList);
-        if (TSDB_CODE_SUCCESS == code) {
-          code = scheduleQuery(pRequest, pRequest->body.pDag, pNodeList);
-        }
-        taosArrayDestroy(pNodeList);
-        break;
+SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void** res) {
+  int32_t code = 0;
+
+  switch (pQuery->execMode) {
+    case QUERY_EXEC_MODE_LOCAL:
+      code = execLocalCmd(pRequest, pQuery);
+      break;
+    case QUERY_EXEC_MODE_RPC:
+      code = execDdlQuery(pRequest, pQuery);
+      break;
+    case QUERY_EXEC_MODE_SCHEDULE: {
+      SArray* pNodeList = NULL;
+      code = getPlan(pRequest, pQuery, &pRequest->body.pDag, &pNodeList);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = scheduleQuery(pRequest, pRequest->body.pDag, pNodeList);
       }
-      case QUERY_EXEC_MODE_EMPTY_RESULT:
-        pRequest->type = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
-        break;
-      default:
-        break;
+      taosArrayDestroy(pNodeList);
+      break;
     }
+    case QUERY_EXEC_MODE_EMPTY_RESULT:
+      pRequest->type = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
+      break;
+    default:
+      break;
   }
 
   if (!keepQuery) {
@@ -1069,15 +1065,12 @@ void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) 
   return pResultInfo->row;
 }
 
-void schedulerExecCb(SQueryResult* pResult, void* param, int32_t code) {
-  SRequestObj* pRequest = (SRequestObj*) param;
-
-  // return to client
-  pRequest->body.queryFp(pRequest->body.param, pRequest, code);
+static void syncFetchFn(void* param, TAOS_RES* res, int32_t numOfRows) {
+  SSyncQueryParam* pParam = param;
+  tsem_post(&pParam->sem);
 }
 
-void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) {
-  // return doAsyncFetchRows(pRequest, setupOneRowPtr, convertUcs4);
+void* doAsyncFetchRow(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) {
   assert(pRequest != NULL);
 
   SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
@@ -1089,33 +1082,8 @@ void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) 
     }
 
     SSyncQueryParam* pParam = pRequest->body.param;
-
-    // always converted in async query: convertUcs4
     taos_fetch_rows_a(pRequest, syncFetchFn, pParam);
-    tsem_wait(&pParam->sem);
   }
-
-    /*
-    pRequest->code = schedulerFetchRows(pRequest->body.queryJob, (void**)&pResInfo->pData);
-    if (pRequest->code != TSDB_CODE_SUCCESS) {
-      pResultInfo->numOfRows = 0;
-      return NULL;
-    }
-
-    pRequest->code =
-        setQueryResultFromRsp(&pRequest->body.resInfo, (SRetrieveTableRsp*)pResInfo->pData, convertUcs4, true);
-    if (pRequest->code != TSDB_CODE_SUCCESS) {
-      pResultInfo->numOfRows = 0;
-      return NULL;
-    }
-
-    tscDebug("0x%" PRIx64 " fetch results, numOfRows:%d total Rows:%" PRId64 ", complete:%d, reqId:0x%" PRIx64,
-             pRequest->self, pResInfo->numOfRows, pResInfo->totalRows, pResInfo->completed, pRequest->requestId);
-
-    if (pResultInfo->numOfRows == 0) {
-      return NULL;
-    }
-     */
 
   if (setupOneRowPtr) {
     doSetOneRowPtr(pResultInfo);

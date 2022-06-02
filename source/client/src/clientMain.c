@@ -180,7 +180,6 @@ static void syncQueryFn(void* param, void* res, int32_t code) {
   pParam->pRequest = res;
   pParam->pRequest->code = code;
 
-  printf("ready to go in query rsp---------------\n");
   tsem_post(&pParam->sem);
 }
 
@@ -205,8 +204,6 @@ TAOS_RES *taos_query(TAOS *taos, const char *sql) {
   tsem_init(&param->sem, 0, 0);
 
   taos_query_a(pTscObj, sql, syncQueryFn, param);
-
-  printf("start to waiting\n");
   tsem_wait(&param->sem);
 
   return param->pRequest;
@@ -755,7 +752,7 @@ static void fetchCallback(void* pResult, void* param, int32_t code) {
     pRequest->body.fetchFp(pRequest->body.param, pRequest, 0);
   }
 
-  pRequest->code = setQueryResultFromRsp(&pRequest->body.resInfo, (SRetrieveTableRsp*)pResultInfo->pData, true);
+  pRequest->code = setQueryResultFromRsp(&pRequest->body.resInfo, (SRetrieveTableRsp*)pResultInfo->pData, true, false);
   if (pRequest->code != TSDB_CODE_SUCCESS) {
     pResultInfo->numOfRows = 0;
 

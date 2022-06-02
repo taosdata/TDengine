@@ -703,7 +703,6 @@ TEST(testCase, projection_query_tables) {
 //  taos_free_result(pRes);
   taos_close(pConn);
 }
-#endif
 
 TEST(testCase, projection_query_stables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -733,7 +732,6 @@ TEST(testCase, projection_query_stables) {
   taos_close(pConn);
 }
 
-#if 0
 TEST(testCase, agg_query_tables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
@@ -774,41 +772,26 @@ TEST(testCase, agg_query_tables) {
   taos_free_result(pRes);
   taos_close(pConn);
 }
+#endif
 
+/*
+--- copy the following script in the shell to setup the environment.
+
+create database test;
+use test;
+create table m1(ts timestamp, k int) tags(a int);
+create table tm0 using m1 tags(1);
+create table tm1 using m1 tags(2);
+insert into tm0 values('2021-1-1 1:1:1.120', 1) ('2021-1-1 1:1:2.9', 2) tm1 values('2021-1-1 1:1:1.120', 11) ('2021-1-1 1:1:2.99', 22);
+
+ */
 TEST(testCase, async_api_test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
-  taos_query_a(pConn, "create table abc1.txx(ts timestamp, k int)", queryCallback1, pConn);
+  taos_query_a(pConn, "select ts from test.m1", queryCallback, pConn);
   getchar();
-
-//  if (taos_errno(pRes) != 0) {
-//    printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
-//    taos_free_result(pRes);
-//    ASSERT_TRUE(false);
-//  }
-//
-//  TAOS_ROW    pRow = NULL;
-//  TAOS_FIELD* pFields = taos_fetch_fields(pRes);
-//  int32_t     numOfFields = taos_num_fields(pRes);
-//
-//  int32_t n = 0;
-//  char str[512] = {0};
-//  while ((pRow = taos_fetch_row(pRes)) != NULL) {
-//    int32_t* length = taos_fetch_lengths(pRes);
-//    for(int32_t i = 0; i < numOfFields; ++i) {
-//      printf("(%d):%d " , i, length[i]);
-//    }
-//    printf("\n");
-//
-//    int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
-//    printf("%s\n", str);
-//    memset(str, 0, sizeof(str));
-//  }
-//
-//  taos_free_result(pRes);
   taos_close(pConn);
 }
-#endif
 
 #pragma GCC diagnostic pop

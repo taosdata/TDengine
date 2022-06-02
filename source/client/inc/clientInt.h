@@ -328,12 +328,9 @@ int hbAddConnInfo(SAppHbMgr* pAppHbMgr, SClientHbKey connKey, void* key, void* v
 // --- mq
 void hbMgrInitMqHbRspHandle();
 
-SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, int32_t code, bool keepQuery, void** res);
-int32_t      getQueryPlan(SRequestObj* pRequest, SQuery* pQuery, SArray** pNodeList);
-int32_t      scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList);
 SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void** res);
+int32_t      scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList);
 void         launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery);
-int32_t      scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList, void** res);
 int32_t      refreshMeta(STscObj* pTscObj, SRequestObj* pRequest);
 int32_t      updateQnodeList(SAppInstInfo* pInfo, SArray* pNodeList);
 
