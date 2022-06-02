@@ -25,6 +25,24 @@ static int metaUpdateCtbIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry);
 static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type);
 
+static int metaUpdateMetaRsp(tb_uid_t uid, char* tbName, SSchemaWrapper *pSchema, STableMetaRsp *pMetaRsp) {
+  pMetaRsp->pSchemas = taosMemoryMalloc(pSchema->nCols * sizeof(SSchema));
+  if (NULL == pMetaRsp->pSchemas) {
+    terrno = TSDB_CODE_VND_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  strcpy(pMetaRsp->tbName, tbName);
+  pMetaRsp->numOfColumns = pSchema->nCols;
+  pMetaRsp->tableType = TSDB_NORMAL_TABLE;
+  pMetaRsp->sversion = pSchema->version;
+  pMetaRsp->tuid = uid;
+
+  memcpy(pMetaRsp->pSchemas, pSchema->pSchema, pSchema->nCols * sizeof(SSchema));
+
+  return 0;
+}
+
 int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   SMetaEntry  me = {0};
   int         kLen = 0;
@@ -323,8 +341,8 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type) {
   return 0;
 }
 
-static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTbReq) {
-  void           *pVal = NULL;
+static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTbReq, STableMetaRsp *pMetaRsp) {
+  void *          pVal = NULL;
   int             nVal = 0;
   const void     *pData = NULL;
   int             nData = 0;
@@ -463,6 +481,8 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
 
   metaULock(pMeta);
 
+  metaUpdateMetaRsp(uid, pAlterTbReq->tbName, pSchema, pMetaRsp);
+
   if (pNewSchema) taosMemoryFree(pNewSchema);
   tDecoderClear(&dc);
   tdbTbcClose(pTbDbc);
@@ -584,7 +604,7 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
         }
         taosArrayPush(pTagArray, &val);
       } else {
-        STagVal val = {0};
+        STagVal val = {.cid = pCol->colId};
         if (tTagGet(pOldTag, &val)) {
           taosArrayPush(pTagArray, &val);
         }
@@ -629,13 +649,13 @@ static int metaUpdateTableOptions(SMeta *pMeta, int64_t version, SVAlterTbReq *p
   return 0;
 }
 
-int metaAlterTable(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq) {
+int metaAlterTable(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pMetaRsp) {
   switch (pReq->action) {
     case TSDB_ALTER_TABLE_ADD_COLUMN:
     case TSDB_ALTER_TABLE_DROP_COLUMN:
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
-      return metaAlterTableColumn(pMeta, version, pReq);
+      return metaAlterTableColumn(pMeta, version, pReq, pMetaRsp);
     case TSDB_ALTER_TABLE_UPDATE_TAG_VAL:
       return metaUpdateTableTagVal(pMeta, version, pReq);
     case TSDB_ALTER_TABLE_UPDATE_OPTIONS:

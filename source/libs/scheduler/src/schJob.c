@@ -773,8 +773,8 @@ _return:
 int32_t schSetJobQueryRes(SSchJob* pJob, SQueryResult* pRes) {
   pRes->code = atomic_load_32(&pJob->errCode);
   pRes->numOfRows = pJob->resNumOfRows;
-  pRes->res = pJob->queryRes;
-  pJob->queryRes = NULL;
+  pRes->res = pJob->execRes;
+  pJob->execRes.res = NULL;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1107,9 +1107,9 @@ int32_t schProcessOnExplainDone(SSchJob *pJob, SSchTask *pTask, SRetrieveTableRs
 
 int32_t schSaveJobQueryRes(SSchJob *pJob, SQueryTableRsp *rsp) {
   if (rsp->tbFName[0]) {
-    if (NULL == pJob->queryRes) {
-      pJob->queryRes = taosArrayInit(pJob->taskNum, sizeof(STbVerInfo));
-      if (NULL == pJob->queryRes) {
+    if (NULL == pJob->execRes.res) {
+      pJob->execRes.res = taosArrayInit(pJob->taskNum, sizeof(STbVerInfo));
+      if (NULL == pJob->execRes.res) {
         SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
       }
     }
@@ -1119,7 +1119,8 @@ int32_t schSaveJobQueryRes(SSchJob *pJob, SQueryTableRsp *rsp) {
     tbInfo.sversion = rsp->sversion;
     tbInfo.tversion = rsp->tversion;
 
-    taosArrayPush((SArray *)pJob->queryRes, &tbInfo);
+    taosArrayPush((SArray *)pJob->execRes.res, &tbInfo);
+    pJob->execRes.msgType = TDMT_VND_QUERY;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1349,11 +1350,7 @@ void schFreeJobImpl(void *job) {
 
   qExplainFreeCtx(pJob->explainCtx);
 
-  if (SCH_IS_QUERY_JOB(pJob)) {
-    taosArrayDestroy((SArray *)pJob->queryRes);
-  } else {
-    tFreeSSubmitRsp((SSubmitRsp*)pJob->queryRes);
-  }
+  destroyQueryExecRes(&pJob->execRes);
 
   taosMemoryFreeClear(pJob->userRes.queryRes);
   taosMemoryFreeClear(pJob->resData);

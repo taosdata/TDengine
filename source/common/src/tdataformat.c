@@ -905,7 +905,7 @@ static void debugPrintTagVal(int8_t type, const void *val, int32_t vlen, const c
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_NCHAR: {
       char tmpVal[32] = {0};
-      memcpy(tmpVal, val, 32);
+      strncpy(tmpVal, val, vlen > 31 ? 31 : vlen);
       printf("%s:%d type:%d vlen:%d, val:\"%s\"\n", tag, ln, (int32_t)type, vlen, tmpVal);
     } break;
     case TSDB_DATA_TYPE_FLOAT:
@@ -1006,6 +1006,21 @@ void debugPrintSTag(STag *pTag, const char *tag, int32_t ln) {
     }
   }
   printf("\n");
+}
+
+void debugCheckTags(STag *pTag) {
+  switch (pTag->flags) {
+    case 0x0:
+    case 0x20:
+    case 0x40:
+    case 0x60:
+      break;
+    default:
+      ASSERT(0);
+  }
+
+  ASSERT(pTag->nTag <= 128 && pTag->nTag >= 0);
+  ASSERT(pTag->ver <= 512 && pTag->ver >= 0); // temp condition for pTag->ver
 }
 
 static int32_t tPutTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson) {
@@ -1114,9 +1129,11 @@ int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag) {
     }
     n += tPutTagVal(p + n, (STagVal *)taosArrayGet(pArray, iTag), isJson);
   }
-
+#ifdef TD_DEBUG_PRINT_TAG
   debugPrintSTag(*ppTag, __func__, __LINE__);
+#endif
 
+  debugCheckTags(*ppTag); // TODO: remove this line after debug
   return code;
 
 _err:
@@ -1199,8 +1216,7 @@ int32_t tEncodeTag(SEncoder *pEncoder, const STag *pTag) {
 }
 
 int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag) {
-  uint32_t len = 0;
-  return tDecodeBinary(pDecoder, (uint8_t **)ppTag, &len);
+  return tDecodeBinary(pDecoder, (uint8_t **)ppTag, NULL);
 }
 
 int32_t tTagToValArray(const STag *pTag, SArray **ppArray) {
