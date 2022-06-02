@@ -502,21 +502,40 @@ static void tTSRowNewImpl(SArray *pArray, STSchema *pTSchema, STSRow2 *pRowT, ST
 
 // try-decide-build
 int32_t tTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow2 **ppRow) {
-  int32_t code = 0;
-  STSRow2 rowT = {0};
-  STSRow2 rowM = {0};
+  int32_t  code = 0;
+  STSRow2  rowT = {0};
+  STSRow2  rowK = {0};
+  uint32_t nData = 0;
 
   // try
-  tTupleTSRowNew(pArray, pTSchema, &rowT);
-  tMapTSRowNew(pArray, pTSchema, &rowM, 0);
+  tTSRowNewImpl(pArray, pTSchema, &rowT, &rowK);
 
-  // decide & build
-  if (rowT.nData <= rowM.nData) {
-    tTupleTSRowNew(pArray, pTSchema, &rowT);
-  } else {
-    tMapTSRowNew(pArray, pTSchema, &rowM, rowM.flags);
+  nData = TMIN(rowT.nData, rowK.nData);
+
+  *ppRow = (STSRow2 *)taosMemoryMalloc(sizeof(STSRow2));
+  if (*ppRow == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+  (*ppRow)->nData = 0;
+  (*ppRow)->pData = NULL;
+  if (nData) {
+    (*ppRow)->pData = taosMemoryMalloc(nData);
+    if ((*ppRow)->pData == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
   }
 
+  if (rowT.nData <= rowK.nData) {
+    (*ppRow)->flags = rowT.flags;
+    tTSRowNewImpl(pArray, pTSchema, *ppRow, NULL);
+  } else {
+    (*ppRow)->flags = rowK.flags;
+    tTSRowNewImpl(pArray, pTSchema, NULL, *ppRow);
+  }
+
+_exit:
   return code;
 }
 
@@ -922,7 +941,7 @@ void debugCheckTags(STag *pTag) {
   }
 
   ASSERT(pTag->nTag <= 128 && pTag->nTag >= 0);
-  ASSERT(pTag->ver <= 512 && pTag->ver >= 0); // temp condition for pTag->ver
+  ASSERT(pTag->ver <= 512 && pTag->ver >= 0);  // temp condition for pTag->ver
 }
 
 static int32_t tPutTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson) {
@@ -1035,7 +1054,7 @@ int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag) {
   debugPrintSTag(*ppTag, __func__, __LINE__);
 #endif
 
-  debugCheckTags(*ppTag); // TODO: remove this line after debug
+  debugCheckTags(*ppTag);  // TODO: remove this line after debug
   return code;
 
 _err:
@@ -1117,9 +1136,7 @@ int32_t tEncodeTag(SEncoder *pEncoder, const STag *pTag) {
   return tEncodeBinary(pEncoder, (const uint8_t *)pTag, pTag->len);
 }
 
-int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag) {
-  return tDecodeBinary(pDecoder, (uint8_t **)ppTag, NULL);
-}
+int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag) { return tDecodeBinary(pDecoder, (uint8_t **)ppTag, NULL); }
 
 int32_t tTagToValArray(const STag *pTag, SArray **ppArray) {
   int32_t  code = 0;
