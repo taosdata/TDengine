@@ -526,10 +526,10 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
   pScan->accountId = pCxt->pPlanCxt->acctId;
   if (0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_USER_TABLES)) {
     vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
-    SQueryNodeLoad node = { .addr = pSubplan->execNode, .load = 0};
+    SQueryNodeLoad node = {.addr = pSubplan->execNode, .load = 0};
     taosArrayPush(pCxt->pExecNodeList, &pSubplan->execNode);
   } else {
-    SQueryNodeLoad node = { .addr = {.nodeId = MNODE_HANDLE, .epSet = pCxt->pPlanCxt->mgmtEpSet}, .load = 0};
+    SQueryNodeLoad node = {.addr = {.nodeId = MNODE_HANDLE, .epSet = pCxt->pPlanCxt->mgmtEpSet}, .load = 0};
     taosArrayPush(pCxt->pExecNodeList, &node);
   }
   pScan->mgmtEpSet = pCxt->pPlanCxt->mgmtEpSet;
@@ -933,11 +933,22 @@ static int32_t createWindowPhysiNodeFinalize(SPhysiPlanContext* pCxt, SNodeList*
   return code;
 }
 
+static ENodeType getIntervalOperatorType(bool streamQuery, EStreamIntervalAlgorithm stmAlgo) {
+  if (streamQuery) {
+    return STREAM_INTERVAL_ALGO_FINAL == stmAlgo
+               ? QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL
+               : (STREAM_INTERVAL_ALGO_SEMI == stmAlgo ? QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL
+                                                       : QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL);
+  } else {
+    return QUERY_NODE_PHYSICAL_PLAN_INTERVAL;
+  }
+}
+
 static int32_t createIntervalPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                        SWindowLogicNode* pWindowLogicNode, SPhysiNode** pPhyNode) {
   SIntervalPhysiNode* pInterval = (SIntervalPhysiNode*)makePhysiNode(
       pCxt, getPrecision(pChildren), (SLogicNode*)pWindowLogicNode,
-      (pCxt->pPlanCxt->streamQuery ? QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL : QUERY_NODE_PHYSICAL_PLAN_INTERVAL));
+      getIntervalOperatorType(pCxt->pPlanCxt->streamQuery, pWindowLogicNode->stmInterAlgo));
   if (NULL == pInterval) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }

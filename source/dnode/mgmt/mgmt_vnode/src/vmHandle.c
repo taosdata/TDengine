@@ -180,6 +180,24 @@ static void vmGenerateWrapperCfg(SVnodeMgmt *pMgmt, SCreateVnodeReq *pCreate, SW
   snprintf(pCfg->path, sizeof(pCfg->path), "%s%svnode%d", pMgmt->path, TD_DIRSEP, pCreate->vgId);
 }
 
+static int32_t vmTsmaAdjustDays(SVnodeCfg *pCfg, SCreateVnodeReq *pReq) {
+  if (pReq->isTsma) {
+    SMsgHead *smaMsg = pReq->pTsma;
+    uint32_t  contLen = (uint32_t)(htonl(smaMsg->contLen) - sizeof(SMsgHead));
+    return smaGetTSmaDays(pCfg, POINTER_SHIFT(smaMsg, sizeof(SMsgHead)), contLen, &pCfg->tsdbCfg.days);
+  }
+  return 0;
+}
+
+static int32_t vmTsmaProcessCreate(SVnode *pVnode, SCreateVnodeReq *pReq) {
+  if (pReq->isTsma) {
+    SMsgHead *smaMsg = pReq->pTsma;
+    uint32_t  contLen = (uint32_t)(htonl(smaMsg->contLen) - sizeof(SMsgHead));
+    return vnodeProcessCreateTSma(pVnode, POINTER_SHIFT(smaMsg, sizeof(SMsgHead)), contLen);
+  }
+  return 0;
+}
+
 int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SCreateVnodeReq createReq = {0};
   SVnodeCfg       vnodeCfg = {0};
@@ -195,6 +213,13 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   dDebug("vgId:%d, create vnode req is received, tsma:%d standby:%d", createReq.vgId, createReq.isTsma,
          createReq.standby);
   vmGenerateVnodeCfg(&createReq, &vnodeCfg);
+
+  if (vmTsmaAdjustDays(&vnodeCfg, &createReq) < 0) {
+    dError("vgId:%d, failed to adjust tsma days since %s", createReq.vgId, terrstr());
+    code = terrno;
+    goto _OVER;
+  }
+
   vmGenerateWrapperCfg(pMgmt, &createReq, &wrapperCfg);
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, createReq.vgId);
@@ -203,14 +228,16 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     tFreeSCreateVnodeReq(&createReq);
     vmReleaseVnode(pMgmt, pVnode);
     terrno = TSDB_CODE_NODE_ALREADY_DEPLOYED;
-    return -1;
+    code = terrno;
+    goto _OVER;
   }
 
   snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vnodeCfg.vgId);
   if (vnodeCreate(path, &vnodeCfg, pMgmt->pTfs) < 0) {
     tFreeSCreateVnodeReq(&createReq);
     dError("vgId:%d, failed to create vnode since %s", createReq.vgId, terrstr());
-    return -1;
+    code = terrno;
+    goto _OVER;
   }
 
   SVnode *pImpl = vnodeOpen(path, pMgmt->pTfs, pMgmt->msgCb);
@@ -227,14 +254,11 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     goto _OVER;
   }
 
-  if (createReq.isTsma) {
-    SMsgHead *smaMsg = createReq.pTsma;
-    uint32_t  contLen = (uint32_t)(htonl(smaMsg->contLen) - sizeof(SMsgHead));
-    if (vnodeProcessCreateTSma(pImpl, POINTER_SHIFT(smaMsg, sizeof(SMsgHead)), contLen) < 0) {
-      dError("vgId:%d, failed to create tsma since %s", createReq.vgId, terrstr());
-      code = terrno;
-      goto _OVER;
-    };
+  code = vmTsmaProcessCreate(pImpl, &createReq);
+  if (code != 0) {
+    dError("vgId:%d, failed to create tsma since %s", createReq.vgId, terrstr());
+    code = terrno;
+    goto _OVER;
   }
 
   code = vnodeStart(pImpl);
@@ -253,6 +277,8 @@ _OVER:
   if (code != 0) {
     vnodeClose(pImpl);
     vnodeDestroy(path, pMgmt->pTfs);
+  } else {
+    dInfo("vgId:%d, vnode is created", createReq.vgId);
   }
 
   tFreeSCreateVnodeReq(&createReq);
