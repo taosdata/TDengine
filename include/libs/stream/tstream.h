@@ -80,6 +80,37 @@ typedef struct {
   int8_t type;
 } SStreamCheckpoint;
 
+typedef struct {
+  STaosQueue* queue;
+  STaosQall*  qall;
+  void*       qItem;
+  int8_t      failed;
+} SStreamQ;
+
+static FORCE_INLINE void* streamQCurItem(SStreamQ* queue) {
+  //
+  return queue->qItem;
+}
+
+static FORCE_INLINE void* streamQNextItem(SStreamQ* queue) {
+  int8_t failed = atomic_load_8(&queue->failed);
+  if (failed) {
+    ASSERT(queue->qItem != NULL);
+    return streamQCurItem(queue);
+  } else {
+    taosGetQitem(queue->qall, &queue->qItem);
+    if (queue->qItem == NULL) {
+      taosReadAllQitems(queue->queue, queue->qall);
+      taosGetQitem(queue->qall, &queue->qItem);
+    }
+    return streamQCurItem(queue);
+  }
+}
+
+static FORCE_INLINE void streamQSetFail(SStreamQ* queue) { atomic_store_8(&queue->failed, 1); }
+
+static FORCE_INLINE void streamQSetSuccess(SStreamQ* queue) { atomic_store_8(&queue->failed, 0); }
+
 static FORCE_INLINE SStreamDataSubmit* streamDataSubmitNew(SSubmitReq* pReq) {
   SStreamDataSubmit* pDataSubmit = (SStreamDataSubmit*)taosAllocateQitem(sizeof(SStreamDataSubmit), DEF_QITEM);
   if (pDataSubmit == NULL) return NULL;

@@ -728,9 +728,9 @@ static void doMergeWork(SSchedMsg* msg) {
   IndexCache* pCache = msg->ahandle;
   SIndex*     sidx = (SIndex*)pCache->index;
 
-  sidx->quit = msg->thandle ? true : false;
+  int quit = msg->thandle ? true : false;
   taosMemoryFree(msg->thandle);
-  indexFlushCacheToTFile(sidx, pCache);
+  indexFlushCacheToTFile(sidx, pCache, quit);
 }
 static bool indexCacheIteratorNext(Iterate* itera) {
   SSkipListIterator* iter = itera->iter;
