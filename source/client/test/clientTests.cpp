@@ -104,7 +104,7 @@ TEST(testCase, connect_Test) {
   }
   taos_close(pConn);
 }
-
+#if 0
 TEST(testCase, create_user_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
@@ -773,6 +773,7 @@ TEST(testCase, agg_query_tables) {
   taos_free_result(pRes);
   taos_close(pConn);
 }
+#endif
 
 /*
 --- copy the following script in the shell to setup the environment ---
@@ -789,7 +790,7 @@ TEST(testCase, async_api_test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
-  taos_query_a(pConn, "select ts from test.m1", queryCallback, pConn);
+  taos_query_a(pConn, "drop table test.tm0", queryCallback, pConn);
   getchar();
   taos_close(pConn);
 }

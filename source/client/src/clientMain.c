@@ -706,18 +706,8 @@ void taos_query_a(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param
   pWrapper->pRequest = pRequest;
   pWrapper->catalogReq = catalogReq;
 
-  //todo refactor move to asyncGetAllMeta function
-  bool allNull = (catalogReq.pUdf == NULL && catalogReq.pUser == NULL && catalogReq.pDbCfg == NULL &&
-      catalogReq.pIndex == NULL && catalogReq.pDbInfo == NULL && catalogReq.pDbVgroup == NULL &&
-      catalogReq.pTableHash == NULL && catalogReq.pTableMeta == NULL && catalogReq.qNodeRequired == false);
-
-  if (allNull) {
-    SMetaData* pMetaData = taosMemoryCalloc(1, sizeof(SMetaData));
-    retrieveMetaCallback(pMetaData, pWrapper, TSDB_CODE_SUCCESS);
-  } else {
-    code = catalogAsyncGetAllMeta(pCxt->pCatalog, pCxt->pTransporter, &pCxt->mgmtEpSet, pRequest->requestId,
+  code = catalogAsyncGetAllMeta(pCxt->pCatalog, pCxt->pTransporter, &pCxt->mgmtEpSet, pRequest->requestId,
                                   &catalogReq, retrieveMetaCallback, pWrapper, &pRequest->body.queryJob);
-  }
 
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;

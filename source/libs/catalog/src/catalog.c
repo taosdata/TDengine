@@ -1028,9 +1028,14 @@ int32_t catalogAsyncGetAllMeta(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmt
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  int32_t code = 0;
+  int32_t code = 0, taskNum = 0;
   SCtgJob *pJob = NULL;
-  CTG_ERR_JRET(ctgInitJob(CTG_PARAMS_LIST(), &pJob, reqId, pReq, fp, param));
+  CTG_ERR_JRET(ctgInitJob(CTG_PARAMS_LIST(), &pJob, reqId, pReq, fp, param, &taskNum));
+  if (taskNum <= 0) {
+    SMetaData* pMetaData = taosMemoryCalloc(1, sizeof(SMetaData));
+    fp(pMetaData, param, TSDB_CODE_SUCCESS);
+    CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+  }
 
   CTG_ERR_JRET(ctgLaunchJob(pJob));
 

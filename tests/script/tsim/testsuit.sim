@@ -1,7 +1,7 @@
-#run tsim/user/pass_alter.sim
-#run tsim/user/basic1.sim
-#run tsim/user/privilege2.sim
-#run tsim/user/user_len.sim
+run tsim/user/pass_alter.sim
+run tsim/user/basic1.sim
+run tsim/user/privilege2.sim
+run tsim/user/user_len.sim
 run tsim/user/privilege1.sim
 run tsim/user/pass_len.sim
 run tsim/table/basic1.sim
