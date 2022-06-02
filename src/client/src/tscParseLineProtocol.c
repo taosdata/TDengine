@@ -2096,8 +2096,13 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
           back_slash = false;
           cur++;
           len++;
+<<<<<<< HEAD
           break;
         }
+=======
+	        break;
+	      }
+>>>>>>> 307bc006a5435ef382b94eba69ed50b225b483aa
 
         if (*cur == '"') {
           if (cur == *index) {
