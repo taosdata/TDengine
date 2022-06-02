@@ -1175,6 +1175,7 @@ int wsclient_handshake() {
   unsigned char key_nonce[16];
   char          websocket_key[256];
   memset(request_header, 0, 1024);
+  memset(recv_buf, 0, 1024);
   srand(time(NULL));
   int i;
   for (i = 0; i < 16; i++) {
@@ -1317,11 +1318,17 @@ int wsclient_conn() {
   }
   char recv_buffer[1024];
   memset(recv_buffer, 0, 1024);
-  recv(args.socket, recv_buffer, 1023, 0);
+  int bytes = recv(args.socket, recv_buffer, 1023, 0);
+  if (bytes <= 0) {
+    fprintf(stderr, "failed to receive from socket\n");
+    return -1;
+  }
+
   char  *received_json = strstr(recv_buffer, "{");
   cJSON *root = cJSON_Parse(received_json);
   if (root == NULL) {
     fprintf(stderr, "fail to parse response into json: %s\n", recv_buffer);
+    return -1;
   }
 
   cJSON *code = cJSON_GetObjectItem(root, "code");
@@ -1356,6 +1363,7 @@ cJSON *wsclient_parse_response() {
   do {
     bytes = recv(args.socket, recv_buffer + received, recv_length - received, 0);
     if (bytes == -1) {
+      free(recv_buffer);
       fprintf(stderr, "websocket recv failed with bytes: %d\n", bytes);
       return NULL;
     }
@@ -1477,6 +1485,7 @@ int wsclient_print_data(int rows, TAOS_FIELD *fields, int cols, int64_t id, int 
   }
   for (int i = 0; i < rows; i++) {
     if (*pshowed_rows == DEFAULT_RES_SHOW_NUM) {
+      free(recv_buffer);
       return 0;
     } 
     for (int c = 0; c < cols; c++) {
@@ -1499,6 +1508,7 @@ int wsclient_print_data(int rows, TAOS_FIELD *fields, int cols, int64_t id, int 
     putchar('\n');
     *pshowed_rows += 1;
   }
+  free(recv_buffer);
   return 0;
 }
 
