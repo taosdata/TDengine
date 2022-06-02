@@ -241,6 +241,7 @@ typedef struct {
   int32_t schemaLen;  // schema length, if length is 0, no schema exists
   int16_t numOfRows;  // total number of rows in current submit block
   // head of SSubmitBlk
+  int32_t     numOfBlocks;
   const void* pMsg;
 } SSubmitMsgIter;
 
