@@ -604,7 +604,7 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
         }
         taosArrayPush(pTagArray, &val);
       } else {
-        STagVal val = {0};
+        STagVal val = {.cid = pCol->colId};
         if (tTagGet(pOldTag, &val)) {
           taosArrayPush(pTagArray, &val);
         }
