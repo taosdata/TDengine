@@ -19,7 +19,7 @@
 #include "walInt.h"
 
 void walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
-  pWal->vers.firstVer = -1;
+  /*pWal->vers.firstVer = -1;*/
   pWal->vers.lastVer = ver;
   pWal->vers.commitVer = ver - 1;
   pWal->vers.snapshotVer = ver - 1;

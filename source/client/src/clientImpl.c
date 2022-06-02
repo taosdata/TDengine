@@ -923,7 +923,7 @@ void doSetOneRowPtr(SReqResultInfo* pResultInfo) {
     int32_t bytes = pResultInfo->fields[i].bytes;
 
     if (IS_VAR_DATA_TYPE(type)) {
-      if (pCol->offset[pResultInfo->current] != -1) {
+      if (!IS_VAR_NULL_TYPE(type, bytes) && pCol->offset[pResultInfo->current] != -1) {
         char* pStart = pResultInfo->pCol[i].offset[pResultInfo->current] + pResultInfo->pCol[i].pData;
 
         pResultInfo->length[i] = varDataLen(pStart);

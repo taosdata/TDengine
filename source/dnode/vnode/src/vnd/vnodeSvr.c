@@ -25,6 +25,7 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, in
 static int vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 
 int32_t vnodePreprocessReq(SVnode *pVnode, SRpcMsg *pMsg) {
+  int32_t  code = 0;
   SDecoder dc = {0};
 
   switch (pMsg->msgType) {
@@ -89,13 +90,13 @@ int32_t vnodePreprocessReq(SVnode *pVnode, SRpcMsg *pMsg) {
 
     } break;
     case TDMT_VND_ALTER_REPLICA: {
-      vnodeSyncAlter(pVnode, pMsg);
+      code = vnodeSyncAlter(pVnode, pMsg);
     } break;
     default:
       break;
   }
 
-  return 0;
+  return code;
 }
 
 int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg *pRsp) {
@@ -104,7 +105,7 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
   int   len;
   int   ret;
 
-  vTrace("vgId:%d start to process write request %s, version %" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType),
+  vTrace("vgId:%d, start to process write request %s, version %" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType),
          version);
 
   pVnode->state.applied = version;
@@ -164,16 +165,16 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
       break;
   }
 
-  vDebug("vgId:%d process %s request success, version: %" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType), version);
+  vTrace("vgId:%d, process %s request success, version: %" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType), version);
 
   if (tqPushMsg(pVnode->pTq, pMsg->pCont, pMsg->contLen, pMsg->msgType, version) < 0) {
-    vError("vgId:%d failed to push msg to TQ since %s", TD_VID(pVnode), tstrerror(terrno));
+    vError("vgId:%d, failed to push msg to TQ since %s", TD_VID(pVnode), tstrerror(terrno));
     return -1;
   }
 
   // commit if need
   if (vnodeShouldCommit(pVnode)) {
-    vInfo("vgId:%d commit at version %" PRId64, TD_VID(pVnode), version);
+    vInfo("vgId:%d, commit at version %" PRId64, TD_VID(pVnode), version);
     // commit current change
     vnodeCommit(pVnode);
 
@@ -184,7 +185,7 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
   return 0;
 
 _err:
-  vDebug("vgId:%d process %s request failed since %s, version: %" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType),
+  vError("vgId:%d, process %s request failed since %s, version: %" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType),
          tstrerror(terrno), version);
   return -1;
 }
@@ -828,13 +829,13 @@ static int vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *pReq
   }
 
   tDecoderClear(&coder);
-  vDebug("vgId:%d success to create tsma %s:%" PRIi64 " version %" PRIi64 " for table %" PRIi64, TD_VID(pVnode),
+  vDebug("vgId:%d, success to create tsma %s:%" PRIi64 " version %" PRIi64 " for table %" PRIi64, TD_VID(pVnode),
          req.indexName, req.indexUid, version, req.tableUid);
   return 0;
 
 _err:
   tDecoderClear(&coder);
-  vError("vgId:%d failed to create tsma %s:%" PRIi64 " version %" PRIi64 "for table %" PRIi64 " since %s",
+  vError("vgId:%d, failed to create tsma %s:%" PRIi64 " version %" PRIi64 "for table %" PRIi64 " since %s",
          TD_VID(pVnode), req.indexName, req.indexUid, version, req.tableUid, terrstr(terrno));
   return -1;
 }
