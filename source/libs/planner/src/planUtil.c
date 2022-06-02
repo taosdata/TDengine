@@ -34,3 +34,54 @@ int32_t generateUsageErrMsg(char* pBuf, int32_t len, int32_t errCode, ...) {
   va_end(vArgList);
   return errCode;
 }
+
+typedef struct SCreateColumnCxt {
+  int32_t    errCode;
+  SNodeList* pList;
+} SCreateColumnCxt;
+
+static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
+  SCreateColumnCxt* pCxt = (SCreateColumnCxt*)pContext;
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_COLUMN: {
+      SNode* pCol = nodesCloneNode(pNode);
+      if (NULL == pCol) {
+        return DEAL_RES_ERROR;
+      }
+      return (TSDB_CODE_SUCCESS == nodesListAppend(pCxt->pList, pCol) ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
+    }
+    case QUERY_NODE_OPERATOR:
+    case QUERY_NODE_LOGIC_CONDITION:
+    case QUERY_NODE_FUNCTION: {
+      SExprNode*   pExpr = (SExprNode*)pNode;
+      SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
+      if (NULL == pCol) {
+        return DEAL_RES_ERROR;
+      }
+      pCol->node.resType = pExpr->resType;
+      strcpy(pCol->colName, pExpr->aliasName);
+      return (TSDB_CODE_SUCCESS == nodesListAppend(pCxt->pList, pCol) ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
+    }
+    default:
+      break;
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
+int32_t createColumnByRewriteExps(SNodeList* pExprs, SNodeList** pList) {
+  SCreateColumnCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pList = (NULL == *pList ? nodesMakeList() : *pList)};
+  if (NULL == cxt.pList) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  nodesWalkExprs(pExprs, doCreateColumn, &cxt);
+  if (TSDB_CODE_SUCCESS != cxt.errCode) {
+    nodesDestroyList(cxt.pList);
+    return cxt.errCode;
+  }
+  if (NULL == *pList) {
+    *pList = cxt.pList;
+  }
+  return cxt.errCode;
+}

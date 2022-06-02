@@ -373,7 +373,14 @@ static SNode* logicVnodeModifCopy(const SVnodeModifLogicNode* pSrc, SVnodeModifL
 static SNode* logicExchangeCopy(const SExchangeLogicNode* pSrc, SExchangeLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   COPY_SCALAR_FIELD(srcGroupId);
-  COPY_SCALAR_FIELD(precision);
+  return (SNode*)pDst;
+}
+
+static SNode* logicMergeCopy(const SMergeLogicNode* pSrc, SMergeLogicNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
+  CLONE_NODE_LIST_FIELD(pMergeKeys);
+  COPY_SCALAR_FIELD(numOfChannels);
+  COPY_SCALAR_FIELD(srcGroupId);
   return (SNode*)pDst;
 }
 
@@ -537,6 +544,8 @@ SNodeptr nodesCloneNode(const SNodeptr pNode) {
       return logicVnodeModifCopy((const SVnodeModifLogicNode*)pNode, (SVnodeModifLogicNode*)pDst);
     case QUERY_NODE_LOGIC_PLAN_EXCHANGE:
       return logicExchangeCopy((const SExchangeLogicNode*)pNode, (SExchangeLogicNode*)pDst);
+    case QUERY_NODE_LOGIC_PLAN_MERGE:
+      return logicMergeCopy((const SMergeLogicNode*)pNode, (SMergeLogicNode*)pDst);
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
       return logicWindowCopy((const SWindowLogicNode*)pNode, (SWindowLogicNode*)pDst);
     case QUERY_NODE_LOGIC_PLAN_FILL:

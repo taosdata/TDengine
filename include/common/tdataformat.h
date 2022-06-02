@@ -64,7 +64,8 @@ char   *tTagValToData(const STagVal *pTagVal, bool isJson);
 int32_t tEncodeTag(SEncoder *pEncoder, const STag *pTag);
 int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag);
 int32_t tTagToValArray(const STag *pTag, SArray **ppArray);
-void    debugPrintSTag(STag *pTag, const char *tag, int32_t ln);
+void    debugPrintSTag(STag *pTag, const char *tag, int32_t ln); // TODO: remove
+void    debugCheckTags(STag *pTag); // TODO: remove
 
 // STRUCT =================
 struct STColumn {
