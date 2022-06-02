@@ -117,13 +117,13 @@ step4:
 sql show db.vgroups
 print ===> rows: $rows 
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
-if $data[0][4] != LEADER then
+if $data[0][4] != leader then
   goto step4
 endi
-if $data[0][6] != FOLLOWER then
+if $data[0][6] != follower then
   goto step4
 endi
-if $data[0][8] != FOLLOWER then
+if $data[0][8] != follower then
   goto step4
 endi
 

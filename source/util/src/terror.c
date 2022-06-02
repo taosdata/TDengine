@@ -190,7 +190,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_BNODE_ALREADY_EXIST,      "Bnode already exists"
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_BNODE_NOT_EXIST,          "Bnode not there")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_FEW_MNODES,           "The replicas of mnode cannot less than 1")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_MNODES,          "The replicas of mnode cannot exceed 3")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_CANT_DROP_MASTER,         "Can't drop mnode which is LEADER")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_CANT_DROP_MASTER,         "Can't drop mnode which is leader")
 
 // mnode-acct
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ACCT_ALREADY_EXIST,       "Account already exists")
