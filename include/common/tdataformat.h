@@ -46,7 +46,7 @@ void    tTSchemaDestroy(STSchema *pTSchema);
 #define COL_VAL_NULL(CID)     ((SColVal){.cid = (CID), .isNull = 1})
 #define COL_VAL_VALUE(CID, V) ((SColVal){.cid = (CID), .value = (V)})
 
-int32_t tTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow2 **ppRow);
+int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, STSRow2 **ppRow);
 int32_t tTSRowClone(const STSRow2 *pRow, STSRow2 **ppRow);
 void    tTSRowFree(STSRow2 *pRow);
 void    tTSRowGet(STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
@@ -55,6 +55,13 @@ int32_t tPutTSRow(uint8_t *p, STSRow2 *pRow);
 int32_t tGetTSRow(uint8_t *p, STSRow2 *pRow);
 
 // STSRowBuilder
+#define tsRowBuilderInit() ((STSRowBuilder){0})
+#define tsRowBuilderClear(B)     \
+  do {                           \
+    if ((B)->pBuf) {             \
+      taosMemoryFree((B)->pBuf); \
+    }                            \
+  } while (0)
 
 // STag
 int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag);
@@ -64,8 +71,8 @@ char   *tTagValToData(const STagVal *pTagVal, bool isJson);
 int32_t tEncodeTag(SEncoder *pEncoder, const STag *pTag);
 int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag);
 int32_t tTagToValArray(const STag *pTag, SArray **ppArray);
-void    debugPrintSTag(STag *pTag, const char *tag, int32_t ln); // TODO: remove
-void    debugCheckTags(STag *pTag); // TODO: remove
+void    debugPrintSTag(STag *pTag, const char *tag, int32_t ln);  // TODO: remove
+void    debugCheckTags(STag *pTag);                               // TODO: remove
 
 // STRUCT =================
 struct STColumn {
@@ -100,17 +107,9 @@ struct STSRow2 {
 };
 
 struct STSRowBuilder {
-  STSchema *pTSchema;
-  int32_t   szBitMap1;
-  int32_t   szBitMap2;
-  int32_t   szKVBuf;
-  uint8_t  *pKVBuf;
-  int32_t   szTPBuf;
-  uint8_t  *pTPBuf;
-  int32_t   iCol;
-  int32_t   vlenKV;
-  int32_t   vlenTP;
-  STSRow2   row;
+  STSRow2  tsRow;
+  int32_t  szBuf;
+  uint8_t *pBuf;
 };
 
 struct SValue {
