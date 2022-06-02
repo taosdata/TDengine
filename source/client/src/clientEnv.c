@@ -131,6 +131,7 @@ void destroyTscObj(void *pObj) {
   hbDeregisterConn(pTscObj->pAppInfo->pAppHbMgr, connKey);
   atomic_sub_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
   closeAllRequests(pTscObj->pRequests);
+  schedulerStopTransport(pTscObj->pAppInfo->pTransporter);
   tscDebug("connObj 0x%" PRIx64 " destroyed, totalConn:%" PRId64, pTscObj->id, pTscObj->pAppInfo->numOfConns);
   taosThreadMutexDestroy(&pTscObj->mutex);
   taosMemoryFreeClear(pTscObj);

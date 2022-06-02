@@ -176,6 +176,10 @@ int32_t scheduleCancelJob(int64_t job) {
   SCH_RET(code);
 }
 
+void schedulerStopTransport(void *pTrans) {
+  // CLOSE && REMOVE RELATED HB CONNECTIONS
+}
+
 void schedulerFreeJob(int64_t job) {
   SSchJob *pJob = schAcquireJob(job);
   if (NULL == pJob) {

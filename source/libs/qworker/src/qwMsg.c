@@ -248,6 +248,41 @@ int32_t qwRegisterHbBrokenLinkArg(SQWorker *mgmt, uint64_t sId, SRpcHandleInfo *
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg) {
+  if (NULL == qWorkerMgmt || NULL == pMsg) {
+    QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+
+  int32_t       code = 0;
+  SSubQueryMsg *msg = pMsg->pCont;
+  SQWorker *    mgmt = (SQWorker *)qWorkerMgmt;
+
+  if (NULL == msg || pMsg->contLen <= sizeof(*msg)) {
+    QW_ELOG("invalid query msg, msg:%p, msgLen:%d", msg, pMsg->contLen);
+    QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+
+  msg->sId = be64toh(msg->sId);
+  msg->queryId = be64toh(msg->queryId);
+  msg->taskId = be64toh(msg->taskId);
+  msg->refId = be64toh(msg->refId);
+  msg->phyLen = ntohl(msg->phyLen);
+  msg->sqlLen = ntohl(msg->sqlLen);
+
+  uint64_t sId = msg->sId;
+  uint64_t qId = msg->queryId;
+  uint64_t tId = msg->taskId;
+  int64_t  rId = msg->refId;
+
+  SQWMsg qwMsg = {.node = node, .msg = msg->msg + msg->sqlLen, .msgLen = msg->phyLen, .connInfo = pMsg->info};
+
+  QW_SCH_TASK_DLOG("prerocessQuery start, handle:%p", pMsg->info.handle);
+  QW_ERR_RET(qwPrerocessQuery(QW_FPARAMS(), &qwMsg));
+  QW_SCH_TASK_DLOG("prerocessQuery end, handle:%p", pMsg->info.handle);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts) {
   if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg) {
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);

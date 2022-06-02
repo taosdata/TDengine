@@ -238,6 +238,8 @@ static int32_t vmPutNodeMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType 
 
   switch (qtype) {
     case QUERY_QUEUE:
+      vnodePreprocessQueryMsg(pVnode->pImpl, pMsg);
+      
       dTrace("msg:%p, put into vnode-query worker, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
       taosWriteQitem(pVnode->pQueryQ, pMsg);
       break;
