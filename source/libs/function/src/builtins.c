@@ -851,7 +851,7 @@ static int32_t translateConcatImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t 
   for (int32_t i = 0; i < numOfParams; ++i) {
     SNode*  pPara = nodesListGetNode(pFunc->pParameterList, i);
     uint8_t paraType = ((SExprNode*)pPara)->resType.type;
-    if (!IS_VAR_DATA_TYPE(paraType) && TSDB_DATA_TYPE_NULL != paraType) {
+    if (!IS_VAR_DATA_TYPE(paraType) && !IS_NULL_TYPE(paraType)) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
     if (TSDB_DATA_TYPE_NCHAR == paraType) {
@@ -864,6 +864,12 @@ static int32_t translateConcatImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t 
     uint8_t paraType = ((SExprNode*)pPara)->resType.type;
     int32_t paraBytes = ((SExprNode*)pPara)->resType.bytes;
     int32_t factor = 1;
+    if (IS_NULL_TYPE(paraType)) {
+      resultType = TSDB_DATA_TYPE_VARCHAR;
+      resultBytes = 0;
+      sepBytes = 0;
+      break;
+    }
     if (TSDB_DATA_TYPE_NCHAR == resultType && TSDB_DATA_TYPE_VARCHAR == paraType) {
       factor *= TSDB_NCHAR_SIZE;
     }
