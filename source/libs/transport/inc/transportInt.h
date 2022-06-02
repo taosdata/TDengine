@@ -22,13 +22,13 @@
 #include "lz4.h"
 #include "os.h"
 #include "taoserror.h"
+#include "tglobal.h"
 #include "thash.h"
-#include "tref.h"
 #include "tmsg.h"
 #include "transLog.h"
+#include "tref.h"
 #include "trpc.h"
 #include "tutil.h"
-#include "tglobal.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -55,9 +55,9 @@ typedef struct {
   bool (*retry)(int32_t code);
   int index;
 
-  int32_t       refCount;
   void*         parent;
   void*         tcphandle;  // returned handle from TCP initialization
+  int32_t       refMgt;
   TdThreadMutex mutex;
 } SRpcInfo;
 

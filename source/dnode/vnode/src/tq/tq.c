@@ -81,12 +81,41 @@ void tqClose(STQ* pTq) {
   // TODO
 }
 
+int32_t tqSendPollRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataBlkRsp* pRsp) {
+  int32_t tlen = sizeof(SMqRspHead) + tEncodeSMqDataBlkRsp(NULL, pRsp);
+  void*   buf = rpcMallocCont(tlen);
+  if (buf == NULL) {
+    return -1;
+  }
+
+  ((SMqRspHead*)buf)->mqMsgType = TMQ_MSG_TYPE__POLL_RSP;
+  ((SMqRspHead*)buf)->epoch = pReq->epoch;
+  ((SMqRspHead*)buf)->consumerId = pReq->consumerId;
+
+  void* abuf = POINTER_SHIFT(buf, sizeof(SMqRspHead));
+  tEncodeSMqDataBlkRsp(&abuf, pRsp);
+
+  SRpcMsg resp = {
+      .info = pMsg->info,
+      .pCont = buf,
+      .contLen = tlen,
+      .code = 0,
+  };
+  tmsgSendRsp(&resp);
+
+  tqDebug("vg %d from consumer %ld (epoch %d) send rsp, block num: %d, reqOffset: %ld, rspOffset: %ld",
+          TD_VID(pTq->pVnode), pReq->consumerId, pReq->epoch, pRsp->blockNum, pRsp->reqOffset, pRsp->rspOffset);
+
+  return 0;
+}
+
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   SMqPollReq* pReq = pMsg->pCont;
   int64_t     consumerId = pReq->consumerId;
   int64_t     timeout = pReq->timeout;
   int32_t     reqEpoch = pReq->epoch;
   int64_t     fetchOffset;
+  int32_t     code = 0;
 
   // get offset to fetch message
   if (pReq->currentOffset == TMQ_CONF__RESET_OFFSET__EARLIEAST) {
@@ -155,7 +184,9 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
     if (pHead->msgType == TDMT_VND_SUBMIT) {
       SSubmitReq* pCont = (SSubmitReq*)&pHead->body;
 
-      tqDataExec(pTq, &pHandle->execHandle, pCont, &rsp, workerId);
+      if (tqDataExec(pTq, &pHandle->execHandle, pCont, &rsp, workerId) < 0) {
+        /*ASSERT(0);*/
+      }
     } else {
       // TODO
       ASSERT(0);
@@ -174,33 +205,15 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
 
   ASSERT(taosArrayGetSize(rsp.blockData) == rsp.blockNum);
   ASSERT(taosArrayGetSize(rsp.blockDataLen) == rsp.blockNum);
+  if (rsp.withSchema) {
+    ASSERT(taosArrayGetSize(rsp.blockSchema) == rsp.blockNum);
+  }
 
   rsp.rspOffset = fetchOffset;
 
-  int32_t tlen = sizeof(SMqRspHead) + tEncodeSMqDataBlkRsp(NULL, &rsp);
-  void*   buf = rpcMallocCont(tlen);
-  if (buf == NULL) {
-    pMsg->code = -1;
-    return -1;
+  if (tqSendPollRsp(pTq, pMsg, pReq, &rsp) < 0) {
+    code = -1;
   }
-
-  ((SMqRspHead*)buf)->mqMsgType = TMQ_MSG_TYPE__POLL_RSP;
-  ((SMqRspHead*)buf)->epoch = pReq->epoch;
-  ((SMqRspHead*)buf)->consumerId = consumerId;
-
-  void* abuf = POINTER_SHIFT(buf, sizeof(SMqRspHead));
-  tEncodeSMqDataBlkRsp(&abuf, &rsp);
-
-  SRpcMsg resp = {
-      .info = pMsg->info,
-      .pCont = buf,
-      .contLen = tlen,
-      .code = 0,
-  };
-  tmsgSendRsp(&resp);
-
-  tqDebug("vg %d offset %ld from consumer %ld (epoch %d) send rsp, block num: %d, reqOffset: %ld, rspOffset: %ld",
-          TD_VID(pTq->pVnode), fetchOffset, consumerId, pReq->epoch, rsp.blockNum, rsp.reqOffset, rsp.rspOffset);
 
   // TODO wrap in destroy func
   taosArrayDestroy(rsp.blockData);
@@ -214,7 +227,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
     taosArrayDestroyP(rsp.blockTbName, (FDelete)taosMemoryFree);
   }
 
-  return 0;
+  return code;
 }
 
 int32_t tqProcessVgDeleteReq(STQ* pTq, char* msg, int32_t msgLen) {

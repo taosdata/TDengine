@@ -195,7 +195,7 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
     if (tmqmessage) {
       cnt++;
       msg_process(tmqmessage);
-      if (cnt >= 2) break;
+      /*if (cnt >= 2) break;*/
       /*printf("get data\n");*/
       taos_free_result(tmqmessage);
       /*} else {*/

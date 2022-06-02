@@ -712,7 +712,6 @@ static EDealRes translateValueImpl(STranslateContext* pCxt, SValueNode* pVal, SD
         pVal->datum.p = taosMemoryCalloc(1, targetDt.bytes + 1);
         if (NULL == pVal->datum.p) {
           return generateDealNodeErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
-          ;
         }
 
         int32_t len = 0;

@@ -142,14 +142,16 @@ static SNode* valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
       break;
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
-    case TSDB_DATA_TYPE_VARBINARY:
-      pDst->datum.p = taosMemoryMalloc(pSrc->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
+    case TSDB_DATA_TYPE_VARBINARY:{
+      int32_t len = varDataTLen(pSrc->datum.p) + 1;
+      pDst->datum.p = taosMemoryCalloc(1, len);
       if (NULL == pDst->datum.p) {
         nodesDestroyNode(pDst);
         return NULL;
       }
-      memcpy(pDst->datum.p, pSrc->datum.p, pSrc->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
+      memcpy(pDst->datum.p, pSrc->datum.p, len);
       break;
+    }
     case TSDB_DATA_TYPE_JSON:
     case TSDB_DATA_TYPE_DECIMAL:
     case TSDB_DATA_TYPE_BLOB:
