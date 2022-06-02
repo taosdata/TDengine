@@ -103,29 +103,29 @@ print $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] $data[0][5] $d
 if $rows != $vgroups then
   return -1
 endi
-if $data[0][4] == LEADER then
-   if $data[0][6] != FOLLOWER  then
+if $data[0][4] == leader then
+   if $data[0][6] != follower  then
      goto check_vg_ready
    endi
-   if $data[0][8] != FOLLOWER then
+   if $data[0][8] != follower then
      goto check_vg_ready
    endi
    print ---- vgroup $data[0][0] leader locate on dnode $data[0][3] 
    goto vg_ready
-elif $data[0][6] == LEADER then
-   if $data[0][4] != FOLLOWER then
+elif $data[0][6] == leader then
+   if $data[0][4] != follower then
      goto check_vg_ready
    endi
-   if $data[0][8] != FOLLOWER then
+   if $data[0][8] != follower then
      goto check_vg_ready
    endi    
    print ---- vgroup $data[0][0] leader locate on dnode $data[0][5] 
    goto vg_ready
-elif $data[0][8] == LEADER then
-   if $data[0][4] != FOLLOWER then
+elif $data[0][8] == leader then
+   if $data[0][4] != follower then
      goto check_vg_ready
    endi
-   if $data[0][6] != FOLLOWER then
+   if $data[0][6] != follower then
      goto check_vg_ready
    endi    
    print ---- vgroup $data[0][0] leader locate on dnode $data[0][7] 
@@ -193,11 +193,11 @@ switch_leader_loop:
 print ====> finde vnode of leader, and stop the dnode where the vnode is located, and query stb/ntb count(*)
 sql show vgroups
 print $data(2)[0] $data(2)[1] $data(2)[2] $data(2)[3] $data(2)[4] $data(2)[5] $data(2)[6] $data(2)[7] $data(2)[8] $data(2)[9] $data(2)[10] $data(2)[11] $data(2)[12] $data(2)[13]
-if $data[0][4] == LEADER then
+if $data[0][4] == leader then
   $dnodeId = $data[0][3]
-elif $data[0][6] == LEADER then
+elif $data[0][6] == leader then
   $dnodeId = $data[0][5]
-elif $data[0][8] == LEADER then
+elif $data[0][8] == leader then
   $dnodeId = $data[0][7]
 else 
    print ====> no leader vnode!!!
@@ -226,29 +226,29 @@ print $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] $data[0][5] $d
 if $rows != $vgroups then
   return -1
 endi
-if $data[0][4] == LEADER then
-   if $data[0][6] != FOLLOWER then
+if $data[0][4] == leader then
+   if $data[0][6] != follower then
      goto check_vg_ready_2
    endi
-   if $data[0][8] != FOLLOWER then
+   if $data[0][8] != follower then
      goto check_vg_ready_2
    endi
    print ---- vgroup $dnodeId leader switch to dnode $data[0][3] 
   goto vg_ready_2
-elif $data[0][6] == LEADER then
-   if $data[0][4] != FOLLOWER then
+elif $data[0][6] == leader then
+   if $data[0][4] != follower then
      goto check_vg_ready_2
    endi
-   if $data[0][8] != FOLLOWER then
+   if $data[0][8] != follower then
      goto check_vg_ready_2
    endi    
    print ---- vgroup $dnodeId leader switch to dnode $data[0][5] 
   goto vg_ready_2
-elif $data[0][8] == LEADER then
-   if $data[0][4] != FOLLOWER then
+elif $data[0][8] == leader then
+   if $data[0][4] != follower then
      goto check_vg_ready_2
    endi
-   if $data[0][6] != FOLLOWER then
+   if $data[0][6] != follower then
      goto check_vg_ready_2
    endi    
    print ---- vgroup $dnodeId leader switch to dnode $data[0][7] 
@@ -329,29 +329,29 @@ print $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] $data[0][5] $d
 if $rows != $vgroups then
   return -1
 endi
-if $data[0][4] == LEADER then
-   if $data[0][6] != FOLLOWER then
+if $data[0][4] == leader then
+   if $data[0][6] != follower then
      goto check_vg_ready_1
    endi
-   if $data[0][8] != FOLLOWER then
+   if $data[0][8] != follower then
      goto check_vg_ready_1
    endi    
   goto vg_ready_1
 endi
-if $data[0][6] == LEADER then
-   if $data[0][4] != FOLLOWER then
+if $data[0][6] == leader then
+   if $data[0][4] != follower then
      goto check_vg_ready_1
    endi
-   if $data[0][8] != FOLLOWER then
+   if $data[0][8] != follower then
      goto check_vg_ready_1
    endi    
   goto vg_ready_1
 endi
-if $data[0][8] == LEADER then
-   if $data[0][4] != FOLLOWER then
+if $data[0][8] == leader then
+   if $data[0][4] != follower then
      goto check_vg_ready_1
    endi
-   if $data[0][6] != FOLLOWER then
+   if $data[0][6] != follower then
      goto check_vg_ready_1
    endi    
   goto vg_ready_1
@@ -390,27 +390,27 @@ system sh/exec.sh -n $dnodeId -s stop -x SIGINT
 check_vg_ready_3:
 sql show vgroups
 print $data(2)[0] $data(2)[1] $data(2)[2] $data(2)[3] $data(2)[4] $data(2)[5] $data(2)[6] $data(2)[7] $data(2)[8] $data(2)[9] $data(2)[10] $data(2)[11] $data(2)[12] $data(2)[13]
-if $data[0][4] == LEADER then
-  if $data[0][6] == LEADER then
+if $data[0][4] == leader then
+  if $data[0][6] == leader then
     goto check_vg_ready_3
   endi
-  if $data[0][8] == LEADER then
+  if $data[0][8] == leader then
     goto check_vg_ready_3
   endi
   print ---- vgroup $data[0][0] leader locating dnode $data[0][5]
-elif $data[0][6] == LEADER then
-  if $data[0][4] == LEADER then
+elif $data[0][6] == leader then
+  if $data[0][4] == leader then
     goto check_vg_ready_3
   endi
-  if $data[0][8] == LEADER then
+  if $data[0][8] == leader then
     goto check_vg_ready_3
   endi
   print ---- vgroup $data[0][0] leader locating dnode $data[0][7]
-elif $data[0][8] == LEADER then
-  if $data[0][4] == LEADER then
+elif $data[0][8] == leader then
+  if $data[0][4] == leader then
     goto check_vg_ready_3
   endi
-  if $data[0][6] == LEADER then
+  if $data[0][6] == leader then
     goto check_vg_ready_3
   endi
   print ---- vgroup $data[0][0] leader locating dnode $data[0][9]

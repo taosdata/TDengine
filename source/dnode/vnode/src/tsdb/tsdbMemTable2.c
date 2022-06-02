@@ -116,7 +116,7 @@ int32_t tsdbInsertTableData2(STsdb *pTsdb, int64_t version, SVSubmitBlk *pSubmit
 
   code = tsdbGetOrCreateMemData(pMemTable, pSubmitBlk->suid, pSubmitBlk->uid, &pMemData);
   if (code) {
-    tsdbError("vgId:%d failed to create/get table data since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+    tsdbError("vgId:%d, failed to create/get table data since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
     goto _err;
   }
 
@@ -199,13 +199,13 @@ int32_t tsdbDeleteTableData2(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_ui
     // update the state of pMemTable, pMemData, last and lastrow (todo)
   }
 
-  tsdbDebug("vgId:%d delete data from table suid:%" PRId64 " uid:%" PRId64 " sKey:%" PRId64 " eKey:%" PRId64
+  tsdbDebug("vgId:%d, delete data from table suid:%" PRId64 " uid:%" PRId64 " sKey:%" PRId64 " eKey:%" PRId64
             " since %s",
             TD_VID(pTsdb->pVnode), suid, uid, sKey, eKey, tstrerror(code));
   return code;
 
 _err:
-  tsdbError("vgId:%d failed to delete data from table suid:%" PRId64 " uid:%" PRId64 " sKey:%" PRId64 " eKey:%" PRId64
+  tsdbError("vgId:%d, failed to delete data from table suid:%" PRId64 " uid:%" PRId64 " sKey:%" PRId64 " eKey:%" PRId64
             " since %s",
             TD_VID(pTsdb->pVnode), suid, uid, sKey, eKey, tstrerror(code));
   return code;
