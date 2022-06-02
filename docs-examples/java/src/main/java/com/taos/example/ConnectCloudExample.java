@@ -1,50 +1,4 @@
----
-sidebar_label: Java
-title: Connect with Java Connector
----
-
-## Add Dependency
-
-Build with Maven
-
-```
-<dependency>
-  <groupId>com.taosdata.jdbc</groupId>
-  <artifactId>taos-jdbcdriver</artifactId>
-  <version>2.0.38</version>
-</dependency>
-```
-
-Build with Gradle
-
-```
-dependencies {
-  implementation 'com.taosdata.jdbc:taos-jdbcdriver:2.0.39'
-}
-```
-
-## Config
-
-Run this command in your terminal to save connect parameters as environment variables:
-
-```
-export TDENGINE_CLOUD_HOST=<host>
-export TDENGINE_CLOUD_PORT=<port>
-export TDENGINE_CLOUD_TOKEN=<token>
-export TDENGINE_USER_NAME=<username>
-export TDENGINE_PASSWORD=<password>
-```
-
-<!-- exclude -->
-:::note
-You should replace above placeholders as real values. To get these values, please log in TDengine Cloud and switch to "Connector" section.
-
-:::
-<!-- exclude-end -->
-
-## Connect
-
-```java
+package com.taos.example;
 import com.taosdata.jdbc.TSDBDriver;
 
 import java.sql.Connection;
@@ -67,4 +21,3 @@ public class ConnectCloudExample {
         conn.close();
     }
 }
-```
