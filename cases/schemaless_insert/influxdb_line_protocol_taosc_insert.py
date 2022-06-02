@@ -16,6 +16,7 @@ from taostest.util.common import TDCom
 from taostest.util.sml_types import TDSmlProtocolType, TDSmlTimestampType
 from taos.error import SchemalessError
 import datetime
+import time
 import sys
 from taostest.util.remote import Remote
 
@@ -25,7 +26,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdCom.sml_type = "influxdb"
         self.tdCom.drop_all_db()
         self.dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdCom.createDb(dbname=self.dbname, precision="us")
+        self.tdCom.createDb(dbname=self.dbname, precision="us", schemaless=1)
         self._remote: Remote = Remote(self.logger)
 
     def init_check(self):
@@ -79,7 +80,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         input_sql, stb_name = self.tdCom.gen_full_type_sql(ts=0)
         self.tdCom.check_res(input_sql, stb_name, ts=0)
         self.tdSql.execute(f"drop database if exists test_ts")
-        self.tdSql.execute(f"create database if not exists test_ts precision 'ms'")
+        self.tdSql.execute(f"create database if not exists test_ts precision 'ms' schemaless 1")
         self.tdSql.execute("use test_ts")
         input_sql = ['test_ms,t0=t c0=t 1626006833640', 'test_ms,t0=t c0=f 1626006833641']
         self.tdSql._conn.schemaless_insert(input_sql, TDSmlProtocolType.LINE.value, TDSmlTimestampType.MILLI_SECOND.value)
@@ -88,7 +89,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdSql.checkEqual(str(self.tdSql.query_data[1][0]), "2021-07-11 20:33:53.641000")
 
         self.tdSql.execute(f"drop database if exists test_ts")
-        self.tdSql.execute(f"create database if not exists test_ts precision 'us'")
+        self.tdSql.execute(f"create database if not exists test_ts precision 'us' schemaless 1")
         self.tdSql.execute("use test_ts")
         input_sql = ['test_us,t0=t c0=t 1626006833639000', 'test_us,t0=t c0=f 1626006833639001']
         self.tdSql._conn.schemaless_insert(input_sql, TDSmlProtocolType.LINE.value, TDSmlTimestampType.MICRO_SECOND.value)
@@ -97,7 +98,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdSql.checkEqual(str(self.tdSql.query_data[1][0]), "2021-07-11 20:33:53.639001")
 
         self.tdSql.execute(f"drop database if exists test_ts")
-        self.tdSql.execute(f"create database if not exists test_ts precision 'ns'")
+        self.tdSql.execute(f"create database if not exists test_ts precision 'ns' schemaless 1")
         self.tdSql.execute("use test_ts")
         input_sql = ['test_ns,t0=t c0=t 1626006833639000000', 'test_ns,t0=t c0=f 1626006833639000001']
         self.tdSql._conn.schemaless_insert(input_sql, TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
@@ -105,7 +106,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), "1626006833639000000")
         self.tdSql.checkEqual(str(self.tdSql.query_data[1][0]), "1626006833639000001")
 
-        self.tdCom.createDb()
+        self.tdCom.createDb(schemaless=1)
 
     def id_seq_check(self):
         """
@@ -504,7 +505,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         tb_name = self.tdCom.get_long_name(7, "letters")
         for db_update_tag in [0, 1]:
             if db_update_tag == 1 :
-                self.tdCom.createDb("test_update", db_update_tag=db_update_tag)
+                self.tdCom.createDb("test_update", db_update_tag=db_update_tag, schemaless=1)
             input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name, t0="t", c0="t")
             self.tdCom.check_res(input_sql, stb_name)
             input_sql, stb_name = self.tdCom.gen_full_type_sql(stb_name=stb_name, tb_name=tb_name, t0="t", c0="f", ct_add_tag=True)
@@ -523,7 +524,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
                 self.tdSql.checkData(0, 12, None)
                 self.tdSql.checkData(0, 22, None)
                 self.tdSql.checkData(0, 23, None)
-            self.tdCom.createDb()
+            self.tdCom.createDb(schemaless=1)
 
     def tag_col_add_check(self):
         """
@@ -995,7 +996,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdSql.checkEqual(self.tdSql.query_row, 3)
 
     def test(self):
-        self.blank_tag_insert_check()
+        self.ts_check()
 
     def run(self) -> bool:
         # self.test()
@@ -1017,9 +1018,9 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.col_value_length_check()
         self.tag_col_illegal_value_check()
         self.duplicate_id_tag_col_insert_check()
-        self.no_id_stb_exist_check()
+        # self.no_id_stb_exist_check()
         self.duplicate_insert_exist_check()
-        self.tag_col_binary_nchar_length_check()
+        # self.tag_col_binary_nchar_length_check()
         # TODO self.tag_col_add_dup_id_check()
         # TODO self.tag_col_add_check()
         # TODO self.tag_md5_check()
@@ -1037,16 +1038,16 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tbname_tags_cols_name_check()
         self.stb_insert_multi_thread_check()
         self.s_stb_s_tb_d_data_insert_multi_thread_check()
-        # TODO self.s_stb_s_tb_d_data_atc_insert_multi_thread_check()
-        # TODO self.s_stb_stb_d_data_mtc_insert_multi_thread_check()
+        self.s_stb_s_tb_d_data_atc_insert_multi_thread_check()
+        self.s_stb_stb_d_data_mtc_insert_multi_thread_check()
         self.s_stb_d_tb_d_data_insert_multi_thread_check()
-        # TODO self.s_stb_d_tb_d_data_ac_mt_insert_multi_thread_check()
-        # TODO self.s_stb_d_tb_d_data_at_mc_insert_multi_thread_check()
-        # TODO self.s_stb_s_tb_d_data_d_ts_insert_multi_thread_check()
-        # TODO self.s_stb_s_tb_d_data_d_ts_ac_mt_insert_multi_thread_check()
-        # TODO self.s_stb_s_tb_d_data_d_ts_at_mc_insert_multi_thread_check()
-        # TODO self.s_stb_d_tb_d_data_d_ts_insert_multi_thread_check()
-        # TODO self.s_stb_d_tb_d_data_d_ts_ac_mt_insert_multi_thread_check()
+        # self.s_stb_d_tb_d_data_ac_mt_insert_multi_thread_check()
+        self.s_stb_d_tb_d_data_at_mc_insert_multi_thread_check()
+        # self.s_stb_s_tb_d_data_d_ts_insert_multi_thread_check()
+        # self.s_stb_s_tb_d_data_d_ts_ac_mt_insert_multi_thread_check()
+        # self.s_stb_s_tb_d_data_d_ts_at_mc_insert_multi_thread_check()
+        self.s_stb_d_tb_d_data_d_ts_insert_multi_thread_check()
+        # self.s_stb_d_tb_d_data_d_ts_ac_mt_insert_multi_thread_check()
 
     def cleanup(self):
         pass
