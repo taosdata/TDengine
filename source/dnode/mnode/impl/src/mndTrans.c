@@ -344,7 +344,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
       SDB_GET_INT32(pRaw, dataPos, &dataLen, _OVER)
       action.pRaw = taosMemoryMalloc(dataLen);
       if (action.pRaw == NULL) goto _OVER;
-      mTrace("raw:%p, is created", pData);
+      mTrace("raw:%p, is created", action.pRaw);
       SDB_GET_BINARY(pRaw, dataPos, (void *)action.pRaw, dataLen, _OVER);
       if (taosArrayPush(pTrans->commitActions, &action) == NULL) goto _OVER;
       action.pRaw = NULL;
@@ -619,9 +619,7 @@ void mndTransSetCb(STrans *pTrans, ETrnFunc startFunc, ETrnFunc stopFunc, void *
   pTrans->paramLen = paramLen;
 }
 
-void mndTransSetDbInfo(STrans *pTrans, SDbObj *pDb) {
-  memcpy(pTrans->dbname, pDb->name, TSDB_DB_FNAME_LEN);
-}
+void mndTransSetDbName(STrans *pTrans, const char *dbname) { memcpy(pTrans->dbname, dbname, TSDB_DB_FNAME_LEN); }
 
 void mndTransSetSerial(STrans *pTrans) { pTrans->exec = TRN_EXEC_SERIAL; }
 
@@ -753,22 +751,30 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
       sendRsp = true;
     }
   } else {
-    if (pTrans->stage == TRN_STAGE_REDO_ACTION && pTrans->failedTimes > 6) {
+    if (pTrans->stage == TRN_STAGE_REDO_ACTION && pTrans->failedTimes > 3) {
       if (code == 0) code = TSDB_CODE_MND_TRANS_UNKNOW_ERROR;
       sendRsp = true;
     }
   }
 
   if (sendRsp && pTrans->rpcInfo.handle != NULL) {
-    void *rpcCont = rpcMallocCont(pTrans->rpcRspLen);
-    if (rpcCont != NULL) {
-      memcpy(rpcCont, pTrans->rpcRsp, pTrans->rpcRspLen);
-    }
-    taosMemoryFree(pTrans->rpcRsp);
-
     mDebug("trans:%d, send rsp, code:0x%x stage:%s app:%p", pTrans->id, code, mndTransStr(pTrans->stage),
            pTrans->rpcInfo.ahandle);
-    SRpcMsg rspMsg = {.code = code, .pCont = rpcCont, .contLen = pTrans->rpcRspLen, .info = pTrans->rpcInfo};
+    if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+      code = TSDB_CODE_RPC_INDIRECT_NETWORK_UNAVAIL;
+    }
+    SRpcMsg rspMsg = {.code = code, .info = pTrans->rpcInfo};
+
+    if (pTrans->rpcRspLen != 0) {
+      void *rpcCont = rpcMallocCont(pTrans->rpcRspLen);
+      if (rpcCont != NULL) {
+        memcpy(rpcCont, pTrans->rpcRsp, pTrans->rpcRspLen);
+        rspMsg.pCont = rpcCont;
+        rspMsg.contLen = pTrans->rpcRspLen;
+      }
+      taosMemoryFree(pTrans->rpcRsp);
+    }
+
     tmsgSendRsp(&rspMsg);
     pTrans->rpcInfo.handle = NULL;
     pTrans->rpcRsp = NULL;
@@ -1000,6 +1006,9 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
         if (pAction->msgReceived) {
           if (pAction->errCode != 0 && pAction->errCode != pAction->acceptableCode) {
             code = pAction->errCode;
+            pAction->msgSent = 0;
+            pAction->msgReceived = 0;
+            mDebug("trans:%d, %s:%d execute status is reset", pTrans->id, mndTransStr(pAction->stage), action);
           }
         } else {
           code = TSDB_CODE_ACTION_IN_PROGRESS;
@@ -1025,18 +1034,23 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
     }
 
     if (code == 0) {
+      pTrans->code = 0;
       pTrans->redoActionPos++;
       mDebug("trans:%d, %s:%d is executed and need sync to other mnodes", pTrans->id, mndTransStr(pAction->stage),
              pAction->id);
       code = mndTransSync(pMnode, pTrans);
       if (code != 0) {
-        mError("trans:%d, failed to sync redoActionPos since %s", pTrans->id, terrstr());
+        pTrans->code = terrno;
+        mError("trans:%d, %s:%d is executed and failed to sync to other mnodes since %s", pTrans->id,
+               mndTransStr(pAction->stage), pAction->id, terrstr());
         break;
       }
     } else if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
       mDebug("trans:%d, %s:%d is in progress and wait it finish", pTrans->id, mndTransStr(pAction->stage), pAction->id);
       break;
     } else {
+      terrno = code;
+      pTrans->code = code;
       mError("trans:%d, %s:%d failed to execute since %s", pTrans->id, mndTransStr(pAction->stage), pAction->id,
              terrstr());
       break;
@@ -1239,19 +1253,8 @@ int32_t mndKillTrans(SMnode *pMnode, STrans *pTrans) {
     return -1;
   }
 
-  int32_t size = taosArrayGetSize(pArray);
-
-  for (int32_t i = 0; i < size; ++i) {
+  for (int32_t i = 0; i < taosArrayGetSize(pArray); ++i) {
     STransAction *pAction = taosArrayGet(pArray, i);
-    if (pAction == NULL) continue;
-
-    if (pAction->msgReceived == 0) {
-      mInfo("trans:%d, %s:%d set processed for kill msg received", pTrans->id, mndTransStr(pAction->stage), i);
-      pAction->msgSent = 1;
-      pAction->msgReceived = 1;
-      pAction->errCode = 0;
-    }
-
     if (pAction->errCode != 0) {
       mInfo("trans:%d, %s:%d set processed for kill msg received, errCode from %s to success", pTrans->id,
             mndTransStr(pAction->stage), i, tstrerror(pAction->errCode));
@@ -1290,9 +1293,7 @@ static int32_t mndProcessKillTransReq(SRpcMsg *pReq) {
 
   pTrans = mndAcquireTrans(pMnode, killReq.transId);
   if (pTrans == NULL) {
-    terrno = TSDB_CODE_MND_TRANS_NOT_EXIST;
-    mError("trans:%d, failed to kill since %s", killReq.transId, terrstr());
-    return -1;
+    goto _OVER;
   }
 
   code = mndKillTrans(pMnode, pTrans);
@@ -1300,9 +1301,9 @@ static int32_t mndProcessKillTransReq(SRpcMsg *pReq) {
 _OVER:
   if (code != 0) {
     mError("trans:%d, failed to kill since %s", killReq.transId, terrstr());
-    return -1;
   }
 
+  mndReleaseUser(pMnode, pUser);
   mndReleaseTrans(pMnode, pTrans);
   return code;
 }

@@ -301,6 +301,7 @@ void sdbRelease(SSdb *pSdb, void *pObj);
  * @return void* The next iterator of the table.
  */
 void *sdbFetch(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj);
+void *sdbFetchAll(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj, ESdbStatus *status) ;
 
 /**
  * @brief Cancel a traversal

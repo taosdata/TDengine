@@ -613,7 +613,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
 
   pMObj = mndAcquireMnode(pMnode, dropReq.dnodeId);
   if (pMObj != NULL) {
-    terrno = TSDB_CODE_MND_MNODE_DEPLOYED;
+    terrno = TSDB_CODE_MND_MNODE_NOT_EXIST;
     goto DROP_DNODE_OVER;
   }
 

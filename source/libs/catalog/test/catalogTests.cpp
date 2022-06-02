@@ -137,7 +137,7 @@ void ctgTestInitLogFile() {
 
   tsAsyncLog = 0;
   qDebugFlag = 159;
-  strcpy(tsLogDir, "/var/log/taos");
+  strcpy(tsLogDir, TD_LOG_DIR_PATH);
 
   ctgdEnableDebug("api");
   ctgdEnableDebug("meta");

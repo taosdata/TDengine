@@ -24,6 +24,7 @@ static void msg_process(TAOS_RES* msg) {
   char buf[1024];
   /*memset(buf, 0, 1024);*/
   printf("topic: %s\n", tmq_get_topic_name(msg));
+  printf("db: %s\n", tmq_get_db_name(msg));
   printf("vg: %d\n", tmq_get_vgroup_id(msg));
   while (1) {
     TAOS_ROW row = taos_fetch_row(msg);
@@ -165,7 +166,6 @@ tmq_t* build_consumer() {
   tmq_conf_set(conf, "group.id", "tg2");
   tmq_conf_set(conf, "td.connect.user", "root");
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
-  /*tmq_conf_set(conf, "td.connect.db", "abc1");*/
   tmq_conf_set(conf, "msg.with.table.name", "true");
   tmq_conf_set(conf, "enable.auto.commit", "false");
   tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
@@ -191,21 +191,18 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
     return;
   }
   int32_t cnt = 0;
-  /*clock_t startTime = clock();*/
   while (running) {
     TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, 0);
     if (tmqmessage) {
       cnt++;
       msg_process(tmqmessage);
-      if (cnt >= 2) break;
+      /*if (cnt >= 2) break;*/
       /*printf("get data\n");*/
       taos_free_result(tmqmessage);
       /*} else {*/
       /*break;*/
     }
   }
-  /*clock_t endTime = clock();*/
-  /*printf("log cnt: %d %f s\n", cnt, (double)(endTime - startTime) / CLOCKS_PER_SEC);*/
 
   err = tmq_consumer_close(tmq);
   if (err)

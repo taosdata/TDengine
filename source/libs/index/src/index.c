@@ -150,6 +150,7 @@ void indexClose(SIndex* sIdx) {
       indexCacheForceToMerge((void*)(*pCache));
       indexInfo("%s wait to merge", (*pCache)->colName);
       indexWait((void*)(sIdx));
+      indexInfo("%s finish to wait", (*pCache)->colName);
       iter = taosHashIterate(sIdx->colObj, iter);
       indexCacheUnRef(*pCache);
     }
@@ -454,7 +455,7 @@ static void indexDestroyFinalResult(SArray* result) {
   taosArrayDestroy(result);
 }
 
-int indexFlushCacheToTFile(SIndex* sIdx, void* cache) {
+int indexFlushCacheToTFile(SIndex* sIdx, void* cache, bool quit) {
   if (sIdx == NULL) {
     return -1;
   }
@@ -464,7 +465,7 @@ int indexFlushCacheToTFile(SIndex* sIdx, void* cache) {
 
   IndexCache* pCache = (IndexCache*)cache;
 
-  while (sIdx->quit && atomic_load_32(&pCache->merging) == 1) {
+  while (quit && atomic_load_32(&pCache->merging) == 1) {
   }
   TFileReader* pReader = tfileGetReaderByCol(sIdx->tindex, pCache->suid, pCache->colName);
   if (pReader == NULL) {
@@ -476,11 +477,11 @@ int indexFlushCacheToTFile(SIndex* sIdx, void* cache) {
     indexError("%p immtable is empty, ignore merge opera", pCache);
     indexCacheDestroyImm(pCache);
     tfileReaderUnRef(pReader);
-    if (sIdx->quit) {
+    atomic_store_32(&pCache->merging, 0);
+    if (quit) {
       indexPost(sIdx);
     }
     indexReleaseRef(sIdx->refId);
-    atomic_store_32(&pCache->merging, 0);
     return 0;
   }
 
@@ -539,10 +540,10 @@ int indexFlushCacheToTFile(SIndex* sIdx, void* cache) {
   } else {
     indexInfo("success to merge , time cost: %" PRId64 "ms", cost / 1000);
   }
-  if (sIdx->quit) {
+  atomic_store_32(&pCache->merging, 0);
+  if (quit) {
     indexPost(sIdx);
   }
-  atomic_store_32(&pCache->merging, 0);
   indexReleaseRef(sIdx->refId);
 
   return ret;

@@ -12,30 +12,23 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#define _DEFAULT_SOURCE
 
 #include "tq.h"
 
-enum ETqOffsetPersist {
-  TQ_OFFSET_PERSIST__LAZY = 1,
-  TQ_OFFSET_PERSIST__EAGER,
-};
+void tqTableSink(SStreamTask* pTask, void* vnode, int64_t ver, void* data) {
+  const SArray* pRes = (const SArray*)data;
+  SVnode*       pVnode = (SVnode*)vnode;
 
-struct STqOffsetCfg {
-  int8_t persistPolicy;
-};
+  ASSERT(pTask->tbSink.pTSchema);
+  SSubmitReq* pReq = tdBlockToSubmit(pRes, pTask->tbSink.pTSchema, true, pTask->tbSink.stbUid,
+                                     pTask->tbSink.stbFullName, pVnode->config.vgId);
+  /*tPrintFixedSchemaSubmitReq(pReq, pTask->tbSink.pTSchema);*/
+  // build write msg
+  SRpcMsg msg = {
+      .msgType = TDMT_VND_SUBMIT,
+      .pCont = pReq,
+      .contLen = ntohl(pReq->length),
+  };
 
-struct STqOffsetStore {
-  STqOffsetCfg cfg;
-  SHashObj*    pHash;  // SHashObj<subscribeKey, offset>
-};
-
-STqOffsetStore* tqOffsetOpen(STqOffsetCfg* pCfg) {
-  STqOffsetStore* pStore = taosMemoryMalloc(sizeof(STqOffsetStore));
-  if (pStore == NULL) {
-    return NULL;
-  }
-  memcpy(&pStore->cfg, pCfg, sizeof(STqOffsetCfg));
-  pStore->pHash = taosHashInit(64, MurmurHash3_32, true, HASH_NO_LOCK);
-  return pStore;
+  ASSERT(tmsgPutToQueue(&pVnode->msgCb, WRITE_QUEUE, &msg) == 0);
 }

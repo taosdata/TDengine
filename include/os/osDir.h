@@ -33,8 +33,19 @@ extern "C" {
 
 #ifdef WINDOWS
 #define TD_TMP_DIR_PATH "C:\\Windows\\Temp\\"
+#define TD_CFG_DIR_PATH "C:\\TDengine\\cfg\\"
+#define TD_DATA_DIR_PATH "C:\\TDengine\\data\\"
+#define TD_LOG_DIR_PATH "C:\\TDengine\\log\\"
+#elif defined(_TD_DARWIN_64)
+#define TD_TMP_DIR_PATH "/tmp/taosd/"
+#define TD_CFG_DIR_PATH "/usr/local/etc/taos/"
+#define TD_DATA_DIR_PATH "/usr/local/var/lib/taos/"
+#define TD_LOG_DIR_PATH "/usr/local/var/log/taos/"
 #else
 #define TD_TMP_DIR_PATH "/tmp/"
+#define TD_CFG_DIR_PATH "/etc/taos/"
+#define TD_DATA_DIR_PATH "/var/lib/taos/"
+#define TD_LOG_DIR_PATH "/var/log/taos/"
 #endif
 
 typedef struct TdDir *TdDirPtr;

@@ -10,6 +10,7 @@ python3 ./test.py -f 0-others/taosdMonitor.py
 python3 ./test.py -f 0-others/udfTest.py
 python3 ./test.py -f 0-others/udf_create.py
 python3 ./test.py -f 0-others/udf_restart_taosd.py
+python3 ./test.py -f 0-others/cachelast.py
 
 python3 ./test.py -f 0-others/user_control.py
 python3 ./test.py -f 0-others/fsync.py
@@ -17,7 +18,7 @@ python3 ./test.py -f 0-others/fsync.py
 python3 ./test.py -f 1-insert/influxdb_line_taosc_insert.py
 python3 ./test.py -f 1-insert/opentsdb_telnet_line_taosc_insert.py
 python3 ./test.py -f 1-insert/opentsdb_json_taosc_insert.py
-python3 ./test.py -f 1-insert/test_stmt_muti_insert_query.py
+#python3 ./test.py -f 1-insert/test_stmt_muti_insert_query.py
 
 python3 ./test.py -f 2-query/between.py
 python3 ./test.py -f 2-query/distinct.py

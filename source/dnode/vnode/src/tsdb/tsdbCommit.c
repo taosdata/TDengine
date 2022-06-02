@@ -238,7 +238,7 @@ static void tsdbStartCommit(STsdb *pRepo) {
 
 static void tsdbEndCommit(STsdb *pTsdb, int eno) {
   tsdbEndFSTxn(pTsdb);
-  tsdbMemTableDestroy(pTsdb, pTsdb->imem);
+  tsdbMemTableDestroy(pTsdb->imem);
   pTsdb->imem = NULL;
   tsdbInfo("vgId:%d commit over, %s", REPO_ID(pTsdb), (eno == TSDB_CODE_SUCCESS) ? "succeed" : "failed");
 }
