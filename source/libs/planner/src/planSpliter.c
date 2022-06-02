@@ -375,6 +375,10 @@ static int32_t stbSplSplitScanNode(SSplitContext* pCxt, SStableSplitInfo* pInfo)
 }
 
 static int32_t stableSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
+  if (pCxt->pPlanCxt->rSmaQuery) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SStableSplitInfo info = {0};
   if (!splMatch(pCxt, pSubplan, SPLIT_FLAG_STABLE_SPLIT, (FSplFindSplitNode)stbSplFindSplitNode, &info)) {
     return TSDB_CODE_SUCCESS;
