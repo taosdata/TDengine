@@ -261,7 +261,13 @@ void addRowsToVgroupId(SThreadInfo* pInfo, int32_t vgroupId, int32_t rows) {
 }
 
 int32_t saveConsumeContentToTbl(SThreadInfo* pInfo, char* buf) {
-  char sqlStr[1024] = {0};
+  char sqlStr[1100] = {0};
+
+  if (strlen(buf) > 1024) {
+    taosFprintfFile(g_fp, "The length of one row[%d] is overflow 1024\n", strlen(buf));
+    taosCloseFile(&g_fp);
+    exit(-1);
+  }
 
   TAOS* pConn = taos_connect(NULL, "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
