@@ -94,7 +94,7 @@ TEST(testCase, driverInit_Test) {
   // taosInitGlobalCfg();
 //  taos_init();
 }
-#if 0
+
 TEST(testCase, connect_Test) {
 //  taos_options(TSDB_OPTION_CONFIGDIR, "/home/ubuntu/first/cfg");
 
@@ -645,7 +645,7 @@ TEST(testCase, projection_query_tables) {
   }
   taos_free_result(pRes);
 
-  for(int32_t i = 0; i < 1000000; i += 20) {
+  for(int32_t i = 0; i < 10000; i += 20) {
     char sql[1024] = {0};
     sprintf(sql,
             "insert into tu values(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
@@ -772,10 +772,9 @@ TEST(testCase, agg_query_tables) {
   taos_free_result(pRes);
   taos_close(pConn);
 }
-#endif
 
 /*
---- copy the following script in the shell to setup the environment.
+--- copy the following script in the shell to setup the environment ---
 
 create database test;
 use test;

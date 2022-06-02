@@ -1083,6 +1083,7 @@ void* doAsyncFetchRow(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUc
 
     SSyncQueryParam* pParam = pRequest->body.param;
     taos_fetch_rows_a(pRequest, syncFetchFn, pParam);
+    tsem_wait(&pParam->sem);
   }
 
   if (setupOneRowPtr) {

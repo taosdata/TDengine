@@ -124,7 +124,8 @@ int32_t schedulerAsyncFetchRows(int64_t job, schedulerFetchCallback fp, void* pa
   SSchJob *pJob = schAcquireJob(job);
   if (NULL == pJob) {
     qError("acquire job from jobRef list failed, may be dropped, refId:%" PRIx64, job);
-    SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
+    fp(NULL, param, TSDB_CODE_SCH_STATUS_ERROR);
+    return TSDB_CODE_SCH_STATUS_ERROR;
   }
 
   pJob->attr.syncSchedule = false;

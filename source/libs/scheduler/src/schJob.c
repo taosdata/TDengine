@@ -21,9 +21,9 @@
 #include "tref.h"
 #include "trpc.h"
 
-FORCE_INLINE SSchJob *schAcquireJob(int64_t refId) { return (SSchJob *)taosAcquireRef(schMgmt.jobRef, refId); }
+FORCE_INLINE SSchJob *schAcquireJob(int64_t refId) { qDebug("acquire job:0x%"PRIx64, refId); return (SSchJob *)taosAcquireRef(schMgmt.jobRef, refId); }
 
-FORCE_INLINE int32_t schReleaseJob(int64_t refId) { return taosReleaseRef(schMgmt.jobRef, refId); }
+FORCE_INLINE int32_t schReleaseJob(int64_t refId) { qDebug("release job:0x%"PRIx64, refId); return taosReleaseRef(schMgmt.jobRef, refId); }
 
 int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *pLevel) {
   pTask->plan = pPlan;

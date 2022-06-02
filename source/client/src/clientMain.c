@@ -189,7 +189,16 @@ TAOS_RES *taos_query(TAOS *taos, const char *sql) {
   }
 
   STscObj* pTscObj = (STscObj*)taos;
-#if 0
+
+#if SYNC_ON_TOP_OF_ASYNC
+  SSyncQueryParam* param = taosMemoryCalloc(1, sizeof(struct SSyncQueryParam));
+  tsem_init(&param->sem, 0, 0);
+
+  taos_query_a(pTscObj, sql, syncQueryFn, param);
+  tsem_wait(&param->sem);
+
+  return param->pRequest;
+#else
   size_t sqlLen = strlen(sql);
   if (sqlLen > (size_t)TSDB_MAX_ALLOWED_SQL_LEN) {
     tscError("sql string exceeds max length:%d", TSDB_MAX_ALLOWED_SQL_LEN);
@@ -199,14 +208,6 @@ TAOS_RES *taos_query(TAOS *taos, const char *sql) {
 
   return execQuery(pTscObj, sql, sqlLen);
 #endif
-
-  SSyncQueryParam* param = taosMemoryCalloc(1, sizeof(struct SSyncQueryParam));
-  tsem_init(&param->sem, 0, 0);
-
-  taos_query_a(pTscObj, sql, syncQueryFn, param);
-  tsem_wait(&param->sem);
-
-  return param->pRequest;
 }
 
 TAOS_ROW taos_fetch_row(TAOS_RES *res) {
@@ -221,8 +222,12 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
       return NULL;
     }
 
+#if SYNC_ON_TOP_OF_ASYNC
     return doAsyncFetchRow(pRequest, true, true);
-//    return doFetchRows(pRequest, true, true);
+#else
+    return doFetchRows(pRequest, true, true);
+#endif
+
   } else if (TD_RES_TMQ(res)) {
     SMqRspObj      *msg = ((SMqRspObj *)res);
     SReqResultInfo *pResultInfo;

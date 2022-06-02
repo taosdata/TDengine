@@ -46,6 +46,8 @@ extern "C" {
 #define ERROR_MSG_BUF_DEFAULT_SIZE 512
 #define HEARTBEAT_INTERVAL         1500  // ms
 
+#define SYNC_ON_TOP_OF_ASYNC 0
+
 enum {
   RES_TYPE__QUERY = 1,
   RES_TYPE__TMQ,
