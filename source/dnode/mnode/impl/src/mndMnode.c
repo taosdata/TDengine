@@ -392,11 +392,6 @@ static int32_t mndProcessCreateMnodeReq(SRpcMsg *pReq) {
 
   mDebug("mnode:%d, start to create", createReq.dnodeId);
 
-  if (sdbGetSize(pMnode->pSdb, SDB_MNODE) >= 3) {
-    terrno = TSDB_CODE_MND_TOO_MANY_MNODES;
-    goto _OVER;
-  }
-
   pObj = mndAcquireMnode(pMnode, createReq.dnodeId);
   if (pObj != NULL) {
     terrno = TSDB_CODE_MND_MNODE_ALREADY_EXIST;
@@ -405,9 +400,19 @@ static int32_t mndProcessCreateMnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  if (sdbGetSize(pMnode->pSdb, SDB_MNODE) >= 3) {
+    terrno = TSDB_CODE_MND_TOO_MANY_MNODES;
+    goto _OVER;
+  }
+
   pDnode = mndAcquireDnode(pMnode, createReq.dnodeId);
   if (pDnode == NULL) {
     terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
+    goto _OVER;
+  }
+
+  if (!mndIsDnodeOnline(pMnode, pDnode, taosGetTimestampMs())) {
+    terrno = TSDB_CODE_NODE_OFFLINE;
     goto _OVER;
   }
 
@@ -632,11 +637,12 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   int32_t    numOfRows = 0;
   int32_t    cols = 0;
   SMnodeObj *pObj = NULL;
+  ESdbStatus objStatus;
   char      *pWrite;
   int64_t    curMs = taosGetTimestampMs();
 
   while (numOfRows < rows) {
-    pShow->pIter = sdbFetch(pSdb, SDB_MNODE, pShow->pIter, (void **)&pObj);
+    pShow->pIter = sdbFetchAll(pSdb, SDB_MNODE, pShow->pIter, (void **)&pObj, &objStatus);
     if (pShow->pIter == NULL) break;
 
     cols = 0;
@@ -649,22 +655,25 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, b1, false);
 
-    bool        online = mndIsDnodeOnline(pMnode, pObj->pDnode, curMs);
-    const char *roles = NULL;
+    const char *roles = "OFFLINE";
     if (pObj->id == pMnode->selfDnodeId) {
       roles = syncStr(TAOS_SYNC_STATE_LEADER);
-    } else {
-      if (!online) {
-        roles = "OFFLINE";
-      } else {
-        roles = syncStr(pObj->state);
-      }
     }
-    char *b2 = taosMemoryCalloc(1, 12 + VARSTR_HEADER_SIZE);
+    if (pObj->pDnode && mndIsDnodeOnline(pMnode, pObj->pDnode, curMs)) {
+      roles = syncStr(pObj->state);
+    }
+    char b2[12 + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(b2, roles, pShow->pMeta->pSchemas[cols].bytes);
-
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)b2, false);
+
+    const char *status = "READY";
+    if (objStatus == SDB_STATUS_CREATING) status = "CREATING";
+    if (objStatus == SDB_STATUS_DROPPING) status = "DROPPING";
+    char b3[9 + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(b3, status, pShow->pMeta->pSchemas[cols].bytes);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)b3, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&pObj->createdTime, false);

@@ -51,6 +51,7 @@ class JsonEnv : public ::testing::Test {
     tIndexJsonClose(index);
     indexOptsDestroy(opts);
     printf("destory\n");
+    taosMsleep(1000);
   }
   SIndexJsonOpts* opts;
   SIndexJson*     index;
