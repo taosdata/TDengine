@@ -2354,19 +2354,19 @@ typedef struct {
   STSma*  tSma;
 } STSmaWrapper;
 
-static FORCE_INLINE void tdDestroyTSma(STSma* pSma) {
+static FORCE_INLINE void tDestroyTSma(STSma* pSma) {
   if (pSma) {
     taosMemoryFreeClear(pSma->expr);
     taosMemoryFreeClear(pSma->tagsFilter);
   }
 }
 
-static FORCE_INLINE void tdDestroyTSmaWrapper(STSmaWrapper* pSW, bool deepCopy) {
+static FORCE_INLINE void tDestroyTSmaWrapper(STSmaWrapper* pSW, bool deepCopy) {
   if (pSW) {
     if (pSW->tSma) {
       if (deepCopy) {
         for (uint32_t i = 0; i < pSW->number; ++i) {
-          tdDestroyTSma(pSW->tSma + i);
+          tDestroyTSma(pSW->tSma + i);
         }
       }
       taosMemoryFreeClear(pSW->tSma);
@@ -2374,8 +2374,8 @@ static FORCE_INLINE void tdDestroyTSmaWrapper(STSmaWrapper* pSW, bool deepCopy) 
   }
 }
 
-static FORCE_INLINE void* tdFreeTSmaWrapper(STSmaWrapper* pSW, bool deepCopy) {
-  tdDestroyTSmaWrapper(pSW, deepCopy);
+static FORCE_INLINE void* tFreeTSmaWrapper(STSmaWrapper* pSW, bool deepCopy) {
+  tDestroyTSmaWrapper(pSW, deepCopy);
   taosMemoryFreeClear(pSW);
   return NULL;
 }
