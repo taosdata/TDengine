@@ -572,13 +572,6 @@ int32_t tDeserializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* 
 void    tFreeSGetUserAuthRsp(SGetUserAuthRsp* pRsp);
 
 typedef struct {
-  int16_t colId;     // column id
-  int16_t colIndex;  // column index in colList if it is a normal column or index in tagColList if a tag
-  int16_t flag;      // denote if it is a tag or a normal column
-  char    name[TSDB_DB_FNAME_LEN];
-} SColIndex;
-
-typedef struct {
   int16_t lowerRelOptr;
   int16_t upperRelOptr;
   int16_t filterstr;  // denote if current column is char(binary/nchar)
