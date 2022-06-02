@@ -17,7 +17,7 @@ Build with Maven
 
 Build with Gradle
 
-```
+```groovy
 dependencies {
   implementation 'com.taosdata.jdbc:taos-jdbcdriver:2.0.39'
 }
