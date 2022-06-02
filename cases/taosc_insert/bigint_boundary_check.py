@@ -31,12 +31,12 @@ class TestBigintBoundary(TDCase):
         self.tdSql.execute(f'insert into {dbname}.tb1 values (now, -{self.tdCom.boundary_config["BIGINT_MAX"]+1})')
         self.tdSql.execute(f'insert into {dbname}.tb2 values (now, {self.tdCom.boundary_config["BIGINT_MAX"]})')
 
-        # self.tdSql.query(f'select t1, c1 from {dbname}.tb1')
-        # self.tdSql.checkEqual(self.tdSql.query_data[0][0], self.tdCom.boundary_config["BIGINT_MAX"])
-        # self.tdSql.checkEqual(self.tdSql.query_data[0][1], -self.tdCom.boundary_config["BIGINT_MAX"]-1)
-        # self.tdSql.query(f'select t1, c1 from {dbname}.tb2')
-        # self.tdSql.checkEqual(self.tdSql.query_data[0][0], -self.tdCom.boundary_config["BIGINT_MAX"]-1)
-        # self.tdSql.checkEqual(self.tdSql.query_data[0][1], self.tdCom.boundary_config["BIGINT_MAX"])
+        self.tdSql.query(f'select t1, c1 from {dbname}.tb1')
+        self.tdSql.checkEqual(self.tdSql.query_data[0][0], self.tdCom.boundary_config["BIGINT_MAX"])
+        self.tdSql.checkEqual(self.tdSql.query_data[0][1], -self.tdCom.boundary_config["BIGINT_MAX"]-1)
+        self.tdSql.query(f'select t1, c1 from {dbname}.tb2')
+        self.tdSql.checkEqual(self.tdSql.query_data[0][0], -self.tdCom.boundary_config["BIGINT_MAX"]-1)
+        self.tdSql.checkEqual(self.tdSql.query_data[0][1], self.tdCom.boundary_config["BIGINT_MAX"])
 
         self.tdSql.error(f'create stable if not exists {dbname}.stb_error1 (col_ts timestamp, c1 {self.tdCom.boundary_config["BIGINT_MAX"]}) tags (t1 {self.tdCom.boundary_config["BIGINT_MAX"]+1})')
         self.tdSql.error(f'create stable if not exists {dbname}.stb_error2 (col_ts timestamp, c1 {self.tdCom.boundary_config["BIGINT_MAX"]+1}) tags (t1 {self.tdCom.boundary_config["BIGINT_MAX"]})')
