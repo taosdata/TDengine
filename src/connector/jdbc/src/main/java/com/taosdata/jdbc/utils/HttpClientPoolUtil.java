@@ -5,7 +5,6 @@ import com.taosdata.jdbc.TSDBErrorNumbers;
 import org.apache.http.HeaderElement;
 import org.apache.http.HeaderElementIterator;
 import org.apache.http.HttpEntity;
-import org.apache.http.NoHttpResponseException;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.*;
@@ -97,12 +96,12 @@ public class HttpClientPoolUtil {
     }
 
     /*** execute POST request ***/
-    public static String execute(String uri, String data, String token) throws SQLException {
+    public static String execute(String uri, String data, String auth) throws SQLException {
 
         HttpEntityEnclosingRequestBase method = (HttpEntityEnclosingRequestBase) getRequest(uri, HttpPost.METHOD_NAME);
         method.setHeader(HTTP.CONTENT_TYPE, "text/plain");
         method.setHeader(HTTP.CONN_DIRECTIVE, isKeepAlive);
-        method.setHeader("Authorization", "Taosd " + token);
+        method.setHeader("Authorization", auth);
         method.setEntity(new StringEntity(data, StandardCharsets.UTF_8));
         HttpContext context = HttpClientContext.create();
 

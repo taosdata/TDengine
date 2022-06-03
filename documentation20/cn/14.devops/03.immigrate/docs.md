@@ -63,7 +63,7 @@ LoadPlugin write_tsdb
 
 即可让 collectd 将数据使用推送到 OpenTSDB 的插件方式推送到 taosAdapter， taosAdapter 将调用 API 将数据写入到 taosd 中，从而完成数据的写入工作。如果你使用的是 StatsD 相应地调整配置文件信息。
 
-- **调整看板（Dashborad）系统**
+- **调整看板（Dashboard）系统**
 
 在数据能够正常写入 TDengine 后，可以调整适配 Grafana 将写入 TDengine 的数据可视化呈现出来。获取和使用 TDengine 提供的 Grafana 插件请参考[与其他工具的连接](https://www.taosdata.com/cn/documentation/connections#grafana)。
 

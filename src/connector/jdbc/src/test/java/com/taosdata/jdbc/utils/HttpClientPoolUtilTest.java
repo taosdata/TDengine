@@ -84,7 +84,7 @@ public class HttpClientPoolUtilTest {
         if (!status.equals("succ")) {
             throw new SQLException(jsonResult.getString("desc"));
         }
-        return token;
+        return "Basic " + token;
     }
 
     private boolean executeOneSql(String sql, String token) throws SQLException {

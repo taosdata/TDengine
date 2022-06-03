@@ -1,6 +1,6 @@
 # 高效写入数据
 
-TDengine 支持多种接口写入数据，包括 SQL，Prometheus，Telegraf，collectd，StatsD，EMQ MQTT Broker，HiveMQ Broker，CSV 文件等，后续还将提供 Kafka，OPC 等接口。数据可以单条插入，也可以批量插入，可以插入一个数据采集点的数据，也可以同时插入多个数据采集点的数据。支持多线程插入，支持时间乱序数据插入，也支持历史数据插入。
+TDengine 支持多种接口写入数据，包括 SQL，Prometheus，Telegraf，collectd，StatsD，EMQX MQTT Broker，HiveMQ Broker，CSV 文件等，后续还将提供 Kafka，OPC 等接口。数据可以单条插入，也可以批量插入，可以插入一个数据采集点的数据，也可以同时插入多个数据采集点的数据。支持多线程插入，支持时间乱序数据插入，也支持历史数据插入。
 
 ## <a class="anchor" id="sql"></a>SQL 写入
 
@@ -312,9 +312,9 @@ TCollector 是一个在客户侧收集本地收集器并发送数据到 OpenTSDB
 
 taosAdapter 相关配置参数请参考 taosadapter --help 命令输出以及相关文档。
 
-## <a class="anchor" id="emq"></a>EMQ Broker 直接写入
+## <a class="anchor" id="emq"></a>EMQX Broker 直接写入
 
-MQTT 是流行的物联网数据传输协议，[EMQX](https://github.com/emqx/emqx) 是一开源的 MQTT Broker 软件，无需任何代码，只需要在 EMQ Dashboard 里使用“规则”做简单配置，即可将 MQTT 的数据直接写入 TDengine。EMQX 支持通过 发送到 Web 服务的方式保存数据到 TDengine，也在企业版上提供原生的 TDengine 驱动实现直接保存。详细使用方法请参考 [EMQ 官方文档](https://docs.emqx.com/zh/enterprise/v4.4/rule/backend_tdengine.html#%E4%BF%9D%E5%AD%98%E6%95%B0%E6%8D%AE%E5%88%B0-tdengine)。
+MQTT 是流行的物联网数据传输协议，[EMQX](https://github.com/emqx/emqx) 是一开源的 MQTT Broker 软件，无需任何代码，只需要在 EMQX Dashboard 里使用“规则”做简单配置，即可将 MQTT 的数据直接写入 TDengine。EMQX 支持通过 发送到 Web 服务的方式保存数据到 TDengine，也在企业版上提供原生的 TDengine 驱动实现直接保存。详细使用方法请参考 [EMQX 官方文档](https://docs.emqx.com/zh/enterprise/v4.4/rule/backend_tdengine.html#%E4%BF%9D%E5%AD%98%E6%95%B0%E6%8D%AE%E5%88%B0-tdengine)。
 
 ## <a class="anchor" id="hivemq"></a>HiveMQ Broker 直接写入
 

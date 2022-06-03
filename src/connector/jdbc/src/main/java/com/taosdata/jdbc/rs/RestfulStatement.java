@@ -63,7 +63,7 @@ public class RestfulStatement extends AbstractStatement {
         //如果执行了use操作应该将当前Statement的catalog设置为新的database
         boolean result = true;
 
-        String response = HttpClientPoolUtil.execute(getUrl(), sql, this.conn.getToken());
+        String response = HttpClientPoolUtil.execute(getUrl(), sql, this.conn.getAuth());
         JSONObject jsonObject = JSON.parseObject(response);
         if (null == jsonObject) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "sql: " + sql);
@@ -95,6 +95,10 @@ public class RestfulStatement extends AbstractStatement {
 
     private String getUrl() throws SQLException {
         String dbname = conn.getClientInfo(TSDBDriver.PROPERTY_KEY_DBNAME);
+        String protocol = "http";
+//        if (conn.isUseSsl()) {
+//            protocol = "https";
+//        }
         if (dbname == null || dbname.trim().isEmpty()) {
             dbname = "";
         } else {
@@ -105,13 +109,16 @@ public class RestfulStatement extends AbstractStatement {
 
         switch (timestampFormat) {
             case TIMESTAMP:
-                url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sqlt" + dbname;
+                url = protocol + "://" + conn.getHost() + ":" + conn.getPort() + "/rest/sqlt" + dbname;
                 break;
             case UTC:
-                url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sqlutc" + dbname;
+                url = protocol + "://" + conn.getHost() + ":" + conn.getPort() + "/rest/sqlutc" + dbname;
                 break;
             default:
-                url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sql" + dbname;
+                url = protocol + "://" + conn.getHost() + ":" + conn.getPort() + "/rest/sql" + dbname;
+        }
+        if (this.conn.getToken() != null && !"".equals(this.conn.getToken().trim())) {
+            url = url + "?token=" + this.conn.getToken();
         }
         return url;
     }

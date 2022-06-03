@@ -1,9 +1,8 @@
 ---
-sidebar-label: Escape
-title: Escape
+title: Escape Characters
 ---
 
-## Escape Characters
+Below table is the list of escape characters used in TDengine.
 
 | Escape Character | **Actual Meaning**       |
 | :--------------: | ------------------------ |

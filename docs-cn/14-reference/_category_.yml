@@ -1,5 +1,1 @@
 label: 参考指南
-link:
-  slug: /reference/
-  type: generated-index
-  description: "参考指南是对 TDengine 本身、 TDengine 各语言连接器及自带的工具最详细的介绍。"

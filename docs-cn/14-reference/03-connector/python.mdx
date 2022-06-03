@@ -122,7 +122,7 @@ Requirement already satisfied: taospy in c:\users\username\appdata\local\program
 <Tabs>
 <TabItem value="native" label="原生连接">
 
-请确保 TDengine 集群已经启动， 且集群中机器的 FQDN （如果启动的是单机版，FQDN 默认为 hostname）在本机能够解析, 可用 ping 命令进行测试：
+请确保 TDengine 集群已经启动， 且集群中机器的 FQDN （如果启动的是单机版，FQDN 默认为 hostname）在本机能够解析, 可用 `ping` 命令进行测试：
 
 ```
 ping <FQDN>
@@ -197,17 +197,13 @@ curl -u root:taosdata http://<FQDN>:<PORT>/rest/sql -d "select server_version()"
 {{#include docs-examples/python/connect_rest_examples.py:connect}}
 ```
 
-`connect` 函数的所有参数都是可选的关键字参数。下面是连接参数的具体说明：
+`connect()` 函数的所有参数都是可选的关键字参数。下面是连接参数的具体说明：
 
 - `host`： 要连接的主机。默认是 localhost。
 - `user`： TDenigne 用户名。默认是 root。
 - `password`： TDeingine 用户密码。默认是 taosdata。
 - `port`: taosAdapter REST 服务监听端口。默认是 6041.
 - `timeout`: HTTP 请求超时时间。单位为秒。默认为 `socket._GLOBAL_DEFAULT_TIMEOUT`。 一般无需配置。
-
-:::note
-
-:::
 
 </TabItem>
 </Tabs>
@@ -232,12 +228,12 @@ curl -u root:taosdata http://<FQDN>:<PORT>/rest/sql -d "select server_version()"
 ```
 
 :::tip
-查询结果只能获取一次。比如上面的示例中 `featch_all` 和 `fetch_all_into_dict` 只能用一个。重复获取得到的结果为空列表。
+查询结果只能获取一次。比如上面的示例中 `fetch_all()` 和 `fetch_all_into_dict()` 只能用一个。重复获取得到的结果为空列表。
 :::
 
 ##### TaosResult 类的使用
 
-上面 `TaosConnection` 类的使用示例中，我们已经展示了两种获取查询结果的方法： `featch_all` 和 `fetch_all_into_dict`。除此之外 `TaosResult` 还提供了按行迭代(`rows_iter`)或按数据块迭代(`blocks_iter`)结果集的方法。在查询数据量较大的场景，使用这两个方法会更高效。
+上面 `TaosConnection` 类的使用示例中，我们已经展示了两种获取查询结果的方法： `fetch_all()` 和 `fetch_all_into_dict()`。除此之外 `TaosResult` 还提供了按行迭代(`rows_iter`)或按数据块迭代(`blocks_iter`)结果集的方法。在查询数据量较大的场景，使用这两个方法会更高效。
 
 ```python title="blocks_iter 方法"
 {{#include docs-examples/python/result_set_examples.py}}

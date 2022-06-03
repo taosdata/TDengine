@@ -3,7 +3,7 @@ sidebar_label: TCollector
 title: TCollector 写入
 ---
 
-import Tcollector from "../14-reference/_tcollector.mdx"
+import TCollector from "../14-reference/_tcollector.mdx"
 
 TCollector 是 openTSDB 的一部分，它用来采集客户端日志发送给数据库。
 
@@ -17,7 +17,7 @@ TCollector 是 openTSDB 的一部分，它用来采集客户端日志发送给�
 - TCollector 已经安装。安装 TCollector 请参考[官方文档](http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html#installation-of-tcollector)
 
 ## 配置步骤
-<Tcollector />
+<TCollector />
 
 ## 验证方法
 
