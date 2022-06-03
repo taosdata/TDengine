@@ -15,24 +15,24 @@ In order for Grafana to add the TDengine data source successfully, the following
 
 ## Installing Grafana
 
-TDengine currently supports Grafana versions 7.0 and above. Users can go to the Grafana official website to download the installation package and execute the installation according to the current operating system. The download address is as follows: <https://grafana.com/grafana/download>.
+TDengine currently supports Grafana versions 7.5 and above. Users can go to the Grafana official website to download the installation package and execute the installation according to the current operating system. The download address is as follows: <https://grafana.com/grafana/download>.
 
 ## Configuring Grafana
 
-You can download The Grafana plugin for TDengine from <https://github.com/taosdata/grafanaplugin/releases/latest>. The current latest version is 3.1.4.
+You can download The Grafana plugin for TDengine from <https://github.com/taosdata/grafanaplugin/releases/latest>. The current latest version is v3.2.3.
 
 Recommend using the [``grafana-cli`` command-line tool](https://grafana.com/docs/grafana/latest/administration/cli/) for plugin installation.
 
 ``bash
 sudo -u grafana grafana-cli \
-  --pluginUrl https://github.com/taosdata/grafanaplugin/releases/download/v3.1.4/tdengine-datasource-3.1.4.zip \
+  --pluginUrl https://github.com/taosdata/grafanaplugin/releases/download/v3.2.3/tdengine-datasource-3.2.3.zip \
   plugins install tdengine-datasource
 ```
 
 Or download it locally and extract it to the Grafana plugin directory.
 
 ```bash
-GF_VERSION=3.1.4
+GF_VERSION=3.2.3
 wget https://github.com/taosdata/grafanaplugin/releases/download/v$GF_VERSION/tdengine-datasource-$GF_VERSION.zip
 ```
 
@@ -52,7 +52,7 @@ allow_loading_unsigned_plugins = tdengine-datasource
 The TDengine plugin can be automatically installed and set up using the following environment variable settings in a Docker environment.
 
 ```bash
-GF_INSTALL_PLUGINS=https://github.com/taosdata/grafanaplugin/releases/download/v3.1.4/tdengine-datasource-3.1.4.zip;tdengine- datasource
+GF_INSTALL_PLUGINS=https://github.com/taosdata/grafanaplugin/releases/download/v3.2.3/tdengine-datasource-3.2.3.zip;tdengine- datasource
 GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=tdengine-datasource
 ```
 
@@ -100,4 +100,4 @@ Follow the default prompt to query the average system memory usage for the speci
 
 ### Importing the Dashboard
 
-In version 2.3.3.0 and above, you can import the TDinsight Dashboard (Grafana Dashboard ID: [15168](https://grafana.com/grafana/dashboards/15167)) as a monitoring visualization tool for TDengine clusters. You can find installation and usage instructions in the TDinsight User Manual (/reference/tdinsight/).
+In version 2.3.3.0 and above, you can import the TDinsight Dashboard (Grafana Dashboard ID: [15167](https://grafana.com/grafana/dashboards/15167)) as a monitoring visualization tool for TDengine clusters. You can find installation and usage instructions in the TDinsight User Manual (/reference/tdinsight/).
