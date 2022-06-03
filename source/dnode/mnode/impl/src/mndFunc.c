@@ -538,7 +538,7 @@ static int32_t mndRetrieveFuncs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&isAgg, false);
 
-    char b3[TSDB_TYPE_STR_MAX_LEN] = {0};
+    char b3[TSDB_TYPE_STR_MAX_LEN + 1] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(b3, mnodeGenTypeStr(buf, TSDB_TYPE_STR_MAX_LEN, pFunc->outputType, pFunc->outputLen),
                                pShow->pMeta->pSchemas[cols].bytes);
 
