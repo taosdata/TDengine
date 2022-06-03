@@ -1450,12 +1450,12 @@ static void syncFreeNode(void* param) {
 const char* syncStr(ESyncState state) {
   switch (state) {
     case TAOS_SYNC_STATE_FOLLOWER:
-      return "FOLLOWER";
+      return "follower";
     case TAOS_SYNC_STATE_CANDIDATE:
-      return "CANDIDATE";
+      return "candidate";
     case TAOS_SYNC_STATE_LEADER:
-      return "LEADER";
+      return "leader";
     default:
-      return "ERROR";
+      return "error";
   }
 }

@@ -70,6 +70,56 @@ const char *mndTopicGetShowName(const char topic[TSDB_TOPIC_FNAME_LEN]) {
   return strchr(topic, '.') + 1;
 }
 
+bool mndCheckColAndTagModifiable(SMnode *pMnode, int64_t suid, const SArray *colAndTagIds) {
+  SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
+  bool  found = false;
+  while (1) {
+    SMqTopicObj *pTopic = NULL;
+    pIter = sdbFetch(pSdb, SDB_TOPIC, pIter, (void **)&pTopic);
+    if (pIter == NULL) break;
+    if (pTopic->subType != TOPIC_SUB_TYPE__COLUMN) {
+      sdbRelease(pSdb, pTopic);
+      continue;
+    }
+
+    SNode *pAst = NULL;
+    if (nodesStringToNode(pTopic->ast, &pAst) != 0) {
+      ASSERT(0);
+      return false;
+    }
+
+    SHashObj  *pColHash = NULL;
+    SNodeList *pNodeList;
+    nodesCollectColumns((SSelectStmt *)pAst, SQL_CLAUSE_FROM, NULL, COLLECT_COL_TYPE_ALL, &pNodeList);
+    SNode *pNode = NULL;
+    FOREACH(pNode, pNodeList) {
+      SColumnNode *pCol = (SColumnNode *)pNode;
+      if (pCol->tableId != suid) goto NEXT;
+      if (pColHash == NULL) {
+        pColHash = taosHashInit(0, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), false, HASH_NO_LOCK);
+      }
+      if (pCol->colId > 0) {
+        taosHashPut(pColHash, &pCol->colId, sizeof(int16_t), NULL, 0);
+      }
+    }
+
+    for (int32_t i = 0; i < taosArrayGetSize(colAndTagIds); i++) {
+      int16_t *pColId = taosArrayGet(colAndTagIds, i);
+      if (taosHashGet(pColHash, pColId, sizeof(int16_t)) != NULL) {
+        found = true;
+        goto NEXT;
+      }
+    }
+
+  NEXT:
+    sdbRelease(pSdb, pTopic);
+    nodesDestroyNode(pAst);
+    if (found) return false;
+  }
+  return true;
+}
+
 SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 

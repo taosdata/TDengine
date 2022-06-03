@@ -16,7 +16,7 @@ RESTful 接口不依赖于任何 TDengine 的库，因此客户端不需要安�
 
 在已经安装 TDengine 服务器端的情况下，可以按照如下方式进行验证。
 
-下面以 Ubuntu 环境中使用 curl 工具（确认已经安装）来验证 RESTful 接口的正常。
+下面以 Ubuntu 环境中使用 curl 工具（确认已经安装）来验证 RESTful 接口的正常，验证前请确认 taosAdapter 服务已开启，在 Linux 系统上此服务默认由 systemd 管理，使用命令 `systemctl start taosadapter` 启动。
 
 下面示例是列出所有的数据库，请把 h1.taosdata.com 和 6041（缺省值）替换为实际运行的 TDengine 服务 FQDN 和端口号：
 

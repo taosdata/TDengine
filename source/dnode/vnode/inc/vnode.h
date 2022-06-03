@@ -148,6 +148,9 @@ bool    tqNextDataBlockFilterOut(STqReadHandle *pHandle, SHashObj *filterOutUids
 int32_t tqRetrieveDataBlock(SArray **ppCols, STqReadHandle *pHandle, uint64_t *pGroupId, uint64_t *pUid,
                             int32_t *pNumOfRows, int16_t *pNumOfCols);
 
+// sma
+int32_t smaGetTSmaDays(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);
+
 // need to reposition
 
 // structs

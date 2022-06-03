@@ -96,40 +96,38 @@ int32_t mmPutNodeMsgToMonitorQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return mmPutNodeMsgToWorker(&pMgmt->monitorWorker, pMsg);
 }
 
-static inline int32_t mmPutRpcMsgToWorker(SSingleWorker *pWorker, SRpcMsg *pRpc) {
+int32_t mmPutRpcMsgToQueue(SMnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM);
   if (pMsg == NULL) return -1;
-
-  dTrace("msg:%p, create and put into worker:%s, type:%s", pMsg, pWorker->name, TMSG_INFO(pRpc->msgType));
   memcpy(pMsg, pRpc, sizeof(SRpcMsg));
-  taosWriteQitem(pWorker->queue, pMsg);
-  return 0;
-}
 
-int32_t mmPutRpcMsgToQueryQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  return mmPutRpcMsgToWorker(&pMgmt->queryWorker, pMsg);
-}
+  switch (qtype) {
+    case WRITE_QUEUE:
+      dTrace("msg:%p, is created and will put into vnode-write queue", pMsg);
+      taosWriteQitem(pMgmt->writeWorker.queue, pMsg);
+      return 0;
+    case QUERY_QUEUE:
+      dTrace("msg:%p, is created and will put into vnode-query queue", pMsg);
+      taosWriteQitem(pMgmt->queryWorker.queue, pMsg);
+      return 0;
 
-int32_t mmPutRpcMsgToWriteQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  return mmPutRpcMsgToWorker(&pMgmt->writeWorker, pMsg);
-}
-
-int32_t mmPutRpcMsgToReadQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  return mmPutRpcMsgToWorker(&pMgmt->readWorker, pMsg);
-}
-
-int32_t mmPutRpcMsgToSyncQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  int32_t code = -1;
-  if (mmAcquire(pMgmt) == 0) {
-    code = mmPutRpcMsgToWorker(&pMgmt->syncWorker, pMsg);
-    mmRelease(pMgmt);
+    case READ_QUEUE:
+      dTrace("msg:%p, is created and will put into vnode-read queue", pMsg);
+      taosWriteQitem(pMgmt->readWorker.queue, pMsg);
+      return 0;
+    case SYNC_QUEUE:
+      if (mmAcquire(pMgmt) == 0) {
+        dTrace("msg:%p, is created and will put into vnode-sync queue", pMsg);
+        taosWriteQitem(pMgmt->syncWorker.queue, pMsg);
+        mmRelease(pMgmt);
+        return 0;
+      } else {
+        return -1;
+      }
+    default:
+      terrno = TSDB_CODE_INVALID_PARA;
+      return -1;
   }
-
-  if (code != 0) {
-    rpcFreeCont(pMsg->pCont);
-    pMsg->pCont = NULL;
-  }
-  return code;
 }
 
 int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
