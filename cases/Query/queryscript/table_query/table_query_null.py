@@ -70,7 +70,12 @@ class TDTestQuery(TDCase):
         cur1.execute(sql)
 
         return(conn1,cur1)
-
+    
+    def explain_sql(self,sql):   
+        #执行sql解析    
+        sql = "explain " + sql 
+        self.tdSql.query(sql)
+        
     def right_case1(self):
         print("case1:select * from regular_table where condition[null data] && select * from ( select front )")
         print("\n\n\n=========================================case1=========================================\n\n\n")
@@ -101,16 +106,19 @@ class TDTestQuery(TDCase):
                         sql2 = "select * from %s where %s %s %s " %(self.table,q_where,q_like_match,q_in_where)
                         self.tdCreateData.result_0(sql2)
                         cur1.execute(sql2)
+                        self.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s where %s %s %s )" %(self.table,q_where,q_like_match,q_in_where)
                         #self.tdCreateData.result_0(sql2) #TD-16240
                         cur1.execute(sql2)
+                        self.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s) where %s %s %s " %(self.table,q_where,q_like_match,q_in_where)
                         #self.tdCreateData.result_0(sql2) #TD-16240
                         cur1.execute(sql2)
+                        self.explain_sql(sql2)
                         sql= sql + sql2
 
             except Exception as e:
@@ -151,36 +159,43 @@ class TDTestQuery(TDCase):
                         sql2 = "select * from %s where %s %s %s order by ts" %(self.table,q_where,q_like_match,q_in_where)
                         self.tdCreateData.result_0(sql2)
                         cur1.execute(sql2)
+                        self.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s where %s %s %s order by ts)" %(self.table,q_where,q_like_match,q_in_where)
                         self.tdCreateData.result_0(sql2)
                         cur1.execute(sql2)
+                        self.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s where %s %s %s ) order by ts" %(self.table,q_where,q_like_match,q_in_where)
                         self.tdCreateData.result_0(sql2)
                         cur1.execute(sql2)
+                        self.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s) where %s %s %s order by ts" %(self.table,q_where,q_like_match,q_in_where)
                         #self.tdCreateData.result_0(sql2) #TD-16240
                         cur1.execute(sql2)
+                        self.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s order by ts) where %s %s %s " %(self.table,q_where,q_like_match,q_in_where)
                         #self.tdCreateData.result_0(sql2) #TD-16240
                         cur1.execute(sql2)
+                        self.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s where %s %s %s ) where %s %s %s order by ts" %(self.table,q_where,q_like_match,q_in_where,q_where,q_like_match,q_in_where)
                         self.tdCreateData.result_0(sql2)
                         cur1.execute(sql2)
+                        self.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s where %s %s %s order by ts desc ) where %s %s %s order by ts" %(self.table,q_where,q_like_match,q_in_where,q_where,q_like_match,q_in_where)
                         self.tdCreateData.result_0(sql2)
                         cur1.execute(sql2)
+                        self.explain_sql(sql2)
                         sql= sql + sql2
                 
                 regular_where_null = tdWhere.regular_where_null()
@@ -195,31 +210,37 @@ class TDTestQuery(TDCase):
                         sql2 = "select * from %s where %s %s %s order by ts desc" %(self.table,q_where,q_like_match,q_in_where)
                         self.tdCreateData.result_0(sql2)
                         cur1.execute(sql2)
+                        self.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s where %s %s %s order by ts desc)" %(self.table,q_where,q_like_match,q_in_where)
                         self.tdCreateData.result_0(sql2)
                         cur1.execute(sql2)
+                        self.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s) where %s %s %s order by ts desc" %(self.table,q_where,q_like_match,q_in_where)
                         #self.tdCreateData.result_0(sql2) #TD-16240
                         cur1.execute(sql2)
+                        self.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s order by ts desc ) where %s %s %s " %(self.table,q_where,q_like_match,q_in_where)
                         #self.tdCreateData.result_0(sql2) #TD-16240
                         cur1.execute(sql2)
+                        self.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s where %s %s %s ) order by ts desc" %(self.table,q_where,q_like_match,q_in_where)
                         self.tdCreateData.result_0(sql2)
                         cur1.execute(sql2)
+                        self.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s where %s %s %s order by ts desc ) order by ts desc" %(self.table,q_where,q_like_match,q_in_where)
                         self.tdCreateData.result_0(sql2)
                         cur1.execute(sql2)
+                        self.explain_sql(sql2)
                         sql= sql + sql2
 
             except Exception as e:
@@ -258,43 +279,51 @@ class TDTestQuery(TDCase):
                         q_in_where = regular_where_null[4]
 
                         sql2 = "select * from %s where %s %s %s order by ts limit 10" %(self.table,q_where,q_like_match,q_in_where)
-                        self.tdCreateData.result_0(sql2)
+                        #self.tdCreateData.result_0(sql2) #TD-16240
                         cur1.execute(sql2)
+                        self.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s where %s %s %s order by ts limit 10)" %(self.table,q_where,q_like_match,q_in_where)
                         self.tdCreateData.result_0(sql2)
                         cur1.execute(sql2)
+                        self.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s where %s %s %s order by ts ) limit 10" %(self.table,q_where,q_like_match,q_in_where)
                         self.tdCreateData.result_0(sql2)
                         cur1.execute(sql2)
+                        self.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s where %s %s %s ) order by ts limit 10" %(self.table,q_where,q_like_match,q_in_where)
                         self.tdCreateData.result_0(sql2)
                         cur1.execute(sql2)
+                        self.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s) where %s %s %s order by ts limit 10" %(self.table,q_where,q_like_match,q_in_where)
                         #self.tdCreateData.result_0(sql2) #TD-16240
                         cur1.execute(sql2)
+                        self.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s order by ts limit 10 ) where %s %s %s " %(self.table,q_where,q_like_match,q_in_where)
                         #self.tdCreateData.result_0(sql2) #TD-16240
                         cur1.execute(sql2)
+                        self.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s order by ts limit 10 ) where %s %s %s order by ts limit 10 " %(self.table,q_where,q_like_match,q_in_where)
                         #self.tdCreateData.result_0(sql2) #TD-16240
                         cur1.execute(sql2)
+                        self.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s where %s %s %s order by ts limit 10 ) where %s %s %s order by ts limit 10 " %(self.table,q_where,q_like_match,q_in_where,q_where,q_like_match,q_in_where)
                         self.tdCreateData.result_0(sql2)
                         cur1.execute(sql2)
+                        self.explain_sql(sql2)
                         sql= sql + sql2
 
             except Exception as e:
@@ -335,61 +364,73 @@ class TDTestQuery(TDCase):
                         sql2 = "select * from %s where %s %s %s limit 10 offset 5" %(self.table,q_where,q_like_match,q_in_where)
                         self.tdCreateData.result_0(sql2)
                         cur1.execute(sql2)
+                        self.explain_sql(sql2)
                         sql= sql + sql2
                         
                         sql2 = "select * from %s where %s %s %s order by ts limit 10 offset 5" %(self.table,q_where,q_like_match,q_in_where)
                         self.tdCreateData.result_0(sql2)
                         cur1.execute(sql2)
+                        self.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s where %s %s %s order by ts limit 10 offset 5)" %(self.table,q_where,q_like_match,q_in_where)
                         self.tdCreateData.result_0(sql2)
                         cur1.execute(sql2)
+                        self.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s where %s %s %s order by ts ) limit 10 offset 5" %(self.table,q_where,q_like_match,q_in_where)
                         self.tdCreateData.result_0(sql2)
                         cur1.execute(sql2)
+                        self.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s where %s %s %s ) order by ts limit 10 offset 5" %(self.table,q_where,q_like_match,q_in_where)
                         self.tdCreateData.result_0(sql2)
                         cur1.execute(sql2)
+                        self.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s) where %s %s %s order by ts limit 10 offset 5" %(self.table,q_where,q_like_match,q_in_where)
                         #self.tdCreateData.result_0(sql2) #TD-16240
                         cur1.execute(sql2)
+                        self.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s where %s %s %s ) where %s %s %s order by ts limit 10 offset 5" %(self.table,q_where,q_like_match,q_in_where,q_where,q_like_match,q_in_where)
                         self.tdCreateData.result_0(sql2)
                         cur1.execute(sql2)
+                        self.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s where %s %s %s order by ts limit 10 offset 5 ) where %s %s %s " %(self.table,q_where,q_like_match,q_in_where,q_where,q_like_match,q_in_where)
                         self.tdCreateData.result_0(sql2)
                         cur1.execute(sql2)
+                        self.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s where %s %s %s order by ts desc ) where %s %s %s order by ts limit 10 offset 5" %(self.table,q_where,q_like_match,q_in_where,q_where,q_like_match,q_in_where)
                         self.tdCreateData.result_0(sql2)
                         cur1.execute(sql2)
+                        self.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s where %s %s %s limit 10 offset 5 ) where %s %s %s order by ts limit 10 offset 5" %(self.table,q_where,q_like_match,q_in_where,q_where,q_like_match,q_in_where)
                         self.tdCreateData.result_0(sql2)
                         cur1.execute(sql2)
+                        self.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s where %s %s %s order by ts limit 10 offset 5 ) where %s %s %s limit 10 offset 5" %(self.table,q_where,q_like_match,q_in_where,q_where,q_like_match,q_in_where)
                         self.tdCreateData.result_0(sql2)
                         cur1.execute(sql2)
+                        self.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select * from %s where %s %s %s order by ts limit 10 offset 5 ) where %s %s %s order by ts limit 10 offset 5" %(self.table,q_where,q_like_match,q_in_where,q_where,q_like_match,q_in_where)
                         self.tdCreateData.result_0(sql2)
                         cur1.execute(sql2)
+                        self.explain_sql(sql2)
                         sql= sql + sql2
 
             except Exception as e:
