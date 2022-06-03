@@ -718,7 +718,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
   int16_t outputType = GET_PARAM_TYPE(&pOutput[0]);
   int64_t outputLen  = GET_PARAM_BYTES(&pOutput[0]);
 
-  char *outputBuf = taosMemoryCalloc(outputLen * pInput[0].numOfRows, 1);
+  char *outputBuf = taosMemoryCalloc(outputLen * pInput[0].numOfRows + 1, 1);
   char *output = outputBuf;
 
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {

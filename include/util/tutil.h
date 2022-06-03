@@ -57,11 +57,13 @@ static FORCE_INLINE void taosEncryptPass_c(uint8_t *inBuf, size_t len, char *tar
   tMD5Init(&context);
   tMD5Update(&context, inBuf, (uint32_t)len);
   tMD5Final(&context);
+  char buf[TSDB_PASSWORD_LEN + 1];
 
-  sprintf(target, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", context.digest[0],
+  sprintf(buf, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", context.digest[0],
           context.digest[1], context.digest[2], context.digest[3], context.digest[4], context.digest[5],
           context.digest[6], context.digest[7], context.digest[8], context.digest[9], context.digest[10],
           context.digest[11], context.digest[12], context.digest[13], context.digest[14], context.digest[15]);
+  memcpy(target, buf, TSDB_PASSWORD_LEN);
 }
 
 #ifdef __cplusplus

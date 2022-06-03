@@ -247,7 +247,7 @@ class TDDnode:
         if bool(updatecfgDict) and updatecfgDict[0] and updatecfgDict[0][0]:
             print(updatecfgDict[0][0])
             for key, value in updatecfgDict[0][0].items():
-                if key == "clientCfg":
+                if key == "clientCfg" and self.remoteIP == "" and not platform.system().lower() == 'windows':
                     continue
                 if value == 'dataDir':
                     if isFirstDir:

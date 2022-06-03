@@ -2241,7 +2241,7 @@ static int32_t smlInsertData(SSmlHandle* info) {
   }
   info->cost.insertRpcTime = taosGetTimestampUs();
 
-  launchQueryImpl(info->pRequest, info->pQuery, TSDB_CODE_SUCCESS, true, NULL);
+  launchQueryImpl(info->pRequest, info->pQuery, true, NULL);
 
   info->affectedRows = taos_affected_rows(info->pRequest);
   return info->pRequest->code;
@@ -2362,7 +2362,7 @@ static int32_t isSchemalessDb(SSmlHandle* info){
  */
 
 TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol, int precision) {
-  SRequestObj* request = (SRequestObj*)createRequest((STscObj *)taos, NULL, NULL, TSDB_SQL_INSERT);
+  SRequestObj* request = (SRequestObj*)createRequest((STscObj *)taos, NULL, TSDB_SQL_INSERT);
   if(!request){
     uError("SML:taos_schemaless_insert error request is null");
     return NULL;

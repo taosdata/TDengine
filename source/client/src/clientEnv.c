@@ -13,10 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "os.h"
 #include "catalog.h"
+#include "functionMgt.h"
 #include "clientInt.h"
 #include "clientLog.h"
-#include "os.h"
 #include "query.h"
 #include "scheduler.h"
 #include "tcache.h"
@@ -171,7 +172,7 @@ STscObj *acquireTscObj(int64_t rid) { return (STscObj *)taosAcquireRef(clientCon
 
 int32_t releaseTscObj(int64_t rid) { return taosReleaseRef(clientConnRefPool, rid); }
 
-void *createRequest(STscObj *pObj, __taos_async_fn_t fp, void *param, int32_t type) {
+void *createRequest(STscObj *pObj, void *param, int32_t type) {
   assert(pObj != NULL);
 
   SRequestObj *pRequest = (SRequestObj *)taosMemoryCalloc(1, sizeof(SRequestObj));
@@ -185,9 +186,10 @@ void *createRequest(STscObj *pObj, __taos_async_fn_t fp, void *param, int32_t ty
   pRequest->requestId = generateRequestId();
   pRequest->metric.start = taosGetTimestampUs();
 
+  pRequest->body.param = param;
+
   pRequest->type = type;
   pRequest->pTscObj = pObj;
-  pRequest->body.fp = fp;  // not used it yet
   pRequest->msgBuf = taosMemoryCalloc(1, ERROR_MSG_BUF_DEFAULT_SIZE);
   pRequest->msgBufLen = ERROR_MSG_BUF_DEFAULT_SIZE;
   tsem_init(&pRequest->body.rspSem, 0, 0);
@@ -288,6 +290,7 @@ void taos_init_imp(void) {
   taosSetCoreDump(true);
 
   initTaskQueue();
+  fmFuncMgtInit();
 
   clientConnRefPool = taosOpenRef(200, destroyTscObj);
   clientReqRefPool = taosOpenRef(40960, doDestroyRequest);
