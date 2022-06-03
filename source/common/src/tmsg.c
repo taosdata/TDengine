@@ -35,6 +35,7 @@ int32_t tInitSubmitMsgIter(const SSubmitReq *pMsg, SSubmitMsgIter *pIter) {
   }
 
   pIter->totalLen = htonl(pMsg->length);
+  pIter->numOfBlocks = htonl(pMsg->numOfBlocks);
   ASSERT(pIter->totalLen > 0);
   pIter->len = 0;
   pIter->pMsg = pMsg;
