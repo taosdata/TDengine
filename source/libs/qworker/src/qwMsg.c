@@ -274,7 +274,7 @@ int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg) {
   uint64_t tId = msg->taskId;
   int64_t  rId = msg->refId;
 
-  SQWMsg qwMsg = {.node = node, .msg = msg->msg + msg->sqlLen, .msgLen = msg->phyLen, .connInfo = pMsg->info};
+  SQWMsg qwMsg = {.msg = msg->msg + msg->sqlLen, .msgLen = msg->phyLen, .connInfo = pMsg->info};
 
   QW_SCH_TASK_DLOG("prerocessQuery start, handle:%p", pMsg->info.handle);
   QW_ERR_RET(qwPrerocessQuery(QW_FPARAMS(), &qwMsg));

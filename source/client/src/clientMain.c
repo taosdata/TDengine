@@ -66,9 +66,10 @@ void taos_cleanup(void) {
 
   hbMgrCleanUp();
 
-  rpcCleanup();
   catalogDestroy();
   schedulerDestroy();
+
+  rpcCleanup();
 
   tscInfo("all local resources released");
   taosCleanupCfg();

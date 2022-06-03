@@ -163,9 +163,11 @@ typedef struct SSchTaskProfile {
 
 typedef struct SSchTask {
   uint64_t             taskId;         // task id
-  int32_t              execIdx;        // task current execute try index
   SRWLatch             lock;           // task lock
+  int32_t              maxExecTimes;   // task may exec times
+  int32_t              execIdx;        // task current execute try index
   SSchLevel           *level;          // level
+  SRWLatch             planLock;       // task update plan lock
   SSubplan            *plan;           // subplan
   char                *msg;            // operator tree
   int32_t              msgLen;         // msg length
@@ -230,25 +232,38 @@ typedef struct SSchJob {
 
 extern SSchedulerMgmt schMgmt;
 
-#define SCH_LOG_TASK_START_TS(_task)                      \
+#define SCH_LOG_TASK_START_TS(_task)                          \
+  do {                                                        \
+    int64_t us = taosGetTimestampUs();                        \
+    int32_t idx = (_task)->execIdx % SCH_TASK_MAX_EXEC_TIMES; \
+    (_task)->profile.execUseTime[idx] = us;                    \
+    if (0 == (_task)->execIdx) {                              \
+      (_task)->profile.startTs = us;                          \
+    }                                                         \
+  } while (0)  
+
+#define SCH_LOG_TASK_WAIT_TS(_task)                        \
   do {                                                    \
     int64_t us = taosGetTimestampUs();                    \
-    (_task)->profile.tryUseTime[(_task)->execIdx] = us;    \
-    if (0 == (_task)->execIdx) {                           \
-      (_task)->profile.startTs = us;                      \
-    }                                                     \
+    int32_t idx = (_task)->execIdx % SCH_TASK_MAX_EXEC_TIMES; \
+    (_task)->profile.waitTime += us - (_task)->profile.execUseTime[idx];    \
   } while (0)  
+
 
 #define SCH_LOG_TASK_END_TS(_task)                        \
   do {                                                    \
     int64_t us = taosGetTimestampUs();                    \
-    (_task)->profile.tryUseTime[(_task)->execIdx] = us - (_task)->profile.tryUseTime[(_task)->execIdx];    \
+    int32_t idx = (_task)->execIdx % SCH_TASK_MAX_EXEC_TIMES; \
+    (_task)->profile.execUseTime[idx] = us - (_task)->profile.execUseTime[idx];    \
     (_task)->profile.endTs = us;                          \
   } while (0)  
 
-#define SCH_TASK_TIMEOUT(_task) ((taosGetTimestampUs() - (_task)->profile.tryUseTime[(_task)->execIdx]) > (_taks)->timeoutUsec)
+#define SCH_TASK_TIMEOUT(_task) ((taosGetTimestampUs() - (_task)->profile.execUseTime[(_task)->execIdx % SCH_TASK_MAX_EXEC_TIMES]) > (_task)->timeoutUsec)
 
 #define SCH_TASK_READY_FOR_LAUNCH(readyNum, task) ((readyNum) >= taosArrayGetSize((task)->children))
+
+#define SCH_LOCK_TASK(_task) SCH_LOCK(SCH_WRITE, &(_task)->lock)
+#define SCH_UNLOCK_TASK(_task) SCH_UNLOCK(SCH_WRITE, &(_task)->lock)
 
 #define SCH_TASK_ID(_task) ((_task) ? (_task)->taskId : -1)
 #define SCH_SET_TASK_LASTMSG_TYPE(_task, _type) do { if(_task) { atomic_store_32(&(_task)->lastMsgType, _type); } } while (0)
@@ -351,6 +366,7 @@ int32_t schAsyncExecJob(void *pTrans, SArray *pNodeList, SQueryPlan *pDag, int64
 int32_t schFetchRows(SSchJob *pJob);
 int32_t schAsyncFetchRows(SSchJob *pJob);
 int32_t schUpdateTaskHandle(SSchJob *pJob, SSchTask *pTask, int32_t msgType, void *handle, int32_t execIdx);
+int32_t schProcessOnTaskStatusRsp(SQueryNodeEpId* pEpId, SArray* pStatusList);
 
 
 #ifdef __cplusplus

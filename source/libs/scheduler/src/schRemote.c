@@ -92,8 +92,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
   int8_t  status = 0;
 
   if (schJobNeedToStop(pJob, &status)) {
-    SCH_TASK_ELOG("rsp not processed cause of job status, job status:%s, rspCode:0x%x", jobTaskStatusStr(status),
-                  rspCode);
+    SCH_TASK_ELOG("rsp not processed cause of job status, job status:%s, rspCode:0x%x", jobTaskStatusStr(status), rspCode);
     taosMemoryFreeClear(msg);              
     SCH_RET(atomic_load_32(&pJob->errCode));
   }
@@ -344,7 +343,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
 
 _return:
 
-  taosMemoryFreeClear(msg);              
+  taosMemoryFreeClear(msg);
 
   SCH_RET(schProcessOnTaskFailure(pJob, pTask, code));
 }
@@ -364,6 +363,8 @@ int32_t schHandleCallback(void *param, const SDataBuf *pMsg, int32_t msgType, in
 
   SCH_ERR_JRET(schGetTaskInJob(pJob, pParam->taskId, &pTask));
 
+  SCH_LOCK_TASK(pTask);
+  
   SCH_TASK_DLOG("rsp msg received, type:%s, handle:%p, code:%s", TMSG_INFO(msgType), pMsg->handle, tstrerror(rspCode));
 
   if (pParam->execIdx != pTask->execIdx) {
@@ -376,6 +377,10 @@ int32_t schHandleCallback(void *param, const SDataBuf *pMsg, int32_t msgType, in
   SCH_ERR_JRET(schHandleResponseMsg(pJob, pTask, msgType, pMsg->pData, pMsg->len, rspCode));
 
 _return:
+
+  if (pTask) {
+    SCH_UNLOCK_TASK(pTask);
+  }
   
   if (pJob) {
     schReleaseJob(pParam->refId);
@@ -667,7 +672,7 @@ int32_t schRegisterHbConnection(SSchJob *pJob, SSchTask *pTask, SQueryNodeEpId *
 }
 
 
-int32_t schBuildAndSendHbMsg(SQueryNodeEpId *nodeEpId) {
+int32_t schBuildAndSendHbMsg(SQueryNodeEpId *nodeEpId, SArray* taskAction) {
   SSchedulerHbReq req = {0};
   int32_t         code = 0;
   SRpcCtx         rpcCtx = {0};
