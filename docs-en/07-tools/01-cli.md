@@ -8,7 +8,7 @@ The TDengine command-line application (hereafter referred to as `TDengine CLI`) 
 
 ## Installation
 
-If executed on the TDengine server-side, there is no need for additional installation steps to install TDengine CLI as it is already included and installed automatically. To run TDengine CLI on the environment which no TDengine server running, the TDengine client installation package needs to be installed first. For details, please refer to [connector](/reference/connector/).
+If executed on the TDengine server-side, there is no need for additional installation steps to install TDengine CLI as it is already included and installed automatically. To run TDengine CLI on the environment which no TDengine server running, the TDengine client installation package needs to be installed first. For details, please refer to [installation](/operation/pkg-install/).
 
 ## Execution
 
