@@ -715,8 +715,8 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, in
     goto _exit;
   }
 
-  submitRsp.pArray = taosArrayInit(msgIter->numOfBlocks, sizeof(SSubmitBlkRsp));
-  newTbUids = taosArrayInit(msgIter->numOfBlocks, sizeof(int64_t));
+  submitRsp.pArray = taosArrayInit(msgIter.numOfBlocks, sizeof(SSubmitBlkRsp));
+  newTbUids = taosArrayInit(msgIter.numOfBlocks, sizeof(int64_t));
   if (!submitRsp.pArray) {
     pRsp->code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
