@@ -62,7 +62,7 @@ TDengine的主要功能如下：
 
 <figure>
 
-![TDengine技术生态图](eco_system.png)
+![TDengine Database 技术生态图](eco_system.webp)
 
 </figure>
 <center>图 1. TDengine技术生态图</center>
@@ -119,7 +119,6 @@ TDengine的主要功能如下：
 - [用 InfluxDB 开源的性能测试工具对比 InfluxDB 和 TDengine](https://www.taosdata.com/blog/2020/01/13/1105.html)
 - [TDengine 与 OpenTSDB 对比测试](https://www.taosdata.com/blog/2019/08/21/621.html)
 - [TDengine 与 Cassandra 对比测试](https://www.taosdata.com/blog/2019/08/14/573.html)
-- [TDengine 与 InfluxDB 对比测试](https://www.taosdata.com/blog/2019/07/19/419.html)
 - [TDengine VS InfluxDB ，写入性能大 PK ！](https://www.taosdata.com/2021/11/05/3248.html)
 - [TDengine 和 InfluxDB 查询性能对比测试报告](https://www.taosdata.com/2022/02/22/5969.html)
 - [TDengine 与 InfluxDB、OpenTSDB、Cassandra、MySQL、ClickHouse 等数据库的对比测试报告](https://www.taosdata.com/downloads/TDengine_Testing_Report_cn.pdf)

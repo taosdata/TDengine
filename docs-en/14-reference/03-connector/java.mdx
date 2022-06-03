@@ -9,19 +9,19 @@ description: TDengine Java based on JDBC API and provide both native and REST co
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-'taos-jdbcdriver' is TDengine's official Java language connector, which allows Java developers to develop applications that access the TDengine database. 'taos-jdbcdriver' implements the interface of the JDBC driver standard and provides two forms of connectors. One is to connect to a TDengine instance natively through the TDengine client driver (taosc), which supports functions including data writing, querying, subscription, schemaless writing, and bind interface. And the other is to connect to a TDengine instance through the REST interface provided by taosAdapter (2.4.0.0 and later). REST connections implement has a slight differences to compare the set of features implemented and native connections.
+'taos-jdbcdriver' is TDengine's official Java language connector, which allows Java developers to develop applications that access the TDengine database. 'taos-jdbcdriver' implements the interface of the JDBC driver standard and provides two forms of connectors. One is to connect to a TDengine instance natively through the TDengine client driver (taosc), which supports functions including data writing, querying, subscription, schemaless writing, and bind interface. And the other is to connect to a TDengine instance through the REST interface provided by taosAdapter (2.4.0.0 and later). The implementation of the REST connection and those of the native connections have slight differences in features.
 
-![tdengine-connector](tdengine-jdbc-connector.png)
+![TDengine Database tdengine-connector](tdengine-jdbc-connector.webp)
 
 The preceding diagram shows two ways for a Java app to access TDengine via connector:
 
 - JDBC native connection: Java applications use TSDBDriver on physical node 1 (pnode1) to call client-driven directly (`libtaos.so` or `taos.dll`) APIs to send writing and query requests to taosd instances located on physical node 2 (pnode2).
-- JDBC REST connection: The Java application encapsulates the SQL as a REST request via RestfulDriver, sends it to the REST server of physical node 2 (taosAdapter), requests TDengine server through the REST server, and returns the result.
+- JDBC REST connection: The Java application encapsulates the SQL as a REST request via RestfulDriver, sends it to the REST server (taosAdapter) on physical node 2. taosAdapter forwards the request to TDengine server and returns the result.
 
-Using REST connection, which does not rely on TDengine client drivers.It can be cross-platform more convenient and flexible but introduce about 30% lower performance than native connection.
+The REST connection, which does not rely on TDengine client drivers, is more convenient and flexible, in addition to being cross-platform. However the performance is about 30% lower than that of the native connection.
 
 :::info
-TDengine's JDBC driver implementation is as consistent as possible with the relational database driver. Still, there are differences in the use scenarios and technical characteristics of TDengine and relational object databases, so 'taos-jdbcdriver' also has some differences from traditional JDBC drivers. You need to pay attention to the following points when using:
+TDengine's JDBC driver implementation is as consistent as possible with the relational database driver. Still, there are differences in the use scenarios and technical characteristics of TDengine and relational object databases. So 'taos-jdbcdriver' also has some differences from traditional JDBC drivers. It is important to keep the following points in mind:
 
 - TDengine does not currently support delete operations for individual data records.
 - Transactional operations are not currently supported.
@@ -88,7 +88,7 @@ Add following dependency in the `pom.xml` file of your Maven project:
 </TabItem>
 <TabItem value="source" label="Build from source code">
 
-You can build Java connector from source code after clone TDengine project:
+You can build Java connector from source code after cloning the TDengine project:
 
 ```shell
 git clone https://github.com/taosdata/TDengine.git
@@ -96,7 +96,7 @@ cd TDengine/src/connector/jdbc
 mvn clean install -Dmaven.test.skip=true
 ```
 
-After compilation, a jar package of taos-jdbcdriver-2.0.XX-dist .jar is generated in the target directory, and the compiled jar file is automatically placed in the local Maven repository.
+After compilation, a jar package named taos-jdbcdriver-2.0.XX-dist.jar is generated in the target directory, and the compiled jar file is automatically placed in the local Maven repository.
 
 </TabItem>
 </Tabs>
@@ -186,7 +186,7 @@ Connection conn = DriverManager.getConnection(jdbcUrl);
 
 In the above example, a RestfulDriver with a JDBC REST connection is used to establish a connection to a database named `test` with hostname `taosdemo.com` on port `6041`. The URL specifies the user name as `root` and the password as `taosdata`.
 
-There is no dependency on the client driver when Using a JDBC REST connection. Compared to a JDBC native connection, only the following are required: 1.
+There is no dependency on the client driver when Using a JDBC REST connection. Compared to a JDBC native connection, only the following are required:
 
 1. driverClass specified as "com.taosdata.jdbc.rs.RestfulDriver".
 2. jdbcUrl starting with "jdbc:TAOS-RS://".
@@ -206,10 +206,10 @@ The configuration parameters in the URL are as follows.
 - Unlike the native connection method, the REST interface is stateless. When using the JDBC REST connection, you need to specify the database name of the table and super table in SQL. For example.
 
 ```sql
-INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('beijing') VALUES(now, 24.6);
+INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('California.SanFrancisco') VALUES(now, 24.6);
 ```
 
-- Starting from taos-jdbcdriver-2.0.36 and TDengine 2.2.0.0, if dbname is specified in the URL, JDBC REST connections will use `/rest/sql/dbname` as the URL for REST requests by default, and there is no need to specify dbname in SQL. For example, if the URL is `jdbc:TAOS-RS://127.0.0.1:6041/test`, then the SQL can be executed: insert into t1 using weather(ts, temperature) tags('beijing') values(now, 24.6);
+- Starting from taos-jdbcdriver-2.0.36 and TDengine 2.2.0.0, if dbname is specified in the URL, JDBC REST connections will use `/rest/sql/dbname` as the URL for REST requests by default, and there is no need to specify dbname in SQL. For example, if the URL is `jdbc:TAOS-RS://127.0.0.1:6041/test`, then the SQL can be executed: insert into test using weather(ts, temperature) tags('California.SanFrancisco') values(now, 24.6);
 
 :::
 
@@ -271,7 +271,7 @@ If the configuration parameters are duplicated in the URL, Properties, or client
 2. Properties connProps
 3. the configuration file taos.cfg of the TDengine client driver when using a native connection
 
-For example, if you specify the password as `taosdata` in the URL and specify the password as `taosdemo` in the Properties simultaneously. In this case, JDBC will use the password in the URL to establish the connection.
+For example, if you specify the password as `taosdata` in the URL and specify the password as `taosdemo` in the Properties simultaneously, JDBC will use the password in the URL to establish the connection.
 
 ## Usage examples
 
@@ -323,7 +323,7 @@ while(resultSet.next()){
 }
 ```
 
-> The query is consistent with operating a relational database. When using subscripts to get the contents of the returned fields, starting from 1, it is recommended to use the field names to get them.
+> The query is consistent with operating a relational database. When using subscripts to get the contents of the returned fields, you have to start from 1. However, we recommend using the field names to get the values of the fields in the result set.
 
 ### Handling exceptions
 
@@ -565,7 +565,7 @@ public class ParameterBindingDemo {
                 // set table name
                 pstmt.setTableName("t5_" + i);
                 // set tags
-                pstmt.setTagNString(0, "Beijing-abc");
+                pstmt.setTagNString(0, "California-abc");
 
                 // set columns
                 ArrayList<Long> tsList = new ArrayList<>();
@@ -576,7 +576,7 @@ public class ParameterBindingDemo {
 
                 ArrayList<String> f1List = new ArrayList<>();
                 for (int j = 0; j < numOfRow; j++) {
-                    f1List.add("Beijing-abc");
+                    f1List.add("California-abc");
                 }
                 pstmt.setNString(1, f1List, BINARY_COLUMN_SIZE);
 
@@ -623,7 +623,7 @@ public void setNString(int columnIndex, ArrayList<String> list, int size) throws
 
 ### Schemaless Writing
 
-Starting with version 2.2.0.0, TDengine has added the ability to schemaless writing. It is compatible with InfluxDB's Line Protocol, OpenTSDB's telnet line protocol, and OpenTSDB's JSON format protocol. See [schemaless writing](/reference/schemaless/) for details.
+Starting with version 2.2.0.0, TDengine has added the ability to perform schemaless writing. It is compatible with InfluxDB's Line Protocol, OpenTSDB's telnet line protocol, and OpenTSDB's JSON format protocol. See [schemaless writing](/reference/schemaless/) for details.
 
 **Note**.
 
@@ -635,7 +635,7 @@ public class SchemalessInsertTest {
     private static final String host = "127.0.0.1";
     private static final String lineDemo = "st,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000";
     private static final String telnetDemo = "stb0_0 1626006833 4 host=host0 interface=eth0";
-    private static final String jsonDemo = "{\"metric\": \"meter_current\",\"timestamp\": 1346846400,\"value\": 10.3, \"tags\": {\"groupid\": 2, \"location\": \"Beijing\", \"id\": \"d1001\"}}";
+    private static final String jsonDemo = "{\"metric\": \"meter_current\",\"timestamp\": 1346846400,\"value\": 10.3, \"tags\": {\"groupid\": 2, \"location\": \"California.SanFrancisco\", \"id\": \"d1001\"}}";
 
     public static void main(String[] args) throws SQLException {
         final String url = "jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata";
@@ -666,16 +666,16 @@ The TDengine Java Connector supports subscription functionality with the followi
 #### Create subscriptions
 
 ```java
-TSDBSubscribe sub = ((TSDBConnection)conn).subscribe("topic", "select * from meters", false);
+TSDBSubscribe sub = ((TSDBConnection)conn).subscribe("topicname", "select * from meters", false);
 ```
 
 The three parameters of the `subscribe()` method have the following meanings.
 
-- topic: the subscribed topic (i.e., name). This parameter is the unique identifier of the subscription
-- sql: the query statement of the subscription, this statement can only be `select` statement, only the original data should be queried, and you can query only the data in the positive time order
+- topicname: the name of the subscribed topic. This parameter is the unique identifier of the subscription.
+- sql: the query statement of the subscription. This statement can only be a `select` statement. Only original data can be queried, and you can query the data only temporal order.
 - restart: if the subscription already exists, whether to restart or continue the previous subscription
 
-The above example will use the SQL command `select * from meters` to create a subscription named `topic`. If the subscription exists, it will continue the progress of the previous query instead of consuming all the data from the beginning.
+The above example will use the SQL command `select * from meters` to create a subscription named `topicname`. If the subscription exists, it will continue the progress of the previous query instead of consuming all the data from the beginning.
 
 #### Subscribe to consume data
 

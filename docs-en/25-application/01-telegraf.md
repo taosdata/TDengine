@@ -5,18 +5,18 @@ title: Quickly Build IT DevOps Visualization System with TDengine + Telegraf + G
 
 ## Background
 
-TDengine is a big data platform designed and optimized for IoT (Internet of Things), Vehicle Telematics, Industrial Internet, IT DevOps, etc. by TAOSData. Since it opened its source code in July 2019, it has won the favor of a large number of time-series data developers with its innovative data modeling design, convenient installation, easy-to-use programming interface, and powerful data writing and query performance.
+TDengine is a big data platform designed and optimized for IoT (Internet of Things), Vehicle Telemetry, Industrial Internet, IT DevOps and other applications. Since it was open-sourced in July 2019, it has won the favor of a large number of time-series data developers with its innovative data modeling design, convenient installation, easy-to-use programming interface, and powerful data writing and query performance.
 
 IT DevOps metric data usually are time sensitive, for example:
 
 - System resource metrics: CPU, memory, IO, bandwidth, etc.
 - Software system metrics: health status, number of connections, number of requests, number of timeouts, number of errors, response time, service type, and other business-related metrics.
 
-Current mainstream IT DevOps system usually include a data collection module, a data persistent module, and a visualization module; Telegraf and Grafana are one of the most popular data collection modules and visualization modules, respectively. The data persistent module is available in a wide range of options, with OpenTSDB or InfluxDB being the most popular. TDengine, as an emerging time-series big data platform, has the advantages of high performance, high reliability, easy management and easy maintenance.
+Current mainstream IT DevOps system usually include a data collection module, a data persistent module, and a visualization module; Telegraf and Grafana are one of the most popular data collection modules and visualization modules, respectively. The data persistence module is available in a wide range of options, with OpenTSDB or InfluxDB being the most popular. TDengine, as an emerging time-series big data platform, has the advantages of high performance, high reliability, easy management and easy maintenance.
 
-This article introduces how to quickly build a TDengine + Telegraf + Grafana based IT DevOps visualization system without writing even a single line of code and by simply modifying a few lines of configuration files. The architecture is as follows.
+This article introduces how to quickly build a TDengine + Telegraf + Grafana based IT DevOps visualization system without writing even a single line of code and by simply modifying a few lines in configuration files. The architecture is as follows.
 
-![IT-DevOps-Solutions-Telegraf.png](/img/IT-DevOps-Solutions-Telegraf.png)
+![TDengine Database IT-DevOps-Solutions-Telegraf](./IT-DevOps-Solutions-Telegraf.webp)
 
 ## Installation steps
 
@@ -73,11 +73,11 @@ sudo systemctl start telegraf
 
 Log in to the Grafana interface using a web browser at `IP:3000`, with the system's initial username and password being `admin/admin`.
 Click on the gear icon on the left and select `Plugins`, you should find the TDengine data source plugin icon.
-Click on the plus icon on the left and select `Import` to get the data from `https://github.com/taosdata/grafanaplugin/blob/master/examples/telegraf/grafana/dashboards/telegraf-dashboard- v0.1.0.json`, download the dashboard JSON file and import it. You will then see the dashboard in the following screen.
+Click on the plus icon on the left and select `Import` to get the data from `https://github.com/taosdata/grafanaplugin/blob/master/examples/telegraf/grafana/dashboards/telegraf-dashboard-v0.1.0.json`, download the dashboard JSON file and import it. You will then see the dashboard in the following screen.
 
-![IT-DevOps-Solutions-telegraf-dashboard.png](/img/IT-DevOps-Solutions-telegraf-dashboard.png)
+![TDengine Database IT-DevOps-Solutions-telegraf-dashboard](./IT-DevOps-Solutions-telegraf-dashboard.webp)
 
 ## Wrap-up
 
-The above demonstrates how to quickly build a IT DevOps visualization system. Thanks to the new schemaless protocol parsing feature in TDengine version 2.4.0.0 and the powerful ecological software adaptation capability, users can build an efficient and easy-to-use IT DevOps visualization system in just a few minutes.
+The above demonstrates how to quickly build a IT DevOps visualization system. Thanks to the new schemaless protocol parsing feature in TDengine version 2.4.0.0 and ability to integrate easily with a large software ecosystem, users can build an efficient and easy-to-use IT DevOps visualization system in just a few minutes.
 Please refer to the official documentation and product implementation cases for other features.

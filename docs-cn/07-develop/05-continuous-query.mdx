@@ -34,8 +34,8 @@ SLIDING: 连续查询的时间窗口向前滑动的时间间隔
 
 ```sql
 create table meters (ts timestamp, current float, voltage int, phase float) tags (location binary(64), groupId int);
-create table D1001 using meters tags ("Beijing.Chaoyang", 2);
-create table D1002 using meters tags ("Beijing.Haidian", 2);
+create table D1001 using meters tags ("California.SanFrancisco", 2);
+create table D1002 using meters tags ("California.LosAngeles", 2);
 ...
 ```
 
