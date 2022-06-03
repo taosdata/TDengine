@@ -1324,13 +1324,11 @@ int32_t minmaxFunctionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   SMinmaxResInfo* pRes = GET_ROWCELL_INTERBUF(pEntryInfo);
 
-  int32_t type = pCtx->input.pData[0]->info.type;
   int32_t slotId = pCtx->pExpr->base.resSchema.slotId;
+  int32_t currentRow = pBlock->info.rows;
 
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
-
-  // todo assign the tag value
-  int32_t currentRow = pBlock->info.rows;
+  pEntryInfo->isNullRes = (pEntryInfo->numOfRes == 0);
 
   if (pCol->info.type == TSDB_DATA_TYPE_FLOAT) {
     float v = *(double*) &pRes->v;
@@ -1339,7 +1337,10 @@ int32_t minmaxFunctionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     colDataAppend(pCol, currentRow, (const char*)&pRes->v, pEntryInfo->isNullRes);
   }
 
-  setSelectivityValue(pCtx, pBlock, &pRes->tuplePos, currentRow);
+  if (pEntryInfo->numOfRes > 0) {
+    setSelectivityValue(pCtx, pBlock, &pRes->tuplePos, currentRow);
+  }
+
   return pEntryInfo->numOfRes;
 }
 
