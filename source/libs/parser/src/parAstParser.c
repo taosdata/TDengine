@@ -124,6 +124,10 @@ static EDealRes collectMetaKeyFromRealTable(SCollectMetaKeyFromExprCxt* pCxt, SR
     pCxt->errCode = reserveUserAuthInCache(pCxt->pComCxt->pParseCxt->acctId, pCxt->pComCxt->pParseCxt->pUser,
                                            pRealTable->table.dbName, AUTH_TYPE_READ, pCxt->pComCxt->pMetaCache);
   }
+  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+    pCxt->errCode =
+        reserveDbVgInfoInCache(pCxt->pComCxt->pParseCxt->acctId, pRealTable->table.dbName, pCxt->pComCxt->pMetaCache);
+  }
   return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
 }
 
