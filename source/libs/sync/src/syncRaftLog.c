@@ -104,7 +104,7 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
     SSyncRaftEntry* pEntry = syncEntryBuild(pWalHandle->pHead->head.bodyLen);
     assert(pEntry != NULL);
 
-    pEntry->msgType = TDMT_VND_SYNC_CLIENT_REQUEST;
+    pEntry->msgType = TDMT_SYNC_CLIENT_REQUEST;
     pEntry->originalRpcType = pWalHandle->pHead->head.msgType;
     pEntry->seqNum = pWalHandle->pHead->head.syncMeta.seqNum;
     pEntry->isWeak = pWalHandle->pHead->head.syncMeta.isWeek;

@@ -376,35 +376,35 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
   syncRpcMsgLog2(logBuf, pMsg);
   taosMemoryFree(syncNodeStr);
 
-  if (pMsg->msgType == TDMT_VND_SYNC_TIMEOUT) {
+  if (pMsg->msgType == TDMT_SYNC_TIMEOUT) {
     SyncTimeout *pSyncMsg = syncTimeoutFromRpcMsg2(pMsg);
     code = syncNodeOnTimeoutCb(pSyncNode, pSyncMsg);
     syncTimeoutDestroy(pSyncMsg);
-  } else if (pMsg->msgType == TDMT_VND_SYNC_PING) {
+  } else if (pMsg->msgType == TDMT_SYNC_PING) {
     SyncPing *pSyncMsg = syncPingFromRpcMsg2(pMsg);
     code = syncNodeOnPingCb(pSyncNode, pSyncMsg);
     syncPingDestroy(pSyncMsg);
-  } else if (pMsg->msgType == TDMT_VND_SYNC_PING_REPLY) {
+  } else if (pMsg->msgType == TDMT_SYNC_PING_REPLY) {
     SyncPingReply *pSyncMsg = syncPingReplyFromRpcMsg2(pMsg);
     code = syncNodeOnPingReplyCb(pSyncNode, pSyncMsg);
     syncPingReplyDestroy(pSyncMsg);
-  } else if (pMsg->msgType == TDMT_VND_SYNC_CLIENT_REQUEST) {
+  } else if (pMsg->msgType == TDMT_SYNC_CLIENT_REQUEST) {
     SyncClientRequest *pSyncMsg = syncClientRequestFromRpcMsg2(pMsg);
     code = syncNodeOnClientRequestCb(pSyncNode, pSyncMsg);
     syncClientRequestDestroy(pSyncMsg);
-  } else if (pMsg->msgType == TDMT_VND_SYNC_REQUEST_VOTE) {
+  } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE) {
     SyncRequestVote *pSyncMsg = syncRequestVoteFromRpcMsg2(pMsg);
     code = syncNodeOnRequestVoteCb(pSyncNode, pSyncMsg);
     syncRequestVoteDestroy(pSyncMsg);
-  } else if (pMsg->msgType == TDMT_VND_SYNC_REQUEST_VOTE_REPLY) {
+  } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE_REPLY) {
     SyncRequestVoteReply *pSyncMsg = syncRequestVoteReplyFromRpcMsg2(pMsg);
     code = syncNodeOnRequestVoteReplyCb(pSyncNode, pSyncMsg);
     syncRequestVoteReplyDestroy(pSyncMsg);
-  } else if (pMsg->msgType == TDMT_VND_SYNC_APPEND_ENTRIES) {
+  } else if (pMsg->msgType == TDMT_SYNC_APPEND_ENTRIES) {
     SyncAppendEntries *pSyncMsg = syncAppendEntriesFromRpcMsg2(pMsg);
     code = syncNodeOnAppendEntriesCb(pSyncNode, pSyncMsg);
     syncAppendEntriesDestroy(pSyncMsg);
-  } else if (pMsg->msgType == TDMT_VND_SYNC_APPEND_ENTRIES_REPLY) {
+  } else if (pMsg->msgType == TDMT_SYNC_APPEND_ENTRIES_REPLY) {
     SyncAppendEntriesReply *pSyncMsg = syncAppendEntriesReplyFromRpcMsg2(pMsg);
     code = syncNodeOnAppendEntriesReplyCb(pSyncNode, pSyncMsg);
     syncAppendEntriesReplyDestroy(pSyncMsg);
