@@ -244,6 +244,8 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiStreamSessionWindow";
     case QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW:
       return "PhysiStateWindow";
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE_WINDOW:
+      return "PhysiStreamStateWindow";
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       return "PhysiPartition";
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
@@ -2744,6 +2746,28 @@ static int32_t jsonToOrderByExprNode(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkStateWindowCol = "StateWindowCol";
+static const char* jkStateWindowExpr = "StateWindowExpr";
+
+static int32_t stateWindowNodeToJson(const void* pObj, SJson* pJson) {
+  const SStateWindowNode* pNode = (const SStateWindowNode*)pObj;
+    int32_t code = tjsonAddObject(pJson, jkStateWindowCol, nodeToJson, pNode->pCol);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkStateWindowExpr, nodeToJson, pNode->pExpr);
+  }
+  return code;
+}
+
+static int32_t jsonToStateWindowNode(const SJson* pJson, void* pObj) {
+  SStateWindowNode* pNode = (SStateWindowNode*)pObj;
+
+  int32_t code = jsonToNodeObject(pJson, jkStateWindowCol, (SNode**)&pNode->pCol);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkStateWindowExpr, (SNode**)&pNode->pExpr);
+  }
+  return code;
+}
+
 static const char* jkSessionWindowTsPrimaryKey = "TsPrimaryKey";
 static const char* jkSessionWindowGap = "Gap";
 
@@ -3521,8 +3545,9 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_ORDER_BY_EXPR:
       return orderByExprNodeToJson(pObj, pJson);
     case QUERY_NODE_LIMIT:
-    case QUERY_NODE_STATE_WINDOW:
       break;
+    case QUERY_NODE_STATE_WINDOW:
+      return stateWindowNodeToJson(pObj, pJson);
     case QUERY_NODE_SESSION_WINDOW:
       return sessionWindowNodeToJson(pObj, pJson);
     case QUERY_NODE_INTERVAL_WINDOW:
@@ -3626,6 +3651,7 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION_WINDOW:
       return physiSessionWindowNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE_WINDOW:
       return physiStateWindowNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       return physiPartitionNodeToJson(pObj, pJson);
@@ -3662,6 +3688,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToTempTableNode(pJson, pObj);
     case QUERY_NODE_ORDER_BY_EXPR:
       return jsonToOrderByExprNode(pJson, pObj);
+    case QUERY_NODE_STATE_WINDOW:
+      return jsonToStateWindowNode(pJson, pObj);
     case QUERY_NODE_SESSION_WINDOW:
       return jsonToSessionWindowNode(pJson, pObj);
     case QUERY_NODE_INTERVAL_WINDOW:
@@ -3745,6 +3773,7 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION_WINDOW:
       return jsonToPhysiSessionWindowNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE_WINDOW:
       return jsonToPhysiStateWindowNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       return jsonToPhysiPartitionNode(pJson, pObj);
