@@ -280,6 +280,8 @@ def run_win_test() {
         echo "windows test ..."
         cd C:\\workspace\\%EXECUTOR_NUMBER%\\taos-connector-python
         python -m pip install .
+        xcopy /e/y/i/f C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
+        ls -l C:\\Windows\\System32\\taos.dll
         time /t
         cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\community\\tests\\system-test
         echo "node: ''' + linux_node_ip + ''':''' + linux_node_pass + '''"
