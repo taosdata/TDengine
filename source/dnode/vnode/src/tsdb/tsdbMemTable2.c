@@ -382,7 +382,25 @@ static int32_t memDataDoPut(SMemTable *pMemTable, SMemData *pMemData, SMemSkipLi
 
   // put
   for (int8_t iLevel = 0; iLevel < pNode->level; iLevel++) {
-    /* code */
+    SMemSkipListNode *px = pos[iLevel];
+
+    if (forward) {
+      SMemSkipListNode *pNext = SL_NODE_FORWARD(px, iLevel);
+
+      SL_NODE_FORWARD(pNode, iLevel) = pNext;
+      SL_NODE_BACKWARD(pNode, iLevel) = px;
+
+      SL_NODE_BACKWARD(pNext, iLevel) = pNode;
+      SL_NODE_FORWARD(px, iLevel) = pNode;
+    } else {
+      SMemSkipListNode *pPrev = SL_NODE_BACKWARD(px, iLevel);
+
+      SL_NODE_FORWARD(pNode, iLevel) = px;
+      SL_NODE_BACKWARD(pNode, iLevel) = pPrev;
+
+      SL_NODE_FORWARD(pPrev, iLevel) = pNode;
+      SL_NODE_BACKWARD(px, iLevel) = pNode;
+    }
   }
 
   pMemData->sl.size++;
