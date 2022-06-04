@@ -435,6 +435,13 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, SMemData *pMemData,
   }
   nRow++;
 
+  if (tsdbKeyCmprFn((TSDBKEY *)&row, &pMemData->minKey) < 0) {
+    pMemData->minKey = *(TSDBKEY *)&row;
+  }
+  if (tsdbKeyCmprFn((TSDBKEY *)&row, &pMemTable->minKey) < 0) {
+    pMemTable->minKey = *(TSDBKEY *)&row;
+  }
+
   // forward put rest
   for (int8_t iLevel = 0; iLevel < pMemData->sl.maxLevel; iLevel++) {
     pos[iLevel] = SL_NODE_BACKWARD(pos[iLevel], iLevel);
@@ -451,6 +458,14 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, SMemData *pMemData,
 
     nRow++;
   }
+
+  if (tsdbKeyCmprFn((TSDBKEY *)&row, &pMemData->maxKey) > 0) {
+    pMemData->maxKey = *(TSDBKEY *)&row;
+  }
+  if (tsdbKeyCmprFn((TSDBKEY *)&row, &pMemTable->maxKey) > 0) {
+    pMemTable->maxKey = *(TSDBKEY *)&row;
+  }
+  pMemTable->nRows += nRow;
 
 _exit:
   return code;
