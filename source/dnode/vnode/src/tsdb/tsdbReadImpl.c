@@ -339,8 +339,8 @@ int tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo) {
   }
 
   ASSERT(pReadh->pDCols[0]->numOfRows <= pBlock->numOfRows);
-  ASSERT(dataColsKeyFirst(pReadh->pDCols[0]) == pBlock->keyFirst);
-  ASSERT(dataColsKeyLast(pReadh->pDCols[0]) == pBlock->keyLast);
+  ASSERT(dataColsKeyFirst(pReadh->pDCols[0]) == pBlock->minKey.ts);
+  ASSERT(dataColsKeyLast(pReadh->pDCols[0]) == pBlock->maxKey.ts);
 
   return 0;
 }
@@ -457,8 +457,8 @@ int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, 
   }
 
   ASSERT(pReadh->pDCols[0]->numOfRows <= pBlock->numOfRows);
-  ASSERT(dataColsKeyFirst(pReadh->pDCols[0]) == pBlock->keyFirst);
-  ASSERT(dataColsKeyLast(pReadh->pDCols[0]) == pBlock->keyLast);
+  ASSERT(dataColsKeyFirst(pReadh->pDCols[0]) == pBlock->minKey.ts);
+  ASSERT(dataColsKeyLast(pReadh->pDCols[0]) == pBlock->maxKey.ts);
 
   return 0;
 }
@@ -559,7 +559,7 @@ int tsdbEncodeSBlockIdx(void **buf, SBlockIdx *pIdx) {
   tlen += taosEncodeFixedU8(buf, pIdx->hasLast);
   tlen += taosEncodeVariantU32(buf, pIdx->numOfBlocks);
   tlen += taosEncodeFixedU64(buf, pIdx->uid);
-  tlen += taosEncodeFixedU64(buf, pIdx->maxKey);
+  tlen += taosEncodeFixedU64(buf, pIdx->maxKey.ts);
 
   return tlen;
 }
@@ -579,7 +579,7 @@ void *tsdbDecodeSBlockIdx(void *buf, SBlockIdx *pIdx) {
   if ((buf = taosDecodeFixedU64(buf, &value)) == NULL) return NULL;
   pIdx->uid = (int64_t)value;
   if ((buf = taosDecodeFixedU64(buf, &value)) == NULL) return NULL;
-  pIdx->maxKey = (TSKEY)value;
+  pIdx->maxKey.ts = (TSKEY)value;
 
   return buf;
 }

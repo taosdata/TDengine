@@ -17,6 +17,7 @@
 
 typedef struct {
   SMemTable *pMemTable;
+  SReadH     readh;
   SArray    *aBlkIdx;
 } SCommitH;
 

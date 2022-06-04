@@ -258,6 +258,11 @@ static FORCE_INLINE TSKEY tsdbNextIterKey(SSkipListIterator *pIter) {
 // tsdbReadImpl
 typedef struct SReadH SReadH;
 
+struct TSDBKEY {
+  int64_t version;
+  TSKEY   ts;
+};
+
 typedef struct {
   uint32_t len;
   uint32_t offset;
@@ -265,24 +270,8 @@ typedef struct {
   uint32_t numOfBlocks : 30;
   uint64_t suid;
   uint64_t uid;
-  TSKEY    maxKey;
+  TSDBKEY  maxKey;
 } SBlockIdx;
-
-#ifdef TD_REFACTOR_3
-typedef struct {
-  int64_t last : 1;
-  int64_t offset : 63;
-  int32_t algorithm : 8;
-  int32_t numOfRows : 24;
-  int32_t len;
-  int32_t keyLen;  // key column length, keyOffset = offset+sizeof(SBlockData)+sizeof(SBlockCol)*numOfCols
-  int16_t numOfSubBlocks;
-  int16_t numOfCols;  // not including timestamp column
-  TSKEY   keyFirst;
-  TSKEY   keyLast;
-} SBlock;
-
-#else
 
 typedef enum {
   TSDB_SBLK_VER_0 = 0,
@@ -306,16 +295,14 @@ typedef struct {
   int64_t  offset;
   uint64_t aggrStat : 1;
   uint64_t aggrOffset : 63;
-  TSKEY    keyFirst;
-  TSKEY    keyLast;
-} SBlockV0;
-
-#define SBlock SBlockV0  // latest SBlock definition
+  TSDBKEY  minKey;
+  TSDBKEY  maxKey;
+  // TSKEY    keyFirst;
+  // TSKEY    keyLast;
+} SBlock;
 
 static FORCE_INLINE bool tsdbIsSupBlock(SBlock *pBlock) { return pBlock->numOfSubBlocks == 1; }
 static FORCE_INLINE bool tsdbIsSubBlock(SBlock *pBlock) { return pBlock->numOfSubBlocks == 0; }
-
-#endif
 
 typedef struct {
   int32_t  delimiter;  // For recovery usage
@@ -877,11 +864,6 @@ static FORCE_INLINE int tsdbUnLockFS(STsdbFS *pFs) {
 struct TSDBROW {
   int64_t version;
   STSRow2 tsRow;
-};
-
-struct TSDBKEY {
-  int64_t version;
-  TSKEY   ts;
 };
 
 struct TABLEID {

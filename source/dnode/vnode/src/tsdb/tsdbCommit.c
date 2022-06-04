@@ -774,7 +774,7 @@ static int tsdbWriteBlockInfoImpl(SDFile *pHeadf, STable *pTable, SArray *pSupA,
 
   pIdx->uid = TABLE_UID(pTable);
   pIdx->hasLast = pBlock->last ? 1 : 0;
-  pIdx->maxKey = pBlock->keyLast;
+  pIdx->maxKey = pBlock->maxKey;
   pIdx->numOfBlocks = (uint32_t)nSupBlocks;
   pIdx->len = tlen;
   pIdx->offset = (uint32_t)offset;
@@ -895,7 +895,7 @@ static int tsdbCommitToTable(SCommitH *pCommith, int tid) {
           return -1;
         }
       } else {
-        if (tsdbCommitMemData(pCommith, pIter, pBlock->keyFirst - 1, true) < 0) {
+        if (tsdbCommitMemData(pCommith, pIter, pBlock->minKey.ts - 1, true) < 0) {
           return -1;
         }
       }
@@ -990,9 +990,9 @@ static int tsdbComparKeyBlock(const void *arg1, const void *arg2) {
   TSKEY   key = *(TSKEY *)arg1;
   SBlock *pBlock = (SBlock *)arg2;
 
-  if (key < pBlock->keyFirst) {
+  if (key < pBlock->minKey.ts) {
     return -1;
-  } else if (key > pBlock->keyLast) {
+  } else if (key > pBlock->maxKey.ts) {
     return 1;
   } else {
     return 0;
@@ -1220,8 +1220,8 @@ static int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFi
   pBlock->numOfSubBlocks = isSuper ? 1 : 0;
   pBlock->numOfCols = nColsNotAllNull;
   pBlock->numOfBSma = nColsOfBlockSma;
-  pBlock->keyFirst = dataColsKeyFirst(pDataCols);
-  pBlock->keyLast = dataColsKeyLast(pDataCols);
+  pBlock->minKey.ts = dataColsKeyFirst(pDataCols);
+  pBlock->maxKey.ts = dataColsKeyLast(pDataCols);
   pBlock->aggrStat = aggrStatus;
   pBlock->blkVer = SBlockVerLatest;
   pBlock->aggrOffset = (uint64_t)offsetAggr;
@@ -1229,7 +1229,7 @@ static int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFi
   tsdbDebug("vgId:%d, uid:%" PRId64 " a block of data is written to file %s, offset %" PRId64
             " numOfRows %d len %d numOfCols %" PRId16 " keyFirst %" PRId64 " keyLast %" PRId64,
             REPO_ID(pRepo), TABLE_UID(pTable), TSDB_FILE_FULL_NAME(pDFile), offset, rowsToWrite, pBlock->len,
-            pBlock->numOfCols, pBlock->keyFirst, pBlock->keyLast);
+            pBlock->numOfCols, pBlock->minKey.ts, pBlock->maxKey.ts);
 
   return 0;
 }
@@ -1312,7 +1312,7 @@ static int tsdbMergeMemData(SCommitH *pCommith, SCommitIter *pIter, int bidx) {
   if (bidx == nBlocks - 1) {
     keyLimit = pCommith->maxKey;
   } else {
-    keyLimit = pBlock[1].keyFirst - 1;
+    keyLimit = pBlock[1].minKey.ts - 1;
   }
 
   SSkipListIterator titer = *(pIter->pIter);
@@ -1354,8 +1354,8 @@ static int tsdbMergeMemData(SCommitH *pCommith, SCommitIter *pIter, int bidx) {
     }
     subBlocks[pBlock->numOfSubBlocks] = block;
     supBlock = *pBlock;
-    supBlock.keyFirst = mInfo.keyFirst;
-    supBlock.keyLast = mInfo.keyLast;
+    supBlock.minKey.ts = mInfo.keyFirst;
+    supBlock.maxKey.ts = mInfo.keyLast;
     supBlock.numOfSubBlocks++;
     supBlock.numOfRows = pBlock->numOfRows + mInfo.rowsInserted - mInfo.rowsDeleteSucceed;
     supBlock.offset = taosArrayGetSize(pCommith->aSubBlk) * sizeof(SBlock);
