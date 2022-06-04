@@ -322,11 +322,11 @@ static bool isValidateTag(char* input) {
   return true;
 }
 
-int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag **ppTag, SMsgBuf* pMsgBuf) {
+int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, SMsgBuf* pMsgBuf) {
   int32_t   retCode = TSDB_CODE_SUCCESS;
-  cJSON* root = NULL;
+  cJSON*    root = NULL;
   SHashObj* keyHash = NULL;
-  int32_t size = 0;
+  int32_t   size = 0;
   // set json NULL data
   if (!json || strtrim((char*)json) == 0 || strcasecmp(json, TSDB_DATA_NULL_STR_L) == 0) {
     retCode = TSDB_CODE_SUCCESS;
@@ -371,7 +371,8 @@ int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag **ppTag, SMs
     }
     STagVal val = {0};
     val.pKey = jsonKey;
-    taosHashPut(keyHash, jsonKey, keyLen, &keyLen, CHAR_BYTES);  // add key to hash to remove dumplicate, value is useless
+    taosHashPut(keyHash, jsonKey, keyLen, &keyLen,
+                CHAR_BYTES);  // add key to hash to remove dumplicate, value is useless
 
     if (item->type == cJSON_String) {  // add json value  format: type|data
       char*   jsonValue = item->valuestring;
@@ -382,8 +383,7 @@ int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag **ppTag, SMs
         goto end;
       }
       val.type = TSDB_DATA_TYPE_NCHAR;
-      if (valLen > 0 && !taosMbsToUcs4(jsonValue, valLen, (TdUcs4*)tmp,
-                                       (int32_t)(valLen * TSDB_NCHAR_SIZE), &valLen)) {
+      if (valLen > 0 && !taosMbsToUcs4(jsonValue, valLen, (TdUcs4*)tmp, (int32_t)(valLen * TSDB_NCHAR_SIZE), &valLen)) {
         uError("charset:%s to %s. val:%s, errno:%s, convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, jsonValue,
                strerror(errno));
         retCode = buildSyntaxErrMsg(pMsgBuf, "charset convert json error", jsonValue);
@@ -413,7 +413,7 @@ int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag **ppTag, SMs
 
 end:
   taosHashCleanup(keyHash);
-  if(retCode == TSDB_CODE_SUCCESS){
+  if (retCode == TSDB_CODE_SUCCESS) {
     tTagNew(pTagVals, 1, true, ppTag);
   }
   cJSON_Delete(root);
@@ -679,6 +679,7 @@ int32_t getTableMetaFromCache(SParseMetaCache* pMetaCache, const SName* pName, S
   tNameExtractFullName(pName, fullName);
   STableMeta** pRes = taosHashGet(pMetaCache->pTableMeta, fullName, strlen(fullName));
   if (NULL == pRes || NULL == *pRes) {
+    parserError("getTableMetaFromCache error: %s", fullName);
     return TSDB_CODE_PAR_INTERNAL_ERROR;
   }
   *pMeta = tableMetaDup(*pRes);
@@ -707,6 +708,7 @@ int32_t reserveDbVgInfoInCache(int32_t acctId, const char* pDb, SParseMetaCache*
 int32_t getDbVgInfoFromCache(SParseMetaCache* pMetaCache, const char* pDbFName, SArray** pVgInfo) {
   SArray** pRes = taosHashGet(pMetaCache->pDbVgroup, pDbFName, strlen(pDbFName));
   if (NULL == pRes) {
+    parserError("getDbVgInfoFromCache error: %s", pDbFName);
     return TSDB_CODE_PAR_INTERNAL_ERROR;
   }
   // *pRes is null, which is a legal value, indicating that the user DB has not been created
@@ -734,6 +736,7 @@ int32_t getTableVgroupFromCache(SParseMetaCache* pMetaCache, const SName* pName,
   tNameExtractFullName(pName, fullName);
   SVgroupInfo** pRes = taosHashGet(pMetaCache->pTableVgroup, fullName, strlen(fullName));
   if (NULL == pRes || NULL == *pRes) {
+    parserError("getTableVgroupFromCache error: %s", fullName);
     return TSDB_CODE_PAR_INTERNAL_ERROR;
   }
   memcpy(pVgroup, *pRes, sizeof(SVgroupInfo));
@@ -748,6 +751,7 @@ int32_t getDbVgVersionFromCache(SParseMetaCache* pMetaCache, const char* pDbFNam
                                 int32_t* pTableNum) {
   SDbInfo** pRes = taosHashGet(pMetaCache->pDbCfg, pDbFName, strlen(pDbFName));
   if (NULL == pRes || NULL == *pRes) {
+    parserError("getDbVgVersionFromCache error: %s", pDbFName);
     return TSDB_CODE_PAR_INTERNAL_ERROR;
   }
   *pVersion = (*pRes)->vgVer;
@@ -763,6 +767,7 @@ int32_t reserveDbCfgInCache(int32_t acctId, const char* pDb, SParseMetaCache* pM
 int32_t getDbCfgFromCache(SParseMetaCache* pMetaCache, const char* pDbFName, SDbCfgInfo* pInfo) {
   SDbCfgInfo** pRes = taosHashGet(pMetaCache->pDbCfg, pDbFName, strlen(pDbFName));
   if (NULL == pRes || NULL == *pRes) {
+    parserError("getDbCfgFromCache error: %s", pDbFName);
     return TSDB_CODE_PAR_INTERNAL_ERROR;
   }
   memcpy(pInfo, *pRes, sizeof(SDbCfgInfo));
@@ -801,6 +806,7 @@ int32_t getUserAuthFromCache(SParseMetaCache* pMetaCache, const char* pUser, con
   int32_t len = userAuthToStringExt(pUser, pDbFName, type, key);
   bool*   pRes = taosHashGet(pMetaCache->pUserAuth, key, len);
   if (NULL == pRes) {
+    parserError("getUserAuthFromCache error: %s, %s, %d", pUser, pDbFName, type);
     return TSDB_CODE_PAR_INTERNAL_ERROR;
   }
   *pPass = *pRes;
@@ -820,6 +826,7 @@ int32_t reserveUdfInCache(const char* pFunc, SParseMetaCache* pMetaCache) {
 int32_t getUdfInfoFromCache(SParseMetaCache* pMetaCache, const char* pFunc, SFuncInfo* pInfo) {
   SFuncInfo** pRes = taosHashGet(pMetaCache->pUdf, pFunc, strlen(pFunc));
   if (NULL == pRes || NULL == *pRes) {
+    parserError("getUdfInfoFromCache error: %s", pFunc);
     return TSDB_CODE_PAR_INTERNAL_ERROR;
   }
   memcpy(pInfo, *pRes, sizeof(SFuncInfo));

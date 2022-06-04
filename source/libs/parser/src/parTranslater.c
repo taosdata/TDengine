@@ -829,8 +829,9 @@ static EDealRes translateComparisonOperator(STranslateContext* pCxt, SOperatorNo
     if (!IS_VAR_DATA_TYPE(((SExprNode*)(pOp->pLeft))->resType.type)) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pLeft))->aliasName);
     }
-    if (QUERY_NODE_VALUE != nodeType(pOp->pRight) || 
-      ((!IS_STR_DATA_TYPE(((SExprNode*)(pOp->pRight))->resType.type)) && (((SExprNode*)(pOp->pRight))->resType.type != TSDB_DATA_TYPE_NULL))) {
+    if (QUERY_NODE_VALUE != nodeType(pOp->pRight) ||
+        ((!IS_STR_DATA_TYPE(((SExprNode*)(pOp->pRight))->resType.type)) &&
+         (((SExprNode*)(pOp->pRight))->resType.type != TSDB_DATA_TYPE_NULL))) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pRight))->aliasName);
     }
   }
@@ -2632,8 +2633,23 @@ static int32_t checkTableSchema(STranslateContext* pCxt, SCreateTableStmt* pStmt
   return code;
 }
 
+static int32_t checkSchemalessDb(STranslateContext* pCxt, const char* pDbName) {
+  if (0 != pCxt->pParseCxt->schemalessType) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SDbCfgInfo info = {0};
+  int32_t    code = getDBCfg(pCxt, pDbName, &info);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = info.schemaless ? TSDB_CODE_SML_INVALID_DB_CONF : TSDB_CODE_SUCCESS;
+  }
+  return code;
+}
+
 static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt) {
-  int32_t code = checTableFactorOption(pCxt, pStmt->pOptions->filesFactor);
+  int32_t code = checkSchemalessDb(pCxt, pStmt->dbName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checTableFactorOption(pCxt, pStmt->pOptions->filesFactor);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkTableRollupOption(pCxt, pStmt->pOptions->pRollupFuncs);
   }
@@ -2645,11 +2661,6 @@ static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkTableSchema(pCxt, pStmt);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    if(pCxt->pParseCxt->schemalessType == 0){
-      code = isNotSchemalessDb(pCxt->pParseCxt, pStmt->dbName);
-    }
   }
   return code;
 }
@@ -4238,7 +4249,7 @@ static int32_t buildKVRowForBindTags(STranslateContext* pCxt, SCreateSubTableCla
   int16_t  nTags = 0, nBufPos = 0;
   SSchema* pTagSchema = getTableTagSchema(pSuperTableMeta);
   SNode *  pTag = NULL, *pNode = NULL;
-  bool isJson = false;
+  bool     isJson = false;
   FORBOTH(pTag, pStmt->pSpecificTags, pNode, pStmt->pValsOfTags) {
     SColumnNode* pCol = (SColumnNode*)pTag;
     SSchema*     pSchema = NULL;
@@ -4271,11 +4282,11 @@ static int32_t buildKVRowForBindTags(STranslateContext* pCxt, SCreateSubTableCla
 
       isJson = true;
       code = parseJsontoTagData(pVal->literal, pTagArray, ppTag, &pCxt->msgBuf);
-      if(code != TSDB_CODE_SUCCESS){
+      if (code != TSDB_CODE_SUCCESS) {
         goto end;
       }
-    }else if (pVal->node.resType.type != TSDB_DATA_TYPE_NULL) {
-      void* nodeVal = nodesGetValueFromNode(pVal);
+    } else if (pVal->node.resType.type != TSDB_DATA_TYPE_NULL) {
+      void*   nodeVal = nodesGetValueFromNode(pVal);
       STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
       if (IS_VAR_DATA_TYPE(pTagSchema->type)) {
         val.pData = varDataVal(nodeVal);
@@ -4287,13 +4298,13 @@ static int32_t buildKVRowForBindTags(STranslateContext* pCxt, SCreateSubTableCla
     }
   }
 
-  if(!isJson) code = tTagNew(pTagArray, 1, false, ppTag);
+  if (!isJson) code = tTagNew(pTagArray, 1, false, ppTag);
 
 end:
-  if(isJson){
+  if (isJson) {
     for (int i = 0; i < taosArrayGetSize(pTagArray); ++i) {
-      STagVal *p = (STagVal *)taosArrayGet(pTagArray, i);
-      if(IS_VAR_DATA_TYPE(p->type)){
+      STagVal* p = (STagVal*)taosArrayGet(pTagArray, i);
+      if (IS_VAR_DATA_TYPE(p->type)) {
         taosMemoryFree(p->pData);
       }
     }
@@ -4338,11 +4349,11 @@ static int32_t buildKVRowForAllTags(STranslateContext* pCxt, SCreateSubTableClau
 
       isJson = true;
       code = parseJsontoTagData(pVal->literal, pTagArray, ppTag, &pCxt->msgBuf);
-      if(code != TSDB_CODE_SUCCESS){
+      if (code != TSDB_CODE_SUCCESS) {
         goto end;
       }
-    }else if (pVal->node.resType.type != TSDB_DATA_TYPE_NULL) {
-      char* tmpVal = nodesGetValueFromNode(pVal);
+    } else if (pVal->node.resType.type != TSDB_DATA_TYPE_NULL) {
+      char*   tmpVal = nodesGetValueFromNode(pVal);
       STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
       if (IS_VAR_DATA_TYPE(pTagSchema->type)) {
         val.pData = varDataVal(tmpVal);
@@ -4354,13 +4365,13 @@ static int32_t buildKVRowForAllTags(STranslateContext* pCxt, SCreateSubTableClau
     }
     ++index;
   }
-  if(!isJson) code = tTagNew(pTagArray, 1, false, ppTag);
+  if (!isJson) code = tTagNew(pTagArray, 1, false, ppTag);
 
 end:
-  if(isJson){
+  if (isJson) {
     for (int i = 0; i < taosArrayGetSize(pTagArray); ++i) {
-      STagVal *p = (STagVal *)taosArrayGet(pTagArray, i);
-      if(IS_VAR_DATA_TYPE(p->type)){
+      STagVal* p = (STagVal*)taosArrayGet(pTagArray, i);
+      if (IS_VAR_DATA_TYPE(p->type)) {
         taosMemoryFree(p->pData);
       }
     }
@@ -4428,7 +4439,6 @@ static SArray* serializeVgroupsCreateTableBatch(int32_t acctId, SHashObj* pVgrou
 }
 
 static int32_t rewriteCreateMultiTable(STranslateContext* pCxt, SQuery* pQuery) {
-
   SCreateMultiTableStmt* pStmt = (SCreateMultiTableStmt*)pQuery->pRoot;
 
   SHashObj* pVgroupHashmap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
@@ -4439,11 +4449,11 @@ static int32_t rewriteCreateMultiTable(STranslateContext* pCxt, SQuery* pQuery) 
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pNode;
   FOREACH(pNode, pStmt->pSubTables) {
-    if(pCxt->pParseCxt->schemalessType == 0 &&
-        (code = isNotSchemalessDb(pCxt->pParseCxt, ((SCreateSubTableClause*)pNode)->dbName)) != TSDB_CODE_SUCCESS){
-      return code;
+    SCreateSubTableClause* pClause = (SCreateSubTableClause*)pNode;
+    code = checkSchemalessDb(pCxt, pClause->dbName);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = rewriteCreateSubTable(pCxt, pClause, pVgroupHashmap);
     }
-    code = rewriteCreateSubTable(pCxt, (SCreateSubTableClause*)pNode, pVgroupHashmap);
     if (TSDB_CODE_SUCCESS != code) {
       taosHashCleanup(pVgroupHashmap);
       return code;
@@ -4633,27 +4643,27 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
         strlen(pStmt->pVal->literal) > (TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
       return buildSyntaxErrMsg(&pCxt->msgBuf, "json string too long than 4095", pStmt->pVal->literal);
     }
-    SArray *pTagVals = taosArrayInit(1, sizeof(STagVal));
+    SArray* pTagVals = taosArrayInit(1, sizeof(STagVal));
     int32_t code = TSDB_CODE_SUCCESS;
-    STag* pTag = NULL;
-    do{
+    STag*   pTag = NULL;
+    do {
       code = parseJsontoTagData(pStmt->pVal->literal, pTagVals, &pTag, &pCxt->msgBuf);
       if (TSDB_CODE_SUCCESS != code) {
         break;
       }
-    }while(0);
+    } while (0);
     for (int i = 0; i < taosArrayGetSize(pTagVals); ++i) {
-      STagVal *p = (STagVal *)taosArrayGet(pTagVals, i);
-      if(IS_VAR_DATA_TYPE(p->type)){
+      STagVal* p = (STagVal*)taosArrayGet(pTagVals, i);
+      if (IS_VAR_DATA_TYPE(p->type)) {
         taosMemoryFree(p->pData);
       }
     }
     taosArrayDestroy(pTagVals);
-    if (code != TSDB_CODE_SUCCESS){
+    if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
     pReq->nTagVal = pTag->len;
-    pReq->pTagVal = (uint8_t *)pTag;
+    pReq->pTagVal = (uint8_t*)pTag;
     pStmt->pVal->datum.p = (char*)pTag;  // for free
   } else {
     pReq->nTagVal = pStmt->pVal->node.resType.bytes;
@@ -4854,13 +4864,8 @@ static int32_t buildModifyVnodeArray(STranslateContext* pCxt, SAlterTableStmt* p
 
 static int32_t rewriteAlterTable(STranslateContext* pCxt, SQuery* pQuery) {
   SAlterTableStmt* pStmt = (SAlterTableStmt*)pQuery->pRoot;
-  int32_t     code = TSDB_CODE_SUCCESS;
-  if(pCxt->pParseCxt->schemalessType == 0 &&
-      (code = isNotSchemalessDb(pCxt->pParseCxt, pStmt->dbName)) != TSDB_CODE_SUCCESS){
-    return code;
-  }
-
-  STableMeta* pTableMeta = NULL;
+  int32_t          code = checkSchemalessDb(pCxt, pStmt->dbName);
+  STableMeta*      pTableMeta = NULL;
   code = getTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pTableMeta);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
