@@ -347,8 +347,15 @@ static void memDataMovePosTo(SMemData *pMemData, SMemSkipListNode **pos, TSDBKEY
 
   if (backward) {
     px = pMemData->sl.pTail;
-    for (int8_t iLevel = pMemData->sl.maxLevel - 1; iLevel >= 0; iLevel--) {
-      if (iLevel < pMemData->sl.level) {
+
+    for (int8_t iLevel = pMemData->sl.maxLevel - 1; iLevel >= pMemData->sl.level; iLevel--) {
+      pos[iLevel] = px;
+    }
+
+    if (pMemData->sl.level) {
+      if (fromPos) px = pos[pMemData->sl.level - 1];
+
+      for (int8_t iLevel = pMemData->sl.level - 1; iLevel >= 0; iLevel--) {
         pn = SL_NODE_BACKWARD(px, iLevel);
         while (pn != pMemData->sl.pHead) {
           pTKey = (TSDBKEY *)SL_NODE_DATA(pn);
@@ -361,25 +368,36 @@ static void memDataMovePosTo(SMemData *pMemData, SMemSkipListNode **pos, TSDBKEY
             pn = SL_NODE_BACKWARD(px, iLevel);
           }
         }
+
+        pos[iLevel] = px;
       }
-      pos[iLevel] = px;
     }
   } else {
     px = pMemData->sl.pHead;
-    for (int8_t iLevel = pMemData->sl.maxLevel - 1; iLevel >= 0; iLevel--) {
-      pn = SL_NODE_FORWARD(px, iLevel);
-      while (pn != pMemData->sl.pTail) {
-        pTKey = (TSDBKEY *)SL_NODE_DATA(pn);
 
-        c = tsdbKeyCmprFn(pTKey, pKey);
-        if (pTKey >= 0) {
-          break;
-        } else {
-          px = pn;
-          pn = SL_NODE_FORWARD(px, iLevel);
-        }
-      }
+    for (int8_t iLevel = pMemData->sl.maxLevel - 1; iLevel >= pMemData->sl.level; iLevel--) {
       pos[iLevel] = px;
+    }
+
+    if (pMemData->sl.level) {
+      if (fromPos) px = pos[pMemData->sl.level - 1];
+
+      for (int8_t iLevel = pMemData->sl.level - 1; iLevel >= 0; iLevel--) {
+        pn = SL_NODE_FORWARD(px, iLevel);
+        while (pn != pMemData->sl.pHead) {
+          pTKey = (TSDBKEY *)SL_NODE_DATA(pn);
+
+          c = tsdbKeyCmprFn(pTKey, pKey);
+          if (c >= 0) {
+            break;
+          } else {
+            px = pn;
+            pn = SL_NODE_FORWARD(px, iLevel);
+          }
+        }
+
+        pos[iLevel] = px;
+      }
     }
   }
 }
