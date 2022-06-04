@@ -140,7 +140,7 @@ static int32_t sifGetValueFromNode(SNode *node, char **value) {
         dataLen = 0;
       } else if (*pData == TSDB_DATA_TYPE_NCHAR) {
         dataLen = varDataTLen(pData + CHAR_BYTES);
-      } else if (*pData == TSDB_DATA_TYPE_BIGINT || *pData == TSDB_DATA_TYPE_DOUBLE) {
+      } else if (*pData == TSDB_DATA_TYPE_DOUBLE) {
         dataLen = LONG_BYTES;
       } else if (*pData == TSDB_DATA_TYPE_BOOL) {
         dataLen = CHAR_BYTES;
@@ -457,10 +457,6 @@ static int32_t sifGetOperFn(int32_t funcId, sif_func_t *func, SIdxFltStatus *sta
 static int32_t sifExecOper(SOperatorNode *node, SIFCtx *ctx, SIFParam *output) {
   int32_t code = 0;
   int32_t nParam = sifGetOperParamNum(node->opType);
-  if (nParam <= 1) {
-    SIF_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
-  }
-
   SIFParam *params = NULL;
   SIF_ERR_RET(sifInitOperParams(&params, node, ctx));
 
@@ -469,14 +465,12 @@ static int32_t sifExecOper(SOperatorNode *node, SIFCtx *ctx, SIFParam *output) {
 
   sif_func_t operFn = sifNullFunc;
   code = sifGetOperFn(node->opType, &operFn, &output->status);
-  if (ctx->noExec) {
-    SIF_RET(code);
-  } else {
-    return operFn(&params[0], nParam > 1 ? &params[1] : NULL, output);
+  if (!ctx->noExec) {
+    code = operFn(&params[0], nParam > 1 ? &params[1] : NULL, output);
   }
-_return:
+
   taosMemoryFree(params);
-  SIF_RET(code);
+  return code;
 }
 
 static int32_t sifExecLogic(SLogicConditionNode *node, SIFCtx *ctx, SIFParam *output) {

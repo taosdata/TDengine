@@ -99,6 +99,24 @@ void colDataTrim(SColumnInfoData* pColumnInfoData) {
   // TODO
 }
 
+int32_t getJsonValueLen(const char *data) {
+  int32_t dataLen = 0;
+  if (*data == TSDB_DATA_TYPE_NULL) {
+    dataLen = CHAR_BYTES;
+  } else if (*data == TSDB_DATA_TYPE_NCHAR) {
+    dataLen = varDataTLen(data + CHAR_BYTES) + CHAR_BYTES;
+  } else if (*data == TSDB_DATA_TYPE_DOUBLE) {
+    dataLen = DOUBLE_BYTES + CHAR_BYTES;
+  } else if (*data == TSDB_DATA_TYPE_BOOL) {
+    dataLen = CHAR_BYTES + CHAR_BYTES;
+  } else if (*data == TD_TAG_JSON) {   // json string
+    dataLen = ((STag*)(data))->len;
+  } else {
+    ASSERT(0);
+  }
+  return dataLen;
+}
+
 int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, bool isNull) {
   ASSERT(pColumnInfoData != NULL);
 
@@ -118,19 +136,7 @@ int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, con
   if (IS_VAR_DATA_TYPE(type)) {
     int32_t dataLen = 0;
     if (type == TSDB_DATA_TYPE_JSON) {
-      if (*pData == TSDB_DATA_TYPE_NULL) {
-        dataLen = CHAR_BYTES;
-      } else if (*pData == TSDB_DATA_TYPE_NCHAR) {
-        dataLen = varDataTLen(pData + CHAR_BYTES) + CHAR_BYTES;
-      } else if (*pData == TSDB_DATA_TYPE_DOUBLE) {
-        dataLen = DOUBLE_BYTES + CHAR_BYTES;
-      } else if (*pData == TSDB_DATA_TYPE_BOOL) {
-        dataLen = CHAR_BYTES + CHAR_BYTES;
-      } else if (*pData == TD_TAG_JSON) {   // json string
-        dataLen = ((STag*)(pData))->len;
-      } else {
-        ASSERT(0);
-      }
+      dataLen = getJsonValueLen(pData);
     }else {
       dataLen = varDataTLen(pData);
     }
