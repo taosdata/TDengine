@@ -89,6 +89,8 @@ int32_t mmPutNodeMsgToReadQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 }
 
 int32_t mmPutNodeMsgToQueryQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  mndPreprocessQueryMsg(pMgmt->pMnode, pMsg);
+
   return mmPutNodeMsgToWorker(&pMgmt->queryWorker, pMsg);
 }
 

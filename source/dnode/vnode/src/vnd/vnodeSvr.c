@@ -190,7 +190,15 @@ _err:
   return -1;
 }
 
-int vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
+int32_t vnodePreprocessQueryMsg(SVnode * pVnode, SRpcMsg * pMsg) {
+  if (TDMT_VND_QUERY != pMsg->msgType) {
+    return 0;
+  }
+
+  return qWorkerPreprocessQueryMsg(pVnode->pQuery, pMsg);
+}
+
+int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   vTrace("message in vnode query queue is processing");
   SReadHandle handle = {.meta = pVnode->pMeta, .config = &pVnode->config, .vnode = pVnode, .pMsgCb = &pVnode->msgCb};
   switch (pMsg->msgType) {

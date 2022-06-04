@@ -51,6 +51,8 @@ int32_t qmPutNodeMsgToQueryQueue(SQnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t qmPutNodeMsgToFetchQueue(SQnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t qmPutNodeMsgToMonitorQueue(SQnodeMgmt *pMgmt, SRpcMsg *pMsg);
 
+int32_t qndPreprocessQueryMsg(SQnode *pQnode, SRpcMsg * pMsg);
+
 #ifdef __cplusplus
 }
 #endif
