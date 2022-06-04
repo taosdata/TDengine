@@ -282,6 +282,7 @@ def run_win_test() {
         python -m pip install .
         time /t
         cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\community\\tests\\system-test
+        echo "node: ''' + linux_node_ip + ''':''' + inux_node_pass + '''"
         echo "testing ..."
         test-all.bat  "{\\\"host\\\":\\\"''' + linux_node_ip + '''\\\",\\\"port\\\":22,\\\"user\\\":\\\"root\\\",\\\"password\\\":\\\"''' + linux_node_pass + '''\\\",\\\"path\\\":\\\"/var/lib/jenkins/workspace/TDinternal\\\"}"
         time /t
@@ -334,7 +335,7 @@ pipeline {
                                 returnStdout: true
                             ).trim()
                             linux_node_pass = sh (
-                                script: 'jq .password /home/node_info.json | sed "s/\\\"//g" |sed "s/\\!/^^^^\\!/g"',
+                                script: 'jq .password /home/node_info.json | sed "s/\\\"//g" |sed "s/\\!/^^^^^^^^\\!/g"',
                                 returnStdout: true
                             ).trim()
                             echo "${linux_node_ip}:${linux_node_pass}"
