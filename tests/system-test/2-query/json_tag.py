@@ -345,10 +345,10 @@ class TDTestCase:
         #
         # # test distinct
         tdSql.execute("insert into jsons1_14 using jsons1 tags('{\"tag1\":\"收到货\",\"tag2\":\"\",\"tag3\":null}') values(1591062628000, 2, NULL, '你就会', 'dws')")
-        # tdSql.query("select distinct jtag->'tag1' from jsons1")
-        # tdSql.checkRows(8)
-        # tdSql.query("select distinct jtag from jsons1")
-        # tdSql.checkRows(9)
+        tdSql.query("select distinct jtag->'tag1' from jsons1")
+        tdSql.checkRows(8)
+        tdSql.query("select distinct jtag from jsons1")
+        tdSql.checkRows(9)
         #
         # #test dumplicate key with normal colomn
         tdSql.execute("INSERT INTO jsons1_15 using jsons1 tags('{\"tbname\":\"tt\",\"databool\":true,\"datastr\":\"是是是\"}') values(1591060828000, 4, false, 'jjsf', \"你就会\")")
@@ -376,67 +376,71 @@ class TDTestCase:
         # cname_list.append("a.jtag->'tag3'")
         # tdSql.checkColNameList(res, cname_list)
         #
-        # # test group by & order by  json tag
-        # tdSql.error("select count(*) from jsons1 group by jtag->'tag1' order by jtag->'tag2'")
-        # tdSql.error("select count(*) from jsons1 group by jtag->'tag1' order by jtag")
-        # tdSql.query("select count(*) from jsons1 group by jtag->'tag1' order by jtag->'tag1' desc")
-        # tdSql.checkRows(8)
-        # tdSql.checkData(1, 0, 2)
-        # tdSql.checkData(1, 1, '"femail"')
-        # tdSql.checkData(2, 0, 1)
-        # tdSql.checkData(2, 1, 11)
-        # tdSql.checkData(5, 0, 1)
-        # tdSql.checkData(5, 1, "false")
+        # test group by & order by  json tag
+        tdSql.error("select count(*) from jsons1 group by jtag->'tag1' order by jtag->'tag2'")
+        tdSql.error("select count(*) from jsons1 group by jtag->'tag1' order by jtag")
+        tdSql.query("select count(*),jtag->'tag1' from jsons1 group by jtag->'tag1' order by jtag->'tag1' desc")
+        tdSql.checkRows(8)
+        tdSql.checkData(0, 0, 2)
+        tdSql.checkData(0, 1, '"femail"')
+        tdSql.checkData(1, 0, 2)
+        tdSql.checkData(1, 1, '"收到货"')
+        tdSql.checkData(2, 0, 1)
+        tdSql.checkData(2, 1, "11.000000000")
+        tdSql.checkData(5, 0, 1)
+        tdSql.checkData(5, 1, "false")
         # tdSql.checkData(6, 0, 1)
         # tdSql.checkData(6, 1, "null")
-        # tdSql.checkData(7, 0, 2)
-        # tdSql.checkData(7, 1, None)
+        tdSql.checkData(7, 0, 2)
+        tdSql.checkData(7, 1, None)
+
+        tdSql.query("select count(*),jtag->'tag1' from jsons1 group by jtag->'tag1' order by jtag->'tag1' asc")
+        tdSql.checkRows(8)
+        tdSql.checkData(0, 0, 2)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(2, 0, 1)
+        tdSql.checkData(2, 1, "false")
+        tdSql.checkData(5, 0, 1)
+        tdSql.checkData(5, 1, "11.000000000")
+        tdSql.checkData(7, 0, 2)
+        tdSql.checkData(7, 1, '"femail"')
         #
-        # tdSql.query("select count(*) from jsons1 group by jtag->'tag1' order by jtag->'tag1' asc")
-        # tdSql.checkRows(8)
-        # tdSql.checkData(0, 0, 2)
+        # test stddev with group by json tag
+        tdSql.query("select stddev(dataint),jtag->'tag1' from jsons1 group by jtag->'tag1' order by jtag->'tag1'")
+        tdSql.checkRows(8)
+        tdSql.checkData(0, 0, 10)
         # tdSql.checkData(0, 1, None)
-        # tdSql.checkData(2, 0, 1)
-        # tdSql.checkData(2, 1, "false")
-        # tdSql.checkData(5, 0, 1)
-        # tdSql.checkData(5, 1, 11)
-        # tdSql.checkData(6, 0, 2)
-        # tdSql.checkData(6, 1, '"femail"')
-        #
-        # # test stddev with group by json tag
-        # tdSql.query("select stddev(dataint) from jsons1 group by jtag->'tag1'")
-        # tdSql.checkData(0, 0, 10)
-        # tdSql.checkData(0, 1, None)
-        # tdSql.checkData(1, 0, 0)
-        # tdSql.checkData(1, 1, "null")
-        # tdSql.checkData(6, 0, 11)
-        # tdSql.checkData(6, 1, '"femail"')
-        #
-        # res = tdSql.getColNameList("select stddev(dataint) from jsons1 group by jsons1.jtag->'tag1'")
-        # cname_list = []
-        # cname_list.append("stddev(dataint)")
-        # cname_list.append("jsons1.jtag->'tag1'")
-        # tdSql.checkColNameList(res, cname_list)
-        #
-        # # test top/bottom with group by json tag
-        # tdSql.query("select top(dataint,100) from jsons1 group by jtag->'tag1'")
-        # tdSql.checkRows(11)
-        # tdSql.checkData(0, 1, 4)
-        # tdSql.checkData(1, 1, 24)
-        # tdSql.checkData(1, 2, None)
-        # tdSql.checkData(8, 1, 1)
-        # tdSql.checkData(8, 2, '"femail"')
-        #
-        # # test having
+        tdSql.checkData(4, 0, 0)
+        tdSql.checkData(4, 1, "5.000000000")
+        tdSql.checkData(7, 0, 11)
+        tdSql.checkData(7, 1, '"femail"')
+
+        res = tdSql.getColNameList("select stddev(dataint),jsons1.jtag->'tag1' from jsons1 group by jsons1.jtag->'tag1' order by jtag->'tag1'")
+        cname_list = []
+        cname_list.append("stddev(dataint)")
+        cname_list.append("jsons1.jtag->'tag1'")
+        tdSql.checkColNameList(res, cname_list)
+
+        # test top/bottom with group by json tag
+        tdSql.query("select top(dataint,2),jtag->'tag1' from jsons1 group by jtag->'tag1' order by jtag->'tag1'")
+        tdSql.checkRows(11)
+        tdSql.checkData(3, 0, 3)
+        tdSql.checkData(3, 1, "false")
+        # tdSql.checkData(3, 0, 24)
+        # tdSql.checkData(3, 1, None)
+        tdSql.checkData(10, 0, 23)
+        tdSql.checkData(10, 1, '"femail"')
+
+        # test having
         # tdSql.query("select stddev(dataint) from jsons1 group by jtag->'tag1' having stddev(dataint) > 0")
         # tdSql.checkRows(2)
-        #
-        # # subquery with json tag
-        # tdSql.query("select * from (select jtag, dataint from jsons1)")
-        # tdSql.checkRows(11)
-        # tdSql.checkData(1, 1, 1)
-        # tdSql.checkData(2, 0, '{"tag1":5,"tag2":"beijing"}')
-        #
+
+        # subquery with json tag
+        tdSql.query("select * from (select jtag, dataint from jsons1)")
+        tdSql.checkRows(11)
+        tdSql.checkData(1, 1, 1)
+        tdSql.checkData(2, 0, '{"tag1":5,"tag2":"beijing"}')
+
         # tdSql.query("select jtag->'tag1' from (select jtag->'tag1', dataint from jsons1)")
         # tdSql.checkRows(11)
         # tdSql.checkData(1, 0, '"femail"')
@@ -513,17 +517,17 @@ class TDTestCase:
         # tdSql.checkRows(3)
         #
         # #test TD-12077
-        # tdSql.execute("insert into jsons1_16 using jsons1 tags('{\"tag1\":\"收到货\",\"tag2\":\"\",\"tag3\":-2.111}') values(1591062628000, 2, NULL, '你就会', 'dws')")
-        # tdSql.query("select jtag->'tag3' from jsons1_16")
-        # tdSql.checkData(0, 0, '-2.111000000')
-        #
+        tdSql.execute("insert into jsons1_16 using jsons1 tags('{\"tag1\":\"收到货\",\"tag2\":\"\",\"tag3\":-2.111}') values(1591062628000, 2, NULL, '你就会', 'dws')")
+        tdSql.query("select jtag->'tag3' from jsons1_16")
+        tdSql.checkData(0, 0, '-2.111000000')
+
         # # test TD-12452
-        # tdSql.execute("ALTER TABLE jsons1_1 SET TAG jtag=NULL")
-        # tdSql.query("select jtag from jsons1_1")
-        # tdSql.checkData(0, 0, None)
-        # tdSql.execute("CREATE TABLE if not exists jsons1_20 using jsons1 tags(NULL)")
-        # tdSql.query("select jtag from jsons1_20")
-        # tdSql.checkData(0, 0, None)
+        tdSql.execute("ALTER TABLE jsons1_1 SET TAG jtag=NULL")
+        tdSql.query("select jtag from jsons1_1")
+        tdSql.checkData(0, 0, None)
+        tdSql.execute("CREATE TABLE if not exists jsons1_20 using jsons1 tags(NULL)")
+        tdSql.query("select jtag from jsons1_20")
+        tdSql.checkData(0, 0, None)
         # tdSql.execute("insert into jsons1_21 using jsons1 tags(NULL) values(1591061628000, 11, false, '你就会','')")
         # tdSql.query("select jtag from jsons1_21")
         # tdSql.checkData(0, 0, None)
@@ -535,24 +539,24 @@ class TDTestCase:
         tdSql.checkData(5, 2, 4095)
         #
         # #test TD-13918
-        # tdSql.execute("drop table  if exists jsons_13918_1")
-        # tdSql.execute("drop table  if exists jsons_13918_2")
-        # tdSql.execute("drop table  if exists jsons_13918_3")
-        # tdSql.execute("drop table  if exists jsons_13918_4")
-        # tdSql.execute("drop table  if exists jsons_stb")
-        # tdSql.execute("create table jsons_stb (ts timestamp, dataInt int) tags (jtag json)")
-        # tdSql.error("create table jsons_13918_1 using jsons_stb tags ('nullx')")
-        # tdSql.error("create table jsons_13918_2 using jsons_stb tags (nullx)")
-        # tdSql.error("insert into jsons_13918_3 using jsons_stb tags('NULLx') values(1591061628001, 11)")
-        # tdSql.error("insert into jsons_13918_4 using jsons_stb tags(NULLx) values(1591061628002, 11)")
-        # tdSql.execute("create table jsons_13918_1 using jsons_stb tags ('null')")
-        # tdSql.execute("create table jsons_13918_2 using jsons_stb tags (null)")
-        # tdSql.execute("insert into jsons_13918_1 values(1591061628003, 11)")
-        # tdSql.execute("insert into jsons_13918_2 values(1591061628004, 11)")
-        # tdSql.execute("insert into jsons_13918_3 using jsons_stb tags('NULL') values(1591061628005, 11)")
-        # tdSql.execute("insert into jsons_13918_4 using jsons_stb tags(\"NULL\") values(1591061628006, 11)")
-        # tdSql.query("select * from jsons_stb")
-        # tdSql.checkRows(4)
+        tdSql.execute("drop table  if exists jsons_13918_1")
+        tdSql.execute("drop table  if exists jsons_13918_2")
+        tdSql.execute("drop table  if exists jsons_13918_3")
+        tdSql.execute("drop table  if exists jsons_13918_4")
+        tdSql.execute("drop table  if exists jsons_stb")
+        tdSql.execute("create table jsons_stb (ts timestamp, dataInt int) tags (jtag json)")
+        tdSql.error("create table jsons_13918_1 using jsons_stb tags ('nullx')")
+        tdSql.error("create table jsons_13918_2 using jsons_stb tags (nullx)")
+        tdSql.error("insert into jsons_13918_3 using jsons_stb tags('NULLx') values(1591061628001, 11)")
+        tdSql.error("insert into jsons_13918_4 using jsons_stb tags(NULLx) values(1591061628002, 11)")
+        tdSql.execute("create table jsons_13918_1 using jsons_stb tags ('null')")
+        tdSql.execute("create table jsons_13918_2 using jsons_stb tags (null)")
+        tdSql.execute("insert into jsons_13918_1 values(1591061628003, 11)")
+        tdSql.execute("insert into jsons_13918_2 values(1591061628004, 11)")
+        tdSql.execute("insert into jsons_13918_3 using jsons_stb tags('NULL') values(1591061628005, 11)")
+        tdSql.execute("insert into jsons_13918_4 using jsons_stb tags(\"NULL\") values(1591061628006, 11)")
+        tdSql.query("select * from jsons_stb")
+        tdSql.checkRows(4)
 
     def stop(self):
         tdSql.close()
