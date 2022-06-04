@@ -50,9 +50,8 @@ int32_t tsdbInsertTableData2(STsdb *pTsdb, int64_t version, SVSubmitBlk *pSubmit
 int32_t tsdbDeleteTableData2(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
 
 /* SMemDataIter */
-void tsdbMemDataIterOpen(SMemDataIter *pIter, TSDBKEY *pKey, int8_t backward);
-void tsdbMemDataIterClose(SMemDataIter *pIter);
-void tsdbMemDataIterNext(SMemDataIter *pIter);
+void tsdbMemDataIterOpen(SMemData *pMemData, TSDBKEY *pKey, int8_t backward, SMemDataIter *pIter);
+bool tsdbMemDataIterNext(SMemDataIter *pIter);
 void tsdbMemDataIterGet(SMemDataIter *pIter, TSDBROW **ppRow);
 
 // tsdbCommit2.c ==============================================================================================
@@ -928,8 +927,11 @@ struct SMemData {
 };
 
 struct SMemDataIter {
-  SMemData *pMemData;
-  TSDBROW   row;
+  SMemData         *pMemData;
+  int8_t            backward;
+  TSDBROW          *pRow;
+  SMemSkipListNode *pNode;  // current node
+  TSDBROW           row;
 };
 
 #endif

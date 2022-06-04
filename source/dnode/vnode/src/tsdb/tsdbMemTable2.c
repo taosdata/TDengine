@@ -42,6 +42,7 @@ static int32_t tGetTSDBRow(uint8_t *p, TSDBROW *pRow);
 static int8_t  tsdbMemSkipListRandLevel(SMemSkipList *pSl);
 static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, SMemData *pMemData, int64_t version,
                                        SVSubmitBlk *pSubmitBlk);
+static void    memDataMovePosTo(SMemData *pMemData, SMemSkipListNode **pos, TSDBKEY *pKey, int32_t flags);
 
 // SMemTable ==============================================
 int32_t tsdbMemTableCreate2(STsdb *pTsdb, SMemTable **ppMemTable) {
@@ -158,6 +159,92 @@ _err:
             " since %s",
             TD_VID(pTsdb->pVnode), suid, uid, sKey, eKey, tstrerror(code));
   return code;
+}
+
+void tsdbMemDataIterOpen(SMemData *pMemData, TSDBKEY *pKey, int8_t backward, SMemDataIter *pIter) {
+  SMemSkipListNode *pos[SL_MAX_LEVEL];
+
+  pIter->pMemData = pMemData;
+  pIter->backward = backward;
+  pIter->pRow = NULL;
+  if (pKey == NULL) {
+    // create from head or tail
+    if (backward) {
+      pIter->pNode = SL_NODE_BACKWARD(pMemData->sl.pTail, 0);
+    } else {
+      pIter->pNode = SL_NODE_FORWARD(pMemData->sl.pHead, 0);
+    }
+  } else {
+    // create from a key
+    if (backward) {
+      memDataMovePosTo(pMemData, pos, pKey, SL_MOVE_BACKWARD);
+      pIter->pNode = SL_NODE_BACKWARD(pos[0], 0);
+    } else {
+      memDataMovePosTo(pMemData, pos, pKey, 0);
+      pIter->pNode = SL_NODE_FORWARD(pos[0], 0);
+    }
+  }
+}
+
+bool tsdbMemDataIterNext(SMemDataIter *pIter) {
+  SMemSkipListNode *pHead = pIter->pMemData->sl.pHead;
+  SMemSkipListNode *pTail = pIter->pMemData->sl.pTail;
+
+  pIter->pRow = NULL;
+  if (pIter->backward) {
+    ASSERT(pIter->pNode != pTail);
+
+    if (pIter->pNode == pHead) {
+      return false;
+    }
+
+    pIter->pNode = SL_NODE_BACKWARD(pIter->pNode, 0);
+    if (pIter->pNode == pHead) {
+      return false;
+    }
+  } else {
+    ASSERT(pIter->pNode != pHead);
+
+    if (pIter->pNode == pTail) {
+      return false;
+    }
+
+    pIter->pNode = SL_NODE_FORWARD(pIter->pNode, 0);
+    if (pIter->pNode == pTail) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+void tsdbMemDataIterGet(SMemDataIter *pIter, TSDBROW **ppRow) {
+  if (pIter->pRow) {
+    *ppRow = pIter->pRow;
+  } else {
+    SMemSkipListNode *pHead = pIter->pMemData->sl.pHead;
+    SMemSkipListNode *pTail = pIter->pMemData->sl.pTail;
+
+    if (pIter->backward) {
+      ASSERT(pIter->pNode != pTail);
+
+      if (pIter->pNode == pHead) {
+        *ppRow = NULL;
+      } else {
+        tGetTSDBRow((uint8_t *)SL_NODE_DATA(pIter->pNode), &pIter->row);
+        *ppRow = &pIter->row;
+      }
+    } else {
+      ASSERT(pIter->pNode != pHead);
+
+      if (pIter->pNode == pTail) {
+        *ppRow = NULL;
+      } else {
+        tGetTSDBRow((uint8_t *)SL_NODE_DATA(pIter->pNode), &pIter->row);
+        *ppRow = &pIter->row;
+      }
+    }
+  }
 }
 
 static int32_t tsdbGetOrCreateMemData(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t uid, SMemData **ppMemData) {

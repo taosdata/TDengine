@@ -137,7 +137,7 @@ static int32_t tsdbCommitToFile(SCommitH *pCHandle, int32_t fid) {
   // check if there are data in the time range
   for (; iMemData < nMemData; iMemData++) {
     SMemData *pMemData = (SMemData *)taosArrayGetP(pCHandle->pMemTable->aMemData, iMemData);
-    tsdbMemDataIterOpen(&iter, &(TSDBKEY){.ts = fidSKey, .version = 0}, 0);
+    tsdbMemDataIterOpen(pMemData, &(TSDBKEY){.ts = fidSKey, .version = 0}, 0, &iter);
     tsdbMemDataIterGet(&iter, &pRow);
 
     if (pRow->tsRow.ts >= fidSKey && pRow->tsRow.ts <= fidEKey) {
