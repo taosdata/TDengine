@@ -35,6 +35,7 @@ namespace ParserTest {
 class ParserEnv : public testing::Environment {
  public:
   virtual void SetUp() {
+    fmFuncMgtInit();
     initMetaDataEnv();
     generateMetaData();
     initLog(TD_TMP_DIR_PATH "td");

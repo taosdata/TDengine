@@ -124,6 +124,10 @@ static EDealRes collectMetaKeyFromRealTable(SCollectMetaKeyFromExprCxt* pCxt, SR
     pCxt->errCode = reserveUserAuthInCache(pCxt->pComCxt->pParseCxt->acctId, pCxt->pComCxt->pParseCxt->pUser,
                                            pRealTable->table.dbName, AUTH_TYPE_READ, pCxt->pComCxt->pMetaCache);
   }
+  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+    pCxt->errCode =
+        reserveDbVgInfoInCache(pCxt->pComCxt->pParseCxt->acctId, pRealTable->table.dbName, pCxt->pComCxt->pMetaCache);
+  }
   return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
 }
 
@@ -185,6 +189,22 @@ static int32_t collectMetaKeyFromCreateMultiTable(SCollectMetaKeyCxt* pCxt, SCre
     SCreateSubTableClause* pClause = (SCreateSubTableClause*)pNode;
     code =
         reserveTableMetaInCache(pCxt->pParseCxt->acctId, pClause->useDbName, pClause->useTableName, pCxt->pMetaCache);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, pCxt->pMetaCache);
+    }
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+  }
+  return code;
+}
+
+static int32_t collectMetaKeyFromDropTable(SCollectMetaKeyCxt* pCxt, SDropTableStmt* pStmt) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pNode = NULL;
+  FOREACH(pNode, pStmt->pTables) {
+    SDropTableClause* pClause = (SDropTableClause*)pNode;
+    code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, pCxt->pMetaCache);
     if (TSDB_CODE_SUCCESS == code) {
       code = reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, pCxt->pMetaCache);
     }
@@ -337,6 +357,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromCreateTable(pCxt, (SCreateTableStmt*)pStmt);
     case QUERY_NODE_CREATE_MULTI_TABLE_STMT:
       return collectMetaKeyFromCreateMultiTable(pCxt, (SCreateMultiTableStmt*)pStmt);
+    case QUERY_NODE_DROP_TABLE_STMT:
+      return collectMetaKeyFromDropTable(pCxt, (SDropTableStmt*)pStmt);
     case QUERY_NODE_ALTER_TABLE_STMT:
       return collectMetaKeyFromAlterTable(pCxt, (SAlterTableStmt*)pStmt);
     case QUERY_NODE_USE_DATABASE_STMT:

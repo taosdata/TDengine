@@ -226,6 +226,9 @@ static SColumnNode* createColumnByFunc(const SFunctionNode* pFunc) {
 }
 
 bool fmIsDistExecFunc(int32_t funcId) {
+  if (fmIsUserDefinedFunc(funcId)) {
+    return false;
+  }
   if (!fmIsVectorFunc(funcId)) {
     return true;
   }

@@ -88,6 +88,18 @@ static void tsdbLoadAndMergeFromCache(STsdb *pTsdb, SDataCols *pDataCols, int *i
                                       SDataCols *pTarget, TSKEY maxKey, int maxRows, int8_t update);
 int         tsdbWriteBlockIdx(SDFile *pHeadf, SArray *pIdxA, void **ppBuf);
 
+int tsdbBegin(STsdb *pTsdb) {
+  if (!pTsdb) return 0;
+
+  STsdbMemTable *pMem;
+
+  if (tsdbMemTableCreate(pTsdb, &pTsdb->mem) < 0) {
+    return -1;
+  }
+
+  return 0;
+}
+
 int tsdbApplyRtnOnFSet(STsdb *pRepo, SDFileSet *pSet, SRtn *pRtn) {
   SDiskID   did;
   SDFileSet nSet = {0};

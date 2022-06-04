@@ -576,15 +576,15 @@ SArray *metaGetSmaTbUids(SMeta *pMeta) {
 const void *metaGetTableTagVal(SMetaEntry *pEntry, int16_t type, STagVal *val) {
   ASSERT(pEntry->type == TSDB_CHILD_TABLE);
   STag *tag = (STag *)pEntry->ctbEntry.pTags;
-  if (type == TSDB_DATA_TYPE_JSON){
-    if(tag->nTag == 0){
+  if (type == TSDB_DATA_TYPE_JSON) {
+    if (tag->nTag == 0) {
       return NULL;
     }
     return tag;
   }
   bool find = tTagGet(tag, val);
 
-  if(!find){
+  if (!find) {
     return NULL;
   }
   return val;
@@ -605,8 +605,6 @@ typedef struct {
 int32_t metaFilteTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
   SIdxCursor *pCursor = NULL;
 
-  char *tagData = param->val;
-
   int32_t ret = 0, valid = 0;
   pCursor = (SIdxCursor *)taosMemoryCalloc(1, sizeof(SIdxCursor));
   pCursor->pMeta = pMeta;
@@ -623,12 +621,16 @@ int32_t metaFilteTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
   int32_t     nKey = 0;
 
   int32_t nTagData = 0;
-  if(IS_VAR_DATA_TYPE(param->type)){
-    nTagData = strlen(param->val);
-  }else{
+  void *  tagData = NULL;
+
+  if (IS_VAR_DATA_TYPE(param->type)) {
+    tagData = varDataVal(param->val);
+    nTagData = varDataLen(param->val);
+  } else {
+    tagData = param->val;
     nTagData = tDataTypes[param->type].bytes;
   }
-  ret = metaCreateTagIdxKey(pCursor->suid, pCursor->cid, param->val, nTagData, pCursor->type,
+  ret = metaCreateTagIdxKey(pCursor->suid, pCursor->cid, tagData, nTagData, pCursor->type,
                             param->reverse ? INT64_MAX : INT64_MIN, &pKey, &nKey);
   if (ret != 0) {
     goto END;
@@ -637,6 +639,7 @@ int32_t metaFilteTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
   if (tdbTbcMoveTo(pCursor->pCur, pKey, nKey, &cmp) < 0) {
     goto END;
   }
+
   void *  entryKey = NULL, *entryVal = NULL;
   int32_t nEntryKey, nEntryVal;
   while (1) {
@@ -649,7 +652,12 @@ int32_t metaFilteTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
       int32_t cmp = (*param->filterFunc)(p->data, pKey->data, pKey->type);
       if (cmp == 0) {
         // match
-        tb_uid_t tuid = *(tb_uid_t *)(p->data + tDataTypes[pCursor->type].bytes);
+        tb_uid_t tuid = 0;
+        if (IS_VAR_DATA_TYPE(pKey->type)) {
+          tuid = *(tb_uid_t *)(p->data + varDataTLen(p->data));
+        } else {
+          tuid = *(tb_uid_t *)(p->data + tDataTypes[pCursor->type].bytes);
+        }
         taosArrayPush(pUids, &tuid);
       } else if (cmp == 1) {
         // not match but should continue to iter
