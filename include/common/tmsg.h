@@ -2402,8 +2402,8 @@ typedef struct {
 } SVGetTsmaExpWndsReq;
 
 #define SMA_WNDS_EXPIRE_FLAG      (0x1)
-#define SMA_WNDS_IS_EXPIRE(flag)  (((flag)&EXP_WNDS_EXPIRE_FLAG) != 0)
-#define SMA_WNDS_SET_EXPIRE(flag) ((flag) |= EXP_WNDS_EXPIRE_FLAG)
+#define SMA_WNDS_IS_EXPIRE(flag)  (((flag)&SMA_WNDS_EXPIRE_FLAG) != 0)
+#define SMA_WNDS_SET_EXPIRE(flag) ((flag) |= SMA_WNDS_EXPIRE_FLAG)
 
 typedef struct {
   int64_t indexUid;
