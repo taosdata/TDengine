@@ -603,6 +603,9 @@ typedef struct {
 } SIdxCursor;
 
 int32_t metaFilteTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
+#ifdef USE_INVERTED_INDEX
+  return -1;
+#else
   SIdxCursor *pCursor = NULL;
 
   int32_t ret = 0, valid = 0;
@@ -678,4 +681,5 @@ END:
   taosMemoryFree(pCursor);
 
   return ret;
+#endif
 }
