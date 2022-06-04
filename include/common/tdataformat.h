@@ -41,6 +41,9 @@ typedef struct STag          STag;
 int32_t tTSchemaCreate(int32_t sver, SSchema *pSchema, int32_t nCols, STSchema **ppTSchema);
 void    tTSchemaDestroy(STSchema *pTSchema);
 
+// SValue
+int tValueCmprFn(const SValue *pValue1, const SValue *pValue2, int8_t type);
+
 // STSRow2
 #define COL_VAL_NONE(CID)     ((SColVal){.cid = (CID), .isNone = 1})
 #define COL_VAL_NULL(CID)     ((SColVal){.cid = (CID), .isNull = 1})
