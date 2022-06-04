@@ -30,7 +30,7 @@ static int32_t  syncIODestroy(SSyncIO *io);
 static int32_t  syncIOStartInternal(SSyncIO *io);
 static int32_t  syncIOStopInternal(SSyncIO *io);
 
-static void *  syncIOConsumerFunc(void *param);
+static void   *syncIOConsumerFunc(void *param);
 static void    syncIOProcessRequest(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet);
 static void    syncIOProcessReply(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet);
 static int32_t syncIOAuth(void *parent, char *meterId, char *spi, char *encrypt, char *secret, char *ckey);
@@ -90,8 +90,10 @@ int32_t syncIOSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
 
 int32_t syncIOEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
   int32_t ret = 0;
-  char    logBuf[128] = {0};
-  syncRpcMsgLog2((char *)"==syncIOEqMsg==", pMsg);
+
+  char logBuf[256] = {0};
+  snprintf(logBuf, sizeof(logBuf), "==syncIOEqMsg== msgType:%d", pMsg->msgType);
+  syncRpcMsgLog2(logBuf, pMsg);
 
   SRpcMsg *pTemp;
   pTemp = taosAllocateQitem(sizeof(SRpcMsg), DEF_QITEM);
@@ -240,9 +242,9 @@ static int32_t syncIOStopInternal(SSyncIO *io) {
 }
 
 static void *syncIOConsumerFunc(void *param) {
-  SSyncIO *  io = param;
+  SSyncIO   *io = param;
   STaosQall *qall;
-  SRpcMsg *  pRpcMsg, rpcMsg;
+  SRpcMsg   *pRpcMsg, rpcMsg;
   qall = taosAllocateQall();
 
   while (1) {
@@ -255,7 +257,7 @@ static void *syncIOConsumerFunc(void *param) {
     for (int i = 0; i < numOfMsgs; ++i) {
       taosGetQitem(qall, (void **)&pRpcMsg);
       char logBuf[128];
-      snprintf(logBuf, sizeof(logBuf), "==syncIOConsumerFunc== msgType:%d", pRpcMsg->msgType);
+      snprintf(logBuf, sizeof(logBuf), "==syncIOConsumMsg== msgType:%d", pRpcMsg->msgType);
       syncRpcMsgLog2(logBuf, pRpcMsg);
 
       // use switch case instead of if else
