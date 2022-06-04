@@ -379,7 +379,7 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
     int32_t len = buildGroupKeys(pTableScanInfo->keyBuf, pTableScanInfo->pGroupColVals);
 
     uint64_t *groupId = taosHashGet(pTableScanInfo->pGroupSet, pTableScanInfo->keyBuf, len);
-    if (!groupId) {
+    if (groupId) {
       pBlock->info.groupId = *groupId;
 
     }else{
