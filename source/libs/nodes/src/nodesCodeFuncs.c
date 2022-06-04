@@ -178,6 +178,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowQueriesStmt";
     case QUERY_NODE_SHOW_VNODES_STMT:
       return "ShowVnodeStmt";
+    case QUERY_NODE_DELETE_STMT:
+      return "DeleteStmt";
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return "LogicScan";
     case QUERY_NODE_LOGIC_PLAN_JOIN:
