@@ -2401,9 +2401,10 @@ typedef struct {
   STimeWindow queryWindow;
 } SVGetTsmaExpWndsReq;
 
-#define SMA_WND_EXPIRE_FLAG      (0x1)
-#define SMA_WND_IS_EXPIRE(flag)  (((flag)&SMA_WND_EXPIRE_FLAG) != 0)
-#define SMA_WND_SET_EXPIRE(flag) ((flag) |= SMA_WND_EXPIRE_FLAG)
+#define SMA_WNDS_EXPIRE_FLAG      (0x1)
+#define SMA_WNDS_IS_EXPIRE(flag)  (((flag)&EXP_WNDS_EXPIRE_FLAG) != 0)
+#define SMA_WNDS_SET_EXPIRE(flag) ((flag) |= EXP_WNDS_EXPIRE_FLAG)
+
 typedef struct {
   int64_t indexUid;
   int8_t  flags;  // 0x1 all window expired
