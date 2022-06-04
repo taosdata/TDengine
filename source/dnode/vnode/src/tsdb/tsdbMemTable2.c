@@ -64,8 +64,8 @@ static int     memDataPCmprFn(const void *p1, const void *p2);
 static int32_t tPutTSDBRow(uint8_t *p, TSDBROW *pRow);
 static int32_t tGetTSDBRow(uint8_t *p, TSDBROW *pRow);
 static int8_t  tsdbMemSkipListRandLevel(SMemSkipList *pSl);
-static void    memDataGetPosToPut(SMemData *pMemData, SMemSkipListNode **backward, TSDBROW *pRow);
-static int32_t memDataDoPut(SMemData *pMemData, SMemSkipListNode **pos, TSDBROW *pRow, int8_t isForward);
+static void    memDataMovePosTo(SMemData *pMemData, SMemSkipListNode **pos, TSDBROW *pRow, int8_t forward);
+static int32_t memDataDoPut(SMemData *pMemData, SMemSkipListNode **pos, TSDBROW *pRow, int8_t forward);
 static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, SMemData *pMemData, int64_t version,
                                        SVSubmitBlk *pSubmitBlk);
 
@@ -300,8 +300,7 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, SMemData *pMemData,
   int32_t  nRow = 0;
   TSDBROW  row = {.version = version};
 
-  SMemSkipListNode *backward[SL_MAX_LEVEL];
-  SMemSkipListNode *forward[SL_MAX_LEVEL];
+  SMemSkipListNode *pos[SL_MAX_LEVEL];
 
   ASSERT(pSubmitBlk->nData);
 
@@ -309,8 +308,8 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, SMemData *pMemData,
   n += tGetTSRow(p + n, &row.tsRow);
   ASSERT(n <= pSubmitBlk->nData);
 
-  memDataGetPosToPut(pMemData, backward, &row);
-  code = memDataDoPut(pMemData, backward, &row, 0);
+  memDataMovePosTo(pMemData, pos, &row, 0);
+  code = memDataDoPut(pMemData, pos, &row, 0);
   if (code) {
     goto _exit;
   }
@@ -322,6 +321,11 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, SMemData *pMemData,
     ASSERT(n <= pSubmitBlk->nData);
 
     // TODO
+    memDataMovePosTo(pMemData, pos, &row, 1);
+    code = memDataDoPut(pMemData, pos, &row, 1);
+    if (code) {
+      goto _exit;
+    }
 
     nRow++;
   }
@@ -330,17 +334,29 @@ _exit:
   return code;
 }
 
-static void memDataGetPosToPut(SMemData *pMemData, SMemSkipListNode **backward, TSDBROW *pRow) {
+static void memDataMovePosTo(SMemData *pMemData, SMemSkipListNode **pos, TSDBROW *pRow, int8_t forward) {
   SMemSkipListNode *px;
   SMemSkipListNode *pn;
   TSDBKEY          *pKey;
   int               c;
 
-  for (int8_t iLevel = 0; iLevel < pMemData->sl.maxLevel - 1; iLevel++) {
-    backward[iLevel] = pMemData->sl.pTail;
-  }
+  if (forward) {
+    px = pMemData->sl.pHead;
+    for (int8_t iLevel = pMemData->sl.maxLevel - 1; iLevel >= 0; iLevel--) {
+      pn = SL_NODE_FORWARD(px, iLevel);
+      while (pn != pMemData->sl.pTail) {
+        pKey = (TSDBKEY *)SL_NODE_DATA(pn);
 
-  if (0) {
+        c = tsdbKeyCmprFn(pKey, pRow);
+        if (pKey >= 0) {
+          break;
+        } else {
+          px = pn;
+          pn = SL_NODE_FORWARD(px, iLevel);
+        }
+      }
+      pos[iLevel] = px;
+    }
   } else {
     px = pMemData->sl.pTail;
     for (int8_t iLevel = pMemData->sl.maxLevel - 1; iLevel >= 0; iLevel--) {
@@ -358,12 +374,12 @@ static void memDataGetPosToPut(SMemData *pMemData, SMemSkipListNode **backward, 
           }
         }
       }
-      backward[iLevel] = px;
+      pos[iLevel] = px;
     }
   }
 }
 
-static int32_t memDataDoPut(SMemData *pMemData, SMemSkipListNode **pos, TSDBROW *pRow, int8_t isForward) {
+static int32_t memDataDoPut(SMemData *pMemData, SMemSkipListNode **pos, TSDBROW *pRow, int8_t forward) {
   int32_t code = 0;
   // TODO
   return code;
