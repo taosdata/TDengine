@@ -1431,6 +1431,52 @@ const char *mndGetDbStr(const char *src) {
   return pos;
 }
 
+int64_t getValOfDiffPrecision(int8_t unit, int64_t val) {
+  int64_t v = 0;
+  switch(unit) {
+    case 's': v = val / 1000; break;
+    case 'm': v = val / tsTickPerMin[TSDB_TIME_PRECISION_MILLI]; break;
+    case 'h': v = val / (tsTickPerMin[TSDB_TIME_PRECISION_MILLI] * 60); break;
+    case 'd': v = val / (tsTickPerMin[TSDB_TIME_PRECISION_MILLI] * 24 * 60); break;
+    case 'w': v = val / (tsTickPerMin[TSDB_TIME_PRECISION_MILLI] * 24 * 60 * 7); break;
+    default:
+      break;
+  }
+
+  return v;
+}
+
+char* buildRetension(SArray* pRetension) {
+  size_t size = taosArrayGetSize(pRetension);
+  if (size == 0) {
+    return NULL;
+  }
+
+  char* p1 = taosMemoryCalloc(1, 100);
+  SRetention* p = taosArrayGet(pRetension, 0);
+
+  int32_t len = 2;
+
+  int64_t v1 = getValOfDiffPrecision(p->freqUnit, p->freq);
+  int64_t v2 = getValOfDiffPrecision(p->keepUnit, p->keep);
+  len += sprintf(p1 + len, "%"PRId64"%c:%"PRId64"%c,", v1, p->freqUnit, v2, p->keepUnit);
+
+  p = taosArrayGet(pRetension, 1);
+
+  v1 = getValOfDiffPrecision(p->freqUnit, p->freq);
+  v2 = getValOfDiffPrecision(p->keepUnit, p->keep);
+  len += sprintf(p1 + len, "%"PRId64"%c:%"PRId64"%c,", v1, p->freqUnit, v2, p->keepUnit);
+
+  p = taosArrayGet(pRetension, 2);
+
+  v1 = getValOfDiffPrecision(p->freqUnit, p->freq);
+  v2 = getValOfDiffPrecision(p->keepUnit, p->keep);
+  len += sprintf(p1 + len, "%"PRId64"%c:%"PRId64"%c", v1, p->freqUnit, v2, p->keepUnit);
+
+  varDataSetLen(p1, len);
+  return p1;
+}
+
 static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, int32_t rows, int64_t numOfTables,
                            bool sysDb) {
   int32_t cols = 0;
@@ -1478,7 +1524,7 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.replications, false);
 
-    const char *src = pDb->cfg.strict ? "strict" : "nostrict";
+    const char *src = pDb->cfg.strict ? "strict" : "no_strict";
     char        strict[24] = {0};
     STR_WITH_SIZE_TO_VARSTR(strict, src, strlen(src));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -1526,7 +1572,21 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
     colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.compression, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.cacheLastRow, false);
+
+    STR_WITH_SIZE_TO_VARSTR(strict, src, strlen(src));
+#if 0
+    char cacheModel[24] = {0};
+    bool null = false;
+    if (pDb->cfg.cacheLastRow == 0) {
+      STR_TO_VARSTR(cacheModel, "no_cache");
+    } else if (pDb->cfg.cacheLastRow == 1) {
+      STR_TO_VARSTR(cacheModel, "last_row_cache")
+    } else {
+      null = true;
+    }
+    colDataAppend(pColInfo, rows, cacheModel, null);
+#endif
+    colDataAppend(pColInfo, rows, (const char*) &pDb->cfg.cacheLastRow, false);
 
     char *prec = NULL;
     switch (pDb->cfg.precision) {
@@ -1555,8 +1615,18 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, rows, (const char *)statusB, false);
 
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.schemaless, false);
+
+    char* p = buildRetension(pDb->cfg.pRetensions);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    if (p == NULL) {
+      colDataAppendNULL(pColInfo, rows);
+    } else {
+      colDataAppend(pColInfo, rows, (const char *)p, false);
+      taosMemoryFree(p);
+    }
   }
 }
 
