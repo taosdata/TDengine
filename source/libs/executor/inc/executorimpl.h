@@ -493,11 +493,11 @@ typedef struct SAggOperatorInfo {
 
 typedef struct SProjectOperatorInfo {
   // SOptrBasicInfo should be first, SAggSupporter should be second for stream encode
-  SOptrBasicInfo     binfo;
-  SAggSupporter      aggSup;
+  SOptrBasicInfo     binfo;   // todo remove it
+  SAggSupporter      aggSup;  // todo remove it
 
-  SSDataBlock*       existDataBlock;
-  SArray*            pPseudoColInfo;
+  SSDataBlock*       existDataBlock;  // todo remove it
+  SArray*            pPseudoColInfo;  // todo remove it
   SLimit             limit;
   SLimit             slimit;
 
@@ -508,6 +508,17 @@ typedef struct SProjectOperatorInfo {
   int64_t            curOffset;
   int64_t            curOutput;
 } SProjectOperatorInfo;
+
+typedef struct SIndefOperatorInfo {
+  SOptrBasicInfo     binfo;
+  SAggSupporter      aggSup;
+  SArray*            pPseudoColInfo;
+
+  SExprInfo*         pScalarExpr;
+  int32_t            numOfScalarExpr;
+  SqlFunctionCtx*    pScalarCtx;
+  int32_t*           rowCellInfoOffset;
+} SIndefOperatorInfo;
 
 typedef struct SFillOperatorInfo {
   struct SFillInfo* pFillInfo;
@@ -731,6 +742,8 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo*
                                            int32_t numOfScalarExpr, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t num, SSDataBlock* pResBlock, SLimit* pLimit, SLimit* pSlimit, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode *pNode, SExecTaskInfo* pTaskInfo);
+
 SOperatorInfo *createSortOperatorInfo(SOperatorInfo* downstream, SSDataBlock* pResBlock, SArray* pSortInfo, SExprInfo* pExprInfo, int32_t numOfCols,
                                       SArray* pIndexMap, SExecTaskInfo* pTaskInfo);
 
