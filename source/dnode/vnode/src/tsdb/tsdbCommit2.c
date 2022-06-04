@@ -89,8 +89,17 @@ static int32_t tsdbEndCommit(SCommitH *pCHandle) {
 }
 
 static int32_t tsdbCommitTableData(SCommitH *pCHandle, SMemData *pMemData, SBlockIdx *pBlockIdx) {
-  int32_t code = 0;
-  // TODO
+  int32_t      code = 0;
+  SMemDataIter iter = {0};
+
+  if (pMemData && pBlockIdx) {
+    // merge
+  } else if (pMemData) {
+    // new one
+  } else {
+    // save old ones
+  }
+
   return code;
 }
 
