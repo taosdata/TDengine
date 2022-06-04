@@ -381,8 +381,7 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
     uint64_t *groupId = taosHashGet(pTableScanInfo->pGroupSet, pTableScanInfo->keyBuf, len);
     if (groupId) {
       pBlock->info.groupId = *groupId;
-
-    }else{
+    }else if(len != 0){
       pBlock->info.groupId = calcGroupId(pTableScanInfo->keyBuf, len);
       taosHashPut(pTableScanInfo->pGroupSet, pTableScanInfo->keyBuf, len, &pBlock->info.groupId, sizeof(uint64_t));
     }
