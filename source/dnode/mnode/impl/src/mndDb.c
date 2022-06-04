@@ -1571,14 +1571,19 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
 
     STR_WITH_SIZE_TO_VARSTR(strict, src, strlen(src));
-
+#if 0
     char cacheModel[24] = {0};
+    bool null = false;
     if (pDb->cfg.cacheLastRow == 0) {
       STR_TO_VARSTR(cacheModel, "no_cache");
+    } else if (pDb->cfg.cacheLastRow == 1) {
+      STR_TO_VARSTR(cacheModel, "last_row_cache")
     } else {
-      //
+      null = true;
     }
-    colDataAppend(pColInfo, rows, cacheModel, false);
+    colDataAppend(pColInfo, rows, cacheModel, null);
+#endif
+    colDataAppend(pColInfo, rows, (const char*) &pDb->cfg.cacheLastRow, false);
 
     char *prec = NULL;
     switch (pDb->cfg.precision) {
