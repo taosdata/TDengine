@@ -2687,6 +2687,30 @@ typedef struct {
   // TODO
 } SVDeleteRsp;
 
+//begin TDMT_QND_DRIVER
+
+//TDMT_QND_DRIVER_CONNECT
+typedef struct SCQDriverConnectReq{
+  char* ip;
+  char* user;
+  char* pass;
+  char* auth;
+  char* db;
+  uint16_t port;
+  int8_t connType;
+} SCQDriverConnectReq;
+
+typedef struct SCQDriverConnectRsp {
+  int32_t code;
+  int64_t taosRefId;
+} SCQDriverConnectRsp;
+
+int32_t tDeserializeSCQDriverConnectReq(void* buf, int32_t bufLen, SCQDriverConnectReq* pReq);
+int32_t tSerializeSCQDriverConnectReq(void* buf, int32_t bufLen, const SCQDriverConnectReq* pReq);
+
+int32_t tDeserializeSCQDriverConnectRsp(void* buf, int32_t bufLen, SCQDriverConnectRsp* pRsp);
+int32_t tSerializeSCQDriverConnectRsp(void* buf, int32_t bufLen, const SCQDriverConnectRsp* pRsp);
+//end TDMT_QND_DRIVER
 #pragma pack(pop)
 
 #ifdef __cplusplus

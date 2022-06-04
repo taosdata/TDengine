@@ -4442,5 +4442,57 @@ void tFreeSMAlterStbRsp(SMAlterStbRsp* pRsp) {
   }
 }
 
+int32_t tDeserializeSCQDriverConnectReq(void* buf, int32_t bufLen, SCQDriverConnectReq* pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
 
+  if (tStartDecode(&decoder) < 0) return -1;
+
+  if (tDecodeCStrAlloc(&decoder, &pReq->ip) < 0) return -1;
+  if (tDecodeCStrAlloc(&decoder, &pReq->user) < 0) return -1;
+  if (tDecodeCStrAlloc(&decoder, &pReq->pass) < 0) return -1;
+  if (tDecodeCStrAlloc(&decoder, &pReq->auth) < 0) return -1;
+  if (tDecodeCStrAlloc(&decoder, &pReq->db) < 0) return  -1;
+  if (tDecodeU16(&decoder, &pReq->port) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->connType) < 0) return -1;
+
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  return 0;
+}
+int32_t tSerializeSCQDriverConnectReq(void* buf, int32_t bufLen, const SCQDriverConnectReq* pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSCQDriverConnectRsp(void* buf, int32_t bufLen, SCQDriverConnectRsp* pRsp){
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+int32_t tSerializeSCQDriverConnectRsp(void* buf, int32_t bufLen, const SCQDriverConnectRsp* pRsp){
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
 

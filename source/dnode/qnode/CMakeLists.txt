@@ -7,6 +7,7 @@ target_include_directories(
 )
 target_link_libraries(
     qnode
+    PRIVATE taos
     PRIVATE transport
     PRIVATE os
     PRIVATE common

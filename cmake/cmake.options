@@ -149,3 +149,8 @@ option(
    OFF 
 )
 
+option(
+    BUILD_THIN_CLIENT
+    "If use think client"
+    ON
+)

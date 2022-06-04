@@ -204,6 +204,9 @@ enum {
   TD_DEF_MSG_TYPE(TDMT_VND_DELETE, "delete-data", SVDeleteReq, SVDeleteRsp)
 
   TD_NEW_MSG_SEG(TDMT_QND_MSG)
+  TD_DEF_MSG_TYPE(TDMT_QND_DRIVER_CONNECT, "qnode-driver-connect", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_QND_DRIVER_QUERY, "qnode-driver-query", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_QND_DRIVER_CLOSE, "qnode-driver-close", NULL, NULL)
 
   TD_NEW_MSG_SEG(TDMT_SND_MSG)
   TD_DEF_MSG_TYPE(TDMT_SND_TASK_DEPLOY, "snode-task-deploy", SStreamTaskDeployReq, SStreamTaskDeployRsp)
@@ -239,7 +242,7 @@ enum {
   TD_DEF_MSG_TYPE(TDMT_SYNC_COMMON_RESPONSE, "sync-common-response", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_SYNC_APPLY_MSG, "sync-apply-msg", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_SYNC_CONFIG_CHANGE, "sync-config-change", NULL, NULL)
-  
+
 #if defined(TD_MSG_NUMBER_)
   TDMT_MAX
 #endif

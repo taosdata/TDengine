@@ -93,6 +93,13 @@ int32_t qndProcessQueryMsg(SQnode *pQnode, int64_t ts, SRpcMsg *pMsg) {
     case TDMT_VND_QUERY_HEARTBEAT:
       code = qWorkerProcessHbMsg(pQnode, pQnode->pQuery, pMsg, ts);
       break;
+    case TDMT_QND_DRIVER_CONNECT: {
+      SCQDriverConnectReq req = {0};
+      tDeserializeSCQDriverConnectReq(pMsg->pCont, pMsg->contLen, &req);
+      // TODO: taos_connect_a
+      taos_connect(req.ip, req.user, req.pass, req.db, req.port);
+      break;
+    }
     default:
       qError("unknown msg type:%d in qnode queue", pMsg->msgType);
       terrno = TSDB_CODE_VND_APP_ERROR;
