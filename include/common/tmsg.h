@@ -2297,6 +2297,11 @@ int32_t tSerializeSMDropSmaReq(void* buf, int32_t bufLen, SMDropSmaReq* pReq);
 int32_t tDeserializeSMDropSmaReq(void* buf, int32_t bufLen, SMDropSmaReq* pReq);
 
 typedef struct {
+  int32_t vgId;
+  SEpSet  epSet;
+} SVgEpSet;
+
+typedef struct {
   int8_t   version;       // for compatibility(default 0)
   int8_t   intervalUnit;  // MACRO: TIME_UNIT_XXX
   int8_t   slidingUnit;   // MACRO: TIME_UNIT_XXX
@@ -2305,6 +2310,7 @@ typedef struct {
   char     indexName[TSDB_INDEX_NAME_LEN];
   int32_t  exprLen;
   int32_t  tagsFilterLen;
+  int32_t  numOfVgroups;
   int64_t  indexUid;
   tb_uid_t tableUid;  // super/child/common table uid
   int64_t  interval;
@@ -2312,6 +2318,7 @@ typedef struct {
   int64_t  sliding;
   char*    expr;  // sma expression
   char*    tagsFilter;
+  SVgEpSet vgEpSet[];
 } STSma;  // Time-range-wise SMA
 
 typedef STSma SVCreateTSmaReq;
