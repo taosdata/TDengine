@@ -270,7 +270,7 @@ def run_win_ctest() {
         echo "windows ctest ..."
         time /t
         cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\debug
-        ctest -j 6 || exit 7
+        ctest -j 1 || exit 7
         time /t
     '''
 }
@@ -334,7 +334,7 @@ pipeline {
                                 returnStdout: true
                             ).trim()
                             linux_node_pass = sh (
-                                script: 'jq .password /home/node_info.json | sed "s/\\\"//g"',
+                                script: 'jq .password /home/node_info.json | sed "s/\\\"//g" |sed "s/\\\!/^^^^\\\!/g"',
                                 returnStdout: true
                             ).trim()
                             echo "${linux_node_ip}:${linux_node_pass}"
@@ -369,19 +369,25 @@ pipeline {
                                         rm -rf ${WKC}/release/*
                                         cd ${WKC}/packaging
                                         ./release.sh -v cluster -n 3.0.0.100 -s static
+                                    '''
+                                    sh '''
+                                        echo "install ..."
                                         cd ${WKC}/release
                                         tar xzf TDengine-enterprise-server-3.0.0.100-Linux-x64.tar.gz
                                         cd TDengine-enterprise-server-3.0.0.100
                                         service taosd stop || :
                                         rm -rf /var/lib/taos
                                         ./install.sh -e no
-                                        service taosd start
-                                        sleep 20
-                                        service taosd status
+                                    '''
+                                    sh '''
+                                        echo "checking ..."
+                                        which taos
+                                        which taosd
                                         rm -rf ${WK}/debug
                                         mv ${WKC}/debug ${WK}/
                                     '''
                                     sh '''
+                                        echo "install taospy ..."
                                         cd ${WKPY}
                                         pip3 install .
                                     '''
