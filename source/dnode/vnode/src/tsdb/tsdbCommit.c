@@ -86,7 +86,7 @@ static void tsdbCloseCommitFile(SCommitH *pCommith, bool hasError);
 static bool tsdbCanAddSubBlock(SCommitH *pCommith, SBlock *pBlock, SMergeInfo *pInfo);
 static void tsdbLoadAndMergeFromCache(STsdb *pTsdb, SDataCols *pDataCols, int *iter, SCommitIter *pCommitIter,
                                       SDataCols *pTarget, TSKEY maxKey, int maxRows, int8_t update);
-int         tsdbWriteBlockIdx(SDFile *pHeadf, SArray *pIdxA, void **ppBuf);
+static int  tsdbWriteBlockIdx(SDFile *pHeadf, SArray *pIdxA, void **ppBuf);
 static int  tsdbApplyRtnOnFSet(STsdb *pRepo, SDFileSet *pSet, SRtn *pRtn);
 
 int tsdbBegin(STsdb *pTsdb) {
@@ -101,33 +101,36 @@ int tsdbBegin(STsdb *pTsdb) {
   return 0;
 }
 
-int tsdbCommit(STsdb *pRepo) {
+int32_t tsdbCommit(STsdb *pTsdb) {
+  int32_t    code = 0;
   SCommitH   commith = {0};
   SDFileSet *pSet = NULL;
   int        fid;
 
-  // if (pRepo->imem == NULL) return 0;
-  pRepo->imem = pRepo->mem;
-  pRepo->mem = NULL;
+  ASSERT(pTsdb->imem == NULL && pTsdb->mem);
+  pTsdb->imem = pTsdb->mem;
+  pTsdb->mem = NULL;
 
-  tsdbStartCommit(pRepo);
-  // Resource initialization
-  if (tsdbInitCommitH(&commith, pRepo) < 0) {
+  // start commit
+  tsdbStartCommit(pTsdb);
+  if (tsdbInitCommitH(&commith, pTsdb) < 0) {
     return -1;
   }
 
+#if 0
   // Skip expired memory data and expired FSET
   tsdbSeekCommitIter(&commith, commith.rtn.minKey);
   while ((pSet = tsdbFSIterNext(&(commith.fsIter)))) {
     if (pSet->fid < commith.rtn.minFid) {
-      tsdbInfo("vgId:%d, FSET %d on level %d disk id %d expires, remove it", REPO_ID(pRepo), pSet->fid,
+      tsdbInfo("vgId:%d, FSET %d on level %d disk id %d expires, remove it", REPO_ID(pTsdb), pSet->fid,
                TSDB_FSET_LEVEL(pSet), TSDB_FSET_ID(pSet));
     } else {
       break;
     }
   }
+#endif
 
-  // Loop to commit to each file
+  // commit
   fid = tsdbNextCommitFid(&(commith));
   while (true) {
     // Loop over both on disk and memory
@@ -136,7 +139,7 @@ int tsdbCommit(STsdb *pRepo) {
     if (pSet && (fid == TSDB_IVLD_FID || pSet->fid < fid)) {
       // Only has existing FSET but no memory data to commit in this
       // existing FSET, only check if file in correct retention
-      if (tsdbApplyRtnOnFSet(pRepo, pSet, &(commith.rtn)) < 0) {
+      if (tsdbApplyRtnOnFSet(pTsdb, pSet, &(commith.rtn)) < 0) {
         tsdbDestroyCommitH(&commith);
         return -1;
       }
@@ -167,10 +170,11 @@ int tsdbCommit(STsdb *pRepo) {
     }
   }
 
+  // end commit
   tsdbDestroyCommitH(&commith);
-  tsdbEndCommit(pRepo, TSDB_CODE_SUCCESS);
+  tsdbEndCommit(pTsdb, TSDB_CODE_SUCCESS);
 
-  return 0;
+  return code;
 }
 
 static int tsdbApplyRtnOnFSet(STsdb *pRepo, SDFileSet *pSet, SRtn *pRtn) {
@@ -717,8 +721,8 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
 
 // extern int32_t tsTsdbMetaCompactRatio;
 
-int tsdbWriteBlockInfoImpl(SDFile *pHeadf, STable *pTable, SArray *pSupA, SArray *pSubA, void **ppBuf,
-                           SBlockIdx *pIdx) {
+static int tsdbWriteBlockInfoImpl(SDFile *pHeadf, STable *pTable, SArray *pSupA, SArray *pSubA, void **ppBuf,
+                                  SBlockIdx *pIdx) {
   size_t      nSupBlocks;
   size_t      nSubBlocks;
   uint32_t    tlen;
@@ -778,7 +782,7 @@ int tsdbWriteBlockInfoImpl(SDFile *pHeadf, STable *pTable, SArray *pSupA, SArray
   return 0;
 }
 
-int tsdbWriteBlockIdx(SDFile *pHeadf, SArray *pIdxA, void **ppBuf) {
+static int tsdbWriteBlockIdx(SDFile *pHeadf, SArray *pIdxA, void **ppBuf) {
   SBlockIdx *pBlkIdx;
   size_t     nidx = taosArrayGetSize(pIdxA);
   int        tlen = 0, size;
@@ -1012,8 +1016,8 @@ static int tsdbComparKeyBlock(const void *arg1, const void *arg2) {
  * @param ppExBuf
  * @return int
  */
-int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDFileAggr, SDataCols *pDataCols,
-                       SBlock *pBlock, bool isLast, bool isSuper, void **ppBuf, void **ppCBuf, void **ppExBuf) {
+static int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDFileAggr, SDataCols *pDataCols,
+                              SBlock *pBlock, bool isLast, bool isSuper, void **ppBuf, void **ppCBuf, void **ppExBuf) {
   STsdbCfg     *pCfg = REPO_CFG(pRepo);
   SBlockData   *pBlockData = NULL;
   SAggrBlkData *pAggrBlkData = NULL;
