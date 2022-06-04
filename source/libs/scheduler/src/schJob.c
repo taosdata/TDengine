@@ -377,21 +377,29 @@ int32_t schDropTaskExecNode(SSchJob *pJob, SSchTask *pTask, void *handle, int32_
     return TSDB_CODE_SUCCESS;
   }
 
-  taosHashRemove(pTask->execNodes, &execIdx, sizeof(execIdx));
+  if (taosHashRemove(pTask->execNodes, &execIdx, sizeof(execIdx))) {
+    SCH_TASK_ELOG("fail to remove execIdx %d from execNodeList", execIdx);
+  } else {
+    SCH_TASK_DLOG("execIdx %d removed from execNodeList", execIdx);
+  }
+  
   if (execIdx != pTask->execIdx) {     // ignore it
+    SCH_TASK_DLOG("execIdx %d is not current execIdx %d", execIdx, pTask->execIdx);
     SCH_RET(TSDB_CODE_SCH_IGNORE_ERROR);
   }
 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t schUpdateTaskExecNode(SSchTask *pTask, void *handle, int32_t execIdx) {
+int32_t schUpdateTaskExecNode(SSchJob *pJob, SSchTask *pTask, void *handle, int32_t execIdx) {
   if (taosHashGetSize(pTask->execNodes) <= 0) {
     return TSDB_CODE_SUCCESS;
   }
 
   SSchNodeInfo *nodeInfo = taosHashGet(pTask->execNodes, &execIdx, sizeof(execIdx));
   nodeInfo->handle = handle;
+
+  SCH_TASK_DLOG("handle updated to %p for execIdx %d", handle, execIdx);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -403,7 +411,7 @@ int32_t schUpdateTaskHandle(SSchJob *pJob, SSchTask *pTask, bool dropExecNode, v
 
   SCH_SET_TASK_HANDLE(pTask, handle);
 
-  schUpdateTaskExecNode(pTask, handle, execIdx);
+  schUpdateTaskExecNode(pJob, pTask, handle, execIdx);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -550,6 +558,8 @@ int32_t schSetAddrsFromNodeList(SSchJob *pJob, SSchTask *pTask) {
         SCH_TASK_ELOG("taosArrayPush execNode to candidate addrs failed, addNum:%d, errno:%d", addNum, errno);
         SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
+
+      SCH_TASK_DLOG("set %dth condidate addr, id %d, fqdn:%s, port:%d", i, naddr->nodeId, SCH_GET_CUR_EP(naddr)->fqdn, SCH_GET_CUR_EP(naddr)->port);
 
       ++addNum;
     }
@@ -1110,6 +1120,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
     SCH_UNLOCK(SCH_WRITE, &parent->lock);
 
     if (SCH_TASK_READY_FOR_LAUNCH(readyNum, parent)) {
+      SCH_TASK_DLOG("all %d children task done, start to launch parent task %" PRIx64, readyNum, parent->taskId);
       SCH_ERR_RET(schLaunchTask(pJob, parent));
     }
   }
@@ -1186,7 +1197,7 @@ void schDropTaskOnExecNode(SSchJob *pJob, SSchTask *pTask) {
     nodeInfo = taosHashIterate(pTask->execNodes, nodeInfo);
   }
 
-  SCH_TASK_DLOG("task has %d exec address", size);
+  SCH_TASK_DLOG("task has been dropped on %d exec nodes", size);
 }
 
 
@@ -1196,7 +1207,8 @@ int32_t schRescheduleTask(SSchJob *pJob, SSchTask *pTask) {
   }
 
   SCH_LOCK_TASK(pTask);
-  if (JOB_TASK_STATUS_EXECUTING == pTask->status && pJob->fetchTask != pTask) {
+  if (JOB_TASK_STATUS_EXECUTING == pTask->status && pJob->fetchTask != pTask && taosArrayGetSize(pTask->candidateAddrs) > 1) {
+    SCH_TASK_DLOG("task execIdx %d will be rescheduled now", pTask->execIdx);
     schDropTaskOnExecNode(pJob, pTask);
     taosHashClear(pTask->execNodes);
     schProcessOnTaskFailure(pJob, pTask, TSDB_CODE_SCH_TIMEOUT_ERROR);
@@ -1306,8 +1318,9 @@ int32_t schLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask) {
   int32_t code = 0;
 
   atomic_add_fetch_32(&pTask->level->taskLaunchedNum, 1);
-
   pTask->execIdx++;
+
+  SCH_TASK_DLOG("start to launch task's %dth exec", pTask->execIdx);
 
   SCH_LOG_TASK_START_TS(pTask);
 

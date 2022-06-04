@@ -741,6 +741,20 @@ SRequestObj* execQuery(STscObj* pTscObj, const char* sql, int sqlLen) {
   do {
     destroyRequest(pRequest);
     pRequest = launchQuery(pTscObj, sql, sqlLen);
+    if (*sql == 'y') {
+      SCatalog *pCatalog = NULL;
+      code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog);
+      SEpSet epset = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+      ctgdLaunchAsyncCall(pCatalog, pTscObj->pAppInfo->pTransporter, &epset, pRequest->requestId, false);
+      break;
+    } else if (*sql == 'z') {
+      SCatalog *pCatalog = NULL;
+      code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog);
+      SEpSet epset = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+      ctgdLaunchAsyncCall(pCatalog, pTscObj->pAppInfo->pTransporter, &epset, pRequest->requestId, false);
+      break;
+    }
+    
     if (pRequest == NULL || TSDB_CODE_SUCCESS == pRequest->code || !NEED_CLIENT_HANDLE_ERROR(pRequest->code)) {
       break;
     }

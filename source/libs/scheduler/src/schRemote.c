@@ -1037,6 +1037,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
   if (NULL == addr) {
     addr = taosArrayGet(pTask->candidateAddrs, pTask->candidateIdx);
     isCandidateAddr = true;
+    SCH_TASK_DLOG("target candidateIdx %d", pTask->candidateIdx);
   }
 
   SEpSet epSet = addr->epSet;

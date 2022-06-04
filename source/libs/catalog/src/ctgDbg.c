@@ -132,7 +132,7 @@ void ctgdUserCallback(SMetaData* pResult, void* param, int32_t code) {
   }     
 }
 
-int32_t ctgdLaunchAsyncCall(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, uint64_t reqId) {
+int32_t ctgdLaunchAsyncCall(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, uint64_t reqId, bool forceUpdate) {
   int32_t code = 0;
   SCatalogReq req = {0};
   req.pTableMeta = taosArrayInit(2, sizeof(SName));
@@ -144,6 +144,7 @@ int32_t ctgdLaunchAsyncCall(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps
   req.pIndex = NULL;//taosArrayInit(2, TSDB_INDEX_FNAME_LEN);
   req.pUser = taosArrayInit(2, sizeof(SUserAuthInfo));
   req.qNodeRequired = true;
+  req.forceUpdate = forceUpdate;
 
   SName name = {0};
   char dbFName[TSDB_DB_FNAME_LEN] = {0};
