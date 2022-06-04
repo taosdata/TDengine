@@ -334,7 +334,7 @@ pipeline {
                                 returnStdout: true
                             ).trim()
                             linux_node_pass = sh (
-                                script: 'jq .password /home/node_info.json | sed "s/\\\"//g" |sed "s/\\\!/^^^^\\\!/g"',
+                                script: 'jq .password /home/node_info.json | sed "s/\\\"//g" |sed "s/\\!/^^^^\\!/g"',
                                 returnStdout: true
                             ).trim()
                             echo "${linux_node_ip}:${linux_node_pass}"
