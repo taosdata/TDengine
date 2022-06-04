@@ -338,6 +338,8 @@ typedef struct SStateWinodwPhysiNode {
   SNode*           pStateKey;
 } SStateWinodwPhysiNode;
 
+typedef SStateWinodwPhysiNode SStreamStateWinodwPhysiNode;
+
 typedef struct SSortPhysiNode {
   SPhysiNode node;
   SNodeList* pExprs;     // these are expression list of order_by_clause and parameter expression of aggregate function

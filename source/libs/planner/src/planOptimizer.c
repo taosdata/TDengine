@@ -108,7 +108,8 @@ static bool osdMayBeOptimized(SLogicNode* pNode) {
     return false;
   }
   if (QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode->pParent)) {
-    return (WINDOW_TYPE_INTERVAL == ((SWindowLogicNode*)pNode->pParent)->winType);
+    return true;
+    // return (WINDOW_TYPE_INTERVAL == ((SWindowLogicNode*)pNode->pParent)->winType);
   }
   return !osdHaveNormalCol(((SAggLogicNode*)pNode->pParent)->pGroupKeys);
 }
@@ -217,8 +218,7 @@ static int32_t osdGetDataRequired(SNodeList* pFuncs) {
 }
 
 static void setScanWindowInfo(SScanLogicNode* pScan) {
-  if (QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pScan->node.pParent) &&
-      WINDOW_TYPE_INTERVAL == ((SWindowLogicNode*)pScan->node.pParent)->winType) {
+  if (QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pScan->node.pParent)) {
     pScan->interval = ((SWindowLogicNode*)pScan->node.pParent)->interval;
     pScan->offset = ((SWindowLogicNode*)pScan->node.pParent)->offset;
     pScan->sliding = ((SWindowLogicNode*)pScan->node.pParent)->sliding;

@@ -274,6 +274,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SStreamSessionWinodwPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW:
       return makeNode(type, sizeof(SStateWinodwPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE_WINDOW:
+      return makeNode(type, sizeof(SStreamStateWinodwPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       return makeNode(type, sizeof(SPartitionPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:

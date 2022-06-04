@@ -4600,6 +4600,8 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     SColumnNode* pColNode = (SColumnNode*)((STargetNode*)pStateNode->pStateKey)->pExpr;
     SColumn      col = extractColumnFromColumnNode(pColNode);
     pOptr = createStatewindowOperatorInfo(ops[0], pExprInfo, num, pResBlock, &as, tsSlotId, &col, pTaskInfo);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE_WINDOW == type) {
+    pOptr = createStreamStateAggOperatorInfo(ops[0], pPhyNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_JOIN == type) {
     SJoinPhysiNode* pJoinNode = (SJoinPhysiNode*)pPhyNode;
     SSDataBlock*    pResBlock = createResDataBlock(pPhyNode->pOutputDataBlockDesc);
@@ -5185,13 +5187,16 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SExplainExecInfo
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, const char* pKey) {
+int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, const char* pKey,
+    size_t size) {
   pSup->keySize = sizeof(int64_t) + sizeof(TSKEY);
   pSup->pKeyBuf = taosMemoryCalloc(1, pSup->keySize);
-  pSup->pResultRows = taosArrayInit(1024, sizeof(SResultWindowInfo));
+  pSup->pResultRows = taosArrayInit(1024, size);
   if (pSup->pKeyBuf == NULL || pSup->pResultRows == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+
+  pSup->pScanWindow = taosArrayInit(4, sizeof(STimeWindow));
 
   int32_t pageSize = 4096;
   while (pageSize < pSup->resultRowSize * 4) {
@@ -5203,6 +5208,14 @@ int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, const char* pKey) {
     bufSize = pageSize * 4;
   }
   return createDiskbasedBuf(&pSup->pResultBuf, pageSize, bufSize, pKey, TD_TMP_DIR_PATH);
+}
+
+int32_t initSessionAggSupporter(SStreamAggSupporter* pSup, const char* pKey) {
+  return initStreamAggSupporter(pSup, pKey, sizeof(SResultWindowInfo));
+}
+
+int32_t initStateAggSupporter(SStreamAggSupporter* pSup, const char* pKey) {
+  return initStreamAggSupporter(pSup, pKey, sizeof(SStateWindowInfo));
 }
 
 int64_t getSmaWaterMark(int64_t interval, double filesFactor) {
