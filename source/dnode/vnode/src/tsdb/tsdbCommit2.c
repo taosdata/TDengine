@@ -78,7 +78,7 @@ static int32_t tsdbStartCommit(SCommitH *pCHandle, STsdb *pTsdb) {
   ASSERT(pTsdb->imem == NULL && pTsdb->mem);
   pTsdb->imem = pTsdb->mem;
   pTsdb->mem = NULL;
-
+  // TODO
   return code;
 }
 
@@ -89,16 +89,45 @@ static int32_t tsdbEndCommit(SCommitH *pCHandle) {
 }
 
 static int32_t tsdbCommitToFile(SCommitH *pCHandle, int32_t fid) {
-  int32_t code = 0;
-  TSKEY   fidSKey;
-  TSKEY   fidEKey;
+  int32_t      code = 0;
+  SMemDataIter iter = {0};
+  TSDBROW     *pRow = NULL;
+  int8_t       hasData = 0;
+  TSKEY        fidSKey;
+  TSKEY        fidEKey;
+  int32_t      iMemData = 0;
+  int32_t      nMemData = taosArrayGetSize(pCHandle->pMemTable->aMemData);
+  int32_t      iBlockIdx = 0;
+  int32_t      nBlockIdx;
 
   // check if there are data in the time range
-  for (int32_t iMemData = 0; iMemData < taosArrayGetSize(pCHandle->pMemTable->aMemData); iMemData++) {
-    /* code */
+  for (; iMemData < nMemData; iMemData++) {
+    SMemData *pMemData = (SMemData *)taosArrayGetP(pCHandle->pMemTable->aMemData, iMemData);
+    tsdbMemDataIterOpen(&iter, &(TSDBKEY){.ts = fidSKey, .version = 0}, 0);
+    tsdbMemDataIterGet(&iter, &pRow);
+
+    if (pRow->tsRow.ts >= fidSKey && pRow->tsRow.ts <= fidEKey) {
+      hasData = 1;
+      break;
+    }
   }
 
-  // has data, do commit to file
+  if (!hasData) return code;
+
+  // loop to commit each table data
+  nBlockIdx = 0;
+  for (;;) {
+    if (iBlockIdx >= nBlockIdx && iMemData >= nMemData) break;
+
+    SMemData  *pMemData = NULL;
+    SBlockIdx *pBlockIdx = NULL;
+    if (iMemData < nMemData) {
+      pMemData = (SMemData *)taosArrayGetP(pCHandle->pMemTable->aMemData, iBlockIdx);
+    }
+    if (iBlockIdx < nBlockIdx) {
+      // pBlockIdx
+    }
+  }
 
   return code;
 }

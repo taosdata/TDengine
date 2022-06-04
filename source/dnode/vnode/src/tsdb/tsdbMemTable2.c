@@ -15,7 +15,6 @@
 
 #include "tsdb.h"
 
-typedef struct SMemData         SMemData;
 typedef struct SMemSkipList     SMemSkipList;
 typedef struct SMemSkipListNode SMemSkipListNode;
 

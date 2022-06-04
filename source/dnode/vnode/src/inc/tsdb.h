@@ -39,12 +39,20 @@ typedef struct SDelOp  SDelOp;
 static int tsdbKeyCmprFn(const void *p1, const void *p2);
 
 // tsdbMemTable2.c ==============================================================================================
-typedef struct SMemTable SMemTable;
+typedef struct SMemTable    SMemTable;
+typedef struct SMemData     SMemData;
+typedef struct SMemDataIter SMemDataIter;
 
 int32_t tsdbMemTableCreate2(STsdb *pTsdb, SMemTable **ppMemTable);
 void    tsdbMemTableDestroy2(SMemTable *pMemTable);
 int32_t tsdbInsertTableData2(STsdb *pTsdb, int64_t version, SVSubmitBlk *pSubmitBlk);
 int32_t tsdbDeleteTableData2(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
+
+/* SMemDataIter */
+void tsdbMemDataIterOpen(SMemDataIter *pIter, TSDBKEY *pKey, int8_t backward);
+void tsdbMemDataIterClose(SMemDataIter *pIter);
+void tsdbMemDataIterNext(SMemDataIter *pIter);
+void tsdbMemDataIterGet(SMemDataIter *pIter, TSDBROW **ppRow);
 
 // tsdbCommit2.c ==============================================================================================
 int32_t tsdbBegin2(STsdb *pTsdb);
@@ -254,6 +262,7 @@ typedef struct {
   uint32_t offset;
   uint32_t hasLast : 2;
   uint32_t numOfBlocks : 30;
+  uint64_t suid;
   uint64_t uid;
   TSKEY    maxKey;
 } SBlockIdx;
@@ -909,6 +918,11 @@ static FORCE_INLINE int tsdbKeyCmprFn(const void *p1, const void *p2) {
 
   return 0;
 }
+
+struct SMemDataIter {
+  SMemData *pMemData;
+  TSDBROW   row;
+};
 
 #endif
 
