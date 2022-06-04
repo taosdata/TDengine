@@ -1124,7 +1124,7 @@ static int32_t smlParseTelnetString(SSmlHandle *info, const char* sql, SSmlTable
 }
 
 static int32_t smlParseCols(const char* data, int32_t len, SArray *cols, char *childTableName, bool isTag, SHashObj *dumplicateKey, SSmlMsgBuf *msg){
-  if(isTag && len == 0){
+  if(len == 0){
     return TSDB_CODE_SUCCESS;
   }
 
@@ -2241,7 +2241,7 @@ static int32_t smlInsertData(SSmlHandle* info) {
   }
   info->cost.insertRpcTime = taosGetTimestampUs();
 
-  launchQueryImpl(info->pRequest, info->pQuery, TSDB_CODE_SUCCESS, true, NULL);
+  launchQueryImpl(info->pRequest, info->pQuery, true, NULL);
 
   info->affectedRows = taos_affected_rows(info->pRequest);
   return info->pRequest->code;
@@ -2318,6 +2318,28 @@ cleanup:
   return code;
 }
 
+static int32_t isSchemalessDb(SSmlHandle* info){
+  SName          name;
+  tNameSetDbName(&name, info->taos->acctId, info->taos->db, strlen(info->taos->db));
+  char dbFname[TSDB_DB_FNAME_LEN] = {0};
+  tNameGetFullDbName(&name, dbFname);
+  SDbCfgInfo pInfo = {0};
+  SEpSet ep = getEpSet_s(&info->taos->pAppInfo->mgmtEp);
+
+  int32_t code = catalogGetDBCfg(info->pCatalog, info->taos->pAppInfo->pTransporter, &ep, dbFname, &pInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    info->pRequest->code = code;
+    smlBuildInvalidDataMsg(&info->msgBuf, "catalogGetDBCfg error, code:", tstrerror(code));
+    return code;
+  }
+  if (!pInfo.schemaless){
+    info->pRequest->code = TSDB_CODE_SML_INVALID_DB_CONF;
+    smlBuildInvalidDataMsg(&info->msgBuf, "can not insert into schemaless db:", dbFname);
+    return TSDB_CODE_SML_INVALID_DB_CONF;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 /**
  * taos_schemaless_insert() parse and insert data points into database according to
  * different protocol.
@@ -2340,7 +2362,7 @@ cleanup:
  */
 
 TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol, int precision) {
-  SRequestObj* request = (SRequestObj*)createRequest((STscObj *)taos, NULL, NULL, TSDB_SQL_INSERT);
+  SRequestObj* request = (SRequestObj*)createRequest((STscObj *)taos, NULL, TSDB_SQL_INSERT);
   if(!request){
     uError("SML:taos_schemaless_insert error request is null");
     return NULL;
@@ -2349,6 +2371,19 @@ TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int pr
   SSmlHandle* info = smlBuildSmlInfo(taos, request, (SMLProtocolType)protocol, precision);
   if(!info){
     return (TAOS_RES*)request;
+  }
+
+  info->taos->schemalessType = 1;
+  if(request->pDb == NULL){
+    request->code = TSDB_CODE_PAR_DB_NOT_SPECIFIED;
+    smlBuildInvalidDataMsg(&info->msgBuf, "Database not specified", NULL);
+    goto end;
+  }
+
+  if(isSchemalessDb(info) != TSDB_CODE_SUCCESS){
+    request->code = TSDB_CODE_SML_INVALID_DB_CONF;
+    smlBuildInvalidDataMsg(&info->msgBuf, "Cannot write data to a non schemaless database", NULL);
+    goto end;
   }
 
   if (!lines) {
@@ -2372,6 +2407,7 @@ TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int pr
   info->pRequest->code = smlProcess(info, lines, numLines);
 
 end:
+  uDebug("result:%s", info->msgBuf.buf);
   smlDestroyInfo(info);
   return (TAOS_RES*)request;
 }

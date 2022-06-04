@@ -78,7 +78,7 @@ taos --dump-config
 | Note          | REST service is provided by `taosd` before 2.4.0.0 but by `taosAdapter` after 2.4.0.0, the default port of REST service is 6041 |
 
 :::note
-TDengine uses continuous 13 ports, both TCP and UDP, from the port specified by `serverPort`. These ports need to be kept open if firewall is enabled. Below table describes the ports used by TDengine in details.
+TDengine uses 13 continuous ports, both TCP and UDP, starting with the port specified by `serverPort`. You should ensure, in your firewall rules, that these ports are kept open. Below table describes the ports used by TDengine in details.
 
 :::
 
@@ -197,7 +197,7 @@ TDengine uses continuous 13 ports, both TCP and UDP, from the port specified by 
 | Default Value | TimeZone configured in the host |
 
 :::info
-To handle the data insertion and data query from multiple timezones, Unix Timestamp is used and stored TDengine. The timestamp generated from any timezones at same time is same in Unix timestamp. To make sure the time on client side can be converted to Unix timestamp correctly, the timezone must be set properly.
+To handle the data insertion and data query from multiple timezones, Unix Timestamp is used and stored in TDengine. The timestamp generated from any timezones at same time is same in Unix timestamp. To make sure the time on client side can be converted to Unix timestamp correctly, the timezone must be set properly.
 
 On Linux system, TDengine clients automatically obtain timezone from the host. Alternatively, the timezone can be configured explicitly in configuration file `taos.cfg` like below.
 
@@ -209,7 +209,7 @@ timezone Asia/Shanghai
 
 The above examples are all proper configuration for the timezone of UTC+8. On Windows system, however, `timezone Asia/Shanghai` is not supported, it must be set as `timezone UTC-8`.
 
-The setting for timezone impacts the strings not in Unix timestamp, keywords or functions related to date/time, for example
+The setting for timezone impacts strings that are not in Unix timestamp format and keywords or functions related to date/time. For example:
 
 ```sql
 SELECT count(*) FROM table_name WHERE TS<'2019-04-11 12:01:08';
@@ -227,7 +227,7 @@ If the timezone is UTC, it's equal to
 SELECT count(*) FROM table_name WHERE TS<1554984068000;
 ```
 
-To avoid the problems of using time strings, Unix timestamp can be used directly. Furthermore, time strings with timezone can be used in SQL statement, for example "2013-04-12T15:52:01.123+08:00" in RFC3339 format or "2013-04-12T15:52:01.123+0800" in ISO-8601 format, they are not influenced by timezone setting when converted to Unix timestamp.
+To avoid the problems of using time strings, Unix timestamp can be used directly. Furthermore, time strings with timezone can be used in SQL statements. For example "2013-04-12T15:52:01.123+08:00" in RFC3339 format or "2013-04-12T15:52:01.123+0800" in ISO-8601 format are not influenced by timezone setting when converted to Unix timestamp.
 
 :::
 
@@ -244,7 +244,7 @@ A specific type "nchar" is provided in TDengine to store non-ASCII characters su
 
 The characters input on the client side are encoded using the default system encoding, which is UTF-8 on Linux, or GB18030 or GBK on some systems in Chinese, POSIX in docker, CP936 on Windows in Chinese. The encoding of the operating system in use must be set correctly so that the characters in nchar type can be converted to UCS4-LE.
 
-The locale definition standard on Linux is: <Language\>\_<Region\>.<charset\>, for example, in "zh_CN.UTF-8", "zh" means Chinese, "CN" means China mainland, "UTF-8" means charset. On Linux andMac OSX, the charset can be set by locale in the system. On Windows system another configuration parameter `charset` must be used to configure charset because the locale used on Windows is not POSIX standard. Of course, `charset` can also be used on Linux to specify the charset.
+The locale definition standard on Linux is: <Language\>\_<Region\>.<charset\>, for example, in "zh_CN.UTF-8", "zh" means Chinese, "CN" means China mainland, "UTF-8" means charset. On Linux and Mac OSX, the charset can be set by locale in the system. On Windows system another configuration parameter `charset` must be used to configure charset because the locale used on Windows is not POSIX standard. Of course, `charset` can also be used on Linux to specify the charset.
 
 :::
 
@@ -263,7 +263,7 @@ On Linux, if `charset` is not set in `taos.cfg`, when `taos` is started, the cha
 locale zh_CN.UTF-8
 ```
 
-Besides, on Linux system, if the charset contained in `locale` is not consistent with that set by `charset`, the one who comes later in the configuration file is used.
+On a Linux system, if the charset contained in `locale` is not consistent with that set by `charset`, the later setting in the configuration file takes precedence.
 
 ```title="Effective charset is GBK"
 locale zh_CN.UTF-8
@@ -778,7 +778,7 @@ To prevent system resource from being exhausted by multiple concurrent streams, 
 ## HTTP Parameters
 
 :::note
-HTTP server had been provided by `taosd` prior to version 2.4.0.0, now is provided by `taosAdapter` after version 2.4.0.0.
+HTTP service was provided by `taosd` prior to version 2.4.0.0 and is provided by `taosAdapter` after version 2.4.0.0.
 The parameters described in this section are only application in versions prior to 2.4.0.0. If you are using any version from 2.4.0.0, please refer to [taosAdapter](/reference/taosadapter/).
 
 :::

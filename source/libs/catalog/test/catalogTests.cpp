@@ -137,7 +137,7 @@ void ctgTestInitLogFile() {
 
   tsAsyncLog = 0;
   qDebugFlag = 159;
-  strcpy(tsLogDir, "/var/log/taos");
+  strcpy(tsLogDir, TD_LOG_DIR_PATH);
 
   ctgdEnableDebug("api");
   ctgdEnableDebug("meta");
@@ -1380,7 +1380,7 @@ TEST(tableMeta, updateStbMeta) {
   STableMetaRsp rsp = {0};
   ctgTestBuildSTableMetaRsp(&rsp);
 
-  code = catalogUpdateSTableMeta(pCtg, &rsp);
+  code = catalogUpdateTableMeta(pCtg, &rsp);
   ASSERT_EQ(code, 0);
   taosMemoryFreeClear(rsp.pSchemas);
 

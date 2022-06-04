@@ -1,4 +1,3 @@
-#include "qworker.h"
 #include "dataSinkMgt.h"
 #include "executor.h"
 #include "planner.h"
@@ -8,6 +7,7 @@
 #include "tcommon.h"
 #include "tmsg.h"
 #include "tname.h"
+#include "qworker.h"
 
 SQWorkerMgmt gQwMgmt = {
     .lock = 0,
@@ -79,7 +79,11 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryEnd) {
     if (taskHandle) {
       code = qExecTask(taskHandle, &pRes, &useconds);
       if (code) {
-        QW_TASK_ELOG("qExecTask failed, code:%x - %s", code, tstrerror(code));
+        if (code != TSDB_CODE_OPS_NOT_SUPPORT) {
+          QW_TASK_ELOG("qExecTask failed, code:%x - %s", code, tstrerror(code));
+        } else {
+          QW_TASK_DLOG("qExecTask failed, code:%x - %s", code, tstrerror(code));
+        }
         QW_ERR_RET(code);
       }
     }
@@ -244,11 +248,7 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
 
   QW_TASK_DLOG("start to handle event at phase %s", qwPhaseStr(phase));
 
-  if (QW_PHASE_PRE_QUERY == phase) {
-    QW_ERR_JRET(qwAddAcquireTaskCtx(QW_FPARAMS(), &ctx));
-  } else {
-    QW_ERR_JRET(qwAcquireTaskCtx(QW_FPARAMS(), &ctx));
-  }
+  QW_ERR_JRET(qwAcquireTaskCtx(QW_FPARAMS(), &ctx));
 
   QW_LOCK(QW_WRITE, &ctx->lock);
 
@@ -281,7 +281,7 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
         break;
       }
 
-      QW_ERR_JRET(qwAddTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_EXECUTING));
+      QW_ERR_JRET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_EXECUTING));
       break;
     }
     case QW_PHASE_PRE_FETCH: {
@@ -433,7 +433,7 @@ _return:
   QW_RET(code);
 }
 
-int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType, int8_t explain) {
+int32_t qwPrerocessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   int32_t        code = 0;
   bool           queryRsped = false;
   SSubplan      *plan = NULL;
@@ -444,14 +444,38 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType, int8_t ex
 
   QW_ERR_JRET(qwRegisterQueryBrokenLinkArg(QW_FPARAMS(), &qwMsg->connInfo));
 
+  QW_ERR_JRET(qwAddAcquireTaskCtx(QW_FPARAMS(), &ctx));
+
+  ctx->ctrlConnInfo = qwMsg->connInfo;
+
+  QW_ERR_JRET(qwAddTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_NOT_START));
+
+_return:
+
+  if (ctx) {
+    QW_UPDATE_RSP_CODE(ctx, code);
+    qwReleaseTaskCtx(mgmt, ctx);
+  }
+
+  QW_RET(TSDB_CODE_SUCCESS);
+}
+
+
+int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType, int8_t explain) {
+  int32_t        code = 0;
+  bool           queryRsped = false;
+  SSubplan      *plan = NULL;
+  SQWPhaseInput  input = {0};
+  qTaskInfo_t    pTaskInfo = NULL;
+  DataSinkHandle sinkHandle = NULL;
+  SQWTaskCtx    *ctx = NULL;
+
   QW_ERR_JRET(qwHandlePrePhaseEvents(QW_FPARAMS(), QW_PHASE_PRE_QUERY, &input, NULL));
 
   QW_ERR_JRET(qwGetTaskCtx(QW_FPARAMS(), &ctx));
 
   atomic_store_8(&ctx->taskType, taskType);
   atomic_store_8(&ctx->explain, explain);
-
-  ctx->ctrlConnInfo = qwMsg->connInfo;
 
   /*QW_TASK_DLOGL("subplan json string, len:%d, %s", qwMsg->msgLen, qwMsg->msg);*/
 
@@ -659,7 +683,7 @@ int32_t qwProcessDrop(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
 
   // TODO : TASK ALREADY REMOVED AND A NEW DROP MSG RECEIVED
 
-  QW_ERR_JRET(qwAddAcquireTaskCtx(QW_FPARAMS(), &ctx));
+  QW_ERR_JRET(qwAcquireTaskCtx(QW_FPARAMS(), &ctx));
 
   QW_LOCK(QW_WRITE, &ctx->lock);
 
@@ -950,8 +974,29 @@ void qWorkerDestroy(void **qWorkerMgmt) {
   }
 }
 
-int64_t qWorkerGetWaitTimeInQueue(void *qWorkerMgmt, EQueueType type) {
-  return qwGetWaitTimeInQueue((SQWorker *)qWorkerMgmt, type);
+int32_t qWorkerGetStat(SReadHandle *handle, void *qWorkerMgmt, SQWorkerStat *pStat) {
+  if (NULL == handle || NULL == qWorkerMgmt || NULL == pStat) {
+    QW_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+
+  SQWorker *mgmt = (SQWorker *)qWorkerMgmt;
+  SDataSinkStat sinkStat = {0};
+  
+  dsDataSinkGetCacheSize(&sinkStat);
+  pStat->cacheDataSize = sinkStat.cachedSize;
+  
+  pStat->queryProcessed = QW_STAT_GET(mgmt->stat.msgStat.queryProcessed);
+  pStat->cqueryProcessed = QW_STAT_GET(mgmt->stat.msgStat.cqueryProcessed);
+  pStat->fetchProcessed = QW_STAT_GET(mgmt->stat.msgStat.fetchProcessed);
+  pStat->dropProcessed = QW_STAT_GET(mgmt->stat.msgStat.dropProcessed);
+  pStat->hbProcessed = QW_STAT_GET(mgmt->stat.msgStat.hbProcessed);
+
+  pStat->numOfQueryInQueue = handle->pMsgCb->qsizeFp(handle->pMsgCb->mgmt, mgmt->nodeId, QUERY_QUEUE);
+  pStat->numOfFetchInQueue = handle->pMsgCb->qsizeFp(handle->pMsgCb->mgmt, mgmt->nodeId, FETCH_QUEUE);
+  pStat->timeInQueryQueue = qwGetTimeInQueue((SQWorker *)qWorkerMgmt, QUERY_QUEUE);
+  pStat->timeInFetchQueue = qwGetTimeInQueue((SQWorker *)qWorkerMgmt, FETCH_QUEUE);
+
+  return TSDB_CODE_SUCCESS;
 }
 
 

@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnode.h"
 #include "tsdb.h"
+#include "vnode.h"
 
 #define EXTRA_BYTES                2
 #define ASCENDING_TRAVERSE(o)      (o == TSDB_ORDER_ASC)
@@ -327,13 +327,13 @@ static void setQueryTimewindow(STsdbReadHandle* pTsdbReadHandle, SQueryTableData
 
   if (updateTs) {
     tsdbDebug("%p update the query time window, old:%" PRId64 " - %" PRId64 ", new:%" PRId64 " - %" PRId64 ", %s",
-              pTsdbReadHandle, pCond->twindows[tWinIdx].skey, pCond->twindows[tWinIdx].ekey, pTsdbReadHandle->window.skey,
-              pTsdbReadHandle->window.ekey, pTsdbReadHandle->idStr);
+              pTsdbReadHandle, pCond->twindows[tWinIdx].skey, pCond->twindows[tWinIdx].ekey,
+              pTsdbReadHandle->window.skey, pTsdbReadHandle->window.ekey, pTsdbReadHandle->idStr);
   }
 }
 
 static STsdb* getTsdbByRetentions(SVnode* pVnode, STsdbReadHandle* pReadHandle, TSKEY winSKey, SRetention* retentions) {
-  if (vnodeIsRollup(pVnode)) {
+  if (VND_IS_RSMA(pVnode)) {
     int     level = 0;
     int64_t now = taosGetTimestamp(pVnode->config.tsdbCfg.precision);
 
@@ -352,15 +352,15 @@ static STsdb* getTsdbByRetentions(SVnode* pVnode, STsdbReadHandle* pReadHandle, 
     }
 
     if (level == TSDB_RETENTION_L0) {
-      tsdbDebug("vgId:%d read handle %p rsma level %d is selected to query", TD_VID(pVnode), pReadHandle,
+      tsdbDebug("vgId:%d, read handle %p rsma level %d is selected to query", TD_VID(pVnode), pReadHandle,
                 TSDB_RETENTION_L0);
       return VND_RSMA0(pVnode);
     } else if (level == TSDB_RETENTION_L1) {
-      tsdbDebug("vgId:%d read handle %p rsma level %d is selected to query", TD_VID(pVnode), pReadHandle,
+      tsdbDebug("vgId:%d, read handle %p rsma level %d is selected to query", TD_VID(pVnode), pReadHandle,
                 TSDB_RETENTION_L1);
       return VND_RSMA1(pVnode);
     } else {
-      tsdbDebug("vgId:%d read handle %p rsma level %d is selected to query", TD_VID(pVnode), pReadHandle,
+      tsdbDebug("vgId:%d, read handle %p rsma level %d is selected to query", TD_VID(pVnode), pReadHandle,
                 TSDB_RETENTION_L2);
       return VND_RSMA2(pVnode);
     }
@@ -586,7 +586,8 @@ void tsdbResetReadHandle(tsdbReaderT queryHandle, SQueryTableDataCond* pCond, in
   resetCheckInfo(pTsdbReadHandle);
 }
 
-void tsdbResetQueryHandleForNewTable(tsdbReaderT queryHandle, SQueryTableDataCond* pCond, STableListInfo* tableList, int32_t tWinIdx) {
+void tsdbResetQueryHandleForNewTable(tsdbReaderT queryHandle, SQueryTableDataCond* pCond, STableListInfo* tableList,
+                                     int32_t tWinIdx) {
   STsdbReadHandle* pTsdbReadHandle = queryHandle;
 
   pTsdbReadHandle->order = pCond->order;
@@ -1395,7 +1396,7 @@ static int32_t handleDataMergeIfNeeded(STsdbReadHandle* pTsdbReadHandle, SBlock*
     }
 
     if (pTsdbReadHandle->outputCapacity >= binfo.rows) {
-      ASSERT(cur->blockCompleted);
+      ASSERT(cur->blockCompleted || cur->mixBlock);
     }
 
     if (cur->rows == binfo.rows) {
@@ -2845,6 +2846,22 @@ int32_t tsdbGetAllTableList(SMeta* pMeta, uint64_t uid, SArray* list) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t tsdbGetCtbIdList(SMeta* pMeta, int64_t suid, SArray* list) {
+  SMCtbCursor* pCur = metaOpenCtbCursor(pMeta, suid);
+
+  while (1) {
+    tb_uid_t id = metaCtbCursorNext(pCur);
+    if (id == 0) {
+      break;
+    }
+
+    taosArrayPush(list, &id);
+  }
+
+  metaCloseCtbCursor(pCur);
+  return TSDB_CODE_SUCCESS;
+}
+
 static void destroyHelper(void* param) {
   if (param == NULL) {
     return;
@@ -3538,7 +3555,7 @@ int32_t tsdbRetrieveDataBlockStatisInfo(tsdbReaderT* pTsdbReadHandle, SColumnDat
     return TSDB_CODE_SUCCESS;
   }
 
-  tsdbDebug("vgId:%d succeed to load block statis part for uid %" PRIu64, REPO_ID(pHandle->pTsdb),
+  tsdbDebug("vgId:%d, succeed to load block statis part for uid %" PRIu64, REPO_ID(pHandle->pTsdb),
             TSDB_READ_TABLE_UID(&pHandle->rhelper));
 
   int16_t* colIds = pHandle->suppInfo.defaultLoadColumn->pData;

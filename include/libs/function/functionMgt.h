@@ -156,6 +156,9 @@ bool fmIsDynamicScanOptimizedFunc(int32_t funcId);
 bool fmIsMultiResFunc(int32_t funcId);
 bool fmIsRepeatScanFunc(int32_t funcId);
 bool fmIsUserDefinedFunc(int32_t funcId);
+bool fmIsDistExecFunc(int32_t funcId);
+
+int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMergeFunc);
 
 typedef enum EFuncDataRequired {
   FUNC_DATA_REQUIRED_DATA_LOAD = 1,

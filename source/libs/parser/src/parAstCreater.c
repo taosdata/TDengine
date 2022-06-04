@@ -857,7 +857,6 @@ SNode* createDefaultTableOptions(SAstCreateContext* pCxt) {
   CHECK_PARSER_STATUS(pCxt);
   STableOptions* pOptions = nodesMakeNode(QUERY_NODE_TABLE_OPTIONS);
   CHECK_OUT_OF_MEM(pOptions);
-  pOptions->delay = TSDB_DEFAULT_ROLLUP_DELAY;
   pOptions->filesFactor = TSDB_DEFAULT_ROLLUP_FILE_FACTOR;
   pOptions->ttl = TSDB_DEFAULT_TABLE_TTL;
   return (SNode*)pOptions;
@@ -867,7 +866,6 @@ SNode* createAlterTableOptions(SAstCreateContext* pCxt) {
   CHECK_PARSER_STATUS(pCxt);
   STableOptions* pOptions = nodesMakeNode(QUERY_NODE_TABLE_OPTIONS);
   CHECK_OUT_OF_MEM(pOptions);
-  pOptions->delay = -1;
   pOptions->filesFactor = -1;
   pOptions->ttl = -1;
   return (SNode*)pOptions;
@@ -882,11 +880,8 @@ SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType
                                   sizeof(((STableOptions*)pOptions)->comment));
       }
       break;
-    case TABLE_OPTION_DELAY:
-      ((STableOptions*)pOptions)->delay = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
-      break;
     case TABLE_OPTION_FILE_FACTOR:
-      ((STableOptions*)pOptions)->filesFactor = taosStr2Float(((SToken*)pVal)->z, NULL);
+      ((STableOptions*)pOptions)->filesFactor = taosStr2Double(((SToken*)pVal)->z, NULL);
       break;
     case TABLE_OPTION_ROLLUP:
       ((STableOptions*)pOptions)->pRollupFuncs = pVal;
@@ -1266,28 +1261,22 @@ SNode* createDropComponentNodeStmt(SAstCreateContext* pCxt, ENodeType type, cons
   return (SNode*)pStmt;
 }
 
-SNode* createTopicOptions(SAstCreateContext* pCxt) {
-  CHECK_PARSER_STATUS(pCxt);
-  STopicOptions* pOptions = nodesMakeNode(QUERY_NODE_TOPIC_OPTIONS);
-  CHECK_OUT_OF_MEM(pOptions);
-  pOptions->withTable = false;
-  pOptions->withSchema = false;
-  pOptions->withTag = false;
-  return (SNode*)pOptions;
-}
-
 SNode* createCreateTopicStmt(SAstCreateContext* pCxt, bool ignoreExists, const SToken* pTopicName, SNode* pQuery,
-                             const SToken* pSubscribeDbName, SNode* pOptions) {
+                             const SToken* pSubDbName, SNode* pRealTable) {
   CHECK_PARSER_STATUS(pCxt);
   SCreateTopicStmt* pStmt = nodesMakeNode(QUERY_NODE_CREATE_TOPIC_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   strncpy(pStmt->topicName, pTopicName->z, pTopicName->n);
   pStmt->ignoreExists = ignoreExists;
-  pStmt->pQuery = pQuery;
-  if (NULL != pSubscribeDbName) {
-    strncpy(pStmt->subscribeDbName, pSubscribeDbName->z, pSubscribeDbName->n);
+  if (NULL != pRealTable) {
+    strcpy(pStmt->subDbName, ((SRealTableNode*)pRealTable)->table.dbName);
+    strcpy(pStmt->subSTbName, ((SRealTableNode*)pRealTable)->table.tableName);
+    nodesDestroyNode(pRealTable);
+  } else if (NULL != pSubDbName) {
+    strncpy(pStmt->subDbName, pSubDbName->z, pSubDbName->n);
+  } else {
+    pStmt->pQuery = pQuery;
   }
-  pStmt->pOptions = (STopicOptions*)pOptions;
   return (SNode*)pStmt;
 }
 
@@ -1497,5 +1486,14 @@ SNode* createRevokeStmt(SAstCreateContext* pCxt, int64_t privileges, SToken* pDb
   pStmt->privileges = privileges;
   strncpy(pStmt->dbName, pDbName->z, pDbName->n);
   strncpy(pStmt->userName, pUserName->z, pUserName->n);
+  return (SNode*)pStmt;
+}
+
+SNode* createDeleteStmt(SAstCreateContext* pCxt, SNode* pTable, SNode* pWhere) {
+  CHECK_PARSER_STATUS(pCxt);
+  SDeleteStmt* pStmt = nodesMakeNode(QUERY_NODE_DELETE_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  pStmt->pFromTable = pTable;
+  pStmt->pWhere = pWhere;
   return (SNode*)pStmt;
 }

@@ -120,7 +120,7 @@ static int32_t hbProcessStbInfoRsp(void *value, int32_t valueLen, struct SCatalo
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
 
-      catalogUpdateSTableMeta(pCatalog, rsp);
+      catalogUpdateTableMeta(pCatalog, rsp);
     }
   }
 
@@ -158,6 +158,10 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
 
       if (pRsp->query->killConnection) {
         taos_close(pTscObj);
+      }
+
+      if (pRsp->query->pQnodeList) {
+        updateQnodeList(pTscObj->pAppInfo, pRsp->query->pQnodeList);
       }
 
       releaseTscObj(pRsp->connKey.tscRid);

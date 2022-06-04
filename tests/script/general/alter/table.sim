@@ -252,6 +252,7 @@ endi
 
 print ======== step8
 sql alter table tb add column h binary(10)
+sql select * from tb
 sql describe tb
 if $data00 != ts then
   return -1
@@ -304,7 +305,7 @@ endi
 if $data80 != h then
   return -1
 endi
-if $data81 != BINARY then
+if $data81 != VARCHAR then
   return -1
 endi
 if $data82 != 10 then
@@ -371,7 +372,7 @@ endi
 if $data80 != h then
   return -1
 endi
-if $data81 != BINARY then
+if $data81 != VARCHAR then
   return -1
 endi
 if $data82 != 10 then
@@ -447,7 +448,7 @@ endi
 if $data70 != h then
   return -1
 endi
-if $data71 != BINARY then
+if $data71 != VARCHAR then
   return -1
 endi
 if $data72 != 10 then
@@ -496,7 +497,7 @@ endi
 if $data60 != h then
   return -1
 endi
-if $data61 != BINARY then
+if $data61 != VARCHAR then
   return -1
 endi
 if $data62 != 10 then
@@ -539,7 +540,7 @@ endi
 if $data50 != h then
   return -1
 endi
-if $data51 != BINARY then
+if $data51 != VARCHAR then
   return -1
 endi
 if $data52 != 10 then
@@ -576,7 +577,7 @@ endi
 if $data40 != h then
   return -1
 endi
-if $data41 != BINARY then
+if $data41 != VARCHAR then
   return -1
 endi
 if $data42 != 10 then
@@ -607,7 +608,7 @@ endi
 if $data30 != h then
   return -1
 endi
-if $data31 != BINARY then
+if $data31 != VARCHAR then
   return -1
 endi
 if $data32 != 10 then
@@ -632,7 +633,7 @@ endi
 if $data20 != h then
   return -1
 endi
-if $data21 != BINARY then
+if $data21 != VARCHAR then
   return -1
 endi
 if $data22 != 10 then

@@ -302,7 +302,7 @@ typedef struct SCtgUpdateEpsetMsg {
 typedef struct SCtgCacheOperation {
   int32_t  opId;
   void    *data;
-  bool     syncReq;
+  bool     syncOp;
   uint64_t seqId;
 } SCtgCacheOperation;
 
@@ -342,16 +342,16 @@ typedef struct SCtgOperation {
   ctgOpFunc func;
 } SCtgOperation;
 
-#define CTG_QUEUE_ADD() atomic_add_fetch_64(&gCtgMgmt.queue.qRemainNum, 1)
-#define CTG_QUEUE_SUB() atomic_sub_fetch_64(&gCtgMgmt.queue.qRemainNum, 1)
+#define CTG_QUEUE_INC() atomic_add_fetch_64(&gCtgMgmt.queue.qRemainNum, 1)
+#define CTG_QUEUE_DEC() atomic_sub_fetch_64(&gCtgMgmt.queue.qRemainNum, 1)
 
-#define CTG_STAT_ADD(_item, _n) atomic_add_fetch_64(&(_item), _n)
-#define CTG_STAT_SUB(_item, _n) atomic_sub_fetch_64(&(_item), _n)
+#define CTG_STAT_INC(_item, _n) atomic_add_fetch_64(&(_item), _n)
+#define CTG_STAT_DEC(_item, _n) atomic_sub_fetch_64(&(_item), _n)
 #define CTG_STAT_GET(_item) atomic_load_64(&(_item))
 
-#define CTG_RUNTIME_STAT_ADD(item, n) (CTG_STAT_ADD(gCtgMgmt.stat.runtime.item, n))
-#define CTG_CACHE_STAT_ADD(item, n) (CTG_STAT_ADD(gCtgMgmt.stat.cache.item, n))
-#define CTG_CACHE_STAT_SUB(item, n) (CTG_STAT_SUB(gCtgMgmt.stat.cache.item, n))
+#define CTG_RT_STAT_INC(item, n) (CTG_STAT_INC(gCtgMgmt.stat.runtime.item, n))
+#define CTG_CACHE_STAT_INC(item, n) (CTG_STAT_INC(gCtgMgmt.stat.cache.item, n))
+#define CTG_CACHE_STAT_DEC(item, n) (CTG_STAT_DEC(gCtgMgmt.stat.cache.item, n))
 
 #define CTG_IS_META_NULL(type) ((type) == META_TYPE_NULL_TABLE)
 #define CTG_IS_META_CTABLE(type) ((type) == META_TYPE_CTABLE)
@@ -490,7 +490,7 @@ int32_t ctgGetTbMetaFromMnodeImpl(CTG_PARAMS, char *dbFName, char* tbName, STabl
 int32_t ctgGetTbMetaFromMnode(CTG_PARAMS, const SName* pTableName, STableMetaOutput* out, SCtgTask* pTask);
 int32_t ctgGetTbMetaFromVnode(CTG_PARAMS, const SName* pTableName, SVgroupInfo *vgroupInfo, STableMetaOutput* out, SCtgTask* pTask);
 
-int32_t ctgInitJob(CTG_PARAMS, SCtgJob** job, uint64_t reqId, const SCatalogReq* pReq, catalogCallback fp, void* param);
+int32_t ctgInitJob(CTG_PARAMS, SCtgJob** job, uint64_t reqId, const SCatalogReq* pReq, catalogCallback fp, void* param, int32_t* taskNum);
 int32_t ctgLaunchJob(SCtgJob *pJob);
 int32_t ctgMakeAsyncRes(SCtgJob *pJob);
 

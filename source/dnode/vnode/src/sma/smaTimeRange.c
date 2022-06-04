@@ -326,13 +326,13 @@ int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg) {
 
   if (!pDataBlocks) {
     terrno = TSDB_CODE_INVALID_PTR;
-    smaWarn("vgId:%d insert tSma data failed since pDataBlocks is NULL", SMA_VID(pSma));
+    smaWarn("vgId:%d, insert tSma data failed since pDataBlocks is NULL", SMA_VID(pSma));
     return terrno;
   }
 
   if (taosArrayGetSize(pDataBlocks) <= 0) {
     terrno = TSDB_CODE_INVALID_PARA;
-    smaWarn("vgId:%d insert tSma data failed since pDataBlocks is empty", SMA_VID(pSma));
+    smaWarn("vgId:%d, insert tSma data failed since pDataBlocks is empty", SMA_VID(pSma));
     return TSDB_CODE_FAILED;
   }
 
@@ -487,11 +487,11 @@ int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg) {
             smaCloseDBF(&tSmaH.dFile);
           }
           tdSetTSmaDataFile(&tSmaH, indexUid, fid);
-          smaDebug("@@@ vgId:%d write to DBF %s, days:%d, interval:%" PRIi64 ", storageLevel:%" PRIi32
+          smaDebug("vgId:%d, write to DBF %s, days:%d, interval:%" PRIi64 ", storageLevel:%" PRIi32
                    " queryKey:%" PRIi64,
                    SMA_VID(pSma), tSmaH.dFile.path, minutePerFile, tSmaH.interval, storageLevel, testSkey);
           if (smaOpenDBF(pEnv->dbEnv, &tSmaH.dFile) != 0) {
-            smaWarn("vgId:%d open DB file %s failed since %s", SMA_VID(pSma),
+            smaWarn("vgId:%d, open DB file %s failed since %s", SMA_VID(pSma),
                     tSmaH.dFile.path ? tSmaH.dFile.path : "path is NULL", tstrerror(terrno));
             tdDestroyTSmaWriteH(&tSmaH);
             tdUnRefSmaStat(pSma, pStat);
@@ -501,7 +501,7 @@ int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg) {
         }
 
         if (tdInsertTSmaBlocks(&tSmaH, &smaKey, SMA_KEY_LEN, dataBuf, tlen, &pEnv->txn) != 0) {
-          smaWarn("vgId:%d insert tsma data blocks fail for index %" PRIi64 ", skey %" PRIi64 ", groupId %" PRIi64
+          smaWarn("vgId:%d, insert tsma data blocks fail for index %" PRIi64 ", skey %" PRIi64 ", groupId %" PRIi64
                   " since %s",
                   SMA_VID(pSma), indexUid, skey, groupId, tstrerror(terrno));
           tdSmaEndCommit(pEnv);
@@ -510,14 +510,14 @@ int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg) {
           return TSDB_CODE_FAILED;
         }
 
-        smaDebug("vgId:%d insert tsma data blocks success for index %" PRIi64 ", skey %" PRIi64 ", groupId %" PRIi64,
+        smaDebug("vgId:%d, insert tsma data blocks success for index %" PRIi64 ", skey %" PRIi64 ", groupId %" PRIi64,
                  SMA_VID(pSma), indexUid, skey, groupId);
         // TODO:tsdbEndTSmaCommit();
 
         // Step 3: reset the SSmaStat
         tdResetExpiredWindow(pSma, pStat, indexUid, skey);
       } else {
-        smaWarn("vgId:%d invalid data skey:%" PRIi64 ", tlen %" PRIi32 " during insert tSma data for %" PRIi64,
+        smaWarn("vgId:%d, invalid data skey:%" PRIi64 ", tlen %" PRIi32 " during insert tSma data for %" PRIi64,
                 SMA_VID(pSma), skey, tlen, indexUid);
       }
     }
@@ -532,7 +532,7 @@ int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg) {
 int32_t tdDropTSmaData(SSma *pSma, int64_t indexUid) {
   int32_t code = TSDB_CODE_SUCCESS;
   if ((code = tdDropTSmaDataImpl(pSma, indexUid)) < 0) {
-    smaWarn("vgId:%d drop tSma data failed since %s", SMA_VID(pSma), tstrerror(terrno));
+    smaWarn("vgId:%d, drop tSma data failed since %s", SMA_VID(pSma), tstrerror(terrno));
   }
   return code;
 }
@@ -553,11 +553,11 @@ static int32_t tdInsertTSmaBlocks(STSmaWriteH *pSmaH, void *smaKey, int32_t keyL
 
   // TODO: insert tsma data blocks into B+Tree(TTB)
   if (smaSaveSmaToDB(pDBFile, smaKey, keyLen, pData, dataLen, txn) != 0) {
-    smaWarn("vgId:%d insert tsma data blocks into %s: smaKey %" PRIx64 "-%" PRIx64 ", dataLen %" PRIu32 " fail",
+    smaWarn("vgId:%d, insert tsma data blocks into %s: smaKey %" PRIx64 "-%" PRIx64 ", dataLen %" PRIu32 " fail",
             SMA_VID(pSmaH->pSma), pDBFile->path, *(int64_t *)smaKey, *(int64_t *)POINTER_SHIFT(smaKey, 8), dataLen);
     return TSDB_CODE_FAILED;
   }
-  smaDebug("vgId:%d insert tsma data blocks into %s: smaKey %" PRIx64 "-%" PRIx64 ", dataLen %" PRIu32 " succeed",
+  smaDebug("vgId:%d, insert tsma data blocks into %s: smaKey %" PRIx64 "-%" PRIx64 ", dataLen %" PRIu32 " succeed",
            SMA_VID(pSmaH->pSma), pDBFile->path, *(int64_t *)smaKey, *(int64_t *)POINTER_SHIFT(smaKey, 8), dataLen);
 
 #ifdef _TEST_SMA_PRINT_DEBUG_LOG_
@@ -565,7 +565,7 @@ static int32_t tdInsertTSmaBlocks(STSmaWriteH *pSmaH, void *smaKey, int32_t keyL
   void    *data = tdGetSmaDataByKey(pDBFile, smaKey, keyLen, &valueSize);
   ASSERT(data != NULL);
   for (uint32_t v = 0; v < valueSize; v += 8) {
-    smaWarn("vgId:%d insert sma data val[%d] %" PRIi64, REPO_ID(pSmaH->pTsdb), v, *(int64_t *)POINTER_SHIFT(data, v));
+    smaWarn("vgId:%d, insert sma data val[%d] %" PRIi64, REPO_ID(pSmaH->pTsdb), v, *(int64_t *)POINTER_SHIFT(data, v));
   }
 #endif
   return TSDB_CODE_SUCCESS;
@@ -594,11 +594,11 @@ static int32_t tdResetExpiredWindow(SSma *pSma, SSmaStat *pStat, int64_t indexUi
     if (taosHashRemove(pItem->expiredWindows, &skey, sizeof(TSKEY)) != 0) {
       // error handling
       tdUnRefSmaStat(pSma, pStat);
-      smaWarn("vgId:%d remove skey %" PRIi64 " from expired window for sma index %" PRIi64 " fail", SMA_VID(pSma), skey,
+      smaWarn("vgId:%d, remove skey %" PRIi64 " from expired window for sma index %" PRIi64 " fail", SMA_VID(pSma), skey,
               indexUid);
       return TSDB_CODE_FAILED;
     }
-    smaDebug("vgId:%d remove skey %" PRIi64 " from expired window for sma index %" PRIi64 " succeed", SMA_VID(pSma),
+    smaDebug("vgId:%d, remove skey %" PRIi64 " from expired window for sma index %" PRIi64 " succeed", SMA_VID(pSma),
              skey, indexUid);
     // TODO: use a standalone interface to received state upate notification from stream computing module.
     /**
@@ -612,7 +612,7 @@ static int32_t tdResetExpiredWindow(SSma *pSma, SSmaStat *pStat, int64_t indexUi
   } else {
     // error handling
     tdUnRefSmaStat(pSma, pStat);
-    smaWarn("vgId:%d expired window %" PRIi64 " not exists for sma index %" PRIi64, SMA_VID(pSma), skey, indexUid);
+    smaWarn("vgId:%d, expired window %" PRIi64 " not exists for sma index %" PRIi64, SMA_VID(pSma), skey, indexUid);
     return TSDB_CODE_FAILED;
   }
 
@@ -632,19 +632,19 @@ static int32_t tdDropTSmaDataImpl(SSma *pSma, int64_t indexUid) {
 
   // clear local cache
   if (pEnv) {
-    smaDebug("vgId:%d drop tSma local cache for %" PRIi64, SMA_VID(pSma), indexUid);
+    smaDebug("vgId:%d, drop tSma local cache for %" PRIi64, SMA_VID(pSma), indexUid);
 
     SSmaStatItem *pItem = taosHashGet(SMA_ENV_STAT_ITEMS(pEnv), &indexUid, sizeof(indexUid));
     if ((pItem) || ((pItem = *(SSmaStatItem **)pItem))) {
       if (tdSmaStatIsDropped(pItem)) {
-        smaDebug("vgId:%d tSma stat is already dropped for %" PRIi64, SMA_VID(pSma), indexUid);
+        smaDebug("vgId:%d, tSma stat is already dropped for %" PRIi64, SMA_VID(pSma), indexUid);
         return TSDB_CODE_TDB_INVALID_ACTION;  // TODO: duplicate drop msg would be intercepted by mnode
       }
 
       tdWLockSmaEnv(pEnv);
       if (tdSmaStatIsDropped(pItem)) {
         tdUnLockSmaEnv(pEnv);
-        smaDebug("vgId:%d tSma stat is already dropped for %" PRIi64, SMA_VID(pSma), indexUid);
+        smaDebug("vgId:%d, tSma stat is already dropped for %" PRIi64, SMA_VID(pSma), indexUid);
         return TSDB_CODE_TDB_INVALID_ACTION;  // TODO: duplicate drop msg would be intercepted by mnode
       }
       tdSmaStatSetDropped(pItem);
@@ -654,19 +654,19 @@ static int32_t tdDropTSmaDataImpl(SSma *pSma, int64_t indexUid) {
       int32_t refVal = INT32_MAX;
       while (true) {
         if ((refVal = T_REF_VAL_GET(SMA_ENV_STAT(pEnv))) <= 0) {
-          smaDebug("vgId:%d drop index %" PRIi64 " since refVal=%d", SMA_VID(pSma), indexUid, refVal);
+          smaDebug("vgId:%d, drop index %" PRIi64 " since refVal=%d", SMA_VID(pSma), indexUid, refVal);
           break;
         }
-        smaDebug("vgId:%d wait 1s to drop index %" PRIi64 " since refVal=%d", SMA_VID(pSma), indexUid, refVal);
+        smaDebug("vgId:%d, wait 1s to drop index %" PRIi64 " since refVal=%d", SMA_VID(pSma), indexUid, refVal);
         taosSsleep(1);
         if (++nSleep > SMA_DROP_EXPIRED_TIME) {
-          smaDebug("vgId:%d drop index %" PRIi64 " after wait %d (refVal=%d)", SMA_VID(pSma), indexUid, nSleep, refVal);
+          smaDebug("vgId:%d, drop index %" PRIi64 " after wait %d (refVal=%d)", SMA_VID(pSma), indexUid, nSleep, refVal);
           break;
         };
       }
 
       tdFreeSmaStatItem(pItem);
-      smaDebug("vgId:%d getTSmaDataImpl failed since no index %" PRIi64 " in local cache", SMA_VID(pSma), indexUid);
+      smaDebug("vgId:%d, getTSmaDataImpl failed since no index %" PRIi64 " in local cache", SMA_VID(pSma), indexUid);
     }
   }
   // clear sma data files
@@ -690,7 +690,7 @@ int32_t tdGetTSmaDataImpl(SSma *pSma, char *pData, int64_t indexUid, TSKEY query
 
   if (!pEnv) {
     terrno = TSDB_CODE_INVALID_PTR;
-    smaWarn("vgId:%d getTSmaDataImpl failed since pTSmaEnv is NULL", SMA_VID(pSma));
+    smaWarn("vgId:%d, getTSmaDataImpl failed since pTSmaEnv is NULL", SMA_VID(pSma));
     return TSDB_CODE_FAILED;
   }
 
@@ -703,7 +703,7 @@ int32_t tdGetTSmaDataImpl(SSma *pSma, char *pData, int64_t indexUid, TSKEY query
     // it's NULL.
     tdUnRefSmaStat(pSma, pStat);
     terrno = TSDB_CODE_TDB_INVALID_ACTION;
-    smaDebug("vgId:%d getTSmaDataImpl failed since no index %" PRIi64, SMA_VID(pSma), indexUid);
+    smaDebug("vgId:%d, getTSmaDataImpl failed since no index %" PRIi64, SMA_VID(pSma), indexUid);
     return TSDB_CODE_FAILED;
   }
 
@@ -722,17 +722,17 @@ int32_t tdGetTSmaDataImpl(SSma *pSma, char *pData, int64_t indexUid, TSKEY query
   if (!tdSmaStatIsOK(pItem, &smaStat)) {  // TODO: multiple check for large scale sma query
     tdUnRefSmaStat(pSma, pStat);
     terrno = TSDB_CODE_TDB_INVALID_SMA_STAT;
-    smaWarn("vgId:%d getTSmaDataImpl failed from index %" PRIi64 " since %s %" PRIi8, SMA_VID(pSma), indexUid,
+    smaWarn("vgId:%d, getTSmaDataImpl failed from index %" PRIi64 " since %s %" PRIi8, SMA_VID(pSma), indexUid,
             tstrerror(terrno), smaStat);
     return TSDB_CODE_FAILED;
   }
 
   if (taosHashGet(pItem->expiredWindows, &querySKey, sizeof(TSKEY))) {
     // TODO: mark this window as expired.
-    smaDebug("vgId:%d skey %" PRIi64 " of window exists in expired window for index %" PRIi64, SMA_VID(pSma), querySKey,
+    smaDebug("vgId:%d, skey %" PRIi64 " of window exists in expired window for index %" PRIi64, SMA_VID(pSma), querySKey,
              indexUid);
   } else {
-    smaDebug("vgId:%d skey %" PRIi64 " of window not in expired window for index %" PRIi64, SMA_VID(pSma), querySKey,
+    smaDebug("vgId:%d, skey %" PRIi64 " of window not in expired window for index %" PRIi64, SMA_VID(pSma), querySKey,
              indexUid);
   }
 
@@ -750,7 +750,7 @@ int32_t tdGetTSmaDataImpl(SSma *pSma, char *pData, int64_t indexUid, TSKEY query
   smaDebug("### vgId:%d read from DBF %s  days:%d, interval:%" PRIi64 ", storageLevel:%" PRIi8 " queryKey:%" PRIi64,
            SMA_VID(pSma), tReadH.dFile.path, tReadH.days, tReadH.interval, tReadH.storageLevel, querySKey);
   if (smaOpenDBF(pEnv->dbEnv, &tReadH.dFile) != 0) {
-    smaWarn("vgId:%d open DBF %s failed since %s", SMA_VID(pSma), tReadH.dFile.path, tstrerror(terrno));
+    smaWarn("vgId:%d, open DBF %s failed since %s", SMA_VID(pSma), tReadH.dFile.path, tstrerror(terrno));
     return TSDB_CODE_FAILED;
   }
 
@@ -759,13 +759,13 @@ int32_t tdGetTSmaDataImpl(SSma *pSma, char *pData, int64_t indexUid, TSKEY query
   int64_t queryGroupId = 0;
   tdEncodeTSmaKey(queryGroupId, querySKey, (void **)&pSmaKey);
 
-  smaDebug("vgId:%d get sma data from %s: smaKey %" PRIx64 "-%" PRIx64 ", keyLen %d", SMA_VID(pSma), tReadH.dFile.path,
+  smaDebug("vgId:%d, get sma data from %s: smaKey %" PRIx64 "-%" PRIx64 ", keyLen %d", SMA_VID(pSma), tReadH.dFile.path,
            *(int64_t *)smaKey, *(int64_t *)POINTER_SHIFT(smaKey, 8), SMA_KEY_LEN);
 
   void   *result = NULL;
   int32_t valueSize = 0;
   if (!(result = smaGetSmaDataByKey(&tReadH.dFile, smaKey, SMA_KEY_LEN, &valueSize))) {
-    smaWarn("vgId:%d get sma data failed from smaIndex %" PRIi64 ", smaKey %" PRIx64 "-%" PRIx64 " since %s",
+    smaWarn("vgId:%d, get sma data failed from smaIndex %" PRIi64 ", smaKey %" PRIx64 "-%" PRIx64 " since %s",
             SMA_VID(pSma), indexUid, *(int64_t *)smaKey, *(int64_t *)POINTER_SHIFT(smaKey, 8), tstrerror(terrno));
     smaCloseDBF(&tReadH.dFile);
     return TSDB_CODE_FAILED;
@@ -774,7 +774,7 @@ int32_t tdGetTSmaDataImpl(SSma *pSma, char *pData, int64_t indexUid, TSKEY query
 
 #ifdef _TEST_SMA_PRINT_DEBUG_LOG_
   for (uint32_t v = 0; v < valueSize; v += 8) {
-    smaWarn("vgId:%d get sma data v[%d]=%" PRIi64, SMA_VID(pSma), v, *(int64_t *)POINTER_SHIFT(result, v));
+    smaWarn("vgId:%d, get sma data v[%d]=%" PRIi64, SMA_VID(pSma), v, *(int64_t *)POINTER_SHIFT(result, v));
   }
 #endif
   taosMemoryFreeClear(result);  // TODO: fill the result to output
@@ -828,7 +828,7 @@ int32_t tdDropTSma(SSma *pSma, char *pMsg) {
 
   // TODO: send msg to stream computing to drop tSma
   // if ((send msg to stream computing) < 0) {
-  //   tdDestroyTSma(&vCreateSmaReq);
+  //   tDestroyTSma(&vCreateSmaReq);
   //   return -1;
   // }
   //
@@ -888,7 +888,7 @@ static int32_t tdSetExpiredWindow(SSma *pSma, SHashObj *pItemsHash, int64_t inde
       terrno = TSDB_CODE_TDB_NO_SMA_INDEX_IN_META;
       taosHashCleanup(pItem->expiredWindows);
       taosMemoryFree(pItem);
-      smaWarn("vgId:%d set expire window, get tsma meta failed for smaIndex %" PRIi64 " since %s", SMA_VID(pSma),
+      smaWarn("vgId:%d, set expire window, get tsma meta failed for smaIndex %" PRIi64 " since %s", SMA_VID(pSma),
               indexUid, tstrerror(terrno));
       return TSDB_CODE_FAILED;
     }
@@ -915,12 +915,12 @@ static int32_t tdSetExpiredWindow(SSma *pSma, SHashObj *pItemsHash, int64_t inde
     taosHashCleanup(pItem->expiredWindows);
     taosMemoryFreeClear(pItem->pTSma);
     taosHashRemove(pItemsHash, &indexUid, sizeof(indexUid));
-    smaWarn("vgId:%d smaIndex %" PRIi64 ", put skey %" PRIi64 " to expire window fail", SMA_VID(pSma), indexUid,
+    smaWarn("vgId:%d, smaIndex %" PRIi64 ", put skey %" PRIi64 " to expire window fail", SMA_VID(pSma), indexUid,
             winSKey);
     return TSDB_CODE_FAILED;
   }
 
-  smaDebug("vgId:%d smaIndex %" PRIi64 ", put skey %" PRIi64 " to expire window succeed", SMA_VID(pSma), indexUid,
+  smaDebug("vgId:%d, smaIndex %" PRIi64 ", put skey %" PRIi64 " to expire window succeed", SMA_VID(pSma), indexUid,
            winSKey);
   return TSDB_CODE_SUCCESS;
 }
@@ -932,21 +932,21 @@ static int32_t tdSetExpiredWindow(SSma *pSma, SHashObj *pItemsHash, int64_t inde
  * @param msg SSubmitReq
  * @return int32_t
  */
-int32_t tdUpdateExpiredWindowImpl(SSma *pSma, SSubmitReq *pMsg, int64_t version) {
+int32_t tdUpdateExpiredWindowImpl(SSma *pSma, const SSubmitReq *pMsg, int64_t version) {
   // no time-range-sma, just return success
   if (atomic_load_16(&SMA_TSMA_NUM(pSma)) <= 0) {
-    smaTrace("vgId:%d not update expire window since no tSma", SMA_VID(pSma));
+    smaTrace("vgId:%d, not update expire window since no tSma", SMA_VID(pSma));
     return TSDB_CODE_SUCCESS;
   }
 
   if (!SMA_META(pSma)) {
     terrno = TSDB_CODE_INVALID_PTR;
-    smaError("vgId:%d update expire window failed since no meta ptr", SMA_VID(pSma));
+    smaError("vgId:%d, update expire window failed since no meta ptr", SMA_VID(pSma));
     return TSDB_CODE_FAILED;
   }
 
   if (tdCheckAndInitSmaEnv(pSma, TSDB_SMA_TYPE_TIME_RANGE) < 0) {
-    smaError("vgId:%d init sma env failed since %s", SMA_VID(pSma), terrstr(terrno));
+    smaError("vgId:%d, init sma env failed since %s", SMA_VID(pSma), terrstr(terrno));
     terrno = TSDB_CODE_TDB_INIT_FAILED;
     return TSDB_CODE_FAILED;
   }
@@ -982,25 +982,25 @@ int32_t tdUpdateExpiredWindowImpl(SSma *pSma, SSubmitReq *pMsg, int64_t version)
 
     SSubmitBlkIter blkIter = {0};
     if (tInitSubmitBlkIter(&msgIter, pBlock, &blkIter) < 0) {
-      pSW = tdFreeTSmaWrapper(pSW, false);
+      pSW = tFreeTSmaWrapper(pSW, false);
       break;
     }
 
     while (true) {
       STSRow *row = tGetSubmitBlkNext(&blkIter);
       if (!row) {
-        pSW = tdFreeTSmaWrapper(pSW, false);
+        pSW = tFreeTSmaWrapper(pSW, false);
         break;
       }
       if (!pSW || (pTSma && (pTSma->tableUid != msgIter.suid))) {
         if (pSW) {
-          pSW = tdFreeTSmaWrapper(pSW, false);
+          pSW = tFreeTSmaWrapper(pSW, false);
         }
         if (!(pSW = metaGetSmaInfoByTable(SMA_META(pSma), msgIter.suid, false))) {
           break;
         }
         if ((pSW->number) <= 0 || !pSW->tSma) {
-          pSW = tdFreeTSmaWrapper(pSW, false);
+          pSW = tFreeTSmaWrapper(pSW, false);
           break;
         }
 
@@ -1020,12 +1020,12 @@ int32_t tdUpdateExpiredWindowImpl(SSma *pSma, SSubmitReq *pMsg, int64_t version)
       if (lastWinSKey != winSKey) {
         lastWinSKey = winSKey;
         if (tdSetExpiredWindow(pSma, pItemsHash, pTSma->indexUid, winSKey, version) < 0) {
-          pSW = tdFreeTSmaWrapper(pSW, false);
+          pSW = tFreeTSmaWrapper(pSW, false);
           tdUnRefSmaStat(pSma, pStat);
           return TSDB_CODE_FAILED;
         }
       } else {
-        smaDebug("vgId:%d smaIndex %" PRIi64 ", put skey %" PRIi64 " to expire window ignore as duplicated",
+        smaDebug("vgId:%d, smaIndex %" PRIi64 ", put skey %" PRIi64 " to expire window ignore as duplicated",
                  SMA_VID(pSma), pTSma->indexUid, winSKey);
       }
     }

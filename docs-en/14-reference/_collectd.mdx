@@ -25,7 +25,7 @@ The default database name written by taosAdapter is `collectd`. You can also mod
 #collectd
 collectd uses a plugin mechanism to write the collected monitoring data to different data storage software in various forms. tdengine supports both direct collection plugins and write_tsdb plugins.
 
-#### is configured to receive data from the direct collection plugin
+#### Configure the direct collection plugin
 
 Modify the relevant configuration items in the collectd configuration file (default location /etc/collectd/collectd.conf).
 
@@ -62,7 +62,7 @@ LoadPlugin write_tsdb
 </Plugin>
 ```
 
-Where <taosAdapter's host\> fills in the server's domain name or IP address running taosAdapter. <port for collectd write_tsdb plugin\> Fill in the data that taosAdapter uses to receive the collectd write_tsdb plugin (default is 6047).
+Where <taosAdapter's host\> is the domain name or IP address of the server running taosAdapter. <port for collectd write_tsdb plugin\> Fill in the data that taosAdapter uses to receive the collectd write_tsdb plugin (default is 6047).
 
 ```text
 LoadPlugin write_tsdb

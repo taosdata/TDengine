@@ -85,7 +85,7 @@ void ctgFreeTbMetaCache(SCtgTbMetaCache *cache) {
     int32_t stblNum = taosHashGetSize(cache->stbCache);  
     taosHashCleanup(cache->stbCache);
     cache->stbCache = NULL;
-    CTG_CACHE_STAT_SUB(stblNum, stblNum);
+    CTG_CACHE_STAT_DEC(stblNum, stblNum);
   }
   CTG_UNLOCK(CTG_WRITE, &cache->stbLock);
 
@@ -94,7 +94,7 @@ void ctgFreeTbMetaCache(SCtgTbMetaCache *cache) {
     int32_t tblNum = taosHashGetSize(cache->metaCache);
     taosHashCleanup(cache->metaCache);
     cache->metaCache = NULL;
-    CTG_CACHE_STAT_SUB(tblNum, tblNum);
+    CTG_CACHE_STAT_DEC(tblNum, tblNum);
   }
   CTG_UNLOCK(CTG_WRITE, &cache->metaLock);
 }
@@ -145,7 +145,7 @@ void ctgFreeHandle(SCatalog* pCtg) {
 
     taosHashCleanup(pCtg->dbCache);
     
-    CTG_CACHE_STAT_SUB(dbNum, dbNum);
+    CTG_CACHE_STAT_DEC(dbNum, dbNum);
   }
 
   if (pCtg->userCache) {
@@ -162,7 +162,7 @@ void ctgFreeHandle(SCatalog* pCtg) {
 
     taosHashCleanup(pCtg->userCache);
 
-    CTG_CACHE_STAT_SUB(userNum, userNum);
+    CTG_CACHE_STAT_DEC(userNum, userNum);
   }
 
   taosMemoryFree(pCtg);

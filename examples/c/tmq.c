@@ -24,6 +24,7 @@ static void msg_process(TAOS_RES* msg) {
   char buf[1024];
   /*memset(buf, 0, 1024);*/
   printf("topic: %s\n", tmq_get_topic_name(msg));
+  printf("db: %s\n", tmq_get_db_name(msg));
   printf("vg: %d\n", tmq_get_vgroup_id(msg));
   while (1) {
     TAOS_ROW row = taos_fetch_row(msg);
@@ -106,7 +107,7 @@ int32_t create_topic() {
   }
   taos_free_result(pRes);
 
-  /*pRes = taos_query(pConn, "create topic topic_ctb_column as abc1");*/
+  /*pRes = taos_query(pConn, "create topic topic_ctb_column as database abc1");*/
   pRes = taos_query(pConn, "create topic topic_ctb_column as select ts, c1, c2, c3 from st1");
   if (taos_errno(pRes) != 0) {
     printf("failed to create topic topic_ctb_column, reason:%s\n", taos_errstr(pRes));
@@ -165,7 +166,6 @@ tmq_t* build_consumer() {
   tmq_conf_set(conf, "group.id", "tg2");
   tmq_conf_set(conf, "td.connect.user", "root");
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
-  /*tmq_conf_set(conf, "td.connect.db", "abc1");*/
   tmq_conf_set(conf, "msg.with.table.name", "true");
   tmq_conf_set(conf, "enable.auto.commit", "false");
   tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
@@ -191,20 +191,18 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
     return;
   }
   int32_t cnt = 0;
-  /*clock_t startTime = clock();*/
   while (running) {
     TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, 0);
     if (tmqmessage) {
       cnt++;
+      msg_process(tmqmessage);
+      /*if (cnt >= 2) break;*/
       /*printf("get data\n");*/
-      /*msg_process(tmqmessage);*/
       taos_free_result(tmqmessage);
       /*} else {*/
       /*break;*/
     }
   }
-  /*clock_t endTime = clock();*/
-  /*printf("log cnt: %d %f s\n", cnt, (double)(endTime - startTime) / CLOCKS_PER_SEC);*/
 
   err = tmq_consumer_close(tmq);
   if (err)
@@ -253,39 +251,6 @@ void sync_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
     fprintf(stderr, "%% Consumer closed\n");
 }
 
-void perf_loop(tmq_t* tmq, tmq_list_t* topics) {
-  tmq_resp_err_t err;
-
-  if ((err = tmq_subscribe(tmq, topics))) {
-    fprintf(stderr, "%% Failed to start consuming topics: %s\n", tmq_err2str(err));
-    printf("subscribe err\n");
-    return;
-  }
-  int32_t batchCnt = 0;
-  int32_t skipLogNum = 0;
-  clock_t startTime = clock();
-  while (running) {
-    TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, 500);
-    if (tmqmessage) {
-      batchCnt++;
-      /*skipLogNum += tmqGetSkipLogNum(tmqmessage);*/
-      /*msg_process(tmqmessage);*/
-      taos_free_result(tmqmessage);
-    } else {
-      break;
-    }
-  }
-  clock_t endTime = clock();
-  printf("log batch cnt: %d, skip log cnt: %d, time used:%f s\n", batchCnt, skipLogNum,
-         (double)(endTime - startTime) / CLOCKS_PER_SEC);
-
-  err = tmq_consumer_close(tmq);
-  if (err)
-    fprintf(stderr, "%% Failed to close consumer: %s\n", tmq_err2str(err));
-  else
-    fprintf(stderr, "%% Consumer closed\n");
-}
-
 int main(int argc, char* argv[]) {
   if (argc > 1) {
     printf("env init\n");
@@ -296,7 +261,6 @@ int main(int argc, char* argv[]) {
   }
   tmq_t*      tmq = build_consumer();
   tmq_list_t* topic_list = build_topic_list();
-  /*perf_loop(tmq, topic_list);*/
-  /*basic_consume_loop(tmq, topic_list);*/
-  sync_consume_loop(tmq, topic_list);
+  basic_consume_loop(tmq, topic_list);
+  /*sync_consume_loop(tmq, topic_list);*/
 }

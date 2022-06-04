@@ -86,6 +86,7 @@ void dumpDb(SSdb *pSdb, SJson *json) {
     tjsonAddIntegerToObject(item, "cacheLastRow", pObj->cfg.cacheLastRow);
     tjsonAddIntegerToObject(item, "hashMethod", pObj->cfg.hashMethod);
     tjsonAddIntegerToObject(item, "numOfRetensions", pObj->cfg.numOfRetensions);
+    tjsonAddIntegerToObject(item, "schemaless", pObj->cfg.schemaless);
 
     sdbRelease(pSdb, pObj);
   }
@@ -279,13 +280,11 @@ void dumpTrans(SSdb *pSdb, SJson *json) {
     tjsonAddIntegerToObject(item, "id", pObj->id);
     tjsonAddIntegerToObject(item, "stage", pObj->stage);
     tjsonAddIntegerToObject(item, "policy", pObj->policy);
-    tjsonAddIntegerToObject(item, "type", pObj->type);
+    tjsonAddIntegerToObject(item, "conflict", pObj->conflict);
+    tjsonAddIntegerToObject(item, "exec", pObj->exec);
     tjsonAddStringToObject(item, "createdTime", i642str(pObj->createdTime));
-    tjsonAddStringToObject(item, "dbUid", i642str(pObj->dbUid));
     tjsonAddStringToObject(item, "dbname", pObj->dbname);
-    tjsonAddIntegerToObject(item, "redoLogNum", taosArrayGetSize(pObj->redoLogs));
-    tjsonAddIntegerToObject(item, "undoLogNum", taosArrayGetSize(pObj->undoLogs));
-    tjsonAddIntegerToObject(item, "commitLogNum", taosArrayGetSize(pObj->commitLogs));
+    tjsonAddIntegerToObject(item, "commitLogNum", taosArrayGetSize(pObj->commitActions));
     tjsonAddIntegerToObject(item, "redoActionNum", taosArrayGetSize(pObj->redoActions));
     tjsonAddIntegerToObject(item, "undoActionNum", taosArrayGetSize(pObj->undoActions));
 

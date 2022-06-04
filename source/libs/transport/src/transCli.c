@@ -15,6 +15,9 @@
 #ifdef USE_UV
 #include "transComm.h"
 
+static int32_t transSCliInst = 0;
+static int32_t refMgt = 0;
+
 typedef struct SCliConn {
   T_REF_DECLARE()
   uv_connect_t connReq;
@@ -846,6 +849,11 @@ void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads,
     }
     cli->pThreadObj[i] = pThrd;
   }
+  int ref = atomic_add_fetch_32(&transSCliInst, 1);
+  if (ref == 1) {
+    refMgt = transOpenExHandleMgt(50000);
+  }
+
   return cli;
 }
 
@@ -954,7 +962,7 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
    * upper layer handle retry if code equal TSDB_CODE_RPC_NETWORK_UNAVAIL
    */
   tmsg_t msgType = pCtx->msgType;
-  if ((pTransInst->retry != NULL && (pTransInst->retry(pResp->code))) ||
+  if ((pTransInst->retry != NULL && pEpSet->numOfEps > 1 && (pTransInst->retry(pResp->code))) ||
       (pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || pResp->code == TSDB_CODE_APP_NOT_READY ||
        pResp->code == TSDB_CODE_NODE_NOT_DEPLOYED || pResp->code == TSDB_CODE_SYN_NOT_LEADER)) {
     pMsg->sent = 0;
@@ -1019,6 +1027,10 @@ void transCloseClient(void* arg) {
   }
   taosMemoryFree(cli->pThreadObj);
   taosMemoryFree(cli);
+  int ref = atomic_sub_fetch_32(&transSCliInst, 1);
+  if (ref == 0) {
+    transCloseExHandleMgt(refMgt);
+  }
 }
 void transRefCliHandle(void* handle) {
   if (handle == NULL) {
@@ -1139,7 +1151,6 @@ void transSetDefaultAddr(void* ahandle, const char* ip, const char* fqdn) {
     SCliThrdObj* thrd = ((SCliObj*)pTransInst->tcphandle)->pThreadObj[i];
     tDebug("update epset at thread:%d, threadID:%" PRId64 "", i, thrd->thread);
 
-    tsem_t* pSem = pCtx->pSem;
     transSendAsync(thrd->asyncPool, &(cliMsg->q));
   }
 }

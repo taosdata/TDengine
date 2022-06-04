@@ -314,6 +314,36 @@ _return:
   CTG_RET(code);
 }
 
+int32_t ctgUpdateTbMeta(SCatalog* pCtg, STableMetaRsp *rspMsg, bool syncOp) {
+  STableMetaOutput *output = taosMemoryCalloc(1, sizeof(STableMetaOutput));
+  if (NULL == output) {
+    ctgError("malloc %d failed", (int32_t)sizeof(STableMetaOutput));
+    CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
+  }
+  
+  int32_t code = 0;
+
+  strcpy(output->dbFName, rspMsg->dbFName);
+  strcpy(output->tbName, rspMsg->tbName);
+
+  output->dbId = rspMsg->dbId;
+  
+  SET_META_TYPE_TABLE(output->metaType);
+  
+  CTG_ERR_JRET(queryCreateTableMetaFromMsg(rspMsg, rspMsg->tableType == TSDB_SUPER_TABLE, &output->tbMeta));
+
+  CTG_ERR_JRET(ctgUpdateTbMetaEnqueue(pCtg, output, syncOp));
+
+  return TSDB_CODE_SUCCESS;
+  
+_return:
+
+  taosMemoryFreeClear(output->tbMeta);
+  taosMemoryFreeClear(output);
+  
+  CTG_RET(code);
+}
+
 
 int32_t ctgChkAuth(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, const char* user, const char* dbFName, AUTH_TYPE type, bool *pass) {
   bool inCache = false;
@@ -558,7 +588,7 @@ int32_t catalogGetHandle(uint64_t clusterId, SCatalog** catalogHandle) {
 
   *catalogHandle = clusterCtg;
 
-  CTG_CACHE_STAT_ADD(clusterNum, 1);
+  CTG_CACHE_STAT_INC(clusterNum, 1);
   
   return TSDB_CODE_SUCCESS;
 
@@ -579,7 +609,7 @@ void catalogFreeHandle(SCatalog* pCtg) {
     return;
   }
 
-  CTG_CACHE_STAT_SUB(clusterNum, 1);
+  CTG_CACHE_STAT_DEC(clusterNum, 1);
 
   uint64_t clusterId = pCtg->clusterId;
   
@@ -779,38 +809,17 @@ int32_t catalogGetSTableMeta(SCatalog* pCtg, void * pTrans, const SEpSet* pMgmtE
   CTG_API_LEAVE(ctgGetTbMeta(CTG_PARAMS_LIST(), &ctx, pTableMeta));
 }
 
-int32_t catalogUpdateSTableMeta(SCatalog* pCtg, STableMetaRsp *rspMsg) {
+int32_t catalogUpdateTableMeta(SCatalog* pCtg, STableMetaRsp *pMsg) {
   CTG_API_ENTER();
 
-  if (NULL == pCtg || NULL == rspMsg) {
+  if (NULL == pCtg || NULL == pMsg) {
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  STableMetaOutput *output = taosMemoryCalloc(1, sizeof(STableMetaOutput));
-  if (NULL == output) {
-    ctgError("malloc %d failed", (int32_t)sizeof(STableMetaOutput));
-    CTG_API_LEAVE(TSDB_CODE_CTG_MEM_ERROR);
-  }
-  
   int32_t code = 0;
-
-  strcpy(output->dbFName, rspMsg->dbFName);
-  strcpy(output->tbName, rspMsg->tbName);
-
-  output->dbId = rspMsg->dbId;
-  
-  SET_META_TYPE_TABLE(output->metaType);
-  
-  CTG_ERR_JRET(queryCreateTableMetaFromMsg(rspMsg, true, &output->tbMeta));
-
-  CTG_ERR_JRET(ctgUpdateTbMetaEnqueue(pCtg, output, false));
-
-  CTG_API_LEAVE(code);
+  CTG_ERR_JRET(ctgUpdateTbMeta(pCtg, pMsg, true));
   
 _return:
-
-  taosMemoryFreeClear(output->tbMeta);
-  taosMemoryFreeClear(output);
   
   CTG_API_LEAVE(code);
 }
@@ -990,7 +999,7 @@ int32_t catalogGetAllMeta(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, 
   }
 
   if (pReq->qNodeRequired) {
-    pRsp->pQnodeList = taosArrayInit(10, sizeof(SQueryNodeAddr));
+    pRsp->pQnodeList = taosArrayInit(10, sizeof(SQueryNodeLoad));
     CTG_ERR_JRET(ctgGetQnodeListFromMnode(CTG_PARAMS_LIST(), pRsp->pQnodeList, NULL));
   }
 
@@ -1019,16 +1028,21 @@ int32_t catalogAsyncGetAllMeta(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmt
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  int32_t code = 0;
+  int32_t code = 0, taskNum = 0;
   SCtgJob *pJob = NULL;
-  CTG_ERR_JRET(ctgInitJob(CTG_PARAMS_LIST(), &pJob, reqId, pReq, fp, param));
+  CTG_ERR_JRET(ctgInitJob(CTG_PARAMS_LIST(), &pJob, reqId, pReq, fp, param, &taskNum));
+  if (taskNum <= 0) {
+    SMetaData* pMetaData = taosMemoryCalloc(1, sizeof(SMetaData));
+    fp(pMetaData, param, TSDB_CODE_SUCCESS);
+    CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+  }
 
   CTG_ERR_JRET(ctgLaunchJob(pJob));
 
-  *jobId = pJob->refId;
+  // NOTE: here the assignment of jobId is invalid, may over-write the true scheduler created query job.
+//  *jobId = pJob->refId;
   
 _return:
-
   if (pJob) {
     taosReleaseRef(gCtgMgmt.jobPool, pJob->refId);
 

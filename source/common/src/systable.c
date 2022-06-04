@@ -36,6 +36,7 @@ static const SSysDbTableSchema mnodesSchema[] = {
     {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "endpoint", .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "role", .bytes = 12 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "status", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
 };
 
@@ -77,7 +78,7 @@ static const SSysDbTableSchema userDBSchema[] = {
     {.name = "replica", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
     {.name = "strict", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "duration", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "keep", .bytes = 24 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "keep", .bytes = 32 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "buffer", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "pagesize", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "pages", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
@@ -86,10 +87,13 @@ static const SSysDbTableSchema userDBSchema[] = {
     {.name = "wal", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
     {.name = "fsync", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "comp", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
-    {.name = "cachelast", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
+    {.name = "cache_model", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
     {.name = "precision", .bytes = 2 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "single_stable", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
+    {.name = "single_stable_model", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL},
     {.name = "status", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "schemaless", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL},
+    {.name = "retension", .bytes = 60 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+
     // {.name = "update", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},  // disable update
 };
 
@@ -215,7 +219,6 @@ static const SSysDbTableSchema transSchema[] = {
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
     {.name = "stage", .bytes = TSDB_TRANS_STAGE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "db", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "type", .bytes = TSDB_TRANS_TYPE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "failed_times", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "last_exec_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
     {.name = "last_error", .bytes = (TSDB_TRANS_ERROR_LEN - 1) + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},

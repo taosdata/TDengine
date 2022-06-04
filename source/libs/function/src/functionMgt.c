@@ -199,3 +199,84 @@ bool fmIsInvertible(int32_t funcId) {
   }
   return res;
 }
+
+static SFunctionNode* createFunction(const char* pName, SNodeList* pParameterList) {
+  SFunctionNode* pFunc = nodesMakeNode(QUERY_NODE_FUNCTION);
+  if (NULL == pFunc) {
+    return NULL;
+  }
+  strcpy(pFunc->functionName, pName);
+  pFunc->pParameterList = pParameterList;
+  char msg[64] = {0};
+  if (TSDB_CODE_SUCCESS != fmGetFuncInfo(pFunc, msg, sizeof(msg))) {
+    nodesDestroyNode(pFunc);
+    return NULL;
+  }
+  return pFunc;
+}
+
+static SColumnNode* createColumnByFunc(const SFunctionNode* pFunc) {
+  SColumnNode* pCol = nodesMakeNode(QUERY_NODE_COLUMN);
+  if (NULL == pCol) {
+    return NULL;
+  }
+  strcpy(pCol->colName, pFunc->node.aliasName);
+  pCol->node.resType = pFunc->node.resType;
+  return pCol;
+}
+
+bool fmIsDistExecFunc(int32_t funcId) {
+  if (fmIsUserDefinedFunc(funcId)) {
+    return false;
+  }
+  if (!fmIsVectorFunc(funcId)) {
+    return true;
+  }
+  return (NULL != funcMgtBuiltins[funcId].pPartialFunc && NULL != funcMgtBuiltins[funcId].pMergeFunc);
+}
+
+static int32_t createPartialFunction(const SFunctionNode* pSrcFunc, SFunctionNode** pPartialFunc) {
+  SNodeList* pParameterList = nodesCloneList(pSrcFunc->pParameterList);
+  if (NULL == pParameterList) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  *pPartialFunc = createFunction(funcMgtBuiltins[pSrcFunc->funcId].pPartialFunc, pParameterList);
+  if (NULL == *pPartialFunc) {
+    nodesDestroyList(pParameterList);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  snprintf((*pPartialFunc)->node.aliasName, sizeof((*pPartialFunc)->node.aliasName), "%s.%p",
+           (*pPartialFunc)->functionName, pSrcFunc);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t createMergeFunction(const SFunctionNode* pSrcFunc, const SFunctionNode* pPartialFunc,
+                                   SFunctionNode** pMergeFunc) {
+  SNodeList* pParameterList = NULL;
+  nodesListMakeStrictAppend(&pParameterList, createColumnByFunc(pPartialFunc));
+  *pMergeFunc = createFunction(funcMgtBuiltins[pSrcFunc->funcId].pMergeFunc, pParameterList);
+  if (NULL == *pMergeFunc) {
+    nodesDestroyList(pParameterList);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  strcpy((*pMergeFunc)->node.aliasName, pSrcFunc->node.aliasName);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMergeFunc) {
+  if (!fmIsDistExecFunc(pFunc->funcId)) {
+    return TSDB_CODE_FAILED;
+  }
+
+  int32_t code = createPartialFunction(pFunc, pPartialFunc);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createMergeFunction(pFunc, *pPartialFunc, pMergeFunc);
+  }
+
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode(*pPartialFunc);
+    nodesDestroyNode(*pMergeFunc);
+  }
+
+  return code;
+}

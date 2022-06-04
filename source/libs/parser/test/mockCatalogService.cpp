@@ -18,6 +18,7 @@
 #include <iomanip>
 #include <iostream>
 #include <map>
+#include <set>
 
 #include "tdatablock.h"
 #include "tname.h"
@@ -120,6 +121,25 @@ class MockCatalogServiceImpl {
     return copyTableVgroup(db, tNameGetTableName(pTableName), vgList);
   }
 
+  int32_t catalogGetDBVgInfo(const char* pDbFName, SArray** pVgList) const {
+    std::string                 dbFName(pDbFName);
+    DbMetaCache::const_iterator it = meta_.find(dbFName.substr(std::string(pDbFName).find_last_of('.') + 1));
+    if (meta_.end() == it) {
+      return TSDB_CODE_FAILED;
+    }
+    std::set<int32_t> vgSet;
+    *pVgList = taosArrayInit(it->second.size(), sizeof(SVgroupInfo));
+    for (const auto& vgs : it->second) {
+      for (const auto& vg : vgs.second->vgs) {
+        if (0 == vgSet.count(vg.vgId)) {
+          taosArrayPush(*pVgList, &vg);
+          vgSet.insert(vg.vgId);
+        }
+      }
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
   int32_t catalogGetUdfInfo(const std::string& funcName, SFuncInfo* pInfo) const {
     auto it = udf_.find(funcName);
     if (udf_.end() == it) {
@@ -187,8 +207,9 @@ class MockCatalogServiceImpl {
 // number of backward fills
 #define NOB(n) ((n) % 2 ? (n) / 2 + 1 : (n) / 2)
 // center aligned
-#define CA(n, s) std::setw(NOF((n) - int((s).length()))) << "" << (s) \
-              << std::setw(NOB((n) - int((s).length()))) << "" << "|"
+#define CA(n, s)                                                                                        \
+  std::setw(NOF((n) - int((s).length()))) << "" << (s) << std::setw(NOB((n) - int((s).length()))) << "" \
+                                          << "|"
 // string field length
 #define SFL 20
 // string field header
@@ -488,6 +509,10 @@ int32_t MockCatalogService::catalogGetTableHashVgroup(const SName* pTableName, S
 
 int32_t MockCatalogService::catalogGetTableDistVgInfo(const SName* pTableName, SArray** pVgList) const {
   return impl_->catalogGetTableDistVgInfo(pTableName, pVgList);
+}
+
+int32_t MockCatalogService::catalogGetDBVgInfo(const char* pDbFName, SArray** pVgList) const {
+  return impl_->catalogGetDBVgInfo(pDbFName, pVgList);
 }
 
 int32_t MockCatalogService::catalogGetUdfInfo(const std::string& funcName, SFuncInfo* pInfo) const {

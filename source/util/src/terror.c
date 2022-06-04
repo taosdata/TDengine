@@ -75,6 +75,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_DUP_KEY,                      "Cannot add duplicate 
 TAOS_DEFINE_ERROR(TSDB_CODE_NEED_RETRY,                   "Retry needed")
 TAOS_DEFINE_ERROR(TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE,      "Out of memory in rpc queue")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_TIMESTAMP,            "Invalid timestamp format")
+TAOS_DEFINE_ERROR(TSDB_CODE_MSG_DECODE_ERROR,             "Msg decode error")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_NO_MEMORY,                "Ref out of memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_FULL,                     "too many Ref Objs")
@@ -89,6 +90,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_RPC_AUTH_FAILURE,             "Authentication failur
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_NETWORK_UNAVAIL,          "Unable to establish connection")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_FQDN_ERROR,               "Unable to resolve FQDN")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_PORT_EADDRINUSE,          "Port already in use")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_INDIRECT_NETWORK_UNAVAIL, "Unable to establish connection")
 
 //client
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_OPERATION,        "Invalid operation")
@@ -186,9 +188,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_SNODE_ALREADY_EXIST,      "Snode already exists"
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SNODE_NOT_EXIST,          "Snode not there")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_BNODE_ALREADY_EXIST,      "Bnode already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_BNODE_NOT_EXIST,          "Bnode not there")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_FEW_MNODES,           "Too few mnodes")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_MNODE_DEPLOYED,           "Mnode deployed in this dnode")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_CANT_DROP_MASTER,         "Can't drop mnode which is master")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_FEW_MNODES,           "The replicas of mnode cannot less than 1")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_MNODES,          "The replicas of mnode cannot exceed 3")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_CANT_DROP_MASTER,         "Can't drop mnode which is leader")
 
 // mnode-acct
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ACCT_ALREADY_EXIST,       "Account already exists")
@@ -243,7 +245,6 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_SINGLE_STB_MODE_DB,       "Database is single st
 // mnode-infoSchema
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SYS_TABLENAME,    "Invalid system table name")
 
-
 // mnode-func
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_FUNC_ALREADY_EXIST,       "Func already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_FUNC_NOT_EXIST,           "Func not exists")
@@ -270,7 +271,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TOPIC,            "Invalid topic")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TOPIC_QUERY,      "Topic with invalid query")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TOPIC_OPTION,     "Topic with invalid option")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_CONSUMER_NOT_EXIST,       "Consumer not exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_CONSUMER_NOT_READY,       "Consumer waiting for rebalance")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_CGROUP_USED,              "Consumer group being used by some consumer")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOPIC_SUBSCRIBED,         "Topic subscribed cannot be dropped")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_ALREADY_EXIST,     "Stream already exists")
@@ -324,9 +325,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_TABLE_ID,         "Invalid table ID")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_TABLE_TYPE,       "Invalid table type")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION,    "Invalid table schema version")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TABLE_ALREADY_EXIST,      "Table already exists")
-TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TABLE_NOT_EXIST,      "Table not exists")
-TAOS_DEFINE_ERROR(TSDB_CODE_TDB_STB_ALREADY_EXIST,      "Stable already exists")
-TAOS_DEFINE_ERROR(TSDB_CODE_TDB_STB_NOT_EXIST,      "Stable not exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TABLE_NOT_EXIST,          "Table not exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_STB_ALREADY_EXIST,        "Stable already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_STB_NOT_EXIST,            "Stable not exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_CONFIG,           "Invalid configuration")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INIT_FAILED,              "Tsdb init failed")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_NO_DISKSPACE,             "No diskspace for tsdb")
@@ -443,6 +444,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_CTG_VG_META_MISMATCH,         "table meta and vgroup
 //scheduler
 TAOS_DEFINE_ERROR(TSDB_CODE_SCH_STATUS_ERROR,             "scheduler status error")
 TAOS_DEFINE_ERROR(TSDB_CODE_SCH_INTERNAL_ERROR,           "scheduler internal error")
+TAOS_DEFINE_ERROR(TSDB_CODE_SCH_TIMEOUT_ERROR,            "Task timeout")
 TAOS_DEFINE_ERROR(TSDB_CODE_QW_MSG_ERROR,                 "Invalid msg order")
 
 // parser
@@ -469,6 +471,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_UDF_INVALID_OUTPUT_TYPE,      "udf invalid output ty
 TAOS_DEFINE_ERROR(TSDB_CODE_SML_INVALID_PROTOCOL_TYPE,    "Invalid line protocol type")
 TAOS_DEFINE_ERROR(TSDB_CODE_SML_INVALID_PRECISION_TYPE,   "Invalid timestamp precision type")
 TAOS_DEFINE_ERROR(TSDB_CODE_SML_INVALID_DATA,             "Invalid data type")
+TAOS_DEFINE_ERROR(TSDB_CODE_SML_INVALID_DB_CONF,          "Invalid schemaless db config")
 
 #ifdef TAOS_ERROR_C
 };

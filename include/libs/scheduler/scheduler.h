@@ -56,7 +56,7 @@ typedef struct SQueryProfileSummary {
 typedef struct SQueryResult {
   int32_t         code;
   uint64_t        numOfRows;
-  void           *res;
+  SQueryExecRes   res;
 } SQueryResult;
 
 typedef struct STaskInfo {
@@ -100,7 +100,7 @@ int32_t schedulerExecJob(void *transport, SArray *nodeList, SQueryPlan *pDag, in
  */
 int32_t schedulerFetchRows(int64_t job, void **data);
 
-int32_t schedulerAsyncFetchRows(int64_t job, schedulerFetchCallback fp, void* param);
+void schedulerAsyncFetchRows(int64_t job, schedulerFetchCallback fp, void* param);
 
 int32_t schedulerGetTasksStatus(int64_t job, SArray *pSub);
 
@@ -121,8 +121,6 @@ void schedulerFreeJob(int64_t job);
 void schedulerDestroy(void);
 
 void schdExecCallback(SQueryResult* pResult, void* param, int32_t code);
-void schdFetchCallback(void* pResult, void* param, int32_t code);
-
 
 #ifdef __cplusplus
 }
