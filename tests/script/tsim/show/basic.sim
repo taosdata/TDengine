@@ -25,7 +25,7 @@ sql connect
 
 # select */column from information_schema.xxxx; xxxx include:
 # dnodes, mnodes, modules, qnodes, 
-# user_databases, user_functions, user_indexes, user_stables, user_streams,
+# user_databases, user_functions, user_indexes, user_stables, streams,
 # user_tables, user_table_distributed, user_users, vgroups,
 
 print =============== add dnode2 into cluster
@@ -96,7 +96,7 @@ sql select * from information_schema.user_stables
 if $rows != 1 then 
   return -1
 endi
-#sql select * from information_schema.user_streams 
+#sql select * from information_schema.`streams`
 sql select * from information_schema.user_tables
 if $rows != 28 then
   return -1
@@ -194,7 +194,7 @@ sql select * from information_schema.user_stables
 if $rows != 1 then 
   return -1
 endi
-#sql select * from information_schema.user_streams 
+#sql select * from performance_schema.`streams`
 sql select * from information_schema.user_tables
 if $rows != 28 then
   return -1

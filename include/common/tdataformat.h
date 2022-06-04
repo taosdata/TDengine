@@ -18,6 +18,7 @@
 
 #include "os.h"
 #include "talgo.h"
+#include "tarray.h"
 #include "tencode.h"
 #include "ttypes.h"
 #include "tutil.h"
@@ -29,26 +30,49 @@ extern "C" {
 typedef struct SSchema       SSchema;
 typedef struct STColumn      STColumn;
 typedef struct STSchema      STSchema;
+typedef struct SValue        SValue;
+typedef struct SColVal       SColVal;
 typedef struct STSRow2       STSRow2;
 typedef struct STSRowBuilder STSRowBuilder;
-typedef struct SKVIdx        SKVIdx;
-
-// STSchema
-
-// STSRow2
-int32_t tEncodeTSRow(SEncoder *pEncoder, const STSRow2 *pRow);
-int32_t tDecodeTSRow(SDecoder *pDecoder, STSRow2 *pRow);
+typedef struct STagVal       STagVal;
+typedef struct STag          STag;
 
 // STSchema
 int32_t tTSchemaCreate(int32_t sver, SSchema *pSchema, int32_t nCols, STSchema **ppTSchema);
 void    tTSchemaDestroy(STSchema *pTSchema);
 
+// STSRow2
+#define COL_VAL_NONE(CID)     ((SColVal){.cid = (CID), .isNone = 1})
+#define COL_VAL_NULL(CID)     ((SColVal){.cid = (CID), .isNull = 1})
+#define COL_VAL_VALUE(CID, V) ((SColVal){.cid = (CID), .value = (V)})
+
+int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, STSRow2 **ppRow);
+int32_t tTSRowClone(const STSRow2 *pRow, STSRow2 **ppRow);
+void    tTSRowFree(STSRow2 *pRow);
+void    tTSRowGet(STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
+int32_t tTSRowToArray(STSRow2 *pRow, STSchema *pTSchema, SArray **ppArray);
+int32_t tPutTSRow(uint8_t *p, STSRow2 *pRow);
+int32_t tGetTSRow(uint8_t *p, STSRow2 *pRow);
+
 // STSRowBuilder
-int32_t tTSRowBuilderInit(STSRowBuilder *pBuilder, int32_t sver, SSchema *pSchema, int32_t nCols);
-void    tTSRowBuilderClear(STSRowBuilder *pBuilder);
-void    tTSRowBuilderReset(STSRowBuilder *pBuilder);
-int32_t tTSRowBuilderPut(STSRowBuilder *pBuilder, int32_t cid, const uint8_t *pData, uint32_t nData);
-int32_t tTSRowBuilderGetRow(STSRowBuilder *pBuilder, const STSRow2 **ppRow);
+#define tsRowBuilderInit() ((STSRowBuilder){0})
+#define tsRowBuilderClear(B)     \
+  do {                           \
+    if ((B)->pBuf) {             \
+      taosMemoryFree((B)->pBuf); \
+    }                            \
+  } while (0)
+
+// STag
+int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag);
+void    tTagFree(STag *pTag);
+bool    tTagGet(const STag *pTag, STagVal *pTagVal);
+char   *tTagValToData(const STagVal *pTagVal, bool isJson);
+int32_t tEncodeTag(SEncoder *pEncoder, const STag *pTag);
+int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag);
+int32_t tTagToValArray(const STag *pTag, SArray **ppArray);
+void    debugPrintSTag(STag *pTag, const char *tag, int32_t ln);  // TODO: remove
+void    debugCheckTags(STag *pTag);                               // TODO: remove
 
 // STRUCT =================
 struct STColumn {
@@ -68,31 +92,81 @@ struct STSchema {
   STColumn columns[];
 };
 
+#define TSROW_HAS_NONE ((uint8_t)0x1)
+#define TSROW_HAS_NULL ((uint8_t)0x2U)
+#define TSROW_HAS_VAL  ((uint8_t)0x4U)
+#define TSROW_KV_SMALL ((uint8_t)0x10U)
+#define TSROW_KV_MID   ((uint8_t)0x20U)
+#define TSROW_KV_BIG   ((uint8_t)0x40U)
 struct STSRow2 {
   TSKEY    ts;
-  uint32_t flags;
-  union {
-    int32_t sver;
-    int32_t ncols;
-  };
-  uint32_t       nData;
-  const uint8_t *pData;
+  uint8_t  flags;
+  int32_t  sver;
+  uint32_t nData;
+  uint8_t *pData;
 };
 
 struct STSRowBuilder {
-  STColumn *pTColumn;
-  STSchema *pTSchema;
-  int32_t   szKVBuf;
-  uint8_t  *pKVBuf;
-  int32_t   szTPBuf;
-  uint8_t  *pTPBuf;
-  int32_t   nCols;
-  int32_t   kvVLen;
-  int32_t   tpVLen;
-  STSRow2   row;
+  STSRow2  tsRow;
+  int32_t  szBuf;
+  uint8_t *pBuf;
 };
 
-#if 1  //====================================
+struct SValue {
+  union {
+    int8_t   i8;   // TSDB_DATA_TYPE_BOOL||TSDB_DATA_TYPE_TINYINT
+    uint8_t  u8;   // TSDB_DATA_TYPE_UTINYINT
+    int16_t  i16;  // TSDB_DATA_TYPE_SMALLINT
+    uint16_t u16;  // TSDB_DATA_TYPE_USMALLINT
+    int32_t  i32;  // TSDB_DATA_TYPE_INT
+    uint32_t u32;  // TSDB_DATA_TYPE_UINT
+    int64_t  i64;  // TSDB_DATA_TYPE_BIGINT
+    uint64_t u64;  // TSDB_DATA_TYPE_UBIGINT
+    TSKEY    ts;   // TSDB_DATA_TYPE_TIMESTAMP
+    float    f;    // TSDB_DATA_TYPE_FLOAT
+    double   d;    // TSDB_DATA_TYPE_DOUBLE
+    struct {
+      uint32_t nData;
+      uint8_t *pData;
+    };
+  };
+};
+
+struct SColVal {
+  int16_t cid;
+  int8_t  isNone;
+  int8_t  isNull;
+  SValue  value;
+};
+
+#pragma pack(push, 1)
+struct STagVal {
+  union {
+    int16_t cid;
+    char   *pKey;
+  };
+  int8_t type;
+  union {
+    int64_t i64;
+    struct {
+      uint32_t nData;
+      uint8_t *pData;
+    };
+  };
+};
+
+#define TD_TAG_JSON  ((int8_t)0x40)  // distinguish JSON string and JSON value with the highest bit
+#define TD_TAG_LARGE ((int8_t)0x20)
+struct STag {
+  int8_t  flags;
+  int16_t len;
+  int16_t nTag;
+  int32_t ver;
+  int8_t  idx[];
+};
+#pragma pack(pop)
+
+#if 1  //================================================================================================================================================
 // Imported since 3.0 and use bitmap to demonstrate None/Null/Norm, while use Null/Norm below 3.0 without of bitmap.
 #define TD_SUPPORT_BITMAP
 #define TD_SUPPORT_READ2
@@ -282,8 +356,9 @@ typedef struct {
   SDataCol *cols;
 } SDataCols;
 
-static FORCE_INLINE bool tdDataColsIsBitmapI(SDataCols *pCols) { return pCols->bitmapMode != 0; }
-static FORCE_INLINE void tdDataColsSetBitmapI(SDataCols *pCols) { pCols->bitmapMode = 1; }
+static FORCE_INLINE bool tdDataColsIsBitmapI(SDataCols *pCols) { return pCols->bitmapMode != TSDB_BITMODE_DEFAULT; }
+static FORCE_INLINE void tdDataColsSetBitmapI(SDataCols *pCols) { pCols->bitmapMode = TSDB_BITMODE_ONE_BIT; }
+static FORCE_INLINE bool tdIsBitmapModeI(int8_t bitmapMode) { return bitmapMode != TSDB_BITMODE_DEFAULT; }
 
 #define keyCol(pCols)              (&((pCols)->cols[0]))                    // Key column
 #define dataColsTKeyAt(pCols, idx) ((TKEY *)(keyCol(pCols)->pData))[(idx)]  // the idx row of column-wised data
@@ -333,109 +408,6 @@ SDataCols *tdFreeDataCols(SDataCols *pCols);
 int32_t    tdMergeDataCols(SDataCols *target, SDataCols *source, int32_t rowsToMerge, int32_t *pOffset, bool update,
                            TDRowVerT maxVer);
 
-// ----------------- K-V data row structure
-/* |<-------------------------------------- len -------------------------------------------->|
- * |<----- header  ----->|<--------------------------- body -------------------------------->|
- * +----------+----------+---------------------------------+---------------------------------+
- * | uint16_t |  int16_t |                                 |                                 |
- * +----------+----------+---------------------------------+---------------------------------+
- * |    len   |   ncols  |           cols index            |             data part           |
- * +----------+----------+---------------------------------+---------------------------------+
- */
-typedef void *SKVRow;
-
-typedef struct {
-  int16_t  colId;
-  uint16_t offset;
-} SColIdx;
-
-#define TD_KV_ROW_HEAD_SIZE (sizeof(uint16_t) + sizeof(int16_t))
-
-#define kvRowLen(r)            (*(uint16_t *)(r))
-#define kvRowNCols(r)          (*(int16_t *)POINTER_SHIFT(r, sizeof(uint16_t)))
-#define kvRowSetLen(r, len)    kvRowLen(r) = (len)
-#define kvRowSetNCols(r, n)    kvRowNCols(r) = (n)
-#define kvRowColIdx(r)         (SColIdx *)POINTER_SHIFT(r, TD_KV_ROW_HEAD_SIZE)
-#define kvRowValues(r)         POINTER_SHIFT(r, TD_KV_ROW_HEAD_SIZE + sizeof(SColIdx) * kvRowNCols(r))
-#define kvRowCpy(dst, r)       memcpy((dst), (r), kvRowLen(r))
-#define kvRowColVal(r, colIdx) POINTER_SHIFT(kvRowValues(r), (colIdx)->offset)
-#define kvRowColIdxAt(r, i)    (kvRowColIdx(r) + (i))
-#define kvRowFree(r)           taosMemoryFreeClear(r)
-#define kvRowEnd(r)            POINTER_SHIFT(r, kvRowLen(r))
-#define kvRowValLen(r)         (kvRowLen(r) - TD_KV_ROW_HEAD_SIZE - sizeof(SColIdx) * kvRowNCols(r))
-#define kvRowTKey(r)           (*(TKEY *)(kvRowValues(r)))
-#define kvRowKey(r)            tdGetKey(kvRowTKey(r))
-#define kvRowKeys(r)           POINTER_SHIFT(r, *(uint16_t *)POINTER_SHIFT(r, TD_KV_ROW_HEAD_SIZE + sizeof(int16_t)))
-#define kvRowDeleted(r)        TKEY_IS_DELETED(kvRowTKey(r))
-
-SKVRow  tdKVRowDup(SKVRow row);
-int32_t tdSetKVRowDataOfCol(SKVRow *orow, int16_t colId, int8_t type, void *value);
-int32_t tdEncodeKVRow(void **buf, SKVRow row);
-void   *tdDecodeKVRow(void *buf, SKVRow *row);
-void    tdSortKVRowByColIdx(SKVRow row);
-
-static FORCE_INLINE int32_t comparTagId(const void *key1, const void *key2) {
-  if (*(int16_t *)key1 > ((SColIdx *)key2)->colId) {
-    return 1;
-  } else if (*(int16_t *)key1 < ((SColIdx *)key2)->colId) {
-    return -1;
-  } else {
-    return 0;
-  }
-}
-
-static FORCE_INLINE void *tdGetKVRowValOfCol(const SKVRow row, int16_t colId) {
-  void *ret = taosbsearch(&colId, kvRowColIdx(row), kvRowNCols(row), sizeof(SColIdx), comparTagId, TD_EQ);
-  if (ret == NULL) return NULL;
-  return kvRowColVal(row, (SColIdx *)ret);
-}
-
-static FORCE_INLINE void *tdGetKVRowIdxOfCol(SKVRow row, int16_t colId) {
-  return taosbsearch(&colId, kvRowColIdx(row), kvRowNCols(row), sizeof(SColIdx), comparTagId, TD_EQ);
-}
-
-// ----------------- K-V data row builder
-typedef struct {
-  int16_t  tCols;
-  int16_t  nCols;
-  SColIdx *pColIdx;
-  uint16_t alloc;
-  uint16_t size;
-  void    *buf;
-} SKVRowBuilder;
-
-int32_t tdInitKVRowBuilder(SKVRowBuilder *pBuilder);
-void    tdDestroyKVRowBuilder(SKVRowBuilder *pBuilder);
-void    tdResetKVRowBuilder(SKVRowBuilder *pBuilder);
-SKVRow  tdGetKVRowFromBuilder(SKVRowBuilder *pBuilder);
-
-static FORCE_INLINE int32_t tdAddColToKVRow(SKVRowBuilder *pBuilder, col_id_t colId, const void *value, int32_t tlen) {
-  if (pBuilder->nCols >= pBuilder->tCols) {
-    pBuilder->tCols *= 2;
-    SColIdx *pColIdx = (SColIdx *)taosMemoryRealloc((void *)(pBuilder->pColIdx), sizeof(SColIdx) * pBuilder->tCols);
-    if (pColIdx == NULL) return -1;
-    pBuilder->pColIdx = pColIdx;
-  }
-
-  pBuilder->pColIdx[pBuilder->nCols].colId = colId;
-  pBuilder->pColIdx[pBuilder->nCols].offset = pBuilder->size;
-
-  pBuilder->nCols++;
-
-  if (tlen > pBuilder->alloc - pBuilder->size) {
-    while (tlen > pBuilder->alloc - pBuilder->size) {
-      pBuilder->alloc *= 2;
-    }
-    void *buf = taosMemoryRealloc(pBuilder->buf, pBuilder->alloc);
-    if (buf == NULL) return -1;
-    pBuilder->buf = buf;
-  }
-
-  memcpy(POINTER_SHIFT(pBuilder->buf, pBuilder->size), value, tlen);
-  pBuilder->size += tlen;
-
-  return 0;
-}
 #endif
 
 #ifdef __cplusplus

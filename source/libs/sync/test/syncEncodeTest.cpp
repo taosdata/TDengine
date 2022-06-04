@@ -31,9 +31,8 @@ SSyncNode *pSyncNode;
 
 SSyncNode *syncNodeInit() {
   syncInfo.vgId = 1234;
-  syncInfo.rpcClient = gSyncIO->clientRpc;
+  syncInfo.msgcb = &gSyncIO->msgcb;
   syncInfo.FpSendMsg = syncIOSendMsg;
-  syncInfo.queue = gSyncIO->pMsgQ;
   syncInfo.FpEqMsg = syncIOEqMsg;
   syncInfo.pFsm = pFsm;
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s", "./");

@@ -94,7 +94,7 @@ static FORCE_INLINE void getSTSRowAppendInfo(uint8_t rowType, SParsedDataColInfo
                                              col_id_t *colIdx) {
   col_id_t schemaIdx = 0;
   if (IS_DATA_COL_ORDERED(spd)) {
-    schemaIdx = spd->boundColumns[idx] - PRIMARYKEY_TIMESTAMP_COL_ID;
+    schemaIdx = spd->boundColumns[idx];
     if (TD_IS_TP_ROW_T(rowType)) {
       *toffset = (spd->cols + schemaIdx)->toffset;  // the offset of firstPart
       *colIdx = schemaIdx;
@@ -104,7 +104,7 @@ static FORCE_INLINE void getSTSRowAppendInfo(uint8_t rowType, SParsedDataColInfo
     }
   } else {
     ASSERT(idx == (spd->colIdxInfo + idx)->boundIdx);
-    schemaIdx = (spd->colIdxInfo + idx)->schemaColIdx - PRIMARYKEY_TIMESTAMP_COL_ID;
+    schemaIdx = (spd->colIdxInfo + idx)->schemaColIdx;
     if (TD_IS_TP_ROW_T(rowType)) {
       *toffset = (spd->cols + schemaIdx)->toffset;
       *colIdx = schemaIdx;
@@ -133,14 +133,15 @@ static FORCE_INLINE int32_t setBlockInfo(SSubmitBlk *pBlocks, STableDataBlocks *
 int32_t schemaIdxCompar(const void *lhs, const void *rhs);
 int32_t boundIdxCompar(const void *lhs, const void *rhs);
 void    setBoundColumnInfo(SParsedDataColInfo *pColList, SSchema *pSchema, col_id_t numOfCols);
-void destroyBlockArrayList(SArray* pDataBlockList);
-void destroyBlockHashmap(SHashObj* pDataBlockHash);
-int  initRowBuilder(SRowBuilder *pBuilder, int16_t schemaVer, SParsedDataColInfo *pColInfo);
-int32_t allocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int32_t * numOfRows);
-int32_t getDataBlockFromList(SHashObj* pHashList, void* id, int32_t idLen, int32_t size, int32_t startOffset, int32_t rowSize,
-     STableMeta* pTableMeta, STableDataBlocks** dataBlocks, SArray* pBlockList, SVCreateTbReq* pCreateTbReq);
-int32_t mergeTableDataBlocks(SHashObj* pHashObj, uint8_t payloadType, SArray** pVgDataBlocks);
-int32_t buildCreateTbMsg(STableDataBlocks* pBlocks, SVCreateTbReq* pCreateTbReq);
+void    destroyBlockArrayList(SArray *pDataBlockList);
+void    destroyBlockHashmap(SHashObj *pDataBlockHash);
+int     initRowBuilder(SRowBuilder *pBuilder, int16_t schemaVer, SParsedDataColInfo *pColInfo);
+int32_t allocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int32_t *numOfRows);
+int32_t getDataBlockFromList(SHashObj *pHashList, void *id, int32_t idLen, int32_t size, int32_t startOffset,
+                             int32_t rowSize, STableMeta *pTableMeta, STableDataBlocks **dataBlocks, SArray *pBlockList,
+                             SVCreateTbReq *pCreateTbReq);
+int32_t mergeTableDataBlocks(SHashObj *pHashObj, uint8_t payloadType, SArray **pVgDataBlocks);
+int32_t buildCreateTbMsg(STableDataBlocks *pBlocks, SVCreateTbReq *pCreateTbReq);
 
 int32_t allocateMemForSize(STableDataBlocks *pDataBlock, int32_t allSize);
 

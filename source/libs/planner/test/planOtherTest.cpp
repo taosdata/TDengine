@@ -33,6 +33,12 @@ TEST_F(PlanOtherTest, createStream) {
       "interval(10s)");
 }
 
+TEST_F(PlanOtherTest, createStreamUseSTable) {
+  useDb("root", "test");
+
+  run("create stream if not exists s1 as select count(*) from st1 interval(10s)");
+}
+
 TEST_F(PlanOtherTest, createSmaIndex) {
   useDb("root", "test");
 
@@ -47,4 +53,10 @@ TEST_F(PlanOtherTest, explain) {
   run("explain analyze SELECT * FROM t1");
 
   run("explain analyze verbose true ratio 0.01 SELECT * FROM t1");
+}
+
+TEST_F(PlanOtherTest, show) {
+  useDb("root", "test");
+
+  run("SHOW DATABASES");
 }

@@ -19,6 +19,7 @@
 #include "mndDef.h"
 
 #include "sdb.h"
+#include "syncTools.h"
 #include "tcache.h"
 #include "tdatablock.h"
 #include "tglobal.h"
@@ -31,21 +32,23 @@
 extern "C" {
 #endif
 
+// clang-format off
 #define mFatal(...) { if (mDebugFlag & DEBUG_FATAL) { taosPrintLog("MND FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}
 #define mError(...) { if (mDebugFlag & DEBUG_ERROR) { taosPrintLog("MND ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}
 #define mWarn(...)  { if (mDebugFlag & DEBUG_WARN)  { taosPrintLog("MND WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}
 #define mInfo(...)  { if (mDebugFlag & DEBUG_INFO)  { taosPrintLog("MND ", DEBUG_INFO, 255, __VA_ARGS__); }}
 #define mDebug(...) { if (mDebugFlag & DEBUG_DEBUG) { taosPrintLog("MND ", DEBUG_DEBUG, mDebugFlag, __VA_ARGS__); }}
 #define mTrace(...) { if (mDebugFlag & DEBUG_TRACE) { taosPrintLog("MND ", DEBUG_TRACE, mDebugFlag, __VA_ARGS__); }}
+// clang-format on
 
 #define SYSTABLE_SCH_TABLE_NAME_LEN ((TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
 #define SYSTABLE_SCH_DB_NAME_LEN    ((TSDB_DB_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
 #define SYSTABLE_SCH_COL_NAME_LEN   ((TSDB_COL_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
 
-typedef int32_t (*MndMsgFp)(SNodeMsg *pMsg);
+typedef int32_t (*MndMsgFp)(SRpcMsg *pMsg);
 typedef int32_t (*MndInitFp)(SMnode *pMnode);
 typedef void (*MndCleanupFp)(SMnode *pMnode);
-typedef int32_t (*ShowRetrieveFp)(SNodeMsg *pMsg, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
+typedef int32_t (*ShowRetrieveFp)(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 typedef void (*ShowFreeIterFp)(SMnode *pMnode, void *pIter);
 typedef struct SQWorker SQHandle;
 
@@ -72,11 +75,12 @@ typedef struct {
 } STelemMgmt;
 
 typedef struct {
-  int32_t    errCode;
-  sem_t      syncSem;
-  SWal      *pWal;
-  SSyncNode *pSyncNode;
-  ESyncState state;
+  SWal   *pWal;
+  sem_t   syncSem;
+  int64_t sync;
+  bool    standby;
+  int32_t errCode;
+  int32_t transId;
 } SSyncMgmt;
 
 typedef struct {
@@ -85,34 +89,44 @@ typedef struct {
 } SGrantInfo;
 
 typedef struct SMnode {
-  int32_t       selfId;
-  int64_t       clusterId;
-  int8_t        replica;
-  int8_t        selfIndex;
-  SReplica      replicas[TSDB_MAX_REPLICA];
-  tmr_h         timer;
-  tmr_h         transTimer;
-  tmr_h         mqTimer;
-  tmr_h         telemTimer;
-  char         *path;
-  int64_t       checkTime;
-  SSdb         *pSdb;
-  SMgmtWrapper *pWrapper;
-  SArray       *pSteps;
-  SQHandle     *pQuery;
-  SShowMgmt     showMgmt;
-  SProfileMgmt  profileMgmt;
-  STelemMgmt    telemMgmt;
-  SSyncMgmt     syncMgmt;
-  SHashObj     *infosMeta;
-  SHashObj     *perfsMeta;
-  SGrantInfo    grant;
-  MndMsgFp      msgFp[TDMT_MAX];
-  SMsgCb        msgCb;
+  int32_t        selfDnodeId;
+  int64_t        clusterId;
+  TdThread       thread;
+  TdThreadRwlock lock;
+  int32_t        rpcRef;
+  int32_t        syncRef;
+  bool           stopped;
+  bool           restored;
+  bool           deploy;
+  int8_t         replica;
+  int8_t         selfIndex;
+  SReplica       replicas[TSDB_MAX_REPLICA];
+  char          *path;
+  int64_t        checkTime;
+  SSdb          *pSdb;
+  SArray        *pSteps;
+  SQHandle      *pQuery;
+  SHashObj      *infosMeta;
+  SHashObj      *perfsMeta;
+  SShowMgmt      showMgmt;
+  SProfileMgmt   profileMgmt;
+  STelemMgmt     telemMgmt;
+  SSyncMgmt      syncMgmt;
+  SGrantInfo     grant;
+  MndMsgFp       msgFp[TDMT_MAX];
+  SMsgCb         msgCb;
 } SMnode;
 
 void    mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);
 int64_t mndGenerateUid(char *name, int32_t len);
+
+int32_t mndAcquireRpcRef(SMnode *pMnode);
+void    mndReleaseRpcRef(SMnode *pMnode);
+void    mndSetRestore(SMnode *pMnode, bool restored);
+void    mndSetStop(SMnode *pMnode);
+bool    mndGetStop(SMnode *pMnode);
+int32_t mndAcquireSyncRef(SMnode *pMnode);
+void    mndReleaseSyncRef(SMnode *pMnode);
 
 #ifdef __cplusplus
 }

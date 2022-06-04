@@ -16,6 +16,7 @@
 #include <string>
 
 #include <gtest/gtest.h>
+#include "functionMgt.h"
 #include "getopt.h"
 #include "mockCatalog.h"
 #include "planTestUtil.h"
@@ -23,24 +24,65 @@
 class PlannerEnv : public testing::Environment {
  public:
   virtual void SetUp() {
+    fmFuncMgtInit();
     initMetaDataEnv();
     generateMetaData();
+    initLog(TD_TMP_DIR_PATH "td");
   }
 
   virtual void TearDown() { destroyMetaDataEnv(); }
 
   PlannerEnv() {}
   virtual ~PlannerEnv() {}
+
+ private:
+  void initLog(const char* path) {
+    int32_t logLevel = getLogLevel();
+    dDebugFlag = logLevel;
+    vDebugFlag = logLevel;
+    mDebugFlag = logLevel;
+    cDebugFlag = logLevel;
+    jniDebugFlag = logLevel;
+    tmrDebugFlag = logLevel;
+    uDebugFlag = logLevel;
+    rpcDebugFlag = logLevel;
+    qDebugFlag = logLevel;
+    wDebugFlag = logLevel;
+    sDebugFlag = logLevel;
+    tsdbDebugFlag = logLevel;
+    tsLogEmbedded = 1;
+    tsAsyncLog = 0;
+
+    taosRemoveDir(path);
+    taosMkDir(path);
+    tstrncpy(tsLogDir, path, PATH_MAX);
+    if (taosInitLog("taoslog", 1) != 0) {
+      std::cout << "failed to init log file" << std::endl;
+    }
+  }
 };
 
 static void parseArg(int argc, char* argv[]) {
-  int                  opt = 0;
-  const char*          optstring = "";
-  static struct option long_options[] = {{"dump", optional_argument, NULL, 'd'}, {0, 0, 0, 0}};
+  int         opt = 0;
+  const char* optstring = "";
+  // clang-format off
+  static struct option long_options[] = {
+    {"dump", optional_argument, NULL, 'd'},
+    {"skipSql", required_argument, NULL, 's'},
+    {"log", required_argument, NULL, 'l'},
+    {0, 0, 0, 0}
+  };
+  // clang-format on
   while ((opt = getopt_long(argc, argv, optstring, long_options, NULL)) != -1) {
     switch (opt) {
       case 'd':
         setDumpModule(optarg);
+        break;
+      case 's':
+        setSkipSqlNum(optarg);
+        break;
+      case 'l':
+        setLogLevel(optarg);
         break;
       default:
         break;

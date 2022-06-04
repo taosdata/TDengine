@@ -21,6 +21,7 @@ static int32_t getSchemaBytes(const SSchema* pSchema) {
     case TSDB_DATA_TYPE_BINARY:
       return (pSchema->bytes - VARSTR_HEADER_SIZE);
     case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_JSON:
       return (pSchema->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
     default:
       return pSchema->bytes;

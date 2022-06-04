@@ -20,19 +20,22 @@
 extern "C" {
 #endif
 
-#include <stdbool.h>
-#include <stdint.h>
-//#include <tdatablock.h>
 #include "cJSON.h"
 #include "tdef.h"
-//#include "taosdef.h"
-//#include "trpc.h"
-//#include "wal.h"
+#include "tmsgcb.h"
+
+#define SYNC_INDEX_BEGIN 0
+#define SYNC_INDEX_INVALID -1
 
 typedef uint64_t SyncNodeId;
 typedef int32_t  SyncGroupId;
 typedef int64_t  SyncIndex;
 typedef uint64_t SyncTerm;
+
+typedef struct SSyncNode      SSyncNode;
+typedef struct SSyncBuffer    SSyncBuffer;
+typedef struct SWal           SWal;
+typedef struct SSyncRaftEntry SSyncRaftEntry;
 
 typedef enum {
   TAOS_SYNC_STATE_FOLLOWER = 100,
@@ -40,6 +43,17 @@ typedef enum {
   TAOS_SYNC_STATE_LEADER = 102,
   TAOS_SYNC_STATE_ERROR = 103,
 } ESyncState;
+
+typedef enum {
+  TAOS_SYNC_PROPOSE_SUCCESS = 0,
+  TAOS_SYNC_PROPOSE_NOT_LEADER = 1,
+  TAOS_SYNC_PROPOSE_OTHER_ERROR = 2,
+} ESyncProposeCode;
+
+typedef enum {
+  TAOS_SYNC_FSM_CB_SUCCESS = 0,
+  TAOS_SYNC_FSM_CB_OTHER_ERROR = 1,
+} ESyncFsmCbCode;
 
 typedef struct SNodeInfo {
   uint16_t nodePort;
@@ -52,27 +66,32 @@ typedef struct SSyncCfg {
   SNodeInfo nodeInfo[TSDB_MAX_REPLICA];
 } SSyncCfg;
 
-typedef struct SSnapshot {
-  void*     data;
-  SyncIndex lastApplyIndex;
-  SyncTerm  lastApplyTerm;
-} SSnapshot;
-
-typedef enum {
-  TAOS_SYNC_FSM_CB_SUCCESS = 0,
-  TAOS_SYNC_FSM_CB_OTHER_ERROR,
-} ESyncFsmCbCode;
-
 typedef struct SFsmCbMeta {
   SyncIndex  index;
   bool       isWeak;
   int32_t    code;
   ESyncState state;
   uint64_t   seqNum;
+  SyncTerm   term;
+  SyncTerm   currentTerm;
+  uint64_t   flag;
 } SFsmCbMeta;
 
-struct SRpcMsg;
-typedef struct SRpcMsg SRpcMsg;
+typedef struct SReConfigCbMeta {
+  int32_t   code;
+  SyncIndex index;
+  SyncTerm  term;
+  SyncTerm  currentTerm;
+  SSyncCfg  oldCfg;
+  bool      isDrop;
+  uint64_t  flag;
+} SReConfigCbMeta;
+
+typedef struct SSnapshot {
+  void *data;
+  SyncIndex lastApplyIndex;
+  SyncTerm  lastApplyTerm;
+} SSnapshot;
 
 typedef struct SSyncFSM {
   void* data;
@@ -81,16 +100,20 @@ typedef struct SSyncFSM {
   void (*FpPreCommitCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
   void (*FpRollBackCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
 
+  void (*FpRestoreFinishCb)(struct SSyncFSM* pFsm);
+  void (*FpReConfigCb)(struct SSyncFSM* pFsm, SSyncCfg newCfg, SReConfigCbMeta cbMeta);
+
   int32_t (*FpGetSnapshot)(struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
-  int32_t (*FpRestoreSnapshot)(struct SSyncFSM* pFsm, const SSnapshot* snapshot);
+
+  int32_t (*FpSnapshotStartRead)(struct SSyncFSM* pFsm, void** ppReader);
+  int32_t (*FpSnapshotStopRead)(struct SSyncFSM* pFsm, void* pReader);
+  int32_t (*FpSnapshotDoRead)(struct SSyncFSM* pFsm, void* pReader, void** ppBuf, int32_t* len);
+
+  int32_t (*FpSnapshotStartWrite)(struct SSyncFSM* pFsm, void** ppWriter);
+  int32_t (*FpSnapshotStopWrite)(struct SSyncFSM* pFsm, void* pWriter, bool isApply);
+  int32_t (*FpSnapshotDoWrite)(struct SSyncFSM* pFsm, void* pWriter, void* pBuf, int32_t len);
 
 } SSyncFSM;
-
-struct SSyncRaftEntry;
-typedef struct SSyncRaftEntry SSyncRaftEntry;
-
-#define SYNC_INDEX_BEGIN 0
-#define SYNC_INDEX_INVALID -1
 
 // abstract definition of log store in raft
 // SWal implements it
@@ -120,24 +143,16 @@ typedef struct SSyncLogStore {
 
 } SSyncLogStore;
 
-struct SWal;
-typedef struct SWal SWal;
-
-struct SEpSet;
-typedef struct SEpSet SEpSet;
-
 typedef struct SSyncInfo {
+  bool        isStandBy;
   SyncGroupId vgId;
   SSyncCfg    syncCfg;
   char        path[TSDB_FILENAME_LEN];
   SWal*       pWal;
   SSyncFSM*   pFsm;
-
-  void* rpcClient;
-  int32_t (*FpSendMsg)(void* rpcClient, const SEpSet* pEpSet, SRpcMsg* pMsg);
-  void* queue;
-  int32_t (*FpEqMsg)(void* queue, SRpcMsg* pMsg);
-
+  SMsgCb*     msgcb;
+  int32_t (*FpSendMsg)(const SEpSet* pEpSet, SRpcMsg* pMsg);
+  int32_t (*FpEqMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
 } SSyncInfo;
 
 int32_t     syncInit();
@@ -145,34 +160,21 @@ void        syncCleanUp();
 int64_t     syncOpen(const SSyncInfo* pSyncInfo);
 void        syncStart(int64_t rid);
 void        syncStop(int64_t rid);
+int32_t     syncSetStandby(int64_t rid);
 int32_t     syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg);
 ESyncState  syncGetMyRole(int64_t rid);
 const char* syncGetMyRoleStr(int64_t rid);
 SyncTerm    syncGetMyTerm(int64_t rid);
 void        syncGetEpSet(int64_t rid, SEpSet* pEpSet);
 int32_t     syncGetVgId(int64_t rid);
-
-typedef enum {
-  TAOS_SYNC_PROPOSE_SUCCESS = 0,
-  TAOS_SYNC_PROPOSE_NOT_LEADER,
-  TAOS_SYNC_PROPOSE_OTHER_ERROR,
-} ESyncProposeCode;
-
-int32_t syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak);
-
-bool syncEnvIsStart();
-
-extern int32_t sDebugFlag;
-
-//-----------------------------------------
-struct SSyncNode;
-typedef struct SSyncNode SSyncNode;
-
-struct SSyncBuffer;
-typedef struct SSyncBuffer SSyncBuffer;
-//-----------------------------------------
-
+int32_t     syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak);
+bool        syncEnvIsStart();
 const char* syncStr(ESyncState state);
+bool        syncIsRestoreFinish(int64_t rid);
+
+// to be moved to static
+void syncStartNormal(int64_t rid);
+void syncStartStandBy(int64_t rid);
 
 #ifdef __cplusplus
 }

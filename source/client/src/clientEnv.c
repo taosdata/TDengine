@@ -13,10 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "os.h"
 #include "catalog.h"
+#include "functionMgt.h"
 #include "clientInt.h"
 #include "clientLog.h"
-#include "os.h"
 #include "query.h"
 #include "scheduler.h"
 #include "tcache.h"
@@ -83,6 +84,14 @@ void closeTransporter(STscObj *pTscObj) {
   rpcClose(pTscObj->pAppInfo->pTransporter);
 }
 
+static bool clientRpcRfp(int32_t code) {
+  if (code == TSDB_CODE_RPC_REDIRECT) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
 // TODO refactor
 void *openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   SRpcInit rpcInit;
@@ -91,14 +100,11 @@ void *openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   rpcInit.label = "TSC";
   rpcInit.numOfThreads = numOfThread;
   rpcInit.cfp = processMsgFromServer;
-  rpcInit.sessions = tsMaxConnections;
+  rpcInit.rfp = clientRpcRfp;
+  rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.user = (char *)user;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
-  rpcInit.ckey = "key";
-  rpcInit.spi = 1;
-  rpcInit.secret = (char *)auth;
-
   void *pDnodeConn = rpcOpen(&rpcInit);
   if (pDnodeConn == NULL) {
     tscError("failed to init connection to server");
@@ -156,6 +162,7 @@ void *createTscObj(const char *user, const char *auth, const char *db, int32_t c
 
   taosThreadMutexInit(&pObj->mutex, NULL);
   pObj->id = taosAddRef(clientConnRefPool, pObj);
+  pObj->schemalessType = 0;
 
   tscDebug("connObj created, 0x%" PRIx64, pObj->id);
   return pObj;
@@ -165,7 +172,7 @@ STscObj *acquireTscObj(int64_t rid) { return (STscObj *)taosAcquireRef(clientCon
 
 int32_t releaseTscObj(int64_t rid) { return taosReleaseRef(clientConnRefPool, rid); }
 
-void *createRequest(STscObj *pObj, __taos_async_fn_t fp, void *param, int32_t type) {
+void *createRequest(STscObj *pObj, void *param, int32_t type) {
   assert(pObj != NULL);
 
   SRequestObj *pRequest = (SRequestObj *)taosMemoryCalloc(1, sizeof(SRequestObj));
@@ -179,9 +186,10 @@ void *createRequest(STscObj *pObj, __taos_async_fn_t fp, void *param, int32_t ty
   pRequest->requestId = generateRequestId();
   pRequest->metric.start = taosGetTimestampUs();
 
+  pRequest->body.param = param;
+
   pRequest->type = type;
   pRequest->pTscObj = pObj;
-  pRequest->body.fp = fp;  // not used it yet
   pRequest->msgBuf = taosMemoryCalloc(1, ERROR_MSG_BUF_DEFAULT_SIZE);
   pRequest->msgBufLen = ERROR_MSG_BUF_DEFAULT_SIZE;
   tsem_init(&pRequest->body.rspSem, 0, 0);
@@ -228,6 +236,8 @@ static void doDestroyRequest(void *p) {
 
   taosArrayDestroy(pRequest->tableList);
   taosArrayDestroy(pRequest->dbList);
+
+  destroyQueryExecRes(&pRequest->body.resInfo.execRes);
 
   deregisterRequest(pRequest);
   taosMemoryFreeClear(pRequest);
@@ -280,6 +290,7 @@ void taos_init_imp(void) {
   taosSetCoreDump(true);
 
   initTaskQueue();
+  fmFuncMgtInit();
 
   clientConnRefPool = taosOpenRef(200, destroyTscObj);
   clientReqRefPool = taosOpenRef(40960, doDestroyRequest);

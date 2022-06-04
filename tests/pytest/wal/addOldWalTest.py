@@ -31,7 +31,7 @@ class TDTestCase:
     
     def createOldDirAndAddWal(self):
         oldDir = tdDnodes.getDnodesRootDir() + "dnode1/data/vnode/vnode2/wal/old"        
-        os.system("sudo echo 'test' >> %s/wal" % oldDir)
+        os.system("sudo echo test >> %s/wal" % oldDir)
 
 
     def run(self):

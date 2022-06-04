@@ -60,7 +60,7 @@ void flttInitLogFile() {
 
   tsAsyncLog = 0;
   qDebugFlag = 159;
-  strcpy(tsLogDir, "/var/log/taos");
+  strcpy(tsLogDir, TD_LOG_DIR_PATH);
 
   if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum) < 0) {
     printf("failed to open log file in directory:%s\n", tsLogDir);

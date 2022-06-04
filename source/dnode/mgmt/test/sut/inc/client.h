@@ -18,9 +18,8 @@
 
 class TestClient {
  public:
-  bool Init(const char* user, const char* pass, const char* fqdn, uint16_t port);
+  bool Init(const char* user, const char* pass);
   void Cleanup();
-
   void DoInit();
 
   SRpcMsg* SendReq(SRpcMsg* pReq);
@@ -29,8 +28,6 @@ class TestClient {
   void     Restart();
 
  private:
-  char     fqdn[TSDB_FQDN_LEN];
-  uint16_t port;
   char     user[128];
   char     pass[128];
   void*    clientRpc;

@@ -13,7 +13,7 @@ class TDTestCase:
     "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"fnDebugFlag":143}
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
+        tdSql.init(conn.cursor(), True)
     
     def prepare_datas(self):
         tdSql.execute(

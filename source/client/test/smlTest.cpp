@@ -41,12 +41,14 @@ TEST(testCase, smlParseInfluxString_Test) {
   SSmlLineInfo elements = {0};
 
   // case 1
-  char *sql = "st,t1=3,t2=4,t3=t3 c1=3i64,c3=\"passit hello,c1=2\",c2=false,c4=4f64 1626006833639000000    ,32,c=3";
+  char *tmp = "\\,st,t1=3,t2=4,t3=t3 c1=3i64,c3=\"passit hello,c1=2\",c2=false,c4=4f64 1626006833639000000    ,32,c=3";
+  char *sql = (char*)taosMemoryCalloc(256, 1);
+  memcpy(sql, tmp, strlen(tmp) + 1);
   int   ret = smlParseInfluxString(sql, &elements, &msgBuf);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(elements.measure, sql);
-  ASSERT_EQ(elements.measureLen, strlen("st"));
-  ASSERT_EQ(elements.measureTagsLen, strlen("st,t1=3,t2=4,t3=t3"));
+  ASSERT_EQ(elements.measureLen, strlen(",st"));
+  ASSERT_EQ(elements.measureTagsLen, strlen(",st,t1=3,t2=4,t3=t3"));
 
   ASSERT_EQ(elements.tags, sql + elements.measureLen + 1);
   ASSERT_EQ(elements.tagsLen, strlen("t1=3,t2=4,t3=t3"));
@@ -58,76 +60,79 @@ TEST(testCase, smlParseInfluxString_Test) {
   ASSERT_EQ(elements.timestampLen, strlen("1626006833639000000"));
 
   // case 2  false
-  sql = "st,t1=3,t2=4,t3=t3 c1=3i64,c3=\"passit hello,c1=2,c2=false,c4=4f64 1626006833639000000";
+  tmp = "st,t1=3,t2=4,t3=t3 c1=3i64,c3=\"passit hello,c1=2,c2=false,c4=4f64 1626006833639000000";
+  memcpy(sql, tmp, strlen(tmp) + 1);
   memset(&elements, 0, sizeof(SSmlLineInfo));
   ret = smlParseInfluxString(sql, &elements, &msgBuf);
   ASSERT_NE(ret, 0);
 
   // case 3  false
-  sql = "st, t1=3,t2=4,t3=t3 c1=3i64,c3=\"passit hello,c1=2,c2=false,c4=4f64 1626006833639000000";
+  tmp = "st, t1=3,t2=4,t3=t3 c1=3i64,c3=\"passit hello,c1=2,c2=false,c4=4f64 1626006833639000000";
+  memcpy(sql, tmp, strlen(tmp) + 1);
   memset(&elements, 0, sizeof(SSmlLineInfo));
   ret = smlParseInfluxString(sql, &elements, &msgBuf);
   ASSERT_EQ(ret, 0);
-  ASSERT_EQ(elements.cols, sql + elements.measureTagsLen + 2);
+  ASSERT_EQ(elements.cols, sql + elements.measureTagsLen + 1);
   ASSERT_EQ(elements.colsLen, strlen("t1=3,t2=4,t3=t3"));
 
   // case 4  tag is null
-  sql = "st, c1=3i64,c3=\"passit hello,c1=2\",c2=false,c4=4f64 1626006833639000000";
+  tmp = "st, c1=3i64,c3=\"passit hello,c1=2\",c2=false,c4=4f64 1626006833639000000";
+  memcpy(sql, tmp, strlen(tmp) + 1);
   memset(&elements, 0, sizeof(SSmlLineInfo));
   ret = smlParseInfluxString(sql, &elements, &msgBuf);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(elements.measure, sql);
   ASSERT_EQ(elements.measureLen, strlen("st"));
-  ASSERT_EQ(elements.measureTagsLen, strlen("st"));
+  ASSERT_EQ(elements.measureTagsLen, strlen("st,"));
 
-  ASSERT_EQ(elements.tags, sql + elements.measureLen + 1);
+  ASSERT_EQ(elements.tags, sql + elements.measureTagsLen);
   ASSERT_EQ(elements.tagsLen, 0);
 
-  ASSERT_EQ(elements.cols, sql + elements.measureTagsLen + 2);
+  ASSERT_EQ(elements.cols, sql + elements.measureTagsLen + 1);
   ASSERT_EQ(elements.colsLen, strlen("c1=3i64,c3=\"passit hello,c1=2\",c2=false,c4=4f64"));
 
-  ASSERT_EQ(elements.timestamp, sql + elements.measureTagsLen + 2 + elements.colsLen + 1);
+  ASSERT_EQ(elements.timestamp, sql + elements.measureTagsLen + 1 + elements.colsLen + 1);
   ASSERT_EQ(elements.timestampLen, strlen("1626006833639000000"));
 
   // case 5 tag is null
-  sql = " st   c1=3i64,c3=\"passit hello,c1=2\",c2=false,c4=4f64  1626006833639000000 ";
+  tmp = " st   c1=3i64,c3=\"passit hello,c1=2\",c2=false,c4=4f64  1626006833639000000 ";
+  memcpy(sql, tmp, strlen(tmp) + 1);
   memset(&elements, 0, sizeof(SSmlLineInfo));
   ret = smlParseInfluxString(sql, &elements, &msgBuf);
-  sql++;
   ASSERT_EQ(ret, 0);
-  ASSERT_EQ(elements.measure, sql);
+  ASSERT_EQ(elements.measure, sql + 1);
   ASSERT_EQ(elements.measureLen, strlen("st"));
   ASSERT_EQ(elements.measureTagsLen, strlen("st"));
 
-  ASSERT_EQ(elements.tags, sql + elements.measureLen);
   ASSERT_EQ(elements.tagsLen, 0);
 
-  ASSERT_EQ(elements.cols, sql + elements.measureTagsLen + 3);
+  ASSERT_EQ(elements.cols, sql + 1 + elements.measureTagsLen + 3);
   ASSERT_EQ(elements.colsLen, strlen("c1=3i64,c3=\"passit hello,c1=2\",c2=false,c4=4f64"));
 
-  ASSERT_EQ(elements.timestamp, sql + elements.measureTagsLen + 3 + elements.colsLen + 2);
+  ASSERT_EQ(elements.timestamp, sql + 1 + elements.measureTagsLen + 3 + elements.colsLen + 2);
   ASSERT_EQ(elements.timestampLen, strlen("1626006833639000000"));
 
   // case 6
-  sql = " st   c1=3i64,c3=\"passit hello,c1=2\",c2=false,c4=4f64   ";
+  tmp = " st   c1=3i64,c3=\"passit hello,c1=2\",c2=false,c4=4f64   ";
+  memcpy(sql, tmp, strlen(tmp) + 1);
   memset(&elements, 0, sizeof(SSmlLineInfo));
   ret = smlParseInfluxString(sql, &elements, &msgBuf);
   ASSERT_EQ(ret, 0);
 
   // case 7
-  sql = " st   ,   ";
+  tmp = " st   ,   ";
+  memcpy(sql, tmp, strlen(tmp) + 1);
   memset(&elements, 0, sizeof(SSmlLineInfo));
   ret = smlParseInfluxString(sql, &elements, &msgBuf);
-  sql++;
   ASSERT_EQ(ret, 0);
-  ASSERT_EQ(elements.cols, sql + elements.measureTagsLen + 3);
-  ASSERT_EQ(elements.colsLen, strlen(","));
 
   // case 8 false
-  sql = ", st   ,   ";
+  tmp = ", st   ,   ";
+  memcpy(sql, tmp, strlen(tmp) + 1);
   memset(&elements, 0, sizeof(SSmlLineInfo));
   ret = smlParseInfluxString(sql, &elements, &msgBuf);
   ASSERT_NE(ret, 0);
+  taosMemoryFree(sql);
 }
 
 TEST(testCase, smlParseCols_Error_Test) {
@@ -188,7 +193,8 @@ TEST(testCase, smlParseCols_Error_Test) {
     "c=-3.402823466e+39u64",
     "c=-339u64",
     "c=18446744073709551616u64",
-    "c=1,c=2"
+    "c=1,c=2",
+    "c=1=2"
   };
 
   SHashObj *dumplicateKey = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
@@ -198,9 +204,19 @@ TEST(testCase, smlParseCols_Error_Test) {
     msgBuf.buf = msg;
     msgBuf.len = 256;
     int32_t len = strlen(data[i]);
-    int32_t ret = smlParseCols(data[i], len, NULL, false, dumplicateKey, &msgBuf);
+    char *sql = (char*)taosMemoryCalloc(256, 1);
+    memcpy(sql, data[i], len + 1);
+    SArray *cols = taosArrayInit(8, POINTER_BYTES);
+    int32_t ret = smlParseCols(sql, len, cols, NULL, false, dumplicateKey, &msgBuf);
+    printf("i:%d\n",i);
     ASSERT_NE(ret, TSDB_CODE_SUCCESS);
     taosHashClear(dumplicateKey);
+    taosMemoryFree(sql);
+    for(int j = 0; j < taosArrayGetSize(cols); j++){
+      void *kv = taosArrayGetP(cols, j);
+      taosMemoryFree(kv);
+    }
+    taosArrayDestroy(cols);
   }
   taosHashCleanup(dumplicateKey);
 }
@@ -216,9 +232,9 @@ TEST(testCase, smlParseCols_tag_Test) {
   SHashObj *dumplicateKey = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
 
   const char *data =
-      "cbin=\"passit helloc=2\",cnch=L\"iisdfsf\",cbool=false,cf64=4.31f64,cf64_=8.32,cf32=8.23f32,ci8=-34i8,cu8=89u8,ci16=233i16,cu16=898u16,ci32=98289i32,cu32=12323u32,ci64=-89238i64,ci=989i,cu64=8989323u64,cbooltrue=true,cboolt=t,cboolf=f,cnch_=l\"iuwq\"";
+      "cbin=\"passit helloc\",cnch=L\"iisdfsf\",cbool=false,cf64=4.31f64,cf64_=8.32,cf32=8.23f32,ci8=-34i8,cu8=89u8,ci16=233i16,cu16=898u16,ci32=98289i32,cu32=12323u32,ci64=-89238i64,ci=989i,cu64=8989323u64,cbooltrue=true,cboolt=t,cboolf=f,cnch_=l\"iuwq\"";
   int32_t len = strlen(data);
-  int32_t ret = smlParseCols(data, len, cols, true, dumplicateKey, &msgBuf);
+  int32_t ret = smlParseCols(data, len, cols, NULL, true, dumplicateKey, &msgBuf);
   ASSERT_EQ(ret, TSDB_CODE_SUCCESS);
   int32_t size = taosArrayGetSize(cols);
   ASSERT_EQ(size, 19);
@@ -228,40 +244,32 @@ TEST(testCase, smlParseCols_tag_Test) {
   ASSERT_EQ(strncasecmp(kv->key, "cbin", 4), 0);
   ASSERT_EQ(kv->keyLen, 4);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_NCHAR);
-  ASSERT_EQ(kv->valueLen, 17);
+  ASSERT_EQ(kv->length, 15);
   ASSERT_EQ(strncasecmp(kv->value, "\"passit", 7), 0);
-  taosMemoryFree(kv);
 
   // nchar
   kv = (SSmlKv *)taosArrayGetP(cols, 3);
   ASSERT_EQ(strncasecmp(kv->key, "cf64", 4), 0);
   ASSERT_EQ(kv->keyLen, 4);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_NCHAR);
-  ASSERT_EQ(kv->valueLen, 7);
+  ASSERT_EQ(kv->length, 7);
   ASSERT_EQ(strncasecmp(kv->value, "4.31f64", 7), 0);
-  taosMemoryFree(kv);
 
+  for(int i = 0; i < size; i++){
+    void *tmp = taosArrayGetP(cols, i);
+    taosMemoryFree(tmp);
+  }
   taosArrayClear(cols);
-
 
   // test tag is null
   data = "t=3e";
   len = 0;
   memset(msgBuf.buf, 0, msgBuf.len);
   taosHashClear(dumplicateKey);
-  ret = smlParseCols(data, len, cols, true, dumplicateKey, &msgBuf);
+  ret = smlParseCols(data, len, cols, NULL, true, dumplicateKey, &msgBuf);
   ASSERT_EQ(ret, TSDB_CODE_SUCCESS);
   size = taosArrayGetSize(cols);
-  ASSERT_EQ(size, 1);
-
-  // nchar
-  kv = (SSmlKv *)taosArrayGetP(cols, 0);
-  ASSERT_EQ(strncasecmp(kv->key, TAG, strlen(TAG)), 0);
-  ASSERT_EQ(kv->keyLen, strlen(TAG));
-  ASSERT_EQ(kv->type, TSDB_DATA_TYPE_NCHAR);
-  ASSERT_EQ(kv->valueLen, strlen(TAG));
-  ASSERT_EQ(strncasecmp(kv->value, TAG, strlen(TAG)), 0);
-  taosMemoryFree(kv);
+  ASSERT_EQ(size, 0);
 
   taosArrayDestroy(cols);
   taosHashCleanup(dumplicateKey);
@@ -278,20 +286,22 @@ TEST(testCase, smlParseCols_Test) {
 
   SHashObj *dumplicateKey = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
 
-  const char *data = "cbin=\"passit hello,c=2\",cnch=L\"iisdfsf\",cbool=false,cf64=4.31f64,cf64_=8.32,cf32=8.23f32,ci8=-34i8,cu8=89u8,ci16=233i16,cu16=898u16,ci32=98289i32,cu32=12323u32,ci64=-89238i64,ci=989i,cu64=8989323u64,cbooltrue=true,cboolt=t,cboolf=f,cnch_=l\"iuwq\"";
+  const char *data = "cb\\=in=\"pass\\,it hello,c=2\",cnch=L\"ii\\=sdfsf\",cbool=false,cf64=4.31f64,cf64_=8.32,cf32=8.23f32,ci8=-34i8,cu8=89u8,ci16=233i16,cu16=898u16,ci32=98289i32,cu32=12323u32,ci64=-89238i64,ci=989i,cu64=8989323u64,cbooltrue=true,cboolt=t,cboolf=f,cnch_=l\"iuwq\"";
   int32_t len = strlen(data);
-  int32_t ret = smlParseCols(data, len, cols, false, dumplicateKey, &msgBuf);
+  char *sql = (char*)taosMemoryCalloc(1024, 1);
+  memcpy(sql, data, len + 1);
+  int32_t ret = smlParseCols(sql, len, cols, NULL, false, dumplicateKey, &msgBuf);
   ASSERT_EQ(ret, TSDB_CODE_SUCCESS);
   int32_t size = taosArrayGetSize(cols);
   ASSERT_EQ(size, 19);
 
   // binary
   SSmlKv *kv = (SSmlKv *)taosArrayGetP(cols, 0);
-  ASSERT_EQ(strncasecmp(kv->key, "cbin", 4), 0);
-  ASSERT_EQ(kv->keyLen, 4);
+  ASSERT_EQ(strncasecmp(kv->key, "cb=in", 5), 0);
+  ASSERT_EQ(kv->keyLen, 5);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_BINARY);
-  ASSERT_EQ(kv->length, 16);
-  ASSERT_EQ(strncasecmp(kv->value, "passit", 6), 0);
+  ASSERT_EQ(kv->length, 17);
+  ASSERT_EQ(strncasecmp(kv->value, "pass,it ", 8), 0);
   taosMemoryFree(kv);
 
   // nchar
@@ -299,8 +309,8 @@ TEST(testCase, smlParseCols_Test) {
   ASSERT_EQ(strncasecmp(kv->key, "cnch", 4), 0);
   ASSERT_EQ(kv->keyLen, 4);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_NCHAR);
-  ASSERT_EQ(kv->length, 7);
-  ASSERT_EQ(strncasecmp(kv->value, "iisd", 4), 0);
+  ASSERT_EQ(kv->length, 8);
+  ASSERT_EQ(strncasecmp(kv->value, "ii=sd", 5), 0);
   taosMemoryFree(kv);
 
   // bool
@@ -463,48 +473,127 @@ TEST(testCase, smlParseCols_Test) {
 
   taosArrayDestroy(cols);
   taosHashCleanup(dumplicateKey);
+  taosMemoryFree(sql);
 }
 
 TEST(testCase, smlProcess_influx_Test) {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(taos, nullptr);
 
-  TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db");
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists inflx_db");
   taos_free_result(pRes);
 
-  pRes = taos_query(taos, "use sml_db");
+  pRes = taos_query(taos, "use inflx_db");
   taos_free_result(pRes);
 
-  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, NULL, TSDB_SQL_INSERT);
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
   ASSERT_NE(info, nullptr);
 
-  const char *sql[11] = {
-    "readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 load_capacity=1500,fuel_capacity=150,nominal_fuel_consumption=12,latitude=52.31854,longitude=4.72037,elevation=124,velocity=0,heading=221,grade=0 1451606400000000000",
-    "readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 load_capacity=1500,fuel_capacity=150,nominal_fuel_consumption=12,latitude=52.31854,longitude=4.72037,elevation=124,velocity=0,heading=221,grade=0,fuel_consumption=25 1451607400000000000",
-    "readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 load_capacity=1500,fuel_capacity=150,nominal_fuel_consumption=12,latitude=52.31854,longitude=4.72037,elevation=124,heading=221,grade=0,fuel_consumption=25 1451608400000000000",
-    "readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 fuel_capacity=150,nominal_fuel_consumption=12,latitude=52.31854,longitude=4.72037,elevation=124,velocity=0,heading=221,grade=0,fuel_consumption=25 1451609400000000000",
-    "readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 fuel_consumption=25,grade=0 1451619400000000000",
-    "readings,name=truck_1,fleet=South,driver=Albert,model=F-150,device_version=v1.5 load_capacity=2000,fuel_capacity=200,nominal_fuel_consumption=15,latitude=72.45258,longitude=68.83761,elevation=255,velocity=0,heading=181,grade=0,fuel_consumption=25 1451606400000000000",
-    "readings,name=truck_2,driver=Derek,model=F-150,device_version=v1.5 load_capacity=2000,fuel_capacity=200,nominal_fuel_consumption=15,latitude=24.5208,longitude=28.09377,elevation=428,velocity=0,heading=304,grade=0,fuel_consumption=25 1451606400000000000",
-    "readings,name=truck_2,fleet=North,driver=Derek,model=F-150 load_capacity=2000,fuel_capacity=200,nominal_fuel_consumption=15,latitude=24.5208,longitude=28.09377,elevation=428,velocity=0,heading=304,grade=0,fuel_consumption=25 1451609400000000000",
-    "readings,fleet=South,name=truck_0,driver=Trish,model=H-2,device_version=v2.3 fuel_consumption=25,grade=0 1451629400000000000",
-    "stable,t1=t1,t2=t2,t3=t3 c1=1,c2=2,c3=3,c4=4 1451629500000000000",
-    "stable,t2=t2,t1=t1,t3=t3 c1=1,c3=3,c4=4 1451629600000000000"
+  const char *sql[] = {
+    "readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 load_capacity=1500,fuel_capacity=150,nominal_fuel_consumption=12,latitude=52.31854,longitude=4.72037,elevation=124,velocity=0,heading=221,grade=0 1451606401000000000",
+    "readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 load_capacity=1500,fuel_capacity=150,nominal_fuel_consumption=12,latitude=52.31854,longitude=4.72037,elevation=124,velocity=0,heading=221,grade=0,fuel_consumption=25 1451607402000000000",
+    "readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 load_capacity=1500,fuel_capacity=150,nominal_fuel_consumption=12,latitude=52.31854,longitude=4.72037,elevation=124,heading=221,grade=0,fuel_consumption=25 1451608403000000000",
+    "readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 fuel_capacity=150,nominal_fuel_consumption=12,latitude=52.31854,longitude=4.72037,elevation=124,velocity=0,heading=221,grade=0,fuel_consumption=25 1451609404000000000",
+    "readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 fuel_consumption=25,grade=0 1451619405000000000",
+    "readings,name=truck_1,fleet=South,driver=Albert,model=F-150,device_version=v1.5 load_capacity=2000,fuel_capacity=200,nominal_fuel_consumption=15,latitude=72.45258,longitude=68.83761,elevation=255,velocity=0,heading=181,grade=0,fuel_consumption=25 1451606406000000000",
+    "readings,name=truck_2,driver=Derek,model=F-150,device_version=v1.5 load_capacity=2000,fuel_capacity=200,nominal_fuel_consumption=15,latitude=24.5208,longitude=28.09377,elevation=428,velocity=0,heading=304,grade=0,fuel_consumption=25 1451606407000000000",
+    "readings,name=truck_2,fleet=North,driver=Derek,model=F-150 load_capacity=2000,fuel_capacity=200,nominal_fuel_consumption=15,latitude=24.5208,longitude=28.09377,elevation=428,velocity=0,heading=304,grade=0,fuel_consumption=25 1451609408000000000",
+    "readings,fleet=South,name=truck_0,driver=Trish,model=H-2,device_version=v2.3 fuel_consumption=25,grade=0 1451629409000000000",
+    "stable,t1=t1,t2=t2,t3=t3 c1=1,c2=2,c3=\"kk\",c4=4 1451629501000000000",
+    "stable,t2=t2,t1=t1,t3=t3 c1=1,c3=\"\",c4=4 1451629602000000000",
   };
-  smlProcess(info, (char**)sql, sizeof(sql)/sizeof(sql[0]));
+  int ret = smlProcess(info, (char**)sql, sizeof(sql)/sizeof(sql[0]));
+  ASSERT_EQ(ret, 0);
 
-  TAOS_RES *res = taos_query(taos, "select * from t_6885c584b98481584ee13dac399e173d");
+  // case 1
+  TAOS_RES *res = taos_query(taos, "select * from t_91e0b182be80332b5c530cbf872f760e");
   ASSERT_NE(res, nullptr);
   int fieldNum = taos_field_count(res);
   ASSERT_EQ(fieldNum, 11);
-  int rowNum = taos_affected_rows(res);
-  ASSERT_EQ(rowNum, 2);
-  for (int i = 0; i < rowNum; ++i) {
-    TAOS_ROW rows = taos_fetch_row(res);
+  printf("fieldNum:%d\n", fieldNum);
+
+  TAOS_ROW row = NULL;
+  int32_t rowIndex = 0;
+  while((row = taos_fetch_row(res)) != NULL) {
+    int64_t ts = *(int64_t*)row[0];
+    double load_capacity = *(double*)row[1];
+    double fuel_capacity = *(double*)row[2];
+    double nominal_fuel_consumption = *(double*)row[3];
+    double latitude = *(double*)row[4];
+    double longitude = *(double*)row[5];
+    double elevation = *(double*)row[6];
+    double velocity = *(double*)row[7];
+    double heading = *(double*)row[8];
+    double grade = *(double*)row[9];
+    double fuel_consumption = *(double*)row[10];
+    if(rowIndex == 0){
+      ASSERT_EQ(ts, 1451606407000);
+      ASSERT_EQ(load_capacity, 2000);
+      ASSERT_EQ(fuel_capacity, 200);
+      ASSERT_EQ(nominal_fuel_consumption, 15);
+      ASSERT_EQ(latitude, 24.5208);
+      ASSERT_EQ(longitude, 28.09377);
+      ASSERT_EQ(elevation, 428);
+      ASSERT_EQ(velocity, 0);
+      ASSERT_EQ(heading, 304);
+      ASSERT_EQ(grade, 0);
+      ASSERT_EQ(fuel_consumption, 25);
+    }else{
+      ASSERT_FALSE(1);
+    }
+    rowIndex++;
   }
+  taos_free_result(res);
+
+  // case 2
+  res = taos_query(taos, "select * from t_6885c584b98481584ee13dac399e173d");
+  ASSERT_NE(res, nullptr);
+  fieldNum = taos_field_count(res);
+  ASSERT_EQ(fieldNum, 5);
+  printf("fieldNum:%d\n", fieldNum);
+
+  rowIndex = 0;
+  while((row = taos_fetch_row(res)) != NULL) {
+    int *length = taos_fetch_lengths(res);
+
+    int64_t ts = *(int64_t*)row[0];
+    double c1 = *(double*)row[1];
+    double c4 = *(double*)row[4];
+    if(rowIndex == 0){
+      ASSERT_EQ(ts, 1451629501000);
+      ASSERT_EQ(c1, 1);
+      ASSERT_EQ(*(double*)row[2], 2);
+      ASSERT_EQ(length[3], 2);
+      ASSERT_EQ(memcmp(row[3], "kk", length[3]), 0);
+      ASSERT_EQ(c4, 4);
+    }else if(rowIndex == 1){
+      ASSERT_EQ(ts, 1451629602000);
+      ASSERT_EQ(c1, 1);
+      ASSERT_EQ(row[2], nullptr);
+      ASSERT_EQ(length[3], 0);
+      ASSERT_EQ(c4, 4);
+    }else{
+      ASSERT_FALSE(1);
+    }
+    rowIndex++;
+  }
+  taos_free_result(res);
+
+  // case 2
+  res = taos_query(taos, "show tables");
+  ASSERT_NE(res, nullptr);
+
+  row = taos_fetch_row(res);
+  int rowNum = taos_affected_rows(res);
+  ASSERT_EQ(rowNum, 5);
+  taos_free_result(res);
+
+
+  destroyRequest(request);
+  smlDestroyInfo(info);
 }
 
 // different types
@@ -518,257 +607,699 @@ TEST(testCase, smlParseLine_error_Test) {
   pRes = taos_query(taos, "use sml_db");
   taos_free_result(pRes);
 
-  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, NULL, TSDB_SQL_INSERT);
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
   ASSERT_NE(info, nullptr);
 
-  const char *sql[2] = {
+  const char *sql[] = {
       "measure,t1=3 c1=8",
       "measure,t2=3 c1=8u8"
   };
   int ret = smlProcess(info, (char **)sql, sizeof(sql)/sizeof(sql[0]));
   ASSERT_NE(ret, 0);
+  destroyRequest(request);
+  smlDestroyInfo(info);
 }
 
- TEST(testCase, smlGetTimestampLen_Test) {
-   uint8_t len = smlGetTimestampLen(0);
-   ASSERT_EQ(len, 1);
+TEST(testCase, smlGetTimestampLen_Test) {
+  uint8_t len = smlGetTimestampLen(0);
+  ASSERT_EQ(len, 1);
 
-   len = smlGetTimestampLen(1);
-   ASSERT_EQ(len, 1);
+  len = smlGetTimestampLen(1);
+  ASSERT_EQ(len, 1);
 
-   len = smlGetTimestampLen(10);
-   ASSERT_EQ(len, 2);
+  len = smlGetTimestampLen(10);
+  ASSERT_EQ(len, 2);
 
-   len = smlGetTimestampLen(390);
-   ASSERT_EQ(len, 3);
+  len = smlGetTimestampLen(390);
+  ASSERT_EQ(len, 3);
 
-   len = smlGetTimestampLen(-1);
-   ASSERT_EQ(len, 1);
+  len = smlGetTimestampLen(-1);
+  ASSERT_EQ(len, 1);
 
-   len = smlGetTimestampLen(-10);
-   ASSERT_EQ(len, 2);
+  len = smlGetTimestampLen(-10);
+  ASSERT_EQ(len, 2);
 
-   len = smlGetTimestampLen(-390);
-   ASSERT_EQ(len, 3);
- }
+  len = smlGetTimestampLen(-390);
+  ASSERT_EQ(len, 3);
+}
 
- TEST(testCase, smlProcess_telnet_Test) {
-   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
-   ASSERT_NE(taos, nullptr);
+TEST(testCase, smlProcess_telnet_Test) {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
 
-   TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db");
-   taos_free_result(pRes);
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists telnet_db");
+  taos_free_result(pRes);
 
-   pRes = taos_query(taos, "use sml_db");
-   taos_free_result(pRes);
+  pRes = taos_query(taos, "use telnet_db");
+  taos_free_result(pRes);
 
-   SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, NULL, TSDB_SQL_INSERT);
-   ASSERT_NE(request, nullptr);
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, TSDB_SQL_INSERT);
+  ASSERT_NE(request, nullptr);
 
-   SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
-   ASSERT_NE(info, nullptr);
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  ASSERT_NE(info, nullptr);
 
-   const char *sql[4] = {
-       "sys.if.bytes.out 1479496100 1.3E0 host=web01 interface=eth0",
-       "sys.if.bytes.out 1479496101 1.3E1 interface=eth0 host=web01 ",
-       "sys.if.bytes.out 1479496102 1.3E3 network=tcp",
-       "sys.procs.running 1479496100 42 host=web01"
-   };
-   int ret = smlProcess(info, (char**)sql, sizeof(sql)/sizeof(sql[0]));
-   ASSERT_EQ(ret, 0);
+  const char *sql[] = {
+     "sys.if.bytes.out  1479496100 1.3E0 host=web01 interface=eth0",
+     "sys.if.bytes.out  1479496101 1.3E1 interface=eth0    host=web01   ",
+     "sys.if.bytes.out  1479496102 1.3E3 network=tcp",
+     " sys.procs.running   1479496100 42 host=web01   "
+  };
+  int ret = smlProcess(info, (char**)sql, sizeof(sql)/sizeof(sql[0]));
+  ASSERT_EQ(ret, 0);
 
-   TAOS_RES *res = taos_query(taos, "select * from t_8c30283b3c4131a071d1e16cf6d7094a");
-   ASSERT_NE(res, nullptr);
-   int fieldNum = taos_field_count(res);
-   ASSERT_EQ(fieldNum, 2);
-   int rowNum = taos_affected_rows(res);
-   ASSERT_EQ(rowNum, 1);
-   for (int i = 0; i < rowNum; ++i) {
-     TAOS_ROW rows = taos_fetch_row(res);
-   }
+  // case 1
+  TAOS_RES *res = taos_query(taos, "select * from t_8c30283b3c4131a071d1e16cf6d7094a");
+  ASSERT_NE(res, nullptr);
+  int fieldNum = taos_field_count(res);
+  ASSERT_EQ(fieldNum, 2);
 
-   res = taos_query(taos, "select * from t_6931529054e5637ca92c78a1ad441961");
-   ASSERT_NE(res, nullptr);
-   fieldNum = taos_field_count(res);
-   ASSERT_EQ(fieldNum, 2);
-   rowNum = taos_affected_rows(res);
-   ASSERT_EQ(rowNum, 2);
-   for (int i = 0; i < rowNum; ++i) {
-     TAOS_ROW rows = taos_fetch_row(res);
-   }
- }
+  TAOS_ROW row = taos_fetch_row(res);
+  int64_t ts = *(int64_t*)row[0];
+  double c1 = *(double*)row[1];
+  ASSERT_EQ(ts, 1479496100000);
+  ASSERT_EQ(c1, 42);
 
- TEST(testCase, smlProcess_json_Test) {
-   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
-   ASSERT_NE(taos, nullptr);
+  int rowNum = taos_affected_rows(res);
+  ASSERT_EQ(rowNum, 1);
+  taos_free_result(res);
 
-   TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db");
-   taos_free_result(pRes);
+  // case 2
+  res = taos_query(taos, "show tables");
+  ASSERT_NE(res, nullptr);
 
-   pRes = taos_query(taos, "use sml_db");
-   taos_free_result(pRes);
+  row = taos_fetch_row(res);
+  rowNum = taos_affected_rows(res);
+  ASSERT_EQ(rowNum, 3);
+  taos_free_result(res);
 
-   SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, NULL, TSDB_SQL_INSERT);
-   ASSERT_NE(request, nullptr);
+  destroyRequest(request);
+  smlDestroyInfo(info);
+}
 
-   SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
-   ASSERT_NE(info, nullptr);
+TEST(testCase, smlProcess_json1_Test) {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
 
-   const char *sql = "[\n"
-       "    {\n"
-       "        \"metric\": \"sys.cpu.nice\",\n"
-       "        \"timestamp\": 1346846400,\n"
-       "        \"value\": 18,\n"
-       "        \"tags\": {\n"
-       "           \"host\": \"web01\",\n"
-       "           \"dc\": \"lga\"\n"
-       "        }\n"
-       "    },\n"
-       "    {\n"
-       "        \"metric\": \"sys.cpu.nice\",\n"
-       "        \"timestamp\": 1346846400,\n"
-       "        \"value\": 9,\n"
-       "        \"tags\": {\n"
-       "           \"host\": \"web02\",\n"
-       "           \"dc\": \"lga\"\n"
-       "        }\n"
-       "    }\n"
-       "]";
-   int ret = smlProcess(info, (char**)(&sql), -1);
-   ASSERT_EQ(ret, 0);
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists json_db");
+  taos_free_result(pRes);
 
-   TAOS_RES *res = taos_query(taos, "select * from t_cb27a7198d637b4f1c6464bd73f756a7");
-   ASSERT_NE(res, nullptr);
-   int fieldNum = taos_field_count(res);
-   ASSERT_EQ(fieldNum, 2);
-//   int rowNum = taos_affected_rows(res);
-//   ASSERT_EQ(rowNum, 1);
-//   for (int i = 0; i < rowNum; ++i) {
-//     TAOS_ROW rows = taos_fetch_row(res);
-//   }
+  pRes = taos_query(taos, "use json_db");
+  taos_free_result(pRes);
 
-   sql = "{\n"
-       "    \"metric\": \"meter_current\",\n"
-       "    \"timestamp\": {\n"
-       "        \"value\"  : 1346846400,\n"
-       "        \"type\"   : \"s\"\n"
-       "    },\n"
-       "    \"value\": {\n"
-       "         \"value\" : 10.3,\n"
-       "         \"type\"  : \"i64\"\n"
-       "    },\n"
-       "    \"tags\": {\n"
-       "       \"groupid\": { \n"
-       "           \"value\" : 2,\n"
-       "           \"type\"  : \"bigint\"\n"
-       "       },\n"
-       "       \"location\": { \n"
-       "           \"value\" : \"北京\",\n"
-       "           \"type\"  : \"binary\"\n"
-       "       },\n"
-       "       \"id\": \"d1001\"\n"
-       "    }\n"
-       "}";
-   ret = smlProcess(info, (char**)(&sql), -1);
-   ASSERT_EQ(ret, 0);
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj *)taos, NULL, TSDB_SQL_INSERT);
+  ASSERT_NE(request, nullptr);
 
-   sql = "{\n"
-       "    \"metric\": \"meter_current\",\n"
-       "    \"timestamp\": {\n"
-       "        \"value\"  : 1346846400,\n"
-       "        \"type\"   : \"s\"\n"
-       "    },\n"
-       "    \"value\": {\n"
-       "         \"value\" : 10.3,\n"
-       "         \"type\"  : \"i64\"\n"
-       "    },\n"
-       "    \"tags\": {\n"
-       "       \"t1\": { \n"
-       "           \"value\" : 2,\n"
-       "           \"type\"  : \"bigint\"\n"
-       "       },\n"
-       "       \"t2\": { \n"
-       "           \"value\" : 2,\n"
-       "           \"type\"  : \"int\"\n"
-       "       },\n"
-       "       \"t3\": { \n"
-       "           \"value\" : 2,\n"
-       "           \"type\"  : \"i16\"\n"
-       "       },\n"
-       "       \"t4\": { \n"
-       "           \"value\" : 2,\n"
-       "           \"type\"  : \"i8\"\n"
-       "       },\n"
-       "       \"t5\": { \n"
-       "           \"value\" : 2,\n"
-       "           \"type\"  : \"f32\"\n"
-       "       },\n"
-       "       \"t6\": { \n"
-       "           \"value\" : 2,\n"
-       "           \"type\"  : \"double\"\n"
-       "       },\n"
-       "       \"t7\": { \n"
-       "           \"value\" : \"8323\",\n"
-       "           \"type\"  : \"binary\"\n"
-       "       },\n"
-       "       \"t8\": { \n"
-       "           \"value\" : \"北京\",\n"
-       "           \"type\"  : \"binary\"\n"
-       "       },\n"
-       "       \"t9\": { \n"
-       "           \"value\" : true,\n"
-       "           \"type\"  : \"bool\"\n"
-       "       },\n"
-       "       \"id\": \"d1001\"\n"
-       "    }\n"
-       "}";
-   ret = smlProcess(info, (char**)(&sql), -1);
-   ASSERT_EQ(ret, 0);
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  ASSERT_NE(info, nullptr);
 
-   sql = "{\n"
-       "    \"metric\": \"meter_current\",\n"
-       "    \"timestamp\": {\n"
-       "        \"value\"  : 1346846400000,\n"
-       "        \"type\"   : \"ms\"\n"
-       "    },\n"
-       "    \"value\": \"ni\",\n"
-       "    \"tags\": {\n"
-       "       \"t1\": { \n"
-       "           \"value\" : 20,\n"
-       "           \"type\"  : \"i64\"\n"
-       "       },\n"
-       "       \"t2\": { \n"
-       "           \"value\" : 25,\n"
-       "           \"type\"  : \"i32\"\n"
-       "       },\n"
-       "       \"t3\": { \n"
-       "           \"value\" : 2,\n"
-       "           \"type\"  : \"smallint\"\n"
-       "       },\n"
-       "       \"t4\": { \n"
-       "           \"value\" : 2,\n"
-       "           \"type\"  : \"tinyint\"\n"
-       "       },\n"
-       "       \"t5\": { \n"
-       "           \"value\" : 2,\n"
-       "           \"type\"  : \"float\"\n"
-       "       },\n"
-       "       \"t6\": { \n"
-       "           \"value\" : 0.2,\n"
-       "           \"type\"  : \"f64\"\n"
-       "       },\n"
-       "       \"t7\": \"nsj\",\n"
-       "       \"t8\": { \n"
-       "           \"value\" : \"北京\",\n"
-       "           \"type\"  : \"binary\"\n"
-       "       },\n"
-       "       \"t9\": false,\n"
-       "       \"id\": \"d1001\"\n"
-       "    }\n"
-       "}";
-   ret = smlProcess(info, (char**)(&sql), -1);
-   ASSERT_EQ(ret, 0);
- }
+  const char *sql =
+     "[\n"
+     "    {\n"
+     "        \"metric\": \"sys.cpu.nice\",\n"
+     "        \"timestamp\": 1346846400,\n"
+     "        \"value\": 18,\n"
+     "        \"tags\": {\n"
+     "           \"host\": \"web01\",\n"
+     "           \"dc\": \"lga\"\n"
+     "        }\n"
+     "    },\n"
+     "    {\n"
+     "        \"metric\": \"sys.cpu.nice\",\n"
+     "        \"timestamp\": 1346846400,\n"
+     "        \"value\": 9,\n"
+     "        \"tags\": {\n"
+     "           \"host\": \"web02\",\n"
+     "           \"dc\": \"lga\"\n"
+     "        }\n"
+     "    }\n"
+     "]";
+  int ret = smlProcess(info, (char **)(&sql), 1);
+  ASSERT_EQ(ret, 0);
+
+  // case 1
+  TAOS_RES *res = taos_query(taos, "select * from t_cb27a7198d637b4f1c6464bd73f756a7");
+  ASSERT_NE(res, nullptr);
+  int fieldNum = taos_field_count(res);
+  ASSERT_EQ(fieldNum, 2);
+
+  TAOS_ROW row = taos_fetch_row(res);
+  int64_t ts = *(int64_t*)row[0];
+  double c1 = *(double*)row[1];
+  ASSERT_EQ(ts, 1346846400000);
+  ASSERT_EQ(c1, 18);
+
+  int rowNum = taos_affected_rows(res);
+  ASSERT_EQ(rowNum, 1);
+  taos_free_result(res);
+
+  // case 2
+  res = taos_query(taos, "show tables");
+  ASSERT_NE(res, nullptr);
+
+  row = taos_fetch_row(res);
+  rowNum = taos_affected_rows(res);
+  ASSERT_EQ(rowNum, 2);
+  taos_free_result(res);
+
+  destroyRequest(request);
+  smlDestroyInfo(info);
+}
+
+TEST(testCase, smlProcess_json2_Test) {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj *)taos, NULL, TSDB_SQL_INSERT);
+  ASSERT_NE(request, nullptr);
+
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  ASSERT_NE(info, nullptr);
+  const char *sql =
+     "{\n"
+     "    \"metric\": \"meter_current0\",\n"
+     "    \"timestamp\": {\n"
+     "        \"value\"  : 1346846400,\n"
+     "        \"type\"   : \"s\"\n"
+     "    },\n"
+     "    \"value\": {\n"
+     "         \"value\" : 10.3,\n"
+     "         \"type\"  : \"i64\"\n"
+     "    },\n"
+     "    \"tags\": {\n"
+     "       \"groupid\": { \n"
+     "           \"value\" : 2,\n"
+     "           \"type\"  : \"bigint\"\n"
+     "       },\n"
+     "       \"location\": { \n"
+     "           \"value\" : \"北京\",\n"
+     "           \"type\"  : \"binary\"\n"
+     "       },\n"
+     "       \"id\": \"d1001\"\n"
+     "    }\n"
+     "}";
+  int32_t ret = smlProcess(info, (char **)(&sql), -1);
+  ASSERT_EQ(ret, 0);
+  destroyRequest(request);
+  smlDestroyInfo(info);
+}
+
+TEST(testCase, smlProcess_json3_Test) {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj *)taos, NULL, TSDB_SQL_INSERT);
+  ASSERT_NE(request, nullptr);
+
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  ASSERT_NE(info, nullptr);
+  const char *sql =
+     "{\n"
+     "    \"metric\": \"meter_current1\",\n"
+     "    \"timestamp\": {\n"
+     "        \"value\"  : 1346846400,\n"
+     "        \"type\"   : \"s\"\n"
+     "    },\n"
+     "    \"value\": {\n"
+     "         \"value\" : 10.3,\n"
+     "         \"type\"  : \"i64\"\n"
+     "    },\n"
+     "    \"tags\": {\n"
+     "       \"t1\": { \n"
+     "           \"value\" : 2,\n"
+     "           \"type\"  : \"bigint\"\n"
+     "       },\n"
+     "       \"t2\": { \n"
+     "           \"value\" : 2,\n"
+     "           \"type\"  : \"int\"\n"
+     "       },\n"
+     "       \"t3\": { \n"
+     "           \"value\" : 2,\n"
+     "           \"type\"  : \"i16\"\n"
+     "       },\n"
+     "       \"t4\": { \n"
+     "           \"value\" : 2,\n"
+     "           \"type\"  : \"i8\"\n"
+     "       },\n"
+     "       \"t5\": { \n"
+     "           \"value\" : 2,\n"
+     "           \"type\"  : \"f32\"\n"
+     "       },\n"
+     "       \"t6\": { \n"
+     "           \"value\" : 2,\n"
+     "           \"type\"  : \"double\"\n"
+     "       },\n"
+     "       \"t7\": { \n"
+     "           \"value\" : \"8323\",\n"
+     "           \"type\"  : \"binary\"\n"
+     "       },\n"
+     "       \"t8\": { \n"
+     "           \"value\" : \"北京\",\n"
+     "           \"type\"  : \"nchar\"\n"
+     "       },\n"
+     "       \"t9\": { \n"
+     "           \"value\" : true,\n"
+     "           \"type\"  : \"bool\"\n"
+     "       },\n"
+     "       \"id\": \"d1001\"\n"
+     "    }\n"
+     "}";
+  int32_t ret = smlProcess(info, (char **)(&sql), -1);
+  ASSERT_EQ(ret, 0);
+  destroyRequest(request);
+  smlDestroyInfo(info);
+}
+
+TEST(testCase, smlProcess_json4_Test) {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, TSDB_SQL_INSERT);
+  ASSERT_NE(request, nullptr);
+
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  ASSERT_NE(info, nullptr);
+  const char *sql = "{\n"
+     "    \"metric\": \"meter_current2\",\n"
+     "    \"timestamp\": {\n"
+     "        \"value\"  : 1346846500000,\n"
+     "        \"type\"   : \"ms\"\n"
+     "    },\n"
+     "    \"value\": \"ni\",\n"
+     "    \"tags\": {\n"
+     "       \"t1\": { \n"
+     "           \"value\" : 20,\n"
+     "           \"type\"  : \"i64\"\n"
+     "       },\n"
+     "       \"t2\": { \n"
+     "           \"value\" : 25,\n"
+     "           \"type\"  : \"i32\"\n"
+     "       },\n"
+     "       \"t3\": { \n"
+     "           \"value\" : 2,\n"
+     "           \"type\"  : \"smallint\"\n"
+     "       },\n"
+     "       \"t4\": { \n"
+     "           \"value\" : 2,\n"
+     "           \"type\"  : \"tinyint\"\n"
+     "       },\n"
+     "       \"t5\": { \n"
+     "           \"value\" : 2,\n"
+     "           \"type\"  : \"float\"\n"
+     "       },\n"
+     "       \"t6\": { \n"
+     "           \"value\" : 0.2,\n"
+     "           \"type\"  : \"f64\"\n"
+     "       },\n"
+     "       \"t7\": \"nsj\",\n"
+     "       \"t8\": { \n"
+     "           \"value\" : \"北京\",\n"
+     "           \"type\"  : \"nchar\"\n"
+     "       },\n"
+     "       \"t9\": false,\n"
+     "       \"id\": \"d1001\"\n"
+     "    }\n"
+     "}";
+  int32_t ret = smlProcess(info, (char**)(&sql), -1);
+  ASSERT_EQ(ret, 0);
+  destroyRequest(request);
+  smlDestroyInfo(info);
+}
+
+TEST(testCase, smlParseTelnetLine_error_Test) {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, TSDB_SQL_INSERT);
+  ASSERT_NE(request, nullptr);
+
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  ASSERT_NE(info, nullptr);
+
+  int32_t ret = 0;
+  const char *sql[] = {
+      "sys.procs.running 14794961040 42 host=web01",
+      "sys.procs.running 14791040 42 host=web01",
+      "sys.procs.running erere 42 host=web01",
+      "sys.procs.running 1.6e10 42 host=web01",
+      "sys.procs.running 1.47949610 42 host=web01",
+      "sys.procs.running 147949610i 42 host=web01",
+      "sys.procs.running -147949610 42 host=web01",
+      "",
+      "   ",
+      "sys  ",
+      "sys.procs.running 1479496100 42 ",
+      "sys.procs.running 1479496100 42 host= ",
+      "sys.procs.running 1479496100 42or host=web01",
+      "sys.procs.running 1479496100 true host=web01",
+      "sys.procs.running 1479496100 \"binary\" host=web01",
+      "sys.procs.running 1479496100 L\"rfr\" host=web01",
+      "sys.procs.running 1479496100 42 host=web01 cpu= ",
+      "sys.procs.running 1479496100 42 host=web01 host=w2",
+      "sys.procs.running 1479496100 42 host=web01 host",
+      "sys.procs.running 1479496100 42 host=web01=er",
+      "sys.procs.running 1479496100 42 host= web01",
+  };
+  for(int i = 0; i < sizeof(sql)/sizeof(sql[0]); i++){
+    ret = smlParseTelnetLine(info, (void*)sql[i]);
+    ASSERT_NE(ret, 0);
+  }
+
+  destroyRequest(request);
+  smlDestroyInfo(info);
+}
+
+TEST(testCase, smlParseTelnetLine_diff_type_Test) {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, TSDB_SQL_INSERT);
+  ASSERT_NE(request, nullptr);
+
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  ASSERT_NE(info, nullptr);
+
+  const char *sql[2] = {
+      "sys.procs.running 1479496104000 42 host=web01",
+      "sys.procs.running 1479496104000 42u8 host=web01"
+  };
+  int32_t ret = smlProcess(info, (char**)sql, sizeof(sql)/sizeof(sql[0]));
+  ASSERT_NE(ret, 0);
+
+  destroyRequest(request);
+  smlDestroyInfo(info);
+}
+
+TEST(testCase, smlParseTelnetLine_json_error_Test) {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, TSDB_SQL_INSERT);
+  ASSERT_NE(request, nullptr);
+
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  ASSERT_NE(info, nullptr);
+
+  int32_t ret = 0;
+  const char *sql[] = {
+      "[\n"
+      "    {\n"
+      "        \"metric\": \"sys.cpu.nice\",\n"
+      "        \"timestamp\": 13468464009999333322222223,\n"
+      "        \"value\": 18,\n"
+      "        \"tags\": {\n"
+      "           \"host\": \"web01\",\n"
+      "           \"dc\": \"lga\"\n"
+      "        }\n"
+      "    },\n"
+      "]",
+      "[\n"
+      "    {\n"
+      "        \"metric\": \"sys.cpu.nice\",\n"
+      "        \"timestamp\": 1346846400i,\n"
+      "        \"value\": 18,\n"
+      "        \"tags\": {\n"
+      "           \"host\": \"web01\",\n"
+      "           \"dc\": \"lga\"\n"
+      "        }\n"
+      "    },\n"
+      "]",
+      "[\n"
+      "    {\n"
+      "        \"metric\": \"sys.cpu.nice\",\n"
+      "        \"timestamp\": 1346846400,\n"
+      "        \"value\": 18,\n"
+      "        \"tags\": {\n"
+      "           \"groupid\": { \n"
+      "                 \"value\" : 2,\n"
+      "                 \"type\"  : \"nchar\"\n"
+      "             },\n"
+      "           \"location\": { \n"
+      "                 \"value\" : \"北京\",\n"
+      "                 \"type\"  : \"binary\"\n"
+      "             },\n"
+      "           \"id\": \"d1001\"\n"
+      "         }\n"
+      "    },\n"
+      "]",
+  };
+  for(int i = 0; i < sizeof(sql)/sizeof(sql[0]); i++){
+    ret = smlParseTelnetLine(info, (void*)sql[i]);
+    ASSERT_NE(ret, 0);
+  }
+
+  destroyRequest(request);
+  smlDestroyInfo(info);
+}
+
+TEST(testCase, smlParseTelnetLine_diff_json_type1_Test) {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, TSDB_SQL_INSERT);
+  ASSERT_NE(request, nullptr);
+
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  ASSERT_NE(info, nullptr);
+
+  const char *sql[2] = {
+      "[\n"
+      "    {\n"
+      "        \"metric\": \"sys.cpu.nice\",\n"
+      "        \"timestamp\": 1346846400,\n"
+      "        \"value\": 18,\n"
+      "        \"tags\": {\n"
+      "           \"host\": \"lga\"\n"
+      "        }\n"
+      "    },\n"
+      "]",
+      "[\n"
+      "    {\n"
+      "        \"metric\": \"sys.cpu.nice\",\n"
+      "        \"timestamp\": 1346846400,\n"
+      "        \"value\": 18,\n"
+      "        \"tags\": {\n"
+      "           \"host\": 8\n"
+      "        }\n"
+      "    },\n"
+      "]",
+  };
+  int32_t ret = smlProcess(info, (char**)sql, sizeof(sql)/sizeof(sql[0]));
+  ASSERT_NE(ret, 0);
+
+  destroyRequest(request);
+  smlDestroyInfo(info);
+}
+
+TEST(testCase, smlParseTelnetLine_diff_json_type2_Test) {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, TSDB_SQL_INSERT);
+  ASSERT_NE(request, nullptr);
+
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  ASSERT_NE(info, nullptr);
+
+  const char *sql[2] = {
+      "[\n"
+      "    {\n"
+      "        \"metric\": \"sys.cpu.nice\",\n"
+      "        \"timestamp\": 1346846400,\n"
+      "        \"value\": 18,\n"
+      "        \"tags\": {\n"
+      "           \"host\": \"lga\"\n"
+      "        }\n"
+      "    },\n"
+      "]",
+      "[\n"
+      "    {\n"
+      "        \"metric\": \"sys.cpu.nice\",\n"
+      "        \"timestamp\": 1346846400,\n"
+      "        \"value\": \"18\",\n"
+      "        \"tags\": {\n"
+      "           \"host\": \"fff\"\n"
+      "        }\n"
+      "    },\n"
+      "]",
+  };
+  int32_t ret = smlProcess(info, (char**)sql, sizeof(sql)/sizeof(sql[0]));
+  ASSERT_NE(ret, 0);
+
+  destroyRequest(request);
+  smlDestroyInfo(info);
+}
+
+TEST(testCase, sml_TD15662_Test) {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists db_15662 precision 'ns'");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use db_15662");
+  taos_free_result(pRes);
+
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj *)taos, NULL, TSDB_SQL_INSERT);
+  ASSERT_NE(request, nullptr);
+
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+  ASSERT_NE(info, nullptr);
+
+  const char *sql[] = {
+      "hetrey c0=f,c1=127i8 1626006833639",
+      "hetrey,t1=r c0=f,c1=127i8 1626006833640",
+  };
+  int ret = smlProcess(info, (char **)sql, sizeof(sql) / sizeof(sql[0]));
+  ASSERT_EQ(ret, 0);
+
+  destroyRequest(request);
+  smlDestroyInfo(info);
+}
+
+TEST(testCase, sml_TD15735_Test) {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, TSDB_SQL_INSERT);
+  ASSERT_NE(request, nullptr);
+
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  ASSERT_NE(info, nullptr);
+
+  const char *sql[1] = {
+      "{'metric': 'pekoiw', 'timestamp': {'value': 1626006833639000000, 'type': 'ns'}, 'value': {'value': False, 'type': 'bool'}, 'tags': {'t0': {'value': True, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {'value': 9223372036854775807, 'type': 'bigint'}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}, 't7': {'value': 'binaryTagValue', 'type': 'binary'}, 't8': {'value': 'ncharTagValue', 'type': 'nchar'}}}",
+  };
+  int32_t ret = smlProcess(info, (char**)sql, sizeof(sql)/sizeof(sql[0]));
+  ASSERT_NE(ret, 0);
+
+  destroyRequest(request);
+  smlDestroyInfo(info);
+}
+
+TEST(testCase, sml_TD15742_Test) {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists TD15742");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use TD15742");
+  taos_free_result(pRes);
+
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, TSDB_SQL_INSERT);
+  ASSERT_NE(request, nullptr);
+
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+  ASSERT_NE(info, nullptr);
+
+  const char *sql[] = {
+      "test_ms,t0=t c0=f 1626006833641",
+  };
+  int ret = smlProcess(info, (char**)sql, sizeof(sql)/sizeof(sql[0]));
+  ASSERT_EQ(ret, 0);
+
+  destroyRequest(request);
+  smlDestroyInfo(info);
+}
+
+TEST(testCase, sml_params_Test) {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists param");
+  taos_free_result(pRes);
+
+  const char *sql[] = {
+      "test_ms,t0=t c0=f 1626006833641",
+  };
+  TAOS_RES* res = taos_schemaless_insert(taos, (char**)sql, 1, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+  ASSERT_EQ(taos_errno(res), TSDB_CODE_PAR_DB_NOT_SPECIFIED);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use param");
+  taos_free_result(pRes);
+
+  res = taos_schemaless_insert(taos, (char**)sql, 1, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_MILLI_SECONDS);
+  ASSERT_EQ(taos_errno(res), TSDB_CODE_SML_INVALID_DB_CONF);
+  taos_free_result(pRes);
+}
+
+TEST(testCase, sml_oom_Test) {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists oom schemaless 1");
+  taos_free_result(pRes);
+
+  const char *sql[] = {
+      //"test_ms,t0=t c0=f 1626006833641",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"pgxbrbga\",t8=L\"ncharTagValue\" c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"gviggpmi\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"cexkarjn\",t8=L\"ncharTagValue\" c0=true,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"rzwwuoxu\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"xphrlkey\",t8=L\"ncharTagValue\" c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"llsawebj\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"jwpkipff\",t8=L\"ncharTagValue\" c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"euzzhcvu\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"jumhnsvw\",t8=L\"ncharTagValue\" c0=true,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"fnetgdhj\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"vrmmpgqe\",t8=L\"ncharTagValue\" c0=T,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"lnpfjapr\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"gvbhmsfr\",t8=L\"ncharTagValue\" c0=t,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"kydxrxwc\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"pfyarryq\",t8=L\"ncharTagValue\" c0=T,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"uxptotap\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"prolhudh\",t8=L\"ncharTagValue\" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"ttxaxnac\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"dfgvmjmz\",t8=L\"ncharTagValue\" c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"bloextkn\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"dvjxwzsi\",t8=L\"ncharTagValue\" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"aigjomaf\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"refbidtf\",t8=L\"ncharTagValue\" c0=t,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"vuanlfpz\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"nbpajxkx\",t8=L\"ncharTagValue\" c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"ktzzauxh\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"prcwdjct\",t8=L\"ncharTagValue\" c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"vmbhvjtp\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"liuddtuz\",t8=L\"ncharTagValue\" c0=T,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"pddsktow\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"algldlvl\",t8=L\"ncharTagValue\" c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"mlmnjgdl\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"oiynpcog\",t8=L\"ncharTagValue\" c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"wmynbagb\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"asvyulrm\",t8=L\"ncharTagValue\" c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"ohaacrkp\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"ytyejhiq\",t8=L\"ncharTagValue\" c0=true,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"bbznuerb\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"lpebcibw\",t8=L\"ncharTagValue\" c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"xmqrbafv\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"lnmwpdne\",t8=L\"ncharTagValue\" c0=true,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"jpcsjqun\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"mmxqmavz\",t8=L\"ncharTagValue\" c0=true,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"hhsbgaow\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"uwogyuud\",t8=L\"ncharTagValue\" c0=t,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"ytxpaxnk\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"wouwdvtt\",t8=L\"ncharTagValue\" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"iitwikkh\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"lgyzuyaq\",t8=L\"ncharTagValue\" c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"bdtiigxi\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"qpnsvdhw\",t8=L\"ncharTagValue\" c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"pjxihgvu\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"ksxkfetn\",t8=L\"ncharTagValue\" c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"ocukufqs\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"qzerxmpe\",t8=L\"ncharTagValue\" c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"qwcfdyxs\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"jldrpmmd\",t8=L\"ncharTagValue\" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"lucxlfzc\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"rcewrvya\",t8=L\"ncharTagValue\" c0=true,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"dknvaphs\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"nxtxgzdr\",t8=L\"ncharTagValue\" c0=T,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"mbvuugwz\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"uikakffu\",t8=L\"ncharTagValue\" c0=true,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"mwmtqsma\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"bfcxrrpa\",t8=L\"ncharTagValue\" c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"ksajygdj\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"vmhhszyv\",t8=L\"ncharTagValue\" c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"urwjgvut\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"jrvytcxy\",t8=L\"ncharTagValue\" c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"evqkzygh\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"zitdznhg\",t8=L\"ncharTagValue\" c0=true,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"tpqekrxa\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"yrrbgjtk\",t8=L\"ncharTagValue\" c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"bnphiuyq\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"huknehjn\",t8=L\"ncharTagValue\" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"iudbxfke\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"fjmolwbn\",t8=L\"ncharTagValue\" c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"gukzgcjs\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"bjvdtlgq\",t8=L\"ncharTagValue\" c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"phxnesxh\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"qgpgckvc\",t8=L\"ncharTagValue\" c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"yechqtfa\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"pbouxywy\",t8=L\"ncharTagValue\" c0=T,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"kxtuojyo\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"txaniwlj\",t8=L\"ncharTagValue\" c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"fixgufrj\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"okzvalwq\",t8=L\"ncharTagValue\" c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"iitawgbn\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"gayvmird\",t8=L\"ncharTagValue\" c0=t,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"dprkfjph\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"kmuccshq\",t8=L\"ncharTagValue\" c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"vkslsdsd\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"dukccdqk\",t8=L\"ncharTagValue\" c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"leztxmqf\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"kltixbwz\",t8=L\"ncharTagValue\" c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"xqhkweef\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"idxsimvz\",t8=L\"ncharTagValue\" c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"vbruvcpk\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"uxandqkd\",t8=L\"ncharTagValue\" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"dsiosysh\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"kxuyanpp\",t8=L\"ncharTagValue\" c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"wkrktags\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"yvizzpiv\",t8=L\"ncharTagValue\" c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"ddnefben\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"novmfmbc\",t8=L\"ncharTagValue\" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"fnusxsfu\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"ouerfjap\",t8=L\"ncharTagValue\" c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"sigognkf\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"slvzhede\",t8=L\"ncharTagValue\" c0=T,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"bknerect\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"tmhcdfjb\",t8=L\"ncharTagValue\" c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"hpnoanpp\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"okmhelnc\",t8=L\"ncharTagValue\" c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"xcernjin\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"jdmiismg\",t8=L\"ncharTagValue\" c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"tmnqozrf\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"zgwrftkx\",t8=L\"ncharTagValue\" c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"zyamlwwh\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"nuedqcro\",t8=L\"ncharTagValue\" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"lpsvyqaa\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"mneitsul\",t8=L\"ncharTagValue\" c0=T,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"vpleinwb\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"njxuaedy\",t8=L\"ncharTagValue\" c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"sdgxpqmu\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"yjirrebp\",t8=L\"ncharTagValue\" c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"ikqndzfj\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"ghnfdxhr\",t8=L\"ncharTagValue\" c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"hrwczpvo\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"nattumpb\",t8=L\"ncharTagValue\" c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"zoyfzazn\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"rdwemofy\",t8=L\"ncharTagValue\" c0=true,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"phkgsjeg\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"pyhvvjrt\",t8=L\"ncharTagValue\" c0=T,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"zfslyton\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"bxwjzeri\",t8=L\"ncharTagValue\" c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"uovzzgjv\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"cfjmacvr\",t8=L\"ncharTagValue\" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"jefqgzqx\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"njrksxmr\",t8=L\"ncharTagValue\" c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"mhvabvgn\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"kfekjltr\",t8=L\"ncharTagValue\" c0=T,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"lexfaaby\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"zbblsmwq\",t8=L\"ncharTagValue\" c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"oqcombkx\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"rcdmhzyw\",t8=L\"ncharTagValue\" c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"otksuean\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"itbdvowq\",t8=L\"ncharTagValue\" c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"tswtmhex\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"xoukkzid\",t8=L\"ncharTagValue\" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"guangmpq\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"rayxzuky\",t8=L\"ncharTagValue\" c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"lspwucrv\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"pdprzzkf\",t8=L\"ncharTagValue\" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"sddqrtza\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"kabndgkx\",t8=L\"ncharTagValue\" c0=true,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"aglnqqxs\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"fiwpzmdr\",t8=L\"ncharTagValue\" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"hxctooen\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"pckjpwyh\",t8=L\"ncharTagValue\" c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"ivmvsbai\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"eljdclst\",t8=L\"ncharTagValue\" c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"rwgdctie\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"zlnthxoz\",t8=L\"ncharTagValue\" c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"ljtxelle\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"llfggdpy\",t8=L\"ncharTagValue\" c0=t,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"tvnridze\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"hxjpgube\",t8=L\"ncharTagValue\" c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"zmldmquq\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"bggqwcoj\",t8=L\"ncharTagValue\" c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"drksfofm\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"jcsixens\",t8=L\"ncharTagValue\" c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"cdwnwhaf\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"nngpumuq\",t8=L\"ncharTagValue\" c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"hylgooci\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"cozeyjys\",t8=L\"ncharTagValue\" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"lcgpfcsa\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"qdtzhtyd\",t8=L\"ncharTagValue\" c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"txpubynb\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"gbslzbtu\",t8=L\"ncharTagValue\" c0=T,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"buihcpcl\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"ayqezaiq\",t8=L\"ncharTagValue\" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"zgkgtilj\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"bcjopqif\",t8=L\"ncharTagValue\" c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"mfzxiaqt\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"xmnlqxoj\",t8=L\"ncharTagValue\" c0=T,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"reyiklyf\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"xssuomhk\",t8=L\"ncharTagValue\" c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"liazkjll\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"nigjlblo\",t8=L\"ncharTagValue\" c0=true,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"vmojyznk\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"dotkbvrz\",t8=L\"ncharTagValue\" c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"kuwdyydw\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"slsfqydw\",t8=L\"ncharTagValue\" c0=t,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"zyironhd\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"pktwfhzi\",t8=L\"ncharTagValue\" c0=T,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"xybavsvh\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"pyrxemvx\",t8=L\"ncharTagValue\" c0=True,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"tlfihwjs\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000", "ogirwqci,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"neumakmg\",t8=L\"ncharTagValue\" c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"wxqingoa\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+  };
+  pRes = taos_query(taos, "use oom");
+  taos_free_result(pRes);
+
+  TAOS_RES* res = taos_schemaless_insert(taos, (char**)sql, 100, TSDB_SML_LINE_PROTOCOL, 0);
+  ASSERT_EQ(taos_errno(res), 0);
+  taos_free_result(pRes);
+}

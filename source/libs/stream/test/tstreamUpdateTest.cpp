@@ -4,6 +4,7 @@
 #include "ttime.h"
 
 using namespace std;
+#define MAX_NUM_SCALABLE_BF    100000
 
 TEST(TD_STREAM_UPDATE_TEST, update) {
   int64_t interval = 20 * 1000;
@@ -91,11 +92,11 @@ TEST(TD_STREAM_UPDATE_TEST, update) {
   }
 
   SUpdateInfo *pSU4 = updateInfoInit(-1, TSDB_TIME_PRECISION_MILLI, -1);
-  GTEST_ASSERT_EQ(pSU4->watermark, 120 * pSU4->interval);
+  GTEST_ASSERT_EQ(pSU4->watermark, MAX_NUM_SCALABLE_BF * pSU4->interval);
   GTEST_ASSERT_EQ(pSU4->interval, MILLISECOND_PER_MINUTE);
 
   SUpdateInfo *pSU5 = updateInfoInit(0, TSDB_TIME_PRECISION_MILLI, 0);
-  GTEST_ASSERT_EQ(pSU5->watermark, 120 * pSU4->interval);
+  GTEST_ASSERT_EQ(pSU5->watermark, MAX_NUM_SCALABLE_BF * pSU4->interval);
   GTEST_ASSERT_EQ(pSU5->interval, MILLISECOND_PER_MINUTE);
 
 

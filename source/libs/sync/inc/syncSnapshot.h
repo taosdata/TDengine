@@ -23,11 +23,42 @@ extern "C" {
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "cJSON.h"
 #include "syncInt.h"
 #include "taosdef.h"
 
-int32_t takeSnapshot(SSyncFSM *pFsm, SSnapshot *pSnapshot);
-int32_t restoreSnapshot(SSyncFSM *pFsm, SSnapshot *pSnapshot);
+typedef struct SSyncSnapshotSender {
+  int32_t    sending;
+  int32_t    received;
+  bool       finish;
+  void *     pCurrentBlock;
+  int32_t    blockLen;
+  int64_t    sendingMS;
+  SSnapshot *pSnapshot;
+  SSyncNode *pSyncNode;
+} SSyncSnapshotSender;
+
+SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode);
+void                 snapshotSenderDestroy(SSyncSnapshotSender *pSender);
+int32_t              snapshotSend(SSyncSnapshotSender *pSender);
+cJSON *              snapshotSender2Json(SSyncSnapshotSender *pSender);
+char *               snapshotSender2Str(SSyncSnapshotSender *pSender);
+
+typedef struct SSyncSnapshotReceiver {
+  bool       start;
+  int32_t    received;
+  int32_t    progressIndex;
+  void *     pCurrentBlock;
+  int32_t    len;
+  SSnapshot *pSnapshot;
+  SSyncNode *pSyncNode;
+} SSyncSnapshotReceiver;
+
+SSyncSnapshotReceiver *snapshotReceiverCreate(SSyncNode *pSyncNode);
+void                   snapshotReceiverDestroy(SSyncSnapshotReceiver *pReceiver);
+int32_t                snapshotReceive(SSyncSnapshotReceiver *pReceiver);
+cJSON *                snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver);
+char *                 snapshotReceiver2Str(SSyncSnapshotReceiver *pReceiver);
 
 #ifdef __cplusplus
 }

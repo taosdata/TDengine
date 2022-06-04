@@ -20,13 +20,7 @@
 extern "C" {
 #endif
 
-#include <stdbool.h>
-#include <stdint.h>
-//#include <tdatablock.h>
-#include "cJSON.h"
-//#include "taosdef.h"
 #include "trpc.h"
-//#include "wal.h"
 
 // ------------------ ds -------------------
 typedef struct SRaftId {
@@ -35,16 +29,12 @@ typedef struct SRaftId {
 } SRaftId;
 
 // ------------------ control -------------------
-struct SSyncNode;
-typedef struct SSyncNode SSyncNode;
-
 SSyncNode* syncNodeAcquire(int64_t rid);
 void       syncNodeRelease(SSyncNode* pNode);
 
 int32_t syncGetRespRpc(int64_t rid, uint64_t index, SRpcMsg* msg);
 int32_t syncGetAndDelRespRpc(int64_t rid, uint64_t index, SRpcMsg* msg);
-void    syncSetQ(int64_t rid, void* queueHandle);
-void    syncSetRpc(int64_t rid, void* rpcHandle);
+void    syncSetMsgCb(int64_t rid, const SMsgCb* msgcb);
 char*   sync2SimpleStr(int64_t rid);
 
 // set timer ms

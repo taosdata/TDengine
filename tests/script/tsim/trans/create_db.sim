@@ -26,7 +26,7 @@ if $data00 != 1 then
   return -1
 endi
 
-if $data02 != LEADER then 
+if $data02 != leader then 
   return -1
 endi
 
@@ -64,7 +64,7 @@ if $rows != 1 then
   return -1
 endi
 
-if $data[0][0] != 2 then
+if $data[0][0] != 7 then
   return -1
 endi
 
@@ -73,14 +73,6 @@ if $data[0][2] != undoAction then
 endi
 
 if $data[0][3] != d1 then
-  return -1
-endi
-
-if $data[0][4] != create-db then
-  return -1
-endi
-
-if $data[0][7] != @Unable to establish connection@ then
   return -1
 endi
 
@@ -114,7 +106,7 @@ if $rows != 1 then
   return -1
 endi
 
-if $data[0][0] != 4 then
+if $data[0][0] != 9 then
   return -1
 endi
 
@@ -125,19 +117,11 @@ endi
 if $data[0][3] != d2 then
   return -1
 endi
-
-if $data[0][4] != create-db then
-  return -1
-endi
-
-if $data[0][7] != @Unable to establish connection@ then
-  return -1
-endi
-
+return
 sql_error create database d2 vgroups 2;
 
 print =============== kill transaction
-sql kill transaction 4;
+sql kill transaction 9;
 sleep 2000
 
 sql show transactions

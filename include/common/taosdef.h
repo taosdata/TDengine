@@ -37,7 +37,8 @@ typedef enum {
   TSDB_STREAM_TABLE = 4,  // table created from stream computing
   TSDB_TEMP_TABLE = 5,    // temp table created by nest query
   TSDB_SYSTEM_TABLE = 6,
-  TSDB_TABLE_MAX = 7
+  TSDB_TSMA_TABLE = 7,  // time-range-wise sma
+  TSDB_TABLE_MAX = 8
 } ETableType;
 
 typedef enum {
@@ -85,11 +86,18 @@ typedef enum {
   TSDB_RETENTION_MAX = 3
 } ERetentionLevel;
 
+typedef enum {
+  TSDB_BITMODE_DEFAULT = 0,  // 2 bits
+  TSDB_BITMODE_ONE_BIT = 1,  // 1 bit
+} EBitmapMode;
+
 extern char *qtypeStr[];
 
 #define TSDB_PORT_HTTP 11
 
 #undef TD_DEBUG_PRINT_ROW
+#undef TD_DEBUG_PRINT_TSDB_LOAD_DCOLS
+#undef TD_DEBUG_PRINT_TAG
 
 #ifdef __cplusplus
 }

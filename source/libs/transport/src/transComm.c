@@ -133,6 +133,7 @@ int transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf) {
   } else {
     p->cap = p->total;
     p->buf = taosMemoryRealloc(p->buf, p->cap);
+    tTrace("internal malloc mem: %p, size: %d", p->buf, p->cap);
 
     uvBuf->base = p->buf + p->len;
     uvBuf->len = p->cap - p->len;
@@ -189,6 +190,7 @@ SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, int sz, void* arg, AsyncCB cb)
   }
   return pool;
 }
+
 void transDestroyAsyncPool(SAsyncPool* pool) {
   for (int i = 0; i < pool->nAsync; i++) {
     uv_async_t* async = &(pool->asyncs[i]);
@@ -232,7 +234,7 @@ void transCtxCleanup(STransCtx* ctx) {
 
   STransCtxVal* iter = taosHashIterate(ctx->args, NULL);
   while (iter) {
-    iter->freeFunc(iter->val);
+    ctx->freeFunc(iter->val);
     iter = taosHashIterate(ctx->args, iter);
   }
 
@@ -244,6 +246,7 @@ void transCtxMerge(STransCtx* dst, STransCtx* src) {
   if (dst->args == NULL) {
     dst->args = src->args;
     dst->brokenVal = src->brokenVal;
+    dst->freeFunc = src->freeFunc;
     src->args = NULL;
     return;
   }
@@ -256,7 +259,7 @@ void transCtxMerge(STransCtx* dst, STransCtx* src) {
 
     STransCtxVal* dVal = taosHashGet(dst->args, key, klen);
     if (dVal) {
-      dVal->freeFunc(dVal->val);
+      dst->freeFunc(dVal->val);
     }
     taosHashPut(dst->args, key, klen, sVal, sizeof(*sVal));
     iter = taosHashIterate(src->args, iter);
@@ -443,5 +446,65 @@ int transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_
   heapInsert(queue->heap, &task->node);
   uv_timer_start(queue->timer, transDQTimeout, timeoutMs, 0);
   return 0;
+}
+
+void transPrintEpSet(SEpSet* pEpSet) {
+  if (pEpSet == NULL) {
+    tTrace("NULL epset");
+    return;
+  }
+  tTrace("epset begin  inUse: %d", pEpSet->inUse);
+  for (int i = 0; i < pEpSet->numOfEps; i++) {
+    tTrace("ip: %s, port: %d", pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
+  }
+  tTrace("epset end");
+}
+bool transEpSetIsEqual(SEpSet* a, SEpSet* b) {
+  if (a->numOfEps != b->numOfEps || a->inUse != b->inUse) {
+    return false;
+  }
+  for (int i = 0; i < a->numOfEps; i++) {
+    if (strncmp(a->eps[i].fqdn, b->eps[i].fqdn, TSDB_FQDN_LEN) != 0 || a->eps[i].port != b->eps[i].port) {
+      return false;
+    }
+  }
+  return true;
+}
+
+void transInitEnv() {
+  //
+  uv_os_setenv("UV_TCP_SINGLE_ACCEPT", "1");
+}
+int32_t transOpenExHandleMgt(int size) {
+  // added into once later
+  return taosOpenRef(size, transDestoryExHandle);
+}
+void transCloseExHandleMgt(int32_t mgt) {
+  // close ref
+  taosCloseRef(mgt);
+}
+int64_t transAddExHandle(int32_t mgt, void* p) {
+  // acquire extern handle
+  return taosAddRef(mgt, p);
+}
+int32_t transRemoveExHandle(int32_t mgt, int64_t refId) {
+  // acquire extern handle
+  return taosRemoveRef(mgt, refId);
+}
+
+SExHandle* transAcquireExHandle(int32_t mgt, int64_t refId) {
+  // acquire extern handle
+  return (SExHandle*)taosAcquireRef(mgt, refId);
+}
+
+int32_t transReleaseExHandle(int32_t mgt, int64_t refId) {
+  // release extern handle
+  return taosReleaseRef(mgt, refId);
+}
+void transDestoryExHandle(void* handle) {
+  if (handle == NULL) {
+    return;
+  }
+  taosMemoryFree(handle);
 }
 #endif

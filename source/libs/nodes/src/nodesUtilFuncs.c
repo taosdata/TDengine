@@ -86,8 +86,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SExplainOptions));
     case QUERY_NODE_STREAM_OPTIONS:
       return makeNode(type, sizeof(SStreamOptions));
-    case QUERY_NODE_TOPIC_OPTIONS:
-      return makeNode(type, sizeof(STopicOptions));
+    case QUERY_NODE_LEFT_VALUE:
+      return makeNode(type, sizeof(SLeftValueNode));
     case QUERY_NODE_SET_OPERATOR:
       return makeNode(type, sizeof(SSetOperator));
     case QUERY_NODE_SELECT_STMT:
@@ -146,6 +146,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SCreateTopicStmt));
     case QUERY_NODE_DROP_TOPIC_STMT:
       return makeNode(type, sizeof(SDropTopicStmt));
+    case QUERY_NODE_DROP_CGROUP_STMT:
+      return makeNode(type, sizeof(SDropCGroupStmt));
     case QUERY_NODE_EXPLAIN_STMT:
       return makeNode(type, sizeof(SExplainStmt));
     case QUERY_NODE_DESCRIBE_STMT:
@@ -218,6 +220,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SVnodeModifLogicNode));
     case QUERY_NODE_LOGIC_PLAN_EXCHANGE:
       return makeNode(type, sizeof(SExchangeLogicNode));
+    case QUERY_NODE_LOGIC_PLAN_MERGE:
+      return makeNode(type, sizeof(SMergeLogicNode));
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
       return makeNode(type, sizeof(SWindowLogicNode));
     case QUERY_NODE_LOGIC_PLAN_FILL:
@@ -248,16 +252,24 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SAggPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE:
       return makeNode(type, sizeof(SExchangePhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE:
+      return makeNode(type, sizeof(SMergePhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_SORT:
       return makeNode(type, sizeof(SSortPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_INTERVAL:
       return makeNode(type, sizeof(SIntervalPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
       return makeNode(type, sizeof(SStreamIntervalPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
+      return makeNode(type, sizeof(SStreamFinalIntervalPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
+      return makeNode(type, sizeof(SStreamSemiIntervalPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_FILL:
       return makeNode(type, sizeof(SFillPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
       return makeNode(type, sizeof(SSessionWinodwPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION_WINDOW:
+      return makeNode(type, sizeof(SStreamSessionWinodwPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW:
       return makeNode(type, sizeof(SStateWinodwPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
@@ -529,6 +541,18 @@ void nodesDestroyNode(SNodeptr pNode) {
       nodesDestroyNode(pStmt->pTbNamePattern);
       break;
     }
+    case QUERY_NODE_QUERY: {
+      SQuery* pQuery = (SQuery*)pNode;
+      nodesDestroyNode(pQuery->pRoot);
+      taosMemoryFreeClear(pQuery->pResSchema);
+      if (NULL != pQuery->pCmdMsg) {
+        taosMemoryFreeClear(pQuery->pCmdMsg->pMsg);
+        taosMemoryFreeClear(pQuery->pCmdMsg);
+      }
+      taosArrayDestroy(pQuery->pDbList);
+      taosArrayDestroy(pQuery->pTableList);
+      break;
+    }
     case QUERY_NODE_LOGIC_PLAN_SCAN: {
       SScanLogicNode* pLogicNode = (SScanLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
@@ -650,6 +674,7 @@ void nodesDestroyNode(SNodeptr pNode) {
       destroyWinodwPhysiNode((SWinodwPhysiNode*)pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION_WINDOW:
       destroyWinodwPhysiNode((SWinodwPhysiNode*)pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
@@ -1105,6 +1130,7 @@ bool nodesIsComparisonOp(const SOperatorNode* pOp) {
 bool nodesIsJsonOp(const SOperatorNode* pOp) {
   switch (pOp->opType) {
     case OP_TYPE_JSON_GET_VALUE:
+    case OP_TYPE_JSON_CONTAINS:
       return true;
     default:
       break;
@@ -1112,9 +1138,18 @@ bool nodesIsJsonOp(const SOperatorNode* pOp) {
   return false;
 }
 
-bool nodesIsTimeorderQuery(const SNode* pQuery) { return false; }
-
-bool nodesIsTimelineQuery(const SNode* pQuery) { return false; }
+bool nodesIsRegularOp(const SOperatorNode* pOp) {
+  switch (pOp->opType) {
+    case OP_TYPE_LIKE:
+    case OP_TYPE_NOT_LIKE:
+    case OP_TYPE_MATCH:
+    case OP_TYPE_NMATCH:
+      return true;
+    default:
+      break;
+  }
+  return false;
+}
 
 typedef struct SCollectColumnsCxt {
   int32_t         errCode;

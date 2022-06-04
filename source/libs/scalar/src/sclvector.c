@@ -92,7 +92,7 @@ void convertStringToDouble(const void *inData, void *outData, int8_t inType, int
   tmp[len] = 0;
 
   ASSERT(outType == TSDB_DATA_TYPE_DOUBLE);
-  double value = strtod(tmp, NULL);
+  double value = taosStr2Double(tmp, NULL);
 
   *((double *)outData) = value;
   taosMemoryFreeClear(tmp);
@@ -267,22 +267,22 @@ static FORCE_INLINE void varToTimestamp(char *buf, SScalarParam* pOut, int32_t r
 static FORCE_INLINE void varToSigned(char *buf, SScalarParam* pOut, int32_t rowIndex) {
   switch (pOut->columnData->info.type) {
     case TSDB_DATA_TYPE_TINYINT: {
-      int8_t value = (int8_t)strtoll(buf, NULL, 10);
+      int8_t value = (int8_t)taosStr2Int8(buf, NULL, 10);
       colDataAppendInt8(pOut->columnData, rowIndex, (int8_t*)&value);
       break;
     } 
     case TSDB_DATA_TYPE_SMALLINT: {
-      int16_t value = (int16_t)strtoll(buf, NULL, 10);
+      int16_t value = (int16_t)taosStr2Int16(buf, NULL, 10);
       colDataAppendInt16(pOut->columnData, rowIndex, (int16_t*)&value);
       break;
     } 
     case TSDB_DATA_TYPE_INT: {
-      int32_t value = (int32_t)strtoll(buf, NULL, 10);
+      int32_t value = (int32_t)taosStr2Int32(buf, NULL, 10);
       colDataAppendInt32(pOut->columnData, rowIndex, (int32_t*)&value);
       break;
     } 
     case TSDB_DATA_TYPE_BIGINT: {
-      int64_t value = (int64_t)strtoll(buf, NULL, 10);
+      int64_t value = (int64_t)taosStr2Int64(buf, NULL, 10);
       colDataAppendInt64(pOut->columnData, rowIndex, (int64_t*)&value);
       break;
     }   
@@ -292,22 +292,22 @@ static FORCE_INLINE void varToSigned(char *buf, SScalarParam* pOut, int32_t rowI
 static FORCE_INLINE void varToUnsigned(char *buf, SScalarParam* pOut, int32_t rowIndex) {
   switch (pOut->columnData->info.type) {
     case TSDB_DATA_TYPE_UTINYINT: {
-      uint8_t value = (uint8_t)strtoull(buf, NULL, 10);
+      uint8_t value = (uint8_t)taosStr2UInt8(buf, NULL, 10);
       colDataAppendInt8(pOut->columnData, rowIndex, (int8_t*)&value);
       break;
     } 
     case TSDB_DATA_TYPE_USMALLINT: {
-      uint16_t value = (uint16_t)strtoull(buf, NULL, 10);
+      uint16_t value = (uint16_t)taosStr2UInt16(buf, NULL, 10);
       colDataAppendInt16(pOut->columnData, rowIndex, (int16_t*)&value);
       break;
     } 
     case TSDB_DATA_TYPE_UINT: {
-      uint32_t value = (uint32_t)strtoull(buf, NULL, 10);
+      uint32_t value = (uint32_t)taosStr2UInt32(buf, NULL, 10);
       colDataAppendInt32(pOut->columnData, rowIndex, (int32_t*)&value);
       break;
     } 
     case TSDB_DATA_TYPE_UBIGINT: {
-      uint64_t value = (uint64_t)strtoull(buf, NULL, 10);
+      uint64_t value = (uint64_t)taosStr2UInt64(buf, NULL, 10);
       colDataAppendInt64(pOut->columnData, rowIndex, (int64_t*)&value);
       break;
     }   
@@ -315,12 +315,12 @@ static FORCE_INLINE void varToUnsigned(char *buf, SScalarParam* pOut, int32_t ro
 }
 
 static FORCE_INLINE void varToFloat(char *buf, SScalarParam* pOut, int32_t rowIndex) {
-  double value = strtod(buf, NULL);
+  double value = taosStr2Double(buf, NULL);
   colDataAppendDouble(pOut->columnData, rowIndex, &value);
 }
 
 static FORCE_INLINE void varToBool(char *buf, SScalarParam* pOut, int32_t rowIndex) {
-  int64_t value = strtoll(buf, NULL, 10);
+  int64_t value = taosStr2Int64(buf, NULL, 10);
   bool v = (value != 0)? true:false;
   colDataAppendInt8(pOut->columnData, rowIndex, (int8_t*) &v);
 }
@@ -922,22 +922,13 @@ static void doReleaseVec(SColumnInfoData* pCol, int32_t type) {
   }
 }
 
-char *getJsonValue(char *json, char *key){    //todo
-  int16_t cols = kvRowNCols(json);
-  for (int i = 0; i < cols; ++i) {
-    SColIdx *pColIdx = kvRowColIdxAt(json, i);
-    char *data = kvRowColVal(json, pColIdx);
-    if(i == 0){
-      if(*data == TSDB_DATA_TYPE_NULL) {
-        return NULL;
-      }
-      continue;
-    }
-    if(memcmp(key, data, varDataTLen(data)) == 0){
-      return data + varDataTLen(data);
-    }
+STagVal getJsonValue(char *json, char *key, bool *isExist) {
+  STagVal val = {.pKey = key};
+  bool find = tTagGet(((const STag *)json), &val);  // json value is null and not exist is different
+  if(isExist){
+    *isExist = find;
   }
-  return NULL;
+  return val;
 }
 
 void vectorJsonArrow(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
@@ -949,6 +940,8 @@ void vectorJsonArrow(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pO
   pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
 
   char *pRightData = colDataGetVarData(pRight->columnData, 0);
+  char *jsonKey = taosMemoryCalloc(1, varDataLen(pRightData) + 1);
+  memcpy(jsonKey, varDataVal(pRightData), varDataLen(pRightData));
   for (; i >= 0 && i < pLeft->numOfRows; i += step) {
     if (colDataIsNull_var(pLeft->columnData, i)) {
       colDataSetNull_var(pOutputCol, i);
@@ -956,14 +949,15 @@ void vectorJsonArrow(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pO
       continue;
     }
     char *pLeftData = colDataGetVarData(pLeft->columnData, i);
-    char *value = getJsonValue(pLeftData, pRightData);
-    if (!value) {
-      colDataSetNull_var(pOutputCol, i);
-      pOutputCol->hasNull = true;
-      continue;
+    bool isExist = false;
+    STagVal value = getJsonValue(pLeftData, jsonKey, &isExist);
+    char *data = isExist ? tTagValToData(&value, true) : NULL;
+    colDataAppend(pOutputCol, i, data, data == NULL);
+    if(isExist && IS_VAR_DATA_TYPE(value.type) && data){
+      taosMemoryFree(data);
     }
-    colDataAppend(pOutputCol, i, value, false);
   }
+  taosMemoryFree(jsonKey);
 }
 
 void vectorMathAdd(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
@@ -1332,6 +1326,22 @@ void vectorMathMinus(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pO
   doReleaseVec(pLeftCol,  leftConvert);
 }
 
+void vectorAssign(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
+  SColumnInfoData *pOutputCol = pOut->columnData;
+
+  pOut->numOfRows = pLeft->numOfRows;
+
+  if (colDataIsNull_s(pRight->columnData, 0)) {
+    for (int32_t i = 0; i < pOut->numOfRows; ++i) {
+      colDataAppend(pOutputCol, i, NULL, true);
+    }
+  } else {
+    for (int32_t i = 0; i < pOut->numOfRows; ++i) {
+      colDataAppend(pOutputCol, i, colDataGetData(pRight->columnData, 0), false);
+    }
+  }
+}
+
 void vectorConcat(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
 #if 0
   int32_t len = pLeft->bytes + pRight->bytes;
@@ -1690,6 +1700,8 @@ _bin_scalar_fn_t getBinScalarOperatorFn(int32_t binFunctionId) {
       return vectorMathRemainder;
     case OP_TYPE_MINUS:
       return vectorMathMinus;
+    case OP_TYPE_ASSIGN:
+      return vectorAssign;
     case OP_TYPE_GREATER_THAN:
       return vectorGreater;
     case OP_TYPE_GREATER_EQUAL:

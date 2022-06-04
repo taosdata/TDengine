@@ -189,7 +189,7 @@ SSDataBlock* get2ColsDummyBlock(SOperatorInfo* pOperator) {
 
   pInfo->current += 1;
 
-  blockDataUpdateTsWindow(pBlock);
+  blockDataUpdateTsWindow(pBlock, 0);
   return pBlock;
 }
 

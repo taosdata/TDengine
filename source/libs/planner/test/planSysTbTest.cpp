@@ -27,8 +27,8 @@ TEST_F(PlanSysTableTest, show) {
   run("show stables");
 }
 
-TEST_F(PlanSysTableTest, information) {
+TEST_F(PlanSysTableTest, informationSchema) {
   useDb("root", "information_schema");
 
-  run("show tables");
+  run("SELECT * FROM information_schema.user_databases WHERE name = 'information_schema'");
 }

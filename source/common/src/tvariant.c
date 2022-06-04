@@ -39,7 +39,7 @@ int32_t toInteger(const char *z, int32_t n, int32_t base, int64_t *value) {
   errno = 0;
   char *endPtr = NULL;
 
-  *value = strtoll(z, &endPtr, base);
+  *value = taosStr2Int64(z, &endPtr, base);
   if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
     errno = 0;
     return -1;
@@ -58,7 +58,7 @@ int32_t toUInteger(const char *z, int32_t n, int32_t base, uint64_t *value) {
     return -1;
   }
 
-  *value = strtoull(z, &endPtr, base);
+  *value = taosStr2UInt64(z, &endPtr, base);
   if (errno == ERANGE || errno == EINVAL || endPtr - z != n) {
     errno = 0;
     return -1;
@@ -434,7 +434,7 @@ static FORCE_INLINE int32_t convertToDouble(char *pStr, int32_t len, double *val
   //    return -1;
   //  }
   //
-  //  *value = strtod(pStr, NULL);
+  //  *value = taosStr2Double(pStr, NULL);
   return 0;
 }
 
@@ -911,7 +911,7 @@ int32_t taosVariantTypeSetType(SVariant *pVariant, char type) {
     case TSDB_DATA_TYPE_DOUBLE: {
       if (pVariant->nType == TSDB_DATA_TYPE_BINARY) {
         errno = 0;
-        double v = strtod(pVariant->pz, NULL);
+        double v = taosStr2Double(pVariant->pz, NULL);
         if ((errno == ERANGE && v == -1) || (isinf(v) || isnan(v))) {
           taosMemoryFree(pVariant->pz);
           return -1;

@@ -19,6 +19,7 @@
 
 int32_t taosNewProc(char **args) {
 #ifdef WINDOWS
+  assert(0);
   return 0;
 #else
   int32_t pid = fork();
@@ -36,6 +37,7 @@ int32_t taosNewProc(char **args) {
 
 void taosWaitProc(int32_t pid) {
 #ifdef WINDOWS
+  assert(0);
 #else
   int32_t status = -1;
   waitpid(pid, &status, 0);
@@ -44,6 +46,7 @@ void taosWaitProc(int32_t pid) {
 
 void taosKillProc(int32_t pid) { 
 #ifdef WINDOWS
+  assert(0);
 #else
   kill(pid, SIGINT); 
 #endif
@@ -51,6 +54,7 @@ void taosKillProc(int32_t pid) {
 
 bool taosProcExist(int32_t pid) {
 #ifdef WINDOWS
+  assert(0);
   return false;
 #else
   int32_t p = getpgid(pid);

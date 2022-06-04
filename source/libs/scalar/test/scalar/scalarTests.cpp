@@ -74,7 +74,7 @@ void scltInitLogFile() {
 
   tsAsyncLog = 0;
   qDebugFlag = 159;
-  strcpy(tsLogDir, "/var/log/taos");
+  strcpy(tsLogDir, TD_LOG_DIR_PATH);
 
   if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum) < 0) {
     printf("failed to open log file in directory:%s\n", tsLogDir);
@@ -217,7 +217,7 @@ void scltMakeOpNode(SNode **pNode, EOperatorType opType, int32_t resType, SNode 
   SOperatorNode *onode = (SOperatorNode *)node;
   onode->node.resType.type = resType;
   onode->node.resType.bytes = tDataTypes[resType].bytes;
-  
+
   onode->opType = opType;
   onode->pLeft = pLeft;
   onode->pRight = pRight;
@@ -1035,7 +1035,7 @@ void makeJsonArrow(SSDataBlock **src, SNode **opNode, void *json, char *key){
 
   SNode *pLeft = NULL, *pRight = NULL;
   scltMakeValueNode(&pRight, TSDB_DATA_TYPE_BINARY, keyVar);
-  scltMakeColumnNode(&pLeft, src, TSDB_DATA_TYPE_JSON, varDataLen(json), 1, json);
+  scltMakeColumnNode(&pLeft, src, TSDB_DATA_TYPE_JSON, ((STag*)json)->len, 1, json);
   scltMakeOpNode(opNode, OP_TYPE_JSON_GET_VALUE, TSDB_DATA_TYPE_JSON, pLeft, pRight);
 }
 
@@ -1088,18 +1088,17 @@ void makeCalculate(void *json, void *key, int32_t rightType, void *rightData, do
 
   }else if(opType == OP_TYPE_ADD || opType == OP_TYPE_SUB || opType == OP_TYPE_MULTI || opType == OP_TYPE_DIV ||
              opType == OP_TYPE_MOD || opType == OP_TYPE_MINUS){
-    double tmp = *((double *)colDataGetData(column, 0));
-    ASSERT_TRUE(tmp == exceptValue);
-    printf("result:%lf\n", tmp);
+    printf("1result:%f,except:%f\n", *((double *)colDataGetData(column, 0)), exceptValue);
+    ASSERT_TRUE(fabs(*((double *)colDataGetData(column, 0)) - exceptValue) < 0.0001);
   }else if(opType == OP_TYPE_BIT_AND || opType == OP_TYPE_BIT_OR){
+    printf("2result:%ld,except:%f\n", *((int64_t *)colDataGetData(column, 0)), exceptValue);
     ASSERT_EQ(*((int64_t *)colDataGetData(column, 0)), exceptValue);
-    printf("result:%ld\n", *((int64_t *)colDataGetData(column, 0)));
   }else if(opType == OP_TYPE_GREATER_THAN || opType == OP_TYPE_GREATER_EQUAL || opType == OP_TYPE_LOWER_THAN ||
              opType == OP_TYPE_LOWER_EQUAL || opType == OP_TYPE_EQUAL || opType == OP_TYPE_NOT_EQUAL ||
              opType == OP_TYPE_IS_NULL || opType == OP_TYPE_IS_NOT_NULL || opType == OP_TYPE_IS_TRUE ||
              opType == OP_TYPE_LIKE || opType == OP_TYPE_NOT_LIKE || opType == OP_TYPE_MATCH || opType == OP_TYPE_NMATCH){
+    printf("3result:%d,except:%f\n", *((bool *)colDataGetData(column, 0)), exceptValue);
     ASSERT_EQ(*((bool *)colDataGetData(column, 0)), exceptValue);
-    printf("result:%d\n", *((bool *)colDataGetData(column, 0)));
   }
 
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
@@ -1108,12 +1107,13 @@ void makeCalculate(void *json, void *key, int32_t rightType, void *rightData, do
 
 TEST(columnTest, json_column_arith_op) {
   scltInitLogFile();
-  char *rightv= "{\"k1\":4,\"k2\":\"hello\",\"k3\":null,\"k4\":true,\"k5\":5.44}";
+  char *rightvTmp= "{\"k1\":4,\"k2\":\"hello\",\"k3\":null,\"k4\":true,\"k5\":5.44}";
 
-  SKVRowBuilder kvRowBuilder;
-  tdInitKVRowBuilder(&kvRowBuilder);
-  parseJsontoTagData(rightv, &kvRowBuilder, NULL, 0);
-  SKVRow row = tdGetKVRowFromBuilder(&kvRowBuilder);
+  char rightv[256] = {0};
+  memcpy(rightv, rightvTmp, strlen(rightvTmp));
+  SArray *tags = taosArrayInit(1, sizeof(STagVal));
+  STag* row = NULL;
+  parseJsontoTagData(rightv, tags, &row, NULL);
 
   const int32_t len = 8;
   EOperatorType op[len] = {OP_TYPE_ADD, OP_TYPE_SUB, OP_TYPE_MULTI, OP_TYPE_DIV,
@@ -1166,6 +1166,9 @@ TEST(columnTest, json_column_arith_op) {
   for(int i = 0; i < len; i++){
     makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes5[i], op[i]);
   }
+
+  taosArrayDestroy(tags);
+  taosMemoryFree(row);
 }
 
 void *prepareNchar(char* rightData){
@@ -1180,12 +1183,13 @@ void *prepareNchar(char* rightData){
 
 TEST(columnTest, json_column_logic_op) {
   scltInitLogFile();
-  char *rightv= "{\"k1\":4,\"k2\":\"hello\",\"k3\":null,\"k4\":true,\"k5\":5.44,\"k6\":\"6.6hello\"}";
+  char *rightvTmp= "{\"k1\":4,\"k2\":\"hello\",\"k3\":null,\"k4\":true,\"k5\":5.44,\"k6\":\"6.6hello\"}";
 
-  SKVRowBuilder kvRowBuilder;
-  tdInitKVRowBuilder(&kvRowBuilder);
-  parseJsontoTagData(rightv, &kvRowBuilder, NULL, 0);
-  SKVRow row = tdGetKVRowFromBuilder(&kvRowBuilder);
+  char rightv[256] = {0};
+  memcpy(rightv, rightvTmp, strlen(rightvTmp));
+  SArray *tags = taosArrayInit(1, sizeof(STagVal));
+  STag* row = NULL;
+  parseJsontoTagData(rightv, tags, &row, NULL);
 
   const int32_t len = 9;
   const int32_t len1 = 4;
@@ -1222,8 +1226,8 @@ TEST(columnTest, json_column_logic_op) {
 
   printf("--------------------json null---------------------\n");
 
-  key = "k3";
-  double eRes2[len+len1] = {DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, true, false, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX};
+  key = "k3";   // (null is true) return NULL, so use DBL_MAX represent NULL
+  double eRes2[len+len1] = {false, false, false, false, false, false, true, false, DBL_MAX, false, false, false, false};
   for(int i = 0; i < len; i++){
     makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes2[i], op[i]);
   }
@@ -1262,7 +1266,7 @@ TEST(columnTest, json_column_logic_op) {
   printf("--------------------json double---------------------\n");
 
   key = "k6";
-  bool eRes5[len+len1] = {true, false, false, false, false, true, false, true, true, false, false, false, true};
+  bool eRes5[len+len1] = {true, false, false, false, false, true, false, true, true, false, true, false, true};
   for(int i = 0; i < len; i++){
     makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes5[i], op[i]);
   }
@@ -1274,8 +1278,8 @@ TEST(columnTest, json_column_logic_op) {
 
   printf("---------------------json not exist--------------------\n");
 
-  key = "k10";
-  double eRes10[len+len1] = {DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, true, false, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX};
+  key = "k10";    // (NULL is true) return NULL, so use DBL_MAX represent NULL
+  double eRes10[len+len1] = {false, false, false, false, false, false, true, false, DBL_MAX, false, false, false, false};
   for(int i = 0; i < len; i++){
     makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes10[i], op[i]);
   }
@@ -1284,6 +1288,9 @@ TEST(columnTest, json_column_logic_op) {
     makeCalculate(row, key, TSDB_DATA_TYPE_NCHAR, rightData, eRes10[i], op[i]);
     taosMemoryFree(rightData);
   }
+
+  taosArrayDestroy(tags);
+  taosMemoryFree(row);
 }
 
 TEST(columnTest, smallint_value_add_int_column) {
@@ -2475,7 +2482,7 @@ TEST(ScalarFunctionTest, tanFunction_column) {
   code = tanFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_NEAR(*((double *)colDataGetData(pOutput->columnData, i)), result[i], 1e-15);
     PRINTF("tiny_int after TAN:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(pInput);
@@ -2494,7 +2501,7 @@ TEST(ScalarFunctionTest, tanFunction_column) {
   code = tanFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_NEAR(*((double *)colDataGetData(pOutput->columnData, i)), result[i], 1e-15);
     PRINTF("float after TAN:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -3437,7 +3444,7 @@ TEST(ScalarFunctionTest, powFunction_column) {
 
   //TINYINT AND FLOAT
   int8_t param0[] = {2, 3, 4};
-  float  param1[] = {3.0, 3.0, 2.0};
+  float  param1[] = {3.0, 3.0, 3.0};
   scltMakeDataBlock(&input[0], TSDB_DATA_TYPE_TINYINT, 0, rowNum, false);
   pInput[0] = *input[0];
   for (int32_t i = 0; i < rowNum; ++i) {

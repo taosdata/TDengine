@@ -16,63 +16,23 @@
 #include "sut.h"
 
 void* serverLoop(void* param) {
-  SDnode* pDnode = (SDnode*)param;
-  dmRun(pDnode);
+  dmInit(0);
+  dmRun();
+  dmCleanup();
   return NULL;
 }
 
-SDnodeOpt TestServer::BuildOption(const char* path, const char* fqdn, uint16_t port, const char* firstEp) {
-  SDnodeOpt option = {0};
-  option.numOfSupportVnodes = 16;
-  option.serverPort = port;
-  strcpy(option.dataDir, path);
-  snprintf(option.localEp, TSDB_EP_LEN, "%s:%u", fqdn, port);
-  snprintf(option.localFqdn, TSDB_FQDN_LEN, "%s", fqdn);
-  snprintf(option.firstEp, TSDB_EP_LEN, "%s", firstEp);
-  return option;
-}
-
-bool TestServer::DoStart() {
-  SDnodeOpt option = BuildOption(path, fqdn, port, firstEp);
-  taosMkDir(path);
-
-  pDnode = dmCreate(&option);
-  if (pDnode == NULL) {
-    return false;
-  }
-
+bool TestServer::Start() {
   TdThreadAttr thAttr;
   taosThreadAttrInit(&thAttr);
   taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
-  taosThreadCreate(&threadId, &thAttr, serverLoop, pDnode);
+  taosThreadCreate(&threadId, &thAttr, serverLoop, NULL);
   taosThreadAttrDestroy(&thAttr);
   taosMsleep(2100);
   return true;
 }
 
-void TestServer::Restart() {
-  uInfo("start all server");
-  Stop();
-  DoStart();
-  uInfo("all server is running");
-}
-
-bool TestServer::Start(const char* path, const char* fqdn, uint16_t port, const char* firstEp) {
-  strcpy(this->path, path);
-  strcpy(this->fqdn, fqdn);
-  this->port = port;
-  strcpy(this->firstEp, firstEp);
-
-  taosRemoveDir(path);
-  return DoStart();
-}
-
 void TestServer::Stop() {
-  dmSetEvent(pDnode, DND_EVENT_STOP);
+  dmStop();
   taosThreadJoin(threadId, NULL);
-
-  if (pDnode != NULL) {
-    dmClose(pDnode);
-    pDnode = NULL;
-  }
 }

@@ -49,6 +49,8 @@ TEST_F(PlanGroupByTest, aggFunc) {
   run("SELECT LAST(*), FIRST(*) FROM t1");
 
   run("SELECT LAST(*), FIRST(*) FROM t1 GROUP BY c1");
+
+  run("SELECT SUM(10), COUNT(c1) FROM t1 GROUP BY c2");
 }
 
 TEST_F(PlanGroupByTest, selectFunc) {

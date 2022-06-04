@@ -18,11 +18,11 @@ class MndTestMnode : public ::testing::Test {
 
  public:
   static void SetUpTestSuite() {
-    test.Init("/tmp/mnode_test_mnode1", 9028);
+    test.Init(TD_TMP_DIR_PATH "mnode_test_mnode1", 9028);
     const char* fqdn = "localhost";
     const char* firstEp = "localhost:9028";
 
-    server2.Start("/tmp/mnode_test_mnode2", fqdn, 9029, firstEp);
+    // server2.Start(TD_TMP_DIR_PATH "mnode_test_mnode2", fqdn, 9029, firstEp);
     taosMsleep(300);
   }
 
@@ -188,7 +188,7 @@ TEST_F(MndTestMnode, 03_Create_Mnode_Rollback) {
 
   {
     // server start, wait until the rollback finished
-    server2.DoStart();
+    // server2.Start();
     taosMsleep(1000);
 
     int32_t retry = 0;
@@ -258,7 +258,7 @@ TEST_F(MndTestMnode, 04_Drop_Mnode_Rollback) {
 
   {
     // server start, wait until the rollback finished
-    server2.DoStart();
+    // server2.Start();
     taosMsleep(1000);
 
     int32_t retry = 0;

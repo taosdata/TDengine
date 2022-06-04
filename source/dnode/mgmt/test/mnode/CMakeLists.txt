@@ -4,7 +4,7 @@ target_link_libraries(
     dmnodeTest sut
 )
 
-add_test(
-    NAME dmnodeTest
-    COMMAND dmnodeTest
-)
+#add_test(
+#    NAME dmnodeTest
+#    COMMAND dmnodeTest
+#)

@@ -36,6 +36,8 @@ extern "C" {
 #define EXPLAIN_SORT_FORMAT "Sort"
 #define EXPLAIN_INTERVAL_FORMAT "Interval on Column %s"
 #define EXPLAIN_SESSION_FORMAT "Session"
+#define EXPLAIN_STATE_WINDOW_FORMAT "StateWindow on Column %s"
+#define EXPLAIN_PARITION_FORMAT "Partition on Column %s"
 #define EXPLAIN_ORDER_FORMAT "Order: %s"
 #define EXPLAIN_FILTER_FORMAT "Filter: "
 #define EXPLAIN_FILL_FORMAT "Fill: %s"
@@ -60,7 +62,7 @@ extern "C" {
 #define EXPLAIN_GROUPS_FORMAT "groups=%d"
 #define EXPLAIN_WIDTH_FORMAT "width=%d"
 #define EXPLAIN_FUNCTIONS_FORMAT "functions=%d"
-#define EXPLAIN_EXECINFO_FORMAT "cost=%" PRIu64 "..%" PRIu64 " rows=%" PRIu64
+#define EXPLAIN_EXECINFO_FORMAT "cost=%.3f..%.3f rows=%" PRIu64
 
 typedef struct SExplainGroup {
   int32_t   nodeNum;

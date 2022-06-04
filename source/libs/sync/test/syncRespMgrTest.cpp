@@ -20,8 +20,8 @@ void syncRespMgrInsert(uint64_t count) {
     memset(&stub, 0, sizeof(SRespStub));
     stub.createTime = taosGetTimestampMs();
     stub.rpcMsg.code = (pMgr->seqNum + 1);
-    stub.rpcMsg.ahandle = (void *)(200 + i);
-    stub.rpcMsg.handle = (void *)(300 + i);
+    stub.rpcMsg.info.ahandle = (void *)(200 + i);
+    stub.rpcMsg.info.handle = (void *)(300 + i);
     uint64_t ret = syncRespMgrAdd(pMgr, &stub);
     printf("insert %lu \n", ret);
   }
@@ -36,7 +36,7 @@ void syncRespMgrDelTest(uint64_t begin, uint64_t end) {
 
 void printStub(SRespStub *p) {
   printf("createTime:%ld, rpcMsg.code:%d rpcMsg.ahandle:%ld rpcMsg.handle:%ld \n", p->createTime, p->rpcMsg.code,
-         (int64_t)(p->rpcMsg.ahandle), (int64_t)(p->rpcMsg.handle));
+         (int64_t)(p->rpcMsg.info.ahandle), (int64_t)(p->rpcMsg.info.handle));
 }
 void syncRespMgrPrint() {
   printf("\n----------------syncRespMgrPrint--------------\n");

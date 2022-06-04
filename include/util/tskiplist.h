@@ -56,10 +56,10 @@ typedef enum { SSkipListPutSuccess = 0, SSkipListPutEarlyStop = 1, SSkipListPutS
 
 typedef struct SSkipList {
   uint32_t           seed;
+  uint16_t           len;
   __compar_fn_t      comparFn;
   __sl_key_fn_t      keyFn;
   TdThreadRwlock    *lock;
-  uint16_t           len;
   uint8_t            maxLevel;
   uint8_t            flags;
   uint8_t            type;  // static info above

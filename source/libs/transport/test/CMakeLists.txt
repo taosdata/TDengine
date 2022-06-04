@@ -110,3 +110,13 @@ target_link_libraries (pushServer
   transport 
 )
 
+
+add_test(
+  NAME transUT 
+  COMMAND transUT 
+)
+add_test(
+  NAME transUtilUt 
+  COMMAND transportTest
+)
+

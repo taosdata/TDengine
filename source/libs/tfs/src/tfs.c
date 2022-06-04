@@ -160,7 +160,14 @@ bool tfsIsSameFile(const STfsFile *pFile1, const STfsFile *pFile2) {
   if (pFile1 == NULL || pFile2 == NULL || pFile1->pTfs != pFile2->pTfs) return false;
   if (pFile1->did.level != pFile2->did.level) return false;
   if (pFile1->did.id != pFile2->did.id) return false;
-  if (strncmp(pFile1->rname, pFile2->rname, TSDB_FILENAME_LEN) != 0) return false;
+  char nameBuf1[TMPNAME_LEN], nameBuf2[TMPNAME_LEN];
+  strncpy(nameBuf1, pFile1->rname, TMPNAME_LEN);
+  strncpy(nameBuf2, pFile2->rname, TMPNAME_LEN);
+  nameBuf1[TMPNAME_LEN - 1] = 0;
+  nameBuf2[TMPNAME_LEN - 1] = 0;
+  taosRealPath(nameBuf1, NULL, TMPNAME_LEN);
+  taosRealPath(nameBuf2, NULL, TMPNAME_LEN);
+  if (strncmp(nameBuf1, nameBuf2, TMPNAME_LEN) != 0) return false;
   return true;
 }
 
