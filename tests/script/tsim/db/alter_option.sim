@@ -89,7 +89,7 @@ endi
 if $data4_db != 3 then  # replica
   return -1
 endi
-if $data5_db != nostrict then  # strict
+if $data5_db != no_strict then  # strict
   return -1
 endi
 if $data6_db != 345600 then  # days

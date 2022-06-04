@@ -1488,3 +1488,12 @@ SNode* createRevokeStmt(SAstCreateContext* pCxt, int64_t privileges, SToken* pDb
   strncpy(pStmt->userName, pUserName->z, pUserName->n);
   return (SNode*)pStmt;
 }
+
+SNode* createDeleteStmt(SAstCreateContext* pCxt, SNode* pTable, SNode* pWhere) {
+  CHECK_PARSER_STATUS(pCxt);
+  SDeleteStmt* pStmt = nodesMakeNode(QUERY_NODE_DELETE_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  pStmt->pFromTable = pTable;
+  pStmt->pWhere = pWhere;
+  return (SNode*)pStmt;
+}
