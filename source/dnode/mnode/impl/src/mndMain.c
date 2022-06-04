@@ -625,7 +625,7 @@ int32_t mndAcquireRpcRef(SMnode *pMnode) {
     code = -1;
   } else {
     int32_t ref = atomic_add_fetch_32(&pMnode->rpcRef, 1);
-    mTrace("mnode rpc is acquired, ref:%d", ref);
+    // mTrace("mnode rpc is acquired, ref:%d", ref);
   }
   taosThreadRwlockUnlock(&pMnode->lock);
   return code;
@@ -634,7 +634,7 @@ int32_t mndAcquireRpcRef(SMnode *pMnode) {
 void mndReleaseRpcRef(SMnode *pMnode) {
   taosThreadRwlockRdlock(&pMnode->lock);
   int32_t ref = atomic_sub_fetch_32(&pMnode->rpcRef, 1);
-  mTrace("mnode rpc is released, ref:%d", ref);
+  // mTrace("mnode rpc is released, ref:%d", ref);
   taosThreadRwlockUnlock(&pMnode->lock);
 }
 
@@ -675,7 +675,7 @@ int32_t mndAcquireSyncRef(SMnode *pMnode) {
     code = -1;
   } else {
     int32_t ref = atomic_add_fetch_32(&pMnode->syncRef, 1);
-    mTrace("mnode sync is acquired, ref:%d", ref);
+    // mTrace("mnode sync is acquired, ref:%d", ref);
   }
   taosThreadRwlockUnlock(&pMnode->lock);
   return code;
@@ -684,6 +684,6 @@ int32_t mndAcquireSyncRef(SMnode *pMnode) {
 void mndReleaseSyncRef(SMnode *pMnode) {
   taosThreadRwlockRdlock(&pMnode->lock);
   int32_t ref = atomic_sub_fetch_32(&pMnode->syncRef, 1);
-  mTrace("mnode sync is released, ref:%d", ref);
+  // mTrace("mnode sync is released, ref:%d", ref);
   taosThreadRwlockUnlock(&pMnode->lock);
 }
