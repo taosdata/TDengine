@@ -446,6 +446,8 @@ int32_t qwPrerocessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
 
   QW_ERR_JRET(qwAddAcquireTaskCtx(QW_FPARAMS(), &ctx));
 
+  ctx->ctrlConnInfo = qwMsg->connInfo;
+
   QW_ERR_JRET(qwAddTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_NOT_START));
 
 _return:
@@ -474,8 +476,6 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType, int8_t ex
 
   atomic_store_8(&ctx->taskType, taskType);
   atomic_store_8(&ctx->explain, explain);
-
-  ctx->ctrlConnInfo = qwMsg->connInfo;
 
   /*QW_TASK_DLOGL("subplan json string, len:%d, %s", qwMsg->msgLen, qwMsg->msg);*/
 

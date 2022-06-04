@@ -300,12 +300,12 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  msg->sId = be64toh(msg->sId);
-  msg->queryId = be64toh(msg->queryId);
-  msg->taskId = be64toh(msg->taskId);
-  msg->refId = be64toh(msg->refId);
-  msg->phyLen = ntohl(msg->phyLen);
-  msg->sqlLen = ntohl(msg->sqlLen);
+  msg->sId = msg->sId;
+  msg->queryId = msg->queryId;
+  msg->taskId = msg->taskId;
+  msg->refId = msg->refId;
+  msg->phyLen = msg->phyLen;
+  msg->sqlLen = msg->sqlLen;
 
   uint64_t sId = msg->sId;
   uint64_t qId = msg->queryId;

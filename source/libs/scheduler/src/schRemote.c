@@ -774,13 +774,20 @@ int32_t schEnsureHbConnection(SSchJob *pJob, SSchTask *pTask) {
   strcpy(epId.ep.fqdn, pEp->fqdn);
   epId.ep.port = pEp->port;
 
-  SSchHbTrans *hb = taosHashGet(schMgmt.hbConnections, &epId, sizeof(SQueryNodeEpId));
-  if (NULL == hb) {
-    bool exist = false;
-    SCH_ERR_RET(schRegisterHbConnection(pJob, pTask, &epId, &exist));
-    if (!exist) {
-      SCH_ERR_RET(schBuildAndSendHbMsg(&epId, NULL));
+  SSchHbTrans *hb = NULL;
+  while (true) {
+    hb = taosHashGet(schMgmt.hbConnections, &epId, sizeof(SQueryNodeEpId));
+    if (NULL == hb) {
+      bool exist = false;
+      SCH_ERR_RET(schRegisterHbConnection(pJob, pTask, &epId, &exist));
+      if (!exist) {
+        SCH_ERR_RET(schBuildAndSendHbMsg(&epId, NULL));
+      }
+
+      continue;
     }
+
+    break;
   }
 
   atomic_add_fetch_64(&hb->taskNum, 1);
