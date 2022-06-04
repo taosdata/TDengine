@@ -396,8 +396,8 @@ int32_t schUpdateTaskExecNode(SSchTask *pTask, void *handle, int32_t execIdx) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t schUpdateTaskHandle(SSchJob *pJob, SSchTask *pTask, int32_t msgType, void *handle, int32_t execIdx) {
-  if (msgType == TDMT_SCH_LINK_BROKEN) {
+int32_t schUpdateTaskHandle(SSchJob *pJob, SSchTask *pTask, bool dropExecNode, void *handle, int32_t execIdx) {
+  if (dropExecNode) {
     SCH_RET(schDropTaskExecNode(pJob, pTask, handle, execIdx));
   }
 

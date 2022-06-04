@@ -372,7 +372,8 @@ int32_t schHandleCallback(void *param, const SDataBuf *pMsg, int32_t msgType, in
     goto _return;
   }
 
-  SCH_ERR_JRET(schUpdateTaskHandle(pJob, pTask, msgType, pMsg->handle, pParam->execIdx));
+  bool dropExecNode = (msgType == TDMT_SCH_LINK_BROKEN || rspCode == TSDB_CODE_RPC_NETWORK_UNAVAIL);
+  SCH_ERR_JRET(schUpdateTaskHandle(pJob, pTask, dropExecNode, pMsg->handle, pParam->execIdx));
   
   SCH_ERR_JRET(schHandleResponseMsg(pJob, pTask, msgType, pMsg->pData, pMsg->len, rspCode));
 
