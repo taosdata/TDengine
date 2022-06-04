@@ -34,6 +34,7 @@ extern "C" {
 
 typedef struct TSDBROW TSDBROW;
 typedef struct TSDBKEY TSDBKEY;
+typedef struct TABLEID TABLEID;
 typedef struct SDelOp  SDelOp;
 
 static int tsdbKeyCmprFn(const void *p1, const void *p2);
@@ -883,6 +884,11 @@ struct TSDBKEY {
   TSKEY   ts;
 };
 
+struct TABLEID {
+  tb_uid_t suid;
+  tb_uid_t uid;
+};
+
 struct SDelOp {
   int64_t version;
   TSKEY   sKey;  // included
@@ -918,6 +924,26 @@ static FORCE_INLINE int tsdbKeyCmprFn(const void *p1, const void *p2) {
 
   return 0;
 }
+
+typedef struct SMemSkipListNode SMemSkipListNode;
+typedef struct SMemSkipList {
+  uint32_t          seed;
+  int32_t           size;
+  int8_t            maxLevel;
+  int8_t            level;
+  SMemSkipListNode *pHead;
+  SMemSkipListNode *pTail;
+} SMemSkipList;
+
+struct SMemData {
+  tb_uid_t     suid;
+  tb_uid_t     uid;
+  TSDBKEY      minKey;
+  TSDBKEY      maxKey;
+  SDelOp      *delOpHead;
+  SDelOp      *delOpTail;
+  SMemSkipList sl;
+};
 
 struct SMemDataIter {
   SMemData *pMemData;

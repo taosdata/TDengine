@@ -88,6 +88,30 @@ static int32_t tsdbEndCommit(SCommitH *pCHandle) {
   return code;
 }
 
+static int32_t tsdbCommitTableData(SCommitH *pCHandle, SMemData *pMemData, SBlockIdx *pBlockIdx) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+static int32_t tsdbTableIdCmprFn(const void *p1, const void *p2) {
+  TABLEID *pId1 = (TABLEID *)p1;
+  TABLEID *pId2 = (TABLEID *)p2;
+
+  if (pId1->suid < pId2->suid) {
+    return -1;
+  } else if (pId1->suid > pId2->suid) {
+    return 1;
+  }
+
+  if (pId1->uid < pId2->uid) {
+    return -1;
+  } else if (pId1->uid > pId2->uid) {
+    return 1;
+  }
+
+  return 0;
+}
 static int32_t tsdbCommitToFile(SCommitH *pCHandle, int32_t fid) {
   int32_t      code = 0;
   SMemDataIter iter = {0};
@@ -114,6 +138,8 @@ static int32_t tsdbCommitToFile(SCommitH *pCHandle, int32_t fid) {
 
   if (!hasData) return code;
 
+  // create or open the file to commit(todo)
+
   // loop to commit each table data
   nBlockIdx = 0;
   for (;;) {
@@ -127,7 +153,36 @@ static int32_t tsdbCommitToFile(SCommitH *pCHandle, int32_t fid) {
     if (iBlockIdx < nBlockIdx) {
       // pBlockIdx
     }
+
+    if (pMemData && pBlockIdx) {
+      int32_t c = tsdbTableIdCmprFn(&(TABLEID){.suid = pMemData->suid, .uid = pMemData->uid},
+                                    &(TABLEID){.suid = pBlockIdx->suid, .uid = pBlockIdx->uid});
+      if (c == 0) {
+        iMemData++;
+        iBlockIdx++;
+      } else if (c < 0) {
+        pBlockIdx = NULL;
+        iMemData++;
+      } else {
+        pMemData = NULL;
+        iBlockIdx++;
+      }
+    } else {
+      if (pMemData) {
+        iMemData++;
+      } else {
+        iBlockIdx++;
+      }
+    }
+
+    code = tsdbCommitTableData(pCHandle, pMemData, pBlockIdx);
+    if (code) {
+      goto _err;
+    }
   }
 
+  return code;
+
+_err:
   return code;
 }

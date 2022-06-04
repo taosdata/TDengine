@@ -15,31 +15,9 @@
 
 #include "tsdb.h"
 
-typedef struct SMemSkipList     SMemSkipList;
-typedef struct SMemSkipListNode SMemSkipListNode;
-
 struct SMemSkipListNode {
   int8_t            level;
   SMemSkipListNode *forwards[0];
-};
-
-struct SMemSkipList {
-  uint32_t          seed;
-  int32_t           size;
-  int8_t            maxLevel;
-  int8_t            level;
-  SMemSkipListNode *pHead;
-  SMemSkipListNode *pTail;
-};
-
-struct SMemData {
-  tb_uid_t     suid;
-  tb_uid_t     uid;
-  TSDBKEY      minKey;
-  TSDBKEY      maxKey;
-  SDelOp      *delOpHead;
-  SDelOp      *delOpTail;
-  SMemSkipList sl;
 };
 
 typedef struct {
