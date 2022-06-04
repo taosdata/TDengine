@@ -120,12 +120,12 @@ class TDTestCase:
         tdSql.error("select * from jsons1 where jtag contains 'location'='beijing'")
         #
         # # test function error
-        # tdSql.error("select avg(jtag->'tag1') from jsons1")
-        # tdSql.error("select avg(jtag) from jsons1")
-        # tdSql.error("select min(jtag->'tag1') from jsons1")
-        # tdSql.error("select min(jtag) from jsons1")
-        # tdSql.error("select ceil(jtag->'tag1') from jsons1")
-        # tdSql.error("select ceil(jtag) from jsons1")
+        tdSql.error("select avg(jtag->'tag1') from jsons1")
+        tdSql.error("select avg(jtag) from jsons1")
+        tdSql.error("select min(jtag->'tag1') from jsons1")
+        tdSql.error("select min(jtag) from jsons1")
+        tdSql.error("select ceil(jtag->'tag1') from jsons1")
+        tdSql.error("select ceil(jtag) from jsons1")
         #
         # # test select normal column
         tdSql.query("select dataint from jsons1")
@@ -174,7 +174,6 @@ class TDTestCase:
         cname_list = []
         cname_list.append("jtag->'tag1'")
         tdSql.checkColNameList(res, cname_list)
-
 
 
         # # test where with json tag
@@ -313,8 +312,8 @@ class TDTestCase:
         # tdSql.checkRows(2)
         #
         # # test with tbname/normal column
-        # tdSql.query("select * from jsons1 where tbname = 'jsons1_1'")
-        # tdSql.checkRows(2)
+        tdSql.query("select * from jsons1 where tbname = 'jsons1_1'")
+        tdSql.checkRows(2)
         # tdSql.query("select * from jsons1 where tbname = 'jsons1_1' and jtag contains 'tag3'")
         # tdSql.checkRows(2)
         # tdSql.query("select * from jsons1 where tbname = 'jsons1_1' and jtag contains 'tag3' and dataint=3")
@@ -345,14 +344,14 @@ class TDTestCase:
         # tdSql.checkRows(1)
         #
         # # test distinct
-        # tdSql.execute("insert into jsons1_14 using jsons1 tags('{\"tag1\":\"收到货\",\"tag2\":\"\",\"tag3\":null}') values(1591062628000, 2, NULL, '你就会', 'dws')")
+        tdSql.execute("insert into jsons1_14 using jsons1 tags('{\"tag1\":\"收到货\",\"tag2\":\"\",\"tag3\":null}') values(1591062628000, 2, NULL, '你就会', 'dws')")
         # tdSql.query("select distinct jtag->'tag1' from jsons1")
         # tdSql.checkRows(8)
         # tdSql.query("select distinct jtag from jsons1")
         # tdSql.checkRows(9)
         #
         # #test dumplicate key with normal colomn
-        # tdSql.execute("INSERT INTO jsons1_15 using jsons1 tags('{\"tbname\":\"tt\",\"databool\":true,\"datastr\":\"是是是\"}') values(1591060828000, 4, false, 'jjsf', \"你就会\")")
+        tdSql.execute("INSERT INTO jsons1_15 using jsons1 tags('{\"tbname\":\"tt\",\"databool\":true,\"datastr\":\"是是是\"}') values(1591060828000, 4, false, 'jjsf', \"你就会\")")
         # tdSql.query("select *,tbname,jtag from jsons1 where jtag->'datastr' match '是' and datastr match 'js'")
         # tdSql.checkRows(1)
         # tdSql.query("select tbname,jtag->'tbname' from jsons1 where jtag->'tbname'='tt' and tbname='jsons1_14'")
