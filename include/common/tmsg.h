@@ -2409,7 +2409,7 @@ typedef struct {
   int64_t indexUid;
   int8_t  flags;  // 0x1 all window expired
   int32_t numExpWnds;
-  TSKEY*  wndSKeys[];
+  TSKEY   wndSKeys[];
 } SVGetTsmaExpWndsRsp;
 
 int32_t tEncodeSVGetTSmaExpWndsReq(SEncoder* pCoder, const SVGetTsmaExpWndsReq* pReq);

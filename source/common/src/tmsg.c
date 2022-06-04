@@ -3771,20 +3771,20 @@ int32_t tEncodeSVGetTSmaExpWndsRsp(SEncoder* pCoder, const SVGetTsmaExpWndsRsp* 
   if (tEncodeI8(pCoder, pReq->flags) < 0) return -1;
   if (tEncodeI32(pCoder, pReq->numExpWnds) < 0) return -1;
   for (int32_t i = 0; i < pReq->numExpWnds; ++i) {
-    if (tEncodeI64(pCoder, *(int64_t*)((TSKEY*)pReq->wndSKeys + i)) < 0) return -1;
+    if (tEncodeI64(pCoder, pReq->wndSKeys[i]) < 0) return -1;
   }
   tEndEncode(pCoder);
   return 0;
 }
 
-int32_t tDecodeSVGetTsmaExpWndsRsp(SDecoder* pCoder, SVGetTsmaExpWndsRsp* pReq) {
+int32_t tDecodeSVGetTsmaExpWndsRsp(SDecoder *pCoder, SVGetTsmaExpWndsRsp *pReq) {
   if (tStartDecode(pCoder) < 0) return -1;
 
   if (tDecodeI64(pCoder, &pReq->indexUid) < 0) return -1;
   if (tDecodeI8(pCoder, &pReq->flags) < 0) return -1;
   if (tDecodeI32(pCoder, &pReq->numExpWnds) < 0) return -1;
   for (int32_t i = 0; i < pReq->numExpWnds; ++i) {
-    if (tDecodeI64(pCoder, (TSKEY*)pReq->wndSKeys + i) < 0) return -1;
+    if (tDecodeI64(pCoder, &pReq->wndSKeys[i]) < 0) return -1;
   }
 
   tEndDecode(pCoder);
@@ -3801,9 +3801,8 @@ int32_t tEncodeSVDeleteReq(SEncoder* pCoder, const SVDeleteReq* pReq) {
   if (tEncodeCStr(pCoder, pReq->tbFullName) < 0) return -1;
   if (tEncodeCStr(pCoder, pReq->subPlan) < 0) return -1;
   for (int16_t i = 0; i < pReq->nWnds; ++i) {
-    STimeWindow* wnd = (STimeWindow*)pReq->wnds + i;
-    if (tEncodeI64(pCoder, wnd->skey) < 0) return -1;
-    if (tEncodeI64(pCoder, wnd->ekey) < 0) return -1;
+    if (tEncodeI64(pCoder, pReq->wnds[i].skey) < 0) return -1;
+    if (tEncodeI64(pCoder, pReq->wnds[i].ekey) < 0) return -1;
   }
 
   tEndEncode(pCoder);
@@ -3820,9 +3819,8 @@ int32_t tDecodeSVDeleteReq(SDecoder* pCoder, SVDeleteReq* pReq) {
   if (tDecodeCStr(pCoder, &pReq->tbFullName) < 0) return -1;
   if (tDecodeCStr(pCoder, &pReq->subPlan) < 0) return -1;
   for (int16_t i = 0; i < pReq->nWnds; ++i) {
-    STimeWindow* wnd = (STimeWindow*)pReq->wnds + i;
-    if (tDecodeI64(pCoder, &wnd->skey) < 0) return -1;
-    if (tDecodeI64(pCoder, &wnd->ekey) < 0) return -1;
+    if (tDecodeI64(pCoder, &pReq->wnds[i].skey) < 0) return -1;
+    if (tDecodeI64(pCoder, &pReq->wnds[i].ekey) < 0) return -1;
   }
 
   tEndDecode(pCoder);
