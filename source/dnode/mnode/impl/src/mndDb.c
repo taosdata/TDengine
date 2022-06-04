@@ -1344,6 +1344,9 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, 
       mDebug("db:%s, version & numOfTable not changed", pDbVgVersion->dbFName);
       mndReleaseDb(pMnode, pDb);
       continue;
+    } else {
+      mDebug("db:%s, vgroup version changed from %d to %d", pDbVgVersion->dbFName, pDbVgVersion->vgVersion,
+             pDb->vgVersion);
     }
 
     usedbRsp.pVgroupInfos = taosArrayInit(pDb->cfg.numOfVgroups, sizeof(SVgroupInfo));
