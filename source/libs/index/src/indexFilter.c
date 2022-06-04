@@ -31,7 +31,7 @@ typedef struct SIFParam {
   SHashObj *pFilter;
 
   SArray *result;
-  char *  condValue;
+  char   *condValue;
 
   SIdxFltStatus status;
   uint8_t       colValType;
@@ -45,7 +45,7 @@ typedef struct SIFParam {
 
 typedef struct SIFCtx {
   int32_t       code;
-  SHashObj *    pRes;    /* element is SIFParam */
+  SHashObj     *pRes;    /* element is SIFParam */
   bool          noExec;  // true: just iterate condition tree, and add hint to executor plan
   SIndexMetaArg arg;
   // SIdxFltStatus st;
@@ -128,7 +128,7 @@ static int32_t sifGetValueFromNode(SNode *node, char **value) {
   // covert data From snode;
   SValueNode *vn = (SValueNode *)node;
 
-  char *     pData = nodesGetValueFromNode(vn);
+  char      *pData = nodesGetValueFromNode(vn);
   SDataType *pType = &vn->node.resType;
   int32_t    type = pType->type;
   int32_t    valLen = 0;
@@ -486,7 +486,7 @@ static int32_t sifExecLogic(SLogicConditionNode *node, SIFCtx *ctx, SIFParam *ou
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
 
-  int32_t   code;
+  int32_t   code = TSDB_CODE_SUCCESS;
   SIFParam *params = NULL;
   SIF_ERR_RET(sifInitParamList(&params, node->pParameterList, ctx));
 
@@ -664,7 +664,7 @@ int32_t doFilterTag(const SNode *pFilterNode, SIndexMetaArg *metaArg, SArray *re
   // todo move to the initialization function
   // SIF_ERR_RET(filterInitFromNode((SNode *)pFilterNode, &filter, 0));
 
-  SArray * output = taosArrayInit(8, sizeof(uint64_t));
+  SArray  *output = taosArrayInit(8, sizeof(uint64_t));
   SIFParam param = {.arg = *metaArg, .result = output};
   SIF_ERR_RET(sifCalculate((SNode *)pFilterNode, &param));
 
