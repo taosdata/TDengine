@@ -163,7 +163,7 @@ static void vmProcessApplyQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
     SRpcMsg rsp = {0};
 
     // get original rpc msg
-    assert(pMsg->msgType == TDMT_VND_SYNC_APPLY_MSG);
+    assert(pMsg->msgType == TDMT_SYNC_APPLY_MSG);
     SyncApplyMsg *pSyncApplyMsg = syncApplyMsgFromRpcMsg2(pMsg);
     syncApplyMsgLog2("==vmProcessApplyQueue==", pSyncApplyMsg);
     SRpcMsg originalRpcMsg;
