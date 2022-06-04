@@ -62,6 +62,8 @@ int32_t syncNodeOnRequestVoteCb(SSyncNode* ths, SyncRequestVote* pMsg) {
     // maybe has already voted for pMsg->srcId
     // vote again, no harm
     raftStoreVote(ths->pRaftStore, &(pMsg->srcId));
+
+    syncNodeResetElectTimer(ths);
   }
 
   SyncRequestVoteReply* pReply = syncRequestVoteReplyBuild(ths->vgId);
