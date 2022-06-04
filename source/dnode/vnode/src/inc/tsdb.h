@@ -46,6 +46,10 @@ void    tsdbMemTableDestroy2(SMemTable *pMemTable);
 int32_t tsdbInsertTableData2(STsdb *pTsdb, int64_t version, SVSubmitBlk *pSubmitBlk);
 int32_t tsdbDeleteTableData2(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
 
+// tsdbCommit2.c ==============================================================================================
+int32_t tsdbBegin2(STsdb *pTsdb);
+int32_t tsdbCommit2(STsdb *pTsdb);
+
 // tsdbMemTable ================
 typedef struct STsdbRow      STsdbRow;
 typedef struct STbData       STbData;
@@ -875,6 +879,16 @@ struct SDelOp {
   TSKEY   sKey;  // included
   TSKEY   eKey;  // included
   SDelOp *pNext;
+};
+
+struct SMemTable {
+  STsdb  *pTsdb;
+  int32_t nRef;
+  TSDBKEY minKey;
+  TSDBKEY maxKey;
+  int64_t nRows;
+  SArray *aSkmInfo;
+  SArray *aMemData;
 };
 
 static FORCE_INLINE int tsdbKeyCmprFn(const void *p1, const void *p2) {

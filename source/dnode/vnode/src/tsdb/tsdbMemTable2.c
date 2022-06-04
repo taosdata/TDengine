@@ -43,14 +43,10 @@ struct SMemData {
   SMemSkipList sl;
 };
 
-struct SMemTable {
-  STsdb  *pTsdb;
-  int32_t nRef;
-  TSDBKEY minKey;
-  TSDBKEY maxKey;
-  int64_t nRows;
-  SArray *pArray;  // SArray<SMemData>
-};
+typedef struct {
+  tb_uid_t  uid;
+  STSchema *pTSchema;
+} SSkmInfo;
 
 #define SL_MAX_LEVEL 5
 
@@ -85,8 +81,8 @@ int32_t tsdbMemTableCreate2(STsdb *pTsdb, SMemTable **ppMemTable) {
   pMemTable->minKey = (TSDBKEY){.version = INT64_MAX, .ts = TSKEY_MAX};
   pMemTable->maxKey = (TSDBKEY){.version = -1, .ts = TSKEY_MIN};
   pMemTable->nRows = 0;
-  pMemTable->pArray = taosArrayInit(512, sizeof(SMemData *));
-  if (pMemTable->pArray == NULL) {
+  pMemTable->aMemData = taosArrayInit(512, sizeof(SMemData *));
+  if (pMemTable->aMemData == NULL) {
     taosMemoryFree(pMemTable);
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
@@ -101,7 +97,7 @@ _err:
 }
 
 void tsdbMemTableDestroy2(SMemTable *pMemTable) {
-  taosArrayDestroyEx(pMemTable->pArray, NULL /*TODO*/);
+  taosArrayDestroyEx(pMemTable->aMemData, NULL /*TODO*/);
   taosMemoryFree(pMemTable);
 }
 
@@ -196,9 +192,9 @@ static int32_t tsdbGetOrCreateMemData(SMemTable *pMemTable, tb_uid_t suid, tb_ui
   int8_t     maxLevel = pMemTable->pTsdb->pVnode->config.tsdbCfg.slLevel;
 
   // get
-  idx = taosArraySearchIdx(pMemTable->pArray, &pMemDataT, memDataPCmprFn, TD_GE);
+  idx = taosArraySearchIdx(pMemTable->aMemData, &pMemDataT, memDataPCmprFn, TD_GE);
   if (idx >= 0) {
-    pMemData = (SMemData *)taosArrayGet(pMemTable->pArray, idx);
+    pMemData = (SMemData *)taosArrayGet(pMemTable->aMemData, idx);
     if (memDataPCmprFn(&pMemDataT, &pMemData) == 0) goto _exit;
   }
 
@@ -230,7 +226,7 @@ static int32_t tsdbGetOrCreateMemData(SMemTable *pMemTable, tb_uid_t suid, tb_ui
   }
 
   if (idx < 0) idx = 0;
-  if (taosArrayInsert(pMemTable->pArray, idx, &pMemData) == NULL) {
+  if (taosArrayInsert(pMemTable->aMemData, idx, &pMemData) == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
