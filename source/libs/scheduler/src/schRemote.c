@@ -648,31 +648,6 @@ _return:
   SCH_RET(code);
 }
 
-int32_t schRegisterHbConnection(SSchJob *pJob, SSchTask *pTask, SQueryNodeEpId *epId, bool *exist) {
-  int32_t     code = 0;
-  SSchHbTrans hb = {0};
-
-  hb.trans.pTrans = pJob->pTrans;
-
-  SCH_ERR_RET(schMakeHbRpcCtx(pJob, pTask, &hb.rpcCtx));
-
-  code = taosHashPut(schMgmt.hbConnections, epId, sizeof(SQueryNodeEpId), &hb, sizeof(SSchHbTrans));
-  if (code) {
-    schFreeRpcCtx(&hb.rpcCtx);
-
-    if (HASH_NODE_EXIST(code)) {
-      *exist = true;
-      return TSDB_CODE_SUCCESS;
-    }
-
-    qError("taosHashPut hb trans failed, nodeId:%d, fqdn:%s, port:%d", epId->nodeId, epId->ep.fqdn, epId->ep.port);
-    SCH_ERR_RET(code);
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
-
 int32_t schBuildAndSendHbMsg(SQueryNodeEpId *nodeEpId, SArray* taskAction) {
   SSchedulerHbReq req = {0};
   int32_t         code = 0;
@@ -684,17 +659,20 @@ int32_t schBuildAndSendHbMsg(SQueryNodeEpId *nodeEpId, SArray* taskAction) {
   req.sId = schMgmt.sId;
   memcpy(&req.epId, nodeEpId, sizeof(SQueryNodeEpId));
 
+  SCH_LOCK(SCH_READ, &schMgmt.hbLock);
   SSchHbTrans *hb = taosHashGet(schMgmt.hbConnections, nodeEpId, sizeof(SQueryNodeEpId));
   if (NULL == hb) {
-    qError("taosHashGet hb connection failed, nodeId:%d, fqdn:%s, port:%d", nodeEpId->nodeId, nodeEpId->ep.fqdn,
+    SCH_UNLOCK(SCH_READ, &schMgmt.hbLock);
+    qError("hb connection no longer exist, nodeId:%d, fqdn:%s, port:%d", nodeEpId->nodeId, nodeEpId->ep.fqdn,
            nodeEpId->ep.port);
-    SCH_ERR_RET(code);
+    return TSDB_CODE_SUCCESS;
   }
 
   SCH_LOCK(SCH_WRITE, &hb->lock);
   code = schCloneHbRpcCtx(&hb->rpcCtx, &rpcCtx);
   memcpy(&trans, &hb->trans, sizeof(trans));
   SCH_UNLOCK(SCH_WRITE, &hb->lock);
+  SCH_UNLOCK(SCH_READ, &schMgmt.hbLock);
 
   SCH_ERR_RET(code);
 
@@ -762,60 +740,6 @@ _return:
   taosMemoryFreeClear(pMsgSendInfo);
   schFreeRpcCtx(&rpcCtx);
   SCH_RET(code);
-}
-
-
-int32_t schEnsureHbConnection(SSchJob *pJob, SSchTask *pTask) {
-  SQueryNodeAddr *addr = taosArrayGet(pTask->candidateAddrs, pTask->candidateIdx);
-  SQueryNodeEpId  epId = {0};
-
-  epId.nodeId = addr->nodeId;
-
-  SEp* pEp = SCH_GET_CUR_EP(addr);
-  strcpy(epId.ep.fqdn, pEp->fqdn);
-  epId.ep.port = pEp->port;
-
-  SSchHbTrans *hb = NULL;
-  while (true) {
-    hb = taosHashGet(schMgmt.hbConnections, &epId, sizeof(SQueryNodeEpId));
-    if (NULL == hb) {
-      bool exist = false;
-      SCH_ERR_RET(schRegisterHbConnection(pJob, pTask, &epId, &exist));
-      if (!exist) {
-        SCH_ERR_RET(schBuildAndSendHbMsg(&epId, NULL));
-      }
-
-      continue;
-    }
-
-    break;
-  }
-
-  atomic_add_fetch_64(&hb->taskNum, 1);
-  
-  pTask->registerdHb = true;
-
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t schUpdateHbConnection(SQueryNodeEpId *epId, SSchTrans *trans) {
-  int32_t      code = 0;
-  SSchHbTrans *hb = NULL;
-
-  hb = taosHashGet(schMgmt.hbConnections, epId, sizeof(SQueryNodeEpId));
-  if (NULL == hb) {
-    qError("taosHashGet hb connection failed, nodeId:%d, fqdn:%s, port:%d", epId->nodeId, epId->ep.fqdn, epId->ep.port);
-    SCH_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
-  }
-
-  SCH_LOCK(SCH_WRITE, &hb->lock);
-  memcpy(&hb->trans, trans, sizeof(*trans));
-  SCH_UNLOCK(SCH_WRITE, &hb->lock);
-
-  qDebug("hb connection updated, sId:%" PRIx64 ", nodeId:%d, fqdn:%s, port:%d, pTrans:%p, pHandle:%p", schMgmt.sId,
-         epId->nodeId, epId->ep.fqdn, epId->ep.port, trans->pTrans, trans->pHandle);
-
-  return TSDB_CODE_SUCCESS;
 }
 
 int32_t schHandleHbCallback(void *param, const SDataBuf *pMsg, int32_t code) {

@@ -130,8 +130,12 @@ void destroyTscObj(void *pObj) {
 
   SClientHbKey connKey = {.tscRid = pTscObj->id, .connType = pTscObj->connType};
   hbDeregisterConn(pTscObj->pAppInfo->pAppHbMgr, connKey);
-  atomic_sub_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
+  int64_t connNum = atomic_sub_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
   closeAllRequests(pTscObj->pRequests);
+  schedulerStopQueryHb(pTscObj->pAppInfo->pTransporter);
+  if (0 == connNum) {
+    closeTransporter(pTscObj);
+  }
   tscDebug("connObj 0x%" PRIx64 " destroyed, totalConn:%" PRId64, pTscObj->id, pTscObj->pAppInfo->numOfConns);
   taosThreadMutexDestroy(&pTscObj->mutex);
   taosMemoryFreeClear(pTscObj);

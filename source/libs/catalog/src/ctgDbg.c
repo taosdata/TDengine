@@ -132,6 +132,21 @@ void ctgdUserCallback(SMetaData* pResult, void* param, int32_t code) {
   }     
 }
 
+
+/*
+prepare SQL:
+create database db1;
+use db1;
+create stable st1 (ts timestamp, f1 int) tags(t1 int);
+create table tb1 using st1 tags(1);
+insert into tb1 values (now, 1);
+create qnode on dnode 1;
+create user user1 pass "abc";
+create database db2;
+grant write on db2.* to user1;
+create function udf1 as '/tmp/libudf1.so' outputtype int;
+create aggregate function udf2 as '/tmp/libudf2.so' outputtype int;
+*/
 int32_t ctgdLaunchAsyncCall(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, uint64_t reqId, bool forceUpdate) {
   int32_t code = 0;
   SCatalogReq req = {0};

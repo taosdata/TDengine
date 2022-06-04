@@ -1982,6 +1982,7 @@ typedef struct {
 
 typedef struct {
   SClientHbKey      connKey;
+  int64_t           clusterId;
   SQueryHbReqBasic* query;
   SHashObj*         info;  // hash<Skv.key, Skv>
 } SClientHbReq;

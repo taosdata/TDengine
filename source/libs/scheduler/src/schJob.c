@@ -126,30 +126,6 @@ _return:
   SCH_RET(code);
 }
 
-void schDeregisterTaskHb(SSchJob *pJob, SSchTask *pTask) {
-  if (!pTask->registerdHb) {
-    return;
-  }
-  
-  SQueryNodeAddr *addr = taosArrayGet(pTask->candidateAddrs, pTask->candidateIdx);
-  SQueryNodeEpId  epId = {0};
-
-  epId.nodeId = addr->nodeId;
-
-  SEp* pEp = SCH_GET_CUR_EP(addr);
-  strcpy(epId.ep.fqdn, pEp->fqdn);
-  epId.ep.port = pEp->port;
-
-  SSchHbTrans *hb = taosHashGet(schMgmt.hbConnections, &epId, sizeof(SQueryNodeEpId));
-  if (NULL == hb) {
-    SCH_TASK_ELOG("nodeId %d fqdn %s port %d not in hb connections", epId.nodeId, epId.ep.fqdn, epId.ep.port);
-    return;
-  }
-
-  atomic_sub_fetch_64(&hb->taskNum, 1);
-  
-  pTask->registerdHb = false;
-}
 
 void schFreeTask(SSchJob *pJob, SSchTask *pTask) {
   schDeregisterTaskHb(pJob, pTask);
@@ -1484,9 +1460,10 @@ void schFreeJobImpl(void *job) {
 
   qDebug("QID:0x%" PRIx64 " job freed, refId:%" PRIx64 ", pointer:%p", queryId, refId, pJob);
 
-  atomic_sub_fetch_32(&schMgmt.jobNum, 1);
-
-  schCloseJobRef();
+  int32_t jobNum = atomic_sub_fetch_32(&schMgmt.jobNum, 1);
+  if (jobNum == 0) {
+    schCloseJobRef();
+  }
 }
 
 int32_t schExecJobImpl(void *pTrans, SArray *pNodeList, SQueryPlan *pDag, int64_t *job, const char *sql,

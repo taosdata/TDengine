@@ -1424,6 +1424,8 @@ int32_t isNotSchemalessDb(SParseContext* pContext, char *dbName){
     parserError("catalogGetDBCfg error, code:%s, dbFName:%s", tstrerror(code), dbFname);
     return code;
   }
+  taosArrayDestroy(pInfo.pRetensions);
+  
   if (pInfo.schemaless){
     parserError("can not insert into schemaless db:%s", dbFname);
     return TSDB_CODE_SML_INVALID_DB_CONF;
