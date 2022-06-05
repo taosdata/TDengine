@@ -37,11 +37,11 @@ static void tsdbScanAndTryFixDFilesHeader(STsdb *pRepo, int32_t *nExpired);
 // static int  tsdbProcessExpiredFS(STsdb *pRepo);
 // static int  tsdbCreateMeta(STsdb *pRepo);
 
-static void tsdbGetRootDir(int repoid, const char* dir, char dirName[]) {
+static void tsdbGetRootDir(int repoid, const char *dir, char dirName[]) {
   snprintf(dirName, TSDB_FILENAME_LEN, "vnode/vnode%d/%s", repoid, dir);
 }
 
-static void tsdbGetDataDir(int repoid,  const char* dir, char dirName[]) {
+static void tsdbGetDataDir(int repoid, const char *dir, char dirName[]) {
   snprintf(dirName, TSDB_FILENAME_LEN, "vnode/vnode%d/%s/data", repoid, dir);
 }
 

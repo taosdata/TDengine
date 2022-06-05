@@ -59,6 +59,7 @@ int32_t tsdbMemTableCreate2(STsdb *pTsdb, SMemTable **ppMemTable) {
   pMemTable->minKey = (TSDBKEY){.version = INT64_MAX, .ts = TSKEY_MAX};
   pMemTable->maxKey = (TSDBKEY){.version = -1, .ts = TSKEY_MIN};
   pMemTable->nRows = 0;
+  pMemTable->nDelOp = 0;
   pMemTable->aMemData = taosArrayInit(512, sizeof(SMemData *));
   if (pMemTable->aMemData == NULL) {
     taosMemoryFree(pMemTable);
@@ -148,6 +149,8 @@ int32_t tsdbDeleteTableData2(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_ui
   {
     // update the state of pMemTable, pMemData, last and lastrow (todo)
   }
+
+  pMemTable->nDelOp++;
 
   tsdbDebug("vgId:%d, delete data from table suid:%" PRId64 " uid:%" PRId64 " sKey:%" PRId64 " eKey:%" PRId64
             " since %s",

@@ -17,13 +17,22 @@
 
 typedef struct {
   SMemTable *pMemTable;
+  int32_t    minutes;
+  int8_t     precision;
+  int32_t    sfid;
+  int32_t    efid;
   SReadH     readh;
+  SDFileSet  wSet;
+  SArray    *aDelInfo;
   SArray    *aBlkIdx;
+  SArray    *aSupBlk;
+  SArray    *aSubBlk;
 } SCommitH;
 
 static int32_t tsdbStartCommit(SCommitH *pCHandle, STsdb *pTsdb);
 static int32_t tsdbEndCommit(SCommitH *pCHandle);
 static int32_t tsdbCommitToFile(SCommitH *pCHandle, int32_t fid);
+static int32_t tsdbCommitDelete(SCommitH *pCHandle);
 
 int32_t tsdbBegin2(STsdb *pTsdb) {
   int32_t code = 0;
@@ -50,13 +59,16 @@ int32_t tsdbCommit2(STsdb *pTsdb) {
   }
 
   // commit
-  int32_t sfid;  // todo
-  int32_t efid;  // todo
-  for (int32_t fid = sfid; fid <= efid; fid++) {
+  for (int32_t fid = ch.sfid; fid <= ch.efid; fid++) {
     code = tsdbCommitToFile(&ch, fid);
     if (code) {
       goto _err;
     }
+  }
+
+  code = tsdbCommitDelete(&ch);
+  if (code) {
+    goto _err;
   }
 
   // end commit
@@ -74,18 +86,77 @@ _err:
 }
 
 static int32_t tsdbStartCommit(SCommitH *pCHandle, STsdb *pTsdb) {
-  int32_t code = 0;
+  int32_t    code = 0;
+  SMemTable *pMemTable = (SMemTable *)pTsdb->mem;
 
+  tsdbInfo("vgId:%d start to commit", TD_VID(pTsdb->pVnode));
+
+  // switch to commit
   ASSERT(pTsdb->imem == NULL && pTsdb->mem);
   pTsdb->imem = pTsdb->mem;
   pTsdb->mem = NULL;
-  // TODO
+
+  // open handle
+  pCHandle->pMemTable = pMemTable;
+  pCHandle->minutes = pTsdb->keepCfg.days;
+  pCHandle->precision = pTsdb->keepCfg.precision;
+  pCHandle->sfid = TSDB_KEY_FID(pMemTable->minKey.ts, pCHandle->minutes, pCHandle->precision);
+  pCHandle->efid = TSDB_KEY_FID(pMemTable->maxKey.ts, pCHandle->minutes, pCHandle->precision);
+
+  code = tsdbInitReadH(&pCHandle->readh, pTsdb);
+  if (code) {
+    goto _err;
+  }
+  pCHandle->aBlkIdx = taosArrayInit(1024, sizeof(SBlockIdx));
+  if (pCHandle->aBlkIdx == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+  pCHandle->aSupBlk = taosArrayInit(1024, sizeof(SBlock));
+  if (pCHandle->aSupBlk == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+  pCHandle->aSubBlk = taosArrayInit(1024, sizeof(SBlock));
+  if (pCHandle->aSubBlk == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+
+  // start FS transaction
+  tsdbStartFSTxn(pTsdb, 0, 0);
+
+  return code;
+
+_err:
   return code;
 }
 
 static int32_t tsdbEndCommit(SCommitH *pCHandle) {
-  int32_t code = 0;
-  // TODO
+  int32_t    code = 0;
+  STsdb     *pTsdb = pCHandle->pMemTable->pTsdb;
+  SMemTable *pMemTable = (SMemTable *)pTsdb->imem;
+
+  // end transaction
+  code = tsdbEndFSTxn(pTsdb);
+  if (code) {
+    goto _err;
+  }
+
+  // close handle
+  taosArrayClear(pCHandle->aSubBlk);
+  taosArrayClear(pCHandle->aSupBlk);
+  taosArrayClear(pCHandle->aBlkIdx);
+  tsdbDestroyReadH(&pCHandle->readh);
+
+  // destroy memtable (todo: unref it)
+  pTsdb->imem = NULL;
+  tsdbMemTableDestroy2(pMemTable);
+
+  tsdbInfo("vgId:%d commit over", TD_VID(pTsdb->pVnode));
+  return code;
+
+_err:
   return code;
 }
 
@@ -191,6 +262,65 @@ static int32_t tsdbCommitToFile(SCommitH *pCHandle, int32_t fid) {
     }
   }
 
+  return code;
+
+_err:
+  return code;
+}
+
+static int32_t delInfoCmprFn(const void *p1, const void *p2) {
+  SDelInfo *pDelInfo1 = (SDelInfo *)p1;
+  SDelInfo *pDelInfo2 = (SDelInfo *)p2;
+
+  if (pDelInfo1->suid < pDelInfo2->suid) {
+    return -1;
+  } else if (pDelInfo1->suid > pDelInfo2->suid) {
+    return 1;
+  }
+
+  if (pDelInfo1->uid < pDelInfo2->uid) {
+    return -1;
+  } else if (pDelInfo1->uid > pDelInfo2->uid) {
+    return 1;
+  }
+
+  if (pDelInfo1->version < pDelInfo2->version) {
+    return -1;
+  } else if (pDelInfo1->version > pDelInfo2->version) {
+    return 1;
+  }
+
+  return 0;
+}
+static int32_t tsdbCommitDelete(SCommitH *pCHandle) {
+  int32_t   code = 0;
+  SDelInfo  delInfo;
+  SMemData *pMemData;
+
+  if (pCHandle->pMemTable->nDelOp == 0) goto _exit;
+
+  // load del array (todo)
+
+  // loop to append SDelInfo
+  for (int32_t iMemData = 0; iMemData < taosArrayGetSize(pCHandle->pMemTable->aMemData); iMemData++) {
+    pMemData = (SMemData *)taosArrayGetP(pCHandle->pMemTable->aMemData, iMemData);
+
+    for (SDelOp *pDelOp = pMemData->delOpHead; pDelOp; pDelOp = pDelOp->pNext) {
+      delInfo = (SDelInfo){.suid = pMemData->suid,
+                           .uid = pMemData->uid,
+                           .version = pDelOp->version,
+                           .sKey = pDelOp->sKey,
+                           .eKey = pDelOp->eKey};
+      if (taosArrayPush(pCHandle->aDelInfo, &delInfo) == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _err;
+      }
+    }
+  }
+
+  taosArraySort(pCHandle->aDelInfo, delInfoCmprFn);
+
+_exit:
   return code;
 
 _err:

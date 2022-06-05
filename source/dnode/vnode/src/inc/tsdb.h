@@ -310,33 +310,13 @@ typedef struct {
   SBlock   blocks[];
 } SBlockInfo;
 
-#ifdef TD_REFACTOR_3
-typedef struct {
-  int16_t  colId;
-  uint16_t bitmap : 1;  // 0: no bitmap if all rows are NORM, 1: has bitmap if has NULL/NORM rows
-  uint16_t reserve : 15;
-  int32_t  len;
-  uint32_t type : 8;
-  uint32_t offset : 24;
-  int64_t  sum;
-  int64_t  max;
-  int64_t  min;
-  int16_t  maxIndex;
-  int16_t  minIndex;
-  int16_t  numOfNull;
-  uint8_t  offsetH;
-  char     padding[1];
-} SBlockCol;
-#else
 typedef struct {
   int16_t  colId;
   uint16_t type : 6;
   uint16_t blen : 10;  // 0 no bitmap if all rows are NORM, > 0 bitmap length
   uint32_t len;        // data length + bitmap length
   uint32_t offset;
-} SBlockColV0;
-
-#define SBlockCol SBlockColV0  // latest SBlockCol definition
+} SBlockCol;
 
 typedef struct {
   int16_t colId;
@@ -346,11 +326,7 @@ typedef struct {
   int64_t sum;
   int64_t max;
   int64_t min;
-} SAggrBlkColV0;
-
-#define SAggrBlkCol SAggrBlkColV0  // latest SAggrBlkCol definition
-
-#endif
+} SAggrBlkCol;
 
 // Code here just for back-ward compatibility
 static FORCE_INLINE void tsdbSetBlockColOffset(SBlockCol *pBlockCol, uint32_t offset) {
@@ -411,8 +387,7 @@ struct SReadH {
 #define TSDB_READ_COMP_BUF(rh)  ((rh)->pCBuf)
 #define TSDB_READ_EXBUF(rh)     ((rh)->pExBuf)
 
-#define TSDB_BLOCK_STATIS_SIZE(ncols, blkVer) \
-  (sizeof(SBlockData) + sizeof(SBlockColV##blkVer) * (ncols) + sizeof(TSCKSUM))
+#define TSDB_BLOCK_STATIS_SIZE(ncols, blkVer) (sizeof(SBlockData) + sizeof(SBlockCol) * (ncols) + sizeof(TSCKSUM))
 
 static FORCE_INLINE size_t tsdbBlockStatisSize(int nCols, uint32_t blkVer) {
   switch (blkVer) {
@@ -422,7 +397,7 @@ static FORCE_INLINE size_t tsdbBlockStatisSize(int nCols, uint32_t blkVer) {
   }
 }
 
-#define TSDB_BLOCK_AGGR_SIZE(ncols, blkVer) (sizeof(SAggrBlkColV##blkVer) * (ncols) + sizeof(TSCKSUM))
+#define TSDB_BLOCK_AGGR_SIZE(ncols, blkVer) (sizeof(SAggrBlkCol) * (ncols) + sizeof(TSCKSUM))
 
 static FORCE_INLINE size_t tsdbBlockAggrSize(int nCols, uint32_t blkVer) {
   switch (blkVer) {
@@ -520,11 +495,11 @@ static FORCE_INLINE void *taosTZfree(void *ptr) {
 
 void tsdbGetRtnSnap(STsdb *pRepo, SRtn *pRtn);
 
-static FORCE_INLINE int TSDB_KEY_FID(TSKEY key, int32_t days, int8_t precision) {
+static FORCE_INLINE int TSDB_KEY_FID(TSKEY key, int32_t minutes, int8_t precision) {
   if (key < 0) {
-    return (int)((key + 1) / tsTickPerMin[precision] / days - 1);
+    return (int)((key + 1) / tsTickPerMin[precision] / minutes - 1);
   } else {
-    return (int)((key / tsTickPerMin[precision] / days));
+    return (int)((key / tsTickPerMin[precision] / minutes));
   }
 }
 
@@ -877,12 +852,21 @@ struct SDelOp {
   SDelOp *pNext;
 };
 
+typedef struct {
+  tb_uid_t suid;
+  tb_uid_t uid;
+  int64_t  version;
+  TSKEY    sKey;
+  TSKEY    eKey;
+} SDelInfo;
+
 struct SMemTable {
   STsdb  *pTsdb;
   int32_t nRef;
   TSDBKEY minKey;
   TSDBKEY maxKey;
   int64_t nRows;
+  int64_t nDelOp;
   SArray *aSkmInfo;
   SArray *aMemData;
 };
