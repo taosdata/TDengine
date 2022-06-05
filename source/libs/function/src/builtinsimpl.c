@@ -610,8 +610,7 @@ int32_t sumCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   } else if (type == TSDB_DATA_TYPE_DOUBLE || type == TSDB_DATA_TYPE_FLOAT) {
     pDBuf->dsum += pSBuf->dsum;
   }
-
-  SET_VAL(pDResInfo, *((int64_t*)pDBuf), 1);
+  pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1394,7 +1393,7 @@ int32_t minMaxCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx, int3
       pDBuf->v = pSBuf->v;
     }
   }
-  SET_VAL(pDResInfo, *((int64_t*)pDBuf), 1);
+  pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1639,6 +1638,7 @@ int32_t stddevCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
     pDBuf->quadraticDSum += pSBuf->quadraticDSum;
   }
   pDBuf->count += pSBuf->count;
+  pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
   return TSDB_CODE_SUCCESS;
 }
 

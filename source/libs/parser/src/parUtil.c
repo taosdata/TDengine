@@ -178,6 +178,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Only tag can be json type";
     case TSDB_CODE_PAR_VALUE_TOO_LONG:
       return "Value too long for column/tag: %s";
+    case TSDB_CODE_PAR_INVALID_DELETE_WHERE:
+      return "The DELETE statement must have a definite time window range";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:

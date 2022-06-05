@@ -163,7 +163,7 @@ static void vmProcessApplyQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
     SRpcMsg rsp = {0};
 
     // get original rpc msg
-    assert(pMsg->msgType == TDMT_VND_SYNC_APPLY_MSG);
+    assert(pMsg->msgType == TDMT_SYNC_APPLY_MSG);
     SyncApplyMsg *pSyncApplyMsg = syncApplyMsgFromRpcMsg2(pMsg);
     syncApplyMsgLog2("==vmProcessApplyQueue==", pSyncApplyMsg);
     SRpcMsg originalRpcMsg;
@@ -250,6 +250,8 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
 
   switch (qtype) {
     case QUERY_QUEUE:
+      vnodePreprocessQueryMsg(pVnode->pImpl, pMsg);
+      
       dTrace("vgId:%d, msg:%p put into vnode-query queue", pVnode->vgId, pMsg);
       taosWriteQitem(pVnode->pQueryQ, pMsg);
       break;
