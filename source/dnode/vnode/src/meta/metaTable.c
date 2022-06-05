@@ -61,31 +61,26 @@ static int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const
   if (tTagToValArray((const STag *)data, &pTagVals) != 0) {
     return -1;
   }
+  char key[512] = {0};
+
   SIndexMultiTerm *terms = indexMultiTermCreate();
   int16_t          nCols = taosArrayGetSize(pTagVals);
   for (int i = 0; i < nCols; i++) {
     STagVal *pTagVal = (STagVal *)taosArrayGet(pTagVals, i);
     char     type = pTagVal->type;
+    sprintf(key, "%s_%s", tagName, pTagVal->pKey);
+    int32_t nKey = strlen(key);
 
-    char *Key = pTagVal->pKey;
-    char *key = taosMemoryCalloc(1, strlen(Key) + 2 + strlen(tagName));
-    sprintf(key, "%s_%s", tagName, Key);
-
-    int32_t     nKey = strlen(key);
     SIndexTerm *term = NULL;
-
     if (type == TSDB_DATA_TYPE_NULL) {
+      // handle null value
     } else if (type == TSDB_DATA_TYPE_NCHAR) {
       if (pTagVal->nData > 0) {
-        char *  val = taosMemoryCalloc(1, pTagVal->nData);
-        int32_t len = taosUcs4ToMbs((TdUcs4 *)pTagVal->pData, pTagVal->nData, val);
-        // printf("val: %s, len: %d", val, len);
-
-        char *tval = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE);
-        memcpy(tval, (uint16_t *)&len, VARSTR_HEADER_SIZE);
-        memcpy(tval + VARSTR_HEADER_SIZE, val, len);
+        char *  val = taosMemoryCalloc(1, pTagVal->nData + VARSTR_HEADER_SIZE);
+        int32_t len = taosUcs4ToMbs((TdUcs4 *)pTagVal->pData, pTagVal->nData, val + VARSTR_HEADER_SIZE);
+        memcpy(val, (uint16_t *)&len, VARSTR_HEADER_SIZE);
         type = TSDB_DATA_TYPE_VARCHAR;
-        term = indexTermCreate(suid, ADD_VALUE, type, key, nKey, tval, len + 2);
+        term = indexTermCreate(suid, ADD_VALUE, type, key, nKey, val, len);
       } else if (pTagVal->nData == 0) {
         char *  val = NULL;
         int32_t len = 0;
@@ -100,12 +95,10 @@ static int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const
       int len = 0;
       term = indexTermCreate(suid, ADD_VALUE, type, key, nKey, (const char *)&val, len);
     }
-    if (term == NULL) {
-      // handle except later
-    } else {
+    if (term != NULL) {
       indexMultiTermAdd(terms, term);
     }
-    taosMemoryFree(key);
+    memset(key, 0, sizeof(key));
   }
   tIndexJsonPut(pMeta->pTagIvtIdx, terms, tuid);
   indexMultiTermDestroy(terms);
