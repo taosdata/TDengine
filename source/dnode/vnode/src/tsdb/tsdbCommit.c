@@ -117,7 +117,6 @@ int32_t tsdbCommit(STsdb *pTsdb) {
     return -1;
   }
 
-#if 0
   // Skip expired memory data and expired FSET
   tsdbSeekCommitIter(&commith, commith.rtn.minKey);
   while ((pSet = tsdbFSIterNext(&(commith.fsIter)))) {
@@ -128,7 +127,6 @@ int32_t tsdbCommit(STsdb *pTsdb) {
       break;
     }
   }
-#endif
 
   // commit
   fid = tsdbNextCommitFid(&(commith));
