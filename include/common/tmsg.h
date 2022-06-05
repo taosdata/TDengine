@@ -933,6 +933,7 @@ typedef struct {
   int64_t numOfProcessedFetch;
   int64_t numOfProcessedDrop;
   int64_t numOfProcessedHb;
+  int64_t numOfProcessedDelete;
   int64_t cacheDataSize;
   int64_t numOfQueryInQueue;
   int64_t numOfFetchInQueue;
@@ -2689,20 +2690,20 @@ int32_t tEncodeSVSubmitReq(SEncoder* pCoder, const SVSubmitReq* pReq);
 int32_t tDecodeSVSubmitReq(SDecoder* pCoder, SVSubmitReq* pReq);
 
 typedef struct {
-  int64_t     delUid;
-  int64_t     tbUid;  // super/child/normal table
-  int8_t      type;   // table type
-  int16_t     nWnds;
-  char*       tbFullName;
-  char*       subPlan;
-  STimeWindow wnds[];
+  SMsgHead header;
+  uint64_t sId;
+  uint64_t queryId;
+  uint64_t taskId;
+  uint32_t sqlLen;
+  uint32_t phyLen;
+  char*    sql;
+  char*    msg;
 } SVDeleteReq;
 
-int32_t tEncodeSVDeleteReq(SEncoder* pCoder, const SVDeleteReq* pReq);
-int32_t tDecodeSVDeleteReq(SDecoder* pCoder, SVDeleteReq* pReq);
+int32_t tSerializeSVDeleteReq(void *buf, int32_t bufLen, SVDeleteReq *pReq);
+int32_t tDeserializeSVDeleteReq(void *buf, int32_t bufLen, SVDeleteReq *pReq);
 
 typedef struct {
-  int32_t code;
   int64_t affectedRows;
 } SVDeleteRsp;
 

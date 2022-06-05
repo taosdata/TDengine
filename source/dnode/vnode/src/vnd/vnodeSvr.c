@@ -23,6 +23,7 @@ static int vnodeProcessAlterTbReq(SVnode *pVnode, int64_t version, void *pReq, i
 static int vnodeProcessDropTbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
+static int vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg *pRsp);
 
 int32_t vnodePreprocessReq(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t  code = 0;
@@ -141,6 +142,9 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
     case TDMT_VND_SUBMIT:
       if (vnodeProcessSubmitReq(pVnode, version, pMsg->pCont, pMsg->contLen, pRsp) < 0) goto _err;
       break;
+    case TDMT_VND_DELETE:
+      if (vnodeProcessFetchMsg(pVnode, pMsg, pRsp) < 0) goto _err;
+      break;
     /* TQ */
     case TDMT_VND_MQ_VG_CHANGE:
       if (tqProcessVgChangeReq(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
@@ -248,6 +252,19 @@ int vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return tqProcessTaskRecoverRsp(pVnode->pTq, pMsg);
     default:
       vError("unknown msg type:%d in fetch queue", pMsg->msgType);
+      return TSDB_CODE_VND_APP_ERROR;
+  }
+}
+
+int vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+  vTrace("message in write queue is processing");
+  char   *msgstr = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+  int32_t msgLen = pMsg->contLen - sizeof(SMsgHead);
+  switch (pMsg->msgType) {
+    case TDMT_VND_DELETE:
+      return qWorkerProcessDeleteMsg(pVnode, pVnode->pQuery, pMsg, pRsp);
+    default:
+      vError("unknown msg type:%d in write queue", pMsg->msgType);
       return TSDB_CODE_VND_APP_ERROR;
   }
 }

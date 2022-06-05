@@ -47,6 +47,7 @@ typedef struct {
   uint64_t fetchProcessed;
   uint64_t dropProcessed;
   uint64_t hbProcessed;
+  uint64_t deleteProcessed;
   
   uint64_t numOfQueryInQueue;
   uint64_t numOfFetchInQueue;

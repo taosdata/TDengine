@@ -300,13 +300,6 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  msg->sId = msg->sId;
-  msg->queryId = msg->queryId;
-  msg->taskId = msg->taskId;
-  msg->refId = msg->refId;
-  msg->phyLen = msg->phyLen;
-  msg->sqlLen = msg->sqlLen;
-
   uint64_t sId = msg->sId;
   uint64_t qId = msg->queryId;
   uint64_t tId = msg->taskId;
@@ -523,3 +516,37 @@ int32_t qWorkerProcessHbMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_
 
   return TSDB_CODE_SUCCESS;
 }
+
+
+int32_t qWorkerProcessDeleteMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+  if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg || NULL == pRsp) {
+    QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+
+  int32_t       code = 0;
+  SVDeleteReq req = {0};
+  SQWorker *    mgmt = (SQWorker *)qWorkerMgmt;
+
+  QW_STAT_INC(mgmt->stat.msgStat.deleteProcessed, 1);
+
+  tDeserializeSVDeleteReq(pMsg->pCont, pMsg->contLen, &req);
+  
+  uint64_t sId = req.sId;
+  uint64_t qId = req.queryId;
+  uint64_t tId = req.taskId;
+  int64_t  rId = 0;
+
+  SQWMsg qwMsg = {.node = node, .msg = req.msg, .msgLen = req.phyLen, .connInfo = pMsg->info};
+  QW_SCH_TASK_DLOG("processDelete start, node:%p, handle:%p, sql:%s", node, pMsg->info.handle, req.sql);
+  taosMemoryFreeClear(req.sql);
+
+  QW_ERR_JRET(qwProcessDelete(QW_FPARAMS(), &qwMsg, pRsp));
+
+  QW_SCH_TASK_DLOG("processDelete end, node:%p", node);
+
+_return:
+
+  QW_RET(code);
+}
+
+

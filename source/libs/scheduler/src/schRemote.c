@@ -227,6 +227,25 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
 
       break;
     }
+    case TDMT_VND_DELETE_RSP: {
+      SCH_ERR_JRET(rspCode);
+
+      if (msg) {
+        SDecoder coder = {0};
+        SVDeleteRsp rsp = {0};
+        tDecoderInit(&coder, msg, msgSize);
+        tDecodeSVDeleteRsp(&coder, &rsp);
+
+        atomic_add_fetch_32(&pJob->resNumOfRows, rsp->affectedRows);
+        SCH_TASK_DLOG("delete succeed, affectedRows:%d", rsp->affectedRows);
+      }
+
+      taosMemoryFreeClear(msg);
+
+      SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
+
+      break;
+    }    
     case TDMT_VND_QUERY_RSP: {
       SQueryTableRsp *rsp = (SQueryTableRsp *)msg;
 
@@ -982,6 +1001,27 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       break;
     }
 
+    case TDMT_VND_DELETE: {
+      SVDeleteReq req = {0};
+      req.sId = schMgmt.sId;
+      req.queryId = pJob->queryId;
+      req.taskId = pTask->taskId;
+      req.phyLen = pTask->msgLen;
+      req.sqlLen = strlen(pJob->sql);
+      req.sql = pJob->sql;
+      req.msg = pTask->msg;
+      int32_t len = tSerializeSVDeleteReq(NULL, 0, &req);
+      msg = taosMemoryCalloc(1, len);
+      if (NULL == msg) {
+        SCH_TASK_ELOG("calloc %d failed", len);
+        SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+      }
+
+      tSerializeSVDeleteReq(msg, len, &req);
+      SVDeleteReq *pMsg = msg;
+      pMsg->header.vgId = htonl(addr->nodeId);
+      break;
+    }
     case TDMT_VND_QUERY: {
       SCH_ERR_RET(schMakeQueryRpcCtx(pJob, pTask, &rpcCtx));
 
