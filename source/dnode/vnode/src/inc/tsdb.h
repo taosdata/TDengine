@@ -352,9 +352,6 @@ typedef struct {
   TSDBKEY  maxKey;
 } SBlock;
 
-static FORCE_INLINE bool tsdbIsSupBlock(SBlock *pBlock) { return pBlock->numOfSubBlocks == 1; }
-static FORCE_INLINE bool tsdbIsSubBlock(SBlock *pBlock) { return pBlock->numOfSubBlocks == 0; }
-
 typedef struct {
   int32_t  delimiter;  // For recovery usage
   int32_t  tid;
