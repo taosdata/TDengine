@@ -389,8 +389,8 @@ class TDTestCase:
         tdSql.checkData(2, 1, "11.000000000")
         tdSql.checkData(5, 0, 1)
         tdSql.checkData(5, 1, "false")
-        # tdSql.checkData(6, 0, 1)
-        # tdSql.checkData(6, 1, "null")
+        tdSql.checkData(6, 0, 1)
+        tdSql.checkData(6, 1, "null")
         tdSql.checkData(7, 0, 2)
         tdSql.checkData(7, 1, None)
 
@@ -409,7 +409,7 @@ class TDTestCase:
         tdSql.query("select stddev(dataint),jtag->'tag1' from jsons1 group by jtag->'tag1' order by jtag->'tag1'")
         tdSql.checkRows(8)
         tdSql.checkData(0, 0, 10)
-        # tdSql.checkData(0, 1, None)
+        tdSql.checkData(0, 1, None)
         tdSql.checkData(4, 0, 0)
         tdSql.checkData(4, 1, "5.000000000")
         tdSql.checkData(7, 0, 11)
@@ -424,10 +424,10 @@ class TDTestCase:
         # test top/bottom with group by json tag
         tdSql.query("select top(dataint,2),jtag->'tag1' from jsons1 group by jtag->'tag1' order by jtag->'tag1'")
         tdSql.checkRows(11)
+        tdSql.checkData(0, 0, 24)
+        tdSql.checkData(0, 1, None)
         tdSql.checkData(3, 0, 3)
         tdSql.checkData(3, 1, "false")
-        # tdSql.checkData(3, 0, 24)
-        # tdSql.checkData(3, 1, None)
         tdSql.checkData(10, 0, 23)
         tdSql.checkData(10, 1, '"femail"')
 
@@ -436,7 +436,7 @@ class TDTestCase:
         # tdSql.checkRows(2)
 
         # subquery with json tag
-        tdSql.query("select * from (select jtag, dataint from jsons1)")
+        tdSql.query("select * from (select jtag, dataint from jsons1) order by dataint")
         tdSql.checkRows(11)
         tdSql.checkData(1, 1, 1)
         tdSql.checkData(2, 0, '{"tag1":5,"tag2":"beijing"}')

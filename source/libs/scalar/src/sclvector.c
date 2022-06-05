@@ -393,7 +393,7 @@ int32_t vectorConvertFromVarData(const SScalarParam* pIn, SScalarParam* pOut, in
 
   pOut->numOfRows = pIn->numOfRows;
   for (int32_t i = 0; i < pIn->numOfRows; ++i) {
-    if (colDataIsNull_s(pIn->columnData, i)) {
+    if (IS_HELPER_NULL(pIn->columnData, i)) {
       colDataAppendNULL(pOut->columnData, i);
       continue;
     }
@@ -402,8 +402,7 @@ int32_t vectorConvertFromVarData(const SScalarParam* pIn, SScalarParam* pOut, in
     int32_t convertType = inType;
     if(inType == TSDB_DATA_TYPE_JSON){
       if(*data == TSDB_DATA_TYPE_NULL) {
-        colDataAppendNULL(pOut->columnData, i);
-        continue;
+        ASSERT(0);
       }
       else if(*data == TSDB_DATA_TYPE_NCHAR) {
         data += CHAR_BYTES;

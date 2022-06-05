@@ -1227,7 +1227,7 @@ TEST(columnTest, json_column_logic_op) {
   printf("--------------------json null---------------------\n");
 
   key = "k3";   // (null is true) return NULL, so use DBL_MAX represent NULL
-  double eRes2[len+len1] = {false, false, false, false, false, false, true, false, false, false, false, false, false};
+  double eRes2[len+len1] = {false, false, false, false, false, false, true, false, DBL_MAX, false, false, false, false};
   for(int i = 0; i < len; i++){
     makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes2[i], op[i]);
   }
@@ -1279,7 +1279,7 @@ TEST(columnTest, json_column_logic_op) {
   printf("---------------------json not exist--------------------\n");
 
   key = "k10";    // (NULL is true) return NULL, so use DBL_MAX represent NULL
-  double eRes10[len+len1] = {false, false, false, false, false, false, true, false, false, false, false, false, false};
+  double eRes10[len+len1] = {false, false, false, false, false, false, true, false, DBL_MAX, false, false, false, false};
   for(int i = 0; i < len; i++){
     makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes10[i], op[i]);
   }
