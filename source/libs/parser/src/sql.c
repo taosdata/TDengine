@@ -4540,7 +4540,7 @@ static YYACTIONTYPE yy_reduce(
 {
                                                                                     SToken s = getTokenFromRawExprNode(pCxt, yymsp[-2].minor.yy686);
                                                                                     SToken e = getTokenFromRawExprNode(pCxt, yymsp[0].minor.yy686);
-                                                                                    yylhsminor.yy686 = createRawExprNodeExt(pCxt, &s, &e, createOperatorNode(pCxt, OP_TYPE_MOD, releaseRawExprNode(pCxt, yymsp[-2].minor.yy686), releaseRawExprNode(pCxt, yymsp[0].minor.yy686))); 
+                                                                                    yylhsminor.yy686 = createRawExprNodeExt(pCxt, &s, &e, createOperatorNode(pCxt, OP_TYPE_REM, releaseRawExprNode(pCxt, yymsp[-2].minor.yy686), releaseRawExprNode(pCxt, yymsp[0].minor.yy686)));
                                                                                   }
   yymsp[-2].minor.yy686 = yylhsminor.yy686;
         break;

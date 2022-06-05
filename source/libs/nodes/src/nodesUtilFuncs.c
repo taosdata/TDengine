@@ -1089,7 +1089,7 @@ bool nodesIsArithmeticOp(const SOperatorNode* pOp) {
     case OP_TYPE_SUB:
     case OP_TYPE_MULTI:
     case OP_TYPE_DIV:
-    case OP_TYPE_MOD:
+    case OP_TYPE_REM:
       return true;
     default:
       break;

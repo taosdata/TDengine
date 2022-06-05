@@ -608,7 +608,7 @@ expression(A) ::= expression(B) NK_SLASH expression(C).                         
 expression(A) ::= expression(B) NK_REM expression(C).                             {
                                                                                     SToken s = getTokenFromRawExprNode(pCxt, B);
                                                                                     SToken e = getTokenFromRawExprNode(pCxt, C);
-                                                                                    A = createRawExprNodeExt(pCxt, &s, &e, createOperatorNode(pCxt, OP_TYPE_MOD, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C))); 
+                                                                                    A = createRawExprNodeExt(pCxt, &s, &e, createOperatorNode(pCxt, OP_TYPE_REM, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)));
                                                                                   }
 expression(A) ::= column_reference(B) NK_ARROW NK_STRING(C).                      {
                                                                                     SToken s = getTokenFromRawExprNode(pCxt, B);

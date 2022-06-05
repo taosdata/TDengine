@@ -1061,7 +1061,7 @@ void makeJsonArrow(SSDataBlock **src, SNode **opNode, void *json, char *key){
 void makeOperator(SNode **opNode, SArray *blockList, EOperatorType opType, int32_t rightType, void *rightData, bool isReverse){
   int32_t resType = TSDB_DATA_TYPE_NULL;
   if(opType == OP_TYPE_ADD || opType == OP_TYPE_SUB || opType == OP_TYPE_MULTI ||
-      opType == OP_TYPE_DIV || opType == OP_TYPE_MOD || opType == OP_TYPE_MINUS){
+      opType == OP_TYPE_DIV || opType == OP_TYPE_REM || opType == OP_TYPE_MINUS){
     resType = TSDB_DATA_TYPE_DOUBLE;
   }else if(opType == OP_TYPE_BIT_AND || opType == OP_TYPE_BIT_OR){
     resType = TSDB_DATA_TYPE_BIGINT;
@@ -1106,7 +1106,7 @@ void makeCalculate(void *json, void *key, int32_t rightType, void *rightData, do
     printf("result:NULL\n");
 
   }else if(opType == OP_TYPE_ADD || opType == OP_TYPE_SUB || opType == OP_TYPE_MULTI || opType == OP_TYPE_DIV ||
-             opType == OP_TYPE_MOD || opType == OP_TYPE_MINUS){
+             opType == OP_TYPE_REM || opType == OP_TYPE_MINUS){
     printf("op:%s,1result:%f,except:%f\n", gOptrStr[opType].str, *((double *)colDataGetData(column, 0)), exceptValue);
     ASSERT_TRUE(fabs(*((double *)colDataGetData(column, 0)) - exceptValue) < 0.0001);
   }else if(opType == OP_TYPE_BIT_AND || opType == OP_TYPE_BIT_OR){
@@ -1136,7 +1136,7 @@ TEST(columnTest, json_column_arith_op) {
 
   const int32_t len = 8;
   EOperatorType op[len] = {OP_TYPE_ADD, OP_TYPE_SUB, OP_TYPE_MULTI, OP_TYPE_DIV,
-                         OP_TYPE_MOD, OP_TYPE_MINUS, OP_TYPE_BIT_AND, OP_TYPE_BIT_OR};
+                           OP_TYPE_REM, OP_TYPE_MINUS, OP_TYPE_BIT_AND, OP_TYPE_BIT_OR};
   int32_t input[len] = {1, 8, 2, 2, 3, 0, -4, 9};
 
   printf("--------------------json int-4 op {1, 8, 2, 2, 3, 0, -4, 9}--------------------\n");

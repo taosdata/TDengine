@@ -1245,8 +1245,8 @@ void vectorMathRemainder(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam
   SColumnInfoData *pLeftCol  = doVectorConvert(pLeft, &leftConvert);
   SColumnInfoData *pRightCol = doVectorConvert(pRight, &rightConvert);
 
-  _getBigintValue_fn_t getVectorBigintValueFnLeft  = getVectorBigintValueFn(pLeftCol->info.type);
-  _getBigintValue_fn_t getVectorBigintValueFnRight = getVectorBigintValueFn(pRightCol->info.type);
+  _getDoubleValue_fn_t getVectorDoubleValueFnLeft  = getVectorDoubleValueFn(pLeftCol->info.type);
+  _getDoubleValue_fn_t getVectorDoubleValueFnRight = getVectorDoubleValueFn(pRightCol->info.type);
 
   double *output = (double *)pOutputCol->pData;
 
@@ -1257,17 +1257,17 @@ void vectorMathRemainder(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam
         continue;
       }
 
-      int64_t lx = getVectorBigintValueFnLeft(LEFT_COL, i);
-      int64_t rx = getVectorBigintValueFnRight(RIGHT_COL, i);
-      if (rx == 0) {
+      double lx = getVectorDoubleValueFnLeft(LEFT_COL, i);
+      double rx = getVectorDoubleValueFnRight(RIGHT_COL, i);
+      if (isnan(lx) || isinf(lx) || isnan(rx) || isinf(rx) || FLT_EQUAL(rx, 0)) {
         colDataAppendNULL(pOutputCol, i);
         continue;
       }
 
-      *output = lx % rx;
+      *output = lx - ((int64_t)(lx / rx)) * rx;
     }
   } else if (pLeft->numOfRows == 1) {
-    int64_t lx = getVectorBigintValueFnLeft(LEFT_COL, 0);
+    double lx = getVectorDoubleValueFnLeft(LEFT_COL, 0);
     if (IS_HELPER_NULL(pLeftCol, 0)) {  // Set pLeft->numOfRows NULL value
       colDataAppendNNULL(pOutputCol, 0, pRight->numOfRows);
     } else {
@@ -1277,18 +1277,18 @@ void vectorMathRemainder(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam
           continue;
         }
 
-        int64_t rx = getVectorBigintValueFnRight(RIGHT_COL, i);
-        if (rx == 0){
+        double rx = getVectorDoubleValueFnRight(RIGHT_COL, i);
+        if (isnan(rx) || isinf(rx) || FLT_EQUAL(rx, 0)) {
           colDataAppendNULL(pOutputCol, i);
           continue;
         }
 
-        *output = lx % rx;
+        *output = lx - ((int64_t)(lx / rx)) * rx;
       }
     }
   } else if (pRight->numOfRows == 1) {
-    int64_t rx = getVectorBigintValueFnRight(RIGHT_COL, 0);
-    if (IS_HELPER_NULL(pRightCol, 0) || rx == 0) {  // Set pLeft->numOfRows NULL value
+    double rx = getVectorDoubleValueFnRight(RIGHT_COL, 0);
+    if (IS_HELPER_NULL(pRightCol, 0) || FLT_EQUAL(rx, 0)) {  // Set pLeft->numOfRows NULL value
       colDataAppendNNULL(pOutputCol, 0, pLeft->numOfRows);
     } else {
       for (; i >= 0 && i < pLeft->numOfRows; i += step, output += 1) {
@@ -1297,8 +1297,13 @@ void vectorMathRemainder(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam
           continue;
         }
 
-        int64_t lx = getVectorBigintValueFnLeft(LEFT_COL, i);
-        *output = lx % rx;
+        double lx = getVectorDoubleValueFnLeft(LEFT_COL, i);
+        if (isnan(lx) || isinf(lx)) {
+          colDataAppendNULL(pOutputCol, i);
+          continue;
+        }
+
+        *output = lx - ((int64_t)(lx / rx)) * rx;
       }
     }
   }
@@ -1712,7 +1717,7 @@ _bin_scalar_fn_t getBinScalarOperatorFn(int32_t binFunctionId) {
       return vectorMathMultiply;
     case OP_TYPE_DIV:
       return vectorMathDivide;
-    case OP_TYPE_MOD:
+    case OP_TYPE_REM:
       return vectorMathRemainder;
     case OP_TYPE_MINUS:
       return vectorMathMinus;
