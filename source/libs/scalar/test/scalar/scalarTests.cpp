@@ -1189,7 +1189,7 @@ TEST(columnTest, json_column_arith_op) {
   printf("----------------------json double-- 5.44 op {1, 8, 2, 2, 3, 0, -4, 9}------------------\n");
 
   key = "k5";
-  double eRes40[len] = {6.44, -2.56, 10.88, 2.72, 2, -5.44, 5&-4, 5|9};
+  double eRes40[len] = {6.44, -2.56, 10.88, 2.72, 2.44, -5.44, 5&-4, 5|9};
   double eRes41[len] = {6.44, 2.56, 10.88, 0.3676470588235294, 3, 0, 5&-4, 5|9};
   for(int i = 0; i < len; i++){
     makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes40[i], op[i], false);
@@ -1213,8 +1213,8 @@ TEST(columnTest, json_column_arith_op) {
   printf("----------------------json double-- -9.8 op {1, 8, 2, 2, 3, 0, -4, 9}------------------\n");
 
   key = "k7";
-  double eRes60[len] = {-8.8, -17.8, -19.6, -4.9, -9%3, 9.8, -9&-4, -9|9};
-  double eRes61[len] = {-8.8, 17.8, -19.6, -0.2040816326530612, 3%-9, 0, -9&-4, -9|9};
+  double eRes60[len] = {-8.8, -17.8, -19.6, -4.9, -0.8, 9.8, -9&-4, -9|9};
+  double eRes61[len] = {-8.8, 17.8, -19.6, -0.2040816326530612, 3, 0, -9&-4, -9|9};
   for(int i = 0; i < len; i++){
     makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes60[i], op[i], false);
   }
