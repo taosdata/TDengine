@@ -180,6 +180,12 @@ static bool addHandleToAcceptloop(void* arg);
       if (!transQueuePush(&conn->srvMsgs, srvMsg)) {                                  \
         return;                                                                       \
       }                                                                               \
+      if (conn->regArg.init) {                                                        \
+        tTrace("server conn %p release, notify server app", conn);                    \
+        STrans* pTransInst = conn->pTransInst;                                        \
+        (*pTransInst->cfp)(pTransInst->parent, &(conn->regArg.msg), NULL);            \
+        memset(&conn->regArg, 0, sizeof(conn->regArg));                               \
+      }                                                                               \
       uvStartSendRespInternal(srvMsg);                                                \
       return;                                                                         \
     }                                                                                 \
