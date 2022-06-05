@@ -546,7 +546,7 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   pInfo->readHandle        = *readHandle;
   pInfo->interval          = extractIntervalInfo(pTableScanNode);
   pInfo->sample.sampleRatio= pTableScanNode->ratio;
-  pInfo->sample.seed       = taosGetTimestampMs();
+  pInfo->sample.seed       = taosGetTimestampSec();
 
   pInfo->dataBlockLoadFlag = pTableScanNode->dataRequired;
   pInfo->pResBlock         = createResDataBlock(pDescNode);
