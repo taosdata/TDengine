@@ -318,7 +318,7 @@ class TDDnode:
             print(cmd)
 
         if (not self.remoteIP == ""):
-            self.remoteExec(self.cfgDict, "tdDnodes.deploy(%d,updateCfgDict)\ntdDnodes.start(%d)"%(self.index, self.index))
+            self.remoteExec(self.cfgDict, "tdDnodes.dnodes[%d].deployed=1\ntdDnodes.dnodes[%d].logDir=\"%%s/sim/dnode%%d/log\"%%(tdDnodes.dnodes[%d].path,%d)\ntdDnodes.dnodes[%d].cfgDir=\"%%s/sim/dnode%%d/cfg\"%%(tdDnodes.dnodes[%d].path,%d)\ntdDnodes.start(%d)"%(self.index-1,self.index-1,self.index-1,self.index,self.index-1,self.index-1,self.index,self.index))
             self.running = 1
         else:
             if os.system(cmd) != 0:
