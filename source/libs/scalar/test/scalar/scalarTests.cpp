@@ -1382,7 +1382,7 @@ TEST(columnTest, json_column_logic_op) {
   printf("--------------------json int--  -10 {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
 
   key = "k6";
-  bool eRes5[len+len1] = {false, false, true, true, false, true, false, true, true, false, false, false, true};
+  bool eRes5[len+len1] = {false, false, true, true, false, true, false, true, true, false, false, false, false};
   for(int i = 0; i < len; i++){
     makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes5[i], op[i], false);
   }
@@ -1411,7 +1411,7 @@ TEST(columnTest, json_column_logic_op) {
 
   for(int i = len; i < len + len1; i++){
     void* rightData = prepareNchar(inputNchar[i-len]);
-    makeCalculate(row, key, TSDB_DATA_TYPE_NCHAR, rightData, eRes5[i], op[i], false);
+    makeCalculate(row, key, TSDB_DATA_TYPE_NCHAR, rightData, eRes6[i], op[i], false);
     taosMemoryFree(rightData);
   }
 
@@ -1430,7 +1430,7 @@ TEST(columnTest, json_column_logic_op) {
 
   for(int i = len; i < len + len1; i++){
     void* rightData = prepareNchar(inputNchar[i-len]);
-    makeCalculate(row, key, TSDB_DATA_TYPE_NCHAR, rightData, eRes5[i], op[i], false);
+    makeCalculate(row, key, TSDB_DATA_TYPE_NCHAR, rightData, eRes7[i], op[i], false);
     taosMemoryFree(rightData);
   }
 
@@ -1438,7 +1438,7 @@ TEST(columnTest, json_column_logic_op) {
   printf("--------------------json string--  6.6hello {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
 
   key = "k9";
-  bool eRes8[len+len1] = {true, false, false, false, false, true, false, true, true, false, true, true, true};
+  bool eRes8[len+len1] = {true, false, false, false, false, true, false, true, true, false, true, false, true};
   for(int i = 0; i < len; i++){
     makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes8[i], op[i], false);
   }
@@ -1449,7 +1449,7 @@ TEST(columnTest, json_column_logic_op) {
 
   for(int i = len; i < len + len1; i++){
     void* rightData = prepareNchar(inputNchar[i-len]);
-    makeCalculate(row, key, TSDB_DATA_TYPE_NCHAR, rightData, eRes5[i], op[i], false);
+    makeCalculate(row, key, TSDB_DATA_TYPE_NCHAR, rightData, eRes8[i], op[i], false);
     taosMemoryFree(rightData);
   }
 

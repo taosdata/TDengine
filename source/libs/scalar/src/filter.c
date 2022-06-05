@@ -30,7 +30,8 @@ OptrStr gOptrStr[] = {
   {OP_TYPE_MULTI,                          "*"},
   {OP_TYPE_DIV,                            "/"},
   {OP_TYPE_MOD,                            "%"},
-
+  {OP_TYPE_MINUS,                          "minus"},
+  {OP_TYPE_ASSIGN,                         "assign"},
   // bit operator
   {OP_TYPE_BIT_AND,                        "&"},
   {OP_TYPE_BIT_OR,                         "|"},
