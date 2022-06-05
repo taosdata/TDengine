@@ -88,12 +88,14 @@ static int32_t mndTransGetActionsSize(SArray *pArray) {
 
   for (int32_t i = 0; i < actionNum; ++i) {
     STransAction *pAction = taosArrayGet(pArray, i);
-    if (pAction->actionType) {
+    if (pAction->actionType == TRANS_ACTION_RAW) {
       rawDataLen += (sdbGetRawTotalSize(pAction->pRaw) + sizeof(int32_t));
-    } else {
+    } else if (pAction->actionType == TRANS_ACTION_MSG) {
       rawDataLen += (sizeof(STransAction) + pAction->contLen);
+    } else {
+      // empty
     }
-    rawDataLen += sizeof(pAction->actionType);
+    rawDataLen += sizeof(int8_t);
   }
 
   return rawDataLen;
@@ -137,18 +139,20 @@ static SSdbRaw *mndTransActionEncode(STrans *pTrans) {
     SDB_SET_INT32(pRaw, dataPos, pAction->acceptableCode, _OVER)
     SDB_SET_INT8(pRaw, dataPos, pAction->actionType, _OVER)
     SDB_SET_INT8(pRaw, dataPos, pAction->stage, _OVER)
-    if (pAction->actionType) {
+    if (pAction->actionType == TRANS_ACTION_RAW) {
       int32_t len = sdbGetRawTotalSize(pAction->pRaw);
       SDB_SET_INT8(pRaw, dataPos, pAction->rawWritten, _OVER)
       SDB_SET_INT32(pRaw, dataPos, len, _OVER)
       SDB_SET_BINARY(pRaw, dataPos, (void *)pAction->pRaw, len, _OVER)
-    } else {
+    } else if (pAction->actionType == TRANS_ACTION_MSG) {
       SDB_SET_BINARY(pRaw, dataPos, (void *)&pAction->epSet, sizeof(SEpSet), _OVER)
       SDB_SET_INT16(pRaw, dataPos, pAction->msgType, _OVER)
       SDB_SET_INT8(pRaw, dataPos, pAction->msgSent, _OVER)
       SDB_SET_INT8(pRaw, dataPos, pAction->msgReceived, _OVER)
       SDB_SET_INT32(pRaw, dataPos, pAction->contLen, _OVER)
       SDB_SET_BINARY(pRaw, dataPos, pAction->pCont, pAction->contLen, _OVER)
+    } else {
+      // nothing
     }
   }
 
@@ -159,18 +163,20 @@ static SSdbRaw *mndTransActionEncode(STrans *pTrans) {
     SDB_SET_INT32(pRaw, dataPos, pAction->acceptableCode, _OVER)
     SDB_SET_INT8(pRaw, dataPos, pAction->actionType, _OVER)
     SDB_SET_INT8(pRaw, dataPos, pAction->stage, _OVER)
-    if (pAction->actionType) {
+    if (pAction->actionType == TRANS_ACTION_RAW) {
       int32_t len = sdbGetRawTotalSize(pAction->pRaw);
       SDB_SET_INT8(pRaw, dataPos, pAction->rawWritten, _OVER)
       SDB_SET_INT32(pRaw, dataPos, len, _OVER)
       SDB_SET_BINARY(pRaw, dataPos, (void *)pAction->pRaw, len, _OVER)
-    } else {
+    } else if (pAction->actionType == TRANS_ACTION_MSG) {
       SDB_SET_BINARY(pRaw, dataPos, (void *)&pAction->epSet, sizeof(SEpSet), _OVER)
       SDB_SET_INT16(pRaw, dataPos, pAction->msgType, _OVER)
       SDB_SET_INT8(pRaw, dataPos, pAction->msgSent, _OVER)
       SDB_SET_INT8(pRaw, dataPos, pAction->msgReceived, _OVER)
       SDB_SET_INT32(pRaw, dataPos, pAction->contLen, _OVER)
       SDB_SET_BINARY(pRaw, dataPos, pAction->pCont, pAction->contLen, _OVER)
+    } else {
+      // nothing
     }
   }
 
@@ -181,18 +187,20 @@ static SSdbRaw *mndTransActionEncode(STrans *pTrans) {
     SDB_SET_INT32(pRaw, dataPos, pAction->acceptableCode, _OVER)
     SDB_SET_INT8(pRaw, dataPos, pAction->actionType, _OVER)
     SDB_SET_INT8(pRaw, dataPos, pAction->stage, _OVER)
-    if (pAction->actionType) {
+    if (pAction->actionType == TRANS_ACTION_RAW) {
       int32_t len = sdbGetRawTotalSize(pAction->pRaw);
       SDB_SET_INT8(pRaw, dataPos, pAction->rawWritten, _OVER)
       SDB_SET_INT32(pRaw, dataPos, len, _OVER)
       SDB_SET_BINARY(pRaw, dataPos, (void *)pAction->pRaw, len, _OVER)
-    } else {
+    } else if (pAction->actionType == TRANS_ACTION_MSG) {
       SDB_SET_BINARY(pRaw, dataPos, (void *)&pAction->epSet, sizeof(SEpSet), _OVER)
       SDB_SET_INT16(pRaw, dataPos, pAction->msgType, _OVER)
       SDB_SET_INT8(pRaw, dataPos, pAction->msgSent, _OVER)
       SDB_SET_INT8(pRaw, dataPos, pAction->msgReceived, _OVER)
       SDB_SET_INT32(pRaw, dataPos, pAction->contLen, _OVER)
       SDB_SET_BINARY(pRaw, dataPos, pAction->pCont, pAction->contLen, _OVER)
+    } else {
+      // nothing
     }
   }
 
@@ -252,6 +260,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
   int16_t policy = 0;
   int16_t conflict = 0;
   int16_t exec = 0;
+  int8_t  actionType = 0;
   SDB_GET_INT16(pRaw, dataPos, &stage, _OVER)
   SDB_GET_INT16(pRaw, dataPos, &policy, _OVER)
   SDB_GET_INT16(pRaw, dataPos, &conflict, _OVER)
@@ -279,9 +288,10 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
     SDB_GET_INT32(pRaw, dataPos, &action.id, _OVER)
     SDB_GET_INT32(pRaw, dataPos, &action.errCode, _OVER)
     SDB_GET_INT32(pRaw, dataPos, &action.acceptableCode, _OVER)
-    SDB_GET_INT8(pRaw, dataPos, &action.actionType, _OVER)
+    SDB_GET_INT8(pRaw, dataPos, &actionType, _OVER)
+    action.actionType = actionType;
     SDB_GET_INT8(pRaw, dataPos, &action.stage, _OVER)
-    if (action.actionType) {
+    if (action.actionType == TRANS_ACTION_RAW) {
       SDB_GET_INT8(pRaw, dataPos, &action.rawWritten, _OVER)
       SDB_GET_INT32(pRaw, dataPos, &dataLen, _OVER)
       action.pRaw = taosMemoryMalloc(dataLen);
@@ -290,7 +300,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
       SDB_GET_BINARY(pRaw, dataPos, (void *)action.pRaw, dataLen, _OVER);
       if (taosArrayPush(pTrans->redoActions, &action) == NULL) goto _OVER;
       action.pRaw = NULL;
-    } else {
+    } else if (action.actionType == TRANS_ACTION_MSG) {
       SDB_GET_BINARY(pRaw, dataPos, (void *)&action.epSet, sizeof(SEpSet), _OVER);
       SDB_GET_INT16(pRaw, dataPos, &action.msgType, _OVER)
       SDB_GET_INT8(pRaw, dataPos, &action.msgSent, _OVER)
@@ -301,6 +311,8 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
       SDB_GET_BINARY(pRaw, dataPos, action.pCont, action.contLen, _OVER);
       if (taosArrayPush(pTrans->redoActions, &action) == NULL) goto _OVER;
       action.pCont = NULL;
+    } else {
+      if (taosArrayPush(pTrans->redoActions, &action) == NULL) goto _OVER;
     }
   }
 
@@ -308,9 +320,10 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
     SDB_GET_INT32(pRaw, dataPos, &action.id, _OVER)
     SDB_GET_INT32(pRaw, dataPos, &action.errCode, _OVER)
     SDB_GET_INT32(pRaw, dataPos, &action.acceptableCode, _OVER)
-    SDB_GET_INT8(pRaw, dataPos, &action.actionType, _OVER)
+    SDB_GET_INT8(pRaw, dataPos, &actionType, _OVER)
+    action.actionType = actionType;
     SDB_GET_INT8(pRaw, dataPos, &action.stage, _OVER)
-    if (action.actionType) {
+    if (action.actionType == TRANS_ACTION_RAW) {
       SDB_GET_INT8(pRaw, dataPos, &action.rawWritten, _OVER)
       SDB_GET_INT32(pRaw, dataPos, &dataLen, _OVER)
       action.pRaw = taosMemoryMalloc(dataLen);
@@ -319,7 +332,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
       SDB_GET_BINARY(pRaw, dataPos, (void *)action.pRaw, dataLen, _OVER);
       if (taosArrayPush(pTrans->undoActions, &action) == NULL) goto _OVER;
       action.pRaw = NULL;
-    } else {
+    } else if (action.actionType == TRANS_ACTION_MSG) {
       SDB_GET_BINARY(pRaw, dataPos, (void *)&action.epSet, sizeof(SEpSet), _OVER);
       SDB_GET_INT16(pRaw, dataPos, &action.msgType, _OVER)
       SDB_GET_INT8(pRaw, dataPos, &action.msgSent, _OVER)
@@ -330,6 +343,8 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
       SDB_GET_BINARY(pRaw, dataPos, action.pCont, action.contLen, _OVER);
       if (taosArrayPush(pTrans->undoActions, &action) == NULL) goto _OVER;
       action.pCont = NULL;
+    } else {
+      if (taosArrayPush(pTrans->redoActions, &action) == NULL) goto _OVER;
     }
   }
 
@@ -337,7 +352,8 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
     SDB_GET_INT32(pRaw, dataPos, &action.id, _OVER)
     SDB_GET_INT32(pRaw, dataPos, &action.errCode, _OVER)
     SDB_GET_INT32(pRaw, dataPos, &action.acceptableCode, _OVER)
-    SDB_GET_INT8(pRaw, dataPos, &action.actionType, _OVER)
+    SDB_GET_INT8(pRaw, dataPos, &actionType, _OVER)
+    action.actionType = actionType;
     SDB_GET_INT8(pRaw, dataPos, &action.stage, _OVER)
     if (action.actionType) {
       SDB_GET_INT8(pRaw, dataPos, &action.rawWritten, _OVER)
@@ -348,7 +364,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
       SDB_GET_BINARY(pRaw, dataPos, (void *)action.pRaw, dataLen, _OVER);
       if (taosArrayPush(pTrans->commitActions, &action) == NULL) goto _OVER;
       action.pRaw = NULL;
-    } else {
+    } else if (action.actionType == TRANS_ACTION_MSG) {
       SDB_GET_BINARY(pRaw, dataPos, (void *)&action.epSet, sizeof(SEpSet), _OVER);
       SDB_GET_INT16(pRaw, dataPos, &action.msgType, _OVER)
       SDB_GET_INT8(pRaw, dataPos, &action.msgSent, _OVER)
@@ -359,6 +375,8 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
       SDB_GET_BINARY(pRaw, dataPos, action.pCont, action.contLen, _OVER);
       if (taosArrayPush(pTrans->commitActions, &action) == NULL) goto _OVER;
       action.pCont = NULL;
+    } else {
+      if (taosArrayPush(pTrans->redoActions, &action) == NULL) goto _OVER;
     }
   }
 
@@ -552,10 +570,12 @@ static void mndTransDropActions(SArray *pArray) {
   int32_t size = taosArrayGetSize(pArray);
   for (int32_t i = 0; i < size; ++i) {
     STransAction *pAction = taosArrayGet(pArray, i);
-    if (pAction->actionType) {
+    if (pAction->actionType == TRANS_ACTION_RAW) {
       taosMemoryFreeClear(pAction->pRaw);
-    } else {
+    } else if (pAction->actionType == TRANS_ACTION_MSG) {
       taosMemoryFreeClear(pAction->pCont);
+    } else {
+      // nothing
     }
   }
 
@@ -583,27 +603,34 @@ static int32_t mndTransAppendAction(SArray *pArray, STransAction *pAction) {
 }
 
 int32_t mndTransAppendRedolog(STrans *pTrans, SSdbRaw *pRaw) {
-  STransAction action = {.stage = TRN_STAGE_REDO_ACTION, .actionType = true, .pRaw = pRaw};
+  STransAction action = {.stage = TRN_STAGE_REDO_ACTION, .actionType = TRANS_ACTION_RAW, .pRaw = pRaw};
+  return mndTransAppendAction(pTrans->redoActions, &action);
+}
+
+int32_t mndTransAppendNullLog(STrans *pTrans) {
+  STransAction action = {.stage = TRN_STAGE_REDO_ACTION, .actionType = TRANS_ACTION_NULL};
   return mndTransAppendAction(pTrans->redoActions, &action);
 }
 
 int32_t mndTransAppendUndolog(STrans *pTrans, SSdbRaw *pRaw) {
-  STransAction action = {.stage = TRN_STAGE_UNDO_ACTION, .actionType = true, .pRaw = pRaw};
+  STransAction action = {.stage = TRN_STAGE_UNDO_ACTION, .actionType = TRANS_ACTION_RAW, .pRaw = pRaw};
   return mndTransAppendAction(pTrans->undoActions, &action);
 }
 
 int32_t mndTransAppendCommitlog(STrans *pTrans, SSdbRaw *pRaw) {
-  STransAction action = {.stage = TRN_STAGE_COMMIT_ACTION, .actionType = true, .pRaw = pRaw};
+  STransAction action = {.stage = TRN_STAGE_COMMIT_ACTION, .actionType = TRANS_ACTION_RAW, .pRaw = pRaw};
   return mndTransAppendAction(pTrans->commitActions, &action);
 }
 
 int32_t mndTransAppendRedoAction(STrans *pTrans, STransAction *pAction) {
   pAction->stage = TRN_STAGE_REDO_ACTION;
+  pAction->actionType = TRANS_ACTION_MSG;
   return mndTransAppendAction(pTrans->redoActions, pAction);
 }
 
 int32_t mndTransAppendUndoAction(STrans *pTrans, STransAction *pAction) {
   pAction->stage = TRN_STAGE_UNDO_ACTION;
+  pAction->actionType = TRANS_ACTION_MSG;
   return mndTransAppendAction(pTrans->undoActions, pAction);
 }
 
@@ -782,7 +809,7 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
   }
 }
 
-void mndTransProcessRsp(SRpcMsg *pRsp) {
+int32_t mndTransProcessRsp(SRpcMsg *pRsp) {
   SMnode *pMnode = pRsp->info.node;
   int64_t signature = (int64_t)(pRsp->info.ahandle);
   int32_t transId = (int32_t)(signature >> 32);
@@ -827,6 +854,7 @@ void mndTransProcessRsp(SRpcMsg *pRsp) {
 
 _OVER:
   mndReleaseTrans(pMnode, pTrans);
+  return 0;
 }
 
 static void mndTransResetActions(SMnode *pMnode, STrans *pTrans, SArray *pArray) {
@@ -899,10 +927,15 @@ static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransActio
 }
 
 static int32_t mndTransExecSingleAction(SMnode *pMnode, STrans *pTrans, STransAction *pAction) {
-  if (pAction->actionType) {
+  if (pAction->actionType == TRANS_ACTION_RAW) {
     return mndTransWriteSingleLog(pMnode, pTrans, pAction);
-  } else {
+  } else if (pAction->actionType == TRANS_ACTION_MSG) {
     return mndTransSendSingleMsg(pMnode, pTrans, pAction);
+  } else {
+    pAction->rawWritten = 0;
+    pAction->errCode = 0;
+    mDebug("trans:%d, %s:%d null action executed", pTrans->id, mndTransStr(pAction->stage), pAction->id);
+    return 0;
   }
 }
 
