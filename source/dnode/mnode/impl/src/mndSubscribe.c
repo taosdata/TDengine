@@ -43,7 +43,6 @@ static int32_t  mndSubActionUpdate(SSdb *pSdb, SMqSubscribeObj *pOldSub, SMqSubs
 
 static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg);
 static int32_t mndProcessDropCgroupReq(SRpcMsg *pMsg);
-static int32_t mndProcessSubscribeInternalRsp(SRpcMsg *pMsg);
 
 static int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextSubscribe(SMnode *pMnode, void *pIter);
@@ -65,20 +64,22 @@ static int32_t mndSetSubCommitLogs(SMnode *pMnode, STrans *pTrans, SMqSubscribeO
 }
 
 int32_t mndInitSubscribe(SMnode *pMnode) {
-  SSdbTable table = {.sdbType = SDB_SUBSCRIBE,
-                     .keyType = SDB_KEY_BINARY,
-                     .encodeFp = (SdbEncodeFp)mndSubActionEncode,
-                     .decodeFp = (SdbDecodeFp)mndSubActionDecode,
-                     .insertFp = (SdbInsertFp)mndSubActionInsert,
-                     .updateFp = (SdbUpdateFp)mndSubActionUpdate,
-                     .deleteFp = (SdbDeleteFp)mndSubActionDelete};
+  SSdbTable table = {
+      .sdbType = SDB_SUBSCRIBE,
+      .keyType = SDB_KEY_BINARY,
+      .encodeFp = (SdbEncodeFp)mndSubActionEncode,
+      .decodeFp = (SdbDecodeFp)mndSubActionDecode,
+      .insertFp = (SdbInsertFp)mndSubActionInsert,
+      .updateFp = (SdbUpdateFp)mndSubActionUpdate,
+      .deleteFp = (SdbDeleteFp)mndSubActionDelete,
+  };
 
-  mndSetMsgHandle(pMnode, TDMT_VND_MQ_VG_CHANGE_RSP, mndProcessSubscribeInternalRsp);
-  mndSetMsgHandle(pMnode, TDMT_VND_MQ_VG_DELETE_RSP, mndProcessSubscribeInternalRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_MQ_VG_CHANGE_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_MQ_VG_DELETE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_MQ_DO_REBALANCE, mndProcessRebalanceReq);
   mndSetMsgHandle(pMnode, TDMT_MND_MQ_DO_REBALANCE, mndProcessRebalanceReq);
   mndSetMsgHandle(pMnode, TDMT_MND_MQ_DROP_CGROUP, mndProcessDropCgroupReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_MQ_DROP_CGROUP_RSP, mndProcessSubscribeInternalRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_MQ_DROP_CGROUP_RSP, mndTransProcessRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_SUBSCRIPTIONS, mndRetrieveSubscribe);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_TOPICS, mndCancelGetNextSubscribe);
@@ -787,11 +788,6 @@ SMqSubscribeObj *mndAcquireSubscribeByKey(SMnode *pMnode, const char *key) {
 void mndReleaseSubscribe(SMnode *pMnode, SMqSubscribeObj *pSub) {
   SSdb *pSdb = pMnode->pSdb;
   sdbRelease(pSdb, pSub);
-}
-
-static int32_t mndProcessSubscribeInternalRsp(SRpcMsg *pRsp) {
-  mndTransProcessRsp(pRsp);
-  return 0;
 }
 
 static int32_t mndSetDropSubRedoLogs(SMnode *pMnode, STrans *pTrans, SMqSubscribeObj *pSub) {

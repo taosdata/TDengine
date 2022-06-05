@@ -69,7 +69,7 @@ int32_t vnodeSyncAlter(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t code = syncReconfig(pVnode->sync, &cfg);
   if (code == TAOS_SYNC_PROPOSE_SUCCESS) {
     // todo refactor
-    SRpcMsg rsp = {.info = pMsg->info, .code = terrno};
+    SRpcMsg rsp = {.info = pMsg->info, .code = 0};
     tmsgSendRsp(&rsp);
     return TSDB_CODE_ACTION_IN_PROGRESS;
   }

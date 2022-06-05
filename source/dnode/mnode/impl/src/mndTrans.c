@@ -870,8 +870,15 @@ static void mndTransResetActions(SMnode *pMnode, STrans *pTrans, SArray *pArray)
     pAction->rawWritten = 0;
     pAction->msgSent = 0;
     pAction->msgReceived = 0;
+    if (pAction->errCode == TSDB_CODE_RPC_REDIRECT) {
+      pAction->epSet.inUse = (pAction->epSet.inUse + 1) % pAction->epSet.numOfEps;
+      mDebug("trans:%d, %s:%d execute status is reset and set epset inuse:%d", pTrans->id, mndTransStr(pAction->stage),
+             action, pAction->epSet.inUse);
+    } else {
+      mDebug("trans:%d, %s:%d execute status is reset", pTrans->id, mndTransStr(pAction->stage), action);
+    }
     pAction->errCode = 0;
-    mDebug("trans:%d, %s:%d execute status is reset", pTrans->id, mndTransStr(pAction->stage), action);
+    
   }
 }
 
