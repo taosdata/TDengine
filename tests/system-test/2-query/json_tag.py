@@ -424,8 +424,8 @@ class TDTestCase:
         # test top/bottom with group by json tag
         tdSql.query("select top(dataint,2),jtag->'tag1' from jsons1 group by jtag->'tag1' order by jtag->'tag1'")
         tdSql.checkRows(11)
-        tdSql.checkData(0, 0, 24)
         tdSql.checkData(0, 1, None)
+        tdSql.checkData(2, 0, 4)
         tdSql.checkData(3, 0, 3)
         tdSql.checkData(3, 1, "false")
         tdSql.checkData(10, 0, 23)

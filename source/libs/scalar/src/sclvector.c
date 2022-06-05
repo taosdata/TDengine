@@ -1237,11 +1237,10 @@ void vectorMathRemainder(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam
   SColumnInfoData *pLeftCol  = doVectorConvert(pLeft, &leftConvert);
   SColumnInfoData *pRightCol = doVectorConvert(pRight, &rightConvert);
 
-  _getDoubleValue_fn_t getVectorDoubleValueFnLeft  = getVectorDoubleValueFn(pLeftCol->info.type);
-  _getDoubleValue_fn_t getVectorDoubleValueFnRight = getVectorDoubleValueFn(pRightCol->info.type);
+  _getBigintValue_fn_t getVectorBigintValueFnLeft  = getVectorBigintValueFn(pLeftCol->info.type);
+  _getBigintValue_fn_t getVectorBigintValueFnRight = getVectorBigintValueFn(pRightCol->info.type);
 
   double *output = (double *)pOutputCol->pData;
-  double zero = 0.0;
 
   if (pLeft->numOfRows == pRight->numOfRows) {
     for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
@@ -1250,18 +1249,18 @@ void vectorMathRemainder(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam
         continue;
       }
 
-      double lx = getVectorDoubleValueFnLeft(LEFT_COL, i);
-      double rx = getVectorDoubleValueFnRight(RIGHT_COL, i);
-      if (isnan(lx) || isinf(lx) || isnan(rx) || isinf(rx)) {
+      int64_t lx = getVectorBigintValueFnLeft(LEFT_COL, i);
+      int64_t rx = getVectorBigintValueFnRight(RIGHT_COL, i);
+      if (rx == 0) {
         colDataAppendNULL(pOutputCol, i);
         continue;
       }
 
-      *output = lx - ((int64_t)(lx / rx)) * rx;
+      *output = lx % rx;
     }
   } else if (pLeft->numOfRows == 1) {
-    double lx = getVectorDoubleValueFnLeft(LEFT_COL, 0);
-    if (IS_HELPER_NULL(pLeftCol, 0) || isnan(lx) || isinf(lx)) {  // Set pLeft->numOfRows NULL value
+    int64_t lx = getVectorBigintValueFnLeft(LEFT_COL, 0);
+    if (IS_HELPER_NULL(pLeftCol, 0)) {  // Set pLeft->numOfRows NULL value
       colDataAppendNNULL(pOutputCol, 0, pRight->numOfRows);
     } else {
       for (; i >= 0 && i < pRight->numOfRows; i += step, output += 1) {
@@ -1270,18 +1269,18 @@ void vectorMathRemainder(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam
           continue;
         }
 
-        double rx = getVectorDoubleValueFnRight(RIGHT_COL, i);
-        if (isnan(rx) || isinf(rx) || FLT_EQUAL(rx, 0)) {
+        int64_t rx = getVectorBigintValueFnRight(RIGHT_COL, i);
+        if (rx == 0){
           colDataAppendNULL(pOutputCol, i);
           continue;
         }
 
-        *output = lx - ((int64_t)(lx / rx)) * rx;
+        *output = lx % rx;
       }
     }
   } else if (pRight->numOfRows == 1) {
-    double rx = getVectorDoubleValueFnRight(RIGHT_COL, 0);
-    if (IS_HELPER_NULL(pRightCol, 0) || FLT_EQUAL(rx, 0)) {  // Set pLeft->numOfRows NULL value
+    int64_t rx = getVectorBigintValueFnRight(RIGHT_COL, 0);
+    if (IS_HELPER_NULL(pRightCol, 0) || rx == 0) {  // Set pLeft->numOfRows NULL value
       colDataAppendNNULL(pOutputCol, 0, pLeft->numOfRows);
     } else {
       for (; i >= 0 && i < pLeft->numOfRows; i += step, output += 1) {
@@ -1290,13 +1289,8 @@ void vectorMathRemainder(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam
           continue;
         }
 
-        double lx = getVectorDoubleValueFnLeft(LEFT_COL, i);
-        if (isnan(lx) || isinf(lx)) {
-          colDataAppendNULL(pOutputCol, i);
-          continue;
-        }
-
-        *output = lx - ((int64_t)(lx / rx)) * rx;
+        int64_t lx = getVectorBigintValueFnLeft(LEFT_COL, i);
+        *output = lx % rx;
       }
     }
   }
@@ -1402,7 +1396,7 @@ static void vectorBitAndHelper(SColumnInfoData* pLeftCol, SColumnInfoData* pRigh
   _getBigintValue_fn_t getVectorBigintValueFnLeft  = getVectorBigintValueFn(pLeftCol->info.type);
   _getBigintValue_fn_t getVectorBigintValueFnRight = getVectorBigintValueFn(pRightCol->info.type);
 
-  double *output = (double *)pOutputCol->pData;
+  int64_t *output = (int64_t *)pOutputCol->pData;
 
   if (IS_HELPER_NULL(pRightCol, 0)) {  // Set pLeft->numOfRows NULL value
     colDataAppendNNULL(pOutputCol, 0, numOfRows);
