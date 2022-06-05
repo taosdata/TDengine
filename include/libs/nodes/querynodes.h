@@ -60,6 +60,7 @@ typedef struct SColumnNode {
   int8_t      tableType;
   col_id_t    colId;
   EColumnType colType;  // column or tag
+  bool        hasIndex;
   char        dbName[TSDB_DB_NAME_LEN];
   char        tableName[TSDB_TABLE_NAME_LEN];
   char        tableAlias[TSDB_TABLE_NAME_LEN];
@@ -258,6 +259,7 @@ typedef struct SSetOperator {
   SNodeList*       pOrderByList;  // SOrderByExprNode
   SNode*           pLimit;
   char             stmtName[TSDB_TABLE_NAME_LEN];
+  uint8_t          precision;
 } SSetOperator;
 
 typedef enum ESqlClause {
@@ -271,6 +273,17 @@ typedef enum ESqlClause {
   SQL_CLAUSE_SELECT,
   SQL_CLAUSE_ORDER_BY
 } ESqlClause;
+
+typedef struct SDeleteStmt {
+  ENodeType   type;           // QUERY_NODE_DELETE_STMT
+  SNode*      pFromTable;     // FROM clause
+  SNode*      pWhere;         // WHERE clause
+  SNode*      pCountFunc;     // count the number of rows affected
+  SNode*      pTagIndexCond;  // pWhere divided into pTagIndexCond and timeRange
+  STimeWindow timeRange;
+  uint8_t     precision;
+  bool        deleteZeroRows;
+} SDeleteStmt;
 
 typedef enum {
   PAYLOAD_TYPE_KV = 0,
@@ -363,8 +376,11 @@ bool nodesIsRegularOp(const SOperatorNode* pOp);
 void*   nodesGetValueFromNode(SValueNode* pNode);
 int32_t nodesSetValueNodeValue(SValueNode* pNode, void* value);
 char*   nodesGetStrValueFromNode(SValueNode* pNode);
-char*   getFillModeString(EFillMode mode);
-void    valueNodeToVariant(const SValueNode* pNode, SVariant* pVal);
+void    nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal);
+
+char*   nodesGetFillModeString(EFillMode mode);
+int32_t nodesMergeConds(SNode** pDst, SNodeList** pSrc);
+int32_t nodesPartitionCond(SNode** pCondition, SNode** pPrimaryKeyCond, SNode** pTagCond, SNode** pOtherCond);
 
 #ifdef __cplusplus
 }

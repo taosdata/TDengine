@@ -178,6 +178,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Only tag can be json type";
     case TSDB_CODE_PAR_VALUE_TOO_LONG:
       return "Value too long for column/tag: %s";
+    case TSDB_CODE_PAR_INVALID_DELETE_WHERE:
+      return "The DELETE statement must have a definite time window range";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:
@@ -322,11 +324,11 @@ static bool isValidateTag(char* input) {
   return true;
 }
 
-int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag **ppTag, SMsgBuf* pMsgBuf) {
+int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, SMsgBuf* pMsgBuf) {
   int32_t   retCode = TSDB_CODE_SUCCESS;
-  cJSON* root = NULL;
+  cJSON*    root = NULL;
   SHashObj* keyHash = NULL;
-  int32_t size = 0;
+  int32_t   size = 0;
   // set json NULL data
   if (!json || strtrim((char*)json) == 0 || strcasecmp(json, TSDB_DATA_NULL_STR_L) == 0) {
     retCode = TSDB_CODE_SUCCESS;
@@ -371,7 +373,8 @@ int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag **ppTag, SMs
     }
     STagVal val = {0};
     val.pKey = jsonKey;
-    taosHashPut(keyHash, jsonKey, keyLen, &keyLen, CHAR_BYTES);  // add key to hash to remove dumplicate, value is useless
+    taosHashPut(keyHash, jsonKey, keyLen, &keyLen,
+                CHAR_BYTES);  // add key to hash to remove dumplicate, value is useless
 
     if (item->type == cJSON_String) {  // add json value  format: type|data
       char*   jsonValue = item->valuestring;
@@ -382,8 +385,7 @@ int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag **ppTag, SMs
         goto end;
       }
       val.type = TSDB_DATA_TYPE_NCHAR;
-      if (valLen > 0 && !taosMbsToUcs4(jsonValue, valLen, (TdUcs4*)tmp,
-                                       (int32_t)(valLen * TSDB_NCHAR_SIZE), &valLen)) {
+      if (valLen > 0 && !taosMbsToUcs4(jsonValue, valLen, (TdUcs4*)tmp, (int32_t)(valLen * TSDB_NCHAR_SIZE), &valLen)) {
         uError("charset:%s to %s. val:%s, errno:%s, convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, jsonValue,
                strerror(errno));
         retCode = buildSyntaxErrMsg(pMsgBuf, "charset convert json error", jsonValue);
@@ -413,7 +415,7 @@ int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag **ppTag, SMs
 
 end:
   taosHashCleanup(keyHash);
-  if(retCode == TSDB_CODE_SUCCESS){
+  if (retCode == TSDB_CODE_SUCCESS) {
     tTagNew(pTagVals, 1, true, ppTag);
   }
   cJSON_Delete(root);

@@ -80,6 +80,10 @@ static int32_t authDropUser(SAuthCxt* pCxt, SDropUserStmt* pStmt) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t authDelete(SAuthCxt* pCxt, SDeleteStmt* pDelete) {
+  return checkAuth(pCxt, ((SRealTableNode*)pDelete->pFromTable)->table.dbName, AUTH_TYPE_WRITE);
+}
+
 static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
   switch (nodeType(pStmt)) {
     case QUERY_NODE_SET_OPERATOR:
@@ -88,6 +92,8 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authSelect(pCxt, (SSelectStmt*)pStmt);
     case QUERY_NODE_DROP_USER_STMT:
       return authDropUser(pCxt, (SDropUserStmt*)pStmt);
+    case QUERY_NODE_DELETE_STMT:
+      return authDelete(pCxt, (SDeleteStmt*)pStmt);
     default:
       break;
   }

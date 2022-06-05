@@ -229,14 +229,14 @@ TEST_F(ParserSelectTest, subquery) {
   run("SELECT SUM(a) FROM (SELECT MAX(c1) a, _wstartts FROM st1s1 PARTITION BY TBNAME INTERVAL(1m)) INTERVAL(1n)");
 }
 
-TEST_F(ParserSelectTest, subquerySemanticError) {
+TEST_F(ParserSelectTest, subquerySemanticCheck) {
   useDb("root", "test");
 
   run("SELECT SUM(a) FROM (SELECT MAX(c1) a FROM st1s1 INTERVAL(1m)) INTERVAL(1n)", TSDB_CODE_PAR_NOT_ALLOWED_WIN_QUERY,
       PARSER_STAGE_TRANSLATE);
 }
 
-TEST_F(ParserSelectTest, semanticError) {
+TEST_F(ParserSelectTest, semanticCheck) {
   useDb("root", "test");
 
   // TSDB_CODE_PAR_INVALID_COLUMN

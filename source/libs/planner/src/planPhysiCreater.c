@@ -980,7 +980,9 @@ static int32_t createSessionWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* 
 static int32_t createStateWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                           SWindowLogicNode* pWindowLogicNode, SPhysiNode** pPhyNode) {
   SStateWinodwPhysiNode* pState = (SStateWinodwPhysiNode*)makePhysiNode(
-      pCxt, getPrecision(pChildren), (SLogicNode*)pWindowLogicNode, QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW);
+      pCxt, getPrecision(pChildren), (SLogicNode*)pWindowLogicNode,
+      (pCxt->pPlanCxt->streamQuery ? QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE_WINDOW: 
+                                     QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW));
   if (NULL == pState) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
