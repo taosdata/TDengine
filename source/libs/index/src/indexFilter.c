@@ -508,7 +508,7 @@ static int32_t sifExecOper(SOperatorNode *node, SIFCtx *ctx, SIFParam *output) {
   int32_t code = 0;
   int32_t nParam = sifGetOperParamNum(node->opType);
   if (nParam <= 1) {
-    SIF_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
+    SIF_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
   if (node->opType == OP_TYPE_JSON_GET_VALUE || node->opType == OP_TYPE_JSON_CONTAINS) {
     return code;
