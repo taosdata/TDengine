@@ -34,8 +34,7 @@ int32_t GetSnapshotCb(struct SSyncFSM* pFsm, SSnapshot* pSnapshot) {
 
 void init() {
   walInit();
-  taosRemoveDir(pWalPath);
-
+  
   SWalCfg walCfg;
   memset(&walCfg, 0, sizeof(SWalCfg));
   walCfg.vgId = 1000;
@@ -63,31 +62,48 @@ void cleanup() {
 }
 
 void test1() {
-  init();
+  taosRemoveDir(pWalPath);
 
+  init();
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
   logStoreLog2((char*)"\n\n\ntest1 ----- ", pLogStore);
   logStoreDestory(pLogStore);
+  cleanup();
 
+  // restart
+  init();
+  pLogStore = logStoreCreate(pSyncNode);
+  assert(pLogStore);
+  logStoreLog2((char*)"\n\n\ntest1 restart ----- ", pLogStore);
+  logStoreDestory(pLogStore);
   cleanup();
 }
 
 void test2() {
-  init();
+  taosRemoveDir(pWalPath);
 
+  init();
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
   pLogStore->syncLogSetBeginIndex(pLogStore, 5);
   logStoreLog2((char*)"\n\n\ntest2 ----- ", pLogStore);
   logStoreDestory(pLogStore);
+  cleanup();
 
+  // restart
+  init();
+  pLogStore = logStoreCreate(pSyncNode);
+  assert(pLogStore);
+  logStoreLog2((char*)"\n\n\ntest2 restart ----- ", pLogStore);
+  logStoreDestory(pLogStore);
   cleanup();
 }
 
 void test3() {
-  init();
+  taosRemoveDir(pWalPath);
 
+  init();
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
   logStoreLog2((char*)"\n\n\ntest3 ----- ", pLogStore);
@@ -109,13 +125,21 @@ void test3() {
   }
   logStoreLog2((char*)"test3 after appendEntry", pLogStore);
   logStoreDestory(pLogStore);
+  cleanup();
 
+  // restart
+  init();
+  pLogStore = logStoreCreate(pSyncNode);
+  assert(pLogStore);
+  logStoreLog2((char*)"\n\n\ntest3 restart ----- ", pLogStore);
+  logStoreDestory(pLogStore);
   cleanup();
 }
 
 void test4() {
-  init();
+  taosRemoveDir(pWalPath);
 
+  init();
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
   logStoreLog2((char*)"\n\n\ntest4 ----- ", pLogStore);
@@ -138,13 +162,21 @@ void test4() {
   }
   logStoreLog2((char*)"test4 after appendEntry", pLogStore);
   logStoreDestory(pLogStore);
+  cleanup();
 
+  // restart
+  init();
+  pLogStore = logStoreCreate(pSyncNode);
+  assert(pLogStore);
+  logStoreLog2((char*)"\n\n\ntest4 restart ----- ", pLogStore);
+  logStoreDestory(pLogStore);
   cleanup();
 }
 
 void test5() {
-  init();
+  taosRemoveDir(pWalPath);
 
+  init();
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
   logStoreLog2((char*)"\n\n\ntest5 ----- ", pLogStore);
@@ -171,13 +203,21 @@ void test5() {
   logStoreLog2((char*)"after truncate 7", pLogStore);
 
   logStoreDestory(pLogStore);
+  cleanup();
 
+  // restart
+  init();
+  pLogStore = logStoreCreate(pSyncNode);
+  assert(pLogStore);
+  logStoreLog2((char*)"\n\n\ntest5 restart ----- ", pLogStore);
+  logStoreDestory(pLogStore);
   cleanup();
 }
 
 void test6() {
-  init();
+  taosRemoveDir(pWalPath);
 
+  init();
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
   logStoreLog2((char*)"\n\n\ntest6 ----- ", pLogStore);
@@ -204,7 +244,14 @@ void test6() {
   logStoreLog2((char*)"after truncate 5", pLogStore);
 
   logStoreDestory(pLogStore);
+  cleanup();
 
+  // restart
+  init();
+  pLogStore = logStoreCreate(pSyncNode);
+  assert(pLogStore);
+  logStoreLog2((char*)"\n\n\ntest6 restart ----- ", pLogStore);
+  logStoreDestory(pLogStore);
   cleanup();
 }
 
