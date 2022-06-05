@@ -42,6 +42,7 @@
 #include "nodes.h"
 #include "tlog.h"
 #include "parUtil.h"
+#include "filterInt.h"
 
 #define _DEBUG_PRINT_ 0
 
@@ -1106,16 +1107,16 @@ void makeCalculate(void *json, void *key, int32_t rightType, void *rightData, do
 
   }else if(opType == OP_TYPE_ADD || opType == OP_TYPE_SUB || opType == OP_TYPE_MULTI || opType == OP_TYPE_DIV ||
              opType == OP_TYPE_MOD || opType == OP_TYPE_MINUS){
-    printf("1result:%f,except:%f\n", *((double *)colDataGetData(column, 0)), exceptValue);
+    printf("op:%s,1result:%f,except:%f\n", gOptrStr[opType].str, *((double *)colDataGetData(column, 0)), exceptValue);
     ASSERT_TRUE(fabs(*((double *)colDataGetData(column, 0)) - exceptValue) < 0.0001);
   }else if(opType == OP_TYPE_BIT_AND || opType == OP_TYPE_BIT_OR){
-    printf("2result:%ld,except:%f\n", *((int64_t *)colDataGetData(column, 0)), exceptValue);
+    printf("op:%s,2result:%ld,except:%f\n", gOptrStr[opType].str, *((int64_t *)colDataGetData(column, 0)), exceptValue);
     ASSERT_EQ(*((int64_t *)colDataGetData(column, 0)), exceptValue);
   }else if(opType == OP_TYPE_GREATER_THAN || opType == OP_TYPE_GREATER_EQUAL || opType == OP_TYPE_LOWER_THAN ||
              opType == OP_TYPE_LOWER_EQUAL || opType == OP_TYPE_EQUAL || opType == OP_TYPE_NOT_EQUAL ||
              opType == OP_TYPE_IS_NULL || opType == OP_TYPE_IS_NOT_NULL || opType == OP_TYPE_IS_TRUE ||
              opType == OP_TYPE_LIKE || opType == OP_TYPE_NOT_LIKE || opType == OP_TYPE_MATCH || opType == OP_TYPE_NMATCH){
-    printf("3result:%d,except:%f\n", *((bool *)colDataGetData(column, 0)), exceptValue);
+    printf("op:%s,3result:%d,except:%f\n", gOptrStr[opType].str, *((bool *)colDataGetData(column, 0)), exceptValue);
     ASSERT_EQ(*((bool *)colDataGetData(column, 0)), exceptValue);
   }
 
@@ -1188,7 +1189,7 @@ TEST(columnTest, json_column_arith_op) {
   printf("----------------------json double-- 5.44 op {1, 8, 2, 2, 3, 0, -4, 9}------------------\n");
 
   key = "k5";
-  double eRes40[len] = {6.44, -2.56, 10.88, 2.72, 2.44, -5.44, 5&-4, 5|9};
+  double eRes40[len] = {6.44, -2.56, 10.88, 2.72, 2, -5.44, 5&-4, 5|9};
   double eRes41[len] = {6.44, 2.56, 10.88, 0.3676470588235294, 3, 0, 5&-4, 5|9};
   for(int i = 0; i < len; i++){
     makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes40[i], op[i], false);
@@ -1200,8 +1201,8 @@ TEST(columnTest, json_column_arith_op) {
   printf("----------------------json int-- -10 op {1, 8, 2, 2, 3, 0, -4, 9}------------------\n");
 
   key = "k6";
-  double eRes50[len] = {-9, -18, -20, -5, 2, 10, -10&-4, -10|9};
-  double eRes51[len] = {-9, 18, -20, -0.2, -7, 0, -10&-4, -10|9};
+  double eRes50[len] = {-9, -18, -20, -5, -10%3, 10, -10&-4, -10|9};
+  double eRes51[len] = {-9, 18, -20, -0.2, 3%-10, 0, -10&-4, -10|9};
   for(int i = 0; i < len; i++){
     makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes50[i], op[i], false);
   }
@@ -1230,7 +1231,7 @@ TEST(columnTest, json_column_arith_op) {
     makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes70[i], op[i], false);
   }
   for(int i = 0; i < len; i++){
-    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes70[i], op[i], true);
+    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes71[i], op[i], true);
   }
 
   printf("----------------------json string-- 8 op {1, 8, 2, 2, 3, 0, -4, 9}------------------\n");
@@ -1273,7 +1274,7 @@ void *prepareNchar(char* rightData){
 
 TEST(columnTest, json_column_logic_op) {
   scltInitLogFile();
-  char *rightvTmp= "{\"k1\":4,\"k2\":\"hello\",\"k3\":null,\"k4\":true,\"k5\":5.44,\"k6\":\"6.6hello\"}";
+  char *rightvTmp= "{\"k1\":4,\"k2\":\"hello\",\"k3\":null,\"k4\":true,\"k5\":5.44,\"k6\":-10,\"k7\":-9.8,\"k8\":false,\"k9\":\"6.6hello\"}";
 
   char rightv[256] = {0};
   memcpy(rightv, rightvTmp, strlen(rightvTmp));
@@ -1281,6 +1282,7 @@ TEST(columnTest, json_column_logic_op) {
   STag* row = NULL;
   parseJsontoTagData(rightv, tags, &row, NULL);
 
+  const int32_t len0 = 6;
   const int32_t len = 9;
   const int32_t len1 = 4;
   EOperatorType op[len+len1] = {OP_TYPE_GREATER_THAN, OP_TYPE_GREATER_EQUAL, OP_TYPE_LOWER_THAN, OP_TYPE_LOWER_EQUAL, OP_TYPE_EQUAL, OP_TYPE_NOT_EQUAL,
@@ -1289,11 +1291,15 @@ TEST(columnTest, json_column_logic_op) {
   int32_t input[len] = {1, 8, 2, 2, 3, 0, 0, 0, 0};
   char *inputNchar[len1] = {"hell_", "hel%", "hell", "llll"};
 
-  printf("--------------------json int---------------------\n");
+  printf("--------------------json int---4 {1, 8, 2, 2, 3, 0, 0, 0, 0}------------------\n");
   char *key = "k1";
   bool eRes[len+len1] = {true, false, false, false, false, true, false, true, true, false, false, false, false};
   for(int i = 0; i < len; i++){
     makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes[i], op[i], false);
+  }
+  bool eRes_0[len0] = {false, true, true, true, false, true};
+  for(int i = 0; i < len0; i++){
+    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes_0[i], op[i], true);
   }
   for(int i = len; i < len + len1; i++){
     void* rightData = prepareNchar(inputNchar[i-len]);
@@ -1301,81 +1307,167 @@ TEST(columnTest, json_column_logic_op) {
     taosMemoryFree(rightData);
   }
 
-  printf("--------------------json string---------------------\n");
+  printf("--------------------json string--0 {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
 
   key = "k2";
   bool eRes1[len+len1] = {false, false, true, true, false, false, false, true, false, true, false, true, true};
   for(int i = 0; i < len; i++){
     makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes1[i], op[i], false);
   }
+  bool eRes_1[len0] = {true, true, false, false, false, false};
+  for(int i = 0; i < len0; i++){
+    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes_1[i], op[i], true);
+  }
+
   for(int i = len; i < len + len1; i++){
     void* rightData = prepareNchar(inputNchar[i-len]);
     makeCalculate(row, key, TSDB_DATA_TYPE_NCHAR, rightData, eRes1[i], op[i], false);
     taosMemoryFree(rightData);
   }
 
-  printf("--------------------json null---------------------\n");
+  printf("--------------------json null---null {1, 8, 2, 2, 3, 0, 0, 0, 0}------------------\n");
 
   key = "k3";   // (null is true) return NULL, so use DBL_MAX represent NULL
   double eRes2[len+len1] = {false, false, false, false, false, false, true, false, DBL_MAX, false, false, false, false};
   for(int i = 0; i < len; i++){
     makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes2[i], op[i], false);
   }
+  bool eRes_2[len0] = {false, false, false, false, false, false};
+  for(int i = 0; i < len0; i++){
+    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes_2[i], op[i], true);
+  }
+
   for(int i = len; i < len + len1; i++){
     void* rightData = prepareNchar(inputNchar[i-len]);
     makeCalculate(row, key, TSDB_DATA_TYPE_NCHAR, rightData, eRes2[i], op[i], false);
     taosMemoryFree(rightData);
   }
 
-  printf("--------------------json bool---------------------\n");
+  printf("--------------------json bool--1 {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
 
   key = "k4";
   bool eRes3[len+len1] = {false, false, true, true, false, true, false, true, true, false, false, false, false};
   for(int i = 0; i < len; i++){
     makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes3[i], op[i], false);
   }
+  bool eRes_3[len0] = {false, true, false, false, false, true};
+  for(int i = 0; i < len0; i++){
+    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes_3[i], op[i], true);
+  }
+
   for(int i = len; i < len + len1; i++){
     void* rightData = prepareNchar(inputNchar[i-len]);
     makeCalculate(row, key, TSDB_DATA_TYPE_NCHAR, rightData, eRes3[i], op[i], false);
     taosMemoryFree(rightData);
   }
 
-  printf("--------------------json double---------------------\n");
+  printf("--------------------json double--5.44 {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
 
   key = "k5";
   bool eRes4[len+len1] = {true, false, false, false, false, true, false, true, true, false, false, false, false};
   for(int i = 0; i < len; i++){
     makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes4[i], op[i], false);
   }
+  bool eRes_4[len0] = {false, true, true, true, false, true};
+  for(int i = 0; i < len0; i++){
+    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes_4[i], op[i], true);
+  }
+
   for(int i = len; i < len + len1; i++){
     void* rightData = prepareNchar(inputNchar[i-len]);
     makeCalculate(row, key, TSDB_DATA_TYPE_NCHAR, rightData, eRes4[i], op[i], false);
     taosMemoryFree(rightData);
   }
 
-  printf("--------------------json double---------------------\n");
+  printf("--------------------json int--  -10 {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
 
   key = "k6";
-  bool eRes5[len+len1] = {true, false, false, false, false, true, false, true, true, false, true, false, true};
+  bool eRes5[len+len1] = {false, false, true, true, false, true, false, true, true, false, false, false, true};
   for(int i = 0; i < len; i++){
     makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes5[i], op[i], false);
   }
+  bool eRes_5[len0] = {true, true, false, false, false, true};
+  for(int i = 0; i < len0; i++){
+    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes_5[i], op[i], true);
+  }
+
   for(int i = len; i < len + len1; i++){
     void* rightData = prepareNchar(inputNchar[i-len]);
     makeCalculate(row, key, TSDB_DATA_TYPE_NCHAR, rightData, eRes5[i], op[i], false);
     taosMemoryFree(rightData);
   }
 
-  printf("---------------------json not exist--------------------\n");
+  printf("--------------------json double--  -9.8 {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
 
-  key = "k10";    // (NULL is true) return NULL, so use DBL_MAX represent NULL
-  double eRes10[len+len1] = {false, false, false, false, false, false, true, false, DBL_MAX, false, false, false, false};
+  key = "k7";
+  bool eRes6[len+len1] = {false, false, true, true, false, true, false, true, true, false, false, false, false};
   for(int i = 0; i < len; i++){
-    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes10[i], op[i], false);
+    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes6[i], op[i], false);
   }
+  bool eRes_6[len0] = {true, true, false, false, false, true};
+  for(int i = 0; i < len0; i++){
+    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes_6[i], op[i], true);
+  }
+
   for(int i = len; i < len + len1; i++){
     void* rightData = prepareNchar(inputNchar[i-len]);
-    makeCalculate(row, key, TSDB_DATA_TYPE_NCHAR, rightData, eRes10[i], op[i], false);
+    makeCalculate(row, key, TSDB_DATA_TYPE_NCHAR, rightData, eRes5[i], op[i], false);
+    taosMemoryFree(rightData);
+  }
+
+
+  printf("--------------------json bool--  0 {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
+
+  key = "k8";
+  bool eRes7[len+len1] = {false, false, true, true, false, false, false, true, false, false, false, false, false};
+  for(int i = 0; i < len; i++){
+    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes7[i], op[i], false);
+  }
+  bool eRes_7[len0] = {true, true, false, false, false, false};
+  for(int i = 0; i < len0; i++) {
+    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes_7[i], op[i], true);
+  }
+
+  for(int i = len; i < len + len1; i++){
+    void* rightData = prepareNchar(inputNchar[i-len]);
+    makeCalculate(row, key, TSDB_DATA_TYPE_NCHAR, rightData, eRes5[i], op[i], false);
+    taosMemoryFree(rightData);
+  }
+
+
+  printf("--------------------json string--  6.6hello {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
+
+  key = "k9";
+  bool eRes8[len+len1] = {true, false, false, false, false, true, false, true, true, false, true, true, true};
+  for(int i = 0; i < len; i++){
+    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes8[i], op[i], false);
+  }
+  bool eRes_8[len0] = {false, true, true, true, false, true};
+  for(int i = 0; i < len0; i++) {
+    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes_8[i], op[i], true);
+  }
+
+  for(int i = len; i < len + len1; i++){
+    void* rightData = prepareNchar(inputNchar[i-len]);
+    makeCalculate(row, key, TSDB_DATA_TYPE_NCHAR, rightData, eRes5[i], op[i], false);
+    taosMemoryFree(rightData);
+  }
+
+  printf("---------------------json not exist-- NULL {1, 8, 2, 2, 3, 0, 0, 0, 0}------------------\n");
+
+  key = "k10";    // (NULL is true) return NULL, so use DBL_MAX represent NULL
+  double eRes9[len+len1] = {false, false, false, false, false, false, true, false, DBL_MAX, false, false, false, false};
+  for(int i = 0; i < len; i++){
+    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes9[i], op[i], false);
+  }
+  bool eRes_9[len0] = {false, false, false, false, false, false};
+  for(int i = 0; i < len0; i++) {
+    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes_9[i], op[i], true);
+  }
+
+  for(int i = len; i < len + len1; i++){
+    void* rightData = prepareNchar(inputNchar[i-len]);
+    makeCalculate(row, key, TSDB_DATA_TYPE_NCHAR, rightData, eRes9[i], op[i], false);
     taosMemoryFree(rightData);
   }
 
