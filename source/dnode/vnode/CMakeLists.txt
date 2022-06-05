@@ -36,6 +36,7 @@ target_sources(
 
     # tsdb
     "src/tsdb/tsdbCommit.c"
+    "src/tsdb/tsdbCommit2.c"
     "src/tsdb/tsdbFile.c"
     "src/tsdb/tsdbFS.c"
     "src/tsdb/tsdbOpen.c"

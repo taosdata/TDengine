@@ -87,7 +87,7 @@ int             metaAlterSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* p
 int             metaDropSTable(SMeta* pMeta, int64_t verison, SVDropStbReq* pReq);
 int             metaCreateTable(SMeta* pMeta, int64_t version, SVCreateTbReq* pReq);
 int             metaDropTable(SMeta* pMeta, int64_t version, SVDropTbReq* pReq, SArray* tbUids);
-int             metaAlterTable(SMeta* pMeta, int64_t version, SVAlterTbReq* pReq, STableMetaRsp *pMetaRsp);
+int             metaAlterTable(SMeta* pMeta, int64_t version, SVAlterTbReq* pReq, STableMetaRsp* pMetaRsp);
 SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, bool isinline);
 STSchema*       metaGetTbTSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver);
 int             metaGetTableEntryByName(SMetaReader* pReader, const char* name);
@@ -112,7 +112,7 @@ int32_t metaDropTSma(SMeta* pMeta, int64_t indexUid);
 int          tsdbOpen(SVnode* pVnode, STsdb** ppTsdb, const char* dir, STsdbKeepCfg* pKeepCfg);
 int          tsdbClose(STsdb** pTsdb);
 int          tsdbBegin(STsdb* pTsdb);
-int          tsdbCommit(STsdb* pTsdb);
+int32_t      tsdbCommit(STsdb* pTsdb);
 int          tsdbScanAndConvertSubmitMsg(STsdb* pTsdb, SSubmitReq* pMsg);
 int          tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq* pMsg, SSubmitRsp* pRsp);
 int          tsdbInsertTableData(STsdb* pTsdb, SSubmitMsgIter* pMsgIter, SSubmitBlk* pBlock, SSubmitBlkRsp* pRsp);

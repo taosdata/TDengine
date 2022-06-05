@@ -36,8 +36,6 @@ typedef struct {
 #define GET_BIT1(p, i)     (((p)[(i) / 8] >> ((i) % 8)) & ((uint8_t)1))
 #define GET_BIT2(p, i)     (((p)[(i) / 4] >> ((i) % 4)) & ((uint8_t)3))
 
-static FORCE_INLINE int tSKVIdxCmprFn(const void *p1, const void *p2);
-
 // SValue
 static FORCE_INLINE int32_t tPutValue(uint8_t *p, SValue *pValue, int8_t type) {
   int32_t n = 0;
@@ -139,6 +137,11 @@ static FORCE_INLINE int32_t tGetValue(uint8_t *p, SValue *pValue, int8_t type) {
   }
 
   return n;
+}
+
+int tValueCmprFn(const SValue *pValue1, const SValue *pValue2, int8_t type) {
+  // TODO
+  return 0;
 }
 
 // STSRow2 ========================================================================
