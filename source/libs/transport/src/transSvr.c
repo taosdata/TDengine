@@ -1160,6 +1160,10 @@ int transGetConnInfo(void* thandle, STransHandleInfo* pInfo) {
   }
   SExHandle* ex = thandle;
   SSvrConn*  pConn = ex->handle;
+  if (pConn == NULL) {
+    tTrace("invalid handle %p, failed to Get Conn info", thandle);
+    return -1;
+  }
 
   struct sockaddr_in addr = pConn->addr;
   pInfo->clientIp = (uint32_t)(addr.sin_addr.s_addr);
