@@ -44,6 +44,9 @@ add_executable(syncSnapshotRspTest "")
 add_executable(syncSnapshotSenderTest "")
 add_executable(syncSnapshotReceiverTest "")
 add_executable(syncTestTool "")
+add_executable(syncRaftLogTest "")
+add_executable(syncRaftLogTest2 "")
+add_executable(syncRaftLogTest3 "")
 
 
 target_sources(syncTest
@@ -229,6 +232,18 @@ target_sources(syncSnapshotReceiverTest
 target_sources(syncTestTool
     PRIVATE
     "syncTestTool.cpp"
+)
+target_sources(syncRaftLogTest
+    PRIVATE
+    "syncRaftLogTest.cpp"
+)
+target_sources(syncRaftLogTest2
+    PRIVATE
+    "syncRaftLogTest2.cpp"
+)
+target_sources(syncRaftLogTest3
+    PRIVATE
+    "syncRaftLogTest3.cpp"
 )
 
 
@@ -462,6 +477,21 @@ target_include_directories(syncTestTool
     "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
+target_include_directories(syncRaftLogTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncRaftLogTest2
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncRaftLogTest3
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
 
 
 target_link_libraries(syncTest
@@ -645,6 +675,18 @@ target_link_libraries(syncSnapshotReceiverTest
     gtest_main
 )
 target_link_libraries(syncTestTool
+    sync
+    gtest_main
+)
+target_link_libraries(syncRaftLogTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncRaftLogTest2
+    sync
+    gtest_main
+)
+target_link_libraries(syncRaftLogTest3
     sync
     gtest_main
 )

@@ -30,6 +30,7 @@ extern "C" {
 typedef struct SSyncLogStoreData {
   SSyncNode* pSyncNode;
   SWal*      pWal;
+  SyncIndex  beginIndex;  // valid begin index, default 0, may be set beginIndex > 0
 } SSyncLogStoreData;
 
 SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode);
@@ -40,15 +41,6 @@ cJSON*         logStoreSimple2Json(SSyncLogStore* pLogStore);
 char*          logStoreSimple2Str(SSyncLogStore* pLogStore);
 
 SyncIndex logStoreFirstIndex(SSyncLogStore* pLogStore);
-
-// SSyncRaftEntry* logStoreGetLastEntry(SSyncLogStore* pLogStore);
-// SyncIndex       logStoreLastIndex(SSyncLogStore* pLogStore);
-// SyncTerm        logStoreLastTerm(SSyncLogStore* pLogStore);
-// SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index);
-// int32_t         logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry);
-// int32_t         logStoreTruncate(SSyncLogStore* pLogStore, SyncIndex fromIndex);
-// int32_t         logStoreUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index);
-// SyncIndex       logStoreGetCommitIndex(SSyncLogStore* pLogStore);
 
 // for debug
 void logStorePrint(SSyncLogStore* pLogStore);

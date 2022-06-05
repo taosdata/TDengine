@@ -184,7 +184,8 @@ SWal* createWal(char* path, int32_t vgId) {
   return pWal;
 }
 
-int64_t createSyncNode(int32_t replicaNum, int32_t myIndex, int32_t vgId, SWal* pWal, char* path, bool isStandBy, bool enableSnapshot) {
+int64_t createSyncNode(int32_t replicaNum, int32_t myIndex, int32_t vgId, SWal* pWal, char* path, bool isStandBy,
+                       bool enableSnapshot) {
   SSyncInfo syncInfo;
   syncInfo.vgId = vgId;
   syncInfo.msgcb = &gSyncIO->msgcb;
