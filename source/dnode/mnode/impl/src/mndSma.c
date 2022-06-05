@@ -38,25 +38,25 @@ static int32_t  mndSmaActionDelete(SSdb *pSdb, SSmaObj *pSpSmatb);
 static int32_t  mndSmaActionUpdate(SSdb *pSdb, SSmaObj *pOld, SSmaObj *pNew);
 static int32_t  mndProcessMCreateSmaReq(SRpcMsg *pReq);
 static int32_t  mndProcessMDropSmaReq(SRpcMsg *pReq);
-static int32_t  mndProcessVCreateSmaRsp(SRpcMsg *pRsp);
-static int32_t  mndProcessVDropSmaRsp(SRpcMsg *pRsp);
 static int32_t  mndProcessGetSmaReq(SRpcMsg *pReq);
 static int32_t  mndRetrieveSma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextSma(SMnode *pMnode, void *pIter);
 
 int32_t mndInitSma(SMnode *pMnode) {
-  SSdbTable table = {.sdbType = SDB_SMA,
-                     .keyType = SDB_KEY_BINARY,
-                     .encodeFp = (SdbEncodeFp)mndSmaActionEncode,
-                     .decodeFp = (SdbDecodeFp)mndSmaActionDecode,
-                     .insertFp = (SdbInsertFp)mndSmaActionInsert,
-                     .updateFp = (SdbUpdateFp)mndSmaActionUpdate,
-                     .deleteFp = (SdbDeleteFp)mndSmaActionDelete};
+  SSdbTable table = {
+      .sdbType = SDB_SMA,
+      .keyType = SDB_KEY_BINARY,
+      .encodeFp = (SdbEncodeFp)mndSmaActionEncode,
+      .decodeFp = (SdbDecodeFp)mndSmaActionDecode,
+      .insertFp = (SdbInsertFp)mndSmaActionInsert,
+      .updateFp = (SdbUpdateFp)mndSmaActionUpdate,
+      .deleteFp = (SdbDeleteFp)mndSmaActionDelete,
+  };
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_SMA, mndProcessMCreateSmaReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_SMA, mndProcessMDropSmaReq);
-  mndSetMsgHandle(pMnode, TDMT_VND_CREATE_SMA_RSP, mndProcessVCreateSmaRsp);
-  mndSetMsgHandle(pMnode, TDMT_VND_DROP_SMA_RSP, mndProcessVDropSmaRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_CREATE_SMA_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_DROP_SMA_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_INDEX, mndProcessGetSmaReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_INDEX, mndRetrieveSma);
@@ -637,11 +637,6 @@ _OVER:
   return code;
 }
 
-static int32_t mndProcessVCreateSmaRsp(SRpcMsg *pRsp) {
-  mndTransProcessRsp(pRsp);
-  return 0;
-}
-
 static int32_t mndSetDropSmaRedoLogs(SMnode *pMnode, STrans *pTrans, SSmaObj *pSma) {
   SSdbRaw *pRedoRaw = mndSmaActionEncode(pSma);
   if (pRedoRaw == NULL) return -1;
@@ -908,11 +903,6 @@ _OVER:
   }
 
   return code;
-}
-
-static int32_t mndProcessVDropSmaRsp(SRpcMsg *pRsp) {
-  mndTransProcessRsp(pRsp);
-  return 0;
 }
 
 static int32_t mndRetrieveSma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {

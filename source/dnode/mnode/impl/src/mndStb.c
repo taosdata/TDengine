@@ -38,9 +38,6 @@ static int32_t  mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew);
 static int32_t  mndProcessMCreateStbReq(SRpcMsg *pReq);
 static int32_t  mndProcessMAlterStbReq(SRpcMsg *pReq);
 static int32_t  mndProcessMDropStbReq(SRpcMsg *pReq);
-static int32_t  mndProcessVCreateStbRsp(SRpcMsg *pRsp);
-static int32_t  mndProcessVAlterStbRsp(SRpcMsg *pRsp);
-static int32_t  mndProcessVDropStbRsp(SRpcMsg *pRsp);
 static int32_t  mndProcessTableMetaReq(SRpcMsg *pReq);
 static int32_t  mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextStb(SMnode *pMnode, void *pIter);
@@ -59,9 +56,9 @@ int32_t mndInitStb(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_STB, mndProcessMCreateStbReq);
   mndSetMsgHandle(pMnode, TDMT_MND_ALTER_STB, mndProcessMAlterStbReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_STB, mndProcessMDropStbReq);
-  mndSetMsgHandle(pMnode, TDMT_VND_CREATE_STB_RSP, mndProcessVCreateStbRsp);
-  mndSetMsgHandle(pMnode, TDMT_VND_ALTER_STB_RSP, mndProcessVAlterStbRsp);
-  mndSetMsgHandle(pMnode, TDMT_VND_DROP_STB_RSP, mndProcessVDropStbRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_CREATE_STB_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_ALTER_STB_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_DROP_STB_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_TABLE_META, mndProcessTableMetaReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_STB, mndRetrieveStb);
@@ -837,11 +834,6 @@ _OVER:
   return code;
 }
 
-static int32_t mndProcessVCreateStbRsp(SRpcMsg *pRsp) {
-  mndTransProcessRsp(pRsp);
-  return 0;
-}
-
 static int32_t mndCheckAlterStbReq(SMAlterStbReq *pAlter) {
   if (pAlter->commentLen != 0 || pAlter->ttl != 0) return 0;
 
@@ -1459,11 +1451,6 @@ _OVER:
   return code;
 }
 
-static int32_t mndProcessVAlterStbRsp(SRpcMsg *pRsp) {
-  mndTransProcessRsp(pRsp);
-  return 0;
-}
-
 static int32_t mndSetDropStbRedoLogs(SMnode *pMnode, STrans *pTrans, SStbObj *pStb) {
   SSdbRaw *pRedoRaw = mndStbActionEncode(pStb);
   if (pRedoRaw == NULL) return -1;
@@ -1597,11 +1584,6 @@ _OVER:
   mndReleaseUser(pMnode, pUser);
 
   return code;
-}
-
-static int32_t mndProcessVDropStbRsp(SRpcMsg *pRsp) {
-  mndTransProcessRsp(pRsp);
-  return 0;
 }
 
 static int32_t mndProcessTableMetaReq(SRpcMsg *pReq) {

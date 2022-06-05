@@ -681,6 +681,7 @@ int32_t getTableMetaFromCache(SParseMetaCache* pMetaCache, const SName* pName, S
   tNameExtractFullName(pName, fullName);
   STableMeta** pRes = taosHashGet(pMetaCache->pTableMeta, fullName, strlen(fullName));
   if (NULL == pRes || NULL == *pRes) {
+    parserError("getTableMetaFromCache error: %s", fullName);
     return TSDB_CODE_PAR_INTERNAL_ERROR;
   }
   *pMeta = tableMetaDup(*pRes);
@@ -709,6 +710,7 @@ int32_t reserveDbVgInfoInCache(int32_t acctId, const char* pDb, SParseMetaCache*
 int32_t getDbVgInfoFromCache(SParseMetaCache* pMetaCache, const char* pDbFName, SArray** pVgInfo) {
   SArray** pRes = taosHashGet(pMetaCache->pDbVgroup, pDbFName, strlen(pDbFName));
   if (NULL == pRes) {
+    parserError("getDbVgInfoFromCache error: %s", pDbFName);
     return TSDB_CODE_PAR_INTERNAL_ERROR;
   }
   // *pRes is null, which is a legal value, indicating that the user DB has not been created
@@ -736,6 +738,7 @@ int32_t getTableVgroupFromCache(SParseMetaCache* pMetaCache, const SName* pName,
   tNameExtractFullName(pName, fullName);
   SVgroupInfo** pRes = taosHashGet(pMetaCache->pTableVgroup, fullName, strlen(fullName));
   if (NULL == pRes || NULL == *pRes) {
+    parserError("getTableVgroupFromCache error: %s", fullName);
     return TSDB_CODE_PAR_INTERNAL_ERROR;
   }
   memcpy(pVgroup, *pRes, sizeof(SVgroupInfo));
@@ -750,6 +753,7 @@ int32_t getDbVgVersionFromCache(SParseMetaCache* pMetaCache, const char* pDbFNam
                                 int32_t* pTableNum) {
   SDbInfo** pRes = taosHashGet(pMetaCache->pDbCfg, pDbFName, strlen(pDbFName));
   if (NULL == pRes || NULL == *pRes) {
+    parserError("getDbVgVersionFromCache error: %s", pDbFName);
     return TSDB_CODE_PAR_INTERNAL_ERROR;
   }
   *pVersion = (*pRes)->vgVer;
@@ -765,6 +769,7 @@ int32_t reserveDbCfgInCache(int32_t acctId, const char* pDb, SParseMetaCache* pM
 int32_t getDbCfgFromCache(SParseMetaCache* pMetaCache, const char* pDbFName, SDbCfgInfo* pInfo) {
   SDbCfgInfo** pRes = taosHashGet(pMetaCache->pDbCfg, pDbFName, strlen(pDbFName));
   if (NULL == pRes || NULL == *pRes) {
+    parserError("getDbCfgFromCache error: %s", pDbFName);
     return TSDB_CODE_PAR_INTERNAL_ERROR;
   }
   memcpy(pInfo, *pRes, sizeof(SDbCfgInfo));
@@ -803,6 +808,7 @@ int32_t getUserAuthFromCache(SParseMetaCache* pMetaCache, const char* pUser, con
   int32_t len = userAuthToStringExt(pUser, pDbFName, type, key);
   bool*   pRes = taosHashGet(pMetaCache->pUserAuth, key, len);
   if (NULL == pRes) {
+    parserError("getUserAuthFromCache error: %s, %s, %d", pUser, pDbFName, type);
     return TSDB_CODE_PAR_INTERNAL_ERROR;
   }
   *pPass = *pRes;
@@ -822,6 +828,7 @@ int32_t reserveUdfInCache(const char* pFunc, SParseMetaCache* pMetaCache) {
 int32_t getUdfInfoFromCache(SParseMetaCache* pMetaCache, const char* pFunc, SFuncInfo* pInfo) {
   SFuncInfo** pRes = taosHashGet(pMetaCache->pUdf, pFunc, strlen(pFunc));
   if (NULL == pRes || NULL == *pRes) {
+    parserError("getUdfInfoFromCache error: %s", pFunc);
     return TSDB_CODE_PAR_INTERNAL_ERROR;
   }
   memcpy(pInfo, *pRes, sizeof(SFuncInfo));
