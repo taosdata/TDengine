@@ -25,7 +25,7 @@ class TDTestCase:
             projPath = selfPath[:selfPath.find("tests")]
 
         for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
+            if ("taosd" in files or "taosd.exe" in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
                     buildPath = root[:len(root) - len("/build/bin")]
@@ -41,11 +41,19 @@ class TDTestCase:
             projPath = selfPath[:selfPath.find("tests")]
         print(projPath)
 
-        libudf1 = subprocess.Popen('find %s -name "libudf1.so"|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
-        libudf2 = subprocess.Popen('find %s -name "libudf2.so"|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
-        os.system("mkdir /tmp/udf/")
-        os.system("cp %s /tmp/udf/ "%libudf1.replace("\n" ,""))
-        os.system("cp  %s /tmp/udf/ "%libudf2.replace("\n" ,""))
+        if platform.system().lower() == 'windows':
+            self.libudf1 = subprocess.Popen('(for /r %s %%i in ("udf1.d*") do @echo %%i)|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
+            self.libudf2 = subprocess.Popen('(for /r %s %%i in ("udf2.d*") do @echo %%i)|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
+            if (not tdDnodes.dnodes[0].remoteIP == ""):
+                tdDnodes.dnodes[0].remote_conn.get(tdDnodes.dnodes[0].config["path"]+'/debug/build/lib/libudf1.so',projPath+"\\debug\\build\\lib\\")
+                tdDnodes.dnodes[0].remote_conn.get(tdDnodes.dnodes[0].config["path"]+'/debug/build/lib/libudf2.so',projPath+"\\debug\\build\\lib\\")
+                self.libudf1 = self.libudf1.replace('udf1.dll','libudf1.so')
+                self.libudf2 = self.libudf2.replace('udf2.dll','libudf2.so')
+        else:
+            self.libudf1 = subprocess.Popen('find %s -name "libudf1.so"|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
+            self.libudf2 = subprocess.Popen('find %s -name "libudf2.so"|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
+        self.libudf1 = self.libudf1.replace('\r','').replace('\n','')
+        self.libudf2 = self.libudf2.replace('\r','').replace('\n','')
 
 
     def prepare_data(self):
@@ -136,11 +144,11 @@ class TDTestCase:
 
         for i in range(5):
             # create  scalar functions
-            tdSql.execute("create function udf1 as '/tmp/udf/libudf1.so' outputtype int bufSize 8;")
+            tdSql.execute("create function udf1 as '%s' outputtype int bufSize 8;"%self.libudf1)
 
             # create aggregate functions
 
-            tdSql.execute("create aggregate function udf2 as '/tmp/udf/libudf2.so' outputtype double bufSize 8;")
+            tdSql.execute("create aggregate function udf2 as '%s' outputtype double bufSize 8;"%self.libudf2)
             
             functions = tdSql.getResult("show functions")
             function_nums = len(functions)
@@ -161,11 +169,11 @@ class TDTestCase:
                 tdLog.info("drop two udf functions success ")
 
         # create  scalar functions
-        tdSql.execute("create function udf1 as '/tmp/udf/libudf1.so' outputtype int bufSize 8;")
+        tdSql.execute("create function udf1 as '%s' outputtype int bufSize 8;"%self.libudf1)
 
         # create aggregate functions
 
-        tdSql.execute("create aggregate function udf2 as '/tmp/udf/libudf2.so' outputtype double bufSize 8;")
+        tdSql.execute("create aggregate function udf2 as '%s' outputtype double bufSize 8;"%self.libudf2)
         
         functions = tdSql.getResult("show functions")
         function_nums = len(functions)
@@ -533,8 +541,8 @@ class TDTestCase:
         tdSql.query("drop function udf2 ")
 
         # create function without buffer
-        tdSql.execute("create function udf1 as '/tmp/udf/libudf1.so' outputtype int")
-        tdSql.execute("create aggregate function udf2 as '/tmp/udf/libudf2.so' outputtype double")
+        tdSql.execute("create function udf1 as '%s' outputtype int"%self.libudf1)
+        tdSql.execute("create aggregate function udf2 as '%s' outputtype double"%self.libudf2)
         udf1_sqls ,udf2_sqls = self.try_query_sql()
 
         for scalar_sql in udf1_sqls:
@@ -549,8 +557,8 @@ class TDTestCase:
         tdSql.query("drop function udf2 ")
 
         # create function without buffer
-        tdSql.execute("create  aggregate function udf1 as '/tmp/udf/libudf1.so' outputtype int bufSize 8 ")
-        tdSql.execute("create  function udf2 as '/tmp/udf/libudf2.so' outputtype double bufSize 8")
+        tdSql.execute("create  aggregate function udf1 as '%s' outputtype int bufSize 8 "%self.libudf1)
+        tdSql.execute("create  function udf2 as '%s' outputtype double bufSize 8"%self.libudf2)
         udf1_sqls ,udf2_sqls = self.try_query_sql()
 
         for scalar_sql in udf1_sqls:
@@ -558,8 +566,8 @@ class TDTestCase:
         for aggregate_sql in udf2_sqls:
             tdSql.error(aggregate_sql)
 
-        tdSql.execute(" create function db as '/tmp/udf/libudf1.so' outputtype int bufSize 8 ")
-        tdSql.execute(" create aggregate function test as '/tmp/udf/libudf1.so' outputtype int bufSize 8 ")
+        tdSql.execute(" create function db as '%s' outputtype int bufSize 8 "%self.libudf1)
+        tdSql.execute(" create aggregate function test as '%s' outputtype int bufSize 8 "%self.libudf1)
         tdSql.error(" select db(c1) from stb1 ")
         tdSql.error(" select db(c1,c6), db(c6) from stb1 ")
         tdSql.error(" select db(num1,num2), db(num1) from tb ")
@@ -607,17 +615,17 @@ class TDTestCase:
         tdLog.info(" create function name is not build_in functions ")
         tdSql.execute(" drop function udf1 ")
         tdSql.execute(" drop function udf2 ")
-        tdSql.error("create function max as '/tmp/udf/libudf1.so' outputtype int bufSize 8")
-        tdSql.error("create aggregate function sum as '/tmp/udf/libudf2.so' outputtype double bufSize 8")
-        tdSql.error("create function max as '/tmp/udf/libudf1.so' outputtype int bufSize 8")
-        tdSql.error("create aggregate function sum as '/tmp/udf/libudf2.so' outputtype double bufSize 8")
-        tdSql.error("create aggregate function tbname as '/tmp/udf/libudf2.so' outputtype double bufSize 8")
-        tdSql.error("create aggregate function function as '/tmp/udf/libudf2.so' outputtype double bufSize 8")
-        tdSql.error("create aggregate function stable as '/tmp/udf/libudf2.so' outputtype double bufSize 8")
-        tdSql.error("create aggregate function union as '/tmp/udf/libudf2.so' outputtype double bufSize 8")
-        tdSql.error("create aggregate function 123 as '/tmp/udf/libudf2.so' outputtype double bufSize 8")
-        tdSql.error("create aggregate function 123db as '/tmp/udf/libudf2.so' outputtype double bufSize 8")
-        tdSql.error("create aggregate function mnode as '/tmp/udf/libudf2.so' outputtype double bufSize 8")
+        tdSql.error("create function max as '%s' outputtype int bufSize 8"%self.libudf1)
+        tdSql.error("create aggregate function sum as '%s' outputtype double bufSize 8"%self.libudf2)
+        tdSql.error("create function max as '%s' outputtype int bufSize 8"%self.libudf1)
+        tdSql.error("create aggregate function sum as '%s' outputtype double bufSize 8"%self.libudf2)
+        tdSql.error("create aggregate function tbname as '%s' outputtype double bufSize 8"%self.libudf2)
+        tdSql.error("create aggregate function function as '%s' outputtype double bufSize 8"%self.libudf2)
+        tdSql.error("create aggregate function stable as '%s' outputtype double bufSize 8"%self.libudf2)
+        tdSql.error("create aggregate function union as '%s' outputtype double bufSize 8"%self.libudf2)
+        tdSql.error("create aggregate function 123 as '%s' outputtype double bufSize 8"%self.libudf2)
+        tdSql.error("create aggregate function 123db as '%s' outputtype double bufSize 8"%self.libudf2)
+        tdSql.error("create aggregate function mnode as '%s' outputtype double bufSize 8"%self.libudf2)
 
     def restart_taosd_query_udf(self):
 
@@ -629,8 +637,8 @@ class TDTestCase:
             tdSql.query("select udf2(sub1.c1 ,sub1.c2), udf2(sub2.c2 ,sub2.c1) from sub1, sub2 where sub1.ts=sub2.ts and sub1.c1 is not null")
             tdSql.checkData(0,0,169.661427555)
             tdSql.checkData(0,1,169.661427555)
-            tdDnodes.stop(1)
-            tdDnodes.start(1)
+            # tdDnodes.stop(1)
+            # tdDnodes.start(1)
             time.sleep(2)
             
             
