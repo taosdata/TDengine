@@ -118,25 +118,36 @@ static void vmProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
     pMsg = *(SRpcMsg **)taosArrayGet(pArray, m);
     code = vnodePreprocessReq(pVnode->pImpl, pMsg);
 
-    if (code == TSDB_CODE_ACTION_IN_PROGRESS) continue;
-    if (code != 0) {
-      dError("vgId:%d, msg:%p failed to write since %s", pVnode->vgId, pMsg, tstrerror(code));
-      vmSendRsp(pMsg, code);
+    if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
+      dTrace("vgId:%d, msg:%p in progress and no rsp", pVnode->vgId, pMsg);
       continue;
     }
 
-    code = syncPropose(sync, pMsg, false);
+    if (pMsg->msgType != TDMT_VND_ALTER_REPLICA) {
+      code = syncPropose(sync, pMsg, false);
+    }
+
     if (code == TAOS_SYNC_PROPOSE_SUCCESS) {
+      dTrace("vgId:%d, msg:%p is proposed and no rsp", pVnode->vgId, pMsg);
       continue;
     } else if (code == TAOS_SYNC_PROPOSE_NOT_LEADER) {
-      dTrace("vgId:%d, msg:%p is redirect since not leader", pVnode->vgId, pMsg);
       SEpSet newEpSet = {0};
       syncGetEpSet(sync, &newEpSet);
-      newEpSet.inUse = (newEpSet.inUse + 1) % newEpSet.numOfEps;
+      SEp *pEp = &newEpSet.eps[newEpSet.inUse];
+      if (pEp->port == tsServerPort && strcmp(pEp->fqdn, tsLocalFqdn) == 0) {
+        newEpSet.inUse = (newEpSet.inUse + 1) % newEpSet.numOfEps;
+      }
+
+      dTrace("vgId:%d, msg:%p is redirect since not leader, numOfEps:%d inUse:%d", pVnode->vgId, pMsg,
+             newEpSet.numOfEps, newEpSet.inUse);
+      for (int32_t i = 0; i < newEpSet.numOfEps; ++i) {
+        dTrace("vgId:%d, msg:%p ep:%s:%u", pVnode->vgId, pMsg, newEpSet.eps[i].fqdn, newEpSet.eps[i].port);
+      }
+
       SRpcMsg rsp = {.code = TSDB_CODE_RPC_REDIRECT, .info = pMsg->info};
       tmsgSendRedirectRsp(&rsp, &newEpSet);
     } else {
-      dError("vgId:%d, msg:%p failed to write since %s", pVnode->vgId, pMsg, tstrerror(code));
+      dError("vgId:%d, msg:%p failed to propose write since %s, code:0x%x", pVnode->vgId, pMsg, tstrerror(code), code);
       vmSendRsp(pMsg, code);
     }
   }
@@ -163,7 +174,7 @@ static void vmProcessApplyQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
     SRpcMsg rsp = {0};
 
     // get original rpc msg
-    assert(pMsg->msgType == TDMT_VND_SYNC_APPLY_MSG);
+    assert(pMsg->msgType == TDMT_SYNC_APPLY_MSG);
     SyncApplyMsg *pSyncApplyMsg = syncApplyMsgFromRpcMsg2(pMsg);
     syncApplyMsgLog2("==vmProcessApplyQueue==", pSyncApplyMsg);
     SRpcMsg originalRpcMsg;
@@ -250,6 +261,7 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
 
   switch (qtype) {
     case QUERY_QUEUE:
+      vnodePreprocessQueryMsg(pVnode->pImpl, pMsg);
       dTrace("vgId:%d, msg:%p put into vnode-query queue", pVnode->vgId, pMsg);
       taosWriteQitem(pVnode->pQueryQ, pMsg);
       break;

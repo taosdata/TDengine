@@ -57,6 +57,8 @@ static int32_t qmPutNodeMsgToWorker(SSingleWorker *pWorker, SRpcMsg *pMsg) {
 }
 
 int32_t qmPutNodeMsgToQueryQueue(SQnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  qndPreprocessQueryMsg(pMgmt->pQnode, pMsg);
+
   return qmPutNodeMsgToWorker(&pMgmt->queryWorker, pMsg);
 }
 

@@ -481,6 +481,9 @@ dnode_list(A) ::= dnode_list(B) DNODE NK_INTEGER(C).                            
 /************************************************ syncdb **************************************************************/
 cmd ::= SYNCDB db_name(A) REPLICA.                                                { pCxt->pRootNode = createSyncdbStmt(pCxt, &A); }
 
+/************************************************ syncdb **************************************************************/
+cmd ::= DELETE FROM full_table_name(A) where_clause_opt(B).                       { pCxt->pRootNode = createDeleteStmt(pCxt, A, B); }
+
 /************************************************ select **************************************************************/
 cmd ::= query_expression(A).                                                      { pCxt->pRootNode = A; }
 

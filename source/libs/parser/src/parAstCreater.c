@@ -1488,3 +1488,28 @@ SNode* createRevokeStmt(SAstCreateContext* pCxt, int64_t privileges, SToken* pDb
   strncpy(pStmt->userName, pUserName->z, pUserName->n);
   return (SNode*)pStmt;
 }
+
+SNode* createCountFuncForDelete(SAstCreateContext* pCxt) {
+  SFunctionNode* pFunc = nodesMakeNode(QUERY_NODE_FUNCTION);
+  CHECK_OUT_OF_MEM(pFunc);
+  strcpy(pFunc->functionName, "count");
+  if (TSDB_CODE_SUCCESS != nodesListMakeStrictAppend(&pFunc->pParameterList, createPrimaryKeyCol(pCxt))) {
+    nodesDestroyNode(pFunc);
+    CHECK_OUT_OF_MEM(NULL);
+  }
+  return (SNode*)pFunc;
+}
+
+SNode* createDeleteStmt(SAstCreateContext* pCxt, SNode* pTable, SNode* pWhere) {
+  CHECK_PARSER_STATUS(pCxt);
+  SDeleteStmt* pStmt = nodesMakeNode(QUERY_NODE_DELETE_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  pStmt->pFromTable = pTable;
+  pStmt->pWhere = pWhere;
+  pStmt->pCountFunc = createCountFuncForDelete(pCxt);
+  if (NULL == pStmt->pCountFunc) {
+    nodesDestroyNode(pStmt);
+    CHECK_OUT_OF_MEM(NULL);
+  }
+  return (SNode*)pStmt;
+}

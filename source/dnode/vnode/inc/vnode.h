@@ -56,6 +56,7 @@ int32_t vnodePreprocessReq(SVnode *pVnode, SRpcMsg *pMsg);
 int32_t vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg *pRsp);
 int32_t vnodeProcessCMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 int32_t vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+int32_t vnodePreprocessQueryMsg(SVnode * pVnode, SRpcMsg * pMsg);
 int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg);
 int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);

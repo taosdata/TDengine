@@ -359,7 +359,7 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
 
   while(1) {
     doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
-    doFilter(pInfo->pCondition, pRes, NULL);
+    doFilter(pInfo->pCondition, pRes);
 
     bool hasRemain = hashRemainDataInGroupInfo(&pInfo->groupResInfo);
     if (!hasRemain) {

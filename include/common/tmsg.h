@@ -2297,6 +2297,11 @@ int32_t tSerializeSMDropSmaReq(void* buf, int32_t bufLen, SMDropSmaReq* pReq);
 int32_t tDeserializeSMDropSmaReq(void* buf, int32_t bufLen, SMDropSmaReq* pReq);
 
 typedef struct {
+  int32_t vgId;
+  SEpSet  epSet;
+} SVgEpSet;
+
+typedef struct {
   int8_t   version;       // for compatibility(default 0)
   int8_t   intervalUnit;  // MACRO: TIME_UNIT_XXX
   int8_t   slidingUnit;   // MACRO: TIME_UNIT_XXX
@@ -2305,6 +2310,7 @@ typedef struct {
   char     indexName[TSDB_INDEX_NAME_LEN];
   int32_t  exprLen;
   int32_t  tagsFilterLen;
+  int32_t  numOfVgroups;
   int64_t  indexUid;
   tb_uid_t tableUid;  // super/child/common table uid
   int64_t  interval;
@@ -2312,6 +2318,7 @@ typedef struct {
   int64_t  sliding;
   char*    expr;  // sma expression
   char*    tagsFilter;
+  SVgEpSet vgEpSet[];
 } STSma;  // Time-range-wise SMA
 
 typedef STSma SVCreateTSmaReq;
@@ -2397,15 +2404,25 @@ static int32_t tDecodeTSmaWrapper(SDecoder* pDecoder, STSmaWrapper* pReq) {
 }
 
 typedef struct {
-  int64_t tsmaIndexUid;
+  int64_t indexUid;
   STimeWindow queryWindow;
 } SVGetTsmaExpWndsReq;
 
+#define SMA_WNDS_EXPIRE_FLAG      (0x1)
+#define SMA_WNDS_IS_EXPIRE(flag)  (((flag)&SMA_WNDS_EXPIRE_FLAG) != 0)
+#define SMA_WNDS_SET_EXPIRE(flag) ((flag) |= SMA_WNDS_EXPIRE_FLAG)
+
 typedef struct {
-  int64_t tsmaIndexUid;
+  int64_t indexUid;
+  int8_t  flags;  // 0x1 all window expired
   int32_t numExpWnds;
-  TSKEY*  expWndsStartTs;
+  TSKEY   wndSKeys[];
 } SVGetTsmaExpWndsRsp;
+
+int32_t tEncodeSVGetTSmaExpWndsReq(SEncoder* pCoder, const SVGetTsmaExpWndsReq* pReq);
+int32_t tDecodeSVGetTsmaExpWndsReq(SDecoder* pCoder, SVGetTsmaExpWndsReq* pReq);
+int32_t tEncodeSVGetTSmaExpWndsRsp(SEncoder* pCoder, const SVGetTsmaExpWndsRsp* pReq);
+int32_t tDecodeSVGetTsmaExpWndsRsp(SDecoder* pCoder, SVGetTsmaExpWndsRsp* pReq);
 
 typedef struct {
   int idx;
@@ -2670,22 +2687,26 @@ typedef struct {
 int32_t tEncodeSVSubmitReq(SEncoder* pCoder, const SVSubmitReq* pReq);
 int32_t tDecodeSVSubmitReq(SDecoder* pCoder, SVSubmitReq* pReq);
 
-// TDMT_VND_DELETE
 typedef struct {
-  TSKEY sKey;
-  TSKEY eKey;
-
-  // super table
-  char* stbName;
-
-  // child/normal
-  char* tbName;
+  int64_t     delUid;
+  int64_t     tbUid;  // super/child/normal table
+  int8_t      type;   // table type
+  int16_t     nWnds;
+  char*       tbFullName;
+  char*       subPlan;
+  STimeWindow wnds[];
 } SVDeleteReq;
+
+int32_t tEncodeSVDeleteReq(SEncoder* pCoder, const SVDeleteReq* pReq);
+int32_t tDecodeSVDeleteReq(SDecoder* pCoder, SVDeleteReq* pReq);
 
 typedef struct {
   int32_t code;
-  // TODO
+  int64_t affectedRows;
 } SVDeleteRsp;
+
+int32_t tEncodeSVDeleteRsp(SEncoder* pCoder, const SVDeleteRsp* pReq);
+int32_t tDecodeSVDeleteRsp(SDecoder* pCoder, SVDeleteRsp* pReq);
 
 #pragma pack(pop)
 
