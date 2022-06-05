@@ -218,15 +218,15 @@ static int tsdbApplyRtnOnFSet(STsdb *pRepo, SDFileSet *pSet, SRtn *pRtn) {
   return 0;
 }
 
-int tsdbPrepareCommit(STsdb *pTsdb) {
-  if (pTsdb->mem == NULL) return 0;
+// int tsdbPrepareCommit(STsdb *pTsdb) {
+//   if (pTsdb->mem == NULL) return 0;
 
-  ASSERT(pTsdb->imem == NULL);
+//   ASSERT(pTsdb->imem == NULL);
 
-  pTsdb->imem = pTsdb->mem;
-  pTsdb->mem = NULL;
-  return 0;
-}
+//   pTsdb->imem = pTsdb->mem;
+//   pTsdb->mem = NULL;
+//   return 0;
+// }
 
 void tsdbGetRtnSnap(STsdb *pRepo, SRtn *pRtn) {
   STsdbKeepCfg *pCfg = REPO_KEEP_CFG(pRepo);
