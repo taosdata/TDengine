@@ -149,6 +149,7 @@ typedef struct SSyncLogStore {
   int32_t (*syncLogEntryCount)(struct SSyncLogStore* pLogStore);
   bool (*syncLogInRange)(struct SSyncLogStore* pLogStore, SyncIndex index);
 
+  SyncIndex (*syncLogWriteIndex)(struct SSyncLogStore* pLogStore);
   SyncIndex (*syncLogLastIndex)(struct SSyncLogStore* pLogStore);
   SyncTerm (*syncLogLastTerm)(struct SSyncLogStore* pLogStore);
 

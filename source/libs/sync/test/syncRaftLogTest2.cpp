@@ -22,6 +22,16 @@ SWal*          pWal;
 SSyncLogStore* pLogStore;
 const char*    pWalPath = "./syncLogStoreTest_wal";
 
+SyncIndex gSnapshotLastApplyIndex;
+SyncIndex gSnapshotLastApplyTerm;
+
+int32_t GetSnapshotCb(struct SSyncFSM* pFsm, SSnapshot* pSnapshot) {
+  pSnapshot->data = NULL;
+  pSnapshot->lastApplyIndex = gSnapshotLastApplyIndex;
+  pSnapshot->lastApplyTerm = gSnapshotLastApplyTerm;
+  return 0;
+}
+
 void init() {
   walInit();
   taosRemoveDir(pWalPath);
@@ -41,6 +51,9 @@ void init() {
   pSyncNode = (SSyncNode*)taosMemoryMalloc(sizeof(SSyncNode));
   memset(pSyncNode, 0, sizeof(SSyncNode));
   pSyncNode->pWal = pWal;
+
+  pSyncNode->pFsm = (SSyncFSM*)taosMemoryMalloc(sizeof(SSyncFSM));
+  pSyncNode->pFsm->FpGetSnapshot = GetSnapshotCb;
 }
 
 void cleanup() {
@@ -49,14 +62,37 @@ void cleanup() {
   taosMemoryFree(pSyncNode);
 }
 
-void logStoreTest() {
+void test1() {
+  init();
+
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
-  assert(pLogStore->getLastIndex(pLogStore) == SYNC_INDEX_INVALID);
+  logStoreLog2((char*)"\n\n\ntest1 ----- ", pLogStore);
+  logStoreDestory(pLogStore);
 
-  logStoreLog2((char*)"logStoreTest", pLogStore);
+  cleanup();
+}
 
-  for (int i = 0; i < 5; ++i) {
+void test2() {
+  init();
+
+  pLogStore = logStoreCreate(pSyncNode);
+  assert(pLogStore);
+  pLogStore->syncLogSetBeginIndex(pLogStore, 5);
+  logStoreLog2((char*)"\n\n\ntest2 ----- ", pLogStore);
+  logStoreDestory(pLogStore);
+
+  cleanup();
+}
+
+void test3() {
+  init();
+
+  pLogStore = logStoreCreate(pSyncNode);
+  assert(pLogStore);
+  logStoreLog2((char*)"\n\n\ntest3 ----- ", pLogStore);
+
+  for (int i = 0; i <= 4; ++i) {
     int32_t         dataLen = 10;
     SSyncRaftEntry* pEntry = syncEntryBuild(dataLen);
     assert(pEntry != NULL);
@@ -65,34 +101,123 @@ void logStoreTest() {
     pEntry->seqNum = 3;
     pEntry->isWeak = true;
     pEntry->term = 100 + i;
-    pEntry->index = pLogStore->getLastIndex(pLogStore) + 1;
+    pEntry->index = pLogStore->syncLogWriteIndex(pLogStore);
     snprintf(pEntry->data, dataLen, "value%d", i);
 
-    syncEntryLog2((char*)"==write entry== :", pEntry);
-    pLogStore->appendEntry(pLogStore, pEntry);
+    pLogStore->syncLogAppendEntry(pLogStore, pEntry);
     syncEntryDestory(pEntry);
-
-    if (i == 0) {
-      assert(pLogStore->getLastIndex(pLogStore) == SYNC_INDEX_BEGIN);
-    }
   }
-  logStoreLog2((char*)"after appendEntry", pLogStore);
+  logStoreLog2((char*)"test3 after appendEntry", pLogStore);
+  logStoreDestory(pLogStore);
 
-  pLogStore->truncate(pLogStore, 3);
-  logStoreLog2((char*)"after truncate 3", pLogStore);
+  cleanup();
+}
+
+void test4() {
+  init();
+
+  pLogStore = logStoreCreate(pSyncNode);
+  assert(pLogStore);
+  logStoreLog2((char*)"\n\n\ntest4 ----- ", pLogStore);
+  pLogStore->syncLogSetBeginIndex(pLogStore, 5);
+
+  for (int i = 5; i <= 9; ++i) {
+    int32_t         dataLen = 10;
+    SSyncRaftEntry* pEntry = syncEntryBuild(dataLen);
+    assert(pEntry != NULL);
+    pEntry->msgType = 1;
+    pEntry->originalRpcType = 2;
+    pEntry->seqNum = 3;
+    pEntry->isWeak = true;
+    pEntry->term = 100 + i;
+    pEntry->index = pLogStore->syncLogWriteIndex(pLogStore);
+    snprintf(pEntry->data, dataLen, "value%d", i);
+
+    pLogStore->syncLogAppendEntry(pLogStore, pEntry);
+    syncEntryDestory(pEntry);
+  }
+  logStoreLog2((char*)"test4 after appendEntry", pLogStore);
+  logStoreDestory(pLogStore);
+
+  cleanup();
+}
+
+void test5() {
+  init();
+
+  pLogStore = logStoreCreate(pSyncNode);
+  assert(pLogStore);
+  logStoreLog2((char*)"\n\n\ntest5 ----- ", pLogStore);
+  pLogStore->syncLogSetBeginIndex(pLogStore, 5);
+
+  for (int i = 5; i <= 9; ++i) {
+    int32_t         dataLen = 10;
+    SSyncRaftEntry* pEntry = syncEntryBuild(dataLen);
+    assert(pEntry != NULL);
+    pEntry->msgType = 1;
+    pEntry->originalRpcType = 2;
+    pEntry->seqNum = 3;
+    pEntry->isWeak = true;
+    pEntry->term = 100 + i;
+    pEntry->index = pLogStore->syncLogWriteIndex(pLogStore);
+    snprintf(pEntry->data, dataLen, "value%d", i);
+
+    pLogStore->syncLogAppendEntry(pLogStore, pEntry);
+    syncEntryDestory(pEntry);
+  }
+  logStoreLog2((char*)"test5 after appendEntry", pLogStore);
+
+  pLogStore->syncLogTruncate(pLogStore, 7);
+  logStoreLog2((char*)"after truncate 7", pLogStore);
 
   logStoreDestory(pLogStore);
+
+  cleanup();
+}
+
+void test6() {
+  init();
+
+  pLogStore = logStoreCreate(pSyncNode);
+  assert(pLogStore);
+  logStoreLog2((char*)"\n\n\ntest6 ----- ", pLogStore);
+  pLogStore->syncLogSetBeginIndex(pLogStore, 5);
+
+  for (int i = 5; i <= 9; ++i) {
+    int32_t         dataLen = 10;
+    SSyncRaftEntry* pEntry = syncEntryBuild(dataLen);
+    assert(pEntry != NULL);
+    pEntry->msgType = 1;
+    pEntry->originalRpcType = 2;
+    pEntry->seqNum = 3;
+    pEntry->isWeak = true;
+    pEntry->term = 100 + i;
+    pEntry->index = pLogStore->syncLogWriteIndex(pLogStore);
+    snprintf(pEntry->data, dataLen, "value%d", i);
+
+    pLogStore->syncLogAppendEntry(pLogStore, pEntry);
+    syncEntryDestory(pEntry);
+  }
+  logStoreLog2((char*)"test6 after appendEntry", pLogStore);
+
+  pLogStore->syncLogTruncate(pLogStore, 5);
+  logStoreLog2((char*)"after truncate 5", pLogStore);
+
+  logStoreDestory(pLogStore);
+
+  cleanup();
 }
 
 int main(int argc, char** argv) {
   tsAsyncLog = 0;
-  sDebugFlag = DEBUG_TRACE + DEBUG_SCREEN + DEBUG_FILE;
+  sDebugFlag = DEBUG_TRACE + DEBUG_INFO + DEBUG_SCREEN + DEBUG_FILE;
 
-  init();
-  logStoreTest();
-
-  taosMsleep(2000);
-  cleanup();
+  test1();
+  test2();
+  test3();
+  test4();
+  test5();
+  test6();
 
   return 0;
 }
