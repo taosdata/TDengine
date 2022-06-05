@@ -134,7 +134,8 @@ void destroyTscObj(void *pObj) {
   closeAllRequests(pTscObj->pRequests);
   schedulerStopQueryHb(pTscObj->pAppInfo->pTransporter);
   if (0 == connNum) {
-    closeTransporter(pTscObj);
+    // TODO 
+    //closeTransporter(pTscObj);
   }
   tscDebug("connObj 0x%" PRIx64 " destroyed, totalConn:%" PRId64, pTscObj->id, pTscObj->pAppInfo->numOfConns);
   taosThreadMutexDestroy(&pTscObj->mutex);
