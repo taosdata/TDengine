@@ -30,26 +30,26 @@ static int32_t  mndQnodeActionInsert(SSdb *pSdb, SQnodeObj *pObj);
 static int32_t  mndQnodeActionUpdate(SSdb *pSdb, SQnodeObj *pOld, SQnodeObj *pNew);
 static int32_t  mndQnodeActionDelete(SSdb *pSdb, SQnodeObj *pObj);
 static int32_t  mndProcessCreateQnodeReq(SRpcMsg *pReq);
-static int32_t  mndProcessCreateQnodeRsp(SRpcMsg *pRsp);
 static int32_t  mndProcessDropQnodeReq(SRpcMsg *pReq);
-static int32_t  mndProcessDropQnodeRsp(SRpcMsg *pRsp);
 static int32_t  mndProcessQnodeListReq(SRpcMsg *pReq);
 static int32_t  mndRetrieveQnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextQnode(SMnode *pMnode, void *pIter);
 
 int32_t mndInitQnode(SMnode *pMnode) {
-  SSdbTable table = {.sdbType = SDB_QNODE,
-                     .keyType = SDB_KEY_INT32,
-                     .encodeFp = (SdbEncodeFp)mndQnodeActionEncode,
-                     .decodeFp = (SdbDecodeFp)mndQnodeActionDecode,
-                     .insertFp = (SdbInsertFp)mndQnodeActionInsert,
-                     .updateFp = (SdbUpdateFp)mndQnodeActionUpdate,
-                     .deleteFp = (SdbDeleteFp)mndQnodeActionDelete};
+  SSdbTable table = {
+      .sdbType = SDB_QNODE,
+      .keyType = SDB_KEY_INT32,
+      .encodeFp = (SdbEncodeFp)mndQnodeActionEncode,
+      .decodeFp = (SdbDecodeFp)mndQnodeActionDecode,
+      .insertFp = (SdbInsertFp)mndQnodeActionInsert,
+      .updateFp = (SdbUpdateFp)mndQnodeActionUpdate,
+      .deleteFp = (SdbDeleteFp)mndQnodeActionDelete,
+  };
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_QNODE, mndProcessCreateQnodeReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_QNODE, mndProcessDropQnodeReq);
-  mndSetMsgHandle(pMnode, TDMT_DND_CREATE_QNODE_RSP, mndProcessCreateQnodeRsp);
-  mndSetMsgHandle(pMnode, TDMT_DND_DROP_QNODE_RSP, mndProcessDropQnodeRsp);
+  mndSetMsgHandle(pMnode, TDMT_DND_CREATE_QNODE_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_DND_DROP_QNODE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_QNODE_LIST, mndProcessQnodeListReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_QNODE, mndRetrieveQnodes);
@@ -501,16 +501,6 @@ static int32_t mndProcessQnodeListReq(SRpcMsg *pReq) {
 _OVER:
   tFreeSQnodeListRsp(&qlistRsp);
   return code;
-}
-
-static int32_t mndProcessCreateQnodeRsp(SRpcMsg *pRsp) {
-  mndTransProcessRsp(pRsp);
-  return 0;
-}
-
-static int32_t mndProcessDropQnodeRsp(SRpcMsg *pRsp) {
-  mndTransProcessRsp(pRsp);
-  return 0;
 }
 
 static int32_t mndRetrieveQnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
