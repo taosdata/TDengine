@@ -9,15 +9,15 @@
 #undef free
 #define free free
 
-int32_t udf1_init() {
+DLL_EXPORT int32_t udf1_init() {
   return 0;
 }
 
-int32_t udf1_destroy() {
+DLL_EXPORT int32_t udf1_destroy() {
   return 0;
 }
 
-int32_t udf1(SUdfDataBlock* block, SUdfColumn *resultCol) {
+DLL_EXPORT int32_t udf1(SUdfDataBlock* block, SUdfColumn *resultCol) {
   SUdfColumnMeta *meta = &resultCol->colMeta;
   meta->bytes = 4;
   meta->type = TSDB_DATA_TYPE_INT;
