@@ -952,13 +952,6 @@ static int tsdbRestoreDFileSet(STsdb *pRepo) {
 }
 
 static int tsdbRestoreCurrent(STsdb *pRepo) {
-  // // Loop to recover mfile
-  // if (tsdbRestoreMeta(pRepo) < 0) {
-  //   tsdbError("vgId:%d, failed to restore current since %s", REPO_ID(pRepo), tstrerror(terrno));
-  //   return -1;
-  // }
-
-  // Loop to recover dfile set
   if (tsdbRestoreDFileSet(pRepo) < 0) {
     tsdbError("vgId:%d, failed to restore DFileSet since %s", REPO_ID(pRepo), tstrerror(terrno));
     return -1;
@@ -1040,4 +1033,31 @@ static void tsdbScanAndTryFixDFilesHeader(STsdb *pRepo, int32_t *nExpired) {
 
     tsdbCloseDFileSet(&fset);
   }
+}
+
+int tsdbRLockFS(STsdbFS *pFs) {
+  int code = taosThreadRwlockRdlock(&(pFs->lock));
+  if (code != 0) {
+    terrno = TAOS_SYSTEM_ERROR(code);
+    return -1;
+  }
+  return 0;
+}
+
+int tsdbWLockFS(STsdbFS *pFs) {
+  int code = taosThreadRwlockWrlock(&(pFs->lock));
+  if (code != 0) {
+    terrno = TAOS_SYSTEM_ERROR(code);
+    return -1;
+  }
+  return 0;
+}
+
+int tsdbUnLockFS(STsdbFS *pFs) {
+  int code = taosThreadRwlockUnlock(&(pFs->lock));
+  if (code != 0) {
+    terrno = TAOS_SYSTEM_ERROR(code);
+    return -1;
+  }
+  return 0;
 }
