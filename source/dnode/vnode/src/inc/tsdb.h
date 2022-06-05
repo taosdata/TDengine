@@ -39,13 +39,24 @@ typedef struct SDelOp  SDelOp;
 
 static int tsdbKeyCmprFn(const void *p1, const void *p2);
 
+// tsdbMemTable ================
+typedef struct STbData    STbData;
+typedef struct SMemTable  SMemTable;
+typedef struct SMergeInfo SMergeInfo;
+typedef struct STable     STable;
+
+int  tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable);
+void tsdbMemTableDestroy(SMemTable *pMemTable);
+int  tsdbLoadDataFromCache(STsdb *pTsdb, STable *pTable, SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead,
+                           SDataCols *pCols, TKEY *filterKeys, int nFilterKeys, bool keepDup, SMergeInfo *pMergeInfo);
+
 // tsdbMemTable2.c ==============================================================================================
-typedef struct SMemTable    SMemTable;
+typedef struct SMemTable2   SMemTable2;
 typedef struct SMemData     SMemData;
 typedef struct SMemDataIter SMemDataIter;
 
-int32_t tsdbMemTableCreate2(STsdb *pTsdb, SMemTable **ppMemTable);
-void    tsdbMemTableDestroy2(SMemTable *pMemTable);
+int32_t tsdbMemTableCreate2(STsdb *pTsdb, SMemTable2 **ppMemTable);
+void    tsdbMemTableDestroy2(SMemTable2 *pMemTable);
 int32_t tsdbInsertTableData2(STsdb *pTsdb, int64_t version, SVSubmitBlk *pSubmitBlk);
 int32_t tsdbDeleteTableData2(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
 
@@ -124,17 +135,6 @@ int        tsdbRLockFS(STsdbFS *pFs);
 int        tsdbWLockFS(STsdbFS *pFs);
 int        tsdbUnLockFS(STsdbFS *pFs);
 
-// tsdbMemTable ================
-typedef struct STbData       STbData;
-typedef struct STsdbMemTable STsdbMemTable;
-typedef struct SMergeInfo    SMergeInfo;
-typedef struct STable        STable;
-
-int  tsdbMemTableCreate(STsdb *pTsdb, STsdbMemTable **ppMemTable);
-void tsdbMemTableDestroy(STsdbMemTable *pMemTable);
-int  tsdbLoadDataFromCache(STsdb *pTsdb, STable *pTable, SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead,
-                           SDataCols *pCols, TKEY *filterKeys, int nFilterKeys, bool keepDup, SMergeInfo *pMergeInfo);
-
 // structs
 typedef struct {
   int   minFid;
@@ -145,16 +145,16 @@ typedef struct {
 
 #define TSDB_DATA_DIR_LEN 6  // adapt accordingly
 struct STsdb {
-  char          *path;
-  SVnode        *pVnode;
-  TdThreadMutex  mutex;
-  char           dir[TSDB_DATA_DIR_LEN];
-  bool           repoLocked;
-  STsdbKeepCfg   keepCfg;
-  STsdbMemTable *mem;
-  STsdbMemTable *imem;
-  SRtn           rtn;
-  STsdbFS       *fs;
+  char         *path;
+  SVnode       *pVnode;
+  TdThreadMutex mutex;
+  char          dir[TSDB_DATA_DIR_LEN];
+  bool          repoLocked;
+  STsdbKeepCfg  keepCfg;
+  SMemTable    *mem;
+  SMemTable    *imem;
+  SRtn          rtn;
+  STsdbFS      *fs;
 };
 
 #if 1  // ======================================
@@ -216,7 +216,7 @@ struct STbData {
   SSkipList *pData;
 };
 
-struct STsdbMemTable {
+struct SMemTable {
   SVBufPool *pPool;
   T_REF_DECLARE()
   SRWLatch   latch;
@@ -677,7 +677,7 @@ typedef struct {
   TSKEY    eKey;
 } SDelInfo;
 
-struct SMemTable {
+struct SMemTable2 {
   STsdb  *pTsdb;
   int32_t nRef;
   TSDBKEY minKey;

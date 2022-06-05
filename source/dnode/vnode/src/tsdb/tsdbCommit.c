@@ -92,7 +92,7 @@ static int  tsdbApplyRtnOnFSet(STsdb *pRepo, SDFileSet *pSet, SRtn *pRtn);
 int tsdbBegin(STsdb *pTsdb) {
   if (!pTsdb) return 0;
 
-  STsdbMemTable *pMem;
+  SMemTable *pMem;
 
   if (tsdbMemTableCreate(pTsdb, &pTsdb->mem) < 0) {
     return -1;
@@ -244,7 +244,7 @@ void tsdbGetRtnSnap(STsdb *pRepo, SRtn *pRtn) {
 }
 
 static void tsdbStartCommit(STsdb *pRepo) {
-  STsdbMemTable *pMem = pRepo->imem;
+  SMemTable *pMem = pRepo->imem;
 
   tsdbInfo("vgId:%d, start to commit", REPO_ID(pRepo));
 
@@ -455,7 +455,7 @@ static int tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
 
 static int tsdbCreateCommitIters(SCommitH *pCommith) {
   STsdb             *pRepo = TSDB_COMMIT_REPO(pCommith);
-  STsdbMemTable     *pMem = pRepo->imem;
+  SMemTable         *pMem = pRepo->imem;
   SSkipListIterator *pSlIter;
   SCommitIter       *pCommitIter;
   SSkipListNode     *pNode;

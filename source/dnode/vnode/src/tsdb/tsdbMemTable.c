@@ -23,15 +23,15 @@ static char    *tsdbTbDataGetUid(const void *arg);
 static int tsdbAppendTableRowToCols(STsdb *pTsdb, STable *pTable, SDataCols *pCols, STSchema **ppSchema, STSRow *row,
                                     bool merge);
 
-int tsdbMemTableCreate(STsdb *pTsdb, STsdbMemTable **ppMemTable) {
-  STsdbMemTable *pMemTable;
-  SVnode        *pVnode;
+int tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable) {
+  SMemTable *pMemTable;
+  SVnode    *pVnode;
 
   *ppMemTable = NULL;
   pVnode = pTsdb->pVnode;
 
   // alloc handle
-  pMemTable = (STsdbMemTable *)taosMemoryCalloc(1, sizeof(*pMemTable));
+  pMemTable = (SMemTable *)taosMemoryCalloc(1, sizeof(*pMemTable));
   if (pMemTable == NULL) {
     return -1;
   }
@@ -60,7 +60,7 @@ int tsdbMemTableCreate(STsdb *pTsdb, STsdbMemTable **ppMemTable) {
   return 0;
 }
 
-void tsdbMemTableDestroy(STsdbMemTable *pMemTable) {
+void tsdbMemTableDestroy(SMemTable *pMemTable) {
   if (pMemTable) {
     taosHashCleanup(pMemTable->pHashIdx);
     SSkipListIterator *pIter = tSkipListCreateIter(pMemTable->pSlIdx);
@@ -240,7 +240,7 @@ int tsdbLoadDataFromCache(STsdb *pTsdb, STable *pTable, SSkipListIterator *pIter
 
 int tsdbInsertTableData(STsdb *pTsdb, SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlock, SSubmitBlkRsp *pRsp) {
   SSubmitBlkIter blkIter = {0};
-  STsdbMemTable *pMemTable = pTsdb->mem;
+  SMemTable     *pMemTable = pTsdb->mem;
   void          *tptr;
   STbData       *pTbData;
   STSRow        *row;

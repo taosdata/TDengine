@@ -200,8 +200,8 @@ static SArray* getDefaultLoadColumns(STsdbReadHandle* pTsdbReadHandle, bool load
 int64_t tsdbGetNumOfRowsInMemTable(tsdbReaderT* pHandle) {
   STsdbReadHandle* pTsdbReadHandle = (STsdbReadHandle*)pHandle;
 
-  int64_t        rows = 0;
-  STsdbMemTable* pMemTable = NULL;  // pTsdbReadHandle->pMemTable;
+  int64_t    rows = 0;
+  SMemTable* pMemTable = NULL;  // pTsdbReadHandle->pMemTable;
   if (pMemTable == NULL) {
     return rows;
   }
@@ -658,7 +658,7 @@ tsdbReaderT tsdbQueryLastRow(SVnode* pVnode, SQueryTableDataCond* pCond, STableL
 }
 
 #if 0
-tsdbReaderT tsdbQueryCacheLastT(STsdb *tsdb, SQueryTableDataCond *pCond, STableGroupInfo *groupList, uint64_t qId, STsdbMemTable* pMemRef) {
+tsdbReaderT tsdbQueryCacheLastT(STsdb *tsdb, SQueryTableDataCond *pCond, STableGroupInfo *groupList, uint64_t qId, SMemTable* pMemRef) {
   STsdbReadHandle *pTsdbReadHandle = (STsdbReadHandle*) tsdbQueryTablesT(tsdb, pCond, groupList, qId, pMemRef);
   if (pTsdbReadHandle == NULL) {
     return NULL;
@@ -2918,7 +2918,7 @@ static bool loadBlockOfActiveTable(STsdbReadHandle* pTsdbReadHandle) {
   // current result is empty
   if (pTsdbReadHandle->currentLoadExternalRows && pTsdbReadHandle->window.skey == pTsdbReadHandle->window.ekey &&
       pTsdbReadHandle->cur.rows == 0) {
-    //    STsdbMemTable* pMemRef = pTsdbReadHandle->pMemTable;
+    //    SMemTable* pMemRef = pTsdbReadHandle->pMemTable;
 
     //    doGetExternalRow(pTsdbReadHandle, TSDB_PREV_ROW, pMemRef);
     //    doGetExternalRow(pTsdbReadHandle, TSDB_NEXT_ROW, pMemRef);
@@ -3216,7 +3216,7 @@ bool tsdbNextDataBlock(tsdbReaderT pHandle) {
   }
 }
 
-// static int32_t doGetExternalRow(STsdbReadHandle* pTsdbReadHandle, int16_t type, STsdbMemTable* pMemRef) {
+// static int32_t doGetExternalRow(STsdbReadHandle* pTsdbReadHandle, int16_t type, SMemTable* pMemRef) {
 //  STsdbReadHandle* pSecQueryHandle = NULL;
 //
 //  if (type == TSDB_PREV_ROW && pTsdbReadHandle->prev) {
