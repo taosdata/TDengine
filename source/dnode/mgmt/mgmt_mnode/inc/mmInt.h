@@ -56,6 +56,7 @@ int32_t mmProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg);
 int32_t mmProcessAlterReq(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmProcessGetMonitorInfoReq(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmProcessGetLoadsReq(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t mndPreprocessQueryMsg(SMnode * pMnode, SRpcMsg * pMsg);
 
 // mmWorker.c
 int32_t mmStartWorker(SMnodeMgmt *pMgmt);

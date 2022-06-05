@@ -229,6 +229,7 @@ typedef struct STableScanPhysiNode {
   double         ratio;
   int32_t        dataRequired;
   SNodeList*     pDynamicScanFuncs;
+  SNodeList*     pPartitionKeys;
   int64_t        interval;
   int64_t        offset;
   int64_t        sliding;
@@ -336,6 +337,8 @@ typedef struct SStateWinodwPhysiNode {
   SWinodwPhysiNode window;
   SNode*           pStateKey;
 } SStateWinodwPhysiNode;
+
+typedef SStateWinodwPhysiNode SStreamStateWinodwPhysiNode;
 
 typedef struct SSortPhysiNode {
   SPhysiNode node;

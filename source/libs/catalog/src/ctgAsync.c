@@ -328,6 +328,18 @@ int32_t ctgInitJob(CTG_PARAMS, SCtgJob** job, uint64_t reqId, const SCatalogReq*
     CTG_ERR_JRET(ctgInitGetQnodeTask(pJob, taskIdx++));
   }
 
+  pJob->refId = taosAddRef(gCtgMgmt.jobPool, pJob);
+  if (pJob->refId < 0) {
+    ctgError("add job to ref failed, error: %s", tstrerror(terrno));
+    CTG_ERR_JRET(terrno);
+  }
+
+  taosAcquireRef(gCtgMgmt.jobPool, pJob->refId);
+
+  qDebug("QID:%" PRIx64 ", job %" PRIx64 " initialized, task num %d", pJob->queryId, pJob->refId, *taskNum);
+  return TSDB_CODE_SUCCESS;
+
+
 _return:
   taosMemoryFreeClear(*job);
   CTG_RET(code);

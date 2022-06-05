@@ -1087,7 +1087,7 @@ void* doAsyncFetchRow(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUc
     tsem_wait(&pParam->sem);
   }
 
-  if (pRequest->code == TSDB_CODE_SUCCESS && setupOneRowPtr) {
+  if (pRequest->code == TSDB_CODE_SUCCESS && pResultInfo->numOfRows > 0 && setupOneRowPtr) {
     doSetOneRowPtr(pResultInfo);
     pResultInfo->current += 1;
   }
@@ -1234,7 +1234,7 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t numOfRows, int
             sprintf(varDataVal(dst), "%s", TSDB_DATA_NULL_STR_L);
             varDataSetLen(dst, strlen(varDataVal(dst)));
           } else if (jsonInnerType == TD_TAG_JSON) {
-            char* jsonString = parseTagDatatoJson(jsonInnerData);
+            char* jsonString = parseTagDatatoJson(pStart);
             STR_TO_VARSTR(dst, jsonString);
             taosMemoryFree(jsonString);
           } else if (jsonInnerType == TSDB_DATA_TYPE_NCHAR) {  // value -> "value"

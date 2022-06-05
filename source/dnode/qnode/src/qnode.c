@@ -63,6 +63,14 @@ int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad) {
   return 0; 
 }
 
+int32_t qndPreprocessQueryMsg(SQnode *pQnode, SRpcMsg * pMsg) {
+  if (TDMT_VND_QUERY != pMsg->msgType) {
+    return 0;
+  }
+
+  return qWorkerPreprocessQueryMsg(pQnode->pQuery, pMsg);
+}
+
 int32_t qndProcessQueryMsg(SQnode *pQnode, int64_t ts, SRpcMsg *pMsg) {
   int32_t     code = -1;
   SReadHandle handle = {.pMsgCb = &pQnode->msgCb};
