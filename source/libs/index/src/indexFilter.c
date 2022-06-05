@@ -31,7 +31,7 @@ typedef struct SIFParam {
   SHashObj *pFilter;
 
   SArray *result;
-  char   *condValue;
+  char *  condValue;
 
   SIdxFltStatus status;
   uint8_t       colValType;
@@ -45,7 +45,7 @@ typedef struct SIFParam {
 
 typedef struct SIFCtx {
   int32_t       code;
-  SHashObj     *pRes;    /* element is SIFParam */
+  SHashObj *    pRes;    /* element is SIFParam */
   bool          noExec;  // true: just iterate condition tree, and add hint to executor plan
   SIndexMetaArg arg;
   // SIdxFltStatus st;
@@ -128,7 +128,7 @@ static int32_t sifGetValueFromNode(SNode *node, char **value) {
   // covert data From snode;
   SValueNode *vn = (SValueNode *)node;
 
-  char      *pData = nodesGetValueFromNode(vn);
+  char *     pData = nodesGetValueFromNode(vn);
   SDataType *pType = &vn->node.resType;
   int32_t    type = pType->type;
   int32_t    valLen = 0;
@@ -162,12 +162,27 @@ static int32_t sifGetValueFromNode(SNode *node, char **value) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t sifInitJsonParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
+  SOperatorNode *nd = (SOperatorNode *)node;
+  assert(nodeType(node) == QUERY_NODE_OPERATOR);
+  SColumnNode *l = (SColumnNode *)nd->pLeft;
+  SValueNode * r = (SValueNode *)nd->pRight;
+
+  param->colId = l->colId;
+  param->colValType = l->node.resType.type;
+  memcpy(param->dbName, l->dbName, sizeof(l->dbName));
+  sprintf(param->colName, "%s_%s", l->colName, r->literal);
+  param->colValType = r->typeData;
+  return 0;
+  // memcpy(param->colName, l->colName, sizeof(l->colName));
+}
 static int32_t sifInitParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
   switch (nodeType(node)) {
     case QUERY_NODE_VALUE: {
       SValueNode *vn = (SValueNode *)node;
       SIF_ERR_RET(sifGetValueFromNode(node, &param->condValue));
       param->colId = -1;
+      param->colValType = (uint8_t)(vn->node.resType.type);
       break;
     }
     case QUERY_NODE_COLUMN: {
@@ -219,17 +234,31 @@ static int32_t sifInitOperParams(SIFParam **params, SOperatorNode *node, SIFCtx 
     indexError("invalid operation node, left: %p, rigth: %p", node->pLeft, node->pRight);
     SIF_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
+  if (node->opType == OP_TYPE_JSON_GET_VALUE || node->opType == OP_TYPE_JSON_CONTAINS) {
+    return code;
+  }
   SIFParam *paramList = taosMemoryCalloc(nParam, sizeof(SIFParam));
   if (NULL == paramList) {
     SIF_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
-  SIF_ERR_JRET(sifInitParam(node->pLeft, &paramList[0], ctx));
-  if (nParam > 1) {
-    SIF_ERR_JRET(sifInitParam(node->pRight, &paramList[1], ctx));
+  if (nodeType(node->pLeft) == QUERY_NODE_OPERATOR) {
+    SNode *interNode = (node->pLeft);
+    SIF_ERR_JRET(sifInitJsonParam(interNode, &paramList[0], ctx));
+    if (nParam > 1) {
+      SIF_ERR_JRET(sifInitParam(node->pRight, &paramList[1], ctx));
+    }
+    paramList[0].colValType = TSDB_DATA_TYPE_JSON;
+    *params = paramList;
+    return TSDB_CODE_SUCCESS;
+  } else {
+    SIF_ERR_JRET(sifInitParam(node->pLeft, &paramList[0], ctx));
+    if (nParam > 1) {
+      SIF_ERR_JRET(sifInitParam(node->pRight, &paramList[1], ctx));
+    }
+    *params = paramList;
+    return TSDB_CODE_SUCCESS;
   }
-  *params = paramList;
-  return TSDB_CODE_SUCCESS;
 _return:
   taosMemoryFree(paramList);
   SIF_RET(code);
@@ -306,39 +335,34 @@ static Filter sifGetFilterFunc(EIndexQueryType type, bool *reverse) {
 }
 static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFParam *output) {
   SIndexMetaArg *arg = &output->arg;
-#ifdef USE_INVERTED_INDEX
-  SIndexTerm *tm = indexTermCreate(arg->suid, DEFAULT, left->colValType, left->colName, strlen(left->colName),
-                                   right->condValue, strlen(right->condValue));
-  if (tm == NULL) {
-    return TSDB_CODE_QRY_OUT_OF_MEMORY;
+  int            ret = 0;
+
+  EIndexQueryType qtype = 0;
+  SIF_ERR_RET(sifGetFuncFromSql(operType, &qtype));
+  if (left->colValType == TSDB_DATA_TYPE_JSON) {
+    SIndexTerm *tm = indexTermCreate(arg->suid, DEFAULT, right->colValType, left->colName, strlen(left->colName),
+                                     right->condValue, strlen(right->condValue));
+    if (tm == NULL) {
+      return TSDB_CODE_QRY_OUT_OF_MEMORY;
+    }
+
+    SIndexMultiTermQuery *mtm = indexMultiTermQueryCreate(MUST);
+    indexMultiTermQueryAdd(mtm, tm, qtype);
+    ret = tIndexJsonSearch(arg->ivtIdx, mtm, output->result);
+  } else {
+    bool   reverse;
+    Filter filterFunc = sifGetFilterFunc(qtype, &reverse);
+
+    SMetaFltParam param = {.suid = arg->suid,
+                           .cid = left->colId,
+                           .type = left->colValType,
+                           .val = right->condValue,
+                           .reverse = reverse,
+                           .filterFunc = filterFunc};
+
+    ret = metaFilteTableIds(arg->metaEx, &param, output->result);
   }
-
-  EIndexQueryType qtype = 0;
-  SIF_ERR_RET(sifGetFuncFromSql(operType, &qtype));
-
-  SIndexMultiTermQuery *mtm = indexMultiTermQueryCreate(MUST);
-  indexMultiTermQueryAdd(mtm, tm, qtype);
-  int ret = indexSearch(arg->metaHandle, mtm, output->result);
-  indexDebug("index filter data size: %d", (int)taosArrayGetSize(output->result));
-  indexMultiTermQueryDestroy(mtm);
   return ret;
-#else
-  EIndexQueryType qtype = 0;
-  SIF_ERR_RET(sifGetFuncFromSql(operType, &qtype));
-  bool   reverse;
-  Filter filterFunc = sifGetFilterFunc(qtype, &reverse);
-
-  SMetaFltParam param = {.suid = arg->suid,
-                         .cid = left->colId,
-                         .type = left->colValType,
-                         .val = right->condValue,
-                         .reverse = reverse,
-                         .filterFunc = filterFunc};
-
-  int ret = metaFilteTableIds(arg->metaEx, &param, output->result);
-  return ret;
-#endif
-  return 0;
 }
 
 static int32_t sifLessThanFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
@@ -391,6 +415,14 @@ static int32_t sifMatchFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
 static int32_t sifNotMatchFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
   int id = OP_TYPE_NMATCH;
   return sifDoIndex(left, right, id, output);
+}
+static int32_t sifJsonContains(SIFParam *left, SIFParam *right, SIFParam *output) {
+  // return 0
+  return 0;
+}
+static int32_t sifJsonGetValue(SIFParam *left, SIFParam *rigth, SIFParam *output) {
+  // return 0
+  return 0;
 }
 
 static int32_t sifDefaultFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
@@ -445,6 +477,14 @@ static int32_t sifGetOperFn(int32_t funcId, sif_func_t *func, SIdxFltStatus *sta
       *status = SFLT_NOT_INDEX;
       *func = sifNotMatchFunc;
       return 0;
+    case OP_TYPE_JSON_CONTAINS:
+      *status = SFLT_ACCURATE_INDEX;
+      *func = sifJsonContains;
+      return 0;
+    case OP_TYPE_JSON_GET_VALUE:
+      *status = SFLT_ACCURATE_INDEX;
+      *func = sifJsonGetValue;
+      return 0;
     default:
       *status = SFLT_NOT_INDEX;
       *func = sifNullFunc;
@@ -457,12 +497,17 @@ static int32_t sifGetOperFn(int32_t funcId, sif_func_t *func, SIdxFltStatus *sta
 static int32_t sifExecOper(SOperatorNode *node, SIFCtx *ctx, SIFParam *output) {
   int32_t code = 0;
   int32_t nParam = sifGetOperParamNum(node->opType);
+  if (nParam <= 1) {
+    SIF_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+  if (node->opType == OP_TYPE_JSON_GET_VALUE || node->opType == OP_TYPE_JSON_CONTAINS) {
+    return code;
+  }
   SIFParam *params = NULL;
-  SIF_ERR_RET(sifInitOperParams(&params, node, ctx));
 
+  SIF_ERR_RET(sifInitOperParams(&params, node, ctx));
   // ugly code, refactor later
   output->arg = ctx->arg;
-
   sif_func_t operFn = sifNullFunc;
   code = sifGetOperFn(node->opType, &operFn, &output->status);
   if (!ctx->noExec) {
@@ -567,7 +612,9 @@ EDealRes sifCalcWalker(SNode *node, void *context) {
   if (QUERY_NODE_LOGIC_CONDITION == nodeType(node)) {
     return sifWalkLogic(node, ctx);
   }
+
   if (QUERY_NODE_OPERATOR == nodeType(node)) {
+    indexInfo("node type for index filter, type: %d", nodeType(node));
     return sifWalkOper(node, ctx);
   }
 
@@ -658,7 +705,7 @@ int32_t doFilterTag(const SNode *pFilterNode, SIndexMetaArg *metaArg, SArray *re
   // todo move to the initialization function
   // SIF_ERR_RET(filterInitFromNode((SNode *)pFilterNode, &filter, 0));
 
-  SArray  *output = taosArrayInit(8, sizeof(uint64_t));
+  SArray * output = taosArrayInit(8, sizeof(uint64_t));
   SIFParam param = {.arg = *metaArg, .result = output};
   SIF_ERR_RET(sifCalculate((SNode *)pFilterNode, &param));
 
