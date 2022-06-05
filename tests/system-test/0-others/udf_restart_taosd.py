@@ -637,8 +637,8 @@ class TDTestCase:
             tdSql.query("select udf2(sub1.c1 ,sub1.c2), udf2(sub2.c2 ,sub2.c1) from sub1, sub2 where sub1.ts=sub2.ts and sub1.c1 is not null")
             tdSql.checkData(0,0,169.661427555)
             tdSql.checkData(0,1,169.661427555)
-            # tdDnodes.stop(1)
-            # tdDnodes.start(1)
+            tdDnodes.stop(1)
+            tdDnodes.start(1)
             time.sleep(2)
             
             
