@@ -20,6 +20,9 @@ typedef struct {
   int32_t    minutes;
   int8_t     precision;
   TSKEY      nCommitKey;
+  int32_t    fid;
+  TSKEY      minKey;
+  TSKEY      maxKey;
   SReadH     readh;
   SDFileSet  wSet;
   SArray    *aBlkIdx;
@@ -180,11 +183,11 @@ static int32_t tsdbCommitTable(SCommitH *pCHandle, SMemData *pMemData, SBlockIdx
 
   // commit table impl
   if (pMemData && pBlockIdx) {
-    // merge
+    // TODO
   } else if (pMemData) {
-    // new one
+    // TODO
   } else {
-    // save old ones
+    // TODO
   }
 
   // commit table end
@@ -224,9 +227,13 @@ static int32_t tsdbWriteBlockIdx(SDFile *pFile, SArray *pArray, uint8_t **ppBuf)
   return code;
 }
 
-static int32_t tsdbCommitFileStart(SCommitH *pCHandle, int32_t fid) {
-  int32_t code = 0;
-  // TODO
+static int32_t tsdbCommitFileStart(SCommitH *pCHandle) {
+  int32_t    code = 0;
+  STsdb     *pTsdb = pCHandle->pMemTable->pTsdb;
+  SDFileSet *pSet = NULL;
+
+  taosArrayClear(pCHandle->aBlkIdx);
+
   return code;
 }
 
@@ -236,61 +243,50 @@ static int32_t tsdbCommitFileEnd(SCommitH *pCHandle) {
   return code;
 }
 
-static int32_t tsdbCommitFile(SCommitH *pCHandle, int32_t fid) {
-  int32_t      code = 0;
-  SMemDataIter iter = {0};
-  TSDBROW     *pRow = NULL;
-  int8_t       hasData = 0;
-  TSKEY        fidSKey;
-  TSKEY        fidEKey;
-  int32_t      iMemData;
-  int32_t      nMemData;
-  int32_t      iBlockIdx;
-  int32_t      nBlockIdx;
+static int32_t tsdbCommitFile(SCommitH *pCHandle) {
+  int32_t    code = 0;
+  SMemData  *pMemData;
+  SBlockIdx *pBlockIdx;
+  int32_t    iMemData;
+  int32_t    nMemData;
+  int32_t    iBlockIdx;
+  int32_t    nBlockIdx;
 
-  pCHandle->nCommitKey = TSKEY_MAX;
-
-  // create or open the file to commit(todo)
-  code = tsdbCommitFileStart(pCHandle, fid);
+  // commit file start
+  code = tsdbCommitFileStart(pCHandle);
   if (code) {
     goto _err;
   }
 
-  // loop to commit each table data
+  // commit file impl
   iMemData = 0;
   nMemData = taosArrayGetSize(pCHandle->pMemTable->aMemData);
   iBlockIdx = 0;
-  nBlockIdx = 0;
-  for (;;) {
-    if (iBlockIdx >= nBlockIdx && iMemData >= nMemData) {
-      // code = tsdbWriteBlockIdx();
-      // if (code) {
-      //   goto _err;
-      // }
-      break;
-    }
+  nBlockIdx = 0;  // todo
 
-    SMemData  *pMemData = NULL;
-    SBlockIdx *pBlockIdx = NULL;
+  for (;;) {
+    if (iMemData >= nMemData && iBlockIdx >= nBlockIdx) break;
+
+    pMemData = NULL;
+    pBlockIdx = NULL;
     if (iMemData < nMemData) {
-      pMemData = (SMemData *)taosArrayGetP(pCHandle->pMemTable->aMemData, iBlockIdx);
+      pMemData = (SMemData *)taosArrayGetP(pCHandle->pMemTable->aMemData, iMemData);
     }
     if (iBlockIdx < nBlockIdx) {
-      // pBlockIdx
+      // pBlockIdx = ;
     }
 
     if (pMemData && pBlockIdx) {
-      int32_t c = tsdbTableIdCmprFn(&(TABLEID){.suid = pMemData->suid, .uid = pMemData->uid},
-                                    &(TABLEID){.suid = pBlockIdx->suid, .uid = pBlockIdx->uid});
-      if (c == 0) {
+      int32_t c = tsdbTableIdCmprFn(pMemData, pBlockIdx);
+      if (c < 0) {
         iMemData++;
-        iBlockIdx++;
-      } else if (c < 0) {
         pBlockIdx = NULL;
+      } else if (c == 0) {
         iMemData++;
-      } else {
-        pMemData = NULL;
         iBlockIdx++;
+      } else {
+        iBlockIdx++;
+        pMemData = NULL;
       }
     } else {
       if (pMemData) {
@@ -306,7 +302,7 @@ static int32_t tsdbCommitFile(SCommitH *pCHandle, int32_t fid) {
     }
   }
 
-  // close file
+  // commit file end
   code = tsdbCommitFileEnd(pCHandle);
   if (code) {
     goto _err;
@@ -328,8 +324,9 @@ static int32_t tsdbCommitData(SCommitH *pCHandle) {
   for (;;) {
     if (pCHandle->nCommitKey == TSKEY_MAX) break;
 
-    fid = TSDB_KEY_FID(pCHandle->nCommitKey, pCHandle->minutes, pCHandle->precision);
-    code = tsdbCommitFile(pCHandle, fid);
+    pCHandle->fid = TSDB_KEY_FID(pCHandle->nCommitKey, pCHandle->minutes, pCHandle->precision);
+    tsdbGetFidKeyRange(pCHandle->minutes, pCHandle->precision, pCHandle->fid, &pCHandle->minKey, &pCHandle->maxKey);
+    code = tsdbCommitFile(pCHandle);
     if (code) {
       goto _err;
     }

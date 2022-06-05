@@ -263,12 +263,12 @@ struct TSDBKEY {
 };
 
 typedef struct {
+  uint64_t suid;
+  uint64_t uid;
   uint32_t len;
   uint32_t offset;
   uint32_t hasLast : 2;
   uint32_t numOfBlocks : 30;
-  uint64_t suid;
-  uint64_t uid;
   TSDBKEY  maxKey;
 } SBlockIdx;
 

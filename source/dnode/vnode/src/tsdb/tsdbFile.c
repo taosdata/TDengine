@@ -25,7 +25,7 @@ static const char *TSDB_FNAME_SUFFIX[] = {
     "meta",  // TSDB_FILE_META
 };
 
-static void tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, const char* dname, char *fname);
+static void tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, const char *dname, char *fname);
 // static int   tsdbRollBackMFile(SMFile *pMFile);
 static int   tsdbEncodeDFInfo(void **buf, SDFInfo *pInfo);
 static void *tsdbDecodeDFInfo(void *buf, SDFInfo *pInfo);
