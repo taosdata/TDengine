@@ -189,9 +189,7 @@ typedef struct {
 struct STsdbFS {
   TdThreadRwlock lock;
 
-  SFSStatus *cstatus;        // current status
-  SHashObj  *metaCache;      // meta cache
-  SHashObj  *metaCacheComp;  // meta cache for compact
+  SFSStatus *cstatus;  // current status
   bool       intxn;
   SFSStatus *nstatus;  // new status
 };

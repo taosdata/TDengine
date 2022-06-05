@@ -216,16 +216,7 @@ STsdbFS *tsdbNewFS(const STsdbKeepCfg *pCfg) {
     return NULL;
   }
 
-  pfs->metaCache = taosHashInit(4096, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
-  if (pfs->metaCache == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    tsdbFreeFS(pfs);
-    return NULL;
-  }
-
   pfs->intxn = false;
-  pfs->metaCacheComp = NULL;
-
   pfs->nstatus = tsdbNewFSStatus(maxFSet);
   if (pfs->nstatus == NULL) {
     tsdbFreeFS(pfs);
@@ -238,8 +229,6 @@ STsdbFS *tsdbNewFS(const STsdbKeepCfg *pCfg) {
 void *tsdbFreeFS(STsdbFS *pfs) {
   if (pfs) {
     pfs->nstatus = tsdbFreeFSStatus(pfs->nstatus);
-    taosHashCleanup(pfs->metaCache);
-    pfs->metaCache = NULL;
     pfs->cstatus = tsdbFreeFSStatus(pfs->cstatus);
     taosThreadRwlockDestroy(&(pfs->lock));
     taosMemoryFree(pfs);
