@@ -1662,7 +1662,11 @@ static int32_t mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capa
   }
 
 #ifdef TD_DEBUG_PRINT_ROW
-  tdSRowPrint(row1, pSchema1, __func__);
+  char   flags[70] = {0};
+  STsdb* pTsdb = pTsdbReadHandle->rhelper.pRepo;
+  snprintf(flags, 70, "%s:%d vgId:%d dir:%s row1%s=NULL,row2%s=NULL", __func__, __LINE__, TD_VID(pTsdb->pVnode),
+           pTsdb->dir, row1 ? "!" : "", row2 ? "!" : "");
+  tdSRowPrint(row1, pSchema1, flags);
 #endif
 
   if (isRow1DataRow) {
