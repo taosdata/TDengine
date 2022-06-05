@@ -2723,17 +2723,6 @@ _error:
   return NULL;
 }
 
-static SSDataBlock* concurrentlyLoadRemoteData(SOperatorInfo* pOperator) {
-  SExchangeInfo* pExchangeInfo = pOperator->info;
-  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
-
-  if (pOperator->status == OP_RES_TO_RETURN) {
-    return concurrentlyLoadRemoteDataImpl(pOperator, pExchangeInfo, pTaskInfo);
-  } else {
-    ASSERT(0);
-  }
-}
-
 static int32_t prepareConcurrentlyLoad(SOperatorInfo* pOperator) {
   SExchangeInfo* pExchangeInfo = pOperator->info;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
