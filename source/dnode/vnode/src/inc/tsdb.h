@@ -64,6 +64,7 @@ typedef struct SDFInfo   SDFInfo;
 typedef struct SDFile    SDFile;
 typedef struct SDFileSet SDFileSet;
 
+// SDFile
 void    tsdbInitDFile(STsdb *pRepo, SDFile *pDFile, SDiskID did, int fid, uint32_t ver, TSDB_FILE_T ftype);
 void    tsdbInitDFileEx(SDFile *pDFile, SDFile *pODFile);
 int     tsdbOpenDFile(SDFile *pDFile, int flags);
@@ -82,6 +83,26 @@ int     tsdbUpdateDFileHeader(SDFile *pDFile);
 int     tsdbLoadDFileHeader(SDFile *pDFile, SDFInfo *pInfo);
 int     tsdbParseDFilename(const char *fname, int *vid, int *fid, TSDB_FILE_T *ftype, uint32_t *version);
 
+// SDFileSet
+void  tsdbInitDFileSet(STsdb *pRepo, SDFileSet *pSet, SDiskID did, int fid, uint32_t ver);
+void  tsdbInitDFileSetEx(SDFileSet *pSet, SDFileSet *pOSet);
+int   tsdbEncodeDFileSet(void **buf, SDFileSet *pSet);
+void *tsdbDecodeDFileSet(STsdb *pRepo, void *buf, SDFileSet *pSet);
+int   tsdbEncodeDFileSetEx(void **buf, SDFileSet *pSet);
+void *tsdbDecodeDFileSetEx(void *buf, SDFileSet *pSet);
+int   tsdbApplyDFileSetChange(SDFileSet *from, SDFileSet *to);
+int   tsdbCreateDFileSet(STsdb *pRepo, SDFileSet *pSet, bool updateHeader);
+int   tsdbUpdateDFileSetHeader(SDFileSet *pSet);
+int   tsdbScanAndTryFixDFileSet(STsdb *pRepo, SDFileSet *pSet);
+void  tsdbCloseDFileSet(SDFileSet *pSet);
+int   tsdbOpenDFileSet(SDFileSet *pSet, int flags);
+void  tsdbRemoveDFileSet(SDFileSet *pSet);
+int   tsdbCopyDFileSet(SDFileSet *pSrc, SDFileSet *pDest);
+void  tsdbGetFidKeyRange(int days, int8_t precision, int fid, TSKEY *minKey, TSKEY *maxKey);
+
+// tsdbFS.c ==============================================================================================
+typedef struct STsdbFS STsdbFS;
+
 // tsdbMemTable ================
 typedef struct STbData       STbData;
 typedef struct STsdbMemTable STsdbMemTable;
@@ -92,11 +113,6 @@ int  tsdbMemTableCreate(STsdb *pTsdb, STsdbMemTable **ppMemTable);
 void tsdbMemTableDestroy(STsdbMemTable *pMemTable);
 int  tsdbLoadDataFromCache(STsdb *pTsdb, STable *pTable, SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead,
                            SDataCols *pCols, TKEY *filterKeys, int nFilterKeys, bool keepDup, SMergeInfo *pMergeInfo);
-
-// tsdbCommit ================
-
-// tsdbFS ================
-typedef struct STsdbFS STsdbFS;
 
 // structs
 typedef struct {
@@ -313,8 +329,6 @@ typedef struct {
   uint64_t aggrOffset : 63;
   TSDBKEY  minKey;
   TSDBKEY  maxKey;
-  // TSKEY    keyFirst;
-  // TSKEY    keyLast;
 } SBlock;
 
 static FORCE_INLINE bool tsdbIsSupBlock(SBlock *pBlock) { return pBlock->numOfSubBlocks == 1; }
@@ -344,26 +358,6 @@ typedef struct {
   int64_t max;
   int64_t min;
 } SAggrBlkCol;
-
-// Code here just for back-ward compatibility
-static FORCE_INLINE void tsdbSetBlockColOffset(SBlockCol *pBlockCol, uint32_t offset) {
-#ifdef TD_REFACTOR_3
-  pBlockCol->offset = offset & ((((uint32_t)1) << 24) - 1);
-  pBlockCol->offsetH = (uint8_t)(offset >> 24);
-#else
-  pBlockCol->offset = offset;
-#endif
-}
-
-static FORCE_INLINE uint32_t tsdbGetBlockColOffset(SBlockCol *pBlockCol) {
-#ifdef TD_REFACTOR_3
-  uint32_t offset1 = pBlockCol->offset;
-  uint32_t offset2 = pBlockCol->offsetH;
-  return (offset1 | (offset2 << 24));
-#else
-  return pBlockCol->offset;
-#endif
-}
 
 typedef struct {
   int32_t   delimiter;  // For recovery usage
@@ -612,55 +606,6 @@ typedef struct {
       TSDB_FILE_FSYNC(TSDB_DFILE_IN_SET(s, ftype));                            \
     }                                                                          \
   } while (0);
-
-void  tsdbInitDFileSet(STsdb *pRepo, SDFileSet *pSet, SDiskID did, int fid, uint32_t ver);
-void  tsdbInitDFileSetEx(SDFileSet *pSet, SDFileSet *pOSet);
-int   tsdbEncodeDFileSet(void **buf, SDFileSet *pSet);
-void *tsdbDecodeDFileSet(STsdb *pRepo, void *buf, SDFileSet *pSet);
-int   tsdbEncodeDFileSetEx(void **buf, SDFileSet *pSet);
-void *tsdbDecodeDFileSetEx(void *buf, SDFileSet *pSet);
-int   tsdbApplyDFileSetChange(SDFileSet *from, SDFileSet *to);
-int   tsdbCreateDFileSet(STsdb *pRepo, SDFileSet *pSet, bool updateHeader);
-int   tsdbUpdateDFileSetHeader(SDFileSet *pSet);
-int   tsdbScanAndTryFixDFileSet(STsdb *pRepo, SDFileSet *pSet);
-
-static FORCE_INLINE void tsdbCloseDFileSet(SDFileSet *pSet) {
-  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    tsdbCloseDFile(TSDB_DFILE_IN_SET(pSet, ftype));
-  }
-}
-
-static FORCE_INLINE int tsdbOpenDFileSet(SDFileSet *pSet, int flags) {
-  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    if (tsdbOpenDFile(TSDB_DFILE_IN_SET(pSet, ftype), flags) < 0) {
-      tsdbCloseDFileSet(pSet);
-      return -1;
-    }
-  }
-  return 0;
-}
-
-static FORCE_INLINE void tsdbRemoveDFileSet(SDFileSet *pSet) {
-  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    (void)tsdbRemoveDFile(TSDB_DFILE_IN_SET(pSet, ftype));
-  }
-}
-
-static FORCE_INLINE int tsdbCopyDFileSet(SDFileSet *pSrc, SDFileSet *pDest) {
-  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    if (tsdbCopyDFile(TSDB_DFILE_IN_SET(pSrc, ftype), TSDB_DFILE_IN_SET(pDest, ftype)) < 0) {
-      tsdbRemoveDFileSet(pDest);
-      return -1;
-    }
-  }
-
-  return 0;
-}
-
-static FORCE_INLINE void tsdbGetFidKeyRange(int days, int8_t precision, int fid, TSKEY *minKey, TSKEY *maxKey) {
-  *minKey = fid * days * tsTickPerMin[precision];
-  *maxKey = *minKey + days * tsTickPerMin[precision] - 1;
-}
 
 static FORCE_INLINE bool tsdbFSetIsOk(SDFileSet *pSet) {
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {

@@ -1175,7 +1175,7 @@ static int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFi
     tsdbUpdateDFileMagic(pDFile, POINTER_SHIFT(tptr, flen - sizeof(TSCKSUM)));
 
     if (ncol != 0) {
-      tsdbSetBlockColOffset(pBlockCol, toffset);
+      pBlockCol->offset = toffset;
       pBlockCol->len = flen;  // data + bitmaps
       pBlockCol->blen = tBitmapsLen;
       ++tcol;

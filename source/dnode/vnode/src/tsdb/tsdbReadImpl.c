@@ -726,7 +726,7 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
     if (dcol != 0) {
       pBlockCol = &(pBlockData->cols[ccol]);
       tcolId = pBlockCol->colId;
-      toffset = tsdbGetBlockColOffset(pBlockCol);
+      toffset = pBlockCol->offset;
       tlen = pBlockCol->len;
       pDataCol->bitmap = pBlockCol->blen > 0 ? 1 : 0;
     } else {
@@ -942,8 +942,8 @@ static int tsdbLoadColData(SReadH *pReadh, SDFile *pDFile, SBlock *pBlock, SBloc
   if (tsdbMakeRoom((void **)(&TSDB_READ_BUF(pReadh)), pBlockCol->len) < 0) return -1;
   if (tsdbMakeRoom((void **)(&TSDB_READ_COMP_BUF(pReadh)), tsize) < 0) return -1;
 
-  int64_t offset = pBlock->offset + tsdbBlockStatisSize(pBlock->numOfCols, (uint32_t)pBlock->blkVer) +
-                   tsdbGetBlockColOffset(pBlockCol);
+  int64_t offset =
+      pBlock->offset + tsdbBlockStatisSize(pBlock->numOfCols, (uint32_t)pBlock->blkVer) + pBlockCol->offset;
   if (tsdbSeekDFile(pDFile, offset, SEEK_SET) < 0) {
     tsdbError("vgId:%d, failed to load block column data while seek file %s to offset %" PRId64 " since %s",
               TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), offset, tstrerror(terrno));
