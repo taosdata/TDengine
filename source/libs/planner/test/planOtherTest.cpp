@@ -60,3 +60,15 @@ TEST_F(PlanOtherTest, show) {
 
   run("SHOW DATABASES");
 }
+
+TEST_F(PlanOtherTest, delete) {
+  useDb("root", "test");
+
+  run("DELETE FROM t1");
+
+  run("DELETE FROM t1 WHERE ts > now - 2d and ts < now - 1d");
+
+  run("DELETE FROM st1");
+
+  run("DELETE FROM st1 WHERE ts > now - 2d and ts < now - 1d AND tag1 = 10");
+}
