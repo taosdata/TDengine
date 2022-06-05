@@ -890,27 +890,12 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
     nTagData = ((const STag *)pCtbEntry->ctbEntry.pTags)->len;
     return metaSaveJsonVarToIdx(pMeta, pCtbEntry, pTagColumn);
   }
-
-  // update tag index
-#ifdef USE_INVERTED_INDEX
-  tb_uid_t suid = pCtbEntry->ctbEntry.suid;
-  tb_uid_t tuid = pCtbEntry->uid;
-
-  SIndexMultiTerm *tmGroup = indexMultiTermCreate();
-
-  SIndexTerm *tm = indexTermCreate(suid, ADD_VALUE, pTagColumn->type, pTagColumn->name, sizeof(pTagColumn->name),
-                                   pTagData, pTagData == NULL ? 0 : strlen(pTagData));
-  indexMultiTermAdd(tmGroup, tm);
-  int ret = indexPut((SIndex *)pMeta->pTagIvtIdx, tmGroup, tuid);
-  indexMultiTermDestroy(tmGroup);
-#else
   if (metaCreateTagIdxKey(pCtbEntry->ctbEntry.suid, pTagColumn->colId, pTagData, nTagData, pTagColumn->type,
                           pCtbEntry->uid, &pTagIdxKey, &nTagIdxKey) < 0) {
     return -1;
   }
   tdbTbInsert(pMeta->pTagIdx, pTagIdxKey, nTagIdxKey, NULL, 0, &pMeta->txn);
   metaDestroyTagIdxKey(pTagIdxKey);
-#endif
   tDecoderClear(&dc);
   tdbFree(pData);
   return 0;
@@ -995,10 +980,5 @@ _err:
   return -1;
 }
 // refactor later
-void *metaGetIdx(SMeta *pMeta) {
-#ifdef USE_INVERTED_INDEX
-  return pMeta->pTagIvtIdx;
-#else
-  return pMeta->pTagIdx;
-#endif
-}
+void *metaGetIdx(SMeta *pMeta) { return pMeta->pTagIdx; }
+void *metaGetIvtIdx(SMeta *pMeta) { return pMeta->pTagIvtIdx; }

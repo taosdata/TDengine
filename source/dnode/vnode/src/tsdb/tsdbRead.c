@@ -2829,6 +2829,12 @@ void* tsdbGetIdx(SMeta* pMeta) {
   }
   return metaGetIdx(pMeta);
 }
+void* tsdbGetIvtIdx(SMeta* pMeta) {
+  if (pMeta == NULL) {
+    return NULL;
+  }
+  return metaGetIvtIdx(pMeta);
+}
 int32_t tsdbGetAllTableList(SMeta* pMeta, uint64_t uid, SArray* list) {
   SMCtbCursor* pCur = metaOpenCtbCursor(pMeta, uid);
 

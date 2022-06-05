@@ -335,44 +335,34 @@ static Filter sifGetFilterFunc(EIndexQueryType type, bool *reverse) {
 }
 static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFParam *output) {
   SIndexMetaArg *arg = &output->arg;
-#ifdef USE_INVERTED_INDEX
-  SIndexTerm *tm = indexTermCreate(arg->suid, DEFAULT, right->colValType, left->colName, strlen(left->colName),
-                                   right->condValue, strlen(right->condValue));
-  if (tm == NULL) {
-    return TSDB_CODE_QRY_OUT_OF_MEMORY;
-  }
+  int            ret = 0;
 
-  int             ret = 0;
   EIndexQueryType qtype = 0;
   SIF_ERR_RET(sifGetFuncFromSql(operType, &qtype));
-
-  SIndexMultiTermQuery *mtm = indexMultiTermQueryCreate(MUST);
-  indexMultiTermQueryAdd(mtm, tm, qtype);
   if (left->colValType == TSDB_DATA_TYPE_JSON) {
-    ret = tIndexJsonSearch(arg->metaHandle, mtm, output->result);
+    SIndexTerm *tm = indexTermCreate(arg->suid, DEFAULT, right->colValType, left->colName, strlen(left->colName),
+                                     right->condValue, strlen(right->condValue));
+    if (tm == NULL) {
+      return TSDB_CODE_QRY_OUT_OF_MEMORY;
+    }
+
+    SIndexMultiTermQuery *mtm = indexMultiTermQueryCreate(MUST);
+    indexMultiTermQueryAdd(mtm, tm, qtype);
+    ret = tIndexJsonSearch(arg->ivtIdx, mtm, output->result);
   } else {
-    ret = indexSearch(arg->metaHandle, mtm, output->result);
+    bool   reverse;
+    Filter filterFunc = sifGetFilterFunc(qtype, &reverse);
+
+    SMetaFltParam param = {.suid = arg->suid,
+                           .cid = left->colId,
+                           .type = left->colValType,
+                           .val = right->condValue,
+                           .reverse = reverse,
+                           .filterFunc = filterFunc};
+
+    ret = metaFilteTableIds(arg->metaEx, &param, output->result);
   }
-  indexDebug("index filter data size: %d", (int)taosArrayGetSize(output->result));
-  indexMultiTermQueryDestroy(mtm);
   return ret;
-#else
-  EIndexQueryType qtype = 0;
-  SIF_ERR_RET(sifGetFuncFromSql(operType, &qtype));
-  bool   reverse;
-  Filter filterFunc = sifGetFilterFunc(qtype, &reverse);
-
-  SMetaFltParam param = {.suid = arg->suid,
-                         .cid = left->colId,
-                         .type = left->colValType,
-                         .val = right->condValue,
-                         .reverse = reverse,
-                         .filterFunc = filterFunc};
-
-  int ret = metaFilteTableIds(arg->metaEx, &param, output->result);
-  return ret;
-#endif
-  return 0;
 }
 
 static int32_t sifLessThanFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
