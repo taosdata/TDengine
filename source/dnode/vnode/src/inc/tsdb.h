@@ -237,9 +237,11 @@ struct STsdbFSMeta {
 
 // ==================
 typedef struct {
-  STsdbFSMeta meta;  // FS meta
-  SArray     *df;    // data file array
-  SArray     *sf;    // sma data file array    v2f1900.index_name_1
+  STsdbFSMeta meta;       // FS meta
+  SDFile      cacheFile;  // cache file
+  SDFile      tombstone;  // tomestome file
+  SArray     *df;         // data file array
+  SArray     *sf;         // sma data file array    v2f1900.index_name_1
 } SFSStatus;
 
 struct STsdbFS {
