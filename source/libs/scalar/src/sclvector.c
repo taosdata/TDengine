@@ -29,6 +29,12 @@
 #define LEFT_COL ((pLeftCol->info.type == TSDB_DATA_TYPE_JSON ? (void*)pLeftCol : pLeftCol->pData))
 #define RIGHT_COL ((pRightCol->info.type == TSDB_DATA_TYPE_JSON ? (void*)pRightCol : pRightCol->pData))
 
+#define IS_NULL colDataIsNull_s(pLeft->columnData, i) || colDataIsNull_s(pRight->columnData, i) \
+    || IS_JSON_NULL(pLeft->columnData->info.type, colDataGetVarData(pLeft->columnData, i)) \
+    || IS_JSON_NULL(pRight->columnData->info.type, colDataGetVarData(pRight->columnData, i))
+
+#define IS_HELPER_NULL(col,i) colDataIsNull_s(col, i) || IS_JSON_NULL(col->info.type, colDataGetVarData(col, i))
+
 void convertNumberToNumber(const void *inData, void *outData, int8_t inType, int8_t outType){
   switch (outType) {
     case TSDB_DATA_TYPE_BOOL: {
@@ -867,11 +873,11 @@ static void vectorMathAddHelper(SColumnInfoData* pLeftCol, SColumnInfoData* pRig
 
   double *output = (double *)pOutputCol->pData;
 
-  if (colDataIsNull_f(pRightCol->nullbitmap, 0)) {  // Set pLeft->numOfRows NULL value
+  if (IS_HELPER_NULL(pRightCol, 0)) {  // Set pLeft->numOfRows NULL value
     colDataAppendNNULL(pOutputCol, 0, numOfRows);
   } else {
     for (; i >= 0 && i < numOfRows; i += step, output += 1) {
-      if (colDataIsNull_s(pLeftCol, i)) {
+      if (IS_HELPER_NULL(pLeftCol, i)) {
         colDataAppendNULL(pOutputCol, i);
         continue;  // TODO set null or ignore
       }
@@ -887,11 +893,11 @@ static void vectorMathBigintAddHelper(SColumnInfoData* pLeftCol, SColumnInfoData
 
   int64_t *output = (int64_t *)pOutputCol->pData;
 
-  if (colDataIsNull_f(pRightCol->nullbitmap, 0)) {  // Set pLeft->numOfRows NULL value
+  if (IS_HELPER_NULL(pRightCol, 0)) {  // Set pLeft->numOfRows NULL value
     colDataAppendNNULL(pOutputCol, 0, numOfRows);
   } else {
     for (; i >= 0 && i < numOfRows; i += step, output += 1) {
-      if (colDataIsNull_s(pLeftCol, i)) {
+      if (IS_HELPER_NULL(pLeftCol, i)) {
         colDataAppendNULL(pOutputCol, i);
         continue;  // TODO set null or ignore
       }
@@ -982,7 +988,7 @@ void vectorMathAdd(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut
 
     if (pLeft->numOfRows == pRight->numOfRows) {
       for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
-        if (colDataIsNull_s(pLeft->columnData, i) || colDataIsNull_s(pRight->columnData, i)) {
+        if (IS_NULL) {
           colDataAppendNULL(pOutputCol, i);
           continue;  // TODO set null or ignore
         }
@@ -1000,7 +1006,7 @@ void vectorMathAdd(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut
 
     if (pLeft->numOfRows == pRight->numOfRows) {
       for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
-        if (colDataIsNull_s(pLeft->columnData, i) || colDataIsNull_s(pRight->columnData, i)) {
+        if (IS_NULL){
           colDataAppendNULL(pOutputCol, i);
           continue;  // TODO set null or ignore
         }
@@ -1024,11 +1030,11 @@ static void vectorMathSubHelper(SColumnInfoData* pLeftCol, SColumnInfoData* pRig
 
   double *output = (double *)pOutputCol->pData;
 
-  if (colDataIsNull_f(pRightCol->nullbitmap, 0)) {  // Set pLeft->numOfRows NULL value
+  if (IS_HELPER_NULL(pRightCol, 0)) {  // Set pLeft->numOfRows NULL value
     colDataAppendNNULL(pOutputCol, 0, numOfRows);
   } else {
     for (; i >= 0 && i < numOfRows; i += step, output += 1) {
-      if (colDataIsNull_s(pLeftCol, i)) {
+      if (IS_HELPER_NULL(pLeftCol, i)) {
         colDataAppendNULL(pOutputCol, i);
         continue;  // TODO set null or ignore
       }
@@ -1044,11 +1050,11 @@ static void vectorMathBigintSubHelper(SColumnInfoData* pLeftCol, SColumnInfoData
 
   int64_t *output = (int64_t *)pOutputCol->pData;
 
-  if (colDataIsNull_f(pRightCol->nullbitmap, 0)) {  // Set pLeft->numOfRows NULL value
+  if (IS_HELPER_NULL(pRightCol, 0)) {  // Set pLeft->numOfRows NULL value
     colDataAppendNNULL(pOutputCol, 0, numOfRows);
   } else {
     for (; i >= 0 && i < numOfRows; i += step, output += 1) {
-      if (colDataIsNull_s(pLeftCol, i)) {
+      if (IS_HELPER_NULL(pLeftCol, i)) {
         colDataAppendNULL(pOutputCol, i);
         continue;  // TODO set null or ignore
       }
@@ -1077,7 +1083,7 @@ void vectorMathSub(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut
 
     if (pLeft->numOfRows == pRight->numOfRows) {
       for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
-        if (colDataIsNull_s(pLeft->columnData, i) || colDataIsNull_s(pRight->columnData, i)) {
+        if (IS_NULL) {
           colDataAppendNULL(pOutputCol, i);
           continue;  // TODO set null or ignore
         }
@@ -1095,7 +1101,7 @@ void vectorMathSub(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut
 
     if (pLeft->numOfRows == pRight->numOfRows) {
       for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
-        if (colDataIsNull_s(pLeft->columnData, i) || colDataIsNull_s(pRight->columnData, i)) {
+        if (IS_NULL) {
           colDataAppendNULL(pOutputCol, i);
           continue;  // TODO set null or ignore
         }
@@ -1119,11 +1125,11 @@ static void vectorMathMultiplyHelper(SColumnInfoData* pLeftCol, SColumnInfoData*
 
   double *output = (double *)pOutputCol->pData;
 
-  if (colDataIsNull_f(pRightCol->nullbitmap, 0)) {  // Set pLeft->numOfRows NULL value
+  if (IS_HELPER_NULL(pRightCol, 0)) {  // Set pLeft->numOfRows NULL value
     colDataAppendNNULL(pOutputCol, 0, numOfRows);
   } else {
     for (; i >= 0 && i < numOfRows; i += step, output += 1) {
-      if (colDataIsNull_s(pLeftCol, i)) {
+      if (IS_HELPER_NULL(pLeftCol, i)) {
         colDataAppendNULL(pOutputCol, i);
         continue;  // TODO set null or ignore
       }
@@ -1149,7 +1155,7 @@ void vectorMathMultiply(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam 
   double *output = (double *)pOutputCol->pData;
   if (pLeft->numOfRows == pRight->numOfRows) {
     for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
-      if (colDataIsNull_s(pLeft->columnData, i) || colDataIsNull_s(pRight->columnData, i)) {
+      if (IS_NULL) {
         colDataAppendNULL(pOutputCol, i);
         continue;  // TODO set null or ignore
       }
@@ -1182,7 +1188,7 @@ void vectorMathDivide(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *p
   double *output = (double *)pOutputCol->pData;
   if (pLeft->numOfRows == pRight->numOfRows) {
     for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
-      if (colDataIsNull_s(pLeft->columnData, i) || colDataIsNull_s(pRight->columnData, i) || (getVectorDoubleValueFnRight(RIGHT_COL, i) == 0)) { //divide by 0 check
+      if (IS_NULL || (getVectorDoubleValueFnRight(RIGHT_COL, i) == 0)) { //divide by 0 check
         colDataAppendNULL(pOutputCol, i);
         continue;
       }
@@ -1190,11 +1196,11 @@ void vectorMathDivide(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *p
                 / getVectorDoubleValueFnRight(RIGHT_COL, i);
     }
   } else if (pLeft->numOfRows == 1) {
-    if (colDataIsNull_s(pLeftCol, 0)) {  // Set pLeft->numOfRows NULL value
+    if (IS_HELPER_NULL(pLeftCol, 0)) {  // Set pLeft->numOfRows NULL value
       colDataAppendNNULL(pOutputCol, 0, pRight->numOfRows);
     } else {
       for (; i >= 0 && i < pRight->numOfRows; i += step, output += 1) {
-        if (colDataIsNull_s(pRightCol, i) || (getVectorDoubleValueFnRight(RIGHT_COL, i) == 0)) { // divide by 0 check
+        if (IS_HELPER_NULL(pRightCol, i) || (getVectorDoubleValueFnRight(RIGHT_COL, i) == 0)) { // divide by 0 check
           colDataAppendNULL(pOutputCol, i);
           continue;
         }
@@ -1203,11 +1209,11 @@ void vectorMathDivide(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *p
       }
     }
   } else if (pRight->numOfRows == 1) {
-    if (colDataIsNull_s(pRightCol, 0) || (getVectorDoubleValueFnRight(RIGHT_COL, 0) == 0)) {  // Set pLeft->numOfRows NULL value (divde by 0 check)
+    if (IS_HELPER_NULL(pRightCol, 0) || (getVectorDoubleValueFnRight(RIGHT_COL, 0) == 0)) {  // Set pLeft->numOfRows NULL value (divde by 0 check)
       colDataAppendNNULL(pOutputCol, 0, pLeft->numOfRows);
     } else {
       for (; i >= 0 && i < pLeft->numOfRows; i += step, output += 1) {
-        if (colDataIsNull_s(pLeftCol, i)) {
+        if (IS_HELPER_NULL(pLeftCol, i)) {
           colDataAppendNULL(pOutputCol, i);
           continue;
         }
@@ -1240,7 +1246,7 @@ void vectorMathRemainder(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam
 
   if (pLeft->numOfRows == pRight->numOfRows) {
     for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
-      if (colDataIsNull_s(pLeftCol, i) || colDataIsNull_s(pRightCol, i)) {
+      if (IS_NULL) {
         colDataAppendNULL(pOutputCol, i);
         continue;
       }
@@ -1256,11 +1262,11 @@ void vectorMathRemainder(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam
     }
   } else if (pLeft->numOfRows == 1) {
     double lx = getVectorDoubleValueFnLeft(LEFT_COL, 0);
-    if (colDataIsNull_s(pLeftCol, 0) || isnan(lx) || isinf(lx)) {  // Set pLeft->numOfRows NULL value
+    if (IS_HELPER_NULL(pLeftCol, 0) || isnan(lx) || isinf(lx)) {  // Set pLeft->numOfRows NULL value
       colDataAppendNNULL(pOutputCol, 0, pRight->numOfRows);
     } else {
       for (; i >= 0 && i < pRight->numOfRows; i += step, output += 1) {
-        if (colDataIsNull_s(pRightCol, i)) {
+        if (IS_HELPER_NULL(pRightCol, i)) {
           colDataAppendNULL(pOutputCol, i);
           continue;
         }
@@ -1276,11 +1282,11 @@ void vectorMathRemainder(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam
     }
   } else if (pRight->numOfRows == 1) {
     double rx = getVectorDoubleValueFnRight(RIGHT_COL, 0);
-    if (colDataIsNull_s(pRightCol, 0) || FLT_EQUAL(rx, 0)) {  // Set pLeft->numOfRows NULL value
+    if (IS_HELPER_NULL(pRightCol, 0) || FLT_EQUAL(rx, 0)) {  // Set pLeft->numOfRows NULL value
       colDataAppendNNULL(pOutputCol, 0, pLeft->numOfRows);
     } else {
       for (; i >= 0 && i < pLeft->numOfRows; i += step, output += 1) {
-        if (colDataIsNull_s(pLeftCol, i)) {
+        if (IS_HELPER_NULL(pLeftCol, i)) {
           colDataAppendNULL(pOutputCol, i);
           continue;
         }
@@ -1315,7 +1321,7 @@ void vectorMathMinus(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pO
 
   double *output = (double *)pOutputCol->pData;
   for (; i < pLeft->numOfRows && i >= 0; i += step, output += 1) {
-    if (colDataIsNull_s(pLeft->columnData, i)) {
+    if (IS_HELPER_NULL(pLeftCol, i)) {
       colDataAppendNULL(pOutputCol, i);
       continue;
     }
@@ -1331,7 +1337,7 @@ void vectorAssign(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut,
 
   pOut->numOfRows = pLeft->numOfRows;
 
-  if (colDataIsNull_s(pRight->columnData, 0)) {
+  if (IS_HELPER_NULL(pRight->columnData, 0)) {
     for (int32_t i = 0; i < pOut->numOfRows; ++i) {
       colDataAppend(pOutputCol, i, NULL, true);
     }
@@ -1399,11 +1405,11 @@ static void vectorBitAndHelper(SColumnInfoData* pLeftCol, SColumnInfoData* pRigh
 
   double *output = (double *)pOutputCol->pData;
 
-  if (colDataIsNull_s(pRightCol, 0)) {  // Set pLeft->numOfRows NULL value
+  if (IS_HELPER_NULL(pRightCol, 0)) {  // Set pLeft->numOfRows NULL value
     colDataAppendNNULL(pOutputCol, 0, numOfRows);
   } else {
     for (; i >= 0 && i < numOfRows; i += step, output += 1) {
-      if (colDataIsNull_s(pLeftCol, i)) {
+      if (IS_HELPER_NULL(pLeftCol, i)) {
         colDataAppendNULL(pOutputCol, i);
         continue;  // TODO set null or ignore
       }
@@ -1429,7 +1435,7 @@ void vectorBitAnd(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut,
   int64_t *output = (int64_t *)pOutputCol->pData;
   if (pLeft->numOfRows == pRight->numOfRows) {
     for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
-      if (colDataIsNull_s(pLeft->columnData, i) || colDataIsNull_s(pRight->columnData, i)) {
+      if (IS_NULL) {
         colDataAppendNULL(pOutputCol, i);
         continue;  // TODO set null or ignore
       }
@@ -1451,12 +1457,12 @@ static void vectorBitOrHelper(SColumnInfoData* pLeftCol, SColumnInfoData* pRight
 
   int64_t *output = (int64_t *)pOutputCol->pData;
 
-  if (colDataIsNull_s(pRightCol, 0)) {  // Set pLeft->numOfRows NULL value
+  if (IS_HELPER_NULL(pRightCol, 0)) {  // Set pLeft->numOfRows NULL value
     colDataAppendNNULL(pOutputCol, 0, numOfRows);
   } else {
     int64_t rx = getVectorBigintValueFnRight(RIGHT_COL, 0);
     for (; i >= 0 && i < numOfRows; i += step, output += 1) {
-      if (colDataIsNull_s(pLeftCol, i)) {
+      if (IS_HELPER_NULL(pLeftCol, i)) {
         colDataAppendNULL(pOutputCol, i);
         continue;  // TODO set null or ignore
       }
@@ -1482,7 +1488,7 @@ void vectorBitOr(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, 
   int64_t *output = (int64_t *)pOutputCol->pData;
   if (pLeft->numOfRows == pRight->numOfRows) {
     for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
-      if (colDataIsNull_s(pLeft->columnData, i) || colDataIsNull_s(pRight->columnData, i)) {
+      if (IS_NULL) {
         colDataAppendNULL(pOutputCol, i);
         continue;  // TODO set null or ignore
       }
@@ -1507,7 +1513,7 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *
 
   if (pRight->pHashFilter != NULL) {
     for (; i >= 0 && i < pLeft->numOfRows; i += step) {
-      if (colDataIsNull_s(pLeft->columnData, i)) {
+      if (IS_HELPER_NULL(pLeft->columnData, i)) {
         bool  res = false;
         colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
         continue;
@@ -1522,7 +1528,7 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *
 
   if (pLeft->numOfRows == pRight->numOfRows) {
     for (; i < pRight->numOfRows && i >= 0; i += step) {
-      if (colDataIsNull_s(pLeft->columnData, i) || colDataIsNull_s(pRight->columnData, i)) {
+      if (IS_HELPER_NULL(pLeft->columnData, i) || IS_HELPER_NULL(pRight->columnData, i)) {
         bool  res = false;
         colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
         continue;  // TODO set null or ignore
@@ -1536,8 +1542,7 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *
       bool isJsonnull = false;
       convertJsonValue(&fp, optr, GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight), &pLeftData, &pRightData, &leftOut, &rightOut, &isJsonnull);
       if(isJsonnull){
-        colDataAppendNULL(pOut->columnData, i);
-        continue;  // TODO set null or ignore
+        ASSERT(0);
       }
       bool  res = filterDoCompare(fp, optr, pLeftData, pRightData);
       colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
@@ -1545,7 +1550,7 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *
   } else if (pRight->numOfRows == 1) {
     ASSERT(pLeft->pHashFilter == NULL);
     for (; i >= 0 && i < pLeft->numOfRows; i += step) {
-      if (colDataIsNull_s(pLeft->columnData, i) || colDataIsNull_s(pRight->columnData, 0)) {
+      if (IS_HELPER_NULL(pLeft->columnData, i) || IS_HELPER_NULL(pRight->columnData, 0)) {
         bool  res = false;
         colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
         continue;
@@ -1558,15 +1563,14 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *
       bool isJsonnull = false;
       convertJsonValue(&fp, optr, GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight), &pLeftData, &pRightData, &leftOut, &rightOut, &isJsonnull);
       if(isJsonnull){
-        colDataAppendNULL(pOut->columnData, i);
-        continue;  // TODO set null or ignore
+        ASSERT(0);
       }
       bool  res = filterDoCompare(fp, optr, pLeftData, pRightData);
       colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
     }
   } else if (pLeft->numOfRows == 1) {
     for (; i >= 0 && i < pRight->numOfRows; i += step) {
-      if (colDataIsNull_s(pRight->columnData, i) || colDataIsNull_s(pLeft->columnData, 0)) {
+      if (IS_HELPER_NULL(pRight->columnData, i) || IS_HELPER_NULL(pLeft->columnData, 0)) {
         bool  res = false;
         colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
         continue;
@@ -1579,8 +1583,7 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *
       bool isJsonnull = false;
       convertJsonValue(&fp, optr, GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight), &pLeftData, &pRightData, &leftOut, &rightOut, &isJsonnull);
       if(isJsonnull){
-        colDataAppendNULL(pOut->columnData, i);
-        continue;  // TODO set null or ignore
+        ASSERT(0);
       }
       bool  res = filterDoCompare(fp, optr, pLeftData, pRightData);
       colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
@@ -1668,7 +1671,7 @@ void vectorJsonContains(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam 
 
 void vectorIsNull(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
   for(int32_t i = 0; i < pLeft->numOfRows; ++i) {
-    int8_t v = colDataIsNull_s(pLeft->columnData, i)? 1:0;
+    int8_t v = IS_HELPER_NULL(pLeft->columnData, i) ? 1 : 0;
     colDataAppendInt8(pOut->columnData, i, &v);
   }
   pOut->numOfRows = pLeft->numOfRows;
@@ -1676,7 +1679,7 @@ void vectorIsNull(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut,
 
 void vectorNotNull(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
   for(int32_t i = 0; i < pLeft->numOfRows; ++i) {
-    int8_t v = colDataIsNull_s(pLeft->columnData, i)? 0:1;
+    int8_t v = IS_HELPER_NULL(pLeft->columnData, i) ? 0 : 1;
     colDataAppendInt8(pOut->columnData, i, &v);
   }
   pOut->numOfRows = pLeft->numOfRows;

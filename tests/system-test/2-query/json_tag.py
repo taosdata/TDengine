@@ -137,9 +137,9 @@ class TDTestCase:
         tdSql.checkRows(9)
         tdSql.query("select jtag from jsons1")
         tdSql.checkRows(13)
-        # tdSql.query("select jtag from jsons1 where jtag is null")
+        tdSql.query("select jtag from jsons1 where jtag is null")
         # tdSql.checkRows(5)
-        # tdSql.query("select jtag from jsons1 where jtag is not null")
+        tdSql.query("select jtag from jsons1 where jtag is not null")
         # tdSql.checkRows(8)
 
         # test jtag is NULL
@@ -260,9 +260,9 @@ class TDTestCase:
         # tdSql.checkRows(1)
         #
         # # where json is null
-        # tdSql.query("select * from jsons1 where jtag is null")
+        tdSql.query("select * from jsons1 where jtag is null")
         # tdSql.checkRows(1)
-        # tdSql.query("select * from jsons1 where jtag is not null")
+        tdSql.query("select * from jsons1 where jtag is not null")
         # tdSql.checkRows(8)
         #
         # # where json key is null
