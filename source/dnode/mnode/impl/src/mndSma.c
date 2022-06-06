@@ -522,10 +522,9 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   int32_t code = -1;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq);
   if (pTrans == NULL) goto _OVER;
-
-  mDebug("trans:%d, used to create sma:%s", pTrans->id, pCreate->name);
   mndTransSetDbName(pTrans, pDb->name);
   mndTransSetSerial(pTrans);
+  mDebug("trans:%d, used to create sma:%s", pTrans->id, pCreate->name);
 
   if (mndSetCreateSmaRedoLogs(pMnode, pTrans, &smaObj) != 0) goto _OVER;
   if (mndSetCreateSmaVgroupRedoLogs(pMnode, pTrans, &streamObj.fixedSinkVg) != 0) goto _OVER;
