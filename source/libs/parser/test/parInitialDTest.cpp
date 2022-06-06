@@ -28,6 +28,10 @@ TEST_F(ParserInitialDTest, delete) {
   run("DELETE FROM t1");
 
   run("DELETE FROM t1 WHERE ts > now - 2d and ts < now - 1d");
+
+  run("DELETE FROM st1");
+
+  run("DELETE FROM st1 WHERE ts > now - 2d and ts < now - 1d AND tag1 = 10");
 }
 
 TEST_F(ParserInitialDTest, deleteSemanticCheck) {
