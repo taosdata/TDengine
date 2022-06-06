@@ -21,7 +21,7 @@ SELECT select_expr [, select_expr ...]
 
 ## Wildcard
 
-Wilcard \* can be used to specify all columns. The result includes only data columns for normal tables.
+Wildcard \* can be used to specify all columns. The result includes only data columns for normal tables.
 
 ```
 taos> SELECT * FROM d1001;
@@ -51,14 +51,14 @@ taos> SELECT * FROM meters;
 Query OK, 9 row(s) in set (0.002022s)
 ```
 
-Wildcard can be used with table name as prefix, both below SQL statements have same effects and return all columns.
+Wildcard can be used with table name as prefix. Both SQL statements below have the same effect and return all columns.
 
 ```SQL
 SELECT * FROM d1001;
 SELECT d1001.* FROM d1001;
 ```
 
-In JOIN query, however, with or without table name prefix will return different results. \* without table prefix will return all the columns of both tables, but \* with table name as prefix will return only the columns of that table.
+In a JOIN query, however, the results are different with or without a table name prefix. \* without table prefix will return all the columns of both tables, but \* with table name as prefix will return only the columns of that table.
 
 ```
 taos> SELECT * FROM d1001, d1003 WHERE d1001.ts=d1003.ts;
@@ -76,7 +76,7 @@ taos> SELECT d1001.* FROM d1001,d1003 WHERE d1001.ts = d1003.ts;
 Query OK, 1 row(s) in set (0.020443s)
 ```
 
-Wilcard \* can be used with some functions, but the result may be different depending on the function being used. For example, `count(*)` returns only one column, i.e. the number of rows; `first`, `last` and `last_row` return all columns of the selected row.
+Wildcard \* can be used with some functions, but the result may be different depending on the function being used. For example, `count(*)` returns only one column, i.e. the number of rows; `first`, `last` and `last_row` return all columns of the selected row.
 
 ```
 taos> SELECT COUNT(*) FROM d1001;
@@ -96,7 +96,7 @@ Query OK, 1 row(s) in set (0.000849s)
 
 ## Tags
 
-Starting from version 2.0.14, tag columns can be selected together with data columns when querying sub tables. Please note that, however, wildcard \* doesn't represent any tag column, that means tag columns must be specified explicitly like the example below.
+Starting from version 2.0.14, tag columns can be selected together with data columns when querying sub tables. Please note however, that, wildcard \* cannot be used to represent any tag column. This means that tag columns must be specified explicitly like the example below.
 
 ```
 taos> SELECT location, groupid, current FROM d1001 LIMIT 2;
@@ -109,7 +109,7 @@ Query OK, 2 row(s) in set (0.003112s)
 
 ## Get distinct values
 
-`DISTINCT` keyword can be used to get all the unique values of tag columns from a super table, it can also be used to get all the unique values of data columns from a table or subtable.
+`DISTINCT` keyword can be used to get all the unique values of tag columns from a super table. It can also be used to get all the unique values of data columns from a table or subtable.
 
 ```sql
 SELECT DISTINCT tag_name [, tag_name ...] FROM stb_name;
@@ -118,15 +118,15 @@ SELECT DISTINCT col_name [, col_name ...] FROM tb_name;
 
 :::info
 
-1. Configuration parameter `maxNumOfDistinctRes` in `taos.cfg` is used to control the number of rows to output. The minimum configurable value is 100,000, the maximum configurable value is 100,000,000, the default value is 1000,000. If the actual number of rows exceeds the value of this parameter, only the number of rows specified by this parameter will be output.
-2. It can't be guaranteed that the results selected by using `DISTINCT` on columns of `FLOAT` or `DOUBLE` are exactly unique because of the precision nature of floating numbers.
+1. Configuration parameter `maxNumOfDistinctRes` in `taos.cfg` is used to control the number of rows to output. The minimum configurable value is 100,000, the maximum configurable value is 100,000,000, the default value is 1,000,000. If the actual number of rows exceeds the value of this parameter, only the number of rows specified by this parameter will be output.
+2. It can't be guaranteed that the results selected by using `DISTINCT` on columns of `FLOAT` or `DOUBLE` are exactly unique because of the precision errors in floating point numbers.
 3. `DISTINCT` can't be used in the sub-query of a nested query statement, and can't be used together with aggregate functions, `GROUP BY` or `JOIN` in the same SQL statement.
 
 :::
 
 ## Columns Names of Result Set
 
-When using `SELECT`, the column names in the result set will be same as that in the select clause if `AS` is not used. `AS` can be used to rename the column names in the result set. For example
+When using `SELECT`, the column names in the result set will be the same as that in the select clause if `AS` is not used. `AS` can be used to rename the column names in the result set. For example
 
 ```
 taos> SELECT ts, ts AS primary_key_ts FROM d1001;
@@ -161,7 +161,7 @@ SELECT * FROM d1001;
 
 ## Special Query
 
-Some special query functionalities can be performed without `FORM` sub-clause. For example, below statement can be used to get the current database in use.
+Some special query functions can be invoked without `FROM` sub-clause. For example, the statement below can be used to get the current database in use.
 
 ```
 taos> SELECT DATABASE();
@@ -181,7 +181,7 @@ taos> SELECT DATABASE();
 Query OK, 1 row(s) in set (0.000184s)
 ```
 
-Below statement can be used to get the version of client or server.
+The statement below can be used to get the version of client or server.
 
 ```
 taos> SELECT CLIENT_VERSION();
@@ -197,7 +197,7 @@ taos> SELECT SERVER_VERSION();
 Query OK, 1 row(s) in set (0.000077s)
 ```
 
-Below statement is used to check the server status. One integer, like `1`, is returned if the server status is OK, otherwise an error code is returned. This is compatible with the status check for TDengine from connection pool or 3rd party tools, and can avoid the problem of losing the connection from a connection pool when using the wrong heartbeat checking SQL statement.
+The statement below is used to check the server status. An integer, like `1`, is returned if the server status is OK, otherwise an error code is returned. This is compatible with the status check for TDengine from connection pool or 3rd party tools, and can avoid the problem of losing the connection from a connection pool when using the wrong heartbeat checking SQL statement.
 
 ```
 taos> SELECT SERVER_STATUS();
@@ -284,7 +284,7 @@ taos> SELECT COUNT(tbname) FROM meters WHERE groupId > 2;
 Query OK, 1 row(s) in set (0.001091s)
 ```
 
-- Wildcard \* can be used to get all columns, or specific column names can be specified. Arithmetic operation can be performed on columns of number types, columns can be renamed in the result set.
+- Wildcard \* can be used to get all columns, or specific column names can be specified. Arithmetic operation can be performed on columns of numerical types, columns can be renamed in the result set.
 - Arithmetic operation on columns can't be used in where clause. For example, `where a*2>6;` is not allowed but `where a>6/2;` can be used instead for the same purpose.
 - Arithmetic operation on columns can't be used as the objectives of select statement. For example, `select min(2*a) from t;` is not allowed but `select 2*min(a) from t;` can be used instead.
 - Logical operation can be used in `WHERE` clause to filter numeric values, wildcard can be used to filter string values.
@@ -318,13 +318,13 @@ Logical operations in below table can be used in the `where` clause to filter th
 - Operator `like` is used together with wildcards to match strings
   - '%' matches 0 or any number of characters, '\_' matches any single ASCII character.
   - `\_` is used to match the \_ in the string.
-  - The maximum length of wildcard string is 100 bytes from version 2.1.6.1 (before that the maximum length is 20 bytes). `maxWildCardsLength` in `taos.cfg` can be used to control this threshold. Too long wildcard string may slowdown the execution performance of `LIKE` operator.
+  - The maximum length of wildcard string is 100 bytes from version 2.1.6.1 (before that the maximum length is 20 bytes). `maxWildCardsLength` in `taos.cfg` can be used to control this threshold. A very long wildcard string may slowdown the execution performance of `LIKE` operator.
 - `AND` keyword can be used to filter multiple columns simultaneously. AND/OR operation can be performed on single or multiple columns from version 2.3.0.0. However, before 2.3.0.0 `OR` can't be used on multiple columns.
 - For timestamp column, only one condition can be used; for other columns or tags, `OR` keyword can be used to combine multiple logical operators. For example, `((value > 20 AND value < 30) OR (value < 12))`.
   - From version 2.3.0.0, multiple conditions can be used on timestamp column, but the result set can only contain single time range.
 - From version 2.0.17.0, operator `BETWEEN AND` can be used in where clause, for example `WHERE col2 BETWEEN 1.5 AND 3.25` means the filter condition is equal to "1.5 ≤ col2 ≤ 3.25".
-- From version 2.1.4.0, operator `IN` can be used in the where clause. For example, `WHERE city IN ('California.SanFrancisco', 'California.SanDiego')`. For bool type, both `{true, false}` and `{0, 1}` are allowed, but integers other than 0 or 1 are not allowed. FLOAT and DOUBLE types are impacted by floating precision, only values that match the condition within the tolerance will be selected. Non-primary key column of timestamp type can be used with `IN`.
-- From version 2.3.0.0, regular expression is supported in the where clause with keyword `match` or `nmatch`, the regular expression is case insensitive.
+- From version 2.1.4.0, operator `IN` can be used in the where clause. For example, `WHERE city IN ('California.SanFrancisco', 'California.SanDiego')`. For bool type, both `{true, false}` and `{0, 1}` are allowed, but integers other than 0 or 1 are not allowed. FLOAT and DOUBLE types are impacted by floating point precision errors. Only values that match the condition within the tolerance will be selected. Non-primary key column of timestamp type can be used with `IN`.
+- From version 2.3.0.0, regular expression is supported in the where clause with keyword `match` or `nmatch`. The regular expression is case insensitive.
 
 ## Regular Expression
 
@@ -364,7 +364,7 @@ FROM temp_STable t1, temp_STable t2
 WHERE t1.ts = t2.ts AND t1.deviceid = t2.deviceid AND t1.status=0;
 ```
 
-Similary, join operation can be performed on the result set of multiple sub queries.
+Similarly, join operations can be performed on the result set of multiple sub queries.
 
 :::note
 Restrictions on join operation:
@@ -380,7 +380,7 @@ Restrictions on join operation:
 
 ## Nested Query
 
-Nested query is also called sub query, that means in a single SQL statement the result of inner query can be used as the data source of the outer query.
+Nested query is also called sub query. This means that in a single SQL statement the result of inner query can be used as the data source of the outer query.
 
 From 2.2.0.0, unassociated sub query can be used in the `FROM` clause. Unassociated means the sub query doesn't use the parameters in the parent query. More specifically, in the `tb_name_list` of `SELECT` statement, an independent SELECT statement can be used. So a complete nested query looks like:
 
@@ -390,14 +390,14 @@ SELECT ... FROM (SELECT ... FROM ...) ...;
 
 :::info
 
-- Only one layer of nesting is allowed, that means no sub query is allowed in a sub query
-- The result set returned by the inner query will be used as a "virtual table" by the outer query, the "virtual table" can be renamed using `AS` keyword for easy reference in the outer query.
+- Only one layer of nesting is allowed, that means no sub query is allowed within a sub query
+- The result set returned by the inner query will be used as a "virtual table" by the outer query. The "virtual table" can be renamed using `AS` keyword for easy reference in the outer query.
 - Sub query is not allowed in continuous query.
 - JOIN operation is allowed between tables/STables inside both inner and outer queries. Join operation can be performed on the result set of the inner query.
 - UNION operation is not allowed in either inner query or outer query.
-- The functionalities that can be used in the inner query is same as non-nested query.
-  - `ORDER BY` inside the inner query doesn't make any sense but will slow down the query performance significantly, so please avoid such usage.
-- Compared to the non-nested query, the functionalities that can be used in the outer query have such restrictions as:
+- The functions that can be used in the inner query are the same as those that can be used in a non-nested query.
+  - `ORDER BY` inside the inner query is unnecessary and will slow down the query performance significantly. It is best to avoid the use of `ORDER BY` inside the inner query.
+- Compared to the non-nested query, the functionality that can be used in the outer query has the following restrictions:
   - Functions
     - If the result set returned by the inner query doesn't contain timestamp column, then functions relying on timestamp can't be used in the outer query, like `TOP`, `BOTTOM`, `FIRST`, `LAST`, `DIFF`.
     - Functions that need to scan the data twice can't be used in the outer query, like `STDDEV`, `PERCENTILE`.
@@ -442,8 +442,8 @@ The sum of col1 and col2 for rows later than 2018-06-01 08:00:00.000 and whose c
 SELECT (col1 + col2) AS 'complex' FROM tb1 WHERE ts > '2018-06-01 08:00:00.000' AND col2 > 1.2 LIMIT 10 OFFSET 5;
 ```
 
-The rows in the past 10 minutes and whose col2 is bigger than 3.14 are selected and output to the result file `/home/testoutpu.csv` with below SQL statement:
+The rows in the past 10 minutes and whose col2 is bigger than 3.14 are selected and output to the result file `/home/testoutput.csv` with below SQL statement:
 
 ```SQL
-SELECT COUNT(*) FROM tb1 WHERE ts >= NOW - 10m AND col2 > 3.14 >> /home/testoutpu.csv;
+SELECT COUNT(*) FROM tb1 WHERE ts >= NOW - 10m AND col2 > 3.14 >> /home/testoutput.csv;
 ```
