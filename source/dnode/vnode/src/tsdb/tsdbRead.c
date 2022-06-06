@@ -390,6 +390,7 @@ static STsdbReadHandle* tsdbQueryTablesImpl(SVnode* pVnode, SQueryTableDataCond*
   pReadHandle->locateStart = false;
   pReadHandle->loadType = pCond->type;
 
+  pReadHandle->suid = pCond->suid;
   pReadHandle->outputCapacity = 4096;  //((STsdb*)tsdb)->config.maxRowsPerFileBlock;
   pReadHandle->loadExternalRow = pCond->loadExternalRows;
   pReadHandle->currentLoadExternalRows = pCond->loadExternalRows;
