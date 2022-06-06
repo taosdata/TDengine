@@ -24,6 +24,9 @@ SyncIndex   gSnapshotLastApplyIndex;
 SyncIndex   gSnapshotLastApplyTerm;
 int         gIterTimes = 0;
 
+SyncIndex gFinishLastApplyIndex;
+SyncIndex gFinishLastApplyTerm;
+
 void init() {
   int code = walInit();
   assert(code == 0);
@@ -111,21 +114,24 @@ int32_t SnapshotDoRead(struct SSyncFSM* pFsm, void* pReader, void** ppBuf, int32
 int32_t SnapshotStartWrite(struct SSyncFSM* pFsm, void** ppWriter) {
   *ppWriter = (void*)0xCDEF;
   char logBuf[256] = {0};
+
   snprintf(logBuf, sizeof(logBuf), "==callback== ==SnapshotStartWrite== pFsm:%p, *ppWriter:%p", pFsm, *ppWriter);
   sTrace("%s", logBuf);
   return 0;
 }
 
 int32_t SnapshotStopWrite(struct SSyncFSM* pFsm, void* pWriter, bool isApply) {
-  char logBuf[256] = {0};
-  snprintf(logBuf, sizeof(logBuf), "==callback== ==SnapshotStopWrite== pFsm:%p, pWriter:%p, isApply:%d", pFsm, pWriter,
-           isApply);
-  sTrace("%s", logBuf);
-
   if (isApply) {
-    gSnapshotLastApplyIndex = 10;
-    gSnapshotLastApplyTerm = 1;
+    gSnapshotLastApplyIndex = gFinishLastApplyIndex;
+    gSnapshotLastApplyTerm = gFinishLastApplyTerm;
   }
+
+  char logBuf[256] = {0};
+  snprintf(logBuf, sizeof(logBuf),
+           "==callback== ==SnapshotStopWrite== pFsm:%p, pWriter:%p, isApply:%d, gSnapshotLastApplyIndex:%ld, "
+           "gSnapshotLastApplyTerm:%ld",
+           pFsm, pWriter, isApply, gSnapshotLastApplyIndex, gSnapshotLastApplyTerm);
+  sTrace("%s", logBuf);
 
   return 0;
 }
@@ -258,7 +264,7 @@ void usage(char* exe) {
   printf(
       "usage: %s  replicaNum(1-5)  myIndex(0-..)  enableSnapshot(0/1)  lastApplyIndex(>=-1)  lastApplyTerm(>=0)  "
       "writeRecordNum(>=0)  "
-      "isStandBy(0/1)  isConfigChange(0-5)  iterTimes(>=0) \n",
+      "isStandBy(0/1)  isConfigChange(0-5)  iterTimes(>=0)  finishLastApplyIndex(>=-1)  finishLastApplyTerm(>=0) \n",
       exe);
 }
 
@@ -277,7 +283,7 @@ int main(int argc, char** argv) {
   tsAsyncLog = 0;
   sDebugFlag = DEBUG_SCREEN + DEBUG_FILE + DEBUG_TRACE + DEBUG_INFO + DEBUG_ERROR;
 
-  if (argc != 10) {
+  if (argc != 12) {
     usage(argv[0]);
     exit(-1);
   }
@@ -291,12 +297,14 @@ int main(int argc, char** argv) {
   bool    isStandBy = atoi(argv[7]);
   bool    isConfigChange = atoi(argv[8]);
   int32_t iterTimes = atoi(argv[9]);
+  int32_t finishLastApplyIndex = atoi(argv[10]);
+  int32_t finishLastApplyTerm = atoi(argv[11]);
 
   sTrace(
       "args: replicaNum:%d, myIndex:%d, enableSnapshot:%d, lastApplyIndex:%d, lastApplyTerm:%d, writeRecordNum:%d, "
-      "isStandBy:%d, isConfigChange:%d, iterTimes:%d",
+      "isStandBy:%d, isConfigChange:%d, iterTimes:%d, finishLastApplyIndex:%d, finishLastApplyTerm:%d",
       replicaNum, myIndex, enableSnapshot, lastApplyIndex, lastApplyTerm, writeRecordNum, isStandBy, isConfigChange,
-      iterTimes);
+      iterTimes, finishLastApplyIndex, finishLastApplyTerm);
 
   // check parameter
   assert(replicaNum >= 1 && replicaNum <= 5);
@@ -306,6 +314,8 @@ int main(int argc, char** argv) {
   assert(writeRecordNum >= 0);
   assert(isConfigChange >= 0 && isConfigChange <= 5);
   assert(iterTimes >= 0);
+  assert(finishLastApplyIndex >= -1);
+  assert(finishLastApplyTerm >= 0);
 
   char logFile[256];
   snprintf(logFile, sizeof(logFile), "/tmp/%s-replicaNum%d-myIndex%d.log", gDir, replicaNum, myIndex);
@@ -315,6 +325,9 @@ int main(int argc, char** argv) {
   gSnapshotLastApplyIndex = lastApplyIndex;
   gSnapshotLastApplyTerm = lastApplyTerm;
   gIterTimes = iterTimes;
+
+  gFinishLastApplyIndex = finishLastApplyIndex;
+  gFinishLastApplyTerm = finishLastApplyTerm;
 
   init();
   int32_t ret = syncIOStart((char*)"127.0.0.1", gPorts[myIndex]);
