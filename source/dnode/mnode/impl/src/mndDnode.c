@@ -254,7 +254,7 @@ int32_t mndGetDnodeSize(SMnode *pMnode) {
   return sdbGetSize(pSdb, SDB_DNODE);
 }
 
-bool mndIsDnodeOnline(SMnode *pMnode, SDnodeObj *pDnode, int64_t curMs) {
+bool mndIsDnodeOnline(SDnodeObj *pDnode, int64_t curMs) {
   int64_t interval = TABS(pDnode->lastAccessTime - curMs);
   if (interval > 5000 * tsStatusInterval) {
     if (pDnode->rebootTime > 0) {
@@ -393,7 +393,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 
   int64_t dnodeVer = sdbGetTableVer(pMnode->pSdb, SDB_DNODE) + sdbGetTableVer(pMnode->pSdb, SDB_MNODE);
   int64_t curMs = taosGetTimestampMs();
-  bool    online = mndIsDnodeOnline(pMnode, pDnode, curMs);
+  bool    online = mndIsDnodeOnline(pDnode, curMs);
   bool    dnodeChanged = (statusReq.dnodeVer != dnodeVer);
   bool    reboot = (pDnode->rebootTime != statusReq.rebootTime);
   bool    needCheck = !online || dnodeChanged || reboot;
@@ -559,30 +559,36 @@ CREATE_DNODE_OVER:
   return code;
 }
 
-static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode) {
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_GLOBAL, pReq);
-  if (pTrans == NULL) {
-    mError("dnode:%d, failed to drop since %s", pDnode->id, terrstr());
-    return -1;
-  }
+static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SMnodeObj *pMObj) {
+  int32_t  code = -1;
+  SSdbRaw *pRaw = NULL;
+  STrans  *pTrans = NULL;
+
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq);
+  if (pTrans == NULL) goto _OVER;
   mDebug("trans:%d, used to drop dnode:%d", pTrans->id, pDnode->id);
 
-  SSdbRaw *pCommitRaw = mndDnodeActionEncode(pDnode);
-  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
-    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
-  }
-  sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
+  pRaw = mndDnodeActionEncode(pDnode);
+  if (pRaw == NULL || mndTransAppendRedolog(pTrans, pRaw) != 0) goto _OVER;
+  sdbSetRawStatus(pRaw, SDB_STATUS_DROPPING);
+  pRaw = NULL;
 
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
-  }
+  pRaw = mndDnodeActionEncode(pDnode);
+  if (pRaw == NULL || mndTransAppendCommitlog(pTrans, pRaw) != 0) goto _OVER;
+  sdbSetRawStatus(pRaw, SDB_STATUS_DROPPED);
+  pRaw = NULL;
 
+  if (mndSetDropMnodeInfoToTrans(pMnode, pTrans, pMObj) != 0) goto _OVER;
+  if (mndSetMoveVgroupsInfoToTrans(pMnode, pTrans, pDnode->id) != 0) goto _OVER;
+  if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
+
+  mndTransSetSerial(pTrans);
+  code = 0;
+
+_OVER:
   mndTransDrop(pTrans);
-  return 0;
+  sdbFreeRaw(pRaw);
+  return code;
 }
 
 static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
@@ -595,42 +601,53 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
 
   if (tDeserializeSCreateDropMQSBNodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
-    goto DROP_DNODE_OVER;
+    goto _OVER;
   }
 
   mDebug("dnode:%d, start to drop", dropReq.dnodeId);
 
   if (dropReq.dnodeId <= 0) {
     terrno = TSDB_CODE_MND_INVALID_DNODE_ID;
-    goto DROP_DNODE_OVER;
+    goto _OVER;
   }
 
   pDnode = mndAcquireDnode(pMnode, dropReq.dnodeId);
   if (pDnode == NULL) {
     terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
-    goto DROP_DNODE_OVER;
+    goto _OVER;
+  }
+
+  if (!mndIsDnodeOnline(pDnode, taosGetTimestampMs())) {
+    terrno = TSDB_CODE_NODE_OFFLINE;
+    goto _OVER;
   }
 
   pMObj = mndAcquireMnode(pMnode, dropReq.dnodeId);
   if (pMObj != NULL) {
-    terrno = TSDB_CODE_MND_MNODE_NOT_EXIST;
-    goto DROP_DNODE_OVER;
+    if (sdbGetSize(pMnode->pSdb, SDB_MNODE) <= 1) {
+      terrno = TSDB_CODE_MND_TOO_FEW_MNODES;
+      goto _OVER;
+    }
+    if (pMnode->selfDnodeId == dropReq.dnodeId) {
+      terrno = TSDB_CODE_MND_CANT_DROP_MASTER;
+      goto _OVER;
+    }
   }
 
   pUser = mndAcquireUser(pMnode, pReq->conn.user);
   if (pUser == NULL) {
     terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
-    goto DROP_DNODE_OVER;
+    goto _OVER;
   }
 
   if (mndCheckNodeAuth(pUser)) {
-    goto DROP_DNODE_OVER;
+    goto _OVER;
   }
 
-  code = mndDropDnode(pMnode, pReq, pDnode);
+  code = mndDropDnode(pMnode, pReq, pDnode, pMObj);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-DROP_DNODE_OVER:
+_OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("dnode:%d, failed to drop since %s", dropReq.dnodeId, terrstr());
   }
@@ -638,7 +655,6 @@ DROP_DNODE_OVER:
   mndReleaseDnode(pMnode, pDnode);
   mndReleaseUser(pMnode, pUser);
   mndReleaseMnode(pMnode, pMObj);
-
   return code;
 }
 
@@ -736,7 +752,7 @@ static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_DNODE, pShow->pIter, (void **)&pDnode);
     if (pShow->pIter == NULL) break;
-    bool online = mndIsDnodeOnline(pMnode, pDnode, curMs);
+    bool online = mndIsDnodeOnline(pDnode, curMs);
 
     cols = 0;
 

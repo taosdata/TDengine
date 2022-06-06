@@ -408,7 +408,7 @@ static int32_t mndProcessCreateMnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (!mndIsDnodeOnline(pMnode, pDnode, taosGetTimestampMs())) {
+  if (!mndIsDnodeOnline(pDnode, taosGetTimestampMs())) {
     terrno = TSDB_CODE_NODE_OFFLINE;
     goto _OVER;
   }
@@ -535,20 +535,26 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
   return 0;
 }
 
+int32_t mndSetDropMnodeInfoToTrans(SMnode *pMnode, STrans *pTrans, SMnodeObj *pObj) {
+  if (mndSetDropMnodeRedoLogs(pMnode, pTrans, pObj) != 0) return -1;
+  if (mndSetDropMnodeCommitLogs(pMnode, pTrans, pObj) != 0) return -1;
+  if (mndSetDropMnodeRedoActions(pMnode, pTrans, pObj->pDnode, pObj) != 0) return -1;
+  if (mndTransAppendNullLog(pTrans) != 0) return -1;
+  return 0;
+}
+
 static int32_t mndDropMnode(SMnode *pMnode, SRpcMsg *pReq, SMnodeObj *pObj) {
   int32_t code = -1;
+  STrans *pTrans = NULL;
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq);
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq);
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to drop mnode:%d", pTrans->id, pObj->id);
-  mndTransSetSerial(pTrans);
-  if (mndSetDropMnodeRedoLogs(pMnode, pTrans, pObj) != 0) goto _OVER;
-  if (mndSetDropMnodeCommitLogs(pMnode, pTrans, pObj) != 0) goto _OVER;
-  if (mndSetDropMnodeRedoActions(pMnode, pTrans, pObj->pDnode, pObj) != 0) goto _OVER;
-  if (mndTransAppendNullLog(pTrans) != 0) goto _OVER;
+  if (mndSetDropMnodeInfoToTrans(pMnode, pTrans, pObj) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
+  mndTransSetSerial(pTrans);
   code = 0;
 
 _OVER:
@@ -642,7 +648,7 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     if (pObj->id == pMnode->selfDnodeId) {
       roles = syncStr(TAOS_SYNC_STATE_LEADER);
     }
-    if (pObj->pDnode && mndIsDnodeOnline(pMnode, pObj->pDnode, curMs)) {
+    if (pObj->pDnode && mndIsDnodeOnline(pObj->pDnode, curMs)) {
       roles = syncStr(pObj->state);
     }
     char b2[12 + VARSTR_HEADER_SIZE] = {0};
