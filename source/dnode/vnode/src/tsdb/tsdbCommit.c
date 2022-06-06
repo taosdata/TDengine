@@ -18,8 +18,8 @@
 #define TSDB_MAX_SUBBLOCKS 8
 
 typedef struct {
-  STable            *pTable;
-  SSkipListIterator *pIter;
+  STable      *pTable;
+  STbDataIter *pIter;
 } SCommitIter;
 
 typedef struct {
@@ -457,7 +457,9 @@ static int32_t tsdbCreateCommitIters(SCommitH *pCommith) {
   int32_t      code = 0;
   STsdb       *pRepo = TSDB_COMMIT_REPO(pCommith);
   SMemTable   *pMem = pRepo->imem;
+  STbData     *pTbData;
   SCommitIter *pCommitIter;
+  STSchema    *pTSchema = NULL;
 
   pCommith->niters = taosArrayGetSize(pMem->aTbData);
   pCommith->iters = (SCommitIter *)taosMemoryCalloc(pCommith->niters, sizeof(SCommitIter));
@@ -467,46 +469,12 @@ static int32_t tsdbCreateCommitIters(SCommitH *pCommith) {
   }
 
   for (int32_t iIter = 0; iIter < pCommith->niters; iIter++) {
-    pCommitIter = (SCommitIter *)taosArrayGetP(pMem->aTbData, iIter);
-    // TODO
+    pTbData = (STbData *)taosArrayGetP(pMem->aTbData, iIter);
+    pCommitIter = &pCommith->iters[iIter];
 
-    // pCommitIter->pIter =
-  }
-
-  return code;
-
-_err:
-  return code;
-#if 0
-  SSkipListIterator *pSlIter;
-  SSkipListNode     *pNode;
-  STbData           *pTbData;
-  STSchema          *pTSchema = NULL;
-
-  pCommith->niters = SL_SIZE(pMem->pSlIdx);
-  pCommith->iters = (SCommitIter *)taosMemoryCalloc(pCommith->niters, sizeof(SCommitIter));
-  if (pCommith->iters == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  // Loop to create iters for each skiplist
-  pSlIter = tSkipListCreateIter(pMem->pSlIdx);
-  if (pSlIter == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    return -1;
-  }
-  for (int i = 0; i < pCommith->niters; i++) {
-    tSkipListIterNext(pSlIter);
-    pNode = tSkipListIterGet(pSlIter);
-    pTbData = (STbData *)pNode->pData;
-
-    pCommitIter = pCommith->iters + i;
     pTSchema = metaGetTbTSchema(REPO_META(pRepo), pTbData->uid, -1);
-
     if (pTSchema) {
-      pCommitIter->pIter = tSkipListCreateIter(pTbData->pData);
-      tSkipListIterNext(pCommitIter->pIter);
+      tsdbTbDataIterCreate(pTbData, NULL, 0, &pCommitIter->pIter);
 
       pCommitIter->pTable = (STable *)taosMemoryMalloc(sizeof(STable));
       pCommitIter->pTable->uid = pTbData->uid;
@@ -515,15 +483,18 @@ _err:
       pCommitIter->pTable->pCacheSchema = NULL;
     }
   }
-  tSkipListDestroyIter(pSlIter);
-#endif
+
+  return code;
+
+_err:
+  return code;
 }
 
 static void tsdbDestroyCommitIters(SCommitH *pCommith) {
   if (pCommith->iters == NULL) return;
 
   for (int i = 1; i < pCommith->niters; i++) {
-    tSkipListDestroyIter(pCommith->iters[i].pIter);
+    tsdbTbDataIterDestroy(pCommith->iters[i].pIter);
     if (pCommith->iters[i].pTable) {
       tdFreeSchema(pCommith->iters[i].pTable->pSchema);
       tdFreeSchema(pCommith->iters[i].pTable->pCacheSchema);
@@ -1333,7 +1304,7 @@ static int tsdbMergeMemData(SCommitH *pCommith, SCommitIter *pIter, int bidx) {
     keyLimit = pBlock[1].minKey.ts - 1;
   }
 
-  SSkipListIterator titer = *(pIter->pIter);
+  STbDataIter titer = *(pIter->pIter);
   if (tsdbLoadBlockDataCols(&(pCommith->readh), pBlock, NULL, &colId, 1, false) < 0) return -1;
 
   tsdbLoadDataFromCache(TSDB_COMMIT_REPO(pCommith), pIter->pTable, &titer, keyLimit, INT32_MAX, NULL,
@@ -1542,7 +1513,7 @@ static void tsdbLoadAndMergeFromCache(STsdb *pTsdb, SDataCols *pDataCols, int *i
         lastKey = key2;
       }
 
-      tSkipListIterNext(pCommitIter->pIter);
+      tsdbTbDataIterNext(pCommitIter->pIter);
     } else {
       if (lastKey != key1) {
         if (lastKey != TSKEY_INITIAL_VAL) {
@@ -1574,7 +1545,7 @@ static void tsdbLoadAndMergeFromCache(STsdb *pTsdb, SDataCols *pDataCols, int *i
         tdAppendSTSRowToDataCol(row, pSchema, pTarget, true);
       }
       ++(*iter);
-      tSkipListIterNext(pCommitIter->pIter);
+      tsdbTbDataIterNext(pCommitIter->pIter);
     }
 
     if (pTarget->numOfRows >= (maxRows - 1)) break;

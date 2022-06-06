@@ -58,7 +58,7 @@ void    tsdbTbDataIterOpen(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, ST
 bool    tsdbTbDataIterNext(STbDataIter *pIter);
 bool    tsdbTbDataIterGet(STbDataIter *pIter, TSDBROW *pRow);
 
-int tsdbLoadDataFromCache(STsdb *pTsdb, STable *pTable, SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead,
+int tsdbLoadDataFromCache(STsdb *pTsdb, STable *pTable, STbDataIter *pIter, TSKEY maxKey, int maxRowsToRead,
                           SDataCols *pCols, TKEY *filterKeys, int nFilterKeys, bool keepDup, SMergeInfo *pMergeInfo);
 
 // tsdbMemTable2.c ==============================================================================================
@@ -322,16 +322,24 @@ static void  *taosTZfree(void *ptr);
 static size_t taosTSizeof(void *ptr);
 static void   taosTMemset(void *ptr, int c);
 
-static FORCE_INLINE STSRow *tsdbNextIterRow(SSkipListIterator *pIter) {
+struct TSDBROW {
+  int64_t version;
+  STSRow *pTSRow;
+};
+
+static FORCE_INLINE STSRow *tsdbNextIterRow(STbDataIter *pIter) {
+  TSDBROW row;
+
   if (pIter == NULL) return NULL;
 
-  SSkipListNode *node = tSkipListIterGet(pIter);
-  if (node == NULL) return NULL;
+  if (tsdbTbDataIterGet(pIter, &row)) {
+    return row.pTSRow;
+  }
 
-  return (STSRow *)SL_GET_NODE_DATA(node);
+  return NULL;
 }
 
-static FORCE_INLINE TSKEY tsdbNextIterKey(SSkipListIterator *pIter) {
+static FORCE_INLINE TSKEY tsdbNextIterKey(STbDataIter *pIter) {
   STSRow *row = tsdbNextIterRow(pIter);
   if (row == NULL) return TSDB_DATA_TIMESTAMP_NULL;
 
@@ -674,11 +682,6 @@ struct SFSIter {
 
 #define TSDB_FS_ITER_FORWARD  TSDB_ORDER_ASC
 #define TSDB_FS_ITER_BACKWARD TSDB_ORDER_DESC
-
-struct TSDBROW {
-  int64_t version;
-  STSRow *pTSRow;
-};
 
 struct TABLEID {
   tb_uid_t suid;

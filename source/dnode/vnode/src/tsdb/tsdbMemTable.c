@@ -321,7 +321,7 @@ bool tsdbTbDataIterGet(STbDataIter *pIter, TSDBROW *pRow) {
  *
  * The function tries to procceed AS MUCH AS POSSIBLE.
  */
-int tsdbLoadDataFromCache(STsdb *pTsdb, STable *pTable, SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead,
+int tsdbLoadDataFromCache(STsdb *pTsdb, STable *pTable, STbDataIter *pIter, TSKEY maxKey, int maxRowsToRead,
                           SDataCols *pCols, TKEY *filterKeys, int nFilterKeys, bool keepDup, SMergeInfo *pMergeInfo) {
   ASSERT(maxRowsToRead > 0 && nFilterKeys >= 0);
   if (pIter == NULL) return 0;
@@ -404,7 +404,7 @@ int tsdbLoadDataFromCache(STsdb *pTsdb, STable *pTable, SSkipListIterator *pIter
         }
       }
 
-      tSkipListIterNext(pIter);
+      tsdbTbDataIterNext(pIter);
       row = tsdbNextIterRow(pIter);
       if (row == NULL || TD_ROW_KEY(row) > maxKey) {
         rowKey = INT64_MAX;
@@ -444,7 +444,7 @@ int tsdbLoadDataFromCache(STsdb *pTsdb, STable *pTable, SSkipListIterator *pIter
         }
       }
 
-      tSkipListIterNext(pIter);
+      tsdbTbDataIterNext(pIter);
       row = tsdbNextIterRow(pIter);
       if (row == NULL || TD_ROW_KEY(row) > maxKey) {
         rowKey = INT64_MAX;
