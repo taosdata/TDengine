@@ -64,11 +64,7 @@ class TDTestCase:
         tdSql.query("select * from stb")
         tdSql.checkRows(self.rows * 2)
 
-        tdSql.execute("insert into t4 using stb tags(2, 'test2') file '%s' t5 using stb(t1) tags(5) file '%s'" % (self.csvfile, self.csvfile))
-        tdSql.query("select * from t4")
-        tdSql.checkRows(self.rows)
-        tdSql.query("select * from t5")
-        tdSql.checkRows(self.rows)
+        tdSql.error("insert into t4 using stb tags(2, 'test2') file '%s' t5 using stb(t1) tags(5) file '%s'" % (self.csvfile, self.csvfile))
 
     def stop(self):
         tdSql.close()
