@@ -542,7 +542,7 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
     goto CREATE_DNODE_OVER;
   }
 
-  if (mndCheckNodeAuth(pUser)) {
+  if (mndCheckNodeAuth(pUser) != 0) {
     goto CREATE_DNODE_OVER;
   }
 
@@ -566,6 +566,7 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SM
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq);
   if (pTrans == NULL) goto _OVER;
+  mndTransSetSerial(pTrans);
   mDebug("trans:%d, used to drop dnode:%d", pTrans->id, pDnode->id);
 
   pRaw = mndDnodeActionEncode(pDnode);
@@ -582,7 +583,6 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SM
   if (mndSetMoveVgroupsInfoToTrans(pMnode, pTrans, pDnode->id) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
-  mndTransSetSerial(pTrans);
   code = 0;
 
 _OVER:
@@ -640,7 +640,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (mndCheckNodeAuth(pUser)) {
+  if (mndCheckNodeAuth(pUser) != 0) {
     goto _OVER;
   }
 
