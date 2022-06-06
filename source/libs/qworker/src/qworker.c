@@ -21,10 +21,12 @@ int32_t qwProcessHbLinkBroken(SQWorker *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *re
   SSchedulerHbRsp rsp = {0};
   SQWSchStatus   *sch = NULL;
 
-  QW_ERR_RET(qwAcquireAddScheduler(mgmt, req->sId, QW_READ, &sch));
+  QW_ERR_RET(qwAcquireScheduler(mgmt, req->sId, QW_READ, &sch));
 
   QW_LOCK(QW_WRITE, &sch->hbConnLock);
 
+  sch->hbBrokenTs = taosGetTimestampMs();
+  
   if (qwMsg->connInfo.handle == sch->hbConnInfo.handle) {
     tmsgReleaseHandle(&sch->hbConnInfo, TAOS_CONN_SERVER);
     sch->hbConnInfo.handle = NULL;
@@ -794,6 +796,7 @@ void qwProcessHbTimerEvent(void *param, void *tmrId) {
   SQWSchStatus *sch = NULL;
   int32_t       taskNum = 0;
   SQWHbInfo    *rspList = NULL;
+  SArray       *pExpiredSch = NULL;
   int32_t       code = 0;
 
   qwDbgDumpMgmtInfo(mgmt);
@@ -809,8 +812,11 @@ void qwProcessHbTimerEvent(void *param, void *tmrId) {
   }
 
   rspList = taosMemoryCalloc(schNum, sizeof(SQWHbInfo));
-  if (NULL == rspList) {
+  pExpiredSch = taosArrayInit(schNum, sizeof(uint64_t));
+  if (NULL == rspList || NULL == pExpiredSch) {
     QW_UNLOCK(QW_READ, &mgmt->schLock);
+    taosMemoryFree(rspList);
+    taosArrayDestroy(pExpiredSch);
     QW_ELOG("calloc %d SQWHbInfo failed", schNum);
     taosTmrReset(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, param, mgmt->timer, &mgmt->hbTimer);
     qwRelease(refId);
@@ -820,6 +826,7 @@ void qwProcessHbTimerEvent(void *param, void *tmrId) {
   void   *key = NULL;
   size_t  keyLen = 0;
   int32_t i = 0;
+  int64_t currentMs = taosGetTimestampMs();
 
   void *pIter = taosHashIterate(mgmt->schHash, NULL);
   while (pIter) {
@@ -827,6 +834,11 @@ void qwProcessHbTimerEvent(void *param, void *tmrId) {
     if (NULL == sch->hbConnInfo.handle) {
       uint64_t *sId = taosHashGetKey(pIter, NULL);
       QW_TLOG("cancel send hb to sch %" PRIx64 " cause of no connection handle", *sId);
+
+      if (sch->hbBrokenTs > 0 && ((currentMs - sch->hbBrokenTs) > QW_SCH_TIMEOUT_MSEC) && taosHashGetSize(sch->tasksHash) <= 0) {
+        taosArrayPush(pExpiredSch, sId);
+      }
+      
       pIter = taosHashIterate(mgmt->schHash, pIter);
       continue;
     }
@@ -852,7 +864,12 @@ _return:
     tFreeSSchedulerHbRsp(&rspList[j].rsp);
   }
 
+  if (taosArrayGetSize(pExpiredSch) > 0) {
+    qwClearExpiredSch(pExpiredSch);
+  }
+
   taosMemoryFreeClear(rspList);
+  taosArrayDestroy(pExpiredSch);
 
   taosTmrReset(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, param, mgmt->timer, &mgmt->hbTimer);
   qwRelease(refId);

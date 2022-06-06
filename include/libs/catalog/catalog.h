@@ -68,6 +68,7 @@ typedef struct SCatalogReq {
   SArray *pIndex;         // element is index name
   SArray *pUser;          // element is SUserAuthInfo
   bool    qNodeRequired;  // valid qnode
+  bool    forceUpdate;    
 } SCatalogReq;
 
 typedef struct SMetaData {
@@ -280,7 +281,7 @@ int32_t catalogUpdateUserAuthInfo(SCatalog* pCtg, SGetUserAuthRsp* pAuth);
 int32_t catalogUpdateVgEpSet(SCatalog* pCtg, const char* dbFName, int32_t vgId, SEpSet *epSet);
 
 
-int32_t ctgdLaunchAsyncCall(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, uint64_t reqId);
+int32_t ctgdLaunchAsyncCall(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, uint64_t reqId, bool forceUpdate);
 
 
 /**

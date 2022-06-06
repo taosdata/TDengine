@@ -36,6 +36,7 @@ static SSdbRow *mndSmaActionDecode(SSdbRaw *pRaw);
 static int32_t  mndSmaActionInsert(SSdb *pSdb, SSmaObj *pSma);
 static int32_t  mndSmaActionDelete(SSdb *pSdb, SSmaObj *pSpSmatb);
 static int32_t  mndSmaActionUpdate(SSdb *pSdb, SSmaObj *pOld, SSmaObj *pNew);
+static int32_t  mndSmaGetVgEpSet(SMnode *pMnode, SDbObj *pDb, SVgEpSet **ppVgEpSet, int32_t *numOfVgroups);
 static int32_t  mndProcessMCreateSmaReq(SRpcMsg *pReq);
 static int32_t  mndProcessMDropSmaReq(SRpcMsg *pReq);
 static int32_t  mndProcessGetSmaReq(SRpcMsg *pReq);
@@ -262,7 +263,9 @@ static void *mndBuildVCreateSmaReq(SMnode *pMnode, SVgObj *pVgroup, SSmaObj *pSm
   req.sliding = pSma->sliding;
   req.expr = pSma->expr;
   req.tagsFilter = pSma->tagsFilter;
-
+  req.numOfVgroups = pSma->numOfVgroups;
+  req.pVgEpSet = pSma->pVgEpSet;
+  
   // get length
   int32_t ret = 0;
   tEncodeSize(tEncodeSVCreateTSmaReq, &req, contLen, ret);
@@ -420,6 +423,15 @@ static int32_t mndSetCreateSmaVgroupRedoActions(SMnode *pMnode, STrans *pTrans, 
   mndReleaseDnode(pMnode, pDnode);
 
   // todo add sma info here
+  SVgEpSet *pVgEpSet = NULL;
+  int32_t   numOfVgroups = 0;
+  if (mndSmaGetVgEpSet(pMnode, pDb, &pVgEpSet, &numOfVgroups) != 0) {
+    return -1;
+  }
+
+  pSma->pVgEpSet = pVgEpSet;
+  pSma->numOfVgroups = numOfVgroups;
+
   int32_t smaContLen = 0;
   void   *pSmaReq = mndBuildVCreateSmaReq(pMnode, pVgroup, pSma, &smaContLen);
   if (pSmaReq == NULL) return -1;
@@ -962,4 +974,53 @@ static int32_t mndRetrieveSma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
 static void mndCancelGetNextSma(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetch(pSdb, pIter);
+}
+
+static int32_t mndSmaGetVgEpSet(SMnode *pMnode, SDbObj *pDb, SVgEpSet **ppVgEpSet, int32_t *numOfVgroups) {
+  SSdb     *pSdb = pMnode->pSdb;
+  SVgObj   *pVgroup = NULL;
+  void     *pIter = NULL;
+  SVgEpSet *pVgEpSet = NULL;
+  int32_t   nAllocVgs = 16;
+  int32_t   nVgs = 0;
+
+  pVgEpSet = taosMemoryCalloc(nAllocVgs, sizeof(SVgEpSet));
+  if (!pVgEpSet) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) break;
+    if (pVgroup->dbUid != pDb->uid) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
+
+    if (nVgs >= nAllocVgs) {
+      void *p = taosMemoryRealloc(pVgEpSet, nAllocVgs * 2 * sizeof(SVgEpSet));
+      if (!p) {
+        taosMemoryFree(pVgEpSet);
+        sdbCancelFetch(pSdb, pIter);
+        sdbRelease(pSdb, pVgroup);
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return -1;
+      }
+      pVgEpSet = (SVgEpSet *)p;
+      nAllocVgs *= 2;
+    }
+
+    (pVgEpSet + nVgs)->vgId = pVgroup->vgId;
+    (pVgEpSet + nVgs)->epSet = mndGetVgroupEpset(pMnode, pVgroup);
+
+    ++nVgs;
+
+    sdbRelease(pSdb, pVgroup);
+  }
+
+  *ppVgEpSet = pVgEpSet;
+  *numOfVgroups = nVgs;
+
+  return 0;
 }
