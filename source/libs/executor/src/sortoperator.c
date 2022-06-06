@@ -215,3 +215,159 @@ int32_t getExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplain, uint32_t* 
   *len = sizeof(SSortExecInfo);
   return TSDB_CODE_SUCCESS;
 }
+
+typedef struct SMultiwaySortMergeOperatorInfo {
+  SOptrBasicInfo binfo;
+
+  int32_t      bufPageSize;
+  uint32_t     sortBufSize;    // max buffer size for in-memory sort
+
+  SArray*      pSortInfo;
+  SSortHandle* pSortHandle;
+
+  int64_t      startTs;       // sort start time
+} SMultiwaySortMergeOperatorInfo;
+
+SSDataBlock* getMultiwaySortMergedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity) {
+  blockDataCleanup(pDataBlock);
+
+  blockDataEnsureCapacity(pDataBlock, capacity);
+
+  while (1) {
+    STupleHandle* pTupleHandle = tsortNextTuple(pHandle);
+    if (pTupleHandle == NULL) {
+      break;
+    }
+
+    appendOneRowToDataBlock(pDataBlock, pTupleHandle);
+    if (pDataBlock->info.rows >= capacity) {
+      return pDataBlock;
+    }
+  }
+
+  return (pDataBlock->info.rows > 0) ? pDataBlock : NULL;
+}
+
+
+int32_t doOpenMultiwaySortMergeOperator(SOperatorInfo* pOperator) {
+  SMultiwaySortMergeOperatorInfo * pInfo = pOperator->info;
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+
+  if (OPTR_IS_OPENED(pOperator)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pInfo->startTs = taosGetTimestampUs();
+
+  int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
+
+  pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, NULL, SORT_MULTISOURCE_MERGE,
+                                             pInfo->bufPageSize, numOfBufPage, NULL, pTaskInfo->id.str);
+
+  tsortSetFetchRawDataFp(pInfo->pSortHandle, loadNextDataBlock, NULL, NULL);
+
+  for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
+    SSortSource ps = {0};
+    ps.param = pOperator->pDownstream[i];
+    tsortAddSource(pInfo->pSortHandle, &ps);
+  }
+
+  int32_t code = tsortOpen(pInfo->pSortHandle);
+
+  if (code != TSDB_CODE_SUCCESS) {
+    longjmp(pTaskInfo->env, terrno);
+  }
+
+  pOperator->cost.openCost = (taosGetTimestampUs() - pInfo->startTs)/1000.0;
+  pOperator->status = OP_RES_TO_RETURN;
+
+  OPTR_SET_OPENED(pOperator);
+  return TSDB_CODE_SUCCESS;
+}
+
+SSDataBlock* doMultiwaySortMerge(SOperatorInfo* pOperator) {
+  if (pOperator->status == OP_EXEC_DONE) {
+    return NULL;
+  }
+
+  SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
+  SSortOperatorInfo* pInfo = pOperator->info;
+
+  int32_t code = pOperator->fpSet._openFn(pOperator);
+  if (code != TSDB_CODE_SUCCESS) {
+    longjmp(pTaskInfo->env, code);
+  }
+
+  SSDataBlock* pBlock = getMultiwaySortMergedBlockData(pInfo->pSortHandle, pInfo->binfo.pRes, pOperator->resultInfo.capacity);
+
+  if (pBlock != NULL) {
+    pOperator->resultInfo.totalRows += pBlock->info.rows;
+  } else {
+    doSetOperatorCompleted(pOperator);
+  }
+  return pBlock;
+}
+
+void destroyMultiwaySortMergeOperatorInfo(void* param, int32_t numOfOutput) {
+  SSortOperatorInfo* pInfo = (SSortOperatorInfo*)param;
+  pInfo->binfo.pRes = blockDataDestroy(pInfo->binfo.pRes);
+
+  taosArrayDestroy(pInfo->pSortInfo);
+}
+
+int32_t getMultiwaySortMergeExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplain, uint32_t* len) {
+  ASSERT(pOptr != NULL);
+  SSortExecInfo* pInfo = taosMemoryCalloc(1, sizeof(SSortExecInfo));
+
+  SMultiwaySortMergeOperatorInfo *pOperatorInfo = (SMultiwaySortMergeOperatorInfo*)pOptr->info;
+
+  *pInfo = tsortGetSortExecInfo(pOperatorInfo->pSortHandle);
+  *pOptrExplain = pInfo;
+  *len = sizeof(SSortExecInfo);
+  return TSDB_CODE_SUCCESS;
+}
+
+SOperatorInfo* createMultiwaySortMergeOperatorInfo(SOperatorInfo** downStreams, int32_t numStreams,
+                                                   SSDataBlock* pResBlock, SArray* pSortInfo, SExecTaskInfo* pTaskInfo) {
+  SMultiwaySortMergeOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SMultiwaySortMergeOperatorInfo));
+  SOperatorInfo*     pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
+  int32_t            rowSize = pResBlock->info.rowSize;
+
+  if (pInfo == NULL || pOperator == NULL || rowSize > 100 * 1024 * 1024) {
+    goto _error;
+  }
+
+  pInfo->binfo.pRes   = pResBlock;
+
+  initResultSizeInfo(pOperator, 1024);
+
+  pInfo->pSortInfo    = pSortInfo;
+  pOperator->name     = "MultiwaySortMerge";
+  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_MERGE;
+  pOperator->blocking = true;
+  pOperator->status   = OP_NOT_OPENED;
+  pOperator->info     = pInfo;
+
+  pInfo->bufPageSize = rowSize < 1024 ? 1024 : rowSize * 2;
+  pInfo->sortBufSize = pInfo->bufPageSize * 16;
+
+  pOperator->pTaskInfo = pTaskInfo;
+  pOperator->fpSet =
+      createOperatorFpSet(doOpenMultiwaySortMergeOperator, doMultiwaySortMerge,
+                          NULL,
+                          NULL, destroyMultiwaySortMergeOperatorInfo,
+                          NULL, NULL,
+                          getMultiwaySortMergeExplainExecInfo);
+
+  int32_t code = appendDownstream(pOperator, downStreams, numStreams);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+  return pOperator;
+
+_error:
+  pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
+  taosMemoryFree(pInfo);
+  taosMemoryFree(pOperator);
+  return NULL;
+}

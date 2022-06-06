@@ -4517,6 +4517,15 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         extractColMatchInfo(pSortPhyNode->pTargets, pDescNode, &numOfOutputCols, pTaskInfo, COL_MATCH_FROM_SLOT_ID);
 
     pOptr = createSortOperatorInfo(ops[0], pResBlock, info, pExprInfo, numOfCols, pColList, pTaskInfo);
+  }  else if (QUERY_NODE_PHYSICAL_PLAN_MERGE == type) {
+    SMergePhysiNode* pMergePhyNode = (SMergePhysiNode*)pPhyNode;
+
+    SDataBlockDescNode* pDescNode = pPhyNode->pOutputDataBlockDesc;
+    SSDataBlock* pResBlock = createResDataBlock(pDescNode);
+
+    SArray*      sortInfo = createSortInfo(pMergePhyNode->pMergeKeys);
+
+    pOptr = createMultiwaySortMergeOperatorInfo(ops, size, pResBlock, sortInfo, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW == type) {
     SSessionWinodwPhysiNode* pSessionNode = (SSessionWinodwPhysiNode*)pPhyNode;
 
