@@ -13,15 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef _STREAM_INC_H_
+#define _STREAM_INC_H_
+
+#include "executor.h"
+#include "tstream.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#ifndef _TSTREAM_H_
-#define _TSTREAM_H_
+int32_t streamExec(SStreamTask* pTask, SMsgCb* pMsgCb);
+int32_t streamSink1(SStreamTask* pTask, SMsgCb* pMsgCb);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* ifndef _TSTREAM_H_ */
+#endif /* ifndef _STREAM_INC_H_ */
