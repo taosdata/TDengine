@@ -104,6 +104,8 @@ void schedulerAsyncFetchRows(int64_t job, schedulerFetchCallback fp, void* param
 
 int32_t schedulerGetTasksStatus(int64_t job, SArray *pSub);
 
+void schedulerStopQueryHb(void *pTrans);
+
 
 /**
  * Cancel query job

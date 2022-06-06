@@ -2332,6 +2332,8 @@ static int32_t isSchemalessDb(SSmlHandle* info){
     smlBuildInvalidDataMsg(&info->msgBuf, "catalogGetDBCfg error, code:", tstrerror(code));
     return code;
   }
+  taosArrayDestroy(pInfo.pRetensions);
+  
   if (!pInfo.schemaless){
     info->pRequest->code = TSDB_CODE_SML_INVALID_DB_CONF;
     smlBuildInvalidDataMsg(&info->msgBuf, "can not insert into schemaless db:", dbFname);
