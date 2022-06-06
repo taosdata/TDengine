@@ -58,11 +58,6 @@ enum {
 typedef struct SAppInstInfo SAppInstInfo;
 
 typedef struct {
-  void*         param;
-  SClientHbReq* req;
-} SHbConnInfo;
-
-typedef struct {
   char* key;
   // statistics
   int32_t reportCnt;
@@ -71,11 +66,8 @@ typedef struct {
   int64_t startTime;
   // ctl
   SRWLatch lock;  // lock is used in serialization
-  // connection
   SAppInstInfo* pAppInstInfo;
-  // info
   SHashObj* activeInfo;  // hash<SClientHbKey, SClientHbReq>
-  SHashObj* connInfo;    // hash<SClientHbKey, SHbConnInfo>
 } SAppHbMgr;
 
 typedef int32_t (*FHbRspHandle)(SAppHbMgr* pAppHbMgr, SClientHbRsp* pRsp);
@@ -324,8 +316,6 @@ void       appHbMgrCleanup(void);
 // conn level
 int  hbRegisterConn(SAppHbMgr* pAppHbMgr, int64_t tscRefId, int64_t clusterId, int8_t connType);
 void hbDeregisterConn(SAppHbMgr* pAppHbMgr, SClientHbKey connKey);
-
-int hbAddConnInfo(SAppHbMgr* pAppHbMgr, SClientHbKey connKey, void* key, void* value, int32_t keyLen, int32_t valueLen);
 
 // --- mq
 void hbMgrInitMqHbRspHandle();

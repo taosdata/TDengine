@@ -104,6 +104,7 @@ int32_t         metaSnapshotReaderOpen(SMeta* pMeta, SMetaSnapshotReader** ppRea
 int32_t         metaSnapshotReaderClose(SMetaSnapshotReader* pReader);
 int32_t         metaSnapshotRead(SMetaSnapshotReader* pReader, void** ppData, uint32_t* nData);
 void*           metaGetIdx(SMeta* pMeta);
+void*           metaGetIvtIdx(SMeta* pMeta);
 
 int32_t metaCreateTSma(SMeta* pMeta, int64_t version, SSmaCfg* pCfg);
 int32_t metaDropTSma(SMeta* pMeta, int64_t indexUid);
