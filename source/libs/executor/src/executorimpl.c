@@ -4625,6 +4625,7 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
   pCond->numOfTWindows = 1;
   pCond->twindows = taosMemoryCalloc(pCond->numOfTWindows, sizeof(STimeWindow));
   pCond->twindows[0] = pTableScanNode->scanRange;
+  pCond->suid = pTableScanNode->scan.suid;
 
 #if 1
   // todo work around a problem, remove it later

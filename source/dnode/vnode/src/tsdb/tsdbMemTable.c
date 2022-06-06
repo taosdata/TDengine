@@ -690,11 +690,11 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, i
   // forward put rest data
   row.pTSRow = tGetSubmitBlkNext(&blkIter);
   if (row.pTSRow) {
-    key.ts = row.pTSRow->ts;
     for (int8_t iLevel = 0; iLevel < pTbData->sl.maxLevel; iLevel++) {
       pos[iLevel] = SL_NODE_BACKWARD(pos[iLevel], iLevel);
     }
     do {
+      key.ts = row.pTSRow->ts;
       nRow++;
       tbDataMovePosTo(pTbData, pos, &key, SL_MOVE_FROM_POS);
       code = tbDataDoPut(pMemTable, pTbData, pos, &row, 1);
@@ -703,7 +703,6 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, i
       }
 
       row.pTSRow = tGetSubmitBlkNext(&blkIter);
-      key.ts = row.pTSRow->ts;
     } while (row.pTSRow);
   }
 

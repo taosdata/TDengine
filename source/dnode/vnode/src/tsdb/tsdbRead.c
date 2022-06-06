@@ -108,6 +108,7 @@ typedef struct SBlockLoadSuppInfo {
 
 typedef struct STsdbReadHandle {
   STsdb*        pTsdb;
+  uint64_t      suid;
   SQueryFilePos cur;  // current position
   int16_t       order;
   STimeWindow   window;  // the primary query time window that applies to all queries
@@ -238,6 +239,7 @@ static SArray* createCheckInfoFromTableGroup(STsdbReadHandle* pTsdbReadHandle, S
     STableKeyInfo* pKeyInfo = (STableKeyInfo*)taosArrayGet(pTableList->pTableList, j);
 
     STableCheckInfo info = {.lastKey = pKeyInfo->lastKey, .tableId = pKeyInfo->uid};
+    info.suid = pTsdbReadHandle->suid;
     if (ASCENDING_TRAVERSE(pTsdbReadHandle->order)) {
       if (info.lastKey == INT64_MIN || info.lastKey < pTsdbReadHandle->window.skey) {
         info.lastKey = pTsdbReadHandle->window.skey;
