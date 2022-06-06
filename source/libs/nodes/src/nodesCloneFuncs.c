@@ -371,7 +371,7 @@ static SNode* logicVnodeModifCopy(const SVnodeModifyLogicNode* pSrc, SVnodeModif
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   COPY_SCALAR_FIELD(modifyType);
   COPY_SCALAR_FIELD(msgType);
-  CLONE_NODE_FIELD(pModifyRows);
+  CLONE_NODE_FIELD(pAffectedRows);
   COPY_SCALAR_FIELD(tableId);
   COPY_SCALAR_FIELD(tableType);
   COPY_CHAR_ARRAY_FIELD(tableFName);

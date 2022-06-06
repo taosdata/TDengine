@@ -1057,8 +1057,8 @@ static int32_t createVnodeModifLogicNodeByDelete(SLogicPlanContext* pCxt, SDelet
   snprintf(pModify->tableFName, sizeof(pModify->tableFName), "%d.%s.%s", pCxt->pPlanCxt->acctId,
            pRealTable->table.dbName, pRealTable->table.tableName);
   pModify->deleteTimeRange = pDelete->timeRange;
-  pModify->pModifyRows = nodesCloneNode(pDelete->pCountFunc);
-  if (NULL == pModify->pModifyRows) {
+  pModify->pAffectedRows = nodesCloneNode(pDelete->pCountFunc);
+  if (NULL == pModify->pAffectedRows) {
     nodesDestroyNode(pModify);
     return TSDB_CODE_OUT_OF_MEMORY;
   }

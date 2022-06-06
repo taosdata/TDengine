@@ -1332,13 +1332,21 @@ static int32_t createDataDeleter(SPhysiPlanContext* pCxt, SVnodeModifyLogicNode*
   strcpy(pDeleter->tableFName, pModify->tableFName);
   pDeleter->deleteTimeRange = pModify->deleteTimeRange;
 
-  pDeleter->sink.pInputDataBlockDesc = nodesCloneNode(pRoot->pOutputDataBlockDesc);
-  if (NULL == pDeleter->sink.pInputDataBlockDesc) {
-    nodesDestroyNode(pDeleter);
-    return TSDB_CODE_OUT_OF_MEMORY;
+  int32_t code = setNodeSlotId(pCxt, pRoot->pOutputDataBlockDesc->dataBlockId, -1, pModify->pAffectedRows,
+                               &pDeleter->pAffectedRows);
+  if (TSDB_CODE_SUCCESS == code) {
+    pDeleter->sink.pInputDataBlockDesc = nodesCloneNode(pRoot->pOutputDataBlockDesc);
+    if (NULL == pDeleter->sink.pInputDataBlockDesc) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
   }
 
-  *pSink = (SDataSinkNode*)pDeleter;
+  if (TSDB_CODE_SUCCESS == code) {
+    *pSink = (SDataSinkNode*)pDeleter;
+  } else {
+    nodesDestroyNode(pDeleter);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
