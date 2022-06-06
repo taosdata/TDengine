@@ -944,6 +944,31 @@ STagVal getJsonValue(char *json, char *key, bool *isExist) {
   return val;
 }
 
+void vectorJsonContains(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
+  SColumnInfoData *pOutputCol = pOut->columnData;
+
+  int32_t i = ((_ord) == TSDB_ORDER_ASC)? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
+  int32_t step = ((_ord) == TSDB_ORDER_ASC)? 1 : -1;
+
+  pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
+
+  char *pRightData = colDataGetVarData(pRight->columnData, 0);
+  char *jsonKey = taosMemoryCalloc(1, varDataLen(pRightData) + 1);
+  memcpy(jsonKey, varDataVal(pRightData), varDataLen(pRightData));
+  for (; i >= 0 && i < pLeft->numOfRows; i += step) {
+    bool isExist = false;
+
+    if (!colDataIsNull_var(pLeft->columnData, i)) {
+      char *pLeftData = colDataGetVarData(pLeft->columnData, i);
+      getJsonValue(pLeftData, jsonKey, &isExist);
+    }
+
+    colDataAppend(pOutputCol, i, (const char*)(&isExist), false);
+
+  }
+  taosMemoryFree(jsonKey);
+}
+
 void vectorJsonArrow(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
   SColumnInfoData *pOutputCol = pOut->columnData;
 
