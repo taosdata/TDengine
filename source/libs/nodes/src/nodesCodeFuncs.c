@@ -230,6 +230,8 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiSort";
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
       return "PhysiHashInterval";
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL:
+      return "PhysiMergeInterval";
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
       return "PhysiStreamInterval";
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
@@ -611,7 +613,7 @@ static int32_t jsonToLogicProjectNode(const SJson* pJson, void* pObj) {
 
 static const char* jkVnodeModifyLogicPlanModifyType = "ModifyType";
 static const char* jkVnodeModifyLogicPlanMsgType = "MsgType";
-static const char* jkVnodeModifyLogicPlanModifyRows = "ModifyRows";
+static const char* jkVnodeModifyLogicPlanAffectedRows = "AffectedRows";
 
 static int32_t logicVnodeModifyNodeToJson(const void* pObj, SJson* pJson) {
   const SVnodeModifyLogicNode* pNode = (const SVnodeModifyLogicNode*)pObj;
@@ -624,7 +626,7 @@ static int32_t logicVnodeModifyNodeToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddIntegerToObject(pJson, jkVnodeModifyLogicPlanMsgType, pNode->msgType);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddObject(pJson, jkVnodeModifyLogicPlanModifyRows, nodeToJson, pNode->pModifyRows);
+    code = tjsonAddObject(pJson, jkVnodeModifyLogicPlanAffectedRows, nodeToJson, pNode->pAffectedRows);
   }
 
   return code;
@@ -641,7 +643,7 @@ static int32_t jsonToLogicVnodeModifyNode(const SJson* pJson, void* pObj) {
     code = tjsonGetIntValue(pJson, jkVnodeModifyLogicPlanMsgType, &pNode->msgType);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeObject(pJson, jkVnodeModifyLogicPlanModifyRows, &pNode->pModifyRows);
+    code = jsonToNodeObject(pJson, jkVnodeModifyLogicPlanAffectedRows, &pNode->pAffectedRows);
   }
 
   return code;
@@ -1249,6 +1251,7 @@ static int32_t jsonToName(const SJson* pJson, void* pObj) {
 static const char* jkScanPhysiPlanScanCols = "ScanCols";
 static const char* jkScanPhysiPlanScanPseudoCols = "ScanPseudoCols";
 static const char* jkScanPhysiPlanTableId = "TableId";
+static const char* jkScanPhysiPlanSTableId = "STableId";
 static const char* jkScanPhysiPlanTableType = "TableType";
 static const char* jkScanPhysiPlanTableName = "TableName";
 
@@ -1264,6 +1267,9 @@ static int32_t physiScanNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkScanPhysiPlanTableId, pNode->uid);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkScanPhysiPlanSTableId, pNode->suid);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkScanPhysiPlanTableType, pNode->tableType);
@@ -1287,6 +1293,9 @@ static int32_t jsonToPhysiScanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetUBigIntValue(pJson, jkScanPhysiPlanTableId, &pNode->uid);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetUBigIntValue(pJson, jkScanPhysiPlanSTableId, &pNode->suid);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetTinyIntValue(pJson, jkScanPhysiPlanTableType, &pNode->tableType);
@@ -1644,6 +1653,7 @@ static int32_t jsonToPhysiExchangeNode(const SJson* pJson, void* pObj) {
 }
 
 static const char* jkMergePhysiPlanMergeKeys = "MergeKeys";
+static const char* jkMergePhysiPlanTargets = "Targets";
 static const char* jkMergePhysiPlanNumOfChannels = "NumOfChannels";
 static const char* jkMergePhysiPlanSrcGroupId = "SrcGroupId";
 
@@ -1653,6 +1663,9 @@ static int32_t physiMergeNodeToJson(const void* pObj, SJson* pJson) {
   int32_t code = physicPlanNodeToJson(pObj, pJson);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkMergePhysiPlanMergeKeys, pNode->pMergeKeys);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkMergePhysiPlanTargets, pNode->pTargets);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkMergePhysiPlanNumOfChannels, pNode->numOfChannels);
@@ -1670,6 +1683,9 @@ static int32_t jsonToPhysiMergeNode(const SJson* pJson, void* pObj) {
   int32_t code = jsonToPhysicPlanNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkMergePhysiPlanMergeKeys, &pNode->pMergeKeys);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkMergePhysiPlanTargets, &pNode->pTargets);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetIntValue(pJson, jkMergePhysiPlanNumOfChannels, &pNode->numOfChannels);
@@ -2000,6 +2016,7 @@ static const char* jkDeletePhysiPlanTableType = "TableType";
 static const char* jkDeletePhysiPlanTableFName = "TableFName";
 static const char* jkDeletePhysiPlanDeleteTimeRangeStartKey = "DeleteTimeRangeStartKey";
 static const char* jkDeletePhysiPlanDeleteTimeRangeEndKey = "DeleteTimeRangeEndKey";
+static const char* jkDeletePhysiPlanAffectedRows = "AffectedRows";
 
 static int32_t physiDeleteNodeToJson(const void* pObj, SJson* pJson) {
   const SDataDeleterNode* pNode = (const SDataDeleterNode*)pObj;
@@ -2019,6 +2036,9 @@ static int32_t physiDeleteNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkDeletePhysiPlanDeleteTimeRangeEndKey, pNode->deleteTimeRange.ekey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkDeletePhysiPlanAffectedRows, nodeToJson, pNode->pAffectedRows);
   }
 
   return code;
@@ -2042,6 +2062,9 @@ static int32_t jsonToPhysiDeleteNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBigIntValue(pJson, jkDeletePhysiPlanDeleteTimeRangeEndKey, &pNode->deleteTimeRange.ekey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkDeletePhysiPlanAffectedRows, &pNode->pAffectedRows);
   }
 
   return code;
@@ -3802,6 +3825,7 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_PHYSICAL_PLAN_SORT:
       return physiSortNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
@@ -3930,6 +3954,7 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
     case QUERY_NODE_PHYSICAL_PLAN_SORT:
       return jsonToPhysiSortNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
