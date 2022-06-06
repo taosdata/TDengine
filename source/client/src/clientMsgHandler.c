@@ -21,8 +21,6 @@
 #include "tdef.h"
 #include "tname.h"
 
-int32_t (*handleRequestRspFp[TDMT_MAX])(void*, const SDataBuf* pMsg, int32_t code);
-
 static void setErrno(SRequestObj* pRequest, int32_t code) {
   pRequest->code = code;
   terrno = code;
@@ -107,10 +105,7 @@ SMsgSendInfo* buildMsgInfoImpl(SRequestObj* pRequest) {
 
   assert(pRequest != NULL);
   pMsgSendInfo->msgInfo = pRequest->body.requestMsg;
-
-  pMsgSendInfo->fp = (handleRequestRspFp[TMSG_INDEX(pRequest->type)] == NULL)
-                         ? genericRspCallback
-                         : handleRequestRspFp[TMSG_INDEX(pRequest->type)];
+  pMsgSendInfo->fp = getMsgRspHandle(pRequest->type);
   return pMsgSendInfo;
 }
 
@@ -209,7 +204,7 @@ int32_t processUseDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   return 0;
 }
 
-int32_t processCreateTableRsp(void* param, const SDataBuf* pMsg, int32_t code) {
+int32_t processCreateSTableRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   assert(pMsg != NULL && param != NULL);
   SRequestObj* pRequest = param;
 
@@ -285,13 +280,21 @@ int32_t processAlterStbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   return code;
 }
 
-
-// todo refactor: this arraylist is too large
-void initMsgHandleFp() {
-  handleRequestRspFp[TMSG_INDEX(TDMT_MND_CONNECT)] = processConnectRsp;
-  handleRequestRspFp[TMSG_INDEX(TDMT_MND_CREATE_DB)] = processCreateDbRsp;
-  handleRequestRspFp[TMSG_INDEX(TDMT_MND_USE_DB)] = processUseDbRsp;
-  handleRequestRspFp[TMSG_INDEX(TDMT_MND_CREATE_STB)] = processCreateTableRsp;
-  handleRequestRspFp[TMSG_INDEX(TDMT_MND_DROP_DB)] = processDropDbRsp;
-  handleRequestRspFp[TMSG_INDEX(TDMT_MND_ALTER_STB)] = processAlterStbRsp;
+__async_send_cb_fn_t getMsgRspHandle(int32_t msgType) {
+  switch (msgType) {
+    case TDMT_MND_CONNECT:
+      return processConnectRsp;
+    case TDMT_MND_CREATE_DB:
+      return processCreateDbRsp;
+    case TDMT_MND_USE_DB:
+      return processUseDbRsp;
+    case TDMT_MND_CREATE_STB:
+      return processCreateSTableRsp;
+    case TDMT_MND_DROP_DB:
+      return processDropDbRsp;
+    case TDMT_MND_ALTER_STB:
+      return processAlterStbRsp;
+    default:
+      return genericRspCallback;
+  }
 }

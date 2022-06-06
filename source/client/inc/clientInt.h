@@ -266,7 +266,8 @@ extern SAppInfo appInfo;
 extern int32_t  clientReqRefPool;
 extern int32_t  clientConnRefPool;
 
-extern int (*handleRequestRspFp[TDMT_MAX])(void*, const SDataBuf* pMsg, int32_t code);
+__async_send_cb_fn_t getMsgRspHandle(int32_t msgType);
+
 int           genericRspCallback(void* param, const SDataBuf* pMsg, int32_t code);
 SMsgSendInfo* buildMsgInfoImpl(SRequestObj* pReqObj);
 

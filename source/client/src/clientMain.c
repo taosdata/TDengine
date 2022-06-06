@@ -748,7 +748,6 @@ void doAsyncQuery(SRequestObj* pRequest, bool updateMetaForce) {
   pRequest->body.queryFp(pRequest->body.param, pRequest, code);
 }
 
-
 static void fetchCallback(void* pResult, void* param, int32_t code) {
   SRequestObj* pRequest = (SRequestObj*) param;
 

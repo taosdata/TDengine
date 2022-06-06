@@ -535,19 +535,20 @@ int32_t handleAlterTbExecRes(void* res, SCatalog* pCatalog) {
   return catalogUpdateTableMeta(pCatalog, (STableMetaRsp*)res);
 }
 
-int32_t handleExecRes(SRequestObj* pRequest) {
+int32_t handleQueryExecRsp(SRequestObj* pRequest) {
   if (NULL == pRequest->body.resInfo.execRes.res) {
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t code = 0;
   SCatalog* pCatalog = NULL;
-  code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
+  SAppInstInfo*   pAppInfo = getAppInfo(pRequest);
+
+  int32_t code = catalogGetHandle(pAppInfo->clusterId, &pCatalog);
   if (code) {
     return code;
   }
 
-  SEpSet epset = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp);
+  SEpSet epset = getEpSet_s(&pAppInfo->mgmtEp);
   SQueryExecRes* pRes = &pRequest->body.resInfo.execRes;
 
   switch (pRes->msgType) {
@@ -565,8 +566,9 @@ int32_t handleExecRes(SRequestObj* pRequest) {
       break;
     }
     default:
-      tscError("invalid exec result for request type %d", pRequest->type);
-      return TSDB_CODE_APP_ERROR;
+      tscError("0x%"PRIx64", invalid exec result for request type %d, reqId:0x%"PRIx64, pRequest->self,
+          pRequest->type, pRequest->requestId);
+      code = TSDB_CODE_APP_ERROR;
   }
 
   return code;
@@ -583,6 +585,12 @@ void schedulerExecCb(SQueryResult* pResult, void* param, int32_t code) {
     pRequest->prevCode = code;
     doAsyncQuery(pRequest, true);
     return;
+  }
+
+  if (code == TSDB_CODE_SUCCESS) {
+    code = handleQueryExecRsp(pRequest);
+    ASSERT(pRequest->code ==  TSDB_CODE_SUCCESS);
+    pRequest->code = code;
   }
 
   if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type)) {
@@ -623,7 +631,7 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQue
     qDestroyQuery(pQuery);
   }
 
-  handleExecRes(pRequest);
+  handleQueryExecRsp(pRequest);
 
   if (NULL != pRequest && TSDB_CODE_SUCCESS != code) {
     pRequest->code = terrno;
@@ -884,7 +892,7 @@ static SMsgSendInfo* buildConnectMsg(SRequestObj* pRequest) {
 
   pMsgSendInfo->requestObjRefId = pRequest->self;
   pMsgSendInfo->requestId = pRequest->requestId;
-  pMsgSendInfo->fp = handleRequestRspFp[TMSG_INDEX(pMsgSendInfo->msgType)];
+  pMsgSendInfo->fp = getMsgRspHandle(pMsgSendInfo->msgType);
   pMsgSendInfo->param = pRequest;
 
   SConnectReq connectReq = {0};
