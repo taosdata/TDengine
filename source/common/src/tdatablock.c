@@ -1590,7 +1590,6 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks
       for (int32_t k = 0; k < colNum; ++k) {  // iterate by column
         SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, k);
         STColumn*         pCol = &pTSchema->columns[k];
-        ASSERT(pCol->type == pColInfoData->info.type);
         void* var = POINTER_SHIFT(pColInfoData->pData, j * pColInfoData->info.bytes);
         switch (pColInfoData->info.type) {
           case TSDB_DATA_TYPE_TIMESTAMP:
@@ -1614,20 +1613,39 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks
           case TSDB_DATA_TYPE_VARBINARY:
           case TSDB_DATA_TYPE_DECIMAL:
           case TSDB_DATA_TYPE_BLOB:
+          case TSDB_DATA_TYPE_JSON:
           case TSDB_DATA_TYPE_MEDIUMBLOB:
             uError("the column type %" PRIi16 " is defined but not implemented yet", pColInfoData->info.type);
             TASSERT(0);
             break;
           default:
             if (pColInfoData->info.type < TSDB_DATA_TYPE_MAX && pColInfoData->info.type > TSDB_DATA_TYPE_NULL) {
-              tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, pColInfoData->info.type, TD_VTYPE_NORM, var, true, offset, k);
+              char tv[8] = {0};
+              if (pColInfoData->info.type == TSDB_DATA_TYPE_FLOAT) {
+                float v = 0;
+                GET_TYPED_DATA(v, float, pColInfoData->info.type, var);
+                SET_TYPED_DATA(&tv, pCol->type, v);
+              } else if (pColInfoData->info.type == TSDB_DATA_TYPE_DOUBLE) {
+                double v = 0;
+                GET_TYPED_DATA(v, double, pColInfoData->info.type, var);
+                SET_TYPED_DATA(&tv, pCol->type, v);
+              } else if (IS_SIGNED_NUMERIC_TYPE(pColInfoData->info.type)) {
+                int64_t v = 0;
+                GET_TYPED_DATA(v, int64_t, pColInfoData->info.type, var);
+                SET_TYPED_DATA(&tv, pCol->type, v);
+              } else {
+                uint64_t v = 0;
+                GET_TYPED_DATA(v, uint64_t, pColInfoData->info.type, var);
+                SET_TYPED_DATA(&tv, pCol->type, v);
+              }
+              tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, pCol->type, TD_VTYPE_NORM, tv, true, offset, k);
             } else {
               uError("the column type %" PRIi16 " is undefined\n", pColInfoData->info.type);
               TASSERT(0);
             }
             break;
         }
-        offset += TYPE_BYTES[pColInfoData->info.type];
+        offset += TYPE_BYTES[pCol->type]; // sum/avg would convert to int64_t/uint64_t/double during aggregation
       }
       dataLen += TD_ROW_LEN(rb.pBuf);
 #ifdef TD_DEBUG_PRINT_ROW
