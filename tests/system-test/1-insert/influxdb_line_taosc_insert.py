@@ -356,6 +356,9 @@ class TDTestCase:
         tdCom.cleanTb()
         input_sql, stb_name = self.genFullTypeSql()
         self.resCmp(input_sql, stb_name)
+        tdSql.error(f'create table stb (ts timestamp, c1 int) tags (t1 int)')
+        tdSql.error(f'create table tb (ts timestamp, c1 int)')
+
 
     def boolTypeCheckCase(self):
         """
@@ -1263,54 +1266,54 @@ class TDTestCase:
 
     def runAll(self):
         self.initCheckCase()
-        self.boolTypeCheckCase()
-        self.symbolsCheckCase()
-        # self.tsCheckCase()
-        self.idSeqCheckCase()
-        self.idUpperCheckCase()
-        self.noIdCheckCase()
-        # self.maxColTagCheckCase()
-        self.idIllegalNameCheckCase()
-        self.idStartWithNumCheckCase()
-        self.nowTsCheckCase()
-        self.dateFormatTsCheckCase()
-        self.illegalTsCheckCase()
-        # self.tagValueLengthCheckCase()
-        self.colValueLengthCheckCase()
-        self.tagColIllegalValueCheckCase()
-        self.duplicateIdTagColInsertCheckCase()
-        self.noIdStbExistCheckCase()
-        self.duplicateInsertExistCheckCase()
-        self.tagColBinaryNcharLengthCheckCase()
-        self.tagColAddDupIDCheckCase()
-        self.tagColAddCheckCase()
-        self.tagMd5Check()
-        # self.tagColBinaryMaxLengthCheckCase()
-        # self.tagColNcharMaxLengthCheckCase()
-        self.batchInsertCheckCase()
-        self.multiInsertCheckCase(10)
-        self.batchErrorInsertCheckCase()
-        # MultiThreads
-        # self.stbInsertMultiThreadCheckCase()
-        # self.sStbStbDdataInsertMultiThreadCheckCase()
-        # self.sStbStbDdataAtcInsertMultiThreadCheckCase()
-        # self.sStbStbDdataMtcInsertMultiThreadCheckCase()
-        # self.sStbDtbDdataInsertMultiThreadCheckCase()
+        # self.boolTypeCheckCase()
+        # self.symbolsCheckCase()
+        # # self.tsCheckCase()
+        # self.idSeqCheckCase()
+        # self.idUpperCheckCase()
+        # self.noIdCheckCase()
+        # # self.maxColTagCheckCase()
+        # self.idIllegalNameCheckCase()
+        # self.idStartWithNumCheckCase()
+        # self.nowTsCheckCase()
+        # self.dateFormatTsCheckCase()
+        # self.illegalTsCheckCase()
+        # # self.tagValueLengthCheckCase()
+        # self.colValueLengthCheckCase()
+        # self.tagColIllegalValueCheckCase()
+        # self.duplicateIdTagColInsertCheckCase()
+        # self.noIdStbExistCheckCase()
+        # self.duplicateInsertExistCheckCase()
+        # self.tagColBinaryNcharLengthCheckCase()
+        # self.tagColAddDupIDCheckCase()
+        # self.tagColAddCheckCase()
+        # self.tagMd5Check()
+        # # self.tagColBinaryMaxLengthCheckCase()
+        # # self.tagColNcharMaxLengthCheckCase()
+        # self.batchInsertCheckCase()
+        # self.multiInsertCheckCase(10)
+        # self.batchErrorInsertCheckCase()
+        # # MultiThreads
+        # # self.stbInsertMultiThreadCheckCase()
+        # # self.sStbStbDdataInsertMultiThreadCheckCase()
+        # # self.sStbStbDdataAtcInsertMultiThreadCheckCase()
+        # # self.sStbStbDdataMtcInsertMultiThreadCheckCase()
+        # # self.sStbDtbDdataInsertMultiThreadCheckCase()
+
+        # # # # ! concurrency conflict
+        # # # self.sStbDtbDdataAcMtInsertMultiThreadCheckCase()
+        # # # self.sStbDtbDdataAtMcInsertMultiThreadCheckCase()
+
+        # # self.sStbStbDdataDtsInsertMultiThreadCheckCase()
+
+        # # # # ! concurrency conflict
+        # # # self.sStbStbDdataDtsAcMtInsertMultiThreadCheckCase()
+        # # # self.sStbStbDdataDtsAtMcInsertMultiThreadCheckCase()
+
+        # # self.sStbDtbDdataDtsInsertMultiThreadCheckCase()
 
         # # # ! concurrency conflict
-        # # self.sStbDtbDdataAcMtInsertMultiThreadCheckCase()
-        # # self.sStbDtbDdataAtMcInsertMultiThreadCheckCase()
-
-        # self.sStbStbDdataDtsInsertMultiThreadCheckCase()
-
-        # # # ! concurrency conflict
-        # # self.sStbStbDdataDtsAcMtInsertMultiThreadCheckCase()
-        # # self.sStbStbDdataDtsAtMcInsertMultiThreadCheckCase()
-
-        # self.sStbDtbDdataDtsInsertMultiThreadCheckCase()
-
-        # # ! concurrency conflict
-        # # self.sStbDtbDdataDtsAcMtInsertMultiThreadCheckCase()
+        # # # self.sStbDtbDdataDtsAcMtInsertMultiThreadCheckCase()
 
 
 
