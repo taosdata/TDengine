@@ -96,12 +96,14 @@ int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg)
 int32_t syncNodeOnRequestVoteReplySnapshotCb(SSyncNode* ths, SyncRequestVoteReply* pMsg) {
   int32_t ret = 0;
 
+  // print log
   char logBuf[128] = {0};
-  snprintf(logBuf, sizeof(logBuf), "==syncNodeOnRequestVoteReplySnapshotCb== term:%lu", ths->pRaftStore->currentTerm);
+  snprintf(logBuf, sizeof(logBuf), "recv SyncRequestVoteReply, term:%lu", ths->pRaftStore->currentTerm);
   syncRequestVoteReplyLog2(logBuf, pMsg);
 
+  // drop stale response
   if (pMsg->term < ths->pRaftStore->currentTerm) {
-    sTrace("DropStaleResponse, receive term:%" PRIu64 ", current term:%" PRIu64 "", pMsg->term,
+    sTrace("recv SyncRequestVoteReply, drop stale response, receive_term:%lu current_term:%lu", pMsg->term,
            ths->pRaftStore->currentTerm);
     return ret;
   }
@@ -114,14 +116,14 @@ int32_t syncNodeOnRequestVoteReplySnapshotCb(SSyncNode* ths, SyncRequestVoteRepl
 
   if (pMsg->term > ths->pRaftStore->currentTerm) {
     char logBuf[128] = {0};
-    snprintf(logBuf, sizeof(logBuf), "syncNodeOnRequestVoteReplySnapshotCb error term, receive:%lu current:%lu",
+    snprintf(logBuf, sizeof(logBuf), "recv SyncRequestVoteReply, error term, receive_term:%lu current_term:%lu",
              pMsg->term, ths->pRaftStore->currentTerm);
     syncNodePrint2(logBuf, ths);
     sError("%s", logBuf);
     return ret;
   }
 
-  assert(pMsg->term == ths->pRaftStore->currentTerm);
+  ASSERT(pMsg->term == ths->pRaftStore->currentTerm);
 
   // This tallies votes even when the current state is not Candidate,
   // but they won't be looked at, so it doesn't matter.

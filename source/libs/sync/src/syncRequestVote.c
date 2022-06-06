@@ -81,24 +81,35 @@ int32_t syncNodeOnRequestVoteCb(SSyncNode* ths, SyncRequestVote* pMsg) {
   return ret;
 }
 
+static bool syncNodeOnRequestVoteLogOK(SSyncNode* pSyncNode, SyncRequestVote* pMsg) {
+  SyncTerm  myLastTerm = syncNodeGetLastTerm(pSyncNode);
+  SyncIndex myLastIndex = syncNodeGetLastIndex(pSyncNode);
+
+  if (pMsg->lastLogTerm > myLastTerm) {
+    return true;
+  }
+  if (pMsg->lastLogTerm == myLastTerm && pMsg->lastLogIndex >= myLastIndex) {
+    return true;
+  }
+
+  return false;
+}
+
 int32_t syncNodeOnRequestVoteSnapshotCb(SSyncNode* ths, SyncRequestVote* pMsg) {
   int32_t ret = 0;
 
+  // print log
   char logBuf[128] = {0};
-  snprintf(logBuf, sizeof(logBuf), "==syncNodeOnRequestVoteSnapshotCb== term:%lu", ths->pRaftStore->currentTerm);
+  snprintf(logBuf, sizeof(logBuf), "recv SyncRequestVote, currentTerm:%lu", ths->pRaftStore->currentTerm);
   syncRequestVoteLog2(logBuf, pMsg);
 
+  // maybe update term
   if (pMsg->term > ths->pRaftStore->currentTerm) {
     syncNodeUpdateTerm(ths, pMsg->term);
   }
-  assert(pMsg->term <= ths->pRaftStore->currentTerm);
+  ASSERT(pMsg->term <= ths->pRaftStore->currentTerm);
 
-  SyncIndex lastIndex;
-  SyncTerm  lastTerm;
-  ret = syncNodeGetLastIndexTerm(ths, &lastIndex, &lastTerm);
-  ASSERT(ret == 0);
-
-  bool logOK = (pMsg->lastLogTerm > lastTerm) || ((pMsg->lastLogTerm == lastTerm) && (pMsg->lastLogIndex >= lastIndex));
+  bool logOK = syncNodeOnRequestVoteLogOK(ths, pMsg);
   bool grant = (pMsg->term == ths->pRaftStore->currentTerm) && logOK &&
                ((!raftStoreHasVoted(ths->pRaftStore)) || (syncUtilSameId(&(ths->pRaftStore->voteFor), &(pMsg->srcId))));
   if (grant) {
@@ -110,6 +121,7 @@ int32_t syncNodeOnRequestVoteSnapshotCb(SSyncNode* ths, SyncRequestVote* pMsg) {
     syncNodeResetElectTimer(ths);
   }
 
+  // send msg
   SyncRequestVoteReply* pReply = syncRequestVoteReplyBuild(ths->vgId);
   pReply->srcId = ths->myRaftId;
   pReply->destId = pMsg->srcId;

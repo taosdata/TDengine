@@ -98,18 +98,20 @@ int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* p
 int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntriesReply* pMsg) {
   int32_t ret = 0;
 
+  // print log
   char logBuf[128] = {0};
-  snprintf(logBuf, sizeof(logBuf), "==syncNodeOnAppendEntriesReplySnapshotCb== term:%lu", ths->pRaftStore->currentTerm);
+  snprintf(logBuf, sizeof(logBuf), "recv SyncAppendEntriesReply, term:%lu", ths->pRaftStore->currentTerm);
   syncAppendEntriesReplyLog2(logBuf, pMsg);
 
+  // drop stale response
   if (pMsg->term < ths->pRaftStore->currentTerm) {
-    sTrace("DropStaleResponse, receive term:%" PRIu64 ", current term:%" PRIu64 "", pMsg->term,
+    sTrace("recv SyncAppendEntriesReply, drop stale response, receive_term:%lu current_term:%lu", pMsg->term,
            ths->pRaftStore->currentTerm);
     return ret;
   }
 
-  syncIndexMgrLog2("==syncNodeOnAppendEntriesReplySnapshotCb== before pNextIndex", ths->pNextIndex);
-  syncIndexMgrLog2("==syncNodeOnAppendEntriesReplySnapshotCb== before pMatchIndex", ths->pMatchIndex);
+  syncIndexMgrLog2("recv SyncAppendEntriesReply, before pNextIndex:", ths->pNextIndex);
+  syncIndexMgrLog2("recv SyncAppendEntriesReply before pMatchIndex:", ths->pMatchIndex);
 
   // no need this code, because if I receive reply.term, then I must have sent for that term.
   //  if (pMsg->term > ths->pRaftStore->currentTerm) {
@@ -118,14 +120,14 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
 
   if (pMsg->term > ths->pRaftStore->currentTerm) {
     char logBuf[128] = {0};
-    snprintf(logBuf, sizeof(logBuf), "syncNodeOnAppendEntriesReplySnapshotCb error term, receive:%lu current:%lu",
+    snprintf(logBuf, sizeof(logBuf), "recv SyncAppendEntriesReply, error term, receive_term:%lu current_term:%lu",
              pMsg->term, ths->pRaftStore->currentTerm);
     syncNodeLog2(logBuf, ths);
     sError("%s", logBuf);
     return ret;
   }
 
-  assert(pMsg->term == ths->pRaftStore->currentTerm);
+  ASSERT(pMsg->term == ths->pRaftStore->currentTerm);
 
   if (pMsg->success) {
     // nextIndex'  = [nextIndex  EXCEPT ![i][j] = m.mmatchIndex + 1]
@@ -143,14 +145,25 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
     // notice! int64, uint64
     if (nextIndex > SYNC_INDEX_BEGIN) {
       --nextIndex;
+
+      // has snapshot
+      if (syncNodeHasSnapshot(ths)) {
+        SSnapshot snapshot;
+        ths->pFsm->FpGetSnapshot(ths->pFsm, &snapshot);
+        if (nextIndex <= snapshot.lastApplyIndex) {
+          nextIndex = snapshot.lastApplyIndex + 1;
+          sInfo("reset new nextIndex %ld, snapshot.lastApplyIndex:%ld", nextIndex, snapshot.lastApplyIndex);
+        }
+      }
+
     } else {
       nextIndex = SYNC_INDEX_BEGIN;
     }
     syncIndexMgrSetIndex(ths->pNextIndex, &(pMsg->srcId), nextIndex);
   }
 
-  syncIndexMgrLog2("==syncNodeOnAppendEntriesReplySnapshotCb== after pNextIndex", ths->pNextIndex);
-  syncIndexMgrLog2("==syncNodeOnAppendEntriesReplySnapshotCb== after pMatchIndex", ths->pMatchIndex);
+  syncIndexMgrLog2("recv SyncAppendEntriesReply, after pNextIndex:", ths->pNextIndex);
+  syncIndexMgrLog2("recv SyncAppendEntriesReply, after pMatchIndex:", ths->pMatchIndex);
 
   return ret;
 }

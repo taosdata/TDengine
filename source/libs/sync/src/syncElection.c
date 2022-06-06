@@ -51,7 +51,7 @@ int32_t syncNodeRequestVotePeers(SSyncNode* pSyncNode) {
 }
 
 int32_t syncNodeRequestVotePeersSnapshot(SSyncNode* pSyncNode) {
-  assert(pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE);
+  ASSERT(pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE);
 
   int32_t ret = 0;
   for (int i = 0; i < pSyncNode->peersNum; ++i) {

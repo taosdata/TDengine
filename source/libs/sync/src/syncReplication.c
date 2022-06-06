@@ -117,121 +117,64 @@ int32_t syncNodeAppendEntriesPeers(SSyncNode* pSyncNode) {
 }
 
 int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
-  assert(pSyncNode->state == TAOS_SYNC_STATE_LEADER);
+  ASSERT(pSyncNode->state == TAOS_SYNC_STATE_LEADER);
 
-  syncIndexMgrLog2("==syncNodeAppendEntriesPeersSnapshot== pNextIndex", pSyncNode->pNextIndex);
-  syncIndexMgrLog2("==syncNodeAppendEntriesPeersSnapshot== pMatchIndex", pSyncNode->pMatchIndex);
-  logStoreSimpleLog2("==syncNodeAppendEntriesPeersSnapshot==", pSyncNode->pLogStore);
+  syncIndexMgrLog2("begin append entries peers pNextIndex:", pSyncNode->pNextIndex);
+  syncIndexMgrLog2("begin append entries peers pMatchIndex:", pSyncNode->pMatchIndex);
+  logStoreSimpleLog2("begin append entries peers LogStore:", pSyncNode->pLogStore);
 
   int32_t ret = 0;
   for (int i = 0; i < pSyncNode->peersNum; ++i) {
     SRaftId* pDestId = &(pSyncNode->peersId[i]);
 
+    // next index
     SyncIndex nextIndex = syncIndexMgrGetIndex(pSyncNode->pNextIndex, pDestId);
-    SyncIndex preLogIndex;
-    SyncTerm  preLogTerm;
+
+    // pre index, pre term
+    SyncIndex preLogIndex = syncNodeGetPreIndex(pSyncNode, nextIndex);
+    SyncTerm  preLogTerm = syncNodeGetPreTerm(pSyncNode, nextIndex);
 
     // batch optimized
     // SyncIndex lastIndex = syncUtilMinIndex(pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore), nextIndex);
 
-    // sending snapshot finish?
-    bool                 snapshotSendingFinish = false;
-    SSyncSnapshotSender* pSender = NULL;
-    for (int i = 0; i < pSyncNode->replicaNum; ++i) {
-      if (syncUtilSameId(pDestId, &((pSyncNode->replicasId)[i]))) {
-        pSender = (pSyncNode->senders)[i];
-      }
-    }
-    ASSERT(pSender != NULL);
-    snapshotSendingFinish = (pSender->finish) && (pSender->term == pSyncNode->pRaftStore->currentTerm);
-    if (snapshotSendingFinish) {
-      sInfo("snapshotSendingFinish! term:%lu", pSender->term);
-    }
+    // prepare entry
+    SyncAppendEntries* pMsg = NULL;
 
-    if ((syncNodeIsIndexInSnapshot(pSyncNode, nextIndex - 1) && !snapshotSendingFinish) ||
-        syncNodeIsIndexInSnapshot(pSyncNode, nextIndex)) {
-      // will send this msg until snapshot receive finish!
+    SSyncRaftEntry* pEntry;
+    int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, nextIndex, &pEntry);
+    ASSERT(code == 0);
 
-      SSnapshot snapshot = pSender->snapshot;
-      sInfo("nextIndex:%ld in snapshot: <lastApplyIndex:%ld, lastApplyTerm:%lu>, begin snapshot", nextIndex,
-            snapshot.lastApplyIndex, snapshot.lastApplyTerm);
+    if (pEntry != NULL) {
+      pMsg = syncAppendEntriesBuild(pEntry->bytes, pSyncNode->vgId);
+      ASSERT(pMsg != NULL);
 
-      // do not use next index
-      // always send from snapshot.lastApplyIndex + 1, and wait for snapshot transfer finish
+      // add pEntry into msg
+      uint32_t len;
+      char*    serialized = syncEntrySerialize(pEntry, &len);
+      assert(len == pEntry->bytes);
+      memcpy(pMsg->data, serialized, len);
 
-      preLogIndex = snapshot.lastApplyIndex;
-      preLogTerm = snapshot.lastApplyTerm;
-
-      // update next index!
-      syncIndexMgrSetIndex(pSyncNode->pNextIndex, pDestId, snapshot.lastApplyIndex + 1);
-
-      // to claim leader
-      SyncAppendEntries* pMsg = syncAppendEntriesBuild(0, pSyncNode->vgId);
-      assert(pMsg != NULL);
-      pMsg->srcId = pSyncNode->myRaftId;
-      pMsg->destId = *pDestId;
-      pMsg->term = pSyncNode->pRaftStore->currentTerm;
-      pMsg->prevLogIndex = preLogIndex;
-      pMsg->prevLogTerm = preLogTerm;
-      pMsg->commitIndex = pSyncNode->commitIndex;
-
-      syncAppendEntriesLog2("==syncNodeAppendEntriesPeersSnapshot==", pMsg);
-
-      // send AppendEntries
-      syncNodeAppendEntries(pSyncNode, pDestId, pMsg);
-      syncAppendEntriesDestroy(pMsg);
-
-      if (!snapshotSendingFinish) {
-        SSyncSnapshotSender* pSender = NULL;
-        for (int i = 0; i < pSyncNode->replicaNum; ++i) {
-          if (syncUtilSameId(&((pSyncNode->replicasId)[i]), pDestId)) {
-            pSender = (pSyncNode->senders)[i];
-            break;
-          }
-        }
-        ASSERT(pSender != NULL);
-        snapshotSenderStart(pSender);
-      }
+      taosMemoryFree(serialized);
+      syncEntryDestory(pEntry);
 
     } else {
-      ret = syncNodeGetPreIndexTerm(pSyncNode, nextIndex, &preLogIndex, &preLogTerm);
-      ASSERT(ret == 0);
-
-      SyncAppendEntries* pMsg = NULL;
-      SSyncRaftEntry*    pEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, nextIndex);
-      if (pEntry != NULL) {
-        pMsg = syncAppendEntriesBuild(pEntry->bytes, pSyncNode->vgId);
-        assert(pMsg != NULL);
-
-        // add pEntry into msg
-        uint32_t len;
-        char*    serialized = syncEntrySerialize(pEntry, &len);
-        assert(len == pEntry->bytes);
-        memcpy(pMsg->data, serialized, len);
-
-        taosMemoryFree(serialized);
-        syncEntryDestory(pEntry);
-
-      } else {
-        // maybe overflow, send empty record
-        pMsg = syncAppendEntriesBuild(0, pSyncNode->vgId);
-        assert(pMsg != NULL);
-      }
-
-      assert(pMsg != NULL);
-      pMsg->srcId = pSyncNode->myRaftId;
-      pMsg->destId = *pDestId;
-      pMsg->term = pSyncNode->pRaftStore->currentTerm;
-      pMsg->prevLogIndex = preLogIndex;
-      pMsg->prevLogTerm = preLogTerm;
-      pMsg->commitIndex = pSyncNode->commitIndex;
-
-      syncAppendEntriesLog2("==syncNodeAppendEntriesPeersSnapshot==", pMsg);
-
-      // send AppendEntries
-      syncNodeAppendEntries(pSyncNode, pDestId, pMsg);
-      syncAppendEntriesDestroy(pMsg);
+      // no entry in log
+      pMsg = syncAppendEntriesBuild(0, pSyncNode->vgId);
+      ASSERT(pMsg != NULL);
     }
+
+    // prepare msg
+    ASSERT(pMsg != NULL);
+    pMsg->srcId = pSyncNode->myRaftId;
+    pMsg->destId = *pDestId;
+    pMsg->term = pSyncNode->pRaftStore->currentTerm;
+    pMsg->prevLogIndex = preLogIndex;
+    pMsg->prevLogTerm = preLogTerm;
+    pMsg->commitIndex = pSyncNode->commitIndex;
+
+    // send msg
+    syncNodeAppendEntries(pSyncNode, pDestId, pMsg);
+    syncAppendEntriesDestroy(pMsg);
   }
 
   return ret;

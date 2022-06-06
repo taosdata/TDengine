@@ -94,6 +94,10 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
 
     // execute fsm
     if (pSyncNode->pFsm != NULL) {
+      int32_t code = syncNodeCommit(pSyncNode, beginIndex, endIndex, 0x1);
+      ASSERT(code == 0);
+
+#if 0      
       for (SyncIndex i = beginIndex; i <= endIndex; ++i) {
         if (i != SYNC_INDEX_INVALID) {
           SSyncRaftEntry* pEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, i);
@@ -201,6 +205,7 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
           syncEntryDestory(pEntry);
         }
       }
+#endif
     }
   }
 }

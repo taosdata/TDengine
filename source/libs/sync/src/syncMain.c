@@ -1704,3 +1704,115 @@ const char* syncStr(ESyncState state) {
       return "ERROR";
   }
 }
+
+int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex, uint64_t flag) {
+  int32_t code = 0;
+
+  // maybe execute by leader, skip snapshot
+  SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
+  if (ths->pFsm->FpGetSnapshot != NULL) {
+    ths->pFsm->FpGetSnapshot(ths->pFsm, &snapshot);
+  }
+  if (beginIndex <= snapshot.lastApplyIndex) {
+    beginIndex = snapshot.lastApplyIndex + 1;
+  }
+
+  // execute fsm
+  if (ths->pFsm != NULL) {
+    for (SyncIndex i = beginIndex; i <= endIndex; ++i) {
+      if (i != SYNC_INDEX_INVALID) {
+        SSyncRaftEntry* pEntry;
+        code = ths->pLogStore->syncLogGetEntry(ths->pLogStore, i, &pEntry);
+        ASSERT(code == 0);
+        ASSERT(pEntry != NULL);
+
+        SRpcMsg rpcMsg;
+        syncEntry2OriginalRpc(pEntry, &rpcMsg);
+
+        if (ths->pFsm->FpCommitCb != NULL && syncUtilUserCommit(pEntry->originalRpcType)) {
+          SFsmCbMeta cbMeta;
+          cbMeta.index = pEntry->index;
+          cbMeta.isWeak = pEntry->isWeak;
+          cbMeta.code = 0;
+          cbMeta.state = ths->state;
+          cbMeta.seqNum = pEntry->seqNum;
+          cbMeta.term = pEntry->term;
+          cbMeta.currentTerm = ths->pRaftStore->currentTerm;
+          cbMeta.flag = flag;
+
+          ths->pFsm->FpCommitCb(ths->pFsm, &rpcMsg, cbMeta);
+        }
+
+        // config change
+        if (pEntry->originalRpcType == TDMT_VND_SYNC_CONFIG_CHANGE) {
+          SSyncCfg oldSyncCfg = ths->pRaftCfg->cfg;
+
+          SSyncCfg newSyncCfg;
+          int32_t  ret = syncCfgFromStr(rpcMsg.pCont, &newSyncCfg);
+          ASSERT(ret == 0);
+
+          // update new config myIndex
+          bool hit = false;
+          for (int i = 0; i < newSyncCfg.replicaNum; ++i) {
+            if (strcmp(ths->myNodeInfo.nodeFqdn, (newSyncCfg.nodeInfo)[i].nodeFqdn) == 0 &&
+                ths->myNodeInfo.nodePort == (newSyncCfg.nodeInfo)[i].nodePort) {
+              newSyncCfg.myIndex = i;
+              hit = true;
+              break;
+            }
+          }
+
+          SReConfigCbMeta cbMeta = {0};
+          bool            isDrop;
+
+          // I am in newConfig
+          if (hit) {
+            syncNodeUpdateConfig(ths, &newSyncCfg, &isDrop);
+
+            // change isStandBy to normal
+            if (!isDrop) {
+              if (ths->state == TAOS_SYNC_STATE_LEADER) {
+                syncNodeBecomeLeader(ths);
+              } else {
+                syncNodeBecomeFollower(ths);
+              }
+            }
+
+            char* sOld = syncCfg2Str(&oldSyncCfg);
+            char* sNew = syncCfg2Str(&newSyncCfg);
+            sInfo("==config change== 0x11 old:%s new:%s isDrop:%d \n", sOld, sNew, isDrop);
+            taosMemoryFree(sOld);
+            taosMemoryFree(sNew);
+          }
+
+          // always call FpReConfigCb
+          if (ths->pFsm->FpReConfigCb != NULL) {
+            cbMeta.code = 0;
+            cbMeta.currentTerm = ths->pRaftStore->currentTerm;
+            cbMeta.index = pEntry->index;
+            cbMeta.term = pEntry->term;
+            cbMeta.oldCfg = oldSyncCfg;
+            cbMeta.flag = 0x11;
+            cbMeta.isDrop = isDrop;
+            ths->pFsm->FpReConfigCb(ths->pFsm, newSyncCfg, cbMeta);
+          }
+        }
+
+        // restore finish
+        if (pEntry->index == ths->pLogStore->syncLogLastIndex(ths->pLogStore)) {
+          if (ths->restoreFinish == false) {
+            if (ths->pFsm->FpRestoreFinishCb != NULL) {
+              ths->pFsm->FpRestoreFinishCb(ths->pFsm);
+            }
+            ths->restoreFinish = true;
+            sInfo("restore finish %p vgId:%d", ths, ths->vgId);
+          }
+        }
+
+        rpcFreeCont(rpcMsg.pCont);
+        syncEntryDestory(pEntry);
+      }
+    }
+  }
+  return 0;
+}

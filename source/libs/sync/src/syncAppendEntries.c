@@ -433,71 +433,133 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
   return ret;
 }
 
+static bool syncNodeOnAppendEntriesLogOK(SSyncNode* pSyncNode, SyncAppendEntries* pMsg) {
+  if (pMsg->prevLogIndex == SYNC_INDEX_INVALID) {
+    return true;
+  }
+
+  SyncTerm  myPreLogTerm = syncNodeGetPreTerm(pSyncNode, pMsg->prevLogIndex + 1);
+  SyncIndex myLastIndex = syncNodeGetLastIndex(pSyncNode);
+
+  if (pMsg->prevLogIndex <= myLastIndex && pMsg->prevLogTerm == myPreLogTerm) {
+    return true;
+  }
+
+  return false;
+}
+
+static int32_t syncNodeMakeLogSame(SSyncNode* ths, SyncAppendEntries* pMsg, SSyncRaftEntry** ppAppendEntry) {
+  int32_t code;
+  *ppAppendEntry = NULL;
+
+  // not conflict by default
+  bool conflict = false;
+
+  SyncIndex       extraIndex = pMsg->prevLogIndex + 1;
+  SSyncRaftEntry* pExtraEntry;
+  code = ths->pLogStore->syncLogGetEntry(ths->pLogStore, extraIndex, &pExtraEntry);
+  ASSERT(pExtraEntry != NULL);
+
+  *ppAppendEntry = syncEntryDeserialize(pMsg->data, pMsg->dataLen);
+  ASSERT(*ppAppendEntry != NULL);
+
+  // log not match, conflict, need delete
+  ASSERT(extraIndex == (*ppAppendEntry)->index);
+  if (pExtraEntry->term != (*ppAppendEntry)->term) {
+    conflict = true;
+  }
+  syncEntryDestory(pExtraEntry);
+
+  if (conflict) {
+    // roll back
+    SyncIndex delBegin = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
+    SyncIndex delEnd = extraIndex;
+
+    sTrace("entry conflict:%d, delBegin:%ld, delEnd:%ld", conflict, delBegin, delEnd);
+
+    // notice! reverse roll back!
+    for (SyncIndex index = delEnd; index >= delBegin; --index) {
+      if (ths->pFsm->FpRollBackCb != NULL) {
+        SSyncRaftEntry* pRollBackEntry;
+        code = ths->pLogStore->syncLogGetEntry(ths->pLogStore, index, &pRollBackEntry);
+        ASSERT(code == 0);
+        ASSERT(pRollBackEntry != NULL);
+
+        if (syncUtilUserRollback(pRollBackEntry->msgType)) {
+          SRpcMsg rpcMsg;
+          syncEntry2OriginalRpc(pRollBackEntry, &rpcMsg);
+
+          SFsmCbMeta cbMeta;
+          cbMeta.index = pRollBackEntry->index;
+          cbMeta.isWeak = pRollBackEntry->isWeak;
+          cbMeta.code = 0;
+          cbMeta.state = ths->state;
+          cbMeta.seqNum = pRollBackEntry->seqNum;
+          ths->pFsm->FpRollBackCb(ths->pFsm, &rpcMsg, cbMeta);
+          rpcFreeCont(rpcMsg.pCont);
+        }
+
+        syncEntryDestory(pRollBackEntry);
+      }
+    }
+
+    // delete confict entries
+    code = ths->pLogStore->syncLogTruncate(ths->pLogStore, extraIndex);
+    ASSERT(code == 0);
+  }
+
+  return 0;
+}
+
+static int32_t syncNodePreCommit(SSyncNode* ths, SSyncRaftEntry* pEntry) {
+  SRpcMsg rpcMsg;
+  syncEntry2OriginalRpc(pEntry, &rpcMsg);
+  if (ths->pFsm != NULL) {
+    if (ths->pFsm->FpPreCommitCb != NULL && syncUtilUserPreCommit(pEntry->originalRpcType)) {
+      SFsmCbMeta cbMeta;
+      cbMeta.index = pEntry->index;
+      cbMeta.isWeak = pEntry->isWeak;
+      cbMeta.code = 2;
+      cbMeta.state = ths->state;
+      cbMeta.seqNum = pEntry->seqNum;
+      ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, cbMeta);
+    }
+  }
+  rpcFreeCont(rpcMsg.pCont);
+  return 0;
+}
+
 int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
   int32_t ret = 0;
+  int32_t code = 0;
 
+  // print log
   char logBuf[128] = {0};
-  snprintf(logBuf, sizeof(logBuf), "==syncNodeOnAppendEntriesSnapshotCb== term:%lu", ths->pRaftStore->currentTerm);
+  snprintf(logBuf, sizeof(logBuf), "recv SyncAppendEntries, term:%lu", ths->pRaftStore->currentTerm);
   syncAppendEntriesLog2(logBuf, pMsg);
 
+  // maybe update term
   if (pMsg->term > ths->pRaftStore->currentTerm) {
     syncNodeUpdateTerm(ths, pMsg->term);
   }
-  assert(pMsg->term <= ths->pRaftStore->currentTerm);
+  ASSERT(pMsg->term <= ths->pRaftStore->currentTerm);
 
   // reset elect timer
   if (pMsg->term == ths->pRaftStore->currentTerm) {
     ths->leaderCache = pMsg->srcId;
     syncNodeResetElectTimer(ths);
   }
-  assert(pMsg->dataLen >= 0);
+  ASSERT(pMsg->dataLen >= 0);
 
-  SyncIndex localPreLogIndex;
-  SyncTerm  localPreLogTerm;
+  bool logOK = syncNodeOnAppendEntriesLogOK(ths, pMsg);
 
-  bool logOK;
-
-  SyncIndex logFirstIndex = logStoreFirstIndex(ths->pLogStore);
-  SSnapshot snapshot;
-  ths->pFsm->FpGetSnapshot(ths->pFsm, &snapshot);
-  if (logFirstIndex > snapshot.lastApplyIndex) {
-    logOK = false;
-
-  } else if (syncNodeIsIndexInSnapshot(ths, pMsg->prevLogIndex)) {
-    SSnapshot snapshot;
-    ths->pFsm->FpGetSnapshot(ths->pFsm, &snapshot);
-
-    // maybe this assert is error, because replica take takesnapshot separately
-    // leader will reset next index to newest
-    ASSERT(pMsg->prevLogIndex == snapshot.lastApplyIndex);
-
-    logOK = (pMsg->prevLogIndex == snapshot.lastApplyIndex) && (pMsg->prevLogTerm == snapshot.lastApplyTerm);
-    sTrace(
-        "1 - logOK:%d, pMsg->prevLogIndex:%ld, snapshot.lastApplyIndex:%ld, pMsg->prevLogTerm:%lu, "
-        "snapshot.lastApplyTerm:%lu",
-        logOK, pMsg->prevLogIndex, snapshot.lastApplyIndex, pMsg->prevLogTerm, snapshot.lastApplyTerm);
-
-  } else {
-    ret = syncNodeGetPreIndexTerm(ths, pMsg->prevLogIndex + 1, &localPreLogIndex, &localPreLogTerm);
-    ASSERT(ret == 0);
-
-    logOK = (pMsg->prevLogIndex == SYNC_INDEX_INVALID) ||
-            ((pMsg->prevLogIndex >= SYNC_INDEX_BEGIN) &&
-             (pMsg->prevLogIndex <= ths->pLogStore->getLastIndex(ths->pLogStore)) &&
-             (pMsg->prevLogTerm == localPreLogTerm));
-    sTrace("2 - logOK:%d, pMsg->prevLogIndex:%ld, getLastIndex:%ld, pMsg->prevLogTerm:%lu, localPreLogTerm:%lu", logOK,
-           pMsg->prevLogIndex, ths->pLogStore->getLastIndex(ths->pLogStore), pMsg->prevLogTerm, localPreLogTerm);
-  }
-
-  // reject request
+  // case1, reject request
   if ((pMsg->term < ths->pRaftStore->currentTerm) ||
       ((pMsg->term == ths->pRaftStore->currentTerm) && (ths->state == TAOS_SYNC_STATE_FOLLOWER) && !logOK)) {
-    sTrace(
-        "syncNodeOnAppendEntriesSnapshotCb --> reject, pMsg->term:%lu, ths->pRaftStore->currentTerm:%lu, "
-        "ths->state:%d, "
-        "logOK:%d",
-        pMsg->term, ths->pRaftStore->currentTerm, ths->state, logOK);
+    sTrace("recv SyncAppendEntries, reject, receive_term:%lu, current_term:%lu, ths->state:%d, logOK:%d", pMsg->term,
+           ths->pRaftStore->currentTerm, ths->state, logOK);
 
+    // send response
     SyncAppendEntriesReply* pReply = syncAppendEntriesReplyBuild(ths->vgId);
     pReply->srcId = ths->myRaftId;
     pReply->destId = pMsg->srcId;
@@ -513,27 +575,10 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
     return ret;
   }
 
-  SyncIndex localLastIndex;
-  SyncTerm  localLastTerm;
-  if (logFirstIndex == SYNC_INDEX_INVALID) {
-    localLastIndex = ths->pLogStore->getLastIndex(ths->pLogStore);
-    localLastTerm = ths->pLogStore->getLastTerm(ths->pLogStore);
-
-  } else if (logFirstIndex > snapshot.lastApplyIndex) {
-    localLastIndex = ths->pLogStore->getLastIndex(ths->pLogStore);
-    localLastTerm = ths->pLogStore->getLastTerm(ths->pLogStore);
-
-  } else {
-    ret = syncNodeGetLastIndexTerm(ths, &localLastIndex, &localLastTerm);
-    ASSERT(ret == 0);
-  }
-
-  // return to follower state
+  // case 2, return to follower state
   if (pMsg->term == ths->pRaftStore->currentTerm && ths->state == TAOS_SYNC_STATE_CANDIDATE) {
-    sTrace(
-        "syncNodeOnAppendEntriesSnapshotCb --> return to follower, pMsg->term:%lu, ths->pRaftStore->currentTerm:%lu, "
-        "ths->state:%d, logOK:%d",
-        pMsg->term, ths->pRaftStore->currentTerm, ths->state, logOK);
+    sTrace("recv SyncAppendEntries, return to follower, receive_term:%lu, current_term:%lu, ths->state:%d, logOK:%d",
+           pMsg->term, ths->pRaftStore->currentTerm, ths->state, logOK);
 
     syncNodeBecomeFollower(ths);
 
@@ -541,99 +586,35 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
     return ret;
   }
 
-  // accept request
+  // case 3, accept request
   if (pMsg->term == ths->pRaftStore->currentTerm && ths->state == TAOS_SYNC_STATE_FOLLOWER && logOK) {
-    // preIndex = -1, or has preIndex entry in local log
-    assert(pMsg->prevLogIndex <= localLastIndex);
-
     // has extra entries (> preIndex) in local log
-    bool hasExtraEntries = pMsg->prevLogIndex < localLastIndex;
+    SyncIndex myLastIndex = syncNodeGetLastIndex(ths);
+    bool      hasExtraEntries = myLastIndex > pMsg->prevLogIndex;
 
     // has entries in SyncAppendEntries msg
     bool hasAppendEntries = pMsg->dataLen > 0;
 
     sTrace(
-        "syncNodeOnAppendEntriesSnapshotCb --> accept, pMsg->term:%lu, ths->pRaftStore->currentTerm:%lu, "
-        "ths->state:%d, "
-        "logOK:%d, hasExtraEntries:%d, hasAppendEntries:%d",
+        "recv SyncAppendEntries, accept, receive_term:%lu, current_term:%lu, ths->state:%d, logOK:%d, "
+        "hasExtraEntries:%d, hasAppendEntries:%d",
         pMsg->term, ths->pRaftStore->currentTerm, ths->state, logOK, hasExtraEntries, hasAppendEntries);
 
     if (hasExtraEntries && hasAppendEntries) {
-      // not conflict by default
-      bool conflict = false;
+      // make log same
+      SSyncRaftEntry* pAppendEntry;
+      code = syncNodeMakeLogSame(ths, pMsg, &pAppendEntry);
+      ASSERT(code == 0);
+      ASSERT(pAppendEntry != NULL);
 
-      SyncIndex       extraIndex = pMsg->prevLogIndex + 1;
-      SSyncRaftEntry* pExtraEntry = ths->pLogStore->getEntry(ths->pLogStore, extraIndex);
-      assert(pExtraEntry != NULL);
+      // append new entries
+      code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pAppendEntry);
+      ASSERT(code == 0);
 
-      SSyncRaftEntry* pAppendEntry = syncEntryDeserialize(pMsg->data, pMsg->dataLen);
-      assert(pAppendEntry != NULL);
+      // pre commit
+      code = syncNodePreCommit(ths, pAppendEntry);
+      ASSERT(code == 0);
 
-      // log not match, conflict
-      assert(extraIndex == pAppendEntry->index);
-      if (pExtraEntry->term != pAppendEntry->term) {
-        conflict = true;
-      }
-
-      if (conflict) {
-        // roll back
-        SyncIndex delBegin = ths->pLogStore->getLastIndex(ths->pLogStore);
-        SyncIndex delEnd = extraIndex;
-
-        sTrace("syncNodeOnAppendEntriesSnapshotCb --> conflict:%d, delBegin:%ld, delEnd:%ld", conflict, delBegin,
-               delEnd);
-
-        // notice! reverse roll back!
-        for (SyncIndex index = delEnd; index >= delBegin; --index) {
-          if (ths->pFsm->FpRollBackCb != NULL) {
-            SSyncRaftEntry* pRollBackEntry = ths->pLogStore->getEntry(ths->pLogStore, index);
-            assert(pRollBackEntry != NULL);
-
-            // if (pRollBackEntry->msgType != TDMT_VND_SYNC_NOOP) {
-            if (syncUtilUserRollback(pRollBackEntry->msgType)) {
-              SRpcMsg rpcMsg;
-              syncEntry2OriginalRpc(pRollBackEntry, &rpcMsg);
-
-              SFsmCbMeta cbMeta;
-              cbMeta.index = pRollBackEntry->index;
-              cbMeta.isWeak = pRollBackEntry->isWeak;
-              cbMeta.code = 0;
-              cbMeta.state = ths->state;
-              cbMeta.seqNum = pRollBackEntry->seqNum;
-              ths->pFsm->FpRollBackCb(ths->pFsm, &rpcMsg, cbMeta);
-              rpcFreeCont(rpcMsg.pCont);
-            }
-
-            syncEntryDestory(pRollBackEntry);
-          }
-        }
-
-        // delete confict entries
-        ths->pLogStore->truncate(ths->pLogStore, extraIndex);
-
-        // append new entries
-        ths->pLogStore->appendEntry(ths->pLogStore, pAppendEntry);
-
-        // pre commit
-        SRpcMsg rpcMsg;
-        syncEntry2OriginalRpc(pAppendEntry, &rpcMsg);
-        if (ths->pFsm != NULL) {
-          // if (ths->pFsm->FpPreCommitCb != NULL && pAppendEntry->originalRpcType != TDMT_VND_SYNC_NOOP) {
-          if (ths->pFsm->FpPreCommitCb != NULL && syncUtilUserPreCommit(pAppendEntry->originalRpcType)) {
-            SFsmCbMeta cbMeta;
-            cbMeta.index = pAppendEntry->index;
-            cbMeta.isWeak = pAppendEntry->isWeak;
-            cbMeta.code = 2;
-            cbMeta.state = ths->state;
-            cbMeta.seqNum = pAppendEntry->seqNum;
-            ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, cbMeta);
-          }
-        }
-        rpcFreeCont(rpcMsg.pCont);
-      }
-
-      // free memory
-      syncEntryDestory(pExtraEntry);
       syncEntryDestory(pAppendEntry);
 
     } else if (hasExtraEntries && !hasAppendEntries) {
@@ -641,38 +622,26 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
 
     } else if (!hasExtraEntries && hasAppendEntries) {
       SSyncRaftEntry* pAppendEntry = syncEntryDeserialize(pMsg->data, pMsg->dataLen);
-      assert(pAppendEntry != NULL);
+      ASSERT(pAppendEntry != NULL);
 
       // append new entries
-      ths->pLogStore->appendEntry(ths->pLogStore, pAppendEntry);
+      code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pAppendEntry);
+      ASSERT(code == 0);
 
       // pre commit
-      SRpcMsg rpcMsg;
-      syncEntry2OriginalRpc(pAppendEntry, &rpcMsg);
-      if (ths->pFsm != NULL) {
-        // if (ths->pFsm->FpPreCommitCb != NULL && pAppendEntry->originalRpcType != TDMT_VND_SYNC_NOOP) {
-        if (ths->pFsm->FpPreCommitCb != NULL && syncUtilUserPreCommit(pAppendEntry->originalRpcType)) {
-          SFsmCbMeta cbMeta;
-          cbMeta.index = pAppendEntry->index;
-          cbMeta.isWeak = pAppendEntry->isWeak;
-          cbMeta.code = 3;
-          cbMeta.state = ths->state;
-          cbMeta.seqNum = pAppendEntry->seqNum;
-          ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, cbMeta);
-        }
-      }
-      rpcFreeCont(rpcMsg.pCont);
+      code = syncNodePreCommit(ths, pAppendEntry);
+      ASSERT(code == 0);
 
-      // free memory
       syncEntryDestory(pAppendEntry);
 
     } else if (!hasExtraEntries && !hasAppendEntries) {
       // do nothing
 
     } else {
-      assert(0);
+      ASSERT(0);
     }
 
+    // prepare response msg
     SyncAppendEntriesReply* pReply = syncAppendEntriesReplyBuild(ths->vgId);
     pReply->srcId = ths->myRaftId;
     pReply->destId = pMsg->srcId;
@@ -685,6 +654,7 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
       pReply->matchIndex = pMsg->prevLogIndex;
     }
 
+    // send response
     SRpcMsg rpcMsg;
     syncAppendEntriesReply2RpcMsg(pReply, &rpcMsg);
     syncNodeSendMsgById(&pReply->destId, ths, &rpcMsg);
@@ -693,7 +663,7 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
     // maybe update commit index from leader
     if (pMsg->commitIndex > ths->commitIndex) {
       // has commit entry in local
-      if (pMsg->commitIndex <= ths->pLogStore->getLastIndex(ths->pLogStore)) {
+      if (pMsg->commitIndex <= ths->pLogStore->syncLogLastIndex(ths->pLogStore)) {
         SyncIndex beginIndex = ths->commitIndex + 1;
         SyncIndex endIndex = pMsg->commitIndex;
 
@@ -701,122 +671,11 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
         ths->commitIndex = pMsg->commitIndex;
 
         // call back Wal
-        ths->pLogStore->updateCommitIndex(ths->pLogStore, ths->commitIndex);
+        code = ths->pLogStore->updateCommitIndex(ths->pLogStore, ths->commitIndex);
+        ASSERT(code == 0);
 
-        // execute fsm
-        if (ths->pFsm != NULL) {
-          for (SyncIndex i = beginIndex; i <= endIndex; ++i) {
-            // notice! wal maybe deleted, update firstVer
-            SyncIndex walFirstVer = walGetFirstVer(ths->pWal);
-
-            if (i != SYNC_INDEX_INVALID && i >= walFirstVer) {
-              SSyncRaftEntry* pEntry = ths->pLogStore->getEntry(ths->pLogStore, i);
-              assert(pEntry != NULL);
-
-              SRpcMsg rpcMsg;
-              syncEntry2OriginalRpc(pEntry, &rpcMsg);
-
-              if (ths->pFsm->FpCommitCb != NULL && syncUtilUserCommit(pEntry->originalRpcType)) {
-                SFsmCbMeta cbMeta;
-                cbMeta.index = pEntry->index;
-                cbMeta.isWeak = pEntry->isWeak;
-                cbMeta.code = 0;
-                cbMeta.state = ths->state;
-                cbMeta.seqNum = pEntry->seqNum;
-                cbMeta.term = pEntry->term;
-                cbMeta.currentTerm = ths->pRaftStore->currentTerm;
-                cbMeta.flag = 0x11;
-
-                SSnapshot snapshot;
-                ASSERT(ths->pFsm->FpGetSnapshot != NULL);
-                ths->pFsm->FpGetSnapshot(ths->pFsm, &snapshot);
-
-                bool needExecute = true;
-                if (cbMeta.index <= snapshot.lastApplyIndex) {
-                  needExecute = false;
-                }
-
-                if (needExecute) {
-                  ths->pFsm->FpCommitCb(ths->pFsm, &rpcMsg, cbMeta);
-                }
-              }
-
-              // config change
-              if (pEntry->originalRpcType == TDMT_VND_SYNC_CONFIG_CHANGE) {
-                SSyncCfg oldSyncCfg = ths->pRaftCfg->cfg;
-
-                SSyncCfg newSyncCfg;
-                int32_t  ret = syncCfgFromStr(rpcMsg.pCont, &newSyncCfg);
-                ASSERT(ret == 0);
-
-                // update new config myIndex
-                bool hit = false;
-                for (int i = 0; i < newSyncCfg.replicaNum; ++i) {
-                  if (strcmp(ths->myNodeInfo.nodeFqdn, (newSyncCfg.nodeInfo)[i].nodeFqdn) == 0 &&
-                      ths->myNodeInfo.nodePort == (newSyncCfg.nodeInfo)[i].nodePort) {
-                    newSyncCfg.myIndex = i;
-                    hit = true;
-                    break;
-                  }
-                }
-
-                SReConfigCbMeta cbMeta = {0};
-                bool            isDrop;
-
-                // I am in newConfig
-                if (hit) {
-                  syncNodeUpdateConfig(ths, &newSyncCfg, &isDrop);
-
-                  // change isStandBy to normal
-                  if (!isDrop) {
-                    if (ths->state == TAOS_SYNC_STATE_LEADER) {
-                      syncNodeBecomeLeader(ths);
-                    } else {
-                      syncNodeBecomeFollower(ths);
-                    }
-                  }
-
-                  char* sOld = syncCfg2Str(&oldSyncCfg);
-                  char* sNew = syncCfg2Str(&newSyncCfg);
-                  sInfo("==config change== 0x11 old:%s new:%s isDrop:%d \n", sOld, sNew, isDrop);
-                  taosMemoryFree(sOld);
-                  taosMemoryFree(sNew);
-                }
-
-                // always call FpReConfigCb
-                if (ths->pFsm->FpReConfigCb != NULL) {
-                  cbMeta.code = 0;
-                  cbMeta.currentTerm = ths->pRaftStore->currentTerm;
-                  cbMeta.index = pEntry->index;
-                  cbMeta.term = pEntry->term;
-                  cbMeta.oldCfg = oldSyncCfg;
-                  cbMeta.flag = 0x11;
-                  cbMeta.isDrop = isDrop;
-                  ths->pFsm->FpReConfigCb(ths->pFsm, newSyncCfg, cbMeta);
-                }
-              }
-
-              // restore finish
-              if (pEntry->index == ths->pLogStore->getLastIndex(ths->pLogStore)) {
-                if (ths->restoreFinish == false) {
-                  if (ths->pFsm->FpRestoreFinishCb != NULL) {
-                    ths->pFsm->FpRestoreFinishCb(ths->pFsm);
-                  }
-                  ths->restoreFinish = true;
-                  sInfo("==syncNodeOnAppendEntriesSnapshotCb== restoreFinish set true %p vgId:%d", ths, ths->vgId);
-
-                  /*
-                  tsem_post(&ths->restoreSem);
-                  sInfo("==syncNodeOnAppendEntriesSnapshotCb== RestoreFinish tsem_post %p", ths);
-                  */
-                }
-              }
-
-              rpcFreeCont(rpcMsg.pCont);
-              syncEntryDestory(pEntry);
-            }
-          }
-        }
+        code = syncNodeCommit(ths, beginIndex, endIndex, 0x11);
+        ASSERT(code == 0);
       }
     }
   }

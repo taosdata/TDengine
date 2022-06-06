@@ -76,7 +76,7 @@ void test1() {
   gSnapshotLastApplyIndex = -1;
   gSnapshotLastApplyTerm = 0;
 
-  bool hasSnapshot = syncNodeHasSnapshot(pSyncNode);
+  bool      hasSnapshot = syncNodeHasSnapshot(pSyncNode);
   SSnapshot snapshot;
   pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
 
@@ -90,7 +90,8 @@ void test1() {
   SyncIndex syncStartIndex = syncNodeSyncStartIndex(pSyncNode);
 
   sTrace("test1");
-  sTrace("hasSnapshot:%d, lastApplyIndex:%ld, lastApplyTerm:%lu", hasSnapshot, snapshot.lastApplyIndex, snapshot.lastApplyTerm);
+  sTrace("hasSnapshot:%d, lastApplyIndex:%ld, lastApplyTerm:%lu", hasSnapshot, snapshot.lastApplyIndex,
+         snapshot.lastApplyTerm);
   sTrace("lastIndex: %ld", lastIndex);
   sTrace("lastTerm: %lu", lastTerm);
   sTrace("syncStartIndex: %ld", syncStartIndex);
@@ -133,7 +134,7 @@ void test2() {
   gSnapshotLastApplyIndex = -1;
   gSnapshotLastApplyTerm = 0;
 
-  bool hasSnapshot = syncNodeHasSnapshot(pSyncNode);
+  bool      hasSnapshot = syncNodeHasSnapshot(pSyncNode);
   SSnapshot snapshot;
   pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
 
@@ -143,7 +144,8 @@ void test2() {
   SyncIndex syncStartIndex = syncNodeSyncStartIndex(pSyncNode);
 
   sTrace("test2");
-  sTrace("hasSnapshot:%d, lastApplyIndex:%ld, lastApplyTerm:%lu", hasSnapshot, snapshot.lastApplyIndex, snapshot.lastApplyTerm);
+  sTrace("hasSnapshot:%d, lastApplyIndex:%ld, lastApplyTerm:%lu", hasSnapshot, snapshot.lastApplyIndex,
+         snapshot.lastApplyTerm);
   sTrace("lastIndex: %ld", lastIndex);
   sTrace("lastTerm: %lu", lastTerm);
   sTrace("syncStartIndex: %ld", syncStartIndex);
@@ -158,7 +160,6 @@ void test2() {
 
   logStoreDestory(pLogStore);
   cleanup();
-
 }
 
 void test3() {
@@ -176,7 +177,7 @@ void test3() {
   gSnapshotLastApplyIndex = 5;
   gSnapshotLastApplyTerm = 100;
 
-  bool hasSnapshot = syncNodeHasSnapshot(pSyncNode);
+  bool      hasSnapshot = syncNodeHasSnapshot(pSyncNode);
   SSnapshot snapshot;
   pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
 
@@ -189,7 +190,8 @@ void test3() {
   SyncIndex syncStartIndex = syncNodeSyncStartIndex(pSyncNode);
 
   sTrace("test3");
-  sTrace("hasSnapshot:%d, lastApplyIndex:%ld, lastApplyTerm:%lu", hasSnapshot, snapshot.lastApplyIndex, snapshot.lastApplyTerm);
+  sTrace("hasSnapshot:%d, lastApplyIndex:%ld, lastApplyTerm:%lu", hasSnapshot, snapshot.lastApplyIndex,
+         snapshot.lastApplyTerm);
   sTrace("lastIndex: %ld", lastIndex);
   sTrace("lastTerm: %lu", lastTerm);
   sTrace("syncStartIndex: %ld", syncStartIndex);
@@ -232,7 +234,7 @@ void test4() {
   gSnapshotLastApplyIndex = 5;
   gSnapshotLastApplyTerm = 100;
 
-  bool hasSnapshot = syncNodeHasSnapshot(pSyncNode);
+  bool      hasSnapshot = syncNodeHasSnapshot(pSyncNode);
   SSnapshot snapshot;
   pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
 
@@ -242,7 +244,8 @@ void test4() {
   SyncIndex syncStartIndex = syncNodeSyncStartIndex(pSyncNode);
 
   sTrace("test4");
-  sTrace("hasSnapshot:%d, lastApplyIndex:%ld, lastApplyTerm:%lu", hasSnapshot, snapshot.lastApplyIndex, snapshot.lastApplyTerm);
+  sTrace("hasSnapshot:%d, lastApplyIndex:%ld, lastApplyTerm:%lu", hasSnapshot, snapshot.lastApplyIndex,
+         snapshot.lastApplyTerm);
   sTrace("lastIndex: %ld", lastIndex);
   sTrace("lastTerm: %lu", lastTerm);
   sTrace("syncStartIndex: %ld", syncStartIndex);
@@ -292,7 +295,7 @@ void test5() {
   gSnapshotLastApplyIndex = 5;
   gSnapshotLastApplyTerm = 100;
 
-  bool hasSnapshot = syncNodeHasSnapshot(pSyncNode);
+  bool      hasSnapshot = syncNodeHasSnapshot(pSyncNode);
   SSnapshot snapshot;
   pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
 
@@ -302,7 +305,8 @@ void test5() {
   SyncIndex syncStartIndex = syncNodeSyncStartIndex(pSyncNode);
 
   sTrace("test5");
-  sTrace("hasSnapshot:%d, lastApplyIndex:%ld, lastApplyTerm:%lu", hasSnapshot, snapshot.lastApplyIndex, snapshot.lastApplyTerm);
+  sTrace("hasSnapshot:%d, lastApplyIndex:%ld, lastApplyTerm:%lu", hasSnapshot, snapshot.lastApplyIndex,
+         snapshot.lastApplyTerm);
   sTrace("lastIndex: %ld", lastIndex);
   sTrace("lastTerm: %lu", lastTerm);
   sTrace("syncStartIndex: %ld", syncStartIndex);
