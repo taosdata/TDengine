@@ -395,7 +395,7 @@ class TDDnode:
 
     def stop(self):
         if (not self.remoteIP == ""):
-            self.remoteExec(self.cfgDict, "tdDnodes.stop(%d)"%self.index)
+            self.remoteExec(self.cfgDict, "tdDnodes.dnodes[%d].running=1\ntdDnodes.dnodes[%d].stop()"%(self.index-1,self.index-1))
             tdLog.info("stop dnode%d"%self.index)
             return
         if self.valgrind == 0:
@@ -426,7 +426,7 @@ class TDDnode:
 
     def forcestop(self):
         if (not self.remoteIP == ""):
-            self.remoteExec(self.cfgDict, "tdDnodes.forcestop(%d)"%self.index)
+            self.remoteExec(self.cfgDict, "tdDnodes.dnodes[%d].running=1\ntdDnodes.dnodes[%d].forcestop()"%(self.index-1,self.index-1))
             return
         if self.valgrind == 0:
             toBeKilled = "taosd"
