@@ -580,7 +580,6 @@ void schedulerExecCb(SQueryResult* pResult, void* param, int32_t code) {
 
   STscObj* pTscObj = pRequest->pTscObj;
   if (code != TSDB_CODE_SUCCESS && NEED_CLIENT_HANDLE_ERROR(code)) {
-    // todo do nothing in clear value in request
     tscDebug("0x%"PRIx64" client retry to handle the error, code:%s, reqId:0x%"PRIx64, pRequest->self, tstrerror(code), pRequest->requestId);
     pRequest->prevCode = code;
     doAsyncQuery(pRequest, true);
@@ -696,9 +695,6 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery) {
       if (TSDB_CODE_SUCCESS == code) {
         schedulerAsyncExecJob(pAppInfo->pTransporter, pNodeList, pRequest->body.pDag, &pRequest->body.queryJob,
                               pRequest->sqlstr, pRequest->metric.start, schedulerExecCb, pRequest);
-        //        if (NULL != pRes) {
-        //          code = validateSversion(pRequest, pRes);
-        //        }
       }
 
       //todo not to be released here

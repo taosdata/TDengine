@@ -634,7 +634,7 @@ void retrieveMetaCallback(SMetaData* pResultMeta, void* param, int32_t code) {
 
     // return to app directly
     taosMemoryFree(pWrapper);
-    tscError("0x%" PRIx64 " error occurs, code:%s, return to user app, reqId:%" PRIx64, pRequest->self, tstrerror(code),
+    tscError("0x%" PRIx64 " error occurs, code:%s, return to user app, reqId:0x%" PRIx64, pRequest->self, tstrerror(code),
              pRequest->requestId);
     pRequest->code = code;
     pRequest->body.queryFp(pRequest->body.param, pRequest, code);
