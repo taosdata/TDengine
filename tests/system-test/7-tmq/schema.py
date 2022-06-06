@@ -29,8 +29,8 @@ class TDTestCase:
 
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
-        #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
+        #tdSql.init(conn.cursor())
+        tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -282,7 +282,7 @@ class TDTestCase:
         tdSql.execute("create topic %s as select ts, c1, c2, t1, t2 from %s.%s" %(columnTopicFromStb, parameterDict['dbName'], parameterDict['stbName']))
         tdSql.execute("create topic %s as select ts, c1, c2 from %s.%s" %(columnTopicFromNtb, parameterDict['dbName'], ntbName))
         
-        tsLog.info("======== super table test:")
+        tdLog.info("======== super table test:")
         # alter actions prohibited: drop column/tag, modify column/tag type, rename column/tag included in topic
         tdSql.error("alter table %s.%s drop column c1"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.error("alter table %s.%s drop column c2"%(parameterDict['dbName'], parameterDict['stbName']))
@@ -316,7 +316,7 @@ class TDTestCase:
         tdSql.query("alter table %s.%s add tag t3 int"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s add tag t4 float"%(parameterDict['dbName'], parameterDict['stbName']))
 
-        tsLog.info("======== normal table test:")
+        tdLog.info("======== normal table test:")
         # alter actions prohibited: drop column/tag, modify column/tag type, rename column/tag included in topic
         tdSql.error("alter table %s.%s drop column c1"%(parameterDict['dbName'], ntbName))
         tdSql.error("alter table %s.%s drop column c2"%(parameterDict['dbName'], ntbName))
@@ -419,7 +419,7 @@ class TDTestCase:
         tdSql.execute("create topic %s as select ts, c1, c2, t1, t2 from %s.%s where c3 > 3 and c4 like 'abc' and t3 = 5 and t4 = 'beijing'" %(columnTopicFromStb, parameterDict['dbName'], parameterDict['stbName']))
         tdSql.execute("create topic %s as select ts, c1, c2 from %s.%s where c3 > 3 and c4 like 'abc'" %(columnTopicFromNtb, parameterDict['dbName'], ntbName))
         
-        tsLog.info("======== super table test:")
+        tdLog.info("======== super table test:")
         # alter actions prohibited: drop column/tag, modify column/tag type, rename column/tag included in topic
         tdSql.error("alter table %s.%s drop column c1"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.error("alter table %s.%s drop column c2"%(parameterDict['dbName'], parameterDict['stbName']))
@@ -457,7 +457,7 @@ class TDTestCase:
         tdSql.query("alter table %s.%s add column c5 int"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s add tag t5 float"%(parameterDict['dbName'], parameterDict['stbName']))
 
-        tsLog.info("======== normal table test:")
+        tdLog.info("======== normal table test:")
         # alter actions prohibited: drop column/tag, modify column/tag type, rename column/tag included in topic
         tdSql.error("alter table %s.%s drop column c1"%(parameterDict['dbName'], ntbName))
         tdSql.error("alter table %s.%s drop column c2"%(parameterDict['dbName'], ntbName))
@@ -566,7 +566,7 @@ class TDTestCase:
         tdSql.execute("create topic %s as select * from %s.%s" %(columnTopicFromStb, parameterDict['dbName'], parameterDict['stbName']))
         tdSql.execute("create topic %s as select * from %s.%s " %(columnTopicFromNtb, parameterDict['dbName'], ntbName))
         
-        tsLog.info("======== super table test:")
+        tdLog.info("======== super table test:")
         # alter actions prohibited: drop column/tag, modify column/tag type, rename column/tag included in topic
         tdSql.error("alter table %s.%s drop column c1"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.error("alter table %s.%s drop column c2"%(parameterDict['dbName'], parameterDict['stbName']))
@@ -601,7 +601,7 @@ class TDTestCase:
         tdSql.query("alter table %s.%s add column c6 int"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s add tag t6 float"%(parameterDict['dbName'], parameterDict['stbName']))
 
-        tsLog.info("======== normal table test:")
+        tdLog.info("======== normal table test:")
         # alter actions prohibited: drop column/tag, modify column/tag type, rename column/tag included in topic
         tdSql.error("alter table %s.%s drop column c1"%(parameterDict['dbName'], ntbName))
         tdSql.error("alter table %s.%s drop column c2"%(parameterDict['dbName'], ntbName))
@@ -687,8 +687,8 @@ class TDTestCase:
         tdLog.info("cfgPath: %s" % cfgPath)
 
         self.tmqCase1(cfgPath, buildPath)
-        self.tmqCase2(cfgPath, buildPath) 
-        self.tmqCase3(cfgPath, buildPath)
+        # self.tmqCase2(cfgPath, buildPath) 
+        # self.tmqCase3(cfgPath, buildPath)
 
     def stop(self):
         tdSql.close()
