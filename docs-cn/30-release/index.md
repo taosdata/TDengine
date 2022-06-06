@@ -1,5 +1,5 @@
 ---
-title: FAQ 及其他
+title: 发布历史
 ---
 
 ```mdx-code-block
