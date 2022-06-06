@@ -5,10 +5,10 @@ title: Connect with Python Connector
 
 ## Install Connector
 
-First, you need to install the `taospy` module. Run the command below in your terminal.
+First, you need to install the `taospy` module version >= `2.3.3`. Run the command below in your terminal.
 
 ```
-pip3 install taospy
+pip3 install taospy>=2.3.3
 ```
 
 You'll need to have Python3 installed.
