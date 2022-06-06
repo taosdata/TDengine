@@ -11,7 +11,7 @@ Build with Maven
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>2.0.38</version>
+  <version>2.0.39</version>
 </dependency>
 ```
 
