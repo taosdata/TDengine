@@ -1003,7 +1003,7 @@ int32_t shellExecute() {
 
   taosSetSignal(SIGINT, shellSigintHandler);
 
-  shellGetGrantInfo(shell.conn);
+  shellGetGrantInfo();
 
   while (1) {
     taosThreadCreate(&shell.pid, NULL, shellThreadLoop, shell.conn);

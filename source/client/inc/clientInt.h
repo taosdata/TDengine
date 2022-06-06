@@ -45,7 +45,7 @@ extern "C" {
 
 #define ERROR_MSG_BUF_DEFAULT_SIZE 512
 #define HEARTBEAT_INTERVAL         1500  // ms
-#define SYNC_ON_TOP_OF_ASYNC       0
+#define SYNC_ON_TOP_OF_ASYNC       1
 
 enum {
   RES_TYPE__QUERY = 1,
@@ -274,7 +274,7 @@ int32_t  releaseTscObj(int64_t rid);
 
 uint64_t generateRequestId();
 
-void*        createRequest(STscObj* pObj, void* param, int32_t type);
+void*        createRequest(STscObj* pObj, int32_t type);
 void         destroyRequest(SRequestObj* pRequest);
 SRequestObj* acquireRequest(int64_t rid);
 int32_t      releaseRequest(int64_t rid);

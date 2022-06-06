@@ -133,7 +133,7 @@ TAOS* taos_connect_internal(const char* ip, const char* user, const char* pass, 
 }
 
 int32_t buildRequest(STscObj* pTscObj, const char* sql, int sqlLen, SRequestObj** pRequest) {
-  *pRequest = createRequest(pTscObj, NULL, TSDB_SQL_SELECT);
+  *pRequest = createRequest(pTscObj, TSDB_SQL_SELECT);
   if (*pRequest == NULL) {
     tscError("failed to malloc sqlObj");
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -207,6 +207,7 @@ int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
     code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false, false);
   }
+
   return code;
 }
 
@@ -233,6 +234,30 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
 
 static SAppInstInfo* getAppInfo(SRequestObj* pRequest) {
   return pRequest->pTscObj->pAppInfo;
+}
+
+void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
+  SRetrieveTableRsp* pRsp = NULL;
+
+  int32_t code = qExecCommand(pQuery->pRoot, &pRsp);
+  if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
+    code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false, false);
+  }
+
+  SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
+
+  if (pRequest->code != TSDB_CODE_SUCCESS) {
+    pResultInfo->numOfRows = 0;
+    pRequest->code = code;
+    tscError("0x%" PRIx64 " fetch results failed, code:%s, reqId:0x%" PRIx64, pRequest->self, tstrerror(code),
+             pRequest->requestId);
+  } else {
+    tscDebug("0x%" PRIx64 " fetch results, numOfRows:%d total Rows:%" PRId64 ", complete:%d, reqId:0x%" PRIx64,
+             pRequest->self, pResultInfo->numOfRows, pResultInfo->totalRows, pResultInfo->completed,
+             pRequest->requestId);
+  }
+
+  pRequest->body.fetchFp(pRequest->body.param, pRequest, pResultInfo->numOfRows);
 }
 
 int32_t asyncExecDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
@@ -617,13 +642,12 @@ SRequestObj* launchQuery(STscObj* pTscObj, const char* sql, int sqlLen) {
 }
 
 void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery) {
-  void* pRes = NULL;
-
   int32_t code = 0;
+
   switch (pQuery->execMode) {
     case QUERY_EXEC_MODE_LOCAL:
-      code = execLocalCmd(pRequest, pQuery);
-      break;
+      asyncExecLocalCmd(pRequest, pQuery);
+      return;
     case QUERY_EXEC_MODE_RPC:
       code = asyncExecDdlQuery(pRequest, pQuery);
       break;
@@ -654,6 +678,7 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery) {
         //        }
       }
 
+      //todo not to be released here
       taosArrayDestroy(pNodeList);
       break;
     }
@@ -671,12 +696,6 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery) {
   if (NULL != pRequest && TSDB_CODE_SUCCESS != code) {
     pRequest->code = terrno;
   }
-
-  //    if (res) {
-  //      *res = pRes;
-  //    } else {
-//  freeRequestRes(pRequest, pRes);
-//  pRes = NULL;
 }
 
 int32_t refreshMeta(STscObj* pTscObj, SRequestObj* pRequest) {
@@ -808,7 +827,7 @@ STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __t
     return pTscObj;
   }
 
-  SRequestObj* pRequest = createRequest(pTscObj, param, TDMT_MND_CONNECT);
+  SRequestObj* pRequest = createRequest(pTscObj, TDMT_MND_CONNECT);
   if (pRequest == NULL) {
     destroyTscObj(pTscObj);
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;

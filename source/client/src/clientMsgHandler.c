@@ -251,20 +251,22 @@ int32_t processAlterStbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
   if (code != TSDB_CODE_SUCCESS) {
     setErrno(pRequest, code);
-    tsem_post(&pRequest->body.rspSem);
-    return code;
+  } else {
+    SMAlterStbRsp alterRsp = {0};
+    SDecoder      coder = {0};
+    tDecoderInit(&coder, pMsg->pData, pMsg->len);
+    tDecodeSMAlterStbRsp(&coder, &alterRsp);
+    tDecoderClear(&coder);
+
+    pRequest->body.resInfo.execRes.msgType = TDMT_MND_ALTER_STB;
+    pRequest->body.resInfo.execRes.res = alterRsp.pMeta;
   }
 
-  SMAlterStbRsp alterRsp = {0};
-  SDecoder coder = {0};
-  tDecoderInit(&coder, pMsg->pData, pMsg->len);
-  tDecodeSMAlterStbRsp(&coder, &alterRsp);
-  tDecoderClear(&coder);
-
-  pRequest->body.resInfo.execRes.msgType = TDMT_MND_ALTER_STB;
-  pRequest->body.resInfo.execRes.res = alterRsp.pMeta;
-
-  tsem_post(&pRequest->body.rspSem);
+  if (pRequest->body.queryFp != NULL) {
+    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
+  } else {
+    tsem_post(&pRequest->body.rspSem);
+  }
   return code;
 }
 
