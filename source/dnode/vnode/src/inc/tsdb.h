@@ -226,10 +226,8 @@ struct SMemTable {
   SVBufPool *pPool;
   T_REF_DECLARE()
   SRWLatch   latch;
-  TSKEY      keyMin;
-  TSKEY      keyMax;
-  int64_t    minVer;
-  int64_t    maxVer;
+  TSDBKEY    minKey;
+  TSDBKEY    maxKey;
   int64_t    nRow;
   SSkipList *pSlIdx;  // SSkiplist<STbData>
   SHashObj  *pHashIdx;

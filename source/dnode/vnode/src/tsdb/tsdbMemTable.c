@@ -39,8 +39,8 @@ int tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable) {
   pMemTable->pPool = pTsdb->pVnode->inUse;
   T_REF_INIT_VAL(pMemTable, 1);
   taosInitRWLatch(&pMemTable->latch);
-  pMemTable->keyMin = TSKEY_MAX;
-  pMemTable->keyMax = TSKEY_MIN;
+  pMemTable->minKey = (TSDBKEY){.ts = TSKEY_MAX, .version = INT64_MAX};
+  pMemTable->maxKey = (TSDBKEY){.ts = TSKEY_MIN, .version = -1};
   pMemTable->nRow = 0;
   pMemTable->pSlIdx = tSkipListCreate(pVnode->config.tsdbCfg.slLevel, TSDB_DATA_TYPE_BIGINT, sizeof(tb_uid_t),
                                       tsdbTbDataComp, SL_DISCARD_DUP_KEY, tsdbTbDataGetUid);
@@ -309,8 +309,8 @@ int tsdbInsertTableData(STsdb *pTsdb, SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlo
   if (pTbData->maxKey.ts < keyMax) pTbData->maxKey.ts = keyMax;
 
   pMemTable->nRow += pMsgIter->numOfRows;
-  if (pMemTable->keyMin > keyMin) pMemTable->keyMin = keyMin;
-  if (pMemTable->keyMax < keyMax) pMemTable->keyMax = keyMax;
+  if (pMemTable->minKey.ts > keyMin) pMemTable->minKey.ts = keyMin;
+  if (pMemTable->maxKey.ts < keyMax) pMemTable->maxKey.ts = keyMax;
 
   pRsp->numOfRows = pMsgIter->numOfRows;
   pRsp->affectedRows = pMsgIter->numOfRows;
