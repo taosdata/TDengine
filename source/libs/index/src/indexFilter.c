@@ -171,8 +171,10 @@ static int32_t sifInitJsonParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
   param->colId = l->colId;
   param->colValType = l->node.resType.type;
   memcpy(param->dbName, l->dbName, sizeof(l->dbName));
-
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-overflow"
   sprintf(param->colName, "%s_%s", l->colName, r->literal);
+#pragma GCC diagnostic pop
   param->colValType = r->typeData;
   return 0;
   // memcpy(param->colName, l->colName, sizeof(l->colName));
