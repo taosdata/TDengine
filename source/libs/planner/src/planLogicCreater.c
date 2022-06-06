@@ -219,9 +219,9 @@ static int32_t makeScanLogicNode(SLogicPlanContext* pCxt, SRealTableNode* pRealT
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  // TSWAP(pScan->pMeta, pRealTable->pMeta);
   TSWAP(pScan->pVgroupList, pRealTable->pVgroupList);
   pScan->tableId = pRealTable->pMeta->uid;
+  pScan->stableId = pRealTable->pMeta->suid;
   pScan->tableType = pRealTable->pMeta->tableType;
   pScan->scanSeq[0] = hasRepeatScanFuncs ? 2 : 1;
   pScan->scanSeq[1] = 0;

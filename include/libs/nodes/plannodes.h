@@ -42,6 +42,7 @@ typedef struct SScanLogicNode {
   SNodeList*    pScanPseudoCols;
   int8_t        tableType;
   uint64_t      tableId;
+  uint64_t      stableId;
   SVgroupsInfo* pVgroupList;
   EScanType     scanType;
   uint8_t       scanSeq[2];  // first is scan count, and second is reverse scan count
@@ -109,6 +110,7 @@ typedef struct SExchangeLogicNode {
 typedef struct SMergeLogicNode {
   SLogicNode node;
   SNodeList* pMergeKeys;
+  SNodeList* pInputs;
   int32_t    numOfChannels;
   int32_t    srcGroupId;
 } SMergeLogicNode;
@@ -117,7 +119,7 @@ typedef enum EWindowType { WINDOW_TYPE_INTERVAL = 1, WINDOW_TYPE_SESSION, WINDOW
 
 typedef enum EIntervalAlgorithm {
   INTERVAL_ALGO_HASH = 1,
-  INTERVAL_ALGO_SORT_MERGE,
+  INTERVAL_ALGO_MERGE,
   INTERVAL_ALGO_STREAM_FINAL,
   INTERVAL_ALGO_STREAM_SEMI,
   INTERVAL_ALGO_STREAM_SINGLE,
@@ -220,6 +222,7 @@ typedef struct SScanPhysiNode {
   SNodeList* pScanCols;
   SNodeList* pScanPseudoCols;
   uint64_t   uid;  // unique id of the table
+  uint64_t   suid;
   int8_t     tableType;
   SName      tableName;
 } SScanPhysiNode;
@@ -296,6 +299,7 @@ typedef struct SExchangePhysiNode {
 typedef struct SMergePhysiNode {
   SPhysiNode node;
   SNodeList* pMergeKeys;
+  SNodeList* pTargets;
   int32_t    numOfChannels;
   int32_t    srcGroupId;
 } SMergePhysiNode;
@@ -319,7 +323,7 @@ typedef struct SIntervalPhysiNode {
   int8_t           slidingUnit;
 } SIntervalPhysiNode;
 
-typedef SIntervalPhysiNode SSortMergeIntervalPhysiNode;
+typedef SIntervalPhysiNode SMergeIntervalPhysiNode;
 typedef SIntervalPhysiNode SStreamIntervalPhysiNode;
 typedef SIntervalPhysiNode SStreamFinalIntervalPhysiNode;
 typedef SIntervalPhysiNode SStreamSemiIntervalPhysiNode;
