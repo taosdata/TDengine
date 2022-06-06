@@ -177,8 +177,8 @@ typedef struct {
 typedef struct SField {
   char    name[TSDB_COL_NAME_LEN];
   uint8_t type;
-  int32_t bytes;
   int8_t  flags;
+  int32_t bytes;
 } SField;
 
 typedef struct SRetention {
