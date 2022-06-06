@@ -500,7 +500,11 @@ int taos_fetch_block_s(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows) {
       return 0;
     }
 
-    doFetchRows(pRequest, false, true);
+#if SYNC_ON_TOP_OF_ASYNC
+    doAsyncFetchRow(pRequest, false, true);
+#else
+    doFetchRows(pRequest, true, true);
+#endif
 
     // TODO refactor
     SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
