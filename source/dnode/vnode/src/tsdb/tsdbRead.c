@@ -778,8 +778,10 @@ static bool initTableMemIterator(STsdbReadHandle* pHandle, STableCheckInfo* pChe
     return false;
   }
 
-  bool memEmpty = (pCheckInfo->iter == NULL) || (pCheckInfo->iter != NULL && !tsdbTbDataIterNext(pCheckInfo->iter));
-  bool imemEmpty = (pCheckInfo->iiter == NULL) || (pCheckInfo->iiter != NULL && !tsdbTbDataIterNext(pCheckInfo->iiter));
+  bool memEmpty =
+      (pCheckInfo->iter == NULL) || (pCheckInfo->iter != NULL && !tsdbTbDataIterGet(pCheckInfo->iter, NULL));
+  bool imemEmpty =
+      (pCheckInfo->iiter == NULL) || (pCheckInfo->iiter != NULL && !tsdbTbDataIterGet(pCheckInfo->iiter, NULL));
   if (memEmpty && imemEmpty) {  // buffer is empty
     return false;
   }
