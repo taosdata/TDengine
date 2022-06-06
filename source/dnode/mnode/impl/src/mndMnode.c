@@ -536,6 +536,7 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
 }
 
 int32_t mndSetDropMnodeInfoToTrans(SMnode *pMnode, STrans *pTrans, SMnodeObj *pObj) {
+  if (pObj == NULL) return 0;
   if (mndSetDropMnodeRedoLogs(pMnode, pTrans, pObj) != 0) return -1;
   if (mndSetDropMnodeCommitLogs(pMnode, pTrans, pObj) != 0) return -1;
   if (mndSetDropMnodeRedoActions(pMnode, pTrans, pObj->pDnode, pObj) != 0) return -1;
