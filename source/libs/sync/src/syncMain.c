@@ -1285,9 +1285,14 @@ bool syncNodeHasSnapshot(SSyncNode* pSyncNode) {
 }
 
 bool syncNodeIsIndexInSnapshot(SSyncNode* pSyncNode, SyncIndex index) {
+  ASSERT(syncNodeHasSnapshot(pSyncNode));
+  ASSERT(pSyncNode->pFsm->FpGetSnapshot != NULL);
+  ASSERT(index >= SYNC_INDEX_BEGIN);
+
   SSnapshot snapshot;
   pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
   bool b = (index <= snapshot.lastApplyIndex);
+
   return b;
 }
 
@@ -1303,18 +1308,33 @@ SyncIndex syncNodeGetLastIndex(SSyncNode* pSyncNode) {
 }
 
 SyncTerm syncNodeGetLastTerm(SSyncNode* pSyncNode) {
-  SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
-  if (pSyncNode->pFsm->FpGetSnapshot != NULL) {
-    pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
-  }
-  SyncIndex logLastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
-
   SyncTerm lastTerm = 0;
-  if (logLastIndex >= snapshot.lastApplyIndex) {
-    lastTerm = pSyncNode->pLogStore->syncLogLastTerm(pSyncNode->pLogStore);
+  if (syncNodeHasSnapshot(pSyncNode)) {
+    // has snapshot
+    SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
+    if (pSyncNode->pFsm->FpGetSnapshot != NULL) {
+      pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
+    }
+
+    if (pSyncNode->pLogStore->syncLogEntryCount(pSyncNode->pLogStore) > 0) {
+      // has log
+      SyncIndex logLastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
+      if (logLastIndex > snapshot.lastApplyIndex) {
+        lastTerm = pSyncNode->pLogStore->syncLogLastTerm(pSyncNode->pLogStore);
+      } else {
+        lastTerm = snapshot.lastApplyTerm;
+      }
+
+    } else {
+      // no log
+      lastTerm = snapshot.lastApplyTerm;
+    }
+
   } else {
-    lastTerm = snapshot.lastApplyTerm;
+    // no snapshot
+    lastTerm = pSyncNode->pLogStore->syncLogLastTerm(pSyncNode->pLogStore);
   }
+
   return lastTerm;
 }
 
@@ -1325,39 +1345,89 @@ int32_t syncNodeGetLastIndexTerm(SSyncNode* pSyncNode, SyncIndex* pLastIndex, Sy
   return 0;
 }
 
+SyncIndex syncNodeSyncStartIndex(SSyncNode* pSyncNode) {
+  SyncIndex syncStartIndex = syncNodeGetLastIndex(pSyncNode) + 1;
+  return syncStartIndex;
+}
+
 SyncIndex syncNodeGetPreIndex(SSyncNode* pSyncNode, SyncIndex index) {
   ASSERT(index >= SYNC_INDEX_BEGIN);
-  SyncIndex preIndex = index - 1;
+  SyncIndex syncStartIndex = syncNodeSyncStartIndex(pSyncNode);
+  ASSERT(index <= syncStartIndex);
+
+  SyncIndex preIndex;
+  if (syncNodeHasSnapshot(pSyncNode)) {
+    // has snapshot
+    SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
+    if (pSyncNode->pFsm->FpGetSnapshot != NULL) {
+      pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
+    }
+
+    ASSERT(index > snapshot.lastApplyIndex);
+    preIndex = index - 1;
+
+  } else {
+    // no snapshot
+    preIndex = index - 1;
+  }
+
   return preIndex;
 }
 
-SyncTerm syncNodeGetPreITerm(SSyncNode* pSyncNode, SyncIndex index) {
-  SyncTerm  preTerm = 0;
-  SyncIndex preIndex = syncNodeGetPreIndex(pSyncNode, index);
+SyncTerm syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index) {
+  ASSERT(index >= SYNC_INDEX_BEGIN);
+  SyncIndex syncStartIndex = syncNodeSyncStartIndex(pSyncNode);
+  ASSERT(index <= syncStartIndex);
 
-  SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
-  if (pSyncNode->pFsm->FpGetSnapshot != NULL) {
-    pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
+  if (index == SYNC_INDEX_BEGIN) {
+    return 0;
   }
 
-  if (syncNodeIsIndexInSnapshot(pSyncNode, preIndex) && preIndex == snapshot.lastApplyIndex) {
-    preTerm = snapshot.lastApplyTerm;
-  } else {
-    SSyncRaftEntry* pPreEntry = NULL;
-    int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, preIndex, &pPreEntry);
-    ASSERT(code == 0);
-    if (pPreEntry != NULL) {
+  SyncTerm preTerm = 0;
+  if (syncNodeHasSnapshot(pSyncNode)) {
+    // has snapshot
+    SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
+    if (pSyncNode->pFsm->FpGetSnapshot != NULL) {
+      pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
+    }
+
+    ASSERT(index > snapshot.lastApplyIndex);
+    if (index > snapshot.lastApplyIndex + 1) {
+      // should be log preTerm
+      SSyncRaftEntry* pPreEntry = NULL;
+      int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, index - 1, &pPreEntry);
+      ASSERT(code == 0);
+      ASSERT(pPreEntry != NULL);
+
       preTerm = pPreEntry->term;
       taosMemoryFree(pPreEntry);
+
+    } else if (index == snapshot.lastApplyIndex + 1) {
+      preTerm = snapshot.lastApplyTerm;
+    } else {
+      ASSERT(0);
     }
+
+  } else {
+    // no snapshot
+    ASSERT(index > SYNC_INDEX_BEGIN);
+
+    SSyncRaftEntry* pPreEntry = NULL;
+    int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, index - 1, &pPreEntry);
+    ASSERT(code == 0);
+    ASSERT(pPreEntry != NULL);
+
+    preTerm = pPreEntry->term;
+    taosMemoryFree(pPreEntry);
   }
+
   return preTerm;
 }
 
 // get pre index and term of "index"
 int32_t syncNodeGetPreIndexTerm(SSyncNode* pSyncNode, SyncIndex index, SyncIndex* pPreIndex, SyncTerm* pPreTerm) {
   *pPreIndex = syncNodeGetPreIndex(pSyncNode, index);
-  *pPreTerm = syncNodeGetPreITerm(pSyncNode, index);
+  *pPreTerm = syncNodeGetPreTerm(pSyncNode, index);
   return 0;
 }
 

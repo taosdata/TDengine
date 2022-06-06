@@ -437,11 +437,11 @@ cJSON* logStore2Json(SSyncLogStore* pLogStore) {
 
     snprintf(u64buf, sizeof(u64buf), "%ld", pData->beginIndex);
     cJSON_AddStringToObject(pRoot, "beginIndex", u64buf);
-    
+
     SyncIndex endIndex = raftLogEndIndex(pLogStore);
     snprintf(u64buf, sizeof(u64buf), "%ld", endIndex);
     cJSON_AddStringToObject(pRoot, "endIndex", u64buf);
-    
+
     int32_t count = raftLogEntryCount(pLogStore);
     cJSON_AddNumberToObject(pRoot, "entryCount", count);
 

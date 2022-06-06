@@ -34,7 +34,7 @@ int32_t GetSnapshotCb(struct SSyncFSM* pFsm, SSnapshot* pSnapshot) {
 
 void init() {
   walInit();
-  
+
   SWalCfg walCfg;
   memset(&walCfg, 0, sizeof(SWalCfg));
   walCfg.vgId = 1000;

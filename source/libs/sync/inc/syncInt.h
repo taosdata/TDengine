@@ -212,13 +212,17 @@ void syncNodeVoteForTerm(SSyncNode* pSyncNode, SyncTerm term, SRaftId* pRaftId);
 void syncNodeVoteForSelf(SSyncNode* pSyncNode);
 
 // snapshot --------------
-bool      syncNodeHasSnapshot(SSyncNode* pSyncNode);
-bool      syncNodeIsIndexInSnapshot(SSyncNode* pSyncNode, SyncIndex index);
+bool syncNodeHasSnapshot(SSyncNode* pSyncNode);
+bool syncNodeIsIndexInSnapshot(SSyncNode* pSyncNode, SyncIndex index);
+
 SyncIndex syncNodeGetLastIndex(SSyncNode* pSyncNode);
 SyncTerm  syncNodeGetLastTerm(SSyncNode* pSyncNode);
 int32_t   syncNodeGetLastIndexTerm(SSyncNode* pSyncNode, SyncIndex* pLastIndex, SyncTerm* pLastTerm);
+
+SyncIndex syncNodeSyncStartIndex(SSyncNode* pSyncNode);
+
 SyncIndex syncNodeGetPreIndex(SSyncNode* pSyncNode, SyncIndex index);
-SyncTerm  syncNodeGetPreITerm(SSyncNode* pSyncNode, SyncIndex index);
+SyncTerm  syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index);
 int32_t   syncNodeGetPreIndexTerm(SSyncNode* pSyncNode, SyncIndex index, SyncIndex* pPreIndex, SyncTerm* pPreTerm);
 
 // for debug --------------
