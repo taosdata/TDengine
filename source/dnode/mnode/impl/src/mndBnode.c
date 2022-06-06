@@ -299,7 +299,7 @@ static int32_t mndProcessCreateBnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (mndCheckNodeAuth(pUser)) {
+  if (mndCheckNodeAuth(pUser) != 0) {
     goto _OVER;
   }
 
@@ -409,7 +409,7 @@ static int32_t mndProcessDropBnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (mndCheckNodeAuth(pUser)) {
+  if (mndCheckNodeAuth(pUser) != 0) {
     goto _OVER;
   }
 

@@ -301,7 +301,7 @@ static int32_t mndProcessCreateQnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (mndCheckNodeAuth(pUser)) {
+  if (mndCheckNodeAuth(pUser) != 0) {
     goto _OVER;
   }
 
@@ -411,7 +411,7 @@ static int32_t mndProcessDropQnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (mndCheckNodeAuth(pUser)) {
+  if (mndCheckNodeAuth(pUser) != 0) {
     goto _OVER;
   }
 

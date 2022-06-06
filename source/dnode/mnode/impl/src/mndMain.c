@@ -529,7 +529,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
     SMonDnodeDesc desc = {0};
     desc.dnode_id = pObj->id;
     tstrncpy(desc.dnode_ep, pObj->ep, sizeof(desc.dnode_ep));
-    if (mndIsDnodeOnline(pMnode, pObj, ms)) {
+    if (mndIsDnodeOnline(pObj, ms)) {
       tstrncpy(desc.status, "ready", sizeof(desc.status));
     } else {
       tstrncpy(desc.status, "offline", sizeof(desc.status));

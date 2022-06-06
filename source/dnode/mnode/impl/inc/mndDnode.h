@@ -28,7 +28,7 @@ SDnodeObj *mndAcquireDnode(SMnode *pMnode, int32_t dnodeId);
 void       mndReleaseDnode(SMnode *pMnode, SDnodeObj *pDnode);
 SEpSet     mndGetDnodeEpset(SDnodeObj *pDnode);
 int32_t    mndGetDnodeSize(SMnode *pMnode);
-bool       mndIsDnodeOnline(SMnode *pMnode, SDnodeObj *pDnode, int64_t curMs);
+bool       mndIsDnodeOnline(SDnodeObj *pDnode, int64_t curMs);
 
 #ifdef __cplusplus
 }
