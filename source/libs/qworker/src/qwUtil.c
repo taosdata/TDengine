@@ -291,7 +291,9 @@ int32_t qwKillTaskHandle(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
 }
 
 void qwFreeTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
-  tmsgReleaseHandle(&ctx->ctrlConnInfo, TAOS_CONN_SERVER);
+  if (ctx->ctrlConnInfo.handle) {
+    tmsgReleaseHandle(&ctx->ctrlConnInfo, TAOS_CONN_SERVER);
+  }
   
   ctx->ctrlConnInfo.handle = NULL;
   ctx->ctrlConnInfo.refId = -1;

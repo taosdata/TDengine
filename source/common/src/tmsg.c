@@ -3880,7 +3880,6 @@ int32_t tDeserializeSVDeleteReq(void *buf, int32_t bufLen, SVDeleteReq *pReq) {
 int32_t tEncodeSVDeleteRsp(SEncoder* pCoder, const SVDeleteRsp* pReq) {
   if (tStartEncode(pCoder) < 0) return -1;
 
-  if (tEncodeI32(pCoder, pReq->code) < 0) return -1;
   if (tEncodeI64(pCoder, pReq->affectedRows) < 0) return -1;
 
   tEndEncode(pCoder);
@@ -3890,7 +3889,6 @@ int32_t tEncodeSVDeleteRsp(SEncoder* pCoder, const SVDeleteRsp* pReq) {
 int32_t tDecodeSVDeleteRsp(SDecoder* pCoder, SVDeleteRsp* pReq) {
   if (tStartDecode(pCoder) < 0) return -1;
 
-  if (tDecodeI32(pCoder, &pReq->code) < 0) return -1;
   if (tDecodeI64(pCoder, &pReq->affectedRows) < 0) return -1;
 
   tEndDecode(pCoder);
