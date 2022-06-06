@@ -56,6 +56,11 @@ typedef struct STableComInfo {
   int32_t  rowSize;       // row size of the schema
 } STableComInfo;
 
+typedef struct SQueryExecRes {
+  int32_t msgType;
+  void*   res;
+} SQueryExecRes;
+
 typedef struct SIndexMeta {
 #ifdef WINDOWS
   size_t avoidCompilationErrors;
@@ -192,6 +197,7 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp* msg, bool isSuperTable, STabl
 char*   jobTaskStatusStr(int32_t status);
 
 SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* name);
+void destroyQueryExecRes(SQueryExecRes* pRes);
 
 extern int32_t (*queryBuildMsg[TDMT_MAX])(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void*(*mallocFp)(int32_t));
 extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t msgSize);
@@ -204,7 +210,8 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t 
 #define NEED_CLIENT_RM_TBLMETA_ERROR(_code)                                                   \
   ((_code) == TSDB_CODE_PAR_TABLE_NOT_EXIST || (_code) == TSDB_CODE_VND_TB_NOT_EXIST ||       \
    (_code) == TSDB_CODE_PAR_INVALID_COLUMNS_NUM || (_code) == TSDB_CODE_PAR_INVALID_COLUMN || \
-   (_code) == TSDB_CODE_PAR_TAGS_NOT_MATCHED || (_code == TSDB_CODE_PAR_VALUE_TOO_LONG))
+   (_code) == TSDB_CODE_PAR_TAGS_NOT_MATCHED || (_code == TSDB_CODE_PAR_VALUE_TOO_LONG) || \
+   (_code == TSDB_CODE_PAR_INVALID_DROP_COL))
 #define NEED_CLIENT_REFRESH_VG_ERROR(_code) \
   ((_code) == TSDB_CODE_VND_HASH_MISMATCH || (_code) == TSDB_CODE_VND_INVALID_VGROUP_ID)
 #define NEED_CLIENT_REFRESH_TBLMETA_ERROR(_code) ((_code) == TSDB_CODE_TDB_TABLE_RECREATED)
@@ -215,7 +222,7 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t 
   || (_type) == TDMT_VND_DROP_TABLE || (_type) == TDMT_VND_DROP_STB)
 
 #define NEED_SCHEDULER_RETRY_ERROR(_code) \
-  ((_code) == TSDB_CODE_RPC_REDIRECT || (_code) == TSDB_CODE_RPC_NETWORK_UNAVAIL)
+  ((_code) == TSDB_CODE_RPC_REDIRECT || (_code) == TSDB_CODE_RPC_NETWORK_UNAVAIL || (_code) == TSDB_CODE_SCH_TIMEOUT_ERROR)
 
 #define REQUEST_MAX_TRY_TIMES 1
 

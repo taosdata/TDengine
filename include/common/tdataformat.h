@@ -34,6 +34,7 @@ typedef struct SValue        SValue;
 typedef struct SColVal       SColVal;
 typedef struct STSRow2       STSRow2;
 typedef struct STSRowBuilder STSRowBuilder;
+typedef struct SColData      SColData;
 typedef struct STagVal       STagVal;
 typedef struct STag          STag;
 
@@ -41,11 +42,15 @@ typedef struct STag          STag;
 int32_t tTSchemaCreate(int32_t sver, SSchema *pSchema, int32_t nCols, STSchema **ppTSchema);
 void    tTSchemaDestroy(STSchema *pTSchema);
 
+// SValue
+int tValueCmprFn(const SValue *pValue1, const SValue *pValue2, int8_t type);
+
 // STSRow2
 #define COL_VAL_NONE(CID)     ((SColVal){.cid = (CID), .isNone = 1})
 #define COL_VAL_NULL(CID)     ((SColVal){.cid = (CID), .isNull = 1})
 #define COL_VAL_VALUE(CID, V) ((SColVal){.cid = (CID), .value = (V)})
 
+int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, STSRow2 **ppRow);
 int32_t tTSRowClone(const STSRow2 *pRow, STSRow2 **ppRow);
 void    tTSRowFree(STSRow2 *pRow);
 void    tTSRowGet(STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
@@ -54,23 +59,24 @@ int32_t tPutTSRow(uint8_t *p, STSRow2 *pRow);
 int32_t tGetTSRow(uint8_t *p, STSRow2 *pRow);
 
 // STSRowBuilder
-#if 0
-int32_t tTSRowBuilderInit(STSRowBuilder *pBuilder, int32_t sver, int32_t nCols, SSchema *pSchema);
-void    tTSRowBuilderClear(STSRowBuilder *pBuilder);
-void    tTSRowBuilderReset(STSRowBuilder *pBuilder);
-int32_t tTSRowBuilderPut(STSRowBuilder *pBuilder, int32_t cid, uint8_t *pData, uint32_t nData);
-int32_t tTSRowBuilderGetRow(STSRowBuilder *pBuilder, const STSRow2 **ppRow);
-#endif
+#define tsRowBuilderInit() ((STSRowBuilder){0})
+#define tsRowBuilderClear(B)     \
+  do {                           \
+    if ((B)->pBuf) {             \
+      taosMemoryFree((B)->pBuf); \
+    }                            \
+  } while (0)
 
 // STag
 int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag);
 void    tTagFree(STag *pTag);
 bool    tTagGet(const STag *pTag, STagVal *pTagVal);
-char*   tTagValToData(const STagVal *pTagVal, bool isJson);
+char   *tTagValToData(const STagVal *pTagVal, bool isJson);
 int32_t tEncodeTag(SEncoder *pEncoder, const STag *pTag);
 int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag);
 int32_t tTagToValArray(const STag *pTag, SArray **ppArray);
-void    debugPrintSTag(STag *pTag, const char *tag, int32_t ln);
+void    debugPrintSTag(STag *pTag, const char *tag, int32_t ln);  // TODO: remove
+void    debugCheckTags(STag *pTag);                               // TODO: remove
 
 // STRUCT =================
 struct STColumn {
@@ -105,17 +111,9 @@ struct STSRow2 {
 };
 
 struct STSRowBuilder {
-  STSchema *pTSchema;
-  int32_t   szBitMap1;
-  int32_t   szBitMap2;
-  int32_t   szKVBuf;
-  uint8_t  *pKVBuf;
-  int32_t   szTPBuf;
-  uint8_t  *pTPBuf;
-  int32_t   iCol;
-  int32_t   vlenKV;
-  int32_t   vlenTP;
-  STSRow2   row;
+  STSRow2  tsRow;
+  int32_t  szBuf;
+  uint8_t *pBuf;
 };
 
 struct SValue {
@@ -153,7 +151,7 @@ struct STagVal {
   };
   int8_t type;
   union {
-    int64_t  i64;
+    int64_t i64;
     struct {
       uint32_t nData;
       uint8_t *pData;
@@ -161,7 +159,7 @@ struct STagVal {
   };
 };
 
-#define TD_TAG_JSON  ((int8_t)0x40)   // distinguish JSON string and JSON value with the highest bit
+#define TD_TAG_JSON  ((int8_t)0x40)  // distinguish JSON string and JSON value with the highest bit
 #define TD_TAG_LARGE ((int8_t)0x20)
 struct STag {
   int8_t  flags;
@@ -171,6 +169,12 @@ struct STag {
   int8_t  idx[];
 };
 #pragma pack(pop)
+
+struct SColData {
+  int16_t  cid;
+  uint32_t nData;
+  uint8_t *pData;
+};
 
 #if 1  //================================================================================================================================================
 // Imported since 3.0 and use bitmap to demonstrate None/Null/Norm, while use Null/Norm below 3.0 without of bitmap.
@@ -421,4 +425,3 @@ int32_t    tdMergeDataCols(SDataCols *target, SDataCols *source, int32_t rowsToM
 #endif
 
 #endif /*_TD_COMMON_DATA_FORMAT_H_*/
-

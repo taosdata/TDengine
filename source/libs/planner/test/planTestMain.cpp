@@ -16,6 +16,7 @@
 #include <string>
 
 #include <gtest/gtest.h>
+#include "functionMgt.h"
 #include "getopt.h"
 #include "mockCatalog.h"
 #include "planTestUtil.h"
@@ -23,6 +24,7 @@
 class PlannerEnv : public testing::Environment {
  public:
   virtual void SetUp() {
+    fmFuncMgtInit();
     initMetaDataEnv();
     generateMetaData();
     initLog(TD_TMP_DIR_PATH "td");

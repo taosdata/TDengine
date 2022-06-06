@@ -172,8 +172,7 @@ int32_t qwtPutReqToFetchQueue(void *node, struct SRpcMsg *pMsg) {
   return 0;
 }
 
-
-int32_t qwtPutReqToQueue(void *node, struct SRpcMsg *pMsg) {
+int32_t qwtPutReqToQueue(void *node, EQueueType qtype, struct SRpcMsg *pMsg) {
   taosWLockLatch(&qwtTestQueryQueueLock);
   struct SRpcMsg *newMsg = (struct SRpcMsg *)taosMemoryCalloc(1, sizeof(struct SRpcMsg));
   memcpy(newMsg, pMsg, sizeof(struct SRpcMsg));
@@ -181,7 +180,7 @@ int32_t qwtPutReqToQueue(void *node, struct SRpcMsg *pMsg) {
   if (qwtTestQueryQueueWIdx >= qwtTestQueryQueueSize) {
     qwtTestQueryQueueWIdx = 0;
   }
-  
+
   qwtTestQueryQueueNum++;
 
   if (qwtTestQueryQueueWIdx == qwtTestQueryQueueRIdx) {
@@ -702,9 +701,9 @@ void *qwtclientThread(void *param) {
 
   while (!qwtTestStop) {
     qwtTestCaseFinished = false;
-    
+
     qwtBuildQueryReqMsg(&queryRpc);
-    qwtPutReqToQueue((void *)0x1, &queryRpc);
+    qwtPutReqToQueue((void *)0x1, QUERY_QUEUE, &queryRpc);
 
     while (!qwtTestCaseFinished) {
       taosUsleep(1);
@@ -874,7 +873,7 @@ TEST(seqTest, normalCase) {
   
   SMsgCb msgCb = {0};
   msgCb.mgmt = (void *)mockPointer;
-  msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
+  msgCb.putToQueueFp = (PutToQueueFp)qwtPutReqToQueue;
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
@@ -907,10 +906,10 @@ TEST(seqTest, cancelFirst) {
 
   stubSetStringToPlan();
   stubSetRpcSendResponse();
-  
+
   SMsgCb msgCb = {0};
   msgCb.mgmt = (void *)mockPointer;
-  msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
+  msgCb.putToQueueFp = (PutToQueueFp)qwtPutReqToQueue;
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
@@ -944,10 +943,10 @@ TEST(seqTest, randCase) {
   stubSetCreateExecTask();
 
   taosSeedRand(taosGetTimestampSec());
-  
+
   SMsgCb msgCb = {0};
   msgCb.mgmt = (void *)mockPointer;
-  msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
+  msgCb.putToQueueFp = (PutToQueueFp)qwtPutReqToQueue;
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
@@ -1015,10 +1014,10 @@ TEST(seqTest, multithreadRand) {
   stubSetGetDataBlock();
 
   taosSeedRand(taosGetTimestampSec());
-  
+
   SMsgCb msgCb = {0};
   msgCb.mgmt = (void *)mockPointer;
-  msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
+  msgCb.putToQueueFp = (PutToQueueFp)qwtPutReqToQueue;
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
@@ -1081,7 +1080,7 @@ TEST(rcTest, shortExecshortDelay) {
 
   SMsgCb msgCb = {0};
   msgCb.mgmt = (void *)mockPointer;
-  msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
+  msgCb.putToQueueFp = (PutToQueueFp)qwtPutReqToQueue;
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
@@ -1165,7 +1164,7 @@ TEST(rcTest, longExecshortDelay) {
 
   SMsgCb msgCb = {0};
   msgCb.mgmt = (void *)mockPointer;
-  msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
+  msgCb.putToQueueFp = (PutToQueueFp)qwtPutReqToQueue;
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
@@ -1251,7 +1250,7 @@ TEST(rcTest, shortExeclongDelay) {
 
   SMsgCb msgCb = {0};
   msgCb.mgmt = (void *)mockPointer;
-  msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
+  msgCb.putToQueueFp = (PutToQueueFp)qwtPutReqToQueue;
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
@@ -1332,10 +1331,10 @@ TEST(rcTest, dropTest) {
   stubSetGetDataBlock();
 
   taosSeedRand(taosGetTimestampSec());
-  
+
   SMsgCb msgCb = {0};
   msgCb.mgmt = (void *)mockPointer;
-  msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
+  msgCb.putToQueueFp = (PutToQueueFp)qwtPutReqToQueue;
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 

@@ -71,20 +71,14 @@ SEpSet getEpSet_s(SCorEpSet* pEpSet);
 #define colDataGetData(p1_, r_) \
   ((IS_VAR_DATA_TYPE((p1_)->info.type)) ? colDataGetVarData(p1_, r_) : colDataGetNumData(p1_, r_))
 
-static FORCE_INLINE bool colDataIsNull_s(const SColumnInfoData* pColumnInfoData, uint32_t row) {
-  if (pColumnInfoData->info.type == TSDB_DATA_TYPE_JSON) {
-    if (colDataIsNull_var(pColumnInfoData, row)) {
-      return true;
-    }
-    char* data = colDataGetVarData(pColumnInfoData, row);
-    return (*data == TSDB_DATA_TYPE_NULL);
-  }
+#define IS_JSON_NULL(type,data) ((type) == TSDB_DATA_TYPE_JSON && *(data) == TSDB_DATA_TYPE_NULL)
 
+static FORCE_INLINE bool colDataIsNull_s(const SColumnInfoData* pColumnInfoData, uint32_t row) {
   if (!pColumnInfoData->hasNull) {
     return false;
   }
 
-  if (pColumnInfoData->info.type == TSDB_DATA_TYPE_VARCHAR || pColumnInfoData->info.type == TSDB_DATA_TYPE_NCHAR) {
+  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     return colDataIsNull_var(pColumnInfoData, row);
   } else {
     if (pColumnInfoData->nullbitmap == NULL) {
@@ -186,6 +180,8 @@ static FORCE_INLINE void colDataAppendDouble(SColumnInfoData* pColumnInfoData, u
   *(double*)p = *(double*)v;
 }
 
+int32_t getJsonValueLen(const char *data);
+
 int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, bool isNull);
 int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, int32_t* capacity,
                         const SColumnInfoData* pSource, uint32_t numOfRow2);
@@ -227,7 +223,10 @@ int32_t blockDataTrimFirstNRows(SSDataBlock* pBlock, size_t n);
 
 SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData);
 
-void blockDebugShowData(const SArray* dataBlocks);
+void  blockCompressEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen, int32_t numOfCols, int8_t needCompress);
+const char* blockCompressDecode(SSDataBlock* pBlock, int32_t numOfCols, int32_t numOfRows, const char* pData);
+
+void blockDebugShowData(const SArray* dataBlocks, const char* flag);
 
 int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks, STSchema* pTSchema, int32_t vgId,
                                     tb_uid_t suid);
@@ -244,54 +243,6 @@ static FORCE_INLINE int32_t blockCompressColData(SColumnInfoData* pColRes, int32
   int32_t colSize = colDataGetLength(pColRes, numOfRows);
   return (*(tDataTypes[pColRes->info.type].compFunc))(pColRes->pData, colSize, numOfRows, data,
                                                       colSize + COMP_OVERFLOW_BYTES, compressed, NULL, 0);
-}
-
-static FORCE_INLINE void blockCompressEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen, int32_t numOfCols,
-                                             int8_t needCompress) {
-  int32_t* actualLen = (int32_t*)data;
-  data += sizeof(int32_t);
-
-  uint64_t* groupId = (uint64_t*)data;
-  data += sizeof(uint64_t);
-
-  int32_t* colSizes = (int32_t*)data;
-  data += numOfCols * sizeof(int32_t);
-
-  *dataLen = (numOfCols * sizeof(int32_t) + sizeof(uint64_t) + sizeof(int32_t));
-
-  int32_t numOfRows = pBlock->info.rows;
-  for (int32_t col = 0; col < numOfCols; ++col) {
-    SColumnInfoData* pColRes = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, col);
-
-    // copy the null bitmap
-    if (IS_VAR_DATA_TYPE(pColRes->info.type)) {
-      size_t metaSize = numOfRows * sizeof(int32_t);
-      memcpy(data, pColRes->varmeta.offset, metaSize);
-      data += metaSize;
-      (*dataLen) += metaSize;
-    } else {
-      int32_t len = BitmapLen(numOfRows);
-      memcpy(data, pColRes->nullbitmap, len);
-      data += len;
-      (*dataLen) += len;
-    }
-
-    if (needCompress) {
-      colSizes[col] = blockCompressColData(pColRes, numOfRows, data, needCompress);
-      data += colSizes[col];
-      (*dataLen) += colSizes[col];
-    } else {
-      colSizes[col] = colDataGetLength(pColRes, numOfRows);
-      (*dataLen) += colSizes[col];
-      memmove(data, pColRes->pData, colSizes[col]);
-      data += colSizes[col];
-    }
-
-    colSizes[col] = htonl(colSizes[col]);
-  }
-
-  *actualLen = *dataLen;
-  *groupId = pBlock->info.groupId;
 }
 
 #ifdef __cplusplus

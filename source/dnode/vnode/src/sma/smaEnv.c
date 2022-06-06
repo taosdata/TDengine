@@ -222,7 +222,7 @@ int32_t tdRefSmaStat(SSma *pSma, SSmaStat *pStat) {
   if (!pStat) return 0;
 
   int ref = T_REF_INC(pStat);
-  smaDebug("vgId:%d ref sma stat:%p, val:%d", SMA_VID(pSma), pStat, ref);
+  smaDebug("vgId:%d, ref sma stat:%p, val:%d", SMA_VID(pSma), pStat, ref);
   return 0;
 }
 
@@ -230,7 +230,7 @@ int32_t tdUnRefSmaStat(SSma *pSma, SSmaStat *pStat) {
   if (!pStat) return 0;
 
   int ref = T_REF_DEC(pStat);
-  smaDebug("vgId:%d unref sma stat:%p, val:%d", SMA_VID(pSma), pStat, ref);
+  smaDebug("vgId:%d, unref sma stat:%p, val:%d", SMA_VID(pSma), pStat, ref);
   return 0;
 }
 
@@ -278,7 +278,7 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType) {
 
 void *tdFreeSmaStatItem(SSmaStatItem *pSmaStatItem) {
   if (pSmaStatItem) {
-    tdDestroyTSma(pSmaStatItem->pTSma);
+    tDestroyTSma(pSmaStatItem->pTSma);
     taosMemoryFreeClear(pSmaStatItem->pTSma);
     taosHashCleanup(pSmaStatItem->expiredWindows);
     taosMemoryFreeClear(pSmaStatItem);
@@ -321,7 +321,7 @@ int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType) {
 int32_t tdLockSma(SSma *pSma) {
   int code = taosThreadMutexLock(&pSma->mutex);
   if (code != 0) {
-    smaError("vgId:%d failed to lock td since %s", SMA_VID(pSma), strerror(errno));
+    smaError("vgId:%d, failed to lock td since %s", SMA_VID(pSma), strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(code);
     return -1;
   }
@@ -334,7 +334,7 @@ int32_t tdUnLockSma(SSma *pSma) {
   pSma->locked = false;
   int code = taosThreadMutexUnlock(&pSma->mutex);
   if (code != 0) {
-    smaError("vgId:%d failed to unlock td since %s", SMA_VID(pSma), strerror(errno));
+    smaError("vgId:%d, failed to unlock td since %s", SMA_VID(pSma), strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(code);
     return -1;
   }
@@ -376,7 +376,7 @@ int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType) {
 
     if (did.level < 0 || did.id < 0) {
       tdUnLockSma(pSma);
-      smaError("vgId:%d init sma env failed since invalid did(%d,%d)", SMA_VID(pSma), did.level, did.id);
+      smaError("vgId:%d, init sma env failed since invalid did(%d,%d)", SMA_VID(pSma), did.level, did.id);
       return TSDB_CODE_FAILED;
     }
 

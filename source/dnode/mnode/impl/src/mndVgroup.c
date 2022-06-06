@@ -29,11 +29,6 @@ static int32_t  mndVgroupActionInsert(SSdb *pSdb, SVgObj *pVgroup);
 static int32_t  mndVgroupActionDelete(SSdb *pSdb, SVgObj *pVgroup);
 static int32_t  mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOld, SVgObj *pNew);
 
-static int32_t mndProcessCreateVnodeRsp(SRpcMsg *pRsp);
-static int32_t mndProcessAlterVnodeRsp(SRpcMsg *pRsp);
-static int32_t mndProcessDropVnodeRsp(SRpcMsg *pRsp);
-static int32_t mndProcessCompactVnodeRsp(SRpcMsg *pRsp);
-
 static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextVgroup(SMnode *pMnode, void *pIter);
 static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
@@ -50,11 +45,12 @@ int32_t mndInitVgroup(SMnode *pMnode) {
       .deleteFp = (SdbDeleteFp)mndVgroupActionDelete,
   };
 
-  mndSetMsgHandle(pMnode, TDMT_DND_CREATE_VNODE_RSP, mndProcessCreateVnodeRsp);
-  mndSetMsgHandle(pMnode, TDMT_VND_ALTER_REPLICA_RSP, mndProcessAlterVnodeRsp);
-  mndSetMsgHandle(pMnode, TDMT_VND_ALTER_CONFIG_RSP, mndProcessAlterVnodeRsp);
-  mndSetMsgHandle(pMnode, TDMT_DND_DROP_VNODE_RSP, mndProcessDropVnodeRsp);
-  mndSetMsgHandle(pMnode, TDMT_VND_COMPACT_RSP, mndProcessCompactVnodeRsp);
+  mndSetMsgHandle(pMnode, TDMT_DND_CREATE_VNODE_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_ALTER_REPLICA_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_ALTER_CONFIG_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_ALTER_CONFIRM_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_DND_DROP_VNODE_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_COMPACT_RSP, mndTransProcessRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_VGROUP, mndRetrieveVgroups);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_VGROUP, mndCancelGetNextVgroup);
@@ -512,12 +508,12 @@ int32_t mndAddVnodeToVgroup(SMnode *pMnode, SVgObj *pVgroup, SArray *pArray) {
     mDebug("dnode:%d, equivalent vnodes:%d", pDnode->id, pDnode->numOfVnodes);
   }
 
-  int32_t maxPos = 1;
+  SVnodeGid *pVgid = &pVgroup->vnodeGid[pVgroup->replica];
   for (int32_t d = 0; d < taosArrayGetSize(pArray); ++d) {
     SDnodeObj *pDnode = taosArrayGet(pArray, d);
 
     bool used = false;
-    for (int32_t vn = 0; vn < maxPos; ++vn) {
+    for (int32_t vn = 0; vn < pVgroup->replica; ++vn) {
       if (pDnode->id == pVgroup->vnodeGid[vn].dnodeId) {
         used = true;
         break;
@@ -530,59 +526,58 @@ int32_t mndAddVnodeToVgroup(SMnode *pMnode, SVgObj *pVgroup, SArray *pArray) {
       return -1;
     }
 
-    SVnodeGid *pVgid = &pVgroup->vnodeGid[maxPos];
     pVgid->dnodeId = pDnode->id;
     pVgid->role = TAOS_SYNC_STATE_ERROR;
-    pDnode->numOfVnodes++;
+    mInfo("db:%s, vgId:%d, vn:%d dnode:%d, is added", pVgroup->dbName, pVgroup->vgId, pVgroup->replica,
+          pVgid->dnodeId);
 
-    mInfo("db:%s, vgId:%d, vnode_index:%d dnode:%d is added", pVgroup->dbName, pVgroup->vgId, maxPos, pVgid->dnodeId);
-    maxPos++;
-    if (maxPos == 3) return 0;
+    pVgroup->replica++;
+    pDnode->numOfVnodes++;
+    return 0;
   }
 
   terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
+  mError("db:%s, failed to add vnode to vgId:%d since %s", pVgroup->dbName, pVgroup->vgId, terrstr());
   return -1;
 }
 
-int32_t mndRemoveVnodeFromVgroup(SMnode *pMnode, SVgObj *pVgroup, SArray *pArray, SVnodeGid *del1, SVnodeGid *del2) {
+int32_t mndRemoveVnodeFromVgroup(SMnode *pMnode, SVgObj *pVgroup, SArray *pArray, SVnodeGid *pDelVgid) {
   taosArraySort(pArray, (__compar_fn_t)mndCompareDnodeVnodes);
   for (int32_t i = 0; i < taosArrayGetSize(pArray); ++i) {
     SDnodeObj *pDnode = taosArrayGet(pArray, i);
     mDebug("dnode:%d, equivalent vnodes:%d", pDnode->id, pDnode->numOfVnodes);
   }
 
-  int32_t removedNum = 0;
+  int32_t code = -1;
   for (int32_t d = taosArrayGetSize(pArray) - 1; d >= 0; --d) {
     SDnodeObj *pDnode = taosArrayGet(pArray, d);
 
-    for (int32_t vn = 0; vn < TSDB_MAX_REPLICA; ++vn) {
+    for (int32_t vn = 0; vn < pVgroup->replica; ++vn) {
       SVnodeGid *pVgid = &pVgroup->vnodeGid[vn];
       if (pVgid->dnodeId == pDnode->id) {
-        if (removedNum == 0) *del1 = *pVgid;
-        if (removedNum == 1) *del2 = *pVgid;
-
-        mInfo("db:%s, vgId:%d, vn:%d dnode:%d is removed", pVgroup->dbName, pVgroup->vgId, vn, pVgid->dnodeId);
-        memset(pVgid, 0, sizeof(SVnodeGid));
-        removedNum++;
+        mInfo("db:%s, vgId:%d, vn:%d dnode:%d, is removed", pVgroup->dbName, pVgroup->vgId, vn, pVgid->dnodeId);
         pDnode->numOfVnodes--;
-
-        if (removedNum == 2) goto _OVER;
+        pVgroup->replica--;
+        *pDelVgid = *pVgid;
+        *pVgid = pVgroup->vnodeGid[pVgroup->replica];
+        memset(&pVgroup->vnodeGid[pVgroup->replica], 0, sizeof(SVnodeGid));
+        code = 0;
+        goto _OVER;
       }
     }
   }
 
 _OVER:
-  if (removedNum != 2) return -1;
-
-  for (int32_t vn = 1; vn < TSDB_MAX_REPLICA; ++vn) {
-    SVnodeGid *pVgid = &pVgroup->vnodeGid[vn];
-    if (pVgid->dnodeId != 0) {
-      memcpy(&pVgroup->vnodeGid[0], pVgid, sizeof(SVnodeGid));
-      memset(pVgid, 0, sizeof(SVnodeGid));
-    }
+  if (code != 0) {
+    terrno = TSDB_CODE_APP_ERROR;
+    mError("db:%s, failed to remove vnode from vgId:%d since %s", pVgroup->dbName, pVgroup->vgId, terrstr());
+    return -1;
   }
 
-  mInfo("db:%s, vgId:%d, dnode:%d is keeped", pVgroup->dbName, pVgroup->vgId, pVgroup->vnodeGid[0].dnodeId);
+  for (int32_t vn = 0; vn < pVgroup->replica; ++vn) {
+    SVnodeGid *pVgid = &pVgroup->vnodeGid[vn];
+    mInfo("db:%s, vgId:%d, vn:%d dnode:%d is reserved", pVgroup->dbName, pVgroup->vgId, vn, pVgid->dnodeId);
+  }
   return 0;
 }
 
@@ -604,23 +599,6 @@ SEpSet mndGetVgroupEpset(SMnode *pMnode, const SVgObj *pVgroup) {
 
   return epset;
 }
-
-static int32_t mndProcessCreateVnodeRsp(SRpcMsg *pRsp) {
-  mndTransProcessRsp(pRsp);
-  return 0;
-}
-
-static int32_t mndProcessAlterVnodeRsp(SRpcMsg *pRsp) {
-  mndTransProcessRsp(pRsp);
-  return 0;
-}
-
-static int32_t mndProcessDropVnodeRsp(SRpcMsg *pRsp) {
-  mndTransProcessRsp(pRsp);
-  return 0;
-}
-
-static int32_t mndProcessCompactVnodeRsp(SRpcMsg *pRsp) { return 0; }
 
 static bool mndGetVgroupMaxReplicaFp(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
   SVgObj  *pVgroup = pObj;
@@ -705,7 +683,7 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
         }
 
         char        buf1[20] = {0};
-        const char *role = online ? syncStr(pVgroup->vnodeGid[i].role) : "OFFLINE";
+        const char *role = online ? syncStr(pVgroup->vnodeGid[i].role) : "offline";
         STR_WITH_MAXSIZE_TO_VARSTR(buf1, role, pShow->pMeta->pSchemas[cols].bytes);
 
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);

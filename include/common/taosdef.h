@@ -97,6 +97,7 @@ extern char *qtypeStr[];
 
 #undef TD_DEBUG_PRINT_ROW
 #undef TD_DEBUG_PRINT_TSDB_LOAD_DCOLS
+#undef TD_DEBUG_PRINT_TAG
 
 #ifdef __cplusplus
 }

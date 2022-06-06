@@ -38,26 +38,6 @@ static SLogicSubplan* singleCloneSubLogicPlan(SScaleOutContext* pCxt, SLogicSubp
   return pDst;
 }
 
-static int32_t scaleOutForModify(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32_t level, SNodeList* pGroup) {
-  SVnodeModifLogicNode* pNode = (SVnodeModifLogicNode*)pSubplan->pNode;
-  size_t                numOfVgroups = taosArrayGetSize(pNode->pDataBlocks);
-  for (int32_t i = 0; i < numOfVgroups; ++i) {
-    SLogicSubplan* pNewSubplan = singleCloneSubLogicPlan(pCxt, pSubplan, level);
-    if (NULL == pNewSubplan) {
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-    ((SVnodeModifLogicNode*)pNewSubplan->pNode)->pVgDataBlocks = (SVgDataBlocks*)taosArrayGetP(pNode->pDataBlocks, i);
-    if (TSDB_CODE_SUCCESS != nodesListStrictAppend(pGroup, pNewSubplan)) {
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t scaleOutForMerge(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32_t level, SNodeList* pGroup) {
-  return nodesListStrictAppend(pGroup, singleCloneSubLogicPlan(pCxt, pSubplan, level));
-}
-
 static int32_t doSetScanVgroup(SLogicNode* pNode, const SVgroupInfo* pVgroup, bool* pFound) {
   if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
     SScanLogicNode* pScan = (SScanLogicNode*)pNode;
@@ -84,23 +64,52 @@ static int32_t setScanVgroup(SLogicNode* pNode, const SVgroupInfo* pVgroup) {
   return doSetScanVgroup(pNode, pVgroup, &found);
 }
 
-static int32_t scaleOutForScan(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32_t level, SNodeList* pGroup) {
-  if (pSubplan->pVgroupList && !pCxt->pPlanCxt->streamQuery) {
-    int32_t code = TSDB_CODE_SUCCESS;
-    for (int32_t i = 0; i < pSubplan->pVgroupList->numOfVgroups; ++i) {
+static int32_t scaleOutByVgroups(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32_t level, SNodeList* pGroup) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  for (int32_t i = 0; i < pSubplan->pVgroupList->numOfVgroups; ++i) {
+    SLogicSubplan* pNewSubplan = singleCloneSubLogicPlan(pCxt, pSubplan, level);
+    if (NULL == pNewSubplan) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    code = setScanVgroup(pNewSubplan->pNode, pSubplan->pVgroupList->vgroups + i);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesListStrictAppend(pGroup, pNewSubplan);
+    }
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+  }
+  return code;
+}
+
+static int32_t scaleOutForModify(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32_t level, SNodeList* pGroup) {
+  SVnodeModifyLogicNode* pNode = (SVnodeModifyLogicNode*)pSubplan->pNode;
+  if (MODIFY_TABLE_TYPE_DELETE == pNode->modifyType) {
+    return scaleOutByVgroups(pCxt, pSubplan, level, pGroup);
+  } else {
+    size_t numOfVgroups = taosArrayGetSize(pNode->pDataBlocks);
+    for (int32_t i = 0; i < numOfVgroups; ++i) {
       SLogicSubplan* pNewSubplan = singleCloneSubLogicPlan(pCxt, pSubplan, level);
       if (NULL == pNewSubplan) {
         return TSDB_CODE_OUT_OF_MEMORY;
       }
-      code = setScanVgroup(pNewSubplan->pNode, pSubplan->pVgroupList->vgroups + i);
-      if (TSDB_CODE_SUCCESS == code) {
-        code = nodesListStrictAppend(pGroup, pNewSubplan);
-      }
-      if (TSDB_CODE_SUCCESS != code) {
-        break;
+      ((SVnodeModifyLogicNode*)pNewSubplan->pNode)->pVgDataBlocks =
+          (SVgDataBlocks*)taosArrayGetP(pNode->pDataBlocks, i);
+      if (TSDB_CODE_SUCCESS != nodesListStrictAppend(pGroup, pNewSubplan)) {
+        return TSDB_CODE_OUT_OF_MEMORY;
       }
     }
-    return code;
+    return TSDB_CODE_SUCCESS;
+  }
+}
+
+static int32_t scaleOutForMerge(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32_t level, SNodeList* pGroup) {
+  return nodesListStrictAppend(pGroup, singleCloneSubLogicPlan(pCxt, pSubplan, level));
+}
+
+static int32_t scaleOutForScan(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32_t level, SNodeList* pGroup) {
+  if (pSubplan->pVgroupList && !pCxt->pPlanCxt->streamQuery) {
+    return scaleOutByVgroups(pCxt, pSubplan, level, pGroup);
   } else {
     return scaleOutForMerge(pCxt, pSubplan, level, pGroup);
   }

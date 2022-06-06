@@ -177,8 +177,8 @@ typedef struct {
 typedef struct SField {
   char    name[TSDB_COL_NAME_LEN];
   uint8_t type;
-  int32_t bytes;
   int8_t  flags;
+  int32_t bytes;
 } SField;
 
 typedef struct SRetention {
@@ -241,6 +241,7 @@ typedef struct {
   int32_t schemaLen;  // schema length, if length is 0, no schema exists
   int16_t numOfRows;  // total number of rows in current submit block
   // head of SSubmitBlk
+  int32_t     numOfBlocks;
   const void* pMsg;
 } SSubmitMsgIter;
 
@@ -572,13 +573,6 @@ int32_t tDeserializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* 
 void    tFreeSGetUserAuthRsp(SGetUserAuthRsp* pRsp);
 
 typedef struct {
-  int16_t colId;     // column id
-  int16_t colIndex;  // column index in colList if it is a normal column or index in tagColList if a tag
-  int16_t flag;      // denote if it is a tag or a normal column
-  char    name[TSDB_DB_FNAME_LEN];
-} SColIndex;
-
-typedef struct {
   int16_t lowerRelOptr;
   int16_t upperRelOptr;
   int16_t filterstr;  // denote if current column is char(binary/nchar)
@@ -779,6 +773,7 @@ typedef struct {
   int8_t  cacheLastRow;
   int32_t numOfRetensions;
   SArray* pRetensions;
+  int8_t  schemaless;
 } SDbCfgRsp;
 
 int32_t tSerializeSDbCfgRsp(void* buf, int32_t bufLen, const SDbCfgRsp* pRsp);
@@ -1126,6 +1121,14 @@ typedef struct {
   int32_t  vgId;
   SSchema* pSchemas;
 } STableMetaRsp;
+
+typedef struct {  
+  STableMetaRsp* pMeta;
+} SMAlterStbRsp;
+
+int32_t tEncodeSMAlterStbRsp(SEncoder *pEncoder, const SMAlterStbRsp *pRsp);
+int32_t tDecodeSMAlterStbRsp(SDecoder *pDecoder, SMAlterStbRsp *pRsp);
+void tFreeSMAlterStbRsp(SMAlterStbRsp* pRsp);
 
 int32_t tSerializeSTableMetaRsp(void* buf, int32_t bufLen, STableMetaRsp* pRsp);
 int32_t tDeserializeSTableMetaRsp(void* buf, int32_t bufLen, STableMetaRsp* pRsp);
@@ -1880,7 +1883,8 @@ int32_t tEncodeSVAlterTbReq(SEncoder* pEncoder, const SVAlterTbReq* pReq);
 int32_t tDecodeSVAlterTbReq(SDecoder* pDecoder, SVAlterTbReq* pReq);
 
 typedef struct {
-  int32_t code;
+  int32_t        code;
+  STableMetaRsp* pMeta;
 } SVAlterTbRsp;
 
 int32_t tEncodeSVAlterTbRsp(SEncoder* pEncoder, const SVAlterTbRsp* pRsp);
@@ -1978,6 +1982,7 @@ typedef struct {
 
 typedef struct {
   SClientHbKey      connKey;
+  int64_t           clusterId;
   SQueryHbReqBasic* query;
   SHashObj*         info;  // hash<Skv.key, Skv>
 } SClientHbReq;
@@ -2293,6 +2298,11 @@ int32_t tSerializeSMDropSmaReq(void* buf, int32_t bufLen, SMDropSmaReq* pReq);
 int32_t tDeserializeSMDropSmaReq(void* buf, int32_t bufLen, SMDropSmaReq* pReq);
 
 typedef struct {
+  int32_t vgId;
+  SEpSet  epSet;
+} SVgEpSet;
+
+typedef struct {
   int8_t   version;       // for compatibility(default 0)
   int8_t   intervalUnit;  // MACRO: TIME_UNIT_XXX
   int8_t   slidingUnit;   // MACRO: TIME_UNIT_XXX
@@ -2301,6 +2311,7 @@ typedef struct {
   char     indexName[TSDB_INDEX_NAME_LEN];
   int32_t  exprLen;
   int32_t  tagsFilterLen;
+  int32_t  numOfVgroups;
   int64_t  indexUid;
   tb_uid_t tableUid;  // super/child/common table uid
   int64_t  interval;
@@ -2308,6 +2319,7 @@ typedef struct {
   int64_t  sliding;
   char*    expr;  // sma expression
   char*    tagsFilter;
+  SVgEpSet vgEpSet[];
 } STSma;  // Time-range-wise SMA
 
 typedef STSma SVCreateTSmaReq;
@@ -2344,19 +2356,19 @@ typedef struct {
   STSma*  tSma;
 } STSmaWrapper;
 
-static FORCE_INLINE void tdDestroyTSma(STSma* pSma) {
+static FORCE_INLINE void tDestroyTSma(STSma* pSma) {
   if (pSma) {
     taosMemoryFreeClear(pSma->expr);
     taosMemoryFreeClear(pSma->tagsFilter);
   }
 }
 
-static FORCE_INLINE void tdDestroyTSmaWrapper(STSmaWrapper* pSW, bool deepCopy) {
+static FORCE_INLINE void tDestroyTSmaWrapper(STSmaWrapper* pSW, bool deepCopy) {
   if (pSW) {
     if (pSW->tSma) {
       if (deepCopy) {
         for (uint32_t i = 0; i < pSW->number; ++i) {
-          tdDestroyTSma(pSW->tSma + i);
+          tDestroyTSma(pSW->tSma + i);
         }
       }
       taosMemoryFreeClear(pSW->tSma);
@@ -2364,8 +2376,8 @@ static FORCE_INLINE void tdDestroyTSmaWrapper(STSmaWrapper* pSW, bool deepCopy) 
   }
 }
 
-static FORCE_INLINE void* tdFreeTSmaWrapper(STSmaWrapper* pSW, bool deepCopy) {
-  tdDestroyTSmaWrapper(pSW, deepCopy);
+static FORCE_INLINE void* tFreeTSmaWrapper(STSmaWrapper* pSW, bool deepCopy) {
+  tDestroyTSmaWrapper(pSW, deepCopy);
   taosMemoryFreeClear(pSW);
   return NULL;
 }
@@ -2391,6 +2403,27 @@ static int32_t tDecodeTSmaWrapper(SDecoder* pDecoder, STSmaWrapper* pReq) {
   }
   return 0;
 }
+
+typedef struct {
+  int64_t indexUid;
+  STimeWindow queryWindow;
+} SVGetTsmaExpWndsReq;
+
+#define SMA_WNDS_EXPIRE_FLAG      (0x1)
+#define SMA_WNDS_IS_EXPIRE(flag)  (((flag)&SMA_WNDS_EXPIRE_FLAG) != 0)
+#define SMA_WNDS_SET_EXPIRE(flag) ((flag) |= SMA_WNDS_EXPIRE_FLAG)
+
+typedef struct {
+  int64_t indexUid;
+  int8_t  flags;  // 0x1 all window expired
+  int32_t numExpWnds;
+  TSKEY   wndSKeys[];
+} SVGetTsmaExpWndsRsp;
+
+int32_t tEncodeSVGetTSmaExpWndsReq(SEncoder* pCoder, const SVGetTsmaExpWndsReq* pReq);
+int32_t tDecodeSVGetTsmaExpWndsReq(SDecoder* pCoder, SVGetTsmaExpWndsReq* pReq);
+int32_t tEncodeSVGetTSmaExpWndsRsp(SEncoder* pCoder, const SVGetTsmaExpWndsRsp* pReq);
+int32_t tDecodeSVGetTsmaExpWndsRsp(SDecoder* pCoder, SVGetTsmaExpWndsRsp* pReq);
 
 typedef struct {
   int idx;
@@ -2655,22 +2688,26 @@ typedef struct {
 int32_t tEncodeSVSubmitReq(SEncoder* pCoder, const SVSubmitReq* pReq);
 int32_t tDecodeSVSubmitReq(SDecoder* pCoder, SVSubmitReq* pReq);
 
-// TDMT_VND_DELETE
 typedef struct {
-  TSKEY sKey;
-  TSKEY eKey;
-
-  // super table
-  char* stbName;
-
-  // child/normal
-  char* tbName;
+  int64_t     delUid;
+  int64_t     tbUid;  // super/child/normal table
+  int8_t      type;   // table type
+  int16_t     nWnds;
+  char*       tbFullName;
+  char*       subPlan;
+  STimeWindow wnds[];
 } SVDeleteReq;
+
+int32_t tEncodeSVDeleteReq(SEncoder* pCoder, const SVDeleteReq* pReq);
+int32_t tDecodeSVDeleteReq(SDecoder* pCoder, SVDeleteReq* pReq);
 
 typedef struct {
   int32_t code;
-  // TODO
+  int64_t affectedRows;
 } SVDeleteRsp;
+
+int32_t tEncodeSVDeleteRsp(SEncoder* pCoder, const SVDeleteRsp* pReq);
+int32_t tDecodeSVDeleteRsp(SDecoder* pCoder, SVDeleteRsp* pReq);
 
 #pragma pack(pop)
 

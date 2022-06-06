@@ -33,7 +33,8 @@ extern "C" {
 #define QW_DEFAULT_TASK_NUMBER      10000
 #define QW_DEFAULT_SCH_TASK_NUMBER  10000
 #define QW_DEFAULT_SHORT_RUN_TIMES  2
-#define QW_DEFAULT_HEARTBEAT_MSEC   3000
+#define QW_DEFAULT_HEARTBEAT_MSEC   5000
+#define QW_SCH_TIMEOUT_MSEC 180000
 
 enum {
   QW_PHASE_PRE_QUERY = 1,
@@ -137,7 +138,7 @@ typedef struct SQWTaskCtx {
 } SQWTaskCtx;
 
 typedef struct SQWSchStatus {
-  int32_t        lastAccessTs;  // timestamp in second
+  int64_t        hbBrokenTs;  // timestamp in msecond
   SRWLatch       hbConnLock;
   SRpcHandleInfo hbConnInfo;
   SQueryNodeEpId hbEpId;
@@ -354,6 +355,8 @@ int32_t qwOpenRef(void);
 void qwSetHbParam(int64_t refId, SQWHbParam **pParam);
 int32_t qwUpdateTimeInQueue(SQWorker *mgmt, int64_t ts, EQueueType type);
 int64_t qwGetTimeInQueue(SQWorker *mgmt, EQueueType type);
+void qwClearExpiredSch(SArray* pExpiredSch);
+int32_t qwAcquireScheduler(SQWorker *mgmt, uint64_t sId, int32_t rwType, SQWSchStatus **sch);
 
 void qwDbgDumpMgmtInfo(SQWorker *mgmt);
 int32_t qwDbgValidateStatus(QW_FPARAMS_DEF, int8_t oriStatus, int8_t newStatus, bool *ignore);
