@@ -3,7 +3,7 @@ sidebar_label: Java
 title: Connect with Java Connector
 ---
 
-## Add Dependency
+## Add Dependency {#install}
 
 Build with Maven
 
