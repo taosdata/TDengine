@@ -307,7 +307,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
     STqHandle* pExec = (STqHandle*)pIter;
     if (pExec->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
       for (int32_t i = 0; i < 5; i++) {
-        int32_t code = qUpdateQualifiedTableId(pExec->execHandle.exec.execCol.task[i], tbUidList, isAdd);
+        int32_t code = qUpdateQualifiedTableId(pExec->execHandle.execCol.task[i], tbUidList, isAdd);
         ASSERT(code == 0);
       }
     } else if (pExec->execHandle.subType == TOPIC_SUB_TYPE__DB) {
@@ -315,7 +315,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
         int32_t sz = taosArrayGetSize(tbUidList);
         for (int32_t i = 0; i < sz; i++) {
           int64_t tbUid = *(int64_t*)taosArrayGet(tbUidList, i);
-          taosHashPut(pExec->execHandle.exec.execDb.pFilterOutTbUid, &tbUid, sizeof(int64_t), NULL, 0);
+          taosHashPut(pExec->execHandle.execDb.pFilterOutTbUid, &tbUid, sizeof(int64_t), NULL, 0);
         }
       }
     } else {
