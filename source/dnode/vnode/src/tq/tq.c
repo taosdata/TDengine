@@ -216,8 +216,8 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   }
 
   // TODO wrap in destroy func
-  taosArrayDestroy(rsp.blockData);
   taosArrayDestroy(rsp.blockDataLen);
+  taosArrayDestroyP(rsp.blockData, (FDelete)taosMemoryFree);
 
   if (rsp.withSchema) {
     taosArrayDestroyP(rsp.blockSchema, (FDelete)tDeleteSSchemaWrapper);

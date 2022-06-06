@@ -285,12 +285,6 @@ struct SStreamTask {
 
   int8_t inputStatus;
   int8_t outputStatus;
-#if 0
-  STaosQueue* inputQ;
-  STaosQall*  inputQAll;
-  STaosQueue* outputQ;
-  STaosQall*  outputQAll;
-#endif
 
   SStreamQueue* inputQueue;
   SStreamQueue* outputQueue;
@@ -372,13 +366,6 @@ typedef struct {
 } SStreamTaskRunReq;
 
 typedef struct {
-  // SMsgHead head;
-  int64_t streamId;
-  int64_t version;
-  SArray* res;  // SArray<SSDataBlock>
-} SStreamSinkReq;
-
-typedef struct {
   int64_t streamId;
   int32_t taskId;
   int32_t sourceTaskId;
@@ -412,10 +399,6 @@ typedef struct {
 } SStreamTaskRecoverRsp;
 
 int32_t streamTriggerByWrite(SStreamTask* pTask, int32_t vgId, SMsgCb* pMsgCb);
-
-int32_t streamEnqueueDataSubmit(SStreamTask* pTask, SStreamDataSubmit* input);
-int32_t streamEnqueueDataBlk(SStreamTask* pTask, SStreamDataBlock* input);
-int32_t streamDequeueOutput(SStreamTask* pTask, void** output);
 
 int32_t streamTaskRun(SStreamTask* pTask);
 

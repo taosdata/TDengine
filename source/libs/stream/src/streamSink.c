@@ -41,12 +41,9 @@ int32_t streamSink1(SStreamTask* pTask, SMsgCb* pMsgCb) {
         pTask->smaSink.smaSink(pTask->ahandle, pTask->smaSink.smaId, pBlock->blocks);
       }
 
-      if (pTask->dispatchType == TASK_DISPATCH__INPLACE) {
+      if (pTask->dispatchType != TASK_DISPATCH__NONE) {
         ASSERT(queue == pTask->outputQueue);
-      } else if (pTask->dispatchType == TASK_DISPATCH__SHUFFLE) {
-        ASSERT(queue == pTask->outputQueue);
-      } else if (pTask->dispatchType == TASK_DISPATCH__FIXED) {
-        ASSERT(queue == pTask->outputQueue);
+        streamDispatch(pTask, pMsgCb, pBlock);
       }
 
       streamQueueProcessSuccess(queue);
