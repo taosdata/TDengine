@@ -278,7 +278,6 @@ void taos_init_imp(void) {
     return;
   }
 
-  initMsgHandleFp();
   initQueryModuleMsgHandle();
 
   rpcInit();

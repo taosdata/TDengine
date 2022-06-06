@@ -2903,7 +2903,6 @@ static int32_t buildRollupAst(STranslateContext* pCxt, SCreateTableStmt* pStmt, 
     }
   }
 
-  taosArrayDestroy(dbCfg.pRetensions);
   return code;
 }
 
