@@ -122,6 +122,12 @@ int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
   syncIndexMgrLog2("begin append entries peers pNextIndex:", pSyncNode->pNextIndex);
   syncIndexMgrLog2("begin append entries peers pMatchIndex:", pSyncNode->pMatchIndex);
   logStoreSimpleLog2("begin append entries peers LogStore:", pSyncNode->pLogStore);
+  {
+    SSnapshot snapshot;
+    pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
+    sTrace("begin append entries peers, snapshot.lastApplyIndex:%ld, snapshot.lastApplyTerm:%lu",
+           snapshot.lastApplyIndex, snapshot.lastApplyTerm);
+  }
 
   int32_t ret = 0;
   for (int i = 0; i < pSyncNode->peersNum; ++i) {
