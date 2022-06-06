@@ -124,7 +124,7 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
           }
 
           // config change
-          if (pEntry->originalRpcType == TDMT_VND_SYNC_CONFIG_CHANGE) {
+          if (pEntry->originalRpcType == TDMT_SYNC_CONFIG_CHANGE) {
             SSyncCfg oldSyncCfg = pSyncNode->pRaftCfg->cfg;
 
             SSyncCfg newSyncCfg;

@@ -59,6 +59,7 @@ class InsertTest : public Test {
   }
 
   int32_t runAsync() {
+    cxt_.async = true;
     code_ = parseInsertSyntax(&cxt_, &res_);
     if (code_ != TSDB_CODE_SUCCESS) {
       cout << "parseInsertSyntax code:" << toString(code_) << ", msg:" << errMagBuf_ << endl;

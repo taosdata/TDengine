@@ -45,6 +45,8 @@ extern bool    tsEnableSlaveQuery;
 extern bool    tsPrintAuth;
 extern int64_t tsTickPerMin[3];
 
+extern int32_t tsCountAlwaysReturnValue;
+
 // multi-process
 extern int32_t tsMultiProcess;
 extern int32_t tsMnodeShmSize;
@@ -102,7 +104,6 @@ extern int32_t tsMaxStreamComputDelay;
 extern int32_t tsStreamCompStartDelay;
 extern int32_t tsRetryStreamCompDelay;
 extern float   tsStreamComputDelayRatio;  // the delayed computing ration of the whole time window
-extern int32_t tsProjectExecInterval;
 extern int64_t tsMaxRetentWindow;
 
 // build info

@@ -66,7 +66,7 @@ void udfUdfdExit(uv_process_t *process, int64_t exitStatus, int termSignal) {
 }
 
 static int32_t udfSpawnUdfd(SUdfdData* pData) {
-  fnInfo("dnode start spawning udfd");
+  fnInfo("start to init udfd");
   uv_process_options_t options = {0};
 
   char path[PATH_MAX] = {0};
@@ -140,6 +140,8 @@ static int32_t udfSpawnUdfd(SUdfdData* pData) {
 
   if (err != 0) {
     fnError("can not spawn udfd. path: %s, error: %s", path, uv_strerror(err));
+  } else {
+    fnInfo("udfd is initialized");
   }
   return err;
 }
