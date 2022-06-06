@@ -9,6 +9,8 @@ from util.sql import *
 from util.cases import *
 from util.dnodes import *
 import subprocess
+# import win32gui
+# import threading
 
 class TDTestCase:
 
@@ -533,8 +535,17 @@ class TDTestCase:
         return udf1_sqls ,udf2_sqls
 
 
+    # def checkRunTimeError(self):
+    #     while 1:
+    #         time.sleep(1)
+    #         hwnd = win32gui.FindWindow(None, "Microsoft Visual C++ Runtime Library")
+    #         if hwnd:
+    #             os.system("TASKKILL /F /IM udfd.exe")
 
     def unexpected_create(self):
+        # if (platform.system().lower() == 'windows' and tdDnodes.dnodes[0].remoteIP == ""):
+        #     checkErrorThread = threading.Thread(target=self.checkRunTimeError,daemon=True)
+        #     checkErrorThread.start()
 
         tdLog.info(" create function with out bufsize ")
         tdSql.query("drop function udf1 ")
