@@ -36,8 +36,8 @@ int tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable) {
     return -1;
   }
 
-  pMemTable->pPool = pTsdb->pVnode->inUse;
-  T_REF_INIT_VAL(pMemTable, 1);
+  pMemTable->pTsdb = pTsdb;
+  pMemTable->nRef = 1;
   taosInitRWLatch(&pMemTable->latch);
   pMemTable->minKey = (TSDBKEY){.ts = TSKEY_MAX, .version = INT64_MAX};
   pMemTable->maxKey = (TSDBKEY){.ts = TSKEY_MIN, .version = -1};
@@ -287,7 +287,7 @@ int tsdbInsertTableData(STsdb *pTsdb, SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlo
 
   // copy data to buffer pool
   int32_t tlen = pMsgIter->dataLen + pMsgIter->schemaLen + sizeof(*pBlock);
-  pBlkCopy = (SSubmitBlk *)vnodeBufPoolMalloc(pTsdb->mem->pPool, tlen);
+  pBlkCopy = (SSubmitBlk *)vnodeBufPoolMalloc(pTsdb->pVnode->inUse, tlen);
   memcpy(pBlkCopy, pBlock, tlen);
 
   tInitSubmitBlkIter(pMsgIter, pBlkCopy, &blkIter);

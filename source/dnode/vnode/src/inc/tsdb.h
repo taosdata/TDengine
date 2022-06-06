@@ -223,8 +223,8 @@ struct STbData {
 };
 
 struct SMemTable {
-  SVBufPool *pPool;
-  T_REF_DECLARE()
+  STsdb     *pTsdb;
+  int32_t    nRef;
   SRWLatch   latch;
   TSDBKEY    minKey;
   TSDBKEY    maxKey;
