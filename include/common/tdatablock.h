@@ -71,20 +71,14 @@ SEpSet getEpSet_s(SCorEpSet* pEpSet);
 #define colDataGetData(p1_, r_) \
   ((IS_VAR_DATA_TYPE((p1_)->info.type)) ? colDataGetVarData(p1_, r_) : colDataGetNumData(p1_, r_))
 
-static FORCE_INLINE bool colDataIsNull_s(const SColumnInfoData* pColumnInfoData, uint32_t row) {
-  if (pColumnInfoData->info.type == TSDB_DATA_TYPE_JSON) {
-    if (colDataIsNull_var(pColumnInfoData, row)) {
-      return true;
-    }
-    char* data = colDataGetVarData(pColumnInfoData, row);
-    return (*data == TSDB_DATA_TYPE_NULL);
-  }
+#define IS_JSON_NULL(type,data) ((type) == TSDB_DATA_TYPE_JSON && *(data) == TSDB_DATA_TYPE_NULL)
 
+static FORCE_INLINE bool colDataIsNull_s(const SColumnInfoData* pColumnInfoData, uint32_t row) {
   if (!pColumnInfoData->hasNull) {
     return false;
   }
 
-  if (pColumnInfoData->info.type == TSDB_DATA_TYPE_VARCHAR || pColumnInfoData->info.type == TSDB_DATA_TYPE_NCHAR) {
+  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     return colDataIsNull_var(pColumnInfoData, row);
   } else {
     if (pColumnInfoData->nullbitmap == NULL) {
@@ -232,7 +226,7 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData);
 void  blockCompressEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen, int32_t numOfCols, int8_t needCompress);
 const char* blockCompressDecode(SSDataBlock* pBlock, int32_t numOfCols, int32_t numOfRows, const char* pData);
 
-void blockDebugShowData(const SArray* dataBlocks);
+void blockDebugShowData(const SArray* dataBlocks, const char* flag);
 
 int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks, STSchema* pTSchema, int32_t vgId,
                                     tb_uid_t suid);

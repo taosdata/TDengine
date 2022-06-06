@@ -498,10 +498,15 @@ TEST_F(IndexTFileEnv, test_tfile_write) {
   }
   taosArrayDestroy(data);
 
-  std::string     colName("voltage");
-  std::string     colVal("ab");
-  SIndexTerm*     term = indexTermCreate(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
-                                     colVal.c_str(), colVal.size());
+  std::string colName("voltage");
+  std::string colVal("ab");
+
+  char    buf[256] = {0};
+  int16_t sz = colVal.size();
+  memcpy(buf, (uint16_t*)&sz, 2);
+  memcpy(buf + 2, colVal.c_str(), colVal.size());
+  SIndexTerm* term =
+      indexTermCreate(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(), buf, sizeof(buf));
   SIndexTermQuery query = {term, QUERY_TERM};
 
   SArray* result = (SArray*)taosArrayInit(1, sizeof(uint64_t));
@@ -564,6 +569,18 @@ class IndexCacheEnv : public ::testing::Test {
   CacheObj* coj;
 };
 
+SIndexTerm* indexTermCreateT(int64_t suid, SIndexOperOnColumn oper, uint8_t colType, const char* colName,
+                             int32_t nColName, const char* colVal, int32_t nColVal) {
+  char    buf[256] = {0};
+  int16_t sz = nColVal;
+  memcpy(buf, (uint16_t*)&sz, 2);
+  memcpy(buf + 2, colVal, nColVal);
+  if (colType == TSDB_DATA_TYPE_BINARY) {
+    return indexTermCreate(suid, oper, colType, colName, nColName, buf, sizeof(buf));
+  } else {
+    return indexTermCreate(suid, oper, colType, colName, nColName, colVal, nColVal);
+  }
+}
 #define MAX_TERM_KEY_LEN 128
 TEST_F(IndexCacheEnv, cache_test) {
   int     version = 0;
@@ -574,37 +591,37 @@ TEST_F(IndexCacheEnv, cache_test) {
   std::string colName("voltage");
   {
     std::string colVal("v1");
-    SIndexTerm* term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
-                                       colVal.c_str(), colVal.size());
+    SIndexTerm* term = indexTermCreateT(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                        colVal.c_str(), colVal.size());
     coj->Put(term, colId, version++, suid++);
     indexTermDestroy(term);
     // indexTermDestry(term);
   }
   {
     std::string colVal("v3");
-    SIndexTerm* term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
-                                       colVal.c_str(), colVal.size());
+    SIndexTerm* term = indexTermCreateT(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                        colVal.c_str(), colVal.size());
     coj->Put(term, colId, version++, suid++);
     indexTermDestroy(term);
   }
   {
     std::string colVal("v2");
-    SIndexTerm* term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
-                                       colVal.c_str(), colVal.size());
+    SIndexTerm* term = indexTermCreateT(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                        colVal.c_str(), colVal.size());
     coj->Put(term, colId, version++, suid++);
     indexTermDestroy(term);
   }
   {
     std::string colVal("v3");
-    SIndexTerm* term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
-                                       colVal.c_str(), colVal.size());
+    SIndexTerm* term = indexTermCreateT(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                        colVal.c_str(), colVal.size());
     coj->Put(term, colId, version++, suid++);
     indexTermDestroy(term);
   }
   {
     std::string colVal("v3");
-    SIndexTerm* term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
-                                       colVal.c_str(), colVal.size());
+    SIndexTerm* term = indexTermCreateT(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                        colVal.c_str(), colVal.size());
     coj->Put(term, colId, version++, suid++);
     indexTermDestroy(term);
   }
@@ -612,15 +629,15 @@ TEST_F(IndexCacheEnv, cache_test) {
   std::cout << "--------first----------" << std::endl;
   {
     std::string colVal("v3");
-    SIndexTerm* term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
-                                       colVal.c_str(), colVal.size());
+    SIndexTerm* term = indexTermCreateT(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                        colVal.c_str(), colVal.size());
     coj->Put(term, othColId, version++, suid++);
     indexTermDestroy(term);
   }
   {
     std::string colVal("v4");
-    SIndexTerm* term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
-                                       colVal.c_str(), colVal.size());
+    SIndexTerm* term = indexTermCreateT(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                        colVal.c_str(), colVal.size());
     coj->Put(term, othColId, version++, suid++);
     indexTermDestroy(term);
   }
@@ -630,8 +647,8 @@ TEST_F(IndexCacheEnv, cache_test) {
     std::string colVal("v4");
     for (size_t i = 0; i < 10; i++) {
       colVal[colVal.size() - 1] = 'a' + i;
-      SIndexTerm* term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
-                                         colVal.c_str(), colVal.size());
+      SIndexTerm* term = indexTermCreateT(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                          colVal.c_str(), colVal.size());
       coj->Put(term, colId, version++, suid++);
       indexTermDestroy(term);
     }
@@ -640,8 +657,8 @@ TEST_F(IndexCacheEnv, cache_test) {
   // begin query
   {
     std::string     colVal("v3");
-    SIndexTerm*     term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
-                                       colVal.c_str(), colVal.size());
+    SIndexTerm*     term = indexTermCreateT(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                        colVal.c_str(), colVal.size());
     SIndexTermQuery query = {term, QUERY_TERM};
     SArray*         ret = (SArray*)taosArrayInit(4, sizeof(suid));
     STermValueType  valType;
@@ -655,8 +672,8 @@ TEST_F(IndexCacheEnv, cache_test) {
   }
   {
     std::string     colVal("v2");
-    SIndexTerm*     term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
-                                       colVal.c_str(), colVal.size());
+    SIndexTerm*     term = indexTermCreateT(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                        colVal.c_str(), colVal.size());
     SIndexTermQuery query = {term, QUERY_TERM};
     SArray*         ret = (SArray*)taosArrayInit(4, sizeof(suid));
     STermValueType  valType;
@@ -690,8 +707,8 @@ class IndexObj {
     return ret;
   }
   void Del(const std::string& colName, const std::string& colVal, uint64_t uid) {
-    SIndexTerm*      term = indexTermCreate(0, DEL_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
-                                       colVal.c_str(), colVal.size());
+    SIndexTerm*      term = indexTermCreateT(0, DEL_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                        colVal.c_str(), colVal.size());
     SIndexMultiTerm* terms = indexMultiTermCreate();
     indexMultiTermAdd(terms, term);
     Put(terms, uid);
@@ -699,8 +716,8 @@ class IndexObj {
   }
   int WriteMillonData(const std::string& colName, const std::string& colVal = "Hello world",
                       size_t numOfTable = 100 * 10000) {
-    SIndexTerm*      term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
-                                       colVal.c_str(), colVal.size());
+    SIndexTerm*      term = indexTermCreateT(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                        colVal.c_str(), colVal.size());
     SIndexMultiTerm* terms = indexMultiTermCreate();
     indexMultiTermAdd(terms, term);
     for (size_t i = 0; i < numOfTable; i++) {
@@ -721,8 +738,8 @@ class IndexObj {
         // opt
         tColVal[taosRand() % colValSize] = 'a' + k % 26;
       }
-      SIndexTerm*      term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
-                                         tColVal.c_str(), tColVal.size());
+      SIndexTerm*      term = indexTermCreateT(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                          tColVal.c_str(), tColVal.size());
       SIndexMultiTerm* terms = indexMultiTermCreate();
       indexMultiTermAdd(terms, term);
       for (size_t j = 0; j < skip; j++) {
@@ -757,8 +774,8 @@ class IndexObj {
 
   int SearchOne(const std::string& colName, const std::string& colVal) {
     SIndexMultiTermQuery* mq = indexMultiTermQueryCreate(MUST);
-    SIndexTerm*           term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
-                                       colVal.c_str(), colVal.size());
+    SIndexTerm*           term = indexTermCreateT(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                        colVal.c_str(), colVal.size());
     indexMultiTermQueryAdd(mq, term, QUERY_TERM);
 
     SArray* result = (SArray*)taosArrayInit(1, sizeof(uint64_t));
@@ -779,8 +796,8 @@ class IndexObj {
   }
   int SearchOneTarget(const std::string& colName, const std::string& colVal, uint64_t val) {
     SIndexMultiTermQuery* mq = indexMultiTermQueryCreate(MUST);
-    SIndexTerm*           term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
-                                       colVal.c_str(), colVal.size());
+    SIndexTerm*           term = indexTermCreateT(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                        colVal.c_str(), colVal.size());
     indexMultiTermQueryAdd(mq, term, QUERY_TERM);
 
     SArray* result = (SArray*)taosArrayInit(1, sizeof(uint64_t));
@@ -804,16 +821,16 @@ class IndexObj {
 
   void PutOne(const std::string& colName, const std::string& colVal) {
     SIndexMultiTerm* terms = indexMultiTermCreate();
-    SIndexTerm*      term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
-                                       colVal.c_str(), colVal.size());
+    SIndexTerm*      term = indexTermCreateT(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                        colVal.c_str(), colVal.size());
     indexMultiTermAdd(terms, term);
     Put(terms, 10);
     indexMultiTermDestroy(terms);
   }
   void PutOneTarge(const std::string& colName, const std::string& colVal, uint64_t val) {
     SIndexMultiTerm* terms = indexMultiTermCreate();
-    SIndexTerm*      term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
-                                       colVal.c_str(), colVal.size());
+    SIndexTerm*      term = indexTermCreateT(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                        colVal.c_str(), colVal.size());
     indexMultiTermAdd(terms, term);
     Put(terms, val);
     indexMultiTermDestroy(terms);
@@ -858,8 +875,8 @@ TEST_F(IndexEnv2, testIndexOpen) {
   {
     std::string colName("tag1"), colVal("Hello");
 
-    SIndexTerm*      term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
-                                       colVal.c_str(), colVal.size());
+    SIndexTerm*      term = indexTermCreateT(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                        colVal.c_str(), colVal.size());
     SIndexMultiTerm* terms = indexMultiTermCreate();
     indexMultiTermAdd(terms, term);
     for (size_t i = 0; i < targetSize; i++) {
@@ -873,8 +890,8 @@ TEST_F(IndexEnv2, testIndexOpen) {
     size_t      size = 200;
     std::string colName("tag1"), colVal("hello");
 
-    SIndexTerm*      term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
-                                       colVal.c_str(), colVal.size());
+    SIndexTerm*      term = indexTermCreateT(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                        colVal.c_str(), colVal.size());
     SIndexMultiTerm* terms = indexMultiTermCreate();
     indexMultiTermAdd(terms, term);
     for (size_t i = 0; i < size; i++) {
@@ -888,8 +905,8 @@ TEST_F(IndexEnv2, testIndexOpen) {
     size_t      size = 200;
     std::string colName("tag1"), colVal("Hello");
 
-    SIndexTerm*      term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
-                                       colVal.c_str(), colVal.size());
+    SIndexTerm*      term = indexTermCreateT(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                        colVal.c_str(), colVal.size());
     SIndexMultiTerm* terms = indexMultiTermCreate();
     indexMultiTermAdd(terms, term);
     for (size_t i = size * 3; i < size * 4; i++) {
@@ -903,8 +920,8 @@ TEST_F(IndexEnv2, testIndexOpen) {
   {
     std::string           colName("tag1"), colVal("Hello");
     SIndexMultiTermQuery* mq = indexMultiTermQueryCreate(MUST);
-    SIndexTerm*           term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
-                                       colVal.c_str(), colVal.size());
+    SIndexTerm*           term = indexTermCreateT(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                        colVal.c_str(), colVal.size());
     indexMultiTermQueryAdd(mq, term, QUERY_TERM);
 
     SArray* result = (SArray*)taosArrayInit(1, sizeof(uint64_t));
@@ -926,8 +943,8 @@ TEST_F(IndexEnv2, testEmptyIndexOpen) {
   {
     std::string colName("tag1"), colVal("Hello");
 
-    SIndexTerm*      term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
-                                       colVal.c_str(), colVal.size());
+    SIndexTerm*      term = indexTermCreateT(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                        colVal.c_str(), colVal.size());
     SIndexMultiTerm* terms = indexMultiTermCreate();
     indexMultiTermAdd(terms, term);
     for (size_t i = 0; i < targetSize; i++) {

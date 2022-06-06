@@ -339,8 +339,8 @@ int tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo) {
   }
 
   ASSERT(pReadh->pDCols[0]->numOfRows <= pBlock->numOfRows);
-  ASSERT(dataColsKeyFirst(pReadh->pDCols[0]) == pBlock->keyFirst);
-  ASSERT(dataColsKeyLast(pReadh->pDCols[0]) == pBlock->keyLast);
+  ASSERT(dataColsKeyFirst(pReadh->pDCols[0]) == pBlock->minKey.ts);
+  ASSERT(dataColsKeyLast(pReadh->pDCols[0]) == pBlock->maxKey.ts);
 
   return 0;
 }
@@ -457,8 +457,8 @@ int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, 
   }
 
   ASSERT(pReadh->pDCols[0]->numOfRows <= pBlock->numOfRows);
-  ASSERT(dataColsKeyFirst(pReadh->pDCols[0]) == pBlock->keyFirst);
-  ASSERT(dataColsKeyLast(pReadh->pDCols[0]) == pBlock->keyLast);
+  ASSERT(dataColsKeyFirst(pReadh->pDCols[0]) == pBlock->minKey.ts);
+  ASSERT(dataColsKeyLast(pReadh->pDCols[0]) == pBlock->maxKey.ts);
 
   return 0;
 }
@@ -559,7 +559,7 @@ int tsdbEncodeSBlockIdx(void **buf, SBlockIdx *pIdx) {
   tlen += taosEncodeFixedU8(buf, pIdx->hasLast);
   tlen += taosEncodeVariantU32(buf, pIdx->numOfBlocks);
   tlen += taosEncodeFixedU64(buf, pIdx->uid);
-  tlen += taosEncodeFixedU64(buf, pIdx->maxKey);
+  tlen += taosEncodeFixedU64(buf, pIdx->maxKey.ts);
 
   return tlen;
 }
@@ -579,7 +579,7 @@ void *tsdbDecodeSBlockIdx(void *buf, SBlockIdx *pIdx) {
   if ((buf = taosDecodeFixedU64(buf, &value)) == NULL) return NULL;
   pIdx->uid = (int64_t)value;
   if ((buf = taosDecodeFixedU64(buf, &value)) == NULL) return NULL;
-  pIdx->maxKey = (TSKEY)value;
+  pIdx->maxKey.ts = (TSKEY)value;
 
   return buf;
 }
@@ -726,7 +726,7 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
     if (dcol != 0) {
       pBlockCol = &(pBlockData->cols[ccol]);
       tcolId = pBlockCol->colId;
-      toffset = tsdbGetBlockColOffset(pBlockCol);
+      toffset = pBlockCol->offset;
       tlen = pBlockCol->len;
       pDataCol->bitmap = pBlockCol->blen > 0 ? 1 : 0;
     } else {
@@ -942,8 +942,8 @@ static int tsdbLoadColData(SReadH *pReadh, SDFile *pDFile, SBlock *pBlock, SBloc
   if (tsdbMakeRoom((void **)(&TSDB_READ_BUF(pReadh)), pBlockCol->len) < 0) return -1;
   if (tsdbMakeRoom((void **)(&TSDB_READ_COMP_BUF(pReadh)), tsize) < 0) return -1;
 
-  int64_t offset = pBlock->offset + tsdbBlockStatisSize(pBlock->numOfCols, (uint32_t)pBlock->blkVer) +
-                   tsdbGetBlockColOffset(pBlockCol);
+  int64_t offset =
+      pBlock->offset + tsdbBlockStatisSize(pBlock->numOfCols, (uint32_t)pBlock->blkVer) + pBlockCol->offset;
   if (tsdbSeekDFile(pDFile, offset, SEEK_SET) < 0) {
     tsdbError("vgId:%d, failed to load block column data while seek file %s to offset %" PRId64 " since %s",
               TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), offset, tstrerror(terrno));
