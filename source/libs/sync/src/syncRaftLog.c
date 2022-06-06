@@ -198,7 +198,7 @@ static int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index,
 
   } else {
     // index not in range
-    code = -2;
+    code = 0;
   }
 
   return code;

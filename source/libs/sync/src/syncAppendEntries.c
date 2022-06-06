@@ -438,9 +438,12 @@ static bool syncNodeOnAppendEntriesLogOK(SSyncNode* pSyncNode, SyncAppendEntries
     return true;
   }
 
-  SyncTerm  myPreLogTerm = syncNodeGetPreTerm(pSyncNode, pMsg->prevLogIndex + 1);
   SyncIndex myLastIndex = syncNodeGetLastIndex(pSyncNode);
+  if (pMsg->prevLogIndex > myLastIndex) {
+    return false;
+  }
 
+  SyncTerm myPreLogTerm = syncNodeGetPreTerm(pSyncNode, pMsg->prevLogIndex + 1);
   if (pMsg->prevLogIndex <= myLastIndex && pMsg->prevLogTerm == myPreLogTerm) {
     return true;
   }

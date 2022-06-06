@@ -91,6 +91,7 @@ typedef struct SSnapshot {
   void*     data;
   SyncIndex lastApplyIndex;
   SyncTerm  lastApplyTerm;
+  SyncIndex lastConfigIndex;
 } SSnapshot;
 
 typedef struct SSyncFSM {
