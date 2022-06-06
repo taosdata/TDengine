@@ -91,7 +91,7 @@ int32_t mndCheckColAndTagModifiable(SMnode *pMnode, int64_t suid, col_id_t colId
     }
 
     SHashObj  *pColHash = NULL;
-    SNodeList *pNodeList;
+    SNodeList *pNodeList = NULL;
     nodesCollectColumns((SSelectStmt *)pAst, SQL_CLAUSE_FROM, NULL, COLLECT_COL_TYPE_ALL, &pNodeList);
     SNode *pNode = NULL;
     FOREACH(pNode, pNodeList) {
@@ -103,6 +103,7 @@ int32_t mndCheckColAndTagModifiable(SMnode *pMnode, int64_t suid, col_id_t colId
       if (pCol->colId > 0) {
         taosHashPut(pColHash, &pCol->colId, sizeof(int16_t), NULL, 0);
       }
+      mTrace("topic:%s, colId:%d is used", pTopic->name, pCol->colId);
     }
 
     if (taosHashGet(pColHash, &colId, sizeof(int16_t)) != NULL) {
