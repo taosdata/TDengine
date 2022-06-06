@@ -791,7 +791,7 @@ static bool initTableMemIterator(STsdbReadHandle* pHandle, STableCheckInfo* pChe
     TSKEY   key = TD_ROW_KEY(row);  // first timestamp in buffer
     tsdbDebug("%p uid:%" PRId64 ", check data in mem from skey:%" PRId64 ", order:%d, ts range in buf:%" PRId64
               "-%" PRId64 ", lastKey:%" PRId64 ", numOfRows:%" PRId64 ", %s",
-              pHandle, pCheckInfo->tableId, key, order, (*pMem)->keyMin, (*pMem)->keyMax, pCheckInfo->lastKey,
+              pHandle, pCheckInfo->tableId, key, order, (*pMem)->minKey.ts, (*pMem)->maxKey.ts, pCheckInfo->lastKey,
               (*pMem)->nrows, pHandle->idStr);
 
     if (ASCENDING_TRAVERSE(order)) {
@@ -812,7 +812,7 @@ static bool initTableMemIterator(STsdbReadHandle* pHandle, STableCheckInfo* pChe
     TSKEY   key = TD_ROW_KEY(row);  // first timestamp in buffer
     tsdbDebug("%p uid:%" PRId64 ", check data in imem from skey:%" PRId64 ", order:%d, ts range in buf:%" PRId64
               "-%" PRId64 ", lastKey:%" PRId64 ", numOfRows:%" PRId64 ", %s",
-              pHandle, pCheckInfo->tableId, key, order, (*pIMem)->keyMin, (*pIMem)->keyMax, pCheckInfo->lastKey,
+              pHandle, pCheckInfo->tableId, key, order, (*pIMem)->minKey.ts, (*pIMem)->maxKey.ts, pCheckInfo->lastKey,
               (*pIMem)->nrows, pHandle->idStr);
 
     if (ASCENDING_TRAVERSE(order)) {

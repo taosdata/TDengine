@@ -305,8 +305,8 @@ int tsdbInsertTableData(STsdb *pTsdb, SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlo
   keyMax = TD_ROW_KEY(blkIter.row);
 
   pTbData->nrows += pMsgIter->numOfRows;
-  if (pTbData->keyMin > keyMin) pTbData->keyMin = keyMin;
-  if (pTbData->keyMax < keyMax) pTbData->keyMax = keyMax;
+  if (pTbData->minKey.ts > keyMin) pTbData->minKey.ts = keyMin;
+  if (pTbData->maxKey.ts < keyMax) pTbData->maxKey.ts = keyMax;
 
   pMemTable->nRow += pMsgIter->numOfRows;
   if (pMemTable->keyMin > keyMin) pMemTable->keyMin = keyMin;
@@ -326,8 +326,8 @@ static STbData *tsdbNewTbData(tb_uid_t uid) {
   }
 
   pTbData->uid = uid;
-  pTbData->keyMin = TSKEY_MAX;
-  pTbData->keyMax = TSKEY_MIN;
+  pTbData->minKey.ts = TSKEY_MAX;
+  pTbData->maxKey.ts = TSKEY_MIN;
   pTbData->nrows = 0;
 #if 0
   pTbData->pData = tSkipListCreate(5, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), tkeyComparFn, SL_DISCARD_DUP_KEY,

@@ -206,12 +206,18 @@ struct SDFileSet {
   SDFile   files[TSDB_FILE_MAX];
 };
 
+struct TSDBKEY {
+  int64_t version;
+  TSKEY   ts;
+};
+
 struct STbData {
+  tb_uid_t   suid;
   tb_uid_t   uid;
-  TSKEY      keyMin;
-  TSKEY      keyMax;
-  int64_t    minVer;
-  int64_t    maxVer;
+  TSDBKEY    minKey;
+  TSDBKEY    maxKey;
+  SDelOp    *pHead;
+  SDelOp    *pTail;
   int64_t    nrows;
   SSkipList *pData;
 };
@@ -312,11 +318,6 @@ static FORCE_INLINE TSKEY tsdbNextIterKey(SSkipListIterator *pIter) {
 
 // tsdbReadImpl
 typedef struct SReadH SReadH;
-
-struct TSDBKEY {
-  int64_t version;
-  TSKEY   ts;
-};
 
 typedef struct {
   uint64_t suid;
