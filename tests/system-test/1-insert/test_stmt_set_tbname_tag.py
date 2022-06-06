@@ -249,18 +249,33 @@ class TDTestCase:
             print("8",rows4)
             assert rows4[0][0] == 3, ' 8 case is failed'
 
-            #query: selector Functions
+            #query: selector Functions 9
 
-            querystmt4=conn.statement(" select count(?)  from log  ")
+            querystmt4=conn.statement("  select bottom(bu,?)  from log group by bu ;  ")
             queryparam4=new_bind_params(1)
             print(type(queryparam4))
-            queryparam4[0].int(123)
+            queryparam4[0].int(2)
             querystmt4.bind_param(queryparam4)
             querystmt4.execute() 
             result4=querystmt4.use_result()
             rows4=result4.fetch_all()
-            print("8",rows4)
-            assert rows4[0][0] == 3, ' 8 case is failed'
+            print("9",rows4)
+            assert rows4[0][0] == 4, ' 9 case is failed'
+            assert rows4[1][0] == 3, ' 9 case is failed'
+
+            # #query: time-series specific Functions 10
+
+            querystmt4=conn.statement("  select twa(?)  from log;  ")
+            queryparam4=new_bind_params(1)
+            print(type(queryparam4))
+            queryparam4[0].int(15)
+            querystmt4.bind_param(queryparam4)
+            querystmt4.execute() 
+            result4=querystmt4.use_result()
+            rows4=result4.fetch_all()
+            print("10",rows4)
+            assert rows4[0][0] == 15, ' 10 case is failed'
+
 
             # conn.execute("drop database if exists %s" % dbname)
             conn.close()
