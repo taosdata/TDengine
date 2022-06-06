@@ -85,8 +85,8 @@ class TDTestCase:
             "select stateduration(c1 ,'GT','*',1s) from t1",
             "select stateduration(c1 ,'GT',ts,1s) from t1",
             "select stateduration(c1 ,'GT',max(c1),1s) from t1",
-            "select stateduration(abs(c1) ,'GT',1,1s) from t1",
-            "select stateduration(c1+2 ,'GT',1,1s) from t1",
+            # "select stateduration(abs(c1) ,'GT',1,1s) from t1",
+            # "select stateduration(c1+2 ,'GT',1,1s) from t1",
             "select stateduration(c1 ,'GT',1,1u) from t1",
             "select stateduration(c1 ,'GT',1,now) from t1",
             "select stateduration(c1 ,'GT','1',1s) from t1",
@@ -323,6 +323,11 @@ class TDTestCase:
         tdSql.checkData(0, 0, None)
         tdSql.checkData(1, 0, 0.000000000)
         tdSql.checkData(3, 0, -86404.000000000)
+
+        tdSql.query("select stateduration(abs(c1) ,'GT',1,1s) from t1")
+        tdSql.checkRows(12)
+        tdSql.query("select stateduration(c1+2 ,'GT',1,1s) from t1")
+        tdSql.checkRows(12)
         
 
         # bug for stable
