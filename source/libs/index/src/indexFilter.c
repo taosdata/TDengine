@@ -499,7 +499,9 @@ static int32_t sifExecOper(SOperatorNode *node, SIFCtx *ctx, SIFParam *output) {
   int32_t code = 0;
   int32_t nParam = sifGetOperParamNum(node->opType);
   if (nParam <= 1) {
-    SIF_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+    output->status = SFLT_NOT_INDEX;
+    return code;
+    // SIF_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
   if (node->opType == OP_TYPE_JSON_GET_VALUE || node->opType == OP_TYPE_JSON_CONTAINS) {
     return code;
@@ -615,11 +617,11 @@ EDealRes sifCalcWalker(SNode *node, void *context) {
   }
 
   if (QUERY_NODE_OPERATOR == nodeType(node)) {
-    indexInfo("node type for index filter, type: %d", nodeType(node));
+    // indexInfo("node type for index filter, type: %d", nodeType(node));
     return sifWalkOper(node, ctx);
   }
 
-  indexError("invalid node type for index filter calculating, type:%d", nodeType(node));
+  // indexError("invalid node type for index filter calculating, type:%d", nodeType(node));
   ctx->code = TSDB_CODE_QRY_INVALID_INPUT;
   return DEAL_RES_ERROR;
 }
