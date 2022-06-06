@@ -37,11 +37,11 @@ static void tsdbScanAndTryFixDFilesHeader(STsdb *pRepo, int32_t *nExpired);
 // static int  tsdbProcessExpiredFS(STsdb *pRepo);
 // static int  tsdbCreateMeta(STsdb *pRepo);
 
-static void tsdbGetRootDir(int repoid, const char* dir, char dirName[]) {
+static void tsdbGetRootDir(int repoid, const char *dir, char dirName[]) {
   snprintf(dirName, TSDB_FILENAME_LEN, "vnode/vnode%d/%s", repoid, dir);
 }
 
-static void tsdbGetDataDir(int repoid,  const char* dir, char dirName[]) {
+static void tsdbGetDataDir(int repoid, const char *dir, char dirName[]) {
   snprintf(dirName, TSDB_FILENAME_LEN, "vnode/vnode%d/%s/data", repoid, dir);
 }
 
@@ -216,16 +216,7 @@ STsdbFS *tsdbNewFS(const STsdbKeepCfg *pCfg) {
     return NULL;
   }
 
-  pfs->metaCache = taosHashInit(4096, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
-  if (pfs->metaCache == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    tsdbFreeFS(pfs);
-    return NULL;
-  }
-
   pfs->intxn = false;
-  pfs->metaCacheComp = NULL;
-
   pfs->nstatus = tsdbNewFSStatus(maxFSet);
   if (pfs->nstatus == NULL) {
     tsdbFreeFS(pfs);
@@ -238,8 +229,6 @@ STsdbFS *tsdbNewFS(const STsdbKeepCfg *pCfg) {
 void *tsdbFreeFS(STsdbFS *pfs) {
   if (pfs) {
     pfs->nstatus = tsdbFreeFSStatus(pfs->nstatus);
-    taosHashCleanup(pfs->metaCache);
-    pfs->metaCache = NULL;
     pfs->cstatus = tsdbFreeFSStatus(pfs->cstatus);
     taosThreadRwlockDestroy(&(pfs->lock));
     taosMemoryFree(pfs);
@@ -963,13 +952,6 @@ static int tsdbRestoreDFileSet(STsdb *pRepo) {
 }
 
 static int tsdbRestoreCurrent(STsdb *pRepo) {
-  // // Loop to recover mfile
-  // if (tsdbRestoreMeta(pRepo) < 0) {
-  //   tsdbError("vgId:%d, failed to restore current since %s", REPO_ID(pRepo), tstrerror(terrno));
-  //   return -1;
-  // }
-
-  // Loop to recover dfile set
   if (tsdbRestoreDFileSet(pRepo) < 0) {
     tsdbError("vgId:%d, failed to restore DFileSet since %s", REPO_ID(pRepo), tstrerror(terrno));
     return -1;
@@ -1051,4 +1033,31 @@ static void tsdbScanAndTryFixDFilesHeader(STsdb *pRepo, int32_t *nExpired) {
 
     tsdbCloseDFileSet(&fset);
   }
+}
+
+int tsdbRLockFS(STsdbFS *pFs) {
+  int code = taosThreadRwlockRdlock(&(pFs->lock));
+  if (code != 0) {
+    terrno = TAOS_SYSTEM_ERROR(code);
+    return -1;
+  }
+  return 0;
+}
+
+int tsdbWLockFS(STsdbFS *pFs) {
+  int code = taosThreadRwlockWrlock(&(pFs->lock));
+  if (code != 0) {
+    terrno = TAOS_SYSTEM_ERROR(code);
+    return -1;
+  }
+  return 0;
+}
+
+int tsdbUnLockFS(STsdbFS *pFs) {
+  int code = taosThreadRwlockUnlock(&(pFs->lock));
+  if (code != 0) {
+    terrno = TAOS_SYSTEM_ERROR(code);
+    return -1;
+  }
+  return 0;
 }

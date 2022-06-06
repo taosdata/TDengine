@@ -535,3 +535,9 @@ int64_t qwGetTimeInQueue(SQWorker *mgmt, EQueueType type) {
   return -1;
 }
 
+
+void qwClearExpiredSch(SArray* pExpiredSch) {
+
+}
+
+

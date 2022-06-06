@@ -180,7 +180,7 @@ int32_t processUseDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
     taosMemoryFreeClear(output.dbVgroup);
 
     tscError("0x%" PRIx64 " failed to build use db output since %s", pRequest->requestId, terrstr());
-  } else if (output.dbVgroup) {
+  } else if (output.dbVgroup && output.dbVgroup->vgHash) {
     struct SCatalog* pCatalog = NULL;
 
     int32_t code1 = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);

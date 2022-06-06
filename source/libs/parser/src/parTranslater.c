@@ -938,7 +938,7 @@ static int32_t translateAggFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
   if (hasInvalidFuncNesting(pFunc->pParameterList)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_AGG_FUNC_NESTING);
   }
-  if (pCxt->pCurrSelectStmt->hasIndefiniteRowsFunc) {
+  if (NULL != pCxt->pCurrSelectStmt && pCxt->pCurrSelectStmt->hasIndefiniteRowsFunc) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
   }
 
@@ -2124,6 +2124,7 @@ static int32_t translateDelete(STranslateContext* pCxt, SDeleteStmt* pDelete) {
     code = translateDeleteWhere(pCxt, pDelete);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    pCxt->currClause = SQL_CLAUSE_SELECT;
     code = translateExpr(pCxt, &pDelete->pCountFunc);
   }
   return code;
@@ -2653,8 +2654,23 @@ static int32_t checkTableSchema(STranslateContext* pCxt, SCreateTableStmt* pStmt
   return code;
 }
 
+static int32_t checkSchemalessDb(STranslateContext* pCxt, const char* pDbName) {
+  if (0 != pCxt->pParseCxt->schemalessType) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SDbCfgInfo info = {0};
+  int32_t    code = getDBCfg(pCxt, pDbName, &info);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = info.schemaless ? TSDB_CODE_SML_INVALID_DB_CONF : TSDB_CODE_SUCCESS;
+  }
+  return code;
+}
+
 static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt) {
-  int32_t code = checTableFactorOption(pCxt, pStmt->pOptions->filesFactor);
+  int32_t code = checkSchemalessDb(pCxt, pStmt->dbName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checTableFactorOption(pCxt, pStmt->pOptions->filesFactor);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkTableRollupOption(pCxt, pStmt->pOptions->pRollupFuncs);
   }
@@ -2666,11 +2682,6 @@ static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkTableSchema(pCxt, pStmt);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    if (pCxt->pParseCxt->schemalessType == 0) {
-      code = isNotSchemalessDb(pCxt->pParseCxt, pStmt->dbName);
-    }
   }
   return code;
 }
@@ -4445,11 +4456,11 @@ static int32_t rewriteCreateMultiTable(STranslateContext* pCxt, SQuery* pQuery) 
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pNode;
   FOREACH(pNode, pStmt->pSubTables) {
-    if (pCxt->pParseCxt->schemalessType == 0 &&
-        (code = isNotSchemalessDb(pCxt->pParseCxt, ((SCreateSubTableClause*)pNode)->dbName)) != TSDB_CODE_SUCCESS) {
-      return code;
+    SCreateSubTableClause* pClause = (SCreateSubTableClause*)pNode;
+    code = checkSchemalessDb(pCxt, pClause->dbName);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = rewriteCreateSubTable(pCxt, pClause, pVgroupHashmap);
     }
-    code = rewriteCreateSubTable(pCxt, (SCreateSubTableClause*)pNode, pVgroupHashmap);
     if (TSDB_CODE_SUCCESS != code) {
       taosHashCleanup(pVgroupHashmap);
       return code;
@@ -4860,13 +4871,8 @@ static int32_t buildModifyVnodeArray(STranslateContext* pCxt, SAlterTableStmt* p
 
 static int32_t rewriteAlterTable(STranslateContext* pCxt, SQuery* pQuery) {
   SAlterTableStmt* pStmt = (SAlterTableStmt*)pQuery->pRoot;
-  int32_t          code = TSDB_CODE_SUCCESS;
-  if (pCxt->pParseCxt->schemalessType == 0 &&
-      (code = isNotSchemalessDb(pCxt->pParseCxt, pStmt->dbName)) != TSDB_CODE_SUCCESS) {
-    return code;
-  }
-
-  STableMeta* pTableMeta = NULL;
+  int32_t          code = checkSchemalessDb(pCxt, pStmt->dbName);
+  STableMeta*      pTableMeta = NULL;
   code = getTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pTableMeta);
   if (TSDB_CODE_SUCCESS != code) {
     return code;

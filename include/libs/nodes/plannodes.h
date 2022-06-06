@@ -37,29 +37,30 @@ typedef struct SLogicNode {
 typedef enum EScanType { SCAN_TYPE_TAG = 1, SCAN_TYPE_TABLE, SCAN_TYPE_SYSTEM_TABLE, SCAN_TYPE_STREAM } EScanType;
 
 typedef struct SScanLogicNode {
-  SLogicNode         node;
-  SNodeList*         pScanCols;
-  SNodeList*         pScanPseudoCols;
-  struct STableMeta* pMeta;
-  SVgroupsInfo*      pVgroupList;
-  EScanType          scanType;
-  uint8_t            scanSeq[2];  // first is scan count, and second is reverse scan count
-  STimeWindow        scanRange;
-  SName              tableName;
-  bool               showRewrite;
-  double             ratio;
-  SNodeList*         pDynamicScanFuncs;
-  int32_t            dataRequired;
-  int64_t            interval;
-  int64_t            offset;
-  int64_t            sliding;
-  int8_t             intervalUnit;
-  int8_t             slidingUnit;
-  SNode*             pTagCond;
-  int8_t             triggerType;
-  int64_t            watermark;
-  int16_t            tsColId;
-  double             filesFactor;
+  SLogicNode    node;
+  SNodeList*    pScanCols;
+  SNodeList*    pScanPseudoCols;
+  int8_t        tableType;
+  uint64_t      tableId;
+  SVgroupsInfo* pVgroupList;
+  EScanType     scanType;
+  uint8_t       scanSeq[2];  // first is scan count, and second is reverse scan count
+  STimeWindow   scanRange;
+  SName         tableName;
+  bool          showRewrite;
+  double        ratio;
+  SNodeList*    pDynamicScanFuncs;
+  int32_t       dataRequired;
+  int64_t       interval;
+  int64_t       offset;
+  int64_t       sliding;
+  int8_t        intervalUnit;
+  int8_t        slidingUnit;
+  SNode*        pTagCond;
+  int8_t        triggerType;
+  int64_t       watermark;
+  int16_t       tsColId;
+  double        filesFactor;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -90,12 +91,20 @@ typedef struct SIndefRowsFuncLogicNode {
   SNodeList* pVectorFuncs;
 } SIndefRowsFuncLogicNode;
 
-typedef struct SVnodeModifLogicNode {
-  SLogicNode     node;
-  int32_t        msgType;
-  SArray*        pDataBlocks;
-  SVgDataBlocks* pVgDataBlocks;
-} SVnodeModifLogicNode;
+typedef enum EModifyTableType { MODIFY_TABLE_TYPE_INSERT = 1, MODIFY_TABLE_TYPE_DELETE } EModifyTableType;
+
+typedef struct SVnodeModifyLogicNode {
+  SLogicNode       node;
+  EModifyTableType modifyType;
+  int32_t          msgType;
+  SArray*          pDataBlocks;
+  SVgDataBlocks*   pVgDataBlocks;
+  SNode*           pModifyRows;  // SColumnNode
+  uint64_t         tableId;
+  int8_t           tableType;  // table type
+  char             tableFName[TSDB_TABLE_FNAME_LEN];
+  STimeWindow      deleteTimeRange;
+} SVnodeModifyLogicNode;
 
 typedef struct SExchangeLogicNode {
   SLogicNode node;
@@ -111,28 +120,30 @@ typedef struct SMergeLogicNode {
 
 typedef enum EWindowType { WINDOW_TYPE_INTERVAL = 1, WINDOW_TYPE_SESSION, WINDOW_TYPE_STATE } EWindowType;
 
-typedef enum EStreamIntervalAlgorithm {
-  STREAM_INTERVAL_ALGO_FINAL = 1,
-  STREAM_INTERVAL_ALGO_SEMI,
-  STREAM_INTERVAL_ALGO_SINGLE
-} EStreamIntervalAlgorithm;
+typedef enum EIntervalAlgorithm {
+  INTERVAL_ALGO_HASH = 1,
+  INTERVAL_ALGO_SORT_MERGE,
+  INTERVAL_ALGO_STREAM_FINAL,
+  INTERVAL_ALGO_STREAM_SEMI,
+  INTERVAL_ALGO_STREAM_SINGLE,
+} EIntervalAlgorithm;
 
 typedef struct SWindowLogicNode {
-  SLogicNode               node;
-  EWindowType              winType;
-  SNodeList*               pFuncs;
-  int64_t                  interval;
-  int64_t                  offset;
-  int64_t                  sliding;
-  int8_t                   intervalUnit;
-  int8_t                   slidingUnit;
-  int64_t                  sessionGap;
-  SNode*                   pTspk;
-  SNode*                   pStateExpr;
-  int8_t                   triggerType;
-  int64_t                  watermark;
-  double                   filesFactor;
-  EStreamIntervalAlgorithm stmInterAlgo;
+  SLogicNode         node;
+  EWindowType        winType;
+  SNodeList*         pFuncs;
+  int64_t            interval;
+  int64_t            offset;
+  int64_t            sliding;
+  int8_t             intervalUnit;
+  int8_t             slidingUnit;
+  int64_t            sessionGap;
+  SNode*             pTspk;
+  SNode*             pStateExpr;
+  int8_t             triggerType;
+  int64_t            watermark;
+  double             filesFactor;
+  EIntervalAlgorithm intervalAlgo;
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
@@ -319,6 +330,7 @@ typedef struct SIntervalPhysiNode {
   int8_t           slidingUnit;
 } SIntervalPhysiNode;
 
+typedef SIntervalPhysiNode SSortMergeIntervalPhysiNode;
 typedef SIntervalPhysiNode SStreamIntervalPhysiNode;
 typedef SIntervalPhysiNode SStreamFinalIntervalPhysiNode;
 typedef SIntervalPhysiNode SStreamSemiIntervalPhysiNode;
@@ -380,6 +392,14 @@ typedef struct SDataInserterNode {
   uint32_t      size;
   char*         pData;
 } SDataInserterNode;
+
+typedef struct SDataDeleterNode {
+  SDataSinkNode sink;
+  uint64_t      tableId;
+  int8_t        tableType;  // table type
+  char          tableFName[TSDB_TABLE_FNAME_LEN];
+  STimeWindow   deleteTimeRange;
+} SDataDeleterNode;
 
 typedef struct SSubplan {
   ENodeType      type;

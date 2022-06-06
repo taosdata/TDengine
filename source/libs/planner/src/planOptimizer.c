@@ -99,7 +99,7 @@ static bool osdMayBeOptimized(SLogicNode* pNode) {
     return false;
   }
   // todo: release after function splitting
-  if (TSDB_SUPER_TABLE == ((SScanLogicNode*)pNode)->pMeta->tableType &&
+  if (TSDB_SUPER_TABLE == ((SScanLogicNode*)pNode)->tableType &&
       SCAN_TYPE_STREAM != ((SScanLogicNode*)pNode)->scanType) {
     return false;
   }
@@ -328,7 +328,7 @@ static int32_t cpdApplyTagIndex(SScanLogicNode* pScan, SNode** pTagCond, SNode**
 
 static int32_t cpdOptimizeScanCondition(SOptimizeContext* pCxt, SScanLogicNode* pScan) {
   if (NULL == pScan->node.pConditions || OPTIMIZE_FLAG_TEST_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_CPD) ||
-      TSDB_SYSTEM_TABLE == pScan->pMeta->tableType) {
+      TSDB_SYSTEM_TABLE == pScan->tableType) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -662,7 +662,7 @@ static int32_t opkGetScanNodesImpl(SLogicNode* pNode, bool* pNotOptimize, SNodeL
 
   switch (nodeType(pNode)) {
     case QUERY_NODE_LOGIC_PLAN_SCAN:
-      if (TSDB_SUPER_TABLE != ((SScanLogicNode*)pNode)->pMeta->tableType) {
+      if (TSDB_SUPER_TABLE != ((SScanLogicNode*)pNode)->tableType) {
         return nodesListMakeAppend(pScanNodes, pNode);
       }
       break;

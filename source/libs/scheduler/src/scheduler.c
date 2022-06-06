@@ -182,6 +182,14 @@ int32_t scheduleCancelJob(int64_t job) {
   SCH_RET(code);
 }
 
+void schedulerStopQueryHb(void *pTrans) {
+  if (NULL == pTrans) {
+    return;
+  }
+
+  schCleanClusterHb(pTrans);
+}
+
 void schedulerFreeJob(int64_t job) {
   SSchJob *pJob = schAcquireJob(job);
   if (NULL == pJob) {
@@ -220,6 +228,7 @@ void schedulerDestroy(void) {
     }
   }
 
+  SCH_LOCK(SCH_WRITE, &schMgmt.hbLock);
   if (schMgmt.hbConnections) {
     void *pIter = taosHashIterate(schMgmt.hbConnections, NULL);
     while (pIter != NULL) {
@@ -230,4 +239,5 @@ void schedulerDestroy(void) {
     taosHashCleanup(schMgmt.hbConnections);
     schMgmt.hbConnections = NULL;
   }
+  SCH_UNLOCK(SCH_WRITE, &schMgmt.hbLock);
 }

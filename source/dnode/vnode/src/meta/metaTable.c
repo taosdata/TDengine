@@ -15,6 +15,7 @@
 
 #include "meta.h"
 
+static int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
 static int metaHandleEntry(SMeta *pMeta, const SMetaEntry *pME);
 static int metaSaveToTbDb(SMeta *pMeta, const SMetaEntry *pME);
 static int metaUpdateUidIdx(SMeta *pMeta, const SMetaEntry *pME);
@@ -25,7 +26,7 @@ static int metaUpdateCtbIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry);
 static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type);
 
-static int metaUpdateMetaRsp(tb_uid_t uid, char* tbName, SSchemaWrapper *pSchema, STableMetaRsp *pMetaRsp) {
+static int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, STableMetaRsp *pMetaRsp) {
   pMetaRsp->pSchemas = taosMemoryMalloc(pSchema->nCols * sizeof(SSchema));
   if (NULL == pMetaRsp->pSchemas) {
     terrno = TSDB_CODE_VND_OUT_OF_MEMORY;
@@ -41,6 +42,68 @@ static int metaUpdateMetaRsp(tb_uid_t uid, char* tbName, SSchemaWrapper *pSchema
   memcpy(pMetaRsp->pSchemas, pSchema->pSchema, pSchema->nCols * sizeof(SSchema));
 
   return 0;
+}
+
+static int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema) {
+#ifdef USE_INVERTED_INDEX
+  if (pMeta->pTagIvtIdx == NULL || pCtbEntry == NULL) {
+    return -1;
+  }
+  void *      data = pCtbEntry->ctbEntry.pTags;
+  const char *tagName = pSchema->name;
+
+  tb_uid_t    suid = pCtbEntry->ctbEntry.suid;
+  tb_uid_t    tuid = pCtbEntry->uid;
+  const void *pTagData = pCtbEntry->ctbEntry.pTags;
+  int32_t     nTagData = 0;
+
+  SArray *pTagVals = NULL;
+  if (tTagToValArray((const STag *)data, &pTagVals) != 0) {
+    return -1;
+  }
+  char key[512] = {0};
+
+  SIndexMultiTerm *terms = indexMultiTermCreate();
+  int16_t          nCols = taosArrayGetSize(pTagVals);
+  for (int i = 0; i < nCols; i++) {
+    STagVal *pTagVal = (STagVal *)taosArrayGet(pTagVals, i);
+    char     type = pTagVal->type;
+    sprintf(key, "%s_%s", tagName, pTagVal->pKey);
+    int32_t nKey = strlen(key);
+
+    SIndexTerm *term = NULL;
+    if (type == TSDB_DATA_TYPE_NULL) {
+      // handle null value
+    } else if (type == TSDB_DATA_TYPE_NCHAR) {
+      if (pTagVal->nData > 0) {
+        char *  val = taosMemoryCalloc(1, pTagVal->nData + VARSTR_HEADER_SIZE);
+        int32_t len = taosUcs4ToMbs((TdUcs4 *)pTagVal->pData, pTagVal->nData, val + VARSTR_HEADER_SIZE);
+        memcpy(val, (uint16_t *)&len, VARSTR_HEADER_SIZE);
+        type = TSDB_DATA_TYPE_VARCHAR;
+        term = indexTermCreate(suid, ADD_VALUE, type, key, nKey, val, len);
+      } else if (pTagVal->nData == 0) {
+        char *  val = NULL;
+        int32_t len = 0;
+        // handle NULL key
+      }
+    } else if (type == TSDB_DATA_TYPE_DOUBLE) {
+      double val = *(double *)(&pTagVal->i64);
+      int    len = 0;
+      term = indexTermCreate(suid, ADD_VALUE, type, key, nKey, (const char *)&val, len);
+    } else if (type == TSDB_DATA_TYPE_BOOL) {
+      int val = *(int *)(&pTagVal->i64);
+      int len = 0;
+      term = indexTermCreate(suid, ADD_VALUE, type, key, nKey, (const char *)&val, len);
+    }
+    if (term != NULL) {
+      indexMultiTermAdd(terms, term);
+    }
+    memset(key, 0, sizeof(key));
+  }
+  tIndexJsonPut(pMeta->pTagIvtIdx, terms, tuid);
+  indexMultiTermDestroy(terms);
+#endif
+  return -1;
 }
 
 int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
@@ -340,7 +403,6 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type) {
 
   return 0;
 }
-
 
 static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTbReq, STableMetaRsp *pMetaRsp) {
   void *          pVal = NULL;
@@ -824,28 +886,16 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
   } else {
     // pTagData = pCtbEntry->ctbEntry.pTags;
     // nTagData = ((const STag *)pCtbEntry->ctbEntry.pTags)->len;
+    pTagData = pCtbEntry->ctbEntry.pTags;
+    nTagData = ((const STag *)pCtbEntry->ctbEntry.pTags)->len;
+    return metaSaveJsonVarToIdx(pMeta, pCtbEntry, pTagColumn);
   }
-
-  // update tag index
-#ifdef USE_INVERTED_INDEX
-  tb_uid_t suid = pCtbEntry->ctbEntry.suid;
-  tb_uid_t tuid = pCtbEntry->uid;
-
-  SIndexMultiTerm *tmGroup = indexMultiTermCreate();
-
-  SIndexTerm *tm = indexTermCreate(suid, ADD_VALUE, pTagColumn->type, pTagColumn->name, sizeof(pTagColumn->name),
-                                   pTagData, pTagData == NULL ? 0 : strlen(pTagData));
-  indexMultiTermAdd(tmGroup, tm);
-  int ret = indexPut((SIndex *)pMeta->pTagIvtIdx, tmGroup, tuid);
-  indexMultiTermDestroy(tmGroup);
-#else
   if (metaCreateTagIdxKey(pCtbEntry->ctbEntry.suid, pTagColumn->colId, pTagData, nTagData, pTagColumn->type,
                           pCtbEntry->uid, &pTagIdxKey, &nTagIdxKey) < 0) {
     return -1;
   }
   tdbTbInsert(pMeta->pTagIdx, pTagIdxKey, nTagIdxKey, NULL, 0, &pMeta->txn);
   metaDestroyTagIdxKey(pTagIdxKey);
-#endif
   tDecoderClear(&dc);
   tdbFree(pData);
   return 0;
@@ -930,10 +980,5 @@ _err:
   return -1;
 }
 // refactor later
-void *metaGetIdx(SMeta *pMeta) {
-#ifdef USE_INVERTED_INDEX
-  return pMeta->pTagIvtIdx;
-#else
-  return pMeta->pTagIdx;
-#endif
-}
+void *metaGetIdx(SMeta *pMeta) { return pMeta->pTagIdx; }
+void *metaGetIvtIdx(SMeta *pMeta) { return pMeta->pTagIvtIdx; }
