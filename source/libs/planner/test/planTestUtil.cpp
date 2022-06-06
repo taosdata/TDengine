@@ -190,6 +190,8 @@ class PlannerTestBaseImpl {
     string  acctId_;
     string  db_;
     int32_t nsql_;
+
+    caseEnv() : nsql_(0) {}
   };
 
   struct stmtEnv {
@@ -197,6 +199,7 @@ class PlannerTestBaseImpl {
     array<char, 1024> msgBuf_;
     SQuery*           pQuery_;
 
+    stmtEnv() : pQuery_(nullptr) {}
     ~stmtEnv() { qDestroyQuery(pQuery_); }
   };
 
