@@ -63,6 +63,7 @@ int32_t syncNodeOnRequestVoteCb(SSyncNode* ths, SyncRequestVote* pMsg) {
     // vote again, no harm
     raftStoreVote(ths->pRaftStore, &(pMsg->srcId));
 
+    // forbid elect for this round
     syncNodeResetElectTimer(ths);
   }
 
