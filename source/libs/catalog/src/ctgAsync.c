@@ -286,6 +286,9 @@ int32_t ctgInitJob(CTG_PARAMS, SCtgJob** job, uint64_t reqId, const SCatalogReq*
   int32_t taskIdx = 0;
   for (int32_t i = 0; i < dbVgNum; ++i) {
     char* dbFName = taosArrayGet(pReq->pDbVgroup, i);
+    if (pReq->forceUpdate) {
+      ctgDropDbVgroupEnqueue(pCtg, dbFName, true);
+    }
     CTG_ERR_JRET(ctgInitGetDbVgTask(pJob, taskIdx++, dbFName));
   }
 
@@ -301,6 +304,9 @@ int32_t ctgInitJob(CTG_PARAMS, SCtgJob** job, uint64_t reqId, const SCatalogReq*
 
   for (int32_t i = 0; i < tbMetaNum; ++i) {
     SName* name = taosArrayGet(pReq->pTableMeta, i);
+    if (pReq->forceUpdate) {
+      catalogRemoveTableMeta(pCtg, name);
+    }
     CTG_ERR_JRET(ctgInitGetTbMetaTask(pJob, taskIdx++, name));
   }
 

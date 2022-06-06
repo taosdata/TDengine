@@ -694,7 +694,6 @@ void tFreeSMAltertbReq(SMAlterStbReq *pReq) {
   pReq->pFields = NULL;
 }
 
-
 int32_t tSerializeSEpSet(void *buf, int32_t bufLen, const SEpSet *pEpset) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
@@ -3674,12 +3673,12 @@ int32_t tEncodeTSma(SEncoder *pCoder, const STSma *pSma) {
     if (tEncodeCStr(pCoder, pSma->tagsFilter) < 0) return -1;
   }
   for (int32_t v = 0; v < pSma->numOfVgroups; ++v) {
-    if (tEncodeI32(pCoder, pSma->vgEpSet[v].vgId) < 0) return -1;
-    if (tEncodeI8(pCoder, pSma->vgEpSet[v].epSet.inUse) < 0) return -1;
-    int8_t numOfEps = pSma->vgEpSet[v].epSet.numOfEps;
+    if (tEncodeI32(pCoder, pSma->pVgEpSet[v].vgId) < 0) return -1;
+    if (tEncodeI8(pCoder, pSma->pVgEpSet[v].epSet.inUse) < 0) return -1;
+    int8_t numOfEps = pSma->pVgEpSet[v].epSet.numOfEps;
     if (tEncodeI8(pCoder, numOfEps) < 0) return -1;
     for (int32_t n = 0; n < numOfEps; ++n) {
-      const SEp *pEp = &pSma->vgEpSet[v].epSet.eps[n];
+      const SEp *pEp = &pSma->pVgEpSet[v].epSet.eps[n];
       if (tEncodeCStr(pCoder, pEp->fqdn) < 0) return -1;
       if (tEncodeU16(pCoder, pEp->port) < 0) return -1;
     }
@@ -3712,15 +3711,25 @@ int32_t tDecodeTSma(SDecoder *pCoder, STSma *pSma) {
   } else {
     pSma->tagsFilter = NULL;
   }
-  for (int32_t v = 0; v < pSma->numOfVgroups; ++v) {
-    if (tDecodeI32(pCoder, &pSma->vgEpSet[v].vgId) < 0) return -1;
-    if (tDecodeI8(pCoder, &pSma->vgEpSet[v].epSet.inUse) < 0) return -1;
-    if (tDecodeI8(pCoder, &pSma->vgEpSet[v].epSet.numOfEps) < 0) return -1;
-    int8_t numOfEps = pSma->vgEpSet[v].epSet.numOfEps;
-    for (int32_t n = 0; n < numOfEps; ++n) {
-      SEp *pEp = &pSma->vgEpSet[v].epSet.eps[n];
-      if (tDecodeCStrTo(pCoder, pEp->fqdn) < 0) return -1;
-      if (tDecodeU16(pCoder, &pEp->port) < 0) return -1;
+  if (pSma->numOfVgroups > 0) {
+    pSma->pVgEpSet = (SVgEpSet *)tDecoderMalloc(pCoder, pSma->numOfVgroups * sizeof(SVgEpSet));
+    if (!pSma->pVgEpSet) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+
+    memset(pSma->pVgEpSet, 0, pSma->numOfVgroups * sizeof(SVgEpSet));
+
+    for (int32_t v = 0; v < pSma->numOfVgroups; ++v) {
+      if (tDecodeI32(pCoder, &pSma->pVgEpSet[v].vgId) < 0) return -1;
+      if (tDecodeI8(pCoder, &pSma->pVgEpSet[v].epSet.inUse) < 0) return -1;
+      if (tDecodeI8(pCoder, &pSma->pVgEpSet[v].epSet.numOfEps) < 0) return -1;
+      int8_t numOfEps = pSma->pVgEpSet[v].epSet.numOfEps;
+      for (int32_t n = 0; n < numOfEps; ++n) {
+        SEp *pEp = &pSma->pVgEpSet[v].epSet.eps[n];
+        if (tDecodeCStrTo(pCoder, pEp->fqdn) < 0) return -1;
+        if (tDecodeU16(pCoder, &pEp->port) < 0) return -1;
+      }
     }
   }
 
@@ -3765,7 +3774,7 @@ int32_t tDecodeSVDropTSmaReq(SDecoder *pCoder, SVDropTSmaReq *pReq) {
   return 0;
 }
 
-int32_t tEncodeSVGetTSmaExpWndsReq(SEncoder* pCoder, const SVGetTsmaExpWndsReq* pReq) {
+int32_t tEncodeSVGetTSmaExpWndsReq(SEncoder *pCoder, const SVGetTsmaExpWndsReq *pReq) {
   if (tStartEncode(pCoder) < 0) return -1;
 
   if (tEncodeI64(pCoder, pReq->indexUid) < 0) return -1;
@@ -3773,10 +3782,10 @@ int32_t tEncodeSVGetTSmaExpWndsReq(SEncoder* pCoder, const SVGetTsmaExpWndsReq* 
   if (tEncodeI64(pCoder, pReq->queryWindow.ekey) < 0) return -1;
 
   tEndEncode(pCoder);
-  return 0;  
+  return 0;
 }
 
-int32_t tDecodeSVGetTsmaExpWndsReq(SDecoder* pCoder, SVGetTsmaExpWndsReq* pReq) {
+int32_t tDecodeSVGetTsmaExpWndsReq(SDecoder *pCoder, SVGetTsmaExpWndsReq *pReq) {
   if (tStartDecode(pCoder) < 0) return -1;
 
   if (tDecodeI64(pCoder, &pReq->indexUid) < 0) return -1;
@@ -3787,7 +3796,7 @@ int32_t tDecodeSVGetTsmaExpWndsReq(SDecoder* pCoder, SVGetTsmaExpWndsReq* pReq) 
   return 0;
 }
 
-int32_t tEncodeSVGetTSmaExpWndsRsp(SEncoder* pCoder, const SVGetTsmaExpWndsRsp* pReq) {
+int32_t tEncodeSVGetTSmaExpWndsRsp(SEncoder *pCoder, const SVGetTsmaExpWndsRsp *pReq) {
   if (tStartEncode(pCoder) < 0) return -1;
 
   if (tEncodeI64(pCoder, pReq->indexUid) < 0) return -1;
@@ -3814,7 +3823,7 @@ int32_t tDecodeSVGetTsmaExpWndsRsp(SDecoder *pCoder, SVGetTsmaExpWndsRsp *pReq) 
   return 0;
 }
 
-int32_t tEncodeSVDeleteReq(SEncoder* pCoder, const SVDeleteReq* pReq) {
+int32_t tEncodeSVDeleteReq(SEncoder *pCoder, const SVDeleteReq *pReq) {
   if (tStartEncode(pCoder) < 0) return -1;
 
   if (tEncodeI64(pCoder, pReq->delUid) < 0) return -1;
@@ -3832,7 +3841,7 @@ int32_t tEncodeSVDeleteReq(SEncoder* pCoder, const SVDeleteReq* pReq) {
   return 0;
 }
 
-int32_t tDecodeSVDeleteReq(SDecoder* pCoder, SVDeleteReq* pReq) {
+int32_t tDecodeSVDeleteReq(SDecoder *pCoder, SVDeleteReq *pReq) {
   if (tStartDecode(pCoder) < 0) return -1;
 
   if (tDecodeI64(pCoder, &pReq->delUid) < 0) return -1;
@@ -3850,7 +3859,7 @@ int32_t tDecodeSVDeleteReq(SDecoder* pCoder, SVDeleteReq* pReq) {
   return 0;
 }
 
-int32_t tEncodeSVDeleteRsp(SEncoder* pCoder, const SVDeleteRsp* pReq) {
+int32_t tEncodeSVDeleteRsp(SEncoder *pCoder, const SVDeleteRsp *pReq) {
   if (tStartEncode(pCoder) < 0) return -1;
 
   if (tEncodeI32(pCoder, pReq->code) < 0) return -1;
@@ -3860,7 +3869,7 @@ int32_t tEncodeSVDeleteRsp(SEncoder* pCoder, const SVDeleteRsp* pReq) {
   return 0;
 }
 
-int32_t tDecodeSVDeleteRsp(SDecoder* pCoder, SVDeleteRsp* pReq) {
+int32_t tDecodeSVDeleteRsp(SDecoder *pCoder, SVDeleteRsp *pReq) {
   if (tStartDecode(pCoder) < 0) return -1;
 
   if (tDecodeI32(pCoder, &pReq->code) < 0) return -1;
@@ -4502,7 +4511,7 @@ int32_t tDecodeSVAlterTbRsp(SDecoder *pDecoder, SVAlterTbRsp *pRsp) {
 }
 
 int32_t tDeserializeSVAlterTbRsp(void *buf, int32_t bufLen, SVAlterTbRsp *pRsp) {
-  int32_t meta = 0;
+  int32_t  meta = 0;
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, bufLen);
 
@@ -4543,7 +4552,7 @@ int32_t tDecodeSMAlterStbRsp(SDecoder *pDecoder, SMAlterStbRsp *pRsp) {
 }
 
 int32_t tDeserializeSMAlterStbRsp(void *buf, int32_t bufLen, SMAlterStbRsp *pRsp) {
-  int32_t meta = 0;
+  int32_t  meta = 0;
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, bufLen);
 
@@ -4559,7 +4568,7 @@ int32_t tDeserializeSMAlterStbRsp(void *buf, int32_t bufLen, SMAlterStbRsp *pRsp
   return 0;
 }
 
-void tFreeSMAlterStbRsp(SMAlterStbRsp* pRsp) {
+void tFreeSMAlterStbRsp(SMAlterStbRsp *pRsp) {
   if (NULL == pRsp) {
     return;
   }
@@ -4569,6 +4578,3 @@ void tFreeSMAlterStbRsp(SMAlterStbRsp* pRsp) {
     taosMemoryFree(pRsp->pMeta);
   }
 }
-
-
-

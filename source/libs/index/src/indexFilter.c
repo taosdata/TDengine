@@ -38,7 +38,7 @@ typedef struct SIFParam {
   col_id_t      colId;
   int64_t       suid;  // add later
   char          dbName[TSDB_DB_NAME_LEN];
-  char          colName[TSDB_COL_NAME_LEN];
+  char          colName[TSDB_COL_NAME_LEN * 2 + 4];
 
   SIndexMetaArg arg;
 } SIFParam;
