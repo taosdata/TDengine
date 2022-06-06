@@ -229,6 +229,9 @@ struct SMemTable {
   TSDBKEY    minKey;
   TSDBKEY    maxKey;
   int64_t    nRow;
+  int64_t    nDelOp;
+  SDelOp    *pHead;
+  SDelOp    *pTail;
   SSkipList *pSlIdx;  // SSkiplist<STbData>
   SHashObj  *pHashIdx;
 };
