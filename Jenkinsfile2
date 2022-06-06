@@ -87,7 +87,9 @@ def sync_source() {
                 cd ${WKC}
                 git fetch origin +refs/pull/${CHANGE_ID}/merge
                 git checkout -qf FETCH_HEAD
-
+            '''
+            sh '''
+                cd ${WKC}
                 if [ ! -d src/connector/python/.github ]; then
                     rm -rf src/connector/python/* || :
                     rm -rf src/connector/python/.* || :
@@ -95,7 +97,6 @@ def sync_source() {
                 else
                     cd src/connector/python || echo "src/connector/python not exist"
                     git pull || :
-                    cd ${WKC}
                 fi
             '''
         } else if (env.CHANGE_URL =~ /\/TDinternal\//) {
@@ -104,7 +105,9 @@ def sync_source() {
                 cd ${WK}
                 git fetch origin +refs/pull/${CHANGE_ID}/merge
                 git checkout -qf FETCH_HEAD
-
+            '''
+            sh '''
+                cd ${WKC}
                 if [ ! -d community/src/connector/python/.github ]; then
                     rm -rf community/src/connector/python/* || :
                     rm -rf community/src/connector/python/.* || :
@@ -112,7 +115,6 @@ def sync_source() {
                 else
                     cd community/src/connector/python || echo "community/src/connector/python not exist"
                     git pull || :
-                    cd ${WK}
                 fi
             '''
         } else {
