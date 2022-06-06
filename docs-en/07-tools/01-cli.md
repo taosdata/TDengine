@@ -10,13 +10,29 @@ The TDengine command-line application (hereafter referred to as `TDengine CLI`) 
 
 If executed on the TDengine server-side, there is no need for additional installation steps to install TDengine CLI as it is already included and installed automatically. To run TDengine CLI on the environment which no TDengine server running, the TDengine client installation package needs to be installed first. For details, please refer to [Install Client Driver](/reference/connector/#install-client-driver).
 
-## Execution
+## Config (Linux or Mac)
 
-To access the TDengine Cloud, you can execute `taos -R -h <cloud_host> -t <cloud_token>` command-line utility from a Linux terminal, Windows terminal, or Mac terminal. Please find the `cloud_host` and `cloud_token` string after log in to the TDengine Cloud.
+Run this command in your Linux terminal or Mac terminal to save your URL and token as variables:
 
-```bash
-taos -R -h <cloud_host> -t <cloud_token>
-```
+export TDENGINE_CLOUD_URL=<URL>
+export TDENGINE_CLOUD_TOKEN=<token>
+
+## Connect (Linux or Mac)
+
+To access the TDengine Cloud, you can execute `taos -R -h $TDENGINE_CLOUD_URL -t $TDENGINE_CLOUD_TOKEN` command-line utility from a Linux terminal, or Mac terminal.
+
+## Config (Windows, WIP, coming soon)
+
+Run this command in your Windows terminal to save your URL and token as variables:
+
+set TDENGINE_CLOUD_URL=<URL>
+set TDENGINE_CLOUD_TOKEN=<token>
+
+## Connect (Windows, WIP, coming soon)
+
+To access the TDengine Cloud, you can execute `taos -R -h %TDENGINE_CLOUD_URL% -t %TDENGINE_CLOUD_TOKEN%` command-line utility from a Windows terminal.
+
+## using TDengine CLI
 
 TDengine CLI will display a welcome message and version information if it successfully connected to the TDengine service. If it fails, TDengine CLI will print an error message. See [FAQ](/train-faq/faq) to solve the problem of terminal connection failure to the server. The TDengine CLI prompts as follows:
 
