@@ -310,22 +310,19 @@ typedef struct SCtgCacheOperation {
   int32_t  opId;
   void    *data;
   bool     syncOp;
-  uint64_t seqId;
+  tsem_t   rspSem;  
 } SCtgCacheOperation;
 
 typedef struct SCtgQNode {
-  SCtgCacheOperation     op;
+  SCtgCacheOperation    *op;
   struct SCtgQNode      *next;
 } SCtgQNode;
 
 typedef struct SCtgQueue {
   SRWLatch              qlock;
-  uint64_t              seqId;
-  uint64_t              seqDone;
   SCtgQNode            *head;
   SCtgQNode            *tail;
   tsem_t                reqSem;  
-  tsem_t                rspSem;  
   uint64_t              qRemainNum;
 } SCtgQueue;
 
