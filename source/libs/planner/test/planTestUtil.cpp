@@ -81,6 +81,8 @@ int32_t getLogLevel() { return g_logLevel; }
 
 class PlannerTestBaseImpl {
  public:
+  PlannerTestBaseImpl() : sqlNo_(0) {}
+
   void useDb(const string& acctId, const string& db) {
     caseEnv_.acctId_ = acctId;
     caseEnv_.db_ = db;
@@ -88,6 +90,7 @@ class PlannerTestBaseImpl {
   }
 
   void run(const string& sql) {
+    ++sqlNo_;
     if (caseEnv_.nsql_ > 0) {
       --(caseEnv_.nsql_);
       return;
@@ -229,7 +232,7 @@ class PlannerTestBaseImpl {
       return;
     }
 
-    cout << "==========================================sql : [" << stmtEnv_.sql_ << "]" << endl;
+    cout << "========================================== " << sqlNo_ << " sql : [" << stmtEnv_.sql_ << "]" << endl;
 
     if (DUMP_MODULE_ALL == module || DUMP_MODULE_PARSER == module) {
       if (res_.prepareAst_.empty()) {
@@ -382,6 +385,7 @@ class PlannerTestBaseImpl {
   caseEnv caseEnv_;
   stmtEnv stmtEnv_;
   stmtRes res_;
+  int32_t sqlNo_;
 };
 
 PlannerTestBase::PlannerTestBase() : impl_(new PlannerTestBaseImpl()) {}

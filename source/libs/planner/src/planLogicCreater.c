@@ -458,7 +458,7 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
 
 static int32_t createIndefRowsFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   // top/bottom are both an aggregate function and a indefinite rows function
-  if (!pSelect->hasIndefiniteRowsFunc || pSelect->hasAggFuncs) {
+  if (!pSelect->hasIndefiniteRowsFunc || pSelect->hasAggFuncs || NULL != pSelect->pWindow) {
     return TSDB_CODE_SUCCESS;
   }
 
