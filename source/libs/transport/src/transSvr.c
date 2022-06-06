@@ -180,6 +180,12 @@ static bool addHandleToAcceptloop(void* arg);
       if (!transQueuePush(&conn->srvMsgs, srvMsg)) {                                  \
         return;                                                                       \
       }                                                                               \
+      if (conn->regArg.init) {                                                        \
+        tTrace("server conn %p release, notify server app", conn);                    \
+        STrans* pTransInst = conn->pTransInst;                                        \
+        (*pTransInst->cfp)(pTransInst->parent, &(conn->regArg.msg), NULL);            \
+        memset(&conn->regArg, 0, sizeof(conn->regArg));                               \
+      }                                                                               \
       uvStartSendRespInternal(srvMsg);                                                \
       return;                                                                         \
     }                                                                                 \
@@ -1154,6 +1160,10 @@ int transGetConnInfo(void* thandle, STransHandleInfo* pInfo) {
   }
   SExHandle* ex = thandle;
   SSvrConn*  pConn = ex->handle;
+  if (pConn == NULL) {
+    tTrace("invalid handle %p, failed to Get Conn info", thandle);
+    return -1;
+  }
 
   struct sockaddr_in addr = pConn->addr;
   pInfo->clientIp = (uint32_t)(addr.sin_addr.s_addr);
