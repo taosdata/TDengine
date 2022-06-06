@@ -45,7 +45,7 @@ extern "C" {
 
 #define ERROR_MSG_BUF_DEFAULT_SIZE 512
 #define HEARTBEAT_INTERVAL         1500  // ms
-#define SYNC_ON_TOP_OF_ASYNC       1
+#define SYNC_ON_TOP_OF_ASYNC       0
 
 enum {
   RES_TYPE__QUERY = 1,
@@ -268,7 +268,6 @@ extern int32_t  clientConnRefPool;
 
 __async_send_cb_fn_t getMsgRspHandle(int32_t msgType);
 
-int           genericRspCallback(void* param, const SDataBuf* pMsg, int32_t code);
 SMsgSendInfo* buildMsgInfoImpl(SRequestObj* pReqObj);
 
 void*    createTscObj(const char* user, const char* auth, const char* db, int32_t connType, SAppInstInfo* pAppInfo);
@@ -293,8 +292,6 @@ void* openTransporter(const char* user, const char* auth, int32_t numOfThreads);
 
 bool persistConnForSpecificMsg(void* parenct, tmsg_t msgType);
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet);
-
-void initMsgHandleFp();
 
 TAOS* taos_connect_internal(const char* ip, const char* user, const char* pass, const char* auth, const char* db,
                             uint16_t port, int connType);
