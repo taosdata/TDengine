@@ -651,3 +651,31 @@ void dBufPrintStatis(const SDiskbasedBuf* pBuf) {
       ps->getPages, ps->releasePages, ps->flushBytes / 1024.0f, ps->flushPages, ps->loadBytes / 1024.0f, ps->loadPages,
       ps->loadBytes / (1024.0 * ps->loadPages));
 }
+
+void clearDiskbasedBuf(SDiskbasedBuf* pBuf) {
+  SArray** p = taosHashIterate(pBuf->groupSet, NULL);
+  while (p) {
+    size_t n = taosArrayGetSize(*p);
+    for (int32_t i = 0; i < n; ++i) {
+      SPageInfo* pi = taosArrayGetP(*p, i);
+      taosMemoryFreeClear(pi->pData);
+      taosMemoryFreeClear(pi);
+    }
+    taosArrayDestroy(*p);
+    p = taosHashIterate(pBuf->groupSet, p);
+  }
+
+  tdListEmpty(pBuf->lruList);
+  tdListEmpty(pBuf->freePgList);
+
+  taosArrayClear(pBuf->emptyDummyIdList);
+  taosArrayClear(pBuf->pFree);
+
+  taosHashClear(pBuf->groupSet);
+  taosHashClear(pBuf->all);
+
+  pBuf->numOfPages   = 0;  // all pages are in buffer in the first place
+  pBuf->totalBufSize = 0;
+  pBuf->allocateId = -1;
+  pBuf->fileSize = 0;
+}
