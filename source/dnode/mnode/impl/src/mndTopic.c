@@ -71,7 +71,7 @@ const char *mndTopicGetShowName(const char topic[TSDB_TOPIC_FNAME_LEN]) {
   return strchr(topic, '.') + 1;
 }
 
-bool mndCheckColAndTagModifiable(SMnode *pMnode, int64_t suid, const SArray *colAndTagIds) {
+int32_t mndCheckColAndTagModifiable(SMnode *pMnode, int64_t suid, col_id_t colId) {
   SSdb *pSdb = pMnode->pSdb;
   void *pIter = NULL;
   bool  found = false;
@@ -105,20 +105,21 @@ bool mndCheckColAndTagModifiable(SMnode *pMnode, int64_t suid, const SArray *col
       }
     }
 
-    for (int32_t i = 0; i < taosArrayGetSize(colAndTagIds); i++) {
-      int16_t *pColId = taosArrayGet(colAndTagIds, i);
-      if (taosHashGet(pColHash, pColId, sizeof(int16_t)) != NULL) {
-        found = true;
-        goto NEXT;
-      }
+    if (taosHashGet(pColHash, &colId, sizeof(int16_t)) != NULL) {
+      found = true;
+      goto NEXT;
     }
 
   NEXT:
     sdbRelease(pSdb, pTopic);
     nodesDestroyNode(pAst);
-    if (found) return false;
+    if (found) {
+      terrno = TSDB_CODE_MND_FIELD_CONFLICT_WITH_TOPIC;
+      return -1;
+    }
   }
-  return true;
+
+  return 0;
 }
 
 SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic) {
