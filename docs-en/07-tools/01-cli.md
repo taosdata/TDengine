@@ -14,8 +14,10 @@ If executed on the TDengine server-side, there is no need for additional install
 
 Run this command in your Linux terminal or Mac terminal to save your URL and token as variables:
 
+```
 export TDENGINE_CLOUD_URL=<URL>
 export TDENGINE_CLOUD_TOKEN=<token>
+```
 
 ## Connect (Linux or Mac)
 
@@ -25,8 +27,10 @@ To access the TDengine Cloud, you can execute `taos -R -h $TDENGINE_CLOUD_URL -t
 
 Run this command in your Windows terminal to save your URL and token as variables:
 
+```
 set TDENGINE_CLOUD_URL=<URL>
 set TDENGINE_CLOUD_TOKEN=<token>
+```
 
 ## Connect (Windows, WIP, coming soon)
 
