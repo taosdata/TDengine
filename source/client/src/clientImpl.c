@@ -257,7 +257,8 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
              pRequest->requestId);
   }
 
-  pRequest->body.fetchFp(pRequest->body.param, pRequest, pResultInfo->numOfRows);
+  pRequest->body.queryFp(pRequest->body.param, pRequest, 0);
+//  pRequest->body.fetchFp(pRequest->body.param, pRequest, pResultInfo->numOfRows);
 }
 
 int32_t asyncExecDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
@@ -573,6 +574,20 @@ int32_t handleExecRes(SRequestObj* pRequest) {
 
 void schedulerExecCb(SQueryResult* pResult, void* param, int32_t code) {
   SRequestObj* pRequest = (SRequestObj*) param;
+  pRequest->code = code;
+
+  STscObj* pTscObj = pRequest->pTscObj;
+  if (code != TSDB_CODE_SUCCESS && NEED_CLIENT_HANDLE_ERROR(code)) {
+    // todo do nothing in clear value in request
+    tscDebug("0x%"PRIx64" client retry to handle the error, code:%s, reqId:0x%"PRIx64, pRequest->self, tstrerror(code), pRequest->requestId);
+    pRequest->prevCode = code;
+    doAsyncQuery(pRequest, true);
+    return;
+  }
+
+  if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type)) {
+    removeMeta(pTscObj, pRequest->tableList);
+  }
 
   // return to client
   pRequest->body.queryFp(pRequest->body.param, pRequest, code);
@@ -769,7 +784,7 @@ SRequestObj* execQuery(STscObj* pTscObj, const char* sql, int sqlLen) {
       pRequest->code = code;
       break;
     }
-  } while (retryNum++ < REQUEST_MAX_TRY_TIMES);
+  } while (retryNum++ < REQUEST_TOTAL_EXEC_TIMES);
 
   if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type)) {
     removeMeta(pTscObj, pRequest->tableList);
@@ -1448,7 +1463,7 @@ TSDB_SERVER_STATUS taos_check_server_status(const char* fqdn, int port, char* de
   }
 
   code = statusRsp.statusCode;
-  if (details != NULL && statusRsp.details != NULL) {
+  if (details != NULL) {
     tstrncpy(details, statusRsp.details, maxlen);
   }
 

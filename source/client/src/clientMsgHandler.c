@@ -219,6 +219,7 @@ int32_t processCreateTableRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   }
 
   if (pRequest->body.queryFp != NULL) {
+    removeMeta(pRequest->pTscObj, pRequest->tableList);
     pRequest->body.queryFp(pRequest->body.param, pRequest, code);
   } else {
     tsem_post(&pRequest->body.rspSem);
@@ -263,6 +264,20 @@ int32_t processAlterStbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   }
 
   if (pRequest->body.queryFp != NULL) {
+    SQueryExecRes* pRes = &pRequest->body.resInfo.execRes;
+
+    if (code == TSDB_CODE_SUCCESS) {
+      SCatalog* pCatalog = NULL;
+      int32_t   ret = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
+      if (pRes->res != NULL) {
+        ret = handleAlterTbExecRes(pRes->res, pCatalog);
+      }
+
+      if (ret != TSDB_CODE_SUCCESS) {
+        code = ret;
+      }
+    }
+
     pRequest->body.queryFp(pRequest->body.param, pRequest, code);
   } else {
     tsem_post(&pRequest->body.rspSem);

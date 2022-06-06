@@ -212,6 +212,9 @@ typedef struct SRequestObj {
   SArray*              tableList;
   SQueryExecMetric     metric;
   SRequestSendRecvBody body;
+
+  uint32_t             prevCode; //previous error code: todo refactor, add update flag for catalog
+  uint32_t             retry;
 } SRequestObj;
 
 typedef struct SSyncQueryParam {
@@ -325,6 +328,9 @@ int32_t      scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNod
 void         launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery);
 int32_t      refreshMeta(STscObj* pTscObj, SRequestObj* pRequest);
 int32_t      updateQnodeList(SAppInstInfo* pInfo, SArray* pNodeList);
+void         doAsyncQuery(SRequestObj* pRequest, bool forceUpdateMeta);
+int32_t      removeMeta(STscObj* pTscObj, SArray* tbList);// todo move to clientImpl.c and become a static function
+int32_t      handleAlterTbExecRes(void* res, struct SCatalog* pCatalog);// todo move to xxx
 
 #ifdef __cplusplus
 }
