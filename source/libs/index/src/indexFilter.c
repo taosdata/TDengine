@@ -64,6 +64,8 @@ static int32_t sifGetFuncFromSql(EOperatorType src, EIndexQueryType *dst) {
     *dst = QUERY_TERM;
   } else if (src == OP_TYPE_LIKE || src == OP_TYPE_MATCH || src == OP_TYPE_NMATCH) {
     *dst = QUERY_REGEX;
+  } else if (src == OP_TYPE_JSON_CONTAINS) {
+    *dst = QUERY_PREFIX;
   } else {
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
@@ -184,6 +186,7 @@ static int32_t sifInitParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
       SIF_ERR_RET(sifGetValueFromNode(node, &param->condValue));
       param->colId = -1;
       param->colValType = (uint8_t)(vn->node.resType.type);
+      memcpy(param->colName, vn->literal, strlen(vn->literal));
       break;
     }
     case QUERY_NODE_COLUMN: {
@@ -235,7 +238,7 @@ static int32_t sifInitOperParams(SIFParam **params, SOperatorNode *node, SIFCtx 
     indexError("invalid operation node, left: %p, rigth: %p", node->pLeft, node->pRight);
     SIF_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
-  if (node->opType == OP_TYPE_JSON_GET_VALUE || node->opType == OP_TYPE_JSON_CONTAINS) {
+  if (node->opType == OP_TYPE_JSON_GET_VALUE) {
     return code;
   }
   SIFParam *paramList = taosMemoryCalloc(nParam, sizeof(SIFParam));
@@ -418,8 +421,8 @@ static int32_t sifNotMatchFunc(SIFParam *left, SIFParam *right, SIFParam *output
   return sifDoIndex(left, right, id, output);
 }
 static int32_t sifJsonContains(SIFParam *left, SIFParam *right, SIFParam *output) {
-  // return 0
-  return 0;
+  int id = OP_TYPE_JSON_CONTAINS;
+  return sifDoIndex(left, right, id, output);
 }
 static int32_t sifJsonGetValue(SIFParam *left, SIFParam *rigth, SIFParam *output) {
   // return 0
@@ -503,7 +506,7 @@ static int32_t sifExecOper(SOperatorNode *node, SIFCtx *ctx, SIFParam *output) {
     return code;
     // SIF_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
-  if (node->opType == OP_TYPE_JSON_GET_VALUE || node->opType == OP_TYPE_JSON_CONTAINS) {
+  if (node->opType == OP_TYPE_JSON_GET_VALUE) {
     return code;
   }
   SIFParam *params = NULL;

@@ -43,7 +43,7 @@ extern "C" {
 #define indexTrace(...) do { if (idxDebugFlag & DEBUG_TRACE) { taosPrintLog("IDX", DEBUG_TRACE, idxDebugFlag, __VA_ARGS__);} } while (0)
 // clang-format on
 
-typedef enum { LT, LE, GT, GE } RangeType;
+typedef enum { LT, LE, GT, GE, CONTAINS } RangeType;
 typedef enum { kTypeValue, kTypeDeletion } STermValueType;
 
 typedef struct SIndexStat {
