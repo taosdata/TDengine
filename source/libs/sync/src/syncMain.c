@@ -598,12 +598,6 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
   }
 
   // snapshot receivers
-  for (int i = 0; i < TSDB_MAX_REPLICA; ++i) {
-    SSyncSnapshotReceiver* pReceiver = snapshotReceiverCreate(pSyncNode, i);
-    // ASSERT(pReceiver != NULL);
-    (pSyncNode->receivers)[i] = pReceiver;
-  }
-
   pSyncNode->pNewNodeReceiver = snapshotReceiverCreate(pSyncNode, 100);
 
   // start in syncNodeStart
@@ -702,13 +696,6 @@ void syncNodeClose(SSyncNode* pSyncNode) {
     if ((pSyncNode->senders)[i] != NULL) {
       snapshotSenderDestroy((pSyncNode->senders)[i]);
       (pSyncNode->senders)[i] = NULL;
-    }
-  }
-
-  for (int i = 0; i < TSDB_MAX_REPLICA; ++i) {
-    if ((pSyncNode->receivers)[i] != NULL) {
-      snapshotReceiverDestroy((pSyncNode->receivers)[i]);
-      (pSyncNode->receivers)[i] = NULL;
     }
   }
 
@@ -1025,10 +1012,7 @@ cJSON* syncNode2Json(const SSyncNode* pSyncNode) {
 
     // snapshot receivers
     cJSON* pReceivers = cJSON_CreateArray();
-    cJSON_AddItemToObject(pRoot, "receivers", pReceivers);
-    for (int i = 0; i < TSDB_MAX_REPLICA; ++i) {
-      cJSON_AddItemToArray(pReceivers, snapshotReceiver2Json((pSyncNode->receivers)[i]));
-    }
+    cJSON_AddItemToObject(pRoot, "receiver", snapshotReceiver2Json(pSyncNode->pNewNodeReceiver));
   }
 
   cJSON* pJson = cJSON_CreateObject();

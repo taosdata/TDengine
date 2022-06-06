@@ -19,6 +19,7 @@
 #include "syncInt.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
+#include "syncSnapshot.h"
 #include "syncUtil.h"
 #include "syncVoteMgr.h"
 
@@ -137,7 +138,9 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
     syncIndexMgrSetIndex(ths->pMatchIndex, &(pMsg->srcId), pMsg->matchIndex);
 
     // maybe commit
-    syncMaybeAdvanceCommitIndex(ths);
+    if (ths->state == TAOS_SYNC_STATE_LEADER) {
+      syncMaybeAdvanceCommitIndex(ths);
+    }
 
   } else {
     SyncIndex nextIndex = syncIndexMgrGetIndex(ths->pNextIndex, &(pMsg->srcId));
@@ -151,8 +154,26 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
         SSnapshot snapshot;
         ths->pFsm->FpGetSnapshot(ths->pFsm, &snapshot);
         if (nextIndex <= snapshot.lastApplyIndex) {
+          ASSERT(nextIndex == snapshot.lastApplyIndex);
+
           nextIndex = snapshot.lastApplyIndex + 1;
           sInfo("reset new nextIndex %ld, snapshot.lastApplyIndex:%ld", nextIndex, snapshot.lastApplyIndex);
+
+          // start send snapshot
+          // get sender
+          SSyncSnapshotSender* pSender = NULL;
+          for (int i = 0; i < ths->replicaNum; ++i) {
+            if (syncUtilSameId(&(pMsg->srcId), &((ths->replicasId)[i]))) {
+              pSender = (ths->senders)[i];
+            }
+          }
+          ASSERT(pSender != NULL);
+
+          if (!(pSender->term == ths->pRaftStore->currentTerm && pSender->finish == true)) {
+            snapshotSenderStart(pSender);
+          } else {
+            sInfo("snapshot send finish, send_term:%lu, current_term:%lu", pSender->term, ths->pRaftStore->currentTerm);
+          }
         }
       }
 

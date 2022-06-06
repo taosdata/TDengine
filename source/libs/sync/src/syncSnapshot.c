@@ -284,7 +284,7 @@ cJSON *snapshotSender2Json(SSyncSnapshotSender *pSender) {
 
 char *snapshotSender2Str(SSyncSnapshotSender *pSender) {
   cJSON *pJson = snapshotSender2Json(pSender);
-  char * serialized = cJSON_Print(pJson);
+  char  *serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
 }
@@ -398,7 +398,7 @@ cJSON *snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver) {
 
 char *snapshotReceiver2Str(SSyncSnapshotReceiver *pReceiver) {
   cJSON *pJson = snapshotReceiver2Json(pReceiver);
-  char * serialized = cJSON_Print(pJson);
+  char  *serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
 }
@@ -406,19 +406,8 @@ char *snapshotReceiver2Str(SSyncSnapshotReceiver *pReceiver) {
 // receiver do something
 int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
   // get receiver
-  SSyncSnapshotReceiver *pReceiver = NULL;
-  for (int i = 0; i < pSyncNode->replicaNum; ++i) {
-    if (syncUtilSameId(&(pMsg->srcId), &((pSyncNode->replicasId)[i]))) {
-      pReceiver = (pSyncNode->receivers)[i];
-    }
-  }
-
-  // add new replica
-  if (pReceiver == NULL) {
-    pReceiver = pSyncNode->pNewNodeReceiver;
-  }
-
-  bool needRsp = false;
+  SSyncSnapshotReceiver *pReceiver = pSyncNode->pNewNodeReceiver;
+  bool                   needRsp = false;
 
   // state, term, seq/ack
   if (pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER) {
