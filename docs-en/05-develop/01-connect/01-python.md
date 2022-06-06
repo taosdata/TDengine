@@ -13,12 +13,12 @@ pip3 install taospy>=2.3.3
 
 You'll need to have Python3 installed.
 
-## Config
+## Config {#config}
 
-Run this command in your terminal to save your url and token as variables:
+Run this command in your terminal to save your URL and token as variables:
 
 ```bash
-export TDENGINE_CLOUD_URL=<url>
+export TDENGINE_CLOUD_URL=<URL>
 export TDENGINE_CLOUD_TOKEN=<token>
 ```
 
@@ -29,7 +29,7 @@ You should replace above placeholders as real values. To obtain these values, pl
 :::
 <!-- exclude-end -->
 
-## Connect
+## Connect {#connect}
 
 ```python
 import taosrest
