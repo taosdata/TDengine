@@ -219,9 +219,9 @@ static int32_t makeScanLogicNode(SLogicPlanContext* pCxt, SRealTableNode* pRealT
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  // TSWAP(pScan->pMeta, pRealTable->pMeta);
   TSWAP(pScan->pVgroupList, pRealTable->pVgroupList);
   pScan->tableId = pRealTable->pMeta->uid;
+  pScan->stableId = pRealTable->pMeta->suid;
   pScan->tableType = pRealTable->pMeta->tableType;
   pScan->scanSeq[0] = hasRepeatScanFuncs ? 2 : 1;
   pScan->scanSeq[1] = 0;
@@ -1057,8 +1057,8 @@ static int32_t createVnodeModifLogicNodeByDelete(SLogicPlanContext* pCxt, SDelet
   snprintf(pModify->tableFName, sizeof(pModify->tableFName), "%d.%s.%s", pCxt->pPlanCxt->acctId,
            pRealTable->table.dbName, pRealTable->table.tableName);
   pModify->deleteTimeRange = pDelete->timeRange;
-  pModify->pModifyRows = nodesCloneNode(pDelete->pCountFunc);
-  if (NULL == pModify->pModifyRows) {
+  pModify->pAffectedRows = nodesCloneNode(pDelete->pCountFunc);
+  if (NULL == pModify->pAffectedRows) {
     nodesDestroyNode(pModify);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
