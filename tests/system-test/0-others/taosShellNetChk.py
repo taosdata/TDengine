@@ -187,50 +187,51 @@ class TDTestCase:
         # stop taosd
         tdDnodes.stop(1)        
 
-        role   = 'server'
-        if platform.system().lower() == 'windows':
-            taosCmd = 'mintty -h never -w hide ' + buildPath + '\\build\\bin\\taos.exe -c ' + keyDict['c']
-            taosCmd = taosCmd.replace('\\','\\\\')
-            taosCmd = taosCmd + ' -n ' + role
-        else:
-            taosCmd = 'nohup ' + buildPath + '/build/bin/taos -c ' + keyDict['c']
-            taosCmd = taosCmd + ' -n ' + role + ' > /dev/null 2>&1 &'
-        print (taosCmd)
-        os.system(taosCmd)
+        try:
+            role   = 'server'
+            if platform.system().lower() == 'windows':
+                taosCmd = 'mintty -h never -w hide ' + buildPath + '\\build\\bin\\taos.exe -c ' + keyDict['c']
+                taosCmd = taosCmd.replace('\\','\\\\')
+                taosCmd = taosCmd + ' -n ' + role
+            else:
+                taosCmd = 'nohup ' + buildPath + '/build/bin/taos -c ' + keyDict['c']
+                taosCmd = taosCmd + ' -n ' + role + ' > /dev/null 2>&1 &'
+            print (taosCmd)
+            os.system(taosCmd)
 
-        pktLen = '2000'
-        pktNum = '10'
-        role   = 'client'
-        if platform.system().lower() == 'windows':
-            taosCmd = buildPath + '\\build\\bin\\taos.exe -h 127.0.0.1 -c ' + keyDict['c']
-            taosCmd = taosCmd.replace('\\','\\\\')
-        else:
-            taosCmd = buildPath + '/build/bin/taos -c ' + keyDict['c']
-        taosCmd = taosCmd + ' -n ' + role + ' -l ' + pktLen + ' -N ' +  pktNum
-        print (taosCmd)
-        child = taosExpect.spawn(taosCmd, timeout=3)
-        i = child.expect([taosExpect.TIMEOUT, taosExpect.EOF], timeout=6)
+            pktLen = '2000'
+            pktNum = '10'
+            role   = 'client'
+            if platform.system().lower() == 'windows':
+                taosCmd = buildPath + '\\build\\bin\\taos.exe -h 127.0.0.1 -c ' + keyDict['c']
+                taosCmd = taosCmd.replace('\\','\\\\')
+            else:
+                taosCmd = buildPath + '/build/bin/taos -c ' + keyDict['c']
+            taosCmd = taosCmd + ' -n ' + role + ' -l ' + pktLen + ' -N ' +  pktNum
+            print (taosCmd)
+            child = taosExpect.spawn(taosCmd, timeout=3)
+            i = child.expect([taosExpect.TIMEOUT, taosExpect.EOF], timeout=6)
 
-        if platform.system().lower() == 'windows':
-            retResult = child.before
-        else:
-            retResult = child.before.decode()
-        print("expect() return code: %d, content:\n %s\n"%(i, retResult))
-        #print(child.after.decode())
-        if i == 0:
-            tdLog.exit('taos -n server fail!')
-        
-        expectString1 = 'response is received, size:' + pktLen
-        expectSTring2 = pktNum + '/' + pktNum
-        if expectString1 in retResult and expectSTring2 in retResult:
-            tdLog.info("taos -n client success")
-        else:
-            tdLog.exit('taos -n client fail!')
-
-        if platform.system().lower() == 'windows':
-            os.system('ps -a | grep taos | awk \'{print $2}\' | xargs kill -9')
-        else:
-            os.system('pkill taos')
+            if platform.system().lower() == 'windows':
+                retResult = child.before
+            else:
+                retResult = child.before.decode()
+            print("expect() return code: %d, content:\n %s\n"%(i, retResult))
+            #print(child.after.decode())
+            if i == 0:
+                tdLog.exit('taos -n server fail!')
+            
+            expectString1 = 'response is received, size:' + pktLen
+            expectSTring2 = pktNum + '/' + pktNum
+            if expectString1 in retResult and expectSTring2 in retResult:
+                tdLog.info("taos -n client success")
+            else:
+                tdLog.exit('taos -n client fail!')
+        finally:
+            if platform.system().lower() == 'windows':
+                os.system('ps -a | grep taos | awk \'{print $2}\' | xargs kill -9')
+            else:
+                os.system('pkill taos')
 
     def stop(self):
         tdSql.close()
