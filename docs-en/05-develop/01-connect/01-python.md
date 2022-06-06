@@ -3,7 +3,7 @@ sidebar_label: Python
 title: Connect with Python Connector
 ---
 
-## Install Connector
+## Install Connector {#install}
 
 First, you need to install the `taospy` module version >= `2.3.3`. Run the command below in your terminal.
 
