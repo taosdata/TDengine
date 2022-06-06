@@ -99,12 +99,6 @@ def sync_source() {
                     git pull || :
                 fi
             '''
-            sh '''
-                cd ${WKC}
-                rm -rf src/connector/jdbc
-                mkdir src/connector/jdbc
-                git clone --depth 1 git@github.com:taosdata/taos-connector-jdbc.git src/connector/jdbc
-            '''
         } else if (env.CHANGE_URL =~ /\/TDinternal\//) {
             sh '''
                 echo "match /TDinternal/ repository"
@@ -122,12 +116,6 @@ def sync_source() {
                     cd community/src/connector/python || echo "community/src/connector/python not exist"
                     git pull || :
                 fi
-            '''
-            sh '''
-                cd ${WKC}
-                rm -rf src/connector/jdbc
-                mkdir src/connector/jdbc
-                git clone --depth 1 git@github.com:taosdata/taos-connector-jdbc.git src/connector/jdbc
             '''
         } else {
             sh '''
