@@ -40,6 +40,8 @@ void schCleanClusterHb(void* pTrans) {
 }
 
 int32_t schRemoveHbConnection(SSchJob *pJob, SSchTask *pTask, SQueryNodeEpId *epId) {
+  return TSDB_CODE_SUCCESS; // TODO ENABLE IT WHEN RPC IS READY
+  
   int32_t     code = 0;
 
   SCH_LOCK(SCH_WRITE, &schMgmt.hbLock);
