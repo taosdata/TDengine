@@ -24,7 +24,7 @@ export TDENGINE_CLOUD_TOKEN=<token>
 
 <!-- exclude -->
 :::note
-You should replace above placeholders as real values. To get these values, please log in TDengine Cloud and switch to "Connector" section.
+You should replace above placeholders as real values. To obtain these values, please log in TDengine Cloud and switch to "Connector" section.
 
 :::
 <!-- exclude-end -->
