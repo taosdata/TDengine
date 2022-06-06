@@ -67,15 +67,16 @@ enum {
 };
 
 typedef struct STableCheckInfo {
-  uint64_t           tableId;
-  TSKEY              lastKey;
-  SBlockInfo*        pCompInfo;
-  int32_t            compSize;
-  int32_t            numOfBlocks : 29;  // number of qualified data blocks not the original blocks
-  uint8_t            chosen : 2;        // indicate which iterator should move forward
-  bool               initBuf : 1;       // whether to initialize the in-memory skip list iterator or not
-  SSkipListIterator* iter;              // mem buffer skip list iterator
-  SSkipListIterator* iiter;             // imem buffer skip list iterator
+  uint64_t     suid;
+  uint64_t     tableId;
+  TSKEY        lastKey;
+  SBlockInfo*  pCompInfo;
+  int32_t      compSize;
+  int32_t      numOfBlocks : 29;  // number of qualified data blocks not the original blocks
+  uint8_t      chosen : 2;        // indicate which iterator should move forward
+  bool         initBuf : 1;       // whether to initialize the in-memory skip list iterator or not
+  STbDataIter* iter;              // mem buffer skip list iterator
+  STbDataIter* iiter;             // imem buffer skip list iterator
 } STableCheckInfo;
 
 typedef struct STableBlockInfo {
@@ -265,8 +266,8 @@ static void resetCheckInfo(STsdbReadHandle* pTsdbReadHandle) {
   for (int32_t i = 0; i < numOfTables; ++i) {
     STableCheckInfo* pCheckInfo = (STableCheckInfo*)taosArrayGet(pTsdbReadHandle->pTableCheckInfo, i);
     pCheckInfo->lastKey = pTsdbReadHandle->window.skey;
-    pCheckInfo->iter = tSkipListDestroyIter(pCheckInfo->iter);
-    pCheckInfo->iiter = tSkipListDestroyIter(pCheckInfo->iiter);
+    pCheckInfo->iter = tsdbTbDataIterDestroy(pCheckInfo->iter);
+    pCheckInfo->iiter = tsdbTbDataIterDestroy(pCheckInfo->iiter);
     pCheckInfo->initBuf = false;
 
     if (ASCENDING_TRAVERSE(pTsdbReadHandle->order)) {
@@ -752,23 +753,21 @@ static bool initTableMemIterator(STsdbReadHandle* pHandle, STableCheckInfo* pChe
   pCheckInfo->initBuf = true;
   int32_t order = pHandle->order;
 
-  STbData** pMem = NULL;
-  STbData** pIMem = NULL;
+  STbData* pMem = NULL;
+  STbData* pIMem = NULL;
 
   TSKEY tLastKey = keyToTkey(pCheckInfo->lastKey);
   if (pHandle->pTsdb->mem != NULL) {
-    pMem = taosHashGet(pHandle->pTsdb->mem->pHashIdx, &pCheckInfo->tableId, sizeof(pCheckInfo->tableId));
+    tsdbGetTbDataFromMemTable(pHandle->pTsdb->mem, pCheckInfo->suid, pCheckInfo->tableId, &pMem);
     if (pMem != NULL) {
-      pCheckInfo->iter =
-          tSkipListCreateIterFromVal((*pMem)->pData, (const char*)&tLastKey, TSDB_DATA_TYPE_TIMESTAMP, order);
+      tsdbTbDataIterCreate(pMem, &(TSDBKEY){.version = 0, .ts = tLastKey}, 0, &pCheckInfo->iter);
     }
   }
 
   if (pHandle->pTsdb->imem != NULL) {
-    pIMem = taosHashGet(pHandle->pTsdb->imem->pHashIdx, &pCheckInfo->tableId, sizeof(pCheckInfo->tableId));
+    tsdbGetTbDataFromMemTable(pHandle->pTsdb->mem, pCheckInfo->suid, pCheckInfo->tableId, &pIMem);
     if (pIMem != NULL) {
-      pCheckInfo->iiter =
-          tSkipListCreateIterFromVal((*pIMem)->pData, (const char*)&tLastKey, TSDB_DATA_TYPE_TIMESTAMP, order);
+      tsdbTbDataIterCreate(pIMem, &(TSDBKEY){.version = 0, .ts = tLastKey}, 0, &pCheckInfo->iiter);
     }
   }
 
@@ -777,22 +776,21 @@ static bool initTableMemIterator(STsdbReadHandle* pHandle, STableCheckInfo* pChe
     return false;
   }
 
-  bool memEmpty = (pCheckInfo->iter == NULL) || (pCheckInfo->iter != NULL && !tSkipListIterNext(pCheckInfo->iter));
-  bool imemEmpty = (pCheckInfo->iiter == NULL) || (pCheckInfo->iiter != NULL && !tSkipListIterNext(pCheckInfo->iiter));
+  bool memEmpty = (pCheckInfo->iter == NULL) || (pCheckInfo->iter != NULL && !tsdbTbDataIterNext(pCheckInfo->iter));
+  bool imemEmpty = (pCheckInfo->iiter == NULL) || (pCheckInfo->iiter != NULL && !tsdbTbDataIterNext(pCheckInfo->iiter));
   if (memEmpty && imemEmpty) {  // buffer is empty
     return false;
   }
 
   if (!memEmpty) {
-    SSkipListNode* node = tSkipListIterGet(pCheckInfo->iter);
-    assert(node != NULL);
+    TSDBROW row;
 
-    STSRow* row = (STSRow*)SL_GET_NODE_DATA(node);
-    TSKEY   key = TD_ROW_KEY(row);  // first timestamp in buffer
+    tsdbTbDataIterGet(pCheckInfo->iter, &row);
+    TSKEY key = row.pTSRow->ts;  // first timestamp in buffer
     tsdbDebug("%p uid:%" PRId64 ", check data in mem from skey:%" PRId64 ", order:%d, ts range in buf:%" PRId64
               "-%" PRId64 ", lastKey:%" PRId64 ", numOfRows:%" PRId64 ", %s",
-              pHandle, pCheckInfo->tableId, key, order, (*pMem)->minKey.ts, (*pMem)->maxKey.ts, pCheckInfo->lastKey,
-              (*pMem)->nrows, pHandle->idStr);
+              pHandle, pCheckInfo->tableId, key, order, pMem->minKey.ts, pMem->maxKey.ts, pCheckInfo->lastKey,
+              pMem->sl.size, pHandle->idStr);
 
     if (ASCENDING_TRAVERSE(order)) {
       assert(pCheckInfo->lastKey <= key);
@@ -805,15 +803,14 @@ static bool initTableMemIterator(STsdbReadHandle* pHandle, STableCheckInfo* pChe
   }
 
   if (!imemEmpty) {
-    SSkipListNode* node = tSkipListIterGet(pCheckInfo->iiter);
-    assert(node != NULL);
+    TSDBROW row;
 
-    STSRow* row = (STSRow*)SL_GET_NODE_DATA(node);
-    TSKEY   key = TD_ROW_KEY(row);  // first timestamp in buffer
+    tsdbTbDataIterGet(pCheckInfo->iter, &row);
+    TSKEY key = row.pTSRow->ts;  // first timestamp in buffer
     tsdbDebug("%p uid:%" PRId64 ", check data in imem from skey:%" PRId64 ", order:%d, ts range in buf:%" PRId64
               "-%" PRId64 ", lastKey:%" PRId64 ", numOfRows:%" PRId64 ", %s",
-              pHandle, pCheckInfo->tableId, key, order, (*pIMem)->minKey.ts, (*pIMem)->maxKey.ts, pCheckInfo->lastKey,
-              (*pIMem)->nrows, pHandle->idStr);
+              pHandle, pCheckInfo->tableId, key, order, pIMem->minKey.ts, pIMem->maxKey.ts, pCheckInfo->lastKey,
+              pIMem->sl.size, pHandle->idStr);
 
     if (ASCENDING_TRAVERSE(order)) {
       assert(pCheckInfo->lastKey <= key);
@@ -828,31 +825,23 @@ static bool initTableMemIterator(STsdbReadHandle* pHandle, STableCheckInfo* pChe
 }
 
 static void destroyTableMemIterator(STableCheckInfo* pCheckInfo) {
-  tSkipListDestroyIter(pCheckInfo->iter);
-  tSkipListDestroyIter(pCheckInfo->iiter);
+  tsdbTbDataIterDestroy(pCheckInfo->iter);
+  tsdbTbDataIterDestroy(pCheckInfo->iiter);
 }
 
 static TSKEY extractFirstTraverseKey(STableCheckInfo* pCheckInfo, int32_t order, int32_t update, TDRowVerT maxVer) {
+  TSDBROW row = {0};
   STSRow *rmem = NULL, *rimem = NULL;
+
   if (pCheckInfo->iter) {
-    SSkipListNode* node = tSkipListIterGet(pCheckInfo->iter);
-    if (node != NULL) {
-      rmem = (STSRow*)SL_GET_NODE_DATA(node);
-      // TODO: filter max version
-      // if (TD_ROW_VER(rmem) > maxVer) {
-      //   rmem = NULL;
-      // }
+    if (tsdbTbDataIterGet(pCheckInfo->iter, &row)) {
+      rmem = row.pTSRow;
     }
   }
 
   if (pCheckInfo->iiter) {
-    SSkipListNode* node = tSkipListIterGet(pCheckInfo->iiter);
-    if (node != NULL) {
-      rimem = (STSRow*)SL_GET_NODE_DATA(node);
-      // TODO: filter max version
-      // if (TD_ROW_VER(rimem) > maxVer) {
-      //   rimem = NULL;
-      // }
+    if (tsdbTbDataIterGet(pCheckInfo->iiter, &row)) {
+      rimem = row.pTSRow;
     }
   }
 
@@ -889,7 +878,7 @@ static TSKEY extractFirstTraverseKey(STableCheckInfo* pCheckInfo, int32_t order,
       pCheckInfo->chosen = CHECKINFO_CHOSEN_BOTH;
     } else {
       pCheckInfo->chosen = CHECKINFO_CHOSEN_IMEM;
-      tSkipListIterNext(pCheckInfo->iter);
+      tsdbTbDataIterNext(pCheckInfo->iter);
     }
     return r1;
   } else if (r1 < r2 && ASCENDING_TRAVERSE(order)) {
@@ -903,28 +892,17 @@ static TSKEY extractFirstTraverseKey(STableCheckInfo* pCheckInfo, int32_t order,
 
 static STSRow* getSRowInTableMem(STableCheckInfo* pCheckInfo, int32_t order, int32_t update, STSRow** extraRow,
                                  TDRowVerT maxVer) {
+  TSDBROW row;
   STSRow *rmem = NULL, *rimem = NULL;
   if (pCheckInfo->iter) {
-    SSkipListNode* node = tSkipListIterGet(pCheckInfo->iter);
-    if (node != NULL) {
-      rmem = (STSRow*)SL_GET_NODE_DATA(node);
-#if 0  // TODO: skiplist refactor
-      if (TD_ROW_VER(rmem) > maxVer) {
-        rmem = NULL;
-      }
-#endif
+    if (tsdbTbDataIterGet(pCheckInfo->iter, &row)) {
+      rmem = row.pTSRow;
     }
   }
 
   if (pCheckInfo->iiter) {
-    SSkipListNode* node = tSkipListIterGet(pCheckInfo->iiter);
-    if (node != NULL) {
-      rimem = (STSRow*)SL_GET_NODE_DATA(node);
-#if 0  // TODO: skiplist refactor
-      if (TD_ROW_VER(rimem) > maxVer) {
-        rimem = NULL;
-      }
-#endif
+    if (tsdbTbDataIterGet(pCheckInfo->iiter, &row)) {
+      rimem = row.pTSRow;
     }
   }
 
@@ -966,7 +944,7 @@ static STSRow* getSRowInTableMem(STableCheckInfo* pCheckInfo, int32_t order, int
       *extraRow = rimem;
       return rmem;
     } else {
-      tSkipListIterNext(pCheckInfo->iter);
+      tsdbTbDataIterNext(pCheckInfo->iter);
       pCheckInfo->chosen = CHECKINFO_CHOSEN_IMEM;
       return rimem;
     }
@@ -995,7 +973,7 @@ static bool moveToNextRowInMem(STableCheckInfo* pCheckInfo) {
   bool hasNext = false;
   if (pCheckInfo->chosen == CHECKINFO_CHOSEN_MEM) {
     if (pCheckInfo->iter != NULL) {
-      hasNext = tSkipListIterNext(pCheckInfo->iter);
+      hasNext = tsdbTbDataIterNext(pCheckInfo->iter);
     }
 
     if (hasNext) {
@@ -1003,11 +981,11 @@ static bool moveToNextRowInMem(STableCheckInfo* pCheckInfo) {
     }
 
     if (pCheckInfo->iiter != NULL) {
-      return tSkipListIterGet(pCheckInfo->iiter) != NULL;
+      return tsdbTbDataIterGet(pCheckInfo->iiter, NULL);
     }
   } else if (pCheckInfo->chosen == CHECKINFO_CHOSEN_IMEM) {
     if (pCheckInfo->iiter != NULL) {
-      hasNext = tSkipListIterNext(pCheckInfo->iiter);
+      hasNext = tsdbTbDataIterNext(pCheckInfo->iiter);
     }
 
     if (hasNext) {
@@ -1015,14 +993,14 @@ static bool moveToNextRowInMem(STableCheckInfo* pCheckInfo) {
     }
 
     if (pCheckInfo->iter != NULL) {
-      return tSkipListIterGet(pCheckInfo->iter) != NULL;
+      return tsdbTbDataIterGet(pCheckInfo->iter, NULL);
     }
   } else {
     if (pCheckInfo->iter != NULL) {
-      hasNext = tSkipListIterNext(pCheckInfo->iter);
+      hasNext = tsdbTbDataIterNext(pCheckInfo->iter);
     }
     if (pCheckInfo->iiter != NULL) {
-      hasNext = tSkipListIterNext(pCheckInfo->iiter) || hasNext;
+      hasNext = tsdbTbDataIterNext(pCheckInfo->iiter) || hasNext;
     }
   }
 

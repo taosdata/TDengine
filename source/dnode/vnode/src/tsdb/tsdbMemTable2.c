@@ -15,11 +15,6 @@
 
 #include "tsdb.h"
 
-struct SMemSkipListNode {
-  int8_t            level;
-  SMemSkipListNode *forwards[0];
-};
-
 typedef struct {
   tb_uid_t  uid;
   STSchema *pTSchema;
