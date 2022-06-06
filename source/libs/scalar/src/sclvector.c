@@ -88,7 +88,7 @@ void convertNumberToNumber(const void *inData, void *outData, int8_t inType, int
   }
 }
 
-void convertStringToDouble(const void *inData, void *outData, int8_t inType, int8_t outType){
+void convertNcharToDouble(const void *inData, void *outData){
   char *tmp = taosMemoryMalloc(varDataTLen(inData));
   int len = taosUcs4ToMbs((TdUcs4 *)varDataVal(inData), varDataLen(inData), tmp);
   if (len < 0) {
@@ -97,11 +97,22 @@ void convertStringToDouble(const void *inData, void *outData, int8_t inType, int
 
   tmp[len] = 0;
 
-  ASSERT(outType == TSDB_DATA_TYPE_DOUBLE);
   double value = taosStr2Double(tmp, NULL);
 
   *((double *)outData) = value;
   taosMemoryFreeClear(tmp);
+}
+
+void convertBinaryToDouble(const void *inData, void *outData){
+  char *tmp = taosMemoryCalloc(1, varDataTLen(inData));
+  if(tmp == NULL){
+    *((double *)outData) = 0.;
+    return;
+  }
+  memcpy(tmp, varDataVal(inData), varDataLen(inData));
+  double ret = taosStr2Double(tmp, NULL);
+  taosMemoryFree(tmp);
+  *((double *)outData) = ret;
 }
 
 typedef int64_t (*_getBigintValue_fn_t)(void *src, int32_t index);
@@ -147,7 +158,7 @@ int64_t getVectorBigintValue_JSON(void *src, int32_t index){
   if (*data == TSDB_DATA_TYPE_NULL){
     return 0;
   } else if(*data == TSDB_DATA_TYPE_NCHAR) {   // json inner type can not be BINARY
-    convertStringToDouble(data+CHAR_BYTES, &out, *data, TSDB_DATA_TYPE_DOUBLE);
+    convertNcharToDouble(data+CHAR_BYTES, &out);
   } else {
     convertNumberToNumber(data+CHAR_BYTES, &out, *data, TSDB_DATA_TYPE_DOUBLE);
   }
@@ -445,14 +456,30 @@ double getVectorDoubleValue_JSON(void *src, int32_t index){
   if (*data == TSDB_DATA_TYPE_NULL){
     return out;
   } else if(*data == TSDB_DATA_TYPE_NCHAR) {   // json inner type can not be BINARY
-    convertStringToDouble(data+CHAR_BYTES, &out, *data, TSDB_DATA_TYPE_DOUBLE);
+    convertNcharToDouble(data+CHAR_BYTES, &out);
   } else {
     convertNumberToNumber(data+CHAR_BYTES, &out, *data, TSDB_DATA_TYPE_DOUBLE);
   }
   return out;
 }
 
-bool convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_t typeRight, char **pLeftData, char **pRightData, void *pLeftOut, void *pRightOut, bool *isNull){
+void* ncharTobinary(void *buf){            // todo need to remove , if tobinary is nchar
+  int32_t inputLen = varDataLen(buf);
+
+  void* t = taosMemoryCalloc(1, inputLen);
+  int32_t len  = taosUcs4ToMbs((TdUcs4 *)varDataVal(buf), varDataLen(buf), varDataVal(t));
+  if (len < 0) {
+    sclError("charset:%s to %s. val:%s convert ncharTobinary failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
+             (char*)varDataVal(buf));
+    taosMemoryFree(t);
+    return NULL;
+  }
+  varDataSetLen(t, len);
+  return t;
+}
+
+bool convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_t typeRight, char **pLeftData, char **pRightData,
+                      void *pLeftOut, void *pRightOut, bool *isNull, bool *freeLeft, bool *freeRight){
   if(optr == OP_TYPE_JSON_CONTAINS) {
     return true;
   }
@@ -489,21 +516,41 @@ bool convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_t t
 
   *fp = filterGetCompFunc(type, optr);
 
-  if(typeLeft == TSDB_DATA_TYPE_NCHAR) {
-    convertStringToDouble(*pLeftData, pLeftOut, typeLeft, type);
-    *pLeftData = pLeftOut;
-  } else if(typeLeft != type) {
-    convertNumberToNumber(*pLeftData, pLeftOut, typeLeft, type);
-    *pLeftData = pLeftOut;
+  if(IS_NUMERIC_TYPE(type) || IS_FLOAT_TYPE(type)){
+    if(typeLeft == TSDB_DATA_TYPE_NCHAR) {
+      convertNcharToDouble(*pLeftData, pLeftOut);
+      *pLeftData = pLeftOut;
+    } else if(typeLeft == TSDB_DATA_TYPE_BINARY) {
+      convertBinaryToDouble(*pLeftData, pLeftOut);
+      *pLeftData = pLeftOut;
+    } else if(typeLeft != type) {
+      convertNumberToNumber(*pLeftData, pLeftOut, typeLeft, type);
+      *pLeftData = pLeftOut;
+    }
+
+    if(typeRight == TSDB_DATA_TYPE_NCHAR) {
+      convertNcharToDouble(*pRightData, pRightOut);
+      *pRightData = pRightOut;
+    } else if(typeRight == TSDB_DATA_TYPE_BINARY) {
+      convertBinaryToDouble(*pRightData, pRightOut);
+      *pRightData = pRightOut;
+    } else if(typeRight != type) {
+      convertNumberToNumber(*pRightData, pRightOut, typeRight, type);
+      *pRightData = pRightOut;
+    }
+  }else if(type == TSDB_DATA_TYPE_BINARY){
+    if(typeLeft == TSDB_DATA_TYPE_NCHAR){
+      *pLeftData = ncharTobinary(*pLeftData);
+      *freeLeft = true;
+    }
+    if(typeRight == TSDB_DATA_TYPE_NCHAR){
+      *pRightData = ncharTobinary(*pRightData);
+      *freeRight = true;
+    }
+  }else{
+    ASSERT(0);
   }
 
-  if(typeRight == TSDB_DATA_TYPE_NCHAR) {
-    convertStringToDouble(*pRightData, pRightOut, typeRight, type);
-    *pRightData = pRightOut;
-  } else if(typeRight != type) {
-    convertNumberToNumber(*pRightData, pRightOut, typeRight, type);
-    *pRightData = pRightOut;
-  }
   return true;
 }
 
@@ -933,44 +980,6 @@ static void doReleaseVec(SColumnInfoData* pCol, int32_t type) {
   if (type == VECTOR_DO_CONVERT) {
     colDataDestroy(pCol);
   }
-}
-
-STagVal getJsonValue(char *json, char *key, bool *isExist) {
-  STagVal val = {.pKey = key};
-  bool find = tTagGet(((const STag *)json), &val);  // json value is null and not exist is different
-  if(isExist){
-    *isExist = find;
-  }
-  return val;
-}
-
-void vectorJsonArrow(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
-  SColumnInfoData *pOutputCol = pOut->columnData;
-
-  int32_t i = ((_ord) == TSDB_ORDER_ASC)? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
-  int32_t step = ((_ord) == TSDB_ORDER_ASC)? 1 : -1;
-
-  pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
-
-  char *pRightData = colDataGetVarData(pRight->columnData, 0);
-  char *jsonKey = taosMemoryCalloc(1, varDataLen(pRightData) + 1);
-  memcpy(jsonKey, varDataVal(pRightData), varDataLen(pRightData));
-  for (; i >= 0 && i < pLeft->numOfRows; i += step) {
-    if (colDataIsNull_var(pLeft->columnData, i)) {
-      colDataSetNull_var(pOutputCol, i);
-      pOutputCol->hasNull = true;
-      continue;
-    }
-    char *pLeftData = colDataGetVarData(pLeft->columnData, i);
-    bool isExist = false;
-    STagVal value = getJsonValue(pLeftData, jsonKey, &isExist);
-    char *data = isExist ? tTagValToData(&value, true) : NULL;
-    colDataAppend(pOutputCol, i, data, data == NULL);
-    if(isExist && IS_VAR_DATA_TYPE(value.type) && data){
-      taosMemoryFree(data);
-    }
-  }
-  taosMemoryFree(jsonKey);
 }
 
 void vectorMathAdd(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
@@ -1510,6 +1519,38 @@ void vectorBitOr(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, 
   doReleaseVec(pRightCol, rightConvert);
 }
 
+#define VEC_COM_INNER(pCol, index1, index2)    \
+  for (; i < pCol->numOfRows && i >= 0; i += step) {\
+    if (IS_HELPER_NULL(pLeft->columnData, index1) || IS_HELPER_NULL(pRight->columnData, index2)) {\
+      bool  res = false;\
+      colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);\
+      continue;\
+    }\
+    char *pLeftData = colDataGetData(pLeft->columnData, index1);\
+    char *pRightData = colDataGetData(pRight->columnData, index2);\
+    int64_t leftOut = 0;\
+    int64_t rightOut = 0;\
+    bool freeLeft = false;\
+    bool freeRight = false;\
+    bool isJsonnull = false;\
+    bool result = convertJsonValue(&fp, optr, GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight),\
+                                      &pLeftData, &pRightData, &leftOut, &rightOut, &isJsonnull, &freeLeft, &freeRight);\
+    if(isJsonnull){\
+      ASSERT(0);\
+    }\
+    if(!pLeftData || !pRightData){\
+      result = false;\
+    }\
+    if(!result){\
+      colDataAppendInt8(pOut->columnData, i, (int8_t*)&result);\
+    }else{\
+      bool  res = filterDoCompare(fp, optr, pLeftData, pRightData);\
+      colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);\
+    }\
+    if(freeLeft) taosMemoryFreeClear(pLeftData);\
+    if(freeRight) taosMemoryFreeClear(pRightData);\
+  }
+
 void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord, int32_t optr) {
   int32_t       i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
   int32_t       step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
@@ -1533,79 +1574,11 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *
   }
 
   if (pLeft->numOfRows == pRight->numOfRows) {
-    for (; i < pRight->numOfRows && i >= 0; i += step) {
-      if (IS_HELPER_NULL(pLeft->columnData, i) || IS_HELPER_NULL(pRight->columnData, i)) {
-        bool  res = false;
-        colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
-        continue;  // TODO set null or ignore
-      }
-
-      char *pLeftData = colDataGetData(pLeft->columnData, i);
-      char *pRightData = colDataGetData(pRight->columnData, i);
-
-      int64_t leftOut = 0;
-      int64_t rightOut = 0;
-      bool isJsonnull = false;
-      bool result = convertJsonValue(&fp, optr, GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight), &pLeftData, &pRightData, &leftOut, &rightOut, &isJsonnull);
-      if(isJsonnull){
-        ASSERT(0);
-      }
-      if(!result){
-        colDataAppendInt8(pOut->columnData, i, (int8_t*)&result);
-      }else{
-        bool  res = filterDoCompare(fp, optr, pLeftData, pRightData);
-        colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
-      }
-    }
+    VEC_COM_INNER(pLeft, i, i)
   } else if (pRight->numOfRows == 1) {
-    ASSERT(pLeft->pHashFilter == NULL);
-    for (; i >= 0 && i < pLeft->numOfRows; i += step) {
-      if (IS_HELPER_NULL(pLeft->columnData, i) || IS_HELPER_NULL(pRight->columnData, 0)) {
-        bool  res = false;
-        colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
-        continue;
-      }
-
-      char *pLeftData = colDataGetData(pLeft->columnData, i);
-      char *pRightData = colDataGetData(pRight->columnData, 0);
-      int64_t leftOut = 0;
-      int64_t rightOut = 0;
-      bool isJsonnull = false;
-      bool result = convertJsonValue(&fp, optr, GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight), &pLeftData, &pRightData, &leftOut, &rightOut, &isJsonnull);
-      if(isJsonnull){
-        ASSERT(0);
-      }
-      if(!result){
-        colDataAppendInt8(pOut->columnData, i, (int8_t*)&result);
-      }else{
-        bool  res = filterDoCompare(fp, optr, pLeftData, pRightData);
-        colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
-      }
-    }
+    VEC_COM_INNER(pLeft, i, 0)
   } else if (pLeft->numOfRows == 1) {
-    for (; i >= 0 && i < pRight->numOfRows; i += step) {
-      if (IS_HELPER_NULL(pRight->columnData, i) || IS_HELPER_NULL(pLeft->columnData, 0)) {
-        bool  res = false;
-        colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
-        continue;
-      }
-
-      char *pLeftData = colDataGetData(pLeft->columnData, 0);
-      char *pRightData = colDataGetData(pLeft->columnData, i);
-      int64_t leftOut = 0;
-      int64_t rightOut = 0;
-      bool isJsonnull = false;
-      bool result = convertJsonValue(&fp, optr, GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight), &pLeftData, &pRightData, &leftOut, &rightOut, &isJsonnull);
-      if(isJsonnull){
-        ASSERT(0);
-      }
-      if(!result){
-        colDataAppendInt8(pOut->columnData, i, (int8_t*)&result);
-      }else{
-        bool  res = filterDoCompare(fp, optr, pLeftData, pRightData);
-        colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
-      }
-    }
+    VEC_COM_INNER(pRight, 0, i)
   }
 }
 
@@ -1683,10 +1656,6 @@ void vectorNotMatch(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOu
   vectorCompare(pLeft, pRight, pOut, _ord, OP_TYPE_NMATCH);
 }
 
-void vectorJsonContains(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
-  vectorCompare(pLeft, pRight, pOut, _ord, OP_TYPE_JSON_CONTAINS);
-}
-
 void vectorIsNull(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
   for(int32_t i = 0; i < pLeft->numOfRows; ++i) {
     int8_t v = IS_HELPER_NULL(pLeft->columnData, i) ? 1 : 0;
@@ -1705,6 +1674,69 @@ void vectorNotNull(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut
 
 void vectorIsTrue(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
   vectorConvertImpl(pLeft, pOut);
+}
+
+STagVal getJsonValue(char *json, char *key, bool *isExist) {
+  STagVal val = {.pKey = key};
+  bool find = tTagGet(((const STag *)json), &val);  // json value is null and not exist is different
+  if(isExist){
+    *isExist = find;
+  }
+  return val;
+}
+
+void vectorJsonContains(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
+  SColumnInfoData *pOutputCol = pOut->columnData;
+
+  int32_t i = ((_ord) == TSDB_ORDER_ASC)? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
+  int32_t step = ((_ord) == TSDB_ORDER_ASC)? 1 : -1;
+
+  pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
+
+  char *pRightData = colDataGetVarData(pRight->columnData, 0);
+  char *jsonKey = taosMemoryCalloc(1, varDataLen(pRightData) + 1);
+  memcpy(jsonKey, varDataVal(pRightData), varDataLen(pRightData));
+  for (; i >= 0 && i < pLeft->numOfRows; i += step) {
+    bool isExist = false;
+
+    if (!colDataIsNull_var(pLeft->columnData, i)) {
+      char *pLeftData = colDataGetVarData(pLeft->columnData, i);
+      getJsonValue(pLeftData, jsonKey, &isExist);
+    }
+
+    colDataAppend(pOutputCol, i, (const char*)(&isExist), false);
+
+  }
+  taosMemoryFree(jsonKey);
+}
+
+void vectorJsonArrow(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
+  SColumnInfoData *pOutputCol = pOut->columnData;
+
+  int32_t i = ((_ord) == TSDB_ORDER_ASC)? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
+  int32_t step = ((_ord) == TSDB_ORDER_ASC)? 1 : -1;
+
+  pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
+
+  char *pRightData = colDataGetVarData(pRight->columnData, 0);
+  char *jsonKey = taosMemoryCalloc(1, varDataLen(pRightData) + 1);
+  memcpy(jsonKey, varDataVal(pRightData), varDataLen(pRightData));
+  for (; i >= 0 && i < pLeft->numOfRows; i += step) {
+    if (colDataIsNull_var(pLeft->columnData, i)) {
+      colDataSetNull_var(pOutputCol, i);
+      pOutputCol->hasNull = true;
+      continue;
+    }
+    char *pLeftData = colDataGetVarData(pLeft->columnData, i);
+    bool isExist = false;
+    STagVal value = getJsonValue(pLeftData, jsonKey, &isExist);
+    char *data = isExist ? tTagValToData(&value, true) : NULL;
+    colDataAppend(pOutputCol, i, data, data == NULL);
+    if(isExist && IS_VAR_DATA_TYPE(value.type) && data){
+      taosMemoryFree(data);
+    }
+  }
+  taosMemoryFree(jsonKey);
 }
 
 _bin_scalar_fn_t getBinScalarOperatorFn(int32_t binFunctionId) {
