@@ -63,9 +63,17 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
   wordexp_t full_path;
 
   switch (key) {
-    case 'h':
-      arguments->host = arg;
+    case 'h':{
+      char* tmp = strstr(arg, ":");
+      if (tmp == NULL) {
+        arguments->host = arg;
+      } else if ((tmp + 1) != NULL) {
+        arguments->port  = atoi(tmp + 1);
+        tmp[0] = '\0';
+        arguments->host = arg;
+      }
       break;
+    }
     case 'p':
       break;
     case 'P':
