@@ -59,7 +59,7 @@ TEST_F(ParserInitialDTest, dropBnode) {
 }
 
 // DROP CONSUMER GROUP [ IF EXISTS ] cgroup_name ON topic_name
-TEST_F(ParserInitialDTest, dropCGroup) {
+TEST_F(ParserInitialDTest, dropConsumerGroup) {
   useDb("root", "test");
 
   SMDropCgroupReq expect = {0};

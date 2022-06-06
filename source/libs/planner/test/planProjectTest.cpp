@@ -14,39 +14,21 @@
  */
 
 #include "planTestUtil.h"
-#include "planner.h"
 
 using namespace std;
 
-class PlanOrderByTest : public PlannerTestBase {};
+class PlanProjectTest : public PlannerTestBase {};
 
-TEST_F(PlanOrderByTest, basic) {
+TEST_F(PlanProjectTest, basic) {
   useDb("root", "test");
 
-  // ORDER BY key is in the projection list
-  run("SELECT c1 FROM t1 ORDER BY c1");
-  // ORDER BY key is not in the projection list
-  run("SELECT c1 FROM t1 ORDER BY c2");
+  run("SELECT CEIL(c1) FROM t1");
 }
 
-TEST_F(PlanOrderByTest, expr) {
+TEST_F(PlanProjectTest, indefiniteRowsFunc) {
   useDb("root", "test");
 
-  run("SELECT * FROM t1 ORDER BY c1 + 10, c2");
-}
+  run("SELECT MAVG(c1, 10) FROM t1");
 
-TEST_F(PlanOrderByTest, nullsOrder) {
-  useDb("root", "test");
-
-  run("SELECT * FROM t1 ORDER BY c1 DESC NULLS FIRST");
-}
-
-TEST_F(PlanOrderByTest, stable) {
-  useDb("root", "test");
-
-  // ORDER BY key is in the projection list
-  run("SELECT c1 FROM st1 ORDER BY c1");
-
-  // ORDER BY key is not in the projection list
-  run("SELECT c2 FROM st1 ORDER BY c1");
+  run("SELECT MAVG(CEIL(c1), 20) + 2 FROM t1");
 }

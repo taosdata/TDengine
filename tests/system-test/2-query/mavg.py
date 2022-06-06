@@ -417,8 +417,8 @@ class TDTestCase:
 
         # err9 = {"col": "st1"}
         # self.checkmavg(**err9)          # col: tag
-        err10 = {"col": 1}
-        self.checkmavg(**err10)         # col: value
+        # err10 = {"col": 1}
+        # self.checkmavg(**err10)         # col: value
         err11 = {"col": "NULL"}
         self.checkmavg(**err11)         # col: NULL
         err12 = {"col": "%_"}
@@ -660,6 +660,14 @@ class TDTestCase:
         tdDnodes.start(index)
         self.mavg_current_query()
         self.mavg_error_query()
+        tdSql.query("select mavg(1,1) from t1")
+        tdSql.checkRows(7)
+        tdSql.checkData(0,0,1.000000000)
+        tdSql.checkData(1,0,1.000000000)
+        tdSql.checkData(5,0,1.000000000)
+        
+        tdSql.query("select mavg(abs(c1),1) from t1")
+        tdSql.checkRows(4)
 
     def run(self):
         import traceback
