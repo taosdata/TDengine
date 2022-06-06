@@ -295,7 +295,7 @@ int main(int argc, char** argv) {
   int32_t lastApplyTerm = atoi(argv[5]);
   int32_t writeRecordNum = atoi(argv[6]);
   bool    isStandBy = atoi(argv[7]);
-  bool    isConfigChange = atoi(argv[8]);
+  int32_t isConfigChange = atoi(argv[8]);
   int32_t iterTimes = atoi(argv[9]);
   int32_t finishLastApplyIndex = atoi(argv[10]);
   int32_t finishLastApplyTerm = atoi(argv[11]);
@@ -308,7 +308,7 @@ int main(int argc, char** argv) {
 
   // check parameter
   assert(replicaNum >= 1 && replicaNum <= 5);
-  assert(myIndex >= 0 && myIndex < replicaNum);
+  //assert(myIndex >= 0 && myIndex < replicaNum);
   assert(lastApplyIndex >= -1);
   assert(lastApplyTerm >= 0);
   assert(writeRecordNum >= 0);

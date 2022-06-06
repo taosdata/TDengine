@@ -451,9 +451,11 @@ static bool syncNodeOnAppendEntriesLogOK(SSyncNode* pSyncNode, SyncAppendEntries
   return false;
 }
 
-static int32_t syncNodeMakeLogSame(SSyncNode* ths, SyncAppendEntries* pMsg, SSyncRaftEntry** ppAppendEntry) {
+static int32_t syncNodeMakeLogSame(SSyncNode* ths, SyncAppendEntries* pMsg, SSyncRaftEntry** ppAppendEntry,
+                                   bool* pEntryAlreadyWritten) {
   int32_t code;
   *ppAppendEntry = NULL;
+  *pEntryAlreadyWritten = false;
 
   // not conflict by default
   bool conflict = false;
@@ -466,10 +468,15 @@ static int32_t syncNodeMakeLogSame(SSyncNode* ths, SyncAppendEntries* pMsg, SSyn
   *ppAppendEntry = syncEntryDeserialize(pMsg->data, pMsg->dataLen);
   ASSERT(*ppAppendEntry != NULL);
 
-  // log not match, conflict, need delete
   ASSERT(extraIndex == (*ppAppendEntry)->index);
   if (pExtraEntry->term != (*ppAppendEntry)->term) {
+    // log not match, conflict, need delete
     conflict = true;
+  } else {
+    // log match, already written
+    ASSERT(extraIndex == (*ppAppendEntry)->index && pExtraEntry->term == (*ppAppendEntry)->term);
+    *pEntryAlreadyWritten = true;
+    sInfo("entry already written, term:%lu, index:%ld", pExtraEntry->term, pExtraEntry->index);
   }
   syncEntryDestory(pExtraEntry);
 
@@ -606,17 +613,20 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
     if (hasExtraEntries && hasAppendEntries) {
       // make log same
       SSyncRaftEntry* pAppendEntry;
-      code = syncNodeMakeLogSame(ths, pMsg, &pAppendEntry);
+      bool            entryAlreadyWritten;
+      code = syncNodeMakeLogSame(ths, pMsg, &pAppendEntry, &entryAlreadyWritten);
       ASSERT(code == 0);
       ASSERT(pAppendEntry != NULL);
 
-      // append new entries
-      code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pAppendEntry);
-      ASSERT(code == 0);
+      if (!entryAlreadyWritten) {
+        // append new entries
+        code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pAppendEntry);
+        ASSERT(code == 0);
 
-      // pre commit
-      code = syncNodePreCommit(ths, pAppendEntry);
-      ASSERT(code == 0);
+        // pre commit
+        code = syncNodePreCommit(ths, pAppendEntry);
+        ASSERT(code == 0);
+      }
 
       syncEntryDestory(pAppendEntry);
 

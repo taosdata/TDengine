@@ -14,6 +14,7 @@
  */
 
 #include "syncSnapshot.h"
+#include "syncRaftLog.h"
 #include "syncRaftStore.h"
 #include "syncUtil.h"
 #include "wal.h"
@@ -284,7 +285,7 @@ cJSON *snapshotSender2Json(SSyncSnapshotSender *pSender) {
 
 char *snapshotSender2Str(SSyncSnapshotSender *pSender) {
   cJSON *pJson = snapshotSender2Json(pSender);
-  char * serialized = cJSON_Print(pJson);
+  char  *serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
 }
@@ -398,7 +399,7 @@ cJSON *snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver) {
 
 char *snapshotReceiver2Str(SSyncSnapshotReceiver *pReceiver) {
   cJSON *pJson = snapshotReceiver2Json(pReceiver);
-  char * serialized = cJSON_Print(pJson);
+  char  *serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
 }
@@ -427,8 +428,13 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
         pSyncNode->pFsm->FpSnapshotDoWrite(pSyncNode->pFsm, pReceiver->pWriter, pMsg->data, pMsg->dataLen);
         pSyncNode->pFsm->FpSnapshotStopWrite(pSyncNode->pFsm, pReceiver->pWriter, true);
 
-        walRestoreFromSnapshot(pSyncNode->pWal, pMsg->lastIndex);
-        sInfo("walRestoreFromSnapshot lastIndex:%ld", pMsg->lastIndex);
+        pSyncNode->pLogStore->syncLogSetBeginIndex(pSyncNode->pLogStore, pMsg->lastIndex + 1);
+        char *logSimpleStr = logStoreSimple2Str(pSyncNode->pLogStore);
+        sInfo("snapshot receive finish, update log begin index:%ld, raft log:%s", pMsg->lastIndex + 1, logSimpleStr);
+        taosMemoryFree(logSimpleStr);
+
+        // walRestoreFromSnapshot(pSyncNode->pWal, pMsg->lastIndex);
+        // sInfo("walRestoreFromSnapshot lastIndex:%ld", pMsg->lastIndex);
 
         pReceiver->pWriter = NULL;
         snapshotReceiverStop(pReceiver);
