@@ -37,7 +37,6 @@ static int32_t mndTopicActionDelete(SSdb *pSdb, SMqTopicObj *pTopic);
 static int32_t mndTopicActionUpdate(SSdb *pSdb, SMqTopicObj *pTopic, SMqTopicObj *pNewTopic);
 static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq);
 static int32_t mndProcessDropTopicReq(SRpcMsg *pReq);
-static int32_t mndProcessDropTopicInRsp(SRpcMsg *pRsp);
 
 static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextTopic(SMnode *pMnode, void *pIter);
@@ -45,17 +44,19 @@ static void    mndCancelGetNextTopic(SMnode *pMnode, void *pIter);
 static int32_t mndSetDropTopicCommitLogs(SMnode *pMnode, STrans *pTrans, SMqTopicObj *pTopic);
 
 int32_t mndInitTopic(SMnode *pMnode) {
-  SSdbTable table = {.sdbType = SDB_TOPIC,
-                     .keyType = SDB_KEY_BINARY,
-                     .encodeFp = (SdbEncodeFp)mndTopicActionEncode,
-                     .decodeFp = (SdbDecodeFp)mndTopicActionDecode,
-                     .insertFp = (SdbInsertFp)mndTopicActionInsert,
-                     .updateFp = (SdbUpdateFp)mndTopicActionUpdate,
-                     .deleteFp = (SdbDeleteFp)mndTopicActionDelete};
+  SSdbTable table = {
+      .sdbType = SDB_TOPIC,
+      .keyType = SDB_KEY_BINARY,
+      .encodeFp = (SdbEncodeFp)mndTopicActionEncode,
+      .decodeFp = (SdbDecodeFp)mndTopicActionDecode,
+      .insertFp = (SdbInsertFp)mndTopicActionInsert,
+      .updateFp = (SdbUpdateFp)mndTopicActionUpdate,
+      .deleteFp = (SdbDeleteFp)mndTopicActionDelete,
+  };
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_TOPIC, mndProcessCreateTopicReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_TOPIC, mndProcessDropTopicReq);
-  mndSetMsgHandle(pMnode, TDMT_VND_DROP_TOPIC_RSP, mndProcessDropTopicInRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_DROP_TOPIC_RSP, mndTransProcessRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_TOPICS, mndRetrieveTopic);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_TOPICS, mndCancelGetNextTopic);
@@ -605,11 +606,6 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   }
 
   return TSDB_CODE_ACTION_IN_PROGRESS;
-}
-
-static int32_t mndProcessDropTopicInRsp(SRpcMsg *pRsp) {
-  mndTransProcessRsp(pRsp);
-  return 0;
 }
 
 static int32_t mndGetNumOfTopics(SMnode *pMnode, char *dbName, int32_t *pNumOfTopics) {

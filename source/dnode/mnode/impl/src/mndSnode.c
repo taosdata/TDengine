@@ -30,25 +30,25 @@ static int32_t  mndSnodeActionInsert(SSdb *pSdb, SSnodeObj *pObj);
 static int32_t  mndSnodeActionUpdate(SSdb *pSdb, SSnodeObj *pOld, SSnodeObj *pNew);
 static int32_t  mndSnodeActionDelete(SSdb *pSdb, SSnodeObj *pObj);
 static int32_t  mndProcessCreateSnodeReq(SRpcMsg *pReq);
-static int32_t  mndProcessCreateSnodeRsp(SRpcMsg *pRsp);
 static int32_t  mndProcessDropSnodeReq(SRpcMsg *pReq);
-static int32_t  mndProcessDropSnodeRsp(SRpcMsg *pRsp);
 static int32_t  mndRetrieveSnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextSnode(SMnode *pMnode, void *pIter);
 
 int32_t mndInitSnode(SMnode *pMnode) {
-  SSdbTable table = {.sdbType = SDB_SNODE,
-                     .keyType = SDB_KEY_INT32,
-                     .encodeFp = (SdbEncodeFp)mndSnodeActionEncode,
-                     .decodeFp = (SdbDecodeFp)mndSnodeActionDecode,
-                     .insertFp = (SdbInsertFp)mndSnodeActionInsert,
-                     .updateFp = (SdbUpdateFp)mndSnodeActionUpdate,
-                     .deleteFp = (SdbDeleteFp)mndSnodeActionDelete};
+  SSdbTable table = {
+      .sdbType = SDB_SNODE,
+      .keyType = SDB_KEY_INT32,
+      .encodeFp = (SdbEncodeFp)mndSnodeActionEncode,
+      .decodeFp = (SdbDecodeFp)mndSnodeActionDecode,
+      .insertFp = (SdbInsertFp)mndSnodeActionInsert,
+      .updateFp = (SdbUpdateFp)mndSnodeActionUpdate,
+      .deleteFp = (SdbDeleteFp)mndSnodeActionDelete,
+  };
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_SNODE, mndProcessCreateSnodeReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_SNODE, mndProcessDropSnodeReq);
-  mndSetMsgHandle(pMnode, TDMT_DND_CREATE_SNODE_RSP, mndProcessCreateSnodeRsp);
-  mndSetMsgHandle(pMnode, TDMT_DND_DROP_SNODE_RSP, mndProcessDropSnodeRsp);
+  mndSetMsgHandle(pMnode, TDMT_DND_CREATE_SNODE_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_DND_DROP_SNODE_RSP, mndTransProcessRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_SNODE, mndRetrieveSnodes);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_SNODE, mndCancelGetNextSnode);
@@ -435,16 +435,6 @@ _OVER:
   mndReleaseUser(pMnode, pUser);
 
   return code;
-}
-
-static int32_t mndProcessCreateSnodeRsp(SRpcMsg *pRsp) {
-  mndTransProcessRsp(pRsp);
-  return 0;
-}
-
-static int32_t mndProcessDropSnodeRsp(SRpcMsg *pRsp) {
-  mndTransProcessRsp(pRsp);
-  return 0;
 }
 
 static int32_t mndRetrieveSnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {

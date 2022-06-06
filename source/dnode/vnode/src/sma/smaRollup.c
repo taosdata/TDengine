@@ -400,7 +400,11 @@ static FORCE_INLINE int32_t tdExecuteRSmaImpl(SSma *pSma, const void *pMsg, int3
   }
 
   if (taosArrayGetSize(pResult) > 0) {
-    blockDebugShowData(pResult);
+#if 1
+    char flag[10] = {0};
+    snprintf(flag, 10, "level %" PRIi8, level);
+    blockDebugShowData(pResult, flag);
+#endif
     STsdb      *sinkTsdb = (level == TSDB_RETENTION_L1 ? pSma->pRSmaTsdb1 : pSma->pRSmaTsdb2);
     SSubmitReq *pReq = NULL;
     if (buildSubmitReqFromDataBlock(&pReq, pResult, pTSchema, SMA_VID(pSma), suid) != 0) {
@@ -444,7 +448,7 @@ static int32_t tdExecuteRSma(SSma *pSma, const void *pMsg, int32_t inputType, tb
   }
 
   if (inputType == STREAM_DATA_TYPE_SUBMIT_BLOCK) {
-    // TODO: use the proper schema instead of 0, and cache STSchema in cache
+    // TODO: cache STSchema
     STSchema *pTSchema = metaGetTbTSchema(SMA_META(pSma), suid, -1);
     if (!pTSchema) {
       terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;

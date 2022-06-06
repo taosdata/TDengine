@@ -102,11 +102,11 @@ typedef struct SSchedulerMgmt {
   uint64_t        taskId; // sequential taksId
   uint64_t        sId;    // schedulerId
   SSchedulerCfg   cfg;
-  SRWLatch        lock;
   bool            exit;
   int32_t         jobRef;
   int32_t         jobNum;
   SSchStat        stat;
+  SRWLatch        hbLock;
   SHashObj       *hbConnections;
 } SSchedulerMgmt;
 
@@ -320,6 +320,8 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_UNLOCK(type, _lock) (SCH_READ == (type) ? taosRUnLockLatch(_lock) : taosWUnLockLatch(_lock))
 
 
+void schDeregisterTaskHb(SSchJob *pJob, SSchTask *pTask);
+void schCleanClusterHb(void* pTrans);
 int32_t schLaunchTask(SSchJob *job, SSchTask *task);
 int32_t schBuildAndSendMsg(SSchJob *job, SSchTask *task, SQueryNodeAddr *addr, int32_t msgType);
 SSchJob *schAcquireJob(int64_t refId);

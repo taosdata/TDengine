@@ -44,7 +44,7 @@ int32_t ctgInitGetTbMetaTask(SCtgJob *pJob, int32_t taskIdx, SName *name) {
 
   taosArrayPush(pJob->pTasks, &task);
 
-  qDebug("QID:%" PRIx64 " task %d type %d initialized, tableName:%s", pJob->queryId, taskIdx, task.type, name->tname);
+  qDebug("QID:0x%" PRIx64 " task %d type %d initialized, tableName:%s", pJob->queryId, taskIdx, task.type, name->tname);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -143,7 +143,7 @@ int32_t ctgInitGetTbHashTask(SCtgJob *pJob, int32_t taskIdx, SName *name) {
 
   taosArrayPush(pJob->pTasks, &task);
 
-  qDebug("QID:%" PRIx64 " task %d type %d initialized, tableName:%s", pJob->queryId, taskIdx, task.type, name->tname);
+  qDebug("QID:0x%" PRIx64 " task %d type %d initialized, tableName:%s", pJob->queryId, taskIdx, task.type, name->tname);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -247,7 +247,7 @@ int32_t ctgInitJob(CTG_PARAMS, SCtgJob** job, uint64_t reqId, const SCatalogReq*
 
   *taskNum = tbMetaNum + dbVgNum + udfNum + tbHashNum + qnodeNum + dbCfgNum + indexNum + userNum + dbInfoNum;
   if (*taskNum <= 0) {
-    ctgError("Empty input for job, no need to retrieve meta, reqId:0x%" PRIx64, reqId);
+    ctgDebug("Empty input for job, no need to retrieve meta, reqId:0x%" PRIx64, reqId);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -286,6 +286,9 @@ int32_t ctgInitJob(CTG_PARAMS, SCtgJob** job, uint64_t reqId, const SCatalogReq*
   int32_t taskIdx = 0;
   for (int32_t i = 0; i < dbVgNum; ++i) {
     char* dbFName = taosArrayGet(pReq->pDbVgroup, i);
+    if (pReq->forceUpdate) {
+      ctgDropDbVgroupEnqueue(pCtg, dbFName, true);
+    }
     CTG_ERR_JRET(ctgInitGetDbVgTask(pJob, taskIdx++, dbFName));
   }
 
@@ -301,6 +304,9 @@ int32_t ctgInitJob(CTG_PARAMS, SCtgJob** job, uint64_t reqId, const SCatalogReq*
 
   for (int32_t i = 0; i < tbMetaNum; ++i) {
     SName* name = taosArrayGet(pReq->pTableMeta, i);
+    if (pReq->forceUpdate) {
+      catalogRemoveTableMeta(pCtg, name);
+    }
     CTG_ERR_JRET(ctgInitGetTbMetaTask(pJob, taskIdx++, name));
   }
 

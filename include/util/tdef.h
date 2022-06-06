@@ -129,7 +129,7 @@ typedef enum EOperatorType {
   OP_TYPE_SUB,
   OP_TYPE_MULTI,
   OP_TYPE_DIV,
-  OP_TYPE_MOD,
+  OP_TYPE_REM,
   // unary arithmetic operator
   OP_TYPE_MINUS,
   OP_TYPE_ASSIGN,

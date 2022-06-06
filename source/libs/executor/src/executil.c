@@ -28,18 +28,6 @@ typedef struct SCompSupporter {
   int32_t           order;
 } SCompSupporter;
 
-int32_t getRowNumForMultioutput(STaskAttr* pQueryAttr, bool topBottomQuery, bool stable) {
-  if (pQueryAttr && (!stable)) {
-    for (int16_t i = 0; i < pQueryAttr->numOfOutput; ++i) {
-//      if (pQueryAttr->pExpr1[i].base. == FUNCTION_TOP || pQueryAttr->pExpr1[i].base.functionId == FUNCTION_BOTTOM) {
-//        return (int32_t)pQueryAttr->pExpr1[i].base.param[0].i;
-//      }
-    }
-  }
-
-  return 1;
-}
-
 int32_t getOutputInterResultBufSize(STaskAttr* pQueryAttr) {
   int32_t size = 0;
 
@@ -111,35 +99,6 @@ bool isResultRowClosed(SResultRow* pRow) {
 
 void closeResultRow(SResultRow* pResultRow) {
   pResultRow->closed = true;
-}
-
-void clearResultRow(STaskRuntimeEnv *pRuntimeEnv, SResultRow *pResultRow) {
-  if (pResultRow == NULL) {
-    return;
-  }
-
-  // the result does not put into the SDiskbasedBuf, ignore it.
-  if (pResultRow->pageId >= 0) {
-    SFilePage *page = getBufPage(pRuntimeEnv->pResultBuf, pResultRow->pageId);
-
-    int16_t offset = 0;
-    for (int32_t i = 0; i < pRuntimeEnv->pQueryAttr->numOfOutput; ++i) {
-      struct SResultRowEntryInfo *pEntryInfo = NULL;//pResultRow->pEntryInfo[i];
-
-//      int16_t size = pRuntimeEnv->pQueryAttr->pExpr1[i].base.resSchema.bytes;
-//      char * s = getPosInResultPage(pRuntimeEnv->pQueryAttr, page, pResultRow->offset, offset);
-//      memset(s, 0, size);
-
-//      offset += size;
-      cleanupResultRowEntry(pEntryInfo);
-    }
-  }
-
-  pResultRow->numOfRows = 0;
-  pResultRow->pageId = -1;
-  pResultRow->offset = -1;
-  pResultRow->closed = false;
-  pResultRow->win = TSWINDOW_INITIALIZER;
 }
 
 // TODO refactor: use macro

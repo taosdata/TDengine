@@ -153,7 +153,7 @@ int32_t qExplainGenerateResChildren(SPhysiNode *pNode, SExplainGroup *group, SNo
       pPhysiChildren = pSortNode->node.pChildren;
       break;
     }
-    case QUERY_NODE_PHYSICAL_PLAN_INTERVAL: {
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL: {
       SIntervalPhysiNode *pIntNode = (SIntervalPhysiNode *)pNode;
       pPhysiChildren = pIntNode->window.node.pChildren;
       break;
@@ -164,12 +164,12 @@ int32_t qExplainGenerateResChildren(SPhysiNode *pNode, SExplainGroup *group, SNo
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW: {
-      SStateWinodwPhysiNode* pStateNode = (SStateWinodwPhysiNode*) pNode;
+      SStateWinodwPhysiNode *pStateNode = (SStateWinodwPhysiNode *)pNode;
       pPhysiChildren = pStateNode->window.node.pChildren;
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION: {
-      SPartitionPhysiNode* partitionPhysiNode = (SPartitionPhysiNode*) pNode;
+      SPartitionPhysiNode *partitionPhysiNode = (SPartitionPhysiNode *)pNode;
       pPhysiChildren = partitionPhysiNode->node.pChildren;
       break;
     }
@@ -397,7 +397,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
 
         int32_t nodeNum = taosArrayGetSize(pResNode->pExecInfo);
         for (int32_t i = 0; i < nodeNum; ++i) {
-          SExplainExecInfo *     execInfo = taosArrayGet(pResNode->pExecInfo, i);
+          SExplainExecInfo      *execInfo = taosArrayGet(pResNode->pExecInfo, i);
           STableScanAnalyzeInfo *pScanInfo = (STableScanAnalyzeInfo *)execInfo->verboseInfo;
 
           EXPLAIN_ROW_APPEND("total_blocks=%d", pScanInfo->totalBlocks);
@@ -429,7 +429,8 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
         EXPLAIN_ROW_END();
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
 
-        EXPLAIN_ROW_NEW(level + 1, EXPLAIN_TIMERANGE_FORMAT, pTblScanNode->scanRange.skey, pTblScanNode->scanRange.ekey);
+        EXPLAIN_ROW_NEW(level + 1, EXPLAIN_TIMERANGE_FORMAT, pTblScanNode->scanRange.skey,
+                        pTblScanNode->scanRange.ekey);
         EXPLAIN_ROW_END();
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
 
@@ -641,7 +642,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
         EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       }
 
-      SDataBlockDescNode* pDescNode = pSortNode->node.pOutputDataBlockDesc;
+      SDataBlockDescNode *pDescNode = pSortNode->node.pOutputDataBlockDesc;
       EXPLAIN_ROW_APPEND(EXPLAIN_COLUMNS_FORMAT, nodesGetOutputNumFromSlotList(pDescNode->pSlots));
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pDescNode->totalRowSize);
@@ -667,7 +668,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
 
         int32_t           nodeNum = taosArrayGetSize(pResNode->pExecInfo);
         SExplainExecInfo *execInfo = taosArrayGet(pResNode->pExecInfo, 0);
-        SSortExecInfo *   pExecInfo = (SSortExecInfo *)execInfo->verboseInfo;
+        SSortExecInfo    *pExecInfo = (SSortExecInfo *)execInfo->verboseInfo;
         EXPLAIN_ROW_APPEND("%s", pExecInfo->sortMethod == SORT_QSORT_T ? "quicksort" : "merge sort");
         if (pExecInfo->sortBuffer > 1024 * 1024) {
           EXPLAIN_ROW_APPEND("  Buffers:%.2f Mb", pExecInfo->sortBuffer / (1024 * 1024.0));
@@ -701,7 +702,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
       }
       break;
     }
-    case QUERY_NODE_PHYSICAL_PLAN_INTERVAL: {
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL: {
       SIntervalPhysiNode *pIntNode = (SIntervalPhysiNode *)pNode;
       EXPLAIN_ROW_NEW(level, EXPLAIN_INTERVAL_FORMAT, nodesGetNameFromColumnNode(pIntNode->window.pTspk));
       EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
@@ -784,7 +785,8 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
     case QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW: {
       SStateWinodwPhysiNode *pStateNode = (SStateWinodwPhysiNode *)pNode;
 
-      EXPLAIN_ROW_NEW(level, EXPLAIN_STATE_WINDOW_FORMAT, nodesGetNameFromColumnNode(((STargetNode*)pStateNode->pStateKey)->pExpr));
+      EXPLAIN_ROW_NEW(level, EXPLAIN_STATE_WINDOW_FORMAT,
+                      nodesGetNameFromColumnNode(((STargetNode *)pStateNode->pStateKey)->pExpr));
       EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
       if (pResNode->pExecInfo) {
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
@@ -823,7 +825,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION: {
       SPartitionPhysiNode *pPartNode = (SPartitionPhysiNode *)pNode;
 
-      SNode* p = nodesListGetNode(pPartNode->pPartitionKeys, 0);
+      SNode *p = nodesListGetNode(pPartNode->pPartitionKeys, 0);
       EXPLAIN_ROW_NEW(level, EXPLAIN_PARITION_FORMAT, nodesGetNameFromColumnNode(p));
       EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
       if (pResNode->pExecInfo) {
