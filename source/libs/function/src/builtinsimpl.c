@@ -100,6 +100,7 @@ typedef struct SPercentileInfo {
 
 typedef struct SAPercentileInfo {
   double result;
+  double percent;
   int8_t algo;
   SHistogramInfo *pHisto;
   TDigest *pTDigest;
@@ -1995,6 +1996,10 @@ bool apercentileFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResult
   }
 
   SAPercentileInfo* pInfo = GET_ROWCELL_INTERBUF(pResultInfo);
+
+  SVariant* pVal = &pCtx->param[1].param;
+  pInfo->percent = (pVal->nType == TSDB_DATA_TYPE_BIGINT) ? pVal->i : pVal->d;
+
   if (pCtx->numOfParams == 2) {
     pInfo->algo = APERCT_ALGO_DEFAULT;
   } else if (pCtx->numOfParams == 3) {
@@ -2066,7 +2071,7 @@ int32_t apercentileFunctionMerge(SqlFunctionCtx* pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
 
   SColumnInfoData* pCol = pInput->pData[0];
-  int32_t          type = pCol->info.type;
+  ASSERT(pCol->info.type == TSDB_DATA_TYPE_BINARY);
 
   SAPercentileInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   SAPercentileInfo* pInputInfo;
@@ -2082,6 +2087,7 @@ int32_t apercentileFunctionMerge(SqlFunctionCtx* pCtx) {
     pInputInfo = (SAPercentileInfo *)varDataVal(data);
   }
 
+  pInfo->percent = pInputInfo->percent;
   pInfo->algo = pInputInfo->algo;
   if (pInfo->algo == APERCT_ALGO_TDIGEST) {
   } else {
@@ -2110,22 +2116,19 @@ int32_t apercentileFunctionMerge(SqlFunctionCtx* pCtx) {
 }
 
 int32_t apercentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
-  SVariant* pVal    = &pCtx->param[1].param;
-  double    percent = (pVal->nType == TSDB_DATA_TYPE_BIGINT) ? pVal->i : pVal->d;
-
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SAPercentileInfo*       pInfo = (SAPercentileInfo*)GET_ROWCELL_INTERBUF(pResInfo);
 
   if (pInfo->algo == APERCT_ALGO_TDIGEST) {
     if (pInfo->pTDigest->size > 0) {
-      pInfo->result = tdigestQuantile(pInfo->pTDigest, percent/100);
+      pInfo->result = tdigestQuantile(pInfo->pTDigest, pInfo->percent / 100);
     } else {  // no need to free
       //setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
       return TSDB_CODE_SUCCESS;
     }
   } else {
     if (pInfo->pHisto->numOfElems > 0) {
-      double ratio[] = {percent};
+      double ratio[] = {pInfo->percent};
       double *res = tHistogramUniform(pInfo->pHisto, ratio, 1);
       pInfo->result = *res;
       //memcpy(pCtx->pOutput, res, sizeof(double));
@@ -2140,9 +2143,6 @@ int32_t apercentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 }
 
 int32_t apercentilePartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
-  SVariant* pVal    = &pCtx->param[1].param;
-  double    percent = (pVal->nType == TSDB_DATA_TYPE_BIGINT) ? pVal->i : pVal->d;
-
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SAPercentileInfo*       pInfo = (SAPercentileInfo*)GET_ROWCELL_INTERBUF(pResInfo);
 
