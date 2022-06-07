@@ -49,6 +49,7 @@ typedef struct SDataSinkHandle {
 } SDataSinkHandle;
 
 int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle);
+int32_t createDataDeleter(SDataSinkManager* pManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle, void *pParam);
 
 #ifdef __cplusplus
 }
