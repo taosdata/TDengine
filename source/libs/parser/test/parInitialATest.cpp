@@ -39,6 +39,8 @@ TEST_F(ParserInitialATest, alterDatabase) {
   useDb("root", "test");
 
   run("ALTER DATABASE wxy_db CACHELAST 1 FSYNC 200 WAL 1");
+
+  run("ALTER DATABASE wxy_db KEEP 2400");
 }
 
 // todo ALTER local
