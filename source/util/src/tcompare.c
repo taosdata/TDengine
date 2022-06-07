@@ -222,11 +222,6 @@ int32_t compareLenPrefixedWStrDesc(const void *pLeft, const void *pRight) {
   return compareLenPrefixedWStr(pRight, pLeft);
 }
 
-int32_t compareJsonContainsKey(const void* pLeft, const void* pRight) {
-  if(pLeft) return 0;
-  return 1;
-}
-
 // string > number > bool > null
 // ref: https://dev.mysql.com/doc/refman/8.0/en/json.html#json-comparison
 int32_t compareJsonVal(const void *pLeft, const void *pRight) {

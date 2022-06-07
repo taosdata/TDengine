@@ -425,8 +425,7 @@ static int32_t tfSearchTerm_JSON(void* reader, SIndexTerm* tem, SIdxTRslt* tr) {
   return TSDB_CODE_SUCCESS;
 }
 static int32_t tfSearchPrefix_JSON(void* reader, SIndexTerm* tem, SIdxTRslt* tr) {
-  // impl later
-  return TSDB_CODE_SUCCESS;
+  return tfSearchCompareFunc_JSON(reader, tem, tr, CONTAINS);
 }
 static int32_t tfSearchSuffix_JSON(void* reader, SIndexTerm* tem, SIdxTRslt* tr) {
   // impl later
@@ -465,10 +464,6 @@ static int32_t tfSearchCompareFunc_JSON(void* reader, SIndexTerm* tem, SIdxTRslt
 
   AutomationCtx*    ctx = automCtxCreate((void*)p, AUTOMATION_PREFIX);
   FstStreamBuilder* sb = fstSearch(((TFileReader*)reader)->fst, ctx);
-
-  // FstSlice h = fstSliceCreate((uint8_t*)p, skip);
-  // fstStreamBuilderSetRange(sb, &h, ctype);
-  // fstSliceDestroy(&h);
 
   StreamWithState*       st = streamBuilderIntoStream(sb);
   StreamWithStateResult* rt = NULL;
