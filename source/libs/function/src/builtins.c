@@ -300,7 +300,7 @@ static int32_t translateApercentileImpl(SFunctionNode* pFunc, char* pErrBuf, int
       return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
     }
     uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
-    if (!IS_NUMERIC_TYPE(para1Type)) {
+    if (TSDB_DATA_TYPE_BINARY != para1Type) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
 
@@ -313,7 +313,7 @@ static int32_t translateApercentileImpl(SFunctionNode* pFunc, char* pErrBuf, int
 static int32_t translateApercentilePartial(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return translateApercentileImpl(pFunc, pErrBuf, len, true);
 }
-static int32_t translateApercentileFinal(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+static int32_t translateApercentileMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return translateApercentileImpl(pFunc, pErrBuf, len, false);
 }
 
@@ -1241,9 +1241,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "_apercentile_merge",
     .type = FUNCTION_TYPE_APERCENTILE_MERGE,
     .classification = FUNC_MGT_AGG_FUNC,
-    .translateFunc = translateApercentileFinal,
+    .translateFunc = translateApercentileMerge,
     .getEnvFunc   = getApercentileFuncEnv,
-    .initFunc     = NULL,//apercentileFunctionSetup,
+    .initFunc     = dummyInit,
     .processFunc  = apercentileFunction,
     .finalizeFunc = apercentileFinalize
   },

@@ -283,6 +283,22 @@ typedef struct SUniqueInfo {
     }                                                                    \
   } while (0)
 
+bool dummyGetEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* UNUSED_PARAM(pEnv)) {
+  return true;
+}
+
+bool dummyInit(SqlFunctionCtx* UNUSED_PARAM(pCtx), SResultRowEntryInfo* UNUSED_PARAM(pResultInfo)) {
+  return true;
+}
+
+int32_t dummyProcess(SqlFunctionCtx* UNUSED_PARAM(pCtx)) {
+  return 0;
+}
+
+int32_t dummyFinalize(SqlFunctionCtx* UNUSED_PARAM(pCtx), SSDataBlock* UNUSED_PARAM(pBlock)) {
+  return 0;
+}
+
 bool functionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
   if (pResultInfo->initialized) {
     return false;
@@ -325,10 +341,6 @@ int32_t firstCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
     pDResInfo->numOfRes = 1;
   }
   return TSDB_CODE_SUCCESS;
-}
-
-int32_t dummyProcess(SqlFunctionCtx* UNUSED_PARAM(pCtx)) {
-  return 0;
 }
 
 int32_t functionFinalizeWithResultBuf(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, char* finalResult) {
@@ -602,7 +614,7 @@ int32_t sumCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
 
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
   SSumRes* pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
-  
+
   if (IS_SIGNED_NUMERIC_TYPE(type) || type == TSDB_DATA_TYPE_BOOL) {
     pDBuf->isum += pSBuf->isum;
   } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
