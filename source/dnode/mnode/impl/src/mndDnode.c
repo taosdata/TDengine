@@ -427,7 +427,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     if (!online) {
       mInfo("dnode:%d, from offline to online", pDnode->id);
     } else {
-      mDebug("dnode:%d, send dnode epset, online:%d dnode_ver:% " PRId64 ":%" PRId64 " reboot:%d", pDnode->id, online,
+      mDebug("dnode:%d, send dnode epset, online:%d dnode_ver:%" PRId64 ":%" PRId64 " reboot:%d", pDnode->id, online,
              statusReq.dnodeVer, dnodeVer, reboot);
     }
 
@@ -545,7 +545,7 @@ _OVER:
   return code;
 }
 
-static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SMnodeObj *pMObj) {
+static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SMnodeObj *pMObj, int32_t numOfVnodes) {
   int32_t  code = -1;
   SSdbRaw *pRaw = NULL;
   STrans  *pTrans = NULL;
@@ -565,8 +565,12 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SM
   sdbSetRawStatus(pRaw, SDB_STATUS_DROPPED);
   pRaw = NULL;
 
-  if (mndSetDropMnodeInfoToTrans(pMnode, pTrans, pMObj) != 0) goto _OVER;
-  if (mndSetMoveVgroupsInfoToTrans(pMnode, pTrans, pDnode->id) != 0) goto _OVER;
+  if (pMObj != NULL) {
+    if (mndSetDropMnodeInfoToTrans(pMnode, pTrans, pMObj) != 0) goto _OVER;
+  }
+  if (numOfVnodes > 0) {
+    if (mndSetMoveVgroupsInfoToTrans(pMnode, pTrans, pDnode->id) != 0) goto _OVER;
+  }
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
   code = 0;
@@ -603,11 +607,6 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (!mndIsDnodeOnline(pDnode, taosGetTimestampMs())) {
-    terrno = TSDB_CODE_NODE_OFFLINE;
-    goto _OVER;
-  }
-
   pMObj = mndAcquireMnode(pMnode, dropReq.dnodeId);
   if (pMObj != NULL) {
     if (sdbGetSize(pMnode->pSdb, SDB_MNODE) <= 1) {
@@ -615,7 +614,17 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
       goto _OVER;
     }
     if (pMnode->selfDnodeId == dropReq.dnodeId) {
-      terrno = TSDB_CODE_MND_CANT_DROP_MASTER;
+      terrno = TSDB_CODE_MND_CANT_DROP_LEADER;
+      goto _OVER;
+    }
+  }
+
+  int32_t numOfVnodes = mndGetVnodesNum(pMnode, pDnode->id);
+  if (numOfVnodes > 0 || pMObj != NULL) {
+    if (!mndIsDnodeOnline(pDnode, taosGetTimestampMs())) {
+      terrno = TSDB_CODE_NODE_OFFLINE;
+      mError("dnode:%d, failed to drop since %s, has_mnode:%d numOfVnodes:%d", pDnode->id, terrstr(), pMObj != NULL,
+             numOfVnodes);
       goto _OVER;
     }
   }
@@ -630,7 +639,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  code = mndDropDnode(pMnode, pReq, pDnode, pMObj);
+  code = mndDropDnode(pMnode, pReq, pDnode, pMObj, numOfVnodes);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 _OVER:
