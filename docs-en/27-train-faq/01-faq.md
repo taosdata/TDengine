@@ -45,7 +45,7 @@ When the client is unable to connect to the server, you can try the following wa
    Check whether a TCP port on server side is open: `nc -l {port}`
    Check whether a TCP port on client side is open: `nc {hostIP} {port}`
 
- - On Windows system `Net-TestConnection -ComputerName {fqdn} -Port {port}` on PowerShell can be used to check whether the port on server side is open for access.
+ - On Windows system `Test-NetConnection -ComputerName {fqdn} -Port {port}` on PowerShell can be used to check whether the port on server side is open for access.
 
 7.  TDengine CLI `taos` can also be used to check network, please refer to [TDengine CLI](/reference/taos-shell).
 
