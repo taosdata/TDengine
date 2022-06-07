@@ -28,6 +28,7 @@ pub const TMQ_RESP_ERR__SUCCESS: tmq_resp_err_t = tmq_resp_err_t::Success;
 pub struct tmq_t {
     _unused: [u8; 0],
 }
+
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct tmq_topic_vgroup_t {
@@ -111,6 +112,7 @@ extern "C" {
 
     pub fn tmq_get_topic_name(res: *mut TAOS_RES) -> *const c_char;
     pub fn tmq_get_table_name(res: *mut TAOS_RES) -> *const c_char;
+    pub fn tmq_get_db_name(res: *mut TAOS_RES) -> *const c_char;
     pub fn tmq_get_vgroup_id(res: *mut TAOS_RES) -> i32;
 }
 

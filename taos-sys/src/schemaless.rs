@@ -1,22 +1,30 @@
 use crate::{TAOS, TAOS_RES};
 use std::os::raw::*;
 
+/// 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
-pub enum TSDB_SML_PROTOCOL_TYPE {
+pub enum SchemalessProtocol {
+    #[non_exhaustive]
     Unknown = 0,
     Line,
     Telnet,
     Json,
 }
-pub const TSDB_SML_UNKNOWN_PROTOCOL: TSDB_SML_PROTOCOL_TYPE = TSDB_SML_PROTOCOL_TYPE::Unknown;
-pub const TSDB_SML_LINE_PROTOCOL: TSDB_SML_PROTOCOL_TYPE = TSDB_SML_PROTOCOL_TYPE::Line;
-pub const TSDB_SML_TELNET_PROTOCOL: TSDB_SML_PROTOCOL_TYPE = TSDB_SML_PROTOCOL_TYPE::Telnet;
-pub const TSDB_SML_JSON_PROTOCOL: TSDB_SML_PROTOCOL_TYPE = TSDB_SML_PROTOCOL_TYPE::Json;
+pub type TSDB_SML_PROTOCOL_TYPE = SchemalessProtocol;
+pub const TSDB_SML_UNKNOWN_PROTOCOL: SchemalessProtocol = SchemalessProtocol::Unknown;
+pub const TSDB_SML_LINE_PROTOCOL: SchemalessProtocol = SchemalessProtocol::Line;
+pub const TSDB_SML_TELNET_PROTOCOL: SchemalessProtocol = SchemalessProtocol::Telnet;
+pub const TSDB_SML_JSON_PROTOCOL: SchemalessProtocol = SchemalessProtocol::Json;
 
+/// Timestamp precision to parse from schemaless input.
+///
+/// Accepted timestamp precision options are:
+/// - NonConfigured: let the parse detect precision from input
+/// - Hours/minutes/seconds/milliseconds/microseconds/nanoseconds: specified precision to use
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
-pub enum TSDB_SML_TIMESTAMP_TYPE {
+pub enum SchemalessPrecision {
     NonConfigured = 0,
     Hours,
     Minutes,
@@ -25,7 +33,7 @@ pub enum TSDB_SML_TIMESTAMP_TYPE {
     Microseconds,
     Nanoseconds,
 }
-
+pub type TSDB_SML_TIMESTAMP_TYPE = SchemalessPrecision;
 pub const TSDB_SML_TIMESTAMP_NOT_CONFIGURED: TSDB_SML_TIMESTAMP_TYPE =
     TSDB_SML_TIMESTAMP_TYPE::NonConfigured;
 pub const TSDB_SML_TIMESTAMP_HOURS: TSDB_SML_TIMESTAMP_TYPE = TSDB_SML_TIMESTAMP_TYPE::Hours;
@@ -43,7 +51,7 @@ extern "C" {
         taos: *mut TAOS,
         lines: *mut *mut c_char,
         numLines: c_int,
-        protocol: TSDB_SML_PROTOCOL_TYPE,
+        protocol: SchemalessProtocol,
         precision: TSDB_SML_TIMESTAMP_TYPE,
     ) -> *mut TAOS_RES;
 }
@@ -66,7 +74,7 @@ fn test_sml() {
             taos,
             &mut lines as _,
             1,
-            TSDB_SML_PROTOCOL_TYPE::Line,
+            SchemalessProtocol::Line,
             TSDB_SML_TIMESTAMP_TYPE::NonConfigured,
         );
         assert!(crate::taos_errno(res) == 0);

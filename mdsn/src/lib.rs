@@ -91,6 +91,8 @@ pub enum DsnError {
     InvalidConnection(String),
     #[error("invalid addresses {0:?}")]
     InvalidAddresses(Vec<Address>),
+    #[error("requires database: {0}")]
+    RequireDatabase(String),
 }
 
 /// A simple struct to represent a server address, with host:port or socket path.
@@ -185,7 +187,7 @@ fn addr_parse() {
     let s = "/var/lib/taos";
     let addr = Address::from_str(&urlencoding::encode(s)).unwrap();
     assert_eq!(addr.path.as_ref().unwrap(), s);
-    assert_eq!(addr.to_string(), urlencoding::encode(s).deref());
+    assert_eq!(addr.to_string(), urlencoding::encode(s));
 }
 
 /// A DSN(**Data Source Name**) parser.
@@ -199,6 +201,39 @@ pub struct Dsn {
     pub fragment: Option<String>,
     pub database: Option<String>,
     pub params: BTreeMap<String, String>,
+}
+
+pub trait IntoDsn {
+    fn into_dsn(self) -> Result<Dsn, DsnError>;
+}
+
+impl IntoDsn for &str {
+    fn into_dsn(self) -> Result<Dsn, DsnError> {
+        self.parse()
+    }
+}
+
+impl IntoDsn for String {
+    fn into_dsn(self) -> Result<Dsn, DsnError> {
+        self.as_str().into_dsn()
+    }
+}
+
+impl IntoDsn for &String {
+    fn into_dsn(self) -> Result<Dsn, DsnError> {
+        self.as_str().into_dsn()
+    }
+}
+
+impl IntoDsn for &Dsn {
+    fn into_dsn(self) -> Result<Dsn, DsnError> {
+        Ok(self.clone())
+    }
+}
+impl IntoDsn for Dsn {
+    fn into_dsn(self) -> Result<Dsn, DsnError> {
+        Ok(self)
+    }
 }
 
 impl Display for Dsn {

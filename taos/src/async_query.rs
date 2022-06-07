@@ -38,10 +38,10 @@ impl<'query> Future for QueryFuture<'query> {
         // Look at the shared state to see if the timer has already completed.
         let mut shared_state = self.shared_state.lock().unwrap();
         if shared_state.completed {
-            Poll::Ready(ResultSet::from_ptr_with_code(
+            Poll::Ready(Ok(ResultSet::from_ptr_with_code(
                 shared_state.result,
                 shared_state.code,
-            ))
+            )?))
         } else {
             // Set waker so that the thread can wake up the current task
             // when the timer has completed, ensuring that the future is polled

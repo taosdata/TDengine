@@ -17,6 +17,8 @@ pub struct Error {
     err: Cow<'static, str>,
 }
 
+pub type Result<T> = std::result::Result<T, Error>;
+
 impl std::error::Error for Error {}
 
 impl Error {
@@ -49,7 +51,7 @@ impl FromStr for Error {
     type Err = ();
 
     #[inline]
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         Ok(Self {
             code: Code::Failed,
             err: s.to_string().into(),

@@ -15,6 +15,7 @@ pub use taos_query::common::*;
 
 use crate::impls::SyncBlock;
 
+#[derive(Debug)]
 pub struct BlockStream {
     raw: Arc<RawRes>,
     summary: Arc<(AtomicU64, AtomicU64)>,
@@ -46,6 +47,7 @@ impl BlockStream {
 unsafe impl Send for BlockStream {}
 unsafe impl Sync for BlockStream {}
 
+#[derive(Debug)]
 struct BlockState {
     /// Whether or not the sleep time has elapsed
     completed: bool,

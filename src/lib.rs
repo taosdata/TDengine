@@ -10,6 +10,9 @@ use url::Url;
 
 pub mod metrics;
 pub mod task;
+pub mod stream;
+pub mod util;
+pub mod plugins;
 
 #[derive(Debug, Args)]
 pub struct TaosUri {

@@ -108,8 +108,7 @@ where
     where
         V: Visitor<'de>,
     {
-        println!("call deserialize any");
-        dbg!(type_name::<V>());
+        log::trace!("call deserialize any for <{}>", type_name::<V>());
         match self.next_value() {
             Some(v) => v
                 .deserialize_any(visitor)
@@ -131,7 +130,7 @@ where
     where
         V: Visitor<'de>,
     {
-        log::debug!("call deserialize_str");
+        log::trace!("call deserialize_str for <{}>", type_name::<V>());
         match self.next_value() {
             Some(v) => v
                 .deserialize_str(visitor)
@@ -153,7 +152,7 @@ where
     where
         V: Visitor<'de>,
     {
-        log::debug!("call deserialize_option");
+        log::debug!("call deserialize_option for <{}>", type_name::<V>());
         match self.next_value() {
             Some(v) => {
                 if v.is_null() {

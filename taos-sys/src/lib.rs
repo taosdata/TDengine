@@ -205,7 +205,8 @@ impl Drop for DroppableRawRes {
             raw.free_result();
         } else {
             log::error!("there's other result pointer in-use, please check");
-            panic!("there's other result pointer in-use, please check");
+            // todo: safely drop result pointer.
+            // panic!("there's other result pointer in-use, please check");
         }
     }
 }
@@ -400,6 +401,17 @@ impl RawRes {
     pub fn tmq_table_name(&self) -> Option<&str> {
         unsafe {
             let c = tmq_get_table_name(self.as_ptr());
+            if c.is_null() {
+                None
+            } else {
+                CStr::from_ptr(c).to_str().ok()
+            }
+        }
+    }
+    #[inline]
+    pub fn tmq_db_name(&self) -> Option<&str> {
+        unsafe {
+            let c = tmq_get_db_name(self.as_ptr());
             if c.is_null() {
                 None
             } else {

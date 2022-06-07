@@ -1,10 +1,14 @@
-use std::task::Poll;
+use std::{
+    intrinsics::transmute,
+    task::Poll,
+};
 
-use crate::{prelude::ResultSet, Error, Result};
-use futures::{Stream, TryStream};
+use crate::prelude::ResultSet;
+use futures::{FutureExt, Stream};
+use taos_error::*;
 use taos_sys::*;
 
-use super::{Offset, Offsets, TmqList};
+use super::{Offsets, TmqList};
 
 #[derive(Debug)]
 pub struct ConsumerRef(*mut tmq_t);
@@ -18,10 +22,13 @@ impl ConsumerRef {
     }
 }
 
+#[derive(Debug)]
 pub struct Consumer {
     ptr: *mut tmq_t,
     wait: i64,
 }
+
+impl Unpin for Consumer {}
 
 unsafe impl Send for Consumer {}
 unsafe impl Sync for Consumer {}
@@ -34,7 +41,7 @@ impl Consumer {
         Self { ptr, wait }
     }
 
-    pub fn subscribe(&self, topic_list: &TmqList) -> Result<()> {
+    pub(crate) fn subscribe(&mut self, topic_list: &TmqList) -> Result<()> {
         let err = unsafe { tmq_subscribe(self.as_raw(), topic_list.0) };
 
         match err {
@@ -53,13 +60,12 @@ impl Consumer {
         }
     }
 
-    // todo: is_async better to rename to is_non_blocking
-    pub fn commit_sync(&self, offsets: impl Into<Offsets>) -> Result<()> {
+    pub fn commit_sync(&mut self, offsets: impl Into<Offsets>) -> Result<()> {
         unsafe { tmq_commit_sync(self.as_raw(), offsets.into().as_ptr()) }.ok_or("commit failed")
     }
 
     pub fn commit_non_blocking(
-        &self,
+        &mut self,
         offsets: impl Into<Offsets>,
         callback: fn(ConsumerRef, Result<Offsets>),
     ) {
@@ -74,7 +80,7 @@ impl Consumer {
         }
     }
 
-    pub async fn commit(&self, offsets: impl Into<Offsets>) -> Result<Offsets> {
+    pub async fn commit(&mut self, offsets: impl Into<Offsets>) -> Result<Offsets> {
         use tokio::sync::oneshot::{channel, Sender};
         let (sender, rx) = channel::<Result<Offsets>>();
         let offsets = offsets.into();
@@ -101,22 +107,91 @@ impl Consumer {
         Ok(rx.await.unwrap()?)
     }
 
-    pub fn poll(&self) -> Option<Result<ResultSet>> {
+    pub fn poll(&mut self) -> Option<crate::Result<ResultSet>> {
         let res = unsafe { tmq_consumer_poll(self.as_raw(), self.wait) };
         if res.is_null() {
             None
         } else {
-            Some(ResultSet::from_ptr(res).map(|rs| rs.independent()))
+            Some(
+                ResultSet::from_ptr(res)
+                    .map(|rs| rs.independent())
+                    .map_err(Into::into),
+            )
         }
     }
 
-    pub fn poll_wait(&self, wait_time: i64) -> Option<Result<ResultSet>> {
+    pub fn async_poll(
+        &mut self,
+        cx: &mut std::task::Context<'_>,
+    ) -> Poll<Option<crate::Result<ResultSet>>> {
+        struct TmqRef(*mut tmq_t);
+        unsafe impl Send for TmqRef {}
+        unsafe impl Sync for TmqRef {}
+        let wait = self.wait;
+        let ptr = TmqRef(self.as_raw());
+        tokio::task::spawn_blocking(move || {
+            let ptr = unsafe { transmute(ptr) };
+            let res = unsafe { tmq_consumer_poll(ptr, wait) };
+            if res.is_null() {
+                None
+            } else {
+                Some(
+                    ResultSet::from_ptr(res)
+                        .map(|rs| rs.independent())
+                        .map_err(Into::into),
+                )
+            }
+        })
+        .poll_unpin(cx)
+        .map(|res| res.unwrap())
+    }
+
+    pub async fn async_poll2(&mut self) -> Option<crate::Result<ResultSet>> {
+        struct TmqRef(*mut tmq_t);
+        unsafe impl Send for TmqRef {}
+        unsafe impl Sync for TmqRef {}
+        let wait = self.wait;
+        let ptr = TmqRef(self.as_raw());
+        tokio::task::spawn_blocking(move || {
+            let ptr = unsafe { transmute(ptr) };
+            let res = unsafe { tmq_consumer_poll(ptr, wait) };
+            if res.is_null() {
+                None
+            } else {
+                Some(
+                    ResultSet::from_ptr(res)
+                        .map(|rs| rs.independent())
+                        .map_err(Into::into),
+                )
+            }
+        })
+        .await
+        .unwrap_or(None)
+    }
+
+    pub fn poll_wait(&mut self, wait_time: i64) -> Option<crate::Result<ResultSet>> {
         let res = unsafe { tmq_consumer_poll(self.as_raw(), wait_time) };
         if res.is_null() {
             None
         } else {
-            Some(ResultSet::from_ptr(res))
+            Some(ResultSet::from_ptr(res).map_err(Into::into))
         }
+    }
+
+    pub fn unsubscribe(&mut self) {
+        unsafe {
+            log::trace!("close consumer");
+            tmq_consumer_close(self.as_raw());
+            log::trace!("consumer closed safely");
+        }
+    }
+}
+
+impl Iterator for Consumer {
+    type Item = Result<ResultSet>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        todo!()
     }
 }
 
@@ -130,13 +205,14 @@ impl Drop for Consumer {
     }
 }
 
-impl Stream for &Consumer {
-    type Item = Result<ResultSet>;
+impl Stream for Consumer {
+    type Item = crate::Result<ResultSet>;
 
     fn poll_next(
-        self: std::pin::Pin<&mut Self>,
-        _cx: &mut std::task::Context<'_>,
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
+        // self.async_poll2().boxed().poll_unpin(cx)
         Poll::Ready(self.poll())
     }
 }

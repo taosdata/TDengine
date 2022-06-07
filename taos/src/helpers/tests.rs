@@ -435,7 +435,7 @@ impl Builder {
                 taos.exec(format!("drop database if exists {}", name))?;
             }
             taos.exec(format!(
-                "create database if not exists {} precision '{}'",
+                "create database if not exists {} precision '{}' keep 36500",
                 name, precision
             ))?;
             if !used {

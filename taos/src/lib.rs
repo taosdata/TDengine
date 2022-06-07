@@ -1,20 +1,17 @@
 use std::sync::Once;
 
-pub use taos_error::*;
+pub use impls::Error;
+pub use taos_error::{Code, Error as TaosError};
+
 pub use taos_query as query;
 use taos_sys::*;
 
 macro_rules! err {
     (custom $err:expr) => {
-        <::taos_error::Error as ::serde::de::Error>::custom($err)
+        <crate::Error as ::serde::de::Error>::custom($err)
     };
     ('str $err:expr) => {
-        crate::Error::from_string($err)
-    };
-    ($err:expr) => {
-        todo!()
-        // Err(<::taos_error::Error as ::serde::de::Error>::custom($err))
-        // Err()
+        <crate::Error as ::serde::de::Error>::custom($err)
     };
 }
 
@@ -42,7 +39,7 @@ mod schemaless;
 
 mod impls;
 
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = std::result::Result<T, crate::impls::Error>;
 
 #[derive(Debug)]
 pub struct Taos(RawTaos);
@@ -58,14 +55,13 @@ impl Taos {
         db: impl Into<NullableCStr<'a>>,
         port: u16,
     ) -> Result<Self> {
-        RawTaos::connect(
+        Ok(Self(RawTaos::connect(
             host.into().as_ptr(),
             user.into().as_ptr(),
             pass.into().as_ptr(),
             db.into().as_ptr(),
             port,
-        )
-        .map(Self)
+        )?))
     }
 
     /// Asynchronously query with sql
@@ -233,9 +229,12 @@ pub mod prelude {
     //!     Ok(())
     //! }
     //! ```
+    pub use crate::impls::Error;
     pub use crate::impls::ResultSet;
+    pub use crate::impls::SyncBlock;
     pub use crate::options::TaosOptions;
     pub use crate::query::FromDsn;
+    pub use crate::schemaless::{SchemalessPrecision, SchemalessProtocol};
     pub use crate::stmt::{TaosBind, TaosMultiBind};
     pub use crate::Taos;
     pub use taos_query::common::{Precision, Timestamp, Ty, Value};
@@ -251,11 +250,16 @@ pub mod prelude {
 
     pub mod sync {
 
+        pub use crate::impls::Error;
         pub use crate::impls::ResultSet;
+        pub use crate::impls::SyncBlock;
         pub use crate::options::TaosOptions;
         pub use crate::query::FromDsn;
+        pub use crate::schemaless::{SchemalessPrecision, SchemalessProtocol};
         pub use crate::stmt::{TaosBind, TaosMultiBind};
         pub use crate::Taos;
+        // pub use mdsn::{Dsn, IntoDsn};
+
         pub use taos_query::common::{Precision, Timestamp, Ty, Value};
         pub use taos_query::{common, BlockCodec, BlockExt, Fetchable, Queryable};
 

@@ -1,10 +1,11 @@
-use crate::{impls::ResultSet, util::IntoCStr, Code, Error, Result, Taos};
-use taos_query::common::{BorrowedColumn, Column};
+use crate::{impls::ResultSet, Taos};
 use taos_sys::stmt::RawStmt;
 
 use std::marker::PhantomData;
 
 pub use taos_sys::{TaosBind, TaosMultiBind};
+
+type Result<T> = std::result::Result<T, taos_error::Error>;
 /// Stmt handler.
 pub struct Stmt<'stmt>(RawStmt, PhantomData<&'stmt Taos>);
 

@@ -1,4 +1,4 @@
-use std::{borrow::Cow, str::Utf8Error};
+use std::{borrow::Cow, fmt::Display, str::Utf8Error};
 
 use rust_decimal::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -182,6 +182,12 @@ pub enum Value {
     MediumBlob(Vec<u8>),
 }
 
+impl Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        todo!()
+    }
+}
+
 impl Value {
     /// The data type of this value.
     pub const fn ty(&self) -> Ty {
@@ -276,6 +282,31 @@ impl Value {
             Decimal(_) => todo!(),
             Blob(_) => todo!(),
             MediumBlob(_) => todo!(),
+        }
+    }
+
+    pub fn to_string(&self) -> Result<String, Utf8Error> {
+        use Value::*;
+        match self {
+            Null => Ok(String::new()),
+            VarChar(v) => Ok(v.to_string()),
+            Json(v) => Ok(v.to_string()),
+            NChar(v) => Ok(v.to_string()),
+            TinyInt(v) => Ok(format!("{v}")),
+            SmallInt(v) => Ok(format!("{v}")),
+            Int(v) => Ok(format!("{v}")),
+            BigInt(v) => Ok(format!("{v}")),
+            UTinyInt(v) => Ok(format!("{v}")),
+            USmallInt(v) => Ok(format!("{v}")),
+            UInt(v) => Ok(format!("{v}")),
+            UBigInt(v) => Ok(format!("{v}")),
+            Float(v) => Ok(format!("{v}")),
+            Double(v) => Ok(format!("{v}")),
+            Timestamp(v) => Ok(v
+                .to_naive_datetime()
+                .format("%Y-%m-%dT%H:%M:%S%.f")
+                .to_string()),
+            _ => unreachable!("un supported type to string"),
         }
     }
 }
