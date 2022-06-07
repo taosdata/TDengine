@@ -581,7 +581,7 @@ static void tbDataMovePosTo(STbData *pTbData, SMemSkipListNode **pos, TSDBKEY *p
 
       for (int8_t iLevel = pTbData->sl.level - 1; iLevel >= 0; iLevel--) {
         pn = SL_NODE_FORWARD(px, iLevel);
-        while (pn != pTbData->sl.pHead) {
+        while (pn != pTbData->sl.pTail) {
           pTKey = (TSDBKEY *)SL_NODE_DATA(pn);
 
           c = tsdbKeyCmprFn(pTKey, pKey);
