@@ -42,7 +42,7 @@ You should replace above placeholders as real values. To obtain these values, pl
 
 ## Connect
 
-Code bellow get variable URL and token from environment first and then create a `RestfulConnection` object, witch is a standard JDBC Connection object.
+Code bellow get URL and token from environment variables first and then create a `RestfulConnection` object, witch is a standard JDBC Connection object.
 
 ```java
 import com.taosdata.jdbc.rs.RestfulConnection;
