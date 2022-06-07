@@ -33,11 +33,15 @@ impl App {
         let sink_builder = TaosSinkBuilder::from_dsn(self.to)?;
 
         let mut workers = self.workers.unwrap_or(max_workers);
-        if workers > max_workers {
+        if max_workers != 0 && workers > max_workers {
             log::warn!("maximum workers for the stream is {max_workers} while you want {workers}, reduce to limit");
             workers = max_workers;
         }
+        if workers == 0 {
+            workers = 1;
+        }
         let mut handlers = Vec::new();
+        log::info!("use {workers} workers (max: {max_workers})");
 
         for _ in 0..workers {
             let source = source_builder.build_source()?;
