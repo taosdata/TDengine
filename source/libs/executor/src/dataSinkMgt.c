@@ -34,9 +34,12 @@ int32_t dsDataSinkGetCacheSize(SDataSinkStat *pStat) {
 }
 
 
-int32_t dsCreateDataSinker(const SDataSinkNode *pDataSink, DataSinkHandle* pHandle) {
-  if (QUERY_NODE_PHYSICAL_PLAN_DISPATCH == nodeType(pDataSink)) {
-    return createDataDispatcher(&gDataSinkManager, pDataSink, pHandle);
+int32_t dsCreateDataSinker(const SDataSinkNode *pDataSink, DataSinkHandle* pHandle, void* pParam) {
+  switch (nodeType(pDataSink)) {
+    case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
+      return createDataDispatcher(&gDataSinkManager, pDataSink, pHandle);
+    case QUERY_NODE_PHYSICAL_PLAN_DELETE:
+      return createDataDeleter(&gDataSinkManager, pDataSink, pHandle, pParam);
   }
   return TSDB_CODE_FAILED;
 }
