@@ -41,4 +41,4 @@ token = os.environ["TDENGINE_CLOUD_TOKEN"]
 conn = taosrest.connect(url=url, token=token)
 ```
 
-The client connection is then established. For how to write data and query data, please refer to [basic usage](/connector/python#basic-usage).
+The client connection is then established. For how to write data and query data, please refer to [basic usage](../../connector/python#basic-usage).
