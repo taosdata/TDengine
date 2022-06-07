@@ -1006,7 +1006,7 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
     }
 
     SSchema* pTagSchema = &pSchema[pCxt->tags.boundColumns[i]];
-    char*    tmpTokenBuf = taosMemoryCalloc(1, sToken.n);  // this can be optimize with parse column
+    char*    tmpTokenBuf = taosMemoryCalloc(1, sToken.n);  //todo this can be optimize with parse column
     code = checkAndTrimValue(&sToken, tmpTokenBuf, &pCxt->msg);
     if (code != TSDB_CODE_SUCCESS) {
       taosMemoryFree(tmpTokenBuf);
@@ -1018,7 +1018,11 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
         taosMemoryFree(tmpTokenBuf);
         goto end;
       }
-      code = parseJsontoTagData(sToken.z, pTagVals, &pTag, &pCxt->msg);
+      if(isNullStr(&sToken)) {
+        code = tTagNew(pTagVals, 1, true, &pTag);
+      } else {
+        code = parseJsontoTagData(sToken.z, pTagVals, &pTag, &pCxt->msg);
+      }
       taosMemoryFree(tmpTokenBuf);
       if (code != TSDB_CODE_SUCCESS) {
         goto end;

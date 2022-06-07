@@ -46,4 +46,7 @@ TEST_F(PlanOrderByTest, stable) {
 
   // ORDER BY key is in the projection list
   run("SELECT c1 FROM st1 ORDER BY c1");
+
+  // ORDER BY key is not in the projection list
+  run("SELECT c2 FROM st1 ORDER BY c1");
 }

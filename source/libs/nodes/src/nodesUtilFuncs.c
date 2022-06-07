@@ -232,6 +232,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SSortLogicNode));
     case QUERY_NODE_LOGIC_PLAN_PARTITION:
       return makeNode(type, sizeof(SPartitionLogicNode));
+    case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC:
+      return makeNode(type, sizeof(SIndefRowsFuncLogicNode));
     case QUERY_NODE_LOGIC_SUBPLAN:
       return makeNode(type, sizeof(SLogicSubplan));
     case QUERY_NODE_LOGIC_PLAN:
@@ -260,8 +262,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SSortPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
       return makeNode(type, sizeof(SIntervalPhysiNode));
-    case QUERY_NODE_PHYSICAL_PLAN_SORT_MERGE_INTERVAL:
-      return makeNode(type, sizeof(SSortMergeIntervalPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL:
+      return makeNode(type, sizeof(SMergeIntervalPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
       return makeNode(type, sizeof(SStreamIntervalPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
@@ -280,6 +282,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SStreamStateWinodwPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       return makeNode(type, sizeof(SPartitionPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC:
+      return makeNode(type, sizeof(SIndefRowsFuncPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       return makeNode(type, sizeof(SDataDispatcherNode));
     case QUERY_NODE_PHYSICAL_PLAN_INSERT:

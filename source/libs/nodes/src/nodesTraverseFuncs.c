@@ -350,6 +350,7 @@ void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker wa
     case SQL_CLAUSE_GROUP_BY:
       nodesWalkExpr(pSelect->pHaving, walker, pContext);
     case SQL_CLAUSE_HAVING:
+    case SQL_CLAUSE_SELECT:
     case SQL_CLAUSE_DISTINCT:
       nodesWalkExprs(pSelect->pOrderByList, walker, pContext);
     case SQL_CLAUSE_ORDER_BY:
@@ -382,6 +383,7 @@ void nodesRewriteSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeRewrit
     case SQL_CLAUSE_GROUP_BY:
       nodesRewriteExpr(&(pSelect->pHaving), rewriter, pContext);
     case SQL_CLAUSE_HAVING:
+    case SQL_CLAUSE_SELECT:
     case SQL_CLAUSE_DISTINCT:
       nodesRewriteExprs(pSelect->pOrderByList, rewriter, pContext);
     case SQL_CLAUSE_ORDER_BY:

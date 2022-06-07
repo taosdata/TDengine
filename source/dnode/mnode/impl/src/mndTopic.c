@@ -71,7 +71,7 @@ const char *mndTopicGetShowName(const char topic[TSDB_TOPIC_FNAME_LEN]) {
   return strchr(topic, '.') + 1;
 }
 
-bool mndCheckColAndTagModifiable(SMnode *pMnode, int64_t suid, const SArray *colAndTagIds) {
+int32_t mndCheckColAndTagModifiable(SMnode *pMnode, int64_t suid, col_id_t colId) {
   SSdb *pSdb = pMnode->pSdb;
   void *pIter = NULL;
   bool  found = false;
@@ -91,7 +91,7 @@ bool mndCheckColAndTagModifiable(SMnode *pMnode, int64_t suid, const SArray *col
     }
 
     SHashObj  *pColHash = NULL;
-    SNodeList *pNodeList;
+    SNodeList *pNodeList = NULL;
     nodesCollectColumns((SSelectStmt *)pAst, SQL_CLAUSE_FROM, NULL, COLLECT_COL_TYPE_ALL, &pNodeList);
     SNode *pNode = NULL;
     FOREACH(pNode, pNodeList) {
@@ -103,22 +103,24 @@ bool mndCheckColAndTagModifiable(SMnode *pMnode, int64_t suid, const SArray *col
       if (pCol->colId > 0) {
         taosHashPut(pColHash, &pCol->colId, sizeof(int16_t), NULL, 0);
       }
+      mTrace("topic:%s, colId:%d is used", pTopic->name, pCol->colId);
     }
 
-    for (int32_t i = 0; i < taosArrayGetSize(colAndTagIds); i++) {
-      int16_t *pColId = taosArrayGet(colAndTagIds, i);
-      if (taosHashGet(pColHash, pColId, sizeof(int16_t)) != NULL) {
-        found = true;
-        goto NEXT;
-      }
+    if (taosHashGet(pColHash, &colId, sizeof(int16_t)) != NULL) {
+      found = true;
+      goto NEXT;
     }
 
   NEXT:
     sdbRelease(pSdb, pTopic);
     nodesDestroyNode(pAst);
-    if (found) return false;
+    if (found) {
+      terrno = TSDB_CODE_MND_FIELD_CONFLICT_WITH_TOPIC;
+      return -1;
+    }
   }
-  return true;
+
+  return 0;
 }
 
 SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic) {
