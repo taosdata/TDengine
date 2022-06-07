@@ -7,7 +7,6 @@ description: Instructions and tips for using the TDengine CLI to connect TDengin
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-import Preparation from "./_preparation.mdx"
 The TDengine command-line application (hereafter referred to as `TDengine CLI`) is the most simplest way for users to manipulate and interact with TDengine instances.
 
 ## Installation
@@ -72,5 +71,5 @@ TDengine CLI will display a welcome message and version information if it succes
 ```cmd
 taos>
 ```
-After entering the TDengine CLI, you can execute various SQL commands, including inserts, queries, or administrative commands. Please see [official document](https://docs.tdengine.com/reference/taos-shell#execute-sql-script-file) for more details.
+After entering the TDengine CLI, you can execute various SQL commands, including inserts, queries, or administrative commands. Please see the [official document](https://docs.tdengine.com/reference/taos-shell#execute-sql-script-file) for more details.
 
