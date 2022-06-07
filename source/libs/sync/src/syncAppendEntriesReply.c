@@ -178,9 +178,14 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
         if (pSender->start && pSender->term == ths->pRaftStore->currentTerm) {
           // already start
           sentryIndex = pSender->snapshot.lastApplyIndex;
+          sTrace("sending snapshot already start: pSender->term:%lu, ths->pRaftStore->currentTerm:%lu", pSender->term,
+                 ths->pRaftStore->currentTerm);
 
         } else {
           // start send snapshot, first time
+          sTrace("sending snapshot start first: pSender->term:%lu, ths->pRaftStore->currentTerm:%lu", pSender->term,
+                 ths->pRaftStore->currentTerm);
+
           snapshotSenderDoStart(pSender);
           pSender->start = true;
           sentryIndex = pSender->snapshot.lastApplyIndex;

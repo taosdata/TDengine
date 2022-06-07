@@ -687,7 +687,7 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
         code = ths->pLogStore->updateCommitIndex(ths->pLogStore, ths->commitIndex);
         ASSERT(code == 0);
 
-        code = syncNodeCommit(ths, beginIndex, endIndex, 0x11);
+        code = syncNodeCommit(ths, beginIndex, endIndex, ths->state);
         ASSERT(code == 0);
       }
     }

@@ -1558,7 +1558,8 @@ static int32_t syncNodeAppendNoop(SSyncNode* ths) {
   assert(pEntry != NULL);
 
   if (ths->state == TAOS_SYNC_STATE_LEADER) {
-    ths->pLogStore->appendEntry(ths->pLogStore, pEntry);
+    // ths->pLogStore->appendEntry(ths->pLogStore, pEntry);
+    ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pEntry);
     syncNodeReplicate(ths);
   }
 
@@ -1620,7 +1621,8 @@ int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg) {
   assert(pEntry != NULL);
 
   if (ths->state == TAOS_SYNC_STATE_LEADER) {
-    ths->pLogStore->appendEntry(ths->pLogStore, pEntry);
+    // ths->pLogStore->appendEntry(ths->pLogStore, pEntry);
+    ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pEntry);
 
     // start replicate right now!
     syncNodeReplicate(ths);
@@ -1692,8 +1694,9 @@ const char* syncStr(ESyncState state) {
 }
 
 int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex, uint64_t flag) {
-  int32_t code = 0;
-  sInfo("sync commit from %ld to %ld, flag:0x%lX", beginIndex, endIndex, flag);
+  int32_t    code = 0;
+  ESyncState state = flag;
+  sInfo("sync event commit from %ld to %ld, %s", beginIndex, endIndex, syncUtilState2String(state));
 
   // maybe execute by leader, skip snapshot
   SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};

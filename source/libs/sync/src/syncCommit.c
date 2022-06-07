@@ -94,7 +94,7 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
 
     // execute fsm
     if (pSyncNode->pFsm != NULL) {
-      int32_t code = syncNodeCommit(pSyncNode, beginIndex, endIndex, 0x1);
+      int32_t code = syncNodeCommit(pSyncNode, beginIndex, endIndex, pSyncNode->state);
       ASSERT(code == 0);
 
 #if 0      

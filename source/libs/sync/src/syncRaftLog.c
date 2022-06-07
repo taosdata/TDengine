@@ -156,6 +156,9 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
   }
 
   walFsync(pWal, true);
+
+  sTrace("sync event write wal: %ld", pEntry->index);
+
   return code;
 }
 
@@ -309,6 +312,8 @@ int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
   // assert(code == 0);
 
   walFsync(pWal, true);
+
+  sTrace("sync event old write wal: %ld", pEntry->index);
   return code;
 }
 
