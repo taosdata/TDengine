@@ -27,6 +27,8 @@ int32_t streamExec(SStreamTask* pTask, SMsgCb* pMsgCb);
 int32_t streamSink1(SStreamTask* pTask, SMsgCb* pMsgCb);
 int32_t streamDispatch(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDataBlock* data);
 
+int32_t streamDispatchReqToData(const SStreamDispatchReq* pReq, SStreamDataBlock* pData);
+
 #ifdef __cplusplus
 }
 #endif
