@@ -1418,7 +1418,7 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
     };
 
     SUdfInfo* pUdfInfo = NULL;
-    
+
     size_t size = tscNumOfExprs(px);
     for (int32_t j = 0; j < size; ++j) {
       SExprInfo* pExprInfo = tscExprGet(px, j);
@@ -1429,7 +1429,7 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
           pSql->res.code = tscInvalidOperationMsg(pSql->cmd.payload, "only one udf allowed", NULL);
           return;
         }
-        
+
         pUdfInfo = taosArrayGet(px->pUdfInfo, -1 * functionId - 1);
         int32_t code = initUdfInfo(pUdfInfo);
         if (code != TSDB_CODE_SUCCESS) {
@@ -1532,12 +1532,13 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
     if (px->pQInfo == NULL) {
       tscAsyncResultOnError(pSql);
       pOutput->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+      tfree(schema);
       return;
     }
 
     px->pQInfo->runtimeEnv.udfIsCopy = true;
     px->pQInfo->runtimeEnv.pUdfInfo = pUdfInfo;
-    
+
     tfree(schema);
 
     // set the pRuntimeEnv for pSourceOperator
@@ -2702,11 +2703,9 @@ int32_t tscExprTopBottomIndex(SQueryInfo* pQueryInfo){
     SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
     if (pExpr == NULL)
       continue;
-    if (pExpr->base.functionId == TSDB_FUNC_TOP 
-      || pExpr->base.functionId == TSDB_FUNC_BOTTOM 
-      || pExpr->base.functionId == TSDB_FUNC_SAMPLE 
-      || pExpr->base.functionId == TSDB_FUNC_UNIQUE 
-      || pExpr->base.functionId == TSDB_FUNC_TAIL) {
+    if (pExpr->base.functionId == TSDB_FUNC_TOP || pExpr->base.functionId == TSDB_FUNC_BOTTOM ||
+        pExpr->base.functionId == TSDB_FUNC_SAMPLE || pExpr->base.functionId == TSDB_FUNC_UNIQUE ||
+        pExpr->base.functionId == TSDB_FUNC_TAIL) {
       return i;
     }
   }
@@ -4219,7 +4218,7 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
       (*pSql->fp)(pSql->param, pSql, 0);
     }
     return ;
-  } 
+  }
 
   if (pSql->cmd.command == TSDB_SQL_SELECT) {
     tscAddIntoSqlList(pSql);
