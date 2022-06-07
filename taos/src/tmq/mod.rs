@@ -6,7 +6,10 @@ use std::{
     sync::{Arc, Weak},
 };
 
-use crate::{Code, Error, IntoCStr, Result, Taos};
+use taos_error::*;
+
+use crate::{IntoCStr, Taos};
+use mdsn::IntoDsn;
 use taos_query::Dsn;
 use taos_sys::*;
 
@@ -90,6 +93,7 @@ impl Drop for TmqList {
         unsafe {
             log::trace!("list destroy");
             tmq_list_destroy(self.0);
+            log::trace!("list destroy destroyed");
         }
     }
 }
@@ -113,11 +117,8 @@ pub struct TmqBuilder {
 }
 
 impl TmqBuilder {
-    pub fn from_dsn<T: TryInto<Dsn>>(dsn: T) -> Result<Self>
-    where
-        T::Error: Debug,
-    {
-        let dsn = dsn.try_into().unwrap();
+    pub fn from_dsn<T: IntoDsn>(dsn: T) -> crate::Result<Self> {
+        let dsn = dsn.into_dsn().unwrap();
         log::debug!("build from {dsn}");
         let mut conf = TmqConf::new();
         macro_rules! _set_opt {
@@ -172,16 +173,16 @@ impl TmqBuilder {
         self
     }
 
-    pub fn build(&self) -> Result<Consumer> {
+    pub fn build(&self) -> crate::Result<Consumer> {
         unsafe {
             let mut err = [0; 256];
             let tmq = tmq_consumer_new(self.conf.as_ptr(), err.as_mut_ptr() as _, 255);
             if err[0] != 0 {
-                return Err(Error::from_string(
+                return Err(crate::Error::custom(
                     String::from_utf8_lossy(&err).to_string(),
                 ));
             } else {
-                let cons = Consumer::new(tmq, self.wait);
+                let mut cons = Consumer::new(tmq, self.wait);
                 cons.subscribe(&self.topics)?;
                 Ok(cons)
             }
@@ -191,16 +192,16 @@ impl TmqBuilder {
     pub fn subscribe<'a, T: IntoCStr<'a>>(
         &self,
         topics: impl IntoIterator<Item = T>,
-    ) -> Result<Consumer> {
+    ) -> crate::Result<Consumer> {
         unsafe {
             let mut err = [0; 256];
             let tmq = tmq_consumer_new(self.conf.as_ptr(), err.as_mut_ptr() as _, 255);
             if err[0] != 0 {
-                return Err(Error::from_string(
+                return Err(crate::Error::custom(
                     String::from_utf8_lossy(&err).to_string(),
                 ));
             } else {
-                let cons = Consumer::new(tmq, self.wait);
+                let mut cons = Consumer::new(tmq, self.wait);
                 let topics = TmqList::from_topics(topics)?;
                 cons.subscribe(&topics)?;
                 Ok(cons)
@@ -240,7 +241,7 @@ mod test {
         let builder = TmqBuilder::from_dsn(format!(
             "taos:///{database}?topics={database}&group.id={database}&wait=1000"
         ))?;
-        let tmq = builder.build()?;
+        let mut tmq = builder.build()?;
         while let Some(Ok(mut rs)) = tmq.poll() {
             for block in rs.blocks_iter() {
                 let fields = block.fields();
@@ -302,7 +303,7 @@ mod test {
         println!("write data thread finish");
         Ok(())
     }
-    fn sync_consume_loop(database: &str, consumer: &Consumer) -> Result<()> {
+    fn sync_consume_loop(database: &str, consumer: &mut Consumer) -> Result<()> {
         println!("consume loop");
         let running = Arc::new(atomic::AtomicBool::new(true));
         let msg_count = atomic::AtomicUsize::new(0);
@@ -329,7 +330,7 @@ mod test {
                 process_message(&mut msg);
                 msg_count.fetch_add(1, atomic::Ordering::SeqCst);
 
-                consumer.commit_sync(None)?;
+                consumer.commit_sync(())?;
                 println!("msg summary: {:?}", msg.summary());
             }
         }
@@ -352,14 +353,14 @@ mod test {
             "create table if not exists tu1 using st1 tags(1)",
             "create table if not exists tu2 using st1 tags(2)",
         ])?;
-        taos.create_topic(database, database)?;
+        taos.create_topic_as_database(database, database)?;
 
         let topic = database;
         let gid = database;
 
         let dsn = format!("taos:///{database}?topics={topic}&group.id={gid}&wait=1000");
         log::info!("subscribe with dsn: {dsn}");
-        let consumer = TmqBuilder::from_dsn(&dsn)?
+        let mut consumer = TmqBuilder::from_dsn(&dsn)?
             .on_auto_commit(
                 |_: ConsumerRef, _: std::result::Result<Offsets, taos_error::Error>| {
                     log::info!("rust callback");
@@ -367,9 +368,9 @@ mod test {
             )
             .build()?;
         println!("topics created");
-        sync_consume_loop(database, &consumer)?;
+        sync_consume_loop(database, &mut consumer)?;
         dbg!(consumer.subscription()?);
-
+        std::mem::drop(consumer);
         drop_topic(&taos, &topic)?;
         println!("finished");
         Ok(())
@@ -377,7 +378,7 @@ mod test {
 
     /// Consume from one database and write to another.
     // #[crate::test(log_level = "trace")]
-    #[crate::test(log_level = "trace", naming = "tmq1", dropping = "none")]
+    #[crate::test(log_level = "trace", naming = "tmq1")]
     async fn tmq_stream(taos: &Taos, database: &str) -> Result<()> {
         let version = crate::client_info();
         println!("version: {}", version);
@@ -390,7 +391,7 @@ mod test {
             "create table if not exists tu1 using st1 tags(1)",
             "create table if not exists tu2 using st1 tags(2)",
         ])?;
-        taos.create_topic(database, database)?;
+        taos.create_topic_as_database(database, database)?;
 
         let topic = database;
         let gid = database;
@@ -432,14 +433,13 @@ mod test {
             assert!(blocks == 1, "tmq response blocks always should be 1");
             sum += rows;
             eprintln!("sum: {sum}, rows in block = {rows}");
-            Ok::<_, taos_error::Error>(sum)
+            Ok::<_, crate::Error>(sum)
         });
         futures::pin_mut!(unfold);
         use futures::prelude::*;
         consumer.forward(unfold).await?;
 
         let db2_rows: usize = taos.query_one("select count(*) from db2.tu1")?.unwrap_or(0);
-
         drop_topic(&taos, &topic)?;
         taos.exec("drop database db2")?;
         if db2_rows != MAX_INSERTS {

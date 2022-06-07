@@ -1,5 +1,9 @@
-use crate::*;
+use crate::{taos_schemaless_insert, IntoCStr, Taos};
+use taos_error::*;
+
 use itertools::Itertools;
+
+pub use taos_sys::{SchemalessPrecision, SchemalessProtocol};
 
 impl Taos {
     /// Schemaless insert with different protocol and timestamp precision.
@@ -39,8 +43,8 @@ impl Taos {
     pub fn schemaless_insert<'a, T: IntoCStr<'a>>(
         &self,
         lines: impl IntoIterator<Item = T>,
-        protocol: TSDB_SML_PROTOCOL_TYPE,
-        precision: TSDB_SML_TIMESTAMP_TYPE,
+        protocol: SchemalessProtocol,
+        precision: SchemalessPrecision,
     ) -> Result<i32> {
         let lines: Vec<_> = lines.into_iter().map(|line| line.into_c_str()).collect();
         let mut lines = lines
@@ -69,19 +73,24 @@ mod test {
     use crate::prelude::*;
 
     use anyhow::Result;
+    use taos_sys::TSDB_SML_JSON_PROTOCOL;
+    use taos_sys::TSDB_SML_LINE_PROTOCOL;
+    use taos_sys::TSDB_SML_TELNET_PROTOCOL;
+    use taos_sys::TSDB_SML_TIMESTAMP_SECONDS;
 
     #[crate::test]
     /// Test schemaless insert with InfluxDB line protocol
     async fn line_insert(taos: &Taos, _database: &str) -> Result<()> {
-        let lines = ["st,t1=abc,t2=def,t3=anything c1=3i64,c3=L\"pass\",c2=false,c4=4f64 1626006833639000000"];
+        let lines = ["st,t1=abc c1=3i64,c3=\"def\",c2=false 1626006833639000000"];
+        // let lines = ["st,t1=abc c1=3i64,c2=false,c3=L\"def\" 1626006833639000000"];
         let res = taos.schemaless_insert(
             &lines,
             TSDB_SML_LINE_PROTOCOL,
-            TSDB_SML_TIMESTAMP_NOT_CONFIGURED,
+            SchemalessPrecision::Nanoseconds,
         )?;
         assert_eq!(res, 1);
 
-        let res = taos.query("select * from st").await?;
+        let res = taos.query("select * from st").await?.to_records();
         println!("{res:?}");
         Ok(())
     }

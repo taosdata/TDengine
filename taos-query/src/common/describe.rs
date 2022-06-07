@@ -27,6 +27,7 @@ impl Describe {
     pub fn names(&self) -> impl Iterator<Item = &str> {
         self.fields().iter().map(|f| f.field())
     }
+    
     pub fn tag_names(&self) -> impl Iterator<Item = &str> {
         self.fields()
             .iter()

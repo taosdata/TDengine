@@ -307,7 +307,7 @@ impl<'de, 'b: 'de> serde::de::Deserializer<'de> for BorrowedValue<'de> {
     where
         V: Visitor<'de>,
     {
-        log::trace!("name: {name}, variants: {variants:?}");
+        log::trace!("deserialize enum with name: {name}, variants: {variants:?}");
 
         if name == "Timestamp" && variants == TIMESTAMP_VARIANTS {
             return visitor.visit_enum(EnumTimestampDeserializer { value: self });

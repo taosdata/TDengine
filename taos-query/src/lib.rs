@@ -1,6 +1,9 @@
 //! This is the common query traits/types for TDengine connectors.
 //!
 
+use futures::stream::TryStreamExt;
+use itertools::Itertools;
+use mdsn::IntoDsn;
 pub use mdsn::{Address, Dsn, DsnError};
 use serde::de::{value::Error as DeError, DeserializeOwned};
 use std::{fmt::Debug, marker::PhantomData, rc::Rc};
@@ -84,6 +87,12 @@ pub trait BlockExt: Debug + Sized {
     /// Columns iterator with borrowed data from block.
     fn columns_iter(&self) -> ColsIter<'_, Self> {
         ColsIter::new(self)
+    }
+
+    fn to_records(&self) -> Vec<Vec<Value>> {
+        self.iter_rows()
+            .map(|row| row.into_iter().map(|(f, v)| v.into_value()).collect_vec())
+            .collect_vec()
     }
 
     /// Deserialize a row to a record type(primitive type or a struct).
@@ -246,16 +255,38 @@ where
         Ok(())
     }
 
+    fn create_topic_as_database(
+        &'q self,
+        name: impl AsRef<str>,
+        db: impl std::fmt::Display,
+    ) -> Result<(), Self::Error> {
+        let name = name.as_ref();
+        let query = format!("create topic if not exists {name} as database {db}");
+
+        self.exec(&query)?;
+        Ok(())
+    }
+
     fn databases(&'q self) -> Result<Vec<ShowDatabase>, Self::Error> {
-        use itertools::Itertools;
         self.query("show databases")?
             .deserialize()
             .try_collect()
             .map_err(Into::into)
     }
 
+    /// Topics information by `show topics` sql.
+    ///
+    /// ## Compatibility
+    ///
+    /// This is a 3.x-only API.
+    fn topics(&'q self) -> Result<Vec<Topic>, Self::Error> {
+        self.query("show topics")?
+            .deserialize()
+            .try_collect()
+            .map_err(Into::into)
+    }
+
     fn describe(&'q self, table: &str) -> Result<Describe, Self::Error> {
-        use itertools::Itertools;
         Ok(Describe(
             self.query(format!("describe {table}"))?
                 .deserialize()
@@ -264,10 +295,11 @@ where
     }
 }
 
-pub trait AsyncFetchable: Send
+pub trait AsyncFetchable
 where
+    Self: Sized + Send,
     Self::BlockStream: futures::stream::Stream + Send,
-    for<'b> <Self::BlockStream as futures::stream::Stream>::Item: BlockExt + Send,
+    <Self::BlockStream as futures::stream::Stream>::Item: BlockExt + Send,
 {
     type BlockStream;
     // type Block: for<'b> BlockExt;
@@ -284,7 +316,22 @@ where
 
     fn summary(&self) -> (usize, usize);
 
+    fn blocks_iter(&mut self) -> &mut Self {
+        self
+    }
+
     fn block_stream(&mut self) -> Self::BlockStream;
+
+    fn into_blocks(mut self) -> Self::BlockStream {
+        self.block_stream()
+    }
+
+    /// Records is a row-based 2-dimension matrix of values.
+    fn to_records(&mut self) -> Vec<Vec<Value>> {
+        futures::executor::block_on_stream(Box::pin(self.block_stream()))
+            .flat_map(|block| block.to_records())
+            .collect()
+    }
 
     fn deserialize_stream<T>(
         &mut self,
@@ -313,7 +360,7 @@ where
     for<'b> <<Self::AsyncResultSet as AsyncFetchable>::BlockStream as futures::stream::Stream>::Item:
         BlockExt + Send,
 {
-    type Error: Debug + From<serde::de::value::Error> + From<anyhow::Error> + Send;
+    type Error: Debug + From<serde::de::value::Error> + Send;
     // type B: for<'b> BlockExt<'b, 'b>;
     type AsyncResultSet: AsyncFetchable;
 
@@ -384,6 +431,18 @@ where
         Ok(())
     }
 
+    async fn create_topic_as_database(
+        &'q self,
+        name: impl AsRef<str> + Send + 'async_trait,
+        db: impl std::fmt::Display + Send + 'async_trait,
+    ) -> Result<(), Self::Error> {
+        let name = name.as_ref();
+        let query = format!("create topic if not exists {name} as database {db}");
+
+        self.exec(&query).await?;
+        Ok(())
+    }
+
     async fn databases(&'q self) -> Result<Vec<ShowDatabase>, Self::Error> {
         use futures::stream::TryStreamExt;
         Ok(self
@@ -393,8 +452,22 @@ where
             .try_collect()
             .await?)
     }
+
+    /// Topics information by `show topics` sql.
+    ///
+    /// ## Compatibility
+    ///
+    /// This is a 3.x-only API.
+    async fn topics(&'q self) -> Result<Vec<Topic>, Self::Error> {
+        Ok(self
+            .query("show topics")
+            .await?
+            .deserialize_stream()
+            .try_collect()
+            .await?)
+    }
+
     async fn describe(&'q self, table: &str) -> Result<Describe, Self::Error> {
-        use futures::stream::TryStreamExt;
         Ok(Describe(
             self.query(format!("describe {table}"))
                 .await?
@@ -430,7 +503,7 @@ pub trait FromDsn: Sized + 'static {
     fn hygienize(dsn: Dsn) -> Result<(Dsn, Vec<Address>), DsnError>;
 
     /// Generate a connection object from DSN.
-    fn from_dsn(dsn: &Dsn) -> Result<Self, Self::Err>;
+    fn from_dsn<T: IntoDsn>(dsn: T) -> Result<Self, Self::Err>;
 
     /// Is the connection available?
     fn ping(dsn: &Dsn) -> Result<(), Self::Err>;
@@ -474,8 +547,8 @@ impl<T: FromDsn + Send + Sync> Manager<T> {
     }
 
     #[inline]
-    pub fn from_dsn(dsn: impl TryInto<Dsn, Error = DsnError>) -> Result<Self, DsnError> {
-        let dsn = dsn.try_into()?;
+    pub fn from_dsn(dsn: impl IntoDsn) -> Result<Self, DsnError> {
+        let dsn = dsn.into_dsn()?;
         Self::new(dsn)
     }
 

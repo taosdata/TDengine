@@ -1,15 +1,12 @@
-use std::collections::HashMap;
-use std::ops::Deref;
-use std::task::Poll;
-use std::thread;
-
 use anyhow::Result;
 use clap::Args;
 use futures::prelude::*;
-use serde::Deserialize;
-use taos::prelude::*;
-use taos::query::Fetchable;
-use taos::{query::Dsn, tmq::TmqBuilder};
+use taos::query::Dsn;
+use taosx::plugins::sink::taos::TaosSinkBuilder;
+use taosx::plugins::source::taos::TaosSourceBuilder;
+use taosx::stream::source::XSourceBuilder;
+use taosx::stream::stream::XSinkBuilder;
+
 use taosx::TaosOpts;
 
 #[derive(Debug, Args)]
@@ -26,170 +23,39 @@ pub(crate) struct App {
     workers: Option<usize>,
 }
 
-async fn check_target_db<'a>(to: &mut Dsn, from: &'a Dsn) -> Result<&'a str> {
-    let db1 = from.database.as_ref().unwrap();
-    if to.database.is_some() && Taos::from_dsn(to).is_ok() {
-        return Ok(db1);
-    }
-
-    let db2 = to.database.as_ref().unwrap_or(db1).to_string();
-
-    to.database = None;
-    let taos2 = Taos::from_dsn(to)?;
-    let taos1 = Taos::from_dsn(from)?;
-    let db_opts = taos1
-        .databases()
-        .await?
-        .into_iter()
-        .filter(|db| &db.name == db1)
-        .next()
-        .unwrap()
-        .props
-        .to_string();
-    let db_new = format!("create database if not exists {db2} {db_opts}");
-    taos2.exec(db_new).await?;
-
-    to.database = Some(db2);
-
-    Ok(db1.as_str())
-}
-
-async fn sync_schema(from: &Taos, to: &Taos) -> Result<()> {
-    let stables: Vec<String> = from
-        .query("show stables")
-        .await?
-        .deserialize_stream()
-        .try_collect()
-        .await?;
-    let mut stable_fields = HashMap::new();
-    for stable in stables {
-        // todo: use "show create" sql?
-        // from.query(format!("show create stable {stable}")).await?;
-        let desc = from.describe(&stable).await?;
-        let sql = desc.to_create_table_sql(&stable);
-        stable_fields.insert(stable, desc);
-        to.exec(sql).await?;
-    }
-
-    #[derive(Deserialize)]
-    struct Table {
-        table_name: String,
-        db_name: String,
-        stable_name: Option<String>,
-    }
-    let tables: Vec<Table> = from
-        .query("show tables")
-        .await?
-        .deserialize_stream()
-        .try_collect()
-        .await?;
-    use itertools::Itertools;
-    for table in tables {
-        let table_name = &table.table_name;
-        if let Some(stable) = table.stable_name {
-            let fields = &stable_fields[&stable];
-            let tags = fields.tag_names().collect_vec();
-            let names = fields.tag_names().join(",");
-            let fields: Vec<Value> = from
-                .query_one(format!(
-                    "select {names} from {stable} where tbname = '{table_name}'"
-                ))
-                .await?
-                .unwrap();
-
-            let tags_values = fields.into_iter().map(|v| v.to_sql_value()).join(",");
-            to.exec(format!(
-                "create table if not exists {table_name} using {stable} tags({tags_values})"
-            ))
-            .await?;
-            // tags.iter().zip(fields).map(|(name, value)| format!(""))
-            // let tags_stmt = tags.map(|_| '?').join(",");
-            // let mut stmt = to.stmt(format!("create table if not exists ? using ({tags_stmt})"))?;
-            // stmt.set_tbname_tags(&table.table_name, &fields);
-        } else {
-            let desc = from.describe(table_name).await?;
-            let sql = desc.to_create_table_sql(table_name);
-            to.exec(sql).await?;
-        }
-    }
-
-    // let tables: Vec<
-    Ok(())
-}
-
-async fn sync_schema_for_db(from: &Taos, to: &Taos, database: &str, db2: &str) -> Result<()> {
-    Ok(())
-}
-
 impl App {
-    pub async fn run_with_taos_opts(mut self, _opts: &TaosOpts) -> Result<()> {
-        log::info!("app: {self:?}");
-        // simple_logger::init();
-        assert!(self.from.driver == "taos");
-        assert!(self.to.driver == "taos");
-        assert!(self.from.database.is_some());
-        let topic = check_target_db(&mut self.to, &self.from).await?;
+    pub async fn run_with_taos_opts(self, _opts: &TaosOpts) -> Result<()> {
+        log::debug!("app: {self:?}");
 
-        let from = Manager::from_dsn(&self.from)?.into_pool()?;
-        let to = Manager::from_dsn(&self.to)?.into_pool()?;
-        // tmq.forward(sink).await?;
+        let mut source_builder = TaosSourceBuilder::from_dsn(self.from)?;
+        let max_workers = source_builder.max_workers();
 
-        let taos1 = from.get()?;
-        let taos2 = to.get()?;
-        sync_schema(&taos1, &taos2).await?;
+        let sink_builder = TaosSinkBuilder::from_dsn(self.to)?;
 
-        taos1.create_topic(topic, topic).await?;
-        self.from.params.insert("topics".to_string(), topic.into());
+        let mut workers = self.workers.unwrap_or(max_workers);
+        if workers > max_workers {
+            log::warn!("maximum workers for the stream is {max_workers} while you want {workers}, reduce to limit");
+            workers = max_workers;
+        }
+        let mut handlers = Vec::new();
 
-        let builder = TmqBuilder::from_dsn(&self.from)?;
-        let workers = self.workers.unwrap_or(10);
-        // let (tx, mut rx) = tokio::sync::mpsc::channel(workers);
-
-        let mut handles = Vec::new();
-
-        for idx in 0..workers {
-            let tmq = builder.build()?;
-            let taos1 = from.get()?;
-            let taos2 = to.get()?;
-            let handle = thread::spawn(move || {
-                log::info!("[{idx}] task start");
-                while let Some(rs) = tmq.poll() {
-                    let mut rs = rs?;
-                    log::info!("[{idx}] get result");
-                    let _: Vec<_> = rs
-                        .blocks_iter()
-                        .map(|block| -> Result<()> {
-                            let table = block.tmq_table_name().unwrap();
-                            log::info!("[{idx}] table name is {table}");
-                            if taos2.exec_sync(format!("describe {table}")).is_err() {
-                                futures::executor::block_on(sync_schema(&taos1, &taos2))?;
-                            }
-
-                            let bind: Vec<TaosMultiBind> =
-                                block.columns_iter().map(|col| col.into()).collect();
-                            use itertools::Itertools;
-                            let questions = std::iter::repeat("?").take(bind.len()).join(",");
-                            let mut stmt =
-                                taos2.stmt(format!("insert into {table} values({questions})"))?;
-                            stmt.multi_bind(&bind)?;
-                            stmt.execute()?;
-                            let inserted = stmt.affected_rows();
-                            log::info!("[{idx}] inserted {inserted} rows into {table}");
-                            Ok(())
-                        })
-                        .collect();
-                }
-                tmq.commit_sync(())?;
-                log::info!("[{idx}] task done");
-                Ok::<_, anyhow::Error>(())
-            });
-            handles.push(handle);
+        for _ in 0..workers {
+            let source = source_builder.build_source()?;
+            let sink = sink_builder.build_sink()?;
+            handlers.push(tokio::spawn(async move { source.forward(sink).await }));
         }
 
-        for handle in handles {
-            let _ = handle.join();
+        for hd in handlers {
+            hd.await??;
         }
 
+        let summary = sink_builder.summary();
+
+        log::info!(
+            "Summary: total synced {} blocks with {} rows",
+            summary.blocks(),
+            summary.rows()
+        );
         Ok(())
     }
 }

@@ -1,4 +1,5 @@
-use crate::{Error, IntoCStr, Result, TaosOptions};
+use crate::{IntoCStr, TaosOptions};
+use taos_error::*;
 
 use std::{ffi::c_void, iter::Iterator};
 use taos_query::Dsn;
@@ -128,6 +129,8 @@ impl TmqConf {
 
 impl Drop for TmqConf {
     fn drop(&mut self) {
-        unsafe { tmq_conf_destroy(self.0) }
+        log::trace!("tmq config destroy");
+        unsafe { tmq_conf_destroy(self.0) };
+        log::trace!("tmq config destroyed safely");
     }
 }

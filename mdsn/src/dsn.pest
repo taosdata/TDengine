@@ -30,10 +30,12 @@ fragment = { "./" ~ fchar+  ~ ("/" ~ fchar+)? | ("/" ~ fchar+) ~ ("/" ~ fchar+)+
 protocol_with_addresses = { protocol ~ "(" ~ addresses ~ ")" | addresses }
 
 name = { char+ }
-value = { char* }
+varchar = { ASCII_ALPHANUMERIC | "." | "_" | "-" | "%" | "," }
+value = { varchar* }
 param = { name ~ "=" ~ value }
 
-database = { nondot+ }
+database_char = { nondot | "," }
+database = { database_char+ }
 
 dsn = {
   SOI ~

@@ -1,30 +1,54 @@
 use std::{
     ffi::c_void,
-    marker::PhantomData,
     slice,
     sync::{atomic::AtomicU64, Arc},
 };
 
 use bitvec_simd::BitVec;
 use itertools::Itertools;
+use mdsn::IntoDsn;
 use taos_error::Code;
 use thiserror::Error;
 
 use taos_query::{common::*, Address, BlockExt, Dsn, DsnError, Fetchable, FromDsn, Queryable};
 use taos_sys::{DroppableRawRes, RawRes};
 
-use crate::{util::IntoCStr, Taos};
+use crate::{util::IntoCStr, Taos, TaosOptions};
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("parse dsn error: {0}")]
+    #[error("Parse dsn error: {0}")]
     DsnError(#[from] DsnError),
-    #[error("{0}")]
+    #[error("Internal error: {0}")]
     Driver(#[from] taos_error::Error),
-    #[error("deserialization error {0}")]
+    #[error("Deserialization error {0}")]
     Deserialize(#[from] serde::de::value::Error),
-    #[error(transparent)]
-    Other(#[from] anyhow::Error),
+    #[error("Invalid topic: {0}")]
+    InvalidTopic(String),
+    #[error("Invalid database: {0}")]
+    InvalidDatabase(String),
+    #[error("Error: {0}")]
+    Custom(String),
+    // #[error(transparent)]
+    // Other(#[from] anyhow::Error),
+}
+
+impl Error {
+    pub(crate) fn custom<T>(msg: T) -> Self
+    where
+        T: std::fmt::Display,
+    {
+        Error::Custom(format!("{msg}"))
+    }
+}
+
+impl serde::de::Error for Error {
+    fn custom<T>(msg: T) -> Self
+    where
+        T: std::fmt::Display,
+    {
+        Error::Custom(format!("{msg}"))
+    }
 }
 
 // A result should not be clone-able.
@@ -101,6 +125,9 @@ unsafe impl Sync for SyncBlock {}
 impl SyncBlock {
     pub fn tmq_table_name(&self) -> Option<&str> {
         self.raw.tmq_table_name()
+    }
+    pub fn tmq_db_name(&self) -> Option<&str> {
+        self.raw.tmq_db_name()
     }
 }
 
@@ -301,7 +328,7 @@ impl Iterator for ResultSet {
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Ok(Some((data, num_of_rows, lengths))) = self.raw.fetch_block() {
-            log::info!("fetch block: {num_of_rows}");
+            log::debug!("fetch block with {num_of_rows} rows");
             self.append_num_of_rows(num_of_rows);
             let fields = if self.independent {
                 Some(self.raw.fetch_fields())
@@ -362,7 +389,7 @@ impl<'q> Queryable<'q> for Taos {
     type ResultSet = ResultSet;
 
     fn query<T: AsRef<str>>(&self, sql: T) -> Result<ResultSet, Self::Error> {
-        log::debug!("sql: {}", sql.as_ref());
+        log::trace!("sql: {}", sql.as_ref());
         let raw = self.0.query(sql.as_ref().into_c_str().as_ptr())?;
         Ok(ResultSet::new(raw))
     }
@@ -378,7 +405,8 @@ impl FromDsn for Taos {
         Ok((dsn, vec![]))
     }
 
-    fn from_dsn(dsn: &Dsn) -> Result<Self, Self::Err> {
+    fn from_dsn<T: IntoDsn>(dsn: T) -> Result<Self, Self::Err> {
+        let dsn = dsn.into_dsn()?;
         if dsn.addresses.len() == 0 {
             Ok(Taos::new(
                 (),
@@ -497,6 +525,18 @@ fn sync_query_block_de_ref(taos: &Taos, _database: &str) -> Result<(), Error> {
 
     let (blocks, records) = rs.summary();
     println!("total blocks: {}, total rows: {}", blocks, records);
+    Ok(())
+}
+
+#[test]
+fn two_cluster() -> Result<(), Error> {
+    return Ok(());
+    let t1 = TaosOptions::default().port(6030u16).build()?;
+    let d1: (i32, String) = t1.query_one("show dnodes")?.unwrap();
+    let t2 = TaosOptions::default().port(16030u16).build()?;
+    let d2: (i32, String) = t2.query_one("show dnodes")?.unwrap();
+    dbg!(&d1, &d2);
+    assert!(d1 != d2);
     Ok(())
 }
 
