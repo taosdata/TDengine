@@ -3,7 +3,7 @@ sidebar_label: Java
 title: Connect with Java Connector
 ---
 
-## Add Dependency {#install}
+## Add Dependency
 
 Build with Maven
 
@@ -23,7 +23,7 @@ dependencies {
 }
 ```
 
-## Config {#config}
+## Config
 
 Run this command in your terminal to save your url and token as variables:
 
@@ -40,7 +40,7 @@ You should replace above placeholders as real values. To obtain these values, pl
 :::
 <!-- exclude-end -->
 
-## Connect {#connect}
+## Connect
 
 ```java
 import com.taosdata.jdbc.rs.RestfulConnection;
