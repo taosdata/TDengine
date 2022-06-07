@@ -275,6 +275,8 @@ cJSON *snapshotSender2Json(SSyncSnapshotSender *pSender) {
     cJSON_AddNumberToObject(pRoot, "replicaIndex", pSender->replicaIndex);
     snprintf(u64buf, sizeof(u64buf), "%lu", pSender->term);
     cJSON_AddStringToObject(pRoot, "term", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%lu", pSender->privateTerm);
+    cJSON_AddStringToObject(pRoot, "privateTerm", u64buf);
     cJSON_AddNumberToObject(pRoot, "finish", pSender->finish);
   }
 

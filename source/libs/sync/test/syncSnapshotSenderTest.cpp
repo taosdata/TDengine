@@ -40,6 +40,7 @@ SSyncSnapshotSender* createSender() {
   pSyncNode->pFsm->FpSnapshotStartRead = SnapshotStartRead;
   pSyncNode->pFsm->FpSnapshotStopRead = SnapshotStopRead;
   pSyncNode->pFsm->FpSnapshotDoRead = SnapshotDoRead;
+  pSyncNode->pFsm->FpGetSnapshot = GetSnapshot;
 
   SSyncSnapshotSender* pSender = snapshotSenderCreate(pSyncNode, 2);
   pSender->start = true;
@@ -54,6 +55,7 @@ SSyncSnapshotSender* createSender() {
   pSender->snapshot.lastApplyTerm = 88;
   pSender->sendingMS = 77;
   pSender->term = 66;
+  pSender->privateTerm = 99;
 
   return pSender;
 }

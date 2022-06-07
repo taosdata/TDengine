@@ -1343,6 +1343,9 @@ cJSON* syncAppendEntries2Json(const SyncAppendEntries* pMsg) {
     snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->term);
     cJSON_AddStringToObject(pRoot, "term", u64buf);
 
+    snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->privateTerm);
+    cJSON_AddStringToObject(pRoot, "privateTerm", u64buf);
+
     snprintf(u64buf, sizeof(u64buf), "%ld", pMsg->prevLogIndex);
     cJSON_AddStringToObject(pRoot, "prevLogIndex", u64buf);
 
@@ -1503,6 +1506,9 @@ cJSON* syncAppendEntriesReply2Json(const SyncAppendEntriesReply* pMsg) {
     }
     cJSON_AddNumberToObject(pDestId, "vgId", pMsg->destId.vgId);
     cJSON_AddItemToObject(pRoot, "destId", pDestId);
+
+    snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->privateTerm);
+    cJSON_AddStringToObject(pRoot, "privateTerm", u64buf);
 
     snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->term);
     cJSON_AddStringToObject(pRoot, "term", u64buf);

@@ -47,6 +47,7 @@ typedef struct SSyncSnapshotSender {
   SSyncNode *pSyncNode;
   int32_t    replicaIndex;
   SyncTerm   term;
+  SyncTerm   privateTerm;
   bool       finish;
 } SSyncSnapshotSender;
 

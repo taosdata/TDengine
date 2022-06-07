@@ -301,6 +301,7 @@ typedef struct SyncAppendEntries {
   SyncIndex prevLogIndex;
   SyncTerm  prevLogTerm;
   SyncIndex commitIndex;
+  SyncTerm  privateTerm;
   uint32_t  dataLen;
   char      data[];
 } SyncAppendEntries;
@@ -332,6 +333,7 @@ typedef struct SyncAppendEntriesReply {
   SRaftId  destId;
   // private data
   SyncTerm  term;
+  SyncTerm  privateTerm;
   bool      success;
   SyncIndex matchIndex;
 } SyncAppendEntriesReply;
