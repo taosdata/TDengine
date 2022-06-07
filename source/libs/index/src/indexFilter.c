@@ -337,9 +337,9 @@ static Filter sifGetFilterFunc(EIndexQueryType type, bool *reverse) {
   return NULL;
 }
 static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFParam *output) {
-  SIndexMetaArg *arg = &output->arg;
-  int            ret = 0;
+  int ret = 0;
 
+  SIndexMetaArg * arg = &output->arg;
   EIndexQueryType qtype = 0;
   SIF_ERR_RET(sifGetFuncFromSql(operType, &qtype));
   if (left->colValType == TSDB_DATA_TYPE_JSON) {
@@ -501,7 +501,8 @@ static int32_t sifExecOper(SOperatorNode *node, SIFCtx *ctx, SIFParam *output) {
   int32_t code = 0;
   int32_t nParam = sifGetOperParamNum(node->opType);
   if (nParam <= 1) {
-    SIF_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+    output->status = SFLT_NOT_INDEX;
+    SIF_ERR_RET(code);
   }
   if (node->opType == OP_TYPE_JSON_GET_VALUE || node->opType == OP_TYPE_JSON_CONTAINS) {
     return code;
