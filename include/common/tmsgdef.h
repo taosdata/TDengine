@@ -196,16 +196,10 @@ enum {
 
   //shared by snode and vnode
   TD_NEW_MSG_SEG(TDMT_STREAM_MSG)
-  TD_DEF_MSG_TYPE(TDMT_STREAM_TASK_DEPLOY, "vnode-task-deploy", SStreamTaskDeployReq, SStreamTaskDeployRsp)
-  TD_DEF_MSG_TYPE(TDMT_STREAM_TASK_RUN, "vnode-stream-task-run", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_STREAM_TASK_DISPATCH, "vnode-stream-task-dispatch", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_STREAM_TASK_RECOVER, "vnode-stream-task-recover", NULL, NULL)
-
-  TD_NEW_MSG_SEG(TDMT_SND_MSG)
-  //TD_DEF_MSG_TYPE(TDMT_SND_TASK_DEPLOY, "snode-task-deploy", SStreamTaskDeployReq, SStreamTaskDeployRsp)
-  //TD_DEF_MSG_TYPE(TDMT_SND_TASK_RUN, "snode-stream-task-run", NULL, NULL)
-  //TD_DEF_MSG_TYPE(TDMT_SND_TASK_DISPATCH, "snode-stream-task-dispatch", NULL, NULL)
-  //TD_DEF_MSG_TYPE(TDMT_SND_TASK_RECOVER, "snode-stream-task-recover", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_STREAM_TASK_DEPLOY, "stream-task-deploy", SStreamTaskDeployReq, SStreamTaskDeployRsp)
+  TD_DEF_MSG_TYPE(TDMT_STREAM_TASK_RUN, "stream-task-run", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_STREAM_TASK_DISPATCH, "stream-task-dispatch", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_STREAM_TASK_RECOVER, "stream-task-recover", NULL, NULL)
 
   TD_NEW_MSG_SEG(TDMT_SCH_MSG)
   TD_DEF_MSG_TYPE(TDMT_SCH_LINK_BROKEN, "link-broken", NULL, NULL)
