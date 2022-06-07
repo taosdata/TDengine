@@ -212,7 +212,7 @@ curl -L -o php-tdengine.tar.gz https://github.com/Yurunsoft/php-tdengine/archive
 && tar -xzf php-tdengine.tar.gz -C php-tdengine --strip-components=1
 ```
 
-> 版本 `v1.0.0` 可替换为任意更新的版本，可在 Release 中查看最新版本。
+> 版本 `v1.0.2` 可替换为任意更新的版本，可在 Release 中查看最新版本。
 
 **非 Swoole 环境：**
 
