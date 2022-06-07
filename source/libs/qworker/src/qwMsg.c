@@ -248,6 +248,41 @@ int32_t qwRegisterHbBrokenLinkArg(SQWorker *mgmt, uint64_t sId, SRpcHandleInfo *
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg) {
+  if (NULL == qWorkerMgmt || NULL == pMsg) {
+    QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+
+  int32_t       code = 0;
+  SSubQueryMsg *msg = pMsg->pCont;
+  SQWorker *    mgmt = (SQWorker *)qWorkerMgmt;
+
+  if (NULL == msg || pMsg->contLen <= sizeof(*msg)) {
+    QW_ELOG("invalid query msg, msg:%p, msgLen:%d", msg, pMsg->contLen);
+    QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+
+  msg->sId = be64toh(msg->sId);
+  msg->queryId = be64toh(msg->queryId);
+  msg->taskId = be64toh(msg->taskId);
+  msg->refId = be64toh(msg->refId);
+  msg->phyLen = ntohl(msg->phyLen);
+  msg->sqlLen = ntohl(msg->sqlLen);
+
+  uint64_t sId = msg->sId;
+  uint64_t qId = msg->queryId;
+  uint64_t tId = msg->taskId;
+  int64_t  rId = msg->refId;
+
+  SQWMsg qwMsg = {.msg = msg->msg + msg->sqlLen, .msgLen = msg->phyLen, .connInfo = pMsg->info};
+
+  QW_SCH_TASK_DLOG("prerocessQuery start, handle:%p", pMsg->info.handle);
+  QW_ERR_RET(qwPrerocessQuery(QW_FPARAMS(), &qwMsg));
+  QW_SCH_TASK_DLOG("prerocessQuery end, handle:%p", pMsg->info.handle);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts) {
   if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg) {
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
@@ -264,13 +299,6 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
     QW_ELOG("invalid query msg, msg:%p, msgLen:%d", msg, pMsg->contLen);
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
-
-  msg->sId = be64toh(msg->sId);
-  msg->queryId = be64toh(msg->queryId);
-  msg->taskId = be64toh(msg->taskId);
-  msg->refId = be64toh(msg->refId);
-  msg->phyLen = ntohl(msg->phyLen);
-  msg->sqlLen = ntohl(msg->sqlLen);
 
   uint64_t sId = msg->sId;
   uint64_t qId = msg->queryId;
@@ -488,3 +516,37 @@ int32_t qWorkerProcessHbMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_
 
   return TSDB_CODE_SUCCESS;
 }
+
+
+int32_t qWorkerProcessDeleteMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, SRpcMsg *pRsp, SDeleteRes *pRes) {
+  if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg || NULL == pRsp) {
+    QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+
+  int32_t       code = 0;
+  SVDeleteReq req = {0};
+  SQWorker *    mgmt = (SQWorker *)qWorkerMgmt;
+
+  QW_STAT_INC(mgmt->stat.msgStat.deleteProcessed, 1);
+
+  tDeserializeSVDeleteReq(pMsg->pCont, pMsg->contLen, &req);
+  
+  uint64_t sId = req.sId;
+  uint64_t qId = req.queryId;
+  uint64_t tId = req.taskId;
+  int64_t  rId = 0;
+
+  SQWMsg qwMsg = {.node = node, .msg = req.msg, .msgLen = req.phyLen, .connInfo = pMsg->info};
+  QW_SCH_TASK_DLOG("processDelete start, node:%p, handle:%p, sql:%s", node, pMsg->info.handle, req.sql);
+  taosMemoryFreeClear(req.sql);
+
+  QW_ERR_JRET(qwProcessDelete(QW_FPARAMS(), &qwMsg, pRsp, pRes));
+
+  QW_SCH_TASK_DLOG("processDelete end, node:%p", node);
+
+_return:
+
+  QW_RET(code);
+}
+
+

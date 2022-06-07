@@ -255,6 +255,7 @@ typedef struct {
   int8_t  hashMethod;  // default is 1
   int32_t numOfRetensions;
   SArray* pRetensions;
+  int8_t  schemaless;
 } SDbCfg;
 
 typedef struct {
@@ -297,28 +298,30 @@ typedef struct {
 } SVgObj;
 
 typedef struct {
-  char    name[TSDB_TABLE_FNAME_LEN];
-  char    stb[TSDB_TABLE_FNAME_LEN];
-  char    db[TSDB_DB_FNAME_LEN];
-  int64_t createdTime;
-  int64_t uid;
-  int64_t stbUid;
-  int64_t dbUid;
-  int8_t  intervalUnit;
-  int8_t  slidingUnit;
-  int8_t  timezone;
-  int32_t dstVgId;  // for stream
-  int64_t interval;
-  int64_t offset;
-  int64_t sliding;
-  int32_t exprLen;  // strlen + 1
-  int32_t tagsFilterLen;
-  int32_t sqlLen;
-  int32_t astLen;
-  char*   expr;
-  char*   tagsFilter;
-  char*   sql;
-  char*   ast;
+  char      name[TSDB_TABLE_FNAME_LEN];
+  char      stb[TSDB_TABLE_FNAME_LEN];
+  char      db[TSDB_DB_FNAME_LEN];
+  int64_t   createdTime;
+  int64_t   uid;
+  int64_t   stbUid;
+  int64_t   dbUid;
+  int8_t    intervalUnit;
+  int8_t    slidingUnit;
+  int8_t    timezone;
+  int32_t   dstVgId;  // for stream
+  int64_t   interval;
+  int64_t   offset;
+  int64_t   sliding;
+  int32_t   exprLen;  // strlen + 1
+  int32_t   tagsFilterLen;
+  int32_t   sqlLen;
+  int32_t   astLen;
+  int32_t   numOfVgroups;
+  char*     expr;
+  char*     tagsFilter;
+  char*     sql;
+  char*     ast;
+  SVgEpSet* pVgEpSet;
 } SSmaObj;
 
 typedef struct {

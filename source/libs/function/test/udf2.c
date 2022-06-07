@@ -9,22 +9,22 @@
 #undef free
 #define free free
 
-int32_t udf2_init() {
+DLL_EXPORT int32_t udf2_init() {
   return 0;
 }
 
-int32_t udf2_destroy() {
+DLL_EXPORT int32_t udf2_destroy() {
   return 0;
 }
 
-int32_t udf2_start(SUdfInterBuf *buf) {
+DLL_EXPORT int32_t udf2_start(SUdfInterBuf *buf) {
   *(int64_t*)(buf->buf) = 0;
   buf->bufLen = sizeof(double);
   buf->numOfResult = 0;
   return 0;
 }
 
-int32_t udf2(SUdfDataBlock* block, SUdfInterBuf *interBuf, SUdfInterBuf *newInterBuf) {
+DLL_EXPORT int32_t udf2(SUdfDataBlock* block, SUdfInterBuf *interBuf, SUdfInterBuf *newInterBuf) {
   double sumSquares = *(double*)interBuf->buf;
   int8_t numNotNull = 0;
   for (int32_t i = 0; i < block->numOfCols; ++i) {
@@ -71,7 +71,7 @@ int32_t udf2(SUdfDataBlock* block, SUdfInterBuf *interBuf, SUdfInterBuf *newInte
   return 0;
 }
 
-int32_t udf2_finish(SUdfInterBuf* buf, SUdfInterBuf *resultData) {
+DLL_EXPORT int32_t udf2_finish(SUdfInterBuf* buf, SUdfInterBuf *resultData) {
   if (buf->numOfResult == 0) {
     resultData->numOfResult = 0;
     return 0;

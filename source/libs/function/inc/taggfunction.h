@@ -52,13 +52,6 @@ typedef struct SInterpInfoDetail {
   int8_t primaryCol;
 } SInterpInfoDetail;
 
-typedef struct STwaInfo {
-  int8_t      hasResult;  // flag to denote has value
-  double      dOutput;
-  SPoint1     p;
-  STimeWindow win;
-} STwaInfo;
-
 bool topbot_datablock_filter(SqlFunctionCtx *pCtx, const char *minval, const char *maxval);
 
 /**

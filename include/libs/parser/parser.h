@@ -49,6 +49,7 @@ typedef struct SParseContext {
   const char*      pUser;
   bool             isSuperUser;
   bool             async;
+  int8_t           schemalessType;
 } SParseContext;
 
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);

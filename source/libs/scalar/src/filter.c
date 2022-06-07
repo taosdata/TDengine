@@ -29,8 +29,9 @@ OptrStr gOptrStr[] = {
   {OP_TYPE_SUB,                            "-"},
   {OP_TYPE_MULTI,                          "*"},
   {OP_TYPE_DIV,                            "/"},
-  {OP_TYPE_MOD,                            "%"},
-
+  {OP_TYPE_REM,                            "%"},
+  {OP_TYPE_MINUS,                          "minus"},
+  {OP_TYPE_ASSIGN,                         "assign"},
   // bit operator
   {OP_TYPE_BIT_AND,                        "&"},
   {OP_TYPE_BIT_OR,                         "|"},
@@ -167,7 +168,7 @@ __compar_fn_t gDataCompare[] = {compareInt32Val, compareInt8Val, compareInt16Val
   compareLenPrefixedWStr, compareUint8Val, compareUint16Val, compareUint32Val, compareUint64Val,
   setChkInBytes1, setChkInBytes2, setChkInBytes4, setChkInBytes8, compareStrRegexCompMatch, 
   compareStrRegexCompNMatch, setChkNotInBytes1, setChkNotInBytes2, setChkNotInBytes4, setChkNotInBytes8,
-  compareChkNotInString, compareStrPatternNotMatch, compareWStrPatternNotMatch, compareJsonContainsKey
+  compareChkNotInString, compareStrPatternNotMatch, compareWStrPatternNotMatch
 };
 
 int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {

@@ -118,6 +118,7 @@ if $data[0][5] != 5 then
   return -1
 endi
 if $data[0][6] != 101 then
+  print expect 101, actual: $data06
   return -1
 endi
 
@@ -129,7 +130,8 @@ endi
 
 print ========== step2 drop column c5
 sql alter table db.stb drop column c5
-sql insert into db.ctb values(now+2s, 1, 2, 3, 4, 5)
+sql_error insert into db.ctb values(now+2s, 1, 2, 3, 4, 5)
+sql insert into db.ctb values(now+2s, 1, 2, 3, 4)
 sql insert into db.ctb values(now+3s, 1, 2, 3, 4)
 sql_error insert into db.ctb values(now+2s, 1, 2, 3, 4, 5)
 

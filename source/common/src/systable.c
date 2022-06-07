@@ -78,7 +78,7 @@ static const SSysDbTableSchema userDBSchema[] = {
     {.name = "replica", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
     {.name = "strict", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "duration", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "keep", .bytes = 24 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "keep", .bytes = 32 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "buffer", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "pagesize", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "pages", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
@@ -87,10 +87,13 @@ static const SSysDbTableSchema userDBSchema[] = {
     {.name = "wal", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
     {.name = "fsync", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "comp", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
-    {.name = "cachelast", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
+    {.name = "cache_model", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
     {.name = "precision", .bytes = 2 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "single_stable", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
+    {.name = "single_stable_model", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL},
     {.name = "status", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "schemaless", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL},
+    {.name = "retension", .bytes = 60 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+
     // {.name = "update", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},  // disable update
 };
 

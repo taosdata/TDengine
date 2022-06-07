@@ -86,71 +86,34 @@ static void tsdbCloseCommitFile(SCommitH *pCommith, bool hasError);
 static bool tsdbCanAddSubBlock(SCommitH *pCommith, SBlock *pBlock, SMergeInfo *pInfo);
 static void tsdbLoadAndMergeFromCache(STsdb *pTsdb, SDataCols *pDataCols, int *iter, SCommitIter *pCommitIter,
                                       SDataCols *pTarget, TSKEY maxKey, int maxRows, int8_t update);
-int         tsdbWriteBlockIdx(SDFile *pHeadf, SArray *pIdxA, void **ppBuf);
+static int  tsdbWriteBlockIdx(SDFile *pHeadf, SArray *pIdxA, void **ppBuf);
+static int  tsdbApplyRtnOnFSet(STsdb *pRepo, SDFileSet *pSet, SRtn *pRtn);
 
-int tsdbApplyRtnOnFSet(STsdb *pRepo, SDFileSet *pSet, SRtn *pRtn) {
-  SDiskID   did;
-  SDFileSet nSet = {0};
-  STsdbFS  *pfs = REPO_FS(pRepo);
-  int       level;
+int tsdbBegin(STsdb *pTsdb) {
+  if (!pTsdb) return 0;
 
-  ASSERT(pSet->fid >= pRtn->minFid);
+  STsdbMemTable *pMem;
 
-  level = tsdbGetFidLevel(pSet->fid, pRtn);
-
-  if (tfsAllocDisk(pRepo->pVnode->pTfs, level, &did) < 0) {
-    terrno = TSDB_CODE_TDB_NO_AVAIL_DISK;
+  if (tsdbMemTableCreate(pTsdb, &pTsdb->mem) < 0) {
     return -1;
   }
 
-  if (did.level > TSDB_FSET_LEVEL(pSet)) {
-    // Need to move the FSET to higher level
-    tsdbInitDFileSet(pRepo, &nSet, did, pSet->fid, FS_TXN_VERSION(pfs));
-
-    if (tsdbCopyDFileSet(pSet, &nSet) < 0) {
-      tsdbError("vgId:%d failed to copy FSET %d from level %d to level %d since %s", REPO_ID(pRepo), pSet->fid,
-                TSDB_FSET_LEVEL(pSet), did.level, tstrerror(terrno));
-      return -1;
-    }
-
-    if (tsdbUpdateDFileSet(pfs, &nSet) < 0) {
-      return -1;
-    }
-
-    tsdbInfo("vgId:%d FSET %d is copied from level %d disk id %d to level %d disk id %d", REPO_ID(pRepo), pSet->fid,
-             TSDB_FSET_LEVEL(pSet), TSDB_FSET_ID(pSet), did.level, did.id);
-  } else {
-    // On a correct level
-    if (tsdbUpdateDFileSet(pfs, pSet) < 0) {
-      return -1;
-    }
-  }
-
   return 0;
 }
 
-int tsdbPrepareCommit(STsdb *pTsdb) {
-  if (pTsdb->mem == NULL) return 0;
-
-  ASSERT(pTsdb->imem == NULL);
-
-  pTsdb->imem = pTsdb->mem;
-  pTsdb->mem = NULL;
-  return 0;
-}
-
-int tsdbCommit(STsdb *pRepo) {
+int32_t tsdbCommit(STsdb *pTsdb) {
+  int32_t    code = 0;
   SCommitH   commith = {0};
   SDFileSet *pSet = NULL;
   int        fid;
 
-  // if (pRepo->imem == NULL) return 0;
-  pRepo->imem = pRepo->mem;
-  pRepo->mem = NULL;
+  ASSERT(pTsdb->imem == NULL && pTsdb->mem);
+  pTsdb->imem = pTsdb->mem;
+  pTsdb->mem = NULL;
 
-  tsdbStartCommit(pRepo);
-  // Resource initialization
-  if (tsdbInitCommitH(&commith, pRepo) < 0) {
+  // start commit
+  tsdbStartCommit(pTsdb);
+  if (tsdbInitCommitH(&commith, pTsdb) < 0) {
     return -1;
   }
 
@@ -158,14 +121,14 @@ int tsdbCommit(STsdb *pRepo) {
   tsdbSeekCommitIter(&commith, commith.rtn.minKey);
   while ((pSet = tsdbFSIterNext(&(commith.fsIter)))) {
     if (pSet->fid < commith.rtn.minFid) {
-      tsdbInfo("vgId:%d FSET %d on level %d disk id %d expires, remove it", REPO_ID(pRepo), pSet->fid,
+      tsdbInfo("vgId:%d, FSET %d on level %d disk id %d expires, remove it", REPO_ID(pTsdb), pSet->fid,
                TSDB_FSET_LEVEL(pSet), TSDB_FSET_ID(pSet));
     } else {
       break;
     }
   }
 
-  // Loop to commit to each file
+  // commit
   fid = tsdbNextCommitFid(&(commith));
   while (true) {
     // Loop over both on disk and memory
@@ -174,7 +137,7 @@ int tsdbCommit(STsdb *pRepo) {
     if (pSet && (fid == TSDB_IVLD_FID || pSet->fid < fid)) {
       // Only has existing FSET but no memory data to commit in this
       // existing FSET, only check if file in correct retention
-      if (tsdbApplyRtnOnFSet(pRepo, pSet, &(commith.rtn)) < 0) {
+      if (tsdbApplyRtnOnFSet(pTsdb, pSet, &(commith.rtn)) < 0) {
         tsdbDestroyCommitH(&commith);
         return -1;
       }
@@ -205,11 +168,63 @@ int tsdbCommit(STsdb *pRepo) {
     }
   }
 
+  // end commit
   tsdbDestroyCommitH(&commith);
-  tsdbEndCommit(pRepo, TSDB_CODE_SUCCESS);
+  tsdbEndCommit(pTsdb, TSDB_CODE_SUCCESS);
+
+  return code;
+}
+
+static int tsdbApplyRtnOnFSet(STsdb *pRepo, SDFileSet *pSet, SRtn *pRtn) {
+  SDiskID   did;
+  SDFileSet nSet = {0};
+  STsdbFS  *pfs = REPO_FS(pRepo);
+  int       level;
+
+  ASSERT(pSet->fid >= pRtn->minFid);
+
+  level = tsdbGetFidLevel(pSet->fid, pRtn);
+
+  if (tfsAllocDisk(pRepo->pVnode->pTfs, level, &did) < 0) {
+    terrno = TSDB_CODE_TDB_NO_AVAIL_DISK;
+    return -1;
+  }
+
+  if (did.level > TSDB_FSET_LEVEL(pSet)) {
+    // Need to move the FSET to higher level
+    tsdbInitDFileSet(pRepo, &nSet, did, pSet->fid, FS_TXN_VERSION(pfs));
+
+    if (tsdbCopyDFileSet(pSet, &nSet) < 0) {
+      tsdbError("vgId:%d, failed to copy FSET %d from level %d to level %d since %s", REPO_ID(pRepo), pSet->fid,
+                TSDB_FSET_LEVEL(pSet), did.level, tstrerror(terrno));
+      return -1;
+    }
+
+    if (tsdbUpdateDFileSet(pfs, &nSet) < 0) {
+      return -1;
+    }
+
+    tsdbInfo("vgId:%d, FSET %d is copied from level %d disk id %d to level %d disk id %d", REPO_ID(pRepo), pSet->fid,
+             TSDB_FSET_LEVEL(pSet), TSDB_FSET_ID(pSet), did.level, did.id);
+  } else {
+    // On a correct level
+    if (tsdbUpdateDFileSet(pfs, pSet) < 0) {
+      return -1;
+    }
+  }
 
   return 0;
 }
+
+// int tsdbPrepareCommit(STsdb *pTsdb) {
+//   if (pTsdb->mem == NULL) return 0;
+
+//   ASSERT(pTsdb->imem == NULL);
+
+//   pTsdb->imem = pTsdb->mem;
+//   pTsdb->mem = NULL;
+//   return 0;
+// }
 
 void tsdbGetRtnSnap(STsdb *pRepo, SRtn *pRtn) {
   STsdbKeepCfg *pCfg = REPO_KEEP_CFG(pRepo);
@@ -224,14 +239,14 @@ void tsdbGetRtnSnap(STsdb *pRepo, SRtn *pRtn) {
   pRtn->minFid = (int)(TSDB_KEY_FID(minKey, pCfg->days, pCfg->precision));
   pRtn->midFid = (int)(TSDB_KEY_FID(midKey, pCfg->days, pCfg->precision));
   pRtn->maxFid = (int)(TSDB_KEY_FID(maxKey, pCfg->days, pCfg->precision));
-  tsdbDebug("vgId:%d now:%" PRId64 " minKey:%" PRId64 " minFid:%d, midFid:%d, maxFid:%d", REPO_ID(pRepo), now, minKey,
+  tsdbDebug("vgId:%d, now:%" PRId64 " minKey:%" PRId64 " minFid:%d, midFid:%d, maxFid:%d", REPO_ID(pRepo), now, minKey,
             pRtn->minFid, pRtn->midFid, pRtn->maxFid);
 }
 
 static void tsdbStartCommit(STsdb *pRepo) {
   STsdbMemTable *pMem = pRepo->imem;
 
-  tsdbInfo("vgId:%d start to commit", REPO_ID(pRepo));
+  tsdbInfo("vgId:%d, start to commit", REPO_ID(pRepo));
 
   tsdbStartFSTxn(pRepo, 0, 0);
 }
@@ -240,7 +255,7 @@ static void tsdbEndCommit(STsdb *pTsdb, int eno) {
   tsdbEndFSTxn(pTsdb);
   tsdbMemTableDestroy(pTsdb->imem);
   pTsdb->imem = NULL;
-  tsdbInfo("vgId:%d commit over, %s", REPO_ID(pTsdb), (eno == TSDB_CODE_SUCCESS) ? "succeed" : "failed");
+  tsdbInfo("vgId:%d, commit over, %s", REPO_ID(pTsdb), (eno == TSDB_CODE_SUCCESS) ? "succeed" : "failed");
 }
 
 static int tsdbInitCommitH(SCommitH *pCommith, STsdb *pRepo) {
@@ -413,7 +428,7 @@ static int tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
 
   if (tsdbWriteBlockIdx(TSDB_COMMIT_HEAD_FILE(pCommith), pCommith->aBlkIdx, (void **)(&(TSDB_COMMIT_BUF(pCommith)))) <
       0) {
-    tsdbError("vgId:%d failed to write SBlockIdx part to FSET %d since %s", REPO_ID(pRepo), fid, tstrerror(terrno));
+    tsdbError("vgId:%d, failed to write SBlockIdx part to FSET %d since %s", REPO_ID(pRepo), fid, tstrerror(terrno));
     tsdbCloseCommitFile(pCommith, true);
     // revert the file change
     tsdbApplyDFileSetChange(TSDB_COMMIT_WRITE_FSET(pCommith), pSet);
@@ -421,7 +436,7 @@ static int tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
   }
 
   if (tsdbUpdateDFileSetHeader(&(pCommith->wSet)) < 0) {
-    tsdbError("vgId:%d failed to update FSET %d header since %s", REPO_ID(pRepo), fid, tstrerror(terrno));
+    tsdbError("vgId:%d, failed to update FSET %d header since %s", REPO_ID(pRepo), fid, tstrerror(terrno));
     tsdbCloseCommitFile(pCommith, true);
     // revert the file change
     tsdbApplyDFileSetChange(TSDB_COMMIT_WRITE_FSET(pCommith), pSet);
@@ -531,8 +546,8 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
       return -1;
     }
 
-    tsdbDebug("vgId:%d FSET %d at level %d disk id %d is opened to read to commit", REPO_ID(pRepo), TSDB_FSET_FID(pSet),
-              TSDB_FSET_LEVEL(pSet), TSDB_FSET_ID(pSet));
+    tsdbDebug("vgId:%d, FSET %d at level %d disk id %d is opened to read to commit", REPO_ID(pRepo),
+              TSDB_FSET_FID(pSet), TSDB_FSET_LEVEL(pSet), TSDB_FSET_ID(pSet));
   } else {
     pCommith->isRFileSet = false;
   }
@@ -543,7 +558,7 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
     tsdbInitDFileSet(pRepo, pWSet, did, fid, FS_TXN_VERSION(REPO_FS(pRepo)));
 
     if (tsdbCreateDFileSet(pRepo, pWSet, true) < 0) {
-      tsdbError("vgId:%d failed to create FSET %d at level %d disk id %d since %s", REPO_ID(pRepo),
+      tsdbError("vgId:%d, failed to create FSET %d at level %d disk id %d since %s", REPO_ID(pRepo),
                 TSDB_FSET_FID(pWSet), TSDB_FSET_LEVEL(pWSet), TSDB_FSET_ID(pWSet), tstrerror(terrno));
       if (pCommith->isRFileSet) {
         tsdbCloseAndUnsetFSet(&(pCommith->readh));
@@ -554,7 +569,7 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
     pCommith->isDFileSame = false;
     pCommith->isLFileSame = false;
 
-    tsdbDebug("vgId:%d FSET %d at level %d disk id %d is created to commit", REPO_ID(pRepo), TSDB_FSET_FID(pWSet),
+    tsdbDebug("vgId:%d, FSET %d at level %d disk id %d is created to commit", REPO_ID(pRepo), TSDB_FSET_FID(pWSet),
               TSDB_FSET_LEVEL(pWSet), TSDB_FSET_ID(pWSet));
   } else {
     did.level = TSDB_FSET_LEVEL(pSet);
@@ -567,7 +582,7 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
     SDFile *pWHeadf = TSDB_COMMIT_HEAD_FILE(pCommith);
     tsdbInitDFile(pRepo, pWHeadf, did, fid, FS_TXN_VERSION(REPO_FS(pRepo)), TSDB_FILE_HEAD);
     if (tsdbCreateDFile(pRepo, pWHeadf, true, TSDB_FILE_HEAD) < 0) {
-      tsdbError("vgId:%d failed to create file %s to commit since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pWHeadf),
+      tsdbError("vgId:%d, failed to create file %s to commit since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pWHeadf),
                 tstrerror(terrno));
 
       if (pCommith->isRFileSet) {
@@ -582,7 +597,7 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
     tsdbInitDFileEx(pWDataf, pRDataf);
     // if (tsdbOpenDFile(pWDataf, O_WRONLY) < 0) {
     if (tsdbOpenDFile(pWDataf, TD_FILE_WRITE) < 0) {
-      tsdbError("vgId:%d failed to open file %s to commit since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pWDataf),
+      tsdbError("vgId:%d, failed to open file %s to commit since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pWDataf),
                 tstrerror(terrno));
 
       tsdbCloseDFileSet(pWSet);
@@ -603,7 +618,7 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
 
       // if (tsdbOpenDFile(pWLastf, O_WRONLY) < 0) {
       if (tsdbOpenDFile(pWLastf, TD_FILE_WRITE) < 0) {
-        tsdbError("vgId:%d failed to open file %s to commit since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pWLastf),
+        tsdbError("vgId:%d, failed to open file %s to commit since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pWLastf),
                   tstrerror(terrno));
 
         tsdbCloseDFileSet(pWSet);
@@ -618,7 +633,7 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
       pCommith->isLFileSame = false;
 
       if (tsdbCreateDFile(pRepo, pWLastf, true, TSDB_FILE_LAST) < 0) {
-        tsdbError("vgId:%d failed to create file %s to commit since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pWLastf),
+        tsdbError("vgId:%d, failed to create file %s to commit since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pWLastf),
                   tstrerror(terrno));
 
         tsdbCloseDFileSet(pWSet);
@@ -635,11 +650,11 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
     SDFile *pWSmadF = TSDB_COMMIT_SMAD_FILE(pCommith);
 
     if (!taosCheckExistFile(TSDB_FILE_FULL_NAME(pRSmadF))) {
-      tsdbDebug("vgId:%d create data file %s as not exist", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pRSmadF));
+      tsdbDebug("vgId:%d, create data file %s as not exist", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pRSmadF));
       tsdbInitDFile(pRepo, pWSmadF, did, fid, FS_TXN_VERSION(REPO_FS(pRepo)), TSDB_FILE_SMAD);
 
       if (tsdbCreateDFile(pRepo, pWSmadF, true, TSDB_FILE_SMAD) < 0) {
-        tsdbError("vgId:%d failed to create file %s to commit since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pWSmadF),
+        tsdbError("vgId:%d, failed to create file %s to commit since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pWSmadF),
                   tstrerror(terrno));
 
         tsdbCloseDFileSet(pWSet);
@@ -652,7 +667,7 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
     } else {
       tsdbInitDFileEx(pWSmadF, pRSmadF);
       if (tsdbOpenDFile(pWSmadF, O_RDWR) < 0) {
-        tsdbError("vgId:%d failed to open file %s to commit since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pWSmadF),
+        tsdbError("vgId:%d, failed to open file %s to commit since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pWSmadF),
                   tstrerror(terrno));
 
         tsdbCloseDFileSet(pWSet);
@@ -671,7 +686,7 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
     if ((pCommith->isLFileSame) && taosCheckExistFile(TSDB_FILE_FULL_NAME(pRSmalF))) {
       tsdbInitDFileEx(pWSmalF, pRSmalF);
       if (tsdbOpenDFile(pWSmalF, O_RDWR) < 0) {
-        tsdbError("vgId:%d failed to open file %s to commit since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pWSmalF),
+        tsdbError("vgId:%d, failed to open file %s to commit since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pWSmalF),
                   tstrerror(terrno));
 
         tsdbCloseDFileSet(pWSet);
@@ -682,11 +697,11 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
         }
       }
     } else {
-      tsdbDebug("vgId:%d create data file %s as not exist", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pRSmalF));
+      tsdbDebug("vgId:%d, create data file %s as not exist", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pRSmalF));
       tsdbInitDFile(pRepo, pWSmalF, did, fid, FS_TXN_VERSION(REPO_FS(pRepo)), TSDB_FILE_SMAL);
 
       if (tsdbCreateDFile(pRepo, pWSmalF, true, TSDB_FILE_SMAL) < 0) {
-        tsdbError("vgId:%d failed to create file %s to commit since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pWSmalF),
+        tsdbError("vgId:%d, failed to create file %s to commit since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pWSmalF),
                   tstrerror(terrno));
 
         tsdbCloseDFileSet(pWSet);
@@ -704,8 +719,8 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
 
 // extern int32_t tsTsdbMetaCompactRatio;
 
-int tsdbWriteBlockInfoImpl(SDFile *pHeadf, STable *pTable, SArray *pSupA, SArray *pSubA, void **ppBuf,
-                           SBlockIdx *pIdx) {
+static int tsdbWriteBlockInfoImpl(SDFile *pHeadf, STable *pTable, SArray *pSupA, SArray *pSubA, void **ppBuf,
+                                  SBlockIdx *pIdx) {
   size_t      nSupBlocks;
   size_t      nSubBlocks;
   uint32_t    tlen;
@@ -757,7 +772,7 @@ int tsdbWriteBlockInfoImpl(SDFile *pHeadf, STable *pTable, SArray *pSupA, SArray
 
   pIdx->uid = TABLE_UID(pTable);
   pIdx->hasLast = pBlock->last ? 1 : 0;
-  pIdx->maxKey = pBlock->keyLast;
+  pIdx->maxKey = pBlock->maxKey;
   pIdx->numOfBlocks = (uint32_t)nSupBlocks;
   pIdx->len = tlen;
   pIdx->offset = (uint32_t)offset;
@@ -765,7 +780,7 @@ int tsdbWriteBlockInfoImpl(SDFile *pHeadf, STable *pTable, SArray *pSupA, SArray
   return 0;
 }
 
-int tsdbWriteBlockIdx(SDFile *pHeadf, SArray *pIdxA, void **ppBuf) {
+static int tsdbWriteBlockIdx(SDFile *pHeadf, SArray *pIdxA, void **ppBuf) {
   SBlockIdx *pBlkIdx;
   size_t     nidx = taosArrayGetSize(pIdxA);
   int        tlen = 0, size;
@@ -878,7 +893,7 @@ static int tsdbCommitToTable(SCommitH *pCommith, int tid) {
           return -1;
         }
       } else {
-        if (tsdbCommitMemData(pCommith, pIter, pBlock->keyFirst - 1, true) < 0) {
+        if (tsdbCommitMemData(pCommith, pIter, pBlock->minKey.ts - 1, true) < 0) {
           return -1;
         }
       }
@@ -887,7 +902,7 @@ static int tsdbCommitToTable(SCommitH *pCommith, int tid) {
   }
 
   if (tsdbWriteBlockInfo(pCommith) < 0) {
-    tsdbError("vgId:%d failed to write SBlockInfo part into file %s since %s", TSDB_COMMIT_REPO_ID(pCommith),
+    tsdbError("vgId:%d, failed to write SBlockInfo part into file %s since %s", TSDB_COMMIT_REPO_ID(pCommith),
               TSDB_FILE_FULL_NAME(TSDB_COMMIT_HEAD_FILE(pCommith)), tstrerror(terrno));
     return -1;
   }
@@ -929,7 +944,7 @@ static int tsdbMoveBlkIdx(SCommitH *pCommith, SBlockIdx *pIdx) {
     }
 
     if (tsdbMoveBlock(pCommith, bidx) < 0) {
-      tsdbError("vgId:%d failed to move block into file %s since %s", TSDB_COMMIT_REPO_ID(pCommith),
+      tsdbError("vgId:%d, failed to move block into file %s since %s", TSDB_COMMIT_REPO_ID(pCommith),
                 TSDB_FILE_FULL_NAME(TSDB_COMMIT_HEAD_FILE(pCommith)), tstrerror(terrno));
       taosMemoryFreeClear(pTSchema);
       return -1;
@@ -939,7 +954,7 @@ static int tsdbMoveBlkIdx(SCommitH *pCommith, SBlockIdx *pIdx) {
   }
 
   if (tsdbWriteBlockInfo(pCommith) < 0) {
-    tsdbError("vgId:%d failed to write SBlockInfo part into file %s since %s", TSDB_COMMIT_REPO_ID(pCommith),
+    tsdbError("vgId:%d, failed to write SBlockInfo part into file %s since %s", TSDB_COMMIT_REPO_ID(pCommith),
               TSDB_FILE_FULL_NAME(TSDB_COMMIT_HEAD_FILE(pCommith)), tstrerror(terrno));
     taosMemoryFreeClear(pTSchema);
     return -1;
@@ -973,9 +988,9 @@ static int tsdbComparKeyBlock(const void *arg1, const void *arg2) {
   TSKEY   key = *(TSKEY *)arg1;
   SBlock *pBlock = (SBlock *)arg2;
 
-  if (key < pBlock->keyFirst) {
+  if (key < pBlock->minKey.ts) {
     return -1;
-  } else if (key > pBlock->keyLast) {
+  } else if (key > pBlock->maxKey.ts) {
     return 1;
   } else {
     return 0;
@@ -999,8 +1014,8 @@ static int tsdbComparKeyBlock(const void *arg1, const void *arg2) {
  * @param ppExBuf
  * @return int
  */
-int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDFileAggr, SDataCols *pDataCols,
-                       SBlock *pBlock, bool isLast, bool isSuper, void **ppBuf, void **ppCBuf, void **ppExBuf) {
+static int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDFileAggr, SDataCols *pDataCols,
+                              SBlock *pBlock, bool isLast, bool isSuper, void **ppBuf, void **ppCBuf, void **ppExBuf) {
   STsdbCfg     *pCfg = REPO_CFG(pRepo);
   SBlockData   *pBlockData = NULL;
   SAggrBlkData *pAggrBlkData = NULL;
@@ -1158,7 +1173,7 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
     tsdbUpdateDFileMagic(pDFile, POINTER_SHIFT(tptr, flen - sizeof(TSCKSUM)));
 
     if (ncol != 0) {
-      tsdbSetBlockColOffset(pBlockCol, toffset);
+      pBlockCol->offset = toffset;
       pBlockCol->len = flen;  // data + bitmaps
       pBlockCol->blen = tBitmapsLen;
       ++tcol;
@@ -1203,16 +1218,16 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
   pBlock->numOfSubBlocks = isSuper ? 1 : 0;
   pBlock->numOfCols = nColsNotAllNull;
   pBlock->numOfBSma = nColsOfBlockSma;
-  pBlock->keyFirst = dataColsKeyFirst(pDataCols);
-  pBlock->keyLast = dataColsKeyLast(pDataCols);
+  pBlock->minKey.ts = dataColsKeyFirst(pDataCols);
+  pBlock->maxKey.ts = dataColsKeyLast(pDataCols);
   pBlock->aggrStat = aggrStatus;
   pBlock->blkVer = SBlockVerLatest;
   pBlock->aggrOffset = (uint64_t)offsetAggr;
 
-  tsdbDebug("vgId:%d uid:%" PRId64 " a block of data is written to file %s, offset %" PRId64
+  tsdbDebug("vgId:%d, uid:%" PRId64 " a block of data is written to file %s, offset %" PRId64
             " numOfRows %d len %d numOfCols %" PRId16 " keyFirst %" PRId64 " keyLast %" PRId64,
             REPO_ID(pRepo), TABLE_UID(pTable), TSDB_FILE_FULL_NAME(pDFile), offset, rowsToWrite, pBlock->len,
-            pBlock->numOfCols, pBlock->keyFirst, pBlock->keyLast);
+            pBlock->numOfCols, pBlock->minKey.ts, pBlock->maxKey.ts);
 
   return 0;
 }
@@ -1295,7 +1310,7 @@ static int tsdbMergeMemData(SCommitH *pCommith, SCommitIter *pIter, int bidx) {
   if (bidx == nBlocks - 1) {
     keyLimit = pCommith->maxKey;
   } else {
-    keyLimit = pBlock[1].keyFirst - 1;
+    keyLimit = pBlock[1].minKey.ts - 1;
   }
 
   SSkipListIterator titer = *(pIter->pIter);
@@ -1337,8 +1352,8 @@ static int tsdbMergeMemData(SCommitH *pCommith, SCommitIter *pIter, int bidx) {
     }
     subBlocks[pBlock->numOfSubBlocks] = block;
     supBlock = *pBlock;
-    supBlock.keyFirst = mInfo.keyFirst;
-    supBlock.keyLast = mInfo.keyLast;
+    supBlock.minKey.ts = mInfo.keyFirst;
+    supBlock.maxKey.ts = mInfo.keyLast;
     supBlock.numOfSubBlocks++;
     supBlock.numOfRows = pBlock->numOfRows + mInfo.rowsInserted - mInfo.rowsDeleteSucceed;
     supBlock.offset = taosArrayGetSize(pCommith->aSubBlk) * sizeof(SBlock);

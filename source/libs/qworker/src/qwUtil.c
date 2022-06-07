@@ -290,8 +290,11 @@ int32_t qwKillTaskHandle(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
   QW_RET(code);
 }
 
-void qwFreeTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
-  tmsgReleaseHandle(&ctx->ctrlConnInfo, TAOS_CONN_SERVER);
+void qwFreeTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
+  if (ctx->ctrlConnInfo.handle) {
+    tmsgReleaseHandle(&ctx->ctrlConnInfo, TAOS_CONN_SERVER);
+  }
+  
   ctx->ctrlConnInfo.handle = NULL;
   ctx->ctrlConnInfo.refId = -1;
 
@@ -333,7 +336,7 @@ int32_t qwDropTaskCtx(QW_FPARAMS_DEF) {
     QW_ERR_RET(TSDB_CODE_QRY_TASK_CTX_NOT_EXIST);
   }
 
-  qwFreeTask(QW_FPARAMS(), &octx);
+  qwFreeTaskCtx(QW_FPARAMS(), &octx);
 
   QW_TASK_DLOG_E("task ctx dropped");
 
@@ -534,4 +537,10 @@ int64_t qwGetTimeInQueue(SQWorker *mgmt, EQueueType type) {
 
   return -1;
 }
+
+
+void qwClearExpiredSch(SArray* pExpiredSch) {
+
+}
+
 

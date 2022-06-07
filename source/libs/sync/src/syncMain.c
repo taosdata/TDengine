@@ -175,7 +175,7 @@ int32_t syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg) {
   sInfo("==syncReconfig== newconfig:%s", configChange);
 
   SRpcMsg rpcMsg = {0};
-  rpcMsg.msgType = TDMT_VND_SYNC_CONFIG_CHANGE;
+  rpcMsg.msgType = TDMT_SYNC_CONFIG_CHANGE;
   rpcMsg.info.noResp = 1;
   rpcMsg.contLen = strlen(configChange) + 1;
   rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
@@ -1632,7 +1632,7 @@ int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg) {
     syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
     if (ths->pFsm != NULL) {
-      // if (ths->pFsm->FpPreCommitCb != NULL && pEntry->originalRpcType != TDMT_VND_SYNC_NOOP) {
+      // if (ths->pFsm->FpPreCommitCb != NULL && pEntry->originalRpcType != TDMT_SYNC_NOOP) {
       if (ths->pFsm->FpPreCommitCb != NULL && syncUtilUserPreCommit(pEntry->originalRpcType)) {
         SFsmCbMeta cbMeta;
         cbMeta.index = pEntry->index;
@@ -1654,7 +1654,7 @@ int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg) {
     syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
     if (ths->pFsm != NULL) {
-      // if (ths->pFsm->FpPreCommitCb != NULL && pEntry->originalRpcType != TDMT_VND_SYNC_NOOP) {
+      // if (ths->pFsm->FpPreCommitCb != NULL && pEntry->originalRpcType != TDMT_SYNC_NOOP) {
       if (ths->pFsm->FpPreCommitCb != NULL && syncUtilUserPreCommit(pEntry->originalRpcType)) {
         SFsmCbMeta cbMeta;
         cbMeta.index = pEntry->index;
@@ -1683,13 +1683,13 @@ static void syncFreeNode(void* param) {
 const char* syncStr(ESyncState state) {
   switch (state) {
     case TAOS_SYNC_STATE_FOLLOWER:
-      return "FOLLOWER";
+      return "follower";
     case TAOS_SYNC_STATE_CANDIDATE:
-      return "CANDIDATE";
+      return "candidate";
     case TAOS_SYNC_STATE_LEADER:
-      return "LEADER";
+      return "leader";
     default:
-      return "ERROR";
+      return "error";
   }
 }
 
@@ -1734,7 +1734,7 @@ int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex,
         }
 
         // config change
-        if (pEntry->originalRpcType == TDMT_VND_SYNC_CONFIG_CHANGE) {
+        if (pEntry->originalRpcType == TDMT_SYNC_CONFIG_CHANGE) {
           SSyncCfg oldSyncCfg = ths->pRaftCfg->cfg;
 
           SSyncCfg newSyncCfg;

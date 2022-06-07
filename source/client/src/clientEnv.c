@@ -13,10 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "os.h"
 #include "catalog.h"
+#include "functionMgt.h"
 #include "clientInt.h"
 #include "clientLog.h"
-#include "os.h"
 #include "query.h"
 #include "scheduler.h"
 #include "tcache.h"
@@ -129,8 +130,13 @@ void destroyTscObj(void *pObj) {
 
   SClientHbKey connKey = {.tscRid = pTscObj->id, .connType = pTscObj->connType};
   hbDeregisterConn(pTscObj->pAppInfo->pAppHbMgr, connKey);
-  atomic_sub_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
+  int64_t connNum = atomic_sub_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
   closeAllRequests(pTscObj->pRequests);
+  schedulerStopQueryHb(pTscObj->pAppInfo->pTransporter);
+  if (0 == connNum) {
+    // TODO 
+    //closeTransporter(pTscObj);
+  }
   tscDebug("connObj 0x%" PRIx64 " destroyed, totalConn:%" PRId64, pTscObj->id, pTscObj->pAppInfo->numOfConns);
   taosThreadMutexDestroy(&pTscObj->mutex);
   taosMemoryFreeClear(pTscObj);
@@ -161,6 +167,7 @@ void *createTscObj(const char *user, const char *auth, const char *db, int32_t c
 
   taosThreadMutexInit(&pObj->mutex, NULL);
   pObj->id = taosAddRef(clientConnRefPool, pObj);
+  pObj->schemalessType = 0;
 
   tscDebug("connObj created, 0x%" PRIx64, pObj->id);
   return pObj;
@@ -170,7 +177,7 @@ STscObj *acquireTscObj(int64_t rid) { return (STscObj *)taosAcquireRef(clientCon
 
 int32_t releaseTscObj(int64_t rid) { return taosReleaseRef(clientConnRefPool, rid); }
 
-void *createRequest(STscObj *pObj, __taos_async_fn_t fp, void *param, int32_t type) {
+void *createRequest(STscObj *pObj, int32_t type) {
   assert(pObj != NULL);
 
   SRequestObj *pRequest = (SRequestObj *)taosMemoryCalloc(1, sizeof(SRequestObj));
@@ -186,7 +193,6 @@ void *createRequest(STscObj *pObj, __taos_async_fn_t fp, void *param, int32_t ty
 
   pRequest->type = type;
   pRequest->pTscObj = pObj;
-  pRequest->body.fp = fp;  // not used it yet
   pRequest->msgBuf = taosMemoryCalloc(1, ERROR_MSG_BUF_DEFAULT_SIZE);
   pRequest->msgBufLen = ERROR_MSG_BUF_DEFAULT_SIZE;
   tsem_init(&pRequest->body.rspSem, 0, 0);
@@ -220,6 +226,10 @@ static void doDestroyRequest(void *p) {
 
   taosHashRemove(pRequest->pTscObj->pRequests, &pRequest->self, sizeof(pRequest->self));
 
+  if (pRequest->body.queryJob != 0) {
+    schedulerFreeJob(pRequest->body.queryJob);
+  }
+
   taosMemoryFreeClear(pRequest->msgBuf);
   taosMemoryFreeClear(pRequest->sqlstr);
   taosMemoryFreeClear(pRequest->pDb);
@@ -227,12 +237,10 @@ static void doDestroyRequest(void *p) {
   doFreeReqResultInfo(&pRequest->body.resInfo);
   qDestroyQueryPlan(pRequest->body.pDag);
 
-  if (pRequest->body.queryJob != 0) {
-    schedulerFreeJob(pRequest->body.queryJob);
-  }
-
   taosArrayDestroy(pRequest->tableList);
   taosArrayDestroy(pRequest->dbList);
+
+  destroyQueryExecRes(&pRequest->body.resInfo.execRes);
 
   deregisterRequest(pRequest);
   taosMemoryFreeClear(pRequest);
@@ -270,7 +278,6 @@ void taos_init_imp(void) {
     return;
   }
 
-  initMsgHandleFp();
   initQueryModuleMsgHandle();
 
   rpcInit();
@@ -285,6 +292,7 @@ void taos_init_imp(void) {
   taosSetCoreDump(true);
 
   initTaskQueue();
+  fmFuncMgtInit();
 
   clientConnRefPool = taosOpenRef(200, destroyTscObj);
   clientReqRefPool = taosOpenRef(40960, doDestroyRequest);

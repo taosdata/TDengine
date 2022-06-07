@@ -114,6 +114,7 @@ if __name__ == "__main__":
 
     if not execCmd == "":
         tdDnodes.init(deployPath)
+        print(execCmd)
         exec(execCmd)
         quit()
 
