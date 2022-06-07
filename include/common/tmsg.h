@@ -2460,6 +2460,32 @@ int32_t tSerializeSUserIndexRsp(void* buf, int32_t bufLen, const SUserIndexRsp* 
 int32_t tDeserializeSUserIndexRsp(void* buf, int32_t bufLen, SUserIndexRsp* pRsp);
 
 typedef struct {
+  char tbFName[TSDB_TABLE_FNAME_LEN];
+} STableIndexReq;
+
+int32_t tSerializeSTableIndexReq(void* buf, int32_t bufLen, STableIndexReq* pReq);
+int32_t tDeserializeSTableIndexReq(void* buf, int32_t bufLen, STableIndexReq* pReq);
+
+typedef struct {
+  int8_t    intervalUnit;
+  int8_t    slidingUnit;
+  int64_t   interval;
+  int64_t   offset;
+  int64_t   sliding;
+  int64_t   dstTbUid;  
+  int32_t   dstVgId;  // for stream  
+  char*     expr;
+} STableIndexInfo;
+
+typedef struct {
+  SArray* pIndex;
+} STableIndexRsp;
+
+int32_t tSerializeSTableIndexRsp(void* buf, int32_t bufLen, const STableIndexRsp* pRsp);
+int32_t tDeserializeSTableIndexRsp(void* buf, int32_t bufLen, STableIndexRsp* pRsp);
+
+
+typedef struct {
   int8_t  mqMsgType;
   int32_t code;
   int32_t epoch;

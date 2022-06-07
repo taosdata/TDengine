@@ -2392,6 +2392,102 @@ int32_t tDeserializeSUserIndexRsp(void *buf, int32_t bufLen, SUserIndexRsp *pRsp
   return 0;
 }
 
+int32_t tSerializeSTableIndexReq(void *buf, int32_t bufLen, STableIndexReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->tbFName) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSTableIndexReq(void *buf, int32_t bufLen, STableIndexReq *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->tbFName) < 0) return -1;
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+int32_t tSerializeSTableIndexInfo(SEncoder *pEncoder, STableIndexInfo* pInfo) {
+  if (tEncodeI8(pEncoder, pInfo->intervalUnit) < 0) return -1;
+  if (tEncodeI8(pEncoder, pInfo->slidingUnit) < 0) return -1;
+  if (tEncodeI64(pEncoder, pInfo->interval) < 0) return -1;
+  if (tEncodeI64(pEncoder, pInfo->offset) < 0) return -1;
+  if (tEncodeI64(pEncoder, pInfo->sliding) < 0) return -1;
+  if (tEncodeI64(pEncoder, pInfo->dstTbUid) < 0) return -1;
+  if (tEncodeI32(pEncoder, pInfo->dstVgId) < 0) return -1;
+  if (tEncodeCStr(pEncoder, pInfo->expr) < 0) return -1;
+  return 0;
+}
+
+int32_t tSerializeSTableIndexRsp(void *buf, int32_t bufLen, const STableIndexRsp *pRsp) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  int32_t num = taosArrayGetSize(pRsp->pIndex);
+  if (tEncodeI32(&encoder, num) < 0) return -1;
+  if (num > 0) {
+    for (int32_t i = 0; i < num; ++i) {
+      STableIndexInfo* pInfo = (STableIndexInfo*)taosArrayGet(pRsp->pIndex, i);
+      if (tSerializeSTableIndexInfo(&encoder, pInfo) < 0) return -1;
+    }
+  }
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSTableIndexInfo(SDecoder *pDecoder, STableIndexInfo *pInfo) {
+  if (tDecodeI8(pDecoder, &pInfo->intervalUnit) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pInfo->slidingUnit) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pInfo->interval) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pInfo->offset) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pInfo->sliding) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pInfo->dstTbUid) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pInfo->dstVgId) < 0) return -1;
+  if (tDecodeCStrAlloc(pDecoder, &pInfo->expr) < 0) return -1;
+
+  return 0;
+}
+
+int32_t tDeserializeSTableIndexRsp(void *buf, int32_t bufLen, STableIndexRsp *pRsp) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  int32_t num = 0;
+  if (tDecodeI32(&decoder, &num) < 0) return -1;
+  if (num > 0) {
+    pRsp->pIndex = taosArrayInit(num, sizeof(STableIndexInfo));
+    if (NULL == pRsp->pIndex) return -1;
+    STableIndexInfo info;
+    for (int32_t i = 0; i < num; ++i) {
+      if (tDeserializeSTableIndexInfo(&decoder, &info) < 0) return -1;
+      if (NULL == taosArrayPush(pRsp->pIndex, &info)) {
+        taosMemoryFree(info.expr);
+        return -1;
+      }
+    }
+  }
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+
 int32_t tSerializeSShowReq(void *buf, int32_t bufLen, SShowReq *pReq) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
