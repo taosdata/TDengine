@@ -16,9 +16,11 @@
 #include "syncReplication.h"
 #include "syncIndexMgr.h"
 #include "syncMessage.h"
+#include "syncRaftCfg.h"
 #include "syncRaftEntry.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
+#include "syncSnapshot.h"
 #include "syncUtil.h"
 
 // TLA+ Spec
@@ -59,6 +61,7 @@ int32_t syncNodeAppendEntriesPeers(SSyncNode* pSyncNode) {
 
     // set prevLogIndex
     SyncIndex nextIndex = syncIndexMgrGetIndex(pSyncNode->pNextIndex, pDestId);
+
     SyncIndex preLogIndex = nextIndex - 1;
 
     // set preLogTerm
@@ -113,9 +116,85 @@ int32_t syncNodeAppendEntriesPeers(SSyncNode* pSyncNode) {
   return ret;
 }
 
+int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
+  ASSERT(pSyncNode->state == TAOS_SYNC_STATE_LEADER);
+
+  syncIndexMgrLog2("begin append entries peers pNextIndex:", pSyncNode->pNextIndex);
+  syncIndexMgrLog2("begin append entries peers pMatchIndex:", pSyncNode->pMatchIndex);
+  logStoreSimpleLog2("begin append entries peers LogStore:", pSyncNode->pLogStore);
+  {
+    SSnapshot snapshot;
+    pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
+    sTrace("begin append entries peers, snapshot.lastApplyIndex:%ld, snapshot.lastApplyTerm:%lu",
+           snapshot.lastApplyIndex, snapshot.lastApplyTerm);
+  }
+
+  int32_t ret = 0;
+  for (int i = 0; i < pSyncNode->peersNum; ++i) {
+    SRaftId* pDestId = &(pSyncNode->peersId[i]);
+
+    // next index
+    SyncIndex nextIndex = syncIndexMgrGetIndex(pSyncNode->pNextIndex, pDestId);
+
+    // pre index, pre term
+    SyncIndex preLogIndex = syncNodeGetPreIndex(pSyncNode, nextIndex);
+    SyncTerm  preLogTerm = syncNodeGetPreTerm(pSyncNode, nextIndex);
+
+    // batch optimized
+    // SyncIndex lastIndex = syncUtilMinIndex(pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore), nextIndex);
+
+    // prepare entry
+    SyncAppendEntries* pMsg = NULL;
+
+    SSyncRaftEntry* pEntry;
+    int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, nextIndex, &pEntry);
+    ASSERT(code == 0);
+
+    if (pEntry != NULL) {
+      pMsg = syncAppendEntriesBuild(pEntry->bytes, pSyncNode->vgId);
+      ASSERT(pMsg != NULL);
+
+      // add pEntry into msg
+      uint32_t len;
+      char*    serialized = syncEntrySerialize(pEntry, &len);
+      assert(len == pEntry->bytes);
+      memcpy(pMsg->data, serialized, len);
+
+      taosMemoryFree(serialized);
+      syncEntryDestory(pEntry);
+
+    } else {
+      // no entry in log
+      pMsg = syncAppendEntriesBuild(0, pSyncNode->vgId);
+      ASSERT(pMsg != NULL);
+    }
+
+    // prepare msg
+    ASSERT(pMsg != NULL);
+    pMsg->srcId = pSyncNode->myRaftId;
+    pMsg->destId = *pDestId;
+    pMsg->term = pSyncNode->pRaftStore->currentTerm;
+    pMsg->prevLogIndex = preLogIndex;
+    pMsg->prevLogTerm = preLogTerm;
+    pMsg->commitIndex = pSyncNode->commitIndex;
+
+    // send msg
+    syncNodeAppendEntries(pSyncNode, pDestId, pMsg);
+    syncAppendEntriesDestroy(pMsg);
+  }
+
+  return ret;
+}
+
 int32_t syncNodeReplicate(SSyncNode* pSyncNode) {
   // start replicate
-  int32_t ret = syncNodeAppendEntriesPeers(pSyncNode);
+  int32_t ret = 0;
+
+  if (pSyncNode->pRaftCfg->snapshotEnable) {
+    ret = syncNodeAppendEntriesPeersSnapshot(pSyncNode);
+  } else {
+    ret = syncNodeAppendEntriesPeers(pSyncNode);
+  }
   return ret;
 }
 

@@ -20,6 +20,7 @@ uint16_t    gPorts[] = {7010, 7110, 7210, 7310, 7410};
 const char* gDir = "./syncReplicateTest";
 int32_t     gVgId = 1234;
 SyncIndex   gSnapshotLastApplyIndex;
+SyncIndex   gSnapshotLastApplyTerm;
 
 void init() {
   int code = walInit();
@@ -44,8 +45,9 @@ void CommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
   if (cbMeta.index > beginIndex) {
     char logBuf[256] = {0};
     snprintf(logBuf, sizeof(logBuf),
-             "==callback== ==CommitCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s flag:%lu\n", pFsm,
-             cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state), cbMeta.flag);
+             "==callback== ==CommitCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s, flag:%lu, term:%lu \n",
+             pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state),
+             cbMeta.flag, cbMeta.term);
     syncRpcMsgLog2(logBuf, (SRpcMsg*)pMsg);
   } else {
     sTrace("==callback== ==CommitCb== do not apply again %ld", cbMeta.index);
@@ -71,7 +73,74 @@ void RollBackCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
 int32_t GetSnapshotCb(struct SSyncFSM* pFsm, SSnapshot* pSnapshot) {
   pSnapshot->data = NULL;
   pSnapshot->lastApplyIndex = gSnapshotLastApplyIndex;
-  pSnapshot->lastApplyTerm = 100;
+  pSnapshot->lastApplyTerm = gSnapshotLastApplyTerm;
+  return 0;
+}
+
+int32_t SnapshotStartRead(struct SSyncFSM* pFsm, void** ppReader) {
+  *ppReader = (void*)0xABCD;
+  char logBuf[256] = {0};
+  snprintf(logBuf, sizeof(logBuf), "==callback== ==SnapshotStartRead== pFsm:%p, *ppReader:%p", pFsm, *ppReader);
+  sTrace("%s", logBuf);
+  return 0;
+}
+
+int32_t SnapshotStopRead(struct SSyncFSM* pFsm, void* pReader) {
+  char logBuf[256] = {0};
+  snprintf(logBuf, sizeof(logBuf), "==callback== ==SnapshotStopRead== pFsm:%p, pReader:%p", pFsm, pReader);
+  sTrace("%s", logBuf);
+  return 0;
+}
+
+int32_t SnapshotDoRead(struct SSyncFSM* pFsm, void* pReader, void** ppBuf, int32_t* len) {
+  static int readIter = 0;
+
+  if (readIter == 5) {
+    *len = 0;
+    *ppBuf = NULL;
+  } else if (readIter < 5) {
+    *len = 20;
+    *ppBuf = taosMemoryMalloc(*len);
+    snprintf((char*)*ppBuf, *len, "data iter:%d", readIter);
+  }
+
+  char logBuf[256] = {0};
+  snprintf(logBuf, sizeof(logBuf),
+           "==callback== ==SnapshotDoRead== pFsm:%p, pReader:%p, *len:%d, *ppBuf:%s, readIter:%d", pFsm, pReader, *len,
+           (char*)(*ppBuf), readIter);
+  sTrace("%s", logBuf);
+
+  readIter++;
+  return 0;
+}
+
+int32_t SnapshotStartWrite(struct SSyncFSM* pFsm, void** ppWriter) {
+  *ppWriter = (void*)0xCDEF;
+  char logBuf[256] = {0};
+  snprintf(logBuf, sizeof(logBuf), "==callback== ==SnapshotStartWrite== pFsm:%p, *ppWriter:%p", pFsm, *ppWriter);
+  sTrace("%s", logBuf);
+  return 0;
+}
+
+int32_t SnapshotStopWrite(struct SSyncFSM* pFsm, void* pWriter, bool isApply) {
+  char logBuf[256] = {0};
+  snprintf(logBuf, sizeof(logBuf), "==callback== ==SnapshotStopWrite== pFsm:%p, pWriter:%p, isApply:%d", pFsm, pWriter,
+           isApply);
+  sTrace("%s", logBuf);
+
+  if (isApply) {
+    gSnapshotLastApplyIndex = 10;
+    gSnapshotLastApplyTerm = 1;
+  }
+
+  return 0;
+}
+
+int32_t SnapshotDoWrite(struct SSyncFSM* pFsm, void* pWriter, void* pBuf, int32_t len) {
+  char logBuf[256] = {0};
+  snprintf(logBuf, sizeof(logBuf), "==callback== ==SnapshotDoWrite== pFsm:%p, pWriter:%p, len:%d pBuf:%s", pFsm,
+           pWriter, len, (char*)pBuf);
+  sTrace("%s", logBuf);
   return 0;
 }
 
@@ -92,6 +161,12 @@ SSyncFSM* createFsm() {
 
   pFsm->FpGetSnapshot = GetSnapshotCb;
   pFsm->FpRestoreFinishCb = RestoreFinishCb;
+  pFsm->FpSnapshotStartRead = SnapshotStartRead;
+  pFsm->FpSnapshotStopRead = SnapshotStopRead;
+  pFsm->FpSnapshotDoRead = SnapshotDoRead;
+  pFsm->FpSnapshotStartWrite = SnapshotStartWrite;
+  pFsm->FpSnapshotStopWrite = SnapshotStopWrite;
+  pFsm->FpSnapshotDoWrite = SnapshotDoWrite;
 
   pFsm->FpReConfigCb = ReConfigCb;
 
@@ -123,6 +198,7 @@ int64_t createSyncNode(int32_t replicaNum, int32_t myIndex, int32_t vgId, SWal* 
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s_sync_replica%d_index%d", path, replicaNum, myIndex);
   syncInfo.pWal = pWal;
   syncInfo.isStandBy = isStandBy;
+  syncInfo.snapshotEnable = true;
 
   SSyncCfg* pCfg = &syncInfo.syncCfg;
 
@@ -150,14 +226,17 @@ int64_t createSyncNode(int32_t replicaNum, int32_t myIndex, int32_t vgId, SWal* 
   assert(pSyncNode != NULL);
   gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
   gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
+  gSyncIO->FpOnSyncTimeout = pSyncNode->FpOnTimeout;
+  gSyncIO->FpOnSyncClientRequest = pSyncNode->FpOnClientRequest;
+
   gSyncIO->FpOnSyncRequestVote = pSyncNode->FpOnRequestVote;
   gSyncIO->FpOnSyncRequestVoteReply = pSyncNode->FpOnRequestVoteReply;
   gSyncIO->FpOnSyncAppendEntries = pSyncNode->FpOnAppendEntries;
   gSyncIO->FpOnSyncAppendEntriesReply = pSyncNode->FpOnAppendEntriesReply;
-  gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
-  gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
-  gSyncIO->FpOnSyncTimeout = pSyncNode->FpOnTimeout;
-  gSyncIO->FpOnSyncClientRequest = pSyncNode->FpOnClientRequest;
+
+  gSyncIO->FpOnSyncSnapshotSend = pSyncNode->FpOnSnapshotSend;
+  gSyncIO->FpOnSyncSnapshotRsp = pSyncNode->FpOnSnapshotRsp;
+
   gSyncIO->pSyncNode = pSyncNode;
   syncNodeRelease(pSyncNode);
 
@@ -179,7 +258,7 @@ void configChange(int64_t rid, int32_t replicaNum, int32_t myIndex) {
 }
 
 void usage(char* exe) {
-  printf("usage: %s replicaNum myIndex lastApplyIndex writeRecordNum isStandBy isConfigChange \n", exe);
+  printf("usage: %s replicaNum myIndex lastApplyIndex writeRecordNum isStandBy isConfigChange lastApplyTerm \n", exe);
 }
 
 SRpcMsg* createRpcMsg(int i, int count, int myIndex) {
@@ -195,7 +274,7 @@ SRpcMsg* createRpcMsg(int i, int count, int myIndex) {
 int main(int argc, char** argv) {
   tsAsyncLog = 0;
   sDebugFlag = DEBUG_TRACE + DEBUG_SCREEN + DEBUG_FILE + DEBUG_INFO;
-  if (argc != 7) {
+  if (argc != 8) {
     usage(argv[0]);
     exit(-1);
   }
@@ -206,7 +285,15 @@ int main(int argc, char** argv) {
   int32_t writeRecordNum = atoi(argv[4]);
   bool    isStandBy = atoi(argv[5]);
   bool    isConfigChange = atoi(argv[6]);
+  int32_t lastApplyTerm = atoi(argv[7]);
+
+  sTrace(
+      "args: replicaNum:%d, myIndex:%d, lastApplyIndex:%d, writeRecordNum:%d, isStandBy:%d, isConfigChange:%d, "
+      "lastApplyTerm:%d",
+      replicaNum, myIndex, lastApplyIndex, writeRecordNum, isStandBy, isConfigChange, lastApplyTerm);
+
   gSnapshotLastApplyIndex = lastApplyIndex;
+  gSnapshotLastApplyTerm = lastApplyTerm;
 
   if (!isStandBy) {
     assert(replicaNum >= 1 && replicaNum <= 5);

@@ -19,6 +19,7 @@
 #include "mndDef.h"
 
 #include "sdb.h"
+#include "sync.h"
 #include "syncTools.h"
 #include "tcache.h"
 #include "tdatablock.h"

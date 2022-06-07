@@ -358,9 +358,11 @@ int64_t sdbGetTableVer(SSdb *pSdb, ESdbType type);
  * @return int32_t The current index of sdb
  */
 void    sdbSetApplyIndex(SSdb *pSdb, int64_t index);
-int64_t sdbGetApplyIndex(SSdb *pSdb);
 void    sdbSetApplyTerm(SSdb *pSdb, int64_t term);
+int64_t sdbGetApplyIndex(SSdb *pSdb);
 int64_t sdbGetApplyTerm(SSdb *pSdb);
+int64_t sdbGetCommitIndex(SSdb *pSdb);
+int64_t sdbGetCommitTerm(SSdb *pSdb);
 
 SSdbRaw *sdbAllocRaw(ESdbType type, int8_t sver, int32_t dataLen);
 void     sdbFreeRaw(SSdbRaw *pRaw);

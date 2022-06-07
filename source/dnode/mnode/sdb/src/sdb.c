@@ -159,8 +159,12 @@ static int32_t sdbCreateDir(SSdb *pSdb) {
 
 void sdbSetApplyIndex(SSdb *pSdb, int64_t index) { pSdb->curVer = index; }
 
-int64_t sdbGetApplyIndex(SSdb *pSdb) { return pSdb->curVer; }
-
 void sdbSetApplyTerm(SSdb *pSdb, int64_t term) { pSdb->curTerm = term; }
 
+int64_t sdbGetApplyIndex(SSdb *pSdb) { return pSdb->curVer; }
+
 int64_t sdbGetApplyTerm(SSdb *pSdb) { return pSdb->curTerm; }
+
+int64_t sdbGetCommitIndex(SSdb *pSdb) { return pSdb->lastCommitVer; }
+
+int64_t sdbGetCommitTerm(SSdb *pSdb) { return pSdb->lastCommitTerm; }

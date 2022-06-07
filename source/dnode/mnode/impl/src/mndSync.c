@@ -34,7 +34,7 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
 
   int32_t transId = sdbGetIdFromRaw(pMnode->pSdb, pRaw);
   pMgmt->errCode = cbMeta.code;
-  mTrace("trans:%d, is proposed, savedTransId:%d code:0x%x, ver:%" PRId64 " term:%" PRId64 " role:%s raw:%p", transId,
+  mDebug("trans:%d, is proposed, saved:%d code:0x%x, index:%" PRId64 " term:%" PRId64 " role:%s raw:%p", transId,
          pMgmt->transId, cbMeta.code, cbMeta.index, cbMeta.term, syncStr(cbMeta.state), pRaw);
 
   if (pMgmt->errCode == 0) {
@@ -57,8 +57,8 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
 
 int32_t mndSyncGetSnapshot(struct SSyncFSM *pFsm, SSnapshot *pSnapshot) {
   SMnode *pMnode = pFsm->data;
-  pSnapshot->lastApplyIndex = sdbGetApplyIndex(pMnode->pSdb);
-  pSnapshot->lastApplyTerm = sdbGetApplyTerm(pMnode->pSdb);
+  pSnapshot->lastApplyIndex = sdbGetCommitIndex(pMnode->pSdb);
+  pSnapshot->lastApplyTerm = sdbGetCommitTerm(pMnode->pSdb);
   return 0;
 }
 
@@ -78,7 +78,7 @@ void mndReConfig(struct SSyncFSM *pFsm, SSyncCfg newCfg, SReConfigCbMeta cbMeta)
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
 
   pMgmt->errCode = cbMeta.code;
-  mInfo("trans:-1, sync reconfig is proposed, savedTransId:%d code:0x%x, curTerm:%" PRId64 " term:%" PRId64,
+  mInfo("trans:-1, sync reconfig is proposed, saved:%d code:0x%x, index:%" PRId64 " term:%" PRId64,
         pMgmt->transId, cbMeta.code, cbMeta.index, cbMeta.term);
 
   if (pMgmt->transId == -1) {
@@ -167,6 +167,7 @@ int32_t mndInitSync(SMnode *pMnode) {
   syncInfo.pWal = pMgmt->pWal;
   syncInfo.pFsm = mndSyncMakeFsm(pMnode);
   syncInfo.isStandBy = pMgmt->standby;
+  syncInfo.snapshotEnable = true;
 
   SSyncCfg *pCfg = &syncInfo.syncCfg;
   pCfg->replicaNum = pMnode->replica;

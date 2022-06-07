@@ -496,6 +496,8 @@ int32_t sdbStartRead(SSdb *pSdb, SSdbIter **ppIter) {
   snprintf(datafile, sizeof(datafile), "%s%ssdb.data", pSdb->currDir, TD_DIRSEP);
 
   taosThreadMutexLock(&pSdb->filelock);
+  int64_t commitIndex = pSdb->lastCommitVer;
+  int64_t commitTerm = pSdb->lastCommitTerm;
   if (taosCopyFile(datafile, pIter->name) < 0) {
     taosThreadMutexUnlock(&pSdb->filelock);
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -514,7 +516,8 @@ int32_t sdbStartRead(SSdb *pSdb, SSdbIter **ppIter) {
   }
 
   *ppIter = pIter;
-  mInfo("sdbiter:%p, is created to read snapshot, file:%s", pIter, pIter->name);
+  mInfo("sdbiter:%p, is created to read snapshot, index:%" PRId64 " term:%" PRId64 " file:%s", pIter, commitIndex,
+        commitTerm, pIter->name);
   return 0;
 }
 

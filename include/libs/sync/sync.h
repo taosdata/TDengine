@@ -88,9 +88,10 @@ typedef struct SReConfigCbMeta {
 } SReConfigCbMeta;
 
 typedef struct SSnapshot {
-  void *data;
+  void*     data;
   SyncIndex lastApplyIndex;
   SyncTerm  lastApplyTerm;
+  SyncIndex lastConfigIndex;
 } SSnapshot;
 
 typedef struct SSyncFSM {
@@ -141,10 +142,27 @@ typedef struct SSyncLogStore {
   // return commit index of log
   SyncIndex (*getCommitIndex)(struct SSyncLogStore* pLogStore);
 
+  // refactor, log[0 .. n] ==> log[m .. n]
+  int32_t (*syncLogSetBeginIndex)(struct SSyncLogStore* pLogStore, SyncIndex beginIndex);
+  SyncIndex (*syncLogBeginIndex)(struct SSyncLogStore* pLogStore);
+  SyncIndex (*syncLogEndIndex)(struct SSyncLogStore* pLogStore);
+  bool (*syncLogIsEmpty)(struct SSyncLogStore* pLogStore);
+  int32_t (*syncLogEntryCount)(struct SSyncLogStore* pLogStore);
+  bool (*syncLogInRange)(struct SSyncLogStore* pLogStore, SyncIndex index);
+
+  SyncIndex (*syncLogWriteIndex)(struct SSyncLogStore* pLogStore);
+  SyncIndex (*syncLogLastIndex)(struct SSyncLogStore* pLogStore);
+  SyncTerm (*syncLogLastTerm)(struct SSyncLogStore* pLogStore);
+
+  int32_t (*syncLogAppendEntry)(struct SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry);
+  int32_t (*syncLogGetEntry)(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncRaftEntry** ppEntry);
+  int32_t (*syncLogTruncate)(struct SSyncLogStore* pLogStore, SyncIndex fromIndex);
+
 } SSyncLogStore;
 
 typedef struct SSyncInfo {
   bool        isStandBy;
+  bool        snapshotEnable;
   SyncGroupId vgId;
   SSyncCfg    syncCfg;
   char        path[TSDB_FILENAME_LEN];

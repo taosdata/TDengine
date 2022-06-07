@@ -94,6 +94,10 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
 
     // execute fsm
     if (pSyncNode->pFsm != NULL) {
+      int32_t code = syncNodeCommit(pSyncNode, beginIndex, endIndex, pSyncNode->state);
+      ASSERT(code == 0);
+
+#if 0      
       for (SyncIndex i = beginIndex; i <= endIndex; ++i) {
         if (i != SYNC_INDEX_INVALID) {
           SSyncRaftEntry* pEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, i);
@@ -113,8 +117,12 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
             cbMeta.currentTerm = pSyncNode->pRaftStore->currentTerm;
             cbMeta.flag = 0x1;
 
+            SSnapshot snapshot;
+            ASSERT(pSyncNode->pFsm->FpGetSnapshot != NULL);
+            pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
+
             bool needExecute = true;
-            if (pSyncNode->pSnapshot != NULL && cbMeta.index <= pSyncNode->pSnapshot->lastApplyIndex) {
+            if (cbMeta.index <= snapshot.lastApplyIndex) {
               needExecute = false;
             }
 
@@ -197,6 +205,7 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
           syncEntryDestory(pEntry);
         }
       }
+#endif
     }
   }
 }
