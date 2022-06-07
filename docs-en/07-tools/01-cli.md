@@ -71,5 +71,6 @@ TDengine CLI will display a welcome message and version information if it succes
 ```cmd
 taos>
 ```
+
 After entering the TDengine CLI, you can execute various SQL commands, including inserts, queries, or administrative commands. Please see the [official document](https://docs.tdengine.com/reference/taos-shell#execute-sql-script-file) for more details.
 
