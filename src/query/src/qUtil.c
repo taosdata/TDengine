@@ -97,7 +97,7 @@ void cleanupResultRowInfo(SResultRowInfo *pResultRowInfo) {
       }
     }
   }
-  
+
   tfree(pResultRowInfo->pResult);
 }
 
@@ -126,19 +126,19 @@ int32_t numOfClosedResultRows(SResultRowInfo *pResultRowInfo) {
   while (i < pResultRowInfo->size && pResultRowInfo->pResult[i]->closed) {
     ++i;
   }
-  
+
   return i;
 }
 
 void closeAllResultRows(SResultRowInfo *pResultRowInfo) {
   assert(pResultRowInfo->size >= 0 && pResultRowInfo->capacity >= pResultRowInfo->size);
-  
+
   for (int32_t i = 0; i < pResultRowInfo->size; ++i) {
     SResultRow* pRow = pResultRowInfo->pResult[i];
     if (pRow->closed) {
       continue;
     }
-    
+
     pRow->closed = true;
   }
 }
@@ -206,6 +206,7 @@ SResultRowPool* initResultRowPool(size_t size) {
   tmp *= p->numOfElemPerBlock;
   if (tmp > INT32_MAX){
     qError("ResultRow blockSize is too large:%" PRId64, tmp);
+    tfree(p);
     return NULL;
   }
   p->blockSize = (int32_t)tmp;
