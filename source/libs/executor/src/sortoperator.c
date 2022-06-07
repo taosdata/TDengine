@@ -230,6 +230,7 @@ typedef struct SMultiwaySortMergeOperatorInfo {
   SSortHandle* pSortHandle;
   SArray*      pColMatchInfo;  // for index map from table scan output
 
+  SSDataBlock* pInputBlock;
   int64_t startTs;  // sort start time
 } SMultiwaySortMergeOperatorInfo;
 
@@ -246,14 +247,14 @@ int32_t doOpenMultiwaySortMergeOperator(SOperatorInfo* pOperator) {
   int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
 
   pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, pInfo->pColMatchInfo, SORT_MULTISOURCE_MERGE,
-                                             pInfo->bufPageSize, numOfBufPage, NULL, pTaskInfo->id.str);
+                                             pInfo->bufPageSize, numOfBufPage, pInfo->pInputBlock, pTaskInfo->id.str);
 
   tsortSetFetchRawDataFp(pInfo->pSortHandle, loadNextDataBlock, NULL, NULL);
 
   for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
-    SSortSource ps = {0};
-    ps.param = pOperator->pDownstream[i];
-    tsortAddSource(pInfo->pSortHandle, &ps);
+    SSortSource* ps = taosMemoryCalloc(1, sizeof(SSortSource));
+    ps->param = pOperator->pDownstream[i];
+    tsortAddSource(pInfo->pSortHandle, ps);
   }
 
   int32_t code = tsortOpen(pInfo->pSortHandle);
@@ -296,6 +297,7 @@ SSDataBlock* doMultiwaySortMerge(SOperatorInfo* pOperator) {
 void destroyMultiwaySortMergeOperatorInfo(void* param, int32_t numOfOutput) {
   SMultiwaySortMergeOperatorInfo * pInfo = (SMultiwaySortMergeOperatorInfo*)param;
   pInfo->binfo.pRes = blockDataDestroy(pInfo->binfo.pRes);
+  pInfo->pInputBlock = blockDataDestroy(pInfo->pInputBlock);
 
   taosArrayDestroy(pInfo->pSortInfo);
   taosArrayDestroy(pInfo->pColMatchInfo);
@@ -313,7 +315,7 @@ int32_t getMultiwaySortMergeExplainExecInfo(SOperatorInfo* pOptr, void** pOptrEx
   return TSDB_CODE_SUCCESS;
 }
 
-SOperatorInfo* createMultiwaySortMergeOperatorInfo(SOperatorInfo** downStreams, int32_t numStreams,
+SOperatorInfo* createMultiwaySortMergeOperatorInfo(SOperatorInfo** downStreams, int32_t numStreams, SSDataBlock* pInputBlock,
                                                    SSDataBlock* pResBlock, SArray* pSortInfo, SArray* pColMatchColInfo,
                                                    SExecTaskInfo* pTaskInfo) {
   SMultiwaySortMergeOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SMultiwaySortMergeOperatorInfo));
@@ -330,6 +332,7 @@ SOperatorInfo* createMultiwaySortMergeOperatorInfo(SOperatorInfo** downStreams, 
 
   pInfo->pSortInfo = pSortInfo;
   pInfo->pColMatchInfo = pColMatchColInfo;
+  pInfo->pInputBlock = pInputBlock;
   pOperator->name = "MultiwaySortMerge";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_MERGE;
   pOperator->blocking = true;
