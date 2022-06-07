@@ -1005,11 +1005,11 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
                                     (f'{stb_name} 1626006833645 "laumkwfn" t0=False t1=124i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64', 'pcppkg'), \
                                     (f'{stb_name} 1626006833646 "nyultzxr" t0=false t1=123i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64', 'pcppkg')]
         print(s_stb_d_tb_d_ts_m_tag_list)
-        for line in s_stb_d_tb_d_ts_m_tag_list:
-            self.tdSql._conn.schemaless_insert([line[0]], TDSmlProtocolType.TELNET.value, None)
+        # for line in s_stb_d_tb_d_ts_m_tag_list:
+        #     self.tdSql._conn.schemaless_insert([line[0]], TDSmlProtocolType.TELNET.value, None)
 
         # print(s_stb_d_tb_d_ts_m_tag_list)
-        # self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_d_tb_d_ts_m_tag_list))
+        self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_d_tb_d_ts_m_tag_list))
         self.tdSql.query(f"show tables;")
         self.tdSql.checkEqual(self.tdSql.query_row, 6)
 
@@ -1018,7 +1018,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         # return
 
     def run(self):
-        self.test()
+        # self.test()
         if "smlChildTableName" in self.taospy_setting["spec"]["config"]:
             if self.taospy_setting["spec"]["config"]["smlChildTableName"].upper() == "ID":
                 self.no_id_stb_exist_check()
@@ -1028,45 +1028,45 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
                 self.tag_md5_check()
                 self.tbname_tags_cols_name_check()
         else:
-            return
-            # self.init_check()
-            # self.bool_check()
-            # self.symbols_check()
-            # self.ts_check()
-            # self.opentstb_telnet_ts_check()
-            # self.id_seq_check()
-            # self.id_letter_check()
-            # self.no_id_check()
-            # # self.max_col_tag_check()
-            # self.stb_tb_name_check()
-            # self.id_start_with_num_check()
-            # self.now_check()
-            # self.date_format_check()
-            # self.illegal_ts_check()
-            # self.tbname_check()
-            # # self.tag_value_length_check()
-            # self.col_value_length_check()
-            # self.tag_col_illegal_value_check()
-            # self.blank_check()
-            # self.duplicate_id_tag_col_insert_check()
-            # self.duplicate_insert_exist_check()
-            # # self.tag_col_binary_max_length_check()
-            # # self.batch_insert_check()
-            # self.multiInsert_check(10)
-            # self.batch_error_insert_check()
-            # self.multi_cols_insert_check()
-            # self.blank_col_insert_check()
-            # self.blank_tag_insert_check()
-            # self.chinese_check()
-            # self.multi_field_check()
-            # self.spell_check()
-            # self.point_trans_check()
-            # self.defaultType_check()
-            # self.tbname_tags_cols_name_check()
-            # self.stb_insert_multi_thread_check()
-            # self.s_stb_s_tb_d_data_insert_multi_thread_check()
-            # self.s_stb_s_tb_d_data_at_insert_multi_thread_check()
-            # self.s_stb_stb_d_data_mt_insert_multi_thread_check()
+            # return
+            self.init_check()
+            self.bool_check()
+            self.symbols_check()
+            self.ts_check()
+            self.opentstb_telnet_ts_check()
+            self.id_seq_check()
+            self.id_letter_check()
+            self.no_id_check()
+            # self.max_col_tag_check()
+            self.stb_tb_name_check()
+            self.id_start_with_num_check()
+            self.now_check()
+            self.date_format_check()
+            self.illegal_ts_check()
+            self.tbname_check()
+            # self.tag_value_length_check()
+            self.col_value_length_check()
+            self.tag_col_illegal_value_check()
+            self.blank_check()
+            self.duplicate_id_tag_col_insert_check()
+            self.duplicate_insert_exist_check()
+            # self.tag_col_binary_max_length_check()
+            self.batch_insert_check()
+            self.multiInsert_check(100)
+            self.batch_error_insert_check()
+            self.multi_cols_insert_check()
+            self.blank_col_insert_check()
+            self.blank_tag_insert_check()
+            self.chinese_check()
+            self.multi_field_check()
+            self.spell_check()
+            self.point_trans_check()
+            self.defaultType_check()
+            self.tbname_tags_cols_name_check()
+            self.stb_insert_multi_thread_check()
+            self.s_stb_s_tb_d_data_insert_multi_thread_check()
+            self.s_stb_s_tb_d_data_at_insert_multi_thread_check()
+            self.s_stb_stb_d_data_mt_insert_multi_thread_check()
             self.s_stb_d_tb_d_data_insert_multi_thread_check()
             self.s_stb_d_tb_d_data_mt_insert_multi_thread_check()
             self.s_stb_d_tb_d_data_at_insert_multi_thread_check()
@@ -1074,7 +1074,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
             self.s_stb_s_tb_d_data_d_ts_mt_insert_multi_thread_check()
             self.s_stb_s_tb_d_data_d_ts_at_insert_multi_thread_check()
             self.s_stb_d_tb_d_data_d_ts_insert_multi_thread_check()
-            self.s_stb_d_tb_d_data_d_ts_mt_insert_multi_thread_check()
+            # self.s_stb_d_tb_d_data_d_ts_mt_insert_multi_thread_check()
 
         # # for env_setting in self.env_setting["settings"]:
         # #     if env_setting["name"] == "taosAdapter":
@@ -1154,3 +1154,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
 
     def tags(self):
         return T.Write.Schemaless.Taosc.OpenTsDBTelnet, T.Write.Schemaless.Restful.OpenTsDBTelnetTCP
+
+
+
+    
