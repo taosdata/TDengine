@@ -165,29 +165,33 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
 
       // has snapshot
       if (syncNodeHasSnapshot(ths)) {
-        SSnapshot snapshot;
-        ths->pFsm->FpGetSnapshot(ths->pFsm, &snapshot);
-        if (nextIndex <= snapshot.lastApplyIndex) {
-          // ASSERT(nextIndex == snapshot.lastApplyIndex);
-
-          nextIndex = snapshot.lastApplyIndex + 1;
-          sInfo("reset new nextIndex %ld, snapshot.lastApplyIndex:%ld", nextIndex, snapshot.lastApplyIndex);
-
-          // start send snapshot
-          // get sender
-          SSyncSnapshotSender* pSender = NULL;
-          for (int i = 0; i < ths->replicaNum; ++i) {
-            if (syncUtilSameId(&(pMsg->srcId), &((ths->replicasId)[i]))) {
-              pSender = (ths->senders)[i];
-            }
+        // get sender
+        SSyncSnapshotSender* pSender = NULL;
+        for (int i = 0; i < ths->replicaNum; ++i) {
+          if (syncUtilSameId(&(pMsg->srcId), &((ths->replicasId)[i]))) {
+            pSender = (ths->senders)[i];
           }
-          ASSERT(pSender != NULL);
+        }
+        ASSERT(pSender != NULL);
 
+        // calculate sentryIndex
+        SyncIndex sentryIndex;
+        if (pSender->start) {
+          sentryIndex = pSender->snapshot.lastApplyIndex;
+
+        } else {
+          // start send snapshot
           if (!(pSender->term == ths->pRaftStore->currentTerm && pSender->finish == true)) {
             snapshotSenderStart(pSender);
           } else {
             sInfo("snapshot send finish, send_term:%lu, current_term:%lu", pSender->term, ths->pRaftStore->currentTerm);
           }
+          sentryIndex = pSender->snapshot.lastApplyIndex;
+        }
+
+        // update nextIndex to sentryIndex + 1
+        if (nextIndex <= sentryIndex) {
+          nextIndex = sentryIndex + 1;
         }
       }
 

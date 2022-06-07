@@ -1693,6 +1693,7 @@ const char* syncStr(ESyncState state) {
 
 int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex, uint64_t flag) {
   int32_t code = 0;
+  sInfo("sync commit from %ld to %ld, flag:0x%lX", beginIndex, endIndex, flag);
 
   // maybe execute by leader, skip snapshot
   SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
