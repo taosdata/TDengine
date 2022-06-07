@@ -21,6 +21,7 @@ python3 ./test.py -f 1-insert/opentsdb_json_taosc_insert.py
 #python3 ./test.py -f 1-insert/test_stmt_muti_insert_query.py
 python3 ./test.py -f 1-insert/alter_stable.py
 python3 ./test.py -f 1-insert/alter_table.py
+# python3 ./test.py -f 1-inerst/create_table_comment.py
 python3 ./test.py -f 2-query/between.py
 python3 ./test.py -f 2-query/distinct.py
 python3 ./test.py -f 2-query/varchar.py
@@ -57,6 +58,7 @@ python3 ./test.py -f 2-query/To_unixtimestamp.py
 python3 ./test.py -f 2-query/timetruncate.py
 python3 ./test.py -f 2-query/diff.py
 python3 ./test.py -f 2-query/Timediff.py
+python3 ./test.py -f 2-query/json_tag.py
 
 python3 ./test.py -f 2-query/top.py
 python3 ./test.py -f 2-query/bottom.py

@@ -425,6 +425,7 @@ static int32_t createScanPhysiNodeFinalize(SPhysiPlanContext* pCxt, SSubplan* pS
 
   if (TSDB_CODE_SUCCESS == code) {
     pScanPhysiNode->uid = pScanLogicNode->tableId;
+    pScanPhysiNode->suid = pScanLogicNode->stableId;
     pScanPhysiNode->tableType = pScanLogicNode->tableType;
     memcpy(&pScanPhysiNode->tableName, &pScanLogicNode->tableName, sizeof(SName));
     if (NULL != pScanLogicNode->pTagCond) {
@@ -790,6 +791,43 @@ static int32_t createAggPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
   return code;
 }
 
+static int32_t createIndefRowsFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
+                                            SIndefRowsFuncLogicNode* pFuncLogicNode, SPhysiNode** pPhyNode) {
+  SIndefRowsFuncPhysiNode* pIdfRowsFunc = (SIndefRowsFuncPhysiNode*)makePhysiNode(
+      pCxt, (SLogicNode*)pFuncLogicNode, QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC);
+  if (NULL == pIdfRowsFunc) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  SNodeList* pPrecalcExprs = NULL;
+  SNodeList* pVectorFuncs = NULL;
+  int32_t    code = rewritePrecalcExprs(pCxt, pFuncLogicNode->pVectorFuncs, &pPrecalcExprs, &pVectorFuncs);
+
+  SDataBlockDescNode* pChildTupe = (((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc);
+  // push down expression to pOutputDataBlockDesc of child node
+  if (TSDB_CODE_SUCCESS == code && NULL != pPrecalcExprs) {
+    code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pPrecalcExprs, &pIdfRowsFunc->pExprs);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = pushdownDataBlockSlots(pCxt, pIdfRowsFunc->pExprs, pChildTupe);
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code && NULL != pVectorFuncs) {
+    code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pVectorFuncs, &pIdfRowsFunc->pVectorFuncs);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = addDataBlockSlots(pCxt, pIdfRowsFunc->pVectorFuncs, pIdfRowsFunc->node.pOutputDataBlockDesc);
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pPhyNode = (SPhysiNode*)pIdfRowsFunc;
+  } else {
+    nodesDestroyNode(pIdfRowsFunc);
+  }
+
+  return code;
+}
+
 static int32_t createProjectPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                       SProjectLogicNode* pProjectLogicNode, SPhysiNode** pPhyNode) {
   SProjectPhysiNode* pProject =
@@ -923,8 +961,8 @@ static ENodeType getIntervalOperatorType(EIntervalAlgorithm intervalAlgo) {
   switch (intervalAlgo) {
     case INTERVAL_ALGO_HASH:
       return QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL;
-    case INTERVAL_ALGO_SORT_MERGE:
-      return QUERY_NODE_PHYSICAL_PLAN_SORT_MERGE_INTERVAL;
+    case INTERVAL_ALGO_MERGE:
+      return QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL;
     case INTERVAL_ALGO_STREAM_FINAL:
       return QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL;
     case INTERVAL_ALGO_STREAM_SEMI:
@@ -1155,6 +1193,8 @@ static int32_t createExchangePhysiNodeByMerge(SMergePhysiNode* pMerge) {
     nodesDestroyNode(pExchange);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  SNode* pSlot = NULL;
+  FOREACH(pSlot, pExchange->node.pOutputDataBlockDesc->pSlots) { ((SSlotDescNode*)pSlot)->output = true; }
   return nodesListMakeStrictAppend(&pMerge->node.pChildren, pExchange);
 }
 
@@ -1168,18 +1208,28 @@ static int32_t createMergePhysiNode(SPhysiPlanContext* pCxt, SMergeLogicNode* pM
   pMerge->numOfChannels = pMergeLogicNode->numOfChannels;
   pMerge->srcGroupId = pMergeLogicNode->srcGroupId;
 
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t code = addDataBlockSlots(pCxt, pMergeLogicNode->pInputs, pMerge->node.pOutputDataBlockDesc);
 
-  for (int32_t i = 0; i < pMerge->numOfChannels; ++i) {
-    code = createExchangePhysiNodeByMerge(pMerge);
-    if (TSDB_CODE_SUCCESS != code) {
-      break;
+  if (TSDB_CODE_SUCCESS == code) {
+    for (int32_t i = 0; i < pMerge->numOfChannels; ++i) {
+      code = createExchangePhysiNodeByMerge(pMerge);
+      if (TSDB_CODE_SUCCESS != code) {
+        break;
+      }
     }
   }
 
   if (TSDB_CODE_SUCCESS == code) {
     code = setListSlotId(pCxt, pMerge->node.pOutputDataBlockDesc->dataBlockId, -1, pMergeLogicNode->pMergeKeys,
                          &pMerge->pMergeKeys);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setListSlotId(pCxt, pMerge->node.pOutputDataBlockDesc->dataBlockId, -1, pMergeLogicNode->node.pTargets,
+                         &pMerge->pTargets);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = addDataBlockSlots(pCxt, pMerge->pTargets, pMerge->node.pOutputDataBlockDesc);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -1212,6 +1262,8 @@ static int32_t doCreatePhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode
       return createPartitionPhysiNode(pCxt, pChildren, (SPartitionLogicNode*)pLogicNode, pPhyNode);
     case QUERY_NODE_LOGIC_PLAN_FILL:
       return createFillPhysiNode(pCxt, pChildren, (SFillLogicNode*)pLogicNode, pPhyNode);
+    case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC:
+      return createIndefRowsFuncPhysiNode(pCxt, pChildren, (SIndefRowsFuncLogicNode*)pLogicNode, pPhyNode);
     case QUERY_NODE_LOGIC_PLAN_MERGE:
       return createMergePhysiNode(pCxt, (SMergeLogicNode*)pLogicNode, pPhyNode);
     default:
@@ -1319,13 +1371,21 @@ static int32_t createDataDeleter(SPhysiPlanContext* pCxt, SVnodeModifyLogicNode*
   strcpy(pDeleter->tableFName, pModify->tableFName);
   pDeleter->deleteTimeRange = pModify->deleteTimeRange;
 
-  pDeleter->sink.pInputDataBlockDesc = nodesCloneNode(pRoot->pOutputDataBlockDesc);
-  if (NULL == pDeleter->sink.pInputDataBlockDesc) {
-    nodesDestroyNode(pDeleter);
-    return TSDB_CODE_OUT_OF_MEMORY;
+  int32_t code = setNodeSlotId(pCxt, pRoot->pOutputDataBlockDesc->dataBlockId, -1, pModify->pAffectedRows,
+                               &pDeleter->pAffectedRows);
+  if (TSDB_CODE_SUCCESS == code) {
+    pDeleter->sink.pInputDataBlockDesc = nodesCloneNode(pRoot->pOutputDataBlockDesc);
+    if (NULL == pDeleter->sink.pInputDataBlockDesc) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
   }
 
-  *pSink = (SDataSinkNode*)pDeleter;
+  if (TSDB_CODE_SUCCESS == code) {
+    *pSink = (SDataSinkNode*)pDeleter;
+  } else {
+    nodesDestroyNode(pDeleter);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 

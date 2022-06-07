@@ -518,6 +518,7 @@ int32_t ctgStbVersionSearchCompare(const void* key1, const void* key2);
 int32_t ctgDbVgVersionSearchCompare(const void* key1, const void* key2);
 void ctgFreeSTableMetaOutput(STableMetaOutput* pOutput);
 int32_t ctgUpdateMsgCtx(SCtgMsgCtx* pCtx, int32_t reqType, void* out, char* target);
+char *ctgTaskTypeStr(CTG_TASK_TYPE type);
 
 
 extern SCatalogMgmt gCtgMgmt;

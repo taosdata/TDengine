@@ -13,15 +13,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include "planTestUtil.h"
 
-#ifndef _TSTREAM_H_
-#define _TSTREAM_H_
+using namespace std;
 
-#ifdef __cplusplus
+class PlanProjectTest : public PlannerTestBase {};
+
+TEST_F(PlanProjectTest, basic) {
+  useDb("root", "test");
+
+  run("SELECT CEIL(c1) FROM t1");
 }
-#endif
 
-#endif /* ifndef _TSTREAM_H_ */
+TEST_F(PlanProjectTest, indefiniteRowsFunc) {
+  useDb("root", "test");
+
+  run("SELECT MAVG(c1, 10) FROM t1");
+
+  run("SELECT MAVG(CEIL(c1), 20) + 2 FROM t1");
+}

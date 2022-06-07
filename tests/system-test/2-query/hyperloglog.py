@@ -223,7 +223,7 @@ class TDTestCase:
         tdLog.printNoPrefix("===step 0: err case, must return err")
         tdSql.error( "select hyperloglog() from ct1" )
         tdSql.error( "select hyperloglog(c1, c2) from ct2" )
-        tdSql.error( "select hyperloglog(1) from ct2" )
+        # tdSql.error( "select hyperloglog(1) from ct2" )
         tdSql.error( f"select hyperloglog({NUM_COL[0]}, {NUM_COL[1]}) from ct4" )
         tdSql.error( ''' select hyperloglog(['c1 + c1', 'c1 + c2', 'c1 + c3', 'c1 + c4', 'c1 + c5', 'c1 + c6', 'c1 + c7', 'c1 + c8', 'c1 + c9', 'c1 + c10'])
                     from ct1
