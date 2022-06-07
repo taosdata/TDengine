@@ -1883,11 +1883,11 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowR
         ASSERT(pBlock->info.rows == numOfRows);
       }
 
-      if(needFree){
-        SColumnInfoData tmp = *pSrc;
-        *pSrc = *pDst;
-        *pDst = tmp;
-      }else{
+      SColumnInfoData tmp = *pSrc;
+      *pSrc = *pDst;
+      *pDst = tmp;
+
+      if(!needFree){
         if(IS_VAR_DATA_TYPE(pDst->info.type)){  // this elements do not need free
           pDst->varmeta.offset = NULL;
         }else{
