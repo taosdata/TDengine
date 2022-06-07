@@ -34,7 +34,7 @@ class TestBigintBoundary(TDCase):
         case_dir = case_path[:len(case_path)-len_case]
         print(case_dir)
         host = self.get_component_by_name(
-            "taosd")[0]
+            "taosd")[0]['fqdn'][0]
         print(host)
         # ret = self.envMgr._remote.cmd2(host=)
         ret = os.system(f"taosBenchmark -f  {case_dir}pre_datas_insert.json")
