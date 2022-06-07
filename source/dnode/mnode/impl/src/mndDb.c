@@ -263,111 +263,6 @@ void mndReleaseDb(SMnode *pMnode, SDbObj *pDb) {
   sdbRelease(pSdb, pDb);
 }
 
-static int32_t mndAddCreateVnodeAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup, SVnodeGid *pVgid,
-                                       bool standby) {
-  STransAction action = {0};
-
-  SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
-  if (pDnode == NULL) return -1;
-  action.epSet = mndGetDnodeEpset(pDnode);
-  mndReleaseDnode(pMnode, pDnode);
-
-  int32_t contLen = 0;
-  void   *pReq = mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVgroup, &contLen, standby);
-  if (pReq == NULL) return -1;
-
-  action.pCont = pReq;
-  action.contLen = contLen;
-  action.msgType = TDMT_DND_CREATE_VNODE;
-  action.acceptableCode = TSDB_CODE_NODE_ALREADY_DEPLOYED;
-
-  if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-    taosMemoryFree(pReq);
-    return -1;
-  }
-
-  return 0;
-}
-
-static int32_t mndAddAlterVnodeConfirmAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup) {
-  STransAction action = {0};
-  action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
-
-  int32_t   contLen = sizeof(SMsgHead);
-  SMsgHead *pHead = taosMemoryMalloc(contLen);
-  if (pHead == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  pHead->contLen = htonl(contLen);
-  pHead->vgId = htonl(pVgroup->vgId);
-
-  action.pCont = pHead;
-  action.contLen = contLen;
-  action.msgType = TDMT_VND_ALTER_CONFIRM;
-
-  if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-    taosMemoryFree(pHead);
-    return -1;
-  }
-
-  return 0;
-}
-
-static int32_t mndAddAlterVnodeAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup, tmsg_t msgType) {
-  STransAction action = {0};
-  action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
-
-  int32_t contLen = 0;
-  void   *pReq = mndBuildAlterVnodeReq(pMnode, pDb, pVgroup, &contLen);
-  if (pReq == NULL) return -1;
-
-  action.pCont = pReq;
-  action.contLen = contLen;
-  action.msgType = msgType;
-
-  if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-    taosMemoryFree(pReq);
-    return -1;
-  }
-
-  return 0;
-}
-
-static int32_t mndAddDropVnodeAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup, SVnodeGid *pVgid,
-                                     bool isRedo) {
-  STransAction action = {0};
-
-  SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
-  if (pDnode == NULL) return -1;
-  action.epSet = mndGetDnodeEpset(pDnode);
-  mndReleaseDnode(pMnode, pDnode);
-
-  int32_t contLen = 0;
-  void   *pReq = mndBuildDropVnodeReq(pMnode, pDnode, pDb, pVgroup, &contLen);
-  if (pReq == NULL) return -1;
-
-  action.pCont = pReq;
-  action.contLen = contLen;
-  action.msgType = TDMT_DND_DROP_VNODE;
-  action.acceptableCode = TSDB_CODE_NODE_NOT_DEPLOYED;
-
-  if (isRedo) {
-    if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-      taosMemoryFree(pReq);
-      return -1;
-    }
-  } else {
-    if (mndTransAppendUndoAction(pTrans, &action) != 0) {
-      taosMemoryFree(pReq);
-      return -1;
-    }
-  }
-
-  return 0;
-}
-
 static int32_t mndCheckDbName(const char *dbName, SUserObj *pUser) {
   char *pos = strstr(dbName, TS_PATH_DELIMITER);
   if (pos == NULL) {
@@ -795,7 +690,7 @@ static int32_t mndBuildAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj 
 static int32_t mndSetAlterDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pOld, SDbObj *pNew) {
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
-  SArray *pArray = mndBuildDnodesArray(pMnode);
+  SArray *pArray = mndBuildDnodesArray(pMnode, 0);
 
   while (1) {
     SVgObj *pVgroup = NULL;
@@ -1497,19 +1392,25 @@ char *buildRetension(SArray *pRetension) {
 
   int64_t v1 = getValOfDiffPrecision(p->freqUnit, p->freq);
   int64_t v2 = getValOfDiffPrecision(p->keepUnit, p->keep);
-  len += sprintf(p1 + len, "%" PRId64 "%c:%" PRId64 "%c,", v1, p->freqUnit, v2, p->keepUnit);
-
-  p = taosArrayGet(pRetension, 1);
-
-  v1 = getValOfDiffPrecision(p->freqUnit, p->freq);
-  v2 = getValOfDiffPrecision(p->keepUnit, p->keep);
-  len += sprintf(p1 + len, "%" PRId64 "%c:%" PRId64 "%c,", v1, p->freqUnit, v2, p->keepUnit);
-
-  p = taosArrayGet(pRetension, 2);
-
-  v1 = getValOfDiffPrecision(p->freqUnit, p->freq);
-  v2 = getValOfDiffPrecision(p->keepUnit, p->keep);
   len += sprintf(p1 + len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
+
+  if (size > 1) {
+    len += sprintf(p1 + len, ",");
+    p = taosArrayGet(pRetension, 1);
+
+    v1 = getValOfDiffPrecision(p->freqUnit, p->freq);
+    v2 = getValOfDiffPrecision(p->keepUnit, p->keep);
+    len += sprintf(p1 + len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
+  }
+
+  if (size > 2) {
+    len += sprintf(p1 + len, ",");
+    p = taosArrayGet(pRetension, 2);
+
+    v1 = getValOfDiffPrecision(p->freqUnit, p->freq);
+    v2 = getValOfDiffPrecision(p->keepUnit, p->keep);
+    len += sprintf(p1 + len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
+  }
 
   varDataSetLen(p1, len);
   return p1;
@@ -1742,3 +1643,4 @@ static void mndCancelGetNextDb(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetch(pSdb, pIter);
 }
+

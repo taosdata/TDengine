@@ -50,6 +50,8 @@ TEST_F(PlanIntervalTest, selectFunc) {
   run("SELECT MAX(c1), MIN(c1) FROM t1 INTERVAL(10s)");
   // select function along with the columns of select row, and with INTERVAL clause
   run("SELECT MAX(c1), c2 FROM t1 INTERVAL(10s)");
+
+  run("SELECT TOP(c1, 1) FROM t1 INTERVAL(10s) ORDER BY c1");
 }
 
 TEST_F(PlanIntervalTest, stable) {

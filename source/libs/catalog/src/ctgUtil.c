@@ -19,6 +19,31 @@
 #include "catalogInt.h"
 #include "systable.h"
 
+char *ctgTaskTypeStr(CTG_TASK_TYPE type) {
+  switch (type) {
+    case CTG_TASK_GET_QNODE:
+      return "[get qnode list]";
+    case CTG_TASK_GET_DB_VGROUP:
+      return "[get db vgroup]";
+    case CTG_TASK_GET_DB_CFG:
+      return "[get db cfg]";
+    case CTG_TASK_GET_DB_INFO:
+      return "[get db info]";
+    case CTG_TASK_GET_TB_META:
+      return "[get table meta]";
+    case CTG_TASK_GET_TB_HASH:
+      return "[get table hash]";
+    case CTG_TASK_GET_INDEX:
+      return "[get index]";
+    case CTG_TASK_GET_UDF:
+      return "[get udf]";
+    case CTG_TASK_GET_USER:
+      return "[get user]";
+    default:
+      return "unknown";
+  }
+}
+
 void ctgFreeSMetaData(SMetaData* pData) {
   taosArrayDestroy(pData->pTableMeta);
   pData->pTableMeta = NULL;
@@ -476,6 +501,9 @@ int32_t ctgGetVgInfoFromHashValue(SCatalog *pCtg, SDBVgInfo *dbInfo, const SName
   }
 
   *pVgroup = *vgInfo;
+
+  ctgDebug("Got tb %s hash vgroup, vgId %d, epNum %d, current %s port %d", tbFullName, vgInfo->vgId, vgInfo->epSet.numOfEps,
+    vgInfo->epSet.eps[vgInfo->epSet.inUse].fqdn, vgInfo->epSet.eps[vgInfo->epSet.inUse].port);
 
   CTG_RET(code);
 }

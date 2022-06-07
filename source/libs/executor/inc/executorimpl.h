@@ -524,6 +524,17 @@ typedef struct SProjectOperatorInfo {
   int64_t            curOutput;
 } SProjectOperatorInfo;
 
+typedef struct SIndefOperatorInfo {
+  SOptrBasicInfo     binfo;
+  SAggSupporter      aggSup;
+  SArray*            pPseudoColInfo;
+
+  SExprInfo*         pScalarExpr;
+  int32_t            numOfScalarExpr;
+  SqlFunctionCtx*    pScalarCtx;
+  int32_t*           rowCellInfoOffset;
+} SIndefOperatorInfo;
+
 typedef struct SFillOperatorInfo {
   struct SFillInfo* pFillInfo;
   SSDataBlock*      pRes;
@@ -770,10 +781,13 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScan
 SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock, SExprInfo* pScalarExprInfo,
                                            int32_t numOfScalarExpr, SExecTaskInfo* pTaskInfo);
 
+SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode *pNode, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t num, SSDataBlock* pResBlock, SLimit* pLimit, SLimit* pSlimit, SNode* pCondition, SExecTaskInfo* pTaskInfo);
 SOperatorInfo *createSortOperatorInfo(SOperatorInfo* downstream, SSDataBlock* pResBlock, SArray* pSortInfo, SExprInfo* pExprInfo, int32_t numOfCols,
                                       SArray* pIndexMap, SExecTaskInfo* pTaskInfo);
-
+SOperatorInfo* createMultiwaySortMergeOperatorInfo(SOperatorInfo** downStreams, int32_t numStreams,
+                                                   SSDataBlock* pResBlock, SArray* pSortInfo, SArray* pColMatchColInfo,
+                                                   SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createSortedMergeOperatorInfo(SOperatorInfo** downstream, int32_t numOfDownstream, SExprInfo* pExprInfo, int32_t num, SArray* pSortInfo, SArray* pGroupInfo, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
@@ -855,6 +869,7 @@ int32_t decodeOperator(SOperatorInfo* ops, char* data, int32_t length);
 void    setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status);
 int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
                                EOPTR_EXEC_MODEL model);
+int32_t createDataSinkParam(SDataSinkNode *pNode, void **pParam, qTaskInfo_t* pTaskInfo);                               
 int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SExplainExecInfo** pRes, int32_t* capacity,
                                    int32_t* resNum);
 

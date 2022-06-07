@@ -99,7 +99,7 @@ void colDataTrim(SColumnInfoData* pColumnInfoData) {
   // TODO
 }
 
-int32_t getJsonValueLen(const char* data) {
+int32_t getJsonValueLen(const char *data) {
   int32_t dataLen = 0;
   if (*data == TSDB_DATA_TYPE_NULL) {
     dataLen = CHAR_BYTES;
@@ -109,7 +109,7 @@ int32_t getJsonValueLen(const char* data) {
     dataLen = DOUBLE_BYTES + CHAR_BYTES;
   } else if (*data == TSDB_DATA_TYPE_BOOL) {
     dataLen = CHAR_BYTES + CHAR_BYTES;
-  } else if (*data & TD_TAG_JSON) {  // json string
+  } else if (*data & TD_TAG_JSON) {   // json string
     dataLen = ((STag*)(data))->len;
   } else {
     ASSERT(0);
@@ -137,7 +137,7 @@ int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, con
     int32_t dataLen = 0;
     if (type == TSDB_DATA_TYPE_JSON) {
       dataLen = getJsonValueLen(pData);
-    } else {
+    }else {
       dataLen = varDataTLen(pData);
     }
 
@@ -1283,7 +1283,7 @@ static void doShiftBitmap(char* nullBitmap, size_t n, size_t total) {
   if (n % 8 == 0) {
     memmove(nullBitmap, nullBitmap + n / 8, newLen);
   } else {
-    int32_t  tail = n % 8;
+    int32_t tail = n % 8;
     int32_t  i = 0;
     uint8_t* p = (uint8_t*)nullBitmap;
 
@@ -1301,7 +1301,7 @@ static void doShiftBitmap(char* nullBitmap, size_t n, size_t total) {
       }
     } else if (n > 8) {
       int32_t gap = len - newLen;
-      while (i < newLen) {
+      while(i < newLen) {
         uint8_t v = p[i + gap];
         p[i] = (v << tail);
 
@@ -1315,6 +1315,7 @@ static void doShiftBitmap(char* nullBitmap, size_t n, size_t total) {
     }
   }
 }
+
 
 static void colDataTrimFirstNRows(SColumnInfoData* pColInfoData, size_t n, size_t total) {
   if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
@@ -1543,8 +1544,7 @@ void blockDebugShowData(const SArray* dataBlocks, const char* flag) {
  *
  * TODO: colId should be set
  */
-int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks, STSchema* pTSchema, int32_t vgId,
-                                    tb_uid_t suid) {
+int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks, STSchema* pTSchema, int32_t vgId, tb_uid_t suid) {
   int32_t sz = taosArrayGetSize(pDataBlocks);
   int32_t bufSize = sizeof(SSubmitReq);
   for (int32_t i = 0; i < sz; ++i) {
@@ -1585,12 +1585,11 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks
     int32_t dataLen = 0;
     for (int32_t j = 0; j < rows; ++j) {                     // iterate by row
       tdSRowResetBuf(&rb, POINTER_SHIFT(pDataBuf, msgLen));  // set row buf
-      bool    isStartKey = false;
+      bool isStartKey = false;
       int32_t offset = 0;
       for (int32_t k = 0; k < colNum; ++k) {  // iterate by column
         SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, k);
-        STColumn*        pCol = &pTSchema->columns[k];
-        ASSERT(pCol->type == pColInfoData->info.type);
+        STColumn*         pCol = &pTSchema->columns[k];
         void* var = POINTER_SHIFT(pColInfoData->pData, j * pColInfoData->info.bytes);
         switch (pColInfoData->info.type) {
           case TSDB_DATA_TYPE_TIMESTAMP:
@@ -1600,38 +1599,53 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks
                                   offset, k);
 
             } else {
-              tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, TSDB_DATA_TYPE_TIMESTAMP, TD_VTYPE_NORM, var,
-                                  true, offset, k);
+              tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, TSDB_DATA_TYPE_TIMESTAMP, TD_VTYPE_NORM, var, true, offset, k);
             }
             break;
           case TSDB_DATA_TYPE_NCHAR: {
-            tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, TSDB_DATA_TYPE_NCHAR, TD_VTYPE_NORM, var, true,
-                                offset, k);
+            tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, TSDB_DATA_TYPE_NCHAR, TD_VTYPE_NORM, var, true, offset, k);
             break;
           }
           case TSDB_DATA_TYPE_VARCHAR: {  // TSDB_DATA_TYPE_BINARY
-            tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, TSDB_DATA_TYPE_VARCHAR, TD_VTYPE_NORM, var, true,
-                                offset, k);
+            tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, TSDB_DATA_TYPE_VARCHAR, TD_VTYPE_NORM, var, true, offset, k);
             break;
           }
           case TSDB_DATA_TYPE_VARBINARY:
           case TSDB_DATA_TYPE_DECIMAL:
           case TSDB_DATA_TYPE_BLOB:
+          case TSDB_DATA_TYPE_JSON:
           case TSDB_DATA_TYPE_MEDIUMBLOB:
             uError("the column type %" PRIi16 " is defined but not implemented yet", pColInfoData->info.type);
             TASSERT(0);
             break;
           default:
             if (pColInfoData->info.type < TSDB_DATA_TYPE_MAX && pColInfoData->info.type > TSDB_DATA_TYPE_NULL) {
-              tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, pColInfoData->info.type, TD_VTYPE_NORM, var,
-                                  true, offset, k);
+              char tv[8] = {0};
+              if (pColInfoData->info.type == TSDB_DATA_TYPE_FLOAT) {
+                float v = 0;
+                GET_TYPED_DATA(v, float, pColInfoData->info.type, var);
+                SET_TYPED_DATA(&tv, pCol->type, v);
+              } else if (pColInfoData->info.type == TSDB_DATA_TYPE_DOUBLE) {
+                double v = 0;
+                GET_TYPED_DATA(v, double, pColInfoData->info.type, var);
+                SET_TYPED_DATA(&tv, pCol->type, v);
+              } else if (IS_SIGNED_NUMERIC_TYPE(pColInfoData->info.type)) {
+                int64_t v = 0;
+                GET_TYPED_DATA(v, int64_t, pColInfoData->info.type, var);
+                SET_TYPED_DATA(&tv, pCol->type, v);
+              } else {
+                uint64_t v = 0;
+                GET_TYPED_DATA(v, uint64_t, pColInfoData->info.type, var);
+                SET_TYPED_DATA(&tv, pCol->type, v);
+              }
+              tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, pCol->type, TD_VTYPE_NORM, tv, true, offset, k);
             } else {
               uError("the column type %" PRIi16 " is undefined\n", pColInfoData->info.type);
               TASSERT(0);
             }
             break;
         }
-        offset += TYPE_BYTES[pColInfoData->info.type];
+        offset += TYPE_BYTES[pCol->type]; // sum/avg would convert to int64_t/uint64_t/double during aggregation
       }
       dataLen += TD_ROW_LEN(rb.pBuf);
 #ifdef TD_DEBUG_PRINT_ROW
@@ -1671,7 +1685,7 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
                             const char* stbFullName, int32_t vgId) {
   SSubmitReq* ret = NULL;
   SArray*     tagArray = taosArrayInit(1, sizeof(STagVal));
-  if (!tagArray) {
+  if(!tagArray) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
@@ -1695,6 +1709,8 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
       createTbReq.flags = 0;
       createTbReq.type = TSDB_CHILD_TABLE;
       createTbReq.ctb.suid = suid;
+
+
 
       STagVal tagVal = {.cid = 1,
                         .type = TSDB_DATA_TYPE_UBIGINT,

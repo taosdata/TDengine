@@ -11,10 +11,12 @@ set /a a=0
 @REM )
 echo Linux Taosd Test
 for /F "usebackq tokens=*" %%i in (fulltest.bat) do (
-    echo Processing %%i
-    set /a a+=1
-    call %%i ARG1 -m %1 > result_!a!.txt 2>error_!a!.txt
-    if errorlevel 1 ( call :colorEcho 0c "failed" &echo. && exit 8 ) else ( call :colorEcho 0a "Success" &echo. ) 
+    for /f "tokens=1* delims= " %%a in ("%%i") do if not "%%a" == "@REM" (
+        echo Processing %%i
+        set /a a+=1
+        call %%i ARG1 -m %1 > result_!a!.txt 2>error_!a!.txt
+        if errorlevel 1 ( call :colorEcho 0c "failed" &echo. && echo result: && cat result_!a!.txt && echo error: && cat error_!a!.txt && exit 8 ) else ( call :colorEcho 0a "Success" &echo. ) 
+    )
 )
 exit
 
