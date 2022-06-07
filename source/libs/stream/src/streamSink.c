@@ -15,6 +15,21 @@
 
 #include "streamInc.h"
 
+int32_t streamDispatchAll(SStreamTask* pTask, SMsgCb* pMsgCb) {
+  ASSERT(pTask->sinkType == TASK_SINK__NONE);
+  ASSERT(pTask->dispatchType != TASK_DISPATCH__NONE);
+  while (1) {
+    SStreamDataBlock* pBlock = streamQueueNextItem(pTask->outputQueue);
+    if (pBlock == NULL) break;
+    ASSERT(pBlock->type == STREAM_DATA_TYPE_SSDATA_BLOCK);
+
+    streamDispatch(pTask, pMsgCb, pBlock);
+
+    /*streamQueueProcessSuccess(pTask->outputQueue);*/
+  }
+  return 0;
+}
+
 int32_t streamSink1(SStreamTask* pTask, SMsgCb* pMsgCb) {
   SStreamQueue* queue;
   if (pTask->execType == TASK_EXEC__NONE) {
@@ -55,6 +70,57 @@ int32_t streamSink1(SStreamTask* pTask, SMsgCb* pMsgCb) {
     }
   }
 
+  return 0;
+}
+
+int32_t streamDispatch(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDataBlock* data) {
+#if 1
+  int8_t old =
+      atomic_val_compare_exchange_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL, TASK_OUTPUT_STATUS__WAIT);
+  if (old != TASK_OUTPUT_STATUS__NORMAL) {
+    return 0;
+  }
+#endif
+  ASSERT(pTask->dispatchType != TASK_DISPATCH__INPLACE);
+
+  /*if (pTask->dispatchType == TASK_DISPATCH__INPLACE) {*/
+  /*SRpcMsg dispatchMsg = {0};*/
+  /*if (streamBuildDispatchMsg(pTask, data, &dispatchMsg, NULL) < 0) {*/
+  /*ASSERT(0);*/
+  /*return -1;*/
+  /*}*/
+
+  /*int32_t qType;*/
+  /*if (pTask->dispatchMsgType == TDMT_STREAM_TASK_DISPATCH) {*/
+  /*qType = FETCH_QUEUE;*/
+  /*} else if (pTask->dispatchMsgType == TDMT_VND_STREAM_DISPATCH_WRITE) {*/
+  /*qType = WRITE_QUEUE;*/
+  /*} else {*/
+  /*ASSERT(0);*/
+  /*}*/
+  /*tmsgPutToQueue(pMsgCb, qType, &dispatchMsg);*/
+  /*atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);*/
+
+  if (pTask->dispatchType == TASK_DISPATCH__FIXED) {
+    SRpcMsg dispatchMsg = {0};
+    SEpSet* pEpSet = NULL;
+    if (streamBuildDispatchMsg(pTask, data, &dispatchMsg, &pEpSet) < 0) {
+      ASSERT(0);
+      return -1;
+    }
+
+    tmsgSendReq(pEpSet, &dispatchMsg);
+
+  } else if (pTask->dispatchType == TASK_DISPATCH__SHUFFLE) {
+    SRpcMsg dispatchMsg = {0};
+    SEpSet* pEpSet = NULL;
+    if (streamBuildDispatchMsg(pTask, data, &dispatchMsg, &pEpSet) < 0) {
+      ASSERT(0);
+      return -1;
+    }
+
+    tmsgSendReq(pEpSet, &dispatchMsg);
+  }
   return 0;
 }
 
