@@ -110,7 +110,8 @@ static EDealRes collectMetaKeyFromFunction(SCollectMetaKeyFromExprCxt* pCxt, SFu
   if (fmIsBuiltinFunc(pFunc->functionName)) {
     return TSDB_CODE_SUCCESS;
   }
-  return reserveUdfInCache(pFunc->functionName, pCxt->pComCxt->pMetaCache);
+  pCxt->errCode = reserveUdfInCache(pFunc->functionName, pCxt->pComCxt->pMetaCache);
+  return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
 }
 
 static int32_t collectMetaKeyFromRealTableImpl(SCollectMetaKeyCxt* pCxt, SRealTableNode* pRealTable,
