@@ -1155,6 +1155,7 @@ static int doSmlInsertOneDataPoint(TAOS* taos, TAOS_SML_DATA_POINT* point, SSmlL
     retLen = snprintf(sql + sqlLen, freeBytes - sqlLen, "%s,", kv->key);
     if (retLen >= freeBytes - sqlLen) {
       tscError("SML:0x%" PRIx64 " no free space for building sql key", info->id);
+      free(sql);
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
     sqlLen += retLen;
@@ -1163,6 +1164,7 @@ static int doSmlInsertOneDataPoint(TAOS* taos, TAOS_SML_DATA_POINT* point, SSmlL
   retLen += snprintf(sql + sqlLen, freeBytes - sqlLen, ") values (");
   if (retLen >= freeBytes - sqlLen) {
     tscError("SML:0x%" PRIx64 " no free space for building sql", info->id);
+    free(sql);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
   sqlLen += retLen;
@@ -1172,6 +1174,7 @@ static int doSmlInsertOneDataPoint(TAOS* taos, TAOS_SML_DATA_POINT* point, SSmlL
   retLen = snprintf(sql + sqlLen, freeBytes - sqlLen, "%" PRId64 ",", ts);
   if (retLen >= freeBytes - sqlLen) {
     tscError("SML:0x%" PRIx64 " no free space for building timestamp", info->id);
+    free(sql);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
   sqlLen += retLen;
@@ -1181,6 +1184,7 @@ static int doSmlInsertOneDataPoint(TAOS* taos, TAOS_SML_DATA_POINT* point, SSmlL
 
     if (freeBytes - sqlLen <= kv->length) {
       tscError("SML:0x%" PRIx64 " no free space for converToStr", info->id);
+      free(sql);
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
     converToStr(sql + sqlLen, kv->type, kv->value, kv->length, &len);
@@ -1188,6 +1192,7 @@ static int doSmlInsertOneDataPoint(TAOS* taos, TAOS_SML_DATA_POINT* point, SSmlL
     retLen = snprintf(sql + sqlLen, freeBytes - sqlLen, ",");
     if (retLen >= freeBytes - sqlLen) {
       tscError("SML:0x%" PRIx64 " no free space for building sql comma", info->id);
+      free(sql);
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
     sqlLen += retLen;
@@ -1196,6 +1201,7 @@ static int doSmlInsertOneDataPoint(TAOS* taos, TAOS_SML_DATA_POINT* point, SSmlL
   retLen = snprintf(sql + sqlLen, freeBytes - sqlLen, ")");
   if (retLen >= freeBytes - sqlLen) {
     tscError("SML:0x%" PRIx64 " no free space for building the last right parenthesis", info->id);
+    free(sql);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
   sqlLen += retLen;
