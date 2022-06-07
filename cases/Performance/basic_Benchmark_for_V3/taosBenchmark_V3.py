@@ -1,9 +1,6 @@
 import os,sys
 from datetime import datetime
 from taostest import TDCase
-from taostest.performance.perfor_basic import QueryFile
-from taostest.performance.result_reduction import Perf_Base_func
-from taostest.util.file import read_yaml
 from taostest.util.common import TDCom
 
 class QueryTest(TDCase):
@@ -17,10 +14,14 @@ class QueryTest(TDCase):
     def author(self):
         pass
 
+    def cleanup(self):
+        pass
+
     def tags(self):
         pass
 
     def run(self):
+        print(" start run case for Version 3.0 ")
         # prepare data for basic query data of large amount of records 
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
         self.tdSql.execute(f'create database if not exists {dbname}')
@@ -34,7 +35,6 @@ class QueryTest(TDCase):
         if ret !=0:
             print("prepare data done ! ")
             sys.exit(ret)
-
 
         for _ in range(10):
             # basic aggregate query for 3.0 branch 
