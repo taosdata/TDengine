@@ -1889,11 +1889,13 @@ int32_t taosCheckGlobalCfg() {
 
 int taosGetFqdnPortFromEp(const char *ep, char *fqdn, uint16_t *port) {
   *port = 0;
-  strcpy(fqdn, ep);
+  char buf[TSDB_EP_LEN];
+  strncpy(buf, ep, sizeof(buf));
 
-  char *temp = strchr(fqdn, ':');
+  char *temp = strchr(buf, ':');
   if (temp) {
     *temp = 0;
+    strcpy(fqdn, buf);
     *port = atoi(temp + 1);
   }
 
