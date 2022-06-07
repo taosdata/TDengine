@@ -24,7 +24,7 @@ export TDENGINE_CLOUD_TOKEN=<token>
 ```
 
 </TabItem>
-<TabItem value="ConfigOnWindows" label="Config on Windows (work in progress, coming soon)">
+<TabItem value="ConfigOnWindows" label="Config on Windows (coming soon)">
 
 Run this command in your Windows terminal to save your URL and token as variables:
 
@@ -34,7 +34,7 @@ set TDENGINE_CLOUD_TOKEN=<token>
 ```
 
 </TabItem>
-<TabItem value="ConfigOnMac" label="Config on Mac (work in progress, coming soon)">
+<TabItem value="ConfigOnMac" label="Config on Mac (coming soon)">
 
 Run this command in your Mac terminal to save your URL and token as variables:
 
@@ -52,12 +52,12 @@ export TDENGINE_CLOUD_TOKEN=<token>
 To access the TDengine Cloud, you can execute `taos -R -h $TDENGINE_CLOUD_URL -t $TDENGINE_CLOUD_TOKEN` command-line utility from a Linux terminal.
 
 </TabItem>
-<TabItem value="ConnectOnWindows" label="Connect on Windows (work in progress, coming soon)">
+<TabItem value="ConnectOnWindows" label="Connect on Windows (coming soon)">
 
 To access the TDengine Cloud, you can execute `taos -R -h %TDENGINE_CLOUD_URL% -t %TDENGINE_CLOUD_TOKEN%` command-line utility from a Windows terminal.
 
 </TabItem>
-<TabItem value="ConnectOnMac" label="Connect on Mac">
+<TabItem value="ConnectOnMac" label="Connect on Mac (coming soon)">
 
 To access the TDengine Cloud, you can execute `taos -R -h $TDENGINE_CLOUD_URL -t $TDENGINE_CLOUD_TOKEN` command-line utility from a Mac terminal.
 
