@@ -1186,12 +1186,12 @@ void catalogDestroy(void) {
 
   atomic_store_8((int8_t*)&gCtgMgmt.exit, true);
 
-  while (CTG_IS_LOCKED(&gCtgMgmt.lock)) {
-    taosUsleep(1);
-  }
-
   if (tsem_post(&gCtgMgmt.queue.reqSem)) {
     qError("tsem_post failed, error:%s", tstrerror(TAOS_SYSTEM_ERROR(errno)));
+  }
+
+  while (CTG_IS_LOCKED(&gCtgMgmt.lock)) {
+    taosUsleep(1);
   }
   
   CTG_LOCK(CTG_WRITE, &gCtgMgmt.lock);

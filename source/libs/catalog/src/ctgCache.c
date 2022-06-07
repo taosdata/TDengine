@@ -1614,23 +1614,32 @@ void ctgUpdateThreadUnexpectedStopped(void) {
 }
 
 void ctgCleanupCacheQueue(void) {
-  SCtgQNode *node = gCtgMgmt.queue.head->next;
+  SCtgQNode *node = NULL;
   SCtgQNode *nodeNext = NULL;
-  
-  while (node) {
-    if (node->op) {
-      taosMemoryFree(node->op->data);
-      if (node->op->syncOp) {
-        tsem_post(&node->op->rspSem);
-      } else {
-        taosMemoryFree(node->op);
+
+  while (true) {
+    node = gCtgMgmt.queue.head->next;
+    while (node) {
+      if (node->op) {
+        taosMemoryFree(node->op->data);
+        if (node->op->syncOp) {
+          tsem_post(&node->op->rspSem);
+        } else {
+          taosMemoryFree(node->op);
+        }
       }
+
+      nodeNext = node->next;
+      taosMemoryFree(node);
+      
+      node = nodeNext;
     }
 
-    nodeNext = node->next;
-    taosMemoryFree(node);
-    
-    node = nodeNext;
+    if (CTG_IS_LOCKED(&gCtgMgmt.lock)) {
+      taosUsleep(1);
+    } else {
+      break;
+    }
   }
 
   taosMemoryFreeClear(gCtgMgmt.queue.head);
@@ -1652,6 +1661,7 @@ void* ctgUpdateThreadFunc(void* param) {
     }
     
     if (atomic_load_8((int8_t*)&gCtgMgmt.exit)) {
+      CTG_UNLOCK(CTG_READ, &gCtgMgmt.lock);
       ctgCleanupCacheQueue();
       break;
     }
