@@ -18,75 +18,75 @@ python3 .\test.py -f 0-others\udf_restart_taosd.py
 @REM #python3 .\test.py -f 1-insert\test_stmt_muti_insert_query.py
 @REM python3 .\test.py -f 1-insert\alter_stable.py
 @REM python3 .\test.py -f 1-insert\alter_table.py
-python3 .\test.py -f 2-query\between.py
-python3 .\test.py -f 2-query\distinct.py
-python3 .\test.py -f 2-query\varchar.py
-python3 .\test.py -f 2-query\ltrim.py
-python3 .\test.py -f 2-query\rtrim.py
-python3 .\test.py -f 2-query\length.py
-python3 .\test.py -f 2-query\char_length.py
-python3 .\test.py -f 2-query\upper.py
-python3 .\test.py -f 2-query\lower.py
-python3 .\test.py -f 2-query\join.py
+@REM python3 .\test.py -f 2-query\between.py
+@REM python3 .\test.py -f 2-query\distinct.py
+@REM python3 .\test.py -f 2-query\varchar.py
+@REM python3 .\test.py -f 2-query\ltrim.py
+@REM python3 .\test.py -f 2-query\rtrim.py
+@REM python3 .\test.py -f 2-query\length.py
+@REM python3 .\test.py -f 2-query\char_length.py
+@REM python3 .\test.py -f 2-query\upper.py
+@REM python3 .\test.py -f 2-query\lower.py
+@REM python3 .\test.py -f 2-query\join.py
 @REM python3 .\test.py -f 2-query\join2.py
 @REM python3 .\test.py -f 2-query\cast.py
-python3 .\test.py -f 2-query\union.py
-python3 .\test.py -f 2-query\union1.py
-python3 .\test.py -f 2-query\concat.py
-python3 .\test.py -f 2-query\concat2.py
-python3 .\test.py -f 2-query\concat_ws.py
-python3 .\test.py -f 2-query\concat_ws2.py
-python3 .\test.py -f 2-query\check_tsdb.py
-python3 .\test.py -f 2-query\spread.py
-python3 .\test.py -f 2-query\hyperloglog.py
+@REM python3 .\test.py -f 2-query\union.py
+@REM python3 .\test.py -f 2-query\union1.py
+@REM python3 .\test.py -f 2-query\concat.py
+@REM python3 .\test.py -f 2-query\concat2.py
+@REM python3 .\test.py -f 2-query\concat_ws.py
+@REM python3 .\test.py -f 2-query\concat_ws2.py
+@REM python3 .\test.py -f 2-query\check_tsdb.py
+@REM python3 .\test.py -f 2-query\spread.py
+@REM python3 .\test.py -f 2-query\hyperloglog.py
 
 
 @REM python3 .\test.py -f 2-query\timezone.py
-python3 .\test.py -f 2-query\Now.py
-python3 .\test.py -f 2-query\Today.py
-python3 .\test.py -f 2-query\max.py
-python3 .\test.py -f 2-query\min.py
-python3 .\test.py -f 2-query\count.py
-python3 .\test.py -f 2-query\last.py
-python3 .\test.py -f 2-query\first.py
-python3 .\test.py -f 2-query\To_iso8601.py
-python3 .\test.py -f 2-query\To_unixtimestamp.py
-python3 .\test.py -f 2-query\timetruncate.py
-python3 .\test.py -f 2-query\diff.py
-python3 .\test.py -f 2-query\Timediff.py
+@REM python3 .\test.py -f 2-query\Now.py
+@REM python3 .\test.py -f 2-query\Today.py
+@REM python3 .\test.py -f 2-query\max.py
+@REM python3 .\test.py -f 2-query\min.py
+@REM python3 .\test.py -f 2-query\count.py
+@REM python3 .\test.py -f 2-query\last.py
+@REM python3 .\test.py -f 2-query\first.py
+@REM python3 .\test.py -f 2-query\To_iso8601.py
+@REM python3 .\test.py -f 2-query\To_unixtimestamp.py
+@REM python3 .\test.py -f 2-query\timetruncate.py
+@REM python3 .\test.py -f 2-query\diff.py
+@REM python3 .\test.py -f 2-query\Timediff.py
 
-python3 .\test.py -f 2-query\top.py
-python3 .\test.py -f 2-query\bottom.py
-python3 .\test.py -f 2-query\percentile.py
-python3 .\test.py -f 2-query\apercentile.py
-python3 .\test.py -f 2-query\abs.py
-python3 .\test.py -f 2-query\ceil.py
+@REM python3 .\test.py -f 2-query\top.py
+@REM python3 .\test.py -f 2-query\bottom.py
+@REM python3 .\test.py -f 2-query\percentile.py
+@REM python3 .\test.py -f 2-query\apercentile.py
+@REM python3 .\test.py -f 2-query\abs.py
+@REM python3 .\test.py -f 2-query\ceil.py
 @REM python3 .\test.py -f 2-query\floor.py
-python3 .\test.py -f 2-query\round.py
+@REM python3 .\test.py -f 2-query\round.py
 @REM python3 .\test.py -f 2-query\log.py
-python3 .\test.py -f 2-query\pow.py
-python3 .\test.py -f 2-query\sqrt.py
+@REM python3 .\test.py -f 2-query\pow.py
+@REM python3 .\test.py -f 2-query\sqrt.py
 @REM python3 .\test.py -f 2-query\sin.py
-python3 .\test.py -f 2-query\cos.py
+@REM python3 .\test.py -f 2-query\cos.py
 @REM python3 .\test.py -f 2-query\tan.py
-python3 .\test.py -f 2-query\arcsin.py
+@REM python3 .\test.py -f 2-query\arcsin.py
 @REM python3 .\test.py -f 2-query\arccos.py
-python3 .\test.py -f 2-query\arctan.py
-python3 .\test.py -f 2-query\query_cols_tags_and_or.py
+@REM python3 .\test.py -f 2-query\arctan.py
+@REM python3 .\test.py -f 2-query\query_cols_tags_and_or.py
 @REM # python3 .\test.py -f 2-query\nestedQuery.py
 @REM # TD-15983 subquery output duplicate name column. 
 @REM # Please Xiangyang Guo modify the following script
 @REM # python3 .\test.py -f 2-query\nestedQuery_str.py
 
 @REM python3 .\test.py -f 2-query\avg.py
-python3 .\test.py -f 2-query\elapsed.py
+@REM python3 .\test.py -f 2-query\elapsed.py
 @REM python3 .\test.py -f 2-query\csum.py
-python3 .\test.py -f 2-query\mavg.py
-python3 .\test.py -f 2-query\diff.py
-python3 .\test.py -f 2-query\sample.py
-python3 .\test.py -f 2-query\function_diff.py
-python3 .\test.py -f 2-query\unique.py
-python3 .\test.py -f 2-query\stateduration.py
+@REM python3 .\test.py -f 2-query\mavg.py
+@REM python3 .\test.py -f 2-query\diff.py
+@REM python3 .\test.py -f 2-query\sample.py
+@REM python3 .\test.py -f 2-query\function_diff.py
+@REM python3 .\test.py -f 2-query\unique.py
+@REM python3 .\test.py -f 2-query\stateduration.py
 @REM python3 .\test.py -f 2-query\function_stateduration.py
 @REM python3 .\test.py -f 2-query\statecount.py
 
