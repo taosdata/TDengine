@@ -23,22 +23,22 @@ python3 .\test.py -f 2-query\distinct.py
 python3 .\test.py -f 2-query\varchar.py
 python3 .\test.py -f 2-query\ltrim.py
 python3 .\test.py -f 2-query\rtrim.py
-@REM python3 .\test.py -f 2-query\length.py
-@REM python3 .\test.py -f 2-query\char_length.py
-@REM python3 .\test.py -f 2-query\upper.py
-@REM python3 .\test.py -f 2-query\lower.py
-@REM python3 .\test.py -f 2-query\join.py
-@REM python3 .\test.py -f 2-query\join2.py
+python3 .\test.py -f 2-query\length.py
+python3 .\test.py -f 2-query\char_length.py
+python3 .\test.py -f 2-query\upper.py
+python3 .\test.py -f 2-query\lower.py
+python3 .\test.py -f 2-query\join.py
+python3 .\test.py -f 2-query\join2.py
 @REM python3 .\test.py -f 2-query\cast.py
-@REM python3 .\test.py -f 2-query\union.py
-@REM python3 .\test.py -f 2-query\union1.py
-@REM python3 .\test.py -f 2-query\concat.py
-@REM python3 .\test.py -f 2-query\concat2.py
-@REM python3 .\test.py -f 2-query\concat_ws.py
-@REM python3 .\test.py -f 2-query\concat_ws2.py
-@REM python3 .\test.py -f 2-query\check_tsdb.py
-@REM python3 .\test.py -f 2-query\spread.py
-@REM python3 .\test.py -f 2-query\hyperloglog.py
+python3 .\test.py -f 2-query\union.py
+python3 .\test.py -f 2-query\union1.py
+python3 .\test.py -f 2-query\concat.py
+python3 .\test.py -f 2-query\concat2.py
+python3 .\test.py -f 2-query\concat_ws.py
+python3 .\test.py -f 2-query\concat_ws2.py
+python3 .\test.py -f 2-query\check_tsdb.py
+python3 .\test.py -f 2-query\spread.py
+python3 .\test.py -f 2-query\hyperloglog.py
 
 
 @REM python3 .\test.py -f 2-query\timezone.py
