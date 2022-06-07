@@ -18,11 +18,11 @@ python3 .\test.py -f 0-others\udf_restart_taosd.py
 @REM #python3 .\test.py -f 1-insert\test_stmt_muti_insert_query.py
 @REM python3 .\test.py -f 1-insert\alter_stable.py
 @REM python3 .\test.py -f 1-insert\alter_table.py
-@REM python3 .\test.py -f 2-query\between.py
-@REM python3 .\test.py -f 2-query\distinct.py
-@REM python3 .\test.py -f 2-query\varchar.py
-@REM python3 .\test.py -f 2-query\ltrim.py
-@REM python3 .\test.py -f 2-query\rtrim.py
+python3 .\test.py -f 2-query\between.py
+python3 .\test.py -f 2-query\distinct.py
+python3 .\test.py -f 2-query\varchar.py
+python3 .\test.py -f 2-query\ltrim.py
+python3 .\test.py -f 2-query\rtrim.py
 @REM python3 .\test.py -f 2-query\length.py
 @REM python3 .\test.py -f 2-query\char_length.py
 @REM python3 .\test.py -f 2-query\upper.py
