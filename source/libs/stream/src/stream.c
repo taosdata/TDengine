@@ -26,7 +26,7 @@ int32_t streamTriggerByWrite(SStreamTask* pTask, int32_t vgId, SMsgCb* pMsgCb) {
     pRunReq->streamId = pTask->streamId;
     pRunReq->taskId = pTask->taskId;
     SRpcMsg msg = {
-        .msgType = TDMT_VND_TASK_RUN,
+        .msgType = TDMT_STREAM_TASK_RUN,
         .pCont = pRunReq,
         .contLen = sizeof(SStreamTaskRunReq),
     };

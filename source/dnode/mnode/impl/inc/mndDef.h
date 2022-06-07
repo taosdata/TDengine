@@ -309,6 +309,7 @@ typedef struct {
   int8_t    slidingUnit;
   int8_t    timezone;
   int32_t   dstVgId;  // for stream
+  int64_t   dstTbUid;
   int64_t   interval;
   int64_t   offset;
   int64_t   sliding;
