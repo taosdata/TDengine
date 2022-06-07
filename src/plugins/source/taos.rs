@@ -219,6 +219,10 @@ impl XSourceBuilder for TaosSourceBuilder {
             //     "there's no topic to subscribe. TODO: we should support direct select".to_string(),
             // ));
         }
+        // check group id
+        if !dsn.params.contains_key("wait") {
+            dsn.params.insert("wait".to_string(), "100".to_string());
+        }
         let manager = Manager::from_dsn(dsn.clone())?;
 
         Ok(Self {
