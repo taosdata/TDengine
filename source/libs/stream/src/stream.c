@@ -83,9 +83,8 @@ int32_t streamProcessDispatchReq(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDisp
   // 3. handle output
   // 3.1 check and set status
   // 3.2 dispatch / sink
-  /*streamSink1(pTask, pMsgCb);*/
   if (pTask->dispatchType != TASK_DISPATCH__NONE) {
-    streamDispatchAll(pTask, pMsgCb);
+    streamDispatch(pTask, pMsgCb);
   }
 
   return 0;
@@ -100,9 +99,8 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDisp
     return 0;
   }
   // continue dispatch
-  /*streamSink1(pTask, pMsgCb);*/
   if (pTask->dispatchType != TASK_DISPATCH__NONE) {
-    streamDispatchAll(pTask, pMsgCb);
+    streamDispatch(pTask, pMsgCb);
   }
   return 0;
 }
@@ -110,9 +108,8 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDisp
 int32_t streamTaskProcessRunReq(SStreamTask* pTask, SMsgCb* pMsgCb) {
   streamExec(pTask, pMsgCb);
   if (pTask->dispatchType != TASK_DISPATCH__NONE) {
-    streamDispatchAll(pTask, pMsgCb);
+    streamDispatch(pTask, pMsgCb);
   }
-  /*streamSink1(pTask, pMsgCb);*/
   return 0;
 }
 

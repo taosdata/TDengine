@@ -131,14 +131,7 @@ static FORCE_INLINE void* streamQueueNextItem(SStreamQueue* queue) {
 
 SStreamDataSubmit* streamDataSubmitNew(SSubmitReq* pReq);
 
-static FORCE_INLINE void streamDataSubmitRefDec(SStreamDataSubmit* pDataSubmit) {
-  int32_t ref = atomic_sub_fetch_32(pDataSubmit->dataRef, 1);
-  ASSERT(ref >= 0);
-  if (ref == 0) {
-    taosMemoryFree(pDataSubmit->data);
-    taosMemoryFree(pDataSubmit->dataRef);
-  }
-}
+void streamDataSubmitRefDec(SStreamDataSubmit* pDataSubmit);
 
 SStreamDataSubmit* streamSubmitRefClone(SStreamDataSubmit* pSubmit);
 
@@ -189,6 +182,7 @@ typedef void FSmaSink(void* vnode, int64_t smaId, const SArray* data);
 typedef struct {
   int64_t smaId;
   // following are not applicable to encoder and decoder
+  void*     vnode;
   FSmaSink* smaSink;
 } STaskSinkSma;
 
@@ -270,7 +264,7 @@ struct SStreamTask {
   SStreamQueue* outputQueue;
 
   // application storage
-  void* ahandle;
+  // void* ahandle;
 };
 
 SStreamTask* tNewSStreamTask(int64_t streamId, int32_t childId);
@@ -316,7 +310,7 @@ static FORCE_INLINE int32_t streamTaskOutput(SStreamTask* pTask, SStreamDataBloc
     pTask->tbSink.tbSinkFunc(pTask, pTask->tbSink.vnode, 0, pBlock->blocks);
   } else if (pTask->sinkType == TASK_SINK__SMA) {
     ASSERT(pTask->dispatchType == TASK_DISPATCH__NONE);
-    pTask->smaSink.smaSink(pTask->ahandle, pTask->smaSink.smaId, pBlock->blocks);
+    pTask->smaSink.smaSink(pTask->smaSink.vnode, pTask->smaSink.smaId, pBlock->blocks);
   } else {
     ASSERT(pTask->dispatchType != TASK_DISPATCH__NONE);
     taosWriteQitem(pTask->outputQueue->queue, pBlock);
@@ -329,24 +323,9 @@ typedef struct {
 } SStreamTaskDeployRsp;
 
 typedef struct {
-  // SMsgHead head;
-  int64_t streamId;
-  int32_t taskId;
-  SArray* data;  // SArray<SSDataBlock>
-} SStreamTaskExecReq;
-
-typedef struct {
   // SMsgHead     head;
   SStreamTask* task;
 } SStreamTaskDeployReq;
-
-int32_t tEncodeSStreamTaskExecReq(void** buf, const SStreamTaskExecReq* pReq);
-void*   tDecodeSStreamTaskExecReq(const void* buf, SStreamTaskExecReq* pReq);
-void    tFreeSStreamTaskExecReq(SStreamTaskExecReq* pReq);
-
-typedef struct {
-  int32_t reserved;
-} SStreamTaskExecRsp;
 
 typedef struct {
   SMsgHead head;

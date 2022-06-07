@@ -24,13 +24,9 @@ extern "C" {
 #endif
 
 int32_t streamExec(SStreamTask* pTask, SMsgCb* pMsgCb);
-// int32_t streamSink1(SStreamTask* pTask, SMsgCb* pMsgCb);
-int32_t streamDispatch(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDataBlock* data);
-
+int32_t streamDispatch(SStreamTask* pTask, SMsgCb* pMsgCb);
 int32_t streamDispatchReqToData(const SStreamDispatchReq* pReq, SStreamDataBlock* pData);
 int32_t streamBuildDispatchMsg(SStreamTask* pTask, SStreamDataBlock* data, SRpcMsg* pMsg, SEpSet** ppEpSet);
-
-int32_t streamDispatchAll(SStreamTask* pTask, SMsgCb* pMsgCb);
 
 #ifdef __cplusplus
 }
