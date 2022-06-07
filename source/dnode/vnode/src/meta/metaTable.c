@@ -70,6 +70,9 @@ static int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const
 
     char *  key = pTagVal->pKey;
     int32_t nKey = strlen(key);
+    if (nKey == 0) {
+      continue;
+    }
 
     SIndexTerm *term = NULL;
     if (type == TSDB_DATA_TYPE_NULL) {
@@ -98,7 +101,6 @@ static int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const
     if (term != NULL) {
       indexMultiTermAdd(terms, term);
     }
-    memset(key, 0, sizeof(key));
   }
   tIndexJsonPut(pMeta->pTagIvtIdx, terms, tuid);
   indexMultiTermDestroy(terms);
