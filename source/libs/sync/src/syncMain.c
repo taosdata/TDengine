@@ -1347,7 +1347,7 @@ SyncIndex syncNodeGetPreIndex(SSyncNode* pSyncNode, SyncIndex index) {
       pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
     }
 
-    ASSERT(index > snapshot.lastApplyIndex);
+    // ASSERT(index > snapshot.lastApplyIndex);
     preIndex = index - 1;
 
   } else {
@@ -1375,7 +1375,7 @@ SyncTerm syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index) {
       pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
     }
 
-    ASSERT(index > snapshot.lastApplyIndex);
+    // ASSERT(index > snapshot.lastApplyIndex);
     if (index > snapshot.lastApplyIndex + 1) {
       // should be log preTerm
       SSyncRaftEntry* pPreEntry = NULL;
@@ -1389,7 +1389,9 @@ SyncTerm syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index) {
     } else if (index == snapshot.lastApplyIndex + 1) {
       preTerm = snapshot.lastApplyTerm;
     } else {
-      ASSERT(0);
+      // ASSERT(0);
+      // maybe snapshot change
+      preTerm = snapshot.lastApplyTerm;
     }
 
   } else {
@@ -1799,4 +1801,13 @@ int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex,
     }
   }
   return 0;
+}
+
+bool syncNodeInRaftGroup(SSyncNode* ths, SRaftId* pRaftId) {
+  for (int i = 0; i < ths->replicaNum; ++i) {
+    if (syncUtilSameId(&((ths->replicasId)[i]), pRaftId)) {
+      return true;
+    }
+  }
+  return false;
 }

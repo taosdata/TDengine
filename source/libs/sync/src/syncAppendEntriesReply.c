@@ -104,6 +104,12 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
   snprintf(logBuf, sizeof(logBuf), "recv SyncAppendEntriesReply, term:%lu", ths->pRaftStore->currentTerm);
   syncAppendEntriesReplyLog2(logBuf, pMsg);
 
+  // if already drop replica, do not process
+  if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
+    sInfo("maybe already dropped");
+    return ret;
+  }
+
   // drop stale response
   if (pMsg->term < ths->pRaftStore->currentTerm) {
     sTrace("recv SyncAppendEntriesReply, drop stale response, receive_term:%lu current_term:%lu", pMsg->term,
@@ -162,7 +168,7 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
         SSnapshot snapshot;
         ths->pFsm->FpGetSnapshot(ths->pFsm, &snapshot);
         if (nextIndex <= snapshot.lastApplyIndex) {
-          ASSERT(nextIndex == snapshot.lastApplyIndex);
+          // ASSERT(nextIndex == snapshot.lastApplyIndex);
 
           nextIndex = snapshot.lastApplyIndex + 1;
           sInfo("reset new nextIndex %ld, snapshot.lastApplyIndex:%ld", nextIndex, snapshot.lastApplyIndex);
