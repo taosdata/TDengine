@@ -425,8 +425,7 @@ static int32_t tfSearchTerm_JSON(void* reader, SIndexTerm* tem, SIdxTRslt* tr) {
   return TSDB_CODE_SUCCESS;
 }
 static int32_t tfSearchPrefix_JSON(void* reader, SIndexTerm* tem, SIdxTRslt* tr) {
-  // impl later
-  return TSDB_CODE_SUCCESS;
+  return tfSearchCompareFunc_JSON(reader, tem, tr, CONTAINS);
 }
 static int32_t tfSearchSuffix_JSON(void* reader, SIndexTerm* tem, SIdxTRslt* tr) {
   // impl later
@@ -457,7 +456,17 @@ static int32_t tfSearchCompareFunc_JSON(void* reader, SIndexTerm* tem, SIdxTRslt
   int ret = 0;
   int skip = 0;
 
-  char* p = indexPackJsonDataPrefix(tem, &skip);
+  char* p = NULL;
+  if (ctype == CONTAINS) {
+    SIndexTerm tm = {.suid = tem->suid,
+                     .operType = tem->operType,
+                     .colType = tem->colType,
+                     .colName = tem->colVal,
+                     .nColName = tem->nColVal};
+    p = indexPackJsonDataPrefix(&tm, &skip);
+  } else {
+    p = indexPackJsonDataPrefix(tem, &skip);
+  }
 
   _cache_range_compare cmpFn = indexGetCompare(ctype);
 
@@ -466,27 +475,25 @@ static int32_t tfSearchCompareFunc_JSON(void* reader, SIndexTerm* tem, SIdxTRslt
   AutomationCtx*    ctx = automCtxCreate((void*)p, AUTOMATION_PREFIX);
   FstStreamBuilder* sb = fstSearch(((TFileReader*)reader)->fst, ctx);
 
-  // FstSlice h = fstSliceCreate((uint8_t*)p, skip);
-  // fstStreamBuilderSetRange(sb, &h, ctype);
-  // fstSliceDestroy(&h);
-
   StreamWithState*       st = streamBuilderIntoStream(sb);
   StreamWithStateResult* rt = NULL;
   while ((rt = streamWithStateNextWith(st, NULL)) != NULL) {
     FstSlice* s = &rt->data;
 
-    int32_t sz = 0;
-    char*   ch = (char*)fstSliceData(s, &sz);
-    char*   tmp = taosMemoryCalloc(1, sz + 1);
-    memcpy(tmp, ch, sz);
-
-    if (0 != strncmp(tmp, p, skip)) {
-      swsResultDestroy(rt);
-      taosMemoryFree(tmp);
-      break;
+    int32_t  sz = 0;
+    char*    ch = (char*)fstSliceData(s, &sz);
+    TExeCond cond = CONTINUE;
+    if (ctype == CONTAINS) {
+      if (0 != strncmp(ch, p, skip)) {
+        cond = MATCH;
+      }
+    } else {
+      if (0 != strncmp(ch, p, skip)) {
+        swsResultDestroy(rt);
+        break;
+      }
+      cond = cmpFn(ch + skip, tem->colVal, INDEX_TYPE_GET_TYPE(tem->colType));
     }
-
-    TExeCond cond = cmpFn(tmp + skip, tem->colVal, INDEX_TYPE_GET_TYPE(tem->colType));
     if (MATCH == cond) {
       tfileReaderLoadTableIds((TFileReader*)reader, rt->out.out, tr->total);
     } else if (CONTINUE == cond) {
@@ -494,7 +501,6 @@ static int32_t tfSearchCompareFunc_JSON(void* reader, SIndexTerm* tem, SIdxTRslt
       swsResultDestroy(rt);
       break;
     }
-    taosMemoryFree(tmp);
     swsResultDestroy(rt);
   }
   streamWithStateDestroy(st);

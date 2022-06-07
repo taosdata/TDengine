@@ -64,6 +64,8 @@ static int32_t sifGetFuncFromSql(EOperatorType src, EIndexQueryType *dst) {
     *dst = QUERY_TERM;
   } else if (src == OP_TYPE_LIKE || src == OP_TYPE_MATCH || src == OP_TYPE_NMATCH) {
     *dst = QUERY_REGEX;
+  } else if (src == OP_TYPE_JSON_CONTAINS) {
+    *dst = QUERY_PREFIX;
   } else {
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
@@ -171,10 +173,8 @@ static int32_t sifInitJsonParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
   param->colId = l->colId;
   param->colValType = l->node.resType.type;
   memcpy(param->dbName, l->dbName, sizeof(l->dbName));
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wformat-overflow"
-  sprintf(param->colName, "%s_%s", l->colName, r->literal);
-#pragma GCC diagnostic pop
+  memcpy(param->colName, r->literal, strlen(r->literal));
+  // sprintf(param->colName, "%s_%s", l->colName, r->literal);
   param->colValType = r->typeData;
   return 0;
   // memcpy(param->colName, l->colName, sizeof(l->colName));
@@ -186,6 +186,7 @@ static int32_t sifInitParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
       SIF_ERR_RET(sifGetValueFromNode(node, &param->condValue));
       param->colId = -1;
       param->colValType = (uint8_t)(vn->node.resType.type);
+      memcpy(param->colName, vn->literal, strlen(vn->literal));
       break;
     }
     case QUERY_NODE_COLUMN: {
@@ -237,7 +238,7 @@ static int32_t sifInitOperParams(SIFParam **params, SOperatorNode *node, SIFCtx 
     indexError("invalid operation node, left: %p, rigth: %p", node->pLeft, node->pRight);
     SIF_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
-  if (node->opType == OP_TYPE_JSON_GET_VALUE || node->opType == OP_TYPE_JSON_CONTAINS) {
+  if (node->opType == OP_TYPE_JSON_GET_VALUE) {
     return code;
   }
   SIFParam *paramList = taosMemoryCalloc(nParam, sizeof(SIFParam));
@@ -420,8 +421,8 @@ static int32_t sifNotMatchFunc(SIFParam *left, SIFParam *right, SIFParam *output
   return sifDoIndex(left, right, id, output);
 }
 static int32_t sifJsonContains(SIFParam *left, SIFParam *right, SIFParam *output) {
-  // return 0
-  return 0;
+  int id = OP_TYPE_JSON_CONTAINS;
+  return sifDoIndex(left, right, id, output);
 }
 static int32_t sifJsonGetValue(SIFParam *left, SIFParam *rigth, SIFParam *output) {
   // return 0
@@ -504,7 +505,7 @@ static int32_t sifExecOper(SOperatorNode *node, SIFCtx *ctx, SIFParam *output) {
     output->status = SFLT_NOT_INDEX;
     return code;
   }
-  if (node->opType == OP_TYPE_JSON_GET_VALUE || node->opType == OP_TYPE_JSON_CONTAINS) {
+  if (node->opType == OP_TYPE_JSON_GET_VALUE) {
     return code;
   }
   SIFParam *params = NULL;
@@ -618,11 +619,11 @@ EDealRes sifCalcWalker(SNode *node, void *context) {
   }
 
   if (QUERY_NODE_OPERATOR == nodeType(node)) {
-    indexInfo("node type for index filter, type: %d", nodeType(node));
+    // indexInfo("node type for index filter, type: %d", nodeType(node));
     return sifWalkOper(node, ctx);
   }
 
-  indexError("invalid node type for index filter calculating, type:%d", nodeType(node));
+  // indexError("invalid node type for index filter calculating, type:%d", nodeType(node));
   ctx->code = TSDB_CODE_QRY_INVALID_INPUT;
   return DEAL_RES_ERROR;
 }

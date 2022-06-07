@@ -1849,11 +1849,12 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
   }
 
   ret->length = htonl(ret->length);
-        taosArrayDestroy(tagArray);
+  taosArrayDestroy(tagArray);
   return ret;
 }
 
-void blockCompressEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen, int32_t numOfCols, int8_t needCompress) {
+void blockCompressEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen, int32_t numOfCols,
+                         int8_t needCompress) {
   int32_t* actualLen = (int32_t*)data;
   data += sizeof(int32_t);
 

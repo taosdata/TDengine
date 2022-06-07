@@ -5111,6 +5111,37 @@ int32_t decodeOperator(SOperatorInfo* ops, char* result, int32_t length) {
   return TDB_CODE_SUCCESS;
 }
 
+int32_t createDataSinkParam(SDataSinkNode *pNode, void **pParam, qTaskInfo_t* pTaskInfo) {
+  SExecTaskInfo* pTask = *(SExecTaskInfo**)pTaskInfo;
+  
+  switch (pNode->type) {
+    case QUERY_NODE_PHYSICAL_PLAN_DELETE: {
+      SDeleterParam *pDeleterParam = taosMemoryCalloc(1, sizeof(SDeleterParam));
+      if (NULL == pDeleterParam) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      int32_t tbNum = taosArrayGetSize(pTask->tableqinfoList.pTableList);
+      pDeleterParam->pUidList = taosArrayInit(tbNum, sizeof(uint64_t));
+      if (NULL == pDeleterParam->pUidList) {
+        taosMemoryFree(pDeleterParam);
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      for (int32_t i = 0; i < tbNum; ++i) {
+        STableKeyInfo *pTable = taosArrayGet(pTask->tableqinfoList.pTableList, i);
+        taosArrayPush(pDeleterParam->pUidList, &pTable->uid);
+      }
+
+      *pParam = pDeleterParam;
+      break;
+    }
+    default:
+      break;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
                                EOPTR_EXEC_MODEL model) {
   uint64_t queryId = pPlan->id.queryId;
