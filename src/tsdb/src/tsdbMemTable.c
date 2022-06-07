@@ -76,7 +76,7 @@ int32_t tsdbInsertData(STsdbRepo *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *pR
       // COMMAND DATA BLOCK
       ret = tsdbInsertControlData(pRepo, pBlock, pRsp, ppSem);
       // all control msg is one SSubmitMsg, so need return
-      return ret; 
+      return ret;
     } else {
       // INSERT DATA BLOCK
       if (tsdbInsertDataToTable(pRepo, pBlock, &affectedrows) < 0) {
@@ -126,7 +126,7 @@ int tsdbUnRefMemTable(STsdbRepo *pRepo, SMemTable *pMemTable) {
           tdListAppendNode(pBufPool->bufBlockList, pNode);
           addNew = true;
         }
-      }      
+      }
     }
     if (addNew) {
       int code = pthread_cond_signal(&pBufPool->poolNotEmpty);
@@ -333,7 +333,7 @@ int tsdbAsyncCommit(STsdbRepo *pRepo, SControlDataInfo* pCtlDataInfo) {
 
   if (pRepo->appH.notifyStatus) pRepo->appH.notifyStatus(pRepo->appH.appH, TSDB_STATUS_COMMIT_START, TSDB_CODE_SUCCESS);
   if (tsdbLockRepo(pRepo) < 0) return -1;
-  
+
   bool post = false;
   if (pRepo->mem) {
     // has data in mem
@@ -343,14 +343,14 @@ int tsdbAsyncCommit(STsdbRepo *pRepo, SControlDataInfo* pCtlDataInfo) {
       if (tsdbScheduleCommit(pRepo, NULL, COMMIT_REQ) < 0)
         post = true;
     } else {
-      pCtlDataInfo->memNull = false; 
+      pCtlDataInfo->memNull = false;
       if(tsdbScheduleCommit(pRepo, pCtlDataInfo, COMMIT_BOTH_REQ) < 0)
         post = true;
     }
   } else {
     // no data in mem
     if (pCtlDataInfo) {
-      pCtlDataInfo->memNull = true; 
+      pCtlDataInfo->memNull = true;
       if(tsdbScheduleCommit(pRepo, pCtlDataInfo, COMMIT_BOTH_REQ) < 0)
         post = true;
     }
@@ -383,13 +383,13 @@ int tsdbSyncCommit(STsdbRepo *repo) {
 
 /**
  * This is an important function to load data or try to load data from memory skiplist iterator.
- * 
+ *
  * This function load memory data until:
  * 1. iterator ends
  * 2. data key exceeds maxKey
  * 3. rowsIncreased = rowsInserted - rowsDeleteSucceed >= maxRowsToRead
  * 4. operations in pCols not exceeds its max capacity if pCols is given
- * 
+ *
  * The function tries to procceed AS MUCH AS POSSIBLE.
  */
 int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead, SDataCols *pCols,
@@ -688,7 +688,7 @@ static int tsdbScanAndConvertSubmitMsg(STsdbRepo *pRepo, SSubmitMsg *pMsg) {
   TSKEY          now = taosGetTimestamp(pRepo->config.precision);
   TSKEY          minKey = now - tsTickPerDay[pRepo->config.precision] * pRepo->config.keep;
   TSKEY          maxKey = now + tsTickPerDay[pRepo->config.precision] * pRepo->config.daysPerFile;
-  
+
   terrno = TSDB_CODE_SUCCESS;
   pMsg->length = htonl(pMsg->length);
   pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);
@@ -1053,7 +1053,7 @@ static void updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SMemRow ro
       continue;
     }
     // lock
-    TSDB_WLOCK_TABLE(pTable); 
+    TSDB_WLOCK_TABLE(pTable);
     SDataCol *pDataCol = &(pLatestCols[idx]);
     if (pDataCol->pData == NULL) {
       pDataCol->pData = malloc(pTCol->bytes);
@@ -1070,7 +1070,7 @@ static void updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SMemRow ro
     //tsdbInfo("updateTableLatestColumn vgId:%d cache column %d for %d,%s", REPO_ID(pRepo), j, pDataCol->bytes, (char*)pDataCol->pData);
     pDataCol->ts = memRowKey(row);
     // unlock
-    TSDB_WUNLOCK_TABLE(pTable); 
+    TSDB_WUNLOCK_TABLE(pTable);
   }
 }
 
@@ -1123,7 +1123,7 @@ static int tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, SMemRow r
   return 0;
 }
 
-// set tid to ptids and return all tables num 
+// set tid to ptids and return all tables num
 int32_t tsdbTableGroupInfo(STableGroupInfo* pTableGroup, int32_t * ptids) {
   int32_t pos = 0;
   size_t  numOfGroup = taosArrayGetSize(pTableGroup->pGroupList);
@@ -1157,7 +1157,7 @@ int32_t tsdbInsertControlData(STsdbRepo* pRepo, SSubmitBlk* pBlock, SShellSubmit
   STableGroupInfo tableGroupInfo = {0};
   tableGroupInfo.sVersion = -1;
   tableGroupInfo.tVersion = -1;
-  
+
   // get del tables tid
   int32_t tnum;
   if (pCtlData->command & FLAG_SUPER_TABLE) {
@@ -1193,7 +1193,7 @@ int32_t tsdbInsertControlData(STsdbRepo* pRepo, SSubmitBlk* pBlock, SShellSubmit
     }
   }
 
-  // server data set 
+  // server data set
   size_t nsize = sizeof(SControlDataInfo) + tnum * sizeof(int32_t);
   SControlDataInfo* pNew = (SControlDataInfo* )tmalloc(nsize);
   memset(pNew, 0, nsize);
@@ -1202,7 +1202,7 @@ int32_t tsdbInsertControlData(STsdbRepo* pRepo, SSubmitBlk* pBlock, SShellSubmit
   pNew->pRsp    = pRsp;
   if (ppSem)
      pNew->pSem = *ppSem;
-  
+
   // tids
   pNew->tnum = tnum;
   // copy tid
@@ -1223,11 +1223,12 @@ int32_t tsdbInsertControlData(STsdbRepo* pRepo, SSubmitBlk* pBlock, SShellSubmit
       tsem_destroy(*ppSem);
       *ppSem = NULL;
     }
-    tfree(pNew);
   }
-  
+
   if(tableGroupInfo.pGroupList)
     tsdbDestroyTableGroup(&tableGroupInfo);
 
+  tfree(pNew);
   return ret;
 }
+
