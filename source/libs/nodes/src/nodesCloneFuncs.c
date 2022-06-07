@@ -318,6 +318,7 @@ static SNode* logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   CLONE_NODE_LIST_FIELD(pScanPseudoCols);
   COPY_SCALAR_FIELD(tableType);
   COPY_SCALAR_FIELD(tableId);
+  COPY_SCALAR_FIELD(stableId);
   CLONE_OBJECT_FIELD(pVgroupList, vgroupsInfoClone);
   COPY_SCALAR_FIELD(scanType);
   COPY_OBJECT_FIELD(scanSeq[0], sizeof(uint8_t) * 2);
@@ -370,7 +371,7 @@ static SNode* logicVnodeModifCopy(const SVnodeModifyLogicNode* pSrc, SVnodeModif
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   COPY_SCALAR_FIELD(modifyType);
   COPY_SCALAR_FIELD(msgType);
-  CLONE_NODE_FIELD(pModifyRows);
+  CLONE_NODE_FIELD(pAffectedRows);
   COPY_SCALAR_FIELD(tableId);
   COPY_SCALAR_FIELD(tableType);
   COPY_CHAR_ARRAY_FIELD(tableFName);
@@ -387,6 +388,7 @@ static SNode* logicExchangeCopy(const SExchangeLogicNode* pSrc, SExchangeLogicNo
 static SNode* logicMergeCopy(const SMergeLogicNode* pSrc, SMergeLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   CLONE_NODE_LIST_FIELD(pMergeKeys);
+  CLONE_NODE_LIST_FIELD(pInputs);
   COPY_SCALAR_FIELD(numOfChannels);
   COPY_SCALAR_FIELD(srcGroupId);
   return (SNode*)pDst;
@@ -429,6 +431,12 @@ static SNode* logicSortCopy(const SSortLogicNode* pSrc, SSortLogicNode* pDst) {
 static SNode* logicPartitionCopy(const SPartitionLogicNode* pSrc, SPartitionLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   CLONE_NODE_LIST_FIELD(pPartitionKeys);
+  return (SNode*)pDst;
+}
+
+static SNode* logicIndefRowsFuncCopy(const SIndefRowsFuncLogicNode* pSrc, SIndefRowsFuncLogicNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
+  CLONE_NODE_LIST_FIELD(pVectorFuncs);
   return (SNode*)pDst;
 }
 
@@ -563,6 +571,8 @@ SNodeptr nodesCloneNode(const SNodeptr pNode) {
       return logicSortCopy((const SSortLogicNode*)pNode, (SSortLogicNode*)pDst);
     case QUERY_NODE_LOGIC_PLAN_PARTITION:
       return logicPartitionCopy((const SPartitionLogicNode*)pNode, (SPartitionLogicNode*)pDst);
+    case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC:
+      return logicIndefRowsFuncCopy((const SIndefRowsFuncLogicNode*)pNode, (SIndefRowsFuncLogicNode*)pDst);
     case QUERY_NODE_LOGIC_SUBPLAN:
       return logicSubplanCopy((const SLogicSubplan*)pNode, (SLogicSubplan*)pDst);
     default:
