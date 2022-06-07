@@ -847,8 +847,12 @@ static EDealRes translateJsonOperator(STranslateContext* pCxt, SOperatorNode* pO
   if (TSDB_DATA_TYPE_JSON != ldt.type || TSDB_DATA_TYPE_BINARY != rdt.type) {
     return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pRight))->aliasName);
   }
-  pOp->node.resType.type = TSDB_DATA_TYPE_JSON;
-  pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_JSON].bytes;
+  if(pOp->opType == OP_TYPE_JSON_GET_VALUE){
+    pOp->node.resType.type = TSDB_DATA_TYPE_JSON;
+  }else if(pOp->opType == OP_TYPE_JSON_CONTAINS){
+    pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
+  }
+  pOp->node.resType.bytes = tDataTypes[pOp->node.resType.type].bytes;
   return DEAL_RES_CONTINUE;
 }
 
@@ -2903,7 +2907,6 @@ static int32_t buildRollupAst(STranslateContext* pCxt, SCreateTableStmt* pStmt, 
     }
   }
 
-  taosArrayDestroy(dbCfg.pRetensions);
   return code;
 }
 
@@ -5011,6 +5014,10 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
       pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
       pQuery->haveResultSet = true;
       pQuery->msgType = TDMT_VND_QUERY;
+      break;
+    case QUERY_NODE_DELETE_STMT:
+      pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
+      pQuery->msgType = TDMT_VND_DELETE;
       break;
     case QUERY_NODE_VNODE_MODIF_STMT:
       pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;

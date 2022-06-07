@@ -569,6 +569,7 @@ int32_t tSerializeSQnodeLoad(void *buf, int32_t bufLen, SQnodeLoad *pInfo) {
   if (tEncodeI64(&encoder, pInfo->numOfProcessedFetch) < 0) return -1;
   if (tEncodeI64(&encoder, pInfo->numOfProcessedDrop) < 0) return -1;
   if (tEncodeI64(&encoder, pInfo->numOfProcessedHb) < 0) return -1;
+  if (tEncodeI64(&encoder, pInfo->numOfProcessedDelete) < 0) return -1;
   if (tEncodeI64(&encoder, pInfo->cacheDataSize) < 0) return -1;
   if (tEncodeI64(&encoder, pInfo->numOfQueryInQueue) < 0) return -1;
   if (tEncodeI64(&encoder, pInfo->numOfFetchInQueue) < 0) return -1;
@@ -591,6 +592,7 @@ int32_t tDeserializeSQnodeLoad(void *buf, int32_t bufLen, SQnodeLoad *pInfo) {
   if (tDecodeI64(&decoder, &pInfo->numOfProcessedFetch) < 0) return -1;
   if (tDecodeI64(&decoder, &pInfo->numOfProcessedDrop) < 0) return -1;
   if (tDecodeI64(&decoder, &pInfo->numOfProcessedHb) < 0) return -1;
+  if (tDecodeI64(&decoder, &pInfo->numOfProcessedDelete) < 0) return -1;
   if (tDecodeI64(&decoder, &pInfo->cacheDataSize) < 0) return -1;
   if (tDecodeI64(&decoder, &pInfo->numOfQueryInQueue) < 0) return -1;
   if (tDecodeI64(&decoder, &pInfo->numOfFetchInQueue) < 0) return -1;
