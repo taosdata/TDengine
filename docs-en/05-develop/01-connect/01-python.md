@@ -3,7 +3,7 @@ sidebar_label: Python
 title: Connect with Python Connector
 ---
 
-## Install Connector {#install}
+## Install Connector
 
 First, you need to install the `taospy` module version >= `2.3.3`. Run the command below in your terminal.
 
@@ -13,7 +13,7 @@ pip3 install taospy>=2.3.3
 
 You'll need to have Python3 installed.
 
-## Config {#config}
+## Config
 
 Run this command in your terminal to save your URL and token as variables:
 
@@ -29,7 +29,7 @@ You should replace above placeholders as real values. To obtain these values, pl
 :::
 <!-- exclude-end -->
 
-## Connect {#connect}
+## Connect
 
 ```python
 import taosrest
