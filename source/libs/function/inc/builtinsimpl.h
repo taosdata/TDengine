@@ -74,6 +74,7 @@ bool percentileFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultI
 int32_t percentileFunction(SqlFunctionCtx *pCtx);
 int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
+int32_t getApercentileMaxSize();
 bool getApercentileFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool apercentileFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t apercentileFunction(SqlFunctionCtx *pCtx);

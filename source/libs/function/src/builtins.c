@@ -1149,8 +1149,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = avgFinalize,
     .invertFunc   = avgInvertFunction,
     .combineFunc  = avgCombine,
-    .pPartialFunc = "avgPartial",
-    .pMergeFunc   = "avgMerge"
   },
   {
     .name = "percentile",
@@ -1254,8 +1252,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = firstFunction,
     .finalizeFunc = firstLastFinalize,
     .combineFunc  = firstCombine,
-    .pPartialFunc = "first",
-    .pMergeFunc   = "first"
   },
   {
     .name = "last",
@@ -1267,8 +1263,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = lastFunction,
     .finalizeFunc = firstLastFinalize,
     .combineFunc  = lastCombine,
-    .pPartialFunc = "last",
-    .pMergeFunc   = "last"
   },
   {
     .name = "twa",

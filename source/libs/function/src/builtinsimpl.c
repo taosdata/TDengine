@@ -1953,6 +1953,12 @@ bool getApercentileFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   return true;
 }
 
+int32_t getApercentileMaxSize() {
+  int32_t bytesHist   = (int32_t)(sizeof(SAPercentileInfo) + sizeof(SHistogramInfo) + sizeof(SHistBin) * (MAX_HISTOGRAM_BIN + 1));
+  int32_t bytesDigest = (int32_t)(sizeof(SAPercentileInfo) + TDIGEST_SIZE(COMPRESSION));
+  return TMAX(bytesHist, bytesDigest);
+}
+
 static int8_t getApercentileAlgo(char *algoStr) {
   int8_t algoType;
   if (strcasecmp(algoStr, "default") == 0) {
