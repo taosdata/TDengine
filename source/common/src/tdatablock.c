@@ -1268,12 +1268,12 @@ size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize) {
 
 void colDataDestroy(SColumnInfoData* pColData) {
   if (IS_VAR_DATA_TYPE(pColData->info.type)) {
-    taosMemoryFree(pColData->varmeta.offset);
+    taosMemoryFreeClear(pColData->varmeta.offset);
   } else {
-    taosMemoryFree(pColData->nullbitmap);
+    taosMemoryFreeClear(pColData->nullbitmap);
   }
 
-  taosMemoryFree(pColData->pData);
+  taosMemoryFreeClear(pColData->pData);
 }
 
 static void doShiftBitmap(char* nullBitmap, size_t n, size_t total) {

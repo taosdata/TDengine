@@ -1818,9 +1818,9 @@ void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numO
   }
 }
 
-static void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep);
+static void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep, bool needFree);
 
-void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock) {
+void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, bool needFree) {
   if (pFilterNode == NULL) {
     return;
   }
@@ -1839,11 +1839,11 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock) {
   bool keep = filterExecute(filter, pBlock, &rowRes, NULL, param1.numOfCols);
   filterFreeInfo(filter);
 
-  extractQualifiedTupleByFilterResult(pBlock, rowRes, keep);
+  extractQualifiedTupleByFilterResult(pBlock, rowRes, keep, needFree);
   blockDataUpdateTsWindow(pBlock, 0);
 }
 
-void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep) {
+void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep, bool needFree) {
   if (keep) {
     return;
   }
@@ -1883,9 +1883,18 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowR
         ASSERT(pBlock->info.rows == numOfRows);
       }
 
-      SColumnInfoData tmp = *pSrc;
-      *pSrc = *pDst;
-      *pDst = tmp;
+      if(needFree){
+        SColumnInfoData tmp = *pSrc;
+        *pSrc = *pDst;
+        *pDst = tmp;
+      }else{
+        if(IS_VAR_DATA_TYPE(pDst->info.type)){  // this elements do not need free
+          pDst->varmeta.offset = NULL;
+        }else{
+          pDst->nullbitmap = NULL;
+        }
+        pDst->pData = NULL;
+      }
     }
     blockDataDestroy(px);     // fix memory leak
   } else {
@@ -3643,7 +3652,7 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       longjmp(pTaskInfo->env, code);
     }
 
-    doFilter(pProjectInfo->pFilterNode, pBlock);
+    doFilter(pProjectInfo->pFilterNode, pBlock, true);
 
     setInputDataBlock(pOperator, pInfo->pCtx, pBlock, order, scanFlag, false);
     blockDataEnsureCapacity(pInfo->pRes, pInfo->pRes->info.rows + pBlock->info.rows);
