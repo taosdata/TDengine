@@ -772,12 +772,13 @@ create table m1(ts timestamp, k int) tags(a int);
 create table tm0 using m1 tags(1);
 create table tm1 using m1 tags(2);
 insert into tm0 values('2021-1-1 1:1:1.120', 1) ('2021-1-1 1:1:2.9', 2) tm1 values('2021-1-1 1:1:1.120', 11) ('2021-1-1 1:1:2.99', 22);
+
  */
 TEST(testCase, async_api_test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
-  taos_query_a(pConn, "alter database test keep 2400", queryCallback, pConn);
+  taos_query_a(pConn, "insert into tm0 values(now()+0s, 1)", queryCallback, pConn);
   getchar();
   taos_close(pConn);
 }
