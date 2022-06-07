@@ -4953,7 +4953,7 @@ int32_t decodeOperator(SOperatorInfo* ops, char* result, int32_t length) {
 }
 
 int32_t createDataSinkParam(SDataSinkNode *pNode, void **pParam, qTaskInfo_t* pTaskInfo) {
-  SExecTaskInfo* pTask = (SExecTaskInfo*)pTaskInfo;
+  SExecTaskInfo* pTask = *(SExecTaskInfo**)pTaskInfo;
   
   switch (pNode->type) {
     case QUERY_NODE_PHYSICAL_PLAN_DELETE: {
