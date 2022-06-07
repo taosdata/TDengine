@@ -740,6 +740,7 @@
 4,,system-test,python3 ./test.py -f 2-query/TD-11561.py 
 4,,system-test,python3 test.py -f 1-insert/stmt_error.py 
 4,,pytest,python3 test.py -f user/pass_len.py 
+4,,pytest,python3 test.py -f client/dropTable.py  
 4,,pytest,python3 test.py -f TimeZone/TestCaseTimeZone.py 
 4,,pytest,python3 test.py -f tag_lite/unsignedBigint.py 
 4,,pytest,python3 test.py -f tag_lite/tinyint.py 
