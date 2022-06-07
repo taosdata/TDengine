@@ -772,41 +772,12 @@ create table m1(ts timestamp, k int) tags(a int);
 create table tm0 using m1 tags(1);
 create table tm1 using m1 tags(2);
 insert into tm0 values('2021-1-1 1:1:1.120', 1) ('2021-1-1 1:1:2.9', 2) tm1 values('2021-1-1 1:1:1.120', 11) ('2021-1-1 1:1:2.99', 22);
-
  */
 TEST(testCase, async_api_test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
-  taos_query(pConn, "use test");
-
-  TAOS_RES* pRes = taos_query(pConn, "select * from t1");
-
-  taos_query(pConn, "alter table t1 add column b int");
-  pRes = taos_query(pConn, "insert into t1 values(now, 1, 2)");
-  if (taos_errno(pRes) != 0) {
-    printf("failed, reason:%s\n", taos_errstr(pRes));
-  }
-
-//  int32_t n = 0;
-//  TAOS_ROW    pRow = NULL;
-//  TAOS_FIELD* pFields = taos_fetch_fields(pRes);
-//  int32_t     numOfFields = taos_num_fields(pRes);
-//
-//  char str[512] = {0};
-//  while ((pRow = taos_fetch_row(pRes)) != NULL) {
-//    int32_t* length = taos_fetch_lengths(pRes);
-//    for(int32_t i = 0; i < numOfFields; ++i) {
-//      printf("(%d):%d " , i, length[i]);
-//    }
-//    printf("\n");
-//
-//    int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
-//    printf("%s\n", str);
-//    memset(str, 0, sizeof(str));
-//  }
-
-  taos_query_a(pConn, "alter table test.m1 comment 'abcde' ", queryCallback, pConn);
+  taos_query_a(pConn, "alter database test keep 2400", queryCallback, pConn);
   getchar();
   taos_close(pConn);
 }
