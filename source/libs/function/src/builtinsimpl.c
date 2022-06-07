@@ -2159,7 +2159,7 @@ int32_t apercentilePartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     }
   } else {
     if (pInfo->pHisto->numOfElems > 0) {
-      memcpy(varDataVal(tmp), pInfo->pHisto, resultBytes);
+      memcpy(varDataVal(tmp), pInfo, resultBytes);
       varDataSetLen(tmp, resultBytes);
     } else {
       return TSDB_CODE_SUCCESS;

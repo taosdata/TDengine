@@ -1244,7 +1244,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateApercentileMerge,
     .getEnvFunc   = getApercentileFuncEnv,
     .initFunc     = dummyInit,
-    .processFunc  = apercentileFunction,
+    .processFunc  = apercentileFunctionMerge,
     .finalizeFunc = apercentileFinalize
   },
   {

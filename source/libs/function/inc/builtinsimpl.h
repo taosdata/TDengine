@@ -81,6 +81,7 @@ int32_t getApercentileMaxSize();
 bool getApercentileFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool apercentileFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t apercentileFunction(SqlFunctionCtx *pCtx);
+int32_t apercentileFunctionMerge(SqlFunctionCtx* pCtx);
 int32_t apercentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t apercentilePartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
