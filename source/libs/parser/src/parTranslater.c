@@ -3621,10 +3621,43 @@ static int32_t translateMergeVgroup(STranslateContext* pCxt, SMergeVgroupStmt* p
   return buildCmdMsg(pCxt, TDMT_MND_MERGE_VGROUP, (FSerializeFunc)tSerializeSMergeVgroupReq, &req);
 }
 
+static int32_t checkDnodeIds(STranslateContext* pCxt, SRedistributeVgroupStmt* pStmt) {
+  int32_t numOfDnodes = LIST_LENGTH(pStmt->pDnodes);
+  if (numOfDnodes > 3 || numOfDnodes < 1) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REDISTRIBUTE_VG);
+  }
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pStmt->pDnodes) {
+    SValueNode* pVal = (SValueNode*)pNode;
+    if (DEAL_RES_ERROR == translateValue(pCxt, pVal)) {
+      return pCxt->errCode;
+    }
+  }
+
+  pStmt->dnodeId1 = getBigintFromValueNode((SValueNode*)nodesListGetNode(pStmt->pDnodes, 0));
+  pStmt->dnodeId2 = -1;
+  pStmt->dnodeId3 = -1;
+  if (numOfDnodes > 1) {
+    pStmt->dnodeId2 = getBigintFromValueNode((SValueNode*)nodesListGetNode(pStmt->pDnodes, 1));
+  }
+  if (numOfDnodes > 2) {
+    pStmt->dnodeId3 = getBigintFromValueNode((SValueNode*)nodesListGetNode(pStmt->pDnodes, 2));
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateRedistributeVgroup(STranslateContext* pCxt, SRedistributeVgroupStmt* pStmt) {
   SRedistributeVgroupReq req = {.vgId = pStmt->vgId};
-  // todo
-  return buildCmdMsg(pCxt, TDMT_MND_MERGE_VGROUP, (FSerializeFunc)tSerializeSRedistributeVgroupReq, &req);
+  int32_t                code = checkDnodeIds(pCxt, pStmt);
+  if (TSDB_CODE_SUCCESS == code) {
+    req.dnodeId1 = pStmt->dnodeId1;
+    req.dnodeId2 = pStmt->dnodeId2;
+    req.dnodeId3 = pStmt->dnodeId3;
+    code = buildCmdMsg(pCxt, TDMT_MND_REDISTRIBUTE_VGROUP, (FSerializeFunc)tSerializeSRedistributeVgroupReq, &req);
+  }
+  return code;
 }
 
 static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
