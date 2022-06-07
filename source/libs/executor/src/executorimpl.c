@@ -1883,8 +1883,11 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowR
         ASSERT(pBlock->info.rows == numOfRows);
       }
 
+      SColumnInfoData tmp = *pSrc;
       *pSrc = *pDst;
+      *pDst = tmp;
     }
+    blockDataDestroy(px);     // fix memory leak
   } else {
     // do nothing
     pBlock->info.rows = 0;
@@ -4554,7 +4557,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         return NULL;
       }
 
-      return createTagScanOperatorInfo(pHandle, pScanPhyNode, pTableListInfo, pTaskInfo);
+      return createTagScanOperatorInfo(pHandle, pScanPhyNode->node.pConditions, pScanPhyNode, pTableListInfo, pTaskInfo);
     } else {
       ASSERT(0);
     }

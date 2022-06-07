@@ -1716,7 +1716,9 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
   }
 
   pRes->info.rows = count;
-  pOperator->resultInfo.totalRows += count;
+  doFilter(pInfo->pFilterNode, pRes);
+
+  pOperator->resultInfo.totalRows += pRes->info.rows;
 
   return (pRes->info.rows == 0) ? NULL : pInfo->pRes;
 }
@@ -1726,7 +1728,7 @@ static void destroyTagScanOperatorInfo(void* param, int32_t numOfOutput) {
   pInfo->pRes = blockDataDestroy(pInfo->pRes);
 }
 
-SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysiNode* pPhyNode, STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo) {
+SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, SNode* pConditions, STagScanPhysiNode* pPhyNode, STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo) {
   STagScanInfo*  pInfo = taosMemoryCalloc(1, sizeof(STagScanInfo));
   SOperatorInfo* pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -1746,6 +1748,7 @@ SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysi
   pInfo->pRes             = createResDataBlock(pDescNode);;
   pInfo->readHandle       = *pReadHandle;
   pInfo->curPos           = 0;
+  pInfo->pFilterNode      = pConditions;
   pOperator->name         = "TagScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN;
   pOperator->blocking     = false;
