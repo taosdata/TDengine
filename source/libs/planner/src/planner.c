@@ -88,7 +88,7 @@ int32_t qSetSubplanExecutionNode(SSubplan* subplan, int32_t groupId, SDownstream
 }
 
 int32_t qSubPlanToString(const SSubplan* pSubplan, char** pStr, int32_t* pLen) {
-  if (SUBPLAN_TYPE_MODIFY == pSubplan->subplanType) {
+  if (SUBPLAN_TYPE_MODIFY == pSubplan->subplanType && NULL == pSubplan->pNode) {
     SDataInserterNode* insert = (SDataInserterNode*)pSubplan->pDataSink;
     *pLen = insert->size;
     *pStr = insert->pData;
