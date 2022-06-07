@@ -30,6 +30,7 @@ extern "C" {
 typedef struct SSyncIndexMgr {
   SRaftId (*replicas)[TSDB_MAX_REPLICA];
   SyncIndex  index[TSDB_MAX_REPLICA];
+  SyncTerm   privateTerm[TSDB_MAX_REPLICA];  // for advanced function
   int32_t    replicaNum;
   SSyncNode *pSyncNode;
 } SSyncIndexMgr;
@@ -40,8 +41,11 @@ void           syncIndexMgrDestroy(SSyncIndexMgr *pSyncIndexMgr);
 void           syncIndexMgrClear(SSyncIndexMgr *pSyncIndexMgr);
 void           syncIndexMgrSetIndex(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId, SyncIndex index);
 SyncIndex      syncIndexMgrGetIndex(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId);
-cJSON *        syncIndexMgr2Json(SSyncIndexMgr *pSyncIndexMgr);
-char *         syncIndexMgr2Str(SSyncIndexMgr *pSyncIndexMgr);
+cJSON         *syncIndexMgr2Json(SSyncIndexMgr *pSyncIndexMgr);
+char          *syncIndexMgr2Str(SSyncIndexMgr *pSyncIndexMgr);
+
+void     syncIndexMgrSetTerm(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId, SyncTerm term);
+SyncTerm syncIndexMgrGetTerm(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId);
 
 // for debug -------------------
 void syncIndexMgrPrint(SSyncIndexMgr *pObj);
