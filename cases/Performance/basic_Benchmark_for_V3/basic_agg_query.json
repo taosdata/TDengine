@@ -1,7 +1,7 @@
 {
     "filetype": "query",
     "cfgdir": "/etc/taos",
-    "host": "localhost",
+    "host": "vm130",
     "port": 6030,
     "user": "root",
     "password": "taosdata",
