@@ -2047,6 +2047,55 @@ int32_t apercentileFunction(SqlFunctionCtx* pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t apercentileFunctionMerge(SqlFunctionCtx* pCtx) {
+  int32_t              numOfElems = 0;
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+
+  SColumnInfoData* pCol = pInput->pData[0];
+  int32_t          type = pCol->info.type;
+
+  SAPercentileInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  SAPercentileInfo* pInputInfo;
+
+  int32_t start = pInput->startRowIndex;
+  for (int32_t i = start; i < pInput->numOfRows + start; ++i) {
+    //if (colDataIsNull_s(pCol, i)) {
+    //  continue;
+    //}
+    numOfElems += 1;
+    char* data = colDataGetData(pCol, i);
+
+    pInputInfo = (SAPercentileInfo *)varDataVal(data);
+  }
+
+  if (pInfo->algo == APERCT_ALGO_TDIGEST) {
+  } else {
+    buildHistogramInfo(pInputInfo);
+    if (pInputInfo->pHisto->numOfElems <= 0) {
+      return TSDB_CODE_SUCCESS;
+    }
+
+    buildHistogramInfo(pInfo);
+    SHistogramInfo  *pHisto = pInfo->pHisto;
+
+    if (pHisto->numOfElems <= 0) {
+      memcpy(pHisto, pInputInfo->pHisto, sizeof(SHistogramInfo) + sizeof(SHistBin) * (MAX_HISTOGRAM_BIN + 1));
+      pHisto->elems = (SHistBin*) ((char *)pHisto + sizeof(SHistogramInfo));
+    } else {
+      pHisto->elems = (SHistBin*) ((char *)pHisto + sizeof(SHistogramInfo));
+      SHistogramInfo *pRes = tHistogramMerge(pHisto, pInputInfo->pHisto, MAX_HISTOGRAM_BIN);
+      memcpy(pHisto, pRes, sizeof(SHistogramInfo) + sizeof(SHistBin) * MAX_HISTOGRAM_BIN);
+      pHisto->elems = (SHistBin*) ((char *)pHisto + sizeof(SHistogramInfo));
+      tHistogramDestroy(&pRes);
+    }
+  }
+
+  SET_VAL(pResInfo, numOfElems, 1);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t apercentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SVariant* pVal    = &pCtx->param[1].param;
   double    percent = (pVal->nType == TSDB_DATA_TYPE_BIGINT) ? pVal->i : pVal->d;
@@ -2091,13 +2140,15 @@ int32_t apercentilePartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   if (pInfo->algo == APERCT_ALGO_TDIGEST) {
     if (pInfo->pTDigest->size > 0) {
-      memcpy(varDataVal(tmp), pInfo->pTDigest, resultBytes);
+      memcpy(varDataVal(tmp), pInfo, resultBytes);
+      varDataSetLen(tmp, resultBytes);
     } else {
       return TSDB_CODE_SUCCESS;
     }
   } else {
     if (pInfo->pHisto->numOfElems > 0) {
       memcpy(varDataVal(tmp), pInfo->pHisto, resultBytes);
+      varDataSetLen(tmp, resultBytes);
     } else {
       return TSDB_CODE_SUCCESS;
     }

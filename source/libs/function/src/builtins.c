@@ -205,7 +205,7 @@ static bool validateApercentileAlgo(const SValueNode* pVal) {
           0 == strcasecmp(varDataVal(pVal->datum.p), "t-digest"));
 }
 
-static int32_t translateApercentileImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isPartial) {
+static int32_t translateApercentile(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   if (2 != numOfParams && 3 != numOfParams) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
@@ -247,11 +247,66 @@ static int32_t translateApercentileImpl(SFunctionNode* pFunc, char* pErrBuf, int
     pValue->notReserved = true;
   }
 
-  if (!isPartial) {
-    pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateApercentileImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isPartial) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+
+  if (isPartial) {
+    if (2 != numOfParams && 3 != numOfParams) {
+      return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+    // param1
+    SNode* pParamNode1 = nodesListGetNode(pFunc->pParameterList, 1);
+    if (nodeType(pParamNode1) != QUERY_NODE_VALUE) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    SValueNode* pValue = (SValueNode*)pParamNode1;
+    if (pValue->datum.i < 0 || pValue->datum.i > 100) {
+      return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    pValue->notReserved = true;
+
+    uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+    uint8_t para2Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
+    if (!IS_NUMERIC_TYPE(para1Type) || !IS_INTEGER_TYPE(para2Type)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    // param2
+    if (3 == numOfParams) {
+      uint8_t para3Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 2))->resType.type;
+      if (!IS_VAR_DATA_TYPE(para3Type)) {
+        return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+      }
+
+      SNode* pParamNode2 = nodesListGetNode(pFunc->pParameterList, 2);
+      if (QUERY_NODE_VALUE != nodeType(pParamNode2) || !validateApercentileAlgo((SValueNode*)pParamNode2)) {
+        return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                               "Third parameter algorithm of apercentile must be 'default' or 't-digest'");
+      }
+
+      pValue = (SValueNode*)pParamNode2;
+      pValue->notReserved = true;
+    }
+
+    pFunc->node.resType = (SDataType){.bytes = getApercentileMaxSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
   } else {
-    pFunc->node.resType = (SDataType){.bytes = 1000, .type = TSDB_DATA_TYPE_BINARY};
+    if (1 != numOfParams) {
+      return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+    uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+    if (!IS_NUMERIC_TYPE(para1Type)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
   }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1164,7 +1219,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "apercentile",
     .type = FUNCTION_TYPE_APERCENTILE,
     .classification = FUNC_MGT_AGG_FUNC,
-    .translateFunc = translateApercentileFinal,
+    .translateFunc = translateApercentile,
     .getEnvFunc   = getApercentileFuncEnv,
     .initFunc     = apercentileFunctionSetup,
     .processFunc  = apercentileFunction,
@@ -1188,7 +1243,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .classification = FUNC_MGT_AGG_FUNC,
     .translateFunc = translateApercentileFinal,
     .getEnvFunc   = getApercentileFuncEnv,
-    .initFunc     = apercentileFunctionSetup,
+    .initFunc     = NULL,//apercentileFunctionSetup,
     .processFunc  = apercentileFunction,
     .finalizeFunc = apercentileFinalize
   },
