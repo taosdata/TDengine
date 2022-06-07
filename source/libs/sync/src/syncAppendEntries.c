@@ -201,7 +201,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
             SSyncRaftEntry* pRollBackEntry = ths->pLogStore->getEntry(ths->pLogStore, index);
             assert(pRollBackEntry != NULL);
 
-            // if (pRollBackEntry->msgType != TDMT_VND_SYNC_NOOP) {
+            // if (pRollBackEntry->msgType != TDMT_SYNC_NOOP) {
             if (syncUtilUserRollback(pRollBackEntry->msgType)) {
               SRpcMsg rpcMsg;
               syncEntry2OriginalRpc(pRollBackEntry, &rpcMsg);
@@ -230,7 +230,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
         SRpcMsg rpcMsg;
         syncEntry2OriginalRpc(pAppendEntry, &rpcMsg);
         if (ths->pFsm != NULL) {
-          // if (ths->pFsm->FpPreCommitCb != NULL && pAppendEntry->originalRpcType != TDMT_VND_SYNC_NOOP) {
+          // if (ths->pFsm->FpPreCommitCb != NULL && pAppendEntry->originalRpcType != TDMT_SYNC_NOOP) {
           if (ths->pFsm->FpPreCommitCb != NULL && syncUtilUserPreCommit(pAppendEntry->originalRpcType)) {
             SFsmCbMeta cbMeta;
             cbMeta.index = pAppendEntry->index;
@@ -262,7 +262,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
       SRpcMsg rpcMsg;
       syncEntry2OriginalRpc(pAppendEntry, &rpcMsg);
       if (ths->pFsm != NULL) {
-        // if (ths->pFsm->FpPreCommitCb != NULL && pAppendEntry->originalRpcType != TDMT_VND_SYNC_NOOP) {
+        // if (ths->pFsm->FpPreCommitCb != NULL && pAppendEntry->originalRpcType != TDMT_SYNC_NOOP) {
         if (ths->pFsm->FpPreCommitCb != NULL && syncUtilUserPreCommit(pAppendEntry->originalRpcType)) {
           SFsmCbMeta cbMeta;
           cbMeta.index = pAppendEntry->index;
@@ -351,7 +351,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
               }
 
               // config change
-              if (pEntry->originalRpcType == TDMT_VND_SYNC_CONFIG_CHANGE) {
+              if (pEntry->originalRpcType == TDMT_SYNC_CONFIG_CHANGE) {
                 SSyncCfg oldSyncCfg = ths->pRaftCfg->cfg;
 
                 SSyncCfg newSyncCfg;

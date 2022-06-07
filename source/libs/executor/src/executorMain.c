@@ -45,8 +45,15 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
+  
   if (handle) {
-    code = dsCreateDataSinker(pSubplan->pDataSink, handle);
+    void* pSinkParam = NULL;
+    code = createDataSinkParam(pSubplan->pDataSink, &pSinkParam, pTaskInfo);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _error;
+    }
+    
+    code = dsCreateDataSinker(pSubplan->pDataSink, handle, pSinkParam);
   }
 
   _error:

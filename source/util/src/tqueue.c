@@ -34,11 +34,11 @@ typedef struct STaosQnode {
 } STaosQnode;
 
 typedef struct STaosQueue {
-  STaosQnode *  head;
-  STaosQnode *  tail;
-  STaosQueue *  next;     // for queue set
-  STaosQset *   qset;     // for queue set
-  void *        ahandle;  // for queue set
+  STaosQnode   *head;
+  STaosQnode   *tail;
+  STaosQueue   *next;     // for queue set
+  STaosQset    *qset;     // for queue set
+  void         *ahandle;  // for queue set
   FItem         itemFp;
   FItems        itemsFp;
   TdThreadMutex mutex;
@@ -47,8 +47,8 @@ typedef struct STaosQueue {
 } STaosQueue;
 
 typedef struct STaosQset {
-  STaosQueue *  head;
-  STaosQueue *  current;
+  STaosQueue   *head;
+  STaosQueue   *current;
   TdThreadMutex mutex;
   tsem_t        sem;
   int32_t       numOfQueues;
@@ -86,7 +86,7 @@ void taosSetQueueFp(STaosQueue *queue, FItem itemFp, FItems itemsFp) {
 void taosCloseQueue(STaosQueue *queue) {
   if (queue == NULL) return;
   STaosQnode *pTemp;
-  STaosQset * qset;
+  STaosQset  *qset;
 
   taosThreadMutexLock(&queue->mutex);
   STaosQnode *pNode = queue->head;
@@ -282,6 +282,8 @@ int32_t taosGetQitem(STaosQall *qall, void **ppItem) {
     *ppItem = pNode->item;
     num = 1;
     uTrace("item:%p is fetched", *ppItem);
+  } else {
+    *ppItem = NULL;
   }
 
   return num;

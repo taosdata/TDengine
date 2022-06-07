@@ -190,7 +190,7 @@ int32_t mndAddShuffledSinkToStream(SMnode* pMnode, STrans* pTrans, SStreamObj* p
       sdbRelease(pSdb, pVgroup);
       continue;
     }
-    SStreamTask* pTask = tNewSStreamTask(pStream->uid);
+    SStreamTask* pTask = tNewSStreamTask(pStream->uid, 0);
     if (pTask == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
@@ -230,7 +230,7 @@ int32_t mndAddShuffledSinkToStream(SMnode* pMnode, STrans* pTrans, SStreamObj* p
 int32_t mndAddFixedSinkToStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
   ASSERT(pStream->fixedSinkVgId != 0);
   SArray*      tasks = taosArrayGetP(pStream->tasks, 0);
-  SStreamTask* pTask = tNewSStreamTask(pStream->uid);
+  SStreamTask* pTask = tNewSStreamTask(pStream->uid, 0);
   if (pTask == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -322,7 +322,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
           sdbRelease(pSdb, pVgroup);
           continue;
         }
-        SStreamTask* pTask = tNewSStreamTask(pStream->uid);
+        SStreamTask* pTask = tNewSStreamTask(pStream->uid, 0);
         // source part
         pTask->sourceType = TASK_SOURCE__SCAN;
         pTask->inputType = TASK_INPUT_TYPE__SUMBIT_BLOCK;
@@ -387,7 +387,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
 
       // else, assign to vnode
       ASSERT(plan->subplanType == SUBPLAN_TYPE_MERGE);
-      SStreamTask* pTask = tNewSStreamTask(pStream->uid);
+      SStreamTask* pTask = tNewSStreamTask(pStream->uid, 0);
 
       // source part, currently only support multi source
       pTask->sourceType = TASK_SOURCE__PIPE;
@@ -477,7 +477,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
         sdbRelease(pSdb, pVgroup);
         continue;
       }
-      SStreamTask* pTask = tNewSStreamTask(pStream->uid);
+      SStreamTask* pTask = tNewSStreamTask(pStream->uid, 0);
 
       // source part
       pTask->sourceType = TASK_SOURCE__MERGE;

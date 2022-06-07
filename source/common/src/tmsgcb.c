@@ -22,41 +22,21 @@ static SMsgCb defaultMsgCb;
 void tmsgSetDefault(const SMsgCb* msgcb) { defaultMsgCb = *msgcb; }
 
 int32_t tmsgPutToQueue(const SMsgCb* msgcb, EQueueType qtype, SRpcMsg* pMsg) {
-  PutToQueueFp fp = msgcb->queueFps[qtype];
-  return (*fp)(msgcb->mgmt, pMsg);
+  return (*msgcb->putToQueueFp)(msgcb->mgmt, qtype, pMsg);
 }
 
 int32_t tmsgGetQueueSize(const SMsgCb* msgcb, int32_t vgId, EQueueType qtype) {
-  GetQueueSizeFp fp = msgcb->qsizeFp;
-  return (*fp)(msgcb->mgmt, vgId, qtype);
+  return (*msgcb->qsizeFp)(msgcb->mgmt, vgId, qtype);
 }
 
-int32_t tmsgSendReq(const SEpSet* epSet, SRpcMsg* pMsg) {
-  SendReqFp fp = defaultMsgCb.sendReqFp;
-  return (*fp)(epSet, pMsg);
-}
+int32_t tmsgSendReq(const SEpSet* epSet, SRpcMsg* pMsg) { return (*defaultMsgCb.sendReqFp)(epSet, pMsg); }
 
-void tmsgSendRsp(SRpcMsg* pMsg) {
-  SendRspFp fp = defaultMsgCb.sendRspFp;
-  return (*fp)(pMsg);
-}
+void tmsgSendRsp(SRpcMsg* pMsg) { return (*defaultMsgCb.sendRspFp)(pMsg); }
 
-void tmsgSendRedirectRsp(SRpcMsg* pMsg, const SEpSet* pNewEpSet) {
-  SendRedirectRspFp fp = defaultMsgCb.sendRedirectRspFp;
-  (*fp)(pMsg, pNewEpSet);
-}
+void tmsgSendRedirectRsp(SRpcMsg* pMsg, const SEpSet* pNewEpSet) { (*defaultMsgCb.sendRedirectRspFp)(pMsg, pNewEpSet); }
 
-void tmsgRegisterBrokenLinkArg(SRpcMsg* pMsg) {
-  RegisterBrokenLinkArgFp fp = defaultMsgCb.registerBrokenLinkArgFp;
-  (*fp)(pMsg);
-}
+void tmsgRegisterBrokenLinkArg(SRpcMsg* pMsg) { (*defaultMsgCb.registerBrokenLinkArgFp)(pMsg); }
 
-void tmsgReleaseHandle(SRpcHandleInfo* pHandle, int8_t type) {
-  ReleaseHandleFp fp = defaultMsgCb.releaseHandleFp;
-  (*fp)(pHandle, type);
-}
+void tmsgReleaseHandle(SRpcHandleInfo* pHandle, int8_t type) { (*defaultMsgCb.releaseHandleFp)(pHandle, type); }
 
-void tmsgReportStartup(const char* name, const char* desc) {
-  ReportStartup fp = defaultMsgCb.reportStartupFp;
-  (*fp)(name, desc);
-}
+void tmsgReportStartup(const char* name, const char* desc) { (*defaultMsgCb.reportStartupFp)(name, desc); }

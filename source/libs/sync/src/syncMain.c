@@ -175,7 +175,7 @@ int32_t syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg) {
   sInfo("==syncReconfig== newconfig:%s", configChange);
 
   SRpcMsg rpcMsg = {0};
-  rpcMsg.msgType = TDMT_VND_SYNC_CONFIG_CHANGE;
+  rpcMsg.msgType = TDMT_SYNC_CONFIG_CHANGE;
   rpcMsg.info.noResp = 1;
   rpcMsg.contLen = strlen(configChange) + 1;
   rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
@@ -1074,6 +1074,8 @@ void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* newConfig, bool* isDro
   voteGrantedUpdate(pSyncNode->pVotesGranted, pSyncNode);
   votesRespondUpdate(pSyncNode->pVotesRespond, pSyncNode);
 
+  pSyncNode->quorum = syncUtilQuorum(pSyncNode->pRaftCfg->cfg.replicaNum);
+
   // isDrop
   *isDrop = true;
   bool IamInOld, IamInNew;
@@ -1632,7 +1634,7 @@ int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg) {
     syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
     if (ths->pFsm != NULL) {
-      // if (ths->pFsm->FpPreCommitCb != NULL && pEntry->originalRpcType != TDMT_VND_SYNC_NOOP) {
+      // if (ths->pFsm->FpPreCommitCb != NULL && pEntry->originalRpcType != TDMT_SYNC_NOOP) {
       if (ths->pFsm->FpPreCommitCb != NULL && syncUtilUserPreCommit(pEntry->originalRpcType)) {
         SFsmCbMeta cbMeta;
         cbMeta.index = pEntry->index;
@@ -1654,7 +1656,7 @@ int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg) {
     syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
     if (ths->pFsm != NULL) {
-      // if (ths->pFsm->FpPreCommitCb != NULL && pEntry->originalRpcType != TDMT_VND_SYNC_NOOP) {
+      // if (ths->pFsm->FpPreCommitCb != NULL && pEntry->originalRpcType != TDMT_SYNC_NOOP) {
       if (ths->pFsm->FpPreCommitCb != NULL && syncUtilUserPreCommit(pEntry->originalRpcType)) {
         SFsmCbMeta cbMeta;
         cbMeta.index = pEntry->index;
@@ -1683,20 +1685,21 @@ static void syncFreeNode(void* param) {
 const char* syncStr(ESyncState state) {
   switch (state) {
     case TAOS_SYNC_STATE_FOLLOWER:
-      return "FOLLOWER";
+      return "follower";
     case TAOS_SYNC_STATE_CANDIDATE:
-      return "CANDIDATE";
+      return "candidate";
     case TAOS_SYNC_STATE_LEADER:
-      return "LEADER";
+      return "leader";
     default:
-      return "ERROR";
+      return "error";
   }
 }
 
 int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex, uint64_t flag) {
   int32_t    code = 0;
   ESyncState state = flag;
-  sInfo("sync event commit from %ld to %ld, %s", beginIndex, endIndex, syncUtilState2String(state));
+  sInfo("sync event commit from index:%" PRId64 " to index:%" PRId64 ", %s", beginIndex, endIndex,
+        syncUtilState2String(state));
 
   // maybe execute by leader, skip snapshot
   SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
@@ -1734,7 +1737,7 @@ int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex,
         }
 
         // config change
-        if (pEntry->originalRpcType == TDMT_VND_SYNC_CONFIG_CHANGE) {
+        if (pEntry->originalRpcType == TDMT_SYNC_CONFIG_CHANGE) {
           SSyncCfg oldSyncCfg = ths->pRaftCfg->cfg;
 
           SSyncCfg newSyncCfg;

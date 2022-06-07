@@ -157,7 +157,7 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
 
   walFsync(pWal, true);
 
-  sTrace("sync event write wal: %ld", pEntry->index);
+  sTrace("sync event write index:%" PRId64, pEntry->index);
 
   return code;
 }
@@ -187,7 +187,7 @@ static int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index,
 
     *ppEntry = syncEntryBuild(pWalHandle->pHead->head.bodyLen);
     ASSERT(*ppEntry != NULL);
-    (*ppEntry)->msgType = TDMT_VND_SYNC_CLIENT_REQUEST;
+    (*ppEntry)->msgType = TDMT_SYNC_CLIENT_REQUEST;
     (*ppEntry)->originalRpcType = pWalHandle->pHead->head.msgType;
     (*ppEntry)->seqNum = pWalHandle->pHead->head.syncMeta.seqNum;
     (*ppEntry)->isWeak = pWalHandle->pHead->head.syncMeta.isWeek;
@@ -340,7 +340,7 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
     SSyncRaftEntry* pEntry = syncEntryBuild(pWalHandle->pHead->head.bodyLen);
     assert(pEntry != NULL);
 
-    pEntry->msgType = TDMT_VND_SYNC_CLIENT_REQUEST;
+    pEntry->msgType = TDMT_SYNC_CLIENT_REQUEST;
     pEntry->originalRpcType = pWalHandle->pHead->head.msgType;
     pEntry->seqNum = pWalHandle->pHead->head.syncMeta.seqNum;
     pEntry->isWeak = pWalHandle->pHead->head.syncMeta.isWeek;

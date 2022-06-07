@@ -36,7 +36,8 @@ int32_t qwDbgValidateStatus(QW_FPARAMS_DEF, int8_t oriStatus, int8_t newStatus, 
 
       break;
     case JOB_TASK_STATUS_NOT_START:
-      if (newStatus != JOB_TASK_STATUS_CANCELLED) {
+      if (newStatus != JOB_TASK_STATUS_DROPPING && newStatus != JOB_TASK_STATUS_EXECUTING
+        && newStatus != JOB_TASK_STATUS_FAILED) {
         QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
       }
 

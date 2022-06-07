@@ -8,6 +8,7 @@ import http.server
 import gzip
 import threading
 import json
+import pickle
 
 from util.log import *
 from util.sql import *
@@ -136,13 +137,19 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
         telemetryInfoCheck(infoDict)
 
         # 4. shutdown the server and exit case 
-        assassin = threading.Thread(target=httpServer.shutdown)
+        assassin = threading.Thread(target=self.server.shutdown)
         assassin.daemon = True
         assassin.start()
         print ("==== shutdown http server ====")
 
 class TDTestCase:
     hostname = socket.gethostname()
+    if (platform.system().lower() == 'windows' and not tdDnodes.dnodes[0].remoteIP == ""):
+        try:
+            config = eval(tdDnodes.dnodes[0].remoteIP)
+            hostname = config["host"]
+        except Exception:
+            hostname = tdDnodes.dnodes[0].remoteIP
     serverPort = '7080'
     rpcDebugFlagVal = '143'
     clientCfgDict = {'serverPort': '', 'firstEp': '', 'secondEp':'', 'rpcDebugFlag':'135', 'fqdn':''}
@@ -177,16 +184,19 @@ class TDTestCase:
         sql = "create database db3 vgroups " + vgroups
         tdSql.query(sql)
 
-        # loop to wait request
-        httpServer.serve_forever()
+        # create http server: bing ip/port , and  request processor
+        if (platform.system().lower() == 'windows' and not tdDnodes.dnodes[0].remoteIP == ""):
+            RequestHandlerImplStr = base64.b64encode(pickle.dumps(RequestHandlerImpl)).decode()
+            telemetryInfoCheckStr = base64.b64encode(pickle.dumps(telemetryInfoCheck)).decode()
+            cmdStr = "import pickle\nimport http\ntelemetryInfoCheck=pickle.loads(base64.b64decode(\"%s\".encode()))\nRequestHandlerImpl=pickle.loads(base64.b64decode(\"%s\".encode()))\nhttp.server.HTTPServer((\"\", %d), RequestHandlerImpl).serve_forever()"%(telemetryInfoCheckStr,RequestHandlerImplStr,int(telemetryPort))
+            tdDnodes.dnodes[0].remoteExec({}, cmdStr)
+        else:
+            serverAddress = ("", int(telemetryPort))
+            http.server.HTTPServer(serverAddress, RequestHandlerImpl).serve_forever()
 
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
-
-# create http server: bing ip/port , and  request processor
-serverAddress = ("", int(telemetryPort))
-httpServer = http.server.HTTPServer(serverAddress, RequestHandlerImpl)
 
 tdCases.addLinux(__file__, TDTestCase())
 tdCases.addWindows(__file__, TDTestCase())

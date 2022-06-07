@@ -18,7 +18,6 @@
 #include "querynodes.h"
 #include "scalar.h"
 #include "taoserror.h"
-#include "tdatablock.h"
 
 static int32_t buildFuncErrMsg(char* pErrBuf, int32_t len, int32_t errCode, const char* pFormat, ...) {
   va_list vArgList;
@@ -178,13 +177,6 @@ static int32_t translatePercentile(SFunctionNode* pFunc, char* pErrBuf, int32_t 
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  // param0
-  SNode* pParamNode0 = nodesListGetNode(pFunc->pParameterList, 0);
-  if (nodeType(pParamNode0) != QUERY_NODE_COLUMN) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The first parameter of PERCENTILE function can only be column");
-  }
-
   // param1
   SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
 
@@ -217,13 +209,6 @@ static int32_t translateApercentile(SFunctionNode* pFunc, char* pErrBuf, int32_t
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   if (2 != numOfParams && 3 != numOfParams) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
-  }
-
-  // param0
-  SNode* pParamNode0 = nodesListGetNode(pFunc->pParameterList, 0);
-  if (nodeType(pParamNode0) != QUERY_NODE_COLUMN) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The first parameter of APERCENTILE function can only be column");
   }
 
   // param1
@@ -285,13 +270,6 @@ static int32_t translateTop(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  // param0
-  SNode* pParamNode0 = nodesListGetNode(pFunc->pParameterList, 0);
-  if (nodeType(pParamNode0) != QUERY_NODE_COLUMN) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The first parameter of TOP/BOTTOM function can only be column");
-  }
-
   // param1
   SNode* pParamNode1 = nodesListGetNode(pFunc->pParameterList, 1);
   if (nodeType(pParamNode1) != QUERY_NODE_VALUE) {
@@ -339,13 +317,6 @@ static int32_t translateElapsed(SFunctionNode* pFunc, char* pErrBuf, int32_t len
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  // param0
-  SNode* pParaNode0 = nodesListGetNode(pFunc->pParameterList, 0);
-  if (QUERY_NODE_COLUMN != nodeType(pParaNode0)) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The first parameter of ELAPSED function can only be column");
-  }
-
   uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
   if (TSDB_DATA_TYPE_TIMESTAMP != paraType) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
@@ -362,7 +333,7 @@ static int32_t translateElapsed(SFunctionNode* pFunc, char* pErrBuf, int32_t len
 
     pValue->notReserved = true;
 
-    uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
+    paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
     if (!IS_INTEGER_TYPE(paraType)) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
@@ -411,13 +382,6 @@ static int32_t translateHistogram(SFunctionNode* pFunc, char* pErrBuf, int32_t l
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  // param0
-  SNode* pParaNode0 = nodesListGetNode(pFunc->pParameterList, 0);
-  if (QUERY_NODE_COLUMN != nodeType(pParaNode0)) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The first parameter of HISTOGRAM function can only be column");
-  }
-
   uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
   if (!IS_NUMERIC_TYPE(colType)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
@@ -450,13 +414,7 @@ static int32_t translateHLL(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
-  if (QUERY_NODE_COLUMN != nodeType(pPara)) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The input parameter of HYPERLOGLOG function can only be column");
-  }
-
-  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_UBIGINT].bytes, .type = TSDB_DATA_TYPE_UBIGINT};
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -464,12 +422,9 @@ static bool validateStateOper(const SValueNode* pVal) {
   if (TSDB_DATA_TYPE_BINARY != pVal->node.resType.type) {
     return false;
   }
-  return (0 == strcasecmp(varDataVal(pVal->datum.p), "GT") ||
-          0 == strcasecmp(varDataVal(pVal->datum.p), "GE") ||
-          0 == strcasecmp(varDataVal(pVal->datum.p), "LT") ||
-          0 == strcasecmp(varDataVal(pVal->datum.p), "LE") ||
-          0 == strcasecmp(varDataVal(pVal->datum.p), "EQ") ||
-          0 == strcasecmp(varDataVal(pVal->datum.p), "NE"));
+  return (0 == strcasecmp(varDataVal(pVal->datum.p), "GT") || 0 == strcasecmp(varDataVal(pVal->datum.p), "GE") ||
+          0 == strcasecmp(varDataVal(pVal->datum.p), "LT") || 0 == strcasecmp(varDataVal(pVal->datum.p), "LE") ||
+          0 == strcasecmp(varDataVal(pVal->datum.p), "EQ") || 0 == strcasecmp(varDataVal(pVal->datum.p), "NE"));
 }
 
 static int32_t translateStateCount(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
@@ -478,12 +433,6 @@ static int32_t translateStateCount(SFunctionNode* pFunc, char* pErrBuf, int32_t 
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  // param0
-  SNode* pParaNode0 = nodesListGetNode(pFunc->pParameterList, 0);
-  if (QUERY_NODE_COLUMN != nodeType(pParaNode0)) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The input parameter of STATECOUNT function can only be column");
-  }
   uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
   if (!IS_NUMERIC_TYPE(colType)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
@@ -524,12 +473,6 @@ static int32_t translateStateDuration(SFunctionNode* pFunc, char* pErrBuf, int32
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  // param0
-  SNode* pParaNode0 = nodesListGetNode(pFunc->pParameterList, 0);
-  if (QUERY_NODE_COLUMN != nodeType(pParaNode0)) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The input parameter of STATEDURATION function can only be column");
-  }
   uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
   if (!IS_NUMERIC_TYPE(colType)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
@@ -552,7 +495,6 @@ static int32_t translateStateDuration(SFunctionNode* pFunc, char* pErrBuf, int32
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
                              "STATEDURATION function time unit parameter should be greater than db precision");
     }
-
 
     pValue->notReserved = true;
   }
@@ -578,12 +520,6 @@ static int32_t translateCsum(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
-  if (QUERY_NODE_COLUMN != nodeType(pPara)) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The input parameter of CSUM function can only be column");
-  }
-
   uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
   uint8_t resType;
   if (!IS_NUMERIC_TYPE(colType)) {
@@ -607,13 +543,6 @@ static int32_t translateCsum(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
 static int32_t translateMavg(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (2 != LIST_LENGTH(pFunc->pParameterList)) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
-  }
-
-  // param0
-  SNode* pParaNode0 = nodesListGetNode(pFunc->pParameterList, 0);
-  if (QUERY_NODE_COLUMN != nodeType(pParaNode0)) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The first parameter of MAVG function can only be column");
   }
 
   uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
@@ -643,13 +572,6 @@ static int32_t translateMavg(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
 static int32_t translateSample(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (2 != LIST_LENGTH(pFunc->pParameterList)) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
-  }
-
-  // param0
-  SNode* pParamNode0 = nodesListGetNode(pFunc->pParameterList, 0);
-  if (QUERY_NODE_COLUMN != nodeType(pParamNode0)) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The first parameter of SAMPLE function can only be column");
   }
 
   SExprNode* pCol = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 0);
@@ -689,12 +611,6 @@ static int32_t translateTail(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  // param0
-  SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
-  if (QUERY_NODE_COLUMN != nodeType(pPara)) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The first parameter of TAIL function can only be column");
-  }
   SExprNode* pCol = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 0);
   uint8_t    colType = pCol->resType.type;
 
@@ -771,13 +687,6 @@ static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  // param0
-  SNode* pParamNode0 = nodesListGetNode(pFunc->pParameterList, 0);
-  if (nodeType(pParamNode0) != QUERY_NODE_COLUMN) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The first parameter of DIFF function can only be column");
-  }
-
   uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
   if (!IS_SIGNED_NUMERIC_TYPE(colType) && !IS_FLOAT_TYPE(colType) && TSDB_DATA_TYPE_BOOL != colType) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
@@ -838,7 +747,7 @@ static int32_t translateConcatImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t 
   int32_t resultBytes = 0;
   int32_t sepBytes = 0;
 
-  //concat_ws separator should be constant string
+  // concat_ws separator should be constant string
   if (hasSep) {
     SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
     if (nodeType(pPara) != QUERY_NODE_VALUE) {
@@ -851,7 +760,7 @@ static int32_t translateConcatImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t 
   for (int32_t i = 0; i < numOfParams; ++i) {
     SNode*  pPara = nodesListGetNode(pFunc->pParameterList, i);
     uint8_t paraType = ((SExprNode*)pPara)->resType.type;
-    if (!IS_VAR_DATA_TYPE(paraType) && TSDB_DATA_TYPE_NULL != paraType) {
+    if (!IS_VAR_DATA_TYPE(paraType) && !IS_NULL_TYPE(paraType)) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
     if (TSDB_DATA_TYPE_NCHAR == paraType) {
@@ -864,6 +773,12 @@ static int32_t translateConcatImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t 
     uint8_t paraType = ((SExprNode*)pPara)->resType.type;
     int32_t paraBytes = ((SExprNode*)pPara)->resType.bytes;
     int32_t factor = 1;
+    if (IS_NULL_TYPE(paraType)) {
+      resultType = TSDB_DATA_TYPE_VARCHAR;
+      resultBytes = 0;
+      sepBytes = 0;
+      break;
+    }
     if (TSDB_DATA_TYPE_NCHAR == resultType && TSDB_DATA_TYPE_VARCHAR == paraType) {
       factor *= TSDB_NCHAR_SIZE;
     }
@@ -964,7 +879,7 @@ static bool validateTimezoneFormat(const SValueNode* pVal) {
     return false;
   }
 
-  char *tz    = varDataVal(pVal->datum.p);
+  char*   tz = varDataVal(pVal->datum.p);
   int32_t len = varDataLen(pVal->datum.p);
 
   if (len == 0) {
@@ -1008,20 +923,20 @@ static bool validateTimezoneFormat(const SValueNode* pVal) {
 }
 
 void static addTimezoneParam(SNodeList* pList) {
-  char buf[6] = {0};
-  time_t t = taosTime(NULL);
-  struct tm *tmInfo = taosLocalTime(&t, NULL);
+  char       buf[6] = {0};
+  time_t     t = taosTime(NULL);
+  struct tm* tmInfo = taosLocalTime(&t, NULL);
   strftime(buf, sizeof(buf), "%z", tmInfo);
   int32_t len = (int32_t)strlen(buf);
 
   SValueNode* pVal = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
   pVal->literal = strndup(buf, len);
-  pVal->isDuration =false;
+  pVal->isDuration = false;
   pVal->translate = true;
   pVal->node.resType.type = TSDB_DATA_TYPE_BINARY;
   pVal->node.resType.bytes = len + VARSTR_HEADER_SIZE;
   pVal->node.resType.precision = TSDB_TIME_PRECISION_MILLI;
-  pVal->datum.p = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE +1);
+  pVal->datum.p = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE + 1);
   varDataSetLen(pVal->datum.p, len);
   strncpy(varDataVal(pVal->datum.p), pVal->literal, len);
 
@@ -1034,25 +949,24 @@ static int32_t translateToIso8601(SFunctionNode* pFunc, char* pErrBuf, int32_t l
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  //param0
+  // param0
   uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
   if (!IS_INTEGER_TYPE(paraType) && TSDB_DATA_TYPE_TIMESTAMP != paraType) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  //param1
+  // param1
   if (numOfParams == 2) {
     SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
 
     if (!validateTimezoneFormat(pValue)) {
-      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                             "Invalid timzone format");
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR, "Invalid timzone format");
     }
-  } else { //add default client timezone
+  } else {  // add default client timezone
     addTimezoneParam(pFunc->pParameterList);
   }
 
-  //set result type
+  // set result type
   pFunc->node.resType = (SDataType){.bytes = 64, .type = TSDB_DATA_TYPE_BINARY};
   return TSDB_CODE_SUCCESS;
 }
@@ -1311,6 +1225,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = lastFunction,
     .finalizeFunc = firstLastFinalize,
     .combineFunc  = lastCombine,
+  },
+  {
+    .name = "twa",
+    .type = FUNCTION_TYPE_TWA,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC,
+    .translateFunc = translateInNumOutDou,
+    .getEnvFunc    = getTwaFuncEnv,
+    .initFunc      = twaFunctionSetup,
+    .processFunc   = twaFunction,
+    .finalizeFunc  = twaFinalize
   },
   {
     .name = "histogram",

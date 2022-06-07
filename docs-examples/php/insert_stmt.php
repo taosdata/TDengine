@@ -22,7 +22,7 @@ try {
 
     // set table name and tags
     $stmt->setTableNameTags('d1001', [
-        // 支持格式同参数绑定
+        // same format as parameter binding
         [TDengine\TSDB_DATA_TYPE_BINARY, 'California.SanFrancisco'],
         [TDengine\TSDB_DATA_TYPE_INT, 2],
     ]);

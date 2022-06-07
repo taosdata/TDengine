@@ -229,7 +229,7 @@ SMgmtWrapper *dmAcquireWrapper(SDnode *pDnode, EDndNodeType ntype) {
   taosThreadRwlockRdlock(&pWrapper->lock);
   if (pWrapper->deployed) {
     int32_t refCount = atomic_add_fetch_32(&pWrapper->refCount, 1);
-    dTrace("node:%s, is acquired, ref:%d", pWrapper->name, refCount);
+    // dTrace("node:%s, is acquired, ref:%d", pWrapper->name, refCount);
   } else {
     terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
     pRetWrapper = NULL;
@@ -245,7 +245,7 @@ int32_t dmMarkWrapper(SMgmtWrapper *pWrapper) {
   taosThreadRwlockRdlock(&pWrapper->lock);
   if (pWrapper->deployed || (InParentProc(pWrapper) && pWrapper->required)) {
     int32_t refCount = atomic_add_fetch_32(&pWrapper->refCount, 1);
-    dTrace("node:%s, is marked, ref:%d", pWrapper->name, refCount);
+    // dTrace("node:%s, is marked, ref:%d", pWrapper->name, refCount);
   } else {
     terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
     code = -1;
@@ -261,7 +261,7 @@ void dmReleaseWrapper(SMgmtWrapper *pWrapper) {
   taosThreadRwlockRdlock(&pWrapper->lock);
   int32_t refCount = atomic_sub_fetch_32(&pWrapper->refCount, 1);
   taosThreadRwlockUnlock(&pWrapper->lock);
-  dTrace("node:%s, is released, ref:%d", pWrapper->name, refCount);
+  // dTrace("node:%s, is released, ref:%d", pWrapper->name, refCount);
 }
 
 static void dmGetServerStartupStatus(SDnode *pDnode, SServerStatusRsp *pStatus) {

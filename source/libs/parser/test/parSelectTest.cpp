@@ -33,6 +33,8 @@ TEST_F(ParserSelectTest, basic) {
   run("SELECT ts, t.c1 FROM (SELECT * FROM t1) t");
 
   run("SELECT * FROM t1 tt1, t1 tt2 WHERE tt1.c1 = tt2.c1");
+
+  run("SELECT * FROM st1");
 }
 
 TEST_F(ParserSelectTest, constant) {
@@ -227,14 +229,14 @@ TEST_F(ParserSelectTest, subquery) {
   run("SELECT SUM(a) FROM (SELECT MAX(c1) a, _wstartts FROM st1s1 PARTITION BY TBNAME INTERVAL(1m)) INTERVAL(1n)");
 }
 
-TEST_F(ParserSelectTest, subquerySemanticError) {
+TEST_F(ParserSelectTest, subquerySemanticCheck) {
   useDb("root", "test");
 
   run("SELECT SUM(a) FROM (SELECT MAX(c1) a FROM st1s1 INTERVAL(1m)) INTERVAL(1n)", TSDB_CODE_PAR_NOT_ALLOWED_WIN_QUERY,
       PARSER_STAGE_TRANSLATE);
 }
 
-TEST_F(ParserSelectTest, semanticError) {
+TEST_F(ParserSelectTest, semanticCheck) {
   useDb("root", "test");
 
   // TSDB_CODE_PAR_INVALID_COLUMN

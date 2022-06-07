@@ -83,7 +83,7 @@ static void toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* pIn
   pEntry->numOfCols = pInput->pData->info.numOfCols;
   pEntry->dataLen = 0;
 
-  pBuf->useSize = sizeof(SRetrieveTableRsp);
+  pBuf->useSize = sizeof(SDataCacheEntry);
   blockCompressEncode(pInput->pData, pEntry->data, &pEntry->dataLen, numOfCols, pEntry->compressed);
 
   pBuf->useSize += pEntry->dataLen;
@@ -100,7 +100,7 @@ static bool allocBuf(SDataDispatchHandle* pDispatcher, const SInputData* pInput,
     return false;
   }
 
-  pBuf->allocSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pInput->pData);
+  pBuf->allocSize = sizeof(SDataCacheEntry) + blockGetEncodeSize(pInput->pData);
 
   pBuf->pData = taosMemoryMalloc(pBuf->allocSize);
   if (pBuf->pData == NULL) {
@@ -211,7 +211,7 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t getCacheSize(struct SDataSinkHandle* pHandle, uint64_t* size) {
+static int32_t getCacheSize(struct SDataSinkHandle* pHandle, uint64_t* size) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
 
   *size = atomic_load_64(&pDispatcher->cachedSize);

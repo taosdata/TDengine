@@ -148,7 +148,6 @@ int32_t dmReadEps(SDnodeData *pData) {
 
   code = 0;
   dDebug("succcessed to read file %s", file);
-  dmPrintEps(pData);
 
 _OVER:
   if (content != NULL) taosMemoryFree(content);
@@ -162,6 +161,7 @@ _OVER:
     taosArrayPush(pData->dnodeEps, &dnodeEp);
   }
 
+  dDebug("reset dnode list on startup");
   dmResetEps(pData, pData->dnodeEps);
 
   if (dmIsEpChanged(pData, pData->dnodeId, tsLocalEp)) {
@@ -236,11 +236,13 @@ void dmUpdateEps(SDnodeData *pData, SArray *eps) {
 
   int32_t numOfEpsOld = (int32_t)taosArrayGetSize(pData->dnodeEps);
   if (numOfEps != numOfEpsOld) {
+    dDebug("new dnode list get from mnode");
     dmResetEps(pData, eps);
     dmWriteEps(pData);
   } else {
     int32_t size = numOfEps * sizeof(SDnodeEp);
     if (memcmp(pData->dnodeEps->pData, eps->pData, size) != 0) {
+      dDebug("new dnode list get from mnode");
       dmResetEps(pData, eps);
       dmWriteEps(pData);
     }
@@ -282,7 +284,7 @@ static void dmResetEps(SDnodeData *pData, SArray *dnodeEps) {
 
 static void dmPrintEps(SDnodeData *pData) {
   int32_t numOfEps = (int32_t)taosArrayGetSize(pData->dnodeEps);
-  dDebug("print dnode ep list, num:%d", numOfEps);
+  dDebug("print dnode list, num:%d", numOfEps);
   for (int32_t i = 0; i < numOfEps; i++) {
     SDnodeEp *pEp = taosArrayGet(pData->dnodeEps, i);
     dDebug("dnode:%d, fqdn:%s port:%u is_mnode:%d", pEp->id, pEp->ep.fqdn, pEp->ep.port, pEp->isMnode);
@@ -316,9 +318,9 @@ void dmGetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet) {
 
 void dmGetMnodeEpSetForRedirect(SDnodeData *pData, SRpcMsg *pMsg, SEpSet *pEpSet) {
   dmGetMnodeEpSet(pData, pEpSet);
-  dDebug("msg:%p, is redirected, num:%d use:%d", pMsg, pEpSet->numOfEps, pEpSet->inUse);
+  dTrace("msg is redirected, handle:%p num:%d use:%d", pMsg->info.handle, pEpSet->numOfEps, pEpSet->inUse);
   for (int32_t i = 0; i < pEpSet->numOfEps; ++i) {
-    dDebug("mnode index:%d %s:%u", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
+    dTrace("mnode index:%d %s:%u", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
     if (strcmp(pEpSet->eps[i].fqdn, tsLocalFqdn) == 0 && pEpSet->eps[i].port == tsServerPort) {
       pEpSet->inUse = (i + 1) % pEpSet->numOfEps;
     }

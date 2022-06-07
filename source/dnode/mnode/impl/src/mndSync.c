@@ -194,7 +194,7 @@ int32_t mndInitSync(SMnode *pMnode) {
 void mndCleanupSync(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   syncStop(pMgmt->sync);
-  mDebug("sync:%" PRId64 " is stopped", pMgmt->sync);
+  mDebug("mnode sync is stopped, id:%" PRId64, pMgmt->sync);
 
   tsem_destroy(&pMgmt->syncSem);
   if (pMgmt->pWal != NULL) {

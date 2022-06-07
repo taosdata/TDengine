@@ -103,13 +103,13 @@ print $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] $data[0][5] $d
 if $rows != $vgroups then
   return -1
 endi
-if $data[0][4] == LEADER then
+if $data[0][4] == leader then
    print ---- vgroup $data[0][0] leader locate on dnode $data[0][3] 
    goto vg_ready
-elif $data[0][6] == LEADER then
+elif $data[0][6] == leader then
    print ---- vgroup $data[0][0] leader locate on dnode $data[0][5] 
    goto vg_ready
-elif $data[0][8] == LEADER then
+elif $data[0][8] == leader then
    print ---- vgroup $data[0][0] leader locate on dnode $data[0][7] 
    goto vg_ready
 else
@@ -154,11 +154,11 @@ switch_leader_to_offine_loop:
 print ====> finde vnode of leader, and stop the dnode where the vnode is located, and query stb/ntb count(*)
 sql show vgroups
 print $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] $data[0][5] $data[0][6] $data[0][7] $data[0][8] $data[0][9] $data[0][6] $data[0][11] $data[0][12] $data[0][13]
-if $data[0][4] == LEADER then
+if $data[0][4] == leader then
   $dnodeId = $data[0][3]
-elif $data[0][6] == LEADER then
+elif $data[0][6] == leader then
   $dnodeId = $data[0][5]
-elif $data[0][8] == LEADER then
+elif $data[0][8] == leader then
   $dnodeId = $data[0][7]
 else 
    print ====> no leader vnode!!!
@@ -186,13 +186,13 @@ if $rows != $vgroups then
   return -1
 endi
 
-if $data[0][4] == OFFLINE then
+if $data[0][4] == offline then
   print ---- vgroup $dnodeId leader switch to offline
   goto vg_offline_1
-elif $data[0][6] == OFFLINE then
+elif $data[0][6] == offline then
   print ---- vgroup $dnodeId leader switch to offline
   goto vg_offline_1
-elif $data[0][8] == OFFLINE then
+elif $data[0][8] == offline then
   print ---- vgroup $dnodeId leader switch to offline
   goto vg_offline_1
 else 
@@ -218,13 +218,13 @@ print $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] $data[0][5] $d
 if $rows != $vgroups then
   return -1
 endi
-if $data[0][4] == LEADER then
+if $data[0][4] == leader then
    print ---- vgroup $data[0][0] leader locate on dnode $data[0][3] 
    goto countinu_loop
-elif $data[0][6] == LEADER then
+elif $data[0][6] == leader then
    print ---- vgroup $data[0][0] leader locate on dnode $data[0][5] 
    goto countinu_loop
-elif $data[0][8] == LEADER then
+elif $data[0][8] == leader then
    print ---- vgroup $data[0][0] leader locate on dnode $data[0][7] 
    goto countinu_loop
 else

@@ -117,6 +117,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   if (pMsg == NULL) {
     goto _OVER;
   }
+  dTrace("msg:%p, is created, type:%s", pMsg, TMSG_INFO(pRpc->msgType));
 
   if (dmBuildNodeMsg(pMsg, pRpc) != 0) {
     goto _OVER;
@@ -130,7 +131,8 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
 
 _OVER:
   if (code != 0) {
-    dTrace("msg:%p, failed to process since %s, type:%s", pMsg, terrstr(), TMSG_INFO(pRpc->msgType));
+    dTrace("failed to process msg:%p since %s, handle:%p", pMsg, terrstr(), pRpc->info.handle);
+
     if (terrno != 0) code = terrno;
 
     if (IsReq(pRpc)) {
@@ -148,8 +150,10 @@ _OVER:
       }
     }
 
-    dTrace("msg:%p, is freed", pMsg);
-    taosFreeQitem(pMsg);
+    if (pMsg != NULL) {
+      dTrace("msg:%p, is freed", pMsg);
+      taosFreeQitem(pMsg);
+    }
     rpcFreeCont(pRpc->pCont);
   }
 
