@@ -363,8 +363,8 @@ static int32_t tdGetSmaStorageLevel(STSmaKeepCfg *pCfg, int64_t interval) {
  */
 int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg) {
   STsdbCfg     *pCfg = SMA_TSDB_CFG(pSma);
+#if 0
   const SArray *pDataBlocks = (const SArray *)msg;
-  int64_t       testSkey = TSKEY_INITIAL_VAL;
 
   // TODO: destroy SSDataBlocks(msg)
 
@@ -386,6 +386,7 @@ int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg) {
     smaWarn("vgId:%d insert tSma data failed since pDataBlocks is empty", SMA_VID(pSma));
     return TSDB_CODE_FAILED;
   }
+#endif
 
   SSmaEnv      *pEnv = SMA_TSMA_ENV(pSma);
   SSmaStat     *pStat = SMA_ENV_STAT(pEnv);
@@ -403,178 +404,8 @@ int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg) {
     return TSDB_CODE_FAILED;
   }
 
-  STSma      *pTSma = pItem->pTSma;
-  STSmaWriteH tSmaH = {0};
+  STSma *pTSma = pItem->pTSma;
 
-  if (tdInitTSmaWriteH(&tSmaH, pSma, pDataBlocks, pTSma->interval, pTSma->intervalUnit) != 0) {
-    return TSDB_CODE_FAILED;
-  }
-
-  char rPath[TSDB_FILENAME_LEN] = {0};
-  char aPath[TSDB_FILENAME_LEN] = {0};
-  snprintf(rPath, TSDB_FILENAME_LEN, "%s%s%" PRIi64, SMA_ENV_PATH(pEnv), TD_DIRSEP, indexUid);
-  tfsAbsoluteName(SMA_TFS(pSma), SMA_ENV_DID(pEnv), rPath, aPath);
-  if (!taosCheckExistFile(aPath)) {
-    if (tfsMkdirRecurAt(SMA_TFS(pSma), rPath, SMA_ENV_DID(pEnv)) != TSDB_CODE_SUCCESS) {
-      tdUnRefSmaStat(pSma, pStat);
-      return TSDB_CODE_FAILED;
-    }
-  }
-
-  // Step 1: Judge the storage level and days
-  int32_t storageLevel = tdGetSmaStorageLevel(pCfg, tSmaH.interval);
-  int32_t minutePerFile = tdGetTSmaDays(pSma, tSmaH.interval, storageLevel);
-
-  char    smaKey[SMA_KEY_LEN] = {0};  // key: skey + groupId
-  char    dataBuf[512] = {0};         // val: aggr data // TODO: handle 512 buffer?
-  void   *pDataBuf = NULL;
-  int32_t sz = taosArrayGetSize(pDataBlocks);
-  for (int32_t i = 0; i < sz; ++i) {
-    SSDataBlock *pDataBlock = taosArrayGet(pDataBlocks, i);
-    int32_t      colNum = pDataBlock->info.numOfCols;
-    int32_t      rows = pDataBlock->info.rows;
-    int32_t      rowSize = pDataBlock->info.rowSize;
-    int64_t      groupId = pDataBlock->info.groupId;
-    for (int32_t j = 0; j < rows; ++j) {
-      printf("|");
-      TSKEY skey = TSKEY_INITIAL_VAL;  //  the start key of TS window by interval
-      void *pSmaKey = &smaKey;
-      bool  isStartKey = false;
-
-      int32_t tlen = 0;     // reset the len
-      pDataBuf = &dataBuf;  // reset the buf
-      for (int32_t k = 0; k < colNum; ++k) {
-        SColumnInfoData *pColInfoData = taosArrayGet(pDataBlock->pDataBlock, k);
-        void            *var = POINTER_SHIFT(pColInfoData->pData, j * pColInfoData->info.bytes);
-        switch (pColInfoData->info.type) {
-          case TSDB_DATA_TYPE_TIMESTAMP:
-            if (!isStartKey) {
-              isStartKey = true;
-              skey = *(TSKEY *)var;
-              testSkey = skey;
-              printf("= skey %" PRIi64 " groupId = %" PRIi64 "|", skey, groupId);
-              tdEncodeTSmaKey(groupId, skey, &pSmaKey);
-            } else {
-              printf(" %" PRIi64 " |", *(int64_t *)var);
-              tlen += taosEncodeFixedI64(&pDataBuf, *(int64_t *)var);
-              break;
-            }
-            break;
-          case TSDB_DATA_TYPE_BOOL:
-          case TSDB_DATA_TYPE_UTINYINT:
-            printf(" %15d |", *(uint8_t *)var);
-            tlen += taosEncodeFixedU8(&pDataBuf, *(uint8_t *)var);
-            break;
-          case TSDB_DATA_TYPE_TINYINT:
-            printf(" %15d |", *(int8_t *)var);
-            tlen += taosEncodeFixedI8(&pDataBuf, *(int8_t *)var);
-            break;
-          case TSDB_DATA_TYPE_SMALLINT:
-            printf(" %15d |", *(int16_t *)var);
-            tlen += taosEncodeFixedI16(&pDataBuf, *(int16_t *)var);
-            break;
-          case TSDB_DATA_TYPE_USMALLINT:
-            printf(" %15d |", *(uint16_t *)var);
-            tlen += taosEncodeFixedU16(&pDataBuf, *(uint16_t *)var);
-            break;
-          case TSDB_DATA_TYPE_INT:
-            printf(" %15d |", *(int32_t *)var);
-            tlen += taosEncodeFixedI32(&pDataBuf, *(int32_t *)var);
-            break;
-          case TSDB_DATA_TYPE_FLOAT:
-            printf(" %15f |", *(float *)var);
-            tlen += taosEncodeBinary(&pDataBuf, var, sizeof(float));
-            break;
-          case TSDB_DATA_TYPE_UINT:
-            printf(" %15u |", *(uint32_t *)var);
-            tlen += taosEncodeFixedU32(&pDataBuf, *(uint32_t *)var);
-            break;
-          case TSDB_DATA_TYPE_BIGINT:
-            printf(" %15ld |", *(int64_t *)var);
-            tlen += taosEncodeFixedI64(&pDataBuf, *(int64_t *)var);
-            break;
-          case TSDB_DATA_TYPE_DOUBLE:
-            printf(" %15lf |", *(double *)var);
-            tlen += taosEncodeBinary(&pDataBuf, var, sizeof(double));
-          case TSDB_DATA_TYPE_UBIGINT:
-            printf(" %15lu |", *(uint64_t *)var);
-            tlen += taosEncodeFixedU64(&pDataBuf, *(uint64_t *)var);
-            break;
-          case TSDB_DATA_TYPE_NCHAR: {
-            char tmpChar[100] = {0};
-            strncpy(tmpChar, varDataVal(var), varDataLen(var));
-            printf(" %s |", tmpChar);
-            tlen += taosEncodeBinary(&pDataBuf, varDataVal(var), varDataLen(var));
-            break;
-          }
-          case TSDB_DATA_TYPE_VARCHAR: {  // TSDB_DATA_TYPE_BINARY
-            char tmpChar[100] = {0};
-            strncpy(tmpChar, varDataVal(var), varDataLen(var));
-            printf(" %s |", tmpChar);
-            tlen += taosEncodeBinary(&pDataBuf, varDataVal(var), varDataLen(var));
-            break;
-          }
-          case TSDB_DATA_TYPE_VARBINARY:
-            // TODO: add binary/varbinary
-            TASSERT(0);
-          default:
-            printf("the column type %" PRIi16 " is undefined\n", pColInfoData->info.type);
-            TASSERT(0);
-            break;
-        }
-      }
-      printf("\n");
-      // if ((tlen > 0) && (skey != TSKEY_INITIAL_VAL)) {
-      if (tlen > 0) {
-        int32_t fid = (int32_t)(TSDB_KEY_FID(skey, minutePerFile, pCfg->precision));
-
-        // Step 2: Set the DFile for storage of SMA index, and iterate/split the TSma data and store to B+Tree index
-        // file
-        //         - Set and open the DFile or the B+Tree file
-        // TODO: tsdbStartTSmaCommit();
-        if (fid != tSmaH.dFile.fid) {
-          if (tSmaH.dFile.fid != SMA_IVLD_FID) {
-            tdSmaEndCommit(pEnv);
-            smaCloseDBF(&tSmaH.dFile);
-          }
-          tdSetTSmaDataFile(&tSmaH, indexUid, fid);
-          smaDebug("@@@ vgId:%d write to DBF %s, days:%d, interval:%" PRIi64 ", storageLevel:%" PRIi32
-                   " queryKey:%" PRIi64,
-                   SMA_VID(pSma), tSmaH.dFile.path, minutePerFile, tSmaH.interval, storageLevel, testSkey);
-          if (smaOpenDBF(pEnv->dbEnv, &tSmaH.dFile) != 0) {
-            smaWarn("vgId:%d open DB file %s failed since %s", SMA_VID(pSma),
-                    tSmaH.dFile.path ? tSmaH.dFile.path : "path is NULL", tstrerror(terrno));
-            tdDestroyTSmaWriteH(&tSmaH);
-            tdUnRefSmaStat(pSma, pStat);
-            return TSDB_CODE_FAILED;
-          }
-          tdSmaBeginCommit(pEnv);
-        }
-
-        if (tdInsertTSmaBlocks(&tSmaH, &smaKey, SMA_KEY_LEN, dataBuf, tlen, &pEnv->txn) != 0) {
-          smaWarn("vgId:%d insert tsma data blocks fail for index %" PRIi64 ", skey %" PRIi64 ", groupId %" PRIi64
-                  " since %s",
-                  SMA_VID(pSma), indexUid, skey, groupId, tstrerror(terrno));
-          tdSmaEndCommit(pEnv);
-          tdDestroyTSmaWriteH(&tSmaH);
-          tdUnRefSmaStat(pSma, pStat);
-          return TSDB_CODE_FAILED;
-        }
-
-        smaDebug("vgId:%d insert tsma data blocks success for index %" PRIi64 ", skey %" PRIi64 ", groupId %" PRIi64,
-                 SMA_VID(pSma), indexUid, skey, groupId);
-        // TODO:tsdbEndTSmaCommit();
-
-        // Step 3: reset the SSmaStat
-        tdResetExpiredWindow(pSma, pStat, indexUid, skey);
-      } else {
-        smaWarn("vgId:%d invalid data skey:%" PRIi64 ", tlen %" PRIi32 " during insert tSma data for %" PRIi64,
-                SMA_VID(pSma), skey, tlen, indexUid);
-      }
-    }
-  }
-  tdSmaEndCommit(pEnv);  // TODO: not commit for every insert
-  tdDestroyTSmaWriteH(&tSmaH);
   tdUnRefSmaStat(pSma, pStat);
 
   return TSDB_CODE_SUCCESS;
@@ -863,6 +694,19 @@ int32_t tdProcessTSmaCreateImpl(SSma *pSma, int64_t version, const char *pMsg) {
 
   if (metaCreateTSma(SMA_META(pSma), version, pCfg) < 0) {
     return -1;
+  }
+
+  if (TD_VID(pSma->pVnode) == pCfg->dstVgId) {
+    // create stable to save tsma result in dstVgId
+    SVCreateStbReq pReq = {0};
+    pReq.name = pCfg->dstTbName;
+    pReq.suid = pCfg->dstTbUid;
+    pReq.schemaRow = pCfg->schemaRow;
+    pReq.schemaTag = pCfg->schemaTag;
+
+    if (metaCreateSTable(SMA_META(pSma), version, &pReq) < 0) {
+      return -1;
+    }
   }
 
   tdTSmaAdd(pSma, 1);

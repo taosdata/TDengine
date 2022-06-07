@@ -2329,24 +2329,28 @@ typedef struct {
 } SVgEpSet;
 
 typedef struct {
-  int8_t    version;       // for compatibility(default 0)
-  int8_t    intervalUnit;  // MACRO: TIME_UNIT_XXX
-  int8_t    slidingUnit;   // MACRO: TIME_UNIT_XXX
-  int8_t    timezoneInt;   // sma data expired if timezone changes.
-  int32_t   dstVgId;
-  char      indexName[TSDB_INDEX_NAME_LEN];
-  int32_t   exprLen;
-  int32_t   tagsFilterLen;
-  int32_t   numOfVgroups;
-  int64_t   indexUid;
-  tb_uid_t  tableUid;  // super/child/common table uid
-  int64_t   interval;
-  int64_t   offset;  // use unit by precision of DB
-  int64_t   sliding;
-  char*     expr;  // sma expression
-  char*     tagsFilter;
-  SVgEpSet* pVgEpSet;
-} STSma;  // Time-range-wise SMA
+  int8_t         version;       // for compatibility(default 0)
+  int8_t         intervalUnit;  // MACRO: TIME_UNIT_XXX
+  int8_t         slidingUnit;   // MACRO: TIME_UNIT_XXX
+  int8_t         timezoneInt;   // sma data expired if timezone changes.
+  int32_t        dstVgId;
+  char           indexName[TSDB_INDEX_NAME_LEN];
+  int32_t        exprLen;
+  int32_t        tagsFilterLen;
+  int32_t        numOfVgroups;  // for dstVgroup
+  int64_t        indexUid;
+  tb_uid_t       tableUid;  // super/child/common table uid
+  tb_uid_t       dstTbUid;  // for dstVgroup
+  int64_t        interval;
+  int64_t        offset;  // use unit by precision of DB
+  int64_t        sliding;
+  char*          dstTbName;  // for dstVgroup
+  char*          expr;       // sma expression
+  char*          tagsFilter;
+  SVgEpSet*      pVgEpSet;   // for dstVgroup
+  SSchemaWrapper schemaRow;  // for dstVgroup
+  SSchemaWrapper schemaTag;  // for dstVgroup
+} STSma;                     // Time-range-wise SMA
 
 typedef STSma SVCreateTSmaReq;
 
@@ -2493,14 +2497,14 @@ int32_t tSerializeSTableIndexReq(void* buf, int32_t bufLen, STableIndexReq* pReq
 int32_t tDeserializeSTableIndexReq(void* buf, int32_t bufLen, STableIndexReq* pReq);
 
 typedef struct {
-  int8_t    intervalUnit;
-  int8_t    slidingUnit;
-  int64_t   interval;
-  int64_t   offset;
-  int64_t   sliding;
-  int64_t   dstTbUid;  
-  int32_t   dstVgId;  // for stream  
-  char*     expr;
+  int8_t  intervalUnit;
+  int8_t  slidingUnit;
+  int64_t interval;
+  int64_t offset;
+  int64_t sliding;
+  int64_t dstTbUid;
+  int32_t dstVgId;  // for stream
+  char*   expr;
 } STableIndexInfo;
 
 typedef struct {
@@ -2509,7 +2513,6 @@ typedef struct {
 
 int32_t tSerializeSTableIndexRsp(void* buf, int32_t bufLen, const STableIndexRsp* pRsp);
 int32_t tDeserializeSTableIndexRsp(void* buf, int32_t bufLen, STableIndexRsp* pRsp);
-
 
 typedef struct {
   int8_t  mqMsgType;
@@ -2751,8 +2754,8 @@ typedef struct {
   char*    msg;
 } SVDeleteReq;
 
-int32_t tSerializeSVDeleteReq(void *buf, int32_t bufLen, SVDeleteReq *pReq);
-int32_t tDeserializeSVDeleteReq(void *buf, int32_t bufLen, SVDeleteReq *pReq);
+int32_t tSerializeSVDeleteReq(void* buf, int32_t bufLen, SVDeleteReq* pReq);
+int32_t tDeserializeSVDeleteReq(void* buf, int32_t bufLen, SVDeleteReq* pReq);
 
 typedef struct {
   int64_t affectedRows;

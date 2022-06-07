@@ -167,13 +167,13 @@ int32_t tdFetchTbUidList(SSma *pSma, STbUidStore **ppStore, tb_uid_t suid, tb_ui
  */
 int32_t tdProcessRSmaCreate(SVnode *pVnode, SVCreateStbReq *pReq) {
   SSma *pSma = pVnode->pSma;
-  SMeta *pMeta = pVnode->pMeta;
-  SMsgCb *pMsgCb = &pVnode->msgCb;
   if (!pReq->rollup) {
     smaTrace("vgId:%d, return directly since no rollup for stable %s %" PRIi64, SMA_VID(pSma), pReq->name, pReq->suid);
     return TSDB_CODE_SUCCESS;
   }
 
+  SMeta *pMeta = pVnode->pMeta;
+  SMsgCb *pMsgCb = &pVnode->msgCb;
   SRSmaParam *param = &pReq->pRSmaParam;
 
   if ((param->qmsg1Len == 0) && (param->qmsg2Len == 0)) {

@@ -3844,6 +3844,8 @@ int32_t tEncodeTSma(SEncoder *pCoder, const STSma *pSma) {
   if (tEncodeI32(pCoder, pSma->numOfVgroups) < 0) return -1;
   if (tEncodeI64(pCoder, pSma->indexUid) < 0) return -1;
   if (tEncodeI64(pCoder, pSma->tableUid) < 0) return -1;
+  if (tEncodeI64(pCoder, pSma->dstTbUid) < 0) return -1;
+  if (tEncodeCStr(pCoder, pSma->dstTbName) < 0) return -1;
   if (tEncodeI64(pCoder, pSma->interval) < 0) return -1;
   if (tEncodeI64(pCoder, pSma->offset) < 0) return -1;
   if (tEncodeI64(pCoder, pSma->sliding) < 0) return -1;
@@ -3853,17 +3855,24 @@ int32_t tEncodeTSma(SEncoder *pCoder, const STSma *pSma) {
   if (pSma->tagsFilterLen > 0) {
     if (tEncodeCStr(pCoder, pSma->tagsFilter) < 0) return -1;
   }
-  for (int32_t v = 0; v < pSma->numOfVgroups; ++v) {
-    if (tEncodeI32(pCoder, pSma->pVgEpSet[v].vgId) < 0) return -1;
-    if (tEncodeI8(pCoder, pSma->pVgEpSet[v].epSet.inUse) < 0) return -1;
-    int8_t numOfEps = pSma->pVgEpSet[v].epSet.numOfEps;
-    if (tEncodeI8(pCoder, numOfEps) < 0) return -1;
-    for (int32_t n = 0; n < numOfEps; ++n) {
-      const SEp *pEp = &pSma->pVgEpSet[v].epSet.eps[n];
-      if (tEncodeCStr(pCoder, pEp->fqdn) < 0) return -1;
-      if (tEncodeU16(pCoder, pEp->port) < 0) return -1;
+
+  if (pSma->numOfVgroups) { // only needed in dstVgroup
+    for (int32_t v = 0; v < pSma->numOfVgroups; ++v) {
+      if (tEncodeI32(pCoder, pSma->pVgEpSet[v].vgId) < 0) return -1;
+      if (tEncodeI8(pCoder, pSma->pVgEpSet[v].epSet.inUse) < 0) return -1;
+      int8_t numOfEps = pSma->pVgEpSet[v].epSet.numOfEps;
+      if (tEncodeI8(pCoder, numOfEps) < 0) return -1;
+      for (int32_t n = 0; n < numOfEps; ++n) {
+        const SEp *pEp = &pSma->pVgEpSet[v].epSet.eps[n];
+        if (tEncodeCStr(pCoder, pEp->fqdn) < 0) return -1;
+        if (tEncodeU16(pCoder, pEp->port) < 0) return -1;
+      }
     }
+
+    tEncodeSSchemaWrapper(pCoder, &pSma->schemaRow);
+    tEncodeSSchemaWrapper(pCoder, &pSma->schemaTag);
   }
+
   return 0;
 }
 
@@ -3871,14 +3880,16 @@ int32_t tDecodeTSma(SDecoder *pCoder, STSma *pSma) {
   if (tDecodeI8(pCoder, &pSma->version) < 0) return -1;
   if (tDecodeI8(pCoder, &pSma->intervalUnit) < 0) return -1;
   if (tDecodeI8(pCoder, &pSma->slidingUnit) < 0) return -1;
-  if (tDecodeI32(pCoder, &pSma->dstVgId) < 0) return -1;
   if (tDecodeI8(pCoder, &pSma->timezoneInt) < 0) return -1;
+  if (tDecodeI32(pCoder, &pSma->dstVgId) < 0) return -1;
   if (tDecodeCStrTo(pCoder, pSma->indexName) < 0) return -1;
   if (tDecodeI32(pCoder, &pSma->exprLen) < 0) return -1;
   if (tDecodeI32(pCoder, &pSma->tagsFilterLen) < 0) return -1;
   if (tDecodeI32(pCoder, &pSma->numOfVgroups) < 0) return -1;
   if (tDecodeI64(pCoder, &pSma->indexUid) < 0) return -1;
   if (tDecodeI64(pCoder, &pSma->tableUid) < 0) return -1;
+  if (tDecodeI64(pCoder, &pSma->dstTbUid) < 0) return -1;
+  if (tDecodeCStr(pCoder, &pSma->dstTbName) < 0) return -1;
   if (tDecodeI64(pCoder, &pSma->interval) < 0) return -1;
   if (tDecodeI64(pCoder, &pSma->offset) < 0) return -1;
   if (tDecodeI64(pCoder, &pSma->sliding) < 0) return -1;
@@ -3892,7 +3903,7 @@ int32_t tDecodeTSma(SDecoder *pCoder, STSma *pSma) {
   } else {
     pSma->tagsFilter = NULL;
   }
-  if (pSma->numOfVgroups > 0) {
+  if (pSma->numOfVgroups > 0) { // only needed in dstVgroup
     pSma->pVgEpSet = (SVgEpSet *)tDecoderMalloc(pCoder, pSma->numOfVgroups * sizeof(SVgEpSet));
     if (!pSma->pVgEpSet) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -3912,6 +3923,9 @@ int32_t tDecodeTSma(SDecoder *pCoder, STSma *pSma) {
         if (tDecodeU16(pCoder, &pEp->port) < 0) return -1;
       }
     }
+
+    tDecodeSSchemaWrapperEx(pCoder, &pSma->schemaRow);
+    tDecodeSSchemaWrapperEx(pCoder, &pSma->schemaTag);
   }
 
   return 0;

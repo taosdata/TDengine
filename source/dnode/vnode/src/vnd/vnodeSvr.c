@@ -174,11 +174,12 @@ int32_t vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
   }
 
   vTrace("vgId:%d, process %s request success, version: %" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType), version);
-
+#if 1
   if (tqPushMsg(pVnode->pTq, pMsg->pCont, pMsg->contLen, pMsg->msgType, version) < 0) {
     vError("vgId:%d, failed to push msg to TQ since %s", TD_VID(pVnode), tstrerror(terrno));
     return -1;
   }
+#endif
 
   // commit if need
   if (vnodeShouldCommit(pVnode)) {
@@ -278,8 +279,11 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, int64_t version, SRpcMsg *pMsg, SRp
 void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data) {
   // TODO
 
-  // blockDebugShowData(data);
+  // blockDebugShowData(data, __func__);
+#if 0
   tdProcessTSmaInsert(((SVnode *)pVnode)->pSma, smaId, (const char *)data);
+#endif
+  tdProcessTSmaInsert(((SVnode *)pVnode)->pSma, TD_DEBUG_SMA_ID, NULL);
 }
 
 void vnodeUpdateMetaRsp(SVnode *pVnode, STableMetaRsp *pMetaRsp) {

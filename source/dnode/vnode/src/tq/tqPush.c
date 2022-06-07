@@ -241,13 +241,13 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
     if (tdUpdateExpireWindow(pTq->pVnode->pSma, msg, ver) != 0) {
       // TODO handle sma error
     }
-    void* data = taosMemoryMalloc(msgLen);
-    if (data == NULL) {
-      return -1;
-    }
-    memcpy(data, msg, msgLen);
+    // void* data = taosMemoryMalloc(msgLen);
+    // if (data == NULL) {
+    //   return -1;
+    // }
+    // memcpy(data, msg, msgLen);
 
-    tqProcessStreamTrigger(pTq, data);
+    // tqProcessStreamTrigger(pTq, data);
   }
 
   return 0;
