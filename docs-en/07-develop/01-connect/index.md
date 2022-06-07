@@ -201,7 +201,6 @@ If the client driver (taosc) is already installed, then the C connector is alrea
 <br/>
 
 </TabItem>
-</TabItem>
 <TabItem label="PHP" value="php">
 
 **Download Source Code Package and Unzip：**
