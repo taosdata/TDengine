@@ -1074,6 +1074,8 @@ void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* newConfig, bool* isDro
   voteGrantedUpdate(pSyncNode->pVotesGranted, pSyncNode);
   votesRespondUpdate(pSyncNode->pVotesRespond, pSyncNode);
 
+  pSyncNode->quorum = syncUtilQuorum(pSyncNode->pRaftCfg->cfg.replicaNum);
+
   // isDrop
   *isDrop = true;
   bool IamInOld, IamInNew;
@@ -1696,7 +1698,8 @@ const char* syncStr(ESyncState state) {
 int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex, uint64_t flag) {
   int32_t    code = 0;
   ESyncState state = flag;
-  sInfo("sync event commit from %ld to %ld, %s", beginIndex, endIndex, syncUtilState2String(state));
+  sInfo("sync event commit from index:%" PRId64 " to index:%" PRId64 ", %s", beginIndex, endIndex,
+        syncUtilState2String(state));
 
   // maybe execute by leader, skip snapshot
   SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
