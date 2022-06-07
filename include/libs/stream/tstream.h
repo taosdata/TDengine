@@ -145,26 +145,6 @@ SStreamDataSubmit* streamSubmitRefClone(SStreamDataSubmit* pSubmit);
 #if 0
 int32_t streamDataBlockEncode(void** buf, const SStreamDataBlock* pOutput);
 void*   streamDataBlockDecode(const void* buf, SStreamDataBlock* pInput);
-
-static FORCE_INLINE int32_t streamEnqueue1(SStreamQueue* queue, SStreamQueueItem* pItem) {
-  int8_t inputStatus = atomic_load_8(&queue->enqueueStatus);
-  if (inputStatus == TASK_INPUT_STATUS__NORMAL) {
-    if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
-      SStreamDataSubmit* pSubmitClone = streamSubmitRefClone((SStreamDataSubmit*)pItem);
-      if (pSubmitClone == NULL) {
-        atomic_store_8(&queue->enqueueStatus, TASK_INPUT_STATUS__FAILED);
-        return -1;
-      }
-      taosWriteQitem(queue->queue, pSubmitClone);
-    } else if (pItem->type == STREAM_INPUT__DATA_BLOCK) {
-      taosWriteQitem(queue->queue, pItem);
-    } else if (pItem->type == STREAM_INPUT__CHECKPOINT) {
-      taosWriteQitem(queue->queue, pItem);
-    }
-    return 0;
-  }
-  return 0;
-}
 #endif
 
 typedef struct {

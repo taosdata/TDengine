@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tstream.h"
+#include "streamInc.h"
 
 #if 0
 int32_t streamDataBlockEncode(void** buf, const SStreamDataBlock* pOutput) {
@@ -74,7 +74,6 @@ FAIL:
 }
 
 static FORCE_INLINE void streamDataSubmitRefInc(SStreamDataSubmit* pDataSubmit) {
-  //
   atomic_add_fetch_32(pDataSubmit->dataRef, 1);
 }
 
