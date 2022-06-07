@@ -174,18 +174,15 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
         }
         ASSERT(pSender != NULL);
 
-        // calculate sentryIndex
         SyncIndex sentryIndex;
-        if (pSender->start) {
+        if (pSender->start && pSender->term == ths->pRaftStore->currentTerm) {
+          // already start
           sentryIndex = pSender->snapshot.lastApplyIndex;
 
         } else {
-          // start send snapshot
-          if (!(pSender->term == ths->pRaftStore->currentTerm && pSender->finish == true)) {
-            snapshotSenderStart(pSender);
-          } else {
-            sInfo("snapshot send finish, send_term:%lu, current_term:%lu", pSender->term, ths->pRaftStore->currentTerm);
-          }
+          // start send snapshot, first time
+          snapshotSenderDoStart(pSender);
+          pSender->start = true;
           sentryIndex = pSender->snapshot.lastApplyIndex;
         }
 

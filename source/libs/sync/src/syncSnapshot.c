@@ -19,7 +19,7 @@
 #include "syncUtil.h"
 #include "wal.h"
 
-static void snapshotSenderDoStart(SSyncSnapshotSender *pSender);
+// static void snapshotSenderDoStart(SSyncSnapshotSender *pSender);
 static void snapshotReceiverDoStart(SSyncSnapshotReceiver *pReceiver);
 
 SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaIndex) {
@@ -59,7 +59,7 @@ void snapshotSenderDestroy(SSyncSnapshotSender *pSender) {
 }
 
 // begin send snapshot (current term, seq begin)
-static void snapshotSenderDoStart(SSyncSnapshotSender *pSender) {
+void snapshotSenderDoStart(SSyncSnapshotSender *pSender) {
   pSender->term = pSender->pSyncNode->pRaftStore->currentTerm;
   pSender->seq = SYNC_SNAPSHOT_SEQ_BEGIN;
   pSender->ack = SYNC_SNAPSHOT_SEQ_INVALID;

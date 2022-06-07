@@ -39,8 +39,8 @@ typedef struct SSyncSnapshotSender {
   bool       start;
   int32_t    seq;
   int32_t    ack;
-  void *     pReader;
-  void *     pCurrentBlock;
+  void      *pReader;
+  void      *pCurrentBlock;
   int32_t    blockLen;
   SSnapshot  snapshot;
   int64_t    sendingMS;
@@ -50,20 +50,22 @@ typedef struct SSyncSnapshotSender {
   bool       finish;
 } SSyncSnapshotSender;
 
+void snapshotSenderDoStart(SSyncSnapshotSender *pSender);
+
 SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaIndex);
 void                 snapshotSenderDestroy(SSyncSnapshotSender *pSender);
 void                 snapshotSenderStart(SSyncSnapshotSender *pSender);
 void                 snapshotSenderStop(SSyncSnapshotSender *pSender);
 int32_t              snapshotSend(SSyncSnapshotSender *pSender);
 int32_t              snapshotReSend(SSyncSnapshotSender *pSender);
-cJSON *              snapshotSender2Json(SSyncSnapshotSender *pSender);
-char *               snapshotSender2Str(SSyncSnapshotSender *pSender);
+cJSON               *snapshotSender2Json(SSyncSnapshotSender *pSender);
+char                *snapshotSender2Str(SSyncSnapshotSender *pSender);
 
 typedef struct SSyncSnapshotReceiver {
   bool start;
 
   int32_t  ack;
-  void *   pWriter;
+  void    *pWriter;
   SyncTerm term;
 
   SSyncNode *pSyncNode;
@@ -74,8 +76,8 @@ SSyncSnapshotReceiver *snapshotReceiverCreate(SSyncNode *pSyncNode, int32_t repl
 void                   snapshotReceiverDestroy(SSyncSnapshotReceiver *pReceiver);
 void                   snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver);
 void                   snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver);
-cJSON *                snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver);
-char *                 snapshotReceiver2Str(SSyncSnapshotReceiver *pReceiver);
+cJSON                 *snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver);
+char                  *snapshotReceiver2Str(SSyncSnapshotReceiver *pReceiver);
 
 int32_t syncNodeOnSnapshotSendCb(SSyncNode *ths, SyncSnapshotSend *pMsg);
 int32_t syncNodeOnSnapshotRspCb(SSyncNode *ths, SyncSnapshotRsp *pMsg);
