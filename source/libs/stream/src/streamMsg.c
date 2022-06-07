@@ -190,9 +190,9 @@ int32_t streamDispatch(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDataBlock* dat
     }
 
     int32_t qType;
-    if (pTask->dispatchMsgType == TDMT_VND_TASK_DISPATCH || pTask->dispatchMsgType == TDMT_SND_TASK_DISPATCH) {
+    if (pTask->dispatchMsgType == TDMT_STREAM_TASK_DISPATCH) {
       qType = FETCH_QUEUE;
-    } else if (pTask->dispatchMsgType == TDMT_VND_TASK_DISPATCH_WRITE) {
+    } else if (pTask->dispatchMsgType == TDMT_VND_STREAM_DISPATCH_WRITE) {
       qType = WRITE_QUEUE;
     } else {
       ASSERT(0);
