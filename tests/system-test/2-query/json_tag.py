@@ -109,9 +109,6 @@ class TDTestCase:
         # print("============== STEP 3 ===== query table")
         # # test error syntax
         tdSql.error("select * from jsons1 where jtag->tag1='beijing'")
-        #tdSql.error("select * from jsons1 where jtag->'location'")
-        #tdSql.error("select * from jsons1 where jtag->''")
-        #tdSql.error("select * from jsons1 where jtag->''=9")
         tdSql.error("select -> from jsons1")
         tdSql.error("select * from jsons1 where contains")
         tdSql.error("select * from jsons1 where jtag->")
@@ -341,6 +338,13 @@ class TDTestCase:
         # tdSql.checkRows(3)
         # tdSql.query("select * from jsons1 where jtag->'tag1' between 'femail' and 'beijing'")
         # tdSql.checkRows(2)
+
+        # test is true
+        tdSql.query("select * from jsons1 where jtag->'location'")
+        tdSql.checkRows(0)
+        tdSql.query("select * from jsons1 where jtag->'tag1'")
+        tdSql.checkRows(3)
+
         #
         # # test with tbname/normal column
         tdSql.query("select * from jsons1 where tbname = 'jsons1_1'")
