@@ -311,7 +311,16 @@ static FORCE_INLINE void streamTaskInputFail(SStreamTask* pTask) {
 }
 
 static FORCE_INLINE int32_t streamTaskOutput(SStreamTask* pTask, SStreamDataBlock* pBlock) {
-  taosWriteQitem(pTask->outputQueue->queue, pBlock);
+  if (pTask->sinkType == TASK_SINK__TABLE) {
+    ASSERT(pTask->dispatchType == TASK_DISPATCH__NONE);
+    pTask->tbSink.tbSinkFunc(pTask, pTask->tbSink.vnode, 0, pBlock->blocks);
+  } else if (pTask->sinkType == TASK_SINK__SMA) {
+    ASSERT(pTask->dispatchType == TASK_DISPATCH__NONE);
+    pTask->smaSink.smaSink(pTask->ahandle, pTask->smaSink.smaId, pBlock->blocks);
+  } else {
+    ASSERT(pTask->dispatchType != TASK_DISPATCH__NONE);
+    taosWriteQitem(pTask->outputQueue->queue, pBlock);
+  }
   return 0;
 }
 
