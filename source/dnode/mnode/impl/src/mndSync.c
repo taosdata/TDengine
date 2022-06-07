@@ -57,8 +57,8 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
 
 int32_t mndSyncGetSnapshot(struct SSyncFSM *pFsm, SSnapshot *pSnapshot) {
   SMnode *pMnode = pFsm->data;
-  pSnapshot->lastApplyIndex = sdbGetApplyIndex(pMnode->pSdb);
-  pSnapshot->lastApplyTerm = sdbGetApplyTerm(pMnode->pSdb);
+  pSnapshot->lastApplyIndex = sdbGetCommitIndex(pMnode->pSdb);
+  pSnapshot->lastApplyTerm = sdbGetCommitTerm(pMnode->pSdb);
   return 0;
 }
 
