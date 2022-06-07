@@ -61,8 +61,9 @@ typedef struct {
 static int32_t tsdbCommitData(SCommitH *pCommith);
 static int32_t tsdbCommitDel(SCommitH *pCommith);
 static int32_t tsdbCommitCache(SCommitH *pCommith);
-static void    tsdbStartCommit(STsdb *pRepo);
-static void    tsdbEndCommit(STsdb *pTsdb, int eno);
+static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitH *pCHandle);
+static int32_t tsdbEndCommit(SCommitH *pCHandle, int eno);
+
 static int     tsdbInitCommitH(SCommitH *pCommith, STsdb *pRepo);
 static void    tsdbSeekCommitIter(SCommitH *pCommith, TSKEY key);
 static int     tsdbNextCommitFid(SCommitH *pCommith);
@@ -115,9 +116,9 @@ int32_t tsdbCommit(STsdb *pTsdb) {
   pTsdb->mem = NULL;
 
   // start commit
-  tsdbStartCommit(pTsdb);
-  if (tsdbInitCommitH(&commith, pTsdb) < 0) {
-    return -1;
+  code = tsdbStartCommit(pTsdb, &commith);
+  if (code) {
+    goto _err;
   }
 
   // commit impl
@@ -137,18 +138,21 @@ int32_t tsdbCommit(STsdb *pTsdb) {
   }
 
   // end commit
-  tsdbDestroyCommitH(&commith);
-  tsdbEndCommit(pTsdb, TSDB_CODE_SUCCESS);
+  code = tsdbEndCommit(&commith, 0);
+  if (code) {
+    goto _err;
+  }
 
   return code;
 
 _err:
+  tsdbError("vgId:%d failed to commit since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
 static int32_t tsdbCommitData(SCommitH *pCommith) {
   int32_t    fid;
-  SDFileSet *pSet;
+  SDFileSet *pSet = NULL;
   int32_t    code = 0;
   STsdb     *pTsdb = TSDB_COMMIT_REPO(pCommith);
 
@@ -276,19 +280,32 @@ void tsdbGetRtnSnap(STsdb *pRepo, SRtn *pRtn) {
             pRtn->minFid, pRtn->midFid, pRtn->maxFid);
 }
 
-static void tsdbStartCommit(STsdb *pRepo) {
-  SMemTable *pMem = pRepo->imem;
+static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitH *pCHandle) {
+  int32_t code = 0;
 
-  tsdbInfo("vgId:%d, start to commit", REPO_ID(pRepo));
+  tsdbInfo("vgId:%d, start to commit", REPO_ID(pTsdb));
 
-  tsdbStartFSTxn(pRepo, 0, 0);
+  if (tsdbInitCommitH(pCHandle, pTsdb) < 0) {
+    return -1;
+  }
+
+  tsdbStartFSTxn(pTsdb, 0, 0);
+
+  return code;
 }
 
-static void tsdbEndCommit(STsdb *pTsdb, int eno) {
+static int32_t tsdbEndCommit(SCommitH *pCHandle, int eno) {
+  int32_t code = 0;
+  STsdb  *pTsdb = TSDB_COMMIT_REPO(pCHandle);
+
+  tsdbDestroyCommitH(pCHandle);
   tsdbEndFSTxn(pTsdb);
   tsdbMemTableDestroy(pTsdb->imem);
   pTsdb->imem = NULL;
+
   tsdbInfo("vgId:%d, commit over, %s", REPO_ID(pTsdb), (eno == TSDB_CODE_SUCCESS) ? "succeed" : "failed");
+
+  return code;
 }
 
 static int tsdbInitCommitH(SCommitH *pCommith, STsdb *pRepo) {
