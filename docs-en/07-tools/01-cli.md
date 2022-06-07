@@ -11,7 +11,7 @@ The TDengine command-line interface (hereafter referred to as `TDengine CLI`) is
 
 ## Installation
 
-To run TDengine CLI to access TDengine cloud, please install [TDengine client installation package]() first.
+To run TDengine CLI to access TDengine cloud, please install [TDengine client installation package](/download/TDengine-client-2.6.0.2-Linux-x64.tar.gz) first.
 
 <Tabs defaultValue="ConfigOnLinux">
 <TabItem value="ConfigOnLinux" label="Config on Linux">
@@ -81,6 +81,10 @@ taos -R -h $TDENGINE_CLOUD_URL -t $TDENGINE_CLOUD_TOKEN
 TDengine CLI will display a welcome message and version information if it successfully connected to the TDengine service. If it fails, TDengine CLI will print an error message. See [FAQ](/train-faq/faq) to solve the problem of terminal connection failure to the server. The TDengine CLI prompts as follows:
 
 ```cmd
+
+Welcome to the TDengine shell from Linux, Client Version:2.6.0.2
+Copyright (c) 2022 by TAOS Data, Inc. All rights reserved.
+
 taos>
 ```
 
