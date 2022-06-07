@@ -1280,8 +1280,7 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t numOfRows, int
             int32_t length = taosUcs4ToMbs((TdUcs4*)varDataVal(jsonInnerData), varDataLen(jsonInnerData),
                                            varDataVal(dst) + CHAR_BYTES);
             if (length <= 0) {
-              tscError("charset:%s to %s. val:%s convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
-                       varDataVal(jsonInnerData));
+              tscError("charset:%s to %s. convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset);
               length = 0;
             }
             varDataSetLen(dst, length + CHAR_BYTES * 2);
