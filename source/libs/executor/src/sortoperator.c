@@ -84,7 +84,6 @@ void appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle) {
 SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity,
                                 SArray* pColMatchInfo) {
   blockDataCleanup(pDataBlock);
-  ASSERT(taosArrayGetSize(pColMatchInfo) == pDataBlock->info.numOfCols);
 
   SSDataBlock* p = tsortGetSortedDataBlock(pHandle);
   if (p == NULL) {
