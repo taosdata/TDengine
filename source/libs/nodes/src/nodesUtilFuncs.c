@@ -164,9 +164,14 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SCreateStreamStmt));
     case QUERY_NODE_DROP_STREAM_STMT:
       return makeNode(type, sizeof(SDropStreamStmt));
+    case QUERY_NODE_BALANCE_VGROUP_STMT:
+      return makeNode(type, sizeof(SBalanceVgroupStmt));
     case QUERY_NODE_MERGE_VGROUP_STMT:
+      return makeNode(type, sizeof(SMergeVgroupStmt));
     case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:
+      return makeNode(type, sizeof(SRedistributeVgroupStmt));
     case QUERY_NODE_SPLIT_VGROUP_STMT:
+      return makeNode(type, sizeof(SSplitVgroupStmt));
     case QUERY_NODE_SYNCDB_STMT:
       break;
     case QUERY_NODE_GRANT_STMT:

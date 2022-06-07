@@ -1316,6 +1316,31 @@ int32_t tSerializeSKillTransReq(void* buf, int32_t bufLen, SKillTransReq* pReq);
 int32_t tDeserializeSKillTransReq(void* buf, int32_t bufLen, SKillTransReq* pReq);
 
 typedef struct {
+  int32_t useless;  // useless
+} SBalanceVgroupReq;
+
+int32_t tSerializeSBalanceVgroupReq(void* buf, int32_t bufLen, SBalanceVgroupReq* pReq);
+int32_t tDeserializeSBalanceVgroupReq(void* buf, int32_t bufLen, SBalanceVgroupReq* pReq);
+
+typedef struct {
+  int32_t vgId1;
+  int32_t vgId2;
+} SMergeVgroupReq;
+
+int32_t tSerializeSMergeVgroupReq(void* buf, int32_t bufLen, SMergeVgroupReq* pReq);
+int32_t tDeserializeSMergeVgroupReq(void* buf, int32_t bufLen, SMergeVgroupReq* pReq);
+
+typedef struct {
+  int32_t vgId;
+  int32_t dnodeId1;
+  int32_t dnodeId2;
+  int32_t dnodeId3;
+} SRedistributeVgroupReq;
+
+int32_t tSerializeSRedistributeVgroupReq(void* buf, int32_t bufLen, SRedistributeVgroupReq* pReq);
+int32_t tDeserializeSRedistributeVgroupReq(void* buf, int32_t bufLen, SRedistributeVgroupReq* pReq);
+
+typedef struct {
   char user[TSDB_USER_LEN];
   char spi;
   char encrypt;
