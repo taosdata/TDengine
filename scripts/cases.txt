@@ -58,3 +58,6 @@ taostest --use=common_insert.yaml --case=taosc_insert/utinyint_boundary_check.py
 taostest --use=common_insert.yaml --case=Query/queryscript/table_query/table_query.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_query/table_query_null.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_query/table_query_union.py --keep --containers
+
+taostest --use=common_insert.yaml --case=Query/queryscript/table_function/time/table_time_now.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/table_function/time/table_time_today.py --keep --containers
