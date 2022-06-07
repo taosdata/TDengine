@@ -14,6 +14,7 @@
  */
 
 #include "syncSnapshot.h"
+#include "syncIndexMgr.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
 #include "syncUtil.h"
@@ -42,6 +43,7 @@ SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaI
     pSender->pSyncNode = pSyncNode;
     pSender->replicaIndex = replicaIndex;
     pSender->term = pSyncNode->pRaftStore->currentTerm;
+    pSender->privateTerm = 0;
     pSender->pSyncNode->pFsm->FpGetSnapshot(pSender->pSyncNode->pFsm, &(pSender->snapshot));
 
     pSender->finish = false;
@@ -90,9 +92,13 @@ void snapshotSenderDoStart(SSyncSnapshotSender *pSender) {
   sTrace("snapshot send begin seq:%d ack:%d send msg:%s", pSender->seq, pSender->ack, msgStr);
   taosMemoryFree(msgStr);
 
+  // when start, increase term
+  ++(pSender->privateTerm);
+
   syncSnapshotSendDestroy(pMsg);
 }
 
+#if 0
 // when entry in snapshot, start sender
 void snapshotSenderStart(SSyncSnapshotSender *pSender) {
   if (!(pSender->start)) {
@@ -142,6 +148,7 @@ void snapshotSenderStart(SSyncSnapshotSender *pSender) {
   sInfo("snapshotSenderStart %s", s);
   taosMemoryFree(s);
 }
+#endif
 
 void snapshotSenderStop(SSyncSnapshotSender *pSender) {
   if (pSender->pReader != NULL) {
@@ -392,6 +399,9 @@ cJSON *snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver) {
     cJSON_AddNumberToObject(pRoot, "replicaIndex", pReceiver->replicaIndex);
     snprintf(u64buf, sizeof(u64buf), "%lu", pReceiver->term);
     cJSON_AddStringToObject(pRoot, "term", u64buf);
+
+    snprintf(u64buf, sizeof(u64buf), "%lu", pReceiver->privateTerm);
+    cJSON_AddStringToObject(pRoot, "privateTerm", u64buf);
   }
 
   cJSON *pJson = cJSON_CreateObject();
@@ -514,6 +524,10 @@ int32_t syncNodeOnSnapshotRspCb(SSyncNode *pSyncNode, SyncSnapshotRsp *pMsg) {
       if (pMsg->ack == SYNC_SNAPSHOT_SEQ_END) {
         pSender->finish = true;
         snapshotSenderStop(pSender);
+
+        // update nextIndex private term
+        syncIndexMgrSetTerm(pSyncNode->pNextIndex, &(pMsg->srcId), pSender->privateTerm);
+
         return 0;
       }
 

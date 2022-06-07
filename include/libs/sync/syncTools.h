@@ -398,6 +398,7 @@ typedef struct SyncSnapshotSend {
   SyncTerm  term;
   SyncIndex lastIndex;  // lastIndex of snapshot
   SyncTerm  lastTerm;   // lastTerm of snapshot
+  SyncTerm privateTerm;
   int32_t   seq;
   uint32_t  dataLen;
   char      data[];
@@ -432,6 +433,7 @@ typedef struct SyncSnapshotRsp {
   SyncTerm  term;
   SyncIndex lastIndex;
   SyncTerm  lastTerm;
+  SyncTerm privateTerm;
   int32_t   ack;
 } SyncSnapshotRsp;
 

@@ -175,6 +175,8 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
         ASSERT(pSender != NULL);
 
         SyncIndex sentryIndex;
+#if 0
+        SyncIndex sentryIndex;
         if (pSender->start && pSender->term == ths->pRaftStore->currentTerm) {
           // already start
           sentryIndex = pSender->snapshot.lastApplyIndex;
@@ -182,14 +184,26 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
                  ths->pRaftStore->currentTerm);
 
         } else {
-          // start send snapshot, first time
-          sTrace("sending snapshot start first: pSender->term:%lu, ths->pRaftStore->currentTerm:%lu", pSender->term,
-                 ths->pRaftStore->currentTerm);
+          if (pMsg->privateTerm == pSender->privateTerm) {
+            sTrace("same privateTerm, pMsg->privateTerm:%lu, pSender->privateTerm:%lu, do not start snapshot again",
+                   pMsg->privateTerm, pSender->privateTerm);
+          } else {
+            // start send snapshot, first time
+            sTrace(
+                "sending snapshot start first: pSender->term:%lu, ths->pRaftStore->currentTerm:%lu, "
+                "pMsg->privateTerm:%lu, pSender->privateTerm:%lu",
+                pSender->term, ths->pRaftStore->currentTerm, pMsg->privateTerm, pSender->privateTerm);
 
-          snapshotSenderDoStart(pSender);
-          pSender->start = true;
+            snapshotSenderDoStart(pSender);
+            pSender->start = true;
+
+            // update snapshot private term
+            syncIndexMgrSetTerm(ths->pNextIndex, &(pMsg->srcId), pSender->privateTerm);
+          }
+
           sentryIndex = pSender->snapshot.lastApplyIndex;
         }
+#endif
 
         // update nextIndex to sentryIndex + 1
         if (nextIndex <= sentryIndex) {

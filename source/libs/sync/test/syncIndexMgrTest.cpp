@@ -25,7 +25,6 @@ SRaftId    ids[TSDB_MAX_REPLICA];
 SSyncNode* pSyncNode;
 
 SSyncNode* syncNodeInit() {
-
   pSyncNode = (SSyncNode*)taosMemoryMalloc(sizeof(SSyncNode));
   memset(pSyncNode, 0, sizeof(SSyncNode));
   pSyncNode->replicaNum = replicaNum;
@@ -81,7 +80,7 @@ int main(int argc, char** argv) {
   printf("---------------------------------------\n");
   for (int i = 0; i < pSyncIndexMgr->replicaNum; ++i) {
     SyncIndex idx = syncIndexMgrGetIndex(pSyncIndexMgr, &ids[i]);
-    SyncTerm term = syncIndexMgrGetTerm(pSyncIndexMgr, &ids[i]);
+    SyncTerm  term = syncIndexMgrGetTerm(pSyncIndexMgr, &ids[i]);
     printf("%d: index:%ld term:%lu \n", i, idx, term);
   }
   printf("---------------------------------------\n");

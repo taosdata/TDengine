@@ -1815,6 +1815,9 @@ cJSON* syncSnapshotSend2Json(const SyncSnapshotSend* pMsg) {
     snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->term);
     cJSON_AddStringToObject(pRoot, "term", u64buf);
 
+    snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->privateTerm);
+    cJSON_AddStringToObject(pRoot, "privateTerm", u64buf);
+
     snprintf(u64buf, sizeof(u64buf), "%ld", pMsg->lastIndex);
     cJSON_AddStringToObject(pRoot, "lastIndex", u64buf);
 
@@ -1977,6 +1980,9 @@ cJSON* syncSnapshotRsp2Json(const SyncSnapshotRsp* pMsg) {
 
     snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->term);
     cJSON_AddStringToObject(pRoot, "term", u64buf);
+
+    snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->privateTerm);
+    cJSON_AddStringToObject(pRoot, "privateTerm", u64buf);
 
     snprintf(u64buf, sizeof(u64buf), "%ld", pMsg->lastIndex);
     cJSON_AddStringToObject(pRoot, "lastIndex", u64buf);

@@ -308,7 +308,7 @@ int main(int argc, char** argv) {
 
   // check parameter
   assert(replicaNum >= 1 && replicaNum <= 5);
-  //assert(myIndex >= 0 && myIndex < replicaNum);
+  // assert(myIndex >= 0 && myIndex < replicaNum);
   assert(lastApplyIndex >= -1);
   assert(lastApplyTerm >= 0);
   assert(writeRecordNum >= 0);

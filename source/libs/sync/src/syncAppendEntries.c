@@ -576,6 +576,7 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
     pReply->term = ths->pRaftStore->currentTerm;
     pReply->success = false;
     pReply->matchIndex = SYNC_INDEX_INVALID;
+    pReply->privateTerm = pMsg->privateTerm;
 
     SRpcMsg rpcMsg;
     syncAppendEntriesReply2RpcMsg(pReply, &rpcMsg);
@@ -660,6 +661,7 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
     pReply->destId = pMsg->srcId;
     pReply->term = ths->pRaftStore->currentTerm;
     pReply->success = true;
+    pReply->privateTerm = pMsg->privateTerm;
 
     if (hasAppendEntries) {
       pReply->matchIndex = pMsg->prevLogIndex + 1;
