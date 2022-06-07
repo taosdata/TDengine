@@ -1243,7 +1243,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .classification = FUNC_MGT_AGG_FUNC,
     .translateFunc = translateApercentileMerge,
     .getEnvFunc   = getApercentileFuncEnv,
-    .initFunc     = dummyInit,
+    .initFunc     = functionSetup,
     .processFunc  = apercentileFunctionMerge,
     .finalizeFunc = apercentileFinalize
   },
