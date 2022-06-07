@@ -2082,7 +2082,8 @@ int32_t apercentileFunctionMerge(SqlFunctionCtx* pCtx) {
     pInputInfo = (SAPercentileInfo *)varDataVal(data);
   }
 
-  if (pInfo->algo == APERCT_ALGO_TDIGEST) {
+  pInfo->algo = pInputInfo->algo;
+  if (pInput->algo == APERCT_ALGO_TDIGEST) {
   } else {
     buildHistogramInfo(pInputInfo);
     if (pInputInfo->pHisto->numOfElems <= 0) {
