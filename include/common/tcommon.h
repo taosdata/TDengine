@@ -77,7 +77,9 @@ typedef struct SDataBlockInfo {
   int16_t     numOfCols;
   int16_t     hasVarCol;
   int32_t     capacity;
-  EStreamType type;
+  // TODO: optimize and remove following
+  int32_t     childId;  // used for stream, do not serialize
+  EStreamType type;     // used for stream, do not serialize
 } SDataBlockInfo;
 
 typedef struct SSDataBlock {

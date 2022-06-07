@@ -21,7 +21,7 @@ namespace ParserTest {
 
 class ParserInitialDTest : public ParserDdlTest {};
 
-// DELETE FROM tb_name [WHERE condition]
+// DELETE FROM table_name [WHERE condition]
 TEST_F(ParserInitialDTest, delete) {
   useDb("root", "test");
 
@@ -40,7 +40,15 @@ TEST_F(ParserInitialDTest, deleteSemanticCheck) {
   run("DELETE FROM t1 WHERE c1 > 10", TSDB_CODE_PAR_INVALID_DELETE_WHERE, PARSER_STAGE_TRANSLATE);
 }
 
-// todo desc
+// DESC table_name
+TEST_F(ParserInitialDTest, describe) {
+  useDb("root", "test");
+
+  run("DESC t1");
+
+  run("DESCRIBE st1");
+}
+
 // todo describe
 // todo DROP account
 

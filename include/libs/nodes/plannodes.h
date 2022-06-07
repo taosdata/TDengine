@@ -87,6 +87,11 @@ typedef struct SProjectLogicNode {
   int64_t    soffset;
 } SProjectLogicNode;
 
+typedef struct SIndefRowsFuncLogicNode {
+  SLogicNode node;
+  SNodeList* pVectorFuncs;
+} SIndefRowsFuncLogicNode;
+
 typedef enum EModifyTableType { MODIFY_TABLE_TYPE_INSERT = 1, MODIFY_TABLE_TYPE_DELETE } EModifyTableType;
 
 typedef struct SVnodeModifyLogicNode {
@@ -266,6 +271,12 @@ typedef struct SProjectPhysiNode {
   int64_t    slimit;
   int64_t    soffset;
 } SProjectPhysiNode;
+
+typedef struct SIndefRowsFuncPhysiNode {
+  SPhysiNode node;
+  SNodeList* pExprs;
+  SNodeList* pVectorFuncs;
+} SIndefRowsFuncPhysiNode;
 
 typedef struct SJoinPhysiNode {
   SPhysiNode node;
