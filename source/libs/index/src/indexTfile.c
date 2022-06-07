@@ -73,6 +73,7 @@ static int32_t tfSearchRange(void* reader, SIndexTerm* tem, SIdxTRslt* tr);
 static int32_t tfSearchCompareFunc(void* reader, SIndexTerm* tem, SIdxTRslt* tr, RangeType ctype);
 
 static int32_t tfSearchTerm_JSON(void* reader, SIndexTerm* tem, SIdxTRslt* tr);
+static int32_t tfSearchEqual_JSON(void* reader, SIndexTerm* tem, SIdxTRslt* tr);
 static int32_t tfSearchPrefix_JSON(void* reader, SIndexTerm* tem, SIdxTRslt* tr);
 static int32_t tfSearchSuffix_JSON(void* reader, SIndexTerm* tem, SIdxTRslt* tr);
 static int32_t tfSearchRegex_JSON(void* reader, SIndexTerm* tem, SIdxTRslt* tr);
@@ -87,7 +88,7 @@ static int32_t tfSearchCompareFunc_JSON(void* reader, SIndexTerm* tem, SIdxTRslt
 static int32_t (*tfSearch[][QUERY_MAX])(void* reader, SIndexTerm* tem, SIdxTRslt* tr) = {
     {tfSearchTerm, tfSearchPrefix, tfSearchSuffix, tfSearchRegex, tfSearchLessThan, tfSearchLessEqual,
      tfSearchGreaterThan, tfSearchGreaterEqual, tfSearchRange},
-    {tfSearchTerm_JSON, tfSearchPrefix_JSON, tfSearchSuffix_JSON, tfSearchRegex_JSON, tfSearchLessThan_JSON,
+    {tfSearchEqual_JSON, tfSearchPrefix_JSON, tfSearchSuffix_JSON, tfSearchRegex_JSON, tfSearchLessThan_JSON,
      tfSearchLessEqual_JSON, tfSearchGreaterThan_JSON, tfSearchGreaterEqual_JSON, tfSearchRange_JSON}};
 
 TFileCache* tfileCacheCreate(const char* path) {
@@ -424,6 +425,9 @@ static int32_t tfSearchTerm_JSON(void* reader, SIndexTerm* tem, SIdxTRslt* tr) {
   // deprecate api
   return TSDB_CODE_SUCCESS;
 }
+static int32_t tfSearchEqual_JSON(void* reader, SIndexTerm* tem, SIdxTRslt* tr) {
+  return tfSearchCompareFunc_JSON(reader, tem, tr, EQ);
+}
 static int32_t tfSearchPrefix_JSON(void* reader, SIndexTerm* tem, SIdxTRslt* tr) {
   return tfSearchCompareFunc_JSON(reader, tem, tr, CONTAINS);
 }
@@ -463,7 +467,7 @@ static int32_t tfSearchCompareFunc_JSON(void* reader, SIndexTerm* tem, SIdxTRslt
                      .colType = tem->colType,
                      .colName = tem->colVal,
                      .nColName = tem->nColVal};
-    p = indexPackJsonDataPrefix(&tm, &skip);
+    p = indexPackJsonDataPrefixNoType(&tm, &skip);
   } else {
     p = indexPackJsonDataPrefix(tem, &skip);
   }
@@ -484,7 +488,7 @@ static int32_t tfSearchCompareFunc_JSON(void* reader, SIndexTerm* tem, SIdxTRslt
     char*    ch = (char*)fstSliceData(s, &sz);
     TExeCond cond = CONTINUE;
     if (ctype == CONTAINS) {
-      if (0 != strncmp(ch, p, skip)) {
+      if (0 == strncmp(ch, p, skip)) {
         cond = MATCH;
       }
     } else {

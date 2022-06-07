@@ -48,6 +48,7 @@ static int32_t cacheSearchRange(void* cache, SIndexTerm* ct, SIdxTRslt* tr, STer
 /*comm func of compare, used in (LE/LT/GE/GT compare)*/
 static int32_t cacheSearchCompareFunc(void* cache, SIndexTerm* ct, SIdxTRslt* tr, STermValueType* s, RangeType type);
 static int32_t cacheSearchTerm_JSON(void* cache, SIndexTerm* ct, SIdxTRslt* tr, STermValueType* s);
+static int32_t cacheSearchEqual_JSON(void* cache, SIndexTerm* ct, SIdxTRslt* tr, STermValueType* s);
 static int32_t cacheSearchPrefix_JSON(void* cache, SIndexTerm* ct, SIdxTRslt* tr, STermValueType* s);
 static int32_t cacheSearchSuffix_JSON(void* cache, SIndexTerm* ct, SIdxTRslt* tr, STermValueType* s);
 static int32_t cacheSearchRegex_JSON(void* cache, SIndexTerm* ct, SIdxTRslt* tr, STermValueType* s);
@@ -63,7 +64,7 @@ static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTR
 static int32_t (*cacheSearch[][QUERY_MAX])(void* cache, SIndexTerm* ct, SIdxTRslt* tr, STermValueType* s) = {
     {cacheSearchTerm, cacheSearchPrefix, cacheSearchSuffix, cacheSearchRegex, cacheSearchLessThan, cacheSearchLessEqual,
      cacheSearchGreaterThan, cacheSearchGreaterEqual, cacheSearchRange},
-    {cacheSearchTerm_JSON, cacheSearchPrefix_JSON, cacheSearchSuffix_JSON, cacheSearchRegex_JSON,
+    {cacheSearchEqual_JSON, cacheSearchPrefix_JSON, cacheSearchSuffix_JSON, cacheSearchRegex_JSON,
      cacheSearchLessThan_JSON, cacheSearchLessEqual_JSON, cacheSearchGreaterThan_JSON, cacheSearchGreaterEqual_JSON,
      cacheSearchRange_JSON}};
 
@@ -220,14 +221,17 @@ static int32_t cacheSearchTerm_JSON(void* cache, SIndexTerm* term, SIdxTRslt* tr
 
   return TSDB_CODE_SUCCESS;
 }
-static int32_t cacheSearchPrefix_JSON(void* cache, SIndexTerm* term, SIdxTRslt* tr, STermValueType* s) {
-  return cacheSearchCompareFunc_JSON(cache, term, tr, s, CONTAINS);
-}
 static int32_t cacheSearchSuffix_JSON(void* cache, SIndexTerm* term, SIdxTRslt* tr, STermValueType* s) {
   return TSDB_CODE_SUCCESS;
 }
 static int32_t cacheSearchRegex_JSON(void* cache, SIndexTerm* term, SIdxTRslt* tr, STermValueType* s) {
   return TSDB_CODE_SUCCESS;
+}
+static int32_t cacheSearchEqual_JSON(void* cache, SIndexTerm* term, SIdxTRslt* tr, STermValueType* s) {
+  return cacheSearchCompareFunc_JSON(cache, term, tr, s, EQ);
+}
+static int32_t cacheSearchPrefix_JSON(void* cache, SIndexTerm* term, SIdxTRslt* tr, STermValueType* s) {
+  return cacheSearchCompareFunc_JSON(cache, term, tr, s, CONTAINS);
 }
 static int32_t cacheSearchLessThan_JSON(void* cache, SIndexTerm* term, SIdxTRslt* tr, STermValueType* s) {
   return cacheSearchCompareFunc_JSON(cache, term, tr, s, LT);
@@ -272,7 +276,7 @@ static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTR
                      .colType = term->colType,
                      .colName = term->colVal,
                      .nColName = term->nColVal};
-    exBuf = indexPackJsonDataPrefix(&tm, &skip);
+    exBuf = indexPackJsonDataPrefixNoType(&tm, &skip);
     pCt->colVal = exBuf;
   } else {
     exBuf = indexPackJsonDataPrefix(term, &skip);
@@ -298,7 +302,7 @@ static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTR
       }
       char* p = taosMemoryCalloc(1, strlen(c->colVal) + 1);
       memcpy(p, c->colVal, strlen(c->colVal));
-      TExeCond cond = cmpFn(p + skip, term->colVal, dType);
+      cond = cmpFn(p + skip, term->colVal, dType);
     }
     if (cond == MATCH) {
       if (c->operaType == ADD_VALUE) {

@@ -186,6 +186,9 @@ static int32_t sifInitParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
       SIF_ERR_RET(sifGetValueFromNode(node, &param->condValue));
       param->colId = -1;
       param->colValType = (uint8_t)(vn->node.resType.type);
+      if (vn->literal == NULL || strlen(vn->literal) == 0) {
+        return TSDB_CODE_QRY_INVALID_INPUT;
+      }
       memcpy(param->colName, vn->literal, strlen(vn->literal));
       break;
     }
