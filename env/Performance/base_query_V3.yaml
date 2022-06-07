@@ -12,14 +12,13 @@ settings:
             dataDir: /data/var/dnode1/data
             logDir: /data/var/dnode1/log
             debugFlag: 143
-   
-  - name: taosBenchmark
+  - name: taospy
     fqdn: [vm130]
     spec:
-      version: 1.0.0
-      taos_version: 3.0.0.0
-      config_dir: /data/var/taosbenchmark/config/
-      taos_config:
+      version: 2.5.0
+      client_version: 3.0.0.0
+      config:
         firstEP: vm130:6030
-        logDir: /data/var/taosbenchmark/log
-        debugFlag: 143
+        logDir: /var/log/taos
+        defaultJSONStrType: "nchar"
+        debugFlag: 135
