@@ -202,6 +202,8 @@ const char* nodesNodeName(ENodeType type) {
       return "LogicSort";
     case QUERY_NODE_LOGIC_PLAN_PARTITION:
       return "LogicPartition";
+    case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC:
+      return "LogicIndefRowsFunc";
     case QUERY_NODE_LOGIC_SUBPLAN:
       return "LogicSubplan";
     case QUERY_NODE_LOGIC_PLAN:
@@ -250,6 +252,8 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiStreamStateWindow";
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       return "PhysiPartition";
+    case QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC:
+      return "PhysiIndefRowsFunc";
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       return "PhysiDispatch";
     case QUERY_NODE_PHYSICAL_PLAN_INSERT:
@@ -908,6 +912,30 @@ static int32_t jsonToLogicPartitionNode(const SJson* pJson, void* pObj) {
   int32_t code = jsonToLogicPlanNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkPartitionLogicPlanPartitionKeys, &pNode->pPartitionKeys);
+  }
+
+  return code;
+}
+
+static const char* jkIndefRowsFuncLogicPlanVectorFuncs = "VectorFuncs";
+
+static int32_t logicIndefRowsFuncNodeToJson(const void* pObj, SJson* pJson) {
+  const SIndefRowsFuncLogicNode* pNode = (const SIndefRowsFuncLogicNode*)pObj;
+
+  int32_t code = logicPlanNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkIndefRowsFuncLogicPlanVectorFuncs, pNode->pVectorFuncs);
+  }
+
+  return code;
+}
+
+static int32_t jsonToLogicIndefRowsFuncNode(const SJson* pJson, void* pObj) {
+  SIndefRowsFuncLogicNode* pNode = (SIndefRowsFuncLogicNode*)pObj;
+
+  int32_t code = jsonToLogicPlanNode(pJson, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkIndefRowsFuncLogicPlanVectorFuncs, &pNode->pVectorFuncs);
   }
 
   return code;
@@ -1990,6 +2018,37 @@ static int32_t jsonToPhysiPartitionNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkPartitionPhysiPlanTargets, &pNode->pTargets);
+  }
+
+  return code;
+}
+
+static const char* jkIndefRowsFuncPhysiPlanExprs = "Exprs";
+static const char* jkIndefRowsFuncPhysiPlanVectorFuncs = "VectorFuncs";
+
+static int32_t physiIndefRowsFuncNodeToJson(const void* pObj, SJson* pJson) {
+  const SIndefRowsFuncPhysiNode* pNode = (const SIndefRowsFuncPhysiNode*)pObj;
+
+  int32_t code = physicPlanNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkIndefRowsFuncPhysiPlanExprs, pNode->pExprs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkIndefRowsFuncPhysiPlanVectorFuncs, pNode->pVectorFuncs);
+  }
+
+  return code;
+}
+
+static int32_t jsonToPhysiIndefRowsFuncNode(const SJson* pJson, void* pObj) {
+  SIndefRowsFuncPhysiNode* pNode = (SIndefRowsFuncPhysiNode*)pObj;
+
+  int32_t code = jsonToPhysicPlanNode(pJson, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkIndefRowsFuncPhysiPlanExprs, &pNode->pExprs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkIndefRowsFuncPhysiPlanVectorFuncs, &pNode->pVectorFuncs);
   }
 
   return code;
@@ -3800,6 +3859,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return logicSortNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN_PARTITION:
       return logicPartitionNodeToJson(pObj, pJson);
+    case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC:
+      return logicIndefRowsFuncNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_SUBPLAN:
       return logicSubplanToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN:
@@ -3840,6 +3901,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return physiStateWindowNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       return physiPartitionNodeToJson(pObj, pJson);
+    case QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC:
+      return physiIndefRowsFuncNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       return physiDispatchNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_INSERT:
@@ -3929,6 +3992,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToLogicSortNode(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN_PARTITION:
       return jsonToLogicPartitionNode(pJson, pObj);
+    case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC:
+      return jsonToLogicIndefRowsFuncNode(pJson, pObj);
     case QUERY_NODE_LOGIC_SUBPLAN:
       return jsonToLogicSubplan(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN:
@@ -3969,6 +4034,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToPhysiStateWindowNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       return jsonToPhysiPartitionNode(pJson, pObj);
+    case QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC:
+      return jsonToPhysiIndefRowsFuncNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       return jsonToPhysiDispatchNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_DELETE:

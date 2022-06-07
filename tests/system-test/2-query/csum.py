@@ -240,7 +240,7 @@ class TDTestCase:
         tdSql.error("select csum(c1)   t1")         # no from
         tdSql.error("select csum( c1 )  from ")     # no table_expr
         # tdSql.error(self.csum_query_form(col="st1"))    # tag col
-        tdSql.error(self.csum_query_form(col=1))        # col is a value
+        # tdSql.error(self.csum_query_form(col=1))        # col is a value
         tdSql.error(self.csum_query_form(col="'c1'"))   # col is a string
         tdSql.error(self.csum_query_form(col=None))     # col is NULL 1
         tdSql.error(self.csum_query_form(col="NULL"))   # col is NULL 2
@@ -407,6 +407,14 @@ class TDTestCase:
         tdDnodes.start(index)
         self.csum_current_query()
         self.csum_error_query()
+        tdSql.query("select csum(1) from t1 ")
+        tdSql.checkRows(7)
+        tdSql.checkData(0,0,1)
+        tdSql.checkData(1,0,2)
+        tdSql.checkData(2,0,3)
+        tdSql.checkData(3,0,4)
+        tdSql.query("select csum(abs(c1))+2 from t1 ")
+        tdSql.checkRows(4)
 
     def run(self):
         import traceback
