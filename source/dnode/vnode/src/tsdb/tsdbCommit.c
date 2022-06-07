@@ -58,6 +58,9 @@ typedef struct {
 #define TSDB_COMMIT_DEFAULT_ROWS(ch) TSDB_DEFAULT_BLOCK_ROWS(TSDB_COMMIT_REPO(ch)->pVnode->config.tsdbCfg.maxRows)
 #define TSDB_COMMIT_TXN_VERSION(ch)  FS_TXN_VERSION(REPO_FS(TSDB_COMMIT_REPO(ch)))
 
+static int32_t tsdbCommitData(SCommitH *pCommith);
+static int32_t tsdbCommitDel(SCommitH *pCommith);
+static int32_t tsdbCommitCache(SCommitH *pCommith);
 static void    tsdbStartCommit(STsdb *pRepo);
 static void    tsdbEndCommit(STsdb *pTsdb, int eno);
 static int     tsdbInitCommitH(SCommitH *pCommith, STsdb *pRepo);
@@ -89,7 +92,7 @@ static void tsdbLoadAndMergeFromCache(STsdb *pTsdb, SDataCols *pDataCols, int *i
 static int  tsdbWriteBlockIdx(SDFile *pHeadf, SArray *pIdxA, void **ppBuf);
 static int  tsdbApplyRtnOnFSet(STsdb *pRepo, SDFileSet *pSet, SRtn *pRtn);
 
-int tsdbBegin(STsdb *pTsdb) {
+int32_t tsdbBegin(STsdb *pTsdb) {
   if (!pTsdb) return 0;
 
   SMemTable *pMem;
@@ -117,10 +120,42 @@ int32_t tsdbCommit(STsdb *pTsdb) {
     return -1;
   }
 
+  // commit impl
+  code = tsdbCommitData(&commith);
+  if (code) {
+    goto _err;
+  }
+
+  code = tsdbCommitDel(&commith);
+  if (code) {
+    goto _err;
+  }
+
+  code = tsdbCommitCache(&commith);
+  if (code) {
+    goto _err;
+  }
+
+  // end commit
+  tsdbDestroyCommitH(&commith);
+  tsdbEndCommit(pTsdb, TSDB_CODE_SUCCESS);
+
+  return code;
+
+_err:
+  return code;
+}
+
+static int32_t tsdbCommitData(SCommitH *pCommith) {
+  int32_t    fid;
+  SDFileSet *pSet;
+  int32_t    code = 0;
+  STsdb     *pTsdb = TSDB_COMMIT_REPO(pCommith);
+
   // Skip expired memory data and expired FSET
-  tsdbSeekCommitIter(&commith, commith.rtn.minKey);
-  while ((pSet = tsdbFSIterNext(&(commith.fsIter)))) {
-    if (pSet->fid < commith.rtn.minFid) {
+  tsdbSeekCommitIter(pCommith, pCommith->rtn.minKey);
+  while ((pSet = tsdbFSIterNext(&(pCommith->fsIter)))) {
+    if (pSet->fid < pCommith->rtn.minFid) {
       tsdbInfo("vgId:%d, FSET %d on level %d disk id %d expires, remove it", REPO_ID(pTsdb), pSet->fid,
                TSDB_FSET_LEVEL(pSet), TSDB_FSET_ID(pSet));
     } else {
@@ -129,7 +164,7 @@ int32_t tsdbCommit(STsdb *pTsdb) {
   }
 
   // commit
-  fid = tsdbNextCommitFid(&(commith));
+  fid = tsdbNextCommitFid(pCommith);
   while (true) {
     // Loop over both on disk and memory
     if (pSet == NULL && fid == TSDB_IVLD_FID) break;
@@ -137,12 +172,12 @@ int32_t tsdbCommit(STsdb *pTsdb) {
     if (pSet && (fid == TSDB_IVLD_FID || pSet->fid < fid)) {
       // Only has existing FSET but no memory data to commit in this
       // existing FSET, only check if file in correct retention
-      if (tsdbApplyRtnOnFSet(pTsdb, pSet, &(commith.rtn)) < 0) {
-        tsdbDestroyCommitH(&commith);
+      if (tsdbApplyRtnOnFSet(TSDB_COMMIT_REPO(pCommith), pSet, &(pCommith->rtn)) < 0) {
+        tsdbDestroyCommitH(pCommith);
         return -1;
       }
 
-      pSet = tsdbFSIterNext(&(commith.fsIter));
+      pSet = tsdbFSIterNext(&(pCommith->fsIter));
     } else {
       // Has memory data to commit
       SDFileSet *pCSet;
@@ -156,22 +191,30 @@ int32_t tsdbCommit(STsdb *pTsdb) {
         // Commit to an existing FSET
         pCSet = pSet;
         cfid = pSet->fid;
-        pSet = tsdbFSIterNext(&(commith.fsIter));
+        pSet = tsdbFSIterNext(&(pCommith->fsIter));
       }
 
-      if (tsdbCommitToFile(&commith, pCSet, cfid) < 0) {
-        tsdbDestroyCommitH(&commith);
+      if (tsdbCommitToFile(pCommith, pCSet, cfid) < 0) {
+        tsdbDestroyCommitH(pCommith);
         return -1;
       }
 
-      fid = tsdbNextCommitFid(&commith);
+      fid = tsdbNextCommitFid(pCommith);
     }
   }
 
-  // end commit
-  tsdbDestroyCommitH(&commith);
-  tsdbEndCommit(pTsdb, TSDB_CODE_SUCCESS);
+  return code;
+}
 
+static int32_t tsdbCommitDel(SCommitH *pCommith) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+static int32_t tsdbCommitCache(SCommitH *pCommith) {
+  int32_t code = 0;
+  // TODO
   return code;
 }
 
@@ -215,16 +258,6 @@ static int tsdbApplyRtnOnFSet(STsdb *pRepo, SDFileSet *pSet, SRtn *pRtn) {
 
   return 0;
 }
-
-// int tsdbPrepareCommit(STsdb *pTsdb) {
-//   if (pTsdb->mem == NULL) return 0;
-
-//   ASSERT(pTsdb->imem == NULL);
-
-//   pTsdb->imem = pTsdb->mem;
-//   pTsdb->mem = NULL;
-//   return 0;
-// }
 
 void tsdbGetRtnSnap(STsdb *pRepo, SRtn *pRtn) {
   STsdbKeepCfg *pCfg = REPO_KEEP_CFG(pRepo);
