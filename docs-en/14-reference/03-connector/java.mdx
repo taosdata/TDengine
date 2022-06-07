@@ -197,7 +197,7 @@ The configuration parameters in the URL are as follows.
 - user: Login TDengine user name, default value 'root'.
 - password: user login password, default value 'taosdata'.
 - batchfetch: true: pull the result set in batch when executing the query; false: pull the result set row by row. The default value is false. batchfetch uses HTTP for data transfer. The JDBC REST connection supports bulk data pulling function in taos-jdbcdriver-2.0.38 and TDengine 2.4.0.12 and later versions. taos-jdbcdriver and TDengine transfer data via WebSocket connection. Compared with HTTP, WebSocket enables JDBC REST connection to support large data volume querying and improve query performance.
-- charset: specify the charset to parse the string, this parameter is valid only when set batchfetch to true. Default value is UTF-8.
+- charset: specify the charset to parse the string, this parameter is valid only when set batchfetch to true.
 - batchErrorIgnore: true: when executing executeBatch of Statement, if one SQL execution fails in the middle, continue to execute the following SQL. false: no longer execute any statement after the failed SQL. The default value is: false.
 
 **Note**: Some configuration items (e.g., locale, timezone) do not work in the REST connection.
