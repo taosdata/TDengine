@@ -35,18 +35,19 @@ int32_t streamTriggerByWrite(SStreamTask* pTask, int32_t vgId, SMsgCb* pMsgCb) {
   return 0;
 }
 
-#if 1
 int32_t streamTaskEnqueue(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pRsp) {
-  SStreamDataBlock* pBlock = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM);
+  SStreamDataBlock* pData = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM);
   int8_t            status;
 
   // enqueue
-  if (pBlock != NULL) {
-    pBlock->type = STREAM_DATA_TYPE_SSDATA_BLOCK;
-    pBlock->sourceVg = pReq->sourceVg;
-    pBlock->blocks = pReq->data;
+  if (pData != NULL) {
+    pData->type = STREAM_DATA_TYPE_SSDATA_BLOCK;
+    pData->sourceVg = pReq->sourceVg;
+    // decode
+    /*pData->blocks = pReq->data;*/
     /*pBlock->sourceVer = pReq->sourceVer;*/
-    if (streamTaskInput(pTask, (SStreamQueueItem*)pBlock) == 0) {
+    streamDispatchReqToData(pReq, pData);
+    if (streamTaskInput(pTask, (SStreamQueueItem*)pData) == 0) {
       status = TASK_INPUT_STATUS__NORMAL;
     } else {
       status = TASK_INPUT_STATUS__FAILED;
@@ -57,16 +58,17 @@ int32_t streamTaskEnqueue(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg*
   }
 
   // rsp by input status
-  SStreamDispatchRsp* pCont = rpcMallocCont(sizeof(SStreamDispatchRsp));
+  void* buf = rpcMallocCont(sizeof(SMsgHead) + sizeof(SStreamDispatchRsp));
+  ((SMsgHead*)buf)->vgId = htonl(pReq->sourceVg);
+  SStreamDispatchRsp* pCont = POINTER_SHIFT(buf, sizeof(SMsgHead));
   pCont->inputStatus = status;
   pCont->streamId = pReq->streamId;
   pCont->taskId = pReq->sourceTaskId;
-  pRsp->pCont = pCont;
-  pRsp->contLen = sizeof(SStreamDispatchRsp);
+  pRsp->pCont = buf;
+  pRsp->contLen = sizeof(SMsgHead) + sizeof(SStreamDispatchRsp);
   tmsgSendRsp(pRsp);
   return status == TASK_INPUT_STATUS__NORMAL ? 0 : -1;
 }
-#endif
 
 int32_t streamProcessDispatchReq(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDispatchReq* pReq, SRpcMsg* pRsp) {
   // 1. handle input
@@ -87,8 +89,12 @@ int32_t streamProcessDispatchReq(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDisp
 }
 
 int32_t streamProcessDispatchRsp(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDispatchRsp* pRsp) {
+  ASSERT(pRsp->inputStatus == TASK_OUTPUT_STATUS__NORMAL || pRsp->inputStatus == TASK_OUTPUT_STATUS__BLOCKED);
+  int8_t old = atomic_exchange_8(&pTask->outputStatus, pRsp->inputStatus);
+  ASSERT(old == TASK_OUTPUT_STATUS__WAIT);
   if (pRsp->inputStatus == TASK_INPUT_STATUS__BLOCKED) {
     // TODO: init recover timer
+    return 0;
   }
   // continue dispatch
   streamSink1(pTask, pMsgCb);

@@ -932,6 +932,7 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   if (tEncodeI64(&encoder, pReq->qload.numOfProcessedFetch) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->qload.numOfProcessedDrop) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->qload.numOfProcessedHb) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->qload.numOfProcessedDelete) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->qload.cacheDataSize) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->qload.numOfQueryInQueue) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->qload.numOfFetchInQueue) < 0) return -1;
@@ -1001,6 +1002,7 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   if (tDecodeI64(&decoder, &pReq->qload.numOfProcessedFetch) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->qload.numOfProcessedDrop) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->qload.numOfProcessedHb) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->qload.numOfProcessedDelete) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->qload.cacheDataSize) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->qload.numOfQueryInQueue) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->qload.numOfFetchInQueue) < 0) return -1;
@@ -3823,46 +3825,70 @@ int32_t tDecodeSVGetTsmaExpWndsRsp(SDecoder *pCoder, SVGetTsmaExpWndsRsp *pReq) 
   return 0;
 }
 
-int32_t tEncodeSVDeleteReq(SEncoder *pCoder, const SVDeleteReq *pReq) {
-  if (tStartEncode(pCoder) < 0) return -1;
-
-  if (tEncodeI64(pCoder, pReq->delUid) < 0) return -1;
-  if (tEncodeI64(pCoder, pReq->tbUid) < 0) return -1;
-  if (tEncodeI8(pCoder, pReq->type) < 0) return -1;
-  if (tEncodeI16v(pCoder, pReq->nWnds) < 0) return -1;
-  if (tEncodeCStr(pCoder, pReq->tbFullName) < 0) return -1;
-  if (tEncodeCStr(pCoder, pReq->subPlan) < 0) return -1;
-  for (int16_t i = 0; i < pReq->nWnds; ++i) {
-    if (tEncodeI64(pCoder, pReq->wnds[i].skey) < 0) return -1;
-    if (tEncodeI64(pCoder, pReq->wnds[i].ekey) < 0) return -1;
+int32_t tSerializeSVDeleteReq(void *buf, int32_t bufLen, SVDeleteReq *pReq) {
+  int32_t headLen = sizeof(SMsgHead);
+  if (buf != NULL) {
+    buf = (char *)buf + headLen;
+    bufLen -= headLen;
   }
 
-  tEndEncode(pCoder);
-  return 0;
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeU64(&encoder, pReq->sId) < 0) return -1;
+  if (tEncodeU64(&encoder, pReq->queryId) < 0) return -1;
+  if (tEncodeU64(&encoder, pReq->taskId) < 0) return -1;
+  if (tEncodeU32(&encoder, pReq->sqlLen) < 0) return -1;
+  if (tEncodeU32(&encoder, pReq->phyLen) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->sql) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->msg) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+
+  if (buf != NULL) {
+    SMsgHead *pHead = (SMsgHead *)((char *)buf - headLen);
+    pHead->vgId = htonl(pReq->header.vgId);
+    pHead->contLen = htonl(tlen + headLen);
+  }
+
+  return tlen + headLen;
 }
 
-int32_t tDecodeSVDeleteReq(SDecoder *pCoder, SVDeleteReq *pReq) {
-  if (tStartDecode(pCoder) < 0) return -1;
+int32_t tDeserializeSVDeleteReq(void *buf, int32_t bufLen, SVDeleteReq *pReq) {
+  int32_t headLen = sizeof(SMsgHead);
 
-  if (tDecodeI64(pCoder, &pReq->delUid) < 0) return -1;
-  if (tDecodeI64(pCoder, &pReq->tbUid) < 0) return -1;
-  if (tDecodeI8(pCoder, &pReq->type) < 0) return -1;
-  if (tDecodeI16v(pCoder, &pReq->nWnds) < 0) return -1;
-  if (tDecodeCStr(pCoder, &pReq->tbFullName) < 0) return -1;
-  if (tDecodeCStr(pCoder, &pReq->subPlan) < 0) return -1;
-  for (int16_t i = 0; i < pReq->nWnds; ++i) {
-    if (tDecodeI64(pCoder, &pReq->wnds[i].skey) < 0) return -1;
-    if (tDecodeI64(pCoder, &pReq->wnds[i].ekey) < 0) return -1;
-  }
+  SMsgHead *pHead = buf;
+  pHead->vgId = pReq->header.vgId;
+  pHead->contLen = pReq->header.contLen;
 
-  tEndDecode(pCoder);
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, (char *)buf + headLen, bufLen - headLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeU64(&decoder, &pReq->sId) < 0) return -1;
+  if (tDecodeU64(&decoder, &pReq->queryId) < 0) return -1;
+  if (tDecodeU64(&decoder, &pReq->taskId) < 0) return -1;
+  if (tDecodeU32(&decoder, &pReq->sqlLen) < 0) return -1;
+  if (tDecodeU32(&decoder, &pReq->phyLen) < 0) return -1;
+  pReq->sql = taosMemoryCalloc(1, pReq->sqlLen + 1);
+  if (NULL == pReq->sql) return -1;
+  pReq->msg = taosMemoryCalloc(1, pReq->phyLen + 1);
+  if (NULL == pReq->msg) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->sql) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->msg) < 0) return -1;
+
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
   return 0;
 }
 
 int32_t tEncodeSVDeleteRsp(SEncoder *pCoder, const SVDeleteRsp *pReq) {
   if (tStartEncode(pCoder) < 0) return -1;
 
-  if (tEncodeI32(pCoder, pReq->code) < 0) return -1;
   if (tEncodeI64(pCoder, pReq->affectedRows) < 0) return -1;
 
   tEndEncode(pCoder);
@@ -3872,7 +3898,6 @@ int32_t tEncodeSVDeleteRsp(SEncoder *pCoder, const SVDeleteRsp *pReq) {
 int32_t tDecodeSVDeleteRsp(SDecoder *pCoder, SVDeleteRsp *pReq) {
   if (tStartDecode(pCoder) < 0) return -1;
 
-  if (tDecodeI32(pCoder, &pReq->code) < 0) return -1;
   if (tDecodeI64(pCoder, &pReq->affectedRows) < 0) return -1;
 
   tEndDecode(pCoder);

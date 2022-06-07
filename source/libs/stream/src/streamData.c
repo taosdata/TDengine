@@ -36,6 +36,29 @@ void* streamDataBlockDecode(const void* buf, SStreamDataBlock* pInput) {
 }
 #endif
 
+int32_t streamDispatchReqToData(const SStreamDispatchReq* pReq, SStreamDataBlock* pData) {
+  int32_t blockNum = pReq->blockNum;
+  SArray* pArray = taosArrayInit(blockNum, sizeof(SSDataBlock));
+  if (pArray == NULL) {
+    return -1;
+  }
+  taosArraySetSize(pArray, blockNum);
+
+  ASSERT(pReq->blockNum == taosArrayGetSize(pReq->data));
+  ASSERT(pReq->blockNum == taosArrayGetSize(pReq->dataLen));
+
+  for (int32_t i = 0; i < blockNum; i++) {
+    int32_t            len = *(int32_t*)taosArrayGet(pReq->dataLen, i);
+    SRetrieveTableRsp* pRetrieve = taosArrayGetP(pReq->data, i);
+    SSDataBlock*       pDataBlock = taosArrayGet(pArray, i);
+    blockCompressDecode(pDataBlock, htonl(pRetrieve->numOfCols), htonl(pRetrieve->numOfRows), pRetrieve->data);
+    // TODO: refactor
+    pDataBlock->info.childId = pReq->sourceChildId;
+  }
+  pData->blocks = pArray;
+  return 0;
+}
+
 SStreamDataSubmit* streamDataSubmitNew(SSubmitReq* pReq) {
   SStreamDataSubmit* pDataSubmit = (SStreamDataSubmit*)taosAllocateQitem(sizeof(SStreamDataSubmit), DEF_QITEM);
   if (pDataSubmit == NULL) return NULL;
