@@ -177,7 +177,8 @@ int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
     pMsg->prevLogIndex = preLogIndex;
     pMsg->prevLogTerm = preLogTerm;
     pMsg->commitIndex = pSyncNode->commitIndex;
-    pMsg->privateTerm = syncIndexMgrGetTerm(pSyncNode->pNextIndex, pDestId);
+    pMsg->privateTerm = 0;
+    // pMsg->privateTerm = syncIndexMgrGetTerm(pSyncNode->pNextIndex, pDestId);
 
     // send msg
     syncNodeAppendEntries(pSyncNode, pDestId, pMsg);

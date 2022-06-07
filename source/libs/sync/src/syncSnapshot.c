@@ -43,7 +43,7 @@ SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaI
     pSender->pSyncNode = pSyncNode;
     pSender->replicaIndex = replicaIndex;
     pSender->term = pSyncNode->pRaftStore->currentTerm;
-    pSender->privateTerm = 0;
+    pSender->privateTerm = taosGetTimestampMs() + 100;
     pSender->pSyncNode->pFsm->FpGetSnapshot(pSender->pSyncNode->pFsm, &(pSender->snapshot));
 
     pSender->finish = false;
@@ -62,6 +62,9 @@ void snapshotSenderDestroy(SSyncSnapshotSender *pSender) {
 
 // begin send snapshot (current term, seq begin)
 void snapshotSenderDoStart(SSyncSnapshotSender *pSender) {
+  // when start, increase term
+  ++(pSender->privateTerm);
+
   pSender->term = pSender->pSyncNode->pRaftStore->currentTerm;
   pSender->seq = SYNC_SNAPSHOT_SEQ_BEGIN;
   pSender->ack = SYNC_SNAPSHOT_SEQ_INVALID;
@@ -82,6 +85,7 @@ void snapshotSenderDoStart(SSyncSnapshotSender *pSender) {
   pMsg->lastIndex = pSender->snapshot.lastApplyIndex;
   pMsg->lastTerm = pSender->snapshot.lastApplyTerm;
   pMsg->seq = pSender->seq;  // SYNC_SNAPSHOT_SEQ_BEGIN
+  pMsg->privateTerm = pSender->privateTerm;
 
   // send
   SRpcMsg rpcMsg;
@@ -91,9 +95,6 @@ void snapshotSenderDoStart(SSyncSnapshotSender *pSender) {
   char *msgStr = syncSnapshotSend2Str(pMsg);
   sTrace("snapshot send begin seq:%d ack:%d send msg:%s", pSender->seq, pSender->ack, msgStr);
   taosMemoryFree(msgStr);
-
-  // when start, increase term
-  ++(pSender->privateTerm);
 
   syncSnapshotSendDestroy(pMsg);
 }
@@ -198,6 +199,7 @@ int32_t snapshotSend(SSyncSnapshotSender *pSender) {
   pMsg->lastIndex = pSender->snapshot.lastApplyIndex;
   pMsg->lastTerm = pSender->snapshot.lastApplyTerm;
   pMsg->seq = pSender->seq;
+  pMsg->privateTerm = pSender->privateTerm;
   memcpy(pMsg->data, pSender->pCurrentBlock, pSender->blockLen);
 
   SRpcMsg rpcMsg;
@@ -316,6 +318,8 @@ SSyncSnapshotReceiver *snapshotReceiverCreate(SSyncNode *pSyncNode, int32_t repl
     pReceiver->pSyncNode = pSyncNode;
     pReceiver->replicaIndex = replicaIndex;
     pReceiver->term = pSyncNode->pRaftStore->currentTerm;
+    pReceiver->privateTerm = 0;
+
   } else {
     sInfo("snapshotReceiverCreate cannot create receiver");
   }
@@ -377,6 +381,7 @@ void snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver) {
   }
 
   pReceiver->start = false;
+  ++(pReceiver->privateTerm);
 
   char *s = snapshotReceiver2Str(pReceiver);
   sInfo("snapshotReceiverStop %s", s);
@@ -429,6 +434,7 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
         // begin
         snapshotReceiverStart(pReceiver);
         pReceiver->ack = pMsg->seq;
+        pReceiver->privateTerm = pMsg->privateTerm;
         needRsp = true;
 
         char *msgStr = syncSnapshotSend2Str(pMsg);
@@ -490,6 +496,7 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
         pRspMsg->lastIndex = pMsg->lastIndex;
         pRspMsg->lastTerm = pMsg->lastTerm;
         pRspMsg->ack = pReceiver->ack;
+        pRspMsg->privateTerm = pReceiver->privateTerm;
 
         SRpcMsg rpcMsg;
         syncSnapshotRsp2RpcMsg(pRspMsg, &rpcMsg);
@@ -526,7 +533,7 @@ int32_t syncNodeOnSnapshotRspCb(SSyncNode *pSyncNode, SyncSnapshotRsp *pMsg) {
         snapshotSenderStop(pSender);
 
         // update nextIndex private term
-        syncIndexMgrSetTerm(pSyncNode->pNextIndex, &(pMsg->srcId), pSender->privateTerm);
+        // syncIndexMgrSetTerm(pSyncNode->pNextIndex, &(pMsg->srcId), pSender->privateTerm);
 
         return 0;
       }

@@ -175,6 +175,26 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
         ASSERT(pSender != NULL);
 
         SyncIndex sentryIndex;
+        if (pSender->start && pSender->term == ths->pRaftStore->currentTerm) {
+          // already start
+          sentryIndex = pSender->snapshot.lastApplyIndex;
+          sTrace(
+              "sending snapshot already start: pSender->term:%lu, ths->pRaftStore->currentTerm:%lu, "
+              "pSender->privateTerm:%lu",
+              pSender->term, ths->pRaftStore->currentTerm, pSender->privateTerm);
+
+        } else {
+          if (pMsg->privateTerm >= pSender->privateTerm) {
+            // donot start again
+            sentryIndex = pSender->snapshot.lastApplyIndex;
+
+          } else {
+            // start first time
+            snapshotSenderDoStart(pSender);
+            pSender->start = true;
+            sentryIndex = pSender->snapshot.lastApplyIndex;
+          }
+        }
 #if 0
         SyncIndex sentryIndex;
         if (pSender->start && pSender->term == ths->pRaftStore->currentTerm) {
