@@ -758,19 +758,20 @@ static bool initTableMemIterator(STsdbReadHandle* pHandle, STableCheckInfo* pChe
 
   STbData* pMem = NULL;
   STbData* pIMem = NULL;
+  int8_t   backward = (pHandle->order == TSDB_ORDER_DESC) ? 1 : 0;
 
   TSKEY tLastKey = keyToTkey(pCheckInfo->lastKey);
   if (pHandle->pTsdb->mem != NULL) {
     tsdbGetTbDataFromMemTable(pHandle->pTsdb->mem, pCheckInfo->suid, pCheckInfo->tableId, &pMem);
     if (pMem != NULL) {
-      tsdbTbDataIterCreate(pMem, &(TSDBKEY){.version = 0, .ts = tLastKey}, 0, &pCheckInfo->iter);
+      tsdbTbDataIterCreate(pMem, &(TSDBKEY){.version = 0, .ts = tLastKey}, backward, &pCheckInfo->iter);
     }
   }
 
   if (pHandle->pTsdb->imem != NULL) {
     tsdbGetTbDataFromMemTable(pHandle->pTsdb->mem, pCheckInfo->suid, pCheckInfo->tableId, &pIMem);
     if (pIMem != NULL) {
-      tsdbTbDataIterCreate(pIMem, &(TSDBKEY){.version = 0, .ts = tLastKey}, 0, &pCheckInfo->iiter);
+      tsdbTbDataIterCreate(pIMem, &(TSDBKEY){.version = 0, .ts = tLastKey}, backward, &pCheckInfo->iiter);
     }
   }
 
