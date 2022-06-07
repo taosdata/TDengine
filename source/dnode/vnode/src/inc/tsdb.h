@@ -171,14 +171,11 @@ struct STsdb {
 #if 1  // ======================================
 
 struct STable {
-  uint64_t  tid;
+  uint64_t  suid;
   uint64_t  uid;
   STSchema *pSchema;       // latest schema
   STSchema *pCacheSchema;  // cached cache
 };
-
-#define TABLE_TID(t) (t)->tid
-#define TABLE_UID(t) (t)->uid
 
 // int tsdbPrepareCommit(STsdb *pTsdb);
 typedef enum {
@@ -387,7 +384,7 @@ typedef struct {
 
 typedef struct {
   int32_t  delimiter;  // For recovery usage
-  int32_t  tid;
+  uint64_t suid;
   uint64_t uid;
   SBlock   blocks[];
 } SBlockInfo;

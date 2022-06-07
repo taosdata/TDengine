@@ -1109,7 +1109,7 @@ static int32_t loadBlockInfo(STsdbReadHandle* pTsdbReadHandle, int32_t index, in
   STableCheckInfo* pCheckInfo = taosArrayGet(pTsdbReadHandle->pTableCheckInfo, index);
   pCheckInfo->numOfBlocks = 0;
 
-  STable table = {.uid = pCheckInfo->tableId, .tid = pCheckInfo->tableId};
+  STable table = {.uid = pCheckInfo->tableId, .suid = pCheckInfo->suid};
   table.pSchema = pTsdbReadHandle->pSchema;
 
   if (tsdbSetReadTable(&pTsdbReadHandle->rhelper, &table) != TSDB_CODE_SUCCESS) {

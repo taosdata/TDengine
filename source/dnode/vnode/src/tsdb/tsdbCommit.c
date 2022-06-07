@@ -400,7 +400,7 @@ static int tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
       break;
     }
 
-    if (pIter && pIter->pTable && (!pIdx || (pIter->pTable->uid <= pIdx->uid))) {
+    if (pIter && pIter->pTable && (!pIdx || (pIter->pTable->suid <= pIdx->suid || pIter->pTable->uid <= pIdx->uid))) {
       if (tsdbCommitToTable(pCommith, mIter) < 0) {
         tsdbCloseCommitFile(pCommith, true);
         // revert the file change
@@ -478,7 +478,7 @@ static int32_t tsdbCreateCommitIters(SCommitH *pCommith) {
 
       pCommitIter->pTable = (STable *)taosMemoryMalloc(sizeof(STable));
       pCommitIter->pTable->uid = pTbData->uid;
-      pCommitIter->pTable->tid = pTbData->uid;
+      pCommitIter->pTable->suid = pTbData->suid;
       pCommitIter->pTable->pSchema = pTSchema;
       pCommitIter->pTable->pCacheSchema = NULL;
     }
@@ -734,8 +734,8 @@ static int tsdbWriteBlockInfoImpl(SDFile *pHeadf, STable *pTable, SArray *pSupA,
   pBlkInfo = *ppBuf;
 
   pBlkInfo->delimiter = TSDB_FILE_DELIMITER;
-  pBlkInfo->tid = TABLE_TID(pTable);
-  pBlkInfo->uid = TABLE_UID(pTable);
+  pBlkInfo->suid = pTable->suid;
+  pBlkInfo->uid = pTable->uid;
 
   memcpy((void *)(pBlkInfo->blocks), taosArrayGet(pSupA, 0), nSupBlocks * sizeof(SBlock));
   if (nSubBlocks > 0) {
@@ -761,7 +761,8 @@ static int tsdbWriteBlockInfoImpl(SDFile *pHeadf, STable *pTable, SArray *pSupA,
   // Set pIdx
   pBlock = taosArrayGetLast(pSupA);
 
-  pIdx->uid = TABLE_UID(pTable);
+  pIdx->suid = pTable->suid;
+  pIdx->uid = pTable->uid;
   pIdx->hasLast = pBlock->last ? 1 : 0;
   pIdx->maxKey = pBlock->maxKey;
   pIdx->numOfBlocks = (uint32_t)nSupBlocks;
@@ -916,7 +917,7 @@ static int tsdbMoveBlkIdx(SCommitH *pCommith, SBlockIdx *pIdx) {
     return -1;
   }
 
-  STable table = {.tid = pIdx->uid, .uid = pIdx->uid, .pSchema = NULL};
+  STable table = {.suid = pIdx->suid, .uid = pIdx->uid, .pSchema = NULL};
   pCommith->pTable = &table;
 
   while (bidx < nBlocks) {
@@ -1177,7 +1178,7 @@ static int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFi
   }
 
   pBlockData->delimiter = TSDB_FILE_DELIMITER;
-  pBlockData->uid = TABLE_UID(pTable);
+  pBlockData->uid = pTable->uid;
   pBlockData->numOfCols = nColsNotAllNull;
 
   taosCalcChecksumAppend(0, (uint8_t *)pBlockData, tsize);
@@ -1217,7 +1218,7 @@ static int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFi
 
   tsdbDebug("vgId:%d, uid:%" PRId64 " a block of data is written to file %s, offset %" PRId64
             " numOfRows %d len %d numOfCols %" PRId16 " keyFirst %" PRId64 " keyLast %" PRId64,
-            REPO_ID(pRepo), TABLE_UID(pTable), TSDB_FILE_FULL_NAME(pDFile), offset, rowsToWrite, pBlock->len,
+            REPO_ID(pRepo), pTable->uid, TSDB_FILE_FULL_NAME(pDFile), offset, rowsToWrite, pBlock->len,
             pBlock->numOfCols, pBlock->minKey.ts, pBlock->maxKey.ts);
 
   return 0;
