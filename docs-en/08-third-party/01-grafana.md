@@ -43,29 +43,29 @@ If Grafana is running in a Docker environment, the TDengine plugin can be automa
 GF_INSTALL_PLUGINS=tdengine-datasource
 ```
 
-## Using Grafana
+Users can log in to the Grafana server (initial username/password: admin/admin) directly through the URL `http://localhost:3000` and add a datasource through `Configuration -> Data Sources` on the left side, as shown in the following figure.
 
-### Configuring Data Sources
-
-Users can log in to the Grafana server (username/password: admin/admin) directly through the URL `http://localhost:3000` and add a datasource through `Configuration -> Data Sources` on the left side, as shown in the following figure.
-
-![TDengine Database TDinsight plugin add datasource 1](./grafana/add_datasource1.webp)
+![Grafana add datasource 1](./grafana/add_datasource1.webp)
 
 Click `Add data source` to enter the Add data source page, and enter TDengine in the query box to add it, as shown in the following figure.
 
-![TDengine Database TDinsight plugin add datasource 2](./grafana/add_datasource2.webp)
+![Grafana add datasource 2](./grafana/add_datasource2.webp)
 
 Enter the datasource configuration page, and follow the default prompts to modify the corresponding configuration.
 
-![TDengine Database TDinsight plugin add database 3](./grafana/add_datasource3.webp)
+![Grafana add database 3](./grafana/add_datasource3.webp)
 
-- Host: The URL string the TDengine Cloud assigns for the registered user.
+- Host: Please fill the URL string the TDengine Cloud provides.
 - User: leave it as default.
 - Password: leave it as default.
-- Cloud Token: The token string the TDengine Cloud assigns for the registered user.
+- Cloud Token: Please fill the token string the TDengine Cloud provides.
 
 Click `Save & Test` to test. You should see a success message if the test worked.
 
-![TDengine Database TDinsight plugin add database 4](./grafana/add_datasource4.webp)
+![Grafana add database 4](./grafana/add_datasource4.webp)
 
-Please refer to the [documentation](https://docs.tdengine.com/third-party/grafana#create-dashboard) for more details.
+## Using Grafana
+
+Please add new dashboard or import exist dashboard to illustrate the data you store in the TDengine.
+
+And refer to the [documentation](https://docs.tdengine.com/third-party/grafana#create-dashboard) for more details.
