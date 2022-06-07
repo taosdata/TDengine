@@ -502,7 +502,7 @@ static int32_t sifExecOper(SOperatorNode *node, SIFCtx *ctx, SIFParam *output) {
   int32_t nParam = sifGetOperParamNum(node->opType);
   if (nParam <= 1) {
     output->status = SFLT_NOT_INDEX;
-    SIF_ERR_RET(code);
+    return code;
   }
   if (node->opType == OP_TYPE_JSON_GET_VALUE || node->opType == OP_TYPE_JSON_CONTAINS) {
     return code;
