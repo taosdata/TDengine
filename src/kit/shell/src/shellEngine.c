@@ -148,7 +148,7 @@ void shellInit(SShellArguments *_args) {
       exit(EXIT_SUCCESS);
     }
 #endif
-  
+
   return;
 }
 
@@ -1360,6 +1360,7 @@ cJSON *wsclient_parse_response() {
   int   received = 0;
   int   bytes;
   int   recv_length = 4095;
+  recv_buffer[recv_length] = '\0';
   do {
     bytes = recv(args.socket, recv_buffer + received, recv_length - received, 0);
     if (bytes == -1) {
@@ -1382,7 +1383,8 @@ cJSON *wsclient_parse_response() {
     received += bytes;
     if (received >= recv_length) {
       recv_length += 4096;
-      recv_buffer = realloc(recv_buffer + start, recv_length);
+      recv_buffer = realloc(recv_buffer, recv_length + 1);
+      recv_buffer[recv_length] = '\0';
     }
   } while (1);
   cJSON *res = cJSON_Parse(recv_buffer + start);
@@ -1468,7 +1470,7 @@ int wsclient_print_data(int rows, TAOS_FIELD *fields, int cols, int64_t id, int 
     received += bytes;
     if (received >= recv_length) {
       recv_length += 4096;
-      recv_buffer = realloc(recv_buffer, recv_length);
+      recv_buffer = realloc(recv_buffer, recv_length + 1);
     }
   } while (received < total_recv_len);
 
@@ -1487,7 +1489,7 @@ int wsclient_print_data(int rows, TAOS_FIELD *fields, int cols, int64_t id, int 
     if (*pshowed_rows == DEFAULT_RES_SHOW_NUM) {
       free(recv_buffer);
       return 0;
-    } 
+    }
     for (int c = 0; c < cols; c++) {
       pos = start;
       pos += i * fields[c].bytes;
