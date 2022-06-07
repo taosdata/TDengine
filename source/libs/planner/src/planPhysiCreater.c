@@ -1395,6 +1395,7 @@ static int32_t buildDeleteSubplan(SPhysiPlanContext* pCxt, SVnodeModifyLogicNode
   if (TSDB_CODE_SUCCESS == code) {
     code = createDataDeleter(pCxt, pModify, pSubplan->pNode, &pSubplan->pDataSink);
   }
+  pSubplan->msgType = TDMT_VND_DELETE;
   return code;
 }
 

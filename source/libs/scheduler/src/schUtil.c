@@ -257,6 +257,8 @@ void schFreeRpcCtx(SRpcCtx *pCtx) {
 
   taosHashCleanup(pCtx->args);
 
-  (*pCtx->freeFunc)(pCtx->brokenVal.val);
+  if (pCtx->freeFunc) {
+    (*pCtx->freeFunc)(pCtx->brokenVal.val);
+  }
 }
 

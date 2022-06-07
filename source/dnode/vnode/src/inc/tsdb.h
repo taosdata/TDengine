@@ -39,24 +39,46 @@ typedef struct SDelOp  SDelOp;
 
 static int tsdbKeyCmprFn(const void *p1, const void *p2);
 
+// tsdbMemTable ==============================================================================================
+typedef struct STbData     STbData;
+typedef struct SMemTable   SMemTable;
+typedef struct STbDataIter STbDataIter;
+typedef struct SMergeInfo  SMergeInfo;
+typedef struct STable      STable;
+
+// SMemTable
+int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable);
+void    tsdbMemTableDestroy(SMemTable *pMemTable);
+void    tsdbGetTbDataFromMemTable(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t uid, STbData **ppTbData);
+
+// STbDataIter
+int32_t tsdbTbDataIterCreate(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter **ppIter);
+void   *tsdbTbDataIterDestroy(STbDataIter *pIter);
+void    tsdbTbDataIterOpen(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter *pIter);
+bool    tsdbTbDataIterNext(STbDataIter *pIter);
+bool    tsdbTbDataIterGet(STbDataIter *pIter, TSDBROW *pRow);
+
+int tsdbLoadDataFromCache(STsdb *pTsdb, STable *pTable, STbDataIter *pIter, TSKEY maxKey, int maxRowsToRead,
+                          SDataCols *pCols, TKEY *filterKeys, int nFilterKeys, bool keepDup, SMergeInfo *pMergeInfo);
+
 // tsdbMemTable2.c ==============================================================================================
-typedef struct SMemTable    SMemTable;
-typedef struct SMemData     SMemData;
-typedef struct SMemDataIter SMemDataIter;
+// typedef struct SMemTable2   SMemTable2;
+// typedef struct SMemData     SMemData;
+// typedef struct SMemDataIter SMemDataIter;
 
-int32_t tsdbMemTableCreate2(STsdb *pTsdb, SMemTable **ppMemTable);
-void    tsdbMemTableDestroy2(SMemTable *pMemTable);
-int32_t tsdbInsertTableData2(STsdb *pTsdb, int64_t version, SVSubmitBlk *pSubmitBlk);
-int32_t tsdbDeleteTableData2(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
+// int32_t tsdbMemTableCreate2(STsdb *pTsdb, SMemTable2 **ppMemTable);
+// void    tsdbMemTableDestroy2(SMemTable2 *pMemTable);
+// int32_t tsdbInsertTableData2(STsdb *pTsdb, int64_t version, SVSubmitBlk *pSubmitBlk);
+// int32_t tsdbDeleteTableData2(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
 
-/* SMemDataIter */
-void tsdbMemDataIterOpen(SMemData *pMemData, TSDBKEY *pKey, int8_t backward, SMemDataIter *pIter);
-bool tsdbMemDataIterNext(SMemDataIter *pIter);
-void tsdbMemDataIterGet(SMemDataIter *pIter, TSDBROW **ppRow);
+// /* SMemDataIter */
+// void tsdbMemDataIterOpen(SMemData *pMemData, TSDBKEY *pKey, int8_t backward, SMemDataIter *pIter);
+// bool tsdbMemDataIterNext(SMemDataIter *pIter);
+// void tsdbMemDataIterGet(SMemDataIter *pIter, TSDBROW **ppRow);
 
-// tsdbCommit2.c ==============================================================================================
-int32_t tsdbBegin2(STsdb *pTsdb);
-int32_t tsdbCommit2(STsdb *pTsdb);
+// // tsdbCommit2.c ==============================================================================================
+// int32_t tsdbBegin2(STsdb *pTsdb);
+// int32_t tsdbCommit2(STsdb *pTsdb);
 
 // tsdbFile.c ==============================================================================================
 typedef int32_t          TSDB_FILE_T;
@@ -124,17 +146,6 @@ int        tsdbRLockFS(STsdbFS *pFs);
 int        tsdbWLockFS(STsdbFS *pFs);
 int        tsdbUnLockFS(STsdbFS *pFs);
 
-// tsdbMemTable ================
-typedef struct STbData       STbData;
-typedef struct STsdbMemTable STsdbMemTable;
-typedef struct SMergeInfo    SMergeInfo;
-typedef struct STable        STable;
-
-int  tsdbMemTableCreate(STsdb *pTsdb, STsdbMemTable **ppMemTable);
-void tsdbMemTableDestroy(STsdbMemTable *pMemTable);
-int  tsdbLoadDataFromCache(STsdb *pTsdb, STable *pTable, SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead,
-                           SDataCols *pCols, TKEY *filterKeys, int nFilterKeys, bool keepDup, SMergeInfo *pMergeInfo);
-
 // structs
 typedef struct {
   int   minFid;
@@ -145,29 +156,26 @@ typedef struct {
 
 #define TSDB_DATA_DIR_LEN 6  // adapt accordingly
 struct STsdb {
-  char          *path;
-  SVnode        *pVnode;
-  TdThreadMutex  mutex;
-  char           dir[TSDB_DATA_DIR_LEN];
-  bool           repoLocked;
-  STsdbKeepCfg   keepCfg;
-  STsdbMemTable *mem;
-  STsdbMemTable *imem;
-  SRtn           rtn;
-  STsdbFS       *fs;
+  char         *path;
+  SVnode       *pVnode;
+  TdThreadMutex mutex;
+  char          dir[TSDB_DATA_DIR_LEN];
+  bool          repoLocked;
+  STsdbKeepCfg  keepCfg;
+  SMemTable    *mem;
+  SMemTable    *imem;
+  SRtn          rtn;
+  STsdbFS      *fs;
 };
 
 #if 1  // ======================================
 
 struct STable {
-  uint64_t  tid;
+  uint64_t  suid;
   uint64_t  uid;
   STSchema *pSchema;       // latest schema
   STSchema *pCacheSchema;  // cached cache
 };
-
-#define TABLE_TID(t) (t)->tid
-#define TABLE_UID(t) (t)->uid
 
 // int tsdbPrepareCommit(STsdb *pTsdb);
 typedef enum {
@@ -206,27 +214,44 @@ struct SDFileSet {
   SDFile   files[TSDB_FILE_MAX];
 };
 
-struct STbData {
-  tb_uid_t   uid;
-  TSKEY      keyMin;
-  TSKEY      keyMax;
-  int64_t    minVer;
-  int64_t    maxVer;
-  int64_t    nrows;
-  SSkipList *pData;
+struct TSDBKEY {
+  int64_t version;
+  TSKEY   ts;
 };
 
-struct STsdbMemTable {
-  SVBufPool *pPool;
-  T_REF_DECLARE()
-  SRWLatch   latch;
-  TSKEY      keyMin;
-  TSKEY      keyMax;
-  int64_t    minVer;
-  int64_t    maxVer;
-  int64_t    nRow;
-  SSkipList *pSlIdx;  // SSkiplist<STbData>
-  SHashObj  *pHashIdx;
+typedef struct SMemSkipListNode SMemSkipListNode;
+struct SMemSkipListNode {
+  int8_t            level;
+  SMemSkipListNode *forwards[0];
+};
+typedef struct SMemSkipList {
+  uint32_t          seed;
+  int64_t           size;
+  int8_t            maxLevel;
+  int8_t            level;
+  SMemSkipListNode *pHead;
+  SMemSkipListNode *pTail;
+} SMemSkipList;
+
+struct STbData {
+  tb_uid_t     suid;
+  tb_uid_t     uid;
+  TSDBKEY      minKey;
+  TSDBKEY      maxKey;
+  SDelOp      *pHead;
+  SDelOp      *pTail;
+  SMemSkipList sl;
+};
+
+struct SMemTable {
+  SRWLatch latch;
+  STsdb   *pTsdb;
+  int32_t  nRef;
+  TSDBKEY  minKey;
+  TSDBKEY  maxKey;
+  int64_t  nRow;
+  int64_t  nDelOp;
+  SArray  *aTbData;  // SArray<STbData>
 };
 
 struct STsdbFSMeta {
@@ -237,9 +262,11 @@ struct STsdbFSMeta {
 
 // ==================
 typedef struct {
-  STsdbFSMeta meta;  // FS meta
-  SArray     *df;    // data file array
-  SArray     *sf;    // sma data file array    v2f1900.index_name_1
+  STsdbFSMeta meta;       // FS meta
+  SDFile      cacheFile;  // cache file
+  SDFile      tombstone;  // tomestome file
+  SArray     *df;         // data file array
+  SArray     *sf;         // sma data file array    v2f1900.index_name_1
 } SFSStatus;
 
 struct STsdbFS {
@@ -292,16 +319,24 @@ static void  *taosTZfree(void *ptr);
 static size_t taosTSizeof(void *ptr);
 static void   taosTMemset(void *ptr, int c);
 
-static FORCE_INLINE STSRow *tsdbNextIterRow(SSkipListIterator *pIter) {
+struct TSDBROW {
+  int64_t version;
+  STSRow *pTSRow;
+};
+
+static FORCE_INLINE STSRow *tsdbNextIterRow(STbDataIter *pIter) {
+  TSDBROW row;
+
   if (pIter == NULL) return NULL;
 
-  SSkipListNode *node = tSkipListIterGet(pIter);
-  if (node == NULL) return NULL;
+  if (tsdbTbDataIterGet(pIter, &row)) {
+    return row.pTSRow;
+  }
 
-  return (STSRow *)SL_GET_NODE_DATA(node);
+  return NULL;
 }
 
-static FORCE_INLINE TSKEY tsdbNextIterKey(SSkipListIterator *pIter) {
+static FORCE_INLINE TSKEY tsdbNextIterKey(STbDataIter *pIter) {
   STSRow *row = tsdbNextIterRow(pIter);
   if (row == NULL) return TSDB_DATA_TIMESTAMP_NULL;
 
@@ -310,11 +345,6 @@ static FORCE_INLINE TSKEY tsdbNextIterKey(SSkipListIterator *pIter) {
 
 // tsdbReadImpl
 typedef struct SReadH SReadH;
-
-struct TSDBKEY {
-  int64_t version;
-  TSKEY   ts;
-};
 
 typedef struct {
   uint64_t suid;
@@ -354,7 +384,7 @@ typedef struct {
 
 typedef struct {
   int32_t  delimiter;  // For recovery usage
-  int32_t  tid;
+  uint64_t suid;
   uint64_t uid;
   SBlock   blocks[];
 } SBlockInfo;
@@ -650,11 +680,6 @@ struct SFSIter {
 #define TSDB_FS_ITER_FORWARD  TSDB_ORDER_ASC
 #define TSDB_FS_ITER_BACKWARD TSDB_ORDER_DESC
 
-struct TSDBROW {
-  int64_t version;
-  STSRow2 tsRow;
-};
-
 struct TABLEID {
   tb_uid_t suid;
   tb_uid_t uid;
@@ -675,7 +700,7 @@ typedef struct {
   TSKEY    eKey;
 } SDelInfo;
 
-struct SMemTable {
+struct SMemTable2 {
   STsdb  *pTsdb;
   int32_t nRef;
   TSDBKEY minKey;
@@ -705,16 +730,6 @@ static FORCE_INLINE int tsdbKeyCmprFn(const void *p1, const void *p2) {
   return 0;
 }
 
-typedef struct SMemSkipListNode SMemSkipListNode;
-typedef struct SMemSkipList {
-  uint32_t          seed;
-  int32_t           size;
-  int8_t            maxLevel;
-  int8_t            level;
-  SMemSkipListNode *pHead;
-  SMemSkipListNode *pTail;
-} SMemSkipList;
-
 struct SMemData {
   tb_uid_t     suid;
   tb_uid_t     uid;
@@ -726,11 +741,17 @@ struct SMemData {
 };
 
 struct SMemDataIter {
-  SMemData         *pMemData;
+  STbData          *pMemData;
   int8_t            backward;
   TSDBROW          *pRow;
   SMemSkipListNode *pNode;  // current node
   TSDBROW           row;
+};
+
+struct STbDataIter {
+  STbData          *pTbData;
+  int8_t            backward;
+  SMemSkipListNode *pNode;
 };
 
 #endif
