@@ -421,10 +421,20 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
 }
 
 int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg) {
-  SStreamDispatchReq* pReq = pMsg->pCont;
-  int32_t             taskId = pReq->taskId;
-  SStreamTask*        pTask = taosHashGet(pTq->pStreamTasks, &taskId, sizeof(int32_t));
-  streamProcessDispatchReq(pTask, &pTq->pVnode->msgCb, pReq, pMsg);
+  char*              msgStr = pMsg->pCont;
+  char*              msgBody = POINTER_SHIFT(msgStr, sizeof(SMsgHead));
+  int32_t            msgLen = pMsg->contLen - sizeof(SMsgHead);
+  SStreamDispatchReq req;
+  SDecoder           decoder;
+  tDecoderInit(&decoder, msgBody, msgLen);
+  tDecodeStreamDispatchReq(&decoder, &req);
+  int32_t      taskId = req.taskId;
+  SStreamTask* pTask = taosHashGet(pTq->pStreamTasks, &taskId, sizeof(int32_t));
+  SRpcMsg      rsp = {
+           .info = pMsg->info,
+           .code = 0,
+  };
+  streamProcessDispatchReq(pTask, &pTq->pVnode->msgCb, &req, &rsp);
   return 0;
 }
 

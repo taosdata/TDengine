@@ -13,8 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "executor.h"
-#include "tstream.h"
+#include "streamInc.h"
 
 int32_t streamSink1(SStreamTask* pTask, SMsgCb* pMsgCb) {
   SStreamQueue* queue;
@@ -23,12 +22,13 @@ int32_t streamSink1(SStreamTask* pTask, SMsgCb* pMsgCb) {
   } else {
     queue = pTask->outputQueue;
   }
+
   /*if (streamDequeueBegin(queue) == true) {*/
   /*return -1;*/
   /*}*/
 
-  if (pTask->sinkType == TASK_SINK__TABLE || pTask->sinkType == TASK_SINK__SMA) {
-    ASSERT(pTask->dispatchType == TASK_DISPATCH__NONE);
+  if (pTask->sinkType == TASK_SINK__TABLE || pTask->sinkType == TASK_SINK__SMA ||
+      pTask->dispatchType != TASK_DISPATCH__NONE) {
     while (1) {
       SStreamDataBlock* pBlock = streamQueueNextItem(queue);
       if (pBlock == NULL) break;
@@ -36,13 +36,18 @@ int32_t streamSink1(SStreamTask* pTask, SMsgCb* pMsgCb) {
 
       // local sink
       if (pTask->sinkType == TASK_SINK__TABLE) {
+        ASSERT(pTask->dispatchType == TASK_DISPATCH__NONE);
         pTask->tbSink.tbSinkFunc(pTask, pTask->tbSink.vnode, 0, pBlock->blocks);
       } else if (pTask->sinkType == TASK_SINK__SMA) {
+        ASSERT(pTask->dispatchType == TASK_DISPATCH__NONE);
         pTask->smaSink.smaSink(pTask->ahandle, pTask->smaSink.smaId, pBlock->blocks);
       }
 
+      // TODO: sink and dispatch should be only one
       if (pTask->dispatchType != TASK_DISPATCH__NONE) {
         ASSERT(queue == pTask->outputQueue);
+        ASSERT(pTask->sinkType == TASK_SINK__NONE);
+
         streamDispatch(pTask, pMsgCb, pBlock);
       }
 

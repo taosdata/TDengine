@@ -398,6 +398,8 @@ typedef struct {
   int8_t  inputStatus;
 } SStreamTaskRecoverRsp;
 
+int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq);
+
 int32_t streamTriggerByWrite(SStreamTask* pTask, int32_t vgId, SMsgCb* pMsgCb);
 
 int32_t streamTaskRun(SStreamTask* pTask);

@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tstream.h"
+#include "streamInc.h"
 
 int32_t tEncodeStreamDispatchReq(SEncoder* pEncoder, const SStreamDispatchReq* pReq) {
   if (tStartEncode(pEncoder) < 0) return -1;
@@ -147,13 +147,13 @@ int32_t streamBuildDispatchMsg(SStreamTask* pTask, SStreamDataBlock* data, SRpcM
   int32_t tlen;
   tEncodeSize(tEncodeStreamDispatchReq, &req, tlen, code);
   if (code < 0) goto FAIL;
+  code = -1;
   buf = rpcMallocCont(sizeof(SMsgHead) + tlen);
   if (buf == NULL) {
-    code = -1;
     goto FAIL;
   }
 
-  ((SMsgHead*)buf)->vgId = htonl(pTask->fixedEpDispatcher.nodeId);
+  ((SMsgHead*)buf)->vgId = htonl(vgId);
   void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
 
   SEncoder encoder;
@@ -165,16 +165,24 @@ int32_t streamBuildDispatchMsg(SStreamTask* pTask, SStreamDataBlock* data, SRpcM
 
   pMsg->contLen = tlen + sizeof(SMsgHead);
   pMsg->pCont = buf;
+  pMsg->msgType = pTask->dispatchMsgType;
 
   code = 0;
 FAIL:
-  if (buf) taosMemoryFree(buf);
+  if (code < 0 && buf) rpcFreeCont(buf);
   if (req.data) taosArrayDestroyP(req.data, (FDelete)taosMemoryFree);
   if (req.dataLen) taosArrayDestroy(req.dataLen);
   return code;
 }
 
 int32_t streamDispatch(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDataBlock* data) {
+#if 0
+  int8_t old =
+      atomic_val_compare_exchange_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL, TASK_OUTPUT_STATUS__WAIT);
+  if (old != TASK_OUTPUT_STATUS__NORMAL) {
+    return 0;
+  }
+#endif
   if (pTask->dispatchType == TASK_DISPATCH__INPLACE) {
     SRpcMsg dispatchMsg = {0};
     if (streamBuildDispatchMsg(pTask, data, &dispatchMsg, NULL) < 0) {
@@ -201,12 +209,19 @@ int32_t streamDispatch(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDataBlock* dat
 
     tmsgSendReq(pEpSet, &dispatchMsg);
   } else if (pTask->dispatchType == TASK_DISPATCH__SHUFFLE) {
-    // TODO
-    ASSERT(0);
+    SRpcMsg dispatchMsg = {0};
+    SEpSet* pEpSet = NULL;
+    if (streamBuildDispatchMsg(pTask, data, &dispatchMsg, &pEpSet) < 0) {
+      ASSERT(0);
+      return -1;
+    }
+
+    tmsgSendReq(pEpSet, &dispatchMsg);
   }
   return 0;
 }
 
+#if 0
 static int32_t streamBuildExecMsg(SStreamTask* pTask, SArray* data, SRpcMsg* pMsg, SEpSet** ppEpSet) {
   SStreamTaskExecReq req = {
       .streamId = pTask->streamId,
@@ -287,3 +302,4 @@ static int32_t streamShuffleDispatch(SStreamTask* pTask, SMsgCb* pMsgCb, SHashOb
   }
   return 0;
 }
+#endif
