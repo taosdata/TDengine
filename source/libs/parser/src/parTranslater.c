@@ -847,9 +847,9 @@ static EDealRes translateJsonOperator(STranslateContext* pCxt, SOperatorNode* pO
   if (TSDB_DATA_TYPE_JSON != ldt.type || TSDB_DATA_TYPE_BINARY != rdt.type) {
     return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pRight))->aliasName);
   }
-  if(pOp->opType == OP_TYPE_JSON_GET_VALUE){
+  if (pOp->opType == OP_TYPE_JSON_GET_VALUE) {
     pOp->node.resType.type = TSDB_DATA_TYPE_JSON;
-  }else if(pOp->opType == OP_TYPE_JSON_CONTAINS){
+  } else if (pOp->opType == OP_TYPE_JSON_CONTAINS) {
     pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
   }
   pOp->node.resType.bytes = tDataTypes[pOp->node.resType.type].bytes;
@@ -3611,6 +3611,22 @@ static int32_t translateRevoke(STranslateContext* pCxt, SRevokeStmt* pStmt) {
   return buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &req);
 }
 
+static int32_t translateBalanceVgroup(STranslateContext* pCxt, SBalanceVgroupStmt* pStmt) {
+  SBalanceVgroupReq req = {0};
+  return buildCmdMsg(pCxt, TDMT_MND_BALANCE_VGROUP, (FSerializeFunc)tSerializeSBalanceVgroupReq, &req);
+}
+
+static int32_t translateMergeVgroup(STranslateContext* pCxt, SMergeVgroupStmt* pStmt) {
+  SMergeVgroupReq req = {.vgId1 = pStmt->vgId1, .vgId2 = pStmt->vgId2};
+  return buildCmdMsg(pCxt, TDMT_MND_MERGE_VGROUP, (FSerializeFunc)tSerializeSMergeVgroupReq, &req);
+}
+
+static int32_t translateRedistributeVgroup(STranslateContext* pCxt, SRedistributeVgroupStmt* pStmt) {
+  SRedistributeVgroupReq req = {.vgId = pStmt->vgId};
+  // todo
+  return buildCmdMsg(pCxt, TDMT_MND_MERGE_VGROUP, (FSerializeFunc)tSerializeSRedistributeVgroupReq, &req);
+}
+
 static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pNode)) {
@@ -3732,6 +3748,15 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_REVOKE_STMT:
       code = translateRevoke(pCxt, (SRevokeStmt*)pNode);
+      break;
+    case QUERY_NODE_BALANCE_VGROUP_STMT:
+      code = translateBalanceVgroup(pCxt, (SBalanceVgroupStmt*)pNode);
+      break;
+    case QUERY_NODE_MERGE_VGROUP_STMT:
+      code = translateMergeVgroup(pCxt, (SMergeVgroupStmt*)pNode);
+      break;
+    case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:
+      code = translateRedistributeVgroup(pCxt, (SRedistributeVgroupStmt*)pNode);
       break;
     default:
       break;

@@ -41,6 +41,7 @@ static SKeyword keywordTable[] = {
     {"AS",            TK_AS},
     {"ASC",           TK_ASC},
     {"AT_ONCE",       TK_AT_ONCE},
+    {"BALANCE",       TK_BALANCE},
     {"BETWEEN",       TK_BETWEEN},
     {"BINARY",        TK_BINARY},
     {"BIGINT",        TK_BIGINT},
