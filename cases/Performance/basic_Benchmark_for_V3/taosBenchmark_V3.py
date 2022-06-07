@@ -36,7 +36,7 @@ class TestBigintBoundary(TDCase):
         host = self.get_component_by_name(
             "taosd")[0]['fqdn'][0]
         print(host)
-        ret = self.envMgr._remote.cmd2(host ,["hostname","taos -s 'show dnodes;'", "sleep 100",f"taosBenchmark -f  {case_dir}pre_datas_insert.json"])
+        ret = self.envMgr._remote.cmd2(host ,["hostname","taos -s 'show dnodes;'", f"taosBenchmark -f  {case_dir}pre_datas_insert.json"])
 
         if ret.failed:
             print("prepare data done ! ")
@@ -44,7 +44,7 @@ class TestBigintBoundary(TDCase):
 
         for _ in range(10):
             # basic aggregate query for 3.0 branch 
-            ret = self.envMgr._remote.cmd2(host ,["hostname","taos -s 'show dnodes;'", "sleep 100", f"taosBenchmark -f  {case_dir}basic_agg_query.json"])
+            ret = self.envMgr._remote.cmd2(host ,["hostname","taos -s 'show dnodes;'",  f"taosBenchmark -f  {case_dir}basic_agg_query.json"])
 
             if ret.failed:
                 print("basic aggregate done ! ")
@@ -52,7 +52,7 @@ class TestBigintBoundary(TDCase):
 
             # basic long query for 3.0 branch 
 
-            ret = self.envMgr._remote.cmd2(host ,["hostname","taos -s 'show dnodes;'" ,"sleep 100", f"taosBenchmark -f  {case_dir}basic_long_query.json"])
+            ret = self.envMgr._remote.cmd2(host ,["hostname","taos -s 'show dnodes;'" , f"taosBenchmark -f  {case_dir}basic_long_query.json"])
 
             if ret.failed:
                 print("basic long done ! ")
