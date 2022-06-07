@@ -1168,7 +1168,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getApercentileFuncEnv,
     .initFunc     = apercentileFunctionSetup,
     .processFunc  = apercentileFunction,
-    .finalizeFunc = apercentileFinalize
+    .finalizeFunc = apercentileFinalize,
+    .pPartialFunc = "_apercentile_partial",
+    .pMergeFunc   = "_apercentile_merge"
   },
   {
     .name = "_apercentile_partial",
