@@ -184,31 +184,11 @@ void *taosbsearch(const void *key, const void *base, int32_t nmemb, int32_t size
   }
 
   if (flags == TD_EQ) {
-    if (c == 0) {
-      return p;
-    } else {
-      return NULL;
-    }
+    return c ? NULL : p;
   } else if (flags == TD_GE) {
-    if (c <= 0) {
-      return p;
-    } else {
-      if (midx + 1 < nmemb) {
-        return p + size;
-      } else {
-        return NULL;
-      }
-    }
+    return (c <= 0) ? p : (midx + 1 < nmemb ? p + size : NULL);
   } else if (flags == TD_LE) {
-    if (c >= 0) {
-      return p;
-    } else {
-      if (midx > 0) {
-        return p - size;
-      } else {
-        return NULL;
-      }
-    }
+    return (c >= 0) ? p : (midx > 0 ? p - size : NULL);
   } else {
     ASSERT(0);
   }
