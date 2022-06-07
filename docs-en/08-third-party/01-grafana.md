@@ -55,10 +55,10 @@ Enter the datasource configuration page, and follow the default prompts to modif
 
 ![Grafana add database 3](./grafana/add_datasource3.webp)
 
-- Host: The URL string the TDengine Cloud assigns for the registered user.
+- Host: Please fill the URL string the TDengine Cloud provides.
 - User: leave it as default.
 - Password: leave it as default.
-- Cloud Token: The token string the TDengine Cloud assigns for the registered user.
+- Cloud Token: Please fill the token string the TDengine Cloud provides.
 
 Click `Save & Test` to test. You should see a success message if the test worked.
 
