@@ -15,16 +15,20 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         self.tdCom.sml_type = "opentsdb_telnet"
         self.tdCom.drop_all_db()
         self.dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdCom.createDb(dbname=self.dbname, precision="us")
+        self.tdCom.createDb(dbname=self.dbname, precision="us", schemaless=1)
+        self.taospy_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taospy")
+        if "smlChildTableName" in self.taospy_setting["spec"]["config"]:
+            if self.taospy_setting["spec"]["config"]["smlChildTableName"].upper() == "ID":
+                self.tdCom.set_sml_specified_value()
 
-    def smlPass(func):
-        def wrapper(self, *args):
-            if self.tdCom.smlChildTableName_value is not None:
-                if self.tdCom.smlChildTableName_value.upper() == "ID":
-                    return func(*args)
-            else:
-                pass
-        return wrapper
+    # def smlPass(func):
+    #     def wrapper(self, *args):
+    #         if self.tdCom.smlChildTableName_value is not None:
+    #             if self.tdCom.smlChildTableName_value.upper() == "ID":
+    #                 return func(self, *args)
+    #         else:
+    #             pass
+    #     return wrapper
 
     def init_check(self, protocol=None):
         """
@@ -33,6 +37,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql(protocol=protocol)
+        print(input_sql)
         self.tdCom.check_res(input_sql, stb_name, protocol=protocol)
 
     def bool_check(self, protocol=None):
@@ -77,7 +82,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         self.tdCom.check_res(input_sql, stb_name, ts_type=TDSmlTimestampType.SECOND.value)
 
         self.tdSql.execute(f"drop database if exists test_ts")
-        self.tdSql.execute(f"create database if not exists test_ts precision 'ms'")
+        self.tdSql.execute(f"create database if not exists test_ts precision 'ms' schemaless 1")
         self.tdSql.execute("use test_ts")
         input_sql = ['test_ms 1626006833640 t t0=t', 'test_ms 1626006833641 f t0=t']
         self.tdSql._conn.schemaless_insert(input_sql, TDSmlProtocolType.TELNET.value, None)
@@ -478,7 +483,6 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
             self.tdSql.checkNotEqual(err.errno, 0)
 
     ##### stb exist #####
-    @smlPass
     def no_id_stb_exist_check(self):
         """
         case no id when stb exist
@@ -503,7 +507,6 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
         self.tdCom.check_res(input_sql, stb_name)
 
-    @smlPass
     def tag_col_binary_nchar_length_check(self):
         """
         check length increase
@@ -516,39 +519,24 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         input_sql, stb_name = self.tdCom.gen_full_type_sql(stb_name=stb_name, tb_name=tb_name,t7="\"binaryTagValuebinaryTagValue\"", t8="L\"ncharTagValuencharTagValue\"")
         self.tdCom.check_res(input_sql, stb_name, condition=f'where tbname like "{tb_name}"')
 
-    @smlPass
     def tag_col_add_dup_id_check(self):
         """
         check tag count add, stb and tb duplicate
         * tag: alter table ...
-        * col: when update==0 and ts is same, unchange
-        * so this case tag&&value will be added,
-        * col is added without value when update==0
-        * col is added with value when update==1
+        * tag&&value will be added,
         """
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         tb_name = self.tdCom.get_long_name(7, "letters")
-        for db_update_tag in [0, 1]:
-            if db_update_tag == 1 :
-                self.createDb("test_update", db_update_tag=db_update_tag)
-            input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name, t0="t", value="t")
-            self.tdCom.check_res(input_sql, stb_name)
-            input_sql, stb_name = self.tdCom.gen_full_type_sql(stb_name=stb_name, tb_name=tb_name, t0="t", value="f", t_add_tag=True)
-            if db_update_tag == 1 :
-                self.tdCom.check_res(input_sql, stb_name, condition=f'where tbname like "{tb_name}"', none_check_tag=True)
-                self.tdSql.query(f'select * from {stb_name} where tbname like "{tb_name}"')
-                self.tdSql.checkData(0, 11, None)
-                self.tdSql.checkData(0, 12, None)
-            else:
-                self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
-                self.tdSql.query(f'select * from {stb_name} where tbname like "{tb_name}"')
-                self.tdSql.checkData(0, 1, True)
-                self.tdSql.checkData(0, 11, None)
-                self.tdSql.checkData(0, 12, None)
-            self.createDb()
+        input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name, t0="t", value="t")
+        self.tdCom.check_res(input_sql, stb_name)
+        input_sql, stb_name = self.tdCom.gen_full_type_sql(stb_name=stb_name, tb_name=tb_name, t0="t", value="f", t_add_tag=True)
+        self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
+        self.tdSql.query(f'select * from {stb_name} where tbname like "{tb_name}"')
+        self.tdSql.checkData(0, 1, False)
+        self.tdSql.checkData(0, 11, None)
+        self.tdSql.checkData(0, 12, None)
 
-    @smlPass
     def tag_col_add_check(self):
         """
         check tag count add
@@ -561,7 +549,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         tb_name_1 = self.tdCom.get_long_name(7, "letters")
         input_sql, stb_name = self.tdCom.gen_full_type_sql(stb_name=stb_name, tb_name=tb_name_1, t0="f", value="f", t_add_tag=True)
         self.tdCom.check_res(input_sql, stb_name, condition=f'where tbname like "{tb_name_1}"')
-        res_row_list = self.resHandle(f"select t10,t11 from {tb_name}", True)[0]
+        res_row_list = self.tdCom.res_handle(f"select t10,t11 from {tb_name}", stb_name)[0]
         self.tdSql.checkEqual(res_row_list[0], ['None', 'None'])
         self.tdCom.check_res(input_sql, stb_name, condition=f'where tbname like "{tb_name}"', none_check_tag=True)
 
@@ -620,7 +608,8 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         stb_name = self.tdCom.get_long_name(8, "letters")
-        self.tdSql.execute(f'create stable {stb_name}(ts timestamp, f int) tags(t1 bigint)')
+        # TODO commit out
+        # self.tdSql.execute(f'create stable {self.dbname}.{stb_name}(ts timestamp, f int) tags(t1 bigint)')
         lines = ["st123456 1626006833640 1i64 t1=3i64 t2=4f64 t3=\"t3\"",
                 "st123456 1626006833641 2i64 t1=4i64 t3=\"t4\" t2=5f64 t4=5f64",
                 f'{stb_name} 1626006833642 3i64 t2=5f64 t3=L\"ste\"',
@@ -648,7 +637,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         sql_list = []
         stb_name = self.tdCom.get_long_name(8, "letters")
         # TODO commit out
-        #self.tdSql.execute(f'create stable {stb_name}(ts timestamp, f int) tags(t1 nchar(10))')
+        # self.tdSql.execute(f'create stable {stb_name}(ts timestamp, f int) tags(t1 nchar(10))')
         for i in range(count):
             input_sql = self.tdCom.gen_full_type_sql(stb_name=stb_name, t7=f'"{self.tdCom.get_long_name(8, "letters")}"', value=f'"{self.tdCom.get_long_name(8, "letters")}"', id_noexist_tag=True)[0]
             sql_list.append(input_sql)
@@ -780,16 +769,17 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
     def tbname_tags_cols_name_check(self):
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
-        if self.tdCom.smlChildTableName_value == "ID":
-            input_sql = 'rFa$sta 1626006834 9223372036854775807 id=rFas$ta_1 Tt!0=true tT@1=127Ii8 t#2=32767i16 "t$3"=2147483647i32 t%4=9223372036854775807i64 t^5=11.12345f32 t&6=22.123456789f64 t*7=\"ddzhiksj\" t!@#$%^&*()_+[];:<>?,9=L\"ncharTagValue\"'
-            self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
-            query_sql = 'select * from `rFa$sta`'
-            self.tdSql.query(query_sql)
-            self.tdSql.checkEqual(self.tdSql.query_data, [(datetime.datetime(2021, 7, 11, 20, 33, 54), 9.223372036854776e+18, 'true', '127Ii8', '32767i16', '2147483647i32', '9223372036854775807i64', '11.12345f32', '22.123456789f64', '"ddzhiksj"', 'L"ncharTagValue"')])
-            query_sql = 'describe `rFa$sta`'
-            self.tdSql.query(query_sql)
-            self.tdSql.checkEqual(self.tdSql.getColNameList(), ['ts', 'value', 'tt!0', 'tt@1', 't#2', '"t$3"', 't%4', 't^5', 't&6', 't*7', 't!@#$%^&*()_+[];:<>?,9'])
-            self.tdSql.execute('drop table `rFa$sta`')
+        if "smlChildTableName" in self.taospy_setting["spec"]["config"]:
+            if self.tdCom.smlChildTableName_value.upper() == "ID":
+                input_sql = 'rFa$sta 1626006834 9223372036854775807 id=rFas$ta_1 Tt!0=true tT@1=127Ii8 t#2=32767i16 "t$3"=2147483647i32 t%4=9223372036854775807i64 t^5=11.12345f32 t&6=22.123456789f64 t*7=\"ddzhiksj\" t!@#$%^&*()_+[];:<>?,9=L\"ncharTagValue\"'
+                self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
+                query_sql = 'select * from `rFa$sta`'
+                self.tdSql.query(query_sql)
+                self.tdSql.checkEqual(self.tdSql.query_data, [(datetime.datetime(2021, 7, 11, 20, 33, 54), 9.223372036854776e+18, 'true', '127Ii8', '32767i16', '2147483647i32', '9223372036854775807i64', '11.12345f32', '22.123456789f64', '"ddzhiksj"', 'L"ncharTagValue"')])
+                query_sql = 'describe `rFa$sta`'
+                self.tdSql.query(query_sql)
+                self.tdSql.checkEqual(self.tdSql.getColNameList(), ['_ts', '_value', 'Tt!0', 'tT@1', 't#2', '"t$3"', 't%4', 't^5', 't&6', 't*7', 't!@#$%^&*()_+[];:<>?,9'])
+                self.tdSql.execute('drop table `rFa$sta`')
         else:
             input_sql = 'rFa$sta 1626006834 9223372036854775807 Tt!0=true tT@1=127Ii8 t#2=32767i16 "t$3"=2147483647i32 t%4=9223372036854775807i64 t^5=11.12345f32 t&6=22.123456789f64 t*7=\"ddzhiksj\" t!@#$%^&*()_+[];:<>?,9=L\"ncharTagValue\"'
             self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
@@ -798,7 +788,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
             self.tdSql.checkEqual(self.tdSql.query_data, [(datetime.datetime(2021, 7, 11, 20, 33, 54), 9.223372036854776e+18, '2147483647i32', 'L"ncharTagValue"', '32767i16', '9223372036854775807i64', '22.123456789f64', '"ddzhiksj"', '11.12345f32', 'true', '127Ii8')])
             query_sql = 'describe `rFa$sta`'
             self.tdSql.query(query_sql)
-            self.tdSql.checkEqual(self.tdSql.getColNameList(), ['ts', 'value', '"t$3"', 't!@#$%^&*()_+[];:<>?,9', 't#2', 't%4', 't&6', 't*7', 't^5', 'Tt!0', 'tT@1'])
+            self.tdSql.checkEqual(self.tdSql.getColNameList(), ['_ts', '_value', '"t$3"', 't!@#$%^&*()_+[];:<>?,9', 't#2', 't%4', 't&6', 't*7', 't^5', 'Tt!0', 'tT@1'])
             self.tdSql.execute('drop table `rFa$sta`')
 
     def stb_insert_multi_thread_check(self):
@@ -885,7 +875,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
-        input_sql, stb_name = self.tdCom.gen_full_type_sql(value="\"binaryTagValue\"")
+        input_sql, stb_name = self.tdCom.gen_full_type_sql(value="T")
         self.tdCom.check_res(input_sql, stb_name)
         s_stb_d_tb_list = self.tdCom.gen_sql_list(stb_name=stb_name)[4]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_d_tb_list))
@@ -915,7 +905,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
-        input_sql, stb_name = self.tdCom.gen_full_type_sql(value="\"binaryTagValue\"")
+        input_sql, stb_name = self.tdCom.gen_full_type_sql(value="T")
         self.tdCom.check_res(input_sql, stb_name)
         s_stb_d_tb_a_tag_list = self.tdCom.gen_sql_list(stb_name=stb_name)[6]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_d_tb_a_tag_list))
@@ -931,14 +921,14 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         tb_name = self.tdCom.get_long_name(7, "letters")
         input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name, value="\"binaryTagValue\"")
         self.tdCom.check_res(input_sql, stb_name)
-        s_stb_s_tb_d_ts_list = [(f'{stb_name} 0 "hkgjiwdj" id={tb_name} t0=f t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7="vozamcts" t8=L"ncharTagValue"', 'dwpthv'), \
-                                (f'{stb_name} 0 "rljjrrul" id={tb_name} t0=False t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7="bmcanhbs" t8=L"ncharTagValue"', 'dwpthv'), \
-                                (f'{stb_name} 0 "basanglx" id={tb_name} t0=False t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7="enqkyvmb" t8=L"ncharTagValue"', 'dwpthv'), \
-                                (f'{stb_name} 0 "clsajzpp" id={tb_name} t0=F t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7="eivaegjk" t8=L"ncharTagValue"', 'dwpthv'), \
-                                (f'{stb_name} 0 "jitwseso" id={tb_name} t0=T t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7="yhlwkddq" t8=L"ncharTagValue"', 'dwpthv')]
+        s_stb_s_tb_d_ts_list = [(f'{stb_name} 1626006833645 "hkgjiwdj" id={tb_name} t0=f t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7="vozamcts" t8=L"ncharTagValue"', 'dwpthv'), \
+                                (f'{stb_name} 1626006833641 "rljjrrul" id={tb_name} t0=False t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7="bmcanhbs" t8=L"ncharTagValue"', 'dwpthv'), \
+                                (f'{stb_name} 1626006833642 "basajzpp" id={tb_name} t0=F t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7="bavaegjk" t8=L"ncharTagValue"', 'dwpthv'), \
+                                (f'{stb_name} 1626006833643 "clsajzpp" id={tb_name} t0=F t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7="eivaegjk" t8=L"ncharTagValue"', 'dwpthv'), \
+                                (f'{stb_name} 1626006833644 "jitwseso" id={tb_name} t0=T t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7="yhlwkddq" t8=L"ncharTagValue"', 'dwpthv')]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_s_tb_d_ts_list))
         self.tdSql.query(f"show tables;")
-        self.tdSql.checkEqual(self.tdSql.query_row, 1) if self.tdCom.smlChildTableName_value == "ID" else self.tdSql.checkEqual(self.tdSql.query_row, 6)
+        self.tdSql.checkEqual(self.tdSql.query_row, 6)
         self.tdSql.query(f"select * from {stb_name}")
         self.tdSql.checkEqual(self.tdSql.query_row, 6)
 
@@ -970,20 +960,20 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         tb_name = self.tdCom.get_long_name(7, "letters")
         input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name, value="\"binaryTagValue\"")
         self.tdCom.check_res(input_sql, stb_name)
-        s_stb_s_tb_d_ts_a_tag_list = [(f'{stb_name} 0 "clummqfy" id={tb_name} t0=False t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7="hpxzrdiw" t8=L"ncharTagValue" t11=127i8 t10=L"ncharTagValue"', 'bokaxl'), \
-                                    (f'{stb_name} 0 "yqeztggb" id={tb_name} t0=False t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7="hpxzrdiw" t8=L"ncharTagValue" t11=127i8 t10=L"ncharTagValue"', 'bokaxl'), \
-                                    (f'{stb_name} 0 "gbkinqdk" id={tb_name} t0=False t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7="hpxzrdiw" t8=L"ncharTagValue" t11=127i8 t10=L"ncharTagValue"', 'bokaxl'), \
-                                    (f'{stb_name} 0 "ldxxejbd" id={tb_name} t0=False t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7="hpxzrdiw" t8=L"ncharTagValue" t11=127i8 t10=L"ncharTagValue"', 'bokaxl'), \
-                                    (f'{stb_name} 0 "tlvzwjes" id={tb_name} t0=False t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7="hpxzrdiw" t8=L"ncharTagValue" t11=127i8 t10=L"ncharTagValue"', 'bokaxl')]
+        s_stb_s_tb_d_ts_a_tag_list = [(f'{stb_name} 1626006833641 "clummqfy" id={tb_name} t0=False t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7="hpxzrdiw" t8=L"ncharTagValue" t11=127i8 t10=L"ncharTagValue"', 'bokaxl'), \
+                                    (f'{stb_name} 1626006833642 "yqeztggb" id={tb_name} t0=False t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7="hpxzrdiw" t8=L"ncharTagValue" t11=127i8 t10=L"ncharTagValue"', 'bokaxl'), \
+                                    (f'{stb_name} 1626006833643 "gbkinqdk" id={tb_name} t0=False t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7="hpxzrdiw" t8=L"ncharTagValue" t11=127i8 t10=L"ncharTagValue"', 'bokaxl'), \
+                                    (f'{stb_name} 1626006833644 "ldxxejbd" id={tb_name} t0=False t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7="hpxzrdiw" t8=L"ncharTagValue" t11=127i8 t10=L"ncharTagValue"', 'bokaxl'), \
+                                    (f'{stb_name} 1626006833645 "tlvzwjes" id={tb_name} t0=False t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7="hpxzrdiw" t8=L"ncharTagValue" t11=127i8 t10=L"ncharTagValue"', 'bokaxl')]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_s_tb_d_ts_a_tag_list))
         self.tdSql.query(f"show tables;")
         self.tdSql.checkEqual(self.tdSql.query_row, 2)
         # ! not stable
         # self.tdSql.query(f"select * from {stb_name}")
-        # self.tdSql.checkEqual(self.tdSql.query_row, 6)
+        # self.tdSql.checkEqual(self.tdSql.query_row, 2)
         # for t in ["t10", "t11"]:
         #     self.tdSql.query(f"select * from {stb_name} where {t} is not NULL;")
-        #     self.tdSql.checkEqual(self.tdSql.query_row, 5)
+        #     self.tdSql.checkEqual(self.tdSql.query_row, 1)
 
     def s_stb_d_tb_d_data_d_ts_insert_multi_thread_check(self):
         """
@@ -991,101 +981,115 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
-        input_sql, stb_name = self.tdCom.gen_full_type_sql(value="\"binaryTagValue\"")
+        input_sql, stb_name = self.tdCom.gen_full_type_sql(value="T")
+        print(input_sql)
         self.tdCom.check_res(input_sql, stb_name)
         s_stb_d_tb_d_ts_list = self.tdCom.gen_sql_list(stb_name=stb_name)[10]
+        print(s_stb_d_tb_d_ts_list)
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_d_tb_d_ts_list))
         self.tdSql.query(f"show tables;")
         self.tdSql.checkEqual(self.tdSql.query_row, 6)
 
     def s_stb_d_tb_d_data_d_ts_mt_insert_multi_thread_check(self):
         """
-        thread input same stb, different tb, data, ts, add col, mul tag
+        thread input same stb, different tb, data, ts, mul tag
         """
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql(value="\"binaryTagValue\"")
+        print(input_sql)
         self.tdCom.check_res(input_sql, stb_name)
-        s_stb_d_tb_d_ts_m_tag_list = [(f'{stb_name} 0 "mnpmtzul" t0=False t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64', 'pcppkg'), \
-                                    (f'{stb_name} 0 "zbvwckcd" t0=True t1=126i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64', 'pcppkg'), \
-                                    (f'{stb_name} 0 "vymcjfwc" t0=False t1=125i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64', 'pcppkg'), \
-                                    (f'{stb_name} 0 "laumkwfn" t0=False t1=124i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64', 'pcppkg'), \
-                                    (f'{stb_name} 0 "nyultzxr" t0=false t1=123i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64', 'pcppkg')]
-        self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_d_tb_d_ts_m_tag_list))
+        s_stb_d_tb_d_ts_m_tag_list = [(f'{stb_name} 1626006833642 "mnpmtzul" t0=False t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64', 'pcppkg'), \
+                                    (f'{stb_name} 1626006833643 "zbvwckcd" t0=False t1=126i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64', 'pcppkg'), \
+                                    (f'{stb_name} 1626006833644 "vymcjfwc" t0=False t1=125i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64', 'pcppkg'), \
+                                    (f'{stb_name} 1626006833645 "laumkwfn" t0=False t1=124i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64', 'pcppkg'), \
+                                    (f'{stb_name} 1626006833646 "nyultzxr" t0=false t1=123i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64', 'pcppkg')]
+        print(s_stb_d_tb_d_ts_m_tag_list)
+        for line in s_stb_d_tb_d_ts_m_tag_list:
+            self.tdSql._conn.schemaless_insert([line[0]], TDSmlProtocolType.TELNET.value, None)
+
+        # print(s_stb_d_tb_d_ts_m_tag_list)
+        # self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_d_tb_d_ts_m_tag_list))
         self.tdSql.query(f"show tables;")
         self.tdSql.checkEqual(self.tdSql.query_row, 6)
 
     def test(self):
-        self.blank_tag_insert_check()
+        self.s_stb_d_tb_d_data_d_ts_mt_insert_multi_thread_check()
+        # return
 
-    def run(self) -> bool:
-        # self.test()
-        self.init_check()
-        self.bool_check()
-        self.symbols_check()
-        self.ts_check()
-        self.opentstb_telnet_ts_check()
-        self.id_seq_check()
-        self.id_letter_check()
-        self.no_id_check()
-        # self.max_col_tag_check()
-        self.stb_tb_name_check()
-        self.id_start_with_num_check()
-        self.now_check()
-        self.date_format_check()
-        self.illegal_ts_check()
-        self.tbname_check()
-        # self.tag_value_length_check()
-        self.col_value_length_check()
-        self.tag_col_illegal_value_check()
-        self.blank_check()
-        self.duplicate_id_tag_col_insert_check()
-        self.no_id_stb_exist_check()
-        self.duplicate_insert_exist_check()
-        self.tag_col_binary_nchar_length_check()
-        # self.tag_col_add_dup_id_check()
-        # self.tag_col_add_check()
-        # self.tag_md5_check()
-        # self.tag_col_binary_max_length_check()
-        # self.batch_insert_check()
-        self.multiInsert_check(10)
-        self.batch_error_insert_check()
-        self.multi_cols_insert_check()
-        self.blank_col_insert_check()
-        self.blank_tag_insert_check()
-        self.chinese_check()
-        self.multi_field_check()
-        self.spell_check()
-        self.point_trans_check()
-        self.defaultType_check()
-        # self.tbname_tags_cols_name_check()
-        self.stb_insert_multi_thread_check()
-        # self.s_stb_s_tb_d_data_insert_multi_thread_check()
-        # self.s_stb_s_tb_d_data_at_insert_multi_thread_check()
-        # self.s_stb_stb_d_data_mt_insert_multi_thread_check()
-        # self.s_stb_d_tb_d_data_insert_multi_thread_check()
-        # self.s_stb_d_tb_d_data_mt_insert_multi_thread_check()
-        # self.s_stb_d_tb_d_data_at_insert_multi_thread_check()
-        # self.s_stb_s_tb_d_data_d_ts_insert_multi_thread_check()
-        # self.s_stb_s_tb_d_data_d_ts_mt_insert_multi_thread_check()
-        # self.s_stb_s_tb_d_data_d_ts_at_insert_multi_thread_check()
-        # self.s_stb_d_tb_d_data_d_ts_insert_multi_thread_check()
-        # self.s_stb_d_tb_d_data_d_ts_mt_insert_multi_thread_check()
+    def run(self):
+        self.test()
+        if "smlChildTableName" in self.taospy_setting["spec"]["config"]:
+            if self.taospy_setting["spec"]["config"]["smlChildTableName"].upper() == "ID":
+                self.no_id_stb_exist_check()
+                self.tag_col_binary_nchar_length_check()
+                self.tag_col_add_dup_id_check()
+                self.tag_col_add_check()
+                self.tag_md5_check()
+                self.tbname_tags_cols_name_check()
+        else:
+            return
+            # self.init_check()
+            # self.bool_check()
+            # self.symbols_check()
+            # self.ts_check()
+            # self.opentstb_telnet_ts_check()
+            # self.id_seq_check()
+            # self.id_letter_check()
+            # self.no_id_check()
+            # # self.max_col_tag_check()
+            # self.stb_tb_name_check()
+            # self.id_start_with_num_check()
+            # self.now_check()
+            # self.date_format_check()
+            # self.illegal_ts_check()
+            # self.tbname_check()
+            # # self.tag_value_length_check()
+            # self.col_value_length_check()
+            # self.tag_col_illegal_value_check()
+            # self.blank_check()
+            # self.duplicate_id_tag_col_insert_check()
+            # self.duplicate_insert_exist_check()
+            # # self.tag_col_binary_max_length_check()
+            # # self.batch_insert_check()
+            # self.multiInsert_check(10)
+            # self.batch_error_insert_check()
+            # self.multi_cols_insert_check()
+            # self.blank_col_insert_check()
+            # self.blank_tag_insert_check()
+            # self.chinese_check()
+            # self.multi_field_check()
+            # self.spell_check()
+            # self.point_trans_check()
+            # self.defaultType_check()
+            # self.tbname_tags_cols_name_check()
+            # self.stb_insert_multi_thread_check()
+            # self.s_stb_s_tb_d_data_insert_multi_thread_check()
+            # self.s_stb_s_tb_d_data_at_insert_multi_thread_check()
+            # self.s_stb_stb_d_data_mt_insert_multi_thread_check()
+            self.s_stb_d_tb_d_data_insert_multi_thread_check()
+            self.s_stb_d_tb_d_data_mt_insert_multi_thread_check()
+            self.s_stb_d_tb_d_data_at_insert_multi_thread_check()
+            self.s_stb_s_tb_d_data_d_ts_insert_multi_thread_check()
+            self.s_stb_s_tb_d_data_d_ts_mt_insert_multi_thread_check()
+            self.s_stb_s_tb_d_data_d_ts_at_insert_multi_thread_check()
+            self.s_stb_d_tb_d_data_d_ts_insert_multi_thread_check()
+            self.s_stb_d_tb_d_data_d_ts_mt_insert_multi_thread_check()
 
-        # for env_setting in self.env_setting["settings"]:
-        #     if env_setting["name"] == "taosAdapter":
-        #         self.dbname = env_setting["spec"]["adapter_config"]["opentsdb_telnet"]["dbs"][0]
-        # self.tdCom.createDb(dbname=self.dbname, precision="us", protocol="telnet-tcp")
-        # self.init_check('telnet-tcp')
-        # self.bool_check('telnet-tcp')
-        # self.symbols_check('telnet-tcp')
-        # self.id_seq_check('telnet-tcp')
-        # self.id_letter_check('telnet-tcp')
-        # self.no_id_check('telnet-tcp')
-        # self.stb_tb_name_check('telnet-tcp')
-        # self.id_start_with_num_check('telnet-tcp')
-        # self.point_trans_check('telnet-tcp')
-        # self.tcp_keywords_check()
+        # # for env_setting in self.env_setting["settings"]:
+        # #     if env_setting["name"] == "taosAdapter":
+        # #         self.dbname = env_setting["spec"]["adapter_config"]["opentsdb_telnet"]["dbs"][0]
+        # # self.tdCom.createDb(dbname=self.dbname, precision="us", protocol="telnet-tcp")
+        # # self.init_check('telnet-tcp')
+        # # self.bool_check('telnet-tcp')
+        # # self.symbols_check('telnet-tcp')
+        # # self.id_seq_check('telnet-tcp')
+        # # self.id_letter_check('telnet-tcp')
+        # # self.no_id_check('telnet-tcp')
+        # # self.stb_tb_name_check('telnet-tcp')
+        # # self.id_start_with_num_check('telnet-tcp')
+        # # self.point_trans_check('telnet-tcp')
+        # # self.tcp_keywords_check()
     def cleanup(self):
         pass
 
