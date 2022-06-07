@@ -71,16 +71,21 @@ typedef struct SCatalogReq {
   bool    forceUpdate;    
 } SCatalogReq;
 
+typedef struct SMetaRes {
+  int32_t code;
+  void*   pRes;
+} SMetaRes;
+
 typedef struct SMetaData {
-  SArray    *pDbVgroup;   // SArray<SArray<SVgroupInfo>*>
-  SArray    *pDbCfg;      // SArray<SDbCfgInfo>
-  SArray    *pDbInfo;     // SArray<SDbInfo>
-  SArray    *pTableMeta;  // SArray<STableMeta*>
-  SArray    *pTableHash;  // SArray<SVgroupInfo>
-  SArray    *pUdfList;    // SArray<SFuncInfo>
-  SArray    *pIndex;      // SArray<SIndexInfo>
-  SArray    *pUser;       // SArray<bool>
-  SArray    *pQnodeList;  // SArray<SQueryNodeAddr>
+  SArray    *pDbVgroup;   // pRes = SArray<SVgroupInfo>*
+  SArray    *pDbCfg;      // pRes = SDbCfgInfo*
+  SArray    *pDbInfo;     // pRes = SDbInfo*
+  SArray    *pTableMeta;  // pRes = STableMeta*
+  SArray    *pTableHash;  // pRes = SVgroupInfo*
+  SArray    *pUdfList;    // pRes = SFuncInfo*
+  SArray    *pIndex;      // pRes = SIndexInfo*
+  SArray    *pUser;       // pRes = bool*
+  SArray    *pQnodeList;  // pRes = SQueryNodeAddr*
 } SMetaData;
 
 typedef struct SCatalogCfg {

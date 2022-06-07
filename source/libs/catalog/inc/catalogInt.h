@@ -173,7 +173,6 @@ typedef struct SCtgJob {
   SArray*          pTasks;
   int32_t          taskDone;
   SMetaData        jobRes;
-  int32_t          rspCode;
 
   uint64_t         queryId;
   SCatalog*        pCtg; 
@@ -201,11 +200,12 @@ typedef struct SCtgMsgCtx {
 
 typedef struct SCtgTask {
   CTG_TASK_TYPE type;
-  int32_t  taskId;
-  SCtgJob *pJob;
-  void* taskCtx;
-  SCtgMsgCtx msgCtx;
-  void* res;
+  int32_t       taskId;
+  SCtgJob*      pJob;
+  void*         taskCtx;
+  SCtgMsgCtx    msgCtx;
+  int32_t       code;
+  void*         res;
 } SCtgTask;
 
 typedef int32_t (*ctgLanchTaskFp)(SCtgTask*);
