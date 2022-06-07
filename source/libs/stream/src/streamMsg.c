@@ -116,11 +116,9 @@ int32_t streamBuildDispatchMsg(SStreamTask* pTask, SStreamDataBlock* data, SRpcM
     *ppEpSet = &pTask->fixedEpDispatcher.epSet;
     downstreamTaskId = pTask->fixedEpDispatcher.taskId;
   } else if (pTask->dispatchType == TASK_DISPATCH__SHUFFLE) {
-    // TODO get ctbName
-    char         ctbName[TSDB_TABLE_FNAME_LEN + 22] = {0};
+    // TODO get ctbName for each block
     SSDataBlock* pBlock = taosArrayGet(data->blocks, 0);
-    sprintf(ctbName, "%s:%ld", pTask->shuffleDispatcher.stbFullName, pBlock->info.groupId);
-    // get vg and ep
+    char*        ctbName = buildCtbNameByGroupId(pTask->shuffleDispatcher.stbFullName, pBlock->info.groupId);
     // TODO: get hash function by hashMethod
 
     // get groupId, compute hash value

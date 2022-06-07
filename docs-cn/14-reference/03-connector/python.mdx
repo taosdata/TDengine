@@ -199,10 +199,9 @@ curl -u root:taosdata http://<FQDN>:<PORT>/rest/sql -d "select server_version()"
 
 `connect()` 函数的所有参数都是可选的关键字参数。下面是连接参数的具体说明：
 
-- `host`： 要连接的主机。默认是 localhost。
+- `url`： taosAdapter REST 服务的 URL。默认是 <http://localhost:6041>。
 - `user`： TDenigne 用户名。默认是 root。
 - `password`： TDeingine 用户密码。默认是 taosdata。
-- `port`: taosAdapter REST 服务监听端口。默认是 6041.
 - `timeout`: HTTP 请求超时时间。单位为秒。默认为 `socket._GLOBAL_DEFAULT_TIMEOUT`。 一般无需配置。
 
 </TabItem>
