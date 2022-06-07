@@ -1,13 +1,15 @@
 # ANCHOR: connect
-from taosrest import connect, TaosRestConnection, TaosRestCursor
+import taosrest
+import os
 
-conn: TaosRestConnection = connect(url="http://localhost:6041",
-                                   user="root",
-                                   password="taosdata",
-                                   timeout=30)
+url = os.environ["TDENGINE_CLOUD_URL"]
+token = os.environ["TDENGINE_CLOUD_TOKEN"]
+
+conn = taosrest.connect(url=url, token=token)
 
 # ANCHOR_END: connect
 # ANCHOR: basic
+from taosrest import TaosRestCursor
 # create STable
 cursor: TaosRestCursor = conn.cursor()
 cursor.execute("DROP DATABASE IF EXISTS power")

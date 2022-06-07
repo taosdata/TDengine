@@ -7,13 +7,6 @@ TDengine can be quickly integrated with the open-source data visualization syste
 
 You can learn more about using the TDengine plugin on [GitHub](https://github.com/taosdata/grafanaplugin/blob/master/README.md).
 
-## Prerequisites
-
-In order for Grafana to add the TDengine data source successfully, the following preparations are required:
-
-1. The TDengine cluster is deployed and functioning properly
-2. taosAdapter is installed and running properly. Please refer to the taosAdapter manual for details.
-
 ## Installing Grafana
 
 TDengine currently supports Grafana versions 7.5 and above. Users can go to the Grafana official website to download the installation package and execute the installation according to the current operating system. The download address is as follows: <https://grafana.com/grafana/download>.
@@ -75,25 +68,4 @@ Click `Save & Test` to test. You should see a success message if the test worked
 
 ![TDengine Database TDinsight plugin add database 4](./grafana/add_datasource4.webp)
 
-### Create Dashboard
-
-Go back to the main interface to create a dashboard and click Add Query to enter the panel query page:
-
-![TDengine Database TDinsight plugin create dashboard 1](./grafana/create_dashboard1.webp)
-
-As shown above, select the `TDengine` data source in the `Query` and enter the corresponding SQL in the query box below for query.
-
-- INPUT SQL: enter the statement to be queried (the result set of the SQL statement should be two columns and multiple rows), for example: `select avg(mem_system) from log.dn where ts >= $from and ts < $to interval($interval)`, where, from, to and interval are built-in variables of the TDengine plugin, indicating the range and time interval of queries fetched from the Grafana plugin panel. In addition to the built-in variables, custom template variables are also supported.
-- ALIAS BY: This allows you to set the current query alias.
-- GENERATE SQL: Clicking this button will automatically replace the corresponding variables and generate the final executed statement.
-
-Follow the default prompt to query the average system memory usage for the specified interval on the server where the current TDengine deployment is located as follows.
-
-![TDengine Database TDinsight plugin create dashboard 2](./grafana/create_dashboard2.webp)
-
-> For more information on how to use Grafana to create the appropriate monitoring interface and for more details on using Grafana, refer to the official Grafana [documentation](https://grafana.com/docs/).
-
-### Importing the Dashboard
-
-In version 2.3.3.0 and above, you can import the TDinsight Dashboard (Grafana Dashboard ID: [15167](https://grafana.com/grafana/dashboards/15167)) as a monitoring visualization tool for TDengine clusters. You can find installation and usage instructions in the TDinsight User Manual (/reference/tdinsight/).
-
+Please refer to the [documentation](https://docs.tdengine.com/third-party/grafana#create-dashboard) for more details.
