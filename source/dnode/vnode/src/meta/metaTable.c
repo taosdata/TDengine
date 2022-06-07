@@ -61,14 +61,14 @@ static int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const
   if (tTagToValArray((const STag *)data, &pTagVals) != 0) {
     return -1;
   }
-  char key[512] = {0};
 
   SIndexMultiTerm *terms = indexMultiTermCreate();
   int16_t          nCols = taosArrayGetSize(pTagVals);
   for (int i = 0; i < nCols; i++) {
     STagVal *pTagVal = (STagVal *)taosArrayGet(pTagVals, i);
     char     type = pTagVal->type;
-    sprintf(key, "%s_%s", tagName, pTagVal->pKey);
+
+    char *  key = pTagVal->pKey;
     int32_t nKey = strlen(key);
 
     SIndexTerm *term = NULL;

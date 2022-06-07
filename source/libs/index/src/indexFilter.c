@@ -173,10 +173,8 @@ static int32_t sifInitJsonParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
   param->colId = l->colId;
   param->colValType = l->node.resType.type;
   memcpy(param->dbName, l->dbName, sizeof(l->dbName));
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wformat-overflow"
-  sprintf(param->colName, "%s_%s", l->colName, r->literal);
-#pragma GCC diagnostic pop
+  memcpy(param->colName, r->literal, strlen(r->literal));
+  // sprintf(param->colName, "%s_%s", l->colName, r->literal);
   param->colValType = r->typeData;
   return 0;
   // memcpy(param->colName, l->colName, sizeof(l->colName));
@@ -505,7 +503,6 @@ static int32_t sifExecOper(SOperatorNode *node, SIFCtx *ctx, SIFParam *output) {
   int32_t nParam = sifGetOperParamNum(node->opType);
   if (nParam <= 1) {
     output->status = SFLT_NOT_INDEX;
-    SIF_ERR_RET(code);
     return code;
   }
   if (node->opType == OP_TYPE_JSON_GET_VALUE) {

@@ -123,11 +123,10 @@ static int32_t cacheSearchCompareFunc(void* cache, SIndexTerm* term, SIdxTRslt* 
   if (cache == NULL) {
     return 0;
   }
-
-  _cache_range_compare cmpFn = indexGetCompare(type);
-
   MemTable*   mem = cache;
   IndexCache* pCache = mem->pCache;
+
+  _cache_range_compare cmpFn = indexGetCompare(type);
 
   CacheTerm* pCt = taosMemoryCalloc(1, sizeof(CacheTerm));
   pCt->colVal = term->colVal;
@@ -267,13 +266,20 @@ static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTR
   int    skip = 0;
   char*  exBuf = NULL;
 
-  if (INDEX_TYPE_CONTAIN_EXTERN_TYPE(term->colType, TSDB_DATA_TYPE_JSON)) {
+  if (type == CONTAINS) {
+    SIndexTerm tm = {.suid = term->suid,
+                     .operType = term->operType,
+                     .colType = term->colType,
+                     .colName = term->colVal,
+                     .nColName = term->nColVal};
+    exBuf = indexPackJsonDataPrefix(&tm, &skip);
+    pCt->colVal = exBuf;
+  } else {
     exBuf = indexPackJsonDataPrefix(term, &skip);
     pCt->colVal = exBuf;
   }
   char* key = indexCacheTermGet(pCt);
 
-  // SSkipListIterator* iter = tSkipListCreateIter(mem->mem);
   SSkipListIterator* iter = tSkipListCreateIterFromVal(mem->mem, key, TSDB_DATA_TYPE_BINARY, TSDB_ORDER_ASC);
   while (tSkipListIterNext(iter)) {
     SSkipListNode* node = tSkipListIterGet(iter);
@@ -281,14 +287,19 @@ static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTR
       break;
     }
     CacheTerm* c = (CacheTerm*)SL_GET_NODE_DATA(node);
-    // printf("json val: %s\n", c->colVal);
-    if (0 != strncmp(c->colVal, pCt->colVal, skip)) {
-      break;
+    TExeCond   cond = CONTINUE;
+    if (type == CONTAINS) {
+      if (0 == strncmp(c->colVal, pCt->colVal, skip)) {
+        cond = MATCH;
+      }
+    } else {
+      if (0 != strncmp(c->colVal, pCt->colVal, skip)) {
+        break;
+      }
+      char* p = taosMemoryCalloc(1, strlen(c->colVal) + 1);
+      memcpy(p, c->colVal, strlen(c->colVal));
+      TExeCond cond = cmpFn(p + skip, term->colVal, dType);
     }
-    char* p = taosMemoryCalloc(1, strlen(c->colVal) + 1);
-    memcpy(p, c->colVal, strlen(c->colVal));
-
-    TExeCond cond = cmpFn(p + skip, term->colVal, dType);
     if (cond == MATCH) {
       if (c->operaType == ADD_VALUE) {
         INDEX_MERGE_ADD_DEL(tr->del, tr->add, c->uid)
@@ -302,7 +313,6 @@ static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTR
     } else if (cond == BREAK) {
       break;
     }
-    taosMemoryFree(p);
   }
 
   taosMemoryFree(pCt);
