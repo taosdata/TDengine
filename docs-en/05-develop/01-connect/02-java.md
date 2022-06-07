@@ -42,6 +42,8 @@ You should replace above placeholders as real values. To obtain these values, pl
 
 ## Connect
 
+Code bellow get variable URL and token from environment first and then create a `RestfulConnection` object, witch is a standard JDBC Connection object.
+
 ```java
 import com.taosdata.jdbc.rs.RestfulConnection;
 import java.sql.Connection;
@@ -51,10 +53,9 @@ public class ConnectCloudExample {
     public static void main(String[] args) throws Exception {
         String url = System.getenv("TDENGINE_CLOUD_URL");
         String token = System.getenv("TDENGINE_CLOUD_TOKEN");
-        // create a standard JDBC connection.
         Connection conn = new RestfulConnection(url, token);
     }
 }
 ```
 
-The client connection is then established.
+The client connection is then established. For how to write data and query data using the connection, please refer to [usage-examples](https://docs.tdengine.com/reference/connector/java#usage-examples).

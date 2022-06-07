@@ -71,7 +71,7 @@ For a more detailed description of the `sql()` method, please refer to [RestClie
 | ----------------- | ----------------------------------------- | ------------ |
 | 2.3.3             | support connect to TDengine Cloud Service | 2022-06-06   |
 
-[**Release Notes**] (https://github.com/taosdata/taos-connector-python/releases)
+[**Release Notes**](https://github.com/taosdata/taos-connector-python/releases)
 
 ## API Reference
 

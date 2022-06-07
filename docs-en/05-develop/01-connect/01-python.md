@@ -31,6 +31,8 @@ You should replace above placeholders as real values. To obtain these values, pl
 
 ## Connect
 
+Copy code bellow to your editor and run it with `python3` command.
+
 ```python
 import taosrest
 import os
@@ -41,4 +43,4 @@ token = os.environ["TDENGINE_CLOUD_TOKEN"]
 conn = taosrest.connect(url=url, token=token)
 ```
 
-The client connection is then established. For how to write data and query data, please refer to [basic usage](../../connector/python#basic-usage).
+The client connection is then established. For how to write data and query data, please refer to [sample-program](https://docs.tdengine.com/cloud/connector/python/#sample-program).
