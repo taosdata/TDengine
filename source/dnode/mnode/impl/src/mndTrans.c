@@ -922,7 +922,7 @@ static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransActio
   char    detail[1024] = {0};
   int32_t len = snprintf(detail, sizeof(detail), "msgType:%s numOfEps:%d inUse:%d", TMSG_INFO(pAction->msgType),
                          pAction->epSet.numOfEps, pAction->epSet.inUse);
-  for (int32_t i = 0; i < pTrans->lastErrorEpset.numOfEps; ++i) {
+  for (int32_t i = 0; i < pAction->epSet.numOfEps; ++i) {
     len += snprintf(detail + len, sizeof(detail) - len, " ep:%d-%s:%u", i, pAction->epSet.eps[i].fqdn,
                     pAction->epSet.eps[i].port);
   }
