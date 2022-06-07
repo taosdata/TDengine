@@ -23,6 +23,7 @@ extern "C" {
 #include "function.h"
 #include "functionMgt.h"
 
+
 bool functionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t functionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t dummyProcess(SqlFunctionCtx* UNUSED_PARAM(pCtx));
@@ -77,6 +78,7 @@ bool getApercentileFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool apercentileFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t apercentileFunction(SqlFunctionCtx *pCtx);
 int32_t apercentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+int32_t apercentilePartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
 bool getDiffFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool diffFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResInfo);

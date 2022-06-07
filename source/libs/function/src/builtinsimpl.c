@@ -2071,6 +2071,41 @@ int32_t apercentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   return functionFinalize(pCtx, pBlock);
 }
 
+int32_t apercentilePartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SVariant* pVal    = &pCtx->param[1].param;
+  double    percent = (pVal->nType == TSDB_DATA_TYPE_BIGINT) ? pVal->i : pVal->d;
+
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SAPercentileInfo*       pInfo = (SAPercentileInfo*)GET_ROWCELL_INTERBUF(pResInfo);
+
+  int32_t bytesHist   = (int32_t)(sizeof(SAPercentileInfo) + sizeof(SHistogramInfo) + sizeof(SHistBin) * (MAX_HISTOGRAM_BIN + 1));
+  int32_t bytesDigest = (int32_t)(sizeof(SAPercentileInfo) + TDIGEST_SIZE(COMPRESSION));
+  int32_t resultBytes = TMAX(bytesHist, bytesDigest);
+  char *tmp = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
+
+  if (pInfo->algo == APERCT_ALGO_TDIGEST) {
+    if (pInfo->pTDigest->size > 0) {
+      memcpy(varDataVal(tmp), pInfo->pTDigest, resultBytes);
+    } else {
+      return TSDB_CODE_SUCCESS;
+    }
+  } else {
+    if (pInfo->pHisto->numOfElems > 0) {
+      memcpy(varDataVal(tmp), pInfo->pHisto, resultBytes);
+    } else {
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+
+  colDataAppend(pCol, pBlock->info.rows, tmp, false);
+
+  taosMemoryFree(tmp);
+  return pResInfo->numOfRes;
+}
+
 bool getFirstLastFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   SColumnNode* pNode = nodesListGetNode(pFunc->pParameterList, 0);
   pEnv->calcMemSize = pNode->node.resType.bytes + sizeof(int64_t);

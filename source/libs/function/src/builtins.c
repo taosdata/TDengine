@@ -212,7 +212,7 @@ static bool validateApercentileAlgo(const SValueNode* pVal) {
           0 == strcasecmp(varDataVal(pVal->datum.p), "t-digest"));
 }
 
-static int32_t translateApercentile(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+static int32_t translateApercentileImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isPartial) {
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   if (2 != numOfParams && 3 != numOfParams) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
@@ -261,9 +261,21 @@ static int32_t translateApercentile(SFunctionNode* pFunc, char* pErrBuf, int32_t
     pValue->notReserved = true;
   }
 
-  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
+  if (!isPartial) {
+    pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
+  } else {
+    pFunc->node.resType = (SDataType){.bytes = 1000, .type = TSDB_DATA_TYPE_BINARY};
+  }
   return TSDB_CODE_SUCCESS;
 }
+
+static int32_t translateApercentilePartial(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateApercentileImpl(pFunc, pErrBuf, len, true);
+}
+static int32_t translateApercentileFinal(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateApercentileImpl(pFunc, pErrBuf, len, false);
+}
+
 
 static int32_t translateTbnameColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // pseudo column do not need to check parameters
@@ -1142,9 +1154,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = countFunction,
     .finalizeFunc = functionFinalize,
     .invertFunc   = countInvertFunction,
-    .combineFunc = combineFunction,
-    // .pPartialFunc = "count",
-    // .pMergeFunc   = "sum"
+    .combineFunc  = combineFunction,
+    .pPartialFunc = "count",
+    .pMergeFunc   = "sum"
   },
   {
     .name = "sum",
@@ -1157,7 +1169,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = sumFunction,
     .finalizeFunc = functionFinalize,
     .invertFunc   = sumInvertFunction,
-    .combineFunc = sumCombine,
+    .combineFunc  = sumCombine,
+    .pPartialFunc = "sum",
+    .pMergeFunc   = "sum"
   },
   {
     .name = "min",
@@ -1169,7 +1183,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = minmaxFunctionSetup,
     .processFunc  = minFunction,
     .finalizeFunc = minmaxFunctionFinalize,
-    .combineFunc = minCombine
+    .combineFunc  = minCombine,
+    .pPartialFunc = "min",
+    .pMergeFunc   = "min"
   },
   {
     .name = "max",
@@ -1181,7 +1197,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = minmaxFunctionSetup,
     .processFunc  = maxFunction,
     .finalizeFunc = minmaxFunctionFinalize,
-    .combineFunc = maxCombine
+    .combineFunc  = maxCombine,
+    .pPartialFunc = "max",
+    .pMergeFunc   = "max"
   },
   {
     .name = "stddev",
@@ -1217,6 +1235,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = avgFinalize,
     .invertFunc   = avgInvertFunction,
     .combineFunc  = avgCombine,
+    .pPartialFunc = "avgPartial",
+    .pMergeFunc   = "avgMerge"
   },
   {
     .name = "percentile",
@@ -1232,7 +1252,27 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "apercentile",
     .type = FUNCTION_TYPE_APERCENTILE,
     .classification = FUNC_MGT_AGG_FUNC,
-    .translateFunc = translateApercentile,
+    .translateFunc = translateApercentileFinal,
+    .getEnvFunc   = getApercentileFuncEnv,
+    .initFunc     = apercentileFunctionSetup,
+    .processFunc  = apercentileFunction,
+    .finalizeFunc = apercentileFinalize
+  },
+  {
+    .name = "_apercentile_partial",
+    .type = FUNCTION_TYPE_APERCENTILE_PARTIAL,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateApercentilePartial,
+    .getEnvFunc   = getApercentileFuncEnv,
+    .initFunc     = apercentileFunctionSetup,
+    .processFunc  = apercentileFunction,
+    .finalizeFunc = apercentilePartialFinalize
+  },
+  {
+    .name = "_apercentile_merge",
+    .type = FUNCTION_TYPE_APERCENTILE_MERGE,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateApercentileFinal,
     .getEnvFunc   = getApercentileFuncEnv,
     .initFunc     = apercentileFunctionSetup,
     .processFunc  = apercentileFunction,
@@ -1299,7 +1339,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = functionSetup,
     .processFunc  = firstFunction,
     .finalizeFunc = firstLastFinalize,
-    .combineFunc = firstCombine,
+    .combineFunc  = firstCombine,
+    .pPartialFunc = "first",
+    .pMergeFunc   = "first"
   },
   {
     .name = "last",
@@ -1311,6 +1353,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = lastFunction,
     .finalizeFunc = firstLastFinalize,
     .combineFunc  = lastCombine,
+    .pPartialFunc = "last",
+    .pMergeFunc   = "last"
   },
   {
     .name = "twa",
