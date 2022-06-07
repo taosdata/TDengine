@@ -4,9 +4,13 @@ from taostest import TDCase
 from taostest.performance.perfor_basic import QueryFile
 from taostest.performance.result_reduction import Perf_Base_func
 from taostest.util.file import read_yaml
-
+from taostest.util.common import TDCom
 
 class QueryTest(TDCase):
+
+    def init(self):
+        self.tdCom = TDCom(self.tdSql)
+
     def desc(self):
         pass
 
@@ -18,6 +22,8 @@ class QueryTest(TDCase):
 
     def run(self):
         # prepare data for basic query data of large amount of records 
+        dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        self.tdSql.execute(f'create database if not exists {dbname}')
 
         case_path = os.path.realpath(__file__)
         len_case = len(case_path.split("/")[-1])
