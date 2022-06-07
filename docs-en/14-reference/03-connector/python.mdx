@@ -199,10 +199,10 @@ The `connect()` function returns a `taos.TaosConnection` instance. In client-sid
 
 All arguments to the `connect()` function are optional keyword arguments. The following are the connection parameters specified.
 
+- - `url`： The URL of taosAdapter REST service. The default is <http://localhost:6041>.
 - `host`: The host to connect to. The default is localhost.
 - `user`: TDengine user name. The default is `root`.
 - `password`: TDengine user password. The default is `taosdata`.
-- `port`: The port on which the taosAdapter REST service listens. Default is 6041.
 - `timeout`: HTTP request timeout in seconds. The default is `socket._GLOBAL_DEFAULT_TIMEOUT`. Usually, no configuration is needed.
 
 </TabItem>
