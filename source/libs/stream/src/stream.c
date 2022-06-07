@@ -35,18 +35,19 @@ int32_t streamTriggerByWrite(SStreamTask* pTask, int32_t vgId, SMsgCb* pMsgCb) {
   return 0;
 }
 
-#if 1
 int32_t streamTaskEnqueue(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pRsp) {
-  SStreamDataBlock* pBlock = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM);
+  SStreamDataBlock* pData = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM);
   int8_t            status;
 
   // enqueue
-  if (pBlock != NULL) {
-    pBlock->type = STREAM_DATA_TYPE_SSDATA_BLOCK;
-    pBlock->sourceVg = pReq->sourceVg;
-    pBlock->blocks = pReq->data;
+  if (pData != NULL) {
+    pData->type = STREAM_DATA_TYPE_SSDATA_BLOCK;
+    pData->sourceVg = pReq->sourceVg;
+    // decode
+    /*pData->blocks = pReq->data;*/
     /*pBlock->sourceVer = pReq->sourceVer;*/
-    if (streamTaskInput(pTask, (SStreamQueueItem*)pBlock) == 0) {
+    streamDispatchReqToData(pReq, pData);
+    if (streamTaskInput(pTask, (SStreamQueueItem*)pData) == 0) {
       status = TASK_INPUT_STATUS__NORMAL;
     } else {
       status = TASK_INPUT_STATUS__FAILED;
@@ -68,7 +69,6 @@ int32_t streamTaskEnqueue(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg*
   tmsgSendRsp(pRsp);
   return status == TASK_INPUT_STATUS__NORMAL ? 0 : -1;
 }
-#endif
 
 int32_t streamProcessDispatchReq(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDispatchReq* pReq, SRpcMsg* pRsp) {
   // 1. handle input
