@@ -514,7 +514,13 @@ static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid
     SL_NODE_FORWARD(pTbData->sl.pTail, iLevel) = NULL;
   }
 
-  if (taosArrayInsert(pMemTable->aTbData, idx < 0 ? 0 : idx, &pTbData) == NULL) {
+  void *p;
+  if (idx < 0) {
+    p = taosArrayPush(pMemTable->aTbData, &pTbData);
+  } else {
+    p = taosArrayInsert(pMemTable->aTbData, idx, &pTbData);
+  }
+  if (p == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
