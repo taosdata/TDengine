@@ -67,6 +67,7 @@ bool leastSQRFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInf
 int32_t leastSQRFunction(SqlFunctionCtx* pCtx);
 int32_t leastSQRFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t leastSQRInvertFunction(SqlFunctionCtx* pCtx);
+int32_t leastSQRCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 
 bool getPercentileFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool percentileFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);

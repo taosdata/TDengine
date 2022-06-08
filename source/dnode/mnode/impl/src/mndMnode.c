@@ -588,7 +588,7 @@ static int32_t mndProcessDropMnodeReq(SRpcMsg *pReq) {
   }
 
   if (pMnode->selfDnodeId == dropReq.dnodeId) {
-    terrno = TSDB_CODE_MND_CANT_DROP_MASTER;
+    terrno = TSDB_CODE_MND_CANT_DROP_LEADER;
     goto _OVER;
   }
 

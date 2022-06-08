@@ -65,7 +65,7 @@ const char *sdbTableName(ESdbType type) {
   }
 }
 
-static const char *sdbStatusName(ESdbStatus status) {
+const char *sdbStatusName(ESdbStatus status) {
   switch (status) {
     case SDB_STATUS_CREATING:
       return "creating";

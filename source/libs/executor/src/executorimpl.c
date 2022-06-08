@@ -1887,16 +1887,16 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowR
       *pSrc = *pDst;
       *pDst = tmp;
 
-      if(!needFree){
-        if(IS_VAR_DATA_TYPE(pDst->info.type)){  // this elements do not need free
+      if (!needFree) {
+        if (IS_VAR_DATA_TYPE(pDst->info.type)) {  // this elements do not need free
           pDst->varmeta.offset = NULL;
-        }else{
+        } else {
           pDst->nullbitmap = NULL;
         }
         pDst->pData = NULL;
       }
     }
-    blockDataDestroy(px);     // fix memory leak
+    blockDataDestroy(px);  // fix memory leak
   } else {
     // do nothing
     pBlock->info.rows = 0;
@@ -3948,7 +3948,7 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo*
   }
 
   pOperator->name = "TableAggregate";
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_AGG;
+  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_HASH_AGG;
   pOperator->blocking = true;
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
@@ -4534,7 +4534,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       SScanPhysiNode*      pScanPhyNode = (SScanPhysiNode*)pPhyNode;  // simple child table.
       STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pPhyNode;
       STimeWindowAggSupp   twSup = {
-            .waterMark = pTableScanNode->watermark, .calTrigger = pTableScanNode->triggerType, .maxTs = INT64_MIN};
+          .waterMark = pTableScanNode->watermark, .calTrigger = pTableScanNode->triggerType, .maxTs = INT64_MIN};
       tsdbReaderT pDataReader = NULL;
       if (pHandle->vnode) {
         pDataReader = doCreateDataReader(pTableScanNode, pHandle, pTableListInfo, (uint64_t)queryId, taskId, pTagCond);
@@ -4566,7 +4566,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         return NULL;
       }
 
-      return createTagScanOperatorInfo(pHandle, pScanPhyNode->node.pConditions, pScanPhyNode, pTableListInfo, pTaskInfo);
+      return createTagScanOperatorInfo(pHandle, pScanPhyNode, pTableListInfo, pTaskInfo);
     } else {
       ASSERT(0);
     }
@@ -4594,7 +4594,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     SLimit       slimit = {.limit = pProjPhyNode->slimit, .offset = pProjPhyNode->soffset};
     pOptr = createProjectOperatorInfo(ops[0], pExprInfo, num, pResBlock, &limit, &slimit,
                                       pProjPhyNode->node.pConditions, pTaskInfo);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_AGG == type) {
+  } else if (QUERY_NODE_PHYSICAL_PLAN_HASH_AGG == type) {
     SAggPhysiNode* pAggNode = (SAggPhysiNode*)pPhyNode;
     SExprInfo*     pExprInfo = createExprInfo(pAggNode->pAggFuncs, pAggNode->pGroupKeys, &num);
     SSDataBlock*   pResBlock = createResDataBlock(pPhyNode->pOutputDataBlockDesc);
@@ -4646,6 +4646,12 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     int32_t tsSlotId = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->slotId;
     pOptr = createIntervalOperatorInfo(ops[0], pExprInfo, num, pResBlock, &interval, tsSlotId, &as, pTaskInfo);
 
+  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL == type) {
+    int32_t children = 8;
+    pOptr = createStreamFinalIntervalOperatorInfo(ops[0], pPhyNode, pTaskInfo, children);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL == type) {
+    int32_t children = 0;
+    pOptr = createStreamFinalIntervalOperatorInfo(ops[0], pPhyNode, pTaskInfo, children);
   } else if (QUERY_NODE_PHYSICAL_PLAN_SORT == type) {
     SSortPhysiNode* pSortPhyNode = (SSortPhysiNode*)pPhyNode;
 
@@ -4674,7 +4680,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         extractColMatchInfo(pMergePhyNode->pTargets, pDescNode, &numOfOutputCols, pTaskInfo, COL_MATCH_FROM_SLOT_ID);
 
     pOptr = createMultiwaySortMergeOperatorInfo(ops, size, pResBlock, sortInfo, pColList, pTaskInfo);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW == type) {
+  } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION == type) {
     SSessionWinodwPhysiNode* pSessionNode = (SSessionWinodwPhysiNode*)pPhyNode;
 
     STimeWindowAggSupp as = {.waterMark = pSessionNode->window.watermark,
@@ -4686,7 +4692,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
 
     pOptr =
         createSessionAggOperatorInfo(ops[0], pExprInfo, num, pResBlock, pSessionNode->gap, tsSlotId, &as, pTaskInfo);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION_WINDOW == type) {
+  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION == type) {
     SSessionWinodwPhysiNode* pSessionNode = (SSessionWinodwPhysiNode*)pPhyNode;
 
     STimeWindowAggSupp as = {.waterMark = pSessionNode->window.watermark,
@@ -4706,7 +4712,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
 
     SExprInfo* pExprInfo = createExprInfo(pPartNode->pTargets, NULL, &num);
     pOptr = createPartitionOperatorInfo(ops[0], pExprInfo, num, pResBlock, pColList, pTaskInfo);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW == type) {
+  } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE == type) {
     SStateWinodwPhysiNode* pStateNode = (SStateWinodwPhysiNode*)pPhyNode;
 
     STimeWindowAggSupp as = {.waterMark = pStateNode->window.watermark, .calTrigger = pStateNode->window.triggerType};
@@ -4718,9 +4724,9 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     SColumnNode* pColNode = (SColumnNode*)((STargetNode*)pStateNode->pStateKey)->pExpr;
     SColumn      col = extractColumnFromColumnNode(pColNode);
     pOptr = createStatewindowOperatorInfo(ops[0], pExprInfo, num, pResBlock, &as, tsSlotId, &col, pTaskInfo);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE_WINDOW == type) {
+  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE == type) {
     pOptr = createStreamStateAggOperatorInfo(ops[0], pPhyNode, pTaskInfo);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_JOIN == type) {
+  } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN == type) {
     SJoinPhysiNode* pJoinNode = (SJoinPhysiNode*)pPhyNode;
     SSDataBlock*    pResBlock = createResDataBlock(pPhyNode->pOutputDataBlockDesc);
 
@@ -4772,6 +4778,7 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
   pCond->numOfTWindows = 1;
   pCond->twindows = taosMemoryCalloc(pCond->numOfTWindows, sizeof(STimeWindow));
   pCond->twindows[0] = pTableScanNode->scanRange;
+  pCond->suid = pTableScanNode->scan.suid;
 
 #if 1
   // todo work around a problem, remove it later
@@ -5111,12 +5118,12 @@ int32_t decodeOperator(SOperatorInfo* ops, char* result, int32_t length) {
   return TDB_CODE_SUCCESS;
 }
 
-int32_t createDataSinkParam(SDataSinkNode *pNode, void **pParam, qTaskInfo_t* pTaskInfo) {
+int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, qTaskInfo_t* pTaskInfo) {
   SExecTaskInfo* pTask = *(SExecTaskInfo**)pTaskInfo;
-  
+
   switch (pNode->type) {
     case QUERY_NODE_PHYSICAL_PLAN_DELETE: {
-      SDeleterParam *pDeleterParam = taosMemoryCalloc(1, sizeof(SDeleterParam));
+      SDeleterParam* pDeleterParam = taosMemoryCalloc(1, sizeof(SDeleterParam));
       if (NULL == pDeleterParam) {
         return TSDB_CODE_OUT_OF_MEMORY;
       }
@@ -5127,7 +5134,7 @@ int32_t createDataSinkParam(SDataSinkNode *pNode, void **pParam, qTaskInfo_t* pT
         return TSDB_CODE_OUT_OF_MEMORY;
       }
       for (int32_t i = 0; i < tbNum; ++i) {
-        STableKeyInfo *pTable = taosArrayGet(pTask->tableqinfoList.pTableList, i);
+        STableKeyInfo* pTable = taosArrayGet(pTask->tableqinfoList.pTableList, i);
         taosArrayPush(pDeleterParam->pUidList, &pTable->uid);
       }
 
@@ -5140,7 +5147,6 @@ int32_t createDataSinkParam(SDataSinkNode *pNode, void **pParam, qTaskInfo_t* pT
 
   return TSDB_CODE_SUCCESS;
 }
-
 
 int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
                                EOPTR_EXEC_MODEL model) {

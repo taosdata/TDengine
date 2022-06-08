@@ -1,6 +1,6 @@
 from taosrest import RestClient
 
-client = RestClient("localhost", 6041, "root", "taosdata")
+client = RestClient("http://localhost:6041", user="root", password="taosdata")
 res: dict = client.sql("SELECT ts, current FROM power.meters LIMIT 1")
 print(res)
 
