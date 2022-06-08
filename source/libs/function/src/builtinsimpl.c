@@ -3345,11 +3345,12 @@ int32_t histogramFunctionMerge(SqlFunctionCtx *pCtx) {
   pInfo->numOfBins  = pInputInfo->numOfBins;
   pInfo->totalCount += pInputInfo->totalCount;
   for (int32_t k = 0; k < pInfo->numOfBins; ++k) {
+    pInfo->bins[k].lower = pInputInfo->bins[k].lower;
+    pInfo->bins[k].upper = pInputInfo->bins[k].upper;
     pInfo->bins[k].count += pInputInfo->bins[k].count;
   }
 
-  SET_VAL(GET_RES_INFO(pCtx), 1, 1);
-
+  SET_VAL(GET_RES_INFO(pCtx), pInfo->numOfBins, pInfo->numOfBins);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3404,7 +3405,7 @@ int32_t histogramPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   colDataAppend(pCol, pBlock->info.rows, res, false);
 
   taosMemoryFree(res);
-  return pResInfo->numOfRes;
+  return 1;
 }
 
 bool getHLLFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {

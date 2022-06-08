@@ -1463,7 +1463,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .classification = FUNC_MGT_AGG_FUNC,
     .translateFunc = translateHistogramMerge,
     .getEnvFunc   = getHistogramFuncEnv,
-    .initFunc     = histogramFunctionSetup,
+    .initFunc     = functionSetup,
     .processFunc  = histogramFunctionMerge,
     .finalizeFunc = histogramFinalize
   },
