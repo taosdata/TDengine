@@ -144,7 +144,9 @@ static int32_t doAddNewExternalMemSource(SDiskbasedBuf *pBuf, SArray* pAllSource
   (*sourceId) += 1;
 
   int32_t rowSize = blockDataGetSerialRowSize(pSource->src.pBlock);
-  int32_t numOfRows = (getBufPageSize(pBuf) - blockDataGetSerialMetaSize(pBlock))/rowSize;  // The value of numOfRows must be greater than 0, which is guaranteed by the previous memory allocation
+
+  // The value of numOfRows must be greater than 0, which is guaranteed by the previous memory allocation
+  int32_t numOfRows = (getBufPageSize(pBuf) - blockDataGetSerialMetaSize(pBlock->info.numOfCols))/rowSize;
   ASSERT(numOfRows > 0);
   return blockDataEnsureCapacity(pSource->src.pBlock, numOfRows);
 }
@@ -225,6 +227,10 @@ static int32_t sortComparInit(SMsortComparParam* cmpParam, SArray* pSources, int
     for (int32_t i = 0; i < cmpParam->numOfSources; ++i) {
       SSortSource* pSource = cmpParam->pSources[i];
       pSource->src.pBlock = pHandle->fetchfp(pSource->param);
+      if (pSource->src.pBlock == NULL) {
+        pSource->src.rowIndex = -1;
+        ++pHandle->numOfCompletedSources;
+      }
     }
   }
 
@@ -355,19 +361,32 @@ int32_t msortComparFn(const void *pLeft, const void *pRight, void *param) {
   SSDataBlock* pLeftBlock = pLeftSource->src.pBlock;
   SSDataBlock* pRightBlock = pRightSource->src.pBlock;
 
+  // first sort by block groupId
+  if (pLeftBlock->info.groupId != pRightBlock->info.groupId) {
+    return pLeftBlock->info.groupId < pRightBlock->info.groupId ? -1 : 1;
+  }
+
   for(int32_t i = 0; i < pInfo->size; ++i) {
     SBlockOrderInfo* pOrder = TARRAY_GET_ELEM(pInfo, i);
     SColumnInfoData* pLeftColInfoData = TARRAY_GET_ELEM(pLeftBlock->pDataBlock, pOrder->slotId);
 
     bool leftNull  = false;
     if (pLeftColInfoData->hasNull) {
-      leftNull = colDataIsNull(pLeftColInfoData, pLeftBlock->info.rows, pLeftSource->src.rowIndex, pLeftBlock->pBlockAgg[pOrder->slotId]);
+      if (pLeftBlock->pBlockAgg == NULL) {
+        leftNull = colDataIsNull_s(pLeftColInfoData, pLeftSource->src.rowIndex);
+      } else {
+        leftNull = colDataIsNull(pLeftColInfoData, pLeftBlock->info.rows, pLeftSource->src.rowIndex, pLeftBlock->pBlockAgg[i]);
+      }
     }
 
     SColumnInfoData* pRightColInfoData = TARRAY_GET_ELEM(pRightBlock->pDataBlock, pOrder->slotId);
     bool rightNull = false;
     if (pRightColInfoData->hasNull) {
-      rightNull = colDataIsNull(pRightColInfoData, pRightBlock->info.rows, pRightSource->src.rowIndex, pRightBlock->pBlockAgg[pOrder->slotId]);
+      if (pLeftBlock->pBlockAgg == NULL) {
+        rightNull = colDataIsNull_s(pRightColInfoData, pRightSource->src.rowIndex);
+      } else {
+        rightNull = colDataIsNull(pRightColInfoData, pRightBlock->info.rows, pRightSource->src.rowIndex, pRightBlock->pBlockAgg[i]);
+      }
     }
 
     if (leftNull && rightNull) {
@@ -408,7 +427,7 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
 
   pHandle->totalElapsed = taosGetTimestampUs() - pHandle->startTs;
   qDebug("%s %d rounds mergesort required to complete the sort, first-round sorted data size:%"PRIzu", sort elapsed:%"PRId64", total elapsed:%"PRId64,
-         pHandle->idStr, (int32_t) (sortPass + 1), getTotalBufSize(pHandle->pBuf), pHandle->sortElapsed, pHandle->totalElapsed);
+         pHandle->idStr, (int32_t) (sortPass + 1), pHandle->pBuf ? getTotalBufSize(pHandle->pBuf) : 0, pHandle->sortElapsed, pHandle->totalElapsed);
 
   int32_t numOfRows = blockDataGetCapacityInRow(pHandle->pDataBlock, pHandle->pageSize);
   blockDataEnsureCapacity(pHandle->pDataBlock, numOfRows);
@@ -695,6 +714,10 @@ bool tsortIsNullVal(STupleHandle* pVHandle, int32_t colIndex) {
 void* tsortGetValue(STupleHandle* pVHandle, int32_t colIndex) {
   SColumnInfoData* pColInfo = TARRAY_GET_ELEM(pVHandle->pBlock->pDataBlock, colIndex);
   return colDataGetData(pColInfo, pVHandle->rowIndex);
+}
+
+uint64_t tsortGetGroupId(STupleHandle* pVHandle) {
+  return pVHandle->pBlock->info.groupId;
 }
 
 SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle) {

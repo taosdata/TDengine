@@ -196,33 +196,6 @@ int tsdbSetReadTable(SReadH *pReadh, STable *pTable) {
   } else {
     pReadh->pBlkIdx = (SBlockIdx *)p;
   }
-  // size_t size = taosArrayGetSize(pReadh->aBlkIdx);
-  // if (size > 0) {
-  //   while (true) {
-  //     if (pReadh->cidx >= size) {
-  //       pReadh->pBlkIdx = NULL;
-  //       break;
-  //     }
-
-  //     SBlockIdx *pBlkIdx = taosArrayGet(pReadh->aBlkIdx, pReadh->cidx);
-  //     if (pBlkIdx->uid == TABLE_TID(pTable)) {
-  //       if (pBlkIdx->uid == TABLE_UID(pTable)) {
-  //         pReadh->pBlkIdx = pBlkIdx;
-  //       } else {
-  //         pReadh->pBlkIdx = NULL;
-  //       }
-  //       pReadh->cidx++;
-  //       break;
-  //     } else if (pBlkIdx->uid > TABLE_TID(pTable)) {
-  //       pReadh->pBlkIdx = NULL;
-  //       break;
-  //     } else {
-  //       pReadh->cidx++;
-  //     }
-  //   }
-  // } else {
-  //   pReadh->pBlkIdx = NULL;
-  // }
 
   return 0;
 }

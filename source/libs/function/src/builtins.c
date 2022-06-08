@@ -251,6 +251,72 @@ static int32_t translateApercentile(SFunctionNode* pFunc, char* pErrBuf, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateApercentileImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isPartial) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+
+  if (isPartial) {
+    if (2 != numOfParams && 3 != numOfParams) {
+      return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+    // param1
+    SNode* pParamNode1 = nodesListGetNode(pFunc->pParameterList, 1);
+    if (nodeType(pParamNode1) != QUERY_NODE_VALUE) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    SValueNode* pValue = (SValueNode*)pParamNode1;
+    if (pValue->datum.i < 0 || pValue->datum.i > 100) {
+      return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    pValue->notReserved = true;
+
+    uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+    uint8_t para2Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
+    if (!IS_NUMERIC_TYPE(para1Type) || !IS_INTEGER_TYPE(para2Type)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    // param2
+    if (3 == numOfParams) {
+      uint8_t para3Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 2))->resType.type;
+      if (!IS_VAR_DATA_TYPE(para3Type)) {
+        return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+      }
+
+      SNode* pParamNode2 = nodesListGetNode(pFunc->pParameterList, 2);
+      if (QUERY_NODE_VALUE != nodeType(pParamNode2) || !validateApercentileAlgo((SValueNode*)pParamNode2)) {
+        return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                               "Third parameter algorithm of apercentile must be 'default' or 't-digest'");
+      }
+
+      pValue = (SValueNode*)pParamNode2;
+      pValue->notReserved = true;
+    }
+
+    pFunc->node.resType = (SDataType){.bytes = getApercentileMaxSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  } else {
+    if (1 != numOfParams) {
+      return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+    uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+    if (TSDB_DATA_TYPE_BINARY != para1Type) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateApercentilePartial(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateApercentileImpl(pFunc, pErrBuf, len, true);
+}
+static int32_t translateApercentileMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateApercentileImpl(pFunc, pErrBuf, len, false);
+}
+
 static int32_t translateTbnameColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // pseudo column do not need to check parameters
   pFunc->node.resType =
@@ -309,6 +375,34 @@ static int32_t translateSpread(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
 
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateSpreadImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isPartial) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  if (isPartial) {
+    if (!IS_NUMERIC_TYPE(paraType) && TSDB_DATA_TYPE_TIMESTAMP != paraType) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+    pFunc->node.resType = (SDataType){.bytes = getSpreadInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  } else {
+    if (TSDB_DATA_TYPE_BINARY != paraType) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+    pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateSpreadPartial(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateSpreadImpl(pFunc, pErrBuf, len, true);
+}
+static int32_t translateSpreadMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateSpreadImpl(pFunc, pErrBuf, len, false);
 }
 
 static int32_t translateElapsed(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
@@ -1056,9 +1150,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = countFunction,
     .finalizeFunc = functionFinalize,
     .invertFunc   = countInvertFunction,
-    .combineFunc = combineFunction,
-    // .pPartialFunc = "count",
-    // .pMergeFunc   = "sum"
+    .combineFunc  = combineFunction,
+    .pPartialFunc = "count",
+    .pMergeFunc   = "sum"
   },
   {
     .name = "sum",
@@ -1071,7 +1165,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = sumFunction,
     .finalizeFunc = functionFinalize,
     .invertFunc   = sumInvertFunction,
-    .combineFunc = sumCombine,
+    .combineFunc  = sumCombine,
+    .pPartialFunc = "sum",
+    .pMergeFunc   = "sum"
   },
   {
     .name = "min",
@@ -1083,7 +1179,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = minmaxFunctionSetup,
     .processFunc  = minFunction,
     .finalizeFunc = minmaxFunctionFinalize,
-    .combineFunc = minCombine
+    .combineFunc  = minCombine,
+    .pPartialFunc = "min",
+    .pMergeFunc   = "min"
   },
   {
     .name = "max",
@@ -1095,7 +1193,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = minmaxFunctionSetup,
     .processFunc  = maxFunction,
     .finalizeFunc = minmaxFunctionFinalize,
-    .combineFunc = maxCombine
+    .combineFunc  = maxCombine,
+    .pPartialFunc = "max",
+    .pMergeFunc   = "max"
   },
   {
     .name = "stddev",
@@ -1141,7 +1241,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getPercentileFuncEnv,
     .initFunc     = percentileFunctionSetup,
     .processFunc  = percentileFunction,
-    .finalizeFunc = percentileFinalize
+    .finalizeFunc = percentileFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = NULL,
   },
   {
     .name = "apercentile",
@@ -1151,6 +1253,29 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getApercentileFuncEnv,
     .initFunc     = apercentileFunctionSetup,
     .processFunc  = apercentileFunction,
+    .finalizeFunc = apercentileFinalize,
+    .combineFunc  = apercentileCombine,
+    .pPartialFunc = "_apercentile_partial",
+    .pMergeFunc   = "_apercentile_merge"
+  },
+  {
+    .name = "_apercentile_partial",
+    .type = FUNCTION_TYPE_APERCENTILE_PARTIAL,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateApercentilePartial,
+    .getEnvFunc   = getApercentileFuncEnv,
+    .initFunc     = apercentileFunctionSetup,
+    .processFunc  = apercentileFunction,
+    .finalizeFunc = apercentilePartialFinalize
+  },
+  {
+    .name = "_apercentile_merge",
+    .type = FUNCTION_TYPE_APERCENTILE_MERGE,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateApercentileMerge,
+    .getEnvFunc   = getApercentileFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = apercentileFunctionMerge,
     .finalizeFunc = apercentileFinalize
   },
   {
@@ -1182,6 +1307,30 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getSpreadFuncEnv,
     .initFunc     = spreadFunctionSetup,
     .processFunc  = spreadFunction,
+    .finalizeFunc = spreadFinalize,
+    .pPartialFunc = "_spread_partial",
+    .pMergeFunc   = "_spread_merge"
+  },
+  {
+    .name = "_spread_partial",
+    .type = FUNCTION_TYPE_SPREAD_PARTIAL,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateSpreadPartial,
+    .dataRequiredFunc = statisDataRequired,
+    .getEnvFunc   = getSpreadFuncEnv,
+    .initFunc     = spreadFunctionSetup,
+    .processFunc  = spreadFunction,
+    .finalizeFunc = spreadPartialFinalize
+  },
+  {
+    .name = "_spread_merge",
+    .type = FUNCTION_TYPE_SPREAD_MERGE,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateSpreadMerge,
+    .dataRequiredFunc = statisDataRequired,
+    .getEnvFunc   = getSpreadFuncEnv,
+    .initFunc     = spreadFunctionSetup,
+    .processFunc  = spreadFunctionMerge,
     .finalizeFunc = spreadFinalize
   },
   {
@@ -1214,7 +1363,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = functionSetup,
     .processFunc  = firstFunction,
     .finalizeFunc = firstLastFinalize,
-    .combineFunc = firstCombine,
+    .combineFunc  = firstCombine,
   },
   {
     .name = "last",
