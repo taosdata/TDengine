@@ -58,9 +58,6 @@ void    tsdbTbDataIterOpen(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, ST
 bool    tsdbTbDataIterNext(STbDataIter *pIter);
 bool    tsdbTbDataIterGet(STbDataIter *pIter, TSDBROW *pRow);
 
-int tsdbLoadDataFromCache(STsdb *pTsdb, STable *pTable, STbDataIter *pIter, TSKEY maxKey, int maxRowsToRead,
-                          SDataCols *pCols, TKEY *filterKeys, int nFilterKeys, bool keepDup, SMergeInfo *pMergeInfo);
-
 // tsdbFile.c ==============================================================================================
 typedef int32_t          TSDB_FILE_T;
 typedef struct SDFInfo   SDFInfo;

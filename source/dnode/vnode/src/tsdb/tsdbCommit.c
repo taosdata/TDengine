@@ -93,6 +93,9 @@ static void tsdbLoadAndMergeFromCache(STsdb *pTsdb, SDataCols *pDataCols, int *i
                                       SDataCols *pTarget, TSKEY maxKey, int maxRows, int8_t update);
 static int  tsdbWriteBlockIdx(SDFile *pHeadf, SArray *pIdxA, void **ppBuf);
 static int  tsdbApplyRtnOnFSet(STsdb *pRepo, SDFileSet *pSet, SRtn *pRtn);
+static int  tsdbLoadDataFromCache(STsdb *pTsdb, STable *pTable, STbDataIter *pIter, TSKEY maxKey, int maxRowsToRead,
+                                  SDataCols *pCols, TKEY *filterKeys, int nFilterKeys, bool keepDup,
+                                  SMergeInfo *pMergeInfo);
 
 int32_t tsdbBegin(STsdb *pTsdb) {
   if (!pTsdb) return 0;
@@ -1658,4 +1661,171 @@ static bool tsdbCanAddSubBlock(SCommitH *pCommith, SBlock *pBlock, SMergeInfo *p
   }
 
   return false;
+}
+
+static int tsdbAppendTableRowToCols(STsdb *pTsdb, STable *pTable, SDataCols *pCols, STSchema **ppSchema, STSRow *row,
+                                    bool merge) {
+  if (pCols) {
+    if (*ppSchema == NULL || schemaVersion(*ppSchema) != TD_ROW_SVER(row)) {
+      *ppSchema = tsdbGetTableSchemaImpl(pTsdb, pTable, false, false, TD_ROW_SVER(row));
+      if (*ppSchema == NULL) {
+        ASSERT(false);
+        return -1;
+      }
+    }
+
+    tdAppendSTSRowToDataCol(row, *ppSchema, pCols, merge);
+  }
+
+  return 0;
+}
+
+static int tsdbLoadDataFromCache(STsdb *pTsdb, STable *pTable, STbDataIter *pIter, TSKEY maxKey, int maxRowsToRead,
+                                 SDataCols *pCols, TKEY *filterKeys, int nFilterKeys, bool keepDup,
+                                 SMergeInfo *pMergeInfo) {
+  ASSERT(maxRowsToRead > 0 && nFilterKeys >= 0);
+  if (pIter == NULL) return 0;
+  STSchema *pSchema = NULL;
+  TSKEY     rowKey = 0;
+  TSKEY     fKey = 0;
+  // only fetch lastKey from mem data as file data not used in this function actually
+  TSKEY      lastKey = TSKEY_INITIAL_VAL;
+  bool       isRowDel = false;
+  int        filterIter = 0;
+  STSRow    *row = NULL;
+  SMergeInfo mInfo;
+
+  // TODO: support Multi-Version(the rows with the same TS keys in memory can't be merged if its version refered by
+  // query handle)
+
+  if (pMergeInfo == NULL) pMergeInfo = &mInfo;
+
+  memset(pMergeInfo, 0, sizeof(*pMergeInfo));
+  pMergeInfo->keyFirst = INT64_MAX;
+  pMergeInfo->keyLast = INT64_MIN;
+  if (pCols) tdResetDataCols(pCols);
+
+  row = tsdbNextIterRow(pIter);
+  if (row == NULL || TD_ROW_KEY(row) > maxKey) {
+    rowKey = INT64_MAX;
+    isRowDel = false;
+  } else {
+    rowKey = TD_ROW_KEY(row);
+    isRowDel = TD_ROW_IS_DELETED(row);
+  }
+
+  if (filterIter >= nFilterKeys) {
+    fKey = INT64_MAX;
+  } else {
+    fKey = tdGetKey(filterKeys[filterIter]);
+  }
+  // 1. fkey - no dup since merged up to maxVersion of each query handle by tsdbLoadBlockDataCols
+  // 2. rowKey - would dup since Multi-Version supported
+  while (true) {
+    if (fKey == INT64_MAX && rowKey == INT64_MAX) break;
+
+    if (fKey < rowKey) {
+      pMergeInfo->keyFirst = TMIN(pMergeInfo->keyFirst, fKey);
+      pMergeInfo->keyLast = TMAX(pMergeInfo->keyLast, fKey);
+
+      filterIter++;
+      if (filterIter >= nFilterKeys) {
+        fKey = INT64_MAX;
+      } else {
+        fKey = tdGetKey(filterKeys[filterIter]);
+      }
+#if 1
+    } else if (fKey > rowKey) {
+      if (isRowDel) {
+        // TODO: support delete function
+        pMergeInfo->rowsDeleteFailed++;
+      } else {
+        if (pMergeInfo->rowsInserted - pMergeInfo->rowsDeleteSucceed >= maxRowsToRead) break;
+        if (pCols && pMergeInfo->nOperations >= pCols->maxPoints) break;
+
+        if (lastKey != rowKey) {
+          pMergeInfo->rowsInserted++;
+          pMergeInfo->nOperations++;
+          pMergeInfo->keyFirst = TMIN(pMergeInfo->keyFirst, rowKey);
+          pMergeInfo->keyLast = TMAX(pMergeInfo->keyLast, rowKey);
+          if (pCols) {
+            if (lastKey != TSKEY_INITIAL_VAL) {
+              ++pCols->numOfRows;
+            }
+            tsdbAppendTableRowToCols(pTsdb, pTable, pCols, &pSchema, row, false);
+          }
+          lastKey = rowKey;
+        } else {
+          if (keepDup) {
+            tsdbAppendTableRowToCols(pTsdb, pTable, pCols, &pSchema, row, true);
+          } else {
+            // discard
+          }
+        }
+      }
+
+      tsdbTbDataIterNext(pIter);
+      row = tsdbNextIterRow(pIter);
+      if (row == NULL || TD_ROW_KEY(row) > maxKey) {
+        rowKey = INT64_MAX;
+        isRowDel = false;
+      } else {
+        rowKey = TD_ROW_KEY(row);
+        isRowDel = TD_ROW_IS_DELETED(row);
+      }
+    } else {           // fkey == rowKey
+      if (isRowDel) {  // TODO: support delete function(How to stands for delete in file? rowVersion = -1?)
+        ASSERT(!keepDup);
+        if (pCols && pMergeInfo->nOperations >= pCols->maxPoints) break;
+        pMergeInfo->rowsDeleteSucceed++;
+        pMergeInfo->nOperations++;
+        tsdbAppendTableRowToCols(pTsdb, pTable, pCols, &pSchema, row, false);
+      } else {
+        if (keepDup) {
+          if (pCols && pMergeInfo->nOperations >= pCols->maxPoints) break;
+          if (lastKey != rowKey) {
+            pMergeInfo->rowsUpdated++;
+            pMergeInfo->nOperations++;
+            pMergeInfo->keyFirst = TMIN(pMergeInfo->keyFirst, rowKey);
+            pMergeInfo->keyLast = TMAX(pMergeInfo->keyLast, rowKey);
+            if (pCols) {
+              if (lastKey != TSKEY_INITIAL_VAL) {
+                ++pCols->numOfRows;
+              }
+              tsdbAppendTableRowToCols(pTsdb, pTable, pCols, &pSchema, row, false);
+            }
+            lastKey = rowKey;
+          } else {
+            tsdbAppendTableRowToCols(pTsdb, pTable, pCols, &pSchema, row, true);
+          }
+        } else {
+          pMergeInfo->keyFirst = TMIN(pMergeInfo->keyFirst, fKey);
+          pMergeInfo->keyLast = TMAX(pMergeInfo->keyLast, fKey);
+        }
+      }
+
+      tsdbTbDataIterNext(pIter);
+      row = tsdbNextIterRow(pIter);
+      if (row == NULL || TD_ROW_KEY(row) > maxKey) {
+        rowKey = INT64_MAX;
+        isRowDel = false;
+      } else {
+        rowKey = TD_ROW_KEY(row);
+        isRowDel = TD_ROW_IS_DELETED(row);
+      }
+
+      filterIter++;
+      if (filterIter >= nFilterKeys) {
+        fKey = INT64_MAX;
+      } else {
+        fKey = tdGetKey(filterKeys[filterIter]);
+      }
+    }
+#endif
+  }
+  if (pCols && (lastKey != TSKEY_INITIAL_VAL)) {
+    ++pCols->numOfRows;
+  }
+
+  return 0;
 }
