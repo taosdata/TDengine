@@ -173,6 +173,11 @@ int32_t qExplainGenerateResChildren(SPhysiNode *pNode, SExplainGroup *group, SNo
       pPhysiChildren = partitionPhysiNode->node.pChildren;
       break;
     }
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE: {
+      SMergePhysiNode *mergePhysiNode = (SMergePhysiNode *)pNode;
+      pPhysiChildren = mergePhysiNode->node.pChildren;
+      break;
+    }
     default:
       qError("not supported physical node type %d", pNode->type);
       QRY_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
