@@ -1280,6 +1280,28 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = spreadFinalize
   },
   {
+    .name = "_spread_partial",
+    .type = FUNCTION_TYPE_SPREAD_PARTIAL,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateSpread,
+    .dataRequiredFunc = statisDataRequired,
+    .getEnvFunc   = getSpreadFuncEnv,
+    .initFunc     = spreadFunctionSetup,
+    .processFunc  = spreadFunction,
+    .finalizeFunc = spreadFinalize
+  },
+  {
+    .name = "_spread_merge",
+    .type = FUNCTION_TYPE_SPREAD_MERGE,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateSpread,
+    .dataRequiredFunc = statisDataRequired,
+    .getEnvFunc   = getSpreadFuncEnv,
+    .initFunc     = spreadFunctionSetup,
+    .processFunc  = spreadFunction,
+    .finalizeFunc = spreadFinalize
+  },
+  {
     .name = "elapsed",
     .type = FUNCTION_TYPE_ELAPSED,
     .classification = FUNC_MGT_AGG_FUNC,
