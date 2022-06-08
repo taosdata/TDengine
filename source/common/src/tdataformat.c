@@ -208,7 +208,7 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, S
     if (iColumn == 0) {
       ASSERT(pColVal->cid == pTColumn->colId);
       ASSERT(pTColumn->type == TSDB_DATA_TYPE_TIMESTAMP);
-      ASSERT(pTColumn->colId == 0);
+      ASSERT(pTColumn->colId == PRIMARYKEY_TIMESTAMP_COL_ID);
 
       iColVal++;
     } else {
@@ -352,7 +352,7 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, S
     ntv = 0;
     iColVal = 1;
 
-    if (flags & 0xf0 == 0) {
+    if ((flags & 0xf0) == 0) {
       switch (flags & 0xf) {
         case TSROW_HAS_VAL:
           pf = (*ppRow)->pData;
@@ -417,13 +417,13 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, S
       }
 
     _set_none:
-      if (flags & 0xf0 == 0) {
+      if ((flags & 0xf0) == 0) {
         setBitMap(pb, 0, iColumn - 1, flags);
       }
       continue;
 
     _set_null:
-      if (flags & 0xf0 == 0) {
+      if ((flags & 0xf0) == 0) {
         setBitMap(pb, 1, iColumn - 1, flags);
       } else {
         SET_IDX(pidx, pTSKVRow->nCols, nkv, flags);
@@ -433,7 +433,7 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, S
       continue;
 
     _set_value:
-      if (flags & 0xf0 == 0) {
+      if ((flags & 0xf0) == 0) {
         setBitMap(pb, 2, iColumn - 1, flags);
 
         if (IS_VAR_DATA_TYPE(pTColumn->type)) {
@@ -489,7 +489,7 @@ void tTSRowFree(STSRow2 *pRow) {
 }
 
 void tTSRowGet(STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
-  uint8_t   isTuple = (pRow->flags & 0xf0 == 0) ? 1 : 0;
+  uint8_t   isTuple = ((pRow->flags & 0xf0) == 0) ? 1 : 0;
   STColumn *pTColumn = &pTSchema->columns[iCol];
   uint8_t   flags = pRow->flags & (uint8_t)0xf;
   SValue    value;
@@ -505,7 +505,7 @@ void tTSRowGet(STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal
 
   if (flags == TSROW_HAS_NONE) {
     goto _return_none;
-  } else if (flags == TSROW_HAS_NONE) {
+  } else if (flags == TSROW_HAS_NULL) {
     goto _return_null;
   }
 
