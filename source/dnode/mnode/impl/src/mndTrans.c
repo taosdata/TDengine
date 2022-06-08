@@ -117,10 +117,10 @@ static SSdbRaw *mndTransActionEncode(STrans *pTrans) {
 
   int32_t dataPos = 0;
   SDB_SET_INT32(pRaw, dataPos, pTrans->id, _OVER)
-  SDB_SET_INT16(pRaw, dataPos, pTrans->stage, _OVER)
-  SDB_SET_INT16(pRaw, dataPos, pTrans->policy, _OVER)
-  SDB_SET_INT16(pRaw, dataPos, pTrans->conflict, _OVER)
-  SDB_SET_INT16(pRaw, dataPos, pTrans->exec, _OVER)
+  SDB_SET_INT8(pRaw, dataPos, pTrans->stage, _OVER)
+  SDB_SET_INT8(pRaw, dataPos, pTrans->policy, _OVER)
+  SDB_SET_INT8(pRaw, dataPos, pTrans->conflict, _OVER)
+  SDB_SET_INT8(pRaw, dataPos, pTrans->exec, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pTrans->createdTime, _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pTrans->dbname, TSDB_DB_FNAME_LEN, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pTrans->redoActionPos, _OVER)
@@ -256,15 +256,15 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
 
   SDB_GET_INT32(pRaw, dataPos, &pTrans->id, _OVER)
 
-  int16_t stage = 0;
-  int16_t policy = 0;
-  int16_t conflict = 0;
-  int16_t exec = 0;
-  int8_t  actionType = 0;
-  SDB_GET_INT16(pRaw, dataPos, &stage, _OVER)
-  SDB_GET_INT16(pRaw, dataPos, &policy, _OVER)
-  SDB_GET_INT16(pRaw, dataPos, &conflict, _OVER)
-  SDB_GET_INT16(pRaw, dataPos, &exec, _OVER)
+  int8_t stage = 0;
+  int8_t policy = 0;
+  int8_t conflict = 0;
+  int8_t exec = 0;
+  int8_t actionType = 0;
+  SDB_GET_INT8(pRaw, dataPos, &stage, _OVER)
+  SDB_GET_INT8(pRaw, dataPos, &policy, _OVER)
+  SDB_GET_INT8(pRaw, dataPos, &conflict, _OVER)
+  SDB_GET_INT8(pRaw, dataPos, &exec, _OVER)
   pTrans->stage = stage;
   pTrans->policy = policy;
   pTrans->conflict = conflict;
@@ -290,7 +290,8 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
     SDB_GET_INT32(pRaw, dataPos, &action.acceptableCode, _OVER)
     SDB_GET_INT8(pRaw, dataPos, &actionType, _OVER)
     action.actionType = actionType;
-    SDB_GET_INT8(pRaw, dataPos, &action.stage, _OVER)
+    SDB_GET_INT8(pRaw, dataPos, &stage, _OVER)
+    action.stage = stage;
     if (action.actionType == TRANS_ACTION_RAW) {
       SDB_GET_INT8(pRaw, dataPos, &action.rawWritten, _OVER)
       SDB_GET_INT32(pRaw, dataPos, &dataLen, _OVER)
@@ -322,7 +323,8 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
     SDB_GET_INT32(pRaw, dataPos, &action.acceptableCode, _OVER)
     SDB_GET_INT8(pRaw, dataPos, &actionType, _OVER)
     action.actionType = actionType;
-    SDB_GET_INT8(pRaw, dataPos, &action.stage, _OVER)
+    SDB_GET_INT8(pRaw, dataPos, &stage, _OVER)
+    action.stage = stage;
     if (action.actionType == TRANS_ACTION_RAW) {
       SDB_GET_INT8(pRaw, dataPos, &action.rawWritten, _OVER)
       SDB_GET_INT32(pRaw, dataPos, &dataLen, _OVER)
@@ -354,7 +356,8 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
     SDB_GET_INT32(pRaw, dataPos, &action.acceptableCode, _OVER)
     SDB_GET_INT8(pRaw, dataPos, &actionType, _OVER)
     action.actionType = actionType;
-    SDB_GET_INT8(pRaw, dataPos, &action.stage, _OVER)
+    SDB_GET_INT8(pRaw, dataPos, &stage, _OVER)
+    action.stage = stage;
     if (action.actionType) {
       SDB_GET_INT8(pRaw, dataPos, &action.rawWritten, _OVER)
       SDB_GET_INT32(pRaw, dataPos, &dataLen, _OVER)
@@ -878,7 +881,6 @@ static void mndTransResetActions(SMnode *pMnode, STrans *pTrans, SArray *pArray)
       mDebug("trans:%d, %s:%d execute status is reset", pTrans->id, mndTransStr(pAction->stage), action);
     }
     pAction->errCode = 0;
-    
   }
 }
 
@@ -890,11 +892,12 @@ static int32_t mndTransWriteSingleLog(SMnode *pMnode, STrans *pTrans, STransActi
     pAction->rawWritten = true;
     pAction->errCode = 0;
     code = 0;
-    mDebug("trans:%d, %s:%d write to sdb", pTrans->id, mndTransStr(pAction->stage), pAction->id);
+    mDebug("trans:%d, %s:%d write to sdb, type:%s status:%s", pTrans->id, mndTransStr(pAction->stage), pAction->id,
+           sdbTableName(pAction->pRaw->type), sdbStatusName(pAction->pRaw->status));
   } else {
     pAction->errCode = (terrno != 0) ? terrno : code;
-    mError("trans:%d, %s:%d failed to write sdb since %s", pTrans->id, mndTransStr(pAction->stage), pAction->id,
-           terrstr());
+    mError("trans:%d, %s:%d failed to write sdb since %s, type:%s status:%s", pTrans->id, mndTransStr(pAction->stage),
+           pAction->id, terrstr(), sdbTableName(pAction->pRaw->type), sdbStatusName(pAction->pRaw->status));
   }
 
   return code;
@@ -916,18 +919,26 @@ static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransActio
   }
   memcpy(rpcMsg.pCont, pAction->pCont, pAction->contLen);
 
+  char    detail[1024] = {0};
+  int32_t len = snprintf(detail, sizeof(detail), "msgType:%s numOfEps:%d inUse:%d", TMSG_INFO(pAction->msgType),
+                         pAction->epSet.numOfEps, pAction->epSet.inUse);
+  for (int32_t i = 0; i < pTrans->lastErrorEpset.numOfEps; ++i) {
+    len += snprintf(detail + len, sizeof(detail) - len, " ep:%d-%s:%u", i, pAction->epSet.eps[i].fqdn,
+                    pAction->epSet.eps[i].port);
+  }
+
   int32_t code = tmsgSendReq(&pAction->epSet, &rpcMsg);
   if (code == 0) {
     pAction->msgSent = 1;
     pAction->msgReceived = 0;
     pAction->errCode = 0;
-    mDebug("trans:%d, %s:%d is sent to %s:%u", pTrans->id, mndTransStr(pAction->stage), pAction->id,
-           pAction->epSet.eps[pAction->epSet.inUse].fqdn, pAction->epSet.eps[pAction->epSet.inUse].port);
+    mDebug("trans:%d, %s:%d is sent, %s", pTrans->id, mndTransStr(pAction->stage), pAction->id, detail);
   } else {
     pAction->msgSent = 0;
     pAction->msgReceived = 0;
     pAction->errCode = (terrno != 0) ? terrno : code;
-    mError("trans:%d, %s:%d not send since %s", pTrans->id, mndTransStr(pAction->stage), pAction->id, terrstr());
+    mError("trans:%d, %s:%d not send since %s, %s", pTrans->id, mndTransStr(pAction->stage), pAction->id, terrstr(),
+           detail);
   }
 
   return code;
@@ -1424,9 +1435,9 @@ static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       if (epset.numOfEps > 0) {
         len += snprintf(detail + len, sizeof(detail) - len, "msgType:%s numOfEps:%d inUse:%d ",
                         TMSG_INFO(pTrans->lastErrorMsgType), epset.numOfEps, epset.inUse);
-      }
-      for (int32_t i = 0; i < pTrans->lastErrorEpset.numOfEps; ++i) {
-        len += snprintf(detail + len, sizeof(detail) - len, "ep:%d-%s:%u ", i, epset.eps[i].fqdn, epset.eps[i].port);
+        for (int32_t i = 0; i < pTrans->lastErrorEpset.numOfEps; ++i) {
+          len += snprintf(detail + len, sizeof(detail) - len, "ep:%d-%s:%u ", i, epset.eps[i].fqdn, epset.eps[i].port);
+        }
       }
     }
     STR_WITH_MAXSIZE_TO_VARSTR(lastError, detail, pShow->pMeta->pSchemas[cols].bytes);

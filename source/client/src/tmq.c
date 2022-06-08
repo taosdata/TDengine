@@ -195,7 +195,7 @@ typedef struct {
 
 tmq_conf_t* tmq_conf_new() {
   tmq_conf_t* conf = taosMemoryCalloc(1, sizeof(tmq_conf_t));
-  conf->withTbName = -1;
+  conf->withTbName = false;
   conf->autoCommit = true;
   conf->autoCommitInterval = 5000;
   conf->resetOffset = TMQ_CONF__RESET_OFFSET__EARLIEAST;
@@ -256,13 +256,10 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
 
   if (strcmp(key, "msg.with.table.name") == 0) {
     if (strcmp(value, "true") == 0) {
-      conf->withTbName = 1;
+      conf->withTbName = true;
       return TMQ_CONF_OK;
     } else if (strcmp(value, "false") == 0) {
-      conf->withTbName = 0;
-      return TMQ_CONF_OK;
-    } else if (strcmp(value, "none") == 0) {
-      conf->withTbName = -1;
+      conf->withTbName = false;
       return TMQ_CONF_OK;
     } else {
       return TMQ_CONF_INVALID;

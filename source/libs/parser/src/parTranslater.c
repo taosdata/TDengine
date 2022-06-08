@@ -864,9 +864,9 @@ static EDealRes translateJsonOperator(STranslateContext* pCxt, SOperatorNode* pO
   if (TSDB_DATA_TYPE_JSON != ldt.type || TSDB_DATA_TYPE_BINARY != rdt.type) {
     return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pRight))->aliasName);
   }
-  if(pOp->opType == OP_TYPE_JSON_GET_VALUE){
+  if (pOp->opType == OP_TYPE_JSON_GET_VALUE) {
     pOp->node.resType.type = TSDB_DATA_TYPE_JSON;
-  }else if(pOp->opType == OP_TYPE_JSON_CONTAINS){
+  } else if (pOp->opType == OP_TYPE_JSON_CONTAINS) {
     pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
   }
   pOp->node.resType.bytes = tDataTypes[pOp->node.resType.type].bytes;
@@ -3624,6 +3624,55 @@ static int32_t translateRevoke(STranslateContext* pCxt, SRevokeStmt* pStmt) {
   return buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &req);
 }
 
+static int32_t translateBalanceVgroup(STranslateContext* pCxt, SBalanceVgroupStmt* pStmt) {
+  SBalanceVgroupReq req = {0};
+  return buildCmdMsg(pCxt, TDMT_MND_BALANCE_VGROUP, (FSerializeFunc)tSerializeSBalanceVgroupReq, &req);
+}
+
+static int32_t translateMergeVgroup(STranslateContext* pCxt, SMergeVgroupStmt* pStmt) {
+  SMergeVgroupReq req = {.vgId1 = pStmt->vgId1, .vgId2 = pStmt->vgId2};
+  return buildCmdMsg(pCxt, TDMT_MND_MERGE_VGROUP, (FSerializeFunc)tSerializeSMergeVgroupReq, &req);
+}
+
+static int32_t checkDnodeIds(STranslateContext* pCxt, SRedistributeVgroupStmt* pStmt) {
+  int32_t numOfDnodes = LIST_LENGTH(pStmt->pDnodes);
+  if (numOfDnodes > 3 || numOfDnodes < 1) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REDISTRIBUTE_VG);
+  }
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pStmt->pDnodes) {
+    SValueNode* pVal = (SValueNode*)pNode;
+    if (DEAL_RES_ERROR == translateValue(pCxt, pVal)) {
+      return pCxt->errCode;
+    }
+  }
+
+  pStmt->dnodeId1 = getBigintFromValueNode((SValueNode*)nodesListGetNode(pStmt->pDnodes, 0));
+  pStmt->dnodeId2 = -1;
+  pStmt->dnodeId3 = -1;
+  if (numOfDnodes > 1) {
+    pStmt->dnodeId2 = getBigintFromValueNode((SValueNode*)nodesListGetNode(pStmt->pDnodes, 1));
+  }
+  if (numOfDnodes > 2) {
+    pStmt->dnodeId3 = getBigintFromValueNode((SValueNode*)nodesListGetNode(pStmt->pDnodes, 2));
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateRedistributeVgroup(STranslateContext* pCxt, SRedistributeVgroupStmt* pStmt) {
+  SRedistributeVgroupReq req = {.vgId = pStmt->vgId};
+  int32_t                code = checkDnodeIds(pCxt, pStmt);
+  if (TSDB_CODE_SUCCESS == code) {
+    req.dnodeId1 = pStmt->dnodeId1;
+    req.dnodeId2 = pStmt->dnodeId2;
+    req.dnodeId3 = pStmt->dnodeId3;
+    code = buildCmdMsg(pCxt, TDMT_MND_REDISTRIBUTE_VGROUP, (FSerializeFunc)tSerializeSRedistributeVgroupReq, &req);
+  }
+  return code;
+}
+
 static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pNode)) {
@@ -3745,6 +3794,15 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_REVOKE_STMT:
       code = translateRevoke(pCxt, (SRevokeStmt*)pNode);
+      break;
+    case QUERY_NODE_BALANCE_VGROUP_STMT:
+      code = translateBalanceVgroup(pCxt, (SBalanceVgroupStmt*)pNode);
+      break;
+    case QUERY_NODE_MERGE_VGROUP_STMT:
+      code = translateMergeVgroup(pCxt, (SMergeVgroupStmt*)pNode);
+      break;
+    case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:
+      code = translateRedistributeVgroup(pCxt, (SRedistributeVgroupStmt*)pNode);
       break;
     default:
       break;
@@ -5027,6 +5085,10 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
       pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
       pQuery->haveResultSet = true;
       pQuery->msgType = TDMT_VND_QUERY;
+      break;
+    case QUERY_NODE_DELETE_STMT:
+      pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;
+      pQuery->msgType = TDMT_VND_DELETE;
       break;
     case QUERY_NODE_VNODE_MODIF_STMT:
       pQuery->execMode = QUERY_EXEC_MODE_SCHEDULE;

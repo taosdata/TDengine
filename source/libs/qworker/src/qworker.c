@@ -183,7 +183,7 @@ int32_t qwGenerateSchHbRsp(SQWorker *mgmt, SQWSchStatus *sch, SQWHbInfo *hbInfo)
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwGetResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen, void **rspMsg, SOutputData *pOutput) {
+int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen, void **rspMsg, SOutputData *pOutput) {
   int32_t            len = 0;
   SRetrieveTableRsp *rsp = NULL;
   bool               queryEnd = false;
@@ -239,6 +239,53 @@ int32_t qwGetResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen, void
     qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCCEED);
   }
 
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t qwGetDeleteResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen, void **rspMsg, SDeleteRes *pRes) {
+  int32_t            len = 0;
+  SVDeleteRsp        rsp = {0};
+  bool               queryEnd = false;
+  int32_t            code = 0;
+  SOutputData        output = {0};
+
+  dsGetDataLength(ctx->sinkHandle, &len, &queryEnd);
+
+  if (len <= 0 || len != sizeof(SDeleterRes)) {
+    QW_TASK_ELOG("invalid length from dsGetDataLength, length:%d", len);
+    QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+
+  output.pData = taosMemoryCalloc(1, len);
+  if (NULL == output.pData) {
+    QW_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+  
+  code = dsGetDataBlock(ctx->sinkHandle, &output);
+  if (code) {
+    QW_TASK_ELOG("dsGetDataBlock failed, code:%x - %s", code, tstrerror(code));
+    taosMemoryFree(output.pData);
+    QW_ERR_RET(code);
+  }
+
+  SDeleterRes* pDelRes = (SDeleterRes*)output.pData;
+  
+  rsp.affectedRows = pDelRes->affectedRows;
+  pRes->uid = pDelRes->uid;
+  pRes->uidList = pDelRes->uidList;
+  pRes->skey = pDelRes->skey;
+  pRes->ekey = pDelRes->ekey;
+
+  SEncoder coder = {0};  
+  tEncodeSize(tEncodeSVDeleteRsp, &rsp, len, code);
+  void *msg = rpcMallocCont(len);
+  tEncoderInit(&coder, msg, len);
+  tEncodeSVDeleteRsp(&coder, &rsp);
+  tEncoderClear(&coder);
+
+  *rspMsg = msg;
+  *dataLen = len;
+  
   return TSDB_CODE_SUCCESS;
 }
 
@@ -547,7 +594,7 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
 
     if (QW_IS_EVENT_RECEIVED(ctx, QW_EVENT_FETCH)) {
       SOutputData sOutput = {0};
-      QW_ERR_JRET(qwGetResFromSink(QW_FPARAMS(), ctx, &dataLen, &rsp, &sOutput));
+      QW_ERR_JRET(qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rsp, &sOutput));
 
       if ((!sOutput.queryEnd) && (DS_BUF_LOW == sOutput.bufStatus || DS_BUF_EMPTY == sOutput.bufStatus)) {
         QW_TASK_DLOG("task not end and buf is %s, need to continue query", qwBufStatusStr(sOutput.bufStatus));
@@ -620,7 +667,7 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   QW_ERR_JRET(qwGetTaskCtx(QW_FPARAMS(), &ctx));
 
   SOutputData sOutput = {0};
-  QW_ERR_JRET(qwGetResFromSink(QW_FPARAMS(), ctx, &dataLen, &rsp, &sOutput));
+  QW_ERR_JRET(qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rsp, &sOutput));
 
   if (NULL == rsp) {
     ctx->dataConnInfo = qwMsg->connInfo;
@@ -876,6 +923,47 @@ _return:
   qwRelease(refId);
 }
 
+int32_t qwProcessDelete(QW_FPARAMS_DEF, SQWMsg *qwMsg, SRpcMsg *pRsp, SDeleteRes *pRes) {
+  int32_t        code = 0;
+  SSubplan      *plan = NULL;
+  qTaskInfo_t    pTaskInfo = NULL;
+  DataSinkHandle sinkHandle = NULL;
+  SQWTaskCtx     ctx = {0};
+
+  code = qStringToSubplan(qwMsg->msg, &plan);
+  if (TSDB_CODE_SUCCESS != code) {
+    code = TSDB_CODE_INVALID_MSG;
+    QW_TASK_ELOG("task physical plan to subplan failed, code:%x - %s", code, tstrerror(code));
+    QW_ERR_JRET(code);
+  }
+
+  ctx.plan = plan;
+
+  code = qCreateExecTask(qwMsg->node, mgmt->nodeId, tId, plan, &pTaskInfo, &sinkHandle, OPTR_EXEC_MODEL_BATCH);
+  if (code) {
+    QW_TASK_ELOG("qCreateExecTask failed, code:%x - %s", code, tstrerror(code));
+    QW_ERR_JRET(code);
+  }
+
+  if (NULL == sinkHandle || NULL == pTaskInfo) {
+    QW_TASK_ELOG("create task result error, taskHandle:%p, sinkHandle:%p", pTaskInfo, sinkHandle);
+    QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+  }
+
+  ctx.taskHandle = pTaskInfo;
+  ctx.sinkHandle = sinkHandle;
+
+  QW_ERR_JRET(qwExecTask(QW_FPARAMS(), &ctx, NULL));
+
+  QW_ERR_JRET(qwGetDeleteResFromSink(QW_FPARAMS(), &ctx, &pRsp->contLen, &pRsp->pCont, pRes));
+
+_return:
+
+  qwFreeTaskCtx(QW_FPARAMS(), &ctx);
+
+  QW_RET(TSDB_CODE_SUCCESS);
+}
+
 
 int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, SQWorkerCfg *cfg, void **qWorkerMgmt, const SMsgCb *pMsgCb) {
   if (NULL == qWorkerMgmt || pMsgCb->mgmt == NULL) {
@@ -1008,6 +1096,7 @@ int32_t qWorkerGetStat(SReadHandle *handle, void *qWorkerMgmt, SQWorkerStat *pSt
   pStat->fetchProcessed = QW_STAT_GET(mgmt->stat.msgStat.fetchProcessed);
   pStat->dropProcessed = QW_STAT_GET(mgmt->stat.msgStat.dropProcessed);
   pStat->hbProcessed = QW_STAT_GET(mgmt->stat.msgStat.hbProcessed);
+  pStat->deleteProcessed = QW_STAT_GET(mgmt->stat.msgStat.deleteProcessed);
 
   pStat->numOfQueryInQueue = handle->pMsgCb->qsizeFp(handle->pMsgCb->mgmt, mgmt->nodeId, QUERY_QUEUE);
   pStat->numOfFetchInQueue = handle->pMsgCb->qsizeFp(handle->pMsgCb->mgmt, mgmt->nodeId, FETCH_QUEUE);
