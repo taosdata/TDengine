@@ -11,7 +11,7 @@ You can learn more about using the TDengine plugin on [GitHub](https://github.co
 
 TDengine currently supports Grafana versions 7.5 and above. Users can go to the Grafana official website to download the installation package and execute the installation according to the current operating system. The download address is as follows: <https://grafana.com/grafana/download>.
 
-## Install TDengine data source plugin
+## Install TDengine plugin
 
 Please copy the following shell commands to export `TDENGINE_CLOUD_URL` and `TDENGINE_CLOUD_TOKEN` for the data source installation.
 
@@ -32,7 +32,7 @@ After that completed, please restart grafana-server.
 sudo systemctl restart grafana-server.service
 ```
 
-## Verifying Grafana and TDengine data source
+## Verifying plugin
 
 Users can log in to the Grafana server (initial username/password: admin/admin) directly through the URL `http://localhost:3000`. Click `Configuration -> Data Sources` on the left side. Then click `Test` button to verify if TDengine data source works. You should see a success message if the test worked.
 
