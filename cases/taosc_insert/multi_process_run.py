@@ -164,6 +164,7 @@ class TestMultiProcessRun(TDCase):
         self.check_default_shmsize()
         self.check_shmsize_delivery()
         self.boundary_check()
+        self.log_generation()
         self.multi_process_batch_insert(batch=100, data_length=10160)
         self.multi_process_threads_batch_insert(threads_count=6, batch=100, data_length=10160)
         self.kill_auto_restore()

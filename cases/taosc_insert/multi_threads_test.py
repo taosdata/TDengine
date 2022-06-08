@@ -330,7 +330,7 @@ class TestMultiThreads(TDCase):
         self.multi_threads_create_drop_db_stb_tb_mixed()
         self.insert_when_dropping_tb()
         # ! TD-16209	
-        # self.insert_when_dropping_db()
+        self.insert_when_dropping_db()
         self.create_table_when_dropping_db()
         # ! bug
         # self.drop_table_when_dropping_db()
