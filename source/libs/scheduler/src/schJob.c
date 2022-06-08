@@ -887,6 +887,7 @@ int32_t schProcessOnJobFailureImpl(SSchJob *pJob, int32_t status, int32_t errCod
     if (SCH_EXEC_CB == atomic_val_compare_exchange_32(&pJob->userCb, SCH_EXEC_CB, 0)) {
       schNotifyUserQueryRes(pJob);
     } else if (SCH_FETCH_CB == atomic_val_compare_exchange_32(&pJob->userCb, SCH_FETCH_CB, 0)) {
+      atomic_val_compare_exchange_8(&pJob->userFetch, 1, 0);
       schNotifyUserFetchRes(pJob);
     }
   }
@@ -915,6 +916,7 @@ int32_t schProcessOnJobPartialSuccess(SSchJob *pJob) {
   } else if (SCH_EXEC_CB == atomic_val_compare_exchange_32(&pJob->userCb, SCH_EXEC_CB, 0)) {
     schNotifyUserQueryRes(pJob);
   } else if (SCH_FETCH_CB == atomic_val_compare_exchange_32(&pJob->userCb, SCH_FETCH_CB, 0)) {
+    atomic_val_compare_exchange_8(&pJob->userFetch, 1, 0);
     schNotifyUserFetchRes(pJob);
   }
 
@@ -935,6 +937,8 @@ void schProcessOnDataFetched(SSchJob *job) {
   if (job->attr.syncSchedule) {
     tsem_post(&job->rspSem);
   } else if (SCH_FETCH_CB == atomic_val_compare_exchange_32(&job->userCb, SCH_FETCH_CB, 0)) {
+    atomic_val_compare_exchange_8(&job->userFetch, 1, 0);
+    
     schNotifyUserFetchRes(job);
   }
 }
@@ -1673,9 +1677,9 @@ int32_t schAsyncFetchRows(SSchJob *pJob) {
   }
 
   if (pJob->attr.explainMode == EXPLAIN_MODE_STATIC) {
-    SCH_ERR_JRET(schNotifyUserFetchRes(pJob));
-    
     atomic_val_compare_exchange_8(&pJob->userFetch, 1, 0);
+
+    SCH_ERR_JRET(schNotifyUserFetchRes(pJob));    
   } else {
     pJob->userCb = SCH_FETCH_CB;
     
