@@ -2969,12 +2969,13 @@ int32_t spreadFunctionMerge(SqlFunctionCtx *pCtx) {
   char* data = colDataGetData(pCol, start);
   pInputInfo = (SSpreadInfo *)varDataVal(data);
 
+  pInfo->hasResult = pInputInfo->hasResult;
   if (pInputInfo->max > pInfo->max) {
-    pInfo->max =pInputInfo->max;
+    pInfo->max = pInputInfo->max;
   }
 
   if (pInputInfo->min < pInfo->min) {
-    pInfo->min =pInputInfo->min;
+    pInfo->min = pInputInfo->min;
   }
 
   SET_VAL(GET_RES_INFO(pCtx), 1, 1);
