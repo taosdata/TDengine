@@ -52,6 +52,7 @@ enum {
   CTG_OP_UPDATE_VGROUP = 0,
   CTG_OP_UPDATE_TB_META,
   CTG_OP_DROP_DB_CACHE,
+  CTG_OP_DROP_DB_VGROUP,
   CTG_OP_DROP_STB_META,
   CTG_OP_DROP_TB_META,
   CTG_OP_UPDATE_USER,
@@ -266,26 +267,32 @@ typedef struct SCtgUpdateTblMsg {
   STableMetaOutput* output;
 } SCtgUpdateTblMsg;
 
-typedef struct SCtgRemoveDBMsg {
+typedef struct SCtgDropDBMsg {
   SCatalog* pCtg;
   char  dbFName[TSDB_DB_FNAME_LEN];
   uint64_t dbId;
-} SCtgRemoveDBMsg;
+} SCtgDropDBMsg;
 
-typedef struct SCtgRemoveStbMsg {
+typedef struct SCtgDropDbVgroupMsg {
+  SCatalog* pCtg;
+  char  dbFName[TSDB_DB_FNAME_LEN];
+} SCtgDropDbVgroupMsg;
+
+
+typedef struct SCtgDropStbMetaMsg {
   SCatalog* pCtg;
   char  dbFName[TSDB_DB_FNAME_LEN];
   char  stbName[TSDB_TABLE_NAME_LEN];
   uint64_t dbId;
   uint64_t suid;
-} SCtgRemoveStbMsg;
+} SCtgDropStbMetaMsg;
 
-typedef struct SCtgRemoveTblMsg {
+typedef struct SCtgDropTblMetaMsg {
   SCatalog* pCtg;
   char  dbFName[TSDB_DB_FNAME_LEN];
   char  tbName[TSDB_TABLE_NAME_LEN];
   uint64_t dbId;
-} SCtgRemoveTblMsg;
+} SCtgDropTblMetaMsg;
 
 typedef struct SCtgUpdateUserMsg {
   SCatalog* pCtg;
@@ -451,6 +458,7 @@ int32_t ctgGetTbMetaFromCache(CTG_PARAMS, SCtgTbMetaCtx* ctx, STableMeta** pTabl
 int32_t ctgOpUpdateVgroup(SCtgCacheOperation *action);
 int32_t ctgOpUpdateTbMeta(SCtgCacheOperation *action);
 int32_t ctgOpDropDbCache(SCtgCacheOperation *action);
+int32_t ctgOpDropDbVgroup(SCtgCacheOperation *action);
 int32_t ctgOpDropStbMeta(SCtgCacheOperation *action);
 int32_t ctgOpDropTbMeta(SCtgCacheOperation *action);
 int32_t ctgOpUpdateUser(SCtgCacheOperation *action);
@@ -464,6 +472,7 @@ int32_t ctgReadTbMetaFromCache(SCatalog* pCtg, SCtgTbMetaCtx* ctx, STableMeta** 
 int32_t ctgReadTbVerFromCache(SCatalog *pCtg, const SName *pTableName, int32_t *sver, int32_t *tver, int32_t *tbType, uint64_t *suid, char *stbName);
 int32_t ctgChkAuthFromCache(SCatalog* pCtg, const char* user, const char* dbFName, AUTH_TYPE type, bool *inCache, bool *pass);
 int32_t ctgDropDbCacheEnqueue(SCatalog* pCtg, const char *dbFName, int64_t dbId);
+int32_t ctgDropDbVgroupEnqueue(SCatalog* pCtg, const char *dbFName, bool syncReq);
 int32_t ctgDropStbMetaEnqueue(SCatalog* pCtg, const char *dbFName, int64_t dbId, const char *stbName, uint64_t suid, bool syncReq);
 int32_t ctgDropTbMetaEnqueue(SCatalog* pCtg, const char *dbFName, int64_t dbId, const char *tbName, bool syncReq);
 int32_t ctgUpdateVgroupEnqueue(SCatalog* pCtg, const char *dbFName, int64_t dbId, SDBVgInfo* dbInfo, bool syncReq);
@@ -490,7 +499,7 @@ int32_t ctgGetTbMetaFromMnodeImpl(CTG_PARAMS, char *dbFName, char* tbName, STabl
 int32_t ctgGetTbMetaFromMnode(CTG_PARAMS, const SName* pTableName, STableMetaOutput* out, SCtgTask* pTask);
 int32_t ctgGetTbMetaFromVnode(CTG_PARAMS, const SName* pTableName, SVgroupInfo *vgroupInfo, STableMetaOutput* out, SCtgTask* pTask);
 
-int32_t ctgInitJob(CTG_PARAMS, SCtgJob** job, uint64_t reqId, const SCatalogReq* pReq, catalogCallback fp, void* param);
+int32_t ctgInitJob(CTG_PARAMS, SCtgJob** job, uint64_t reqId, const SCatalogReq* pReq, catalogCallback fp, void* param, int32_t* taskNum);
 int32_t ctgLaunchJob(SCtgJob *pJob);
 int32_t ctgMakeAsyncRes(SCtgJob *pJob);
 

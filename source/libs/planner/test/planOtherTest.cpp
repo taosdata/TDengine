@@ -33,6 +33,12 @@ TEST_F(PlanOtherTest, createStream) {
       "interval(10s)");
 }
 
+TEST_F(PlanOtherTest, createStreamUseSTable) {
+  useDb("root", "test");
+
+  run("create stream if not exists s1 as select count(*) from st1 interval(10s)");
+}
+
 TEST_F(PlanOtherTest, createSmaIndex) {
   useDb("root", "test");
 
@@ -53,4 +59,16 @@ TEST_F(PlanOtherTest, show) {
   useDb("root", "test");
 
   run("SHOW DATABASES");
+}
+
+TEST_F(PlanOtherTest, delete) {
+  useDb("root", "test");
+
+  run("DELETE FROM t1");
+
+  run("DELETE FROM t1 WHERE ts > now - 2d and ts < now - 1d");
+
+  run("DELETE FROM st1");
+
+  run("DELETE FROM st1 WHERE ts > now - 2d and ts < now - 1d AND tag1 = 10");
 }

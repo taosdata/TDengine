@@ -35,7 +35,6 @@ static int32_t mndStreamActionInsert(SSdb *pSdb, SStreamObj *pStream);
 static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream);
 static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pStream, SStreamObj *pNewStream);
 static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq);
-static int32_t mndProcessTaskDeployInternalRsp(SRpcMsg *pRsp);
 /*static int32_t mndProcessDropStreamReq(SRpcMsg *pReq);*/
 /*static int32_t mndProcessDropStreamInRsp(SRpcMsg *pRsp);*/
 static int32_t mndProcessStreamMetaReq(SRpcMsg *pReq);
@@ -44,17 +43,19 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 static void    mndCancelGetNextStream(SMnode *pMnode, void *pIter);
 
 int32_t mndInitStream(SMnode *pMnode) {
-  SSdbTable table = {.sdbType = SDB_STREAM,
-                     .keyType = SDB_KEY_BINARY,
-                     .encodeFp = (SdbEncodeFp)mndStreamActionEncode,
-                     .decodeFp = (SdbDecodeFp)mndStreamActionDecode,
-                     .insertFp = (SdbInsertFp)mndStreamActionInsert,
-                     .updateFp = (SdbUpdateFp)mndStreamActionUpdate,
-                     .deleteFp = (SdbDeleteFp)mndStreamActionDelete};
+  SSdbTable table = {
+      .sdbType = SDB_STREAM,
+      .keyType = SDB_KEY_BINARY,
+      .encodeFp = (SdbEncodeFp)mndStreamActionEncode,
+      .decodeFp = (SdbDecodeFp)mndStreamActionDecode,
+      .insertFp = (SdbInsertFp)mndStreamActionInsert,
+      .updateFp = (SdbUpdateFp)mndStreamActionUpdate,
+      .deleteFp = (SdbDeleteFp)mndStreamActionDelete,
+  };
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_STREAM, mndProcessCreateStreamReq);
-  mndSetMsgHandle(pMnode, TDMT_VND_TASK_DEPLOY_RSP, mndProcessTaskDeployInternalRsp);
-  mndSetMsgHandle(pMnode, TDMT_SND_TASK_DEPLOY_RSP, mndProcessTaskDeployInternalRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_TASK_DEPLOY_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_SND_TASK_DEPLOY_RSP, mndTransProcessRsp);
   /*mndSetMsgHandle(pMnode, TDMT_MND_DROP_STREAM, mndProcessDropStreamReq);*/
   /*mndSetMsgHandle(pMnode, TDMT_MND_DROP_STREAM_RSP, mndProcessDropStreamInRsp);*/
 
@@ -193,11 +194,6 @@ SStreamObj *mndAcquireStream(SMnode *pMnode, char *streamName) {
 void mndReleaseStream(SMnode *pMnode, SStreamObj *pStream) {
   SSdb *pSdb = pMnode->pSdb;
   sdbRelease(pSdb, pStream);
-}
-
-static int32_t mndProcessTaskDeployInternalRsp(SRpcMsg *pRsp) {
-  mndTransProcessRsp(pRsp);
-  return 0;
 }
 
 static SDbObj *mndAcquireDbByStream(SMnode *pMnode, char *streamName) {

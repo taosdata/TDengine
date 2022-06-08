@@ -2245,7 +2245,7 @@ static int32_t smlInsertData(SSmlHandle* info) {
   }
   info->cost.insertRpcTime = taosGetTimestampUs();
 
-  launchQueryImpl(info->pRequest, info->pQuery, TSDB_CODE_SUCCESS, true, NULL);
+  launchQueryImpl(info->pRequest, info->pQuery, true, NULL);
 
   info->affectedRows = taos_affected_rows(info->pRequest);
   return info->pRequest->code;
@@ -2342,6 +2342,8 @@ static int32_t isSchemalessDb(SSmlHandle* info){
     smlBuildInvalidDataMsg(&info->msgBuf, "catalogGetDBCfg error, code:", tstrerror(code));
     return code;
   }
+  taosArrayDestroy(pInfo.pRetensions);
+  
   if (!pInfo.schemaless){
     info->pRequest->code = TSDB_CODE_SML_INVALID_DB_CONF;
     smlBuildInvalidDataMsg(&info->msgBuf, "can not insert into schemaless db:", dbFname);
@@ -2372,7 +2374,7 @@ static int32_t isSchemalessDb(SSmlHandle* info){
  */
 
 TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol, int precision) {
-  SRequestObj* request = (SRequestObj*)createRequest((STscObj *)taos, NULL, NULL, TSDB_SQL_INSERT);
+  SRequestObj* request = (SRequestObj*)createRequest((STscObj *)taos, NULL, TSDB_SQL_INSERT);
   if(!request){
     uError("SML:taos_schemaless_insert error request is null");
     return NULL;

@@ -36,6 +36,11 @@ SCtgOperation gCtgCacheOperation[CTG_OP_MAX] = {
     ctgOpDropDbCache
   },
   {
+    CTG_OP_DROP_DB_VGROUP,
+    "drop DBVgroup",
+    ctgOpDropDbVgroup
+  },
+  {
     CTG_OP_DROP_STB_META,
     "drop stbMeta",
     ctgOpDropStbMeta
@@ -563,9 +568,9 @@ int32_t ctgEnqueue(SCatalog* pCtg, SCtgCacheOperation *operation) {
 int32_t ctgDropDbCacheEnqueue(SCatalog* pCtg, const char *dbFName, int64_t dbId) {
   int32_t code = 0;
   SCtgCacheOperation action= {.opId = CTG_OP_DROP_DB_CACHE};
-  SCtgRemoveDBMsg *msg = taosMemoryMalloc(sizeof(SCtgRemoveDBMsg));
+  SCtgDropDBMsg *msg = taosMemoryMalloc(sizeof(SCtgDropDBMsg));
   if (NULL == msg) {
-    ctgError("malloc %d failed", (int32_t)sizeof(SCtgRemoveDBMsg));
+    ctgError("malloc %d failed", (int32_t)sizeof(SCtgDropDBMsg));
     CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
   }
 
@@ -590,13 +595,43 @@ _return:
   CTG_RET(code);
 }
 
+int32_t ctgDropDbVgroupEnqueue(SCatalog* pCtg, const char *dbFName, bool syncOp) {
+  int32_t code = 0;
+  SCtgCacheOperation action= {.opId = CTG_OP_DROP_DB_VGROUP, .syncOp = syncOp};
+  SCtgDropDbVgroupMsg *msg = taosMemoryMalloc(sizeof(SCtgDropDbVgroupMsg));
+  if (NULL == msg) {
+    ctgError("malloc %d failed", (int32_t)sizeof(SCtgDropDbVgroupMsg));
+    CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
+  }
+
+  char *p = strchr(dbFName, '.');
+  if (p && CTG_IS_SYS_DBNAME(p + 1)) {
+    dbFName = p + 1;
+  }
+
+  msg->pCtg = pCtg;
+  strncpy(msg->dbFName, dbFName, sizeof(msg->dbFName));
+
+  action.data = msg;
+
+  CTG_ERR_JRET(ctgEnqueue(pCtg, &action));
+
+  return TSDB_CODE_SUCCESS;
+
+_return:
+
+  taosMemoryFreeClear(action.data);
+  CTG_RET(code);
+}
+
+
 
 int32_t ctgDropStbMetaEnqueue(SCatalog* pCtg, const char *dbFName, int64_t dbId, const char *stbName, uint64_t suid, bool syncOp) {
   int32_t code = 0;
   SCtgCacheOperation action= {.opId = CTG_OP_DROP_STB_META, .syncOp = syncOp};
-  SCtgRemoveStbMsg *msg = taosMemoryMalloc(sizeof(SCtgRemoveStbMsg));
+  SCtgDropStbMetaMsg *msg = taosMemoryMalloc(sizeof(SCtgDropStbMetaMsg));
   if (NULL == msg) {
-    ctgError("malloc %d failed", (int32_t)sizeof(SCtgRemoveStbMsg));
+    ctgError("malloc %d failed", (int32_t)sizeof(SCtgDropStbMetaMsg));
     CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
   }
 
@@ -623,9 +658,9 @@ _return:
 int32_t ctgDropTbMetaEnqueue(SCatalog* pCtg, const char *dbFName, int64_t dbId, const char *tbName, bool syncOp) {
   int32_t code = 0;
   SCtgCacheOperation action= {.opId = CTG_OP_DROP_TB_META, .syncOp = syncOp};
-  SCtgRemoveTblMsg *msg = taosMemoryMalloc(sizeof(SCtgRemoveTblMsg));
+  SCtgDropTblMetaMsg *msg = taosMemoryMalloc(sizeof(SCtgDropTblMetaMsg));
   if (NULL == msg) {
-    ctgError("malloc %d failed", (int32_t)sizeof(SCtgRemoveTblMsg));
+    ctgError("malloc %d failed", (int32_t)sizeof(SCtgDropTblMetaMsg));
     CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
   }
 
@@ -1281,7 +1316,7 @@ _return:
 
 int32_t ctgOpDropDbCache(SCtgCacheOperation *operation) {
   int32_t code = 0;
-  SCtgRemoveDBMsg *msg = operation->data;
+  SCtgDropDBMsg *msg = operation->data;
   SCatalog* pCtg = msg->pCtg;
 
   SCtgDBCache *dbCache = NULL;
@@ -1296,6 +1331,33 @@ int32_t ctgOpDropDbCache(SCtgCacheOperation *operation) {
   }
   
   CTG_ERR_JRET(ctgRemoveDBFromCache(pCtg, dbCache, msg->dbFName));
+
+_return:
+
+  taosMemoryFreeClear(msg);
+  
+  CTG_RET(code);
+}
+
+int32_t ctgOpDropDbVgroup(SCtgCacheOperation *operation) {
+  int32_t code = 0;
+  SCtgDropDbVgroupMsg *msg = operation->data;
+  SCatalog* pCtg = msg->pCtg;
+
+  SCtgDBCache *dbCache = NULL;
+  ctgGetDBCache(msg->pCtg, msg->dbFName, &dbCache);
+  if (NULL == dbCache) {
+    goto _return;
+  }
+  
+  CTG_ERR_RET(ctgWAcquireVgInfo(pCtg, dbCache));
+  
+  ctgFreeVgInfo(dbCache->vgInfo);
+  dbCache->vgInfo = NULL;
+
+  ctgDebug("db vgInfo removed, dbFName:%s", msg->dbFName);
+
+  ctgWReleaseVgInfo(dbCache);
 
 _return:
 
@@ -1353,7 +1415,7 @@ _return:
 
 int32_t ctgOpDropStbMeta(SCtgCacheOperation *operation) {
   int32_t code = 0;
-  SCtgRemoveStbMsg *msg = operation->data;
+  SCtgDropStbMetaMsg *msg = operation->data;
   SCatalog* pCtg = msg->pCtg;
 
   SCtgDBCache *dbCache = NULL;
@@ -1399,7 +1461,7 @@ _return:
 
 int32_t ctgOpDropTbMeta(SCtgCacheOperation *operation) {
   int32_t code = 0;
-  SCtgRemoveTblMsg *msg = operation->data;
+  SCtgDropTblMetaMsg *msg = operation->data;
   SCatalog* pCtg = msg->pCtg;
 
   SCtgDBCache *dbCache = NULL;

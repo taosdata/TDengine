@@ -145,6 +145,12 @@ class TDDnode:
     def init(self, path, remoteIP = ""):
         self.path = path
         self.remoteIP = remoteIP
+        if (not self.remoteIP == ""):
+            try:
+                self.config = eval(self.remoteIP)
+                self.remote_conn = Connection(host=self.config["host"], port=self.config["port"], user=self.config["user"], connect_kwargs={'password':self.config["password"]})
+            except Exception as r:
+                print(r)
 
     def setTestCluster(self, value):
         self.testCluster = value
@@ -169,13 +175,6 @@ class TDDnode:
         self.cfgDict.update({option: value})
 
     def remoteExec(self, updateCfgDict, execCmd):
-        try:
-            config = eval(self.remoteIP)
-            remote_conn = Connection(host=config["host"], port=config["port"], user=config["user"], connect_kwargs={'password':config["password"]})
-            remote_top_dir = config["path"]
-        except Exception as r:
-            remote_conn = Connection(host=self.remoteIP, port=22, user='root', connect_kwargs={'password':'123456'})
-            remote_top_dir = '~/test'
         valgrindStr = ''
         if (self.valgrind==1):
             valgrindStr = '-g'
@@ -188,8 +187,8 @@ class TDDnode:
             del remoteCfgDict["cfgDir"]
         remoteCfgDictStr = base64.b64encode(json.dumps(remoteCfgDict).encode()).decode()
         execCmdStr = base64.b64encode(execCmd.encode()).decode()
-        with remote_conn.cd((remote_top_dir+sys.path[0].replace(self.path, '')).replace('\\','/')):
-            remote_conn.run("python3 ./test.py %s -d %s -e %s"%(valgrindStr,remoteCfgDictStr,execCmdStr))
+        with self.remote_conn.cd((self.config["path"]+sys.path[0].replace(self.path, '')).replace('\\','/')):
+            self.remote_conn.run("python3 ./test.py %s -d %s -e %s"%(valgrindStr,remoteCfgDictStr,execCmdStr))
 
     def deploy(self, *updatecfgDict):
         self.logDir = "%s/sim/dnode%d/log" % (self.path, self.index)
@@ -247,7 +246,7 @@ class TDDnode:
         if bool(updatecfgDict) and updatecfgDict[0] and updatecfgDict[0][0]:
             print(updatecfgDict[0][0])
             for key, value in updatecfgDict[0][0].items():
-                if key == "clientCfg":
+                if key == "clientCfg" and self.remoteIP == "" and not platform.system().lower() == 'windows':
                     continue
                 if value == 'dataDir':
                     if isFirstDir:
@@ -319,7 +318,7 @@ class TDDnode:
             print(cmd)
 
         if (not self.remoteIP == ""):
-            self.remoteExec(self.cfgDict, "tdDnodes.deploy(%d,updateCfgDict)\ntdDnodes.start(%d)"%(self.index, self.index))
+            self.remoteExec(self.cfgDict, "tdDnodes.dnodes[%d].deployed=1\ntdDnodes.dnodes[%d].logDir=\"%%s/sim/dnode%%d/log\"%%(tdDnodes.dnodes[%d].path,%d)\ntdDnodes.dnodes[%d].cfgDir=\"%%s/sim/dnode%%d/cfg\"%%(tdDnodes.dnodes[%d].path,%d)\ntdDnodes.start(%d)"%(self.index-1,self.index-1,self.index-1,self.index,self.index-1,self.index-1,self.index,self.index))
             self.running = 1
         else:
             if os.system(cmd) != 0:

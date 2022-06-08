@@ -75,15 +75,15 @@ typedef struct SResultRowInfo {
   int32_t      size;       // number of result set
   int32_t      capacity;   // max capacity
   SResultRowPosition cur;
+  SList*       openWindow;
 } SResultRowInfo;
 
 struct SqlFunctionCtx;
 
-size_t getResultRowSize(struct SqlFunctionCtx* pCtx, int32_t numOfOutput);
+size_t  getResultRowSize(struct SqlFunctionCtx* pCtx, int32_t numOfOutput);
 int32_t initResultRowInfo(SResultRowInfo* pResultRowInfo, int32_t size);
 void    cleanupResultRowInfo(SResultRowInfo* pResultRowInfo);
 
-int32_t numOfClosedResultRows(SResultRowInfo* pResultRowInfo);
 void    closeAllResultRows(SResultRowInfo* pResultRowInfo);
 
 void    initResultRow(SResultRow *pResultRow);
@@ -91,15 +91,6 @@ void    closeResultRow(SResultRow* pResultRow);
 bool    isResultRowClosed(SResultRow* pResultRow);
 
 struct SResultRowEntryInfo* getResultCell(const SResultRow* pRow, int32_t index, const int32_t* offset);
-
-static FORCE_INLINE SResultRow *getResultRow(SDiskbasedBuf* pBuf, SResultRowInfo *pResultRowInfo, int32_t slot) {
-  ASSERT(pResultRowInfo != NULL && slot >= 0 && slot < pResultRowInfo->size);
-  SResultRowPosition* pos = &pResultRowInfo->pPosition[slot];
-
-  SFilePage*  bufPage = (SFilePage*) getBufPage(pBuf, pos->pageId);
-  SResultRow* pRow = (SResultRow*)((char*)bufPage + pos->offset);
-  return pRow;
-}
 
 static FORCE_INLINE SResultRow *getResultRowByPos(SDiskbasedBuf* pBuf, SResultRowPosition* pos) {
   SFilePage*  bufPage = (SFilePage*) getBufPage(pBuf, pos->pageId);

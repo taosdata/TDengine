@@ -58,30 +58,30 @@ static FORCE_INLINE int32_t tdUpdateTbUidListImpl(SSma *pSma, tb_uid_t *suid, SA
 
   if (!suid || !tbUids) {
     terrno = TSDB_CODE_INVALID_PTR;
-    smaError("vgId:%d failed to get rsma info for uid:%" PRIi64 " since %s", SMA_VID(pSma), *suid, terrstr(terrno));
+    smaError("vgId:%d, failed to get rsma info for uid:%" PRIi64 " since %s", SMA_VID(pSma), *suid, terrstr(terrno));
     return TSDB_CODE_FAILED;
   }
 
   pRSmaInfo = taosHashGet(SMA_STAT_INFO_HASH(pStat), suid, sizeof(tb_uid_t));
   if (!pRSmaInfo || !(pRSmaInfo = *(SRSmaInfo **)pRSmaInfo)) {
-    smaError("vgId:%d failed to get rsma info for uid:%" PRIi64, SMA_VID(pSma), *suid);
+    smaError("vgId:%d, failed to get rsma info for uid:%" PRIi64, SMA_VID(pSma), *suid);
     terrno = TSDB_CODE_TDB_INVALID_SMA_STAT;
     return TSDB_CODE_FAILED;
   }
 
   if (pRSmaInfo->taskInfo[0] && (qUpdateQualifiedTableId(pRSmaInfo->taskInfo[0], tbUids, true) != 0)) {
-    smaError("vgId:%d update tbUidList failed for uid:%" PRIi64 " since %s", SMA_VID(pSma), *suid, terrstr(terrno));
+    smaError("vgId:%d, update tbUidList failed for uid:%" PRIi64 " since %s", SMA_VID(pSma), *suid, terrstr(terrno));
     return TSDB_CODE_FAILED;
   } else {
-    smaDebug("vgId:%d update tbUidList succeed for qTaskInfo:%p with suid:%" PRIi64 ", uid:%" PRIi64, SMA_VID(pSma),
+    smaDebug("vgId:%d, update tbUidList succeed for qTaskInfo:%p with suid:%" PRIi64 ", uid:%" PRIi64, SMA_VID(pSma),
              pRSmaInfo->taskInfo[0], *suid, *(int64_t *)taosArrayGet(tbUids, 0));
   }
 
   if (pRSmaInfo->taskInfo[1] && (qUpdateQualifiedTableId(pRSmaInfo->taskInfo[1], tbUids, true) != 0)) {
-    smaError("vgId:%d update tbUidList failed for uid:%" PRIi64 " since %s", SMA_VID(pSma), *suid, terrstr(terrno));
+    smaError("vgId:%d, update tbUidList failed for uid:%" PRIi64 " since %s", SMA_VID(pSma), *suid, terrstr(terrno));
     return TSDB_CODE_FAILED;
   } else {
-    smaDebug("vgId:%d update tbUidList succeed for qTaskInfo:%p with suid:%" PRIi64 ", uid:%" PRIi64, SMA_VID(pSma),
+    smaDebug("vgId:%d, update tbUidList succeed for qTaskInfo:%p with suid:%" PRIi64 ", uid:%" PRIi64, SMA_VID(pSma),
              pRSmaInfo->taskInfo[1], *suid, *(int64_t *)taosArrayGet(tbUids, 0));
   }
 
@@ -170,14 +170,14 @@ int32_t tdProcessRSmaCreate(SVnode *pVnode, SVCreateStbReq *pReq) {
   SMeta *pMeta = pVnode->pMeta;
   SMsgCb *pMsgCb = &pVnode->msgCb;
   if (!pReq->rollup) {
-    smaTrace("vgId:%d return directly since no rollup for stable %s %" PRIi64, SMA_VID(pSma), pReq->name, pReq->suid);
+    smaTrace("vgId:%d, return directly since no rollup for stable %s %" PRIi64, SMA_VID(pSma), pReq->name, pReq->suid);
     return TSDB_CODE_SUCCESS;
   }
 
   SRSmaParam *param = &pReq->pRSmaParam;
 
   if ((param->qmsg1Len == 0) && (param->qmsg2Len == 0)) {
-    smaWarn("vgId:%d no qmsg1/qmsg2 for rollup stable %s %" PRIi64, SMA_VID(pSma), pReq->name, pReq->suid);
+    smaWarn("vgId:%d, no qmsg1/qmsg2 for rollup stable %s %" PRIi64, SMA_VID(pSma), pReq->name, pReq->suid);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -192,7 +192,7 @@ int32_t tdProcessRSmaCreate(SVnode *pVnode, SVCreateStbReq *pReq) {
 
   pRSmaInfo = taosHashGet(SMA_STAT_INFO_HASH(pStat), &pReq->suid, sizeof(tb_uid_t));
   if (pRSmaInfo) {
-    smaWarn("vgId:%d rsma info already exists for stb: %s, %" PRIi64, SMA_VID(pSma), pReq->name, pReq->suid);
+    smaWarn("vgId:%d, rsma info already exists for stb: %s, %" PRIi64, SMA_VID(pSma), pReq->name, pReq->suid);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -238,7 +238,7 @@ int32_t tdProcessRSmaCreate(SVnode *pVnode, SVCreateStbReq *pReq) {
       TSDB_CODE_SUCCESS) {
     return TSDB_CODE_FAILED;
   } else {
-    smaDebug("vgId:%d register rsma info succeed for suid:%" PRIi64, SMA_VID(pSma), pReq->suid);
+    smaDebug("vgId:%d, register rsma info succeed for suid:%" PRIi64, SMA_VID(pSma), pReq->suid);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -372,11 +372,11 @@ static FORCE_INLINE int32_t tdExecuteRSmaImpl(SSma *pSma, const void *pMsg, int3
   SArray *pResult = NULL;
 
   if (!taskInfo) {
-    smaDebug("vgId:%d no qTaskInfo to execute rsma %" PRIi8 " task for suid:%" PRIu64, SMA_VID(pSma), level, suid);
+    smaDebug("vgId:%d, no qTaskInfo to execute rsma %" PRIi8 " task for suid:%" PRIu64, SMA_VID(pSma), level, suid);
     return TSDB_CODE_SUCCESS;
   }
 
-  smaDebug("vgId:%d execute rsma %" PRIi8 " task for qTaskInfo:%p suid:%" PRIu64, SMA_VID(pSma), level, taskInfo, suid);
+  smaDebug("vgId:%d, execute rsma %" PRIi8 " task for qTaskInfo:%p suid:%" PRIu64, SMA_VID(pSma), level, taskInfo, suid);
 
   qSetStreamInput(taskInfo, pMsg, inputType, true);
   while (1) {
@@ -400,7 +400,11 @@ static FORCE_INLINE int32_t tdExecuteRSmaImpl(SSma *pSma, const void *pMsg, int3
   }
 
   if (taosArrayGetSize(pResult) > 0) {
-    blockDebugShowData(pResult);
+#if 1
+    char flag[10] = {0};
+    snprintf(flag, 10, "level %" PRIi8, level);
+    blockDebugShowData(pResult, flag);
+#endif
     STsdb      *sinkTsdb = (level == TSDB_RETENTION_L1 ? pSma->pRSmaTsdb1 : pSma->pRSmaTsdb2);
     SSubmitReq *pReq = NULL;
     if (buildSubmitReqFromDataBlock(&pReq, pResult, pTSchema, SMA_VID(pSma), suid) != 0) {
@@ -414,7 +418,7 @@ static FORCE_INLINE int32_t tdExecuteRSmaImpl(SSma *pSma, const void *pMsg, int3
     }
     taosMemoryFreeClear(pReq);
   } else {
-    smaDebug("vgId:%d no rsma % " PRIi8 " data generated since %s", SMA_VID(pSma), level, tstrerror(terrno));
+    smaDebug("vgId:%d, no rsma % " PRIi8 " data generated since %s", SMA_VID(pSma), level, tstrerror(terrno));
   }
 
   taosArrayDestroy(pResult);
@@ -435,16 +439,16 @@ static int32_t tdExecuteRSma(SSma *pSma, const void *pMsg, int32_t inputType, tb
   pRSmaInfo = taosHashGet(SMA_STAT_INFO_HASH(pStat), &suid, sizeof(tb_uid_t));
 
   if (!pRSmaInfo || !(pRSmaInfo = *(SRSmaInfo **)pRSmaInfo)) {
-    smaDebug("vgId:%d no rsma info for suid:%" PRIu64, SMA_VID(pSma), suid);
+    smaDebug("vgId:%d, no rsma info for suid:%" PRIu64, SMA_VID(pSma), suid);
     return TSDB_CODE_SUCCESS;
   }
   if (!pRSmaInfo->taskInfo[0]) {
-    smaDebug("vgId:%d no rsma qTaskInfo for suid:%" PRIu64, SMA_VID(pSma), suid);
+    smaDebug("vgId:%d, no rsma qTaskInfo for suid:%" PRIu64, SMA_VID(pSma), suid);
     return TSDB_CODE_SUCCESS;
   }
 
   if (inputType == STREAM_DATA_TYPE_SUBMIT_BLOCK) {
-    // TODO: use the proper schema instead of 0, and cache STSchema in cache
+    // TODO: cache STSchema
     STSchema *pTSchema = metaGetTbTSchema(SMA_META(pSma), suid, -1);
     if (!pTSchema) {
       terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;

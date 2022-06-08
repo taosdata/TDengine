@@ -21,10 +21,12 @@ int32_t qwProcessHbLinkBroken(SQWorker *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *re
   SSchedulerHbRsp rsp = {0};
   SQWSchStatus   *sch = NULL;
 
-  QW_ERR_RET(qwAcquireAddScheduler(mgmt, req->sId, QW_READ, &sch));
+  QW_ERR_RET(qwAcquireScheduler(mgmt, req->sId, QW_READ, &sch));
 
   QW_LOCK(QW_WRITE, &sch->hbConnLock);
 
+  sch->hbBrokenTs = taosGetTimestampMs();
+  
   if (qwMsg->connInfo.handle == sch->hbConnInfo.handle) {
     tmsgReleaseHandle(&sch->hbConnInfo, TAOS_CONN_SERVER);
     sch->hbConnInfo.handle = NULL;
@@ -248,11 +250,7 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
 
   QW_TASK_DLOG("start to handle event at phase %s", qwPhaseStr(phase));
 
-  if (QW_PHASE_PRE_QUERY == phase) {
-    QW_ERR_JRET(qwAddAcquireTaskCtx(QW_FPARAMS(), &ctx));
-  } else {
-    QW_ERR_JRET(qwAcquireTaskCtx(QW_FPARAMS(), &ctx));
-  }
+  QW_ERR_JRET(qwAcquireTaskCtx(QW_FPARAMS(), &ctx));
 
   QW_LOCK(QW_WRITE, &ctx->lock);
 
@@ -285,7 +283,7 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
         break;
       }
 
-      QW_ERR_JRET(qwAddTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_EXECUTING));
+      QW_ERR_JRET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_EXECUTING));
       break;
     }
     case QW_PHASE_PRE_FETCH: {
@@ -437,7 +435,7 @@ _return:
   QW_RET(code);
 }
 
-int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType, int8_t explain) {
+int32_t qwPrerocessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   int32_t        code = 0;
   bool           queryRsped = false;
   SSubplan      *plan = NULL;
@@ -448,14 +446,38 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType, int8_t ex
 
   QW_ERR_JRET(qwRegisterQueryBrokenLinkArg(QW_FPARAMS(), &qwMsg->connInfo));
 
+  QW_ERR_JRET(qwAddAcquireTaskCtx(QW_FPARAMS(), &ctx));
+
+  ctx->ctrlConnInfo = qwMsg->connInfo;
+
+  QW_ERR_JRET(qwAddTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_NOT_START));
+
+_return:
+
+  if (ctx) {
+    QW_UPDATE_RSP_CODE(ctx, code);
+    qwReleaseTaskCtx(mgmt, ctx);
+  }
+
+  QW_RET(TSDB_CODE_SUCCESS);
+}
+
+
+int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType, int8_t explain) {
+  int32_t        code = 0;
+  bool           queryRsped = false;
+  SSubplan      *plan = NULL;
+  SQWPhaseInput  input = {0};
+  qTaskInfo_t    pTaskInfo = NULL;
+  DataSinkHandle sinkHandle = NULL;
+  SQWTaskCtx    *ctx = NULL;
+
   QW_ERR_JRET(qwHandlePrePhaseEvents(QW_FPARAMS(), QW_PHASE_PRE_QUERY, &input, NULL));
 
   QW_ERR_JRET(qwGetTaskCtx(QW_FPARAMS(), &ctx));
 
   atomic_store_8(&ctx->taskType, taskType);
   atomic_store_8(&ctx->explain, explain);
-
-  ctx->ctrlConnInfo = qwMsg->connInfo;
 
   /*QW_TASK_DLOGL("subplan json string, len:%d, %s", qwMsg->msgLen, qwMsg->msg);*/
 
@@ -663,7 +685,7 @@ int32_t qwProcessDrop(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
 
   // TODO : TASK ALREADY REMOVED AND A NEW DROP MSG RECEIVED
 
-  QW_ERR_JRET(qwAddAcquireTaskCtx(QW_FPARAMS(), &ctx));
+  QW_ERR_JRET(qwAcquireTaskCtx(QW_FPARAMS(), &ctx));
 
   QW_LOCK(QW_WRITE, &ctx->lock);
 
@@ -774,6 +796,7 @@ void qwProcessHbTimerEvent(void *param, void *tmrId) {
   SQWSchStatus *sch = NULL;
   int32_t       taskNum = 0;
   SQWHbInfo    *rspList = NULL;
+  SArray       *pExpiredSch = NULL;
   int32_t       code = 0;
 
   qwDbgDumpMgmtInfo(mgmt);
@@ -789,8 +812,11 @@ void qwProcessHbTimerEvent(void *param, void *tmrId) {
   }
 
   rspList = taosMemoryCalloc(schNum, sizeof(SQWHbInfo));
-  if (NULL == rspList) {
+  pExpiredSch = taosArrayInit(schNum, sizeof(uint64_t));
+  if (NULL == rspList || NULL == pExpiredSch) {
     QW_UNLOCK(QW_READ, &mgmt->schLock);
+    taosMemoryFree(rspList);
+    taosArrayDestroy(pExpiredSch);
     QW_ELOG("calloc %d SQWHbInfo failed", schNum);
     taosTmrReset(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, param, mgmt->timer, &mgmt->hbTimer);
     qwRelease(refId);
@@ -800,6 +826,7 @@ void qwProcessHbTimerEvent(void *param, void *tmrId) {
   void   *key = NULL;
   size_t  keyLen = 0;
   int32_t i = 0;
+  int64_t currentMs = taosGetTimestampMs();
 
   void *pIter = taosHashIterate(mgmt->schHash, NULL);
   while (pIter) {
@@ -807,6 +834,11 @@ void qwProcessHbTimerEvent(void *param, void *tmrId) {
     if (NULL == sch->hbConnInfo.handle) {
       uint64_t *sId = taosHashGetKey(pIter, NULL);
       QW_TLOG("cancel send hb to sch %" PRIx64 " cause of no connection handle", *sId);
+
+      if (sch->hbBrokenTs > 0 && ((currentMs - sch->hbBrokenTs) > QW_SCH_TIMEOUT_MSEC) && taosHashGetSize(sch->tasksHash) <= 0) {
+        taosArrayPush(pExpiredSch, sId);
+      }
+      
       pIter = taosHashIterate(mgmt->schHash, pIter);
       continue;
     }
@@ -832,7 +864,12 @@ _return:
     tFreeSSchedulerHbRsp(&rspList[j].rsp);
   }
 
+  if (taosArrayGetSize(pExpiredSch) > 0) {
+    qwClearExpiredSch(pExpiredSch);
+  }
+
   taosMemoryFreeClear(rspList);
+  taosArrayDestroy(pExpiredSch);
 
   taosTmrReset(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, param, mgmt->timer, &mgmt->hbTimer);
   qwRelease(refId);

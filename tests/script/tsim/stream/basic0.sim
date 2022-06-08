@@ -63,7 +63,8 @@ if $data02 != 234 then
   return -1
 endi
 
-if $data03 != 234 then 
+if $data03 != 234 then
+  print expect 234, actual $data03
   return -1
 endi
 
