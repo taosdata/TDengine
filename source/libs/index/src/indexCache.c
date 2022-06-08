@@ -297,12 +297,15 @@ static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTR
         cond = MATCH;
       }
     } else {
-      if (0 != strncmp(c->colVal, pCt->colVal, skip)) {
+      if (0 != strncmp(c->colVal, pCt->colVal, skip - 1)) {
         break;
+      } else if (0 != strncmp(c->colVal, pCt->colVal, skip)) {
+        continue;
+      } else {
+        char* p = taosMemoryCalloc(1, strlen(c->colVal) + 1);
+        memcpy(p, c->colVal, strlen(c->colVal));
+        cond = cmpFn(p + skip, term->colVal, dType);
       }
-      char* p = taosMemoryCalloc(1, strlen(c->colVal) + 1);
-      memcpy(p, c->colVal, strlen(c->colVal));
-      cond = cmpFn(p + skip, term->colVal, dType);
     }
     if (cond == MATCH) {
       if (c->operaType == ADD_VALUE) {

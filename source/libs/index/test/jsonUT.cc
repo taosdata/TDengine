@@ -226,7 +226,7 @@ TEST_F(JsonEnv, testWriteMillonData) {
       SArray* result = taosArrayInit(1, sizeof(uint64_t));
       indexMultiTermQueryAdd(mq, q, QUERY_GREATER_THAN);
       tIndexJsonSearch(index, mq, result);
-      assert(0 == taosArrayGetSize(result));
+      EXPECT_EQ(0, taosArrayGetSize(result));
       indexMultiTermQueryDestroy(mq);
     }
     {

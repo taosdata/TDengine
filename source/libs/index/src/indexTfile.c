@@ -492,9 +492,11 @@ static int32_t tfSearchCompareFunc_JSON(void* reader, SIndexTerm* tem, SIdxTRslt
         cond = MATCH;
       }
     } else {
-      if (0 != strncmp(ch, p, skip)) {
+      if (0 != strncmp(ch, p, skip - 1)) {
         swsResultDestroy(rt);
         break;
+      } else if (0 != strncmp(ch, p, skip)) {
+        continue;
       }
       cond = cmpFn(ch + skip, tem->colVal, INDEX_TYPE_GET_TYPE(tem->colType));
     }
