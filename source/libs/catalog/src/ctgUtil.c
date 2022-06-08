@@ -47,11 +47,13 @@ char *ctgTaskTypeStr(CTG_TASK_TYPE type) {
 void ctgFreeSMetaData(SMetaData* pData) {
   taosArrayDestroy(pData->pTableMeta);
   pData->pTableMeta = NULL;
-  
+
+/*  
   for (int32_t i = 0; i < taosArrayGetSize(pData->pDbVgroup); ++i) {
     SArray** pArray = taosArrayGet(pData->pDbVgroup, i);
     taosArrayDestroy(*pArray);
   }
+*/
   taosArrayDestroy(pData->pDbVgroup);
   pData->pDbVgroup = NULL;
   
