@@ -18,6 +18,7 @@
 #include "tcompare.h"
 #include "tglobal.h"
 #include "tlog.h"
+#include "tname.h"
 
 int32_t taosGetFqdnPortFromEp(const char* ep, SEp* pEp) {
   pEp->port = 0;
@@ -99,7 +100,7 @@ void colDataTrim(SColumnInfoData* pColumnInfoData) {
   // TODO
 }
 
-int32_t getJsonValueLen(const char *data) {
+int32_t getJsonValueLen(const char* data) {
   int32_t dataLen = 0;
   if (*data == TSDB_DATA_TYPE_NULL) {
     dataLen = CHAR_BYTES;
@@ -109,7 +110,7 @@ int32_t getJsonValueLen(const char *data) {
     dataLen = DOUBLE_BYTES + CHAR_BYTES;
   } else if (*data == TSDB_DATA_TYPE_BOOL) {
     dataLen = CHAR_BYTES + CHAR_BYTES;
-  } else if (*data & TD_TAG_JSON) {   // json string
+  } else if (*data & TD_TAG_JSON) {  // json string
     dataLen = ((STag*)(data))->len;
   } else {
     ASSERT(0);
@@ -137,7 +138,7 @@ int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, con
     int32_t dataLen = 0;
     if (type == TSDB_DATA_TYPE_JSON) {
       dataLen = getJsonValueLen(pData);
-    }else {
+    } else {
       dataLen = varDataTLen(pData);
     }
 
@@ -1283,7 +1284,7 @@ static void doShiftBitmap(char* nullBitmap, size_t n, size_t total) {
   if (n % 8 == 0) {
     memmove(nullBitmap, nullBitmap + n / 8, newLen);
   } else {
-    int32_t tail = n % 8;
+    int32_t  tail = n % 8;
     int32_t  i = 0;
     uint8_t* p = (uint8_t*)nullBitmap;
 
@@ -1301,7 +1302,7 @@ static void doShiftBitmap(char* nullBitmap, size_t n, size_t total) {
       }
     } else if (n > 8) {
       int32_t gap = len - newLen;
-      while(i < newLen) {
+      while (i < newLen) {
         uint8_t v = p[i + gap];
         p[i] = (v << tail);
 
@@ -1315,7 +1316,6 @@ static void doShiftBitmap(char* nullBitmap, size_t n, size_t total) {
     }
   }
 }
-
 
 static void colDataTrimFirstNRows(SColumnInfoData* pColInfoData, size_t n, size_t total) {
   if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
@@ -1500,7 +1500,7 @@ void blockDebugShowData(const SArray* dataBlocks, const char* flag) {
       for (int32_t k = 0; k < colNum; k++) {
         SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, k);
         void*            var = POINTER_SHIFT(pColInfoData->pData, j * pColInfoData->info.bytes);
-        if (pColInfoData->hasNull) {
+        if (colDataIsNull(pColInfoData, rows, j, NULL)) {
           printf(" %15s |", "NULL");
           continue;
         }
@@ -1544,7 +1544,8 @@ void blockDebugShowData(const SArray* dataBlocks, const char* flag) {
  *
  * TODO: colId should be set
  */
-int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks, STSchema* pTSchema, int32_t vgId, tb_uid_t suid) {
+int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks, STSchema* pTSchema, int32_t vgId,
+                                    tb_uid_t suid) {
   int32_t sz = taosArrayGetSize(pDataBlocks);
   int32_t bufSize = sizeof(SSubmitReq);
   for (int32_t i = 0; i < sz; ++i) {
@@ -1585,12 +1586,12 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks
     int32_t dataLen = 0;
     for (int32_t j = 0; j < rows; ++j) {                     // iterate by row
       tdSRowResetBuf(&rb, POINTER_SHIFT(pDataBuf, msgLen));  // set row buf
-      bool isStartKey = false;
+      bool    isStartKey = false;
       int32_t offset = 0;
       for (int32_t k = 0; k < colNum; ++k) {  // iterate by column
         SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, k);
-        STColumn*         pCol = &pTSchema->columns[k];
-        void* var = POINTER_SHIFT(pColInfoData->pData, j * pColInfoData->info.bytes);
+        STColumn*        pCol = &pTSchema->columns[k];
+        void*            var = POINTER_SHIFT(pColInfoData->pData, j * pColInfoData->info.bytes);
         switch (pColInfoData->info.type) {
           case TSDB_DATA_TYPE_TIMESTAMP:
             if (!isStartKey) {
@@ -1599,15 +1600,18 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks
                                   offset, k);
 
             } else {
-              tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, TSDB_DATA_TYPE_TIMESTAMP, TD_VTYPE_NORM, var, true, offset, k);
+              tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, TSDB_DATA_TYPE_TIMESTAMP, TD_VTYPE_NORM, var,
+                                  true, offset, k);
             }
             break;
           case TSDB_DATA_TYPE_NCHAR: {
-            tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, TSDB_DATA_TYPE_NCHAR, TD_VTYPE_NORM, var, true, offset, k);
+            tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, TSDB_DATA_TYPE_NCHAR, TD_VTYPE_NORM, var, true,
+                                offset, k);
             break;
           }
           case TSDB_DATA_TYPE_VARCHAR: {  // TSDB_DATA_TYPE_BINARY
-            tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, TSDB_DATA_TYPE_VARCHAR, TD_VTYPE_NORM, var, true, offset, k);
+            tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, TSDB_DATA_TYPE_VARCHAR, TD_VTYPE_NORM, var, true,
+                                offset, k);
             break;
           }
           case TSDB_DATA_TYPE_VARBINARY:
@@ -1645,7 +1649,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks
             }
             break;
         }
-        offset += TYPE_BYTES[pCol->type]; // sum/avg would convert to int64_t/uint64_t/double during aggregation
+        offset += TYPE_BYTES[pCol->type];  // sum/avg would convert to int64_t/uint64_t/double during aggregation
       }
       dataLen += TD_ROW_LEN(rb.pBuf);
 #ifdef TD_DEBUG_PRINT_ROW
@@ -1681,11 +1685,38 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks
   return TSDB_CODE_SUCCESS;
 }
 
+char* buildCtbNameByGroupId(const char* stbName, uint64_t groupId) {
+  SArray* tags = taosArrayInit(0, sizeof(void*));
+  SSmlKv* pTag = taosMemoryCalloc(1, sizeof(SSmlKv));
+  pTag->key = "group_id";
+  pTag->keyLen = strlen(pTag->key);
+  pTag->type = TSDB_DATA_TYPE_UBIGINT;
+  pTag->u = groupId;
+  taosArrayPush(tags, &pTag);
+
+  void* cname = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1);
+
+  RandTableName rname = {
+      .tags = tags,
+      .sTableName = stbName,
+      .sTableNameLen = strlen(stbName),
+      .childTableName = cname,
+  };
+
+  buildChildTableName(&rname);
+
+  taosMemoryFree(pTag);
+  taosArrayDestroy(tags);
+
+  ASSERT(rname.childTableName && rname.childTableName[0]);
+  return rname.childTableName;
+}
+
 SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, bool createTb, int64_t suid,
                             const char* stbFullName, int32_t vgId) {
   SSubmitReq* ret = NULL;
   SArray*     tagArray = taosArrayInit(1, sizeof(STagVal));
-  if(!tagArray) {
+  if (!tagArray) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
@@ -1703,14 +1734,11 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
 
     if (createTb) {
       SVCreateTbReq createTbReq = {0};
-      char*         cname = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN);
-      snprintf(cname, TSDB_TABLE_FNAME_LEN, "%s:%ld", stbFullName, pDataBlock->info.groupId);
+      char*         cname = buildCtbNameByGroupId(stbFullName, pDataBlock->info.groupId);
       createTbReq.name = cname;
       createTbReq.flags = 0;
       createTbReq.type = TSDB_CHILD_TABLE;
       createTbReq.ctb.suid = suid;
-
-
 
       STagVal tagVal = {.cid = 1,
                         .type = TSDB_DATA_TYPE_UBIGINT,
@@ -1849,11 +1877,12 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
   }
 
   ret->length = htonl(ret->length);
-        taosArrayDestroy(tagArray);
+  taosArrayDestroy(tagArray);
   return ret;
 }
 
-void blockCompressEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen, int32_t numOfCols, int8_t needCompress) {
+void blockCompressEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen, int32_t numOfCols,
+                         int8_t needCompress) {
   int32_t* actualLen = (int32_t*)data;
   data += sizeof(int32_t);
 

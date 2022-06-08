@@ -790,8 +790,9 @@ int32_t qwProcessHb(SQWorker *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *req) {
   }
 
   QW_ERR_JRET(qwAcquireAddScheduler(mgmt, req->sId, QW_READ, &sch));
-
   QW_ERR_JRET(qwRegisterHbBrokenLinkArg(mgmt, req->sId, &qwMsg->connInfo));
+
+  sch->hbBrokenTs = 0;
 
   QW_LOCK(QW_WRITE, &sch->hbConnLock);
 
@@ -912,7 +913,7 @@ _return:
   }
 
   if (taosArrayGetSize(pExpiredSch) > 0) {
-    qwClearExpiredSch(pExpiredSch);
+    qwClearExpiredSch(mgmt, pExpiredSch);
   }
 
   taosMemoryFreeClear(rspList);

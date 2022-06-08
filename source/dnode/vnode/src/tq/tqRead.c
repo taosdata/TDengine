@@ -141,10 +141,10 @@ int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* p
     }
 
     // this interface use suid instead of uid
-    pHandle->pSchemaWrapper = metaGetTableSchema(pHandle->pVnodeMeta, pHandle->msgIter.suid, sversion, true);
+    pHandle->pSchemaWrapper = metaGetTableSchema(pHandle->pVnodeMeta, pHandle->msgIter.uid, sversion, true);
     if (pHandle->pSchemaWrapper == NULL) {
       tqWarn("cannot found schema wrapper for table: suid: %ld, version %d, possibly dropped table",
-             pHandle->msgIter.suid, pHandle->cachedSchemaVer);
+             pHandle->msgIter.uid, pHandle->cachedSchemaVer);
       /*ASSERT(0);*/
       terrno = TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND;
       return -1;
