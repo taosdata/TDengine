@@ -125,6 +125,8 @@ typedef enum EFunctionType {
   // distributed splitting functions
   FUNCTION_TYPE_APERCENTILE_PARTIAL,
   FUNCTION_TYPE_APERCENTILE_MERGE,
+  FUNCTION_TYPE_SPREAD_PARTIAL,
+  FUNCTION_TYPE_SPREAD_MERGE,
 
   // user defined funcion
   FUNCTION_TYPE_UDF = 10000
