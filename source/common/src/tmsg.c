@@ -2419,7 +2419,7 @@ int32_t tDeserializeSTableIndexReq(void *buf, int32_t bufLen, STableIndexReq *pR
   return 0;
 }
 
-int32_t tSerializeSTableIndexInfo(SEncoder *pEncoder, STableIndexInfo* pInfo) {
+int32_t tSerializeSTableIndexInfo(SEncoder *pEncoder, STableIndexInfo *pInfo) {
   if (tEncodeI8(pEncoder, pInfo->intervalUnit) < 0) return -1;
   if (tEncodeI8(pEncoder, pInfo->slidingUnit) < 0) return -1;
   if (tEncodeI64(pEncoder, pInfo->interval) < 0) return -1;
@@ -2440,7 +2440,7 @@ int32_t tSerializeSTableIndexRsp(void *buf, int32_t bufLen, const STableIndexRsp
   if (tEncodeI32(&encoder, num) < 0) return -1;
   if (num > 0) {
     for (int32_t i = 0; i < num; ++i) {
-      STableIndexInfo* pInfo = (STableIndexInfo*)taosArrayGet(pRsp->pIndex, i);
+      STableIndexInfo *pInfo = (STableIndexInfo *)taosArrayGet(pRsp->pIndex, i);
       if (tSerializeSTableIndexInfo(&encoder, pInfo) < 0) return -1;
     }
   }
@@ -2488,7 +2488,6 @@ int32_t tDeserializeSTableIndexRsp(void *buf, int32_t bufLen, STableIndexRsp *pR
   tDecoderClear(&decoder);
   return 0;
 }
-
 
 int32_t tSerializeSShowReq(void *buf, int32_t bufLen, SShowReq *pReq) {
   SEncoder encoder = {0};
@@ -3856,7 +3855,7 @@ int32_t tEncodeTSma(SEncoder *pCoder, const STSma *pSma) {
     if (tEncodeCStr(pCoder, pSma->tagsFilter) < 0) return -1;
   }
 
-  if (pSma->numOfVgroups) { // only needed in dstVgroup
+  if (pSma->numOfVgroups) {  // only needed in dstVgroup
     for (int32_t v = 0; v < pSma->numOfVgroups; ++v) {
       if (tEncodeI32(pCoder, pSma->pVgEpSet[v].vgId) < 0) return -1;
       if (tEncodeI8(pCoder, pSma->pVgEpSet[v].epSet.inUse) < 0) return -1;
@@ -3903,7 +3902,7 @@ int32_t tDecodeTSma(SDecoder *pCoder, STSma *pSma) {
   } else {
     pSma->tagsFilter = NULL;
   }
-  if (pSma->numOfVgroups > 0) { // only needed in dstVgroup
+  if (pSma->numOfVgroups > 0) {  // only needed in dstVgroup
     pSma->pVgEpSet = (SVgEpSet *)tDecoderMalloc(pCoder, pSma->numOfVgroups * sizeof(SVgEpSet));
     if (!pSma->pVgEpSet) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -4014,6 +4013,49 @@ int32_t tDecodeSVGetTsmaExpWndsRsp(SDecoder *pCoder, SVGetTsmaExpWndsRsp *pReq) 
     if (tDecodeI64(pCoder, &pReq->wndSKeys[i]) < 0) return -1;
   }
 
+  tEndDecode(pCoder);
+  return 0;
+}
+
+int32_t tEncodeSVClrTsmaExpWndsReq(SEncoder *pCoder, const SVClrTsmaExpWndsReq *pReq) {
+  if (tStartEncode(pCoder) < 0) return -1;
+  if (tEncodeI64(pCoder, pReq->indexUid) < 0) return -1;
+  if (tEncodeI64(pCoder, pReq->version) < 0) return -1;
+  if (tEncodeI64v(pCoder, pReq->nItems) < 0) return -1;
+  for (int64_t n = 0; pReq->nItems; ++n) {
+    if (tEncodeI64v(pCoder, pReq->items[n].nKeys) < 0) return -1;
+    if (tEncodeI64(pCoder, pReq->items[n].skey) < 0) return -1;
+  }
+  tEndEncode(pCoder);
+  return 0;
+}
+
+int32_t tDecodeSVClrTsmaExpWndsReq(SDecoder *pCoder, SVClrTsmaExpWndsReq *pReq) {
+  if (tStartDecode(pCoder) < 0) return -1;
+  if (tDecodeI64(pCoder, &pReq->indexUid) < 0) return -1;
+  if (tDecodeI64(pCoder, &pReq->version) < 0) return -1;
+  if (tDecodeI64v(pCoder, &pReq->nItems) < 0) return -1;
+
+  for (int64_t i = 0; i < pReq->nItems; ++i) {
+    if (tDecodeI64v(pCoder, &pReq->items[i].nKeys) < 0) return -1;
+    if (tDecodeI64(pCoder, &pReq->items[i].skey) < 0) return -1;
+  }
+  tEndDecode(pCoder);
+  return 0;
+}
+
+int32_t tEncodeSVClrTsmaExpWndsRsp(SEncoder *pCoder, const SVClrTsmaExpWndsRsp *pReq) {
+  if (tStartEncode(pCoder) < 0) return -1;
+  if (tEncodeI64(pCoder, pReq->indexUid) < 0) return -1;
+  if (tEncodeI32(pCoder, pReq->code) < 0) return -1;
+  tEndEncode(pCoder);
+  return 0;
+}
+
+int32_t tDecodeSVClrTsmaExpWndsRsp(SDecoder *pCoder, SVClrTsmaExpWndsRsp *pReq) {
+  if (tStartDecode(pCoder) < 0) return -1;
+  if (tDecodeI64(pCoder, &pReq->indexUid) < 0) return -1;
+  if (tDecodeI32(pCoder, &pReq->code) < 0) return -1;
   tEndDecode(pCoder);
   return 0;
 }

@@ -25,6 +25,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
 static int32_t vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessAlterConfirmReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessWriteMsg(SVnode *pVnode, int64_t version, SRpcMsg *pMsg, SRpcMsg *pRsp);
+static int32_t vnodeProcessExpWndsClrReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp);
 
 int32_t vnodePreprocessReq(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t  code = 0;
@@ -174,7 +175,8 @@ int32_t vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
   }
 
   vTrace("vgId:%d, process %s request success, version: %" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType), version);
-#if 1
+
+#if 0
   if (tqPushMsg(pVnode->pTq, pMsg->pCont, pMsg->contLen, pMsg->msgType, version) < 0) {
     vError("vgId:%d, failed to push msg to TQ since %s", TD_VID(pVnode), tstrerror(terrno));
     return -1;
@@ -225,6 +227,7 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   vTrace("message in fetch queue is processing");
   char   *msgstr = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   int32_t msgLen = pMsg->contLen - sizeof(SMsgHead);
+
   switch (pMsg->msgType) {
     case TDMT_VND_FETCH:
       return qWorkerProcessFetchMsg(pVnode, pVnode->pQuery, pMsg, 0);
@@ -236,13 +239,10 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return qWorkerProcessDropMsg(pVnode, pVnode->pQuery, pMsg, 0);
     case TDMT_VND_QUERY_HEARTBEAT:
       return qWorkerProcessHbMsg(pVnode, pVnode->pQuery, pMsg, 0);
-
     case TDMT_VND_TABLE_META:
       return vnodeGetTableMeta(pVnode, pMsg);
-
     case TDMT_VND_CONSUME:
       return tqProcessPollReq(pVnode->pTq, pMsg, pInfo->workerId);
-
     case TDMT_STREAM_TASK_RUN:
       return tqProcessTaskRunReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_DISPATCH:
@@ -253,6 +253,8 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return tqProcessTaskDispatchRsp(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_RECOVER_RSP:
       return tqProcessTaskRecoverRsp(pVnode->pTq, pMsg);
+    case TDMT_VND_CLR_TSMA_EXP_WNDS:
+      return vnodeProcessExpWndsClrReq(pVnode, pMsg, msgLen, NULL);
     default:
       vError("unknown msg type:%d in fetch queue", pMsg->msgType);
       return TSDB_CODE_VND_APP_ERROR;
@@ -895,4 +897,43 @@ static int32_t vnodeProcessAlterConfirmReq(SVnode *pVnode, int64_t version, void
   pRsp->contLen = 0;
 
   return 0;
+}
+
+static int32_t vnodeProcessExpWndsClrReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  SVClrTsmaExpWndsReq req = {0};
+  SDecoder            coder = {0};
+
+  if (pRsp) {
+    pRsp->msgType = TDMT_VND_CLR_TSMA_EXP_WNDS_RSP;
+    pRsp->code = TSDB_CODE_SUCCESS;
+    pRsp->pCont = NULL;
+    pRsp->contLen = 0;
+  }
+
+  // decode and process
+  tDecoderInit(&coder, pReq, len);
+
+  if (tDecodeSVClrTsmaExpWndsReq(&coder, &req) < 0) {
+    terrno = TSDB_CODE_MSG_DECODE_ERROR;
+    if (pRsp) pRsp->code = terrno;
+    goto _err;
+  }
+
+  ASSERT(0);
+
+  // if (tdProcess(pVnode->pSma, version, (const char *)&req) < 0) {
+  //   if (pRsp) pRsp->code = terrno;
+  //   goto _err;
+  // }
+
+  tDecoderClear(&coder);
+  vDebug("vgId:%d, success to process expWnds clear for tsma %" PRIi64 " version %" PRIi64, TD_VID(pVnode),
+         req.indexUid, req.version);
+  return 0;
+
+_err:
+  tDecoderClear(&coder);
+  vError("vgId:%d, success to process expWnds clear for tsma %" PRIi64 " version %" PRIi64 " since %s", TD_VID(pVnode),
+         req.indexUid, req.version, terrstr());
+  return -1;
 }

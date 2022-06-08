@@ -2456,6 +2456,28 @@ int32_t tEncodeSVGetTSmaExpWndsRsp(SEncoder* pCoder, const SVGetTsmaExpWndsRsp* 
 int32_t tDecodeSVGetTsmaExpWndsRsp(SDecoder* pCoder, SVGetTsmaExpWndsRsp* pReq);
 
 typedef struct {
+  int64_t nKeys;  // n consecutive keys since skey
+  int64_t skey;
+} SVTsmaExpWndItem;
+
+typedef struct {
+  int64_t          indexUid;
+  int64_t          version;  // tsma result version
+  int64_t          nItems;
+  SVTsmaExpWndItem items[];
+} SVClrTsmaExpWndsReq;
+
+typedef struct {
+  int64_t indexUid;
+  int32_t code;
+} SVClrTsmaExpWndsRsp;
+
+int32_t tEncodeSVClrTsmaExpWndsReq(SEncoder* pCoder, const SVClrTsmaExpWndsReq* pReq);
+int32_t tDecodeSVClrTsmaExpWndsReq(SDecoder* pCoder, SVClrTsmaExpWndsReq* pReq);
+int32_t tEncodeSVClrTsmaExpWndsRsp(SEncoder* pCoder, const SVClrTsmaExpWndsRsp* pReq);
+int32_t tDecodeSVClrTsmaExpWndsRsp(SDecoder* pCoder, SVClrTsmaExpWndsRsp* pReq);
+
+typedef struct {
   int idx;
 } SMCreateFullTextReq;
 
