@@ -21,16 +21,6 @@ Run below script from Linux terminal to install TDengine data source plugin.
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/taosdata/grafanaplugin/master/install.sh)"
 ```
 
-The script will output download and installation progress.
-
-```
-using tdengine-datasource plugin 3.2.4
---2022-06-08 20:46:34--  https://github.com/taosdata/grafanaplugin/releases/download/v3.2.4/tdengine-datasource-3.2.4.zip
-...
-tdengine-datasource-3.2.4.zip                      100%[================================================================================================================>]  29.34M   842KB/s    in 35s 
-127.0.0.1 - - [08/Jun/2022 20:47:12] "GET /tdengine-datasource-3.2.4.zip HTTP/1.1" 200 -
-                                                                                        ✔ Downloaded tdengine-datasource v3.2.4 zip successfully
-
 Please restart Grafana after installing plugins. Refer to Grafana documentation for instructions if necessary.
 
 * Provisioning /etc/grafana/provisioning/datasources/TDengine.yaml
