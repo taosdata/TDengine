@@ -205,6 +205,19 @@ int64_t createSyncNode(int32_t replicaNum, int32_t myIndex, int32_t vgId, SWal* 
 
   SSyncCfg* pCfg = &syncInfo.syncCfg;
 
+#if 0
+  {
+    pCfg->myIndex = myIndex;
+    pCfg->replicaNum = replicaNum;
+
+    for (int i = 0; i < replicaNum; ++i) {
+      pCfg->nodeInfo[i].nodePort = gPorts[i];
+      taosGetFqdn(pCfg->nodeInfo[i].nodeFqdn);
+      // snprintf(pCfg->nodeInfo[i].nodeFqdn, sizeof(pCfg->nodeInfo[i].nodeFqdn), "%s", "127.0.0.1");
+    }
+  }
+#endif
+
   if (isStandBy) {
     pCfg->myIndex = 0;
     pCfg->replicaNum = 1;
@@ -221,6 +234,7 @@ int64_t createSyncNode(int32_t replicaNum, int32_t myIndex, int32_t vgId, SWal* 
       // snprintf(pCfg->nodeInfo[i].nodeFqdn, sizeof(pCfg->nodeInfo[i].nodeFqdn), "%s", "127.0.0.1");
     }
   }
+
 
   int64_t rid = syncOpen(&syncInfo);
   assert(rid > 0);

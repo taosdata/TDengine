@@ -469,7 +469,7 @@ static int32_t syncNodeMakeLogSame(SSyncNode* ths, SyncAppendEntries* pMsg) {
   // delete confict entries
   code = ths->pLogStore->syncLogTruncate(ths->pLogStore, delBegin);
   ASSERT(code == 0);
-  sInfo("syncNodeMakeLogSame, from %ld to %ld", delBegin, delEnd);
+  sInfo("sync event log truncate, from %ld to %ld", delBegin, delEnd);
   logStoreSimpleLog2("after syncNodeMakeLogSame", ths->pLogStore);
 
   return code;
@@ -556,8 +556,6 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
   }
   ASSERT(pMsg->dataLen >= 0);
 
-  bool logOK = syncNodeOnAppendEntriesLogOK(ths, pMsg);
-
   // candidate to follower
   //
   // operation:
@@ -582,7 +580,10 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
   // I have snapshot, have log, log <= snapshot, preIndex > myLastIndex
   //
   // condition3:
-  // I have snapshot, preIndex <= snapshot.lastApplyIndex
+  // I have snapshot, preIndex < snapshot.lastApplyIndex
+  //
+  // condition4:
+  // I have snapshot, preIndex == snapshot.lastApplyIndex, no data
   //
   // operation:
   // match snapshot.lastApplyIndex - 1;
@@ -598,15 +599,16 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
         condition0 && (ths->pLogStore->syncLogEntryCount(ths->pLogStore) == 0) && (pMsg->prevLogIndex > myLastIndex);
     bool condition2 = condition0 && (ths->pLogStore->syncLogLastIndex(ths->pLogStore) <= snapshot.lastApplyIndex) &&
                       (pMsg->prevLogIndex > myLastIndex);
-    bool condition3 = condition0 && (pMsg->prevLogIndex <= snapshot.lastApplyIndex);
-    bool condition = condition1 || condition2 || condition3;
+    bool condition3 = condition0 && (pMsg->prevLogIndex < snapshot.lastApplyIndex);
+    bool condition4 = condition0 && (pMsg->prevLogIndex == snapshot.lastApplyIndex) && (pMsg->dataLen == 0);
+    bool condition = condition1 || condition2 || condition3 || condition4;
 
     if (condition) {
       sTrace(
           "recv SyncAppendEntries, fake match, myLastIndex:%ld, syncLogBeginIndex:%ld, syncLogEndIndex:%ld, "
-          "condition1:%d, condition2:%d, condition3:%d",
+          "condition1:%d, condition2:%d, condition3:%d, condition4:%d",
           myLastIndex, ths->pLogStore->syncLogBeginIndex(ths->pLogStore),
-          ths->pLogStore->syncLogEndIndex(ths->pLogStore), condition1, condition2, condition3);
+          ths->pLogStore->syncLogEndIndex(ths->pLogStore), condition1, condition2, condition3, condition4);
 
       // prepare response msg
       SyncAppendEntriesReply* pReply = syncAppendEntriesReplyBuild(ths->vgId);
@@ -615,7 +617,7 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
       pReply->term = ths->pRaftStore->currentTerm;
       pReply->privateTerm = ths->pNewNodeReceiver->privateTerm;
       pReply->success = true;
-      pReply->matchIndex = snapshot.lastApplyIndex - 1;
+      pReply->matchIndex = snapshot.lastApplyIndex;
 
       // send response
       SRpcMsg rpcMsg;
@@ -626,6 +628,9 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
       return ret;
     }
   } while (0);
+
+  // calculate logOK here, before will coredump, due to fake match
+  bool logOK = syncNodeOnAppendEntriesLogOK(ths, pMsg);
 
   // not match
   //
