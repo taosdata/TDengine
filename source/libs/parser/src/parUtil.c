@@ -714,6 +714,8 @@ int32_t getTableVgroupFromCache(SParseMetaCache* pMetaCache, const SName* pName,
   SVgroupInfo* pVg = NULL;
   int32_t      code = getMetaDataFromHash(fullName, strlen(fullName), pMetaCache->pTableVgroup, (void**)&pVg);
   if (TSDB_CODE_SUCCESS == code) {
+    ASSERT(0 != pVg->vgId);
+    ASSERT(0 != pVg->epSet.eps[pVg->epSet.inUse].fqdn[0]);
     memcpy(pVgroup, pVg, sizeof(SVgroupInfo));
   }
   return code;
