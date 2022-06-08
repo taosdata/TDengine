@@ -1435,25 +1435,37 @@ SNode* createKillStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pId
   return (SNode*)pStmt;
 }
 
+SNode* createBalanceVgroupStmt(SAstCreateContext* pCxt) {
+  CHECK_PARSER_STATUS(pCxt);
+  SBalanceVgroupStmt* pStmt = nodesMakeNode(QUERY_NODE_BALANCE_VGROUP_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  return (SNode*)pStmt;
+}
+
 SNode* createMergeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId1, const SToken* pVgId2) {
   CHECK_PARSER_STATUS(pCxt);
-  SNode* pStmt = nodesMakeNode(QUERY_NODE_MERGE_VGROUP_STMT);
+  SMergeVgroupStmt* pStmt = nodesMakeNode(QUERY_NODE_MERGE_VGROUP_STMT);
   CHECK_OUT_OF_MEM(pStmt);
-  return pStmt;
+  pStmt->vgId1 = taosStr2Int32(pVgId1->z, NULL, 10);
+  pStmt->vgId2 = taosStr2Int32(pVgId2->z, NULL, 10);
+  return (SNode*)pStmt;
 }
 
 SNode* createRedistributeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId, SNodeList* pDnodes) {
   CHECK_PARSER_STATUS(pCxt);
-  SNode* pStmt = nodesMakeNode(QUERY_NODE_REDISTRIBUTE_VGROUP_STMT);
+  SRedistributeVgroupStmt* pStmt = nodesMakeNode(QUERY_NODE_REDISTRIBUTE_VGROUP_STMT);
   CHECK_OUT_OF_MEM(pStmt);
-  return pStmt;
+  pStmt->vgId = taosStr2Int32(pVgId->z, NULL, 10);
+  pStmt->pDnodes = pDnodes;
+  return (SNode*)pStmt;
 }
 
 SNode* createSplitVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId) {
   CHECK_PARSER_STATUS(pCxt);
-  SNode* pStmt = nodesMakeNode(QUERY_NODE_SPLIT_VGROUP_STMT);
+  SSplitVgroupStmt* pStmt = nodesMakeNode(QUERY_NODE_SPLIT_VGROUP_STMT);
   CHECK_OUT_OF_MEM(pStmt);
-  return pStmt;
+  pStmt->vgId = taosStr2Int32(pVgId->z, NULL, 10);
+  return (SNode*)pStmt;
 }
 
 SNode* createSyncdbStmt(SAstCreateContext* pCxt, const SToken* pDbName) {
@@ -1486,5 +1498,30 @@ SNode* createRevokeStmt(SAstCreateContext* pCxt, int64_t privileges, SToken* pDb
   pStmt->privileges = privileges;
   strncpy(pStmt->dbName, pDbName->z, pDbName->n);
   strncpy(pStmt->userName, pUserName->z, pUserName->n);
+  return (SNode*)pStmt;
+}
+
+SNode* createCountFuncForDelete(SAstCreateContext* pCxt) {
+  SFunctionNode* pFunc = nodesMakeNode(QUERY_NODE_FUNCTION);
+  CHECK_OUT_OF_MEM(pFunc);
+  strcpy(pFunc->functionName, "count");
+  if (TSDB_CODE_SUCCESS != nodesListMakeStrictAppend(&pFunc->pParameterList, createPrimaryKeyCol(pCxt))) {
+    nodesDestroyNode(pFunc);
+    CHECK_OUT_OF_MEM(NULL);
+  }
+  return (SNode*)pFunc;
+}
+
+SNode* createDeleteStmt(SAstCreateContext* pCxt, SNode* pTable, SNode* pWhere) {
+  CHECK_PARSER_STATUS(pCxt);
+  SDeleteStmt* pStmt = nodesMakeNode(QUERY_NODE_DELETE_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  pStmt->pFromTable = pTable;
+  pStmt->pWhere = pWhere;
+  pStmt->pCountFunc = createCountFuncForDelete(pCxt);
+  if (NULL == pStmt->pCountFunc) {
+    nodesDestroyNode(pStmt);
+    CHECK_OUT_OF_MEM(NULL);
+  }
   return (SNode*)pStmt;
 }

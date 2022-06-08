@@ -177,13 +177,6 @@ static int32_t translatePercentile(SFunctionNode* pFunc, char* pErrBuf, int32_t 
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  // param0
-  SNode* pParamNode0 = nodesListGetNode(pFunc->pParameterList, 0);
-  if (nodeType(pParamNode0) != QUERY_NODE_COLUMN) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The first parameter of PERCENTILE function can only be column");
-  }
-
   // param1
   SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
 
@@ -216,13 +209,6 @@ static int32_t translateApercentile(SFunctionNode* pFunc, char* pErrBuf, int32_t
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   if (2 != numOfParams && 3 != numOfParams) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
-  }
-
-  // param0
-  SNode* pParamNode0 = nodesListGetNode(pFunc->pParameterList, 0);
-  if (nodeType(pParamNode0) != QUERY_NODE_COLUMN) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The first parameter of APERCENTILE function can only be column");
   }
 
   // param1
@@ -284,13 +270,6 @@ static int32_t translateTop(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  // param0
-  SNode* pParamNode0 = nodesListGetNode(pFunc->pParameterList, 0);
-  if (nodeType(pParamNode0) != QUERY_NODE_COLUMN) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The first parameter of TOP/BOTTOM function can only be column");
-  }
-
   // param1
   SNode* pParamNode1 = nodesListGetNode(pFunc->pParameterList, 1);
   if (nodeType(pParamNode1) != QUERY_NODE_VALUE) {
@@ -336,13 +315,6 @@ static int32_t translateElapsed(SFunctionNode* pFunc, char* pErrBuf, int32_t len
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   if (1 != numOfParams && 2 != numOfParams) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
-  }
-
-  // param0
-  SNode* pParaNode0 = nodesListGetNode(pFunc->pParameterList, 0);
-  if (QUERY_NODE_COLUMN != nodeType(pParaNode0)) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The first parameter of ELAPSED function can only be column");
   }
 
   uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
@@ -410,13 +382,6 @@ static int32_t translateHistogram(SFunctionNode* pFunc, char* pErrBuf, int32_t l
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  // param0
-  SNode* pParaNode0 = nodesListGetNode(pFunc->pParameterList, 0);
-  if (QUERY_NODE_COLUMN != nodeType(pParaNode0)) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The first parameter of HISTOGRAM function can only be column");
-  }
-
   uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
   if (!IS_NUMERIC_TYPE(colType)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
@@ -449,12 +414,6 @@ static int32_t translateHLL(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
-  if (QUERY_NODE_COLUMN != nodeType(pPara)) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The input parameter of HYPERLOGLOG function can only be column");
-  }
-
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
   return TSDB_CODE_SUCCESS;
 }
@@ -474,12 +433,6 @@ static int32_t translateStateCount(SFunctionNode* pFunc, char* pErrBuf, int32_t 
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  // param0
-  SNode* pParaNode0 = nodesListGetNode(pFunc->pParameterList, 0);
-  if (QUERY_NODE_COLUMN != nodeType(pParaNode0)) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The input parameter of STATECOUNT function can only be column");
-  }
   uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
   if (!IS_NUMERIC_TYPE(colType)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
@@ -520,12 +473,6 @@ static int32_t translateStateDuration(SFunctionNode* pFunc, char* pErrBuf, int32
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  // param0
-  SNode* pParaNode0 = nodesListGetNode(pFunc->pParameterList, 0);
-  if (QUERY_NODE_COLUMN != nodeType(pParaNode0)) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The input parameter of STATEDURATION function can only be column");
-  }
   uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
   if (!IS_NUMERIC_TYPE(colType)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
@@ -573,12 +520,6 @@ static int32_t translateCsum(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
-  if (QUERY_NODE_COLUMN != nodeType(pPara)) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The input parameter of CSUM function can only be column");
-  }
-
   uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
   uint8_t resType;
   if (!IS_NUMERIC_TYPE(colType)) {
@@ -602,13 +543,6 @@ static int32_t translateCsum(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
 static int32_t translateMavg(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (2 != LIST_LENGTH(pFunc->pParameterList)) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
-  }
-
-  // param0
-  SNode* pParaNode0 = nodesListGetNode(pFunc->pParameterList, 0);
-  if (QUERY_NODE_COLUMN != nodeType(pParaNode0)) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The first parameter of MAVG function can only be column");
   }
 
   uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
@@ -638,13 +572,6 @@ static int32_t translateMavg(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
 static int32_t translateSample(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (2 != LIST_LENGTH(pFunc->pParameterList)) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
-  }
-
-  // param0
-  SNode* pParamNode0 = nodesListGetNode(pFunc->pParameterList, 0);
-  if (QUERY_NODE_COLUMN != nodeType(pParamNode0)) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The first parameter of SAMPLE function can only be column");
   }
 
   SExprNode* pCol = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 0);
@@ -684,12 +611,6 @@ static int32_t translateTail(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  // param0
-  SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
-  if (QUERY_NODE_COLUMN != nodeType(pPara)) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The first parameter of TAIL function can only be column");
-  }
   SExprNode* pCol = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 0);
   uint8_t    colType = pCol->resType.type;
 
@@ -764,13 +685,6 @@ static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   if (numOfParams == 0 || numOfParams > 2) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
-  }
-
-  // param0
-  SNode* pParamNode0 = nodesListGetNode(pFunc->pParameterList, 0);
-  if (nodeType(pParamNode0) != QUERY_NODE_COLUMN) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The first parameter of DIFF function can only be column");
   }
 
   uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;

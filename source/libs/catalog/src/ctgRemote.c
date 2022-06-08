@@ -85,6 +85,21 @@ int32_t ctgProcessRspMsg(void* out, int32_t reqType, char* msg, int32_t msgSize,
       qDebug("Got index from mnode, indexName:%s", target);
       break;
     }
+    case TDMT_MND_GET_TABLE_INDEX: {
+      if (TSDB_CODE_SUCCESS != rspCode) {
+        qError("error rsp for get table index, error:%s, tbFName:%s", tstrerror(rspCode), target);
+        CTG_ERR_RET(rspCode);
+      }
+      
+      code = queryProcessMsgRsp[TMSG_INDEX(reqType)](out, msg, msgSize);
+      if (code) {
+        qError("Process get table index rsp failed, error:%s, tbFName:%s", tstrerror(code), target);
+        CTG_ERR_RET(code);
+      }
+      
+      qDebug("Got table index from mnode, tbFName:%s", target);
+      break;
+    }
     case TDMT_MND_RETRIEVE_FUNC: {
       if (TSDB_CODE_SUCCESS != rspCode) {
         qError("error rsp for get udf, error:%s, funcName:%s", tstrerror(rspCode), target);
@@ -177,7 +192,7 @@ int32_t ctgHandleMsgCallback(void *param, const SDataBuf *pMsg, int32_t rspCode)
 
   SCtgTask *pTask = taosArrayGet(pJob->pTasks, cbParam->taskId);
 
-  qDebug("QID:%" PRIx64 " task %d start to handle rsp %s", pJob->queryId, pTask->taskId, TMSG_INFO(cbParam->reqType + 1));
+  qDebug("QID:0x%" PRIx64 " task %d start to handle rsp %s", pJob->queryId, pTask->taskId, TMSG_INFO(cbParam->reqType + 1));
   
   CTG_ERR_JRET((*gCtgAsyncFps[pTask->type].handleRspFp)(pTask, cbParam->reqType, pMsg, rspCode));
  
@@ -244,7 +259,7 @@ int32_t ctgAsyncSendMsg(CTG_PARAMS, SCtgTask* pTask, int32_t msgType, void *msg,
     CTG_ERR_JRET(code);
   }
 
-  ctgDebug("req msg sent, reqId:%" PRIx64 ", msg type:%d, %s", pTask->pJob->queryId, msgType, TMSG_INFO(msgType));
+  ctgDebug("req msg sent, reqId:0x%" PRIx64 ", msg type:%d, %s", pTask->pJob->queryId, msgType, TMSG_INFO(msgType));
   return TSDB_CODE_SUCCESS;
 
 _return:
@@ -412,6 +427,44 @@ int32_t ctgGetIndexInfoFromMnode(CTG_PARAMS, const char *indexName, SIndexInfo *
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t ctgGetTbIndexFromMnode(CTG_PARAMS, const char *tbFName, SArray** out, SCtgTask* pTask) {
+  char *msg = NULL;
+  int32_t msgLen = 0;
+  int32_t reqType = TDMT_MND_GET_TABLE_INDEX;
+  void*(*mallocFp)(int32_t) = pTask ? taosMemoryMalloc : rpcMallocCont;
+
+  ctgDebug("try to get tb index from mnode, tbFName:%s", tbFName);
+
+  int32_t code = queryBuildMsg[TMSG_INDEX(reqType)]((void *)tbFName, &msg, 0, &msgLen, mallocFp);
+  if (code) {
+    ctgError("Build get index msg failed, code:%s, tbFName:%s", tstrerror(code), tbFName);
+    CTG_ERR_RET(code);
+  }
+
+  if (pTask) {
+    void* pOut = taosMemoryCalloc(1, POINTER_BYTES);
+    if (NULL == pOut) {
+      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    CTG_ERR_RET(ctgUpdateMsgCtx(&pTask->msgCtx, reqType, pOut, (char*)tbFName));
+    
+    CTG_RET(ctgAsyncSendMsg(CTG_PARAMS_LIST(), pTask, reqType, msg, msgLen));
+  }
+  
+  SRpcMsg rpcMsg = {
+      .msgType = reqType,
+      .pCont   = msg,
+      .contLen = msgLen,
+  };
+
+  SRpcMsg rpcRsp = {0};
+  rpcSendRecv(pTrans, (SEpSet*)pMgmtEps, &rpcMsg, &rpcRsp);
+
+  CTG_ERR_RET(ctgProcessRspMsg(out, reqType, rpcRsp.pCont, rpcRsp.contLen, rpcRsp.code, (char*)tbFName));
+  
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t ctgGetUdfInfoFromMnode(CTG_PARAMS, const char *funcName, SFuncInfo *out, SCtgTask* pTask) {
   char *msg = NULL;
   int32_t msgLen = 0;
@@ -565,7 +618,7 @@ int32_t ctgGetTbMetaFromVnode(CTG_PARAMS, const SName* pTableName, SVgroupInfo *
     }
     CTG_ERR_RET(ctgUpdateMsgCtx(&pTask->msgCtx, reqType, pOut, tbFName));
     
-    CTG_RET(ctgAsyncSendMsg(CTG_PARAMS_LIST(), pTask, reqType, msg, msgLen));
+    CTG_RET(ctgAsyncSendMsg(pCtg, pTrans, &vgroupInfo->epSet, pTask, reqType, msg, msgLen));
   }
 
   SRpcMsg rpcMsg = {

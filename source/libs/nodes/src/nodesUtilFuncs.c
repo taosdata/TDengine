@@ -164,9 +164,14 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SCreateStreamStmt));
     case QUERY_NODE_DROP_STREAM_STMT:
       return makeNode(type, sizeof(SDropStreamStmt));
+    case QUERY_NODE_BALANCE_VGROUP_STMT:
+      return makeNode(type, sizeof(SBalanceVgroupStmt));
     case QUERY_NODE_MERGE_VGROUP_STMT:
+      return makeNode(type, sizeof(SMergeVgroupStmt));
     case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:
+      return makeNode(type, sizeof(SRedistributeVgroupStmt));
     case QUERY_NODE_SPLIT_VGROUP_STMT:
+      return makeNode(type, sizeof(SSplitVgroupStmt));
     case QUERY_NODE_SYNCDB_STMT:
       break;
     case QUERY_NODE_GRANT_STMT:
@@ -208,6 +213,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
     case QUERY_NODE_KILL_QUERY_STMT:
     case QUERY_NODE_KILL_TRANSACTION_STMT:
       return makeNode(type, sizeof(SKillStmt));
+    case QUERY_NODE_DELETE_STMT:
+      return makeNode(type, sizeof(SDeleteStmt));
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return makeNode(type, sizeof(SScanLogicNode));
     case QUERY_NODE_LOGIC_PLAN_JOIN:
@@ -216,8 +223,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SAggLogicNode));
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
       return makeNode(type, sizeof(SProjectLogicNode));
-    case QUERY_NODE_LOGIC_PLAN_VNODE_MODIF:
-      return makeNode(type, sizeof(SVnodeModifLogicNode));
+    case QUERY_NODE_LOGIC_PLAN_VNODE_MODIFY:
+      return makeNode(type, sizeof(SVnodeModifyLogicNode));
     case QUERY_NODE_LOGIC_PLAN_EXCHANGE:
       return makeNode(type, sizeof(SExchangeLogicNode));
     case QUERY_NODE_LOGIC_PLAN_MERGE:
@@ -230,6 +237,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SSortLogicNode));
     case QUERY_NODE_LOGIC_PLAN_PARTITION:
       return makeNode(type, sizeof(SPartitionLogicNode));
+    case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC:
+      return makeNode(type, sizeof(SIndefRowsFuncLogicNode));
     case QUERY_NODE_LOGIC_SUBPLAN:
       return makeNode(type, sizeof(SLogicSubplan));
     case QUERY_NODE_LOGIC_PLAN:
@@ -256,8 +265,10 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SMergePhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_SORT:
       return makeNode(type, sizeof(SSortPhysiNode));
-    case QUERY_NODE_PHYSICAL_PLAN_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
       return makeNode(type, sizeof(SIntervalPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL:
+      return makeNode(type, sizeof(SMergeIntervalPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
       return makeNode(type, sizeof(SStreamIntervalPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
@@ -272,12 +283,18 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SStreamSessionWinodwPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW:
       return makeNode(type, sizeof(SStateWinodwPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE_WINDOW:
+      return makeNode(type, sizeof(SStreamStateWinodwPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       return makeNode(type, sizeof(SPartitionPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC:
+      return makeNode(type, sizeof(SIndefRowsFuncPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       return makeNode(type, sizeof(SDataDispatcherNode));
     case QUERY_NODE_PHYSICAL_PLAN_INSERT:
       return makeNode(type, sizeof(SDataInserterNode));
+    case QUERY_NODE_PHYSICAL_PLAN_DELETE:
+      return makeNode(type, sizeof(SDataDeleterNode));
     case QUERY_NODE_PHYSICAL_SUBPLAN:
       return makeNode(type, sizeof(SSubplan));
     case QUERY_NODE_PHYSICAL_PLAN:
@@ -557,7 +574,6 @@ void nodesDestroyNode(SNodeptr pNode) {
       SScanLogicNode* pLogicNode = (SScanLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
       nodesDestroyList(pLogicNode->pScanCols);
-      taosMemoryFreeClear(pLogicNode->pMeta);
       taosMemoryFreeClear(pLogicNode->pVgroupList);
       break;
     }
@@ -580,8 +596,8 @@ void nodesDestroyNode(SNodeptr pNode) {
       nodesDestroyList(pLogicNode->pProjections);
       break;
     }
-    case QUERY_NODE_LOGIC_PLAN_VNODE_MODIF: {
-      SVnodeModifLogicNode* pLogicNode = (SVnodeModifLogicNode*)pNode;
+    case QUERY_NODE_LOGIC_PLAN_VNODE_MODIFY: {
+      SVnodeModifyLogicNode* pLogicNode = (SVnodeModifyLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
       destroyVgDataBlockArray(pLogicNode->pDataBlocks);
       // pVgDataBlocks is weak reference
@@ -669,7 +685,7 @@ void nodesDestroyNode(SNodeptr pNode) {
       nodesDestroyNode(pPhyNode->pSortKeys);
       break;
     }
-    case QUERY_NODE_PHYSICAL_PLAN_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
       destroyWinodwPhysiNode((SWinodwPhysiNode*)pNode);
       break;
@@ -1062,7 +1078,7 @@ char* nodesGetStrValueFromNode(SValueNode* pNode) {
 bool nodesIsExprNode(const SNode* pNode) {
   ENodeType type = nodeType(pNode);
   return (QUERY_NODE_COLUMN == type || QUERY_NODE_VALUE == type || QUERY_NODE_OPERATOR == type ||
-          QUERY_NODE_FUNCTION == type);
+          QUERY_NODE_FUNCTION == type || QUERY_NODE_LOGIC_CONDITION == type);
 }
 
 bool nodesIsUnaryOp(const SOperatorNode* pOp) {
@@ -1089,7 +1105,7 @@ bool nodesIsArithmeticOp(const SOperatorNode* pOp) {
     case OP_TYPE_SUB:
     case OP_TYPE_MULTI:
     case OP_TYPE_DIV:
-    case OP_TYPE_MOD:
+    case OP_TYPE_REM:
       return true;
     default:
       break;
@@ -1305,7 +1321,7 @@ int32_t nodesCollectSpecialNodes(SSelectStmt* pSelect, ESqlClause clause, ENodeT
   return TSDB_CODE_SUCCESS;
 }
 
-char* getFillModeString(EFillMode mode) {
+char* nodesGetFillModeString(EFillMode mode) {
   switch (mode) {
     case FILL_MODE_NONE:
       return "none";
@@ -1353,7 +1369,7 @@ int32_t nodesGetOutputNumFromSlotList(SNodeList* pSlots) {
   return num;
 }
 
-void valueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
+void nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
   pVal->nType = pNode->node.resType.type;
   pVal->nLen = pNode->node.resType.bytes;
   switch (pNode->node.resType.type) {
@@ -1393,4 +1409,160 @@ void valueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
     default:
       break;
   }
+}
+
+int32_t nodesMergeConds(SNode** pDst, SNodeList** pSrc) {
+  if (NULL == *pSrc) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (1 == LIST_LENGTH(*pSrc)) {
+    *pDst = nodesListGetNode(*pSrc, 0);
+    nodesClearList(*pSrc);
+  } else {
+    SLogicConditionNode* pLogicCond = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
+    if (NULL == pLogicCond) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    pLogicCond->node.resType.type = TSDB_DATA_TYPE_BOOL;
+    pLogicCond->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
+    pLogicCond->condType = LOGIC_COND_TYPE_AND;
+    pLogicCond->pParameterList = *pSrc;
+    *pDst = (SNode*)pLogicCond;
+  }
+  *pSrc = NULL;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+typedef struct SClassifyConditionCxt {
+  bool hasPrimaryKey;
+  bool hasTagIndexCol;
+  bool hasOtherCol;
+} SClassifyConditionCxt;
+
+static EDealRes classifyConditionImpl(SNode* pNode, void* pContext) {
+  SClassifyConditionCxt* pCxt = (SClassifyConditionCxt*)pContext;
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    if (PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId) {
+      pCxt->hasPrimaryKey = true;
+    } else if (pCol->hasIndex) {
+      pCxt->hasTagIndexCol = true;
+    } else {
+      pCxt->hasOtherCol = true;
+    }
+    return *((bool*)pContext) ? DEAL_RES_CONTINUE : DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+typedef enum EConditionType { COND_TYPE_PRIMARY_KEY = 1, COND_TYPE_TAG_INDEX, COND_TYPE_NORMAL } EConditionType;
+
+static EConditionType classifyCondition(SNode* pNode) {
+  SClassifyConditionCxt cxt = {.hasPrimaryKey = false, .hasTagIndexCol = false, .hasOtherCol = false};
+  nodesWalkExpr(pNode, classifyConditionImpl, &cxt);
+  return cxt.hasOtherCol ? COND_TYPE_NORMAL
+                         : (cxt.hasPrimaryKey && cxt.hasTagIndexCol
+                                ? COND_TYPE_NORMAL
+                                : (cxt.hasPrimaryKey ? COND_TYPE_PRIMARY_KEY : COND_TYPE_TAG_INDEX));
+}
+
+static int32_t partitionLogicCond(SNode** pCondition, SNode** pPrimaryKeyCond, SNode** pTagCond, SNode** pOtherCond) {
+  SLogicConditionNode* pLogicCond = (SLogicConditionNode*)(*pCondition);
+
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  SNodeList* pPrimaryKeyConds = NULL;
+  SNodeList* pTagConds = NULL;
+  SNodeList* pOtherConds = NULL;
+  SNode*     pCond = NULL;
+  FOREACH(pCond, pLogicCond->pParameterList) {
+    switch (classifyCondition(pCond)) {
+      case COND_TYPE_PRIMARY_KEY:
+        if (NULL != pPrimaryKeyCond) {
+          code = nodesListMakeAppend(&pPrimaryKeyConds, nodesCloneNode(pCond));
+        }
+        break;
+      case COND_TYPE_TAG_INDEX:
+        if (NULL != pTagCond) {
+          code = nodesListMakeAppend(&pTagConds, nodesCloneNode(pCond));
+        }
+        break;
+      case COND_TYPE_NORMAL:
+      default:
+        if (NULL != pOtherCond) {
+          code = nodesListMakeAppend(&pOtherConds, nodesCloneNode(pCond));
+        }
+        break;
+    }
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+  }
+
+  SNode* pTempPrimaryKeyCond = NULL;
+  SNode* pTempTagCond = NULL;
+  SNode* pTempOtherCond = NULL;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesMergeConds(&pTempPrimaryKeyCond, &pPrimaryKeyConds);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesMergeConds(&pTempTagCond, &pTagConds);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesMergeConds(&pTempOtherCond, &pOtherConds);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    if (NULL != pPrimaryKeyCond) {
+      *pPrimaryKeyCond = pTempPrimaryKeyCond;
+    }
+    if (NULL != pTagCond) {
+      *pTagCond = pTempTagCond;
+    }
+    if (NULL != pOtherCond) {
+      *pOtherCond = pTempOtherCond;
+    }
+    nodesDestroyNode(*pCondition);
+    *pCondition = NULL;
+  } else {
+    nodesDestroyList(pPrimaryKeyConds);
+    nodesDestroyList(pTagConds);
+    nodesDestroyList(pOtherConds);
+    nodesDestroyNode(pTempPrimaryKeyCond);
+    nodesDestroyNode(pTempTagCond);
+    nodesDestroyNode(pTempOtherCond);
+  }
+
+  return code;
+}
+
+int32_t nodesPartitionCond(SNode** pCondition, SNode** pPrimaryKeyCond, SNode** pTagCond, SNode** pOtherCond) {
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(*pCondition) &&
+      LOGIC_COND_TYPE_AND == ((SLogicConditionNode*)*pCondition)->condType) {
+    return partitionLogicCond(pCondition, pPrimaryKeyCond, pTagCond, pOtherCond);
+  }
+
+  switch (classifyCondition(*pCondition)) {
+    case COND_TYPE_PRIMARY_KEY:
+      if (NULL != pPrimaryKeyCond) {
+        *pPrimaryKeyCond = *pCondition;
+      }
+      break;
+    case COND_TYPE_TAG_INDEX:
+      if (NULL != pTagCond) {
+        *pTagCond = *pCondition;
+      }
+      break;
+    case COND_TYPE_NORMAL:
+    default:
+      if (NULL != pOtherCond) {
+        *pOtherCond = *pCondition;
+      }
+      break;
+  }
+  *pCondition = NULL;
+
+  return TSDB_CODE_SUCCESS;
 }

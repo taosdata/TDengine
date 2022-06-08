@@ -156,6 +156,24 @@ int tsdbLoadBlockIdx(SReadH *pReadh) {
   return 0;
 }
 
+static int32_t tsdbBlockIdxCmprFn(const void *p1, const void *p2) {
+  SBlockIdx *pBlockIdx1 = (SBlockIdx *)p1;
+  SBlockIdx *pBlockIdx2 = (SBlockIdx *)p2;
+
+  if (pBlockIdx1->suid < pBlockIdx2->suid) {
+    return -1;
+  } else if (pBlockIdx1->suid > pBlockIdx2->suid) {
+    return 1;
+  }
+
+  if (pBlockIdx1->uid < pBlockIdx2->uid) {
+    return -1;
+  } else if (pBlockIdx1->uid > pBlockIdx2->uid) {
+    return 1;
+  }
+
+  return 0;
+}
 int tsdbSetReadTable(SReadH *pReadh, STable *pTable) {
   STSchema *pSchema = tsdbGetTableSchemaImpl(TSDB_READ_REPO(pReadh), pTable, false, false, -1);
 
@@ -171,33 +189,40 @@ int tsdbSetReadTable(SReadH *pReadh, STable *pTable) {
     return -1;
   }
 
-  size_t size = taosArrayGetSize(pReadh->aBlkIdx);
-  if (size > 0) {
-    while (true) {
-      if (pReadh->cidx >= size) {
-        pReadh->pBlkIdx = NULL;
-        break;
-      }
-
-      SBlockIdx *pBlkIdx = taosArrayGet(pReadh->aBlkIdx, pReadh->cidx);
-      if (pBlkIdx->uid == TABLE_TID(pTable)) {
-        if (pBlkIdx->uid == TABLE_UID(pTable)) {
-          pReadh->pBlkIdx = pBlkIdx;
-        } else {
-          pReadh->pBlkIdx = NULL;
-        }
-        pReadh->cidx++;
-        break;
-      } else if (pBlkIdx->uid > TABLE_TID(pTable)) {
-        pReadh->pBlkIdx = NULL;
-        break;
-      } else {
-        pReadh->cidx++;
-      }
-    }
-  } else {
+  uint8_t *p = taosArraySearch(pReadh->aBlkIdx, &(SBlockIdx){.suid = pTable->suid, .uid = pTable->uid},
+                               tsdbBlockIdxCmprFn, TD_EQ);
+  if (p == NULL) {
     pReadh->pBlkIdx = NULL;
+  } else {
+    pReadh->pBlkIdx = (SBlockIdx *)p;
   }
+  // size_t size = taosArrayGetSize(pReadh->aBlkIdx);
+  // if (size > 0) {
+  //   while (true) {
+  //     if (pReadh->cidx >= size) {
+  //       pReadh->pBlkIdx = NULL;
+  //       break;
+  //     }
+
+  //     SBlockIdx *pBlkIdx = taosArrayGet(pReadh->aBlkIdx, pReadh->cidx);
+  //     if (pBlkIdx->uid == TABLE_TID(pTable)) {
+  //       if (pBlkIdx->uid == TABLE_UID(pTable)) {
+  //         pReadh->pBlkIdx = pBlkIdx;
+  //       } else {
+  //         pReadh->pBlkIdx = NULL;
+  //       }
+  //       pReadh->cidx++;
+  //       break;
+  //     } else if (pBlkIdx->uid > TABLE_TID(pTable)) {
+  //       pReadh->pBlkIdx = NULL;
+  //       break;
+  //     } else {
+  //       pReadh->cidx++;
+  //     }
+  //   }
+  // } else {
+  //   pReadh->pBlkIdx = NULL;
+  // }
 
   return 0;
 }
@@ -339,8 +364,8 @@ int tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo) {
   }
 
   ASSERT(pReadh->pDCols[0]->numOfRows <= pBlock->numOfRows);
-  ASSERT(dataColsKeyFirst(pReadh->pDCols[0]) == pBlock->keyFirst);
-  ASSERT(dataColsKeyLast(pReadh->pDCols[0]) == pBlock->keyLast);
+  ASSERT(dataColsKeyFirst(pReadh->pDCols[0]) == pBlock->minKey.ts);
+  ASSERT(dataColsKeyLast(pReadh->pDCols[0]) == pBlock->maxKey.ts);
 
   return 0;
 }
@@ -457,8 +482,8 @@ int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, 
   }
 
   ASSERT(pReadh->pDCols[0]->numOfRows <= pBlock->numOfRows);
-  ASSERT(dataColsKeyFirst(pReadh->pDCols[0]) == pBlock->keyFirst);
-  ASSERT(dataColsKeyLast(pReadh->pDCols[0]) == pBlock->keyLast);
+  ASSERT(dataColsKeyFirst(pReadh->pDCols[0]) == pBlock->minKey.ts);
+  ASSERT(dataColsKeyLast(pReadh->pDCols[0]) == pBlock->maxKey.ts);
 
   return 0;
 }
@@ -553,13 +578,13 @@ static int tsdbLoadBlockOffset(SReadH *pReadh, SBlock *pBlock) {
 int tsdbEncodeSBlockIdx(void **buf, SBlockIdx *pIdx) {
   int tlen = 0;
 
-  // tlen += taosEncodeVariantI32(buf, pIdx->tid);
+  tlen += taosEncodeFixedU64(buf, pIdx->suid);
+  tlen += taosEncodeFixedU64(buf, pIdx->uid);
   tlen += taosEncodeVariantU32(buf, pIdx->len);
   tlen += taosEncodeVariantU32(buf, pIdx->offset);
   tlen += taosEncodeFixedU8(buf, pIdx->hasLast);
   tlen += taosEncodeVariantU32(buf, pIdx->numOfBlocks);
-  tlen += taosEncodeFixedU64(buf, pIdx->uid);
-  tlen += taosEncodeFixedU64(buf, pIdx->maxKey);
+  tlen += taosEncodeFixedU64(buf, pIdx->maxKey.ts);
 
   return tlen;
 }
@@ -570,6 +595,10 @@ void *tsdbDecodeSBlockIdx(void *buf, SBlockIdx *pIdx) {
   uint64_t value = 0;
 
   // if ((buf = taosDecodeVariantI32(buf, &(pIdx->tid))) == NULL) return NULL;
+  if ((buf = taosDecodeFixedU64(buf, &value)) == NULL) return NULL;
+  pIdx->suid = (int64_t)value;
+  if ((buf = taosDecodeFixedU64(buf, &value)) == NULL) return NULL;
+  pIdx->uid = (int64_t)value;
   if ((buf = taosDecodeVariantU32(buf, &(pIdx->len))) == NULL) return NULL;
   if ((buf = taosDecodeVariantU32(buf, &(pIdx->offset))) == NULL) return NULL;
   if ((buf = taosDecodeFixedU8(buf, &(hasLast))) == NULL) return NULL;
@@ -577,9 +606,7 @@ void *tsdbDecodeSBlockIdx(void *buf, SBlockIdx *pIdx) {
   if ((buf = taosDecodeVariantU32(buf, &(numOfBlocks))) == NULL) return NULL;
   pIdx->numOfBlocks = numOfBlocks;
   if ((buf = taosDecodeFixedU64(buf, &value)) == NULL) return NULL;
-  pIdx->uid = (int64_t)value;
-  if ((buf = taosDecodeFixedU64(buf, &value)) == NULL) return NULL;
-  pIdx->maxKey = (TSKEY)value;
+  pIdx->maxKey.ts = (TSKEY)value;
 
   return buf;
 }
@@ -726,7 +753,7 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
     if (dcol != 0) {
       pBlockCol = &(pBlockData->cols[ccol]);
       tcolId = pBlockCol->colId;
-      toffset = tsdbGetBlockColOffset(pBlockCol);
+      toffset = pBlockCol->offset;
       tlen = pBlockCol->len;
       pDataCol->bitmap = pBlockCol->blen > 0 ? 1 : 0;
     } else {
@@ -942,8 +969,8 @@ static int tsdbLoadColData(SReadH *pReadh, SDFile *pDFile, SBlock *pBlock, SBloc
   if (tsdbMakeRoom((void **)(&TSDB_READ_BUF(pReadh)), pBlockCol->len) < 0) return -1;
   if (tsdbMakeRoom((void **)(&TSDB_READ_COMP_BUF(pReadh)), tsize) < 0) return -1;
 
-  int64_t offset = pBlock->offset + tsdbBlockStatisSize(pBlock->numOfCols, (uint32_t)pBlock->blkVer) +
-                   tsdbGetBlockColOffset(pBlockCol);
+  int64_t offset =
+      pBlock->offset + tsdbBlockStatisSize(pBlock->numOfCols, (uint32_t)pBlock->blkVer) + pBlockCol->offset;
   if (tsdbSeekDFile(pDFile, offset, SEEK_SET) < 0) {
     tsdbError("vgId:%d, failed to load block column data while seek file %s to offset %" PRId64 " since %s",
               TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), offset, tstrerror(terrno));

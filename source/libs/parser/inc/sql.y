@@ -469,9 +469,10 @@ cmd ::= KILL QUERY NK_INTEGER(A).                                               
 cmd ::= KILL TRANSACTION NK_INTEGER(A).                                           { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_TRANSACTION_STMT, &A); }
 
 /************************************************ merge/redistribute/ vgroup ******************************************/
+cmd ::= BALANCE VGROUP.                                                           { pCxt->pRootNode = createBalanceVgroupStmt(pCxt); }
 cmd ::= MERGE VGROUP NK_INTEGER(A) NK_INTEGER(B).                                 { pCxt->pRootNode = createMergeVgroupStmt(pCxt, &A, &B); }
 cmd ::= REDISTRIBUTE VGROUP NK_INTEGER(A) dnode_list(B).                          { pCxt->pRootNode = createRedistributeVgroupStmt(pCxt, &A, B); }
-cmd ::= SPLIT VGROUP NK_INTEGER(A).                                               { pCxt->pRootNode = createSplitVgroupStmt(pCxt, &A); }
+//cmd ::= SPLIT VGROUP NK_INTEGER(A).                                               { pCxt->pRootNode = createSplitVgroupStmt(pCxt, &A); }
 
 %type dnode_list                                                                  { SNodeList* }
 %destructor dnode_list                                                            { nodesDestroyList($$); }
@@ -480,6 +481,9 @@ dnode_list(A) ::= dnode_list(B) DNODE NK_INTEGER(C).                            
 
 /************************************************ syncdb **************************************************************/
 cmd ::= SYNCDB db_name(A) REPLICA.                                                { pCxt->pRootNode = createSyncdbStmt(pCxt, &A); }
+
+/************************************************ syncdb **************************************************************/
+cmd ::= DELETE FROM full_table_name(A) where_clause_opt(B).                       { pCxt->pRootNode = createDeleteStmt(pCxt, A, B); }
 
 /************************************************ select **************************************************************/
 cmd ::= query_expression(A).                                                      { pCxt->pRootNode = A; }
@@ -608,7 +612,7 @@ expression(A) ::= expression(B) NK_SLASH expression(C).                         
 expression(A) ::= expression(B) NK_REM expression(C).                             {
                                                                                     SToken s = getTokenFromRawExprNode(pCxt, B);
                                                                                     SToken e = getTokenFromRawExprNode(pCxt, C);
-                                                                                    A = createRawExprNodeExt(pCxt, &s, &e, createOperatorNode(pCxt, OP_TYPE_MOD, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C))); 
+                                                                                    A = createRawExprNodeExt(pCxt, &s, &e, createOperatorNode(pCxt, OP_TYPE_REM, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)));
                                                                                   }
 expression(A) ::= column_reference(B) NK_ARROW NK_STRING(C).                      {
                                                                                     SToken s = getTokenFromRawExprNode(pCxt, B);

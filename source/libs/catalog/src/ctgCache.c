@@ -36,6 +36,11 @@ SCtgOperation gCtgCacheOperation[CTG_OP_MAX] = {
     ctgOpDropDbCache
   },
   {
+    CTG_OP_DROP_DB_VGROUP,
+    "drop DBVgroup",
+    ctgOpDropDbVgroup
+  },
+  {
     CTG_OP_DROP_STB_META,
     "drop stbMeta",
     ctgOpDropStbMeta
@@ -496,25 +501,6 @@ _return:
   return TSDB_CODE_SUCCESS;
 }
 
-
-void ctgWaitOpDone(SCtgCacheOperation *action) {
-  while (true) {
-    tsem_wait(&gCtgMgmt.queue.rspSem);
-    
-    if (atomic_load_8((int8_t*)&gCtgMgmt.exit)) {
-      tsem_post(&gCtgMgmt.queue.rspSem);
-      break;
-    }
-
-    if (gCtgMgmt.queue.seqDone >= action->seqId) {
-      break;
-    }
-
-    tsem_post(&gCtgMgmt.queue.rspSem);
-    sched_yield();
-  }
-}
-
 void ctgDequeue(SCtgCacheOperation **op) {
   SCtgQNode *orig = gCtgMgmt.queue.head;
   
@@ -525,7 +511,7 @@ void ctgDequeue(SCtgCacheOperation **op) {
   
   taosMemoryFreeClear(orig);
 
-  *op = &node->op;
+  *op = node->op;
 }
 
 
@@ -536,9 +522,11 @@ int32_t ctgEnqueue(SCatalog* pCtg, SCtgCacheOperation *operation) {
     CTG_RET(TSDB_CODE_CTG_MEM_ERROR);
   }
 
-  operation->seqId = atomic_add_fetch_64(&gCtgMgmt.queue.seqId, 1);
+  if (operation->syncOp) {
+    tsem_init(&operation->rspSem, 0, 0);
+  }
   
-  node->op = *operation;
+  node->op = operation;
 
   CTG_LOCK(CTG_WRITE, &gCtgMgmt.queue.qlock);
   gCtgMgmt.queue.tail->next = node;
@@ -553,7 +541,8 @@ int32_t ctgEnqueue(SCatalog* pCtg, SCtgCacheOperation *operation) {
   ctgDebug("action [%s] added into queue", gCtgCacheOperation[operation->opId].name);
 
   if (operation->syncOp) {
-    ctgWaitOpDone(operation);
+    tsem_wait(&operation->rspSem);
+    taosMemoryFree(operation);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -562,10 +551,12 @@ int32_t ctgEnqueue(SCatalog* pCtg, SCtgCacheOperation *operation) {
 
 int32_t ctgDropDbCacheEnqueue(SCatalog* pCtg, const char *dbFName, int64_t dbId) {
   int32_t code = 0;
-  SCtgCacheOperation action= {.opId = CTG_OP_DROP_DB_CACHE};
-  SCtgRemoveDBMsg *msg = taosMemoryMalloc(sizeof(SCtgRemoveDBMsg));
+  SCtgCacheOperation *op = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  op->opId = CTG_OP_DROP_DB_CACHE;
+  
+  SCtgDropDBMsg *msg = taosMemoryMalloc(sizeof(SCtgDropDBMsg));
   if (NULL == msg) {
-    ctgError("malloc %d failed", (int32_t)sizeof(SCtgRemoveDBMsg));
+    ctgError("malloc %d failed", (int32_t)sizeof(SCtgDropDBMsg));
     CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
   }
 
@@ -578,25 +569,61 @@ int32_t ctgDropDbCacheEnqueue(SCatalog* pCtg, const char *dbFName, int64_t dbId)
   strncpy(msg->dbFName, dbFName, sizeof(msg->dbFName));
   msg->dbId = dbId;
 
-  action.data = msg;
+  op->data = msg;
 
-  CTG_ERR_JRET(ctgEnqueue(pCtg, &action));
+  CTG_ERR_JRET(ctgEnqueue(pCtg, op));
 
   return TSDB_CODE_SUCCESS;
 
 _return:
 
-  taosMemoryFreeClear(action.data);
+  taosMemoryFreeClear(op->data);
+  CTG_RET(code);
+}
+
+int32_t ctgDropDbVgroupEnqueue(SCatalog* pCtg, const char *dbFName, bool syncOp) {
+  int32_t code = 0;
+  SCtgCacheOperation *op = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  op->opId = CTG_OP_DROP_DB_VGROUP;
+  op->syncOp = syncOp;
+  
+  SCtgDropDbVgroupMsg *msg = taosMemoryMalloc(sizeof(SCtgDropDbVgroupMsg));
+  if (NULL == msg) {
+    ctgError("malloc %d failed", (int32_t)sizeof(SCtgDropDbVgroupMsg));
+    CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
+  }
+
+  char *p = strchr(dbFName, '.');
+  if (p && CTG_IS_SYS_DBNAME(p + 1)) {
+    dbFName = p + 1;
+  }
+
+  msg->pCtg = pCtg;
+  strncpy(msg->dbFName, dbFName, sizeof(msg->dbFName));
+
+  op->data = msg;
+
+  CTG_ERR_JRET(ctgEnqueue(pCtg, op));
+
+  return TSDB_CODE_SUCCESS;
+
+_return:
+
+  taosMemoryFreeClear(op->data);
   CTG_RET(code);
 }
 
 
+
 int32_t ctgDropStbMetaEnqueue(SCatalog* pCtg, const char *dbFName, int64_t dbId, const char *stbName, uint64_t suid, bool syncOp) {
   int32_t code = 0;
-  SCtgCacheOperation action= {.opId = CTG_OP_DROP_STB_META, .syncOp = syncOp};
-  SCtgRemoveStbMsg *msg = taosMemoryMalloc(sizeof(SCtgRemoveStbMsg));
+  SCtgCacheOperation *op = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  op->opId = CTG_OP_DROP_STB_META;
+  op->syncOp = syncOp;
+  
+  SCtgDropStbMetaMsg *msg = taosMemoryMalloc(sizeof(SCtgDropStbMetaMsg));
   if (NULL == msg) {
-    ctgError("malloc %d failed", (int32_t)sizeof(SCtgRemoveStbMsg));
+    ctgError("malloc %d failed", (int32_t)sizeof(SCtgDropStbMetaMsg));
     CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
   }
 
@@ -606,15 +633,15 @@ int32_t ctgDropStbMetaEnqueue(SCatalog* pCtg, const char *dbFName, int64_t dbId,
   msg->dbId = dbId;
   msg->suid = suid;
 
-  action.data = msg;
+  op->data = msg;
 
-  CTG_ERR_JRET(ctgEnqueue(pCtg, &action));
+  CTG_ERR_JRET(ctgEnqueue(pCtg, op));
 
   return TSDB_CODE_SUCCESS;
 
 _return:
 
-  taosMemoryFreeClear(action.data);
+  taosMemoryFreeClear(op->data);
   CTG_RET(code);
 }
 
@@ -622,10 +649,13 @@ _return:
 
 int32_t ctgDropTbMetaEnqueue(SCatalog* pCtg, const char *dbFName, int64_t dbId, const char *tbName, bool syncOp) {
   int32_t code = 0;
-  SCtgCacheOperation action= {.opId = CTG_OP_DROP_TB_META, .syncOp = syncOp};
-  SCtgRemoveTblMsg *msg = taosMemoryMalloc(sizeof(SCtgRemoveTblMsg));
+  SCtgCacheOperation *op = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  op->opId = CTG_OP_DROP_TB_META;
+  op->syncOp = syncOp;
+  
+  SCtgDropTblMetaMsg *msg = taosMemoryMalloc(sizeof(SCtgDropTblMetaMsg));
   if (NULL == msg) {
-    ctgError("malloc %d failed", (int32_t)sizeof(SCtgRemoveTblMsg));
+    ctgError("malloc %d failed", (int32_t)sizeof(SCtgDropTblMetaMsg));
     CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
   }
 
@@ -634,21 +664,24 @@ int32_t ctgDropTbMetaEnqueue(SCatalog* pCtg, const char *dbFName, int64_t dbId, 
   strncpy(msg->tbName, tbName, sizeof(msg->tbName));
   msg->dbId = dbId;
 
-  action.data = msg;
+  op->data = msg;
 
-  CTG_ERR_JRET(ctgEnqueue(pCtg, &action));
+  CTG_ERR_JRET(ctgEnqueue(pCtg, op));
 
   return TSDB_CODE_SUCCESS;
 
 _return:
 
-  taosMemoryFreeClear(action.data);
+  taosMemoryFreeClear(op->data);
   CTG_RET(code);
 }
 
 int32_t ctgUpdateVgroupEnqueue(SCatalog* pCtg, const char *dbFName, int64_t dbId, SDBVgInfo* dbInfo, bool syncOp) {
   int32_t code = 0;
-  SCtgCacheOperation action= {.opId = CTG_OP_UPDATE_VGROUP, .syncOp = syncOp};
+  SCtgCacheOperation *op = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  op->opId = CTG_OP_UPDATE_VGROUP;
+  op->syncOp = syncOp;
+  
   SCtgUpdateVgMsg *msg = taosMemoryMalloc(sizeof(SCtgUpdateVgMsg));
   if (NULL == msg) {
     ctgError("malloc %d failed", (int32_t)sizeof(SCtgUpdateVgMsg));
@@ -666,22 +699,25 @@ int32_t ctgUpdateVgroupEnqueue(SCatalog* pCtg, const char *dbFName, int64_t dbId
   msg->dbId = dbId;
   msg->dbInfo = dbInfo;
 
-  action.data = msg;
+  op->data = msg;
 
-  CTG_ERR_JRET(ctgEnqueue(pCtg, &action));
+  CTG_ERR_JRET(ctgEnqueue(pCtg, op));
 
   return TSDB_CODE_SUCCESS;
 
 _return:
 
   ctgFreeVgInfo(dbInfo);
-  taosMemoryFreeClear(action.data);
+  taosMemoryFreeClear(op->data);
   CTG_RET(code);
 }
 
 int32_t ctgUpdateTbMetaEnqueue(SCatalog* pCtg, STableMetaOutput *output, bool syncOp) {
   int32_t code = 0;
-  SCtgCacheOperation action= {.opId = CTG_OP_UPDATE_TB_META, .syncOp = syncOp};
+  SCtgCacheOperation *op = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  op->opId = CTG_OP_UPDATE_TB_META;
+  op->syncOp = syncOp;
+  
   SCtgUpdateTblMsg *msg = taosMemoryMalloc(sizeof(SCtgUpdateTblMsg));
   if (NULL == msg) {
     ctgError("malloc %d failed", (int32_t)sizeof(SCtgUpdateTblMsg));
@@ -696,9 +732,9 @@ int32_t ctgUpdateTbMetaEnqueue(SCatalog* pCtg, STableMetaOutput *output, bool sy
   msg->pCtg = pCtg;
   msg->output = output;
 
-  action.data = msg;
+  op->data = msg;
 
-  CTG_ERR_JRET(ctgEnqueue(pCtg, &action));
+  CTG_ERR_JRET(ctgEnqueue(pCtg, op));
 
   return TSDB_CODE_SUCCESS;
   
@@ -711,7 +747,9 @@ _return:
 
 int32_t ctgUpdateVgEpsetEnqueue(SCatalog* pCtg, char *dbFName, int32_t vgId, SEpSet* pEpSet) {
   int32_t code = 0;
-  SCtgCacheOperation operation= {.opId = CTG_OP_UPDATE_VG_EPSET};
+  SCtgCacheOperation *op = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  op->opId = CTG_OP_UPDATE_VG_EPSET;
+  
   SCtgUpdateEpsetMsg *msg = taosMemoryMalloc(sizeof(SCtgUpdateEpsetMsg));
   if (NULL == msg) {
     ctgError("malloc %d failed", (int32_t)sizeof(SCtgUpdateEpsetMsg));
@@ -723,9 +761,9 @@ int32_t ctgUpdateVgEpsetEnqueue(SCatalog* pCtg, char *dbFName, int32_t vgId, SEp
   msg->vgId = vgId;
   msg->epSet = *pEpSet;
 
-  operation.data = msg;
+  op->data = msg;
 
-  CTG_ERR_JRET(ctgEnqueue(pCtg, &operation));
+  CTG_ERR_JRET(ctgEnqueue(pCtg, op));
 
   return TSDB_CODE_SUCCESS;
   
@@ -740,7 +778,10 @@ _return:
 
 int32_t ctgUpdateUserEnqueue(SCatalog* pCtg, SGetUserAuthRsp *pAuth, bool syncOp) {
   int32_t code = 0;
-  SCtgCacheOperation action= {.opId = CTG_OP_UPDATE_USER, .syncOp = syncOp};
+  SCtgCacheOperation *op = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  op->opId = CTG_OP_UPDATE_USER;
+  op->syncOp = syncOp;
+  
   SCtgUpdateUserMsg *msg = taosMemoryMalloc(sizeof(SCtgUpdateUserMsg));
   if (NULL == msg) {
     ctgError("malloc %d failed", (int32_t)sizeof(SCtgUpdateUserMsg));
@@ -750,9 +791,9 @@ int32_t ctgUpdateUserEnqueue(SCatalog* pCtg, SGetUserAuthRsp *pAuth, bool syncOp
   msg->pCtg = pCtg;
   msg->userAuth = *pAuth;
 
-  action.data = msg;
+  op->data = msg;
 
-  CTG_ERR_JRET(ctgEnqueue(pCtg, &action));
+  CTG_ERR_JRET(ctgEnqueue(pCtg, op));
   
   return TSDB_CODE_SUCCESS;
   
@@ -1281,7 +1322,7 @@ _return:
 
 int32_t ctgOpDropDbCache(SCtgCacheOperation *operation) {
   int32_t code = 0;
-  SCtgRemoveDBMsg *msg = operation->data;
+  SCtgDropDBMsg *msg = operation->data;
   SCatalog* pCtg = msg->pCtg;
 
   SCtgDBCache *dbCache = NULL;
@@ -1296,6 +1337,33 @@ int32_t ctgOpDropDbCache(SCtgCacheOperation *operation) {
   }
   
   CTG_ERR_JRET(ctgRemoveDBFromCache(pCtg, dbCache, msg->dbFName));
+
+_return:
+
+  taosMemoryFreeClear(msg);
+  
+  CTG_RET(code);
+}
+
+int32_t ctgOpDropDbVgroup(SCtgCacheOperation *operation) {
+  int32_t code = 0;
+  SCtgDropDbVgroupMsg *msg = operation->data;
+  SCatalog* pCtg = msg->pCtg;
+
+  SCtgDBCache *dbCache = NULL;
+  ctgGetDBCache(msg->pCtg, msg->dbFName, &dbCache);
+  if (NULL == dbCache) {
+    goto _return;
+  }
+  
+  CTG_ERR_RET(ctgWAcquireVgInfo(pCtg, dbCache));
+  
+  ctgFreeVgInfo(dbCache->vgInfo);
+  dbCache->vgInfo = NULL;
+
+  ctgDebug("db vgInfo removed, dbFName:%s", msg->dbFName);
+
+  ctgWReleaseVgInfo(dbCache);
 
 _return:
 
@@ -1353,7 +1421,7 @@ _return:
 
 int32_t ctgOpDropStbMeta(SCtgCacheOperation *operation) {
   int32_t code = 0;
-  SCtgRemoveStbMsg *msg = operation->data;
+  SCtgDropStbMetaMsg *msg = operation->data;
   SCatalog* pCtg = msg->pCtg;
 
   SCtgDBCache *dbCache = NULL;
@@ -1399,7 +1467,7 @@ _return:
 
 int32_t ctgOpDropTbMeta(SCtgCacheOperation *operation) {
   int32_t code = 0;
-  SCtgRemoveTblMsg *msg = operation->data;
+  SCtgDropTblMetaMsg *msg = operation->data;
   SCatalog* pCtg = msg->pCtg;
 
   SCtgDBCache *dbCache = NULL;
@@ -1545,6 +1613,39 @@ void ctgUpdateThreadUnexpectedStopped(void) {
   if (CTG_IS_LOCKED(&gCtgMgmt.lock) > 0) CTG_UNLOCK(CTG_READ, &gCtgMgmt.lock);
 }
 
+void ctgCleanupCacheQueue(void) {
+  SCtgQNode *node = NULL;
+  SCtgQNode *nodeNext = NULL;
+
+  while (true) {
+    node = gCtgMgmt.queue.head->next;
+    while (node) {
+      if (node->op) {
+        taosMemoryFree(node->op->data);
+        if (node->op->syncOp) {
+          tsem_post(&node->op->rspSem);
+        } else {
+          taosMemoryFree(node->op);
+        }
+      }
+
+      nodeNext = node->next;
+      taosMemoryFree(node);
+      
+      node = nodeNext;
+    }
+
+    if (CTG_IS_LOCKED(&gCtgMgmt.lock)) {
+      taosUsleep(1);
+    } else {
+      break;
+    }
+  }
+
+  taosMemoryFreeClear(gCtgMgmt.queue.head);
+  gCtgMgmt.queue.tail = NULL;
+}
+
 void* ctgUpdateThreadFunc(void* param) {
   setThreadName("catalog");
 #ifdef WINDOWS
@@ -1560,7 +1661,8 @@ void* ctgUpdateThreadFunc(void* param) {
     }
     
     if (atomic_load_8((int8_t*)&gCtgMgmt.exit)) {
-      tsem_post(&gCtgMgmt.queue.rspSem);
+      CTG_UNLOCK(CTG_READ, &gCtgMgmt.lock);
+      ctgCleanupCacheQueue();
       break;
     }
 
@@ -1572,10 +1674,8 @@ void* ctgUpdateThreadFunc(void* param) {
     
     (*gCtgCacheOperation[operation->opId].func)(operation);
 
-    gCtgMgmt.queue.seqDone = operation->seqId;
-
     if (operation->syncOp) {
-      tsem_post(&gCtgMgmt.queue.rspSem);
+      tsem_post(&operation->rspSem);
     }
 
     CTG_RT_STAT_INC(qDoneNum, 1); 

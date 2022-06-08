@@ -56,6 +56,7 @@ int32_t vnodePreprocessReq(SVnode *pVnode, SRpcMsg *pMsg);
 int32_t vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg *pRsp);
 int32_t vnodeProcessCMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 int32_t vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+int32_t vnodePreprocessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg);
 int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg);
 int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
@@ -85,7 +86,7 @@ typedef struct SMetaFltParam {
   tb_uid_t suid;
   int16_t  cid;
   int16_t  type;
-  char    *val;
+  char *   val;
   bool     reverse;
   int (*filterFunc)(void *a, void *b, int16_t type);
 
@@ -120,7 +121,8 @@ int32_t      tsdbGetFileBlocksDistInfo(tsdbReaderT *pReader, STableBlockDistInfo
 bool         isTsdbCacheLastRow(tsdbReaderT *pReader);
 int32_t      tsdbGetAllTableList(SMeta *pMeta, uint64_t uid, SArray *list);
 int32_t      tsdbGetCtbIdList(SMeta *pMeta, int64_t suid, SArray *list);
-void        *tsdbGetIdx(SMeta *pMeta);
+void *       tsdbGetIdx(SMeta *pMeta);
+void *       tsdbGetIvtIdx(SMeta *pMeta);
 int64_t      tsdbGetNumOfRowsInMemTable(tsdbReaderT *pHandle);
 
 bool    tsdbNextDataBlock(tsdbReaderT pTsdbReadHandle);
@@ -196,7 +198,7 @@ struct SMetaEntry {
   int64_t  version;
   int8_t   type;
   tb_uid_t uid;
-  char    *name;
+  char *   name;
   union {
     struct {
       SSchemaWrapper schemaRow;
@@ -224,17 +226,17 @@ struct SMetaEntry {
 
 struct SMetaReader {
   int32_t    flags;
-  SMeta     *pMeta;
+  SMeta *    pMeta;
   SDecoder   coder;
   SMetaEntry me;
-  void      *pBuf;
+  void *     pBuf;
   int32_t    szBuf;
 };
 
 struct SMTbCursor {
-  TBC        *pDbc;
-  void       *pKey;
-  void       *pVal;
+  TBC *       pDbc;
+  void *      pKey;
+  void *      pVal;
   int32_t     kLen;
   int32_t     vLen;
   SMetaReader mr;

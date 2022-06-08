@@ -90,7 +90,7 @@ static int32_t cacheSearchTerm(void* cache, SIndexTerm* term, SIdxTRslt* tr, STe
       break;
     }
     CacheTerm* c = (CacheTerm*)SL_GET_NODE_DATA(node);
-    if (0 == strcmp(c->colVal, pCt->colVal)) {
+    if (0 == strcmp(c->colVal, pCt->colVal) && strlen(pCt->colVal) == strlen(c->colVal)) {
       if (c->operaType == ADD_VALUE) {
         INDEX_MERGE_ADD_DEL(tr->del, tr->add, c->uid)
         // taosArrayPush(result, &c->uid);
@@ -222,7 +222,7 @@ static int32_t cacheSearchTerm_JSON(void* cache, SIndexTerm* term, SIdxTRslt* tr
   return TSDB_CODE_SUCCESS;
 }
 static int32_t cacheSearchPrefix_JSON(void* cache, SIndexTerm* term, SIdxTRslt* tr, STermValueType* s) {
-  return TSDB_CODE_SUCCESS;
+  return cacheSearchCompareFunc_JSON(cache, term, tr, s, CONTAINS);
 }
 static int32_t cacheSearchSuffix_JSON(void* cache, SIndexTerm* term, SIdxTRslt* tr, STermValueType* s) {
   return TSDB_CODE_SUCCESS;
@@ -241,6 +241,9 @@ static int32_t cacheSearchGreaterThan_JSON(void* cache, SIndexTerm* term, SIdxTR
 }
 static int32_t cacheSearchGreaterEqual_JSON(void* cache, SIndexTerm* term, SIdxTRslt* tr, STermValueType* s) {
   return cacheSearchCompareFunc_JSON(cache, term, tr, s, GE);
+}
+static int32_t cacheSearchContain_JSON(void* cache, SIndexTerm* term, SIdxTRslt* tr, STermValueType* s) {
+  return cacheSearchCompareFunc_JSON(cache, term, tr, s, CONTAINS);
 }
 static int32_t cacheSearchRange_JSON(void* cache, SIndexTerm* term, SIdxTRslt* tr, STermValueType* s) {
   return TSDB_CODE_SUCCESS;

@@ -114,6 +114,7 @@ if __name__ == "__main__":
 
     if not execCmd == "":
         tdDnodes.init(deployPath)
+        print(execCmd)
         exec(execCmd)
         quit()
 
@@ -167,7 +168,7 @@ if __name__ == "__main__":
         key_word = 'tdCases.addWindows'
         is_test_framework = 0
         try:
-            if key_word in open(fileName).read():
+            if key_word in open(fileName, encoding='UTF-8').read():
                 is_test_framework = 1
         except:
             pass

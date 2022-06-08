@@ -70,42 +70,42 @@ endi
 # row 1
 
 if $data11 != 3 then
-  print ======$data01
+  print ======$data11
   return -1
 endi
 
 if $data12 != 10 then
-  print ======$data02
+  print ======$data12
   return -1
 endi
 
 if $data13 != 10 then
-  print ======$data03
+  print ======$data13
   return -1
 endi
 
 if $data14 != 1.100000000 then
-  print ======$data04
+  print ======$data14
   return -1
 endi
 
 if $data15 != 0.000000000 then
-  print ======$data05
+  print ======$data15
   return -1
 endi
 
 if $data16 != 10 then
-  print ======$data05
+  print ======$data15
   return -1
 endi
 
 if $data17 != 1.100000000 then
-  print ======$data05
+  print ======$data17
   return -1
 endi
 
 if $data18 != 5 then
-  print ======$data05
+  print ======$data18
   return -1
 endi
 
@@ -145,17 +145,17 @@ if $data05 != 0.816496581 then
 endi
 
 if $data06 != 3 then
-  print ======$data05
+  print ======$data06
   return -1
 endi
 
 if $data07 != 1.100000000 then
-  print ======$data05
+  print ======$data07
   return -1
 endi
 
 if $data08 != 13 then
-  print ======$data05
+  print ======$data08
   return -1
 endi
 

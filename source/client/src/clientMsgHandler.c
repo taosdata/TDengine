@@ -21,8 +21,6 @@
 #include "tdef.h"
 #include "tname.h"
 
-int32_t (*handleRequestRspFp[TDMT_MAX])(void*, const SDataBuf* pMsg, int32_t code);
-
 static void setErrno(SRequestObj* pRequest, int32_t code) {
   pRequest->code = code;
   terrno = code;
@@ -107,10 +105,7 @@ SMsgSendInfo* buildMsgInfoImpl(SRequestObj* pRequest) {
 
   assert(pRequest != NULL);
   pMsgSendInfo->msgInfo = pRequest->body.requestMsg;
-
-  pMsgSendInfo->fp = (handleRequestRspFp[TMSG_INDEX(pRequest->type)] == NULL)
-                         ? genericRspCallback
-                         : handleRequestRspFp[TMSG_INDEX(pRequest->type)];
+  pMsgSendInfo->fp = getMsgRspHandle(pRequest->type);
   return pMsgSendInfo;
 }
 
@@ -180,7 +175,7 @@ int32_t processUseDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
     taosMemoryFreeClear(output.dbVgroup);
 
     tscError("0x%" PRIx64 " failed to build use db output since %s", pRequest->requestId, terrstr());
-  } else if (output.dbVgroup) {
+  } else if (output.dbVgroup && output.dbVgroup->vgHash) {
     struct SCatalog* pCatalog = NULL;
 
     int32_t code1 = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
@@ -209,7 +204,7 @@ int32_t processUseDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   return 0;
 }
 
-int32_t processCreateTableRsp(void* param, const SDataBuf* pMsg, int32_t code) {
+int32_t processCreateSTableRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   assert(pMsg != NULL && param != NULL);
   SRequestObj* pRequest = param;
 
@@ -219,6 +214,7 @@ int32_t processCreateTableRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   }
 
   if (pRequest->body.queryFp != NULL) {
+    removeMeta(pRequest->pTscObj, pRequest->tableList);
     pRequest->body.queryFp(pRequest->body.param, pRequest, code);
   } else {
     tsem_post(&pRequest->body.rspSem);
@@ -251,30 +247,54 @@ int32_t processAlterStbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
   if (code != TSDB_CODE_SUCCESS) {
     setErrno(pRequest, code);
-    tsem_post(&pRequest->body.rspSem);
-    return code;
+  } else {
+    SMAlterStbRsp alterRsp = {0};
+    SDecoder      coder = {0};
+    tDecoderInit(&coder, pMsg->pData, pMsg->len);
+    tDecodeSMAlterStbRsp(&coder, &alterRsp);
+    tDecoderClear(&coder);
+
+    pRequest->body.resInfo.execRes.msgType = TDMT_MND_ALTER_STB;
+    pRequest->body.resInfo.execRes.res = alterRsp.pMeta;
   }
 
-  SMAlterStbRsp alterRsp = {0};
-  SDecoder coder = {0};
-  tDecoderInit(&coder, pMsg->pData, pMsg->len);
-  tDecodeSMAlterStbRsp(&coder, &alterRsp);
-  tDecoderClear(&coder);
+  if (pRequest->body.queryFp != NULL) {
+    SQueryExecRes* pRes = &pRequest->body.resInfo.execRes;
 
-  pRequest->body.resInfo.execRes.msgType = TDMT_MND_ALTER_STB;
-  pRequest->body.resInfo.execRes.res = alterRsp.pMeta;
+    if (code == TSDB_CODE_SUCCESS) {
+      SCatalog* pCatalog = NULL;
+      int32_t   ret = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
+      if (pRes->res != NULL) {
+        ret = handleAlterTbExecRes(pRes->res, pCatalog);
+      }
 
-  tsem_post(&pRequest->body.rspSem);
+      if (ret != TSDB_CODE_SUCCESS) {
+        code = ret;
+      }
+    }
+
+    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
+  } else {
+    tsem_post(&pRequest->body.rspSem);
+  }
   return code;
 }
 
-
-// todo refactor: this arraylist is too large
-void initMsgHandleFp() {
-  handleRequestRspFp[TMSG_INDEX(TDMT_MND_CONNECT)] = processConnectRsp;
-  handleRequestRspFp[TMSG_INDEX(TDMT_MND_CREATE_DB)] = processCreateDbRsp;
-  handleRequestRspFp[TMSG_INDEX(TDMT_MND_USE_DB)] = processUseDbRsp;
-  handleRequestRspFp[TMSG_INDEX(TDMT_MND_CREATE_STB)] = processCreateTableRsp;
-  handleRequestRspFp[TMSG_INDEX(TDMT_MND_DROP_DB)] = processDropDbRsp;
-  handleRequestRspFp[TMSG_INDEX(TDMT_MND_ALTER_STB)] = processAlterStbRsp;
+__async_send_cb_fn_t getMsgRspHandle(int32_t msgType) {
+  switch (msgType) {
+    case TDMT_MND_CONNECT:
+      return processConnectRsp;
+    case TDMT_MND_CREATE_DB:
+      return processCreateDbRsp;
+    case TDMT_MND_USE_DB:
+      return processUseDbRsp;
+    case TDMT_MND_CREATE_STB:
+      return processCreateSTableRsp;
+    case TDMT_MND_DROP_DB:
+      return processDropDbRsp;
+    case TDMT_MND_ALTER_STB:
+      return processAlterStbRsp;
+    default:
+      return genericRspCallback;
+  }
 }

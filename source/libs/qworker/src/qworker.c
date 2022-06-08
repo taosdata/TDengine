@@ -21,10 +21,12 @@ int32_t qwProcessHbLinkBroken(SQWorker *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *re
   SSchedulerHbRsp rsp = {0};
   SQWSchStatus   *sch = NULL;
 
-  QW_ERR_RET(qwAcquireAddScheduler(mgmt, req->sId, QW_READ, &sch));
+  QW_ERR_RET(qwAcquireScheduler(mgmt, req->sId, QW_READ, &sch));
 
   QW_LOCK(QW_WRITE, &sch->hbConnLock);
 
+  sch->hbBrokenTs = taosGetTimestampMs();
+  
   if (qwMsg->connInfo.handle == sch->hbConnInfo.handle) {
     tmsgReleaseHandle(&sch->hbConnInfo, TAOS_CONN_SERVER);
     sch->hbConnInfo.handle = NULL;
@@ -181,7 +183,7 @@ int32_t qwGenerateSchHbRsp(SQWorker *mgmt, SQWSchStatus *sch, SQWHbInfo *hbInfo)
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwGetResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen, void **rspMsg, SOutputData *pOutput) {
+int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen, void **rspMsg, SOutputData *pOutput) {
   int32_t            len = 0;
   SRetrieveTableRsp *rsp = NULL;
   bool               queryEnd = false;
@@ -240,6 +242,53 @@ int32_t qwGetResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen, void
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t qwGetDeleteResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen, void **rspMsg, SDeleteRes *pRes) {
+  int32_t            len = 0;
+  SVDeleteRsp        rsp = {0};
+  bool               queryEnd = false;
+  int32_t            code = 0;
+  SOutputData        output = {0};
+
+  dsGetDataLength(ctx->sinkHandle, &len, &queryEnd);
+
+  if (len <= 0 || len != sizeof(SDeleterRes)) {
+    QW_TASK_ELOG("invalid length from dsGetDataLength, length:%d", len);
+    QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+
+  output.pData = taosMemoryCalloc(1, len);
+  if (NULL == output.pData) {
+    QW_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+  
+  code = dsGetDataBlock(ctx->sinkHandle, &output);
+  if (code) {
+    QW_TASK_ELOG("dsGetDataBlock failed, code:%x - %s", code, tstrerror(code));
+    taosMemoryFree(output.pData);
+    QW_ERR_RET(code);
+  }
+
+  SDeleterRes* pDelRes = (SDeleterRes*)output.pData;
+  
+  rsp.affectedRows = pDelRes->affectedRows;
+  pRes->uid = pDelRes->uid;
+  pRes->uidList = pDelRes->uidList;
+  pRes->skey = pDelRes->skey;
+  pRes->ekey = pDelRes->ekey;
+
+  SEncoder coder = {0};  
+  tEncodeSize(tEncodeSVDeleteRsp, &rsp, len, code);
+  void *msg = rpcMallocCont(len);
+  tEncoderInit(&coder, msg, len);
+  tEncodeSVDeleteRsp(&coder, &rsp);
+  tEncoderClear(&coder);
+
+  *rspMsg = msg;
+  *dataLen = len;
+  
+  return TSDB_CODE_SUCCESS;
+}
+
 
 int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *input, SQWPhaseOutput *output) {
   int32_t         code = 0;
@@ -248,11 +297,7 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
 
   QW_TASK_DLOG("start to handle event at phase %s", qwPhaseStr(phase));
 
-  if (QW_PHASE_PRE_QUERY == phase) {
-    QW_ERR_JRET(qwAddAcquireTaskCtx(QW_FPARAMS(), &ctx));
-  } else {
-    QW_ERR_JRET(qwAcquireTaskCtx(QW_FPARAMS(), &ctx));
-  }
+  QW_ERR_JRET(qwAcquireTaskCtx(QW_FPARAMS(), &ctx));
 
   QW_LOCK(QW_WRITE, &ctx->lock);
 
@@ -285,7 +330,7 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
         break;
       }
 
-      QW_ERR_JRET(qwAddTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_EXECUTING));
+      QW_ERR_JRET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_EXECUTING));
       break;
     }
     case QW_PHASE_PRE_FETCH: {
@@ -437,7 +482,7 @@ _return:
   QW_RET(code);
 }
 
-int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType, int8_t explain) {
+int32_t qwPrerocessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   int32_t        code = 0;
   bool           queryRsped = false;
   SSubplan      *plan = NULL;
@@ -448,14 +493,38 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType, int8_t ex
 
   QW_ERR_JRET(qwRegisterQueryBrokenLinkArg(QW_FPARAMS(), &qwMsg->connInfo));
 
+  QW_ERR_JRET(qwAddAcquireTaskCtx(QW_FPARAMS(), &ctx));
+
+  ctx->ctrlConnInfo = qwMsg->connInfo;
+
+  QW_ERR_JRET(qwAddTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_NOT_START));
+
+_return:
+
+  if (ctx) {
+    QW_UPDATE_RSP_CODE(ctx, code);
+    qwReleaseTaskCtx(mgmt, ctx);
+  }
+
+  QW_RET(TSDB_CODE_SUCCESS);
+}
+
+
+int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType, int8_t explain) {
+  int32_t        code = 0;
+  bool           queryRsped = false;
+  SSubplan      *plan = NULL;
+  SQWPhaseInput  input = {0};
+  qTaskInfo_t    pTaskInfo = NULL;
+  DataSinkHandle sinkHandle = NULL;
+  SQWTaskCtx    *ctx = NULL;
+
   QW_ERR_JRET(qwHandlePrePhaseEvents(QW_FPARAMS(), QW_PHASE_PRE_QUERY, &input, NULL));
 
   QW_ERR_JRET(qwGetTaskCtx(QW_FPARAMS(), &ctx));
 
   atomic_store_8(&ctx->taskType, taskType);
   atomic_store_8(&ctx->explain, explain);
-
-  ctx->ctrlConnInfo = qwMsg->connInfo;
 
   /*QW_TASK_DLOGL("subplan json string, len:%d, %s", qwMsg->msgLen, qwMsg->msg);*/
 
@@ -525,7 +594,7 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
 
     if (QW_IS_EVENT_RECEIVED(ctx, QW_EVENT_FETCH)) {
       SOutputData sOutput = {0};
-      QW_ERR_JRET(qwGetResFromSink(QW_FPARAMS(), ctx, &dataLen, &rsp, &sOutput));
+      QW_ERR_JRET(qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rsp, &sOutput));
 
       if ((!sOutput.queryEnd) && (DS_BUF_LOW == sOutput.bufStatus || DS_BUF_EMPTY == sOutput.bufStatus)) {
         QW_TASK_DLOG("task not end and buf is %s, need to continue query", qwBufStatusStr(sOutput.bufStatus));
@@ -598,7 +667,7 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   QW_ERR_JRET(qwGetTaskCtx(QW_FPARAMS(), &ctx));
 
   SOutputData sOutput = {0};
-  QW_ERR_JRET(qwGetResFromSink(QW_FPARAMS(), ctx, &dataLen, &rsp, &sOutput));
+  QW_ERR_JRET(qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rsp, &sOutput));
 
   if (NULL == rsp) {
     ctx->dataConnInfo = qwMsg->connInfo;
@@ -663,7 +732,7 @@ int32_t qwProcessDrop(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
 
   // TODO : TASK ALREADY REMOVED AND A NEW DROP MSG RECEIVED
 
-  QW_ERR_JRET(qwAddAcquireTaskCtx(QW_FPARAMS(), &ctx));
+  QW_ERR_JRET(qwAcquireTaskCtx(QW_FPARAMS(), &ctx));
 
   QW_LOCK(QW_WRITE, &ctx->lock);
 
@@ -721,8 +790,9 @@ int32_t qwProcessHb(SQWorker *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *req) {
   }
 
   QW_ERR_JRET(qwAcquireAddScheduler(mgmt, req->sId, QW_READ, &sch));
-
   QW_ERR_JRET(qwRegisterHbBrokenLinkArg(mgmt, req->sId, &qwMsg->connInfo));
+
+  sch->hbBrokenTs = 0;
 
   QW_LOCK(QW_WRITE, &sch->hbConnLock);
 
@@ -774,6 +844,7 @@ void qwProcessHbTimerEvent(void *param, void *tmrId) {
   SQWSchStatus *sch = NULL;
   int32_t       taskNum = 0;
   SQWHbInfo    *rspList = NULL;
+  SArray       *pExpiredSch = NULL;
   int32_t       code = 0;
 
   qwDbgDumpMgmtInfo(mgmt);
@@ -789,8 +860,11 @@ void qwProcessHbTimerEvent(void *param, void *tmrId) {
   }
 
   rspList = taosMemoryCalloc(schNum, sizeof(SQWHbInfo));
-  if (NULL == rspList) {
+  pExpiredSch = taosArrayInit(schNum, sizeof(uint64_t));
+  if (NULL == rspList || NULL == pExpiredSch) {
     QW_UNLOCK(QW_READ, &mgmt->schLock);
+    taosMemoryFree(rspList);
+    taosArrayDestroy(pExpiredSch);
     QW_ELOG("calloc %d SQWHbInfo failed", schNum);
     taosTmrReset(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, param, mgmt->timer, &mgmt->hbTimer);
     qwRelease(refId);
@@ -800,6 +874,7 @@ void qwProcessHbTimerEvent(void *param, void *tmrId) {
   void   *key = NULL;
   size_t  keyLen = 0;
   int32_t i = 0;
+  int64_t currentMs = taosGetTimestampMs();
 
   void *pIter = taosHashIterate(mgmt->schHash, NULL);
   while (pIter) {
@@ -807,6 +882,11 @@ void qwProcessHbTimerEvent(void *param, void *tmrId) {
     if (NULL == sch->hbConnInfo.handle) {
       uint64_t *sId = taosHashGetKey(pIter, NULL);
       QW_TLOG("cancel send hb to sch %" PRIx64 " cause of no connection handle", *sId);
+
+      if (sch->hbBrokenTs > 0 && ((currentMs - sch->hbBrokenTs) > QW_SCH_TIMEOUT_MSEC) && taosHashGetSize(sch->tasksHash) <= 0) {
+        taosArrayPush(pExpiredSch, sId);
+      }
+      
       pIter = taosHashIterate(mgmt->schHash, pIter);
       continue;
     }
@@ -832,10 +912,56 @@ _return:
     tFreeSSchedulerHbRsp(&rspList[j].rsp);
   }
 
+  if (taosArrayGetSize(pExpiredSch) > 0) {
+    qwClearExpiredSch(mgmt, pExpiredSch);
+  }
+
   taosMemoryFreeClear(rspList);
+  taosArrayDestroy(pExpiredSch);
 
   taosTmrReset(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, param, mgmt->timer, &mgmt->hbTimer);
   qwRelease(refId);
+}
+
+int32_t qwProcessDelete(QW_FPARAMS_DEF, SQWMsg *qwMsg, SRpcMsg *pRsp, SDeleteRes *pRes) {
+  int32_t        code = 0;
+  SSubplan      *plan = NULL;
+  qTaskInfo_t    pTaskInfo = NULL;
+  DataSinkHandle sinkHandle = NULL;
+  SQWTaskCtx     ctx = {0};
+
+  code = qStringToSubplan(qwMsg->msg, &plan);
+  if (TSDB_CODE_SUCCESS != code) {
+    code = TSDB_CODE_INVALID_MSG;
+    QW_TASK_ELOG("task physical plan to subplan failed, code:%x - %s", code, tstrerror(code));
+    QW_ERR_JRET(code);
+  }
+
+  ctx.plan = plan;
+
+  code = qCreateExecTask(qwMsg->node, mgmt->nodeId, tId, plan, &pTaskInfo, &sinkHandle, OPTR_EXEC_MODEL_BATCH);
+  if (code) {
+    QW_TASK_ELOG("qCreateExecTask failed, code:%x - %s", code, tstrerror(code));
+    QW_ERR_JRET(code);
+  }
+
+  if (NULL == sinkHandle || NULL == pTaskInfo) {
+    QW_TASK_ELOG("create task result error, taskHandle:%p, sinkHandle:%p", pTaskInfo, sinkHandle);
+    QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+  }
+
+  ctx.taskHandle = pTaskInfo;
+  ctx.sinkHandle = sinkHandle;
+
+  QW_ERR_JRET(qwExecTask(QW_FPARAMS(), &ctx, NULL));
+
+  QW_ERR_JRET(qwGetDeleteResFromSink(QW_FPARAMS(), &ctx, &pRsp->contLen, &pRsp->pCont, pRes));
+
+_return:
+
+  qwFreeTaskCtx(QW_FPARAMS(), &ctx);
+
+  QW_RET(TSDB_CODE_SUCCESS);
 }
 
 
@@ -970,6 +1096,7 @@ int32_t qWorkerGetStat(SReadHandle *handle, void *qWorkerMgmt, SQWorkerStat *pSt
   pStat->fetchProcessed = QW_STAT_GET(mgmt->stat.msgStat.fetchProcessed);
   pStat->dropProcessed = QW_STAT_GET(mgmt->stat.msgStat.dropProcessed);
   pStat->hbProcessed = QW_STAT_GET(mgmt->stat.msgStat.hbProcessed);
+  pStat->deleteProcessed = QW_STAT_GET(mgmt->stat.msgStat.deleteProcessed);
 
   pStat->numOfQueryInQueue = handle->pMsgCb->qsizeFp(handle->pMsgCb->mgmt, mgmt->nodeId, QUERY_QUEUE);
   pStat->numOfFetchInQueue = handle->pMsgCb->qsizeFp(handle->pMsgCb->mgmt, mgmt->nodeId, FETCH_QUEUE);

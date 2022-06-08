@@ -45,8 +45,7 @@ extern "C" {
 
 #define ERROR_MSG_BUF_DEFAULT_SIZE 512
 #define HEARTBEAT_INTERVAL         1500  // ms
-
-#define SYNC_ON_TOP_OF_ASYNC 0
+#define SYNC_ON_TOP_OF_ASYNC       0
 
 enum {
   RES_TYPE__QUERY = 1,
@@ -59,11 +58,6 @@ enum {
 typedef struct SAppInstInfo SAppInstInfo;
 
 typedef struct {
-  void*         param;
-  SClientHbReq* req;
-} SHbConnInfo;
-
-typedef struct {
   char* key;
   // statistics
   int32_t reportCnt;
@@ -72,11 +66,8 @@ typedef struct {
   int64_t startTime;
   // ctl
   SRWLatch lock;  // lock is used in serialization
-  // connection
   SAppInstInfo* pAppInstInfo;
-  // info
   SHashObj* activeInfo;  // hash<SClientHbKey, SClientHbReq>
-  SHashObj* connInfo;    // hash<SClientHbKey, SHbConnInfo>
 } SAppHbMgr;
 
 typedef int32_t (*FHbRspHandle)(SAppHbMgr* pAppHbMgr, SClientHbRsp* pRsp);
@@ -221,6 +212,9 @@ typedef struct SRequestObj {
   SArray*              tableList;
   SQueryExecMetric     metric;
   SRequestSendRecvBody body;
+
+  uint32_t             prevCode; //previous error code: todo refactor, add update flag for catalog
+  uint32_t             retry;
 } SRequestObj;
 
 typedef struct SSyncQueryParam {
@@ -272,8 +266,8 @@ extern SAppInfo appInfo;
 extern int32_t  clientReqRefPool;
 extern int32_t  clientConnRefPool;
 
-extern int (*handleRequestRspFp[TDMT_MAX])(void*, const SDataBuf* pMsg, int32_t code);
-int           genericRspCallback(void* param, const SDataBuf* pMsg, int32_t code);
+__async_send_cb_fn_t getMsgRspHandle(int32_t msgType);
+
 SMsgSendInfo* buildMsgInfoImpl(SRequestObj* pReqObj);
 
 void*    createTscObj(const char* user, const char* auth, const char* db, int32_t connType, SAppInstInfo* pAppInfo);
@@ -283,7 +277,7 @@ int32_t  releaseTscObj(int64_t rid);
 
 uint64_t generateRequestId();
 
-void*        createRequest(STscObj* pObj, void* param, int32_t type);
+void*        createRequest(STscObj* pObj, int32_t type);
 void         destroyRequest(SRequestObj* pRequest);
 SRequestObj* acquireRequest(int64_t rid);
 int32_t      releaseRequest(int64_t rid);
@@ -298,8 +292,6 @@ void* openTransporter(const char* user, const char* auth, int32_t numOfThreads);
 
 bool persistConnForSpecificMsg(void* parenct, tmsg_t msgType);
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet);
-
-void initMsgHandleFp();
 
 TAOS* taos_connect_internal(const char* ip, const char* user, const char* pass, const char* auth, const char* db,
                             uint16_t port, int connType);
@@ -326,8 +318,6 @@ void       appHbMgrCleanup(void);
 int  hbRegisterConn(SAppHbMgr* pAppHbMgr, int64_t tscRefId, int64_t clusterId, int8_t connType);
 void hbDeregisterConn(SAppHbMgr* pAppHbMgr, SClientHbKey connKey);
 
-int hbAddConnInfo(SAppHbMgr* pAppHbMgr, SClientHbKey connKey, void* key, void* value, int32_t keyLen, int32_t valueLen);
-
 // --- mq
 void hbMgrInitMqHbRspHandle();
 
@@ -336,6 +326,9 @@ int32_t      scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNod
 void         launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery);
 int32_t      refreshMeta(STscObj* pTscObj, SRequestObj* pRequest);
 int32_t      updateQnodeList(SAppInstInfo* pInfo, SArray* pNodeList);
+void         doAsyncQuery(SRequestObj* pRequest, bool forceUpdateMeta);
+int32_t      removeMeta(STscObj* pTscObj, SArray* tbList);// todo move to clientImpl.c and become a static function
+int32_t      handleAlterTbExecRes(void* res, struct SCatalog* pCatalog);// todo move to xxx
 
 #ifdef __cplusplus
 }

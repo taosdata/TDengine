@@ -97,6 +97,11 @@ static TExeCond tCompareGreaterEqual(void* a, void* b, int8_t type) {
   __compar_fn_t func = indexGetCompar(type);
   return tCompare(func, QUERY_GREATER_EQUAL, a, b, type);
 }
+
+static TExeCond tCompareContains(void* a, void* b, int8_t type) {
+  __compar_fn_t func = indexGetCompar(type);
+  return tCompare(func, QUERY_TERM, a, b, type);
+}
 TExeCond tCompare(__compar_fn_t func, int8_t cmptype, void* a, void* b, int8_t dtype) {
   if (dtype == TSDB_DATA_TYPE_BINARY || dtype == TSDB_DATA_TYPE_NCHAR || dtype == TSDB_DATA_TYPE_VARBINARY) {
     return tDoCompare(func, cmptype, a, b);
@@ -185,12 +190,14 @@ TExeCond tDoCompare(__compar_fn_t func, int8_t comparType, void* a, void* b) {
     case QUERY_TERM: {
       if (ret == 0) return MATCH;
     }
+    default:
+      return BREAK;
   }
   return CONTINUE;
 }
 
-static TExeCond (*rangeCompare[])(void* a, void* b, int8_t type) = {tCompareLessThan, tCompareLessEqual,
-                                                                    tCompareGreaterThan, tCompareGreaterEqual};
+static TExeCond (*rangeCompare[])(void* a, void* b, int8_t type) = {
+    tCompareLessThan, tCompareLessEqual, tCompareGreaterThan, tCompareGreaterEqual, tCompareContains};
 
 _cache_range_compare indexGetCompare(RangeType ty) { return rangeCompare[ty]; }
 
@@ -402,16 +409,16 @@ int32_t indexConvertDataToStr(void* src, int8_t type, void** dst) {
       break;
     }
     case TSDB_DATA_TYPE_VARCHAR: {  // TSDB_DATA_TYPE_BINARY
-      tlen = taosEncodeBinary(NULL, src, strlen(src));
+      tlen = taosEncodeBinary(NULL, varDataVal(src), varDataLen(src));
       *dst = taosMemoryCalloc(1, tlen + 1);
-      tlen = taosEncodeBinary(dst, src, strlen(src));
+      tlen = taosEncodeBinary(dst, varDataVal(src), varDataLen(src));
       *dst = (char*)*dst - tlen;
       break;
     }
     case TSDB_DATA_TYPE_VARBINARY:
-      tlen = taosEncodeBinary(NULL, src, strlen(src));
+      tlen = taosEncodeBinary(NULL, varDataVal(src), varDataLen(src));
       *dst = taosMemoryCalloc(1, tlen + 1);
-      tlen = taosEncodeBinary(dst, src, strlen(src));
+      tlen = taosEncodeBinary(dst, varDataVal(src), varDataLen(src));
       *dst = (char*)*dst - tlen;
       break;
     default:

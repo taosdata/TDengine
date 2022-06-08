@@ -21,10 +21,36 @@ namespace ParserTest {
 
 class ParserInitialDTest : public ParserDdlTest {};
 
-// todo delete
-// todo desc
+// DELETE FROM table_name [WHERE condition]
+TEST_F(ParserInitialDTest, delete) {
+  useDb("root", "test");
+
+  run("DELETE FROM t1");
+
+  run("DELETE FROM t1 WHERE ts > now - 2d and ts < now - 1d");
+
+  run("DELETE FROM st1");
+
+  run("DELETE FROM st1 WHERE ts > now - 2d and ts < now - 1d AND tag1 = 10");
+}
+
+TEST_F(ParserInitialDTest, deleteSemanticCheck) {
+  useDb("root", "test");
+
+  run("DELETE FROM t1 WHERE c1 > 10", TSDB_CODE_PAR_INVALID_DELETE_WHERE, PARSER_STAGE_TRANSLATE);
+}
+
+// DESC table_name
+TEST_F(ParserInitialDTest, describe) {
+  useDb("root", "test");
+
+  run("DESC t1");
+
+  run("DESCRIBE st1");
+}
+
 // todo describe
-// todo drop account
+// todo DROP account
 
 TEST_F(ParserInitialDTest, dropBnode) {
   useDb("root", "test");
@@ -33,7 +59,7 @@ TEST_F(ParserInitialDTest, dropBnode) {
 }
 
 // DROP CONSUMER GROUP [ IF EXISTS ] cgroup_name ON topic_name
-TEST_F(ParserInitialDTest, dropCGroup) {
+TEST_F(ParserInitialDTest, dropConsumerGroup) {
   useDb("root", "test");
 
   SMDropCgroupReq expect = {0};
@@ -62,51 +88,61 @@ TEST_F(ParserInitialDTest, dropCGroup) {
   run("DROP CONSUMER GROUP IF EXISTS cg1 ON tp1");
 }
 
-// todo drop database
-// todo drop dnode
-// todo drop function
+// todo DROP database
+// todo DROP dnode
+// todo DROP function
 
 TEST_F(ParserInitialDTest, dropIndex) {
   useDb("root", "test");
 
-  run("drop index index1 on t1");
+  run("DROP index index1 on t1");
 }
 
 TEST_F(ParserInitialDTest, dropMnode) {
   useDb("root", "test");
 
-  run("drop mnode on dnode 1");
+  run("DROP mnode on dnode 1");
 }
 
 TEST_F(ParserInitialDTest, dropQnode) {
   useDb("root", "test");
 
-  run("drop qnode on dnode 1");
+  run("DROP qnode on dnode 1");
 }
 
 TEST_F(ParserInitialDTest, dropSnode) {
   useDb("root", "test");
 
-  run("drop snode on dnode 1");
+  run("DROP snode on dnode 1");
 }
 
-// todo drop stable
-// todo drop stream
-// todo drop table
+TEST_F(ParserInitialDTest, dropSTable) {
+  useDb("root", "test");
+
+  run("DROP STABLE st1");
+}
+
+// todo DROP stream
+
+TEST_F(ParserInitialDTest, dropTable) {
+  useDb("root", "test");
+
+  run("DROP TABLE t1");
+}
 
 TEST_F(ParserInitialDTest, dropTopic) {
   useDb("root", "test");
 
-  run("drop topic tp1");
+  run("DROP topic tp1");
 
-  run("drop topic if exists tp1");
+  run("DROP topic if exists tp1");
 }
 
 TEST_F(ParserInitialDTest, dropUser) {
   login("root");
   useDb("root", "test");
 
-  run("drop user wxy");
+  run("DROP user wxy");
 }
 
 }  // namespace ParserTest

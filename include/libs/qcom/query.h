@@ -222,9 +222,9 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t 
   || (_type) == TDMT_VND_DROP_TABLE || (_type) == TDMT_VND_DROP_STB)
 
 #define NEED_SCHEDULER_RETRY_ERROR(_code) \
-  ((_code) == TSDB_CODE_RPC_REDIRECT || (_code) == TSDB_CODE_RPC_NETWORK_UNAVAIL)
+  ((_code) == TSDB_CODE_RPC_REDIRECT || (_code) == TSDB_CODE_RPC_NETWORK_UNAVAIL || (_code) == TSDB_CODE_SCH_TIMEOUT_ERROR)
 
-#define REQUEST_MAX_TRY_TIMES 1
+#define REQUEST_TOTAL_EXEC_TIMES 2
 
 #define qFatal(...)                                                                           \
   do {                                                                                        \

@@ -486,7 +486,7 @@ TEST(testCase, smlProcess_influx_Test) {
   pRes = taos_query(taos, "use inflx_db");
   taos_free_result(pRes);
 
-  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, TSDB_SQL_INSERT);
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
   SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
@@ -607,7 +607,7 @@ TEST(testCase, smlParseLine_error_Test) {
   pRes = taos_query(taos, "use sml_db");
   taos_free_result(pRes);
 
-  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, TSDB_SQL_INSERT);
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
   SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
@@ -656,7 +656,7 @@ TEST(testCase, smlProcess_telnet_Test) {
   pRes = taos_query(taos, "use telnet_db");
   taos_free_result(pRes);
 
-  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, TSDB_SQL_INSERT);
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
   SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
@@ -710,7 +710,7 @@ TEST(testCase, smlProcess_json1_Test) {
   pRes = taos_query(taos, "use json_db");
   taos_free_result(pRes);
 
-  SRequestObj *request = (SRequestObj *)createRequest((STscObj *)taos, NULL, TSDB_SQL_INSERT);
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj *)taos, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
   SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
@@ -779,7 +779,7 @@ TEST(testCase, smlProcess_json2_Test) {
   pRes = taos_query(taos, "use sml_db");
   taos_free_result(pRes);
 
-  SRequestObj *request = (SRequestObj *)createRequest((STscObj *)taos, NULL, TSDB_SQL_INSERT);
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj *)taos, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
   SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
@@ -823,7 +823,7 @@ TEST(testCase, smlProcess_json3_Test) {
   pRes = taos_query(taos, "use sml_db");
   taos_free_result(pRes);
 
-  SRequestObj *request = (SRequestObj *)createRequest((STscObj *)taos, NULL, TSDB_SQL_INSERT);
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj *)taos, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
   SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
@@ -895,7 +895,7 @@ TEST(testCase, smlProcess_json4_Test) {
   pRes = taos_query(taos, "use sml_db");
   taos_free_result(pRes);
 
-  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, TSDB_SQL_INSERT);
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
   SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
@@ -957,7 +957,7 @@ TEST(testCase, smlParseTelnetLine_error_Test) {
   pRes = taos_query(taos, "use sml_db");
   taos_free_result(pRes);
 
-  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, TSDB_SQL_INSERT);
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
   SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
@@ -1006,7 +1006,7 @@ TEST(testCase, smlParseTelnetLine_diff_type_Test) {
   pRes = taos_query(taos, "use sml_db");
   taos_free_result(pRes);
 
-  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, TSDB_SQL_INSERT);
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
   SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
@@ -1033,7 +1033,7 @@ TEST(testCase, smlParseTelnetLine_json_error_Test) {
   pRes = taos_query(taos, "use sml_db");
   taos_free_result(pRes);
 
-  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, TSDB_SQL_INSERT);
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
   SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
@@ -1101,7 +1101,7 @@ TEST(testCase, smlParseTelnetLine_diff_json_type1_Test) {
   pRes = taos_query(taos, "use sml_db");
   taos_free_result(pRes);
 
-  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, TSDB_SQL_INSERT);
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
   SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
@@ -1146,7 +1146,7 @@ TEST(testCase, smlParseTelnetLine_diff_json_type2_Test) {
   pRes = taos_query(taos, "use sml_db");
   taos_free_result(pRes);
 
-  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, TSDB_SQL_INSERT);
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
   SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
@@ -1191,7 +1191,7 @@ TEST(testCase, sml_TD15662_Test) {
   pRes = taos_query(taos, "use db_15662");
   taos_free_result(pRes);
 
-  SRequestObj *request = (SRequestObj *)createRequest((STscObj *)taos, NULL, TSDB_SQL_INSERT);
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj *)taos, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
   SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_MILLI_SECONDS);
@@ -1218,7 +1218,7 @@ TEST(testCase, sml_TD15735_Test) {
   pRes = taos_query(taos, "use sml_db");
   taos_free_result(pRes);
 
-  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, TSDB_SQL_INSERT);
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
   SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
@@ -1244,7 +1244,7 @@ TEST(testCase, sml_TD15742_Test) {
   pRes = taos_query(taos, "use TD15742");
   taos_free_result(pRes);
 
-  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, TSDB_SQL_INSERT);
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
   SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_MILLI_SECONDS);

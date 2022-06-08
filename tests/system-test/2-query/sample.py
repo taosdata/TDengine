@@ -427,10 +427,10 @@ class TDTestCase:
         # err9 = {"col": "st1"}
         # self.checksample(**err9)          # col: tag
         tdSql.query(" select sample(st1 ,1) from t1 ")
-        err10 = {"col": 1}
-        self.checksample(**err10)         # col: value
-        err11 = {"col": "NULL"}
-        self.checksample(**err11)         # col: NULL
+        # err10 = {"col": 1}
+        # self.checksample(**err10)         # col: value
+        # err11 = {"col": "NULL"}
+        # self.checksample(**err11)         # col: NULL
         err12 = {"col": "%_"}
         self.checksample(**err12)         # col: %_
         err13 = {"col": "c3"}
@@ -445,12 +445,12 @@ class TDTestCase:
         self.checksample(**err17)         # nchar col
         err18 = {"col": "c6"}
         self.checksample(**err18)         # bool col
-        err19 = {"col": "'c1'"}
-        self.checksample(**err19)         # col: string
+        # err19 = {"col": "'c1'"}
+        # self.checksample(**err19)         # col: string
         err20 = {"col": None}
         self.checksample(**err20)         # col: None
-        err21 = {"col": "''"}
-        self.checksample(**err21)         # col: ''
+        # err21 = {"col": "''"}
+        # self.checksample(**err21)         # col: ''
         err22 = {"col": "tt1.c1"}
         self.checksample(**err22)         # not table_expr col
         err23 = {"col": "t1"}
@@ -459,10 +459,10 @@ class TDTestCase:
         self.checksample(**err24)         # stbname
         err25 = {"col": "db"}
         self.checksample(**err25)         # datbasename
-        err26 = {"col": "True"}
-        self.checksample(**err26)         # col: BOOL 1
-        err27 = {"col": True}
-        self.checksample(**err27)         # col: BOOL 2
+        # err26 = {"col": "True"}
+        # self.checksample(**err26)         # col: BOOL 1
+        # err27 = {"col": True}
+        # self.checksample(**err27)         # col: BOOL 2
         err28 = {"col": "*"}
         self.checksample(**err28)         # col: all col
         err29 = {"func": "sample[", "r_comm": "]"}
@@ -678,7 +678,7 @@ class TDTestCase:
         tdSql.error(" select sample(c1,tbname) from t1 ")
         tdSql.error(" select sample(c1,ts) from t1 ")
         tdSql.error(" select sample(c1,false) from t1 ")
-        tdSql.error(" select sample(123,1) from t1 ")
+        tdSql.query(" select sample(123,1) from t1 ")
         
         tdSql.query(" select sample(c1,2) from t1 ")
         tdSql.checkRows(2)

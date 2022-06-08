@@ -187,4 +187,14 @@ if $data34 != 19 then
   return -1
 endi
 
+sql insert into t1 values(1648791000000,1,1,1,1.1,23);
+sleep 300
+sql select * from streamt order by s desc;
+
+# row 0
+if $data01 != 1 then
+  print ======$data01
+  return -1
+endi
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

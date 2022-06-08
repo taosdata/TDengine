@@ -34,9 +34,6 @@ static int32_t  mndMnodeActionUpdate(SSdb *pSdb, SMnodeObj *pOld, SMnodeObj *pNe
 static int32_t  mndProcessCreateMnodeReq(SRpcMsg *pReq);
 static int32_t  mndProcessAlterMnodeReq(SRpcMsg *pReq);
 static int32_t  mndProcessDropMnodeReq(SRpcMsg *pReq);
-static int32_t  mndProcessCreateMnodeRsp(SRpcMsg *pRsp);
-static int32_t  mndProcessAlterMnodeRsp(SRpcMsg *pRsp);
-static int32_t  mndProcessDropMnodeRsp(SRpcMsg *pRsp);
 static int32_t  mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextMnode(SMnode *pMnode, void *pIter);
 
@@ -53,11 +50,11 @@ int32_t mndInitMnode(SMnode *pMnode) {
   };
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_MNODE, mndProcessCreateMnodeReq);
+  mndSetMsgHandle(pMnode, TDMT_DND_CREATE_MNODE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_ALTER_MNODE, mndProcessAlterMnodeReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_ALTER_MNODE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_MNODE, mndProcessDropMnodeReq);
-  mndSetMsgHandle(pMnode, TDMT_DND_CREATE_MNODE_RSP, mndProcessCreateMnodeRsp);
-  mndSetMsgHandle(pMnode, TDMT_MND_ALTER_MNODE_RSP, mndProcessAlterMnodeRsp);
-  mndSetMsgHandle(pMnode, TDMT_DND_DROP_MNODE_RSP, mndProcessDropMnodeRsp);
+  mndSetMsgHandle(pMnode, TDMT_DND_DROP_MNODE_RSP, mndTransProcessRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_MNODE, mndRetrieveMnodes);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_MNODE, mndCancelGetNextMnode);
@@ -361,13 +358,13 @@ static int32_t mndCreateMnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, 
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq);
   if (pTrans == NULL) goto _OVER;
-
-  mDebug("trans:%d, used to create mnode:%d", pTrans->id, pCreate->dnodeId);
   mndTransSetSerial(pTrans);
+  mDebug("trans:%d, used to create mnode:%d", pTrans->id, pCreate->dnodeId);
+
   if (mndSetCreateMnodeRedoLogs(pMnode, pTrans, &mnodeObj) != 0) goto _OVER;
   if (mndSetCreateMnodeCommitLogs(pMnode, pTrans, &mnodeObj) != 0) goto _OVER;
   if (mndSetCreateMnodeRedoActions(pMnode, pTrans, pDnode, &mnodeObj) != 0) goto _OVER;
-
+  if (mndTransAppendNullLog(pTrans) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
   code = 0;
@@ -411,7 +408,7 @@ static int32_t mndProcessCreateMnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (!mndIsDnodeOnline(pMnode, pDnode, taosGetTimestampMs())) {
+  if (!mndIsDnodeOnline(pDnode, taosGetTimestampMs())) {
     terrno = TSDB_CODE_NODE_OFFLINE;
     goto _OVER;
   }
@@ -422,7 +419,7 @@ static int32_t mndProcessCreateMnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (mndCheckNodeAuth(pUser)) {
+  if (mndCheckNodeAuth(pUser) != 0) {
     goto _OVER;
   }
 
@@ -538,17 +535,25 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
   return 0;
 }
 
+int32_t mndSetDropMnodeInfoToTrans(SMnode *pMnode, STrans *pTrans, SMnodeObj *pObj) {
+  if (pObj == NULL) return 0;
+  if (mndSetDropMnodeRedoLogs(pMnode, pTrans, pObj) != 0) return -1;
+  if (mndSetDropMnodeCommitLogs(pMnode, pTrans, pObj) != 0) return -1;
+  if (mndSetDropMnodeRedoActions(pMnode, pTrans, pObj->pDnode, pObj) != 0) return -1;
+  if (mndTransAppendNullLog(pTrans) != 0) return -1;
+  return 0;
+}
+
 static int32_t mndDropMnode(SMnode *pMnode, SRpcMsg *pReq, SMnodeObj *pObj) {
   int32_t code = -1;
+  STrans *pTrans = NULL;
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq);
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq);
   if (pTrans == NULL) goto _OVER;
-
-  mDebug("trans:%d, used to drop mnode:%d", pTrans->id, pObj->id);
   mndTransSetSerial(pTrans);
-  if (mndSetDropMnodeRedoLogs(pMnode, pTrans, pObj) != 0) goto _OVER;
-  if (mndSetDropMnodeCommitLogs(pMnode, pTrans, pObj) != 0) goto _OVER;
-  if (mndSetDropMnodeRedoActions(pMnode, pTrans, pObj->pDnode, pObj) != 0) goto _OVER;
+  mDebug("trans:%d, used to drop mnode:%d", pTrans->id, pObj->id);
+
+  if (mndSetDropMnodeInfoToTrans(pMnode, pTrans, pObj) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
   code = 0;
@@ -583,7 +588,7 @@ static int32_t mndProcessDropMnodeReq(SRpcMsg *pReq) {
   }
 
   if (pMnode->selfDnodeId == dropReq.dnodeId) {
-    terrno = TSDB_CODE_MND_CANT_DROP_MASTER;
+    terrno = TSDB_CODE_MND_CANT_DROP_LEADER;
     goto _OVER;
   }
 
@@ -598,7 +603,7 @@ static int32_t mndProcessDropMnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (mndCheckNodeAuth(pUser)) {
+  if (mndCheckNodeAuth(pUser) != 0) {
     goto _OVER;
   }
 
@@ -614,21 +619,6 @@ _OVER:
   mndReleaseUser(pMnode, pUser);
 
   return code;
-}
-
-static int32_t mndProcessCreateMnodeRsp(SRpcMsg *pRsp) {
-  mndTransProcessRsp(pRsp);
-  return 0;
-}
-
-static int32_t mndProcessAlterMnodeRsp(SRpcMsg *pRsp) {
-  mndTransProcessRsp(pRsp);
-  return 0;
-}
-
-static int32_t mndProcessDropMnodeRsp(SRpcMsg *pRsp) {
-  mndTransProcessRsp(pRsp);
-  return 0;
 }
 
 static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
@@ -659,7 +649,7 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     if (pObj->id == pMnode->selfDnodeId) {
       roles = syncStr(TAOS_SYNC_STATE_LEADER);
     }
-    if (pObj->pDnode && mndIsDnodeOnline(pMnode, pObj->pDnode, curMs)) {
+    if (pObj->pDnode && mndIsDnodeOnline(pObj->pDnode, curMs)) {
       roles = syncStr(pObj->state);
     }
     char b2[12 + VARSTR_HEADER_SIZE] = {0};
