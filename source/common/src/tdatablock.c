@@ -1500,7 +1500,7 @@ void blockDebugShowData(const SArray* dataBlocks, const char* flag) {
       for (int32_t k = 0; k < colNum; k++) {
         SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, k);
         void*            var = POINTER_SHIFT(pColInfoData->pData, j * pColInfoData->info.bytes);
-        if (pColInfoData->hasNull) {
+        if (colDataIsNull(pColInfoData, rows, j, NULL)) {
           printf(" %15s |", "NULL");
           continue;
         }
