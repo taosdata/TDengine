@@ -593,6 +593,7 @@ void schedulerExecCb(SQueryResult* pResult, void* param, int32_t code) {
     pRequest->code = code;
   }
 
+  tscDebug("schedulerExecCb request type %s", TMSG_INFO(pRequest->type));
   if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type)) {
     removeMeta(pTscObj, pRequest->tableList);
   }
