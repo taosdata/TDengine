@@ -373,9 +373,6 @@ static FORCE_INLINE void ncharToVar(char* buf, SScalarParam* pOut, int32_t rowIn
 
 //TODO opt performance, tmp is not needed.
 int32_t vectorConvertFromVarData(const SScalarParam* pIn, SScalarParam* pOut, int32_t inType, int32_t outType) {
-  int32_t bufSize = pIn->columnData->info.bytes;
-  char *tmp = taosMemoryMalloc(bufSize + VARSTR_HEADER_SIZE);
-
   bool vton = false;
 
   _bufConverteFunc func = NULL;
@@ -423,6 +420,12 @@ int32_t vectorConvertFromVarData(const SScalarParam* pIn, SScalarParam* pOut, in
         continue;
       }
     }
+    int32_t bufSize = pIn->columnData->info.bytes;
+    char *tmp = taosMemoryMalloc(varDataTLen(data));
+    if(!tmp){
+      sclError("out of memory in vectorConvertFromVarData");
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
     if (vton) {
       memcpy(tmp, data, varDataTLen(data));
     } else {
@@ -444,9 +447,9 @@ int32_t vectorConvertFromVarData(const SScalarParam* pIn, SScalarParam* pOut, in
     }
     
     (*func)(tmp, pOut, i);
+    taosMemoryFreeClear(tmp);
   }
   
-  taosMemoryFreeClear(tmp);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1674,6 +1677,14 @@ void vectorNotNull(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut
 
 void vectorIsTrue(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
   vectorConvertImpl(pLeft, pOut);
+  for(int32_t i = 0; i < pOut->numOfRows; ++i) {
+    if(colDataIsNull_s(pOut->columnData, i)) {
+      int8_t v = 0;
+      colDataAppendInt8(pOut->columnData, i, &v);
+      colDataSetNotNull_f(pOut->columnData->nullbitmap, i);
+    }
+  }
+  pOut->columnData->hasNull = false;
 }
 
 STagVal getJsonValue(char *json, char *key, bool *isExist) {
