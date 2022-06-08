@@ -44,6 +44,8 @@ static SyncIndex       logStoreGetCommitIndex(SSyncLogStore* pLogStore);
 
 // refactor, log[0 .. n] ==> log[m .. n]
 static int32_t raftLogSetBeginIndex(struct SSyncLogStore* pLogStore, SyncIndex beginIndex) {
+  sTrace("raftLogSetBeginIndex beginIndex:%ld", beginIndex);
+
   // if beginIndex == 0, donot need call this funciton
   ASSERT(beginIndex > 0);
 

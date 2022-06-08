@@ -106,7 +106,7 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
 
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
-    sInfo("maybe already dropped");
+    sInfo("recv SyncAppendEntriesReply,  maybe replica already dropped");
     return ret;
   }
 
@@ -195,35 +195,6 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
             sentryIndex = pSender->snapshot.lastApplyIndex;
           }
         }
-#if 0
-        SyncIndex sentryIndex;
-        if (pSender->start && pSender->term == ths->pRaftStore->currentTerm) {
-          // already start
-          sentryIndex = pSender->snapshot.lastApplyIndex;
-          sTrace("sending snapshot already start: pSender->term:%lu, ths->pRaftStore->currentTerm:%lu", pSender->term,
-                 ths->pRaftStore->currentTerm);
-
-        } else {
-          if (pMsg->privateTerm == pSender->privateTerm) {
-            sTrace("same privateTerm, pMsg->privateTerm:%lu, pSender->privateTerm:%lu, do not start snapshot again",
-                   pMsg->privateTerm, pSender->privateTerm);
-          } else {
-            // start send snapshot, first time
-            sTrace(
-                "sending snapshot start first: pSender->term:%lu, ths->pRaftStore->currentTerm:%lu, "
-                "pMsg->privateTerm:%lu, pSender->privateTerm:%lu",
-                pSender->term, ths->pRaftStore->currentTerm, pMsg->privateTerm, pSender->privateTerm);
-
-            snapshotSenderDoStart(pSender);
-            pSender->start = true;
-
-            // update snapshot private term
-            syncIndexMgrSetTerm(ths->pNextIndex, &(pMsg->srcId), pSender->privateTerm);
-          }
-
-          sentryIndex = pSender->snapshot.lastApplyIndex;
-        }
-#endif
 
         // update nextIndex to sentryIndex + 1
         if (nextIndex <= sentryIndex) {

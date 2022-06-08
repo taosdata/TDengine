@@ -225,7 +225,8 @@ int32_t   syncNodeGetPreIndexTerm(SSyncNode* pSyncNode, SyncIndex index, SyncInd
 
 int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex, uint64_t flag);
 
-bool syncNodeInRaftGroup(SSyncNode* ths, SRaftId* pRaftId);
+bool                 syncNodeInRaftGroup(SSyncNode* ths, SRaftId* pRaftId);
+SSyncSnapshotSender* syncNodeGetSnapshotSender(SSyncNode* ths, SRaftId* pDestId);
 
 // for debug --------------
 void syncNodePrint(SSyncNode* pObj);

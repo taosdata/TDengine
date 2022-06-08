@@ -835,6 +835,10 @@ int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRp
   SEpSet epSet;
   syncUtilraftId2EpSet(destRaftId, &epSet);
   if (pSyncNode->FpSendMsg != NULL) {
+    char logBuf[128] = {0};
+    snprintf(logBuf, sizeof(logBuf), "==syncNodeSendMsgById== msgType:%d", pMsg->msgType);
+    syncRpcMsgLog2(logBuf, pMsg);
+
     // htonl
     syncUtilMsgHtoN(pMsg->pCont);
 
@@ -1817,4 +1821,14 @@ bool syncNodeInRaftGroup(SSyncNode* ths, SRaftId* pRaftId) {
     }
   }
   return false;
+}
+
+SSyncSnapshotSender* syncNodeGetSnapshotSender(SSyncNode* ths, SRaftId* pDestId) {
+  SSyncSnapshotSender* pSender = NULL;
+  for (int i = 0; i < ths->replicaNum; ++i) {
+    if (syncUtilSameId(pDestId, &((ths->replicasId)[i]))) {
+      pSender = (ths->senders)[i];
+    }
+  }
+  return pSender;
 }

@@ -103,6 +103,12 @@ int32_t syncNodeOnRequestVoteSnapshotCb(SSyncNode* ths, SyncRequestVote* pMsg) {
   snprintf(logBuf, sizeof(logBuf), "recv SyncRequestVote, currentTerm:%lu", ths->pRaftStore->currentTerm);
   syncRequestVoteLog2(logBuf, pMsg);
 
+  // if already drop replica, do not process
+  if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
+    sInfo("recv SyncRequestVote maybe replica already dropped");
+    return ret;
+  }
+
   // maybe update term
   if (pMsg->term > ths->pRaftStore->currentTerm) {
     syncNodeUpdateTerm(ths, pMsg->term);

@@ -549,6 +549,15 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
   snprintf(logBuf, sizeof(logBuf), "recv SyncAppendEntries, term:%lu", ths->pRaftStore->currentTerm);
   syncAppendEntriesLog2(logBuf, pMsg);
 
+  // if I am standby, be added into a raft group, I should process SyncAppendEntries msg
+  /*
+    // if already drop replica, do not process
+    if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
+      sInfo("recv SyncAppendEntries maybe replica already dropped");
+      return ret;
+    }
+  */
+
   // maybe update term
   if (pMsg->term > ths->pRaftStore->currentTerm) {
     syncNodeUpdateTerm(ths, pMsg->term);
@@ -598,7 +607,36 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
     return ret;
   }
 
-  // case 3, accept request
+  // case 3, index in my snapshot
+  if (pMsg->term == ths->pRaftStore->currentTerm && syncNodeHasSnapshot(ths)) {
+    SSnapshot snapshot;
+    ths->pFsm->FpGetSnapshot(ths->pFsm, &snapshot);
+    if (pMsg->prevLogIndex < snapshot.lastApplyIndex) {
+      sTrace(
+          "recv SyncAppendEntries, accept, in snapshot, receive_term:%lu, current_term:%lu, ths->state:%d, logOK:%d, "
+          "snapshot.lastApplyIndex:%ld, snapshot.lastApplyTerm:%lu",
+          pMsg->term, ths->pRaftStore->currentTerm, ths->state, logOK, snapshot.lastApplyIndex, snapshot.lastApplyTerm);
+
+      // prepare response msg
+      SyncAppendEntriesReply* pReply = syncAppendEntriesReplyBuild(ths->vgId);
+      pReply->srcId = ths->myRaftId;
+      pReply->destId = pMsg->srcId;
+      pReply->term = ths->pRaftStore->currentTerm;
+      pReply->success = true;
+      pReply->privateTerm = ths->pNewNodeReceiver->privateTerm;
+      pReply->matchIndex = snapshot.lastApplyIndex - 1;
+
+      // send response
+      SRpcMsg rpcMsg;
+      syncAppendEntriesReply2RpcMsg(pReply, &rpcMsg);
+      syncNodeSendMsgById(&pReply->destId, ths, &rpcMsg);
+      syncAppendEntriesReplyDestroy(pReply);
+
+      return ret;
+    }
+  }
+
+  // case 4, accept request
   if (pMsg->term == ths->pRaftStore->currentTerm && ths->state == TAOS_SYNC_STATE_FOLLOWER && logOK) {
     // has extra entries (> preIndex) in local log
     SyncIndex myLastIndex = syncNodeGetLastIndex(ths);

@@ -101,6 +101,12 @@ int32_t syncNodeOnRequestVoteReplySnapshotCb(SSyncNode* ths, SyncRequestVoteRepl
   snprintf(logBuf, sizeof(logBuf), "recv SyncRequestVoteReply, term:%lu", ths->pRaftStore->currentTerm);
   syncRequestVoteReplyLog2(logBuf, pMsg);
 
+  // if already drop replica, do not process
+  if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
+    sInfo("recv SyncRequestVoteReply, maybe replica already dropped");
+    return ret;
+  }
+
   // drop stale response
   if (pMsg->term < ths->pRaftStore->currentTerm) {
     sTrace("recv SyncRequestVoteReply, drop stale response, receive_term:%lu current_term:%lu", pMsg->term,
