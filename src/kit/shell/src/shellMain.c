@@ -104,7 +104,7 @@ int main(int argc, char* argv[]) {
 
   char* cloud_url = getenv("TDENGINE_CLOUD_URL");
   if (cloud_url != NULL) {
-    char* tmp = strstr(cloud_url, ":");
+    char* tmp = last_strstr(cloud_url, ":");
     if ((tmp == NULL) && ((tmp + 1) != NULL )) {
       fprintf(stderr, "Invalid format in environment variable TDENGINE_CLOUD_URL: %s\n", cloud_url);
       exit(EXIT_FAILURE);
