@@ -195,7 +195,7 @@ typedef struct {
 
 tmq_conf_t* tmq_conf_new() {
   tmq_conf_t* conf = taosMemoryCalloc(1, sizeof(tmq_conf_t));
-  conf->withTbName = -1;
+  conf->withTbName = false;
   conf->autoCommit = true;
   conf->autoCommitInterval = 5000;
   conf->resetOffset = TMQ_CONF__RESET_OFFSET__EARLIEAST;
@@ -256,13 +256,10 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
 
   if (strcmp(key, "msg.with.table.name") == 0) {
     if (strcmp(value, "true") == 0) {
-      conf->withTbName = 1;
+      conf->withTbName = true;
       return TMQ_CONF_OK;
     } else if (strcmp(value, "false") == 0) {
-      conf->withTbName = 0;
-      return TMQ_CONF_OK;
-    } else if (strcmp(value, "none") == 0) {
-      conf->withTbName = -1;
+      conf->withTbName = false;
       return TMQ_CONF_OK;
     } else {
       return TMQ_CONF_INVALID;
@@ -326,7 +323,7 @@ static int32_t tmqMakeTopicVgKey(char* dst, const char* topicName, int32_t vg) {
 
 int32_t tmqCommitCb(void* param, const SDataBuf* pMsg, int32_t code) {
   SMqCommitCbParam* pParam = (SMqCommitCbParam*)param;
-  pParam->rspErr = code == 0 ? TMQ_RESP_ERR__SUCCESS : TMQ_RESP_ERR__FAIL;
+  pParam->rspErr = code;
   if (pParam->async) {
     if (pParam->automatic && pParam->tmq->commitCb) {
       pParam->tmq->commitCb(pParam->tmq, pParam->rspErr, (tmq_topic_vgroup_list_t*)pParam->offsets,
@@ -435,12 +432,13 @@ int32_t tmqCommitInner(tmq_t* tmq, const tmq_topic_vgroup_list_t* offsets, int8_
     code = pParam->rspErr;
     tsem_destroy(&pParam->rspSem);
     taosMemoryFree(pParam);
+  } else {
+    code = 0;
   }
 
   // avoid double free if msg is sent
   buf = NULL;
 
-  code = 0;
 END:
   if (buf) taosMemoryFree(buf);
   /*if (pParam) taosMemoryFree(pParam);*/
@@ -448,9 +446,9 @@ END:
 
   if (code != 0 && async) {
     if (automatic) {
-      tmq->commitCb(tmq, TMQ_RESP_ERR__FAIL, (tmq_topic_vgroup_list_t*)pOffsets, tmq->commitCbUserParam);
+      tmq->commitCb(tmq, code, (tmq_topic_vgroup_list_t*)pOffsets, tmq->commitCbUserParam);
     } else {
-      userCb(tmq, TMQ_RESP_ERR__FAIL, (tmq_topic_vgroup_list_t*)pOffsets, userParam);
+      userCb(tmq, code, (tmq_topic_vgroup_list_t*)pOffsets, userParam);
     }
   }
 
@@ -1477,16 +1475,16 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
 tmq_resp_err_t tmq_consumer_close(tmq_t* tmq) {
   if (tmq->status == TMQ_CONSUMER_STATUS__READY) {
     tmq_resp_err_t rsp = tmq_commit_sync(tmq, NULL);
-    if (rsp == TMQ_RESP_ERR__FAIL) {
-      return TMQ_RESP_ERR__FAIL;
+    if (rsp != TMQ_RESP_ERR__SUCCESS) {
+      return rsp;
     }
 
     tmq_list_t* lst = tmq_list_new();
     rsp = tmq_subscribe(tmq, lst);
     tmq_list_destroy(lst);
 
-    if (rsp == TMQ_RESP_ERR__FAIL) {
-      return TMQ_RESP_ERR__FAIL;
+    if (rsp != TMQ_RESP_ERR__SUCCESS) {
+      return rsp;
     }
   }
   // TODO: free resources
@@ -1496,8 +1494,11 @@ tmq_resp_err_t tmq_consumer_close(tmq_t* tmq) {
 const char* tmq_err2str(tmq_resp_err_t err) {
   if (err == TMQ_RESP_ERR__SUCCESS) {
     return "success";
+  } else if (err == TMQ_RESP_ERR__FAIL) {
+    return "fail";
+  } else {
+    return tstrerror(err);
   }
-  return "fail";
 }
 
 const char* tmq_get_topic_name(TAOS_RES* res) {

@@ -338,8 +338,7 @@ void cliHandleResp(SCliConn* conn) {
     return;
   }
 
-  int ret = cliAppCb(conn, &transMsg, pMsg);
-  if (ret != 0) {
+  if (cliAppCb(conn, &transMsg, pMsg) != 0) {
     tTrace("try to send req to next node");
     return;
   }
@@ -403,15 +402,13 @@ void cliHandleExcept(SCliConn* pConn) {
         continue;
       }
     }
-    int ret = cliAppCb(pConn, &transMsg, pMsg);
-    if (ret != 0) {
+    if (cliAppCb(pConn, &transMsg, pMsg) != 0) {
       tTrace("try to send req to next node");
       return;
     }
     destroyCmsg(pMsg);
     tTrace("%s cli conn %p start to destroy", CONN_GET_INST_LABEL(pConn), pConn);
   } while (!transQueueEmpty(&pConn->cliMsgs));
-
   transUnrefCliHandle(pConn);
 }
 
@@ -976,7 +973,7 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
         arg->param1 = pMsg;
         arg->param2 = pThrd;
         transDQSched(pThrd->delayQueue, doDelayTask, arg, TRANS_RETRY_INTERVAL);
-        cliDestroyConn(pConn, true);
+        transUnrefCliHandle(pConn);
         return -1;
       }
     } else if (pCtx->retryCount < TRANS_RETRY_COUNT_LIMIT) {

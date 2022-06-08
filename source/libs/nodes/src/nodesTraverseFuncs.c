@@ -467,7 +467,7 @@ static EDealRes dispatchPhysiPlan(SNode* pNode, ETraversalOrder order, FNodeWalk
       }
       break;
     }
-    case QUERY_NODE_PHYSICAL_PLAN_JOIN: {
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN: {
       SJoinPhysiNode* pJoin = (SJoinPhysiNode*)pNode;
       res = walkPhysiNode((SPhysiNode*)pNode, order, walker, pContext);
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
@@ -478,7 +478,7 @@ static EDealRes dispatchPhysiPlan(SNode* pNode, ETraversalOrder order, FNodeWalk
       }
       break;
     }
-    case QUERY_NODE_PHYSICAL_PLAN_AGG: {
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG: {
       SAggPhysiNode* pAgg = (SAggPhysiNode*)pNode;
       res = walkPhysiNode((SPhysiNode*)pNode, order, walker, pContext);
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
@@ -518,12 +518,12 @@ static EDealRes dispatchPhysiPlan(SNode* pNode, ETraversalOrder order, FNodeWalk
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
       res = walkWindowPhysi((SWinodwPhysiNode*)pNode, order, walker, pContext);
       break;
-    case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION_WINDOW:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION:
       res = walkWindowPhysi((SWinodwPhysiNode*)pNode, order, walker, pContext);
       break;
-    case QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE_WINDOW: {
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE: {
       SStateWinodwPhysiNode* pState = (SStateWinodwPhysiNode*)pNode;
       res = walkWindowPhysi((SWinodwPhysiNode*)pNode, order, walker, pContext);
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {

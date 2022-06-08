@@ -131,40 +131,13 @@ static FORCE_INLINE void* streamQueueNextItem(SStreamQueue* queue) {
 
 SStreamDataSubmit* streamDataSubmitNew(SSubmitReq* pReq);
 
-static FORCE_INLINE void streamDataSubmitRefDec(SStreamDataSubmit* pDataSubmit) {
-  int32_t ref = atomic_sub_fetch_32(pDataSubmit->dataRef, 1);
-  ASSERT(ref >= 0);
-  if (ref == 0) {
-    taosMemoryFree(pDataSubmit->data);
-    taosMemoryFree(pDataSubmit->dataRef);
-  }
-}
+void streamDataSubmitRefDec(SStreamDataSubmit* pDataSubmit);
 
 SStreamDataSubmit* streamSubmitRefClone(SStreamDataSubmit* pSubmit);
 
 #if 0
 int32_t streamDataBlockEncode(void** buf, const SStreamDataBlock* pOutput);
 void*   streamDataBlockDecode(const void* buf, SStreamDataBlock* pInput);
-
-static FORCE_INLINE int32_t streamEnqueue1(SStreamQueue* queue, SStreamQueueItem* pItem) {
-  int8_t inputStatus = atomic_load_8(&queue->enqueueStatus);
-  if (inputStatus == TASK_INPUT_STATUS__NORMAL) {
-    if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
-      SStreamDataSubmit* pSubmitClone = streamSubmitRefClone((SStreamDataSubmit*)pItem);
-      if (pSubmitClone == NULL) {
-        atomic_store_8(&queue->enqueueStatus, TASK_INPUT_STATUS__FAILED);
-        return -1;
-      }
-      taosWriteQitem(queue->queue, pSubmitClone);
-    } else if (pItem->type == STREAM_INPUT__DATA_BLOCK) {
-      taosWriteQitem(queue->queue, pItem);
-    } else if (pItem->type == STREAM_INPUT__CHECKPOINT) {
-      taosWriteQitem(queue->queue, pItem);
-    }
-    return 0;
-  }
-  return 0;
-}
 #endif
 
 typedef struct {
@@ -209,6 +182,7 @@ typedef void FSmaSink(void* vnode, int64_t smaId, const SArray* data);
 typedef struct {
   int64_t smaId;
   // following are not applicable to encoder and decoder
+  void*     vnode;
   FSmaSink* smaSink;
 } STaskSinkSma;
 
@@ -285,18 +259,12 @@ struct SStreamTask {
 
   int8_t inputStatus;
   int8_t outputStatus;
-#if 0
-  STaosQueue* inputQ;
-  STaosQall*  inputQAll;
-  STaosQueue* outputQ;
-  STaosQall*  outputQAll;
-#endif
 
   SStreamQueue* inputQueue;
   SStreamQueue* outputQueue;
 
   // application storage
-  void* ahandle;
+  // void* ahandle;
 };
 
 SStreamTask* tNewSStreamTask(int64_t streamId, int32_t childId);
@@ -337,7 +305,16 @@ static FORCE_INLINE void streamTaskInputFail(SStreamTask* pTask) {
 }
 
 static FORCE_INLINE int32_t streamTaskOutput(SStreamTask* pTask, SStreamDataBlock* pBlock) {
-  taosWriteQitem(pTask->outputQueue->queue, pBlock);
+  if (pTask->sinkType == TASK_SINK__TABLE) {
+    ASSERT(pTask->dispatchType == TASK_DISPATCH__NONE);
+    pTask->tbSink.tbSinkFunc(pTask, pTask->tbSink.vnode, 0, pBlock->blocks);
+  } else if (pTask->sinkType == TASK_SINK__SMA) {
+    ASSERT(pTask->dispatchType == TASK_DISPATCH__NONE);
+    pTask->smaSink.smaSink(pTask->smaSink.vnode, pTask->smaSink.smaId, pBlock->blocks);
+  } else {
+    ASSERT(pTask->dispatchType != TASK_DISPATCH__NONE);
+    taosWriteQitem(pTask->outputQueue->queue, pBlock);
+  }
   return 0;
 }
 
@@ -346,37 +323,15 @@ typedef struct {
 } SStreamTaskDeployRsp;
 
 typedef struct {
-  // SMsgHead head;
-  int64_t streamId;
-  int32_t taskId;
-  SArray* data;  // SArray<SSDataBlock>
-} SStreamTaskExecReq;
-
-typedef struct {
   // SMsgHead     head;
   SStreamTask* task;
 } SStreamTaskDeployReq;
-
-int32_t tEncodeSStreamTaskExecReq(void** buf, const SStreamTaskExecReq* pReq);
-void*   tDecodeSStreamTaskExecReq(const void* buf, SStreamTaskExecReq* pReq);
-void    tFreeSStreamTaskExecReq(SStreamTaskExecReq* pReq);
-
-typedef struct {
-  int32_t reserved;
-} SStreamTaskExecRsp;
 
 typedef struct {
   SMsgHead head;
   int64_t  streamId;
   int32_t  taskId;
 } SStreamTaskRunReq;
-
-typedef struct {
-  // SMsgHead head;
-  int64_t streamId;
-  int64_t version;
-  SArray* res;  // SArray<SSDataBlock>
-} SStreamSinkReq;
 
 typedef struct {
   int64_t streamId;
@@ -411,11 +366,9 @@ typedef struct {
   int8_t  inputStatus;
 } SStreamTaskRecoverRsp;
 
-int32_t streamTriggerByWrite(SStreamTask* pTask, int32_t vgId, SMsgCb* pMsgCb);
+int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq);
 
-int32_t streamEnqueueDataSubmit(SStreamTask* pTask, SStreamDataSubmit* input);
-int32_t streamEnqueueDataBlk(SStreamTask* pTask, SStreamDataBlock* input);
-int32_t streamDequeueOutput(SStreamTask* pTask, void** output);
+int32_t streamTriggerByWrite(SStreamTask* pTask, int32_t vgId, SMsgCb* pMsgCb);
 
 int32_t streamTaskRun(SStreamTask* pTask);
 

@@ -63,6 +63,13 @@ int32_t schInitJob(SSchJob **pSchJob, SQueryPlan *pDag, void *pTrans, SArray *pN
   if (pNodeList != NULL) {
     pJob->nodeList = taosArrayDup(pNodeList);
   }
+  
+  pJob->taskList =
+      taosHashInit(pDag->numOfSubplans, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_ENTRY_LOCK);
+  if (NULL == pJob->taskList) {
+    SCH_JOB_ELOG("taosHashInit %d taskList failed", pDag->numOfSubplans);
+    SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+  }
 
   SCH_ERR_JRET(schValidateAndBuildJob(pDag, pJob));
 
@@ -486,20 +493,23 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
       SCH_SET_JOB_TYPE(pJob, plan->subplanType);
 
       SSchTask  task = {0};
-      SSchTask *pTask = &task;
-
       SCH_ERR_JRET(schInitTask(pJob, &task, plan, pLevel));
 
-      void *p = taosArrayPush(pLevel->subTasks, &task);
-      if (NULL == p) {
+      SSchTask *pTask = taosArrayPush(pLevel->subTasks, &task);
+      if (NULL == pTask) {
         SCH_TASK_ELOG("taosArrayPush task to level failed, level:%d, taskIdx:%d", pLevel->level, n);
         SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
 
-      SCH_ERR_JRET(schRecordQueryDataSrc(pJob, p));
+      SCH_ERR_JRET(schRecordQueryDataSrc(pJob, pTask));
 
-      if (0 != taosHashPut(planToTask, &plan, POINTER_BYTES, &p, POINTER_BYTES)) {
+      if (0 != taosHashPut(planToTask, &plan, POINTER_BYTES, &pTask, POINTER_BYTES)) {
         SCH_TASK_ELOG("taosHashPut to planToTaks failed, taskIdx:%d", n);
+        SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+      }
+
+      if (0 != taosHashPut(pJob->taskList, &pTask->taskId, sizeof(pTask->taskId), &pTask, POINTER_BYTES)) {
+        SCH_TASK_ELOG("taosHashPut to taskList failed, taskIdx:%d", n);
         SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
 
@@ -1280,14 +1290,10 @@ int32_t schGetTaskFromList(SHashObj *pTaskList, uint64_t taskId, SSchTask **pTas
 }
 
 int32_t schGetTaskInJob(SSchJob *pJob, uint64_t taskId, SSchTask **pTask) {
-  schGetTaskFromList(pJob->execTasks, taskId, pTask);
+  schGetTaskFromList(pJob->taskList, taskId, pTask);
   if (NULL == *pTask) {
-    schGetTaskFromList(pJob->succTasks, taskId, pTask);
-
-    if (NULL == *pTask) {
-      SCH_JOB_ELOG("task not found in execList & succList, taskId:%" PRIx64, taskId);
-      SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
-    }
+    SCH_JOB_ELOG("task not found in job task list, taskId:%" PRIx64, taskId);
+    SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1449,7 +1455,8 @@ void schFreeJobImpl(void *job) {
   taosHashCleanup(pJob->execTasks);
   taosHashCleanup(pJob->failTasks);
   taosHashCleanup(pJob->succTasks);
-
+  taosHashCleanup(pJob->taskList);
+  
   taosArrayDestroy(pJob->levels);
   taosArrayDestroy(pJob->nodeList);
   taosArrayDestroy(pJob->dataSrcTasks);
@@ -1480,7 +1487,7 @@ int32_t schExecJobImpl(void *pTrans, SArray *pNodeList, SQueryPlan *pDag, int64_
   SSchJob *pJob = NULL;
   SCH_ERR_RET(schInitJob(&pJob, pDag, pTrans, pNodeList, sql, pRes, startTs, sync));
 
-  qDebug("QID:0x%" PRIx64 " jobId:0x%"PRIx64 " started", pDag->queryId, pJob->refId);
+  qDebug("QID:0x%" PRIx64 " job refId 0x%"PRIx64 " started", pDag->queryId, pJob->refId);
   *job = pJob->refId;
 
   SCH_ERR_JRET(schLaunchJob(pJob));

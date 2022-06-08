@@ -82,7 +82,7 @@ class TDTestCase:
         return con
         
     def test_stmt_set_tbname_tag(self,conn):
-        dbname = "pytest_taos_stmt_set_tbname_tag"
+        dbname = "stmt_set_tbname_tag"
         
         try:
             conn.execute("drop database if exists %s" % dbname)
@@ -99,7 +99,7 @@ class TDTestCase:
             tags = new_bind_params(16)
             tags[0].timestamp(1626861392589123, PrecisionEnum.Microseconds)
             tags[1].bool(True)
-            tags[2].null()
+            tags[2].bool(False)
             tags[3].tinyint(2)
             tags[4].smallint(3)
             tags[5].int(4)
@@ -114,7 +114,7 @@ class TDTestCase:
             tags[14].nchar("stmt")
             tags[15].timestamp(1626861392589, PrecisionEnum.Milliseconds)
             stmt.set_tbname_tags("tb1", tags)
-            params = new_multi_binds(16)
+            params = new_multi_binds(17)
             params[0].timestamp((1626861392589111,  1626861392590111, 1626861392591111))
             params[1].bool((True, None, False))
             params[2].tinyint([-128, -128, None]) # -128 is tinyint null
@@ -129,28 +129,153 @@ class TDTestCase:
             params[11].float([3, None, 1])
             params[12].double([3, None, 1.2])
             params[13].binary(["abc", "dddafadfadfadfadfa", None])
-            params[14].nchar(["涛思数据", None, "a long string with 中文字符"])
+            params[14].nchar(["涛思数据", None, "a long string with 中文?字符"])
             params[15].timestamp([None, None, 1626861392591])
-            params[16].binary(["涛思数据16", None, "a long string with 中文-字符"])
+            params[16].binary(["涛思数据16", None, None])
                      
             stmt.bind_param_batch(params)
             stmt.execute()
 
             assert stmt.affected_rows == 3
 
-            #query
+            #query all 
             querystmt1=conn.statement("select * from log where bu < ?")
             queryparam1=new_bind_params(1)
             print(type(queryparam1))
-            queryparam1[0].int(5)
+            queryparam1[0].int(10)
             querystmt1.bind_param(queryparam1)
             querystmt1.execute() 
             result1=querystmt1.use_result()
             rows1=result1.fetch_all()
-            print(rows1)
-            # assert str(rows1[0][0]) == "2021-07-21 17:56:32.589111"
-            # assert rows1[0][10] == 3
-            # assert rows1[1][10] == 4
+            print(rows1[0])
+            print(rows1[1])
+            print(rows1[2])
+            assert str(rows1[0][0]) == "2021-07-21 17:56:32.589111"
+            assert rows1[0][10] == 3
+            assert rows1[1][10] == 4
+
+            #query: Numeric Functions
+            querystmt2=conn.statement("select abs(?) from log where bu < ?")
+            queryparam2=new_bind_params(2)
+            print(type(queryparam2))
+            queryparam2[0].int(5)
+            queryparam2[1].int(5)
+            querystmt2.bind_param(queryparam2)
+            querystmt2.execute() 
+            result2=querystmt2.use_result()
+            rows2=result2.fetch_all()
+            print("2",rows2)
+            assert rows2[0][0] == 5
+            assert rows2[1][0] == 5
+
+
+            #query: Numeric Functions and escapes
+
+            querystmt3=conn.statement("select abs(?) from log where  nn= 'a? long string with 中文字符' ")
+            queryparam3=new_bind_params(1)
+            print(type(queryparam3))
+            queryparam3[0].int(5)
+            querystmt3.bind_param(queryparam3)
+            querystmt3.execute() 
+            result3=querystmt3.use_result()
+            rows3=result3.fetch_all()
+            print("3",rows3)
+            assert rows3 == []
+
+            # #query: string Functions
+
+            # querystmt3=conn.statement("select CHAR_LENGTH(?) from log  ")
+            # queryparam3=new_bind_params(1)
+            # print(type(queryparam3))
+            # queryparam3[0].binary('中文字符')
+            # querystmt3.bind_param(queryparam3)
+            # querystmt3.execute() 
+            # result3=querystmt3.use_result()
+            # rows3=result3.fetch_all()
+            # print("4",rows3)
+            # assert rows3[0][0] == 12, 'fourth case is failed'
+            # assert rows3[1][0] == 12, 'fourth case is failed'
+
+            # #query: conversion Functions
+
+            # querystmt4=conn.statement("select cast( ? as bigint) from log  ")
+            # queryparam4=new_bind_params(1)
+            # print(type(queryparam4))
+            # queryparam4[0].binary('1232a')
+            # querystmt4.bind_param(queryparam4)
+            # querystmt4.execute() 
+            # result4=querystmt4.use_result()
+            # rows4=result4.fetch_all()
+            # print("5",rows4)
+            # assert rows4[0][0] == 1232
+            # assert rows4[1][0] == 1232
+
+            # querystmt4=conn.statement("select cast( ? as binary(10)) from log  ")
+            # queryparam4=new_bind_params(1)
+            # print(type(queryparam4))
+            # queryparam4[0].int(123)
+            # querystmt4.bind_param(queryparam4)
+            # querystmt4.execute() 
+            # result4=querystmt4.use_result()
+            # rows4=result4.fetch_all()
+            # print("6",rows4)
+            # assert rows4[0][0] == '123'
+            # assert rows4[1][0] == '123'
+
+            # #query: datatime Functions
+
+            # querystmt4=conn.statement(" select timediff('2021-07-21 17:56:32.590111',?,1s)  from log  ")
+            # queryparam4=new_bind_params(1)
+            # print(type(queryparam4))
+            # queryparam4[0].timestamp(1626861392591111)
+            # querystmt4.bind_param(queryparam4)
+            # querystmt4.execute() 
+            # result4=querystmt4.use_result()
+            # rows4=result4.fetch_all()
+            # print("7",rows4)
+            # assert rows4[0][0] == 1, 'seventh case is failed'
+            # assert rows4[1][0] == 1, 'seventh case is failed'
+            
+            #query: aggregate Functions
+
+            querystmt4=conn.statement(" select count(?)  from log  ")
+            queryparam4=new_bind_params(1)
+            print(type(queryparam4))
+            queryparam4[0].int(123)
+            querystmt4.bind_param(queryparam4)
+            querystmt4.execute() 
+            result4=querystmt4.use_result()
+            rows4=result4.fetch_all()
+            print("8",rows4)
+            assert rows4[0][0] == 3, ' 8 case is failed'
+
+            #query: selector Functions 9
+
+            querystmt4=conn.statement("  select bottom(bu,?)  from log group by bu ;  ")
+            queryparam4=new_bind_params(1)
+            print(type(queryparam4))
+            queryparam4[0].int(2)
+            querystmt4.bind_param(queryparam4)
+            querystmt4.execute() 
+            result4=querystmt4.use_result()
+            rows4=result4.fetch_all()
+            print("9",rows4)
+            assert rows4[0][0] == 4, ' 9 case is failed'
+            assert rows4[1][0] == 3, ' 9 case is failed'
+
+            # #query: time-series specific Functions 10
+
+            querystmt4=conn.statement("  select twa(?)  from log;  ")
+            queryparam4=new_bind_params(1)
+            print(type(queryparam4))
+            queryparam4[0].int(15)
+            querystmt4.bind_param(queryparam4)
+            querystmt4.execute() 
+            result4=querystmt4.use_result()
+            rows4=result4.fetch_all()
+            print("10",rows4)
+            assert rows4[0][0] == 15, ' 10 case is failed'
+
 
             # conn.execute("drop database if exists %s" % dbname)
             conn.close()

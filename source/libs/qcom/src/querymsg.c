@@ -203,6 +203,24 @@ int32_t queryBuildGetUserAuthMsg(void *input, char **msg, int32_t msgSize, int32
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t queryBuildGetTbIndexMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void*(*mallcFp)(int32_t)) {
+  if (NULL == msg || NULL == msgLen) {
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  STableIndexReq indexReq = {0};
+  strcpy(indexReq.tbFName, input);
+
+  int32_t bufLen = tSerializeSTableIndexReq(NULL, 0, &indexReq);
+  void   *pBuf = (*mallcFp)(bufLen);
+  tSerializeSTableIndexReq(pBuf, bufLen, &indexReq);
+
+  *msg = pBuf;
+  *msgLen = bufLen;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 
 int32_t queryProcessUseDBRsp(void *output, char *msg, int32_t msgSize) {
   SUseDbOutput *pOut = output;
@@ -461,26 +479,43 @@ int32_t queryProcessGetUserAuthRsp(void *output, char *msg, int32_t msgSize) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t queryProcessGetTbIndexRsp(void *output, char *msg, int32_t msgSize) {
+  if (NULL == output || NULL == msg || msgSize <= 0) {
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  STableIndexRsp out = {0};
+  if (tDeserializeSTableIndexRsp(msg, msgSize, &out) != 0) {
+    qError("tDeserializeSTableIndexRsp failed, msgSize:%d", msgSize);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  *(void **)output = out.pIndex;
+  
+  return TSDB_CODE_SUCCESS;
+}
+
 
 void initQueryModuleMsgHandle() {
-  queryBuildMsg[TMSG_INDEX(TDMT_VND_TABLE_META)] = queryBuildTableMetaReqMsg;
-  queryBuildMsg[TMSG_INDEX(TDMT_MND_TABLE_META)] = queryBuildTableMetaReqMsg;
-  queryBuildMsg[TMSG_INDEX(TDMT_MND_USE_DB)]     = queryBuildUseDbMsg;
-  queryBuildMsg[TMSG_INDEX(TDMT_MND_QNODE_LIST)] = queryBuildQnodeListMsg;
-  queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_DB_CFG)] = queryBuildGetDBCfgMsg;
-  queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_INDEX)]  = queryBuildGetIndexMsg;
-  queryBuildMsg[TMSG_INDEX(TDMT_MND_RETRIEVE_FUNC)]  = queryBuildRetrieveFuncMsg;
-  queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_USER_AUTH)]  = queryBuildGetUserAuthMsg;
-  
+  queryBuildMsg[TMSG_INDEX(TDMT_VND_TABLE_META)]       = queryBuildTableMetaReqMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_MND_TABLE_META)]       = queryBuildTableMetaReqMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_MND_USE_DB)]           = queryBuildUseDbMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_MND_QNODE_LIST)]       = queryBuildQnodeListMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_DB_CFG)]       = queryBuildGetDBCfgMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_INDEX)]        = queryBuildGetIndexMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_MND_RETRIEVE_FUNC)]    = queryBuildRetrieveFuncMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_USER_AUTH)]    = queryBuildGetUserAuthMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_TABLE_INDEX)]  = queryBuildGetTbIndexMsg;
 
-  queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_TABLE_META)] = queryProcessTableMetaRsp;
-  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_TABLE_META)] = queryProcessTableMetaRsp;
-  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_USE_DB)]     = queryProcessUseDBRsp;
-  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_QNODE_LIST)] = queryProcessQnodeListRsp;
-  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_DB_CFG)] = queryProcessGetDbCfgRsp;
-  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_INDEX)]  = queryProcessGetIndexRsp;
-  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_RETRIEVE_FUNC)]  = queryProcessRetrieveFuncRsp;
-  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_USER_AUTH)]  = queryProcessGetUserAuthRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_TABLE_META)]      = queryProcessTableMetaRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_TABLE_META)]      = queryProcessTableMetaRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_USE_DB)]          = queryProcessUseDBRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_QNODE_LIST)]      = queryProcessQnodeListRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_DB_CFG)]      = queryProcessGetDbCfgRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_INDEX)]       = queryProcessGetIndexRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_RETRIEVE_FUNC)]   = queryProcessRetrieveFuncRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_USER_AUTH)]   = queryProcessGetUserAuthRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_TABLE_INDEX)] = queryProcessGetTbIndexRsp;
 }
 
 #pragma GCC diagnostic pop

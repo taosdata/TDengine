@@ -332,7 +332,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "keepColumnName", tsKeepOriginalColumnName, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "queryPolicy", tsQueryPolicy, 1, 3, 1) != 0) return -1;
   if (cfgAddString(pCfg, "smlChildTableName", "", 1) != 0) return -1;
-  if (cfgAddString(pCfg, "smlTagNullName", tsSmlTagName, 1) != 0) return -1;
+  if (cfgAddString(pCfg, "smlTagName", tsSmlTagName, 1) != 0) return -1;
   if (cfgAddBool(pCfg, "smlDataFormat", tsSmlDataFormat, 1) != 0) return -1;
 
   tsNumOfTaskQueueThreads = tsNumOfCores / 4;
@@ -532,7 +532,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   }
 
   tstrncpy(tsSmlChildTableName, cfgGetItem(pCfg, "smlChildTableName")->str, TSDB_TABLE_NAME_LEN);
-  tstrncpy(tsSmlTagName, cfgGetItem(pCfg, "smlTagNullName")->str, TSDB_COL_NAME_LEN);
+  tstrncpy(tsSmlTagName, cfgGetItem(pCfg, "smlTagName")->str, TSDB_COL_NAME_LEN);
   tsSmlDataFormat = cfgGetItem(pCfg, "smlDataFormat")->bval;
 
   tsShellActivityTimer = cfgGetItem(pCfg, "shellActivityTimer")->i32;

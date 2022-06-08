@@ -514,14 +514,14 @@ void* consumeThreadFunc(void* param) {
   err = tmq_unsubscribe(pInfo->tmq);
   if (err) {
     pError("tmq_unsubscribe() fail, reason: %s\n", tmq_err2str(err));
-    pInfo->consumeMsgCnt = -1;
-    //return NULL;
+    /*pInfo->consumeMsgCnt = -1;*/
+    /*return NULL;*/
   }
 
   err = tmq_consumer_close(pInfo->tmq);
   if (err) {
     pError("tmq_consumer_close() fail, reason: %s\n", tmq_err2str(err));
-    //exit(-1);
+    /*exit(-1);*/
   }
   pInfo->tmq = NULL;
 

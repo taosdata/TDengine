@@ -19,7 +19,7 @@ import InstallOnLinux from "../../14-reference/03-connector/\_windows_install.md
 import VerifyLinux from "../../14-reference/03-connector/\_verify_linux.mdx";
 import VerifyWindows from "../../14-reference/03-connector/\_verify_windows.mdx";
 
-Any application programs running on any kind of platform can access TDengine through the REST API provided by TDengine. For details, please refer to [REST API](/reference/rest-api/). Additionally, application programs can use the connectors of multiple programming languages including C/C++, Java, Python, Go, Node.js, C#, and Rust to access TDengine. This chapter describes how to establish a connection to TDengine and briefly introduces how to install and use connectors. For details about the connectors, please refer to [Connectors](/reference/connector/)
+Any application programs running on any kind of platform can access TDengine through the REST API provided by TDengine. For details, please refer to [REST API](/reference/rest-api/). Additionally, application programs can use the connectors of multiple programming languages including C/C++, Java, Python, Go, Node.js, C#, Rust to access TDengine. This chapter describes how to establish a connection to TDengine and briefly introduces how to install and use connectors. TDengine community also provides connectors in LUA and PHP languages. For details about the connectors, please refer to [Connectors](/reference/connector/).
 
 ## Establish Connection
 
@@ -199,6 +199,46 @@ install.packages("RJDBC")
 
 If the client driver (taosc) is already installed, then the C connector is already available.
 <br/>
+
+</TabItem>
+<TabItem label="PHP" value="php">
+
+**Download Source Code Package and Unzip：**
+
+```shell
+curl -L -o php-tdengine.tar.gz https://github.com/Yurunsoft/php-tdengine/archive/refs/tags/v1.0.2.tar.gz \
+&& mkdir php-tdengine \
+&& tar -xzf php-tdengine.tar.gz -C php-tdengine --strip-components=1
+```
+
+> Version number `v1.0.2` is only for example, it can be replaced to any newer version, please check available version from [TDengine PHP Connector Releases](https://github.com/Yurunsoft/php-tdengine/releases).
+
+**Non-Swoole Environment：**
+
+```shell
+phpize && ./configure && make -j && make install
+```
+
+**Specify TDengine Location：**
+
+```shell
+phpize && ./configure --with-tdengine-dir=/usr/local/Cellar/tdengine/2.4.0.0 && make -j && make install
+```
+
+> `--with-tdengine-dir=` is followed by the TDengine installation location.
+> This way is useful in case TDengine location can't be found automatically or macOS.
+
+**Swoole Environment：**
+
+```shell
+phpize && ./configure --enable-swoole && make -j && make install
+```
+
+**Enable The Extension:**
+
+Option One: Add `extension=tdengine` in `php.ini` 
+
+Option Two: Specify the extension on CLI `php -d extension=tdengine test.php`
 
 </TabItem>
 </Tabs>
