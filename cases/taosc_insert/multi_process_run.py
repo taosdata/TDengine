@@ -57,6 +57,7 @@ class TestMultiProcessRun(TDCase):
         self.vnodeShmSize_default = self.tdCom.boundary_config["vnodeShmSize_default"]
         self.mnodeShmSize_default = self.tdCom.boundary_config["mnodeShmSize_default"]
         """
+        self._remote.cmd(self.fqdn, [f"ps -ef | grep taosd | grep -v grep | grep -v sudo | grep -v defunct | wc -l"])
         self.taosd.update_cfg('/tmp', self.taosd_setting, {"multiProcess": 1}, self.endpoint, True)
         vnodeShmSize_infile = self._remote.cmd(self.fqdn, ['cat /var/lib/taos/vnode/shmfile | grep shmsize | cut -f2 -d ":"'])
         vnodeShmid_infile = self._remote.cmd(self.fqdn, ['cat /var/lib/taos/vnode/shmfile | grep shmid | cut -f2 -d ":" | cut -f1 -d ","'])
@@ -157,6 +158,7 @@ class TestMultiProcessRun(TDCase):
         self.process_count_check()
         self._remote.cmd(self.fqdn, [f'ps -ef | grep taosd | grep -v grep | awk \'{{print $2}}\' | xargs kill -9 2&>1'])
         self.process_count_check(0)
+        self.taosd.update_cfg('/tmp', self.taosd_setting, {"multiProcess": 0}, self.endpoint, True)
 
     def run(self):
         self.check_default_shmsize()
