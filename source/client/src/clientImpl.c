@@ -1344,6 +1344,17 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
   uint64_t groupId = *(uint64_t*)p;
   p += sizeof(uint64_t);
 
+  // check fields
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    int16_t type = *(int16_t*) p;
+    p += sizeof(int16_t);
+
+    int32_t bytes = *(int32_t*) p;
+    p += sizeof(int32_t);
+
+//    ASSERT(type == pFields[i].type && bytes == pFields[i].bytes);
+  }
+
   int32_t* colLength = (int32_t*)p;
   p += sizeof(int32_t) * numOfCols;
 

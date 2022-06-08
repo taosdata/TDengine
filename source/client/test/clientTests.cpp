@@ -778,7 +778,32 @@ TEST(testCase, async_api_test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
-  taos_query_a(pConn, "insert into tm0 values(now()+0s, 1)", queryCallback, pConn);
+  taos_query(pConn, "use test");
+
+  TAOS_RES* pRes = taos_query(pConn, "desc abc1.tu");
+  if (taos_errno(pRes) != 0) {
+    printf("failed, reason:%s\n", taos_errstr(pRes));
+  }
+
+  int32_t n = 0;
+  TAOS_ROW    pRow = NULL;
+  TAOS_FIELD* pFields = taos_fetch_fields(pRes);
+  int32_t     numOfFields = taos_num_fields(pRes);
+
+  char str[512] = {0};
+  while ((pRow = taos_fetch_row(pRes)) != NULL) {
+    int32_t* length = taos_fetch_lengths(pRes);
+    for(int32_t i = 0; i < numOfFields; ++i) {
+      printf("(%d):%d " , i, length[i]);
+    }
+    printf("\n");
+
+    int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
+    printf("%s\n", str);
+    memset(str, 0, sizeof(str));
+  }
+
+  taos_query_a(pConn, "alter table test.m1 comment 'abcde' ", queryCallback, pConn);
   getchar();
   taos_close(pConn);
 }

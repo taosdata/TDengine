@@ -266,7 +266,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   }
 
   size = sizeof(SRetrieveMetaTableRsp) + sizeof(int32_t) + sizeof(SSysTableSchema) * pShow->pMeta->numOfColumns +
-         blockDataGetSize(pBlock) + blockDataGetSerialMetaSize(pBlock);
+         blockDataGetSize(pBlock) + blockDataGetSerialMetaSize(pBlock->info.numOfCols);
 
   SRetrieveMetaTableRsp *pRsp = rpcMallocCont(size);
   if (pRsp == NULL) {
