@@ -11,58 +11,42 @@ You can learn more about using the TDengine plugin on [GitHub](https://github.co
 
 TDengine currently supports Grafana versions 7.5 and above. Users can go to the Grafana official website to download the installation package and execute the installation according to the current operating system. The download address is as follows: <https://grafana.com/grafana/download>.
 
-## Configuring Grafana
+## Install TDengine data source plugin
 
-Follow the installation steps in [Grafana](https://grafana.com/grafana/plugins/tdengine-datasource/?tab=installation) with the [``grafana-cli`` command-line tool](https://grafana.com/docs/grafana/latest/administration/cli/) for plugin installation.
+Please copy the following shell commands to export `TDENGINE_CLOUD_URL` and `TDENGINE_CLOUD_TOKEN` for the data source installation.
 
-```bash
-grafana-cli plugins install tdengine-datasource
-# with sudo
-sudo -u grafana grafana-cli plugins install tdengine-datasource
-```
-
-Alternatively, you can manually download the .zip file from [GitHub](https://github.com/taosdata/grafanaplugin/releases/tag/latest) or [Grafana](https://grafana.com/grafana/plugins/tdengine-datasource/?tab=installation) and unpack it into your grafana plugins directory.
+Run below script from Linux terminal to install TDengine data source plugin.
 
 ```bash
-GF_VERSION=3.2.3
-# from GitHub
-wget https://github.com/taosdata/grafanaplugin/releases/download/v$GF_VERSION/tdengine-datasource-$GF_VERSION.zip
-# from Grafana
-wget -O tdengine-datasource-$GF_VERSION.zip https://grafana.com/api/plugins/tdengine-datasource/versions/$GF_VERSION/download
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/taosdata/grafanaplugin/master/install.sh)"
 ```
 
-Take CentOS 7.2 for example, extract the plugin package to /var/lib/grafana/plugins directory, and restart grafana.
+The script will output download and installation progress.
+
+```
+using tdengine-datasource plugin 3.2.4
+--2022-06-08 20:46:34--  https://github.com/taosdata/grafanaplugin/releases/download/v3.2.4/tdengine-datasource-3.2.4.zip
+...
+tdengine-datasource-3.2.4.zip                      100%[================================================================================================================>]  29.34M   842KB/s    in 35s 
+127.0.0.1 - - [08/Jun/2022 20:47:12] "GET /tdengine-datasource-3.2.4.zip HTTP/1.1" 200 -
+                                                                                        ✔ Downloaded tdengine-datasource v3.2.4 zip successfully
+
+Please restart Grafana after installing plugins. Refer to Grafana documentation for instructions if necessary.
+
+* Provisioning /etc/grafana/provisioning/datasources/TDengine.yaml
+```
+
+After that completed, please restart grafana-server.
 
 ```bash
-sudo unzip tdengine-datasource-$GF_VERSION.zip -d /var/lib/grafana/plugins/
+sudo systemctl restart grafana-server.service
 ```
 
-If Grafana is running in a Docker environment, the TDengine plugin can be automatically installed and set up using the following environment variable settings:
+## Verifying Grafana and TDengine data source
 
-```bash
-GF_INSTALL_PLUGINS=tdengine-datasource
-```
+Users can log in to the Grafana server (initial username/password: admin/admin) directly through the URL `http://localhost:3000`. Click `Configuration -> Data Sources` on the left side. Then click `Test` button to verify if TDengine data source works. You should see a success message if the test worked.
 
-Users can log in to the Grafana server (initial username/password: admin/admin) directly through the URL `http://localhost:3000` and add a datasource through `Configuration -> Data Sources` on the left side, as shown in the following figure.
-
-![Grafana add datasource 1](./grafana/add_datasource1.webp)
-
-Click `Add data source` to enter the Add data source page, and enter TDengine in the query box to add it, as shown in the following figure.
-
-![Grafana add datasource 2](./grafana/add_datasource2.webp)
-
-Enter the datasource configuration page, and follow the default prompts to modify the corresponding configuration.
-
-![Grafana add database 3](./grafana/add_datasource3.webp)
-
-- Host: Please fill the URL string the TDengine Cloud provides.
-- User: leave it as default.
-- Password: leave it as default.
-- Cloud Token: Please fill the token string the TDengine Cloud provides.
-
-Click `Save & Test` to test. You should see a success message if the test worked.
-
-![Grafana add database 4](./grafana/add_datasource4.webp)
+![Verifying TDengine data source](./grafana/verifying-tdengine-datasource.webp)
 
 ## Using Grafana
 
