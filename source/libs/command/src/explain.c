@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tdatablock.h"
 #include "commandInt.h"
 #include "plannodes.h"
 #include "query.h"
@@ -916,9 +917,32 @@ int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
     QRY_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
   }
 
-  int32_t colNum = 1;
-  int32_t rspSize = sizeof(SRetrieveTableRsp) + sizeof(int32_t) + sizeof(uint64_t) + sizeof(int32_t) * colNum +
-                    sizeof(int32_t) * rowNum + pCtx->dataSize;
+  SSDataBlock *pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  SColumnInfoData infoData = {0};
+  infoData.info.type  = TSDB_DATA_TYPE_VARCHAR;
+  infoData.info.bytes = TSDB_EXPLAIN_RESULT_ROW_SIZE;
+
+  pBlock->pDataBlock = taosArrayInit(1, sizeof(SColumnInfoData));
+  taosArrayPush(pBlock->pDataBlock, &infoData);
+
+  SColumnInfoData* pInfoData = taosArrayGet(pBlock->pDataBlock, 0);
+  pInfoData->hasNull = false;
+  colInfoDataEnsureCapacity(pInfoData, 0, rowNum);
+
+  char buf[1024] = {0};
+  for (int32_t i = 0; i < rowNum; ++i) {
+    SQueryExplainRowInfo *row = taosArrayGet(pCtx->rows, i);
+    varDataCopy(buf, row->buf);
+    ASSERT(varDataTLen(row->buf) == row->len);
+    colDataAppend(pInfoData, i, buf, false);
+  }
+
+  pBlock->info.numOfCols = 1;
+  pBlock->info.rows = rowNum;
+  pBlock->info.hasVarCol = true;
+
+  int32_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
+
   SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)taosMemoryCalloc(1, rspSize);
   if (NULL == rsp) {
     qError("malloc SRetrieveTableRsp failed, size:%d", rspSize);
@@ -928,34 +952,13 @@ int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
   rsp->completed = 1;
   rsp->numOfRows = htonl(rowNum);
 
-  // payload length
-  *(int32_t *)rsp->data =
-      sizeof(int32_t) + sizeof(uint64_t) + sizeof(int32_t) * colNum + sizeof(int32_t) * rowNum + pCtx->dataSize;
+  int32_t len = 0;
+  blockCompressEncode(pBlock, rsp->data, &len, pBlock->info.numOfCols, 0);
+  ASSERT(len == rspSize - sizeof(SRetrieveTableRsp));
 
-  // group id
-  *(uint64_t *)(rsp->data + sizeof(int32_t)) = 0;
+  rsp->compLen = htonl(len);
 
-  // column length
-  int32_t *colLength = (int32_t *)(rsp->data + sizeof(int32_t) + sizeof(uint64_t));
-
-  // varchar column offset segment
-  int32_t *offset = (int32_t *)((char *)colLength + sizeof(int32_t));
-
-  // varchar data real payload
-  char *data = (char *)(offset + rowNum);
-
-  char *start = data;
-  for (int32_t i = 0; i < rowNum; ++i) {
-    SQueryExplainRowInfo *row = taosArrayGet(pCtx->rows, i);
-    offset[i] = data - start;
-
-    varDataCopy(data, row->buf);
-    ASSERT(varDataTLen(row->buf) == row->len);
-    data += row->len;
-  }
-
-  *colLength = htonl(data - start);
-  rsp->compLen = htonl(rspSize);
+  blockDataDestroy(pBlock);
 
   *pRsp = rsp;
   return TSDB_CODE_SUCCESS;
