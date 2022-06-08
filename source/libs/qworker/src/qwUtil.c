@@ -539,8 +539,23 @@ int64_t qwGetTimeInQueue(SQWorker *mgmt, EQueueType type) {
 }
 
 
-void qwClearExpiredSch(SArray* pExpiredSch) {
+void qwClearExpiredSch(SQWorker *mgmt, SArray* pExpiredSch) {
+  int32_t num = taosArrayGetSize(pExpiredSch);
+  for (int32_t i = 0; i < num; ++i) {
+    uint64_t *sId = taosArrayGet(pExpiredSch, i);
+    SQWSchStatus *pSch = NULL;
+    if (qwAcquireScheduler(mgmt, *sId, QW_WRITE, &pSch)) {
+      continue;
+    }
 
+    if (taosHashGetSize(pSch->tasksHash) <= 0) {
+      qwDestroySchStatus(pSch);
+      taosHashRemove(mgmt->schHash, sId, sizeof(*sId));
+      qError("sch %" PRIx64 "destroyed", *sId);
+    }
+
+    qwReleaseScheduler(QW_WRITE, mgmt);
+  }
 }
 
 

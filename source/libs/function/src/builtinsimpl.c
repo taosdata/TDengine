@@ -1799,17 +1799,17 @@ int32_t leastSQRFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   param[1][1] = (double)pInfo->num;
   param[1][0] = param[0][1];
 
-  param[0][0] -= param[1][0] * (param[0][1] / param[1][1]);
-  param[0][2] -= param[1][2] * (param[0][1] / param[1][1]);
-  param[0][1] = 0;
-  param[1][2] -= param[0][2] * (param[1][0] / param[0][0]);
-  param[1][0] = 0;
-  param[0][2] /= param[0][0];
+  double param00 = param[0][0] - param[1][0] * (param[0][1] / param[1][1]);
+  double param02 = param[0][2] - param[1][2] * (param[0][1] / param[1][1]);
+  // param[0][1] = 0;
+  double param12 = param[1][2] - param02 * (param[1][0] / param00);
+  // param[1][0] = 0;
+  param02 /= param00;
 
-  param[1][2] /= param[1][1];
+  param12 /= param[1][1];
 
   char buf[64] = {0};
-  size_t len = snprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE, "{slop:%.6lf, intercept:%.6lf}", param[0][2], param[1][2]);
+  size_t len = snprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE, "{slop:%.6lf, intercept:%.6lf}", param02, param12);
   varDataSetLen(buf, len);
 
   colDataAppend(pCol, currentRow, buf, pResInfo->isNullRes);
@@ -1819,6 +1819,27 @@ int32_t leastSQRFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
 int32_t leastSQRInvertFunction(SqlFunctionCtx* pCtx) {
   //TODO
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t leastSQRCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
+  SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
+  SLeastSQRInfo*       pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
+  int32_t              type = pDestCtx->input.pData[0]->info.type;
+  double               (*pDparam)[3] = pDBuf->matrix;
+
+  SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
+  SLeastSQRInfo*       pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
+  double               (*pSparam)[3] = pSBuf->matrix;
+  for (int32_t i = 0; i < pSBuf->num; i++) {
+    pDparam[0][0] += pDBuf->startVal * pDBuf->startVal;
+    pDparam[0][1] += pDBuf->startVal;
+    pDBuf->startVal += pDBuf->stepVal;
+  }
+  pDparam[0][2] += pSparam[0][2] + pDBuf->num * pDBuf->stepVal * pSparam[1][2];
+  pDparam[1][2] += pSparam[1][2];
+  pDBuf->num += pSBuf->num;
+  pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
   return TSDB_CODE_SUCCESS;
 }
 

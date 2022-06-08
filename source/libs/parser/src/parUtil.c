@@ -180,6 +180,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Value too long for column/tag: %s";
     case TSDB_CODE_PAR_INVALID_DELETE_WHERE:
       return "The DELETE statement must have a definite time window range";
+    case TSDB_CODE_PAR_INVALID_REDISTRIBUTE_VG:
+      return "The REDISTRIBUTE VGROUP statement only support 1 to 3 dnodes";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:

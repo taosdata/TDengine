@@ -28,6 +28,14 @@ extern "C" {
 #define DESCRIBE_RESULT_TYPE_LEN  (20 + VARSTR_HEADER_SIZE)
 #define DESCRIBE_RESULT_NOTE_LEN  (8 + VARSTR_HEADER_SIZE)
 
+#define PRIVILEGE_TYPE_MASK(n) (1 << n)
+
+#define PRIVILEGE_TYPE_ALL   PRIVILEGE_TYPE_MASK(0)
+#define PRIVILEGE_TYPE_READ  PRIVILEGE_TYPE_MASK(1)
+#define PRIVILEGE_TYPE_WRITE PRIVILEGE_TYPE_MASK(2)
+
+#define PRIVILEGE_TYPE_TEST_MASK(val, mask) (((val) & (mask)) != 0)
+
 typedef struct SDatabaseOptions {
   ENodeType   type;
   int32_t     buffer;
@@ -316,14 +324,6 @@ typedef struct SDropFunctionStmt {
   bool      ignoreNotExists;
 } SDropFunctionStmt;
 
-#define PRIVILEGE_TYPE_MASK(n) (1 << n)
-
-#define PRIVILEGE_TYPE_ALL   PRIVILEGE_TYPE_MASK(0)
-#define PRIVILEGE_TYPE_READ  PRIVILEGE_TYPE_MASK(1)
-#define PRIVILEGE_TYPE_WRITE PRIVILEGE_TYPE_MASK(2)
-
-#define PRIVILEGE_TYPE_TEST_MASK(val, mask) (((val) & (mask)) != 0)
-
 typedef struct SGrantStmt {
   ENodeType type;
   char      userName[TSDB_USER_LEN];
@@ -332,6 +332,30 @@ typedef struct SGrantStmt {
 } SGrantStmt;
 
 typedef SGrantStmt SRevokeStmt;
+
+typedef struct SBalanceVgroupStmt {
+  ENodeType type;
+} SBalanceVgroupStmt;
+
+typedef struct SMergeVgroupStmt {
+  ENodeType type;
+  int32_t   vgId1;
+  int32_t   vgId2;
+} SMergeVgroupStmt;
+
+typedef struct SRedistributeVgroupStmt {
+  ENodeType  type;
+  int32_t    vgId;
+  int32_t    dnodeId1;
+  int32_t    dnodeId2;
+  int32_t    dnodeId3;
+  SNodeList* pDnodes;
+} SRedistributeVgroupStmt;
+
+typedef struct SSplitVgroupStmt {
+  ENodeType type;
+  int32_t   vgId;
+} SSplitVgroupStmt;
 
 #ifdef __cplusplus
 }

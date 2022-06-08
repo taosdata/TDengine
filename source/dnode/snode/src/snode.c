@@ -90,7 +90,7 @@ void sndProcessUMsg(SSnode *pSnode, SRpcMsg *pMsg) {
   // stream deploy
   // stream stop/resume
   // operator exec
-  if (pMsg->msgType == TDMT_SND_TASK_DEPLOY) {
+  if (pMsg->msgType == TDMT_STREAM_TASK_DEPLOY) {
     void        *msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
     SStreamTask *pTask = taosMemoryMalloc(sizeof(SStreamTask));
     if (pTask == NULL) {

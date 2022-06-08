@@ -188,6 +188,13 @@ SDiskbasedBufStatis getDBufStatis(const SDiskbasedBuf* pBuf);
  */
 void dBufPrintStatis(const SDiskbasedBuf* pBuf);
 
+/**
+ * Set all of page buffer are not need
+ * @param pBuf
+ * @return
+ */
+void clearDiskbasedBuf(SDiskbasedBuf* pBuf);
+
 #ifdef __cplusplus
 }
 #endif

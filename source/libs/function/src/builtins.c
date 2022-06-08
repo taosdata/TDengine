@@ -1136,7 +1136,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = leastSQRFunctionSetup,
     .processFunc  = leastSQRFunction,
     .finalizeFunc = leastSQRFinalize,
-    .invertFunc   = leastSQRInvertFunction,
+    .invertFunc   = NULL,
+    .combineFunc  = leastSQRCombine,
   },
   {
     .name = "avg",
