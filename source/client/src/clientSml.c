@@ -2409,6 +2409,7 @@ TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int pr
   info->pRequest->code = smlProcess(info, lines, numLines);
 
 end:
+  info->taos->schemalessType = 0;
   uDebug("result:%s", info->msgBuf.buf);
   smlDestroyInfo(info);
   return (TAOS_RES*)request;
