@@ -1315,7 +1315,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getSpreadFuncEnv,
     .initFunc     = spreadFunctionSetup,
     .processFunc  = spreadFunction,
-    .finalizeFunc = spreadFinalize
+    .finalizeFunc = spreadPartialFinalize
   },
   {
     .name = "_spread_merge",
@@ -1325,7 +1325,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getSpreadFuncEnv,
     .initFunc     = spreadFunctionSetup,
-    .processFunc  = spreadFunction,
+    .processFunc  = spreadFunctionMerge,
     .finalizeFunc = spreadFinalize
   },
   {
