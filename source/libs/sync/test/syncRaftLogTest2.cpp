@@ -32,6 +32,8 @@ int32_t GetSnapshotCb(struct SSyncFSM* pFsm, SSnapshot* pSnapshot) {
   return 0;
 }
 
+bool gAssert = true;
+
 void init() {
   walInit();
 
@@ -68,6 +70,17 @@ void test1() {
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
   logStoreLog2((char*)"\n\n\ntest1 ----- ", pLogStore);
+
+  if (gAssert) {
+    assert(pLogStore->syncLogBeginIndex(pLogStore) == 0);
+    assert(pLogStore->syncLogEndIndex(pLogStore) == -1);
+    assert(pLogStore->syncLogEntryCount(pLogStore) == 0);
+    assert(pLogStore->syncLogWriteIndex(pLogStore) == 0);
+    assert(pLogStore->syncLogIsEmpty(pLogStore) == 0);
+    assert(pLogStore->syncLogLastIndex(pLogStore) == -1);
+    assert(pLogStore->syncLogLastTerm(pLogStore) == 0);
+  }
+
   logStoreDestory(pLogStore);
   cleanup();
 
@@ -76,6 +89,17 @@ void test1() {
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
   logStoreLog2((char*)"\n\n\ntest1 restart ----- ", pLogStore);
+
+  if (gAssert) {
+    assert(pLogStore->syncLogBeginIndex(pLogStore) == 0);
+    assert(pLogStore->syncLogEndIndex(pLogStore) == -1);
+    assert(pLogStore->syncLogEntryCount(pLogStore) == 0);
+    assert(pLogStore->syncLogWriteIndex(pLogStore) == 0);
+    assert(pLogStore->syncLogIsEmpty(pLogStore) == 0);
+    assert(pLogStore->syncLogLastIndex(pLogStore) == -1);
+    assert(pLogStore->syncLogLastTerm(pLogStore) == 0);
+  }
+
   logStoreDestory(pLogStore);
   cleanup();
 }
@@ -88,6 +112,17 @@ void test2() {
   assert(pLogStore);
   pLogStore->syncLogSetBeginIndex(pLogStore, 5);
   logStoreLog2((char*)"\n\n\ntest2 ----- ", pLogStore);
+
+  if (gAssert) {
+    assert(pLogStore->syncLogBeginIndex(pLogStore) == 5);
+    assert(pLogStore->syncLogEndIndex(pLogStore) == -1);
+    assert(pLogStore->syncLogEntryCount(pLogStore) == 0);
+    assert(pLogStore->syncLogWriteIndex(pLogStore) == 5);
+    assert(pLogStore->syncLogIsEmpty(pLogStore) == 0);
+    assert(pLogStore->syncLogLastIndex(pLogStore) == -1);
+    assert(pLogStore->syncLogLastTerm(pLogStore) == 0);
+  }
+
   logStoreDestory(pLogStore);
   cleanup();
 
@@ -96,6 +131,17 @@ void test2() {
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
   logStoreLog2((char*)"\n\n\ntest2 restart ----- ", pLogStore);
+
+  if (gAssert) {
+    assert(pLogStore->syncLogBeginIndex(pLogStore) == 5);
+    assert(pLogStore->syncLogEndIndex(pLogStore) == -1);
+    assert(pLogStore->syncLogEntryCount(pLogStore) == 0);
+    assert(pLogStore->syncLogWriteIndex(pLogStore) == 5);
+    assert(pLogStore->syncLogIsEmpty(pLogStore) == 0);
+    assert(pLogStore->syncLogLastIndex(pLogStore) == -1);
+    assert(pLogStore->syncLogLastTerm(pLogStore) == 0);
+  }
+
   logStoreDestory(pLogStore);
   cleanup();
 }
@@ -107,6 +153,16 @@ void test3() {
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
   logStoreLog2((char*)"\n\n\ntest3 ----- ", pLogStore);
+
+  if (gAssert) {
+    assert(pLogStore->syncLogBeginIndex(pLogStore) == 0);
+    assert(pLogStore->syncLogEndIndex(pLogStore) == -1);
+    assert(pLogStore->syncLogEntryCount(pLogStore) == 0);
+    assert(pLogStore->syncLogWriteIndex(pLogStore) == 0);
+    assert(pLogStore->syncLogIsEmpty(pLogStore) == 0);
+    assert(pLogStore->syncLogLastIndex(pLogStore) == -1);
+    assert(pLogStore->syncLogLastTerm(pLogStore) == 0);
+  }
 
   for (int i = 0; i <= 4; ++i) {
     int32_t         dataLen = 10;
@@ -124,6 +180,17 @@ void test3() {
     syncEntryDestory(pEntry);
   }
   logStoreLog2((char*)"test3 after appendEntry", pLogStore);
+
+  if (gAssert) {
+    assert(pLogStore->syncLogBeginIndex(pLogStore) == 0);
+    assert(pLogStore->syncLogEndIndex(pLogStore) == 4);
+    assert(pLogStore->syncLogEntryCount(pLogStore) == 5);
+    assert(pLogStore->syncLogWriteIndex(pLogStore) == 5);
+    assert(pLogStore->syncLogIsEmpty(pLogStore) == 1);
+    assert(pLogStore->syncLogLastIndex(pLogStore) == 4);
+    assert(pLogStore->syncLogLastTerm(pLogStore) == 104);
+  }
+
   logStoreDestory(pLogStore);
   cleanup();
 
@@ -132,6 +199,17 @@ void test3() {
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
   logStoreLog2((char*)"\n\n\ntest3 restart ----- ", pLogStore);
+
+  if (gAssert) {
+    assert(pLogStore->syncLogBeginIndex(pLogStore) == 0);
+    assert(pLogStore->syncLogEndIndex(pLogStore) == 4);
+    assert(pLogStore->syncLogEntryCount(pLogStore) == 5);
+    assert(pLogStore->syncLogWriteIndex(pLogStore) == 5);
+    assert(pLogStore->syncLogIsEmpty(pLogStore) == 1);
+    assert(pLogStore->syncLogLastIndex(pLogStore) == 4);
+    assert(pLogStore->syncLogLastTerm(pLogStore) == 104);
+  }
+
   logStoreDestory(pLogStore);
   cleanup();
 }
@@ -161,6 +239,17 @@ void test4() {
     syncEntryDestory(pEntry);
   }
   logStoreLog2((char*)"test4 after appendEntry", pLogStore);
+
+  if (gAssert) {
+    assert(pLogStore->syncLogBeginIndex(pLogStore) == 5);
+    assert(pLogStore->syncLogEndIndex(pLogStore) == 9);
+    assert(pLogStore->syncLogEntryCount(pLogStore) == 5);
+    assert(pLogStore->syncLogWriteIndex(pLogStore) == 10);
+    assert(pLogStore->syncLogIsEmpty(pLogStore) == 1);
+    assert(pLogStore->syncLogLastIndex(pLogStore) == 9);
+    assert(pLogStore->syncLogLastTerm(pLogStore) == 109);
+  }
+
   logStoreDestory(pLogStore);
   cleanup();
 
@@ -169,6 +258,17 @@ void test4() {
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
   logStoreLog2((char*)"\n\n\ntest4 restart ----- ", pLogStore);
+
+  if (gAssert) {
+    assert(pLogStore->syncLogBeginIndex(pLogStore) == 5);
+    assert(pLogStore->syncLogEndIndex(pLogStore) == 9);
+    assert(pLogStore->syncLogEntryCount(pLogStore) == 5);
+    assert(pLogStore->syncLogWriteIndex(pLogStore) == 10);
+    assert(pLogStore->syncLogIsEmpty(pLogStore) == 1);
+    assert(pLogStore->syncLogLastIndex(pLogStore) == 9);
+    assert(pLogStore->syncLogLastTerm(pLogStore) == 109);
+  }
+
   logStoreDestory(pLogStore);
   cleanup();
 }
@@ -199,8 +299,28 @@ void test5() {
   }
   logStoreLog2((char*)"test5 after appendEntry", pLogStore);
 
+  if (gAssert) {
+    assert(pLogStore->syncLogBeginIndex(pLogStore) == 5);
+    assert(pLogStore->syncLogEndIndex(pLogStore) == 9);
+    assert(pLogStore->syncLogEntryCount(pLogStore) == 5);
+    assert(pLogStore->syncLogWriteIndex(pLogStore) == 10);
+    assert(pLogStore->syncLogIsEmpty(pLogStore) == 1);
+    assert(pLogStore->syncLogLastIndex(pLogStore) == 9);
+    assert(pLogStore->syncLogLastTerm(pLogStore) == 109);
+  }
+
   pLogStore->syncLogTruncate(pLogStore, 7);
   logStoreLog2((char*)"after truncate 7", pLogStore);
+
+  if (gAssert) {
+    assert(pLogStore->syncLogBeginIndex(pLogStore) == 5);
+    assert(pLogStore->syncLogEndIndex(pLogStore) == 6);
+    assert(pLogStore->syncLogEntryCount(pLogStore) == 2);
+    assert(pLogStore->syncLogWriteIndex(pLogStore) == 7);
+    assert(pLogStore->syncLogIsEmpty(pLogStore) == 1);
+    assert(pLogStore->syncLogLastIndex(pLogStore) == 6);
+    assert(pLogStore->syncLogLastTerm(pLogStore) == 106);
+  }
 
   logStoreDestory(pLogStore);
   cleanup();
@@ -210,6 +330,17 @@ void test5() {
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
   logStoreLog2((char*)"\n\n\ntest5 restart ----- ", pLogStore);
+
+  if (gAssert) {
+    assert(pLogStore->syncLogBeginIndex(pLogStore) == 5);
+    assert(pLogStore->syncLogEndIndex(pLogStore) == 6);
+    assert(pLogStore->syncLogEntryCount(pLogStore) == 2);
+    assert(pLogStore->syncLogWriteIndex(pLogStore) == 7);
+    assert(pLogStore->syncLogIsEmpty(pLogStore) == 1);
+    assert(pLogStore->syncLogLastIndex(pLogStore) == 6);
+    assert(pLogStore->syncLogLastTerm(pLogStore) == 106);
+  }
+
   logStoreDestory(pLogStore);
   cleanup();
 }
@@ -240,8 +371,28 @@ void test6() {
   }
   logStoreLog2((char*)"test6 after appendEntry", pLogStore);
 
+  if (gAssert) {
+    assert(pLogStore->syncLogBeginIndex(pLogStore) == 5);
+    assert(pLogStore->syncLogEndIndex(pLogStore) == 9);
+    assert(pLogStore->syncLogEntryCount(pLogStore) == 5);
+    assert(pLogStore->syncLogWriteIndex(pLogStore) == 10);
+    assert(pLogStore->syncLogIsEmpty(pLogStore) == 1);
+    assert(pLogStore->syncLogLastIndex(pLogStore) == 9);
+    assert(pLogStore->syncLogLastTerm(pLogStore) == 109);
+  }
+
   pLogStore->syncLogTruncate(pLogStore, 5);
   logStoreLog2((char*)"after truncate 5", pLogStore);
+
+  if (gAssert) {
+    assert(pLogStore->syncLogBeginIndex(pLogStore) == 5);
+    assert(pLogStore->syncLogEndIndex(pLogStore) == -1);
+    assert(pLogStore->syncLogEntryCount(pLogStore) == 0);
+    assert(pLogStore->syncLogWriteIndex(pLogStore) == 5);
+    assert(pLogStore->syncLogIsEmpty(pLogStore) == 0);
+    assert(pLogStore->syncLogLastIndex(pLogStore) == -1);
+    assert(pLogStore->syncLogLastTerm(pLogStore) == 0);
+  }
 
   logStoreDestory(pLogStore);
   cleanup();
@@ -251,6 +402,17 @@ void test6() {
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
   logStoreLog2((char*)"\n\n\ntest6 restart ----- ", pLogStore);
+
+  if (gAssert) {
+    assert(pLogStore->syncLogBeginIndex(pLogStore) == 5);
+    assert(pLogStore->syncLogEndIndex(pLogStore) == -1);
+    assert(pLogStore->syncLogEntryCount(pLogStore) == 0);
+    assert(pLogStore->syncLogWriteIndex(pLogStore) == 5);
+    assert(pLogStore->syncLogIsEmpty(pLogStore) == 0);
+    assert(pLogStore->syncLogLastIndex(pLogStore) == -1);
+    assert(pLogStore->syncLogLastTerm(pLogStore) == 0);
+  }
+
   logStoreDestory(pLogStore);
   cleanup();
 }
@@ -258,6 +420,11 @@ void test6() {
 int main(int argc, char** argv) {
   tsAsyncLog = 0;
   sDebugFlag = DEBUG_TRACE + DEBUG_INFO + DEBUG_SCREEN + DEBUG_FILE;
+
+  if (argc == 2) {
+    gAssert = atoi(argv[1]);
+  }
+  sTrace("gAssert : %d", gAssert);
 
   test1();
   test2();

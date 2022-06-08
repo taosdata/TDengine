@@ -80,7 +80,7 @@ void test5() {
 
 void test6() {
   SyncTimeout *pMsg = createMsg();
-  char *      jsonStr = syncTimeout2Str(pMsg);
+  char *       jsonStr = syncTimeout2Str(pMsg);
   sTrace("jsonStr: %s", jsonStr);
 
   syncUtilJson2Line(jsonStr);

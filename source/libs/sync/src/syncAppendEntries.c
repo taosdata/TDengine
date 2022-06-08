@@ -434,92 +434,43 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
   return ret;
 }
 
-static bool syncNodeOnAppendEntriesLogOK(SSyncNode* pSyncNode, SyncAppendEntries* pMsg) {
-  if (pMsg->prevLogIndex == SYNC_INDEX_INVALID) {
-    return true;
-  }
-
-  SyncIndex myLastIndex = syncNodeGetLastIndex(pSyncNode);
-  if (pMsg->prevLogIndex > myLastIndex) {
-    return false;
-  }
-
-  SyncTerm myPreLogTerm = syncNodeGetPreTerm(pSyncNode, pMsg->prevLogIndex + 1);
-  if (pMsg->prevLogIndex <= myLastIndex && pMsg->prevLogTerm == myPreLogTerm) {
-    return true;
-  }
-
-  return false;
-}
-
-static int32_t syncNodeMakeLogSame(SSyncNode* ths, SyncAppendEntries* pMsg, SSyncRaftEntry** ppAppendEntry,
-                                   bool* pEntryAlreadyWritten) {
+static int32_t syncNodeMakeLogSame(SSyncNode* ths, SyncAppendEntries* pMsg) {
   int32_t code;
-  *ppAppendEntry = NULL;
-  *pEntryAlreadyWritten = false;
 
-  // not conflict by default
-  bool conflict = false;
+  SyncIndex delBegin = pMsg->prevLogIndex + 1;
+  SyncIndex delEnd = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
 
-  SyncIndex       extraIndex = pMsg->prevLogIndex + 1;
-  SSyncRaftEntry* pExtraEntry;
-  code = ths->pLogStore->syncLogGetEntry(ths->pLogStore, extraIndex, &pExtraEntry);
-  ASSERT(pExtraEntry != NULL);
+  // invert roll back!
+  for (SyncIndex index = delEnd; index >= delBegin; --index) {
+    if (ths->pFsm->FpRollBackCb != NULL) {
+      SSyncRaftEntry* pRollBackEntry;
+      code = ths->pLogStore->syncLogGetEntry(ths->pLogStore, index, &pRollBackEntry);
+      ASSERT(code == 0);
+      ASSERT(pRollBackEntry != NULL);
 
-  *ppAppendEntry = syncEntryDeserialize(pMsg->data, pMsg->dataLen);
-  ASSERT(*ppAppendEntry != NULL);
+      if (syncUtilUserRollback(pRollBackEntry->msgType)) {
+        SRpcMsg rpcMsg;
+        syncEntry2OriginalRpc(pRollBackEntry, &rpcMsg);
 
-  ASSERT(extraIndex == (*ppAppendEntry)->index);
-  if (pExtraEntry->term != (*ppAppendEntry)->term) {
-    // log not match, conflict, need delete
-    conflict = true;
-  } else {
-    // log match, already written
-    ASSERT(extraIndex == (*ppAppendEntry)->index && pExtraEntry->term == (*ppAppendEntry)->term);
-    *pEntryAlreadyWritten = true;
-    sInfo("entry already written, term:%lu, index:%ld", pExtraEntry->term, pExtraEntry->index);
-  }
-  syncEntryDestory(pExtraEntry);
-
-  if (conflict) {
-    // roll back
-    SyncIndex delBegin = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
-    SyncIndex delEnd = extraIndex;
-
-    sTrace("entry conflict:%d, delBegin:%ld, delEnd:%ld", conflict, delBegin, delEnd);
-
-    // notice! reverse roll back!
-    for (SyncIndex index = delEnd; index >= delBegin; --index) {
-      if (ths->pFsm->FpRollBackCb != NULL) {
-        SSyncRaftEntry* pRollBackEntry;
-        code = ths->pLogStore->syncLogGetEntry(ths->pLogStore, index, &pRollBackEntry);
-        ASSERT(code == 0);
-        ASSERT(pRollBackEntry != NULL);
-
-        if (syncUtilUserRollback(pRollBackEntry->msgType)) {
-          SRpcMsg rpcMsg;
-          syncEntry2OriginalRpc(pRollBackEntry, &rpcMsg);
-
-          SFsmCbMeta cbMeta;
-          cbMeta.index = pRollBackEntry->index;
-          cbMeta.isWeak = pRollBackEntry->isWeak;
-          cbMeta.code = 0;
-          cbMeta.state = ths->state;
-          cbMeta.seqNum = pRollBackEntry->seqNum;
-          ths->pFsm->FpRollBackCb(ths->pFsm, &rpcMsg, cbMeta);
-          rpcFreeCont(rpcMsg.pCont);
-        }
-
-        syncEntryDestory(pRollBackEntry);
+        SFsmCbMeta cbMeta;
+        cbMeta.index = pRollBackEntry->index;
+        cbMeta.isWeak = pRollBackEntry->isWeak;
+        cbMeta.code = 0;
+        cbMeta.state = ths->state;
+        cbMeta.seqNum = pRollBackEntry->seqNum;
+        ths->pFsm->FpRollBackCb(ths->pFsm, &rpcMsg, cbMeta);
+        rpcFreeCont(rpcMsg.pCont);
       }
-    }
 
-    // delete confict entries
-    code = ths->pLogStore->syncLogTruncate(ths->pLogStore, extraIndex);
-    ASSERT(code == 0);
+      syncEntryDestory(pRollBackEntry);
+    }
   }
 
-  return 0;
+  // delete confict entries
+  code = ths->pLogStore->syncLogTruncate(ths->pLogStore, delBegin);
+  ASSERT(code == 0);
+
+  return code;
 }
 
 static int32_t syncNodePreCommit(SSyncNode* ths, SSyncRaftEntry* pEntry) {
@@ -540,6 +491,26 @@ static int32_t syncNodePreCommit(SSyncNode* ths, SSyncRaftEntry* pEntry) {
   return 0;
 }
 
+// really pre log match
+// prevLogIndex == -1
+static bool syncNodeOnAppendEntriesLogOK(SSyncNode* pSyncNode, SyncAppendEntries* pMsg) {
+  if (pMsg->prevLogIndex == SYNC_INDEX_INVALID) {
+    return true;
+  }
+
+  SyncIndex myLastIndex = syncNodeGetLastIndex(pSyncNode);
+  if (pMsg->prevLogIndex > myLastIndex) {
+    return false;
+  }
+
+  SyncTerm myPreLogTerm = syncNodeGetPreTerm(pSyncNode, pMsg->prevLogIndex + 1);
+  if (pMsg->prevLogIndex <= myLastIndex && pMsg->prevLogTerm == myPreLogTerm) {
+    return true;
+  }
+
+  return false;
+}
+
 int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
   int32_t ret = 0;
   int32_t code = 0;
@@ -549,7 +520,7 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
   snprintf(logBuf, sizeof(logBuf), "recv SyncAppendEntries, term:%lu", ths->pRaftStore->currentTerm);
   syncAppendEntriesLog2(logBuf, pMsg);
 
-  // if I am standby, be added into a raft group, I should process SyncAppendEntries msg
+  // if I am standby, to be added into a raft group, I should process SyncAppendEntries msg
   /*
     // if already drop replica, do not process
     if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
@@ -573,57 +544,55 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
 
   bool logOK = syncNodeOnAppendEntriesLogOK(ths, pMsg);
 
-  // case1, reject request
-  if ((pMsg->term < ths->pRaftStore->currentTerm) ||
-      ((pMsg->term == ths->pRaftStore->currentTerm) && (ths->state == TAOS_SYNC_STATE_FOLLOWER) && !logOK)) {
-    sTrace("recv SyncAppendEntries, reject, receive_term:%lu, current_term:%lu, ths->state:%d, logOK:%d", pMsg->term,
-           ths->pRaftStore->currentTerm, ths->state, logOK);
+  // candidate to follower
+  //
+  // operation:
+  // to follower
+  do {
+    bool condition = pMsg->term == ths->pRaftStore->currentTerm && ths->state == TAOS_SYNC_STATE_CANDIDATE;
+    if (condition) {
+      syncNodeBecomeFollower(ths);
+      // do not reply?
+      return ret;
+    }
+  } while (0);
 
-    // send response
-    SyncAppendEntriesReply* pReply = syncAppendEntriesReplyBuild(ths->vgId);
-    pReply->srcId = ths->myRaftId;
-    pReply->destId = pMsg->srcId;
-    pReply->term = ths->pRaftStore->currentTerm;
-    pReply->success = false;
-    pReply->matchIndex = SYNC_INDEX_INVALID;
-    pReply->privateTerm = ths->pNewNodeReceiver->privateTerm;
-
-    SRpcMsg rpcMsg;
-    syncAppendEntriesReply2RpcMsg(pReply, &rpcMsg);
-    syncNodeSendMsgById(&pReply->destId, ths, &rpcMsg);
-    syncAppendEntriesReplyDestroy(pReply);
-
-    return ret;
-  }
-
-  // case 2, return to follower state
-  if (pMsg->term == ths->pRaftStore->currentTerm && ths->state == TAOS_SYNC_STATE_CANDIDATE) {
-    sTrace("recv SyncAppendEntries, return to follower, receive_term:%lu, current_term:%lu, ths->state:%d, logOK:%d",
-           pMsg->term, ths->pRaftStore->currentTerm, ths->state, logOK);
-
-    syncNodeBecomeFollower(ths);
-
-    // ret or reply?
-    return ret;
-  }
-
-  // case 3, index in my snapshot
-  if (pMsg->term == ths->pRaftStore->currentTerm && syncNodeHasSnapshot(ths)) {
+  // fake match
+  //
+  // condition1:
+  // I have snapshot, no log, preIndex > myLastIndex
+  //
+  // condition2:
+  // I have snapshot, have log, log <= snapshot, preIndex > myLastIndex
+  //
+  // condition3:
+  // I have snapshot, preIndex <= snapshot.lastApplyIndex
+  //
+  // operation:
+  // match snapshot.lastApplyIndex - 1;
+  // no operation on log
+  do {
+    SyncIndex myLastIndex = syncNodeGetLastIndex(ths);
     SSnapshot snapshot;
     ths->pFsm->FpGetSnapshot(ths->pFsm, &snapshot);
-    if (pMsg->prevLogIndex < snapshot.lastApplyIndex) {
-      sTrace(
-          "recv SyncAppendEntries, accept, in snapshot, receive_term:%lu, current_term:%lu, ths->state:%d, logOK:%d, "
-          "snapshot.lastApplyIndex:%ld, snapshot.lastApplyTerm:%lu",
-          pMsg->term, ths->pRaftStore->currentTerm, ths->state, logOK, snapshot.lastApplyIndex, snapshot.lastApplyTerm);
 
+    bool condition0 = (pMsg->term == ths->pRaftStore->currentTerm) && (ths->state == TAOS_SYNC_STATE_FOLLOWER) &&
+                      syncNodeHasSnapshot(ths);
+    bool condition1 =
+        condition0 && (ths->pLogStore->syncLogEntryCount(ths->pLogStore) == 0) && (pMsg->prevLogIndex > myLastIndex);
+    bool condition2 = condition0 && (ths->pLogStore->syncLogLastIndex(ths->pLogStore) <= snapshot.lastApplyIndex) &&
+                      (pMsg->prevLogIndex > myLastIndex);
+    bool condition3 = condition0 && (pMsg->prevLogIndex <= snapshot.lastApplyIndex);
+    bool condition = condition1 || condition2 || condition3;
+
+    if (condition) {
       // prepare response msg
       SyncAppendEntriesReply* pReply = syncAppendEntriesReplyBuild(ths->vgId);
       pReply->srcId = ths->myRaftId;
       pReply->destId = pMsg->srcId;
       pReply->term = ths->pRaftStore->currentTerm;
-      pReply->success = true;
       pReply->privateTerm = ths->pNewNodeReceiver->privateTerm;
+      pReply->success = true;
       pReply->matchIndex = snapshot.lastApplyIndex - 1;
 
       // send response
@@ -634,105 +603,120 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
 
       return ret;
     }
-  }
+  } while (0);
 
-  // case 4, accept request
-  if (pMsg->term == ths->pRaftStore->currentTerm && ths->state == TAOS_SYNC_STATE_FOLLOWER && logOK) {
-    // has extra entries (> preIndex) in local log
-    SyncIndex myLastIndex = syncNodeGetLastIndex(ths);
-    bool      hasExtraEntries = myLastIndex > pMsg->prevLogIndex;
+  // not match
+  //
+  // condition1:
+  // term < myTerm
+  //
+  // condition2:
+  // !logOK
+  //
+  // operation:
+  // not match
+  // no operation on log
+  do {
+    bool condition1 = pMsg->term < ths->pRaftStore->currentTerm;
+    bool condition2 =
+        (pMsg->term == ths->pRaftStore->currentTerm) && (ths->state == TAOS_SYNC_STATE_FOLLOWER) && !logOK;
+    bool condition = condition1 || condition2;
 
-    // has entries in SyncAppendEntries msg
-    bool hasAppendEntries = pMsg->dataLen > 0;
+    if (condition) {
+      // prepare response msg
+      SyncAppendEntriesReply* pReply = syncAppendEntriesReplyBuild(ths->vgId);
+      pReply->srcId = ths->myRaftId;
+      pReply->destId = pMsg->srcId;
+      pReply->term = ths->pRaftStore->currentTerm;
+      pReply->privateTerm = ths->pNewNodeReceiver->privateTerm;
+      pReply->success = false;
+      pReply->matchIndex = SYNC_INDEX_INVALID;
 
-    sTrace(
-        "recv SyncAppendEntries, accept, receive_term:%lu, current_term:%lu, ths->state:%d, logOK:%d, "
-        "hasExtraEntries:%d, hasAppendEntries:%d",
-        pMsg->term, ths->pRaftStore->currentTerm, ths->state, logOK, hasExtraEntries, hasAppendEntries);
+      // send response
+      SRpcMsg rpcMsg;
+      syncAppendEntriesReply2RpcMsg(pReply, &rpcMsg);
+      syncNodeSendMsgById(&pReply->destId, ths, &rpcMsg);
+      syncAppendEntriesReplyDestroy(pReply);
 
-    if (hasExtraEntries && hasAppendEntries) {
-      // make log same
-      SSyncRaftEntry* pAppendEntry;
-      bool            entryAlreadyWritten;
-      code = syncNodeMakeLogSame(ths, pMsg, &pAppendEntry, &entryAlreadyWritten);
-      ASSERT(code == 0);
-      ASSERT(pAppendEntry != NULL);
+      return ret;
+    }
+  } while (0);
 
-      if (!entryAlreadyWritten) {
-        // append new entries
+  // really match
+  //
+  // condition:
+  // logOK
+  //
+  // operation:
+  // match
+  // make log same
+  do {
+    bool condition = (pMsg->term == ths->pRaftStore->currentTerm) && (ths->state == TAOS_SYNC_STATE_FOLLOWER) && logOK;
+    if (condition) {
+      // has extra entries (> preIndex) in local log
+      SyncIndex myLastIndex = syncNodeGetLastIndex(ths);
+      bool      hasExtraEntries = myLastIndex > pMsg->prevLogIndex;
+
+      // has entries in SyncAppendEntries msg
+      bool hasAppendEntries = pMsg->dataLen > 0;
+
+      if (hasExtraEntries) {
+        // make log same, rollback deleted entries
+        code = syncNodeMakeLogSame(ths, pMsg);
+        ASSERT(code == 0);
+      }
+
+      if (hasAppendEntries) {
+        // append entry
+        SSyncRaftEntry* pAppendEntry = syncEntryDeserialize(pMsg->data, pMsg->dataLen);
+        ASSERT(pAppendEntry != NULL);
+
         code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pAppendEntry);
         ASSERT(code == 0);
 
         // pre commit
         code = syncNodePreCommit(ths, pAppendEntry);
         ASSERT(code == 0);
+
+        syncEntryDestory(pAppendEntry);
       }
 
-      syncEntryDestory(pAppendEntry);
+      // prepare response msg
+      SyncAppendEntriesReply* pReply = syncAppendEntriesReplyBuild(ths->vgId);
+      pReply->srcId = ths->myRaftId;
+      pReply->destId = pMsg->srcId;
+      pReply->term = ths->pRaftStore->currentTerm;
+      pReply->privateTerm = ths->pNewNodeReceiver->privateTerm;
+      pReply->success = true;
+      pReply->matchIndex = hasAppendEntries ? pMsg->prevLogIndex + 1 : pMsg->prevLogIndex;
 
-    } else if (hasExtraEntries && !hasAppendEntries) {
-      // do nothing
+      // send response
+      SRpcMsg rpcMsg;
+      syncAppendEntriesReply2RpcMsg(pReply, &rpcMsg);
+      syncNodeSendMsgById(&pReply->destId, ths, &rpcMsg);
+      syncAppendEntriesReplyDestroy(pReply);
 
-    } else if (!hasExtraEntries && hasAppendEntries) {
-      SSyncRaftEntry* pAppendEntry = syncEntryDeserialize(pMsg->data, pMsg->dataLen);
-      ASSERT(pAppendEntry != NULL);
+      // maybe update commit index, leader notice me
+      if (pMsg->commitIndex > ths->commitIndex) {
+        // has commit entry in local
+        if (pMsg->commitIndex <= ths->pLogStore->syncLogLastIndex(ths->pLogStore)) {
+          SyncIndex beginIndex = ths->commitIndex + 1;
+          SyncIndex endIndex = pMsg->commitIndex;
 
-      // append new entries
-      code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pAppendEntry);
-      ASSERT(code == 0);
+          // update commit index
+          ths->commitIndex = pMsg->commitIndex;
 
-      // pre commit
-      code = syncNodePreCommit(ths, pAppendEntry);
-      ASSERT(code == 0);
+          // call back Wal
+          code = ths->pLogStore->updateCommitIndex(ths->pLogStore, ths->commitIndex);
+          ASSERT(code == 0);
 
-      syncEntryDestory(pAppendEntry);
-
-    } else if (!hasExtraEntries && !hasAppendEntries) {
-      // do nothing
-
-    } else {
-      ASSERT(0);
-    }
-
-    // prepare response msg
-    SyncAppendEntriesReply* pReply = syncAppendEntriesReplyBuild(ths->vgId);
-    pReply->srcId = ths->myRaftId;
-    pReply->destId = pMsg->srcId;
-    pReply->term = ths->pRaftStore->currentTerm;
-    pReply->success = true;
-    pReply->privateTerm = ths->pNewNodeReceiver->privateTerm;
-
-    if (hasAppendEntries) {
-      pReply->matchIndex = pMsg->prevLogIndex + 1;
-    } else {
-      pReply->matchIndex = pMsg->prevLogIndex;
-    }
-
-    // send response
-    SRpcMsg rpcMsg;
-    syncAppendEntriesReply2RpcMsg(pReply, &rpcMsg);
-    syncNodeSendMsgById(&pReply->destId, ths, &rpcMsg);
-    syncAppendEntriesReplyDestroy(pReply);
-
-    // maybe update commit index from leader
-    if (pMsg->commitIndex > ths->commitIndex) {
-      // has commit entry in local
-      if (pMsg->commitIndex <= ths->pLogStore->syncLogLastIndex(ths->pLogStore)) {
-        SyncIndex beginIndex = ths->commitIndex + 1;
-        SyncIndex endIndex = pMsg->commitIndex;
-
-        // update commit index
-        ths->commitIndex = pMsg->commitIndex;
-
-        // call back Wal
-        code = ths->pLogStore->updateCommitIndex(ths->pLogStore, ths->commitIndex);
-        ASSERT(code == 0);
-
-        code = syncNodeCommit(ths, beginIndex, endIndex, ths->state);
-        ASSERT(code == 0);
+          code = syncNodeCommit(ths, beginIndex, endIndex, ths->state);
+          ASSERT(code == 0);
+        }
       }
+      return ret;
     }
-  }
+  } while (0);
 
   return ret;
 }

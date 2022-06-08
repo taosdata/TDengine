@@ -1283,7 +1283,6 @@ bool syncNodeIsIndexInSnapshot(SSyncNode* pSyncNode, SyncIndex index) {
   SSnapshot snapshot;
   pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
   bool b = (index <= snapshot.lastApplyIndex);
-
   return b;
 }
 
@@ -1307,17 +1306,10 @@ SyncTerm syncNodeGetLastTerm(SSyncNode* pSyncNode) {
       pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
     }
 
-    if (pSyncNode->pLogStore->syncLogEntryCount(pSyncNode->pLogStore) > 0) {
-      // has log
-      SyncIndex logLastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
-      if (logLastIndex > snapshot.lastApplyIndex) {
-        lastTerm = pSyncNode->pLogStore->syncLogLastTerm(pSyncNode->pLogStore);
-      } else {
-        lastTerm = snapshot.lastApplyTerm;
-      }
-
+    SyncIndex logLastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
+    if (logLastIndex > snapshot.lastApplyIndex) {
+      lastTerm = pSyncNode->pLogStore->syncLogLastTerm(pSyncNode->pLogStore);
     } else {
-      // no log
       lastTerm = snapshot.lastApplyTerm;
     }
 
@@ -1346,22 +1338,7 @@ SyncIndex syncNodeGetPreIndex(SSyncNode* pSyncNode, SyncIndex index) {
   SyncIndex syncStartIndex = syncNodeSyncStartIndex(pSyncNode);
   ASSERT(index <= syncStartIndex);
 
-  SyncIndex preIndex;
-  if (syncNodeHasSnapshot(pSyncNode)) {
-    // has snapshot
-    SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
-    if (pSyncNode->pFsm->FpGetSnapshot != NULL) {
-      pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
-    }
-
-    // ASSERT(index > snapshot.lastApplyIndex);
-    preIndex = index - 1;
-
-  } else {
-    // no snapshot
-    preIndex = index - 1;
-  }
-
+  SyncIndex preIndex = index - 1;
   return preIndex;
 }
 
@@ -1382,7 +1359,6 @@ SyncTerm syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index) {
       pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
     }
 
-    // ASSERT(index > snapshot.lastApplyIndex);
     if (index > snapshot.lastApplyIndex + 1) {
       // should be log preTerm
       SSyncRaftEntry* pPreEntry = NULL;
@@ -1395,10 +1371,19 @@ SyncTerm syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index) {
 
     } else if (index == snapshot.lastApplyIndex + 1) {
       preTerm = snapshot.lastApplyTerm;
+
     } else {
-      // ASSERT(0);
       // maybe snapshot change
-      preTerm = snapshot.lastApplyTerm;
+      sError("sync get pre term, bad scene. index:%ld", index);
+      logStoreLog2("sync get pre term, bad scene", pSyncNode->pLogStore);
+
+      SSyncRaftEntry* pPreEntry = NULL;
+      int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, index - 1, &pPreEntry);
+      ASSERT(code == 0);
+      ASSERT(pPreEntry != NULL);
+
+      preTerm = pPreEntry->term;
+      taosMemoryFree(pPreEntry);
     }
 
   } else {

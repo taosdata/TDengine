@@ -437,10 +437,6 @@ cJSON* logStore2Json(SSyncLogStore* pLogStore) {
     cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
     snprintf(u64buf, sizeof(u64buf), "%p", pData->pWal);
     cJSON_AddStringToObject(pRoot, "pWal", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%ld", raftLogLastIndex(pLogStore));
-    cJSON_AddStringToObject(pRoot, "LastIndex", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%lu", raftLogLastTerm(pLogStore));
-    cJSON_AddStringToObject(pRoot, "LastTerm", u64buf);
 
     snprintf(u64buf, sizeof(u64buf), "%ld", pData->beginIndex);
     cJSON_AddStringToObject(pRoot, "beginIndex", u64buf);
@@ -451,6 +447,17 @@ cJSON* logStore2Json(SSyncLogStore* pLogStore) {
 
     int32_t count = raftLogEntryCount(pLogStore);
     cJSON_AddNumberToObject(pRoot, "entryCount", count);
+
+    snprintf(u64buf, sizeof(u64buf), "%ld", raftLogWriteIndex(pLogStore));
+    cJSON_AddStringToObject(pRoot, "WriteIndex", u64buf);
+
+    snprintf(u64buf, sizeof(u64buf), "%d", raftLogIsEmpty(pLogStore));
+    cJSON_AddStringToObject(pRoot, "IsEmpty", u64buf);
+
+    snprintf(u64buf, sizeof(u64buf), "%ld", raftLogLastIndex(pLogStore));
+    cJSON_AddStringToObject(pRoot, "LastIndex", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%lu", raftLogLastTerm(pLogStore));
+    cJSON_AddStringToObject(pRoot, "LastTerm", u64buf);
 
     cJSON* pEntries = cJSON_CreateArray();
     cJSON_AddItemToObject(pRoot, "pEntries", pEntries);
@@ -484,10 +491,6 @@ cJSON* logStoreSimple2Json(SSyncLogStore* pLogStore) {
     cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
     snprintf(u64buf, sizeof(u64buf), "%p", pData->pWal);
     cJSON_AddStringToObject(pRoot, "pWal", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%ld", raftLogLastIndex(pLogStore));
-    cJSON_AddStringToObject(pRoot, "LastIndex", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%lu", raftLogLastTerm(pLogStore));
-    cJSON_AddStringToObject(pRoot, "LastTerm", u64buf);
 
     snprintf(u64buf, sizeof(u64buf), "%ld", pData->beginIndex);
     cJSON_AddStringToObject(pRoot, "beginIndex", u64buf);
@@ -498,6 +501,17 @@ cJSON* logStoreSimple2Json(SSyncLogStore* pLogStore) {
 
     int32_t count = raftLogEntryCount(pLogStore);
     cJSON_AddNumberToObject(pRoot, "entryCount", count);
+
+    snprintf(u64buf, sizeof(u64buf), "%ld", raftLogWriteIndex(pLogStore));
+    cJSON_AddStringToObject(pRoot, "WriteIndex", u64buf);
+
+    snprintf(u64buf, sizeof(u64buf), "%d", raftLogIsEmpty(pLogStore));
+    cJSON_AddStringToObject(pRoot, "IsEmpty", u64buf);
+
+    snprintf(u64buf, sizeof(u64buf), "%ld", raftLogLastIndex(pLogStore));
+    cJSON_AddStringToObject(pRoot, "LastIndex", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%lu", raftLogLastTerm(pLogStore));
+    cJSON_AddStringToObject(pRoot, "LastTerm", u64buf);
   }
 
   cJSON* pJson = cJSON_CreateObject();
