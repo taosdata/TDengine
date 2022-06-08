@@ -1304,7 +1304,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getSpreadFuncEnv,
     .initFunc     = spreadFunctionSetup,
     .processFunc  = spreadFunction,
-    .finalizeFunc = spreadFinalize
+    .finalizeFunc = spreadFinalize,
+    .pPartialFunc = "_spread_partial",
+    .pMergeFunc   = "_spread_merge"
   },
   {
     .name = "_spread_partial",
