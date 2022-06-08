@@ -16,19 +16,19 @@
 #include "tsdb.h"
 
 typedef struct {
-  SMemTable *pMemTable;
-  int32_t    minutes;
-  int8_t     precision;
-  TSKEY      nCommitKey;
-  int32_t    fid;
-  TSKEY      minKey;
-  TSKEY      maxKey;
-  SReadH     readh;
-  SDFileSet  wSet;
-  SArray    *aBlkIdx;
-  SArray    *aSupBlk;
-  SArray    *aSubBlk;
-  SArray    *aDelInfo;
+  SMemTable2 *pMemTable;
+  int32_t     minutes;
+  int8_t      precision;
+  TSKEY       nCommitKey;
+  int32_t     fid;
+  TSKEY       minKey;
+  TSKEY       maxKey;
+  SReadH      readh;
+  SDFileSet   wSet;
+  SArray     *aBlkIdx;
+  SArray     *aSupBlk;
+  SArray     *aSubBlk;
+  SArray     *aDelInfo;
 } SCommitH;
 
 static int32_t tsdbCommitStart(SCommitH *pCHandle, STsdb *pTsdb);
@@ -39,7 +39,7 @@ int32_t tsdbBegin2(STsdb *pTsdb) {
   int32_t code = 0;
 
   ASSERT(pTsdb->mem == NULL);
-  code = tsdbMemTableCreate2(pTsdb, (SMemTable **)&pTsdb->mem);
+  code = tsdbMemTableCreate2(pTsdb, (SMemTable2 **)&pTsdb->mem);
   if (code) {
     tsdbError("vgId:%d failed to begin TSDB since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
     goto _exit;
@@ -80,8 +80,8 @@ _err:
 }
 
 static int32_t tsdbCommitStart(SCommitH *pCHandle, STsdb *pTsdb) {
-  int32_t    code = 0;
-  SMemTable *pMemTable = (SMemTable *)pTsdb->mem;
+  int32_t     code = 0;
+  SMemTable2 *pMemTable = (SMemTable2 *)pTsdb->mem;
 
   tsdbInfo("vgId:%d start to commit", TD_VID(pTsdb->pVnode));
 
@@ -131,9 +131,9 @@ _err:
 }
 
 static int32_t tsdbCommitEnd(SCommitH *pCHandle) {
-  int32_t    code = 0;
-  STsdb     *pTsdb = pCHandle->pMemTable->pTsdb;
-  SMemTable *pMemTable = (SMemTable *)pTsdb->imem;
+  int32_t     code = 0;
+  STsdb      *pTsdb = pCHandle->pMemTable->pTsdb;
+  SMemTable2 *pMemTable = (SMemTable2 *)pTsdb->imem;
 
   // end transaction
   code = tsdbEndFSTxn(pTsdb);

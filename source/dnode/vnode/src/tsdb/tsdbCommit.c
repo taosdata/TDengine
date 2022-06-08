@@ -18,8 +18,8 @@
 #define TSDB_MAX_SUBBLOCKS 8
 
 typedef struct {
-  STable            *pTable;
-  SSkipListIterator *pIter;
+  STable      *pTable;
+  STbDataIter *pIter;
 } SCommitIter;
 
 typedef struct {
@@ -58,26 +58,26 @@ typedef struct {
 #define TSDB_COMMIT_DEFAULT_ROWS(ch) TSDB_DEFAULT_BLOCK_ROWS(TSDB_COMMIT_REPO(ch)->pVnode->config.tsdbCfg.maxRows)
 #define TSDB_COMMIT_TXN_VERSION(ch)  FS_TXN_VERSION(REPO_FS(TSDB_COMMIT_REPO(ch)))
 
-static void tsdbStartCommit(STsdb *pRepo);
-static void tsdbEndCommit(STsdb *pTsdb, int eno);
-static int  tsdbInitCommitH(SCommitH *pCommith, STsdb *pRepo);
-static void tsdbSeekCommitIter(SCommitH *pCommith, TSKEY key);
-static int  tsdbNextCommitFid(SCommitH *pCommith);
-static void tsdbDestroyCommitH(SCommitH *pCommith);
-static int  tsdbCreateCommitIters(SCommitH *pCommith);
-static void tsdbDestroyCommitIters(SCommitH *pCommith);
-static int  tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid);
-static void tsdbResetCommitFile(SCommitH *pCommith);
-static int  tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid);
-static int  tsdbCommitToTable(SCommitH *pCommith, int tid);
-static bool tsdbCommitIsSameFile(SCommitH *pCommith, int bidx);
-static int  tsdbMoveBlkIdx(SCommitH *pCommith, SBlockIdx *pIdx);
-static int  tsdbSetCommitTable(SCommitH *pCommith, STable *pTable);
-static int  tsdbComparKeyBlock(const void *arg1, const void *arg2);
-static int  tsdbWriteBlockInfo(SCommitH *pCommih);
-static int  tsdbCommitMemData(SCommitH *pCommith, SCommitIter *pIter, TSKEY keyLimit, bool toData);
-static int  tsdbMergeMemData(SCommitH *pCommith, SCommitIter *pIter, int bidx);
-static int  tsdbMoveBlock(SCommitH *pCommith, int bidx);
+static void    tsdbStartCommit(STsdb *pRepo);
+static void    tsdbEndCommit(STsdb *pTsdb, int eno);
+static int     tsdbInitCommitH(SCommitH *pCommith, STsdb *pRepo);
+static void    tsdbSeekCommitIter(SCommitH *pCommith, TSKEY key);
+static int     tsdbNextCommitFid(SCommitH *pCommith);
+static void    tsdbDestroyCommitH(SCommitH *pCommith);
+static int32_t tsdbCreateCommitIters(SCommitH *pCommith);
+static void    tsdbDestroyCommitIters(SCommitH *pCommith);
+static int     tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid);
+static void    tsdbResetCommitFile(SCommitH *pCommith);
+static int     tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid);
+static int     tsdbCommitToTable(SCommitH *pCommith, int tid);
+static bool    tsdbCommitIsSameFile(SCommitH *pCommith, int bidx);
+static int     tsdbMoveBlkIdx(SCommitH *pCommith, SBlockIdx *pIdx);
+static int     tsdbSetCommitTable(SCommitH *pCommith, STable *pTable);
+static int     tsdbComparKeyBlock(const void *arg1, const void *arg2);
+static int     tsdbWriteBlockInfo(SCommitH *pCommih);
+static int     tsdbCommitMemData(SCommitH *pCommith, SCommitIter *pIter, TSKEY keyLimit, bool toData);
+static int     tsdbMergeMemData(SCommitH *pCommith, SCommitIter *pIter, int bidx);
+static int     tsdbMoveBlock(SCommitH *pCommith, int bidx);
 static int  tsdbCommitAddBlock(SCommitH *pCommith, const SBlock *pSupBlock, const SBlock *pSubBlocks, int nSubBlocks);
 static int  tsdbMergeBlockData(SCommitH *pCommith, SCommitIter *pIter, SDataCols *pDataCols, TSKEY keyLimit,
                                bool isLastOneBlock);
@@ -92,7 +92,7 @@ static int  tsdbApplyRtnOnFSet(STsdb *pRepo, SDFileSet *pSet, SRtn *pRtn);
 int tsdbBegin(STsdb *pTsdb) {
   if (!pTsdb) return 0;
 
-  STsdbMemTable *pMem;
+  SMemTable *pMem;
 
   if (tsdbMemTableCreate(pTsdb, &pTsdb->mem) < 0) {
     return -1;
@@ -244,7 +244,7 @@ void tsdbGetRtnSnap(STsdb *pRepo, SRtn *pRtn) {
 }
 
 static void tsdbStartCommit(STsdb *pRepo) {
-  STsdbMemTable *pMem = pRepo->imem;
+  SMemTable *pMem = pRepo->imem;
 
   tsdbInfo("vgId:%d, start to commit", REPO_ID(pRepo));
 
@@ -400,7 +400,7 @@ static int tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
       break;
     }
 
-    if (pIter && pIter->pTable && (!pIdx || (pIter->pTable->uid <= pIdx->uid))) {
+    if (pIter && pIter->pTable && (!pIdx || (pIter->pTable->suid <= pIdx->suid || pIter->pTable->uid <= pIdx->uid))) {
       if (tsdbCommitToTable(pCommith, mIter) < 0) {
         tsdbCloseCommitFile(pCommith, true);
         // revert the file change
@@ -453,57 +453,48 @@ static int tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
   return 0;
 }
 
-static int tsdbCreateCommitIters(SCommitH *pCommith) {
-  STsdb             *pRepo = TSDB_COMMIT_REPO(pCommith);
-  STsdbMemTable     *pMem = pRepo->imem;
-  SSkipListIterator *pSlIter;
-  SCommitIter       *pCommitIter;
-  SSkipListNode     *pNode;
-  STbData           *pTbData;
-  STSchema          *pTSchema = NULL;
+static int32_t tsdbCreateCommitIters(SCommitH *pCommith) {
+  int32_t      code = 0;
+  STsdb       *pRepo = TSDB_COMMIT_REPO(pCommith);
+  SMemTable   *pMem = pRepo->imem;
+  STbData     *pTbData;
+  SCommitIter *pCommitIter;
+  STSchema    *pTSchema = NULL;
 
-  pCommith->niters = SL_SIZE(pMem->pSlIdx);
+  pCommith->niters = taosArrayGetSize(pMem->aTbData);
   pCommith->iters = (SCommitIter *)taosMemoryCalloc(pCommith->niters, sizeof(SCommitIter));
   if (pCommith->iters == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    return -1;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
   }
 
-  // Loop to create iters for each skiplist
-  pSlIter = tSkipListCreateIter(pMem->pSlIdx);
-  if (pSlIter == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    return -1;
-  }
-  for (int i = 0; i < pCommith->niters; i++) {
-    tSkipListIterNext(pSlIter);
-    pNode = tSkipListIterGet(pSlIter);
-    pTbData = (STbData *)pNode->pData;
+  for (int32_t iIter = 0; iIter < pCommith->niters; iIter++) {
+    pTbData = (STbData *)taosArrayGetP(pMem->aTbData, iIter);
+    pCommitIter = &pCommith->iters[iIter];
 
-    pCommitIter = pCommith->iters + i;
     pTSchema = metaGetTbTSchema(REPO_META(pRepo), pTbData->uid, -1);
-
     if (pTSchema) {
-      pCommitIter->pIter = tSkipListCreateIter(pTbData->pData);
-      tSkipListIterNext(pCommitIter->pIter);
+      tsdbTbDataIterCreate(pTbData, NULL, 0, &pCommitIter->pIter);
 
       pCommitIter->pTable = (STable *)taosMemoryMalloc(sizeof(STable));
       pCommitIter->pTable->uid = pTbData->uid;
-      pCommitIter->pTable->tid = pTbData->uid;
+      pCommitIter->pTable->suid = pTbData->suid;
       pCommitIter->pTable->pSchema = pTSchema;
       pCommitIter->pTable->pCacheSchema = NULL;
     }
   }
-  tSkipListDestroyIter(pSlIter);
 
-  return 0;
+  return code;
+
+_err:
+  return code;
 }
 
 static void tsdbDestroyCommitIters(SCommitH *pCommith) {
   if (pCommith->iters == NULL) return;
 
   for (int i = 1; i < pCommith->niters; i++) {
-    tSkipListDestroyIter(pCommith->iters[i].pIter);
+    tsdbTbDataIterDestroy(pCommith->iters[i].pIter);
     if (pCommith->iters[i].pTable) {
       tdFreeSchema(pCommith->iters[i].pTable->pSchema);
       tdFreeSchema(pCommith->iters[i].pTable->pCacheSchema);
@@ -743,8 +734,8 @@ static int tsdbWriteBlockInfoImpl(SDFile *pHeadf, STable *pTable, SArray *pSupA,
   pBlkInfo = *ppBuf;
 
   pBlkInfo->delimiter = TSDB_FILE_DELIMITER;
-  pBlkInfo->tid = TABLE_TID(pTable);
-  pBlkInfo->uid = TABLE_UID(pTable);
+  pBlkInfo->suid = pTable->suid;
+  pBlkInfo->uid = pTable->uid;
 
   memcpy((void *)(pBlkInfo->blocks), taosArrayGet(pSupA, 0), nSupBlocks * sizeof(SBlock));
   if (nSubBlocks > 0) {
@@ -770,7 +761,8 @@ static int tsdbWriteBlockInfoImpl(SDFile *pHeadf, STable *pTable, SArray *pSupA,
   // Set pIdx
   pBlock = taosArrayGetLast(pSupA);
 
-  pIdx->uid = TABLE_UID(pTable);
+  pIdx->suid = pTable->suid;
+  pIdx->uid = pTable->uid;
   pIdx->hasLast = pBlock->last ? 1 : 0;
   pIdx->maxKey = pBlock->maxKey;
   pIdx->numOfBlocks = (uint32_t)nSupBlocks;
@@ -925,7 +917,7 @@ static int tsdbMoveBlkIdx(SCommitH *pCommith, SBlockIdx *pIdx) {
     return -1;
   }
 
-  STable table = {.tid = pIdx->uid, .uid = pIdx->uid, .pSchema = NULL};
+  STable table = {.suid = pIdx->suid, .uid = pIdx->uid, .pSchema = NULL};
   pCommith->pTable = &table;
 
   while (bidx < nBlocks) {
@@ -1186,7 +1178,7 @@ static int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFi
   }
 
   pBlockData->delimiter = TSDB_FILE_DELIMITER;
-  pBlockData->uid = TABLE_UID(pTable);
+  pBlockData->uid = pTable->uid;
   pBlockData->numOfCols = nColsNotAllNull;
 
   taosCalcChecksumAppend(0, (uint8_t *)pBlockData, tsize);
@@ -1226,7 +1218,7 @@ static int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFi
 
   tsdbDebug("vgId:%d, uid:%" PRId64 " a block of data is written to file %s, offset %" PRId64
             " numOfRows %d len %d numOfCols %" PRId16 " keyFirst %" PRId64 " keyLast %" PRId64,
-            REPO_ID(pRepo), TABLE_UID(pTable), TSDB_FILE_FULL_NAME(pDFile), offset, rowsToWrite, pBlock->len,
+            REPO_ID(pRepo), pTable->uid, TSDB_FILE_FULL_NAME(pDFile), offset, rowsToWrite, pBlock->len,
             pBlock->numOfCols, pBlock->minKey.ts, pBlock->maxKey.ts);
 
   return 0;
@@ -1313,7 +1305,7 @@ static int tsdbMergeMemData(SCommitH *pCommith, SCommitIter *pIter, int bidx) {
     keyLimit = pBlock[1].minKey.ts - 1;
   }
 
-  SSkipListIterator titer = *(pIter->pIter);
+  STbDataIter titer = *(pIter->pIter);
   if (tsdbLoadBlockDataCols(&(pCommith->readh), pBlock, NULL, &colId, 1, false) < 0) return -1;
 
   tsdbLoadDataFromCache(TSDB_COMMIT_REPO(pCommith), pIter->pTable, &titer, keyLimit, INT32_MAX, NULL,
@@ -1522,7 +1514,7 @@ static void tsdbLoadAndMergeFromCache(STsdb *pTsdb, SDataCols *pDataCols, int *i
         lastKey = key2;
       }
 
-      tSkipListIterNext(pCommitIter->pIter);
+      tsdbTbDataIterNext(pCommitIter->pIter);
     } else {
       if (lastKey != key1) {
         if (lastKey != TSKEY_INITIAL_VAL) {
@@ -1554,7 +1546,7 @@ static void tsdbLoadAndMergeFromCache(STsdb *pTsdb, SDataCols *pDataCols, int *i
         tdAppendSTSRowToDataCol(row, pSchema, pTarget, true);
       }
       ++(*iter);
-      tSkipListIterNext(pCommitIter->pIter);
+      tsdbTbDataIterNext(pCommitIter->pIter);
     }
 
     if (pTarget->numOfRows >= (maxRows - 1)) break;

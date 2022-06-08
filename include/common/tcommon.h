@@ -108,6 +108,7 @@ typedef struct SColumnInfoData {
 
 typedef struct SQueryTableDataCond {
   // STimeWindow  twindow;
+  uint64_t     suid;
   int32_t      order;  // desc|asc order to iterate the data block
   int32_t      numOfCols;
   SColumnInfo* colList;

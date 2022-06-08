@@ -416,7 +416,7 @@ class TDDnode:
                     psCmd, shell=True).decode("utf-8")
             if not platform.system().lower() == 'windows':
                 for port in range(6030, 6041):
-                    fuserCmd = "fuser -k -n tcp %d" % port
+                    fuserCmd = "fuser -k -n tcp %d > /dev/null" % port
                     os.system(fuserCmd)
             if self.valgrind:
                 time.sleep(2)

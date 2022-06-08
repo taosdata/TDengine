@@ -188,10 +188,10 @@
 #define TK_KILL          170
 #define TK_CONNECTION    171
 #define TK_TRANSACTION   172
-#define TK_MERGE         173
+#define TK_BALANCE       173
 #define TK_VGROUP        174
-#define TK_REDISTRIBUTE  175
-#define TK_SPLIT         176
+#define TK_MERGE         175
+#define TK_REDISTRIBUTE  176
 #define TK_SYNCDB        177
 #define TK_DELETE        178
 #define TK_NULL          179

@@ -1316,6 +1316,31 @@ int32_t tSerializeSKillTransReq(void* buf, int32_t bufLen, SKillTransReq* pReq);
 int32_t tDeserializeSKillTransReq(void* buf, int32_t bufLen, SKillTransReq* pReq);
 
 typedef struct {
+  int32_t useless;  // useless
+} SBalanceVgroupReq;
+
+int32_t tSerializeSBalanceVgroupReq(void* buf, int32_t bufLen, SBalanceVgroupReq* pReq);
+int32_t tDeserializeSBalanceVgroupReq(void* buf, int32_t bufLen, SBalanceVgroupReq* pReq);
+
+typedef struct {
+  int32_t vgId1;
+  int32_t vgId2;
+} SMergeVgroupReq;
+
+int32_t tSerializeSMergeVgroupReq(void* buf, int32_t bufLen, SMergeVgroupReq* pReq);
+int32_t tDeserializeSMergeVgroupReq(void* buf, int32_t bufLen, SMergeVgroupReq* pReq);
+
+typedef struct {
+  int32_t vgId;
+  int32_t dnodeId1;
+  int32_t dnodeId2;
+  int32_t dnodeId3;
+} SRedistributeVgroupReq;
+
+int32_t tSerializeSRedistributeVgroupReq(void* buf, int32_t bufLen, SRedistributeVgroupReq* pReq);
+int32_t tDeserializeSRedistributeVgroupReq(void* buf, int32_t bufLen, SRedistributeVgroupReq* pReq);
+
+typedef struct {
   char user[TSDB_USER_LEN];
   char spi;
   char encrypt;
@@ -2459,6 +2484,32 @@ typedef struct {
 
 int32_t tSerializeSUserIndexRsp(void* buf, int32_t bufLen, const SUserIndexRsp* pRsp);
 int32_t tDeserializeSUserIndexRsp(void* buf, int32_t bufLen, SUserIndexRsp* pRsp);
+
+typedef struct {
+  char tbFName[TSDB_TABLE_FNAME_LEN];
+} STableIndexReq;
+
+int32_t tSerializeSTableIndexReq(void* buf, int32_t bufLen, STableIndexReq* pReq);
+int32_t tDeserializeSTableIndexReq(void* buf, int32_t bufLen, STableIndexReq* pReq);
+
+typedef struct {
+  int8_t    intervalUnit;
+  int8_t    slidingUnit;
+  int64_t   interval;
+  int64_t   offset;
+  int64_t   sliding;
+  int64_t   dstTbUid;  
+  int32_t   dstVgId;  // for stream  
+  char*     expr;
+} STableIndexInfo;
+
+typedef struct {
+  SArray* pIndex;
+} STableIndexRsp;
+
+int32_t tSerializeSTableIndexRsp(void* buf, int32_t bufLen, const STableIndexRsp* pRsp);
+int32_t tDeserializeSTableIndexRsp(void* buf, int32_t bufLen, STableIndexRsp* pRsp);
+
 
 typedef struct {
   int8_t  mqMsgType;
