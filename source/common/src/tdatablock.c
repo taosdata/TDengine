@@ -1131,6 +1131,7 @@ int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, size_t existRows, ui
 
   if (IS_VAR_DATA_TYPE(pColumn->info.type)) {
     char* tmp = taosMemoryRealloc(pColumn->varmeta.offset, sizeof(int32_t) * numOfRows);
+
     if (tmp == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -1156,6 +1157,7 @@ int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, size_t existRows, ui
     if (tmp == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
+    memset(tmp + pColumn->info.bytes * existRows, 0, pColumn->info.bytes * (numOfRows - existRows));
 
     pColumn->pData = tmp;
   }
@@ -1269,12 +1271,12 @@ size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize) {
 
 void colDataDestroy(SColumnInfoData* pColData) {
   if (IS_VAR_DATA_TYPE(pColData->info.type)) {
-    taosMemoryFree(pColData->varmeta.offset);
+    taosMemoryFreeClear(pColData->varmeta.offset);
   } else {
-    taosMemoryFree(pColData->nullbitmap);
+    taosMemoryFreeClear(pColData->nullbitmap);
   }
 
-  taosMemoryFree(pColData->pData);
+  taosMemoryFreeClear(pColData->pData);
 }
 
 static void doShiftBitmap(char* nullBitmap, size_t n, size_t total) {

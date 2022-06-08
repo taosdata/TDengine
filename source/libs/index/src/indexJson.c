@@ -22,6 +22,14 @@ int tIndexJsonOpen(SIndexJsonOpts *opts, const char *path, SIndexJson **index) {
 int tIndexJsonPut(SIndexJson *index, SIndexJsonMultiTerm *terms, uint64_t uid) {
   for (int i = 0; i < taosArrayGetSize(terms); i++) {
     SIndexJsonTerm *p = taosArrayGetP(terms, i);
+    if (p->colType == TSDB_DATA_TYPE_BOOL) {
+      p->colType = TSDB_DATA_TYPE_INT;
+    } else if (p->colType == TSDB_DATA_TYPE_VARCHAR || p->colType == TSDB_DATA_TYPE_NCHAR ||
+               p->colType == TSDB_DATA_TYPE_BINARY) {
+      // p->colType = TSDB_DATA_TYPE_NCHAR;
+    } else {
+      p->colType = TSDB_DATA_TYPE_DOUBLE;
+    }
     INDEX_TYPE_ADD_EXTERN_TYPE(p->colType, TSDB_DATA_TYPE_JSON);
   }
   // handle put
@@ -32,6 +40,14 @@ int tIndexJsonSearch(SIndexJson *index, SIndexJsonMultiTermQuery *tq, SArray *re
   SArray *terms = tq->query;
   for (int i = 0; i < taosArrayGetSize(terms); i++) {
     SIndexJsonTerm *p = taosArrayGetP(terms, i);
+    if (p->colType == TSDB_DATA_TYPE_BOOL) {
+      p->colType = TSDB_DATA_TYPE_INT;
+    } else if (p->colType == TSDB_DATA_TYPE_VARCHAR || p->colType == TSDB_DATA_TYPE_NCHAR ||
+               p->colType == TSDB_DATA_TYPE_BINARY) {
+      // p->colType = TSDB_DATA_TYPE_NCHAR;
+    } else {
+      p->colType = TSDB_DATA_TYPE_DOUBLE;
+    }
     INDEX_TYPE_ADD_EXTERN_TYPE(p->colType, TSDB_DATA_TYPE_JSON);
   }
   // handle search
