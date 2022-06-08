@@ -61,14 +61,14 @@ static int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const
   if (tTagToValArray((const STag *)data, &pTagVals) != 0) {
     return -1;
   }
-  char key[512] = {0};
 
   SIndexMultiTerm *terms = indexMultiTermCreate();
   int16_t          nCols = taosArrayGetSize(pTagVals);
   for (int i = 0; i < nCols; i++) {
     STagVal *pTagVal = (STagVal *)taosArrayGet(pTagVals, i);
     char     type = pTagVal->type;
-    sprintf(key, "%s_%s", tagName, pTagVal->pKey);
+
+    char *  key = pTagVal->pKey;
     int32_t nKey = strlen(key);
 
     SIndexTerm *term = NULL;
@@ -93,12 +93,11 @@ static int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const
     } else if (type == TSDB_DATA_TYPE_BOOL) {
       int val = *(int *)(&pTagVal->i64);
       int len = 0;
-      term = indexTermCreate(suid, ADD_VALUE, type, key, nKey, (const char *)&val, len);
+      term = indexTermCreate(suid, ADD_VALUE, TSDB_DATA_TYPE_INT, key, nKey, (const char *)&val, len);
     }
     if (term != NULL) {
       indexMultiTermAdd(terms, term);
     }
-    memset(key, 0, sizeof(key));
   }
   tIndexJsonPut(pMeta->pTagIvtIdx, terms, tuid);
   indexMultiTermDestroy(terms);

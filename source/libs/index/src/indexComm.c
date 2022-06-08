@@ -102,6 +102,10 @@ static TExeCond tCompareContains(void* a, void* b, int8_t type) {
   __compar_fn_t func = indexGetCompar(type);
   return tCompare(func, QUERY_TERM, a, b, type);
 }
+static TExeCond tCompareEqual(void* a, void* b, int8_t type) {
+  __compar_fn_t func = indexGetCompar(type);
+  return tCompare(func, QUERY_TERM, a, b, type);
+}
 TExeCond tCompare(__compar_fn_t func, int8_t cmptype, void* a, void* b, int8_t dtype) {
   if (dtype == TSDB_DATA_TYPE_BINARY || dtype == TSDB_DATA_TYPE_NCHAR || dtype == TSDB_DATA_TYPE_VARBINARY) {
     return tDoCompare(func, cmptype, a, b);
@@ -186,9 +190,11 @@ TExeCond tDoCompare(__compar_fn_t func, int8_t comparType, void* a, void* b) {
     }
     case QUERY_GREATER_EQUAL: {
       if (ret >= 0) return MATCH;
+      break;
     }
     case QUERY_TERM: {
       if (ret == 0) return MATCH;
+      break;
     }
     default:
       return BREAK;
@@ -197,7 +203,7 @@ TExeCond tDoCompare(__compar_fn_t func, int8_t comparType, void* a, void* b) {
 }
 
 static TExeCond (*rangeCompare[])(void* a, void* b, int8_t type) = {
-    tCompareLessThan, tCompareLessEqual, tCompareGreaterThan, tCompareGreaterEqual, tCompareContains};
+    tCompareLessThan, tCompareLessEqual, tCompareGreaterThan, tCompareGreaterEqual, tCompareContains, tCompareEqual};
 
 _cache_range_compare indexGetCompare(RangeType ty) { return rangeCompare[ty]; }
 
@@ -252,6 +258,26 @@ char* indexPackJsonDataPrefix(SIndexTerm* itm, int32_t* skip) {
   memcpy(p, &JSON_VALUE_DELIM, sizeof(JSON_VALUE_DELIM));
   p += sizeof(JSON_VALUE_DELIM);
 
+  *skip = p - buf;
+
+  return buf;
+}
+char* indexPackJsonDataPrefixNoType(SIndexTerm* itm, int32_t* skip) {
+  /*
+   * |<-----colname---->|<-----dataType---->|<--------colVal---------->|
+   * |<-----string----->|<-----uint8_t----->|<----depend on dataType-->|
+   */
+  uint8_t ty = INDEX_TYPE_GET_TYPE(itm->colType);
+
+  int32_t sz = itm->nColName + itm->nColVal + sizeof(uint8_t) + sizeof(JSON_VALUE_DELIM) * 2 + 1;
+  char*   buf = (char*)taosMemoryCalloc(1, sz);
+  char*   p = buf;
+
+  memcpy(p, itm->colName, itm->nColName);
+  p += itm->nColName;
+
+  memcpy(p, &JSON_VALUE_DELIM, sizeof(JSON_VALUE_DELIM));
+  p += sizeof(JSON_VALUE_DELIM);
   *skip = p - buf;
 
   return buf;
