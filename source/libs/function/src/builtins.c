@@ -1453,7 +1453,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getHistogramFuncEnv,
     .initFunc     = histogramFunctionSetup,
     .processFunc  = histogramFunction,
-    .finalizeFunc = histogramFinalize
+    .finalizeFunc = histogramPartialFinalize
   },
   {
     .name = "_histogram_merge",
@@ -1462,7 +1462,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateHistogramMerge,
     .getEnvFunc   = getHistogramFuncEnv,
     .initFunc     = histogramFunctionSetup,
-    .processFunc  = histogramFunction,
+    .processFunc  = histogramFunctionMerge,
     .finalizeFunc = histogramFinalize
   },
   {
