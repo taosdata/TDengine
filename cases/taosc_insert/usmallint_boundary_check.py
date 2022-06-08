@@ -49,8 +49,7 @@ class TestUnsignedSmallintBoundary(TDCase):
         self.tdSql.checkEqual(self.tdSql.query_data[0][0], self.tdCom.boundary_config["USMALLINT_MAX"])
         self.tdSql.query(f'select c1 from {dbname}.tb3 where c1=0')
         self.tdSql.checkEqual(self.tdSql.query_data[0][0], 0)
-        # ! bug TD-15378
-        # self.tdSql.error(f'insert into {dbname}.tb3 values (now, {self.tdCom.boundary_config["USMALLINT_MAX"]+1})')
+        self.tdSql.error(f'insert into {dbname}.tb3 values (now, {self.tdCom.boundary_config["USMALLINT_MAX"]+1})')
         self.tdSql.error(f'insert into {dbname}.tb3 values (now, -1)')
         self.tdSql.execute(f'drop database if exists {dbname}')
 

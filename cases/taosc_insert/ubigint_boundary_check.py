@@ -46,13 +46,11 @@ class TestUnsignedBigintBoundary(TDCase):
         self.tdSql.execute(f'create table if not exists {dbname}.tb3 (ts timestamp, c1 bigint unsigned)')
         self.tdSql.execute(f'insert into {dbname}.tb3 values (now, {self.tdCom.boundary_config["UBIGINT_MAX"]})')
         self.tdSql.execute(f'insert into {dbname}.tb3 values (now, 0)')
-        # ! bug TD-15380
-        # self.tdSql.query(f'select c1 from {dbname}.tb3 where c1={self.tdCom.boundary_config["UBIGINT_MAX"]}')
-        # self.tdSql.checkEqual(self.tdSql.query_data[0][0], self.tdCom.boundary_config["UBIGINT_MAX"])
+        self.tdSql.query(f'select c1 from {dbname}.tb3 where c1>0')
+        self.tdSql.checkEqual(self.tdSql.query_data[0][0], self.tdCom.boundary_config["UBIGINT_MAX"])
         self.tdSql.query(f'select c1 from {dbname}.tb3 where c1=0')
         self.tdSql.checkEqual(self.tdSql.query_data[0][0], 0)
-        # ! bug TD-15378
-        # self.tdSql.error(f'insert into {dbname}.tb3 values (now, {self.tdCom.boundary_config["UBIGINT_MAX"]+1})')
+        self.tdSql.error(f'insert into {dbname}.tb3 values (now, {self.tdCom.boundary_config["UBIGINT_MAX"]+1})')
         self.tdSql.error(f'insert into {dbname}.tb3 values (now, -1')
         self.tdSql.execute(f'drop database if exists {dbname}')
 

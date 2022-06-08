@@ -1,0 +1,27 @@
+settings:
+  - name: taosd
+    fqdn: [node225]
+    spec:
+      version: 3.0.0.0  # 默认最新版
+      config: # common config for all dnodes
+        firstEP: node225:6030
+      dnodes:
+        - endpoint: node225:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            supportVnodes: 128
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 135
+
+  - name: taospy
+    fqdn: [node225]
+    spec:
+      version: 3.0.0.0
+      client_version: 3.0.0.0
+      config:
+        firstEP: node225:6030
+        logDir: /var/log/taos
+        debugFlag: 135
+        defaultJSONStrType: "nchar"
+        smlTagName: _null_tag

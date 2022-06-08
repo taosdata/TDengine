@@ -32,70 +32,30 @@ class TestReplica(TDCase):
         self.tdSql.checkEqual(db_field_kv_dict[test_param], default_value)
         self.tdSql.execute(f'drop database {dbname}')
         # param_list
-        param_value_list = [1, 3]
+        # param_value_list = [1, 3]
+        param_value_list = [1]
         for param_value in param_value_list:
             dbname = self.tdCom.get_long_name(length=10, mode="letters")
-            if param_value == 1:
-                self.tdSql.execute(f'create database if not exists {dbname} {test_param} {param_value}')
-                self.tdSql.query('show databases')
-                db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
-                self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
-                self.tdSql.execute(f'drop database {dbname}')
-            else:
-                pass
-
-    def alter_db(self):
-        """
-        alter replica
-        """
-        self.tdSql.drop_all_db()
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.execute(f'create database if not exists {dbname}')
-        # blocks
-        self.tdSql.execute(f'alter database {dbname} blocks 12')
-        self.tdSql.query('show databases')
-        res = self.tdSql.getOneRow(0, dbname)
-        self.tdSql.checkEqual(int(res[0][9]), 12)
-        # wal
-        self.tdSql.execute(f'alter database {dbname} wal 2')
-        self.tdSql.query('show databases')
-        res = self.tdSql.getOneRow(0, dbname)
-        self.tdSql.checkEqual(int(res[0][12]), 2)
-        # fsync
-        self.tdSql.execute(f'alter database {dbname} fsync 1000')
-        self.tdSql.query('show databases')
-        res = self.tdSql.getOneRow(0, dbname)
-        self.tdSql.checkEqual(int(res[0][13]), 1000)
-        # keep
-        self.tdSql.execute(f'alter database {dbname} keep 36500')
-        self.tdSql.query('show databases')
-        res = self.tdSql.getOneRow(0, dbname)
-        if str(res[0][7]) == '36500':
-            self.tdSql.checkEqual(int(res[0][7]), 36500)
-        elif str(res[0][7]) == '36500,36500,36500':
-            self.tdSql.checkEqual(str(res[0][7]), '36500,36500,36500')
-        else:
-            self.tdSql.checkEqual(str(res[0][7]), 'unexpected value')
-        # # replica
-        # out of dnodes
-        # for replica in [2, 1]:
-        #     self.tdSql.execute(f'alter database {dbname} replica {replica}')
-        #     self.tdSql.execute('show databases')
-        #     res = self.tdSql.getOneRow(0, dbname)
-        #     self.tdSql.checkEqual(res[0][4], replica)
-        # quorum
-        # Database options not changed
-        # for quorum in [1, 2]:
-        #     self.tdSql.execute(f'alter database {dbname} quorum {quorum}')
-        #     self.tdSql.execute('show databases')
-        #     res = self.tdSql.getOneRow(0, dbname)
-        #     self.tdSql.checkEqual(res[0][5], quorum)
-        # cachelast
-        for cachelast in [1, 0]:
-            self.tdSql.execute(f'alter database {dbname} cachelast {cachelast}')
+            self.tdSql.execute(f'create database if not exists {dbname} {test_param} {param_value}')
             self.tdSql.query('show databases')
-            res = self.tdSql.getOneRow(0, dbname)
-            self.tdSql.checkEqual(res[0][15], cachelast)
+            db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
+            self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
+            self.tdSql.execute(f'create table if not exists {dbname}.stb (ts timestamp, c1 int) tags (t1 int)')
+            self.tdSql.execute(f'create table if not exists {dbname}.sub_tb using {dbname}.stb tags (1)')
+            self.tdSql.execute(f'insert into {dbname}.sub_tb values (now, 1)')
+            self.tdSql.execute(f'create table if not exists {dbname}.tb (ts timestamp, c1 int)')
+            self.tdSql.execute(f'insert into {dbname}.tb values (now, 1)')
+            for sql in [f'select c1 from {dbname}.stb', f'select * from {dbname}.sub_tb', f'select * from {dbname}.tb']:
+            # for sql in [f'select * from {dbname}.sub_tb', f'select * from {dbname}.tb']:
+                self.tdSql.query(sql)
+                self.tdSql.checkEqual(self.tdSql.query_row, 1)
+            self.tdSql.execute(f'drop table {dbname}.tb')
+            self.tdSql.execute(f'drop table {dbname}.sub_tb')
+            self.tdSql.execute(f'drop table {dbname}.stb')
+            self.tdSql.execute(f'drop database {dbname}')
+        error_param_value_list = [0, 2, 4]
+        for error_param_value in error_param_value_list:
+            self.tdSql.error(f'create database if not exists {dbname}_error {test_param} {error_param_value}')
 
 
     def run(self) -> bool:
