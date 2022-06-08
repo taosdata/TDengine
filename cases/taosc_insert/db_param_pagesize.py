@@ -33,7 +33,6 @@ class TestPagesize(TDCase):
         self.tdSql.query('show databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
         self.tdSql.checkEqual(db_field_kv_dict[test_param], default_value)
-        
         self.tdSql.query(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
         data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
@@ -57,6 +56,25 @@ class TestPagesize(TDCase):
         self.tdSql.error(f'create database if not exists {dbname} {test_param} {param_value_list[0] - 1}')
         self.tdSql.error(f'create database if not exists {dbname} {test_param} {param_value_list[-1] + 1}')
 
+        #alter database pagesize
+        dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        self.tdSql.execute(f'create database if not exists {dbname}')
+        param_value_list = [1, 16384]
+        for param_value in param_value_list:
+            dbname = self.tdCom.get_long_name(length=10, mode="letters")
+            self.tdSql.execute(f'alter database {dbname} {test_param} {param_value}')
+            self.tdSql.query('show databases')
+            db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
+            self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
+            self.tdSql.query(f'show {dbname}.vgroups')
+            db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
+            data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
+            self.tdSql.checkEqual(db_field_kv_dict[test_param],int(data['config']['szPage'])/1024)
+        self.tdSql.error(f'alter database  {dbname} {test_param} {param_value_list[0] - 1}')
+        self.tdSql.error(f'alter database  {dbname} {test_param} {param_value_list[-1] + 1}')
+        self.tdSql.error(f'alter database {dbname} {test_param} abc')
+        self.tdSql.error(f'alter database {dbname} {test_param} 100.5')
+        self.tdSql.execute(f'drop database {dbname}')
     def run(self) -> bool:
         self.pagesize_check()
 

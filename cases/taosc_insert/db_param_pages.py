@@ -55,8 +55,26 @@ class TestPages(TDCase):
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
         self.tdSql.error(f'create database if not exists {dbname} {test_param} {param_value_list[0] - 1}')
         
-
-    def run(self) -> bool:
+        # alter database pages
+        dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        self.tdSql.execute(f'create database if not exists {dbname}')
+        self.tdSql.query('show databases')
+        param_value_list = [64]
+        for param_value in param_value_list:
+            dbname = self.tdCom.get_long_name(length=10, mode="letters")
+            self.tdSql.execute(f'alter database {dbname} {test_param} {param_value}')
+            self.tdSql.query('show databases')
+            db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
+            self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
+            self.tdSql.query(f'show {dbname}.vgroups')
+            db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
+            data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
+            self.tdSql.checkEqual(db_field_kv_dict[test_param],int(data['config']['szCache']))
+        self.tdSql.error(f'alter database {dbname} pages 63')
+        self.tdSql.error(f'alter database {dbname} pages 100.1')
+        self.tdSql.error(f'alter database {dbname} pages abc')
+        self.tdSql.execute(f'drop database {dbname}')
+    def run(self):
         self.pages_check()
 
     def cleanup(self):
