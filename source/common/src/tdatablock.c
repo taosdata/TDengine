@@ -684,7 +684,8 @@ size_t blockDataGetRowSize(SSDataBlock* pBlock) {
  */
 size_t blockDataGetSerialMetaSize(uint32_t numOfCols) {
   // | total rows/total length | block group id | column schema | each column length |
-  return sizeof(int32_t) + sizeof(uint64_t) + numOfCols * (sizeof(int16_t) + sizeof(int32_t)) + numOfCols * sizeof(int32_t);
+  return sizeof(int32_t) + sizeof(uint64_t) + numOfCols * (sizeof(int16_t) + sizeof(int32_t)) +
+         numOfCols * sizeof(int32_t);
 }
 
 double blockDataGetSerialRowSize(const SSDataBlock* pBlock) {
@@ -1892,12 +1893,12 @@ void blockCompressEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen
   uint64_t* groupId = (uint64_t*)data;
   data += sizeof(uint64_t);
 
-  for(int32_t i = 0; i < numOfCols; ++i) {
+  for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
-    *((int16_t*) data) = pColInfoData->info.type;
+    *((int16_t*)data) = pColInfoData->info.type;
     data += sizeof(int16_t);
 
-    *((int32_t*) data) = pColInfoData->info.bytes;
+    *((int32_t*)data) = pColInfoData->info.bytes;
     data += sizeof(int32_t);
   }
 
@@ -1951,7 +1952,14 @@ const char* blockCompressDecode(SSDataBlock* pBlock, int32_t numOfCols, int32_t 
   pBlock->info.groupId = *(uint64_t*)pStart;
   pStart += sizeof(uint64_t);
 
-  for(int32_t i = 0; i < numOfCols; ++i) {
+  if (pBlock->pDataBlock == NULL) {
+    pBlock->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
+    taosArraySetSize(pBlock->pDataBlock, numOfCols);
+  }
+
+  ASSERT(pBlock->pDataBlock->size == numOfCols);
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
     pColInfoData->info.type = *(int16_t*)pStart;
     pStart += sizeof(int16_t);
@@ -1982,11 +1990,17 @@ const char* blockCompressDecode(SSDataBlock* pBlock, int32_t numOfCols, int32_t 
         pColInfoData->pData = taosMemoryMalloc(colLen[i]);
       }
     } else {
+      if (pColInfoData->nullbitmap == NULL) {
+        pColInfoData->nullbitmap = taosMemoryCalloc(1, BitmapLen(numOfRows));
+      }
       memcpy(pColInfoData->nullbitmap, pStart, BitmapLen(numOfRows));
       pStart += BitmapLen(numOfRows);
     }
 
     if (colLen[i] > 0) {
+      if (pColInfoData->pData == NULL) {
+        pColInfoData->pData = taosMemoryCalloc(1, colLen[i]);
+      }
       memcpy(pColInfoData->pData, pStart, colLen[i]);
     }
 
