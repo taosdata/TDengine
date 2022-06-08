@@ -349,8 +349,9 @@ int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen) {
   }
 
   // sink
-  pTask->ahandle = pTq->pVnode;
+  /*pTask->ahandle = pTq->pVnode;*/
   if (pTask->sinkType == TASK_SINK__SMA) {
+    pTask->smaSink.vnode = pTq->pVnode;
     pTask->smaSink.smaSink = smaHandleRes;
   } else if (pTask->sinkType == TASK_SINK__TABLE) {
     pTask->tbSink.vnode = pTq->pVnode;
