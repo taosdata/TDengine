@@ -697,6 +697,8 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery) {
       if (TSDB_CODE_SUCCESS == code) {
         schedulerAsyncExecJob(pAppInfo->pTransporter, pNodeList, pRequest->body.pDag, &pRequest->body.queryJob,
                               pRequest->sqlstr, pRequest->metric.start, schedulerExecCb, pRequest);
+      } else {
+        pRequest->body.queryFp(pRequest->body.param, pRequest, code);
       }
 
       //todo not to be released here
