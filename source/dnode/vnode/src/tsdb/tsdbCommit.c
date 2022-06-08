@@ -28,6 +28,8 @@ typedef struct {
   int          niters;  // memory iterators
   SCommitIter *iters;
   bool         isRFileSet;  // read and commit FSET
+  int32_t      fid;
+  SDFileSet   *pSet;
   SReadH       readh;
   SDFileSet    wSet;
   bool         isDFileSame;
@@ -71,7 +73,6 @@ static void    tsdbDestroyCommitH(SCommitH *pCommith);
 static int32_t tsdbCreateCommitIters(SCommitH *pCommith);
 static void    tsdbDestroyCommitIters(SCommitH *pCommith);
 static int     tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid);
-static void    tsdbResetCommitFile(SCommitH *pCommith);
 static int     tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid);
 static int     tsdbCommitToTable(SCommitH *pCommith, int tid);
 static bool    tsdbCommitIsSameFile(SCommitH *pCommith, int bidx);
@@ -404,34 +405,73 @@ static void tsdbDestroyCommitH(SCommitH *pCommith) {
   tsdbCloseDFileSet(TSDB_COMMIT_WRITE_FSET(pCommith));
 }
 
-static int tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
-  STsdb        *pRepo = TSDB_COMMIT_REPO(pCommith);
+static int32_t tsdbCommitToFileStart(SCommitH *pCHandle, SDFileSet *pSet, int32_t fid) {
+  int32_t       code = 0;
+  STsdb        *pRepo = TSDB_COMMIT_REPO(pCHandle);
   STsdbKeepCfg *pCfg = REPO_KEEP_CFG(pRepo);
 
   ASSERT(pSet == NULL || pSet->fid == fid);
 
-  tsdbResetCommitFile(pCommith);
-  tsdbGetFidKeyRange(pCfg->days, pCfg->precision, fid, &(pCommith->minKey), &(pCommith->maxKey));
+  pCHandle->fid = fid;
+  pCHandle->pSet = pSet;
+  pCHandle->isRFileSet = false;
+  pCHandle->isDFileSame = false;
+  pCHandle->isLFileSame = false;
+  taosArrayClear(pCHandle->aBlkIdx);
 
-  // Set and open files
-  if (tsdbSetAndOpenCommitFile(pCommith, pSet, fid) < 0) {
+  tsdbGetFidKeyRange(pCfg->days, pCfg->precision, fid, &(pCHandle->minKey), &(pCHandle->maxKey));
+
+  code = tsdbSetAndOpenCommitFile(pCHandle, pSet, fid);
+
+  return code;
+}
+static int32_t tsdbCommitToFileImpl(SCommitH *pCHandle) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+static int32_t tsdbCommitToFileEnd(SCommitH *pCommith) {
+  int32_t code = 0;
+  STsdb  *pRepo = TSDB_COMMIT_REPO(pCommith);
+
+  if (tsdbWriteBlockIdx(TSDB_COMMIT_HEAD_FILE(pCommith), pCommith->aBlkIdx, (void **)(&(TSDB_COMMIT_BUF(pCommith)))) <
+      0) {
+    tsdbError("vgId:%d, failed to write SBlockIdx part to FSET %d since %s", REPO_ID(pRepo), pCommith->fid,
+              tstrerror(terrno));
+    tsdbCloseCommitFile(pCommith, true);
+    // revert the file change
+    tsdbApplyDFileSetChange(TSDB_COMMIT_WRITE_FSET(pCommith), pCommith->pSet);
     return -1;
   }
-#if 0
-  // Loop to commit each table data
-  for (int tid = 0; tid < pCommith->niters; tid++) {
-    SCommitIter *pIter = pCommith->iters + tid;
 
-    if (pIter->pTable == NULL) continue;
-
-    if (tsdbCommitToTable(pCommith, tid) < 0) {
-      tsdbCloseCommitFile(pCommith, true);
-      // revert the file change
-      tsdbApplyDFileSetChange(TSDB_COMMIT_WRITE_FSET(pCommith), pSet);
-      return -1;
-    }
+  if (tsdbUpdateDFileSetHeader(&(pCommith->wSet)) < 0) {
+    tsdbError("vgId:%d, failed to update FSET %d header since %s", REPO_ID(pRepo), pCommith->fid, tstrerror(terrno));
+    tsdbCloseCommitFile(pCommith, true);
+    // revert the file change
+    tsdbApplyDFileSetChange(TSDB_COMMIT_WRITE_FSET(pCommith), pCommith->pSet);
+    return -1;
   }
-#endif
+
+  // Close commit file
+  tsdbCloseCommitFile(pCommith, false);
+
+  if (tsdbUpdateDFileSet(REPO_FS(pRepo), &(pCommith->wSet)) < 0) {
+    return -1;
+  }
+
+  return code;
+}
+static int32_t tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
+  int32_t       code = 0;
+  STsdb        *pRepo = TSDB_COMMIT_REPO(pCommith);
+  STsdbKeepCfg *pCfg = REPO_KEEP_CFG(pRepo);
+
+  // commit to file start
+  code = tsdbCommitToFileStart(pCommith, pSet, fid);
+  if (code) {
+    goto _err;
+  }
+
   // Loop to commit each table data in mem and file
   int mIter = 0, fIter = 0;
   int nBlkIdx = taosArrayGetSize(pCommith->readh.aBlkIdx);
@@ -476,31 +516,16 @@ static int tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
     }
   }
 
-  if (tsdbWriteBlockIdx(TSDB_COMMIT_HEAD_FILE(pCommith), pCommith->aBlkIdx, (void **)(&(TSDB_COMMIT_BUF(pCommith)))) <
-      0) {
-    tsdbError("vgId:%d, failed to write SBlockIdx part to FSET %d since %s", REPO_ID(pRepo), fid, tstrerror(terrno));
-    tsdbCloseCommitFile(pCommith, true);
-    // revert the file change
-    tsdbApplyDFileSetChange(TSDB_COMMIT_WRITE_FSET(pCommith), pSet);
-    return -1;
+  // commit to file end
+  code = tsdbCommitToFileEnd(pCommith);
+  if (code) {
+    goto _err;
   }
 
-  if (tsdbUpdateDFileSetHeader(&(pCommith->wSet)) < 0) {
-    tsdbError("vgId:%d, failed to update FSET %d header since %s", REPO_ID(pRepo), fid, tstrerror(terrno));
-    tsdbCloseCommitFile(pCommith, true);
-    // revert the file change
-    tsdbApplyDFileSetChange(TSDB_COMMIT_WRITE_FSET(pCommith), pSet);
-    return -1;
-  }
+  return code;
 
-  // Close commit file
-  tsdbCloseCommitFile(pCommith, false);
-
-  if (tsdbUpdateDFileSet(REPO_FS(pRepo), &(pCommith->wSet)) < 0) {
-    return -1;
-  }
-
-  return 0;
+_err:
+  return code;
 }
 
 static int32_t tsdbCreateCommitIters(SCommitH *pCommith) {
@@ -555,13 +580,6 @@ static void tsdbDestroyCommitIters(SCommitH *pCommith) {
   taosMemoryFree(pCommith->iters);
   pCommith->iters = NULL;
   pCommith->niters = 0;
-}
-
-static void tsdbResetCommitFile(SCommitH *pCommith) {
-  pCommith->isRFileSet = false;
-  pCommith->isDFileSame = false;
-  pCommith->isLFileSame = false;
-  taosArrayClear(pCommith->aBlkIdx);
 }
 
 static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
