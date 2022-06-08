@@ -74,6 +74,7 @@ class HiveMQTest(TDCase):
         time.sleep(3)
         self.tdSql.query("select count(*) from hivemq.mqtt_payload")
         self.tdSql.checkData(0, 0, 6)
+        self.remote.cmd(self.target_host, "docker kill hivemq4")
 
     def desc(self) -> str:
         return "Test HiveMQ TDengine Extension"
