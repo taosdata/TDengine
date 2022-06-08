@@ -59,4 +59,3 @@ class TestAlterInsert(TDCase):
 
     def tags(self):
         return T.Write.TaoscSql.Stable.Alter
-

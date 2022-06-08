@@ -44,7 +44,7 @@ class TestVgroups(TDCase):
         self.tdSql.execute(f'drop database {dbname}')
         # boundary
         # ! 4096 bug TD-15451
-        param_value_list = [1, 128]
+        param_value_list = [1, 256]
         for param_value in param_value_list:
             dbname = self.tdCom.get_long_name(length=10, mode="letters")
             self.tdSql.execute(f'create database if not exists {dbname} {test_param} {param_value}')
@@ -55,8 +55,7 @@ class TestVgroups(TDCase):
                 self.tdSql.error(f'create database if not exists {dbname}_error {test_param} 1')
             self.tdSql.execute(f'drop database {dbname}')
         self.tdSql.error(f'create database if not exists {dbname} {test_param} {param_value_list[0] - 1}')
-        # ! bug TD-15096
-        # self.tdSql.error(f'create database if not exists {dbname} vgroups {param_value_list[-1] + 1}')
+        self.tdSql.error(f'create database if not exists {dbname} vgroups {param_value_list[-1] + 1}')
         # check logic
         dbname1 = self.tdCom.get_long_name(length=10, mode="letters")
         self.tdSql.execute(f'create database if not exists {dbname1} vgroups 3')
