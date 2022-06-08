@@ -66,9 +66,9 @@ int main(int argc, char** argv) {
   syncIndexMgrSetIndex(pSyncIndexMgr, &ids[0], 100);
   syncIndexMgrSetIndex(pSyncIndexMgr, &ids[1], 200);
   syncIndexMgrSetIndex(pSyncIndexMgr, &ids[2], 300);
-  //syncIndexMgrSetTerm(pSyncIndexMgr, &ids[0], 700);
-  //syncIndexMgrSetTerm(pSyncIndexMgr, &ids[1], 800);
-  //syncIndexMgrSetTerm(pSyncIndexMgr, &ids[2], 900);
+  // syncIndexMgrSetTerm(pSyncIndexMgr, &ids[0], 700);
+  // syncIndexMgrSetTerm(pSyncIndexMgr, &ids[1], 800);
+  // syncIndexMgrSetTerm(pSyncIndexMgr, &ids[2], 900);
   {
     char* serialized = syncIndexMgr2Str(pSyncIndexMgr);
     assert(serialized != NULL);
@@ -80,8 +80,8 @@ int main(int argc, char** argv) {
   printf("---------------------------------------\n");
   for (int i = 0; i < pSyncIndexMgr->replicaNum; ++i) {
     SyncIndex idx = syncIndexMgrGetIndex(pSyncIndexMgr, &ids[i]);
-    //SyncTerm  term = syncIndexMgrGetTerm(pSyncIndexMgr, &ids[i]);
-    //printf("%d: index:%ld term:%lu \n", i, idx, term);
+    // SyncTerm  term = syncIndexMgrGetTerm(pSyncIndexMgr, &ids[i]);
+    // printf("%d: index:%ld term:%lu \n", i, idx, term);
   }
   printf("---------------------------------------\n");
 

@@ -296,7 +296,7 @@ cJSON *snapshotSender2Json(SSyncSnapshotSender *pSender) {
 
 char *snapshotSender2Str(SSyncSnapshotSender *pSender) {
   cJSON *pJson = snapshotSender2Json(pSender);
-  char  *serialized = cJSON_Print(pJson);
+  char * serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
 }
@@ -416,7 +416,7 @@ cJSON *snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver) {
 
 char *snapshotReceiver2Str(SSyncSnapshotReceiver *pReceiver) {
   cJSON *pJson = snapshotReceiver2Json(pReceiver);
-  char  *serialized = cJSON_Print(pJson);
+  char * serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
 }
@@ -438,7 +438,8 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
         needRsp = true;
 
         char *msgStr = syncSnapshotSend2Str(pMsg);
-        sTrace("snapshot recv begin ack:%d, lastIndex:%ld, lastTerm:%lu, recv msg:%s", pReceiver->ack, pMsg->lastIndex, pMsg->lastTerm, msgStr);
+        sTrace("snapshot recv begin ack:%d, lastIndex:%ld, lastTerm:%lu, recv msg:%s", pReceiver->ack, pMsg->lastIndex,
+               pMsg->lastTerm, msgStr);
         taosMemoryFree(msgStr);
 
       } else if (pMsg->seq == SYNC_SNAPSHOT_SEQ_END) {
@@ -447,10 +448,13 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
         pSyncNode->pFsm->FpSnapshotStopWrite(pSyncNode->pFsm, pReceiver->pWriter, true);
 
         pSyncNode->pLogStore->syncLogSetBeginIndex(pSyncNode->pLogStore, pMsg->lastIndex + 1);
-        char *logSimpleStr = logStoreSimple2Str(pSyncNode->pLogStore);
+        char *    logSimpleStr = logStoreSimple2Str(pSyncNode->pLogStore);
         SSnapshot snapshot;
         pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
-        sInfo("snapshot recv finish, update log begin index:%ld, snapshot.lastApplyIndex:%ld, snapshot.lastApplyTerm:%lu, raft log:%s", pMsg->lastIndex + 1, snapshot.lastApplyIndex, snapshot.lastApplyTerm, logSimpleStr);
+        sInfo(
+            "snapshot recv finish, update log begin index:%ld, snapshot.lastApplyIndex:%ld, "
+            "snapshot.lastApplyTerm:%lu, raft log:%s",
+            pMsg->lastIndex + 1, snapshot.lastApplyIndex, snapshot.lastApplyTerm, logSimpleStr);
         taosMemoryFree(logSimpleStr);
 
         // walRestoreFromSnapshot(pSyncNode->pWal, pMsg->lastIndex);
@@ -462,7 +466,8 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
         needRsp = true;
 
         char *msgStr = syncSnapshotSend2Str(pMsg);
-        sTrace("snapshot recv end ack:%d, lastIndex:%ld, lastTerm:%lu, recv msg:%s", pReceiver->ack, pMsg->lastIndex, pMsg->lastTerm, msgStr);
+        sTrace("snapshot recv end ack:%d, lastIndex:%ld, lastTerm:%lu, recv msg:%s", pReceiver->ack, pMsg->lastIndex,
+               pMsg->lastTerm, msgStr);
         taosMemoryFree(msgStr);
 
       } else if (pMsg->seq == SYNC_SNAPSHOT_SEQ_FORCE_CLOSE) {
@@ -471,9 +476,9 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
         needRsp = false;
 
         char *msgStr = syncSnapshotSend2Str(pMsg);
-        sTrace("snapshot recv force close ack:%d, lastIndex:%ld, lastTerm:%lu, recv msg:%s", pReceiver->ack, pMsg->lastIndex, pMsg->lastTerm, msgStr);
+        sTrace("snapshot recv force close ack:%d, lastIndex:%ld, lastTerm:%lu, recv msg:%s", pReceiver->ack,
+               pMsg->lastIndex, pMsg->lastTerm, msgStr);
 
-        
         taosMemoryFree(msgStr);
 
       } else if (pMsg->seq > SYNC_SNAPSHOT_SEQ_BEGIN && pMsg->seq < SYNC_SNAPSHOT_SEQ_END) {
@@ -485,7 +490,8 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
         needRsp = true;
 
         char *msgStr = syncSnapshotSend2Str(pMsg);
-        sTrace("snapshot recv receiving ack:%d, lastIndex:%ld, lastTerm:%lu, recv msg:%s", pReceiver->ack, pMsg->lastIndex, pMsg->lastTerm, msgStr);
+        sTrace("snapshot recv receiving ack:%d, lastIndex:%ld, lastTerm:%lu, recv msg:%s", pReceiver->ack,
+               pMsg->lastIndex, pMsg->lastTerm, msgStr);
         taosMemoryFree(msgStr);
 
       } else {
