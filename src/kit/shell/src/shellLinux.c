@@ -24,6 +24,7 @@
 #define OPT_ABORT 1 /* �Cabort */
 
 int indicator = 1;
+int p_port = 6041;
 struct termios oldtio;
 
 extern int wcwidth(wchar_t c);
@@ -63,15 +64,23 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
   wordexp_t full_path;
 
   switch (key) {
-    case 'h':
-      arguments->host = arg;
+    case 'h':{
+      char* tmp = strstr(arg, ":");
+      if (tmp == NULL) {
+        arguments->host = arg;
+      } else if ((tmp + 1) != NULL) {
+        arguments->port  = atoi(tmp + 1);
+        tmp[0] = '\0';
+        arguments->host = arg;
+      }
       break;
+    }
     case 'p':
       break;
     case 'P':
       if (arg) {
         tsDnodeShellPort = atoi(arg);
-        arguments->port  = atoi(arg);
+        p_port = atoi(arg);
       } else {
         fprintf(stderr, "Invalid port\n");
         return -1;
@@ -222,6 +231,10 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
   }
 
   argp_parse(&argp, argc, argv, 0, 0, arguments);
+  if (arguments->token == NULL) {
+    arguments->port = p_port;
+  }
+  
   if (arguments->abort) {
     #ifndef _ALPINE
       error(10, 0, "ABORTED");
