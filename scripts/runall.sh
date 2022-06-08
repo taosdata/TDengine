@@ -6,10 +6,11 @@ function usage() {
     echo -e "\t -s server pkg"
     echo -e "\t -c client pkg"
     echo -e "\t -f case file"
+    echo -e "\t -e force setup environment"
     echo -e "\t -h help"
 }
 
-while getopts "l:s:c:f:h" opt; do
+while getopts "l:s:c:f:eh" opt; do
     case $opt in
         l)
             log_dir=$OPTARG
@@ -22,6 +23,9 @@ while getopts "l:s:c:f:h" opt; do
             ;;
         f)
             case_file=$OPTARG
+            ;;
+        e)
+            force_setup=1
             ;;
         h)
             usage
@@ -75,6 +79,9 @@ function run() {
         date
         echo -e "\e[33m $i >>>>> \e[0m $line"
         cmd="$line"
+        if [ ! -z $force_setup ]; then
+            cmd="${cmd/--use/--setup}"
+        fi
         echo "$cmd" | grep -q "\-\-setup"
         if [ $? -eq 0 ]; then
             local setup_param=`echo "$cmd" | grep "\-\-setup.*"`
