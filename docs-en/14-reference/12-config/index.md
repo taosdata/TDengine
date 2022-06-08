@@ -134,7 +134,7 @@ TDengine uses 13 continuous ports, both TCP and UDP, starting with the port spec
 | Applicable    | Server Only                                                                                                                                                                         |
 | Meaning       | The switch for monitoring inside server. The workload of the hosts, including CPU, memory, disk, network, TTP requests, are collected and stored in a system builtin database `LOG` |
 | Value Range   | 0: monitoring disabled, 1: monitoring enabled                                                                                                                                       |
-| Default Value | 0                                                                                                                                                                                   |
+| Default Value | 1                                                                                                                                                                                   |
 
 ### monitorInterval
 

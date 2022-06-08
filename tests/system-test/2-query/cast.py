@@ -565,7 +565,7 @@ class TDTestCase:
             if data_ct4_c10[i] is None:
                 tdSql.checkData( i, 0, None )
             else:
-                time2str = str(int(datetime.datetime.timestamp(data_ct4_c10[i])*1000))
+                time2str = str(int((data_ct4_c10[i]-datetime.datetime.fromtimestamp(0)).total_seconds()*1000))
                 tdSql.checkData( i, 0, time2str )
         tdSql.query("select cast(c10 as nchar(32)) as b from t1")
         for i in range(len(data_t1_c10)):
@@ -574,7 +574,7 @@ class TDTestCase:
             elif i == 10:
                 continue
             else:
-                time2str = str(int(datetime.datetime.timestamp(data_t1_c10[i])*1000))
+                time2str = str(int((data_t1_c10[i]-datetime.datetime.fromtimestamp(0)).total_seconds()*1000))
                 tdSql.checkData( i, 0, time2str )
 
         tdLog.printNoPrefix("==========step38: cast timestamp to binary, expect no changes ")
@@ -583,7 +583,7 @@ class TDTestCase:
             if data_ct4_c10[i] is None:
                 tdSql.checkData( i, 0, None )
             else:
-                time2str = str(int(datetime.datetime.timestamp(data_ct4_c10[i])*1000))
+                time2str = str(int((data_ct4_c10[i]-datetime.datetime.fromtimestamp(0)).total_seconds()*1000))
                 tdSql.checkData( i, 0, time2str )
         tdSql.query("select cast(c10 as binary(32)) as b from t1")
         for i in range(len(data_t1_c10)):
@@ -592,7 +592,7 @@ class TDTestCase:
             elif i == 10:
                 continue
             else:
-                time2str = str(int(datetime.datetime.timestamp(data_t1_c10[i])*1000))
+                time2str = str(int((data_t1_c10[i]-datetime.datetime.fromtimestamp(0)).total_seconds()*1000))
                 tdSql.checkData( i, 0, time2str )
 
         tdLog.printNoPrefix("==========step39: cast constant operation to bigint, expect change to int ")

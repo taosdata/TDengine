@@ -340,7 +340,7 @@ static int32_t stbSplCreateExchangeNode(SSplitContext* pCxt, SLogicNode* pParent
   return code;
 }
 
-static int32_t stbSplSplitWindowNodeForBatch(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
+static int32_t stbSplSplitIntervalForBatch(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
   SLogicNode* pPartWindow = NULL;
   int32_t     code = stbSplCreatePartWindowNode((SWindowLogicNode*)pInfo->pSplitNode, &pPartWindow);
   if (TSDB_CODE_SUCCESS == code) {
@@ -363,7 +363,7 @@ static int32_t stbSplSplitWindowNodeForBatch(SSplitContext* pCxt, SStableSplitIn
   return code;
 }
 
-static int32_t stbSplSplitWindowNodeForStream(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
+static int32_t stbSplSplitIntervalForStream(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
   SLogicNode* pPartWindow = NULL;
   int32_t     code = stbSplCreatePartWindowNode((SWindowLogicNode*)pInfo->pSplitNode, &pPartWindow);
   if (TSDB_CODE_SUCCESS == code) {
@@ -379,12 +379,28 @@ static int32_t stbSplSplitWindowNodeForStream(SSplitContext* pCxt, SStableSplitI
   return code;
 }
 
-static int32_t stbSplSplitWindowNode(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
+static int32_t stbSplSplitInterval(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
   if (pCxt->pPlanCxt->streamQuery) {
-    return stbSplSplitWindowNodeForStream(pCxt, pInfo);
+    return stbSplSplitIntervalForStream(pCxt, pInfo);
   } else {
-    return stbSplSplitWindowNodeForBatch(pCxt, pInfo);
+    return stbSplSplitIntervalForBatch(pCxt, pInfo);
   }
+}
+
+static int32_t stbSplSplitSession(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
+  return TSDB_CODE_PLAN_INTERNAL_ERROR;
+}
+
+static int32_t stbSplSplitWindowNode(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
+  switch (((SWindowLogicNode*)pInfo->pSplitNode)->winType) {
+    case WINDOW_TYPE_INTERVAL:
+      return stbSplSplitInterval(pCxt, pInfo);
+    case WINDOW_TYPE_SESSION:
+      return stbSplSplitSession(pCxt, pInfo);
+    default:
+      break;
+  }
+  return TSDB_CODE_PLAN_INTERNAL_ERROR;
 }
 
 static int32_t stbSplCreatePartAggNode(SAggLogicNode* pMergeAgg, SLogicNode** pOutput) {

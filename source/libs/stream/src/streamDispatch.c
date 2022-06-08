@@ -174,131 +174,26 @@ FAIL:
   return code;
 }
 
-int32_t streamDispatch(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDataBlock* data) {
-#if 0
+int32_t streamDispatch(SStreamTask* pTask, SMsgCb* pMsgCb) {
+#if 1
   int8_t old =
       atomic_val_compare_exchange_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL, TASK_OUTPUT_STATUS__WAIT);
   if (old != TASK_OUTPUT_STATUS__NORMAL) {
     return 0;
   }
 #endif
-  if (pTask->dispatchType == TASK_DISPATCH__INPLACE) {
-    SRpcMsg dispatchMsg = {0};
-    if (streamBuildDispatchMsg(pTask, data, &dispatchMsg, NULL) < 0) {
-      ASSERT(0);
-      return -1;
-    }
 
-    int32_t qType;
-    if (pTask->dispatchMsgType == TDMT_VND_TASK_DISPATCH || pTask->dispatchMsgType == TDMT_SND_TASK_DISPATCH) {
-      qType = FETCH_QUEUE;
-    } else if (pTask->dispatchMsgType == TDMT_VND_TASK_DISPATCH_WRITE) {
-      qType = WRITE_QUEUE;
-    } else {
-      ASSERT(0);
-    }
-    tmsgPutToQueue(pMsgCb, qType, &dispatchMsg);
-  } else if (pTask->dispatchType == TASK_DISPATCH__FIXED) {
-    SRpcMsg dispatchMsg = {0};
-    SEpSet* pEpSet = NULL;
-    if (streamBuildDispatchMsg(pTask, data, &dispatchMsg, &pEpSet) < 0) {
-      ASSERT(0);
-      return -1;
-    }
+  SStreamDataBlock* pBlock = streamQueueNextItem(pTask->outputQueue);
+  if (pBlock == NULL) return 0;
+  ASSERT(pBlock->type == STREAM_DATA_TYPE_SSDATA_BLOCK);
 
-    tmsgSendReq(pEpSet, &dispatchMsg);
-  } else if (pTask->dispatchType == TASK_DISPATCH__SHUFFLE) {
-    SRpcMsg dispatchMsg = {0};
-    SEpSet* pEpSet = NULL;
-    if (streamBuildDispatchMsg(pTask, data, &dispatchMsg, &pEpSet) < 0) {
-      ASSERT(0);
-      return -1;
-    }
-
-    tmsgSendReq(pEpSet, &dispatchMsg);
-  }
-  return 0;
-}
-
-#if 0
-static int32_t streamBuildExecMsg(SStreamTask* pTask, SArray* data, SRpcMsg* pMsg, SEpSet** ppEpSet) {
-  SStreamTaskExecReq req = {
-      .streamId = pTask->streamId,
-      .data = data,
-  };
-
-  int32_t tlen = sizeof(SMsgHead) + tEncodeSStreamTaskExecReq(NULL, &req);
-  void*   buf = rpcMallocCont(tlen);
-
-  if (buf == NULL) {
+  SRpcMsg dispatchMsg = {0};
+  SEpSet* pEpSet = NULL;
+  if (streamBuildDispatchMsg(pTask, pBlock, &dispatchMsg, &pEpSet) < 0) {
+    ASSERT(0);
     return -1;
   }
 
-  if (pTask->dispatchType == TASK_DISPATCH__INPLACE) {
-    ((SMsgHead*)buf)->vgId = 0;
-    req.taskId = pTask->inplaceDispatcher.taskId;
-
-  } else if (pTask->dispatchType == TASK_DISPATCH__FIXED) {
-    ((SMsgHead*)buf)->vgId = htonl(pTask->fixedEpDispatcher.nodeId);
-    *ppEpSet = &pTask->fixedEpDispatcher.epSet;
-    req.taskId = pTask->fixedEpDispatcher.taskId;
-
-  } else if (pTask->dispatchType == TASK_DISPATCH__SHUFFLE) {
-    // TODO use general name rule of schemaless
-    char ctbName[TSDB_TABLE_FNAME_LEN + 22] = {0};
-    // all groupId must be the same in an array
-    SSDataBlock* pBlock = taosArrayGet(data, 0);
-    sprintf(ctbName, "%s:%ld", pTask->shuffleDispatcher.stbFullName, pBlock->info.groupId);
-
-    // TODO: get hash function by hashMethod
-
-    // get groupId, compute hash value
-    uint32_t hashValue = MurmurHash3_32(ctbName, strlen(ctbName));
-
-    // get node
-    // TODO: optimize search process
-    SArray* vgInfo = pTask->shuffleDispatcher.dbInfo.pVgroupInfos;
-    int32_t sz = taosArrayGetSize(vgInfo);
-    int32_t nodeId = 0;
-    for (int32_t i = 0; i < sz; i++) {
-      SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, i);
-      if (hashValue >= pVgInfo->hashBegin && hashValue <= pVgInfo->hashEnd) {
-        nodeId = pVgInfo->vgId;
-        req.taskId = pVgInfo->taskId;
-        *ppEpSet = &pVgInfo->epSet;
-        break;
-      }
-    }
-    ASSERT(nodeId != 0);
-    ((SMsgHead*)buf)->vgId = htonl(nodeId);
-  }
-
-  void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
-  tEncodeSStreamTaskExecReq(&abuf, &req);
-
-  pMsg->pCont = buf;
-  pMsg->contLen = tlen;
-  pMsg->code = 0;
-  pMsg->msgType = pTask->dispatchMsgType;
-  pMsg->info.noResp = 1;
-
+  tmsgSendReq(pEpSet, &dispatchMsg);
   return 0;
 }
-
-static int32_t streamShuffleDispatch(SStreamTask* pTask, SMsgCb* pMsgCb, SHashObj* data) {
-  void* pIter = NULL;
-  while (1) {
-    pIter = taosHashIterate(data, pIter);
-    if (pIter == NULL) return 0;
-    SArray* pData = *(SArray**)pIter;
-    SRpcMsg dispatchMsg = {0};
-    SEpSet* pEpSet;
-    if (streamBuildExecMsg(pTask, pData, &dispatchMsg, &pEpSet) < 0) {
-      ASSERT(0);
-      return -1;
-    }
-    tmsgSendReq(pEpSet, &dispatchMsg);
-  }
-  return 0;
-}
-#endif
