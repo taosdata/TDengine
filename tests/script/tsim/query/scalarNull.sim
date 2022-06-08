@@ -66,7 +66,6 @@ if $rows != 0 then
   return -1
 endi
 sql select * from tb1 where null;
-print $rows
 if $rows != 0 then
   return -1
 endi
