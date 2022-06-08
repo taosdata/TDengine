@@ -625,18 +625,11 @@ int32_t mnodeRetriveAuth(char *user, char *spi, char *encrypt, char *secret, cha
     mError("user:%s, failed to auth user, reason:%s", user, tstrerror(TSDB_CODE_MND_INVALID_USER));
     return TSDB_CODE_MND_INVALID_USER;
   } else {
-    if (pUser->superAuth) {
-      SAcctObj *pAcct = mnodeGetAcct(user);
-      memcpy(secret, pAcct->pass, TSDB_KEY_LEN);
-      mnodeDecAcctRef(pAcct);
-    } else {
-      memcpy(secret, pUser->pass, TSDB_KEY_LEN);
-    }
-
     *spi = 1;
     *encrypt = 0;
     *ckey = 0;
 
+    memcpy(secret, pUser->pass, TSDB_KEY_LEN);
     mnodeDecUserRef(pUser);
     mDebug("user:%s, auth info is returned", user);
     return TSDB_CODE_SUCCESS;
