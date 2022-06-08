@@ -76,12 +76,12 @@ void shellInit(SShellArguments *_args) {
     _args->database = calloc(1, 128);
     _args->socket = socket(AF_INET, SOCK_STREAM, 0);
     if (_args->socket < 0) {
-      fprintf(stderr, "failed to create socket");
+      fprintf(stderr, "failed to create socket\n");
       exit(EXIT_FAILURE);
     }
     int retConn = connect(_args->socket, (struct sockaddr *)&(_args->serv_addr), sizeof(struct sockaddr));
     if (retConn < 0) {
-      fprintf(stderr, "failed to connect");
+      fprintf(stderr, "failed to connect\n");
       close(_args->socket);
       exit(EXIT_FAILURE);
     }
@@ -1145,6 +1145,20 @@ int taos_base64_encode(unsigned char *source, size_t sourcelen, char *target, si
   return 1;
 }
 
+char *last_strstr(const char *haystack, const char *needle) {
+    if (*needle == '\0')
+        return (char *) haystack;
+
+    char *res = NULL;
+    for (;;) {
+        char *p = strstr(haystack, needle);
+        if (p == NULL) break;
+        res = p;
+        haystack = p + 1;
+    }
+    return res;
+}
+
 int convertHostToServAddr() {
   if (args.port == 0) {
     args.port = 6041;
@@ -1154,7 +1168,7 @@ int convertHostToServAddr() {
   }
   struct hostent *server = gethostbyname(args.host);
   if ((server == NULL) || (server->h_addr == NULL)) {
-    fprintf(stderr, "no such host: %s", args.host);
+    fprintf(stderr, "no such host: %s\n", args.host);
     return -1;
   }
   memset(&(args.serv_addr), 0, sizeof(struct sockaddr_in));
