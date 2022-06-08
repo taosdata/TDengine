@@ -1443,7 +1443,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getHistogramFuncEnv,
     .initFunc     = histogramFunctionSetup,
     .processFunc  = histogramFunction,
-    .finalizeFunc = histogramFinalize
+    .finalizeFunc = histogramFinalize,
+    .pPartialFunc = "_histogram_partial",
+    .pMergeFunc   = "_histogram_merge"
   },
   {
     .name = "_histogram_partial",
