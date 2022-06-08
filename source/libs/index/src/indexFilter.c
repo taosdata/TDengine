@@ -547,6 +547,8 @@ static int32_t sifExecLogic(SLogicConditionNode *node, SIFCtx *ctx, SIFParam *ou
       } else if (node->condType == LOGIC_COND_TYPE_NOT) {
         // taosArrayAddAll(output->result, params[m].result);
       }
+      taosArraySort(output->result, idxUidCompare);
+      taosArrayRemoveDuplicate(output->result, idxUidCompare, NULL);
     }
   } else {
     for (int32_t m = 0; m < node->pParameterList->length; m++) {

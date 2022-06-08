@@ -289,7 +289,7 @@ SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn oper, uint8_t colTy
   tm->nColName = nColName;
 
   char*   buf = NULL;
-  int32_t len = indexConvertDataToStr((void*)colVal, INDEX_TYPE_GET_TYPE(colType), (void**)&buf);
+  int32_t len = idxConvertDataToStr((void*)colVal, INDEX_TYPE_GET_TYPE(colType), (void**)&buf);
   assert(len != -1);
 
   tm->colVal = buf;
@@ -625,7 +625,7 @@ int32_t indexSerialCacheKey(ICacheKey* key, char* buf) {
 
   char* p = buf;
   char  tbuf[65] = {0};
-  indexInt2str((int64_t)key->suid, tbuf, 0);
+  idxInt2str((int64_t)key->suid, tbuf, 0);
 
   SERIALIZE_STR_VAR_TO_BUF(buf, tbuf, strlen(tbuf));
   SERIALIZE_VAR_TO_BUF(buf, '_', char);

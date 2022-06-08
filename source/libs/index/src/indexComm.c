@@ -48,7 +48,7 @@
 char JSON_COLUMN[] = "JSON";
 char JSON_VALUE_DELIM = '&';
 
-char* indexInt2str(int64_t val, char* dst, int radix) {
+char* idxInt2str(int64_t val, char* dst, int radix) {
   char     buffer[65] = {0};
   char*    p;
   int64_t  new_val;
@@ -257,7 +257,12 @@ char* indexPackJsonDataPrefix(SIndexTerm* itm, int32_t* skip) {
   return buf;
 }
 
-int32_t indexConvertData(void* src, int8_t type, void** dst) {
+int idxUidCompare(const void* a, const void* b) {
+  uint64_t l = *(uint64_t*)a;
+  uint64_t r = *(uint64_t*)b;
+  return l - r;
+}
+int32_t idxConvertData(void* src, int8_t type, void** dst) {
   int tlen = -1;
   switch (type) {
     case TSDB_DATA_TYPE_TIMESTAMP:
@@ -342,44 +347,44 @@ int32_t indexConvertData(void* src, int8_t type, void** dst) {
   // indexMayFillNumbericData(*dst, tlen);
   return tlen;
 }
-int32_t indexConvertDataToStr(void* src, int8_t type, void** dst) {
+int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
   int     tlen = tDataTypes[type].bytes;
   int32_t bufSize = 64;
   switch (type) {
     case TSDB_DATA_TYPE_TIMESTAMP:
       *dst = taosMemoryCalloc(1, bufSize + 1);
-      indexInt2str(*(int64_t*)src, *dst, -1);
+      idxInt2str(*(int64_t*)src, *dst, -1);
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_UTINYINT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
-      indexInt2str(*(uint8_t*)src, *dst, 1);
+      idxInt2str(*(uint8_t*)src, *dst, 1);
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_TINYINT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
-      indexInt2str(*(int8_t*)src, *dst, 1);
+      idxInt2str(*(int8_t*)src, *dst, 1);
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_SMALLINT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
-      indexInt2str(*(int16_t*)src, *dst, -1);
+      idxInt2str(*(int16_t*)src, *dst, -1);
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_USMALLINT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
-      indexInt2str(*(uint16_t*)src, *dst, -1);
+      idxInt2str(*(uint16_t*)src, *dst, -1);
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_INT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
-      indexInt2str(*(int32_t*)src, *dst, -1);
+      idxInt2str(*(int32_t*)src, *dst, -1);
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_UINT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
-      indexInt2str(*(uint32_t*)src, *dst, 1);
+      idxInt2str(*(uint32_t*)src, *dst, 1);
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_BIGINT:
@@ -389,7 +394,7 @@ int32_t indexConvertDataToStr(void* src, int8_t type, void** dst) {
       break;
     case TSDB_DATA_TYPE_UBIGINT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
-      indexInt2str(*(uint64_t*)src, *dst, 1);
+      idxInt2str(*(uint64_t*)src, *dst, 1);
       tlen = strlen(*dst);
     case TSDB_DATA_TYPE_FLOAT:
       *dst = taosMemoryCalloc(1, bufSize + 1);

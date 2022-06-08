@@ -578,8 +578,8 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
   // ugly code, refactor later
   for (size_t i = 0; i < sz; i++) {
     TFileValue* v = taosArrayGetP((SArray*)data, i);
-    taosArraySort(v->tableId, tfileUidCompare);
-    taosArrayRemoveDuplicate(v->tableId, tfileUidCompare, NULL);
+    taosArraySort(v->tableId, idxUidCompare);
+    taosArrayRemoveDuplicate(v->tableId, idxUidCompare, NULL);
     int32_t tbsz = taosArrayGetSize(v->tableId);
     fstOffset += TF_TABLE_TATOAL_SIZE(tbsz);
   }
@@ -791,11 +791,6 @@ TFileReader* tfileGetReaderByCol(IndexTFile* tf, uint64_t suid, char* colName) {
   return rd;
 }
 
-static int tfileUidCompare(const void* a, const void* b) {
-  uint64_t l = *(uint64_t*)a;
-  uint64_t r = *(uint64_t*)b;
-  return l - r;
-}
 static int tfileStrCompare(const void* a, const void* b) {
   int ret = strcmp((char*)a, (char*)b);
   if (ret == 0) {
