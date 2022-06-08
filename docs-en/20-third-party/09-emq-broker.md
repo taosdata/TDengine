@@ -108,7 +108,7 @@ Finally, click the "Create" button at bottom left corner saving the rule.
 ## Compose program to mock data
 
 ```javascript
-${{#include docs-examples/other/mock.js}}
+{{#include docs-examples/other/mock.js}}
 ```
 
 Note: `CLIENT_NUM` in the code can be set to a smaller value at the beginning of the test to avoid hardware performance be not capable to handle a more significant number of concurrent clients.

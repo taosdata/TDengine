@@ -116,7 +116,7 @@ INSERT INTO test.sensor_data VALUES(
 ## 编写模拟测试程序
 
 ```javascript
-${{#include docs-examples/other/mock.js}}
+{{#include docs-examples/other/mock.js}}
 ```
 
 注意：代码中 CLIENT_NUM 在开始测试中可以先设置一个较小的值，避免硬件性能不能完全处理较大并发客户端数量。
