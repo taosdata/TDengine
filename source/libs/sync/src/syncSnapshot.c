@@ -320,7 +320,7 @@ SSyncSnapshotReceiver *snapshotReceiverCreate(SSyncNode *pSyncNode, int32_t repl
   bool condition = (pSyncNode->pFsm->FpSnapshotStartWrite != NULL) && (pSyncNode->pFsm->FpSnapshotStopWrite != NULL) &&
                    (pSyncNode->pFsm->FpSnapshotDoWrite != NULL);
 
-  SSyncSnapshotReceiver *pReceiver;
+  SSyncSnapshotReceiver *pReceiver = NULL;
   if (condition) {
     pReceiver = taosMemoryMalloc(sizeof(SSyncSnapshotReceiver));
     ASSERT(pReceiver != NULL);
