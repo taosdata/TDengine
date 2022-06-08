@@ -49,10 +49,9 @@ int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
   }
 
   pVnode->vgId = pCfg->vgId;
-  pVnode->refCount = 0;
   pVnode->vgVersion = pCfg->vgVersion;
+  pVnode->refCount = 0;
   pVnode->dropped = 0;
-  pVnode->accessState = TSDB_VN_ALL_ACCCESS;
   pVnode->path = tstrdup(pCfg->path);
   pVnode->pImpl = pImpl;
 
@@ -96,7 +95,7 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   dDebug("vgId:%d, vnode is closed", pVnode->vgId);
 
   if (pVnode->dropped) {
-    dDebug("vgId:%d, vnode is destroyed for dropped:%d", pVnode->vgId, pVnode->dropped);
+    dInfo("vgId:%d, vnode is destroyed, dropped:%d", pVnode->vgId, pVnode->dropped);
     snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, pVnode->vgId);
     vnodeDestroy(path, pMgmt->pTfs);
   }

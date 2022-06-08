@@ -232,8 +232,10 @@ struct SVnode {
   SWal*      pWal;
   STQ*       pTq;
   SSink*     pSink;
-  int64_t    sync;
   tsem_t     canCommit;
+  int64_t    sync;
+  int32_t    syncCount;
+  sem_t      syncSem;
   SQHandle*  pQuery;
 };
 
