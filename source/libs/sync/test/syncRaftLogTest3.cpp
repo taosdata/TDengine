@@ -17,6 +17,8 @@ void logTest() {
   sFatal("--- sync log test: fatal");
 }
 
+bool gAssert = true;
+
 SSyncNode*     pSyncNode;
 SWal*          pWal;
 SSyncLogStore* pLogStore;
@@ -98,6 +100,14 @@ void test1() {
   sTrace("%ld's preIndex: %ld", testIndex, preIndex);
   sTrace("%ld's preTerm: %lu", testIndex, preTerm);
 
+  if (gAssert) {
+    assert(lastIndex == -1);
+    assert(lastTerm == 0);
+    assert(syncStartIndex == 0);
+    assert(preIndex == -1);
+    assert(preTerm == 0);
+  }
+
   logStoreDestory(pLogStore);
   cleanup();
 }
@@ -150,12 +160,26 @@ void test2() {
   sTrace("lastTerm: %lu", lastTerm);
   sTrace("syncStartIndex: %ld", syncStartIndex);
 
+  if (gAssert) {
+    assert(lastIndex == 10);
+    assert(lastTerm == 110);
+    assert(syncStartIndex == 11);
+  }
+
   for (SyncIndex i = 11; i >= 0; --i) {
     SyncIndex preIndex = syncNodeGetPreIndex(pSyncNode, i);
     SyncTerm  preTerm = syncNodeGetPreTerm(pSyncNode, i);
 
     sTrace("%ld's preIndex: %ld", i, preIndex);
     sTrace("%ld's preTerm: %lu", i, preTerm);
+
+    if (gAssert) {
+      SyncIndex preIndexArr[12] = {-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+      SyncTerm  preTermArr[12] = {0, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110};
+
+      assert(preIndex == preIndexArr[i]);
+      assert(preTerm == preTermArr[i]);
+    }
   }
 
   logStoreDestory(pLogStore);
@@ -197,6 +221,14 @@ void test3() {
   sTrace("syncStartIndex: %ld", syncStartIndex);
   sTrace("%d's preIndex: %ld", 6, preIndex);
   sTrace("%d's preTerm: %lu", 6, preTerm);
+
+  if (gAssert) {
+    assert(lastIndex == 5);
+    assert(lastTerm == 100);
+    assert(syncStartIndex == 6);
+    assert(preIndex == 5);
+    assert(preTerm == 100);
+  }
 
   logStoreDestory(pLogStore);
   cleanup();
@@ -249,6 +281,12 @@ void test4() {
   sTrace("lastIndex: %ld", lastIndex);
   sTrace("lastTerm: %lu", lastTerm);
   sTrace("syncStartIndex: %ld", syncStartIndex);
+
+  if (gAssert) {
+    assert(lastIndex == 10);
+    assert(lastTerm == 110);
+    assert(syncStartIndex == 11);
+  }
 
   for (SyncIndex i = 11; i >= 6; --i) {
     SyncIndex preIndex = syncNodeGetPreIndex(pSyncNode, i);
@@ -317,6 +355,14 @@ void test5() {
 
     sTrace("%ld's preIndex: %ld", i, preIndex);
     sTrace("%ld's preTerm: %lu", i, preTerm);
+
+    if (gAssert) {
+      SyncIndex preIndexArr[12] = {9999, 9999, 9999, 9999, 9999, 9999, 5, 6, 7, 8, 9, 10};
+      SyncTerm  preTermArr[12] = {9999, 9999, 9999, 9999, 9999, 9999, 100, 106, 107, 108, 109, 110};
+
+      assert(preIndex == preIndexArr[i]);
+      assert(preTerm == preTermArr[i]);
+    }
   }
 
   logStoreDestory(pLogStore);
@@ -326,6 +372,11 @@ void test5() {
 int main(int argc, char** argv) {
   tsAsyncLog = 0;
   sDebugFlag = DEBUG_TRACE + DEBUG_INFO + DEBUG_SCREEN + DEBUG_FILE;
+
+  if (argc == 2) {
+    gAssert = atoi(argv[1]);
+  }
+  sTrace("gAssert : %d", gAssert);
 
   test1();
   test2();

@@ -67,7 +67,7 @@ static SyncIndex raftLogEndIndex(struct SSyncLogStore* pLogStore) { return raftL
 static bool raftLogIsEmpty(struct SSyncLogStore* pLogStore) {
   SyncIndex beginIndex = raftLogBeginIndex(pLogStore);
   SyncIndex endIndex = raftLogEndIndex(pLogStore);
-  return (endIndex >= beginIndex);
+  return (endIndex < beginIndex);
 }
 
 static int32_t raftLogEntryCount(struct SSyncLogStore* pLogStore) {

@@ -76,7 +76,7 @@ void test1() {
     assert(pLogStore->syncLogEndIndex(pLogStore) == -1);
     assert(pLogStore->syncLogEntryCount(pLogStore) == 0);
     assert(pLogStore->syncLogWriteIndex(pLogStore) == 0);
-    assert(pLogStore->syncLogIsEmpty(pLogStore) == 0);
+    assert(pLogStore->syncLogIsEmpty(pLogStore) == 1);
     assert(pLogStore->syncLogLastIndex(pLogStore) == -1);
     assert(pLogStore->syncLogLastTerm(pLogStore) == 0);
   }
@@ -95,7 +95,7 @@ void test1() {
     assert(pLogStore->syncLogEndIndex(pLogStore) == -1);
     assert(pLogStore->syncLogEntryCount(pLogStore) == 0);
     assert(pLogStore->syncLogWriteIndex(pLogStore) == 0);
-    assert(pLogStore->syncLogIsEmpty(pLogStore) == 0);
+    assert(pLogStore->syncLogIsEmpty(pLogStore) == 1);
     assert(pLogStore->syncLogLastIndex(pLogStore) == -1);
     assert(pLogStore->syncLogLastTerm(pLogStore) == 0);
   }
@@ -118,7 +118,7 @@ void test2() {
     assert(pLogStore->syncLogEndIndex(pLogStore) == -1);
     assert(pLogStore->syncLogEntryCount(pLogStore) == 0);
     assert(pLogStore->syncLogWriteIndex(pLogStore) == 5);
-    assert(pLogStore->syncLogIsEmpty(pLogStore) == 0);
+    assert(pLogStore->syncLogIsEmpty(pLogStore) == 1);
     assert(pLogStore->syncLogLastIndex(pLogStore) == -1);
     assert(pLogStore->syncLogLastTerm(pLogStore) == 0);
   }
@@ -137,7 +137,7 @@ void test2() {
     assert(pLogStore->syncLogEndIndex(pLogStore) == -1);
     assert(pLogStore->syncLogEntryCount(pLogStore) == 0);
     assert(pLogStore->syncLogWriteIndex(pLogStore) == 5);
-    assert(pLogStore->syncLogIsEmpty(pLogStore) == 0);
+    assert(pLogStore->syncLogIsEmpty(pLogStore) == 1);
     assert(pLogStore->syncLogLastIndex(pLogStore) == -1);
     assert(pLogStore->syncLogLastTerm(pLogStore) == 0);
   }
@@ -159,7 +159,7 @@ void test3() {
     assert(pLogStore->syncLogEndIndex(pLogStore) == -1);
     assert(pLogStore->syncLogEntryCount(pLogStore) == 0);
     assert(pLogStore->syncLogWriteIndex(pLogStore) == 0);
-    assert(pLogStore->syncLogIsEmpty(pLogStore) == 0);
+    assert(pLogStore->syncLogIsEmpty(pLogStore) == 1);
     assert(pLogStore->syncLogLastIndex(pLogStore) == -1);
     assert(pLogStore->syncLogLastTerm(pLogStore) == 0);
   }
@@ -186,7 +186,7 @@ void test3() {
     assert(pLogStore->syncLogEndIndex(pLogStore) == 4);
     assert(pLogStore->syncLogEntryCount(pLogStore) == 5);
     assert(pLogStore->syncLogWriteIndex(pLogStore) == 5);
-    assert(pLogStore->syncLogIsEmpty(pLogStore) == 1);
+    assert(pLogStore->syncLogIsEmpty(pLogStore) == 0);
     assert(pLogStore->syncLogLastIndex(pLogStore) == 4);
     assert(pLogStore->syncLogLastTerm(pLogStore) == 104);
   }
@@ -205,7 +205,7 @@ void test3() {
     assert(pLogStore->syncLogEndIndex(pLogStore) == 4);
     assert(pLogStore->syncLogEntryCount(pLogStore) == 5);
     assert(pLogStore->syncLogWriteIndex(pLogStore) == 5);
-    assert(pLogStore->syncLogIsEmpty(pLogStore) == 1);
+    assert(pLogStore->syncLogIsEmpty(pLogStore) == 0);
     assert(pLogStore->syncLogLastIndex(pLogStore) == 4);
     assert(pLogStore->syncLogLastTerm(pLogStore) == 104);
   }
@@ -245,7 +245,7 @@ void test4() {
     assert(pLogStore->syncLogEndIndex(pLogStore) == 9);
     assert(pLogStore->syncLogEntryCount(pLogStore) == 5);
     assert(pLogStore->syncLogWriteIndex(pLogStore) == 10);
-    assert(pLogStore->syncLogIsEmpty(pLogStore) == 1);
+    assert(pLogStore->syncLogIsEmpty(pLogStore) == 0);
     assert(pLogStore->syncLogLastIndex(pLogStore) == 9);
     assert(pLogStore->syncLogLastTerm(pLogStore) == 109);
   }
@@ -264,7 +264,7 @@ void test4() {
     assert(pLogStore->syncLogEndIndex(pLogStore) == 9);
     assert(pLogStore->syncLogEntryCount(pLogStore) == 5);
     assert(pLogStore->syncLogWriteIndex(pLogStore) == 10);
-    assert(pLogStore->syncLogIsEmpty(pLogStore) == 1);
+    assert(pLogStore->syncLogIsEmpty(pLogStore) == 0);
     assert(pLogStore->syncLogLastIndex(pLogStore) == 9);
     assert(pLogStore->syncLogLastTerm(pLogStore) == 109);
   }
@@ -304,7 +304,7 @@ void test5() {
     assert(pLogStore->syncLogEndIndex(pLogStore) == 9);
     assert(pLogStore->syncLogEntryCount(pLogStore) == 5);
     assert(pLogStore->syncLogWriteIndex(pLogStore) == 10);
-    assert(pLogStore->syncLogIsEmpty(pLogStore) == 1);
+    assert(pLogStore->syncLogIsEmpty(pLogStore) == 0);
     assert(pLogStore->syncLogLastIndex(pLogStore) == 9);
     assert(pLogStore->syncLogLastTerm(pLogStore) == 109);
   }
@@ -317,7 +317,7 @@ void test5() {
     assert(pLogStore->syncLogEndIndex(pLogStore) == 6);
     assert(pLogStore->syncLogEntryCount(pLogStore) == 2);
     assert(pLogStore->syncLogWriteIndex(pLogStore) == 7);
-    assert(pLogStore->syncLogIsEmpty(pLogStore) == 1);
+    assert(pLogStore->syncLogIsEmpty(pLogStore) == 0);
     assert(pLogStore->syncLogLastIndex(pLogStore) == 6);
     assert(pLogStore->syncLogLastTerm(pLogStore) == 106);
   }
@@ -336,7 +336,7 @@ void test5() {
     assert(pLogStore->syncLogEndIndex(pLogStore) == 6);
     assert(pLogStore->syncLogEntryCount(pLogStore) == 2);
     assert(pLogStore->syncLogWriteIndex(pLogStore) == 7);
-    assert(pLogStore->syncLogIsEmpty(pLogStore) == 1);
+    assert(pLogStore->syncLogIsEmpty(pLogStore) == 0);
     assert(pLogStore->syncLogLastIndex(pLogStore) == 6);
     assert(pLogStore->syncLogLastTerm(pLogStore) == 106);
   }
@@ -376,7 +376,7 @@ void test6() {
     assert(pLogStore->syncLogEndIndex(pLogStore) == 9);
     assert(pLogStore->syncLogEntryCount(pLogStore) == 5);
     assert(pLogStore->syncLogWriteIndex(pLogStore) == 10);
-    assert(pLogStore->syncLogIsEmpty(pLogStore) == 1);
+    assert(pLogStore->syncLogIsEmpty(pLogStore) == 0);
     assert(pLogStore->syncLogLastIndex(pLogStore) == 9);
     assert(pLogStore->syncLogLastTerm(pLogStore) == 109);
   }
@@ -389,7 +389,7 @@ void test6() {
     assert(pLogStore->syncLogEndIndex(pLogStore) == -1);
     assert(pLogStore->syncLogEntryCount(pLogStore) == 0);
     assert(pLogStore->syncLogWriteIndex(pLogStore) == 5);
-    assert(pLogStore->syncLogIsEmpty(pLogStore) == 0);
+    assert(pLogStore->syncLogIsEmpty(pLogStore) == 1);
     assert(pLogStore->syncLogLastIndex(pLogStore) == -1);
     assert(pLogStore->syncLogLastTerm(pLogStore) == 0);
   }
@@ -408,7 +408,7 @@ void test6() {
     assert(pLogStore->syncLogEndIndex(pLogStore) == -1);
     assert(pLogStore->syncLogEntryCount(pLogStore) == 0);
     assert(pLogStore->syncLogWriteIndex(pLogStore) == 5);
-    assert(pLogStore->syncLogIsEmpty(pLogStore) == 0);
+    assert(pLogStore->syncLogIsEmpty(pLogStore) == 1);
     assert(pLogStore->syncLogLastIndex(pLogStore) == -1);
     assert(pLogStore->syncLogLastTerm(pLogStore) == 0);
   }
