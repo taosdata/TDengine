@@ -86,22 +86,3 @@ SStreamDataSubmit* streamSubmitRefClone(SStreamDataSubmit* pSubmit) {
   memcpy(pSubmitClone, pSubmit, sizeof(SStreamDataSubmit));
   return pSubmitClone;
 }
-
-#if 0
-int32_t tEncodeSStreamTaskExecReq(void** buf, const SStreamTaskExecReq* pReq) {
-  int32_t tlen = 0;
-  tlen += taosEncodeFixedI64(buf, pReq->streamId);
-  tlen += taosEncodeFixedI32(buf, pReq->taskId);
-  tlen += tEncodeDataBlocks(buf, pReq->data);
-  return tlen;
-}
-
-void* tDecodeSStreamTaskExecReq(const void* buf, SStreamTaskExecReq* pReq) {
-  buf = taosDecodeFixedI64(buf, &pReq->streamId);
-  buf = taosDecodeFixedI32(buf, &pReq->taskId);
-  buf = tDecodeDataBlocks(buf, &pReq->data);
-  return (void*)buf;
-}
-
-void tFreeSStreamTaskExecReq(SStreamTaskExecReq* pReq) { taosArrayDestroy(pReq->data); }
-#endif
