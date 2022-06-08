@@ -190,7 +190,7 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
 
           } else {
             // start first time
-            snapshotSenderDoStart(pSender);
+            snapshotSenderStart(pSender);
             pSender->start = true;
             sentryIndex = pSender->snapshot.lastApplyIndex;
           }

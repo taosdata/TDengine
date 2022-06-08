@@ -20,7 +20,6 @@
 #include "syncUtil.h"
 #include "wal.h"
 
-// static void snapshotSenderDoStart(SSyncSnapshotSender *pSender);
 static void snapshotReceiverDoStart(SSyncSnapshotReceiver *pReceiver);
 
 SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaIndex) {
@@ -45,27 +44,28 @@ SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaI
     pSender->term = pSyncNode->pRaftStore->currentTerm;
     pSender->privateTerm = taosGetTimestampMs() + 100;
     pSender->pSyncNode->pFsm->FpGetSnapshot(pSender->pSyncNode->pFsm, &(pSender->snapshot));
-
-    pSender->finish = false;
+    pSender->apply = false;
   } else {
-    sInfo("snapshotSenderCreate cannot create sender");
+    sError("snapshotSenderCreate cannot create sender");
   }
-
   return pSender;
 }
 
 void snapshotSenderDestroy(SSyncSnapshotSender *pSender) {
   if (pSender != NULL) {
+    if (pSender->pCurrentBlock != NULL) {
+      taosMemoryFree(pSender->pCurrentBlock);
+    }
     taosMemoryFree(pSender);
   }
 }
 
-// begin send snapshot (current term, seq begin)
-void snapshotSenderDoStart(SSyncSnapshotSender *pSender) {
-  // when start, increase term
-  ++(pSender->privateTerm);
+bool snapshotSenderIsStart(SSyncSnapshotSender *pSender) { return pSender->start; }
 
-  pSender->term = pSender->pSyncNode->pRaftStore->currentTerm;
+// begin send snapshot (current term, seq begin)
+void snapshotSenderStart(SSyncSnapshotSender *pSender) {
+  ASSERT(!snapshotSenderIsStart(pSender));
+
   pSender->seq = SYNC_SNAPSHOT_SEQ_BEGIN;
   pSender->ack = SYNC_SNAPSHOT_SEQ_INVALID;
 
@@ -74,8 +74,20 @@ void snapshotSenderDoStart(SSyncSnapshotSender *pSender) {
   int32_t ret = pSender->pSyncNode->pFsm->FpSnapshotStartRead(pSender->pSyncNode->pFsm, &(pSender->pReader));
   ASSERT(ret == 0);
 
+  if (pSender->pCurrentBlock != NULL) {
+    taosMemoryFree(pSender->pCurrentBlock);
+  }
+
+  pSender->blockLen = 0;
+
   // get current snapshot info
   pSender->pSyncNode->pFsm->FpGetSnapshot(pSender->pSyncNode->pFsm, &(pSender->snapshot));
+
+  pSender->sendingMS = SYNC_SNAPSHOT_RETRY_MS;
+  pSender->term = pSender->pSyncNode->pRaftStore->currentTerm;
+  ++(pSender->privateTerm);
+  pSender->apply = false;
+  pSender->start = true;
 
   // build begin msg
   SyncSnapshotSend *pMsg = syncSnapshotSendBuild(0, pSender->pSyncNode->vgId);
@@ -87,7 +99,7 @@ void snapshotSenderDoStart(SSyncSnapshotSender *pSender) {
   pMsg->seq = pSender->seq;  // SYNC_SNAPSHOT_SEQ_BEGIN
   pMsg->privateTerm = pSender->privateTerm;
 
-  // send
+  // send msg
   SRpcMsg rpcMsg;
   syncSnapshotSend2RpcMsg(pMsg, &rpcMsg);
   syncNodeSendMsgById(&(pMsg->destId), pSender->pSyncNode, &rpcMsg);
@@ -192,6 +204,7 @@ int32_t snapshotSend(SSyncSnapshotSender *pSender) {
     pSender->seq = SYNC_SNAPSHOT_SEQ_END;
   }
 
+  // build msg
   SyncSnapshotSend *pMsg = syncSnapshotSendBuild(pSender->blockLen, pSender->pSyncNode->vgId);
   pMsg->srcId = pSender->pSyncNode->myRaftId;
   pMsg->destId = (pSender->pSyncNode->replicasId)[pSender->replicaIndex];
@@ -202,6 +215,7 @@ int32_t snapshotSend(SSyncSnapshotSender *pSender) {
   pMsg->privateTerm = pSender->privateTerm;
   memcpy(pMsg->data, pSender->pCurrentBlock, pSender->blockLen);
 
+  // send msg
   SRpcMsg rpcMsg;
   syncSnapshotSend2RpcMsg(pMsg, &rpcMsg);
   syncNodeSendMsgById(&(pMsg->destId), pSender->pSyncNode, &rpcMsg);
@@ -215,7 +229,6 @@ int32_t snapshotSend(SSyncSnapshotSender *pSender) {
   taosMemoryFree(msgStr);
 
   syncSnapshotSendDestroy(pMsg);
-
   return 0;
 }
 
@@ -286,7 +299,7 @@ cJSON *snapshotSender2Json(SSyncSnapshotSender *pSender) {
     cJSON_AddStringToObject(pRoot, "term", u64buf);
     snprintf(u64buf, sizeof(u64buf), "%lu", pSender->privateTerm);
     cJSON_AddStringToObject(pRoot, "privateTerm", u64buf);
-    cJSON_AddNumberToObject(pRoot, "finish", pSender->finish);
+    cJSON_AddNumberToObject(pRoot, "apply", pSender->apply);
   }
 
   cJSON *pJson = cJSON_CreateObject();
@@ -296,7 +309,7 @@ cJSON *snapshotSender2Json(SSyncSnapshotSender *pSender) {
 
 char *snapshotSender2Str(SSyncSnapshotSender *pSender) {
   cJSON *pJson = snapshotSender2Json(pSender);
-  char * serialized = cJSON_Print(pJson);
+  char  *serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
 }
@@ -416,7 +429,7 @@ cJSON *snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver) {
 
 char *snapshotReceiver2Str(SSyncSnapshotReceiver *pReceiver) {
   cJSON *pJson = snapshotReceiver2Json(pReceiver);
-  char * serialized = cJSON_Print(pJson);
+  char  *serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
 }
@@ -448,7 +461,7 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
         pSyncNode->pFsm->FpSnapshotStopWrite(pSyncNode->pFsm, pReceiver->pWriter, true);
 
         pSyncNode->pLogStore->syncLogSetBeginIndex(pSyncNode->pLogStore, pMsg->lastIndex + 1);
-        char *    logSimpleStr = logStoreSimple2Str(pSyncNode->pLogStore);
+        char     *logSimpleStr = logStoreSimple2Str(pSyncNode->pLogStore);
         SSnapshot snapshot;
         pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
         sInfo(
@@ -539,7 +552,7 @@ int32_t syncNodeOnSnapshotRspCb(SSyncNode *pSyncNode, SyncSnapshotRsp *pMsg) {
     if (pMsg->term == pSyncNode->pRaftStore->currentTerm) {
       // receiver ack is finish, close sender
       if (pMsg->ack == SYNC_SNAPSHOT_SEQ_END) {
-        pSender->finish = true;
+        pSender->apply = true;
         snapshotSenderStop(pSender);
 
         // update nextIndex private term
