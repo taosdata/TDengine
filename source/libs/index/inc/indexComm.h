@@ -26,8 +26,8 @@ extern "C" {
 extern char JSON_COLUMN[];
 extern char JSON_VALUE_DELIM;
 
-char* indexPackJsonData(SIndexTerm* itm);
-char* indexPackJsonDataPrefix(SIndexTerm* itm, int32_t* skip);
+char* idxPackJsonData(SIndexTerm* itm);
+char* idxPackJsonDataPrefix(SIndexTerm* itm, int32_t* skip);
 
 typedef enum { MATCH, CONTINUE, BREAK } TExeCond;
 

@@ -201,7 +201,7 @@ static TExeCond (*rangeCompare[])(void* a, void* b, int8_t type) = {
 
 _cache_range_compare indexGetCompare(RangeType ty) { return rangeCompare[ty]; }
 
-char* indexPackJsonData(SIndexTerm* itm) {
+char* idxPackJsonData(SIndexTerm* itm) {
   /*
    * |<-----colname---->|<-----dataType---->|<--------colVal---------->|
    * |<-----string----->|<-----uint8_t----->|<----depend on dataType-->|
@@ -229,7 +229,7 @@ char* indexPackJsonData(SIndexTerm* itm) {
   return buf;
 }
 
-char* indexPackJsonDataPrefix(SIndexTerm* itm, int32_t* skip) {
+char* idxPackJsonDataPrefix(SIndexTerm* itm, int32_t* skip) {
   /*
    * |<-----colname---->|<-----dataType---->|<--------colVal---------->|
    * |<-----string----->|<-----uint8_t----->|<----depend on dataType-->|

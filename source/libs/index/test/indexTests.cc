@@ -106,17 +106,17 @@ class FstReadMemory {
     return ok;
   }
   // add later
-  bool Search(AutomationCtx* ctx, std::vector<uint64_t>& result) {
-    FstStreamBuilder*      sb = fstSearch(_fst, ctx);
-    StreamWithState*       st = streamBuilderIntoStream(sb);
-    StreamWithStateResult* rt = NULL;
+  bool Search(FAutoCtx* ctx, std::vector<uint64_t>& result) {
+    FStmBuilder* sb = fstSearch(_fst, ctx);
+    FStmSt*      st = stmBuilderIntoStm(sb);
+    FStmStRslt*  rt = NULL;
 
-    while ((rt = streamWithStateNextWith(st, NULL)) != NULL) {
+    while ((rt = stmStNextWith(st, NULL)) != NULL) {
       result.push_back((uint64_t)(rt->out.out));
     }
     return true;
   }
-  bool SearchWithTimeCostUs(AutomationCtx* ctx, std::vector<uint64_t>& result) {
+  bool SearchWithTimeCostUs(FAutoCtx* ctx, std::vector<uint64_t>& result) {
     int64_t s = taosGetTimestampUs();
     bool    ok = this->Search(ctx, result);
     int64_t e = taosGetTimestampUs();
@@ -220,7 +220,7 @@ void checkFstPrefixSearch() {
   // prefix search
   std::vector<uint64_t> result;
 
-  AutomationCtx* ctx = automCtxCreate((void*)"ab", AUTOMATION_PREFIX);
+  FAutoCtx* ctx = automCtxCreate((void*)"ab", AUTOMATION_PREFIX);
   m->Search(ctx, result);
   assert(result.size() == count);
   for (int i = 0; i < result.size(); i++) {
