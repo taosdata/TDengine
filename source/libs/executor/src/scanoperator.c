@@ -962,16 +962,15 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
     if (rows == 0) {
       pOperator->status = OP_EXEC_DONE;
     } else if (pInfo->pUpdateInfo) {
-      SSDataBlock* upRes = createOneDataBlock(pInfo->pRes, false);
-      getUpdateDataBlock(pInfo, true, pInfo->pRes, upRes);
-      if (upRes) {
-        pInfo->pUpdateRes = upRes;
-        if (upRes->info.type == STREAM_REPROCESS) {
+      blockDataCleanup(pInfo->pUpdateRes);
+      getUpdateDataBlock(pInfo, true, pInfo->pRes, pInfo->pUpdateRes);
+      if (pInfo->pUpdateRes->info.rows > 0) {
+        if (pInfo->pUpdateRes->info.type == STREAM_REPROCESS) {
           pInfo->updateResIndex = 0;
           pInfo->scanMode = STREAM_SCAN_FROM_UPDATERES;
-        } else if (upRes->info.type == STREAM_INVERT) {
+        } else if (pInfo->pUpdateRes->info.type == STREAM_INVERT) {
           pInfo->scanMode = STREAM_SCAN_FROM_RES;
-          return upRes;
+          return pInfo->pUpdateRes;
         }
       }
     }
@@ -1050,13 +1049,13 @@ SOperatorInfo* createStreamScanOperatorInfo(void* pDataReader, SReadHandle* pHan
   pInfo->tableUid = pScanPhyNode->uid;
   pInfo->streamBlockReader = pHandle->reader;
   pInfo->pRes = createResDataBlock(pDescNode);
+  pInfo->pUpdateRes = createResDataBlock(pDescNode);
   pInfo->pCondition = pScanPhyNode->node.pConditions;
   pInfo->pDataReader = pDataReader;
   pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
   pInfo->pOperatorDumy = pTableScanDummy;
   pInfo->interval = pSTInfo->interval;
   pInfo->sessionSup = (SessionWindowSupporter){.pStreamAggSup = NULL, .gap = -1};
-
   pOperator->name = "StreamBlockScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN;
   pOperator->blocking = false;
