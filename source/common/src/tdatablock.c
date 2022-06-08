@@ -1131,6 +1131,7 @@ int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, size_t existRows, ui
 
   if (IS_VAR_DATA_TYPE(pColumn->info.type)) {
     char* tmp = taosMemoryRealloc(pColumn->varmeta.offset, sizeof(int32_t) * numOfRows);
+
     if (tmp == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -1156,6 +1157,7 @@ int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, size_t existRows, ui
     if (tmp == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
+    memset(tmp + pColumn->info.bytes * existRows, 0, pColumn->info.bytes * (numOfRows - existRows));
 
     pColumn->pData = tmp;
   }
@@ -1214,7 +1216,7 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData) {
 
   pBlock->info.numOfCols = numOfCols;
   pBlock->info.hasVarCol = pDataBlock->info.hasVarCol;
-  pBlock->info.rowSize = pDataBlock->info.rows;
+  pBlock->info.rowSize = pDataBlock->info.rowSize;
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData  colInfo = {0};
@@ -1500,7 +1502,7 @@ void blockDebugShowData(const SArray* dataBlocks, const char* flag) {
       for (int32_t k = 0; k < colNum; k++) {
         SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, k);
         void*            var = POINTER_SHIFT(pColInfoData->pData, j * pColInfoData->info.bytes);
-        if (pColInfoData->hasNull) {
+        if (colDataIsNull(pColInfoData, rows, j, NULL)) {
           printf(" %15s |", "NULL");
           continue;
         }
