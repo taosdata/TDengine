@@ -1986,8 +1986,12 @@ static int8_t getApercentileAlgo(char *algoStr) {
 }
 
 static void buildHistogramInfo(SAPercentileInfo* pInfo) {
-  pInfo->pHisto = (SHistogramInfo*) ((char*) pInfo + sizeof(SAPercentileInfo));
+  pInfo->pHisto = (SHistogramInfo*) ((char*)pInfo + sizeof(SAPercentileInfo));
   pInfo->pHisto->elems = (SHistBin*) ((char*)pInfo->pHisto + sizeof(SHistogramInfo));
+}
+
+static void buildTDigestInfo(SAPercentileInfo* pInfo) {
+  pInfo->pTDigest = (TDigest*)((char*)pInfo + sizeof(SAPercentileInfo));
 }
 
 bool apercentileFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
@@ -2090,6 +2094,22 @@ int32_t apercentileFunctionMerge(SqlFunctionCtx* pCtx) {
   pInfo->percent = pInputInfo->percent;
   pInfo->algo = pInputInfo->algo;
   if (pInfo->algo == APERCT_ALGO_TDIGEST) {
+    buildTDigestInfo(pInputInfo);
+    tdigestAutoFill(pInputInfo->pTDigest, COMPRESSION);
+
+    if(pInputInfo->pTDigest->num_centroids == 0 && pInputInfo->pTDigest->num_buffered_pts == 0) {
+      return TSDB_CODE_SUCCESS;
+    }
+
+    buildTDigestInfo(pInfo);
+    TDigest *pTDigest = pInfo->pTDigest;
+
+    if(pTDigest->num_centroids <= 0) {
+      memcpy(pTDigest, pInputInfo->pTDigest, (size_t)TDIGEST_SIZE(COMPRESSION));
+      tdigestAutoFill(pTDigest, COMPRESSION);
+    } else {
+      tdigestMerge(pTDigest, pInputInfo->pTDigest);
+    }
   } else {
     buildHistogramInfo(pInputInfo);
     if (pInputInfo->pHisto->numOfElems <= 0) {
