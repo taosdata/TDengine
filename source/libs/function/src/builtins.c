@@ -1394,6 +1394,26 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = histogramFinalize
   },
   {
+    .name = "_histogram_partial",
+    .type = FUNCTION_TYPE_HISTOGRAM_PARTIAL,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateHistogram,
+    .getEnvFunc   = getHistogramFuncEnv,
+    .initFunc     = histogramFunctionSetup,
+    .processFunc  = histogramFunction,
+    .finalizeFunc = histogramFinalize
+  },
+  {
+    .name = "_histogram_merge",
+    .type = FUNCTION_TYPE_HISTOGRAM_MERGE,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateHistogram,
+    .getEnvFunc   = getHistogramFuncEnv,
+    .initFunc     = histogramFunctionSetup,
+    .processFunc  = histogramFunction,
+    .finalizeFunc = histogramFinalize
+  },
+  {
     .name = "hyperloglog",
     .type = FUNCTION_TYPE_HYPERLOGLOG,
     .classification = FUNC_MGT_AGG_FUNC,
