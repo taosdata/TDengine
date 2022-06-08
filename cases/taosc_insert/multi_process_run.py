@@ -158,6 +158,7 @@ class TestMultiProcessRun(TDCase):
         self.process_count_check()
         self._remote.cmd(self.fqdn, [f'ps -ef | grep taosd | grep -v grep | awk \'{{print $2}}\' | xargs kill -9 2&>1'])
         self.process_count_check(0)
+        self.taosd.update_cfg('/tmp', self.taosd_setting, {"multiProcess": 0}, self.endpoint, True)
 
     def run(self):
         self.check_default_shmsize()
