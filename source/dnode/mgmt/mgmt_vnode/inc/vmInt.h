@@ -52,10 +52,9 @@ typedef struct {
 
 typedef struct {
   int32_t     vgId;
-  int32_t     refCount;
   int32_t     vgVersion;
+  int32_t     refCount;
   int8_t      dropped;
-  int8_t      accessState;
   char       *path;
   SVnode     *pImpl;
   STaosQueue *pWriteQ;
