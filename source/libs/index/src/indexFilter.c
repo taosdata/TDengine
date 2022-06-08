@@ -173,10 +173,8 @@ static int32_t sifInitJsonParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
   param->colId = l->colId;
   param->colValType = l->node.resType.type;
   memcpy(param->dbName, l->dbName, sizeof(l->dbName));
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wformat-overflow"
-  sprintf(param->colName, "%s_%s", l->colName, r->literal);
-#pragma GCC diagnostic pop
+  memcpy(param->colName, r->literal, strlen(r->literal));
+  // sprintf(param->colName, "%s_%s", l->colName, r->literal);
   param->colValType = r->typeData;
   return 0;
   // memcpy(param->colName, l->colName, sizeof(l->colName));
@@ -188,6 +186,9 @@ static int32_t sifInitParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
       SIF_ERR_RET(sifGetValueFromNode(node, &param->condValue));
       param->colId = -1;
       param->colValType = (uint8_t)(vn->node.resType.type);
+      if (vn->literal == NULL || strlen(vn->literal) == 0) {
+        return TSDB_CODE_QRY_INVALID_INPUT;
+      }
       memcpy(param->colName, vn->literal, strlen(vn->literal));
       break;
     }
@@ -340,9 +341,9 @@ static Filter sifGetFilterFunc(EIndexQueryType type, bool *reverse) {
   return NULL;
 }
 static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFParam *output) {
-  SIndexMetaArg *arg = &output->arg;
-  int            ret = 0;
+  int ret = 0;
 
+  SIndexMetaArg * arg = &output->arg;
   EIndexQueryType qtype = 0;
   SIF_ERR_RET(sifGetFuncFromSql(operType, &qtype));
   if (left->colValType == TSDB_DATA_TYPE_JSON) {
@@ -506,7 +507,6 @@ static int32_t sifExecOper(SOperatorNode *node, SIFCtx *ctx, SIFParam *output) {
   if (nParam <= 1) {
     output->status = SFLT_NOT_INDEX;
     return code;
-    // SIF_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
   if (node->opType == OP_TYPE_JSON_GET_VALUE) {
     return code;
