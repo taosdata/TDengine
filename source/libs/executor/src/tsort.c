@@ -359,6 +359,11 @@ int32_t msortComparFn(const void *pLeft, const void *pRight, void *param) {
   SSDataBlock* pLeftBlock = pLeftSource->src.pBlock;
   SSDataBlock* pRightBlock = pRightSource->src.pBlock;
 
+  // first sort by block groupId
+  if (pLeftBlock->info.groupId != pRightBlock->info.groupId) {
+    return pLeftBlock->info.groupId < pRightBlock->info.groupId ? -1 : 1;
+  }
+
   for(int32_t i = 0; i < pInfo->size; ++i) {
     SBlockOrderInfo* pOrder = TARRAY_GET_ELEM(pInfo, i);
     SColumnInfoData* pLeftColInfoData = TARRAY_GET_ELEM(pLeftBlock->pDataBlock, pOrder->slotId);
