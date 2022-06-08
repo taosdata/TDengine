@@ -102,6 +102,7 @@ int32_t topFunction(SqlFunctionCtx *pCtx);
 int32_t bottomFunction(SqlFunctionCtx *pCtx);
 int32_t topBotFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
+int32_t getSpreadInfoSize();
 bool getSpreadFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool spreadFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t spreadFunction(SqlFunctionCtx* pCtx);
