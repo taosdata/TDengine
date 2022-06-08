@@ -1039,10 +1039,10 @@ char* syncNode2SimpleStr(const SSyncNode* pSyncNode) {
            "syncNode2SimpleStr vgId:%d currentTerm:%lu, commitIndex:%ld, state:%d %s, isStandBy:%d, "
            "electTimerLogicClock:%lu, "
            "electTimerLogicClockUser:%lu, "
-           "electTimerMS:%d",
+           "electTimerMS:%d, replicaNum:%d",
            pSyncNode->vgId, pSyncNode->pRaftStore->currentTerm, pSyncNode->commitIndex, pSyncNode->state,
            syncUtilState2String(pSyncNode->state), pSyncNode->pRaftCfg->isStandBy, pSyncNode->electTimerLogicClock,
-           pSyncNode->electTimerLogicClockUser, pSyncNode->electTimerMS);
+           pSyncNode->electTimerLogicClockUser, pSyncNode->electTimerMS, pSyncNode->replicaNum);
   return s;
 }
 

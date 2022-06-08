@@ -15,6 +15,7 @@
 
 #include "syncRequestVote.h"
 #include "syncInt.h"
+#include "syncRaftCfg.h"
 #include "syncRaftStore.h"
 #include "syncUtil.h"
 #include "syncVoteMgr.h"
@@ -104,7 +105,7 @@ int32_t syncNodeOnRequestVoteSnapshotCb(SSyncNode* ths, SyncRequestVote* pMsg) {
   syncRequestVoteLog2(logBuf, pMsg);
 
   // if already drop replica, do not process
-  if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
+  if (!syncNodeInRaftGroup(ths, &(pMsg->srcId)) && !ths->pRaftCfg->isStandBy) {
     sInfo("recv SyncRequestVote maybe replica already dropped");
     return ret;
   }

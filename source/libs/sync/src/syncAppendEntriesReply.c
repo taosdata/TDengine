@@ -17,6 +17,7 @@
 #include "syncCommit.h"
 #include "syncIndexMgr.h"
 #include "syncInt.h"
+#include "syncRaftCfg.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
 #include "syncSnapshot.h"
@@ -106,7 +107,7 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
   syncAppendEntriesReplyLog2(logBuf, pMsg);
 
   // if already drop replica, do not process
-  if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
+  if (!syncNodeInRaftGroup(ths, &(pMsg->srcId)) && !ths->pRaftCfg->isStandBy) {
     sInfo("recv SyncAppendEntriesReply,  maybe replica already dropped");
     return ret;
   }

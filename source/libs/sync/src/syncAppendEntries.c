@@ -534,14 +534,11 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
            ths->pRaftStore->currentTerm);
   syncAppendEntriesLog2(logBuf, pMsg);
 
-  // if I am standby, to be added into a raft group, I should process SyncAppendEntries msg
-  /*
-    // if already drop replica, do not process
-    if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
-      sInfo("recv SyncAppendEntries maybe replica already dropped");
-      return ret;
-    }
-  */
+  // if already drop replica, do not process
+  if (!syncNodeInRaftGroup(ths, &(pMsg->srcId)) && !ths->pRaftCfg->isStandBy) {
+    sInfo("recv SyncAppendEntries maybe replica already dropped");
+    return ret;
+  }
 
   // maybe update term
   if (pMsg->term > ths->pRaftStore->currentTerm) {
