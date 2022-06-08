@@ -2559,37 +2559,7 @@ int32_t setDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadIn
       }
     }
 
-    blockDataEnsureCapacity(pBlock, numOfRows);
-
-    int32_t  dataLen = *(int32_t*)pStart;
-    uint64_t groupId = *(uint64_t*)(pStart + sizeof(int32_t));
-    pStart += sizeof(int32_t) + sizeof(uint64_t);
-
-    int32_t* colLen = (int32_t*)(pStart);
-    pStart += sizeof(int32_t) * numOfCols;
-
-    for (int32_t i = 0; i < numOfCols; ++i) {
-      colLen[i] = htonl(colLen[i]);
-      ASSERT(colLen[i] >= 0);
-
-      SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
-      if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-        pColInfoData->varmeta.length = colLen[i];
-        pColInfoData->varmeta.allocLen = colLen[i];
-
-        memcpy(pColInfoData->varmeta.offset, pStart, sizeof(int32_t) * numOfRows);
-        pStart += sizeof(int32_t) * numOfRows;
-
-        pColInfoData->pData = taosMemoryMalloc(colLen[i]);
-      } else {
-        memcpy(pColInfoData->nullbitmap, pStart, BitmapLen(numOfRows));
-        pStart += BitmapLen(numOfRows);
-      }
-
-      memcpy(pColInfoData->pData, pStart, colLen[i]);
-      pStart += colLen[i];
-    }
-
+    blockCompressDecode(pBlock, numOfCols, numOfRows, pStart);
     // data from mnode
     relocateColumnData(pRes, pColList, pBlock->pDataBlock);
     taosArrayDestroy(pBlock->pDataBlock);
