@@ -25,6 +25,7 @@ SyncSnapshotRsp *createMsg() {
   pMsg->lastIndex = 22;
   pMsg->lastTerm = 33;
   pMsg->ack = 44;
+  pMsg->code = 55;
   return pMsg;
 }
 

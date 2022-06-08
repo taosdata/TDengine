@@ -1991,6 +1991,7 @@ cJSON* syncSnapshotRsp2Json(const SyncSnapshotRsp* pMsg) {
     cJSON_AddStringToObject(pRoot, "lastTerm", u64buf);
 
     cJSON_AddNumberToObject(pRoot, "ack", pMsg->ack);
+    cJSON_AddNumberToObject(pRoot, "code", pMsg->code);
   }
 
   cJSON* pJson = cJSON_CreateObject();

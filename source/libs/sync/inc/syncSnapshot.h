@@ -48,7 +48,7 @@ typedef struct SSyncSnapshotSender {
   int32_t    replicaIndex;
   SyncTerm   term;
   SyncTerm   privateTerm;
-  bool       apply;
+  bool       finish;
 } SSyncSnapshotSender;
 
 SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaIndex);
@@ -75,9 +75,9 @@ typedef struct SSyncSnapshotReceiver {
 
 SSyncSnapshotReceiver *snapshotReceiverCreate(SSyncNode *pSyncNode, int32_t replicaIndex);
 void                   snapshotReceiverDestroy(SSyncSnapshotReceiver *pReceiver);
-void                   snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver);
+void                   snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver, SyncTerm privateTerm);
 bool                   snapshotReceiverIsStart(SSyncSnapshotReceiver *pReceiver);
-void                   snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver);
+void                   snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver, bool apply);
 cJSON                 *snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver);
 char                  *snapshotReceiver2Str(SSyncSnapshotReceiver *pReceiver);
 

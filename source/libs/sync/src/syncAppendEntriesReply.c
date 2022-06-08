@@ -101,7 +101,8 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
 
   // print log
   char logBuf[128] = {0};
-  snprintf(logBuf, sizeof(logBuf), "recv SyncAppendEntriesReply, term:%lu", ths->pRaftStore->currentTerm);
+  snprintf(logBuf, sizeof(logBuf), "recv SyncAppendEntriesReply, vgId:%d, term:%lu", ths->vgId,
+           ths->pRaftStore->currentTerm);
   syncAppendEntriesReplyLog2(logBuf, pMsg);
 
   // if already drop replica, do not process
@@ -145,7 +146,7 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
   if (pMsg->success) {
     // nextIndex'  = [nextIndex  EXCEPT ![i][j] = m.mmatchIndex + 1]
     syncIndexMgrSetIndex(ths->pNextIndex, &(pMsg->srcId), pMsg->matchIndex + 1);
-    sTrace("update next index:%ld, success:%d", pMsg->matchIndex + 1, pMsg->success);
+    sTrace("update next match, index:%ld, success:%d", pMsg->matchIndex + 1, pMsg->success);
 
     // matchIndex' = [matchIndex EXCEPT ![i][j] = m.mmatchIndex]
     syncIndexMgrSetIndex(ths->pMatchIndex, &(pMsg->srcId), pMsg->matchIndex);
@@ -157,49 +158,35 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
 
   } else {
     SyncIndex nextIndex = syncIndexMgrGetIndex(ths->pNextIndex, &(pMsg->srcId));
-    sTrace("begin to update next index:%ld, success:%d", nextIndex, pMsg->success);
+    sTrace("update next not match, begin, index:%ld, success:%d", nextIndex, pMsg->success);
 
     // notice! int64, uint64
     if (nextIndex > SYNC_INDEX_BEGIN) {
       --nextIndex;
 
-      // has snapshot
-      if (syncNodeHasSnapshot(ths)) {
-        // get sender
-        SSyncSnapshotSender* pSender = NULL;
-        for (int i = 0; i < ths->replicaNum; ++i) {
-          if (syncUtilSameId(&(pMsg->srcId), &((ths->replicasId)[i]))) {
-            pSender = (ths->senders)[i];
-          }
-        }
-        ASSERT(pSender != NULL);
+      // get sender
+      SSyncSnapshotSender* pSender = syncNodeGetSnapshotSender(ths, &(pMsg->srcId));
+      ASSERT(pSender != NULL);
+      bool      hasSnapshot = syncNodeHasSnapshot(ths);
+      SSnapshot snapshot;
+      ths->pFsm->FpGetSnapshot(ths->pFsm, &snapshot);
 
-        SyncIndex sentryIndex;
-        if (pSender->start && pSender->term == ths->pRaftStore->currentTerm) {
-          // already start
-          sentryIndex = pSender->snapshot.lastApplyIndex;
-          sTrace(
-              "sending snapshot already start: pSender->term:%lu, ths->pRaftStore->currentTerm:%lu, "
-              "pSender->privateTerm:%lu",
-              pSender->term, ths->pRaftStore->currentTerm, pSender->privateTerm);
+      // start sending snapshot first time
+      // start here, stop by receiver
+      if (hasSnapshot && nextIndex <= snapshot.lastApplyIndex + 1 && !snapshotSenderIsStart(pSender) &&
+          pMsg->privateTerm < pSender->privateTerm) {
+        snapshotSenderStart(pSender);
 
-        } else {
-          if (pMsg->privateTerm >= pSender->privateTerm) {
-            // donot start again
-            sentryIndex = pSender->snapshot.lastApplyIndex;
+        char* s = snapshotSender2Str(pSender);
+        sInfo("snapshot send, start sender first time, sender:%s", s);
+        taosMemoryFree(s);
+      }
 
-          } else {
-            // start first time
-            snapshotSenderStart(pSender);
-            pSender->start = true;
-            sentryIndex = pSender->snapshot.lastApplyIndex;
-          }
-        }
+      SyncIndex sentryIndex = pSender->snapshot.lastApplyIndex + 1;
 
-        // update nextIndex to sentryIndex + 1
-        if (nextIndex <= sentryIndex) {
-          nextIndex = sentryIndex + 1;
-        }
+      // update nextIndex to sentryIndex
+      if (nextIndex <= sentryIndex) {
+        nextIndex = sentryIndex;
       }
 
     } else {
@@ -207,7 +194,7 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
     }
 
     syncIndexMgrSetIndex(ths->pNextIndex, &(pMsg->srcId), nextIndex);
-    sTrace("update next index:%ld, success:%d", nextIndex, pMsg->success);
+    sTrace("update next not match, end, index:%ld, success:%d", nextIndex, pMsg->success);
   }
 
   syncIndexMgrLog2("recv SyncAppendEntriesReply, after pNextIndex:", ths->pNextIndex);
