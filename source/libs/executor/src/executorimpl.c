@@ -4387,9 +4387,9 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       if (pDataReader == NULL && terrno != 0) {
         return NULL;
       }
-
+      SArray* groupKyes = extractPartitionColInfo(pTableScanNode->pPartitionKeys);
       extractTableSchemaVersion(pHandle, pTableScanNode->scan.uid, pTaskInfo);
-      SOperatorInfo* pOperator = createTableScanOperatorInfo(pTableScanNode, pDataReader, pHandle, pTaskInfo);
+      SOperatorInfo* pOperator = createTableScanOperatorInfo(pTableScanNode, pDataReader, pHandle, groupKyes, pTaskInfo);
 
       STableScanInfo* pScanInfo = pOperator->info;
       pTaskInfo->cost.pRecoder = &pScanInfo->readRecorder;
