@@ -106,7 +106,9 @@ int32_t getSpreadInfoSize();
 bool getSpreadFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool spreadFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t spreadFunction(SqlFunctionCtx* pCtx);
+int32_t spreadFunctionMerge(SqlFunctionCtx* pCtx);
 int32_t spreadFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+int32_t spreadPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
 bool getElapsedFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool elapsedFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
