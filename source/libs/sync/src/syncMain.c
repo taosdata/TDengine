@@ -214,6 +214,18 @@ bool syncIsRestoreFinish(int64_t rid) {
   return b;
 }
 
+int32_t syncGetSnapshotMeta(int64_t rid, struct SSnapshotMeta* sMeta) {
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    return -1;
+  }
+  assert(rid == pSyncNode->rid);
+  *sMeta = pSyncNode->sMeta;
+
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+  return 0;
+}
+
 const char* syncGetMyRoleStr(int64_t rid) {
   const char* s = syncUtilState2String(syncGetMyRole(rid));
   return s;
@@ -603,6 +615,9 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
   // start in syncNodeStart
   // start raft
   // syncNodeBecomeFollower(pSyncNode);
+
+  // snapshot meta
+  pSyncNode->sMeta.lastConfigIndex = -1;
 
   return pSyncNode;
 }

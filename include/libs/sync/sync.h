@@ -94,6 +94,10 @@ typedef struct SSnapshot {
   SyncIndex lastConfigIndex;
 } SSnapshot;
 
+typedef struct SSnapshotMeta {
+  SyncIndex lastConfigIndex;
+} SSnapshotMeta;
+
 typedef struct SSyncFSM {
   void* data;
 
@@ -190,6 +194,8 @@ int32_t     syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak);
 bool        syncEnvIsStart();
 const char* syncStr(ESyncState state);
 bool        syncIsRestoreFinish(int64_t rid);
+
+int32_t syncGetSnapshotMeta(int64_t rid, struct SSnapshotMeta* sMeta);
 
 // to be moved to static
 void syncStartNormal(int64_t rid);
