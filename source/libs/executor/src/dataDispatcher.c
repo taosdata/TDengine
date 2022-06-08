@@ -68,10 +68,10 @@ static bool needCompress(const SSDataBlock* pData, int32_t numOfCols) {
 }
 
 // data format:
-// +----------------+--------------+----------+--------------------------------------+-------------+-----------+-------------+-----------+
-// |SDataCacheEntry | total length | group id | column#1 length, column#2 length ... | col1 bitmap | col1 data | col2 bitmap | col2 data | ....
-// |                |  (4 bytes)   |(8 bytes) | sizeof(int32_t) * numOfCols          | actual size |           | actual size |           |
-// +----------------+--------------+----------+--------------------------------------+-------------+-----------+-------------+-----------+
+// +----------------+--------------+----------+--------------------------------------------+--------------------------------------+-------------+-----------+-------------+-----------+
+// |SDataCacheEntry | total length | group id | col1_schema | col2_schema | col3_schema ...| column#1 length, column#2 length ... | col1 bitmap | col1 data | col2 bitmap | col2 data | ....
+// |                |  (4 bytes)   |(8 bytes) |(sizeof(int16_t)+sizeof(int32_t))*numOfCols | sizeof(int32_t) * numOfCols          | actual size |           | actual size |           |
+// +----------------+--------------+----------+--------------------------------------------+--------------------------------------+-------------+-----------+-------------+-----------+
 // The length of bitmap is decided by number of rows of this data block, and the length of each column data is
 // recorded in the first segment, next to the struct header
 static void toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* pInput, SDataDispatchBuf* pBuf) {
