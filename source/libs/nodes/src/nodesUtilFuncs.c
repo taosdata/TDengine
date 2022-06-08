@@ -255,9 +255,9 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SSystemTableScanPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       return makeNode(type, sizeof(SProjectPhysiNode));
-    case QUERY_NODE_PHYSICAL_PLAN_JOIN:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN:
       return makeNode(type, sizeof(SJoinPhysiNode));
-    case QUERY_NODE_PHYSICAL_PLAN_AGG:
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG:
       return makeNode(type, sizeof(SAggPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE:
       return makeNode(type, sizeof(SExchangePhysiNode));
@@ -277,13 +277,13 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SStreamSemiIntervalPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_FILL:
       return makeNode(type, sizeof(SFillPhysiNode));
-    case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION:
       return makeNode(type, sizeof(SSessionWinodwPhysiNode));
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION_WINDOW:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION:
       return makeNode(type, sizeof(SStreamSessionWinodwPhysiNode));
-    case QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE:
       return makeNode(type, sizeof(SStateWinodwPhysiNode));
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE_WINDOW:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE:
       return makeNode(type, sizeof(SStreamStateWinodwPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       return makeNode(type, sizeof(SPartitionPhysiNode));
@@ -657,14 +657,14 @@ void nodesDestroyNode(SNodeptr pNode) {
       nodesDestroyList(pPhyNode->pProjections);
       break;
     }
-    case QUERY_NODE_PHYSICAL_PLAN_JOIN: {
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN: {
       SJoinPhysiNode* pPhyNode = (SJoinPhysiNode*)pNode;
       destroyPhysiNode((SPhysiNode*)pPhyNode);
       nodesDestroyNode(pPhyNode->pOnConditions);
       nodesDestroyList(pPhyNode->pTargets);
       break;
     }
-    case QUERY_NODE_PHYSICAL_PLAN_AGG: {
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG: {
       SAggPhysiNode* pPhyNode = (SAggPhysiNode*)pNode;
       destroyPhysiNode((SPhysiNode*)pPhyNode);
       nodesDestroyList(pPhyNode->pExprs);
@@ -689,8 +689,8 @@ void nodesDestroyNode(SNodeptr pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
       destroyWinodwPhysiNode((SWinodwPhysiNode*)pNode);
       break;
-    case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION_WINDOW:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION:
       destroyWinodwPhysiNode((SWinodwPhysiNode*)pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:

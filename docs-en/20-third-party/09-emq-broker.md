@@ -16,22 +16,15 @@ The following preparations are required for EMQX to add TDengine data sources co
 
 Depending on the current operating system, users can download the installation package from the [EMQX official website](https://www.emqx.io/downloads) and execute the installation. After installation, use `sudo emqx start` or `sudo systemctl start emqx` to start the EMQX service.
 
-## Create the appropriate database and table schema in TDengine for receiving MQTT data
 
-### Take the Docker installation of TDengine as an example
+## Create Database and Table
 
-```bash
-    docker exec -it tdengine bash
-    taos
-```
-
-### Create Database and Table
+In this step we create the appropriate database and table schema in TDengine for receiving MQTT data. Open TDengine CLI and execute SQL bellow: 
 
 ```sql
-    CREATE DATABASE test;
-    USE test;
-
-    CREATE TABLE sensor_data (ts timestamp, temperature float, humidity float, volume float, PM10 float, pm25 float, SO2 float, NO2 float, CO float, sensor_id NCHAR(255), area TINYINT, coll_time timestamp);
+CREATE DATABASE test;
+USE test;
+CREATE TABLE sensor_data (ts TIMESTAMP, temperature FLOAT, humidity FLOAT, volume FLOAT, pm10 FLOAT, pm25 FLOAT, so2 FLOAT, no2 FLOAT, co FLOAT, sensor_id NCHAR(255), area TINYINT, coll_time TIMESTAMP);
 ```
 
 Note: The table schema is based on the blog [(In Chinese) Data Transfer, Storage, Presentation, EMQX + TDengine Build MQTT IoT Data Visualization Platform](https://www.taosdata.com/blog/2020/08/04/1722.html) as an example. Subsequent operations are carried out with this blog scenario too. Please modify it according to your actual application scenario.
@@ -54,6 +47,15 @@ Select "Rule" in the "Rule Engine" on the left and click the "Create" button: !
 
 ### Edit SQL fields
 
+Copy SQL bellow and paste it to the SQL edit area：
+
+```sql
+SELECT
+  payload
+FROM
+  "sensor/data"
+```
+
 ![TDengine Database EMQX create rule](./emqx/create-rule.webp)
 
 ### Add "action handler"
@@ -68,97 +70,45 @@ Select "Data to Web Service" and click the "New Resource" button.
 
 ### Edit "Resource"
 
-Select "Data to Web Service" and fill in the request URL as the address and port of the server running taosAdapter (default is 6041). Leave the other properties at their default values.
+Select "WebHook" and fill in the request URL as the address and port of the server running taosAdapter (default is 6041). Leave the other properties at their default values.
 
 ![TDengine Database EMQX edit resource](./emqx/edit-resource.webp)
 
 ### Edit "action"
 
-Edit the resource configuration to add the key/value pairing for Authorization. Please refer to the [ TDengine REST API documentation ](https://docs.taosdata.com/reference/rest-api/) for the authorization in details. Enter the rule engine replacement template in the message body.
+Edit the resource configuration to add the key/value pairing for Authorization. If you use the default TDengine username and password then the value of key Authorization is：
+```
+Basic cm9vdDp0YW9zZGF0YQ==
+```
+
+Please refer to the [ TDengine REST API documentation ](/reference/rest-api/) for the authorization in details. 
+ 
+Enter the rule engine replacement template in the message body:
+
+```sql
+INSERT INTO test.sensor_data VALUES(
+  now,
+  ${payload.temperature},
+  ${payload.humidity},
+  ${payload.volume},
+  ${payload.PM10},
+  ${payload.pm25},
+  ${payload.SO2},
+  ${payload.NO2},
+  ${payload.CO},
+  '${payload.id}',
+  ${payload.area},
+  ${payload.ts}
+)
+```
 
 ![TDengine Database EMQX edit action](./emqx/edit-action.webp)
 
+Finally, click the "Create" button at bottom left corner saving the rule.
 ## Compose program to mock data
 
 ```javascript
-    // mock.js
-    const mqtt = require('mqtt')
-    const Mock = require('mockjs')
-    const EMQX_SERVER = 'mqtt://localhost:1883'
-    const CLIENT_NUM = 10
-    const STEP = 5000 // Data interval in ms
-    const AWAIT = 5000 // Sleep time after data be written once to avoid data writing too fast
-    const CLIENT_POOL = []
-    startMock()
-    function sleep(timer = 100) {
-      return new Promise(resolve => {
-        setTimeout(resolve, timer)
-      })
-    }
-    async function startMock() {
-      const now = Date.now()
-      for (let i = 0; i < CLIENT_NUM; i++) {
-        const client = await createClient(`mock_client_${i}`)
-        CLIENT_POOL.push(client)
-      }
-      // last 24h every 5s
-      const last = 24 * 3600 * 1000
-      for (let ts = now - last; ts <= now; ts += STEP) {
-        for (const client of CLIENT_POOL) {
-          const mockData = generateMockData()
-          const data = {
-            ...mockData,
-            id: client.clientId,
-            area: 0,
-            ts,
-          }
-          client.publish('sensor/data', JSON.stringify(data))
-        }
-        const dateStr = new Date(ts).toLocaleTimeString()
-        console.log(`${dateStr} send success.`)
-        await sleep(AWAIT)
-      }
-      console.log(`Done, use ${(Date.now() - now) / 1000}s`)
-    }
-    /**
-     * Init a virtual mqtt client
-     * @param {string} clientId ClientID
-     */
-    function createClient(clientId) {
-      return new Promise((resolve, reject) => {
-        const client = mqtt.connect(EMQX_SERVER, {
-          clientId,
-        })
-        client.on('connect', () => {
-          console.log(`client ${clientId} connected`)
-          resolve(client)
-        })
-        client.on('reconnect', () => {
-          console.log('reconnect')
-        })
-        client.on('error', (e) => {
-          console.error(e)
-          reject(e)
-        })
-      })
-    }
-    /**
-    * Generate mock data
-    */
-    function generateMockData() {
-     return {
-       "temperature": parseFloat(Mock.Random.float(22, 100).toFixed(2)),
-       "humidity": parseFloat(Mock.Random.float(12, 86).toFixed(2)),
-       "volume": parseFloat(Mock.Random.float(20, 200).toFixed(2)),
-       "PM10": parseFloat(Mock.Random.float(0, 300).toFixed(2)),
-       "pm25": parseFloat(Mock.Random.float(0, 300).toFixed(2)),
-       "SO2": parseFloat(Mock.Random.float(0, 50).toFixed(2)),
-       "NO2": parseFloat(Mock.Random.float(0, 50).toFixed(2)),
-       "CO": parseFloat(Mock.Random.float(0, 50).toFixed(2)),
-       "area": Mock.Random.integer(0, 20),
-       "ts": 1596157444170,
-     }
-    }
+{{#include docs-examples/other/mock.js}}
 ```
 
 Note: `CLIENT_NUM` in the code can be set to a smaller value at the beginning of the test to avoid hardware performance be not capable to handle a more significant number of concurrent clients.
