@@ -56,6 +56,8 @@ static int32_t raftLogSetBeginIndex(struct SSyncLogStore* pLogStore, SyncIndex b
   return 0;
 }
 
+int32_t raftLogResetBeginIndex(struct SSyncLogStore* pLogStore) { return 0; }
+
 static SyncIndex raftLogBeginIndex(struct SSyncLogStore* pLogStore) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;

@@ -144,6 +144,7 @@ typedef struct SSyncLogStore {
 
   // refactor, log[0 .. n] ==> log[m .. n]
   int32_t (*syncLogSetBeginIndex)(struct SSyncLogStore* pLogStore, SyncIndex beginIndex);
+  int32_t (*syncLogResetBeginIndex)(struct SSyncLogStore* pLogStore);
   SyncIndex (*syncLogBeginIndex)(struct SSyncLogStore* pLogStore);
   SyncIndex (*syncLogEndIndex)(struct SSyncLogStore* pLogStore);
   bool (*syncLogIsEmpty)(struct SSyncLogStore* pLogStore);

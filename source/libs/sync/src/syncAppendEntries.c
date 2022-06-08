@@ -469,6 +469,8 @@ static int32_t syncNodeMakeLogSame(SSyncNode* ths, SyncAppendEntries* pMsg) {
   // delete confict entries
   code = ths->pLogStore->syncLogTruncate(ths->pLogStore, delBegin);
   ASSERT(code == 0);
+  sInfo("syncNodeMakeLogSame, from %ld to %ld", delBegin, delEnd);
+  logStoreSimpleLog2("after syncNodeMakeLogSame", ths->pLogStore);
 
   return code;
 }
@@ -495,19 +497,30 @@ static int32_t syncNodePreCommit(SSyncNode* ths, SSyncRaftEntry* pEntry) {
 // prevLogIndex == -1
 static bool syncNodeOnAppendEntriesLogOK(SSyncNode* pSyncNode, SyncAppendEntries* pMsg) {
   if (pMsg->prevLogIndex == SYNC_INDEX_INVALID) {
+    sTrace("syncNodeOnAppendEntriesLogOK true, pMsg->prevLogIndex:%ld", pMsg->prevLogIndex);
     return true;
   }
 
   SyncIndex myLastIndex = syncNodeGetLastIndex(pSyncNode);
   if (pMsg->prevLogIndex > myLastIndex) {
+    sTrace("syncNodeOnAppendEntriesLogOK false, pMsg->prevLogIndex:%ld, myLastIndex:%ld", pMsg->prevLogIndex,
+           myLastIndex);
     return false;
   }
 
   SyncTerm myPreLogTerm = syncNodeGetPreTerm(pSyncNode, pMsg->prevLogIndex + 1);
   if (pMsg->prevLogIndex <= myLastIndex && pMsg->prevLogTerm == myPreLogTerm) {
+    sTrace(
+        "syncNodeOnAppendEntriesLogOK true, pMsg->prevLogIndex:%ld, myLastIndex:%ld, pMsg->prevLogTerm:%lu, "
+        "myPreLogTerm:%lu",
+        pMsg->prevLogIndex, myLastIndex, pMsg->prevLogTerm, myPreLogTerm);
     return true;
   }
 
+  sTrace(
+      "syncNodeOnAppendEntriesLogOK false, pMsg->prevLogIndex:%ld, myLastIndex:%ld, pMsg->prevLogTerm:%lu, "
+      "myPreLogTerm:%lu",
+      pMsg->prevLogIndex, myLastIndex, pMsg->prevLogTerm, myPreLogTerm);
   return false;
 }
 
@@ -517,7 +530,8 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
 
   // print log
   char logBuf[128] = {0};
-  snprintf(logBuf, sizeof(logBuf), "recv SyncAppendEntries, term:%lu", ths->pRaftStore->currentTerm);
+  snprintf(logBuf, sizeof(logBuf), "recv SyncAppendEntries, vgId:%d, term:%lu", ths->vgId,
+           ths->pRaftStore->currentTerm);
   syncAppendEntriesLog2(logBuf, pMsg);
 
   // if I am standby, to be added into a raft group, I should process SyncAppendEntries msg
@@ -551,6 +565,8 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
   do {
     bool condition = pMsg->term == ths->pRaftStore->currentTerm && ths->state == TAOS_SYNC_STATE_CANDIDATE;
     if (condition) {
+      sTrace("recv SyncAppendEntries, candidate to follower");
+
       syncNodeBecomeFollower(ths);
       // do not reply?
       return ret;
@@ -586,6 +602,12 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
     bool condition = condition1 || condition2 || condition3;
 
     if (condition) {
+      sTrace(
+          "recv SyncAppendEntries, fake match, myLastIndex:%ld, syncLogBeginIndex:%ld, syncLogEndIndex:%ld, "
+          "condition1:%d, condition2:%d, condition3:%d",
+          myLastIndex, ths->pLogStore->syncLogBeginIndex(ths->pLogStore),
+          ths->pLogStore->syncLogEndIndex(ths->pLogStore), condition1, condition2, condition3);
+
       // prepare response msg
       SyncAppendEntriesReply* pReply = syncAppendEntriesReplyBuild(ths->vgId);
       pReply->srcId = ths->myRaftId;
@@ -623,6 +645,12 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
     bool condition = condition1 || condition2;
 
     if (condition) {
+      sTrace(
+          "recv SyncAppendEntries, not match, syncLogBeginIndex:%ld, syncLogEndIndex:%ld, condition1:%d, "
+          "condition2:%d, logOK:%d",
+          ths->pLogStore->syncLogBeginIndex(ths->pLogStore), ths->pLogStore->syncLogEndIndex(ths->pLogStore),
+          condition1, condition2, logOK);
+
       // prepare response msg
       SyncAppendEntriesReply* pReply = syncAppendEntriesReplyBuild(ths->vgId);
       pReply->srcId = ths->myRaftId;
@@ -659,6 +687,9 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
 
       // has entries in SyncAppendEntries msg
       bool hasAppendEntries = pMsg->dataLen > 0;
+
+      sTrace("recv SyncAppendEntries, match, myLastIndex:%ld, hasExtraEntries:%d, hasAppendEntries:%d", myLastIndex,
+             hasExtraEntries, hasAppendEntries);
 
       if (hasExtraEntries) {
         // make log same, rollback deleted entries
