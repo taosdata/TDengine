@@ -470,8 +470,8 @@ class TDTestCase:
         tdSql.checkData(10, 1, '"femail"')
 
         # test having
-        tdSql.query("select count(*),jtag->'tag1' from jsons1 group by jtag->'tag1' having count(*) > 1")
-        tdSql.checkRows(3)
+        #tdSql.query("select count(*),jtag->'tag1' from jsons1 group by jtag->'tag1' having count(*) > 1")
+        #tdSql.checkRows(3)
 
         # subquery with json tag
         tdSql.query("select * from (select jtag, dataint from jsons1) order by dataint")
