@@ -1790,7 +1790,7 @@ SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SExprInf
 
   pInfo->tsSlotId = tsSlotId;
   pOperator->name = "StateWindowOperator";
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW;
+  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE;
   pOperator->blocking = true;
   pOperator->status = OP_NOT_OPENED;
   pOperator->pExpr = pExpr;
@@ -1842,7 +1842,7 @@ SOperatorInfo* createSessionAggOperatorInfo(SOperatorInfo* downstream, SExprInfo
   pInfo->winSup.prevTs = INT64_MIN;
   pInfo->reptScan = false;
   pOperator->name = "SessionWindowAggOperator";
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW;
+  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION;
   pOperator->blocking = true;
   pOperator->status = OP_NOT_OPENED;
   pOperator->pExpr = pExprInfo;
@@ -2270,7 +2270,7 @@ SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SEx
   pInfo->pChildren = NULL;
 
   pOperator->name = "StreamSessionWindowAggOperator";
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION_WINDOW;
+  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION;
   pOperator->blocking = true;
   pOperator->status = OP_NOT_OPENED;
   pOperator->pExpr = pExprInfo;
@@ -2757,7 +2757,7 @@ SOperatorInfo* createStreamFinalSessionAggOperatorInfo(SOperatorInfo* downstream
     goto _error;
   }
   pOperator->name = "StreamFinalSessionWindowAggOperator";
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION_WINDOW;
+  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION;
   int32_t numOfChild = 1;  // Todo(liuyao) get it from phy plan
   pInfo = pOperator->info;
   pInfo->pChildren = taosArrayInit(8, sizeof(void*));
@@ -3148,7 +3148,7 @@ SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhys
   pInfo->pChildren = NULL;
 
   pOperator->name = "StreamStateAggOperator";
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE_WINDOW;
+  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE;
   pOperator->blocking = true;
   pOperator->status = OP_NOT_OPENED;
   pOperator->numOfExprs = numOfCols;
