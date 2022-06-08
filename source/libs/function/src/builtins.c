@@ -1293,7 +1293,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getPercentileFuncEnv,
     .initFunc     = percentileFunctionSetup,
     .processFunc  = percentileFunction,
-    .finalizeFunc = percentileFinalize
+    .finalizeFunc = percentileFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = NULL,
   },
   {
     .name = "apercentile",
@@ -1304,6 +1306,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = apercentileFunctionSetup,
     .processFunc  = apercentileFunction,
     .finalizeFunc = apercentileFinalize,
+    .combineFunc  = apercentileCombine,
     .pPartialFunc = "_apercentile_partial",
     .pMergeFunc   = "_apercentile_merge"
   },

@@ -2215,6 +2215,26 @@ int32_t apercentilePartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   return pResInfo->numOfRes;
 }
 
+int32_t apercentileCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
+  SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
+  SAPercentileInfo*    pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
+  int32_t type = pDestCtx->input.pData[0]->info.type;
+
+  SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
+  SAPercentileInfo*    pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
+  ASSERT(pDBuf->algo == pSBuf->algo);
+  if (pDBuf->algo == APERCT_ALGO_TDIGEST) {
+    tdigestMerge(pDBuf->pTDigest, pSBuf->pTDigest);
+  } else {
+    SHistogramInfo* pTmp = tHistogramMerge(pDBuf->pHisto, pSBuf->pHisto, MAX_HISTOGRAM_BIN);
+    memcpy(pDBuf->pHisto, pTmp, sizeof(SHistogramInfo) + sizeof(SHistBin) * (MAX_HISTOGRAM_BIN + 1));
+    pDBuf->pHisto->elems = (SHistBin*) ((char *)pDBuf->pHisto + sizeof(SHistogramInfo));
+    tHistogramDestroy(&pTmp);
+  }
+  pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
+  return TSDB_CODE_SUCCESS;
+}
+
 bool getFirstLastFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   SColumnNode* pNode = nodesListGetNode(pFunc->pParameterList, 0);
   pEnv->calcMemSize = pNode->node.resType.bytes + sizeof(int64_t);

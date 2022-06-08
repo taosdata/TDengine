@@ -84,6 +84,7 @@ int32_t apercentileFunction(SqlFunctionCtx *pCtx);
 int32_t apercentileFunctionMerge(SqlFunctionCtx* pCtx);
 int32_t apercentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t apercentilePartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+int32_t apercentileCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 int32_t getApercentileMaxSize();
 
 bool getDiffFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
