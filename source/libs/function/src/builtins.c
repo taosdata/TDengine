@@ -317,7 +317,6 @@ static int32_t translateApercentileMerge(SFunctionNode* pFunc, char* pErrBuf, in
   return translateApercentileImpl(pFunc, pErrBuf, len, false);
 }
 
-
 static int32_t translateTbnameColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // pseudo column do not need to check parameters
   pFunc->node.resType =
@@ -376,6 +375,34 @@ static int32_t translateSpread(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
 
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateSpreadImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isPartial) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  if (isPartial) {
+    if (!IS_NUMERIC_TYPE(paraType) && TSDB_DATA_TYPE_TIMESTAMP != paraType) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+    pFunc->node.resType = (SDataType){.bytes = getSpreadInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  } else {
+    if (TSDB_DATA_TYPE_BINARY != paraType) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+    pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateSpreadPartial(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateSpreadImpl(pFunc, pErrBuf, len, true);
+}
+static int32_t translateSpreadMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateSpreadImpl(pFunc, pErrBuf, len, false);
 }
 
 static int32_t translateElapsed(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
@@ -1277,6 +1304,30 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getSpreadFuncEnv,
     .initFunc     = spreadFunctionSetup,
     .processFunc  = spreadFunction,
+    .finalizeFunc = spreadFinalize,
+    .pPartialFunc = "_spread_partial",
+    .pMergeFunc   = "_spread_merge"
+  },
+  {
+    .name = "_spread_partial",
+    .type = FUNCTION_TYPE_SPREAD_PARTIAL,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateSpreadPartial,
+    .dataRequiredFunc = statisDataRequired,
+    .getEnvFunc   = getSpreadFuncEnv,
+    .initFunc     = spreadFunctionSetup,
+    .processFunc  = spreadFunction,
+    .finalizeFunc = spreadPartialFinalize
+  },
+  {
+    .name = "_spread_merge",
+    .type = FUNCTION_TYPE_SPREAD_MERGE,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateSpreadMerge,
+    .dataRequiredFunc = statisDataRequired,
+    .getEnvFunc   = getSpreadFuncEnv,
+    .initFunc     = spreadFunctionSetup,
+    .processFunc  = spreadFunctionMerge,
     .finalizeFunc = spreadFinalize
   },
   {
