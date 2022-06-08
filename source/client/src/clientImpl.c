@@ -580,7 +580,8 @@ void schedulerExecCb(SQueryResult* pResult, void* param, int32_t code) {
 
   STscObj* pTscObj = pRequest->pTscObj;
   if (code != TSDB_CODE_SUCCESS && NEED_CLIENT_HANDLE_ERROR(code)) {
-    tscDebug("0x%"PRIx64" client retry to handle the error, code:%s, reqId:0x%"PRIx64, pRequest->self, tstrerror(code), pRequest->requestId);
+    tscDebug("0x%"PRIx64" client retry to handle the error, code:%d - %s, tryCount:%d, reqId:0x%"PRIx64, pRequest->self, code, tstrerror(code),
+        pRequest->retry, pRequest->requestId);
     pRequest->prevCode = code;
     doAsyncQuery(pRequest, true);
     return;
@@ -592,6 +593,7 @@ void schedulerExecCb(SQueryResult* pResult, void* param, int32_t code) {
     pRequest->code = code;
   }
 
+  tscDebug("schedulerExecCb request type %s", TMSG_INFO(pRequest->type));
   if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type)) {
     removeMeta(pTscObj, pRequest->tableList);
   }
@@ -695,6 +697,8 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery) {
       if (TSDB_CODE_SUCCESS == code) {
         schedulerAsyncExecJob(pAppInfo->pTransporter, pNodeList, pRequest->body.pDag, &pRequest->body.queryJob,
                               pRequest->sqlstr, pRequest->metric.start, schedulerExecCb, pRequest);
+      } else {
+        pRequest->body.queryFp(pRequest->body.param, pRequest, code);
       }
 
       //todo not to be released here
@@ -702,7 +706,8 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery) {
       break;
     }
     case QUERY_EXEC_MODE_EMPTY_RESULT:
-      pRequest->type = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
+      pRequest->type = TSDB_SQL_RETRIEVE_EMPTY_RESULT;      
+      pRequest->body.queryFp(pRequest->body.param, pRequest, 0);
       break;
     default:
       break;
