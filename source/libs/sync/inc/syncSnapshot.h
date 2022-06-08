@@ -76,6 +76,7 @@ typedef struct SSyncSnapshotReceiver {
 SSyncSnapshotReceiver *snapshotReceiverCreate(SSyncNode *pSyncNode, int32_t replicaIndex);
 void                   snapshotReceiverDestroy(SSyncSnapshotReceiver *pReceiver);
 void                   snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver);
+bool                   snapshotReceiverIsStart(SSyncSnapshotReceiver *pReceiver);
 void                   snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver);
 cJSON                 *snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver);
 char                  *snapshotReceiver2Str(SSyncSnapshotReceiver *pReceiver);

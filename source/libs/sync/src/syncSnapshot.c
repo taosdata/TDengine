@@ -346,6 +346,8 @@ void snapshotReceiverDestroy(SSyncSnapshotReceiver *pReceiver) {
   }
 }
 
+bool snapshotReceiverIsStart(SSyncSnapshotReceiver *pReceiver) { return pReceiver->start; }
+
 // begin receive snapshot msg (current term, seq begin)
 static void snapshotReceiverDoStart(SSyncSnapshotReceiver *pReceiver) {
   pReceiver->term = pReceiver->pSyncNode->pRaftStore->currentTerm;
@@ -359,7 +361,7 @@ static void snapshotReceiverDoStart(SSyncSnapshotReceiver *pReceiver) {
 // if receiver receive msg from seq = SYNC_SNAPSHOT_SEQ_BEGIN, start receiver
 // if already start, force close, start again
 void snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver) {
-  if (!(pReceiver->start)) {
+  if (!snapshotReceiverIsStart(pReceiver)) {
     // start
     snapshotReceiverDoStart(pReceiver);
     pReceiver->start = true;
