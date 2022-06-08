@@ -7,7 +7,7 @@ TDengine can be quickly integrated with the open-source data visualization syste
 
 You can learn more about using the TDengine plugin on [GitHub](https://github.com/taosdata/grafanaplugin/blob/master/README.md).
 
-## Installing Grafana
+## Install Grafana
 
 TDengine currently supports Grafana versions 7.5 and above. Users can go to the Grafana official website to download the installation package and execute the installation according to the current operating system. The download address is as follows: <https://grafana.com/grafana/download>.
 
@@ -21,7 +21,7 @@ Run below script from Linux terminal to install TDengine data source plugin.
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/taosdata/grafanaplugin/master/install.sh)"
 ```
 
-Please restart Grafana after installing plugins. Refer to Grafana documentation for instructions if necessary.
+Please restart Grafana after install plugins. Refer to Grafana documentation for instructions if necessary.
 
 * Provisioning /etc/grafana/provisioning/datasources/TDengine.yaml
 ```
@@ -32,13 +32,13 @@ After that completed, please restart grafana-server.
 sudo systemctl restart grafana-server.service
 ```
 
-## Verifying plugin
+## Verify plugin
 
 Users can log in to the Grafana server (initial username/password: admin/admin) directly through the URL `http://localhost:3000`. Click `Configuration -> Data Sources` on the left side. Then click `Test` button to verify if TDengine data source works. You should see a success message if the test worked.
 
-![Verifying TDengine data source](./grafana/verifying-tdengine-datasource.webp)
+![Verify TDengine data source](./grafana/verifying-tdengine-datasource.webp)
 
-## Using Grafana
+## Use Grafana
 
 Please add new dashboard or import exist dashboard to illustrate the data you store in the TDengine.
 
