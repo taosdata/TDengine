@@ -704,7 +704,8 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery) {
       break;
     }
     case QUERY_EXEC_MODE_EMPTY_RESULT:
-      pRequest->type = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
+      pRequest->type = TSDB_SQL_RETRIEVE_EMPTY_RESULT;      
+      pRequest->body.queryFp(pRequest->body.param, pRequest, 0);
       break;
     default:
       break;
