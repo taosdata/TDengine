@@ -2289,6 +2289,8 @@ static int32_t smlParseLine(SSmlHandle *info, char* lines[], int numLines){
 
 static int smlProcess(SSmlHandle *info, char* lines[], int numLines) {
   int32_t code = TSDB_CODE_SUCCESS;
+  int32_t retryNum = 0;
+
   info->cost.parseTime = taosGetTimestampUs();
 
   code = smlParseLine(info, lines, numLines);
@@ -2303,7 +2305,6 @@ static int smlProcess(SSmlHandle *info, char* lines[], int numLines) {
 
   info->cost.schemaTime = taosGetTimestampUs();
 
-  int32_t retryNum = 0;
   do{
     code = smlModifyDBSchemas(info);
     if (code == 0) break;
