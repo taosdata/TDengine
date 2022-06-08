@@ -74,7 +74,7 @@ title: 常见问题及反馈
    检查服务器侧 TCP 端口连接是否工作：`nc -l {port}`
    检查客户端侧 TCP 端口连接是否工作：`nc {hostIP} {port}`
 
- - Windows 系统请使用 PowerShell 命令 Net-TestConnection -ComputerName {fqdn} -Port {port} 检测服务段端口是否访问
+ - Windows 系统请使用 PowerShell 命令 Test-NetConnection -ComputerName {fqdn} -Port {port} 检测服务段端口是否访问
 
 10. 也可以使用 taos 程序内嵌的网络连通检测功能，来验证服务器和客户端之间指定的端口连接是否通畅（包括 TCP 和 UDP）：[TDengine 内嵌网络检测工具使用指南](https://www.taosdata.com/blog/2020/09/08/1816.html)。
 

@@ -111,13 +111,6 @@ INSERT INTO d1001 FILE '/tmp/csvfile.csv';
 INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) FILE '/tmp/csvfile.csv';
 ```
 
-也可以在一条语句中向多个表以自动建表的方式插入记录。例如：
-
-```
-INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) FILE '/tmp/csvfile_21001.csv'
-            d21002 USING meters (groupId) TAGS (2) FILE '/tmp/csvfile_21002.csv';
-```
-
 ## 历史记录写入
 
 可使用 IMPORT 或者 INSERT 命令，IMPORT 的语法，功能与 INSERT 完全一样。

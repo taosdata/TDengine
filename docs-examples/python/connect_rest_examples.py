@@ -1,10 +1,9 @@
 # ANCHOR: connect
 from taosrest import connect, TaosRestConnection, TaosRestCursor
 
-conn: TaosRestConnection = connect(host="localhost",
+conn: TaosRestConnection = connect(url="http://localhost:6041",
                                    user="root",
                                    password="taosdata",
-                                   port=6041,
                                    timeout=30)
 
 # ANCHOR_END: connect
