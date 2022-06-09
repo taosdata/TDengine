@@ -191,6 +191,8 @@ void *createRequest(STscObj *pObj, int32_t type) {
   pRequest->requestId = generateRequestId();
   pRequest->metric.start = taosGetTimestampUs();
 
+  pRequest->body.resInfo.convertUcs4 = true;  // convert ucs4 by default
+
   pRequest->type = type;
   pRequest->pTscObj = pObj;
   pRequest->msgBuf = taosMemoryCalloc(1, ERROR_MSG_BUF_DEFAULT_SIZE);
