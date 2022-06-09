@@ -1944,6 +1944,9 @@ void blockCompressEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen
 
 const char* blockCompressDecode(SSDataBlock* pBlock, int32_t numOfCols, int32_t numOfRows, const char* pData) {
   blockDataEnsureCapacity(pBlock, numOfRows);
+  pBlock->info.rows = numOfRows;
+  pBlock->info.numOfCols = numOfCols;
+
   const char* pStart = pData;
 
   int32_t dataLen = *(int32_t*)pStart;
@@ -1966,6 +1969,10 @@ const char* blockCompressDecode(SSDataBlock* pBlock, int32_t numOfCols, int32_t 
 
     pColInfoData->info.bytes = *(int32_t*)pStart;
     pStart += sizeof(int32_t);
+
+    if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+      pBlock->info.hasVarCol = true;
+    }
   }
 
   blockDataEnsureCapacity(pBlock, numOfRows);
