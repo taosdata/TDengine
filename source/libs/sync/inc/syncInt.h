@@ -58,6 +58,8 @@ typedef struct SSyncRespMgr           SSyncRespMgr;
 typedef struct SSyncSnapshotSender    SSyncSnapshotSender;
 typedef struct SSyncSnapshotReceiver  SSyncSnapshotReceiver;
 
+extern bool gRaftDetailLog;
+
 typedef struct SSyncNode {
   // init by SSyncInfo
   SyncGroupId vgId;
