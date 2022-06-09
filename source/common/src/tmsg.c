@@ -2491,6 +2491,15 @@ int32_t tDeserializeSTableIndexRsp(void *buf, int32_t bufLen, STableIndexRsp *pR
   return 0;
 }
 
+void tFreeSTableIndexInfo(void* info) {
+  if (NULL == info) {
+    return;
+  }
+
+  STableIndexInfo *pInfo = (STableIndexInfo*)info;
+
+  taosMemoryFree(pInfo->expr);
+}
 
 int32_t tSerializeSShowReq(void *buf, int32_t bufLen, SShowReq *pReq) {
   SEncoder encoder = {0};
