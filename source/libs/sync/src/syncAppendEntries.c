@@ -497,30 +497,39 @@ static int32_t syncNodePreCommit(SSyncNode* ths, SSyncRaftEntry* pEntry) {
 // prevLogIndex == -1
 static bool syncNodeOnAppendEntriesLogOK(SSyncNode* pSyncNode, SyncAppendEntries* pMsg) {
   if (pMsg->prevLogIndex == SYNC_INDEX_INVALID) {
-    sTrace("syncNodeOnAppendEntriesLogOK true, pMsg->prevLogIndex:%ld", pMsg->prevLogIndex);
+    if (gRaftDetailLog) {
+      sTrace("syncNodeOnAppendEntriesLogOK true, pMsg->prevLogIndex:%ld", pMsg->prevLogIndex);
+    }
     return true;
   }
 
   SyncIndex myLastIndex = syncNodeGetLastIndex(pSyncNode);
   if (pMsg->prevLogIndex > myLastIndex) {
-    sTrace("syncNodeOnAppendEntriesLogOK false, pMsg->prevLogIndex:%ld, myLastIndex:%ld", pMsg->prevLogIndex,
-           myLastIndex);
+    if (gRaftDetailLog) {
+      sTrace("syncNodeOnAppendEntriesLogOK false, pMsg->prevLogIndex:%ld, myLastIndex:%ld", pMsg->prevLogIndex,
+             myLastIndex);
+    }
     return false;
   }
 
   SyncTerm myPreLogTerm = syncNodeGetPreTerm(pSyncNode, pMsg->prevLogIndex + 1);
   if (pMsg->prevLogIndex <= myLastIndex && pMsg->prevLogTerm == myPreLogTerm) {
-    sTrace(
-        "syncNodeOnAppendEntriesLogOK true, pMsg->prevLogIndex:%ld, myLastIndex:%ld, pMsg->prevLogTerm:%lu, "
-        "myPreLogTerm:%lu",
-        pMsg->prevLogIndex, myLastIndex, pMsg->prevLogTerm, myPreLogTerm);
+    if (gRaftDetailLog) {
+      sTrace(
+          "syncNodeOnAppendEntriesLogOK true, pMsg->prevLogIndex:%ld, myLastIndex:%ld, pMsg->prevLogTerm:%lu, "
+          "myPreLogTerm:%lu",
+          pMsg->prevLogIndex, myLastIndex, pMsg->prevLogTerm, myPreLogTerm);
+    }
     return true;
   }
 
-  sTrace(
-      "syncNodeOnAppendEntriesLogOK false, pMsg->prevLogIndex:%ld, myLastIndex:%ld, pMsg->prevLogTerm:%lu, "
-      "myPreLogTerm:%lu",
-      pMsg->prevLogIndex, myLastIndex, pMsg->prevLogTerm, myPreLogTerm);
+  if (gRaftDetailLog) {
+    sTrace(
+        "syncNodeOnAppendEntriesLogOK false, pMsg->prevLogIndex:%ld, myLastIndex:%ld, pMsg->prevLogTerm:%lu, "
+        "myPreLogTerm:%lu",
+        pMsg->prevLogIndex, myLastIndex, pMsg->prevLogTerm, myPreLogTerm);
+  }
+
   return false;
 }
 

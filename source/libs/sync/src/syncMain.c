@@ -852,10 +852,12 @@ int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRp
   SEpSet epSet;
   syncUtilraftId2EpSet(destRaftId, &epSet);
   if (pSyncNode->FpSendMsg != NULL) {
-    char* JsonStr = syncRpcMsg2Str(pMsg);
-    syncUtilJson2Line(JsonStr);
-    sTrace("sync send msg, vgId:%d, type:%d, msg:%s", pSyncNode->vgId, pMsg->msgType, JsonStr);
-    taosMemoryFree(JsonStr);
+    if (gRaftDetailLog) {
+      char* JsonStr = syncRpcMsg2Str(pMsg);
+      syncUtilJson2Line(JsonStr);
+      sTrace("sync send msg, vgId:%d, type:%d, msg:%s", pSyncNode->vgId, pMsg->msgType, JsonStr);
+      taosMemoryFree(JsonStr);
+    }
 
     // htonl
     syncUtilMsgHtoN(pMsg->pCont);

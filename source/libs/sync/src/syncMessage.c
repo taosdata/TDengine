@@ -145,9 +145,11 @@ void syncRpcMsgLog(SRpcMsg* pMsg) {
 }
 
 void syncRpcMsgLog2(char* s, SRpcMsg* pMsg) {
-  char* serialized = syncRpcMsg2Str(pMsg);
-  sTrace("syncRpcMsgLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
-  taosMemoryFree(serialized);
+  if (gRaftDetailLog) {
+    char* serialized = syncRpcMsg2Str(pMsg);
+    sTrace("syncRpcMsgLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+    taosMemoryFree(serialized);
+  }
 }
 
 // ---- message process SyncTimeout----
@@ -274,9 +276,11 @@ void syncTimeoutLog(const SyncTimeout* pMsg) {
 }
 
 void syncTimeoutLog2(char* s, const SyncTimeout* pMsg) {
-  char* serialized = syncTimeout2Str(pMsg);
-  sTrace("syncTimeoutLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
-  taosMemoryFree(serialized);
+  if (gRaftDetailLog) {
+    char* serialized = syncTimeout2Str(pMsg);
+    sTrace("syncTimeoutLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+    taosMemoryFree(serialized);
+  }
 }
 
 // ---- message process SyncPing----
@@ -534,9 +538,11 @@ void syncPingLog(const SyncPing* pMsg) {
 }
 
 void syncPingLog2(char* s, const SyncPing* pMsg) {
-  char* serialized = syncPing2Str(pMsg);
-  sTrace("syncPingLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
-  taosMemoryFree(serialized);
+  if (gRaftDetailLog) {
+    char* serialized = syncPing2Str(pMsg);
+    sTrace("syncPingLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+    taosMemoryFree(serialized);
+  }
 }
 
 // ---- message process SyncPingReply----
@@ -794,9 +800,11 @@ void syncPingReplyLog(const SyncPingReply* pMsg) {
 }
 
 void syncPingReplyLog2(char* s, const SyncPingReply* pMsg) {
-  char* serialized = syncPingReply2Str(pMsg);
-  sTrace("syncPingReplyLog2 | len:%zu | %s | %s", strlen(serialized), s, serialized);
-  taosMemoryFree(serialized);
+  if (gRaftDetailLog) {
+    char* serialized = syncPingReply2Str(pMsg);
+    sTrace("syncPingReplyLog2 | len:%zu | %s | %s", strlen(serialized), s, serialized);
+    taosMemoryFree(serialized);
+  }
 }
 
 // ---- message process SyncClientRequest----
@@ -935,9 +943,11 @@ void syncClientRequestLog(const SyncClientRequest* pMsg) {
 }
 
 void syncClientRequestLog2(char* s, const SyncClientRequest* pMsg) {
-  char* serialized = syncClientRequest2Str(pMsg);
-  sTrace("syncClientRequestLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
-  taosMemoryFree(serialized);
+  if (gRaftDetailLog) {
+    char* serialized = syncClientRequest2Str(pMsg);
+    sTrace("syncClientRequestLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+    taosMemoryFree(serialized);
+  }
 }
 
 // ---- message process SyncRequestVote----
@@ -1084,9 +1094,11 @@ void syncRequestVoteLog(const SyncRequestVote* pMsg) {
 }
 
 void syncRequestVoteLog2(char* s, const SyncRequestVote* pMsg) {
-  char* serialized = syncRequestVote2Str(pMsg);
-  sTrace("syncRequestVoteLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
-  taosMemoryFree(serialized);
+  if (gRaftDetailLog) {
+    char* serialized = syncRequestVote2Str(pMsg);
+    sTrace("syncRequestVoteLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+    taosMemoryFree(serialized);
+  }
 }
 
 // ---- message process SyncRequestVoteReply----
@@ -1230,9 +1242,11 @@ void syncRequestVoteReplyLog(const SyncRequestVoteReply* pMsg) {
 }
 
 void syncRequestVoteReplyLog2(char* s, const SyncRequestVoteReply* pMsg) {
-  char* serialized = syncRequestVoteReply2Str(pMsg);
-  sTrace("syncRequestVoteReplyLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
-  taosMemoryFree(serialized);
+  if (gRaftDetailLog) {
+    char* serialized = syncRequestVoteReply2Str(pMsg);
+    sTrace("syncRequestVoteReplyLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+    taosMemoryFree(serialized);
+  }
 }
 
 // ---- message process SyncAppendEntries----
@@ -1399,9 +1413,11 @@ void syncAppendEntriesLog(const SyncAppendEntries* pMsg) {
 }
 
 void syncAppendEntriesLog2(char* s, const SyncAppendEntries* pMsg) {
-  char* serialized = syncAppendEntries2Str(pMsg);
-  sTrace("syncAppendEntriesLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
-  taosMemoryFree(serialized);
+  if (gRaftDetailLog) {
+    char* serialized = syncAppendEntries2Str(pMsg);
+    sTrace("syncAppendEntriesLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+    taosMemoryFree(serialized);
+  }
 }
 
 // ---- message process SyncAppendEntriesReply----
@@ -1551,9 +1567,11 @@ void syncAppendEntriesReplyLog(const SyncAppendEntriesReply* pMsg) {
 }
 
 void syncAppendEntriesReplyLog2(char* s, const SyncAppendEntriesReply* pMsg) {
-  char* serialized = syncAppendEntriesReply2Str(pMsg);
-  sTrace("syncAppendEntriesReplyLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
-  taosMemoryFree(serialized);
+  if (gRaftDetailLog) {
+    char* serialized = syncAppendEntriesReply2Str(pMsg);
+    sTrace("syncAppendEntriesReplyLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+    taosMemoryFree(serialized);
+  }
 }
 
 // ---- message process SyncApplyMsg----
@@ -1702,9 +1720,11 @@ void syncApplyMsgLog(const SyncApplyMsg* pMsg) {
 }
 
 void syncApplyMsgLog2(char* s, const SyncApplyMsg* pMsg) {
-  char* serialized = syncApplyMsg2Str(pMsg);
-  sTrace("syncApplyMsgLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
-  taosMemoryFree(serialized);
+  if (gRaftDetailLog) {
+    char* serialized = syncApplyMsg2Str(pMsg);
+    sTrace("syncApplyMsgLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+    taosMemoryFree(serialized);
+  }
 }
 
 // ---------------------------------------------
@@ -1870,9 +1890,11 @@ void syncSnapshotSendLog(const SyncSnapshotSend* pMsg) {
 }
 
 void syncSnapshotSendLog2(char* s, const SyncSnapshotSend* pMsg) {
-  char* serialized = syncSnapshotSend2Str(pMsg);
-  sTrace("syncSnapshotSendLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
-  taosMemoryFree(serialized);
+  if (gRaftDetailLog) {
+    char* serialized = syncSnapshotSend2Str(pMsg);
+    sTrace("syncSnapshotSendLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+    taosMemoryFree(serialized);
+  }
 }
 
 // ---------------------------------------------
@@ -2028,7 +2050,9 @@ void syncSnapshotRspLog(const SyncSnapshotRsp* pMsg) {
 }
 
 void syncSnapshotRspLog2(char* s, const SyncSnapshotRsp* pMsg) {
-  char* serialized = syncSnapshotRsp2Str(pMsg);
-  sTrace("syncSnapshotRspLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
-  taosMemoryFree(serialized);
+  if (gRaftDetailLog) {
+    char* serialized = syncSnapshotRsp2Str(pMsg);
+    sTrace("syncSnapshotRspLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+    taosMemoryFree(serialized);
+  }
 }
