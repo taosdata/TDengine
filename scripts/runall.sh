@@ -7,10 +7,12 @@ function usage() {
     echo -e "\t -c client pkg"
     echo -e "\t -f case file"
     echo -e "\t -e force setup environment"
+    echo -e "\t -d debug log level"
+    echo -e "\t -t max execution time of each case"
     echo -e "\t -h help"
 }
 
-while getopts "l:s:c:f:eh" opt; do
+while getopts "l:s:c:f:t:d:eh" opt; do
     case $opt in
         l)
             log_dir=$OPTARG
@@ -23,6 +25,12 @@ while getopts "l:s:c:f:eh" opt; do
             ;;
         f)
             case_file=$OPTARG
+            ;;
+        d)
+            debug_level=$OPTARG
+            ;;
+        t)
+            TIMEOUT_PREFIX="timeout $OPTARG"
             ;;
         e)
             force_setup=1
@@ -104,6 +112,12 @@ function run() {
             if [ ! -z "$client_pkg" ]; then
                 cmd="$cmd --client-pkg=$client_pkg"
             fi
+        fi
+        if [ ! -z "$TIMEOUT_PREFIX" ]; then
+            cmd="$TIMEOUT_PREFIX $cmd"
+        fi
+        if [ ! -z "$debug_level" ]; then
+            cmd="$cmd --log-level $debug_level"
         fi
         echo "execute command: $cmd"
         $cmd
