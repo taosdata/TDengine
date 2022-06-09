@@ -39,7 +39,10 @@ endi
 print =============== step2: create mnode 2
 sql create mnode on dnode 2
 sql create mnode on dnode 3
+system sh/exec.sh -n dnode1 -s stop -x SIGKILL
 sql_error create mnode on dnode 4
+
+return
 
 $x = 0
 step2: 
