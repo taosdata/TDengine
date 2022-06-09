@@ -67,6 +67,8 @@ for (int i = 1; i < keyLen; ++i) {      \
 
 #define BINARY_ADD_LEN 2        // "binary"   2 means " "
 #define NCHAR_ADD_LEN 3         // L"nchar"   3 means L" "
+
+#define MAX_RETRY_TIMES 5
 //=================================================================================================
 typedef TSDB_SML_PROTOCOL_TYPE SMLProtocolType;
 
@@ -303,7 +305,7 @@ static int32_t smlApplySchemaAction(SSmlHandle* info, SSchemaAction* action) {
           uError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
         }
         taos_free_result(res2);
-        taosMsleep(10);
+        taosMsleep(500);
       }
       break;
     }
@@ -327,7 +329,7 @@ static int32_t smlApplySchemaAction(SSmlHandle* info, SSchemaAction* action) {
           uError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
         }
         taos_free_result(res2);
-        taosMsleep(10);
+        taosMsleep(500);
       }
       break;
     }
@@ -350,7 +352,7 @@ static int32_t smlApplySchemaAction(SSmlHandle* info, SSchemaAction* action) {
           uError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
         }
         taos_free_result(res2);
-        taosMsleep(10);
+        taosMsleep(500);
       }
       break;
     }
@@ -373,7 +375,7 @@ static int32_t smlApplySchemaAction(SSmlHandle* info, SSchemaAction* action) {
           uError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
         }
         taos_free_result(res2);
-        taosMsleep(10);
+        taosMsleep(500);
       }
       break;
     }
@@ -424,7 +426,7 @@ static int32_t smlApplySchemaAction(SSmlHandle* info, SSchemaAction* action) {
           uError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
         }
         taos_free_result(res2);
-        taosMsleep(10);
+        taosMsleep(500);
       }
       break;
     }
@@ -540,56 +542,6 @@ end:
   catalogRefreshTableMeta(info->pCatalog, info->taos->pAppInfo->pTransporter, &ep, &pName, 1);
   return code;
 }
-
-//=========================================================================
-
-/*        Field                          Escape charaters
-    1: measurement                        Comma,Space
-    2: tag_key, tag_value, field_key  Comma,Equal Sign,Space
-    3: field_value                    Double quote,Backslash
-*/
-//static void escapeSpecialCharacter(uint8_t field, const char **pos) {
-//  const char *cur = *pos;
-//  if (*cur != '\\') {
-//    return;
-//  }
-//  switch (field) {
-//    case 1:
-//      switch (*(cur + 1)) {
-//        case ',':
-//        case ' ':
-//          cur++;
-//          break;
-//        default:
-//          break;
-//      }
-//      break;
-//    case 2:
-//      switch (*(cur + 1)) {
-//        case ',':
-//        case ' ':
-//        case '=':
-//          cur++;
-//          break;
-//        default:
-//          break;
-//      }
-//      break;
-//    case 3:
-//      switch (*(cur + 1)) {
-//        case '"':
-//        case '\\':
-//          cur++;
-//          break;
-//        default:
-//          break;
-//      }
-//      break;
-//    default:
-//      break;
-//  }
-//  *pos = cur;
-//}
 
 static bool smlParseNumber(SSmlKv *kvVal, SSmlMsgBuf *msg){
   const char *pVal = kvVal->value;
@@ -2311,7 +2263,7 @@ static int smlProcess(SSmlHandle *info, char* lines[], int numLines) {
   do{
     code = smlModifyDBSchemas(info);
     if (code == 0) break;
-  } while (retryNum++ < taosHashGetSize(info->superTables));
+  } while (retryNum++ < taosHashGetSize(info->superTables) * MAX_RETRY_TIMES);
 
   if (code != 0) {
     uError("SML:0x%"PRIx64" smlModifyDBSchemas error : %s", info->id, tstrerror(code));
