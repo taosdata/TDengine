@@ -68,3 +68,11 @@ add_test(
     NAME bloomFilterTest
     COMMAND bloomFilterTest
 )
+
+# taosbsearchTest
+add_executable(taosbsearchTest "taosbsearchTest.cpp")
+target_link_libraries(taosbsearchTest os util gtest_main)   
+add_test(
+    NAME taosbsearchTest
+    COMMAND taosbsearchTest
+)

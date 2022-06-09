@@ -58,28 +58,6 @@ void    tsdbTbDataIterOpen(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, ST
 bool    tsdbTbDataIterNext(STbDataIter *pIter);
 bool    tsdbTbDataIterGet(STbDataIter *pIter, TSDBROW *pRow);
 
-int tsdbLoadDataFromCache(STsdb *pTsdb, STable *pTable, STbDataIter *pIter, TSKEY maxKey, int maxRowsToRead,
-                          SDataCols *pCols, TKEY *filterKeys, int nFilterKeys, bool keepDup, SMergeInfo *pMergeInfo);
-
-// tsdbMemTable2.c ==============================================================================================
-// typedef struct SMemTable2   SMemTable2;
-// typedef struct SMemData     SMemData;
-// typedef struct SMemDataIter SMemDataIter;
-
-// int32_t tsdbMemTableCreate2(STsdb *pTsdb, SMemTable2 **ppMemTable);
-// void    tsdbMemTableDestroy2(SMemTable2 *pMemTable);
-// int32_t tsdbInsertTableData2(STsdb *pTsdb, int64_t version, SVSubmitBlk *pSubmitBlk);
-// int32_t tsdbDeleteTableData2(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
-
-// /* SMemDataIter */
-// void tsdbMemDataIterOpen(SMemData *pMemData, TSDBKEY *pKey, int8_t backward, SMemDataIter *pIter);
-// bool tsdbMemDataIterNext(SMemDataIter *pIter);
-// void tsdbMemDataIterGet(SMemDataIter *pIter, TSDBROW **ppRow);
-
-// // tsdbCommit2.c ==============================================================================================
-// int32_t tsdbBegin2(STsdb *pTsdb);
-// int32_t tsdbCommit2(STsdb *pTsdb);
-
 // tsdbFile.c ==============================================================================================
 typedef int32_t          TSDB_FILE_T;
 typedef struct SDFInfo   SDFInfo;
@@ -700,17 +678,6 @@ typedef struct {
   TSKEY    eKey;
 } SDelInfo;
 
-struct SMemTable2 {
-  STsdb  *pTsdb;
-  int32_t nRef;
-  TSDBKEY minKey;
-  TSDBKEY maxKey;
-  int64_t nRows;
-  int64_t nDelOp;
-  SArray *aSkmInfo;
-  SArray *aMemData;
-};
-
 static FORCE_INLINE int tsdbKeyCmprFn(const void *p1, const void *p2) {
   TSDBKEY *pKey1 = (TSDBKEY *)p1;
   TSDBKEY *pKey2 = (TSDBKEY *)p2;
@@ -729,24 +696,6 @@ static FORCE_INLINE int tsdbKeyCmprFn(const void *p1, const void *p2) {
 
   return 0;
 }
-
-struct SMemData {
-  tb_uid_t     suid;
-  tb_uid_t     uid;
-  TSDBKEY      minKey;
-  TSDBKEY      maxKey;
-  SDelOp      *delOpHead;
-  SDelOp      *delOpTail;
-  SMemSkipList sl;
-};
-
-struct SMemDataIter {
-  STbData          *pMemData;
-  int8_t            backward;
-  TSDBROW          *pRow;
-  SMemSkipListNode *pNode;  // current node
-  TSDBROW           row;
-};
 
 struct STbDataIter {
   STbData          *pTbData;

@@ -500,7 +500,11 @@ int taos_fetch_block_s(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows) {
       return 0;
     }
 
-    doFetchRows(pRequest, false, true);
+#if SYNC_ON_TOP_OF_ASYNC
+    doAsyncFetchRow(pRequest, false, true);
+#else
+    doFetchRows(pRequest, true, true);
+#endif
 
     // TODO refactor
     SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
@@ -625,8 +629,10 @@ void retrieveMetaCallback(SMetaData* pResultMeta, void* param, int32_t code) {
     taosMemoryFree(pWrapper);
     launchAsyncQuery(pRequest, pQuery);
   } else {
+    tscDebug("error happens, code:%d", code);
     if (NEED_CLIENT_HANDLE_ERROR(code)) {
-      tscDebug("0x%"PRIx64" client retry to handle the error, code:%s, reqId:0x%"PRIx64, pRequest->self, tstrerror(code), pRequest->requestId);
+      tscDebug("0x%"PRIx64" client retry to handle the error, code:%d - %s, tryCount:%d, reqId:0x%"PRIx64, pRequest->self, code, tstrerror(code),
+               pRequest->retry, pRequest->requestId);
       pRequest->prevCode = code;
       doAsyncQuery(pRequest, true);
       return;
@@ -691,6 +697,7 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext** pCxt) {
                        .pTransporter = pTscObj->pAppInfo->pTransporter,
                        .pStmtCb = NULL,
                        .pUser = pTscObj->user,
+                       .schemalessType = pTscObj->schemalessType,
                        .isSuperUser = (0 == strcmp(pTscObj->user, TSDB_DEFAULT_USER)),
                        .async = true,};
   return TSDB_CODE_SUCCESS;
@@ -699,13 +706,14 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext** pCxt) {
 void doAsyncQuery(SRequestObj* pRequest, bool updateMetaForce) {
   SParseContext* pCxt = NULL;
   STscObj *pTscObj = pRequest->pTscObj;
+  int32_t code = 0;
 
   if (pRequest->retry++ > REQUEST_TOTAL_EXEC_TIMES) {
-    pRequest->code = pRequest->prevCode;
+    code = pRequest->prevCode;
     goto _error;
   }
 
-  int32_t code = createParseContext(pRequest, &pCxt);
+  code = createParseContext(pRequest, &pCxt);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -742,7 +750,7 @@ void doAsyncQuery(SRequestObj* pRequest, bool updateMetaForce) {
   }
 
   _error:
-  tscError("0x%"PRIx64" error happens, code:%s, reqId:0x%"PRIx64, pRequest->self, tstrerror(code), pRequest->requestId);
+  tscError("0x%"PRIx64" error happens, code:%d - %s, reqId:0x%"PRIx64, pRequest->self, code, tstrerror(code), pRequest->requestId);
   terrno = code;
   pRequest->code = code;
   pRequest->body.queryFp(pRequest->body.param, pRequest, code);

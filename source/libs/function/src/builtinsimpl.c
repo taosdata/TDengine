@@ -100,6 +100,7 @@ typedef struct SPercentileInfo {
 
 typedef struct SAPercentileInfo {
   double result;
+  double percent;
   int8_t algo;
   SHistogramInfo *pHisto;
   TDigest *pTDigest;
@@ -283,6 +284,22 @@ typedef struct SUniqueInfo {
     }                                                                    \
   } while (0)
 
+bool dummyGetEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* UNUSED_PARAM(pEnv)) {
+  return true;
+}
+
+bool dummyInit(SqlFunctionCtx* UNUSED_PARAM(pCtx), SResultRowEntryInfo* UNUSED_PARAM(pResultInfo)) {
+  return true;
+}
+
+int32_t dummyProcess(SqlFunctionCtx* UNUSED_PARAM(pCtx)) {
+  return 0;
+}
+
+int32_t dummyFinalize(SqlFunctionCtx* UNUSED_PARAM(pCtx), SSDataBlock* UNUSED_PARAM(pBlock)) {
+  return 0;
+}
+
 bool functionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
   if (pResultInfo->initialized) {
     return false;
@@ -325,10 +342,6 @@ int32_t firstCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
     pDResInfo->numOfRes = 1;
   }
   return TSDB_CODE_SUCCESS;
-}
-
-int32_t dummyProcess(SqlFunctionCtx* UNUSED_PARAM(pCtx)) {
-  return 0;
 }
 
 int32_t functionFinalizeWithResultBuf(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, char* finalResult) {
@@ -602,7 +615,7 @@ int32_t sumCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
 
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
   SSumRes* pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
-  
+
   if (IS_SIGNED_NUMERIC_TYPE(type) || type == TSDB_DATA_TYPE_BOOL) {
     pDBuf->isum += pSBuf->isum;
   } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
@@ -1974,6 +1987,12 @@ bool getApercentileFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   return true;
 }
 
+int32_t getApercentileMaxSize() {
+  int32_t bytesHist   = (int32_t)(sizeof(SAPercentileInfo) + sizeof(SHistogramInfo) + sizeof(SHistBin) * (MAX_HISTOGRAM_BIN + 1));
+  int32_t bytesDigest = (int32_t)(sizeof(SAPercentileInfo) + TDIGEST_SIZE(COMPRESSION));
+  return TMAX(bytesHist, bytesDigest);
+}
+
 static int8_t getApercentileAlgo(char *algoStr) {
   int8_t algoType;
   if (strcasecmp(algoStr, "default") == 0) {
@@ -1988,8 +2007,12 @@ static int8_t getApercentileAlgo(char *algoStr) {
 }
 
 static void buildHistogramInfo(SAPercentileInfo* pInfo) {
-  pInfo->pHisto = (SHistogramInfo*) ((char*) pInfo + sizeof(SAPercentileInfo));
+  pInfo->pHisto = (SHistogramInfo*) ((char*)pInfo + sizeof(SAPercentileInfo));
   pInfo->pHisto->elems = (SHistBin*) ((char*)pInfo->pHisto + sizeof(SHistogramInfo));
+}
+
+static void buildTDigestInfo(SAPercentileInfo* pInfo) {
+  pInfo->pTDigest = (TDigest*)((char*)pInfo + sizeof(SAPercentileInfo));
 }
 
 bool apercentileFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
@@ -1998,6 +2021,10 @@ bool apercentileFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResult
   }
 
   SAPercentileInfo* pInfo = GET_ROWCELL_INTERBUF(pResultInfo);
+
+  SVariant* pVal = &pCtx->param[1].param;
+  pInfo->percent = (pVal->nType == TSDB_DATA_TYPE_BIGINT) ? pVal->i : pVal->d;
+
   if (pCtx->numOfParams == 2) {
     pInfo->algo = APERCT_ALGO_DEFAULT;
   } else if (pCtx->numOfParams == 3) {
@@ -2062,23 +2089,87 @@ int32_t apercentileFunction(SqlFunctionCtx* pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t apercentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
-  SVariant* pVal    = &pCtx->param[1].param;
-  double    percent = (pVal->nType == TSDB_DATA_TYPE_BIGINT) ? pVal->i : pVal->d;
+int32_t apercentileFunctionMerge(SqlFunctionCtx* pCtx) {
+  int32_t              numOfElems = 0;
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
 
+  SInputColumnInfoData* pInput = &pCtx->input;
+
+  SColumnInfoData* pCol = pInput->pData[0];
+  ASSERT(pCol->info.type == TSDB_DATA_TYPE_BINARY);
+
+  SAPercentileInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  SAPercentileInfo* pInputInfo;
+
+  int32_t start = pInput->startRowIndex;
+  for (int32_t i = start; i < pInput->numOfRows + start; ++i) {
+    //if (colDataIsNull_s(pCol, i)) {
+    //  continue;
+    //}
+    numOfElems += 1;
+    char* data = colDataGetData(pCol, i);
+
+    pInputInfo = (SAPercentileInfo *)varDataVal(data);
+  }
+
+  pInfo->percent = pInputInfo->percent;
+  pInfo->algo = pInputInfo->algo;
+  if (pInfo->algo == APERCT_ALGO_TDIGEST) {
+    buildTDigestInfo(pInputInfo);
+    tdigestAutoFill(pInputInfo->pTDigest, COMPRESSION);
+
+    if(pInputInfo->pTDigest->num_centroids == 0 && pInputInfo->pTDigest->num_buffered_pts == 0) {
+      return TSDB_CODE_SUCCESS;
+    }
+
+    buildTDigestInfo(pInfo);
+    TDigest *pTDigest = pInfo->pTDigest;
+
+    if(pTDigest->num_centroids <= 0) {
+      memcpy(pTDigest, pInputInfo->pTDigest, (size_t)TDIGEST_SIZE(COMPRESSION));
+      tdigestAutoFill(pTDigest, COMPRESSION);
+    } else {
+      tdigestMerge(pTDigest, pInputInfo->pTDigest);
+    }
+  } else {
+    buildHistogramInfo(pInputInfo);
+    if (pInputInfo->pHisto->numOfElems <= 0) {
+      return TSDB_CODE_SUCCESS;
+    }
+
+    buildHistogramInfo(pInfo);
+    SHistogramInfo  *pHisto = pInfo->pHisto;
+
+    if (pHisto->numOfElems <= 0) {
+      memcpy(pHisto, pInputInfo->pHisto, sizeof(SHistogramInfo) + sizeof(SHistBin) * (MAX_HISTOGRAM_BIN + 1));
+      pHisto->elems = (SHistBin*) ((char *)pHisto + sizeof(SHistogramInfo));
+    } else {
+      pHisto->elems = (SHistBin*) ((char *)pHisto + sizeof(SHistogramInfo));
+      SHistogramInfo *pRes = tHistogramMerge(pHisto, pInputInfo->pHisto, MAX_HISTOGRAM_BIN);
+      memcpy(pHisto, pRes, sizeof(SHistogramInfo) + sizeof(SHistBin) * MAX_HISTOGRAM_BIN);
+      pHisto->elems = (SHistBin*) ((char *)pHisto + sizeof(SHistogramInfo));
+      tHistogramDestroy(&pRes);
+    }
+  }
+
+  SET_VAL(pResInfo, numOfElems, 1);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t apercentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SAPercentileInfo*       pInfo = (SAPercentileInfo*)GET_ROWCELL_INTERBUF(pResInfo);
 
   if (pInfo->algo == APERCT_ALGO_TDIGEST) {
     if (pInfo->pTDigest->size > 0) {
-      pInfo->result = tdigestQuantile(pInfo->pTDigest, percent/100);
+      pInfo->result = tdigestQuantile(pInfo->pTDigest, pInfo->percent / 100);
     } else {  // no need to free
       //setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
       return TSDB_CODE_SUCCESS;
     }
   } else {
     if (pInfo->pHisto->numOfElems > 0) {
-      double ratio[] = {percent};
+      double ratio[] = {pInfo->percent};
       double *res = tHistogramUniform(pInfo->pHisto, ratio, 1);
       pInfo->result = *res;
       //memcpy(pCtx->pOutput, res, sizeof(double));
@@ -2090,6 +2181,58 @@ int32_t apercentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   }
 
   return functionFinalize(pCtx, pBlock);
+}
+
+int32_t apercentilePartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SAPercentileInfo*       pInfo = (SAPercentileInfo*)GET_ROWCELL_INTERBUF(pResInfo);
+
+  int32_t resultBytes = getApercentileMaxSize();
+  char *res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
+
+  if (pInfo->algo == APERCT_ALGO_TDIGEST) {
+    if (pInfo->pTDigest->size > 0) {
+      memcpy(varDataVal(res), pInfo, resultBytes);
+      varDataSetLen(res, resultBytes);
+    } else {
+      return TSDB_CODE_SUCCESS;
+    }
+  } else {
+    if (pInfo->pHisto->numOfElems > 0) {
+      memcpy(varDataVal(res), pInfo, resultBytes);
+      varDataSetLen(res, resultBytes);
+    } else {
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+
+  colDataAppend(pCol, pBlock->info.rows, res, false);
+
+  taosMemoryFree(res);
+  return pResInfo->numOfRes;
+}
+
+int32_t apercentileCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
+  SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
+  SAPercentileInfo*    pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
+  int32_t type = pDestCtx->input.pData[0]->info.type;
+
+  SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
+  SAPercentileInfo*    pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
+  ASSERT(pDBuf->algo == pSBuf->algo);
+  if (pDBuf->algo == APERCT_ALGO_TDIGEST) {
+    tdigestMerge(pDBuf->pTDigest, pSBuf->pTDigest);
+  } else {
+    SHistogramInfo* pTmp = tHistogramMerge(pDBuf->pHisto, pSBuf->pHisto, MAX_HISTOGRAM_BIN);
+    memcpy(pDBuf->pHisto, pTmp, sizeof(SHistogramInfo) + sizeof(SHistBin) * (MAX_HISTOGRAM_BIN + 1));
+    pDBuf->pHisto->elems = (SHistBin*) ((char *)pDBuf->pHisto + sizeof(SHistogramInfo));
+    tHistogramDestroy(&pTmp);
+  }
+  pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
+  return TSDB_CODE_SUCCESS;
 }
 
 bool getFirstLastFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
@@ -2743,6 +2886,10 @@ bool getSpreadFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
   return true;
 }
 
+int32_t getSpreadInfoSize() {
+  return (int32_t)sizeof(SSpreadInfo);
+}
+
 bool spreadFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo) {
   if (!functionSetup(pCtx, pResultInfo)) {
     return false;
@@ -2828,12 +2975,56 @@ _spread_over:
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t spreadFunctionMerge(SqlFunctionCtx *pCtx) {
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData* pCol = pInput->pData[0];
+  ASSERT(pCol->info.type == TSDB_DATA_TYPE_BINARY);
+
+  SSpreadInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  SSpreadInfo* pInputInfo;
+
+  int32_t start = pInput->startRowIndex;
+  char* data = colDataGetData(pCol, start);
+  pInputInfo = (SSpreadInfo *)varDataVal(data);
+
+  pInfo->hasResult = pInputInfo->hasResult;
+  if (pInputInfo->max > pInfo->max) {
+    pInfo->max = pInputInfo->max;
+  }
+
+  if (pInputInfo->min < pInfo->min) {
+    pInfo->min = pInputInfo->min;
+  }
+
+  SET_VAL(GET_RES_INFO(pCtx), 1, 1);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t spreadFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SSpreadInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
   if (pInfo->hasResult == true) {
     SET_DOUBLE_VAL(&pInfo->result, pInfo->max - pInfo->min);
   }
   return functionFinalize(pCtx, pBlock);
+}
+
+int32_t spreadPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SSpreadInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  int32_t resultBytes = (int32_t)sizeof(SSpreadInfo);
+  char *res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
+
+  memcpy(varDataVal(res), pInfo, resultBytes);
+  varDataSetLen(res, resultBytes);
+
+  int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+
+  colDataAppend(pCol, pBlock->info.rows, res, false);
+
+  taosMemoryFree(res);
+  return pResInfo->numOfRes;
 }
 
 bool getElapsedFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
@@ -2943,6 +3134,10 @@ int32_t elapsedFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   result = (result >= 0) ? result : -result;
   pInfo->result = result / pInfo->timeUnit;
   return functionFinalize(pCtx, pBlock);
+}
+
+int32_t getHistogramInfoSize() {
+  return (int32_t)sizeof(SHistoFuncInfo) + HISTOGRAM_MAX_BINS_NUM * sizeof(SHistoFuncBin);
 }
 
 bool getHistogramFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
@@ -3155,6 +3350,30 @@ int32_t histogramFunction(SqlFunctionCtx *pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t histogramFunctionMerge(SqlFunctionCtx *pCtx) {
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData* pCol = pInput->pData[0];
+  ASSERT(pCol->info.type == TSDB_DATA_TYPE_BINARY);
+
+  SHistoFuncInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+
+  int32_t start = pInput->startRowIndex;
+  char* data = colDataGetData(pCol, start);
+  SHistoFuncInfo* pInputInfo = (SHistoFuncInfo *)varDataVal(data);
+
+  pInfo->normalized = pInputInfo->normalized;
+  pInfo->numOfBins  = pInputInfo->numOfBins;
+  pInfo->totalCount += pInputInfo->totalCount;
+  for (int32_t k = 0; k < pInfo->numOfBins; ++k) {
+    pInfo->bins[k].lower = pInputInfo->bins[k].lower;
+    pInfo->bins[k].upper = pInputInfo->bins[k].upper;
+    pInfo->bins[k].count += pInputInfo->bins[k].count;
+  }
+
+  SET_VAL(GET_RES_INFO(pCtx), pInfo->numOfBins, pInfo->numOfBins);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t histogramFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SHistoFuncInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
@@ -3189,6 +3408,24 @@ int32_t histogramFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   }
 
   return pResInfo->numOfRes;
+}
+
+int32_t histogramPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SHistoFuncInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  int32_t resultBytes = getHistogramInfoSize();
+  char *res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
+
+  memcpy(varDataVal(res), pInfo, resultBytes);
+  varDataSetLen(res, resultBytes);
+
+  int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+
+  colDataAppend(pCol, pBlock->info.rows, res, false);
+
+  taosMemoryFree(res);
+  return 1;
 }
 
 bool getHLLFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {

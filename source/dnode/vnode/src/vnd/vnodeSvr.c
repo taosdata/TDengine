@@ -92,9 +92,6 @@ int32_t vnodePreprocessReq(SVnode *pVnode, SRpcMsg *pMsg) {
       }
 
     } break;
-    case TDMT_VND_ALTER_REPLICA: {
-      code = vnodeSyncAlter(pVnode, pMsg);
-    } break;
     default:
       break;
   }
@@ -108,7 +105,7 @@ int32_t vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
   int32_t len;
   int32_t ret;
 
-  vTrace("vgId:%d, start to process write request %s, version %" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType),
+  vTrace("vgId:%d, start to process write request %s, index:%" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType),
          version);
 
   pVnode->state.applied = version;
@@ -174,7 +171,7 @@ int32_t vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
       break;
   }
 
-  vTrace("vgId:%d, process %s request success, version: %" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType), version);
+  vTrace("vgId:%d, process %s request success, index:%" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType), version);
 
 #if 0
   if (tqPushMsg(pVnode->pTq, pMsg->pCont, pMsg->contLen, pMsg->msgType, version) < 0) {

@@ -975,6 +975,15 @@ static int32_t mndGetTableSma(SMnode *pMnode, STableIndexReq *indexReq, STableIn
     info.sliding = pSma->sliding;
     info.dstTbUid = pSma->dstTbUid;
     info.dstVgId = pSma->dstVgId;
+
+    SVgObj* pVg = mndAcquireVgroup(pMnode, pSma->dstVgId);
+    if (pVg == NULL) {
+      code = -1;
+      sdbRelease(pSdb, pSma);
+      return code;
+    }
+    info.epSet = mndGetVgroupEpset(pMnode, pVg);
+    
     info.expr = taosMemoryMalloc(pSma->exprLen + 1);
     if (info.expr == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;

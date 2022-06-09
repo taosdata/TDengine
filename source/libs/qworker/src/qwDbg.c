@@ -9,7 +9,7 @@
 #include "tmsg.h"
 #include "tname.h"
 
-SQWDebug     gQWDebug = {.statusEnable = true, .dumpEnable = true};
+SQWDebug     gQWDebug = {.statusEnable = true, .dumpEnable = false};
 
 int32_t qwDbgValidateStatus(QW_FPARAMS_DEF, int8_t oriStatus, int8_t newStatus, bool *ignore) {
   if (!gQWDebug.statusEnable) {
@@ -97,7 +97,11 @@ _return:
   QW_RET(code);
 }
 
-void qwDbgDumpSchInfo(SQWSchStatus *sch, int32_t i) {}
+void qwDbgDumpSchInfo(SQWorker *mgmt, SQWSchStatus *sch, int32_t i) {
+  QW_LOCK(QW_READ, &sch->tasksLock);
+  QW_DLOG("the %dth scheduler status, hbBrokenTs:%" PRId64 ",taskNum:%d", i, sch->hbBrokenTs, taosHashGetSize(sch->tasksHash));
+  QW_UNLOCK(QW_READ, &sch->tasksLock);
+}
 
 void qwDbgDumpMgmtInfo(SQWorker *mgmt) {
   if (!gQWDebug.dumpEnable) {
@@ -106,7 +110,7 @@ void qwDbgDumpMgmtInfo(SQWorker *mgmt) {
 
   QW_LOCK(QW_READ, &mgmt->schLock);
 
-  /*QW_DUMP("total remain schduler num:%d", taosHashGetSize(mgmt->schHash));*/
+  QW_DUMP("total remain scheduler num %d", taosHashGetSize(mgmt->schHash));
 
   void         *key = NULL;
   size_t        keyLen = 0;
@@ -116,14 +120,14 @@ void qwDbgDumpMgmtInfo(SQWorker *mgmt) {
   void *pIter = taosHashIterate(mgmt->schHash, NULL);
   while (pIter) {
     sch = (SQWSchStatus *)pIter;
-    qwDbgDumpSchInfo(sch, i);
+    qwDbgDumpSchInfo(mgmt, sch, i);
     ++i;
     pIter = taosHashIterate(mgmt->schHash, pIter);
   }
 
   QW_UNLOCK(QW_READ, &mgmt->schLock);
 
-  /*QW_DUMP("total remain ctx num:%d", taosHashGetSize(mgmt->ctxHash));*/
+  QW_DUMP("total remain ctx num %d", taosHashGetSize(mgmt->ctxHash));
 }
 
 

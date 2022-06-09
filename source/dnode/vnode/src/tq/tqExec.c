@@ -39,6 +39,9 @@ static int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataBlkRsp* pRs
 
 static int32_t tqAddBlockSchemaToRsp(const STqExecHandle* pExec, int32_t workerId, SMqDataBlkRsp* pRsp) {
   SSchemaWrapper* pSW = tCloneSSchemaWrapper(pExec->pExecReader[workerId]->pSchemaWrapper);
+  if (pSW == NULL) {
+    return -1;
+  }
   taosArrayPush(pRsp->blockSchema, &pSW);
   return 0;
 }

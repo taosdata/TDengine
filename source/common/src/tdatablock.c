@@ -682,9 +682,9 @@ size_t blockDataGetRowSize(SSDataBlock* pBlock) {
  * @param pBlock
  * @return
  */
-size_t blockDataGetSerialMetaSize(const SSDataBlock* pBlock) {
-  // | total rows/total length | block group id | each column length |
-  return sizeof(int32_t) + sizeof(uint64_t) + pBlock->info.numOfCols * sizeof(int32_t);
+size_t blockDataGetSerialMetaSize(uint32_t numOfCols) {
+  // | total rows/total length | block group id | column schema | each column length |
+  return sizeof(int32_t) + sizeof(uint64_t) + numOfCols * (sizeof(int16_t) + sizeof(int32_t)) + numOfCols * sizeof(int32_t);
 }
 
 double blockDataGetSerialRowSize(const SSDataBlock* pBlock) {
@@ -1217,6 +1217,7 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData) {
   pBlock->info.numOfCols = numOfCols;
   pBlock->info.hasVarCol = pDataBlock->info.hasVarCol;
   pBlock->info.rowSize = pDataBlock->info.rowSize;
+  pBlock->info.groupId = pDataBlock->info.groupId;
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData  colInfo = {0};
@@ -1246,7 +1247,7 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData) {
 }
 
 size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize) {
-  int32_t payloadSize = pageSize - blockDataGetSerialMetaSize(pBlock);
+  int32_t payloadSize = pageSize - blockDataGetSerialMetaSize(pBlock->info.numOfCols);
 
   int32_t rowSize = pBlock->info.rowSize;
 
@@ -1271,12 +1272,12 @@ size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize) {
 
 void colDataDestroy(SColumnInfoData* pColData) {
   if (IS_VAR_DATA_TYPE(pColData->info.type)) {
-    taosMemoryFree(pColData->varmeta.offset);
+    taosMemoryFreeClear(pColData->varmeta.offset);
   } else {
-    taosMemoryFree(pColData->nullbitmap);
+    taosMemoryFreeClear(pColData->nullbitmap);
   }
 
-  taosMemoryFree(pColData->pData);
+  taosMemoryFreeClear(pColData->pData);
 }
 
 static void doShiftBitmap(char* nullBitmap, size_t n, size_t total) {
@@ -1891,33 +1892,43 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
 
 void blockCompressEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen, int32_t numOfCols,
                          int8_t needCompress) {
+  // todo extract method
   int32_t* actualLen = (int32_t*)data;
   data += sizeof(int32_t);
 
   uint64_t* groupId = (uint64_t*)data;
   data += sizeof(uint64_t);
 
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
+    *((int16_t*) data) = pColInfoData->info.type;
+    data += sizeof(int16_t);
+
+    *((int32_t*) data) = pColInfoData->info.bytes;
+    data += sizeof(int32_t);
+  }
+
   int32_t* colSizes = (int32_t*)data;
   data += numOfCols * sizeof(int32_t);
 
-  *dataLen = (numOfCols * sizeof(int32_t) + sizeof(uint64_t) + sizeof(int32_t));
+  *dataLen = blockDataGetSerialMetaSize(numOfCols);
 
   int32_t numOfRows = pBlock->info.rows;
   for (int32_t col = 0; col < numOfCols; ++col) {
     SColumnInfoData* pColRes = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, col);
 
     // copy the null bitmap
+    size_t metaSize = 0;
     if (IS_VAR_DATA_TYPE(pColRes->info.type)) {
-      size_t metaSize = numOfRows * sizeof(int32_t);
+      metaSize = numOfRows * sizeof(int32_t);
       memcpy(data, pColRes->varmeta.offset, metaSize);
-      data += metaSize;
-      (*dataLen) += metaSize;
     } else {
-      int32_t len = BitmapLen(numOfRows);
-      memcpy(data, pColRes->nullbitmap, len);
-      data += len;
-      (*dataLen) += len;
+      metaSize = BitmapLen(numOfRows);
+      memcpy(data, pColRes->nullbitmap, metaSize);
     }
+
+    data += metaSize;
+    (*dataLen) += metaSize;
 
     if (needCompress) {
       colSizes[col] = blockCompressColData(pColRes, numOfRows, data, needCompress);
@@ -1946,6 +1957,17 @@ const char* blockCompressDecode(SSDataBlock* pBlock, int32_t numOfCols, int32_t 
 
   pBlock->info.groupId = *(uint64_t*)pStart;
   pStart += sizeof(uint64_t);
+
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
+    pColInfoData->info.type = *(int16_t*)pStart;
+    pStart += sizeof(int16_t);
+
+    pColInfoData->info.bytes = *(int32_t*)pStart;
+    pStart += sizeof(int32_t);
+  }
+
+  blockDataEnsureCapacity(pBlock, numOfRows);
 
   int32_t* colLen = (int32_t*)pStart;
   pStart += sizeof(int32_t) * numOfCols;

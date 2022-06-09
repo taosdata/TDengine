@@ -81,7 +81,9 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   pVnode->state.applied = info.state.committed;
   pVnode->pTfs = pTfs;
   pVnode->msgCb = msgCb;
+  pVnode->syncCount = 0;
 
+  tsem_init(&pVnode->syncSem, 0, 0);
   tsem_init(&(pVnode->canCommit), 0, 1);
 
   // open buffer pool
@@ -175,6 +177,7 @@ void vnodeClose(SVnode *pVnode) {
     vnodeCloseBufPool(pVnode);
     // destroy handle
     tsem_destroy(&(pVnode->canCommit));
+    tsem_destroy(&pVnode->syncSem);
     taosMemoryFree(pVnode);
   }
 }
