@@ -3569,7 +3569,7 @@ int32_t hllFunctionMerge(SqlFunctionCtx *pCtx) {
 
   for (int32_t k = 0; k < HLL_BUCKETS; ++k) {
     if (pInfo->buckets[k] < pInputInfo->buckets[k]) {
-      pInputInfo->buckets[k] = pInfo->buckets[k];
+      pInfo->buckets[k] = pInputInfo->buckets[k];
     }
   }
 
