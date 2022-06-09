@@ -1556,7 +1556,7 @@ static int32_t smlParseTSFromJSONObj(SSmlHandle *info, cJSON *root, int64_t *tsV
       return TSDB_CODE_TSC_INVALID_TIME_STAMP;
     }
     *tsVal = timeDouble;
-  } else if (typeLen == 2 && (type->valuestring[0] == 's' || type->valuestring[0] == 'S')) {
+  } else if (typeLen == 2 && (type->valuestring[1] == 's' || type->valuestring[1] == 'S')) {
     switch (type->valuestring[0]) {
       case 'm':
       case 'M':
