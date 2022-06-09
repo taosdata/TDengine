@@ -184,8 +184,8 @@ static int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index,
       const char* linuxErrMsg = strerror(errno);
       sError("raftLogGetEntry error, err:%d %X, msg:%s, linuxErr:%d, linuxErrMsg:%s", err, err, errStr, linuxErr,
              linuxErrMsg);
-      walCloseReadHandle(pWalHandle);
       ASSERT(0);
+      walCloseReadHandle(pWalHandle);
       return code;
     }
 

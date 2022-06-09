@@ -35,7 +35,7 @@
 #include "syncVoteMgr.h"
 #include "tref.h"
 
-bool gRaftDetailLog = false;
+bool gRaftDetailLog = true;
 
 static int32_t tsNodeRefId = -1;
 
@@ -826,7 +826,13 @@ int32_t syncNodeRestartElectTimer(SSyncNode* pSyncNode, int32_t ms) {
 
 int32_t syncNodeResetElectTimer(SSyncNode* pSyncNode) {
   int32_t ret = 0;
-  int32_t electMS = syncUtilElectRandomMS(pSyncNode->electBaseLine, 2 * pSyncNode->electBaseLine);
+  int32_t electMS;
+
+  if (pSyncNode->pRaftCfg->isStandBy) {
+    electMS = TIMER_MAX_MS;
+  } else {
+    electMS = syncUtilElectRandomMS(pSyncNode->electBaseLine, 2 * pSyncNode->electBaseLine);
+  }
   ret = syncNodeRestartElectTimer(pSyncNode, electMS);
   return ret;
 }
