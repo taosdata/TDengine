@@ -1028,8 +1028,8 @@ static bool validateHourRange(int8_t hour) {
   return true;
 }
 
-static bool validateMinuteRange(int8_t hour, int8_t minute) {
-  if (minute == 0 || (minute == 30 && (hour == 3 || hour == 5))) {
+static bool validateMinuteRange(int8_t hour, int8_t minute, char sign) {
+  if (minute == 0 || (minute == 30 && (hour == 3 || hour == 5) && sign == '-')) {
     return true;
   }
 
@@ -1068,7 +1068,7 @@ static bool validateTimezoneFormat(const SValueNode* pVal) {
           } else if (i == 4) {
             memcpy(buf, &tz[i - 1], 2);
             minute = taosStr2Int8(buf, NULL, 10);
-            if (!validateMinuteRange(hour, minute)) {
+            if (!validateMinuteRange(hour, minute, tz[0])) {
               return false;
             }
           }
@@ -1097,7 +1097,7 @@ static bool validateTimezoneFormat(const SValueNode* pVal) {
           } else if (i == 5) {
             memcpy(buf, &tz[i - 1], 2);
             minute = taosStr2Int8(buf, NULL, 10);
-            if (!validateMinuteRange(hour, minute)) {
+            if (!validateMinuteRange(hour, minute, tz[0])) {
               return false;
             }
           }
