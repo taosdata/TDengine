@@ -367,49 +367,40 @@ class MockCatalogServiceImpl {
   }
 
   int32_t getAllTableMeta(SArray* pTableMetaReq, SArray** pTableMetaData) const {
-    int32_t code = TSDB_CODE_SUCCESS;
     if (NULL != pTableMetaReq) {
       int32_t ntables = taosArrayGetSize(pTableMetaReq);
-      *pTableMetaData = taosArrayInit(ntables, POINTER_BYTES);
+      *pTableMetaData = taosArrayInit(ntables, sizeof(SMetaRes));
       for (int32_t i = 0; i < ntables; ++i) {
-        STableMeta* pMeta = NULL;
-        code = catalogGetTableMeta((const SName*)taosArrayGet(pTableMetaReq, i), &pMeta);
-        if (TSDB_CODE_SUCCESS == code) {
-          taosArrayPush(*pTableMetaData, &pMeta);
-        } else {
-          break;
-        }
+        SMetaRes res = {0};
+        res.code = catalogGetTableMeta((const SName*)taosArrayGet(pTableMetaReq, i), (STableMeta**)&res.pRes);
+        taosArrayPush(*pTableMetaData, &res);
       }
     }
-    return code;
+    return TSDB_CODE_SUCCESS;
   }
 
   int32_t getAllTableVgroup(SArray* pTableVgroupReq, SArray** pTableVgroupData) const {
-    int32_t code = TSDB_CODE_SUCCESS;
     if (NULL != pTableVgroupReq) {
       int32_t ntables = taosArrayGetSize(pTableVgroupReq);
-      *pTableVgroupData = taosArrayInit(ntables, sizeof(SVgroupInfo));
+      *pTableVgroupData = taosArrayInit(ntables, sizeof(SMetaRes));
       for (int32_t i = 0; i < ntables; ++i) {
-        SVgroupInfo vgInfo = {0};
-        code = catalogGetTableHashVgroup((const SName*)taosArrayGet(pTableVgroupReq, i), &vgInfo);
-        if (TSDB_CODE_SUCCESS == code) {
-          taosArrayPush(*pTableVgroupData, &vgInfo);
-        } else {
-          break;
-        }
+        SMetaRes res = {0};
+        res.pRes = taosMemoryCalloc(1, sizeof(SVgroupInfo));
+        res.code = catalogGetTableHashVgroup((const SName*)taosArrayGet(pTableVgroupReq, i), (SVgroupInfo*)res.pRes);
+        taosArrayPush(*pTableVgroupData, &res);
       }
     }
-    return code;
+    return TSDB_CODE_SUCCESS;
   }
 
   int32_t getAllDbVgroup(SArray* pDbVgroupReq, SArray** pDbVgroupData) const {
     int32_t code = TSDB_CODE_SUCCESS;
     if (NULL != pDbVgroupReq) {
       int32_t ndbs = taosArrayGetSize(pDbVgroupReq);
-      *pDbVgroupData = taosArrayInit(ndbs, POINTER_BYTES);
+      *pDbVgroupData = taosArrayInit(ndbs, sizeof(SMetaRes));
       for (int32_t i = 0; i < ndbs; ++i) {
-        int64_t zeroVg = 0;
-        taosArrayPush(*pDbVgroupData, &zeroVg);
+        SMetaRes res = {0};
+        taosArrayPush(*pDbVgroupData, &res);
       }
     }
     return code;
@@ -419,10 +410,11 @@ class MockCatalogServiceImpl {
     int32_t code = TSDB_CODE_SUCCESS;
     if (NULL != pDbCfgReq) {
       int32_t ndbs = taosArrayGetSize(pDbCfgReq);
-      *pDbCfgData = taosArrayInit(ndbs, sizeof(SDbCfgInfo));
+      *pDbCfgData = taosArrayInit(ndbs, sizeof(SMetaRes));
       for (int32_t i = 0; i < ndbs; ++i) {
-        SDbCfgInfo dbCfg = {0};
-        taosArrayPush(*pDbCfgData, &dbCfg);
+        SMetaRes res = {0};
+        res.pRes = taosMemoryCalloc(1, sizeof(SDbCfgInfo));
+        taosArrayPush(*pDbCfgData, &res);
       }
     }
     return code;
@@ -432,10 +424,11 @@ class MockCatalogServiceImpl {
     int32_t code = TSDB_CODE_SUCCESS;
     if (NULL != pDbInfoReq) {
       int32_t ndbs = taosArrayGetSize(pDbInfoReq);
-      *pDbInfoData = taosArrayInit(ndbs, sizeof(SDbCfgInfo));
+      *pDbInfoData = taosArrayInit(ndbs, sizeof(SMetaRes));
       for (int32_t i = 0; i < ndbs; ++i) {
-        SDbInfo dbInfo = {0};
-        taosArrayPush(*pDbInfoData, &dbInfo);
+        SMetaRes res = {0};
+        res.pRes = taosMemoryCalloc(1, sizeof(SDbInfo));
+        taosArrayPush(*pDbInfoData, &res);
       }
     }
     return code;
@@ -445,31 +438,29 @@ class MockCatalogServiceImpl {
     int32_t code = TSDB_CODE_SUCCESS;
     if (NULL != pUserAuthReq) {
       int32_t num = taosArrayGetSize(pUserAuthReq);
-      *pUserAuthData = taosArrayInit(num, sizeof(bool));
+      *pUserAuthData = taosArrayInit(num, sizeof(SMetaRes));
       for (int32_t i = 0; i < num; ++i) {
-        bool pass = true;
-        taosArrayPush(*pUserAuthData, &pass);
+        SMetaRes res = {0};
+        res.pRes = taosMemoryCalloc(1, sizeof(bool));
+        *(bool*)(res.pRes) = true;
+        taosArrayPush(*pUserAuthData, &res);
       }
     }
     return code;
   }
 
   int32_t getAllUdf(SArray* pUdfReq, SArray** pUdfData) const {
-    int32_t code = TSDB_CODE_SUCCESS;
     if (NULL != pUdfReq) {
       int32_t num = taosArrayGetSize(pUdfReq);
-      *pUdfData = taosArrayInit(num, sizeof(SFuncInfo));
+      *pUdfData = taosArrayInit(num, sizeof(SMetaRes));
       for (int32_t i = 0; i < num; ++i) {
-        SFuncInfo info = {0};
-        code = catalogGetUdfInfo((char*)taosArrayGet(pUdfReq, i), &info);
-        if (TSDB_CODE_SUCCESS == code) {
-          taosArrayPush(*pUdfData, &info);
-        } else {
-          break;
-        }
+        SMetaRes res = {0};
+        res.pRes = taosMemoryCalloc(1, sizeof(SFuncInfo));
+        res.code = catalogGetUdfInfo((char*)taosArrayGet(pUdfReq, i), (SFuncInfo*)res.pRes);
+        taosArrayPush(*pUdfData, &res);
       }
     }
-    return code;
+    return TSDB_CODE_SUCCESS;
   }
 
   uint64_t                      id_;

@@ -208,7 +208,13 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
         SCL_RET(TSDB_CODE_QRY_INVALID_INPUT);
       }
 
-      SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->pHashFilter, node, nodeList->dataType.type));
+      int32_t type = vectorGetConvertType(ctx->type.selfType, ctx->type.peerType);
+      if (type == 0) {
+        type = nodeList->dataType.type;
+      }
+      
+      SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->pHashFilter, node, type));
+      param->hashValueType = type;
       if (taosHashPut(ctx->pRes, &node, POINTER_BYTES, param, sizeof(*param))) {
         taosHashCleanup(param->pHashFilter);
         sclError("taosHashPut nodeList failed, size:%d", (int32_t)sizeof(*param));
@@ -334,6 +340,46 @@ _return:
   SCL_RET(code);
 }
 
+int32_t sclGetNodeType(SNode *pNode, SScalarCtx *ctx) {
+  if (NULL == pNode) {
+    return -1;
+  }
+  
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_VALUE: {
+      SValueNode *valueNode = (SValueNode *)pNode;
+      return valueNode->node.resType.type;
+    }
+    case QUERY_NODE_NODE_LIST: {
+      SNodeListNode *nodeList = (SNodeListNode *)pNode;
+      return nodeList->dataType.type;
+    }
+    case QUERY_NODE_COLUMN: {
+      SColumnNode *colNode = (SColumnNode *)pNode;
+      return colNode->node.resType.type;
+    }
+    case QUERY_NODE_FUNCTION:
+    case QUERY_NODE_OPERATOR:
+    case QUERY_NODE_LOGIC_CONDITION: {
+      SScalarParam *res = (SScalarParam *)taosHashGet(ctx->pRes, &pNode, POINTER_BYTES);
+      if (NULL == res) {
+        sclError("no result for node, type:%d, node:%p", nodeType(pNode), pNode);
+        return -1;
+      }
+      return res->columnData->info.type;
+    }
+  }
+
+  return -1;
+}
+
+
+void sclSetOperatorValueType(SOperatorNode *node, SScalarCtx *ctx) {
+  ctx->type.opResType = node->node.resType.type;
+  ctx->type.selfType = sclGetNodeType(node->pLeft, ctx);
+  ctx->type.peerType = sclGetNodeType(node->pRight, ctx);
+}
+
 int32_t sclInitOperatorParams(SScalarParam **pParams, SOperatorNode *node, SScalarCtx *ctx, int32_t *rowNum) {
   int32_t code = 0;
   int32_t paramNum = scalarGetOperatorParamNum(node->opType);
@@ -348,8 +394,11 @@ int32_t sclInitOperatorParams(SScalarParam **pParams, SOperatorNode *node, SScal
     SCL_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
+  sclSetOperatorValueType(node, ctx);
+
   SCL_ERR_JRET(sclInitParam(node->pLeft, &paramList[0], ctx, rowNum));
   if (paramNum > 1) {
+    TSWAP(ctx->type.selfType, ctx->type.peerType);
     SCL_ERR_JRET(sclInitParam(node->pRight, &paramList[1], ctx, rowNum));
   }
 

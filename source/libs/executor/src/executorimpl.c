@@ -1818,9 +1818,9 @@ void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numO
   }
 }
 
-static void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep);
+static void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep, bool needFree);
 
-void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock) {
+void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, bool needFree) {
   if (pFilterNode == NULL) {
     return;
   }
@@ -1839,11 +1839,11 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock) {
   bool keep = filterExecute(filter, pBlock, &rowRes, NULL, param1.numOfCols);
   filterFreeInfo(filter);
 
-  extractQualifiedTupleByFilterResult(pBlock, rowRes, keep);
+  extractQualifiedTupleByFilterResult(pBlock, rowRes, keep, needFree);
   blockDataUpdateTsWindow(pBlock, 0);
 }
 
-void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep) {
+void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep, bool needFree) {
   if (keep) {
     return;
   }
@@ -1883,8 +1883,20 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowR
         ASSERT(pBlock->info.rows == numOfRows);
       }
 
+      SColumnInfoData tmp = *pSrc;
       *pSrc = *pDst;
+      *pDst = tmp;
+
+      if (!needFree) {
+        if (IS_VAR_DATA_TYPE(pDst->info.type)) {  // this elements do not need free
+          pDst->varmeta.offset = NULL;
+        } else {
+          pDst->nullbitmap = NULL;
+        }
+        pDst->pData = NULL;
+      }
     }
+    blockDataDestroy(px);  // fix memory leak
   } else {
     // do nothing
     pBlock->info.rows = 0;
@@ -2559,37 +2571,7 @@ int32_t setDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadIn
       }
     }
 
-    blockDataEnsureCapacity(pBlock, numOfRows);
-
-    int32_t  dataLen = *(int32_t*)pStart;
-    uint64_t groupId = *(uint64_t*)(pStart + sizeof(int32_t));
-    pStart += sizeof(int32_t) + sizeof(uint64_t);
-
-    int32_t* colLen = (int32_t*)(pStart);
-    pStart += sizeof(int32_t) * numOfCols;
-
-    for (int32_t i = 0; i < numOfCols; ++i) {
-      colLen[i] = htonl(colLen[i]);
-      ASSERT(colLen[i] >= 0);
-
-      SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
-      if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-        pColInfoData->varmeta.length = colLen[i];
-        pColInfoData->varmeta.allocLen = colLen[i];
-
-        memcpy(pColInfoData->varmeta.offset, pStart, sizeof(int32_t) * numOfRows);
-        pStart += sizeof(int32_t) * numOfRows;
-
-        pColInfoData->pData = taosMemoryMalloc(colLen[i]);
-      } else {
-        memcpy(pColInfoData->nullbitmap, pStart, BitmapLen(numOfRows));
-        pStart += BitmapLen(numOfRows);
-      }
-
-      memcpy(pColInfoData->pData, pStart, colLen[i]);
-      pStart += colLen[i];
-    }
-
+    blockCompressDecode(pBlock, numOfCols, numOfRows, pStart);
     // data from mnode
     relocateColumnData(pRes, pColList, pBlock->pDataBlock);
     taosArrayDestroy(pBlock->pDataBlock);
@@ -3121,6 +3103,68 @@ static SSDataBlock* doMerge(SOperatorInfo* pOperator) {
   return (pInfo->binfo.pRes->info.rows > 0) ? pInfo->binfo.pRes : NULL;
 }
 
+SSDataBlock* getSortedMergeBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity, SArray* pColMatchInfo,
+                                SSortedMergeOperatorInfo *pInfo) {
+  blockDataCleanup(pDataBlock);
+
+  SSDataBlock* p = tsortGetSortedDataBlock(pHandle);
+  if (p == NULL) {
+    return NULL;
+  }
+
+  blockDataEnsureCapacity(p, capacity);
+
+  while (1) {
+    STupleHandle* pTupleHandle = NULL;
+    if (pInfo->prefetchedTuple == NULL) {
+      pTupleHandle = tsortNextTuple(pHandle);
+    } else {
+      pTupleHandle = pInfo->prefetchedTuple;
+      pInfo->groupId = tsortGetGroupId(pTupleHandle);
+      pInfo->prefetchedTuple = NULL;
+    }
+
+    if (pTupleHandle == NULL) {
+      break;
+    }
+
+    uint64_t tupleGroupId = tsortGetGroupId(pTupleHandle);
+    if (!pInfo->hasGroupId) {
+      pInfo->groupId = tupleGroupId;
+      pInfo->hasGroupId = true;
+      appendOneRowToDataBlock(p, pTupleHandle);
+    } else if (pInfo->groupId == tupleGroupId) {
+      appendOneRowToDataBlock(p, pTupleHandle);
+    } else {
+      pInfo->prefetchedTuple = pTupleHandle;
+      break;
+    }
+
+    if (p->info.rows >= capacity) {
+      break;
+    }
+  }
+
+  if (p->info.rows > 0) {
+    int32_t numOfCols = taosArrayGetSize(pColMatchInfo);
+    for (int32_t i = 0; i < numOfCols; ++i) {
+      SColMatchInfo* pmInfo = taosArrayGet(pColMatchInfo, i);
+      ASSERT(pmInfo->matchType == COL_MATCH_FROM_SLOT_ID);
+
+      SColumnInfoData* pSrc = taosArrayGet(p->pDataBlock, pmInfo->srcSlotId);
+      SColumnInfoData* pDst = taosArrayGet(pDataBlock->pDataBlock, pmInfo->targetSlotId);
+      colDataAssign(pDst, pSrc, p->info.rows);
+    }
+
+    pDataBlock->info.rows = p->info.rows;
+    pDataBlock->info.capacity = p->info.rows;
+    pDataBlock->info.groupId = pInfo->groupId;
+  }
+
+  blockDataDestroy(p);
+  return (pDataBlock->info.rows > 0) ? pDataBlock : NULL;
+}
+
 static SSDataBlock* doSortedMerge(SOperatorInfo* pOperator) {
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
@@ -3129,7 +3173,7 @@ static SSDataBlock* doSortedMerge(SOperatorInfo* pOperator) {
   SExecTaskInfo*            pTaskInfo = pOperator->pTaskInfo;
   SSortedMergeOperatorInfo* pInfo = pOperator->info;
   if (pOperator->status == OP_RES_TO_RETURN) {
-    return getSortedBlockData(pInfo->pSortHandle, pInfo->binfo.pRes, pOperator->resultInfo.capacity, NULL);
+    return getSortedMergeBlockData(pInfo->pSortHandle, pInfo->binfo.pRes, pOperator->resultInfo.capacity, NULL, pInfo);
   }
 
   int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
@@ -3640,7 +3684,7 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       longjmp(pTaskInfo->env, code);
     }
 
-    doFilter(pProjectInfo->pFilterNode, pBlock);
+    doFilter(pProjectInfo->pFilterNode, pBlock, true);
 
     setInputDataBlock(pOperator, pInfo->pCtx, pBlock, order, scanFlag, false);
     blockDataEnsureCapacity(pInfo->pRes, pInfo->pRes->info.rows + pBlock->info.rows);
@@ -4522,7 +4566,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       SScanPhysiNode*      pScanPhyNode = (SScanPhysiNode*)pPhyNode;  // simple child table.
       STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pPhyNode;
       STimeWindowAggSupp   twSup = {
-            .waterMark = pTableScanNode->watermark, .calTrigger = pTableScanNode->triggerType, .maxTs = INT64_MIN};
+          .waterMark = pTableScanNode->watermark, .calTrigger = pTableScanNode->triggerType, .maxTs = INT64_MIN};
       tsdbReaderT pDataReader = NULL;
       if (pHandle->vnode) {
         pDataReader = doCreateDataReader(pTableScanNode, pHandle, pTableListInfo, (uint64_t)queryId, taskId, pTagCond);
