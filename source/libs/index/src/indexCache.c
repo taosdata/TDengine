@@ -69,7 +69,7 @@ static int32_t (*cacheSearch[][QUERY_MAX])(void* cache, SIndexTerm* ct, SIdxTRsl
      cacheSearchRange_JSON}};
 
 static void doMergeWork(SSchedMsg* msg);
-static bool indexCacheIteratorNext(Iterate* itera);
+static bool idxCacheIteratorNext(Iterate* itera);
 
 static int32_t cacheSearchTerm(void* cache, SIndexTerm* term, SIdxTRslt* tr, STermValueType* s) {
   if (cache == NULL) {
@@ -476,7 +476,7 @@ Iterate* indexCacheIteratorCreate(IndexCache* cache) {
   iiter->val.val = taosArrayInit(1, sizeof(uint64_t));
   iiter->val.colVal = NULL;
   iiter->iter = tbl != NULL ? tSkipListCreateIter(tbl->mem) : NULL;
-  iiter->next = indexCacheIteratorNext;
+  iiter->next = idxCacheIteratorNext;
   iiter->getValue = indexCacheIteratorGetValue;
 
   taosThreadMutexUnlock(&cache->mtx);
@@ -748,9 +748,9 @@ static void doMergeWork(SSchedMsg* msg) {
 
   int quit = msg->thandle ? true : false;
   taosMemoryFree(msg->thandle);
-  indexFlushCacheToTFile(sidx, pCache, quit);
+  idxFlushCacheToTFile(sidx, pCache, quit);
 }
-static bool indexCacheIteratorNext(Iterate* itera) {
+static bool idxCacheIteratorNext(Iterate* itera) {
   SSkipListIterator* iter = itera->iter;
   if (iter == NULL) {
     return false;
