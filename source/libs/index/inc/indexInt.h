@@ -138,7 +138,7 @@ int32_t indexRemoveRef(int64_t ref);
 void    indexAcquireRef(int64_t ref);
 void    indexReleaseRef(int64_t ref);
 
-int32_t indexSerialCacheKey(ICacheKey* key, char* buf);
+int32_t idxSerialCacheKey(ICacheKey* key, char* buf);
 // int32_t indexSerialKey(ICacheKey* key, char* buf);
 // int32_t indexSerialTermKey(SIndexTerm* itm, char* buf);
 

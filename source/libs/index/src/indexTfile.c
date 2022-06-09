@@ -118,7 +118,7 @@ TFileCache* tfileCacheCreate(const char* path) {
     ICacheKey    key = {.suid = header->suid, .colName = header->colName, .nColName = (int32_t)strlen(header->colName)};
 
     char    buf[128] = {0};
-    int32_t sz = indexSerialCacheKey(&key, buf);
+    int32_t sz = idxSerialCacheKey(&key, buf);
     assert(sz < sizeof(buf));
     taosHashPut(tcache->tableCache, buf, sz, &reader, sizeof(void*));
     tfileReaderRef(reader);
@@ -149,7 +149,7 @@ void tfileCacheDestroy(TFileCache* tcache) {
 
 TFileReader* tfileCacheGet(TFileCache* tcache, ICacheKey* key) {
   char    buf[128] = {0};
-  int32_t sz = indexSerialCacheKey(key, buf);
+  int32_t sz = idxSerialCacheKey(key, buf);
   assert(sz < sizeof(buf));
   TFileReader** reader = taosHashGet(tcache->tableCache, buf, sz);
   if (reader == NULL || *reader == NULL) {
@@ -161,7 +161,7 @@ TFileReader* tfileCacheGet(TFileCache* tcache, ICacheKey* key) {
 }
 void tfileCachePut(TFileCache* tcache, ICacheKey* key, TFileReader* reader) {
   char    buf[128] = {0};
-  int32_t sz = indexSerialCacheKey(key, buf);
+  int32_t sz = idxSerialCacheKey(key, buf);
   // remove last version index reader
   TFileReader** p = taosHashGet(tcache->tableCache, buf, sz);
   if (p != NULL && *p != NULL) {
@@ -620,7 +620,7 @@ void tfileWriterDestroy(TFileWriter* tw) {
   taosMemoryFree(tw);
 }
 
-IndexTFile* indexTFileCreate(const char* path) {
+IndexTFile* idxTFileCreate(const char* path) {
   TFileCache* cache = tfileCacheCreate(path);
   if (cache == NULL) {
     return NULL;
@@ -635,7 +635,7 @@ IndexTFile* indexTFileCreate(const char* path) {
   tfile->cache = cache;
   return tfile;
 }
-void indexTFileDestroy(IndexTFile* tfile) {
+void idxTFileDestroy(IndexTFile* tfile) {
   if (tfile == NULL) {
     return;
   }
@@ -644,7 +644,7 @@ void indexTFileDestroy(IndexTFile* tfile) {
   taosMemoryFree(tfile);
 }
 
-int indexTFileSearch(void* tfile, SIndexTermQuery* query, SIdxTRslt* result) {
+int idxTFileSearch(void* tfile, SIndexTermQuery* query, SIdxTRslt* result) {
   int ret = -1;
   if (tfile == NULL) {
     return ret;
@@ -667,7 +667,7 @@ int indexTFileSearch(void* tfile, SIndexTermQuery* query, SIdxTRslt* result) {
 
   return tfileReaderSearch(reader, query, result);
 }
-int indexTFilePut(void* tfile, SIndexTerm* term, uint64_t uid) {
+int idxTFilePut(void* tfile, SIndexTerm* term, uint64_t uid) {
   // TFileWriterOpt wOpt = {.suid = term->suid, .colType = term->colType, .colName = term->colName, .nColName =
   // term->nColName, .version = 1};
 

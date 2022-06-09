@@ -68,7 +68,7 @@ static int32_t (*cacheSearch[][QUERY_MAX])(void* cache, SIndexTerm* ct, SIdxTRsl
      cacheSearchLessThan_JSON, cacheSearchLessEqual_JSON, cacheSearchGreaterThan_JSON, cacheSearchGreaterEqual_JSON,
      cacheSearchRange_JSON}};
 
-static void doMergeWork(SSchedMsg* msg);
+static void idxDoMergeWork(SSchedMsg* msg);
 static bool idxCacheIteratorNext(Iterate* itera);
 
 static int32_t cacheSearchTerm(void* cache, SIndexTerm* term, SIdxTRslt* tr, STermValueType* s) {
@@ -331,9 +331,9 @@ static int32_t cacheSearchRange(void* cache, SIndexTerm* term, SIdxTRslt* tr, ST
   // impl later
   return 0;
 }
-static IterateValue* indexCacheIteratorGetValue(Iterate* iter);
+static IterateValue* idxCacheIteratorGetValue(Iterate* iter);
 
-IndexCache* indexCacheCreate(SIndex* idx, uint64_t suid, const char* colName, int8_t type) {
+IndexCache* idxCacheCreate(SIndex* idx, uint64_t suid, const char* colName, int8_t type) {
   IndexCache* cache = taosMemoryCalloc(1, sizeof(IndexCache));
   if (cache == NULL) {
     indexError("failed to create index cache");
@@ -352,13 +352,13 @@ IndexCache* indexCacheCreate(SIndex* idx, uint64_t suid, const char* colName, in
   taosThreadMutexInit(&cache->mtx, NULL);
   taosThreadCondInit(&cache->finished, NULL);
 
-  indexCacheRef(cache);
+  idxCacheRef(cache);
   if (idx != NULL) {
     indexAcquireRef(idx->refId);
   }
   return cache;
 }
-void indexCacheDebug(IndexCache* cache) {
+void idxCacheDebug(IndexCache* cache) {
   MemTable* tbl = NULL;
 
   taosThreadMutexLock(&cache->mtx);
@@ -405,7 +405,7 @@ void indexCacheDebug(IndexCache* cache) {
   }
 }
 
-void indexCacheDestroySkiplist(SSkipList* slt) {
+void idxCacheDestroySkiplist(SSkipList* slt) {
   SSkipListIterator* iter = tSkipListCreateIter(slt);
   while (iter != NULL && tSkipListIterNext(iter)) {
     SSkipListNode* node = tSkipListIterGet(iter);
@@ -418,11 +418,11 @@ void indexCacheDestroySkiplist(SSkipList* slt) {
   tSkipListDestroyIter(iter);
   tSkipListDestroy(slt);
 }
-void indexCacheBroadcast(void* cache) {
+void idxCacheBroadcast(void* cache) {
   IndexCache* pCache = cache;
   taosThreadCondBroadcast(&pCache->finished);
 }
-void indexCacheWait(void* cache) {
+void idxCacheWait(void* cache) {
   IndexCache* pCache = cache;
   taosThreadCondWait(&pCache->finished, &pCache->mtx);
 }
@@ -435,14 +435,14 @@ void idxCacheDestroyImm(IndexCache* cache) {
 
   tbl = cache->imm;
   cache->imm = NULL;  // or throw int bg thread
-  indexCacheBroadcast(cache);
+  idxCacheBroadcast(cache);
 
   taosThreadMutexUnlock(&cache->mtx);
 
   idxMemUnRef(tbl);
   idxMemUnRef(tbl);
 }
-void indexCacheDestroy(void* cache) {
+void idxCacheDestroy(void* cache) {
   IndexCache* pCache = cache;
   if (pCache == NULL) {
     return;
@@ -460,7 +460,7 @@ void indexCacheDestroy(void* cache) {
   taosMemoryFree(pCache);
 }
 
-Iterate* indexCacheIteratorCreate(IndexCache* cache) {
+Iterate* idxCacheIteratorCreate(IndexCache* cache) {
   if (cache->imm == NULL) {
     return NULL;
   }
@@ -477,7 +477,7 @@ Iterate* indexCacheIteratorCreate(IndexCache* cache) {
   iiter->val.colVal = NULL;
   iiter->iter = tbl != NULL ? tSkipListCreateIter(tbl->mem) : NULL;
   iiter->next = idxCacheIteratorNext;
-  iiter->getValue = indexCacheIteratorGetValue;
+  iiter->getValue = idxCacheIteratorGetValue;
 
   taosThreadMutexUnlock(&cache->mtx);
 
@@ -492,9 +492,9 @@ void idxCacheIteratorDestroy(Iterate* iter) {
   taosMemoryFree(iter);
 }
 
-int indexCacheSchedToMerge(IndexCache* pCache, bool notify) {
+int idxCacheSchedToMerge(IndexCache* pCache, bool notify) {
   SSchedMsg schedMsg = {0};
-  schedMsg.fp = doMergeWork;
+  schedMsg.fp = idxDoMergeWork;
   schedMsg.ahandle = pCache;
   if (notify) {
     schedMsg.thandle = taosMemoryMalloc(1);
@@ -505,17 +505,17 @@ int indexCacheSchedToMerge(IndexCache* pCache, bool notify) {
   return 0;
 }
 
-static void indexCacheMakeRoomForWrite(IndexCache* cache) {
+static void idxCacheMakeRoomForWrite(IndexCache* cache) {
   while (true) {
     if (cache->occupiedMem * MEM_ESTIMATE_RADIO < MEM_THRESHOLD) {
       break;
     } else if (cache->imm != NULL) {
       // TODO: wake up by condition variable
-      indexCacheWait(cache);
+      idxCacheWait(cache);
     } else {
       bool quit = cache->occupiedMem >= MEM_SIGNAL_QUIT ? true : false;
 
-      indexCacheRef(cache);
+      idxCacheRef(cache);
       cache->imm = cache->mem;
       cache->mem = idxInternalCacheCreate(cache->type);
       cache->mem->pCache = cache;
@@ -525,18 +525,18 @@ static void indexCacheMakeRoomForWrite(IndexCache* cache) {
       }
       // sched to merge
       // unref cache in bgwork
-      indexCacheSchedToMerge(cache, quit);
+      idxCacheSchedToMerge(cache, quit);
     }
   }
 }
-int indexCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
+int idxCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
   if (cache == NULL) {
     return -1;
   }
   bool hasJson = INDEX_TYPE_CONTAIN_EXTERN_TYPE(term->colType, TSDB_DATA_TYPE_JSON);
 
   IndexCache* pCache = cache;
-  indexCacheRef(pCache);
+  idxCacheRef(pCache);
   // encode data
   CacheTerm* ct = taosMemoryCalloc(1, sizeof(CacheTerm));
   if (cache == NULL) {
@@ -559,7 +559,7 @@ int indexCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
 
   taosThreadMutexLock(&pCache->mtx);
   pCache->occupiedMem += estimate;
-  indexCacheMakeRoomForWrite(pCache);
+  idxCacheMakeRoomForWrite(pCache);
   MemTable* tbl = pCache->mem;
   idxMemRef(tbl);
   tSkipListPut(tbl->mem, (char*)ct);
@@ -567,29 +567,29 @@ int indexCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
 
   taosThreadMutexUnlock(&pCache->mtx);
 
-  indexCacheUnRef(pCache);
+  idxCacheUnRef(pCache);
   return 0;
   // encode end
 }
-void indexCacheForceToMerge(void* cache) {
+void idxCacheForceToMerge(void* cache) {
   IndexCache* pCache = cache;
-  indexCacheRef(pCache);
+  idxCacheRef(pCache);
   taosThreadMutexLock(&pCache->mtx);
 
   indexInfo("%p is forced to merge into tfile", pCache);
   pCache->occupiedMem += MEM_SIGNAL_QUIT;
-  indexCacheMakeRoomForWrite(pCache);
+  idxCacheMakeRoomForWrite(pCache);
 
   taosThreadMutexUnlock(&pCache->mtx);
-  indexCacheUnRef(pCache);
+  idxCacheUnRef(pCache);
   return;
 }
-int indexCacheDel(void* cache, const char* fieldValue, int32_t fvlen, uint64_t uid, int8_t operType) {
+int idxCacheDel(void* cache, const char* fieldValue, int32_t fvlen, uint64_t uid, int8_t operType) {
   IndexCache* pCache = cache;
   return 0;
 }
 
-static int32_t indexQueryMem(MemTable* mem, SIndexTermQuery* query, SIdxTRslt* tr, STermValueType* s) {
+static int32_t idxQueryMem(MemTable* mem, SIndexTermQuery* query, SIdxTRslt* tr, STermValueType* s) {
   if (mem == NULL) {
     return 0;
   }
@@ -603,7 +603,7 @@ static int32_t indexQueryMem(MemTable* mem, SIndexTermQuery* query, SIdxTRslt* t
     return cacheSearch[0][qtype](mem, term, tr, s);
   }
 }
-int indexCacheSearch(void* cache, SIndexTermQuery* query, SIdxTRslt* result, STermValueType* s) {
+int idxCacheSearch(void* cache, SIndexTermQuery* query, SIdxTRslt* result, STermValueType* s) {
   int64_t st = taosGetTimestampUs();
   if (cache == NULL) {
     return 0;
@@ -618,10 +618,10 @@ int indexCacheSearch(void* cache, SIndexTermQuery* query, SIdxTRslt* result, STe
   idxMemRef(imm);
   taosThreadMutexUnlock(&pCache->mtx);
 
-  int ret = (mem && mem->mem) ? indexQueryMem(mem, query, result, s) : 0;
+  int ret = (mem && mem->mem) ? idxQueryMem(mem, query, result, s) : 0;
   if (ret == 0 && *s != kTypeDeletion) {
     // continue search in imm
-    ret = (imm && imm->mem) ? indexQueryMem(imm, query, result, s) : 0;
+    ret = (imm && imm->mem) ? idxQueryMem(imm, query, result, s) : 0;
   }
 
   idxMemUnRef(mem);
@@ -631,20 +631,20 @@ int indexCacheSearch(void* cache, SIndexTermQuery* query, SIdxTRslt* result, STe
   return ret;
 }
 
-void indexCacheRef(IndexCache* cache) {
+void idxCacheRef(IndexCache* cache) {
   if (cache == NULL) {
     return;
   }
   int ref = T_REF_INC(cache);
   UNUSED(ref);
 }
-void indexCacheUnRef(IndexCache* cache) {
+void idxCacheUnRef(IndexCache* cache) {
   if (cache == NULL) {
     return;
   }
   int ref = T_REF_DEC(cache);
   if (ref == 0) {
-    indexCacheDestroy(cache);
+    idxCacheDestroy(cache);
   }
 }
 
@@ -662,7 +662,7 @@ void idxMemUnRef(MemTable* tbl) {
   int ref = T_REF_DEC(tbl);
   if (ref == 0) {
     SSkipList* slt = tbl->mem;
-    indexCacheDestroySkiplist(slt);
+    idxCacheDestroySkiplist(slt);
     taosMemoryFree(tbl);
   }
 }
@@ -693,15 +693,15 @@ static int32_t idxCacheTermCompare(const void* l, const void* r) {
   return cmp;
 }
 
-static int indexFindCh(char* a, char c) {
+static int idxFindCh(char* a, char c) {
   char* p = a;
   while (*p != 0 && *p++ != c) {
   }
   return p - a;
 }
 static int idxCacheJsonTermCompareImpl(char* a, char* b) {
-  // int alen = indexFindCh(a, '&');
-  // int blen = indexFindCh(b, '&');
+  // int alen = idxFindCh(a, '&');
+  // int blen = idxFindCh(b, '&');
 
   // int cmp = strncmp(a, b, MIN(alen, blen));
   // if (cmp == 0) {
@@ -742,7 +742,7 @@ static MemTable* idxInternalCacheCreate(int8_t type) {
   return tbl;
 }
 
-static void doMergeWork(SSchedMsg* msg) {
+static void idxDoMergeWork(SSchedMsg* msg) {
   IndexCache* pCache = msg->ahandle;
   SIndex*     sidx = (SIndex*)pCache->index;
 
@@ -771,7 +771,7 @@ static bool idxCacheIteratorNext(Iterate* itera) {
   return next;
 }
 
-static IterateValue* indexCacheIteratorGetValue(Iterate* iter) {
+static IterateValue* idxCacheIteratorGetValue(Iterate* iter) {
   // opt later
   return &iter->val;
 }
