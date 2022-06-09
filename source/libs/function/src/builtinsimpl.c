@@ -3428,6 +3428,10 @@ int32_t histogramPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   return 1;
 }
 
+int32_t getHLLInfoSize() {
+  return (int32_t)sizeof(SHLLInfo);
+}
+
 bool getHLLFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
   pEnv->calcMemSize = sizeof(SHLLInfo);
   return true;

@@ -127,6 +127,7 @@ int32_t getHistogramInfoSize();
 bool getHLLFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t hllFunction(SqlFunctionCtx* pCtx);
 int32_t hllFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+int32_t getHLLInfoSize();
 
 bool getStateFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool stateFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
