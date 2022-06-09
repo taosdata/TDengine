@@ -35,7 +35,7 @@ class TestVgroups(TDCase):
         """
         vgroups check
         """
-        self.taosd.update_cfg('/tmp', self.taosd_setting, {"supportVnodes": 64}, self.endpoint, True)
+        self.taosd.update_cfg('/tmp', self.taosd_setting, {"supportVnodes": 32}, self.endpoint, True)
         self.tdCom.drop_all_db()
         test_param = "vgroups"
         # default
@@ -48,7 +48,7 @@ class TestVgroups(TDCase):
         self.tdSql.execute(f'drop database {dbname}')
         # boundary
         # ! 4096 bug TD-15451
-        param_value_list = [1, 64]
+        param_value_list = [1, 32]
         for param_value in param_value_list:
             dbname = self.tdCom.get_long_name(length=10, mode="letters")
             self.tdSql.execute(f'create database if not exists {dbname} {test_param} {param_value}')
