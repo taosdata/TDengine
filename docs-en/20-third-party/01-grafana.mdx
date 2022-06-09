@@ -14,11 +14,39 @@ In order for Grafana to add the TDengine data source successfully, the following
 1. The TDengine cluster is deployed and functioning properly
 2. taosAdapter is installed and running properly. Please refer to the taosAdapter manual for details.
 
+Record these values:
+
+- TDengine REST API url: `http://tdengine.local:6041`.
+- TDengine cluster authorization, with user + password.
+
 ## Installing Grafana
 
-TDengine currently supports Grafana versions 7.0 and above. Users can go to the Grafana official website to download the installation package and execute the installation according to the current operating system. The download address is as follows: <https://grafana.com/grafana/download>.
+TDengine currently supports Grafana versions 7.5 and above. Users can go to the Grafana official website to download the installation package and execute the installation according to the current operating system. The download address is as follows: <https://grafana.com/grafana/download>.
 
 ## Configuring Grafana
+
+### Option 1: Install with `install.sh`
+
+Set the url and authorization environment variables by `export` or a [`.env`(dotenv) file](https://hexdocs.pm/dotenvy/dotenv-file-format.html):
+
+```sh
+export TDENGINE_API=http://tdengine.local:6041
+# user + password
+export TDENGINE_USER=user
+export TDENGINE_PASSWORD=password
+```
+
+Run `install.sh`:
+
+```sh
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/taosdata/grafanaplugin/master/install.sh)"
+```
+
+With this script, TDengine data source plugin and the Grafana data source will be installed and created automatically with Grafana provisioning configurations.
+
+And then, restart Grafana service and open Grafana in web-browser, usually <http://localhost:3000>.
+
+### Option 2: Install Plugin Manually
 
 Follow the installation steps in [Grafana](https://grafana.com/grafana/plugins/tdengine-datasource/?tab=installation) with the [``grafana-cli`` command-line tool](https://grafana.com/docs/grafana/latest/administration/cli/) for plugin installation.
 
@@ -50,11 +78,7 @@ If Grafana is running in a Docker environment, the TDengine plugin can be automa
 GF_INSTALL_PLUGINS=tdengine-datasource
 ```
 
-## Using Grafana
-
-### Configuring Data Sources
-
-Users can log in to the Grafana server (username/password: admin/admin) directly through the URL `http://localhost:3000` and add a datasource through `Configuration -> Data Sources` on the left side, as shown in the following figure.
+Now users can log in to the Grafana server (username/password: admin/admin) directly through the URL `http://localhost:3000` and add a datasource through `Configuration -> Data Sources` on the left side, as shown in the following figure.
 
 ![TDengine Database TDinsight plugin add datasource 1](./grafana/add_datasource1.webp)
 
@@ -94,4 +118,11 @@ Follow the default prompt to query the average system memory usage for the speci
 
 ### Importing the Dashboard
 
-In version 2.3.3.0 and above, you can import the TDinsight Dashboard (Grafana Dashboard ID: [15168](https://grafana.com/grafana/dashboards/15167)) as a monitoring visualization tool for TDengine clusters. You can find installation and usage instructions in the TDinsight User Manual (/reference/tdinsight/).
+You can install TDinsight dashboard in data source configuration page (like `http://localhost:3000/datasources/edit/1/dashboards`) as a monitoring visualization tool for TDengine cluster. The dashboard is published in Grafana as [Dashboard 15167 - TDinsight](https://grafana.com/grafana/dashboards/15167). Check the [TDinsight User Manual](/reference/tdinsight/) for the details.
+
+For more dashboards using TDengine data source, [search here in Grafana](https://grafana.com/grafana/dashboards/?dataSource=tdengine-datasource). Here is a sub list:
+
+- [15146](https://grafana.com/grafana/dashboards/15146): Monitor multiple TDengine clusters.
+- [15155](https://grafana.com/grafana/dashboards/15155): TDengine alert demo.
+- [15167](https://grafana.com/grafana/dashboards/15167): TDinsight.
+- [16388](https://grafana.com/grafana/dashboards/16388): Telegraf node metrics dashboard using TDengine data source.
