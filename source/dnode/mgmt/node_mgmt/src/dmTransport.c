@@ -22,17 +22,17 @@ static void dmSendRsp(SRpcMsg *pMsg);
 static void dmBuildMnodeRedirectRsp(SDnode *pDnode, SRpcMsg *pMsg);
 
 static inline int32_t dmBuildNodeMsg(SRpcMsg *pMsg, SRpcMsg *pRpc) {
-  SRpcConnInfo connInfo = {0};
-  if (IsReq(pRpc) && rpcGetConnInfo(&pRpc->info, &connInfo) != 0) {
-    terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
-    dError("failed to build msg since %s, app:%p handle:%p", terrstr(), pRpc->info.ahandle, pRpc->info.handle);
-    return -1;
-  }
+  SRpcConnInfo *pConnInfo = &(pRpc->info.connInfo);
+  // if (IsReq(pRpc)) {
+  //  terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
+  //  dError("failed to build msg since %s, app:%p handle:%p", terrstr(), pRpc->info.ahandle, pRpc->info.handle);
+  //  return -1;
+  //}
 
   memcpy(pMsg, pRpc, sizeof(SRpcMsg));
-  memcpy(pMsg->conn.user, connInfo.user, TSDB_USER_LEN);
-  pMsg->conn.clientIp = connInfo.clientIp;
-  pMsg->conn.clientPort = connInfo.clientPort;
+  memcpy(pMsg->conn.user, pConnInfo->user, TSDB_USER_LEN);
+  pMsg->conn.clientIp = pConnInfo->clientIp;
+  pMsg->conn.clientPort = pConnInfo->clientPort;
   return 0;
 }
 
