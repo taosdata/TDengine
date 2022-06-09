@@ -1481,6 +1481,26 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = hllFinalize
   },
   {
+    .name = "_hyperloglog_partial",
+    .type = FUNCTION_TYPE_HYPERLOGLOG_PARTIAL,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateHLL,
+    .getEnvFunc   = getHLLFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = hllFunction,
+    .finalizeFunc = hllFinalize
+  },
+  {
+    .name = "_hyperloglog_merge",
+    .type = FUNCTION_TYPE_HYPERLOGLOG_MERGE,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateHLL,
+    .getEnvFunc   = getHLLFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = hllFunction,
+    .finalizeFunc = hllFinalize
+  },
+  {
     .name = "diff",
     .type = FUNCTION_TYPE_DIFF,
     .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC,
