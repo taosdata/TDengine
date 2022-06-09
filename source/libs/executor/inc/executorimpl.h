@@ -688,6 +688,10 @@ typedef struct SSortedMergeOperatorInfo {
   int32_t          numOfResPerPage;
   char**           groupVal;
   SArray          *groupInfo;
+
+  bool hasGroupId;
+  uint64_t groupId;
+  STupleHandle* prefetchedTuple;
 } SSortedMergeOperatorInfo;
 
 typedef struct SSortOperatorInfo {
