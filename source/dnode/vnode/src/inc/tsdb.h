@@ -124,6 +124,59 @@ int        tsdbRLockFS(STsdbFS *pFs);
 int        tsdbWLockFS(STsdbFS *pFs);
 int        tsdbUnLockFS(STsdbFS *pFs);
 
+// tsdbReadImpl.c ==============================================================================================
+typedef struct SBlockIdx    SBlockIdx;
+typedef struct SBlockInfo   SBlockInfo;
+typedef struct SBlock       SBlock;
+typedef struct SBlockCol    SBlockCol;
+typedef struct SBlockStatis SBlockStatis;
+typedef struct SAggrBlkCol  SAggrBlkCol;
+typedef struct SBlockData   SBlockData;
+typedef struct SReadH       SReadH;
+
+// SReadH
+int  tsdbInitReadH(SReadH *pReadh, STsdb *pRepo);
+void tsdbDestroyReadH(SReadH *pReadh);
+int  tsdbSetAndOpenReadFSet(SReadH *pReadh, SDFileSet *pSet);
+void tsdbCloseAndUnsetFSet(SReadH *pReadh);
+int  tsdbLoadBlockIdx(SReadH *pReadh);
+int  tsdbSetReadTable(SReadH *pReadh, STable *pTable);
+int  tsdbLoadBlockInfo(SReadH *pReadh, void *pTarget);
+int  tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlockInfo);
+int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, const int16_t *colIds, int numOfColsIds,
+                          bool mergeBitmap);
+int tsdbLoadBlockStatis(SReadH *pReadh, SBlock *pBlock);
+int tsdbEncodeSBlockIdx(void **buf, SBlockIdx *pIdx);
+void *tsdbDecodeSBlockIdx(void *buf, SBlockIdx *pIdx);
+void  tsdbGetBlockStatis(SReadH *pReadh, SColumnDataAgg *pStatis, int numOfCols, SBlock *pBlock);
+
+typedef struct SDFileSetReader      SDFileSetReader;
+typedef struct SDFileSetWriter      SDFileSetWriter;
+typedef struct STombstoneFileWriter STombstoneFileWriter;
+typedef struct STombstoneFileReader STombstoneFileReader;
+
+// SDFileSetWriter
+int32_t tsdbDFileSetWriterOpen(SDFileSetWriter *pWriter, STsdb *pTsdb, SDFileSet *pSet);
+int32_t tsdbDFileSetWriterClose(SDFileSetWriter *pWriter);
+int32_t tsdbWriteBlockData(SDFileSetWriter *pWriter, SDataCols *pDataCols, SBlock *pBlock);
+int32_t tsdbWriteSBlockInfo(SDFileSetWriter *pWriter, SBlockInfo *pBlockInfo, SBlockIdx *pBlockIdx);
+int32_t tsdbWriteSBlockIdx(SDFileSetWriter *pWriter, SBlockIdx *pBlockIdx);
+
+// SDFileSetReader
+int32_t tsdbDFileSetReaderOpen(SDFileSetReader *pReader, STsdb *pTsdb, SDFileSet *pSet);
+int32_t tsdbDFileSetReaderClose(SDFileSetReader *pReader);
+int32_t tsdbLoadSBlockIdx(SDFileSetReader *pReader, SArray *pArray);
+int32_t tsdbLoadSBlockInfo(SDFileSetReader *pReader, SBlockIdx *pBlockIdx, SBlockInfo *pBlockInfo);
+int32_t tsdbLoadSBlockStatis(SDFileSetReader *pReader, SBlock *pBlock, SBlockStatis *pBlockStatis);
+
+// STombstoneFileWriter
+int32_t tsdbTomstoneFileWriterOpen(STombstoneFileWriter *pWriter, STsdb *pTsdb);
+int32_t tsdbTomstoneFileWriterClose(STombstoneFileWriter *pWriter);
+
+// STombstoneFileReader
+int32_t tsdbTomstoneFileReaderOpen(STombstoneFileReader *pReader, STsdb *pTsdb);
+int32_t tsdbTomstoneFileReaderClose(STombstoneFileReader *pReader);
+
 // structs
 typedef struct {
   int   minFid;
@@ -322,9 +375,8 @@ static FORCE_INLINE TSKEY tsdbNextIterKey(STbDataIter *pIter) {
 }
 
 // tsdbReadImpl
-typedef struct SReadH SReadH;
 
-typedef struct {
+struct SBlockIdx {
   uint64_t suid;
   uint64_t uid;
   uint32_t len;
@@ -332,7 +384,7 @@ typedef struct {
   uint32_t hasLast : 2;
   uint32_t numOfBlocks : 30;
   TSDBKEY  maxKey;
-} SBlockIdx;
+};
 
 typedef enum {
   TSDB_SBLK_VER_0 = 0,
@@ -341,7 +393,7 @@ typedef enum {
 
 #define SBlockVerLatest TSDB_SBLK_VER_0
 
-typedef struct {
+struct SBlock {
   uint8_t  last : 1;
   uint8_t  hasDupKey : 1;  // 0: no dup TS key, 1: has dup TS key(since supporting Multi-Version)
   uint8_t  blkVer : 6;
@@ -358,24 +410,24 @@ typedef struct {
   uint64_t aggrOffset : 63;
   TSDBKEY  minKey;
   TSDBKEY  maxKey;
-} SBlock;
+};
 
-typedef struct {
+struct SBlockInfo {
   int32_t  delimiter;  // For recovery usage
   uint64_t suid;
   uint64_t uid;
   SBlock   blocks[];
-} SBlockInfo;
+};
 
-typedef struct {
+struct SBlockCol {
   int16_t  colId;
   uint16_t type : 6;
   uint16_t blen : 10;  // 0 no bitmap if all rows are NORM, > 0 bitmap length
   uint32_t len;        // data length + bitmap length
   uint32_t offset;
-} SBlockCol;
+};
 
-typedef struct {
+struct SAggrBlkCol {
   int16_t colId;
   int16_t maxIndex;
   int16_t minIndex;
@@ -383,14 +435,14 @@ typedef struct {
   int64_t sum;
   int64_t max;
   int64_t min;
-} SAggrBlkCol;
+};
 
-typedef struct {
+struct SBlockData {
   int32_t   delimiter;  // For recovery usage
   int32_t   numOfCols;  // For recovery usage
   uint64_t  uid;        // For recovery usage
   SBlockCol cols[];
-} SBlockData;
+};
 
 typedef void SAggrBlkData;  // SBlockCol cols[];
 
@@ -443,21 +495,6 @@ static FORCE_INLINE size_t tsdbBlockAggrSize(int nCols, uint32_t blkVer) {
       return TSDB_BLOCK_AGGR_SIZE(nCols, 0);
   }
 }
-
-int  tsdbInitReadH(SReadH *pReadh, STsdb *pRepo);
-void tsdbDestroyReadH(SReadH *pReadh);
-int  tsdbSetAndOpenReadFSet(SReadH *pReadh, SDFileSet *pSet);
-void tsdbCloseAndUnsetFSet(SReadH *pReadh);
-int  tsdbLoadBlockIdx(SReadH *pReadh);
-int  tsdbSetReadTable(SReadH *pReadh, STable *pTable);
-int  tsdbLoadBlockInfo(SReadH *pReadh, void *pTarget);
-int  tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlockInfo);
-int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, const int16_t *colIds, int numOfColsIds,
-                          bool mergeBitmap);
-int tsdbLoadBlockStatis(SReadH *pReadh, SBlock *pBlock);
-int tsdbEncodeSBlockIdx(void **buf, SBlockIdx *pIdx);
-void *tsdbDecodeSBlockIdx(void *buf, SBlockIdx *pIdx);
-void  tsdbGetBlockStatis(SReadH *pReadh, SColumnDataAgg *pStatis, int numOfCols, SBlock *pBlock);
 
 static FORCE_INLINE int tsdbMakeRoom(void **ppBuf, size_t size) {
   void  *pBuf = *ppBuf;
