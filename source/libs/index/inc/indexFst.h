@@ -29,9 +29,9 @@ extern "C" {
 
 #define OUTPUT_PREFIX(a, b) ((a) > (b) ? (b) : (a)
 
-typedef struct Fst             Fst;
-typedef struct FstNode         FstNode;
-typedef struct StreamWithState StreamWithState;
+typedef struct Fst     Fst;
+typedef struct FstNode FstNode;
+typedef struct FStmSt  FStmSt;
 
 typedef enum { Included, Excluded, Unbounded } FstBound;
 
@@ -40,12 +40,12 @@ typedef struct FstBoundWithData {
   FstBound type;
 } FstBoundWithData;
 
-typedef struct FstStreamBuilder {
+typedef struct FStmBuilder {
   Fst*              fst;
-  AutomationCtx*    aut;
+  FAutoCtx*         aut;
   FstBoundWithData* min;
   FstBoundWithData* max;
-} FstStreamBuilder, FstStreamWithStateBuilder;
+} FStmBuilder, FStmStBuilder;
 
 typedef struct FstRange {
   uint64_t start;
@@ -267,17 +267,17 @@ typedef struct Fst {
 Fst* fstCreate(FstSlice* data);
 void fstDestroy(Fst* fst);
 
-bool              fstGet(Fst* fst, FstSlice* b, Output* out);
-FstNode*          fstGetNode(Fst* fst, CompiledAddr);
-FstNode*          fstGetRoot(Fst* fst);
-FstType           fstGetType(Fst* fst);
-CompiledAddr      fstGetRootAddr(Fst* fst);
-Output            fstEmptyFinalOutput(Fst* fst, bool* null);
-FstStreamBuilder* fstSearch(Fst* fst, AutomationCtx* ctx);
+bool         fstGet(Fst* fst, FstSlice* b, Output* out);
+FstNode*     fstGetNode(Fst* fst, CompiledAddr);
+FstNode*     fstGetRoot(Fst* fst);
+FstType      fstGetType(Fst* fst);
+CompiledAddr fstGetRootAddr(Fst* fst);
+Output       fstEmptyFinalOutput(Fst* fst, bool* null);
+FStmBuilder* fstSearch(Fst* fst, FAutoCtx* ctx);
 
-FstStreamWithStateBuilder* fstSearchWithState(Fst* fst, AutomationCtx* ctx);
+FStmStBuilder* fstSearchWithState(Fst* fst, FAutoCtx* ctx);
 // into stream to expand later
-StreamWithState* streamBuilderIntoStream(FstStreamBuilder* sb);
+FStmSt* stmBuilderIntoStm(FStmBuilder* sb);
 
 bool fstVerify(Fst* fst);
 
@@ -293,41 +293,40 @@ typedef struct StreamState {
 
 void streamStateDestroy(void* s);
 
-typedef struct StreamWithState {
+typedef struct FStmSt {
   Fst*              fst;
-  AutomationCtx*    aut;
+  FAutoCtx*         aut;
   SArray*           inp;
   FstOutput         emptyOutput;
   SArray*           stack;  // <StreamState>
   FstBoundWithData* endAt;
-} StreamWithState;
+} FStmSt;
 
-typedef struct StreamWithStateResult {
+typedef struct FStmStRslt {
   FstSlice  data;
   FstOutput out;
   void*     state;
-} StreamWithStateResult;
+} FStmStRslt;
 
-StreamWithStateResult* swsResultCreate(FstSlice* data, FstOutput fOut, void* state);
-void                   swsResultDestroy(StreamWithStateResult* result);
+FStmStRslt* swsResultCreate(FstSlice* data, FstOutput fOut, void* state);
+void        swsResultDestroy(FStmStRslt* result);
 
 typedef void* (*StreamCallback)(void*);
-StreamWithState* streamWithStateCreate(Fst* fst, AutomationCtx* automation, FstBoundWithData* min,
-                                       FstBoundWithData* max);
+FStmSt* stmStCreate(Fst* fst, FAutoCtx* automation, FstBoundWithData* min, FstBoundWithData* max);
 
-void streamWithStateDestroy(StreamWithState* sws);
+void stmStDestroy(FStmSt* sws);
 
-bool streamWithStateSeekMin(StreamWithState* sws, FstBoundWithData* min);
+bool stmStSeekMin(FStmSt* sws, FstBoundWithData* min);
 
-StreamWithStateResult* streamWithStateNextWith(StreamWithState* sws, StreamCallback callback);
+FStmStRslt* stmStNextWith(FStmSt* sws, StreamCallback callback);
 
-FstStreamBuilder* fstStreamBuilderCreate(Fst* fst, AutomationCtx* aut);
+FStmBuilder* stmBuilderCreate(Fst* fst, FAutoCtx* aut);
 
-void fstStreamBuilderDestroy(FstStreamBuilder* b);
+void stmBuilderDestroy(FStmBuilder* b);
 
 // set up bound range
 // refator later:  to simple code by marco
-void fstStreamBuilderSetRange(FstStreamBuilder* b, FstSlice* val, RangeType type);
+void stmBuilderSetRange(FStmBuilder* b, FstSlice* val, RangeType type);
 
 #ifdef __cplusplus
 }

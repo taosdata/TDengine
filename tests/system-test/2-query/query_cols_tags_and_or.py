@@ -1066,9 +1066,7 @@ class TDTestCase:
         tdSql.checkEqual(self.queryLastC10(query_sql), 11) if select_elm == "*" else False
         # in
         query_sql = f'select {select_elm} from {tb_name} where c5 in (1, 6.6)'
-        tdSql.query(query_sql)
-        tdSql.checkRows(1)
-        tdSql.checkEqual(self.queryLastC10(query_sql), 6) if select_elm == "*" else False
+        tdSql.error(query_sql)
         # not in
         query_sql = f'select {select_elm} from {tb_name} where c5 not in (2, 3)'
         tdSql.query(query_sql)
@@ -1076,14 +1074,10 @@ class TDTestCase:
         tdSql.checkEqual(self.queryLastC10(query_sql), 11) if select_elm == "*" else False
         # and
         query_sql = f'select {select_elm} from {tb_name} where c5 > 0 and c5 >= 1 and c5 < 7 and c5 <= 6.6 and c5 != 2 and c5 <> 2 and c5 = 6.6 and c5 is not null and c5 between 2 and 6.6 and c5 not between 1 and 2 and c5 in (2,6.6) and c5 not in (1,2)'
-        tdSql.query(query_sql)
-        tdSql.checkRows(1)
-        tdSql.checkEqual(self.queryLastC10(query_sql), 6) if select_elm == "*" else False
+        tdSql.error(query_sql)
         # or
         query_sql = f'select {select_elm} from {tb_name} where c5 > 6 or c5 >= 6.6 or c5 < 1 or c5 <= 0 or c5 != 1.1 or c5 <> 1.1 or c5 = 5 or c5 is null or c5 between 4 and 5 or c5 not between 1 and 3 or c5 in (4,5) or c5 not in (1.1,3)'
-        tdSql.query(query_sql)
-        tdSql.checkRows(1)
-        tdSql.checkEqual(self.queryLastC10(query_sql), 6) if select_elm == "*" else False
+        tdSql.error(query_sql)
         # and or
         query_sql = f'select {select_elm} from {tb_name} where c5 > 0 and c5 >= 1 or c5 < 5 and c5 <= 6.6 and c5 != 2 and c5 <> 2 and c5 = 4 or c5 is not null and c5 between 2 and 4 and c5 not between 1 and 2 and c5 in (2,4) and c5 not in (1,2)'
         tdSql.query(query_sql)
@@ -1151,9 +1145,7 @@ class TDTestCase:
         tdSql.checkEqual(self.queryLastC10(query_sql), 11) if select_elm == "*" else False
         # in
         query_sql = f'select {select_elm} from {tb_name} where c6 in (1, 7.7)'
-        tdSql.query(query_sql)
-        tdSql.checkRows(1)
-        tdSql.checkEqual(self.queryLastC10(query_sql), 7) if select_elm == "*" else False
+        tdSql.error(query_sql)
         # not in
         query_sql = f'select {select_elm} from {tb_name} where c6 not in (2, 3)'
         tdSql.query(query_sql)
@@ -1161,14 +1153,10 @@ class TDTestCase:
         tdSql.checkEqual(self.queryLastC10(query_sql), 11) if select_elm == "*" else False
         # and
         query_sql = f'select {select_elm} from {tb_name} where c6 > 0 and c6 >= 1 and c6 < 8 and c6 <= 7.7 and c6 != 2 and c6 <> 2 and c6 = 7.7 and c6 is not null and c6 between 2 and 7.7 and c6 not between 1 and 2 and c6 in (2,7.7) and c6 not in (1,2)'
-        tdSql.query(query_sql)
-        tdSql.checkRows(1)
-        tdSql.checkEqual(self.queryLastC10(query_sql), 7) if select_elm == "*" else False
+        tdSql.error(query_sql)
         # or
         query_sql = f'select {select_elm} from {tb_name} where c6 > 7 or c6 >= 7.7 or c6 < 1 or c6 <= 0 or c6 != 1.1 or c6 <> 1.1 or c6 = 5 or c6 is null or c6 between 4 and 5 or c6 not between 1 and 3 or c6 in (4,5) or c6 not in (1.1,3)'
-        tdSql.query(query_sql)
-        tdSql.checkRows(1)
-        tdSql.checkEqual(self.queryLastC10(query_sql), 7) if select_elm == "*" else False
+        tdSql.error(query_sql)
         # and or
         query_sql = f'select {select_elm} from {tb_name} where c6 > 0 and c6 >= 1 or c6 < 5 and c6 <= 7.7 and c6 != 2 and c6 <> 2 and c6 = 4 or c6 is not null and c6 between 2 and 4 and c6 not between 1 and 2 and c6 in (2,4) and c6 not in (1,2)'
         tdSql.query(query_sql)
@@ -1410,9 +1398,7 @@ class TDTestCase:
         tdSql.checkEqual(self.queryLastC10(query_sql), 11) if select_elm == "*" else False
         # in
         query_sql = f'select {select_elm} from {tb_name} where c9 in ("binar", false)'
-        tdSql.query(query_sql)
-        tdSql.checkRows(2)
-        tdSql.checkEqual(self.queryLastC10(query_sql), 11) if select_elm == "*" else False
+        tdSql.error(query_sql)
         # # not in
         query_sql = f'select {select_elm} from {tb_name} where c9 not in (true)'
         tdSql.query(query_sql)
@@ -1421,19 +1407,13 @@ class TDTestCase:
 
         # # and
         query_sql = f'select {select_elm} from {tb_name} where c9 = true and c9 != "false" and c9 <> "binary" and c9 is not null and c9 in ("binary", true) and c9 not in ("binary")'
-        tdSql.query(query_sql)
-        tdSql.checkRows(9)
-        tdSql.checkEqual(self.queryLastC10(query_sql), 9) if select_elm == "*" else False
+        tdSql.error(query_sql)
         # # or
         query_sql = f'select {select_elm} from {tb_name} where c9 = true or c9 != "false" or c9 <> "binary" or c9 = "true" or c9 is not null or c9 in ("binary", true) or c9 not in ("binary")'
-        tdSql.query(query_sql)
-        tdSql.checkRows(11)
-        tdSql.checkEqual(self.queryLastC10(query_sql), 11) if select_elm == "*" else False
+        tdSql.error(query_sql)
         # # and or
         query_sql = f'select {select_elm} from {tb_name} where c9 = true and c9 != "false" or c9 <> "binary" or c9 = "true" and c9 is not null or c9 in ("binary", true) or c9 not in ("binary")'
-        tdSql.query(query_sql)
-        tdSql.checkRows(11)
-        tdSql.checkEqual(self.queryLastC10(query_sql), 11) if select_elm == "*" else False
+        tdSql.error(query_sql)
         query_sql = f'select c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13 from {tb_name} where c9 > "binary" and c9 >= "binary8" or c9 < "binary9" and c9 <= "binary" and c9 != 2 and c9 <> 2 and c9 = 4 or c9 is not null and c9 between 2 and 4 and c9 not between 1 and 2 and c9 in (2,4) and c9 not in (1,2)'
         tdSql.query(query_sql)
         tdSql.checkRows(9)

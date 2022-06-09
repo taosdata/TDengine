@@ -144,7 +144,9 @@ static int32_t doAddNewExternalMemSource(SDiskbasedBuf *pBuf, SArray* pAllSource
   (*sourceId) += 1;
 
   int32_t rowSize = blockDataGetSerialRowSize(pSource->src.pBlock);
-  int32_t numOfRows = (getBufPageSize(pBuf) - blockDataGetSerialMetaSize(pBlock))/rowSize;  // The value of numOfRows must be greater than 0, which is guaranteed by the previous memory allocation
+
+  // The value of numOfRows must be greater than 0, which is guaranteed by the previous memory allocation
+  int32_t numOfRows = (getBufPageSize(pBuf) - blockDataGetSerialMetaSize(pBlock->info.numOfCols))/rowSize;
   ASSERT(numOfRows > 0);
   return blockDataEnsureCapacity(pSource->src.pBlock, numOfRows);
 }
@@ -359,6 +361,11 @@ int32_t msortComparFn(const void *pLeft, const void *pRight, void *param) {
   SSDataBlock* pLeftBlock = pLeftSource->src.pBlock;
   SSDataBlock* pRightBlock = pRightSource->src.pBlock;
 
+  // first sort by block groupId
+  if (pLeftBlock->info.groupId != pRightBlock->info.groupId) {
+    return pLeftBlock->info.groupId < pRightBlock->info.groupId ? -1 : 1;
+  }
+
   for(int32_t i = 0; i < pInfo->size; ++i) {
     SBlockOrderInfo* pOrder = TARRAY_GET_ELEM(pInfo, i);
     SColumnInfoData* pLeftColInfoData = TARRAY_GET_ELEM(pLeftBlock->pDataBlock, pOrder->slotId);
@@ -521,16 +528,24 @@ static int32_t createInitialSources(SSortHandle* pHandle) {
   if (pHandle->type == SORT_SINGLESOURCE_SORT) {
     SSortSource* source = taosArrayGetP(pHandle->pOrderedSource, 0);
     taosArrayClear(pHandle->pOrderedSource);
-    
+
+    bool hasGroupId = false;
+    SSDataBlock* prefetchedDataBlock = NULL;
+
     while (1) {
-      SSDataBlock* pBlock = pHandle->fetchfp(source->param);
+      SSDataBlock* pBlock = NULL;
+      if (prefetchedDataBlock == NULL) {
+        pBlock = pHandle->fetchfp(source->param);
+      } else {
+        pBlock = prefetchedDataBlock;
+        prefetchedDataBlock = NULL;
+      }
+
       if (pBlock == NULL) {
         break;
       }
 
-      if (pHandle->pDataBlock == NULL) {
-        pHandle->pDataBlock = createOneDataBlock(pBlock, false);
-
+      if (!hasGroupId) {
         // calculate the buffer pages according to the total available buffers.
         int32_t rowSize = blockDataGetRowSize(pBlock);
         if (rowSize * 4 > 4096) {
@@ -542,29 +557,36 @@ static int32_t createInitialSources(SSortHandle* pHandle) {
         // todo!!
         pHandle->numOfPages = 1024;
         sortBufSize = pHandle->numOfPages * pHandle->pageSize;
+
+        hasGroupId = true;
+        pHandle->pDataBlock = createOneDataBlock(pBlock, false);
       }
 
-      // perform the scalar function calculation before apply the sort
-      if (pHandle->beforeFp != NULL) {
-        pHandle->beforeFp(pBlock, pHandle->param);
-      }
+      if (pHandle->pDataBlock->info.groupId == pBlock->info.groupId) {
+        // perform the scalar function calculation before apply the sort
+        if (pHandle->beforeFp != NULL) {
+          pHandle->beforeFp(pBlock, pHandle->param);
+        }
+        // todo relocate the columns
+        int32_t code = blockDataMerge(pHandle->pDataBlock, pBlock);
+        if (code != 0) {
+          return code;
+        }
 
-      // todo relocate the columns
-      int32_t code = blockDataMerge(pHandle->pDataBlock, pBlock);
-      if (code != 0) {
-        return code;
-      }
+        size_t size = blockDataGetSize(pHandle->pDataBlock);
+        if (size > sortBufSize) {
+          // Perform the in-memory sort and then flush data in the buffer into disk.
+          int64_t p = taosGetTimestampUs();
+          blockDataSort(pHandle->pDataBlock, pHandle->pSortInfo);
 
-      size_t size = blockDataGetSize(pHandle->pDataBlock);
-      if (size > sortBufSize) {
-        // Perform the in-memory sort and then flush data in the buffer into disk.
-        int64_t p = taosGetTimestampUs();
-        blockDataSort(pHandle->pDataBlock, pHandle->pSortInfo);
+          int64_t el = taosGetTimestampUs() - p;
+          pHandle->sortElapsed += el;
 
-        int64_t el = taosGetTimestampUs() - p;
-        pHandle->sortElapsed += el;
-
-        doAddToBuf(pHandle->pDataBlock, pHandle);
+          doAddToBuf(pHandle->pDataBlock, pHandle);
+        }
+      } else {
+        prefetchedDataBlock = pBlock;
+        pHandle->pDataBlock = createOneDataBlock(pBlock, false);
       }
     }
 

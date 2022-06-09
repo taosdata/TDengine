@@ -339,6 +339,7 @@ typedef struct {
   int32_t sourceTaskId;
   int32_t sourceVg;
   int32_t sourceChildId;
+  int32_t upstreamNodeId;
 #if 0
   int64_t sourceVer;
 #endif

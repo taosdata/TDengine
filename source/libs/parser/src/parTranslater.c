@@ -103,15 +103,14 @@ static int32_t collectUseTable(const SName* pName, SHashObj* pDbs) {
 
 static int32_t getTableMetaImpl(STranslateContext* pCxt, const SName* pName, STableMeta** pMeta) {
   SParseContext* pParCxt = pCxt->pParseCxt;
-  int32_t        code = TSDB_CODE_SUCCESS;
-  if (pParCxt->async) {
-    code = getTableMetaFromCache(pCxt->pMetaCache, pName, pMeta);
-  } else {
-    code = collectUseDatabase(pName, pCxt->pDbs);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = collectUseTable(pName, pCxt->pTables);
-    }
-    if (TSDB_CODE_SUCCESS == code) {
+  int32_t        code = collectUseDatabase(pName, pCxt->pDbs);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = collectUseTable(pName, pCxt->pTables);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pParCxt->async) {
+      code = getTableMetaFromCache(pCxt->pMetaCache, pName, pMeta);
+    } else {
       code = catalogGetTableMeta(pParCxt->pCatalog, pParCxt->pTransporter, &pParCxt->mgmtEpSet, pName, pMeta);
     }
   }
@@ -150,12 +149,11 @@ static int32_t getDBVgInfoImpl(STranslateContext* pCxt, const SName* pName, SArr
   SParseContext* pParCxt = pCxt->pParseCxt;
   char           fullDbName[TSDB_DB_FNAME_LEN];
   tNameGetFullDbName(pName, fullDbName);
-  int32_t code = TSDB_CODE_SUCCESS;
-  if (pParCxt->async) {
-    code = getDbVgInfoFromCache(pCxt->pMetaCache, fullDbName, pVgInfo);
-  } else {
-    code = collectUseDatabaseImpl(fullDbName, pCxt->pDbs);
-    if (TSDB_CODE_SUCCESS == code) {
+  int32_t code = collectUseDatabaseImpl(fullDbName, pCxt->pDbs);
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pParCxt->async) {
+      code = getDbVgInfoFromCache(pCxt->pMetaCache, fullDbName, pVgInfo);
+    } else {
       code = catalogGetDBVgInfo(pParCxt->pCatalog, pParCxt->pTransporter, &pParCxt->mgmtEpSet, fullDbName, pVgInfo);
     }
   }
@@ -175,15 +173,14 @@ static int32_t getDBVgInfo(STranslateContext* pCxt, const char* pDbName, SArray*
 
 static int32_t getTableHashVgroupImpl(STranslateContext* pCxt, const SName* pName, SVgroupInfo* pInfo) {
   SParseContext* pParCxt = pCxt->pParseCxt;
-  int32_t        code = TSDB_CODE_SUCCESS;
-  if (pParCxt->async) {
-    code = getTableVgroupFromCache(pCxt->pMetaCache, pName, pInfo);
-  } else {
-    code = collectUseDatabase(pName, pCxt->pDbs);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = collectUseTable(pName, pCxt->pTables);
-    }
-    if (TSDB_CODE_SUCCESS == code) {
+  int32_t        code = collectUseDatabase(pName, pCxt->pDbs);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = collectUseTable(pName, pCxt->pTables);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pParCxt->async) {
+      code = getTableVgroupFromCache(pCxt->pMetaCache, pName, pInfo);
+    } else {
       code = catalogGetTableHashVgroup(pParCxt->pCatalog, pParCxt->pTransporter, &pParCxt->mgmtEpSet, pName, pInfo);
     }
   }
@@ -203,12 +200,11 @@ static int32_t getTableHashVgroup(STranslateContext* pCxt, const char* pDbName, 
 static int32_t getDBVgVersion(STranslateContext* pCxt, const char* pDbFName, int32_t* pVersion, int64_t* pDbId,
                               int32_t* pTableNum) {
   SParseContext* pParCxt = pCxt->pParseCxt;
-  int32_t        code = TSDB_CODE_SUCCESS;
-  if (pParCxt->async) {
-    code = getDbVgVersionFromCache(pCxt->pMetaCache, pDbFName, pVersion, pDbId, pTableNum);
-  } else {
-    code = collectUseDatabaseImpl(pDbFName, pCxt->pDbs);
-    if (TSDB_CODE_SUCCESS == code) {
+  int32_t        code = collectUseDatabaseImpl(pDbFName, pCxt->pDbs);
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pParCxt->async) {
+      code = getDbVgVersionFromCache(pCxt->pMetaCache, pDbFName, pVersion, pDbId, pTableNum);
+    } else {
       code = catalogGetDBVgVersion(pParCxt->pCatalog, pDbFName, pVersion, pDbId, pTableNum);
     }
   }
@@ -224,12 +220,11 @@ static int32_t getDBCfg(STranslateContext* pCxt, const char* pDbName, SDbCfgInfo
   tNameSetDbName(&name, pCxt->pParseCxt->acctId, pDbName, strlen(pDbName));
   char dbFname[TSDB_DB_FNAME_LEN] = {0};
   tNameGetFullDbName(&name, dbFname);
-  int32_t code = TSDB_CODE_SUCCESS;
-  if (pParCxt->async) {
-    code = getDbCfgFromCache(pCxt->pMetaCache, dbFname, pInfo);
-  } else {
-    code = collectUseDatabaseImpl(dbFname, pCxt->pDbs);
-    if (TSDB_CODE_SUCCESS == code) {
+  int32_t code = collectUseDatabaseImpl(dbFname, pCxt->pDbs);
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pParCxt->async) {
+      code = getDbCfgFromCache(pCxt->pMetaCache, dbFname, pInfo);
+    } else {
       code = catalogGetDBCfg(pParCxt->pCatalog, pParCxt->pTransporter, &pParCxt->mgmtEpSet, dbFname, pInfo);
     }
   }
@@ -817,6 +812,10 @@ static EDealRes translateArithmeticOperator(STranslateContext* pCxt, SOperatorNo
   return DEAL_RES_CONTINUE;
 }
 
+static bool dataTypeEqual(const SDataType* l, const SDataType* r) {
+  return (l->type == r->type && l->bytes == r->bytes && l->precision == r->precision && l->scale == r->scale);
+}
+
 static EDealRes translateComparisonOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
   SDataType ldt = ((SExprNode*)(pOp->pLeft))->resType;
   SDataType rdt = ((SExprNode*)(pOp->pRight))->resType;
@@ -824,7 +823,24 @@ static EDealRes translateComparisonOperator(STranslateContext* pCxt, SOperatorNo
     return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pRight))->aliasName);
   }
   if (OP_TYPE_IN == pOp->opType || OP_TYPE_NOT_IN == pOp->opType) {
-    ((SExprNode*)pOp->pRight)->resType = ((SExprNode*)pOp->pLeft)->resType;
+    SNodeListNode* pRight = (SNodeListNode*)pOp->pRight;
+    bool first = true;
+    SDataType targetDt = {0};
+    SNode* pNode = NULL;
+    FOREACH(pNode, pRight->pNodeList) {
+      SDataType dt = ((SExprNode*)pNode)->resType;
+      if (first) {
+        targetDt = dt;
+        if (targetDt.type != TSDB_DATA_TYPE_NULL) {
+          first = false;
+        }
+      } else if (dt.type != targetDt.type && dt.type != TSDB_DATA_TYPE_NULL) {
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)pNode)->aliasName);
+      } else if (dt.bytes > targetDt.bytes) {
+        targetDt.bytes = dt.bytes;
+      }
+    }
+    pRight->dataType = targetDt;
   }
   if (nodesIsRegularOp(pOp)) {
     if (!IS_VAR_DATA_TYPE(((SExprNode*)(pOp->pLeft))->resType.type)) {
@@ -2013,10 +2029,6 @@ static SNode* createSetOperProject(const char* pTableAlias, SNode* pNode) {
   strcpy(pCol->colName, ((SExprNode*)pNode)->aliasName);
   strcpy(pCol->node.aliasName, pCol->colName);
   return (SNode*)pCol;
-}
-
-static bool dataTypeEqual(const SDataType* l, const SDataType* r) {
-  return (l->type == r->type && l->bytes == r->bytes && l->precision == r->precision && l->scale == r->scale);
 }
 
 static int32_t createCastFunc(STranslateContext* pCxt, SNode* pExpr, SDataType dt, SNode** pCast) {
