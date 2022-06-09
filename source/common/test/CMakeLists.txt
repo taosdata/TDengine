@@ -5,7 +5,12 @@ MESSAGE(STATUS "build parser unit test")
 SET(CMAKE_CXX_STANDARD 11)
 AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 
-ADD_EXECUTABLE(commonTest ${SOURCE_LIST})
+ADD_EXECUTABLE(commonTest "")
+TARGET_SOURCES(
+    commonTest
+    PRIVATE
+    "commonTests.cpp"
+)
 TARGET_LINK_LIBRARIES(
         commonTest
         PUBLIC os util common gtest
@@ -24,7 +29,12 @@ target_sources(
     PRIVATE
     "dataformatTest.cpp"
 )
-target_link_libraries(dataformatTest gtest gtest_main util)
+target_link_libraries(dataformatTest gtest gtest_main util common)
+target_include_directories(
+        dataformatTest
+        PUBLIC "${TD_SOURCE_DIR}/include/common"
+        PUBLIC "${TD_SOURCE_DIR}/include/util"
+)
 
 # tmsg test
 # add_executable(tmsgTest "")

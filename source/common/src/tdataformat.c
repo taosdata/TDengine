@@ -244,7 +244,7 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, S
     }
   }
 
-  ASSERT(flags);
+  // ASSERT(flags); // only 1 column(ts)
 
   // decide
   uint32_t nData = 0;
@@ -268,7 +268,8 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, S
         nDataT = BIT2_SIZE(pTSchema->numOfCols - 1) + pTSchema->flen + ntv;
         break;
       default:
-        ASSERT(0);
+        break; // only ts column
+        // ASSERT(0);
     }
 
     uint8_t tflags = 0;
@@ -283,7 +284,7 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, S
       tflags |= TSROW_KV_BIG;
     }
 
-    if (nDataT < nDataK) {
+    if (nDataT <= nDataK) {
       nData = nDataT;
     } else {
       nData = nDataK;
@@ -373,7 +374,8 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, S
           ptv = pf + pTSchema->flen;
           break;
         default:
-          ASSERT(0);
+          // ASSERT(0);
+          break;
       }
     } else {
       pTSKVRow = (STSKVRow *)(*ppRow)->pData;
@@ -495,7 +497,7 @@ void tTSRowGet(STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal
   SValue    value;
 
   ASSERT(iCol < pTSchema->numOfCols);
-  ASSERT(flags);
+  // ASSERT(flags); // only 1 ts column
   ASSERT(pRow->sver == pTSchema->version);
 
   if (iCol == 0) {
