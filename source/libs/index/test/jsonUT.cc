@@ -56,11 +56,11 @@ class JsonEnv : public ::testing::Test {
 
     initLog();
     opts = indexOptsCreate();
-    int ret = tIndexJsonOpen(opts, dir.c_str(), &index);
+    int ret = indexJsonOpen(opts, dir.c_str(), &index);
     assert(ret == 0);
   }
   virtual void TearDown() {
-    tIndexJsonClose(index);
+    indexJsonClose(index);
     indexOptsDestroy(opts);
     printf("destory\n");
     taosMsleep(1000);
@@ -75,7 +75,7 @@ static void WriteData(SIndexJson* index, const std::string& colName, int8_t dtyp
                                       (const char*)data, dlen);
   SIndexMultiTerm* terms = indexMultiTermCreate();
   indexMultiTermAdd(terms, term);
-  tIndexJsonPut(index, terms, (int64_t)tableId);
+  indexJsonPut(index, terms, (int64_t)tableId);
 
   indexMultiTermDestroy(terms);
 }
@@ -86,7 +86,7 @@ static void delData(SIndexJson* index, const std::string& colName, int8_t dtype,
                                       (const char*)data, dlen);
   SIndexMultiTerm* terms = indexMultiTermCreate();
   indexMultiTermAdd(terms, term);
-  tIndexJsonPut(index, terms, (int64_t)tableId);
+  indexJsonPut(index, terms, (int64_t)tableId);
 
   indexMultiTermDestroy(terms);
 }
@@ -99,7 +99,7 @@ static void Search(SIndexJson* index, const std::string& colNam, int8_t dtype, v
 
   SArray* res = taosArrayInit(1, sizeof(uint64_t));
   indexMultiTermQueryAdd(mq, q, (EIndexQueryType)filterType);
-  tIndexJsonSearch(index, mq, res);
+  indexJsonSearch(index, mq, res);
   indexMultiTermQueryDestroy(mq);
   *result = res;
 }
@@ -112,7 +112,7 @@ TEST_F(JsonEnv, testWrite) {
                                           colVal.c_str(), colVal.size());
       SIndexMultiTerm* terms = indexMultiTermCreate();
       indexMultiTermAdd(terms, term);
-      tIndexJsonPut(index, terms, i);
+      indexJsonPut(index, terms, i);
       indexMultiTermDestroy(terms);
     }
   }
@@ -125,7 +125,7 @@ TEST_F(JsonEnv, testWrite) {
 
       SIndexMultiTerm* terms = indexMultiTermCreate();
       indexMultiTermAdd(terms, term);
-      tIndexJsonPut(index, terms, i);
+      indexJsonPut(index, terms, i);
       indexMultiTermDestroy(terms);
     }
   }
@@ -138,7 +138,7 @@ TEST_F(JsonEnv, testWrite) {
 
       SIndexMultiTerm* terms = indexMultiTermCreate();
       indexMultiTermAdd(terms, term);
-      tIndexJsonPut(index, terms, i);
+      indexJsonPut(index, terms, i);
       indexMultiTermDestroy(terms);
     }
   }
@@ -152,7 +152,7 @@ TEST_F(JsonEnv, testWrite) {
 
     SArray* result = taosArrayInit(1, sizeof(uint64_t));
     indexMultiTermQueryAdd(mq, q, QUERY_TERM);
-    tIndexJsonSearch(index, mq, result);
+    indexJsonSearch(index, mq, result);
     EXPECT_EQ(100, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
   }
@@ -167,7 +167,7 @@ TEST_F(JsonEnv, testWriteMillonData) {
 
       SIndexMultiTerm* terms = indexMultiTermCreate();
       indexMultiTermAdd(terms, term);
-      tIndexJsonPut(index, terms, i);
+      indexJsonPut(index, terms, i);
       indexMultiTermDestroy(terms);
     }
   }
@@ -182,7 +182,7 @@ TEST_F(JsonEnv, testWriteMillonData) {
 
         SIndexMultiTerm* terms = indexMultiTermCreate();
         indexMultiTermAdd(terms, term);
-        tIndexJsonPut(index, terms, i);
+        indexJsonPut(index, terms, i);
         indexMultiTermDestroy(terms);
       }
     }
@@ -196,7 +196,7 @@ TEST_F(JsonEnv, testWriteMillonData) {
 
       SIndexMultiTerm* terms = indexMultiTermCreate();
       indexMultiTermAdd(terms, term);
-      tIndexJsonPut(index, terms, i);
+      indexJsonPut(index, terms, i);
       indexMultiTermDestroy(terms);
     }
   }
@@ -210,7 +210,7 @@ TEST_F(JsonEnv, testWriteMillonData) {
 
     SArray* result = taosArrayInit(1, sizeof(uint64_t));
     indexMultiTermQueryAdd(mq, q, QUERY_TERM);
-    tIndexJsonSearch(index, mq, result);
+    indexJsonSearch(index, mq, result);
     EXPECT_EQ(10, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
   }
@@ -225,7 +225,7 @@ TEST_F(JsonEnv, testWriteMillonData) {
 
       SArray* result = taosArrayInit(1, sizeof(uint64_t));
       indexMultiTermQueryAdd(mq, q, QUERY_GREATER_THAN);
-      tIndexJsonSearch(index, mq, result);
+      indexJsonSearch(index, mq, result);
       EXPECT_EQ(0, taosArrayGetSize(result));
       indexMultiTermQueryDestroy(mq);
     }
@@ -240,7 +240,7 @@ TEST_F(JsonEnv, testWriteMillonData) {
 
         SArray* result = taosArrayInit(1, sizeof(uint64_t));
         indexMultiTermQueryAdd(mq, q, QUERY_GREATER_EQUAL);
-        tIndexJsonSearch(index, mq, result);
+        indexJsonSearch(index, mq, result);
         EXPECT_EQ(10, taosArrayGetSize(result));
         indexMultiTermQueryDestroy(mq);
       }
@@ -258,7 +258,7 @@ TEST_F(JsonEnv, testWriteJsonNumberData) {
 
       SIndexMultiTerm* terms = indexMultiTermCreate();
       indexMultiTermAdd(terms, term);
-      tIndexJsonPut(index, terms, i);
+      indexJsonPut(index, terms, i);
       indexMultiTermDestroy(terms);
     }
   }
@@ -271,7 +271,7 @@ TEST_F(JsonEnv, testWriteJsonNumberData) {
 
       SIndexMultiTerm* terms = indexMultiTermCreate();
       indexMultiTermAdd(terms, term);
-      tIndexJsonPut(index, terms, i);
+      indexJsonPut(index, terms, i);
       indexMultiTermDestroy(terms);
     }
   }
@@ -284,7 +284,7 @@ TEST_F(JsonEnv, testWriteJsonNumberData) {
 
       SIndexMultiTerm* terms = indexMultiTermCreate();
       indexMultiTermAdd(terms, term);
-      tIndexJsonPut(index, terms, i);
+      indexJsonPut(index, terms, i);
       indexMultiTermDestroy(terms);
     }
   }
@@ -297,7 +297,7 @@ TEST_F(JsonEnv, testWriteJsonNumberData) {
 
       SIndexMultiTerm* terms = indexMultiTermCreate();
       indexMultiTermAdd(terms, term);
-      tIndexJsonPut(index, terms, i);
+      indexJsonPut(index, terms, i);
       indexMultiTermDestroy(terms);
     }
   }
@@ -310,7 +310,7 @@ TEST_F(JsonEnv, testWriteJsonNumberData) {
 
     SArray* result = taosArrayInit(1, sizeof(uint64_t));
     indexMultiTermQueryAdd(mq, q, QUERY_TERM);
-    tIndexJsonSearch(index, mq, result);
+    indexJsonSearch(index, mq, result);
     EXPECT_EQ(1000, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
   }
@@ -324,7 +324,7 @@ TEST_F(JsonEnv, testWriteJsonNumberData) {
 
     SArray* result = taosArrayInit(1, sizeof(uint64_t));
     indexMultiTermQueryAdd(mq, q, QUERY_GREATER_THAN);
-    tIndexJsonSearch(index, mq, result);
+    indexJsonSearch(index, mq, result);
     EXPECT_EQ(0, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
   }
@@ -339,7 +339,7 @@ TEST_F(JsonEnv, testWriteJsonNumberData) {
 
     SArray* result = taosArrayInit(1, sizeof(uint64_t));
     indexMultiTermQueryAdd(mq, q, QUERY_GREATER_EQUAL);
-    tIndexJsonSearch(index, mq, result);
+    indexJsonSearch(index, mq, result);
     EXPECT_EQ(1000, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
   }
@@ -354,7 +354,7 @@ TEST_F(JsonEnv, testWriteJsonNumberData) {
 
     SArray* result = taosArrayInit(1, sizeof(uint64_t));
     indexMultiTermQueryAdd(mq, q, QUERY_LESS_THAN);
-    tIndexJsonSearch(index, mq, result);
+    indexJsonSearch(index, mq, result);
     EXPECT_EQ(0, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
   }
@@ -369,7 +369,7 @@ TEST_F(JsonEnv, testWriteJsonNumberData) {
 
     SArray* result = taosArrayInit(1, sizeof(uint64_t));
     indexMultiTermQueryAdd(mq, q, QUERY_LESS_EQUAL);
-    tIndexJsonSearch(index, mq, result);
+    indexJsonSearch(index, mq, result);
     EXPECT_EQ(1000, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
   }
@@ -385,7 +385,7 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache_INT) {
 
       SIndexMultiTerm* terms = indexMultiTermCreate();
       indexMultiTermAdd(terms, term);
-      tIndexJsonPut(index, terms, i);
+      indexJsonPut(index, terms, i);
       indexMultiTermDestroy(terms);
     }
   }
@@ -398,7 +398,7 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache_INT) {
 
       SIndexMultiTerm* terms = indexMultiTermCreate();
       indexMultiTermAdd(terms, term);
-      tIndexJsonPut(index, terms, i);
+      indexJsonPut(index, terms, i);
       indexMultiTermDestroy(terms);
     }
   }
@@ -412,7 +412,7 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache_INT) {
 
     SArray* result = taosArrayInit(1, sizeof(uint64_t));
     indexMultiTermQueryAdd(mq, q, QUERY_TERM);
-    tIndexJsonSearch(index, mq, result);
+    indexJsonSearch(index, mq, result);
     EXPECT_EQ(1000, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
   }
@@ -426,7 +426,7 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache_INT) {
 
     SArray* result = taosArrayInit(1, sizeof(uint64_t));
     indexMultiTermQueryAdd(mq, q, QUERY_GREATER_THAN);
-    tIndexJsonSearch(index, mq, result);
+    indexJsonSearch(index, mq, result);
     EXPECT_EQ(0, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
   }
@@ -441,7 +441,7 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache_INT) {
 
     SArray* result = taosArrayInit(1, sizeof(uint64_t));
     indexMultiTermQueryAdd(mq, q, QUERY_GREATER_EQUAL);
-    tIndexJsonSearch(index, mq, result);
+    indexJsonSearch(index, mq, result);
     EXPECT_EQ(1000, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
   }
@@ -455,7 +455,7 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache_INT) {
 
     SArray* result = taosArrayInit(1, sizeof(uint64_t));
     indexMultiTermQueryAdd(mq, q, QUERY_GREATER_THAN);
-    tIndexJsonSearch(index, mq, result);
+    indexJsonSearch(index, mq, result);
     EXPECT_EQ(0, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
   }
@@ -469,7 +469,7 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache_INT) {
 
     SArray* result = taosArrayInit(1, sizeof(uint64_t));
     indexMultiTermQueryAdd(mq, q, QUERY_LESS_EQUAL);
-    tIndexJsonSearch(index, mq, result);
+    indexJsonSearch(index, mq, result);
     EXPECT_EQ(1000, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
   }
@@ -483,7 +483,7 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache_INT) {
 
       SIndexMultiTerm* terms = indexMultiTermCreate();
       indexMultiTermAdd(terms, term);
-      tIndexJsonPut(index, terms, i);
+      indexJsonPut(index, terms, i);
       indexMultiTermDestroy(terms);
     }
   }
@@ -498,7 +498,7 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache_INT) {
 
     SArray* result = taosArrayInit(1, sizeof(uint64_t));
     indexMultiTermQueryAdd(mq, q, QUERY_LESS_THAN);
-    tIndexJsonSearch(index, mq, result);
+    indexJsonSearch(index, mq, result);
     EXPECT_EQ(0, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
   }
@@ -511,7 +511,7 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache_INT) {
 
       SIndexMultiTerm* terms = indexMultiTermCreate();
       indexMultiTermAdd(terms, term);
-      tIndexJsonPut(index, terms, i + 1000);
+      indexJsonPut(index, terms, i + 1000);
       indexMultiTermDestroy(terms);
     }
   }
@@ -526,7 +526,7 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache_INT) {
 
     SArray* result = taosArrayInit(1, sizeof(uint64_t));
     indexMultiTermQueryAdd(mq, q, QUERY_GREATER_EQUAL);
-    tIndexJsonSearch(index, mq, result);
+    indexJsonSearch(index, mq, result);
     EXPECT_EQ(2000, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
   }
