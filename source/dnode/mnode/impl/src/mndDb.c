@@ -636,57 +636,6 @@ static int32_t mndSetAlterDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *p
   return 0;
 }
 
-static int32_t mndBuildAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup, SArray *pArray) {
-  if (pVgroup->replica <= 0 || pVgroup->replica == pDb->cfg.replications) {
-    if (mndAddAlterVnodeAction(pMnode, pTrans, pDb, pVgroup, TDMT_VND_ALTER_CONFIG) != 0) {
-      return -1;
-    }
-  } else {
-    SVgObj newVgroup = {0};
-    memcpy(&newVgroup, pVgroup, sizeof(SVgObj));
-    mndTransSetSerial(pTrans);
-
-    if (newVgroup.replica < pDb->cfg.replications) {
-      mInfo("db:%s, vgId:%d, vn:0 dnode:%d, will add 2 vnodes", pVgroup->dbName, pVgroup->vgId,
-            pVgroup->vnodeGid[0].dnodeId);
-
-      if (mndAddVnodeToVgroup(pMnode, &newVgroup, pArray) != 0) return -1;
-      if (mndAddCreateVnodeAction(pMnode, pTrans, pDb, &newVgroup, &newVgroup.vnodeGid[1], true) != 0) return -1;
-      if (mndAddAlterVnodeAction(pMnode, pTrans, pDb, &newVgroup, TDMT_VND_ALTER_REPLICA) != 0) return -1;
-      if (mndAddAlterVnodeConfirmAction(pMnode, pTrans, pDb, &newVgroup) != 0) return -1;
-
-      if (mndAddVnodeToVgroup(pMnode, &newVgroup, pArray) != 0) return -1;
-      if (mndAddCreateVnodeAction(pMnode, pTrans, pDb, &newVgroup, &newVgroup.vnodeGid[2], true) != 0) return -1;
-      if (mndAddAlterVnodeAction(pMnode, pTrans, pDb, &newVgroup, TDMT_VND_ALTER_REPLICA) != 0) return -1;
-      if (mndAddAlterVnodeConfirmAction(pMnode, pTrans, pDb, &newVgroup) != 0) return -1;
-    } else {
-      mInfo("db:%s, vgId:%d, will remove 2 vnodes", pVgroup->dbName, pVgroup->vgId);
-
-      SVnodeGid del1 = {0};
-      if (mndRemoveVnodeFromVgroup(pMnode, &newVgroup, pArray, &del1) != 0) return -1;
-      if (mndAddAlterVnodeAction(pMnode, pTrans, pDb, &newVgroup, TDMT_VND_ALTER_REPLICA) != 0) return -1;
-      if (mndAddDropVnodeAction(pMnode, pTrans, pDb, &newVgroup, &del1, true) != 0) return -1;
-      if (mndAddAlterVnodeConfirmAction(pMnode, pTrans, pDb, &newVgroup) != 0) return -1;
-
-      SVnodeGid del2 = {0};
-      if (mndRemoveVnodeFromVgroup(pMnode, &newVgroup, pArray, &del2) != 0) return -1;
-      if (mndAddAlterVnodeAction(pMnode, pTrans, pDb, &newVgroup, TDMT_VND_ALTER_REPLICA) != 0) return -1;
-      if (mndAddDropVnodeAction(pMnode, pTrans, pDb, &newVgroup, &del2, true) != 0) return -1;
-      if (mndAddAlterVnodeConfirmAction(pMnode, pTrans, pDb, &newVgroup) != 0) return -1;
-    }
-
-    SSdbRaw *pVgRaw = mndVgroupActionEncode(&newVgroup);
-    if (pVgRaw == NULL) return -1;
-    if (mndTransAppendCommitlog(pTrans, pVgRaw) != 0) {
-      sdbFreeRaw(pVgRaw);
-      return -1;
-    }
-    sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
-  }
-
-  return 0;
-}
-
 static int32_t mndSetAlterDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pOld, SDbObj *pNew) {
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
