@@ -26,6 +26,6 @@ use libtaos::*;
 fn main() {
     let token =  std::env::var("TDENGINE_TOKEN").unwrap();
     let dsn = format!("https://cloud:tdengine.com?token={}", token);
-    let taos = Taos::from_dsn(dsn.as_str())?;
+    let taos = Taos::from_dsn(dsn)?;
 }
 ```
