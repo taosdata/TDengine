@@ -212,7 +212,7 @@ char* idxPackJsonData(SIndexTerm* itm) {
    * |<-----colname---->|<-----dataType---->|<--------colVal---------->|
    * |<-----string----->|<-----uint8_t----->|<----depend on dataType-->|
    */
-  uint8_t ty = INDEX_TYPE_GET_TYPE(itm->colType);
+  uint8_t ty = IDX_TYPE_GET_TYPE(itm->colType);
 
   int32_t sz = itm->nColName + itm->nColVal + sizeof(uint8_t) + sizeof(JSON_VALUE_DELIM) * 2 + 1;
   char*   buf = (char*)taosMemoryCalloc(1, sz);
@@ -240,7 +240,7 @@ char* idxPackJsonDataPrefix(SIndexTerm* itm, int32_t* skip) {
    * |<-----colname---->|<-----dataType---->|<--------colVal---------->|
    * |<-----string----->|<-----uint8_t----->|<----depend on dataType-->|
    */
-  uint8_t ty = INDEX_TYPE_GET_TYPE(itm->colType);
+  uint8_t ty = IDX_TYPE_GET_TYPE(itm->colType);
 
   int32_t sz = itm->nColName + itm->nColVal + sizeof(uint8_t) + sizeof(JSON_VALUE_DELIM) * 2 + 1;
   char*   buf = (char*)taosMemoryCalloc(1, sz);
@@ -267,7 +267,7 @@ char* idxPackJsonDataPrefixNoType(SIndexTerm* itm, int32_t* skip) {
    * |<-----colname---->|<-----dataType---->|<--------colVal---------->|
    * |<-----string----->|<-----uint8_t----->|<----depend on dataType-->|
    */
-  uint8_t ty = INDEX_TYPE_GET_TYPE(itm->colType);
+  uint8_t ty = IDX_TYPE_GET_TYPE(itm->colType);
 
   int32_t sz = itm->nColName + itm->nColVal + sizeof(uint8_t) + sizeof(JSON_VALUE_DELIM) * 2 + 1;
   char*   buf = (char*)taosMemoryCalloc(1, sz);

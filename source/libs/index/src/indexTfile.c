@@ -281,7 +281,7 @@ static int32_t tfSearchSuffix(void* reader, SIndexTerm* tem, SIdxTRslt* tr) {
   return 0;
 }
 static int32_t tfSearchRegex(void* reader, SIndexTerm* tem, SIdxTRslt* tr) {
-  bool hasJson = INDEX_TYPE_CONTAIN_EXTERN_TYPE(tem->colType, TSDB_DATA_TYPE_JSON);
+  bool hasJson = IDX_TYPE_CONTAIN_EXTERN_TYPE(tem->colType, TSDB_DATA_TYPE_JSON);
 
   int      ret = 0;
   char*    p = tem->colVal;
@@ -457,7 +457,7 @@ static int32_t tfSearchCompareFunc_JSON(void* reader, SIndexTerm* tem, SIdxTRslt
       } else if (0 != strncmp(ch, p, skip)) {
         continue;
       }
-      cond = cmpFn(ch + skip, tem->colVal, INDEX_TYPE_GET_TYPE(tem->colType));
+      cond = cmpFn(ch + skip, tem->colVal, IDX_TYPE_GET_TYPE(tem->colType));
     }
     if (MATCH == cond) {
       tfileReaderLoadTableIds((TFileReader*)reader, rt->out.out, tr->total);
@@ -476,7 +476,7 @@ int tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SIdxTRslt* tr
   SIndexTerm*     term = query->term;
   EIndexQueryType qtype = query->qType;
   int             ret = 0;
-  if (INDEX_TYPE_CONTAIN_EXTERN_TYPE(term->colType, TSDB_DATA_TYPE_JSON)) {
+  if (IDX_TYPE_CONTAIN_EXTERN_TYPE(term->colType, TSDB_DATA_TYPE_JSON)) {
     ret = tfSearch[1][qtype](reader, term, tr);
   } else {
     ret = tfSearch[0][qtype](reader, term, tr);
@@ -536,7 +536,7 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
     __compar_fn_t fn;
 
     int8_t colType = tw->header.colType;
-    colType = INDEX_TYPE_GET_TYPE(colType);
+    colType = IDX_TYPE_GET_TYPE(colType);
     if (colType == TSDB_DATA_TYPE_BINARY || colType == TSDB_DATA_TYPE_NCHAR) {
       fn = tfileStrCompare;
     } else {
@@ -845,7 +845,7 @@ static int tfileWriteData(TFileWriter* write, TFileValue* tval) {
   TFileHeader* header = &write->header;
   uint8_t      colType = header->colType;
 
-  colType = INDEX_TYPE_GET_TYPE(colType);
+  colType = IDX_TYPE_GET_TYPE(colType);
   FstSlice key = fstSliceCreate((uint8_t*)(tval->colVal), (size_t)strlen(tval->colVal));
   if (fstBuilderInsert(write->fb, key, tval->offset)) {
     fstSliceDestroy(&key);

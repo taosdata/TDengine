@@ -187,7 +187,7 @@ static int32_t cacheSearchTerm_JSON(void* cache, SIndexTerm* term, SIdxTRslt* tr
   pCt->version = atomic_load_64(&pCache->version);
 
   char* exBuf = NULL;
-  if (INDEX_TYPE_CONTAIN_EXTERN_TYPE(term->colType, TSDB_DATA_TYPE_JSON)) {
+  if (IDX_TYPE_CONTAIN_EXTERN_TYPE(term->colType, TSDB_DATA_TYPE_JSON)) {
     exBuf = idxPackJsonData(term);
     pCt->colVal = exBuf;
   }
@@ -266,7 +266,7 @@ static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTR
   pCt->colVal = term->colVal;
   pCt->version = atomic_load_64(&pCache->version);
 
-  int8_t dType = INDEX_TYPE_GET_TYPE(term->colType);
+  int8_t dType = IDX_TYPE_GET_TYPE(term->colType);
   int    skip = 0;
   char*  exBuf = NULL;
   if (type == CONTAINS) {
@@ -342,7 +342,7 @@ IndexCache* idxCacheCreate(SIndex* idx, uint64_t suid, const char* colName, int8
 
   cache->mem = idxInternalCacheCreate(type);
   cache->mem->pCache = cache;
-  cache->colName = INDEX_TYPE_CONTAIN_EXTERN_TYPE(type, TSDB_DATA_TYPE_JSON) ? tstrdup(JSON_COLUMN) : tstrdup(colName);
+  cache->colName = IDX_TYPE_CONTAIN_EXTERN_TYPE(type, TSDB_DATA_TYPE_JSON) ? tstrdup(JSON_COLUMN) : tstrdup(colName);
   cache->type = type;
   cache->index = idx;
   cache->version = 0;
@@ -354,7 +354,7 @@ IndexCache* idxCacheCreate(SIndex* idx, uint64_t suid, const char* colName, int8
 
   idxCacheRef(cache);
   if (idx != NULL) {
-    indexAcquireRef(idx->refId);
+    idxAcquireRef(idx->refId);
   }
   return cache;
 }
@@ -455,7 +455,7 @@ void idxCacheDestroy(void* cache) {
   taosThreadMutexDestroy(&pCache->mtx);
   taosThreadCondDestroy(&pCache->finished);
   if (pCache->index != NULL) {
-    indexReleaseRef(((SIndex*)pCache->index)->refId);
+    idxReleaseRef(((SIndex*)pCache->index)->refId);
   }
   taosMemoryFree(pCache);
 }
@@ -500,7 +500,7 @@ int idxCacheSchedToMerge(IndexCache* pCache, bool notify) {
     schedMsg.thandle = taosMemoryMalloc(1);
   }
   schedMsg.msg = NULL;
-  indexAcquireRef(pCache->index->refId);
+  idxAcquireRef(pCache->index->refId);
   taosScheduleTask(indexQhandle, &schedMsg);
   return 0;
 }
@@ -533,7 +533,7 @@ int idxCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
   if (cache == NULL) {
     return -1;
   }
-  bool hasJson = INDEX_TYPE_CONTAIN_EXTERN_TYPE(term->colType, TSDB_DATA_TYPE_JSON);
+  bool hasJson = IDX_TYPE_CONTAIN_EXTERN_TYPE(term->colType, TSDB_DATA_TYPE_JSON);
 
   IndexCache* pCache = cache;
   idxCacheRef(pCache);
@@ -597,7 +597,7 @@ static int32_t idxQueryMem(MemTable* mem, SIndexTermQuery* query, SIdxTRslt* tr,
   SIndexTerm*     term = query->term;
   EIndexQueryType qtype = query->qType;
 
-  if (INDEX_TYPE_CONTAIN_EXTERN_TYPE(term->colType, TSDB_DATA_TYPE_JSON)) {
+  if (IDX_TYPE_CONTAIN_EXTERN_TYPE(term->colType, TSDB_DATA_TYPE_JSON)) {
     return cacheSearch[1][qtype](mem, term, tr, s);
   } else {
     return cacheSearch[0][qtype](mem, term, tr, s);
@@ -730,9 +730,9 @@ static int32_t idxCacheJsonTermCompare(const void* l, const void* r) {
   return cmp;
 }
 static MemTable* idxInternalCacheCreate(int8_t type) {
-  int ttype = INDEX_TYPE_CONTAIN_EXTERN_TYPE(type, TSDB_DATA_TYPE_JSON) ? TSDB_DATA_TYPE_BINARY : TSDB_DATA_TYPE_BINARY;
+  int ttype = IDX_TYPE_CONTAIN_EXTERN_TYPE(type, TSDB_DATA_TYPE_JSON) ? TSDB_DATA_TYPE_BINARY : TSDB_DATA_TYPE_BINARY;
   int32_t (*cmpFn)(const void* l, const void* r) =
-      INDEX_TYPE_CONTAIN_EXTERN_TYPE(type, TSDB_DATA_TYPE_JSON) ? idxCacheJsonTermCompare : idxCacheTermCompare;
+      IDX_TYPE_CONTAIN_EXTERN_TYPE(type, TSDB_DATA_TYPE_JSON) ? idxCacheJsonTermCompare : idxCacheTermCompare;
 
   MemTable* tbl = taosMemoryCalloc(1, sizeof(MemTable));
   idxMemRef(tbl);

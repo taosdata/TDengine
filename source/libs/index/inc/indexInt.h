@@ -133,24 +133,24 @@ typedef struct TFileCacheKey {
 } ICacheKey;
 int idxFlushCacheToTFile(SIndex* sIdx, void*, bool quit);
 
-int64_t indexAddRef(void* p);
-int32_t indexRemoveRef(int64_t ref);
-void    indexAcquireRef(int64_t ref);
-void    indexReleaseRef(int64_t ref);
+int64_t idxAddRef(void* p);
+int32_t idxRemoveRef(int64_t ref);
+void    idxAcquireRef(int64_t ref);
+void    idxReleaseRef(int64_t ref);
 
 int32_t idxSerialCacheKey(ICacheKey* key, char* buf);
 // int32_t indexSerialKey(ICacheKey* key, char* buf);
 // int32_t indexSerialTermKey(SIndexTerm* itm, char* buf);
 
-#define INDEX_TYPE_CONTAIN_EXTERN_TYPE(ty, exTy) (((ty >> 4) & (exTy)) != 0)
+#define IDX_TYPE_CONTAIN_EXTERN_TYPE(ty, exTy) (((ty >> 4) & (exTy)) != 0)
 
-#define INDEX_TYPE_GET_TYPE(ty) (ty & 0x0F)
+#define IDX_TYPE_GET_TYPE(ty) (ty & 0x0F)
 
-#define INDEX_TYPE_ADD_EXTERN_TYPE(ty, exTy) \
-  do {                                       \
-    uint8_t oldTy = ty;                      \
-    ty = (ty >> 4) | exTy;                   \
-    ty = (ty << 4) | oldTy;                  \
+#define IDX_TYPE_ADD_EXTERN_TYPE(ty, exTy) \
+  do {                                     \
+    uint8_t oldTy = ty;                    \
+    ty = (ty >> 4) | exTy;                 \
+    ty = (ty << 4) | oldTy;                \
   } while (0)
 
 #ifdef __cplusplus

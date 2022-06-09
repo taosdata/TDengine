@@ -90,7 +90,7 @@ static void idxMergeCacheAndTFile(SArray* result, IterateValue* icache, IterateV
 // static int32_t indexSerialTermKey(SIndexTerm* itm, char* buf);
 // int32_t        indexSerialKey(ICacheKey* key, char* buf);
 
-static void indexPost(void* idx) {
+static void idxPost(void* idx) {
   SIndex* pIdx = idx;
   tsem_post(&pIdx->sem);
 }
@@ -118,8 +118,8 @@ int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
   taosThreadMutexInit(&sIdx->mtx, NULL);
   tsem_init(&sIdx->sem, 0, 0);
 
-  sIdx->refId = indexAddRef(sIdx);
-  indexAcquireRef(sIdx->refId);
+  sIdx->refId = idxAddRef(sIdx);
+  idxAcquireRef(sIdx->refId);
 
   *index = sIdx;
   return 0;
@@ -157,23 +157,23 @@ void indexClose(SIndex* sIdx) {
     taosHashCleanup(sIdx->colObj);
     sIdx->colObj = NULL;
   }
-  indexReleaseRef(sIdx->refId);
-  indexRemoveRef(sIdx->refId);
+  idxReleaseRef(sIdx->refId);
+  idxRemoveRef(sIdx->refId);
 }
-int64_t indexAddRef(void* p) {
+int64_t idxAddRef(void* p) {
   // impl
   return taosAddRef(indexRefMgt, p);
 }
-int32_t indexRemoveRef(int64_t ref) {
+int32_t idxRemoveRef(int64_t ref) {
   // impl later
   return taosRemoveRef(indexRefMgt, ref);
 }
 
-void indexAcquireRef(int64_t ref) {
+void idxAcquireRef(int64_t ref) {
   // impl
   taosAcquireRef(indexRefMgt, ref);
 }
-void indexReleaseRef(int64_t ref) {
+void idxReleaseRef(int64_t ref) {
   // impl
   taosReleaseRef(indexRefMgt, ref);
 }
@@ -289,7 +289,7 @@ SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn oper, uint8_t colTy
   tm->nColName = nColName;
 
   char*   buf = NULL;
-  int32_t len = idxConvertDataToStr((void*)colVal, INDEX_TYPE_GET_TYPE(colType), (void**)&buf);
+  int32_t len = idxConvertDataToStr((void*)colVal, IDX_TYPE_GET_TYPE(colType), (void**)&buf);
   assert(len != -1);
 
   tm->colVal = buf;
@@ -479,9 +479,9 @@ int idxFlushCacheToTFile(SIndex* sIdx, void* cache, bool quit) {
     tfileReaderUnRef(pReader);
     atomic_store_32(&pCache->merging, 0);
     if (quit) {
-      indexPost(sIdx);
+      idxPost(sIdx);
     }
-    indexReleaseRef(sIdx->refId);
+    idxReleaseRef(sIdx->refId);
     return 0;
   }
 
@@ -542,9 +542,9 @@ int idxFlushCacheToTFile(SIndex* sIdx, void* cache, bool quit) {
   }
   atomic_store_32(&pCache->merging, 0);
   if (quit) {
-    indexPost(sIdx);
+    idxPost(sIdx);
   }
-  indexReleaseRef(sIdx->refId);
+  idxReleaseRef(sIdx->refId);
 
   return ret;
 }
@@ -621,7 +621,7 @@ END:
 }
 
 int32_t idxSerialCacheKey(ICacheKey* key, char* buf) {
-  bool hasJson = INDEX_TYPE_CONTAIN_EXTERN_TYPE(key->colType, TSDB_DATA_TYPE_JSON);
+  bool hasJson = IDX_TYPE_CONTAIN_EXTERN_TYPE(key->colType, TSDB_DATA_TYPE_JSON);
 
   char* p = buf;
   char  tbuf[65] = {0};
