@@ -3,9 +3,10 @@ from util.log import *
 from util.sql import *
 from util.cases import *
 
-import tzlocal
 import platform
 import os
+if platform.system().lower() == 'windows':
+    import tzlocal
 
 
 class TDTestCase:
