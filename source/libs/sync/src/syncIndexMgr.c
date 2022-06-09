@@ -119,7 +119,7 @@ cJSON *syncIndexMgr2Json(SSyncIndexMgr *pSyncIndexMgr) {
 
 char *syncIndexMgr2Str(SSyncIndexMgr *pSyncIndexMgr) {
   cJSON *pJson = syncIndexMgr2Json(pSyncIndexMgr);
-  char * serialized = cJSON_Print(pJson);
+  char  *serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
 }
@@ -146,9 +146,11 @@ void syncIndexMgrLog(SSyncIndexMgr *pObj) {
 }
 
 void syncIndexMgrLog2(char *s, SSyncIndexMgr *pObj) {
-  char *serialized = syncIndexMgr2Str(pObj);
-  sTrace("syncIndexMgrLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
-  taosMemoryFree(serialized);
+  if (gRaftDetailLog) {
+    char *serialized = syncIndexMgr2Str(pObj);
+    sTrace("syncIndexMgrLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+    taosMemoryFree(serialized);
+  }
 }
 
 void syncIndexMgrSetTerm(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId, SyncTerm term) {

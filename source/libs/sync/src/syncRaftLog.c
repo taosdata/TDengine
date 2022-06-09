@@ -583,7 +583,9 @@ void logStoreSimpleLog(SSyncLogStore* pLogStore) {
 }
 
 void logStoreSimpleLog2(char* s, SSyncLogStore* pLogStore) {
-  char* serialized = logStoreSimple2Str(pLogStore);
-  sTrace("logStoreSimpleLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
-  taosMemoryFree(serialized);
+  if (gRaftDetailLog) {
+    char* serialized = logStoreSimple2Str(pLogStore);
+    sTrace("logStoreSimpleLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+    taosMemoryFree(serialized);
+  }
 }
