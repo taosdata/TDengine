@@ -3,6 +3,9 @@ sidebar_label: Grafana
 title: Grafana
 ---
 
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+
 TDengine 能够与开源数据可视化系统 [Grafana](https://www.grafana.com/) 快速集成搭建数据监测报警系统，整个过程无需任何代码开发，TDengine 中数据表的内容可以在仪表盘(DashBoard)上进行可视化展现。关于 TDengine 插件的使用您可以在[GitHub](https://github.com/taosdata/grafanaplugin/blob/master/README.md)中了解更多。
 
 ## 前置条件
@@ -12,11 +15,41 @@ TDengine 能够与开源数据可视化系统 [Grafana](https://www.grafana.com/
 - TDengine 集群已经部署并正常运行
 - taosAdapter 已经安装并正常运行。具体细节请参考 [taosAdapter 的使用手册](/reference/taosadapter)
 
+记录以下信息：
+
+- TDengine 集群 REST API 地址，如：`http://tdengine.local:6041`。
+- TDengine 集群认证信息，可使用用户名及密码。
+
 ## 安装 Grafana
 
-目前 TDengine 支持 Grafana 7.0 以上的版本。用户可以根据当前的操作系统，到 Grafana 官网下载安装包，并执行安装。下载地址如下：<https://grafana.com/grafana/download>。
+目前 TDengine 支持 Grafana 7.5 以上的版本。用户可以根据当前的操作系统，到 Grafana 官网下载安装包，并执行安装。下载地址如下：<https://grafana.com/grafana/download>。
 
 ## 配置 Grafana
+
+### 安装 Grafana Plugin 并配置数据源
+
+<Tabs defaultValue="script">
+<TabItem value="script" label="使用安装脚本">
+
+将集群信息设置为环境变量；也可以使用 `.env` 文件，请参考 [dotenv](https://hexdocs.pm/dotenvy/dotenv-file-format.html)：
+
+```sh
+export TDENGINE_API=http://tdengine.local:6041
+# user + password
+export TDENGINE_USER=user
+export TDENGINE_PASSWORD=password
+```
+
+运行安装脚本：
+
+```sh
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/taosdata/grafanaplugin/master/install.sh)"
+```
+
+该脚本将自动安装 Grafana 插件并配置数据源。安装完毕后，需要重启 Grafana 服务后生效。
+
+</TabItem>
+<TabItem value="manual" label="手动安装并配置">
 
 使用 [`grafana-cli` 命令行工具](https://grafana.com/docs/grafana/latest/administration/cli/) 进行插件[安装](https://grafana.com/grafana/plugins/tdengine-datasource/?tab=installation)。
 
@@ -48,11 +81,7 @@ sudo unzip tdengine-datasource-$GF_VERSION.zip -d /var/lib/grafana/plugins/
 GF_INSTALL_PLUGINS=tdengine-datasource
 ```
 
-## 使用 Grafana
-
-### 配置数据源
-
-用户可以直接通过 <http://localhost:3000> 的网址，登录 Grafana 服务器（用户名/密码：admin/admin），通过左侧 `Configuration -> Data Sources` 可以添加数据源，如下图所示：
+之后，用户可以直接通过 <http://localhost:3000> 的网址，登录 Grafana 服务器（用户名/密码：admin/admin），通过左侧 `Configuration -> Data Sources` 可以添加数据源，如下图所示：
 
 ![TDengine Database Grafana plugin add data source](./add_datasource1.webp)
 
@@ -71,6 +100,9 @@ GF_INSTALL_PLUGINS=tdengine-datasource
 点击 `Save & Test` 进行测试，成功会有如下提示：
 
 ![TDengine Database Grafana plugin add data source](./add_datasource4.webp)
+
+</TabItem>
+</Tabs>
 
 ### 创建 Dashboard
 
@@ -92,4 +124,11 @@ GF_INSTALL_PLUGINS=tdengine-datasource
 
 ### 导入 Dashboard
 
-在 2.3.3.0 及以上版本，您可以导入 TDinsight Dashboard (Grafana Dashboard ID： [15167](https://grafana.com/grafana/dashboards/15167)) 作为 TDengine 集群的监控可视化工具。安装和使用说明请见 [TDinsight 用户手册](/reference/tdinsight/)。
+在数据源配置页面，您可以为该数据源导入 TDinsight 面板，作为 TDengine 集群的监控可视化工具。该 Dashboard 已发布在 Grafana：[Dashboard 15167 - TDinsight](https://grafana.com/grafana/dashboards/15167)) 。其他安装方式和相关使用说明请见 [TDinsight 用户手册](/reference/tdinsight/)。
+
+使用 TDengine 作为数据源的其他面板，可以[在此搜索](https://grafana.com/grafana/dashboards/?dataSource=tdengine-datasource)。以下是一份不完全列表：
+
+- [15146](https://grafana.com/grafana/dashboards/15146): 监控多个 TDengine 集群
+- [15155](https://grafana.com/grafana/dashboards/15155): TDengine 告警示例
+- [15167](https://grafana.com/grafana/dashboards/15167): TDinsight
+- [16388](https://grafana.com/grafana/dashboards/16388): Telegraf 采集节点信息的数据展示
