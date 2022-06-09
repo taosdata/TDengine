@@ -1388,6 +1388,10 @@ void mndTransPullup(SMnode *pMnode) {
     mndReleaseTrans(pMnode, pTrans);
   }
 
+  SSnapshotMeta sMeta = {0};
+  if (syncGetSnapshotMeta(pMnode->syncMgmt.sync, &sMeta) == 0) {
+    sdbSetCurConfig(pMnode->pSdb, sMeta.lastConfigIndex);
+  }
   sdbWriteFile(pMnode->pSdb);
   taosArrayDestroy(pArray);
 }

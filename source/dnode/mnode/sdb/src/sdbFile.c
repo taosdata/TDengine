@@ -110,6 +110,16 @@ static int32_t sdbReadFileHead(SSdb *pSdb, TdFilePtr pFile) {
     return -1;
   }
 
+  ret = taosReadFile(pFile, &pSdb->curConfig, sizeof(int64_t));
+  if (ret < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+  if (ret != sizeof(int64_t)) {
+    terrno = TSDB_CODE_FILE_CORRUPTED;
+    return -1;
+  }
+
   for (int32_t i = 0; i < SDB_TABLE_SIZE; ++i) {
     int64_t maxId = 0;
     ret = taosReadFile(pFile, &maxId, sizeof(int64_t));
@@ -169,6 +179,11 @@ static int32_t sdbWriteFileHead(SSdb *pSdb, TdFilePtr pFile) {
   }
 
   if (taosWriteFile(pFile, &pSdb->curTerm, sizeof(int64_t)) != sizeof(int64_t)) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  if (taosWriteFile(pFile, &pSdb->curConfig, sizeof(int64_t)) != sizeof(int64_t)) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
@@ -288,8 +303,8 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
   pSdb->lastCommitVer = pSdb->curVer;
   pSdb->lastCommitTerm = pSdb->curTerm;
   memcpy(pSdb->tableVer, tableVer, sizeof(tableVer));
-  mDebug("read sdb file:%s successfully, ver:%" PRId64 " term:%" PRId64, file, pSdb->lastCommitVer,
-         pSdb->lastCommitTerm);
+  mDebug("read sdb file:%s successfully, index:%" PRId64 " term:%" PRId64 " config:%" PRId64, file, pSdb->lastCommitVer,
+         pSdb->lastCommitTerm, pSdb->curConfig);
 
 _OVER:
   taosCloseFile(&pFile);
@@ -498,6 +513,7 @@ int32_t sdbStartRead(SSdb *pSdb, SSdbIter **ppIter) {
   taosThreadMutexLock(&pSdb->filelock);
   int64_t commitIndex = pSdb->lastCommitVer;
   int64_t commitTerm = pSdb->lastCommitTerm;
+  int64_t curConfig = pSdb->curConfig;
   if (taosCopyFile(datafile, pIter->name) < 0) {
     taosThreadMutexUnlock(&pSdb->filelock);
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -516,8 +532,8 @@ int32_t sdbStartRead(SSdb *pSdb, SSdbIter **ppIter) {
   }
 
   *ppIter = pIter;
-  mInfo("sdbiter:%p, is created to read snapshot, index:%" PRId64 " term:%" PRId64 " file:%s", pIter, commitIndex,
-        commitTerm, pIter->name);
+  mInfo("sdbiter:%p, is created to read snapshot, index:%" PRId64 " term:%" PRId64 " config:%" PRId64 " file:%s", pIter,
+        commitIndex, commitTerm, curConfig, pIter->name);
   return 0;
 }
 

@@ -50,6 +50,10 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
     tsem_post(&pMgmt->syncSem);
   } else {
     if (cbMeta.index - sdbGetApplyIndex(pMnode->pSdb) > 100) {
+      SSnapshotMeta sMeta = {0};
+      if (syncGetSnapshotMeta(pMnode->syncMgmt.sync, &sMeta) == 0) {
+        sdbSetCurConfig(pMnode->pSdb, sMeta.lastConfigIndex);
+      }
       sdbWriteFile(pMnode->pSdb);
     }
   }
@@ -59,11 +63,18 @@ int32_t mndSyncGetSnapshot(struct SSyncFSM *pFsm, SSnapshot *pSnapshot) {
   SMnode *pMnode = pFsm->data;
   pSnapshot->lastApplyIndex = sdbGetCommitIndex(pMnode->pSdb);
   pSnapshot->lastApplyTerm = sdbGetCommitTerm(pMnode->pSdb);
+  pSnapshot->lastConfigIndex = sdbGetCurConfig(pMnode->pSdb);
   return 0;
 }
 
 void mndRestoreFinish(struct SSyncFSM *pFsm) {
   SMnode *pMnode = pFsm->data;
+
+  SSnapshotMeta sMeta = {0};
+  if (syncGetSnapshotMeta(pMnode->syncMgmt.sync, &sMeta) == 0) {
+    sdbSetCurConfig(pMnode->pSdb, sMeta.lastConfigIndex);
+  }
+
   if (!pMnode->deploy) {
     mInfo("mnode sync restore finished, and will handle outstanding transactions");
     mndTransPullup(pMnode);

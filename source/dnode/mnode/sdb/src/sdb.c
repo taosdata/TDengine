@@ -161,6 +161,8 @@ void sdbSetApplyIndex(SSdb *pSdb, int64_t index) { pSdb->curVer = index; }
 
 void sdbSetApplyTerm(SSdb *pSdb, int64_t term) { pSdb->curTerm = term; }
 
+void sdbSetCurConfig(SSdb *pSdb, int64_t config) { pSdb->curConfig = config; }
+
 int64_t sdbGetApplyIndex(SSdb *pSdb) { return pSdb->curVer; }
 
 int64_t sdbGetApplyTerm(SSdb *pSdb) { return pSdb->curTerm; }
@@ -168,3 +170,5 @@ int64_t sdbGetApplyTerm(SSdb *pSdb) { return pSdb->curTerm; }
 int64_t sdbGetCommitIndex(SSdb *pSdb) { return pSdb->lastCommitVer; }
 
 int64_t sdbGetCommitTerm(SSdb *pSdb) { return pSdb->lastCommitTerm; }
+
+int64_t sdbGetCurConfig(SSdb *pSdb) { return pSdb->curConfig; }
