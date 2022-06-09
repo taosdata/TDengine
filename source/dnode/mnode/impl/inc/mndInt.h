@@ -76,7 +76,6 @@ typedef struct {
 } STelemMgmt;
 
 typedef struct {
-  SWal   *pWal;
   sem_t   syncSem;
   int64_t sync;
   bool    standby;
@@ -109,6 +108,7 @@ typedef struct SMnode {
   SQHandle      *pQuery;
   SHashObj      *infosMeta;
   SHashObj      *perfsMeta;
+  SWal          *pWal;
   SShowMgmt      showMgmt;
   SProfileMgmt   profileMgmt;
   STelemMgmt     telemMgmt;

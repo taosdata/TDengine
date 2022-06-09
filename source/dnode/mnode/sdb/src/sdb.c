@@ -52,10 +52,12 @@ SSdb *sdbInit(SSdbOpt *pOption) {
     pSdb->keyTypes[i] = SDB_KEY_INT32;
   }
 
+  pSdb->pWal = pOption->pWal;
   pSdb->curVer = -1;
   pSdb->curTerm = -1;
   pSdb->lastCommitVer = -1;
   pSdb->lastCommitTerm = -1;
+  pSdb->curConfig = -1;
   pSdb->pMnode = pOption->pMnode;
   taosThreadMutexInit(&pSdb->filelock, NULL);
   mDebug("sdb init successfully");

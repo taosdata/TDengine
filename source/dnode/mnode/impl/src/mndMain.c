@@ -139,10 +139,40 @@ static int32_t mndCreateDir(SMnode *pMnode, const char *path) {
   return 0;
 }
 
+static int32_t mndInitWal(SMnode *pMnode) {
+  char path[PATH_MAX + 20] = {0};
+  snprintf(path, sizeof(path), "%s%swal", pMnode->path, TD_DIRSEP);
+  SWalCfg cfg = {
+      .vgId = 1,
+      .fsyncPeriod = 0,
+      .rollPeriod = -1,
+      .segSize = -1,
+      .retentionPeriod = -1,
+      .retentionSize = -1,
+      .level = TAOS_WAL_FSYNC,
+  };
+
+  pMnode->pWal = walOpen(path, &cfg);
+  if (pMnode->pWal == NULL) {
+    mError("failed to open wal since %s", terrstr());
+    return -1;
+  }
+
+  return 0;
+}
+
+static void mndCloseWal(SMnode *pMnode) {
+  if (pMnode->pWal != NULL) {
+    walClose(pMnode->pWal);
+    pMnode->pWal = NULL;
+  }
+}
+
 static int32_t mndInitSdb(SMnode *pMnode) {
   SSdbOpt opt = {0};
   opt.path = pMnode->path;
   opt.pMnode = pMnode;
+  opt.pWal = pMnode->pWal;
 
   pMnode->pSdb = sdbInit(&opt);
   if (pMnode->pSdb == NULL) {
@@ -156,7 +186,6 @@ static int32_t mndOpenSdb(SMnode *pMnode) {
   if (!pMnode->deploy) {
     return sdbReadFile(pMnode->pSdb);
   } else {
-    // return sdbDeploy(pMnode->pSdb);;
     return 0;
   }
 }
@@ -182,6 +211,7 @@ static int32_t mndAllocStep(SMnode *pMnode, char *name, MndInitFp initFp, MndCle
 }
 
 static int32_t mndInitSteps(SMnode *pMnode) {
+  if (mndAllocStep(pMnode, "mnode-wal", mndInitWal, mndCloseWal) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-sdb", mndInitSdb, mndCleanupSdb) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-trans", mndInitTrans, mndCleanupTrans) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-cluster", mndInitCluster, mndCleanupCluster) != 0) return -1;
@@ -201,7 +231,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   if (mndAllocStep(pMnode, "mnode-offset", mndInitOffset, mndCleanupOffset) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-vgroup", mndInitVgroup, mndCleanupVgroup) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-stb", mndInitStb, mndCleanupStb) != 0) return -1;
-  if (mndAllocStep(pMnode, "mnode-stb", mndInitSma, mndCleanupSma) != 0) return -1;
+  if (mndAllocStep(pMnode, "mnode-sma", mndInitSma, mndCleanupSma) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-infos", mndInitInfos, mndCleanupInfos) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-perfs", mndInitPerfs, mndCleanupPerfs) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-db", mndInitDb, mndCleanupDb) != 0) return -1;

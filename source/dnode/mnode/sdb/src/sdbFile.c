@@ -441,12 +441,23 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
 }
 
 int32_t sdbWriteFile(SSdb *pSdb) {
+  int32_t code = 0;
   if (pSdb->curVer == pSdb->lastCommitVer) {
     return 0;
   }
 
   taosThreadMutexLock(&pSdb->filelock);
-  int32_t code = sdbWriteFileImp(pSdb);
+  if (pSdb->pWal != NULL) {
+    code = walBeginSnapshot(pSdb->pWal, pSdb->curVer);
+  }
+  if (code == 0) {
+    code = sdbWriteFileImp(pSdb);
+  }
+  if (code == 0) {
+    if (pSdb->pWal != NULL) {
+      code = walEndSnapshot(pSdb->pWal);
+    }
+  }
   if (code != 0) {
     mError("failed to write sdb file since %s", terrstr());
   }

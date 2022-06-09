@@ -22,6 +22,7 @@
 #include "tlockfree.h"
 #include "tlog.h"
 #include "tmsg.h"
+#include "wal.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -165,6 +166,7 @@ typedef struct SSdbRow {
 
 typedef struct SSdb {
   SMnode        *pMnode;
+  SWal          *pWal;
   char          *currDir;
   char          *tmpDir;
   int64_t        lastCommitVer;
@@ -206,6 +208,7 @@ typedef struct {
 typedef struct SSdbOpt {
   const char *path;
   SMnode     *pMnode;
+  SWal       *pWal;
 } SSdbOpt;
 
 /**

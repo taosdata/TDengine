@@ -17,15 +17,27 @@
 #include "mndSync.h"
 #include "mndTrans.h"
 
-int32_t mndSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
+static int32_t mndSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
   SMsgHead *pHead = pMsg->pCont;
   pHead->contLen = htonl(pHead->contLen);
   pHead->vgId = htonl(pHead->vgId);
 
-  return tmsgPutToQueue(msgcb, SYNC_QUEUE, pMsg);
+  int32_t code = tmsgPutToQueue(msgcb, SYNC_QUEUE, pMsg);
+  if (code != 0) {
+    rpcFreeCont(pMsg->pCont);
+    pMsg->pCont = NULL;
+  }
+  return code;
 }
 
-int32_t mndSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) { return tmsgSendReq(pEpSet, pMsg); }
+static int32_t mndSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
+  int32_t code = tmsgSendReq(pEpSet, pMsg);
+  if (code != 0) {
+    rpcFreeCont(pMsg->pCont);
+    pMsg->pCont = NULL;
+  }
+  return code;
+}
 
 void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
   SMnode    *pMnode = pFsm->data;
@@ -89,8 +101,8 @@ void mndReConfig(struct SSyncFSM *pFsm, SSyncCfg newCfg, SReConfigCbMeta cbMeta)
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
 
   pMgmt->errCode = cbMeta.code;
-  mInfo("trans:-1, sync reconfig is proposed, saved:%d code:0x%x, index:%" PRId64 " term:%" PRId64,
-        pMgmt->transId, cbMeta.code, cbMeta.index, cbMeta.term);
+  mInfo("trans:-1, sync reconfig is proposed, saved:%d code:0x%x, index:%" PRId64 " term:%" PRId64, pMgmt->transId,
+        cbMeta.code, cbMeta.index, cbMeta.term);
 
   if (pMgmt->transId == -1) {
     if (pMgmt->errCode != 0) {
@@ -155,27 +167,9 @@ SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
 int32_t mndInitSync(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
 
-  char path[PATH_MAX + 20] = {0};
-  snprintf(path, sizeof(path), "%s%swal", pMnode->path, TD_DIRSEP);
-  SWalCfg cfg = {
-      .vgId = 1,
-      .fsyncPeriod = 0,
-      .rollPeriod = -1,
-      .segSize = -1,
-      .retentionPeriod = -1,
-      .retentionSize = -1,
-      .level = TAOS_WAL_FSYNC,
-  };
-
-  pMgmt->pWal = walOpen(path, &cfg);
-  if (pMgmt->pWal == NULL) {
-    mError("failed to open wal since %s", terrstr());
-    return -1;
-  }
-
   SSyncInfo syncInfo = {.vgId = 1, .FpSendMsg = mndSyncSendMsg, .FpEqMsg = mndSyncEqMsg};
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s%ssync", pMnode->path, TD_DIRSEP);
-  syncInfo.pWal = pMgmt->pWal;
+  syncInfo.pWal = pMnode->pWal;
   syncInfo.pFsm = mndSyncMakeFsm(pMnode);
   syncInfo.isStandBy = pMgmt->standby;
   syncInfo.snapshotEnable = true;
@@ -208,10 +202,6 @@ void mndCleanupSync(SMnode *pMnode) {
   mDebug("mnode sync is stopped, id:%" PRId64, pMgmt->sync);
 
   tsem_destroy(&pMgmt->syncSem);
-  if (pMgmt->pWal != NULL) {
-    walClose(pMgmt->pWal);
-  }
-
   memset(pMgmt, 0, sizeof(SSyncMgmt));
 }
 
