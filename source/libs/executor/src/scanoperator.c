@@ -1756,6 +1756,7 @@ SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysi
   ;
   pInfo->readHandle = *pReadHandle;
   pInfo->curPos = 0;
+  pInfo->pFilterNode = pPhyNode->node.pConditions;
   pOperator->name = "TagScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN;
   pOperator->blocking = false;
