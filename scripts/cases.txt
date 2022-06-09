@@ -55,11 +55,11 @@ taostest --use=common_insert.yaml --case=taosc_insert/usmallint_boundary_check.p
 taostest --use=common_insert.yaml --case=taosc_insert/utinyint_boundary_check.py --keep --containers
 
 #Query
-taostest --use=common_insert.yaml --case=Query/queryscript/table_query/table_query.py --keep --containers
-taostest --use=common_insert.yaml --case=Query/queryscript/table_query/table_query_null.py --keep --containers
+#taostest --use=common_insert.yaml --case=Query/queryscript/table_query/table_query.py --keep --containers
+#taostest --use=common_insert.yaml --case=Query/queryscript/table_query/table_query_null.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_query/table_query_union.py --keep --containers
 
-taostest --use=common_insert.yaml --case=Query/queryscript/table_function/time/table_time_now.py --keep --containers
+#taostest --use=common_insert.yaml --case=Query/queryscript/table_function/time/table_time_now.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/time/table_time_today.py --keep --containers
 
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/str/table_str_base.py --keep --containers
@@ -71,5 +71,17 @@ taostest --use=common_insert.yaml --case=Query/queryscript/table_function/str/ta
 #taostest --use=common_insert.yaml --case=Query/queryscript/table_function/str/table_str_substr.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/str/table_str_concat.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/str/table_str_concat_ws.py --keep --containers
-#taostest --use=common_insert.yaml --case=Query/queryscript/table_function/str/table_str_cast.py --keep --containers
-#taostest --use=common_insert.yaml --case=Query/queryscript/table_function/str/table_str_interval.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/table_function/str/table_str_cast.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/table_function/str/table_str_interval.py --keep --containers
+
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_base.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_upper.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_lower.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_ltrim.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_rtrim.py --keep --containers
+#taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_length.py --keep --containers
+#taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_substr.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_concat.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_concat_ws.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_cast.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_interval.py --keep --containers
