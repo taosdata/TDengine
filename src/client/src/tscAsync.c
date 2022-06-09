@@ -343,6 +343,10 @@ void tscAsyncResultOnError(SSqlObj* pSql) {
 int tscSendMsgToServer(SSqlObj *pSql);
 void tscClearTableMeta(SSqlObj *pSql);
 
+static void freeElem(void* p) {
+  tfree(*(char**)p);
+}
+
 void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
   SSqlObj* pSql = (SSqlObj*)taosAcquireRef(tscObjRef, (int64_t)param);
   if (pSql == NULL) return;
@@ -362,11 +366,20 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
       tscAllocPayload(&pSql->cmd, (int)sz + 1); 
       memcpy(tscGetErrorMsgPayload(&pSql->cmd), tscGetErrorMsgPayload(&sub->cmd), sz);
     } else if (code == TSDB_CODE_MND_INVALID_TABLE_NAME) {
-      if (sub->cmd.command == TSDB_SQL_MULTI_META) {
+      if (pSql->cmd.command == TSDB_SQL_MULTI_META && pSql->cmd.hashedTableNames) {
         tscClearTableMeta(pSql);
+        taosArrayDestroyEx(&pSql->cmd.hashedTableNames, freeElem);
+        pSql->cmd.hashedTableNames = NULL;
       }
     }
     goto _error;
+  }
+
+  if (pSql->cmd.command == TSDB_SQL_MULTI_META) {
+    if (pSql->cmd.hashedTableNames) {
+      taosArrayDestroyEx(&pSql->cmd.hashedTableNames, freeElem);
+      pSql->cmd.hashedTableNames = NULL;
+    }
   }
 
   tscDebug("0x%"PRIx64" get %s successfully", pSql->self, msg);
