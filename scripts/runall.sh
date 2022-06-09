@@ -121,10 +121,10 @@ function run() {
         fi
         echo "execute command: $cmd"
         $cmd
-        if [ $? -ne 0 ]; then
-            ret=1
-            echo -e "$line \e[31m FAILED\e[0m"
-            echo -e "$line \e[31m FAILED\e[0m" >>$failed_case_file
+        ret=$?
+        if [ $ret -ne 0 ]; then
+            echo -e "$line \e[31m FAILED\e[0m  RET:$ret"
+            echo -e "$line \e[31m FAILED\e[0m  RET:$ret" >>$failed_case_file
         else
             echo -e "$line \e[32m SUCCESS\e[0m"
         fi
