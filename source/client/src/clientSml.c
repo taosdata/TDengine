@@ -1548,7 +1548,7 @@ static int32_t smlParseTSFromJSONObj(SSmlHandle *info, cJSON *root, int64_t *tsV
   }
 
   size_t typeLen = strlen(type->valuestring);
-  if (typeLen == 1 && type->valuestring[0] == 's') {
+  if (typeLen == 1 && (type->valuestring[0] == 's' || type->valuestring[0] == 'S')) {
     //seconds
     timeDouble = timeDouble * 1e9;
     if(smlDoubleToInt64OverFlow(timeDouble)){
@@ -1556,9 +1556,10 @@ static int32_t smlParseTSFromJSONObj(SSmlHandle *info, cJSON *root, int64_t *tsV
       return TSDB_CODE_TSC_INVALID_TIME_STAMP;
     }
     *tsVal = timeDouble;
-  } else if (typeLen == 2 && type->valuestring[1] == 's') {
+  } else if (typeLen == 2 && (type->valuestring[0] == 's' || type->valuestring[0] == 'S')) {
     switch (type->valuestring[0]) {
       case 'm':
+      case 'M':
         //milliseconds
         timeDouble = timeDouble * 1e6;
         if(smlDoubleToInt64OverFlow(timeDouble)){
@@ -1568,6 +1569,7 @@ static int32_t smlParseTSFromJSONObj(SSmlHandle *info, cJSON *root, int64_t *tsV
         *tsVal = timeDouble;
         break;
       case 'u':
+      case 'U':
         //microseconds
         timeDouble = timeDouble * 1e3;
         if(smlDoubleToInt64OverFlow(timeDouble)){
@@ -1577,6 +1579,7 @@ static int32_t smlParseTSFromJSONObj(SSmlHandle *info, cJSON *root, int64_t *tsV
         *tsVal = timeDouble;
         break;
       case 'n':
+      case 'N':
         //nanoseconds
         *tsVal = timeDouble;
         break;
