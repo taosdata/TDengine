@@ -1488,7 +1488,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getElapsedFuncEnv,
     .initFunc     = elapsedFunctionSetup,
     .processFunc  = elapsedFunction,
-    .finalizeFunc = elapsedFinalize
+    .finalizeFunc = elapsedPartialFinalize
   },
   {
     .name = "_elapsed_merge",
@@ -1498,7 +1498,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateElapsedMerge,
     .getEnvFunc   = getElapsedFuncEnv,
     .initFunc     = elapsedFunctionSetup,
-    .processFunc  = elapsedFunction,
+    .processFunc  = elapsedFunctionMerge,
     .finalizeFunc = elapsedFinalize
   },
   {

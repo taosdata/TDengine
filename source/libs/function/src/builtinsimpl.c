@@ -3132,12 +3132,54 @@ _elapsed_over:
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t elapsedFunctionMerge(SqlFunctionCtx *pCtx) {
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData* pCol = pInput->pData[0];
+  ASSERT(pCol->info.type == TSDB_DATA_TYPE_BINARY);
+
+  SElapsedInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+
+  int32_t start = pInput->startRowIndex;
+  char* data = colDataGetData(pCol, start);
+  SElapsedInfo* pInputInfo = (SElapsedInfo *)varDataVal(data);
+
+  pInfo->timeUnit = pInputInfo->timeUnit;
+  if (pInfo->min > pInputInfo->min) {
+    pInfo->min = pInputInfo->min;
+  }
+
+  if (pInfo->max < pInputInfo->max) {
+    pInfo->max = pInputInfo->max;
+  }
+
+  SET_VAL(GET_RES_INFO(pCtx), 1, 1);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t elapsedFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SElapsedInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
   double result = (double)pInfo->max - (double)pInfo->min;
   result = (result >= 0) ? result : -result;
   pInfo->result = result / pInfo->timeUnit;
   return functionFinalize(pCtx, pBlock);
+}
+
+int32_t elapsedPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SElapsedInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  int32_t resultBytes = getElapsedInfoSize();
+  char *res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
+
+  memcpy(varDataVal(res), pInfo, resultBytes);
+  varDataSetLen(res, resultBytes);
+
+  int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+
+  colDataAppend(pCol, pBlock->info.rows, res, false);
+
+  taosMemoryFree(res);
+  return pResInfo->numOfRes;
 }
 
 int32_t getHistogramInfoSize() {
