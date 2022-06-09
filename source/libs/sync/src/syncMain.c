@@ -35,7 +35,7 @@
 #include "syncVoteMgr.h"
 #include "tref.h"
 
-bool gRaftDetailLog = true;
+bool gRaftDetailLog = false;
 
 static int32_t tsNodeRefId = -1;
 
