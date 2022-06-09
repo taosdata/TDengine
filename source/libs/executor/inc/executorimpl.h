@@ -700,6 +700,10 @@ typedef struct SSortOperatorInfo {
 
   int64_t      startTs;       // sort start time
   uint64_t     sortElapsed;   // sort elapsed time, time to flush to disk not included.
+
+  STupleHandle *prefetchedTuple;
+  bool  hasGroupId;
+  uint64_t groupId;
 } SSortOperatorInfo;
 
 typedef struct STagFilterOperatorInfo {
@@ -759,7 +763,7 @@ void    setTbNameColData(void* pMeta, const SSDataBlock* pBlock, SColumnInfoData
 SInterval extractIntervalInfo(const STableScanPhysiNode* pTableScanNode);
 SColumn extractColumnFromColumnNode(SColumnNode* pColNode);
 
-SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity, SArray* pColMatchInfo);
+SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity, SArray* pColMatchInfo, SSortOperatorInfo* pInfo);
 SSDataBlock* loadNextDataBlock(void* param);
 
 void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t* rowCellInfoOffset);
