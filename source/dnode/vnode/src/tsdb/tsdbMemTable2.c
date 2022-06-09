@@ -15,11 +15,6 @@
 
 #include "tsdb.h"
 
-struct SMemSkipListNode {
-  int8_t            level;
-  SMemSkipListNode *forwards[0];
-};
-
 typedef struct {
   tb_uid_t  uid;
   STSchema *pTSchema;
@@ -35,21 +30,21 @@ typedef struct {
 #define SL_MOVE_BACKWARD 0x1
 #define SL_MOVE_FROM_POS 0x2
 
-static int32_t tsdbGetOrCreateMemData(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t uid, SMemData **ppMemData);
+static int32_t tsdbGetOrCreateMemData(SMemTable2 *pMemTable, tb_uid_t suid, tb_uid_t uid, SMemData **ppMemData);
 static int     memDataPCmprFn(const void *p1, const void *p2);
 static int32_t tPutTSDBRow(uint8_t *p, TSDBROW *pRow);
 static int32_t tGetTSDBRow(uint8_t *p, TSDBROW *pRow);
 static int8_t  tsdbMemSkipListRandLevel(SMemSkipList *pSl);
-static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, SMemData *pMemData, int64_t version,
+static int32_t tsdbInsertTableDataImpl(SMemTable2 *pMemTable, SMemData *pMemData, int64_t version,
                                        SVSubmitBlk *pSubmitBlk);
 static void    memDataMovePosTo(SMemData *pMemData, SMemSkipListNode **pos, TSDBKEY *pKey, int32_t flags);
 
 // SMemTable ==============================================
-int32_t tsdbMemTableCreate2(STsdb *pTsdb, SMemTable **ppMemTable) {
-  int32_t    code = 0;
-  SMemTable *pMemTable = NULL;
+int32_t tsdbMemTableCreate2(STsdb *pTsdb, SMemTable2 **ppMemTable) {
+  int32_t     code = 0;
+  SMemTable2 *pMemTable = NULL;
 
-  pMemTable = (SMemTable *)taosMemoryCalloc(1, sizeof(*pMemTable));
+  pMemTable = (SMemTable2 *)taosMemoryCalloc(1, sizeof(*pMemTable));
   if (pMemTable == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
@@ -75,16 +70,16 @@ _err:
   return code;
 }
 
-void tsdbMemTableDestroy2(SMemTable *pMemTable) {
+void tsdbMemTableDestroy2(SMemTable2 *pMemTable) {
   taosArrayDestroyEx(pMemTable->aMemData, NULL /*TODO*/);
   taosMemoryFree(pMemTable);
 }
 
 int32_t tsdbInsertTableData2(STsdb *pTsdb, int64_t version, SVSubmitBlk *pSubmitBlk) {
-  int32_t    code = 0;
-  SMemTable *pMemTable = (SMemTable *)pTsdb->mem;  // TODO
-  SMemData  *pMemData;
-  TSDBROW    row = {.version = version};
+  int32_t     code = 0;
+  SMemTable2 *pMemTable = (SMemTable2 *)pTsdb->mem;  // TODO
+  SMemData   *pMemData;
+  TSDBROW     row = {.version = version};
 
   ASSERT(pMemTable);
   ASSERT(pSubmitBlk->nData > 0);
@@ -112,10 +107,10 @@ _err:
 }
 
 int32_t tsdbDeleteTableData2(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey) {
-  int32_t    code = 0;
-  SMemTable *pMemTable = (SMemTable *)pTsdb->mem;  // TODO
-  SMemData  *pMemData;
-  SVBufPool *pPool = pTsdb->pVnode->inUse;
+  int32_t     code = 0;
+  SMemTable2 *pMemTable = (SMemTable2 *)pTsdb->mem;  // TODO
+  SMemData   *pMemData;
+  SVBufPool  *pPool = pTsdb->pVnode->inUse;
 
   ASSERT(pMemTable);
 
@@ -250,7 +245,7 @@ void tsdbMemDataIterGet(SMemDataIter *pIter, TSDBROW **ppRow) {
   }
 }
 
-static int32_t tsdbGetOrCreateMemData(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t uid, SMemData **ppMemData) {
+static int32_t tsdbGetOrCreateMemData(SMemTable2 *pMemTable, tb_uid_t suid, tb_uid_t uid, SMemData **ppMemData) {
   int32_t    code = 0;
   int32_t    idx = 0;
   SMemData  *pMemDataT = &(SMemData){.suid = suid, .uid = uid};
@@ -421,7 +416,7 @@ static void memDataMovePosTo(SMemData *pMemData, SMemSkipListNode **pos, TSDBKEY
   }
 }
 
-static int32_t memDataDoPut(SMemTable *pMemTable, SMemData *pMemData, SMemSkipListNode **pos, TSDBROW *pRow,
+static int32_t memDataDoPut(SMemTable2 *pMemTable, SMemData *pMemData, SMemSkipListNode **pos, TSDBROW *pRow,
                             int8_t forward) {
   int32_t           code = 0;
   int8_t            level;
@@ -475,7 +470,7 @@ _exit:
   return code;
 }
 
-static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, SMemData *pMemData, int64_t version,
+static int32_t tsdbInsertTableDataImpl(SMemTable2 *pMemTable, SMemData *pMemData, int64_t version,
                                        SVSubmitBlk *pSubmitBlk) {
   int32_t  code = 0;
   int32_t  n = 0;

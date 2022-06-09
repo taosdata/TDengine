@@ -95,6 +95,8 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
         int32_t   vgId = ntohl(pHead->vgId);
         if (vgId == QNODE_HANDLE) {
           pWrapper = &pDnode->wrappers[QNODE];
+        } else if (vgId == SNODE_HANDLE) {
+          pWrapper = &pDnode->wrappers[SNODE];
         } else if (vgId == MNODE_HANDLE) {
           pWrapper = &pDnode->wrappers[MNODE];
         } else {

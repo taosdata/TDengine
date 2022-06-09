@@ -449,6 +449,34 @@ static SNode* logicSubplanCopy(const SLogicSubplan* pSrc, SLogicSubplan* pDst) {
   return (SNode*)pDst;
 }
 
+static SNode* physiNodeCopy(const SPhysiNode* pSrc, SPhysiNode* pDst) {
+  CLONE_NODE_FIELD(pOutputDataBlockDesc);
+  CLONE_NODE_FIELD(pConditions);
+  CLONE_NODE_LIST_FIELD(pChildren);
+  return (SNode*)pDst;
+}
+
+static SNode* physiWindowCopy(const SWinodwPhysiNode* pSrc, SWinodwPhysiNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, physiNodeCopy);
+  CLONE_NODE_LIST_FIELD(pExprs);
+  CLONE_NODE_LIST_FIELD(pFuncs);
+  CLONE_NODE_FIELD(pTspk);
+  COPY_SCALAR_FIELD(triggerType);
+  COPY_SCALAR_FIELD(watermark);
+  COPY_SCALAR_FIELD(filesFactor);
+  return (SNode*)pDst;
+}
+
+static SNode* physiIntervalCopy(const SIntervalPhysiNode* pSrc, SIntervalPhysiNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(window, physiWindowCopy);
+  COPY_SCALAR_FIELD(interval);
+  COPY_SCALAR_FIELD(offset);
+  COPY_SCALAR_FIELD(sliding);
+  COPY_SCALAR_FIELD(intervalUnit);
+  COPY_SCALAR_FIELD(slidingUnit);
+  return (SNode*)pDst;
+}
+
 static SNode* dataBlockDescCopy(const SDataBlockDescNode* pSrc, SDataBlockDescNode* pDst) {
   COPY_SCALAR_FIELD(dataBlockId);
   CLONE_NODE_LIST_FIELD(pSlots);
@@ -575,6 +603,12 @@ SNodeptr nodesCloneNode(const SNodeptr pNode) {
       return logicIndefRowsFuncCopy((const SIndefRowsFuncLogicNode*)pNode, (SIndefRowsFuncLogicNode*)pDst);
     case QUERY_NODE_LOGIC_SUBPLAN:
       return logicSubplanCopy((const SLogicSubplan*)pNode, (SLogicSubplan*)pDst);
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
+      return physiIntervalCopy((const SIntervalPhysiNode*)pNode, (SIntervalPhysiNode*)pDst);
     default:
       break;
   }

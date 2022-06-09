@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tstream.h"
+#include "streamInc.h"
 
 #if 0
 int32_t streamDataBlockEncode(void** buf, const SStreamDataBlock* pOutput) {
@@ -74,7 +74,6 @@ FAIL:
 }
 
 static FORCE_INLINE void streamDataSubmitRefInc(SStreamDataSubmit* pDataSubmit) {
-  //
   atomic_add_fetch_32(pDataSubmit->dataRef, 1);
 }
 
@@ -87,22 +86,3 @@ SStreamDataSubmit* streamSubmitRefClone(SStreamDataSubmit* pSubmit) {
   memcpy(pSubmitClone, pSubmit, sizeof(SStreamDataSubmit));
   return pSubmitClone;
 }
-
-#if 0
-int32_t tEncodeSStreamTaskExecReq(void** buf, const SStreamTaskExecReq* pReq) {
-  int32_t tlen = 0;
-  tlen += taosEncodeFixedI64(buf, pReq->streamId);
-  tlen += taosEncodeFixedI32(buf, pReq->taskId);
-  tlen += tEncodeDataBlocks(buf, pReq->data);
-  return tlen;
-}
-
-void* tDecodeSStreamTaskExecReq(const void* buf, SStreamTaskExecReq* pReq) {
-  buf = taosDecodeFixedI64(buf, &pReq->streamId);
-  buf = taosDecodeFixedI32(buf, &pReq->taskId);
-  buf = tDecodeDataBlocks(buf, &pReq->data);
-  return (void*)buf;
-}
-
-void tFreeSStreamTaskExecReq(SStreamTaskExecReq* pReq) { taosArrayDestroy(pReq->data); }
-#endif

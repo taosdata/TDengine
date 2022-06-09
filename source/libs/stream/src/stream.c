@@ -26,7 +26,7 @@ int32_t streamTriggerByWrite(SStreamTask* pTask, int32_t vgId, SMsgCb* pMsgCb) {
     pRunReq->streamId = pTask->streamId;
     pRunReq->taskId = pTask->taskId;
     SRpcMsg msg = {
-        .msgType = TDMT_VND_TASK_RUN,
+        .msgType = TDMT_STREAM_TASK_RUN,
         .pCont = pRunReq,
         .contLen = sizeof(SStreamTaskRunReq),
     };
@@ -83,7 +83,9 @@ int32_t streamProcessDispatchReq(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDisp
   // 3. handle output
   // 3.1 check and set status
   // 3.2 dispatch / sink
-  streamSink1(pTask, pMsgCb);
+  if (pTask->dispatchType != TASK_DISPATCH__NONE) {
+    streamDispatch(pTask, pMsgCb);
+  }
 
   return 0;
 }
@@ -97,13 +99,17 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDisp
     return 0;
   }
   // continue dispatch
-  streamSink1(pTask, pMsgCb);
+  if (pTask->dispatchType != TASK_DISPATCH__NONE) {
+    streamDispatch(pTask, pMsgCb);
+  }
   return 0;
 }
 
 int32_t streamTaskProcessRunReq(SStreamTask* pTask, SMsgCb* pMsgCb) {
   streamExec(pTask, pMsgCb);
-  streamSink1(pTask, pMsgCb);
+  if (pTask->dispatchType != TASK_DISPATCH__NONE) {
+    streamDispatch(pTask, pMsgCb);
+  }
   return 0;
 }
 
