@@ -15,14 +15,10 @@
 
 #include "tsdb.h"
 
-#define TSDB_MAX_SUBBLOCKS 8
+typedef struct SCommitIter SCommitIter;
+typedef struct SCommitter  SCommitter;
 
-typedef struct {
-  STable      *pTable;
-  STbDataIter *pIter;
-} SCommitIter;
-
-typedef struct {
+struct SCommitter {
   SRtn         rtn;     // retention snapshot
   SFSIter      fsIter;  // tsdb file iterator
   int          niters;  // memory iterators
@@ -41,24 +37,7 @@ typedef struct {
   SArray      *aSupBlk;  // Table super-block array
   SArray      *aSubBlk;  // table sub-block array
   SDataCols   *pDataCols;
-} SCommitter;
-
-#define TSDB_DEFAULT_BLOCK_ROWS(maxRows) ((maxRows)*4 / 5)
-
-#define TSDB_COMMIT_REPO(ch)         TSDB_READ_REPO(&(ch->readh))
-#define TSDB_COMMIT_REPO_ID(ch)      REPO_ID(TSDB_READ_REPO(&(ch->readh)))
-#define TSDB_COMMIT_WRITE_FSET(ch)   (&((ch)->wSet))
-#define TSDB_COMMIT_TABLE(ch)        ((ch)->pTable)
-#define TSDB_COMMIT_HEAD_FILE(ch)    TSDB_DFILE_IN_SET(TSDB_COMMIT_WRITE_FSET(ch), TSDB_FILE_HEAD)
-#define TSDB_COMMIT_DATA_FILE(ch)    TSDB_DFILE_IN_SET(TSDB_COMMIT_WRITE_FSET(ch), TSDB_FILE_DATA)
-#define TSDB_COMMIT_LAST_FILE(ch)    TSDB_DFILE_IN_SET(TSDB_COMMIT_WRITE_FSET(ch), TSDB_FILE_LAST)
-#define TSDB_COMMIT_SMAD_FILE(ch)    TSDB_DFILE_IN_SET(TSDB_COMMIT_WRITE_FSET(ch), TSDB_FILE_SMAD)
-#define TSDB_COMMIT_SMAL_FILE(ch)    TSDB_DFILE_IN_SET(TSDB_COMMIT_WRITE_FSET(ch), TSDB_FILE_SMAL)
-#define TSDB_COMMIT_BUF(ch)          TSDB_READ_BUF(&((ch)->readh))
-#define TSDB_COMMIT_COMP_BUF(ch)     TSDB_READ_COMP_BUF(&((ch)->readh))
-#define TSDB_COMMIT_EXBUF(ch)        TSDB_READ_EXBUF(&((ch)->readh))
-#define TSDB_COMMIT_DEFAULT_ROWS(ch) TSDB_DEFAULT_BLOCK_ROWS(TSDB_COMMIT_REPO(ch)->pVnode->config.tsdbCfg.maxRows)
-#define TSDB_COMMIT_TXN_VERSION(ch)  FS_TXN_VERSION(REPO_FS(TSDB_COMMIT_REPO(ch)))
+};
 
 static int32_t tsdbCommitData(SCommitter *pCommith);
 static int32_t tsdbCommitDel(SCommitter *pCommith);
@@ -123,7 +102,33 @@ _err:
   return code;
 }
 
-// STATIC METHODS =========================================================================================
+#ifdef USE_NEW
+// ===================================== NEW ======================================
+
+#else
+// ===================================== OLD ======================================
+struct SCommitIter {
+  STable      *pTable;
+  STbDataIter *pIter;
+};
+
+#define TSDB_MAX_SUBBLOCKS               8
+#define TSDB_DEFAULT_BLOCK_ROWS(maxRows) ((maxRows)*4 / 5)
+#define TSDB_COMMIT_REPO(ch)             TSDB_READ_REPO(&(ch->readh))
+#define TSDB_COMMIT_REPO_ID(ch)          REPO_ID(TSDB_READ_REPO(&(ch->readh)))
+#define TSDB_COMMIT_WRITE_FSET(ch)       (&((ch)->wSet))
+#define TSDB_COMMIT_TABLE(ch)            ((ch)->pTable)
+#define TSDB_COMMIT_HEAD_FILE(ch)        TSDB_DFILE_IN_SET(TSDB_COMMIT_WRITE_FSET(ch), TSDB_FILE_HEAD)
+#define TSDB_COMMIT_DATA_FILE(ch)        TSDB_DFILE_IN_SET(TSDB_COMMIT_WRITE_FSET(ch), TSDB_FILE_DATA)
+#define TSDB_COMMIT_LAST_FILE(ch)        TSDB_DFILE_IN_SET(TSDB_COMMIT_WRITE_FSET(ch), TSDB_FILE_LAST)
+#define TSDB_COMMIT_SMAD_FILE(ch)        TSDB_DFILE_IN_SET(TSDB_COMMIT_WRITE_FSET(ch), TSDB_FILE_SMAD)
+#define TSDB_COMMIT_SMAL_FILE(ch)        TSDB_DFILE_IN_SET(TSDB_COMMIT_WRITE_FSET(ch), TSDB_FILE_SMAL)
+#define TSDB_COMMIT_BUF(ch)              TSDB_READ_BUF(&((ch)->readh))
+#define TSDB_COMMIT_COMP_BUF(ch)         TSDB_READ_COMP_BUF(&((ch)->readh))
+#define TSDB_COMMIT_EXBUF(ch)            TSDB_READ_EXBUF(&((ch)->readh))
+#define TSDB_COMMIT_DEFAULT_ROWS(ch)     TSDB_DEFAULT_BLOCK_ROWS(TSDB_COMMIT_REPO(ch)->pVnode->config.tsdbCfg.maxRows)
+#define TSDB_COMMIT_TXN_VERSION(ch)      FS_TXN_VERSION(REPO_FS(TSDB_COMMIT_REPO(ch)))
+
 static int     tsdbInitCommitH(SCommitter *pCommith, STsdb *pRepo);
 static void    tsdbSeekCommitIter(SCommitter *pCommith, TSKEY key);
 static int     tsdbNextCommitFid(SCommitter *pCommith);
@@ -1830,3 +1835,4 @@ static int tsdbLoadDataFromCache(STsdb *pTsdb, STable *pTable, STbDataIter *pIte
 
   return 0;
 }
+#endif
