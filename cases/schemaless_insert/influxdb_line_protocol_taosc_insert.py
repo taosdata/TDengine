@@ -935,12 +935,17 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdCom.cleanTb()
         tb_name = self.tdCom.get_long_name(7, "letters")
         input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name)
+        print(input_sql)
         self.tdCom.check_res(input_sql, stb_name)
         s_stb_s_tb_d_ts_a_col_m_tag_list = [(f'{stb_name},id={tb_name},t0=True,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="htvnnldm",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=t 1626006833639000000', 'sfzqdz'), \
                                             (f'{stb_name},id={tb_name},t0=True,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="gybqvhos",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=t 1626006833639001000', 'sfzqdz'), \
                                             (f'{stb_name},id={tb_name},t0=True,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=t,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="zlvxgquy",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=t 1626006833639002000', 'sfzqdz'), \
                                             (f'{stb_name},id={tb_name},t0=True,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="oaupfgtz",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=t 1626006833639003000', 'sfzqdz'), \
                                             (f'{stb_name},id={tb_name},t0=True,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="vgzadjsh",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=t 1626006833639004000', 'sfzqdz')]
+        print(s_stb_s_tb_d_ts_a_col_m_tag_list)
+        # for input_sql in s_stb_s_tb_d_ts_a_col_m_tag_list:
+        #     self.tdSql._conn.schemaless_insert([input_sql[0]], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
+
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_s_tb_d_ts_a_col_m_tag_list))
         self.tdSql.query(f"show tables;")
         self.tdSql.checkEqual(self.tdSql.query_row, 2)
@@ -1008,10 +1013,11 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdSql.checkEqual(self.tdSql.query_row, 3)
 
     def test(self):
-        self.ts_check()
+        self.s_stb_s_tb_d_data_d_ts_ac_mt_insert_multi_thread_check()
 
     def run(self):
-        # self.test()
+        self.test()
+        return
         if "smlChildTableName" in self.taospy_setting["spec"]["config"]:
             if self.taospy_setting["spec"]["config"]["smlChildTableName"].upper() == "ID":
                 self.no_id_stb_exist_check()
@@ -1052,11 +1058,11 @@ class TestInfluxdbLineTaoscInsert(TDCase):
             # self.spell_check()
             # self.default_type_check()
             # self.tbname_tags_cols_name_check()
-            # self.stb_insert_multi_thread_check()
-            # self.s_stb_s_tb_d_data_insert_multi_thread_check()
-            # self.s_stb_s_tb_d_data_atc_insert_multi_thread_check()
-            # self.s_stb_stb_d_data_mtc_insert_multi_thread_check()
-            # self.s_stb_d_tb_d_data_insert_multi_thread_check()
+            self.stb_insert_multi_thread_check()
+            self.s_stb_s_tb_d_data_insert_multi_thread_check()
+            self.s_stb_s_tb_d_data_atc_insert_multi_thread_check()
+            self.s_stb_stb_d_data_mtc_insert_multi_thread_check()
+            self.s_stb_d_tb_d_data_insert_multi_thread_check()
             self.s_stb_d_tb_d_data_ac_mt_insert_multi_thread_check()
             self.s_stb_d_tb_d_data_at_mc_insert_multi_thread_check()
             self.s_stb_s_tb_d_data_d_ts_insert_multi_thread_check()
