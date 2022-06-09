@@ -274,9 +274,6 @@ int32_t debugPrintSColVal(SColVal *cv, int8_t type) {
     case TSDB_DATA_TYPE_MEDIUMBLOB:
       printf("MedBLOB ");
       break;
-    // case TSDB_DATA_TYPE_BINARY:
-    //   printf("BINARY ");
-    //   break;
     case TSDB_DATA_TYPE_MAX:
       printf("UNDEF ");
       break;
