@@ -1509,20 +1509,20 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "_hyperloglog_partial",
     .type = FUNCTION_TYPE_HYPERLOGLOG_PARTIAL,
     .classification = FUNC_MGT_AGG_FUNC,
-    .translateFunc = translateHLL,
+    .translateFunc = translateHLLPartial,
     .getEnvFunc   = getHLLFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = hllFunction,
-    .finalizeFunc = hllFinalize
+    .finalizeFunc = hllPartialFinalize
   },
   {
     .name = "_hyperloglog_merge",
     .type = FUNCTION_TYPE_HYPERLOGLOG_MERGE,
     .classification = FUNC_MGT_AGG_FUNC,
-    .translateFunc = translateHLL,
+    .translateFunc = translateHLLMerge,
     .getEnvFunc   = getHLLFuncEnv,
     .initFunc     = functionSetup,
-    .processFunc  = hllFunction,
+    .processFunc  = hllFunctionMerge,
     .finalizeFunc = hllFinalize
   },
   {

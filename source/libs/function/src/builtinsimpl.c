@@ -3411,7 +3411,6 @@ int32_t histogramFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 }
 
 int32_t histogramPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
-  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SHistoFuncInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
   int32_t resultBytes = getHistogramInfoSize();
   char *res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
@@ -3557,6 +3556,27 @@ int32_t hllFunction(SqlFunctionCtx *pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t hllFunctionMerge(SqlFunctionCtx *pCtx) {
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData* pCol = pInput->pData[0];
+  ASSERT(pCol->info.type == TSDB_DATA_TYPE_BINARY);
+
+  SHLLInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+
+  int32_t start = pInput->startRowIndex;
+  char* data = colDataGetData(pCol, start);
+  SHLLInfo* pInputInfo = (SHLLInfo *)varDataVal(data);
+
+  for (int32_t k = 0; k < HLL_BUCKETS; ++k) {
+    if (pInfo->buckets[k] < pInputInfo->buckets[k]) {
+      pInputInfo->buckets[k] = pInfo->buckets[k];
+    }
+  }
+
+  SET_VAL(GET_RES_INFO(pCtx), 1, 1);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t hllFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SResultRowEntryInfo *pInfo = GET_RES_INFO(pCtx);
 
@@ -3567,6 +3587,24 @@ int32_t hllFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   }
 
   return functionFinalize(pCtx, pBlock);
+}
+
+int32_t hllPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SHLLInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  int32_t resultBytes = getHLLInfoSize();
+  char *res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
+
+  memcpy(varDataVal(res), pInfo, resultBytes);
+  varDataSetLen(res, resultBytes);
+
+  int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+
+  colDataAppend(pCol, pBlock->info.rows, res, false);
+
+  taosMemoryFree(res);
+  return pResInfo->numOfRes;
 }
 
 bool getStateFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
