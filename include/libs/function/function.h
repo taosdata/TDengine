@@ -197,6 +197,7 @@ typedef struct SAggFunctionInfo {
 struct SScalarParam {
   SColumnInfoData *columnData;
   SHashObj        *pHashFilter;
+  int32_t          hashValueType;
   void            *param;  // other parameter, such as meta handle from vnode, to extract table name/tag value
   int32_t          numOfRows;
 };

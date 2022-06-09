@@ -812,6 +812,10 @@ static EDealRes translateArithmeticOperator(STranslateContext* pCxt, SOperatorNo
   return DEAL_RES_CONTINUE;
 }
 
+static bool dataTypeEqual(const SDataType* l, const SDataType* r) {
+  return (l->type == r->type && l->bytes == r->bytes && l->precision == r->precision && l->scale == r->scale);
+}
+
 static EDealRes translateComparisonOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
   SDataType ldt = ((SExprNode*)(pOp->pLeft))->resType;
   SDataType rdt = ((SExprNode*)(pOp->pRight))->resType;
@@ -819,7 +823,24 @@ static EDealRes translateComparisonOperator(STranslateContext* pCxt, SOperatorNo
     return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pRight))->aliasName);
   }
   if (OP_TYPE_IN == pOp->opType || OP_TYPE_NOT_IN == pOp->opType) {
-    ((SExprNode*)pOp->pRight)->resType = ((SExprNode*)pOp->pLeft)->resType;
+    SNodeListNode* pRight = (SNodeListNode*)pOp->pRight;
+    bool first = true;
+    SDataType targetDt = {0};
+    SNode* pNode = NULL;
+    FOREACH(pNode, pRight->pNodeList) {
+      SDataType dt = ((SExprNode*)pNode)->resType;
+      if (first) {
+        targetDt = dt;
+        if (targetDt.type != TSDB_DATA_TYPE_NULL) {
+          first = false;
+        }
+      } else if (dt.type != targetDt.type && dt.type != TSDB_DATA_TYPE_NULL) {
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)pNode)->aliasName);
+      } else if (dt.bytes > targetDt.bytes) {
+        targetDt.bytes = dt.bytes;
+      }
+    }
+    pRight->dataType = targetDt;
   }
   if (nodesIsRegularOp(pOp)) {
     if (!IS_VAR_DATA_TYPE(((SExprNode*)(pOp->pLeft))->resType.type)) {
@@ -2008,10 +2029,6 @@ static SNode* createSetOperProject(const char* pTableAlias, SNode* pNode) {
   strcpy(pCol->colName, ((SExprNode*)pNode)->aliasName);
   strcpy(pCol->node.aliasName, pCol->colName);
   return (SNode*)pCol;
-}
-
-static bool dataTypeEqual(const SDataType* l, const SDataType* r) {
-  return (l->type == r->type && l->bytes == r->bytes && l->precision == r->precision && l->scale == r->scale);
 }
 
 static int32_t createCastFunc(STranslateContext* pCxt, SNode* pExpr, SDataType dt, SNode** pCast) {

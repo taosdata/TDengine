@@ -658,7 +658,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
 
       if (EXPLAIN_MODE_ANALYZE == ctx->mode) {
         // sort key
-        EXPLAIN_ROW_NEW(level, "Sort Key: ");
+        EXPLAIN_ROW_NEW(level + 1, "Sort Key: ");
         if (pResNode->pExecInfo) {
           for (int32_t i = 0; i < LIST_LENGTH(pSortNode->pSortKeys); ++i) {
             SOrderByExprNode *ptn = nodesListGetNode(pSortNode->pSortKeys, i);
@@ -670,7 +670,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level));
 
         // sort method
-        EXPLAIN_ROW_NEW(level, "Sort Method: ");
+        EXPLAIN_ROW_NEW(level + 1, "Sort Method: ");
 
         int32_t           nodeNum = taosArrayGetSize(pResNode->pExecInfo);
         SExplainExecInfo *execInfo = taosArrayGet(pResNode->pExecInfo, 0);
