@@ -737,8 +737,8 @@ static bool isStateWindow(SStreamBlockScanInfo* pInfo) {
 static bool prepareDataScan(SStreamBlockScanInfo* pInfo) {
   SSDataBlock* pSDB = pInfo->pUpdateRes;
   STimeWindow  win = {
-      .skey = INT64_MIN,
-      .ekey = INT64_MAX,
+       .skey = INT64_MIN,
+       .ekey = INT64_MAX,
   };
   bool needRead = false;
   if (!isStateWindow(pInfo) && pInfo->updateResIndex < pSDB->info.rows) {
@@ -846,7 +846,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
   size_t total = taosArrayGetSize(pInfo->pBlockLists);
   if (pInfo->blockType == STREAM_DATA_TYPE_SSDATA_BLOCK) {
     if (pInfo->validBlockIndex >= total) {
-      doClearBufferedBlocks(pInfo);
+      /*doClearBufferedBlocks(pInfo);*/
       pOperator->status = OP_EXEC_DONE;
       return NULL;
     }

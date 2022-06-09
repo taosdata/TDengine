@@ -22,6 +22,7 @@ int32_t tEncodeStreamDispatchReq(SEncoder* pEncoder, const SStreamDispatchReq* p
   if (tEncodeI32(pEncoder, pReq->sourceTaskId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->sourceVg) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->sourceChildId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->upstreamNodeId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->blockNum) < 0) return -1;
   ASSERT(taosArrayGetSize(pReq->data) == pReq->blockNum);
   ASSERT(taosArrayGetSize(pReq->dataLen) == pReq->blockNum);
@@ -42,6 +43,7 @@ int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq) {
   if (tDecodeI32(pDecoder, &pReq->sourceTaskId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->sourceVg) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->sourceChildId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->upstreamNodeId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->blockNum) < 0) return -1;
   ASSERT(pReq->blockNum > 0);
   pReq->data = taosArrayInit(pReq->blockNum, sizeof(void*));
@@ -94,6 +96,7 @@ int32_t streamBuildDispatchMsg(SStreamTask* pTask, SStreamDataBlock* data, SRpcM
       .sourceTaskId = pTask->taskId,
       .sourceVg = data->sourceVg,
       .sourceChildId = pTask->childId,
+      .upstreamNodeId = pTask->nodeId,
       .blockNum = blockNum,
   };
 
@@ -184,13 +187,17 @@ int32_t streamDispatch(SStreamTask* pTask, SMsgCb* pMsgCb) {
 #endif
 
   SStreamDataBlock* pBlock = streamQueueNextItem(pTask->outputQueue);
-  if (pBlock == NULL) return 0;
+  if (pBlock == NULL) {
+    atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);
+    return 0;
+  }
   ASSERT(pBlock->type == STREAM_DATA_TYPE_SSDATA_BLOCK);
 
   SRpcMsg dispatchMsg = {0};
   SEpSet* pEpSet = NULL;
   if (streamBuildDispatchMsg(pTask, pBlock, &dispatchMsg, &pEpSet) < 0) {
     ASSERT(0);
+    atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);
     return -1;
   }
 
