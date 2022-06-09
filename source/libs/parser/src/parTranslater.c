@@ -25,6 +25,9 @@
 #include "tglobal.h"
 #include "ttime.h"
 
+#define SMA_TABLE_NAME      "#sma_table"
+#define SMA_COL_NAME_PREFIX "#sma_col_"
+
 #define generateDealNodeErrMsg(pCxt, code, ...) \
   (pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, code, ##__VA_ARGS__), DEAL_RES_ERROR)
 
@@ -260,6 +263,28 @@ static int32_t getUdfInfo(STranslateContext* pCxt, SFunctionNode* pFunc) {
   return code;
 }
 
+static int32_t getTableIndex(STranslateContext* pCxt, const char* pDbName, const char* pTableName, SArray** pIndexes) {
+  SParseContext* pParCxt = pCxt->pParseCxt;
+  SName          name;
+  toName(pParCxt->acctId, pDbName, pTableName, &name);
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (pParCxt->async) {
+    code = getTableIndexFromCache(pCxt->pMetaCache, &name, pIndexes);
+  } else {
+    code = collectUseDatabase(&name, pCxt->pDbs);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = collectUseTable(&name, pCxt->pTables);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = catalogGetTableIndex(pParCxt->pCatalog, pParCxt->pTransporter, &pParCxt->mgmtEpSet, &name, pIndexes);
+    }
+  }
+  if (TSDB_CODE_SUCCESS != code) {
+    parserError("getTableIndex error, code:%s, dbName:%s, tbName:%s", tstrerror(code), pDbName, pTableName);
+  }
+  return code;
+}
+
 static int32_t initTranslateContext(SParseContext* pParseCxt, SParseMetaCache* pMetaCache, STranslateContext* pCxt) {
   pCxt->pParseCxt = pParseCxt;
   pCxt->errCode = TSDB_CODE_SUCCESS;
@@ -332,6 +357,10 @@ static bool isScanPseudoColumnFunc(const SNode* pNode) {
 
 static bool isIndefiniteRowsFunc(const SNode* pNode) {
   return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsIndefiniteRowsFunc(((SFunctionNode*)pNode)->funcId));
+}
+
+static bool isVectorFunc(const SNode* pNode) {
+  return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsVectorFunc(((SFunctionNode*)pNode)->funcId));
 }
 
 static bool isDistinctOrderBy(STranslateContext* pCxt) {
@@ -1787,7 +1816,7 @@ static int64_t getMonthsFromTimeVal(int64_t val, int32_t fromPrecision, char uni
   return -1;
 }
 
-static int32_t checkIntervalWindow(STranslateContext* pCxt, SNode* pWhere, SIntervalWindowNode* pInterval) {
+static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode* pInterval) {
   uint8_t precision = ((SColumnNode*)pInterval->pCol)->node.resType.precision;
 
   SValueNode* pInter = (SValueNode*)pInterval->pInterval;
@@ -1829,7 +1858,15 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SNode* pWhere, SInte
     }
   }
 
-  return translateFill(pCxt, pWhere, pInterval);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateIntervalWindow(STranslateContext* pCxt, SSelectStmt* pSelect, SIntervalWindowNode* pInterval) {
+  int32_t code = checkIntervalWindow(pCxt, pInterval);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateFill(pCxt, pSelect->pWhere, pInterval);
+  }
+  return code;
 }
 
 static EDealRes checkStateExpr(SNode* pNode, void* pContext) {
@@ -1851,13 +1888,13 @@ static EDealRes checkStateExpr(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static int32_t checkStateWindow(STranslateContext* pCxt, SStateWindowNode* pState) {
+static int32_t translateStateWindow(STranslateContext* pCxt, SStateWindowNode* pState) {
   nodesWalkExprPostOrder(pState->pExpr, checkStateExpr, pCxt);
   // todo check for "function not support for state_window"
   return pCxt->errCode;
 }
 
-static int32_t checkSessionWindow(STranslateContext* pCxt, SSessionWindowNode* pSession) {
+static int32_t translateSessionWindow(STranslateContext* pCxt, SSessionWindowNode* pSession) {
   if ('y' == pSession->pGap->unit || 'n' == pSession->pGap->unit || 0 == pSession->pGap->datum.i) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SESSION_GAP);
   }
@@ -1868,14 +1905,14 @@ static int32_t checkSessionWindow(STranslateContext* pCxt, SSessionWindowNode* p
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t checkWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
+static int32_t translateSpecificWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   switch (nodeType(pSelect->pWindow)) {
     case QUERY_NODE_STATE_WINDOW:
-      return checkStateWindow(pCxt, (SStateWindowNode*)pSelect->pWindow);
+      return translateStateWindow(pCxt, (SStateWindowNode*)pSelect->pWindow);
     case QUERY_NODE_SESSION_WINDOW:
-      return checkSessionWindow(pCxt, (SSessionWindowNode*)pSelect->pWindow);
+      return translateSessionWindow(pCxt, (SSessionWindowNode*)pSelect->pWindow);
     case QUERY_NODE_INTERVAL_WINDOW:
-      return checkIntervalWindow(pCxt, pSelect->pWhere, (SIntervalWindowNode*)pSelect->pWindow);
+      return translateIntervalWindow(pCxt, pSelect, (SIntervalWindowNode*)pSelect->pWindow);
     default:
       break;
   }
@@ -1889,7 +1926,7 @@ static int32_t translateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->currClause = SQL_CLAUSE_WINDOW;
   int32_t code = translateExpr(pCxt, &pSelect->pWindow);
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkWindow(pCxt, pSelect);
+    code = translateSpecificWindow(pCxt, pSelect);
   }
   return code;
 }
@@ -1965,6 +2002,270 @@ static int32_t rewriteTimelineFunc(STranslateContext* pCxt, SSelectStmt* pSelect
   nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FROM, rewriteTimelineFuncImpl, pCxt);
   return pCxt->errCode;
 }
+#if 0
+static bool mayBeApplySmaIndex(SSelectStmt* pSelect) {
+  if (NULL == pSelect->pWindow || QUERY_NODE_INTERVAL_WINDOW != nodeType(pSelect->pWindow) ||
+      NULL != ((SIntervalWindowNode*)pSelect->pWindow)->pFill ||
+      QUERY_NODE_REAL_TABLE != nodeType(pSelect->pFromTable) || NULL != pSelect->pWhere ||
+      NULL != pSelect->pPartitionByList || NULL != pSelect->pGroupByList || NULL != pSelect->pHaving) {
+    return false;
+  }
+  return true;
+}
+
+static bool equalIntervalWindow(SIntervalWindowNode* pInterval, SNode* pWhere, STableIndexInfo* pIndex) {
+  int64_t interval = ((SValueNode*)pInterval->pInterval)->datum.i;
+  int8_t  intervalUnit = ((SValueNode*)pInterval->pInterval)->unit;
+  int64_t offset = (NULL != pInterval->pOffset ? ((SValueNode*)pInterval->pOffset)->datum.i : 0);
+  int64_t sliding = (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->datum.i : interval);
+  int8_t  slidingUnit = (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->unit : intervalUnit);
+  if (interval != pIndex->interval || intervalUnit != pIndex->intervalUnit || offset != pIndex->offset ||
+      sliding != pIndex->sliding || slidingUnit != pIndex->slidingUnit) {
+    return false;
+  }
+  // todo
+  if (NULL != pWhere) {
+    return false;
+  }
+  return true;
+}
+
+typedef struct SSmaIndexMatchFuncsCxt {
+  int32_t    errCode;
+  uint64_t   tableId;
+  SNodeList* pSmaFuncs;
+  SNodeList* pUseFuncs;
+  SNodeList* pUseCols;
+  SArray*    pUseMap;
+  bool       match;
+} SSmaIndexMatchFuncsCxt;
+
+static SColumnNode* createColumnFromSmaFunc(uint64_t tableId, int32_t index, SExprNode* pSmaFunc) {
+  SColumnNode* pCol = nodesMakeNode(QUERY_NODE_COLUMN);
+  if (NULL == pCol) {
+    return NULL;
+  }
+  pCol->tableId = tableId;
+  pCol->tableType = TSDB_SUPER_TABLE;
+  pCol->colId = index + 2;  // skip timestamp primary col
+  pCol->colType = COLUMN_TYPE_COLUMN;
+  snprintf(pCol->colName, sizeof(pCol->colName), SMA_COL_NAME_PREFIX "%d", pCol->colId);
+  strcpy(pCol->tableName, SMA_TABLE_NAME);
+  strcpy(pCol->tableAlias, SMA_TABLE_NAME);
+  pCol->node.resType = pSmaFunc->resType;
+  strcpy(pCol->node.aliasName, pSmaFunc->aliasName);
+  return pCol;
+}
+
+static int32_t collectSmaFunc(SSmaIndexMatchFuncsCxt* pCxt, int32_t index, SNode* pSmaFunc) {
+  if (NULL == pCxt->pUseMap) {
+    int32_t nfuncs = LIST_LENGTH(pCxt->pSmaFuncs);
+    pCxt->pUseMap = taosArrayInit(nfuncs, sizeof(int32_t));
+    if (NULL == pCxt->pUseMap) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    int32_t initPos = -1;
+    for (int32_t i = 0; i < nfuncs; ++i) {
+      taosArrayPush(pCxt->pUseMap, &initPos);
+    }
+  }
+  int32_t pos = *(int32_t*)taosArrayGet(pCxt->pUseMap, index);
+  if (pos < 0) {
+    pos = LIST_LENGTH(pCxt->pUseFuncs);
+    taosArraySet(pCxt->pUseMap, index, &pos);
+    int32_t code =
+        nodesListMakeStrictAppend(&pCxt->pUseCols, createColumnFromSmaFunc(pCxt->tableId, index, (SExprNode*)pSmaFunc));
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesListMakeStrictAppend(&pCxt->pUseFuncs, nodesCloneNode(pSmaFunc));
+    }
+    return code;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t findSmaFunc(SSmaIndexMatchFuncsCxt* pCxt, SNode* pNode, bool* pFound) {
+  if (!isAggFunc(pNode)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t index = 0;
+  SNode*  pSmaFunc = NULL;
+  FOREACH(pSmaFunc, pCxt->pSmaFuncs) {
+    if (nodesEqualNode(pSmaFunc, pNode)) {
+      *pFound = true;
+      return collectSmaFunc(pCxt, index, pSmaFunc);
+    }
+    ++index;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static EDealRes matchSmaFuncsImpl(SNode* pNode, void* pContext) {
+  SSmaIndexMatchFuncsCxt* pCxt = pContext;
+
+  bool found = false;
+  pCxt->errCode = findSmaFunc(pCxt, pNode, &found);
+  if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+    return DEAL_RES_ERROR;
+  }
+
+  if (found) {
+    pCxt->match = true;
+    return DEAL_RES_IGNORE_CHILD;
+  }
+
+  if (isVectorFunc(pNode)) {
+    pCxt->match = false;
+    return DEAL_RES_END;
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t matchSmaFuncs(SSelectStmt* pSelect, STableIndexInfo* pIndex, SNodeList* pSmaFuncs, SNodeList** pFuncs,
+                             SNodeList** pCols) {
+  SSmaIndexMatchFuncsCxt cxt = {.errCode = TSDB_CODE_SUCCESS,
+                                .tableId = pIndex->dstTbUid,
+                                .pSmaFuncs = pSmaFuncs,
+                                .pUseFuncs = NULL,
+                                .pUseCols = NULL,
+                                .pUseMap = NULL,
+                                .match = false};
+  nodesWalkExprs(pSelect->pProjectionList, matchSmaFuncsImpl, &cxt);
+  if (TSDB_CODE_SUCCESS == cxt.errCode && cxt.match) {
+    *pFuncs = cxt.pUseFuncs;
+    *pCols = cxt.pUseCols;
+  } else {
+    nodesDestroyList(cxt.pUseFuncs);
+    nodesDestroyList(cxt.pUseCols);
+  }
+  taosArrayDestroy(cxt.pUseMap);
+  return cxt.errCode;
+}
+
+static int32_t couldApplySmaIndex(STranslateContext* pCxt, SSelectStmt* pSelect, STableIndexInfo* pIndex,
+                                  SNodeList** pFuncs, SNodeList** pCols) {
+  if (!equalIntervalWindow((SIntervalWindowNode*)pSelect->pWindow, pSelect->pWhere, pIndex)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SNodeList* pSmaFuncs = NULL;
+  int32_t    code = nodesStringToList(pIndex->expr, &pSmaFuncs);
+  if (TSDB_CODE_SUCCESS == code) {
+    pCxt->currClause = SQL_CLAUSE_SELECT;
+    code = translateExprList(pCxt, pSmaFuncs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = matchSmaFuncs(pSelect, pIndex, pSmaFuncs, pFuncs, pCols);
+  }
+  nodesDestroyList(pSmaFuncs);
+  return code;
+}
+
+typedef struct SSmaIndexRewriteFuncsCxt {
+  int32_t    errCode;
+  SNodeList* pFuncs;
+  SNodeList* pCols;
+} SSmaIndexRewriteFuncsCxt;
+
+static EDealRes rewriteFuncBySmaIndex(SNode** pNode, void* pContext) {
+  if (isAggFunc(*pNode)) {
+    SSmaIndexRewriteFuncsCxt* pCxt = pContext;
+    SNode*                    pFunc;
+    int32_t                   index = 0;
+    FOREACH(pFunc, pCxt->pFuncs) {
+      if (nodesEqualNode(pFunc, *pNode)) {
+        SNode* pNew = nodesCloneNode(nodesListGetNode(pCxt->pCols, index));
+        if (NULL == pNew) {
+          pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+          return DEAL_RES_ERROR;
+        }
+        nodesDestroyNode(*pNode);
+        *pNode = pNew;
+        return DEAL_RES_IGNORE_CHILD;
+      }
+      ++index;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t rewriteTableBySmaIndex(SSelectStmt* pSelect, STableIndexInfo* pMatchIndex) {
+  nodesDestroyNode(pSelect->pFromTable);
+  SRealTableNode* pRealTable = nodesMakeNode(QUERY_NODE_REAL_TABLE);
+  if (NULL == pRealTable) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pRealTable->table.singleTable = true;
+  strcpy(pRealTable->table.tableName, SMA_TABLE_NAME);
+  pRealTable->pMeta = taosMemoryCalloc(1, sizeof(STableMeta));
+  if (NULL == pRealTable->pMeta) {
+    nodesDestroyNode(pRealTable);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pRealTable->pMeta->vgId = pMatchIndex->dstVgId;
+  pRealTable->pMeta->uid = pMatchIndex->dstTbUid;
+  pRealTable->pVgroupList = taosMemoryCalloc(1, sizeof(SVgroupsInfo));
+  if (NULL == pRealTable->pVgroupList) {
+    nodesDestroyNode(pRealTable);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  // todo
+  pSelect->pFromTable = (SNode*)pRealTable;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t rewriteSelectBySmaIndex(SSelectStmt* pSelect, STableIndexInfo* pMatchIndex, SNodeList* pFuncs,
+                                       SNodeList* pCols) {
+  SSmaIndexRewriteFuncsCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pFuncs = pFuncs, .pCols = pCols};
+  nodesRewriteExprs(pSelect->pProjectionList, rewriteFuncBySmaIndex, &cxt);
+  if (TSDB_CODE_SUCCESS == cxt.errCode) {
+    cxt.errCode = rewriteTableBySmaIndex(pSelect, pMatchIndex);
+  }
+  return cxt.errCode;
+}
+
+static int32_t attemptApplySmaIndexImpl(STranslateContext* pCxt, SSelectStmt* pSelect, SArray* pIndexes) {
+  if (NULL == pIndexes) {
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t nindexes = taosArrayGetSize(pIndexes);
+  for (int32_t i = 0; i < nindexes; ++i) {
+    STableIndexInfo* pIndex = taosArrayGet(pIndexes, i);
+    SNodeList*       pFuncs = NULL;
+    SNodeList*       pCols = NULL;
+    if (TSDB_CODE_SUCCESS != couldApplySmaIndex(pCxt, pSelect, pIndex, &pFuncs, &pCols)) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    if (NULL != pFuncs) {
+      int32_t code = rewriteSelectBySmaIndex(pSelect, pIndex, pFuncs, pCols);
+      nodesDestroyList(pFuncs);
+      nodesDestroyList(pCols);
+      return code;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static void destroySmaIndex(void* p) { taosMemoryFree(((STableIndexInfo*)p)->expr); }
+
+static int32_t attemptApplySmaIndex(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  SRealTableNode* pRealTable = (SRealTableNode*)pSelect->pFromTable;
+  SArray*         pIndexes = NULL;
+  int32_t         code = getTableIndex(pCxt, pRealTable->table.dbName, pRealTable->table.tableName, &pIndexes);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = attemptApplySmaIndexImpl(pCxt, pSelect, pIndexes);
+  }
+  taosArrayDestroyEx(pIndexes, destroySmaIndex);
+  return code;
+}
+
+static int32_t attemptApplyIndex(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  // if (mayBeApplySmaIndex(pSelect)) {
+  //   return attemptApplySmaIndex(pCxt, pSelect);
+  // }
+  return TSDB_CODE_SUCCESS;
+}
+#endif
 
 static int32_t translateSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->pCurrSelectStmt = pSelect;

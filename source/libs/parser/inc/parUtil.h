@@ -46,6 +46,7 @@ typedef struct SParseMetaCache {
   SHashObj* pDbInfo;       // key is tbFName, element is SDbInfo*
   SHashObj* pUserAuth;     // key is SUserAuthInfo serialized string, element is bool indicating whether or not to pass
   SHashObj* pUdf;          // key is funcName, element is SFuncInfo*
+  SHashObj* pSmaIndex;     // key is tbFName, element is SArray<STableIndexInfo>*
 } SParseMetaCache;
 
 int32_t generateSyntaxErrMsg(SMsgBuf* pBuf, int32_t errCode, ...);
@@ -58,7 +59,7 @@ int32_t       getNumOfColumns(const STableMeta* pTableMeta);
 int32_t       getNumOfTags(const STableMeta* pTableMeta);
 STableComInfo getTableInfo(const STableMeta* pTableMeta);
 STableMeta*   tableMetaDup(const STableMeta* pTableMeta);
-int32_t       parseJsontoTagData(const char* json, SArray* pTagVals, STag **ppTag, SMsgBuf* pMsgBuf);
+int32_t       parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, SMsgBuf* pMsgBuf);
 
 int32_t trimString(const char* src, int32_t len, char* dst, int32_t dlen);
 
@@ -84,6 +85,7 @@ int32_t getDbCfgFromCache(SParseMetaCache* pMetaCache, const char* pDbFName, SDb
 int32_t getUserAuthFromCache(SParseMetaCache* pMetaCache, const char* pUser, const char* pDbFName, AUTH_TYPE type,
                              bool* pPass);
 int32_t getUdfInfoFromCache(SParseMetaCache* pMetaCache, const char* pFunc, SFuncInfo* pInfo);
+int32_t getTableIndexFromCache(SParseMetaCache* pMetaCache, const SName* pName, SArray** pIndexes);
 
 #ifdef __cplusplus
 }

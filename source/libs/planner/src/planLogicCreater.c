@@ -1138,11 +1138,40 @@ static int32_t createQueryLogicNode(SLogicPlanContext* pCxt, SNode* pStmt, SLogi
   return TSDB_CODE_FAILED;
 }
 
-int32_t createLogicPlan(SPlanContext* pCxt, SLogicNode** pLogicNode) {
+static void doSetLogicNodeParent(SLogicNode* pNode, SLogicNode* pParent) {
+  pNode->pParent = pParent;
+  SNode* pChild;
+  FOREACH(pChild, pNode->pChildren) { doSetLogicNodeParent((SLogicNode*)pChild, pNode); }
+}
+
+static void setLogicNodeParent(SLogicNode* pNode) { doSetLogicNodeParent(pNode, NULL); }
+
+int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan) {
   SLogicPlanContext cxt = {.pPlanCxt = pCxt};
-  int32_t           code = createQueryLogicNode(&cxt, pCxt->pAstRoot, pLogicNode);
-  if (TSDB_CODE_SUCCESS != code) {
-    return code;
+
+  SLogicSubplan* pSubplan = (SLogicSubplan*)nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN);
+  if (NULL == pSubplan) {
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
-  return TSDB_CODE_SUCCESS;
+  pSubplan->id.queryId = pCxt->queryId;
+  pSubplan->id.groupId = 1;
+  pSubplan->id.subplanId = 1;
+
+  int32_t code = createQueryLogicNode(&cxt, pCxt->pAstRoot, &pSubplan->pNode);
+  if (TSDB_CODE_SUCCESS == code) {
+    setLogicNodeParent(pSubplan->pNode);
+    if (QUERY_NODE_LOGIC_PLAN_VNODE_MODIFY == nodeType(pSubplan->pNode)) {
+      pSubplan->subplanType = SUBPLAN_TYPE_MODIFY;
+    } else {
+      pSubplan->subplanType = SUBPLAN_TYPE_SCAN;
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pLogicSubplan = pSubplan;
+  } else {
+    nodesDestroyNode(pSubplan);
+  }
+
+  return code;
 }

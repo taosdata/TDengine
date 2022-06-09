@@ -38,9 +38,9 @@ extern "C" {
 int32_t generateUsageErrMsg(char* pBuf, int32_t len, int32_t errCode, ...);
 int32_t createColumnByRewriteExps(SNodeList* pExprs, SNodeList** pList);
 
-int32_t createLogicPlan(SPlanContext* pCxt, SLogicNode** pLogicNode);
-int32_t optimizeLogicPlan(SPlanContext* pCxt, SLogicNode* pLogicNode);
-int32_t splitLogicPlan(SPlanContext* pCxt, SLogicNode* pLogicNode, SLogicSubplan** pLogicSubplan);
+int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan);
+int32_t optimizeLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan);
+int32_t splitLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan);
 int32_t scaleOutLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan, SQueryLogicPlan** pLogicPlan);
 int32_t createPhysiPlan(SPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryPlan** pPlan, SArray* pExecNodeList);
 

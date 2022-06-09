@@ -773,4 +773,6 @@ static int32_t applyOptimizeRule(SPlanContext* pCxt, SLogicNode* pLogicNode) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t optimizeLogicPlan(SPlanContext* pCxt, SLogicNode* pLogicNode) { return applyOptimizeRule(pCxt, pLogicNode); }
+int32_t optimizeLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  return applyOptimizeRule(pCxt, pLogicSubplan->pNode);
+}

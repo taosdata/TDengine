@@ -2493,14 +2493,14 @@ int32_t tSerializeSTableIndexReq(void* buf, int32_t bufLen, STableIndexReq* pReq
 int32_t tDeserializeSTableIndexReq(void* buf, int32_t bufLen, STableIndexReq* pReq);
 
 typedef struct {
-  int8_t    intervalUnit;
-  int8_t    slidingUnit;
-  int64_t   interval;
-  int64_t   offset;
-  int64_t   sliding;
-  int64_t   dstTbUid;  
-  int32_t   dstVgId;  // for stream  
-  char*     expr;
+  int8_t  intervalUnit;
+  int8_t  slidingUnit;
+  int64_t interval;
+  int64_t offset;
+  int64_t sliding;
+  int64_t dstTbUid;
+  int32_t dstVgId;
+  char*   expr;
 } STableIndexInfo;
 
 typedef struct {
@@ -2509,7 +2509,6 @@ typedef struct {
 
 int32_t tSerializeSTableIndexRsp(void* buf, int32_t bufLen, const STableIndexRsp* pRsp);
 int32_t tDeserializeSTableIndexRsp(void* buf, int32_t bufLen, STableIndexRsp* pRsp);
-
 
 typedef struct {
   int8_t  mqMsgType;
@@ -2751,8 +2750,8 @@ typedef struct {
   char*    msg;
 } SVDeleteReq;
 
-int32_t tSerializeSVDeleteReq(void *buf, int32_t bufLen, SVDeleteReq *pReq);
-int32_t tDeserializeSVDeleteReq(void *buf, int32_t bufLen, SVDeleteReq *pReq);
+int32_t tSerializeSVDeleteReq(void* buf, int32_t bufLen, SVDeleteReq* pReq);
+int32_t tDeserializeSVDeleteReq(void* buf, int32_t bufLen, SVDeleteReq* pReq);
 
 typedef struct {
   int64_t affectedRows;

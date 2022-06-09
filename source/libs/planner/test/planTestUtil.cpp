@@ -104,13 +104,12 @@ class PlannerTestBaseImpl {
       SPlanContext cxt = {0};
       setPlanContext(pQuery, &cxt);
 
-      SLogicNode* pLogicNode = nullptr;
-      doCreateLogicPlan(&cxt, &pLogicNode);
-
-      doOptimizeLogicPlan(&cxt, pLogicNode);
-
       SLogicSubplan* pLogicSubplan = nullptr;
-      doSplitLogicPlan(&cxt, pLogicNode, &pLogicSubplan);
+      doCreateLogicPlan(&cxt, &pLogicSubplan);
+
+      doOptimizeLogicPlan(&cxt, pLogicSubplan);
+
+      doSplitLogicPlan(&cxt, pLogicSubplan);
 
       SQueryLogicPlan* pLogicPlan = nullptr;
       doScaleOutLogicPlan(&cxt, pLogicSubplan, &pLogicPlan);
@@ -164,13 +163,12 @@ class PlannerTestBaseImpl {
       SPlanContext cxt = {0};
       setPlanContext(stmtEnv_.pQuery_, &cxt);
 
-      SLogicNode* pLogicNode = nullptr;
-      doCreateLogicPlan(&cxt, &pLogicNode);
-
-      doOptimizeLogicPlan(&cxt, pLogicNode);
-
       SLogicSubplan* pLogicSubplan = nullptr;
-      doSplitLogicPlan(&cxt, pLogicNode, &pLogicSubplan);
+      doCreateLogicPlan(&cxt, &pLogicSubplan);
+
+      doOptimizeLogicPlan(&cxt, pLogicSubplan);
+
+      doSplitLogicPlan(&cxt, pLogicSubplan);
 
       SQueryLogicPlan* pLogicPlan = nullptr;
       doScaleOutLogicPlan(&cxt, pLogicSubplan, &pLogicPlan);
@@ -324,19 +322,19 @@ class PlannerTestBaseImpl {
     res_.ast_ = toString(pQuery->pRoot);
   }
 
-  void doCreateLogicPlan(SPlanContext* pCxt, SLogicNode** pLogicNode) {
-    DO_WITH_THROW(createLogicPlan, pCxt, pLogicNode);
-    res_.rawLogicPlan_ = toString((SNode*)(*pLogicNode));
+  void doCreateLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan) {
+    DO_WITH_THROW(createLogicPlan, pCxt, pLogicSubplan);
+    res_.rawLogicPlan_ = toString((SNode*)(*pLogicSubplan));
   }
 
-  void doOptimizeLogicPlan(SPlanContext* pCxt, SLogicNode* pLogicNode) {
-    DO_WITH_THROW(optimizeLogicPlan, pCxt, pLogicNode);
-    res_.optimizedLogicPlan_ = toString((SNode*)pLogicNode);
+  void doOptimizeLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
+    DO_WITH_THROW(optimizeLogicPlan, pCxt, pLogicSubplan);
+    res_.optimizedLogicPlan_ = toString((SNode*)pLogicSubplan);
   }
 
-  void doSplitLogicPlan(SPlanContext* pCxt, SLogicNode* pLogicNode, SLogicSubplan** pLogicSubplan) {
-    DO_WITH_THROW(splitLogicPlan, pCxt, pLogicNode, pLogicSubplan);
-    res_.splitLogicPlan_ = toString((SNode*)(*pLogicSubplan));
+  void doSplitLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
+    DO_WITH_THROW(splitLogicPlan, pCxt, pLogicSubplan);
+    res_.splitLogicPlan_ = toString((SNode*)(pLogicSubplan));
   }
 
   void doScaleOutLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan, SQueryLogicPlan** pLogicPlan) {

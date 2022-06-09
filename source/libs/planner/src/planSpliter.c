@@ -915,14 +915,6 @@ static int32_t applySplitRule(SPlanContext* pCxt, SLogicSubplan* pSubplan) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void doSetLogicNodeParent(SLogicNode* pNode, SLogicNode* pParent) {
-  pNode->pParent = pParent;
-  SNode* pChild;
-  FOREACH(pChild, pNode->pChildren) { doSetLogicNodeParent((SLogicNode*)pChild, pNode); }
-}
-
-static void setLogicNodeParent(SLogicNode* pNode) { doSetLogicNodeParent(pNode, NULL); }
-
 static void setVgroupsInfo(SLogicNode* pNode, SLogicSubplan* pSubplan) {
   if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
     TSWAP(((SScanLogicNode*)pNode)->pVgroupList, pSubplan->pVgroupList);
@@ -933,37 +925,10 @@ static void setVgroupsInfo(SLogicNode* pNode, SLogicSubplan* pSubplan) {
   FOREACH(pChild, pNode->pChildren) { setVgroupsInfo((SLogicNode*)pChild, pSubplan); }
 }
 
-int32_t splitLogicPlan(SPlanContext* pCxt, SLogicNode* pLogicNode, SLogicSubplan** pLogicSubplan) {
-  SLogicSubplan* pSubplan = (SLogicSubplan*)nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN);
-  if (NULL == pSubplan) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+int32_t splitLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  if (QUERY_NODE_LOGIC_PLAN_VNODE_MODIFY == nodeType(pLogicSubplan->pNode)) {
+    setVgroupsInfo(pLogicSubplan->pNode, pLogicSubplan);
+    return TSDB_CODE_SUCCESS;
   }
-
-  pSubplan->pNode = nodesCloneNode(pLogicNode);
-  if (NULL == pSubplan->pNode) {
-    nodesDestroyNode(pSubplan);
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  pSubplan->id.queryId = pCxt->queryId;
-  pSubplan->id.groupId = 1;
-  setLogicNodeParent(pSubplan->pNode);
-
-  int32_t code = TSDB_CODE_SUCCESS;
-  if (QUERY_NODE_LOGIC_PLAN_VNODE_MODIFY == nodeType(pLogicNode)) {
-    pSubplan->subplanType = SUBPLAN_TYPE_MODIFY;
-    TSWAP(((SVnodeModifyLogicNode*)pLogicNode)->pDataBlocks, ((SVnodeModifyLogicNode*)pSubplan->pNode)->pDataBlocks);
-    setVgroupsInfo(pSubplan->pNode, pSubplan);
-  } else {
-    pSubplan->subplanType = SUBPLAN_TYPE_SCAN;
-    code = applySplitRule(pCxt, pSubplan);
-  }
-
-  if (TSDB_CODE_SUCCESS == code) {
-    *pLogicSubplan = pSubplan;
-  } else {
-    nodesDestroyNode(pSubplan);
-  }
-
-  return code;
+  return applySplitRule(pCxt, pLogicSubplan);
 }

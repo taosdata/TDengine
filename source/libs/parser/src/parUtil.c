@@ -836,3 +836,7 @@ int32_t getUdfInfoFromCache(SParseMetaCache* pMetaCache, const char* pFunc, SFun
   memcpy(pInfo, *pRes, sizeof(SFuncInfo));
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t getTableIndexFromCache(SParseMetaCache* pMetaCache, const SName* pName, SArray** pIndexes) {
+  return TSDB_CODE_PAR_INTERNAL_ERROR;
+}
