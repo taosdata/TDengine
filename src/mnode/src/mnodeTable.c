@@ -2352,7 +2352,7 @@ static int32_t mnodeProcessDropChildTableMsg(SMnodeMsg *pMsg) {
 static int32_t mnodeFindNormalTableColumnIndex(SCTableObj *pTable, char *colName) {
   SSchema *schema = (SSchema *) pTable->schema;
   for (int32_t col = 0; col < pTable->numOfColumns; col++) {
-    if (strcasecmp(schema[col].name, colName) == 0) {
+    if (strcmp(schema[col].name, colName) == 0) {
       return col;
     }
   }

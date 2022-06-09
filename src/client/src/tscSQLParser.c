@@ -1728,7 +1728,7 @@ int32_t validateOneTag(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
   SSchema* pSchema = tscGetTableSchema(pTableMeta);
 
   for (int32_t i = 0; i < numOfTags + numOfCols; ++i) {
-    if (strncasecmp(pTagField->name, pSchema[i].name, sizeof(pTagField->name) - 1) == 0) {
+    if (strncmp(pTagField->name, pSchema[i].name, sizeof(pTagField->name) - 1) == 0) {
       //return tscErrorMsgWithCode(TSDB_CODE_TSC_DUP_COL_NAMES, tscGetErrorMsgPayload(pCmd), pTagField->name, NULL);
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), "duplicated column names");
     }
@@ -1796,7 +1796,7 @@ static bool has(SArray* pFieldList, int32_t startIdx, const char* name) {
   size_t numOfCols = taosArrayGetSize(pFieldList);
   for (int32_t j = startIdx; j < numOfCols; ++j) {
     TAOS_FIELD* field = taosArrayGet(pFieldList, j);
-    if (strncasecmp(name, field->name, sizeof(field->name) - 1) == 0) return true;
+    if (strncmp(name, field->name, sizeof(field->name) - 1) == 0) return true;
   }
 
   return false;
@@ -3437,7 +3437,7 @@ static int16_t doGetColumnIndex(SQueryInfo* pQueryInfo, int32_t index, SStrToken
       continue;
     }
 
-    if (strncasecmp(pSchema[i].name, pToken->z, pToken->n) == 0) {
+    if (strncmp(pSchema[i].name, pToken->z, pToken->n) == 0) {
       columnIndex = i;
       break;
     }
@@ -3457,7 +3457,7 @@ int32_t doGetColumnIndexByName(SStrToken* pToken, SQueryInfo* pQueryInfo, SColum
   if (isTablenameToken(pToken)) {
     pIndex->columnIndex = TSDB_TBNAME_COLUMN_INDEX;
   } else if (strlen(DEFAULT_PRIMARY_TIMESTAMP_COL_NAME) == pToken->n &&
-            strncasecmp(pToken->z, DEFAULT_PRIMARY_TIMESTAMP_COL_NAME, pToken->n) == 0) {
+            strncmp(pToken->z, DEFAULT_PRIMARY_TIMESTAMP_COL_NAME, pToken->n) == 0) {
     pIndex->columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX; // just make runtime happy, need fix java test case InsertSpecialCharacterJniTest
   } else {
     // not specify the table name, try to locate the table index by column name
