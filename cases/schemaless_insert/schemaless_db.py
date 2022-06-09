@@ -90,15 +90,16 @@ class TestSchemalessDB(TDCase):
                 self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
                 self.tdSql.query(f'show {dbname}.tables')
                 tb1 = self.tdSql.query_data[0][0]
-                self.tdSql.execute(f"create table {dbname}.stb (ts timestamp, c1 int) tags (t1 int)")
+                self.tdSql.error(f"create table {dbname}.stb (ts timestamp, c1 int) tags (t1 int)")
                 self.tdSql.error(f"create table {dbname}.tb (ts timestamp, c1 int)")
                 self.tdSql.error(f'create table {dbname}.tb1 using {dbname}.{stbname1} tags ("ajvkso_11235_24175", true, 127, 32767, 2147483647, 9223372036854775807, 11.12345, 22.123456789, "binaryTagValue", "ncharTagValue")')
                 self.tdSql.error(f'insert into {dbname}.{tb1} values (now, false, 127, 32767, 2147483647, 9223372036854775807, 11.12345, 22.123456789, "binaryTagValue", "ncharTagValue", 7)')
-                self.tdSql.error(f'alter table {dbname}.{tb1} set tag t1 = 1;')
-                self.tdSql.error(f'alter table {dbname}.{tb1} drop tag t1;')
-                self.tdSql.error(f'alter table {dbname}.{tb1} add tag t21 tinyint;')
-                self.tdSql.error(f'alter table {dbname}.{tb1} drop column c1;')
-                self.tdSql.error(f'alter table {dbname}.{tb1} add column c21 tinyint;')
+                self.tdSql.error(f'alter table {dbname}.{tb1} set tag t1 = "1";')
+                self.tdSql.error(f'alter table {dbname}.{stbname1} drop tag t1;')
+                self.tdSql.error(f'alter table {dbname}.{stbname1} add tag t21 tinyint;')
+                self.tdSql.error(f'alter table {dbname}.{stbname1} drop column c1;')
+                self.tdSql.error(f'alter table {dbname}.{stbname1} add column c21 tinyint;')
+                self.tdSql.error(f'alter table {dbname}.{stbname1} rename column c21 c22;')
                 self.tdSql.execute(f'drop table {stbname1}')
             elif sml_type == "opentsdb_telnet":
                 input_sql, stbname2 = self.tdCom.gen_full_type_sql()
@@ -109,11 +110,12 @@ class TestSchemalessDB(TDCase):
                 self.tdSql.error(f"create table {dbname}.tb (ts timestamp, c1 int)")
                 self.tdSql.error(f'create table {dbname}.tb2 using {dbname}.{stbname2} tags ("bbgtol_22702_30690", true, 127, 32767, 2147483647, 9223372036854775807, 11.12345, 22.123456789, "binaryTagValue", "ncharTagValue")')
                 self.tdSql.error(f'insert into {dbname}.{tb2} values (now, false)')
-                self.tdSql.error(f'alter table {dbname}.{tb1} set tag t1 = 1;')
-                self.tdSql.error(f'alter table {dbname}.{tb1} drop tag t1;')
-                self.tdSql.error(f'alter table {dbname}.{tb1} add tag t21 tinyint;')
-                self.tdSql.error(f'alter table {dbname}.{tb1} drop column _value;')
-                self.tdSql.error(f'alter table {dbname}.{tb1} add column c21 tinyint;')
+                self.tdSql.error(f'alter table {dbname}.{tb2} set tag t1 = 1;')
+                self.tdSql.error(f'alter table {dbname}.{stbname2} drop tag t1;')
+                self.tdSql.error(f'alter table {dbname}.{stbname2} add tag t21 tinyint;')
+                self.tdSql.error(f'alter table {dbname}.{stbname2} drop column _value;')
+                self.tdSql.error(f'alter table {dbname}.{stbname2} add column c21 tinyint;')
+                self.tdSql.error(f'alter table {dbname}.{stbname2} rename column c21 c22;')
                 self.tdSql.execute(f'drop table {stbname2}')
             elif sml_type == "opentsdb_json":
                 input_json, stbname3 = self.tdCom.gen_full_type_json(value_type="default")
@@ -124,11 +126,12 @@ class TestSchemalessDB(TDCase):
                 self.tdSql.error(f"create table {dbname}.tb (ts timestamp, c1 int)")
                 self.tdSql.error(f'create table {dbname}.tb3 using {dbname}.{stbname3} tags (true, 127, 32767, 2147483647, 9223372036854775807, 11.12345, 22.123456789, "binaryTagValue", "ncharTagValue")')
                 self.tdSql.error(f'insert into {dbname}.{tb3} values (now, false)')
-                self.tdSql.error(f'alter table {dbname}.{tb1} set tag t1 = 1;')
-                self.tdSql.error(f'alter table {dbname}.{tb1} drop tag t1;')
-                self.tdSql.error(f'alter table {dbname}.{tb1} add tag t21 tinyint;')
-                self.tdSql.error(f'alter table {dbname}.{tb1} drop column _value;')
-                self.tdSql.error(f'alter table {dbname}.{tb1} add column c21 tinyint;')
+                self.tdSql.error(f'alter table {dbname}.{tb3} set tag t1 = 1;')
+                self.tdSql.error(f'alter table {dbname}.{stbname3} drop tag t1;')
+                self.tdSql.error(f'alter table {dbname}.{stbname3} add tag t21 tinyint;')
+                self.tdSql.error(f'alter table {dbname}.{stbname3} drop column _value;')
+                self.tdSql.error(f'alter table {dbname}.{stbname3} add column c21 tinyint;')
+                self.tdSql.error(f'alter table {dbname}.{stbname3} rename column c21 c22;')
                 self.tdSql.execute(f'drop table {stbname3}')
     
     def sql_insert_schemaless_db_with_shell(self):
@@ -146,10 +149,11 @@ class TestSchemalessDB(TDCase):
                             f'create table {dbname}.tb1 using {dbname}.{stbname1} tags ("ajvkso_11235_24175", true, 127, 32767, 2147483647, 9223372036854775807, 11.12345, 22.123456789, "binaryTagValue", "ncharTagValue")',
                             f'insert into {dbname}.{tb1} values (now, false, 127, 32767, 2147483647, 9223372036854775807, 11.12345, 22.123456789, "binaryTagValue", "ncharTagValue", 7)',
                             f'alter table {dbname}.{tb1} set tag t1 = 1;',
-                            f'alter table {dbname}.{tb1} drop tag t1;',
-                            f'alter table {dbname}.{tb1} add tag t21 tinyint;',
-                            f'alter table {dbname}.{tb1} drop column c1;',
-                            f'alter table {dbname}.{tb1} add column c21 tinyint;']:
+                            f'alter table {dbname}.{stbname1} drop tag t1;',
+                            f'alter table {dbname}.{stbname1} add tag t21 tinyint;',
+                            f'alter table {dbname}.{stbname1} drop column c1;',
+                            f'alter table {dbname}.{stbname1} add column c21 tinyint;',
+                            f'alter table {dbname}.{stbname1} rename column c21 c22;']:
                     self._remote.cmd(self.taosd_settings["fqdn"][0], [f'taos -s "{sql}"'])
                 for sql in [f'show {dbname}.stables', f'show {dbname}.tables', f'select * from {dbname}.{tb1}']:
                     self.tdSql.query(sql)
@@ -165,11 +169,12 @@ class TestSchemalessDB(TDCase):
                             f"create table {dbname}.tb (ts timestamp, c1 int)",
                             f'create table {dbname}.tb2 using {dbname}.{stbname2} tags ("bbgtol_22702_30690", true, 127, 32767, 2147483647, 9223372036854775807, 11.12345, 22.123456789, "binaryTagValue", "ncharTagValue")',
                             f'insert into {dbname}.{tb2} values (now, false)',
-                            f'alter table {dbname}.{tb1} set tag t1 = 1;',
-                            f'alter table {dbname}.{tb1} drop tag t1;',
-                            f'alter table {dbname}.{tb1} add tag t21 tinyint;',
-                            f'alter table {dbname}.{tb1} drop column _value;',
-                            f'alter table {dbname}.{tb1} add column c21 tinyint;']:
+                            f'alter table {dbname}.{tb2} set tag t1 = 1;',
+                            f'alter table {dbname}.{stbname2} drop tag t1;',
+                            f'alter table {dbname}.{stbname2} add tag t21 tinyint;',
+                            f'alter table {dbname}.{stbname2} drop column _value;',
+                            f'alter table {dbname}.{stbname2} add column c21 tinyint;',
+                            f'alter table {dbname}.{stbname2} rename column c21 c22;']:
                     self._remote.cmd(self.taosd_settings["fqdn"][0], [f'taos -s "{sql}"'])
                 for sql in [f'show {dbname}.stables', f'show {dbname}.tables', f'select * from {dbname}.{tb2}']:
                     self.tdSql.query(sql)
@@ -185,11 +190,12 @@ class TestSchemalessDB(TDCase):
                             f"create table {dbname}.tb (ts timestamp, c1 int)",
                             f'create table {dbname}.tb3 using {dbname}.{stbname3} tags (true, 127, 32767, 2147483647, 9223372036854775807, 11.12345, 22.123456789, "binaryTagValue", "ncharTagValue")',
                             f'insert into {dbname}.{tb3} values (now, false)',
-                            f'alter table {dbname}.{tb1} set tag t1 = 1;',
-                            f'alter table {dbname}.{tb1} drop tag t1;',
-                            f'alter table {dbname}.{tb1} add tag t21 tinyint;',
-                            f'alter table {dbname}.{tb1} drop column _value;',
-                            f'alter table {dbname}.{tb1} add column c21 tinyint;']:
+                            f'alter table {dbname}.{tb3} set tag t1 = 1;',
+                            f'alter table {dbname}.{stbname3} drop tag t1;',
+                            f'alter table {dbname}.{stbname3} add tag t21 tinyint;',
+                            f'alter table {dbname}.{stbname3} drop column _value;',
+                            f'alter table {dbname}.{stbname3} add column c21 tinyint;',
+                            f'alter table {dbname}.{stbname3} rename column c21 c22;']:
                     self._remote.cmd(self.taosd_settings["fqdn"][0], [f'taos -s "{sql}"'])
                 for sql in [f'show {dbname}.stables', f'show {dbname}.tables', f'select * from {dbname}.{tb3}']:
                     self.tdSql.query(sql)
@@ -203,7 +209,7 @@ class TestSchemalessDB(TDCase):
         # ! unfinished
         # self.alter_schema_db()
         self.sml_insert_schema_db()
-        # ! TD-16310
+        # ! TD-16397
         # self.sql_insert_schemaless_db_with_python()
         self.sql_insert_schemaless_db_with_shell()
     def cleanup(self):
