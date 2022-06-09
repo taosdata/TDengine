@@ -47,11 +47,13 @@ char *ctgTaskTypeStr(CTG_TASK_TYPE type) {
 void ctgFreeSMetaData(SMetaData* pData) {
   taosArrayDestroy(pData->pTableMeta);
   pData->pTableMeta = NULL;
-  
+
+/*  
   for (int32_t i = 0; i < taosArrayGetSize(pData->pDbVgroup); ++i) {
     SArray** pArray = taosArrayGet(pData->pDbVgroup, i);
     taosArrayDestroy(*pArray);
   }
+*/
   taosArrayDestroy(pData->pDbVgroup);
   pData->pDbVgroup = NULL;
   
@@ -61,10 +63,12 @@ void ctgFreeSMetaData(SMetaData* pData) {
   taosArrayDestroy(pData->pUdfList);
   pData->pUdfList = NULL;
 
+/*
   for (int32_t i = 0; i < taosArrayGetSize(pData->pDbCfg); ++i) {
     SDbCfgInfo* pInfo = taosArrayGet(pData->pDbCfg, i);
     taosArrayDestroy(pInfo->pRetensions);
   }
+*/  
   taosArrayDestroy(pData->pDbCfg);
   pData->pDbCfg = NULL;
 
@@ -320,8 +324,12 @@ void ctgFreeTask(SCtgTask* pTask) {
       break;
     }
     case CTG_TASK_GET_DB_CFG: {
-      taosMemoryFreeClear(pTask->taskCtx);      
-      taosMemoryFreeClear(pTask->res);
+      taosMemoryFreeClear(pTask->taskCtx);
+      if (pTask->res) {
+        SDbCfgInfo* pInfo = (SDbCfgInfo*)pTask->res;
+        taosArrayDestroy(pInfo->pRetensions);
+        taosMemoryFreeClear(pTask->res);
+      }
       break;
     }
     case CTG_TASK_GET_DB_INFO: {

@@ -267,7 +267,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
   }
 
   int64_t st = taosGetTimestampMs();
-  doFilter(pTableScanInfo->pFilterNode, pBlock);
+  doFilter(pTableScanInfo->pFilterNode, pBlock, false);
 
   int64_t et = taosGetTimestampMs();
   pTableScanInfo->readRecorder.filterTime += (et - st);
@@ -846,7 +846,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
   size_t total = taosArrayGetSize(pInfo->pBlockLists);
   if (pInfo->blockType == STREAM_DATA_TYPE_SSDATA_BLOCK) {
     if (pInfo->validBlockIndex >= total) {
-      doClearBufferedBlocks(pInfo);
+      /*doClearBufferedBlocks(pInfo);*/
       pOperator->status = OP_EXEC_DONE;
       return NULL;
     }
@@ -950,7 +950,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
         addTagPseudoColumnData(&pInfo->readHandle, pInfo->pPseudoExpr, pInfo->numOfPseudoExpr, pInfo->pRes);
       }
 
-      doFilter(pInfo->pCondition, pInfo->pRes);
+      doFilter(pInfo->pCondition, pInfo->pRes, false);
       blockDataUpdateTsWindow(pInfo->pRes, 0);
       break;
     }
@@ -1722,7 +1722,9 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
   }
 
   pRes->info.rows = count;
-  pOperator->resultInfo.totalRows += count;
+  doFilter(pInfo->pFilterNode, pRes, true);
+
+  pOperator->resultInfo.totalRows += pRes->info.rows;
 
   return (pRes->info.rows == 0) ? NULL : pInfo->pRes;
 }

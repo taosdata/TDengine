@@ -580,7 +580,8 @@ void schedulerExecCb(SQueryResult* pResult, void* param, int32_t code) {
 
   STscObj* pTscObj = pRequest->pTscObj;
   if (code != TSDB_CODE_SUCCESS && NEED_CLIENT_HANDLE_ERROR(code)) {
-    tscDebug("0x%"PRIx64" client retry to handle the error, code:%s, reqId:0x%"PRIx64, pRequest->self, tstrerror(code), pRequest->requestId);
+    tscDebug("0x%"PRIx64" client retry to handle the error, code:%d - %s, tryCount:%d, reqId:0x%"PRIx64, pRequest->self, code, tstrerror(code),
+        pRequest->retry, pRequest->requestId);
     pRequest->prevCode = code;
     doAsyncQuery(pRequest, true);
     return;
@@ -592,6 +593,7 @@ void schedulerExecCb(SQueryResult* pResult, void* param, int32_t code) {
     pRequest->code = code;
   }
 
+  tscDebug("schedulerExecCb request type %s", TMSG_INFO(pRequest->type));
   if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type)) {
     removeMeta(pTscObj, pRequest->tableList);
   }
@@ -695,6 +697,8 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery) {
       if (TSDB_CODE_SUCCESS == code) {
         schedulerAsyncExecJob(pAppInfo->pTransporter, pNodeList, pRequest->body.pDag, &pRequest->body.queryJob,
                               pRequest->sqlstr, pRequest->metric.start, schedulerExecCb, pRequest);
+      } else {
+        pRequest->body.queryFp(pRequest->body.param, pRequest, code);
       }
 
       //todo not to be released here
@@ -702,7 +706,8 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery) {
       break;
     }
     case QUERY_EXEC_MODE_EMPTY_RESULT:
-      pRequest->type = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
+      pRequest->type = TSDB_SQL_RETRIEVE_EMPTY_RESULT;      
+      pRequest->body.queryFp(pRequest->body.param, pRequest, 0);
       break;
     default:
       break;
@@ -1109,7 +1114,7 @@ static void syncFetchFn(void* param, TAOS_RES* res, int32_t numOfRows) {
   tsem_post(&pParam->sem);
 }
 
-void* doAsyncFetchRow(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) {
+void* doAsyncFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) {
   assert(pRequest != NULL);
 
   SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
@@ -1121,6 +1126,10 @@ void* doAsyncFetchRow(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUc
     }
 
     SSyncQueryParam* pParam = pRequest->body.param;
+
+    // convert ucs4 to native multi-bytes string
+    pResultInfo->convertUcs4 = convertUcs4;
+
     taos_fetch_rows_a(pRequest, syncFetchFn, pParam);
     tsem_wait(&pParam->sem);
   }
@@ -1280,8 +1289,7 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t numOfRows, int
             int32_t length = taosUcs4ToMbs((TdUcs4*)varDataVal(jsonInnerData), varDataLen(jsonInnerData),
                                            varDataVal(dst) + CHAR_BYTES);
             if (length <= 0) {
-              tscError("charset:%s to %s. val:%s convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
-                       varDataVal(jsonInnerData));
+              tscError("charset:%s to %s. convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset);
               length = 0;
             }
             varDataSetLen(dst, length + CHAR_BYTES * 2);
@@ -1339,6 +1347,17 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
 
   uint64_t groupId = *(uint64_t*)p;
   p += sizeof(uint64_t);
+
+  // check fields
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    int16_t type = *(int16_t*) p;
+    p += sizeof(int16_t);
+
+    int32_t bytes = *(int32_t*) p;
+    p += sizeof(int32_t);
+
+//    ASSERT(type == pFields[i].type && bytes == pFields[i].bytes);
+  }
 
   int32_t* colLength = (int32_t*)p;
   p += sizeof(int32_t) * numOfCols;

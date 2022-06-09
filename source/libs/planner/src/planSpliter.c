@@ -166,8 +166,8 @@ static bool stbSplNeedSplit(bool streamQuery, SLogicNode* pNode) {
       }
       return !stbSplHasGatherExecFunc(pWindow->pFuncs) && stbSplHasMultiTbScan(streamQuery, pNode);
     }
-    // case QUERY_NODE_LOGIC_PLAN_SORT:
-    //   return stbSplHasMultiTbScan(streamQuery, pNode);
+    case QUERY_NODE_LOGIC_PLAN_SORT:
+      return stbSplHasMultiTbScan(streamQuery, pNode);
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return stbSplIsMultiTbScan(streamQuery, (SScanLogicNode*)pNode);
     default:
