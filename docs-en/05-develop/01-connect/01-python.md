@@ -18,7 +18,7 @@ You'll need to have Python3 installed.
 Run this command in your terminal to save TDengine cloud token as variables:
 
 ```bash
-export TDENGINE_TOKEN=<token>
+export TDENGINE_CLOUD_TOKEN=<token>
 ```
 
 <!-- exclude -->
@@ -36,7 +36,7 @@ Copy code bellow to your editor and run it with `python3` command.
 import taosrest
 import os
 
-token = os.environ["TDENGINE_TOKEN"]
+token = os.environ["TDENGINE_CLOUD_TOKEN"]
 url = "https://cloud.tdengine.com"
 
 conn = taosrest.connect(url=url, token=token)

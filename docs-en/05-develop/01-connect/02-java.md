@@ -29,7 +29,7 @@ Run this command in your terminal to save TDengine cloud token as variables:
 
 
 ```bash
-export TDENGINE_TOKEN=<token>
+export TDENGINE_CLOUD_TOKEN=<token>
 ```
 
 ## Connect
@@ -43,7 +43,7 @@ import java.sql.SQLException;
 
 public class ConnectCloudExample {
     public static void main(String[] args) throws SQLException {
-        String token = System.getenv("TDENGINE_TOKEN");
+        String token = System.getenv("TDENGINE_CLOUD_TOKEN");
         String jdbcUrl = "jdbc:TAOS-RS://cloud.taosdata.com:8085?usessl=true&token=" + token;
         Connection conn = DriverManager.getConnection(jdbcUrl);
         System.out.println("Connected");

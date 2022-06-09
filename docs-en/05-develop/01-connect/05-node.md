@@ -12,7 +12,7 @@ title: Connect with Node.js Connector
 Run this command in your terminal to save TDengine cloud token as variables:
 
 ```bash
-export TDENGINE_TOKEN=<token>
+export TDENGINE_CLOUD_TOKEN=<token>
 ```
 
 
@@ -24,7 +24,7 @@ const { options, connect } = require("td2.0-rest-connector");
 
 async function test() {
   options.url = "https://cloud.tdengine.com";
-  options.token = process.env.TDENGIN_TOKEN;
+  options.token = process.env.TDENGINE_CLOUD_TOKEN;
   let conn = connect(options);
 }
 test();

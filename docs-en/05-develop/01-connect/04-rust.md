@@ -15,7 +15,7 @@ title: Connect with Rust Connector
 Run this command in your terminal to save TDengine cloud token as variables:
 
 ```bash
-export TDENGINE_TOKEN=<token>
+export TDENGINE_CLOUD_TOKEN=<token>
 ```
 
 ## Connect
@@ -24,7 +24,7 @@ export TDENGINE_TOKEN=<token>
 use libtaos::*;
 
 fn main() {
-    let token =  std::env::var("TDENGINE_TOKEN").unwrap();
+    let token =  std::env::var("TDENGINE_CLOUD_TOKEN").unwrap();
     let dsn = format!("https://cloud.tdengine.com?token={}", token);
     let taos = Taos::from_dsn(dsn)?;
 }
