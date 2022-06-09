@@ -1888,21 +1888,19 @@ int32_t taosCheckGlobalCfg() {
 }
 
 int taosGetFqdnPortFromEp(const char *ep, char *fqdn, uint16_t *port) {
-  *port = 0;
-  strcpy(fqdn, ep);
+  *port = tsServerPort;
+  int         offset = TSDB_FQDN_LEN;
+  const char *tmp = strchr(ep, ':');
 
-  char *temp = strchr(fqdn, ':');
-  if (temp) {
-    *temp = 0;
-    *port = atoi(temp + 1);
+  if (tmp) {
+    offset = (tmp - ep);
+    *port = atoi(tmp + 1);
   }
+  int len = MIN(offset, TSDB_FQDN_LEN - 1);
+  strncpy(fqdn, ep, TSDB_FQDN_LEN);
+  fqdn[len] = '\0';
 
-  if (*port == 0) {
-    *port = tsServerPort;
-    return -1;
-  }
-
-  return 0;
+  return (offset == len) ? 0 : -1;
 }
 
 /*
