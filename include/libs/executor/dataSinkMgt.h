@@ -32,6 +32,18 @@ extern "C" {
 struct SDataSink;
 struct SSDataBlock;
 
+typedef struct SDeleterRes {
+  uint64_t uid;
+  SArray*  uidList;
+  int64_t  skey;
+  int64_t  ekey;
+  int64_t  affectedRows;
+} SDeleterRes;
+
+typedef struct SDeleterParam {
+  SArray* pUidList;
+} SDeleterParam;
+
 typedef struct SDataSinkStat {
   uint64_t cachedSize;
 } SDataSinkStat;
@@ -64,7 +76,7 @@ typedef struct SOutputData {
  * @param pHandle output
  * @return error code
  */
-int32_t dsCreateDataSinker(const SDataSinkNode* pDataSink, DataSinkHandle* pHandle);
+int32_t dsCreateDataSinker(const SDataSinkNode* pDataSink, DataSinkHandle* pHandle, void* pParam);
 
 int32_t dsDataSinkGetCacheSize(SDataSinkStat *pStat);
 

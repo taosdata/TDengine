@@ -39,6 +39,8 @@ TEST_F(ParserInitialATest, alterDatabase) {
   useDb("root", "test");
 
   run("ALTER DATABASE wxy_db CACHELAST 1 FSYNC 200 WAL 1");
+
+  run("ALTER DATABASE wxy_db KEEP 2400");
 }
 
 // todo ALTER local
@@ -303,6 +305,19 @@ TEST_F(ParserInitialATest, alterUser) {
   run("ALTER user wxy PASS '123456'");
 
   run("ALTER user wxy privilege 'write'");
+}
+
+TEST_F(ParserInitialATest, balanceVgroup) {
+  useDb("root", "test");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_BALANCE_VGROUP_STMT);
+    ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_BALANCE_VGROUP);
+    SBalanceVgroupReq req = {0};
+    ASSERT_EQ(tDeserializeSBalanceVgroupReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
+  });
+
+  run("BALANCE VGROUP");
 }
 
 TEST_F(ParserInitialATest, bug001) {

@@ -281,7 +281,7 @@ int32_t syncGetRespRpc(int64_t rid, uint64_t index, SRpcMsg* msg) {
   return ret;
 }
 
-int32_t syncGetAndDelRespRpc(int64_t rid, uint64_t index, SRpcMsg* msg) {
+int32_t syncGetAndDelRespRpc(int64_t rid, uint64_t index, SRpcHandleInfo* pInfo) {
   SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
     return TAOS_SYNC_STATE_ERROR;
@@ -291,7 +291,7 @@ int32_t syncGetAndDelRespRpc(int64_t rid, uint64_t index, SRpcMsg* msg) {
   SRespStub stub;
   int32_t   ret = syncRespMgrGetAndDel(pSyncNode->pSyncRespMgr, index, &stub);
   if (ret == 1) {
-    memcpy(msg, &(stub.rpcMsg), sizeof(SRpcMsg));
+    *pInfo = stub.rpcMsg.info;
   }
 
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);

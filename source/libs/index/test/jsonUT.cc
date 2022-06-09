@@ -56,11 +56,11 @@ class JsonEnv : public ::testing::Test {
 
     initLog();
     opts = indexOptsCreate();
-    int ret = tIndexJsonOpen(opts, dir.c_str(), &index);
+    int ret = indexJsonOpen(opts, dir.c_str(), &index);
     assert(ret == 0);
   }
   virtual void TearDown() {
-    tIndexJsonClose(index);
+    indexJsonClose(index);
     indexOptsDestroy(opts);
     printf("destory\n");
     taosMsleep(1000);
@@ -75,7 +75,7 @@ static void WriteData(SIndexJson* index, const std::string& colName, int8_t dtyp
                                       (const char*)data, dlen);
   SIndexMultiTerm* terms = indexMultiTermCreate();
   indexMultiTermAdd(terms, term);
-  tIndexJsonPut(index, terms, (int64_t)tableId);
+  indexJsonPut(index, terms, (int64_t)tableId);
 
   indexMultiTermDestroy(terms);
 }
@@ -86,7 +86,7 @@ static void delData(SIndexJson* index, const std::string& colName, int8_t dtype,
                                       (const char*)data, dlen);
   SIndexMultiTerm* terms = indexMultiTermCreate();
   indexMultiTermAdd(terms, term);
-  tIndexJsonPut(index, terms, (int64_t)tableId);
+  indexJsonPut(index, terms, (int64_t)tableId);
 
   indexMultiTermDestroy(terms);
 }
@@ -99,7 +99,7 @@ static void Search(SIndexJson* index, const std::string& colNam, int8_t dtype, v
 
   SArray* res = taosArrayInit(1, sizeof(uint64_t));
   indexMultiTermQueryAdd(mq, q, (EIndexQueryType)filterType);
-  tIndexJsonSearch(index, mq, res);
+  indexJsonSearch(index, mq, res);
   indexMultiTermQueryDestroy(mq);
   *result = res;
 }
@@ -107,41 +107,40 @@ TEST_F(JsonEnv, testWrite) {
   {
     std::string colName("test");
     std::string colVal("ab");
-    SIndexTerm* term = indexTermCreateT(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
-                                        colVal.c_str(), colVal.size());
-
-    SIndexMultiTerm* terms = indexMultiTermCreate();
-    indexMultiTermAdd(terms, term);
-    for (size_t i = 0; i < 100; i++) {
-      tIndexJsonPut(index, terms, i);
+    for (int i = 0; i < 100; i++) {
+      SIndexTerm*      term = indexTermCreateT(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                          colVal.c_str(), colVal.size());
+      SIndexMultiTerm* terms = indexMultiTermCreate();
+      indexMultiTermAdd(terms, term);
+      indexJsonPut(index, terms, i);
+      indexMultiTermDestroy(terms);
     }
-    indexMultiTermDestroy(terms);
   }
   {
     std::string colName("voltage");
     std::string colVal("ab1");
-    SIndexTerm* term = indexTermCreateT(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
-                                        colVal.c_str(), colVal.size());
+    for (int i = 0; i < 100; i++) {
+      SIndexTerm* term = indexTermCreateT(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                          colVal.c_str(), colVal.size());
 
-    SIndexMultiTerm* terms = indexMultiTermCreate();
-    indexMultiTermAdd(terms, term);
-    for (size_t i = 0; i < 100; i++) {
-      tIndexJsonPut(index, terms, i);
+      SIndexMultiTerm* terms = indexMultiTermCreate();
+      indexMultiTermAdd(terms, term);
+      indexJsonPut(index, terms, i);
+      indexMultiTermDestroy(terms);
     }
-    indexMultiTermDestroy(terms);
   }
   {
     std::string colName("voltage");
     std::string colVal("123");
-    SIndexTerm* term = indexTermCreateT(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
-                                        colVal.c_str(), colVal.size());
-
-    SIndexMultiTerm* terms = indexMultiTermCreate();
-    indexMultiTermAdd(terms, term);
     for (size_t i = 0; i < 100; i++) {
-      tIndexJsonPut(index, terms, i);
+      SIndexTerm* term = indexTermCreateT(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                          colVal.c_str(), colVal.size());
+
+      SIndexMultiTerm* terms = indexMultiTermCreate();
+      indexMultiTermAdd(terms, term);
+      indexJsonPut(index, terms, i);
+      indexMultiTermDestroy(terms);
     }
-    indexMultiTermDestroy(terms);
   }
   {
     std::string colName("test");
@@ -153,8 +152,8 @@ TEST_F(JsonEnv, testWrite) {
 
     SArray* result = taosArrayInit(1, sizeof(uint64_t));
     indexMultiTermQueryAdd(mq, q, QUERY_TERM);
-    tIndexJsonSearch(index, mq, result);
-    assert(100 == taosArrayGetSize(result));
+    indexJsonSearch(index, mq, result);
+    EXPECT_EQ(100, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
   }
 }
@@ -162,44 +161,44 @@ TEST_F(JsonEnv, testWriteMillonData) {
   {
     std::string colName("test");
     std::string colVal("ab");
-    SIndexTerm* term = indexTermCreateT(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
-                                        colVal.c_str(), colVal.size());
-
-    SIndexMultiTerm* terms = indexMultiTermCreate();
-    indexMultiTermAdd(terms, term);
     for (size_t i = 0; i < 10; i++) {
-      tIndexJsonPut(index, terms, i);
-    }
-    indexMultiTermDestroy(terms);
-  }
-  {
-    std::string colName("voltagefdadfa");
-    std::string colVal("abxxxxxxxxxxxx");
-    for (int i = 0; i < 10; i++) {
-      colVal[i % colVal.size()] = '0' + i % 128;
       SIndexTerm* term = indexTermCreateT(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
                                           colVal.c_str(), colVal.size());
 
       SIndexMultiTerm* terms = indexMultiTermCreate();
       indexMultiTermAdd(terms, term);
-      for (size_t i = 0; i < 100; i++) {
-        tIndexJsonPut(index, terms, i);
-      }
+      indexJsonPut(index, terms, i);
       indexMultiTermDestroy(terms);
     }
   }
   {
     std::string colName("voltagefdadfa");
     std::string colVal("abxxxxxxxxxxxx");
-    SIndexTerm* term = indexTermCreateT(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
-                                        colVal.c_str(), colVal.size());
+    for (int i = 0; i < 10; i++) {
+      colVal[i % colVal.size()] = '0' + i % 128;
+      for (size_t i = 0; i < 100; i++) {
+        SIndexTerm* term = indexTermCreateT(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                            colVal.c_str(), colVal.size());
 
-    SIndexMultiTerm* terms = indexMultiTermCreate();
-    indexMultiTermAdd(terms, term);
-    for (size_t i = 0; i < 1000; i++) {
-      tIndexJsonPut(index, terms, i);
+        SIndexMultiTerm* terms = indexMultiTermCreate();
+        indexMultiTermAdd(terms, term);
+        indexJsonPut(index, terms, i);
+        indexMultiTermDestroy(terms);
+      }
     }
-    indexMultiTermDestroy(terms);
+  }
+  {
+    std::string colName("voltagefdadfa");
+    std::string colVal("abxxxxxxxxxxxx");
+    for (size_t i = 0; i < 1000; i++) {
+      SIndexTerm* term = indexTermCreateT(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                          colVal.c_str(), colVal.size());
+
+      SIndexMultiTerm* terms = indexMultiTermCreate();
+      indexMultiTermAdd(terms, term);
+      indexJsonPut(index, terms, i);
+      indexMultiTermDestroy(terms);
+    }
   }
   {
     std::string colName("test");
@@ -211,7 +210,7 @@ TEST_F(JsonEnv, testWriteMillonData) {
 
     SArray* result = taosArrayInit(1, sizeof(uint64_t));
     indexMultiTermQueryAdd(mq, q, QUERY_TERM);
-    tIndexJsonSearch(index, mq, result);
+    indexJsonSearch(index, mq, result);
     EXPECT_EQ(10, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
   }
@@ -226,8 +225,8 @@ TEST_F(JsonEnv, testWriteMillonData) {
 
       SArray* result = taosArrayInit(1, sizeof(uint64_t));
       indexMultiTermQueryAdd(mq, q, QUERY_GREATER_THAN);
-      tIndexJsonSearch(index, mq, result);
-      assert(0 == taosArrayGetSize(result));
+      indexJsonSearch(index, mq, result);
+      EXPECT_EQ(0, taosArrayGetSize(result));
       indexMultiTermQueryDestroy(mq);
     }
     {
@@ -241,7 +240,7 @@ TEST_F(JsonEnv, testWriteMillonData) {
 
         SArray* result = taosArrayInit(1, sizeof(uint64_t));
         indexMultiTermQueryAdd(mq, q, QUERY_GREATER_EQUAL);
-        tIndexJsonSearch(index, mq, result);
+        indexJsonSearch(index, mq, result);
         EXPECT_EQ(10, taosArrayGetSize(result));
         indexMultiTermQueryDestroy(mq);
       }
@@ -252,55 +251,55 @@ TEST_F(JsonEnv, testWriteJsonNumberData) {
   {
     std::string colName("test");
     // std::string colVal("10");
-    int         val = 10;
-    SIndexTerm* term = indexTermCreateT(1, ADD_VALUE, TSDB_DATA_TYPE_INT, colName.c_str(), colName.size(),
-                                        (const char*)&val, sizeof(val));
-
-    SIndexMultiTerm* terms = indexMultiTermCreate();
-    indexMultiTermAdd(terms, term);
+    int val = 10;
     for (size_t i = 0; i < 1000; i++) {
-      tIndexJsonPut(index, terms, i);
+      SIndexTerm* term = indexTermCreateT(1, ADD_VALUE, TSDB_DATA_TYPE_INT, colName.c_str(), colName.size(),
+                                          (const char*)&val, sizeof(val));
+
+      SIndexMultiTerm* terms = indexMultiTermCreate();
+      indexMultiTermAdd(terms, term);
+      indexJsonPut(index, terms, i);
+      indexMultiTermDestroy(terms);
     }
-    indexMultiTermDestroy(terms);
   }
   {
     std::string colName("test2");
     int         val = 20;
-    SIndexTerm* term = indexTermCreateT(1, ADD_VALUE, TSDB_DATA_TYPE_INT, colName.c_str(), colName.size(),
-                                        (const char*)&val, sizeof(val));
-
-    SIndexMultiTerm* terms = indexMultiTermCreate();
-    indexMultiTermAdd(terms, term);
     for (size_t i = 0; i < 1000; i++) {
-      tIndexJsonPut(index, terms, i);
+      SIndexTerm* term = indexTermCreateT(1, ADD_VALUE, TSDB_DATA_TYPE_INT, colName.c_str(), colName.size(),
+                                          (const char*)&val, sizeof(val));
+
+      SIndexMultiTerm* terms = indexMultiTermCreate();
+      indexMultiTermAdd(terms, term);
+      indexJsonPut(index, terms, i);
+      indexMultiTermDestroy(terms);
     }
-    indexMultiTermDestroy(terms);
   }
   {
     std::string colName("test");
     int         val = 15;
-    SIndexTerm* term = indexTermCreateT(1, ADD_VALUE, TSDB_DATA_TYPE_INT, colName.c_str(), colName.size(),
-                                        (const char*)&val, sizeof(val));
-
-    SIndexMultiTerm* terms = indexMultiTermCreate();
-    indexMultiTermAdd(terms, term);
     for (size_t i = 0; i < 1000; i++) {
-      tIndexJsonPut(index, terms, i);
+      SIndexTerm* term = indexTermCreateT(1, ADD_VALUE, TSDB_DATA_TYPE_INT, colName.c_str(), colName.size(),
+                                          (const char*)&val, sizeof(val));
+
+      SIndexMultiTerm* terms = indexMultiTermCreate();
+      indexMultiTermAdd(terms, term);
+      indexJsonPut(index, terms, i);
+      indexMultiTermDestroy(terms);
     }
-    indexMultiTermDestroy(terms);
   }
   {
     std::string colName("test2");
     const char* val = "test";
-    SIndexTerm* term = indexTermCreateT(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
-                                        (const char*)val, strlen(val));
-
-    SIndexMultiTerm* terms = indexMultiTermCreate();
-    indexMultiTermAdd(terms, term);
     for (size_t i = 0; i < 1000; i++) {
-      tIndexJsonPut(index, terms, i);
+      SIndexTerm* term = indexTermCreateT(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                          (const char*)val, strlen(val));
+
+      SIndexMultiTerm* terms = indexMultiTermCreate();
+      indexMultiTermAdd(terms, term);
+      indexJsonPut(index, terms, i);
+      indexMultiTermDestroy(terms);
     }
-    indexMultiTermDestroy(terms);
   }
   {
     std::string           colName("test");
@@ -311,7 +310,7 @@ TEST_F(JsonEnv, testWriteJsonNumberData) {
 
     SArray* result = taosArrayInit(1, sizeof(uint64_t));
     indexMultiTermQueryAdd(mq, q, QUERY_TERM);
-    tIndexJsonSearch(index, mq, result);
+    indexJsonSearch(index, mq, result);
     EXPECT_EQ(1000, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
   }
@@ -325,7 +324,7 @@ TEST_F(JsonEnv, testWriteJsonNumberData) {
 
     SArray* result = taosArrayInit(1, sizeof(uint64_t));
     indexMultiTermQueryAdd(mq, q, QUERY_GREATER_THAN);
-    tIndexJsonSearch(index, mq, result);
+    indexJsonSearch(index, mq, result);
     EXPECT_EQ(0, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
   }
@@ -340,7 +339,7 @@ TEST_F(JsonEnv, testWriteJsonNumberData) {
 
     SArray* result = taosArrayInit(1, sizeof(uint64_t));
     indexMultiTermQueryAdd(mq, q, QUERY_GREATER_EQUAL);
-    tIndexJsonSearch(index, mq, result);
+    indexJsonSearch(index, mq, result);
     EXPECT_EQ(1000, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
   }
@@ -355,7 +354,7 @@ TEST_F(JsonEnv, testWriteJsonNumberData) {
 
     SArray* result = taosArrayInit(1, sizeof(uint64_t));
     indexMultiTermQueryAdd(mq, q, QUERY_LESS_THAN);
-    tIndexJsonSearch(index, mq, result);
+    indexJsonSearch(index, mq, result);
     EXPECT_EQ(0, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
   }
@@ -370,7 +369,7 @@ TEST_F(JsonEnv, testWriteJsonNumberData) {
 
     SArray* result = taosArrayInit(1, sizeof(uint64_t));
     indexMultiTermQueryAdd(mq, q, QUERY_LESS_EQUAL);
-    tIndexJsonSearch(index, mq, result);
+    indexJsonSearch(index, mq, result);
     EXPECT_EQ(1000, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
   }
@@ -380,28 +379,28 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache_INT) {
   {
     std::string colName("test1");
     int         val = 10;
-    SIndexTerm* term = indexTermCreateT(1, ADD_VALUE, TSDB_DATA_TYPE_INT, colName.c_str(), colName.size(),
-                                        (const char*)&val, sizeof(val));
-
-    SIndexMultiTerm* terms = indexMultiTermCreate();
-    indexMultiTermAdd(terms, term);
     for (size_t i = 0; i < 1000; i++) {
-      tIndexJsonPut(index, terms, i);
+      SIndexTerm* term = indexTermCreateT(1, ADD_VALUE, TSDB_DATA_TYPE_INT, colName.c_str(), colName.size(),
+                                          (const char*)&val, sizeof(val));
+
+      SIndexMultiTerm* terms = indexMultiTermCreate();
+      indexMultiTermAdd(terms, term);
+      indexJsonPut(index, terms, i);
+      indexMultiTermDestroy(terms);
     }
-    indexMultiTermDestroy(terms);
   }
   {
     std::string colName("test");
     std::string colVal("xxxxxxxxxxxxxxxxxxx");
-    SIndexTerm* term = indexTermCreateT(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
-                                        colVal.c_str(), colVal.size());
-
-    SIndexMultiTerm* terms = indexMultiTermCreate();
-    indexMultiTermAdd(terms, term);
     for (size_t i = 0; i < 1000; i++) {
-      tIndexJsonPut(index, terms, i);
+      SIndexTerm* term = indexTermCreateT(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                          colVal.c_str(), colVal.size());
+
+      SIndexMultiTerm* terms = indexMultiTermCreate();
+      indexMultiTermAdd(terms, term);
+      indexJsonPut(index, terms, i);
+      indexMultiTermDestroy(terms);
     }
-    indexMultiTermDestroy(terms);
   }
   {
     std::string colName("test1");
@@ -413,7 +412,7 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache_INT) {
 
     SArray* result = taosArrayInit(1, sizeof(uint64_t));
     indexMultiTermQueryAdd(mq, q, QUERY_TERM);
-    tIndexJsonSearch(index, mq, result);
+    indexJsonSearch(index, mq, result);
     EXPECT_EQ(1000, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
   }
@@ -427,7 +426,7 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache_INT) {
 
     SArray* result = taosArrayInit(1, sizeof(uint64_t));
     indexMultiTermQueryAdd(mq, q, QUERY_GREATER_THAN);
-    tIndexJsonSearch(index, mq, result);
+    indexJsonSearch(index, mq, result);
     EXPECT_EQ(0, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
   }
@@ -442,7 +441,7 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache_INT) {
 
     SArray* result = taosArrayInit(1, sizeof(uint64_t));
     indexMultiTermQueryAdd(mq, q, QUERY_GREATER_EQUAL);
-    tIndexJsonSearch(index, mq, result);
+    indexJsonSearch(index, mq, result);
     EXPECT_EQ(1000, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
   }
@@ -456,7 +455,7 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache_INT) {
 
     SArray* result = taosArrayInit(1, sizeof(uint64_t));
     indexMultiTermQueryAdd(mq, q, QUERY_GREATER_THAN);
-    tIndexJsonSearch(index, mq, result);
+    indexJsonSearch(index, mq, result);
     EXPECT_EQ(0, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
   }
@@ -470,7 +469,7 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache_INT) {
 
     SArray* result = taosArrayInit(1, sizeof(uint64_t));
     indexMultiTermQueryAdd(mq, q, QUERY_LESS_EQUAL);
-    tIndexJsonSearch(index, mq, result);
+    indexJsonSearch(index, mq, result);
     EXPECT_EQ(1000, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
   }
@@ -478,15 +477,15 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache_INT) {
     std::string colName("other_column");
     int         val = 100;
 
-    SIndexTerm* term = indexTermCreateT(1, ADD_VALUE, TSDB_DATA_TYPE_INT, colName.c_str(), colName.size(),
-                                        (const char*)&val, sizeof(val));
-
-    SIndexMultiTerm* terms = indexMultiTermCreate();
-    indexMultiTermAdd(terms, term);
     for (size_t i = 0; i < 1000; i++) {
-      tIndexJsonPut(index, terms, i);
+      SIndexTerm* term = indexTermCreateT(1, ADD_VALUE, TSDB_DATA_TYPE_INT, colName.c_str(), colName.size(),
+                                          (const char*)&val, sizeof(val));
+
+      SIndexMultiTerm* terms = indexMultiTermCreate();
+      indexMultiTermAdd(terms, term);
+      indexJsonPut(index, terms, i);
+      indexMultiTermDestroy(terms);
     }
-    indexMultiTermDestroy(terms);
   }
   {
     std::string colName("test1");
@@ -499,22 +498,22 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache_INT) {
 
     SArray* result = taosArrayInit(1, sizeof(uint64_t));
     indexMultiTermQueryAdd(mq, q, QUERY_LESS_THAN);
-    tIndexJsonSearch(index, mq, result);
+    indexJsonSearch(index, mq, result);
     EXPECT_EQ(0, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
   }
   {
     std::string colName("test1");
     int         val = 15;
-    SIndexTerm* term = indexTermCreateT(1, ADD_VALUE, TSDB_DATA_TYPE_INT, colName.c_str(), colName.size(),
-                                        (const char*)&val, sizeof(val));
-
-    SIndexMultiTerm* terms = indexMultiTermCreate();
-    indexMultiTermAdd(terms, term);
     for (size_t i = 0; i < 1000; i++) {
-      tIndexJsonPut(index, terms, i + 1000);
+      SIndexTerm* term = indexTermCreateT(1, ADD_VALUE, TSDB_DATA_TYPE_INT, colName.c_str(), colName.size(),
+                                          (const char*)&val, sizeof(val));
+
+      SIndexMultiTerm* terms = indexMultiTermCreate();
+      indexMultiTermAdd(terms, term);
+      indexJsonPut(index, terms, i + 1000);
+      indexMultiTermDestroy(terms);
     }
-    indexMultiTermDestroy(terms);
   }
   {
     std::string colName("test1");
@@ -527,7 +526,7 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache_INT) {
 
     SArray* result = taosArrayInit(1, sizeof(uint64_t));
     indexMultiTermQueryAdd(mq, q, QUERY_GREATER_EQUAL);
-    tIndexJsonSearch(index, mq, result);
+    indexJsonSearch(index, mq, result);
     EXPECT_EQ(2000, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
   }

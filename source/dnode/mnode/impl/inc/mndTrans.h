@@ -36,19 +36,19 @@ typedef enum {
 } ETrnAct;
 
 typedef struct {
-  int32_t  id;
-  int32_t  errCode;
-  int32_t  acceptableCode;
-  int8_t   stage;
-  ETrnAct  actionType;
-  int8_t   rawWritten;
-  int8_t   msgSent;
-  int8_t   msgReceived;
-  tmsg_t   msgType;
-  SEpSet   epSet;
-  int32_t  contLen;
-  void    *pCont;
-  SSdbRaw *pRaw;
+  int32_t   id;
+  int32_t   errCode;
+  int32_t   acceptableCode;
+  ETrnStage stage;
+  ETrnAct   actionType;
+  int8_t    rawWritten;
+  int8_t    msgSent;
+  int8_t    msgReceived;
+  tmsg_t    msgType;
+  SEpSet    epSet;
+  int32_t   contLen;
+  void     *pCont;
+  SSdbRaw  *pRaw;
 } STransAction;
 
 typedef void (*TransCbFp)(SMnode *pMnode, void *param, int32_t paramLen);

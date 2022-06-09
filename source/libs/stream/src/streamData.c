@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tstream.h"
+#include "streamInc.h"
 
 #if 0
 int32_t streamDataBlockEncode(void** buf, const SStreamDataBlock* pOutput) {
@@ -36,6 +36,29 @@ void* streamDataBlockDecode(const void* buf, SStreamDataBlock* pInput) {
 }
 #endif
 
+int32_t streamDispatchReqToData(const SStreamDispatchReq* pReq, SStreamDataBlock* pData) {
+  int32_t blockNum = pReq->blockNum;
+  SArray* pArray = taosArrayInit(blockNum, sizeof(SSDataBlock));
+  if (pArray == NULL) {
+    return -1;
+  }
+  taosArraySetSize(pArray, blockNum);
+
+  ASSERT(pReq->blockNum == taosArrayGetSize(pReq->data));
+  ASSERT(pReq->blockNum == taosArrayGetSize(pReq->dataLen));
+
+  for (int32_t i = 0; i < blockNum; i++) {
+    int32_t            len = *(int32_t*)taosArrayGet(pReq->dataLen, i);
+    SRetrieveTableRsp* pRetrieve = taosArrayGetP(pReq->data, i);
+    SSDataBlock*       pDataBlock = taosArrayGet(pArray, i);
+    blockCompressDecode(pDataBlock, htonl(pRetrieve->numOfCols), htonl(pRetrieve->numOfRows), pRetrieve->data);
+    // TODO: refactor
+    pDataBlock->info.childId = pReq->sourceChildId;
+  }
+  pData->blocks = pArray;
+  return 0;
+}
+
 SStreamDataSubmit* streamDataSubmitNew(SSubmitReq* pReq) {
   SStreamDataSubmit* pDataSubmit = (SStreamDataSubmit*)taosAllocateQitem(sizeof(SStreamDataSubmit), DEF_QITEM);
   if (pDataSubmit == NULL) return NULL;
@@ -51,7 +74,6 @@ FAIL:
 }
 
 static FORCE_INLINE void streamDataSubmitRefInc(SStreamDataSubmit* pDataSubmit) {
-  //
   atomic_add_fetch_32(pDataSubmit->dataRef, 1);
 }
 
@@ -64,22 +86,3 @@ SStreamDataSubmit* streamSubmitRefClone(SStreamDataSubmit* pSubmit) {
   memcpy(pSubmitClone, pSubmit, sizeof(SStreamDataSubmit));
   return pSubmitClone;
 }
-
-#if 0
-int32_t tEncodeSStreamTaskExecReq(void** buf, const SStreamTaskExecReq* pReq) {
-  int32_t tlen = 0;
-  tlen += taosEncodeFixedI64(buf, pReq->streamId);
-  tlen += taosEncodeFixedI32(buf, pReq->taskId);
-  tlen += tEncodeDataBlocks(buf, pReq->data);
-  return tlen;
-}
-
-void* tDecodeSStreamTaskExecReq(const void* buf, SStreamTaskExecReq* pReq) {
-  buf = taosDecodeFixedI64(buf, &pReq->streamId);
-  buf = taosDecodeFixedI32(buf, &pReq->taskId);
-  buf = tDecodeDataBlocks(buf, &pReq->data);
-  return (void*)buf;
-}
-
-void tFreeSStreamTaskExecReq(SStreamTaskExecReq* pReq) { taosArrayDestroy(pReq->data); }
-#endif

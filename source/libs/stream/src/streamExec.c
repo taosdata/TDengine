@@ -43,6 +43,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) 
     if (output == NULL) break;
     // TODO: do we need free memory?
     SSDataBlock* outputCopy = createOneDataBlock(output, true);
+    outputCopy->info.childId = pTask->childId;
     taosArrayPush(pRes, outputCopy);
   }
   return 0;
@@ -64,6 +65,7 @@ static SArray* streamExecForQall(SStreamTask* pTask, SArray* pRes) {
       }
       qRes->type = STREAM_INPUT__DATA_BLOCK;
       qRes->blocks = pRes;
+      /*qRes->sourceVg = pTask->nodeId;*/
       if (streamTaskOutput(pTask, qRes) < 0) {
         streamQueueProcessFail(pTask->inputQueue);
         taosArrayDestroy(pRes);
