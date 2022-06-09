@@ -522,6 +522,29 @@ class TDTestCase:
         self.check_result_auto( "select c1+2, t2+2, t3 , t4, t5 from ct4 ", "select (c1)+2, abs(t2)+2 ,abs(t3), abs(t4), abs(t5) from ct4")
         self.check_result_auto( "select c1+2, t2+2, t3 , t4, t5 from stb1 order by t1 ", "select (c1)+2, abs(t2)+2 ,abs(t3), abs(t4), abs(t5) from stb1 order by t1")
 
+        # bug need fix 
+
+        # tdSql.query(" select sum(c1) from stb1 where t1+10 >1; ")  #　taosd crash 
+        tdSql.query("select c1 ,t1 from stb1 where t1 =0 ")
+        tdSql.checkRows(13)
+        # tdSql.query("select t1 from stb1 where t1 >0 ")
+        # tdSql.checkRows(3)
+        # tdSql.query("select sum(t1) from (select c1 ,t1 from stb1)")
+        # tdSql.checkData(0,0,61)
+        # tdSql.query("select distinct(c1) ,t1 from stb1")
+        # tdSql.checkRows(11)
+        # tdSql.query("select max(t2) , t1 ,c1, t2 from stb1")
+        # tdSql.checkData(0,3,33333)
+
+        # tag filter with abs function
+        tdSql.error("select t1 from stb1 where abs(t1)=1")
+        tdSql.query("select t1 from stb1 where abs(c1+t1)=1")
+        tdSql.checkRows(2)
+        # tdSql.query("select t1 from stb1 where abs(t1+c1)=1")
+        # tdSql.checkRows(2)
+        tdSql.query("select abs(c1+t1)*t1 from stb1 where abs(c1)/floor(abs(ceil(t1))) ==1")
+
+
 
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
