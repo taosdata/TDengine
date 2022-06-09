@@ -18,12 +18,47 @@
 #include "tchecksum.h"
 #include "walInt.h"
 
-void walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
-  /*pWal->vers.firstVer = -1;*/
+int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
+  taosThreadMutexLock(&pWal->mutex);
+
+  void *pIter = NULL;
+  while (1) {
+    taosHashIterate(pWal->pRefHash, pIter);
+    if (pIter == NULL) break;
+    SWalRef *pRef = (SWalRef *)pIter;
+    if (pRef->ver != -1) {
+      taosHashCancelIterate(pWal->pRefHash, pIter);
+      return -1;
+    }
+  }
+
+  taosCloseFile(&pWal->pWriteLogTFile);
+  taosCloseFile(&pWal->pWriteIdxTFile);
+
+  if (pWal->vers.firstVer != -1) {
+    int32_t fileSetSize = taosArrayGetSize(pWal->fileInfoSet);
+    for (int32_t i = 0; i < fileSetSize; i++) {
+      SWalFileInfo *pFileInfo = taosArrayGet(pWal->fileInfoSet, i);
+      char          fnameStr[WAL_FILE_LEN];
+      walBuildLogName(pWal, pFileInfo->firstVer, fnameStr);
+      taosRemoveFile(fnameStr);
+    }
+  }
+  walRemoveMeta(pWal);
+
+  pWal->writeCur = -1;
+  pWal->totSize = 0;
+  pWal->lastRollSeq = -1;
+
+  taosArrayClear(pWal->fileInfoSet);
+  pWal->vers.firstVer = -1;
   pWal->vers.lastVer = ver;
   pWal->vers.commitVer = ver - 1;
   pWal->vers.snapshotVer = ver - 1;
   pWal->vers.verInSnapshotting = -1;
+
+  taosThreadMutexUnlock(&pWal->mutex);
+  return 0;
 }
 
 int32_t walCommit(SWal *pWal, int64_t ver) {
