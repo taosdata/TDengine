@@ -1503,7 +1503,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getHLLFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = hllFunction,
-    .finalizeFunc = hllFinalize
+    .finalizeFunc = hllFinalize,
+    .pPartialFunc = "_hyperloglog_partial",
+    .pMergeFunc   = "_hyperloglog_merge"
   },
   {
     .name = "_hyperloglog_partial",
