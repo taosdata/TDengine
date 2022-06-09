@@ -59,7 +59,7 @@ int32_t streamTaskEnqueue(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg*
 
   // rsp by input status
   void* buf = rpcMallocCont(sizeof(SMsgHead) + sizeof(SStreamDispatchRsp));
-  ((SMsgHead*)buf)->vgId = htonl(pReq->sourceVg);
+  ((SMsgHead*)buf)->vgId = htonl(pReq->upstreamNodeId);
   SStreamDispatchRsp* pCont = POINTER_SHIFT(buf, sizeof(SMsgHead));
   pCont->inputStatus = status;
   pCont->streamId = pReq->streamId;

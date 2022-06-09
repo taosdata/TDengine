@@ -65,6 +65,7 @@ static SArray* streamExecForQall(SStreamTask* pTask, SArray* pRes) {
       }
       qRes->type = STREAM_INPUT__DATA_BLOCK;
       qRes->blocks = pRes;
+      /*qRes->sourceVg = pTask->nodeId;*/
       if (streamTaskOutput(pTask, qRes) < 0) {
         streamQueueProcessFail(pTask->inputQueue);
         taosArrayDestroy(pRes);
@@ -76,7 +77,7 @@ static SArray* streamExecForQall(SStreamTask* pTask, SArray* pRes) {
         streamDataSubmitRefDec((SStreamDataSubmit*)data);
         taosFreeQitem(data);
       } else {
-        /*taosArrayDestroyEx(((SStreamDataBlock*)data)->blocks, (FDelete)tDeleteSSDataBlock);*/
+        taosArrayDestroyEx(((SStreamDataBlock*)data)->blocks, (FDelete)tDeleteSSDataBlock);
         taosFreeQitem(data);
       }
       streamQueueProcessSuccess(pTask->inputQueue);
