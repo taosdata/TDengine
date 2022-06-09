@@ -20,39 +20,35 @@ class TDTestCase:
         # print(today_date)
         
         time_zone = (os.popen('timedatectl | grep zone').read().strip().split(',')[1].lstrip())[0:5]
-        print(time_zone)
         tdSql.execute('create database db1 precision "ms"')
         tdSql.execute('use db1')
-        tdSql.execute(
-            'create table if not exists ntb(ts timestamp, c1 int, c2 timestamp)'
-        )
+        tdSql.execute('create table if not exists ntb(ts timestamp, c1 int, c2 timestamp)')
         for i in range(self.rowNum):
             tdSql.execute("insert into ntb values(%d, %d, %d)" 
                         % (self.ts + i, i + 1, self.ts + i))
         tdSql.query('select to_iso8601(ts) from ntb')
-        print(tdSql.queryResult)
         for i in range(self.rowNum):
             tdSql.checkEqual(tdSql.queryResult[i][0],f'2022-01-01T00:00:00.00{i}{time_zone}')
-        for j in ['z','Z']:
-            tdSql.query('select to_iso8601(ts,"{j}") from ntb')
-            print(tdSql.queryResult)
-            for i in range(self.rowNum):
-                tdSql.checkEqual(tdSql.queryResult[i][0],f'2022-01-01T00:00:00.00{i}{time_zone}')
             
         timezone_list = ['+0000','+0100','+0200','+0300','+0330','+0400','+0500','+0530','+0600','+0700','+0800','+0900','+1000','+1100','+1200',\
                         '+00','+01','+02','+03','+04','+05','+06','+07','+08','+09','+10','+11','+12',\
                             '+00:00','+01:00','+02:00','+03:00','+03:30','+04:00','+05:00','+05:30','+06:00','+07:00','+08:00','+09:00','+10:00','+11:00','+12:00',\
                             '-0000','-0100','-0200','-0300','-0400','-0500','-0600','-0700','-0800','-0900','-1000','-1100','-1200',\
                         '-00','-01','-02','-03','-04','-05','-06','-07','-08','-09','-10','-11','-12',\
-                            '-00:00','-01:00','-02:00','-03:00','-04:00','-05:00','-06:00','-07:00','-08:00','-09:00','-10:00','-11:00','-12:00']
+                            '-00:00','-01:00','-02:00','-03:00','-04:00','-05:00','-06:00','-07:00','-08:00','-09:00','-10:00','-11:00','-12:00'\
+                                'z','Z']
         for j in timezone_list:
             tdSql.query(f'select to_iso8601(ts,"{j}") from ntb')
             for i in range(self.rowNum):
-                tdSql.checkEqual(tdSql.queryResult[i][0],f'2022-01-01T00:00:00.00{i}{time_zone}')
-
-        error_param_list = [0,100,5,'a','+13','+0101','+00:01','-0001','-13','-00:01']
+                tdSql.checkEqual(tdSql.queryResult[i][0],f'2022-01-01T00:00:00.00{i}{j}')
+        
+        error_param_list = [0,100.5,'a','!']
         for i in error_param_list:
-            tdSql.error(f'select to_iso8601(ts,"{error_param_list}") from ntb')
+            tdSql.error(f'select to_iso8601(ts,"{i}") from ntb')
+        # bug TD-16372:对于错误的时区，缺少校验
+        # error_timezone_param = ['+13','-13','+1300','-1300','+0001','-0001','-0330','+0330']
+        # for i in error_timezone_param:
+        #     tdSql.error(f'select to_iso8601(ts,"{i}") from ntb')
         
     def check_base_function(self):
         tdSql.prepare()
@@ -74,12 +70,9 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.query("select to_iso8601(ts) from ntb where ts=today()")
         tdSql.checkRows(1)
-        # tdSql.checkData(0,0,10)
-        for i in range(1,10):
+        for i in range(0,3):
             tdSql.query("select to_iso8601(1) from ntb")
-            tdSql.checkData(0,0,"1970-01-01T08:00:01+0800")
-            i+=1
-            sleep(0.2)
+            tdSql.checkData(i,0,"1970-01-01T08:00:01+0800")
             tdSql.checkRows(3)
         tdSql.query("select to_iso8601(ts) from ntb")
         tdSql.checkRows(3)
@@ -113,12 +106,13 @@ class TDTestCase:
         for i in err_param:
             tdSql.error(f"select to_iso8601({i}) from ntb")
             tdSql.error(f"select to_iso8601({i}) from db.ntb")
+            
         tdSql.query("select to_iso8601(now) from stb")
         tdSql.checkRows(3)
         tdSql.query("select to_iso8601(now()) from stb")
         tdSql.checkRows(3)
         tdSql.query("select to_iso8601(1) from stb")
-        for i in range(1,10):
+        for i in range(0,3):
             tdSql.checkData(i,0,"1970-01-01T08:00:01+0800")
             tdSql.checkRows(3)
         tdSql.query("select to_iso8601(ts) from stb")
@@ -128,20 +122,17 @@ class TDTestCase:
         tdSql.query("select to_iso8601(ts)+'a' from stb ")
         tdSql.checkRows(3)
         for i in ['+','-','*','/']:
-            tdSql.query("select to_iso8601(today()) {i}null from stb")
+            tdSql.query(f"select to_iso8601(today()) {i}null from stb")
             tdSql.checkRows(3)
             tdSql.checkData(0,0,None)
-            tdSql.query("select to_iso8601(today()) {i}null from db.stb")
+            tdSql.query(f"select to_iso8601(today()) {i}null from db.stb")
             tdSql.checkRows(3)
             tdSql.checkData(0,0,None)
-
-        # bug TD-15207
-        # tdSql.query("select to_iso8601(-1) from ntb")
-        # tdSql.checkRows(3)
         
     def run(self):  # sourcery skip: extract-duplicate-method
         self.check_base_function()
         self.check_customize_param_ms()
+
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
