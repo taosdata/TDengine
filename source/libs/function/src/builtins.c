@@ -1020,6 +1020,22 @@ static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
  *
  */
 
+static bool validateHourRange(int8_t hour) {
+  if (hour < 0 || hour > 12) {
+    return false;
+  }
+
+  return true;
+}
+
+static bool validateMinuteRange(int8_t hour, int8_t minute) {
+  if (minute == 0 || (minute == 30 && (hour == 3 || hour == 5))) {
+    return true;
+  }
+
+  return false;
+}
+
 static bool validateTimezoneFormat(const SValueNode* pVal) {
   if (TSDB_DATA_TYPE_BINARY != pVal->node.resType.type) {
     return false;
@@ -1028,6 +1044,8 @@ static bool validateTimezoneFormat(const SValueNode* pVal) {
   char*   tz = varDataVal(pVal->datum.p);
   int32_t len = varDataLen(pVal->datum.p);
 
+  char buf[3] = {0};
+  int8_t hour = -1, minute = -1;
   if (len == 0) {
     return false;
   } else if (len == 1 && (tz[0] == 'z' || tz[0] == 'Z')) {
@@ -1040,6 +1058,20 @@ static bool validateTimezoneFormat(const SValueNode* pVal) {
           if (!isdigit(tz[i])) {
             return false;
           }
+
+          if (i == 2) {
+            memcpy(buf, &tz[i - 1], 2);
+            hour = taosStr2Int8(buf, NULL, 10);
+            if (!validateHourRange(hour)) {
+              return false;
+            }
+          } else if (i == 4) {
+            memcpy(buf, &tz[i - 1], 2);
+            minute = taosStr2Int8(buf, NULL, 10);
+            if (!validateMinuteRange(hour, minute)) {
+              return false;
+            }
+          }
         }
         break;
       }
@@ -1051,8 +1083,23 @@ static bool validateTimezoneFormat(const SValueNode* pVal) {
             }
             continue;
           }
+
           if (!isdigit(tz[i])) {
             return false;
+          }
+
+          if (i == 2) {
+            memcpy(buf, &tz[i - 1], 2);
+            hour = taosStr2Int8(buf, NULL, 10);
+            if (!validateHourRange(hour)) {
+              return false;
+            }
+          } else if (i == 5) {
+            memcpy(buf, &tz[i - 1], 2);
+            minute = taosStr2Int8(buf, NULL, 10);
+            if (!validateMinuteRange(hour, minute)) {
+              return false;
+            }
           }
         }
         break;
