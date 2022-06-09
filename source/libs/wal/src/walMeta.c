@@ -419,3 +419,12 @@ int walLoadMeta(SWal* pWal) {
   taosMemoryFree(buf);
   return code;
 }
+
+int walRemoveMeta(SWal* pWal) {
+  int metaVer = walFindCurMetaVer(pWal);
+  if (metaVer == -1) return 0;
+  char fnameStr[WAL_FILE_LEN];
+  walBuildMetaName(pWal, metaVer, fnameStr);
+  taosRemoveFile(fnameStr);
+  return 0;
+}
