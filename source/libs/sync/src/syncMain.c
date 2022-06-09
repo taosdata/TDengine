@@ -1215,13 +1215,14 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode) {
 
   // update sender private term
   SSyncSnapshotSender* pMySender = syncNodeGetSnapshotSender(pSyncNode, &(pSyncNode->myRaftId));
-  ASSERT(pMySender != NULL);
-  for (int i = 0; i < pSyncNode->pMatchIndex->replicaNum; ++i) {
-    if ((pSyncNode->senders)[i]->privateTerm > pMySender->privateTerm) {
-      pMySender->privateTerm = (pSyncNode->senders)[i]->privateTerm;
+  if (pMySender != NULL) {
+    for (int i = 0; i < pSyncNode->pMatchIndex->replicaNum; ++i) {
+      if ((pSyncNode->senders)[i]->privateTerm > pMySender->privateTerm) {
+        pMySender->privateTerm = (pSyncNode->senders)[i]->privateTerm;
+      }
     }
+    (pMySender->privateTerm) += 100;
   }
-  (pMySender->privateTerm) += 100;
 
   // stop elect timer
   syncNodeStopElectTimer(pSyncNode);
