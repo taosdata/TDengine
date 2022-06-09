@@ -291,6 +291,7 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
       pTupleHandle = tsortNextTuple(pHandle);
     } else {
       pTupleHandle = pInfo->prefetchedTuple;
+      pInfo->groupId = tsortGetGroupId(pTupleHandle);
       pInfo->prefetchedTuple = NULL;
     }
 
@@ -307,7 +308,6 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
       appendOneRowToDataBlock(p, pTupleHandle);
     } else {
       pInfo->prefetchedTuple = pTupleHandle;
-      pInfo->groupId = tupleGroupId;
       break;
     }
 
@@ -330,6 +330,7 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
 
     pDataBlock->info.rows = p->info.rows;
     pDataBlock->info.capacity = p->info.rows;
+    pDataBlock->info.groupId = pInfo->groupId;
   }
 
   blockDataDestroy(p);
