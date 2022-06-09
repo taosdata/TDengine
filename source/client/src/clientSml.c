@@ -155,8 +155,17 @@ typedef struct {
   int64_t endTime;
 } SSmlCostInfo;
 
+typedef struct{
+  SRequestObj*    request;
+  SCatalog*       catalog;
+  tsem_t          sem;
+  TdThreadSpinlock lock;
+} Params;
+
 typedef struct {
   int64_t           id;
+  Params            params;
+  bool              isLast;
 
   SMLProtocolType   protocol;
   int8_t            precision;
@@ -1378,6 +1387,7 @@ static void smlDestroyInfo(SSmlHandle* info){
   if(!info->dataFormat){
     taosArrayDestroy(info->colsContainer);
   }
+  destroyRequest(info->pRequest);
   taosMemoryFreeClear(info);
 }
 
@@ -1405,11 +1415,6 @@ static SSmlHandle* smlBuildSmlInfo(TAOS* taos, SRequestObj* request, SMLProtocol
   ((SVnodeModifOpStmt*)(info->pQuery->pRoot))->payloadType = PAYLOAD_TYPE_KV;
 
   info->taos        = (STscObj *)taos;
-  code = catalogGetHandle(info->taos->pAppInfo->clusterId, &info->pCatalog);
-  if(code != TSDB_CODE_SUCCESS){
-    uError("SML:0x%"PRIx64" get catalog error %d", info->id, code);
-    goto cleanup;
-  }
 
   info->precision   = precision;
   info->protocol    = protocol;
@@ -2158,7 +2163,6 @@ end:
   return ret;
 }
 
-
 static int32_t smlInsertData(SSmlHandle* info) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -2200,10 +2204,12 @@ static int32_t smlInsertData(SSmlHandle* info) {
   }
   info->cost.insertRpcTime = taosGetTimestampUs();
 
-  launchQueryImpl(info->pRequest, info->pQuery, true, NULL);
+  //launchQueryImpl(info->pRequest, info->pQuery, false, NULL);
+//  info->affectedRows = taos_affected_rows(info->pRequest);
+//  return info->pRequest->code;
 
-  info->affectedRows = taos_affected_rows(info->pRequest);
-  return info->pRequest->code;
+  launchAsyncQuery(info->pRequest, info->pQuery);
+  return TSDB_CODE_SUCCESS;
 }
 
 static void smlPrintStatisticInfo(SSmlHandle *info){
@@ -2284,28 +2290,51 @@ cleanup:
   return code;
 }
 
-static int32_t isSchemalessDb(SSmlHandle* info){
+static int32_t isSchemalessDb(STscObj *taos, SCatalog *catalog){
   SName          name;
-  tNameSetDbName(&name, info->taos->acctId, info->taos->db, strlen(info->taos->db));
+  tNameSetDbName(&name, taos->acctId, taos->db, strlen(taos->db));
   char dbFname[TSDB_DB_FNAME_LEN] = {0};
   tNameGetFullDbName(&name, dbFname);
   SDbCfgInfo pInfo = {0};
-  SEpSet ep = getEpSet_s(&info->taos->pAppInfo->mgmtEp);
+  SEpSet ep = getEpSet_s(&taos->pAppInfo->mgmtEp);
 
-  int32_t code = catalogGetDBCfg(info->pCatalog, info->taos->pAppInfo->pTransporter, &ep, dbFname, &pInfo);
+  int32_t code = catalogGetDBCfg(catalog, taos->pAppInfo->pTransporter, &ep, dbFname, &pInfo);
   if (code != TSDB_CODE_SUCCESS) {
-    info->pRequest->code = code;
-    smlBuildInvalidDataMsg(&info->msgBuf, "catalogGetDBCfg error, code:", tstrerror(code));
     return code;
   }
   taosArrayDestroy(pInfo.pRetensions);
   
   if (!pInfo.schemaless){
-    info->pRequest->code = TSDB_CODE_SML_INVALID_DB_CONF;
-    smlBuildInvalidDataMsg(&info->msgBuf, "can not insert into schemaless db:", dbFname);
     return TSDB_CODE_SML_INVALID_DB_CONF;
   }
   return TSDB_CODE_SUCCESS;
+}
+
+static void smlInsertCallback(void* param, void* res, int32_t code) {
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("failed to execute, reason:%s\n", taos_errstr(res));
+  }
+  SRequestObj *pRequest = (SRequestObj *)res;
+  int32_t rows = taos_affected_rows(pRequest);
+  SSmlHandle* info = (SSmlHandle *)param;
+
+  // lock
+  taosThreadSpinLock(&info->params.lock);
+  info->params.request->body.resInfo.numOfRows += rows;
+  if(code != TSDB_CODE_SUCCESS){
+    info->params.request->code = code;
+  }
+  taosThreadSpinUnlock(&info->params.lock);
+  // unlock
+
+  printf("SML:0x%"PRIx64" insert finished, code: %d, total: %d, insert: %d\n", info->id, code, info->affectedRows, rows);
+  Params pParam = info->params;
+  bool isLast = info->isLast;
+  smlDestroyInfo(info);
+
+  if(isLast){
+    tsem_post(&pParam.sem);
+  }
 }
 
 /**
@@ -2336,48 +2365,92 @@ TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int pr
     return NULL;
   }
 
-  SSmlHandle* info = smlBuildSmlInfo(taos, request, (SMLProtocolType)protocol, precision);
-  if(!info){
-    return (TAOS_RES*)request;
-  }
+  ((STscObj *)taos)->schemalessType = 1;
+  SSmlMsgBuf msg = {.buf = request->msgBuf, .len = ERROR_MSG_BUF_DEFAULT_SIZE};
 
-  info->taos->schemalessType = 1;
-  if(request->pDb == NULL){
-    request->code = TSDB_CODE_PAR_DB_NOT_SPECIFIED;
-    smlBuildInvalidDataMsg(&info->msgBuf, "Database not specified", NULL);
+  Params params = {.request = request};
+  tsem_init(&params.sem, 0, 0);
+  taosThreadSpinInit(&(params.lock), 0);
+
+  int32_t code = catalogGetHandle(((STscObj *)taos)->pAppInfo->clusterId, &params.catalog);
+  if(code != TSDB_CODE_SUCCESS){
+    uError("SML get catalog error %d", code);
+    request->code = code;
     goto end;
   }
 
-  if(isSchemalessDb(info) != TSDB_CODE_SUCCESS){
+  if(request->pDb == NULL){
+    request->code = TSDB_CODE_PAR_DB_NOT_SPECIFIED;
+    smlBuildInvalidDataMsg(&msg, "Database not specified", NULL);
+    goto end;
+  }
+
+  if(isSchemalessDb(taos, params.catalog) != TSDB_CODE_SUCCESS){
     request->code = TSDB_CODE_SML_INVALID_DB_CONF;
-    smlBuildInvalidDataMsg(&info->msgBuf, "Cannot write data to a non schemaless database", NULL);
+    smlBuildInvalidDataMsg(&msg, "Cannot write data to a non schemaless database", NULL);
     goto end;
   }
 
   if (!lines) {
     request->code = TSDB_CODE_SML_INVALID_DATA;
-    smlBuildInvalidDataMsg(&info->msgBuf, "lines is null", NULL);
+    smlBuildInvalidDataMsg(&msg, "lines is null", NULL);
     goto end;
   }
 
   if(protocol < TSDB_SML_LINE_PROTOCOL || protocol > TSDB_SML_JSON_PROTOCOL){
     request->code = TSDB_CODE_SML_INVALID_PROTOCOL_TYPE;
-    smlBuildInvalidDataMsg(&info->msgBuf, "protocol invalidate", NULL);
+    smlBuildInvalidDataMsg(&msg, "protocol invalidate", NULL);
     goto end;
   }
 
   if(protocol == TSDB_SML_LINE_PROTOCOL && (precision < TSDB_SML_TIMESTAMP_NOT_CONFIGURED || precision > TSDB_SML_TIMESTAMP_NANO_SECONDS)){
     request->code = TSDB_CODE_SML_INVALID_PRECISION_TYPE;
-    smlBuildInvalidDataMsg(&info->msgBuf, "precision invalidate for line protocol", NULL);
+    smlBuildInvalidDataMsg(&msg, "precision invalidate for line protocol", NULL);
     goto end;
   }
 
-  info->pRequest->code = smlProcess(info, lines, numLines);
+  int32_t perBatch = 20000;
+  for (int i = 0; i < ceil(((double)numLines)/perBatch); ++i) {
+    SRequestObj* req = (SRequestObj*)createRequest((STscObj *)taos, TSDB_SQL_INSERT);
+    if(!req){
+      request->code = TSDB_CODE_OUT_OF_MEMORY;
+      uError("SML:taos_schemaless_insert error request is null");
+      goto end;
+    }
+    SSmlHandle* info = smlBuildSmlInfo(taos, req, (SMLProtocolType)protocol, precision);
+    if(!info){
+      request->code = TSDB_CODE_OUT_OF_MEMORY;
+      uError("SML:taos_schemaless_insert error SSmlHandle is null");
+      goto end;
+    }
+
+    if(numLines >= perBatch){
+      numLines -= perBatch;
+      info->isLast = false;
+    }else{
+      perBatch = numLines;
+      numLines = 0;
+      info->isLast = true;
+    }
+
+    info->params = params;
+    info->pCatalog = params.catalog;
+    info->affectedRows = perBatch;
+    info->pRequest->body.queryFp = smlInsertCallback;
+    info->pRequest->body.param   = info;
+    code = smlProcess(info, lines, perBatch);
+    lines += perBatch;
+    if (code != TSDB_CODE_SUCCESS){
+      info->pRequest->body.queryFp(info, req, code);
+    }
+  }
+  tsem_wait(&params.sem);
 
 end:
-  info->taos->schemalessType = 0;
-  uDebug("result:%s", info->msgBuf.buf);
-  smlDestroyInfo(info);
+  taosThreadSpinDestroy(&params.lock);
+  tsem_destroy(&params.sem);
+  ((STscObj *)taos)->schemalessType = 0;
+  uDebug("result:%s", request->msgBuf);
   return (TAOS_RES*)request;
 }
 
