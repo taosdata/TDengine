@@ -3,6 +3,9 @@ sidebar_label: Grafana
 title: Grafana
 ---
 
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+
 TDengine 能够与开源数据可视化系统 [Grafana](https://www.grafana.com/) 快速集成搭建数据监测报警系统，整个过程无需任何代码开发，TDengine 中数据表的内容可以在仪表盘(DashBoard)上进行可视化展现。关于 TDengine 插件的使用您可以在[GitHub](https://github.com/taosdata/grafanaplugin/blob/master/README.md)中了解更多。
 
 ## 前置条件
@@ -23,9 +26,12 @@ TDengine 能够与开源数据可视化系统 [Grafana](https://www.grafana.com/
 
 ## 配置 Grafana
 
-### 安装方式一：安装脚本
+### 安装 Grafana Plugin 并配置数据源
 
-将集群信息设置为环境变量（也可以使用 [`.env`(dotenv) 文件](https://hexdocs.pm/dotenvy/dotenv-file-format.html) ）：
+<Tabs defaultValue="script">
+<TabItem value="script" label="使用安装脚本">
+
+将集群信息设置为环境变量；也可以使用 `.env` 文件，请参考 [dotenv](https://hexdocs.pm/dotenvy/dotenv-file-format.html)：
 
 ```sh
 export TDENGINE_API=http://tdengine.local:6041
@@ -42,7 +48,8 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/taosdata/grafanaplugin/m
 
 该脚本将自动安装 Grafana 插件并配置数据源。安装完毕后，需要重启 Grafana 服务后生效。
 
-### 安装方式二：手动安装 TDengine 数据源插件
+</TabItem>
+<TabItem value="manual" label="手动安装并配置">
 
 使用 [`grafana-cli` 命令行工具](https://grafana.com/docs/grafana/latest/administration/cli/) 进行插件[安装](https://grafana.com/grafana/plugins/tdengine-datasource/?tab=installation)。
 
@@ -93,6 +100,9 @@ GF_INSTALL_PLUGINS=tdengine-datasource
 点击 `Save & Test` 进行测试，成功会有如下提示：
 
 ![TDengine Database Grafana plugin add data source](./add_datasource4.webp)
+
+</TabItem>
+</Tabs>
 
 ### 创建 Dashboard
 
