@@ -1085,6 +1085,8 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
     }
 
     if (code == 0) {
+      if (!pMnode->deploy && !mndIsMaster(pMnode)) break;
+
       pTrans->code = 0;
       pTrans->redoActionPos++;
       mDebug("trans:%d, %s:%d is executed and need sync to other mnodes", pTrans->id, mndTransStr(pAction->stage),
