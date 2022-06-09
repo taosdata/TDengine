@@ -313,6 +313,7 @@ static int32_t translateApercentileImpl(SFunctionNode* pFunc, char* pErrBuf, int
 static int32_t translateApercentilePartial(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return translateApercentileImpl(pFunc, pErrBuf, len, true);
 }
+
 static int32_t translateApercentileMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return translateApercentileImpl(pFunc, pErrBuf, len, false);
 }
@@ -401,6 +402,7 @@ static int32_t translateSpreadImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t 
 static int32_t translateSpreadPartial(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return translateSpreadImpl(pFunc, pErrBuf, len, true);
 }
+
 static int32_t translateSpreadMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return translateSpreadImpl(pFunc, pErrBuf, len, false);
 }
@@ -551,6 +553,7 @@ static int32_t translateHistogramImpl(SFunctionNode* pFunc, char* pErrBuf, int32
 static int32_t translateHistogramPartial(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return translateHistogramImpl(pFunc, pErrBuf, len, true);
 }
+
 static int32_t translateHistogramMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return translateHistogramImpl(pFunc, pErrBuf, len, false);
 }
@@ -562,6 +565,28 @@ static int32_t translateHLL(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
 
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateHLLImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isPartial) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  if (isPartial) {
+    pFunc->node.resType = (SDataType){.bytes = getHistogramInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  } else {
+    pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateHLLPartial(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateHLLImpl(pFunc, pErrBuf, len, true);
+}
+
+static int32_t translateHLLMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateHLLImpl(pFunc, pErrBuf, len, false);
 }
 
 static bool validateStateOper(const SValueNode* pVal) {
@@ -1478,6 +1503,28 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getHLLFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = hllFunction,
+    .finalizeFunc = hllFinalize,
+    .pPartialFunc = "_hyperloglog_partial",
+    .pMergeFunc   = "_hyperloglog_merge"
+  },
+  {
+    .name = "_hyperloglog_partial",
+    .type = FUNCTION_TYPE_HYPERLOGLOG_PARTIAL,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateHLLPartial,
+    .getEnvFunc   = getHLLFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = hllFunction,
+    .finalizeFunc = hllPartialFinalize
+  },
+  {
+    .name = "_hyperloglog_merge",
+    .type = FUNCTION_TYPE_HYPERLOGLOG_MERGE,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateHLLMerge,
+    .getEnvFunc   = getHLLFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = hllFunctionMerge,
     .finalizeFunc = hllFinalize
   },
   {
