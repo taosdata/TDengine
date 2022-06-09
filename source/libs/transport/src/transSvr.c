@@ -1153,23 +1153,34 @@ _return2:
   rpcFreeCont(msg->pCont);
 }
 
-int transGetConnInfo(void* thandle, STransHandleInfo* pInfo) {
+int transGetConnInfo(void* thandle, STransHandleInfo* pConnInfo) {
   if (thandle == NULL) {
     tTrace("invalid handle %p, failed to Get Conn info", thandle);
     return -1;
   }
-  SExHandle* ex = thandle;
-  SSvrConn*  pConn = ex->handle;
+  SRpcHandleInfo* pInfo = thandle;
+  SExHandle*      exh = pInfo->handle;
+  int64_t         refId = pInfo->refId;
+  ASYNC_CHECK_HANDLE(exh, refId);
+
+  // SExHandle* ex = thandle;
+  SSvrConn* pConn = exh->handle;
   if (pConn == NULL) {
     tTrace("invalid handle %p, failed to Get Conn info", thandle);
+    transReleaseExHandle(refMgt, refId);
     return -1;
   }
-
   struct sockaddr_in addr = pConn->addr;
-  pInfo->clientIp = (uint32_t)(addr.sin_addr.s_addr);
-  pInfo->clientPort = ntohs(addr.sin_port);
-  tstrncpy(pInfo->user, pConn->user, sizeof(pInfo->user));
+  pConnInfo->clientIp = (uint32_t)(addr.sin_addr.s_addr);
+  pConnInfo->clientPort = ntohs(addr.sin_port);
+  tstrncpy(pConnInfo->user, pConn->user, sizeof(pConnInfo->user));
+  transReleaseExHandle(refMgt, refId);
   return 0;
+_return1:
+  transReleaseExHandle(refMgt, refId);
+  return -1;
+_return2:
+  return -1;
 }
 
 #endif
