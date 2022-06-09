@@ -220,9 +220,9 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiSystemTableScan";
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       return "PhysiProject";
-    case QUERY_NODE_PHYSICAL_PLAN_JOIN:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN:
       return "PhysiJoin";
-    case QUERY_NODE_PHYSICAL_PLAN_AGG:
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG:
       return "PhysiAgg";
     case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE:
       return "PhysiExchange";
@@ -242,13 +242,13 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiStreamSemiInterval";
     case QUERY_NODE_PHYSICAL_PLAN_FILL:
       return "PhysiFill";
-    case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION:
       return "PhysiSessionWindow";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION_WINDOW:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION:
       return "PhysiStreamSessionWindow";
-    case QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE:
       return "PhysiStateWindow";
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE_WINDOW:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE:
       return "PhysiStreamStateWindow";
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       return "PhysiPartition";
@@ -2441,6 +2441,7 @@ static const char* jkValueLiteralSize = "LiteralSize";
 static const char* jkValueLiteral = "Literal";
 static const char* jkValueDuration = "Duration";
 static const char* jkValueTranslate = "Translate";
+static const char* jkValueNotReserved = "NotReserved";
 static const char* jkValueDatum = "Datum";
 
 static int32_t datumToJson(const void* pObj, SJson* pJson) {
@@ -2512,6 +2513,9 @@ static int32_t valueNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkValueTranslate, pNode->translate);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkValueNotReserved, pNode->notReserved);
   }
   if (TSDB_CODE_SUCCESS == code && pNode->translate) {
     code = datumToJson(pNode, pJson);
@@ -2633,6 +2637,9 @@ static int32_t jsonToValueNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkValueTranslate, &pNode->translate);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkValueNotReserved, &pNode->notReserved);
   }
   if (TSDB_CODE_SUCCESS == code && pNode->translate) {
     code = jsonToDatum(pJson, pNode);
@@ -3875,9 +3882,9 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return physiSysTableScanNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       return physiProjectNodeToJson(pObj, pJson);
-    case QUERY_NODE_PHYSICAL_PLAN_JOIN:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN:
       return physiJoinNodeToJson(pObj, pJson);
-    case QUERY_NODE_PHYSICAL_PLAN_AGG:
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG:
       return physiAggNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE:
       return physiExchangeNodeToJson(pObj, pJson);
@@ -3893,11 +3900,11 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return physiIntervalNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_FILL:
       return physiFillNodeToJson(pObj, pJson);
-    case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION_WINDOW:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION:
       return physiSessionWindowNodeToJson(pObj, pJson);
-    case QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE_WINDOW:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE:
       return physiStateWindowNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       return physiPartitionNodeToJson(pObj, pJson);
@@ -4008,9 +4015,9 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToPhysiSysTableScanNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       return jsonToPhysiProjectNode(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_PLAN_JOIN:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN:
       return jsonToPhysiJoinNode(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_PLAN_AGG:
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG:
       return jsonToPhysiAggNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE:
       return jsonToPhysiExchangeNode(pJson, pObj);
@@ -4026,11 +4033,11 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToPhysiIntervalNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_FILL:
       return jsonToPhysiFillNode(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION_WINDOW:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION:
       return jsonToPhysiSessionWindowNode(pJson, pObj);
-    case QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE_WINDOW:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE:
       return jsonToPhysiStateWindowNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       return jsonToPhysiPartitionNode(pJson, pObj);

@@ -638,7 +638,8 @@ int32_t vectorConvertImpl(const SScalarParam* pIn, SScalarParam* pOut) {
   if (IS_VAR_DATA_TYPE(inType)) {
     return vectorConvertFromVarData(pIn, pOut, inType, outType);
   }
-  
+
+  pOut->numOfRows = pIn->numOfRows;
   switch (outType) {
     case TSDB_DATA_TYPE_BOOL: {
       for (int32_t i = 0; i < pIn->numOfRows; ++i) {

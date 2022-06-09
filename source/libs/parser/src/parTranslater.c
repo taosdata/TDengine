@@ -103,15 +103,14 @@ static int32_t collectUseTable(const SName* pName, SHashObj* pDbs) {
 
 static int32_t getTableMetaImpl(STranslateContext* pCxt, const SName* pName, STableMeta** pMeta) {
   SParseContext* pParCxt = pCxt->pParseCxt;
-  int32_t        code = TSDB_CODE_SUCCESS;
-  if (pParCxt->async) {
-    code = getTableMetaFromCache(pCxt->pMetaCache, pName, pMeta);
-  } else {
-    code = collectUseDatabase(pName, pCxt->pDbs);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = collectUseTable(pName, pCxt->pTables);
-    }
-    if (TSDB_CODE_SUCCESS == code) {
+  int32_t        code = collectUseDatabase(pName, pCxt->pDbs);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = collectUseTable(pName, pCxt->pTables);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pParCxt->async) {
+      code = getTableMetaFromCache(pCxt->pMetaCache, pName, pMeta);
+    } else {
       code = catalogGetTableMeta(pParCxt->pCatalog, pParCxt->pTransporter, &pParCxt->mgmtEpSet, pName, pMeta);
     }
   }
@@ -150,12 +149,11 @@ static int32_t getDBVgInfoImpl(STranslateContext* pCxt, const SName* pName, SArr
   SParseContext* pParCxt = pCxt->pParseCxt;
   char           fullDbName[TSDB_DB_FNAME_LEN];
   tNameGetFullDbName(pName, fullDbName);
-  int32_t code = TSDB_CODE_SUCCESS;
-  if (pParCxt->async) {
-    code = getDbVgInfoFromCache(pCxt->pMetaCache, fullDbName, pVgInfo);
-  } else {
-    code = collectUseDatabaseImpl(fullDbName, pCxt->pDbs);
-    if (TSDB_CODE_SUCCESS == code) {
+  int32_t code = collectUseDatabaseImpl(fullDbName, pCxt->pDbs);
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pParCxt->async) {
+      code = getDbVgInfoFromCache(pCxt->pMetaCache, fullDbName, pVgInfo);
+    } else {
       code = catalogGetDBVgInfo(pParCxt->pCatalog, pParCxt->pTransporter, &pParCxt->mgmtEpSet, fullDbName, pVgInfo);
     }
   }
@@ -175,15 +173,14 @@ static int32_t getDBVgInfo(STranslateContext* pCxt, const char* pDbName, SArray*
 
 static int32_t getTableHashVgroupImpl(STranslateContext* pCxt, const SName* pName, SVgroupInfo* pInfo) {
   SParseContext* pParCxt = pCxt->pParseCxt;
-  int32_t        code = TSDB_CODE_SUCCESS;
-  if (pParCxt->async) {
-    code = getTableVgroupFromCache(pCxt->pMetaCache, pName, pInfo);
-  } else {
-    code = collectUseDatabase(pName, pCxt->pDbs);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = collectUseTable(pName, pCxt->pTables);
-    }
-    if (TSDB_CODE_SUCCESS == code) {
+  int32_t        code = collectUseDatabase(pName, pCxt->pDbs);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = collectUseTable(pName, pCxt->pTables);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pParCxt->async) {
+      code = getTableVgroupFromCache(pCxt->pMetaCache, pName, pInfo);
+    } else {
       code = catalogGetTableHashVgroup(pParCxt->pCatalog, pParCxt->pTransporter, &pParCxt->mgmtEpSet, pName, pInfo);
     }
   }
@@ -203,12 +200,11 @@ static int32_t getTableHashVgroup(STranslateContext* pCxt, const char* pDbName, 
 static int32_t getDBVgVersion(STranslateContext* pCxt, const char* pDbFName, int32_t* pVersion, int64_t* pDbId,
                               int32_t* pTableNum) {
   SParseContext* pParCxt = pCxt->pParseCxt;
-  int32_t        code = TSDB_CODE_SUCCESS;
-  if (pParCxt->async) {
-    code = getDbVgVersionFromCache(pCxt->pMetaCache, pDbFName, pVersion, pDbId, pTableNum);
-  } else {
-    code = collectUseDatabaseImpl(pDbFName, pCxt->pDbs);
-    if (TSDB_CODE_SUCCESS == code) {
+  int32_t        code = collectUseDatabaseImpl(pDbFName, pCxt->pDbs);
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pParCxt->async) {
+      code = getDbVgVersionFromCache(pCxt->pMetaCache, pDbFName, pVersion, pDbId, pTableNum);
+    } else {
       code = catalogGetDBVgVersion(pParCxt->pCatalog, pDbFName, pVersion, pDbId, pTableNum);
     }
   }
@@ -224,12 +220,11 @@ static int32_t getDBCfg(STranslateContext* pCxt, const char* pDbName, SDbCfgInfo
   tNameSetDbName(&name, pCxt->pParseCxt->acctId, pDbName, strlen(pDbName));
   char dbFname[TSDB_DB_FNAME_LEN] = {0};
   tNameGetFullDbName(&name, dbFname);
-  int32_t code = TSDB_CODE_SUCCESS;
-  if (pParCxt->async) {
-    code = getDbCfgFromCache(pCxt->pMetaCache, dbFname, pInfo);
-  } else {
-    code = collectUseDatabaseImpl(dbFname, pCxt->pDbs);
-    if (TSDB_CODE_SUCCESS == code) {
+  int32_t code = collectUseDatabaseImpl(dbFname, pCxt->pDbs);
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pParCxt->async) {
+      code = getDbCfgFromCache(pCxt->pMetaCache, dbFname, pInfo);
+    } else {
       code = catalogGetDBCfg(pParCxt->pCatalog, pParCxt->pTransporter, &pParCxt->mgmtEpSet, dbFname, pInfo);
     }
   }

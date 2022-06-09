@@ -28,6 +28,7 @@ extern char JSON_VALUE_DELIM;
 
 char* indexPackJsonData(SIndexTerm* itm);
 char* indexPackJsonDataPrefix(SIndexTerm* itm, int32_t* skip);
+char* indexPackJsonDataPrefixNoType(SIndexTerm* itm, int32_t* skip);
 
 typedef enum { MATCH, CONTINUE, BREAK } TExeCond;
 
