@@ -76,7 +76,7 @@ static SArray* streamExecForQall(SStreamTask* pTask, SArray* pRes) {
         streamDataSubmitRefDec((SStreamDataSubmit*)data);
         taosFreeQitem(data);
       } else {
-        taosArrayDestroyEx(((SStreamDataBlock*)data)->blocks, (FDelete)tDeleteSSDataBlock);
+        /*taosArrayDestroyEx(((SStreamDataBlock*)data)->blocks, (FDelete)tDeleteSSDataBlock);*/
         taosFreeQitem(data);
       }
       streamQueueProcessSuccess(pTask->inputQueue);
