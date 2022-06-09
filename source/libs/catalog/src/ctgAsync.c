@@ -437,13 +437,14 @@ _return:
 int32_t ctgDumpTbMetaRes(SCtgTask* pTask) {
   SCtgJob* pJob = pTask->pJob;
   if (NULL == pJob->jobRes.pTableMeta) {
-    pJob->jobRes.pTableMeta = taosArrayInit(pJob->tbMetaNum, POINTER_BYTES);
+    pJob->jobRes.pTableMeta = taosArrayInit(pJob->tbMetaNum, sizeof(SMetaRes));
     if (NULL == pJob->jobRes.pTableMeta) {
       CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
   }
 
-  taosArrayPush(pJob->jobRes.pTableMeta, &pTask->res);
+  SMetaRes res = {.code = pTask->code, .pRes = pTask->res};
+  taosArrayPush(pJob->jobRes.pTableMeta, &res);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -451,14 +452,14 @@ int32_t ctgDumpTbMetaRes(SCtgTask* pTask) {
 int32_t ctgDumpDbVgRes(SCtgTask* pTask) {
   SCtgJob* pJob = pTask->pJob;
   if (NULL == pJob->jobRes.pDbVgroup) {
-    pJob->jobRes.pDbVgroup = taosArrayInit(pJob->dbVgNum, POINTER_BYTES);
+    pJob->jobRes.pDbVgroup = taosArrayInit(pJob->dbVgNum, sizeof(SMetaRes));
     if (NULL == pJob->jobRes.pDbVgroup) {
       CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
   }
 
-  taosArrayPush(pJob->jobRes.pDbVgroup, &pTask->res);
-  pTask->res = NULL;
+  SMetaRes res = {.code = pTask->code, .pRes = pTask->res};
+  taosArrayPush(pJob->jobRes.pDbVgroup, &res);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -466,13 +467,14 @@ int32_t ctgDumpDbVgRes(SCtgTask* pTask) {
 int32_t ctgDumpTbHashRes(SCtgTask* pTask) {
   SCtgJob* pJob = pTask->pJob;
   if (NULL == pJob->jobRes.pTableHash) {
-    pJob->jobRes.pTableHash = taosArrayInit(pJob->tbHashNum, sizeof(SVgroupInfo));
+    pJob->jobRes.pTableHash = taosArrayInit(pJob->tbHashNum, sizeof(SMetaRes));
     if (NULL == pJob->jobRes.pTableHash) {
       CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
   }
 
-  taosArrayPush(pJob->jobRes.pTableHash, pTask->res);
+  SMetaRes res = {.code = pTask->code, .pRes = pTask->res};
+  taosArrayPush(pJob->jobRes.pTableHash, &res);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -480,21 +482,29 @@ int32_t ctgDumpTbHashRes(SCtgTask* pTask) {
 int32_t ctgDumpIndexRes(SCtgTask* pTask) {
   SCtgJob* pJob = pTask->pJob;
   if (NULL == pJob->jobRes.pIndex) {
-    pJob->jobRes.pIndex = taosArrayInit(pJob->indexNum, sizeof(SIndexInfo));
+    pJob->jobRes.pIndex = taosArrayInit(pJob->indexNum, sizeof(SMetaRes));
     if (NULL == pJob->jobRes.pIndex) {
       CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
   }
 
-  taosArrayPush(pJob->jobRes.pIndex, pTask->res);
+  SMetaRes res = {.code = pTask->code, .pRes = pTask->res};
+  taosArrayPush(pJob->jobRes.pIndex, &res);
 
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t ctgDumpQnodeRes(SCtgTask* pTask) {
   SCtgJob* pJob = pTask->pJob;
+  if (NULL == pJob->jobRes.pQnodeList) {
+    pJob->jobRes.pQnodeList = taosArrayInit(1, sizeof(SMetaRes));
+    if (NULL == pJob->jobRes.pQnodeList) {
+      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    }
+  }
 
-  TSWAP(pJob->jobRes.pQnodeList, pTask->res); 
+  SMetaRes res = {.code = pTask->code, .pRes = pTask->res};
+  taosArrayPush(pJob->jobRes.pQnodeList, &res);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -502,13 +512,14 @@ int32_t ctgDumpQnodeRes(SCtgTask* pTask) {
 int32_t ctgDumpDbCfgRes(SCtgTask* pTask) {
   SCtgJob* pJob = pTask->pJob;
   if (NULL == pJob->jobRes.pDbCfg) {
-    pJob->jobRes.pDbCfg = taosArrayInit(pJob->dbCfgNum, sizeof(SDbCfgInfo));
+    pJob->jobRes.pDbCfg = taosArrayInit(pJob->dbCfgNum, sizeof(SMetaRes));
     if (NULL == pJob->jobRes.pDbCfg) {
       CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
   }
 
-  taosArrayPush(pJob->jobRes.pDbCfg, pTask->res);
+  SMetaRes res = {.code = pTask->code, .pRes = pTask->res};
+  taosArrayPush(pJob->jobRes.pDbCfg, &res);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -516,13 +527,14 @@ int32_t ctgDumpDbCfgRes(SCtgTask* pTask) {
 int32_t ctgDumpDbInfoRes(SCtgTask* pTask) {
   SCtgJob* pJob = pTask->pJob;
   if (NULL == pJob->jobRes.pDbInfo) {
-    pJob->jobRes.pDbInfo = taosArrayInit(pJob->dbInfoNum, sizeof(SDbInfo));
+    pJob->jobRes.pDbInfo = taosArrayInit(pJob->dbInfoNum, sizeof(SMetaRes));
     if (NULL == pJob->jobRes.pDbInfo) {
       CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
   }
 
-  taosArrayPush(pJob->jobRes.pDbInfo, pTask->res);
+  SMetaRes res = {.code = pTask->code, .pRes = pTask->res};
+  taosArrayPush(pJob->jobRes.pDbInfo, &res);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -530,13 +542,14 @@ int32_t ctgDumpDbInfoRes(SCtgTask* pTask) {
 int32_t ctgDumpUdfRes(SCtgTask* pTask) {
   SCtgJob* pJob = pTask->pJob;
   if (NULL == pJob->jobRes.pUdfList) {
-    pJob->jobRes.pUdfList = taosArrayInit(pJob->udfNum, sizeof(SFuncInfo));
+    pJob->jobRes.pUdfList = taosArrayInit(pJob->udfNum, sizeof(SMetaRes));
     if (NULL == pJob->jobRes.pUdfList) {
       CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
   }
 
-  taosArrayPush(pJob->jobRes.pUdfList, pTask->res);
+  SMetaRes res = {.code = pTask->code, .pRes = pTask->res};
+  taosArrayPush(pJob->jobRes.pUdfList, &res);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -544,13 +557,14 @@ int32_t ctgDumpUdfRes(SCtgTask* pTask) {
 int32_t ctgDumpUserRes(SCtgTask* pTask) {
   SCtgJob* pJob = pTask->pJob;
   if (NULL == pJob->jobRes.pUser) {
-    pJob->jobRes.pUser = taosArrayInit(pJob->userNum, sizeof(bool));
+    pJob->jobRes.pUser = taosArrayInit(pJob->userNum, sizeof(SMetaRes));
     if (NULL == pJob->jobRes.pUser) {
       CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
   }
 
-  taosArrayPush(pJob->jobRes.pUser, pTask->res);
+  SMetaRes res = {.code = pTask->code, .pRes = pTask->res};
+  taosArrayPush(pJob->jobRes.pUser, &res);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -559,20 +573,13 @@ int32_t ctgHandleTaskEnd(SCtgTask* pTask, int32_t rspCode) {
   SCtgJob* pJob = pTask->pJob;
   int32_t code = 0;
 
-  qDebug("QID:%" PRIx64 " task %d end with rsp %s", pJob->queryId, pTask->taskId, tstrerror(rspCode));
+  qDebug("QID:0x%" PRIx64 " task %d end with rsp %s", pJob->queryId, pTask->taskId, tstrerror(rspCode));
 
-  if (rspCode) {
-    int32_t lastCode = atomic_val_compare_exchange_32(&pJob->rspCode, 0, rspCode);
-    if (0 == lastCode) {
-      CTG_ERR_JRET(rspCode);
-    }
-
-    return TSDB_CODE_SUCCESS;  
-  }
+  pTask->code = rspCode;
 
   int32_t taskDone = atomic_add_fetch_32(&pJob->taskDone, 1);
   if (taskDone < taosArrayGetSize(pJob->pTasks)) {
-    qDebug("task done: %d, total: %d", taskDone, (int32_t)taosArrayGetSize(pJob->pTasks));
+    qDebug("QID:0x%" PRIx64 " task done: %d, total: %d", pJob->queryId, taskDone, (int32_t)taosArrayGetSize(pJob->pTasks));
     return TSDB_CODE_SUCCESS;
   }
 

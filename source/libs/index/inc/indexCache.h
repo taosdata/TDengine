@@ -70,7 +70,7 @@ void indexCacheBroadcast(void* cache);
 void indexCacheWait(void* cache);
 
 Iterate* indexCacheIteratorCreate(IndexCache* cache);
-void     indexCacheIteratorDestroy(Iterate* iiter);
+void     idxCacheIteratorDestroy(Iterate* iiter);
 
 int indexCachePut(void* cache, SIndexTerm* term, uint64_t uid);
 
@@ -82,7 +82,7 @@ void indexCacheUnRef(IndexCache* cache);
 
 void indexCacheDebug(IndexCache* cache);
 
-void indexCacheDestroyImm(IndexCache* cache);
+void idxCacheDestroyImm(IndexCache* cache);
 #ifdef __cplusplus
 }
 #endif
