@@ -918,10 +918,10 @@ static int32_t vnodeProcessExpWndsClrReq(SVnode *pVnode, void *pReq, int32_t len
 
   ASSERT(0);
 
-  // if (tdProcess(pVnode->pSma, version, (const char *)&req) < 0) {
-  //   if (pRsp) pRsp->code = terrno;
-  //   goto _err;
-  // }
+  if (tdClearExpireWindow(pVnode->pSma, (const SVClrTsmaExpWndsReq *)&req) < 0) {
+    if (pRsp) pRsp->code = terrno;
+    goto _err;
+  }
 
   tDecoderClear(&coder);
   vDebug("vgId:%d, success to process expWnds clear for tsma %" PRIi64 " version %" PRIi64, TD_VID(pVnode),

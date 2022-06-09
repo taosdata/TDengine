@@ -70,7 +70,7 @@ struct SSmaStatItem {
    * N.B. only applicable to tsma
    */
   int8_t    state;           // ETsdbSmaStat
-  SHashObj *expiredWindows;  // key: skey of time window, value: version
+  SHashObj *expireWindows;   // key: skey of time window, value: version
   STSma    *pTSma;           // cache schema
 };
 
@@ -128,7 +128,7 @@ int32_t tdInsertRSmaData(SSma *pSma, char *msg);
 
 int32_t tdRefSmaStat(SSma *pSma, SSmaStat *pStat);
 int32_t tdUnRefSmaStat(SSma *pSma, SSmaStat *pStat);
-int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType);
+int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType, bool onlyCheck);
 
 int32_t tdLockSma(SSma *pSma);
 int32_t tdUnLockSma(SSma *pSma);
@@ -219,7 +219,8 @@ static int32_t  tdInitSmaEnv(SSma *pSma, int8_t smaType, const char *path, SDisk
 void *tdFreeRSmaInfo(SRSmaInfo *pInfo);
 
 int32_t tdProcessTSmaCreateImpl(SSma *pSma, int64_t version, const char *pMsg);
-int32_t tdUpdateExpiredWindowImpl(SSma *pSma, const SSubmitReq *pMsg, int64_t version);
+int32_t tdUpdateExpireWindowImpl(SSma *pSma, const SSubmitReq *pMsg, int64_t version);
+int32_t tdClearExpireWindowImpl(SSma *pSma, const SVClrTsmaExpWndsReq *pMsg);
 // TODO: This is the basic params, and should wrap the params to a queryHandle.
 int32_t tdGetTSmaDataImpl(SSma *pSma, char *pData, int64_t indexUid, TSKEY querySKey, int32_t nMaxResult);
 

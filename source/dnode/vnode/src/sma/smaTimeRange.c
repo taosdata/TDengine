@@ -69,10 +69,10 @@ static int32_t tdInitTSmaFile(STSmaReadH *pSmaH, int64_t indexUid, TSKEY skey);
 static bool    tdSetAndOpenTSmaFile(STSmaReadH *pReadH, TSKEY *queryKey);
 static int32_t tdInsertTSmaBlocks(STSmaWriteH *pSmaH, void *smaKey, int32_t keyLen, void *pData, int32_t dataLen,
                                   TXN *txn);
-// expired window
+// expire window
 
-static int32_t tdSetExpiredWindow(SSma *pSma, SHashObj *pItemsHash, int64_t indexUid, int64_t winSKey, int64_t version);
-static int32_t tdResetExpiredWindow(SSma *pSma, SSmaStat *pStat, int64_t indexUid, TSKEY skey);
+static int32_t tdSetExpireWindow(SSma *pSma, SHashObj *pItemsHash, int64_t indexUid, int64_t winSKey, int64_t version);
+static int32_t tdResetExpireWindow(SSma *pSma, SSmaStat *pStat, int64_t indexUid, TSKEY skey);
 static int32_t tdDropTSmaDataImpl(SSma *pSma, int64_t indexUid);
 
 // read data
@@ -319,7 +319,7 @@ int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg) {
 
   // For super table aggregation, the sma data is stored in vgroup calculated from the hash value of stable name. Thus
   // the sma data would arrive ahead of the update-expired-window msg.
-  if (tdCheckAndInitSmaEnv(pSma, TSDB_SMA_TYPE_TIME_RANGE) != TSDB_CODE_SUCCESS) {
+  if (tdCheckAndInitSmaEnv(pSma, TSDB_SMA_TYPE_TIME_RANGE, false) != TSDB_CODE_SUCCESS) {
     terrno = TSDB_CODE_TDB_INIT_FAILED;
     return TSDB_CODE_FAILED;
   }
@@ -347,7 +347,7 @@ int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg) {
   }
 
   if (!pItem || !(pItem = *(SSmaStatItem **)pItem) || tdSmaStatIsDropped(pItem)) {
-    terrno = TSDB_CODE_TDB_INVALID_SMA_STAT;
+    terrno = TSDB_CODE_TSMA_INVALID_STAT;
     tdUnRefSmaStat(pSma, pStat);
     return TSDB_CODE_FAILED;
   }
@@ -515,7 +515,7 @@ int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg) {
         // TODO:tsdbEndTSmaCommit();
 
         // Step 3: reset the SSmaStat
-        tdResetExpiredWindow(pSma, pStat, indexUid, skey);
+        tdResetExpireWindow(pSma, pStat, indexUid, skey);
       } else {
         smaWarn("vgId:%d, invalid data skey:%" PRIi64 ", tlen %" PRIi32 " during insert tSma data for %" PRIi64,
                 SMA_VID(pSma), skey, tlen, indexUid);
@@ -572,7 +572,7 @@ static int32_t tdInsertTSmaBlocks(STSmaWriteH *pSmaH, void *smaKey, int32_t keyL
 }
 
 /**
- * @brief When sma data received from stream computing, make the relative expired window valid.
+ * @brief When sma data received from stream computing, make the relative expire window valid.
  *
  * @param pSma
  * @param pStat
@@ -580,7 +580,7 @@ static int32_t tdInsertTSmaBlocks(STSmaWriteH *pSmaH, void *smaKey, int32_t keyL
  * @param skey
  * @return int32_t
  */
-static int32_t tdResetExpiredWindow(SSma *pSma, SSmaStat *pStat, int64_t indexUid, TSKEY skey) {
+static int32_t tdResetExpireWindow(SSma *pSma, SSmaStat *pStat, int64_t indexUid, TSKEY skey) {
   SSmaStatItem *pItem = NULL;
 
   tdRefSmaStat(pSma, pStat);
@@ -591,14 +591,14 @@ static int32_t tdResetExpiredWindow(SSma *pSma, SSmaStat *pStat, int64_t indexUi
   if ((pItem) && ((pItem = *(SSmaStatItem **)pItem))) {
     // pItem resides in hash buffer all the time unless drop sma index
     // TODO: multithread protect
-    if (taosHashRemove(pItem->expiredWindows, &skey, sizeof(TSKEY)) != 0) {
+    if (taosHashRemove(pItem->expireWindows, &skey, sizeof(TSKEY)) != 0) {
       // error handling
       tdUnRefSmaStat(pSma, pStat);
-      smaWarn("vgId:%d, remove skey %" PRIi64 " from expired window for sma index %" PRIi64 " fail", SMA_VID(pSma), skey,
+      smaWarn("vgId:%d, remove skey %" PRIi64 " from expire window for sma index %" PRIi64 " fail", SMA_VID(pSma), skey,
               indexUid);
       return TSDB_CODE_FAILED;
     }
-    smaDebug("vgId:%d, remove skey %" PRIi64 " from expired window for sma index %" PRIi64 " succeed", SMA_VID(pSma),
+    smaDebug("vgId:%d, remove skey %" PRIi64 " from expire window for sma index %" PRIi64 " succeed", SMA_VID(pSma),
              skey, indexUid);
     // TODO: use a standalone interface to received state upate notification from stream computing module.
     /**
@@ -612,7 +612,7 @@ static int32_t tdResetExpiredWindow(SSma *pSma, SSmaStat *pStat, int64_t indexUi
   } else {
     // error handling
     tdUnRefSmaStat(pSma, pStat);
-    smaWarn("vgId:%d, expired window %" PRIi64 " not exists for sma index %" PRIi64, SMA_VID(pSma), skey, indexUid);
+    smaWarn("vgId:%d, expire window %" PRIi64 " not exists for sma index %" PRIi64, SMA_VID(pSma), skey, indexUid);
     return TSDB_CODE_FAILED;
   }
 
@@ -711,7 +711,7 @@ int32_t tdGetTSmaDataImpl(SSma *pSma, char *pData, int64_t indexUid, TSKEY query
   int32_t nQueryWin = taosArrayGetSize(pQuerySKey);
   for (int32_t n = 0; n < nQueryWin; ++n) {
     TSKEY skey = taosArrayGet(pQuerySKey, n);
-    if (taosHashGet(pItem->expiredWindows, &skey, sizeof(TSKEY))) {
+    if (taosHashGet(pItem->expireWindows, &skey, sizeof(TSKEY))) {
       // TODO: mark this window as expired.
     }
   }
@@ -721,18 +721,18 @@ int32_t tdGetTSmaDataImpl(SSma *pSma, char *pData, int64_t indexUid, TSKEY query
   int8_t smaStat = 0;
   if (!tdSmaStatIsOK(pItem, &smaStat)) {  // TODO: multiple check for large scale sma query
     tdUnRefSmaStat(pSma, pStat);
-    terrno = TSDB_CODE_TDB_INVALID_SMA_STAT;
+    terrno = TSDB_CODE_TSMA_INVALID_STAT;
     smaWarn("vgId:%d, getTSmaDataImpl failed from index %" PRIi64 " since %s %" PRIi8, SMA_VID(pSma), indexUid,
             tstrerror(terrno), smaStat);
     return TSDB_CODE_FAILED;
   }
 
-  if (taosHashGet(pItem->expiredWindows, &querySKey, sizeof(TSKEY))) {
+  if (taosHashGet(pItem->expireWindows, &querySKey, sizeof(TSKEY))) {
     // TODO: mark this window as expired.
-    smaDebug("vgId:%d, skey %" PRIi64 " of window exists in expired window for index %" PRIi64, SMA_VID(pSma), querySKey,
+    smaDebug("vgId:%d, skey %" PRIi64 " of window exists in expire window for index %" PRIi64, SMA_VID(pSma), querySKey,
              indexUid);
   } else {
-    smaDebug("vgId:%d, skey %" PRIi64 " of window not in expired window for index %" PRIi64, SMA_VID(pSma), querySKey,
+    smaDebug("vgId:%d, skey %" PRIi64 " of window not in expire window for index %" PRIi64, SMA_VID(pSma), querySKey,
              indexUid);
   }
 
@@ -747,7 +747,7 @@ int32_t tdGetTSmaDataImpl(SSma *pSma, char *pData, int64_t indexUid, TSKEY query
   tdUnRefSmaStat(pSma, pStat);
 
   tdInitTSmaFile(&tReadH, indexUid, querySKey);
-  smaDebug("### vgId:%d read from DBF %s  days:%d, interval:%" PRIi64 ", storageLevel:%" PRIi8 " queryKey:%" PRIi64,
+  smaDebug("### vgId:%d, read from DBF %s  days:%d, interval:%" PRIi64 ", storageLevel:%" PRIi8 " queryKey:%" PRIi64,
            SMA_VID(pSma), tReadH.dFile.path, tReadH.days, tReadH.interval, tReadH.storageLevel, querySKey);
   if (smaOpenDBF(pEnv->dbEnv, &tReadH.dFile) != 0) {
     smaWarn("vgId:%d, open DBF %s failed since %s", SMA_VID(pSma), tReadH.dFile.path, tstrerror(terrno));
@@ -860,9 +860,9 @@ static SSmaStatItem *tdNewSmaStatItem(int8_t state) {
   }
 
   pItem->state = state;
-  pItem->expiredWindows = taosHashInit(SMA_STATE_ITEM_HASH_SLOT, taosGetDefaultHashFunction(TSDB_DATA_TYPE_TIMESTAMP),
-                                       true, HASH_ENTRY_LOCK);
-  if (!pItem->expiredWindows) {
+  pItem->expireWindows = taosHashInit(SMA_STATE_ITEM_HASH_SLOT, taosGetDefaultHashFunction(TSDB_DATA_TYPE_TIMESTAMP),
+                                      true, HASH_ENTRY_LOCK);
+  if (!pItem->expireWindows) {
     taosMemoryFreeClear(pItem);
     return NULL;
   }
@@ -870,8 +870,7 @@ static SSmaStatItem *tdNewSmaStatItem(int8_t state) {
   return pItem;
 }
 
-static int32_t tdSetExpiredWindow(SSma *pSma, SHashObj *pItemsHash, int64_t indexUid, int64_t winSKey,
-                                  int64_t version) {
+static int32_t tdSetExpireWindow(SSma *pSma, SHashObj *pItemsHash, int64_t indexUid, int64_t winSKey, int64_t version) {
   SSmaStatItem *pItem = taosHashGet(pItemsHash, &indexUid, sizeof(indexUid));
   if (!pItem) {
     // TODO: use TSDB_SMA_STAT_EXPIRED and update by stream computing later
@@ -885,8 +884,8 @@ static int32_t tdSetExpiredWindow(SSma *pSma, SHashObj *pItemsHash, int64_t inde
     // cache smaMeta
     STSma *pTSma = metaGetSmaInfoByIndex(SMA_META(pSma), indexUid);
     if (!pTSma) {
-      terrno = TSDB_CODE_TDB_NO_SMA_INDEX_IN_META;
-      taosHashCleanup(pItem->expiredWindows);
+      terrno = TSDB_CODET_TSMA_NO_INDEX_IN_META;
+      taosHashCleanup(pItem->expireWindows);
       taosMemoryFree(pItem);
       smaWarn("vgId:%d, set expire window, get tsma meta failed for smaIndex %" PRIi64 " since %s", SMA_VID(pSma),
               indexUid, tstrerror(terrno));
@@ -896,7 +895,7 @@ static int32_t tdSetExpiredWindow(SSma *pSma, SHashObj *pItemsHash, int64_t inde
 
     if (taosHashPut(pItemsHash, &indexUid, sizeof(indexUid), &pItem, sizeof(pItem)) != 0) {
       // If error occurs during put smaStatItem, free the resources of pItem
-      taosHashCleanup(pItem->expiredWindows);
+      taosHashCleanup(pItem->expireWindows);
       taosMemoryFree(pItem);
       return TSDB_CODE_FAILED;
     }
@@ -905,14 +904,14 @@ static int32_t tdSetExpiredWindow(SSma *pSma, SHashObj *pItemsHash, int64_t inde
     return TSDB_CODE_FAILED;
   }
 
-  if (taosHashPut(pItem->expiredWindows, &winSKey, sizeof(TSKEY), &version, sizeof(version)) != 0) {
-    // If error occurs during taosHashPut expired windows, remove the smaIndex from pSma->pSmaStat, thus TSDB would
+  if (taosHashPut(pItem->expireWindows, &winSKey, sizeof(TSKEY), &version, sizeof(version)) != 0) {
+    // If error occurs during taosHashPut expire windows, remove the smaIndex from pSma->pSmaStat, thus TSDB would
     // tell query module to query raw TS data.
     // N.B.
     //  1) It is assumed to be extemely little probability event of fail to taosHashPut.
     //  2) This would solve the inconsistency to some extent, but not completely, unless we record all expired
     // windows failed to put into hash table.
-    taosHashCleanup(pItem->expiredWindows);
+    taosHashCleanup(pItem->expireWindows);
     taosMemoryFreeClear(pItem->pTSma);
     taosHashRemove(pItemsHash, &indexUid, sizeof(indexUid));
     smaWarn("vgId:%d, smaIndex %" PRIi64 ", put skey %" PRIi64 " to expire window fail", SMA_VID(pSma), indexUid,
@@ -926,13 +925,13 @@ static int32_t tdSetExpiredWindow(SSma *pSma, SHashObj *pItemsHash, int64_t inde
 }
 
 /**
- * @brief Update expired window according to msg from stream computing module.
+ * @brief Update expire window according to msg from stream computing module.
  *
  * @param pSma
  * @param msg SSubmitReq
  * @return int32_t
  */
-int32_t tdUpdateExpiredWindowImpl(SSma *pSma, const SSubmitReq *pMsg, int64_t version) {
+int32_t tdUpdateExpireWindowImpl(SSma *pSma, const SSubmitReq *pMsg, int64_t version) {
   // no time-range-sma, just return success
   if (atomic_load_16(&SMA_TSMA_NUM(pSma)) <= 0) {
     smaTrace("vgId:%d, not update expire window since no tSma", SMA_VID(pSma));
@@ -945,7 +944,7 @@ int32_t tdUpdateExpiredWindowImpl(SSma *pSma, const SSubmitReq *pMsg, int64_t ve
     return TSDB_CODE_FAILED;
   }
 
-  if (tdCheckAndInitSmaEnv(pSma, TSDB_SMA_TYPE_TIME_RANGE) < 0) {
+  if (tdCheckAndInitSmaEnv(pSma, TSDB_SMA_TYPE_TIME_RANGE, false) < 0) {
     smaError("vgId:%d, init sma env failed since %s", SMA_VID(pSma), terrstr(terrno));
     terrno = TSDB_CODE_TDB_INIT_FAILED;
     return TSDB_CODE_FAILED;
@@ -1019,7 +1018,7 @@ int32_t tdUpdateExpiredWindowImpl(SSma *pSma, const SSubmitReq *pMsg, int64_t ve
 
       if (lastWinSKey != winSKey) {
         lastWinSKey = winSKey;
-        if (tdSetExpiredWindow(pSma, pItemsHash, pTSma->indexUid, winSKey, version) < 0) {
+        if (tdSetExpireWindow(pSma, pItemsHash, pTSma->indexUid, winSKey, version) < 0) {
           pSW = tFreeTSmaWrapper(pSW, false);
           tdUnRefSmaStat(pSma, pStat);
           return TSDB_CODE_FAILED;

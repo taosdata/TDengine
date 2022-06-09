@@ -151,6 +151,7 @@ int32_t smaOpen(SVnode* pVnode);
 int32_t smaClose(SSma* pSma);
 
 int32_t tdUpdateExpireWindow(SSma* pSma, const SSubmitReq* pMsg, int64_t version);
+int32_t tdClearExpireWindow(SSma* pSma, const SVClrTsmaExpWndsReq* pMsg);
 int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
 int32_t tdProcessTSmaInsert(SSma* pSma, int64_t indexUid, const char* msg);
 
@@ -227,7 +228,7 @@ struct SVnode {
   SQHandle*  pQuery;
 };
 
-#define TD_VID(PVNODE) (PVNODE)->config.vgId
+#define TD_VID(PVNODE) ((PVNODE)->config.vgId)
 
 #define VND_TSDB(vnd)       ((vnd)->pTsdb)
 #define VND_RSMA0(vnd)      ((vnd)->pTsdb)

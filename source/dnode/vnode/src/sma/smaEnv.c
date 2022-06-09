@@ -242,7 +242,7 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType) {
   }
 
   /**
-   *  1. Lazy mode utilized when init SSmaStat to update expired window(or hungry mode when tdNew).
+   *  1. Lazy mode utilized when init SSmaStat to update expire window(or hungry mode when tdNew).
    *  2. Currently, there is mutex lock when init SSmaEnv, thus no need add lock on SSmaStat, and please add lock if
    * tdInitSmaStat invoked in other multithread environment later.
    */
@@ -280,7 +280,7 @@ void *tdFreeSmaStatItem(SSmaStatItem *pSmaStatItem) {
   if (pSmaStatItem) {
     tDestroyTSma(pSmaStatItem->pTSma);
     taosMemoryFreeClear(pSmaStatItem->pTSma);
-    taosHashCleanup(pSmaStatItem->expiredWindows);
+    taosHashCleanup(pSmaStatItem->expireWindows);
     taosMemoryFreeClear(pSmaStatItem);
   }
   return NULL;
@@ -341,7 +341,7 @@ int32_t tdUnLockSma(SSma *pSma) {
   return 0;
 }
 
-int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType) {
+int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType, bool onlyCheck) {
   SSmaEnv *pEnv = NULL;
 
   // return if already init

@@ -38,8 +38,15 @@ int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg) {
 
 int32_t tdUpdateExpireWindow(SSma* pSma, const SSubmitReq* pMsg, int64_t version) {
   int32_t code = TSDB_CODE_SUCCESS;
-  if ((code = tdUpdateExpiredWindowImpl(pSma, pMsg, version)) < 0) {
-    smaWarn("vgId:%d, update expired sma window failed since %s", SMA_VID(pSma), tstrerror(terrno));
+  if ((code = tdUpdateExpireWindowImpl(pSma, pMsg, version)) < 0) {
+    smaWarn("vgId:%d, update expire window failed since %s", SMA_VID(pSma), tstrerror(terrno));
+  }
+  return code;
+}
+int32_t tdClearExpireWindow(SSma* pSma, const SVClrTsmaExpWndsReq* pMsg) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if ((code = tdClearExpireWindowImpl(pSma, pMsg)) < 0) {
+    smaWarn("vgId:%d, update expire window failed since %s", SMA_VID(pSma), tstrerror(terrno));
   }
   return code;
 }

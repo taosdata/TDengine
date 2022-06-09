@@ -4049,7 +4049,7 @@ int32_t tDecodeSVClrTsmaExpWndsReq(SDecoder *pCoder, SVClrTsmaExpWndsReq *pReq) 
 int32_t tEncodeSVClrTsmaExpWndsRsp(SEncoder *pCoder, const SVClrTsmaExpWndsRsp *pReq) {
   if (tStartEncode(pCoder) < 0) return -1;
   if (tEncodeI64(pCoder, pReq->indexUid) < 0) return -1;
-  if (tEncodeI32(pCoder, pReq->code) < 0) return -1;
+  if (tEncodeI32v(pCoder, pReq->code) < 0) return -1;
   tEndEncode(pCoder);
   return 0;
 }
@@ -4057,7 +4057,7 @@ int32_t tEncodeSVClrTsmaExpWndsRsp(SEncoder *pCoder, const SVClrTsmaExpWndsRsp *
 int32_t tDecodeSVClrTsmaExpWndsRsp(SDecoder *pCoder, SVClrTsmaExpWndsRsp *pReq) {
   if (tStartDecode(pCoder) < 0) return -1;
   if (tDecodeI64(pCoder, &pReq->indexUid) < 0) return -1;
-  if (tDecodeI32(pCoder, &pReq->code) < 0) return -1;
+  if (tDecodeI32v(pCoder, &pReq->code) < 0) return -1;
   tEndDecode(pCoder);
   return 0;
 }
