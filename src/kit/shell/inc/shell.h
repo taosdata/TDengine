@@ -85,6 +85,7 @@ void get_history_path(char* history);
 void shellCheck(TAOS* con, SShellArguments* args);
 void cleanup_handler(void* arg);
 int convertHostToServAddr();
+char *last_strstr(const char *haystack, const char *needle);
 void encode_base_64(char* base64_buf, char* user, char* password);
 void exitShell();
 int shellDumpResult(TAOS_RES* con, char* fname, int* error_no, bool printMode);
