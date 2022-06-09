@@ -1389,6 +1389,18 @@ void setSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, const STuple
   }
 }
 
+void releaseSource(STuplePos* pPos) {
+  if (pPos->pageId == -1) {
+    return ;
+  }
+  // Todo(liuyao) relase row
+}
+
+void replaceTupleData(STuplePos* pDestPos, STuplePos* pSourcePos) {
+  releaseSource(pDestPos);
+  *pDestPos = *pSourcePos;
+}
+
 int32_t minMaxCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx, int32_t isMinFunc) {
   SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
   SMinmaxResInfo*      pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
@@ -1400,10 +1412,12 @@ int32_t minMaxCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx, int3
     if (pSBuf->assign && 
         ( (((*(double*)&pDBuf->v) < (*(double*)&pSBuf->v)) ^ isMinFunc) || !pDBuf->assign ) ) {
       *(double*) &pDBuf->v = *(double*) &pSBuf->v;
+      replaceTupleData(&pDBuf->tuplePos, &pSBuf->tuplePos);
     }
   } else {
     if ( pSBuf->assign && ( ((pDBuf->v < pSBuf->v) ^ isMinFunc) || !pDBuf->assign ) ) {
       pDBuf->v = pSBuf->v;
+      replaceTupleData(&pDBuf->tuplePos, &pSBuf->tuplePos);
     }
   }
   pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
@@ -2856,7 +2870,6 @@ void copyTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pS
 int32_t topBotFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(pCtx);
   STopBotRes*          pRes = GET_ROWCELL_INTERBUF(pEntryInfo);
-  pEntryInfo->complete = true;
 
   int32_t type = pCtx->input.pData[0]->info.type;
   int32_t slotId = pCtx->pExpr->base.resSchema.slotId;
@@ -2879,6 +2892,67 @@ int32_t topBotFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   }
 
   return pEntryInfo->numOfRes;
+}
+
+void addResult(SqlFunctionCtx* pCtx, STopBotResItem* pSourceItem, int16_t type,
+    bool isTopQuery) {
+  SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(pCtx);
+  STopBotRes* pRes = getTopBotOutputInfo(pCtx);
+  int32_t     maxSize = pCtx->param[1].param.i;
+  STopBotResItem* pItems = pRes->pItems;
+  assert(pItems != NULL);
+
+  // not full yet
+  if (pEntryInfo->numOfRes < maxSize) {
+    STopBotResItem* pItem = &pItems[pEntryInfo->numOfRes];
+    pItem->v = pSourceItem->v;
+    pItem->uid = pSourceItem->uid;
+    pItem->tuplePos.pageId = -1;
+    replaceTupleData(&pItem->tuplePos, &pSourceItem->tuplePos);
+    pEntryInfo->numOfRes++;
+    taosheapsort((void*)pItems, sizeof(STopBotResItem), pEntryInfo->numOfRes, (const void*)&type, topBotResComparFn,
+                 !isTopQuery);
+  } else {  // replace the minimum value in the result
+    if ((isTopQuery && (
+        (IS_SIGNED_NUMERIC_TYPE(type) && pSourceItem->v.i > pItems[0].v.i) ||
+        (IS_UNSIGNED_NUMERIC_TYPE(type) && pSourceItem->v.u > pItems[0].v.u) ||
+        (IS_FLOAT_TYPE(type) && pSourceItem->v.d > pItems[0].v.d)))
+        || (!isTopQuery && (
+        (IS_SIGNED_NUMERIC_TYPE(type) && pSourceItem->v.i < pItems[0].v.i) ||
+        (IS_UNSIGNED_NUMERIC_TYPE(type) && pSourceItem->v.u < pItems[0].v.u) ||
+        (IS_FLOAT_TYPE(type) && pSourceItem->v.d < pItems[0].v.d))
+        )) {
+      // replace the old data and the coresponding tuple data
+      STopBotResItem* pItem = &pItems[0];
+      pItem->v = pSourceItem->v;
+      pItem->uid = pSourceItem->uid;
+
+      // save the data of this tuple by over writing the old data
+      replaceTupleData(&pItem->tuplePos, &pSourceItem->tuplePos);
+      taosheapadjust((void*)pItems, sizeof(STopBotResItem), 0, pEntryInfo->numOfRes - 1, (const void*)&type,
+                     topBotResComparFn, NULL, !isTopQuery);
+    }
+  }
+}
+
+int32_t topCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
+  int32_t type = pDestCtx->input.pData[0]->info.type;
+  SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
+  STopBotRes*          pSBuf = getTopBotOutputInfo(pSourceCtx);
+  for (int32_t i = 0; i < pSResInfo->numOfRes; i++) {
+    addResult(pDestCtx, pSBuf->pItems + i, type, true);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t bottomCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
+  int32_t type = pDestCtx->input.pData[0]->info.type;
+  SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
+  STopBotRes*          pSBuf = getTopBotOutputInfo(pSourceCtx);
+  for (int32_t i = 0; i < pSResInfo->numOfRes; i++) {
+    addResult(pDestCtx, pSBuf->pItems + i, type, false);
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 bool getSpreadFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {

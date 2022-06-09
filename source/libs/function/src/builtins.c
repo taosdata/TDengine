@@ -1364,6 +1364,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = functionSetup,
     .processFunc  = topFunction,
     .finalizeFunc = topBotFinalize,
+    .combineFunc  = topCombine,
   },
   {
     .name = "bottom",
@@ -1373,7 +1374,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getTopBotFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = bottomFunction,
-    .finalizeFunc = topBotFinalize
+    .finalizeFunc = topBotFinalize,
+    .combineFunc  = bottomCombine,
   },
   {
     .name = "spread",
