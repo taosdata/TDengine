@@ -34,6 +34,7 @@ typedef struct SVnodeMgmt {
   SQWorkerPool   fetchPool;
   SWWorkerPool   syncPool;
   SWWorkerPool   writePool;
+  SWWorkerPool   applyPool;
   SWWorkerPool   mergePool;
   SSingleWorker  mgmtWorker;
   SSingleWorker  monitorWorker;
