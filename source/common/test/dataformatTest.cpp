@@ -402,7 +402,7 @@ static void checkTSRow(const char **data, STSRow2 *row, STSchema *pTSchema) {
 
 TEST(testCase, AllNormTest) {
   int16_t       nCols = 14;
-  STSRowBuilder rb = tsRowBuilderInit();
+  STSRowBuilder rb = {0};
   STSRow2      *row = nullptr;
   SArray       *pArray = taosArrayInit(nCols, sizeof(SColVal));
   EXPECT_NE(pArray, nullptr);
