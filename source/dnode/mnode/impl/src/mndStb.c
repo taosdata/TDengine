@@ -1108,7 +1108,7 @@ static int32_t mndDropSuperTableColumn(SMnode *pMnode, const SStbObj *pOld, SStb
     return -1;
   }
 
-  col_id_t colId = pOld->pTags[col].colId;
+  col_id_t colId = pOld->pColumns[col].colId;
   if (mndCheckColAndTagModifiable(pMnode, pOld->uid, colId) != 0) {
     return -1;
   }
@@ -1142,7 +1142,7 @@ static int32_t mndAlterStbColumnBytes(SMnode *pMnode, const SStbObj *pOld, SStbO
     return -1;
   }
 
-  col_id_t colId = pOld->pTags[col].colId;
+  col_id_t colId = pOld->pColumns[col].colId;
   if (mndCheckColAndTagModifiable(pMnode, pOld->uid, colId) != 0) {
     return -1;
   }

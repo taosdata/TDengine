@@ -1006,7 +1006,7 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
     }
 
     SSchema* pTagSchema = &pSchema[pCxt->tags.boundColumns[i]];
-    char*    tmpTokenBuf = taosMemoryCalloc(1, sToken.n);  // this can be optimize with parse column
+    char*    tmpTokenBuf = taosMemoryCalloc(1, sToken.n);  // todo this can be optimize with parse column
     code = checkAndTrimValue(&sToken, tmpTokenBuf, &pCxt->msg);
     if (code != TSDB_CODE_SUCCESS) {
       taosMemoryFree(tmpTokenBuf);
@@ -1018,7 +1018,11 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
         taosMemoryFree(tmpTokenBuf);
         goto end;
       }
-      code = parseJsontoTagData(sToken.z, pTagVals, &pTag, &pCxt->msg);
+      if (isNullStr(&sToken)) {
+        code = tTagNew(pTagVals, 1, true, &pTag);
+      } else {
+        code = parseJsontoTagData(sToken.z, pTagVals, &pTag, &pCxt->msg);
+      }
       taosMemoryFree(tmpTokenBuf);
       if (code != TSDB_CODE_SUCCESS) {
         goto end;
@@ -1526,10 +1530,13 @@ typedef struct SInsertParseSyntaxCxt {
 } SInsertParseSyntaxCxt;
 
 static int32_t skipParentheses(SInsertParseSyntaxCxt* pCxt) {
-  SToken sToken;
+  SToken  sToken;
+  int32_t expectRightParenthesis = 1;
   while (1) {
     NEXT_TOKEN(pCxt->pSql, sToken);
-    if (TK_NK_RP == sToken.type) {
+    if (TK_NK_LP == sToken.type) {
+      ++expectRightParenthesis;
+    } else if (TK_NK_RP == sToken.type && 0 == --expectRightParenthesis) {
       break;
     }
     if (0 == sToken.n) {
@@ -2034,6 +2041,10 @@ int32_t qBuildStmtTagFields(void* pBlock, void* boundTags, int32_t* fieldNum, TA
   SParsedDataColInfo* tags = (SParsedDataColInfo*)boundTags;
   if (NULL == tags) {
     return TSDB_CODE_QRY_APP_ERROR;
+  }
+
+  if (pDataBlock->pTableMeta->tableType != TSDB_SUPER_TABLE && pDataBlock->pTableMeta->tableType != TSDB_CHILD_TABLE) {
+    return TSDB_CODE_TSC_STMT_API_ERROR;
   }
 
   SSchema* pSchema = getTableTagSchema(pDataBlock->pTableMeta);

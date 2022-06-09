@@ -35,15 +35,15 @@ extern "C" {
 #endif
 
 // clang-format off
-#define indexFatal(...) do { if (idxDebugFlag & DEBUG_FATAL) {  taosPrintLog("INDEX FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }} while (0)
-#define indexError(...) do { if (idxDebugFlag & DEBUG_ERROR) {  taosPrintLog("INDEX ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }} while (0)
-#define indexWarn(...)  do { if (idxDebugFlag & DEBUG_WARN)  {  taosPrintLog("INDEX WARN ", DEBUG_WARN, 255, __VA_ARGS__); }} while (0)
-#define indexInfo(...)  do { if (idxDebugFlag & DEBUG_INFO)  { taosPrintLog("INDEX ", DEBUG_INFO, 255, __VA_ARGS__); } } while (0)
-#define indexDebug(...) do { if (idxDebugFlag & DEBUG_DEBUG) { taosPrintLog("INDEX ", DEBUG_DEBUG, sDebugFlag, __VA_ARGS__);} } while (0)
-#define indexTrace(...) do { if (idxDebugFlag & DEBUG_TRACE) { taosPrintLog("INDEX ", DEBUG_TRACE, sDebugFlag, __VA_ARGS__);} } while (0)
+#define indexFatal(...) do { if (idxDebugFlag & DEBUG_FATAL) {  taosPrintLog("IDX FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }} while (0)
+#define indexError(...) do { if (idxDebugFlag & DEBUG_ERROR) {  taosPrintLog("IDX ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }} while (0)
+#define indexWarn(...)  do { if (idxDebugFlag & DEBUG_WARN)  {  taosPrintLog("IDX WARN ", DEBUG_WARN, 255, __VA_ARGS__); }} while (0)
+#define indexInfo(...)  do { if (idxDebugFlag & DEBUG_INFO)  { taosPrintLog("IDX ", DEBUG_INFO, 255, __VA_ARGS__); } } while (0)
+#define indexDebug(...) do { if (idxDebugFlag & DEBUG_DEBUG) { taosPrintLog("IDX ", DEBUG_DEBUG, idxDebugFlag, __VA_ARGS__);} } while (0)
+#define indexTrace(...) do { if (idxDebugFlag & DEBUG_TRACE) { taosPrintLog("IDX", DEBUG_TRACE, idxDebugFlag, __VA_ARGS__);} } while (0)
 // clang-format on
 
-typedef enum { LT, LE, GT, GE } RangeType;
+typedef enum { LT, LE, GT, GE, CONTAINS, EQ } RangeType;
 typedef enum { kTypeValue, kTypeDeletion } STermValueType;
 
 typedef struct SIndexStat {
@@ -131,7 +131,7 @@ typedef struct TFileCacheKey {
   char*    colName;
   int32_t  nColName;
 } ICacheKey;
-int indexFlushCacheToTFile(SIndex* sIdx, void*, bool quit);
+int idxFlushCacheToTFile(SIndex* sIdx, void*, bool quit);
 
 int64_t indexAddRef(void* p);
 int32_t indexRemoveRef(int64_t ref);

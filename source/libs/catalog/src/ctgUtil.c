@@ -19,14 +19,41 @@
 #include "catalogInt.h"
 #include "systable.h"
 
+char *ctgTaskTypeStr(CTG_TASK_TYPE type) {
+  switch (type) {
+    case CTG_TASK_GET_QNODE:
+      return "[get qnode list]";
+    case CTG_TASK_GET_DB_VGROUP:
+      return "[get db vgroup]";
+    case CTG_TASK_GET_DB_CFG:
+      return "[get db cfg]";
+    case CTG_TASK_GET_DB_INFO:
+      return "[get db info]";
+    case CTG_TASK_GET_TB_META:
+      return "[get table meta]";
+    case CTG_TASK_GET_TB_HASH:
+      return "[get table hash]";
+    case CTG_TASK_GET_INDEX:
+      return "[get index]";
+    case CTG_TASK_GET_UDF:
+      return "[get udf]";
+    case CTG_TASK_GET_USER:
+      return "[get user]";
+    default:
+      return "unknown";
+  }
+}
+
 void ctgFreeSMetaData(SMetaData* pData) {
   taosArrayDestroy(pData->pTableMeta);
   pData->pTableMeta = NULL;
-  
+
+/*  
   for (int32_t i = 0; i < taosArrayGetSize(pData->pDbVgroup); ++i) {
     SArray** pArray = taosArrayGet(pData->pDbVgroup, i);
     taosArrayDestroy(*pArray);
   }
+*/
   taosArrayDestroy(pData->pDbVgroup);
   pData->pDbVgroup = NULL;
   
@@ -36,10 +63,12 @@ void ctgFreeSMetaData(SMetaData* pData) {
   taosArrayDestroy(pData->pUdfList);
   pData->pUdfList = NULL;
 
+/*
   for (int32_t i = 0; i < taosArrayGetSize(pData->pDbCfg); ++i) {
     SDbCfgInfo* pInfo = taosArrayGet(pData->pDbCfg, i);
     taosArrayDestroy(pInfo->pRetensions);
   }
+*/  
   taosArrayDestroy(pData->pDbCfg);
   pData->pDbCfg = NULL;
 
@@ -295,8 +324,12 @@ void ctgFreeTask(SCtgTask* pTask) {
       break;
     }
     case CTG_TASK_GET_DB_CFG: {
-      taosMemoryFreeClear(pTask->taskCtx);      
-      taosMemoryFreeClear(pTask->res);
+      taosMemoryFreeClear(pTask->taskCtx);
+      if (pTask->res) {
+        SDbCfgInfo* pInfo = (SDbCfgInfo*)pTask->res;
+        taosArrayDestroy(pInfo->pRetensions);
+        taosMemoryFreeClear(pTask->res);
+      }
       break;
     }
     case CTG_TASK_GET_DB_INFO: {
@@ -476,6 +509,9 @@ int32_t ctgGetVgInfoFromHashValue(SCatalog *pCtg, SDBVgInfo *dbInfo, const SName
   }
 
   *pVgroup = *vgInfo;
+
+  ctgDebug("Got tb %s hash vgroup, vgId %d, epNum %d, current %s port %d", tbFullName, vgInfo->vgId, vgInfo->epSet.numOfEps,
+    vgInfo->epSet.eps[vgInfo->epSet.inUse].fqdn, vgInfo->epSet.eps[vgInfo->epSet.inUse].port);
 
   CTG_RET(code);
 }

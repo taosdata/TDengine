@@ -177,7 +177,7 @@ STscObj *acquireTscObj(int64_t rid) { return (STscObj *)taosAcquireRef(clientCon
 
 int32_t releaseTscObj(int64_t rid) { return taosReleaseRef(clientConnRefPool, rid); }
 
-void *createRequest(STscObj *pObj, void *param, int32_t type) {
+void *createRequest(STscObj *pObj, int32_t type) {
   assert(pObj != NULL);
 
   SRequestObj *pRequest = (SRequestObj *)taosMemoryCalloc(1, sizeof(SRequestObj));
@@ -191,7 +191,7 @@ void *createRequest(STscObj *pObj, void *param, int32_t type) {
   pRequest->requestId = generateRequestId();
   pRequest->metric.start = taosGetTimestampUs();
 
-  pRequest->body.param = param;
+  pRequest->body.resInfo.convertUcs4 = true;  // convert ucs4 by default
 
   pRequest->type = type;
   pRequest->pTscObj = pObj;
@@ -280,7 +280,6 @@ void taos_init_imp(void) {
     return;
   }
 
-  initMsgHandleFp();
   initQueryModuleMsgHandle();
 
   rpcInit();

@@ -2378,7 +2378,7 @@ static int32_t isSchemalessDb(SSmlHandle* info){
  */
 
 TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol, int precision) {
-  SRequestObj* request = (SRequestObj*)createRequest((STscObj *)taos, NULL, TSDB_SQL_INSERT);
+  SRequestObj* request = (SRequestObj*)createRequest((STscObj *)taos, TSDB_SQL_INSERT);
   if(!request){
     uError("SML:taos_schemaless_insert error request is null");
     return NULL;

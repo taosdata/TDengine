@@ -301,13 +301,13 @@ class TDTestCase:
         tdSql.query("alter table %s.%s modify column c4 binary(60)"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s modify tag t4 binary(60)"%(parameterDict['dbName'], parameterDict['stbName']))
 
-        tdSql.query("alter table %s.%s rename column c3 c3new"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.query("alter table %s.%s rename column c4 c4new"%(parameterDict['dbName'], parameterDict['stbName']))
+        # tdSql.query("alter table %s.%s rename column c3 c3new"%(parameterDict['dbName'], parameterDict['stbName']))
+        # tdSql.query("alter table %s.%s rename column c4 c4new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s rename tag t3 t3new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s rename tag t4 t4new"%(parameterDict['dbName'], parameterDict['stbName']))
 
-        tdSql.query("alter table %s.%s drop column c3new"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.query("alter table %s.%s drop column c4new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s drop column c3"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s drop column c4"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s drop tag t3new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s drop tag t4new"%(parameterDict['dbName'], parameterDict['stbName']))
 
@@ -408,6 +408,7 @@ class TDTestCase:
         parameterDict['cfg'] = cfgPath
         
         # tdLog.info("create database, super table, child table, normal table")
+        # self.create_database(tdSql, parameterDict["dbName"])
         ntbName = 'ntb2'
         tdSql.query("create table %s.%s (ts timestamp, c1 int, c2 binary(32), c3 double, c4 binary(32), c5 nchar(10)) tags (t1 int, t2 binary(32), t3  double, t4 binary(32), t5 nchar(10))"%(parameterDict["dbName"],parameterDict["stbName"]))
         tdSql.query("create table %s.%s (ts timestamp, c1 int, c2 binary(32), c3 double, c4 binary(32), c5 nchar(10))"%(parameterDict["dbName"],ntbName))
@@ -687,7 +688,7 @@ class TDTestCase:
         tdLog.info("cfgPath: %s" % cfgPath)
 
         self.tmqCase1(cfgPath, buildPath)
-        # self.tmqCase2(cfgPath, buildPath) 
+        self.tmqCase2(cfgPath, buildPath) 
         # self.tmqCase3(cfgPath, buildPath)
 
     def stop(self):

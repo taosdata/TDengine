@@ -97,12 +97,16 @@ int32_t tdGetTSmaDaysImpl(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_
     goto _err;
   }
   STsdbCfg *pTsdbCfg = &pCfg->tsdbCfg;
-  int64_t   mInterval = convertTimeFromPrecisionToUnit(tsma.interval, pTsdbCfg->precision, TIME_UNIT_MINUTE);
-  int64_t records = pTsdbCfg->days / mInterval;
-
+  int64_t   sInterval = convertTimeFromPrecisionToUnit(tsma.interval, pTsdbCfg->precision, TIME_UNIT_SECOND);
+  if (sInterval <= 0) {
+    *days = pTsdbCfg->days;
+    return 0;
+  }
+  int64_t records = pTsdbCfg->days * 60 / sInterval;
   if (records >= SMA_STORAGE_SPLIT_FACTOR) {
     *days = pTsdbCfg->days;
   } else {
+    int64_t mInterval = convertTimeFromPrecisionToUnit(tsma.interval, pTsdbCfg->precision, TIME_UNIT_MINUTE);
     int64_t daysPerFile = mInterval * SMA_STORAGE_MINUTES_DAY * 2;
 
     if (daysPerFile > SMA_STORAGE_MINUTES_MAX) {
@@ -111,7 +115,7 @@ int32_t tdGetTSmaDaysImpl(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_
       *days = (int32_t)daysPerFile;
     }
 
-    if(*days < pTsdbCfg->days) {
+    if (*days < pTsdbCfg->days) {
       *days = pTsdbCfg->days;
     }
   }

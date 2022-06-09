@@ -92,6 +92,15 @@ static int32_t mndProcessConsumerLostMsg(SRpcMsg *pMsg) {
   SMqConsumerObj     *pConsumer = mndAcquireConsumer(pMnode, pLostMsg->consumerId);
   ASSERT(pConsumer);
 
+
+  mInfo("receive consumer lost msg, consumer id %ld, status %s", pLostMsg->consumerId,
+        mndConsumerStatusName(pConsumer->status));
+
+  if (pConsumer->status != MQ_CONSUMER_STATUS__READY) {
+    mndReleaseConsumer(pMnode, pConsumer);
+    return -1;
+  }
+
   SMqConsumerObj *pConsumerNew = tNewSMqConsumerObj(pConsumer->consumerId, pConsumer->cgroup);
   pConsumerNew->updateType = CONSUMER_UPDATE__LOST;
 

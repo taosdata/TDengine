@@ -77,7 +77,9 @@ typedef struct SDataBlockInfo {
   int16_t     numOfCols;
   int16_t     hasVarCol;
   int32_t     capacity;
-  EStreamType type;
+  // TODO: optimize and remove following
+  int32_t     childId;  // used for stream, do not serialize
+  EStreamType type;     // used for stream, do not serialize
 } SDataBlockInfo;
 
 typedef struct SSDataBlock {
@@ -105,14 +107,15 @@ typedef struct SColumnInfoData {
 } SColumnInfoData;
 
 typedef struct SQueryTableDataCond {
-  //STimeWindow  twindow;
+  // STimeWindow  twindow;
+  uint64_t     suid;
   int32_t      order;  // desc|asc order to iterate the data block
   int32_t      numOfCols;
-  SColumnInfo *colList;
+  SColumnInfo* colList;
   bool         loadExternalRows;  // load external rows or not
   int32_t      type;              // data block load type:
   int32_t      numOfTWindows;
-  STimeWindow *twindows;
+  STimeWindow* twindows;
 } SQueryTableDataCond;
 
 void*   blockDataDestroy(SSDataBlock* pBlock);
@@ -202,17 +205,17 @@ typedef struct SExprInfo {
 } SExprInfo;
 
 typedef struct {
-  const char*   key;
-  int32_t       keyLen;
-  uint8_t       type;
-  union{
+  const char* key;
+  int32_t     keyLen;
+  uint8_t     type;
+  union {
     const char* value;
     int64_t     i;
     uint64_t    u;
     double      d;
     float       f;
   };
-  int32_t       length;
+  int32_t length;
 } SSmlKv;
 
 #define QUERY_ASC_FORWARD_STEP  1
@@ -220,7 +223,7 @@ typedef struct {
 
 #define GET_FORWARD_DIRECTION_FACTOR(ord) (((ord) == TSDB_ORDER_ASC) ? QUERY_ASC_FORWARD_STEP : QUERY_DESC_FORWARD_STEP)
 
-#define SORT_QSORT_T 0x1
+#define SORT_QSORT_T              0x1
 #define SORT_SPILLED_MERGE_SORT_T 0x2
 typedef struct SSortExecInfo {
   int32_t sortMethod;

@@ -13,20 +13,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "executorimpl.h"
 #include "function.h"
 #include "os.h"
 #include "querynodes.h"
-#include "tdatablock.h"
-#include "tmsg.h"
-#include "executorimpl.h"
 #include "tcompare.h"
+#include "tdatablock.h"
 #include "thash.h"
+#include "tmsg.h"
 #include "ttypes.h"
 
-static void setJoinColumnInfo(SColumnInfo* pColumn, const SColumnNode* pColumnNode);
+static void         setJoinColumnInfo(SColumnInfo* pColumn, const SColumnNode* pColumnNode);
 static SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator);
-static void destroyMergeJoinOperator(void* param, int32_t numOfOutput);
-static void extractTimeCondition(SJoinOperatorInfo *Info, SLogicConditionNode* pLogicConditionNode);
+static void         destroyMergeJoinOperator(void* param, int32_t numOfOutput);
+static void         extractTimeCondition(SJoinOperatorInfo* Info, SLogicConditionNode* pLogicConditionNode);
 
 SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream, SExprInfo* pExprInfo,
                                            int32_t numOfCols, SSDataBlock* pResBlock, SNode* pOnCondition,
@@ -39,22 +39,22 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
 
   initResultSizeInfo(pOperator, 4096);
 
-  pInfo->pRes           = pResBlock;
-  pOperator->name       = "MergeJoinOperator";
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_JOIN;
-  pOperator->blocking   = false;
-  pOperator->status     = OP_NOT_OPENED;
-  pOperator->pExpr      = pExprInfo;
+  pInfo->pRes = pResBlock;
+  pOperator->name = "MergeJoinOperator";
+  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN;
+  pOperator->blocking = false;
+  pOperator->status = OP_NOT_OPENED;
+  pOperator->pExpr = pExprInfo;
   pOperator->numOfExprs = numOfCols;
-  pOperator->info       = pInfo;
-  pOperator->pTaskInfo  = pTaskInfo;
+  pOperator->info = pInfo;
+  pOperator->pTaskInfo = pTaskInfo;
 
   if (nodeType(pOnCondition) == QUERY_NODE_OPERATOR) {
     SOperatorNode* pNode = (SOperatorNode*)pOnCondition;
     setJoinColumnInfo(&pInfo->leftCol, (SColumnNode*)pNode->pLeft);
     setJoinColumnInfo(&pInfo->rightCol, (SColumnNode*)pNode->pRight);
   } else if (nodeType(pOnCondition) == QUERY_NODE_LOGIC_CONDITION) {
-    extractTimeCondition(pInfo, (SLogicConditionNode*) pOnCondition);
+    extractTimeCondition(pInfo, (SLogicConditionNode*)pOnCondition);
   }
 
   pOperator->fpSet =
@@ -66,7 +66,7 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
 
   return pOperator;
 
-  _error:
+_error:
   taosMemoryFree(pInfo);
   taosMemoryFree(pOperator);
   pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
@@ -180,10 +180,10 @@ SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
   return (pRes->info.rows > 0) ? pRes : NULL;
 }
 
-static void extractTimeCondition(SJoinOperatorInfo *pInfo, SLogicConditionNode* pLogicConditionNode) {
+static void extractTimeCondition(SJoinOperatorInfo* pInfo, SLogicConditionNode* pLogicConditionNode) {
   int32_t len = LIST_LENGTH(pLogicConditionNode->pParameterList);
 
-  for(int32_t i = 0; i < len; ++i) {
+  for (int32_t i = 0; i < len; ++i) {
     SNode* pNode = nodesListGetNode(pLogicConditionNode->pParameterList, i);
     if (nodeType(pNode) == QUERY_NODE_OPERATOR) {
       SOperatorNode* pn1 = (SOperatorNode*)pNode;
