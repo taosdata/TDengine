@@ -59,6 +59,9 @@ void ctgFreeSMetaData(SMetaData* pData) {
   
   taosArrayDestroy(pData->pTableHash);
   pData->pTableHash = NULL;
+
+  taosArrayDestroy(pData->pTableIndex);
+  pData->pTableIndex = NULL;
   
   taosArrayDestroy(pData->pUdfList);
   pData->pUdfList = NULL;
@@ -248,6 +251,14 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
       taosMemoryFreeClear(pCtx->out);
       break;
     }
+    case TDMT_MND_GET_TABLE_INDEX: {
+      SArray** pOut = (SArray**)pCtx->out;
+      if (pOut) {
+        taosArrayDestroyEx(*pOut, tFreeSTableIndexInfo);
+        taosMemoryFreeClear(pCtx->out);
+      }
+      break;
+    }
     case TDMT_MND_RETRIEVE_FUNC: {
       SFuncInfo* pOut = (SFuncInfo*)pCtx->out;
       taosMemoryFree(pOut->pCode);
@@ -342,6 +353,13 @@ void ctgFreeTask(SCtgTask* pTask) {
       taosMemoryFreeClear(taskCtx->pName);
       taosMemoryFreeClear(pTask->taskCtx);      
       taosMemoryFreeClear(pTask->res);
+      break;
+    }
+    case CTG_TASK_GET_TB_INDEX: {
+      SCtgTbIndexCtx* taskCtx = (SCtgTbIndexCtx*)pTask->taskCtx;
+      taosMemoryFreeClear(taskCtx->pName);
+      taosMemoryFreeClear(pTask->taskCtx);
+      taosArrayDestroyEx(pTask->res, tFreeSTableIndexInfo);
       break;
     }
     case CTG_TASK_GET_INDEX: {

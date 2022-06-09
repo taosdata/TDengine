@@ -52,61 +52,61 @@ STSchema *genSTSchema(int16_t nCols) {
 
     switch (i) {
       case 0: {
-        pSchema[0].type = TSDB_DATA_TYPE_TIMESTAMP;
-        pSchema[0].bytes = TYPE_BYTES[pSchema[0].type];
+        pSchema[i].type = TSDB_DATA_TYPE_TIMESTAMP;
+        pSchema[i].bytes = TYPE_BYTES[pSchema[i].type];
       } break;
       case 1: {
-        pSchema[1].type = TSDB_DATA_TYPE_INT;
-        pSchema[1].bytes = TYPE_BYTES[pSchema[1].type];
+        pSchema[i].type = TSDB_DATA_TYPE_INT;
+        pSchema[i].bytes = TYPE_BYTES[pSchema[i].type];
         ;
       } break;
       case 2: {
-        pSchema[2].type = TSDB_DATA_TYPE_BIGINT;
-        pSchema[2].bytes = TYPE_BYTES[pSchema[2].type];
+        pSchema[i].type = TSDB_DATA_TYPE_BIGINT;
+        pSchema[i].bytes = TYPE_BYTES[pSchema[i].type];
       } break;
       case 3: {
-        pSchema[3].type = TSDB_DATA_TYPE_FLOAT;
-        pSchema[3].bytes = TYPE_BYTES[pSchema[3].type];
+        pSchema[i].type = TSDB_DATA_TYPE_FLOAT;
+        pSchema[i].bytes = TYPE_BYTES[pSchema[i].type];
       } break;
       case 4: {
-        pSchema[4].type = TSDB_DATA_TYPE_DOUBLE;
-        pSchema[4].bytes = TYPE_BYTES[pSchema[4].type];
+        pSchema[i].type = TSDB_DATA_TYPE_DOUBLE;
+        pSchema[i].bytes = TYPE_BYTES[pSchema[i].type];
       } break;
       case 5: {
-        pSchema[5].type = TSDB_DATA_TYPE_BINARY;
-        pSchema[5].bytes = 12;
+        pSchema[i].type = TSDB_DATA_TYPE_BINARY;
+        pSchema[i].bytes = 12;
       } break;
       case 6: {
-        pSchema[6].type = TSDB_DATA_TYPE_NCHAR;
-        pSchema[6].bytes = 42;
+        pSchema[i].type = TSDB_DATA_TYPE_NCHAR;
+        pSchema[i].bytes = 42;
       } break;
       case 7: {
-        pSchema[7].type = TSDB_DATA_TYPE_TINYINT;
-        pSchema[7].bytes = TYPE_BYTES[pSchema[7].type];
+        pSchema[i].type = TSDB_DATA_TYPE_TINYINT;
+        pSchema[i].bytes = TYPE_BYTES[pSchema[i].type];
       } break;
       case 8: {
-        pSchema[8].type = TSDB_DATA_TYPE_SMALLINT;
-        pSchema[8].bytes = TYPE_BYTES[pSchema[8].type];
+        pSchema[i].type = TSDB_DATA_TYPE_SMALLINT;
+        pSchema[i].bytes = TYPE_BYTES[pSchema[i].type];
       } break;
       case 9: {
-        pSchema[9].type = TSDB_DATA_TYPE_BOOL;
-        pSchema[9].bytes = TYPE_BYTES[pSchema[9].type];
+        pSchema[i].type = TSDB_DATA_TYPE_BOOL;
+        pSchema[i].bytes = TYPE_BYTES[pSchema[i].type];
       } break;
       case 10: {
-        pSchema[10].type = TSDB_DATA_TYPE_UTINYINT;
-        pSchema[10].bytes = TYPE_BYTES[pSchema[10].type];
+        pSchema[i].type = TSDB_DATA_TYPE_UTINYINT;
+        pSchema[i].bytes = TYPE_BYTES[pSchema[i].type];
       } break;
       case 11: {
-        pSchema[11].type = TSDB_DATA_TYPE_USMALLINT;
-        pSchema[11].bytes = TYPE_BYTES[pSchema[11].type];
+        pSchema[i].type = TSDB_DATA_TYPE_USMALLINT;
+        pSchema[i].bytes = TYPE_BYTES[pSchema[i].type];
       } break;
       case 12: {
-        pSchema[12].type = TSDB_DATA_TYPE_UINT;
-        pSchema[12].bytes = TYPE_BYTES[pSchema[12].type];
+        pSchema[i].type = TSDB_DATA_TYPE_UINT;
+        pSchema[i].bytes = TYPE_BYTES[pSchema[i].type];
       } break;
       case 13: {
-        pSchema[13].type = TSDB_DATA_TYPE_UBIGINT;
-        pSchema[13].bytes = TYPE_BYTES[pSchema[13].type];
+        pSchema[i].type = TSDB_DATA_TYPE_UBIGINT;
+        pSchema[i].bytes = TYPE_BYTES[pSchema[i].type];
       } break;
 
       default:
@@ -146,9 +146,9 @@ static int32_t genTestData(const char **data, int16_t nCols, SArray **pArray) {
       case 0:
         sscanf(data[i], "%" PRIi64, &colVal.value.ts);
         break;
-      case 1: {
+      case 1:
         sscanf(data[i], "%" PRIi32, &colVal.value.i32);
-      } break;
+        break;
       case 2:
         sscanf(data[i], "%" PRIi64, &colVal.value.i64);
         break;
@@ -274,9 +274,6 @@ int32_t debugPrintSColVal(SColVal *cv, int8_t type) {
     case TSDB_DATA_TYPE_MEDIUMBLOB:
       printf("MedBLOB ");
       break;
-    // case TSDB_DATA_TYPE_BINARY:
-    //   printf("BINARY ");
-    //   break;
     case TSDB_DATA_TYPE_MAX:
       printf("UNDEF ");
       break;
@@ -404,9 +401,10 @@ static void checkTSRow(const char **data, STSRow2 *row, STSchema *pTSchema) {
 }
 
 TEST(testCase, AllNormTest) {
-  int16_t  nCols = 1;
-  STSRow2 *row = nullptr;
-  SArray  *pArray = taosArrayInit(nCols, sizeof(SColVal));
+  int16_t       nCols = 14;
+  STSRowBuilder rb = {0};
+  STSRow2      *row = nullptr;
+  SArray       *pArray = taosArrayInit(nCols, sizeof(SColVal));
   EXPECT_NE(pArray, nullptr);
 
   STSchema *pTSchema = genSTSchema(nCols);
@@ -414,15 +412,16 @@ TEST(testCase, AllNormTest) {
 
   // ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 binary(10), c6 nchar(10), c7 tinyint, c8 smallint,
   // c9 bool
-  char *data[10] = {"1653694220000", "10", "20", "10.1", "10.1", "binary10", "nchar10", "10", "10", "1"};
+  char *data[14] = {"1653694220000", "no", "nu", "nu", "nu", "nu", "nu", "nu", "nu", "no", "no", "no", "no", "no"};
 
   genTestData((const char **)&data, nCols, &pArray);
 
-  tTSRowNew(NULL, pArray, pTSchema, &row);
+  tTSRowNew(&rb, pArray, pTSchema, &row);
 
   debugPrintTSRow(row, pTSchema, __func__, __LINE__);
   checkTSRow((const char **)&data, row, pTSchema);
 
+  tsRowBuilderClear(&rb);
   taosArrayDestroy(pArray);
   taosMemoryFree(pTSchema);
 }
@@ -443,12 +442,12 @@ TEST(testCase, NoneTest) {
   const char *data[nRows][nCols] = {
       {"1653694220000", "no", "20", "10.1", "10.1", "binary10", "no", "10", "10", "nu", "10", "20", "30", "40"},
       {"1653694220001", "no", "no", "no", "no", "no", "no", "no", "no", "no", "no", "no", "no", "no"},
-      {"1653694220002", "no", "no", "no", "no", "no", "nu", "no", "no", "no", "no", "no", "no", "nu"},
-      {"1653694220003", "nu", "no", "no", "no", "no", "nu", "no", "no", "no", "no", "no", "no", "no"},
+      {"1653694220002", "10", "no", "no", "no", "no", "no", "no", "no", "no", "no", "no", "no", "no"},
+      {"1653694220003", "10", "10", "no", "no", "no", "no", "no", "no", "no", "no", "no", "no", "no"},
       {"1653694220004", "no", "20", "no", "no", "no", "nchar10", "no", "no", "no", "no", "no", "no", "no"},
       {"1653694220005", "nu", "nu", "nu", "nu", "nu", "nu", "nu", "nu", "nu", "nu", "nu", "nu", "nu"},
       {"1653694220006", "no", "nu", "nu", "nu", "nu", "nu", "nu", "nu", "nu", "nu", "nu", "nu", "nu"},
-      {"1653694220007", "no", "nu", "nu", "nu", "nu", "nu", "nu", "nu", "nu", "nu", "nu", "nu", "no"},
+      {"1653694220007", "no", "nu", "nu", "nu", "nu", "nu", "nu", "nu", "no", "no", "no", "no", "no"},
       {"1653694220008", "no", "nu", "nu", "nu", "binary10", "nu", "nu", "nu", "nu", "nu", "nu", "nu", "no"},
       {"1653694220009", "no", "nu", "nu", "nu", "binary10", "nu", "nu", "10", "no", "nu", "nu", "nu", "100"},
       {"1653694220010", "-1", "-1", "-1", "-1", "binary10", "nu", "-1", "0", "0", "0", "0", "0", "0"},
@@ -465,13 +464,12 @@ TEST(testCase, NoneTest) {
       {"1653694220019", "no", "9223372036854775807", "nu", "nu", "bin10", "nu", "nu", "10", "no", "254", "nu", "nu",
        "no"}};
 
-
   for (int r = 0; r < nRows; ++r) {
     genTestData((const char **)&data[r], nCols, &pArray);
     tTSRowNew(NULL, pArray, pTSchema, &row);
     debugPrintTSRow(row, pTSchema, __func__, __LINE__);  // debug print
     checkTSRow((const char **)&data[r], row, pTSchema);  // check
-    taosMemoryFreeClear(row);
+    tTSRowFree(row);
     taosArrayClear(pArray);
   }
 

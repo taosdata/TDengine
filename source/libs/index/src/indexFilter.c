@@ -355,7 +355,7 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
 
     SIndexMultiTermQuery *mtm = indexMultiTermQueryCreate(MUST);
     indexMultiTermQueryAdd(mtm, tm, qtype);
-    ret = tIndexJsonSearch(arg->ivtIdx, mtm, output->result);
+    ret = indexJsonSearch(arg->ivtIdx, mtm, output->result);
   } else {
     bool   reverse;
     Filter filterFunc = sifGetFilterFunc(qtype, &reverse);
