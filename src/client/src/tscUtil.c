@@ -1631,6 +1631,10 @@ void destroyTableNameList(SInsertStatementParam* pInsertParam) {
   tfree(pInsertParam->pTableNameList);
 }
 
+static void freeElem(void* p) {
+  tfree(*(char**)p);
+}
+
 void tscResetSqlCmd(SSqlCmd* pCmd, bool clearCachedMeta, uint64_t id) {
   SSqlObj *pSql = (SSqlObj*)taosAcquireRef(tscObjRef, id);
   pCmd->command   = 0;
@@ -1645,6 +1649,10 @@ void tscResetSqlCmd(SSqlCmd* pCmd, bool clearCachedMeta, uint64_t id) {
   pCmd->insertParam.pDataBlocks = tscDestroyBlockArrayList(pSql, pCmd->insertParam.pDataBlocks);
   tfree(pCmd->insertParam.tagData.data);
   pCmd->insertParam.tagData.dataLen = 0;
+
+  if (pCmd->hashedTableNames) {
+    taosArrayDestroyEx(&pCmd->hashedTableNames, freeElem);
+  }
 
   tscFreeQueryInfo(pCmd, clearCachedMeta, id);
   pCmd->pTableMetaMap = tscCleanupTableMetaMap(pCmd->pTableMetaMap);
