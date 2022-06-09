@@ -1945,7 +1945,6 @@ void blockCompressEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen
 const char* blockCompressDecode(SSDataBlock* pBlock, int32_t numOfCols, int32_t numOfRows, const char* pData) {
   blockDataEnsureCapacity(pBlock, numOfRows);
   pBlock->info.rows = numOfRows;
-  pBlock->info.numOfCols = numOfCols;
 
   const char* pStart = pData;
 
@@ -1960,7 +1959,8 @@ const char* blockCompressDecode(SSDataBlock* pBlock, int32_t numOfCols, int32_t 
     taosArraySetSize(pBlock->pDataBlock, numOfCols);
   }
 
-  ASSERT(pBlock->pDataBlock->size == numOfCols);
+  pBlock->info.numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+  ASSERT(pBlock->pDataBlock->size >= numOfCols);
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
