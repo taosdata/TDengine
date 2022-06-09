@@ -3,7 +3,10 @@ from util.log import *
 from util.sql import *
 from util.cases import *
 
+import platform
 import os
+if platform.system().lower() == 'windows':
+    import tzlocal
 
 
 class TDTestCase:
@@ -15,16 +18,20 @@ class TDTestCase:
     def run(self):  # sourcery skip: extract-duplicate-method
         tdSql.prepare()
         # get system timezone
-        time_zone_arr = os.popen('timedatectl | grep zone').read(
-        ).strip().split(':')
-        if len(time_zone_arr) > 1:
-            time_zone = time_zone_arr[1].lstrip()
-        else:
-            # possibly in a docker container
-            time_zone_1 = os.popen('ls -l /etc/localtime|awk -F/ \'{print $(NF-1) "/" $NF}\'').read().strip()
-            time_zone_2 = os.popen('date "+(%Z, %z)"').read().strip()
+        if platform.system().lower() == 'windows':
+            time_zone_1 = tzlocal.get_localzone_name()
+            time_zone_2 = time.strftime('(UTC, %z)')
             time_zone = time_zone_1 + " " + time_zone_2
-            print("expected time zone: " + time_zone)
+        else:
+            time_zone_arr = os.popen('timedatectl | grep zone').read().strip().split(':')
+            if len(time_zone_arr) > 1:
+                time_zone = time_zone_arr[1].lstrip()
+            else:
+                # possibly in a docker container
+                time_zone_1 = os.popen('ls -l /etc/localtime|awk -F/ \'{print $(NF-1) "/" $NF}\'').read().strip()
+                time_zone_2 = os.popen('date "+(%Z, %z)"').read().strip()
+                time_zone = time_zone_1 + " " + time_zone_2
+        print("expected time zone: " + time_zone)
 
         tdLog.printNoPrefix("==========step1:create tables==========")
         tdSql.execute(
