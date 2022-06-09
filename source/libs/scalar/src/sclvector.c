@@ -879,11 +879,17 @@ int32_t vectorConvert(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam* p
   }
 
   if (type != GET_PARAM_TYPE(param1)) {
-    return vectorConvertScalarParam(param1, paramOut1, type);
+    code = vectorConvertScalarParam(param1, paramOut1, type);
+    if (code) {
+      return code;
+    }
   }
   
   if (type != GET_PARAM_TYPE(param2)) {
-    return vectorConvertScalarParam(param2, paramOut2, type);
+    code = vectorConvertScalarParam(param2, paramOut2, type);
+    if (code) {
+      return code;
+    }
   }
 
   return TSDB_CODE_SUCCESS;

@@ -836,9 +836,13 @@ static EDealRes translateComparisonOperator(STranslateContext* pCxt, SOperatorNo
       SDataType dt = ((SExprNode*)pNode)->resType;
       if (first) {
         targetDt = dt;
-        first = false;
-      } else if (!dataTypeEqual(&dt, &targetDt)) {
+        if (targetDt.type != TSDB_DATA_TYPE_NULL) {
+          first = false;
+        }
+      } else if (dt.type != targetDt.type && dt.type != TSDB_DATA_TYPE_NULL) {
         return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)pNode)->aliasName);
+      } else if (dt.bytes > targetDt.bytes) {
+        targetDt.bytes = dt.bytes;
       }
     }
     pRight->dataType = targetDt;
