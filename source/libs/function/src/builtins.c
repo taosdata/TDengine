@@ -1477,7 +1477,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getElapsedFuncEnv,
     .initFunc     = elapsedFunctionSetup,
     .processFunc  = elapsedFunction,
-    .finalizeFunc = elapsedFinalize
+    .finalizeFunc = elapsedFinalize,
+    .pPartialFunc = "_elapsed_partial",
+    .pMergeFunc   = "_elapsed_merge"
   },
   {
     .name = "_elapsed_partial",
