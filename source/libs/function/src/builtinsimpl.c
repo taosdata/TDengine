@@ -3027,6 +3027,10 @@ int32_t spreadPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   return pResInfo->numOfRes;
 }
 
+int32_t getElapsedInfoSize() {
+  return (int32_t)sizeof(SElapsedInfo);
+}
+
 bool getElapsedFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
   pEnv->calcMemSize = sizeof(SElapsedInfo);
   return true;

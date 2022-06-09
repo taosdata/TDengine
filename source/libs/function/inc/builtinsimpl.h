@@ -115,6 +115,7 @@ bool getElapsedFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool elapsedFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t elapsedFunction(SqlFunctionCtx* pCtx);
 int32_t elapsedFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+int32_t getElapsedInfoSize();
 
 bool getHistogramFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool histogramFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
