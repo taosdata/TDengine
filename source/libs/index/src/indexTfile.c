@@ -305,7 +305,7 @@ static int32_t tfSearchCompareFunc(void* reader, SIndexTerm* tem, SIdxTRslt* tr,
   int                  ret = 0;
   char*                p = tem->colVal;
   int                  skip = 0;
-  _cache_range_compare cmpFn = indexGetCompare(type);
+  _cache_range_compare cmpFn = idxGetCompare(type);
 
   SArray* offsets = taosArrayInit(16, sizeof(uint64_t));
 
@@ -431,7 +431,7 @@ static int32_t tfSearchCompareFunc_JSON(void* reader, SIndexTerm* tem, SIdxTRslt
     p = idxPackJsonDataPrefix(tem, &skip);
   }
 
-  _cache_range_compare cmpFn = indexGetCompare(ctype);
+  _cache_range_compare cmpFn = idxGetCompare(ctype);
 
   SArray* offsets = taosArrayInit(16, sizeof(uint64_t));
 

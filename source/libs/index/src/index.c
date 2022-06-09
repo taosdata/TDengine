@@ -465,8 +465,8 @@ int idxFlushCacheToTFile(SIndex* sIdx, void* cache, bool quit) {
 
   IndexCache* pCache = (IndexCache*)cache;
 
-  while (quit && atomic_load_32(&pCache->merging) == 1) {
-  }
+  while (quit && atomic_load_32(&pCache->merging) == 1)
+    ;
   TFileReader* pReader = tfileGetReaderByCol(sIdx->tindex, pCache->suid, pCache->colName);
   if (pReader == NULL) {
     indexWarn("empty tfile reader found");
@@ -561,7 +561,7 @@ void iterateValueDestroy(IterateValue* value, bool destroy) {
   value->colVal = NULL;
 }
 
-static int64_t indexGetAvaialbleVer(SIndex* sIdx, IndexCache* cache) {
+static int64_t idxGetAvailableVer(SIndex* sIdx, IndexCache* cache) {
   ICacheKey key = {.suid = cache->suid, .colName = cache->colName, .nColName = strlen(cache->colName)};
   int64_t   ver = CACHE_VERSION(cache);
 
@@ -579,7 +579,7 @@ static int64_t indexGetAvaialbleVer(SIndex* sIdx, IndexCache* cache) {
   return ver;
 }
 static int idxGenTFile(SIndex* sIdx, IndexCache* cache, SArray* batch) {
-  int64_t version = indexGetAvaialbleVer(sIdx, cache);
+  int64_t version = idxGetAvailableVer(sIdx, cache);
   indexInfo("file name version: %" PRId64 "", version);
   uint8_t colType = cache->type;
 

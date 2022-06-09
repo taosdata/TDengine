@@ -127,7 +127,7 @@ static int32_t cacheSearchCompareFunc(void* cache, SIndexTerm* term, SIdxTRslt* 
   MemTable*   mem = cache;
   IndexCache* pCache = mem->pCache;
 
-  _cache_range_compare cmpFn = indexGetCompare(type);
+  _cache_range_compare cmpFn = idxGetCompare(type);
 
   CacheTerm* pCt = taosMemoryCalloc(1, sizeof(CacheTerm));
   pCt->colVal = term->colVal;
@@ -257,7 +257,7 @@ static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTR
   if (cache == NULL) {
     return 0;
   }
-  _cache_range_compare cmpFn = indexGetCompare(type);
+  _cache_range_compare cmpFn = idxGetCompare(type);
 
   MemTable*   mem = cache;
   IndexCache* pCache = mem->pCache;
