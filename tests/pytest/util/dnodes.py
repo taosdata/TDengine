@@ -574,6 +574,9 @@ class TDDnodes:
 
     def stopAll(self):
         tdLog.info("stop all dnodes")
+        if (not self.dnodes[0].remoteIP == ""):
+            self.dnodes[0].remoteExec(self.dnodes[0].cfgDict, "for i in range(len(tdDnodes.dnodes)):\n    tdDnodes.dnodes[i].running=1\ntdDnodes.stopAll()")
+            return
         for i in range(len(self.dnodes)):
             self.dnodes[i].stop()
 
