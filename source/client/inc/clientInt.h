@@ -171,6 +171,7 @@ typedef struct SReqResultInfo {
   uint32_t       current;
   bool           completed;
   int32_t        precision;
+  bool           convertUcs4;
   int32_t        payloadLen;
 } SReqResultInfo;
 
@@ -222,7 +223,7 @@ typedef struct SSyncQueryParam {
   SRequestObj* pRequest;
 } SSyncQueryParam;
 
-void*   doAsyncFetchRow(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4);
+void*   doAsyncFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4);
 void*   doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4);
 
 void    doSetOneRowPtr(SReqResultInfo* pResultInfo);

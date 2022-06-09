@@ -15,11 +15,11 @@
 #include "index.h"
 #include "indexInt.h"
 
-int tIndexJsonOpen(SIndexJsonOpts *opts, const char *path, SIndexJson **index) {
+int indexJsonOpen(SIndexJsonOpts *opts, const char *path, SIndexJson **index) {
   // handle
   return indexOpen(opts, path, index);
 }
-int tIndexJsonPut(SIndexJson *index, SIndexJsonMultiTerm *terms, uint64_t uid) {
+int indexJsonPut(SIndexJson *index, SIndexJsonMultiTerm *terms, uint64_t uid) {
   for (int i = 0; i < taosArrayGetSize(terms); i++) {
     SIndexJsonTerm *p = taosArrayGetP(terms, i);
     if (p->colType == TSDB_DATA_TYPE_BOOL) {
@@ -36,7 +36,7 @@ int tIndexJsonPut(SIndexJson *index, SIndexJsonMultiTerm *terms, uint64_t uid) {
   return indexPut(index, terms, uid);
 }
 
-int tIndexJsonSearch(SIndexJson *index, SIndexJsonMultiTermQuery *tq, SArray *result) {
+int indexJsonSearch(SIndexJson *index, SIndexJsonMultiTermQuery *tq, SArray *result) {
   SArray *terms = tq->query;
   for (int i = 0; i < taosArrayGetSize(terms); i++) {
     SIndexJsonTerm *p = taosArrayGetP(terms, i);
@@ -54,7 +54,7 @@ int tIndexJsonSearch(SIndexJson *index, SIndexJsonMultiTermQuery *tq, SArray *re
   return indexSearch(index, tq, result);
 }
 
-void tIndexJsonClose(SIndexJson *index) {
+void indexJsonClose(SIndexJson *index) {
   // handle close
   return indexClose(index);
 }
