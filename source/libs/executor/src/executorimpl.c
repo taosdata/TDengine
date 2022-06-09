@@ -1955,6 +1955,51 @@ static void doUpdateNumOfRows(SResultRow* pRow, int32_t numOfExprs, const int32_
   }
 }
 
+int32_t finalizeResultRowIntoSDataBlock(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition,
+                                       SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, int32_t numOfExprs, const int32_t* rowCellOffset,
+                                       SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo) {
+  SFilePage*  page = getBufPage(pBuf, resultRowPosition->pageId);
+  SResultRow* pRow = (SResultRow*)((char*)page + resultRowPosition->offset);
+
+  doUpdateNumOfRows(pRow, numOfExprs, rowCellOffset);
+  if (pRow->numOfRows == 0) {
+    releaseBufPage(pBuf, page);
+    return 0;
+  }
+
+  if (pBlock->info.rows + pRow->numOfRows > pBlock->info.capacity) {
+    releaseBufPage(pBuf, page);
+    return -1;
+  }
+
+  for (int32_t j = 0; j < numOfExprs; ++j) {
+    int32_t slotId = pExprInfo[j].base.resSchema.slotId;
+
+    pCtx[j].resultInfo = getResultCell(pRow, j, rowCellOffset);
+    if (pCtx[j].fpSet.finalize) {
+      int32_t code = pCtx[j].fpSet.finalize(&pCtx[j], pBlock);
+      if (TAOS_FAILED(code)) {
+        qError("%s build result data block error, code %s", GET_TASKID(pTaskInfo), tstrerror(code));
+        longjmp(pTaskInfo->env, code);
+      }
+    } else if (strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_select_value") == 0) {
+      // do nothing, todo refactor
+    } else {
+      // expand the result into multiple rows. E.g., _wstartts, top(k, 20)
+      // the _wstartts needs to copy to 20 following rows, since the results of top-k expands to 20 different rows.
+      SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, slotId);
+      char*            in = GET_ROWCELL_INTERBUF(pCtx[j].resultInfo);
+      for (int32_t k = 0; k < pRow->numOfRows; ++k) {
+        colDataAppend(pColInfoData, pBlock->info.rows + k, in, pCtx[j].resultInfo->isNullRes);
+      }
+    }
+  }
+
+  releaseBufPage(pBuf, page);
+
+  return 0;
+}
+
 int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprInfo* pExprInfo, SDiskbasedBuf* pBuf,
                            SGroupResInfo* pGroupResInfo, const int32_t* rowCellOffset, SqlFunctionCtx* pCtx,
                            int32_t numOfExprs) {
