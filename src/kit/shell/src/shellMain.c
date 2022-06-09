@@ -104,6 +104,16 @@ int main(int argc, char* argv[]) {
 
   char* cloud_url = getenv("TDENGINE_CLOUD_URL");
   if (cloud_url != NULL) {
+    char* start = strstr(cloud_url, "http://");
+    if (start != NULL) {
+      cloud_url = start + strlen("http://");
+    } else {
+      start = strstr(cloud_url, "https://");
+      if (start != NULL) {
+        cloud_url = start + strlen("https://");
+      }
+    }
+    
     char* tmp = last_strstr(cloud_url, ":");
     if ((tmp == NULL) && ((tmp + 1) != NULL )) {
       fprintf(stderr, "Invalid format in environment variable TDENGINE_CLOUD_URL: %s\n", cloud_url);
