@@ -110,7 +110,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), "1626006833639000000")
         self.tdSql.checkEqual(str(self.tdSql.query_data[1][0]), "1626006833639000001")
 
-        self.tdCom.createDb(schemaless=1)
+        self.tdCom.createDb(precision="us", schemaless=1)
 
     def id_seq_check(self):
         """
@@ -921,6 +921,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
                                 (f'{stb_name},id={tb_name},t0=True,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="tgqkvsws",t8=L"ncharTagValue" c0=t,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="zlvxgquy",c8=L"ncharColValue",c9=7u64 1626006833639002000', 'sfzqdz'), \
                                 (f'{stb_name},id={tb_name},t0=True,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="tgqkvsws",t8=L"ncharTagValue" c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="oaupfgtz",c8=L"ncharColValue",c9=7u64 1626006833639003000', 'sfzqdz'), \
                                 (f'{stb_name},id={tb_name},t0=True,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7="tgqkvsws",t8=L"ncharTagValue" c0=F,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="vgzadjsh",c8=L"ncharColValue",c9=7u64 1626006833639004000', 'sfzqdz')]
+
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_s_tb_d_ts_list))
         self.tdSql.query(f"show tables;")
         self.tdSql.checkEqual(self.tdSql.query_row, 2)
@@ -1013,11 +1014,13 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdSql.checkEqual(self.tdSql.query_row, 3)
 
     def test(self):
-        self.s_stb_s_tb_d_data_d_ts_ac_mt_insert_multi_thread_check()
+        self.s_stb_s_tb_d_data_d_ts_insert_multi_thread_check()
+        return
 
     def run(self):
-        self.test()
-        return
+        # self.test()
+        # return
+        
         if "smlChildTableName" in self.taospy_setting["spec"]["config"]:
             if self.taospy_setting["spec"]["config"]["smlChildTableName"].upper() == "ID":
                 self.no_id_stb_exist_check()
@@ -1027,49 +1030,49 @@ class TestInfluxdbLineTaoscInsert(TDCase):
                 self.tag_md5_check()
                 self.tbname_tags_cols_name_check()
         else:
-            # self.init_check()
-            # self.bool_check()
-            # self.symbols_check()
-            # self.ts_check()
-            # self.id_seq_check()
-            # self.id_letter_check()
-            # self.no_id_check()
-            # # ! self.max_col_tag_check()
-            # self.stb_tb_name_check()
-            # self.id_start_with_num_check()
-            # self.now_check()
-            # self.date_format_check()
-            # self.illegal_ts_check()
-            # self.tbname_check()
-            # # ! self.tag_value_length_check()
-            # self.col_value_length_check()
-            # self.tag_col_illegal_value_check()
-            # self.duplicate_id_tag_col_insert_check()
-            # self.duplicate_insert_exist_check()
-            # # TODO self.tag_col_binary_max_length_check()
-            # self.batch_insert_check()
-            # self.multi_insert_check(100)
-            # self.batch_error_insert_check()
-            # self.multi_cols_insert_check()
-            # self.multi_tags_insert_check()
-            # self.blank_col_insert_check()
-            # self.blank_tag_insert_check()
-            # self.chinese_check()
-            # self.spell_check()
-            # self.default_type_check()
-            # self.tbname_tags_cols_name_check()
+            self.init_check()
+            self.bool_check()
+            self.symbols_check()
+            self.ts_check()
+            self.id_seq_check()
+            self.id_letter_check()
+            self.no_id_check()
+            # ! self.max_col_tag_check()
+            self.stb_tb_name_check()
+            self.id_start_with_num_check()
+            self.now_check()
+            self.date_format_check()
+            self.illegal_ts_check()
+            self.tbname_check()
+            # ! self.tag_value_length_check()
+            self.col_value_length_check()
+            self.tag_col_illegal_value_check()
+            self.duplicate_id_tag_col_insert_check()
+            self.duplicate_insert_exist_check()
+            # TODO self.tag_col_binary_max_length_check()
+            self.batch_insert_check()
+            self.multi_insert_check(100)
+            self.batch_error_insert_check()
+            self.multi_cols_insert_check()
+            self.multi_tags_insert_check()
+            self.blank_col_insert_check()
+            self.blank_tag_insert_check()
+            self.chinese_check()
+            self.spell_check()
+            self.default_type_check()
+            self.tbname_tags_cols_name_check()
             self.stb_insert_multi_thread_check()
             self.s_stb_s_tb_d_data_insert_multi_thread_check()
             self.s_stb_s_tb_d_data_atc_insert_multi_thread_check()
             self.s_stb_stb_d_data_mtc_insert_multi_thread_check()
             self.s_stb_d_tb_d_data_insert_multi_thread_check()
-            self.s_stb_d_tb_d_data_ac_mt_insert_multi_thread_check()
+            # self.s_stb_d_tb_d_data_ac_mt_insert_multi_thread_check()
             self.s_stb_d_tb_d_data_at_mc_insert_multi_thread_check()
             self.s_stb_s_tb_d_data_d_ts_insert_multi_thread_check()
-            self.s_stb_s_tb_d_data_d_ts_ac_mt_insert_multi_thread_check()
+            # self.s_stb_s_tb_d_data_d_ts_ac_mt_insert_multi_thread_check()
             self.s_stb_s_tb_d_data_d_ts_at_mc_insert_multi_thread_check()
             self.s_stb_d_tb_d_data_d_ts_insert_multi_thread_check()
-            self.s_stb_d_tb_d_data_d_ts_ac_mt_insert_multi_thread_check()
+            # self.s_stb_d_tb_d_data_d_ts_ac_mt_insert_multi_thread_check()
 
     def cleanup(self):
         pass
