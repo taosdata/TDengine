@@ -186,7 +186,7 @@ int32_t mndAddShuffledSinkToStream(SMnode* pMnode, STrans* pTrans, SStreamObj* p
     SVgObj* pVgroup;
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void**)&pVgroup);
     if (pIter == NULL) break;
-    if (pVgroup->dbUid != pStream->dbUid) {
+    if (strcmp(pVgroup->dbName, pStream->targetDb) != 0) {
       sdbRelease(pSdb, pVgroup);
       continue;
     }
@@ -286,7 +286,8 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
   pStream->tasks = taosArrayInit(totLevel, sizeof(void*));
 
   bool hasExtraSink = false;
-  if (totLevel == 2 || strcmp(pStream->sourceDb, pStream->targetDb) != 0) {
+  bool externalTargetDB = strcmp(pStream->sourceDb, pStream->targetDb) != 0;
+  if (totLevel == 2 || externalTargetDB) {
     SArray* taskOneLevel = taosArrayInit(0, sizeof(void*));
     taosArrayPush(pStream->tasks, &taskOneLevel);
     // add extra sink
@@ -405,7 +406,6 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
         if (pStream->fixedSinkVgId == 0) {
           pTask->dispatchType = TASK_DISPATCH__SHUFFLE;
 
-          /*pTask->dispatchMsgType = TDMT_VND_TASK_WRITE_EXEC;*/
           pTask->dispatchMsgType = TDMT_STREAM_TASK_DISPATCH;
           SDbObj* pDb = mndAcquireDb(pMnode, pStream->targetDb);
           ASSERT(pDb);
@@ -426,10 +426,8 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
             SVgroupInfo* pVgInfo = taosArrayGet(pVgs, i);
             for (int32_t j = 0; j < sinkLvSize; j++) {
               SStreamTask* pLastLevelTask = taosArrayGetP(sinkLv, j);
-              /*printf("vgid %d node id %d\n", pVgInfo->vgId, pTask->nodeId);*/
               if (pLastLevelTask->nodeId == pVgInfo->vgId) {
                 pVgInfo->taskId = pLastLevelTask->taskId;
-                /*printf("taskid %d set to %d\n", pVgInfo->taskId, pTask->taskId);*/
                 break;
               }
             }

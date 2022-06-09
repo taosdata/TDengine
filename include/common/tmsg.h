@@ -2536,6 +2536,7 @@ typedef struct {
 
 int32_t tSerializeSTableIndexRsp(void* buf, int32_t bufLen, const STableIndexRsp* pRsp);
 int32_t tDeserializeSTableIndexRsp(void* buf, int32_t bufLen, STableIndexRsp* pRsp);
+void tFreeSTableIndexInfo(void *pInfo);
 
 typedef struct {
   int8_t  mqMsgType;
