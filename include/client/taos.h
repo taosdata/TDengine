@@ -194,6 +194,7 @@ DLL_EXPORT int         taos_errno(TAOS_RES *tres);
 
 DLL_EXPORT void taos_query_a(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param);
 DLL_EXPORT void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param);
+DLL_EXPORT void taos_fetch_raw_block_a(TAOS_RES* res, __taos_async_fn_t fp, void* param);
 
 // Shuduo: temporary enable for app build
 #if 1

@@ -455,7 +455,7 @@ static void idxDestroyFinalRslt(SArray* result) {
   taosArrayDestroy(result);
 }
 
-int indexFlushCacheToTFile(SIndex* sIdx, void* cache, bool quit) {
+int idxFlushCacheToTFile(SIndex* sIdx, void* cache, bool quit) {
   if (sIdx == NULL) {
     return -1;
   }
