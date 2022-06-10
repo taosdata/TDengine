@@ -641,72 +641,61 @@ static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator) {
 
   STableScanInfo* pTableScanInfo = pOperator->info;
 
-  STableBlockDistInfo tableBlockDist = {0};
-  tableBlockDist.numOfTables = 1;  // TODO set the correct number of tables
+  STableBlockDistInfo blockDistInfo = {0};
+  blockDistInfo.maxRows = INT_MIN;
+  blockDistInfo.minRows = INT_MAX;
 
-  int32_t numRowSteps = TSDB_DEFAULT_MAXROWS_FBLOCK / TSDB_BLOCK_DIST_STEP_ROWS;
-  if (TSDB_DEFAULT_MAXROWS_FBLOCK % TSDB_BLOCK_DIST_STEP_ROWS != 0) {
-    ++numRowSteps;
-  }
-
-  tableBlockDist.dataBlockInfos = taosArrayInit(numRowSteps, sizeof(SFileBlockInfo));
-  taosArraySetSize(tableBlockDist.dataBlockInfos, numRowSteps);
-
-  tableBlockDist.maxRows = INT_MIN;
-  tableBlockDist.minRows = INT_MAX;
-
-  tsdbGetFileBlocksDistInfo(pTableScanInfo->dataReader, &tableBlockDist);
-  tableBlockDist.numOfRowsInMemTable = (int32_t)tsdbGetNumOfRowsInMemTable(pTableScanInfo->dataReader);
+  tsdbGetFileBlocksDistInfo(pTableScanInfo->dataReader, &blockDistInfo);
+  blockDistInfo.numOfInmemRows = (int32_t)tsdbGetNumOfRowsInMemTable(pTableScanInfo->dataReader);
 
   SSDataBlock* pBlock = pTableScanInfo->pResBlock;
   pBlock->info.rows = 1;
-  pBlock->info.numOfCols = 1;
 
-  //  SBufferWriter bw = tbufInitWriter(NULL, false);
-  //  blockDistInfoToBinary(&tableBlockDist, &bw);
   SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, 0);
 
-  //  int32_t len = (int32_t) tbufTell(&bw);
-  //  pColInfo->pData = taosMemoryMalloc(len + sizeof(int32_t));
-  //  *(int32_t*) pColInfo->pData = len;
-  //  memcpy(pColInfo->pData + sizeof(int32_t), tbufGetData(&bw, false), len);
-  //
-  //  tbufCloseWriter(&bw);
+  int32_t len = tSerializeBlockDistInfo(NULL, 0, &blockDistInfo);
+  char* p = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE);
+  tSerializeBlockDistInfo(varDataVal(p), len, &blockDistInfo);
+  varDataSetLen(p, len);
 
-  //  SArray* g = GET_TABLEGROUP(pOperator->, 0);
-  //  pOperator->pRuntimeEnv->current = taosArrayGetP(g, 0);
+  colDataAppend(pColInfo, 0, p, false);
+  taosMemoryFree(p);
 
   pOperator->status = OP_EXEC_DONE;
   return pBlock;
 }
 
+static void destroyBlockDistScanOperatorInfo(void* param, int32_t numOfOutput) {
+  SBlockDistInfo* pDistInfo = (SBlockDistInfo*) param;
+  blockDataDestroy(pDistInfo->pResBlock);
+}
+
 SOperatorInfo* createDataBlockInfoScanOperator(void* dataReader, SExecTaskInfo* pTaskInfo) {
-  STableScanInfo* pInfo = taosMemoryCalloc(1, sizeof(STableScanInfo));
+  SBlockDistInfo* pInfo = taosMemoryCalloc(1, sizeof(SBlockDistInfo));
   SOperatorInfo*  pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
     pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
     goto _error;
   }
 
-  pInfo->dataReader = dataReader;
-  //  pInfo->block.pDataBlock = taosArrayInit(1, sizeof(SColumnInfoData));
+  pInfo->pHandle   = dataReader;
+
+  pInfo->pResBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
 
   SColumnInfoData infoData = {0};
-  infoData.info.type = TSDB_DATA_TYPE_BINARY;
-  infoData.info.bytes = 1024;
-  infoData.info.colId = 0;
-  //  taosArrayPush(pInfo->block.pDataBlock, &infoData);
+  infoData.info.type       = TSDB_DATA_TYPE_VARCHAR;
+  infoData.info.bytes      = 1024;
 
-  pOperator->name = "DataBlockInfoScanOperator";
+  taosArrayPush(pInfo->pResBlock->pDataBlock, &infoData);
+
+  pOperator->name          = "DataBlockInfoScanOperator";
   //  pOperator->operatorType = OP_TableBlockInfoScan;
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->fpSet._openFn = operatorDummyOpenFn;
-  pOperator->fpSet.getNextFn = doBlockInfoScan;
-
-  pOperator->info = pInfo;
-  pOperator->pTaskInfo = pTaskInfo;
-
+  pOperator->blocking      = false;
+  pOperator->status        = OP_NOT_OPENED;
+  pOperator->info          = pInfo;
+  pOperator->pTaskInfo     = pTaskInfo;
+  
+  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doBlockInfoScan, NULL, NULL, destroyBlockDistScanOperatorInfo, NULL, NULL, NULL);
   return pOperator;
 
 _error:
