@@ -61,10 +61,10 @@ class TestMultiProcessRun(TDCase):
         self.taosd.update_cfg('/tmp', self.taosd_setting, {"multiProcess": 1}, self.endpoint, True)
         vnodeShmSize_infile = self._remote.cmd(self.fqdn, ['cat /var/lib/taos/vnode/shmfile | grep shmsize | cut -f2 -d ":"'])
         vnodeShmid_infile = self._remote.cmd(self.fqdn, ['cat /var/lib/taos/vnode/shmfile | grep shmid | cut -f2 -d ":" | cut -f1 -d ","'])
-        vnodeShmSize_ipcs = self._remote.cmd(self.fqdn, [f"ipcs -m | grep {vnodeShmid_infile} | awk \'{{print $5}}\'"])
+        vnodeShmSize_ipcs = self._remote.cmd(self.fqdn, [f"ipcs -m | awk \'{{print $2,$5}}\' | grep -w {vnodeShmid_infile} | awk \'{{print $2}}\'"])
         self.tdSql.checkEqual(self.vnodeShmSize_default, int(vnodeShmSize_infile))
         self.tdSql.checkEqual(self.vnodeShmSize_default, int(vnodeShmSize_ipcs))
-        mnodeShmSize_ipcs = self._remote.cmd(self.fqdn, [f"ipcs -m | grep {self.mnodeShmSize_default} | grep -v {vnodeShmid_infile} | wc -l"])
+        mnodeShmSize_ipcs = self._remote.cmd(self.fqdn, [f"ipcs -m | awk \'{{print $2,$5}}\' | grep -w {self.mnodeShmSize_default} | grep -v {vnodeShmid_infile} | wc -l"])
         self.tdSql.checkEqual(int(mnodeShmSize_ipcs) >= 1, True)
 
     def check_shmsize_delivery(self):
@@ -76,10 +76,10 @@ class TestMultiProcessRun(TDCase):
                 self.taosd.update_cfg('/tmp', self.taosd_setting, {"mnodeShmSize": mnodeShmSize, "vnodeShmSize": vnodeShmSize}, self.endpoint, True)
                 vnodeShmSize_infile = self._remote.cmd(self.fqdn, ['cat /var/lib/taos/vnode/shmfile | grep shmsize | cut -f2 -d ":"'])
                 vnodeShmid_infile = self._remote.cmd(self.fqdn, ['cat /var/lib/taos/vnode/shmfile | grep shmid | cut -f2 -d ":" | cut -f1 -d ","'])
-                vnodeShmSize_ipcs = self._remote.cmd(self.fqdn, [f"ipcs -m | grep {vnodeShmid_infile} | awk \'{{print $5}}\'"])
+                vnodeShmSize_ipcs = self._remote.cmd(self.fqdn, [f"ipcs -m | awk \'{{print $2,$5}}\' | grep -w {vnodeShmid_infile} | awk \'{{print $2}}\'"])
                 self.tdSql.checkEqual(vnodeShmSize, int(vnodeShmSize_infile))
                 self.tdSql.checkEqual(vnodeShmSize, int(vnodeShmSize_ipcs))
-                mnodeShmSize_ipcs = self._remote.cmd(self.fqdn, [f"ipcs -m | grep {mnodeShmSize} | grep -v {vnodeShmid_infile} | wc -l"])
+                mnodeShmSize_ipcs = self._remote.cmd(self.fqdn, [f"ipcs -m | awk \'{{print $2,$5}}\' | grep -w {mnodeShmSize} | grep -v {vnodeShmid_infile} | wc -l"])
                 self.tdSql.checkEqual(int(mnodeShmSize_ipcs) >= 1, True)
         self.log_generation()
 
