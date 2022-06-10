@@ -688,6 +688,10 @@ typedef struct SSortedMergeOperatorInfo {
   int32_t          numOfResPerPage;
   char**           groupVal;
   SArray          *groupInfo;
+
+  bool hasGroupId;
+  uint64_t groupId;
+  STupleHandle* prefetchedTuple;
 } SSortedMergeOperatorInfo;
 
 typedef struct SSortOperatorInfo {
@@ -700,6 +704,10 @@ typedef struct SSortOperatorInfo {
 
   int64_t      startTs;       // sort start time
   uint64_t     sortElapsed;   // sort elapsed time, time to flush to disk not included.
+
+  STupleHandle *prefetchedTuple;
+  bool  hasGroupId;
+  uint64_t groupId;
 } SSortOperatorInfo;
 
 typedef struct STagFilterOperatorInfo {
@@ -759,7 +767,7 @@ void    setTbNameColData(void* pMeta, const SSDataBlock* pBlock, SColumnInfoData
 SInterval extractIntervalInfo(const STableScanPhysiNode* pTableScanNode);
 SColumn extractColumnFromColumnNode(SColumnNode* pColNode);
 
-SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity, SArray* pColMatchInfo);
+SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity, SArray* pColMatchInfo, SSortOperatorInfo* pInfo);
 SSDataBlock* loadNextDataBlock(void* param);
 
 void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t* rowCellInfoOffset);
@@ -796,7 +804,7 @@ SOperatorInfo* createSortedMergeOperatorInfo(SOperatorInfo** downstream, int32_t
 
 SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                           SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
-                                          STimeWindowAggSupp *pTwAggSupp, SExecTaskInfo* pTaskInfo);
+                                          STimeWindowAggSupp *pTwAggSupp, SExecTaskInfo* pTaskInfo, bool isStream);
 SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream,
     SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, int32_t numOfChild);
 SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
@@ -884,8 +892,8 @@ STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowI
 int32_t getNumOfRowsInTimeWindow(SDataBlockInfo* pDataBlockInfo, TSKEY* pPrimaryColumn, int32_t startPos, TSKEY ekey,
     __block_search_fn_t searchFn, STableQueryInfo* item, int32_t order);
 int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order);
-int32_t initSessionAggSupporter(SStreamAggSupporter* pSup, const char* pKey);
-int32_t initStateAggSupporter(SStreamAggSupporter* pSup, const char* pKey);
+int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, const char* pKey,
+    SqlFunctionCtx* pCtx, int32_t numOfOutput, size_t size);
 SResultRow* getNewResultRow(SDiskbasedBuf* pResultBuf, int64_t tableGroupId, int32_t interBufSize);
 SResultWindowInfo* getSessionTimeWindow(SArray* pWinInfos, TSKEY ts, int64_t gap, int32_t* pIndex);
 int32_t updateSessionWindowInfo(SResultWindowInfo* pWinInfo, TSKEY* pTs, int32_t rows,

@@ -3669,6 +3669,14 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
           stat->scalarMode = true;
           return DEAL_RES_CONTINUE;
         }
+      } else {
+        SColumnNode *refNode = (SColumnNode *)node->pLeft;
+        SNodeListNode *listNode = (SNodeListNode *)node->pRight;
+        int32_t type = vectorGetConvertType(refNode->node.resType.type, listNode->dataType.type);
+        if (0 != type && type != refNode->node.resType.type) {
+          stat->scalarMode = true;
+          return DEAL_RES_CONTINUE;
+        }
       }
     }
 

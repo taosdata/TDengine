@@ -22,6 +22,7 @@
 #include "tlockfree.h"
 #include "tlog.h"
 #include "tmsg.h"
+#include "wal.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -165,12 +166,14 @@ typedef struct SSdbRow {
 
 typedef struct SSdb {
   SMnode        *pMnode;
+  SWal          *pWal;
   char          *currDir;
   char          *tmpDir;
   int64_t        lastCommitVer;
   int64_t        lastCommitTerm;
   int64_t        curVer;
   int64_t        curTerm;
+  int64_t        curConfig;
   int64_t        tableVer[SDB_MAX];
   int64_t        maxId[SDB_MAX];
   EKeyType       keyTypes[SDB_MAX];
@@ -205,6 +208,7 @@ typedef struct {
 typedef struct SSdbOpt {
   const char *path;
   SMnode     *pMnode;
+  SWal       *pWal;
 } SSdbOpt;
 
 /**
@@ -358,9 +362,13 @@ int64_t sdbGetTableVer(SSdb *pSdb, ESdbType type);
  * @return int32_t The current index of sdb
  */
 void    sdbSetApplyIndex(SSdb *pSdb, int64_t index);
-int64_t sdbGetApplyIndex(SSdb *pSdb);
 void    sdbSetApplyTerm(SSdb *pSdb, int64_t term);
+void    sdbSetCurConfig(SSdb *pSdb, int64_t config);
+int64_t sdbGetApplyIndex(SSdb *pSdb);
 int64_t sdbGetApplyTerm(SSdb *pSdb);
+int64_t sdbGetCommitIndex(SSdb *pSdb);
+int64_t sdbGetCommitTerm(SSdb *pSdb);
+int64_t sdbGetCurConfig(SSdb *pSdb);
 
 SSdbRaw *sdbAllocRaw(ESdbType type, int8_t sver, int32_t dataLen);
 void     sdbFreeRaw(SSdbRaw *pRaw);

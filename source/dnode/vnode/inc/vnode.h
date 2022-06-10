@@ -71,6 +71,9 @@ int32_t vnodeSnapshotReaderClose(SVSnapshotReader *pReader);
 int32_t vnodeSnapshotRead(SVSnapshotReader *pReader, const void **ppData, uint32_t *nData);
 int32_t vnodeProcessCreateTSma(SVnode *pVnode, void *pCont, uint32_t contLen);
 
+void vnodeProposeMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs);
+void vnodeApplyMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs);
+
 // meta
 typedef struct SMeta       SMeta;  // todo: remove
 typedef struct SMetaReader SMetaReader;

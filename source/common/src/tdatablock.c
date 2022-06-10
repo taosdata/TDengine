@@ -1218,6 +1218,7 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData) {
   pBlock->info.numOfCols = numOfCols;
   pBlock->info.hasVarCol = pDataBlock->info.hasVarCol;
   pBlock->info.rowSize = pDataBlock->info.rowSize;
+  pBlock->info.groupId = pDataBlock->info.groupId;
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData  colInfo = {0};

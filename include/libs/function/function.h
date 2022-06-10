@@ -146,6 +146,7 @@ typedef struct SqlFunctionCtx {
   struct SDiskbasedBuf  *pBuf;
   struct SSDataBlock    *pSrcBlock;
   int32_t                curBufPage;
+  bool                   increase;
 
   char                   udfName[TSDB_FUNC_NAME_LEN];
 } SqlFunctionCtx;
@@ -197,6 +198,7 @@ typedef struct SAggFunctionInfo {
 struct SScalarParam {
   SColumnInfoData *columnData;
   SHashObj        *pHashFilter;
+  int32_t          hashValueType;
   void            *param;  // other parameter, such as meta handle from vnode, to extract table name/tag value
   int32_t          numOfRows;
 };
