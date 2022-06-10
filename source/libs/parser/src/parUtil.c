@@ -807,6 +807,42 @@ int32_t getUdfInfoFromCache(SParseMetaCache* pMetaCache, const char* pFunc, SFun
   return code;
 }
 
+static void destroySmaIndex(void* p) { taosMemoryFree(((STableIndexInfo*)p)->expr); }
+
+static SArray* smaIndexesDup(SArray* pSrc) {
+  SArray* pDst = taosArrayDup(pSrc);
+  if (NULL == pDst) {
+    return NULL;
+  }
+  int32_t size = taosArrayGetSize(pDst);
+  for (int32_t i = 0; i < size; ++i) {
+    ((STableIndexInfo*)taosArrayGet(pDst, i))->expr = NULL;
+  }
+  for (int32_t i = 0; i < size; ++i) {
+    STableIndexInfo* pIndex = taosArrayGet(pDst, i);
+    pIndex->expr = taosMemoryStrDup(((STableIndexInfo*)taosArrayGet(pSrc, i))->expr);
+    if (NULL == pIndex->expr) {
+      taosArrayDestroyEx(pDst, destroySmaIndex);
+      return NULL;
+    }
+  }
+  return pDst;
+}
+
+int32_t reserveTableIndexInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache) {
+  return reserveTableReqInCache(acctId, pDb, pTable, &pMetaCache->pTableIndex);
+}
+
 int32_t getTableIndexFromCache(SParseMetaCache* pMetaCache, const SName* pName, SArray** pIndexes) {
-  return TSDB_CODE_PAR_INTERNAL_ERROR;
+  char fullName[TSDB_TABLE_FNAME_LEN];
+  tNameExtractFullName(pName, fullName);
+  SArray* pSmaIndexes = NULL;
+  int32_t code = getMetaDataFromHash(fullName, strlen(fullName), pMetaCache->pTableIndex, (void**)&pSmaIndexes);
+  if (TSDB_CODE_SUCCESS == code) {
+    *pIndexes = smaIndexesDup(pSmaIndexes);
+    if (NULL == *pIndexes) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  return code;
 }

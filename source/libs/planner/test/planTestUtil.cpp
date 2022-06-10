@@ -14,12 +14,14 @@
  */
 
 #include "planTestUtil.h"
+
 #include <getopt.h>
 
 #include <algorithm>
 #include <array>
 
 #include "cmdnodes.h"
+#include "mockCatalogService.h"
 #include "parser.h"
 #include "planInt.h"
 
@@ -361,6 +363,7 @@ class PlannerTestBaseImpl {
     } else if (QUERY_NODE_CREATE_INDEX_STMT == nodeType(pQuery->pRoot)) {
       SMCreateSmaReq req = {0};
       tDeserializeSMCreateSmaReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req);
+      g_mockCatalogService->createSmaIndex(&req);
       nodesStringToNode(req.ast, &pCxt->pAstRoot);
       pCxt->streamQuery = true;
     } else if (QUERY_NODE_CREATE_STREAM_STMT == nodeType(pQuery->pRoot)) {

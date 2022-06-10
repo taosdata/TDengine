@@ -62,6 +62,7 @@ typedef struct SScanLogicNode {
   int64_t       watermark;
   int16_t       tsColId;
   double        filesFactor;
+  SArray*       pSmaIndexes;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {

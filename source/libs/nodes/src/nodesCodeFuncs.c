@@ -2809,10 +2809,85 @@ static int32_t jsonToTableNode(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkTableIndexInfoIntervalUnit = "IntervalUnit";
+static const char* jkTableIndexInfoSlidingUnit = "SlidingUnit";
+static const char* jkTableIndexInfoInterval = "Interval";
+static const char* jkTableIndexInfoOffset = "Offset";
+static const char* jkTableIndexInfoSliding = "Sliding";
+static const char* jkTableIndexInfoDstTbUid = "DstTbUid";
+static const char* jkTableIndexInfoDstVgId = "DstVgId";
+static const char* jkTableIndexInfoEpSet = "EpSet";
+static const char* jkTableIndexInfoExpr = "Expr";
+
+static int32_t tableIndexInfoToJson(const void* pObj, SJson* pJson) {
+  const STableIndexInfo* pNode = (const STableIndexInfo*)pObj;
+
+  int32_t code = tjsonAddIntegerToObject(pJson, jkTableIndexInfoIntervalUnit, pNode->intervalUnit);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkTableIndexInfoSlidingUnit, pNode->slidingUnit);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkTableIndexInfoInterval, pNode->interval);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkTableIndexInfoOffset, pNode->offset);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkTableIndexInfoSliding, pNode->sliding);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkTableIndexInfoDstTbUid, pNode->dstTbUid);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkTableIndexInfoDstVgId, pNode->dstVgId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkTableIndexInfoEpSet, epSetToJson, &pNode->epSet);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkTableIndexInfoExpr, pNode->expr);
+  }
+
+  return code;
+}
+
+static int32_t jsonToTableIndexInfo(const SJson* pJson, void* pObj) {
+  STableIndexInfo* pNode = (STableIndexInfo*)pObj;
+
+  int32_t code = tjsonGetTinyIntValue(pJson, jkTableIndexInfoIntervalUnit, &pNode->intervalUnit);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetTinyIntValue(pJson, jkTableIndexInfoSlidingUnit, &pNode->slidingUnit);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBigIntValue(pJson, jkTableIndexInfoInterval, &pNode->interval);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBigIntValue(pJson, jkTableIndexInfoOffset, &pNode->offset);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBigIntValue(pJson, jkTableIndexInfoSliding, &pNode->sliding);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBigIntValue(pJson, jkTableIndexInfoDstTbUid, &pNode->dstTbUid);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkTableIndexInfoDstVgId, &pNode->dstVgId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonToObject(pJson, jkTableIndexInfoEpSet, jsonToEpSet, &pNode->epSet);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonDupStringValue(pJson, jkTableIndexInfoExpr, &pNode->expr);
+  }
+
+  return code;
+}
+
 static const char* jkRealTableMetaSize = "MetaSize";
 static const char* jkRealTableMeta = "Meta";
 static const char* jkRealTableVgroupsInfoSize = "VgroupsInfoSize";
 static const char* jkRealTableVgroupsInfo = "VgroupsInfo";
+static const char* jkRealTableSmaIndexes = "SmaIndexes";
 
 static int32_t realTableNodeToJson(const void* pObj, SJson* pJson) {
   const SRealTableNode* pNode = (const SRealTableNode*)pObj;
@@ -2829,6 +2904,9 @@ static int32_t realTableNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkRealTableVgroupsInfo, vgroupsInfoToJson, pNode->pVgroupList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddTArray(pJson, jkRealTableSmaIndexes, tableIndexInfoToJson, pNode->pSmaIndexes);
   }
 
   return code;
@@ -2850,6 +2928,10 @@ static int32_t jsonToRealTableNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonMakeObject(pJson, jkRealTableVgroupsInfo, jsonToVgroupsInfo, (void**)&pNode->pVgroupList, objSize);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code =
+        tjsonToTArray(pJson, jkRealTableSmaIndexes, jsonToTableIndexInfo, &pNode->pSmaIndexes, sizeof(STableIndexInfo));
   }
 
   return code;

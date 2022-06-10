@@ -64,6 +64,7 @@ class MockCatalogService {
   int32_t catalogGetTableDistVgInfo(const SName* pTableName, SArray** pVgList) const;
   int32_t catalogGetDBVgInfo(const char* pDbFName, SArray** pVgList) const;
   int32_t catalogGetUdfInfo(const std::string& funcName, SFuncInfo* pInfo) const;
+  int32_t catalogGetTableIndex(const SName* pTableName, SArray** pIndexes) const;
   int32_t catalogGetAllMeta(const SCatalogReq* pCatalogReq, SMetaData* pMetaData) const;
 
  private:

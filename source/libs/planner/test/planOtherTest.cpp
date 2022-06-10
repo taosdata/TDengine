@@ -43,6 +43,8 @@ TEST_F(PlanOtherTest, createSmaIndex) {
   useDb("root", "test");
 
   run("CREATE SMA INDEX idx1 ON t1 FUNCTION(MAX(c1), MIN(c3 + 10), SUM(c4)) INTERVAL(10s)");
+
+  run("SELECT SUM(c4) FROM t1 INTERVAL(10s)");
 }
 
 TEST_F(PlanOtherTest, explain) {

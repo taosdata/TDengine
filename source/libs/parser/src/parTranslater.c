@@ -258,24 +258,19 @@ static int32_t getUdfInfo(STranslateContext* pCxt, SFunctionNode* pFunc) {
   return code;
 }
 
-static int32_t getTableIndex(STranslateContext* pCxt, const char* pDbName, const char* pTableName, SArray** pIndexes) {
+static int32_t getTableIndex(STranslateContext* pCxt, const SName* pName, SArray** pIndexes) {
   SParseContext* pParCxt = pCxt->pParseCxt;
-  SName          name;
-  toName(pParCxt->acctId, pDbName, pTableName, &name);
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t        code = collectUseDatabase(pName, pCxt->pDbs);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = collectUseTable(pName, pCxt->pTables);
+  }
   if (pParCxt->async) {
-    code = getTableIndexFromCache(pCxt->pMetaCache, &name, pIndexes);
+    code = getTableIndexFromCache(pCxt->pMetaCache, pName, pIndexes);
   } else {
-    code = collectUseDatabase(&name, pCxt->pDbs);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = collectUseTable(&name, pCxt->pTables);
-    }
-    if (TSDB_CODE_SUCCESS == code) {
-      code = catalogGetTableIndex(pParCxt->pCatalog, pParCxt->pTransporter, &pParCxt->mgmtEpSet, &name, pIndexes);
-    }
+    code = catalogGetTableIndex(pParCxt->pCatalog, pParCxt->pTransporter, &pParCxt->mgmtEpSet, pName, pIndexes);
   }
   if (TSDB_CODE_SUCCESS != code) {
-    parserError("getTableIndex error, code:%s, dbName:%s, tbName:%s", tstrerror(code), pDbName, pTableName);
+    parserError("getTableIndex error, code:%s, dbName:%s, tbName:%s", tstrerror(code), pName->dbname, pName->tname);
   }
   return code;
 }
@@ -853,9 +848,9 @@ static EDealRes translateComparisonOperator(STranslateContext* pCxt, SOperatorNo
   }
   if (OP_TYPE_IN == pOp->opType || OP_TYPE_NOT_IN == pOp->opType) {
     SNodeListNode* pRight = (SNodeListNode*)pOp->pRight;
-    bool first = true;
-    SDataType targetDt = {0};
-    SNode* pNode = NULL;
+    bool           first = true;
+    SDataType      targetDt = {0};
+    SNode*         pNode = NULL;
     FOREACH(pNode, pRight->pNodeList) {
       SDataType dt = ((SExprNode*)pNode)->resType;
       if (first) {
@@ -1409,6 +1404,9 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
           return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_TABLE_NOT_EXIST, pRealTable->table.tableName);
         }
         code = setTableVgroupList(pCxt, &name, pRealTable);
+        if (TSDB_CODE_SUCCESS == code) {
+          code = getTableIndex(pCxt, &name, &pRealTable->pSmaIndexes);
+        }
       }
       pRealTable->table.precision = pRealTable->pMeta->tableInfo.precision;
       pRealTable->table.singleTable = isSingleTable(pRealTable);
@@ -2018,33 +2016,8 @@ static int32_t rewriteTimelineFunc(STranslateContext* pCxt, SSelectStmt* pSelect
   nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FROM, rewriteTimelineFuncImpl, pCxt);
   return pCxt->errCode;
 }
-#if 0
-static bool mayBeApplySmaIndex(SSelectStmt* pSelect) {
-  if (NULL == pSelect->pWindow || QUERY_NODE_INTERVAL_WINDOW != nodeType(pSelect->pWindow) ||
-      NULL != ((SIntervalWindowNode*)pSelect->pWindow)->pFill ||
-      QUERY_NODE_REAL_TABLE != nodeType(pSelect->pFromTable) || NULL != pSelect->pWhere ||
-      NULL != pSelect->pPartitionByList || NULL != pSelect->pGroupByList || NULL != pSelect->pHaving) {
-    return false;
-  }
-  return true;
-}
 
-static bool equalIntervalWindow(SIntervalWindowNode* pInterval, SNode* pWhere, STableIndexInfo* pIndex) {
-  int64_t interval = ((SValueNode*)pInterval->pInterval)->datum.i;
-  int8_t  intervalUnit = ((SValueNode*)pInterval->pInterval)->unit;
-  int64_t offset = (NULL != pInterval->pOffset ? ((SValueNode*)pInterval->pOffset)->datum.i : 0);
-  int64_t sliding = (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->datum.i : interval);
-  int8_t  slidingUnit = (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->unit : intervalUnit);
-  if (interval != pIndex->interval || intervalUnit != pIndex->intervalUnit || offset != pIndex->offset ||
-      sliding != pIndex->sliding || slidingUnit != pIndex->slidingUnit) {
-    return false;
-  }
-  // todo
-  if (NULL != pWhere) {
-    return false;
-  }
-  return true;
-}
+#if 0
 
 typedef struct SSmaIndexMatchFuncsCxt {
   int32_t    errCode;
@@ -2056,10 +2029,10 @@ typedef struct SSmaIndexMatchFuncsCxt {
   bool       match;
 } SSmaIndexMatchFuncsCxt;
 
-static SColumnNode* createColumnFromSmaFunc(uint64_t tableId, int32_t index, SExprNode* pSmaFunc) {
+static int32_t smaOptCreateSmaCol(SNode* pSmaFunc, int32_t index, SNode** pOutput) {
   SColumnNode* pCol = nodesMakeNode(QUERY_NODE_COLUMN);
   if (NULL == pCol) {
-    return NULL;
+    return TSDB_CODE_SUCCESS;
   }
   pCol->tableId = tableId;
   pCol->tableType = TSDB_SUPER_TABLE;
@@ -2070,7 +2043,7 @@ static SColumnNode* createColumnFromSmaFunc(uint64_t tableId, int32_t index, SEx
   strcpy(pCol->tableAlias, SMA_TABLE_NAME);
   pCol->node.resType = pSmaFunc->resType;
   strcpy(pCol->node.aliasName, pSmaFunc->aliasName);
-  return pCol;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t collectSmaFunc(SSmaIndexMatchFuncsCxt* pCxt, int32_t index, SNode* pSmaFunc) {
@@ -2262,25 +2235,6 @@ static int32_t attemptApplySmaIndexImpl(STranslateContext* pCxt, SSelectStmt* pS
   return TSDB_CODE_SUCCESS;
 }
 
-static void destroySmaIndex(void* p) { taosMemoryFree(((STableIndexInfo*)p)->expr); }
-
-static int32_t attemptApplySmaIndex(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  SRealTableNode* pRealTable = (SRealTableNode*)pSelect->pFromTable;
-  SArray*         pIndexes = NULL;
-  int32_t         code = getTableIndex(pCxt, pRealTable->table.dbName, pRealTable->table.tableName, &pIndexes);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = attemptApplySmaIndexImpl(pCxt, pSelect, pIndexes);
-  }
-  taosArrayDestroyEx(pIndexes, destroySmaIndex);
-  return code;
-}
-
-static int32_t attemptApplyIndex(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  // if (mayBeApplySmaIndex(pSelect)) {
-  //   return attemptApplySmaIndex(pCxt, pSelect);
-  // }
-  return TSDB_CODE_SUCCESS;
-}
 #endif
 
 static int32_t translateSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
