@@ -17,6 +17,9 @@
 #include "tname.h"
 #include "cJSON.h"
 #include "tglobal.h"
+#include "osSemaphore.h"
+#include "osThread.h"
+
 //=================================================================================================
 
 #define SPACE ' '
@@ -2323,7 +2326,7 @@ static void smlInsertCallback(void* param, void* res, int32_t code) {
   }
   // unlock
 
-  printf("SML:0x%"PRIx64" insert finished, code: %d, total: %d\n", info->id, code, info->affectedRows);
+  printf("SML:0x%" PRIx64 " insert finished, code: %d, total: %d\n", info->id, code, info->affectedRows);
   Params *pParam = info->params;
   bool isLast = info->isLast;
   smlDestroyInfo(info);
@@ -2362,10 +2365,11 @@ TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int pr
   }
 
   ((STscObj *)taos)->schemalessType = 1;
-  SSmlMsgBuf msg = {.len = ERROR_MSG_BUF_DEFAULT_SIZE, .buf = request->msgBuf};
+  SSmlMsgBuf msg = {ERROR_MSG_BUF_DEFAULT_SIZE, request->msgBuf};
 
   int cnt = ceil(((double)numLines)/LINE_BATCH);
-  Params params = {.request = request};
+  Params params;
+  params.request = request;
   tsem_init(&params.sem, 0, 0);
   taosThreadSpinInit(&(params.lock), 0);
 
