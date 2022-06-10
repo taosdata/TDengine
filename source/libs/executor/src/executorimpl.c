@@ -1885,9 +1885,7 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowR
       }
 
       // write back
-      if (pBlock->info.rows > 0) {
-        colDataAssign(pSrc, pDst, pBlock->info.rows);
-      }
+      colDataAssign(pSrc, pDst, pBlock->info.rows);
     }
     blockDataDestroy(px);  // fix memory leak
   } else {
