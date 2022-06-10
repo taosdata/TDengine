@@ -787,7 +787,9 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
         msgIter.suid = 0;
       }
 
+#ifdef TD_DEBUG_PRINT_ROW
       vnodeDebugPrintSingleSubmitMsg(pVnode->pMeta, pBlock, &msgIter, "real uid");
+#endif
       tDecoderClear(&decoder);
     } else {
       submitBlkRsp.tblFName = taosMemoryMalloc(TSDB_TABLE_FNAME_LEN);

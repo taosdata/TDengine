@@ -2261,7 +2261,7 @@ static int smlProcess(SSmlHandle *info, char* lines[], int numLines) {
   code = smlParseLine(info, lines, numLines);
   if (code != 0) {
     uError("SML:0x%"PRIx64" smlParseLine error : %s", info->id, tstrerror(code));
-    goto cleanup;
+    return code;
   }
 
   info->cost.lineNum = numLines;
@@ -2277,20 +2277,16 @@ static int smlProcess(SSmlHandle *info, char* lines[], int numLines) {
 
   if (code != 0) {
     uError("SML:0x%"PRIx64" smlModifyDBSchemas error : %s", info->id, tstrerror(code));
-    goto cleanup;
+    return code;
   }
 
   info->cost.insertBindTime = taosGetTimestampUs();
   code = smlInsertData(info);
   if (code != 0) {
     uError("SML:0x%"PRIx64" smlInsertData error : %s", info->id, tstrerror(code));
-    goto cleanup;
+    return code;
   }
-  info->cost.endTime = taosGetTimestampUs();
 
-cleanup:
-  info->cost.code = code;
-  smlPrintStatisticInfo(info);
   return code;
 }
 
@@ -2329,6 +2325,9 @@ static void smlInsertCallback(void* param, void* res, int32_t code) {
   printf("SML:0x%" PRIx64 " insert finished, code: %d, total: %d\n", info->id, code, info->affectedRows);
   Params *pParam = info->params;
   bool isLast = info->isLast;
+  info->cost.endTime = taosGetTimestampUs();
+  info->cost.code = code;
+  smlPrintStatisticInfo(info);
   smlDestroyInfo(info);
 
   if(isLast){
