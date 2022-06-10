@@ -9434,7 +9434,6 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
 
   pCmd->pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
-  pCmd->hashedTableNames = taosArrayInit(4, POINTER_BYTES);
 
   tableNameList = taosArrayInit(4, sizeof(SName));
   size_t size = taosArrayGetSize(pInfo->list);
@@ -9503,8 +9502,14 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
           taosArrayPush(pVgroupList, &t);
           tscDebug("0x%"PRIx64" failed to retrieve stable %s vgroup id list in cache, try fetch from mnode", pSql->self, name);
 
-          char* tb = strdup(name);
-          taosArrayPush(pCmd->hashedTableNames, &tb);
+          if (pCmd->hashedTableNames == NULL) {
+            pCmd->hashedTableNames = taosArrayInit(4, POINTER_BYTES);
+          }
+
+          if (pCmd->hashedTableNames) {
+            char* tb = strdup(name);
+            taosArrayPush(pCmd->hashedTableNames, &tb);
+          }
         } else {
           tFilePage* pdata = (tFilePage*) pv;
           pVgroupIdList = taosArrayInit((size_t) pdata->num, sizeof(int32_t));
