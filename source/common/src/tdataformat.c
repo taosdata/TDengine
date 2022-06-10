@@ -268,6 +268,7 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, S
         nDataT = BIT2_SIZE(pTSchema->numOfCols - 1) + pTSchema->flen + ntv;
         break;
       default:
+        break;
         ASSERT(0);
     }
 
@@ -283,7 +284,7 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, S
       tflags |= TSROW_KV_BIG;
     }
 
-    if (nDataT < nDataK) {
+    if (nDataT <= nDataK) {
       nData = nDataT;
     } else {
       nData = nDataK;
@@ -374,6 +375,7 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, S
           break;
         default:
           ASSERT(0);
+          break;
       }
     } else {
       pTSKVRow = (STSKVRow *)(*ppRow)->pData;
@@ -419,12 +421,26 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, S
     _set_none:
       if ((flags & 0xf0) == 0) {
         setBitMap(pb, 0, iColumn - 1, flags);
+        if (flags & TSROW_HAS_VAL) { // set 0
+          if (IS_VAR_DATA_TYPE(pTColumn->type)) {
+            *(VarDataOffsetT *)(pf + pTColumn->offset) = 0;
+          } else {
+            tPutValue(pf + pTColumn->offset, &((SValue){0}), pTColumn->type);
+          }
+        }
       }
       continue;
 
     _set_null:
       if ((flags & 0xf0) == 0) {
         setBitMap(pb, 1, iColumn - 1, flags);
+        if (flags & TSROW_HAS_VAL) { // set 0
+          if (IS_VAR_DATA_TYPE(pTColumn->type)) {
+            *(VarDataOffsetT *)(pf + pTColumn->offset) = 0;
+          } else {
+            tPutValue(pf + pTColumn->offset, &((SValue){0}), pTColumn->type);
+          }
+        }
       } else {
         SET_IDX(pidx, pTSKVRow->nCols, nkv, flags);
         pTSKVRow->nCols++;

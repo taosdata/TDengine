@@ -327,13 +327,13 @@ TEST_F(UtilEnv, testFill) {
   for (int i = 0; i < 1000000; i++) {
     int64_t val = i;
     char    buf[65] = {0};
-    indexInt2str(val, buf, 1);
+    idxInt2str(val, buf, 1);
     EXPECT_EQ(val, taosStr2int64(buf));
   }
   for (int i = 0; i < 1000000; i++) {
     int64_t val = 0 - i;
     char    buf[65] = {0};
-    indexInt2str(val, buf, -1);
+    idxInt2str(val, buf, -1);
     EXPECT_EQ(val, taosStr2int64(buf));
   }
 }

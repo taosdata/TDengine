@@ -1389,6 +1389,18 @@ void setSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, const STuple
   }
 }
 
+void releaseSource(STuplePos* pPos) {
+  if (pPos->pageId == -1) {
+    return ;
+  }
+  // Todo(liuyao) relase row
+}
+
+void replaceTupleData(STuplePos* pDestPos, STuplePos* pSourcePos) {
+  releaseSource(pDestPos);
+  *pDestPos = *pSourcePos;
+}
+
 int32_t minMaxCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx, int32_t isMinFunc) {
   SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
   SMinmaxResInfo*      pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
@@ -1400,10 +1412,12 @@ int32_t minMaxCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx, int3
     if (pSBuf->assign && 
         ( (((*(double*)&pDBuf->v) < (*(double*)&pSBuf->v)) ^ isMinFunc) || !pDBuf->assign ) ) {
       *(double*) &pDBuf->v = *(double*) &pSBuf->v;
+      replaceTupleData(&pDBuf->tuplePos, &pSBuf->tuplePos);
     }
   } else {
     if ( pSBuf->assign && ( ((pDBuf->v < pSBuf->v) ^ isMinFunc) || !pDBuf->assign ) ) {
       pDBuf->v = pSBuf->v;
+      replaceTupleData(&pDBuf->tuplePos, &pSBuf->tuplePos);
     }
   }
   pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
@@ -2187,9 +2201,7 @@ int32_t apercentilePartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SAPercentileInfo*       pInfo = (SAPercentileInfo*)GET_ROWCELL_INTERBUF(pResInfo);
 
-  int32_t bytesHist   = (int32_t)(sizeof(SAPercentileInfo) + sizeof(SHistogramInfo) + sizeof(SHistBin) * (MAX_HISTOGRAM_BIN + 1));
-  int32_t bytesDigest = (int32_t)(sizeof(SAPercentileInfo) + TDIGEST_SIZE(COMPRESSION));
-  int32_t resultBytes = TMAX(bytesHist, bytesDigest);
+  int32_t resultBytes = getApercentileMaxSize();
   char *res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
 
   if (pInfo->algo == APERCT_ALGO_TDIGEST) {
@@ -2858,7 +2870,6 @@ void copyTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pS
 int32_t topBotFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(pCtx);
   STopBotRes*          pRes = GET_ROWCELL_INTERBUF(pEntryInfo);
-  pEntryInfo->complete = true;
 
   int32_t type = pCtx->input.pData[0]->info.type;
   int32_t slotId = pCtx->pExpr->base.resSchema.slotId;
@@ -2881,6 +2892,67 @@ int32_t topBotFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   }
 
   return pEntryInfo->numOfRes;
+}
+
+void addResult(SqlFunctionCtx* pCtx, STopBotResItem* pSourceItem, int16_t type,
+    bool isTopQuery) {
+  SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(pCtx);
+  STopBotRes* pRes = getTopBotOutputInfo(pCtx);
+  int32_t     maxSize = pCtx->param[1].param.i;
+  STopBotResItem* pItems = pRes->pItems;
+  assert(pItems != NULL);
+
+  // not full yet
+  if (pEntryInfo->numOfRes < maxSize) {
+    STopBotResItem* pItem = &pItems[pEntryInfo->numOfRes];
+    pItem->v = pSourceItem->v;
+    pItem->uid = pSourceItem->uid;
+    pItem->tuplePos.pageId = -1;
+    replaceTupleData(&pItem->tuplePos, &pSourceItem->tuplePos);
+    pEntryInfo->numOfRes++;
+    taosheapsort((void*)pItems, sizeof(STopBotResItem), pEntryInfo->numOfRes, (const void*)&type, topBotResComparFn,
+                 !isTopQuery);
+  } else {  // replace the minimum value in the result
+    if ((isTopQuery && (
+        (IS_SIGNED_NUMERIC_TYPE(type) && pSourceItem->v.i > pItems[0].v.i) ||
+        (IS_UNSIGNED_NUMERIC_TYPE(type) && pSourceItem->v.u > pItems[0].v.u) ||
+        (IS_FLOAT_TYPE(type) && pSourceItem->v.d > pItems[0].v.d)))
+        || (!isTopQuery && (
+        (IS_SIGNED_NUMERIC_TYPE(type) && pSourceItem->v.i < pItems[0].v.i) ||
+        (IS_UNSIGNED_NUMERIC_TYPE(type) && pSourceItem->v.u < pItems[0].v.u) ||
+        (IS_FLOAT_TYPE(type) && pSourceItem->v.d < pItems[0].v.d))
+        )) {
+      // replace the old data and the coresponding tuple data
+      STopBotResItem* pItem = &pItems[0];
+      pItem->v = pSourceItem->v;
+      pItem->uid = pSourceItem->uid;
+
+      // save the data of this tuple by over writing the old data
+      replaceTupleData(&pItem->tuplePos, &pSourceItem->tuplePos);
+      taosheapadjust((void*)pItems, sizeof(STopBotResItem), 0, pEntryInfo->numOfRes - 1, (const void*)&type,
+                     topBotResComparFn, NULL, !isTopQuery);
+    }
+  }
+}
+
+int32_t topCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
+  int32_t type = pDestCtx->input.pData[0]->info.type;
+  SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
+  STopBotRes*          pSBuf = getTopBotOutputInfo(pSourceCtx);
+  for (int32_t i = 0; i < pSResInfo->numOfRes; i++) {
+    addResult(pDestCtx, pSBuf->pItems + i, type, true);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t bottomCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
+  int32_t type = pDestCtx->input.pData[0]->info.type;
+  SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
+  STopBotRes*          pSBuf = getTopBotOutputInfo(pSourceCtx);
+  for (int32_t i = 0; i < pSResInfo->numOfRes; i++) {
+    addResult(pDestCtx, pSBuf->pItems + i, type, false);
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 bool getSpreadFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
@@ -3029,6 +3101,10 @@ int32_t spreadPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   return pResInfo->numOfRes;
 }
 
+int32_t getElapsedInfoSize() {
+  return (int32_t)sizeof(SElapsedInfo);
+}
+
 bool getElapsedFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
   pEnv->calcMemSize = sizeof(SElapsedInfo);
   return true;
@@ -3130,12 +3206,58 @@ _elapsed_over:
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t elapsedFunctionMerge(SqlFunctionCtx *pCtx) {
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData* pCol = pInput->pData[0];
+  ASSERT(pCol->info.type == TSDB_DATA_TYPE_BINARY);
+
+  SElapsedInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+
+  int32_t start = pInput->startRowIndex;
+  char* data = colDataGetData(pCol, start);
+  SElapsedInfo* pInputInfo = (SElapsedInfo *)varDataVal(data);
+
+  pInfo->timeUnit = pInputInfo->timeUnit;
+  if (pInfo->min > pInputInfo->min) {
+    pInfo->min = pInputInfo->min;
+  }
+
+  if (pInfo->max < pInputInfo->max) {
+    pInfo->max = pInputInfo->max;
+  }
+
+  SET_VAL(GET_RES_INFO(pCtx), 1, 1);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t elapsedFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SElapsedInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
   double result = (double)pInfo->max - (double)pInfo->min;
   result = (result >= 0) ? result : -result;
   pInfo->result = result / pInfo->timeUnit;
   return functionFinalize(pCtx, pBlock);
+}
+
+int32_t elapsedPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SElapsedInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  int32_t resultBytes = getElapsedInfoSize();
+  char *res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
+
+  memcpy(varDataVal(res), pInfo, resultBytes);
+  varDataSetLen(res, resultBytes);
+
+  int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+
+  colDataAppend(pCol, pBlock->info.rows, res, false);
+
+  taosMemoryFree(res);
+  return pResInfo->numOfRes;
+}
+
+int32_t getHistogramInfoSize() {
+  return (int32_t)sizeof(SHistoFuncInfo) + HISTOGRAM_MAX_BINS_NUM * sizeof(SHistoFuncBin);
 }
 
 bool getHistogramFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
@@ -3348,6 +3470,30 @@ int32_t histogramFunction(SqlFunctionCtx *pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t histogramFunctionMerge(SqlFunctionCtx *pCtx) {
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData* pCol = pInput->pData[0];
+  ASSERT(pCol->info.type == TSDB_DATA_TYPE_BINARY);
+
+  SHistoFuncInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+
+  int32_t start = pInput->startRowIndex;
+  char* data = colDataGetData(pCol, start);
+  SHistoFuncInfo* pInputInfo = (SHistoFuncInfo *)varDataVal(data);
+
+  pInfo->normalized = pInputInfo->normalized;
+  pInfo->numOfBins  = pInputInfo->numOfBins;
+  pInfo->totalCount += pInputInfo->totalCount;
+  for (int32_t k = 0; k < pInfo->numOfBins; ++k) {
+    pInfo->bins[k].lower = pInputInfo->bins[k].lower;
+    pInfo->bins[k].upper = pInputInfo->bins[k].upper;
+    pInfo->bins[k].count += pInputInfo->bins[k].count;
+  }
+
+  SET_VAL(GET_RES_INFO(pCtx), pInfo->numOfBins, pInfo->numOfBins);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t histogramFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SHistoFuncInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
@@ -3382,6 +3528,27 @@ int32_t histogramFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   }
 
   return pResInfo->numOfRes;
+}
+
+int32_t histogramPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SHistoFuncInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  int32_t resultBytes = getHistogramInfoSize();
+  char *res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
+
+  memcpy(varDataVal(res), pInfo, resultBytes);
+  varDataSetLen(res, resultBytes);
+
+  int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+
+  colDataAppend(pCol, pBlock->info.rows, res, false);
+
+  taosMemoryFree(res);
+  return 1;
+}
+
+int32_t getHLLInfoSize() {
+  return (int32_t)sizeof(SHLLInfo);
 }
 
 bool getHLLFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
@@ -3509,6 +3676,27 @@ int32_t hllFunction(SqlFunctionCtx *pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t hllFunctionMerge(SqlFunctionCtx *pCtx) {
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData* pCol = pInput->pData[0];
+  ASSERT(pCol->info.type == TSDB_DATA_TYPE_BINARY);
+
+  SHLLInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+
+  int32_t start = pInput->startRowIndex;
+  char* data = colDataGetData(pCol, start);
+  SHLLInfo* pInputInfo = (SHLLInfo *)varDataVal(data);
+
+  for (int32_t k = 0; k < HLL_BUCKETS; ++k) {
+    if (pInfo->buckets[k] < pInputInfo->buckets[k]) {
+      pInfo->buckets[k] = pInputInfo->buckets[k];
+    }
+  }
+
+  SET_VAL(GET_RES_INFO(pCtx), 1, 1);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t hllFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SResultRowEntryInfo *pInfo = GET_RES_INFO(pCtx);
 
@@ -3519,6 +3707,24 @@ int32_t hllFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   }
 
   return functionFinalize(pCtx, pBlock);
+}
+
+int32_t hllPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SHLLInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  int32_t resultBytes = getHLLInfoSize();
+  char *res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
+
+  memcpy(varDataVal(res), pInfo, resultBytes);
+  varDataSetLen(res, resultBytes);
+
+  int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+
+  colDataAppend(pCol, pBlock->info.rows, res, false);
+
+  taosMemoryFree(res);
+  return pResInfo->numOfRes;
 }
 
 bool getStateFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
@@ -4421,7 +4627,6 @@ int32_t twaFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock) {
   if (pResInfo->numOfRes == 0) {
     pResInfo->isNullRes = 1;
   } else {
-    //  assert(pInfo->win.ekey == pInfo->p.key && pInfo->hasResult == pResInfo->hasResult);
     if (pInfo->win.ekey == pInfo->win.skey) {
       pInfo->dOutput = pInfo->p.val;
     } else {
@@ -4434,3 +4639,175 @@ int32_t twaFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock) {
   return functionFinalize(pCtx, pBlock);
 }
 
+int32_t blockDistFunction(SqlFunctionCtx *pCtx) {
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData* pInputCol = pInput->pData[0];
+
+  SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
+
+  STableBlockDistInfo* pDistInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  STableBlockDistInfo p1 = {0};
+  tDeserializeBlockDistInfo(varDataVal(pInputCol->pData), varDataLen(pInputCol->pData), &p1);
+
+  pDistInfo->numOfBlocks += p1.numOfBlocks;
+  pDistInfo->numOfTables += p1.numOfTables;
+  pDistInfo->numOfInmemRows += p1.numOfInmemRows;
+  pDistInfo->totalSize += p1.totalSize;
+  pDistInfo->totalRows += p1.totalRows;
+  pDistInfo->numOfFiles += p1.numOfFiles;
+
+  if (pDistInfo->minRows > p1.minRows) {
+    pDistInfo->minRows = p1.minRows;
+  }
+  if (pDistInfo->maxRows < p1.maxRows) {
+    pDistInfo->maxRows = p1.maxRows;
+  }
+
+  for(int32_t i = 0; i < tListLen(pDistInfo->blockRowsHisto); ++i) {
+    pDistInfo->blockRowsHisto[i] += p1.blockRowsHisto[i];
+  }
+
+  pResInfo->numOfRes = 1;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tSerializeBlockDistInfo(void* buf, int32_t bufLen, const STableBlockDistInfo* pInfo) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeU32(&encoder, pInfo->rowSize) < 0) return -1;
+
+  if (tEncodeU16(&encoder, pInfo->numOfFiles) < 0) return -1;
+  if (tEncodeU32(&encoder, pInfo->rowSize) < 0) return -1;
+  if (tEncodeU32(&encoder, pInfo->numOfTables) < 0) return -1;
+
+  if (tEncodeU64(&encoder, pInfo->totalSize) < 0) return -1;
+  if (tEncodeU64(&encoder, pInfo->totalRows) < 0) return -1;
+  if (tEncodeI32(&encoder, pInfo->maxRows) < 0) return -1;
+  if (tEncodeI32(&encoder, pInfo->minRows) < 0) return -1;
+  if (tEncodeI32(&encoder, pInfo->defMaxRows) < 0) return -1;
+  if (tEncodeI32(&encoder, pInfo->defMinRows) < 0) return -1;
+  if (tEncodeU32(&encoder, pInfo->numOfInmemRows) < 0) return -1;
+  if (tEncodeU32(&encoder, pInfo->numOfSmallBlocks) < 0) return -1;
+
+  for(int32_t i = 0; i < tListLen(pInfo->blockRowsHisto); ++i) {
+    if (tEncodeI32(&encoder, pInfo->blockRowsHisto[i]) < 0) return -1;
+  }
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeBlockDistInfo(void* buf, int32_t bufLen, STableBlockDistInfo* pInfo) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeU32(&decoder, &pInfo->rowSize) < 0) return -1;
+
+  if (tDecodeU16(&decoder, &pInfo->numOfFiles) < 0) return -1;
+  if (tDecodeU32(&decoder, &pInfo->rowSize) < 0) return -1;
+  if (tDecodeU32(&decoder, &pInfo->numOfTables) < 0) return -1;
+
+  if (tDecodeU64(&decoder, &pInfo->totalSize) < 0) return -1;
+  if (tDecodeU64(&decoder, &pInfo->totalRows) < 0) return -1;
+  if (tDecodeI32(&decoder, &pInfo->maxRows) < 0) return -1;
+  if (tDecodeI32(&decoder, &pInfo->minRows) < 0) return -1;
+  if (tDecodeI32(&decoder, &pInfo->defMaxRows) < 0) return -1;
+  if (tDecodeI32(&decoder, &pInfo->defMinRows) < 0) return -1;
+  if (tDecodeU32(&decoder, &pInfo->numOfInmemRows) < 0) return -1;
+  if (tDecodeU32(&decoder, &pInfo->numOfSmallBlocks) < 0) return -1;
+
+  for(int32_t i = 0; i < tListLen(pInfo->blockRowsHisto); ++i) {
+    if (tDecodeI32(&decoder, &pInfo->blockRowsHisto[i]) < 0) return -1;
+  }
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
+  char *pData = GET_ROWCELL_INTERBUF(pResInfo);
+
+  SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, 0);
+
+  int32_t row = 0;
+
+  STableBlockDistInfo info = {0};
+  tDeserializeBlockDistInfo(varDataVal(pData), varDataLen(pData), &info);
+
+  char st[256] = {0};
+  int32_t len = sprintf(st+VARSTR_HEADER_SIZE, "Blocks=[%d] Size=[%.3fKb] Average_Block_size=[%.3fKb] Compression_Ratio=[%.3f]", info.numOfBlocks,
+          info.totalSize/1024.0,
+          info.totalSize/(info.numOfBlocks*1024.0),
+          info.totalSize/(info.totalRows*info.rowSize*1.0)
+  );
+
+  varDataSetLen(st, len);
+  colDataAppend(pColInfo, row++, st, false);
+
+  len = sprintf(st+VARSTR_HEADER_SIZE, "Total_Rows=[%ld] MinRows=[%d] MaxRows=[%d] Averge_Rows=[%ld] Inmem_Rows=[%d]",
+          info.totalRows,
+          info.minRows,
+          info.maxRows,
+          info.totalRows/info.numOfBlocks,
+          info.numOfInmemRows
+  );
+
+  varDataSetLen(st, len);
+  colDataAppend(pColInfo, row++, st, false);
+
+  len = sprintf(st + VARSTR_HEADER_SIZE, "Total_Tables=[%d] Total_Files=[%d] Total_Vgroups=[%d]",
+      info.numOfTables,
+      info.numOfFiles, 0);
+
+  varDataSetLen(st, len);
+  colDataAppend(pColInfo, row++, st, false);
+
+  len = sprintf(st+VARSTR_HEADER_SIZE, "--------------------------------------------------------------------------------");
+  varDataSetLen(st, len);
+  colDataAppend(pColInfo, row++, st, false);
+
+  int32_t maxVal = 0;
+  int32_t minVal = INT32_MAX;
+  for(int32_t i = 0; i < sizeof(info.blockRowsHisto)/sizeof(info.blockRowsHisto[0]); ++i) {
+    if (maxVal < info.blockRowsHisto[i]) {
+      maxVal = info.blockRowsHisto[i];
+    }
+
+    if (minVal > info.blockRowsHisto[i]) {
+      minVal = info.blockRowsHisto[i];
+    }
+  }
+
+  int32_t delta = maxVal - minVal;
+  int32_t step = delta / 50;
+
+  int32_t numOfBuckets = sizeof(info.blockRowsHisto)/sizeof(info.blockRowsHisto[0]);
+  int32_t bucketRange = (info.maxRows - info.minRows) / numOfBuckets;
+
+  for(int32_t i = 0; i < 20; ++i) {
+    len += sprintf(st + VARSTR_HEADER_SIZE, "%04d |", info.defMinRows + bucketRange * (i + 1));
+
+    int32_t num = (info.blockRowsHisto[i] + step - 1) / step;
+    for (int32_t j = 0; j < num; ++j) {
+      int32_t x = sprintf(st + VARSTR_HEADER_SIZE + len, "%c", '|');
+      len += x;
+    }
+
+    double v = info.blockRowsHisto[i] * 100.0 / info.numOfBlocks;
+    len += sprintf(st+ VARSTR_HEADER_SIZE + len, "  %d (%.3f%c)", info.blockRowsHisto[i], v, '%');
+    printf("%s\n", st);
+
+    varDataSetLen(st, len);
+    colDataAppend(pColInfo, row++, st, false);
+  }
+
+  return row;
+}
