@@ -18,11 +18,13 @@
 static const char *tsdbFileSuffix[] = {".tombstone", ".cache", ".index", ".data", ".last", ".sma", ""};
 
 // .tombstone
-struct STsdbTombstoneFile {
+struct SDelFile {
   TSKEY   minKey;
   TSKEY   maxKey;
   int64_t minVersion;
   int64_t maxVersion;
+  int64_t size;
+  int64_t offset;
 };
 
 struct STsdbIndexFile {

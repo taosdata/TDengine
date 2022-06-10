@@ -73,12 +73,62 @@ int32_t tsdbLoadSBlockStatis(SDFileSetReader *pReader, SBlock *pBlock, SBlockSta
   return code;
 }
 
-// STombstoneFileWriter ====================================================
-struct STombstoneFileWriter {
-  STsdb *pTsdb;
+// SDelFWriter ====================================================
+struct SDelFWriter {
+  SDelFile *pFile;
+  TdFilePtr pWriteH;
 };
 
-// STombstoneFileReader ====================================================
-struct STombstoneFileReader {
-  STsdb *pTsdb;
+int32_t tsdbDelFWriterOpen(SDelFWriter **ppWriter, SDelFile *pFile) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbDelFWriterClose(SDelFWriter *pWriter) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbWriteDelData(SDelFWriter *pWriter, SDelData *pDelData, uint8_t **ppBuf) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbWriteDelIdx(SDelFWriter *pWriter, SDelIdx *pDelIdx, uint8_t **ppBuf) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+// SDelFReader ====================================================
+struct SDelFReader {
+  SDelFile *pFile;
+  TdFilePtr pReadH;
 };
+
+int32_t tsdbDelFReaderOpen(SDelFReader *pReader, SDelFile *pFile) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbDelFReaderClose(SDelFReader *pReader) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbReadDelData(SDelFReader *pReader, SDelData *pDelData, uint8_t **ppBuf) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbReadDelIdx(SDelFReader *pReader, SDelIdx *pDelIdx, uint8_t **ppBuf) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}

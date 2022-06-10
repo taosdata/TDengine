@@ -57,14 +57,14 @@ bool    tsdbTbDataIterNext(STbDataIter *pIter);
 bool    tsdbTbDataIterGet(STbDataIter *pIter, TSDBROW *pRow);
 
 // tsdbFile.c ==============================================================================================
-typedef struct STsdbTombstoneFile STsdbTombstoneFile;
-typedef struct STsdbCacheFile     STsdbCacheFile;
-typedef struct STsdbIndexFile     STsdbIndexFile;
-typedef struct STsdbDataFile      STsdbDataFile;
-typedef struct STsdbLastFile      STsdbLastFile;
-typedef struct STsdbSmaFile       STsdbSmaFile;
-typedef struct STsdbSmalFile      STsdbSmalFile;
-typedef struct SDFileSet          SDFileSet;
+typedef struct SDelFile       SDelFile;
+typedef struct STsdbCacheFile STsdbCacheFile;
+typedef struct STsdbIndexFile STsdbIndexFile;
+typedef struct STsdbDataFile  STsdbDataFile;
+typedef struct STsdbLastFile  STsdbLastFile;
+typedef struct STsdbSmaFile   STsdbSmaFile;
+typedef struct STsdbSmalFile  STsdbSmalFile;
+typedef struct SDFileSet      SDFileSet;
 
 // tsdbFS.c ==============================================================================================
 typedef struct STsdbFS STsdbFS;
@@ -74,7 +74,25 @@ int32_t tsdbFSClose(STsdbFS *pFS);
 int32_t tsdbFSStart(STsdbFS *pFS);
 int32_t tsdbFSEnd(STsdbFS *pFS, int8_t rollback);
 
-// tsdbReaderWritter.c ==============================================================================================
+// tsdbReaderWriter.c ==============================================================================================
+typedef struct SDelData SDelData;
+typedef struct SDelIdx  SDelIdx;
+
+// SDelFWriter
+typedef struct SDelFWriter SDelFWriter;
+
+int32_t tsdbDelFWriterOpen(SDelFWriter **ppWriter, SDelFile *pFile);
+int32_t tsdbDelFWriterClose(SDelFWriter *pWriter);
+int32_t tsdbWriteDelData(SDelFWriter *pWriter, SDelData *pDelData, uint8_t **ppBuf);
+int32_t tsdbWriteDelIdx(SDelFWriter *pWriter, SDelIdx *pDelIdx, uint8_t **ppBuf);
+
+// SDelFReader
+typedef struct SDelFReader SDelFReader;
+
+int32_t tsdbDelFReaderOpen(SDelFReader *pReader, SDelFile *pFile);
+int32_t tsdbDelFReaderClose(SDelFReader *pReader);
+int32_t tsdbReadDelData(SDelFReader *pReader, SDelData *pDelData, uint8_t **ppBuf);
+int32_t tsdbReadDelIdx(SDelFReader *pReader, SDelIdx *pDelIdx, uint8_t **ppBuf);
 
 // tsdbCommit.c ==============================================================================================
 
@@ -167,10 +185,8 @@ typedef struct SReadH       SReadH;
 // void *tsdbDecodeSBlockIdx(void *buf, SBlockIdx *pIdx);
 // void  tsdbGetBlockStatis(SReadH *pReadh, SColumnDataAgg *pStatis, int numOfCols, SBlock *pBlock);
 
-typedef struct SDFileSetReader      SDFileSetReader;
-typedef struct SDFileSetWriter      SDFileSetWriter;
-typedef struct STombstoneFileWriter STombstoneFileWriter;
-typedef struct STombstoneFileReader STombstoneFileReader;
+typedef struct SDFileSetReader SDFileSetReader;
+typedef struct SDFileSetWriter SDFileSetWriter;
 
 // SDFileSetWriter
 int32_t tsdbDFileSetWriterOpen(SDFileSetWriter *pWriter, STsdb *pTsdb, SDFileSet *pSet);
@@ -186,13 +202,9 @@ int32_t tsdbLoadSBlockIdx(SDFileSetReader *pReader, SArray *pArray);
 int32_t tsdbLoadSBlockInfo(SDFileSetReader *pReader, SBlockIdx *pBlockIdx, SBlockInfo *pBlockInfo);
 int32_t tsdbLoadSBlockStatis(SDFileSetReader *pReader, SBlock *pBlock, SBlockStatis *pBlockStatis);
 
-// STombstoneFileWriter
-int32_t tsdbTomstoneFileWriterOpen(STombstoneFileWriter *pWriter, STsdb *pTsdb);
-int32_t tsdbTomstoneFileWriterClose(STombstoneFileWriter *pWriter);
+// SDelFWriter
 
-// STombstoneFileReader
-int32_t tsdbTomstoneFileReaderOpen(STombstoneFileReader *pReader, STsdb *pTsdb);
-int32_t tsdbTomstoneFileReaderClose(STombstoneFileReader *pReader);
+// SDelFReader
 
 // tsdbUtil.c ==============================================================================================
 int32_t tTABLEIDCmprFn(const void *p1, const void *p2);
@@ -303,7 +315,7 @@ struct SMemTable {
   TSDBKEY  maxKey;
   int64_t  nRow;
   int64_t  nDelOp;
-  SArray  *aTbData;  // SArray<STbData>
+  SArray  *aTbData;  // SArray<STbData*>
 };
 
 // struct STsdbFSMeta {
@@ -727,6 +739,12 @@ struct TABLEID {
   tb_uid_t uid;
 };
 
+struct STbDataIter {
+  STbData          *pTbData;
+  int8_t            backward;
+  SMemSkipListNode *pNode;
+};
+
 struct SDelOp {
   int64_t version;
   TSKEY   sKey;  // included
@@ -735,17 +753,39 @@ struct SDelOp {
 };
 
 typedef struct {
+  int64_t version;
+  TSKEY   sKey;
+  TSKEY   eKey;
+} SDelDataItem;
+
+struct SDelData {
+  uint32_t delimiter;
   tb_uid_t suid;
   tb_uid_t uid;
-  int64_t  version;
-  TSKEY    sKey;
-  TSKEY    eKey;
-} SDelInfo;
+  int8_t   flags;
+  int64_t  nItem;
+  uint8_t *pOffset;
+  uint32_t nData;
+  uint8_t *pData;
+};
 
-struct STbDataIter {
-  STbData          *pTbData;
-  int8_t            backward;
-  SMemSkipListNode *pNode;
+typedef struct {
+  tb_uid_t suid;
+  tb_uid_t uid;
+  TSKEY    minKey;
+  TSKEY    maxKey;
+  int64_t  maxVersion;
+  int64_t  minVersion;
+  int64_t  offset;
+  int64_t  size;
+} SDelIdxItem;
+
+struct SDelIdx {
+  uint32_t delimiter;
+  int8_t   flags;
+  int64_t  nItem;
+  uint8_t *pOffset;
+  uint8_t *pDelIdxItem;
 };
 
 #endif

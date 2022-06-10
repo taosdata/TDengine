@@ -18,7 +18,10 @@
 typedef struct SCommitter SCommitter;
 
 struct SCommitter {
-  STsdb  *pTsdb;
+  STsdb   *pTsdb;
+  uint8_t *pBuf1;
+  uint8_t *pBuf2;
+  /* commit data */
   int32_t minutes;
   int8_t  precision;
   TSKEY   nextCommitKey;
@@ -33,6 +36,14 @@ struct SCommitter {
   // commit table data
   STbData   *pTbData;
   SBlockIdx *pBlockIdx;
+  /* commit del */
+  SDelFReader *pTombstoneReader;
+  SDelFWriter *pTombstoneWritter;
+  SDelIdx      delIdxO;
+  SDelIdx      delIdxN;
+  SDelData     delDataO;
+  SDelData     delDataN;
+  /* commit cache */
 };
 
 static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitter *pCommitter);
@@ -159,14 +170,63 @@ static int32_t tsdbCommitDelStart(SCommitter *pCommitter) {
 }
 
 static int32_t tsdbCommitDelImpl(SCommitter *pCommitter) {
-  int32_t code = 0;
-  // TODO
+  int32_t    code = 0;
+  STsdb     *pTsdb = pCommitter->pTsdb;
+  SMemTable *pMemTable = pTsdb->imem;
+  int32_t    iTbData = 0;
+  int32_t    nTbData = taosArrayGetSize(pMemTable->aTbData);
+  int32_t    iDelIdx = 0;
+  int32_t    nDelIdx;  // TODO
+  int32_t    c;
+  STbData   *pTbData = NULL;
+  SDelIdx   *pDelIdx = NULL;
+
+  while (iTbData < nTbData || iDelIdx < nDelIdx) {
+    if (iTbData < nTbData) {
+      pTbData = (STbData *)taosArrayGetP(pMemTable->aTbData, iTbData);
+    } else {
+      pTbData = NULL;
+    }
+    if (iDelIdx < nDelIdx) {
+      // pDelIdx = ; // TODO
+    } else {
+      pDelIdx = NULL;
+    }
+
+    if (pTbData && pDelIdx) {
+      c = tTABLEIDCmprFn(pTbData, pDelIdx);
+      if (c == 0) {
+        iTbData++;
+        iDelIdx++;
+      } else if (c < 0) {
+        iTbData++;
+        pDelIdx = NULL;
+      } else {
+        iDelIdx++;
+        pTbData = NULL;
+      }
+    } else {
+      if (pTbData) {
+        iTbData++;
+      } else {
+        iDelIdx++;
+      }
+    }
+
+    // TODO: commit with the pTbData and pDelIdx
+  }
+
   return code;
 }
 
 static int32_t tsdbCommitDelEnd(SCommitter *pCommitter) {
   int32_t code = 0;
-  // TODO
+
+  ASSERT(pCommitter->delIdxN.nItem > 0);
+
+  return code;
+
+_err:
   return code;
 }
 

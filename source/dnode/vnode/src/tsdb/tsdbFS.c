@@ -16,13 +16,13 @@
 #include "tsdb.h"
 
 struct STsdbFS {
-  STsdb              *pTsdb;
-  TdThreadRwlock      lock;
-  int64_t             minVersion;
-  int64_t             maxVersion;
-  STsdbTombstoneFile *pTombstoneF;
-  STsdbCacheFile     *pCacheF;
-  SArray             *pArray;
+  STsdb          *pTsdb;
+  TdThreadRwlock  lock;
+  int64_t         minVersion;
+  int64_t         maxVersion;
+  SDelFile       *pTombstoneF;
+  STsdbCacheFile *pCacheF;
+  SArray         *pArray;
 };
 
 int32_t tsdbFSOpen(STsdb *pTsdb, STsdbFS **ppFS) {
