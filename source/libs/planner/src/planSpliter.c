@@ -80,29 +80,12 @@ static int32_t splCreateExchangeNode(SSplitContext* pCxt, SLogicNode* pChild, SE
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t splReplaceLogicNode(SLogicSubplan* pSubplan, SLogicNode* pOld, SLogicNode* pNew) {
-  if (NULL == pOld->pParent) {
-    pSubplan->pNode = (SLogicNode*)pNew;
-    return TSDB_CODE_SUCCESS;
-  }
-
-  SNode* pNode;
-  FOREACH(pNode, pOld->pParent->pChildren) {
-    if (nodesEqualNode(pNode, pOld)) {
-      REPLACE_NODE(pNew);
-      pNew->pParent = pOld->pParent;
-      return TSDB_CODE_SUCCESS;
-    }
-  }
-  return TSDB_CODE_PLAN_INTERNAL_ERROR;
-}
-
 static int32_t splCreateExchangeNodeForSubplan(SSplitContext* pCxt, SLogicSubplan* pSubplan, SLogicNode* pSplitNode,
                                                ESubplanType subplanType) {
   SExchangeLogicNode* pExchange = NULL;
   int32_t             code = splCreateExchangeNode(pCxt, pSplitNode, &pExchange);
   if (TSDB_CODE_SUCCESS == code) {
-    code = splReplaceLogicNode(pSubplan, pSplitNode, (SLogicNode*)pExchange);
+    code = replaceLogicNode(pSubplan, pSplitNode, (SLogicNode*)pExchange);
   }
   if (TSDB_CODE_SUCCESS == code) {
     pSubplan->subplanType = subplanType;
@@ -322,7 +305,7 @@ static int32_t stbSplCreateMergeNode(SSplitContext* pCxt, SLogicSubplan* pSubpla
     if (NULL == pSubplan) {
       code = nodesListMakeAppend(&pSplitNode->pChildren, pMerge);
     } else {
-      code = splReplaceLogicNode(pSubplan, pSplitNode, (SLogicNode*)pMerge);
+      code = replaceLogicNode(pSubplan, pSplitNode, (SLogicNode*)pMerge);
     }
   }
   if (TSDB_CODE_SUCCESS != code) {

@@ -85,3 +85,20 @@ int32_t createColumnByRewriteExps(SNodeList* pExprs, SNodeList** pList) {
   }
   return cxt.errCode;
 }
+
+int32_t replaceLogicNode(SLogicSubplan* pSubplan, SLogicNode* pOld, SLogicNode* pNew) {
+  if (NULL == pOld->pParent) {
+    pSubplan->pNode = (SLogicNode*)pNew;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode* pNode;
+  FOREACH(pNode, pOld->pParent->pChildren) {
+    if (nodesEqualNode(pNode, pOld)) {
+      REPLACE_NODE(pNew);
+      pNew->pParent = pOld->pParent;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+  return TSDB_CODE_PLAN_INTERNAL_ERROR;
+}

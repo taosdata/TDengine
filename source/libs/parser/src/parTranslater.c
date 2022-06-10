@@ -25,9 +25,6 @@
 #include "tglobal.h"
 #include "ttime.h"
 
-#define SMA_TABLE_NAME      "#sma_table"
-#define SMA_COL_NAME_PREFIX "#sma_col_"
-
 #define generateDealNodeErrMsg(pCxt, code, ...) \
   (pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, code, ##__VA_ARGS__), DEAL_RES_ERROR)
 
@@ -2029,22 +2026,7 @@ typedef struct SSmaIndexMatchFuncsCxt {
   bool       match;
 } SSmaIndexMatchFuncsCxt;
 
-static int32_t smaOptCreateSmaCol(SNode* pSmaFunc, int32_t index, SNode** pOutput) {
-  SColumnNode* pCol = nodesMakeNode(QUERY_NODE_COLUMN);
-  if (NULL == pCol) {
-    return TSDB_CODE_SUCCESS;
-  }
-  pCol->tableId = tableId;
-  pCol->tableType = TSDB_SUPER_TABLE;
-  pCol->colId = index + 2;  // skip timestamp primary col
-  pCol->colType = COLUMN_TYPE_COLUMN;
-  snprintf(pCol->colName, sizeof(pCol->colName), SMA_COL_NAME_PREFIX "%d", pCol->colId);
-  strcpy(pCol->tableName, SMA_TABLE_NAME);
-  strcpy(pCol->tableAlias, SMA_TABLE_NAME);
-  pCol->node.resType = pSmaFunc->resType;
-  strcpy(pCol->node.aliasName, pSmaFunc->aliasName);
-  return TSDB_CODE_SUCCESS;
-}
+
 
 static int32_t collectSmaFunc(SSmaIndexMatchFuncsCxt* pCxt, int32_t index, SNode* pSmaFunc) {
   if (NULL == pCxt->pUseMap) {
@@ -2072,22 +2054,6 @@ static int32_t collectSmaFunc(SSmaIndexMatchFuncsCxt* pCxt, int32_t index, SNode
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t findSmaFunc(SSmaIndexMatchFuncsCxt* pCxt, SNode* pNode, bool* pFound) {
-  if (!isAggFunc(pNode)) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  int32_t index = 0;
-  SNode*  pSmaFunc = NULL;
-  FOREACH(pSmaFunc, pCxt->pSmaFuncs) {
-    if (nodesEqualNode(pSmaFunc, pNode)) {
-      *pFound = true;
-      return collectSmaFunc(pCxt, index, pSmaFunc);
-    }
-    ++index;
-  }
-  return TSDB_CODE_SUCCESS;
-}
 
 static EDealRes matchSmaFuncsImpl(SNode* pNode, void* pContext) {
   SSmaIndexMatchFuncsCxt* pCxt = pContext;
@@ -2132,23 +2098,7 @@ static int32_t matchSmaFuncs(SSelectStmt* pSelect, STableIndexInfo* pIndex, SNod
   return cxt.errCode;
 }
 
-static int32_t couldApplySmaIndex(STranslateContext* pCxt, SSelectStmt* pSelect, STableIndexInfo* pIndex,
-                                  SNodeList** pFuncs, SNodeList** pCols) {
-  if (!equalIntervalWindow((SIntervalWindowNode*)pSelect->pWindow, pSelect->pWhere, pIndex)) {
-    return TSDB_CODE_SUCCESS;
-  }
-  SNodeList* pSmaFuncs = NULL;
-  int32_t    code = nodesStringToList(pIndex->expr, &pSmaFuncs);
-  if (TSDB_CODE_SUCCESS == code) {
-    pCxt->currClause = SQL_CLAUSE_SELECT;
-    code = translateExprList(pCxt, pSmaFuncs);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = matchSmaFuncs(pSelect, pIndex, pSmaFuncs, pFuncs, pCols);
-  }
-  nodesDestroyList(pSmaFuncs);
-  return code;
-}
+
 
 typedef struct SSmaIndexRewriteFuncsCxt {
   int32_t    errCode;
