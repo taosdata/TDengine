@@ -31,13 +31,13 @@ DELETE FROM [ db_name. ] tb_name [WHERE condition];
 meters 是一个超级表，groupid 是 int 类型的 tag 列，现在要删除 meters 表中时间小于 2021-10-01 10:40:00.100 且 tag 列 groupid 值为 1 的所有数据，sql 如下：
 
 ```sql
-    delete from meters where ts < '2021-10-01 10:40:00.100' and groupid=1 ;
+delete from meters where ts < '2021-10-01 10:40:00.100' and groupid=1 ;
 ```
 
 执行后显示结果为：
 
 ```
-    Deleted 102000 row(s) from 1020 table(s) (0.421950s)
+Deleted 102000 row(s) from 1020 table(s) (0.421950s)
 ```
 
 表示从 1020 个子表中共删除了 102000 行数据
