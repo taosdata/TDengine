@@ -2655,6 +2655,10 @@ int32_t diffFunction(SqlFunctionCtx* pCtx) {
   return numOfElems;
 }
 
+int32_t getTopBotInfoSize() {
+  return (int32_t)sizeof(STopBotRes);
+}
+
 bool getTopBotFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   SValueNode* pkNode = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
   pEnv->calcMemSize = sizeof(STopBotRes) + pkNode->datum.i * sizeof(STopBotResItem);
