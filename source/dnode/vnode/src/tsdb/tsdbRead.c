@@ -3163,6 +3163,11 @@ bool tsdbNextDataBlock(tsdbReaderT pHandle) {
   size_t numOfCols = taosArrayGetSize(pTsdbReadHandle->pColumns);
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColInfo = taosArrayGet(pTsdbReadHandle->pColumns, i);
+    int32_t code = colInfoDataEnsureCapacity(pColInfo, 0, pTsdbReadHandle->outputCapacity);
+    if (code != TSDB_CODE_SUCCESS) {
+      // todo handle error
+      ASSERT(0);
+    }
     colInfoDataCleanup(pColInfo, pTsdbReadHandle->outputCapacity);
   }
 

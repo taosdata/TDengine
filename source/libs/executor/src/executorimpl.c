@@ -1819,7 +1819,7 @@ void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numO
   }
 }
 
-static void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep, bool needFree);
+static void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep);
 
 void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, bool needFree) {
   if (pFilterNode == NULL) {
@@ -1840,11 +1840,11 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, bool needFree) {
   bool keep = filterExecute(filter, pBlock, &rowRes, NULL, param1.numOfCols);
   filterFreeInfo(filter);
 
-  extractQualifiedTupleByFilterResult(pBlock, rowRes, keep, needFree);
+  extractQualifiedTupleByFilterResult(pBlock, rowRes, keep);
   blockDataUpdateTsWindow(pBlock, 0);
 }
 
-void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep, bool needFree) {
+void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep) {
   if (keep) {
     return;
   }
@@ -1884,17 +1884,9 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowR
         ASSERT(pBlock->info.rows == numOfRows);
       }
 
-      SColumnInfoData tmp = *pSrc;
-      *pSrc = *pDst;
-      *pDst = tmp;
-
-      if (!needFree) {
-        if (IS_VAR_DATA_TYPE(pDst->info.type)) {  // this elements do not need free
-          pDst->varmeta.offset = NULL;
-        } else {
-          pDst->nullbitmap = NULL;
-        }
-        pDst->pData = NULL;
+      // write back
+      if (pBlock->info.rows > 0) {
+        colDataAssign(pSrc, pDst, pBlock->info.rows);
       }
     }
     blockDataDestroy(px);  // fix memory leak
@@ -2086,11 +2078,6 @@ static int32_t compressQueryColData(SColumnInfoData* pColRes, int32_t numOfRows,
 }
 
 int32_t doFillTimeIntervalGapsInResults(struct SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t capacity) {
-  //  for(int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
-  //    SColumnInfoData* pColInfoData = taosArrayGet(pOutput->pDataBlock, i);
-  //    p[i] = pColInfoData->pData + (pColInfoData->info.bytes * pOutput->info.rows);
-  //  }
-
   int32_t numOfRows = (int32_t)taosFillResultDataBlock(pFillInfo, pBlock, capacity - pBlock->info.rows);
   pBlock->info.rows += numOfRows;
 
