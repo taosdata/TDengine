@@ -51,6 +51,7 @@ To obtain your personal cloud token, please log in [TDengine Cloud](https://clou
 <!-- exclude-end -->
 ## Connect
 
+Code bellow get token from environment variables first and then create a `Connection` object, witch is a standard JDBC Connection object.
 
 ```java
 import java.sql.Connection;
