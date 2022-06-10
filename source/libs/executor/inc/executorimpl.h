@@ -421,18 +421,22 @@ typedef struct SSysTableScanInfo {
   SRetrieveTableReq      req;
   SEpSet                 epSet;
   tsem_t                 ready;
-
-  SReadHandle         readHandle;
-  int32_t             accountId;
-  bool                showRewrite;
-  SNode*              pCondition;  // db_name filter condition, to discard data that are not in current database
-  SMTbCursor*         pCur;        // cursor for iterate the local table meta store.
-  SArray*             scanCols;    // SArray<int16_t> scan column id list
-  SName               name;
-  SSDataBlock*        pRes;
-  int64_t             numOfBlocks;  // extract basic running information.
-  SLoadRemoteDataInfo loadInfo;
+  SReadHandle            readHandle;
+  int32_t                accountId;
+  bool                   showRewrite;
+  SNode*                 pCondition;  // db_name filter condition, to discard data that are not in current database
+  SMTbCursor*            pCur;        // cursor for iterate the local table meta store.
+  SArray*                scanCols;    // SArray<int16_t> scan column id list
+  SName                  name;
+  SSDataBlock*           pRes;
+  int64_t                numOfBlocks;  // extract basic running information.
+  SLoadRemoteDataInfo    loadInfo;
 } SSysTableScanInfo;
+
+typedef struct SBlockDistInfo {
+  SSDataBlock* pResBlock;
+  void*        pHandle;
+} SBlockDistInfo;
 
 typedef struct SOptrBasicInfo {
   SResultRowInfo  resultRowInfo;

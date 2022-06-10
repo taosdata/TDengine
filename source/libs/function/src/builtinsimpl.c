@@ -4439,8 +4439,29 @@ int32_t blockDistFunction(SqlFunctionCtx *pCtx) {
 
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
 
-  char *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
-  memcpy(pInfo, pInputCol->pData, varDataTLen(pInputCol->pData));
+  STableBlockDistInfo* pDistInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  STableBlockDistInfo p1 = {0};
+  tDeserializeBlockDistInfo(varDataVal(pInputCol->pData), varDataLen(pInputCol->pData), &p1);
+
+  pDistInfo->numOfBlocks += p1.numOfBlocks;
+  pDistInfo->numOfTables += p1.numOfTables;
+  pDistInfo->numOfInmemRows += p1.numOfInmemRows;
+  pDistInfo->totalSize += p1.totalSize;
+  pDistInfo->totalRows += p1.totalRows;
+  pDistInfo->numOfFiles += p1.numOfFiles;
+
+  if (pDistInfo->minRows > p1.minRows) {
+    pDistInfo->minRows = p1.minRows;
+  }
+  if (pDistInfo->maxRows < p1.maxRows) {
+    pDistInfo->maxRows = p1.maxRows;
+  }
+
+  for(int32_t i = 0; i < tListLen(pDistInfo->blockRowsHisto); ++i) {
+    pDistInfo->blockRowsHisto[i] += p1.blockRowsHisto[i];
+  }
+
   pResInfo->numOfRes = 1;
   return TSDB_CODE_SUCCESS;
 }

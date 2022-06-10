@@ -1142,6 +1142,11 @@ static int32_t translateBlockDistFunc(SFunctionNode* pFunc, char* pErrBuf, int32
   return TSDB_CODE_SUCCESS;
 }
 
+static bool getBlockDistFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(STableBlockDistInfo);
+  return true;
+}
+
 
 // clang-format off
 const SBuiltinFuncDefinition funcMgtBuiltins[] = {
@@ -1877,7 +1882,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_BLOCK_DIST,
     .classification = FUNC_MGT_AGG_FUNC,
     .translateFunc = translateBlockDistFunc,
-    .getEnvFunc   = NULL,
+    .getEnvFunc   = getBlockDistFuncEnv,
     .processFunc  = blockDistFunction,
     .finalizeFunc = blockDistFinalize
   }
