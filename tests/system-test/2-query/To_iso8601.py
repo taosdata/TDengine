@@ -19,7 +19,7 @@ class TDTestCase:
         #     datetime.datetime.now().strftime("%Y-%m-%d"), "%Y-%m-%d")
         # print(today_date)
         
-        time_zone = (os.popen('timedatectl | grep zone').read().strip().split(',')[1].lstrip())[0:5]
+        time_zone = os.popen('date "+%z"').read().strip()
         tdSql.execute('create database db1 precision "ms"')
         tdSql.execute('use db1')
         tdSql.execute('create table if not exists ntb(ts timestamp, c1 int, c2 timestamp)')
