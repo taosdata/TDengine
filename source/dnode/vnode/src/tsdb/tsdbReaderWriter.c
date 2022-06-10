@@ -17,22 +17,20 @@
 
 // SDFileSetWritter ====================================================
 struct SDFileSetWritter {
-  STsdb    *pTsdb;
-  SDFileSet wSet;
-  int32_t   szBuf1;
-  uint8_t  *pBuf1;
-  int32_t   szBuf2;
-  uint8_t  *pBuf2;
+  STsdb   *pTsdb;
+  int32_t  szBuf1;
+  uint8_t *pBuf1;
+  int32_t  szBuf2;
+  uint8_t *pBuf2;
 };
 
 // SDFileSetReader ====================================================
 struct SDFileSetReader {
-  STsdb    *pTsdb;
-  SDFileSet rSet;
-  int32_t   szBuf1;
-  uint8_t  *pBuf1;
-  int32_t   szBuf2;
-  uint8_t  *pBuf2;
+  STsdb   *pTsdb;
+  int32_t  szBuf1;
+  uint8_t *pBuf1;
+  int32_t  szBuf2;
+  uint8_t *pBuf2;
 };
 
 int32_t tsdbDFileSetReaderOpen(SDFileSetReader *pReader, STsdb *pTsdb, SDFileSet *pSet) {
@@ -40,12 +38,6 @@ int32_t tsdbDFileSetReaderOpen(SDFileSetReader *pReader, STsdb *pTsdb, SDFileSet
 
   memset(pReader, 0, sizeof(*pReader));
   pReader->pTsdb = pTsdb;
-  pReader->rSet = *pSet;
-
-  code = tsdbOpenDFileSet(&pReader->rSet, TD_FILE_READ);
-  if (code) {
-    goto _err;
-  }
 
   return code;
 
@@ -59,7 +51,6 @@ int32_t tsdbDFileSetReaderClose(SDFileSetReader *pReader) {
 
   taosMemoryFreeClear(pReader->pBuf1);
   taosMemoryFreeClear(pReader->pBuf2);
-  tsdbCloseDFileSet(&pReader->rSet);
 
   return code;
 }
@@ -84,12 +75,10 @@ int32_t tsdbLoadSBlockStatis(SDFileSetReader *pReader, SBlock *pBlock, SBlockSta
 
 // STombstoneFileWriter ====================================================
 struct STombstoneFileWriter {
-  STsdb  *pTsdb;
-  SDFile *pTombstoneF;
+  STsdb *pTsdb;
 };
 
 // STombstoneFileReader ====================================================
 struct STombstoneFileReader {
-  STsdb  *pTsdb;
-  SDFile *pTombstoneF;
+  STsdb *pTsdb;
 };

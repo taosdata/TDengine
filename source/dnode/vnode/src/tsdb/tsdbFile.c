@@ -15,6 +15,45 @@
 
 #include "tsdb.h"
 
+static const char *tsdbFileSuffix[] = {".tombstone", ".cache", ".index", ".data", ".last", ".sma", ""};
+
+// .tombstone
+struct STsdbTombstoneFile {
+  TSKEY   minKey;
+  TSKEY   maxKey;
+  int64_t minVersion;
+  int64_t maxVersion;
+};
+
+struct STsdbIndexFile {
+  int64_t size;
+  int64_t offset;
+  int32_t nRef;
+};
+
+struct STsdbDataFile {
+  int64_t size;
+  int32_t nRef;
+};
+
+struct STsdbLastFile {
+  int64_t size;
+  int32_t nRef;
+};
+
+struct STsdbSmaFile {
+  int64_t size;
+  int32_t nRef;
+};
+
+struct SDFileSet {
+  STsdbIndexFile *pIndexF;
+  STsdbDataFile  *pDataF;
+  STsdbLastFile  *pLastF;
+  STsdbSmaFile   *pSmaF;
+};
+
+#if 0
 static const char *TSDB_FNAME_SUFFIX[] = {
     "head",  // TSDB_FILE_HEAD
     "data",  // TSDB_FILE_DATA
@@ -580,3 +619,4 @@ void tsdbGetFidKeyRange(int days, int8_t precision, int fid, TSKEY *minKey, TSKE
   *minKey = fid * days * tsTickPerMin[precision];
   *maxKey = *minKey + days * tsTickPerMin[precision] - 1;
 }
+#endif

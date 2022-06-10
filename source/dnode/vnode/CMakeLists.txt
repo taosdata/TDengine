@@ -44,6 +44,7 @@ target_sources(
     "src/tsdb/tsdbReadImpl.c"
     "src/tsdb/tsdbWrite.c"
     "src/tsdb/tsdbReaderWriter.c"
+    "src/tsdb/tsdbUtil.c"
     "src/tsdb/tsdbSnapshot.c"
 
     # tq

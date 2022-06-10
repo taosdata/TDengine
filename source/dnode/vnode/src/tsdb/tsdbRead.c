@@ -14,6 +14,8 @@
  */
 
 #include "tsdb.h"
+
+#if 0
 #include "vnode.h"
 
 #define EXTRA_BYTES                2
@@ -3725,3 +3727,5 @@ void tsdbCleanupReadHandle(tsdbReaderT queryHandle) {
 
   taosMemoryFreeClear(pTsdbReadHandle);
 }
+
+#endif

@@ -15,6 +15,7 @@
 
 #include "tsdb.h"
 
+#if 0
 #define TSDB_KEY_COL_OFFSET 0
 
 static void tsdbResetReadTable(SReadH *pReadh);
@@ -975,3 +976,4 @@ static int tsdbLoadColData(SReadH *pReadh, SDFile *pDFile, SBlock *pBlock, SBloc
 
   return 0;
 }
+#endif

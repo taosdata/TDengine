@@ -15,6 +15,41 @@
 
 #include "tsdb.h"
 
+struct STsdbFS {
+  STsdb              *pTsdb;
+  TdThreadRwlock      lock;
+  int64_t             minVersion;
+  int64_t             maxVersion;
+  STsdbTombstoneFile *pTombstoneF;
+  STsdbCacheFile     *pCacheF;
+  SArray             *pArray;
+};
+
+int32_t tsdbFSOpen(STsdb *pTsdb, STsdbFS **ppFS) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbFSClose(STsdbFS *pFS) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbFSStart(STsdbFS *pFS) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbFSEnd(STsdbFS *pFS, int8_t rollback) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+#if 0
 extern const char *TSDB_LEVEL_DNAME[];
 
 typedef enum { TSDB_TXN_TEMP_FILE = 0, TSDB_TXN_CURR_FILE } TSDB_TXN_FILE_T;
@@ -300,8 +335,6 @@ void tsdbStartFSTxn(STsdb *pRepo, int64_t pointsAdd, int64_t storageAdd) {
   pfs->nstatus->meta.totalStorage = pfs->cstatus->meta.totalStorage += storageAdd;
 }
 
-void tsdbUpdateFSTxnMeta(STsdbFS *pfs, STsdbFSMeta *pMeta) { pfs->nstatus->meta = *pMeta; }
-
 int tsdbEndFSTxn(STsdb *pRepo) {
   STsdbFS *pfs = REPO_FS(pRepo);
   ASSERT(FS_IN_TXN(pfs));
@@ -333,8 +366,6 @@ int tsdbEndFSTxnWithError(STsdbFS *pfs) {
   pfs->intxn = false;
   return 0;
 }
-
-// void tsdbUpdateMFile(STsdbFS *pfs, const SMFile *pMFile) { tsdbSetStatusMFile(pfs->nstatus, pMFile); }
 
 int tsdbUpdateDFileSet(STsdbFS *pfs, const SDFileSet *pSet) { return tsdbAddDFileSetToStatus(pfs->nstatus, pSet); }
 
@@ -1061,3 +1092,21 @@ int tsdbUnLockFS(STsdbFS *pFs) {
   }
   return 0;
 }
+
+void tsdbGetRtnSnap(STsdb *pRepo, SRtn *pRtn) {
+  STsdbKeepCfg *pCfg = REPO_KEEP_CFG(pRepo);
+  TSKEY         minKey, midKey, maxKey, now;
+
+  now = taosGetTimestamp(pCfg->precision);
+  minKey = now - pCfg->keep2 * tsTickPerMin[pCfg->precision];
+  midKey = now - pCfg->keep1 * tsTickPerMin[pCfg->precision];
+  maxKey = now - pCfg->keep0 * tsTickPerMin[pCfg->precision];
+
+  pRtn->minKey = minKey;
+  pRtn->minFid = (int)(TSDB_KEY_FID(minKey, pCfg->days, pCfg->precision));
+  pRtn->midFid = (int)(TSDB_KEY_FID(midKey, pCfg->days, pCfg->precision));
+  pRtn->maxFid = (int)(TSDB_KEY_FID(maxKey, pCfg->days, pCfg->precision));
+  tsdbDebug("vgId:%d, now:%" PRId64 " minKey:%" PRId64 " minFid:%d, midFid:%d, maxFid:%d", REPO_ID(pRepo), now, minKey,
+            pRtn->minFid, pRtn->midFid, pRtn->maxFid);
+}
+#endif
