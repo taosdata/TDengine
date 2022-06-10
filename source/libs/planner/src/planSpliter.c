@@ -135,7 +135,8 @@ typedef struct SStableSplitInfo {
 static bool stbSplHasGatherExecFunc(const SNodeList* pFuncs) {
   SNode* pFunc = NULL;
   FOREACH(pFunc, pFuncs) {
-    if (!fmIsDistExecFunc(((SFunctionNode*)pFunc)->funcId)) {
+    if (!fmIsWindowPseudoColumnFunc(((SFunctionNode*)pFunc)->funcId) &&
+        !fmIsDistExecFunc(((SFunctionNode*)pFunc)->funcId)) {
       return true;
     }
   }
@@ -314,7 +315,12 @@ static int32_t stbSplCreateMergeNode(SSplitContext* pCxt, SLogicSubplan* pSubpla
 
   int32_t code = TSDB_CODE_SUCCESS;
   pMerge->pInputs = nodesCloneList(pPartChild->pTargets);
-  pMerge->node.pTargets = nodesCloneList(pSplitNode->pTargets);
+  // NULL == pSubplan means 'merge node' replaces 'split node'.
+  if (NULL == pSubplan) {
+    pMerge->node.pTargets = nodesCloneList(pPartChild->pTargets);
+  } else {
+    pMerge->node.pTargets = nodesCloneList(pSplitNode->pTargets);
+  }
   if (NULL == pMerge->node.pTargets || NULL == pMerge->pInputs) {
     code = TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -340,6 +346,21 @@ static int32_t stbSplCreateExchangeNode(SSplitContext* pCxt, SLogicNode* pParent
   return code;
 }
 
+static int32_t stbSplCreateMergeKeysForInterval(SNode* pWStartTs, SNodeList** pMergeKeys) {
+  SOrderByExprNode* pMergeKey = nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR);
+  if (NULL == pMergeKey) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pMergeKey->pExpr = nodesCloneNode(pWStartTs);
+  if (NULL == pMergeKey->pExpr) {
+    nodesDestroyNode(pMergeKey);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pMergeKey->order = ORDER_ASC;
+  pMergeKey->nullOrder = NULL_ORDER_FIRST;
+  return nodesListMakeStrictAppend(pMergeKeys, pMergeKey);
+}
+
 static int32_t stbSplSplitIntervalForBatch(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
   SLogicNode* pPartWindow = NULL;
   int32_t     code = stbSplCreatePartWindowNode((SWindowLogicNode*)pInfo->pSplitNode, &pPartWindow);
@@ -347,7 +368,7 @@ static int32_t stbSplSplitIntervalForBatch(SSplitContext* pCxt, SStableSplitInfo
     ((SWindowLogicNode*)pPartWindow)->intervalAlgo = INTERVAL_ALGO_HASH;
     ((SWindowLogicNode*)pInfo->pSplitNode)->intervalAlgo = INTERVAL_ALGO_MERGE;
     SNodeList* pMergeKeys = NULL;
-    code = nodesListMakeStrictAppend(&pMergeKeys, nodesCloneNode(((SWindowLogicNode*)pInfo->pSplitNode)->pTspk));
+    code = stbSplCreateMergeKeysForInterval(((SWindowLogicNode*)pInfo->pSplitNode)->pTspk, &pMergeKeys);
     if (TSDB_CODE_SUCCESS == code) {
       code = stbSplCreateMergeNode(pCxt, NULL, pInfo->pSplitNode, pMergeKeys, pPartWindow);
     }

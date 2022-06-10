@@ -1926,6 +1926,7 @@ static void doHashInterval(SOperatorInfo* pOperatorInfo, SSDataBlock* pSDataBloc
     doApplyFunctions(pTaskInfo, pInfo->binfo.pCtx, &nextWin, &pInfo->twAggSup.timeWindowData, startPos, forwardRows,
                      tsCols, pSDataBlock->info.rows, numOfOutput, TSDB_ORDER_ASC);
     int32_t prevEndPos = (forwardRows - 1) * step + startPos;
+    ASSERT(pSDataBlock->info.window.skey > 0 && pSDataBlock->info.window.ekey > 0);
     startPos = getNextQualifiedWindow(&pInfo->interval, &nextWin, &pSDataBlock->info, tsCols, prevEndPos, pInfo->order);
     if (startPos < 0) {
       break;
@@ -2004,10 +2005,7 @@ static void copyUpdateDataBlock(SSDataBlock* pDest, SSDataBlock* pSource, int32_
 }
 
 static int32_t getChildIndex(SSDataBlock* pBlock) {
-  // if (pBlock->info.type != STREAM_INVALID && pBlock->info.rows < 4) { // for test
-  //   return pBlock->info.rows - 1;
-  // }
-  return 0;
+  return pBlock->info.childId;
 }
 
 static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
