@@ -386,11 +386,13 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
                     }
                   }
 
-                  char* sOld = syncCfg2Str(&oldSyncCfg);
-                  char* sNew = syncCfg2Str(&newSyncCfg);
-                  sInfo("==config change== 0x11 old:%s new:%s isDrop:%d \n", sOld, sNew, isDrop);
-                  taosMemoryFree(sOld);
-                  taosMemoryFree(sNew);
+                  if (gRaftDetailLog) {
+                    char* sOld = syncCfg2Str(&oldSyncCfg);
+                    char* sNew = syncCfg2Str(&newSyncCfg);
+                    sInfo("==config change== 0x11 old:%s new:%s isDrop:%d \n", sOld, sNew, isDrop);
+                    taosMemoryFree(sOld);
+                    taosMemoryFree(sNew);
+                  }
                 }
 
                 // always call FpReConfigCb
@@ -745,10 +747,13 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
           // advance commit index to sanpshot first
           SSnapshot snapshot;
           ths->pFsm->FpGetSnapshot(ths->pFsm, &snapshot);
-          if (snapshot.lastApplyIndex > ths->commitIndex) {
-            sInfo("sync event vgId:%d commit by snapshot from index:%ld to index:%ld, %s", ths->vgId, ths->commitIndex,
-                  snapshot.lastApplyIndex, syncUtilState2String(ths->state));
+          if (snapshot.lastApplyIndex >= 0 && snapshot.lastApplyIndex > ths->commitIndex) {
+            SyncIndex commitBegin = ths->commitIndex;
+            SyncIndex commitEnd = snapshot.lastApplyIndex;
             ths->commitIndex = snapshot.lastApplyIndex;
+
+            sInfo("sync event vgId:%d commit by snapshot from index:%ld to index:%ld, %s", ths->vgId, commitBegin,
+                  commitEnd, syncUtilState2String(ths->state));
           }
 
           SyncIndex beginIndex = ths->commitIndex + 1;

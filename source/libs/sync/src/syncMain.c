@@ -35,7 +35,7 @@
 #include "syncVoteMgr.h"
 #include "tref.h"
 
-bool gRaftDetailLog = true;
+bool gRaftDetailLog = false;
 
 static int32_t tsNodeRefId = -1;
 
@@ -87,7 +87,9 @@ int64_t syncOpen(const SSyncInfo* pSyncInfo) {
   SSyncNode* pSyncNode = syncNodeOpen(pSyncInfo);
   assert(pSyncNode != NULL);
 
-  syncNodeLog2("syncNodeOpen open success", pSyncNode);
+  if (gRaftDetailLog) {
+    syncNodeLog2("syncNodeOpen open success", pSyncNode);
+  }
 
   pSyncNode->rid = taosAddRef(tsNodeRefId, pSyncNode);
   if (pSyncNode->rid < 0) {
@@ -174,7 +176,10 @@ int32_t syncSetStandby(int64_t rid) {
 int32_t syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg) {
   int32_t ret = 0;
   char*   configChange = syncCfg2Str((SSyncCfg*)pSyncCfg);
-  sInfo("==syncReconfig== newconfig:%s", configChange);
+
+  if (gRaftDetailLog) {
+    sInfo("==syncReconfig== newconfig:%s", configChange);
+  }
 
   SRpcMsg rpcMsg = {0};
   rpcMsg.msgType = TDMT_SYNC_CONFIG_CHANGE;
@@ -374,13 +379,14 @@ void setHeartbeatTimerMS(int64_t rid, int32_t hbTimerMS) {
 }
 
 int32_t syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
-  sTrace("syncPropose msgType:%d ", pMsg->msgType);
+  int32_t ret = TAOS_SYNC_PROPOSE_SUCCESS;
 
-  int32_t    ret = TAOS_SYNC_PROPOSE_SUCCESS;
   SSyncNode* pSyncNode = taosAcquireRef(tsNodeRefId, rid);
-  if (pSyncNode == NULL) return TAOS_SYNC_PROPOSE_OTHER_ERROR;
-
+  if (pSyncNode == NULL) {
+    return TAOS_SYNC_PROPOSE_OTHER_ERROR;
+  }
   assert(rid == pSyncNode->rid);
+  sTrace("sync event vgId:%d propose msgType:%s", pSyncNode->vgId, TMSG_INFO(pMsg->msgType));
 
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
     SRespStub stub;
@@ -441,9 +447,11 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
     assert(pSyncNode->pRaftCfg != NULL);
     pSyncInfo->syncCfg = pSyncNode->pRaftCfg->cfg;
 
-    char* seralized = raftCfg2Str(pSyncNode->pRaftCfg);
-    sInfo("syncNodeOpen update config :%s", seralized);
-    taosMemoryFree(seralized);
+    if (gRaftDetailLog) {
+      char* seralized = raftCfg2Str(pSyncNode->pRaftCfg);
+      sInfo("syncNodeOpen update config :%s", seralized);
+      taosMemoryFree(seralized);
+    }
 
     raftCfgClose(pSyncNode->pRaftCfg);
   }
@@ -614,7 +622,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
   }
 
   // snapshot receivers
-  pSyncNode->pNewNodeReceiver = snapshotReceiverCreate(pSyncNode, 100);
+  pSyncNode->pNewNodeReceiver = snapshotReceiverCreate(pSyncNode, EMPTY_RAFT_ID);
 
   // start in syncNodeStart
   // start raft
@@ -632,49 +640,28 @@ void syncNodeStart(SSyncNode* pSyncNode) {
     raftStoreNextTerm(pSyncNode->pRaftStore);
     syncNodeBecomeLeader(pSyncNode, "one replica start");
 
-    syncNodeLog2("==state change become leader immediately==", pSyncNode);
-
     // Raft 3.6.2 Committing entries from previous terms
 
     // use this now
     syncNodeAppendNoop(pSyncNode);
     syncMaybeAdvanceCommitIndex(pSyncNode);  // maybe only one replica
 
-    /*
-    sInfo("==syncNodeStart== RestoreFinish begin 1 replica tsem_wait %p", pSyncNode);
-    tsem_wait(&pSyncNode->restoreSem);
-    sInfo("==syncNodeStart== RestoreFinish end 1 replica tsem_wait %p", pSyncNode);
-    */
-
-    /*
-    while (pSyncNode->restoreFinish != true) {
-      taosMsleep(10);
+    if (gRaftDetailLog) {
+      syncNodeLog2("==state change become leader immediately==", pSyncNode);
     }
-    */
 
-    sInfo("==syncNodeStart== restoreFinish ok 1 replica %p vgId:%d", pSyncNode, pSyncNode->vgId);
     return;
   }
 
   syncNodeBecomeFollower(pSyncNode, "first start");
 
-  // for test
-  int32_t ret = 0;
+  // int32_t ret = 0;
   // ret = syncNodeStartPingTimer(pSyncNode);
-  assert(ret == 0);
+  // assert(ret == 0);
 
-  /*
-  sInfo("==syncNodeStart== RestoreFinish begin multi replica tsem_wait %p", pSyncNode);
-  tsem_wait(&pSyncNode->restoreSem);
-  sInfo("==syncNodeStart== RestoreFinish end multi replica tsem_wait %p", pSyncNode);
-  */
-
-  /*
-  while (pSyncNode->restoreFinish != true) {
-    taosMsleep(10);
+  if (gRaftDetailLog) {
+    syncNodeLog2("==state change become leader immediately==", pSyncNode);
   }
-  */
-  sInfo("==syncNodeStart== restoreFinish ok multi replica %p vgId:%d", pSyncNode, pSyncNode->vgId);
 }
 
 void syncNodeStartStandBy(SSyncNode* pSyncNode) {
@@ -1135,7 +1122,10 @@ void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* newConfig, bool* isDro
   }
 
   raftCfgPersist(pSyncNode->pRaftCfg);
-  syncNodeLog2("==syncNodeUpdateConfig==", pSyncNode);
+
+  if (gRaftDetailLog) {
+    syncNodeLog2("==syncNodeUpdateConfig==", pSyncNode);
+  }
 }
 
 SSyncNode* syncNodeAcquire(int64_t rid) {
@@ -1475,9 +1465,11 @@ void syncNodeLog(SSyncNode* pObj) {
 }
 
 void syncNodeLog2(char* s, SSyncNode* pObj) {
-  char* serialized = syncNode2Str(pObj);
-  sTraceLong("syncNodeLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
-  taosMemoryFree(serialized);
+  if (gRaftDetailLog) {
+    char* serialized = syncNode2Str(pObj);
+    sTraceLong("syncNodeLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+    taosMemoryFree(serialized);
+  }
 }
 
 // ------ local funciton ---------
@@ -1807,11 +1799,13 @@ int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex,
               }
             }
 
-            char* sOld = syncCfg2Str(&oldSyncCfg);
-            char* sNew = syncCfg2Str(&newSyncCfg);
-            sInfo("==config change== 0x11 old:%s new:%s isDrop:%d \n", sOld, sNew, isDrop);
-            taosMemoryFree(sOld);
-            taosMemoryFree(sNew);
+            if (gRaftDetailLog) {
+              char* sOld = syncCfg2Str(&oldSyncCfg);
+              char* sNew = syncCfg2Str(&newSyncCfg);
+              sInfo("==config change== 0x11 old:%s new:%s isDrop:%d \n", sOld, sNew, isDrop);
+              taosMemoryFree(sOld);
+              taosMemoryFree(sNew);
+            }
           }
 
           // always call FpReConfigCb
@@ -1834,7 +1828,7 @@ int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex,
               ths->pFsm->FpRestoreFinishCb(ths->pFsm);
             }
             ths->restoreFinish = true;
-            sInfo("restore finish %p vgId:%d", ths, ths->vgId);
+            sInfo("sync event vgId:%d restore finish", ths->vgId);
           }
         }
 

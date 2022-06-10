@@ -51,18 +51,25 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
   // advance commit index to sanpshot first
   SSnapshot snapshot;
   pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
-  if (snapshot.lastApplyIndex > pSyncNode->commitIndex) {
+  if (snapshot.lastApplyIndex > 0 && snapshot.lastApplyIndex > pSyncNode->commitIndex) {
+    SyncIndex commitBegin = pSyncNode->commitIndex;
+    SyncIndex commitEnd = snapshot.lastApplyIndex;
+    pSyncNode->commitIndex = snapshot.lastApplyIndex;
+
     sInfo("sync event vgId:%d commit by snapshot from index:%ld to index:%ld, %s", pSyncNode->vgId,
           pSyncNode->commitIndex, snapshot.lastApplyIndex, syncUtilState2String(pSyncNode->state));
-    pSyncNode->commitIndex = snapshot.lastApplyIndex;
   }
 
   // update commit index
   SyncIndex newCommitIndex = pSyncNode->commitIndex;
   for (SyncIndex index = syncNodeGetLastIndex(pSyncNode); index > pSyncNode->commitIndex; --index) {
     bool agree = syncAgree(pSyncNode, index);
-    sTrace("syncMaybeAdvanceCommitIndex syncAgree:%d, index:%ld, pSyncNode->commitIndex:%ld", agree, index,
-           pSyncNode->commitIndex);
+
+    if (gRaftDetailLog) {
+      sTrace("syncMaybeAdvanceCommitIndex syncAgree:%d, index:%ld, pSyncNode->commitIndex:%ld", agree, index,
+             pSyncNode->commitIndex);
+    }
+
     if (agree) {
       // term
       SSyncRaftEntry* pEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, index);
@@ -72,16 +79,21 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
       if (pEntry->term == pSyncNode->pRaftStore->currentTerm) {
         // update commit index
         newCommitIndex = index;
-        sTrace("syncMaybeAdvanceCommitIndex maybe to update, newCommitIndex:%ld commit, pSyncNode->commitIndex:%ld",
-               newCommitIndex, pSyncNode->commitIndex);
+
+        if (gRaftDetailLog) {
+          sTrace("syncMaybeAdvanceCommitIndex maybe to update, newCommitIndex:%ld commit, pSyncNode->commitIndex:%ld",
+                 newCommitIndex, pSyncNode->commitIndex);
+        }
 
         syncEntryDestory(pEntry);
         break;
       } else {
-        sTrace(
-            "syncMaybeAdvanceCommitIndex can not commit due to term not equal, pEntry->term:%lu, "
-            "pSyncNode->pRaftStore->currentTerm:%lu",
-            pEntry->term, pSyncNode->pRaftStore->currentTerm);
+        if (gRaftDetailLog) {
+          sTrace(
+              "syncMaybeAdvanceCommitIndex can not commit due to term not equal, pEntry->term:%lu, "
+              "pSyncNode->pRaftStore->currentTerm:%lu",
+              pEntry->term, pSyncNode->pRaftStore->currentTerm);
+        }
       }
 
       syncEntryDestory(pEntry);
@@ -92,7 +104,9 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
     SyncIndex beginIndex = pSyncNode->commitIndex + 1;
     SyncIndex endIndex = newCommitIndex;
 
-    sTrace("syncMaybeAdvanceCommitIndex sync commit %ld", newCommitIndex);
+    if (gRaftDetailLog) {
+      sTrace("syncMaybeAdvanceCommitIndex sync commit %ld", newCommitIndex);
+    }
 
     // update commit index
     pSyncNode->commitIndex = newCommitIndex;
