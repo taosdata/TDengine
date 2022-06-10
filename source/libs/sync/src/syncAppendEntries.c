@@ -150,7 +150,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
         "ths->state:%d, logOK:%d",
         pMsg->term, ths->pRaftStore->currentTerm, ths->state, logOK);
 
-    syncNodeBecomeFollower(ths);
+    syncNodeBecomeFollower(ths, "from candidate by append entries");
 
     // ret or reply?
     return ret;
@@ -380,9 +380,9 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
                   // change isStandBy to normal
                   if (!isDrop) {
                     if (ths->state == TAOS_SYNC_STATE_LEADER) {
-                      syncNodeBecomeLeader(ths);
+                      syncNodeBecomeLeader(ths, "config change");
                     } else {
-                      syncNodeBecomeFollower(ths);
+                      syncNodeBecomeFollower(ths, "config change");
                     }
                   }
 
@@ -469,7 +469,7 @@ static int32_t syncNodeMakeLogSame(SSyncNode* ths, SyncAppendEntries* pMsg) {
   // delete confict entries
   code = ths->pLogStore->syncLogTruncate(ths->pLogStore, delBegin);
   ASSERT(code == 0);
-  sInfo("sync event log truncate, from %ld to %ld", delBegin, delEnd);
+  sInfo("sync event vgId:%d log truncate, from %ld to %ld", ths->vgId, delBegin, delEnd);
   logStoreSimpleLog2("after syncNodeMakeLogSame", ths->pLogStore);
 
   return code;
@@ -571,7 +571,7 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
     if (condition) {
       sTrace("recv SyncAppendEntries, candidate to follower");
 
-      syncNodeBecomeFollower(ths);
+      syncNodeBecomeFollower(ths, "from candidate by append entries");
       // do not reply?
       return ret;
     }
@@ -742,6 +742,15 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
       if (pMsg->commitIndex > ths->commitIndex) {
         // has commit entry in local
         if (pMsg->commitIndex <= ths->pLogStore->syncLogLastIndex(ths->pLogStore)) {
+          // advance commit index to sanpshot first
+          SSnapshot snapshot;
+          ths->pFsm->FpGetSnapshot(ths->pFsm, &snapshot);
+          if (snapshot.lastApplyIndex > ths->commitIndex) {
+            sInfo("sync event vgId:%d commit by snapshot from index:%ld to index:%ld, %s", ths->vgId, ths->commitIndex,
+                  snapshot.lastApplyIndex, syncUtilState2String(ths->state));
+            ths->commitIndex = snapshot.lastApplyIndex;
+          }
+
           SyncIndex beginIndex = ths->commitIndex + 1;
           SyncIndex endIndex = pMsg->commitIndex;
 

@@ -201,8 +201,8 @@ void       syncNodeRelease(SSyncNode* pNode);
 
 // raft state change --------------
 void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term);
-void syncNodeBecomeFollower(SSyncNode* pSyncNode);
-void syncNodeBecomeLeader(SSyncNode* pSyncNode);
+void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr);
+void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr);
 
 void syncNodeCandidate2Leader(SSyncNode* pSyncNode);
 void syncNodeFollower2Candidate(SSyncNode* pSyncNode);

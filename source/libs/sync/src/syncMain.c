@@ -411,6 +411,8 @@ int32_t syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
 SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
   SSyncInfo* pSyncInfo = (SSyncInfo*)pOldSyncInfo;
 
+  sInfo("sync event vgId:%d sync open", pSyncInfo->vgId);
+
   SSyncNode* pSyncNode = (SSyncNode*)taosMemoryMalloc(sizeof(SSyncNode));
   assert(pSyncNode != NULL);
   memset(pSyncNode, 0, sizeof(SSyncNode));
@@ -628,7 +630,7 @@ void syncNodeStart(SSyncNode* pSyncNode) {
   // start raft
   if (pSyncNode->replicaNum == 1) {
     raftStoreNextTerm(pSyncNode->pRaftStore);
-    syncNodeBecomeLeader(pSyncNode);
+    syncNodeBecomeLeader(pSyncNode, "one replica start");
 
     syncNodeLog2("==state change become leader immediately==", pSyncNode);
 
@@ -654,7 +656,7 @@ void syncNodeStart(SSyncNode* pSyncNode) {
     return;
   }
 
-  syncNodeBecomeFollower(pSyncNode);
+  syncNodeBecomeFollower(pSyncNode, "first start");
 
   // for test
   int32_t ret = 0;
@@ -687,6 +689,8 @@ void syncNodeStartStandBy(SSyncNode* pSyncNode) {
 }
 
 void syncNodeClose(SSyncNode* pSyncNode) {
+  sInfo("sync event vgId:%d sync close", pSyncNode->vgId);
+
   int32_t ret;
   assert(pSyncNode != NULL);
 
@@ -1149,13 +1153,13 @@ void syncNodeRelease(SSyncNode* pNode) { taosReleaseRef(tsNodeRefId, pNode->rid)
 void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term) {
   if (term > pSyncNode->pRaftStore->currentTerm) {
     raftStoreSetTerm(pSyncNode->pRaftStore, term);
-    syncNodeBecomeFollower(pSyncNode);
+    syncNodeBecomeFollower(pSyncNode, "update term");
     raftStoreClearVote(pSyncNode->pRaftStore);
   }
 }
 
-void syncNodeBecomeFollower(SSyncNode* pSyncNode) {
-  sInfo("sync event become follower");
+void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr) {
+  sInfo("sync event vgId:%d become follower, %s", pSyncNode->vgId, debugStr);
 
   // maybe clear leader cache
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
@@ -1188,8 +1192,8 @@ void syncNodeBecomeFollower(SSyncNode* pSyncNode) {
 //                            evoterLog |-> voterLog[i]]}
 //     /\ UNCHANGED <<messages, currentTerm, votedFor, candidateVars, logVars>>
 //
-void syncNodeBecomeLeader(SSyncNode* pSyncNode) {
-  sInfo("sync event become leader");
+void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
+  sInfo("sync event vgId:%d become leader, %s", pSyncNode->vgId, debugStr);
 
   // state change
   pSyncNode->state = TAOS_SYNC_STATE_LEADER;
@@ -1241,7 +1245,7 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode) {
 void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
   assert(pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE);
   assert(voteGrantedMajority(pSyncNode->pVotesGranted));
-  syncNodeBecomeLeader(pSyncNode);
+  syncNodeBecomeLeader(pSyncNode, "candidate to leader");
 
   syncNodeLog2("==state change syncNodeCandidate2Leader==", pSyncNode);
 
@@ -1264,14 +1268,14 @@ void syncNodeFollower2Candidate(SSyncNode* pSyncNode) {
 
 void syncNodeLeader2Follower(SSyncNode* pSyncNode) {
   assert(pSyncNode->state == TAOS_SYNC_STATE_LEADER);
-  syncNodeBecomeFollower(pSyncNode);
+  syncNodeBecomeFollower(pSyncNode, "leader to follower");
 
   syncNodeLog2("==state change syncNodeLeader2Follower==", pSyncNode);
 }
 
 void syncNodeCandidate2Follower(SSyncNode* pSyncNode) {
   assert(pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE);
-  syncNodeBecomeFollower(pSyncNode);
+  syncNodeBecomeFollower(pSyncNode, "candidate to follower");
 
   syncNodeLog2("==state change syncNodeCandidate2Follower==", pSyncNode);
 }
@@ -1728,17 +1732,19 @@ const char* syncStr(ESyncState state) {
 int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex, uint64_t flag) {
   int32_t    code = 0;
   ESyncState state = flag;
-  sInfo("sync event commit from index:%" PRId64 " to index:%" PRId64 ", %s", beginIndex, endIndex,
-        syncUtilState2String(state));
+  sInfo("sync event vgId:%d commit by wal from index:%" PRId64 " to index:%" PRId64 ", %s", ths->vgId, beginIndex,
+        endIndex, syncUtilState2String(state));
 
-  // maybe execute by leader, skip snapshot
-  SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
-  if (ths->pFsm->FpGetSnapshot != NULL) {
-    ths->pFsm->FpGetSnapshot(ths->pFsm, &snapshot);
-  }
-  if (beginIndex <= snapshot.lastApplyIndex) {
-    beginIndex = snapshot.lastApplyIndex + 1;
-  }
+  /*
+    // maybe execute by leader, skip snapshot
+    SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
+    if (ths->pFsm->FpGetSnapshot != NULL) {
+      ths->pFsm->FpGetSnapshot(ths->pFsm, &snapshot);
+    }
+    if (beginIndex <= snapshot.lastApplyIndex) {
+      beginIndex = snapshot.lastApplyIndex + 1;
+    }
+  */
 
   // execute fsm
   if (ths->pFsm != NULL) {
@@ -1795,9 +1801,9 @@ int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex,
             // change isStandBy to normal
             if (!isDrop) {
               if (ths->state == TAOS_SYNC_STATE_LEADER) {
-                syncNodeBecomeLeader(ths);
+                syncNodeBecomeLeader(ths, "config change");
               } else {
-                syncNodeBecomeFollower(ths);
+                syncNodeBecomeFollower(ths, "config change");
               }
             }
 

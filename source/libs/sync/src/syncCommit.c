@@ -48,10 +48,18 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
   syncIndexMgrLog2("==syncNodeMaybeAdvanceCommitIndex== pNextIndex", pSyncNode->pNextIndex);
   syncIndexMgrLog2("==syncNodeMaybeAdvanceCommitIndex== pMatchIndex", pSyncNode->pMatchIndex);
 
+  // advance commit index to sanpshot first
+  SSnapshot snapshot;
+  pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
+  if (snapshot.lastApplyIndex > pSyncNode->commitIndex) {
+    sInfo("sync event vgId:%d commit by snapshot from index:%ld to index:%ld, %s", pSyncNode->vgId,
+          pSyncNode->commitIndex, snapshot.lastApplyIndex, syncUtilState2String(pSyncNode->state));
+    pSyncNode->commitIndex = snapshot.lastApplyIndex;
+  }
+
   // update commit index
   SyncIndex newCommitIndex = pSyncNode->commitIndex;
-  for (SyncIndex index = pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore); index > pSyncNode->commitIndex;
-       --index) {
+  for (SyncIndex index = syncNodeGetLastIndex(pSyncNode); index > pSyncNode->commitIndex; --index) {
     bool agree = syncAgree(pSyncNode, index);
     sTrace("syncMaybeAdvanceCommitIndex syncAgree:%d, index:%ld, pSyncNode->commitIndex:%ld", agree, index,
            pSyncNode->commitIndex);

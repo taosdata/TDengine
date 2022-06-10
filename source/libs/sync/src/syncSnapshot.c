@@ -109,8 +109,10 @@ void snapshotSenderStart(SSyncSnapshotSender *pSender) {
   char     host[128];
   uint16_t port;
   syncUtilU642Addr(pSender->pSyncNode->replicasId[pSender->replicaIndex].addr, host, sizeof(host), &port);
-  sTrace("sync event snapshot send to %s:%d begin seq:%d ack:%d lastApplyIndex:%ld lastApplyTerm:%lu send msg:%s", host,
-         port, pSender->seq, pSender->ack, pSender->snapshot.lastApplyIndex, pSender->snapshot.lastApplyTerm, msgStr);
+  sTrace(
+      "sync event vgId:%d snapshot send to %s:%d begin seq:%d ack:%d lastApplyIndex:%ld lastApplyTerm:%lu send msg:%s",
+      pSender->pSyncNode->vgId, host, port, pSender->seq, pSender->ack, pSender->snapshot.lastApplyIndex,
+      pSender->snapshot.lastApplyTerm, msgStr);
   taosMemoryFree(msgStr);
 
   syncSnapshotSendDestroy(pMsg);
@@ -230,13 +232,17 @@ int32_t snapshotSend(SSyncSnapshotSender *pSender) {
   uint16_t port;
   syncUtilU642Addr(pSender->pSyncNode->replicasId[pSender->replicaIndex].addr, host, sizeof(host), &port);
   if (pSender->seq == SYNC_SNAPSHOT_SEQ_END) {
-    sTrace("sync event snapshot send to %s:%d finish seq:%d ack:%d lastApplyIndex:%ld lastApplyTerm:%lu send msg:%s",
-           host, port, pSender->seq, pSender->ack, pSender->snapshot.lastApplyIndex, pSender->snapshot.lastApplyTerm,
-           msgStr);
+    sTrace(
+        "sync event vgId:%d snapshot send to %s:%d finish seq:%d ack:%d lastApplyIndex:%ld lastApplyTerm:%lu send "
+        "msg:%s",
+        pSender->pSyncNode->vgId, host, port, pSender->seq, pSender->ack, pSender->snapshot.lastApplyIndex,
+        pSender->snapshot.lastApplyTerm, msgStr);
   } else {
-    sTrace("sync event snapshot send to %s:%d sending seq:%d ack:%d lastApplyIndex:%ld lastApplyTerm:%lu send msg:%s",
-           host, port, pSender->seq, pSender->ack, pSender->snapshot.lastApplyIndex, pSender->snapshot.lastApplyTerm,
-           msgStr);
+    sTrace(
+        "sync event vgId:%d snapshot send to %s:%d sending seq:%d ack:%d lastApplyIndex:%ld lastApplyTerm:%lu send "
+        "msg:%s",
+        pSender->pSyncNode->vgId, host, port, pSender->seq, pSender->ack, pSender->snapshot.lastApplyIndex,
+        pSender->snapshot.lastApplyTerm, msgStr);
   }
   taosMemoryFree(msgStr);
 
@@ -264,8 +270,8 @@ int32_t snapshotReSend(SSyncSnapshotSender *pSender) {
     char     host[128];
     uint16_t port;
     syncUtilU642Addr(pSender->pSyncNode->replicasId[pSender->replicaIndex].addr, host, sizeof(host), &port);
-    sTrace("sync event snapshot send to %s:%d resend seq:%d ack:%d send msg:%s", host, port, pSender->seq, pSender->ack,
-           msgStr);
+    sTrace("sync event vgId:%d snapshot send to %s:%d resend seq:%d ack:%d send msg:%s", pSender->pSyncNode->vgId, host,
+           port, pSender->seq, pSender->ack, msgStr);
     taosMemoryFree(msgStr);
 
     syncSnapshotSendDestroy(pMsg);
@@ -476,8 +482,8 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
         char     host[128];
         uint16_t port;
         syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
-        sTrace("sync event snapshot recv from %s:%d begin ack:%d, lastIndex:%ld, lastTerm:%lu, recv msg:%s", host, port,
-               pReceiver->ack, pMsg->lastIndex, pMsg->lastTerm, msgStr);
+        sTrace("sync event vgId:%d snapshot recv from %s:%d begin ack:%d, lastIndex:%ld, lastTerm:%lu, recv msg:%s",
+               pSyncNode->vgId, host, port, pReceiver->ack, pMsg->lastIndex, pMsg->lastTerm, msgStr);
         taosMemoryFree(msgStr);
 
       } else if (pMsg->seq == SYNC_SNAPSHOT_SEQ_END) {
@@ -495,9 +501,11 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
         uint16_t port;
         syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
         sInfo(
-            "sync event snapshot recv from %s:%d finish, update log begin index:%ld, snapshot.lastApplyIndex:%ld, "
+            "sync event vgId:%d snapshot recv from %s:%d finish, update log begin index:%ld, "
+            "snapshot.lastApplyIndex:%ld, "
             "snapshot.lastApplyTerm:%lu, raft log:%s",
-            host, port, pMsg->lastIndex + 1, snapshot.lastApplyIndex, snapshot.lastApplyTerm, logSimpleStr);
+            pSyncNode->vgId, host, port, pMsg->lastIndex + 1, snapshot.lastApplyIndex, snapshot.lastApplyTerm,
+            logSimpleStr);
         taosMemoryFree(logSimpleStr);
 
         pReceiver->pWriter = NULL;
@@ -506,8 +514,8 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
         needRsp = true;
 
         char *msgStr = syncSnapshotSend2Str(pMsg);
-        sTrace("sync event snapshot recv from %s:%d end ack:%d, lastIndex:%ld, lastTerm:%lu, recv msg:%s", host, port,
-               pReceiver->ack, pMsg->lastIndex, pMsg->lastTerm, msgStr);
+        sTrace("sync event vgId:%d snapshot recv from %s:%d end ack:%d, lastIndex:%ld, lastTerm:%lu, recv msg:%s",
+               pReceiver->pSyncNode->vgId, host, port, pReceiver->ack, pMsg->lastIndex, pMsg->lastTerm, msgStr);
         taosMemoryFree(msgStr);
 
       } else if (pMsg->seq == SYNC_SNAPSHOT_SEQ_FORCE_CLOSE) {
@@ -520,8 +528,9 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
         syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
 
         char *msgStr = syncSnapshotSend2Str(pMsg);
-        sTrace("sync event snapshot recv from %s:%d force close ack:%d, lastIndex:%ld, lastTerm:%lu, recv msg:%s", host,
-               port, pReceiver->ack, pMsg->lastIndex, pMsg->lastTerm, msgStr);
+        sTrace(
+            "sync event vgId:%d snapshot recv from %s:%d force close ack:%d, lastIndex:%ld, lastTerm:%lu, recv msg:%s",
+            pReceiver->pSyncNode->vgId, host, port, pReceiver->ack, pMsg->lastIndex, pMsg->lastTerm, msgStr);
 
         taosMemoryFree(msgStr);
 
@@ -539,8 +548,8 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
         char     host[128];
         uint16_t port;
         syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
-        sTrace("sync event snapshot recv from %s:%d receiving ack:%d, lastIndex:%ld, lastTerm:%lu, recv msg:%s", host,
-               port, pReceiver->ack, pMsg->lastIndex, pMsg->lastTerm, msgStr);
+        sTrace("sync event vgId:%d snapshot recv from %s:%d receiving ack:%d, lastIndex:%ld, lastTerm:%lu, recv msg:%s",
+               pSyncNode->vgId, host, port, pReceiver->ack, pMsg->lastIndex, pMsg->lastTerm, msgStr);
         taosMemoryFree(msgStr);
 
       } else {

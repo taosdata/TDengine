@@ -184,8 +184,9 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
 
         char* s = snapshotSender2Str(pSender);
         sInfo(
-            "sync event snapshot send to %s:%d start sender first time, lastApplyIndex:%ld lastApplyTerm:%lu sender:%s",
-            host, port, pSender->snapshot.lastApplyIndex, pSender->snapshot.lastApplyTerm, s);
+            "sync event vgId:%d snapshot send to %s:%d start sender first time, lastApplyIndex:%ld lastApplyTerm:%lu "
+            "sender:%s",
+            ths->vgId, host, port, pSender->snapshot.lastApplyIndex, pSender->snapshot.lastApplyTerm, s);
         taosMemoryFree(s);
       }
 
