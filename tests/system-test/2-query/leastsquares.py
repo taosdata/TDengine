@@ -172,7 +172,7 @@ class TDTestCase:
                                 (
                                     self.__single_sql(select_clause=select_claus, from_clause=tb, start_val=arg),
                                     self.__single_sql(select_clause=select_claus, from_clause=tb, step_val=arg, group_condition=group_claus),
-                                    self.__single_sql(select_clause=select_claus, from_clause=tb, start_val=arg, step_val=arg, where_condition=where_claus, group_condition=having_claus),
+                                    self.__single_sql(select_clause=select_claus, from_clause=tb, start_val=arg, where_condition=where_claus, group_condition=having_claus),
                                 )
                             )
                         else:
