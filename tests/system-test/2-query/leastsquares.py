@@ -167,7 +167,15 @@ class TDTestCase:
                     where_claus = self.__where_condition(query_conditon=select_claus)
                     having_claus = self.__group_condition(col=select_claus, having=f"{select_claus} is not null")
                     for arg in self.start_step_val:
-                        if not  isinstance(arg,int) or isinstance(arg, bool) or BOOL_COL in select_claus or BINARY_COL in select_claus or NCHAR_COL in select_claus or TS_COL in select_claus:
+                        if not  isinstance(arg,int) or isinstance(arg, bool) :
+                            err_sqls.extend(
+                                (
+                                    self.__single_sql(select_clause=select_claus, from_clause=tb, start_val=arg),
+                                    self.__single_sql(select_clause=select_claus, from_clause=tb, step_val=arg, group_condition=group_claus),
+                                    self.__single_sql(select_clause=select_claus, from_clause=tb, start_val=arg, where_condition=where_claus, group_condition=having_claus),
+                                )
+                            )
+                        elif isinstance(select_claus, str) and any([BOOL_COL in select_claus, BINARY_COL in select_claus, NCHAR_COL in select_claus]):
                             err_sqls.extend(
                                 (
                                     self.__single_sql(select_clause=select_claus, from_clause=tb, start_val=arg),
