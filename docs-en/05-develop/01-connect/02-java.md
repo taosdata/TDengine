@@ -39,6 +39,12 @@ export TDENGINE_CLOUD_TOKEN=<token>
 
 You can also set environment variable in IDE. For example, you can set environmental variables in IDEA's run configurations menu.
 
+<!-- exclude -->
+:::note
+To obtain your personal cloud token, please log in [TDengine Cloud](https://cloud.tdengine.com).
+
+:::
+<!-- exclude-end -->
 ## Connect
 
 
