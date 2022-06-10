@@ -7,13 +7,17 @@ from util.dnodes import *
 
 PRIMARY_COL = "ts"
 
-INT_COL     = "c1"
-BINT_COL    = "c2"
-SINT_COL    = "c3"
-TINT_COL    = "c4"
-FLOAT_COL   = "c5"
-DOUBLE_COL  = "c6"
-BOOL_COL    = "c7"
+INT_COL     = "c_int"
+BINT_COL    = "c_bint"
+SINT_COL    = "c_sint"
+TINT_COL    = "c_tint"
+FLOAT_COL   = "c_float"
+DOUBLE_COL  = "c_double"
+BOOL_COL    = "c_bool"
+TINT_UN_COL = "c_tint_un"
+SINT_UN_COL = "c_sint_un"
+BINT_UN_COL = "c_bint_un"
+INT_UN_COL  = "c_int_un"
 
 BINARY_COL  = "c8"
 NCHAR_COL   = "c9"
@@ -56,11 +60,18 @@ class TDTestCase:
     @property
     def create_stable_sql_err(self):
         return [
-            "create stable stb1 (ts timestamp, c1 int) tags (tag1 int) rollup(ceil) file_factor 0.1",
+            f"create stable stb1 (ts timestamp, {INT_COL} int) tags (tag1 int) rollup(ceil) file_factor 0.1",
+            f"create stable stb1 (ts timestamp, {INT_COL} int) tags (tag1 int) rollup(count) file_factor 0.1",
+            f"create stable stb2 (ts timestamp, {INT_COL} int, {BINARY_COL} binary(16)) tags (tag1 int) rollup(avg) file_factor 0.1",
+            f"create stable stb2 (ts timestamp, {INT_COL} int, {BINARY_COL} nchar(16)) tags (tag1 int) rollup(avg) file_factor 0.1",
         ]
 
-    def test_create_database(self):
-        pass
+    @property
+    def create_stable_sql_err(self):
+        return [
+            "create stable stb1 (ts timestamp, c1 int) tags (tag1 int) rollup(avg) file_factor 0.1",
+        ]
+
 
     def test_create_databases(self):
         for err_sql in self.create_databases_sql_err:
@@ -80,14 +91,18 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step1:create table")
         create_stb_sql  =  f'''create table stb1(
                 ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
-                 {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
-                 {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp
+                {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
+                {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp,
+                {TINT_UN_COL} tinyint unsigned, {SINT_UN_COL} smallint unsigned,
+                {INT_UN_COL} int unsigned, {BINT_UN_COL} bigint unsigned,
             ) tags (t1 int)
             '''
         create_ntb_sql = f'''create table t1(
                 ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
-                 {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
-                 {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp
+                {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
+                {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp,
+                {TINT_UN_COL} tinyint unsigned, {SINT_UN_COL} smallint unsigned,
+                {INT_UN_COL} int unsigned, {BINT_UN_COL} bigint unsigned,
             )
             '''
         tdSql.execute(create_stb_sql)
