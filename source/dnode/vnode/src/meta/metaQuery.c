@@ -624,7 +624,7 @@ int32_t metaFilteTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
   void *  tagData = NULL;
 
   if (param->val == NULL) {
-    metaError("vgId:%d failed to filter NULL data", PRIi64, TD_VID(pMeta->pVnode), uid, smaId);
+    metaError("vgId:%d failed to filter NULL data", TD_VID(pMeta->pVnode));
     return -1;
   } else {
     if (IS_VAR_DATA_TYPE(param->type)) {
