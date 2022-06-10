@@ -403,9 +403,9 @@ static int32_t translateTopBotImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t 
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
 
-    // set result type
-    SDataType* pType = &((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType;
-    pFunc->node.resType = (SDataType){.bytes = pType->bytes, .type = pType->type};
+    // Do nothing. We can only access output of partial functions as input,
+    // so original input type cannot be obtained, resType will be set same
+    // as original function input type after merge function created.
   }
   return TSDB_CODE_SUCCESS;
 }

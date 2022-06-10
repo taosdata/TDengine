@@ -200,6 +200,27 @@ bool fmIsInvertible(int32_t funcId) {
   return res;
 }
 
+//function has same input/output type
+bool fmIsSameInOutType(int32_t funcId) {
+  bool res = false;
+  switch (funcMgtBuiltins[funcId].type) {
+    case FUNCTION_TYPE_MAX:
+    case FUNCTION_TYPE_MIN:
+    case FUNCTION_TYPE_TOP:
+    case FUNCTION_TYPE_BOTTOM:
+    case FUNCTION_TYPE_FIRST:
+    case FUNCTION_TYPE_LAST:
+    case FUNCTION_TYPE_SAMPLE:
+    case FUNCTION_TYPE_TAIL:
+    case FUNCTION_TYPE_UNIQUE:
+      res = true;
+      break;
+    default:
+      break;
+  }
+  return res;
+}
+
 static int32_t getFuncInfo(SFunctionNode* pFunc) {
   char msg[64] = {0};
   if (NULL != gFunMgtService.pFuncNameHashTable) {
@@ -273,6 +294,10 @@ static int32_t createMergeFunction(const SFunctionNode* pSrcFunc, const SFunctio
   if (NULL == *pMergeFunc) {
     nodesDestroyList(pParameterList);
     return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  //overwrite function restype set by translate function
+  if (fmIsSameInOutType(funcMgtBuiltins[pSrcFunc->funcId].type)) {
+    (*pMergeFunc)->node.resType = pSrcFunc->node.resType;
   }
   strcpy((*pMergeFunc)->node.aliasName, pSrcFunc->node.aliasName);
   return TSDB_CODE_SUCCESS;
