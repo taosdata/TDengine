@@ -3,10 +3,13 @@ sidebar_label: Java
 title: Connect with Java Connector
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 ## Add Dependency
 
-Build with Maven
-
+<Tabs>
+<TabItem value="maven" label="Maven">
 ```xml
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
@@ -14,14 +17,15 @@ Build with Maven
   <version>2.0.39</version>
 </dependency>
 ```
-
-Build with Gradle
-
+</TabItem>
+<TabItem value="gradel" label="Gradle">
 ```groovy
 dependencies {
   implementation 'com.taosdata.jdbc:taos-jdbcdriver:2.0.39'
 }
 ```
+</TabItem>
+</Tabs>
 
 ## Config
 
@@ -31,6 +35,9 @@ Run this command in your terminal to save TDengine cloud token as variables:
 ```bash
 export TDENGINE_CLOUD_TOKEN=<token>
 ```
+
+
+You can also set environment variable in IDE. For example, you can set environmental variables in IDEA's run configurations menu.
 
 ## Connect
 
