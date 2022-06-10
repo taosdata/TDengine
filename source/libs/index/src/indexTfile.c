@@ -118,7 +118,7 @@ TFileCache* tfileCacheCreate(const char* path) {
     ICacheKey    key = {.suid = header->suid, .colName = header->colName, .nColName = (int32_t)strlen(header->colName)};
 
     char    buf[128] = {0};
-    int32_t sz = indexSerialCacheKey(&key, buf);
+    int32_t sz = idxSerialCacheKey(&key, buf);
     assert(sz < sizeof(buf));
     taosHashPut(tcache->tableCache, buf, sz, &reader, sizeof(void*));
     tfileReaderRef(reader);
@@ -149,7 +149,7 @@ void tfileCacheDestroy(TFileCache* tcache) {
 
 TFileReader* tfileCacheGet(TFileCache* tcache, ICacheKey* key) {
   char    buf[128] = {0};
-  int32_t sz = indexSerialCacheKey(key, buf);
+  int32_t sz = idxSerialCacheKey(key, buf);
   assert(sz < sizeof(buf));
   TFileReader** reader = taosHashGet(tcache->tableCache, buf, sz);
   if (reader == NULL || *reader == NULL) {
@@ -161,7 +161,7 @@ TFileReader* tfileCacheGet(TFileCache* tcache, ICacheKey* key) {
 }
 void tfileCachePut(TFileCache* tcache, ICacheKey* key, TFileReader* reader) {
   char    buf[128] = {0};
-  int32_t sz = indexSerialCacheKey(key, buf);
+  int32_t sz = idxSerialCacheKey(key, buf);
   // remove last version index reader
   TFileReader** p = taosHashGet(tcache->tableCache, buf, sz);
   if (p != NULL && *p != NULL) {
@@ -281,7 +281,7 @@ static int32_t tfSearchSuffix(void* reader, SIndexTerm* tem, SIdxTRslt* tr) {
   return 0;
 }
 static int32_t tfSearchRegex(void* reader, SIndexTerm* tem, SIdxTRslt* tr) {
-  bool hasJson = INDEX_TYPE_CONTAIN_EXTERN_TYPE(tem->colType, TSDB_DATA_TYPE_JSON);
+  bool hasJson = IDX_TYPE_CONTAIN_EXTERN_TYPE(tem->colType, TSDB_DATA_TYPE_JSON);
 
   int      ret = 0;
   char*    p = tem->colVal;
@@ -305,7 +305,7 @@ static int32_t tfSearchCompareFunc(void* reader, SIndexTerm* tem, SIdxTRslt* tr,
   int                  ret = 0;
   char*                p = tem->colVal;
   int                  skip = 0;
-  _cache_range_compare cmpFn = indexGetCompare(type);
+  _cache_range_compare cmpFn = idxGetCompare(type);
 
   SArray* offsets = taosArrayInit(16, sizeof(uint64_t));
 
@@ -431,7 +431,7 @@ static int32_t tfSearchCompareFunc_JSON(void* reader, SIndexTerm* tem, SIdxTRslt
     p = idxPackJsonDataPrefix(tem, &skip);
   }
 
-  _cache_range_compare cmpFn = indexGetCompare(ctype);
+  _cache_range_compare cmpFn = idxGetCompare(ctype);
 
   SArray* offsets = taosArrayInit(16, sizeof(uint64_t));
 
@@ -457,7 +457,7 @@ static int32_t tfSearchCompareFunc_JSON(void* reader, SIndexTerm* tem, SIdxTRslt
       } else if (0 != strncmp(ch, p, skip)) {
         continue;
       }
-      cond = cmpFn(ch + skip, tem->colVal, INDEX_TYPE_GET_TYPE(tem->colType));
+      cond = cmpFn(ch + skip, tem->colVal, IDX_TYPE_GET_TYPE(tem->colType));
     }
     if (MATCH == cond) {
       tfileReaderLoadTableIds((TFileReader*)reader, rt->out.out, tr->total);
@@ -476,7 +476,7 @@ int tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SIdxTRslt* tr
   SIndexTerm*     term = query->term;
   EIndexQueryType qtype = query->qType;
   int             ret = 0;
-  if (INDEX_TYPE_CONTAIN_EXTERN_TYPE(term->colType, TSDB_DATA_TYPE_JSON)) {
+  if (IDX_TYPE_CONTAIN_EXTERN_TYPE(term->colType, TSDB_DATA_TYPE_JSON)) {
     ret = tfSearch[1][qtype](reader, term, tr);
   } else {
     ret = tfSearch[0][qtype](reader, term, tr);
@@ -536,7 +536,7 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
     __compar_fn_t fn;
 
     int8_t colType = tw->header.colType;
-    colType = INDEX_TYPE_GET_TYPE(colType);
+    colType = IDX_TYPE_GET_TYPE(colType);
     if (colType == TSDB_DATA_TYPE_BINARY || colType == TSDB_DATA_TYPE_NCHAR) {
       fn = tfileStrCompare;
     } else {
@@ -620,7 +620,7 @@ void tfileWriterDestroy(TFileWriter* tw) {
   taosMemoryFree(tw);
 }
 
-IndexTFile* indexTFileCreate(const char* path) {
+IndexTFile* idxTFileCreate(const char* path) {
   TFileCache* cache = tfileCacheCreate(path);
   if (cache == NULL) {
     return NULL;
@@ -635,7 +635,7 @@ IndexTFile* indexTFileCreate(const char* path) {
   tfile->cache = cache;
   return tfile;
 }
-void indexTFileDestroy(IndexTFile* tfile) {
+void idxTFileDestroy(IndexTFile* tfile) {
   if (tfile == NULL) {
     return;
   }
@@ -644,7 +644,7 @@ void indexTFileDestroy(IndexTFile* tfile) {
   taosMemoryFree(tfile);
 }
 
-int indexTFileSearch(void* tfile, SIndexTermQuery* query, SIdxTRslt* result) {
+int idxTFileSearch(void* tfile, SIndexTermQuery* query, SIdxTRslt* result) {
   int ret = -1;
   if (tfile == NULL) {
     return ret;
@@ -667,7 +667,7 @@ int indexTFileSearch(void* tfile, SIndexTermQuery* query, SIdxTRslt* result) {
 
   return tfileReaderSearch(reader, query, result);
 }
-int indexTFilePut(void* tfile, SIndexTerm* term, uint64_t uid) {
+int idxTFilePut(void* tfile, SIndexTerm* term, uint64_t uid) {
   // TFileWriterOpt wOpt = {.suid = term->suid, .colType = term->colType, .colName = term->colName, .nColName =
   // term->nColName, .version = 1};
 
@@ -845,7 +845,7 @@ static int tfileWriteData(TFileWriter* write, TFileValue* tval) {
   TFileHeader* header = &write->header;
   uint8_t      colType = header->colType;
 
-  colType = INDEX_TYPE_GET_TYPE(colType);
+  colType = IDX_TYPE_GET_TYPE(colType);
   FstSlice key = fstSliceCreate((uint8_t*)(tval->colVal), (size_t)strlen(tval->colVal));
   if (fstBuilderInsert(write->fb, key, tval->offset)) {
     fstSliceDestroy(&key);
