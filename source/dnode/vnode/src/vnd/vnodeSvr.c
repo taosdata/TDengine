@@ -24,6 +24,7 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t version, void *pReq
 static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessAlterConfirmReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
+static int32_t vnodeProcessAlterHasnRangeReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessWriteMsg(SVnode *pVnode, int64_t version, SRpcMsg *pMsg, SRpcMsg *pRsp);
 
 int32_t vnodePreprocessReq(SVnode *pVnode, SRpcMsg *pMsg) {
@@ -91,9 +92,6 @@ int32_t vnodePreprocessReq(SVnode *pVnode, SRpcMsg *pMsg) {
       }
 
     } break;
-    case TDMT_VND_ALTER_REPLICA: {
-      code = vnodeSyncAlter(pVnode, pMsg);
-    } break;
     default:
       break;
   }
@@ -107,7 +105,7 @@ int32_t vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
   int32_t len;
   int32_t ret;
 
-  vTrace("vgId:%d, start to process write request %s, version %" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType),
+  vTrace("vgId:%d, start to process write request %s, index:%" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType),
          version);
 
   pVnode->state.applied = version;
@@ -166,6 +164,9 @@ int32_t vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
     case TDMT_VND_ALTER_CONFIRM:
       vnodeProcessAlterConfirmReq(pVnode, version, pReq, len, pRsp);
       break;
+    case TDMT_VND_ALTER_HASHRANGE:
+      vnodeProcessAlterHasnRangeReq(pVnode, version, pReq, len, pRsp);
+      break;
     case TDMT_VND_ALTER_CONFIG:
       break;
     default:
@@ -173,7 +174,7 @@ int32_t vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
       break;
   }
 
-  vTrace("vgId:%d, process %s request success, version: %" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType), version);
+  vTrace("vgId:%d, process %s request success, index:%" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType), version);
 
   if (tqPushMsg(pVnode->pTq, pMsg->pCont, pMsg->contLen, pMsg->msgType, version) < 0) {
     vError("vgId:%d, failed to push msg to TQ since %s", TD_VID(pVnode), tstrerror(terrno));
@@ -890,5 +891,15 @@ static int32_t vnodeProcessAlterConfirmReq(SVnode *pVnode, int64_t version, void
   pRsp->pCont = NULL;
   pRsp->contLen = 0;
 
+  return 0;
+}
+
+static int32_t vnodeProcessAlterHasnRangeReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  vInfo("vgId:%d, alter hashrange msg will be processed", TD_VID(pVnode));
+
+  // todo 
+  // 1. stop work 
+  // 2. adjust hash range / compact / remove wals / rename vgroups
+  // 3. reload sync
   return 0;
 }

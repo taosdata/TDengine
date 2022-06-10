@@ -2043,6 +2043,10 @@ int32_t qBuildStmtTagFields(void* pBlock, void* boundTags, int32_t* fieldNum, TA
     return TSDB_CODE_QRY_APP_ERROR;
   }
 
+  if (pDataBlock->pTableMeta->tableType != TSDB_SUPER_TABLE && pDataBlock->pTableMeta->tableType != TSDB_CHILD_TABLE) {
+    return TSDB_CODE_TSC_STMT_API_ERROR;
+  }
+
   SSchema* pSchema = getTableTagSchema(pDataBlock->pTableMeta);
   if (tags->numOfBound <= 0) {
     *fieldNum = 0;

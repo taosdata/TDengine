@@ -32,15 +32,17 @@ extern "C" {
 #define EXPLAIN_PROJECTION_FORMAT "Projection"
 #define EXPLAIN_JOIN_FORMAT "%s"
 #define EXPLAIN_AGG_FORMAT "Aggragate"
+#define EXPLAIN_INDEF_ROWS_FORMAT "Indefinite Rows Function"
 #define EXPLAIN_EXCHANGE_FORMAT "Data Exchange %d:1"
 #define EXPLAIN_SORT_FORMAT "Sort"
 #define EXPLAIN_INTERVAL_FORMAT "Interval on Column %s"
+#define EXPLAIN_FILL_FORMAT "Fill"
 #define EXPLAIN_SESSION_FORMAT "Session"
 #define EXPLAIN_STATE_WINDOW_FORMAT "StateWindow on Column %s"
 #define EXPLAIN_PARITION_FORMAT "Partition on Column %s"
 #define EXPLAIN_ORDER_FORMAT "Order: %s"
 #define EXPLAIN_FILTER_FORMAT "Filter: "
-#define EXPLAIN_FILL_FORMAT "Fill: %s"
+#define EXPLAIN_FILL_VALUE_FORMAT "Fill Values: "
 #define EXPLAIN_ON_CONDITIONS_FORMAT "Join Cond: "
 #define EXPLAIN_TIMERANGE_FORMAT "Time Range: [%" PRId64 ", %" PRId64 "]"
 #define EXPLAIN_OUTPUT_FORMAT "Output: "
@@ -66,6 +68,8 @@ extern "C" {
 #define EXPLAIN_WIDTH_FORMAT "width=%d"
 #define EXPLAIN_FUNCTIONS_FORMAT "functions=%d"
 #define EXPLAIN_EXECINFO_FORMAT "cost=%.3f..%.3f rows=%" PRIu64
+#define EXPLAIN_MODE_FORMAT "mode=%s"
+#define EXPLAIN_STRING_TYPE_FORMAT "%s"
 
 typedef struct SExplainGroup {
   int32_t   nodeNum;
@@ -115,9 +119,9 @@ typedef struct SExplainCtx {
 #define EXPLAIN_ROW_NEW(level, ...)                                                                               \
   do {                                                                                                            \
     if (isVerboseLine) {                                                                                          \
-      tlen = snprintf(tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE, "%*s", (level) * 2 + 3, "");       \
+      tlen = snprintf(tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE, "%*s", (level) * 3 + 3, "");       \
     } else {                                                                                                      \
-      tlen = snprintf(tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE, "%*s%s", (level) * 2, "", "-> ");  \
+      tlen = snprintf(tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE, "%*s%s", (level) * 3, "", "-> ");  \
     }                                                                                                             \
     tlen += snprintf(tbuf + VARSTR_HEADER_SIZE + tlen, TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE - tlen, __VA_ARGS__);         \
   } while (0)

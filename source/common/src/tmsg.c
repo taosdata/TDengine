@@ -2427,6 +2427,7 @@ int32_t tSerializeSTableIndexInfo(SEncoder *pEncoder, STableIndexInfo* pInfo) {
   if (tEncodeI64(pEncoder, pInfo->sliding) < 0) return -1;
   if (tEncodeI64(pEncoder, pInfo->dstTbUid) < 0) return -1;
   if (tEncodeI32(pEncoder, pInfo->dstVgId) < 0) return -1;
+  if (tEncodeSEpSet(pEncoder, &pInfo->epSet) < 0) return -1;
   if (tEncodeCStr(pEncoder, pInfo->expr) < 0) return -1;
   return 0;
 }
@@ -2459,6 +2460,7 @@ int32_t tDeserializeSTableIndexInfo(SDecoder *pDecoder, STableIndexInfo *pInfo) 
   if (tDecodeI64(pDecoder, &pInfo->sliding) < 0) return -1;
   if (tDecodeI64(pDecoder, &pInfo->dstTbUid) < 0) return -1;
   if (tDecodeI32(pDecoder, &pInfo->dstVgId) < 0) return -1;
+  if (tDecodeSEpSet(pDecoder, &pInfo->epSet) < 0) return -1;
   if (tDecodeCStrAlloc(pDecoder, &pInfo->expr) < 0) return -1;
 
   return 0;
@@ -2489,6 +2491,15 @@ int32_t tDeserializeSTableIndexRsp(void *buf, int32_t bufLen, STableIndexRsp *pR
   return 0;
 }
 
+void tFreeSTableIndexInfo(void* info) {
+  if (NULL == info) {
+    return;
+  }
+
+  STableIndexInfo *pInfo = (STableIndexInfo*)info;
+
+  taosMemoryFree(pInfo->expr);
+}
 
 int32_t tSerializeSShowReq(void *buf, int32_t bufLen, SShowReq *pReq) {
   SEncoder encoder = {0};

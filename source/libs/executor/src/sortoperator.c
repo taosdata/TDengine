@@ -42,6 +42,8 @@ SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSDataBlock* pR
 
   pInfo->pSortInfo = pSortInfo;
   pInfo->pColMatchInfo = pColMatchColInfo;
+  pInfo->hasGroupId = false;
+  pInfo->prefetchedTuple = NULL;
   pOperator->name = "SortOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_SORT;
   pOperator->blocking = true;
@@ -81,8 +83,8 @@ void appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle) {
   pBlock->info.rows += 1;
 }
 
-SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity,
-                                SArray* pColMatchInfo) {
+SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity, SArray* pColMatchInfo,
+                                SSortOperatorInfo* pInfo) {
   blockDataCleanup(pDataBlock);
 
   SSDataBlock* p = tsortGetSortedDataBlock(pHandle);
@@ -93,14 +95,33 @@ SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, i
   blockDataEnsureCapacity(p, capacity);
 
   while (1) {
-    STupleHandle* pTupleHandle = tsortNextTuple(pHandle);
+    STupleHandle* pTupleHandle = NULL;
+    if (pInfo->prefetchedTuple == NULL) {
+      pTupleHandle = tsortNextTuple(pHandle);
+    } else {
+      pTupleHandle = pInfo->prefetchedTuple;
+      pInfo->groupId = tsortGetGroupId(pTupleHandle);
+      pInfo->prefetchedTuple = NULL;
+    }
+
     if (pTupleHandle == NULL) {
       break;
     }
 
-    appendOneRowToDataBlock(p, pTupleHandle);
+    uint64_t tupleGroupId = tsortGetGroupId(pTupleHandle);
+    if (!pInfo->hasGroupId) {
+      pInfo->groupId = tupleGroupId;
+      pInfo->hasGroupId = true;
+      appendOneRowToDataBlock(p, pTupleHandle);
+    } else if (pInfo->groupId == tupleGroupId) {
+      appendOneRowToDataBlock(p, pTupleHandle);
+    } else {
+      pInfo->prefetchedTuple = pTupleHandle;
+      break;
+    }
+
     if (p->info.rows >= capacity) {
-      return pDataBlock;
+      break;
     }
   }
 
@@ -117,6 +138,7 @@ SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, i
 
     pDataBlock->info.rows = p->info.rows;
     pDataBlock->info.capacity = p->info.rows;
+    pDataBlock->info.groupId = pInfo->groupId;
   }
 
   blockDataDestroy(p);
@@ -188,8 +210,8 @@ SSDataBlock* doSort(SOperatorInfo* pOperator) {
     longjmp(pTaskInfo->env, code);
   }
 
-  SSDataBlock* pBlock =
-      getSortedBlockData(pInfo->pSortHandle, pInfo->binfo.pRes, pOperator->resultInfo.capacity, pInfo->pColMatchInfo);
+  SSDataBlock* pBlock = getSortedBlockData(pInfo->pSortHandle, pInfo->binfo.pRes, pOperator->resultInfo.capacity,
+                                           pInfo->pColMatchInfo, pInfo);
 
   if (pBlock != NULL) {
     pOperator->resultInfo.totalRows += pBlock->info.rows;
@@ -230,11 +252,11 @@ typedef struct SMultiwaySortMergeOperatorInfo {
   SArray*      pColMatchInfo;  // for index map from table scan output
 
   SSDataBlock* pInputBlock;
-  int64_t startTs;  // sort start time
+  int64_t      startTs;  // sort start time
 
-  bool  hasGroupId;
-  uint64_t groupId;
-  STupleHandle *prefetchedTuple;
+  bool          hasGroupId;
+  uint64_t      groupId;
+  STupleHandle* prefetchedTuple;
 } SMultiwaySortMergeOperatorInfo;
 
 int32_t doOpenMultiwaySortMergeOperator(SOperatorInfo* pOperator) {
@@ -274,7 +296,7 @@ int32_t doOpenMultiwaySortMergeOperator(SOperatorInfo* pOperator) {
 }
 
 SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity,
-                                SArray* pColMatchInfo, SMultiwaySortMergeOperatorInfo* pInfo) {
+                                        SArray* pColMatchInfo, SMultiwaySortMergeOperatorInfo* pInfo) {
   blockDataCleanup(pDataBlock);
 
   SSDataBlock* p = tsortGetSortedDataBlock(pHandle);
@@ -285,12 +307,12 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
   blockDataEnsureCapacity(p, capacity);
 
   while (1) {
-
     STupleHandle* pTupleHandle = NULL;
     if (pInfo->prefetchedTuple == NULL) {
       pTupleHandle = tsortNextTuple(pHandle);
     } else {
       pTupleHandle = pInfo->prefetchedTuple;
+      pInfo->groupId = tsortGetGroupId(pTupleHandle);
       pInfo->prefetchedTuple = NULL;
     }
 
@@ -307,14 +329,12 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
       appendOneRowToDataBlock(p, pTupleHandle);
     } else {
       pInfo->prefetchedTuple = pTupleHandle;
-      pInfo->groupId = tupleGroupId;
       break;
     }
 
     if (p->info.rows >= capacity) {
       break;
     }
-
   }
 
   if (p->info.rows > 0) {
@@ -330,12 +350,12 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
 
     pDataBlock->info.rows = p->info.rows;
     pDataBlock->info.capacity = p->info.rows;
+    pDataBlock->info.groupId = pInfo->groupId;
   }
 
   blockDataDestroy(p);
   return (pDataBlock->info.rows > 0) ? pDataBlock : NULL;
 }
-
 
 SSDataBlock* doMultiwaySortMerge(SOperatorInfo* pOperator) {
   if (pOperator->status == OP_EXEC_DONE) {
@@ -350,12 +370,8 @@ SSDataBlock* doMultiwaySortMerge(SOperatorInfo* pOperator) {
     longjmp(pTaskInfo->env, code);
   }
 
-  SSDataBlock* pBlock =
-      getMultiwaySortedBlockData(pInfo->pSortHandle,
-                         pInfo->binfo.pRes,
-                         pOperator->resultInfo.capacity,
-                         pInfo->pColMatchInfo,
-                                 pInfo);
+  SSDataBlock* pBlock = getMultiwaySortedBlockData(pInfo->pSortHandle, pInfo->binfo.pRes,
+                                                   pOperator->resultInfo.capacity, pInfo->pColMatchInfo, pInfo);
 
   if (pBlock != NULL) {
     pOperator->resultInfo.totalRows += pBlock->info.rows;
@@ -366,7 +382,7 @@ SSDataBlock* doMultiwaySortMerge(SOperatorInfo* pOperator) {
 }
 
 void destroyMultiwaySortMergeOperatorInfo(void* param, int32_t numOfOutput) {
-  SMultiwaySortMergeOperatorInfo * pInfo = (SMultiwaySortMergeOperatorInfo*)param;
+  SMultiwaySortMergeOperatorInfo* pInfo = (SMultiwaySortMergeOperatorInfo*)param;
   pInfo->binfo.pRes = blockDataDestroy(pInfo->binfo.pRes);
   pInfo->pInputBlock = blockDataDestroy(pInfo->pInputBlock);
 
@@ -386,9 +402,9 @@ int32_t getMultiwaySortMergeExplainExecInfo(SOperatorInfo* pOptr, void** pOptrEx
   return TSDB_CODE_SUCCESS;
 }
 
-SOperatorInfo* createMultiwaySortMergeOperatorInfo(SOperatorInfo** downStreams, int32_t numStreams, SSDataBlock* pInputBlock,
-                                                   SSDataBlock* pResBlock, SArray* pSortInfo, SArray* pColMatchColInfo,
-                                                   SExecTaskInfo* pTaskInfo) {
+SOperatorInfo* createMultiwaySortMergeOperatorInfo(SOperatorInfo** downStreams, int32_t numStreams,
+                                                   SSDataBlock* pInputBlock, SSDataBlock* pResBlock, SArray* pSortInfo,
+                                                   SArray* pColMatchColInfo, SExecTaskInfo* pTaskInfo) {
   SMultiwaySortMergeOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SMultiwaySortMergeOperatorInfo));
   SOperatorInfo*                  pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   int32_t                         rowSize = pResBlock->info.rowSize;
@@ -412,7 +428,8 @@ SOperatorInfo* createMultiwaySortMergeOperatorInfo(SOperatorInfo** downStreams, 
 
   pInfo->bufPageSize = rowSize < 1024 ? 1024 : rowSize * 2;
   pInfo->sortBufSize = pInfo->bufPageSize * 16;
-
+  pInfo->hasGroupId = false;
+  pInfo->prefetchedTuple = NULL;
   pOperator->pTaskInfo = pTaskInfo;
   pOperator->fpSet =
       createOperatorFpSet(doOpenMultiwaySortMergeOperator, doMultiwaySortMerge, NULL, NULL,

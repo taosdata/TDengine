@@ -1130,6 +1130,7 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
     pCtx->start.key = INT64_MIN;
     pCtx->end.key = INT64_MIN;
     pCtx->numOfParams = pExpr->base.numOfParams;
+    pCtx->increase = false;
 
     pCtx->param = pFunct->pParam;
     //    for (int32_t j = 0; j < pCtx->numOfParams; ++j) {
@@ -2008,8 +2009,16 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprI
         // the _wstartts needs to copy to 20 following rows, since the results of top-k expands to 20 different rows.
         SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, slotId);
         char*            in = GET_ROWCELL_INTERBUF(pCtx[j].resultInfo);
-        for (int32_t k = 0; k < pRow->numOfRows; ++k) {
-          colDataAppend(pColInfoData, pBlock->info.rows + k, in, pCtx[j].resultInfo->isNullRes);
+        if (pCtx[j].increase) {
+          int64_t ts = *(int64_t*) in;
+          for (int32_t k = 0; k < pRow->numOfRows; ++k) {
+            colDataAppend(pColInfoData, pBlock->info.rows + k, (const char *)&ts, pCtx[j].resultInfo->isNullRes);
+            ts++;
+          }
+        } else {
+          for (int32_t k = 0; k < pRow->numOfRows; ++k) {
+            colDataAppend(pColInfoData, pBlock->info.rows + k, in, pCtx[j].resultInfo->isNullRes);
+          }
         }
       }
     }
@@ -3103,6 +3112,68 @@ static SSDataBlock* doMerge(SOperatorInfo* pOperator) {
   return (pInfo->binfo.pRes->info.rows > 0) ? pInfo->binfo.pRes : NULL;
 }
 
+SSDataBlock* getSortedMergeBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity, SArray* pColMatchInfo,
+                                SSortedMergeOperatorInfo *pInfo) {
+  blockDataCleanup(pDataBlock);
+
+  SSDataBlock* p = tsortGetSortedDataBlock(pHandle);
+  if (p == NULL) {
+    return NULL;
+  }
+
+  blockDataEnsureCapacity(p, capacity);
+
+  while (1) {
+    STupleHandle* pTupleHandle = NULL;
+    if (pInfo->prefetchedTuple == NULL) {
+      pTupleHandle = tsortNextTuple(pHandle);
+    } else {
+      pTupleHandle = pInfo->prefetchedTuple;
+      pInfo->groupId = tsortGetGroupId(pTupleHandle);
+      pInfo->prefetchedTuple = NULL;
+    }
+
+    if (pTupleHandle == NULL) {
+      break;
+    }
+
+    uint64_t tupleGroupId = tsortGetGroupId(pTupleHandle);
+    if (!pInfo->hasGroupId) {
+      pInfo->groupId = tupleGroupId;
+      pInfo->hasGroupId = true;
+      appendOneRowToDataBlock(p, pTupleHandle);
+    } else if (pInfo->groupId == tupleGroupId) {
+      appendOneRowToDataBlock(p, pTupleHandle);
+    } else {
+      pInfo->prefetchedTuple = pTupleHandle;
+      break;
+    }
+
+    if (p->info.rows >= capacity) {
+      break;
+    }
+  }
+
+  if (p->info.rows > 0) {
+    int32_t numOfCols = taosArrayGetSize(pColMatchInfo);
+    for (int32_t i = 0; i < numOfCols; ++i) {
+      SColMatchInfo* pmInfo = taosArrayGet(pColMatchInfo, i);
+      ASSERT(pmInfo->matchType == COL_MATCH_FROM_SLOT_ID);
+
+      SColumnInfoData* pSrc = taosArrayGet(p->pDataBlock, pmInfo->srcSlotId);
+      SColumnInfoData* pDst = taosArrayGet(pDataBlock->pDataBlock, pmInfo->targetSlotId);
+      colDataAssign(pDst, pSrc, p->info.rows);
+    }
+
+    pDataBlock->info.rows = p->info.rows;
+    pDataBlock->info.capacity = p->info.rows;
+    pDataBlock->info.groupId = pInfo->groupId;
+  }
+
+  blockDataDestroy(p);
+  return (pDataBlock->info.rows > 0) ? pDataBlock : NULL;
+}
+
 static SSDataBlock* doSortedMerge(SOperatorInfo* pOperator) {
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
@@ -3111,7 +3182,7 @@ static SSDataBlock* doSortedMerge(SOperatorInfo* pOperator) {
   SExecTaskInfo*            pTaskInfo = pOperator->pTaskInfo;
   SSortedMergeOperatorInfo* pInfo = pOperator->info;
   if (pOperator->status == OP_RES_TO_RETURN) {
-    return getSortedBlockData(pInfo->pSortHandle, pInfo->binfo.pRes, pOperator->resultInfo.capacity, NULL);
+    return getSortedMergeBlockData(pInfo->pSortHandle, pInfo->binfo.pRes, pOperator->resultInfo.capacity, NULL, pInfo);
   }
 
   int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
@@ -4614,7 +4685,8 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     }
 
     int32_t tsSlotId = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->slotId;
-    pOptr = createIntervalOperatorInfo(ops[0], pExprInfo, num, pResBlock, &interval, tsSlotId, &as, pTaskInfo);
+    bool isStream = (QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL == type);
+    pOptr = createIntervalOperatorInfo(ops[0], pExprInfo, num, pResBlock, &interval, tsSlotId, &as, pTaskInfo, isStream);
 
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL == type) {
     int32_t children = 8;
@@ -5277,7 +5349,8 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SExplainExecInfo
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, const char* pKey, size_t size) {
+int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, const char* pKey, SqlFunctionCtx* pCtx, int32_t numOfOutput, size_t size) {
+  pSup->resultRowSize = getResultRowSize(pCtx, numOfOutput);
   pSup->keySize = sizeof(int64_t) + sizeof(TSKEY);
   pSup->pKeyBuf = taosMemoryCalloc(1, pSup->keySize);
   pSup->pResultRows = taosArrayInit(1024, size);
@@ -5296,15 +5369,11 @@ int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, const char* pKey, size
   if (bufSize <= pageSize) {
     bufSize = pageSize * 4;
   }
-  return createDiskbasedBuf(&pSup->pResultBuf, pageSize, bufSize, pKey, TD_TMP_DIR_PATH);
-}
-
-int32_t initSessionAggSupporter(SStreamAggSupporter* pSup, const char* pKey) {
-  return initStreamAggSupporter(pSup, pKey, sizeof(SResultWindowInfo));
-}
-
-int32_t initStateAggSupporter(SStreamAggSupporter* pSup, const char* pKey) {
-  return initStreamAggSupporter(pSup, pKey, sizeof(SStateWindowInfo));
+  int32_t code = createDiskbasedBuf(&pSup->pResultBuf, pageSize, bufSize, pKey, TD_TMP_DIR_PATH);
+  for(int32_t i = 0; i < numOfOutput; ++i) {
+    pCtx[i].pBuf = pSup->pResultBuf;
+  }
+  return code;
 }
 
 int64_t getSmaWaterMark(int64_t interval, double filesFactor) {

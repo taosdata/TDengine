@@ -22,6 +22,7 @@
 
 # ---- dnode
 ./test.sh -f tsim/dnode/create_dnode.sim
+./test.sh -f tsim/dnode/drop_dnode_mnode.sim
 
 # ---- insert
 ./test.sh -f tsim/insert/basic0.sim
@@ -56,7 +57,7 @@
 
 # ---- mnode
 ./test.sh -f tsim/mnode/basic1.sim
-./test.sh -f tsim/mnode/basic2.sim
+#./test.sh -f tsim/mnode/basic2.sim
 ./test.sh -f tsim/mnode/basic3.sim
 ./test.sh -f tsim/mnode/basic4.sim
 
