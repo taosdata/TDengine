@@ -15,6 +15,41 @@
 
 #include "tsdb.h"
 
+int32_t tsdbRealloc(uint8_t **ppBuf, int64_t size) {
+  int32_t  code = 0;
+  int64_t  bsize = 0;
+  uint8_t *pBuf;
+
+  if (*ppBuf) {
+    bsize = *(int64_t *)((*ppBuf) - sizeof(int64_t));
+  }
+
+  if (bsize >= size) goto _exit;
+
+  if (bsize == 0) bsize = 128;
+  while (bsize < size) {
+    bsize *= 2;
+  }
+
+  pBuf = taosMemoryRealloc(*ppBuf ? (*ppBuf) - sizeof(int64_t) : *ppBuf, bsize + sizeof(int64_t));
+  if (pBuf == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  *(int64_t *)pBuf = bsize;
+  *ppBuf = pBuf + sizeof(int64_t);
+
+_exit:
+  return code;
+}
+
+void tsdbFree(uint8_t *pBuf) {
+  if (pBuf) {
+    taosMemoryFree(pBuf - sizeof(int64_t));
+  }
+}
+
 int32_t tTABLEIDCmprFn(const void *p1, const void *p2) {
   TABLEID *pId1 = (TABLEID *)p1;
   TABLEID *pId2 = (TABLEID *)p2;
@@ -53,24 +88,22 @@ int32_t tsdbKeyCmprFn(const void *p1, const void *p2) {
   return 0;
 }
 
-int32_t tPutSDelIdx(uint8_t *p, SDelIdx *pDelIdx) {
+int32_t tPutTMap(uint8_t *p, STMap *pMap) {
   int32_t n = 0;
 
-  n += tPutU32(p ? p + n : p, pDelIdx->delimiter);
-  n += tPutU8(p ? p + n : p, pDelIdx->flags);
-  n += tPutBinary(p ? p + n : p, pDelIdx->pOffset, pDelIdx->nOffset);
-  n += tPutBinary(p ? p + n : p, pDelIdx->pData, pDelIdx->nData);
+  n += tPutU8(p ? p + n : p, pMap->flags);
+  n += tPutBinary(p ? p + n : p, pMap->pOffset, pMap->nOffset);
+  n += tPutBinary(p ? p + n : p, pMap->pData, pMap->nData);
 
   return n;
 }
 
-int32_t tGetSDelIdx(uint8_t *p, SDelIdx *pDelIdx) {
+int32_t tGetTMap(uint8_t *p, STMap *pMap) {
   int32_t n = 0;
 
-  n += tGetU32(p + n, &pDelIdx->delimiter);
-  n += tGetU8(p + n, &pDelIdx->flags);
-  n += tGetBinary(p + n, &pDelIdx->pOffset, &pDelIdx->nOffset);
-  n += tGetBinary(p + n, &pDelIdx->pData, &pDelIdx->nData);
+  n += tGetU8(p, &pMap->flags);
+  n += tGetBinary(p, &pMap->pOffset, &pMap->nOffset);
+  n += tGetBinary(p, &pMap->pData, &pMap->nData);
 
   return n;
 }

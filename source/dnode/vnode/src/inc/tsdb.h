@@ -219,6 +219,15 @@ int32_t tsdbLoadSBlockStatis(SDFileSetReader *pReader, SBlock *pBlock, SBlockSta
 // SDelFReader
 
 // tsdbUtil.c ==============================================================================================
+int32_t tsdbRealloc(uint8_t **ppBuf, int64_t size);
+void    tsdbFree(uint8_t *pBuf);
+
+// STMap
+typedef struct STMap STMap;
+
+int32_t tPutTMap(uint8_t *p, STMap *pMap);
+int32_t tGetTMap(uint8_t *p, STMap *pMap);
+
 int32_t tTABLEIDCmprFn(const void *p1, const void *p2);
 int32_t tsdbKeyCmprFn(const void *p1, const void *p2);
 
@@ -243,8 +252,6 @@ struct STsdb {
   SRtn          rtn;
   STsdbFS      *fs;
 };
-
-#if 1  // ======================================
 
 struct STable {
   uint64_t  suid;
@@ -771,29 +778,23 @@ typedef struct {
 } SDelDataItem;
 
 struct SDelData {
-  uint32_t delimiter;
-  tb_uid_t suid;
-  tb_uid_t uid;
-  int8_t   flags;
-  int64_t  nItem;
-  uint8_t *pOffset;
-  uint32_t nData;
-  uint8_t *pData;
+  int64_t version;
+  TSKEY   sKey;
+  TSKEY   eKey;
 };
 
-typedef struct {
+struct SDelIdx {
   tb_uid_t suid;
   tb_uid_t uid;
   TSKEY    minKey;
   TSKEY    maxKey;
-  int64_t  maxVersion;
   int64_t  minVersion;
+  int64_t  maxVersion;
   int64_t  offset;
   int64_t  size;
-} SDelIdxItem;
+};
 
-struct SDelIdx {
-  uint32_t delimiter;
+struct STMap {
   uint8_t  flags;
   uint32_t nOffset;
   uint8_t *pOffset;
@@ -801,7 +802,14 @@ struct SDelIdx {
   uint8_t *pData;
 };
 
-#endif
+struct SDelFile {
+  TSKEY   minKey;
+  TSKEY   maxKey;
+  int64_t minVersion;
+  int64_t maxVersion;
+  int64_t size;
+  int64_t offset;
+};
 
 #ifdef __cplusplus
 }

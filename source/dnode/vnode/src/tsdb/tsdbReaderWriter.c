@@ -105,6 +105,7 @@ int32_t tsdbWriteDelIdx(SDelFWriter *pWriter, SDelIdx *pDelIdx, uint8_t **ppBuf)
 
 // SDelFReader ====================================================
 struct SDelFReader {
+  STsdb    *pTsdb;
   SDelFile *pFile;
   TdFilePtr pReadH;
 };
@@ -129,6 +130,38 @@ int32_t tsdbReadDelData(SDelFReader *pReader, SDelData *pDelData, uint8_t **ppBu
 
 int32_t tsdbReadDelIdx(SDelFReader *pReader, SDelIdx *pDelIdx, uint8_t **ppBuf) {
   int32_t code = 0;
-  // TODO
+  int64_t offset = pReader->pFile->offset;
+  int64_t size = pReader->pFile->size - offset;
+
+  // seek
+  if (taosLSeekFile(pReader->pReadH, pReader->pFile->offset, SEEK_SET) < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  // read
+  if (taosReadFile(pReader->pReadH, *ppBuf, size) < size) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  // realloc buf
+  code = tsdbRealloc(ppBuf, size);
+  if (code) {
+    goto _err;
+  }
+
+  // check
+  if (!taosCheckChecksumWhole(*ppBuf, size)) {
+    code = TSDB_CODE_FILE_CORRUPTED;
+    goto _err;
+  }
+
+  // decode
+
+  return code;
+
+_err:
+  tsdbError("vgId:%d failed to read del idx since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
   return code;
 }

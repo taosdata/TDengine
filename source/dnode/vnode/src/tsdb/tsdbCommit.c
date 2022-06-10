@@ -42,6 +42,8 @@ struct SCommitter {
   SDelFWriter *pDelFWriter;
   SDelIdx      oDelIdx;
   SDelIdx      nDelIdx;
+  SDelData     oDelData;
+  SDelData     nDelData;
   /* commit cache */
 };
 
@@ -247,6 +249,21 @@ static int32_t tsdbCommitDelImpl(SCommitter *pCommitter) {
 
 static int32_t tsdbCommitDelEnd(SCommitter *pCommitter) {
   int32_t code = 0;
+
+  code = tsdbWriteDelIdx(pCommitter->pDelFWriter, &pCommitter->nDelIdx, &pCommitter->pBuf3);
+  if (code) {
+    goto _err;
+  }
+
+  code = tsdbDelFWriterClose(pCommitter->pDelFWriter);
+  if (code) {
+    goto _err;
+  }
+
+  if (pCommitter->pDelFReader) {
+    code = tsdbDelFReaderClose(pCommitter->pDelFReader);
+    if (code) goto _err;
+  }
 
   return code;
 
