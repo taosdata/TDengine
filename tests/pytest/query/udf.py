@@ -34,12 +34,12 @@ class TDTestCase:
         os.system("gcc -g -O0 -fPIC -shared ../script/sh/sum_double.c -o /tmp/sum_double.so")
         os.system("gcc -g -O0 -fPIC -shared ../script/sh/demo.c -o /tmp/demo.so")
         tdSql.execute("create table stb(ts timestamp ,c1 int, c2 bigint) tags(t1 int)") 
-        for i in range(50):
-            for j in range(200):
+        for i in range(5):
+            for j in range(20):
                 sql = "insert into t%d using stb tags(%d) values(%s,%d,%d)" % (i, i, self.ts + j, 1e2+j, 1e10+j)
                 tdSql.execute(sql)
-        for i in range(50):
-            for j in range(200):
+        for i in range(5):
+            for j in range(20):
                 sql = "insert into t%d using stb tags(%d) values(%s,%d,%d)" % (i, i, self.ts + j + 200 , -1e2-j, -j-1e10)
                 tdSql.execute(sql)
                 
@@ -74,7 +74,7 @@ class TDTestCase:
         tdSql.error(sql)
         sql = 'select abs_max(c2) from db.stb'
         tdSql.query(sql)
-        tdSql.checkData(0,0,10000000199)
+        tdSql.checkData(0,0,10000000019)
 
     def test_udf_values(self):
         tdSql.execute("drop function abs_max")        
@@ -82,7 +82,7 @@ class TDTestCase:
         tdSql.execute("create aggregate function abs_max as '/tmp/abs_max.so' outputtype bigint;")
         tdSql.execute("create aggregate function sum_double as '/tmp/sum_double.so' outputtype bigint;")
         tdSql.execute("create aggregate function  demo  as '/tmp/demo.so' outputtype float bufsize 128;")
-        tdSql.execute("create aggregate function  sumdemo  as '/tmp/sumdemo.so' outputtype float bufsize 128;")
+        
 
         # tdSql.error("create aggregate function max as '/tmp/abs_max.so' outputtype bigint ;")
         # tdSql.error("create aggregate function avg as '/tmp/abs_max.so' outputtype bigint ;")  
