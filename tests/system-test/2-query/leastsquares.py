@@ -127,7 +127,7 @@ class TDTestCase:
                 col = col[4:-1]
         return f" group by {col} having {having}" if having else f" group by {col} "
 
-    def __single_sql(self, select_clause, from_clause, start_val=0, step_val=0, where_condition="", group_condition=""):
+    def __single_sql(self, select_clause, from_clause, start_val=None, step_val=None, where_condition="", group_condition=""):
         if isinstance(select_clause, str) and "on" not in from_clause and select_clause.split(".")[0].split("(")[-1] != from_clause.split(".")[0]:
             return
         return f"select leastsquares({select_clause}, {start_val}, {step_val}) from {from_clause} {where_condition} {group_condition}"
@@ -178,8 +178,8 @@ class TDTestCase:
                         else:
                             current_sqls.extend(
                                 (
-                                    self.__single_sql(select_clause=select_claus, from_clause=tb, start_val=arg),
-                                    self.__single_sql(select_clause=select_claus, from_clause=tb, step_val=arg, group_condition=group_claus),
+                                    self.__single_sql(select_clause=select_claus, from_clause=tb, start_val=arg, step_val=0),
+                                    self.__single_sql(select_clause=select_claus, from_clause=tb, start_val=0, step_val=arg, group_condition=group_claus),
                                     self.__single_sql(select_clause=select_claus, from_clause=tb, start_val=arg, step_val=arg, where_condition=where_claus, group_condition=having_claus),
                                 )
                             )
