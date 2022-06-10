@@ -357,7 +357,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
     SdbEncodeFp encodeFp = pSdb->encodeFps[i];
     if (encodeFp == NULL) continue;
 
-    mTrace("write %s to sdb file, total %d rows", sdbTableName(i), sdbGetSize(pSdb, i));
+    mDebug("write %s to sdb file, total %d rows", sdbTableName(i), sdbGetSize(pSdb, i));
 
     SHashObj       *hash = pSdb->hashObjs[i];
     TdThreadRwlock *pLock = &pSdb->locks[i];
