@@ -65,7 +65,7 @@ const char *sdbTableName(ESdbType type) {
   }
 }
 
-static const char *sdbStatusName(ESdbStatus status) {
+const char *sdbStatusName(ESdbStatus status) {
   switch (status) {
     case SDB_STATUS_CREATING:
       return "creating";
@@ -83,6 +83,7 @@ static const char *sdbStatusName(ESdbStatus status) {
 }
 
 void sdbPrintOper(SSdb *pSdb, SSdbRow *pRow, const char *oper) {
+#if 0
   EKeyType keyType = pSdb->keyTypes[pRow->type];
 
   if (keyType == SDB_KEY_BINARY) {
@@ -96,6 +97,7 @@ void sdbPrintOper(SSdb *pSdb, SSdbRow *pRow, const char *oper) {
            pRow->refCount, oper, pRow->pObj, sdbStatusName(pRow->status));
   } else {
   }
+#endif
 }
 
 static SHashObj *sdbGetHash(SSdb *pSdb, int32_t type) {

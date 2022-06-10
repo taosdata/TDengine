@@ -33,7 +33,10 @@ extern int32_t tsRpcHeadSize;
 typedef struct {
   uint32_t clientIp;
   uint16_t clientPort;
-  char     user[TSDB_USER_LEN];
+  union {
+    char    user[TSDB_USER_LEN];
+    int64_t applyIndex;
+  };
 } SRpcConnInfo;
 
 typedef struct SRpcHandleInfo {
@@ -43,6 +46,7 @@ typedef struct SRpcHandleInfo {
   int32_t noResp;         // has response or not(default 0, 0: resp, 1: no resp);
   int32_t persistHandle;  // persist handle or not
 
+  SRpcConnInfo connInfo;
   // app info
   void *ahandle;  // app handle set by client
   void *wrapper;  // wrapper handle

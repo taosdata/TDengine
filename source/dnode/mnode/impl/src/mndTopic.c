@@ -37,7 +37,6 @@ static int32_t mndTopicActionDelete(SSdb *pSdb, SMqTopicObj *pTopic);
 static int32_t mndTopicActionUpdate(SSdb *pSdb, SMqTopicObj *pTopic, SMqTopicObj *pNewTopic);
 static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq);
 static int32_t mndProcessDropTopicReq(SRpcMsg *pReq);
-static int32_t mndProcessDropTopicInRsp(SRpcMsg *pRsp);
 
 static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextTopic(SMnode *pMnode, void *pIter);
@@ -45,17 +44,19 @@ static void    mndCancelGetNextTopic(SMnode *pMnode, void *pIter);
 static int32_t mndSetDropTopicCommitLogs(SMnode *pMnode, STrans *pTrans, SMqTopicObj *pTopic);
 
 int32_t mndInitTopic(SMnode *pMnode) {
-  SSdbTable table = {.sdbType = SDB_TOPIC,
-                     .keyType = SDB_KEY_BINARY,
-                     .encodeFp = (SdbEncodeFp)mndTopicActionEncode,
-                     .decodeFp = (SdbDecodeFp)mndTopicActionDecode,
-                     .insertFp = (SdbInsertFp)mndTopicActionInsert,
-                     .updateFp = (SdbUpdateFp)mndTopicActionUpdate,
-                     .deleteFp = (SdbDeleteFp)mndTopicActionDelete};
+  SSdbTable table = {
+      .sdbType = SDB_TOPIC,
+      .keyType = SDB_KEY_BINARY,
+      .encodeFp = (SdbEncodeFp)mndTopicActionEncode,
+      .decodeFp = (SdbDecodeFp)mndTopicActionDecode,
+      .insertFp = (SdbInsertFp)mndTopicActionInsert,
+      .updateFp = (SdbUpdateFp)mndTopicActionUpdate,
+      .deleteFp = (SdbDeleteFp)mndTopicActionDelete,
+  };
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_TOPIC, mndProcessCreateTopicReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_TOPIC, mndProcessDropTopicReq);
-  mndSetMsgHandle(pMnode, TDMT_VND_DROP_TOPIC_RSP, mndProcessDropTopicInRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_DROP_TOPIC_RSP, mndTransProcessRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_TOPICS, mndRetrieveTopic);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_TOPICS, mndCancelGetNextTopic);
@@ -68,6 +69,50 @@ void mndCleanupTopic(SMnode *pMnode) {}
 const char *mndTopicGetShowName(const char topic[TSDB_TOPIC_FNAME_LEN]) {
   //
   return strchr(topic, '.') + 1;
+}
+
+int32_t mndCheckColAndTagModifiable(SMnode *pMnode, int64_t suid, col_id_t colId) {
+  SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
+  bool  found = false;
+  while (1) {
+    SMqTopicObj *pTopic = NULL;
+    pIter = sdbFetch(pSdb, SDB_TOPIC, pIter, (void **)&pTopic);
+    if (pIter == NULL) break;
+    if (pTopic->subType != TOPIC_SUB_TYPE__COLUMN) {
+      sdbRelease(pSdb, pTopic);
+      continue;
+    }
+
+    SNode *pAst = NULL;
+    if (nodesStringToNode(pTopic->ast, &pAst) != 0) {
+      ASSERT(0);
+      return -1;
+    }
+
+    SNodeList *pNodeList = NULL;
+    nodesCollectColumns((SSelectStmt *)pAst, SQL_CLAUSE_FROM, NULL, COLLECT_COL_TYPE_ALL, &pNodeList);
+    SNode *pNode = NULL;
+    FOREACH(pNode, pNodeList) {
+      SColumnNode *pCol = (SColumnNode *)pNode;
+      if (pCol->tableId != suid) goto NEXT;
+      if (pCol->colId > 0 && pCol->colId == colId) {
+        found = true;
+        goto NEXT;
+      }
+      mTrace("topic:%s, colId:%d is used", pTopic->name, pCol->colId);
+    }
+
+  NEXT:
+    sdbRelease(pSdb, pTopic);
+    nodesDestroyNode(pAst);
+    if (found) {
+      terrno = TSDB_CODE_MND_FIELD_CONFLICT_WITH_TOPIC;
+      return -1;
+    }
+  }
+
+  return 0;
 }
 
 SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic) {
@@ -510,7 +555,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
         mndReleaseConsumer(pMnode, pConsumer);
         mndReleaseTopic(pMnode, pTopic);
         terrno = TSDB_CODE_MND_TOPIC_SUBSCRIBED;
-        mError("topic:%s, failed to drop since subscribed by consumer %ld from cgroup %s", dropReq.name,
+        mError("topic:%s, failed to drop since subscribed by consumer %ld in consumer group %s", dropReq.name,
                pConsumer->consumerId, pConsumer->cgroup);
         return -1;
       }
@@ -527,7 +572,8 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   }
 #endif
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq);
+  mndTransSetDbName(pTrans, pTopic->db);
   if (pTrans == NULL) {
     mError("topic:%s, failed to drop since %s", pTopic->name, terrstr());
     return -1;
@@ -555,11 +601,6 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   }
 
   return TSDB_CODE_ACTION_IN_PROGRESS;
-}
-
-static int32_t mndProcessDropTopicInRsp(SRpcMsg *pRsp) {
-  mndTransProcessRsp(pRsp);
-  return 0;
 }
 
 static int32_t mndGetNumOfTopics(SMnode *pMnode, char *dbName, int32_t *pNumOfTopics) {

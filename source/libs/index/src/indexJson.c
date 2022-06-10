@@ -15,30 +15,46 @@
 #include "index.h"
 #include "indexInt.h"
 
-int tIndexJsonOpen(SIndexJsonOpts *opts, const char *path, SIndexJson **index) {
+int indexJsonOpen(SIndexJsonOpts *opts, const char *path, SIndexJson **index) {
   // handle
   return indexOpen(opts, path, index);
 }
-int tIndexJsonPut(SIndexJson *index, SIndexJsonMultiTerm *terms, uint64_t uid) {
+int indexJsonPut(SIndexJson *index, SIndexJsonMultiTerm *terms, uint64_t uid) {
   for (int i = 0; i < taosArrayGetSize(terms); i++) {
     SIndexJsonTerm *p = taosArrayGetP(terms, i);
-    INDEX_TYPE_ADD_EXTERN_TYPE(p->colType, TSDB_DATA_TYPE_JSON);
+    if (p->colType == TSDB_DATA_TYPE_BOOL) {
+      p->colType = TSDB_DATA_TYPE_INT;
+    } else if (p->colType == TSDB_DATA_TYPE_VARCHAR || p->colType == TSDB_DATA_TYPE_NCHAR ||
+               p->colType == TSDB_DATA_TYPE_BINARY) {
+      // p->colType = TSDB_DATA_TYPE_NCHAR;
+    } else {
+      p->colType = TSDB_DATA_TYPE_DOUBLE;
+    }
+    IDX_TYPE_ADD_EXTERN_TYPE(p->colType, TSDB_DATA_TYPE_JSON);
   }
   // handle put
   return indexPut(index, terms, uid);
 }
 
-int tIndexJsonSearch(SIndexJson *index, SIndexJsonMultiTermQuery *tq, SArray *result) {
+int indexJsonSearch(SIndexJson *index, SIndexJsonMultiTermQuery *tq, SArray *result) {
   SArray *terms = tq->query;
   for (int i = 0; i < taosArrayGetSize(terms); i++) {
     SIndexJsonTerm *p = taosArrayGetP(terms, i);
-    INDEX_TYPE_ADD_EXTERN_TYPE(p->colType, TSDB_DATA_TYPE_JSON);
+    if (p->colType == TSDB_DATA_TYPE_BOOL) {
+      p->colType = TSDB_DATA_TYPE_INT;
+    } else if (p->colType == TSDB_DATA_TYPE_VARCHAR || p->colType == TSDB_DATA_TYPE_NCHAR ||
+               p->colType == TSDB_DATA_TYPE_BINARY) {
+      // p->colType = TSDB_DATA_TYPE_NCHAR;
+    } else {
+      p->colType = TSDB_DATA_TYPE_DOUBLE;
+    }
+    IDX_TYPE_ADD_EXTERN_TYPE(p->colType, TSDB_DATA_TYPE_JSON);
   }
   // handle search
   return indexSearch(index, tq, result);
 }
 
-void tIndexJsonClose(SIndexJson *index) {
+void indexJsonClose(SIndexJson *index) {
   // handle close
   return indexClose(index);
 }

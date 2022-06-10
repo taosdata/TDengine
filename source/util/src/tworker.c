@@ -163,7 +163,7 @@ int32_t tWWorkerInit(SWWorkerPool *pool) {
     worker->pool = pool;
   }
 
-  uInfo("worker:%s is initialized, max:%d", pool->name, pool->max);
+  uDebug("worker:%s is initialized, max:%d", pool->name, pool->max);
   return 0;
 }
 
@@ -190,7 +190,7 @@ void tWWorkerCleanup(SWWorkerPool *pool) {
   taosMemoryFreeClear(pool->workers);
   taosThreadMutexDestroy(&pool->mutex);
 
-  uInfo("worker:%s is closed", pool->name);
+  uDebug("worker:%s is closed", pool->name);
 }
 
 static void *tWWorkerThreadFp(SWWorker *worker) {

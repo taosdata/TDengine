@@ -24,10 +24,10 @@
 #include "tcompare.h"
 #include "thash.h"
 #include "ttypes.h"
+#include "executorInt.h"
 
 static int32_t* setupColumnOffset(const SSDataBlock* pBlock, int32_t rowCapacity);
 static void* getCurrentDataGroupInfo(const SPartitionOperatorInfo* pInfo, SDataGroupInfo** pGroupInfo, int32_t len);
-static uint64_t calcGroupId(char* pData, int32_t len);
 
 static void destroyGroupOperatorInfo(void* param, int32_t numOfOutput) {
   SGroupbyOperatorInfo* pInfo = (SGroupbyOperatorInfo*)param;
@@ -37,7 +37,7 @@ static void destroyGroupOperatorInfo(void* param, int32_t numOfOutput) {
   taosArrayDestroy(pInfo->pGroupColVals);
 }
 
-static int32_t initGroupOptrInfo(SArray** pGroupColVals, int32_t* keyLen, char** keyBuf, const SArray* pGroupColList) {
+int32_t initGroupOptrInfo(SArray** pGroupColVals, int32_t* keyLen, char** keyBuf, const SArray* pGroupColList) {
   *pGroupColVals = taosArrayInit(4, sizeof(SGroupKeys));
   if ((*pGroupColVals) == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -93,7 +93,15 @@ static bool groupKeyCompare(SArray* pGroupCols, SArray* pGroupColVals, SSDataBlo
 
     char* val = colDataGetData(pColInfoData, rowIndex);
 
-    if (IS_VAR_DATA_TYPE(pkey->type)) {
+    if (pkey->type == TSDB_DATA_TYPE_JSON) {
+      int32_t dataLen = getJsonValueLen(val);
+
+      if (memcmp(pkey->pData, val, dataLen) == 0){
+        continue;
+      } else {
+        return false;
+      }
+    } else if (IS_VAR_DATA_TYPE(pkey->type)) {
       int32_t len = varDataLen(val);
       if (len == varDataLen(pkey->pData) && memcmp(varDataVal(pkey->pData), varDataVal(val), len) == 0) {
         continue;
@@ -110,8 +118,10 @@ static bool groupKeyCompare(SArray* pGroupCols, SArray* pGroupColVals, SSDataBlo
   return true;
 }
 
-static void recordNewGroupKeys(SArray* pGroupCols, SArray* pGroupColVals, SSDataBlock* pBlock, int32_t rowIndex, int32_t numOfGroupCols) {
+void recordNewGroupKeys(SArray* pGroupCols, SArray* pGroupColVals, SSDataBlock* pBlock, int32_t rowIndex) {
   SColumnDataAgg* pColAgg = NULL;
+
+  size_t numOfGroupCols = taosArrayGetSize(pGroupCols);
 
   for (int32_t i = 0; i < numOfGroupCols; ++i) {
     SColumn*         pCol = taosArrayGet(pGroupCols, i);
@@ -127,7 +137,10 @@ static void recordNewGroupKeys(SArray* pGroupCols, SArray* pGroupColVals, SSData
     } else {
       pkey->isNull = false;
       char* val = colDataGetData(pColInfoData, rowIndex);
-      if (IS_VAR_DATA_TYPE(pkey->type)) {
+      if (pkey->type == TSDB_DATA_TYPE_JSON) {
+        int32_t dataLen = getJsonValueLen(val);
+        memcpy(pkey->pData, val, dataLen);
+      } else if (IS_VAR_DATA_TYPE(pkey->type)) {
         memcpy(pkey->pData, val, varDataTLen(val));
         ASSERT(varDataTLen(val) <= pkey->bytes);
       } else {
@@ -137,7 +150,7 @@ static void recordNewGroupKeys(SArray* pGroupCols, SArray* pGroupColVals, SSData
   }
 }
 
-static int32_t buildGroupKeys(void* pKey, const SArray* pGroupColVals) {
+int32_t buildGroupKeys(void* pKey, const SArray* pGroupColVals) {
   ASSERT(pKey != NULL);
   size_t numOfGroupCols = taosArrayGetSize(pGroupColVals);
 
@@ -151,7 +164,11 @@ static int32_t buildGroupKeys(void* pKey, const SArray* pGroupColVals) {
     }
 
     isNull[i] = 0;
-    if (IS_VAR_DATA_TYPE(pkey->type)) {
+    if (pkey->type == TSDB_DATA_TYPE_JSON) {
+      int32_t dataLen = getJsonValueLen(pkey->pData);
+      memcpy(pStart, (pkey->pData), dataLen);
+      pStart += dataLen;
+    } else if (IS_VAR_DATA_TYPE(pkey->type)) {
       varDataCopy(pStart, pkey->pData);
       pStart += varDataTLen(pkey->pData);
       ASSERT(varDataTLen(pkey->pData) <= pkey->bytes);
@@ -176,7 +193,10 @@ static void doAssignGroupKeys(SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t
         char* dest = GET_ROWCELL_INTERBUF(pEntryInfo);
         char* data = colDataGetData(pColInfoData, rowIndex);
 
-        if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+        if (pColInfoData->info.type == TSDB_DATA_TYPE_JSON) {
+          int32_t dataLen = getJsonValueLen(data);
+          memcpy(dest, data, dataLen);
+        } else if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
           varDataCopy(dest, data);
         } else {
           memcpy(dest, data, pColInfoData->info.bytes);
@@ -208,7 +228,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   for (int32_t j = 0; j < pBlock->info.rows; ++j) {
     // Compare with the previous row of this column, and do not set the output buffer again if they are identical.
     if (!pInfo->isInit) {
-      recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j, numOfGroupCols);
+      recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
       pInfo->isInit = true;
       num++;
       continue;
@@ -223,7 +243,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
     // The first row of a new block does not belongs to the previous existed group
     if (j == 0) {
       num++;
-      recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j, numOfGroupCols);
+      recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
       continue;
     }
 
@@ -238,7 +258,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
 
     // assign the group keys or user input constant values if required
     doAssignGroupKeys(pCtx, pOperator->numOfExprs, pBlock->info.rows, rowIndex);
-    recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j, numOfGroupCols);
+    recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
     num = 1;
   }
 
@@ -339,7 +359,7 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
 
   while(1) {
     doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
-    doFilter(pInfo->pCondition, pRes, NULL);
+    doFilter(pInfo->pCondition, pRes, true);
 
     bool hasRemain = hashRemainDataInGroupInfo(&pInfo->groupResInfo);
     if (!hasRemain) {
@@ -407,9 +427,8 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
 
   SPartitionOperatorInfo* pInfo = pOperator->info;
 
-  int32_t numOfGroupCols = taosArrayGetSize(pInfo->pGroupCols);
   for (int32_t j = 0; j < pBlock->info.rows; ++j) {
-    recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j, numOfGroupCols);
+    recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
     int32_t len = buildGroupKeys(pInfo->keyBuf, pInfo->pGroupColVals);
 
     SDataGroupInfo* pGInfo = NULL;
@@ -446,6 +465,16 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
         if (colDataIsNull_s(pColInfoData, j)) {
           offset[(*rows)] = -1;
           contentLen = 0;
+        } else if(pColInfoData->info.type == TSDB_DATA_TYPE_JSON){
+          offset[*rows] = (*columnLen);
+          char* src = colDataGetData(pColInfoData, j);
+          int32_t dataLen = getJsonValueLen(src);
+
+          memcpy(data + (*columnLen), src, dataLen);
+          int32_t v = (data + (*columnLen) + dataLen - (char*)pPage);
+          ASSERT(v > 0);
+
+          contentLen = dataLen;
         } else {
           offset[*rows] = (*columnLen);
           char* src = colDataGetData(pColInfoData, j);
@@ -620,8 +649,13 @@ static void destroyPartitionOperatorInfo(void* param, int32_t numOfOutput) {
   SPartitionOperatorInfo* pInfo = (SPartitionOperatorInfo*)param;
   doDestroyBasicInfo(&pInfo->binfo, numOfOutput);
   taosArrayDestroy(pInfo->pGroupCols);
+  for(int i = 0; i < taosArrayGetSize(pInfo->pGroupColVals); i++){
+    SGroupKeys key = *(SGroupKeys*)taosArrayGet(pInfo->pGroupColVals, i);
+    taosMemoryFree(key.pData);
+  }
   taosArrayDestroy(pInfo->pGroupColVals);
   taosMemoryFree(pInfo->keyBuf);
+  taosHashCleanup(pInfo->pGroupSet);
   taosMemoryFree(pInfo->columnOffset);
 }
 

@@ -147,8 +147,8 @@ TEST(testCase, tSma_Meta_Encode_Decode_Test) {
 
   // resource release
   taosMemoryFreeClear(pSW);
-  tdDestroyTSma(&tSma);
-  tdDestroyTSmaWrapper(&dstTSmaWrapper);
+  tDestroyTSma(&tSma);
+  tDestroyTSmaWrapper(&dstTSmaWrapper);
 }
 #endif
 
@@ -218,7 +218,7 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
   printf("tagsFilter1 = %s\n", qSmaCfg->tagsFilter != NULL ? qSmaCfg->tagsFilter : "");
   EXPECT_STRCASEEQ(qSmaCfg->indexName, smaIndexName1);
   EXPECT_EQ(qSmaCfg->tableUid, tSma.tableUid);
-  tdDestroyTSma(qSmaCfg);
+  tDestroyTSma(qSmaCfg);
   taosMemoryFreeClear(qSmaCfg);
 
   qSmaCfg = metaGetSmaInfoByIndex(pMeta, indexUid2, true);
@@ -229,7 +229,7 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
   printf("tagsFilter2 = %s\n", qSmaCfg->tagsFilter != NULL ? qSmaCfg->tagsFilter : "");
   EXPECT_STRCASEEQ(qSmaCfg->indexName, smaIndexName2);
   EXPECT_EQ(qSmaCfg->interval, tSma.interval);
-  tdDestroyTSma(qSmaCfg);
+  tDestroyTSma(qSmaCfg);
   taosMemoryFreeClear(qSmaCfg);
 
   // get index name by table uid
@@ -265,7 +265,7 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
   EXPECT_EQ((pSW->tSma + 1)->indexUid, indexUid2);
   EXPECT_EQ((pSW->tSma + 1)->tableUid, tbUid);
 
-  tdDestroyTSmaWrapper(pSW);
+  tDestroyTSmaWrapper(pSW);
   taosMemoryFreeClear(pSW);
 
   // get all sma table uids
@@ -282,7 +282,7 @@ TEST(testCase, tSma_metaDB_Put_Get_Del_Test) {
   metaRemoveSmaFromDb(pMeta, indexUid1);
   metaRemoveSmaFromDb(pMeta, indexUid2);
 
-  tdDestroyTSma(&tSma);
+  tDestroyTSma(&tSma);
   metaClose(pMeta);
 }
 #endif
@@ -576,7 +576,7 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   taosArrayDestroy(pDataBlocks);
 
   // release meta
-  tdDestroyTSma(&tSma);
+  tDestroyTSma(&tSma);
   tfsClose(pTsdb->pTfs);
   tsdbClose(pTsdb);
   metaClose(pMeta);

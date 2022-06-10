@@ -288,15 +288,18 @@ class TDTestCase:
         else:
             tdSql.query(f"select {col} from {table_expr} {re.sub('limit [0-9]*|offset [0-9]*','',condition)}")
             offset_val = condition.split("offset")[1].split(" ")[1] if "offset" in condition else 0
-            pre_result = np.array(tdSql.queryResult)[np.array(tdSql.queryResult) != None]
-            pre_mavg = pre_mavg = np.convolve(pre_result, np.ones(k), "valid")[offset_val:]/k
-            tdSql.query(self.mavg_query_form(
-                sel=sel, func=func, col=col, m_comm=m_comm, k=k, r_comm=r_comm, alias=alias, fr=fr,
-                table_expr=table_expr, condition=condition
-            ))
-            for i in range(tdSql.queryRows):
-                print(f"case in {line}: ", end='')
-                tdSql.checkData(i, 0, pre_mavg[i])
+            # print(f"select {col} from {table_expr} {re.sub('limit [0-9]*|offset [0-9]*','',condition)}")
+            if not tdSql.queryResult:
+                pre_result = np.array(tdSql.queryResult)[np.array(tdSql.queryResult) != None]
+            
+                pre_mavg = pre_mavg = np.convolve(pre_result, np.ones(k), "valid")[offset_val:]/k
+                tdSql.query(self.mavg_query_form(
+                    sel=sel, func=func, col=col, m_comm=m_comm, k=k, r_comm=r_comm, alias=alias, fr=fr,
+                    table_expr=table_expr, condition=condition
+                ))
+                for i in range(tdSql.queryRows):
+                    print(f"case in {line}: ", end='')
+                    tdSql.checkData(i, 0, pre_mavg[i])
 
         pass
 
@@ -414,8 +417,8 @@ class TDTestCase:
 
         # err9 = {"col": "st1"}
         # self.checkmavg(**err9)          # col: tag
-        err10 = {"col": 1}
-        self.checkmavg(**err10)         # col: value
+        # err10 = {"col": 1}
+        # self.checkmavg(**err10)         # col: value
         err11 = {"col": "NULL"}
         self.checkmavg(**err11)         # col: NULL
         err12 = {"col": "%_"}
@@ -657,6 +660,14 @@ class TDTestCase:
         tdDnodes.start(index)
         self.mavg_current_query()
         self.mavg_error_query()
+        tdSql.query("select mavg(1,1) from t1")
+        tdSql.checkRows(7)
+        tdSql.checkData(0,0,1.000000000)
+        tdSql.checkData(1,0,1.000000000)
+        tdSql.checkData(5,0,1.000000000)
+        
+        tdSql.query("select mavg(abs(c1),1) from t1")
+        tdSql.checkRows(4)
 
     def run(self):
         import traceback

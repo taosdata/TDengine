@@ -30,13 +30,4 @@ void schdExecCallback(SQueryResult* pResult, void* param, int32_t code) {
   tsem_post(&schdRspSem);
 }
 
-void schdFetchCallback(void* pResult, void* param, int32_t code) {
-  SSchdFetchParam* fParam = (SSchdFetchParam*)param;
-
-  *fParam->pData = pResult;
-  *fParam->code = code;
-
-  tsem_post(&schdRspSem);
-}
-
 

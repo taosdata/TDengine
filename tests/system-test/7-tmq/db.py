@@ -41,7 +41,7 @@ class TDTestCase:
             projPath = selfPath[:selfPath.find("tests")]
 
         for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
+            if ("taosd" in files or "taosd.exe" in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
                     buildPath = root[:len(root) - len("/build/bin")]
@@ -429,12 +429,6 @@ class TDTestCase:
 
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 
-    def tmqCase3(self, cfgPath, buildPath):
-        tdLog.printNoPrefix("======== test case 3: ")      
-
-        tdLog.printNoPrefix("======== test case 3 end ...... ")
-
-
     def run(self):
         tdSql.prepare()
 
@@ -446,11 +440,8 @@ class TDTestCase:
         cfgPath = buildPath + "/../sim/psim/cfg"
         tdLog.info("cfgPath: %s" % cfgPath)
 
-        # self.tmqCase1(cfgPath, buildPath)
+        self.tmqCase1(cfgPath, buildPath)
         self.tmqCase2(cfgPath, buildPath) 
-        # self.tmqCase3(cfgPath, buildPath)
-        # self.tmqCase4(cfgPath, buildPath)
-        # self.tmqCase5(cfgPath, buildPath)
 
     def stop(self):
         tdSql.close()

@@ -215,29 +215,51 @@ void syncUtilMsgNtoH(void* msg) {
 }
 
 bool syncUtilIsData(tmsg_t msgType) {
-  if (msgType == TDMT_VND_SYNC_NOOP || msgType == TDMT_VND_SYNC_CONFIG_CHANGE) {
+  if (msgType == TDMT_SYNC_NOOP || msgType == TDMT_SYNC_CONFIG_CHANGE) {
     return false;
   }
   return true;
 }
 
 bool syncUtilUserPreCommit(tmsg_t msgType) {
-  if (msgType != TDMT_VND_SYNC_NOOP && msgType != TDMT_VND_SYNC_CONFIG_CHANGE) {
+  if (msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_CONFIG_CHANGE) {
     return true;
   }
   return false;
 }
 
 bool syncUtilUserCommit(tmsg_t msgType) {
-  if (msgType != TDMT_VND_SYNC_NOOP && msgType != TDMT_VND_SYNC_CONFIG_CHANGE) {
+  if (msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_CONFIG_CHANGE) {
     return true;
   }
   return false;
 }
 
 bool syncUtilUserRollback(tmsg_t msgType) {
-  if (msgType != TDMT_VND_SYNC_NOOP && msgType != TDMT_VND_SYNC_CONFIG_CHANGE) {
+  if (msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_CONFIG_CHANGE) {
     return true;
   }
   return false;
+}
+
+void syncUtilJson2Line(char* jsonStr) {
+  int p, q, len;
+  p = 0;
+  q = 1;
+  len = strlen(jsonStr);
+  while (1) {
+    if (jsonStr[q] == '\0') {
+      jsonStr[p + 1] = '\0';
+      break;
+    }
+
+    if (jsonStr[q] == '\n' || jsonStr[q] == ' ' || jsonStr[q] == '\t') {
+      q++;
+      continue;
+    } else {
+      jsonStr[p + 1] = jsonStr[q];
+      p++;
+      q++;
+    }
+  }
 }

@@ -449,7 +449,7 @@ int32_t concatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
     bool hasNull = false;
     for (int32_t i = 0; i < inputNum; ++i) {
       if (colDataIsNull_s(pInputData[i], k) ||
-          GET_PARAM_TYPE(&pInput[i]) == TSDB_DATA_TYPE_NULL) {
+          IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[i]))) {
         colDataAppendNULL(pOutputData, k);
         hasNull = true;
         break;
@@ -526,7 +526,7 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
 
   for (int32_t k = 0; k < numOfRows; ++k) {
     if (colDataIsNull_s(pInputData[0], k) ||
-        GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NULL) {
+        IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0]))) {
       colDataAppendNULL(pOutputData, k);
       continue;
     }
@@ -535,7 +535,7 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
     bool hasNull = false;
     for (int32_t i = 1; i < inputNum; ++i) {
       if (colDataIsNull_s(pInputData[i], k) ||
-          GET_PARAM_TYPE(&pInput[i]) == TSDB_DATA_TYPE_NULL) {
+          IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[i]))) {
         hasNull = true;
         break;
       }
@@ -718,7 +718,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
   int16_t outputType = GET_PARAM_TYPE(&pOutput[0]);
   int64_t outputLen  = GET_PARAM_BYTES(&pOutput[0]);
 
-  char *outputBuf = taosMemoryCalloc(outputLen * pInput[0].numOfRows, 1);
+  char *outputBuf = taosMemoryCalloc(outputLen * pInput[0].numOfRows + 1, 1);
   char *output = outputBuf;
 
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
@@ -901,12 +901,22 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
 
     if (hasFraction) {
       int32_t fracLen = (int32_t)strlen(fraction) + 1;
-      char *tzInfo = strchr(buf, '+');
-      if (tzInfo) {
+
+      char *tzInfo;
+      if (buf[len - 1] == 'z' || buf[len - 1] == 'Z') {
+        tzInfo = &buf[len - 1];
         memmove(tzInfo + fracLen, tzInfo, strlen(tzInfo));
       } else {
-        tzInfo = strchr(buf, '-');
-        memmove(tzInfo + fracLen, tzInfo, strlen(tzInfo));
+        tzInfo = strchr(buf, '+');
+        if (tzInfo) {
+          memmove(tzInfo + fracLen, tzInfo, strlen(tzInfo));
+        } else {
+          //search '-' backwards
+          tzInfo = strrchr(buf, '-');
+          if (tzInfo) {
+            memmove(tzInfo + fracLen, tzInfo, strlen(tzInfo));
+          }
+        }
       }
 
       char tmp[32] = {0};
@@ -1221,8 +1231,8 @@ int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
       if (IS_VAR_DATA_TYPE(type)) { /* datetime format strings */
         int32_t ret = convertStringToTimestamp(type, input[k], TSDB_TIME_PRECISION_NANO, &timeVal[k]);
         if (ret != TSDB_CODE_SUCCESS) {
-          colDataAppendNULL(pOutput->columnData, i);
-          continue;
+          hasNull = true;
+          break;
         }
       } else if (type == TSDB_DATA_TYPE_BIGINT || type == TSDB_DATA_TYPE_TIMESTAMP) { /* unix timestamp or ts column*/
         GET_TYPED_DATA(timeVal[k], int64_t, type, input[k]);
@@ -1247,8 +1257,8 @@ int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
         } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
           timeVal[k] = timeVal[k];
         } else {
-          colDataAppendNULL(pOutput->columnData, i);
-          continue;
+          hasNull = true;
+          break;
         }
       }
     }

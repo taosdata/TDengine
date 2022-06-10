@@ -77,7 +77,9 @@ typedef struct SDataBlockInfo {
   int16_t     numOfCols;
   int16_t     hasVarCol;
   int32_t     capacity;
-  EStreamType type;
+  // TODO: optimize and remove following
+  int32_t     childId;  // used for stream, do not serialize
+  EStreamType type;     // used for stream, do not serialize
 } SDataBlockInfo;
 
 typedef struct SSDataBlock {
@@ -105,14 +107,17 @@ typedef struct SColumnInfoData {
 } SColumnInfoData;
 
 typedef struct SQueryTableDataCond {
-  //STimeWindow  twindow;
+  // STimeWindow  twindow;
+  uint64_t     suid;
   int32_t      order;  // desc|asc order to iterate the data block
   int32_t      numOfCols;
-  SColumnInfo *colList;
+  SColumnInfo* colList;
   bool         loadExternalRows;  // load external rows or not
   int32_t      type;              // data block load type:
   int32_t      numOfTWindows;
-  STimeWindow *twindows;
+  STimeWindow* twindows;
+  int32_t      startVersion;
+  int32_t      endVersion;
 } SQueryTableDataCond;
 
 void*   blockDataDestroy(SSDataBlock* pBlock);
@@ -156,18 +161,24 @@ typedef struct SColumn {
 } SColumn;
 
 typedef struct STableBlockDistInfo {
-  uint16_t rowSize;
+  uint32_t rowSize;
   uint16_t numOfFiles;
   uint32_t numOfTables;
+  uint32_t numOfBlocks;
   uint64_t totalSize;
   uint64_t totalRows;
   int32_t  maxRows;
   int32_t  minRows;
+  int32_t  defMinRows;
+  int32_t  defMaxRows;
   int32_t  firstSeekTimeUs;
-  uint32_t numOfRowsInMemTable;
+  uint32_t numOfInmemRows;
   uint32_t numOfSmallBlocks;
-  SArray*  dataBlockInfos;
+  int32_t  blockRowsHisto[20];
 } STableBlockDistInfo;
+
+int32_t tSerializeBlockDistInfo(void* buf, int32_t bufLen, const STableBlockDistInfo* pInfo);
+int32_t tDeserializeBlockDistInfo(void* buf, int32_t bufLen, STableBlockDistInfo* pInfo);
 
 enum {
   FUNC_PARAM_TYPE_VALUE = 0x1,
@@ -202,17 +213,17 @@ typedef struct SExprInfo {
 } SExprInfo;
 
 typedef struct {
-  const char*   key;
-  int32_t       keyLen;
-  uint8_t       type;
-  union{
+  const char* key;
+  int32_t     keyLen;
+  uint8_t     type;
+  union {
     const char* value;
     int64_t     i;
     uint64_t    u;
     double      d;
     float       f;
   };
-  int32_t       length;
+  int32_t length;
 } SSmlKv;
 
 #define QUERY_ASC_FORWARD_STEP  1
@@ -220,7 +231,7 @@ typedef struct {
 
 #define GET_FORWARD_DIRECTION_FACTOR(ord) (((ord) == TSDB_ORDER_ASC) ? QUERY_ASC_FORWARD_STEP : QUERY_DESC_FORWARD_STEP)
 
-#define SORT_QSORT_T 0x1
+#define SORT_QSORT_T              0x1
 #define SORT_SPILLED_MERGE_SORT_T 0x2
 typedef struct SSortExecInfo {
   int32_t sortMethod;

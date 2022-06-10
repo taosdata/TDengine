@@ -68,10 +68,10 @@ static bool needCompress(const SSDataBlock* pData, int32_t numOfCols) {
 }
 
 // data format:
-// +----------------+--------------+----------+--------------------------------------+-------------+-----------+-------------+-----------+
-// |SDataCacheEntry | total length | group id | column#1 length, column#2 length ... | col1 bitmap | col1 data | col2 bitmap | col2 data | ....
-// |                |  (4 bytes)   |(8 bytes) | sizeof(int32_t) * numOfCols          | actual size |           | actual size |           |
-// +----------------+--------------+----------+--------------------------------------+-------------+-----------+-------------+-----------+
+// +----------------+--------------+----------+--------------------------------------------+--------------------------------------+-------------+-----------+-------------+-----------+
+// |SDataCacheEntry | total length | group id | col1_schema | col2_schema | col3_schema ...| column#1 length, column#2 length ... | col1 bitmap | col1 data | col2 bitmap | col2 data | ....
+// |                |  (4 bytes)   |(8 bytes) |(sizeof(int16_t)+sizeof(int32_t))*numOfCols | sizeof(int32_t) * numOfCols          | actual size |           | actual size |           |
+// +----------------+--------------+----------+--------------------------------------------+--------------------------------------+-------------+-----------+-------------+-----------+
 // The length of bitmap is decided by number of rows of this data block, and the length of each column data is
 // recorded in the first segment, next to the struct header
 static void toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* pInput, SDataDispatchBuf* pBuf) {
@@ -83,7 +83,7 @@ static void toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* pIn
   pEntry->numOfCols = pInput->pData->info.numOfCols;
   pEntry->dataLen = 0;
 
-  pBuf->useSize = sizeof(SRetrieveTableRsp);
+  pBuf->useSize = sizeof(SDataCacheEntry);
   blockCompressEncode(pInput->pData, pEntry->data, &pEntry->dataLen, numOfCols, pEntry->compressed);
 
   pBuf->useSize += pEntry->dataLen;
@@ -100,7 +100,7 @@ static bool allocBuf(SDataDispatchHandle* pDispatcher, const SInputData* pInput,
     return false;
   }
 
-  pBuf->allocSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pInput->pData);
+  pBuf->allocSize = sizeof(SDataCacheEntry) + blockGetEncodeSize(pInput->pData);
 
   pBuf->pData = taosMemoryMalloc(pBuf->allocSize);
   if (pBuf->pData == NULL) {
@@ -211,7 +211,7 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t getCacheSize(struct SDataSinkHandle* pHandle, uint64_t* size) {
+static int32_t getCacheSize(struct SDataSinkHandle* pHandle, uint64_t* size) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
 
   *size = atomic_load_64(&pDispatcher->cachedSize);

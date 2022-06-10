@@ -236,7 +236,7 @@ bool isRowEntryCompleted(struct SResultRowEntryInfo* pEntry) {
 bool isRowEntryInitialized(struct SResultRowEntryInfo* pEntry) {
   return pEntry->initialized;
 }
-
+#if 0
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, SResultDataInfo* pInfo, int16_t extLength,
     bool isSuperTable/*, SUdfInfo* pUdfInfo*/) {
   if (!isValidDataType(dataType)) {
@@ -470,6 +470,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
   
   return TSDB_CODE_SUCCESS;
 }
+#endif
 
 static bool function_setup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo) {
   if (pResultInfo->initialized) {
@@ -3683,7 +3684,7 @@ static void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDi
   pDist->totalRows   = tbufReadUint64(&br);
   pDist->maxRows     = tbufReadInt32(&br);
   pDist->minRows     = tbufReadInt32(&br);
-  pDist->numOfRowsInMemTable = tbufReadUint32(&br);
+  pDist->numOfInmemRows = tbufReadUint32(&br);
   pDist->numOfSmallBlocks = tbufReadUint32(&br);
   int64_t numSteps = tbufReadUint64(&br);
 
@@ -3731,7 +3732,7 @@ static void mergeTableBlockDist(SResultRowEntryInfo* pResInfo, const STableBlock
   assert(pDist != NULL && pSrc != NULL);
 
   pDist->numOfTables += pSrc->numOfTables;
-  pDist->numOfRowsInMemTable += pSrc->numOfRowsInMemTable;
+  pDist->numOfInmemRows += pSrc->numOfInmemRows;
   pDist->numOfSmallBlocks += pSrc->numOfSmallBlocks;
   pDist->numOfFiles += pSrc->numOfFiles;
   pDist->totalSize += pSrc->totalSize;
@@ -3861,7 +3862,7 @@ void generateBlockDistResult(STableBlockDistInfo *pTableBlockDist, char* result)
                    percentiles[6], percentiles[7], percentiles[8], percentiles[9], percentiles[10], percentiles[11],
                    min, max, avg, stdDev,
                    totalRows, totalBlocks, smallBlocks, totalLen/1024.0, compRatio,
-                   pTableBlockDist->numOfRowsInMemTable);
+                   pTableBlockDist->numOfInmemRows);
   varDataSetLen(result, sz);
   UNUSED(sz);
 }

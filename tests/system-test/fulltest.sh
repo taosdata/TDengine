@@ -19,7 +19,9 @@ python3 ./test.py -f 1-insert/influxdb_line_taosc_insert.py
 python3 ./test.py -f 1-insert/opentsdb_telnet_line_taosc_insert.py
 python3 ./test.py -f 1-insert/opentsdb_json_taosc_insert.py
 #python3 ./test.py -f 1-insert/test_stmt_muti_insert_query.py
-
+python3 ./test.py -f 1-insert/alter_stable.py
+python3 ./test.py -f 1-insert/alter_table.py
+# python3 ./test.py -f 1-inerst/create_table_comment.py
 python3 ./test.py -f 2-query/between.py
 python3 ./test.py -f 2-query/distinct.py
 python3 ./test.py -f 2-query/varchar.py
@@ -57,6 +59,7 @@ python3 ./test.py -f 2-query/To_unixtimestamp.py
 python3 ./test.py -f 2-query/timetruncate.py
 python3 ./test.py -f 2-query/diff.py
 python3 ./test.py -f 2-query/Timediff.py
+python3 ./test.py -f 2-query/json_tag.py
 
 python3 ./test.py -f 2-query/top.py
 python3 ./test.py -f 2-query/bottom.py
@@ -80,6 +83,7 @@ python3 ./test.py -f 2-query/query_cols_tags_and_or.py
 # TD-15983 subquery output duplicate name column. 
 # Please Xiangyang Guo modify the following script
 # python3 ./test.py -f 2-query/nestedQuery_str.py
+
 python3 ./test.py -f 2-query/avg.py
 python3 ./test.py -f 2-query/elapsed.py
 python3 ./test.py -f 2-query/csum.py
@@ -102,3 +106,4 @@ python3 ./test.py -f 7-tmq/subscribeStb1.py
 python3 ./test.py -f 7-tmq/subscribeStb2.py
 python3 ./test.py -f 7-tmq/subscribeStb3.py
 python3 ./test.py -f 7-tmq/subscribeStb4.py
+python3 ./test.py -f 7-tmq/db.py

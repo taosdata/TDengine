@@ -37,13 +37,19 @@ SSdbRaw *sdbAllocRaw(ESdbType type, int8_t sver, int32_t dataLen) {
   pRaw->sver = sver;
   pRaw->dataLen = dataLen;
 
+#if 0
   mTrace("raw:%p, is created, len:%d table:%s", pRaw, dataLen, sdbTableName(type));
+#endif
   return pRaw;
 }
 
 void sdbFreeRaw(SSdbRaw *pRaw) {
-  mTrace("raw:%p, is freed", pRaw);
-  taosMemoryFree(pRaw);
+  if (pRaw != NULL) {
+#if 0
+    mTrace("raw:%p, is freed", pRaw);
+#endif
+    taosMemoryFree(pRaw);
+  }
 }
 
 int32_t sdbSetRawInt8(SSdbRaw *pRaw, int32_t dataPos, int8_t val) {

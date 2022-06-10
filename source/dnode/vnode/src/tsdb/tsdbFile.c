@@ -25,8 +25,7 @@ static const char *TSDB_FNAME_SUFFIX[] = {
     "meta",  // TSDB_FILE_META
 };
 
-static void tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, const char* dname, char *fname);
-// static int   tsdbRollBackMFile(SMFile *pMFile);
+static void  tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, const char *dname, char *fname);
 static int   tsdbEncodeDFInfo(void **buf, SDFInfo *pInfo);
 static void *tsdbDecodeDFInfo(void *buf, SDFInfo *pInfo);
 static int   tsdbRollBackDFile(SDFile *pDFile);
@@ -181,7 +180,7 @@ static int tsdbScanAndTryFixDFile(STsdb *pRepo, SDFile *pDFile) {
   tsdbInitDFileEx(&df, pDFile);
 
   if (!taosCheckExistFile(TSDB_FILE_FULL_NAME(pDFile))) {
-    tsdbError("vgId:%d data file %s not exit, report to upper layer to fix it", REPO_ID(pRepo),
+    tsdbError("vgId:%d, data file %s not exit, report to upper layer to fix it", REPO_ID(pRepo),
               TSDB_FILE_FULL_NAME(pDFile));
     // pRepo->state |= TSDB_STATE_BAD_DATA;
     TSDB_FILE_SET_STATE(pDFile, TSDB_FILE_STATE_BAD);
@@ -211,17 +210,17 @@ static int tsdbScanAndTryFixDFile(STsdb *pRepo, SDFile *pDFile) {
     }
 
     tsdbCloseDFile(&df);
-    tsdbInfo("vgId:%d file %s is truncated from %" PRId64 " to %" PRId64, REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile),
+    tsdbInfo("vgId:%d, file %s is truncated from %" PRId64 " to %" PRId64, REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile),
              file_size, pDFile->info.size);
   } else if (pDFile->info.size > file_size) {
-    tsdbError("vgId:%d data file %s has wrong size %" PRId64 " expected %" PRId64 ", report to upper layer to fix it",
+    tsdbError("vgId:%d, data file %s has wrong size %" PRId64 " expected %" PRId64 ", report to upper layer to fix it",
               REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile), file_size, pDFile->info.size);
     // pRepo->state |= TSDB_STATE_BAD_DATA;
     TSDB_FILE_SET_STATE(pDFile, TSDB_FILE_STATE_BAD);
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
     return 0;
   } else {
-    tsdbDebug("vgId:%d file %s passes the scan", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile));
+    tsdbDebug("vgId:%d, file %s passes the scan", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile));
   }
 
   return 0;
@@ -447,4 +446,137 @@ static void tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, c
       snprintf(fname, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb/%s-ver%" PRIu32, vid, TSDB_FNAME_SUFFIX[ftype], ver);
     }
   }
+}
+
+int tsdbOpenDFile(SDFile *pDFile, int flags) {
+  ASSERT(!TSDB_FILE_OPENED(pDFile));
+
+  pDFile->pFile = taosOpenFile(TSDB_FILE_FULL_NAME(pDFile), flags);
+  if (pDFile->pFile == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  return 0;
+}
+
+void tsdbCloseDFile(SDFile *pDFile) {
+  if (TSDB_FILE_OPENED(pDFile)) {
+    taosCloseFile(&pDFile->pFile);
+    TSDB_FILE_SET_CLOSED(pDFile);
+  }
+}
+
+int64_t tsdbSeekDFile(SDFile *pDFile, int64_t offset, int whence) {
+  // ASSERT(TSDB_FILE_OPENED(pDFile));
+
+  int64_t loffset = taosLSeekFile(TSDB_FILE_PFILE(pDFile), offset, whence);
+  if (loffset < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  return loffset;
+}
+
+int64_t tsdbWriteDFile(SDFile *pDFile, void *buf, int64_t nbyte) {
+  ASSERT(TSDB_FILE_OPENED(pDFile));
+
+  int64_t nwrite = taosWriteFile(pDFile->pFile, buf, nbyte);
+  if (nwrite < nbyte) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  return nwrite;
+}
+
+void tsdbUpdateDFileMagic(SDFile *pDFile, void *pCksm) {
+  pDFile->info.magic = taosCalcChecksum(pDFile->info.magic, (uint8_t *)(pCksm), sizeof(TSCKSUM));
+}
+
+int tsdbAppendDFile(SDFile *pDFile, void *buf, int64_t nbyte, int64_t *offset) {
+  ASSERT(TSDB_FILE_OPENED(pDFile));
+
+  int64_t toffset;
+
+  if ((toffset = tsdbSeekDFile(pDFile, 0, SEEK_END)) < 0) {
+    return -1;
+  }
+
+  ASSERT(pDFile->info.size == toffset);
+
+  if (offset) {
+    *offset = toffset;
+  }
+
+  if (tsdbWriteDFile(pDFile, buf, nbyte) < 0) {
+    return -1;
+  }
+
+  pDFile->info.size += nbyte;
+
+  return (int)nbyte;
+}
+
+int tsdbRemoveDFile(SDFile *pDFile) { return tfsRemoveFile(TSDB_FILE_F(pDFile)); }
+
+int64_t tsdbReadDFile(SDFile *pDFile, void *buf, int64_t nbyte) {
+  ASSERT(TSDB_FILE_OPENED(pDFile));
+
+  int64_t nread = taosReadFile(pDFile->pFile, buf, nbyte);
+  if (nread < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  return nread;
+}
+
+int tsdbCopyDFile(SDFile *pSrc, SDFile *pDest) {
+  if (tfsCopyFile(TSDB_FILE_F(pSrc), TSDB_FILE_F(pDest)) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  pDest->info = pSrc->info;
+  return 0;
+}
+
+void tsdbCloseDFileSet(SDFileSet *pSet) {
+  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
+    tsdbCloseDFile(TSDB_DFILE_IN_SET(pSet, ftype));
+  }
+}
+
+int tsdbOpenDFileSet(SDFileSet *pSet, int flags) {
+  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
+    if (tsdbOpenDFile(TSDB_DFILE_IN_SET(pSet, ftype), flags) < 0) {
+      tsdbCloseDFileSet(pSet);
+      return -1;
+    }
+  }
+  return 0;
+}
+
+void tsdbRemoveDFileSet(SDFileSet *pSet) {
+  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
+    (void)tsdbRemoveDFile(TSDB_DFILE_IN_SET(pSet, ftype));
+  }
+}
+
+int tsdbCopyDFileSet(SDFileSet *pSrc, SDFileSet *pDest) {
+  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
+    if (tsdbCopyDFile(TSDB_DFILE_IN_SET(pSrc, ftype), TSDB_DFILE_IN_SET(pDest, ftype)) < 0) {
+      tsdbRemoveDFileSet(pDest);
+      return -1;
+    }
+  }
+
+  return 0;
+}
+
+void tsdbGetFidKeyRange(int days, int8_t precision, int fid, TSKEY *minKey, TSKEY *maxKey) {
+  *minKey = fid * days * tsTickPerMin[precision];
+  *maxKey = *minKey + days * tsTickPerMin[precision] - 1;
 }

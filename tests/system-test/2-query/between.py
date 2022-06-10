@@ -143,7 +143,7 @@ class TDTestCase:
         tdSql.checkRows(9)
         tdSql.query("select * from t1 where c5 between 136 and 127")
         tdSql.checkRows(0)
-        tdSql.query("select * from t1 where c5 between '~' and 'ˆ'")
+        tdSql.query("select * from t1 where c5 between '~' and '^'")
         tdSql.checkRows(0)
         tdSql.query("select * from t1 where c5 not between 1 and 2")
         # tdSql.checkRows(0)

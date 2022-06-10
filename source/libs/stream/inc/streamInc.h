@@ -13,16 +13,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tsdb.h"
+#ifndef _STREAM_INC_H_
+#define _STREAM_INC_H_
 
-int tsdbBegin(STsdb *pTsdb) {
-  if (!pTsdb) return 0;
-  
-  STsdbMemTable *pMem;
+#include "executor.h"
+#include "tstream.h"
 
-  if (tsdbMemTableCreate(pTsdb, &pTsdb->mem) < 0) {
-    return -1;
-  }
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-  return 0;
+int32_t streamExec(SStreamTask* pTask, SMsgCb* pMsgCb);
+int32_t streamDispatch(SStreamTask* pTask, SMsgCb* pMsgCb);
+int32_t streamDispatchReqToData(const SStreamDispatchReq* pReq, SStreamDataBlock* pData);
+int32_t streamBuildDispatchMsg(SStreamTask* pTask, SStreamDataBlock* data, SRpcMsg* pMsg, SEpSet** ppEpSet);
+
+#ifdef __cplusplus
 }
+#endif
+
+#endif /* ifndef _STREAM_INC_H_ */

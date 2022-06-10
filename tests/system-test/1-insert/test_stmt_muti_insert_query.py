@@ -49,7 +49,7 @@ class TDTestCase:
             projPath = selfPath[:selfPath.find("tests")]
 
         for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
+            if ("taosd" in files or "taosd.exe" in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
                     buildPath = root[:len(root)-len("/build/bin")]
@@ -124,7 +124,7 @@ class TDTestCase:
             print("elapsed time: ", end - start)
             assert stmt.affected_rows == 3
             
-            #query
+            #query 1
             querystmt=conn.statement("select ?,bu from log")
             queryparam=new_bind_params(1)
             print(type(queryparam))
@@ -141,8 +141,9 @@ class TDTestCase:
             print(rows)
             assert rows[1][0] == "ts"
             assert rows[0][1] == 3
+            assert rows[2][1] == None
 
-            #query
+            #query 2
             querystmt1=conn.statement("select * from log where bu < ?")
             queryparam1=new_bind_params(1)
             print(type(queryparam1))

@@ -22,6 +22,8 @@ SyncAppendEntriesReply *createMsg() {
   pMsg->destId.vgId = 100;
   pMsg->success = true;
   pMsg->matchIndex = 77;
+  pMsg->term = 33;
+  pMsg->privateTerm = 44;
   return pMsg;
 }
 

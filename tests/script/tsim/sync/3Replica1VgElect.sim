@@ -105,21 +105,21 @@ if $rows != $vgroups then
   return -1
 endi
 
-if $data[0][4] == LEADER then
-   if $data[0][6] == FOLLOWER then
-      if $data[0][8] == FOLLOWER then
+if $data[0][4] == leader then
+   if $data[0][6] == follower then
+      if $data[0][8] == follower then
          print ---- vgroup $data[0][0] leader locate on dnode $data[0][3] 
       endi
    endi
-elif $data[0][6] == LEADER then
-   if $data[0][4] == FOLLOWER then
-      if $data[0][8] == FOLLOWER then
+elif $data[0][6] == leader then
+   if $data[0][4] == follower then
+      if $data[0][8] == follower then
          print ---- vgroup $data[0][0] leader locate on dnode $data[0][5] 
       endi
    endi
-elif $data[0][8] == LEADER then
-   if $data[0][4] == FOLLOWER then
-      if $data[0][6] == FOLLOWER then
+elif $data[0][8] == leader then
+   if $data[0][4] == follower then
+      if $data[0][6] == follower then
          print ---- vgroup $data[0][0] leader locate on dnode $data[0][7] 
       endi
    endi
@@ -239,21 +239,21 @@ if $rows != $vgroups then
   return -1
 endi
 
-if $data[0][4] == LEADER then
-   if $data[0][6] == FOLLOWER then
-      if $data[0][8] == FOLLOWER then
+if $data[0][4] == leader then
+   if $data[0][6] == follower then
+      if $data[0][8] == follower then
          print ---- vgroup $data[0][0] leader locate on dnode $data[0][3] 
       endi
    endi
-elif $data[0][6] == LEADER then
-   if $data[0][4] == FOLLOWER then
-      if $data[0][8] == FOLLOWER then
+elif $data[0][6] == leader then
+   if $data[0][4] == follower then
+      if $data[0][8] == follower then
          print ---- vgroup $data[0][0] leader locate on dnode $data[0][5] 
       endi
    endi
-elif $data[0][8] == LEADER then
-   if $data[0][4] == FOLLOWER then
-      if $data[0][6] == FOLLOWER then
+elif $data[0][8] == leader then
+   if $data[0][4] == follower then
+      if $data[0][6] == follower then
          print ---- vgroup $data[0][0] leader locate on dnode $data[0][7] 
       endi
    endi
@@ -447,21 +447,21 @@ if $rows != $vgroups then
   return -1
 endi
 
-if $data[0][4] == LEADER then
-   if $data[0][6] == FOLLOWER then
-      if $data[0][8] == FOLLOWER then
+if $data[0][4] == leader then
+   if $data[0][6] == follower then
+      if $data[0][8] == follower then
          print ---- vgroup $data[0][0] leader locate on dnode $data[0][3] 
       endi
    endi
-elif $data[0][6] == LEADER then
-   if $data[0][4] == FOLLOWER then
-      if $data[0][8] == FOLLOWER then
+elif $data[0][6] == leader then
+   if $data[0][4] == follower then
+      if $data[0][8] == follower then
          print ---- vgroup $data[0][0] leader locate on dnode $data[0][5] 
       endi
    endi
-elif $data[0][8] == LEADER then
-   if $data[0][4] == FOLLOWER then
-      if $data[0][6] == FOLLOWER then
+elif $data[0][8] == leader then
+   if $data[0][4] == follower then
+      if $data[0][6] == follower then
          print ---- vgroup $data[0][0] leader locate on dnode $data[0][7] 
       endi
    endi

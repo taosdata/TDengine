@@ -39,6 +39,9 @@ static int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataBlkRsp* pRs
 
 static int32_t tqAddBlockSchemaToRsp(const STqExecHandle* pExec, int32_t workerId, SMqDataBlkRsp* pRsp) {
   SSchemaWrapper* pSW = tCloneSSchemaWrapper(pExec->pExecReader[workerId]->pSchemaWrapper);
+  if (pSW == NULL) {
+    return -1;
+  }
   taosArrayPush(pRsp->blockSchema, &pSW);
   return 0;
 }
@@ -59,7 +62,7 @@ static int32_t tqAddTbNameToRsp(const STQ* pTq, const STqExecHandle* pExec, SMqD
 
 int32_t tqDataExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataBlkRsp* pRsp, int32_t workerId) {
   if (pExec->subType == TOPIC_SUB_TYPE__COLUMN) {
-    qTaskInfo_t task = pExec->exec.execCol.task[workerId];
+    qTaskInfo_t task = pExec->execCol.task[workerId];
     ASSERT(task);
     qSetStreamInput(task, pReq, STREAM_DATA_TYPE_SUBMIT_BLOCK, false);
     while (1) {
@@ -101,7 +104,7 @@ int32_t tqDataExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataBlkR
     pRsp->withSchema = 1;
     STqReadHandle* pReader = pExec->pExecReader[workerId];
     tqReadHandleSetMsg(pReader, pReq, 0);
-    while (tqNextDataBlockFilterOut(pReader, pExec->exec.execDb.pFilterOutTbUid)) {
+    while (tqNextDataBlockFilterOut(pReader, pExec->execDb.pFilterOutTbUid)) {
       SSDataBlock block = {0};
       if (tqRetrieveDataBlock(&block.pDataBlock, pReader, &block.info.groupId, &block.info.uid, &block.info.rows,
                               &block.info.numOfCols) < 0) {

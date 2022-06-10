@@ -75,7 +75,8 @@ int32_t syncIOSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
     syncUtilMsgNtoH(pMsg->pCont);
 
     char logBuf[256] = {0};
-    snprintf(logBuf, sizeof(logBuf), "==syncIOSendMsg== %s:%d", pEpSet->eps[0].fqdn, pEpSet->eps[0].port);
+    snprintf(logBuf, sizeof(logBuf), "==syncIOSendMsg== %s:%d msgType:%d", pEpSet->eps[0].fqdn, pEpSet->eps[0].port,
+             pMsg->msgType);
     syncRpcMsgLog2(logBuf, pMsg);
 
     syncUtilMsgHtoN(pMsg->pCont);
@@ -89,8 +90,10 @@ int32_t syncIOSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
 
 int32_t syncIOEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
   int32_t ret = 0;
-  char    logBuf[128] = {0};
-  syncRpcMsgLog2((char *)"==syncIOEqMsg==", pMsg);
+
+  char logBuf[256] = {0};
+  snprintf(logBuf, sizeof(logBuf), "==syncIOEqMsg== msgType:%d", pMsg->msgType);
+  syncRpcMsgLog2(logBuf, pMsg);
 
   SRpcMsg *pTemp;
   pTemp = taosAllocateQitem(sizeof(SRpcMsg), DEF_QITEM);
@@ -253,10 +256,12 @@ static void *syncIOConsumerFunc(void *param) {
 
     for (int i = 0; i < numOfMsgs; ++i) {
       taosGetQitem(qall, (void **)&pRpcMsg);
-      syncRpcMsgLog2((char *)"==syncIOConsumerFunc==", pRpcMsg);
+      char logBuf[128];
+      snprintf(logBuf, sizeof(logBuf), "==syncIOConsumMsg== msgType:%d", pRpcMsg->msgType);
+      syncRpcMsgLog2(logBuf, pRpcMsg);
 
       // use switch case instead of if else
-      if (pRpcMsg->msgType == TDMT_VND_SYNC_PING) {
+      if (pRpcMsg->msgType == TDMT_SYNC_PING) {
         if (io->FpOnSyncPing != NULL) {
           SyncPing *pSyncMsg = syncPingFromRpcMsg2(pRpcMsg);
           assert(pSyncMsg != NULL);
@@ -264,7 +269,7 @@ static void *syncIOConsumerFunc(void *param) {
           syncPingDestroy(pSyncMsg);
         }
 
-      } else if (pRpcMsg->msgType == TDMT_VND_SYNC_PING_REPLY) {
+      } else if (pRpcMsg->msgType == TDMT_SYNC_PING_REPLY) {
         if (io->FpOnSyncPingReply != NULL) {
           SyncPingReply *pSyncMsg = syncPingReplyFromRpcMsg2(pRpcMsg);
           assert(pSyncMsg != NULL);
@@ -272,7 +277,7 @@ static void *syncIOConsumerFunc(void *param) {
           syncPingReplyDestroy(pSyncMsg);
         }
 
-      } else if (pRpcMsg->msgType == TDMT_VND_SYNC_CLIENT_REQUEST) {
+      } else if (pRpcMsg->msgType == TDMT_SYNC_CLIENT_REQUEST) {
         if (io->FpOnSyncClientRequest != NULL) {
           SyncClientRequest *pSyncMsg = syncClientRequestFromRpcMsg2(pRpcMsg);
           assert(pSyncMsg != NULL);
@@ -280,7 +285,7 @@ static void *syncIOConsumerFunc(void *param) {
           syncClientRequestDestroy(pSyncMsg);
         }
 
-      } else if (pRpcMsg->msgType == TDMT_VND_SYNC_REQUEST_VOTE) {
+      } else if (pRpcMsg->msgType == TDMT_SYNC_REQUEST_VOTE) {
         if (io->FpOnSyncRequestVote != NULL) {
           SyncRequestVote *pSyncMsg = syncRequestVoteFromRpcMsg2(pRpcMsg);
           assert(pSyncMsg != NULL);
@@ -288,7 +293,7 @@ static void *syncIOConsumerFunc(void *param) {
           syncRequestVoteDestroy(pSyncMsg);
         }
 
-      } else if (pRpcMsg->msgType == TDMT_VND_SYNC_REQUEST_VOTE_REPLY) {
+      } else if (pRpcMsg->msgType == TDMT_SYNC_REQUEST_VOTE_REPLY) {
         if (io->FpOnSyncRequestVoteReply != NULL) {
           SyncRequestVoteReply *pSyncMsg = syncRequestVoteReplyFromRpcMsg2(pRpcMsg);
           assert(pSyncMsg != NULL);
@@ -296,7 +301,7 @@ static void *syncIOConsumerFunc(void *param) {
           syncRequestVoteReplyDestroy(pSyncMsg);
         }
 
-      } else if (pRpcMsg->msgType == TDMT_VND_SYNC_APPEND_ENTRIES) {
+      } else if (pRpcMsg->msgType == TDMT_SYNC_APPEND_ENTRIES) {
         if (io->FpOnSyncAppendEntries != NULL) {
           SyncAppendEntries *pSyncMsg = syncAppendEntriesFromRpcMsg2(pRpcMsg);
           assert(pSyncMsg != NULL);
@@ -304,7 +309,7 @@ static void *syncIOConsumerFunc(void *param) {
           syncAppendEntriesDestroy(pSyncMsg);
         }
 
-      } else if (pRpcMsg->msgType == TDMT_VND_SYNC_APPEND_ENTRIES_REPLY) {
+      } else if (pRpcMsg->msgType == TDMT_SYNC_APPEND_ENTRIES_REPLY) {
         if (io->FpOnSyncAppendEntriesReply != NULL) {
           SyncAppendEntriesReply *pSyncMsg = syncAppendEntriesReplyFromRpcMsg2(pRpcMsg);
           assert(pSyncMsg != NULL);
@@ -312,13 +317,30 @@ static void *syncIOConsumerFunc(void *param) {
           syncAppendEntriesReplyDestroy(pSyncMsg);
         }
 
-      } else if (pRpcMsg->msgType == TDMT_VND_SYNC_TIMEOUT) {
+      } else if (pRpcMsg->msgType == TDMT_SYNC_TIMEOUT) {
         if (io->FpOnSyncTimeout != NULL) {
           SyncTimeout *pSyncMsg = syncTimeoutFromRpcMsg2(pRpcMsg);
           assert(pSyncMsg != NULL);
           io->FpOnSyncTimeout(io->pSyncNode, pSyncMsg);
           syncTimeoutDestroy(pSyncMsg);
         }
+
+      } else if (pRpcMsg->msgType == TDMT_SYNC_SNAPSHOT_SEND) {
+        if (io->FpOnSyncSnapshotSend != NULL) {
+          SyncSnapshotSend *pSyncMsg = syncSnapshotSendFromRpcMsg2(pRpcMsg);
+          assert(pSyncMsg != NULL);
+          io->FpOnSyncSnapshotSend(io->pSyncNode, pSyncMsg);
+          syncSnapshotSendDestroy(pSyncMsg);
+        }
+
+      } else if (pRpcMsg->msgType == TDMT_SYNC_SNAPSHOT_RSP) {
+        if (io->FpOnSyncSnapshotRsp != NULL) {
+          SyncSnapshotRsp *pSyncMsg = syncSnapshotRspFromRpcMsg2(pRpcMsg);
+          assert(pSyncMsg != NULL);
+          io->FpOnSyncSnapshotRsp(io->pSyncNode, pSyncMsg);
+          syncSnapshotRspDestroy(pSyncMsg);
+        }
+
       } else {
         sTrace("unknown msgType:%d, no operator", pRpcMsg->msgType);
       }
@@ -365,7 +387,7 @@ static void syncIOProcessRequest(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) {
 }
 
 static void syncIOProcessReply(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) {
-  if (pMsg->msgType == TDMT_VND_SYNC_COMMON_RESPONSE) {
+  if (pMsg->msgType == TDMT_SYNC_COMMON_RESPONSE) {
     sTrace("==syncIOProcessReply==");
   } else {
     syncRpcMsgLog2((char *)"==syncIOProcessReply==", pMsg);

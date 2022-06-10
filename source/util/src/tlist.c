@@ -95,7 +95,7 @@ SListNode *tdListPopTail(SList *list) {
 
 SListNode *tdListGetHead(SList *list) { return TD_DLIST_HEAD(list); }
 
-SListNode *tsListGetTail(SList *list) { return TD_DLIST_TAIL(list); }
+SListNode *tdListGetTail(SList *list) { return TD_DLIST_TAIL(list); }
 
 SListNode *tdListPopNode(SList *list, SListNode *node) {
   TD_DLIST_POP(list, node);

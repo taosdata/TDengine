@@ -15,6 +15,7 @@
 
 #include "meta.h"
 
+static int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
 static int metaHandleEntry(SMeta *pMeta, const SMetaEntry *pME);
 static int metaSaveToTbDb(SMeta *pMeta, const SMetaEntry *pME);
 static int metaUpdateUidIdx(SMeta *pMeta, const SMetaEntry *pME);
@@ -25,15 +26,94 @@ static int metaUpdateCtbIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry);
 static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type);
 
+static int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, STableMetaRsp *pMetaRsp) {
+  pMetaRsp->pSchemas = taosMemoryMalloc(pSchema->nCols * sizeof(SSchema));
+  if (NULL == pMetaRsp->pSchemas) {
+    terrno = TSDB_CODE_VND_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  strcpy(pMetaRsp->tbName, tbName);
+  pMetaRsp->numOfColumns = pSchema->nCols;
+  pMetaRsp->tableType = TSDB_NORMAL_TABLE;
+  pMetaRsp->sversion = pSchema->version;
+  pMetaRsp->tuid = uid;
+
+  memcpy(pMetaRsp->pSchemas, pSchema->pSchema, pSchema->nCols * sizeof(SSchema));
+
+  return 0;
+}
+
+static int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema) {
+#ifdef USE_INVERTED_INDEX
+  if (pMeta->pTagIvtIdx == NULL || pCtbEntry == NULL) {
+    return -1;
+  }
+  void *      data = pCtbEntry->ctbEntry.pTags;
+  const char *tagName = pSchema->name;
+
+  tb_uid_t    suid = pCtbEntry->ctbEntry.suid;
+  tb_uid_t    tuid = pCtbEntry->uid;
+  const void *pTagData = pCtbEntry->ctbEntry.pTags;
+  int32_t     nTagData = 0;
+
+  SArray *pTagVals = NULL;
+  if (tTagToValArray((const STag *)data, &pTagVals) != 0) {
+    return -1;
+  }
+
+  SIndexMultiTerm *terms = indexMultiTermCreate();
+  int16_t          nCols = taosArrayGetSize(pTagVals);
+  for (int i = 0; i < nCols; i++) {
+    STagVal *pTagVal = (STagVal *)taosArrayGet(pTagVals, i);
+    char     type = pTagVal->type;
+
+    char *  key = pTagVal->pKey;
+    int32_t nKey = strlen(key);
+
+    SIndexTerm *term = NULL;
+    if (type == TSDB_DATA_TYPE_NULL) {
+      // handle null value
+    } else if (type == TSDB_DATA_TYPE_NCHAR) {
+      if (pTagVal->nData > 0) {
+        char *  val = taosMemoryCalloc(1, pTagVal->nData + VARSTR_HEADER_SIZE);
+        int32_t len = taosUcs4ToMbs((TdUcs4 *)pTagVal->pData, pTagVal->nData, val + VARSTR_HEADER_SIZE);
+        memcpy(val, (uint16_t *)&len, VARSTR_HEADER_SIZE);
+        type = TSDB_DATA_TYPE_VARCHAR;
+        term = indexTermCreate(suid, ADD_VALUE, type, key, nKey, val, len);
+      } else if (pTagVal->nData == 0) {
+        char *  val = NULL;
+        int32_t len = 0;
+        // handle NULL key
+      }
+    } else if (type == TSDB_DATA_TYPE_DOUBLE) {
+      double val = *(double *)(&pTagVal->i64);
+      int    len = 0;
+      term = indexTermCreate(suid, ADD_VALUE, type, key, nKey, (const char *)&val, len);
+    } else if (type == TSDB_DATA_TYPE_BOOL) {
+      int val = *(int *)(&pTagVal->i64);
+      int len = 0;
+      term = indexTermCreate(suid, ADD_VALUE, TSDB_DATA_TYPE_INT, key, nKey, (const char *)&val, len);
+    }
+    if (term != NULL) {
+      indexMultiTermAdd(terms, term);
+    }
+  }
+  indexJsonPut(pMeta->pTagIvtIdx, terms, tuid);
+  indexMultiTermDestroy(terms);
+#endif
+  return 0;
+}
+
 int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   SMetaEntry  me = {0};
   int         kLen = 0;
   int         vLen = 0;
   const void *pKey = NULL;
   const void *pVal = NULL;
-  void       *pBuf = NULL;
+  void *      pBuf = NULL;
   int32_t     szBuf = 0;
-  void       *p = NULL;
+  void *      p = NULL;
   SMetaReader mr = {0};
 
   // validate req
@@ -61,12 +141,12 @@ int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
 
   if (metaHandleEntry(pMeta, &me) < 0) goto _err;
 
-  metaDebug("vgId:%d super table is created, name:%s uid: %" PRId64, TD_VID(pMeta->pVnode), pReq->name, pReq->suid);
+  metaDebug("vgId:%d, super table is created, name:%s uid: %" PRId64, TD_VID(pMeta->pVnode), pReq->name, pReq->suid);
 
   return 0;
 
 _err:
-  metaError("vgId:%d failed to create super table: %s uid: %" PRId64 " since %s", TD_VID(pMeta->pVnode), pReq->name,
+  metaError("vgId:%d, failed to create super table: %s uid: %" PRId64 " since %s", TD_VID(pMeta->pVnode), pReq->name,
             pReq->suid, tstrerror(terrno));
   return -1;
 }
@@ -87,7 +167,7 @@ int metaDropSTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq) {
   }
 
   // drop all child tables
-  TBC    *pCtbIdxc = NULL;
+  TBC *   pCtbIdxc = NULL;
   SArray *pArray = taosArrayInit(8, sizeof(tb_uid_t));
 
   tdbTbcOpen(pMeta->pCtbIdx, &pCtbIdxc, &pMeta->txn);
@@ -135,15 +215,15 @@ _drop_super_table:
 _exit:
   tdbFree(pKey);
   tdbFree(pData);
-  metaDebug("vgId:%d  super table %s uid:%" PRId64 " is dropped", TD_VID(pMeta->pVnode), pReq->name, pReq->suid);
+  metaDebug("vgId:%d,  super table %s uid:%" PRId64 " is dropped", TD_VID(pMeta->pVnode), pReq->name, pReq->suid);
   return 0;
 }
 
 int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   SMetaEntry  oStbEntry = {0};
   SMetaEntry  nStbEntry = {0};
-  TBC        *pUidIdxc = NULL;
-  TBC        *pTbDbc = NULL;
+  TBC *       pUidIdxc = NULL;
+  TBC *       pTbDbc = NULL;
   const void *pData;
   int         nData;
   int64_t     oversion;
@@ -251,18 +331,18 @@ int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq) {
 
   if (metaHandleEntry(pMeta, &me) < 0) goto _err;
 
-  metaDebug("vgId:%d table %s uid %" PRId64 " is created, type:%" PRId8, TD_VID(pMeta->pVnode), pReq->name, pReq->uid,
+  metaDebug("vgId:%d, table %s uid %" PRId64 " is created, type:%" PRId8, TD_VID(pMeta->pVnode), pReq->name, pReq->uid,
             pReq->type);
   return 0;
 
 _err:
-  metaError("vgId:%d failed to create table:%s type:%s since %s", TD_VID(pMeta->pVnode), pReq->name,
+  metaError("vgId:%d, failed to create table:%s type:%s since %s", TD_VID(pMeta->pVnode), pReq->name,
             pReq->type == TSDB_CHILD_TABLE ? "child table" : "normal table", tstrerror(terrno));
   return -1;
 }
 
 int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq, SArray *tbUids) {
-  void    *pData = NULL;
+  void *   pData = NULL;
   int      nData = 0;
   int      rc = 0;
   tb_uid_t uid;
@@ -288,7 +368,7 @@ int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq, SArray *tbUi
 }
 
 static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type) {
-  void      *pData = NULL;
+  void *     pData = NULL;
   int        nData = 0;
   int        rc = 0;
   int64_t    version;
@@ -323,15 +403,15 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type) {
   return 0;
 }
 
-static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTbReq) {
-  void           *pVal = NULL;
+static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTbReq, STableMetaRsp *pMetaRsp) {
+  void *          pVal = NULL;
   int             nVal = 0;
-  const void     *pData = NULL;
+  const void *    pData = NULL;
   int             nData = 0;
   int             ret = 0;
   tb_uid_t        uid;
   int64_t         oversion;
-  SSchema        *pColumn = NULL;
+  SSchema *       pColumn = NULL;
   SMetaEntry      entry = {0};
   SSchemaWrapper *pSchema;
   int             c;
@@ -463,6 +543,8 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
 
   metaULock(pMeta);
 
+  metaUpdateMetaRsp(uid, pAlterTbReq->tbName, pSchema, pMetaRsp);
+
   if (pNewSchema) taosMemoryFree(pNewSchema);
   tDecoderClear(&dc);
   tdbTbcClose(pTbDbc);
@@ -479,7 +561,7 @@ _err:
 static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTbReq) {
   SMetaEntry  ctbEntry = {0};
   SMetaEntry  stbEntry = {0};
-  void       *pVal = NULL;
+  void *      pVal = NULL;
   int         nVal = 0;
   int         ret;
   int         c;
@@ -510,7 +592,7 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
   oversion = *(int64_t *)pData;
 
   // search table.db
-  TBC     *pTbDbc = NULL;
+  TBC *    pTbDbc = NULL;
   SDecoder dc1 = {0};
   SDecoder dc2 = {0};
 
@@ -534,7 +616,7 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
   metaDecodeEntry(&dc2, &stbEntry);
 
   SSchemaWrapper *pTagSchema = &stbEntry.stbEntry.schemaTag;
-  SSchema        *pColumn = NULL;
+  SSchema *       pColumn = NULL;
   int32_t         iCol = 0;
   for (;;) {
     pColumn = NULL;
@@ -564,8 +646,8 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
     memcpy((void *)ctbEntry.ctbEntry.pTags, pAlterTbReq->pTagVal, pAlterTbReq->nTagVal);
   } else {
     const STag *pOldTag = (const STag *)ctbEntry.ctbEntry.pTags;
-    STag       *pNewTag = NULL;
-    SArray     *pTagArray = taosArrayInit(pTagSchema->nCols, sizeof(STagVal));
+    STag *      pNewTag = NULL;
+    SArray *    pTagArray = taosArrayInit(pTagSchema->nCols, sizeof(STagVal));
     if (!pTagArray) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto _err;
@@ -584,7 +666,7 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
         }
         taosArrayPush(pTagArray, &val);
       } else {
-        STagVal val = {0};
+        STagVal val = {.cid = pCol->colId};
         if (tTagGet(pOldTag, &val)) {
           taosArrayPush(pTagArray, &val);
         }
@@ -629,13 +711,13 @@ static int metaUpdateTableOptions(SMeta *pMeta, int64_t version, SVAlterTbReq *p
   return 0;
 }
 
-int metaAlterTable(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq) {
+int metaAlterTable(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pMetaRsp) {
   switch (pReq->action) {
     case TSDB_ALTER_TABLE_ADD_COLUMN:
     case TSDB_ALTER_TABLE_DROP_COLUMN:
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
-      return metaAlterTableColumn(pMeta, version, pReq);
+      return metaAlterTableColumn(pMeta, version, pReq, pMetaRsp);
     case TSDB_ALTER_TABLE_UPDATE_TAG_VAL:
       return metaUpdateTableTagVal(pMeta, version, pReq);
     case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
@@ -649,8 +731,8 @@ int metaAlterTable(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq) {
 
 static int metaSaveToTbDb(SMeta *pMeta, const SMetaEntry *pME) {
   STbDbKey tbDbKey;
-  void    *pKey = NULL;
-  void    *pVal = NULL;
+  void *   pKey = NULL;
+  void *   pVal = NULL;
   int      kLen = 0;
   int      vLen = 0;
   SEncoder coder = {0};
@@ -733,16 +815,11 @@ static int metaUpdateCtbIdx(SMeta *pMeta, const SMetaEntry *pME) {
 
 int metaCreateTagIdxKey(tb_uid_t suid, int32_t cid, const void *pTagData, int32_t nTagData, int8_t type, tb_uid_t uid,
                         STagIdxKey **ppTagIdxKey, int32_t *nTagIdxKey) {
-  // int32_t nTagData = 0;
-
-  // if (pTagData) {
-  //   if (IS_VAR_DATA_TYPE(type)) {
-  //     nTagData = varDataTLen(pTagData);
-  //   } else {
-  //     nTagData = tDataTypes[type].bytes;
-  //   }
-  // }
-  *nTagIdxKey = sizeof(STagIdxKey) + nTagData + sizeof(tb_uid_t);
+  if (IS_VAR_DATA_TYPE(type)) {
+    *nTagIdxKey = sizeof(STagIdxKey) + nTagData + VARSTR_HEADER_SIZE + sizeof(tb_uid_t);
+  } else {
+    *nTagIdxKey = sizeof(STagIdxKey) + nTagData + sizeof(tb_uid_t);
+  }
 
   *ppTagIdxKey = (STagIdxKey *)taosMemoryMalloc(*nTagIdxKey);
   if (*ppTagIdxKey == NULL) {
@@ -754,8 +831,16 @@ int metaCreateTagIdxKey(tb_uid_t suid, int32_t cid, const void *pTagData, int32_
   (*ppTagIdxKey)->cid = cid;
   (*ppTagIdxKey)->isNull = (pTagData == NULL) ? 1 : 0;
   (*ppTagIdxKey)->type = type;
-  if (nTagData) memcpy((*ppTagIdxKey)->data, pTagData, nTagData);
-  *(tb_uid_t *)((*ppTagIdxKey)->data + nTagData) = uid;
+
+  // refactor
+  if (IS_VAR_DATA_TYPE(type)) {
+    memcpy((*ppTagIdxKey)->data, (uint16_t *)&nTagData, VARSTR_HEADER_SIZE);
+    memcpy((*ppTagIdxKey)->data + VARSTR_HEADER_SIZE, pTagData, nTagData);
+    *(tb_uid_t *)((*ppTagIdxKey)->data + VARSTR_HEADER_SIZE + nTagData) = uid;
+  } else {
+    memcpy((*ppTagIdxKey)->data, pTagData, nTagData);
+    *(tb_uid_t *)((*ppTagIdxKey)->data + nTagData) = uid;
+  }
 
   return 0;
 }
@@ -765,14 +850,14 @@ static void metaDestroyTagIdxKey(STagIdxKey *pTagIdxKey) {
 }
 
 static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
-  void          *pData = NULL;
+  void *         pData = NULL;
   int            nData = 0;
   STbDbKey       tbDbKey = {0};
   SMetaEntry     stbEntry = {0};
-  STagIdxKey    *pTagIdxKey = NULL;
+  STagIdxKey *   pTagIdxKey = NULL;
   int32_t        nTagIdxKey;
   const SSchema *pTagColumn;       // = &stbEntry.stbEntry.schema.pSchema[0];
-  const void    *pTagData = NULL;  //
+  const void *   pTagData = NULL;  //
   int32_t        nTagData = 0;
   SDecoder       dc = {0};
 
@@ -800,28 +885,16 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
   } else {
     // pTagData = pCtbEntry->ctbEntry.pTags;
     // nTagData = ((const STag *)pCtbEntry->ctbEntry.pTags)->len;
+    pTagData = pCtbEntry->ctbEntry.pTags;
+    nTagData = ((const STag *)pCtbEntry->ctbEntry.pTags)->len;
+    return metaSaveJsonVarToIdx(pMeta, pCtbEntry, pTagColumn);
   }
-
-  // update tag index
-#ifdef USE_INVERTED_INDEX
-  tb_uid_t suid = pCtbEntry->ctbEntry.suid;
-  tb_uid_t tuid = pCtbEntry->uid;
-
-  SIndexMultiTerm *tmGroup = indexMultiTermCreate();
-
-  SIndexTerm *tm = indexTermCreate(suid, ADD_VALUE, pTagColumn->type, pTagColumn->name, sizeof(pTagColumn->name),
-                                   pTagData, pTagData == NULL ? 0 : strlen(pTagData));
-  indexMultiTermAdd(tmGroup, tm);
-  int ret = indexPut((SIndex *)pMeta->pTagIvtIdx, tmGroup, tuid);
-  indexMultiTermDestroy(tmGroup);
-#else
   if (metaCreateTagIdxKey(pCtbEntry->ctbEntry.suid, pTagColumn->colId, pTagData, nTagData, pTagColumn->type,
                           pCtbEntry->uid, &pTagIdxKey, &nTagIdxKey) < 0) {
     return -1;
   }
   tdbTbInsert(pMeta->pTagIdx, pTagIdxKey, nTagIdxKey, NULL, 0, &pMeta->txn);
   metaDestroyTagIdxKey(pTagIdxKey);
-#endif
   tDecoderClear(&dc);
   tdbFree(pData);
   return 0;
@@ -829,7 +902,7 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
 
 static int metaSaveToSkmDb(SMeta *pMeta, const SMetaEntry *pME) {
   SEncoder              coder = {0};
-  void                 *pVal = NULL;
+  void *                pVal = NULL;
   int                   vLen = 0;
   int                   rcode = 0;
   SSkmDbKey             skmDbKey = {0};
@@ -906,10 +979,5 @@ _err:
   return -1;
 }
 // refactor later
-void *metaGetIdx(SMeta *pMeta) {
-#ifdef USE_INVERTED_INDEX
-  return pMeta->pTagIvtIdx;
-#else
-  return pMeta->pTagIdx;
-#endif
-}
+void *metaGetIdx(SMeta *pMeta) { return pMeta->pTagIdx; }
+void *metaGetIvtIdx(SMeta *pMeta) { return pMeta->pTagIvtIdx; }
