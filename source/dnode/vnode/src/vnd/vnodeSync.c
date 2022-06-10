@@ -187,6 +187,7 @@ static void vnodeSyncReconfig(struct SSyncFSM *pFsm, SSyncCfg newCfg, SReConfigC
   // todo rpc response here
   // build rpc msg
   // put into apply queue
+  vnodePostBlockMsg(pVnode, TDMT_VND_ALTER_REPLICA);
 }
 
 static void vnodeSyncCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {

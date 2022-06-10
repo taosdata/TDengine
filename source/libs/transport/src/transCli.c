@@ -1097,15 +1097,16 @@ void transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransM
   if (index == -1) {
     index = cliRBChoseIdx(pTransInst);
   }
+  tsem_t* sem = taosMemoryCalloc(1, sizeof(tsem_t));
+  tsem_init(sem, 0, 0);
 
   STransConnCtx* pCtx = taosMemoryCalloc(1, sizeof(STransConnCtx));
   pCtx->epSet = *pEpSet;
   pCtx->ahandle = pReq->info.ahandle;
   pCtx->msgType = pReq->msgType;
   pCtx->hThrdIdx = index;
-  pCtx->pSem = taosMemoryCalloc(1, sizeof(tsem_t));
+  pCtx->pSem = sem;
   pCtx->pRsp = pRsp;
-  tsem_init(pCtx->pSem, 0, 0);
 
   SCliMsg* cliMsg = taosMemoryCalloc(1, sizeof(SCliMsg));
   cliMsg->ctx = pCtx;
@@ -1118,10 +1119,9 @@ void transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransM
          EPSET_GET_INUSE_IP(&pCtx->epSet), EPSET_GET_INUSE_PORT(&pCtx->epSet), pReq->info.ahandle);
 
   transSendAsync(thrd->asyncPool, &(cliMsg->q));
-  tsem_t* pSem = pCtx->pSem;
-  tsem_wait(pSem);
-  tsem_destroy(pSem);
-  taosMemoryFree(pSem);
+  tsem_wait(sem);
+  tsem_destroy(sem);
+  taosMemoryFree(sem);
 }
 
 /*
