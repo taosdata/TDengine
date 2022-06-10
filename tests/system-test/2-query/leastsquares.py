@@ -231,25 +231,24 @@ class TDTestCase:
 
 
     def __test_current(self):
-        tdSql.query("explain select c1 from ct1")
-        tdSql.query("explain select 1 from ct2")
-        tdSql.query("explain select cast(ceil(c6) as bigint) from ct4 group by c6")
-        tdSql.query("explain select count(c3) from ct4 group by c7 having count(c3) > 0")
-        tdSql.query("explain select ct2.c3 from ct4 join ct2 on ct4.ts=ct2.ts")
-        tdSql.query("explain select c1 from stb1 where c1 is not null and c1 in (0, 1, 2) or c1 between 2 and 100 ")
+        # tdSql.query("explain select c1 from ct1")
+        # tdSql.query("explain select 1 from ct2")
+        # tdSql.query("explain select cast(ceil(c6) as bigint) from ct4 group by c6")
+        # tdSql.query("explain select count(c3) from ct4 group by c7 having count(c3) > 0")
+        # tdSql.query("explain select ct2.c3 from ct4 join ct2 on ct4.ts=ct2.ts")
+        # tdSql.query("explain select c1 from stb1 where c1 is not null and c1 in (0, 1, 2) or c1 between 2 and 100 ")
 
         self.leastsquares_check()
 
     def __test_error(self):
 
         tdLog.printNoPrefix("===step 0: err case, must return err")
-        tdSql.error( "explain select hyperloglog(c1) from ct8" )
-        tdSql.error( "explain show databases " )
-        tdSql.error( "explain show stables " )
-        tdSql.error( "explain show tables " )
-        tdSql.error( "explain show vgroups " )
-        tdSql.error( "explain show dnodes " )
-        tdSql.error( '''explain select hyperloglog(['c1 + c1', 'c1 + c2', 'c1 + c3', 'c1 + c4', 'c1 + c5', 'c1 + c6', 'c1 + c7', 'c1 + c8', 'c1 + c9', 'c1 + c10'])
+        tdSql.error( "select leastsquares(c1) from ct8" )
+        tdSql.error( "select leastsquares(c1, 1) from  ct1 " )
+        tdSql.error( "select leastsquares(c1, null, 1) from  ct1 " )
+        tdSql.error( "select leastsquares(c1, 1, null) from  ct1 " )
+        tdSql.error( "select leastsquares(null, 1, 1) from  ct1 " )
+        tdSql.error( '''select leastsquares(['c1 + c1', 'c1 + c2', 'c1 + c3', 'c1 + c4', 'c1 + c5', 'c1 + c6', 'c1 + c7', 'c1 + c8', 'c1 + c9', 'c1 + c10'])
                     from ct1
                     where ['c1 + c1', 'c1 + c2', 'c1 + c3', 'c1 + c4', 'c1 + c5', 'c1 + c6', 'c1 + c7', 'c1 + c8', 'c1 + c9', 'c1 + c10'] is not null
                     group by ['c1 + c1', 'c1 + c2', 'c1 + c3', 'c1 + c4', 'c1 + c5', 'c1 + c6', 'c1 + c7', 'c1 + c8', 'c1 + c9', 'c1 + c10']
