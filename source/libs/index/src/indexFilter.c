@@ -318,7 +318,7 @@ int sifLessThan(void *a, void *b, int16_t dtype) {
 }
 int sifEqual(void *a, void *b, int16_t dtype) {
   __compar_fn_t func = getComparFunc(dtype, 0);
-  //__compar_fn_t func = indexGetCompar(dtype);
+  //__compar_fn_t func = idxGetCompar(dtype);
   return (int)tDoCompare(func, QUERY_TERM, a, b);
 }
 static Filter sifGetFilterFunc(EIndexQueryType type, bool *reverse) {
@@ -355,7 +355,7 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
 
     SIndexMultiTermQuery *mtm = indexMultiTermQueryCreate(MUST);
     indexMultiTermQueryAdd(mtm, tm, qtype);
-    ret = tIndexJsonSearch(arg->ivtIdx, mtm, output->result);
+    ret = indexJsonSearch(arg->ivtIdx, mtm, output->result);
   } else {
     bool   reverse;
     Filter filterFunc = sifGetFilterFunc(qtype, &reverse);

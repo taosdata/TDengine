@@ -22,17 +22,17 @@ static void dmSendRsp(SRpcMsg *pMsg);
 static void dmBuildMnodeRedirectRsp(SDnode *pDnode, SRpcMsg *pMsg);
 
 static inline int32_t dmBuildNodeMsg(SRpcMsg *pMsg, SRpcMsg *pRpc) {
-  SRpcConnInfo connInfo = {0};
-  if (IsReq(pRpc) && rpcGetConnInfo(pRpc->info.handle, &connInfo) != 0) {
-    terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
-    dError("failed to build msg since %s, app:%p handle:%p", terrstr(), pRpc->info.ahandle, pRpc->info.handle);
-    return -1;
-  }
+  SRpcConnInfo *pConnInfo = &(pRpc->info.connInfo);
+  // if (IsReq(pRpc)) {
+  //  terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
+  //  dError("failed to build msg since %s, app:%p handle:%p", terrstr(), pRpc->info.ahandle, pRpc->info.handle);
+  //  return -1;
+  //}
 
   memcpy(pMsg, pRpc, sizeof(SRpcMsg));
-  memcpy(pMsg->conn.user, connInfo.user, TSDB_USER_LEN);
-  pMsg->conn.clientIp = connInfo.clientIp;
-  pMsg->conn.clientPort = connInfo.clientPort;
+  memcpy(pMsg->conn.user, pConnInfo->user, TSDB_USER_LEN);
+  pMsg->conn.clientIp = pConnInfo->clientIp;
+  pMsg->conn.clientPort = pConnInfo->clientPort;
   return 0;
 }
 
@@ -49,9 +49,9 @@ int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
 }
 
 static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
-  SDnodeTrans  *pTrans = &pDnode->trans;
+  SDnodeTrans * pTrans = &pDnode->trans;
   int32_t       code = -1;
-  SRpcMsg      *pMsg = NULL;
+  SRpcMsg *     pMsg = NULL;
   SMgmtWrapper *pWrapper = NULL;
   SDnodeHandle *pHandle = &pTrans->msgHandles[TMSG_INDEX(pRpc->msgType)];
 
@@ -167,11 +167,11 @@ int32_t dmInitMsgHandle(SDnode *pDnode) {
 
   for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
-    SArray       *pArray = (*pWrapper->func.getHandlesFp)();
+    SArray *      pArray = (*pWrapper->func.getHandlesFp)();
     if (pArray == NULL) return -1;
 
     for (int32_t i = 0; i < taosArrayGetSize(pArray); ++i) {
-      SMgmtHandle  *pMgmt = taosArrayGet(pArray, i);
+      SMgmtHandle * pMgmt = taosArrayGet(pArray, i);
       SDnodeHandle *pHandle = &pTrans->msgHandles[TMSG_INDEX(pMgmt->msgType)];
       if (pMgmt->needCheckVgId) {
         pHandle->needCheckVgId = pMgmt->needCheckVgId;

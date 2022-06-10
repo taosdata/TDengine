@@ -737,8 +737,8 @@ static bool isStateWindow(SStreamBlockScanInfo* pInfo) {
 static bool prepareDataScan(SStreamBlockScanInfo* pInfo) {
   SSDataBlock* pSDB = pInfo->pUpdateRes;
   STimeWindow  win = {
-      .skey = INT64_MIN,
-      .ekey = INT64_MAX,
+       .skey = INT64_MIN,
+       .ekey = INT64_MAX,
   };
   bool needRead = false;
   if (!isStateWindow(pInfo) && pInfo->updateResIndex < pSDB->info.rows) {
@@ -846,7 +846,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
   size_t total = taosArrayGetSize(pInfo->pBlockLists);
   if (pInfo->blockType == STREAM_DATA_TYPE_SSDATA_BLOCK) {
     if (pInfo->validBlockIndex >= total) {
-      doClearBufferedBlocks(pInfo);
+      /*doClearBufferedBlocks(pInfo);*/
       pOperator->status = OP_EXEC_DONE;
       return NULL;
     }
@@ -1756,6 +1756,7 @@ SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysi
   ;
   pInfo->readHandle = *pReadHandle;
   pInfo->curPos = 0;
+  pInfo->pFilterNode = pPhyNode->node.pConditions;
   pOperator->name = "TagScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN;
   pOperator->blocking = false;

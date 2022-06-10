@@ -308,9 +308,11 @@ static FORCE_INLINE int32_t streamTaskOutput(SStreamTask* pTask, SStreamDataBloc
   if (pTask->sinkType == TASK_SINK__TABLE) {
     ASSERT(pTask->dispatchType == TASK_DISPATCH__NONE);
     pTask->tbSink.tbSinkFunc(pTask, pTask->tbSink.vnode, 0, pBlock->blocks);
+    taosFreeQitem(pBlock);
   } else if (pTask->sinkType == TASK_SINK__SMA) {
     ASSERT(pTask->dispatchType == TASK_DISPATCH__NONE);
     pTask->smaSink.smaSink(pTask->smaSink.vnode, pTask->smaSink.smaId, pBlock->blocks);
+    taosFreeQitem(pBlock);
   } else {
     ASSERT(pTask->dispatchType != TASK_DISPATCH__NONE);
     taosWriteQitem(pTask->outputQueue->queue, pBlock);
@@ -339,6 +341,7 @@ typedef struct {
   int32_t sourceTaskId;
   int32_t sourceVg;
   int32_t sourceChildId;
+  int32_t upstreamNodeId;
 #if 0
   int64_t sourceVer;
 #endif
