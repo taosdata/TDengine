@@ -401,10 +401,12 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
                   cbMeta.currentTerm = ths->pRaftStore->currentTerm;
                   cbMeta.index = pEntry->index;
                   cbMeta.term = pEntry->term;
+                  cbMeta.newCfg = newSyncCfg;
                   cbMeta.oldCfg = oldSyncCfg;
+                  cbMeta.seqNum = pEntry->seqNum;
                   cbMeta.flag = 0x11;
                   cbMeta.isDrop = isDrop;
-                  ths->pFsm->FpReConfigCb(ths->pFsm, newSyncCfg, cbMeta);
+                  ths->pFsm->FpReConfigCb(ths->pFsm, &rpcMsg, cbMeta);
                 }
               }
 

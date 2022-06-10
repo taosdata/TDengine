@@ -175,20 +175,34 @@ int32_t syncSetStandby(int64_t rid) {
 
 int32_t syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg) {
   int32_t ret = 0;
-  char*   configChange = syncCfg2Str((SSyncCfg*)pSyncCfg);
+  char*   newconfig = syncCfg2Str((SSyncCfg*)pSyncCfg);
 
   if (gRaftDetailLog) {
-    sInfo("==syncReconfig== newconfig:%s", configChange);
+    sInfo("==syncReconfig== newconfig:%s", newconfig);
   }
 
   SRpcMsg rpcMsg = {0};
   rpcMsg.msgType = TDMT_SYNC_CONFIG_CHANGE;
   rpcMsg.info.noResp = 1;
-  rpcMsg.contLen = strlen(configChange) + 1;
+  rpcMsg.contLen = strlen(newconfig) + 1;
   rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
-  snprintf(rpcMsg.pCont, rpcMsg.contLen, "%s", configChange);
-  taosMemoryFree(configChange);
+  snprintf(rpcMsg.pCont, rpcMsg.contLen, "%s", newconfig);
+  taosMemoryFree(newconfig);
   ret = syncPropose(rid, &rpcMsg, false);
+  return ret;
+}
+
+int32_t syncReconfigRaw(int64_t rid, const SSyncCfg* pNewCfg, SRpcMsg* pRpcMsg) {
+  int32_t ret = 0;
+  char*   newconfig = syncCfg2Str((SSyncCfg*)pNewCfg);
+
+  pRpcMsg->msgType = TDMT_SYNC_CONFIG_CHANGE;
+  pRpcMsg->info.noResp = 1;
+  pRpcMsg->contLen = strlen(newconfig) + 1;
+  pRpcMsg->pCont = rpcMallocCont(pRpcMsg->contLen);
+  snprintf(pRpcMsg->pCont, pRpcMsg->contLen, "%s", newconfig);
+  taosMemoryFree(newconfig);
+
   return ret;
 }
 
@@ -1814,10 +1828,12 @@ int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex,
             cbMeta.currentTerm = ths->pRaftStore->currentTerm;
             cbMeta.index = pEntry->index;
             cbMeta.term = pEntry->term;
+            cbMeta.newCfg = newSyncCfg;
             cbMeta.oldCfg = oldSyncCfg;
+            cbMeta.seqNum = pEntry->seqNum;
             cbMeta.flag = 0x11;
             cbMeta.isDrop = isDrop;
-            ths->pFsm->FpReConfigCb(ths->pFsm, newSyncCfg, cbMeta);
+            ths->pFsm->FpReConfigCb(ths->pFsm, &rpcMsg, cbMeta);
           }
         }
 
