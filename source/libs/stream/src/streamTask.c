@@ -16,14 +16,13 @@
 #include "executor.h"
 #include "tstream.h"
 
-SStreamTask* tNewSStreamTask(int64_t streamId, int32_t childId) {
+SStreamTask* tNewSStreamTask(int64_t streamId) {
   SStreamTask* pTask = (SStreamTask*)taosMemoryCalloc(1, sizeof(SStreamTask));
   if (pTask == NULL) {
     return NULL;
   }
   pTask->taskId = tGenIdPI32();
   pTask->streamId = streamId;
-  pTask->childId = childId;
   pTask->status = TASK_STATUS__IDLE;
   pTask->inputStatus = TASK_INPUT_STATUS__NORMAL;
   pTask->outputStatus = TASK_OUTPUT_STATUS__NORMAL;
@@ -48,7 +47,6 @@ int32_t tEncodeSStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   if (tEncodeSEpSet(pEncoder, &pTask->epSet) < 0) return -1;
 
   if (pTask->execType != TASK_EXEC__NONE) {
-    if (tEncodeI8(pEncoder, pTask->exec.parallelizable) < 0) return -1;
     if (tEncodeCStr(pEncoder, pTask->exec.qmsg) < 0) return -1;
   }
 
@@ -96,7 +94,6 @@ int32_t tDecodeSStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   if (tDecodeSEpSet(pDecoder, &pTask->epSet) < 0) return -1;
 
   if (pTask->execType != TASK_EXEC__NONE) {
-    if (tDecodeI8(pDecoder, &pTask->exec.parallelizable) < 0) return -1;
     if (tDecodeCStrAlloc(pDecoder, &pTask->exec.qmsg) < 0) return -1;
   }
 

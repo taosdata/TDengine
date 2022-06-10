@@ -1205,6 +1205,7 @@ typedef struct {
   int8_t  completed;  // all results are returned to client
   int8_t  precision;
   int8_t  compressed;
+  int8_t  streamBlockType;
   int32_t compLen;
   int32_t numOfRows;
   int32_t numOfCols;

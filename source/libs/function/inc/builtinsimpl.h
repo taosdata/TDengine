@@ -116,7 +116,10 @@ int32_t getSpreadInfoSize();
 bool getElapsedFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool elapsedFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t elapsedFunction(SqlFunctionCtx* pCtx);
+int32_t elapsedFunctionMerge(SqlFunctionCtx* pCtx);
 int32_t elapsedFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+int32_t elapsedPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+int32_t getElapsedInfoSize();
 
 bool getHistogramFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool histogramFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
@@ -148,17 +151,14 @@ int32_t mavgFunction(SqlFunctionCtx* pCtx);
 bool getSampleFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool sampleFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t sampleFunction(SqlFunctionCtx* pCtx);
-//int32_t sampleFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
 bool getTailFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool tailFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t tailFunction(SqlFunctionCtx* pCtx);
-//int32_t tailFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
 bool getUniqueFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool uniqueFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t uniqueFunction(SqlFunctionCtx *pCtx);
-//int32_t uniqueFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
 bool getTwaFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool twaFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
@@ -166,6 +166,8 @@ int32_t twaFunction(SqlFunctionCtx *pCtx);
 int32_t twaFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock);
 
 bool getSelectivityFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+int32_t blockDistFunction(SqlFunctionCtx *pCtx);
+int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
 #ifdef __cplusplus
 }
