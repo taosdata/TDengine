@@ -167,7 +167,7 @@ class TDTestCase:
                     where_claus = self.__where_condition(query_conditon=select_claus)
                     having_claus = self.__group_condition(col=select_claus, having=f"{select_claus} is not null")
                     for arg in self.start_step_val:
-                        if not  isinstance(arg,int):
+                        if not  isinstance(arg,int) or isinstance(arg, bool):
                             err_sqls.extend(
                                 (
                                     self.__single_sql(select_clause=select_claus, from_clause=tb, start_val=arg),
