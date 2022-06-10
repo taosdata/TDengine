@@ -922,7 +922,7 @@ static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransActio
   char    detail[1024] = {0};
   int32_t len = snprintf(detail, sizeof(detail), "msgType:%s numOfEps:%d inUse:%d", TMSG_INFO(pAction->msgType),
                          pAction->epSet.numOfEps, pAction->epSet.inUse);
-  for (int32_t i = 0; i < pTrans->lastErrorEpset.numOfEps; ++i) {
+  for (int32_t i = 0; i < pAction->epSet.numOfEps; ++i) {
     len += snprintf(detail + len, sizeof(detail) - len, " ep:%d-%s:%u", i, pAction->epSet.eps[i].fqdn,
                     pAction->epSet.eps[i].port);
   }
@@ -1085,6 +1085,8 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
     }
 
     if (code == 0) {
+      if (!pMnode->deploy && !mndIsMaster(pMnode)) break;
+
       pTrans->code = 0;
       pTrans->redoActionPos++;
       mDebug("trans:%d, %s:%d is executed and need sync to other mnodes", pTrans->id, mndTransStr(pAction->stage),
@@ -1386,6 +1388,10 @@ void mndTransPullup(SMnode *pMnode) {
     mndReleaseTrans(pMnode, pTrans);
   }
 
+  SSnapshotMeta sMeta = {0};
+  if (syncGetSnapshotMeta(pMnode->syncMgmt.sync, &sMeta) == 0) {
+    sdbSetCurConfig(pMnode->pSdb, sMeta.lastConfigIndex);
+  }
   sdbWriteFile(pMnode->pSdb);
   taosArrayDestroy(pArray);
 }

@@ -102,6 +102,8 @@ bool getTopBotFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv);
 int32_t topFunction(SqlFunctionCtx *pCtx);
 int32_t bottomFunction(SqlFunctionCtx *pCtx);
 int32_t topBotFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+int32_t topCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
+int32_t bottomCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 
 bool getSpreadFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool spreadFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);

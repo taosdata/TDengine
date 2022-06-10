@@ -49,8 +49,8 @@ void    raftStoreClearVote(SRaftStore *pRaftStore);
 void    raftStoreNextTerm(SRaftStore *pRaftStore);
 void    raftStoreSetTerm(SRaftStore *pRaftStore, SyncTerm term);
 int32_t raftStoreFromJson(SRaftStore *pRaftStore, cJSON *pJson);
-cJSON * raftStore2Json(SRaftStore *pRaftStore);
-char *  raftStore2Str(SRaftStore *pRaftStore);
+cJSON  *raftStore2Json(SRaftStore *pRaftStore);
+char   *raftStore2Str(SRaftStore *pRaftStore);
 
 // for debug -------------------
 void raftStorePrint(SRaftStore *pObj);

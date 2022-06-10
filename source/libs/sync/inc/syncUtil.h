@@ -61,6 +61,7 @@ bool        syncUtilIsData(tmsg_t msgType);
 bool        syncUtilUserPreCommit(tmsg_t msgType);
 bool        syncUtilUserCommit(tmsg_t msgType);
 bool        syncUtilUserRollback(tmsg_t msgType);
+void        syncUtilJson2Line(char* jsonStr);
 
 #ifdef __cplusplus
 }
