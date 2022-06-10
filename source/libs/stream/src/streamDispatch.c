@@ -100,6 +100,7 @@ int32_t streamBuildDispatchMsg(SStreamTask* pTask, SStreamDataBlock* data, SRpcM
       .upstreamNodeId = pTask->nodeId,
       .blockNum = blockNum,
   };
+  qInfo("dispatch from task %d (child id %d)", pTask->taskId, pTask->childId);
 
   req.data = taosArrayInit(blockNum, sizeof(void*));
   req.dataLen = taosArrayInit(blockNum, sizeof(int32_t));
