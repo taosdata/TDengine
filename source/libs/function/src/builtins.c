@@ -444,6 +444,64 @@ static int32_t translateElapsed(SFunctionNode* pFunc, char* pErrBuf, int32_t len
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateElapsedImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isPartial) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+
+  if (isPartial) {
+    if (1 != numOfParams && 2 != numOfParams) {
+      return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+    if (TSDB_DATA_TYPE_TIMESTAMP != paraType) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    // param1
+    if (2 == numOfParams) {
+      SNode* pParamNode1 = nodesListGetNode(pFunc->pParameterList, 1);
+      if (QUERY_NODE_VALUE != nodeType(pParamNode1)) {
+        return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+      }
+
+      SValueNode* pValue = (SValueNode*)pParamNode1;
+
+      pValue->notReserved = true;
+
+      paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
+      if (!IS_INTEGER_TYPE(paraType)) {
+        return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+      }
+
+      if (pValue->datum.i == 0) {
+        return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                               "ELAPSED function time unit parameter should be greater than db precision");
+      }
+    }
+
+    pFunc->node.resType = (SDataType){.bytes = getElapsedInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  } else {
+    if (1 != numOfParams) {
+      return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+    if (TSDB_DATA_TYPE_BINARY != paraType) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+    pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateElapsedPartial(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateElapsedImpl(pFunc, pErrBuf, len, true);
+}
+
+static int32_t translateElapsedMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateElapsedImpl(pFunc, pErrBuf, len, false);
+}
+
 static int32_t translateLeastSQR(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   if (3 != numOfParams) {
@@ -1261,6 +1319,17 @@ static int32_t translateSelectValue(SFunctionNode* pFunc, char* pErrBuf, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateBlockDistFunc(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  pFunc->node.resType = (SDataType) {.bytes = 128, .type = TSDB_DATA_TYPE_VARCHAR};
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool getBlockDistFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(STableBlockDistInfo);
+  return true;
+}
+
+
 // clang-format off
 const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
@@ -1468,6 +1537,30 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getElapsedFuncEnv,
     .initFunc     = elapsedFunctionSetup,
     .processFunc  = elapsedFunction,
+    .finalizeFunc = elapsedFinalize,
+    .pPartialFunc = "_elapsed_partial",
+    .pMergeFunc   = "_elapsed_merge"
+  },
+  {
+    .name = "_elapsed_partial",
+    .type = FUNCTION_TYPE_ELAPSED,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .dataRequiredFunc = statisDataRequired,
+    .translateFunc = translateElapsedPartial,
+    .getEnvFunc   = getElapsedFuncEnv,
+    .initFunc     = elapsedFunctionSetup,
+    .processFunc  = elapsedFunction,
+    .finalizeFunc = elapsedPartialFinalize
+  },
+  {
+    .name = "_elapsed_merge",
+    .type = FUNCTION_TYPE_ELAPSED,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .dataRequiredFunc = statisDataRequired,
+    .translateFunc = translateElapsedMerge,
+    .getEnvFunc   = getElapsedFuncEnv,
+    .initFunc     = elapsedFunctionSetup,
+    .processFunc  = elapsedFunctionMerge,
     .finalizeFunc = elapsedFinalize
   },
   {
@@ -2035,6 +2128,15 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = functionSetup,
     .processFunc  = NULL,
     .finalizeFunc = NULL
+  },
+  {
+    .name = "_block_dist",
+    .type = FUNCTION_TYPE_BLOCK_DIST,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateBlockDistFunc,
+    .getEnvFunc   = getBlockDistFuncEnv,
+    .processFunc  = blockDistFunction,
+    .finalizeFunc = blockDistFinalize
   }
 };
 // clang-format on

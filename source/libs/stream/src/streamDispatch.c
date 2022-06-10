@@ -72,6 +72,7 @@ static int32_t streamAddBlockToDispatchMsg(const SSDataBlock* pBlock, SStreamDis
   pRetrieve->precision = TSDB_DEFAULT_PRECISION;
   pRetrieve->compressed = 0;
   pRetrieve->completed = 1;
+  pRetrieve->streamBlockType = pBlock->info.type;
   pRetrieve->numOfRows = htonl(pBlock->info.rows);
   pRetrieve->numOfCols = htonl(pBlock->info.numOfCols);
 
@@ -99,6 +100,7 @@ int32_t streamBuildDispatchMsg(SStreamTask* pTask, SStreamDataBlock* data, SRpcM
       .upstreamNodeId = pTask->nodeId,
       .blockNum = blockNum,
   };
+  qInfo("dispatch from task %d (child id %d)", pTask->taskId, pTask->childId);
 
   req.data = taosArrayInit(blockNum, sizeof(void*));
   req.dataLen = taosArrayInit(blockNum, sizeof(int32_t));

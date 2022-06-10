@@ -121,6 +121,7 @@ typedef enum EFunctionType {
 
   // internal function
   FUNCTION_TYPE_SELECT_VALUE,
+  FUNCTION_TYPE_BLOCK_DIST,   // block distribution aggregate function
 
   // distributed splitting functions
   FUNCTION_TYPE_APERCENTILE_PARTIAL,
@@ -131,6 +132,8 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_HISTOGRAM_MERGE,
   FUNCTION_TYPE_HYPERLOGLOG_PARTIAL,
   FUNCTION_TYPE_HYPERLOGLOG_MERGE,
+  FUNCTION_TYPE_ELAPSED_PARTIAL,
+  FUNCTION_TYPE_ELAPSED_MERGE,
 
   // user defined funcion
   FUNCTION_TYPE_UDF = 10000
