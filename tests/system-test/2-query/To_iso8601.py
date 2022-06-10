@@ -15,9 +15,6 @@ class TDTestCase:
         self.rowNum = 10
         self.ts = 1640966400000  # 2022-1-1 00:00:00.000
     def check_customize_param_ms(self):
-        # today_date = datetime.datetime.strptime(
-        #     datetime.datetime.now().strftime("%Y-%m-%d"), "%Y-%m-%d")
-        # print(today_date)
         
         time_zone = os.popen('date "+%z"').read().strip()
         tdSql.execute('create database db1 precision "ms"')
@@ -45,7 +42,7 @@ class TDTestCase:
         error_param_list = [0,100.5,'a','!']
         for i in error_param_list:
             tdSql.error(f'select to_iso8601(ts,"{i}") from ntb')
-        # bug TD-16372:对于错误的时区，缺少校验
+        #! bug TD-16372:对于错误的时区，缺少校验
         error_timezone_param = ['+13','-13','+1300','-1300','+0001','-0001','-0330','+0330']
         for i in error_timezone_param:
             tdSql.error(f'select to_iso8601(ts,"{i}") from ntb')
