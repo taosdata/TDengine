@@ -34,11 +34,11 @@ typedef enum { MATCH, CONTINUE, BREAK } TExeCond;
 
 typedef TExeCond (*_cache_range_compare)(void* a, void* b, int8_t type);
 
-__compar_fn_t indexGetCompar(int8_t type);
+__compar_fn_t idxGetCompar(int8_t type);
 TExeCond      tCompare(__compar_fn_t func, int8_t cmpType, void* a, void* b, int8_t dType);
 TExeCond      tDoCompare(__compar_fn_t func, int8_t cmpType, void* a, void* b);
 
-_cache_range_compare indexGetCompare(RangeType ty);
+_cache_range_compare idxGetCompare(RangeType ty);
 
 int32_t idxConvertData(void* src, int8_t type, void** dst);
 int32_t idxConvertDataToStr(void* src, int8_t type, void** dst);

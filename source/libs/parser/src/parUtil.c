@@ -542,6 +542,9 @@ int32_t buildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalog
   if (TSDB_CODE_SUCCESS == code) {
     code = buildUdfReq(pMetaCache->pUdf, &pCatalogReq->pUdf);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildTableReq(pMetaCache->pTableIndex, &pCatalogReq->pTableIndex);
+  }
   return code;
 }
 
@@ -627,6 +630,9 @@ int32_t putMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMet
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = putUdfToCache(pCatalogReq->pUdf, pMetaData->pUdfList, pMetaCache->pUdf);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = putTableDataToCache(pCatalogReq->pTableIndex, pMetaData->pTableIndex, pMetaCache->pTableIndex);
   }
   return code;
 }
@@ -838,7 +844,7 @@ int32_t getTableIndexFromCache(SParseMetaCache* pMetaCache, const SName* pName, 
   tNameExtractFullName(pName, fullName);
   SArray* pSmaIndexes = NULL;
   int32_t code = getMetaDataFromHash(fullName, strlen(fullName), pMetaCache->pTableIndex, (void**)&pSmaIndexes);
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS == code && NULL != pSmaIndexes) {
     *pIndexes = smaIndexesDup(pSmaIndexes);
     if (NULL == *pIndexes) {
       code = TSDB_CODE_OUT_OF_MEMORY;

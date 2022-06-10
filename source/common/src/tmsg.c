@@ -2419,7 +2419,7 @@ int32_t tDeserializeSTableIndexReq(void *buf, int32_t bufLen, STableIndexReq *pR
   return 0;
 }
 
-int32_t tSerializeSTableIndexInfo(SEncoder *pEncoder, STableIndexInfo* pInfo) {
+int32_t tSerializeSTableIndexInfo(SEncoder *pEncoder, STableIndexInfo *pInfo) {
   if (tEncodeI8(pEncoder, pInfo->intervalUnit) < 0) return -1;
   if (tEncodeI8(pEncoder, pInfo->slidingUnit) < 0) return -1;
   if (tEncodeI64(pEncoder, pInfo->interval) < 0) return -1;
@@ -2441,7 +2441,7 @@ int32_t tSerializeSTableIndexRsp(void *buf, int32_t bufLen, const STableIndexRsp
   if (tEncodeI32(&encoder, num) < 0) return -1;
   if (num > 0) {
     for (int32_t i = 0; i < num; ++i) {
-      STableIndexInfo* pInfo = (STableIndexInfo*)taosArrayGet(pRsp->pIndex, i);
+      STableIndexInfo *pInfo = (STableIndexInfo *)taosArrayGet(pRsp->pIndex, i);
       if (tSerializeSTableIndexInfo(&encoder, pInfo) < 0) return -1;
     }
   }
@@ -2491,6 +2491,15 @@ int32_t tDeserializeSTableIndexRsp(void *buf, int32_t bufLen, STableIndexRsp *pR
   return 0;
 }
 
+void tFreeSTableIndexInfo(void *info) {
+  if (NULL == info) {
+    return;
+  }
+
+  STableIndexInfo *pInfo = (STableIndexInfo *)info;
+
+  taosMemoryFree(pInfo->expr);
+}
 
 int32_t tSerializeSShowReq(void *buf, int32_t bufLen, SShowReq *pReq) {
   SEncoder encoder = {0};
@@ -3433,6 +3442,31 @@ int32_t tDeserializeSRedistributeVgroupReq(void *buf, int32_t bufLen, SRedistrib
   if (tDecodeI32(&decoder, &pReq->dnodeId1) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->dnodeId2) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->dnodeId3) < 0) return -1;
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+int32_t tSerializeSSplitVgroupReq(void *buf, int32_t bufLen, SSplitVgroupReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->vgId) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSSplitVgroupReq(void *buf, int32_t bufLen, SSplitVgroupReq *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->vgId) < 0) return -1;
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);

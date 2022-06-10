@@ -220,6 +220,7 @@ static int32_t makeScanLogicNode(SLogicPlanContext* pCxt, SRealTableNode* pRealT
   }
 
   TSWAP(pScan->pVgroupList, pRealTable->pVgroupList);
+  TSWAP(pScan->pSmaIndexes, pRealTable->pSmaIndexes);
   pScan->tableId = pRealTable->pMeta->uid;
   pScan->stableId = pRealTable->pMeta->suid;
   pScan->tableType = pRealTable->pMeta->tableType;
@@ -272,10 +273,10 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 
   // set output
   if (TSDB_CODE_SUCCESS == code) {
-    code = createColumnByRewriteExps(pScan->pScanCols, &pScan->node.pTargets);
+    code = createColumnByRewriteExprs(pScan->pScanCols, &pScan->node.pTargets);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = createColumnByRewriteExps(pScan->pScanPseudoCols, &pScan->node.pTargets);
+    code = createColumnByRewriteExprs(pScan->pScanPseudoCols, &pScan->node.pTargets);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -441,10 +442,10 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
 
   // set the output
   if (TSDB_CODE_SUCCESS == code && NULL != pAgg->pGroupKeys) {
-    code = createColumnByRewriteExps(pAgg->pGroupKeys, &pAgg->node.pTargets);
+    code = createColumnByRewriteExprs(pAgg->pGroupKeys, &pAgg->node.pTargets);
   }
   if (TSDB_CODE_SUCCESS == code && NULL != pAgg->pAggFuncs) {
-    code = createColumnByRewriteExps(pAgg->pAggFuncs, &pAgg->node.pTargets);
+    code = createColumnByRewriteExprs(pAgg->pAggFuncs, &pAgg->node.pTargets);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -475,7 +476,7 @@ static int32_t createIndefRowsFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt
 
   // set the output
   if (TSDB_CODE_SUCCESS == code) {
-    code = createColumnByRewriteExps(pIdfRowsFunc->pVectorFuncs, &pIdfRowsFunc->node.pTargets);
+    code = createColumnByRewriteExprs(pIdfRowsFunc->pVectorFuncs, &pIdfRowsFunc->node.pTargets);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -505,7 +506,7 @@ static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStm
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = createColumnByRewriteExps(pWindow->pFuncs, &pWindow->node.pTargets);
+    code = createColumnByRewriteExprs(pWindow->pFuncs, &pWindow->node.pTargets);
   }
 
   pSelect->hasAggFuncs = false;
@@ -776,7 +777,7 @@ static int32_t createDistinctLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSe
 
   // set the output
   if (TSDB_CODE_SUCCESS == code) {
-    code = createColumnByRewriteExps(pAgg->pGroupKeys, &pAgg->node.pTargets);
+    code = createColumnByRewriteExprs(pAgg->pGroupKeys, &pAgg->node.pTargets);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -918,7 +919,7 @@ static int32_t createSetOpAggLogicNode(SLogicPlanContext* pCxt, SSetOperator* pS
 
   // set the output
   if (TSDB_CODE_SUCCESS == code) {
-    code = createColumnByRewriteExps(pAgg->pGroupKeys, &pAgg->node.pTargets);
+    code = createColumnByRewriteExprs(pAgg->pGroupKeys, &pAgg->node.pTargets);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -1040,7 +1041,7 @@ static int32_t createDeleteScanLogicNode(SLogicPlanContext* pCxt, SDeleteStmt* p
 
   // set output
   if (TSDB_CODE_SUCCESS == code) {
-    code = createColumnByRewriteExps(pScan->pScanCols, &pScan->node.pTargets);
+    code = createColumnByRewriteExprs(pScan->pScanCols, &pScan->node.pTargets);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -1064,7 +1065,7 @@ static int32_t createDeleteAggLogicNode(SLogicPlanContext* pCxt, SDeleteStmt* pD
   }
   // set the output
   if (TSDB_CODE_SUCCESS == code) {
-    code = createColumnByRewriteExps(pAgg->pAggFuncs, &pAgg->node.pTargets);
+    code = createColumnByRewriteExprs(pAgg->pAggFuncs, &pAgg->node.pTargets);
   }
 
   if (TSDB_CODE_SUCCESS == code) {

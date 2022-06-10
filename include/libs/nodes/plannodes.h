@@ -305,6 +305,7 @@ typedef struct SDownstreamSourceNode {
 typedef struct SExchangePhysiNode {
   SPhysiNode node;
   int32_t    srcGroupId;     // group id of datasource suplans
+  bool       singleChannel;
   SNodeList* pSrcEndPoints;  // element is SDownstreamSource, scheduler fill by calling qSetSuplanExecutionNode
 } SExchangePhysiNode;
 

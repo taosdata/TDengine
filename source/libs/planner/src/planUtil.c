@@ -69,13 +69,30 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-int32_t createColumnByRewriteExps(SNodeList* pExprs, SNodeList** pList) {
+int32_t createColumnByRewriteExprs(SNodeList* pExprs, SNodeList** pList) {
   SCreateColumnCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pList = (NULL == *pList ? nodesMakeList() : *pList)};
   if (NULL == cxt.pList) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   nodesWalkExprs(pExprs, doCreateColumn, &cxt);
+  if (TSDB_CODE_SUCCESS != cxt.errCode) {
+    nodesDestroyList(cxt.pList);
+    return cxt.errCode;
+  }
+  if (NULL == *pList) {
+    *pList = cxt.pList;
+  }
+  return cxt.errCode;
+}
+
+int32_t createColumnByRewriteExpr(SNode* pExpr, SNodeList** pList) {
+  SCreateColumnCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pList = (NULL == *pList ? nodesMakeList() : *pList)};
+  if (NULL == cxt.pList) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  nodesWalkExpr(pExpr, doCreateColumn, &cxt);
   if (TSDB_CODE_SUCCESS != cxt.errCode) {
     nodesDestroyList(cxt.pList);
     return cxt.errCode;

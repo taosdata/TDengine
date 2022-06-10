@@ -116,6 +116,8 @@ typedef struct SQueryTableDataCond {
   int32_t      type;              // data block load type:
   int32_t      numOfTWindows;
   STimeWindow* twindows;
+  int32_t      startVersion;
+  int32_t      endVersion;
 } SQueryTableDataCond;
 
 void*   blockDataDestroy(SSDataBlock* pBlock);
@@ -159,18 +161,24 @@ typedef struct SColumn {
 } SColumn;
 
 typedef struct STableBlockDistInfo {
-  uint16_t rowSize;
+  uint32_t rowSize;
   uint16_t numOfFiles;
   uint32_t numOfTables;
+  uint32_t numOfBlocks;
   uint64_t totalSize;
   uint64_t totalRows;
   int32_t  maxRows;
   int32_t  minRows;
+  int32_t  defMinRows;
+  int32_t  defMaxRows;
   int32_t  firstSeekTimeUs;
-  uint32_t numOfRowsInMemTable;
+  uint32_t numOfInmemRows;
   uint32_t numOfSmallBlocks;
-  SArray*  dataBlockInfos;
+  int32_t  blockRowsHisto[20];
 } STableBlockDistInfo;
+
+int32_t tSerializeBlockDistInfo(void* buf, int32_t bufLen, const STableBlockDistInfo* pInfo);
+int32_t tDeserializeBlockDistInfo(void* buf, int32_t bufLen, STableBlockDistInfo* pInfo);
 
 enum {
   FUNC_PARAM_TYPE_VALUE = 0x1,

@@ -183,6 +183,9 @@ class MockCatalogServiceImpl {
     if (TSDB_CODE_SUCCESS == code) {
       code = getAllUdf(pCatalogReq->pUdf, &pMetaData->pUdfList);
     }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = getAllTableIndex(pCatalogReq->pTableIndex, &pMetaData->pTableIndex);
+    }
     return code;
   }
 
@@ -498,6 +501,19 @@ class MockCatalogServiceImpl {
         res.pRes = taosMemoryCalloc(1, sizeof(SFuncInfo));
         res.code = catalogGetUdfInfo((char*)taosArrayGet(pUdfReq, i), (SFuncInfo*)res.pRes);
         taosArrayPush(*pUdfData, &res);
+      }
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t getAllTableIndex(SArray* pTableIndex, SArray** pTableIndexData) const {
+    if (NULL != pTableIndex) {
+      int32_t num = taosArrayGetSize(pTableIndex);
+      *pTableIndexData = taosArrayInit(num, sizeof(SMetaRes));
+      for (int32_t i = 0; i < num; ++i) {
+        SMetaRes res = {0};
+        res.code = catalogGetTableIndex((const SName*)taosArrayGet(pTableIndex, i), (SArray**)(&res.pRes));
+        taosArrayPush(*pTableIndexData, &res);
       }
     }
     return TSDB_CODE_SUCCESS;

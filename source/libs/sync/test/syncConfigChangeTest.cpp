@@ -93,7 +93,6 @@ SSyncFSM* createFsm() {
   pFsm->FpGetSnapshot = GetSnapshotCb;
   pFsm->FpRestoreFinishCb = RestoreFinishCb;
 
-
   pFsm->FpReConfigCb = ReConfigCb;
 
   return pFsm;

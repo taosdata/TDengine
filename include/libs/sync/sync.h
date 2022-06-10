@@ -88,10 +88,15 @@ typedef struct SReConfigCbMeta {
 } SReConfigCbMeta;
 
 typedef struct SSnapshot {
-  void *data;
+  void*     data;
   SyncIndex lastApplyIndex;
   SyncTerm  lastApplyTerm;
+  SyncIndex lastConfigIndex;
 } SSnapshot;
+
+typedef struct SSnapshotMeta {
+  SyncIndex lastConfigIndex;
+} SSnapshotMeta;
 
 typedef struct SSyncFSM {
   void* data;
@@ -141,10 +146,28 @@ typedef struct SSyncLogStore {
   // return commit index of log
   SyncIndex (*getCommitIndex)(struct SSyncLogStore* pLogStore);
 
+  // refactor, log[0 .. n] ==> log[m .. n]
+  int32_t (*syncLogSetBeginIndex)(struct SSyncLogStore* pLogStore, SyncIndex beginIndex);
+  int32_t (*syncLogResetBeginIndex)(struct SSyncLogStore* pLogStore);
+  SyncIndex (*syncLogBeginIndex)(struct SSyncLogStore* pLogStore);
+  SyncIndex (*syncLogEndIndex)(struct SSyncLogStore* pLogStore);
+  bool (*syncLogIsEmpty)(struct SSyncLogStore* pLogStore);
+  int32_t (*syncLogEntryCount)(struct SSyncLogStore* pLogStore);
+  bool (*syncLogInRange)(struct SSyncLogStore* pLogStore, SyncIndex index);
+
+  SyncIndex (*syncLogWriteIndex)(struct SSyncLogStore* pLogStore);
+  SyncIndex (*syncLogLastIndex)(struct SSyncLogStore* pLogStore);
+  SyncTerm (*syncLogLastTerm)(struct SSyncLogStore* pLogStore);
+
+  int32_t (*syncLogAppendEntry)(struct SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry);
+  int32_t (*syncLogGetEntry)(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncRaftEntry** ppEntry);
+  int32_t (*syncLogTruncate)(struct SSyncLogStore* pLogStore, SyncIndex fromIndex);
+
 } SSyncLogStore;
 
 typedef struct SSyncInfo {
   bool        isStandBy;
+  bool        snapshotEnable;
   SyncGroupId vgId;
   SSyncCfg    syncCfg;
   char        path[TSDB_FILENAME_LEN];
@@ -171,6 +194,8 @@ int32_t     syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak);
 bool        syncEnvIsStart();
 const char* syncStr(ESyncState state);
 bool        syncIsRestoreFinish(int64_t rid);
+
+int32_t syncGetSnapshotMeta(int64_t rid, struct SSnapshotMeta* sMeta);
 
 // to be moved to static
 void syncStartNormal(int64_t rid);

@@ -41,6 +41,7 @@ typedef struct STranslateContext {
   SHashObj*        pTables;
   SExplainOptions* pExplainOpt;
   SParseMetaCache* pMetaCache;
+  bool             createStream;
 } STranslateContext;
 
 typedef struct SFullDatabaseName {
@@ -1385,6 +1386,17 @@ static bool isSingleTable(SRealTableNode* pRealTable) {
   return (TSDB_CHILD_TABLE == tableType || TSDB_NORMAL_TABLE == tableType);
 }
 
+static int32_t setTableIndex(STranslateContext* pCxt, SName* pName, SRealTableNode* pRealTable) {
+  if (pCxt->createStream) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (NULL != pCxt->pCurrSelectStmt && NULL != pCxt->pCurrSelectStmt->pWindow &&
+      QUERY_NODE_INTERVAL_WINDOW == nodeType(pCxt->pCurrSelectStmt->pWindow)) {
+    return getTableIndex(pCxt, pName, &pRealTable->pSmaIndexes);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pTable)) {
@@ -1402,7 +1414,7 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
         }
         code = setTableVgroupList(pCxt, &name, pRealTable);
         if (TSDB_CODE_SUCCESS == code) {
-          code = getTableIndex(pCxt, &name, &pRealTable->pSmaIndexes);
+          code = setTableIndex(pCxt, &name, pRealTable);
         }
       }
       pRealTable->table.precision = pRealTable->pMeta->tableInfo.precision;
@@ -2013,179 +2025,6 @@ static int32_t rewriteTimelineFunc(STranslateContext* pCxt, SSelectStmt* pSelect
   nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FROM, rewriteTimelineFuncImpl, pCxt);
   return pCxt->errCode;
 }
-
-#if 0
-
-typedef struct SSmaIndexMatchFuncsCxt {
-  int32_t    errCode;
-  uint64_t   tableId;
-  SNodeList* pSmaFuncs;
-  SNodeList* pUseFuncs;
-  SNodeList* pUseCols;
-  SArray*    pUseMap;
-  bool       match;
-} SSmaIndexMatchFuncsCxt;
-
-
-
-static int32_t collectSmaFunc(SSmaIndexMatchFuncsCxt* pCxt, int32_t index, SNode* pSmaFunc) {
-  if (NULL == pCxt->pUseMap) {
-    int32_t nfuncs = LIST_LENGTH(pCxt->pSmaFuncs);
-    pCxt->pUseMap = taosArrayInit(nfuncs, sizeof(int32_t));
-    if (NULL == pCxt->pUseMap) {
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-    int32_t initPos = -1;
-    for (int32_t i = 0; i < nfuncs; ++i) {
-      taosArrayPush(pCxt->pUseMap, &initPos);
-    }
-  }
-  int32_t pos = *(int32_t*)taosArrayGet(pCxt->pUseMap, index);
-  if (pos < 0) {
-    pos = LIST_LENGTH(pCxt->pUseFuncs);
-    taosArraySet(pCxt->pUseMap, index, &pos);
-    int32_t code =
-        nodesListMakeStrictAppend(&pCxt->pUseCols, createColumnFromSmaFunc(pCxt->tableId, index, (SExprNode*)pSmaFunc));
-    if (TSDB_CODE_SUCCESS == code) {
-      code = nodesListMakeStrictAppend(&pCxt->pUseFuncs, nodesCloneNode(pSmaFunc));
-    }
-    return code;
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
-
-static EDealRes matchSmaFuncsImpl(SNode* pNode, void* pContext) {
-  SSmaIndexMatchFuncsCxt* pCxt = pContext;
-
-  bool found = false;
-  pCxt->errCode = findSmaFunc(pCxt, pNode, &found);
-  if (TSDB_CODE_SUCCESS != pCxt->errCode) {
-    return DEAL_RES_ERROR;
-  }
-
-  if (found) {
-    pCxt->match = true;
-    return DEAL_RES_IGNORE_CHILD;
-  }
-
-  if (isVectorFunc(pNode)) {
-    pCxt->match = false;
-    return DEAL_RES_END;
-  }
-
-  return DEAL_RES_CONTINUE;
-}
-
-static int32_t matchSmaFuncs(SSelectStmt* pSelect, STableIndexInfo* pIndex, SNodeList* pSmaFuncs, SNodeList** pFuncs,
-                             SNodeList** pCols) {
-  SSmaIndexMatchFuncsCxt cxt = {.errCode = TSDB_CODE_SUCCESS,
-                                .tableId = pIndex->dstTbUid,
-                                .pSmaFuncs = pSmaFuncs,
-                                .pUseFuncs = NULL,
-                                .pUseCols = NULL,
-                                .pUseMap = NULL,
-                                .match = false};
-  nodesWalkExprs(pSelect->pProjectionList, matchSmaFuncsImpl, &cxt);
-  if (TSDB_CODE_SUCCESS == cxt.errCode && cxt.match) {
-    *pFuncs = cxt.pUseFuncs;
-    *pCols = cxt.pUseCols;
-  } else {
-    nodesDestroyList(cxt.pUseFuncs);
-    nodesDestroyList(cxt.pUseCols);
-  }
-  taosArrayDestroy(cxt.pUseMap);
-  return cxt.errCode;
-}
-
-
-
-typedef struct SSmaIndexRewriteFuncsCxt {
-  int32_t    errCode;
-  SNodeList* pFuncs;
-  SNodeList* pCols;
-} SSmaIndexRewriteFuncsCxt;
-
-static EDealRes rewriteFuncBySmaIndex(SNode** pNode, void* pContext) {
-  if (isAggFunc(*pNode)) {
-    SSmaIndexRewriteFuncsCxt* pCxt = pContext;
-    SNode*                    pFunc;
-    int32_t                   index = 0;
-    FOREACH(pFunc, pCxt->pFuncs) {
-      if (nodesEqualNode(pFunc, *pNode)) {
-        SNode* pNew = nodesCloneNode(nodesListGetNode(pCxt->pCols, index));
-        if (NULL == pNew) {
-          pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
-          return DEAL_RES_ERROR;
-        }
-        nodesDestroyNode(*pNode);
-        *pNode = pNew;
-        return DEAL_RES_IGNORE_CHILD;
-      }
-      ++index;
-    }
-  }
-  return DEAL_RES_CONTINUE;
-}
-
-static int32_t rewriteTableBySmaIndex(SSelectStmt* pSelect, STableIndexInfo* pMatchIndex) {
-  nodesDestroyNode(pSelect->pFromTable);
-  SRealTableNode* pRealTable = nodesMakeNode(QUERY_NODE_REAL_TABLE);
-  if (NULL == pRealTable) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  pRealTable->table.singleTable = true;
-  strcpy(pRealTable->table.tableName, SMA_TABLE_NAME);
-  pRealTable->pMeta = taosMemoryCalloc(1, sizeof(STableMeta));
-  if (NULL == pRealTable->pMeta) {
-    nodesDestroyNode(pRealTable);
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  pRealTable->pMeta->vgId = pMatchIndex->dstVgId;
-  pRealTable->pMeta->uid = pMatchIndex->dstTbUid;
-  pRealTable->pVgroupList = taosMemoryCalloc(1, sizeof(SVgroupsInfo));
-  if (NULL == pRealTable->pVgroupList) {
-    nodesDestroyNode(pRealTable);
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  // todo
-  pSelect->pFromTable = (SNode*)pRealTable;
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t rewriteSelectBySmaIndex(SSelectStmt* pSelect, STableIndexInfo* pMatchIndex, SNodeList* pFuncs,
-                                       SNodeList* pCols) {
-  SSmaIndexRewriteFuncsCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pFuncs = pFuncs, .pCols = pCols};
-  nodesRewriteExprs(pSelect->pProjectionList, rewriteFuncBySmaIndex, &cxt);
-  if (TSDB_CODE_SUCCESS == cxt.errCode) {
-    cxt.errCode = rewriteTableBySmaIndex(pSelect, pMatchIndex);
-  }
-  return cxt.errCode;
-}
-
-static int32_t attemptApplySmaIndexImpl(STranslateContext* pCxt, SSelectStmt* pSelect, SArray* pIndexes) {
-  if (NULL == pIndexes) {
-    return TSDB_CODE_SUCCESS;
-  }
-  int32_t nindexes = taosArrayGetSize(pIndexes);
-  for (int32_t i = 0; i < nindexes; ++i) {
-    STableIndexInfo* pIndex = taosArrayGet(pIndexes, i);
-    SNodeList*       pFuncs = NULL;
-    SNodeList*       pCols = NULL;
-    if (TSDB_CODE_SUCCESS != couldApplySmaIndex(pCxt, pSelect, pIndex, &pFuncs, &pCols)) {
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-    if (NULL != pFuncs) {
-      int32_t code = rewriteSelectBySmaIndex(pSelect, pIndex, pFuncs, pCols);
-      nodesDestroyList(pFuncs);
-      nodesDestroyList(pCols);
-      return code;
-    }
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
-#endif
 
 static int32_t translateSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->pCurrSelectStmt = pSelect;
@@ -2929,7 +2768,8 @@ typedef struct SSampleAstInfo {
   STableMeta* pRollupTableMeta;
 } SSampleAstInfo;
 
-static int32_t buildSampleAst(STranslateContext* pCxt, SSampleAstInfo* pInfo, char** pAst, int32_t* pLen) {
+static int32_t buildSampleAst(STranslateContext* pCxt, SSampleAstInfo* pInfo, char** pAst, int32_t* pLen, char** pExpr,
+                              int32_t* pExprLen) {
   SSelectStmt* pSelect = nodesMakeNode(QUERY_NODE_SELECT_STMT);
   if (NULL == pSelect) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -2974,9 +2814,13 @@ static int32_t buildSampleAst(STranslateContext* pCxt, SSampleAstInfo* pInfo, ch
   ((SColumnNode*)pInterval->pCol)->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
   strcpy(((SColumnNode*)pInterval->pCol)->colName, PK_TS_COL_INTERNAL_NAME);
 
+  pCxt->createStream = true;
   int32_t code = translateQuery(pCxt, (SNode*)pSelect);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesNodeToString(pSelect, false, pAst, pLen);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != pExpr) {
+    code = nodesListToString(pSelect->pProjectionList, false, pExpr, pExprLen);
   }
   nodesDestroyNode(pSelect);
   return code;
@@ -3099,7 +2943,7 @@ static int32_t getRollupAst(STranslateContext* pCxt, SCreateTableStmt* pStmt, SR
   SSampleAstInfo info = {0};
   int32_t        code = buildSampleAstInfoByTable(pCxt, pStmt, pRetension, precision, &info);
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildSampleAst(pCxt, &info, pAst, pLen);
+    code = buildSampleAst(pCxt, &info, pAst, pLen, NULL, NULL);
   }
   clearSampleAstInfo(&info);
   return code;
@@ -3357,10 +3201,6 @@ static int32_t getSmaIndexSql(STranslateContext* pCxt, char** pSql, int32_t* pLe
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t getSmaIndexExpr(STranslateContext* pCxt, SCreateIndexStmt* pStmt, char** pExpr, int32_t* pLen) {
-  return nodesListToString(pStmt->pOptions->pFuncs, false, pExpr, pLen);
-}
-
 static int32_t buildSampleAstInfoByIndex(STranslateContext* pCxt, SCreateIndexStmt* pStmt, SSampleAstInfo* pInfo) {
   pInfo->pDbName = pCxt->pParseCxt->db;
   pInfo->pTableName = pStmt->tableName;
@@ -3376,11 +3216,12 @@ static int32_t buildSampleAstInfoByIndex(STranslateContext* pCxt, SCreateIndexSt
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t getSmaIndexAst(STranslateContext* pCxt, SCreateIndexStmt* pStmt, char** pAst, int32_t* pLen) {
+static int32_t getSmaIndexAst(STranslateContext* pCxt, SCreateIndexStmt* pStmt, char** pAst, int32_t* pLen,
+                              char** pExpr, int32_t* pExprLen) {
   SSampleAstInfo info = {0};
   int32_t        code = buildSampleAstInfoByIndex(pCxt, pStmt, &info);
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildSampleAst(pCxt, &info, pAst, pLen);
+    code = buildSampleAst(pCxt, &info, pAst, pLen, pExpr, pExprLen);
   }
   clearSampleAstInfo(&info);
   return code;
@@ -3406,10 +3247,7 @@ static int32_t buildCreateSmaReq(STranslateContext* pCxt, SCreateIndexStmt* pStm
     code = getSmaIndexSql(pCxt, &pReq->sql, &pReq->sqlLen);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = getSmaIndexExpr(pCxt, pStmt, &pReq->expr, &pReq->exprLen);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = getSmaIndexAst(pCxt, pStmt, &pReq->ast, &pReq->astLen);
+    code = getSmaIndexAst(pCxt, pStmt, &pReq->ast, &pReq->astLen, &pReq->expr, &pReq->exprLen);
   }
 
   return code;
@@ -3692,6 +3530,7 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
     tNameExtractFullName(&name, pReq->targetStbFullName);
   }
 
+  pCxt->createStream = true;
   int32_t code = translateQuery(pCxt, pStmt->pQuery);
   if (TSDB_CODE_SUCCESS == code) {
     getSourceDatabase(pStmt->pQuery, pCxt->pParseCxt->acctId, pReq->sourceDB);
@@ -3877,6 +3716,11 @@ static int32_t translateRedistributeVgroup(STranslateContext* pCxt, SRedistribut
   return code;
 }
 
+static int32_t translateSplitVgroup(STranslateContext* pCxt, SSplitVgroupStmt* pStmt) {
+  SSplitVgroupReq req = {.vgId = pStmt->vgId};
+  return buildCmdMsg(pCxt, TDMT_MND_SPLIT_VGROUP, (FSerializeFunc)tSerializeSSplitVgroupReq, &req);
+}
+
 static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pNode)) {
@@ -4007,6 +3851,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:
       code = translateRedistributeVgroup(pCxt, (SRedistributeVgroupStmt*)pNode);
+      break;
+    case QUERY_NODE_SPLIT_VGROUP_STMT:
+      code = translateSplitVgroup(pCxt, (SSplitVgroupStmt*)pNode);
       break;
     default:
       break;
