@@ -678,6 +678,7 @@ static int32_t jsonToLogicExchangeNode(const SJson* pJson, void* pObj) {
 }
 
 static const char* jkMergeLogicPlanMergeKeys = "MergeKeys";
+static const char* jkMergeLogicPlanInputs = "Inputs";
 static const char* jkMergeLogicPlanNumOfChannels = "NumOfChannels";
 static const char* jkMergeLogicPlanSrcGroupId = "SrcGroupId";
 
@@ -687,6 +688,9 @@ static int32_t logicMergeNodeToJson(const void* pObj, SJson* pJson) {
   int32_t code = logicPlanNodeToJson(pObj, pJson);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkMergeLogicPlanMergeKeys, pNode->pMergeKeys);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkMergeLogicPlanInputs, pNode->pInputs);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkMergeLogicPlanNumOfChannels, pNode->numOfChannels);
@@ -704,6 +708,9 @@ static int32_t jsonToLogicMergeNode(const SJson* pJson, void* pObj) {
   int32_t code = jsonToLogicPlanNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkMergeLogicPlanMergeKeys, &pNode->pMergeKeys);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkMergeLogicPlanInputs, &pNode->pInputs);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetIntValue(pJson, jkMergeLogicPlanNumOfChannels, &pNode->numOfChannels);
