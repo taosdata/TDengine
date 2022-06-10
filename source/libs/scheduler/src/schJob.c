@@ -1514,7 +1514,7 @@ int32_t schExecJob(SSchedulerReq *pReq, int64_t *pJob, SQueryResult *pRes) {
   if (EXPLAIN_MODE_STATIC == pReq->pDag->explainInfo.mode) {
     SCH_ERR_JRET(schExecStaticExplainJob(pReq, pJob, true));
   } else {
-    SCH_ERR_JRET(schExecJobImpl(pReq, pJob, pRes, true));
+    SCH_ERR_JRET(schExecJobImpl(pReq, pJob, NULL, true));
   }
 
 _return:

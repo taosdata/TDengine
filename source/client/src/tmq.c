@@ -1162,7 +1162,7 @@ int32_t tmqPollImpl(tmq_t* tmq, int64_t timeout) {
       pParam->vgId = pVg->vgId;
       pParam->epoch = tmq->epoch;
 
-      SMsgSendInfo* sendInfo = taosMemoryMalloc(sizeof(SMsgSendInfo));
+      SMsgSendInfo* sendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
       if (sendInfo == NULL) {
         taosMemoryFree(pReq);
         taosMemoryFree(pParam);
