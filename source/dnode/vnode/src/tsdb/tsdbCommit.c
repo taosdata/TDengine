@@ -21,6 +21,7 @@ struct SCommitter {
   STsdb   *pTsdb;
   uint8_t *pBuf1;
   uint8_t *pBuf2;
+  uint8_t *pBuf3;
   /* commit data */
   int32_t minutes;
   int8_t  precision;
@@ -37,12 +38,10 @@ struct SCommitter {
   STbData   *pTbData;
   SBlockIdx *pBlockIdx;
   /* commit del */
-  SDelFReader *pTombstoneReader;
-  SDelFWriter *pTombstoneWritter;
-  SDelIdx      delIdxO;
-  SDelIdx      delIdxN;
-  SDelData     delDataO;
-  SDelData     delDataN;
+  SDelFReader *pDelFReader;
+  SDelFWriter *pDelFWriter;
+  SDelIdx      oDelIdx;
+  SDelIdx      nDelIdx;
   /* commit cache */
 };
 
@@ -164,8 +163,35 @@ _err:
 }
 
 static int32_t tsdbCommitDelStart(SCommitter *pCommitter) {
-  int32_t code = 0;
-  // TODO
+  int32_t    code = 0;
+  STsdb     *pTsdb = pCommitter->pTsdb;
+  SMemTable *pMemTable = pTsdb->imem;
+  SDelFile  *pDelFileR = NULL;  // TODO
+  SDelFile  *pDelFileW = NULL;  // TODO
+
+  if (pDelFileR) {
+    code = tsdbDelFReaderOpen(&pCommitter->pDelFReader, pDelFileR);
+    if (code) {
+      goto _err;
+    }
+
+    code = tsdbReadDelIdx(pCommitter->pDelFReader, &pCommitter->oDelIdx, &pCommitter->pBuf1);
+    if (code) {
+      goto _err;
+    }
+  }
+
+  code = tsdbDelFWriterOpen(&pCommitter->pDelFWriter, pDelFileW);
+  if (code) {
+    goto _err;
+  }
+
+_exit:
+  tsdbDebug("vgId:%d commit del start", TD_VID(pTsdb->pVnode));
+  return code;
+
+_err:
+  tsdbError("vgId:%d commit del start failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -182,36 +208,36 @@ static int32_t tsdbCommitDelImpl(SCommitter *pCommitter) {
   SDelIdx   *pDelIdx = NULL;
 
   while (iTbData < nTbData || iDelIdx < nDelIdx) {
-    if (iTbData < nTbData) {
-      pTbData = (STbData *)taosArrayGetP(pMemTable->aTbData, iTbData);
-    } else {
-      pTbData = NULL;
-    }
-    if (iDelIdx < nDelIdx) {
-      // pDelIdx = ; // TODO
-    } else {
-      pDelIdx = NULL;
-    }
+    // if (iTbData < nTbData) {
+    //   pTbData = (STbData *)taosArrayGetP(pMemTable->aTbData, iTbData);
+    // } else {
+    //   pTbData = NULL;
+    // }
+    // if (iDelIdx < nDelIdx) {
+    //   // pDelIdx = ; // TODO
+    // } else {
+    //   pDelIdx = NULL;
+    // }
 
-    if (pTbData && pDelIdx) {
-      c = tTABLEIDCmprFn(pTbData, pDelIdx);
-      if (c == 0) {
-        iTbData++;
-        iDelIdx++;
-      } else if (c < 0) {
-        iTbData++;
-        pDelIdx = NULL;
-      } else {
-        iDelIdx++;
-        pTbData = NULL;
-      }
-    } else {
-      if (pTbData) {
-        iTbData++;
-      } else {
-        iDelIdx++;
-      }
-    }
+    // if (pTbData && pDelIdx) {
+    //   c = tTABLEIDCmprFn(pTbData, pDelIdx);
+    //   if (c == 0) {
+    //     iTbData++;
+    //     iDelIdx++;
+    //   } else if (c < 0) {
+    //     iTbData++;
+    //     pDelIdx = NULL;
+    //   } else {
+    //     iDelIdx++;
+    //     pTbData = NULL;
+    //   }
+    // } else {
+    //   if (pTbData) {
+    //     iTbData++;
+    //   } else {
+    //     iDelIdx++;
+    //   }
+    // }
 
     // TODO: commit with the pTbData and pDelIdx
   }
@@ -221,8 +247,6 @@ static int32_t tsdbCommitDelImpl(SCommitter *pCommitter) {
 
 static int32_t tsdbCommitDelEnd(SCommitter *pCommitter) {
   int32_t code = 0;
-
-  ASSERT(pCommitter->delIdxN.nItem > 0);
 
   return code;
 
@@ -235,7 +259,7 @@ static int32_t tsdbCommitDel(SCommitter *pCommitter) {
   STsdb     *pTsdb = pCommitter->pTsdb;
   SMemTable *pMemTable = pTsdb->imem;
 
-  if (pMemTable->nDelOp == 0) {
+  if (pMemTable->nDel == 0) {
     goto _exit;
   }
 
@@ -258,9 +282,11 @@ static int32_t tsdbCommitDel(SCommitter *pCommitter) {
   }
 
 _exit:
+  tsdbDebug("vgId:%d commit del data, nDel:%" PRId64, TD_VID(pTsdb->pVnode), pMemTable->nDel);
   return code;
 
 _err:
+  tsdbError("vgId:%d failed to commit del data since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
   return code;
 }
 

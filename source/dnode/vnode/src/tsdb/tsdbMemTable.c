@@ -47,7 +47,7 @@ int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable) {
   pMemTable->minKey = (TSDBKEY){.ts = TSKEY_MAX, .version = INT64_MAX};
   pMemTable->maxKey = (TSDBKEY){.ts = TSKEY_MIN, .version = -1};
   pMemTable->nRow = 0;
-  pMemTable->nDelOp = 0;
+  pMemTable->nDel = 0;
   pMemTable->aTbData = taosArrayInit(128, sizeof(STbData *));
   if (pMemTable->aTbData == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -174,7 +174,7 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
 
   // update the state of pMemTable and other (todo)
 
-  pMemTable->nDelOp++;
+  pMemTable->nDel++;
 
   tsdbError("vgId:%d delete data from table suid:%" PRId64 " uid:%" PRId64 " skey:%" PRId64 " eKey:%" PRId64
             " since %s",

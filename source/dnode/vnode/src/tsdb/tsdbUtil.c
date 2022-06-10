@@ -52,3 +52,25 @@ int32_t tsdbKeyCmprFn(const void *p1, const void *p2) {
 
   return 0;
 }
+
+int32_t tPutSDelIdx(uint8_t *p, SDelIdx *pDelIdx) {
+  int32_t n = 0;
+
+  n += tPutU32(p ? p + n : p, pDelIdx->delimiter);
+  n += tPutU8(p ? p + n : p, pDelIdx->flags);
+  n += tPutBinary(p ? p + n : p, pDelIdx->pOffset, pDelIdx->nOffset);
+  n += tPutBinary(p ? p + n : p, pDelIdx->pData, pDelIdx->nData);
+
+  return n;
+}
+
+int32_t tGetSDelIdx(uint8_t *p, SDelIdx *pDelIdx) {
+  int32_t n = 0;
+
+  n += tGetU32(p + n, &pDelIdx->delimiter);
+  n += tGetU8(p + n, &pDelIdx->flags);
+  n += tGetBinary(p + n, &pDelIdx->pOffset, &pDelIdx->nOffset);
+  n += tGetBinary(p + n, &pDelIdx->pData, &pDelIdx->nData);
+
+  return n;
+}

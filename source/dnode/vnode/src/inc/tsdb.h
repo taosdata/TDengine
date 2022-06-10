@@ -78,6 +78,12 @@ int32_t tsdbFSEnd(STsdbFS *pFS, int8_t rollback);
 typedef struct SDelData SDelData;
 typedef struct SDelIdx  SDelIdx;
 
+// SDataFWriter
+typedef struct SDataFWriter SDataFWriter;
+
+// SDataFReader
+typedef struct SDataFReader SDataFReader;
+
 // SDelFWriter
 typedef struct SDelFWriter SDelFWriter;
 
@@ -89,10 +95,16 @@ int32_t tsdbWriteDelIdx(SDelFWriter *pWriter, SDelIdx *pDelIdx, uint8_t **ppBuf)
 // SDelFReader
 typedef struct SDelFReader SDelFReader;
 
-int32_t tsdbDelFReaderOpen(SDelFReader *pReader, SDelFile *pFile);
+int32_t tsdbDelFReaderOpen(SDelFReader **ppReader, SDelFile *pFile);
 int32_t tsdbDelFReaderClose(SDelFReader *pReader);
 int32_t tsdbReadDelData(SDelFReader *pReader, SDelData *pDelData, uint8_t **ppBuf);
 int32_t tsdbReadDelIdx(SDelFReader *pReader, SDelIdx *pDelIdx, uint8_t **ppBuf);
+
+// SCacheFWriter
+typedef struct SCacheFWriter SCacheFWriter;
+
+// SCacheFReader
+typedef struct SCacheFReader SCacheFReader;
 
 // tsdbCommit.c ==============================================================================================
 
@@ -314,7 +326,7 @@ struct SMemTable {
   TSDBKEY  minKey;
   TSDBKEY  maxKey;
   int64_t  nRow;
-  int64_t  nDelOp;
+  int64_t  nDel;
   SArray  *aTbData;  // SArray<STbData*>
 };
 
@@ -782,10 +794,11 @@ typedef struct {
 
 struct SDelIdx {
   uint32_t delimiter;
-  int8_t   flags;
-  int64_t  nItem;
+  uint8_t  flags;
+  uint32_t nOffset;
   uint8_t *pOffset;
-  uint8_t *pDelIdxItem;
+  uint32_t nData;
+  uint8_t *pData;
 };
 
 #endif

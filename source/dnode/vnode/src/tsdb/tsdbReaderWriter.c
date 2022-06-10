@@ -109,7 +109,7 @@ struct SDelFReader {
   TdFilePtr pReadH;
 };
 
-int32_t tsdbDelFReaderOpen(SDelFReader *pReader, SDelFile *pFile) {
+int32_t tsdbDelFReaderOpen(SDelFReader **ppReader, SDelFile *pFile) {
   int32_t code = 0;
   // TODO
   return code;
