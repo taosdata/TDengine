@@ -12,14 +12,18 @@ First, you need to install the `taospy` module version >= `2.3.3`. Run the comma
 
 <Tabs>
 <TabItem value="pip" label="pip">
+
 ```
 pip3 install taospy>=2.3.3
 ```
+
 </TabItem>
-<TabItem value="conda" label="Anaconda">
+<TabItem value="conda" label="conda">
+
 ```
 conda install taospy=2.3.3
 ```
+
 </TabItem>
 </Tabs>
 

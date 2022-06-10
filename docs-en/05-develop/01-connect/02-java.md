@@ -10,6 +10,7 @@ import TabItem from '@theme/TabItem';
 
 <Tabs>
 <TabItem value="maven" label="Maven">
+
 ```xml
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
@@ -17,13 +18,16 @@ import TabItem from '@theme/TabItem';
   <version>2.0.39</version>
 </dependency>
 ```
+
 </TabItem>
 <TabItem value="gradel" label="Gradle">
+
 ```groovy
 dependencies {
   implementation 'com.taosdata.jdbc:taos-jdbcdriver:2.0.39'
 }
 ```
+
 </TabItem>
 </Tabs>
 
