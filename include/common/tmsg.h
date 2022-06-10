@@ -1205,6 +1205,7 @@ typedef struct {
   int8_t  completed;  // all results are returned to client
   int8_t  precision;
   int8_t  compressed;
+  int8_t  streamBlockType;
   int32_t compLen;
   int32_t numOfRows;
   int32_t numOfCols;
@@ -2512,7 +2513,6 @@ int32_t tSerializeSTableIndexRsp(void* buf, int32_t bufLen, const STableIndexRsp
 int32_t tDeserializeSTableIndexRsp(void* buf, int32_t bufLen, STableIndexRsp* pRsp);
 void tFreeSTableIndexInfo(void *pInfo);
 
-
 typedef struct {
   int8_t  mqMsgType;
   int32_t code;
@@ -2753,8 +2753,8 @@ typedef struct {
   char*    msg;
 } SVDeleteReq;
 
-int32_t tSerializeSVDeleteReq(void *buf, int32_t bufLen, SVDeleteReq *pReq);
-int32_t tDeserializeSVDeleteReq(void *buf, int32_t bufLen, SVDeleteReq *pReq);
+int32_t tSerializeSVDeleteReq(void* buf, int32_t bufLen, SVDeleteReq* pReq);
+int32_t tDeserializeSVDeleteReq(void* buf, int32_t bufLen, SVDeleteReq* pReq);
 
 typedef struct {
   int64_t affectedRows;
