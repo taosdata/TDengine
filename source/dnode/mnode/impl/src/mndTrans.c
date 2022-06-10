@@ -781,7 +781,7 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
       sendRsp = true;
     }
   } else {
-    if (pTrans->stage == TRN_STAGE_REDO_ACTION && pTrans->failedTimes > 3) {
+    if (pTrans->stage == TRN_STAGE_REDO_ACTION && pTrans->failedTimes > 2) {
       if (code == 0) code = TSDB_CODE_MND_TRANS_UNKNOW_ERROR;
       sendRsp = true;
     }
@@ -791,7 +791,7 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
     mDebug("trans:%d, send rsp, code:0x%x stage:%s app:%p", pTrans->id, code, mndTransStr(pTrans->stage),
            pTrans->rpcInfo.ahandle);
     if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
-      code = TSDB_CODE_RPC_INDIRECT_NETWORK_UNAVAIL;
+      code = TSDB_CODE_MND_TRANS_NETWORK_UNAVAILL;
     }
     SRpcMsg rspMsg = {.code = code, .info = pTrans->rpcInfo};
 
