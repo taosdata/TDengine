@@ -24,6 +24,7 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t version, void *pReq
 static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessAlterConfirmReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
+static int32_t vnodeProcessAlterHasnRangeReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessWriteMsg(SVnode *pVnode, int64_t version, SRpcMsg *pMsg, SRpcMsg *pRsp);
 
 int32_t vnodePreprocessReq(SVnode *pVnode, SRpcMsg *pMsg) {
@@ -162,6 +163,9 @@ int32_t vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
     } break;
     case TDMT_VND_ALTER_CONFIRM:
       vnodeProcessAlterConfirmReq(pVnode, version, pReq, len, pRsp);
+      break;
+    case TDMT_VND_ALTER_HASHRANGE:
+      vnodeProcessAlterHasnRangeReq(pVnode, version, pReq, len, pRsp);
       break;
     case TDMT_VND_ALTER_CONFIG:
       break;
@@ -887,5 +891,15 @@ static int32_t vnodeProcessAlterConfirmReq(SVnode *pVnode, int64_t version, void
   pRsp->pCont = NULL;
   pRsp->contLen = 0;
 
+  return 0;
+}
+
+static int32_t vnodeProcessAlterHasnRangeReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  vInfo("vgId:%d, alter hashrange msg will be processed", TD_VID(pVnode));
+
+  // todo 
+  // 1. stop work 
+  // 2. adjust hash range / compact / remove wals / rename vgroups
+  // 3. reload sync
   return 0;
 }
