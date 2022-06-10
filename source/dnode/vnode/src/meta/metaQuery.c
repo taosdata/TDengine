@@ -623,23 +623,28 @@ int32_t metaFilteTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
   int32_t nTagData = 0;
   void *  tagData = NULL;
 
-  if (IS_VAR_DATA_TYPE(param->type)) {
-    tagData = varDataVal(param->val);
-    nTagData = varDataLen(param->val);
-
-    if (param->type == TSDB_DATA_TYPE_NCHAR) {
-      maxSize = 4 * nTagData + 1;
-      buf = taosMemoryCalloc(1, maxSize);
-      if (false == taosMbsToUcs4(tagData, nTagData, (TdUcs4 *)buf, maxSize, &maxSize)) {
-        goto END;
-      }
-
-      tagData = buf;
-      nTagData = maxSize;
-    }
+  if (param->val == NULL) {
+    metaError("vgId:%d failed to filter NULL data", PRIi64, TD_VID(pMeta->pVnode), uid, smaId);
+    return -1;
   } else {
-    tagData = param->val;
-    nTagData = tDataTypes[param->type].bytes;
+    if (IS_VAR_DATA_TYPE(param->type)) {
+      tagData = varDataVal(param->val);
+      nTagData = varDataLen(param->val);
+
+      if (param->type == TSDB_DATA_TYPE_NCHAR) {
+        maxSize = 4 * nTagData + 1;
+        buf = taosMemoryCalloc(1, maxSize);
+        if (false == taosMbsToUcs4(tagData, nTagData, (TdUcs4 *)buf, maxSize, &maxSize)) {
+          goto END;
+        }
+
+        tagData = buf;
+        nTagData = maxSize;
+      }
+    } else {
+      tagData = param->val;
+      nTagData = tDataTypes[param->type].bytes;
+    }
   }
   ret = metaCreateTagIdxKey(pCursor->suid, pCursor->cid, tagData, nTagData, pCursor->type,
                             param->reverse ? INT64_MAX : INT64_MIN, &pKey, &nKey);
