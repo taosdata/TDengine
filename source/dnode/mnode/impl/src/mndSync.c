@@ -96,9 +96,17 @@ void mndRestoreFinish(struct SSyncFSM *pFsm) {
   }
 }
 
-void mndReConfig(struct SSyncFSM *pFsm, SSyncCfg newCfg, SReConfigCbMeta cbMeta) {
+void mndReConfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReConfigCbMeta cbMeta) {
   SMnode    *pMnode = pFsm->data;
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
+
+#if 0
+// send response
+  SRpcMsg rpcMsg = {.msgType = pMsg->msgType, .contLen = pMsg->contLen, .conn.applyIndex = cbMeta.index};
+  rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
+  memcpy(rpcMsg.pCont, pMsg->pCont, pMsg->contLen);
+  syncGetAndDelRespRpc(pMnode->syncMgmt.sync, cbMeta.seqNum, &rpcMsg.info);
+#endif
 
   pMgmt->errCode = cbMeta.code;
   mInfo("trans:-1, sync reconfig is proposed, saved:%d code:0x%x, index:%" PRId64 " term:%" PRId64, pMgmt->transId,

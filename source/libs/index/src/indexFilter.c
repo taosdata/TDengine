@@ -318,7 +318,7 @@ int sifLessThan(void *a, void *b, int16_t dtype) {
 }
 int sifEqual(void *a, void *b, int16_t dtype) {
   __compar_fn_t func = getComparFunc(dtype, 0);
-  //__compar_fn_t func = indexGetCompar(dtype);
+  //__compar_fn_t func = idxGetCompar(dtype);
   return (int)tDoCompare(func, QUERY_TERM, a, b);
 }
 static Filter sifGetFilterFunc(EIndexQueryType type, bool *reverse) {

@@ -150,7 +150,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
         "ths->state:%d, logOK:%d",
         pMsg->term, ths->pRaftStore->currentTerm, ths->state, logOK);
 
-    syncNodeBecomeFollower(ths);
+    syncNodeBecomeFollower(ths, "from candidate by append entries");
 
     // ret or reply?
     return ret;
@@ -380,17 +380,19 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
                   // change isStandBy to normal
                   if (!isDrop) {
                     if (ths->state == TAOS_SYNC_STATE_LEADER) {
-                      syncNodeBecomeLeader(ths);
+                      syncNodeBecomeLeader(ths, "config change");
                     } else {
-                      syncNodeBecomeFollower(ths);
+                      syncNodeBecomeFollower(ths, "config change");
                     }
                   }
 
-                  char* sOld = syncCfg2Str(&oldSyncCfg);
-                  char* sNew = syncCfg2Str(&newSyncCfg);
-                  sInfo("==config change== 0x11 old:%s new:%s isDrop:%d \n", sOld, sNew, isDrop);
-                  taosMemoryFree(sOld);
-                  taosMemoryFree(sNew);
+                  if (gRaftDetailLog) {
+                    char* sOld = syncCfg2Str(&oldSyncCfg);
+                    char* sNew = syncCfg2Str(&newSyncCfg);
+                    sInfo("==config change== 0x11 old:%s new:%s isDrop:%d \n", sOld, sNew, isDrop);
+                    taosMemoryFree(sOld);
+                    taosMemoryFree(sNew);
+                  }
                 }
 
                 // always call FpReConfigCb
@@ -399,10 +401,12 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
                   cbMeta.currentTerm = ths->pRaftStore->currentTerm;
                   cbMeta.index = pEntry->index;
                   cbMeta.term = pEntry->term;
+                  cbMeta.newCfg = newSyncCfg;
                   cbMeta.oldCfg = oldSyncCfg;
+                  cbMeta.seqNum = pEntry->seqNum;
                   cbMeta.flag = 0x11;
                   cbMeta.isDrop = isDrop;
-                  ths->pFsm->FpReConfigCb(ths->pFsm, newSyncCfg, cbMeta);
+                  ths->pFsm->FpReConfigCb(ths->pFsm, &rpcMsg, cbMeta);
                 }
               }
 
@@ -469,7 +473,7 @@ static int32_t syncNodeMakeLogSame(SSyncNode* ths, SyncAppendEntries* pMsg) {
   // delete confict entries
   code = ths->pLogStore->syncLogTruncate(ths->pLogStore, delBegin);
   ASSERT(code == 0);
-  sInfo("sync event log truncate, from %ld to %ld", delBegin, delEnd);
+  sInfo("sync event vgId:%d log truncate, from %ld to %ld", ths->vgId, delBegin, delEnd);
   logStoreSimpleLog2("after syncNodeMakeLogSame", ths->pLogStore);
 
   return code;
@@ -571,7 +575,7 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
     if (condition) {
       sTrace("recv SyncAppendEntries, candidate to follower");
 
-      syncNodeBecomeFollower(ths);
+      syncNodeBecomeFollower(ths, "from candidate by append entries");
       // do not reply?
       return ret;
     }
@@ -742,6 +746,18 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
       if (pMsg->commitIndex > ths->commitIndex) {
         // has commit entry in local
         if (pMsg->commitIndex <= ths->pLogStore->syncLogLastIndex(ths->pLogStore)) {
+          // advance commit index to sanpshot first
+          SSnapshot snapshot;
+          ths->pFsm->FpGetSnapshot(ths->pFsm, &snapshot);
+          if (snapshot.lastApplyIndex >= 0 && snapshot.lastApplyIndex > ths->commitIndex) {
+            SyncIndex commitBegin = ths->commitIndex;
+            SyncIndex commitEnd = snapshot.lastApplyIndex;
+            ths->commitIndex = snapshot.lastApplyIndex;
+
+            sInfo("sync event vgId:%d commit by snapshot from index:%ld to index:%ld, %s", ths->vgId, commitBegin,
+                  commitEnd, syncUtilState2String(ths->state));
+          }
+
           SyncIndex beginIndex = ths->commitIndex + 1;
           SyncIndex endIndex = pMsg->commitIndex;
 

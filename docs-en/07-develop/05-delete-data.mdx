@@ -1,0 +1,42 @@
+---
+sidebar_label: Delete Data
+description: "Delete data from table or Stable"
+title: Delete Data
+---
+
+TDengine provides the functionality of deleting data from a table or STable according to specified time range, it can be used to cleanup abnormal data generated due to device failure. Please be noted that this functionality is only available in Enterprise version, please refer to [TDengine Enterprise Edition](https://tdengine.com/products#enterprise-edition-link)
+
+
+**Syntax:**
+
+```sql
+DELETE FROM [ db_name. ] tb_name [WHERE condition];
+```
+
+**Description:** Delete data from a table or STable
+
+**Parameters:**
+   
+- `db_name`:   Optional parameter, specifies the database in which the table exists; if not specified, the current database will be used.
+- `tb_name`:  Mandatory parameter, specifies the table name from which data will be deleted, it can be normal table, subtable or STable.
+- `condition`: Optional parameter, specifies the data filter condition. If no condition is specified all data will be deleted, so please be cautions to delete data without any condition. The condition used here is only applicable to the first column, i.e. the timestamp column. If the table is a STable, the condition is also applicable to tag columns.
+
+**More Explanations:**
+      
+The data can't be recovered once deleted, so please be cautious to use the functionality of deleting data. It's better to firstly make sure the data to be deleted using `select` then execute `delete`.       
+
+**Example:**
+    
+`meters` is a STable, in which `groupid` is a tag column of int type. Now we want to delete the data older than 2021-10-01 10:40:00.100 and `groupid` is 1.  The SQL for this purpose is like below:
+
+```sql
+delete from meters where ts < '2021-10-01 10:40:00.100' and groupid=1 ;
+```
+
+The output is:
+
+```
+Deleted 102000 row(s) from 1020 table(s) (0.421950s)
+```
+
+It means totally 102,000 rows of data have been deleted from 1,020 sub tables.

@@ -14,6 +14,7 @@
  */
 
 #include "syncRaftLog.h"
+#include "syncRaftCfg.h"
 #include "wal.h"
 
 // refactor, log[0 .. n] ==> log[m .. n]
@@ -161,7 +162,9 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
 
   walFsync(pWal, true);
 
-  sTrace("sync event write index:%" PRId64, pEntry->index);
+  sTrace("sync event vgId:%d write index:%ld, %s, isStandBy:%d, msgType:%s, originalRpcType:%s", pData->pSyncNode->vgId,
+         pEntry->index, syncUtilState2String(pData->pSyncNode->state), pData->pSyncNode->pRaftCfg->isStandBy,
+         TMSG_INFO(pEntry->msgType), TMSG_INFO(pEntry->originalRpcType));
 
   return code;
 }

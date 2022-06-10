@@ -19,7 +19,7 @@ using namespace std;
 
 namespace ParserTest {
 
-class ParserShowToUseTest : public ParserTestBase {};
+class ParserShowToUseTest : public ParserDdlTest {};
 
 // todo SHOW accounts
 // todo SHOW apps
@@ -133,7 +133,24 @@ TEST_F(ParserShowToUseTest, showVgroups) {
 
 // todo SHOW vnodes
 
-// todo split vgroup
+TEST_F(ParserShowToUseTest, splitVgroup) {
+  useDb("root", "test");
+
+  SSplitVgroupReq expect = {0};
+
+  auto setSplitVgroupReqFunc = [&](int32_t vgId) { expect.vgId = vgId; };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_SPLIT_VGROUP_STMT);
+    ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_SPLIT_VGROUP);
+    SSplitVgroupReq req = {0};
+    ASSERT_EQ(tDeserializeSSplitVgroupReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(req.vgId, expect.vgId);
+  });
+
+  setSplitVgroupReqFunc(15);
+  run("SPLIT VGROUP 15");
+}
 
 TEST_F(ParserShowToUseTest, useDatabase) {
   useDb("root", "test");
