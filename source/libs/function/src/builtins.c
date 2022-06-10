@@ -1054,7 +1054,7 @@ static bool validateHourRange(int8_t hour) {
 }
 
 static bool validateMinuteRange(int8_t hour, int8_t minute, char sign) {
-  if (minute == 0 || (minute == 30 && (hour == 3 || hour == 5) && sign == '-')) {
+  if (minute == 0 || (minute == 30 && (hour == 3 || hour == 5) && sign == '+')) {
     return true;
   }
 
