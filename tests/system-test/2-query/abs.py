@@ -538,11 +538,11 @@ class TDTestCase:
 
         # tag filter with abs function
         tdSql.query("select t1 from stb1 where abs(t1)=1")
-        tdSql.checkRows(4)
+        tdSql.checkRows(1)
         tdSql.query("select t1 from stb1 where abs(c1+t1)=1")
-        tdSql.checkRows(2)
+        tdSql.checkRows(1)
         # tdSql.query("select t1 from stb1 where abs(t1+c1)=1")
-        # tdSql.checkRows(2)
+        # tdSql.checkRows(1)
         tdSql.query("select abs(c1+t1)*t1 from stb1 where abs(c1)/floor(abs(ceil(t1))) ==1")
 
 
