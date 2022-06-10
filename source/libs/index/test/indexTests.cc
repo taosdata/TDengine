@@ -521,10 +521,10 @@ class CacheObj {
  public:
   CacheObj() {
     // TODO
-    cache = indexCacheCreate(NULL, 0, "voltage", TSDB_DATA_TYPE_BINARY);
+    cache = idxCacheCreate(NULL, 0, "voltage", TSDB_DATA_TYPE_BINARY);
   }
   int Put(SIndexTerm* term, int16_t colId, int32_t version, uint64_t uid) {
-    int ret = indexCachePut(cache, term, uid);
+    int ret = idxCachePut(cache, term, uid);
     if (ret != 0) {
       //
       std::cout << "failed to put into cache: " << ret << std::endl;
@@ -533,12 +533,12 @@ class CacheObj {
   }
   void Debug() {
     //
-    indexCacheDebug(cache);
+    idxCacheDebug(cache);
   }
   int Get(SIndexTermQuery* query, int16_t colId, int32_t version, SArray* result, STermValueType* s) {
     SIdxTRslt* tr = idxTRsltCreate();
 
-    int ret = indexCacheSearch(cache, query, tr, s);
+    int ret = idxCacheSearch(cache, query, tr, s);
     idxTRsltMergeTo(tr, result);
     idxTRsltDestroy(tr);
 
@@ -549,7 +549,7 @@ class CacheObj {
   }
   ~CacheObj() {
     // TODO
-    indexCacheDestroy(cache);
+    idxCacheDestroy(cache);
   }
 
  private:
