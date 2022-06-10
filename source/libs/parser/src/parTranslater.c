@@ -824,9 +824,9 @@ static EDealRes translateComparisonOperator(STranslateContext* pCxt, SOperatorNo
   }
   if (OP_TYPE_IN == pOp->opType || OP_TYPE_NOT_IN == pOp->opType) {
     SNodeListNode* pRight = (SNodeListNode*)pOp->pRight;
-    bool first = true;
-    SDataType targetDt = {0};
-    SNode* pNode = NULL;
+    bool           first = true;
+    SDataType      targetDt = {0};
+    SNode*         pNode = NULL;
     FOREACH(pNode, pRight->pNodeList) {
       SDataType dt = ((SExprNode*)pNode)->resType;
       if (first) {
@@ -3672,6 +3672,11 @@ static int32_t translateRedistributeVgroup(STranslateContext* pCxt, SRedistribut
   return code;
 }
 
+static int32_t translateSplitVgroup(STranslateContext* pCxt, SSplitVgroupStmt* pStmt) {
+  SSplitVgroupReq req = {.vgId = pStmt->vgId};
+  return buildCmdMsg(pCxt, TDMT_MND_SPLIT_VGROUP, (FSerializeFunc)tSerializeSSplitVgroupReq, &req);
+}
+
 static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pNode)) {
@@ -3802,6 +3807,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:
       code = translateRedistributeVgroup(pCxt, (SRedistributeVgroupStmt*)pNode);
+      break;
+    case QUERY_NODE_SPLIT_VGROUP_STMT:
+      code = translateSplitVgroup(pCxt, (SSplitVgroupStmt*)pNode);
       break;
     default:
       break;

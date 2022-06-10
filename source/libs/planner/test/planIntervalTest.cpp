@@ -58,4 +58,6 @@ TEST_F(PlanIntervalTest, stable) {
   useDb("root", "test");
 
   run("SELECT COUNT(*) FROM st1 INTERVAL(10s)");
+
+  run("SELECT _WSTARTTS, COUNT(*) FROM st1 INTERVAL(10s)");
 }
