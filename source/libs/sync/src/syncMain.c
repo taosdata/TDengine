@@ -35,7 +35,7 @@
 #include "syncVoteMgr.h"
 #include "tref.h"
 
-bool gRaftDetailLog = false;
+bool gRaftDetailLog = true;
 
 static int32_t tsNodeRefId = -1;
 
@@ -1155,6 +1155,8 @@ void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term) {
 }
 
 void syncNodeBecomeFollower(SSyncNode* pSyncNode) {
+  sInfo("sync event become follower");
+
   // maybe clear leader cache
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
     pSyncNode->leaderCache = EMPTY_RAFT_ID;
@@ -1187,6 +1189,8 @@ void syncNodeBecomeFollower(SSyncNode* pSyncNode) {
 //     /\ UNCHANGED <<messages, currentTerm, votedFor, candidateVars, logVars>>
 //
 void syncNodeBecomeLeader(SSyncNode* pSyncNode) {
+  sInfo("sync event become leader");
+
   // state change
   pSyncNode->state = TAOS_SYNC_STATE_LEADER;
 
