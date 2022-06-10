@@ -82,6 +82,7 @@ class TDWhere():
         q_tinyint_list = "q_tinyint in (" + str(q_tinyint_list).replace("[","").replace("]","") + ")"
 
         q_in_where = [q_tinyint_list,'q_bool in (0 , 1) ' ,  'q_bool in ( true , false) ' ,' (q_bool = true or  q_bool = false)' , '(q_bool = 0 or q_bool = 1)',]
+        q_in_where = ['q_bool in (0 , 1) ' ,  'q_bool in ( true , false) ' ,' (q_bool = true or  q_bool = false)' , '(q_bool = 0 or q_bool = 1)',]#TD-16400
         q_in = random.sample(q_in_where,1)
         
         return(q_where,q_like_match,q_in)
@@ -123,6 +124,7 @@ class TDWhere():
         q_tinyint_list = "q_tinyint in (" + str(q_tinyint_list).replace("[","").replace("]","") + ")"
             
         q_in_where = [q_tinyint_list,'q_bool in (0 , 1) ' ,  'q_bool in ( true , false) ' ,' (q_bool = true or  q_bool = false)' , '(q_bool = 0 or q_bool = 1)' ,]
+        q_in_where = ['q_bool in (0 , 1) ' ,  'q_bool in ( true , false) ' ,' (q_bool = true or  q_bool = false)' , '(q_bool = 0 or q_bool = 1)' ,]#TD-16400
         q_in_null = random.sample(q_in_where,1)
 
         return(q_where_null,q_like_match_null,q_in_null)
@@ -165,6 +167,7 @@ class TDWhere():
         t_tinyint_list = "t_tinyint in (" + str(t_tinyint_list).replace("[","").replace("]","") + ")"
 
         t_in_where = [t_tinyint_list, 't_bool in (0 , 1) ' ,  't_bool in ( true , false) ' ,' (t_bool = true or  t_bool = false)' , '(t_bool = 0 or t_bool = 1)',]
+        t_in_where = ['t_bool in (0 , 1) ' ,  't_bool in ( true , false) ' ,' (t_bool = true or  t_bool = false)' , '(t_bool = 0 or t_bool = 1)',]#TD-16400
         t_in = random.sample(t_in_where,1)
 
         return(t_where,t_like_match,t_in)
@@ -200,6 +203,7 @@ class TDWhere():
         t_tinyint_list = "t_tinyint in (" + str(t_tinyint_list).replace("[","").replace("]","") + ")"
         
         t_in_where = [t_tinyint_list , 't_bool in (0 , 1) ' ,  't_bool in ( true , false) ' ,' (t_bool = true or  t_bool = false)' , '(t_bool = 0 or t_bool = 1)',]
+        t_in_where = ['t_bool in (0 , 1) ' ,  't_bool in ( true , false) ' ,' (t_bool = true or  t_bool = false)' , '(t_bool = 0 or t_bool = 1)',] #TD-16400
         t_in_null = random.sample(t_in_where,1)
 
         return(t_where_null,t_like_match_null,t_in_null)
