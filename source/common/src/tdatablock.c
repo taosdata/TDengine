@@ -1773,6 +1773,7 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
   }
 
   // assign data
+  // TODO
   ret = taosMemoryCalloc(1, cap + 46);
   ret = POINTER_SHIFT(ret, 46);
   ret->header.vgId = vgId;
