@@ -1325,7 +1325,7 @@ TEST(testCase, sml_oom_Test) {
   pRes = taos_query(taos, "use oom");
   taos_free_result(pRes);
 
-  TAOS_RES* res = taos_schemaless_insert(taos, (char**)sql, 100, TSDB_SML_LINE_PROTOCOL, 0);
+  TAOS_RES* res = taos_schemaless_insert(taos, (char**)sql, sizeof(sql)/sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL, 0);
   ASSERT_EQ(taos_errno(res), 0);
   taos_free_result(pRes);
 }
