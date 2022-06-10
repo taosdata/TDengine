@@ -467,15 +467,18 @@ static int32_t smlModifyDBSchemas(SSmlHandle* info) {
     SSmlSTableMeta* sTableData = *tableMetaSml;
 
     STableMeta *pTableMeta = NULL;
-    SEpSet ep = getEpSet_s(&info->taos->pAppInfo->mgmtEp);
-
     size_t superTableLen = 0;
     void *superTable = taosHashGetKey(tableMetaSml, &superTableLen);
     SName pName = {TSDB_TABLE_NAME_T, info->taos->acctId, {0}, {0}};
     strcpy(pName.dbname, info->pRequest->pDb);
     memcpy(pName.tname, superTable, superTableLen);
 
-    code = catalogGetSTableMeta(info->pCatalog, info->taos->pAppInfo->pTransporter, &ep, &pName, &pTableMeta);
+    SRequestConnInfo conn = {.pTrans = info->taos->pAppInfo->pTransporter, 
+                             .requestId = info->pRequest->requestId,
+                             .requestObjRefId = info->pRequest->self,
+                             .mgmtEps = getEpSet_s(&info->taos->pAppInfo->mgmtEp)};
+
+    code = catalogGetSTableMeta(info->pCatalog, &conn, &pName, &pTableMeta);
 
     if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_MND_INVALID_STB) {
       SSchemaAction schemaAction;
@@ -515,7 +518,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle* info) {
         return code;
       }
 
-      code = catalogRefreshTableMeta(info->pCatalog, info->taos->pAppInfo->pTransporter, &ep, &pName, -1);
+      code = catalogRefreshTableMeta(info->pCatalog, &conn, &pName, -1);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
@@ -525,7 +528,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle* info) {
     }
     if(pTableMeta) taosMemoryFree(pTableMeta);
 
-    code = catalogGetSTableMeta(info->pCatalog, info->taos->pAppInfo->pTransporter, &ep, &pName, &pTableMeta);
+    code = catalogGetSTableMeta(info->pCatalog, &conn, &pName, &pTableMeta);
     if (code != TSDB_CODE_SUCCESS) {
       uError("SML:0x%"PRIx64" catalogGetSTableMeta failed. super table name %s", info->id, (char*)superTable);
       return code;
@@ -2210,9 +2213,12 @@ static int32_t smlInsertData(SSmlHandle* info) {
     SName pName = {TSDB_TABLE_NAME_T, info->taos->acctId, {0}, {0}};
     strcpy(pName.dbname, info->pRequest->pDb);
     memcpy(pName.tname, tableData->childTableName, strlen(tableData->childTableName));
-    SEpSet ep = getEpSet_s(&info->taos->pAppInfo->mgmtEp);
+    SRequestConnInfo conn = {.pTrans = info->taos->pAppInfo->pTransporter, 
+                             .requestId = info->pRequest->requestId,
+                             .requestObjRefId = info->pRequest->self,
+                             .mgmtEps = getEpSet_s(&info->taos->pAppInfo->mgmtEp)};
     SVgroupInfo vg;
-    code = catalogGetTableHashVgroup(info->pCatalog, info->taos->pAppInfo->pTransporter, &ep, &pName, &vg);
+    code = catalogGetTableHashVgroup(info->pCatalog, &conn, &pName, &vg);
     if (code != TSDB_CODE_SUCCESS) {
       uError("SML:0x%"PRIx64" catalogGetTableHashVgroup failed. table name: %s", info->id, tableData->childTableName);
       return code;
@@ -2324,9 +2330,12 @@ static int32_t isSchemalessDb(SSmlHandle* info){
   char dbFname[TSDB_DB_FNAME_LEN] = {0};
   tNameGetFullDbName(&name, dbFname);
   SDbCfgInfo pInfo = {0};
-  SEpSet ep = getEpSet_s(&info->taos->pAppInfo->mgmtEp);
+  SRequestConnInfo conn = {.pTrans = info->taos->pAppInfo->pTransporter, 
+                           .requestId = info->pRequest->requestId,
+                           .requestObjRefId = info->pRequest->self,
+                           .mgmtEps = getEpSet_s(&info->taos->pAppInfo->mgmtEp)};
 
-  int32_t code = catalogGetDBCfg(info->pCatalog, info->taos->pAppInfo->pTransporter, &ep, dbFname, &pInfo);
+  int32_t code = catalogGetDBCfg(info->pCatalog, &conn, dbFname, &pInfo);
   if (code != TSDB_CODE_SUCCESS) {
     info->pRequest->code = code;
     smlBuildInvalidDataMsg(&info->msgBuf, "catalogGetDBCfg error, code:", tstrerror(code));

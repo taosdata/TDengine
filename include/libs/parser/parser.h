@@ -35,6 +35,7 @@ typedef struct SStmtCallback {
 
 typedef struct SParseContext {
   uint64_t         requestId;
+  int64_t          requestRid;
   int32_t          acctId;
   const char*      db;
   bool             topicQuery;

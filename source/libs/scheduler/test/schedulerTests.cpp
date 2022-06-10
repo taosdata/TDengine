@@ -503,7 +503,19 @@ void* schtRunJobThread(void *aa) {
     taosArrayPush(qnodeList, &qnodeAddr);
 
     queryDone = 0;
-    code = schedulerAsyncExecJob(mockPointer, qnodeList, &dag, &queryJobRefId, "select * from tb", 0, schtQueryCb, &queryDone);
+    SRequestConnInfo conn = {.pTrans = mockPointer, 
+                             .requestId = 0,
+                             .requestObjRefId = 0
+    };
+    SSchedulerReq req = {.pConn = &conn,
+                         .pNodeList = qnodeList,
+                         .pDag = &dag,
+                         .sql = "select * from tb",
+                         .startTs = 0,
+                         .fp = schtQueryCb,
+                         .cbParam = &queryDone
+    };    
+    code = schedulerAsyncExecJob(&req, &queryJobRefId);      
     assert(code == 0);
 
     pJob = schAcquireJob(queryJobRefId);
@@ -644,7 +656,19 @@ TEST(queryTest, normalCase) {
   schtSetAsyncSendMsgToServer();
 
   int32_t queryDone = 0;
-  code = schedulerAsyncExecJob(mockPointer, qnodeList, &dag, &job, "select * from tb", 0, schtQueryCb, &queryDone);
+  SRequestConnInfo conn = {.pTrans = mockPointer, 
+                           .requestId = 0,
+                           .requestObjRefId = 0
+  };
+  SSchedulerReq req = {.pConn = &conn,
+                       .pNodeList = qnodeList,
+                       .pDag = &dag,
+                       .sql = "select * from tb",
+                       .startTs = 0,
+                       .fp = schtQueryCb,
+                       .cbParam = &queryDone
+  };    
+  code = schedulerAsyncExecJob(&req, &job);  
   ASSERT_EQ(code, 0);
 
   
@@ -737,7 +761,19 @@ TEST(queryTest, readyFirstCase) {
   schtSetAsyncSendMsgToServer();
 
   int32_t queryDone = 0;  
-  code = schedulerAsyncExecJob(mockPointer, qnodeList, &dag, &job, "select * from tb", 0, schtQueryCb, &queryDone);
+  SRequestConnInfo conn = {.pTrans = mockPointer, 
+                           .requestId = 0,
+                           .requestObjRefId = 0
+  };
+  SSchedulerReq req = {.pConn = &conn,
+                       .pNodeList = qnodeList,
+                       .pDag = &dag,
+                       .sql = "select * from tb",
+                       .startTs = 0,
+                       .fp = schtQueryCb,
+                       .cbParam = &queryDone
+  };    
+  code = schedulerAsyncExecJob(&req, &job);
   ASSERT_EQ(code, 0);
 
   
@@ -835,7 +871,19 @@ TEST(queryTest, flowCtrlCase) {
   schtSetAsyncSendMsgToServer();
 
   int32_t queryDone = 0;  
-  code = schedulerAsyncExecJob(mockPointer, qnodeList, &dag, &job, "select * from tb", 0, schtQueryCb, &queryDone);
+  SRequestConnInfo conn = {.pTrans = mockPointer, 
+                           .requestId = 0,
+                           .requestObjRefId = 0
+  };
+  SSchedulerReq req = {.pConn = &conn,
+                       .pNodeList = qnodeList,
+                       .pDag = &dag,
+                       .sql = "select * from tb",
+                       .startTs = 0,
+                       .fp = schtQueryCb,
+                       .cbParam = &queryDone
+  };  
+  code = schedulerAsyncExecJob(&req, &job);
   ASSERT_EQ(code, 0);
 
   
@@ -937,7 +985,20 @@ TEST(insertTest, normalCase) {
   taosThreadCreate(&(thread1), &thattr, schtSendRsp, &insertJobRefId);
 
   SQueryResult res = {0};
-  code = schedulerExecJob(mockPointer, qnodeList, &dag, &insertJobRefId, "insert into tb values(now,1)", 0, &res);
+  SRequestConnInfo conn = {.pTrans = mockPointer, 
+                           .requestId = 0,
+                           .requestObjRefId = 0
+  };
+  
+  SSchedulerReq req = {.pConn = &conn,
+                       .pNodeList = qnodeList,
+                       .pDag = &dag,
+                       .sql = "insert into tb values(now,1)",
+                       .startTs = 0,
+                       .fp = NULL,
+                       .cbParam = NULL
+  };
+  code = schedulerExecJob(&req, &insertJobRefId, &res);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(res.numOfRows, 20);
 

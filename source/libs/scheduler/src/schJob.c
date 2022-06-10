@@ -42,59 +42,58 @@ int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t schInitJob(SSchJob **pSchJob, SQueryPlan *pDag, void *pTrans, SArray *pNodeList, const char *sql,
-                   SSchResInfo *pRes, int64_t startTs, bool syncSchedule) {
+int32_t schInitJob(SSchedulerReq *pReq, SSchJob **pSchJob, SQueryResult* pRes, bool syncSchedule) {
   int32_t  code = 0;
   int64_t  refId = -1;
   SSchJob *pJob = taosMemoryCalloc(1, sizeof(SSchJob));
   if (NULL == pJob) {
-    qError("QID:%" PRIx64 " calloc %d failed", pDag->queryId, (int32_t)sizeof(SSchJob));
+    qError("QID:%" PRIx64 " calloc %d failed", pReq->pDag->queryId, (int32_t)sizeof(SSchJob));
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
-  pJob->attr.explainMode = pDag->explainInfo.mode;
+  pJob->attr.explainMode = pReq->pDag->explainInfo.mode;
   pJob->attr.syncSchedule = syncSchedule;
-  pJob->pTrans = pTrans;
-  pJob->sql = sql;
-  if (pRes) {
-    pJob->userRes = *pRes;
-  }
+  pJob->conn = *pReq->pConn;
+  pJob->sql = pReq->sql;
+  pJob->userRes.queryRes = pRes;
+  pJob->userRes.execFp = pReq->fp;
+  pJob->userRes.userParam = pReq->cbParam;
   
-  if (pNodeList != NULL) {
-    pJob->nodeList = taosArrayDup(pNodeList);
+  if (pReq->pNodeList != NULL) {
+    pJob->nodeList = taosArrayDup(pReq->pNodeList);
   }
   
   pJob->taskList =
-      taosHashInit(pDag->numOfSubplans, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_ENTRY_LOCK);
+      taosHashInit(pReq->pDag->numOfSubplans, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_ENTRY_LOCK);
   if (NULL == pJob->taskList) {
-    SCH_JOB_ELOG("taosHashInit %d taskList failed", pDag->numOfSubplans);
+    SCH_JOB_ELOG("taosHashInit %d taskList failed", pReq->pDag->numOfSubplans);
     SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
-  SCH_ERR_JRET(schValidateAndBuildJob(pDag, pJob));
+  SCH_ERR_JRET(schValidateAndBuildJob(pReq->pDag, pJob));
 
   if (SCH_IS_EXPLAIN_JOB(pJob)) {
-    SCH_ERR_JRET(qExecExplainBegin(pDag, &pJob->explainCtx, startTs));
+    SCH_ERR_JRET(qExecExplainBegin(pReq->pDag, &pJob->explainCtx, pReq->startTs));
   }
 
   pJob->execTasks =
-      taosHashInit(pDag->numOfSubplans, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_ENTRY_LOCK);
+      taosHashInit(pReq->pDag->numOfSubplans, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_ENTRY_LOCK);
   if (NULL == pJob->execTasks) {
-    SCH_JOB_ELOG("taosHashInit %d execTasks failed", pDag->numOfSubplans);
+    SCH_JOB_ELOG("taosHashInit %d execTasks failed", pReq->pDag->numOfSubplans);
     SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
   pJob->succTasks =
-      taosHashInit(pDag->numOfSubplans, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_ENTRY_LOCK);
+      taosHashInit(pReq->pDag->numOfSubplans, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_ENTRY_LOCK);
   if (NULL == pJob->succTasks) {
-    SCH_JOB_ELOG("taosHashInit %d succTasks failed", pDag->numOfSubplans);
+    SCH_JOB_ELOG("taosHashInit %d succTasks failed", pReq->pDag->numOfSubplans);
     SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
   pJob->failTasks =
-      taosHashInit(pDag->numOfSubplans, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_ENTRY_LOCK);
+      taosHashInit(pReq->pDag->numOfSubplans, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_ENTRY_LOCK);
   if (NULL == pJob->failTasks) {
-    SCH_JOB_ELOG("taosHashInit %d failTasks failed", pDag->numOfSubplans);
+    SCH_JOB_ELOG("taosHashInit %d failTasks failed", pReq->pDag->numOfSubplans);
     SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
@@ -1477,17 +1476,16 @@ void schFreeJobImpl(void *job) {
   }
 }
 
-int32_t schExecJobImpl(void *pTrans, SArray *pNodeList, SQueryPlan *pDag, int64_t *job, const char *sql,
-                              SSchResInfo *pRes, int64_t startTs, bool sync) {
-  if (pNodeList == NULL || taosArrayGetSize(pNodeList) <= 0) {
-    qDebug("QID:0x%" PRIx64 " input exec nodeList is empty", pDag->queryId);
+int32_t schExecJobImpl(SSchedulerReq *pReq, int64_t *job, SQueryResult* pRes, bool sync) {
+  if (pReq->pNodeList == NULL || taosArrayGetSize(pReq->pNodeList) <= 0) {
+    qDebug("QID:0x%" PRIx64 " input exec nodeList is empty", pReq->pDag->queryId);
   }
 
   int32_t  code = 0;
   SSchJob *pJob = NULL;
-  SCH_ERR_RET(schInitJob(&pJob, pDag, pTrans, pNodeList, sql, pRes, startTs, sync));
+  SCH_ERR_RET(schInitJob(pReq, &pJob, pRes, sync));
 
-  qDebug("QID:0x%" PRIx64 " job refId 0x%"PRIx64 " started", pDag->queryId, pJob->refId);
+  qDebug("QID:0x%" PRIx64 " job refId 0x%"PRIx64 " started", pReq->pDag->queryId, pJob->refId);
   *job = pJob->refId;
 
   SCH_ERR_JRET(schLaunchJob(pJob));
@@ -1508,66 +1506,62 @@ _return:
   SCH_RET(code);
 }
 
-int32_t schExecJob(void *pTrans, SArray *pNodeList, SQueryPlan *pDag, int64_t *pJob, const char *sql,
-                         int64_t startTs, SSchResInfo *pRes) {
+int32_t schExecJob(SSchedulerReq *pReq, int64_t *pJob, SQueryResult *pRes) {
   int32_t code = 0;
   
   *pJob = 0;
   
-  if (EXPLAIN_MODE_STATIC == pDag->explainInfo.mode) {
-    SCH_ERR_JRET(schExecStaticExplainJob(pTrans, pNodeList, pDag, pJob, sql, NULL, true));
+  if (EXPLAIN_MODE_STATIC == pReq->pDag->explainInfo.mode) {
+    SCH_ERR_JRET(schExecStaticExplainJob(pReq, pJob, true));
   } else {
-    SCH_ERR_JRET(schExecJobImpl(pTrans, pNodeList, pDag, pJob, sql, NULL, startTs, true));
+    SCH_ERR_JRET(schExecJobImpl(pReq, pJob, pRes, true));
   }
 
 _return:
 
   if (*pJob) {
     SSchJob *job = schAcquireJob(*pJob);
-    schSetJobQueryRes(job, pRes->queryRes);
+    schSetJobQueryRes(job, pRes);
     schReleaseJob(*pJob);
   }
 
   return code;
 }
 
-int32_t schAsyncExecJob(void *pTrans, SArray *pNodeList, SQueryPlan *pDag, int64_t *pJob, const char *sql,
-                                int64_t startTs, SSchResInfo *pRes) {
+int32_t schAsyncExecJob(SSchedulerReq *pReq, int64_t *pJob) {
   int32_t code = 0;
 
   *pJob = 0;
 
-  if (EXPLAIN_MODE_STATIC == pDag->explainInfo.mode) {
-    SCH_ERR_RET(schExecStaticExplainJob(pTrans, pNodeList, pDag, pJob, sql, pRes, false));
+  if (EXPLAIN_MODE_STATIC == pReq->pDag->explainInfo.mode) {
+    SCH_ERR_RET(schExecStaticExplainJob(pReq, pJob, false));
   } else {
-    SCH_ERR_RET(schExecJobImpl(pTrans, pNodeList, pDag, pJob, sql, pRes, startTs, false));
+    SCH_ERR_RET(schExecJobImpl(pReq, pJob, NULL, false));
   }
 
   return code;
 }
 
-int32_t schExecStaticExplainJob(void *pTrans, SArray *pNodeList, SQueryPlan *pDag, int64_t *job, const char *sql,
-                             SSchResInfo *pRes, bool sync) {
-  qDebug("QID:0x%" PRIx64 " job started", pDag->queryId);
+int32_t schExecStaticExplainJob(SSchedulerReq *pReq, int64_t *job, bool sync) {
+  qDebug("QID:0x%" PRIx64 " job started", pReq->pDag->queryId);
 
   int32_t  code = 0;
   SSchJob *pJob = taosMemoryCalloc(1, sizeof(SSchJob));
   if (NULL == pJob) {
-    qError("QID:%" PRIx64 " calloc %d failed", pDag->queryId, (int32_t)sizeof(SSchJob));
+    qError("QID:%" PRIx64 " calloc %d failed", pReq->pDag->queryId, (int32_t)sizeof(SSchJob));
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
-  pJob->sql = sql;
+  pJob->sql = pReq->sql;
   pJob->attr.queryJob = true;
   pJob->attr.syncSchedule = sync;
-  pJob->attr.explainMode = pDag->explainInfo.mode;
-  pJob->queryId = pDag->queryId;
-  pJob->subPlans = pDag->pSubplans;
-  if (pRes) {
-    pJob->userRes = *pRes;
-  }
+  pJob->attr.explainMode = pReq->pDag->explainInfo.mode;
+  pJob->queryId = pReq->pDag->queryId;
+  pJob->subPlans = pReq->pDag->pSubplans;
+  pJob->userRes.execFp = pReq->fp;
+  pJob->userRes.userParam = pReq->cbParam;
   
-  SCH_ERR_JRET(qExecStaticExplain(pDag, (SRetrieveTableRsp **)&pJob->resData));
+  SCH_ERR_JRET(qExecStaticExplain(pReq->pDag, (SRetrieveTableRsp **)&pJob->resData));
 
   int64_t refId = taosAddRef(schMgmt.jobRef, pJob);
   if (refId < 0) {
