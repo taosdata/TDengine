@@ -895,7 +895,7 @@ int64_t getSmaWaterMark(int64_t interval, double filesFactor);
 bool isSmaStream(int8_t triggerType);
 
 int32_t compareTimeWindow(const void* p1, const void* p2, const void* param);
-int32_t finalizeResultRowIntoSDataBlock(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition,
+int32_t finalizeResultRowIntoResultDataBlock(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition,
                                        SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, int32_t numOfExprs, const int32_t* rowCellOffset,
                                        SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
 

@@ -1955,7 +1955,7 @@ static void doUpdateNumOfRows(SResultRow* pRow, int32_t numOfExprs, const int32_
   }
 }
 
-int32_t finalizeResultRowIntoSDataBlock(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition,
+int32_t finalizeResultRowIntoResultDataBlock(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition,
                                        SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, int32_t numOfExprs, const int32_t* rowCellOffset,
                                        SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo) {
   SFilePage*  page = getBufPage(pBuf, resultRowPosition->pageId);
@@ -1967,9 +1967,13 @@ int32_t finalizeResultRowIntoSDataBlock(SDiskbasedBuf* pBuf, SResultRowPosition*
     return 0;
   }
 
-  if (pBlock->info.rows + pRow->numOfRows > pBlock->info.capacity) {
-    releaseBufPage(pBuf, page);
-    return -1;
+  while (pBlock->info.rows + pRow->numOfRows > pBlock->info.capacity) {
+    int32_t code = blockDataEnsureCapacity(pBlock, pBlock->info.capacity * 1.25);
+    if (TAOS_FAILED(code)) {
+      releaseBufPage(pBuf, page);
+      qError("%s ensure result data capacity failed, code %s", GET_TASKID(pTaskInfo), tstrerror(code));
+      longjmp(pTaskInfo->env, code);
+    }
   }
 
   for (int32_t j = 0; j < numOfExprs; ++j) {
