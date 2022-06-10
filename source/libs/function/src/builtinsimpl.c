@@ -2445,7 +2445,7 @@ int32_t lastCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
   char*      pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
 
-  if (pSResInfo->numOfRes != 0 && 
+  if (pSResInfo->numOfRes != 0 &&
         (pDResInfo->numOfRes == 0 || *(TSKEY*)(pDBuf + bytes) < *(TSKEY*)(pSBuf + bytes)) ) {
     memcpy(pDBuf, pSBuf, bytes);
     *(TSKEY*)(pDBuf + bytes) = *(TSKEY*)(pSBuf + bytes);
@@ -2695,6 +2695,34 @@ int32_t topFunction(SqlFunctionCtx* pCtx) {
     char* data = colDataGetData(pCol, i);
     doAddIntoResult(pCtx, data, i, pCtx->pSrcBlock, type, pInput->uid, pResInfo, true);
   }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static void topBotTransfer(STopBotRes* pInput, STopBotRes* pOutput) {
+}
+
+int32_t topBotFunctionMerge(SqlFunctionCtx *pCtx) {
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData* pCol = pInput->pData[0];
+  ASSERT(pCol->info.type == TSDB_DATA_TYPE_BINARY);
+
+  STopBotRes* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+
+  int32_t start = pInput->startRowIndex;
+  char* data = colDataGetData(pCol, start);
+  STopBotRes* pInputInfo = (STopBotRes *)varDataVal(data);
+
+  pInfo->hasResult = pInputInfo->hasResult;
+  if (pInputInfo->max > pInfo->max) {
+    pInfo->max = pInputInfo->max;
+  }
+
+  if (pInputInfo->min < pInfo->min) {
+    pInfo->min = pInputInfo->min;
+  }
+
+  SET_VAL(GET_RES_INFO(pCtx), 1, 1);
 
   return TSDB_CODE_SUCCESS;
 }
