@@ -408,7 +408,7 @@ int32_t tmqCommitInner(tmq_t* tmq, const tmq_topic_vgroup_list_t* offsets, int8_
   pParam->userParam = userParam;
   if (!async) tsem_init(&pParam->rspSem, 0, 0);
 
-  sendInfo = taosMemoryMalloc(sizeof(SMsgSendInfo));
+  sendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (sendInfo == NULL) goto END;
   sendInfo->msgInfo = (SDataBuf){
       .pData = buf,
@@ -704,7 +704,7 @@ tmq_resp_err_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   void* abuf = buf;
   tSerializeSCMSubscribeReq(&abuf, &req);
 
-  SMsgSendInfo* sendInfo = taosMemoryMalloc(sizeof(SMsgSendInfo));
+  SMsgSendInfo* sendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (sendInfo == NULL) goto FAIL;
 
   SMqSubscribeCbParam param = {
@@ -1008,7 +1008,7 @@ int32_t tmqAskEp(tmq_t* tmq, bool async) {
   pParam->async = async;
   tsem_init(&pParam->rspSem, 0, 0);
 
-  SMsgSendInfo* sendInfo = taosMemoryMalloc(sizeof(SMsgSendInfo));
+  SMsgSendInfo* sendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (sendInfo == NULL) {
     tsem_destroy(&pParam->rspSem);
     taosMemoryFree(pParam);
