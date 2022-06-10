@@ -35,6 +35,13 @@
 
 extern bool tsStreamSchedV;
 
+static int32_t mndAddTaskToTaskSet(SArray* pArray, SStreamTask* pTask) {
+  int32_t childId = taosArrayGetSize(pArray);
+  pTask->childId = childId;
+  taosArrayPush(pArray, &pTask);
+  return 0;
+}
+
 int32_t mndConvertRSmaTask(const char* ast, int64_t uid, int8_t triggerType, int64_t watermark, char** pStr,
                            int32_t* pLen, double filesFactor) {
   SNode*      pAst = NULL;
@@ -195,7 +202,7 @@ int32_t mndAddShuffledSinkToStream(SMnode* pMnode, STrans* pTrans, SStreamObj* p
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
-    taosArrayPush(tasks, &pTask);
+    mndAddTaskToTaskSet(tasks, pTask);
 
     pTask->nodeId = pVgroup->vgId;
     pTask->epSet = mndGetVgroupEpset(pMnode, pVgroup);
@@ -235,7 +242,7 @@ int32_t mndAddFixedSinkToStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStr
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
-  taosArrayPush(tasks, &pTask);
+  mndAddTaskToTaskSet(tasks, pTask);
 
   pTask->nodeId = pStream->fixedSinkVgId;
 #if 0
@@ -378,7 +385,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
           return -1;
         }
         sdbRelease(pSdb, pVgroup);
-        taosArrayPush(taskOneLevel, &pTask);
+        mndAddTaskToTaskSet(taskOneLevel, pTask);
       }
     } else {
       // merge plan
