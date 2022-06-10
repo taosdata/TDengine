@@ -4527,36 +4527,50 @@ int32_t tDeserializeBlockDistInfo(void* buf, int32_t bufLen, STableBlockDistInfo
 
 int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
-
-  STableBlockDistInfo info = {0};
   char *pData = GET_ROWCELL_INTERBUF(pResInfo);
 
+  SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, 0);
+
+  int32_t row = 0;
+
+  STableBlockDistInfo info = {0};
   tDeserializeBlockDistInfo(varDataVal(pData), varDataLen(pData), &info);
 
-  int32_t step = (info.defMaxRows - info.defMinRows) / 50;
+  char st[256] = {0};
+  int32_t len = sprintf(st+VARSTR_HEADER_SIZE, "Blocks=[%d] Size=[%.3fKb] Average_Block_size=[%.3fKb] Compression_Ratio=[%.3f]", info.numOfBlocks,
+          info.totalSize/1024.0,
+          info.totalSize/(info.numOfBlocks*1024.0),
+          info.totalSize/(info.totalRows*info.rowSize*1.0)
+  );
 
-  // convert to string results
-  char st[128] = {0};
-  sprintf(st, "Blocks=[%d] Size=[%.3fKb] Average_Block_size=[%.3fKb] Compression_Ratio=[%.3f]", info.numOfBlocks,
-      info.totalSize/1024.0,
-      info.totalSize/(info.numOfBlocks*1024.0),
-      info.totalSize/(info.totalRows*info.rowSize*1.0)
-      );
+  varDataSetLen(st, len);
+  colDataAppend(pColInfo, row++, st, false);
 
-  sprintf(st, "Total_Rows=[%"PRId64"] MinRows=[%d] MaxRows=[%d] Averge_Rows=[%"PRId64"] Inmem_Rows=[%d]",
-      info.totalRows,
-      info.minRows,
-      info.maxRows,
-      info.totalRows/info.numOfBlocks,
-      info.numOfInmemRows
-      );
+  len = sprintf(st+VARSTR_HEADER_SIZE, "Total_Rows=[%ld] MinRows=[%d] MaxRows=[%d] Averge_Rows=[%ld] Inmem_Rows=[%d]",
+          info.totalRows,
+          info.minRows,
+          info.maxRows,
+          info.totalRows/info.numOfBlocks,
+          info.numOfInmemRows
+  );
 
-  sprintf(st, "Total_Tables=[%d] Total_Files=[%d] Total_Vgroups=[%d]", info.numOfTables, info.numOfFiles, 0);
-  sprintf(st, "----------------------------------------------------------------------");
+  varDataSetLen(st, len);
+  colDataAppend(pColInfo, row++, st, false);
+
+  len = sprintf(st + VARSTR_HEADER_SIZE, "Total_Tables=[%d] Total_Files=[%d] Total_Vgroups=[%d]",
+      info.numOfTables,
+      info.numOfFiles, 0);
+
+  varDataSetLen(st, len);
+  colDataAppend(pColInfo, row++, st, false);
+
+  len = sprintf(st+VARSTR_HEADER_SIZE, "--------------------------------------------------------------------------------");
+  varDataSetLen(st, len);
+  colDataAppend(pColInfo, row++, st, false);
 
   int32_t maxVal = 0;
   int32_t minVal = INT32_MAX;
-  for(int32_t i = 0; i < 100; ++i) {
+  for(int32_t i = 0; i < sizeof(info.blockRowsHisto)/sizeof(info.blockRowsHisto[0]); ++i) {
     if (maxVal < info.blockRowsHisto[i]) {
       maxVal = info.blockRowsHisto[i];
     }
@@ -4566,17 +4580,28 @@ int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     }
   }
 
-  for(int32_t i = 0; i < 100; ++i) {
-    int32_t len = sprintf(st, "%d |", info.defMinRows + step);
+  int32_t delta = maxVal - minVal;
+  int32_t step = delta / 50;
+
+  int32_t numOfBuckets = sizeof(info.blockRowsHisto)/sizeof(info.blockRowsHisto[0]);
+  int32_t bucketRange = (info.maxRows - info.minRows) / numOfBuckets;
+
+  for(int32_t i = 0; i < 20; ++i) {
+    len += sprintf(st + VARSTR_HEADER_SIZE, "%04d |", info.defMinRows + bucketRange * (i + 1));
+
     int32_t num = (info.blockRowsHisto[i] + step - 1) / step;
-    for(int32_t j = 0; j < num; ++j) {
-      int32_t x = sprintf(st + len, "%c", '|');
+    for (int32_t j = 0; j < num; ++j) {
+      int32_t x = sprintf(st + VARSTR_HEADER_SIZE + len, "%c", '|');
       len += x;
     }
 
-    double v = info.blockRowsHisto[i]*1.0 / info.numOfBlocks;
-    sprintf(st + len, "  %d (%.3f)\n", info.blockRowsHisto[i], v);
+    double v = info.blockRowsHisto[i] * 100.0 / info.numOfBlocks;
+    len += sprintf(st+ VARSTR_HEADER_SIZE + len, "  %d (%.3f%c)", info.blockRowsHisto[i], v, '%');
+    printf("%s\n", st);
+
+    varDataSetLen(st, len);
+    colDataAppend(pColInfo, row++, st, false);
   }
 
-  return 100;
+  return row;
 }
