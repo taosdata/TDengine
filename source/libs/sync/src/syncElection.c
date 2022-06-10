@@ -15,6 +15,7 @@
 
 #include "syncElection.h"
 #include "syncMessage.h"
+#include "syncRaftCfg.h"
 #include "syncRaftStore.h"
 #include "syncVoteMgr.h"
 
@@ -49,6 +50,26 @@ int32_t syncNodeRequestVotePeers(SSyncNode* pSyncNode) {
   return ret;
 }
 
+int32_t syncNodeRequestVotePeersSnapshot(SSyncNode* pSyncNode) {
+  ASSERT(pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE);
+
+  int32_t ret = 0;
+  for (int i = 0; i < pSyncNode->peersNum; ++i) {
+    SyncRequestVote* pMsg = syncRequestVoteBuild(pSyncNode->vgId);
+    pMsg->srcId = pSyncNode->myRaftId;
+    pMsg->destId = pSyncNode->peersId[i];
+    pMsg->term = pSyncNode->pRaftStore->currentTerm;
+
+    ret = syncNodeGetLastIndexTerm(pSyncNode, &(pMsg->lastLogIndex), &(pMsg->lastLogTerm));
+    ASSERT(ret == 0);
+
+    ret = syncNodeRequestVote(pSyncNode, &pSyncNode->peersId[i], pMsg);
+    ASSERT(ret == 0);
+    syncRequestVoteDestroy(pMsg);
+  }
+  return ret;
+}
+
 int32_t syncNodeElect(SSyncNode* pSyncNode) {
   int32_t ret = 0;
   if (pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER) {
@@ -71,7 +92,12 @@ int32_t syncNodeElect(SSyncNode* pSyncNode) {
     return ret;
   }
 
-  ret = syncNodeRequestVotePeers(pSyncNode);
+  if (pSyncNode->pRaftCfg->snapshotEnable) {
+    ret = syncNodeRequestVotePeersSnapshot(pSyncNode);
+  } else {
+    ret = syncNodeRequestVotePeers(pSyncNode);
+  }
+
   assert(ret == 0);
   syncNodeResetElectTimer(pSyncNode);
 

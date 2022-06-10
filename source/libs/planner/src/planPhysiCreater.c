@@ -1186,6 +1186,7 @@ static int32_t createExchangePhysiNodeByMerge(SMergePhysiNode* pMerge) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pExchange->srcGroupId = pMerge->srcGroupId;
+  pExchange->singleChannel = true;
   pExchange->node.pParent = (SPhysiNode*)pMerge;
   pExchange->node.pOutputDataBlockDesc = nodesCloneNode(pMerge->node.pOutputDataBlockDesc);
   if (NULL == pExchange->node.pOutputDataBlockDesc) {

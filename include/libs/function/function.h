@@ -146,6 +146,7 @@ typedef struct SqlFunctionCtx {
   struct SDiskbasedBuf  *pBuf;
   struct SSDataBlock    *pSrcBlock;
   int32_t                curBufPage;
+  bool                   increase;
 
   char                   udfName[TSDB_FUNC_NAME_LEN];
 } SqlFunctionCtx;
