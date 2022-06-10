@@ -4421,7 +4421,6 @@ int32_t twaFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock) {
   if (pResInfo->numOfRes == 0) {
     pResInfo->isNullRes = 1;
   } else {
-    //  assert(pInfo->win.ekey == pInfo->p.key && pInfo->hasResult == pResInfo->hasResult);
     if (pInfo->win.ekey == pInfo->win.skey) {
       pInfo->dOutput = pInfo->p.val;
     } else {
@@ -4434,3 +4433,129 @@ int32_t twaFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock) {
   return functionFinalize(pCtx, pBlock);
 }
 
+int32_t blockDistFunction(SqlFunctionCtx *pCtx) {
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData* pInputCol = pInput->pData[0];
+
+  SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
+
+  char *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  memcpy(pInfo, pInputCol->pData, varDataTLen(pInputCol->pData));
+  pResInfo->numOfRes = 1;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tSerializeBlockDistInfo(void* buf, int32_t bufLen, const STableBlockDistInfo* pInfo) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeU32(&encoder, pInfo->rowSize) < 0) return -1;
+
+  if (tEncodeU16(&encoder, pInfo->numOfFiles) < 0) return -1;
+  if (tEncodeU32(&encoder, pInfo->rowSize) < 0) return -1;
+  if (tEncodeU32(&encoder, pInfo->numOfTables) < 0) return -1;
+
+  if (tEncodeU64(&encoder, pInfo->totalSize) < 0) return -1;
+  if (tEncodeU64(&encoder, pInfo->totalRows) < 0) return -1;
+  if (tEncodeI32(&encoder, pInfo->maxRows) < 0) return -1;
+  if (tEncodeI32(&encoder, pInfo->minRows) < 0) return -1;
+  if (tEncodeI32(&encoder, pInfo->defMaxRows) < 0) return -1;
+  if (tEncodeI32(&encoder, pInfo->defMinRows) < 0) return -1;
+  if (tEncodeU32(&encoder, pInfo->numOfInmemRows) < 0) return -1;
+  if (tEncodeU32(&encoder, pInfo->numOfSmallBlocks) < 0) return -1;
+
+  for(int32_t i = 0; i < tListLen(pInfo->blockRowsHisto); ++i) {
+    if (tEncodeI32(&encoder, pInfo->blockRowsHisto[i]) < 0) return -1;
+  }
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeBlockDistInfo(void* buf, int32_t bufLen, STableBlockDistInfo* pInfo) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeU32(&decoder, &pInfo->rowSize) < 0) return -1;
+
+  if (tDecodeU16(&decoder, &pInfo->numOfFiles) < 0) return -1;
+  if (tDecodeU32(&decoder, &pInfo->rowSize) < 0) return -1;
+  if (tDecodeU32(&decoder, &pInfo->numOfTables) < 0) return -1;
+
+  if (tDecodeU64(&decoder, &pInfo->totalSize) < 0) return -1;
+  if (tDecodeU64(&decoder, &pInfo->totalRows) < 0) return -1;
+  if (tDecodeI32(&decoder, &pInfo->maxRows) < 0) return -1;
+  if (tDecodeI32(&decoder, &pInfo->minRows) < 0) return -1;
+  if (tDecodeI32(&decoder, &pInfo->defMaxRows) < 0) return -1;
+  if (tDecodeI32(&decoder, &pInfo->defMinRows) < 0) return -1;
+  if (tDecodeU32(&decoder, &pInfo->numOfInmemRows) < 0) return -1;
+  if (tDecodeU32(&decoder, &pInfo->numOfSmallBlocks) < 0) return -1;
+
+  for(int32_t i = 0; i < tListLen(pInfo->blockRowsHisto); ++i) {
+    if (tDecodeI32(&decoder, &pInfo->blockRowsHisto[i]) < 0) return -1;
+  }
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
+
+  STableBlockDistInfo info = {0};
+  char *pData = GET_ROWCELL_INTERBUF(pResInfo);
+
+  tDeserializeBlockDistInfo(varDataVal(pData), varDataLen(pData), &info);
+
+  int32_t step = (info.defMaxRows - info.defMinRows) / 50;
+
+  // convert to string results
+  char st[128] = {0};
+  sprintf(st, "Blocks=[%d] Size=[%.3fKb] Average_Block_size=[%.3fKb] Compression_Ratio=[%.3f]", info.numOfBlocks,
+      info.totalSize/1024.0,
+      info.totalSize/(info.numOfBlocks*1024.0),
+      info.totalSize/(info.totalRows*info.rowSize*1.0)
+      );
+
+  sprintf(st, "Total_Rows=[%"PRId64"] MinRows=[%d] MaxRows=[%d] Averge_Rows=[%"PRId64"] Inmem_Rows=[%d]",
+      info.totalRows,
+      info.minRows,
+      info.maxRows,
+      info.totalRows/info.numOfBlocks,
+      info.numOfInmemRows
+      );
+
+  sprintf(st, "Total_Tables=[%d] Total_Files=[%d] Total_Vgroups=[%d]", info.numOfTables, info.numOfFiles, 0);
+  sprintf(st, "----------------------------------------------------------------------");
+
+  int32_t maxVal = 0;
+  int32_t minVal = INT32_MAX;
+  for(int32_t i = 0; i < 100; ++i) {
+    if (maxVal < info.blockRowsHisto[i]) {
+      maxVal = info.blockRowsHisto[i];
+    }
+
+    if (minVal > info.blockRowsHisto[i]) {
+      minVal = info.blockRowsHisto[i];
+    }
+  }
+
+  for(int32_t i = 0; i < 100; ++i) {
+    int32_t len = sprintf(st, "%d |", info.defMinRows + step);
+    int32_t num = (info.blockRowsHisto[i] + step - 1) / step;
+    for(int32_t j = 0; j < num; ++j) {
+      int32_t x = sprintf(st + len, "%c", '|');
+      len += x;
+    }
+
+    double v = info.blockRowsHisto[i]*1.0 / info.numOfBlocks;
+    sprintf(st + len, "  %d (%.3f)\n", info.blockRowsHisto[i], v);
+  }
+
+  return 100;
+}

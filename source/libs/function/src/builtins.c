@@ -1137,6 +1137,12 @@ static int32_t translateSelectValue(SFunctionNode* pFunc, char* pErrBuf, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateBlockDistFunc(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  pFunc->node.resType = (SDataType) {.bytes = 128, .type = TSDB_DATA_TYPE_VARCHAR};
+  return TSDB_CODE_SUCCESS;
+}
+
+
 // clang-format off
 const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
@@ -1865,6 +1871,15 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = functionSetup,
     .processFunc  = NULL,
     .finalizeFunc = NULL
+  },
+  {
+    .name = "_block_dist",
+    .type = FUNCTION_TYPE_BLOCK_DIST,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateBlockDistFunc,
+    .getEnvFunc   = NULL,
+    .processFunc  = blockDistFunction,
+    .finalizeFunc = blockDistFinalize
   }
 };
 // clang-format on

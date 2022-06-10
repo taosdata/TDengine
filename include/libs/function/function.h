@@ -58,7 +58,6 @@ typedef struct SFileBlockInfo {
   int32_t numBlocksOfStep;
 } SFileBlockInfo;
 
-#define TSDB_BLOCK_DIST_STEP_ROWS 8
 #define MAX_INTERVAL_TIME_WINDOW  1000000  // maximum allowed time windows in final results
 
 #define TOP_BOTTOM_QUERY_LIMIT    100
