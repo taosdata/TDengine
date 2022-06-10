@@ -2301,18 +2301,18 @@ cleanup:
   return code;
 }
 
-static int32_t isSchemalessDb(STscObj *taos, SCatalog *catalog){
+static int32_t isSchemalessDb(STscObj *taos, SRequestObj* request, SCatalog *catalog){
   SName          name;
   tNameSetDbName(&name, taos->acctId, taos->db, strlen(taos->db));
   char dbFname[TSDB_DB_FNAME_LEN] = {0};
   tNameGetFullDbName(&name, dbFname);
   SDbCfgInfo pInfo = {0};
-  SRequestConnInfo conn = {.pTrans = info->taos->pAppInfo->pTransporter, 
-                           .requestId = info->pRequest->requestId,
-                           .requestObjRefId = info->pRequest->self,
-                           .mgmtEps = getEpSet_s(&info->taos->pAppInfo->mgmtEp)};
+  SRequestConnInfo conn = {.pTrans = taos->pAppInfo->pTransporter, 
+                           .requestId = request->requestId,
+                           .requestObjRefId = request->self,
+                           .mgmtEps = getEpSet_s(&taos->pAppInfo->mgmtEp)};
 
-  int32_t code = catalogGetDBCfg(info->pCatalog, &conn, dbFname, &pInfo);
+  int32_t code = catalogGetDBCfg(catalog, &conn, dbFname, &pInfo);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -2396,7 +2396,7 @@ TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int pr
     goto end;
   }
 
-  if(isSchemalessDb(((STscObj *)taos), params.catalog) != TSDB_CODE_SUCCESS){
+  if(isSchemalessDb(((STscObj *)taos), request, params.catalog) != TSDB_CODE_SUCCESS){
     request->code = TSDB_CODE_SML_INVALID_DB_CONF;
     smlBuildInvalidDataMsg(&msg, "Cannot write data to a non schemaless database", NULL);
     goto end;
