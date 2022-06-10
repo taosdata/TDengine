@@ -16,6 +16,7 @@ First, you need to install the `taospy` module version >= `2.3.3`. Run the comma
 ```
 pip3 install taospy>=2.3.3
 ```
+You'll need to have Python3 installed.
 
 </TabItem>
 <TabItem value="conda" label="conda">
@@ -26,9 +27,6 @@ conda install taospy=2.3.3
 
 </TabItem>
 </Tabs>
-
-
-You'll need to have Python3 installed.
 
 ## Config
 
