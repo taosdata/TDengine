@@ -175,7 +175,7 @@ class TDTestCase:
                                     self.__single_sql(select_clause=select_claus, from_clause=tb, start_val=arg, where_condition=where_claus, group_condition=having_claus),
                                 )
                             )
-                        elif isinstance(select_claus, str) and any([BOOL_COL in select_claus, BINARY_COL in select_claus, NCHAR_COL in select_claus]):
+                        elif isinstance(select_claus, str) and any([BOOL_COL in select_claus, BINARY_COL in select_claus, NCHAR_COL in select_claus, TS_COL in select_claus]):
                             err_sqls.extend(
                                 (
                                     self.__single_sql(select_clause=select_claus, from_clause=tb, start_val=arg),
