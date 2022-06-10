@@ -2002,6 +2002,7 @@ int32_t finalizeResultRowIntoResultDataBlock(SDiskbasedBuf* pBuf, SResultRowPosi
   }
 
   releaseBufPage(pBuf, page);
+  pBlock->info.rows += pRow->numOfRows;
 
   return 0;
 }
