@@ -402,7 +402,8 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
 }
 
 static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOutputObj *pOutput) {
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pMsg);
+  mndTransSetDbName(pTrans, pOutput->pSub->dbName);
   if (pTrans == NULL) return -1;
 
   // make txn:
@@ -547,6 +548,7 @@ static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
       taosRLockLatch(&pTopic->lock);
 
       rebOutput.pSub = mndCreateSub(pMnode, pTopic, pRebInfo->key);
+      memcpy(rebOutput.pSub->dbName, pTopic->db, TSDB_DB_FNAME_LEN);
       ASSERT(taosHashGetSize(rebOutput.pSub->consumerHash) == 0);
 
       taosRUnLockLatch(&pTopic->lock);
