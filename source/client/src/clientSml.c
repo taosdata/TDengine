@@ -461,9 +461,13 @@ static int32_t smlProcessSchemaAction(SSmlHandle* info, SSchema* schemaField, SH
 
 static int32_t smlModifyDBSchemas(SSmlHandle* info) {
   int32_t code = 0;
-  SEpSet ep = getEpSet_s(&info->taos->pAppInfo->mgmtEp);
   SName pName = {TSDB_TABLE_NAME_T, info->taos->acctId, {0}, {0}};
   strcpy(pName.dbname, info->pRequest->pDb);
+
+  SRequestConnInfo conn = {.pTrans = info->taos->pAppInfo->pTransporter, 
+                           .requestId = info->pRequest->requestId,
+                           .requestObjRefId = info->pRequest->self,
+                           .mgmtEps = getEpSet_s(&info->taos->pAppInfo->mgmtEp)};
 
   SSmlSTableMeta** tableMetaSml = (SSmlSTableMeta**)taosHashIterate(info->superTables, NULL);
   while (tableMetaSml) {
@@ -474,11 +478,6 @@ static int32_t smlModifyDBSchemas(SSmlHandle* info) {
     void *superTable = taosHashGetKey(tableMetaSml, &superTableLen);
     memset(pName.tname, 0, TSDB_TABLE_NAME_LEN);
     memcpy(pName.tname, superTable, superTableLen);
-
-    SRequestConnInfo conn = {.pTrans = info->taos->pAppInfo->pTransporter, 
-                             .requestId = info->pRequest->requestId,
-                             .requestObjRefId = info->pRequest->self,
-                             .mgmtEps = getEpSet_s(&info->taos->pAppInfo->mgmtEp)};
 
     code = catalogGetSTableMeta(info->pCatalog, &conn, &pName, &pTableMeta);
 
@@ -542,7 +541,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle* info) {
   return 0;
 
 end:
-  catalogRefreshTableMeta(info->pCatalog, info->taos->pAppInfo->pTransporter, &ep, &pName, 1);
+  catalogRefreshTableMeta(info->pCatalog, &conn, &pName, 1);
   return code;
 }
 
