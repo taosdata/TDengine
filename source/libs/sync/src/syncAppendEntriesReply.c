@@ -178,8 +178,14 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
           pMsg->privateTerm < pSender->privateTerm) {
         snapshotSenderStart(pSender);
 
+        char     host[128];
+        uint16_t port;
+        syncUtilU642Addr(pSender->pSyncNode->replicasId[pSender->replicaIndex].addr, host, sizeof(host), &port);
+
         char* s = snapshotSender2Str(pSender);
-        sInfo("sync event snapshot send start sender first time, sender:%s", s);
+        sInfo(
+            "sync event snapshot send to %s:%d start sender first time, lastApplyIndex:%ld lastApplyTerm:%lu sender:%s",
+            host, port, pSender->snapshot.lastApplyIndex, pSender->snapshot.lastApplyTerm, s);
         taosMemoryFree(s);
       }
 
