@@ -2670,7 +2670,6 @@ bool topBotFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
   SInputColumnInfoData* pInput = &pCtx->input;
 
   pRes->maxSize = pCtx->param[1].param.i;
-  pRes->type = pInput->pData[0]->info.type;
 
   return true;
 }
@@ -2695,7 +2694,8 @@ int32_t topFunction(SqlFunctionCtx* pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pCol = pInput->pData[0];
 
-  int16_t type = pInput->pData[0]->info.type;
+  STopBotRes* pRes = getTopBotOutputInfo(pCtx);
+  pRes->type = pInput->pData[0]->info.type;
 
   int32_t start = pInput->startRowIndex;
   for (int32_t i = start; i < pInput->numOfRows + start; ++i) {
@@ -2705,7 +2705,7 @@ int32_t topFunction(SqlFunctionCtx* pCtx) {
 
     numOfElems++;
     char* data = colDataGetData(pCol, i);
-    doAddIntoResult(pCtx, data, i, pCtx->pSrcBlock, type, pInput->uid, pResInfo, true);
+    doAddIntoResult(pCtx, data, i, pCtx->pSrcBlock, pRes->type, pInput->uid, pResInfo, true);
   }
 
   return TSDB_CODE_SUCCESS;
