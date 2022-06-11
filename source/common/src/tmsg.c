@@ -3877,7 +3877,6 @@ int32_t tEncodeTSma(SEncoder *pCoder, const STSma *pSma) {
   if (tEncodeCStr(pCoder, pSma->indexName) < 0) return -1;
   if (tEncodeI32(pCoder, pSma->exprLen) < 0) return -1;
   if (tEncodeI32(pCoder, pSma->tagsFilterLen) < 0) return -1;
-  if (tEncodeI32(pCoder, pSma->numOfVgroups) < 0) return -1;
   if (tEncodeI64(pCoder, pSma->indexUid) < 0) return -1;
   if (tEncodeI64(pCoder, pSma->tableUid) < 0) return -1;
   if (tEncodeI64(pCoder, pSma->dstTbUid) < 0) return -1;
@@ -3892,22 +3891,8 @@ int32_t tEncodeTSma(SEncoder *pCoder, const STSma *pSma) {
     if (tEncodeCStr(pCoder, pSma->tagsFilter) < 0) return -1;
   }
 
-  if (pSma->numOfVgroups) {  // only needed in dstVgroup
-    for (int32_t v = 0; v < pSma->numOfVgroups; ++v) {
-      if (tEncodeI32(pCoder, pSma->pVgEpSet[v].vgId) < 0) return -1;
-      if (tEncodeI8(pCoder, pSma->pVgEpSet[v].epSet.inUse) < 0) return -1;
-      int8_t numOfEps = pSma->pVgEpSet[v].epSet.numOfEps;
-      if (tEncodeI8(pCoder, numOfEps) < 0) return -1;
-      for (int32_t n = 0; n < numOfEps; ++n) {
-        const SEp *pEp = &pSma->pVgEpSet[v].epSet.eps[n];
-        if (tEncodeCStr(pCoder, pEp->fqdn) < 0) return -1;
-        if (tEncodeU16(pCoder, pEp->port) < 0) return -1;
-      }
-    }
-
-    tEncodeSSchemaWrapper(pCoder, &pSma->schemaRow);
-    tEncodeSSchemaWrapper(pCoder, &pSma->schemaTag);
-  }
+  tEncodeSSchemaWrapper(pCoder, &pSma->schemaRow);
+  tEncodeSSchemaWrapper(pCoder, &pSma->schemaTag);
 
   return 0;
 }
@@ -3921,7 +3906,6 @@ int32_t tDecodeTSma(SDecoder *pCoder, STSma *pSma) {
   if (tDecodeCStrTo(pCoder, pSma->indexName) < 0) return -1;
   if (tDecodeI32(pCoder, &pSma->exprLen) < 0) return -1;
   if (tDecodeI32(pCoder, &pSma->tagsFilterLen) < 0) return -1;
-  if (tDecodeI32(pCoder, &pSma->numOfVgroups) < 0) return -1;
   if (tDecodeI64(pCoder, &pSma->indexUid) < 0) return -1;
   if (tDecodeI64(pCoder, &pSma->tableUid) < 0) return -1;
   if (tDecodeI64(pCoder, &pSma->dstTbUid) < 0) return -1;
@@ -3939,30 +3923,9 @@ int32_t tDecodeTSma(SDecoder *pCoder, STSma *pSma) {
   } else {
     pSma->tagsFilter = NULL;
   }
-  if (pSma->numOfVgroups > 0) {  // only needed in dstVgroup
-    pSma->pVgEpSet = (SVgEpSet *)tDecoderMalloc(pCoder, pSma->numOfVgroups * sizeof(SVgEpSet));
-    if (!pSma->pVgEpSet) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return -1;
-    }
-
-    memset(pSma->pVgEpSet, 0, pSma->numOfVgroups * sizeof(SVgEpSet));
-
-    for (int32_t v = 0; v < pSma->numOfVgroups; ++v) {
-      if (tDecodeI32(pCoder, &pSma->pVgEpSet[v].vgId) < 0) return -1;
-      if (tDecodeI8(pCoder, &pSma->pVgEpSet[v].epSet.inUse) < 0) return -1;
-      if (tDecodeI8(pCoder, &pSma->pVgEpSet[v].epSet.numOfEps) < 0) return -1;
-      int8_t numOfEps = pSma->pVgEpSet[v].epSet.numOfEps;
-      for (int32_t n = 0; n < numOfEps; ++n) {
-        SEp *pEp = &pSma->pVgEpSet[v].epSet.eps[n];
-        if (tDecodeCStrTo(pCoder, pEp->fqdn) < 0) return -1;
-        if (tDecodeU16(pCoder, &pEp->port) < 0) return -1;
-      }
-    }
-
-    tDecodeSSchemaWrapperEx(pCoder, &pSma->schemaRow);
-    tDecodeSSchemaWrapperEx(pCoder, &pSma->schemaTag);
-  }
+  // only needed in dstVgroup
+  tDecodeSSchemaWrapperEx(pCoder, &pSma->schemaRow);
+  tDecodeSSchemaWrapperEx(pCoder, &pSma->schemaTag);
 
   return 0;
 }
@@ -4001,98 +3964,6 @@ int32_t tDecodeSVDropTSmaReq(SDecoder *pCoder, SVDropTSmaReq *pReq) {
   if (tDecodeI64(pCoder, &pReq->indexUid) < 0) return -1;
   if (tDecodeCStrTo(pCoder, pReq->indexName) < 0) return -1;
 
-  tEndDecode(pCoder);
-  return 0;
-}
-
-int32_t tEncodeSVGetTSmaExpWndsReq(SEncoder *pCoder, const SVGetTsmaExpWndsReq *pReq) {
-  if (tStartEncode(pCoder) < 0) return -1;
-
-  if (tEncodeI64(pCoder, pReq->indexUid) < 0) return -1;
-  if (tEncodeI64(pCoder, pReq->queryWindow.skey) < 0) return -1;
-  if (tEncodeI64(pCoder, pReq->queryWindow.ekey) < 0) return -1;
-
-  tEndEncode(pCoder);
-  return 0;
-}
-
-int32_t tDecodeSVGetTsmaExpWndsReq(SDecoder *pCoder, SVGetTsmaExpWndsReq *pReq) {
-  if (tStartDecode(pCoder) < 0) return -1;
-
-  if (tDecodeI64(pCoder, &pReq->indexUid) < 0) return -1;
-  if (tDecodeI64(pCoder, &pReq->queryWindow.skey) < 0) return -1;
-  if (tDecodeI64(pCoder, &pReq->queryWindow.ekey) < 0) return -1;
-
-  tEndDecode(pCoder);
-  return 0;
-}
-
-int32_t tEncodeSVGetTSmaExpWndsRsp(SEncoder *pCoder, const SVGetTsmaExpWndsRsp *pReq) {
-  if (tStartEncode(pCoder) < 0) return -1;
-
-  if (tEncodeI64(pCoder, pReq->indexUid) < 0) return -1;
-  if (tEncodeI8(pCoder, pReq->flags) < 0) return -1;
-  if (tEncodeI32(pCoder, pReq->numExpWnds) < 0) return -1;
-  for (int32_t i = 0; i < pReq->numExpWnds; ++i) {
-    if (tEncodeI64(pCoder, pReq->wndSKeys[i]) < 0) return -1;
-  }
-  tEndEncode(pCoder);
-  return 0;
-}
-
-int32_t tDecodeSVGetTsmaExpWndsRsp(SDecoder *pCoder, SVGetTsmaExpWndsRsp *pReq) {
-  if (tStartDecode(pCoder) < 0) return -1;
-
-  if (tDecodeI64(pCoder, &pReq->indexUid) < 0) return -1;
-  if (tDecodeI8(pCoder, &pReq->flags) < 0) return -1;
-  if (tDecodeI32(pCoder, &pReq->numExpWnds) < 0) return -1;
-  for (int32_t i = 0; i < pReq->numExpWnds; ++i) {
-    if (tDecodeI64(pCoder, &pReq->wndSKeys[i]) < 0) return -1;
-  }
-
-  tEndDecode(pCoder);
-  return 0;
-}
-
-int32_t tEncodeSVClrTsmaExpWndsReq(SEncoder *pCoder, const SVClrTsmaExpWndsReq *pReq) {
-  if (tStartEncode(pCoder) < 0) return -1;
-  if (tEncodeI64(pCoder, pReq->indexUid) < 0) return -1;
-  if (tEncodeI64(pCoder, pReq->version) < 0) return -1;
-  if (tEncodeI64v(pCoder, pReq->nItems) < 0) return -1;
-  for (int64_t n = 0; pReq->nItems; ++n) {
-    if (tEncodeI64v(pCoder, pReq->items[n].nKeys) < 0) return -1;
-    if (tEncodeI64(pCoder, pReq->items[n].skey) < 0) return -1;
-  }
-  tEndEncode(pCoder);
-  return 0;
-}
-
-int32_t tDecodeSVClrTsmaExpWndsReq(SDecoder *pCoder, SVClrTsmaExpWndsReq *pReq) {
-  if (tStartDecode(pCoder) < 0) return -1;
-  if (tDecodeI64(pCoder, &pReq->indexUid) < 0) return -1;
-  if (tDecodeI64(pCoder, &pReq->version) < 0) return -1;
-  if (tDecodeI64v(pCoder, &pReq->nItems) < 0) return -1;
-
-  for (int64_t i = 0; i < pReq->nItems; ++i) {
-    if (tDecodeI64v(pCoder, &pReq->items[i].nKeys) < 0) return -1;
-    if (tDecodeI64(pCoder, &pReq->items[i].skey) < 0) return -1;
-  }
-  tEndDecode(pCoder);
-  return 0;
-}
-
-int32_t tEncodeSVClrTsmaExpWndsRsp(SEncoder *pCoder, const SVClrTsmaExpWndsRsp *pReq) {
-  if (tStartEncode(pCoder) < 0) return -1;
-  if (tEncodeI64(pCoder, pReq->indexUid) < 0) return -1;
-  if (tEncodeI32v(pCoder, pReq->code) < 0) return -1;
-  tEndEncode(pCoder);
-  return 0;
-}
-
-int32_t tDecodeSVClrTsmaExpWndsRsp(SDecoder *pCoder, SVClrTsmaExpWndsRsp *pReq) {
-  if (tStartDecode(pCoder) < 0) return -1;
-  if (tDecodeI64(pCoder, &pReq->indexUid) < 0) return -1;
-  if (tDecodeI32v(pCoder, &pReq->code) < 0) return -1;
   tEndDecode(pCoder);
   return 0;
 }

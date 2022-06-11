@@ -2345,7 +2345,6 @@ typedef struct {
   char           indexName[TSDB_INDEX_NAME_LEN];
   int32_t        exprLen;
   int32_t        tagsFilterLen;
-  int32_t        numOfVgroups;  // for dstVgroup
   int64_t        indexUid;
   tb_uid_t       tableUid;  // super/child/common table uid
   tb_uid_t       dstTbUid;  // for dstVgroup
@@ -2355,7 +2354,6 @@ typedef struct {
   char*          dstTbName;  // for dstVgroup
   char*          expr;       // sma expression
   char*          tagsFilter;
-  SVgEpSet*      pVgEpSet;   // for dstVgroup
   SSchemaWrapper schemaRow;  // for dstVgroup
   SSchemaWrapper schemaTag;  // for dstVgroup
 } STSma;                     // Time-range-wise SMA
@@ -2441,49 +2439,6 @@ static int32_t tDecodeTSmaWrapper(SDecoder* pDecoder, STSmaWrapper* pReq) {
   }
   return 0;
 }
-
-typedef struct {
-  int64_t     indexUid;
-  STimeWindow queryWindow;
-} SVGetTsmaExpWndsReq;
-
-#define SMA_WNDS_EXPIRE_FLAG      (0x1)
-#define SMA_WNDS_IS_EXPIRE(flag)  (((flag)&SMA_WNDS_EXPIRE_FLAG) != 0)
-#define SMA_WNDS_SET_EXPIRE(flag) ((flag) |= SMA_WNDS_EXPIRE_FLAG)
-
-typedef struct {
-  int64_t indexUid;
-  int8_t  flags;  // 0x1 all window expired
-  int32_t numExpWnds;
-  TSKEY   wndSKeys[];
-} SVGetTsmaExpWndsRsp;
-
-int32_t tEncodeSVGetTSmaExpWndsReq(SEncoder* pCoder, const SVGetTsmaExpWndsReq* pReq);
-int32_t tDecodeSVGetTsmaExpWndsReq(SDecoder* pCoder, SVGetTsmaExpWndsReq* pReq);
-int32_t tEncodeSVGetTSmaExpWndsRsp(SEncoder* pCoder, const SVGetTsmaExpWndsRsp* pReq);
-int32_t tDecodeSVGetTsmaExpWndsRsp(SDecoder* pCoder, SVGetTsmaExpWndsRsp* pReq);
-
-typedef struct {
-  int64_t nKeys;  // n consecutive keys since skey
-  int64_t skey;
-} SVTsmaExpWndItem;
-
-typedef struct {
-  int64_t          indexUid;
-  int64_t          version;  // tsma result version
-  int64_t          nItems;
-  SVTsmaExpWndItem items[];
-} SVClrTsmaExpWndsReq;
-
-typedef struct {
-  int64_t indexUid;
-  int32_t code;
-} SVClrTsmaExpWndsRsp;
-
-int32_t tEncodeSVClrTsmaExpWndsReq(SEncoder* pCoder, const SVClrTsmaExpWndsReq* pReq);
-int32_t tDecodeSVClrTsmaExpWndsReq(SDecoder* pCoder, SVClrTsmaExpWndsReq* pReq);
-int32_t tEncodeSVClrTsmaExpWndsRsp(SEncoder* pCoder, const SVClrTsmaExpWndsRsp* pReq);
-int32_t tDecodeSVClrTsmaExpWndsRsp(SDecoder* pCoder, SVClrTsmaExpWndsRsp* pReq);
 
 typedef struct {
   int idx;

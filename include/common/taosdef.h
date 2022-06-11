@@ -98,7 +98,6 @@ extern char *qtypeStr[];
 #undef TD_DEBUG_PRINT_ROW
 #undef TD_DEBUG_PRINT_TSDB_LOAD_DCOLS
 #undef TD_DEBUG_PRINT_TAG
-#define TD_DEBUG_SMA_ID 123456
 
 #ifdef __cplusplus
 }

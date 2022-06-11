@@ -151,31 +151,11 @@ static SSmaEnv *tdNewSmaEnv(const SSma *pSma, int8_t smaType, const char *path, 
     return NULL;
   }
 
-  ASSERT(path && (strlen(path) > 0));
-  SMA_ENV_PATH(pEnv) = strdup(path);
-  if (!SMA_ENV_PATH(pEnv)) {
-    tdFreeSmaEnv(pEnv);
-    return NULL;
-  }
-
-  SMA_ENV_DID(pEnv) = did;
-
   if (tdInitSmaStat(&SMA_ENV_STAT(pEnv), smaType) != TSDB_CODE_SUCCESS) {
     tdFreeSmaEnv(pEnv);
     return NULL;
   }
 
-  char aname[TSDB_FILENAME_LEN] = {0};
-  tfsAbsoluteName(SMA_TFS(pSma), did, path, aname);
-  if (smaOpenDBEnv(&pEnv->dbEnv, aname) != TSDB_CODE_SUCCESS) {
-    tdFreeSmaEnv(pEnv);
-    return NULL;
-  }
-
-  if (!(pEnv->pPool = openPool())) {
-    tdFreeSmaEnv(pEnv);
-    return NULL;
-  }
 
   return pEnv;
 }
@@ -205,10 +185,7 @@ void tdDestroySmaEnv(SSmaEnv *pSmaEnv) {
   if (pSmaEnv) {
     tdDestroySmaState(pSmaEnv->pStat, SMA_ENV_TYPE(pSmaEnv));
     taosMemoryFreeClear(pSmaEnv->pStat);
-    taosMemoryFreeClear(pSmaEnv->path);
     taosThreadRwlockDestroy(&(pSmaEnv->lock));
-    smaCloseDBEnv(pSmaEnv->dbEnv);
-    closePool(pSmaEnv->pPool);
   }
 }
 
@@ -280,7 +257,6 @@ void *tdFreeSmaStatItem(SSmaStatItem *pSmaStatItem) {
   if (pSmaStatItem) {
     tDestroyTSma(pSmaStatItem->pTSma);
     taosMemoryFreeClear(pSmaStatItem->pTSma);
-    taosHashCleanup(pSmaStatItem->expireWindows);
     taosMemoryFreeClear(pSmaStatItem);
   }
   return NULL;
@@ -399,63 +375,3 @@ int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType, bool onlyCheck) {
 
   return TSDB_CODE_SUCCESS;
 };
-
-int32_t tdSmaBeginCommit(SSmaEnv *pEnv) {
-  TXN *pTxn = &pEnv->txn;
-  // start a new txn
-  tdbTxnOpen(pTxn, 0, poolMalloc, poolFree, pEnv->pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
-  if (tdbBegin(pEnv->dbEnv, pTxn) != 0) {
-    smaWarn("tdSma tdb begin commit fail");
-    return -1;
-  }
-  return 0;
-}
-
-int32_t tdSmaEndCommit(SSmaEnv *pEnv) {
-  TXN *pTxn = &pEnv->txn;
-
-  // Commit current txn
-  if (tdbCommit(pEnv->dbEnv, pTxn) != 0) {
-    smaWarn("tdSma tdb end commit fail");
-    return -1;
-  }
-  tdbTxnClose(pTxn);
-  clearPool(pEnv->pPool);
-  return 0;
-}
-
-#if 0
-/**
- * @brief Get the start TS key of the last data block of one interval/sliding.
- *
- * @param pSma
- * @param param
- * @param result
- * @return int32_t
- *         1) Return 0 and fill the result if the check procedure is normal;
- *         2) Return -1 if error occurs during the check procedure.
- */
-int32_t tdGetTSmaStatus(SSma *pSma, void *smaIndex, void *result) {
-  const char *procedure = "";
-  if (strncmp(procedure, "get the start TS key of the last data block", 100) != 0) {
-    return -1;
-  }
-  // fill the result
-  return TSDB_CODE_SUCCESS;
-}
-
-/**
- * @brief Remove the tSma data files related to param between pWin.
- *
- * @param pSma
- * @param param
- * @param pWin
- * @return int32_t
- */
-int32_t tdRemoveTSmaData(SSma *pSma, void *smaIndex, STimeWindow *pWin) {
-  // for ("tSmaFiles of param-interval-sliding between pWin") {
-  //   // remove the tSmaFile
-  // }
-  return TSDB_CODE_SUCCESS;
-}
-#endif

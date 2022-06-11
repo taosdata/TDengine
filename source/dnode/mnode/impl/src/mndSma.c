@@ -272,8 +272,6 @@ static void *mndBuildVCreateSmaReq(SMnode *pMnode, SVgObj *pVgroup, SSmaObj *pSm
   req.sliding = pSma->sliding;
   req.expr = pSma->expr;
   req.tagsFilter = pSma->tagsFilter;
-  req.numOfVgroups = pSma->numOfVgroups;
-  req.pVgEpSet = pSma->pVgEpSet;
   req.schemaRow = pSma->schemaRow;
   req.schemaTag = pSma->schemaTag;
   req.dstTbName = pSma->dstTbName;
@@ -435,7 +433,6 @@ static int32_t mndSetCreateSmaVgroupRedoActions(SMnode *pMnode, STrans *pTrans, 
   mndReleaseDnode(pMnode, pDnode);
 
   // todo add sma info here
-#if 1
   SNode *pAst = NULL;
   if (nodesStringToNode(pSma->ast, &pAst) < 0) {
     return -1;
@@ -452,7 +449,6 @@ static int32_t mndSetCreateSmaVgroupRedoActions(SMnode *pMnode, STrans *pTrans, 
   pSma->schemaTag.version = 1;
   pSma->schemaTag.pSchema = taosMemoryCalloc(1, sizeof(SSchema));
   if (!pSma->schemaTag.pSchema) {
-    nodesDestroyNode(pAst);
     return -1;
   }
   pSma->schemaTag.pSchema[0].type = TSDB_DATA_TYPE_BIGINT;
@@ -461,17 +457,7 @@ static int32_t mndSetCreateSmaVgroupRedoActions(SMnode *pMnode, STrans *pTrans, 
   pSma->schemaTag.pSchema[0].flags = 0;
   snprintf(pSma->schemaTag.pSchema[0].name, TSDB_COL_NAME_LEN, "groupId");
 
-  SVgEpSet *pVgEpSet = NULL;
-  int32_t   numOfVgroups = 0;
-  if (mndSmaGetVgEpSet(pMnode, pDb, &pVgEpSet, &numOfVgroups) != 0) {
-    nodesDestroyNode(pAst);
-    return -1;
-  }
-  nodesDestroyNode(pAst);
 
-  pSma->pVgEpSet = pVgEpSet;
-  pSma->numOfVgroups = numOfVgroups;
-#endif
   int32_t smaContLen = 0;
   void   *pSmaReq = mndBuildVCreateSmaReq(pMnode, pVgroup, pSma, &smaContLen);
   if (pSmaReq == NULL) return -1;
@@ -501,10 +487,7 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   memcpy(smaObj.stb, pStb->name, TSDB_TABLE_FNAME_LEN);
   memcpy(smaObj.db, pDb->name, TSDB_DB_FNAME_LEN);
   smaObj.createdTime = taosGetTimestampMs();
-#if 0
   smaObj.uid = mndGenerateUid(pCreate->name, TSDB_TABLE_FNAME_LEN);
-#endif
-  smaObj.uid = TD_DEBUG_SMA_ID;
   char resultTbName[TSDB_TABLE_FNAME_LEN + 16] = {0};
   snprintf(resultTbName, TSDB_TABLE_FNAME_LEN + 16, "td.tsma.rst.tb.%s", pCreate->name);
   memcpy(smaObj.dstTbName, resultTbName, TSDB_TABLE_FNAME_LEN);
@@ -514,7 +497,6 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   smaObj.intervalUnit = pCreate->intervalUnit;
   smaObj.slidingUnit = pCreate->slidingUnit;
   smaObj.timezone = pCreate->timezone;
-  // smaObj.dstVgId = pCreate->dstVgId;
   smaObj.interval = pCreate->interval;
   smaObj.offset = pCreate->offset;
   smaObj.sliding = pCreate->sliding;
@@ -546,42 +528,6 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
     if (smaObj.ast == NULL) goto _OVER;
     memcpy(smaObj.ast, pCreate->ast, smaObj.astLen);
   }
-
-#if 1  // only for debugging, not needed in common vgroups, only needed in dstVgroup.
-  SNode *pAst = NULL;
-  if (nodesStringToNode(smaObj.ast, &pAst) < 0) {
-    return -1;
-  }
-  if (qExtractResultSchema(pAst, &smaObj.schemaRow.nCols, &smaObj.schemaRow.pSchema) != 0) {
-    nodesDestroyNode(pAst);
-    return -1;
-  }
-  smaObj.schemaRow.version = 1;
-
-  smaObj.schemaTag.nCols = 1;
-  smaObj.schemaTag.version = 1;
-  smaObj.schemaTag.pSchema = taosMemoryCalloc(1, sizeof(SSchema));
-  if (!smaObj.schemaTag.pSchema) {
-    nodesDestroyNode(pAst);
-    return -1;
-  }
-  smaObj.schemaTag.pSchema[0].type = TSDB_DATA_TYPE_BIGINT;
-  smaObj.schemaTag.pSchema[0].bytes = TYPE_BYTES[TSDB_DATA_TYPE_BIGINT];
-  smaObj.schemaTag.pSchema[0].colId = smaObj.schemaRow.nCols + PRIMARYKEY_TIMESTAMP_COL_ID;
-  smaObj.schemaTag.pSchema[0].flags = 0;
-  snprintf(smaObj.schemaTag.pSchema[0].name, TSDB_COL_NAME_LEN, "groupId");
-
-  nodesDestroyNode(pAst);
-
-  SVgEpSet *pVgEpSet = NULL;
-  int32_t   numOfVgroups = 0;
-  if (mndSmaGetVgEpSet(pMnode, pDb, &pVgEpSet, &numOfVgroups) != 0) {
-    return -1;
-  }
-
-  smaObj.pVgEpSet = pVgEpSet;
-  smaObj.numOfVgroups = numOfVgroups;
-#endif
 
   SStreamObj streamObj = {0};
   tstrncpy(streamObj.name, pCreate->name, TSDB_STREAM_FNAME_LEN);
@@ -1168,53 +1114,4 @@ static int32_t mndRetrieveSma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
 static void mndCancelGetNextSma(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetch(pSdb, pIter);
-}
-
-static int32_t mndSmaGetVgEpSet(SMnode *pMnode, SDbObj *pDb, SVgEpSet **ppVgEpSet, int32_t *numOfVgroups) {
-  SSdb     *pSdb = pMnode->pSdb;
-  SVgObj   *pVgroup = NULL;
-  void     *pIter = NULL;
-  SVgEpSet *pVgEpSet = NULL;
-  int32_t   nAllocVgs = 16;
-  int32_t   nVgs = 0;
-
-  pVgEpSet = taosMemoryCalloc(nAllocVgs, sizeof(SVgEpSet));
-  if (!pVgEpSet) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  while (1) {
-    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
-    if (pIter == NULL) break;
-    if (pVgroup->dbUid != pDb->uid) {
-      sdbRelease(pSdb, pVgroup);
-      continue;
-    }
-
-    if (nVgs >= nAllocVgs) {
-      void *p = taosMemoryRealloc(pVgEpSet, nAllocVgs * 2 * sizeof(SVgEpSet));
-      if (!p) {
-        taosMemoryFree(pVgEpSet);
-        sdbCancelFetch(pSdb, pIter);
-        sdbRelease(pSdb, pVgroup);
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        return -1;
-      }
-      pVgEpSet = (SVgEpSet *)p;
-      nAllocVgs *= 2;
-    }
-
-    (pVgEpSet + nVgs)->vgId = pVgroup->vgId;
-    (pVgEpSet + nVgs)->epSet = mndGetVgroupEpset(pMnode, pVgroup);
-
-    ++nVgs;
-
-    sdbRelease(pSdb, pVgroup);
-  }
-
-  *ppVgEpSet = pVgEpSet;
-  *numOfVgroups = nVgs;
-
-  return 0;
 }

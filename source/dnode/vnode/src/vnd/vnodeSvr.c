@@ -26,7 +26,6 @@ static int32_t vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *
 static int32_t vnodeProcessAlterConfirmReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessAlterHasnRangeReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessWriteMsg(SVnode *pVnode, int64_t version, SRpcMsg *pMsg, SRpcMsg *pRsp);
-static int32_t vnodeProcessExpWndsClrReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp);
 
 int32_t vnodePreprocessReq(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t  code = 0;
@@ -177,12 +176,10 @@ int32_t vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
 
   vTrace("vgId:%d, process %s request success, index:%" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType), version);
 
-#if 0
   if (tqPushMsg(pVnode->pTq, pMsg->pCont, pMsg->contLen, pMsg->msgType, version) < 0) {
     vError("vgId:%d, failed to push msg to TQ since %s", TD_VID(pVnode), tstrerror(terrno));
     return -1;
   }
-#endif
 
   // commit if need
   if (vnodeShouldCommit(pVnode)) {
@@ -254,8 +251,6 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return tqProcessTaskDispatchRsp(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_RECOVER_RSP:
       return tqProcessTaskRecoverRsp(pVnode->pTq, pMsg);
-    case TDMT_VND_CLR_TSMA_EXP_WNDS:
-      return vnodeProcessExpWndsClrReq(pVnode, pMsg, msgLen, NULL);
     default:
       vError("unknown msg type:%d in fetch queue", pMsg->msgType);
       return TSDB_CODE_VND_APP_ERROR;
@@ -283,10 +278,7 @@ void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data) {
   // TODO
 
   // blockDebugShowData(data, __func__);
-#if 0
   tdProcessTSmaInsert(((SVnode *)pVnode)->pSma, smaId, (const char *)data);
-#endif
-  tdProcessTSmaInsert(((SVnode *)pVnode)->pSma, TD_DEBUG_SMA_ID, NULL);
 }
 
 void vnodeUpdateMetaRsp(SVnode *pVnode, STableMetaRsp *pMetaRsp) {
@@ -898,45 +890,6 @@ static int32_t vnodeProcessAlterConfirmReq(SVnode *pVnode, int64_t version, void
   pRsp->contLen = 0;
 
   return 0;
-}
-
-static int32_t vnodeProcessExpWndsClrReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  SVClrTsmaExpWndsReq req = {0};
-  SDecoder            coder = {0};
-
-  if (pRsp) {
-    pRsp->msgType = TDMT_VND_CLR_TSMA_EXP_WNDS_RSP;
-    pRsp->code = TSDB_CODE_SUCCESS;
-    pRsp->pCont = NULL;
-    pRsp->contLen = 0;
-  }
-
-  // decode and process
-  tDecoderInit(&coder, pReq, len);
-
-  if (tDecodeSVClrTsmaExpWndsReq(&coder, &req) < 0) {
-    terrno = TSDB_CODE_MSG_DECODE_ERROR;
-    if (pRsp) pRsp->code = terrno;
-    goto _err;
-  }
-
-  ASSERT(0);
-
-  if (tdClearExpireWindow(pVnode->pSma, (const SVClrTsmaExpWndsReq *)&req) < 0) {
-    if (pRsp) pRsp->code = terrno;
-    goto _err;
-  }
-
-  tDecoderClear(&coder);
-  vDebug("vgId:%d, success to process expWnds clear for tsma %" PRIi64 " version %" PRIi64, TD_VID(pVnode),
-         req.indexUid, req.version);
-  return 0;
-
-_err:
-  tDecoderClear(&coder);
-  vError("vgId:%d, success to process expWnds clear for tsma %" PRIi64 " version %" PRIi64 " since %s", TD_VID(pVnode),
-         req.indexUid, req.version, terrstr());
-  return -1;
 }
 
 static int32_t vnodeProcessAlterHasnRangeReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {

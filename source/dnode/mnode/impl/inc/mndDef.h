@@ -318,12 +318,10 @@ typedef struct {
   int32_t        tagsFilterLen;
   int32_t        sqlLen;
   int32_t        astLen;
-  int32_t        numOfVgroups;  // for dstVgroup
   char*          expr;
   char*          tagsFilter;
   char*          sql;
   char*          ast;
-  SVgEpSet*      pVgEpSet;   // for dstVgroup
   SSchemaWrapper schemaRow;  // for dstVgroup
   SSchemaWrapper schemaTag;  // for dstVgroup
 } SSmaObj;
