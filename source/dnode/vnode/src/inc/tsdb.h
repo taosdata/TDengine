@@ -22,6 +22,10 @@
 extern "C" {
 #endif
 
+#define TSDB_OFFSET_U8  ((uint8_t)0x1)
+#define TSDB_OFFSET_U16 ((uint8_t)0x2)
+#define TSDB_OFFSET_U32 ((uint8_t)0x4)
+
 // tsdbDebug ================
 // clang-format off
 #define tsdbFatal(...) do { if (tsdbDebugFlag & DEBUG_FATAL) { taosPrintLog("TSDB FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
@@ -150,7 +154,8 @@ int32_t tsdbKeyCmprFn(const void *p1, const void *p2);
 
 // SDelIdx
 int32_t tDelIdxGetSize(SDelIdx *pDelIdx);
-int32_t tDelIdxGetItem(SDelIdx *pDelIdx, int32_t idx, SDelIdxItem *pItem);
+int32_t tDelIdxGetItem(SDelIdx *pDelIdx, SDelIdxItem *pItem, TABLEID id);
+int32_t tDelIdxGetItemByIdx(SDelIdx *pDelIdx, SDelIdxItem *pItem, int32_t idx);
 int32_t tDelIdxPutItem(SDelIdx *pDelIdx, SDelIdxItem *pItem);
 int32_t tPutDelIdx(uint8_t *p, SDelIdx *pDelIdx);
 int32_t tGetDelIdx(uint8_t *p, SDelIdx *pDelIdx);
@@ -375,7 +380,7 @@ struct SDelIdxItem {
 struct SDelIdx {
   uint32_t delimiter;
   uint8_t  flags;
-  uint32_t nOffset;
+  uint32_t nItem;
   uint8_t *pOffset;
   uint32_t nData;
   uint8_t *pData;

@@ -410,7 +410,7 @@ int32_t tsdbReadDelIdx(SDelFReader *pReader, SDelIdx *pDelIdx, uint8_t **ppBuf) 
   int32_t n = tGetDelIdx(*ppBuf, pDelIdx);
   ASSERT(n == size - sizeof(TSCKSUM));
   ASSERT(pDelIdx->delimiter == TSDB_FILE_DLMT);
-  ASSERT(pDelIdx->nOffset > 0 && pDelIdx->nData > 0);
+  // ASSERT(pDelIdx->nOffset > 0 && pDelIdx->nData > 0);
 
   return code;
 

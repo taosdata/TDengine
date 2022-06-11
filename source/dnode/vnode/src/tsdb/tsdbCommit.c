@@ -42,10 +42,10 @@ struct SCommitter {
   /* commit del */
   SDelFReader *pDelFReader;
   SDelFWriter *pDelFWriter;
-  SDelIdx      oDelIdx;
-  SDelIdx      nDelIdx;
-  SDelData     oDelData;
-  SDelData     nDelData;
+  SDelIdx      delIdxOld;
+  SDelIdx      delIdxNew;
+  SDelData     delDataOld;
+  SDelData     delDataNew;
   SDelIdxItem  delIdxItem;
   /* commit cache */
 };
@@ -175,21 +175,21 @@ static int32_t tsdbCommitDelStart(SCommitter *pCommitter) {
   SDelFile  *pDelFileW = NULL;  // TODO
 
   // load old
-  pCommitter->oDelIdx = (SDelIdx){0};
+  pCommitter->delIdxOld = (SDelIdx){0};
   if (pDelFileR) {
     code = tsdbDelFReaderOpen(&pCommitter->pDelFReader, pDelFileR, pTsdb, NULL);
     if (code) {
       goto _err;
     }
 
-    code = tsdbReadDelIdx(pCommitter->pDelFReader, &pCommitter->oDelIdx, &pCommitter->pBuf1);
+    code = tsdbReadDelIdx(pCommitter->pDelFReader, &pCommitter->delIdxOld, &pCommitter->pBuf1);
     if (code) {
       goto _err;
     }
   }
 
   // prepare new
-  pCommitter->nDelIdx = (SDelIdx){0};
+  pCommitter->delIdxNew = (SDelIdx){0};
   code = tsdbDelFWriterOpen(&pCommitter->pDelFWriter, pDelFileW, pTsdb);
   if (code) {
     goto _err;
@@ -245,7 +245,7 @@ _err:
 static int32_t tsdbCommitDelEnd(SCommitter *pCommitter) {
   int32_t code = 0;
 
-  code = tsdbWriteDelIdx(pCommitter->pDelFWriter, &pCommitter->nDelIdx, NULL);
+  code = tsdbWriteDelIdx(pCommitter->pDelFWriter, &pCommitter->delIdxNew, NULL);
   if (code) {
     goto _err;
   }
@@ -304,7 +304,7 @@ _exit:
   return code;
 
 _err:
-  tsdbError("vgId:%d commit del data failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d commit del failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -543,14 +543,14 @@ static int32_t tsdbCommitTableDelStart(SCommitter *pCommitter) {
   int32_t code = 0;
 
   // load old
-  pCommitter->oDelData = (SDelData){0};
+  pCommitter->delDataOld = (SDelData){0};
   if (0) {
-    code = tsdbReadDelData(pCommitter->pDelFReader, NULL /*TODO*/, &pCommitter->oDelData, &pCommitter->pBuf4);
+    code = tsdbReadDelData(pCommitter->pDelFReader, NULL /*TODO*/, &pCommitter->delDataOld, &pCommitter->pBuf4);
     if (code) goto _err;
   }
 
   // prepare new
-  pCommitter->nDelData = (SDelData){0};
+  pCommitter->delDataNew = (SDelData){0};
 
   return code;
 
@@ -566,7 +566,7 @@ static int32_t tsdbCommitTableDelImpl(SCommitter *pCommitter) {
   for (; pDelOp; pDelOp = pDelOp->pNext) {
     SDelDataItem item = {.version = pDelOp->version, .sKey = pDelOp->sKey, .eKey = pDelOp->eKey};
 
-    code = tDelDataPutItem(&pCommitter->nDelData, &item);
+    code = tDelDataPutItem(&pCommitter->delDataNew, &item);
     if (code) goto _err;
   }
 
@@ -580,11 +580,11 @@ static int32_t tsdbCommitTableDelEnd(SCommitter *pCommitter) {
   int32_t code = 0;
 
   // write table del data
-  code = tsdbWriteDelData(pCommitter->pDelFWriter, &pCommitter->nDelData, NULL);
+  code = tsdbWriteDelData(pCommitter->pDelFWriter, &pCommitter->delDataNew, NULL);
   if (code) goto _err;
 
   // add SDelIdxItem
-  code = tDelIdxPutItem(&pCommitter->nDelIdx, &pCommitter->delIdxItem);
+  code = tDelIdxPutItem(&pCommitter->delIdxNew, &pCommitter->delIdxItem);
   if (code) goto _err;
 
   return code;
