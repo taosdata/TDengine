@@ -297,7 +297,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
       SDB_GET_INT32(pRaw, dataPos, &dataLen, _OVER)
       action.pRaw = taosMemoryMalloc(dataLen);
       if (action.pRaw == NULL) goto _OVER;
-      mTrace("raw:%p, is created", pData);
+      // mTrace("raw:%p, is created", pData);
       SDB_GET_BINARY(pRaw, dataPos, (void *)action.pRaw, dataLen, _OVER);
       if (taosArrayPush(pTrans->redoActions, &action) == NULL) goto _OVER;
       action.pRaw = NULL;
@@ -330,7 +330,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
       SDB_GET_INT32(pRaw, dataPos, &dataLen, _OVER)
       action.pRaw = taosMemoryMalloc(dataLen);
       if (action.pRaw == NULL) goto _OVER;
-      mTrace("raw:%p, is created", pData);
+      // mTrace("raw:%p, is created", action.pRaw);
       SDB_GET_BINARY(pRaw, dataPos, (void *)action.pRaw, dataLen, _OVER);
       if (taosArrayPush(pTrans->undoActions, &action) == NULL) goto _OVER;
       action.pRaw = NULL;
@@ -363,7 +363,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
       SDB_GET_INT32(pRaw, dataPos, &dataLen, _OVER)
       action.pRaw = taosMemoryMalloc(dataLen);
       if (action.pRaw == NULL) goto _OVER;
-      mTrace("raw:%p, is created", action.pRaw);
+      // mTrace("raw:%p, is created", action.pRaw);
       SDB_GET_BINARY(pRaw, dataPos, (void *)action.pRaw, dataLen, _OVER);
       if (taosArrayPush(pTrans->commitActions, &action) == NULL) goto _OVER;
       action.pRaw = NULL;

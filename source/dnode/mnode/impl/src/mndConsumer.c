@@ -447,6 +447,8 @@ static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
 
   pConsumerOld = mndAcquireConsumer(pMnode, consumerId);
   if (pConsumerOld == NULL) {
+    mInfo("receive subscribe request from new consumer: %ld", consumerId);
+
     pConsumerNew = tNewSMqConsumerObj(consumerId, cgroup);
     tstrncpy(pConsumerNew->clientId, subscribe.clientId, 256);
     pConsumerNew->updateType = CONSUMER_UPDATE__MODIFY;
@@ -463,7 +465,12 @@ static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
 
   } else {
     /*taosRLockLatch(&pConsumerOld->lock);*/
+
     int32_t status = atomic_load_32(&pConsumerOld->status);
+
+    mInfo("receive subscribe request from old consumer: %ld, current status: %s", consumerId,
+          mndConsumerStatusName(status));
+
     if (status != MQ_CONSUMER_STATUS__READY) {
       terrno = TSDB_CODE_MND_CONSUMER_NOT_READY;
       goto SUBSCRIBE_OVER;
