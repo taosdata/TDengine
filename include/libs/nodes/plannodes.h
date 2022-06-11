@@ -304,7 +304,7 @@ typedef struct SDownstreamSourceNode {
 
 typedef struct SExchangePhysiNode {
   SPhysiNode node;
-  int32_t    srcGroupId;     // group id of datasource suplans
+  int32_t    srcGroupId;  // group id of datasource suplans
   bool       singleChannel;
   SNodeList* pSrcEndPoints;  // element is SDownstreamSource, scheduler fill by calling qSetSuplanExecutionNode
 } SExchangePhysiNode;
@@ -438,7 +438,6 @@ typedef struct SQueryPlan {
   int32_t      numOfSubplans;
   SNodeList*   pSubplans;  // Element is SNodeListNode. The execution level of subplan, starting from 0.
   SExplainInfo explainInfo;
-  SArray*      pPlaceholderValues;
 } SQueryPlan;
 
 void nodesWalkPhysiPlan(SNode* pNode, FNodeWalker walker, void* pContext);
