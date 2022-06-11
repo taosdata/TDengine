@@ -613,15 +613,15 @@ int tcpConnect() {
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = htons(args.port);
     memcpy(&(serv_addr.sin_addr.s_addr), server->h_addr, server->h_length);
-    args->socket = socket(AF_INET, SOCK_STREAM, 0);
-    if (args->socket < 0) {
+    args.socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (args.socket < 0) {
         fprintf(stderr, "failed to create socket\n");
         return -1;
     }
-    int retConn = connect(args->socket, (struct sockaddr *)&serv_addr, sizeof(struct sockaddr));
+    int retConn = connect(args.socket, (struct sockaddr *)&serv_addr, sizeof(struct sockaddr));
     if (retConn < 0) {
         fprintf(stderr, "failed to connect\n");
-        close(args->socket);
+        close(args.socket);
         return -1;
     }
     return 0;
