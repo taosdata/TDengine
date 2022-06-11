@@ -1549,7 +1549,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getTopBotFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = topFunction,
-    .finalizeFunc = topBotFinalize,
+    .finalizeFunc = topBotPartialFinalize,
     .combineFunc  = topCombine,
   },
   {
@@ -1559,7 +1559,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateTopBotMerge,
     .getEnvFunc   = getTopBotFuncEnv,
     .initFunc     = functionSetup,
-    .processFunc  = topFunction,
+    .processFunc  = topFunctionMerge,
     .finalizeFunc = topBotFinalize,
     .combineFunc  = topCombine,
   },
