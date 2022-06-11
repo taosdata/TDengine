@@ -118,8 +118,10 @@ endi
 
 print =============== step5: drop mnode 3 and stop dnode3
 system sh/exec.sh -n dnode3 -s stop
-sql_error drop mnode on dnode 3
-
+sleep 6000
+return
+sql drop mnode on dnode 3
+return
 $x = 0
 step5: 
 	$x = $x + 1
