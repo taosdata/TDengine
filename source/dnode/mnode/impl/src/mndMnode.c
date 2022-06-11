@@ -397,14 +397,14 @@ static int32_t mndProcessCreateMnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (sdbGetSize(pMnode->pSdb, SDB_MNODE) >= 3) {
-    terrno = TSDB_CODE_MND_TOO_MANY_MNODES;
-    goto _OVER;
-  }
-
   pDnode = mndAcquireDnode(pMnode, createReq.dnodeId);
   if (pDnode == NULL) {
     terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
+    goto _OVER;
+  }
+
+  if (sdbGetSize(pMnode->pSdb, SDB_MNODE) >= 3) {
+    terrno = TSDB_CODE_MND_TOO_MANY_MNODES;
     goto _OVER;
   }
 
@@ -594,6 +594,11 @@ static int32_t mndProcessDropMnodeReq(SRpcMsg *pReq) {
 
   if (sdbGetSize(pMnode->pSdb, SDB_MNODE) <= 1) {
     terrno = TSDB_CODE_MND_TOO_FEW_MNODES;
+    goto _OVER;
+  }
+
+  if (!mndIsDnodeOnline(pObj->pDnode, taosGetTimestampMs())) {
+    terrno = TSDB_CODE_NODE_OFFLINE;
     goto _OVER;
   }
 
