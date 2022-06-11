@@ -1821,7 +1821,7 @@ void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numO
 
 static void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep);
 
-void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, bool needFree) {
+void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock) {
   if (pFilterNode == NULL) {
     return;
   }
@@ -2878,7 +2878,6 @@ static SSDataBlock* doLoadRemoteData(SOperatorInfo* pOperator) {
     return seqLoadRemoteData(pOperator);
   } else {
     return concurrentlyLoadRemoteDataImpl(pOperator, pExchangeInfo, pTaskInfo);
-    //    return concurrentlyLoadRemoteData(pOperator);
   }
 }
 
@@ -2904,8 +2903,13 @@ static int32_t initDataSource(int32_t numOfSources, SExchangeInfo* pInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t initExchangeOperator(SExchangePhysiNode* pExNode, SExchangeInfo* pInfo) {
+static int32_t initExchangeOperator(SExchangePhysiNode* pExNode, SExchangeInfo* pInfo, const char* id) {
   size_t numOfSources = LIST_LENGTH(pExNode->pSrcEndPoints);
+
+  if (numOfSources == 0) {
+    qError("%s invalid number: %d of sources in exchange operator", id, (int32_t) numOfSources);
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   pInfo->pSources = taosArrayInit(numOfSources, sizeof(SDownstreamSourceNode));
   pInfo->pSourceDataInfo = taosArrayInit(numOfSources, sizeof(SSourceDataInfo));
@@ -2928,7 +2932,7 @@ SOperatorInfo* createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode
     goto _error;
   }
 
-  int32_t code = initExchangeOperator(pExNode, pInfo);
+  int32_t code = initExchangeOperator(pExNode, pInfo, GET_TASKID(pTaskInfo));
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -2957,7 +2961,7 @@ _error:
 
   taosMemoryFreeClear(pInfo);
   taosMemoryFreeClear(pOperator);
-  pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
+  pTaskInfo->code = code;
   return NULL;
 }
 
@@ -3726,7 +3730,7 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       longjmp(pTaskInfo->env, code);
     }
 
-    doFilter(pProjectInfo->pFilterNode, pBlock, true);
+    doFilter(pProjectInfo->pFilterNode, pBlock);
 
     setInputDataBlock(pOperator, pInfo->pCtx, pBlock, order, scanFlag, false);
     blockDataEnsureCapacity(pInfo->pRes, pInfo->pRes->info.rows + pBlock->info.rows);
@@ -5245,7 +5249,7 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
   (*pTaskInfo)->pRoot = createOperatorTree(pPlan->pNode, *pTaskInfo, pHandle, queryId, taskId,
                                            &(*pTaskInfo)->tableqinfoList, pPlan->pTagCond);
   if (NULL == (*pTaskInfo)->pRoot) {
-    code = terrno;
+    code = (*pTaskInfo)->code;
     goto _complete;
   }
 
@@ -5258,7 +5262,6 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
 
 _complete:
   taosMemoryFreeClear(*pTaskInfo);
-
   terrno = code;
   return code;
 }
