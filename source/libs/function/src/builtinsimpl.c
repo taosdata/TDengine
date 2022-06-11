@@ -2103,8 +2103,49 @@ int32_t apercentileFunction(SqlFunctionCtx* pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
+static void apercentileTransferInfo(SAPercentileInfo* pInput, SAPercentileInfo* pOutput) {
+  pOutput->percent = pInput->percent;
+  pOutput->algo = pInput->algo;
+  if (pOutput->algo == APERCT_ALGO_TDIGEST) {
+    buildTDigestInfo(pInput);
+    tdigestAutoFill(pInput->pTDigest, COMPRESSION);
+
+    if(pInput->pTDigest->num_centroids == 0 && pInput->pTDigest->num_buffered_pts == 0) {
+      return;
+    }
+
+    buildTDigestInfo(pOutput);
+    TDigest *pTDigest = pOutput->pTDigest;
+
+    if(pTDigest->num_centroids <= 0) {
+      memcpy(pTDigest, pInput->pTDigest, (size_t)TDIGEST_SIZE(COMPRESSION));
+      tdigestAutoFill(pTDigest, COMPRESSION);
+    } else {
+      tdigestMerge(pTDigest, pInput->pTDigest);
+    }
+  } else {
+    buildHistogramInfo(pInput);
+    if (pInput->pHisto->numOfElems <= 0) {
+      return;
+    }
+
+    buildHistogramInfo(pOutput);
+    SHistogramInfo  *pHisto = pOutput->pHisto;
+
+    if (pHisto->numOfElems <= 0) {
+      memcpy(pHisto, pInput->pHisto, sizeof(SHistogramInfo) + sizeof(SHistBin) * (MAX_HISTOGRAM_BIN + 1));
+      pHisto->elems = (SHistBin*) ((char *)pHisto + sizeof(SHistogramInfo));
+    } else {
+      pHisto->elems = (SHistBin*) ((char *)pHisto + sizeof(SHistogramInfo));
+      SHistogramInfo *pRes = tHistogramMerge(pHisto, pInput->pHisto, MAX_HISTOGRAM_BIN);
+      memcpy(pHisto, pRes, sizeof(SHistogramInfo) + sizeof(SHistBin) * MAX_HISTOGRAM_BIN);
+      pHisto->elems = (SHistBin*) ((char *)pHisto + sizeof(SHistogramInfo));
+      tHistogramDestroy(&pRes);
+    }
+  }
+}
+
 int32_t apercentileFunctionMerge(SqlFunctionCtx* pCtx) {
-  int32_t              numOfElems = 0;
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
 
   SInputColumnInfoData* pInput = &pCtx->input;
@@ -2113,60 +2154,14 @@ int32_t apercentileFunctionMerge(SqlFunctionCtx* pCtx) {
   ASSERT(pCol->info.type == TSDB_DATA_TYPE_BINARY);
 
   SAPercentileInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
-  SAPercentileInfo* pInputInfo;
 
   int32_t start = pInput->startRowIndex;
-  for (int32_t i = start; i < pInput->numOfRows + start; ++i) {
-    //if (colDataIsNull_s(pCol, i)) {
-    //  continue;
-    //}
-    numOfElems += 1;
-    char* data = colDataGetData(pCol, i);
+  char* data = colDataGetData(pCol, start);
+  SAPercentileInfo* pInputInfo = (SAPercentileInfo *)varDataVal(data);
 
-    pInputInfo = (SAPercentileInfo *)varDataVal(data);
-  }
+  apercentileTransferInfo(pInputInfo, pInfo);
 
-  pInfo->percent = pInputInfo->percent;
-  pInfo->algo = pInputInfo->algo;
-  if (pInfo->algo == APERCT_ALGO_TDIGEST) {
-    buildTDigestInfo(pInputInfo);
-    tdigestAutoFill(pInputInfo->pTDigest, COMPRESSION);
-
-    if(pInputInfo->pTDigest->num_centroids == 0 && pInputInfo->pTDigest->num_buffered_pts == 0) {
-      return TSDB_CODE_SUCCESS;
-    }
-
-    buildTDigestInfo(pInfo);
-    TDigest *pTDigest = pInfo->pTDigest;
-
-    if(pTDigest->num_centroids <= 0) {
-      memcpy(pTDigest, pInputInfo->pTDigest, (size_t)TDIGEST_SIZE(COMPRESSION));
-      tdigestAutoFill(pTDigest, COMPRESSION);
-    } else {
-      tdigestMerge(pTDigest, pInputInfo->pTDigest);
-    }
-  } else {
-    buildHistogramInfo(pInputInfo);
-    if (pInputInfo->pHisto->numOfElems <= 0) {
-      return TSDB_CODE_SUCCESS;
-    }
-
-    buildHistogramInfo(pInfo);
-    SHistogramInfo  *pHisto = pInfo->pHisto;
-
-    if (pHisto->numOfElems <= 0) {
-      memcpy(pHisto, pInputInfo->pHisto, sizeof(SHistogramInfo) + sizeof(SHistBin) * (MAX_HISTOGRAM_BIN + 1));
-      pHisto->elems = (SHistBin*) ((char *)pHisto + sizeof(SHistogramInfo));
-    } else {
-      pHisto->elems = (SHistBin*) ((char *)pHisto + sizeof(SHistogramInfo));
-      SHistogramInfo *pRes = tHistogramMerge(pHisto, pInputInfo->pHisto, MAX_HISTOGRAM_BIN);
-      memcpy(pHisto, pRes, sizeof(SHistogramInfo) + sizeof(SHistBin) * MAX_HISTOGRAM_BIN);
-      pHisto->elems = (SHistBin*) ((char *)pHisto + sizeof(SHistogramInfo));
-      tHistogramDestroy(&pRes);
-    }
-  }
-
-  SET_VAL(pResInfo, numOfElems, 1);
+  SET_VAL(pResInfo, 1, 1);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3049,6 +3044,17 @@ _spread_over:
   return TSDB_CODE_SUCCESS;
 }
 
+static void spreadTransferInfo(SSpreadInfo* pInput, SSpreadInfo* pOutput) {
+  pOutput->hasResult = pInput->hasResult;
+  if (pInput->max > pOutput->max) {
+    pOutput->max = pInput->max;
+  }
+
+  if (pInput->min < pOutput->min) {
+    pOutput->min = pInput->min;
+  }
+}
+
 int32_t spreadFunctionMerge(SqlFunctionCtx *pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData* pCol = pInput->pData[0];
@@ -3061,14 +3067,7 @@ int32_t spreadFunctionMerge(SqlFunctionCtx *pCtx) {
   char* data = colDataGetData(pCol, start);
   pInputInfo = (SSpreadInfo *)varDataVal(data);
 
-  pInfo->hasResult = pInputInfo->hasResult;
-  if (pInputInfo->max > pInfo->max) {
-    pInfo->max = pInputInfo->max;
-  }
-
-  if (pInputInfo->min < pInfo->min) {
-    pInfo->min = pInputInfo->min;
-  }
+  spreadTransferInfo(pInputInfo, pInfo);
 
   SET_VAL(GET_RES_INFO(pCtx), 1, 1);
 
@@ -3206,6 +3205,17 @@ _elapsed_over:
   return TSDB_CODE_SUCCESS;
 }
 
+static void elapsedTransferInfo(SElapsedInfo* pInput, SElapsedInfo* pOutput) {
+  pOutput->timeUnit = pInput->timeUnit;
+  if (pOutput->min > pInput->min) {
+    pOutput->min = pInput->min;
+  }
+
+  if (pOutput->max < pInput->max) {
+    pOutput->max = pInput->max;
+  }
+}
+
 int32_t elapsedFunctionMerge(SqlFunctionCtx *pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData* pCol = pInput->pData[0];
@@ -3217,14 +3227,7 @@ int32_t elapsedFunctionMerge(SqlFunctionCtx *pCtx) {
   char* data = colDataGetData(pCol, start);
   SElapsedInfo* pInputInfo = (SElapsedInfo *)varDataVal(data);
 
-  pInfo->timeUnit = pInputInfo->timeUnit;
-  if (pInfo->min > pInputInfo->min) {
-    pInfo->min = pInputInfo->min;
-  }
-
-  if (pInfo->max < pInputInfo->max) {
-    pInfo->max = pInputInfo->max;
-  }
+  elapsedTransferInfo(pInputInfo, pInfo);
 
   SET_VAL(GET_RES_INFO(pCtx), 1, 1);
   return TSDB_CODE_SUCCESS;
@@ -3470,6 +3473,17 @@ int32_t histogramFunction(SqlFunctionCtx *pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
+static void histogramTransferInfo(SHistoFuncInfo* pInput, SHistoFuncInfo* pOutput) {
+  pOutput->normalized = pInput->normalized;
+  pOutput->numOfBins  = pInput->numOfBins;
+  pOutput->totalCount += pInput->totalCount;
+  for (int32_t k = 0; k < pOutput->numOfBins; ++k) {
+    pOutput->bins[k].lower = pInput->bins[k].lower;
+    pOutput->bins[k].upper = pInput->bins[k].upper;
+    pOutput->bins[k].count += pInput->bins[k].count;
+  }
+}
+
 int32_t histogramFunctionMerge(SqlFunctionCtx *pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData* pCol = pInput->pData[0];
@@ -3481,14 +3495,7 @@ int32_t histogramFunctionMerge(SqlFunctionCtx *pCtx) {
   char* data = colDataGetData(pCol, start);
   SHistoFuncInfo* pInputInfo = (SHistoFuncInfo *)varDataVal(data);
 
-  pInfo->normalized = pInputInfo->normalized;
-  pInfo->numOfBins  = pInputInfo->numOfBins;
-  pInfo->totalCount += pInputInfo->totalCount;
-  for (int32_t k = 0; k < pInfo->numOfBins; ++k) {
-    pInfo->bins[k].lower = pInputInfo->bins[k].lower;
-    pInfo->bins[k].upper = pInputInfo->bins[k].upper;
-    pInfo->bins[k].count += pInputInfo->bins[k].count;
-  }
+  histogramTransferInfo(pInputInfo, pInfo);
 
   SET_VAL(GET_RES_INFO(pCtx), pInfo->numOfBins, pInfo->numOfBins);
   return TSDB_CODE_SUCCESS;
@@ -3676,6 +3683,14 @@ int32_t hllFunction(SqlFunctionCtx *pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
+static void hllTransferInfo(SHLLInfo* pInput, SHLLInfo* pOutput) {
+  for (int32_t k = 0; k < HLL_BUCKETS; ++k) {
+    if (pOutput->buckets[k] < pInput->buckets[k]) {
+      pOutput->buckets[k] = pInput->buckets[k];
+    }
+  }
+}
+
 int32_t hllFunctionMerge(SqlFunctionCtx *pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData* pCol = pInput->pData[0];
@@ -3687,11 +3702,7 @@ int32_t hllFunctionMerge(SqlFunctionCtx *pCtx) {
   char* data = colDataGetData(pCol, start);
   SHLLInfo* pInputInfo = (SHLLInfo *)varDataVal(data);
 
-  for (int32_t k = 0; k < HLL_BUCKETS; ++k) {
-    if (pInfo->buckets[k] < pInputInfo->buckets[k]) {
-      pInfo->buckets[k] = pInputInfo->buckets[k];
-    }
-  }
+  hllTransferInfo(pInputInfo, pInfo);
 
   SET_VAL(GET_RES_INFO(pCtx), 1, 1);
   return TSDB_CODE_SUCCESS;
@@ -4627,7 +4638,6 @@ int32_t twaFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock) {
   if (pResInfo->numOfRes == 0) {
     pResInfo->isNullRes = 1;
   } else {
-    //  assert(pInfo->win.ekey == pInfo->p.key && pInfo->hasResult == pResInfo->hasResult);
     if (pInfo->win.ekey == pInfo->win.skey) {
       pInfo->dOutput = pInfo->p.val;
     } else {
@@ -4640,3 +4650,175 @@ int32_t twaFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock) {
   return functionFinalize(pCtx, pBlock);
 }
 
+int32_t blockDistFunction(SqlFunctionCtx *pCtx) {
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData* pInputCol = pInput->pData[0];
+
+  SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
+
+  STableBlockDistInfo* pDistInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  STableBlockDistInfo p1 = {0};
+  tDeserializeBlockDistInfo(varDataVal(pInputCol->pData), varDataLen(pInputCol->pData), &p1);
+
+  pDistInfo->numOfBlocks += p1.numOfBlocks;
+  pDistInfo->numOfTables += p1.numOfTables;
+  pDistInfo->numOfInmemRows += p1.numOfInmemRows;
+  pDistInfo->totalSize += p1.totalSize;
+  pDistInfo->totalRows += p1.totalRows;
+  pDistInfo->numOfFiles += p1.numOfFiles;
+
+  if (pDistInfo->minRows > p1.minRows) {
+    pDistInfo->minRows = p1.minRows;
+  }
+  if (pDistInfo->maxRows < p1.maxRows) {
+    pDistInfo->maxRows = p1.maxRows;
+  }
+
+  for(int32_t i = 0; i < tListLen(pDistInfo->blockRowsHisto); ++i) {
+    pDistInfo->blockRowsHisto[i] += p1.blockRowsHisto[i];
+  }
+
+  pResInfo->numOfRes = 1;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tSerializeBlockDistInfo(void* buf, int32_t bufLen, const STableBlockDistInfo* pInfo) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeU32(&encoder, pInfo->rowSize) < 0) return -1;
+
+  if (tEncodeU16(&encoder, pInfo->numOfFiles) < 0) return -1;
+  if (tEncodeU32(&encoder, pInfo->rowSize) < 0) return -1;
+  if (tEncodeU32(&encoder, pInfo->numOfTables) < 0) return -1;
+
+  if (tEncodeU64(&encoder, pInfo->totalSize) < 0) return -1;
+  if (tEncodeU64(&encoder, pInfo->totalRows) < 0) return -1;
+  if (tEncodeI32(&encoder, pInfo->maxRows) < 0) return -1;
+  if (tEncodeI32(&encoder, pInfo->minRows) < 0) return -1;
+  if (tEncodeI32(&encoder, pInfo->defMaxRows) < 0) return -1;
+  if (tEncodeI32(&encoder, pInfo->defMinRows) < 0) return -1;
+  if (tEncodeU32(&encoder, pInfo->numOfInmemRows) < 0) return -1;
+  if (tEncodeU32(&encoder, pInfo->numOfSmallBlocks) < 0) return -1;
+
+  for(int32_t i = 0; i < tListLen(pInfo->blockRowsHisto); ++i) {
+    if (tEncodeI32(&encoder, pInfo->blockRowsHisto[i]) < 0) return -1;
+  }
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeBlockDistInfo(void* buf, int32_t bufLen, STableBlockDistInfo* pInfo) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeU32(&decoder, &pInfo->rowSize) < 0) return -1;
+
+  if (tDecodeU16(&decoder, &pInfo->numOfFiles) < 0) return -1;
+  if (tDecodeU32(&decoder, &pInfo->rowSize) < 0) return -1;
+  if (tDecodeU32(&decoder, &pInfo->numOfTables) < 0) return -1;
+
+  if (tDecodeU64(&decoder, &pInfo->totalSize) < 0) return -1;
+  if (tDecodeU64(&decoder, &pInfo->totalRows) < 0) return -1;
+  if (tDecodeI32(&decoder, &pInfo->maxRows) < 0) return -1;
+  if (tDecodeI32(&decoder, &pInfo->minRows) < 0) return -1;
+  if (tDecodeI32(&decoder, &pInfo->defMaxRows) < 0) return -1;
+  if (tDecodeI32(&decoder, &pInfo->defMinRows) < 0) return -1;
+  if (tDecodeU32(&decoder, &pInfo->numOfInmemRows) < 0) return -1;
+  if (tDecodeU32(&decoder, &pInfo->numOfSmallBlocks) < 0) return -1;
+
+  for(int32_t i = 0; i < tListLen(pInfo->blockRowsHisto); ++i) {
+    if (tDecodeI32(&decoder, &pInfo->blockRowsHisto[i]) < 0) return -1;
+  }
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
+  char *pData = GET_ROWCELL_INTERBUF(pResInfo);
+
+  SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, 0);
+
+  int32_t row = 0;
+
+  STableBlockDistInfo info = {0};
+  tDeserializeBlockDistInfo(varDataVal(pData), varDataLen(pData), &info);
+
+  char st[256] = {0};
+  int32_t len = sprintf(st+VARSTR_HEADER_SIZE, "Blocks=[%d] Size=[%.3fKb] Average_Block_size=[%.3fKb] Compression_Ratio=[%.3f]", info.numOfBlocks,
+          info.totalSize/1024.0,
+          info.totalSize/(info.numOfBlocks*1024.0),
+          info.totalSize/(info.totalRows*info.rowSize*1.0)
+  );
+
+  varDataSetLen(st, len);
+  colDataAppend(pColInfo, row++, st, false);
+
+  len = sprintf(st+VARSTR_HEADER_SIZE, "Total_Rows=[%ld] MinRows=[%d] MaxRows=[%d] Averge_Rows=[%ld] Inmem_Rows=[%d]",
+          info.totalRows,
+          info.minRows,
+          info.maxRows,
+          info.totalRows/info.numOfBlocks,
+          info.numOfInmemRows
+  );
+
+  varDataSetLen(st, len);
+  colDataAppend(pColInfo, row++, st, false);
+
+  len = sprintf(st + VARSTR_HEADER_SIZE, "Total_Tables=[%d] Total_Files=[%d] Total_Vgroups=[%d]",
+      info.numOfTables,
+      info.numOfFiles, 0);
+
+  varDataSetLen(st, len);
+  colDataAppend(pColInfo, row++, st, false);
+
+  len = sprintf(st+VARSTR_HEADER_SIZE, "--------------------------------------------------------------------------------");
+  varDataSetLen(st, len);
+  colDataAppend(pColInfo, row++, st, false);
+
+  int32_t maxVal = 0;
+  int32_t minVal = INT32_MAX;
+  for(int32_t i = 0; i < sizeof(info.blockRowsHisto)/sizeof(info.blockRowsHisto[0]); ++i) {
+    if (maxVal < info.blockRowsHisto[i]) {
+      maxVal = info.blockRowsHisto[i];
+    }
+
+    if (minVal > info.blockRowsHisto[i]) {
+      minVal = info.blockRowsHisto[i];
+    }
+  }
+
+  int32_t delta = maxVal - minVal;
+  int32_t step = delta / 50;
+
+  int32_t numOfBuckets = sizeof(info.blockRowsHisto)/sizeof(info.blockRowsHisto[0]);
+  int32_t bucketRange = (info.maxRows - info.minRows) / numOfBuckets;
+
+  for(int32_t i = 0; i < 20; ++i) {
+    len += sprintf(st + VARSTR_HEADER_SIZE, "%04d |", info.defMinRows + bucketRange * (i + 1));
+
+    int32_t num = (info.blockRowsHisto[i] + step - 1) / step;
+    for (int32_t j = 0; j < num; ++j) {
+      int32_t x = sprintf(st + VARSTR_HEADER_SIZE + len, "%c", '|');
+      len += x;
+    }
+
+    double v = info.blockRowsHisto[i] * 100.0 / info.numOfBlocks;
+    len += sprintf(st+ VARSTR_HEADER_SIZE + len, "  %d (%.3f%c)", info.blockRowsHisto[i], v, '%');
+    printf("%s\n", st);
+
+    varDataSetLen(st, len);
+    colDataAppend(pColInfo, row++, st, false);
+  }
+
+  return row;
+}

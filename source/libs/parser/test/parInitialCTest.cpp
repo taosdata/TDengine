@@ -267,10 +267,12 @@ TEST_F(ParserInitialCTest, createFunction) {
   // run("CREATE AGGREGATE FUNCTION IF NOT EXISTS udf2 AS './build/lib/libudf2.so' OUTPUTTYPE DOUBLE BUFSIZE 8");
 }
 
-TEST_F(ParserInitialCTest, createIndexSma) {
+TEST_F(ParserInitialCTest, createSmaIndex) {
   useDb("root", "test");
 
   run("CREATE SMA INDEX index1 ON t1 FUNCTION(MAX(c1), MIN(c3 + 10), SUM(c4)) INTERVAL(10s)");
+
+  run("CREATE SMA INDEX index2 ON st1 FUNCTION(MAX(c1), MIN(tag1)) INTERVAL(10s)");
 }
 
 TEST_F(ParserInitialCTest, createMnode) {

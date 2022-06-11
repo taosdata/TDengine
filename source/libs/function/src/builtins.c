@@ -1112,7 +1112,7 @@ static bool validateHourRange(int8_t hour) {
 }
 
 static bool validateMinuteRange(int8_t hour, int8_t minute, char sign) {
-  if (minute == 0 || (minute == 30 && (hour == 3 || hour == 5) && sign == '-')) {
+  if (minute == 0 || (minute == 30 && (hour == 3 || hour == 5) && sign == '+')) {
     return true;
   }
 
@@ -1318,6 +1318,17 @@ static int32_t translateSelectValue(SFunctionNode* pFunc, char* pErrBuf, int32_t
   pFunc->node.resType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType;
   return TSDB_CODE_SUCCESS;
 }
+
+static int32_t translateBlockDistFunc(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  pFunc->node.resType = (SDataType) {.bytes = 128, .type = TSDB_DATA_TYPE_VARCHAR};
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool getBlockDistFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(STableBlockDistInfo);
+  return true;
+}
+
 
 // clang-format off
 const SBuiltinFuncDefinition funcMgtBuiltins[] = {
@@ -2117,6 +2128,15 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = functionSetup,
     .processFunc  = NULL,
     .finalizeFunc = NULL
+  },
+  {
+    .name = "_block_dist",
+    .type = FUNCTION_TYPE_BLOCK_DIST,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateBlockDistFunc,
+    .getEnvFunc   = getBlockDistFuncEnv,
+    .processFunc  = blockDistFunction,
+    .finalizeFunc = blockDistFinalize
   }
 };
 // clang-format on

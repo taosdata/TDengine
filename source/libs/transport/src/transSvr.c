@@ -226,7 +226,7 @@ static bool addHandleToAcceptloop(void* arg);
       } else {                                                                                                        \
         refId = exh1->refId;                                                                                          \
       }                                                                                                               \
-    } else if (refId == -1) {                                                                                         \
+    } else if (refId < 0) {                                                                                           \
       tTrace("server handle step3");                                                                                  \
       goto _return2;                                                                                                  \
     }                                                                                                                 \

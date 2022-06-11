@@ -269,7 +269,7 @@ int32_t mndAddStreamToTrans(SMnode *pMnode, SStreamObj *pStream, const char *ast
     return -1;
   }
 
-  if (mndScheduleStream(pMnode, pTrans, pStream) < 0) {
+  if (mndScheduleStream1(pMnode, pTrans, pStream) < 0) {
     mError("stream:%ld, schedule stream since %s", pStream->uid, terrstr());
     return -1;
   }
