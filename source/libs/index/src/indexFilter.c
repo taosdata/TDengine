@@ -141,7 +141,7 @@ static int32_t sifGetValueFromNode(SNode *node, char **value) {
       if (*pData == TSDB_DATA_TYPE_NULL) {
         dataLen = 0;
       } else if (*pData == TSDB_DATA_TYPE_NCHAR) {
-        dataLen = varDataTLen(pData + CHAR_BYTES);
+        dataLen = varDataTLen(pData);
       } else if (*pData == TSDB_DATA_TYPE_DOUBLE) {
         dataLen = LONG_BYTES;
       } else if (*pData == TSDB_DATA_TYPE_BOOL) {
