@@ -2661,7 +2661,7 @@ bool getTopBotFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   return true;
 }
 
-bool getTopBotFuncMergeEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+bool getTopBotMergeFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   //intermediate result is binary and length contains VAR header size
   pEnv->calcMemSize = pFunc->node.resType.bytes - VARSTR_HEADER_SIZE;
   return true;
@@ -2731,7 +2731,10 @@ int32_t topFunctionMerge(SqlFunctionCtx* pCtx) {
   int32_t start = pInput->startRowIndex;
   char* data = colDataGetData(pCol, start);
   STopBotRes* pInputInfo = (STopBotRes *)varDataVal(data);
+  STopBotRes* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
+  pInfo->maxSize = pInputInfo->maxSize;
+  pInfo->type    = pInputInfo->type;
   topTransferInfo(pCtx, pInputInfo);
   SET_VAL(GET_RES_INFO(pCtx), pInputInfo->maxSize, pInputInfo->maxSize);
 
@@ -2909,7 +2912,7 @@ void copyTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pS
   releaseBufPage(pCtx->pBuf, pPage);
 }
 
-int32_t topBotFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+int32_t topBotFinalizeImpl(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, bool isMerge) {
   SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(pCtx);
   STopBotRes*          pRes = GET_ROWCELL_INTERBUF(pEntryInfo);
 
@@ -2929,11 +2932,21 @@ int32_t topBotFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
       colDataAppend(pCol, currentRow, (const char*)&pItem->v.i, false);
     }
 
-    setSelectivityValue(pCtx, pBlock, &pRes->pItems[i].tuplePos, currentRow);
+    if (!isMerge) {
+      setSelectivityValue(pCtx, pBlock, &pRes->pItems[i].tuplePos, currentRow);
+    }
     currentRow += 1;
   }
 
   return pEntryInfo->numOfRes;
+}
+
+int32_t topBotFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  return topBotFinalizeImpl(pCtx, pBlock, false);
+}
+
+int32_t topBotMergeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  return topBotFinalizeImpl(pCtx, pBlock, true);
 }
 
 int32_t topBotPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {

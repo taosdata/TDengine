@@ -1562,7 +1562,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getTopBotMergeFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = topFunctionMerge,
-    .finalizeFunc = topBotFinalize,
+    .finalizeFunc = topBotMergeFinalize,
     .combineFunc  = topCombine,
   },
   {
