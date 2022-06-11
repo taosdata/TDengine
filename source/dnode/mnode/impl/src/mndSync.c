@@ -61,6 +61,12 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
     }
     tsem_post(&pMgmt->syncSem);
   } else {
+    STrans *pTrans = mndAcquireTrans(pMnode, transId);
+    if (pTrans != NULL) {
+      mndTransExecute(pMnode, pTrans);
+      mndReleaseTrans(pMnode, pTrans);
+    }
+
     if (cbMeta.index - sdbGetApplyIndex(pMnode->pSdb) > 100) {
       SSnapshotMeta sMeta = {0};
       if (syncGetSnapshotMeta(pMnode->syncMgmt.sync, &sMeta) == 0) {
