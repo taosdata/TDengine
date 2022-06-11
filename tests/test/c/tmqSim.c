@@ -128,7 +128,12 @@ void initLogFile() {
 
   sprintf(filename,"%s/../log/tmqlog_%s.txt", configDir, getCurrentTimeString(tmpString));  
   //sprintf(filename, "%s/../log/tmqlog.txt", configDir);
-  
+#ifdef WINDOWS
+  for (int i = 2; i < sizeof(filename); i++) {
+    if (filename[i] == ':') filename[i] = '-';
+    if (filename[i] == '\0') break;
+  }
+#endif
   TdFilePtr pFile = taosOpenFile(filename, TD_FILE_TEXT | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
   if (NULL == pFile) {
     fprintf(stderr, "Failed to open %s for save result\n", filename);
@@ -629,7 +634,9 @@ int32_t getConsumeInfo() {
   return 0;
 }
 
+LONG WINAPI exceptionHandler(LPEXCEPTION_POINTERS exception);
 int main(int32_t argc, char* argv[]) {
+  SetUnhandledExceptionFilter(exceptionHandler);
   parseArgument(argc, argv);
   getConsumeInfo();
   saveConfigToLogFile();

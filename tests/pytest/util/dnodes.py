@@ -589,7 +589,10 @@ class TDDnodes:
         psCmd = "ps -ef|grep -w taosd| grep -v grep| grep -v defunct | awk '{print $2}'"
         processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
         while(processID):
-            killCmd = "kill -9 %s > /dev/null 2>&1" % processID
+            if platform.system().lower() == 'windows':
+                killCmd = "kill -9 %s > nul 2>&1" % processID
+            else:
+                killCmd = "kill -9 %s > /dev/null 2>&1" % processID
             os.system(killCmd)
             time.sleep(1)
             processID = subprocess.check_output(
@@ -599,7 +602,10 @@ class TDDnodes:
             psCmd = "ps -ef|grep -w valgrind.bin| grep -v grep | awk '{print $2}'"
             processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
             while(processID):
-                killCmd = "kill -TERM %s > /dev/null 2>&1" % processID
+                if platform.system().lower() == 'windows':
+                    killCmd = "kill -TERM %s > nul 2>&1" % processID
+                else:
+                    killCmd = "kill -TERM %s > /dev/null 2>&1" % processID
                 os.system(killCmd)
                 time.sleep(1)
                 processID = subprocess.check_output(
