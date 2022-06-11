@@ -2651,8 +2651,8 @@ int32_t diffFunction(SqlFunctionCtx* pCtx) {
   return numOfElems;
 }
 
-int32_t getTopBotInfoSize() {
-  return (int32_t)sizeof(STopBotRes);
+int32_t getTopBotInfoSize(int64_t numOfItems) {
+  return sizeof(STopBotRes) + numOfItems * sizeof(STopBotResItem);
 }
 
 bool getTopBotFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
@@ -2933,7 +2933,7 @@ int32_t topBotFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 int32_t topBotPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(pCtx);
   STopBotRes* pRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-  int32_t resultBytes = getTopBotInfoSize();
+  int32_t resultBytes = getTopBotInfoSize(pRes->maxSize);
   char *res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
 
   memcpy(varDataVal(res), pRes, resultBytes);
