@@ -179,7 +179,7 @@ class TDTestCase:
         tdSql.error( "select hyperloglog() from ct1" )
         tdSql.error( "select hyperloglog(c1, c2) from ct2" )
         # tdSql.error( "select hyperloglog(1) from stb1" )
-        tdSql.error( "select hyperloglog(abs(c1)) from ct4" )
+        # tdSql.error( "select hyperloglog(abs(c1)) from ct4" )
         tdSql.error( "select hyperloglog(count(c1)) from t1" )
         # tdSql.error( "select hyperloglog(1) from ct2" )
         tdSql.error( f"select hyperloglog({NUM_COL[0]}, {NUM_COL[1]}) from ct4" )
