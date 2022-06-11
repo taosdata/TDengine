@@ -38,6 +38,16 @@ export TDENGINE_API=http://tdengine.local:6041
 # user + password
 export TDENGINE_USER=user
 export TDENGINE_PASSWORD=password
+
+# 其他环境变量：
+# - 是否安装数据源，默认为 true，表示安装
+export TDENGINE_DS_ENABLED=false
+# - 数据源名称，默认为 TDengine
+export TDENGINE_DS_NAME=TDengine
+# - 数据源所属组织 ID，默认为 1
+export GF_ORG_ID=1
+# - 数据源是否可通过管理面板编辑，默认为 0，表示不可编辑
+export TDENGINE_EDITABLE=1
 ```
 
 运行安装脚本：
@@ -47,6 +57,8 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/taosdata/grafanaplugin/m
 ```
 
 该脚本将自动安装 Grafana 插件并配置数据源。安装完毕后，需要重启 Grafana 服务后生效。
+
+保存该脚本并执行 `./install.sh --help` 可查看详细帮助文档。
 
 </TabItem>
 <TabItem value="manual" label="手动安装并配置">
