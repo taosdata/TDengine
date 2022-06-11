@@ -156,7 +156,7 @@ int main(int argc, char* argv[]) {
   }
 
   if (args.restful) {
-    if (convertHostToServAddr()) {
+    if (tcpConnect()) {
       exit(EXIT_FAILURE);
     }
   }
