@@ -150,7 +150,7 @@ int32_t tsdbCommit(STsdb *pTsdb) {
   return code;
 
 _err:
-  tsdbError("vgId:%d failed to commit since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d, failed to commit since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
   return code;
 }
 

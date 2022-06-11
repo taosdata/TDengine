@@ -724,7 +724,6 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery) {
                           .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE};
 
       SAppInstInfo* pAppInfo = getAppInfo(pRequest);
-
       if (TSDB_CODE_SUCCESS == code) {
         code = qCreateQueryPlan(&cxt, &pRequest->body.pDag, pNodeList);
         if (code) {
@@ -747,6 +746,7 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery) {
         };      
         code = schedulerAsyncExecJob(&req, &pRequest->body.queryJob);
       } else {
+        tscError("0x%"PRIx64" failed to create query plan, code:%s 0x%"PRIx64, pRequest->self, tstrerror(code), pRequest->requestId);
         pRequest->body.queryFp(pRequest->body.param, pRequest, code);
       }
 
