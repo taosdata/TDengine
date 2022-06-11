@@ -1219,6 +1219,8 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData) {
   pBlock->info.hasVarCol = pDataBlock->info.hasVarCol;
   pBlock->info.rowSize = pDataBlock->info.rowSize;
   pBlock->info.groupId = pDataBlock->info.groupId;
+  pBlock->info.childId = pDataBlock->info.childId;
+  pBlock->info.type = pDataBlock->info.type;
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData  colInfo = {0};
@@ -1502,6 +1504,7 @@ void blockDebugShowData(const SArray* dataBlocks, const char* flag) {
     SSDataBlock* pDataBlock = taosArrayGet(dataBlocks, i);
     int32_t      colNum = pDataBlock->info.numOfCols;
     int32_t      rows = pDataBlock->info.rows;
+    printf("%s |block type %d |child id %d|\n", flag, (int32_t)pDataBlock->info.type, pDataBlock->info.childId);
     for (int32_t j = 0; j < rows; j++) {
       printf("%s |", flag);
       for (int32_t k = 0; k < colNum; k++) {

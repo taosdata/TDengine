@@ -1342,6 +1342,13 @@ int32_t tSerializeSRedistributeVgroupReq(void* buf, int32_t bufLen, SRedistribut
 int32_t tDeserializeSRedistributeVgroupReq(void* buf, int32_t bufLen, SRedistributeVgroupReq* pReq);
 
 typedef struct {
+  int32_t vgId;
+} SSplitVgroupReq;
+
+int32_t tSerializeSSplitVgroupReq(void* buf, int32_t bufLen, SSplitVgroupReq* pReq);
+int32_t tDeserializeSSplitVgroupReq(void* buf, int32_t bufLen, SSplitVgroupReq* pReq);
+
+typedef struct {
   char user[TSDB_USER_LEN];
   char spi;
   char encrypt;
@@ -1487,10 +1494,8 @@ typedef struct {
   int32_t code;
 } STaskDropRsp;
 
-#define STREAM_TRIGGER_AT_ONCE_SMA      0
 #define STREAM_TRIGGER_AT_ONCE          1
 #define STREAM_TRIGGER_WINDOW_CLOSE     2
-#define STREAM_TRIGGER_WINDOW_CLOSE_SMA 3
 
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
@@ -2494,15 +2499,15 @@ int32_t tSerializeSTableIndexReq(void* buf, int32_t bufLen, STableIndexReq* pReq
 int32_t tDeserializeSTableIndexReq(void* buf, int32_t bufLen, STableIndexReq* pReq);
 
 typedef struct {
-  int8_t    intervalUnit;
-  int8_t    slidingUnit;
-  int64_t   interval;
-  int64_t   offset;
-  int64_t   sliding;
-  int64_t   dstTbUid;  
-  int32_t   dstVgId;  // for stream  
-  SEpSet    epSet;
-  char*     expr;
+  int8_t  intervalUnit;
+  int8_t  slidingUnit;
+  int64_t interval;
+  int64_t offset;
+  int64_t sliding;
+  int64_t dstTbUid;
+  int32_t dstVgId;
+  SEpSet  epSet;
+  char*   expr;
 } STableIndexInfo;
 
 typedef struct {
@@ -2511,7 +2516,7 @@ typedef struct {
 
 int32_t tSerializeSTableIndexRsp(void* buf, int32_t bufLen, const STableIndexRsp* pRsp);
 int32_t tDeserializeSTableIndexRsp(void* buf, int32_t bufLen, STableIndexRsp* pRsp);
-void tFreeSTableIndexInfo(void *pInfo);
+void    tFreeSTableIndexInfo(void* pInfo);
 
 typedef struct {
   int8_t  mqMsgType;

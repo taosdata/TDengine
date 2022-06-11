@@ -67,7 +67,7 @@ STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta) {
   pReadHandle->ver = -1;
   pReadHandle->pColIdList = NULL;
   pReadHandle->cachedSchemaVer = -1;
-  pReadHandle->cachedSchemaUid = -1;
+  pReadHandle->cachedSchemaSuid = -1;
   pReadHandle->pSchema = NULL;
   pReadHandle->pSchemaWrapper = NULL;
   pReadHandle->tbIdHash = NULL;
@@ -130,7 +130,8 @@ int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* p
   // TODO set to real sversion
   /*int32_t sversion = 1;*/
   int32_t sversion = htonl(pHandle->pBlock->sversion);
-  if (pHandle->cachedSchemaVer != sversion || pHandle->cachedSchemaUid != pHandle->msgIter.suid) {
+  if (pHandle->cachedSchemaSuid == 0 || pHandle->cachedSchemaVer != sversion ||
+      pHandle->cachedSchemaSuid != pHandle->msgIter.suid) {
     pHandle->pSchema = metaGetTbTSchema(pHandle->pVnodeMeta, pHandle->msgIter.uid, sversion);
     if (pHandle->pSchema == NULL) {
       tqWarn("cannot found tsschema for table: uid: %ld (suid: %ld), version %d, possibly dropped table",
@@ -150,7 +151,7 @@ int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* p
       return -1;
     }
     pHandle->cachedSchemaVer = sversion;
-    pHandle->cachedSchemaUid = pHandle->msgIter.suid;
+    pHandle->cachedSchemaSuid = pHandle->msgIter.suid;
   }
 
   STSchema*       pTschema = pHandle->pSchema;

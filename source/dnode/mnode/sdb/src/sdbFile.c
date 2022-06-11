@@ -357,7 +357,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
     SdbEncodeFp encodeFp = pSdb->encodeFps[i];
     if (encodeFp == NULL) continue;
 
-    mTrace("write %s to sdb file, total %d rows", sdbTableName(i), sdbGetSize(pSdb, i));
+    mDebug("write %s to sdb file, total %d rows", sdbTableName(i), sdbGetSize(pSdb, i));
 
     SHashObj       *hash = pSdb->hashObjs[i];
     TdThreadRwlock *pLock = &pSdb->locks[i];
@@ -432,8 +432,8 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
   } else {
     pSdb->lastCommitVer = pSdb->curVer;
     pSdb->lastCommitTerm = pSdb->curTerm;
-    mDebug("write sdb file successfully, ver:%" PRId64 " term:%" PRId64 " file:%s", pSdb->lastCommitVer,
-           pSdb->lastCommitTerm, curfile);
+    mDebug("write sdb file successfully, index:%" PRId64 " term:%" PRId64 " config:%" PRId64 " file:%s",
+           pSdb->lastCommitVer, pSdb->lastCommitTerm, pSdb->curConfig, curfile);
   }
 
   terrno = code;
