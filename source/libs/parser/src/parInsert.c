@@ -2119,9 +2119,11 @@ static int32_t smlBoundColumnData(SArray* cols, SParsedDataColInfo* pColList, SS
       isOrdered = false;
     }
     if (index < 0) {
+      uError("smlBoundColumnData. index:%d", index);
       return TSDB_CODE_SML_INVALID_DATA;
     }
     if (pColList->cols[index].valStat == VAL_STAT_HAS) {
+      uError("smlBoundColumnData. already set. index:%d", index);
       return TSDB_CODE_SML_INVALID_DATA;
     }
     lastColIdx = index;

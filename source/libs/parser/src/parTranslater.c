@@ -4945,6 +4945,9 @@ static int32_t buildModifyVnodeArray(STranslateContext* pCxt, SAlterTableStmt* p
 static int32_t rewriteAlterTable(STranslateContext* pCxt, SQuery* pQuery) {
   SAlterTableStmt* pStmt = (SAlterTableStmt*)pQuery->pRoot;
   int32_t          code = checkSchemalessDb(pCxt, pStmt->dbName);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
   STableMeta*      pTableMeta = NULL;
   code = getTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pTableMeta);
   if (TSDB_CODE_SUCCESS != code) {
