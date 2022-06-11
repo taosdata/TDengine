@@ -77,6 +77,7 @@ class TDTestCase:
         tdSql.error(f'alter stable {stbname} modify column c9 double')
         tdSql.error(f'alter stable {stbname} modify column c10 float')
         tdSql.error(f'alter stable {stbname} modify column c11 int')
+        tdSql.error(f'alter stable {stbname} drop tag t0')
         tdSql.execute(f'drop database {dbname}')
 
     def alter_stable_tag_check(self,dbname,stbname,tbname):
@@ -126,6 +127,11 @@ class TDTestCase:
         for i in ['int','unsigned int','float','binary(10)','nchar(10)']:
             tdSql.error(f'alter stable {stbname} modify tag t8 {i}')
         tdSql.error(f'alter stable {stbname} modify tag t4 int')
+        tdSql.error(f'alter stable {stbname} drop column t0')
+        #!bug TD-16410
+        # tdSql.error(f'alter stable {tbname} set tag t1=100 ')
+        # tdSql.execute(f'create table ntb (ts timestamp,c0 int)')
+        tdSql.error(f'alter stable ntb add column c2 ')
         tdSql.execute(f'drop database {dbname}')
 
     def run(self):

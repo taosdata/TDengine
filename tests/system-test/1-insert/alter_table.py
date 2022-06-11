@@ -125,6 +125,22 @@ class TDTestCase:
         tdSql.execute(f'alter table {dbname}.{tbname} drop column `c15`')
         tdSql.query(f'describe {dbname}.{tbname}')
         tdSql.checkRows(14)
+        #! TD-16422
+        # tdSql.execute(f'alter table {dbname}.{tbname} add column c16 binary(10)')
+        # tdSql.query(f'describe {dbname}.{tbname}')
+        # tdSql.checkRows(15)
+        # print(tdSql.queryResult)
+        # tdSql.checkEqual(tdSql.queryResult[14][2],10)
+        # tdSql.execute(f'alter table {dbname}.{tbname} drop column c16')
+
+        # tdSql.execute(f'alter table {dbname}.{tbname} add column c16 nchar(10)')
+        # tdSql.query(f'describe {dbname}.{tbname}')
+        # tdSql.checkRows(15)
+        # print(tdSql.queryResult)
+        # tdSql.checkEqual(tdSql.queryResult[14][2],10)
+        # tdSql.execute(f'alter table {dbname}.{tbname} drop column c16')
+
+
         tdSql.execute(f'alter table {dbname}.{tbname} modify column c12 binary(30)')
         tdSql.query(f'describe {dbname}.{tbname}')
         tdSql.checkData(12,2,30)
@@ -164,6 +180,9 @@ class TDTestCase:
         tdSql.error(f'alter table {dbname}.{tbname} modify column c10 float')
         tdSql.error(f'alter table {dbname}.{tbname} modify column c1 bool')
         tdSql.error(f'alter table {dbname}.{tbname} modify column c1 binary(10)')
+
+
+
         tdSql.execute(f'drop database {dbname}')
     def alter_stb_column_check(self):
         dbname = self.get_long_name(length=10, mode="letters")
