@@ -8,10 +8,11 @@ import TabItem from '@theme/TabItem';
 
 ## Add Dependency
 
+
 <Tabs>
 <TabItem value="maven" label="Maven">
 
-```xml
+```xml title="pom.xml"
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
@@ -22,7 +23,7 @@ import TabItem from '@theme/TabItem';
 </TabItem>
 <TabItem value="gradel" label="Gradle">
 
-```groovy
+```groovy title="build.gradle"
 dependencies {
   implementation 'com.taosdata.jdbc:taos-jdbcdriver:2.0.39'
 }
@@ -33,25 +34,25 @@ dependencies {
 
 ## Config
 
-Run this command in your terminal to save TDengine cloud token as variables:
-
+Run this command in your terminal to save the JDBC URL as variable:
 
 ```bash
-export TDENGINE_CLOUD_TOKEN=<token>
+export TDENGINE_JDBC_URL=<jdbcURL>
 ```
 
+Alternatively, set environment variable in your IDE's run configurations.
 
-You can also set environment variable in IDE. For example, you can set environmental variables in IDEA's run configurations menu.
 
 <!-- exclude -->
 :::note
-To obtain your personal cloud token, please log in [TDengine Cloud](https://cloud.tdengine.com).
+Replace  <jdbcURL\> with real JDBC URL, it will seems like: `jdbc:TAOS-RS://example.com?usessl=true&token=xxxx`.
 
+To obtain the value of JDBC URL, please log in [TDengine Cloud](https://cloud.tdengine.com) and click "Connector" and then select "Java".
 :::
 <!-- exclude-end -->
 ## Connect
 
-Code bellow get token from environment variables first and then create a `Connection` object, witch is a standard JDBC Connection object.
+Code bellow get JDBC URL from environment variables first and then create a `Connection` object, witch is a standard JDBC Connection object.
 
 ```java
 import java.sql.Connection;
@@ -61,10 +62,8 @@ import java.sql.SQLException;
 
 public class ConnectCloudExample {
     public static void main(String[] args) throws SQLException {
-        String token = System.getenv("TDENGINE_CLOUD_TOKEN");
-        String jdbcUrl = "jdbc:TAOS-RS://cloud.taosdata.com:8085?usessl=true&token=" + token;
+        String jdbcUrl = System.getenv("TDENGINE_JDBC_URL");
         Connection conn = DriverManager.getConnection(jdbcUrl);
-        System.out.println("Connected");
         conn.close();
     }
 }

@@ -34,14 +34,16 @@ Run this command in your terminal to save TDengine cloud token as variables:
 
 ```bash
 export TDENGINE_CLOUD_TOKEN=<token>
+export TDENGINE_CLOUD_URL=<url>
 ```
 
-You can also set environment variable in IDE. For example, you can set environmental variables in Pycharm's run configurations menu.
+Alternatively, set environment variables in your IDE's run configurations.
 
 
 <!-- exclude -->
 :::note
-To obtain your personal cloud token, please log in [TDengine Cloud](https://cloud.tdengine.com).
+Replace  <token\> and <url\> with cloud token and URL.
+To obtain the value of cloud token and URL, please log in [TDengine Cloud](https://cloud.tdengine.com) and click "Connector" and then select "Python".
 
 :::
 <!-- exclude-end -->
@@ -55,7 +57,7 @@ import taosrest
 import os
 
 token = os.environ["TDENGINE_CLOUD_TOKEN"]
-url = "https://cloud.tdengine.com"
+url = os.environ["TDENGINE_ClOUD_URL"]
 
 conn = taosrest.connect(url=url, token=token)
 ```
