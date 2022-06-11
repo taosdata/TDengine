@@ -66,6 +66,7 @@ typedef struct STopBotResItem {
 } STopBotResItem;
 
 typedef struct STopBotRes {
+  int32_t maxSize;
   STopBotResItem* pItems;
 } STopBotRes;
 
@@ -2659,6 +2660,16 @@ bool getTopBotFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   return true;
 }
 
+bool topBotFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
+  if (!functionSetup(pCtx, pResInfo)) {
+    return false;
+  }
+
+  STopBotRes* pRes = GET_ROWCELL_INTERBUF(pResInfo);
+  pRes->maxSize= pCtx->param[1].param.i;
+  return true;
+}
+
 static STopBotRes* getTopBotOutputInfo(SqlFunctionCtx* pCtx) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   STopBotRes*          pRes = GET_ROWCELL_INTERBUF(pResInfo);
@@ -2669,6 +2680,8 @@ static STopBotRes* getTopBotOutputInfo(SqlFunctionCtx* pCtx) {
 
 static void doAddIntoResult(SqlFunctionCtx* pCtx, void* pData, int32_t rowIndex, SSDataBlock* pSrcBlock, uint16_t type,
                             uint64_t uid, SResultRowEntryInfo* pEntryInfo, bool isTopQuery);
+
+static void addResult(SqlFunctionCtx* pCtx, STopBotResItem* pSourceItem, int16_t type, bool isTopQuery);
 
 int32_t topFunction(SqlFunctionCtx* pCtx) {
   int32_t              numOfElems = 0;
@@ -2693,29 +2706,22 @@ int32_t topFunction(SqlFunctionCtx* pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void topBotTransfer(STopBotRes* pInput, STopBotRes* pOutput) {
+static void topTransferInfo(SqlFunctionCtx* pCtx, STopBotRes* pInput, int16_t type) {
+  for (int32_t i = 0; i < pInput->maxSize; i++) {
+    addResult(pCtx, &pInput->pItems[i], type, true);
+  }
 }
 
-int32_t topBotFunctionMerge(SqlFunctionCtx *pCtx) {
+int32_t topFunctionMerge(SqlFunctionCtx* pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData* pCol = pInput->pData[0];
   ASSERT(pCol->info.type == TSDB_DATA_TYPE_BINARY);
-
-  STopBotRes* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
   int32_t start = pInput->startRowIndex;
   char* data = colDataGetData(pCol, start);
   STopBotRes* pInputInfo = (STopBotRes *)varDataVal(data);
 
-  pInfo->hasResult = pInputInfo->hasResult;
-  if (pInputInfo->max > pInfo->max) {
-    pInfo->max = pInputInfo->max;
-  }
-
-  if (pInputInfo->min < pInfo->min) {
-    pInfo->min = pInputInfo->min;
-  }
-
+  topTransferInfo(pCtx, pInputInfo, pCol->info.type);
   SET_VAL(GET_RES_INFO(pCtx), 1, 1);
 
   return TSDB_CODE_SUCCESS;
@@ -2774,7 +2780,6 @@ static int32_t topBotResComparFn(const void* p1, const void* p2, const void* par
 void doAddIntoResult(SqlFunctionCtx* pCtx, void* pData, int32_t rowIndex, SSDataBlock* pSrcBlock, uint16_t type,
                      uint64_t uid, SResultRowEntryInfo* pEntryInfo, bool isTopQuery) {
   STopBotRes* pRes = getTopBotOutputInfo(pCtx);
-  int32_t     maxSize = pCtx->param[1].param.i;
 
   SVariant val = {0};
   taosVariantCreateFromBinary(&val, pData, tDataTypes[type].bytes, type);
@@ -2783,7 +2788,7 @@ void doAddIntoResult(SqlFunctionCtx* pCtx, void* pData, int32_t rowIndex, SSData
   assert(pItems != NULL);
 
   // not full yet
-  if (pEntryInfo->numOfRes < maxSize) {
+  if (pEntryInfo->numOfRes < pRes->maxSize) {
     STopBotResItem* pItem = &pItems[pEntryInfo->numOfRes];
     pItem->v = val;
     pItem->uid = uid;
@@ -2924,12 +2929,11 @@ void addResult(SqlFunctionCtx* pCtx, STopBotResItem* pSourceItem, int16_t type,
     bool isTopQuery) {
   SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(pCtx);
   STopBotRes* pRes = getTopBotOutputInfo(pCtx);
-  int32_t     maxSize = pCtx->param[1].param.i;
   STopBotResItem* pItems = pRes->pItems;
   assert(pItems != NULL);
 
   // not full yet
-  if (pEntryInfo->numOfRes < maxSize) {
+  if (pEntryInfo->numOfRes < pRes->maxSize) {
     STopBotResItem* pItem = &pItems[pEntryInfo->numOfRes];
     pItem->v = pSourceItem->v;
     pItem->uid = pSourceItem->uid;
