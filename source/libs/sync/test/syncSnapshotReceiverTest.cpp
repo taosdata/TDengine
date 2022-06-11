@@ -41,7 +41,11 @@ SSyncSnapshotReceiver* createReceiver() {
   pSyncNode->pFsm->FpSnapshotStopWrite = SnapshotStopWrite;
   pSyncNode->pFsm->FpSnapshotDoWrite = SnapshotDoWrite;
 
-  SSyncSnapshotReceiver* pReceiver = snapshotReceiverCreate(pSyncNode, 2);
+  SRaftId id;
+  id.addr = syncUtilAddr2U64("1.2.3.4", 99);
+  id.vgId = 100;
+
+  SSyncSnapshotReceiver* pReceiver = snapshotReceiverCreate(pSyncNode, id);
   pReceiver->start = true;
   pReceiver->ack = 20;
   pReceiver->pWriter = (void*)0x11;

@@ -1956,6 +1956,57 @@ static void doUpdateNumOfRows(SResultRow* pRow, int32_t numOfExprs, const int32_
   }
 }
 
+int32_t finalizeResultRowIntoResultDataBlock(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition,
+                                             SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, int32_t numOfExprs,
+                                             const int32_t* rowCellOffset, SSDataBlock* pBlock,
+                                             SExecTaskInfo* pTaskInfo) {
+  SFilePage*  page = getBufPage(pBuf, resultRowPosition->pageId);
+  SResultRow* pRow = (SResultRow*)((char*)page + resultRowPosition->offset);
+
+  doUpdateNumOfRows(pRow, numOfExprs, rowCellOffset);
+  if (pRow->numOfRows == 0) {
+    releaseBufPage(pBuf, page);
+    return 0;
+  }
+
+  while (pBlock->info.rows + pRow->numOfRows > pBlock->info.capacity) {
+    int32_t code = blockDataEnsureCapacity(pBlock, pBlock->info.capacity * 1.25);
+    if (TAOS_FAILED(code)) {
+      releaseBufPage(pBuf, page);
+      qError("%s ensure result data capacity failed, code %s", GET_TASKID(pTaskInfo), tstrerror(code));
+      longjmp(pTaskInfo->env, code);
+    }
+  }
+
+  for (int32_t j = 0; j < numOfExprs; ++j) {
+    int32_t slotId = pExprInfo[j].base.resSchema.slotId;
+
+    pCtx[j].resultInfo = getResultCell(pRow, j, rowCellOffset);
+    if (pCtx[j].fpSet.finalize) {
+      int32_t code = pCtx[j].fpSet.finalize(&pCtx[j], pBlock);
+      if (TAOS_FAILED(code)) {
+        qError("%s build result data block error, code %s", GET_TASKID(pTaskInfo), tstrerror(code));
+        longjmp(pTaskInfo->env, code);
+      }
+    } else if (strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_select_value") == 0) {
+      // do nothing, todo refactor
+    } else {
+      // expand the result into multiple rows. E.g., _wstartts, top(k, 20)
+      // the _wstartts needs to copy to 20 following rows, since the results of top-k expands to 20 different rows.
+      SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, slotId);
+      char*            in = GET_ROWCELL_INTERBUF(pCtx[j].resultInfo);
+      for (int32_t k = 0; k < pRow->numOfRows; ++k) {
+        colDataAppend(pColInfoData, pBlock->info.rows + k, in, pCtx[j].resultInfo->isNullRes);
+      }
+    }
+  }
+
+  releaseBufPage(pBuf, page);
+  pBlock->info.rows += pRow->numOfRows;
+
+  return 0;
+}
+
 int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprInfo* pExprInfo, SDiskbasedBuf* pBuf,
                            SGroupResInfo* pGroupResInfo, const int32_t* rowCellOffset, SqlFunctionCtx* pCtx,
                            int32_t numOfExprs) {
@@ -4671,24 +4722,28 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         .waterMark = pIntervalPhyNode->window.watermark,
         .calTrigger = pIntervalPhyNode->window.triggerType,
         .maxTs = INT64_MIN,
-        .winMap = NULL,
     };
-    if (isSmaStream(pIntervalPhyNode->window.triggerType)) {
-      if (FLT_LESS(pIntervalPhyNode->window.filesFactor, 1.000000)) {
-        as.calTrigger = STREAM_TRIGGER_AT_ONCE_SMA;
-      } else {
-        _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_TIMESTAMP);
-        as.winMap = taosHashInit(64, hashFn, true, HASH_NO_LOCK);
-        as.waterMark = getSmaWaterMark(interval.interval, pIntervalPhyNode->window.filesFactor);
-        as.calTrigger = STREAM_TRIGGER_WINDOW_CLOSE_SMA;
-      }
-    }
 
     int32_t tsSlotId = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->slotId;
     bool    isStream = (QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL == type);
     pOptr =
         createIntervalOperatorInfo(ops[0], pExprInfo, num, pResBlock, &interval, tsSlotId, &as, pTaskInfo, isStream);
 
+  } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL == type) {
+    SMergeIntervalPhysiNode * pIntervalPhyNode = (SMergeIntervalPhysiNode*)pPhyNode;
+
+    SExprInfo*   pExprInfo = createExprInfo(pIntervalPhyNode->window.pFuncs, NULL, &num);
+    SSDataBlock* pResBlock = createResDataBlock(pPhyNode->pOutputDataBlockDesc);
+
+    SInterval interval = {.interval = pIntervalPhyNode->interval,
+                          .sliding = pIntervalPhyNode->sliding,
+                          .intervalUnit = pIntervalPhyNode->intervalUnit,
+                          .slidingUnit = pIntervalPhyNode->slidingUnit,
+                          .offset = pIntervalPhyNode->offset,
+                          .precision = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->node.resType.precision};
+
+    int32_t tsSlotId = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->slotId;
+    pOptr = createMergeIntervalOperatorInfo(ops[0], pExprInfo, num, pResBlock, &interval, tsSlotId, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL == type) {
     qDebug("[******]create Semi");
     int32_t children = 0;
@@ -5380,16 +5435,3 @@ int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, const char* pKey, SqlF
   return code;
 }
 
-int64_t getSmaWaterMark(int64_t interval, double filesFactor) {
-  int64_t waterMark = 0;
-  ASSERT(FLT_GREATEREQUAL(filesFactor, 0.000000));
-  waterMark = -1 * filesFactor;
-  return waterMark;
-}
-
-bool isSmaStream(int8_t triggerType) {
-  if (triggerType == STREAM_TRIGGER_AT_ONCE || triggerType == STREAM_TRIGGER_WINDOW_CLOSE) {
-    return false;
-  }
-  return true;
-}
