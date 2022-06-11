@@ -2,26 +2,43 @@
 SETLOCAL EnableDelayedExpansion
 for /F "tokens=1,2 delims=#" %%a in ('"prompt #$H#$E# & echo on & for %%b in (1) do     rem"') do (  set "DEL=%%a")
 set /a a=0
+if "%1" == "full" (
+    echo Windows Taosd Full Test
+    set /a exitNum=0
+    for /F "usebackq tokens=*" %%i in (fulltest.bat) do (
+        for /f "tokens=1* delims= " %%a in ("%%i") do if not "%%a" == "@REM" (
+            set /a a+=1
+            echo !a! Processing %%i
+            call :GetTimeSeconds !time!
+            set time1=!_timeTemp!
+            echo Start at !time!
+            call %%i ARG1 > result_!a!.txt 2>error_!a!.txt
+            if errorlevel 1 ( call :colorEcho 0c "failed" &echo. && set /a exitNum=8 ) else ( call :colorEcho 0a "Success" &echo. ) 
+        )
+    )
+    echo exit !exitNum!
+    goto :eof
+)
 echo Windows Taosd Test
-for /F "usebackq tokens=*" %%i in (fulltest.bat) do (
+for /F "usebackq tokens=*" %%i in (simpletest.bat) do (
     for /f "tokens=1* delims= " %%a in ("%%i") do if not "%%a" == "@REM" (
-        echo Processing %%i
-        call :GetTimeSeconds %time%
-        set time1=!_timeTemp!
-        echo Start at %time%
         set /a a+=1
+        echo !a! Processing %%i
+        call :GetTimeSeconds !time!
+        set time1=!_timeTemp!
+        echo Start at !time!
         call %%i ARG1 > result_!a!.txt 2>error_!a!.txt
         if errorlevel 1 ( call :colorEcho 0c "failed" &echo. && echo result: && cat result_!a!.txt && echo error: && cat error_!a!.txt && exit 8 ) else ( call :colorEcho 0a "Success" &echo. ) 
     )
 )
 @REM echo Linux Taosd Test
-@REM for /F "usebackq tokens=*" %%i in (fulltest.bat) do (
+@REM for /F "usebackq tokens=*" %%i in (simpletest.bat) do (
 @REM     for /f "tokens=1* delims= " %%a in ("%%i") do if not "%%a" == "@REM" (
-@REM         echo Processing %%i
-@REM         call :GetTimeSeconds %time%
-@REM         set time1=!_timeTemp!
-@REM         echo Start at %time%
 @REM         set /a a+=1
+@REM         echo !a! Processing %%i
+@REM         call :GetTimeSeconds !time!
+@REM         set time1=!_timeTemp!
+@REM         echo Start at !time!
 @REM         call %%i ARG1 -m %1 > result_!a!.txt 2>error_!a!.txt
 @REM         if errorlevel 1 ( call :colorEcho 0c "failed" &echo. && echo result: && cat result_!a!.txt && echo error: && cat error_!a!.txt && exit 8 ) else ( call :colorEcho 0a "Success" &echo. ) 
 @REM     )
@@ -57,5 +74,5 @@ for %%a in (%tt%) do (
     )
    set /a index=index+1
 )
-set /a _timeTemp=(%hh%*60+%mm%)*60+%ss%
+set /a _timeTemp=(%hh%*60+%mm%)*60+%ss%  || echo hh:%hh% mm:%mm% ss:%ss%
 goto :eof
