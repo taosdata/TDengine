@@ -4201,13 +4201,13 @@ int32_t sampleFunction(SqlFunctionCtx* pCtx) {
     doReservoirSample(pInfo, data, tsList[i], i);
   }
 
-  for (int32_t i = alreadySampled; i < pInfo->numSampled; ++i) {
+  for (int32_t i = 0; i < pInfo->numSampled; ++i) {
     int32_t pos = startOffset + i;
     colDataAppend(pOutput, pos, pInfo->data + i * pInfo->colBytes, false);
     //TODO: handle ts output
   }
 
-  return pInfo->numSampled - alreadySampled;
+  return pInfo->numSampled;
 }
 
 bool getTailFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {

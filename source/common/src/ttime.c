@@ -338,7 +338,7 @@ int32_t parseLocaltime(char* timestr, int32_t len, int64_t* time, int32_t timePr
   struct tm tm = {0};
 
   char* str = taosStrpTime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
-  if (str == NULL || ((str - timestr) < len) || !validateTm(&tm)) {
+  if (str == NULL || (((str - timestr) < len) && (*str != '.')) || !validateTm(&tm)) {
     return -1;
   }
 
@@ -373,7 +373,7 @@ int32_t parseLocaltimeDst(char* timestr, int32_t len, int64_t* time, int32_t tim
   tm.tm_isdst = -1;
 
   char* str = taosStrpTime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
-  if (str == NULL || ((str - timestr) < len) || !validateTm(&tm)) {
+  if (str == NULL || (((str - timestr) < len) && (*str != '.')) || !validateTm(&tm)) {
     return -1;
   }
 
