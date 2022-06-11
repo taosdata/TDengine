@@ -199,10 +199,7 @@ TAOS_RES *taos_query(TAOS *taos, const char *sql) {
   taos_query_a(pTscObj, sql, syncQueryFn, param);
   tsem_wait(&param->sem);
 
-  TAOS_RES *request = param->pRequest;
-  tsem_destroy(&param->sem);
-  taosMemoryFree(param);
-  return request;
+  return param->pRequest;
 #else
   size_t sqlLen = strlen(sql);
   if (sqlLen > (size_t)TSDB_MAX_ALLOWED_SQL_LEN) {
