@@ -142,10 +142,8 @@ typedef struct SElapsedInfo {
 typedef struct SHistoFuncBin {
   double lower;
   double upper;
-  union {
-    int64_t count;
-    double  percentage;
-  };
+  int64_t count;
+  double  percentage;
 } SHistoFuncBin;
 
 typedef struct SHistoFuncInfo {
@@ -3105,7 +3103,7 @@ int32_t spreadCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
 
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
   SSpreadInfo* pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
-  spreadTransferInfo(pDBuf, pSBuf);
+  spreadTransferInfo(pSBuf, pDBuf);
   pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
   return TSDB_CODE_SUCCESS;
 }
@@ -3276,7 +3274,7 @@ int32_t elapsedCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
   SElapsedInfo* pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
 
-  elapsedTransferInfo(pDBuf, pSBuf);
+  elapsedTransferInfo(pSBuf, pDBuf);
   pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
   return TSDB_CODE_SUCCESS;
 }
@@ -3583,7 +3581,7 @@ int32_t histogramCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
   SHistoFuncInfo*      pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
 
-  histogramTransferInfo(pDBuf, pSBuf);
+  histogramTransferInfo(pSBuf, pDBuf);
   pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
   return TSDB_CODE_SUCCESS;
 }
@@ -3779,7 +3777,7 @@ int32_t hllCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
   SHLLInfo* pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
 
-  hllTransferInfo(pDBuf, pSBuf);
+  hllTransferInfo(pSBuf, pDBuf);
   pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
   return TSDB_CODE_SUCCESS;
 }
