@@ -1856,11 +1856,12 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowR
     for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
       SColumnInfoData* pSrc = taosArrayGet(px->pDataBlock, i);
       SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
-
       // it is a reserved column for scalar function, and no data in this column yet.
       if (pSrc->pData == NULL) {
         continue;
       }
+
+      colInfoDataCleanup(pDst, pBlock->info.rows);
 
       int32_t numOfRows = 0;
       for (int32_t j = 0; j < totalRows; ++j) {
