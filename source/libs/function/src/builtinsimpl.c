@@ -67,6 +67,7 @@ typedef struct STopBotResItem {
 
 typedef struct STopBotRes {
   int32_t maxSize;
+  int16_t type;  //store the original input type, used in merge function
   STopBotResItem* pItems;
 } STopBotRes;
 
@@ -2666,7 +2667,11 @@ bool topBotFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
   }
 
   STopBotRes* pRes = GET_ROWCELL_INTERBUF(pResInfo);
-  pRes->maxSize= pCtx->param[1].param.i;
+  SInputColumnInfoData* pInput = &pCtx->input;
+
+  pRes->maxSize = pCtx->param[1].param.i;
+  pRes->type = pInput->pData[0]->info.type;
+
   return true;
 }
 
@@ -2690,7 +2695,7 @@ int32_t topFunction(SqlFunctionCtx* pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pCol = pInput->pData[0];
 
-  int32_t type = pInput->pData[0]->info.type;
+  int16_t type = pInput->pData[0]->info.type;
 
   int32_t start = pInput->startRowIndex;
   for (int32_t i = start; i < pInput->numOfRows + start; ++i) {
@@ -2706,9 +2711,9 @@ int32_t topFunction(SqlFunctionCtx* pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void topTransferInfo(SqlFunctionCtx* pCtx, STopBotRes* pInput, int16_t type) {
+static void topTransferInfo(SqlFunctionCtx* pCtx, STopBotRes* pInput) {
   for (int32_t i = 0; i < pInput->maxSize; i++) {
-    addResult(pCtx, &pInput->pItems[i], type, true);
+    addResult(pCtx, &pInput->pItems[i], pInput->type, true);
   }
 }
 
@@ -2721,7 +2726,7 @@ int32_t topFunctionMerge(SqlFunctionCtx* pCtx) {
   char* data = colDataGetData(pCol, start);
   STopBotRes* pInputInfo = (STopBotRes *)varDataVal(data);
 
-  topTransferInfo(pCtx, pInputInfo, pCol->info.type);
+  topTransferInfo(pCtx, pInputInfo);
   SET_VAL(GET_RES_INFO(pCtx), 1, 1);
 
   return TSDB_CODE_SUCCESS;
@@ -2902,7 +2907,7 @@ int32_t topBotFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(pCtx);
   STopBotRes*          pRes = GET_ROWCELL_INTERBUF(pEntryInfo);
 
-  int32_t type = pCtx->input.pData[0]->info.type;
+  int16_t type = pCtx->input.pData[0]->info.type;
   int32_t slotId = pCtx->pExpr->base.resSchema.slotId;
 
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
