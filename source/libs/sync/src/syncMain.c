@@ -1181,13 +1181,12 @@ void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* newConfig, SyncIndex l
 
   pSyncNode->quorum = syncUtilQuorum(pSyncNode->pRaftCfg->cfg.replicaNum);
 
-  // isDrop
-  *isDrop = true;
-  bool IamInOld, IamInNew;
+  bool IamInOld = false;
+  bool IamInNew = false;
   for (int i = 0; i < oldConfig.replicaNum; ++i) {
     if (strcmp((oldConfig.nodeInfo)[i].nodeFqdn, pSyncNode->myNodeInfo.nodeFqdn) == 0 &&
         (oldConfig.nodeInfo)[i].nodePort == pSyncNode->myNodeInfo.nodePort) {
-      *isDrop = false;
+      IamInOld = false;
       break;
     }
   }
@@ -1195,16 +1194,21 @@ void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* newConfig, SyncIndex l
   for (int i = 0; i < newConfig->replicaNum; ++i) {
     if (strcmp((newConfig->nodeInfo)[i].nodeFqdn, pSyncNode->myNodeInfo.nodeFqdn) == 0 &&
         (newConfig->nodeInfo)[i].nodePort == pSyncNode->myNodeInfo.nodePort) {
-      *isDrop = false;
+      IamInNew = false;
       break;
     }
   }
 
-  if (!(*isDrop)) {
-    // change isStandBy to normal
-    pSyncNode->pRaftCfg->isStandBy = 0;
+  *isDrop = true;
+  if (IamInOld && !IamInNew) {
+    *isDrop = true;  
+  } else {
+    *isDrop = false;
   }
 
+  if (IamInNew) {
+    pSyncNode->pRaftCfg->isStandBy = 0;   // change isStandBy to normal
+  }
   raftCfgPersist(pSyncNode->pRaftCfg);
 
   if (gRaftDetailLog) {
@@ -1821,19 +1825,19 @@ static int32_t syncNodeConfigChange(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftE
   ASSERT(ret == 0);
 
   // update new config myIndex
-  bool hit = false;
+  bool IamInNew = false;
   for (int i = 0; i < newSyncCfg.replicaNum; ++i) {
     if (strcmp(ths->myNodeInfo.nodeFqdn, (newSyncCfg.nodeInfo)[i].nodeFqdn) == 0 &&
         ths->myNodeInfo.nodePort == (newSyncCfg.nodeInfo)[i].nodePort) {
       newSyncCfg.myIndex = i;
-      hit = true;
+      IamInNew = true;
       break;
     }
   }
 
   bool isDrop;
 
-  if (hit) { // I am in newConfig
+  if (IamInNew || (!IamInNew && ths->state != TAOS_SYNC_STATE_LEADER)) {
     syncNodeUpdateConfig(ths, &newSyncCfg, pEntry->index, &isDrop);
 
     // change isStandBy to normal
