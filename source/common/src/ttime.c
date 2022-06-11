@@ -309,12 +309,36 @@ int32_t parseTimeWithTz(const char* timestr, int64_t* time, int32_t timePrec, ch
   return 0;
 }
 
+static FORCE_INLINE bool validateTm(struct tm* pTm) {
+  if (pTm == NULL) {
+    return false;
+  }
+
+  int32_t dayOfMonth[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+
+  int32_t leapYearMonthDay = 29;
+  int32_t year = pTm->tm_year + 1900;
+  bool isLeapYear = ((year % 100) == 0)? ((year % 400) == 0):((year % 4) == 0);
+
+  if (isLeapYear && (pTm->tm_mon == 1)) {
+    if (pTm->tm_mday > leapYearMonthDay) {
+      return false;
+    }
+  } else {
+    if (pTm->tm_mday > dayOfMonth[pTm->tm_mon]) {
+      return false;
+    }
+  }
+
+  return  true;
+}
+
 int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec) {
   *time = 0;
   struct tm tm = {0};
 
   char* str = taosStrpTime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
-  if (str == NULL) {
+  if (str == NULL || !validateTm(&tm)) {
     return -1;
   }
 
@@ -349,7 +373,7 @@ int32_t parseLocaltimeDst(char* timestr, int64_t* time, int32_t timePrec) {
   tm.tm_isdst = -1;
 
   char* str = taosStrpTime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
-  if (str == NULL) {
+  if (str == NULL || !validateTm(&tm)) {
     return -1;
   }
 
