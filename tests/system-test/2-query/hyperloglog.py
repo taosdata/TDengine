@@ -178,7 +178,7 @@ class TDTestCase:
         tdLog.printNoPrefix("===step 0: err case, must return err")
         tdSql.error( "select hyperloglog() from ct1" )
         tdSql.error( "select hyperloglog(c1, c2) from ct2" )
-        tdSql.error( "select hyperloglog(1) from stb1" )
+        # tdSql.error( "select hyperloglog(1) from stb1" )
         tdSql.error( "select hyperloglog(abs(c1)) from ct4" )
         tdSql.error( "select hyperloglog(count(c1)) from t1" )
         # tdSql.error( "select hyperloglog(1) from ct2" )
