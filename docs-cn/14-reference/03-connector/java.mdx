@@ -9,9 +9,9 @@ description: TDengine Java 连接器基于标准 JDBC API 实现, 并提供原�
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-`taos-jdbcdriver` 是 TDengine 的官方 Java 语言连接器，Java 开发人员可以通过它开发存取 TDengine 数据库的应用软件。`taos-jdbcdriver` 实现了 JDBC driver 标准的接口，并提供两种形式的连接器。一种是通过 TDengine 客户端驱动程序（taosc）原生连接 TDengine 实例，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能，一种是通过 taosAdapter 提供的 REST 接口连接 TDengine 实例（2.0.18 及更高版本）。REST 连接实现的功能集合和原生连接有少量不同。
+`taos-jdbcdriver` 是 TDengine 的官方 Java 语言连接器，Java 开发人员可以通过它开发存取 TDengine 数据库的应用软件。`taos-jdbcdriver` 实现了 JDBC driver 标准的接口，并提供两种形式的连接器。一种是通过 TDengine 客户端驱动程序（taosc）原生连接 TDengine 实例，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能，一种是通过 taosAdapter 提供的 REST 接口连接 TDengine 实例（2.4.0.0 及更高版本）。REST 连接实现的功能集合和原生连接有少量不同。
 
-![tdengine-connector](tdengine-jdbc-connector.png)
+![TDengine Database Connector Java](tdengine-jdbc-connector.webp)
 
 上图显示了两种 Java 应用使用连接器访问 TDengine 的两种方式：
 
@@ -93,8 +93,8 @@ Maven 项目中，在 pom.xml 中添加以下依赖：
 可以通过下载 TDengine 的源码，自己编译最新版本的 Java connector
 
 ```shell
-git clone https://github.com/taosdata/TDengine.git
-cd TDengine/src/connector/jdbc
+git clone https://github.com/taosdata/taos-connector-jdbc.git
+cd taos-connector-jdbc
 mvn clean install -Dmaven.test.skip=true
 ```
 
@@ -199,6 +199,7 @@ url 中的配置参数如下：
 - user：登录 TDengine 用户名，默认值 'root'。
 - password：用户登录密码，默认值 'taosdata'。
 - batchfetch: true：在执行查询时批量拉取结果集；false：逐行拉取结果集。默认值为：false。逐行拉取结果集使用 HTTP 方式进行数据传输。从 taos-jdbcdriver-2.0.38 和 TDengine 2.4.0.12 版本开始，JDBC REST 连接增加批量拉取数据功能。taos-jdbcdriver 与 TDengine 之间通过 WebSocket 连接进行数据传输。相较于 HTTP，WebSocket 可以使 JDBC REST 连接支持大数据量查询，并提升查询性能。
+- charset: 当开启批量拉取数据时，指定解析字符串数据的字符集。
 - batchErrorIgnore：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 SQL 了。false：不再执行失败 SQL 后的任何语句。默认值为：false。
 
 **注意**：部分配置项（比如：locale、timezone）在 REST 连接中不生效。
@@ -208,10 +209,10 @@ url 中的配置参数如下：
 - 与原生连接方式不同，REST 接口是无状态的。在使用 JDBC REST 连接时，需要在 SQL 中指定表、超级表的数据库名称。例如：
 
 ```sql
-INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('beijing') VALUES(now, 24.6);
+INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('California.SanFrancisco') VALUES(now, 24.6);
 ```
 
-- 从 taos-jdbcdriver-2.0.36 和 TDengine 2.2.0.0 版本开始，如果在 url 中指定了 dbname，那么，JDBC REST 连接会默认使用/rest/sql/dbname 作为 restful 请求的 url，在 SQL 中不需要指定 dbname。例如：url 为 jdbc:TAOS-RS://127.0.0.1:6041/test，那么，可以执行 sql：insert into t1 using weather(ts, temperature) tags('beijing') values(now, 24.6);
+- 从 taos-jdbcdriver-2.0.36 和 TDengine 2.2.0.0 版本开始，如果在 url 中指定了 dbname，那么，JDBC REST 连接会默认使用/rest/sql/dbname 作为 restful 请求的 url，在 SQL 中不需要指定 dbname。例如：url 为 jdbc:TAOS-RS://127.0.0.1:6041/test，那么，可以执行 sql：insert into t1 using weather(ts, temperature) tags('California.SanFrancisco') values(now, 24.6);
 
 :::
 
@@ -260,7 +261,7 @@ properties 中的配置参数如下：
 - TSDBDriver.PROPERTY_KEY_BATCH_LOAD: true：在执行查询时批量拉取结果集；false：逐行拉取结果集。默认值为：false。
 - TSDBDriver.PROPERTY_KEY_BATCH_ERROR_IGNORE：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 sq 了。false：不再执行失败 SQL 后的任何语句。默认值为：false。
 - TSDBDriver.PROPERTY_KEY_CONFIG_DIR：仅在使用 JDBC 原生连接时生效。客户端配置文件目录路径，Linux OS 上默认值 `/etc/taos`，Windows OS 上默认值 `C:/TDengine/cfg`。
-- TSDBDriver.PROPERTY_KEY_CHARSET：仅在使用 JDBC 原生连接时生效。 客户端使用的字符集，默认值为系统字符集。
+- TSDBDriver.PROPERTY_KEY_CHARSET：客户端使用的字符集，默认值为系统字符集。
 - TSDBDriver.PROPERTY_KEY_LOCALE：仅在使用 JDBC 原生连接时生效。 客户端语言环境，默认值系统当前 locale。
 - TSDBDriver.PROPERTY_KEY_TIME_ZONE：仅在使用 JDBC 原生连接时生效。 客户端使用的时区，默认值为系统当前时区。
 - 此外对 JDBC 原生连接，通过指定 URL 和 Properties 还可以指定其他参数，比如日志级别、SQL 长度等。更多详细配置请参考[客户端配置](/reference/config/#仅客户端适用)。
@@ -348,7 +349,7 @@ JDBC 连接器可能报错的错误码包括 3 种：JDBC driver 本身的报错
 
 具体的错误码请参考：
 
-- [TDengine Java Connector](https://github.com/taosdata/TDengine/blob/develop/src/connector/jdbc/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java)
+- [TDengine Java Connector](https://github.com/taosdata/taos-connector-jdbc/blob/main/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java)
 - [TDengine_ERROR_CODE](https://github.com/taosdata/TDengine/blob/develop/src/inc/taoserror.h)
 
 ### 通过参数绑定写入数据
@@ -563,7 +564,7 @@ public class ParameterBindingDemo {
                 // set table name
                 pstmt.setTableName("t5_" + i);
                 // set tags
-                pstmt.setTagNString(0, "北京-abc");
+                pstmt.setTagNString(0, "California.SanFrancisco");
 
                 // set columns
                 ArrayList<Long> tsList = new ArrayList<>();
@@ -574,7 +575,7 @@ public class ParameterBindingDemo {
 
                 ArrayList<String> f1List = new ArrayList<>();
                 for (int j = 0; j < numOfRow; j++) {
-                    f1List.add("北京-abc");
+                    f1List.add("California.LosAngeles");
                 }
                 pstmt.setNString(1, f1List, BINARY_COLUMN_SIZE);
 
@@ -633,7 +634,7 @@ public class SchemalessInsertTest {
     private static final String host = "127.0.0.1";
     private static final String lineDemo = "st,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000";
     private static final String telnetDemo = "stb0_0 1626006833 4 host=host0 interface=eth0";
-    private static final String jsonDemo = "{\"metric\": \"meter_current\",\"timestamp\": 1346846400,\"value\": 10.3, \"tags\": {\"groupid\": 2, \"location\": \"Beijing\", \"id\": \"d1001\"}}";
+    private static final String jsonDemo = "{\"metric\": \"meter_current\",\"timestamp\": 1346846400,\"value\": 10.3, \"tags\": {\"groupid\": 2, \"location\": \"California.SanFrancisco\", \"id\": \"d1001\"}}";
 
     public static void main(String[] args) throws SQLException {
         final String url = "jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata";
@@ -804,7 +805,7 @@ Query OK, 1 row(s) in set (0.000141s)
 
 请参考：[JDBC example](https://github.com/taosdata/TDengine/tree/develop/examples/JDBC)
 
-## 重要更新记录
+## 最近更新记录
 
 | taos-jdbcdriver 版本 |            主要变化            |
 | :------------------: | :----------------------------: |
@@ -814,7 +815,7 @@ Query OK, 1 row(s) in set (0.000141s)
 
 ## 常见问题
 
-1. 使用 Statement 的 `addBatch` 和 `executeBatch` 来执行“批量写入/更行”，为什么没有带来性能上的提升？
+1. 使用 Statement 的 `addBatch()` 和 `executeBatch()` 来执行“批量写入/更新”，为什么没有带来性能上的提升？
 
    **原因**：TDengine 的 JDBC 实现中，通过 `addBatch` 方法提交的 SQL 语句，会按照添加的顺序，依次执行，这种方式没有减少与服务端的交互次数，不会带来性能上的提升。
 

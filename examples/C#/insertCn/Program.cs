@@ -49,7 +49,7 @@ namespace insertCn
             String  table = stable + "_subtable_1";
             var colData = new List<Object>{1637064040000,1,"涛思数据","保利广场","Beijing","China",
             1637064041000,2,"涛思数据taosdata","保利广场baoli","Beijing","China",
-            1637064042000,3,"TDegnine涛思数据","time广场","NewYork","US",
+            1637064042000,3,"TDengine涛思数据","time广场","NewYork","US",
             1637064043000,4,"4涛思数据","4广场南部","London","UK",
             1637064044000,5,"涛思数据5","!广场路中部123","Tokyo","JP",
             1637064045000,6,"taos涛思数据6","青年广场123号！","Washin","DC",
@@ -99,7 +99,7 @@ namespace insertCn
         {
             var colData = new List<Object>{1637064040000,1,"涛思数据","保利广场","Beijing","China",
             1637064041000,2,"涛思数据taosdata","保利广场baoli","Beijing","China",
-            1637064042000,3,"TDegnine涛思数据","time广场","NewYork","US",
+            1637064042000,3,"TDengine涛思数据","time广场","NewYork","US",
             1637064043000,4,"4涛思数据","4广场南部","London","UK",
             1637064044000,5,"涛思数据5","!广场路中部123","Tokyo","JP",
             1637064045000,6,"taos涛思数据6","青年广场123号！","Washin","DC",

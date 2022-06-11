@@ -46,7 +46,7 @@ int main() {
     exit(EXIT_FAILURE);
   }
 
-  int         restart = 1;  // if the topic already exists, where to subscribe from the begine.
+  int         restart = 1;  // if the topic already exists, where to subscribe from the begin.
   const char* topic = "topic-meter-current-bg-10";
   const char* sql = "select * from power.meters where current > 10";
   void*       param = NULL;     // additional parameter.
@@ -58,7 +58,7 @@ int main() {
   getchar();  // press Enter to stop
 
   printf("total rows consumed: %d\n", nTotalRows);
-  int keep = 0;  // weather to keep subscribe process
+  int keep = 0;  // whether to keep subscribe process
   taos_unsubscribe(tsub, keep);
 
   taos_close(taos);

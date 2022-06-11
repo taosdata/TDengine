@@ -2,7 +2,7 @@
 title: taosBenchmark
 sidebar_label: taosBenchmark
 toc_max_heading_level: 4
-description: "taosBenchmark (曾用名 taosdemo ) 是一个用于测试 TDengine 产品性能的工具"
+description: 'taosBenchmark (曾用名 taosdemo ) 是一个用于测试 TDengine 产品性能的工具'
 ---
 
 ## 简介
@@ -21,7 +21,7 @@ taosBenchmark 有两种安装方式:
 
 ### 配置和运行方式
 
-taosBenchmark 支持两种配置方式：[命令行参数](#命令行参数详解) 和 [JSON 配置文件](#配置文件参数详解)。这两种方式是互斥的，在使用配置文件时只能使用一个命令行参数 `-f <json file>` 指定配置文件。在使用命令行参数运行 taosBenchmark 并控制其行为时则不能使用 `-f` 参数而要用其它参数来进行配置。除此之外，taosBenchmark 还提供了一种特殊的运行方式，即无参数运行。
+taosBenchmark 需要在操作系统的终端执行,该工具支持两种配置方式：[命令行参数](#命令行参数详解) 和 [JSON 配置文件](#配置文件参数详解)。这两种方式是互斥的，在使用配置文件时只能使用一个命令行参数 `-f <json file>` 指定配置文件。在使用命令行参数运行 taosBenchmark 并控制其行为时则不能使用 `-f` 参数而要用其它参数来进行配置。除此之外，taosBenchmark 还提供了一种特殊的运行方式，即无参数运行。
 
 taosBenchmark 支持对 TDengine 做完备的性能测试，其所支持的 TDengine 功能分为三大类：写入、查询和订阅。这三种功能之间是互斥的，每次运行 taosBenchmark 只能选择其中之一。值得注意的是，所要测试的功能类型在使用命令行配置方式时是不可配置的，命令行配置方式只能测试写入性能。若要测试 TDengine 的查询和订阅性能，必须使用配置文件的方式，通过配置文件中的参数 `filetype` 指定所要测试的功能类型。
 
@@ -361,7 +361,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 ### 查询场景配置参数
 
-查询场景下 `filetype` 必须设置为 `qeury`，该参数及其它通用参数详见[通用配置参数](#通用配置参数)
+查询场景下 `filetype` 必须设置为 `query`，该参数及其它通用参数详见[通用配置参数](#通用配置参数)
 
 #### 执行指定查询语句的配置参数
 
@@ -400,7 +400,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **threads** : 执行 SQL 的线程数，默认为 1。
 
-- **interva** : 执行订阅的时间间隔，单位为秒，默认为 0。
+- **interval** : 执行订阅的时间间隔，单位为秒，默认为 0。
 
 - **restart** : "yes" 表示开始新的订阅，"no" 表示继续之前的订阅，默认值为 "no"。
 
@@ -420,7 +420,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **threads** : 执行 SQL 的线程数，默认为 1。
 
-- **interva** : 执行订阅的时间间隔，单位为秒，默认为 0。
+- **interval** : 执行订阅的时间间隔，单位为秒，默认为 0。
 
 - **restart** : "yes" 表示开始新的订阅，"no" 表示继续之前的订阅，默认值为 "no"。
 

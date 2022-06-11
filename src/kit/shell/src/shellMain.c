@@ -44,7 +44,6 @@ void *cancelHandler(void *arg) {
     exit(0);
 #endif
   }
-  
   return NULL;
 }
 
@@ -69,14 +68,15 @@ int checkVersion() {
 }
 
 // Global configurations
-SShellArguments args = {
-  .host = NULL,
+SShellArguments args = {.host = NULL,
 #ifndef TD_WINDOWS
   .password = NULL,
 #endif
   .user = NULL,
   .database = NULL,
   .timezone = NULL,
+  .restful = false,
+  .token = NULL,
   .is_raw_time = false,
   .is_use_passwd = false,
   .dump_config = false,
@@ -87,8 +87,7 @@ SShellArguments args = {
   .pktLen = 1000,
   .pktNum = 100,
   .pktType = "TCP",
-  .netTestRole = NULL
-};
+  .netTestRole = NULL};
 
 /*
  * Main function.
@@ -101,6 +100,35 @@ int main(int argc, char* argv[]) {
 
   if (!checkVersion()) {
     exit(EXIT_FAILURE);
+  }
+
+  char* cloud_url = getenv("TDENGINE_CLOUD_URL");
+  if (cloud_url != NULL) {
+    char* start = strstr(cloud_url, "http://");
+    if (start != NULL) {
+      cloud_url = start + strlen("http://");
+    } else {
+      start = strstr(cloud_url, "https://");
+      if (start != NULL) {
+        cloud_url = start + strlen("https://");
+      }
+    }
+    
+    char* tmp = last_strstr(cloud_url, ":");
+    if ((tmp == NULL) && ((tmp + 1) != NULL )) {
+      fprintf(stderr, "Invalid format in environment variable TDENGINE_CLOUD_URL: %s\n", cloud_url);
+      exit(EXIT_FAILURE);
+    } else {
+      args.port = atoi(tmp + 1);
+      tmp[0] = '\0';
+      args.host = cloud_url;
+    }
+  }
+  
+  char* cloud_token = getenv("TDENGINE_CLOUD_TOKEN");
+
+  if (cloud_token != NULL) {
+    args.token = cloud_token;
   }
 
   shellParseArgument(argc, argv, &args);
@@ -127,11 +155,14 @@ int main(int argc, char* argv[]) {
     exit(0);
   }
 
-  /* Initialize the shell */
-  TAOS* con = shellInit(&args);
-  if (con == NULL) {
-    exit(EXIT_FAILURE);
+  if (args.restful) {
+    if (tcpConnect()) {
+      exit(EXIT_FAILURE);
+    }
   }
+
+  /* Initialize the shell */
+  shellInit(&args);
 
   if (tsem_init(&cancelSem, 0, 0) != 0) {
     printf("failed to create cancel semphore\n");
@@ -148,11 +179,11 @@ int main(int argc, char* argv[]) {
   taosSetSignal(SIGABRT, shellQueryInterruptHandler);
 
   /* Get grant information */
-  shellGetGrantInfo(con);
+  shellGetGrantInfo(args.con);
 
   /* Loop to query the input. */
   while (1) {
-    pthread_create(&pid, NULL, shellLoopQuery, con);
+    pthread_create(&pid, NULL, shellLoopQuery, args.con);
     pthread_join(pid, NULL);
   }
 }
