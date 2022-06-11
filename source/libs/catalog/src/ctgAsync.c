@@ -525,7 +525,7 @@ int32_t ctgDumpTbIndexRes(SCtgTask* pTask) {
   }
 
   SMetaRes res = {.code = pTask->code, .pRes = pTask->res};
-  taosArrayPush(pJob->jobRes.pTableHash, &res);
+  taosArrayPush(pJob->jobRes.pTableIndex, &res);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -875,7 +875,9 @@ int32_t ctgHandleGetTbIndexRsp(SCtgTask* pTask, int32_t reqType, const SDataBuf 
   TSWAP(pTask->res, pTask->msgCtx.out);
   
 _return:
-
+  if (TSDB_CODE_MND_DB_INDEX_NOT_EXIST == code) {
+    code = TSDB_CODE_SUCCESS;
+  }
   ctgHandleTaskEnd(pTask, code);
 
   CTG_RET(code);

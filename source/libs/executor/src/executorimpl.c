@@ -1956,6 +1956,57 @@ static void doUpdateNumOfRows(SResultRow* pRow, int32_t numOfExprs, const int32_
   }
 }
 
+int32_t finalizeResultRowIntoResultDataBlock(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition,
+                                             SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, int32_t numOfExprs,
+                                             const int32_t* rowCellOffset, SSDataBlock* pBlock,
+                                             SExecTaskInfo* pTaskInfo) {
+  SFilePage*  page = getBufPage(pBuf, resultRowPosition->pageId);
+  SResultRow* pRow = (SResultRow*)((char*)page + resultRowPosition->offset);
+
+  doUpdateNumOfRows(pRow, numOfExprs, rowCellOffset);
+  if (pRow->numOfRows == 0) {
+    releaseBufPage(pBuf, page);
+    return 0;
+  }
+
+  while (pBlock->info.rows + pRow->numOfRows > pBlock->info.capacity) {
+    int32_t code = blockDataEnsureCapacity(pBlock, pBlock->info.capacity * 1.25);
+    if (TAOS_FAILED(code)) {
+      releaseBufPage(pBuf, page);
+      qError("%s ensure result data capacity failed, code %s", GET_TASKID(pTaskInfo), tstrerror(code));
+      longjmp(pTaskInfo->env, code);
+    }
+  }
+
+  for (int32_t j = 0; j < numOfExprs; ++j) {
+    int32_t slotId = pExprInfo[j].base.resSchema.slotId;
+
+    pCtx[j].resultInfo = getResultCell(pRow, j, rowCellOffset);
+    if (pCtx[j].fpSet.finalize) {
+      int32_t code = pCtx[j].fpSet.finalize(&pCtx[j], pBlock);
+      if (TAOS_FAILED(code)) {
+        qError("%s build result data block error, code %s", GET_TASKID(pTaskInfo), tstrerror(code));
+        longjmp(pTaskInfo->env, code);
+      }
+    } else if (strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_select_value") == 0) {
+      // do nothing, todo refactor
+    } else {
+      // expand the result into multiple rows. E.g., _wstartts, top(k, 20)
+      // the _wstartts needs to copy to 20 following rows, since the results of top-k expands to 20 different rows.
+      SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, slotId);
+      char*            in = GET_ROWCELL_INTERBUF(pCtx[j].resultInfo);
+      for (int32_t k = 0; k < pRow->numOfRows; ++k) {
+        colDataAppend(pColInfoData, pBlock->info.rows + k, in, pCtx[j].resultInfo->isNullRes);
+      }
+    }
+  }
+
+  releaseBufPage(pBuf, page);
+  pBlock->info.rows += pRow->numOfRows;
+
+  return 0;
+}
+
 int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprInfo* pExprInfo, SDiskbasedBuf* pBuf,
                            SGroupResInfo* pGroupResInfo, const int32_t* rowCellOffset, SqlFunctionCtx* pCtx,
                            int32_t numOfExprs) {
@@ -4689,6 +4740,21 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     pOptr =
         createIntervalOperatorInfo(ops[0], pExprInfo, num, pResBlock, &interval, tsSlotId, &as, pTaskInfo, isStream);
 
+  } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL == type) {
+    SMergeIntervalPhysiNode * pIntervalPhyNode = (SMergeIntervalPhysiNode*)pPhyNode;
+
+    SExprInfo*   pExprInfo = createExprInfo(pIntervalPhyNode->window.pFuncs, NULL, &num);
+    SSDataBlock* pResBlock = createResDataBlock(pPhyNode->pOutputDataBlockDesc);
+
+    SInterval interval = {.interval = pIntervalPhyNode->interval,
+                          .sliding = pIntervalPhyNode->sliding,
+                          .intervalUnit = pIntervalPhyNode->intervalUnit,
+                          .slidingUnit = pIntervalPhyNode->slidingUnit,
+                          .offset = pIntervalPhyNode->offset,
+                          .precision = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->node.resType.precision};
+
+    int32_t tsSlotId = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->slotId;
+    pOptr = createMergeIntervalOperatorInfo(ops[0], pExprInfo, num, pResBlock, &interval, tsSlotId, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL == type) {
     qDebug("[******]create Semi");
     int32_t children = 0;

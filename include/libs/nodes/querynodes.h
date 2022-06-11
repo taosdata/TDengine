@@ -144,6 +144,7 @@ typedef struct SRealTableNode {
   SVgroupsInfo*      pVgroupList;
   char               qualDbName[TSDB_DB_NAME_LEN];  // SHOW qualDbName.TABLES
   double             ratio;
+  SArray*            pSmaIndexes;
 } SRealTableNode;
 
 typedef struct STempTableNode {
