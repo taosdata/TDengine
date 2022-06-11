@@ -81,8 +81,8 @@ taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/s
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_rtrim.py --keep --containers
 #taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_length.py --keep --containers
 #taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_substr.py --keep --containers
-#[TD-16427]taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_concat.py --keep --containers
-#[TD-16427]taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_concat_ws.py --keep --containers
+#taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_concat.py --keep --containers
+#taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_concat_ws.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_cast.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_interval.py --keep --containers
 
@@ -102,3 +102,4 @@ taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/stable_math_pow_log.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/stable_math_sin_cos_tan.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/stable_math_sqrt.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/stable_math_apercentile.py --keep --containers
