@@ -26,8 +26,7 @@ typedef struct SLRUCache SLRUCache;
 
 typedef void (*_taos_lru_deleter_t)(const void *key, size_t keyLen, void *value);
 
-typedef struct LRUHandle {
-} LRUHandle;
+typedef struct LRUHandle LRUHandle;
 
 typedef enum {
   TAOS_LRU_PRIORITY_HIGH,
