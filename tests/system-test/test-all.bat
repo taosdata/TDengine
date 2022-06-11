@@ -16,8 +16,7 @@ if "%1" == "full" (
             if errorlevel 1 ( call :colorEcho 0c "failed" &echo. && set /a exitNum=8 ) else ( call :colorEcho 0a "Success" &echo. ) 
         )
     )
-    echo exit !exitNum!
-    goto :eof
+    exit !exitNum!
 )
 echo Windows Taosd Test
 for /F "usebackq tokens=*" %%i in (simpletest.bat) do (
