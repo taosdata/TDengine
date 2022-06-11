@@ -597,12 +597,23 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
 
           bool isDrop;
           if (IamInNew) {
-            sTrace("sync event update config by snapshot, lastIndex:%ld, lastTerm:%lu, lastConfigIndex:%ld ",
-                   pMsg->lastIndex, pMsg->lastTerm, pMsg->lastConfigIndex);
+            sTrace("sync event vgId:%d update config by snapshot, lastIndex:%ld, lastTerm:%lu, lastConfigIndex:%ld ",
+                   pSyncNode->vgId, pMsg->lastIndex, pMsg->lastTerm, pMsg->lastConfigIndex);
             syncNodeUpdateConfig(pSyncNode, &newSyncCfg, pMsg->lastConfigIndex, &isDrop);
           } else {
-            sTrace("sync event do not update config by snapshot, I am not in newCfg, lastIndex:%ld, lastTerm:%lu, lastConfigIndex:%ld ",
-                   pMsg->lastIndex, pMsg->lastTerm, pMsg->lastConfigIndex);
+            sTrace(
+                "sync event vgId:%d do not update config by snapshot, I am not in newCfg, lastIndex:%ld, lastTerm:%lu, "
+                "lastConfigIndex:%ld ",
+                pSyncNode->vgId, pMsg->lastIndex, pMsg->lastTerm, pMsg->lastConfigIndex);
+          }
+
+          // change isStandBy to normal
+          if (!isDrop) {
+            if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
+              syncNodeBecomeLeader(pSyncNode, "config change");
+            } else {
+              syncNodeBecomeFollower(pSyncNode, "config change");
+            }
           }
         }
 

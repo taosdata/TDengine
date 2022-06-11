@@ -1189,7 +1189,7 @@ void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* newConfig, SyncIndex l
   for (int i = 0; i < oldConfig.replicaNum; ++i) {
     if (strcmp((oldConfig.nodeInfo)[i].nodeFqdn, pSyncNode->myNodeInfo.nodeFqdn) == 0 &&
         (oldConfig.nodeInfo)[i].nodePort == pSyncNode->myNodeInfo.nodePort) {
-      IamInOld = false;
+      IamInOld = true;
       break;
     }
   }
@@ -1197,7 +1197,7 @@ void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* newConfig, SyncIndex l
   for (int i = 0; i < newConfig->replicaNum; ++i) {
     if (strcmp((newConfig->nodeInfo)[i].nodeFqdn, pSyncNode->myNodeInfo.nodeFqdn) == 0 &&
         (newConfig->nodeInfo)[i].nodePort == pSyncNode->myNodeInfo.nodePort) {
-      IamInNew = false;
+      IamInNew = true;
       break;
     }
   }
@@ -1240,7 +1240,7 @@ void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term) {
 }
 
 void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr) {
-  sInfo("sync event vgId:%d become follower, %s", pSyncNode->vgId, debugStr);
+  sInfo("sync event vgId:%d become follower, isStandBy:%d, %s", pSyncNode->vgId, pSyncNode->pRaftCfg->isStandBy, debugStr);
 
   // maybe clear leader cache
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
@@ -1274,7 +1274,7 @@ void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr) {
 //     /\ UNCHANGED <<messages, currentTerm, votedFor, candidateVars, logVars>>
 //
 void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
-  sInfo("sync event vgId:%d become leader, %s", pSyncNode->vgId, debugStr);
+  sInfo("sync event vgId:%d become leader, isStandBy:%d, %s", pSyncNode->vgId, pSyncNode->pRaftCfg->isStandBy, debugStr);
 
   // state change
   pSyncNode->state = TAOS_SYNC_STATE_LEADER;
