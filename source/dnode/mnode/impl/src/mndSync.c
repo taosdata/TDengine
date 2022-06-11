@@ -200,14 +200,14 @@ int32_t mndInitSync(SMnode *pMnode) {
     return -1;
   }
 
-  mDebug("mnode sync is opened, id:%" PRId64, pMgmt->sync);
+  mDebug("mnode-sync is opened, id:%" PRId64, pMgmt->sync);
   return 0;
 }
 
 void mndCleanupSync(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   syncStop(pMgmt->sync);
-  mDebug("mnode sync is stopped, id:%" PRId64, pMgmt->sync);
+  mDebug("mnode-sync is stopped, id:%" PRId64, pMgmt->sync);
 
   tsem_destroy(&pMgmt->syncSem);
   memset(pMgmt, 0, sizeof(SSyncMgmt));
