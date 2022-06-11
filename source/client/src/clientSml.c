@@ -1292,9 +1292,46 @@ static void smlDestroyTableInfo(SSmlHandle* info, SSmlTableInfo *tag){
   taosMemoryFree(tag);
 }
 
+static int32_t smlKvTimeArrayCompare(const void* key1, const void* key2) {
+  SArray *s1 = (SArray *)key1;
+  SArray *s2 = (SArray *)key2;
+  SSmlKv *kv1 = (SSmlKv *)taosArrayGetP(s1, 0);
+  SSmlKv *kv2 = (SSmlKv *)taosArrayGetP(s2, 0);
+  ASSERT(kv1->type == TSDB_DATA_TYPE_TIMESTAMP);
+  ASSERT(kv2->type == TSDB_DATA_TYPE_TIMESTAMP);
+  if (kv1->i < kv2->i) {
+    return -1;
+  } else if (kv1->i > kv2->i) {
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
+static int32_t smlKvTimeHashCompare(const void* key1, const void* key2) {
+  SHashObj *s1 = (SHashObj *)key1;
+  SHashObj *s2 = (SHashObj *)key2;
+  SSmlKv *kv1 = (SSmlKv *)taosArrayGetP(s1, 0);
+  SSmlKv *kv2 = (SSmlKv *)taosArrayGetP(s2, 0);
+  ASSERT(kv1->type == TSDB_DATA_TYPE_TIMESTAMP);
+  ASSERT(kv2->type == TSDB_DATA_TYPE_TIMESTAMP);
+  if (kv1->i < kv2->i) {
+    return -1;
+  } else if (kv1->i > kv2->i) {
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
 static int32_t smlDealCols(SSmlTableInfo* oneTable, bool dataFormat, SArray *cols){
   if(dataFormat){
-    taosArrayPush(oneTable->cols, &cols);
+    void *p = taosArraySearch(oneTable->cols, cols, smlKvTimeArrayCompare, TD_GE);
+    if(p == NULL){
+      taosArrayPush(oneTable->cols, &cols);
+    }else{
+      taosArrayInsert(oneTable->cols, TARRAY_ELEM_IDX(oneTable->cols, p), &cols);
+    }
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1307,8 +1344,13 @@ static int32_t smlDealCols(SSmlTableInfo* oneTable, bool dataFormat, SArray *col
     SSmlKv *kv = (SSmlKv *)taosArrayGetP(cols, i);
     taosHashPut(kvHash, kv->key, kv->keyLen, &kv, POINTER_BYTES);
   }
-  taosArrayPush(oneTable->cols, &kvHash);
 
+  void *p = taosArraySearch(oneTable->cols, kvHash, smlKvTimeHashCompare, TD_GE);
+  if(p == NULL){
+    taosArrayPush(oneTable->cols, &kvHash);
+  }else{
+    taosArrayInsert(oneTable->cols, TARRAY_ELEM_IDX(oneTable->cols, p), &kvHash);
+  }
   return TSDB_CODE_SUCCESS;
 }
 
