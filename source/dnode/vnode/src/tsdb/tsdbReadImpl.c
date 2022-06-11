@@ -239,7 +239,7 @@ int tsdbLoadBlockInfo(SReadH *pReadh, void *pTarget) {
     int         nBlks = (pBlkIdx->len - sizeof(SBlockInfo)) / sizeof(SBlock);
     for (int n = 0; n < nBlks; ++n) {
       pBlk = &pBlkInfo->blocks[n];
-      if (pBlk->numOfSubBlocks == 1) {
+      if (pBlk->numOfSubBlocks >= 1) {
         tsdbDebug("prop:vgId:%d, file %s , offset:%u len :%u has %d rows", TSDB_READ_REPO_ID(pReadh),
                   TSDB_FILE_FULL_NAME(pHeadf), pBlkIdx->offset, pBlkIdx->len, pBlk->numOfRows);
       }
