@@ -30,7 +30,8 @@ SyncSnapshotSend *createMsg() {
   pMsg->lastConfig.myIndex = 1;
   for (int i = 0; i < pMsg->lastConfig.replicaNum; ++i) {
     ((pMsg->lastConfig.nodeInfo)[i]).nodePort = i * 100;
-    snprintf(((pMsg->lastConfig.nodeInfo)[i]).nodeFqdn, sizeof(((pMsg->lastConfig.nodeInfo)[i]).nodeFqdn), "100.200.300.%d", i);
+    snprintf(((pMsg->lastConfig.nodeInfo)[i]).nodeFqdn, sizeof(((pMsg->lastConfig.nodeInfo)[i]).nodeFqdn),
+             "100.200.300.%d", i);
   }
 
   pMsg->seq = 44;
@@ -96,7 +97,6 @@ void test5() {
 }
 
 int main() {
-
   gRaftDetailLog = true;
 
   tsAsyncLog = 0;

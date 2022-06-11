@@ -190,15 +190,18 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
         if (gRaftDetailLog) {
           char* s = snapshotSender2Str(pSender);
           sInfo(
-              "sync event vgId:%d snapshot send to %s:%d start sender first time, lastApplyIndex:%ld lastApplyTerm:%lu lastConfigIndex:%ld"
+              "sync event vgId:%d snapshot send to %s:%d start sender first time, lastApplyIndex:%ld lastApplyTerm:%lu "
+              "lastConfigIndex:%ld"
               "sender:%s",
-              ths->vgId, host, port, pSender->snapshot.lastApplyIndex, pSender->snapshot.lastApplyTerm, pSender->snapshot.lastConfigIndex, s);
+              ths->vgId, host, port, pSender->snapshot.lastApplyIndex, pSender->snapshot.lastApplyTerm,
+              pSender->snapshot.lastConfigIndex, s);
           taosMemoryFree(s);
         } else {
           sInfo(
               "sync event vgId:%d snapshot send to %s:%d start sender first time, lastApplyIndex:%ld "
               "lastApplyTerm:%lu lastConfigIndex:%ld",
-              ths->vgId, host, port, pSender->snapshot.lastApplyIndex, pSender->snapshot.lastApplyTerm, pSender->snapshot.lastConfigIndex);
+              ths->vgId, host, port, pSender->snapshot.lastApplyIndex, pSender->snapshot.lastApplyTerm,
+              pSender->snapshot.lastConfigIndex);
         }
       }
 

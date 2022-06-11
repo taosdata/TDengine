@@ -14,9 +14,9 @@
  */
 
 #include "syncMessage.h"
+#include "syncRaftCfg.h"
 #include "syncUtil.h"
 #include "tcoding.h"
-#include "syncRaftCfg.h"
 
 // ---------------------------------------------
 cJSON* syncRpcMsg2Json(SRpcMsg* pRpcMsg) {

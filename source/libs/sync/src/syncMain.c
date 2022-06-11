@@ -35,7 +35,7 @@
 #include "syncVoteMgr.h"
 #include "tref.h"
 
-bool gRaftDetailLog = false;
+bool gRaftDetailLog = true;
 
 static int32_t tsNodeRefId = -1;
 
@@ -311,6 +311,8 @@ int32_t syncGetSnapshotMeta(int64_t rid, struct SSnapshotMeta* sMeta) {
   assert(rid == pSyncNode->rid);
   sMeta->lastConfigIndex = pSyncNode->pRaftCfg->lastConfigIndex;
 
+  sTrace("sync get snapshot meta: lastConfigIndex:%ld", pSyncNode->pRaftCfg->lastConfigIndex);
+
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
   return 0;
 }
@@ -520,6 +522,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
     SRaftCfgMeta meta;
     meta.isStandBy = pSyncInfo->isStandBy;
     meta.snapshotEnable = pSyncInfo->snapshotEnable;
+    meta.lastConfigIndex = SYNC_INDEX_INVALID;
     ret = raftCfgCreateFile((SSyncCfg*)&(pSyncInfo->syncCfg), meta, pSyncNode->configPath);
     assert(ret == 0);
 

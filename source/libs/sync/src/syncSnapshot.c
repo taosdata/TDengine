@@ -15,11 +15,11 @@
 
 #include "syncSnapshot.h"
 #include "syncIndexMgr.h"
+#include "syncRaftCfg.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
 #include "syncUtil.h"
 #include "wal.h"
-#include "syncRaftCfg.h"
 
 static void snapshotReceiverDoStart(SSyncSnapshotReceiver *pReceiver, SyncTerm privateTerm, SRaftId fromId);
 
@@ -85,10 +85,17 @@ void snapshotSenderStart(SSyncSnapshotSender *pSender) {
   // get current snapshot info
   pSender->pSyncNode->pFsm->FpGetSnapshot(pSender->pSyncNode->pFsm, &(pSender->snapshot));
   if (pSender->snapshot.lastConfigIndex != SYNC_INDEX_INVALID) {
+    /*
     SSyncRaftEntry *pEntry = NULL;
-    int32_t code = pSender->pSyncNode->pLogStore->syncLogGetEntry(pSender->pSyncNode->pLogStore, pSender->snapshot.lastConfigIndex, &pEntry);
+    int32_t code = pSender->pSyncNode->pLogStore->syncLogGetEntry(pSender->pSyncNode->pLogStore,
+                                                                  pSender->snapshot.lastConfigIndex, &pEntry);
     ASSERT(code == 0);
-    ASSERT(pEntry == NULL);
+    ASSERT(pEntry != NULL);
+    */
+
+    SSyncRaftEntry *pEntry =
+        pSender->pSyncNode->pLogStore->getEntry(pSender->pSyncNode->pLogStore, pSender->snapshot.lastConfigIndex);
+    ASSERT(pEntry != NULL);
 
     SRpcMsg rpcMsg;
     syncEntry2OriginalRpc(pEntry, &rpcMsg);
@@ -103,7 +110,6 @@ void snapshotSenderStart(SSyncSnapshotSender *pSender) {
   } else {
     memset(&(pSender->lastConfig), 0, sizeof(SSyncCfg));
   }
-  
 
   pSender->sendingMS = SYNC_SNAPSHOT_RETRY_MS;
   pSender->term = pSender->pSyncNode->pRaftStore->currentTerm;
@@ -135,15 +141,18 @@ void snapshotSenderStart(SSyncSnapshotSender *pSender) {
   if (gRaftDetailLog) {
     char *msgStr = syncSnapshotSend2Str(pMsg);
     sTrace(
-        "sync event vgId:%d snapshot send to %s:%d begin seq:%d ack:%d lastApplyIndex:%ld lastApplyTerm:%lu lastConfigIndex:%ld send "
+        "sync event vgId:%d snapshot send to %s:%d begin seq:%d ack:%d lastApplyIndex:%ld lastApplyTerm:%lu "
+        "lastConfigIndex:%ld send "
         "msg:%s",
         pSender->pSyncNode->vgId, host, port, pSender->seq, pSender->ack, pSender->snapshot.lastApplyIndex,
         pSender->snapshot.lastApplyTerm, pSender->snapshot.lastConfigIndex, msgStr);
     taosMemoryFree(msgStr);
   } else {
-    sTrace("sync event vgId:%d snapshot send to %s:%d begin seq:%d ack:%d lastApplyIndex:%ld lastApplyTerm:%lu lastConfigIndex:%ld",
-           pSender->pSyncNode->vgId, host, port, pSender->seq, pSender->ack, pSender->snapshot.lastApplyIndex,
-           pSender->snapshot.lastApplyTerm, pSender->snapshot.lastConfigIndex);
+    sTrace(
+        "sync event vgId:%d snapshot send to %s:%d begin seq:%d ack:%d lastApplyIndex:%ld lastApplyTerm:%lu "
+        "lastConfigIndex:%ld",
+        pSender->pSyncNode->vgId, host, port, pSender->seq, pSender->ack, pSender->snapshot.lastApplyIndex,
+        pSender->snapshot.lastApplyTerm, pSender->snapshot.lastConfigIndex);
   }
 
   syncSnapshotSendDestroy(pMsg);
@@ -270,20 +279,25 @@ int32_t snapshotSend(SSyncSnapshotSender *pSender) {
     if (gRaftDetailLog) {
       char *msgStr = syncSnapshotSend2Str(pMsg);
       sTrace(
-          "sync event vgId:%d snapshot send to %s:%d finish seq:%d ack:%d lastApplyIndex:%ld lastApplyTerm:%lu lastConfigIndex:%ld send "
+          "sync event vgId:%d snapshot send to %s:%d finish seq:%d ack:%d lastApplyIndex:%ld lastApplyTerm:%lu "
+          "lastConfigIndex:%ld send "
           "msg:%s",
           pSender->pSyncNode->vgId, host, port, pSender->seq, pSender->ack, pSender->snapshot.lastApplyIndex,
           pSender->snapshot.lastApplyTerm, pSender->snapshot.lastConfigIndex, msgStr);
       taosMemoryFree(msgStr);
     } else {
-      sTrace("sync event vgId:%d snapshot send to %s:%d finish seq:%d ack:%d lastApplyIndex:%ld lastApplyTerm:%lu lastConfigIndex:%ld",
-             pSender->pSyncNode->vgId, host, port, pSender->seq, pSender->ack, pSender->snapshot.lastApplyIndex,
-             pSender->snapshot.lastApplyTerm, pSender->snapshot.lastConfigIndex);
+      sTrace(
+          "sync event vgId:%d snapshot send to %s:%d finish seq:%d ack:%d lastApplyIndex:%ld lastApplyTerm:%lu "
+          "lastConfigIndex:%ld",
+          pSender->pSyncNode->vgId, host, port, pSender->seq, pSender->ack, pSender->snapshot.lastApplyIndex,
+          pSender->snapshot.lastApplyTerm, pSender->snapshot.lastConfigIndex);
     }
   } else {
-    sTrace("sync event vgId:%d snapshot send to %s:%d sending seq:%d ack:%d lastApplyIndex:%ld lastApplyTerm:%lu lastConfigIndex:%ld",
-           pSender->pSyncNode->vgId, host, port, pSender->seq, pSender->ack, pSender->snapshot.lastApplyIndex,
-           pSender->snapshot.lastApplyTerm, pSender->snapshot.lastConfigIndex);
+    sTrace(
+        "sync event vgId:%d snapshot send to %s:%d sending seq:%d ack:%d lastApplyIndex:%ld lastApplyTerm:%lu "
+        "lastConfigIndex:%ld",
+        pSender->pSyncNode->vgId, host, port, pSender->seq, pSender->ack, pSender->snapshot.lastApplyIndex,
+        pSender->snapshot.lastApplyTerm, pSender->snapshot.lastConfigIndex);
   }
 
   syncSnapshotSendDestroy(pMsg);
@@ -569,8 +583,27 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
 
         // maybe update lastconfig
         if (pMsg->lastConfigIndex >= SYNC_INDEX_BEGIN) {
+          // update new config myIndex
+          bool     IamInNew = false;
+          SSyncCfg newSyncCfg = pMsg->lastConfig;
+          for (int i = 0; i < newSyncCfg.replicaNum; ++i) {
+            if (strcmp(pSyncNode->myNodeInfo.nodeFqdn, (newSyncCfg.nodeInfo)[i].nodeFqdn) == 0 &&
+                pSyncNode->myNodeInfo.nodePort == (newSyncCfg.nodeInfo)[i].nodePort) {
+              newSyncCfg.myIndex = i;
+              IamInNew = true;
+              break;
+            }
+          }
+
           bool isDrop;
-          syncNodeUpdateConfig(pSyncNode, &(pMsg->lastConfig), pMsg->lastConfigIndex, &isDrop);
+          if (IamInNew) {
+            sTrace("sync event update config by snapshot, lastIndex:%ld, lastTerm:%lu, lastConfigIndex:%ld ",
+                   pMsg->lastIndex, pMsg->lastTerm, pMsg->lastConfigIndex);
+            syncNodeUpdateConfig(pSyncNode, &newSyncCfg, pMsg->lastConfigIndex, &isDrop);
+          } else {
+            sTrace("sync event do not update config by snapshot, I am not in newCfg, lastIndex:%ld, lastTerm:%lu, lastConfigIndex:%ld ",
+                   pMsg->lastIndex, pMsg->lastTerm, pMsg->lastConfigIndex);
+          }
         }
 
         SSnapshot snapshot;
