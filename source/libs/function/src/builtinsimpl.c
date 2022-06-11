@@ -2227,7 +2227,6 @@ int32_t apercentilePartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 int32_t apercentileCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
   SAPercentileInfo*    pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
-  int32_t type = pDestCtx->input.pData[0]->info.type;
 
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
   SAPercentileInfo*    pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
@@ -3100,6 +3099,17 @@ int32_t spreadPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   return pResInfo->numOfRes;
 }
 
+int32_t spreadCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
+  SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
+  SSpreadInfo* pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
+
+  SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
+  SSpreadInfo* pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
+  spreadTransferInfo(pDBuf, pSBuf);
+  pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t getElapsedInfoSize() {
   return (int32_t)sizeof(SElapsedInfo);
 }
@@ -3257,6 +3267,18 @@ int32_t elapsedPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   taosMemoryFree(res);
   return pResInfo->numOfRes;
+}
+
+int32_t elapsedCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
+  SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
+  SElapsedInfo* pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
+
+  SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
+  SElapsedInfo* pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
+
+  elapsedTransferInfo(pDBuf, pSBuf);
+  pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t getHistogramInfoSize() {
@@ -3554,6 +3576,18 @@ int32_t histogramPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   return 1;
 }
 
+int32_t histogramCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
+  SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
+  SHistoFuncInfo*      pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
+
+  SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
+  SHistoFuncInfo*      pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
+
+  histogramTransferInfo(pDBuf, pSBuf);
+  pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t getHLLInfoSize() {
   return (int32_t)sizeof(SHLLInfo);
 }
@@ -3736,6 +3770,18 @@ int32_t hllPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   taosMemoryFree(res);
   return pResInfo->numOfRes;
+}
+
+int32_t hllCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
+  SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
+  SHLLInfo* pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
+
+  SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
+  SHLLInfo* pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
+
+  hllTransferInfo(pDBuf, pSBuf);
+  pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
+  return TSDB_CODE_SUCCESS;
 }
 
 bool getStateFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {

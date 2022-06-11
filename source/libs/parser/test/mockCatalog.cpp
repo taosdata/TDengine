@@ -214,6 +214,11 @@ int32_t __catalogRefreshGetTableMeta(SCatalog* pCatalog, SRequestConnInfo *pConn
 
 int32_t __catalogRemoveTableMeta(SCatalog* pCtg, SName* pTableName) { return 0; }
 
+int32_t __catalogGetTableIndex(SCatalog* pCtg, void* pTrans, const SEpSet* pMgmtEps, const SName* pName,
+                               SArray** pRes) {
+  return g_mockCatalogService->catalogGetTableIndex(pName, pRes);
+}
+
 void initMetaDataEnv() {
   g_mockCatalogService.reset(new MockCatalogService());
 
@@ -230,6 +235,7 @@ void initMetaDataEnv() {
   stub.set(catalogGetUdfInfo, __catalogGetUdfInfo);
   stub.set(catalogRefreshGetTableMeta, __catalogRefreshGetTableMeta);
   stub.set(catalogRemoveTableMeta, __catalogRemoveTableMeta);
+  stub.set(catalogGetTableIndex, __catalogGetTableIndex);
   // {
   //   AddrAny any("libcatalog.so");
   //   std::map<std::string,void*> result;

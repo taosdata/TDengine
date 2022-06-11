@@ -4733,18 +4733,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         .waterMark = pIntervalPhyNode->window.watermark,
         .calTrigger = pIntervalPhyNode->window.triggerType,
         .maxTs = INT64_MIN,
-        .winMap = NULL,
     };
-    if (isSmaStream(pIntervalPhyNode->window.triggerType)) {
-      if (FLT_LESS(pIntervalPhyNode->window.filesFactor, 1.000000)) {
-        as.calTrigger = STREAM_TRIGGER_AT_ONCE_SMA;
-      } else {
-        _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_TIMESTAMP);
-        as.winMap = taosHashInit(64, hashFn, true, HASH_NO_LOCK);
-        as.waterMark = getSmaWaterMark(interval.interval, pIntervalPhyNode->window.filesFactor);
-        as.calTrigger = STREAM_TRIGGER_WINDOW_CLOSE_SMA;
-      }
-    }
 
     int32_t tsSlotId = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->slotId;
     bool    isStream = (QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL == type);
@@ -5457,16 +5446,3 @@ int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, const char* pKey, SqlF
   return code;
 }
 
-int64_t getSmaWaterMark(int64_t interval, double filesFactor) {
-  int64_t waterMark = 0;
-  ASSERT(FLT_GREATEREQUAL(filesFactor, 0.000000));
-  waterMark = -1 * filesFactor;
-  return waterMark;
-}
-
-bool isSmaStream(int8_t triggerType) {
-  if (triggerType == STREAM_TRIGGER_AT_ONCE || triggerType == STREAM_TRIGGER_WINDOW_CLOSE) {
-    return false;
-  }
-  return true;
-}
