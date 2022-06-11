@@ -63,7 +63,7 @@ typedef struct SStmtBindInfo {
   int8_t       tbType;
   bool         tagsCached;
   void*        boundTags;  
-  char         tbName[TSDB_TABLE_FNAME_LEN];;
+  char         tbName[TSDB_TABLE_FNAME_LEN];
   char         tbFName[TSDB_TABLE_FNAME_LEN];
   char         stbFName[TSDB_TABLE_FNAME_LEN];
   SName        sname;
@@ -71,7 +71,6 @@ typedef struct SStmtBindInfo {
 
 typedef struct SStmtExecInfo {
   int32_t      affectedRows;
-  bool         emptyRes;
   SRequestObj* pRequest;
   SHashObj*    pVgHash;
   SHashObj*    pBlockHash;
@@ -87,7 +86,6 @@ typedef struct SStmtSQLInfo {
   char*             sqlStr;
   int32_t           sqlLen;
   SArray*           nodeList;
-  SQueryPlan*       pQueryPlan;
   SStmtQueryResInfo queryRes;
   bool              autoCreateTbl;
 } SStmtSQLInfo;
@@ -118,8 +116,11 @@ int stmtAffectedRowsOnce(TAOS_STMT *stmt);
 int stmtPrepare(TAOS_STMT *stmt, const char *sql, unsigned long length);
 int stmtSetTbName(TAOS_STMT *stmt, const char *tbName);
 int stmtSetTbTags(TAOS_STMT *stmt, TAOS_MULTI_BIND *tags);
+int stmtGetTagFields(TAOS_STMT* stmt, int* nums, TAOS_FIELD_E** fields);
+int stmtGetColFields(TAOS_STMT* stmt, int* nums, TAOS_FIELD_E** fields);
 int stmtIsInsert(TAOS_STMT *stmt, int *insert);
 int stmtGetParamNum(TAOS_STMT *stmt, int *nums);
+int stmtGetParam(TAOS_STMT *stmt, int idx, int *type, int *bytes);
 int stmtAddBatch(TAOS_STMT *stmt);
 TAOS_RES *stmtUseResult(TAOS_STMT *stmt);
 int stmtBindBatch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind, int32_t colIdx);

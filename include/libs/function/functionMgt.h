@@ -23,6 +23,9 @@ extern "C" {
 #include "function.h"
 #include "querynodes.h"
 
+#define FUNC_AGGREGATE_UDF_ID 5001
+#define FUNC_SCALAR_UDF_ID    5002
+
 typedef enum EFunctionType {
   // aggregate function
   FUNCTION_TYPE_APERCENTILE = 1,
@@ -41,6 +44,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_SUM,
   FUNCTION_TYPE_TWA,
   FUNCTION_TYPE_HISTOGRAM,
+  FUNCTION_TYPE_HYPERLOGLOG,
 
   // nonstandard SQL function
   FUNCTION_TYPE_BOTTOM = 500,
@@ -117,6 +121,19 @@ typedef enum EFunctionType {
 
   // internal function
   FUNCTION_TYPE_SELECT_VALUE,
+  FUNCTION_TYPE_BLOCK_DIST,  // block distribution aggregate function
+
+  // distributed splitting functions
+  FUNCTION_TYPE_APERCENTILE_PARTIAL,
+  FUNCTION_TYPE_APERCENTILE_MERGE,
+  FUNCTION_TYPE_SPREAD_PARTIAL,
+  FUNCTION_TYPE_SPREAD_MERGE,
+  FUNCTION_TYPE_HISTOGRAM_PARTIAL,
+  FUNCTION_TYPE_HISTOGRAM_MERGE,
+  FUNCTION_TYPE_HYPERLOGLOG_PARTIAL,
+  FUNCTION_TYPE_HYPERLOGLOG_MERGE,
+  FUNCTION_TYPE_ELAPSED_PARTIAL,
+  FUNCTION_TYPE_ELAPSED_MERGE,
 
   // user defined funcion
   FUNCTION_TYPE_UDF = 10000
@@ -125,25 +142,19 @@ typedef enum EFunctionType {
 struct SqlFunctionCtx;
 struct SResultRowEntryInfo;
 struct STimeWindow;
-struct SCatalog;
-
-typedef struct SFmGetFuncInfoParam {
-  struct SCatalog* pCtg;
-  void*            pRpc;
-  const SEpSet*    pMgmtEps;
-  char*            pErrBuf;
-  int32_t          errBufLen;
-} SFmGetFuncInfoParam;
 
 int32_t fmFuncMgtInit();
 
 void fmFuncMgtDestroy();
 
-int32_t fmGetFuncInfo(SFmGetFuncInfoParam* pParam, SFunctionNode* pFunc);
+int32_t fmGetFuncInfo(SFunctionNode* pFunc, char* pMsg, int32_t msgLen);
+
+bool fmIsBuiltinFunc(const char* pFunc);
 
 bool fmIsAggFunc(int32_t funcId);
 bool fmIsScalarFunc(int32_t funcId);
-bool fmIsNonstandardSQLFunc(int32_t funcId);
+bool fmIsVectorFunc(int32_t funcId);
+bool fmIsIndefiniteRowsFunc(int32_t funcId);
 bool fmIsStringFunc(int32_t funcId);
 bool fmIsDatetimeFunc(int32_t funcId);
 bool fmIsSelectFunc(int32_t funcId);
@@ -158,6 +169,10 @@ bool fmIsDynamicScanOptimizedFunc(int32_t funcId);
 bool fmIsMultiResFunc(int32_t funcId);
 bool fmIsRepeatScanFunc(int32_t funcId);
 bool fmIsUserDefinedFunc(int32_t funcId);
+bool fmIsDistExecFunc(int32_t funcId);
+bool fmIsForbidFillFunc(int32_t funcId);
+
+int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMergeFunc);
 
 typedef enum EFuncDataRequired {
   FUNC_DATA_REQUIRED_DATA_LOAD = 1,

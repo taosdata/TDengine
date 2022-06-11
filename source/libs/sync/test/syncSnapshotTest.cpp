@@ -75,6 +75,7 @@ int32_t GetSnapshotCb(struct SSyncFSM *pFsm, SSnapshot *pSnapshot) {
 
 void initFsm() {
   pFsm = (SSyncFSM *)taosMemoryMalloc(sizeof(SSyncFSM));
+  memset(pFsm, 0, sizeof(*pFsm));
   pFsm->FpCommitCb = CommitCb;
   pFsm->FpPreCommitCb = PreCommitCb;
   pFsm->FpRollBackCb = RollBackCb;
@@ -83,9 +84,8 @@ void initFsm() {
 
 SSyncNode *syncNodeInit() {
   syncInfo.vgId = 1234;
-  syncInfo.rpcClient = gSyncIO->clientRpc;
+  syncInfo.msgcb = &gSyncIO->msgcb;
   syncInfo.FpSendMsg = syncIOSendMsg;
-  syncInfo.queue = gSyncIO->pMsgQ;
   syncInfo.FpEqMsg = syncIOEqMsg;
   syncInfo.pFsm = pFsm;
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s", pDir);
@@ -161,6 +161,8 @@ SyncClientRequest *step1(const SRpcMsg *pMsg) {
 }
 
 int main(int argc, char **argv) {
+  sprintf(tsTempDir, "%s", ".");
+
   // taosInitLog((char *)"syncTest.log", 100000, 10);
   tsAsyncLog = 0;
   sDebugFlag = 143 + 64;
@@ -200,7 +202,7 @@ int main(int argc, char **argv) {
     SyncClientRequest *pSyncClientRequest = pMsg1;
     SRpcMsg            rpcMsg;
     syncClientRequest2RpcMsg(pSyncClientRequest, &rpcMsg);
-    gSyncNode->FpEqMsg(gSyncNode->queue, &rpcMsg);
+    gSyncNode->FpEqMsg(gSyncNode->msgcb, &rpcMsg);
 
     taosMsleep(1000);
   }

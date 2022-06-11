@@ -37,6 +37,17 @@ add_executable(syncRaftCfgTest "")
 add_executable(syncRespMgrTest "")
 add_executable(syncSnapshotTest "")
 add_executable(syncApplyMsgTest "")
+add_executable(syncConfigChangeTest "")
+add_executable(syncConfigChangeSnapshotTest "")
+add_executable(syncSnapshotSendTest "")
+add_executable(syncSnapshotRspTest "")
+add_executable(syncSnapshotSenderTest "")
+add_executable(syncSnapshotReceiverTest "")
+add_executable(syncTestTool "")
+add_executable(syncRaftLogTest "")
+add_executable(syncRaftLogTest2 "")
+add_executable(syncRaftLogTest3 "")
+add_executable(syncLeaderTransferTest "")
 
 
 target_sources(syncTest
@@ -194,6 +205,50 @@ target_sources(syncSnapshotTest
 target_sources(syncApplyMsgTest
     PRIVATE
     "syncApplyMsgTest.cpp"
+)
+target_sources(syncConfigChangeTest
+    PRIVATE
+    "syncConfigChangeTest.cpp"
+)
+target_sources(syncConfigChangeSnapshotTest
+    PRIVATE
+    "syncConfigChangeSnapshotTest.cpp"
+)
+target_sources(syncSnapshotSendTest
+    PRIVATE
+    "syncSnapshotSendTest.cpp"
+)
+target_sources(syncSnapshotRspTest
+    PRIVATE
+    "syncSnapshotRspTest.cpp"
+)
+target_sources(syncSnapshotSenderTest
+    PRIVATE
+    "syncSnapshotSenderTest.cpp"
+)
+target_sources(syncSnapshotReceiverTest
+    PRIVATE
+    "syncSnapshotReceiverTest.cpp"
+)
+target_sources(syncTestTool
+    PRIVATE
+    "syncTestTool.cpp"
+)
+target_sources(syncRaftLogTest
+    PRIVATE
+    "syncRaftLogTest.cpp"
+)
+target_sources(syncRaftLogTest2
+    PRIVATE
+    "syncRaftLogTest2.cpp"
+)
+target_sources(syncRaftLogTest3
+    PRIVATE
+    "syncRaftLogTest3.cpp"
+)
+target_sources(syncLeaderTransferTest
+    PRIVATE
+    "syncLeaderTransferTest.cpp"
 )
 
 
@@ -392,6 +447,61 @@ target_include_directories(syncApplyMsgTest
     "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
+target_include_directories(syncConfigChangeTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncConfigChangeSnapshotTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncSnapshotSendTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncSnapshotRspTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncSnapshotSenderTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncSnapshotReceiverTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncTestTool
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncRaftLogTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncRaftLogTest2
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncRaftLogTest3
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncLeaderTransferTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
 
 
 target_link_libraries(syncTest
@@ -547,6 +657,50 @@ target_link_libraries(syncSnapshotTest
     gtest_main
 )
 target_link_libraries(syncApplyMsgTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncConfigChangeTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncConfigChangeSnapshotTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncSnapshotSendTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncSnapshotRspTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncSnapshotSenderTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncSnapshotReceiverTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncTestTool
+    sync
+    gtest_main
+)
+target_link_libraries(syncRaftLogTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncRaftLogTest2
+    sync
+    gtest_main
+)
+target_link_libraries(syncRaftLogTest3
+    sync
+    gtest_main
+)
+target_link_libraries(syncLeaderTransferTest
     sync
     gtest_main
 )

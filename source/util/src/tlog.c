@@ -14,8 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "os.h"
 #include "tlog.h"
+#include "os.h"
 #include "tutil.h"
 
 #define LOG_MAX_LINE_SIZE             (1024)
@@ -39,7 +39,7 @@
 #define LOG_BUF_MUTEX(x)  ((x)->buffMutex)
 
 typedef struct {
-  char         *buffer;
+  char *        buffer;
   int32_t       buffStart;
   int32_t       buffEnd;
   int32_t       buffSize;
@@ -58,7 +58,7 @@ typedef struct {
   int32_t       openInProgress;
   pid_t         pid;
   char          logName[LOG_FILE_NAME_LEN];
-  SLogBuff     *logHandle;
+  SLogBuff *    logHandle;
   TdThreadMutex logMutex;
 } SLogObj;
 
@@ -90,10 +90,13 @@ int32_t qDebugFlag = 131;
 int32_t wDebugFlag = 135;
 int32_t sDebugFlag = 135;
 int32_t tsdbDebugFlag = 131;
+int32_t tdbDebugFlag = 131;
 int32_t tqDebugFlag = 135;
 int32_t fsDebugFlag = 135;
 int32_t metaDebugFlag = 135;
 int32_t fnDebugFlag = 135;
+int32_t smaDebugFlag = 135;
+int32_t idxDebugFlag = 135;
 
 int64_t dbgEmptyW = 0;
 int64_t dbgWN = 0;
@@ -101,7 +104,7 @@ int64_t dbgSmallWN = 0;
 int64_t dbgBigWN = 0;
 int64_t dbgWSize = 0;
 
-static void     *taosAsyncOutputLog(void *param);
+static void *    taosAsyncOutputLog(void *param);
 static int32_t   taosPushLogBuffer(SLogBuff *pLogBuf, const char *msg, int32_t msgLen);
 static SLogBuff *taosLogBuffNew(int32_t bufSize);
 static void      taosCloseLogByFd(TdFilePtr pFile);
@@ -143,6 +146,7 @@ void taosCloseLog() {
     taosStopLog();
     if (tsLogObj.logHandle != NULL && taosCheckPthreadValid(tsLogObj.logHandle->asyncThread)) {
       taosThreadJoin(tsLogObj.logHandle->asyncThread, NULL);
+      taosThreadClear(&tsLogObj.logHandle->asyncThread);
     }
     tsLogInited = 0;
 
@@ -223,7 +227,7 @@ static void *taosThreadToOpenNewFile(void *param) {
   tsLogObj.logHandle->pFile = pFile;
   tsLogObj.lines = 0;
   tsLogObj.openInProgress = 0;
-  taosSsleep(10);
+  taosSsleep(20);
   taosCloseLogByFd(pOldFile);
 
   uInfo("   new log file:%d is opened", tsLogObj.flag);
@@ -487,7 +491,7 @@ void taosDumpData(unsigned char *msg, int32_t len) {
   if (!osLogSpaceAvailable()) return;
   taosUpdateLogNums(DEBUG_DUMP);
 
-  char    temp[256];
+  char    temp[256] = {0};
   int32_t i, pos = 0, c = 0;
 
   for (i = 0; i < len; ++i) {
@@ -698,7 +702,7 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName) {
   int32_t compressSize = 163840;
   int32_t ret = 0;
   int32_t len = 0;
-  char   *data = taosMemoryMalloc(compressSize);
+  char *  data = taosMemoryMalloc(compressSize);
   //  gzFile  dstFp = NULL;
 
   // srcFp = fopen(srcFileName, "r");
@@ -755,6 +759,8 @@ void taosSetAllDebugFlag(int32_t flag) {
   tqDebugFlag = flag;
   fsDebugFlag = flag;
   fnDebugFlag = flag;
+  smaDebugFlag = flag;
+  idxDebugFlag = flag;
 
   uInfo("all debug flag are set to %d", flag);
 }

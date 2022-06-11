@@ -285,6 +285,7 @@ int32_t taosGetSockOpt(TdSocketPtr pSocket, int32_t level, int32_t optname, void
     return -1;
   }
 #ifdef WINDOWS
+  assert(0);
   return 0;
 #else
   return getsockopt(pSocket->fd, level, optname, optval, (int *)optlen);
@@ -642,6 +643,7 @@ int32_t taosKeepTcpAlive(TdSocketPtr pSocket) {
 int taosGetLocalIp(const char *eth, char *ip) {
 #if defined(WINDOWS)
   // DO NOTHAING
+  assert(0);
   return 0;
 #else
   int                fd;
@@ -668,6 +670,7 @@ int taosGetLocalIp(const char *eth, char *ip) {
 int taosValidIp(uint32_t ip) {
 #if defined(WINDOWS)
   // DO NOTHAING
+  assert(0);
   return 0;
 #else
   int ret = -1;
@@ -715,7 +718,11 @@ bool taosValidIpAndPort(uint32_t ip, uint16_t port) {
 
   bzero((char *)&serverAdd, sizeof(serverAdd));
   serverAdd.sin_family = AF_INET;
+#ifdef WINDOWS
+  serverAdd.sin_addr.s_addr = INADDR_ANY;
+#else
   serverAdd.sin_addr.s_addr = ip;
+#endif
   serverAdd.sin_port = (uint16_t)htons(port);
 
   if ((fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) <= 2) {
@@ -866,6 +873,7 @@ int64_t taosCopyFds(TdSocketPtr pSrcSocket, TdSocketPtr pDestSocket, int64_t len
 
 void taosBlockSIGPIPE() {
 #ifdef WINDOWS
+  // assert(0);
 #else
   sigset_t signal_mask;
   sigemptyset(&signal_mask);
@@ -878,6 +886,16 @@ void taosBlockSIGPIPE() {
 }
 
 uint32_t taosGetIpv4FromFqdn(const char *fqdn) {
+#ifdef WINDOWS
+  // Initialize Winsock
+  WSADATA wsaData;
+  int     iResult;
+  iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
+  if (iResult != 0) {
+    // printf("WSAStartup failed: %d\n", iResult);
+    return 1;
+  }
+#endif
   struct addrinfo hints = {0};
   hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_STREAM;
@@ -895,12 +913,12 @@ uint32_t taosGetIpv4FromFqdn(const char *fqdn) {
   } else {
 #ifdef EAI_SYSTEM
     if (ret == EAI_SYSTEM) {
-      // printf("failed to get the ip address, fqdn:%s, since:%s", fqdn, strerror(errno));
+      // printf("failed to get the ip address, fqdn:%s, errno:%d, since:%s", fqdn, errno, strerror(errno));
     } else {
-      // printf("failed to get the ip address, fqdn:%s, since:%s", fqdn, gai_strerror(ret));
+      // printf("failed to get the ip address, fqdn:%s, ret:%d, since:%s", fqdn, ret, gai_strerror(ret));
     }
 #else
-    // printf("failed to get the ip address, fqdn:%s, since:%s", fqdn, gai_strerror(ret));
+    // printf("failed to get the ip address, fqdn:%s, ret:%d, since:%s", fqdn, ret, gai_strerror(ret));
 #endif
     return 0xFFFFFFFF;
   }
@@ -910,7 +928,7 @@ int32_t taosGetFqdn(char *fqdn) {
   char hostname[1024];
   hostname[1023] = '\0';
   if (gethostname(hostname, 1023) == -1) {
-    printf("failed to get hostname, reason:%s", strerror(errno));
+    // printf("failed to get hostname, reason:%s", strerror(errno));
     assert(0);
     return -1;
   }
@@ -928,7 +946,7 @@ int32_t taosGetFqdn(char *fqdn) {
 #endif  // __APPLE__
   int32_t ret = getaddrinfo(hostname, NULL, &hints, &result);
   if (!result) {
-    printf("failed to get fqdn, code:%d, reason:%s", ret, gai_strerror(ret));
+    // printf("failed to get fqdn, code:%d, reason:%s", ret, gai_strerror(ret));
     assert(0);
     return -1;
   }
@@ -975,15 +993,11 @@ void tinet_ntoa(char *ipstr, uint32_t ip) {
   sprintf(ipstr, "%d.%d.%d.%d", ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF, ip >> 24);
 }
 
-void taosIgnSIGPIPE() {
-#ifdef WINDOWS
-#else
-  signal(SIGPIPE, SIG_IGN);
-#endif
-}
+void taosIgnSIGPIPE() { signal(SIGPIPE, SIG_IGN); }
 
 void taosSetMaskSIGPIPE() {
 #ifdef WINDOWS
+  // assert(0);
 #else
   sigset_t signal_mask;
   sigemptyset(&signal_mask);
@@ -1005,6 +1019,7 @@ int32_t taosGetSocketName(TdSocketPtr pSocket, struct sockaddr *destAddr, int *a
 TdEpollPtr taosCreateEpoll(int32_t size) {
   EpollFd fd = -1;
 #ifdef WINDOWS
+  assert(0);
 #else
   fd = epoll_create(size);
 #endif
@@ -1027,6 +1042,7 @@ int32_t taosCtlEpoll(TdEpollPtr pEpoll, int32_t epollOperate, TdSocketPtr pSocke
     return -1;
   }
 #ifdef WINDOWS
+  assert(0);
 #else
   code = epoll_ctl(pEpoll->fd, epollOperate, pSocket->fd, event);
 #endif
@@ -1038,6 +1054,7 @@ int32_t taosWaitEpoll(TdEpollPtr pEpoll, struct epoll_event *event, int32_t maxE
     return -1;
   }
 #ifdef WINDOWS
+  assert(0);
 #else
   code = epoll_wait(pEpoll->fd, event, maxEvents, timeout);
 #endif

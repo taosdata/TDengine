@@ -26,21 +26,24 @@ typedef int32_t (*FTranslateFunc)(SFunctionNode* pFunc, char* pErrBuf, int32_t l
 typedef EFuncDataRequired (*FFuncDataRequired)(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
 
 typedef struct SBuiltinFuncDefinition {
-  char name[FUNCTION_NAME_MAX_LENGTH];
-  EFunctionType type;
-  uint64_t classification;
-  FTranslateFunc translateFunc;
-  FFuncDataRequired dataRequiredFunc;
-  FExecGetEnv getEnvFunc;
-  FExecInit initFunc;
-  FExecProcess processFunc;
+  const char*        name;
+  EFunctionType      type;
+  uint64_t           classification;
+  FTranslateFunc     translateFunc;
+  FFuncDataRequired  dataRequiredFunc;
+  FExecGetEnv        getEnvFunc;
+  FExecInit          initFunc;
+  FExecProcess       processFunc;
   FScalarExecProcess sprocessFunc;
-  FExecFinalize finalizeFunc;
-  FExecProcess invertFunc;
+  FExecFinalize      finalizeFunc;
+  FExecProcess       invertFunc;
+  FExecCombine       combineFunc;
+  const char*        pPartialFunc;
+  const char*        pMergeFunc;
 } SBuiltinFuncDefinition;
 
 extern const SBuiltinFuncDefinition funcMgtBuiltins[];
-extern const int funcMgtBuiltinsNum;
+extern const int                    funcMgtBuiltinsNum;
 
 #ifdef __cplusplus
 }

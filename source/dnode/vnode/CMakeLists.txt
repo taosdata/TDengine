@@ -13,36 +13,46 @@ target_sources(
     "src/vnd/vnodeModule.c"
     "src/vnd/vnodeSvr.c"
     "src/vnd/vnodeSync.c"
+    "src/vnd/vnodeSnapshot.c"
+    "src/vnd/vnodeUtil.c"
 
     # meta
     "src/meta/metaOpen.c"
     "src/meta/metaIdx.c"
     "src/meta/metaTable.c"
+    "src/meta/metaSma.c"
     "src/meta/metaQuery.c"
     "src/meta/metaCommit.c"
     "src/meta/metaEntry.c"
+    "src/meta/metaSnapshot.c"
+
+    # sma
+    "src/sma/sma.c"
+    "src/sma/smaEnv.c"
+    "src/sma/smaOpen.c"
+    "src/sma/smaRollup.c"
+    "src/sma/smaTimeRange2.c"
 
     # tsdb
-    "src/tsdb/tsdbTDBImpl.c"
     "src/tsdb/tsdbCommit.c"
-    "src/tsdb/tsdbCommit2.c"
     "src/tsdb/tsdbFile.c"
     "src/tsdb/tsdbFS.c"
     "src/tsdb/tsdbOpen.c"
     "src/tsdb/tsdbMemTable.c"
-    "src/tsdb/tsdbMemTable2.c"
     "src/tsdb/tsdbRead.c"
     "src/tsdb/tsdbReadImpl.c"
-    "src/tsdb/tsdbSma.c"
     "src/tsdb/tsdbWrite.c"
+    "src/tsdb/tsdbSnapshot.c"
 
     # tq
     "src/tq/tq.c"
-    "src/tq/tqCommit.c"
-    "src/tq/tqMetaStore.c"
+    "src/tq/tqExec.c"
+    "src/tq/tqMeta.c"
+    "src/tq/tqRead.c"
     "src/tq/tqOffset.c"
     "src/tq/tqPush.c"
-    "src/tq/tqRead.c"
+    "src/tq/tqSink.c"
+    "src/tq/tqCommit.c"
 )
 target_include_directories(
     vnode
@@ -67,9 +77,14 @@ target_link_libraries(
     #PUBLIC scalar
     PUBLIC transport
     PUBLIC stream
+    PUBLIC index
 )
 target_compile_definitions(vnode PUBLIC -DMETA_REFACT)
-
+if (${BUILD_WITH_INVERTEDINDEX})
+  add_definitions(-DUSE_INVERTED_INDEX) 
+endif(${BUILD_WITH_INVERTEDINDEX})
 if(${BUILD_TEST})
     add_subdirectory(test)
 endif(${BUILD_TEST})
+
+

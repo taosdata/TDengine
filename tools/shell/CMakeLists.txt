@@ -1,9 +1,13 @@
 aux_source_directory(src SHELL_SRC)
 
 add_executable(shell ${SHELL_SRC})
+if(TD_WINDOWS)
+    target_link_libraries(shell PUBLIC taos_static)
+else()
+    target_link_libraries(shell PUBLIC taos)
+endif ()
 target_link_libraries(
     shell
-    PUBLIC taos
     PRIVATE os common transport util
 )
 target_include_directories(

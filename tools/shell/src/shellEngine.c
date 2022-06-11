@@ -29,11 +29,11 @@ static void    shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD
 static int32_t shellDumpResultToFile(const char *fname, TAOS_RES *tres);
 static void    shellPrintNChar(const char *str, int32_t length, int32_t width);
 static void    shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t length, int32_t precision);
-static int32_t shellVerticalPrintResult(TAOS_RES *tres);
+static int32_t shellVerticalPrintResult(TAOS_RES *tres, const char *sql);
 static int32_t shellCalcColWidth(TAOS_FIELD *field, int32_t precision);
 static void    shellPrintHeader(TAOS_FIELD *fields, int32_t *width, int32_t num_fields);
-static int32_t shellHorizontalPrintResult(TAOS_RES *tres);
-static int32_t shellDumpResult(TAOS_RES *tres, char *fname, int32_t *error_no, bool vertical);
+static int32_t shellHorizontalPrintResult(TAOS_RES *tres, const char *sql);
+static int32_t shellDumpResult(TAOS_RES *tres, char *fname, int32_t *error_no, bool vertical, const char *sql);
 static void    shellReadHistory();
 static void    shellWriteHistory();
 static void    shellPrintError(TAOS_RES *tres, int64_t st);
@@ -121,7 +121,7 @@ int32_t shellRunCommand(char *command) {
   char quote = 0, *cmd = command;
   for (char c = *command++; c != 0; c = *command++) {
     if (c == '\\' && (*command == '\'' || *command == '"' || *command == '`')) {
-      command ++;
+      command++;
       continue;
     }
 
@@ -190,21 +190,21 @@ void shellRunSingleCommandImp(char *command) {
   if (pFields != NULL) {  // select and show kinds of commands
     int32_t error_no = 0;
 
-    int32_t numOfRows = shellDumpResult(pSql, fname, &error_no, printMode);
+    int32_t numOfRows = shellDumpResult(pSql, fname, &error_no, printMode, command);
     if (numOfRows < 0) return;
 
     et = taosGetTimestampUs();
     if (error_no == 0) {
-      printf("Query OK, %d row(s) in set (%.6fs)\n", numOfRows, (et - st) / 1E6);
+      printf("Query OK, %d rows affected (%.6fs)\n", numOfRows, (et - st) / 1E6);
     } else {
-      printf("Query interrupted (%s), %d row(s) in set (%.6fs)\n", taos_errstr(pSql), numOfRows, (et - st) / 1E6);
+      printf("Query interrupted (%s), %d rows affected (%.6fs)\n", taos_errstr(pSql), numOfRows, (et - st) / 1E6);
     }
     taos_free_result(pSql);
   } else {
     int32_t num_rows_affacted = taos_affected_rows(pSql);
     taos_free_result(pSql);
     et = taosGetTimestampUs();
-    printf("Query OK, %d of %d row(s) in database (%.6fs)\n", num_rows_affacted, num_rows_affacted, (et - st) / 1E6);
+    printf("Query OK, %d of %d rows affected (%.6fs)\n", num_rows_affacted, num_rows_affacted, (et - st) / 1E6);
   }
 
   printf("\n");
@@ -272,6 +272,7 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
     return;
   }
 
+  int  n;
   char buf[TSDB_MAX_BYTES_PER_ROW];
   switch (field->type) {
     case TSDB_DATA_TYPE_BOOL:
@@ -280,23 +281,41 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
     case TSDB_DATA_TYPE_TINYINT:
       taosFprintfFile(pFile, "%d", *((int8_t *)val));
       break;
+    case TSDB_DATA_TYPE_UTINYINT:
+      taosFprintfFile(pFile, "%u", *((uint8_t *)val));
+      break;
     case TSDB_DATA_TYPE_SMALLINT:
       taosFprintfFile(pFile, "%d", *((int16_t *)val));
+      break;
+    case TSDB_DATA_TYPE_USMALLINT:
+      taosFprintfFile(pFile, "%u", *((uint16_t *)val));
       break;
     case TSDB_DATA_TYPE_INT:
       taosFprintfFile(pFile, "%d", *((int32_t *)val));
       break;
+    case TSDB_DATA_TYPE_UINT:
+      taosFprintfFile(pFile, "%u", *((uint32_t *)val));
+      break;
     case TSDB_DATA_TYPE_BIGINT:
       taosFprintfFile(pFile, "%" PRId64, *((int64_t *)val));
+      break;
+    case TSDB_DATA_TYPE_UBIGINT:
+      taosFprintfFile(pFile, "%" PRIu64, *((uint64_t *)val));
       break;
     case TSDB_DATA_TYPE_FLOAT:
       taosFprintfFile(pFile, "%.5f", GET_FLOAT_VAL(val));
       break;
     case TSDB_DATA_TYPE_DOUBLE:
-      taosFprintfFile(pFile, "%.9f", GET_DOUBLE_VAL(val));
+      n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9f", length, GET_DOUBLE_VAL(val));
+      if (n > TMAX(25, length)) {
+        taosFprintfFile(pFile, "%*.15e", length, GET_DOUBLE_VAL(val));
+      } else {
+        taosFprintfFile(pFile, "%s", buf);
+      }
       break;
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_JSON:
       memcpy(buf, val, length);
       buf[length] = 0;
       taosFprintfFile(pFile, "\'%s\'", buf);
@@ -366,19 +385,25 @@ void shellPrintNChar(const char *str, int32_t length, int32_t width) {
   while (pos < length) {
     TdWchar wc;
     int32_t bytes = taosMbToWchar(&wc, str + pos, MB_CUR_MAX);
-    if (bytes == 0) {
-      break;
-    }
-    pos += bytes;
-    if (pos > length) {
+    if (bytes <= 0) {
       break;
     }
 
+    if (pos + bytes > length) {
+      break;
+    }
+    int w = 0;
 #ifdef WINDOWS
-    int32_t w = bytes;
+    w = bytes;
 #else
-    int32_t w = taosWcharWidth(wc);
+    if(*(str + pos) == '\t' || *(str + pos) == '\n' || *(str + pos) == '\r'){
+      w = bytes;
+    }else{
+      w = taosWcharWidth(wc);
+    }
 #endif
+    pos += bytes;
+
     if (w <= 0) {
       continue;
     }
@@ -435,6 +460,7 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
     return;
   }
 
+  int  n;
   char buf[TSDB_MAX_BYTES_PER_ROW];
   switch (field->type) {
     case TSDB_DATA_TYPE_BOOL:
@@ -468,10 +494,16 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       printf("%*.5f", width, GET_FLOAT_VAL(val));
       break;
     case TSDB_DATA_TYPE_DOUBLE:
-      printf("%*.9f", width, GET_DOUBLE_VAL(val));
+      n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9f", width, GET_DOUBLE_VAL(val));
+      if (n > TMAX(25, width)) {
+        printf("%*.15e", width, GET_DOUBLE_VAL(val));
+      } else {
+        printf("%s", buf);
+      }
       break;
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_JSON:
       shellPrintNChar(val, length, width);
       break;
     case TSDB_DATA_TYPE_TIMESTAMP:
@@ -483,7 +515,16 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
   }
 }
 
-int32_t shellVerticalPrintResult(TAOS_RES *tres) {
+bool shellIsLimitQuery(const char *sql) {
+  //todo refactor
+  if (taosStrCaseStr(sql, " limit ") != NULL) {
+    return true;
+  }
+
+  return false;
+}
+
+int32_t shellVerticalPrintResult(TAOS_RES *tres, const char *sql) {
   TAOS_ROW row = taos_fetch_row(tres);
   if (row == NULL) {
     return 0;
@@ -503,7 +544,7 @@ int32_t shellVerticalPrintResult(TAOS_RES *tres) {
 
   uint64_t resShowMaxNum = UINT64_MAX;
 
-  if (shell.args.commands == NULL && shell.args.file[0] == 0) {
+  if (shell.args.commands == NULL && shell.args.file[0] == 0 && !shellIsLimitQuery(sql)) {
     resShowMaxNum = SHELL_DEFAULT_RES_SHOW_NUM;
   }
 
@@ -525,8 +566,13 @@ int32_t shellVerticalPrintResult(TAOS_RES *tres) {
         putchar('\n');
       }
     } else if (showMore) {
-      printf("[100 Rows showed, and more rows are fetching but will not be showed. You can ctrl+c to stop or wait.]\n");
-      printf("[You can add limit statement to get more or redirect results to specific file to get all.]\n");
+      printf("\n");
+      printf(" Notice: The result shows only the first %d rows.\n", SHELL_DEFAULT_RES_SHOW_NUM);
+      printf("         You can use the `LIMIT` clause to get fewer result to show.\n");
+      printf("           Or use '>>' to redirect the whole set of the result to a specified file.\n");
+      printf("\n");
+      printf("         You can use Ctrl+C to stop the underway fetching.\n");
+      printf("\n");
       showMore = 0;
     }
 
@@ -541,6 +587,8 @@ int32_t shellCalcColWidth(TAOS_FIELD *field, int32_t precision) {
   int32_t width = (int32_t)strlen(field->name);
 
   switch (field->type) {
+    case TSDB_DATA_TYPE_NULL:
+      return TMAX(4, width);  // null
     case TSDB_DATA_TYPE_BOOL:
       return TMAX(5, width);  // 'false'
 
@@ -573,7 +621,8 @@ int32_t shellCalcColWidth(TAOS_FIELD *field, int32_t precision) {
         return TMAX(field->bytes, width);
       }
 
-    case TSDB_DATA_TYPE_NCHAR: {
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_JSON: {
       int16_t bytes = field->bytes * TSDB_NCHAR_SIZE;
       if (bytes > shell.args.displayWidth) {
         return TMAX(shell.args.displayWidth, width);
@@ -618,7 +667,7 @@ void shellPrintHeader(TAOS_FIELD *fields, int32_t *width, int32_t num_fields) {
   putchar('\n');
 }
 
-int32_t shellHorizontalPrintResult(TAOS_RES *tres) {
+int32_t shellHorizontalPrintResult(TAOS_RES *tres, const char *sql) {
   TAOS_ROW row = taos_fetch_row(tres);
   if (row == NULL) {
     return 0;
@@ -637,7 +686,7 @@ int32_t shellHorizontalPrintResult(TAOS_RES *tres) {
 
   uint64_t resShowMaxNum = UINT64_MAX;
 
-  if (shell.args.commands == NULL && shell.args.file[0] == 0) {
+  if (shell.args.commands == NULL && shell.args.file[0] == 0 && !shellIsLimitQuery(sql)) {
     resShowMaxNum = SHELL_DEFAULT_RES_SHOW_NUM;
   }
 
@@ -655,8 +704,13 @@ int32_t shellHorizontalPrintResult(TAOS_RES *tres) {
       }
       putchar('\n');
     } else if (showMore) {
-      printf("[100 Rows showed, and more rows are fetching but will not be showed. You can ctrl+c to stop or wait.]\n");
-      printf("[You can add limit statement to show more or redirect results to specific file to get all.]\n");
+      printf("\n");
+      printf(" Notice: The result shows only the first %d rows.\n", SHELL_DEFAULT_RES_SHOW_NUM);
+      printf("         You can use the `LIMIT` clause to get fewer result to show.\n");
+      printf("           Or use '>>' to redirect the whole set of the result to a specified file.\n");
+      printf("\n");
+      printf("         You can use Ctrl+C to stop the underway fetching.\n");
+      printf("\n");
       showMore = 0;
     }
 
@@ -667,14 +721,14 @@ int32_t shellHorizontalPrintResult(TAOS_RES *tres) {
   return numOfRows;
 }
 
-int32_t shellDumpResult(TAOS_RES *tres, char *fname, int32_t *error_no, bool vertical) {
+int32_t shellDumpResult(TAOS_RES *tres, char *fname, int32_t *error_no, bool vertical, const char *sql) {
   int32_t numOfRows = 0;
   if (fname != NULL) {
     numOfRows = shellDumpResultToFile(fname, tres);
   } else if (vertical) {
-    numOfRows = shellVerticalPrintResult(tres);
+    numOfRows = shellVerticalPrintResult(tres, sql);
   } else {
-    numOfRows = shellHorizontalPrintResult(tres);
+    numOfRows = shellHorizontalPrintResult(tres, sql);
   }
 
   *error_no = taos_errno(tres);
@@ -690,6 +744,7 @@ void shellReadHistory() {
   int32_t read_size = 0;
   while ((read_size = taosGetLineFile(pFile, &line)) != -1) {
     line[read_size - 1] = '\0';
+    taosMemoryFree(pHistory->hist[pHistory->hend]);
     pHistory->hist[pHistory->hend] = strdup(line);
 
     pHistory->hend = (pHistory->hend + 1) % SHELL_MAX_HISTORY_SIZE;
@@ -711,12 +766,23 @@ void shellWriteHistory() {
   for (int32_t i = pHistory->hstart; i != pHistory->hend;) {
     if (pHistory->hist[i] != NULL) {
       taosFprintfFile(pFile, "%s\n", pHistory->hist[i]);
-      taosMemoryFreeClear(pHistory->hist[i]);
+      taosMemoryFree(pHistory->hist[i]);
+      pHistory->hist[i] = NULL;
     }
     i = (i + 1) % SHELL_MAX_HISTORY_SIZE;
   }
   taosFsyncFile(pFile);
   taosCloseFile(&pFile);
+}
+
+void shellCleanupHistory() {
+  SShellHistory *pHistory = &shell.history;
+  for (int32_t i = 0; i < SHELL_MAX_HISTORY_SIZE; ++i) {
+    if (pHistory->hist[i] != NULL) {
+      taosMemoryFree(pHistory->hist[i]);
+      pHistory->hist[i] = NULL;
+    }
+  }
 }
 
 void shellPrintError(TAOS_RES *tres, int64_t st) {
@@ -919,6 +985,7 @@ int32_t shellExecute() {
 
     taos_close(shell.conn);
     shellWriteHistory();
+    shellCleanupHistory();
     return 0;
   }
 
@@ -936,12 +1003,14 @@ int32_t shellExecute() {
 
   taosSetSignal(SIGINT, shellSigintHandler);
 
-  shellGetGrantInfo(shell.conn);
+  shellGetGrantInfo();
 
   while (1) {
     taosThreadCreate(&shell.pid, NULL, shellThreadLoop, shell.conn);
     taosThreadJoin(shell.pid, NULL);
+    taosThreadClear(&shell.pid);
   }
 
+  shellCleanupHistory();
   return 0;
 }

@@ -56,6 +56,7 @@ void simFreeScript(SScript *script) {
       bgScript->killed = true;
       if (taosCheckPthreadValid(bgScript->bgPid)) {
         taosThreadJoin(bgScript->bgPid, NULL);
+        taosThreadClear(&bgScript->bgPid);
       }
 
       simDebug("script:%s, background thread joined", bgScript->fileName);
@@ -96,6 +97,8 @@ SScript *simProcessCallOver(SScript *script) {
       simInfo("Simulation Test Done, " SUCCESS_PREFIX "%d" SUCCESS_POSTFIX " Passed:\n", simScriptSucced);
       return NULL;
     }
+
+    if (simScriptPos == -1) return NULL;
 
     return simScriptList[simScriptPos];
   } else {

@@ -57,6 +57,7 @@ void tQWorkerCleanup(SQWorkerPool *pool) {
     if (worker == NULL) continue;
     if (taosCheckPthreadValid(worker->thread)) {
       taosThreadJoin(worker->thread, NULL);
+      taosThreadClear(&worker->thread);
     }
   }
 
@@ -74,19 +75,20 @@ static void *tQWorkerThreadFp(SQWorker *worker) {
   void   *msg = NULL;
   void   *ahandle = NULL;
   int32_t code = 0;
+  int64_t ts = 0;
 
   taosBlockSIGPIPE();
   setThreadName(pool->name);
   uDebug("worker:%s:%d is running", pool->name, worker->id);
 
   while (1) {
-    if (taosReadQitemFromQset(pool->qset, (void **)&msg, &ahandle, &fp) == 0) {
+    if (taosReadQitemFromQset(pool->qset, (void **)&msg, &ts, &ahandle, &fp) == 0) {
       uDebug("worker:%s:%d qset:%p, got no message and exiting", pool->name, worker->id, pool->qset);
       break;
     }
 
     if (fp != NULL) {
-      SQueueInfo info = {.ahandle = ahandle, .workerId = worker->id, .threadNum = pool->num};
+      SQueueInfo info = {.ahandle = ahandle, .workerId = worker->id, .threadNum = pool->num, .timestamp = ts};
       (*fp)(&info, msg);
     }
   }
@@ -161,7 +163,7 @@ int32_t tWWorkerInit(SWWorkerPool *pool) {
     worker->pool = pool;
   }
 
-  uInfo("worker:%s is initialized, max:%d", pool->name, pool->max);
+  uDebug("worker:%s is initialized, max:%d", pool->name, pool->max);
   return 0;
 }
 
@@ -179,6 +181,7 @@ void tWWorkerCleanup(SWWorkerPool *pool) {
     SWWorker *worker = pool->workers + i;
     if (taosCheckPthreadValid(worker->thread)) {
       taosThreadJoin(worker->thread, NULL);
+      taosThreadClear(&worker->thread);
       taosFreeQall(worker->qall);
       taosCloseQset(worker->qset);
     }
@@ -187,7 +190,7 @@ void tWWorkerCleanup(SWWorkerPool *pool) {
   taosMemoryFreeClear(pool->workers);
   taosThreadMutexDestroy(&pool->mutex);
 
-  uInfo("worker:%s is closed", pool->name);
+  uDebug("worker:%s is closed", pool->name);
 }
 
 static void *tWWorkerThreadFp(SWWorker *worker) {

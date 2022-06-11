@@ -13,11 +13,10 @@ from util.dnodes import *
 
 class TDTestCase:
     hostname = socket.gethostname()
-    #rpcDebugFlagVal = '143'
-    #clientCfgDict = {'serverPort': '', 'firstEp': '', 'secondEp':'', 'rpcDebugFlag':'135', 'fqdn':''}
-    #clientCfgDict["rpcDebugFlag"]  = rpcDebugFlagVal
-    #updatecfgDict = {'clientCfg': {}, 'serverPort': '', 'firstEp': '', 'secondEp':'', 'rpcDebugFlag':'135', 'fqdn':''}
-    #updatecfgDict["rpcDebugFlag"] = rpcDebugFlagVal
+
+    #clientCfgDict = {'qdebugflag':'143'}
+    #updatecfgDict = {'clientCfg': {}, 'qdebugflag':'143'}
+    #updatecfgDict["clientCfg"]  = clientCfgDict
     #print ("===================: ", updatecfgDict)
 
     def init(self, conn, logSql):
@@ -34,7 +33,7 @@ class TDTestCase:
             projPath = selfPath[:selfPath.find("tests")]
 
         for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
+            if ("taosd" in files or "taosd.exe" in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
                     buildPath = root[:len(root) - len("/build/bin")]

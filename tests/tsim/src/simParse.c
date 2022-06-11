@@ -183,6 +183,7 @@ SScript *simParseScript(char *fileName) {
     strcpy(name, fileName);
   } else {
     sprintf(name, "%s" TD_DIRSEP "%s", simScriptDir, fileName);
+    taosRealPath(name, NULL, sizeof(name));
   }
 
   // if ((fd = fopen(name, "r")) == NULL) {

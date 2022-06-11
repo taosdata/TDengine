@@ -74,7 +74,7 @@ void setBoundColumnInfo(SParsedDataColInfo* pColList, SSchema* pSchema, col_id_t
       default:
         break;
     }
-    pColList->boundColumns[i] = pSchema[i].colId;
+    pColList->boundColumns[i] = i;
   }
   pColList->allNullLen += pColList->flen;
   pColList->boundNullLen = pColList->allNullLen;  // default set allNullLen
@@ -235,14 +235,12 @@ static void destroyDataBlock(STableDataBlocks* pDataBlock) {
   }
 
   taosMemoryFreeClear(pDataBlock->pData);
-  if (!pDataBlock->cloned) {
+//  if (!pDataBlock->cloned) {
     // free the refcount for metermeta
-//    if (pDataBlock->pTableMeta != NULL) {
-//      taosMemoryFreeClear(pDataBlock->pTableMeta);
-//    }
+    taosMemoryFreeClear(pDataBlock->pTableMeta);
 
     destroyBoundColumnInfo(&pDataBlock->boundColumnInfo);
-  }
+//  }
   taosMemoryFreeClear(pDataBlock);
 }
 

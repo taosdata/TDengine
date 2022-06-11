@@ -28,6 +28,14 @@ extern "C" {
 #define DESCRIBE_RESULT_TYPE_LEN  (20 + VARSTR_HEADER_SIZE)
 #define DESCRIBE_RESULT_NOTE_LEN  (8 + VARSTR_HEADER_SIZE)
 
+#define PRIVILEGE_TYPE_MASK(n) (1 << n)
+
+#define PRIVILEGE_TYPE_ALL   PRIVILEGE_TYPE_MASK(0)
+#define PRIVILEGE_TYPE_READ  PRIVILEGE_TYPE_MASK(1)
+#define PRIVILEGE_TYPE_WRITE PRIVILEGE_TYPE_MASK(2)
+
+#define PRIVILEGE_TYPE_TEST_MASK(val, mask) (((val) & (mask)) != 0)
+
 typedef struct SDatabaseOptions {
   ENodeType   type;
   int32_t     buffer;
@@ -39,7 +47,7 @@ typedef struct SDatabaseOptions {
   int32_t     maxRowsPerBlock;
   int32_t     minRowsPerBlock;
   SNodeList*  pKeep;
-  int32_t     keep[3];
+  int64_t     keep[3];
   int32_t     pages;
   int32_t     pagesize;
   char        precisionStr[3];
@@ -50,6 +58,7 @@ typedef struct SDatabaseOptions {
   int32_t     numOfVgroups;
   int8_t      singleStable;
   SNodeList*  pRetentions;
+  int8_t      schemaless;
 } SDatabaseOptions;
 
 typedef struct SCreateDatabaseStmt {
@@ -78,9 +87,8 @@ typedef struct SAlterDatabaseStmt {
 
 typedef struct STableOptions {
   ENodeType  type;
-  char       comment[TSDB_STB_COMMENT_LEN];
-  int32_t    delay;
-  float      filesFactor;
+  char       comment[TSDB_TB_COMMENT_LEN];
+  double     filesFactor;
   SNodeList* pRollupFuncs;
   int32_t    ttl;
   SNodeList* pSma;
@@ -90,7 +98,7 @@ typedef struct SColumnDefNode {
   ENodeType type;
   char      colName[TSDB_COL_NAME_LEN];
   SDataType dataType;
-  char      comments[TSDB_STB_COMMENT_LEN];
+  char      comments[TSDB_TB_COMMENT_LEN];
   bool      sma;
 } SColumnDefNode;
 
@@ -238,20 +246,13 @@ typedef struct SDropComponentNodeStmt {
   int32_t   dnodeId;
 } SDropComponentNodeStmt;
 
-typedef struct STopicOptions {
-  ENodeType type;
-  bool      withTable;
-  bool      withSchema;
-  bool      withTag;
-} STopicOptions;
-
 typedef struct SCreateTopicStmt {
-  ENodeType      type;
-  char           topicName[TSDB_TABLE_NAME_LEN];
-  char           subscribeDbName[TSDB_DB_NAME_LEN];
-  bool           ignoreExists;
-  SNode*         pQuery;
-  STopicOptions* pOptions;
+  ENodeType type;
+  char      topicName[TSDB_TABLE_NAME_LEN];
+  char      subDbName[TSDB_DB_NAME_LEN];
+  char      subSTbName[TSDB_TABLE_NAME_LEN];
+  bool      ignoreExists;
+  SNode*    pQuery;
 } SCreateTopicStmt;
 
 typedef struct SDropTopicStmt {
@@ -259,6 +260,13 @@ typedef struct SDropTopicStmt {
   char      topicName[TSDB_TABLE_NAME_LEN];
   bool      ignoreNotExists;
 } SDropTopicStmt;
+
+typedef struct SDropCGroupStmt {
+  ENodeType type;
+  char      topicName[TSDB_TABLE_NAME_LEN];
+  char      cgroup[TSDB_CGROUP_LEN];
+  bool      ignoreNotExists;
+} SDropCGroupStmt;
 
 typedef struct SAlterLocalStmt {
   ENodeType type;
@@ -316,14 +324,6 @@ typedef struct SDropFunctionStmt {
   bool      ignoreNotExists;
 } SDropFunctionStmt;
 
-#define PRIVILEGE_TYPE_MASK(n) (1 << n)
-
-#define PRIVILEGE_TYPE_ALL   PRIVILEGE_TYPE_MASK(0)
-#define PRIVILEGE_TYPE_READ  PRIVILEGE_TYPE_MASK(1)
-#define PRIVILEGE_TYPE_WRITE PRIVILEGE_TYPE_MASK(2)
-
-#define PRIVILEGE_TYPE_TEST_MASK(val, mask) (((val) & (mask)) != 0)
-
 typedef struct SGrantStmt {
   ENodeType type;
   char      userName[TSDB_USER_LEN];
@@ -332,6 +332,30 @@ typedef struct SGrantStmt {
 } SGrantStmt;
 
 typedef SGrantStmt SRevokeStmt;
+
+typedef struct SBalanceVgroupStmt {
+  ENodeType type;
+} SBalanceVgroupStmt;
+
+typedef struct SMergeVgroupStmt {
+  ENodeType type;
+  int32_t   vgId1;
+  int32_t   vgId2;
+} SMergeVgroupStmt;
+
+typedef struct SRedistributeVgroupStmt {
+  ENodeType  type;
+  int32_t    vgId;
+  int32_t    dnodeId1;
+  int32_t    dnodeId2;
+  int32_t    dnodeId3;
+  SNodeList* pDnodes;
+} SRedistributeVgroupStmt;
+
+typedef struct SSplitVgroupStmt {
+  ENodeType type;
+  int32_t   vgId;
+} SSplitVgroupStmt;
 
 #ifdef __cplusplus
 }

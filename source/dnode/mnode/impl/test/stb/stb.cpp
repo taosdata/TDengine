@@ -13,7 +13,7 @@
 
 class MndTestStb : public ::testing::Test {
  protected:
-  static void SetUpTestSuite() { test.Init("/tmp/mnode_test_stb", 9034); }
+  static void SetUpTestSuite() { test.Init(TD_TMP_DIR_PATH "mnode_test_stb", 9034); }
   static void TearDownTestSuite() { test.Cleanup(); }
 
   static Testbase test;
@@ -32,7 +32,7 @@ class MndTestStb : public ::testing::Test {
   void* BuildAlterStbUpdateTagBytesReq(const char* stbname, const char* tagname, int32_t bytes, int32_t* pContLen);
   void* BuildAlterStbAddColumnReq(const char* stbname, const char* colname, int32_t* pContLen);
   void* BuildAlterStbDropColumnReq(const char* stbname, const char* colname, int32_t* pContLen);
-  void* BuildAlterStbUpdateColumnBytesReq(const char* stbname, const char* colname, int32_t bytes, int32_t* pContLen);
+  void* BuildAlterStbUpdateColumnBytesReq(const char* stbname, const char* colname, int32_t bytes, int32_t* pContLen, int32_t verInBlock);
 };
 
 Testbase MndTestStb::test;
@@ -271,12 +271,14 @@ void* MndTestStb::BuildAlterStbDropColumnReq(const char* stbname, const char* co
 }
 
 void* MndTestStb::BuildAlterStbUpdateColumnBytesReq(const char* stbname, const char* colname, int32_t bytes,
-                                                    int32_t* pContLen) {
+                                                    int32_t* pContLen, int32_t verInBlock) {
   SMAlterStbReq req = {0};
   strcpy(req.name, stbname);
   req.numOfFields = 1;
   req.pFields = taosArrayInit(1, sizeof(SField));
   req.alterType = TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES;
+  req.tagVer = verInBlock;
+  req.colVer = verInBlock;
 
   SField field = {0};
   field.bytes = bytes;
@@ -342,7 +344,7 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     EXPECT_EQ(metaRsp.precision, TSDB_TIME_PRECISION_MILLI);
     EXPECT_EQ(metaRsp.tableType, TSDB_SUPER_TABLE);
     EXPECT_EQ(metaRsp.sversion, 1);
-    EXPECT_EQ(metaRsp.tversion, 0);
+    EXPECT_EQ(metaRsp.tversion, 1);
     EXPECT_GT(metaRsp.suid, 0);
     EXPECT_GT(metaRsp.tuid, 0);
     EXPECT_EQ(metaRsp.vgId, 0);
@@ -781,31 +783,40 @@ TEST_F(MndTestStb, 08_Alter_Stb_AlterTagBytes) {
   }
 
   {
-    void*    pReq = BuildAlterStbUpdateColumnBytesReq(stbname, "col5", 12, &contLen);
+    void*    pReq = BuildAlterStbUpdateColumnBytesReq(stbname, "col5", 12, &contLen, 0);
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
     ASSERT_EQ(pRsp->code, TSDB_CODE_MND_COLUMN_NOT_EXIST);
   }
 
   {
-    void*    pReq = BuildAlterStbUpdateColumnBytesReq(stbname, "ts", 8, &contLen);
+    void*    pReq = BuildAlterStbUpdateColumnBytesReq(stbname, "ts", 8, &contLen, 0);
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
     ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_STB_OPTION);
   }
 
   {
-    void*    pReq = BuildAlterStbUpdateColumnBytesReq(stbname, "col1", 8, &contLen);
+    void*    pReq = BuildAlterStbUpdateColumnBytesReq(stbname, "col1", 8, &contLen, 0);
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
     ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_ROW_BYTES);
   }
 
   {
-    void*    pReq = BuildAlterStbUpdateColumnBytesReq(stbname, "col1", TSDB_MAX_BYTES_PER_ROW, &contLen);
+    void*    pReq = BuildAlterStbUpdateColumnBytesReq(stbname, "col1", TSDB_MAX_BYTES_PER_ROW, &contLen, 0);
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
     ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_ROW_BYTES);
   }
 
   {
-    void*    pReq = BuildAlterStbUpdateColumnBytesReq(stbname, "col1", 20, &contLen);
+    void*    pReq = BuildAlterStbUpdateColumnBytesReq(stbname, "col1", 20, &contLen, 0);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
+    ASSERT_EQ(pRsp->code, 0);
+
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
+    EXPECT_EQ(test.GetShowRows(), 1);
+  }
+
+  {
+    void*    pReq = BuildAlterStbUpdateColumnBytesReq(stbname, "col_not_exist", 20, &contLen, 1);
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
     ASSERT_EQ(pRsp->code, 0);
 

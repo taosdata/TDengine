@@ -33,6 +33,8 @@ TEST_F(ParserSelectTest, basic) {
   run("SELECT ts, t.c1 FROM (SELECT * FROM t1) t");
 
   run("SELECT * FROM t1 tt1, t1 tt2 WHERE tt1.c1 = tt2.c1");
+
+  run("SELECT * FROM st1");
 }
 
 TEST_F(ParserSelectTest, constant) {
@@ -44,6 +46,8 @@ TEST_F(ParserSelectTest, constant) {
       "timestamp '2022-02-09 17:30:20', true, false, 15s FROM t1");
 
   run("SELECT 123 + 45 FROM t1 WHERE 2 - 1");
+
+  run("SELECT * FROM t1 WHERE -2");
 }
 
 TEST_F(ParserSelectTest, expression) {
@@ -61,6 +65,8 @@ TEST_F(ParserSelectTest, condition) {
 
   run("SELECT c1 FROM t1 WHERE ts in (true, false)");
 
+  run("SELECT c1 FROM t1 WHERE NOT ts in (true, false)");
+
   run("SELECT * FROM t1 WHERE c1 > 10 and c1 is not null");
 }
 
@@ -68,6 +74,18 @@ TEST_F(ParserSelectTest, pseudoColumn) {
   useDb("root", "test");
 
   run("SELECT _WSTARTTS, _WENDTS, COUNT(*) FROM t1 INTERVAL(10s)");
+}
+
+TEST_F(ParserSelectTest, pseudoColumnSemanticCheck) {
+  useDb("root", "test");
+
+  run("SELECT TBNAME FROM (SELECT * FROM st1s1)", TSDB_CODE_PAR_INVALID_TBNAME, PARSER_STAGE_TRANSLATE);
+}
+
+TEST_F(ParserSelectTest, aggFunc) {
+  useDb("root", "test");
+
+  run("SELECT LEASTSQUARES(c1, -1, 1) FROM t1");
 }
 
 TEST_F(ParserSelectTest, multiResFunc) {
@@ -115,10 +133,37 @@ TEST_F(ParserSelectTest, selectFunc) {
   run("SELECT MAX(c1), c2 FROM t1 STATE_WINDOW(c3)");
 }
 
-TEST_F(ParserSelectTest, clause) {
+TEST_F(ParserSelectTest, IndefiniteRowsFunc) {
   useDb("root", "test");
 
-  // GROUP BY clause
+  run("SELECT DIFF(c1) FROM t1");
+}
+
+TEST_F(ParserSelectTest, IndefiniteRowsFuncSemanticCheck) {
+  useDb("root", "test");
+
+  run("SELECT DIFF(c1), c2 FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC, PARSER_STAGE_TRANSLATE);
+
+  run("SELECT DIFF(c1), tbname FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC, PARSER_STAGE_TRANSLATE);
+
+  run("SELECT DIFF(c1), count(*) FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC, PARSER_STAGE_TRANSLATE);
+
+  run("SELECT DIFF(c1), CSUM(c1) FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC, PARSER_STAGE_TRANSLATE);
+
+  // run("SELECT DIFF(c1) FROM t1 INTERVAL(10s)");
+}
+
+TEST_F(ParserSelectTest, useDefinedFunc) {
+  useDb("root", "test");
+
+  run("SELECT udf1(c1) FROM t1");
+
+  run("SELECT udf2(c1) FROM t1 GROUP BY c2");
+}
+
+TEST_F(ParserSelectTest, groupBy) {
+  useDb("root", "test");
+
   run("SELECT COUNT(*) cnt FROM t1 WHERE c1 > 0");
 
   run("SELECT COUNT(*), c2 cnt FROM t1 WHERE c1 > 0 GROUP BY c2");
@@ -128,13 +173,19 @@ TEST_F(ParserSelectTest, clause) {
   run("SELECT COUNT(*), c1, c2 + 10, c1 + c2 cnt FROM t1 WHERE c1 > 0 GROUP BY c2, c1");
 
   run("SELECT COUNT(*), c1 + 10, c2 cnt FROM t1 WHERE c1 > 0 GROUP BY c1 + 10, c2");
+}
 
-  // order by clause
+TEST_F(ParserSelectTest, orderBy) {
+  useDb("root", "test");
+
   run("SELECT COUNT(*) cnt FROM t1 WHERE c1 > 0 GROUP BY c2 order by cnt");
 
   run("SELECT COUNT(*) cnt FROM t1 WHERE c1 > 0 GROUP BY c2 order by 1");
+}
 
-  // distinct clause
+TEST_F(ParserSelectTest, distinct) {
+  useDb("root", "test");
+
   // run("SELECT distinct c1, c2 FROM t1 WHERE c1 > 0 order by c1");
 
   // run("SELECT distinct c1 + 10, c2 FROM t1 WHERE c1 > 0 order by c1 + 10, c2");
@@ -163,12 +214,33 @@ TEST_F(ParserSelectTest, interval) {
 TEST_F(ParserSelectTest, intervalSemanticCheck) {
   useDb("root", "test");
 
-  run("SELECT c1 FROM t1 INTERVAL(10s)", TSDB_CODE_PAR_NOT_SINGLE_GROUP, PARSER_STAGE_TRANSLATE);
-  run("SELECT DISTINCT c1, c2 FROM t1 WHERE c1 > 3 INTERVAL(1d) FILL(NEXT)", TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE,
+  run("SELECT c1 FROM t1 INTERVAL(10s)", TSDB_CODE_PAR_NOT_SINGLE_GROUP);
+  run("SELECT DISTINCT c1, c2 FROM t1 WHERE c1 > 3 INTERVAL(1d) FILL(NEXT)", TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE);
+  run("SELECT HISTOGRAM(c1, 'log_bin', '{\"start\": -33,\"factor\": 55,\"count\": 5,\"infinity\": false}', 1) FROM t1 "
+      "WHERE ts > TIMESTAMP '2022-04-01 00:00:00' and ts < TIMESTAMP '2022-04-30 23:59:59' INTERVAL(10s) FILL(NULL)",
+      TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC);
+}
+
+TEST_F(ParserSelectTest, subquery) {
+  useDb("root", "test");
+
+  run("SELECT SUM(a) FROM (SELECT MAX(c1) a, ts FROM st1s1 INTERVAL(1m)) INTERVAL(1n)");
+
+  run("SELECT SUM(a) FROM (SELECT MAX(c1) a, _wstartts FROM st1s1 INTERVAL(1m)) INTERVAL(1n)");
+
+  run("SELECT SUM(a) FROM (SELECT MAX(c1) a, ts FROM st1s1 PARTITION BY TBNAME INTERVAL(1m)) INTERVAL(1n)");
+
+  run("SELECT SUM(a) FROM (SELECT MAX(c1) a, _wstartts FROM st1s1 PARTITION BY TBNAME INTERVAL(1m)) INTERVAL(1n)");
+}
+
+TEST_F(ParserSelectTest, subquerySemanticCheck) {
+  useDb("root", "test");
+
+  run("SELECT SUM(a) FROM (SELECT MAX(c1) a FROM st1s1 INTERVAL(1m)) INTERVAL(1n)", TSDB_CODE_PAR_NOT_ALLOWED_WIN_QUERY,
       PARSER_STAGE_TRANSLATE);
 }
 
-TEST_F(ParserSelectTest, semanticError) {
+TEST_F(ParserSelectTest, semanticCheck) {
   useDb("root", "test");
 
   // TSDB_CODE_PAR_INVALID_COLUMN
@@ -186,8 +258,14 @@ TEST_F(ParserSelectTest, semanticError) {
   // TSDB_CODE_PAR_AMBIGUOUS_COLUMN
   run("SELECT c2 FROM t1 tt1, t1 tt2 WHERE tt1.c1 = tt2.c1", TSDB_CODE_PAR_AMBIGUOUS_COLUMN, PARSER_STAGE_TRANSLATE);
 
+  run("SELECT c2 FROM (SELECT c1 c2, c2 FROM t1)", TSDB_CODE_PAR_AMBIGUOUS_COLUMN, PARSER_STAGE_TRANSLATE);
+
   // TSDB_CODE_PAR_WRONG_VALUE_TYPE
-  run("SELECT timestamp '2010' FROM t1", TSDB_CODE_PAR_WRONG_VALUE_TYPE, PARSER_STAGE_TRANSLATE);
+  run("SELECT timestamp '2010a' FROM t1", TSDB_CODE_PAR_WRONG_VALUE_TYPE, PARSER_STAGE_TRANSLATE);
+
+  run("SELECT LAST(*) + SUM(c1) FROM t1", TSDB_CODE_PAR_WRONG_VALUE_TYPE, PARSER_STAGE_TRANSLATE);
+
+  run("SELECT CEIL(LAST(ts, c1)) FROM t1", TSDB_CODE_PAR_WRONG_VALUE_TYPE, PARSER_STAGE_TRANSLATE);
 
   // TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION
   run("SELECT c2 FROM t1 tt1 join t1 tt2 on COUNT(*) > 0", TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION,
@@ -230,6 +308,22 @@ TEST_F(ParserSelectTest, semanticError) {
 
   run("SELECT distinct c2 FROM t1 WHERE c1 > 0 order by COUNT(c2)", TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION,
       PARSER_STAGE_TRANSLATE);
+}
+
+TEST_F(ParserSelectTest, setOperator) {
+  useDb("root", "test");
+
+  run("SELECT * FROM t1 UNION ALL SELECT * FROM t1");
+
+  run("(SELECT * FROM t1) UNION ALL (SELECT * FROM t1)");
+
+  run("SELECT c1 FROM (SELECT c1 FROM t1 UNION ALL SELECT c1 FROM t1)");
+}
+
+TEST_F(ParserSelectTest, informationSchema) {
+  useDb("root", "test");
+
+  run("SELECT * FROM information_schema.user_databases WHERE name = 'information_schema'");
 }
 
 }  // namespace ParserTest

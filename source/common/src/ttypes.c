@@ -18,7 +18,7 @@
 #include "tcompression.h"
 #include "trow.h"
 
-const int32_t TYPE_BYTES[15] = {
+const int32_t TYPE_BYTES[16] = {
     -1,                      // TSDB_DATA_TYPE_NULL
     CHAR_BYTES,              // TSDB_DATA_TYPE_BOOL
     CHAR_BYTES,              // TSDB_DATA_TYPE_TINYINT
@@ -34,6 +34,7 @@ const int32_t TYPE_BYTES[15] = {
     SHORT_BYTES,             // TSDB_DATA_TYPE_USMALLINT
     INT_BYTES,               // TSDB_DATA_TYPE_UINT
     sizeof(uint64_t),        // TSDB_DATA_TYPE_UBIGINT
+    TSDB_MAX_JSON_TAG_LEN,   // TSDB_DATA_TYPE_JSON
 };
 
 #define DO_STATICS(__sum, __min, __max, __minIndex, __maxIndex, _list, _index) \
@@ -402,7 +403,8 @@ tDataTypeDescriptor tDataTypes[TSDB_DATA_TYPE_MAX] = {
     {TSDB_DATA_TYPE_UINT, 12, INT_BYTES, "INT UNSIGNED", 0, UINT32_MAX, tsCompressInt, tsDecompressInt, getStatics_u32},
     {TSDB_DATA_TYPE_UBIGINT, 15, LONG_BYTES, "BIGINT UNSIGNED", 0, UINT64_MAX, tsCompressBigint, tsDecompressBigint,
      getStatics_u64},
-    {TSDB_DATA_TYPE_JSON, 4, TSDB_MAX_JSON_TAG_LEN, "JSON", 0, 0, tsCompressString, tsDecompressString, getStatics_nchr},
+    {TSDB_DATA_TYPE_JSON, 4, TSDB_MAX_JSON_TAG_LEN, "JSON", 0, 0, tsCompressString, tsDecompressString,
+     getStatics_nchr},
 };
 
 char tTokenTypeSwitcher[13] = {

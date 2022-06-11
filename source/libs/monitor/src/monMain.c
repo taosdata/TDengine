@@ -530,7 +530,8 @@ void monSendReport() {
   monGenLogJson(pMonitor);
 
   char *pCont = tjsonToString(pMonitor->pJson);
-  if (pCont != NULL) {
+  // uDebugL("report cont:%s\n", pCont);
+    if (pCont != NULL) {
     EHttpCompFlag flag = tsMonitor.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
     if (taosSendHttpReport(tsMonitor.cfg.server, tsMonitor.cfg.port, pCont, strlen(pCont), flag) != 0) {
       uError("failed to send monitor msg");

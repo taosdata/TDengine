@@ -25,9 +25,7 @@ SSyncFSM* pFsm;
 
 SSyncNode* syncNodeInit() {
   syncInfo.vgId = 1234;
-  syncInfo.rpcClient = gSyncIO->clientRpc;
   syncInfo.FpSendMsg = syncIOSendMsg;
-  syncInfo.queue = gSyncIO->pMsgQ;
   syncInfo.FpEqMsg = syncIOEqMsg;
   syncInfo.pFsm = pFsm;
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s", "./");
@@ -99,7 +97,7 @@ int main(int argc, char** argv) {
     SyncPingReply* pSyncMsg = syncPingReplyBuild2(&pSyncNode->myRaftId, &pSyncNode->myRaftId, 1000, "syncEnqTest");
     SRpcMsg        rpcMsg;
     syncPingReply2RpcMsg(pSyncMsg, &rpcMsg);
-    pSyncNode->FpEqMsg(pSyncNode->queue, &rpcMsg);
+    pSyncNode->FpEqMsg(pSyncNode->msgcb, &rpcMsg);
     taosMsleep(1000);
   }
 

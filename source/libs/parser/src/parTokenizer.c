@@ -41,6 +41,7 @@ static SKeyword keywordTable[] = {
     {"AS",            TK_AS},
     {"ASC",           TK_ASC},
     {"AT_ONCE",       TK_AT_ONCE},
+    {"BALANCE",       TK_BALANCE},
     {"BETWEEN",       TK_BETWEEN},
     {"BINARY",        TK_BINARY},
     {"BIGINT",        TK_BIGINT},
@@ -61,13 +62,15 @@ static SKeyword keywordTable[] = {
     {"CONNS",         TK_CONNS},
     {"CONNECTION",    TK_CONNECTION},
     {"CONNECTIONS",   TK_CONNECTIONS},
+    {"CONSUMER",      TK_CONSUMER},
     {"COUNT",         TK_COUNT},
     {"CREATE",        TK_CREATE},
+    {"CONTAINS",      TK_CONTAINS}, 
     {"DATABASE",      TK_DATABASE},
     {"DATABASES",     TK_DATABASES},
     {"DAYS",          TK_DAYS},
     {"DBS",           TK_DBS},
-    {"DELAY",         TK_DELAY},
+    {"DELETE",        TK_DELETE},
     {"DESC",          TK_DESC},
     {"DESCRIBE",      TK_DESCRIBE},
     {"DISTINCT",      TK_DISTINCT},
@@ -114,6 +117,7 @@ static SKeyword keywordTable[] = {
     {"LOCAL",         TK_LOCAL},
     {"MATCH",         TK_MATCH},
     {"MAXROWS",       TK_MAXROWS},
+    {"MERGE",         TK_MERGE},
     {"MINROWS",       TK_MINROWS},
     {"MINUS",         TK_MINUS},
     {"MNODE",         TK_MNODE},
@@ -149,13 +153,14 @@ static SKeyword keywordTable[] = {
     {"QUERY",         TK_QUERY},
     {"RATIO",         TK_RATIO},
     {"READ",          TK_READ},
+    {"REDISTRIBUTE",  TK_REDISTRIBUTE},
     {"RENAME",        TK_RENAME},
     {"REPLICA",       TK_REPLICA},
     {"RESET",         TK_RESET},
     {"RETENTIONS",    TK_RETENTIONS},
     {"REVOKE",        TK_REVOKE},
     {"ROLLUP",        TK_ROLLUP},
-    {"SCHEMA",        TK_SCHEMA},
+    {"SCHEMALESS",    TK_SCHEMALESS},
     {"SCORES",        TK_SCORES},
     {"SELECT",        TK_SELECT},
     {"SESSION",       TK_SESSION},
@@ -169,6 +174,7 @@ static SKeyword keywordTable[] = {
     {"SNODE",         TK_SNODE},
     {"SNODES",        TK_SNODES},
     {"SOFFSET",       TK_SOFFSET},
+    {"SPLIT",         TK_SPLIT},
     {"STABLE",        TK_STABLE},
     {"STABLES",       TK_STABLES},
     {"STATE",         TK_STATE},
@@ -206,13 +212,13 @@ static SKeyword keywordTable[] = {
     {"VARCHAR",       TK_VARCHAR},
     {"VARIABLES",     TK_VARIABLES},
     {"VERBOSE",       TK_VERBOSE},
+    {"VGROUP",        TK_VGROUP},
     {"VGROUPS",       TK_VGROUPS},
     {"VNODES",        TK_VNODES},
     {"WAL",           TK_WAL},
     {"WATERMARK",     TK_WATERMARK},
     {"WHERE",         TK_WHERE},
     {"WINDOW_CLOSE",  TK_WINDOW_CLOSE},
-    {"WITH",          TK_WITH},
     {"WRITE",         TK_WRITE},
     {"_C0",           TK_ROWTS},
     {"_QENDTS",       TK_QENDTS},
@@ -605,12 +611,12 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
       }
       return i;
     }
-    case '[': {
-      for (i = 1; z[i] && z[i - 1] != ']'; i++) {
-      }
-      *tokenId = TK_NK_ID;
-      return i;
-    }
+    // case '[': {
+    //   for (i = 1; z[i] && z[i - 1] != ']'; i++) {
+    //   }
+    //   *tokenId = TK_NK_ID;
+    //   return i;
+    // }
     case 'T':
     case 't':
     case 'F':
@@ -704,6 +710,7 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr) {
 
   if (t0.type == TK_NK_SEMI) {
     t0.n = 0;
+    t0.type = 0;
     return t0;
   }
 

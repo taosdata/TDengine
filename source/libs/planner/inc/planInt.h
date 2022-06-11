@@ -27,18 +27,22 @@ extern "C" {
 #define QUERY_POLICY_HYBRID 2
 #define QUERY_POLICY_QNODE  3
 
-#define planFatal(param, ...) qFatal("PLAN: " param, __VA_ARGS__)
-#define planError(param, ...) qError("PLAN: " param, __VA_ARGS__)
-#define planWarn(param, ...)  qWarn("PLAN: " param, __VA_ARGS__)
-#define planInfo(param, ...)  qInfo("PLAN: " param, __VA_ARGS__)
-#define planDebug(param, ...) qDebug("PLAN: " param, __VA_ARGS__)
-#define planTrace(param, ...) qTrace("PLAN: " param, __VA_ARGS__)
+#define planFatal(param, ...)  qFatal("PLAN: " param, __VA_ARGS__)
+#define planError(param, ...)  qError("PLAN: " param, __VA_ARGS__)
+#define planWarn(param, ...)   qWarn("PLAN: " param, __VA_ARGS__)
+#define planInfo(param, ...)   qInfo("PLAN: " param, __VA_ARGS__)
+#define planDebug(param, ...)  qDebug("PLAN: " param, __VA_ARGS__)
+#define planDebugL(param, ...) qDebugL("PLAN: " param, __VA_ARGS__)
+#define planTrace(param, ...)  qTrace("PLAN: " param, __VA_ARGS__)
 
 int32_t generateUsageErrMsg(char* pBuf, int32_t len, int32_t errCode, ...);
+int32_t createColumnByRewriteExprs(SNodeList* pExprs, SNodeList** pList);
+int32_t createColumnByRewriteExpr(SNode* pExpr, SNodeList** pList);
+int32_t replaceLogicNode(SLogicSubplan* pSubplan, SLogicNode* pOld, SLogicNode* pNew);
 
-int32_t createLogicPlan(SPlanContext* pCxt, SLogicNode** pLogicNode);
-int32_t optimizeLogicPlan(SPlanContext* pCxt, SLogicNode* pLogicNode);
-int32_t splitLogicPlan(SPlanContext* pCxt, SLogicNode* pLogicNode, SLogicSubplan** pLogicSubplan);
+int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan);
+int32_t optimizeLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan);
+int32_t splitLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan);
 int32_t scaleOutLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan, SQueryLogicPlan** pLogicPlan);
 int32_t createPhysiPlan(SPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryPlan** pPlan, SArray* pExecNodeList);
 

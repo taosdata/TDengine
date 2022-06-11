@@ -13,7 +13,7 @@ class TDTestCase:
     "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"fnDebugFlag":143}
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
+        tdSql.init(conn.cursor(), True)
     
     def prepare_datas(self):
         tdSql.execute(
@@ -65,6 +65,60 @@ class TDTestCase:
             '''
         )
     
+
+    def prepare_tag_datas(self):
+                # prepare datas
+        tdSql.execute("create database if not exists testdb keep 3650 days 1000")
+        tdSql.execute(" use testdb ")
+        tdSql.execute(
+            '''create table stb1
+            (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
+            tags (t0 timestamp, t1 int, t2 bigint, t3 smallint, t4 tinyint, t5 float, t6 double, t7 bool, t8 binary(16),t9 nchar(32))
+            '''
+        )
+
+        tdSql.execute(
+            '''
+            create table t1
+            (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
+            '''
+        )
+        for i in range(4):
+            tdSql.execute(f'create table ct{i+1} using stb1 tags ( now(), {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, "binary{i}", "nchar{i}" )')
+
+        for i in range(9):
+            tdSql.execute(
+                f"insert into ct1 values ( now()-{i*10}s, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
+            )
+            tdSql.execute(
+                f"insert into ct4 values ( now()-{i*90}d, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
+            )
+        tdSql.execute("insert into ct1 values (now()-45s, 0, 0, 0, 0, 0, 0, 0, 'binary0', 'nchar0', now()+8a )")
+        tdSql.execute("insert into ct1 values (now()+10s, 9, -99999, -999, -99, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )")
+        tdSql.execute("insert into ct1 values (now()+15s, 9, -99999, -999, -99, -9.99, NULL, 1, 'binary9', 'nchar9', now()+9a )")
+        tdSql.execute("insert into ct1 values (now()+20s, 9, -99999, -999, NULL, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )")
+
+        tdSql.execute("insert into ct4 values (now()-810d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
+        tdSql.execute("insert into ct4 values (now()-400d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
+        tdSql.execute("insert into ct4 values (now()+90d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL  ) ")
+
+        tdSql.execute(
+            f'''insert into t1 values
+            ( '2020-04-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( '2020-10-21 01:01:01.000', 1, 11111, 111, 11, 1.11, 11.11, 1, "binary1", "nchar1", now()+1a )
+            ( '2020-12-31 01:01:01.000', 2, 22222, 222, 22, 2.22, 22.22, 0, "binary2", "nchar2", now()+2a )
+            ( '2021-01-01 01:01:06.000', 3, 33333, 333, 33, 3.33, 33.33, 0, "binary3", "nchar3", now()+3a )
+            ( '2021-05-07 01:01:10.000', 4, 44444, 444, 44, 4.44, 44.44, 1, "binary4", "nchar4", now()+4a )
+            ( '2021-07-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( '2021-09-30 01:01:16.000', 5, 55555, 555, 55, 5.55, 55.55, 0, "binary5", "nchar5", now()+5a )
+            ( '2022-02-01 01:01:20.000', 6, 66666, 666, 66, 6.66, 66.66, 1, "binary6", "nchar6", now()+6a )
+            ( '2022-10-28 01:01:26.000', 7, 00000, 000, 00, 0.00, 00.00, 1, "binary7", "nchar7", "1970-01-01 08:00:00.000" )
+            ( '2022-12-01 01:01:30.000', 8, -88888, -888, -88, -8.88, -88.88, 0, "binary8", "nchar8", "1969-01-01 01:00:00.000" )
+            ( '2022-12-31 01:01:36.000', 9, -99999999999999999, -999, -99, -9.99, -999999999999999999999.99, 1, "binary9", "nchar9", "1900-01-01 00:00:00.000" )
+            ( '2023-02-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            '''
+        )
+
     def check_result_auto(self ,origin_query , abs_query):
         abs_result = tdSql.getResult(abs_query)
         origin_result = tdSql.getResult(origin_query)
@@ -95,6 +149,7 @@ class TDTestCase:
             tdLog.info("abs value check pass , it work as expected ,sql is \"%s\"   "%abs_query )
         
     def test_errors(self):
+        tdSql.execute("use testdb")
         error_sql_lists = [
             "select abs from t1",
             # "select abs(-+--+c1) from t1",
@@ -129,11 +184,16 @@ class TDTestCase:
             tdSql.error(error_sql)
     
     def support_types(self):
+        tdSql.execute("use testdb")
         type_error_sql_lists = [
             "select abs(ts) from t1" , 
+            "select abs(t0) from t1" , 
             "select abs(c7) from t1",
             "select abs(c8) from t1",
             "select abs(c9) from t1",
+            "select abs(t7) from t1",
+            "select abs(t8) from t1",
+            "select abs(t9) from t1",
             "select abs(ts) from ct1" , 
             "select abs(c7) from ct1",
             "select abs(c8) from ct1",
@@ -170,6 +230,13 @@ class TDTestCase:
             "select abs(c4) from t1",
             "select abs(c5) from t1",
             "select abs(c6) from t1",
+
+            "select abs(t1) from ct1",
+            "select abs(t2) from ct1",
+            "select abs(t3) from ct1",
+            "select abs(t4) from ct1",
+            "select abs(t5) from ct1",
+            "select abs(t6) from ct1",
 
             "select abs(c1) from ct1",
             "select abs(c2) from ct1",
@@ -447,6 +514,38 @@ class TDTestCase:
 
         self.check_result_auto("select c1+1 ,c2 , c3*1 , c4/2, c5/2, c6 from sub1_bound" ,"select abs(c1+1) ,abs(c2) , abs(c3*1) , abs(c4/2), abs(c5)/2, abs(c6) from sub1_bound ")
         
+    def test_tag_compute_for_scalar_function(self):
+        
+        tdSql.execute("use testdb")
+
+        self.check_result_auto( "select c1, t2, t3 , t4, t5 from ct4 ", "select (c1), abs(t2) ,abs(t3), abs(t4), abs(t5) from ct4")
+        self.check_result_auto( "select c1+2, t2+2, t3 , t4, t5 from ct4 ", "select (c1)+2, abs(t2)+2 ,abs(t3), abs(t4), abs(t5) from ct4")
+        self.check_result_auto( "select c1+2, t2+2, t3 , t4, t5 from stb1 order by t1 ", "select (c1)+2, abs(t2)+2 ,abs(t3), abs(t4), abs(t5) from stb1 order by t1")
+
+        # bug need fix 
+
+        # tdSql.query(" select sum(c1) from stb1 where t1+10 >1; ")  #　taosd crash 
+        tdSql.query("select c1 ,t1 from stb1 where t1 =0 ")
+        tdSql.checkRows(13)
+        # tdSql.query("select t1 from stb1 where t1 >0 ")
+        # tdSql.checkRows(3)
+        # tdSql.query("select sum(t1) from (select c1 ,t1 from stb1)")
+        # tdSql.checkData(0,0,61)
+        # tdSql.query("select distinct(c1) ,t1 from stb1")
+        # tdSql.checkRows(11)
+        # tdSql.query("select max(t2) , t1 ,c1, t2 from stb1")
+        # tdSql.checkData(0,3,33333)
+
+        # tag filter with abs function
+        # tdSql.query("select t1 from stb1 where abs(t1)=1")
+        # tdSql.checkRows(1)
+        tdSql.query("select t1 from stb1 where abs(c1+t1)=1")
+        tdSql.checkRows(1)
+        # tdSql.query("select t1 from stb1 where abs(t1+c1)=1")
+        # tdSql.checkRows(1)
+        tdSql.query("select abs(c1+t1)*t1 from stb1 where abs(c1)/floor(abs(ceil(t1))) ==1")
+
+
 
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
@@ -454,6 +553,7 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step1:create table ==============")
         
         self.prepare_datas()
+        self.prepare_tag_datas()
 
         tdLog.printNoPrefix("==========step2:test errors ==============")    
 
@@ -474,6 +574,10 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step6: abs filter query ============") 
 
         self.abs_func_filter()
+
+        tdLog.printNoPrefix("==========step6: tag coumpute query ============") 
+        
+        self.test_tag_compute_for_scalar_function()
 
     def stop(self):
         tdSql.close()

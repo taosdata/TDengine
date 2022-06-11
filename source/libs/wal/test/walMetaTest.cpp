@@ -37,7 +37,7 @@ class WalCleanEnv : public ::testing::Test {
   }
 
   SWal*       pWal = NULL;
-  const char* pathName = "/tmp/wal_test";
+  const char* pathName = TD_TMP_DIR_PATH "wal_test";
 };
 
 class WalCleanDeleteEnv : public ::testing::Test {
@@ -67,7 +67,7 @@ class WalCleanDeleteEnv : public ::testing::Test {
   }
 
   SWal*       pWal = NULL;
-  const char* pathName = "/tmp/wal_test";
+  const char* pathName = TD_TMP_DIR_PATH "wal_test";
 };
 
 class WalKeepEnv : public ::testing::Test {
@@ -104,7 +104,7 @@ class WalKeepEnv : public ::testing::Test {
   }
 
   SWal*       pWal = NULL;
-  const char* pathName = "/tmp/wal_test";
+  const char* pathName = TD_TMP_DIR_PATH "wal_test";
 };
 
 class WalRetentionEnv : public ::testing::Test {
@@ -141,7 +141,7 @@ class WalRetentionEnv : public ::testing::Test {
   }
 
   SWal*       pWal = NULL;
-  const char* pathName = "/tmp/wal_test";
+  const char* pathName = TD_TMP_DIR_PATH "wal_test";
 };
 
 TEST_F(WalCleanEnv, createNew) {
@@ -325,6 +325,7 @@ TEST_F(WalKeepEnv, readHandleRead) {
       EXPECT_EQ(newStr[j], pRead->pHead->head.body[j]);
     }
   }
+  walCloseReadHandle(pRead);
 }
 
 TEST_F(WalRetentionEnv, repairMeta1) {

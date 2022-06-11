@@ -31,9 +31,6 @@ static void shellWorkAsClient() {
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.user = "_dnd";
-  rpcInit.ckey = "_key";
-  rpcInit.spi = 1;
-  rpcInit.secret = pass;
 
   clientRpc = rpcOpen(&rpcInit);
   if (clientRpc == NULL) {
@@ -61,7 +58,7 @@ static void shellWorkAsClient() {
   uint64_t startTime = taosGetTimestampUs();
 
   for (int32_t i = 0; i < pArgs->pktNum; ++i) {
-    SRpcMsg rpcMsg = {.ahandle = (void *)0x9525, .msgType = TDMT_DND_NET_TEST};
+    SRpcMsg rpcMsg = {.info.ahandle = (void *)0x9525, .msgType = TDMT_DND_NET_TEST};
     rpcMsg.pCont = rpcMallocCont(pArgs->pktLen);
     rpcMsg.contLen = pArgs->pktLen;
 
@@ -96,7 +93,7 @@ _OVER:
 static void shellProcessMsg(void *p, SRpcMsg *pRpc, SEpSet *pEpSet) {
   printf("request is received, size:%d\n", pRpc->contLen);
   fflush(stdout);
-  SRpcMsg rsp = {.handle = pRpc->handle, .refId = pRpc->refId, .ahandle = pRpc->ahandle, .code = 0};
+  SRpcMsg rsp = {.info = pRpc->info, .code = 0};
   rsp.pCont = rpcMallocCont(pRpc->contLen);
   if (rsp.pCont == NULL) {
     rsp.code = TSDB_CODE_OUT_OF_MEMORY;
@@ -119,7 +116,7 @@ static void shellWorkAsServer() {
   memcpy(rpcInit.localFqdn, tsLocalFqdn, strlen(tsLocalFqdn));
   rpcInit.localPort = pArgs->port;
   rpcInit.label = "CHK";
-  rpcInit.numOfThreads = tsNumOfRpcThreads;
+  rpcInit.numOfThreads = 2;
   rpcInit.cfp = (RpcCfp)shellProcessMsg;
   rpcInit.sessions = 10;
   rpcInit.connType = TAOS_CONN_SERVER;

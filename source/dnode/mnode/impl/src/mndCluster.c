@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "mndCluster.h"
 #include "mndShow.h"
+#include "mndTrans.h"
 
 #define CLUSTER_VER_NUMBE    1
 #define CLUSTER_RESERVE_SIZE 64
@@ -26,7 +27,7 @@ static int32_t  mndClusterActionInsert(SSdb *pSdb, SClusterObj *pCluster);
 static int32_t  mndClusterActionDelete(SSdb *pSdb, SClusterObj *pCluster);
 static int32_t  mndClusterActionUpdate(SSdb *pSdb, SClusterObj *pOldCluster, SClusterObj *pNewCluster);
 static int32_t  mndCreateDefaultCluster(SMnode *pMnode);
-static int32_t  mndRetrieveClusters(SNodeMsg *pMsg, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
+static int32_t  mndRetrieveClusters(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextCluster(SMnode *pMnode, void *pIter);
 
 int32_t mndInitCluster(SMnode *pMnode) {
@@ -143,6 +144,7 @@ _OVER:
 
 static int32_t mndClusterActionInsert(SSdb *pSdb, SClusterObj *pCluster) {
   mTrace("cluster:%" PRId64 ", perform insert action, row:%p", pCluster->id, pCluster);
+  pSdb->pMnode->clusterId = pCluster->id;
   return 0;
 }
 
@@ -170,18 +172,40 @@ static int32_t mndCreateDefaultCluster(SMnode *pMnode) {
   clusterObj.id = mndGenerateUid(clusterObj.name, TSDB_CLUSTER_ID_LEN);
   clusterObj.id = (clusterObj.id >= 0 ? clusterObj.id : -clusterObj.id);
   pMnode->clusterId = clusterObj.id;
-  mDebug("cluster:%" PRId64 ", name is %s", clusterObj.id, clusterObj.name);
+  mInfo("cluster:%" PRId64 ", name is %s", clusterObj.id, clusterObj.name);
 
   SSdbRaw *pRaw = mndClusterActionEncode(&clusterObj);
   if (pRaw == NULL) return -1;
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
-  mDebug("cluster:%" PRId64 ", will be created while deploy sdb, raw:%p", clusterObj.id, pRaw);
-  return sdbWrite(pMnode->pSdb, pRaw);
+  mDebug("cluster:%" PRId64 ", will be created when deploying, raw:%p", clusterObj.id, pRaw);
+
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL);
+  if (pTrans == NULL) {
+    mError("cluster:%" PRId64 ", failed to create since %s", clusterObj.id, terrstr());
+    return -1;
+  }
+  mDebug("trans:%d, used to create cluster:%" PRId64, pTrans->id, clusterObj.id);
+
+  if (mndTransAppendCommitlog(pTrans, pRaw) != 0) {
+    mError("trans:%d, failed to commit redo log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
+    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  mndTransDrop(pTrans);
+  return 0;
 }
 
-static int32_t mndRetrieveClusters(SNodeMsg *pMsg, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-  SMnode      *pMnode = pMsg->pNode;
+static int32_t mndRetrieveClusters(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+  SMnode      *pMnode = pMsg->info.node;
   SSdb        *pSdb = pMnode->pSdb;
   int32_t      numOfRows = 0;
   int32_t      cols = 0;

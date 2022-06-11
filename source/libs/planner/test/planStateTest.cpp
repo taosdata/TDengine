@@ -23,13 +23,13 @@ class PlanStateTest : public PlannerTestBase {};
 TEST_F(PlanStateTest, basic) {
   useDb("root", "test");
 
-  run("select count(*) from t1 state_window(c1)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1)");
 }
 
 TEST_F(PlanStateTest, stateExpr) {
   useDb("root", "test");
 
-  run("select count(*) from t1 state_window(c1 + 10)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1 + 10)");
 }
 
 TEST_F(PlanStateTest, selectFunc) {

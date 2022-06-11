@@ -233,7 +233,6 @@ int64_t getDirectorySize(char* dir) {
 int queryDB(TAOS* taos, char* command) {
   TAOS_RES* pRes = taos_query(taos, command);
   int       code = taos_errno(pRes);
-  // if ((code != 0) && (code != TSDB_CODE_RPC_AUTH_REQUIRED)) {
   if (code != 0) {
     pError("failed to reason:%s, sql: %s", tstrerror(code), command);
     taos_free_result(pRes);
@@ -368,7 +367,7 @@ void sync_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
       /*msg_process(tmqmessage);*/
       taos_free_result(tmqmessage);
 
-      if ((++msg_count % MIN_COMMIT_COUNT) == 0) tmq_commit(tmq, NULL, 0);
+      if ((++msg_count % MIN_COMMIT_COUNT) == 0) tmq_commit_sync(tmq, NULL);
     }
   }
 

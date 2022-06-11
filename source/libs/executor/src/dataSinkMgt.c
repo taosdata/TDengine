@@ -19,6 +19,7 @@
 #include "planner.h"
 
 static SDataSinkManager gDataSinkManager = {0};
+SDataSinkStat gDataSinkStat = {0};
 
 int32_t dsDataSinkMgtInit(SDataSinkMgtCfg *cfg) {
   gDataSinkManager.cfg = *cfg;
@@ -26,9 +27,19 @@ int32_t dsDataSinkMgtInit(SDataSinkMgtCfg *cfg) {
   return 0; // to avoid compiler eror
 }
 
-int32_t dsCreateDataSinker(const SDataSinkNode *pDataSink, DataSinkHandle* pHandle) {
-  if (QUERY_NODE_PHYSICAL_PLAN_DISPATCH == nodeType(pDataSink)) {
-    return createDataDispatcher(&gDataSinkManager, pDataSink, pHandle);
+int32_t dsDataSinkGetCacheSize(SDataSinkStat *pStat) {
+  pStat->cachedSize = atomic_load_64(&gDataSinkStat.cachedSize);
+
+  return 0;
+}
+
+
+int32_t dsCreateDataSinker(const SDataSinkNode *pDataSink, DataSinkHandle* pHandle, void* pParam) {
+  switch (nodeType(pDataSink)) {
+    case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
+      return createDataDispatcher(&gDataSinkManager, pDataSink, pHandle);
+    case QUERY_NODE_PHYSICAL_PLAN_DELETE:
+      return createDataDeleter(&gDataSinkManager, pDataSink, pHandle, pParam);
   }
   return TSDB_CODE_FAILED;
 }
@@ -52,6 +63,12 @@ int32_t dsGetDataBlock(DataSinkHandle handle, SOutputData* pOutput) {
   SDataSinkHandle* pHandleImpl = (SDataSinkHandle*)handle;
   return pHandleImpl->fGetData(pHandleImpl, pOutput);
 }
+
+int32_t dsGetCacheSize(DataSinkHandle handle, uint64_t *pSize) {
+  SDataSinkHandle* pHandleImpl = (SDataSinkHandle*)handle;
+  return pHandleImpl->fGetCacheSize(pHandleImpl, pSize);
+}
+
 
 void dsScheduleProcess(void* ahandle, void* pItem) {
   // todo

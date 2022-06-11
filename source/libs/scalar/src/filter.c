@@ -29,8 +29,9 @@ OptrStr gOptrStr[] = {
   {OP_TYPE_SUB,                            "-"},
   {OP_TYPE_MULTI,                          "*"},
   {OP_TYPE_DIV,                            "/"},
-  {OP_TYPE_MOD,                            "%"},
-
+  {OP_TYPE_REM,                            "%"},
+  {OP_TYPE_MINUS,                          "minus"},
+  {OP_TYPE_ASSIGN,                         "assign"},
   // bit operator
   {OP_TYPE_BIT_AND,                        "&"},
   {OP_TYPE_BIT_OR,                         "|"},
@@ -167,7 +168,7 @@ __compar_fn_t gDataCompare[] = {compareInt32Val, compareInt8Val, compareInt16Val
   compareLenPrefixedWStr, compareUint8Val, compareUint16Val, compareUint32Val, compareUint64Val,
   setChkInBytes1, setChkInBytes2, setChkInBytes4, setChkInBytes8, compareStrRegexCompMatch, 
   compareStrRegexCompNMatch, setChkNotInBytes1, setChkNotInBytes2, setChkNotInBytes4, setChkNotInBytes8,
-  compareChkNotInString, compareStrPatternNotMatch, compareWStrPatternNotMatch, compareJsonContainsKey
+  compareChkNotInString, compareStrPatternNotMatch, compareWStrPatternNotMatch
 };
 
 int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
@@ -3553,7 +3554,11 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
       return DEAL_RES_CONTINUE;
     }
 
-    sclConvertToTsValueNode(stat->precision, valueNode);
+    int32_t code = sclConvertToTsValueNode(stat->precision, valueNode);
+    if (code) {
+      stat->code = code;
+      return DEAL_RES_ERROR;
+    }
 
     return DEAL_RES_CONTINUE;
   }
@@ -3664,6 +3669,14 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
           stat->scalarMode = true;
           return DEAL_RES_CONTINUE;
         }
+      } else {
+        SColumnNode *refNode = (SColumnNode *)node->pLeft;
+        SNodeListNode *listNode = (SNodeListNode *)node->pRight;
+        int32_t type = vectorGetConvertType(refNode->node.resType.type, listNode->dataType.type);
+        if (0 != type && type != refNode->node.resType.type) {
+          stat->scalarMode = true;
+          return DEAL_RES_CONTINUE;
+        }
       }
     }
 
@@ -3687,7 +3700,7 @@ int32_t fltReviseNodes(SFilterInfo *pInfo, SNode** pNode, SFltTreeStat *pStat) {
   for (int32_t i = 0; i < nodeNum; ++i) {
     SValueNode *valueNode = *(SValueNode **)taosArrayGet(pStat->nodeList, i);
     
-    sclConvertToTsValueNode(pStat->precision, valueNode);
+    FLT_ERR_JRET(sclConvertToTsValueNode(pStat->precision, valueNode));
   }
 
 _return:

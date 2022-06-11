@@ -1,36 +1,36 @@
 #include <assert.h>
-#include <uv.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <uv.h>
 
 #include "task.h"
 
 #define NUM_OF_THREAD 1
-#define TIMEOUT 10000
+#define TIMEOUT       10000
 
 typedef struct SThreadObj {
-  TdThread thread;
-  uv_pipe_t *pipe;
-  uv_loop_t *loop;
-  uv_async_t *workerAsync; //
-  int fd;
+  TdThread    thread;
+  uv_pipe_t * pipe;
+  uv_loop_t * loop;
+  uv_async_t *workerAsync;  //
+  int         fd;
 } SThreadObj;
 
 typedef struct SServerObj {
-  uv_tcp_t server;
-  uv_loop_t *loop;
-  int workerIdx;
-  int numOfThread;
+  uv_tcp_t     server;
+  uv_loop_t *  loop;
+  int          workerIdx;
+  int          numOfThread;
   SThreadObj **pThreadObj;
-  uv_pipe_t **pipe;
+  uv_pipe_t ** pipe;
 } SServerObj;
 
 typedef struct SConnCtx {
-  uv_tcp_t *pClient;
+  uv_tcp_t *  pClient;
   uv_timer_t *pTimer;
   uv_async_t *pWorkerAsync;
-  int ref;
+  int         ref;
 } SConnCtx;
 
 void echo_write(uv_write_t *req, int status) {
@@ -42,7 +42,6 @@ void echo_write(uv_write_t *req, int status) {
 }
 
 void echo_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
-
   SConnCtx *pConn = container_of(client, SConnCtx, pClient);
   pConn->ref += 1;
   printf("read data %d\n", nread, buf->base, buf->len);
@@ -59,8 +58,7 @@ void echo_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
   }
 
   if (nread < 0) {
-    if (nread != UV_EOF)
-      fprintf(stderr, "Read error %s\n", uv_err_name(nread));
+    if (nread != UV_EOF) fprintf(stderr, "Read error %s\n", uv_err_name(nread));
     uv_close((uv_handle_t *)client, NULL);
   }
   taosMemoryFree(buf->base);
@@ -83,21 +81,19 @@ void on_new_connection(uv_stream_t *s, int status) {
   uv_tcp_init(pObj->loop, client);
   if (uv_accept(s, (uv_stream_t *)client) == 0) {
     uv_write_t *write_req = (uv_write_t *)taosMemoryMalloc(sizeof(uv_write_t));
-    uv_buf_t dummy_buf = uv_buf_init("a", 1);
+    uv_buf_t    dummy_buf = uv_buf_init("a", 1);
     // despatch to worker thread
     pObj->workerIdx = (pObj->workerIdx + 1) % pObj->numOfThread;
-    uv_write2(write_req, (uv_stream_t *)&(pObj->pipe[pObj->workerIdx][0]),
-              &dummy_buf, 1, (uv_stream_t *)client, echo_write);
+    uv_write2(write_req, (uv_stream_t *)&(pObj->pipe[pObj->workerIdx][0]), &dummy_buf, 1, (uv_stream_t *)client,
+              echo_write);
   } else {
     uv_close((uv_handle_t *)client, NULL);
   }
 }
-void child_on_new_connection(uv_stream_t *q, ssize_t nread,
-                             const uv_buf_t *buf) {
+void child_on_new_connection(uv_stream_t *q, ssize_t nread, const uv_buf_t *buf) {
   printf("x child_on_new_connection \n");
   if (nread < 0) {
-    if (nread != UV_EOF)
-      fprintf(stderr, "Read error %s\n", uv_err_name(nread));
+    if (nread != UV_EOF) fprintf(stderr, "Read error %s\n", uv_err_name(nread));
     uv_close((uv_handle_t *)q, NULL);
     return;
   }
@@ -119,7 +115,7 @@ void child_on_new_connection(uv_stream_t *q, ssize_t nread,
   uv_timer_init(pObj->loop, pConn->pTimer);
 
   pConn->pClient = (uv_tcp_t *)taosMemoryMalloc(sizeof(uv_tcp_t));
-  pConn->pWorkerAsync = pObj->workerAsync; // thread safty
+  pConn->pWorkerAsync = pObj->workerAsync;  // thread safty
   uv_tcp_init(pObj->loop, pConn->pClient);
 
   if (uv_accept(q, (uv_stream_t *)(pConn->pClient)) == 0) {
@@ -143,7 +139,7 @@ static void workerAsyncCallback(uv_async_t *handle) {
 }
 void *worker_thread(void *arg) {
   SThreadObj *pObj = (SThreadObj *)arg;
-  int fd = pObj->fd;
+  int         fd = pObj->fd;
   pObj->loop = (uv_loop_t *)taosMemoryMalloc(sizeof(uv_loop_t));
   uv_loop_init(pObj->loop);
 
@@ -152,19 +148,16 @@ void *worker_thread(void *arg) {
 
   pObj->workerAsync = taosMemoryMalloc(sizeof(uv_async_t));
   uv_async_init(pObj->loop, pObj->workerAsync, workerAsyncCallback);
-  uv_read_start((uv_stream_t *)pObj->pipe, alloc_buffer,
-                child_on_new_connection);
+  uv_read_start((uv_stream_t *)pObj->pipe, alloc_buffer, child_on_new_connection);
 
   uv_run(pObj->loop, UV_RUN_DEFAULT);
 }
 int main() {
-
   SServerObj *server = taosMemoryCalloc(1, sizeof(SServerObj));
   server->loop = (uv_loop_t *)taosMemoryMalloc(sizeof(uv_loop_t));
   server->numOfThread = NUM_OF_THREAD;
   server->workerIdx = 0;
-  server->pThreadObj =
-      (SThreadObj **)taosMemoryCalloc(server->numOfThread, sizeof(SThreadObj *));
+  server->pThreadObj = (SThreadObj **)taosMemoryCalloc(server->numOfThread, sizeof(SThreadObj *));
   server->pipe = (uv_pipe_t **)taosMemoryCalloc(server->numOfThread, sizeof(uv_pipe_t *));
 
   uv_loop_init(server->loop);
@@ -173,17 +166,15 @@ int main() {
     server->pThreadObj[i] = (SThreadObj *)taosMemoryCalloc(1, sizeof(SThreadObj));
     server->pipe[i] = (uv_pipe_t *)taosMemoryCalloc(2, sizeof(uv_pipe_t));
     int fds[2];
-    if (uv_socketpair(AF_UNIX, SOCK_STREAM, fds, UV_NONBLOCK_PIPE,
-                      UV_NONBLOCK_PIPE) != 0) {
+    if (uv_socketpair(AF_UNIX, SOCK_STREAM, fds, UV_NONBLOCK_PIPE, UV_NONBLOCK_PIPE) != 0) {
       return -1;
     }
     uv_pipe_init(server->loop, &(server->pipe[i][0]), 1);
-    uv_pipe_open(&(server->pipe[i][0]), fds[1]); // init write
+    uv_pipe_open(&(server->pipe[i][0]), fds[1]);  // init write
 
     server->pThreadObj[i]->fd = fds[0];
-    server->pThreadObj[i]->pipe = &(server->pipe[i][1]); // init read
-    int err = taosThreadCreate(&(server->pThreadObj[i]->thread), NULL,
-                             worker_thread, (void *)(server->pThreadObj[i]));
+    server->pThreadObj[i]->pipe = &(server->pipe[i][1]);  // init read
+    int err = taosThreadCreate(&(server->pThreadObj[i]->thread), NULL, worker_thread, (void *)(server->pThreadObj[i]));
     if (err == 0) {
       printf("thread %d create\n", i);
     } else {
@@ -195,8 +186,7 @@ int main() {
     uv_ip4_addr("0.0.0.0", 7000, &bind_addr);
     uv_tcp_bind(&server->server, (const struct sockaddr *)&bind_addr, 0);
     int err = 0;
-    if ((err = uv_listen((uv_stream_t *)&server->server, 128,
-                         on_new_connection)) != 0) {
+    if ((err = uv_listen((uv_stream_t *)&server->server, 128, on_new_connection)) != 0) {
       fprintf(stderr, "Listen error %s\n", uv_err_name(err));
       return 2;
     }

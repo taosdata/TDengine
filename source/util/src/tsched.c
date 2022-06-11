@@ -23,19 +23,19 @@
 #define DUMP_SCHEDULER_TIME_WINDOW 30000  // every 30sec, take a snap shot of task queue.
 
 typedef struct {
-  char            label[TSDB_LABEL_LEN];
-  tsem_t          emptySem;
-  tsem_t          fullSem;
+  char          label[TSDB_LABEL_LEN];
+  tsem_t        emptySem;
+  tsem_t        fullSem;
   TdThreadMutex queueMutex;
-  int32_t         fullSlot;
-  int32_t         emptySlot;
-  int32_t         queueSize;
-  int32_t         numOfThreads;
-  TdThread      *qthread;
-  SSchedMsg      *queue;
-  bool            stop;
-  void           *pTmrCtrl;
-  void           *pTimer;
+  int32_t       fullSlot;
+  int32_t       emptySlot;
+  int32_t       queueSize;
+  int32_t       numOfThreads;
+  TdThread     *qthread;
+  SSchedMsg    *queue;
+  bool          stop;
+  void         *pTmrCtrl;
+  void         *pTimer;
 } SSchedQueue;
 
 static void *taosProcessSchedQueue(void *param);
@@ -209,6 +209,7 @@ void taosCleanUpScheduler(void *param) {
   for (int32_t i = 0; i < pSched->numOfThreads; ++i) {
     if (taosCheckPthreadValid(pSched->qthread[i])) {
       taosThreadJoin(pSched->qthread[i], NULL);
+      taosThreadClear(&pSched->qthread[i]);
     }
   }
 
@@ -217,7 +218,8 @@ void taosCleanUpScheduler(void *param) {
   taosThreadMutexDestroy(&pSched->queueMutex);
 
   if (pSched->pTimer) {
-    taosTmrStopA(&pSched->pTimer);
+    taosTmrStop(pSched->pTimer);
+    pSched->pTimer = NULL;
   }
 
   if (pSched->queue) taosMemoryFree(pSched->queue);

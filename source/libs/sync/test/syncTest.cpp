@@ -49,15 +49,26 @@ void test4() {
   logTest((char*)__FUNCTION__);
 }
 
-int main() {
-  // taosInitLog("tmp/syncTest.log", 100);
+int main(int argc, char** argv) {
+  taosInitLog("/tmp/syncTest.log", 100);
   tsAsyncLog = 0;
+  sDebugFlag = DEBUG_SCREEN + DEBUG_FILE + DEBUG_TRACE + DEBUG_INFO + DEBUG_ERROR;
 
   test1();
   test2();
   test3();
   test4();
 
-  // taosCloseLog();
+  /*
+  if (argc == 2) {
+    bool bTaosDirExist = taosDirExist(argv[1]);
+    printf("%s bTaosDirExist:%d \n", argv[1], bTaosDirExist);
+
+    bool bTaosCheckExistFile = taosCheckExistFile(argv[1]);
+    printf("%s bTaosCheckExistFile:%d \n", argv[1], bTaosCheckExistFile);
+  }
+  */
+
+  taosCloseLog();
   return 0;
 }

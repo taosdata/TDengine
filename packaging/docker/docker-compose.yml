@@ -1,0 +1,77 @@
+version: "3"
+
+networks:
+  inter:
+  api:
+
+services:
+  arbitrator:
+    image: tdengine/tdengine:$VERSION
+    command: tarbitrator
+    networks:
+      - inter
+  td-1:
+    image: tdengine/tdengine:$VERSION
+    networks:
+      - inter
+    environment:
+      TAOS_FQDN: "td-1"
+      TAOS_FIRST_EP: "td-1"
+      TAOS_NUM_OF_MNODES: "2"
+      TAOS_REPLICA: "2"
+      TAOS_ARBITRATOR: arbitrator:6042
+    volumes:
+      - taosdata-td1:/var/lib/taos/
+      - taoslog-td1:/var/log/taos/
+  td-2:
+    image: tdengine/tdengine:$VERSION
+    networks:
+      - inter
+    environment:
+      TAOS_FQDN: "td-2"
+      TAOS_FIRST_EP: "td-1"
+      TAOS_NUM_OF_MNODES: "2"
+      TAOS_REPLICA: "2"
+      TAOS_ARBITRATOR: arbitrator:6042
+    volumes:
+      - taosdata-td2:/var/lib/taos/
+      - taoslog-td2:/var/log/taos/
+  adapter:
+    image: tdengine/tdengine:$VERSION
+    command: taosadapter
+    networks:
+      - inter
+    environment:
+      TAOS_FIRST_EP: "td-1"
+      TOAS_SECOND_EP: "td-2"
+    deploy:
+      replicas: 4
+      update_config:
+        parallelism: 4
+  nginx:
+    image: nginx
+    depends_on:
+      - adapter
+    networks:
+      - inter
+      - api
+    ports:
+      - 6041:6041
+      - 6044:6044/udp
+    command: [
+        "sh",
+        "-c",
+        "while true;
+        do curl -s http://adapter:6041/-/ping >/dev/null && break;
+        done;
+        printf 'server{listen 6041;location /{proxy_pass http://adapter:6041;}}'
+        > /etc/nginx/conf.d/rest.conf;
+        printf 'stream{server{listen 6044 udp;proxy_pass adapter:6044;}}'
+        >> /etc/nginx/nginx.conf;cat /etc/nginx/nginx.conf;
+        nginx -g 'daemon off;'",
+      ]
+volumes:
+  taosdata-td1:
+  taoslog-td1:
+  taosdata-td2:
+  taoslog-td2:

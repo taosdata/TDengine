@@ -32,6 +32,16 @@ TEST_F(PlanOptimizeTest, optimizeScanData) {
   run("SELECT PERCENTILE(c1, 40), COUNT(*) FROM t1");
 }
 
+TEST_F(PlanOptimizeTest, ConditionPushDown) {
+  useDb("root", "test");
+
+  run("SELECT ts, c1 FROM st1 WHERE tag1 > 4");
+
+  run("SELECT ts, c1 FROM st1 WHERE tag1 > 4 or tag1 < 2");
+
+  run("SELECT ts, c1 FROM st1 WHERE tag1 > 4 AND tag2 = 'hello'");
+}
+
 TEST_F(PlanOptimizeTest, orderByPrimaryKey) {
   useDb("root", "test");
 

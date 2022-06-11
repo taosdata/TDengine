@@ -22,8 +22,14 @@
 extern "C" {
 #endif
 
+#define QNODE_LOAD_VALUE(pQnode) (pQnode ? (pQnode->load.numOfQueryInQueue + pQnode->load.numOfFetchInQueue) : 0)
+
 int32_t mndInitQnode(SMnode *pMnode);
 void    mndCleanupQnode(SMnode *pMnode);
+
+SQnodeObj *mndAcquireQnode(SMnode *pMnode, int32_t qnodeId);
+void mndReleaseQnode(SMnode *pMnode, SQnodeObj *pObj);
+int32_t mndCreateQnodeList(SMnode       *pMnode, SArray** pList, int32_t limit);
 
 #ifdef __cplusplus
 }

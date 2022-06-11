@@ -640,13 +640,14 @@ int32_t cfgLoadFromEnvVar(SConfig *pConfig) {
 }
 
 int32_t cfgLoadFromEnvCmd(SConfig *pConfig, const char **envCmd) {
-  char   *buf, *name, *value, *value2, *value3;
+  char    buf[1024], *name, *value, *value2, *value3;
   int32_t olen, vlen, vlen2, vlen3;
   int32_t index = 0;
   if (envCmd == NULL) return 0;
   while (envCmd[index]!=NULL) {
-    buf = taosMemoryMalloc(strlen(envCmd[index]));
-    taosEnvToCfg(envCmd[index], buf);
+    strncpy(buf, envCmd[index], sizeof(buf)-1);
+    buf[sizeof(buf)-1] = 0;
+    taosEnvToCfg(buf, buf);
     index++;
     
     name = value = value2 = value3 = NULL;
@@ -671,8 +672,6 @@ int32_t cfgLoadFromEnvCmd(SConfig *pConfig, const char **envCmd) {
     if (value2 != NULL && value3 != NULL && value2[0] != 0 && value3[0] != 0 && strcasecmp(name, "dataDir") == 0) {
       cfgSetTfsItem(pConfig, name, value, value2, value3, CFG_STYPE_ENV_CMD);
     }
-
-    taosMemoryFree(buf);
   }
 
   uInfo("load from env cmd cfg success");

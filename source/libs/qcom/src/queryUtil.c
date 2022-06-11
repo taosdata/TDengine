@@ -58,7 +58,7 @@ static bool doValidateSchema(SSchema* pSchema, int32_t numOfCols, int32_t maxLen
 
     // 3. valid column names
     for (int32_t j = i + 1; j < numOfCols; ++j) {
-      if (strncasecmp(pSchema[i].name, pSchema[j].name, sizeof(pSchema[i].name) - 1) == 0) {
+      if (strncmp(pSchema[i].name, pSchema[j].name, sizeof(pSchema[i].name) - 1) == 0) {
         return false;
       }
     }
@@ -97,7 +97,7 @@ bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTag
 static void* pTaskQueue = NULL;
 
 int32_t initTaskQueue() {
-  int32_t queueSize = tsMaxConnections * 2;
+  int32_t queueSize = tsMaxShellConns * 2;
   pTaskQueue = taosInitScheduler(queueSize, tsNumOfTaskQueueThreads, "tsc");
   if (NULL == pTaskQueue) {
     qError("failed to init task queue");
@@ -149,9 +149,9 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
   SRpcMsg rpcMsg = {.msgType = pInfo->msgType,
                     .pCont = pMsg,
                     .contLen = pInfo->msgInfo.len,
-                    .ahandle = (void*)pInfo,
-                    .handle = pInfo->msgInfo.handle,
-                    .persistHandle = persistHandle,
+                    .info.ahandle = (void*)pInfo,
+                    .info.handle = pInfo->msgInfo.handle,
+                    .info.persistHandle = persistHandle,
                     .code = 0};
   assert(pInfo->fp != NULL);
 
@@ -199,3 +199,30 @@ SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* nam
   tstrncpy(s.name, name, tListLen(s.name));
   return s;
 }
+
+void destroyQueryExecRes(SQueryExecRes* pRes) {
+  if (NULL == pRes || NULL == pRes->res) {
+    return;
+  }
+
+  switch (pRes->msgType) {
+    case TDMT_VND_ALTER_TABLE:
+    case TDMT_MND_ALTER_STB: {
+      tFreeSTableMetaRsp((STableMetaRsp *)pRes->res);
+      taosMemoryFreeClear(pRes->res);
+      break;
+    }
+    case TDMT_VND_SUBMIT: {
+      tFreeSSubmitRsp((SSubmitRsp*)pRes->res);
+      break;
+    } 
+    case TDMT_VND_QUERY: {
+      taosArrayDestroy((SArray*)pRes->res);
+      break;
+    }
+    default:
+      qError("invalid exec result for request type %d", pRes->msgType);
+  }
+}
+
+

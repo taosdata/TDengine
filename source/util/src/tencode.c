@@ -29,10 +29,10 @@ struct SEncoderNode {
 };
 
 struct SDecoderNode {
-  SDecoderNode*  pNext;
-  const uint8_t* data;
-  uint32_t       size;
-  uint32_t       pos;
+  SDecoderNode* pNext;
+  uint8_t*      data;
+  uint32_t      size;
+  uint32_t      pos;
 };
 
 void tEncoderInit(SEncoder* pEncoder, uint8_t* data, uint32_t size) {
@@ -52,7 +52,7 @@ void tEncoderClear(SEncoder* pCoder) {
   memset(pCoder, 0, sizeof(*pCoder));
 }
 
-void tDecoderInit(SDecoder* pDecoder, const uint8_t* data, uint32_t size) {
+void tDecoderInit(SDecoder* pDecoder, uint8_t* data, uint32_t size) {
   pDecoder->data = data;
   pDecoder->size = size;
   pDecoder->pos = 0;

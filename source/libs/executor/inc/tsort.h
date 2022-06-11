@@ -132,10 +132,24 @@ void* tsortGetValue(STupleHandle* pVHandle, int32_t colId);
 
 /**
  *
+ * @param pVHandle
+ * @return
+ */
+uint64_t tsortGetGroupId(STupleHandle* pVHandle);
+/**
+ *
  * @param pSortHandle
  * @return
  */
 SSDataBlock* tsortGetSortedDataBlock(const SSortHandle* pSortHandle);
+
+/**
+ * return the sort execution information.
+ *
+ * @param pHandle
+ * @return
+ */
+SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle);
 
 #ifdef __cplusplus
 }

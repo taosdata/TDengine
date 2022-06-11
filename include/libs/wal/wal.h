@@ -141,6 +141,8 @@ typedef struct SWal {
   // ctl
   int64_t       refId;
   TdThreadMutex mutex;
+  // ref
+  SHashObj *pRefHash;  // ref -> SWalRef
   // path
   char path[WAL_PATH_LEN];
   // reusable write head
@@ -184,6 +186,7 @@ int32_t walRollback(SWal *, int64_t ver);
 // notify that previous logs can be pruned safely
 int32_t walBeginSnapshot(SWal *, int64_t ver);
 int32_t walEndSnapshot(SWal *);
+int32_t walRestoreFromSnapshot(SWal *, int64_t ver);
 // int32_t  walDataCorrupted(SWal*);
 
 // read
@@ -197,6 +200,16 @@ void    walSetReaderCapacity(SWalReadHandle *pRead, int32_t capacity);
 int32_t walFetchHead(SWalReadHandle *pRead, int64_t ver, SWalHead *pHead);
 int32_t walFetchBody(SWalReadHandle *pRead, SWalHead **ppHead);
 int32_t walSkipFetchBody(SWalReadHandle *pRead, const SWalHead *pHead);
+
+typedef struct {
+  int64_t refId;
+  int64_t ver;
+} SWalRef;
+
+SWalRef *walOpenRef(SWal *);
+void     walCloseRef(SWalRef *);
+int32_t  walRefVer(SWalRef *, int64_t ver);
+int32_t  walUnrefVer(SWal *);
 
 // deprecated
 #if 0

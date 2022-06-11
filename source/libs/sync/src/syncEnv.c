@@ -40,7 +40,7 @@ int32_t syncEnvStart() {
   // gSyncEnv = doSyncEnvStart(gSyncEnv);
   gSyncEnv = doSyncEnvStart();
   assert(gSyncEnv != NULL);
-  sTrace("syncEnvStart ok!");
+  sTrace("sync env start ok");
   return ret;
 }
 

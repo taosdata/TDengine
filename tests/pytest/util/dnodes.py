@@ -17,6 +17,10 @@ import os.path
 import platform
 import subprocess
 from time import sleep
+import base64
+import json
+import copy
+from fabric2 import Connection
 from util.log import *
 
 
@@ -30,17 +34,12 @@ class TDSimClient:
             "locale": "en_US.UTF-8",
             "charset": "UTF-8",
             "asyncLog": "0",
-            "minTablesPerVnode": "4",
-            "maxTablesPerVnode": "1000",
-            "tableIncStepPerVnode": "10000",
-            "maxVgroupsPerDb": "1000",
-            "sdbDebugFlag": "143",
             "rpcDebugFlag": "143",
             "tmrDebugFlag": "131",
-            "cDebugFlag": "135",
-            "udebugFlag": "135",
-            "jnidebugFlag": "135",
-            "qdebugFlag": "135",
+            "cDebugFlag": "143",
+            "udebugFlag": "143",
+            "jnidebugFlag": "143",
+            "qdebugFlag": "143",
             "telemetryReporting": "0",
         }
 
@@ -72,17 +71,19 @@ class TDSimClient:
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
 
-        cmd = "mkdir -p " + self.logDir
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
+        # cmd = "mkdir -p " + self.logDir
+        # if os.system(cmd) != 0:
+        #     tdLog.exit(cmd)
+        os.makedirs(self.logDir)
 
         cmd = "rm -rf " + self.cfgDir
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
 
-        cmd = "mkdir -p " + self.cfgDir
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
+        # cmd = "mkdir -p " + self.cfgDir
+        # if os.system(cmd) != 0:
+        #     tdLog.exit(cmd)
+        os.makedirs(self.cfgDir)
 
         cmd = "touch " + self.cfgPath
         if os.system(cmd) != 0:
@@ -114,41 +115,42 @@ class TDDnode:
         self.deployed = 0
         self.testCluster = False
         self.valgrind = 0
+        self.remoteIP = ""
         self.cfgDict = {
-            "numOfLogLines": "100000000",
-            "mnodeEqualVnodeNum": "0",
             "walLevel": "2",
             "fsync": "1000",
-            "statusInterval": "1",
-            "numOfMnodes": "3",
-            "numOfThreadsPerCore": "2.0",
             "monitor": "0",
-            "maxVnodeConnections": "30000",
-            "maxMgmtConnections": "30000",
-            "maxMeterConnections": "30000",
             "maxShellConns": "30000",
             "locale": "en_US.UTF-8",
             "charset": "UTF-8",
             "asyncLog": "0",
-            "anyIp": "0",
-            "telemetryReporting": "0",
-            "dDebugFlag": "135",
-            "tsdbDebugFlag": "135",
-            "mDebugFlag": "135",
-            "sdbDebugFlag": "135",
+            "mDebugFlag": "143",
+            "dDebugFlag": "143",
+            "vDebugFlag": "143",
+            "tqDebugFlag": "143",
+            "cDebugFlag": "143",
+            "jniDebugFlag": "143",
+            "qDebugFlag": "143",
             "rpcDebugFlag": "143",
             "tmrDebugFlag": "131",
-            "cDebugFlag": "135",
-            "httpDebugFlag": "135",
-            "monitorDebugFlag": "135",
-            "udebugFlag": "135",
-            "jnidebugFlag": "135",
-            "qdebugFlag": "135",
-            "maxSQLLength": "1048576"
+            "uDebugFlag": "143",
+            "sDebugFlag": "135",
+            "wDebugFlag": "143",
+            "qdebugFlag": "143",
+            "numOfLogLines": "100000000",
+            "statusInterval": "1",
+            "telemetryReporting": "0"
         }
 
-    def init(self, path):
+    def init(self, path, remoteIP = ""):
         self.path = path
+        self.remoteIP = remoteIP
+        if (not self.remoteIP == ""):
+            try:
+                self.config = eval(self.remoteIP)
+                self.remote_conn = Connection(host=self.config["host"], port=self.config["port"], user=self.config["user"], connect_kwargs={'password':self.config["password"]})
+            except Exception as r:
+                print(r)
 
     def setTestCluster(self, value):
         self.testCluster = value
@@ -172,6 +174,22 @@ class TDDnode:
     def addExtraCfg(self, option, value):
         self.cfgDict.update({option: value})
 
+    def remoteExec(self, updateCfgDict, execCmd):
+        valgrindStr = ''
+        if (self.valgrind==1):
+            valgrindStr = '-g'
+        remoteCfgDict = copy.deepcopy(updateCfgDict)
+        if ("logDir" in remoteCfgDict):
+            del remoteCfgDict["logDir"]
+        if ("dataDir" in remoteCfgDict):
+            del remoteCfgDict["dataDir"]
+        if ("cfgDir" in remoteCfgDict):
+            del remoteCfgDict["cfgDir"]
+        remoteCfgDictStr = base64.b64encode(json.dumps(remoteCfgDict).encode()).decode()
+        execCmdStr = base64.b64encode(execCmd.encode()).decode()
+        with self.remote_conn.cd((self.config["path"]+sys.path[0].replace(self.path, '')).replace('\\','/')):
+            self.remote_conn.run("python3 ./test.py %s -d %s -e %s"%(valgrindStr,remoteCfgDictStr,execCmdStr))
+
     def deploy(self, *updatecfgDict):
         self.logDir = "%s/sim/dnode%d/log" % (self.path, self.index)
         self.dataDir = "%s/sim/dnode%d/data" % (self.path, self.index)
@@ -191,17 +209,20 @@ class TDDnode:
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
 
-        cmd = "mkdir -p " + self.dataDir
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
+        # cmd = "mkdir -p " + self.dataDir
+        # if os.system(cmd) != 0:
+        #     tdLog.exit(cmd)
+        os.makedirs(self.dataDir)
 
-        cmd = "mkdir -p " + self.logDir
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
+        # cmd = "mkdir -p " + self.logDir
+        # if os.system(cmd) != 0:
+        #     tdLog.exit(cmd)
+        os.makedirs(self.logDir)
 
-        cmd = "mkdir -p " + self.cfgDir
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
+        # cmd = "mkdir -p " + self.cfgDir
+        # if os.system(cmd) != 0:
+        #     tdLog.exit(cmd)
+        os.makedirs(self.cfgDir)
 
         cmd = "touch " + self.cfgPath
         if os.system(cmd) != 0:
@@ -225,7 +246,7 @@ class TDDnode:
         if bool(updatecfgDict) and updatecfgDict[0] and updatecfgDict[0][0]:
             print(updatecfgDict[0][0])
             for key, value in updatecfgDict[0][0].items():
-                if key == "clientCfg":
+                if key == "clientCfg" and self.remoteIP == "" and not platform.system().lower() == 'windows':
                     continue
                 if value == 'dataDir':
                     if isFirstDir:
@@ -236,8 +257,11 @@ class TDDnode:
                         self.cfg(value, key)
                 else:
                     self.addExtraCfg(key, value)
-        for key, value in self.cfgDict.items():
-            self.cfg(key, value)
+        if (self.remoteIP == ""):
+            for key, value in self.cfgDict.items():
+                self.cfg(key, value)
+        else:
+            self.remoteExec(self.cfgDict, "tdDnodes.deploy(%d,updateCfgDict)"%self.index)
 
         self.deployed = 1
         tdLog.debug(
@@ -254,11 +278,13 @@ class TDDnode:
 
         paths = []
         for root, dirs, files in os.walk(projPath):
-            if ((tool) in files):
+            if ((tool) in files or ("%s.exe"%tool) in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
                     paths.append(os.path.join(root, tool))
                     break
+        if (len(paths) == 0):
+                return ""
         return paths[0]
 
     def start(self):
@@ -273,54 +299,67 @@ class TDDnode:
             tdLog.exit("dnode:%d is not deployed" % (self.index))
 
         if self.valgrind == 0:
-            cmd = "nohup %s -c %s > /dev/null 2>&1 & " % (
-                binPath, self.cfgDir)
+            if platform.system().lower() == 'windows':
+                cmd = "mintty -h never -w hide %s -c %s" % (
+                    binPath, self.cfgDir)
+            else:
+                cmd = "nohup %s -c %s > /dev/null 2>&1 & " % (
+                    binPath, self.cfgDir)
         else:
-            valgrindCmdline = "valgrind --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"
+            valgrindCmdline = "valgrind --log-file=\"%s/../log/valgrind.log\"  --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"%self.cfgDir
 
-            cmd = "nohup %s %s -c %s 2>&1 & " % (
-                valgrindCmdline, binPath, self.cfgDir)
+            if platform.system().lower() == 'windows':
+                cmd = "mintty -h never -w hide %s %s -c %s" % (
+                    valgrindCmdline, binPath, self.cfgDir)
+            else:
+                cmd = "nohup %s %s -c %s 2>&1 & " % (
+                    valgrindCmdline, binPath, self.cfgDir)
 
             print(cmd)
 
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
-        self.running = 1
-        tdLog.debug("dnode:%d is running with %s " % (self.index, cmd))
-        if self.valgrind == 0:
-            time.sleep(0.1)
-            key = 'from offline to online'
-            bkey = bytes(key, encoding="utf8")
-            logFile = self.logDir + "/taosdlog.0"
-            i = 0
-            while not os.path.exists(logFile):
-                sleep(0.1)
-                i += 1
-                if i > 50:
-                    break
-            popen = subprocess.Popen(
-                'tail -f ' + logFile,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                shell=True)
-            pid = popen.pid
-            # print('Popen.pid:' + str(pid))
-            timeout = time.time() + 60 * 2
-            while True:
-                line = popen.stdout.readline().strip()
-                if bkey in line:
-                    popen.kill()
-                    break
-                if time.time() > timeout:
-                    tdLog.exit('wait too long for taosd start')
-            tdLog.debug("the dnode:%d has been started." % (self.index))
+        if (not self.remoteIP == ""):
+            self.remoteExec(self.cfgDict, "tdDnodes.dnodes[%d].deployed=1\ntdDnodes.dnodes[%d].logDir=\"%%s/sim/dnode%%d/log\"%%(tdDnodes.dnodes[%d].path,%d)\ntdDnodes.dnodes[%d].cfgDir=\"%%s/sim/dnode%%d/cfg\"%%(tdDnodes.dnodes[%d].path,%d)\ntdDnodes.start(%d)"%(self.index-1,self.index-1,self.index-1,self.index,self.index-1,self.index-1,self.index,self.index))
+            self.running = 1
         else:
-            tdLog.debug(
-                "wait 10 seconds for the dnode:%d to start." %
-                (self.index))
-            time.sleep(10)
-
-        # time.sleep(5)
+            os.system("rm -rf %s/taosdlog.0"%self.logDir)
+            if os.system(cmd) != 0:
+                tdLog.exit(cmd)
+            self.running = 1
+            print("dnode:%d is running with %s " % (self.index, cmd))
+            tdLog.debug("dnode:%d is running with %s " % (self.index, cmd))
+            if self.valgrind == 0:
+                time.sleep(0.1)
+                key = 'from offline to online'
+                bkey = bytes(key, encoding="utf8")
+                logFile = self.logDir + "/taosdlog.0"
+                i = 0
+                while not os.path.exists(logFile):
+                    sleep(0.1)
+                    i += 1
+                    if i > 50:
+                        break
+                tailCmdStr = 'tail -f '
+                popen = subprocess.Popen(
+                    tailCmdStr + logFile,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    shell=True)
+                pid = popen.pid
+                # print('Popen.pid:' + str(pid))
+                timeout = time.time() + 60 * 2
+                while True:
+                    line = popen.stdout.readline().strip()
+                    if bkey in line:
+                        popen.kill()
+                        break
+                    if time.time() > timeout:
+                        tdLog.exit('wait too long for taosd start')
+                tdLog.debug("the dnode:%d has been started." % (self.index))
+            else:
+                tdLog.debug(
+                    "wait 10 seconds for the dnode:%d to start." %
+                    (self.index))
+                time.sleep(10)
 
     def startWithoutSleep(self):
         binPath = self.getPath()
@@ -337,19 +376,27 @@ class TDDnode:
             cmd = "nohup %s -c %s > /dev/null 2>&1 & " % (
                 binPath, self.cfgDir)
         else:
-            valgrindCmdline = "valgrind --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"
+            valgrindCmdline = "valgrind  --log-file=\"%s/../log/valgrind.log\"  --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"%self.cfgDir
 
             cmd = "nohup %s %s -c %s 2>&1 & " % (
                 valgrindCmdline, binPath, self.cfgDir)
 
             print(cmd)
 
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
+        if (self.remoteIP == ""):
+            if os.system(cmd) != 0:
+                tdLog.exit(cmd)
+        else:
+            self.remoteExec(self.cfgDict, "tdDnodes.dnodes[%d].deployed=1\ntdDnodes.dnodes[%d].logDir=\"%%s/sim/dnode%%d/log\"%%(tdDnodes.dnodes[%d].path,%d)\ntdDnodes.dnodes[%d].cfgDir=\"%%s/sim/dnode%%d/cfg\"%%(tdDnodes.dnodes[%d].path,%d)\ntdDnodes.startWithoutSleep(%d)"%(self.index-1,self.index-1,self.index-1,self.index,self.index-1,self.index-1,self.index,self.index))
+
         self.running = 1
         tdLog.debug("dnode:%d is running with %s " % (self.index, cmd))
 
     def stop(self):
+        if (not self.remoteIP == ""):
+            self.remoteExec(self.cfgDict, "tdDnodes.dnodes[%d].running=1\ntdDnodes.dnodes[%d].stop()"%(self.index-1,self.index-1))
+            tdLog.info("stop dnode%d"%self.index)
+            return
         if self.valgrind == 0:
             toBeKilled = "taosd"
         else:
@@ -366,9 +413,10 @@ class TDDnode:
                 time.sleep(1)
                 processID = subprocess.check_output(
                     psCmd, shell=True).decode("utf-8")
-            for port in range(6030, 6041):
-                fuserCmd = "fuser -k -n tcp %d" % port
-                os.system(fuserCmd)
+            if not platform.system().lower() == 'windows':
+                for port in range(6030, 6041):
+                    fuserCmd = "fuser -k -n tcp %d > /dev/null" % port
+                    os.system(fuserCmd)
             if self.valgrind:
                 time.sleep(2)
 
@@ -376,6 +424,9 @@ class TDDnode:
             tdLog.debug("dnode:%d is stopped by kill -INT" % (self.index))
 
     def forcestop(self):
+        if (not self.remoteIP == ""):
+            self.remoteExec(self.cfgDict, "tdDnodes.dnodes[%d].running=1\ntdDnodes.dnodes[%d].forcestop()"%(self.index-1,self.index-1))
+            return
         if self.valgrind == 0:
             toBeKilled = "taosd"
         else:
@@ -440,54 +491,23 @@ class TDDnodes:
         self.dnodes.append(TDDnode(9))
         self.dnodes.append(TDDnode(10))
         self.simDeployed = False
+        self.testCluster = False
+        self.valgrind = 0
+        self.killValgrind = 1
 
-    def init(self, path):
-        psCmd = "ps -ef|grep -w taosd| grep -v grep| grep -v defunct | awk '{print $2}'"
-        processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
-        while(processID):
-            killCmd = "kill -9 %s > /dev/null 2>&1" % processID
-            os.system(killCmd)
-            time.sleep(1)
-            processID = subprocess.check_output(
-                psCmd, shell=True).decode("utf-8")
-
-        psCmd = "ps -ef|grep -w valgrind.bin| grep -v grep | awk '{print $2}'"
-        processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
-        while(processID):
-            killCmd = "kill -9 %s > /dev/null 2>&1" % processID
-            os.system(killCmd)
-            time.sleep(1)
-            processID = subprocess.check_output(
-                psCmd, shell=True).decode("utf-8")
-
+    def init(self, path, remoteIP = ""):
         binPath = self.dnodes[0].getPath() + "/../../../"
-        tdLog.debug("binPath %s" % (binPath))
+        # tdLog.debug("binPath %s" % (binPath))
         binPath = os.path.realpath(binPath)
-        tdLog.debug("binPath real path %s" % (binPath))
-
-        # cmd = "sudo cp %s/build/lib/libtaos.so /usr/local/lib/taos/" % (binPath)
-        # tdLog.debug(cmd)
-        # os.system(cmd)
-
-        # cmd = "sudo cp %s/build/bin/taos /usr/local/bin/taos/" % (binPath)
-        # if os.system(cmd) != 0 :
-        #  tdLog.exit(cmd)
-        # tdLog.debug("execute %s" % (cmd))
-
-        # cmd = "sudo cp %s/build/bin/taosd /usr/local/bin/taos/" % (binPath)
-        # if os.system(cmd) != 0 :
-        # tdLog.exit(cmd)
-        # tdLog.debug("execute %s" % (cmd))
+        # tdLog.debug("binPath real path %s" % (binPath))
 
         if path == "":
-            # self.path = os.path.expanduser('~')
             self.path = os.path.abspath(binPath + "../../")
         else:
             self.path = os.path.realpath(path)
 
         for i in range(len(self.dnodes)):
-            self.dnodes[i].init(self.path)
-
+            self.dnodes[i].init(self.path, remoteIP)
         self.sim = TDSimClient(self.path)
 
     def setTestCluster(self, value):
@@ -495,6 +515,9 @@ class TDDnodes:
 
     def setValgrind(self, value):
         self.valgrind = value
+
+    def setKillValgrind(self, value):
+        self.killValgrind = value
 
     def deploy(self, index, *updatecfgDict):
         self.sim.setTestCluster(self.testCluster)
@@ -550,6 +573,9 @@ class TDDnodes:
 
     def stopAll(self):
         tdLog.info("stop all dnodes")
+        if (not self.dnodes[0].remoteIP == ""):
+            self.dnodes[0].remoteExec(self.dnodes[0].cfgDict, "for i in range(len(tdDnodes.dnodes)):\n    tdDnodes.dnodes[i].running=1\ntdDnodes.stopAll()")
+            return
         for i in range(len(self.dnodes)):
             self.dnodes[i].stop()
 
@@ -569,14 +595,15 @@ class TDDnodes:
             processID = subprocess.check_output(
                 psCmd, shell=True).decode("utf-8")
 
-        psCmd = "ps -ef|grep -w valgrind.bin| grep -v grep | awk '{print $2}'"
-        processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
-        while(processID):
-            killCmd = "kill -TERM %s > /dev/null 2>&1" % processID
-            os.system(killCmd)
-            time.sleep(1)
-            processID = subprocess.check_output(
-                psCmd, shell=True).decode("utf-8")
+        if self.killValgrind == 1:
+            psCmd = "ps -ef|grep -w valgrind.bin| grep -v grep | awk '{print $2}'"
+            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
+            while(processID):
+                killCmd = "kill -TERM %s > /dev/null 2>&1" % processID
+                os.system(killCmd)
+                time.sleep(1)
+                processID = subprocess.check_output(
+                    psCmd, shell=True).decode("utf-8")
 
         # if os.system(cmd) != 0 :
         # tdLog.exit(cmd)

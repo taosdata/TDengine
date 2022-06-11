@@ -53,79 +53,6 @@ static void    shellResetCommand(SShellCmd *cmd, const char s[]);
 static void    shellClearScreen(int32_t ecmd_pos, int32_t cursor_pos);
 static void    shellShowOnScreen(SShellCmd *cmd);
 
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-// static void shellPrintContinuePrompt() { printf("%s", shell.args.promptContinue); }
-// static void shellPrintPrompt() { printf("%s", shell.args.promptHeader); }
-
-void shellUpdateBuffer(SShellCmd *cmd) {
-  if (shellRegexMatch(cmd->buffer, "(\\s+$)|(^$)", REG_EXTENDED)) strcat(cmd->command, " ");
-  strcat(cmd->buffer, cmd->command);
-
-  memset(cmd->command, 0, SHELL_MAX_COMMAND_SIZE);
-  cmd->cursorOffset = 0;
-}
-
-int shellIsReadyGo(SShellCmd *cmd) {
-  char *total = taosMemoryMalloc(SHELL_MAX_COMMAND_SIZE);
-  memset(total, 0, SHELL_MAX_COMMAND_SIZE);
-  sprintf(total, "%s%s", cmd->buffer, cmd->command);
-
-  char *reg_str =
-      "(^.*;\\s*$)|(^\\s*$)|(^\\s*exit\\s*$)|(^\\s*q\\s*$)|(^\\s*quit\\s*$)|(^"
-      "\\s*clear\\s*$)";
-  if (shellRegexMatch(total, reg_str, REG_EXTENDED | REG_ICASE)) {
-    taosMemoryFree(total);
-    return 1;
-  }
-
-  taosMemoryFree(total);
-  return 0;
-}
-
-void shellInsertChar(SShellCmd *cmd, char c) {
-  if (cmd->cursorOffset >= SHELL_MAX_COMMAND_SIZE) {
-    fprintf(stdout, "sql is larger than %d bytes", SHELL_MAX_COMMAND_SIZE);
-    return;
-  }
-  cmd->command[cmd->cursorOffset++] = c;
-}
-
-int32_t shellReadCommand(char command[]) {
-  SShellCmd cmd;
-  memset(&cmd, 0, sizeof(cmd));
-  cmd.buffer = (char *)taosMemoryCalloc(1, SHELL_MAX_COMMAND_SIZE);
-  cmd.command = (char *)taosMemoryCalloc(1, SHELL_MAX_COMMAND_SIZE);
-
-  // Read input.
-  char c;
-  while (1) {
-    c = getchar();
-
-    switch (c) {
-      case '\n':
-      case '\r':
-        if (shellIsReadyGo(&cmd)) {
-          sprintf(command, "%s%s", cmd.buffer, cmd.command);
-          taosMemoryFree(cmd.buffer);
-          cmd.buffer = NULL;
-          taosMemoryFree(cmd.command);
-          cmd.command = NULL;
-          return 0;
-        } else {
-          // shellPrintContinuePrompt();
-          shellUpdateBuffer(&cmd);
-        }
-        break;
-      default:
-        shellInsertChar(&cmd, c);
-    }
-  }
-
-  return 0;
-}
-
-#else
-
 int32_t shellCountPrefixOnes(uint8_t c) {
   uint8_t mask = 127;
   mask = ~mask;
@@ -181,7 +108,10 @@ void shellInsertChar(SShellCmd *cmd, char *c, int32_t size) {
   cmd->cursorOffset += size;
   cmd->screenOffset += taosWcharWidth(wc);
   cmd->endOffset += taosWcharWidth(wc);
+#ifdef WINDOWS
+#else
   shellShowOnScreen(cmd);
+#endif
 }
 
 void shellBackspaceChar(SShellCmd *cmd) {
@@ -371,17 +301,33 @@ void shellResetCommand(SShellCmd *cmd, const char s[]) {
   shellShowOnScreen(cmd);
 }
 
-void shellClearScreen(int32_t ecmd_pos, int32_t cursor_pos) {
+
+void shellGetScreenSize(int32_t *ws_col, int32_t *ws_row) {
+#ifdef WINDOWS
+  CONSOLE_SCREEN_BUFFER_INFO csbi;
+  GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
+  if (ws_col != NULL) *ws_col = csbi.srWindow.Right - csbi.srWindow.Left + 1;
+  if (ws_row != NULL) *ws_row = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
+#else
   struct winsize w;
   if (ioctl(0, TIOCGWINSZ, &w) < 0 || w.ws_col == 0 || w.ws_row == 0) {
     // fprintf(stderr, "No stream device, and use default value(col 120, row 30)\n");
-    w.ws_col = 120;
-    w.ws_row = 30;
+    if (ws_col != NULL) *ws_col = 120;
+    if (ws_row != NULL) *ws_row = 30;
+  } else {
+    if (ws_col != NULL) *ws_col = w.ws_col;
+    if (ws_row != NULL) *ws_row = w.ws_row;
   }
+#endif
+}
 
-  int32_t cursor_x = cursor_pos / w.ws_col;
-  int32_t cursor_y = cursor_pos % w.ws_col;
-  int32_t command_x = ecmd_pos / w.ws_col;
+void shellClearScreen(int32_t ecmd_pos, int32_t cursor_pos) {
+  int32_t ws_col;
+  shellGetScreenSize(&ws_col, NULL);
+
+  int32_t cursor_x = cursor_pos / ws_col;
+  int32_t cursor_y = cursor_pos % ws_col;
+  int32_t command_x = ecmd_pos / ws_col;
   shellPositionCursor(cursor_y, LEFT);
   shellPositionCursor(command_x - cursor_x, DOWN);
   fprintf(stdout, "\033[2K");
@@ -393,12 +339,8 @@ void shellClearScreen(int32_t ecmd_pos, int32_t cursor_pos) {
 }
 
 void shellShowOnScreen(SShellCmd *cmd) {
-  struct winsize w;
-  if (ioctl(0, TIOCGWINSZ, &w) < 0 || w.ws_col == 0 || w.ws_row == 0) {
-    // fprintf(stderr, "No stream device\n");
-    w.ws_col = 120;
-    w.ws_row = 30;
-  }
+  int32_t ws_col;
+  shellGetScreenSize(&ws_col, NULL);
 
   TdWchar wc;
   int32_t size = 0;
@@ -411,8 +353,7 @@ void shellShowOnScreen(SShellCmd *cmd) {
   } else {
     sprintf(total_string, "%s%s", shell.info.promptContinue, cmd->command);
   }
-
-  int32_t remain_column = w.ws_col;
+  int32_t remain_column = ws_col;
   for (char *str = total_string; size < cmd->commandSize + PSIZE;) {
     int32_t ret = taosMbToWchar(&wc, str, MB_CUR_MAX);
     if (ret < 0) break;
@@ -425,10 +366,10 @@ void shellShowOnScreen(SShellCmd *cmd) {
     } else {
       if (remain_column == width) {
         printf("%lc\n\r", wc);
-        remain_column = w.ws_col;
+        remain_column = ws_col;
       } else {
         printf("\n\r%lc", wc);
-        remain_column = w.ws_col - width;
+        remain_column = ws_col - width;
       }
     }
 
@@ -436,17 +377,16 @@ void shellShowOnScreen(SShellCmd *cmd) {
   }
 
   taosMemoryFree(total_string);
-
   // Position the cursor
   int32_t cursor_pos = cmd->screenOffset + PSIZE;
   int32_t ecmd_pos = cmd->endOffset + PSIZE;
 
-  int32_t cursor_x = cursor_pos / w.ws_col;
-  int32_t cursor_y = cursor_pos % w.ws_col;
-  // int32_t cursor_y = cursor % w.ws_col;
-  int32_t command_x = ecmd_pos / w.ws_col;
-  int32_t command_y = ecmd_pos % w.ws_col;
-  // int32_t command_y = (command.size() + PSIZE) % w.ws_col;
+  int32_t cursor_x = cursor_pos / ws_col;
+  int32_t cursor_y = cursor_pos % ws_col;
+  // int32_t cursor_y = cursor % ws_col;
+  int32_t command_x = ecmd_pos / ws_col;
+  int32_t command_y = ecmd_pos % ws_col;
+  // int32_t command_y = (command.size() + PSIZE) % ws_col;
   shellPositionCursor(command_y, LEFT);
   shellPositionCursor(command_x, UP);
   shellPositionCursor(cursor_x, DOWN);
@@ -490,7 +430,11 @@ int32_t shellReadCommand(char *command) {
         case 3:
           printf("\n");
           shellResetCommand(&cmd, "");
-          kill(0, SIGINT);
+          #ifdef WINDOWS
+            raise(SIGINT);
+          #else
+            kill(0, SIGINT);
+          #endif
           break;
         case 4:  // EOF or Ctrl+D
           printf("\n");
@@ -503,7 +447,10 @@ int32_t shellReadCommand(char *command) {
           break;
         case '\n':
         case '\r':
+        #ifdef WINDOWS 
+        #else
           printf("\n");
+        #endif
           if (shellIsReadyGo(&cmd)) {
             sprintf(command, "%s%s", cmd.buffer, cmd.command);
             taosMemoryFreeClear(cmd.buffer);
@@ -608,5 +555,3 @@ int32_t shellReadCommand(char *command) {
 
   return 0;
 }
-
-#endif

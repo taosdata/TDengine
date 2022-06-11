@@ -3,7 +3,11 @@ import taos
 import sys
 import time
 import socket
-import pexpect
+import platform
+if platform.system().lower() == 'windows':
+    import wexpect as taosExpect
+else:
+    import pexpect as taosExpect
 import os
 
 from util.log import *
@@ -15,7 +19,11 @@ def taos_command (buildPath, key, value, expectString, cfgDir, sqlString='', key
     if len(key) == 0:
         tdLog.exit("taos test key is null!")
     
-    taosCmd = buildPath + '/build/bin/taos '
+    if platform.system().lower() == 'windows':
+        taosCmd = buildPath + '\\build\\bin\\taos.exe '
+        taosCmd = taosCmd.replace('\\','\\\\')
+    else:
+        taosCmd = buildPath + '/build/bin/taos '
     if len(cfgDir) != 0:
         taosCmd = taosCmd + '-c ' + cfgDir
 
@@ -36,23 +44,29 @@ def taos_command (buildPath, key, value, expectString, cfgDir, sqlString='', key
 
     tdLog.info ("taos cmd: %s" % taosCmd)
 
-    child = pexpect.spawn(taosCmd, timeout=3)
+    child = taosExpect.spawn(taosCmd, timeout=3)
     #output = child.readline()
     #print (output.decode())
     if len(expectString) != 0:
-        i = child.expect([expectString, pexpect.TIMEOUT, pexpect.EOF], timeout=6)
+        i = child.expect([expectString, taosExpect.TIMEOUT, taosExpect.EOF], timeout=6)
     else:
-        i = child.expect([pexpect.TIMEOUT, pexpect.EOF], timeout=6)
+        i = child.expect([taosExpect.TIMEOUT, taosExpect.EOF], timeout=6)
 
-    retResult = child.before.decode()
+    if platform.system().lower() == 'windows':
+        retResult = child.before
+    else:
+        retResult = child.before.decode()
     print("expect() return code: %d, content:\n %s\n"%(i, retResult))
     #print(child.after.decode())
     if i == 0:
         print ('taos login success! Here can run sql, taos> ')
         if len(sqlString) != 0:
             child.sendline (sqlString)
-            w = child.expect(["Query OK", pexpect.TIMEOUT, pexpect.EOF], timeout=1)
-            retResult = child.before.decode()
+            w = child.expect(["Query OK", taosExpect.TIMEOUT, taosExpect.EOF], timeout=1)
+            if platform.system().lower() == 'windows':
+                retResult = child.before
+            else:
+                retResult = child.before.decode()
             if w == 0:
                 return "TAOS_OK", retResult
             else:
@@ -72,6 +86,12 @@ class TDTestCase:
     #updatecfgDict = {'clientCfg': {'serverPort': 7080, 'firstEp': 'trd02:7080', 'secondEp':'trd02:7080'},\
     #                 'serverPort': 7080, 'firstEp': 'trd02:7080'}
     hostname = socket.gethostname()
+    if (platform.system().lower() == 'windows' and not tdDnodes.dnodes[0].remoteIP == ""):
+        try:
+            config = eval(tdDnodes.dnodes[0].remoteIP )
+            hostname = config["host"]
+        except Exception:
+            hostname = tdDnodes.dnodes[0].remoteIP
     serverPort = '7080'
     rpcDebugFlagVal = '143'
     clientCfgDict = {'serverPort': '', 'firstEp': '', 'secondEp':'', 'rpcDebugFlag':'135', 'fqdn':''}
@@ -103,7 +123,7 @@ class TDTestCase:
             projPath = selfPath[:selfPath.find("tests")]
 
         for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
+            if ("taosd" in files or "taosd.exe" in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
                     buildPath = root[:len(root) - len("/build/bin")]
@@ -167,35 +187,51 @@ class TDTestCase:
         # stop taosd
         tdDnodes.stop(1)        
 
-        role   = 'server'
-        taosCmd = 'nohup ' + buildPath + '/build/bin/taos -c ' + keyDict['c']
-        taosCmd = taosCmd + ' -n ' + role + ' > /dev/null 2>&1 &'
-        print (taosCmd)
-        os.system(taosCmd)
+        try:
+            role   = 'server'
+            if platform.system().lower() == 'windows':
+                taosCmd = 'mintty -h never -w hide ' + buildPath + '\\build\\bin\\taos.exe -c ' + keyDict['c']
+                taosCmd = taosCmd.replace('\\','\\\\')
+                taosCmd = taosCmd + ' -n ' + role
+            else:
+                taosCmd = 'nohup ' + buildPath + '/build/bin/taos -c ' + keyDict['c']
+                taosCmd = taosCmd + ' -n ' + role + ' > /dev/null 2>&1 &'
+            print (taosCmd)
+            os.system(taosCmd)
 
-        pktLen = '2000'
-        pktNum = '10'
-        role   = 'client'
-        taosCmd = buildPath + '/build/bin/taos -c ' + keyDict['c']
-        taosCmd = taosCmd + ' -n ' + role + ' -l ' + pktLen + ' -N ' +  pktNum
-        print (taosCmd)
-        child = pexpect.spawn(taosCmd, timeout=3)
-        i = child.expect([pexpect.TIMEOUT, pexpect.EOF], timeout=6)
+            pktLen = '2000'
+            pktNum = '10'
+            role   = 'client'
+            if platform.system().lower() == 'windows':
+                taosCmd = buildPath + '\\build\\bin\\taos.exe -h 127.0.0.1 -c ' + keyDict['c']
+                taosCmd = taosCmd.replace('\\','\\\\')
+            else:
+                taosCmd = buildPath + '/build/bin/taos -c ' + keyDict['c']
+            taosCmd = taosCmd + ' -n ' + role + ' -l ' + pktLen + ' -N ' +  pktNum
+            print (taosCmd)
+            child = taosExpect.spawn(taosCmd, timeout=3)
+            i = child.expect([taosExpect.TIMEOUT, taosExpect.EOF], timeout=6)
 
-        retResult = child.before.decode()
-        print("expect() return code: %d, content:\n %s\n"%(i, retResult))
-        #print(child.after.decode())
-        if i == 0:
-            tdLog.exit('taos -n server fail!')
-        
-        expectString1 = 'response is received, size:' + pktLen
-        expectSTring2 = pktNum + '/' + pktNum
-        if expectString1 in retResult and expectSTring2 in retResult:
-            tdLog.info("taos -n client success")
-        else:
-            tdLog.exit('taos -n client fail!')
-
-        os.system('pkill taos')
+            if platform.system().lower() == 'windows':
+                retResult = child.before
+            else:
+                retResult = child.before.decode()
+            print("expect() return code: %d, content:\n %s\n"%(i, retResult))
+            #print(child.after.decode())
+            if i == 0:
+                tdLog.exit('taos -n server fail!')
+            
+            expectString1 = 'response is received, size:' + pktLen
+            expectSTring2 = pktNum + '/' + pktNum
+            if expectString1 in retResult and expectSTring2 in retResult:
+                tdLog.info("taos -n client success")
+            else:
+                tdLog.exit('taos -n client fail!')
+        finally:
+            if platform.system().lower() == 'windows':
+                os.system('ps -a | grep taos | awk \'{print $2}\' | xargs kill -9')
+            else:
+                os.system('pkill taos')
 
     def stop(self):
         tdSql.close()

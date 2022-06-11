@@ -127,9 +127,11 @@ int32_t tBucketIntHash(tMemBucket *pBucket, const void *value) {
     int64_t delta = v - pBucket->range.i64MinVal;
     index = (delta % pBucket->numOfSlots);
   } else {
-    double slotSpan = (double)span / pBucket->numOfSlots;
-    index = (int32_t)((v - pBucket->range.i64MinVal) / slotSpan);
-    if (v == pBucket->range.i64MaxVal) {
+    double slotSpan = ((double)span) / pBucket->numOfSlots;
+    uint64_t delta = v - pBucket->range.i64MinVal;
+
+    index = (int32_t)(delta / slotSpan);
+    if (v == pBucket->range.i64MaxVal || index == pBucket->numOfSlots) {
       index -= 1;
     }
   }
@@ -255,7 +257,7 @@ tMemBucket *tMemBucketCreate(int16_t nElemSize, int16_t dataType, double minval,
 
   resetSlotInfo(pBucket);
 
-  int32_t ret = createDiskbasedBuf(&pBucket->pBuffer, pBucket->bufPageSize, pBucket->bufPageSize * 512, "1", "/tmp");
+  int32_t ret = createDiskbasedBuf(&pBucket->pBuffer, pBucket->bufPageSize, pBucket->bufPageSize * 512, "1", TD_TMP_DIR_PATH);
   if (ret != 0) {
     tMemBucketDestroy(pBucket);
     return NULL;
@@ -324,7 +326,6 @@ int32_t tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size) {
   int32_t bytes = pBucket->bytes;
   for (int32_t i = 0; i < size; ++i) {
     char *d = (char *) data + i * bytes;
-
     int32_t index = (pBucket->hashFunc)(pBucket, d);
     if (index < 0) {
       continue;

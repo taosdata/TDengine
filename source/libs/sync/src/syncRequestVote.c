@@ -15,6 +15,7 @@
 
 #include "syncRequestVote.h"
 #include "syncInt.h"
+#include "syncRaftCfg.h"
 #include "syncRaftStore.h"
 #include "syncUtil.h"
 #include "syncVoteMgr.h"
@@ -44,7 +45,7 @@
 int32_t syncNodeOnRequestVoteCb(SSyncNode* ths, SyncRequestVote* pMsg) {
   int32_t ret = 0;
 
-  char logBuf[128];
+  char logBuf[128] = {0};
   snprintf(logBuf, sizeof(logBuf), "==syncNodeOnRequestVoteCb== term:%lu", ths->pRaftStore->currentTerm);
   syncRequestVoteLog2(logBuf, pMsg);
 
@@ -62,8 +63,72 @@ int32_t syncNodeOnRequestVoteCb(SSyncNode* ths, SyncRequestVote* pMsg) {
     // maybe has already voted for pMsg->srcId
     // vote again, no harm
     raftStoreVote(ths->pRaftStore, &(pMsg->srcId));
+
+    // forbid elect for this round
+    syncNodeResetElectTimer(ths);
   }
 
+  SyncRequestVoteReply* pReply = syncRequestVoteReplyBuild(ths->vgId);
+  pReply->srcId = ths->myRaftId;
+  pReply->destId = pMsg->srcId;
+  pReply->term = ths->pRaftStore->currentTerm;
+  pReply->voteGranted = grant;
+
+  SRpcMsg rpcMsg;
+  syncRequestVoteReply2RpcMsg(pReply, &rpcMsg);
+  syncNodeSendMsgById(&pReply->destId, ths, &rpcMsg);
+  syncRequestVoteReplyDestroy(pReply);
+
+  return ret;
+}
+
+static bool syncNodeOnRequestVoteLogOK(SSyncNode* pSyncNode, SyncRequestVote* pMsg) {
+  SyncTerm  myLastTerm = syncNodeGetLastTerm(pSyncNode);
+  SyncIndex myLastIndex = syncNodeGetLastIndex(pSyncNode);
+
+  if (pMsg->lastLogTerm > myLastTerm) {
+    return true;
+  }
+  if (pMsg->lastLogTerm == myLastTerm && pMsg->lastLogIndex >= myLastIndex) {
+    return true;
+  }
+
+  return false;
+}
+
+int32_t syncNodeOnRequestVoteSnapshotCb(SSyncNode* ths, SyncRequestVote* pMsg) {
+  int32_t ret = 0;
+
+  // print log
+  char logBuf[128] = {0};
+  snprintf(logBuf, sizeof(logBuf), "recv SyncRequestVote, currentTerm:%lu", ths->pRaftStore->currentTerm);
+  syncRequestVoteLog2(logBuf, pMsg);
+
+  // if already drop replica, do not process
+  if (!syncNodeInRaftGroup(ths, &(pMsg->srcId)) && !ths->pRaftCfg->isStandBy) {
+    sInfo("recv SyncRequestVote maybe replica already dropped");
+    return ret;
+  }
+
+  // maybe update term
+  if (pMsg->term > ths->pRaftStore->currentTerm) {
+    syncNodeUpdateTerm(ths, pMsg->term);
+  }
+  ASSERT(pMsg->term <= ths->pRaftStore->currentTerm);
+
+  bool logOK = syncNodeOnRequestVoteLogOK(ths, pMsg);
+  bool grant = (pMsg->term == ths->pRaftStore->currentTerm) && logOK &&
+               ((!raftStoreHasVoted(ths->pRaftStore)) || (syncUtilSameId(&(ths->pRaftStore->voteFor), &(pMsg->srcId))));
+  if (grant) {
+    // maybe has already voted for pMsg->srcId
+    // vote again, no harm
+    raftStoreVote(ths->pRaftStore, &(pMsg->srcId));
+
+    // forbid elect for this round
+    syncNodeResetElectTimer(ths);
+  }
+
+  // send msg
   SyncRequestVoteReply* pReply = syncRequestVoteReplyBuild(ths->vgId);
   pReply->srcId = ths->myRaftId;
   pReply->destId = pMsg->srcId;

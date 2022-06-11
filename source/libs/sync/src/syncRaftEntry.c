@@ -59,14 +59,14 @@ SSyncRaftEntry* syncEntryBuildNoop(SyncTerm term, SyncIndex index, int32_t vgId)
   memset(&rpcMsg, 0, sizeof(SRpcMsg));
   rpcMsg.contLen = head.contLen;
   rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
-  rpcMsg.msgType = TDMT_VND_SYNC_NOOP;
+  rpcMsg.msgType = TDMT_SYNC_NOOP;
   memcpy(rpcMsg.pCont, &head, sizeof(head));
 
   SSyncRaftEntry* pEntry = syncEntryBuild(rpcMsg.contLen);
   assert(pEntry != NULL);
 
-  pEntry->msgType = TDMT_VND_SYNC_CLIENT_REQUEST;
-  pEntry->originalRpcType = TDMT_VND_SYNC_NOOP;
+  pEntry->msgType = TDMT_SYNC_CLIENT_REQUEST;
+  pEntry->originalRpcType = TDMT_SYNC_NOOP;
   pEntry->seqNum = 0;
   pEntry->isWeak = 0;
   pEntry->term = term;
@@ -107,7 +107,7 @@ SSyncRaftEntry* syncEntryDeserialize(const char* buf, uint32_t len) {
 }
 
 cJSON* syncEntry2Json(const SSyncRaftEntry* pEntry) {
-  char   u64buf[128];
+  char   u64buf[128] = {0};
   cJSON* pRoot = cJSON_CreateObject();
 
   if (pEntry != NULL) {

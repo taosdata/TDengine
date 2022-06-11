@@ -5,7 +5,9 @@ target_link_libraries(
     PUBLIC sut
 )
 
-add_test(
-    NAME dbTest
-    COMMAND dbTest
-)
+if(NOT TD_WINDOWS)
+    add_test(
+        NAME dbTest
+        COMMAND dbTest
+    )
+endif(NOT TD_WINDOWS)

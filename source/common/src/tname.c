@@ -127,7 +127,7 @@ int32_t tNameExtractFullName(const SName* name, char* dst) {
 
   size_t tnameLen = strlen(name->tname);
   if (tnameLen > 0) {
-    assert(name->type == TSDB_TABLE_NAME_T);
+    /*assert(name->type == TSDB_TABLE_NAME_T);*/
     dst[len] = TS_PATH_DELIMITER[0];
 
     memcpy(dst + len + 1, name->tname, tnameLen);
@@ -250,7 +250,7 @@ int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
       return -1;
     }
 
-    dst->acctId = strtoll(str, NULL, 10);
+    dst->acctId = taosStr2Int32(str, NULL, 10);
   }
 
   if ((type & T_NAME_DB) == T_NAME_DB) {
@@ -308,16 +308,17 @@ static int compareKv(const void* p1, const void* p2) {
  * use stable name and tags to grearate child table name
  */
 void buildChildTableName(RandTableName* rName) {
-  int32_t size = taosArrayGetSize(rName->tags);
-  ASSERT(size > 0);
-  taosArraySort(rName->tags, compareKv);
-
   SStringBuilder sb = {0};
   taosStringBuilderAppendStringLen(&sb, rName->sTableName, rName->sTableNameLen);
-  for (int j = 0; j < size; ++j) {
+  taosArraySort(rName->tags, compareKv);
+  for (int j = 0; j < taosArrayGetSize(rName->tags); ++j) {
     SSmlKv* tagKv = taosArrayGetP(rName->tags, j);
     taosStringBuilderAppendStringLen(&sb, tagKv->key, tagKv->keyLen);
-    taosStringBuilderAppendStringLen(&sb, tagKv->value, tagKv->valueLen);
+    if (IS_VAR_DATA_TYPE(tagKv->type)) {
+      taosStringBuilderAppendStringLen(&sb, tagKv->value, tagKv->length);
+    } else {
+      taosStringBuilderAppendStringLen(&sb, (char*)(&(tagKv->value)), tagKv->length);
+    }
   }
   size_t    len = 0;
   char*     keyJoined = taosStringBuilderGetResult(&sb, &len);

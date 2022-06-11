@@ -69,7 +69,6 @@ void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, cha
   }
 
   strcpy(tmpPath + len, tdengineTmpFileNamePrefix);
-  strcat(tmpPath, tdengineTmpFileNamePrefix);
   if (strlen(tmpPath) + strlen(fileNamePrefix) + strlen("-%d-%s") < PATH_MAX) {
     strcat(tmpPath, fileNamePrefix);
     strcat(tmpPath, "-%d-%s");
@@ -109,7 +108,11 @@ void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, cha
 
 int64_t taosCopyFile(const char *from, const char *to) {
 #ifdef WINDOWS
-  return 0;
+  if (CopyFile(from, to, 0)) {
+    return 1;
+  } else {
+    return -1;
+  }
 #else
   char    buffer[4096];
   int64_t size = 0;
@@ -152,16 +155,16 @@ int32_t taosRemoveFile(const char *path) { return remove(path); }
 
 int32_t taosRenameFile(const char *oldName, const char *newName) {
 #ifdef WINDOWS
-  int32_t code = MoveFileEx(oldName, newName, MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED);
-  if (code < 0) {
-    // printf("failed to rename file %s to %s, reason:%s", oldName, newName, strerror(errno));
+  bool code = MoveFileEx(oldName, newName, MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED);
+  if (!code) {
+    printf("failed to rename file %s to %s, reason:%s", oldName, newName, strerror(errno));
   }
 
-  return code;
+  return !code;
 #else
   int32_t code = rename(oldName, newName);
   if (code < 0) {
-    // printf("failed to rename file %s to %s, reason:%s", oldName, newName, strerror(errno));
+    printf("failed to rename file %s to %s, reason:%s", oldName, newName, strerror(errno));
   }
 
   return code;
@@ -169,11 +172,12 @@ int32_t taosRenameFile(const char *oldName, const char *newName) {
 }
 
 int32_t taosStatFile(const char *path, int64_t *size, int32_t *mtime) {
-#ifdef WINDOWS
-  return 0;
-#else
   struct stat fileStat;
-  int32_t     code = stat(path, &fileStat);
+#ifdef WINDOWS
+  int32_t code = _stat(path, &fileStat);
+#else
+  int32_t code = stat(path, &fileStat);
+#endif
   if (code < 0) {
     return code;
   }
@@ -187,15 +191,36 @@ int32_t taosStatFile(const char *path, int64_t *size, int32_t *mtime) {
   }
 
   return 0;
-#endif
 }
-int32_t taosDevInoFile(const char *path, int64_t *stDev, int64_t *stIno) {
+int32_t taosDevInoFile(TdFilePtr pFile, int64_t *stDev, int64_t *stIno) {
+  if (pFile == NULL) {
+    return 0;
+  }
+  assert(pFile->fd >= 0);  // Please check if you have closed the file.
+
 #ifdef WINDOWS
-  return 0;
+
+  BY_HANDLE_FILE_INFORMATION bhfi;
+  HANDLE                     handle = (HANDLE)_get_osfhandle(pFile->fd);
+  if (GetFileInformationByHandle(handle, &bhfi) == FALSE) {
+    printf("taosFStatFile get file info fail.");
+    return -1;
+  }
+
+  if (stDev != NULL) {
+    *stDev = (int64_t)(bhfi.dwVolumeSerialNumber);
+  }
+
+  if (stIno != NULL) {
+    *stIno = (int64_t)((((uint64_t)bhfi.nFileIndexHigh) << 32) + bhfi.nFileIndexLow);
+  }
+
 #else
+
   struct stat fileStat;
-  int32_t     code = stat(path, &fileStat);
+  int32_t     code = fstat(pFile->fd, &fileStat);
   if (code < 0) {
+    printf("taosFStatFile run fstat fail.");
     return code;
   }
 
@@ -206,9 +231,9 @@ int32_t taosDevInoFile(const char *path, int64_t *stDev, int64_t *stIno) {
   if (stIno != NULL) {
     *stIno = fileStat.st_ino;
   }
+#endif
 
   return 0;
-#endif
 }
 
 void autoDelFileListAdd(const char *path) { return; }
@@ -276,9 +301,6 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
 }
 
 int64_t taosCloseFile(TdFilePtr *ppFile) {
-#ifdef WINDOWS
-  return 0;
-#else
   if (ppFile == NULL || *ppFile == NULL) {
     return 0;
   }
@@ -294,7 +316,12 @@ int64_t taosCloseFile(TdFilePtr *ppFile) {
     (*ppFile)->fp = NULL;
   }
   if ((*ppFile)->fd >= 0) {
+#ifdef WINDOWS
+    HANDLE h = (HANDLE)_get_osfhandle((*ppFile)->fd);
+    !FlushFileBuffers(h);
+#else
     fsync((*ppFile)->fd);
+#endif
     close((*ppFile)->fd);
     (*ppFile)->fd = -1;
   }
@@ -306,7 +333,6 @@ int64_t taosCloseFile(TdFilePtr *ppFile) {
   taosMemoryFree(*ppFile);
   *ppFile = NULL;
   return 0;
-#endif
 }
 
 int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
@@ -319,7 +345,11 @@ int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
   char   *tbuf = (char *)buf;
 
   while (leftbytes > 0) {
+#ifdef WINDOWS
+    readbytes = _read(pFile->fd, (void *)tbuf, (uint32_t)leftbytes);
+#else
     readbytes = read(pFile->fd, (void *)tbuf, (uint32_t)leftbytes);
+#endif
     if (readbytes < 0) {
       if (errno == EINTR) {
         continue;
@@ -355,10 +385,10 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
 #endif
   assert(pFile->fd >= 0);  // Please check if you have closed the file.
 #ifdef WINDOWS
-  size_t pos = lseek(pFile->fd, 0, SEEK_CUR);
-  lseek(pFile->fd, offset, SEEK_SET);
-  int64_t ret = read(pFile->fd, buf, count);
-  lseek(pFile->fd, pos, SEEK_SET);
+  size_t pos = _lseek(pFile->fd, 0, SEEK_CUR);
+  _lseek(pFile->fd, offset, SEEK_SET);
+  int64_t ret = _read(pFile->fd, buf, count);
+  _lseek(pFile->fd, pos, SEEK_SET);
 #else
   int64_t ret = pread(pFile->fd, buf, count, offset);
 #endif
@@ -369,6 +399,9 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
 }
 
 int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {
+  if (pFile == NULL) {
+    return 0;
+  }
 #if FILE_WITH_LOCK
   taosThreadRwlockWrlock(&(pFile->rwlock));
 #endif
@@ -404,7 +437,11 @@ int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence) {
   taosThreadRwlockRdlock(&(pFile->rwlock));
 #endif
   assert(pFile->fd >= 0);  // Please check if you have closed the file.
+#ifdef WINDOWS
+  int64_t ret = _lseek(pFile->fd, offset, whence);
+#else
   int64_t ret = lseek(pFile->fd, offset, whence);
+#endif
 #if FILE_WITH_LOCK
   taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
@@ -412,13 +449,17 @@ int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence) {
 }
 
 int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
-#ifdef WINDOWS
-  return 0;
-#else
+  if (pFile == NULL) {
+    return 0;
+  }
   assert(pFile->fd >= 0);  // Please check if you have closed the file.
 
   struct stat fileStat;
-  int32_t     code = fstat(pFile->fd, &fileStat);
+#ifdef WINDOWS
+  int32_t code = _fstat(pFile->fd, &fileStat);
+#else
+  int32_t code = fstat(pFile->fd, &fileStat);
+#endif
   if (code < 0) {
     return code;
   }
@@ -432,7 +473,6 @@ int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
   }
 
   return 0;
-#endif
 }
 
 int32_t taosLockFile(TdFilePtr pFile) {
@@ -459,7 +499,7 @@ int32_t taosFtruncateFile(TdFilePtr pFile, int64_t l_size) {
 #ifdef WINDOWS
   if (pFile->fd < 0) {
     errno = EBADF;
-    printf("%s\n", "fd arg was negative");
+    printf("Ftruncate file error, fd arg was negative\n");
     return -1;
   }
 
@@ -516,26 +556,20 @@ int32_t taosFtruncateFile(TdFilePtr pFile, int64_t l_size) {
 }
 
 int32_t taosFsyncFile(TdFilePtr pFile) {
-#ifdef WINDOWS
-  if (pFile->fd < 0) {
-    errno = EBADF;
-    printf("%s\n", "fd arg was negative");
-    return -1;
-  }
-
-  HANDLE h = (HANDLE)_get_osfhandle(pFile->fd);
-
-  return !FlushFileBuffers(h);
-#else
   if (pFile == NULL) {
     return 0;
   }
 
   if (pFile->fp != NULL) return fflush(pFile->fp);
-  if (pFile->fd >= 0) return fsync(pFile->fd);
-
-  return 0;
+  if (pFile->fd >= 0) {
+#ifdef WINDOWS
+    HANDLE h = (HANDLE)_get_osfhandle(pFile->fd);
+    return !FlushFileBuffers(h);
+#else
+    return fsync(pFile->fd);
 #endif
+  }
+  return 0;
 }
 
 int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, int64_t size) {
@@ -546,12 +580,12 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
 
 #ifdef WINDOWS
 
-  lseek(pFileIn->fd, (int32_t)(*offset), 0);
+  _lseek(pFileIn->fd, (int32_t)(*offset), 0);
   int64_t writeLen = 0;
   uint8_t buffer[_SEND_FILE_STEP_] = {0};
 
   for (int64_t len = 0; len < (size - _SEND_FILE_STEP_); len += _SEND_FILE_STEP_) {
-    size_t rlen = read(pFileIn->fd, (void *)buffer, _SEND_FILE_STEP_);
+    size_t rlen = _read(pFileIn->fd, (void *)buffer, _SEND_FILE_STEP_);
     if (rlen <= 0) {
       return writeLen;
     } else if (rlen < _SEND_FILE_STEP_) {
@@ -565,7 +599,7 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
 
   int64_t remain = size - writeLen;
   if (remain > 0) {
-    size_t rlen = read(pFileIn->fd, (void *)buffer, (size_t)remain);
+    size_t rlen = _read(pFileIn->fd, (void *)buffer, (size_t)remain);
     if (rlen <= 0) {
       return writeLen;
     } else {

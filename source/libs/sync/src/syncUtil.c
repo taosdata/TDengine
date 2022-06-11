@@ -43,7 +43,7 @@ void syncUtilnodeInfo2EpSet(const SNodeInfo* pNodeInfo, SEpSet* pEpSet) {
 }
 
 void syncUtilraftId2EpSet(const SRaftId* raftId, SEpSet* pEpSet) {
-  char     host[TSDB_FQDN_LEN];
+  char     host[TSDB_FQDN_LEN] = {0};
   uint16_t port;
 
   syncUtilU642Addr(raftId->addr, host, sizeof(host), &port);
@@ -62,7 +62,7 @@ void syncUtilraftId2EpSet(const SRaftId* raftId, SEpSet* pEpSet) {
 void syncUtilnodeInfo2raftId(const SNodeInfo* pNodeInfo, SyncGroupId vgId, SRaftId* raftId) {
   uint32_t ipv4 = taosGetIpv4FromFqdn(pNodeInfo->nodeFqdn);
   assert(ipv4 != 0xFFFFFFFF);
-  char ipbuf[128];
+  char ipbuf[128] = {0};
   tinet_ntoa(ipbuf, ipv4);
   raftId->addr = syncUtilAddr2U64(ipbuf, pNodeInfo->nodePort);
   raftId->vgId = vgId;
@@ -106,7 +106,7 @@ int32_t syncUtilElectRandomMS(int32_t min, int32_t max) {
 int32_t syncUtilQuorum(int32_t replicaNum) { return replicaNum / 2 + 1; }
 
 cJSON* syncUtilNodeInfo2Json(const SNodeInfo* p) {
-  char   u64buf[128];
+  char   u64buf[128] = {0};
   cJSON* pRoot = cJSON_CreateObject();
 
   cJSON_AddStringToObject(pRoot, "nodeFqdn", p->nodeFqdn);
@@ -118,12 +118,12 @@ cJSON* syncUtilNodeInfo2Json(const SNodeInfo* p) {
 }
 
 cJSON* syncUtilRaftId2Json(const SRaftId* p) {
-  char   u64buf[128];
+  char   u64buf[128] = {0};
   cJSON* pRoot = cJSON_CreateObject();
 
   snprintf(u64buf, sizeof(u64buf), "%" PRIu64 "", p->addr);
   cJSON_AddStringToObject(pRoot, "addr", u64buf);
-  char     host[128];
+  char     host[128] = {0};
   uint16_t port;
   syncUtilU642Addr(p->addr, host, sizeof(host), &port);
   cJSON_AddStringToObject(pRoot, "host", host);
@@ -214,30 +214,54 @@ void syncUtilMsgNtoH(void* msg) {
   pHead->vgId = ntohl(pHead->vgId);
 }
 
+#if 0
 bool syncUtilIsData(tmsg_t msgType) {
-  if (msgType == TDMT_VND_SYNC_NOOP || msgType == TDMT_VND_SYNC_CONFIG_CHANGE) {
+  if (msgType == TDMT_SYNC_NOOP || msgType == TDMT_SYNC_CONFIG_CHANGE) {
     return false;
   }
   return true;
 }
+#endif
 
 bool syncUtilUserPreCommit(tmsg_t msgType) {
-  if (msgType != TDMT_VND_SYNC_NOOP && msgType != TDMT_VND_SYNC_CONFIG_CHANGE) {
+  if (msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_CONFIG_CHANGE && msgType != TDMT_SYNC_LEADER_TRANSFER) {
     return true;
   }
   return false;
 }
 
 bool syncUtilUserCommit(tmsg_t msgType) {
-  if (msgType != TDMT_VND_SYNC_NOOP && msgType != TDMT_VND_SYNC_CONFIG_CHANGE) {
+  if (msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_CONFIG_CHANGE && msgType != TDMT_SYNC_LEADER_TRANSFER) {
     return true;
   }
   return false;
 }
 
 bool syncUtilUserRollback(tmsg_t msgType) {
-  if (msgType != TDMT_VND_SYNC_NOOP && msgType != TDMT_VND_SYNC_CONFIG_CHANGE) {
+  if (msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_CONFIG_CHANGE && msgType != TDMT_SYNC_LEADER_TRANSFER) {
     return true;
   }
   return false;
+}
+
+void syncUtilJson2Line(char* jsonStr) {
+  int p, q, len;
+  p = 0;
+  q = 1;
+  len = strlen(jsonStr);
+  while (1) {
+    if (jsonStr[q] == '\0') {
+      jsonStr[p + 1] = '\0';
+      break;
+    }
+
+    if (jsonStr[q] == '\n' || jsonStr[q] == ' ' || jsonStr[q] == '\t') {
+      q++;
+      continue;
+    } else {
+      jsonStr[p + 1] = jsonStr[q];
+      p++;
+      q++;
+    }
+  }
 }

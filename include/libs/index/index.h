@@ -16,9 +16,11 @@
 #ifndef _TD_INDEX_H_
 #define _TD_INDEX_H_
 
+#include "nodes.h"
 #include "os.h"
 #include "taoserror.h"
 #include "tarray.h"
+#include "tglobal.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -134,14 +136,14 @@ int indexRebuild(SIndex* index, SIndexOpts* opt);
  * @param index (output, index json object)
  * @return error code
  */
-int tIndexJsonOpen(SIndexJsonOpts* opts, const char* path, SIndexJson** index);
+int indexJsonOpen(SIndexJsonOpts* opts, const char* path, SIndexJson** index);
 /*
  * close index
  * @param index (input, index to be closed)
  * @return void
  */
 
-void tIndexJsonClose(SIndexJson* index);
+void indexJsonClose(SIndexJson* index);
 
 /*
  * insert terms into index
@@ -150,7 +152,7 @@ void tIndexJsonClose(SIndexJson* index);
  * @param uid  (input, uid of terms)
  * @return error code
  */
-int tIndexJsonPut(SIndexJson* index, SIndexJsonMultiTerm* terms, uint64_t uid);
+int indexJsonPut(SIndexJson* index, SIndexJsonMultiTerm* terms, uint64_t uid);
 /*
  * search index
  * @param index (input, index object)
@@ -159,7 +161,7 @@ int tIndexJsonPut(SIndexJson* index, SIndexJsonMultiTerm* terms, uint64_t uid);
  * @return error code
  */
 
-int tIndexJsonSearch(SIndexJson* index, SIndexJsonMultiTermQuery* query, SArray* result);
+int indexJsonSearch(SIndexJson* index, SIndexJsonMultiTermQuery* query, SArray* result);
 /*
  * @param
  * @param
@@ -189,6 +191,19 @@ void        indexTermDestroy(SIndexTerm* p);
  */
 void indexInit();
 
+/* index filter */
+typedef struct SIndexMetaArg {
+  void*    metaEx;
+  void*    idx;
+  void*    ivtIdx;
+  uint64_t suid;
+} SIndexMetaArg;
+
+typedef enum { SFLT_NOT_INDEX, SFLT_COARSE_INDEX, SFLT_ACCURATE_INDEX } SIdxFltStatus;
+
+SIdxFltStatus idxGetFltStatus(SNode* pFilterNode);
+
+int32_t doFilterTag(const SNode* pFilterNode, SIndexMetaArg* metaArg, SArray* result);
 /*
  * destory index env
  *

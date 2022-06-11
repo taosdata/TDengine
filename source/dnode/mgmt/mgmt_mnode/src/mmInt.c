@@ -17,126 +17,81 @@
 #include "mmInt.h"
 #include "wal.h"
 
-static bool mmDeployRequired(SDnode *pDnode) {
-  if (pDnode->data.dnodeId > 0) return false;
-  if (pDnode->data.clusterId > 0) return false;
-  if (strcmp(pDnode->data.localEp, pDnode->data.firstEp) != 0) return false;
+static bool mmDeployRequired(const SMgmtInputOpt *pInput) {
+  if (pInput->pData->dnodeId > 0) return false;
+  if (pInput->pData->clusterId > 0) return false;
+  if (strcmp(tsLocalEp, tsFirst) != 0) return false;
   return true;
 }
 
-static int32_t mmRequire(SMgmtWrapper *pWrapper, bool *required) {
+static int32_t mmRequire(const SMgmtInputOpt *pInput, bool *required) {
   SMnodeMgmt mgmt = {0};
-  mgmt.path = pWrapper->path;
+  mgmt.path = pInput->path;
   if (mmReadFile(&mgmt, required) != 0) {
     return -1;
   }
 
   if (!(*required)) {
-    *required = mmDeployRequired(pWrapper->pDnode);
+    *required = mmDeployRequired(pInput);
   }
 
   return 0;
 }
 
-static void mmInitOption(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
-  SMsgCb msgCb = pMgmt->pDnode->data.msgCb;
-  msgCb.pWrapper = pMgmt->pWrapper;
-  msgCb.queueFps[QUERY_QUEUE] = mmPutMsgToQueryQueue;
-  msgCb.queueFps[READ_QUEUE] = mmPutMsgToReadQueue;
-  msgCb.queueFps[WRITE_QUEUE] = mmPutMsgToWriteQueue;
-  msgCb.queueFps[SYNC_QUEUE] = mmPutMsgToWriteQueue;
-  pOption->msgCb = msgCb;
-}
+static void mmBuildOptionForDeploy(SMnodeMgmt *pMgmt, const SMgmtInputOpt *pInput, SMnodeOpt *pOption) {
+  pOption->standby = false;
+  pOption->deploy = true;
+  pOption->msgCb = pMgmt->msgCb;
+  pOption->dnodeId = pMgmt->pData->dnodeId;
 
-static void mmBuildOptionForDeploy(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
-  mmInitOption(pMgmt, pOption);
   pOption->replica = 1;
   pOption->selfIndex = 0;
+
   SReplica *pReplica = &pOption->replicas[0];
   pReplica->id = 1;
-  pReplica->port = pMgmt->pDnode->data.serverPort;
-  tstrncpy(pReplica->fqdn, pMgmt->pDnode->data.localFqdn, TSDB_FQDN_LEN);
-  pOption->deploy = true;
-
-  pMgmt->selfIndex = pOption->selfIndex;
-  pMgmt->replica = pOption->replica;
-  memcpy(&pMgmt->replicas, pOption->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
+  pReplica->port = tsServerPort;
+  tstrncpy(pReplica->fqdn, tsLocalFqdn, TSDB_FQDN_LEN);
 }
 
 static void mmBuildOptionForOpen(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
-  mmInitOption(pMgmt, pOption);
-  pOption->selfIndex = pMgmt->selfIndex;
-  pOption->replica = pMgmt->replica;
-  memcpy(&pOption->replicas, pMgmt->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
   pOption->deploy = false;
-}
+  pOption->standby = false;
+  pOption->msgCb = pMgmt->msgCb;
+  pOption->dnodeId = pMgmt->pData->dnodeId;
 
-static int32_t mmBuildOptionFromReq(SMnodeMgmt *pMgmt, SMnodeOpt *pOption, SDCreateMnodeReq *pCreate) {
-  mmInitOption(pMgmt, pOption);
-
-  pOption->replica = pCreate->replica;
-  pOption->selfIndex = -1;
-  for (int32_t i = 0; i < pCreate->replica; ++i) {
-    SReplica *pReplica = &pOption->replicas[i];
-    pReplica->id = pCreate->replicas[i].id;
-    pReplica->port = pCreate->replicas[i].port;
-    memcpy(pReplica->fqdn, pCreate->replicas[i].fqdn, TSDB_FQDN_LEN);
-    if (pReplica->id == pMgmt->pDnode->data.dnodeId) {
-      pOption->selfIndex = i;
+  if (pMgmt->replica > 0) {
+    pOption->standby = true;
+    pOption->replica = 1;
+    pOption->selfIndex = 0;
+    SReplica *pReplica = &pOption->replicas[0];
+    for (int32_t i = 0; i < pMgmt->replica; ++i) {
+      if (pMgmt->replicas[i].id != pMgmt->pData->dnodeId) continue;
+      pReplica->id = pMgmt->replicas[i].id;
+      pReplica->port = pMgmt->replicas[i].port;
+      memcpy(pReplica->fqdn, pMgmt->replicas[i].fqdn, TSDB_FQDN_LEN);
     }
   }
-
-  if (pOption->selfIndex == -1) {
-    dError("failed to build mnode options since %s", terrstr());
-    return -1;
-  }
-  pOption->deploy = true;
-
-  pMgmt->selfIndex = pOption->selfIndex;
-  pMgmt->replica = pOption->replica;
-  memcpy(&pMgmt->replicas, pOption->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
-  return 0;
 }
 
-int32_t mmAlter(SMnodeMgmt *pMgmt, SDAlterMnodeReq *pReq) {
-  SMnodeOpt option = {0};
-  if (mmBuildOptionFromReq(pMgmt, &option, pReq) != 0) {
-    return -1;
-  }
-
-  if (mndAlter(pMgmt->pMnode, &option) != 0) {
-    return -1;
-  }
-
-  bool deployed = true;
-  if (mmWriteFile(pMgmt->pWrapper, pReq, deployed) != 0) {
-    dError("failed to write mnode file since %s", terrstr());
-    return -1;
-  }
-
-  return 0;
-}
-
-static void mmClose(SMgmtWrapper *pWrapper) {
-  SMnodeMgmt *pMgmt = pWrapper->pMgmt;
-  if (pMgmt == NULL) return;
-
-  dInfo("mnode-mgmt start to cleanup");
+static void mmClose(SMnodeMgmt *pMgmt) {
   if (pMgmt->pMnode != NULL) {
     mmStopWorker(pMgmt);
     mndClose(pMgmt->pMnode);
+    taosThreadRwlockDestroy(&pMgmt->lock);
     pMgmt->pMnode = NULL;
   }
 
-  pWrapper->pMgmt = NULL;
   taosMemoryFree(pMgmt);
-  dInfo("mnode-mgmt is cleaned up");
 }
 
-static int32_t mmOpen(SMgmtWrapper *pWrapper) {
-  dInfo("mnode-mgmt start to init");
+static int32_t mmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   if (walInit() != 0) {
     dError("failed to init wal since %s", terrstr());
+    return -1;
+  }
+
+  if (syncInit() != 0) {
+    dError("failed to init sync since %s", terrstr());
     return -1;
   }
 
@@ -146,23 +101,26 @@ static int32_t mmOpen(SMgmtWrapper *pWrapper) {
     return -1;
   }
 
-  pMgmt->path = pWrapper->path;
-  pMgmt->pDnode = pWrapper->pDnode;
-  pMgmt->pWrapper = pWrapper;
-  pWrapper->pMgmt = pMgmt;
+  pMgmt->pData = pInput->pData;
+  pMgmt->path = pInput->path;
+  pMgmt->name = pInput->name;
+  pMgmt->msgCb = pInput->msgCb;
+  pMgmt->msgCb.putToQueueFp = (PutToQueueFp)mmPutRpcMsgToQueue;
+  pMgmt->msgCb.mgmt = pMgmt;
+  taosThreadRwlockInit(&pMgmt->lock, NULL);
 
   bool deployed = false;
   if (mmReadFile(pMgmt, &deployed) != 0) {
     dError("failed to read file since %s", terrstr());
-    mmClose(pWrapper);
+    mmClose(pMgmt);
     return -1;
   }
 
   SMnodeOpt option = {0};
   if (!deployed) {
     dInfo("mnode start to deploy");
-    pWrapper->pDnode->data.dnodeId = 1;
-    mmBuildOptionForDeploy(pMgmt, &option);
+    pMgmt->pData->dnodeId = 1;
+    mmBuildOptionForDeploy(pMgmt, pInput, &option);
   } else {
     dInfo("mnode start to open");
     mmBuildOptionForOpen(pMgmt, &option);
@@ -171,55 +129,71 @@ static int32_t mmOpen(SMgmtWrapper *pWrapper) {
   pMgmt->pMnode = mndOpen(pMgmt->path, &option);
   if (pMgmt->pMnode == NULL) {
     dError("failed to open mnode since %s", terrstr());
-    mmClose(pWrapper);
+    mmClose(pMgmt);
     return -1;
   }
-  dmReportStartup(pWrapper->pDnode, "mnode-impl", "initialized");
+  tmsgReportStartup("mnode-impl", "initialized");
 
   if (mmStartWorker(pMgmt) != 0) {
     dError("failed to start mnode worker since %s", terrstr());
-    mmClose(pWrapper);
+    mmClose(pMgmt);
     return -1;
   }
-  dmReportStartup(pWrapper->pDnode, "mnode-worker", "initialized");
+  tmsgReportStartup("mnode-worker", "initialized");
 
-  if (!deployed) {
+  if (!deployed || pMgmt->replica > 0) {
+    pMgmt->replica = 0;
     deployed = true;
-    if (mmWriteFile(pWrapper, NULL, deployed) != 0) {
+    if (mmWriteFile(pMgmt, NULL, deployed) != 0) {
       dError("failed to write mnode file since %s", terrstr());
       return -1;
     }
   }
 
-  dInfo("mnode-mgmt is initialized");
+  pInput->pData->dnodeId = pMgmt->pData->dnodeId;
+  pOutput->pMgmt = pMgmt;
   return 0;
 }
 
-static int32_t mmStart(SMgmtWrapper *pWrapper) {
+static int32_t mmStart(SMnodeMgmt *pMgmt) {
   dDebug("mnode-mgmt start to run");
-  SMnodeMgmt *pMgmt = pWrapper->pMgmt;
   return mndStart(pMgmt->pMnode);
 }
 
-static void mmStop(SMgmtWrapper *pWrapper) {
+static void mmStop(SMnodeMgmt *pMgmt) {
   dDebug("mnode-mgmt start to stop");
-  SMnodeMgmt *pMgmt = pWrapper->pMgmt;
-  if (pMgmt != NULL) {
-    mndStop(pMgmt->pMnode);
-  }
+  mndStop(pMgmt->pMnode);
 }
 
-void mmSetMgmtFp(SMgmtWrapper *pWrapper) {
-  SMgmtFp mgmtFp = {0};
-  mgmtFp.openFp = mmOpen;
-  mgmtFp.closeFp = mmClose;
-  mgmtFp.startFp = mmStart;
-  mgmtFp.stopFp = mmStop;
-  mgmtFp.createFp = mmProcessCreateReq;
-  mgmtFp.dropFp = mmProcessDropReq;
-  mgmtFp.requiredFp = mmRequire;
+SMgmtFunc mmGetMgmtFunc() {
+  SMgmtFunc mgmtFunc = {0};
+  mgmtFunc.openFp = mmOpen;
+  mgmtFunc.closeFp = (NodeCloseFp)mmClose;
+  mgmtFunc.startFp = (NodeStartFp)mmStart;
+  mgmtFunc.stopFp = (NodeStopFp)mmStop;
+  mgmtFunc.createFp = (NodeCreateFp)mmProcessCreateReq;
+  mgmtFunc.dropFp = (NodeDropFp)mmProcessDropReq;
+  mgmtFunc.requiredFp = mmRequire;
+  mgmtFunc.getHandlesFp = mmGetMsgHandles;
 
-  mmInitMsgHandle(pWrapper);
-  pWrapper->name = "mnode";
-  pWrapper->fp = mgmtFp;
+  return mgmtFunc;
+}
+
+int32_t mmAcquire(SMnodeMgmt *pMgmt) {
+  int32_t code = 0;
+
+  taosThreadRwlockRdlock(&pMgmt->lock);
+  if (pMgmt->stopped) {
+    code = -1;
+  } else {
+    atomic_add_fetch_32(&pMgmt->refCount, 1);
+  }
+  taosThreadRwlockUnlock(&pMgmt->lock);
+  return code;
+}
+
+void mmRelease(SMnodeMgmt *pMgmt) {
+  taosThreadRwlockRdlock(&pMgmt->lock);
+  atomic_sub_fetch_32(&pMgmt->refCount, 1);
+  taosThreadRwlockUnlock(&pMgmt->lock);
 }
