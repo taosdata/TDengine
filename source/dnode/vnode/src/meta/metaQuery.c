@@ -86,10 +86,14 @@ tb_uid_t metaGetTableEntryUidByName(SMeta *pMeta, const char *name) {
   int      nData = 0;
   tb_uid_t uid = 0;
 
+  metaRLock(pMeta);
+
   if (tdbTbGet(pMeta->pNameIdx, name, strlen(name) + 1, &pData, &nData) == 0) {
     uid = *(tb_uid_t *)pData;
     tdbFree(pData);
   }
+
+  metaULock(pMeta);
 
   return 0;
 }
