@@ -1554,8 +1554,8 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, rows, (const char *)statusB, false);
 
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.schemaless, false);
+//    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+//    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.schemaless, false);
 
     char *p = buildRetension(pDb->cfg.pRetensions);
 

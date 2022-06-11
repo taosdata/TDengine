@@ -2484,7 +2484,8 @@ TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int pr
 end:
   taosThreadSpinDestroy(&params.lock);
   tsem_destroy(&params.sem);
-  ((STscObj *)taos)->schemalessType = 0;
+//  ((STscObj *)taos)->schemalessType = 0;
+  ((STscObj *)taos)->schemalessType = 1;
   uDebug("resultend:%s", request->msgBuf);
   return (TAOS_RES*)request;
 }
