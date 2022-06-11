@@ -35,6 +35,7 @@ typedef struct SRaftCfg {
   char      path[TSDB_FILENAME_LEN * 2];
   int8_t    isStandBy;
   int8_t    snapshotEnable;
+  SyncIndex lastConfigIndex;
 } SRaftCfg;
 
 SRaftCfg *raftCfgOpen(const char *path);
@@ -52,8 +53,9 @@ int32_t raftCfgFromJson(const cJSON *pRoot, SRaftCfg *pRaftCfg);
 int32_t raftCfgFromStr(const char *s, SRaftCfg *pRaftCfg);
 
 typedef struct SRaftCfgMeta {
-  int8_t isStandBy;
-  int8_t snapshotEnable;
+  int8_t    isStandBy;
+  int8_t    snapshotEnable;
+  SyncIndex lastConfigIndex;
 } SRaftCfgMeta;
 
 int32_t raftCfgCreateFile(SSyncCfg *pCfg, SRaftCfgMeta meta, const char *path);
