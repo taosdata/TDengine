@@ -24,7 +24,7 @@ class ParserInitialATest : public ParserDdlTest {};
 TEST_F(ParserInitialATest, alterAccount) {
   useDb("root", "test");
 
-  run("ALTER ACCOUNT ac_wxy PASS '123456'", TSDB_CODE_PAR_EXPRIE_STATEMENT);
+  run("ALTER ACCOUNT ac_wxy PASS '123456'", TSDB_CODE_PAR_EXPRIE_STATEMENT, PARSER_STAGE_PARSE);
 }
 
 TEST_F(ParserInitialATest, alterDnode) {
@@ -157,8 +157,8 @@ TEST_F(ParserInitialATest, alterSTable) {
                      20 + VARSTR_HEADER_SIZE);
   run("ALTER TABLE st1 MODIFY COLUMN c1 VARCHAR(20)");
 
-  setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME, 2, "c1", 0, 0, "cc1");
-  run("ALTER TABLE st1 RENAME COLUMN c1 cc1");
+  // setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME, 2, "c1", 0, 0, "cc1");
+  // run("ALTER TABLE st1 RENAME COLUMN c1 cc1");
 
   setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_ADD_TAG, 1, "tag11", TSDB_DATA_TYPE_BIGINT);
   run("ALTER TABLE st1 ADD TAG tag11 BIGINT");
@@ -175,6 +175,12 @@ TEST_F(ParserInitialATest, alterSTable) {
 
   // todo
   // ADD {FULLTEXT | SMA} INDEX index_name (col_name [, col_name] ...) [index_option]
+}
+
+TEST_F(ParserInitialATest, alterSTableSemanticCheck) {
+  useDb("root", "test");
+
+  run("ALTER TABLE st1 RENAME COLUMN c1 cc1", TSDB_CODE_PAR_INVALID_ALTER_TABLE);
 }
 
 TEST_F(ParserInitialATest, alterTable) {
@@ -299,6 +305,12 @@ TEST_F(ParserInitialATest, alterTable) {
   // ADD {FULLTEXT | SMA} INDEX index_name (col_name [, col_name] ...) [index_option]
 }
 
+TEST_F(ParserInitialATest, alterTableSemanticCheck) {
+  useDb("root", "test");
+
+  run("ALTER TABLE st1s1 RENAME COLUMN c1 cc1", TSDB_CODE_PAR_INVALID_ALTER_TABLE);
+}
+
 TEST_F(ParserInitialATest, alterUser) {
   useDb("root", "test");
 
@@ -323,7 +335,7 @@ TEST_F(ParserInitialATest, balanceVgroup) {
 TEST_F(ParserInitialATest, bug001) {
   useDb("root", "test");
 
-  run("ALTER DATABASE db WAL 0     # td-14436", TSDB_CODE_PAR_SYNTAX_ERROR);
+  run("ALTER DATABASE db WAL 0     # td-14436", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
 }
 
 }  // namespace ParserTest

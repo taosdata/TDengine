@@ -62,14 +62,14 @@ set tt=%tt::= %
 set index=1
 for %%a in (%tt%) do (
     if !index! EQU 1 (
-        set hh=%%a
+        set /a hh=%%a
     )^
     else if  !index! EQU 2 (
-        set mm=%%a
+        set /a mm=%%a
  
     )^
     else if  !index! EQU 3 (
-        set ss=%%a
+        set /a ss=%%a
     )
    set /a index=index+1
 )

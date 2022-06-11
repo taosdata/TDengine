@@ -150,6 +150,10 @@ cJSON *raftCfg2Json(SRaftCfg *pRaftCfg) {
   cJSON_AddNumberToObject(pRoot, "isStandBy", pRaftCfg->isStandBy);
   cJSON_AddNumberToObject(pRoot, "snapshotEnable", pRaftCfg->snapshotEnable);
 
+  char buf64[128];
+  snprintf(buf64, sizeof(buf64), "%ld", pRaftCfg->lastConfigIndex);
+  cJSON_AddStringToObject(pRoot, "lastConfigIndex", buf64);
+
   cJSON *pJson = cJSON_CreateObject();
   cJSON_AddItemToObject(pJson, "RaftCfg", pRoot);
   return pJson;
@@ -172,6 +176,7 @@ int32_t raftCfgCreateFile(SSyncCfg *pCfg, SRaftCfgMeta meta, const char *path) {
   raftCfg.cfg = *pCfg;
   raftCfg.isStandBy = meta.isStandBy;
   raftCfg.snapshotEnable = meta.snapshotEnable;
+  raftCfg.lastConfigIndex = meta.lastConfigIndex;
   char *s = raftCfg2Str(&raftCfg);
 
   char buf[CONFIG_FILE_LEN] = {0};
@@ -198,6 +203,9 @@ int32_t raftCfgFromJson(const cJSON *pRoot, SRaftCfg *pRaftCfg) {
 
   cJSON *pJsonSnapshotEnable = cJSON_GetObjectItem(pJson, "snapshotEnable");
   pRaftCfg->snapshotEnable = cJSON_GetNumberValue(pJsonSnapshotEnable);
+
+  cJSON *pJsonLastConfigIndex = cJSON_GetObjectItem(pJson, "lastConfigIndex");
+  pRaftCfg->lastConfigIndex = atoll(cJSON_GetStringValue(pJsonLastConfigIndex));
 
   cJSON * pJsonSyncCfg = cJSON_GetObjectItem(pJson, "SSyncCfg");
   int32_t code = syncCfgFromJson(pJsonSyncCfg, &(pRaftCfg->cfg));
