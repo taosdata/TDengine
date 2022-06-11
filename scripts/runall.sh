@@ -138,6 +138,16 @@ echo "log file: $log_file"
 if [ -f $failed_case_file ]; then
     echo -e "\e[31m TEST FAILED\e[0m"
     cat $failed_case_file
+    if [ ! -z "$server_pkg" ]; then
+        if [ -f "$server_pkg" ]; then
+            cp -r $server_pkg $log_sub_dir/
+        fi
+    fi
+    if [ ! -z "$client_pkg" ]; then
+        if [ -f $client_pkg ]; then
+            cp -r $client_pkg $log_sub_dir/
+        fi
+    fi
     ret=1
 else
     echo -e "\e[32m TEST SUCCESS\e[0m"
