@@ -1540,6 +1540,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = topFunction,
     .finalizeFunc = topBotFinalize,
     .combineFunc  = topCombine,
+    .pPartialFunc = "_top_partial",
+    .pMergeFunc   = "_top_merge"
   },
   {
     .name = "_top_partial",
