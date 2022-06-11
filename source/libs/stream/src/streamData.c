@@ -53,6 +53,7 @@ int32_t streamDispatchReqToData(const SStreamDispatchReq* pReq, SStreamDataBlock
     SSDataBlock*       pDataBlock = taosArrayGet(pArray, i);
     blockCompressDecode(pDataBlock, htonl(pRetrieve->numOfCols), htonl(pRetrieve->numOfRows), pRetrieve->data);
     // TODO: refactor
+    pDataBlock->info.type = pRetrieve->streamBlockType;
     pDataBlock->info.childId = pReq->sourceChildId;
   }
   pData->blocks = pArray;

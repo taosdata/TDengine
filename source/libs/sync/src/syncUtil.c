@@ -241,3 +241,25 @@ bool syncUtilUserRollback(tmsg_t msgType) {
   }
   return false;
 }
+
+void syncUtilJson2Line(char* jsonStr) {
+  int p, q, len;
+  p = 0;
+  q = 1;
+  len = strlen(jsonStr);
+  while (1) {
+    if (jsonStr[q] == '\0') {
+      jsonStr[p + 1] = '\0';
+      break;
+    }
+
+    if (jsonStr[q] == '\n' || jsonStr[q] == ' ' || jsonStr[q] == '\t') {
+      q++;
+      continue;
+    } else {
+      jsonStr[p + 1] = jsonStr[q];
+      p++;
+      q++;
+    }
+  }
+}

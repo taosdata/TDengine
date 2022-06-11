@@ -244,7 +244,7 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, S
     }
   }
 
-  // ASSERT(flags); // only 1 column(ts)
+  ASSERT(flags);
 
   // decide
   uint32_t nData = 0;
@@ -268,8 +268,8 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, S
         nDataT = BIT2_SIZE(pTSchema->numOfCols - 1) + pTSchema->flen + ntv;
         break;
       default:
-        break; // only ts column
-        // ASSERT(0);
+        break;
+        ASSERT(0);
     }
 
     uint8_t tflags = 0;
@@ -374,7 +374,7 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, S
           ptv = pf + pTSchema->flen;
           break;
         default:
-          // ASSERT(0);
+          ASSERT(0);
           break;
       }
     } else {
@@ -421,12 +421,26 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, S
     _set_none:
       if ((flags & 0xf0) == 0) {
         setBitMap(pb, 0, iColumn - 1, flags);
+        if (flags & TSROW_HAS_VAL) { // set 0
+          if (IS_VAR_DATA_TYPE(pTColumn->type)) {
+            *(VarDataOffsetT *)(pf + pTColumn->offset) = 0;
+          } else {
+            tPutValue(pf + pTColumn->offset, &((SValue){0}), pTColumn->type);
+          }
+        }
       }
       continue;
 
     _set_null:
       if ((flags & 0xf0) == 0) {
         setBitMap(pb, 1, iColumn - 1, flags);
+        if (flags & TSROW_HAS_VAL) { // set 0
+          if (IS_VAR_DATA_TYPE(pTColumn->type)) {
+            *(VarDataOffsetT *)(pf + pTColumn->offset) = 0;
+          } else {
+            tPutValue(pf + pTColumn->offset, &((SValue){0}), pTColumn->type);
+          }
+        }
       } else {
         SET_IDX(pidx, pTSKVRow->nCols, nkv, flags);
         pTSKVRow->nCols++;
@@ -497,7 +511,7 @@ void tTSRowGet(STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal
   SValue    value;
 
   ASSERT(iCol < pTSchema->numOfCols);
-  // ASSERT(flags); // only 1 ts column
+  ASSERT(flags);
   ASSERT(pRow->sver == pTSchema->version);
 
   if (iCol == 0) {

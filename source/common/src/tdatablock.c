@@ -1752,7 +1752,7 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
       taosArrayClear(tagArray);
       taosArrayPush(tagArray, &tagVal);
       tTagNew(tagArray, 1, false, &pTag);
-      if (!pTag) {
+      if (pTag == NULL) {
         tdDestroySVCreateTbReq(&createTbReq);
         taosArrayDestroy(tagArray);
         return NULL;
@@ -1763,9 +1763,7 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
       tEncodeSize(tEncodeSVCreateTbReq, &createTbReq, schemaLen, code);
 
       tdDestroySVCreateTbReq(&createTbReq);
-
       if (code < 0) {
-        tdDestroySVCreateTbReq(&createTbReq);
         taosArrayDestroy(tagArray);
         return NULL;
       }
@@ -1775,6 +1773,7 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
   }
 
   // assign data
+  // TODO
   ret = taosMemoryCalloc(1, cap + 46);
   ret = POINTER_SHIFT(ret, 46);
   ret->header.vgId = vgId;
@@ -1804,8 +1803,7 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
     int32_t schemaLen = 0;
     if (createTb) {
       SVCreateTbReq createTbReq = {0};
-      char*         cname = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN);
-      snprintf(cname, TSDB_TABLE_FNAME_LEN, "%s:%ld", stbFullName, pDataBlock->info.groupId);
+      char*         cname = buildCtbNameByGroupId(stbFullName, pDataBlock->info.groupId);
       createTbReq.name = cname;
       createTbReq.flags = 0;
       createTbReq.type = TSDB_CHILD_TABLE;
@@ -1819,7 +1817,7 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
       taosArrayPush(tagArray, &tagVal);
       STag* pTag = NULL;
       tTagNew(tagArray, 1, false, &pTag);
-      if (!pTag) {
+      if (pTag == NULL) {
         tdDestroySVCreateTbReq(&createTbReq);
         taosArrayDestroy(tagArray);
         taosMemoryFreeClear(ret);
@@ -1945,7 +1943,6 @@ void blockCompressEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen
 
 const char* blockCompressDecode(SSDataBlock* pBlock, int32_t numOfCols, int32_t numOfRows, const char* pData) {
   blockDataEnsureCapacity(pBlock, numOfRows);
-  pBlock->info.rows = numOfRows;
 
   const char* pStart = pData;
 
@@ -2019,6 +2016,7 @@ const char* blockCompressDecode(SSDataBlock* pBlock, int32_t numOfCols, int32_t 
     pStart += colLen[i];
   }
 
+  pBlock->info.rows = numOfRows;
   ASSERT(pStart - pData == dataLen);
   return pStart;
 }
