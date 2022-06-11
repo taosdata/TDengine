@@ -121,7 +121,7 @@ typedef enum EFunctionType {
 
   // internal function
   FUNCTION_TYPE_SELECT_VALUE,
-  FUNCTION_TYPE_BLOCK_DIST,   // block distribution aggregate function
+  FUNCTION_TYPE_BLOCK_DIST,  // block distribution aggregate function
 
   // distributed splitting functions
   FUNCTION_TYPE_APERCENTILE_PARTIAL = 4000,
@@ -172,6 +172,7 @@ bool fmIsMultiResFunc(int32_t funcId);
 bool fmIsRepeatScanFunc(int32_t funcId);
 bool fmIsUserDefinedFunc(int32_t funcId);
 bool fmIsDistExecFunc(int32_t funcId);
+bool fmIsForbidFillFunc(int32_t funcId);
 
 int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMergeFunc);
 

@@ -95,7 +95,7 @@ endi
 if $data6_db != 345600 then  # days
   return -1
 endi
-if $data7_db != 1440000,1440000,1440000 then # keep
+if $data7_db != 1440000m,1440000m,1440000m then # keep
   return -1
 endi
 if $data8_db != 96 then  # buffer
@@ -232,7 +232,7 @@ print ============== modify keep
 sql alter database db keep 2400
 sql show databases
 print keep $data7_db
-if $data7_db != 3456000,3456000,3456000 then
+if $data7_db != 3456000m,3456000m,3456000m then
   return -1
 endi
 

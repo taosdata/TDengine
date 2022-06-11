@@ -2895,6 +2895,7 @@ void copyTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pS
   for (int32_t i = 0; i < pSrcBlock->info.numOfCols; ++i) {
     SColumnInfoData* pCol = taosArrayGet(pSrcBlock->pDataBlock, i);
     if ((nullList[i] = colDataIsNull_s(pCol, rowIndex)) == true) {
+      offset += pCol->info.bytes;
       continue;
     }
 

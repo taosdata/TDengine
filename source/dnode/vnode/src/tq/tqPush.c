@@ -238,9 +238,6 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
   if (msgType == TDMT_VND_SUBMIT) {
     if (taosHashGetSize(pTq->pStreamTasks) == 0) return 0;
 
-    if (tdUpdateExpireWindow(pTq->pVnode->pSma, msg, ver) != 0) {
-      // TODO handle sma error
-    }
     void* data = taosMemoryMalloc(msgLen);
     if (data == NULL) {
       return -1;
