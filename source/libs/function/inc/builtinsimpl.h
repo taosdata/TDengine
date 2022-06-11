@@ -99,6 +99,7 @@ int32_t firstCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 int32_t lastCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 
 bool getTopBotFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv);
+bool topBotFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t topFunction(SqlFunctionCtx *pCtx);
 int32_t topFunctionMerge(SqlFunctionCtx *pCtx);
 int32_t bottomFunction(SqlFunctionCtx *pCtx);
