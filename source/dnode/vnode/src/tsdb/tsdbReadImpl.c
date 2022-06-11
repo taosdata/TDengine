@@ -233,6 +233,17 @@ int tsdbLoadBlockInfo(SReadH *pReadh, void *pTarget) {
     tsdbError("vgId:%d, SBlockInfo part in file %s is corrupted since wrong checksum, offset:%u len :%u",
               TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pHeadf), pBlkIdx->offset, pBlkIdx->len);
     return -1;
+  } else {
+    SBlockInfo *pBlkInfo = pReadh->pBlkInfo;
+    SBlock *pBlk = NULL;
+    int         nBlks = (pBlkIdx->len - sizeof(SBlockInfo)) / sizeof(SBlock);
+    for (int n = 0; n < nBlks; ++n) {
+      pBlk = &pBlkInfo->blocks[n];
+      if (pBlk->numOfSubBlocks == 1) {
+        tsdbDebug("prop:vgId:%d, file %s , offset:%u len :%u has %d rows", TSDB_READ_REPO_ID(pReadh),
+                  TSDB_FILE_FULL_NAME(pHeadf), pBlkIdx->offset, pBlkIdx->len, pBlk->numOfRows);
+      }
+    }
   }
 
   // ASSERT(pBlkIdx->tid == pReadh->pBlkInfo->tid && pBlkIdx->uid == pReadh->pBlkInfo->uid);
