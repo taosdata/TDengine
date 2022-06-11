@@ -214,29 +214,31 @@ void syncUtilMsgNtoH(void* msg) {
   pHead->vgId = ntohl(pHead->vgId);
 }
 
+#if 0
 bool syncUtilIsData(tmsg_t msgType) {
   if (msgType == TDMT_SYNC_NOOP || msgType == TDMT_SYNC_CONFIG_CHANGE) {
     return false;
   }
   return true;
 }
+#endif
 
 bool syncUtilUserPreCommit(tmsg_t msgType) {
-  if (msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_CONFIG_CHANGE) {
+  if (msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_CONFIG_CHANGE && msgType != TDMT_SYNC_LEADER_TRANSFER) {
     return true;
   }
   return false;
 }
 
 bool syncUtilUserCommit(tmsg_t msgType) {
-  if (msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_CONFIG_CHANGE) {
+  if (msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_CONFIG_CHANGE && msgType != TDMT_SYNC_LEADER_TRANSFER) {
     return true;
   }
   return false;
 }
 
 bool syncUtilUserRollback(tmsg_t msgType) {
-  if (msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_CONFIG_CHANGE) {
+  if (msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_CONFIG_CHANGE && msgType != TDMT_SYNC_LEADER_TRANSFER) {
     return true;
   }
   return false;

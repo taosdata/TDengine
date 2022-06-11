@@ -76,7 +76,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_INVALID_KEEP_ORDER:
       return "Invalid keep value, should be keep0 <= keep1 <= keep2";
     case TSDB_CODE_PAR_INVALID_KEEP_VALUE:
-      return "Invalid option keep: %d, %d, %d valid range: [%d, %d]";
+      return "Invalid option keep: %" PRId64 ", %" PRId64 ", %" PRId64 " valid range: [%dm, %dm]";
     case TSDB_CODE_PAR_INVALID_COMMENT_OPTION:
       return "Invalid option comment, length cannot exceed %d";
     case TSDB_CODE_PAR_INVALID_F_RANGE_OPTION:
@@ -182,6 +182,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "The DELETE statement must have a definite time window range";
     case TSDB_CODE_PAR_INVALID_REDISTRIBUTE_VG:
       return "The REDISTRIBUTE VGROUP statement only support 1 to 3 dnodes";
+    case TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC:
+      return "%s function not allowed in fill query";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:

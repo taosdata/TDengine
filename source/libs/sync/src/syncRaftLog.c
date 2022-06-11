@@ -553,15 +553,19 @@ void logStorePrint2(char* s, SSyncLogStore* pLogStore) {
 }
 
 void logStoreLog(SSyncLogStore* pLogStore) {
-  char* serialized = logStore2Str(pLogStore);
-  sTraceLong("logStoreLog | len:%lu | %s", strlen(serialized), serialized);
-  taosMemoryFree(serialized);
+  if (gRaftDetailLog) {
+    char* serialized = logStore2Str(pLogStore);
+    sTraceLong("logStoreLog | len:%lu | %s", strlen(serialized), serialized);
+    taosMemoryFree(serialized);
+  }
 }
 
 void logStoreLog2(char* s, SSyncLogStore* pLogStore) {
-  char* serialized = logStore2Str(pLogStore);
-  sTraceLong("logStoreLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
-  taosMemoryFree(serialized);
+  if (gRaftDetailLog) {
+    char* serialized = logStore2Str(pLogStore);
+    sTraceLong("logStoreLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+    taosMemoryFree(serialized);
+  }
 }
 
 // for debug -----------------

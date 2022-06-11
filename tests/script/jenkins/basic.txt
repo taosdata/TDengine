@@ -57,7 +57,7 @@
 
 # ---- mnode
 ./test.sh -f tsim/mnode/basic1.sim
-#./test.sh -f tsim/mnode/basic2.sim
+./test.sh -f tsim/mnode/basic2.sim
 ./test.sh -f tsim/mnode/basic3.sim
 ./test.sh -f tsim/mnode/basic4.sim
 
@@ -71,6 +71,7 @@
 ./test.sh -f tsim/stream/basic0.sim
 ./test.sh -f tsim/stream/basic1.sim
 ./test.sh -f tsim/stream/basic2.sim
+# ./test.sh -f tsim/stream/distributeInterval0.sim
 # ./test.sh -f tsim/stream/session0.sim
 # ./test.sh -f tsim/stream/session1.sim
 # ./test.sh -f tsim/stream/state0.sim
