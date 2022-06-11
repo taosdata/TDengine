@@ -713,7 +713,7 @@ static int32_t syncNodeMakeLogSame(SSyncNode* ths, SyncAppendEntries* pMsg) {
   // delete confict entries
   code = ths->pLogStore->syncLogTruncate(ths->pLogStore, delBegin);
   ASSERT(code == 0);
-  sInfo("sync event vgId:%d log truncate, from %ld to %ld", ths->vgId, delBegin, delEnd);
+  sDebug("vgId:%d sync event log truncate, from %ld to %ld", ths->vgId, delBegin, delEnd);
   logStoreSimpleLog2("after syncNodeMakeLogSame", ths->pLogStore);
 
   return code;
@@ -994,7 +994,7 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
             SyncIndex commitEnd = snapshot.lastApplyIndex;
             ths->commitIndex = snapshot.lastApplyIndex;
 
-            sInfo("sync event vgId:%d commit by snapshot from index:%ld to index:%ld, %s", ths->vgId, commitBegin,
+            sDebug("vgId:%d sync event commit by snapshot from index:%ld to index:%ld, %s", ths->vgId, commitBegin,
                   commitEnd, syncUtilState2String(ths->state));
           }
 
