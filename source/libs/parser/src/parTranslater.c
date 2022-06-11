@@ -292,7 +292,12 @@ static int32_t getTableIndex(STranslateContext* pCxt, const SName* pName, SArray
   if (pParCxt->async) {
     code = getTableIndexFromCache(pCxt->pMetaCache, pName, pIndexes);
   } else {
-    code = catalogGetTableIndex(pParCxt->pCatalog, pParCxt->pTransporter, &pParCxt->mgmtEpSet, pName, pIndexes);
+    SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter, 
+                             .requestId = pParCxt->requestId,
+                             .requestObjRefId = pParCxt->requestRid,
+                             .mgmtEps = pParCxt->mgmtEpSet};
+  
+    code = catalogGetTableIndex(pParCxt->pCatalog, &conn, pName, pIndexes);
   }
   if (TSDB_CODE_SUCCESS != code) {
     parserError("getTableIndex error, code:%s, dbName:%s, tbName:%s", tstrerror(code), pName->dbname, pName->tname);
