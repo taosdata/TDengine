@@ -2661,6 +2661,12 @@ bool getTopBotFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   return true;
 }
 
+bool getTopBotFuncMergeEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+  //intermediate result is binary and length contains VAR header size
+  pEnv->calcMemSize = pFunc->node.resType.bytes - VARSTR_HEADER_SIZE;
+  return true;
+}
+
 bool topBotFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
   if (!functionSetup(pCtx, pResInfo)) {
     return false;
