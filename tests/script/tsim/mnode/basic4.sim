@@ -117,11 +117,9 @@ if $data(3)[3] != ready then
 endi
 
 print =============== step5: drop mnode 3 and stop dnode3
-system sh/exec.sh -n dnode3 -s stop
-sleep 6000
-return
-sql drop mnode on dnode 3
-return
+system sh/exec.sh -n dnode3 -s stop -x SIGKILL
+sql_error drop mnode on dnode 3
+
 $x = 0
 step5: 
 	$x = $x + 1
