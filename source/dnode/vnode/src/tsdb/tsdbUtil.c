@@ -88,6 +88,19 @@ int32_t tsdbKeyCmprFn(const void *p1, const void *p2) {
   return 0;
 }
 
+// SDelIdx ======================================================
+int32_t tDelIdxGetSize(SDelIdx *pDelIdx) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tDelIdxGetItem(SDelIdx *pDelIdx, int32_t idx, SDelIdxItem *pItem) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
 int32_t tPutDelIdx(uint8_t *p, SDelIdx *pDelIdx) {
   int32_t n = 0;
 

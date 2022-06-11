@@ -210,44 +210,34 @@ static int32_t tsdbCommitDelImpl(SCommitter *pCommitter) {
   int32_t    iTbData = 0;
   int32_t    nTbData = taosArrayGetSize(pMemTable->aTbData);
   int32_t    iDelIdx = 0;
-  int32_t    nDelIdx;  // TODO
-  int32_t    c;
+  int32_t    nDelIdx = 0;  // TODO
   STbData   *pTbData = NULL;
   SDelIdx   *pDelIdx = NULL;
+  SDelIdx    delIdx;
+
+  if (iTbData < nTbData) {
+    pTbData = (STbData *)taosArrayGetP(pMemTable->aTbData, iTbData);
+  }
+  if (iDelIdx < nDelIdx) {
+    // tIMapGet();
+    pDelIdx = &delIdx;
+  }
 
   while (iTbData < nTbData || iDelIdx < nDelIdx) {
-    // if (iTbData < nTbData) {
-    //   pTbData = (STbData *)taosArrayGetP(pMemTable->aTbData, iTbData);
-    // } else {
-    //   pTbData = NULL;
-    // }
-    // if (iDelIdx < nDelIdx) {
-    //   // pDelIdx = ; // TODO
-    // } else {
-    //   pDelIdx = NULL;
-    // }
+    if (pTbData && pDelIdx) {
+    } else {
+    }
 
-    // if (pTbData && pDelIdx) {
-    //   c = tTABLEIDCmprFn(pTbData, pDelIdx);
-    //   if (c == 0) {
-    //     iTbData++;
-    //     iDelIdx++;
-    //   } else if (c < 0) {
-    //     iTbData++;
-    //     pDelIdx = NULL;
-    //   } else {
-    //     iDelIdx++;
-    //     pTbData = NULL;
-    //   }
-    // } else {
-    //   if (pTbData) {
-    //     iTbData++;
-    //   } else {
-    //     iDelIdx++;
-    //   }
-    // }
+    // start
+    // 1. load table del if exist
 
-    // TODO: commit with the pTbData and pDelIdx
+    // impl
+    while (1) {
+      // do merge
+    }
+
+    // end
+    // tsdbWriteDelData
   }
 
   return code;

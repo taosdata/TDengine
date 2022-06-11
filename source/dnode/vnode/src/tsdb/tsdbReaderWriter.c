@@ -136,11 +136,45 @@ _err:
   return code;
 }
 
-int32_t tsdbWriteDelData(SDelFWriter *pWriter, SDelData *pDelData, uint8_t **ppBuf, SDelIdxItem *pItem) {
-  int32_t code = 0;
-  int64_t size;
+int32_t tsdbWriteDelDta(SDelFWriter *pWriter, SDelData *pDelData, uint8_t **ppBuf) {
+  int32_t  code = 0;
+  uint8_t *pBuf = NULL;
+  int64_t  size;
+  int64_t  n;
 
-  // TODO
+  // prepare
+
+  // alloc
+  if (!ppBuf) ppBuf = &pBuf;
+  size = tPutDelData(NULL, pDelData) + sizeof(TSCKSUM);
+  code = tsdbRealloc(ppBuf, size);
+  if (code) goto _err;
+
+  // build
+  n = tPutDelData(*ppBuf, pDelData);
+  taosCalcChecksumAppend(0, *ppBuf, size);
+
+  ASSERT(n + sizeof(TSCKSUM) == size);
+
+  // write
+  n = taosWriteFile(pWriter->pWriteH, *ppBuf, size);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  ASSERT(n == size);
+
+  // update
+  pWriter->pFile->offset = pWriter->pFile->size;
+  pWriter->pFile->size += size;
+
+  tsdbFree(pBuf);
+  return code;
+
+_err:
+  tsdbError("vgId:%d failed to write del data since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
+  tsdbFree(pBuf);
   return code;
 }
 
@@ -158,9 +192,7 @@ int32_t tsdbWriteDelIdx(SDelFWriter *pWriter, SDelIdx *pDelIdx, uint8_t **ppBuf)
   if (!ppBuf) ppBuf = &pBuf;
   size = tPutDelIdx(NULL, pDelIdx) + sizeof(TSCKSUM);
   code = tsdbRealloc(ppBuf, size);
-  if (code) {
-    goto _err;
-  }
+  if (code) goto _err;
 
   // build
   n = tPutDelIdx(*ppBuf, pDelIdx);
@@ -291,10 +323,14 @@ int32_t tsdbDelFReaderClose(SDelFReader *pReader) {
   int32_t code = 0;
 
   if (pReader) {
-    taosCloseFile(&pReader->pReadH);
+    if (taosCloseFile(&pReader->pReadH) < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto _exit;
+    }
     taosMemoryFree(pReader);
   }
 
+_exit:
   return code;
 }
 

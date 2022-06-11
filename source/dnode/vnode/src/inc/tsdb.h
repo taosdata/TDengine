@@ -31,18 +31,21 @@ extern "C" {
 #define tsdbDebug(...) do { if (tsdbDebugFlag & DEBUG_DEBUG) { taosPrintLog("TSDB ", DEBUG_DEBUG, tsdbDebugFlag, __VA_ARGS__); }} while(0)
 #define tsdbTrace(...) do { if (tsdbDebugFlag & DEBUG_TRACE) { taosPrintLog("TSDB ", DEBUG_TRACE, tsdbDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
-
-typedef struct TSDBROW TSDBROW;
-typedef struct TSDBKEY TSDBKEY;
-typedef struct TABLEID TABLEID;
-typedef struct SDelOp  SDelOp;
+typedef struct TSDBROW      TSDBROW;
+typedef struct TSDBKEY      TSDBKEY;
+typedef struct TABLEID      TABLEID;
+typedef struct SDelOp       SDelOp;
+typedef struct SDelDataItem SDelDataItem;
+typedef struct SDelData     SDelData;
+typedef struct SDelIdxItem  SDelIdxItem;
+typedef struct SDelIdx      SDelIdx;
+typedef struct STbData      STbData;
+typedef struct SMemTable    SMemTable;
+typedef struct STbDataIter  STbDataIter;
+typedef struct SMergeInfo   SMergeInfo;
+typedef struct STable       STable;
 
 // tsdbMemTable ==============================================================================================
-typedef struct STbData     STbData;
-typedef struct SMemTable   SMemTable;
-typedef struct STbDataIter STbDataIter;
-typedef struct SMergeInfo  SMergeInfo;
-typedef struct STable      STable;
 
 // SMemTable
 int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable);
@@ -75,10 +78,6 @@ int32_t tsdbFSStart(STsdbFS *pFS);
 int32_t tsdbFSEnd(STsdbFS *pFS, int8_t rollback);
 
 // tsdbReaderWriter.c ==============================================================================================
-typedef struct SDelDataItem SDelDataItem;
-typedef struct SDelData     SDelData;
-typedef struct SDelIdxItem  SDelIdxItem;
-typedef struct SDelIdx      SDelIdx;
 
 // SDataFWriter
 typedef struct SDataFWriter SDataFWriter;
@@ -149,14 +148,19 @@ void    tsdbFree(uint8_t *pBuf);
 int32_t tTABLEIDCmprFn(const void *p1, const void *p2);
 int32_t tsdbKeyCmprFn(const void *p1, const void *p2);
 
+// SDelIdx
+int32_t tDelIdxGetSize(SDelIdx *pDelIdx);
+int32_t tDelIdxGetItem(SDelIdx *pDelIdx, int32_t idx, SDelIdxItem *pItem);
 int32_t tPutDelIdx(uint8_t *p, SDelIdx *pDelIdx);
 int32_t tGetDelIdx(uint8_t *p, SDelIdx *pDelIdx);
 
+// SDelData
 int32_t tPutDelData(uint8_t *p, SDelData *pDelData);
 int32_t tGetDelData(uint8_t *p, SDelData *pDelData);
 
 int32_t tPutDelFileHdr(uint8_t *p, SDelFile *pDelFile);
 int32_t tGetDelFileHdr(uint8_t *p, SDelFile *pDelFile);
+
 // structs
 typedef struct {
   int   minFid;
