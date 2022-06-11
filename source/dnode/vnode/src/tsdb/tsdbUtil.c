@@ -101,6 +101,12 @@ int32_t tDelIdxGetItem(SDelIdx *pDelIdx, int32_t idx, SDelIdxItem *pItem) {
   return code;
 }
 
+int32_t tDelIdxPutItem(SDelIdx *pDelIdx, SDelIdxItem *pItem) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
 int32_t tPutDelIdx(uint8_t *p, SDelIdx *pDelIdx) {
   int32_t n = 0;
 
@@ -121,6 +127,25 @@ int32_t tGetDelIdx(uint8_t *p, SDelIdx *pDelIdx) {
   n += tGetBinary(p, &pDelIdx->pData, &pDelIdx->nData);
 
   return n;
+}
+
+// SDelData ======================================================
+int32_t tDelDataGetSize(SDelData *pDelData) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tDelDataGetItem(SDelData *pDelData, int32_t idx, SDelDataItem *pItem) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tDelDataPutItem(SDelData *pDelData, SDelDataItem *pItem) {
+  int32_t code = 0;
+  // TODO
+  return code;
 }
 
 int32_t tPutDelData(uint8_t *p, SDelData *pDelData) {

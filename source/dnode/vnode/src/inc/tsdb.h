@@ -90,7 +90,7 @@ typedef struct SDelFWriter SDelFWriter;
 
 int32_t tsdbDelFWriterOpen(SDelFWriter **ppWriter, SDelFile *pFile, STsdb *pTsdb);
 int32_t tsdbDelFWriterClose(SDelFWriter *pWriter, int8_t sync);
-int32_t tsdbWriteDelData(SDelFWriter *pWriter, SDelData *pDelData, uint8_t **ppBuf, SDelIdxItem *pItem);
+int32_t tsdbWriteDelData(SDelFWriter *pWriter, SDelData *pDelData, uint8_t **ppBuf);
 int32_t tsdbWriteDelIdx(SDelFWriter *pWriter, SDelIdx *pDelIdx, uint8_t **ppBuf);
 int32_t tsdbUpdateDelFileHdr(SDelFWriter *pWriter, uint8_t **ppBuf);
 
@@ -99,7 +99,7 @@ typedef struct SDelFReader SDelFReader;
 
 int32_t tsdbDelFReaderOpen(SDelFReader **ppReader, SDelFile *pFile, STsdb *pTsdb, uint8_t **ppBuf);
 int32_t tsdbDelFReaderClose(SDelFReader *pReader);
-int32_t tsdbReadDelData(SDelFReader *pReader, SDelData *pDelData, uint8_t **ppBuf);
+int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdxItem *pItem, SDelData *pDelData, uint8_t **ppBuf);
 int32_t tsdbReadDelIdx(SDelFReader *pReader, SDelIdx *pDelIdx, uint8_t **ppBuf);
 
 // SCacheFWriter
@@ -151,10 +151,14 @@ int32_t tsdbKeyCmprFn(const void *p1, const void *p2);
 // SDelIdx
 int32_t tDelIdxGetSize(SDelIdx *pDelIdx);
 int32_t tDelIdxGetItem(SDelIdx *pDelIdx, int32_t idx, SDelIdxItem *pItem);
+int32_t tDelIdxPutItem(SDelIdx *pDelIdx, SDelIdxItem *pItem);
 int32_t tPutDelIdx(uint8_t *p, SDelIdx *pDelIdx);
 int32_t tGetDelIdx(uint8_t *p, SDelIdx *pDelIdx);
 
 // SDelData
+int32_t tDelDataGetSize(SDelData *pDelData);
+int32_t tDelDataGetItem(SDelData *pDelData, int32_t idx, SDelDataItem *pItem);
+int32_t tDelDataPutItem(SDelData *pDelData, SDelDataItem *pItem);
 int32_t tPutDelData(uint8_t *p, SDelData *pDelData);
 int32_t tGetDelData(uint8_t *p, SDelData *pDelData);
 

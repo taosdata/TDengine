@@ -46,6 +46,7 @@ struct SCommitter {
   SDelIdx      nDelIdx;
   SDelData     oDelData;
   SDelData     nDelData;
+  SDelIdxItem  delIdxItem;
   /* commit cache */
 };
 
@@ -203,6 +204,8 @@ _err:
   return code;
 }
 
+static int32_t tsdbCommitTableDel(SCommitter *pCommitter);
+
 static int32_t tsdbCommitDelImpl(SCommitter *pCommitter) {
   int32_t    code = 0;
   STsdb     *pTsdb = pCommitter->pTsdb;
@@ -215,31 +218,27 @@ static int32_t tsdbCommitDelImpl(SCommitter *pCommitter) {
   SDelIdx   *pDelIdx = NULL;
   SDelIdx    delIdx;
 
-  if (iTbData < nTbData) {
-    pTbData = (STbData *)taosArrayGetP(pMemTable->aTbData, iTbData);
-  }
-  if (iDelIdx < nDelIdx) {
-    // tIMapGet();
-    pDelIdx = &delIdx;
-  }
+  // if (iTbData < nTbData) {
+  //   pTbData = (STbData *)taosArrayGetP(pMemTable->aTbData, iTbData);
+  // }
+  // if (iDelIdx < nDelIdx) {
+  //   // tIMapGet();
+  //   pDelIdx = &delIdx;
+  // }
 
   while (iTbData < nTbData || iDelIdx < nDelIdx) {
     if (pTbData && pDelIdx) {
     } else {
     }
 
-    // start
-    // 1. load table del if exist
-
-    // impl
-    while (1) {
-      // do merge
-    }
-
-    // end
-    // tsdbWriteDelData
+    code = tsdbCommitTableDel(pCommitter);
+    if (code) goto _err;
   }
 
+  return code;
+
+_err:
+  tsdbError("vgId:%d commit del impl failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -537,6 +536,82 @@ static int32_t tsdbCommitTableDataImpl(SCommitter *pCommitter) {
 static int32_t tsdbCommitTableDataEnd(SCommitter *pCommitter) {
   int32_t code = 0;
   // TODO
+  return code;
+}
+
+static int32_t tsdbCommitTableDelStart(SCommitter *pCommitter) {
+  int32_t code = 0;
+
+  // load old
+  pCommitter->oDelData = (SDelData){0};
+  if (0) {
+    code = tsdbReadDelData(pCommitter->pDelFReader, NULL /*TODO*/, &pCommitter->oDelData, &pCommitter->pBuf4);
+    if (code) goto _err;
+  }
+
+  // prepare new
+  pCommitter->nDelData = (SDelData){0};
+
+  return code;
+
+_err:
+  tsdbError("vgId:%d commit table del start failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
+  return code;
+}
+
+static int32_t tsdbCommitTableDelImpl(SCommitter *pCommitter) {
+  int32_t code = 0;
+  SDelOp *pDelOp = NULL;
+
+  for (; pDelOp; pDelOp = pDelOp->pNext) {
+    SDelDataItem item = {.version = pDelOp->version, .sKey = pDelOp->sKey, .eKey = pDelOp->eKey};
+
+    code = tDelDataPutItem(&pCommitter->nDelData, &item);
+    if (code) goto _err;
+  }
+
+  return code;
+
+_err:
+  return code;
+}
+
+static int32_t tsdbCommitTableDelEnd(SCommitter *pCommitter) {
+  int32_t code = 0;
+
+  // write table del data
+  code = tsdbWriteDelData(pCommitter->pDelFWriter, &pCommitter->nDelData, NULL);
+  if (code) goto _err;
+
+  // add SDelIdxItem
+  code = tDelIdxPutItem(&pCommitter->nDelIdx, &pCommitter->delIdxItem);
+  if (code) goto _err;
+
+  return code;
+
+_err:
+  tsdbError("vgId:%d commit table del end failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
+  return code;
+}
+
+static int32_t tsdbCommitTableDel(SCommitter *pCommitter) {
+  int32_t code = 0;
+
+  // start
+  code = tsdbCommitTableDelStart(pCommitter);
+  if (code) goto _err;
+
+  // impl
+  code = tsdbCommitTableDelImpl(pCommitter);
+  if (code) goto _err;
+
+  // end
+  code = tsdbCommitTableDelEnd(pCommitter);
+  if (code) goto _err;
+
+  return code;
+
+_err:
   return code;
 }
 

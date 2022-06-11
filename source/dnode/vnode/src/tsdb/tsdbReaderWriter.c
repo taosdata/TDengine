@@ -136,13 +136,15 @@ _err:
   return code;
 }
 
-int32_t tsdbWriteDelDta(SDelFWriter *pWriter, SDelData *pDelData, uint8_t **ppBuf) {
+int32_t tsdbWriteDelData(SDelFWriter *pWriter, SDelData *pDelData, uint8_t **ppBuf) {
   int32_t  code = 0;
   uint8_t *pBuf = NULL;
   int64_t  size;
   int64_t  n;
 
   // prepare
+  pDelData->delimiter = TSDB_FILE_DLMT;
+  // todo
 
   // alloc
   if (!ppBuf) ppBuf = &pBuf;
@@ -334,9 +336,44 @@ _exit:
   return code;
 }
 
-int32_t tsdbReadDelData(SDelFReader *pReader, SDelData *pDelData, uint8_t **ppBuf) {
+int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdxItem *pItem, SDelData *pDelData, uint8_t **ppBuf) {
   int32_t code = 0;
-  // TODO
+  int64_t n;
+
+  // seek
+  if (taosLSeekFile(pReader->pReadH, pItem->offset, SEEK_SET) < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  // alloc
+  code = tsdbRealloc(ppBuf, pItem->size);
+  if (code) goto _err;
+
+  // read
+  n = taosReadFile(pReader->pReadH, *ppBuf, pItem->size);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  // check
+  if (!taosCheckChecksumWhole(*ppBuf, pItem->size)) {
+    code = TSDB_CODE_FILE_CORRUPTED;
+    goto _err;
+  }
+
+  // decode
+  n = tGetDelData(*ppBuf, pDelData);
+  ASSERT(n + sizeof(TSCKSUM) == pItem->size);
+  ASSERT(pDelData->delimiter == TSDB_FILE_DLMT);
+  ASSERT(pDelData->suid = pItem->suid);
+  ASSERT(pDelData->uid = pItem->uid);
+
+  return code;
+
+_err:
+  tsdbError("vgId:%d read del data failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
