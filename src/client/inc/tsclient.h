@@ -294,6 +294,7 @@ typedef struct {
   SQueryInfo  *active;         // current active query info
   int32_t      batchSize;      // for parameter ('?') binding and batch processing
   int32_t      resColumnId;
+  SArray      *hashedTableNames;
 } SSqlCmd;
 
 typedef struct {
