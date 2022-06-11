@@ -1233,15 +1233,14 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData) {
       SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
       SColumnInfoData* pSrc = taosArrayGet(pDataBlock->pDataBlock, i);
 
-      if (pSrc->pData== NULL) {
-        continue;
-      }
-
       int32_t code = colInfoDataEnsureCapacity(pDst, 0, pDataBlock->info.rows);
       if (code != TSDB_CODE_SUCCESS) {
         return NULL;
       }
 
+      if (pSrc->pData== NULL) {
+        continue;
+      }
       colDataAssign(pDst, pSrc, pDataBlock->info.rows);
     }
 
