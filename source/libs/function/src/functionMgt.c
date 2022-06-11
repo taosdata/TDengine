@@ -296,7 +296,7 @@ static int32_t createMergeFunction(const SFunctionNode* pSrcFunc, const SFunctio
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   //overwrite function restype set by translate function
-  if (fmIsSameInOutType(funcMgtBuiltins[pSrcFunc->funcId].type)) {
+  if (fmIsSameInOutType(pSrcFunc->funcId)) {
     (*pMergeFunc)->node.resType = pSrcFunc->node.resType;
   }
   strcpy((*pMergeFunc)->node.aliasName, pSrcFunc->node.aliasName);
