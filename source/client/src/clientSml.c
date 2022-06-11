@@ -479,11 +479,12 @@ static int32_t smlModifyDBSchemas(SSmlHandle* info) {
   SName pName = {TSDB_TABLE_NAME_T, info->taos->acctId, {0}, {0}};
   strcpy(pName.dbname, info->pRequest->pDb);
 
-  SRequestConnInfo conn = {.pTrans = info->taos->pAppInfo->pTransporter, 
-                           .requestId = info->pRequest->requestId,
-                           .requestObjRefId = info->pRequest->self,
-                           .mgmtEps = getEpSet_s(&info->taos->pAppInfo->mgmtEp)};
-
+  SRequestConnInfo conn = {0};
+  conn.pTrans = info->taos->pAppInfo->pTransporter;
+  conn.requestId = info->pRequest->requestId;
+  conn.requestObjRefId = info->pRequest->self;
+  conn.mgmtEps = getEpSet_s(&info->taos->pAppInfo->mgmtEp);
+  
   SSmlSTableMeta** tableMetaSml = (SSmlSTableMeta**)taosHashIterate(info->superTables, NULL);
   while (tableMetaSml) {
     SSmlSTableMeta* sTableData = *tableMetaSml;
@@ -2181,10 +2182,13 @@ static int32_t smlInsertData(SSmlHandle* info) {
     SName pName = {TSDB_TABLE_NAME_T, info->taos->acctId, {0}, {0}};
     strcpy(pName.dbname, info->pRequest->pDb);
     memcpy(pName.tname, tableData->childTableName, strlen(tableData->childTableName));
-    SRequestConnInfo conn = {.pTrans = info->taos->pAppInfo->pTransporter, 
-                             .requestId = info->pRequest->requestId,
-                             .requestObjRefId = info->pRequest->self,
-                             .mgmtEps = getEpSet_s(&info->taos->pAppInfo->mgmtEp)};
+
+    SRequestConnInfo conn = {0};
+    conn.pTrans = info->taos->pAppInfo->pTransporter;
+    conn.requestId = info->pRequest->requestId;
+    conn.requestObjRefId = info->pRequest->self;
+    conn.mgmtEps = getEpSet_s(&info->taos->pAppInfo->mgmtEp);
+                             
     SVgroupInfo vg;
     code = catalogGetTableHashVgroup(info->pCatalog, &conn, &pName, &vg);
     if (code != TSDB_CODE_SUCCESS) {
@@ -2307,10 +2311,12 @@ static int32_t isSchemalessDb(STscObj *taos, SRequestObj* request, SCatalog *cat
   char dbFname[TSDB_DB_FNAME_LEN] = {0};
   tNameGetFullDbName(&name, dbFname);
   SDbCfgInfo pInfo = {0};
-  SRequestConnInfo conn = {.pTrans = taos->pAppInfo->pTransporter, 
-                           .requestId = request->requestId,
-                           .requestObjRefId = request->self,
-                           .mgmtEps = getEpSet_s(&taos->pAppInfo->mgmtEp)};
+
+  SRequestConnInfo conn = {0};
+  conn.pTrans = taos->pAppInfo->pTransporter;
+  conn.requestId = request->requestId;
+  conn.requestObjRefId = request->self;
+  conn.mgmtEps = getEpSet_s(&taos->pAppInfo->mgmtEp);
 
   int32_t code = catalogGetDBCfg(catalog, &conn, dbFname, &pInfo);
   if (code != TSDB_CODE_SUCCESS) {
