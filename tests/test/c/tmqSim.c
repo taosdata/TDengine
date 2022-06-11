@@ -634,9 +634,7 @@ int32_t getConsumeInfo() {
   return 0;
 }
 
-LONG WINAPI exceptionHandler(LPEXCEPTION_POINTERS exception);
 int main(int32_t argc, char* argv[]) {
-  SetUnhandledExceptionFilter(exceptionHandler);
   parseArgument(argc, argv);
   getConsumeInfo();
   saveConfigToLogFile();
