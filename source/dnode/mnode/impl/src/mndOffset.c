@@ -183,7 +183,10 @@ static int32_t mndProcessCommitOffsetReq(SRpcMsg *pMsg) {
 
   for (int32_t i = 0; i < commitOffsetReq.num; i++) {
     SMqOffset *pOffset = &commitOffsetReq.offsets[i];
+    mInfo("commit offset %ld to vg %d of consumer group %s on topic %s", pOffset->offset, pOffset->vgId,
+          pOffset->cgroup, pOffset->topicName);
     if (mndMakePartitionKey(key, pOffset->cgroup, pOffset->topicName, pOffset->vgId) < 0) {
+      mError("submit offset to topic %s failed", pOffset->topicName);
       return -1;
     }
     bool          create = false;
@@ -192,7 +195,7 @@ static int32_t mndProcessCommitOffsetReq(SRpcMsg *pMsg) {
       SMqTopicObj *pTopic = mndAcquireTopic(pMnode, pOffset->topicName);
       if (pTopic == NULL) {
         terrno = TSDB_CODE_MND_TOPIC_NOT_EXIST;
-        mError("submit offset to topic %s failed since  %s", pOffset->topicName, terrstr());
+        mError("submit offset to topic %s failed since %s", pOffset->topicName, terrstr());
         continue;
       }
       pOffsetObj = taosMemoryMalloc(sizeof(SMqOffsetObj));
