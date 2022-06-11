@@ -83,8 +83,10 @@ typedef struct SReConfigCbMeta {
   SyncTerm  term;
   SyncTerm  currentTerm;
   SSyncCfg  oldCfg;
+  SSyncCfg  newCfg;
   bool      isDrop;
   uint64_t  flag;
+  uint64_t  seqNum;
 } SReConfigCbMeta;
 
 typedef struct SSnapshot {
@@ -106,7 +108,7 @@ typedef struct SSyncFSM {
   void (*FpRollBackCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
 
   void (*FpRestoreFinishCb)(struct SSyncFSM* pFsm);
-  void (*FpReConfigCb)(struct SSyncFSM* pFsm, SSyncCfg newCfg, SReConfigCbMeta cbMeta);
+  void (*FpReConfigCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SReConfigCbMeta cbMeta);
 
   int32_t (*FpGetSnapshot)(struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
 
@@ -184,7 +186,6 @@ int64_t     syncOpen(const SSyncInfo* pSyncInfo);
 void        syncStart(int64_t rid);
 void        syncStop(int64_t rid);
 int32_t     syncSetStandby(int64_t rid);
-int32_t     syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg);
 ESyncState  syncGetMyRole(int64_t rid);
 const char* syncGetMyRoleStr(int64_t rid);
 SyncTerm    syncGetMyTerm(int64_t rid);
@@ -194,8 +195,10 @@ int32_t     syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak);
 bool        syncEnvIsStart();
 const char* syncStr(ESyncState state);
 bool        syncIsRestoreFinish(int64_t rid);
+int32_t     syncGetSnapshotMeta(int64_t rid, struct SSnapshotMeta* sMeta);
 
-int32_t syncGetSnapshotMeta(int64_t rid, struct SSnapshotMeta* sMeta);
+int32_t syncReconfig(int64_t rid, const SSyncCfg* pNewCfg);
+int32_t syncReconfigRaw(int64_t rid, const SSyncCfg* pNewCfg, SRpcMsg* pRpcMsg);
 
 // to be moved to static
 void syncStartNormal(int64_t rid);

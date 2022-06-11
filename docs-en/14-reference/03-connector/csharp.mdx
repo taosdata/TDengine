@@ -48,7 +48,7 @@ Please refer to [version support list](/reference/connector#version-support)
 
 * Install the [.NET SDK](https://dotnet.microsoft.com/download)
 * [Nuget Client](https://docs.microsoft.com/en-us/nuget/install-nuget-client-tools) (optional installation)
-* Install TDengine client driver, please refer to [Install client driver](/reference/connector#Install client driver) for details
+* Install TDengine client driver, please refer to [Install client driver](/reference/connector/#install-client-driver) for details
 
 ### Install via dotnet CLI
 
@@ -57,7 +57,7 @@ Please refer to [version support list](/reference/connector#version-support)
 
 You can reference the `TDengine.Connector` published in Nuget to the current project via the `dotnet` command under the path of the existing .NET project.
 
-``` bash
+```
 dotnet add package TDengine.Connector
 ```
 
@@ -66,7 +66,7 @@ dotnet add package TDengine.Connector
 
 You can download TDengine's source code and directly reference the latest version of the TDengine.Connector library
 
-```bash
+```
 git clone https://github.com/taosdata/TDengine.git
 cd TDengine/src/connector/C#/src/
 cp -r TDengineDriver/ myProject
@@ -79,7 +79,7 @@ dotnet add TDengineDriver/TDengineDriver.csproj
 
 ## Create a connection
 
-``` C#
+```csharp
 using TDengineDriver;
 
 namespace TDengineExample

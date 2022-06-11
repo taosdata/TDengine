@@ -1494,10 +1494,8 @@ typedef struct {
   int32_t code;
 } STaskDropRsp;
 
-#define STREAM_TRIGGER_AT_ONCE_SMA      0
 #define STREAM_TRIGGER_AT_ONCE          1
 #define STREAM_TRIGGER_WINDOW_CLOSE     2
-#define STREAM_TRIGGER_WINDOW_CLOSE_SMA 3
 
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
@@ -2507,7 +2505,7 @@ typedef struct {
   int64_t offset;
   int64_t sliding;
   int64_t dstTbUid;
-  int32_t dstVgId;  // for stream
+  int32_t dstVgId;
   SEpSet  epSet;
   char*   expr;
 } STableIndexInfo;
