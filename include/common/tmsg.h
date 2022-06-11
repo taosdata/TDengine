@@ -1496,6 +1496,7 @@ typedef struct {
 
 #define STREAM_TRIGGER_AT_ONCE          1
 #define STREAM_TRIGGER_WINDOW_CLOSE     2
+#define STREAM_TRIGGER_MAX_DELAY        3
 
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
@@ -2335,24 +2336,26 @@ typedef struct {
 } SVgEpSet;
 
 typedef struct {
-  int8_t    version;       // for compatibility(default 0)
-  int8_t    intervalUnit;  // MACRO: TIME_UNIT_XXX
-  int8_t    slidingUnit;   // MACRO: TIME_UNIT_XXX
-  int8_t    timezoneInt;   // sma data expired if timezone changes.
-  int32_t   dstVgId;
-  char      indexName[TSDB_INDEX_NAME_LEN];
-  int32_t   exprLen;
-  int32_t   tagsFilterLen;
-  int32_t   numOfVgroups;
-  int64_t   indexUid;
-  tb_uid_t  tableUid;  // super/child/common table uid
-  int64_t   interval;
-  int64_t   offset;  // use unit by precision of DB
-  int64_t   sliding;
-  char*     expr;  // sma expression
-  char*     tagsFilter;
-  SVgEpSet* pVgEpSet;
-} STSma;  // Time-range-wise SMA
+  int8_t         version;       // for compatibility(default 0)
+  int8_t         intervalUnit;  // MACRO: TIME_UNIT_XXX
+  int8_t         slidingUnit;   // MACRO: TIME_UNIT_XXX
+  int8_t         timezoneInt;   // sma data expired if timezone changes.
+  int32_t        dstVgId;
+  char           indexName[TSDB_INDEX_NAME_LEN];
+  int32_t        exprLen;
+  int32_t        tagsFilterLen;
+  int64_t        indexUid;
+  tb_uid_t       tableUid;  // super/child/common table uid
+  tb_uid_t       dstTbUid;  // for dstVgroup
+  int64_t        interval;
+  int64_t        offset;  // use unit by precision of DB
+  int64_t        sliding;
+  char*          dstTbName;  // for dstVgroup
+  char*          expr;       // sma expression
+  char*          tagsFilter;
+  SSchemaWrapper schemaRow;  // for dstVgroup
+  SSchemaWrapper schemaTag;  // for dstVgroup
+} STSma;                     // Time-range-wise SMA
 
 typedef STSma SVCreateTSmaReq;
 
@@ -2437,27 +2440,6 @@ static int32_t tDecodeTSmaWrapper(SDecoder* pDecoder, STSmaWrapper* pReq) {
 }
 
 typedef struct {
-  int64_t     indexUid;
-  STimeWindow queryWindow;
-} SVGetTsmaExpWndsReq;
-
-#define SMA_WNDS_EXPIRE_FLAG      (0x1)
-#define SMA_WNDS_IS_EXPIRE(flag)  (((flag)&SMA_WNDS_EXPIRE_FLAG) != 0)
-#define SMA_WNDS_SET_EXPIRE(flag) ((flag) |= SMA_WNDS_EXPIRE_FLAG)
-
-typedef struct {
-  int64_t indexUid;
-  int8_t  flags;  // 0x1 all window expired
-  int32_t numExpWnds;
-  TSKEY   wndSKeys[];
-} SVGetTsmaExpWndsRsp;
-
-int32_t tEncodeSVGetTSmaExpWndsReq(SEncoder* pCoder, const SVGetTsmaExpWndsReq* pReq);
-int32_t tDecodeSVGetTsmaExpWndsReq(SDecoder* pCoder, SVGetTsmaExpWndsReq* pReq);
-int32_t tEncodeSVGetTSmaExpWndsRsp(SEncoder* pCoder, const SVGetTsmaExpWndsRsp* pReq);
-int32_t tDecodeSVGetTsmaExpWndsRsp(SDecoder* pCoder, SVGetTsmaExpWndsRsp* pReq);
-
-typedef struct {
   int idx;
 } SMCreateFullTextReq;
 
@@ -2516,7 +2498,8 @@ typedef struct {
 
 int32_t tSerializeSTableIndexRsp(void* buf, int32_t bufLen, const STableIndexRsp* pRsp);
 int32_t tDeserializeSTableIndexRsp(void* buf, int32_t bufLen, STableIndexRsp* pRsp);
-void    tFreeSTableIndexInfo(void* pInfo);
+
+void tFreeSTableIndexInfo(void* pInfo);
 
 typedef struct {
   int8_t  mqMsgType;
