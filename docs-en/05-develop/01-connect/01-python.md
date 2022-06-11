@@ -10,7 +10,7 @@ import TabItem from '@theme/TabItem';
 
 First, you need to install the `taospy` module version >= `2.3.3`. Run the command below in your terminal.
 
-<Tabs>
+<Tabs defaultValue="pip">
 <TabItem value="pip" label="pip">
 
 ```

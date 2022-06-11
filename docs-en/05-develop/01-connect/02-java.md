@@ -9,7 +9,7 @@ import TabItem from '@theme/TabItem';
 ## Add Dependency
 
 
-<Tabs>
+<Tabs defaultValue="maven">
 <TabItem value="maven" label="Maven">
 
 ```xml title="pom.xml"

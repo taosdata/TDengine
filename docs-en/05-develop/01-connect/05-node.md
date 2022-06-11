@@ -5,7 +5,7 @@ title: Connect with Node.js Connector
 
 ## Install Connector
 
-```
+```bash
 npm i td2.0-rest-connector
 ```
 ## Config
