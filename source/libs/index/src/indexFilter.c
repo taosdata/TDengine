@@ -184,7 +184,7 @@ static int32_t sifInitParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
   switch (nodeType(node)) {
     case QUERY_NODE_VALUE: {
       SValueNode *vn = (SValueNode *)node;
-      if (vn->typeData == TSDB_DATA_TYPE_NULL) {
+      if (vn->typeData == TSDB_DATA_TYPE_NULL && (vn->literal == NULL || strlen(vn->literal) == 0)) {
         param->status = SFLT_NOT_INDEX;
         return 0;
       }
