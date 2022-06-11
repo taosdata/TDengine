@@ -54,6 +54,8 @@ class TestVgroups(TDCase):
         self.tdSql.execute('create table long_life_cycle.life_cycle_ct1 using long_life_cycle.life_cycle_stb tags(10);')
         self.tdSql.execute('create table if not exists short_life_cycle.life_cycle_stb (ts timestamp, c1 int, c2 double, c3 binary(20), c4 nchar(20), c5 nchar(20)) tags (t1 int);')
         self.tdSql.execute('create table short_life_cycle.life_cycle_ct1 using short_life_cycle.life_cycle_stb tags(10);')
+        self.tdSql.execute('create table if not exists long_life_cycle.life_cycle_tb (ts timestamp, c1 int, c2 double, c3 binary(20), c4 nchar(20), c5 nchar(20));')
+        self.tdSql.execute('create table if not exists short_life_cycle.life_cycle_tb (ts timestamp, c1 int, c2 double, c3 binary(20), c4 nchar(20), c5 nchar(20));')
 
         self.tdSql.execute('create table if not exists tandem_stb1 (ts timestamp, c1 int, c2 double, c3 binary(20), c4 binary(20), c5 nchar(20)) tags (t1 int);')
         self.tdSql.execute('create table tandem_ct1 using tandem_stb1 tags(1);')
@@ -352,17 +354,31 @@ class TestVgroups(TDCase):
     def life_cycle(self):
         self.case_name = sys._getframe().f_code.co_name
         self.write_latency(self.case_name)
-
-        self.tdSql.execute(f'create stream life_cycle_stream into short_life_cycle.output_life_cycle_stb as select * from long_life_cycle.life_cycle_stb;')
+        # stb
+        self.tdSql.execute(f'create stream stb_life_cycle_stream into short_life_cycle.output_life_cycle_stb as select * from long_life_cycle.life_cycle_stb;')
+        # ctb
+        self.tdSql.execute(f'create stream ctb_life_cycle_stream into short_life_cycle.output_life_cycle_ctb as select * from long_life_cycle.life_cycle_ct1;')
+        # # tb
+        self.tdSql.execute(f'create stream tb_life_cycle_stream into short_life_cycle.output_life_cycle_tb as select * from long_life_cycle.life_cycle_tb;')
+        
         self.tdSql.execute(f'insert into long_life_cycle.life_cycle_ct1 values ({self.date_time}, 100, 100.1, "beijing", "taos", "Taos");')
         self.tdSql.execute(f'insert into long_life_cycle.life_cycle_ct1 values ({self.date_time}-1d, -50, -50.1, "tianjin", "taosdata", "Taosdata");')
         self.tdSql.execute(f'insert into long_life_cycle.life_cycle_ct1 values ({self.date_time}-2d, 0, Null, "hebei", "TDengine", Null);')
-        self.check_stream('select * from short_life_cycle.output_life_cycle_stb;', 'select * from long_life_cycle.life_cycle_stb;', 3)
+        self.tdSql.execute(f'insert into long_life_cycle.life_cycle_tb values ({self.date_time}, 100, 100.1, "beijing", "taos", "Taos");')
+        self.tdSql.execute(f'insert into long_life_cycle.life_cycle_tb values ({self.date_time}-1d, -50, -50.1, "tianjin", "taosdata", "Taosdata");')
+        self.tdSql.execute(f'insert into long_life_cycle.life_cycle_tb values ({self.date_time}-2d, 0, Null, "hebei", "TDengine", Null);')
+        self.check_stream('select ts, c1, c2, c3, c4, c5 from short_life_cycle.output_life_cycle_stb;', 'select ts, c1, c2, c3, c4, c5 from long_life_cycle.life_cycle_stb;', 3)
+        self.check_stream('select ts, c1, c2, c3, c4, c5 from short_life_cycle.output_life_cycle_ctb;', 'select ts, c1, c2, c3, c4, c5 from long_life_cycle.life_cycle_ct1;', 3)
+        self.check_stream('select ts, c1, c2, c3, c4, c5 from short_life_cycle.output_life_cycle_tb;', 'select ts, c1, c2, c3, c4, c5 from long_life_cycle.life_cycle_tb;', 3)
         self.tdSql.execute(f'insert into long_life_cycle.life_cycle_ct1 values ({self.date_time}-7d, -50, -50.1, "tianjin", "taosdata", "Taosdata");')
-        self.tdSql.query('select * from long_life_cycle.life_cycle_stb;')
-        self.tdSql.checkEqual(self.tdSql.query_row, 4)
-        self.tdSql.query('select * from short_life_cycle.output_life_cycle_stb;')
-        self.tdSql.checkEqual(self.tdSql.query_row, 3)
+        self.tdSql.execute(f'insert into long_life_cycle.life_cycle_tb values ({self.date_time}-7d, -50, -50.1, "tianjin", "taosdata", "Taosdata");')
+        for tbname in ["stb", "ct1", "tb"]:
+            self.tdSql.query(f'select ts, c1, c2, c3, c4, c5 from long_life_cycle.life_cycle_{tbname};')
+            self.tdSql.checkEqual(self.tdSql.query_row, 4)
+            if tbname == "ct1":
+                tbname = "ctb"
+            self.tdSql.query(f'select ts, c1, c2, c3, c4, c5 from short_life_cycle.output_life_cycle_{tbname};')
+            self.tdSql.checkEqual(self.tdSql.query_row, 3)
 
     def stream_tandem(self):
         self.case_name = sys._getframe().f_code.co_name
@@ -433,11 +449,11 @@ class TestVgroups(TDCase):
 
     def run(self) -> bool:
         self.prepare_stream_data()
-        # self.downsampling()
+        self.downsampling()
         # ! TD-16145
         # self.scalar_function()
-        # self.data_filter()
-        # self.life_cycle()
+        self.data_filter()
+        self.life_cycle()
         # self.stream_tandem()
         self.disorder_data()
 
