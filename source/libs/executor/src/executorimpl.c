@@ -1819,7 +1819,7 @@ void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numO
   }
 }
 
-static void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep, bool needFree);
+static void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep);
 
 void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, bool needFree) {
   if (pFilterNode == NULL) {
@@ -1840,29 +1840,28 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, bool needFree) {
   bool keep = filterExecute(filter, pBlock, &rowRes, NULL, param1.numOfCols);
   filterFreeInfo(filter);
 
-  extractQualifiedTupleByFilterResult(pBlock, rowRes, keep, needFree);
+  extractQualifiedTupleByFilterResult(pBlock, rowRes, keep);
   blockDataUpdateTsWindow(pBlock, 0);
 }
 
-void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep, bool needFree) {
+void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep) {
   if (keep) {
     return;
   }
 
   if (rowRes != NULL) {
-    SSDataBlock* px = createOneDataBlock(pBlock, false);
-    blockDataEnsureCapacity(px, pBlock->info.rows);
+    SSDataBlock* px = createOneDataBlock(pBlock, true);
 
     int32_t totalRows = pBlock->info.rows;
-
     for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
-      SColumnInfoData* pDst = taosArrayGet(px->pDataBlock, i);
-      SColumnInfoData* pSrc = taosArrayGet(pBlock->pDataBlock, i);
-
+      SColumnInfoData* pSrc = taosArrayGet(px->pDataBlock, i);
+      SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
       // it is a reserved column for scalar function, and no data in this column yet.
-      if (pSrc->pData == NULL) {
+      if (pDst->pData == NULL) {
         continue;
       }
+
+      colInfoDataCleanup(pDst, pBlock->info.rows);
 
       int32_t numOfRows = 0;
       for (int32_t j = 0; j < totalRows; ++j) {
@@ -1883,20 +1882,8 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowR
       } else {
         ASSERT(pBlock->info.rows == numOfRows);
       }
-
-      SColumnInfoData tmp = *pSrc;
-      *pSrc = *pDst;
-      *pDst = tmp;
-
-      if (!needFree) {
-        if (IS_VAR_DATA_TYPE(pDst->info.type)) {  // this elements do not need free
-          pDst->varmeta.offset = NULL;
-        } else {
-          pDst->nullbitmap = NULL;
-        }
-        pDst->pData = NULL;
-      }
     }
+
     blockDataDestroy(px);  // fix memory leak
   } else {
     // do nothing
@@ -2137,11 +2124,6 @@ static int32_t compressQueryColData(SColumnInfoData* pColRes, int32_t numOfRows,
 }
 
 int32_t doFillTimeIntervalGapsInResults(struct SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t capacity) {
-  //  for(int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
-  //    SColumnInfoData* pColInfoData = taosArrayGet(pOutput->pDataBlock, i);
-  //    p[i] = pColInfoData->pData + (pColInfoData->info.bytes * pOutput->info.rows);
-  //  }
-
   int32_t numOfRows = (int32_t)taosFillResultDataBlock(pFillInfo, pBlock, capacity - pBlock->info.rows);
   pBlock->info.rows += numOfRows;
 

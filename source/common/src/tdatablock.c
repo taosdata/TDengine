@@ -294,7 +294,7 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, in
 
 int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* pSource, int32_t numOfRows) {
   ASSERT(pColumnInfoData != NULL && pSource != NULL && pColumnInfoData->info.type == pSource->info.type);
-  if (numOfRows == 0) {
+  if (numOfRows <= 0) {
     return numOfRows;
   }
 
@@ -322,6 +322,7 @@ int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* p
     pColumnInfoData->varmeta.length = pSource->varmeta.length;
   } else {
     char* tmp = taosMemoryRealloc(pColumnInfoData->nullbitmap, BitmapLen(numOfRows));
+    printf("----------------%d\n", BitmapLen(numOfRows));
     if (tmp == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -1239,6 +1240,9 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData) {
         return NULL;
       }
 
+      if (pSrc->pData == NULL) {
+        continue;
+      }
       colDataAssign(pDst, pSrc, pDataBlock->info.rows);
     }
 
