@@ -188,9 +188,16 @@ TEST_F(ParserInitialATest, alterTable) {
 
   SVAlterTbReq expect = {0};
 
+  auto initAlterTbReq = [](SVAlterTbReq* pReq) {
+    free(pReq->tbName);
+    free(pReq->colName);
+    free(pReq->colNewName);
+    memset(pReq, 0, sizeof(SVAlterTbReq));
+  };
+
   auto setAlterColFunc = [&](const char* pTbname, int8_t alterType, const char* pColName, int8_t dataType = 0,
                              int32_t dataBytes = 0, const char* pNewColName = nullptr) {
-    memset(&expect, 0, sizeof(SVAlterTbReq));
+    initAlterTbReq(&expect);
     expect.tbName = strdup(pTbname);
     expect.action = alterType;
     expect.colName = strdup(pColName);
@@ -213,7 +220,7 @@ TEST_F(ParserInitialATest, alterTable) {
   };
 
   auto setAlterTagFunc = [&](const char* pTbname, const char* pTagName, uint8_t* pNewVal, uint32_t bytes) {
-    memset(&expect, 0, sizeof(SVAlterTbReq));
+    initAlterTbReq(&expect);
     expect.tbName = strdup(pTbname);
     expect.action = TSDB_ALTER_TABLE_UPDATE_TAG_VAL;
     expect.tagName = strdup(pTagName);
@@ -224,7 +231,7 @@ TEST_F(ParserInitialATest, alterTable) {
   };
 
   auto setAlterOptionsFunc = [&](const char* pTbname, int32_t ttl, char* pComment = nullptr) {
-    memset(&expect, 0, sizeof(SVAlterTbReq));
+    initAlterTbReq(&expect);
     expect.tbName = strdup(pTbname);
     expect.action = TSDB_ALTER_TABLE_UPDATE_OPTIONS;
     if (-1 != ttl) {

@@ -85,10 +85,11 @@ class ParserTestBaseImpl {
 
       SQuery* pQuery = nullptr;
       doParse(&cxt, &pQuery);
+      unique_ptr<SQuery, void (*)(SQuery*)> query(pQuery, qDestroyQuery);
 
-      doAuthenticate(&cxt, pQuery);
+      doAuthenticate(&cxt, pQuery, nullptr);
 
-      doTranslate(&cxt, pQuery);
+      doTranslate(&cxt, pQuery, nullptr);
 
       doCalculateConstant(&cxt, pQuery);
 
@@ -196,9 +197,8 @@ class ParserTestBaseImpl {
     res_.parsedAst_ = toString((*pQuery)->pRoot);
   }
 
-  void doCollectMetaKey(SParseContext* pCxt, SQuery* pQuery) {
-    DO_WITH_THROW(collectMetaKey, pCxt, pQuery);
-    ASSERT_NE(pQuery->pMetaCache, nullptr);
+  void doCollectMetaKey(SParseContext* pCxt, SQuery* pQuery, SParseMetaCache* pMetaCache) {
+    DO_WITH_THROW(collectMetaKey, pCxt, pQuery, pMetaCache);
   }
 
   void doBuildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalogReq) {
@@ -213,10 +213,12 @@ class ParserTestBaseImpl {
     DO_WITH_THROW(putMetaDataToCache, pCatalogReq, pMetaData, pMetaCache);
   }
 
-  void doAuthenticate(SParseContext* pCxt, SQuery* pQuery) { DO_WITH_THROW(authenticate, pCxt, pQuery); }
+  void doAuthenticate(SParseContext* pCxt, SQuery* pQuery, SParseMetaCache* pMetaCache) {
+    DO_WITH_THROW(authenticate, pCxt, pQuery, pMetaCache);
+  }
 
-  void doTranslate(SParseContext* pCxt, SQuery* pQuery) {
-    DO_WITH_THROW(translate, pCxt, pQuery);
+  void doTranslate(SParseContext* pCxt, SQuery* pQuery, SParseMetaCache* pMetaCache) {
+    DO_WITH_THROW(translate, pCxt, pQuery, pMetaCache);
     checkQuery(pQuery, PARSER_STAGE_TRANSLATE);
     res_.translatedAst_ = toString(pQuery->pRoot);
   }
@@ -245,23 +247,26 @@ class ParserTestBaseImpl {
 
       SQuery* pQuery = nullptr;
       doParse(&cxt, &pQuery);
+      unique_ptr<SQuery, void (*)(SQuery*)> query(pQuery, qDestroyQuery);
 
-      doCollectMetaKey(&cxt, pQuery);
+      SParseMetaCache metaCache = {0};
+      doCollectMetaKey(&cxt, pQuery, &metaCache);
 
-      SCatalogReq catalogReq = {0};
-      doBuildCatalogReq(pQuery->pMetaCache, &catalogReq);
+      unique_ptr<SCatalogReq, void (*)(SCatalogReq*)> catalogReq(new SCatalogReq(),
+                                                                 MockCatalogService::destoryCatalogReq);
+      doBuildCatalogReq(&metaCache, catalogReq.get());
 
       string err;
       thread t1([&]() {
         try {
-          SMetaData metaData = {0};
-          doGetAllMeta(&catalogReq, &metaData);
+          unique_ptr<SMetaData, void (*)(SMetaData*)> metaData(new SMetaData(), MockCatalogService::destoryMetaData);
+          doGetAllMeta(catalogReq.get(), metaData.get());
 
-          doPutMetaDataToCache(&catalogReq, &metaData, pQuery->pMetaCache);
+          doPutMetaDataToCache(catalogReq.get(), metaData.get(), &metaCache);
 
-          doAuthenticate(&cxt, pQuery);
+          doAuthenticate(&cxt, pQuery, &metaCache);
 
-          doTranslate(&cxt, pQuery);
+          doTranslate(&cxt, pQuery, &metaCache);
 
           doCalculateConstant(&cxt, pQuery);
         } catch (const TerminateFlag& e) {

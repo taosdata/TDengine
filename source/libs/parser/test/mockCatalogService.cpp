@@ -584,3 +584,35 @@ int32_t MockCatalogService::catalogGetTableIndex(const SName* pTableName, SArray
 int32_t MockCatalogService::catalogGetAllMeta(const SCatalogReq* pCatalogReq, SMetaData* pMetaData) const {
   return impl_->catalogGetAllMeta(pCatalogReq, pMetaData);
 }
+
+void MockCatalogService::destoryCatalogReq(SCatalogReq* pReq) {
+  taosArrayDestroy(pReq->pDbVgroup);
+  taosArrayDestroy(pReq->pDbCfg);
+  taosArrayDestroy(pReq->pDbInfo);
+  taosArrayDestroy(pReq->pTableMeta);
+  taosArrayDestroy(pReq->pTableHash);
+  taosArrayDestroy(pReq->pUdf);
+  taosArrayDestroy(pReq->pIndex);
+  taosArrayDestroy(pReq->pUser);
+  taosArrayDestroy(pReq->pTableIndex);
+  delete pReq;
+}
+
+void MockCatalogService::destoryMetaRes(void* p) {
+  SMetaRes* pRes = (SMetaRes*)p;
+  taosMemoryFree(pRes->pRes);
+}
+
+void MockCatalogService::destoryMetaData(SMetaData* pData) {
+  taosArrayDestroyEx(pData->pDbVgroup, destoryMetaRes);
+  taosArrayDestroyEx(pData->pDbCfg, destoryMetaRes);
+  taosArrayDestroyEx(pData->pDbInfo, destoryMetaRes);
+  taosArrayDestroyEx(pData->pTableMeta, destoryMetaRes);
+  taosArrayDestroyEx(pData->pTableHash, destoryMetaRes);
+  taosArrayDestroyEx(pData->pTableIndex, destoryMetaRes);
+  taosArrayDestroyEx(pData->pUdfList, destoryMetaRes);
+  taosArrayDestroyEx(pData->pIndex, destoryMetaRes);
+  taosArrayDestroyEx(pData->pUser, destoryMetaRes);
+  taosArrayDestroyEx(pData->pQnodeList, destoryMetaRes);
+  delete pData;
+}

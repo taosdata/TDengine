@@ -19,6 +19,8 @@
 
 #define USER_AUTH_KEY_MAX_LEN TSDB_USER_LEN + TSDB_DB_FNAME_LEN + 2
 
+const void* nullPointer = NULL;
+
 static char* getSyntaxErrFormat(int32_t errCode) {
   switch (errCode) {
     case TSDB_CODE_PAR_SYNTAX_ERROR:
@@ -646,7 +648,7 @@ static int32_t reserveTableReqInCacheImpl(const char* pTbFName, int32_t len, SHa
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
-  return taosHashPut(*pTables, pTbFName, len, &pTables, POINTER_BYTES);
+  return taosHashPut(*pTables, pTbFName, len, &nullPointer, POINTER_BYTES);
 }
 
 static int32_t reserveTableReqInCache(int32_t acctId, const char* pDb, const char* pTable, SHashObj** pTables) {
@@ -688,7 +690,7 @@ static int32_t reserveDbReqInCache(int32_t acctId, const char* pDb, SHashObj** p
   }
   char    fullName[TSDB_TABLE_FNAME_LEN];
   int32_t len = snprintf(fullName, sizeof(fullName), "%d.%s", acctId, pDb);
-  return taosHashPut(*pDbs, fullName, len, &pDbs, POINTER_BYTES);
+  return taosHashPut(*pDbs, fullName, len, &nullPointer, POINTER_BYTES);
 }
 
 int32_t reserveDbVgInfoInCache(int32_t acctId, const char* pDb, SParseMetaCache* pMetaCache) {
@@ -803,7 +805,7 @@ int32_t reserveUdfInCache(const char* pFunc, SParseMetaCache* pMetaCache) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
-  return taosHashPut(pMetaCache->pUdf, pFunc, strlen(pFunc), &pMetaCache, POINTER_BYTES);
+  return taosHashPut(pMetaCache->pUdf, pFunc, strlen(pFunc), &nullPointer, POINTER_BYTES);
 }
 
 int32_t getUdfInfoFromCache(SParseMetaCache* pMetaCache, const char* pFunc, SFuncInfo* pInfo) {
@@ -853,4 +855,15 @@ int32_t getTableIndexFromCache(SParseMetaCache* pMetaCache, const SName* pName, 
     }
   }
   return code;
+}
+
+void destoryParseMetaCache(SParseMetaCache* pMetaCache) {
+  taosHashCleanup(pMetaCache->pTableMeta);
+  taosHashCleanup(pMetaCache->pDbVgroup);
+  taosHashCleanup(pMetaCache->pTableVgroup);
+  taosHashCleanup(pMetaCache->pDbCfg);
+  taosHashCleanup(pMetaCache->pDbInfo);
+  taosHashCleanup(pMetaCache->pUserAuth);
+  taosHashCleanup(pMetaCache->pUdf);
+  taosHashCleanup(pMetaCache->pTableIndex);
 }

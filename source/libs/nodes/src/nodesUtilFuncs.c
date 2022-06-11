@@ -215,6 +215,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SKillStmt));
     case QUERY_NODE_DELETE_STMT:
       return makeNode(type, sizeof(SDeleteStmt));
+    case QUERY_NODE_QUERY:
+      return makeNode(type, sizeof(SQuery));
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return makeNode(type, sizeof(SScanLogicNode));
     case QUERY_NODE_LOGIC_PLAN_JOIN:

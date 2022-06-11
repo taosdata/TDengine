@@ -5045,11 +5045,18 @@ static int32_t buildModifyVnodeArray(STranslateContext* pCxt, SAlterTableStmt* p
   return code;
 }
 
+static void destoryAlterTbReq(SVAlterTbReq* pReq) {
+  taosMemoryFree(pReq->tbName);
+  taosMemoryFree(pReq->colName);
+  taosMemoryFree(pReq->colNewName);
+  taosMemoryFree(pReq->tagName);
+  taosMemoryFree(pReq->newComment);
+}
+
 static int32_t rewriteAlterTable(STranslateContext* pCxt, SQuery* pQuery) {
   SAlterTableStmt* pStmt = (SAlterTableStmt*)pQuery->pRoot;
-  int32_t          code = checkSchemalessDb(pCxt, pStmt->dbName);
   STableMeta*      pTableMeta = NULL;
-  code = getTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pTableMeta);
+  int32_t          code = getTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pTableMeta);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
@@ -5089,7 +5096,7 @@ static int32_t rewriteAlterTable(STranslateContext* pCxt, SQuery* pQuery) {
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteToVnodeModifyOpStmt(pQuery, pArray);
   }
-
+  destoryAlterTbReq(&req);
   return code;
 }
 
@@ -5225,10 +5232,10 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t translate(SParseContext* pParseCxt, SQuery* pQuery) {
+int32_t translate(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMetaCache) {
   STranslateContext cxt = {0};
 
-  int32_t code = initTranslateContext(pParseCxt, pQuery->pMetaCache, &cxt);
+  int32_t code = initTranslateContext(pParseCxt, pMetaCache, &cxt);
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteQuery(&cxt, pQuery);
   }

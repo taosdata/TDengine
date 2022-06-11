@@ -101,7 +101,7 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t authenticate(SParseContext* pParseCxt, SQuery* pQuery) {
-  SAuthCxt cxt = {.pParseCxt = pParseCxt, .pMetaCache = pQuery->pMetaCache, .errCode = TSDB_CODE_SUCCESS};
+int32_t authenticate(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMetaCache) {
+  SAuthCxt cxt = {.pParseCxt = pParseCxt, .pMetaCache = pMetaCache, .errCode = TSDB_CODE_SUCCESS};
   return authQuery(&cxt, pQuery->pRoot);
 }

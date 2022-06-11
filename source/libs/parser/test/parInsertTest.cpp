@@ -51,7 +51,7 @@ class InsertTest : public Test {
   }
 
   int32_t run() {
-    code_ = parseInsertSql(&cxt_, &res_);
+    code_ = parseInsertSql(&cxt_, &res_, nullptr);
     if (code_ != TSDB_CODE_SUCCESS) {
       cout << "code:" << toString(code_) << ", msg:" << errMagBuf_ << endl;
     }
@@ -60,29 +60,31 @@ class InsertTest : public Test {
 
   int32_t runAsync() {
     cxt_.async = true;
-    code_ = parseInsertSyntax(&cxt_, &res_);
+    SParseMetaCache metaCache = {0};
+    code_ = parseInsertSyntax(&cxt_, &res_, &metaCache);
     if (code_ != TSDB_CODE_SUCCESS) {
       cout << "parseInsertSyntax code:" << toString(code_) << ", msg:" << errMagBuf_ << endl;
       return code_;
     }
 
-    SCatalogReq catalogReq = {0};
-    code_ = buildCatalogReq(res_->pMetaCache, &catalogReq);
+    unique_ptr<SCatalogReq, void (*)(SCatalogReq*)> catalogReq(new SCatalogReq(),
+                                                               MockCatalogService::destoryCatalogReq);
+    code_ = buildCatalogReq(&metaCache, catalogReq.get());
     if (code_ != TSDB_CODE_SUCCESS) {
       cout << "buildCatalogReq code:" << toString(code_) << ", msg:" << errMagBuf_ << endl;
       return code_;
     }
 
-    SMetaData metaData = {0};
-    g_mockCatalogService->catalogGetAllMeta(&catalogReq, &metaData);
+    unique_ptr<SMetaData, void (*)(SMetaData*)> metaData(new SMetaData(), MockCatalogService::destoryMetaData);
+    g_mockCatalogService->catalogGetAllMeta(catalogReq.get(), metaData.get());
 
-    code_ = putMetaDataToCache(&catalogReq, &metaData, res_->pMetaCache);
+    code_ = putMetaDataToCache(catalogReq.get(), metaData.get(), &metaCache);
     if (code_ != TSDB_CODE_SUCCESS) {
       cout << "putMetaDataToCache code:" << toString(code_) << ", msg:" << errMagBuf_ << endl;
       return code_;
     }
 
-    code_ = parseInsertSql(&cxt_, &res_);
+    code_ = parseInsertSql(&cxt_, &res_, &metaCache);
     if (code_ != TSDB_CODE_SUCCESS) {
       cout << "parseInsertSql code:" << toString(code_) << ", msg:" << errMagBuf_ << endl;
       return code_;
