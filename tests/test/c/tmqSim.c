@@ -537,6 +537,12 @@ void* consumeThreadFunc(void* param) {
   // save consume result into consumeresult table
   saveConsumeResult(pInfo);
 
+  // save rows from per vgroup
+  taosFprintfFile(g_fp, "======== consumerId: %d, consume rows from per vgroups ========\n", pInfo->consumerId);
+  for (int32_t i = 0; i < pInfo->numOfVgroups; i++) {
+    taosFprintfFile(g_fp, "vgroups: %04d, rows: %d\n", pInfo->rowsOfPerVgroups[i][0], pInfo->rowsOfPerVgroups[i][1]);
+  }
+
   return NULL;
 }
 
