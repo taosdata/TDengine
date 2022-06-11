@@ -2513,6 +2513,7 @@ typedef struct {
 } STableIndexInfo;
 
 typedef struct {
+  int32_t version;
   SArray* pIndex;
 } STableIndexRsp;
 

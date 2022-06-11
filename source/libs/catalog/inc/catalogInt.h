@@ -57,6 +57,8 @@ enum {
   CTG_OP_DROP_TB_META,
   CTG_OP_UPDATE_USER,
   CTG_OP_UPDATE_VG_EPSET,
+  CTG_OP_UPDATE_TB_INDEX,
+  CTG_OP_DROP_TB_INDEX,
   CTG_OP_MAX
 };
 
@@ -128,19 +130,27 @@ typedef struct SCtgUserCtx {
   SUserAuthInfo user;
 } SCtgUserCtx;
 
-typedef struct SCtgTbMetaCache {
-  SRWLatch  stbLock;
-  SRWLatch  metaLock;        // RC between cache destroy and all other operations
-  SHashObj *metaCache;       //key:tbname, value:STableMeta
-  SHashObj *stbCache;        //key:suid, value:STableMeta*
-} SCtgTbMetaCache;
+typedef STableIndexRsp STableIndex;
+
+typedef struct SCtgTbCache {
+  SRWLatch     metaLock;
+  STableMeta  *pMeta;
+  SRWLatch     indexLock;
+  STableIndex *pIndex;
+} SCtgTbCache;
+
+typedef struct SCtgVgCache {
+  SRWLatch         vgLock;
+  SDBVgInfo       *vgInfo;  
+} SCtgVgCache;
 
 typedef struct SCtgDBCache {
-  SRWLatch         vgLock;
+  SRWLatch         dbLock;          // RC between destroy tbCache/stbCache and all reads
   uint64_t         dbId;
   int8_t           deleted;
-  SDBVgInfo       *vgInfo;  
-  SCtgTbMetaCache  tbCache;
+  SCtgVgCache      vgCache;
+  SHashObj        *tbCache;         // key:tbname, value:SCtgTbCache
+  SHashObj        *stbCache;        // key:suid, value:STableMeta*
 } SCtgDBCache;
 
 typedef struct SCtgRentSlot {
@@ -245,8 +255,10 @@ typedef struct SCtgCacheStat {
   uint64_t userNum;
   uint64_t vgHitNum;
   uint64_t vgMissNum;
-  uint64_t tblHitNum;
-  uint64_t tblMissNum;
+  uint64_t tbMetaHitNum;
+  uint64_t tbMetaMissNum;
+  uint64_t tbIndexHitNum;
+  uint64_t tbIndexMissNum;  
   uint64_t userHitNum;
   uint64_t userMissNum;
 } SCtgCacheStat;
@@ -268,10 +280,10 @@ typedef struct SCtgUpdateVgMsg {
   SDBVgInfo* dbInfo;
 } SCtgUpdateVgMsg;
 
-typedef struct SCtgUpdateTblMsg {
-  SCatalog* pCtg;
-  STableMetaOutput* output;
-} SCtgUpdateTblMsg;
+typedef struct SCtgUpdateTbMetaMsg {
+  SCatalog*         pCtg;
+  STableMetaOutput* pMeta;
+} SCtgUpdateTbMetaMsg;
 
 typedef struct SCtgDropDBMsg {
   SCatalog* pCtg;
@@ -304,6 +316,19 @@ typedef struct SCtgUpdateUserMsg {
   SCatalog* pCtg;
   SGetUserAuthRsp userAuth;
 } SCtgUpdateUserMsg;
+
+typedef struct SCtgUpdateTbIndexMsg {
+  SCatalog*    pCtg;
+  char         dbFName[TSDB_DB_FNAME_LEN];
+  char         tbName[TSDB_TABLE_NAME_LEN];
+  STableIndex* pIndex;
+} SCtgUpdateTbIndexMsg;
+
+typedef struct SCtgDropTbIndexMsg {
+  SCatalog*    pCtg;
+  char         dbFName[TSDB_DB_FNAME_LEN];
+  char         tbName[TSDB_TABLE_NAME_LEN];
+} SCtgDropTbIndexMsg;
 
 typedef struct SCtgUpdateEpsetMsg {
   SCatalog* pCtg;
@@ -465,8 +490,7 @@ int32_t ctgOpUpdateUser(SCtgCacheOperation *action);
 int32_t ctgOpUpdateEpset(SCtgCacheOperation *operation);
 int32_t ctgAcquireVgInfoFromCache(SCatalog* pCtg, const char *dbFName, SCtgDBCache **pCache);
 void ctgReleaseDBCache(SCatalog *pCtg, SCtgDBCache *dbCache);
-void ctgReleaseVgInfo(SCtgDBCache *dbCache);
-int32_t ctgAcquireVgInfoFromCache(SCatalog* pCtg, const char *dbFName, SCtgDBCache **pCache);
+void ctgRUnlockVgInfo(SCtgDBCache *dbCache);
 int32_t ctgTbMetaExistInCache(SCatalog* pCtg, char *dbFName, char* tbName, int32_t *exist);
 int32_t ctgReadTbMetaFromCache(SCatalog* pCtg, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta);
 int32_t ctgReadTbVerFromCache(SCatalog *pCtg, const SName *pTableName, int32_t *sver, int32_t *tver, int32_t *tbType, uint64_t *suid, char *stbName);
@@ -479,6 +503,7 @@ int32_t ctgUpdateVgroupEnqueue(SCatalog* pCtg, const char *dbFName, int64_t dbId
 int32_t ctgUpdateTbMetaEnqueue(SCatalog* pCtg, STableMetaOutput *output, bool syncReq);
 int32_t ctgUpdateUserEnqueue(SCatalog* pCtg, SGetUserAuthRsp *pAuth, bool syncReq);
 int32_t ctgUpdateVgEpsetEnqueue(SCatalog* pCtg, char *dbFName, int32_t vgId, SEpSet* pEpSet);
+int32_t ctgUpdateTbIndexEnqueue(SCatalog* pCtg, SName* pName, STableIndex *pIndex, bool syncOp);
 int32_t ctgMetaRentInit(SCtgRentMgmt *mgmt, uint32_t rentSec, int8_t type);
 int32_t ctgMetaRentAdd(SCtgRentMgmt *mgmt, void *meta, int64_t id, int32_t size);
 int32_t ctgMetaRentGet(SCtgRentMgmt *mgmt, void **res, uint32_t *num, int32_t size);
@@ -521,6 +546,7 @@ void ctgFreeSTableMetaOutput(STableMetaOutput* pOutput);
 int32_t ctgUpdateMsgCtx(SCtgMsgCtx* pCtx, int32_t reqType, void* out, char* target);
 char *ctgTaskTypeStr(CTG_TASK_TYPE type);
 int32_t ctgUpdateSendTargetInfo(SMsgSendInfo *pMsgSendInfo, int32_t msgType, SCtgTask* pTask);
+int32_t ctgCloneTableIndex(SArray* pIndex, SArray** pRes);
 
 
 extern SCatalogMgmt gCtgMgmt;

@@ -2437,6 +2437,7 @@ int32_t tSerializeSTableIndexRsp(void *buf, int32_t bufLen, const STableIndexRsp
   tEncoderInit(&encoder, buf, bufLen);
 
   if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->version) < 0) return -1;
   int32_t num = taosArrayGetSize(pRsp->pIndex);
   if (tEncodeI32(&encoder, num) < 0) return -1;
   if (num > 0) {
@@ -2471,6 +2472,7 @@ int32_t tDeserializeSTableIndexRsp(void *buf, int32_t bufLen, STableIndexRsp *pR
   tDecoderInit(&decoder, buf, bufLen);
 
   if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI32(&decoder, &pRsp->version) < 0) return -1;
   int32_t num = 0;
   if (tDecodeI32(&decoder, &num) < 0) return -1;
   if (num > 0) {

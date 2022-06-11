@@ -484,13 +484,17 @@ int32_t queryProcessGetTbIndexRsp(void *output, char *msg, int32_t msgSize) {
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
 
-  STableIndexRsp out = {0};
-  if (tDeserializeSTableIndexRsp(msg, msgSize, &out) != 0) {
+  STableIndexRsp *out = taosMemoryCalloc(1, sizeof(STableIndexRsp));
+  if (NULL == out) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  
+  if (tDeserializeSTableIndexRsp(msg, msgSize, out) != 0) {
     qError("tDeserializeSTableIndexRsp failed, msgSize:%d", msgSize);
     return TSDB_CODE_INVALID_MSG;
   }
 
-  *(void **)output = out.pIndex;
+  *(void **)output = out;
   
   return TSDB_CODE_SUCCESS;
 }

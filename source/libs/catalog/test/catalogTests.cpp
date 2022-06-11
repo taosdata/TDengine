@@ -895,9 +895,9 @@ void *ctgTestSetCtableMetaThread(void *param) {
     output = (STableMetaOutput *)taosMemoryMalloc(sizeof(STableMetaOutput));
     ctgTestBuildCTableMetaOutput(output);
 
-    SCtgUpdateTblMsg *msg = (SCtgUpdateTblMsg *)taosMemoryMalloc(sizeof(SCtgUpdateTblMsg));
+    SCtgUpdateTbMetaMsg *msg = (SCtgUpdateTbMetaMsg *)taosMemoryMalloc(sizeof(SCtgUpdateTbMetaMsg));
     msg->pCtg = pCtg;
-    msg->output = output;
+    msg->pMeta = output;
     operation.data = msg;
 
     code = ctgOpUpdateTbMeta(&operation);

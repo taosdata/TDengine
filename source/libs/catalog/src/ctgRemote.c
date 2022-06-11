@@ -448,10 +448,7 @@ int32_t ctgGetTbIndexFromMnode(SCatalog* pCtg, SRequestConnInfo *pConn, SName *n
   }
 
   if (pTask) {
-    void* pOut = taosMemoryCalloc(1, POINTER_BYTES);
-    if (NULL == pOut) {
-      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
-    }
+    void* pOut = NULL;
     CTG_ERR_RET(ctgUpdateMsgCtx(&pTask->msgCtx, reqType, pOut, (char*)tbFName));
     
     CTG_RET(ctgAsyncSendMsg(pCtg, pConn, pTask, reqType, msg, msgLen));

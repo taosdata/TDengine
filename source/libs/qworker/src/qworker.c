@@ -837,7 +837,6 @@ void qwProcessHbTimerEvent(void *param, void *tmrId) {
   SQWorker *mgmt = qwAcquire(refId);
   if (NULL == mgmt) {
     QW_DLOG("qwAcquire %" PRIx64 "failed", refId);
-    taosMemoryFree(param);
     return;
   }
 
