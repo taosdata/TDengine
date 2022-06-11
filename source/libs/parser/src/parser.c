@@ -76,7 +76,7 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
   int32_t inputSize = (NULL != pParam->length ? *(pParam->length) : tDataTypes[pParam->buffer_type].bytes);
   pVal->node.resType.type = pParam->buffer_type;
   pVal->node.resType.bytes = inputSize;
-  
+
   switch (pParam->buffer_type) {
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
@@ -186,7 +186,7 @@ int32_t qExtractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** p
   return extractResultSchema(pRoot, numOfCols, pSchema);
 }
 
-int32_t qSetSTableIdForRSma(SNode* pStmt, int64_t uid) {
+int32_t qSetSTableIdForRsma(SNode* pStmt, int64_t uid) {
   if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
     SNode* pTable = ((SSelectStmt*)pStmt)->pFromTable;
     if (QUERY_NODE_REAL_TABLE == nodeType(pTable)) {

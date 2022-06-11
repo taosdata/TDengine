@@ -122,7 +122,7 @@ int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
   syncIndexMgrLog2("begin append entries peers pNextIndex:", pSyncNode->pNextIndex);
   syncIndexMgrLog2("begin append entries peers pMatchIndex:", pSyncNode->pMatchIndex);
   logStoreSimpleLog2("begin append entries peers LogStore:", pSyncNode->pLogStore);
-  {
+  if (gRaftDetailLog) {
     SSnapshot snapshot;
     pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
     sTrace("begin append entries peers, snapshot.lastApplyIndex:%ld, snapshot.lastApplyTerm:%lu",
@@ -201,7 +201,6 @@ int32_t syncNodeReplicate(SSyncNode* pSyncNode) {
 }
 
 int32_t syncNodeAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncAppendEntries* pMsg) {
-  sTrace("syncNodeAppendEntries pSyncNode:%p ", pSyncNode);
   int32_t ret = 0;
 
   SRpcMsg rpcMsg;

@@ -122,10 +122,10 @@ class TDTestCase:
 
         for i in ['bigint','unsigned int','float','double','binary(10)','nchar(10)']:
             for j in [1,2,3]:
-                tdSql.error(f'alter table {stbname} modify tag t{j} {i}')
+                tdSql.error(f'alter stable {stbname} modify tag t{j} {i}')
         for i in ['int','unsigned int','float','binary(10)','nchar(10)']:
-            tdSql.error(f'alter table {stbname} modify tag t8 {i}')
-        tdSql.error(f'alter table {stbname} modify tag t4 int')
+            tdSql.error(f'alter stable {stbname} modify tag t8 {i}')
+        tdSql.error(f'alter stable {stbname} modify tag t4 int')
         tdSql.execute(f'drop database {dbname}')
 
     def run(self):

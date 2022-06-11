@@ -303,6 +303,10 @@ int32_t vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
     char  logBuf[512] = {0};
     char *syncNodeStr = sync2SimpleStr(pVnode->sync);
     snprintf(logBuf, sizeof(logBuf), "==vnodeProcessSyncReq== msgType:%d, syncNode: %s", pMsg->msgType, syncNodeStr);
+    static int64_t vndTick = 0;
+    if (++vndTick % 10 == 1) {
+      vTrace("sync trace msg:%s, %s", TMSG_INFO(pMsg->msgType), syncNodeStr);
+    }
     syncRpcMsgLog2(logBuf, pMsg);
     taosMemoryFree(syncNodeStr);
 

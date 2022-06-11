@@ -50,6 +50,7 @@ typedef enum EStreamType {
   STREAM_INVERT,
   STREAM_REPROCESS,
   STREAM_INVALID,
+  STREAM_GET_ALL,
 } EStreamType;
 
 typedef struct {
@@ -116,6 +117,8 @@ typedef struct SQueryTableDataCond {
   int32_t      type;              // data block load type:
   int32_t      numOfTWindows;
   STimeWindow* twindows;
+  int32_t      startVersion;
+  int32_t      endVersion;
 } SQueryTableDataCond;
 
 void*   blockDataDestroy(SSDataBlock* pBlock);

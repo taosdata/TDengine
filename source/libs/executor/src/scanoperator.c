@@ -809,10 +809,17 @@ static void getUpdateDataBlock(SStreamBlockScanInfo* pInfo, bool invertible, SSD
     //  return p;
     SColumnInfoData* pCol = (SColumnInfoData*)taosArrayGet(pUpdateBlock->pDataBlock, pInfo->primaryTsIndex);
     ASSERT(pCol->info.type == TSDB_DATA_TYPE_TIMESTAMP);
-    colInfoDataEnsureCapacity(pCol, 0, size);
+    blockDataEnsureCapacity(pUpdateBlock, size);
     for (int32_t i = 0; i < size; i++) {
       TSKEY* pTs = (TSKEY*)taosArrayGet(pInfo->tsArray, i);
       colDataAppend(pCol, i, (char*)pTs, false);
+    }
+    for (int32_t i = 0; i < pUpdateBlock->info.numOfCols; i++) {
+      if (i == pInfo->primaryTsIndex) {
+        continue;
+      }
+      SColumnInfoData* pCol = (SColumnInfoData*)taosArrayGet(pUpdateBlock->pDataBlock, i);
+      colDataAppendNNULL(pCol, 0, size);
     }
     pUpdateBlock->info.rows = size;
     pUpdateBlock->info.type = STREAM_REPROCESS;
@@ -841,7 +848,9 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
     }
 
     int32_t current = pInfo->validBlockIndex++;
-    return taosArrayGetP(pInfo->pBlockLists, current);
+    SSDataBlock* pBlock = taosArrayGetP(pInfo->pBlockLists, current);
+    blockDataUpdateTsWindow(pBlock, 0);
+    return pBlock;
   } else {
     if (pInfo->scanMode == STREAM_SCAN_FROM_RES) {
       blockDataDestroy(pInfo->pUpdateRes);
@@ -940,7 +949,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
       }
 
       doFilter(pInfo->pCondition, pInfo->pRes, false);
-      blockDataUpdateTsWindow(pInfo->pRes, 0);
+      blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
       break;
     }
 
@@ -1017,10 +1026,6 @@ SOperatorInfo* createStreamScanOperatorInfo(void* pDataReader, SReadHandle* pHan
   pInfo->tsArray = taosArrayInit(4, sizeof(TSKEY));
   if (pInfo->tsArray == NULL) {
     goto _error;
-  }
-
-  if (isSmaStream(pTableScanNode->triggerType)) {
-    pTwSup->waterMark = getSmaWaterMark(pSTInfo->interval.interval, pTableScanNode->filesFactor);
   }
 
   if (pSTInfo->interval.interval > 0 && pDataReader) {

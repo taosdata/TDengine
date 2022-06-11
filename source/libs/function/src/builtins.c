@@ -1112,7 +1112,7 @@ static bool validateHourRange(int8_t hour) {
 }
 
 static bool validateMinuteRange(int8_t hour, int8_t minute, char sign) {
-  if (minute == 0 || (minute == 30 && (hour == 3 || hour == 5) && sign == '-')) {
+  if (minute == 0 || (minute == 30 && (hour == 3 || hour == 5) && sign == '+')) {
     return true;
   }
 
@@ -1447,6 +1447,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = apercentileFunctionSetup,
     .processFunc  = apercentileFunction,
     .finalizeFunc = apercentileFinalize,
+    .invertFunc   = NULL,
     .combineFunc  = apercentileCombine,
     .pPartialFunc = "_apercentile_partial",
     .pMergeFunc   = "_apercentile_merge"
@@ -1459,7 +1460,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getApercentileFuncEnv,
     .initFunc     = apercentileFunctionSetup,
     .processFunc  = apercentileFunction,
-    .finalizeFunc = apercentilePartialFinalize
+    .finalizeFunc = apercentilePartialFinalize,
+    .invertFunc   = NULL,
+    .combineFunc = apercentileCombine,
   },
   {
     .name = "_apercentile_merge",
@@ -1469,7 +1472,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getApercentileFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = apercentileFunctionMerge,
-    .finalizeFunc = apercentileFinalize
+    .finalizeFunc = apercentileFinalize,
+    .invertFunc   = NULL,
+    .combineFunc = apercentileCombine,
   },
   {
     .name = "top",
@@ -1503,6 +1508,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = spreadFunctionSetup,
     .processFunc  = spreadFunction,
     .finalizeFunc = spreadFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = spreadCombine,
     .pPartialFunc = "_spread_partial",
     .pMergeFunc   = "_spread_merge"
   },
@@ -1515,7 +1522,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getSpreadFuncEnv,
     .initFunc     = spreadFunctionSetup,
     .processFunc  = spreadFunction,
-    .finalizeFunc = spreadPartialFinalize
+    .finalizeFunc = spreadPartialFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = spreadCombine,
   },
   {
     .name = "_spread_merge",
@@ -1526,7 +1535,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getSpreadFuncEnv,
     .initFunc     = spreadFunctionSetup,
     .processFunc  = spreadFunctionMerge,
-    .finalizeFunc = spreadFinalize
+    .finalizeFunc = spreadFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = spreadCombine,
   },
   {
     .name = "elapsed",
@@ -1538,6 +1549,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = elapsedFunctionSetup,
     .processFunc  = elapsedFunction,
     .finalizeFunc = elapsedFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = elapsedCombine,
     .pPartialFunc = "_elapsed_partial",
     .pMergeFunc   = "_elapsed_merge"
   },
@@ -1550,7 +1563,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getElapsedFuncEnv,
     .initFunc     = elapsedFunctionSetup,
     .processFunc  = elapsedFunction,
-    .finalizeFunc = elapsedPartialFinalize
+    .finalizeFunc = elapsedPartialFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = elapsedCombine,
   },
   {
     .name = "_elapsed_merge",
@@ -1561,7 +1576,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getElapsedFuncEnv,
     .initFunc     = elapsedFunctionSetup,
     .processFunc  = elapsedFunctionMerge,
-    .finalizeFunc = elapsedFinalize
+    .finalizeFunc = elapsedFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = elapsedCombine,
   },
   {
     .name = "last_row",
@@ -1614,8 +1631,10 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = histogramFunctionSetup,
     .processFunc  = histogramFunction,
     .finalizeFunc = histogramFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = histogramCombine,
     .pPartialFunc = "_histogram_partial",
-    .pMergeFunc   = "_histogram_merge"
+    .pMergeFunc   = "_histogram_merge",
   },
   {
     .name = "_histogram_partial",
@@ -1625,7 +1644,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getHistogramFuncEnv,
     .initFunc     = histogramFunctionSetup,
     .processFunc  = histogramFunction,
-    .finalizeFunc = histogramPartialFinalize
+    .finalizeFunc = histogramPartialFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = histogramCombine,
   },
   {
     .name = "_histogram_merge",
@@ -1635,7 +1656,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getHistogramFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = histogramFunctionMerge,
-    .finalizeFunc = histogramFinalize
+    .finalizeFunc = histogramFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = histogramCombine,
   },
   {
     .name = "hyperloglog",
@@ -1646,6 +1669,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = functionSetup,
     .processFunc  = hllFunction,
     .finalizeFunc = hllFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = hllCombine,
     .pPartialFunc = "_hyperloglog_partial",
     .pMergeFunc   = "_hyperloglog_merge"
   },
@@ -1657,7 +1682,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getHLLFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = hllFunction,
-    .finalizeFunc = hllPartialFinalize
+    .finalizeFunc = hllPartialFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = hllCombine,
   },
   {
     .name = "_hyperloglog_merge",
@@ -1667,7 +1694,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getHLLFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = hllFunctionMerge,
-    .finalizeFunc = hllFinalize
+    .finalizeFunc = hllFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = hllCombine,
   },
   {
     .name = "diff",
