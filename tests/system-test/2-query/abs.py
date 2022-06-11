@@ -537,8 +537,8 @@ class TDTestCase:
         # tdSql.checkData(0,3,33333)
 
         # tag filter with abs function
-        tdSql.query("select t1 from stb1 where abs(t1)=1")
-        tdSql.checkRows(1)
+        # tdSql.query("select t1 from stb1 where abs(t1)=1")
+        # tdSql.checkRows(1)
         tdSql.query("select t1 from stb1 where abs(c1+t1)=1")
         tdSql.checkRows(1)
         # tdSql.query("select t1 from stb1 where abs(t1+c1)=1")
