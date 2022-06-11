@@ -306,19 +306,10 @@ static int32_t smlApplySchemaAction(SSmlHandle* info, SSchemaAction* action) {
       const char* errStr = taos_errstr(res);
       if (code != TSDB_CODE_SUCCESS) {
         uError("SML:0x%"PRIx64" apply schema action. error: %s", info->id, errStr);
+        taosMsleep(100);
       }
       taos_free_result(res);
 
-//      if (code == TSDB_CODE_MND_FIELD_ALREADY_EXIST || code == TSDB_CODE_MND_TAG_ALREADY_EXIST || tscDupColNames) {
-      if (code == TSDB_CODE_MND_TAG_ALREADY_EXIST) {
-        TAOS_RES* res2 = taos_query(info->taos, "RESET QUERY CACHE");
-        code = taos_errno(res2);
-        if (code != TSDB_CODE_SUCCESS) {
-          uError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
-        }
-        taos_free_result(res2);
-        taosMsleep(500);
-      }
       break;
     }
     case SCHEMA_ACTION_ADD_TAG: {
@@ -330,19 +321,10 @@ static int32_t smlApplySchemaAction(SSmlHandle* info, SSchemaAction* action) {
       const char* errStr = taos_errstr(res);
       if (code != TSDB_CODE_SUCCESS) {
         uError("SML:0x%"PRIx64" apply schema action. error : %s", info->id, taos_errstr(res));
+        taosMsleep(100);
       }
       taos_free_result(res);
 
-//      if (code ==TSDB_CODE_MND_TAG_ALREADY_EXIST || code == TSDB_CODE_MND_FIELD_ALREAY_EXIST || tscDupColNames) {
-      if (code ==TSDB_CODE_MND_TAG_ALREADY_EXIST) {
-        TAOS_RES* res2 = taos_query(info->taos, "RESET QUERY CACHE");
-        code = taos_errno(res2);
-        if (code != TSDB_CODE_SUCCESS) {
-          uError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
-        }
-        taos_free_result(res2);
-        taosMsleep(500);
-      }
       break;
     }
     case SCHEMA_ACTION_CHANGE_COLUMN_SIZE: {
@@ -353,19 +335,10 @@ static int32_t smlApplySchemaAction(SSmlHandle* info, SSchemaAction* action) {
       code = taos_errno(res);
       if (code != TSDB_CODE_SUCCESS) {
         uError("SML:0x%"PRIx64" apply schema action. error : %s", info->id, taos_errstr(res));
+        taosMsleep(100);
       }
       taos_free_result(res);
 
-//      if (code == TSDB_CODE_MND_INVALID_COLUMN_LENGTH || code == TSDB_CODE_TSC_INVALID_COLUMN_LENGTH) {
-      if (code == TSDB_CODE_TSC_INVALID_COLUMN_LENGTH) {
-        TAOS_RES* res2 = taos_query(info->taos, "RESET QUERY CACHE");
-        code = taos_errno(res2);
-        if (code != TSDB_CODE_SUCCESS) {
-          uError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
-        }
-        taos_free_result(res2);
-        taosMsleep(500);
-      }
       break;
     }
     case SCHEMA_ACTION_CHANGE_TAG_SIZE: {
@@ -376,19 +349,10 @@ static int32_t smlApplySchemaAction(SSmlHandle* info, SSchemaAction* action) {
       code = taos_errno(res);
       if (code != TSDB_CODE_SUCCESS) {
         uError("SML:0x%"PRIx64" apply schema action. error : %s", info->id, taos_errstr(res));
+        taosMsleep(100);
       }
       taos_free_result(res);
 
-//      if (code == TSDB_CODE_MND_INVALID_TAG_LENGTH || code == TSDB_CODE_TSC_INVALID_TAG_LENGTH) {
-      if (code == TSDB_CODE_TSC_INVALID_TAG_LENGTH) {
-        TAOS_RES* res2 = taos_query(info->taos, "RESET QUERY CACHE");
-        code = taos_errno(res2);
-        if (code != TSDB_CODE_SUCCESS) {
-          uError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
-        }
-        taos_free_result(res2);
-        taosMsleep(500);
-      }
       break;
     }
     case SCHEMA_ACTION_CREATE_STABLE: {
@@ -428,18 +392,10 @@ static int32_t smlApplySchemaAction(SSmlHandle* info, SSchemaAction* action) {
       code = taos_errno(res);
       if (code != TSDB_CODE_SUCCESS) {
         uError("SML:0x%"PRIx64" apply schema action. error : %s", info->id, taos_errstr(res));
+        taosMsleep(100);
       }
       taos_free_result(res);
 
-      if (code == TSDB_CODE_MND_STB_ALREADY_EXIST) {
-        TAOS_RES* res2 = taos_query(info->taos, "RESET QUERY CACHE");
-        code = taos_errno(res2);
-        if (code != TSDB_CODE_SUCCESS) {
-          uError("SML:0x%" PRIx64 " apply schema action. reset query cache. error: %s", info->id, taos_errstr(res2));
-        }
-        taos_free_result(res2);
-        taosMsleep(500);
-      }
       break;
     }
 
