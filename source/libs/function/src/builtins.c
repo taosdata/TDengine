@@ -294,7 +294,8 @@ static int32_t translateApercentileImpl(SFunctionNode* pFunc, char* pErrBuf, int
       pValue->notReserved = true;
     }
 
-    pFunc->node.resType = (SDataType){.bytes = getApercentileMaxSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+    pFunc->node.resType =
+        (SDataType){.bytes = getApercentileMaxSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
   } else {
     if (1 != numOfParams) {
       return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
@@ -479,7 +480,8 @@ static int32_t translateElapsedImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t
       }
     }
 
-    pFunc->node.resType = (SDataType){.bytes = getElapsedInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+    pFunc->node.resType =
+        (SDataType){.bytes = getElapsedInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
   } else {
     if (1 != numOfParams) {
       return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
@@ -593,7 +595,8 @@ static int32_t translateHistogramImpl(SFunctionNode* pFunc, char* pErrBuf, int32
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
 
-    pFunc->node.resType = (SDataType){.bytes = getHistogramInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+    pFunc->node.resType =
+        (SDataType){.bytes = getHistogramInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
   } else {
     if (1 != numOfParams) {
       return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
@@ -631,7 +634,8 @@ static int32_t translateHLLImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len
   }
 
   if (isPartial) {
-    pFunc->node.resType = (SDataType){.bytes = getHistogramInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+    pFunc->node.resType =
+        (SDataType){.bytes = getHistogramInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
   } else {
     pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
   }
@@ -1127,7 +1131,7 @@ static bool validateTimezoneFormat(const SValueNode* pVal) {
   char*   tz = varDataVal(pVal->datum.p);
   int32_t len = varDataLen(pVal->datum.p);
 
-  char buf[3] = {0};
+  char   buf[3] = {0};
   int8_t hour = -1, minute = -1;
   if (len == 0) {
     return false;
@@ -1320,7 +1324,7 @@ static int32_t translateSelectValue(SFunctionNode* pFunc, char* pErrBuf, int32_t
 }
 
 static int32_t translateBlockDistFunc(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  pFunc->node.resType = (SDataType) {.bytes = 128, .type = TSDB_DATA_TYPE_VARCHAR};
+  pFunc->node.resType = (SDataType){.bytes = 128, .type = TSDB_DATA_TYPE_VARCHAR};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1328,7 +1332,6 @@ static bool getBlockDistFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv
   pEnv->calcMemSize = sizeof(STableBlockDistInfo);
   return true;
 }
-
 
 // clang-format off
 const SBuiltinFuncDefinition funcMgtBuiltins[] = {
@@ -1608,7 +1611,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "histogram",
     .type = FUNCTION_TYPE_HISTOGRAM,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_FORBID_FILL_FUNC,
     .translateFunc = translateHistogram,
     .getEnvFunc   = getHistogramFuncEnv,
     .initFunc     = histogramFunctionSetup,

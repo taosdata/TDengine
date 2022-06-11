@@ -159,6 +159,8 @@ bool fmIsRepeatScanFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, 
 
 bool fmIsUserDefinedFunc(int32_t funcId) { return funcId > FUNC_UDF_ID_START; }
 
+bool fmIsForbidFillFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_FORBID_FILL_FUNC); }
+
 void fmFuncMgtDestroy() {
   void* m = gFunMgtService.pFuncNameHashTable;
   if (m != NULL && atomic_val_compare_exchange_ptr((void**)&gFunMgtService.pFuncNameHashTable, m, 0) == m) {

@@ -1424,10 +1424,10 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
     char    tmp[128] = {0};
     int32_t len = 0;
     if (pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep1 || pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep2) {
-      len = sprintf(&tmp[VARSTR_HEADER_SIZE], "%d,%d,%d", pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2,
+      len = sprintf(&tmp[VARSTR_HEADER_SIZE], "%dm,%dm,%dm", pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2,
                     pDb->cfg.daysToKeep0);
     } else {
-      len = sprintf(&tmp[VARSTR_HEADER_SIZE], "%d,%d,%d", pDb->cfg.daysToKeep0, pDb->cfg.daysToKeep1,
+      len = sprintf(&tmp[VARSTR_HEADER_SIZE], "%dm,%dm,%dm", pDb->cfg.daysToKeep0, pDb->cfg.daysToKeep1,
                     pDb->cfg.daysToKeep2);
     }
 
@@ -1592,4 +1592,3 @@ static void mndCancelGetNextDb(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetch(pSdb, pIter);
 }
-
