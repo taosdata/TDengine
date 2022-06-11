@@ -296,7 +296,10 @@ int32_t doOpenMultiwaySortMergeOperator(SOperatorInfo* pOperator) {
 }
 
 SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity,
-                                        SArray* pColMatchInfo, SMultiwaySortMergeOperatorInfo* pInfo) {
+                                        SArray* pColMatchInfo, SOperatorInfo* pOperator) {
+  SMultiwaySortMergeOperatorInfo* pInfo = pOperator->info;
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+
   blockDataCleanup(pDataBlock);
 
   SSDataBlock* p = tsortGetSortedDataBlock(pHandle);
@@ -354,6 +357,8 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
   }
 
   blockDataDestroy(p);
+
+  qDebug("%s get sorted row blocks, rows:%d", GET_TASKID(pTaskInfo), pDataBlock->info.rows);
   return (pDataBlock->info.rows > 0) ? pDataBlock : NULL;
 }
 
@@ -371,7 +376,7 @@ SSDataBlock* doMultiwaySortMerge(SOperatorInfo* pOperator) {
   }
 
   SSDataBlock* pBlock = getMultiwaySortedBlockData(pInfo->pSortHandle, pInfo->binfo.pRes,
-                                                   pOperator->resultInfo.capacity, pInfo->pColMatchInfo, pInfo);
+                                                   pOperator->resultInfo.capacity, pInfo->pColMatchInfo, pOperator);
 
   if (pBlock != NULL) {
     pOperator->resultInfo.totalRows += pBlock->info.rows;

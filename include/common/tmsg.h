@@ -1496,6 +1496,7 @@ typedef struct {
 
 #define STREAM_TRIGGER_AT_ONCE          1
 #define STREAM_TRIGGER_WINDOW_CLOSE     2
+#define STREAM_TRIGGER_MAX_DELAY        3
 
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];

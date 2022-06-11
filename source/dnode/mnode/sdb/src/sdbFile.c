@@ -432,8 +432,8 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
   } else {
     pSdb->lastCommitVer = pSdb->curVer;
     pSdb->lastCommitTerm = pSdb->curTerm;
-    mDebug("write sdb file successfully, ver:%" PRId64 " term:%" PRId64 " file:%s", pSdb->lastCommitVer,
-           pSdb->lastCommitTerm, curfile);
+    mDebug("write sdb file successfully, index:%" PRId64 " term:%" PRId64 " config:%" PRId64 " file:%s",
+           pSdb->lastCommitVer, pSdb->lastCommitTerm, pSdb->curConfig, curfile);
   }
 
   terrno = code;
