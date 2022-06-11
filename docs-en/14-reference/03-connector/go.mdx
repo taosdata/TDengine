@@ -55,25 +55,27 @@ A "REST connection" is a connection between the application and the TDengine ins
 
 ### Pre-installation
 
-* Install Go development environment (Go 1.14 and above, GCC 4.8.5 and above)
-* If you use the native connector, please install the TDengine client driver. Please refer to [Install Client Driver](/reference/connector#Install Client Driver) for specific steps
+- Install Go development environment (Go 1.14 and above, GCC 4.8.5 and above)
+- If you use the native connector, please install the TDengine client driver. Please refer to [Install Client Driver](/reference/connector/#install-client-driver) for specific steps
 
 Configure the environment variables and check the command.
 
-* ```go env``
-* ```gcc -v``
+* `go env`
+* `gcc -v`
 
 ### Use go get to install
 
-``go get -u github.com/taosdata/driver-go/v2@develop``
+```
+go get -u github.com/taosdata/driver-go/v2@develop
+```
 
 ### Manage with go mod
 
 1. Initialize the project with the `go mod` command.
 
-  ``text
+  ```text
   go mod init taos-demo
-  ``` text
+  ``` 
 
 2. Introduce taosSql
 
@@ -88,7 +90,7 @@ Configure the environment variables and check the command.
 
   ```text
   go mod tidy
-  ``` 4.
+  ``` 
 
 4. Run the program with `go run taos-demo` or compile the binary with the `go build` command.
 
@@ -309,6 +311,7 @@ func main() {
 
 :::info
 This API is created successfully without checking permissions, but only when you execute a Query or Exec, and check if user/password/host/port is legal.
+
 :::
 
 * `func (db *DB) Exec(query string, args . .interface{}) (Result, error)`

@@ -121,6 +121,7 @@ typedef enum EFunctionType {
 
   // internal function
   FUNCTION_TYPE_SELECT_VALUE,
+  FUNCTION_TYPE_BLOCK_DIST,   // block distribution aggregate function
 
   // distributed splitting functions
   FUNCTION_TYPE_APERCENTILE_PARTIAL,

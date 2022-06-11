@@ -1281,7 +1281,7 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
     if (rspObj) {
       return (TAOS_RES*)rspObj;
     }
-    if (timeout != 0) {
+    if (timeout != -1) {
       int64_t endTime = taosGetTimestampMs();
       int64_t leftTime = endTime - startTime;
       if (leftTime > timeout) {

@@ -692,6 +692,7 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery) {
 
       if (TSDB_CODE_SUCCESS == code) {
         code = qCreateQueryPlan(&cxt, &pRequest->body.pDag, pNodeList);
+        tscError("0x%"PRIx64" failed to create query plan, code:%s 0x%"PRIx64, pRequest->self, tstrerror(code), pRequest->requestId);
       }
 
       if (TSDB_CODE_SUCCESS == code) {
