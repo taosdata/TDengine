@@ -28,6 +28,8 @@ class TDTestCase:
     def buildcluster(self,dnodenumber):
         self.depoly_cluster(dnodenumber)
         self.master_dnode = self.TDDnodes.dnodes[0]
+        self.host=self.master_dnode.cfgDict["fqdn"]
+
         conn1 = taos.connect(self.master_dnode.cfgDict["fqdn"] , config=self.master_dnode.cfgDir)
         tdSql.init(conn1.cursor())
         
@@ -252,9 +254,9 @@ class TDTestCase:
 
         tdSql.query("show dnodes;")
         print(tdSql.queryResult)
-        #  drop and follower of mnode 
-        dropcount =0 
-        while dropcount <= 2:
+        #  stop and follower of mnode 
+        stopcount =0 
+        while stopcount <= 2:
             for i in range(dnodenumber):
                 self.TDDnodes.stoptaosd(i+1)
                 # if i == 1 :
@@ -266,7 +268,7 @@ class TDTestCase:
 
                 self.TDDnodes.starttaosd(i+1)
                 # self.check3mnode()
-            dropcount+=1
+            stopcount+=1
         self.check3mnode()
 
 

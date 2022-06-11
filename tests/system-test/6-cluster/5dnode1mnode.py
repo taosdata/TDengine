@@ -26,6 +26,7 @@ class TDTestCase:
         self.TDDnodes = None
         self.depoly_cluster(5)
         self.master_dnode = self.TDDnodes.dnodes[0]
+        self.host=self.master_dnode.cfgDict["fqdn"]
         conn1 = taos.connect(self.master_dnode.cfgDict["fqdn"] , config=self.master_dnode.cfgDir)
         tdSql.init(conn1.cursor())
         
@@ -89,12 +90,12 @@ class TDTestCase:
 
     def five_dnode_one_mnode(self):
         tdSql.query("show dnodes;")
-        tdSql.checkData(0,1,'chenhaoran02:6030')
-        tdSql.checkData(4,1,'chenhaoran02:6430')
+        tdSql.checkData(0,1,'%s:6030'%self.host)
+        tdSql.checkData(4,1,'%s:6430'%self.host)
         tdSql.checkData(0,4,'ready')
         tdSql.checkData(4,4,'ready')
         tdSql.query("show mnodes;")       
-        tdSql.checkData(0,1,'chenhaoran02:6030')
+        tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(0,2,'leader')
         tdSql.checkData(0,3,'ready')
 

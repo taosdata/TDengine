@@ -1,4 +1,5 @@
 from ssl import ALERT_DESCRIPTION_CERTIFICATE_UNOBTAINABLE
+from paramiko import HostKeys
 import taos
 import sys
 import time
@@ -12,7 +13,7 @@ from util.dnodes import TDDnode
 import time
 import socket
 import subprocess
-
+from multiprocessing import Process
 class MyDnodes(TDDnodes):
     def __init__(self ,dnodes_lists):
         super(MyDnodes,self).__init__()
@@ -24,11 +25,13 @@ class TDTestCase:
     def init(self,conn ,logSql):
         tdLog.debug(f"start to excute {__file__}")
         self.TDDnodes = None
-        self.depoly_cluster(5)
+
+    def buildcluster(self,dnodenumber):
+        self.depoly_cluster(dnodenumber)
         self.master_dnode = self.TDDnodes.dnodes[0]
+        self.host=self.master_dnode.cfgDict["fqdn"]
         conn1 = taos.connect(self.master_dnode.cfgDict["fqdn"] , config=self.master_dnode.cfgDir)
         tdSql.init(conn1.cursor())
-        
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -46,12 +49,33 @@ class TDTestCase:
                     break
         return buildPath
     
+    def insert_data(self,count):
+        # fisrt add data : db\stable\childtable\general table
+        for couti in count:
+            tdSql.execute("drop database if exists db%d" %couti)
+            tdSql.execute("create database if not exists db%d replica 1 days 300" %couti)
+            tdSql.execute("use db%d" %couti)
+            tdSql.execute(
+            '''create table stb1
+            (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
+            tags (t1 int)
+            '''
+            )
+            tdSql.execute(
+                '''
+                create table t1
+                (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
+                '''
+            )
+            for i in range(4):
+                tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
 
     def depoly_cluster(self ,dnodes_nums): 
 
         testCluster = False
         valgrind = 0  
         hostname = socket.gethostname()
+        print(hostname)
         dnodes = []
         start_port = 6030
         for num in range(1, dnodes_nums+1):
@@ -85,16 +109,136 @@ class TDTestCase:
             os.system(cmd)
         
         time.sleep(2)
-        tdLog.info(" create cluster done! ")
+        tdLog.info(" create cluster with %d dnode  done! " %dnodes_nums)
 
-    def five_dnode_three_mnode(self):
+    def check3mnode(self):
+        count=0
+        while count < 10:
+            time.sleep(1)
+            tdSql.query("show mnodes;")
+            if tdSql.checkRows(3) :                
+                if  tdSql.queryResult[0][2]=='leader' :
+                    if  tdSql.queryResult[1][2]=='follower':
+                        if  tdSql.queryResult[2][2]=='follower':
+                            print("three mnodes is ready in 10s")
+                            break
+                elif tdSql.queryResult[0][2]=='follower' :
+                    if  tdSql.queryResult[1][2]=='leader':
+                        if  tdSql.queryResult[2][2]=='follower':
+                            print("three mnodes is ready in 10s")
+                            break      
+                elif tdSql.queryResult[0][2]=='follower' :
+                    if  tdSql.queryResult[1][2]=='follower':
+                        if  tdSql.queryResult[2][2]=='leader':
+                            print("three mnodes is ready in 10s")
+                            break                   
+            count+=1
+        else:
+            print("three mnodes is not ready in 10s ")
+
+        tdSql.query("show mnodes;")       
+        tdSql.checkRows(3) 
+        tdSql.checkData(0,1,'%s:6030'%self.host)
+        tdSql.checkData(0,3,'ready')
+        tdSql.checkData(1,1,'%s:6130'%self.host)
+        tdSql.checkData(1,3,'ready')
+        tdSql.checkData(2,1,'%s:6230'%self.host)
+        tdSql.checkData(2,3,'ready')
+
+    def check3mnode1off(self):
+        count=0
+        while count < 10:
+            time.sleep(1)
+            tdSql.query("show mnodes;")
+            if tdSql.checkRows(3) :
+                if  tdSql.queryResult[0][2]=='offline' :
+                    if  tdSql.queryResult[1][2]=='leader':
+                        if  tdSql.queryResult[2][2]=='follower':
+                            print("stop mnodes  on dnode 2 successfully in 10s")
+                            break
+                    elif tdSql.queryResult[1][2]=='follower':
+                        if  tdSql.queryResult[2][2]=='leader':
+                            print("stop mnodes  on dnode 2 successfully in 10s")
+                            break
+            count+=1
+        else:
+            print("stop mnodes  on dnode 2 failed in 10s ")
+
+        tdSql.query("show mnodes;")       
+        tdSql.checkRows(3) 
+        tdSql.checkData(0,1,'%s:6030'%self.host)
+        tdSql.checkData(0,2,'offline')
+        tdSql.checkData(0,3,'ready')
+        tdSql.checkData(1,1,'%s:6130'%self.host)
+        tdSql.checkData(1,3,'ready')
+        tdSql.checkData(2,1,'%s:6230'%self.host)
+        tdSql.checkData(2,3,'ready')
+
+    def check3mnode2drop(self):
+        count=0
+        while count < 10:
+            time.sleep(1)
+            tdSql.query("show mnodes;")
+            if tdSql.checkRows(3) :
+                if  tdSql.queryResult[0][2]=='leader' :
+                    if  tdSql.queryResult[1][2]=='offline':
+                        if  tdSql.queryResult[2][2]=='follower':
+                            print("stop mnodes  on dnode 2 successfully in 10s")
+                            break
+            count+=1
+        else:
+            print("stop mnodes  on dnode 2 failed in 10s ")
+
+        tdSql.query("show mnodes;")       
+        tdSql.checkRows(3) 
+        tdSql.checkData(0,1,'%s:6030'%self.host)
+        tdSql.checkData(0,2,'leader')
+        tdSql.checkData(0,3,'ready')
+        tdSql.checkData(1,1,'%s:6130'%self.host)
+        tdSql.checkData(1,2,'offline')
+        tdSql.checkData(1,3,'ready')
+        tdSql.checkData(2,1,'%s:6230')
+        tdSql.checkData(2,2,'follower')
+        tdSql.checkData(2,3,'ready')
+
+    def check3mnode3off(self):
+        count=0
+        while count < 10:
+            time.sleep(1)
+            tdSql.query("show mnodes;")
+            if tdSql.checkRows(3) :
+                if  tdSql.queryResult[0][2]=='leader' :
+                    if  tdSql.queryResult[2][2]=='offline':
+                        if  tdSql.queryResult[1][2]=='follower':
+                            print("stop mnodes  on dnode 3 successfully in 10s")
+                            break
+            count+=1
+        else:
+            print("stop mnodes  on dnode 3 failed in 10s")
+            
+        tdSql.query("show mnodes;")       
+        tdSql.checkRows(3) 
+        tdSql.checkData(0,1,'%s:6030'%self.host)
+        tdSql.checkData(0,2,'leader')
+        tdSql.checkData(0,3,'ready')
+        tdSql.checkData(1,1,'%s:6130'%self.host)
+        tdSql.checkData(1,2,'follower')
+        tdSql.checkData(1,3,'ready')
+        tdSql.checkData(2,1,'%s:6230'%self.host)
+        tdSql.checkData(2,2,'offline')
+        tdSql.checkData(2,3,'ready')
+
+
+
+    def five_dnode_three_mnode(self,dnodenumber):
         tdSql.query("show dnodes;")
-        tdSql.checkData(0,1,'chenhaoran02:6030')
-        tdSql.checkData(4,1,'chenhaoran02:6430')
+        tdSql.checkData(0,1,'%s:6030'%self.host)
+        tdSql.checkData(4,1,'%s:6430'%self.host)
         tdSql.checkData(0,4,'ready')
         tdSql.checkData(4,4,'ready')
-        tdSql.query("show mnodes;")       
-        tdSql.checkData(0,1,'chenhaoran02:6030')
+        tdSql.query("show mnodes;")   
+        tdSql.checkRows(1)    
+        tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(0,2,'leader')
         tdSql.checkData(0,3,'ready')
 
@@ -102,111 +246,24 @@ class TDTestCase:
         tdSql.execute("create mnode on dnode 2")
         tdSql.execute("create mnode on dnode 3")
 
-        count=0
-        while count < 10:
-            time.sleep(1)
-            tdSql.query("show mnodes;")
-            tdSql.checkRows(3) 
-            if  tdSql.queryResult[0][2]=='leader' :
-                if  tdSql.queryResult[1][2]=='follower':
-                    if  tdSql.queryResult[2][2]=='follower':
-                        print("three mnodes is ready in 10s")
-                        break
-            count+=1
-        else:
-            print("three mnodes is not ready in 10s ")
-
         # fisrt check statut ready
-        tdSql.query("show mnodes;")        
-        tdSql.checkRows(3) 
-        tdSql.checkData(0,1,'chenhaoran02:6030')
-        tdSql.checkData(0,2,'leader')
-        tdSql.checkData(0,3,'ready')
-        tdSql.checkData(1,1,'chenhaoran02:6130')
-        tdSql.checkData(1,2,'follower')
-        tdSql.checkData(1,3,'ready')
-        tdSql.checkData(2,1,'chenhaoran02:6230')
-        tdSql.checkData(2,2,'follower')
-        tdSql.checkData(2,3,'ready')
-
-        # fisrt add data : db\stable\childtable\general table
-
-        tdSql.execute("drop database if exists db2")
-        tdSql.execute("create database if not exists db2 replica 1 days 300")
-        tdSql.execute("use db2")
-        tdSql.execute(
-        '''create table stb1
-        (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
-        tags (t1 int)
-        '''
-        )
-        tdSql.execute(
-            '''
-            create table t1
-            (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
-            '''
-        )
-        for i in range(4):
-            tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
+        self.check3mnode()
         tdSql.error("create mnode on dnode 2")
+        tdSql.error("create mnode on dnode 1")
+        tdSql.error("create mnode on dnode 3")
+
+        tdSql.error("drop mnode on dnode 1")
+
         tdSql.query("show dnodes;")
         print(tdSql.queryResult)
-
         #  drop and follower of mnode 
         dropcount =0 
         while dropcount <= 10:
-            tdSql.execute("drop mnode on dnode 2")
-
-            count=0
-            while count < 10:
-                time.sleep(1)
-                tdSql.query("show mnodes;")
-                tdSql.checkRows(2) 
-                if  tdSql.queryResult[0][2]=='leader' :
-                    if  tdSql.queryResult[1][2]=='follower':
-                        print("drop mnodes on dnone 2 successfully")
-                        break
-                count+=1
-            else:
-                print("drop mnodes on dnone 2 failed")
-            #  check statut ready
-
-            tdSql.query("show mnodes;")        
-            tdSql.checkRows(2) 
-            tdSql.checkData(0,1,'chenhaoran02:6030')
-            tdSql.checkData(0,2,'leader')
-            tdSql.checkData(0,3,'ready')
-            tdSql.checkData(1,1,'chenhaoran02:6230')
-            tdSql.checkData(1,2,'follower')
-            tdSql.checkData(1,3,'ready')
-
-            tdSql.execute("create mnode on dnode 2")
-
-            count=0
-            while count < 10:
-                time.sleep(1)
-                tdSql.query("show mnodes;")
-                tdSql.checkRows(3) 
-                if  tdSql.queryResult[0][2]=='leader' :
-                    if  tdSql.queryResult[1][2]=='follower':
-                        if  tdSql.queryResult[2][2]=='follower':
-                            print("three mnodes is ready in 10s")
-                            break
-                count+=1
-            else:
-                print("three mnodes is not ready in 10s ")
-
-            tdSql.query("show mnodes;")
-            tdSql.checkRows(3)        
-            tdSql.checkData(0,1,'chenhaoran02:6030')
-            tdSql.checkData(0,2,'leader')
-            tdSql.checkData(0,3,'ready')
-            tdSql.checkData(1,1,'chenhaoran02:6130')
-            tdSql.checkData(1,2,'follower')
-            tdSql.checkData(1,3,'ready')
-            tdSql.checkData(2,1,'chenhaoran02:6230')
-            tdSql.checkData(2,2,'follower')
-            tdSql.checkData(2,3,'ready')
+            for i in range(1,3):
+                tdSql.execute("drop mnode on dnode %d"%(i+1))
+                tdSql.execute("create mnode on dnode %d"%(i+1))
+            dropcount+=1
+        self.check3mnode()
 
 
     def getConnection(self, dnode):
@@ -218,7 +275,8 @@ class TDTestCase:
 
     def run(self): 
         # print(self.master_dnode.cfgDict)
-        self.five_dnode_three_mnode()
+        self.buildcluster(5)
+        self.five_dnode_three_mnode(5)
 
     def stop(self):
         tdSql.close()
