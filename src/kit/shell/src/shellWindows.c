@@ -187,7 +187,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
       if (i < argc - 1) {
         arguments->timezone = argv[++i];
       } else {
-        fprintf(stderr, "option -t requires an argument\n");
+        fprintf(stderr, "option -z requires an argument\n");
         exit(EXIT_FAILURE);
       }
     }
