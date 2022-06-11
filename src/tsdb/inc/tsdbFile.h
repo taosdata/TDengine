@@ -257,7 +257,13 @@ static FORCE_INLINE int tsdbAppendDFile(SDFile* pDFile, void* buf, int64_t nbyte
     return -1;
   }
 
-  ASSERT(pDFile->info.size == toffset);
+  //bug fix. To avoid data corruption, close the data file in advance.
+  //ASSERT(pDFile->info.size == toffset);
+  if (pDFile->info.size != toffset) {
+    tsdbCloseDFile(pDFile);
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
 
   if (offset) {
     *offset = toffset;
