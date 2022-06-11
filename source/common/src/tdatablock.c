@@ -1237,6 +1237,9 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData) {
         return NULL;
       }
 
+      if (pSrc->pData == NULL) {
+        continue;
+      }
       colDataAssign(pDst, pSrc, pDataBlock->info.rows);
     }
 

@@ -1857,7 +1857,7 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowR
       SColumnInfoData* pSrc = taosArrayGet(px->pDataBlock, i);
       SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
       // it is a reserved column for scalar function, and no data in this column yet.
-      if (pSrc->pData == NULL) {
+      if (pDst->pData == NULL) {
         continue;
       }
 
@@ -1882,10 +1882,8 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowR
       } else {
         ASSERT(pBlock->info.rows == numOfRows);
       }
-
-      // write back
-//      colDataAssign(pSrc, pDst, pBlock->info.rows);
     }
+
     blockDataDestroy(px);  // fix memory leak
   } else {
     // do nothing
