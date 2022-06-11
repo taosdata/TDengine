@@ -4188,6 +4188,8 @@ int32_t sampleFunction(SqlFunctionCtx* pCtx) {
   SColumnInfoData* pInputCol = pInput->pData[0];
   SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
 
+  int32_t alreadySampled = pInfo->numSampled;
+
   int32_t startOffset = pCtx->offset;
   for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
     if (colDataIsNull_s(pInputCol, i)) {
@@ -4199,13 +4201,13 @@ int32_t sampleFunction(SqlFunctionCtx* pCtx) {
     doReservoirSample(pInfo, data, tsList[i], i);
   }
 
-  for (int32_t i = 0; i < pInfo->numSampled; ++i) {
+  for (int32_t i = alreadySampled; i < pInfo->numSampled; ++i) {
     int32_t pos = startOffset + i;
     colDataAppend(pOutput, pos, pInfo->data + i * pInfo->colBytes, false);
     //TODO: handle ts output
   }
 
-  return pInfo->numSampled;
+  return pInfo->numSampled - alreadySampled;
 }
 
 bool getTailFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
