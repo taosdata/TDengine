@@ -16,6 +16,7 @@
 #include "syncMessage.h"
 #include "syncUtil.h"
 #include "tcoding.h"
+#include "syncRaftCfg.h"
 
 // ---------------------------------------------
 cJSON* syncRpcMsg2Json(SRpcMsg* pRpcMsg) {
@@ -1845,6 +1846,10 @@ cJSON* syncSnapshotSend2Json(const SyncSnapshotSend* pMsg) {
 
     snprintf(u64buf, sizeof(u64buf), "%ld", pMsg->lastIndex);
     cJSON_AddStringToObject(pRoot, "lastIndex", u64buf);
+
+    snprintf(u64buf, sizeof(u64buf), "%ld", pMsg->lastConfigIndex);
+    cJSON_AddStringToObject(pRoot, "lastConfigIndex", u64buf);
+    cJSON_AddItemToObject(pRoot, "lastConfig", syncCfg2Json((SSyncCfg*)&(pMsg->lastConfig)));
 
     snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->lastTerm);
     cJSON_AddStringToObject(pRoot, "lastTerm", u64buf);

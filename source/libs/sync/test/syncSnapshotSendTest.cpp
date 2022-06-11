@@ -24,6 +24,15 @@ SyncSnapshotSend *createMsg() {
   pMsg->privateTerm = 99;
   pMsg->lastIndex = 22;
   pMsg->lastTerm = 33;
+
+  pMsg->lastConfigIndex = 99;
+  pMsg->lastConfig.replicaNum = 3;
+  pMsg->lastConfig.myIndex = 1;
+  for (int i = 0; i < pMsg->lastConfig.replicaNum; ++i) {
+    ((pMsg->lastConfig.nodeInfo)[i]).nodePort = i * 100;
+    snprintf(((pMsg->lastConfig.nodeInfo)[i]).nodeFqdn, sizeof(((pMsg->lastConfig.nodeInfo)[i]).nodeFqdn), "100.200.300.%d", i);
+  }
+
   pMsg->seq = 44;
   strcpy(pMsg->data, "hello world");
   return pMsg;
@@ -87,6 +96,9 @@ void test5() {
 }
 
 int main() {
+
+  gRaftDetailLog = true;
+
   tsAsyncLog = 0;
   sDebugFlag = DEBUG_TRACE + DEBUG_SCREEN + DEBUG_FILE;
   logTest();

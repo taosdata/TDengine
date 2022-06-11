@@ -398,6 +398,8 @@ typedef struct SyncSnapshotSend {
   SyncTerm  term;
   SyncIndex lastIndex;  // lastIndex of snapshot
   SyncTerm  lastTerm;   // lastTerm of snapshot
+  SyncIndex lastConfigIndex;
+  SSyncCfg  lastConfig;
   SyncTerm  privateTerm;
   int32_t   seq;
   uint32_t  dataLen;

@@ -1201,13 +1201,13 @@ void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* newConfig, SyncIndex l
 
   *isDrop = true;
   if (IamInOld && !IamInNew) {
-    *isDrop = true;  
+    *isDrop = true;
   } else {
     *isDrop = false;
   }
 
   if (IamInNew) {
-    pSyncNode->pRaftCfg->isStandBy = 0;   // change isStandBy to normal
+    pSyncNode->pRaftCfg->isStandBy = 0;  // change isStandBy to normal
   }
   raftCfgPersist(pSyncNode->pRaftCfg);
 
