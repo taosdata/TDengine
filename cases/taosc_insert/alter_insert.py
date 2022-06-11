@@ -84,7 +84,7 @@ class TestAlterInsert(TDCase):
         self.tdSql.query(f'select t1, t2, t3, t4, c1, c2, c3, c4 from {dbname}.tb where c2 = 6')
         self.tdSql.checkEqual(self.tdSql.query_data[0], (1, 1, "111111", "111111", 6, 6, "11111", "11111"))
 
-        # modify tag length
+        # modify column length
         self.tdSql.execute(f'alter stable {dbname}.stb modify column c3 binary(6)')
         self.tdSql.execute(f'alter table {dbname}.stb modify column c4 nchar(6)')
         self.tdSql.error(f'alter table {dbname}.tb modify column c3 binary(6)')

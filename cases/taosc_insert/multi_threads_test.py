@@ -333,10 +333,10 @@ class TestMultiThreads(TDCase):
         self.insert_when_dropping_db()
         self.create_table_when_dropping_db()
         # ! bug
-        # self.drop_table_when_dropping_db()
-        # self.del_column_inserting()
-        # self.add_column_when_inserting()
-        # self.alter_column_when_dropping()
+        self.drop_table_when_dropping_db()
+        self.del_column_inserting()
+        self.add_column_when_inserting()
+        self.alter_column_when_dropping()
 
     def cleanup(self):
         pass
