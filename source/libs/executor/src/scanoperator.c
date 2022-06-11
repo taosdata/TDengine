@@ -1028,10 +1028,6 @@ SOperatorInfo* createStreamScanOperatorInfo(void* pDataReader, SReadHandle* pHan
     goto _error;
   }
 
-  if (isSmaStream(pTableScanNode->triggerType)) {
-    pTwSup->waterMark = getSmaWaterMark(pSTInfo->interval.interval, pTableScanNode->filesFactor);
-  }
-
   if (pSTInfo->interval.interval > 0 && pDataReader) {
     pInfo->pUpdateInfo = updateInfoInitP(&pSTInfo->interval, pTwSup->waterMark);
   } else {
