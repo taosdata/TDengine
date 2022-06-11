@@ -88,22 +88,46 @@ int32_t tsdbKeyCmprFn(const void *p1, const void *p2) {
   return 0;
 }
 
-int32_t tPutTMap(uint8_t *p, STMap *pMap) {
+int32_t tPutDelIdx(uint8_t *p, SDelIdx *pDelIdx) {
   int32_t n = 0;
 
-  n += tPutU8(p ? p + n : p, pMap->flags);
-  n += tPutBinary(p ? p + n : p, pMap->pOffset, pMap->nOffset);
-  n += tPutBinary(p ? p + n : p, pMap->pData, pMap->nData);
+  n += tPutU32(p ? p + n : p, pDelIdx->delimiter);
+  n += tPutU8(p ? p + n : p, pDelIdx->flags);
+  n += tPutBinary(p ? p + n : p, pDelIdx->pOffset, pDelIdx->nOffset);
+  n += tPutBinary(p ? p + n : p, pDelIdx->pData, pDelIdx->nData);
 
   return n;
 }
 
-int32_t tGetTMap(uint8_t *p, STMap *pMap) {
+int32_t tGetDelIdx(uint8_t *p, SDelIdx *pDelIdx) {
   int32_t n = 0;
 
-  n += tGetU8(p, &pMap->flags);
-  n += tGetBinary(p, &pMap->pOffset, &pMap->nOffset);
-  n += tGetBinary(p, &pMap->pData, &pMap->nData);
+  n += tGetU32(p, &pDelIdx->delimiter);
+  n += tGetU8(p, &pDelIdx->flags);
+  n += tGetBinary(p, &pDelIdx->pOffset, &pDelIdx->nOffset);
+  n += tGetBinary(p, &pDelIdx->pData, &pDelIdx->nData);
+
+  return n;
+}
+
+int32_t tPutDelData(uint8_t *p, SDelData *pDelData) {
+  int32_t n = 0;
+
+  n += tPutU32(p ? p + n : p, pDelData->delimiter);
+  n += tPutU8(p ? p + n : p, pDelData->flags);
+  n += tPutBinary(p ? p + n : p, pDelData->pOffset, pDelData->nOffset);
+  n += tPutBinary(p ? p + n : p, pDelData->pData, pDelData->nData);
+
+  return n;
+}
+
+int32_t tGetDelData(uint8_t *p, SDelData *pDelData) {
+  int32_t n = 0;
+
+  n += tGetU32(p, &pDelData->delimiter);
+  n += tGetU8(p, &pDelData->flags);
+  n += tGetBinary(p, &pDelData->pOffset, &pDelData->nOffset);
+  n += tGetBinary(p, &pDelData->pData, &pDelData->nData);
 
   return n;
 }

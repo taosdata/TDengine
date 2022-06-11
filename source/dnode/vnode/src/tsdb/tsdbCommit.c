@@ -172,7 +172,7 @@ static int32_t tsdbCommitDelStart(SCommitter *pCommitter) {
   SDelFile  *pDelFileW = NULL;  // TODO
 
   if (pDelFileR) {
-    code = tsdbDelFReaderOpen(&pCommitter->pDelFReader, pDelFileR);
+    code = tsdbDelFReaderOpen(&pCommitter->pDelFReader, pDelFileR, pTsdb, NULL);
     if (code) {
       goto _err;
     }
@@ -183,7 +183,7 @@ static int32_t tsdbCommitDelStart(SCommitter *pCommitter) {
     }
   }
 
-  code = tsdbDelFWriterOpen(&pCommitter->pDelFWriter, pDelFileW);
+  code = tsdbDelFWriterOpen(&pCommitter->pDelFWriter, pDelFileW, pTsdb);
   if (code) {
     goto _err;
   }
@@ -299,11 +299,11 @@ static int32_t tsdbCommitDel(SCommitter *pCommitter) {
   }
 
 _exit:
-  tsdbDebug("vgId:%d commit del data, nDel:%" PRId64, TD_VID(pTsdb->pVnode), pMemTable->nDel);
+  tsdbDebug("vgId:%d commit del data done, nDel:%" PRId64, TD_VID(pTsdb->pVnode), pMemTable->nDel);
   return code;
 
 _err:
-  tsdbError("vgId:%d failed to commit del data since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d commit del data failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
