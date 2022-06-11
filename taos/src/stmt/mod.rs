@@ -128,7 +128,9 @@ impl Taos {
     /// Create stmt with sql
     pub fn stmt<'a, 'stmt>(&'stmt self, sql: impl AsRef<str>) -> Result<Stmt<'stmt>> {
         let mut stmt = RawStmt::from_raw_taos(&self.0);
-        stmt.prepare(sql.as_ref())?;
+        let sql = sql.as_ref();
+        log::trace!("stmt: {sql}");
+        stmt.prepare(sql)?;
         Ok(Stmt(stmt, PhantomData))
     }
 }

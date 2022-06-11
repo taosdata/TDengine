@@ -1,3 +1,5 @@
+use std::ops::{Deref, DerefMut};
+
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
@@ -16,6 +18,25 @@ impl IntoIterator for Describe {
     }
 }
 
+impl FromIterator<ColumnMeta> for Describe {
+    fn from_iter<T: IntoIterator<Item = ColumnMeta>>(iter: T) -> Self {
+        Describe(iter.into_iter().collect())
+    }
+}
+
+impl Deref for Describe {
+    type Target = Vec<ColumnMeta>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for Describe {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
 impl Describe {
     #[inline]
     fn fields(&self) -> &[ColumnMeta] {
@@ -27,7 +48,7 @@ impl Describe {
     pub fn names(&self) -> impl Iterator<Item = &str> {
         self.fields().iter().map(|f| f.field())
     }
-    
+
     pub fn tag_names(&self) -> impl Iterator<Item = &str> {
         self.fields()
             .iter()

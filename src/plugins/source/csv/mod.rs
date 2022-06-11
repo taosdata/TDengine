@@ -10,4 +10,3 @@ impl Csv {
         Ok(Self { dsn })
     }
 }
-

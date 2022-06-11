@@ -1,7 +1,4 @@
-use std::{
-    intrinsics::transmute,
-    task::Poll,
-};
+use std::{intrinsics::transmute, task::Poll};
 
 use crate::prelude::ResultSet;
 use futures::{FutureExt, Stream};

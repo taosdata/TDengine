@@ -182,13 +182,6 @@ impl XSourceBuilder for TaosSourceBuilder {
                 if let Some(topic) = topics.get(db) {
                     let db_name = topic.db_name();
                     dsn.database = Some(db_name.to_string());
-
-                    dsn.params.insert("topics".to_string(), db.to_string());
-
-                    // check group id, use topic name as default.
-                    if !dsn.params.contains_key("group.id") {
-                        dsn.params.insert("group.id".to_string(), db.to_string());
-                    }
                 } else {
                     // todo: support subscribe stable/table.
                     let db_info: Option<String> = taos.query_one(format!(
@@ -214,14 +207,10 @@ impl XSourceBuilder for TaosSourceBuilder {
             if !dsn.params.contains_key("group.id") {
                 dsn.params.insert("group.id".to_string(), db.to_string());
             }
-
-            // return Err(Error::InvalidTopic(
-            //     "there's no topic to subscribe. TODO: we should support direct select".to_string(),
-            // ));
         }
         // check group id
         if !dsn.params.contains_key("wait") {
-            dsn.params.insert("wait".to_string(), "100".to_string());
+            dsn.params.insert("wait".to_string(), "10".to_string());
         }
         let manager = Manager::from_dsn(dsn.clone())?;
 

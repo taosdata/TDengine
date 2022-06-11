@@ -1,7 +1,7 @@
 use crate::{TAOS, TAOS_RES};
 use std::os::raw::*;
 
-/// 
+///
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub enum SchemalessProtocol {

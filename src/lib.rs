@@ -8,11 +8,12 @@ use taos::{block::*, helpers::ColumnMeta};
 
 use url::Url;
 
+pub mod config;
 pub mod metrics;
-pub mod task;
-pub mod stream;
-pub mod util;
 pub mod plugins;
+pub mod stream;
+pub mod task;
+pub mod util;
 
 #[derive(Debug, Args)]
 pub struct TaosUri {

@@ -13,18 +13,26 @@ use std::{
 
 use futures::{Sink, Stream, TryStreamExt};
 use taos::{
-    block::{itypes::IsValue, Ty},
+    block::{itypes::IsValue, Describe, Ty},
+    helpers::{ColumnMeta, Described},
     query::Dsn,
     tmq::{Consumer, TmqBuilder},
 };
 
-use crate::{stream::stream::*, util::sync_table};
+use crate::{
+    stream::{
+        stream::*,
+        transformer::{Action, AddTag, AddTagOpts, Select},
+    },
+    util::sync_table,
+};
 use taos::prelude::sync::*;
 
 pub struct TaosSinkBuilder {
     dsn: Dsn,
     builder: Manager,
     worker: AtomicUsize,
+    transformer: Arc<Option<Vec<Action>>>,
     metrics: Arc<Summary>,
 }
 
@@ -32,6 +40,7 @@ pub struct TaosSinkBuilder {
 pub struct TaosSink {
     id: usize,
     taos: Taos,
+    transformer: Arc<Option<Vec<Action>>>,
     metrics: Arc<Summary>,
 }
 
@@ -63,9 +72,15 @@ impl XSinkBuilder for TaosSinkBuilder {
         Ok(Self {
             dsn,
             builder,
+            transformer: Arc::new(None),
             worker: AtomicUsize::new(0),
             metrics: Default::default(),
         })
+    }
+
+    fn with_transformer(mut self, transformer: Vec<Action>) -> Self {
+        self.transformer = Arc::new(Some(transformer));
+        self
     }
 
     fn build_sink(&self) -> Result<XSink<Self::Error>, Self::Error> {
@@ -75,6 +90,7 @@ impl XSinkBuilder for TaosSinkBuilder {
         Ok(TaosSink {
             id,
             taos: self.builder.connect()?,
+            transformer: self.transformer.clone(),
             metrics: self.metrics.clone(),
         }
         .into())
@@ -83,6 +99,229 @@ impl XSinkBuilder for TaosSinkBuilder {
     fn summary(&self) -> &Summary {
         &self.metrics
     }
+}
+
+pub fn sync_table_with_transformer(
+    from: &Taos,
+    to: &Taos,
+    db: &str,
+    table: &str,
+    transformer: &[Action],
+) -> Result<(), Error> {
+    use taos::prelude::sync::*;
+    assert!(transformer.len() > 0);
+
+    let stable: Option<String> = from
+        .query_one(format!(
+            "select stable_name from information_schema.user_tables where db_name = '{db}' and table_name = \"{table}\""
+        ))?
+        .unwrap();
+
+    if let Some(stable) = stable {
+        let desc = from.describe(&format!("{db}.`{stable}`"))?;
+        let mut stable2 = stable.to_string();
+
+        let transformed_desc =
+            transformer
+                .iter()
+                .fold(desc.clone(), |mut desc, action| match action {
+                    Action::AddTag(add_tag) => {
+                        desc.push(ColumnMeta::Tag(Described {
+                            field: add_tag.name.clone(),
+                            ty: Ty::VarChar,
+                            length: add_tag.len,
+                        }));
+                        desc
+                    }
+                    Action::Select(select) => match select {
+                        Select::Subset { subset } => desc
+                            .into_iter()
+                            .filter(|f| subset.contains(&f.field))
+                            .collect(),
+                        Select::Rename { rename } => desc
+                            .into_iter()
+                            .map(|mut f| {
+                                if let Some(v) = rename.get(f.field()) {
+                                    f.field = v.to_string();
+                                    f
+                                } else {
+                                    f
+                                }
+                            })
+                            .collect(),
+                        Select::Exclude { exclude } => desc
+                            .into_iter()
+                            .filter(|f| !exclude.contains(&f.field))
+                            .collect(),
+                    },
+                    Action::RenameChildTable(rename) | Action::RenameTable(rename) => {
+                        match rename {
+                            crate::stream::transformer::RenameOpts::Prefix { prefix } => {
+                                stable2 = format!("{prefix}{stable}");
+                            }
+                            crate::stream::transformer::RenameOpts::Suffix { suffix } => {
+                                stable2 = format!("{stable}{suffix}");
+                            }
+                            crate::stream::transformer::RenameOpts::Template { template } => {
+                                stable2 = template.replace("{{ name }}", &stable);
+                            }
+                        }
+                        desc
+                    }
+                    _ => desc,
+                });
+
+        log::trace!("create {stable2}");
+        let sql = transformed_desc.to_create_table_sql(&stable2);
+        to.exec(sql)?;
+
+        let names = transformer.iter().fold(
+            desc.tag_names().map(ToString::to_string).collect_vec(),
+            |names, action| match action {
+                Action::Select(select) => match select {
+                    Select::Subset { subset } => names
+                        .into_iter()
+                        .filter(|name| subset.contains(name))
+                        .collect_vec(),
+                    Select::Rename { rename } => names
+                        .into_iter()
+                        .map(|f| {
+                            if let Some(v) = rename.get(&f) {
+                                format!("`{f}` as `{v}`")
+                            } else {
+                                f
+                            }
+                        })
+                        .collect_vec(),
+                    Select::Exclude { exclude } => names
+                        .into_iter()
+                        .filter(|name| !exclude.contains(name))
+                        .collect_vec(),
+                },
+                _ => names,
+            },
+        );
+
+        let names = names.join(",");
+        let children: Vec<Vec<Value>> = from
+            .query(format!("select tbname,{names} from {stable}"))?
+            .deserialize()
+            .try_collect()?;
+
+        let children = transformer
+            .iter()
+            .fold(children, |children, action| match action {
+                Action::AddTag(add_tag) => match &add_tag.opts {
+                    AddTagOpts::Value { value } => children
+                        .into_iter()
+                        .map(|mut v| {
+                            v.push(Value::VarChar(value.clone()));
+                            v
+                        })
+                        .collect_vec(),
+                    AddTagOpts::Template { template: _ } => todo!(),
+                },
+                Action::RenameChildTable(rename) | Action::RenameTable(rename) => match rename {
+                    crate::stream::transformer::RenameOpts::Prefix { prefix } => children
+                        .into_iter()
+                        .map(|mut child| {
+                            let name = child[0].strict_as_str();
+                            child[0] = Value::VarChar(format!("{prefix}{name}"));
+                            child
+                        })
+                        .collect_vec(),
+                    crate::stream::transformer::RenameOpts::Suffix { suffix } => children
+                        .into_iter()
+                        .map(|mut child| {
+                            let name = child[0].strict_as_str();
+                            child[0] = Value::VarChar(format!("{name}{suffix}"));
+                            child
+                        })
+                        .collect_vec(),
+                    crate::stream::transformer::RenameOpts::Template { template } => children
+                        .into_iter()
+                        .map(|mut child| {
+                            let name = child[0].strict_as_str();
+                            child[0] = Value::VarChar(template.replace("{{ name }}", name));
+                            child
+                        })
+                        .collect_vec(),
+                },
+                _ => children,
+            });
+
+        // todo: use par_iter to speed up tables creation.
+        // todo: single table not work, blocked by https://jira.taosdata.com:18080/browse/TD-16117
+        for child in children {
+            let tbname = child[0].to_string().unwrap();
+            let tags_values = child[1..].into_iter().map(|v| v.to_sql_value()).join(",");
+            to.exec(format!(
+                "create table if not exists {tbname} using {stable2} tags({tags_values})"
+            ))
+            .unwrap();
+        }
+
+        // let fields: Vec<Value> = from
+        //     .query_one(format!(
+        //         "select {names} from {stable} where tbname = '{table}'"
+        //     ))?
+        //     .unwrap();
+
+        // let tags_values = fields.into_iter().map(|v| v.to_sql_value()).join(",");
+        // to.exec(format!(
+        //     "create table if not exists {table} using {stable} tags({tags_values})"
+        // ))?;
+    } else {
+        let mut table = table.to_string();
+        log::info!("describe table {table}");
+        let desc = from.describe(&format!("{db}.`{table}`"))?;
+        log::info!("table {table}: {desc:?}");
+
+        let desc = transformer
+            .iter()
+            .fold(desc.clone(), |desc, action| match action {
+                Action::Select(select) => match select {
+                    Select::Subset { subset } => desc
+                        .into_iter()
+                        .filter(|f| subset.contains(&f.field))
+                        .collect(),
+                    Select::Rename { rename } => desc
+                        .into_iter()
+                        .map(|mut f| {
+                            if let Some(v) = rename.get(f.field()) {
+                                f.field = v.to_string();
+                                f
+                            } else {
+                                f
+                            }
+                        })
+                        .collect(),
+                    Select::Exclude { exclude } => desc
+                        .into_iter()
+                        .filter(|f| !exclude.contains(&f.field))
+                        .collect(),
+                },
+                Action::RenameTable(rename) => {
+                    match rename {
+                        crate::stream::transformer::RenameOpts::Prefix { prefix } => {
+                            table = format!("{prefix}{table}");
+                        }
+                        crate::stream::transformer::RenameOpts::Suffix { suffix } => {
+                            table = format!("{table}{suffix}");
+                        }
+                        crate::stream::transformer::RenameOpts::Template { template } => {
+                            table = template.replace("{{ name }}", &table);
+                        }
+                    }
+                    desc
+                }
+                _ => desc,
+            });
+        let sql = desc.to_create_table_sql(&table);
+        log::info!("exec sql: {sql}");
+        to.exec(sql).unwrap();
+    }
+    Ok(())
 }
 
 impl Sink<(&Taos, SyncBlock)> for TaosSink {
@@ -107,6 +346,69 @@ impl Sink<(&Taos, SyncBlock)> for TaosSink {
         let table = block.tmq_table_name().unwrap();
         log::info!("[{idx}] table name is {table}");
 
+        if let Some(transformer) = self.transformer.as_ref() {
+            if self.taos.exec(format!("describe {table}")).is_err() {
+                sync_table_with_transformer(taos, &self.taos, db, &table, &transformer)?;
+            }
+            let mut table = table.to_string();
+            let fields = block.fields();
+
+            let mut bind: Vec<TaosMultiBind> = Vec::new();
+
+            for action in transformer {
+                match action {
+                    Action::Select(Select::Subset { subset }) => {
+                        bind = block
+                            .columns_iter()
+                            .zip(fields)
+                            .filter_map(|(col, field)| {
+                                if subset.contains(&field.name().to_string()) {
+                                    Some(col.into())
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect()
+                    }
+                    Action::Select(Select::Exclude { exclude }) => {
+                        bind = block
+                            .columns_iter()
+                            .zip(fields)
+                            .filter_map(|(col, field)| {
+                                if !exclude.contains(&field.name().to_string()) {
+                                    Some(col.into())
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect()
+                    }
+                    Action::RenameChildTable(rename) | Action::RenameTable(rename) => {
+                        match rename {
+                            crate::stream::transformer::RenameOpts::Prefix { prefix } => {
+                                table = format!("{prefix}{table}");
+                            }
+                            crate::stream::transformer::RenameOpts::Suffix { suffix } => {
+                                table = format!("{table}{suffix}");
+                            }
+                            crate::stream::transformer::RenameOpts::Template { template } => {
+                                table = template.replace("{{ name }}", &table);
+                            }
+                        }
+                    }
+                    _ => (),
+                }
+            }
+            let questions = std::iter::repeat("?").take(bind.len()).join(",");
+            let mut stmt = self
+                .taos
+                .stmt(format!("insert into {table} values({questions})"))?;
+            stmt.multi_bind(&bind)?;
+            stmt.execute()?;
+            let inserted = stmt.affected_rows();
+            log::info!("[{idx}] inserted {inserted} rows into {table}");
+            return Ok(());
+        }
         if self.taos.exec(format!("describe {table}")).is_err() {
             sync_table(taos, &self.taos, db, &table)?;
         }
@@ -120,6 +422,7 @@ impl Sink<(&Taos, SyncBlock)> for TaosSink {
         stmt.execute()?;
         let inserted = stmt.affected_rows();
         log::info!("[{idx}] inserted {inserted} rows into {table}");
+
         Ok(())
     }
 
@@ -155,6 +458,71 @@ impl TaosxSink for TaosSink {
         taos.exec(format!("use {db}"))?;
         let table = block.tmq_table_name().unwrap();
         log::debug!("[{idx}] db: {db}, table: {table}");
+
+        if let Some(transformer) = self.transformer.as_ref() {
+            let mut table2 = table.to_string();
+            let fields = block.fields();
+
+            let mut bind: Vec<TaosMultiBind> = Vec::new();
+
+            for action in transformer {
+                match action {
+                    Action::Select(Select::Subset { subset }) => {
+                        bind = block
+                            .columns_iter()
+                            .zip(fields)
+                            .filter_map(|(col, field)| {
+                                if subset.contains(&field.name().to_string()) {
+                                    Some(col.into())
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect()
+                    }
+                    Action::Select(Select::Exclude { exclude }) => {
+                        bind = block
+                            .columns_iter()
+                            .zip(fields)
+                            .filter_map(|(col, field)| {
+                                if !exclude.contains(&field.name().to_string()) {
+                                    Some(col.into())
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect()
+                    }
+                    Action::RenameChildTable(rename) | Action::RenameTable(rename) => {
+                        match rename {
+                            crate::stream::transformer::RenameOpts::Prefix { prefix } => {
+                                table2 = format!("{prefix}{table}");
+                            }
+                            crate::stream::transformer::RenameOpts::Suffix { suffix } => {
+                                table2 = format!("{table}{suffix}");
+                            }
+                            crate::stream::transformer::RenameOpts::Template { template } => {
+                                table2 = template.replace("{{ name }}", &table);
+                            }
+                        }
+                    }
+                    _ => (),
+                }
+            }
+
+            if self.taos.exec(format!("describe {table}")).is_err() {
+                sync_table_with_transformer(taos, &self.taos, db, &table, &transformer)?;
+            }
+            let questions = std::iter::repeat("?").take(bind.len()).join(",");
+            let mut stmt = self
+                .taos
+                .stmt(format!("insert into {table2} values({questions})"))?;
+            stmt.multi_bind(&bind)?;
+            stmt.execute()?;
+            let inserted = stmt.affected_rows();
+            log::info!("[{idx}] inserted {inserted} rows into {table2}");
+            return Ok(());
+        }
 
         if self.taos.exec(format!("describe {table}")).is_err() {
             log::info!("[{idx}] synchronize table schema {table}");
@@ -227,7 +595,7 @@ async fn test(taos: &Taos, databases: &[&str]) -> Result<(), Error> {
     taos.exec(format!("create topic {db1} as database {db1}"))?;
 
     let mut tmq = TmqBuilder::from_dsn(format!(
-        "taos:///{db1}?topics={db1}&group.id={db1}&wait=1000"
+        "taos:///{db1}?topics={db1}&group.id={db1}&wait=1000&msg.with.table.name=true"
     ))?
     .build()?;
 
@@ -252,6 +620,72 @@ async fn test(taos: &Taos, databases: &[&str]) -> Result<(), Error> {
     let taos2 = Taos::from_dsn(format!("taos:///{db2}"))?;
 
     let mut rs = taos2.query("select * from stb1")?;
+    let values = rs.to_rows_vec();
+    dbg!(values);
+
+    Ok(())
+}
+
+#[taos::test(log_level = "trace", databases = 2)]
+async fn test_with_transformer(taos: &Taos, databases: &[&str]) -> Result<(), Error> {
+    taos.exec_many([
+        "create table tb1 (ts timestamp, c_bool bool, c_int int, c_binary binary(10))",
+        "create table tb2 (ts timestamp, c_bool bool, c_int int, c_binary binary(10))",
+        "create table stb1 (ts timestamp, c_bool bool, c_int int, c_binary binary(10)) tags(c_i8 tinyint)",
+        "insert into tb1 values(now, NULL, NULL, NULL) (now+1s, false, 0, 'abc')",
+        "insert into tb2 values(now, NULL, NULL, NULL) (now+1s, false, 0, 'abc')",
+        "insert into tb3 using stb1 tags(3) values(now, NULL, NULL, NULL) (now+1s, false, 0, 'abc')",
+        "insert into tb4 using stb1 tags(4) values(now, NULL, NULL, NULL) (now+1s, false, 0, 'abc')",
+    ])?;
+
+    let db1 = databases[0];
+    taos.exec(format!("create topic {db1} as database {db1}"))?;
+
+    let mut tmq = TmqBuilder::from_dsn(format!(
+        "taos:///{db1}?topics={db1}&group.id={db1}&wait=1000&msg.with.table.name=true"
+    ))?
+    .build()?;
+
+    let db2 = databases[1];
+
+    let mut sink = TaosSinkBuilder::from_dsn(format!("taos:///{db2}"))?
+        .with_transformer(vec![
+            Action::AddTag(AddTag {
+                name: "f1".to_string(),
+                len: 10,
+                opts: AddTagOpts::value("v1"),
+            }),
+            Action::Select(crate::stream::transformer::Select::exclude(vec![
+                "c_bool".to_string()
+            ])),
+            Action::RenameTable(crate::stream::transformer::RenameOpts::prefix("p_")),
+        ])
+        .build_sink_for_protocol(SinkProtocol::Block)?;
+
+    use futures::sink::SinkExt;
+
+    while let Some(rs) = tmq.poll() {
+        let mut rs = rs?;
+        for block in rs.blocks_iter() {
+            log::info!("send block");
+            sink.send((taos, block)).await?;
+        }
+    }
+    drop(tmq);
+
+    taos.exec(format!("drop topic {db1}"))?;
+
+    let taos2 = Taos::from_dsn(format!("taos:///{db2}"))?;
+
+    let mut rs = taos2.query("select * from p_stb1")?;
+    let values = rs.to_rows_vec();
+    dbg!(values);
+
+    let mut rs = taos2.query("select * from p_tb1")?;
+    let values = rs.to_rows_vec();
+    dbg!(values);
+
+    let mut rs = taos2.query("select * from p_tb2")?;
     let values = rs.to_rows_vec();
     dbg!(values);
 

@@ -247,7 +247,7 @@ impl Value {
         matches!(self, Value::Null)
     }
     /// Only VarChar, NChar, Json could be treated as [&str].
-    fn strict_as_str(&self) -> &str {
+    pub fn strict_as_str(&self) -> &str {
         use Value::*;
         match self {
             VarChar(v) => v.as_str(),
