@@ -2507,7 +2507,7 @@ typedef struct {
   int64_t offset;
   int64_t sliding;
   int64_t dstTbUid;
-  int32_t dstVgId;  // for stream
+  int32_t dstVgId;
   SEpSet  epSet;
   char*   expr;
 } STableIndexInfo;
