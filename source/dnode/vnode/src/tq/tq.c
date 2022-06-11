@@ -130,7 +130,17 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
           TD_VID(pTq->pVnode), pReq->currentOffset, fetchOffset);
 
   STqHandle* pHandle = taosHashGet(pTq->handles, pReq->subKey, strlen(pReq->subKey));
-  ASSERT(pHandle);
+  /*ASSERT(pHandle);*/
+  if (pHandle == NULL) {
+    tqError("tmq poll: no consumer handle for consumer %ld in vg %d, subkey %s", consumerId, pTq->pVnode->config.vgId,
+            pReq->subKey);
+    return -1;
+  }
+  if (pHandle->consumerId != consumerId) {
+    tqError("tmq poll: consumer handle mismatch for consumer %ld in vg %d, subkey %s, handle consumer id %ld",
+            consumerId, pTq->pVnode->config.vgId, pReq->subKey, pHandle->consumerId);
+    return -1;
+  }
 
   int32_t consumerEpoch = atomic_load_32(&pHandle->epoch);
   while (consumerEpoch < reqEpoch) {
