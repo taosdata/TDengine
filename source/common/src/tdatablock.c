@@ -322,7 +322,6 @@ int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* p
     pColumnInfoData->varmeta.length = pSource->varmeta.length;
   } else {
     char* tmp = taosMemoryRealloc(pColumnInfoData->nullbitmap, BitmapLen(numOfRows));
-    printf("----------------%d\n", BitmapLen(numOfRows));
     if (tmp == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
