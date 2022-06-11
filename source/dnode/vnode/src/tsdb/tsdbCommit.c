@@ -22,6 +22,8 @@ struct SCommitter {
   uint8_t *pBuf1;
   uint8_t *pBuf2;
   uint8_t *pBuf3;
+  uint8_t *pBuf4;
+  uint8_t *pBuf5;
   /* commit data */
   int32_t minutes;
   int8_t  precision;
@@ -171,6 +173,8 @@ static int32_t tsdbCommitDelStart(SCommitter *pCommitter) {
   SDelFile  *pDelFileR = NULL;  // TODO
   SDelFile  *pDelFileW = NULL;  // TODO
 
+  // load old
+  pCommitter->oDelIdx = (SDelIdx){0};
   if (pDelFileR) {
     code = tsdbDelFReaderOpen(&pCommitter->pDelFReader, pDelFileR, pTsdb, NULL);
     if (code) {
@@ -183,6 +187,8 @@ static int32_t tsdbCommitDelStart(SCommitter *pCommitter) {
     }
   }
 
+  // prepare new
+  pCommitter->nDelIdx = (SDelIdx){0};
   code = tsdbDelFWriterOpen(&pCommitter->pDelFWriter, pDelFileW, pTsdb);
   if (code) {
     goto _err;
@@ -250,12 +256,17 @@ static int32_t tsdbCommitDelImpl(SCommitter *pCommitter) {
 static int32_t tsdbCommitDelEnd(SCommitter *pCommitter) {
   int32_t code = 0;
 
-  code = tsdbWriteDelIdx(pCommitter->pDelFWriter, &pCommitter->nDelIdx, &pCommitter->pBuf3);
+  code = tsdbWriteDelIdx(pCommitter->pDelFWriter, &pCommitter->nDelIdx, NULL);
   if (code) {
     goto _err;
   }
 
-  code = tsdbDelFWriterClose(pCommitter->pDelFWriter);
+  code = tsdbUpdateDelFileHdr(pCommitter->pDelFWriter, NULL);
+  if (code) {
+    goto _err;
+  }
+
+  code = tsdbDelFWriterClose(pCommitter->pDelFWriter, 1);
   if (code) {
     goto _err;
   }
@@ -268,6 +279,7 @@ static int32_t tsdbCommitDelEnd(SCommitter *pCommitter) {
   return code;
 
 _err:
+  tsdbError("vgId:%d commit del end failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 

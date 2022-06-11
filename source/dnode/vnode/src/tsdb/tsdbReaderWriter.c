@@ -114,9 +114,25 @@ _err:
   return code;
 }
 
-int32_t tsdbDelFWriterClose(SDelFWriter *pWriter) {
+int32_t tsdbDelFWriterClose(SDelFWriter *pWriter, int8_t sync) {
   int32_t code = 0;
-  // TODO
+
+  // sync
+  if (sync && taosFsyncFile(pWriter->pWriteH) < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  // close
+  if (taosCloseFile(&pWriter->pWriteH) < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  return code;
+
+_err:
+  tsdbError("vgId:%d failed to close del file writer since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -129,22 +145,74 @@ int32_t tsdbWriteDelData(SDelFWriter *pWriter, SDelData *pDelData, uint8_t **ppB
 }
 
 int32_t tsdbWriteDelIdx(SDelFWriter *pWriter, SDelIdx *pDelIdx, uint8_t **ppBuf) {
-  int32_t code = 0;
-  int64_t size;
+  int32_t  code = 0;
+  int64_t  size;
+  int64_t  n;
+  uint8_t *pBuf = NULL;
 
-  size = tPutDelIdx(NULL, pDelIdx) + sizeof(TSCKSUM);
+  // prepare
+  pDelIdx->delimiter = TSDB_FILE_DLMT;
+  // pDelIdx->nOffset = (todo)
 
   // alloc
+  if (!ppBuf) ppBuf = &pBuf;
+  size = tPutDelIdx(NULL, pDelIdx) + sizeof(TSCKSUM);
   code = tsdbRealloc(ppBuf, size);
   if (code) {
     goto _err;
   }
 
-  // encode
-  tPutDelIdx(*ppBuf, pDelIdx);
-
-  // checksum
+  // build
+  n = tPutDelIdx(*ppBuf, pDelIdx);
   taosCalcChecksumAppend(0, *ppBuf, size);
+
+  ASSERT(n + sizeof(TSCKSUM) == size);
+
+  // write
+  n = taosWriteFile(pWriter->pWriteH, *ppBuf, size);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  ASSERT(n == size);
+
+  // update
+  pWriter->pFile->offset = pWriter->pFile->size;
+  pWriter->pFile->size += size;
+
+  tsdbFree(pBuf);
+  return code;
+
+_err:
+  tsdbError("vgId:%d failed to write del idx since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
+  tsdbFree(pBuf);
+  return code;
+}
+
+int32_t tsdbUpdateDelFileHdr(SDelFWriter *pWriter, uint8_t **ppBuf) {
+  int32_t  code = 0;
+  uint8_t *pBuf = NULL;
+  int64_t  size = TSDB_FHDR_SIZE;
+  int64_t  n;
+
+  // alloc
+  if (!ppBuf) ppBuf = &pBuf;
+  code = tsdbRealloc(ppBuf, size);
+  if (code) goto _err;
+
+  // build
+  memset(*ppBuf, 0, size);
+  n = tPutDelFileHdr(*ppBuf, pWriter->pFile);
+  taosCalcChecksumAppend(0, *ppBuf, size);
+
+  ASSERT(n <= size - sizeof(TSCKSUM));
+
+  // seek
+  if (taosLSeekFile(pWriter->pWriteH, 0, SEEK_SET) < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
 
   // write
   if (taosWriteFile(pWriter->pWriteH, *ppBuf, size) < size) {
@@ -152,12 +220,12 @@ int32_t tsdbWriteDelIdx(SDelFWriter *pWriter, SDelIdx *pDelIdx, uint8_t **ppBuf)
     goto _err;
   }
 
-  pWriter->pFile->offset = pWriter->pFile->size;
-  pWriter->pFile->size += size;
-
+  tsdbFree(pBuf);
   return code;
 
 _err:
+  tsdbError("vgId:%d failed to update del file header since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
+  tsdbFree(pBuf);
   return code;
 }
 

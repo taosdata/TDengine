@@ -90,9 +90,10 @@ typedef struct SDataFReader SDataFReader;
 typedef struct SDelFWriter SDelFWriter;
 
 int32_t tsdbDelFWriterOpen(SDelFWriter **ppWriter, SDelFile *pFile, STsdb *pTsdb);
-int32_t tsdbDelFWriterClose(SDelFWriter *pWriter);
+int32_t tsdbDelFWriterClose(SDelFWriter *pWriter, int8_t sync);
 int32_t tsdbWriteDelData(SDelFWriter *pWriter, SDelData *pDelData, uint8_t **ppBuf, SDelIdxItem *pItem);
 int32_t tsdbWriteDelIdx(SDelFWriter *pWriter, SDelIdx *pDelIdx, uint8_t **ppBuf);
+int32_t tsdbUpdateDelFileHdr(SDelFWriter *pWriter, uint8_t **ppBuf);
 
 // SDelFReader
 typedef struct SDelFReader SDelFReader;
@@ -154,6 +155,8 @@ int32_t tGetDelIdx(uint8_t *p, SDelIdx *pDelIdx);
 int32_t tPutDelData(uint8_t *p, SDelData *pDelData);
 int32_t tGetDelData(uint8_t *p, SDelData *pDelData);
 
+int32_t tPutDelFileHdr(uint8_t *p, SDelFile *pDelFile);
+int32_t tGetDelFileHdr(uint8_t *p, SDelFile *pDelFile);
 // structs
 typedef struct {
   int   minFid;

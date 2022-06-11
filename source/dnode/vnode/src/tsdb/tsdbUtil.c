@@ -131,3 +131,29 @@ int32_t tGetDelData(uint8_t *p, SDelData *pDelData) {
 
   return n;
 }
+
+int32_t tPutDelFileHdr(uint8_t *p, SDelFile *pDelFile) {
+  int32_t n = 0;
+
+  n += tPutI64(p ? p + n : p, pDelFile->minKey);
+  n += tPutI64(p ? p + n : p, pDelFile->maxKey);
+  n += tPutI64v(p ? p + n : p, pDelFile->minVersion);
+  n += tPutI64v(p ? p + n : p, pDelFile->maxVersion);
+  n += tPutI64v(p ? p + n : p, pDelFile->size);
+  n += tPutI64v(p ? p + n : p, pDelFile->offset);
+
+  return n;
+}
+
+int32_t tGetDelFileHdr(uint8_t *p, SDelFile *pDelFile) {
+  int32_t n = 0;
+
+  n += tGetI64(p, &pDelFile->minKey);
+  n += tGetI64(p, &pDelFile->maxKey);
+  n += tGetI64v(p, &pDelFile->minVersion);
+  n += tGetI64v(p, &pDelFile->maxVersion);
+  n += tGetI64v(p, &pDelFile->size);
+  n += tGetI64v(p, &pDelFile->offset);
+
+  return n;
+}
