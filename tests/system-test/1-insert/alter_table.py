@@ -145,10 +145,17 @@ class TDTestCase:
         tdSql.execute(f'alter table {dbname}.{tbname} rename column c1 c21')
         tdSql.query(f'describe {dbname}.{tbname}')
         tdSql.checkData(1,0,'c21')
+        # !bug TD-16423
+        # tdSql.error(f'select c1 from {dbname}.{tbname}')
+        # tdSql.query(f'select c21 from {dbname}.{tbname}')
+        # tdSql.checkData(0,1,1)
         tdSql.execute(f'alter table {dbname}.{tbname} rename column `c21` c1')
         tdSql.query(f'describe {dbname}.{tbname}')
         tdSql.checkData(1,0,'c1')
-
+        # !bug TD-16423
+        # tdSql.error(f'select c1 from {dbname}.{tbname}')
+        # tdSql.query(f'select c1 from {dbname}.{tbname}')
+        # tdSql.checkData(0,1,1)
         tdSql.error(f'alter table {dbname}.{tbname} modify column c1 bigint')
         tdSql.error(f'alter table {dbname}.{tbname} modify column c1 double')
         tdSql.error(f'alter table {dbname}.{tbname} modify column c4 int')
