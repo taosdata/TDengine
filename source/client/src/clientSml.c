@@ -1311,8 +1311,8 @@ static int32_t smlKvTimeArrayCompare(const void* key1, const void* key2) {
 static int32_t smlKvTimeHashCompare(const void* key1, const void* key2) {
   SHashObj *s1 = (SHashObj *)key1;
   SHashObj *s2 = (SHashObj *)key2;
-  SSmlKv *kv1 = (SSmlKv *)taosArrayGetP(s1, 0);
-  SSmlKv *kv2 = (SSmlKv *)taosArrayGetP(s2, 0);
+  SSmlKv *kv1 = (SSmlKv *)taosHashGet(s1, TS, TS_LEN);
+  SSmlKv *kv2 = (SSmlKv *)taosHashGet(s2, TS, TS_LEN);
   ASSERT(kv1->type == TSDB_DATA_TYPE_TIMESTAMP);
   ASSERT(kv2->type == TSDB_DATA_TYPE_TIMESTAMP);
   if (kv1->i < kv2->i) {
