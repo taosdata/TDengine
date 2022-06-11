@@ -124,6 +124,8 @@ class TDTestCase:
             tdSql.query(f"select {col} from {table_expr} {re.sub('limit [0-9]*|offset [0-9]*','',condition)}")
             offset_val = condition.split("offset")[1].split(" ")[1] if "offset" in condition else 0
             pre_result = np.array(tdSql.queryResult)[np.array(tdSql.queryResult) != None]
+            if (platform.system().lower() == 'windows' and pre_result.dtype == 'int32'):
+                pre_result = np.array(pre_result, dtype = 'int64')
             pre_csum = np.cumsum(pre_result)[offset_val:]
             tdSql.query(self.csum_query_form(
                 col=col, alias=alias, table_expr=table_expr, condition=condition

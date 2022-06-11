@@ -79,7 +79,7 @@ python3 .\test.py -f 2-query\query_cols_tags_and_or.py
 
 python3 .\test.py -f 2-query\avg.py
 python3 .\test.py -f 2-query\elapsed.py
-@REM python3 .\test.py -f 2-query\csum.py
+python3 .\test.py -f 2-query\csum.py
 python3 .\test.py -f 2-query\mavg.py
 python3 .\test.py -f 2-query\diff.py
 python3 .\test.py -f 2-query\sample.py
