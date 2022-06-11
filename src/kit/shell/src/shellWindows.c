@@ -54,7 +54,7 @@ void printHelp() {
   printf("%s%s%s\n", indent, indent, "Script to run without enter the shell.");
   printf("%s%s\n", indent, "-d");
   printf("%s%s%s\n", indent, indent, "Database to use when connecting to the server.");
-  printf("%s%s\n", indent, "-t");
+  printf("%s%s\n", indent, "-z");
   printf("%s%s%s\n", indent, indent, "Time zone of the shell, default is local.");
   printf("%s%s\n", indent, "-n");
   printf("%s%s%s\n", indent, indent, "Net role when network connectivity test, default is startup, options: client|server|rpc|startup|sync|speed|fqdn.");
@@ -62,11 +62,14 @@ void printHelp() {
   printf("%s%s%s\n", indent, indent, "Packet length used for net test, default is 1000 bytes.");
   printf("%s%s\n", indent, "-N");
   printf("%s%s%s\n", indent, indent, "Packet numbers used for net test, default is 100.");
+  printf("%s%s\n", indent, "-R");
+  printf("%s%s%s\n", indent, indent, "Connect and interact with TDengine use restful.");
+  printf("%s%s\n", indent, "-t");
+  printf("%s%s%s\n", indent, indent, "The token to use when connecting TDengine's cloud services.");
   printf("%s%s\n", indent, "-S");
   printf("%s%s%s\n", indent, indent, "Packet type used for net test, default is TCP.");
   printf("%s%s\n", indent, "-V");
   printf("%s%s%s\n", indent, indent, "Print program version.");
-
   exit(EXIT_SUCCESS);
 }
 
@@ -77,7 +80,15 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
     // for host
     if (strcmp(argv[i], "-h") == 0) {
       if (i < argc - 1) {
-        arguments->host = argv[++i];
+        char* arg = argv[++i];
+          char* tmp = strstr(arg, ":");
+          if (tmp == NULL) {
+              arguments->host = arg;
+          } else if ((tmp + 1) != NULL) {
+              arguments->port  = atoi(tmp + 1);
+              tmp[0] = '\0';
+              arguments->host = arg;
+          }
       } else {
         fprintf(stderr, "option -h requires an argument\n");
         exit(EXIT_FAILURE);
@@ -172,7 +183,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
       }
     }
     // For time zone
-    else if (strcmp(argv[i], "-t") == 0) {
+    else if (strcmp(argv[i], "-z") == 0) {
       if (i < argc - 1) {
         arguments->timezone = argv[++i];
       } else {
@@ -212,6 +223,20 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
         exit(EXIT_FAILURE);
       }
     }
+
+    else if (strcmp(argv[i], "-R") == 0) {
+        arguments->restful = true;
+    }
+
+    else if (strcmp(argv[i], "-t") == 0) {
+        if (i < argc - 1) {
+            arguments->token = argv[++i];
+        } else {
+            fprintf(stderr, "options -t requires an argument\n");
+            exit(EXIT_FAILURE);
+        }
+    }
+
     else if (strcmp(argv[i], "-V") == 0) {
       printVersion();
       exit(EXIT_SUCCESS);
@@ -337,3 +362,62 @@ void get_history_path(char *history) {
 }
 
 void exitShell() { exit(EXIT_SUCCESS); }
+
+int tcpConnect() {
+    int iResult;
+    WSADATA wsaData;
+    struct addrinfo *aResult = NULL,
+            *ptr = NULL,
+            hints;
+    if (args.port == 0) {
+        args.port = 6041;
+    }
+    if (NULL == args.host) {
+        args.host = "localhost";
+    }
+    char port[10] = {0};
+
+    sprintf_s(port, 10, "%d", args.port);
+
+    iResult = WSAStartup(MAKEWORD(2,2), &wsaData);
+    if (iResult != 0) {
+        printf("WSAStartup failed with error: %d\n", iResult);
+        return 1;
+    }
+    memset(&hints, 0, sizeof(struct addrinfo));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_protocol = IPPROTO_TCP;
+    iResult = getaddrinfo(args.host, port, &hints, &aResult);
+    if ( iResult != 0 ) {
+        printf("getaddrinfo failed with error: %d\n", iResult);
+        WSACleanup();
+        return 1;
+    }
+
+    for(ptr=aResult; ptr != NULL ; ptr=ptr->ai_next) {
+        // Create a SOCKET for connecting to server
+        args.socket = socket(ptr->ai_family, ptr->ai_socktype,
+                               ptr->ai_protocol);
+        if (args.socket == INVALID_SOCKET) {
+            printf("socket failed with error: %ld\n", WSAGetLastError());
+            WSACleanup();
+            return 1;
+        }
+
+        // Connect to server.
+        iResult = connect( args.socket, ptr->ai_addr, (int)ptr->ai_addrlen);
+        if (iResult == SOCKET_ERROR) {
+            closesocket(args.socket);
+            args.socket = INVALID_SOCKET;
+            continue;
+        }
+        break;
+    }
+    if (args.socket == INVALID_SOCKET) {
+        printf("Unable to connect to server!\n");
+        WSACleanup();
+        return 1;
+    }
+    return 0;
+}
