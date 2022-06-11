@@ -291,6 +291,10 @@ class TDTestCase:
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
         
+        tdSql.query("select count(*) from %s.%s" %(parameterDict['dbName'], parameterDict['stbName']))
+        countOfStb = tdSql.getData(0,0)
+        print ("====total rows of stb: %d"%countOfStb)
+
         tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt))
         if totalConsumeRows != expectrowcnt:
             tdLog.exit("tmq consume rows error!")
