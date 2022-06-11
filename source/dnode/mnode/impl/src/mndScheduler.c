@@ -167,17 +167,17 @@ int32_t mndAddDispatcherToInnerTask(SMnode* pMnode, STrans* pTrans, SStreamObj* 
           }
         }
       }
-    } else {
-      pTask->dispatchType = TASK_DISPATCH__FIXED;
-      pTask->dispatchMsgType = TDMT_STREAM_TASK_DISPATCH;
-      SArray* pArray = taosArrayGetP(pStream->tasks, 0);
-      // one sink only
-      ASSERT(taosArrayGetSize(pArray) == 1);
-      SStreamTask* lastLevelTask = taosArrayGetP(pArray, 0);
-      pTask->fixedEpDispatcher.taskId = lastLevelTask->taskId;
-      pTask->fixedEpDispatcher.nodeId = lastLevelTask->nodeId;
-      pTask->fixedEpDispatcher.epSet = lastLevelTask->epSet;
     }
+  } else {
+    pTask->dispatchType = TASK_DISPATCH__FIXED;
+    pTask->dispatchMsgType = TDMT_STREAM_TASK_DISPATCH;
+    SArray* pArray = taosArrayGetP(pStream->tasks, 0);
+    // one sink only
+    ASSERT(taosArrayGetSize(pArray) == 1);
+    SStreamTask* lastLevelTask = taosArrayGetP(pArray, 0);
+    pTask->fixedEpDispatcher.taskId = lastLevelTask->taskId;
+    pTask->fixedEpDispatcher.nodeId = lastLevelTask->nodeId;
+    pTask->fixedEpDispatcher.epSet = lastLevelTask->epSet;
   }
   return 0;
 }
