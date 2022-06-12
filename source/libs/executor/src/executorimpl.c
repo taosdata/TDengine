@@ -4906,6 +4906,11 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
   return TSDB_CODE_SUCCESS;
 }
 
+void clearupQueryTableDataCond(SQueryTableDataCond* pCond) {
+  taosMemoryFree(pCond->twindows);
+  taosMemoryFree(pCond->colList);
+}
+
 SColumn extractColumnFromColumnNode(SColumnNode* pColNode) {
   SColumn c = {0};
   c.slotId = pColNode->slotId;
@@ -5111,7 +5116,10 @@ tsdbReaderT doCreateDataReader(STableScanPhysiNode* pTableScanNode, SReadHandle*
     goto _error;
   }
 
-  return tsdbReaderOpen(pHandle->vnode, &cond, pTableListInfo, queryId, taskId);
+  tsdbReaderT* pReader = tsdbReaderOpen(pHandle->vnode, &cond, pTableListInfo, queryId, taskId);
+  clearupQueryTableDataCond(&cond);
+
+  return pReader;
 
 _error:
   terrno = code;
