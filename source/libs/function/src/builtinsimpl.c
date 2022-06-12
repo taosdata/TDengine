@@ -4186,6 +4186,8 @@ int32_t sampleFunction(SqlFunctionCtx* pCtx) {
   SColumnInfoData* pInputCol = pInput->pData[0];
   SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
 
+  int32_t alreadySampled = pInfo->numSampled;
+
   int32_t startOffset = pCtx->offset;
   for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
     if (colDataIsNull_s(pInputCol, i)) {

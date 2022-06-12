@@ -76,22 +76,22 @@ void           deltaToUtcInitOnce() {
 
 static int64_t parseFraction(char* str, char** end, int32_t timePrec);
 static int32_t parseTimeWithTz(const char* timestr, int64_t* time, int32_t timePrec, char delim);
-static int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec);
-static int32_t parseLocaltimeDst(char* timestr, int64_t* time, int32_t timePrec);
+static int32_t parseLocaltime(char* timestr, int32_t len, int64_t* utime, int32_t timePrec);
+static int32_t parseLocaltimeDst(char* timestr, int32_t len, int64_t* utime, int32_t timePrec);
 static char*   forwardToTimeStringEnd(char* str);
 static bool    checkTzPresent(const char* str, int32_t len);
 
-static int32_t (*parseLocaltimeFp[])(char* timestr, int64_t* time, int32_t timePrec) = {parseLocaltime,
+static int32_t (*parseLocaltimeFp[])(char* timestr, int32_t len, int64_t* utime, int32_t timePrec) = {parseLocaltime,
                                                                                         parseLocaltimeDst};
 
-int32_t taosParseTime(const char* timestr, int64_t* time, int32_t len, int32_t timePrec, int8_t day_light) {
+int32_t taosParseTime(const char* timestr, int64_t* utime, int32_t len, int32_t timePrec, int8_t day_light) {
   /* parse datatime string in with tz */
   if (strnchr(timestr, 'T', len, false) != NULL) {
-    return parseTimeWithTz(timestr, time, timePrec, 'T');
+    return parseTimeWithTz(timestr, utime, timePrec, 'T');
   } else if (checkTzPresent(timestr, len)) {
-    return parseTimeWithTz(timestr, time, timePrec, 0);
+    return parseTimeWithTz(timestr, utime, timePrec, 0);
   } else {
-    return (*parseLocaltimeFp[day_light])((char*)timestr, time, timePrec);
+    return (*parseLocaltimeFp[day_light])((char*)timestr, len, utime, timePrec);
   }
 }
 
@@ -333,12 +333,12 @@ static FORCE_INLINE bool validateTm(struct tm* pTm) {
   return  true;
 }
 
-int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec) {
+int32_t parseLocaltime(char* timestr, int32_t len, int64_t* time, int32_t timePrec) {
   *time = 0;
   struct tm tm = {0};
 
   char* str = taosStrpTime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
-  if (str == NULL || !validateTm(&tm)) {
+  if (str == NULL || (((str - timestr) < len) && (*str != '.')) || !validateTm(&tm)) {
     return -1;
   }
 
@@ -367,13 +367,13 @@ int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec) {
   return 0;
 }
 
-int32_t parseLocaltimeDst(char* timestr, int64_t* time, int32_t timePrec) {
+int32_t parseLocaltimeDst(char* timestr, int32_t len, int64_t* time, int32_t timePrec) {
   *time = 0;
   struct tm tm = {0};
   tm.tm_isdst = -1;
 
   char* str = taosStrpTime(timestr, "%Y-%m-%d %H:%M:%S", &tm);
-  if (str == NULL || !validateTm(&tm)) {
+  if (str == NULL || (((str - timestr) < len) && (*str != '.')) || !validateTm(&tm)) {
     return -1;
   }
 
