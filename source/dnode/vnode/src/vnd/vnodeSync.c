@@ -290,11 +290,14 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
 
 void vnodeSyncStart(SVnode *pVnode) {
   syncSetMsgCb(pVnode->sync, &pVnode->msgCb);
+  syncStart(pVnode->sync);
+  /*
   if (pVnode->config.standby) {
     syncStartStandBy(pVnode->sync);
   } else {
     syncStart(pVnode->sync);
   }
+  */
 }
 
 void vnodeSyncClose(SVnode *pVnode) { syncStop(pVnode->sync); }

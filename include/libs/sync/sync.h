@@ -47,8 +47,9 @@ typedef enum {
 typedef enum {
   TAOS_SYNC_PROPOSE_SUCCESS = 0,
   TAOS_SYNC_PROPOSE_NOT_LEADER = 1,
-  TAOS_SYNC_PROPOSE_OTHER_ERROR = 2,
-  TAOS_SYNC_ONLY_ONE_REPLICA = 3,
+  TAOS_SYNC_ONLY_ONE_REPLICA = 2,
+  TAOS_SYNC_NOT_IN_NEW_CONFIG = 3,
+  TAOS_SYNC_OTHER_ERROR = 100,
 } ESyncProposeCode;
 
 typedef enum {
@@ -199,14 +200,12 @@ bool        syncIsRestoreFinish(int64_t rid);
 int32_t     syncGetSnapshotMeta(int64_t rid, struct SSnapshotMeta* sMeta);
 
 int32_t syncReconfig(int64_t rid, const SSyncCfg* pNewCfg);
-int32_t syncReconfigRaw(int64_t rid, const SSyncCfg* pNewCfg, SRpcMsg* pRpcMsg);
+
+// build SRpcMsg, need to call syncPropose with SRpcMsg
+int32_t syncReconfigBuild(int64_t rid, const SSyncCfg* pNewCfg, SRpcMsg* pRpcMsg);
 
 int32_t syncLeaderTransfer(int64_t rid);
 int32_t syncLeaderTransferTo(int64_t rid, SNodeInfo newLeader);
-
-// to be moved to static
-void syncStartNormal(int64_t rid);
-void syncStartStandBy(int64_t rid);
 
 #ifdef __cplusplus
 }

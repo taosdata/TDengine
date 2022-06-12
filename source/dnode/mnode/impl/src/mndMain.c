@@ -382,22 +382,22 @@ void mndStop(SMnode *pMnode) {
 int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
   SMnode    *pMnode = pMsg->info.node;
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
-  int32_t    code = TAOS_SYNC_PROPOSE_OTHER_ERROR;
+  int32_t    code = TAOS_SYNC_OTHER_ERROR;
 
   if (!syncEnvIsStart()) {
     mError("failed to process sync msg:%p type:%s since syncEnv stop", pMsg, TMSG_INFO(pMsg->msgType));
-    return TAOS_SYNC_PROPOSE_OTHER_ERROR;
+    return TAOS_SYNC_OTHER_ERROR;
   }
 
   SSyncNode *pSyncNode = syncNodeAcquire(pMgmt->sync);
   if (pSyncNode == NULL) {
     mError("failed to process sync msg:%p type:%s since syncNode is null", pMsg, TMSG_INFO(pMsg->msgType));
-    return TAOS_SYNC_PROPOSE_OTHER_ERROR;
+    return TAOS_SYNC_OTHER_ERROR;
   }
 
   if (mndAcquireSyncRef(pMnode) != 0) {
     mError("failed to process sync msg:%p type:%s since %s", pMsg, TMSG_INFO(pMsg->msgType), terrstr());
-    return TAOS_SYNC_PROPOSE_OTHER_ERROR;
+    return TAOS_SYNC_OTHER_ERROR;
   }
 
   char  logBuf[512] = {0};
@@ -457,7 +457,7 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
 
     } else {
       mError("failed to process msg:%p since invalid type:%s", pMsg, TMSG_INFO(pMsg->msgType));
-      code = TAOS_SYNC_PROPOSE_OTHER_ERROR;
+      code = TAOS_SYNC_OTHER_ERROR;
     }
 
   } else {
@@ -495,7 +495,7 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
       syncAppendEntriesReplyDestroy(pSyncMsg);
     } else {
       mError("failed to process msg:%p since invalid type:%s", pMsg, TMSG_INFO(pMsg->msgType));
-      code = TAOS_SYNC_PROPOSE_OTHER_ERROR;
+      code = TAOS_SYNC_OTHER_ERROR;
     }
   }
 

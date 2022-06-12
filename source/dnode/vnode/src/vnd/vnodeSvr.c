@@ -291,7 +291,7 @@ void vnodeUpdateMetaRsp(SVnode *pVnode, STableMetaRsp *pMetaRsp) {
 }
 
 int32_t vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  int32_t ret = TAOS_SYNC_PROPOSE_OTHER_ERROR;
+  int32_t ret = TAOS_SYNC_OTHER_ERROR;
 
   if (syncEnvIsStart()) {
     SSyncNode *pSyncNode = syncNodeAcquire(pVnode->sync);
@@ -372,13 +372,13 @@ int32_t vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 
     } else {
       vError("==vnodeProcessSyncReq== error msg type:%d", pRpcMsg->msgType);
-      ret = TAOS_SYNC_PROPOSE_OTHER_ERROR;
+      ret = TAOS_SYNC_OTHER_ERROR;
     }
 
     syncNodeRelease(pSyncNode);
   } else {
     vError("==vnodeProcessSyncReq== error syncEnv stop");
-    ret = TAOS_SYNC_PROPOSE_OTHER_ERROR;
+    ret = TAOS_SYNC_OTHER_ERROR;
   }
 
   return ret;
