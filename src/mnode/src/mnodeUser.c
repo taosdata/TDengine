@@ -116,7 +116,7 @@ static void mnodePrintUserAuth() {
     pIter = mnodeGetNextUser(pIter, &pUser);
     if (pUser == NULL) break;
 
-    char *base64 = taos_base64_encode((const unsigned char *)pUser->pass, TSDB_KEY_LEN * 2);
+    char *base64 = base64_encode((const unsigned char *)pUser->pass, TSDB_KEY_LEN * 2);
     fprintf(fp, "user:%24s auth:%s\n", pUser->user, base64);
     free(base64);
 

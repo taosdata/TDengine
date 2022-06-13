@@ -25,7 +25,7 @@ extern "C" {
 #include "tutil.h"
 
 unsigned char *base64_decode(const char *value, int inlen, int *outlen);
-char *taos_base64_encode(const unsigned char *value, int vlen);
+char *base64_encode(const unsigned char *value, int vlen);
 char *taosDesEncode(int64_t key, char *src, int len);
 char *taosDesDecode(int64_t key, char *src, int len);
 
