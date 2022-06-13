@@ -70,9 +70,10 @@ class TestPages(TDCase):
             db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
             data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
             self.tdSql.checkEqual(db_field_kv_dict[test_param],int(data['config']['szCache']))
-        self.tdSql.error(f'alter database {dbname} pages 63')
-        self.tdSql.error(f'alter database {dbname} pages 100.1')
-        self.tdSql.error(f'alter database {dbname} pages abc')
+        
+        for i in [param_value_list[0]-1,100.1,'abc']:
+            self.tdSql.error(f'alter database {dbname} pages {i}')
+        
         self.tdSql.execute(f'drop database {dbname}')
     def run(self):
         self.pages_check()

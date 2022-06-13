@@ -70,10 +70,9 @@ class TestBuffer(TDCase):
             db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
             data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
             self.tdSql.checkEqual(db_field_kv_dict[test_param],int(data['config']['szBuf'])/1024/1024)
-        self.tdSql.error(f'alter database {dbname} {test_param} 2')
-        self.tdSql.error(f'alter database {dbname} {test_param} 16385')
-        self.tdSql.error(f'alter database {dbname} {test_param} abc')
-        self.tdSql.error(f'alter database {dbname} {test_param} 100.1')
+
+        for i in [param_value_list[0] - 1,param_value_list[-1] + 1,'abc',100.1]:
+            self.tdSql.error(f'alter database {dbname} {test_param} {i}')
         self.tdSql.execute(f'drop database {dbname}')
     def run(self) -> bool:
         self.buffer_check()
