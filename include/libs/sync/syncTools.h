@@ -467,6 +467,7 @@ typedef struct SyncLeaderTransfer {
    SRaftId  srcId;
    SRaftId  destId;
    */
+  SNodeInfo newNodeInfo;
   SRaftId newLeaderId;
 } SyncLeaderTransfer;
 

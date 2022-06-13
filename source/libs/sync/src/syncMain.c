@@ -35,7 +35,7 @@
 #include "syncVoteMgr.h"
 #include "tref.h"
 
-bool gRaftDetailLog = true;
+bool gRaftDetailLog = false;
 
 static int32_t tsNodeRefId = -1;
 
@@ -183,13 +183,21 @@ int32_t syncReconfigBuild(int64_t rid, const SSyncCfg* pNewCfg, SRpcMsg* pRpcMsg
   int32_t ret = 0;
   bool    IamInNew = false;
   for (int i = 0; i < pNewCfg->replicaNum; ++i) {
-    SRaftId newId;
-    newId.addr = syncUtilAddr2U64((pNewCfg->nodeInfo)[i].nodeFqdn, (pNewCfg->nodeInfo)[i].nodePort);
-    newId.vgId = pSyncNode->vgId;
-    if (syncUtilSameId(&(pSyncNode->myRaftId), &newId)) {
+    if (strcmp((pNewCfg->nodeInfo)[i].nodeFqdn, pSyncNode->myNodeInfo.nodeFqdn) == 0 &&
+        (pNewCfg->nodeInfo)[i].nodePort == pSyncNode->myNodeInfo.nodePort) {
       IamInNew = true;
     }
+
+    /*
+        SRaftId newId;
+        newId.addr = syncUtilAddr2U64((pNewCfg->nodeInfo)[i].nodeFqdn, (pNewCfg->nodeInfo)[i].nodePort);
+        newId.vgId = pSyncNode->vgId;
+        if (syncUtilSameId(&(pSyncNode->myRaftId), &newId)) {
+          IamInNew = true;
+        }
+    */
   }
+
   if (!IamInNew) {
     taosReleaseRef(tsNodeRefId, pSyncNode->rid);
     return TAOS_SYNC_NOT_IN_NEW_CONFIG;
@@ -267,7 +275,7 @@ int32_t syncLeaderTransfer(int64_t rid) {
   }
   ASSERT(rid == pSyncNode->rid);
 
-  if (pSyncNode->peersNum > 0) {
+  if (pSyncNode->peersNum == 0) {
     taosReleaseRef(tsNodeRefId, pSyncNode->rid);
     return TAOS_SYNC_OTHER_ERROR;
   }
@@ -296,6 +304,7 @@ int32_t syncLeaderTransferTo(int64_t rid, SNodeInfo newLeader) {
   SyncLeaderTransfer* pMsg = syncLeaderTransferBuild(pSyncNode->vgId);
   pMsg->newLeaderId.addr = syncUtilAddr2U64(newLeader.nodeFqdn, newLeader.nodePort);
   pMsg->newLeaderId.vgId = pSyncNode->vgId;
+  pMsg->newNodeInfo = newLeader;
   ASSERT(pMsg != NULL);
   SRpcMsg rpcMsg = {0};
   syncLeaderTransfer2RpcMsg(pMsg, &rpcMsg);
@@ -1887,10 +1896,51 @@ const char* syncStr(ESyncState state) {
 }
 
 static int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* pEntry) {
-  SyncLeaderTransfer* pSyncLeaderTransfer;
-  if (syncUtilSameId(&(pSyncLeaderTransfer->newLeaderId), &(ths->myRaftId))) {
+  SyncLeaderTransfer* pSyncLeaderTransfer = syncLeaderTransferFromRpcMsg2(pRpcMsg);
+
+/*
+  char     host[128];
+  uint16_t port;
+  syncUtilU642Addr(pSyncLeaderTransfer->newLeaderId.addr, host, sizeof(host), &port);
+  sDebug("vgId:%d sync event, maybe leader transfer to %s:%d %lu", ths->vgId, host, port,
+         pSyncLeaderTransfer->newLeaderId.addr);
+*/
+
+  sDebug("vgId:%d sync event, begin leader transfer", ths->vgId);
+
+  if (strcmp(pSyncLeaderTransfer->newNodeInfo.nodeFqdn, ths->myNodeInfo.nodeFqdn) == 0 && pSyncLeaderTransfer->newNodeInfo.nodePort == ths->myNodeInfo.nodePort) {
+    sDebug("vgId:%d sync event, maybe leader transfer to %s:%d %lu", ths->vgId, pSyncLeaderTransfer->newNodeInfo.nodeFqdn, pSyncLeaderTransfer->newNodeInfo.nodePort,
+         pSyncLeaderTransfer->newLeaderId.addr);
+   
+    // reset elect timer now!
+    int32_t electMS = 1;
+    int32_t ret = syncNodeRestartElectTimer(ths, electMS);
+    ASSERT(ret == 0);
   }
 
+
+/*
+  if (syncUtilSameId(&(pSyncLeaderTransfer->newLeaderId), &(ths->myRaftId))) {
+    // reset elect timer now!
+    int32_t electMS = 1;
+    int32_t ret = syncNodeRestartElectTimer(ths, electMS);
+    ASSERT(ret == 0);
+  }
+*/
+  if (ths->pFsm->FpLeaderTransferCb != NULL) {
+    SFsmCbMeta cbMeta;
+    cbMeta.code = 0;
+    cbMeta.currentTerm = ths->pRaftStore->currentTerm;
+    cbMeta.flag = 0;
+    cbMeta.index = pEntry->index;
+    cbMeta.isWeak = pEntry->isWeak;
+    cbMeta.seqNum = pEntry->seqNum;
+    cbMeta.state = ths->state;
+    cbMeta.term = pEntry->term;
+    ths->pFsm->FpLeaderTransferCb(ths->pFsm, pRpcMsg, cbMeta);
+  }
+
+  syncLeaderTransferDestroy(pSyncLeaderTransfer);
   return 0;
 }
 
@@ -1992,7 +2042,7 @@ int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex,
           ASSERT(code == 0);
         }
 
-        // config change
+        // leader transfer
         if (pEntry->originalRpcType == TDMT_SYNC_LEADER_TRANSFER) {
           code = syncDoLeaderTransfer(ths, &rpcMsg, pEntry);
           ASSERT(code == 0);
