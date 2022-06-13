@@ -2716,9 +2716,33 @@ int32_t topFunction(SqlFunctionCtx* pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void topTransferInfo(SqlFunctionCtx* pCtx, STopBotRes* pInput) {
+int32_t bottomFunction(SqlFunctionCtx* pCtx) {
+  int32_t              numOfElems = 0;
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*      pCol = pInput->pData[0];
+
+  STopBotRes* pRes = getTopBotOutputInfo(pCtx);
+  pRes->type = pInput->pData[0]->info.type;
+
+  int32_t start = pInput->startRowIndex;
+  for (int32_t i = start; i < pInput->numOfRows + start; ++i) {
+    if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+      continue;
+    }
+
+    numOfElems++;
+    char* data = colDataGetData(pCol, i);
+    doAddIntoResult(pCtx, data, i, pCtx->pSrcBlock, pRes->type, pInput->uid, pResInfo, false);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static void topBotTransferInfo(SqlFunctionCtx* pCtx, STopBotRes* pInput, bool isTopQuery) {
   for (int32_t i = 0; i < pInput->numOfItems; i++) {
-    addResult(pCtx, &pInput->pItems[i], pInput->type, true);
+    addResult(pCtx, &pInput->pItems[i], pInput->type, isTopQuery);
   }
 }
 
@@ -2735,31 +2759,28 @@ int32_t topFunctionMerge(SqlFunctionCtx* pCtx) {
 
   pInfo->maxSize = pInputInfo->maxSize;
   pInfo->type    = pInputInfo->type;
-  topTransferInfo(pCtx, pInputInfo);
+  topBotTransferInfo(pCtx, pInputInfo, true);
   SET_VAL(GET_RES_INFO(pCtx), pEntryInfo->numOfRes, pEntryInfo->numOfRes);
 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t bottomFunction(SqlFunctionCtx* pCtx) {
-  int32_t              numOfElems = 0;
-  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
 
+int32_t bottomFunctionMerge(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(pCtx);
   SInputColumnInfoData* pInput = &pCtx->input;
-  SColumnInfoData*      pCol = pInput->pData[0];
-
-  int32_t type = pInput->pData[0]->info.type;
+  SColumnInfoData* pCol = pInput->pData[0];
+  ASSERT(pCol->info.type == TSDB_DATA_TYPE_BINARY);
 
   int32_t start = pInput->startRowIndex;
-  for (int32_t i = start; i < pInput->numOfRows + start; ++i) {
-    if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
-      continue;
-    }
+  char* data = colDataGetData(pCol, start);
+  STopBotRes* pInputInfo = (STopBotRes *)varDataVal(data);
+  STopBotRes* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
-    numOfElems++;
-    char* data = colDataGetData(pCol, i);
-    doAddIntoResult(pCtx, data, i, pCtx->pSrcBlock, type, pInput->uid, pResInfo, false);
-  }
+  pInfo->maxSize = pInputInfo->maxSize;
+  pInfo->type    = pInputInfo->type;
+  topBotTransferInfo(pCtx, pInputInfo, false);
+  SET_VAL(GET_RES_INFO(pCtx), pEntryInfo->numOfRes, pEntryInfo->numOfRes);
 
   return TSDB_CODE_SUCCESS;
 }
