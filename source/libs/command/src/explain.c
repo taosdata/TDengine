@@ -1039,7 +1039,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
         EXPLAIN_ROW_NEW(level + 1, "Merge Key: ");
         if (pResNode->pExecInfo) {
           for (int32_t i = 0; i < LIST_LENGTH(pMergeNode->pMergeKeys); ++i) {
-            SOrderByExprNode *ptn = nodesListGetNode(pMergeNode->pMergeKeys, i);
+            SOrderByExprNode *ptn = (SOrderByExprNode*)nodesListGetNode(pMergeNode->pMergeKeys, i);
             EXPLAIN_ROW_APPEND("%s ", nodesGetNameFromColumnNode(ptn->pExpr));
           }
         }
