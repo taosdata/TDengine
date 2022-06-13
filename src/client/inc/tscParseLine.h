@@ -58,6 +58,22 @@ typedef enum {
   SML_TIME_STAMP_NOW
 } SMLTimeStampType;
 
+typedef struct SSmlSqlInsertBatch {
+  uint64_t id;
+  int32_t index;
+
+  char* sql;
+  int32_t code;
+  int32_t tryTimes;
+  tsem_t sem;
+  int32_t affectedRows;
+  bool tryAgain;
+  bool resetQueryCache;
+  bool sleep;
+} SSmlSqlInsertBatch;
+
+#define MAX_SML_SQL_INSERT_BATCHES 512
+
 typedef struct {
   uint64_t id;
   SMLProtocolType protocol;
@@ -65,7 +81,13 @@ typedef struct {
   SHashObj* smlDataToSchema;
 
   int32_t affectedRows;
+
+  pthread_mutex_t batchMutex;
+  pthread_cond_t batchCond;
+  int32_t numBatches;
+  SSmlSqlInsertBatch batches[MAX_SML_SQL_INSERT_BATCHES];
 } SSmlLinesInfo;
+
 char* addEscapeCharToString(char *str, int32_t len);
 int tscSmlInsert(TAOS* taos, TAOS_SML_DATA_POINT* points, int numPoint, SSmlLinesInfo* info);
 bool checkDuplicateKey(char *key, SHashObj *pHash, SSmlLinesInfo* info);

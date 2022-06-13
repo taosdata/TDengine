@@ -3922,7 +3922,9 @@ void* createQInfoFromQueryNode(SQueryInfo* pQueryInfo, STableGroupInfo* pTableGr
   } else if (pQueryAttr->pExpr2 != NULL) {
     pEx = pQueryAttr->pExpr2;
     num = pQueryAttr->numOfExpr2;
-  } else {
+  }
+
+  if ( num < pQueryAttr->numOfOutput) {
     pEx = pQueryAttr->pExpr1;
     num = pQueryAttr->numOfOutput;
   }

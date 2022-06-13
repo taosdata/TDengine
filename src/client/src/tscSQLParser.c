@@ -1789,7 +1789,7 @@ int32_t validateOneColumn(SSqlCmd* pCmd, TAOS_FIELD* pColField) {
 
   // field name must be unique
   for (int32_t i = 0; i < numOfTags + numOfCols; ++i) {
-    if (strncasecmp(pColField->name, pSchema[i].name, sizeof(pColField->name) - 1) == 0) {
+    if (strncmp(pColField->name, pSchema[i].name, sizeof(pColField->name) - 1) == 0) {
       //return tscErrorMsgWithCode(TSDB_CODE_TSC_DUP_COL_NAMES, tscGetErrorMsgPayload(pCmd), pColField->name, NULL);
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), "duplicated column names");
     }
@@ -1803,7 +1803,7 @@ static bool has(SArray* pFieldList, int32_t startIdx, const char* name) {
   size_t numOfCols = taosArrayGetSize(pFieldList);
   for (int32_t j = startIdx; j < numOfCols; ++j) {
     TAOS_FIELD* field = taosArrayGet(pFieldList, j);
-    if (strncasecmp(name, field->name, sizeof(field->name) - 1) == 0) return true;
+    if (strncmp(name, field->name, sizeof(field->name) - 1) == 0) return true;
   }
 
   return false;
@@ -3448,7 +3448,7 @@ static int16_t doGetColumnIndex(SQueryInfo* pQueryInfo, int32_t index, SStrToken
       continue;
     }
 
-    if (strncasecmp(pSchema[i].name, pToken->z, pToken->n) == 0) {
+    if (strncmp(pSchema[i].name, pToken->z, pToken->n) == 0) {
       columnIndex = i;
       break;
     }
@@ -3468,7 +3468,7 @@ int32_t doGetColumnIndexByName(SStrToken* pToken, SQueryInfo* pQueryInfo, SColum
   if (isTablenameToken(pToken)) {
     pIndex->columnIndex = TSDB_TBNAME_COLUMN_INDEX;
   } else if (strlen(DEFAULT_PRIMARY_TIMESTAMP_COL_NAME) == pToken->n &&
-            strncasecmp(pToken->z, DEFAULT_PRIMARY_TIMESTAMP_COL_NAME, pToken->n) == 0) {
+            strncmp(pToken->z, DEFAULT_PRIMARY_TIMESTAMP_COL_NAME, pToken->n) == 0) {
     pIndex->columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX; // just make runtime happy, need fix java test case InsertSpecialCharacterJniTest
   } else {
     // not specify the table name, try to locate the table index by column name
@@ -8831,13 +8831,16 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
     free(row);
     
     bool dbIncluded2 = false;
+    char tmp[TSDB_TABLE_FNAME_LEN] = {0};
+    SStrToken tbName = taosTokenDup(&pCreateTableInfo->name, tmp, tListLen(tmp));
+
     // table name
-    if (tscValidateName(&(pCreateTableInfo->name), true, &dbIncluded2) != TSDB_CODE_SUCCESS) {
+    if (tscValidateName(&tbName, true, &dbIncluded2) != TSDB_CODE_SUCCESS) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
 
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, TABLE_INDEX);
-    ret = tscSetTableFullName(&pTableMetaInfo->name, &pCreateTableInfo->name, pSql, dbIncluded2);
+    ret = tscSetTableFullName(&pTableMetaInfo->name, &tbName, pSql, dbIncluded2);    
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
@@ -9498,6 +9501,15 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
           char* t = strdup(name);
           taosArrayPush(pVgroupList, &t);
           tscDebug("0x%"PRIx64" failed to retrieve stable %s vgroup id list in cache, try fetch from mnode", pSql->self, name);
+
+          if (pCmd->hashedTableNames == NULL) {
+            pCmd->hashedTableNames = taosArrayInit(4, POINTER_BYTES);
+          }
+
+          if (pCmd->hashedTableNames) {
+            char* tb = strdup(name);
+            taosArrayPush(pCmd->hashedTableNames, &tb);
+          }
         } else {
           tFilePage* pdata = (tFilePage*) pv;
           pVgroupIdList = taosArrayInit((size_t) pdata->num, sizeof(int32_t));
