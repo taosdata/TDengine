@@ -157,6 +157,28 @@ void generateTestST1(MockCatalogService* mcs) {
   mcs->createSubTable("test", "st1", "st1s3", 1);
 }
 
+/*
+ * Super Table: st2
+ *        Field        |        Type        |      DataType      |  Bytes   |
+ * ==========================================================================
+ *          ts         |       column       |     TIMESTAMP      |    8     |
+ *          c1         |       column       |        INT         |    4     |
+ *          c2         |       column       |      VARCHAR       |    20    |
+ *         jtag        |        tag         |        json        |    --    |
+ * Child Table: st2s1, st2s2
+ */
+void generateTestST2(MockCatalogService* mcs) {
+  ITableBuilder& builder = mcs->createTableBuilder("test", "st2", TSDB_SUPER_TABLE, 3, 1)
+                               .setPrecision(TSDB_TIME_PRECISION_MILLI)
+                               .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
+                               .addColumn("c1", TSDB_DATA_TYPE_INT)
+                               .addColumn("c2", TSDB_DATA_TYPE_BINARY, 20)
+                               .addTag("jtag", TSDB_DATA_TYPE_JSON);
+  builder.done();
+  mcs->createSubTable("test", "st2", "st2s1", 1);
+  mcs->createSubTable("test", "st2", "st2s2", 2);
+}
+
 void generateFunctions(MockCatalogService* mcs) {
   mcs->createFunction("udf1", TSDB_FUNC_TYPE_SCALAR, TSDB_DATA_TYPE_INT, tDataTypes[TSDB_DATA_TYPE_INT].bytes, 0);
   mcs->createFunction("udf2", TSDB_FUNC_TYPE_AGGREGATE, TSDB_DATA_TYPE_DOUBLE, tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes,
@@ -283,6 +305,7 @@ void generateMetaData() {
   generatePerformanceSchema(g_mockCatalogService.get());
   generateTestT1(g_mockCatalogService.get());
   generateTestST1(g_mockCatalogService.get());
+  generateTestST2(g_mockCatalogService.get());
   generateFunctions(g_mockCatalogService.get());
   g_mockCatalogService->showTables();
 }

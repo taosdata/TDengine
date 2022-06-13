@@ -56,14 +56,14 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char* pKey) {
   return sprintf(pKey, "%s", ((SExprNode*)pNode)->aliasName);
 }
 
-static SNode* createSlotDesc(SPhysiPlanContext* pCxt, const SNode* pNode, int16_t slotId, bool output) {
+static SNode* createSlotDesc(SPhysiPlanContext* pCxt, const SNode* pNode, int16_t slotId, bool output, bool reserve) {
   SSlotDescNode* pSlot = (SSlotDescNode*)nodesMakeNode(QUERY_NODE_SLOT_DESC);
   if (NULL == pSlot) {
     return NULL;
   }
   pSlot->slotId = slotId;
   pSlot->dataType = ((SExprNode*)pNode)->resType;
-  pSlot->reserve = false;
+  pSlot->reserve = reserve;
   pSlot->output = output;
   return (SNode*)pSlot;
 }
@@ -131,7 +131,7 @@ static int32_t buildDataBlockSlots(SPhysiPlanContext* pCxt, SNodeList* pList, SD
   int16_t slotId = 0;
   SNode*  pNode = NULL;
   FOREACH(pNode, pList) {
-    code = nodesListStrictAppend(pDataBlockDesc->pSlots, createSlotDesc(pCxt, pNode, slotId, true));
+    code = nodesListStrictAppend(pDataBlockDesc->pSlots, createSlotDesc(pCxt, pNode, slotId, true, false));
     if (TSDB_CODE_SUCCESS == code) {
       code = putSlotToHash(pDataBlockDesc->dataBlockId, slotId, pNode, pHash);
     }
@@ -181,7 +181,7 @@ static int16_t getUnsetSlotId(const SArray* pSlotIdsInfo) {
 }
 
 static int32_t addDataBlockSlotsImpl(SPhysiPlanContext* pCxt, SNodeList* pList, SDataBlockDescNode* pDataBlockDesc,
-                                     const char* pStmtName, bool output) {
+                                     const char* pStmtName, bool output,  bool reserve) {
   if (NULL == pList) {
     return TSDB_CODE_SUCCESS;
   }
@@ -196,7 +196,7 @@ static int32_t addDataBlockSlotsImpl(SPhysiPlanContext* pCxt, SNodeList* pList, 
     int32_t     len = getSlotKey(pExpr, pStmtName, name);
     SSlotIndex* pIndex = taosHashGet(pHash, name, len);
     if (NULL == pIndex) {
-      code = nodesListStrictAppend(pDataBlockDesc->pSlots, createSlotDesc(pCxt, pExpr, nextSlotId, output));
+      code = nodesListStrictAppend(pDataBlockDesc->pSlots, createSlotDesc(pCxt, pExpr, nextSlotId, output, reserve));
       if (TSDB_CODE_SUCCESS == code) {
         code = putSlotToHashImpl(pDataBlockDesc->dataBlockId, nextSlotId, name, len, pHash);
       }
@@ -226,7 +226,7 @@ static int32_t addDataBlockSlotsImpl(SPhysiPlanContext* pCxt, SNodeList* pList, 
 }
 
 static int32_t addDataBlockSlots(SPhysiPlanContext* pCxt, SNodeList* pList, SDataBlockDescNode* pDataBlockDesc) {
-  return addDataBlockSlotsImpl(pCxt, pList, pDataBlockDesc, NULL, false);
+  return addDataBlockSlotsImpl(pCxt, pList, pDataBlockDesc, NULL, false, false);
 }
 
 static int32_t addDataBlockSlot(SPhysiPlanContext* pCxt, SNode** pNode, SDataBlockDescNode* pDataBlockDesc) {
@@ -248,11 +248,11 @@ static int32_t addDataBlockSlot(SPhysiPlanContext* pCxt, SNode** pNode, SDataBlo
 
 static int32_t addDataBlockSlotsForProject(SPhysiPlanContext* pCxt, const char* pStmtName, SNodeList* pList,
                                            SDataBlockDescNode* pDataBlockDesc) {
-  return addDataBlockSlotsImpl(pCxt, pList, pDataBlockDesc, pStmtName, true);
+  return addDataBlockSlotsImpl(pCxt, pList, pDataBlockDesc, pStmtName, true, false);
 }
 
 static int32_t pushdownDataBlockSlots(SPhysiPlanContext* pCxt, SNodeList* pList, SDataBlockDescNode* pDataBlockDesc) {
-  return addDataBlockSlotsImpl(pCxt, pList, pDataBlockDesc, NULL, true);
+  return addDataBlockSlotsImpl(pCxt, pList, pDataBlockDesc, NULL, true, true);
 }
 
 typedef struct SSetSlotIdCxt {
@@ -1117,7 +1117,7 @@ static int32_t createPartitionPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChi
   if (TSDB_CODE_SUCCESS == code && NULL != pPrecalcExprs) {
     code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pPrecalcExprs, &pPart->pExprs);
     if (TSDB_CODE_SUCCESS == code) {
-      code = addDataBlockSlots(pCxt, pPart->pExprs, pChildTupe);
+      code = pushdownDataBlockSlots(pCxt, pPart->pExprs, pChildTupe);
     }
   }
 
