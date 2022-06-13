@@ -31,22 +31,23 @@ extern "C" {
 #define tsdbDebug(...) do { if (tsdbDebugFlag & DEBUG_DEBUG) { taosPrintLog("TSDB ", DEBUG_DEBUG, tsdbDebugFlag, __VA_ARGS__); }} while(0)
 #define tsdbTrace(...) do { if (tsdbDebugFlag & DEBUG_TRACE) { taosPrintLog("TSDB ", DEBUG_TRACE, tsdbDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
-typedef struct TSDBROW      TSDBROW;
-typedef struct TSDBKEY      TSDBKEY;
-typedef struct TABLEID      TABLEID;
-typedef struct SDelOp       SDelOp;
-typedef struct SDelDataItem SDelDataItem;
-typedef struct SDelData     SDelData;
-typedef struct SDelIdxItem  SDelIdxItem;
-typedef struct SDelIdx      SDelIdx;
-typedef struct STbData      STbData;
-typedef struct SMemTable    SMemTable;
-typedef struct STbDataIter  STbDataIter;
-typedef struct SMergeInfo   SMergeInfo;
-typedef struct STable       STable;
-typedef struct SOffset      SOffset;
-typedef struct SMapData     SMapData;
-typedef struct SVDataCols   SVDataCols;
+typedef struct TSDBROW       TSDBROW;
+typedef struct TSDBKEY       TSDBKEY;
+typedef struct TABLEID       TABLEID;
+typedef struct SDelOp        SDelOp;
+typedef struct SDelDataItem  SDelDataItem;
+typedef struct SDelData      SDelData;
+typedef struct SDelIdxItem   SDelIdxItem;
+typedef struct SDelIdx       SDelIdx;
+typedef struct STbData       STbData;
+typedef struct SMemTable     SMemTable;
+typedef struct STbDataIter   STbDataIter;
+typedef struct SMergeInfo    SMergeInfo;
+typedef struct STable        STable;
+typedef struct SOffset       SOffset;
+typedef struct SMapData      SMapData;
+typedef struct SColData      SColData;
+typedef struct SColDataBlock SColDataBlock;
 
 // tsdbMemTable ==============================================================================================
 
@@ -270,8 +271,16 @@ int tsdbLockRepo(STsdb *pTsdb);
 int tsdbUnlockRepo(STsdb *pTsdb);
 
 struct TSDBROW {
-  int64_t version;
-  STSRow *pTSRow;
+  union {
+    struct {
+      int64_t version;
+      STSRow *pTSRow;
+    };
+    struct {
+      SColDataBlock *pColDataBlock;
+      int32_t        iRow;
+    };
+  };
 };
 
 struct SBlockIdxItem {
@@ -449,8 +458,19 @@ struct SMapData {
   uint8_t *pData;
 };
 
-struct SVDataCols {
-  int64_t *aVersion;
+struct SColData {
+  int16_t  cid;
+  uint8_t  flags;
+  uint32_t nData;
+  uint8_t *pData;
+};
+
+struct SColDataBlock {
+  int32_t   nRow;
+  int64_t  *aVersion;
+  TSKEY    *aTSKey;
+  int32_t   nColData;
+  SColData *aColData;
 };
 
 #ifdef __cplusplus

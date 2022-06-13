@@ -42,7 +42,9 @@ int32_t tTSchemaCreate(int32_t sver, SSchema *pSchema, int32_t nCols, STSchema *
 void    tTSchemaDestroy(STSchema *pTSchema);
 
 // SValue
-int tValueCmprFn(const SValue *pValue1, const SValue *pValue2, int8_t type);
+int32_t tPutValue(uint8_t *p, SValue *pValue, int8_t type);
+int32_t tGetValue(uint8_t *p, SValue *pValue, int8_t type);
+int     tValueCmprFn(const SValue *pValue1, const SValue *pValue2, int8_t type);
 
 // STSRow2
 #define COL_VAL_NONE(CID)     ((SColVal){.cid = (CID), .isNone = 1})

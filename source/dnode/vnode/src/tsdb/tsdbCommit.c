@@ -40,8 +40,8 @@ struct SCommitter {
   SBlockIdx    *pBlockIdx;
   SMapData      oBlock;
   SMapData      nBlock;
-  SColDataBatch oBatch;
-  SColDataBatch nBatch;
+  SColDataBlock oColDataBlock;
+  SColDataBlock nColDataBlock;
   /* commit del */
   SDelFReader *pDelFReader;
   SDelFWriter *pDelFWriter;

@@ -726,4 +726,41 @@ int32_t tsdbKeyFid(TSKEY key, int32_t minutes, int8_t precision) {
   }
 }
 
+// TSDBROW ======================================================
+void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
+  // TODO
+}
+
 // SColDataBlock ======================================================
+int32_t tsdbColDataBlockAppend(SColDataBlock *pColDataBlock, TSDBROW *pRow, STSchema *pTSchema) {
+  int32_t   code = 0;
+  int32_t   nRow = pColDataBlock->nRow;
+  STColumn *pTColumn;
+  SColData *pColData;
+  SColVal   colVal;
+
+  pColDataBlock->nRow++;
+
+  // version
+  pColDataBlock->aVersion[nRow] = pRow->version;  // TODO
+
+  // ts
+  pColDataBlock->aTSKey[nRow] = pRow->pTSRow->ts;  // TODO
+
+  // other rows
+  for (int32_t iCol = 1; iCol < pTSchema->numOfCols; iCol++) {
+    pTColumn = &pTSchema->columns[iCol];
+
+    tsdbRowGetColVal(pRow, pTSchema, iCol, &colVal);
+
+    if (colVal.isNone) {
+      // TODO
+    } else if (colVal.isNull) {
+      // TODO
+    } else {
+      pColData->nData += tPutValue(pColData->pData + pColData->nData, &colVal.value, pTColumn->type);
+    }
+  }
+
+  return code;
+}
