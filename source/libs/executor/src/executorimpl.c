@@ -2579,6 +2579,7 @@ int32_t setDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadIn
                                  SArray* pColList) {
   if (pColList == NULL) {  // data from other sources
     blockCompressDecode(pRes, numOfOutput, numOfRows, pData);
+    pRes->info.rows = numOfRows;
   } else {  // extract data according to pColList
     ASSERT(numOfOutput == taosArrayGetSize(pColList));
     char* pStart = pData;
@@ -2615,14 +2616,14 @@ int32_t setDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadIn
     }
 
     blockCompressDecode(pBlock, numOfCols, numOfRows, pStart);
+
     // data from mnode
+    pRes->info.rows = numOfRows;
     relocateColumnData(pRes, pColList, pBlock->pDataBlock);
     taosArrayDestroy(pBlock->pDataBlock);
     taosMemoryFree(pBlock);
     //    blockDataDestroy(pBlock);
   }
-
-  pRes->info.rows = numOfRows;
 
   // todo move this to time window aggregator, since the primary timestamp may not be known by exchange operator.
   blockDataUpdateTsWindow(pRes, 0);
