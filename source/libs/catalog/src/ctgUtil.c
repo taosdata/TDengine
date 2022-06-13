@@ -640,5 +640,20 @@ int32_t ctgCloneMetaOutput(STableMetaOutput *output, STableMetaOutput **pOutput)
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t ctgUpdateSendTargetInfo(SMsgSendInfo *pMsgSendInfo, int32_t msgType, SCtgTask* pTask) {
+  if (msgType == TDMT_VND_TABLE_META) {
+    SCtgTbMetaCtx* ctx = (SCtgTbMetaCtx*)pTask->taskCtx;
+    char dbFName[TSDB_DB_FNAME_LEN];
+    tNameGetFullDbName(ctx->pName, dbFName);
+    
+    pMsgSendInfo->target.type = TARGET_TYPE_VNODE;
+    pMsgSendInfo->target.vgId = ctx->vgId;
+    pMsgSendInfo->target.dbFName = strdup(dbFName);
+  } else {
+    pMsgSendInfo->target.type = TARGET_TYPE_MNODE;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
 
 

@@ -551,7 +551,7 @@ void qwClearExpiredSch(SQWorker *mgmt, SArray* pExpiredSch) {
     if (taosHashGetSize(pSch->tasksHash) <= 0) {
       qwDestroySchStatus(pSch);
       taosHashRemove(mgmt->schHash, sId, sizeof(*sId));
-      qError("sch %" PRIx64 "destroyed", *sId);
+      qDebug("sch %" PRIx64 " destroyed", *sId);
     }
 
     qwReleaseScheduler(QW_WRITE, mgmt);

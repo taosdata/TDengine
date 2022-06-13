@@ -1193,37 +1193,37 @@ static int32_t mndProcessRedistributeVgroupMsg(SRpcMsg *pReq) {
     if (req.dnodeId1 != pVgroup->vnodeGid[0].dnodeId && req.dnodeId1 != pVgroup->vnodeGid[1].dnodeId &&
         req.dnodeId1 != pVgroup->vnodeGid[2].dnodeId) {
       newDnodeId[++newIndex] = req.dnodeId1;
-      mInfo("vgId:2, dnode:%d will be added", newDnodeId[newIndex]);
+      mInfo("vgId:%d, dnode:%d will be added, index:%d", pVgroup->vgId, newDnodeId[newIndex], newIndex);
     }
 
     if (req.dnodeId2 != pVgroup->vnodeGid[0].dnodeId && req.dnodeId2 != pVgroup->vnodeGid[1].dnodeId &&
         req.dnodeId2 != pVgroup->vnodeGid[2].dnodeId) {
       newDnodeId[++newIndex] = req.dnodeId2;
-      mInfo("vgId:2, dnode:%d will be added", newDnodeId[newIndex]);
+      mInfo("vgId:%d, dnode:%d will be added, index:%d", pVgroup->vgId, newDnodeId[newIndex], newIndex);
     }
 
     if (req.dnodeId3 != pVgroup->vnodeGid[0].dnodeId && req.dnodeId3 != pVgroup->vnodeGid[1].dnodeId &&
         req.dnodeId3 != pVgroup->vnodeGid[2].dnodeId) {
       newDnodeId[++newIndex] = req.dnodeId3;
-      mInfo("vgId:2, dnode:%d will be added", newDnodeId[newIndex]);
+      mInfo("vgId:%d, dnode:%d will be added, index:%d", pVgroup->vgId, newDnodeId[newIndex], newIndex);
     }
 
     if (req.dnodeId1 != pVgroup->vnodeGid[0].dnodeId && req.dnodeId2 != pVgroup->vnodeGid[0].dnodeId &&
         req.dnodeId3 != pVgroup->vnodeGid[0].dnodeId) {
       oldDnodeId[++oldIndex] = pVgroup->vnodeGid[0].dnodeId;
-      mInfo("vgId:2, dnode:%d will be removed", oldDnodeId[oldIndex]);
+      mInfo("vgId:%d, dnode:%d will be removed, index:%d", pVgroup->vgId, oldDnodeId[oldIndex], oldIndex);
     }
 
     if (req.dnodeId1 != pVgroup->vnodeGid[1].dnodeId && req.dnodeId2 != pVgroup->vnodeGid[1].dnodeId &&
         req.dnodeId3 != pVgroup->vnodeGid[1].dnodeId) {
       oldDnodeId[++oldIndex] = pVgroup->vnodeGid[1].dnodeId;
-      mInfo("vgId:2, dnode:%d will be removed", oldDnodeId[oldIndex]);
+      mInfo("vgId:%d, dnode:%d will be removed, index:%d", pVgroup->vgId, oldDnodeId[oldIndex], oldIndex);
     }
 
     if (req.dnodeId1 != pVgroup->vnodeGid[2].dnodeId && req.dnodeId2 != pVgroup->vnodeGid[2].dnodeId &&
         req.dnodeId3 != pVgroup->vnodeGid[2].dnodeId) {
       oldDnodeId[++oldIndex] = pVgroup->vnodeGid[2].dnodeId;
-      mInfo("vgId:2, dnode:%d will be removed", oldDnodeId[oldIndex]);
+      mInfo("vgId:%d, dnode:%d will be removed, index:%d", pVgroup->vgId, oldDnodeId[oldIndex], oldIndex);
     }
 
     if (newDnodeId[0] != 0) {
