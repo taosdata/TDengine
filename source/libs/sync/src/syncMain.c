@@ -35,7 +35,7 @@
 #include "syncVoteMgr.h"
 #include "tref.h"
 
-bool gRaftDetailLog = false;
+bool gRaftDetailLog = true;
 
 static int32_t tsNodeRefId = -1;
 
@@ -216,24 +216,29 @@ int32_t syncReconfig(int64_t rid, const SSyncCfg* pNewCfg) {
 
   bool IamInNew = false;
   for (int i = 0; i < pNewCfg->replicaNum; ++i) {
-    SRaftId newId;
-    newId.addr = syncUtilAddr2U64((pNewCfg->nodeInfo)[i].nodeFqdn, (pNewCfg->nodeInfo)[i].nodePort);
-    newId.vgId = pSyncNode->vgId;
-
-    sTrace("new[%d]: %lu, %d, my: %lu, %d", i, newId.addr, newId.vgId, pSyncNode->myRaftId.addr, pSyncNode->myRaftId.vgId);
-
-    if (syncUtilSameId(&(pSyncNode->myRaftId), &newId)) {
+    if (strcmp((pNewCfg->nodeInfo)[i].nodeFqdn, pSyncNode->myNodeInfo.nodeFqdn) == 0 &&
+        (pNewCfg->nodeInfo)[i].nodePort == pSyncNode->myNodeInfo.nodePort) {
       IamInNew = true;
     }
+
+    /*
+        // some problem in inet_addr
+
+        SRaftId newId = EMPTY_RAFT_ID;
+        newId.addr = syncUtilAddr2U64((pNewCfg->nodeInfo)[i].nodeFqdn, (pNewCfg->nodeInfo)[i].nodePort);
+        newId.vgId = pSyncNode->vgId;
+
+        if (syncUtilSameId(&(pSyncNode->myRaftId), &newId)) {
+          IamInNew = true;
+        }
+      */
   }
 
- 
   if (!IamInNew) {
     sError("sync reconfig error, not in new config");
     taosReleaseRef(tsNodeRefId, pSyncNode->rid);
     return TAOS_SYNC_NOT_IN_NEW_CONFIG;
   }
-
 
   char* newconfig = syncCfg2Str((SSyncCfg*)pNewCfg);
   if (gRaftDetailLog) {
