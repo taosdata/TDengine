@@ -662,7 +662,8 @@ static int32_t tsdbCommitTableDelEnd(SCommitter *pCommitter) {
   int32_t code = 0;
 
   // write table del data
-  code = tsdbWriteDelData(pCommitter->pDelFWriter, &pCommitter->delDataNew, NULL);
+  code = tsdbWriteDelData(pCommitter->pDelFWriter, &pCommitter->delDataNew, NULL, &pCommitter->delIdxItem.offset,
+                          &pCommitter->delIdxItem.size);
   if (code) goto _err;
 
   // add SDelIdxItem

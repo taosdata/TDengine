@@ -139,7 +139,7 @@ _err:
   return code;
 }
 
-int32_t tsdbWriteDelData(SDelFWriter *pWriter, SDelData *pDelData, uint8_t **ppBuf) {
+int32_t tsdbWriteDelData(SDelFWriter *pWriter, SDelData *pDelData, uint8_t **ppBuf, int64_t *rOffset, int64_t *rSize) {
   int32_t  code = 0;
   uint8_t *pBuf = NULL;
   int64_t  size;
@@ -170,6 +170,8 @@ int32_t tsdbWriteDelData(SDelFWriter *pWriter, SDelData *pDelData, uint8_t **ppB
   ASSERT(n == size);
 
   // update
+  *rOffset = pWriter->pFile->size;
+  *rSize = size;
   pWriter->pFile->offset = pWriter->pFile->size;
   pWriter->pFile->size += size;
 
