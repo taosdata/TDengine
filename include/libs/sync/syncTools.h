@@ -398,6 +398,8 @@ typedef struct SyncSnapshotSend {
   SyncTerm  term;
   SyncIndex lastIndex;  // lastIndex of snapshot
   SyncTerm  lastTerm;   // lastTerm of snapshot
+  SyncIndex lastConfigIndex;
+  SSyncCfg  lastConfig;
   SyncTerm  privateTerm;
   int32_t   seq;
   uint32_t  dataLen;
@@ -455,6 +457,36 @@ void syncSnapshotRspPrint(const SyncSnapshotRsp* pMsg);
 void syncSnapshotRspPrint2(char* s, const SyncSnapshotRsp* pMsg);
 void syncSnapshotRspLog(const SyncSnapshotRsp* pMsg);
 void syncSnapshotRspLog2(char* s, const SyncSnapshotRsp* pMsg);
+
+// ---------------------------------------------
+typedef struct SyncLeaderTransfer {
+  uint32_t bytes;
+  int32_t  vgId;
+  uint32_t msgType;
+  /*
+   SRaftId  srcId;
+   SRaftId  destId;
+   */
+  SRaftId newLeaderId;
+} SyncLeaderTransfer;
+
+SyncLeaderTransfer* syncLeaderTransferBuild(int32_t vgId);
+void                syncLeaderTransferDestroy(SyncLeaderTransfer* pMsg);
+void                syncLeaderTransferSerialize(const SyncLeaderTransfer* pMsg, char* buf, uint32_t bufLen);
+void                syncLeaderTransferDeserialize(const char* buf, uint32_t len, SyncLeaderTransfer* pMsg);
+char*               syncLeaderTransferSerialize2(const SyncLeaderTransfer* pMsg, uint32_t* len);
+SyncLeaderTransfer* syncLeaderTransferDeserialize2(const char* buf, uint32_t len);
+void                syncLeaderTransfer2RpcMsg(const SyncLeaderTransfer* pMsg, SRpcMsg* pRpcMsg);
+void                syncLeaderTransferFromRpcMsg(const SRpcMsg* pRpcMsg, SyncLeaderTransfer* pMsg);
+SyncLeaderTransfer* syncLeaderTransferFromRpcMsg2(const SRpcMsg* pRpcMsg);
+cJSON*              syncLeaderTransfer2Json(const SyncLeaderTransfer* pMsg);
+char*               syncLeaderTransfer2Str(const SyncLeaderTransfer* pMsg);
+
+// for debug ----------------------
+void syncLeaderTransferPrint(const SyncLeaderTransfer* pMsg);
+void syncLeaderTransferPrint2(char* s, const SyncLeaderTransfer* pMsg);
+void syncLeaderTransferLog(const SyncLeaderTransfer* pMsg);
+void syncLeaderTransferLog2(char* s, const SyncLeaderTransfer* pMsg);
 
 // on message ----------------------
 int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg);

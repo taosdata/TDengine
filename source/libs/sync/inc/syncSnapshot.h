@@ -43,6 +43,7 @@ typedef struct SSyncSnapshotSender {
   void *     pCurrentBlock;
   int32_t    blockLen;
   SSnapshot  snapshot;
+  SSyncCfg   lastConfig;
   int64_t    sendingMS;
   SSyncNode *pSyncNode;
   int32_t    replicaIndex;

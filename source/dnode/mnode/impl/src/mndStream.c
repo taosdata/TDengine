@@ -235,10 +235,10 @@ static int32_t mndStreamGetPlanString(const char *ast, int8_t triggerType, int64
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = nodesNodeToString(pPlan, false, pStr, NULL);
+    code = nodesNodeToString((SNode*)pPlan, false, pStr, NULL);
   }
   nodesDestroyNode(pAst);
-  nodesDestroyNode(pPlan);
+  nodesDestroyNode((SNode*)pPlan);
   terrno = code;
   return code;
 }
@@ -252,8 +252,12 @@ int32_t mndAddStreamToTrans(SMnode *pMnode, SStreamObj *pStream, const char *ast
   }
 
   if (qExtractResultSchema(pAst, (int32_t *)&pStream->outputSchema.nCols, &pStream->outputSchema.pSchema) != 0) {
+    nodesDestroyNode(pAst);
     return -1;
   }
+  // free
+  nodesDestroyNode(pAst);
+
 
 #if 0
   printf("|");
@@ -269,7 +273,7 @@ int32_t mndAddStreamToTrans(SMnode *pMnode, SStreamObj *pStream, const char *ast
     return -1;
   }
 
-  if (mndScheduleStream1(pMnode, pTrans, pStream) < 0) {
+  if (mndScheduleStream(pMnode, pTrans, pStream) < 0) {
     mError("stream:%ld, schedule stream since %s", pStream->uid, terrstr());
     return -1;
   }

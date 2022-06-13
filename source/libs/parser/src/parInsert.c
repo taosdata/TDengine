@@ -1285,6 +1285,8 @@ static void destroyInsertParseContextForTable(SInsertParseContext* pCxt) {
   destroyCreateSubTbReq(&pCxt->createTblReq);
 }
 
+static void destroySubTableHashElem(void* p) { taosMemoryFree(*(STableMeta**)p); }
+
 static void destroyInsertParseContext(SInsertParseContext* pCxt) {
   destroyInsertParseContextForTable(pCxt);
   taosHashCleanup(pCxt->pVgroupsHashObj);
@@ -1297,11 +1299,12 @@ static void destroyInsertParseContext(SInsertParseContext* pCxt) {
 }
 
 static int32_t checkSchemalessDb(SInsertParseContext* pCxt, char* pDbName) {
-  SDbCfgInfo pInfo = {0};
-  char       fullName[TSDB_TABLE_FNAME_LEN];
-  snprintf(fullName, sizeof(fullName), "%d.%s", pCxt->pComCxt->acctId, pDbName);
-  CHECK_CODE(getDBCfg(pCxt, fullName, &pInfo));
-  return pInfo.schemaless ? TSDB_CODE_SML_INVALID_DB_CONF : TSDB_CODE_SUCCESS;
+//  SDbCfgInfo pInfo = {0};
+//  char       fullName[TSDB_TABLE_FNAME_LEN];
+//  snprintf(fullName, sizeof(fullName), "%d.%s", pCxt->pComCxt->acctId, pDbName);
+//  CHECK_CODE(getDBCfg(pCxt, fullName, &pInfo));
+//  return pInfo.schemaless ? TSDB_CODE_SML_INVALID_DB_CONF : TSDB_CODE_SUCCESS;
+  return TSDB_CODE_SUCCESS;
 }
 
 //   tb_name
@@ -1468,13 +1471,14 @@ int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery, SParseMetaCache
       NULL == context.pTableNameHashObj || NULL == context.pDbFNameHashObj || NULL == context.pOutput) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
+  taosHashSetFreeFp(context.pSubTableHashObj, destroySubTableHashElem);
 
   if (pContext->pStmtCb) {
     TSDB_QUERY_SET_TYPE(context.pOutput->insertType, TSDB_QUERY_TYPE_STMT_INSERT);
   }
 
   if (NULL == *pQuery) {
-    *pQuery = nodesMakeNode(QUERY_NODE_QUERY);
+    *pQuery = (SQuery*)nodesMakeNode(QUERY_NODE_QUERY);
     if (NULL == *pQuery) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -1686,7 +1690,7 @@ int32_t parseInsertSyntax(SParseContext* pContext, SQuery** pQuery, SParseMetaCa
     code = parseInsertBodySyntax(&context);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    *pQuery = nodesMakeNode(QUERY_NODE_QUERY);
+    *pQuery = (SQuery*)nodesMakeNode(QUERY_NODE_QUERY);
     if (NULL == *pQuery) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -2114,9 +2118,11 @@ static int32_t smlBoundColumnData(SArray* cols, SParsedDataColInfo* pColList, SS
       isOrdered = false;
     }
     if (index < 0) {
+      uError("smlBoundColumnData. index:%d", index);
       return TSDB_CODE_SML_INVALID_DATA;
     }
     if (pColList->cols[index].valStat == VAL_STAT_HAS) {
+      uError("smlBoundColumnData. already set. index:%d", index);
       return TSDB_CODE_SML_INVALID_DATA;
     }
     lastColIdx = index;

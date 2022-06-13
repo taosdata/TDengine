@@ -40,6 +40,10 @@
       break;                                   \
     }                                          \
     (pDst)->fldname = strdup((pSrc)->fldname); \
+    if (NULL == (pDst)->fldname) {             \
+      nodesDestroyNode((SNode*)pDst);          \
+      return NULL;                             \
+    }                                          \
   } while (0)
 
 #define CLONE_NODE_FIELD(fldname)                      \
@@ -49,9 +53,21 @@
     }                                                  \
     (pDst)->fldname = nodesCloneNode((pSrc)->fldname); \
     if (NULL == (pDst)->fldname) {                     \
-      nodesDestroyNode((SNode*)(pDst));                \
+      nodesDestroyNode((SNode*)pDst);                  \
       return NULL;                                     \
     }                                                  \
+  } while (0)
+
+#define CLONE_NODE_FIELD_EX(fldname, nodePtrType)                           \
+  do {                                                                      \
+    if (NULL == (pSrc)->fldname) {                                          \
+      break;                                                                \
+    }                                                                       \
+    (pDst)->fldname = (nodePtrType)nodesCloneNode((SNode*)(pSrc)->fldname); \
+    if (NULL == (pDst)->fldname) {                                          \
+      nodesDestroyNode((SNode*)pDst);                                       \
+      return NULL;                                                          \
+    }                                                                       \
   } while (0)
 
 #define CLONE_NODE_LIST_FIELD(fldname)                 \
@@ -61,7 +77,7 @@
     }                                                  \
     (pDst)->fldname = nodesCloneList((pSrc)->fldname); \
     if (NULL == (pDst)->fldname) {                     \
-      nodesDestroyNode((SNode*)(pDst));                \
+      nodesDestroyNode((SNode*)pDst);                  \
       return NULL;                                     \
     }                                                  \
   } while (0)
@@ -73,7 +89,7 @@
     }                                             \
     (pDst)->fldname = cloneFunc((pSrc)->fldname); \
     if (NULL == (pDst)->fldname) {                \
-      nodesDestroyNode((SNode*)(pDst));           \
+      nodesDestroyNode((SNode*)pDst);             \
       return NULL;                                \
     }                                             \
   } while (0)
@@ -81,6 +97,7 @@
 #define COPY_BASE_OBJECT_FIELD(fldname, copyFunc)                   \
   do {                                                              \
     if (NULL == copyFunc(&((pSrc)->fldname), &((pDst)->fldname))) { \
+      nodesDestroyNode((SNode*)pDst);                               \
       return NULL;                                                  \
     }                                                               \
   } while (0)
@@ -147,7 +164,7 @@ static SNode* valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
       int32_t len = varDataTLen(pSrc->datum.p) + 1;
       pDst->datum.p = taosMemoryCalloc(1, len);
       if (NULL == pDst->datum.p) {
-        nodesDestroyNode(pDst);
+        nodesDestroyNode((SNode*)pDst);
         return NULL;
       }
       memcpy(pDst->datum.p, pSrc->datum.p, len);
@@ -275,8 +292,8 @@ static SNode* stateWindowNodeCopy(const SStateWindowNode* pSrc, SStateWindowNode
 }
 
 static SNode* sessionWindowNodeCopy(const SSessionWindowNode* pSrc, SSessionWindowNode* pDst) {
-  CLONE_NODE_FIELD(pCol);
-  CLONE_NODE_FIELD(pGap);
+  CLONE_NODE_FIELD_EX(pCol, SColumnNode*);
+  CLONE_NODE_FIELD_EX(pGap, SValueNode*);
   return (SNode*)pDst;
 }
 
@@ -442,7 +459,7 @@ static SNode* logicIndefRowsFuncCopy(const SIndefRowsFuncLogicNode* pSrc, SIndef
 
 static SNode* logicSubplanCopy(const SLogicSubplan* pSrc, SLogicSubplan* pDst) {
   COPY_OBJECT_FIELD(id, sizeof(SSubplanId));
-  CLONE_NODE_FIELD(pNode);
+  CLONE_NODE_FIELD_EX(pNode, SLogicNode*);
   COPY_SCALAR_FIELD(subplanType);
   COPY_SCALAR_FIELD(level);
   COPY_SCALAR_FIELD(splitFlag);
@@ -450,7 +467,7 @@ static SNode* logicSubplanCopy(const SLogicSubplan* pSrc, SLogicSubplan* pDst) {
 }
 
 static SNode* physiNodeCopy(const SPhysiNode* pSrc, SPhysiNode* pDst) {
-  CLONE_NODE_FIELD(pOutputDataBlockDesc);
+  CLONE_NODE_FIELD_EX(pOutputDataBlockDesc, SDataBlockDescNode*);
   CLONE_NODE_FIELD(pConditions);
   CLONE_NODE_LIST_FIELD(pChildren);
   return (SNode*)pDst;
@@ -555,8 +572,8 @@ static SNode* selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
   CLONE_NODE_LIST_FIELD(pGroupByList);
   CLONE_NODE_FIELD(pHaving);
   CLONE_NODE_LIST_FIELD(pOrderByList);
-  CLONE_NODE_FIELD(pLimit);
-  CLONE_NODE_FIELD(pLimit);
+  CLONE_NODE_FIELD_EX(pLimit, SLimitNode*);
+  CLONE_NODE_FIELD_EX(pLimit, SLimitNode*);
   COPY_CHAR_ARRAY_FIELD(stmtName);
   COPY_SCALAR_FIELD(precision);
   COPY_SCALAR_FIELD(isEmptyResult);
@@ -566,7 +583,7 @@ static SNode* selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
   return (SNode*)pDst;
 }
 
-SNodeptr nodesCloneNode(const SNodeptr pNode) {
+SNode* nodesCloneNode(const SNode* pNode) {
   if (NULL == pNode) {
     return NULL;
   }

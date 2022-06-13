@@ -196,11 +196,13 @@ class TDTestCase:
         showMsg   = 1
         showRow   = 1
         
-        shellCmd = 'nohup ' + buildPath + '/build/bin/tmq_sim -c ' + cfgPath
-        shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName) 
         if (platform.system().lower() == 'windows'):
+            shellCmd = 'mintty -h never -w hide ' + buildPath + '\\build\\bin\\tmq_sim.exe -c ' + cfgPath
+            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName) 
             shellCmd += "> nul 2>&1 &"   
         else:
+            shellCmd = 'nohup ' + buildPath + '/build/bin/tmq_sim -c ' + cfgPath
+            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName) 
             shellCmd += "> /dev/null 2>&1 &"  
         tdLog.info(shellCmd)
         os.system(shellCmd)        
@@ -312,12 +314,13 @@ class TDTestCase:
         pollDelay = 100
         showMsg   = 1
         showRow   = 1
-        
-        shellCmd = 'nohup ' + buildPath + '/build/bin/tmq_sim -c ' + cfgPath
-        shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName) 
         if (platform.system().lower() == 'windows'):
-            shellCmd += "> nul 2>&1 &"   
+            shellCmd = 'mintty -h never -w hide ' + buildPath + '\\build\\bin\\tmq_sim.exe -c ' + cfgPath
+            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName) 
+            shellCmd += "> nul 2>&1 &" 
         else:
+            shellCmd = 'nohup ' + buildPath + '/build/bin/tmq_sim -c ' + cfgPath
+            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName) 
             shellCmd += "> /dev/null 2>&1 &"  
         tdLog.info(shellCmd)
         os.system(shellCmd)        
@@ -448,11 +451,13 @@ class TDTestCase:
         showMsg   = 1
         showRow   = 1
         
-        shellCmd = 'nohup ' + buildPath + '/build/bin/tmq_sim -c ' + cfgPath
-        shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName) 
         if (platform.system().lower() == 'windows'):
+            shellCmd = 'mintty -h never -w hide ' + buildPath + '\\build\\bin\\tmq_sim.exe -c ' + cfgPath
+            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName) 
             shellCmd += "> nul 2>&1 &"   
         else:
+            shellCmd = 'nohup ' + buildPath + '/build/bin/tmq_sim -c ' + cfgPath
+            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName) 
             shellCmd += "> /dev/null 2>&1 &"        
         tdLog.info(shellCmd)
         os.system(shellCmd)        

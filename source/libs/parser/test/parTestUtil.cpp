@@ -78,34 +78,12 @@ class ParserTestBaseImpl {
       return;
     }
 
-    reset(expect, checkStage);
-    try {
-      SParseContext cxt = {0};
-      setParseContext(sql, &cxt);
-
-      SQuery* pQuery = nullptr;
-      doParse(&cxt, &pQuery);
-      unique_ptr<SQuery, void (*)(SQuery*)> query(pQuery, qDestroyQuery);
-
-      doAuthenticate(&cxt, pQuery, nullptr);
-
-      doTranslate(&cxt, pQuery, nullptr);
-
-      doCalculateConstant(&cxt, pQuery);
-
-      if (g_dump) {
-        dump();
-      }
-    } catch (const TerminateFlag& e) {
-      // success and terminate
-      return;
-    } catch (...) {
-      dump();
-      throw;
-    }
+    runInternalFuncs(sql, expect, checkStage);
+    runApis(sql, expect, checkStage);
 
     if (g_testAsyncApis) {
-      runAsync(sql, expect, checkStage);
+      runAsyncInternalFuncs(sql, expect, checkStage);
+      runAsyncApis(sql, expect, checkStage);
     }
   }
 
@@ -132,34 +110,63 @@ class ParserTestBaseImpl {
     string calcConstAst_;
   };
 
+  enum TestInterfaceType {
+    TEST_INTERFACE_INTERNAL = 1,
+    TEST_INTERFACE_API,
+    TEST_INTERFACE_ASYNC_INTERNAL,
+    TEST_INTERFACE_ASYNC_API
+  };
+
+  static void _destoryParseMetaCache(SParseMetaCache* pMetaCache) {
+    destoryParseMetaCache(pMetaCache);
+    delete pMetaCache;
+  }
+
   bool checkResultCode(const string& pFunc, int32_t resultCode) {
     return !(stmtEnv_.checkFunc_.empty())
-               ? (("*" == stmtEnv_.checkFunc_ || stmtEnv_.checkFunc_ == pFunc) ? stmtEnv_.expect_ == resultCode
-                                                                               : TSDB_CODE_SUCCESS == resultCode)
+               ? ((stmtEnv_.checkFunc_ == pFunc) ? stmtEnv_.expect_ == resultCode : TSDB_CODE_SUCCESS == resultCode)
                : true;
   }
 
-  string stageFunc(ParserStage stage) {
-    switch (stage) {
-      case PARSER_STAGE_PARSE:
-        return "parse";
-      case PARSER_STAGE_TRANSLATE:
-        return "translate";
-      case PARSER_STAGE_CALC_CONST:
-        return "calculateConstant";
-      case PARSER_STAGE_ALL:
-        return "*";
+  string stageFunc(ParserStage stage, TestInterfaceType type) {
+    switch (type) {
+      case TEST_INTERFACE_INTERNAL:
+      case TEST_INTERFACE_ASYNC_INTERNAL:
+        switch (stage) {
+          case PARSER_STAGE_PARSE:
+            return "parse";
+          case PARSER_STAGE_TRANSLATE:
+            return "translate";
+          case PARSER_STAGE_CALC_CONST:
+            return "calculateConstant";
+          default:
+            break;
+        }
+        break;
+      case TEST_INTERFACE_API:
+        return "qParseSql";
+      case TEST_INTERFACE_ASYNC_API:
+        switch (stage) {
+          case PARSER_STAGE_PARSE:
+            return "qParseSqlSyntax";
+          case PARSER_STAGE_TRANSLATE:
+          case PARSER_STAGE_CALC_CONST:
+            return "qAnalyseSqlSemantic";
+          default:
+            break;
+        }
+        break;
       default:
         break;
     }
     return "unknown";
   }
 
-  void reset(int32_t expect, ParserStage checkStage) {
+  void reset(int32_t expect, ParserStage checkStage, TestInterfaceType type) {
     stmtEnv_.sql_.clear();
     stmtEnv_.msgBuf_.fill(0);
     stmtEnv_.expect_ = expect;
-    stmtEnv_.checkFunc_ = stageFunc(checkStage);
+    stmtEnv_.checkFunc_ = stageFunc(checkStage, type);
 
     res_.parsedAst_.clear();
     res_.translatedAst_.clear();
@@ -168,12 +175,18 @@ class ParserTestBaseImpl {
 
   void dump() {
     cout << "==========================================sql : [" << stmtEnv_.sql_ << "]" << endl;
-    cout << "raw syntax tree : " << endl;
-    cout << res_.parsedAst_ << endl;
-    cout << "translated syntax tree : " << endl;
-    cout << res_.translatedAst_ << endl;
-    cout << "optimized syntax tree : " << endl;
-    cout << res_.calcConstAst_ << endl;
+    if (!res_.parsedAst_.empty()) {
+      cout << "raw syntax tree : " << endl;
+      cout << res_.parsedAst_ << endl;
+    }
+    if (!res_.translatedAst_.empty()) {
+      cout << "translated syntax tree : " << endl;
+      cout << res_.translatedAst_ << endl;
+    }
+    if (!res_.calcConstAst_.empty()) {
+      cout << "optimized syntax tree : " << endl;
+      cout << res_.calcConstAst_ << endl;
+    }
   }
 
   void setParseContext(const string& sql, SParseContext* pCxt, bool async = false) {
@@ -228,6 +241,24 @@ class ParserTestBaseImpl {
     res_.calcConstAst_ = toString(pQuery->pRoot);
   }
 
+  void doParseSql(SParseContext* pCxt, SQuery** pQuery) {
+    DO_WITH_THROW(qParseSql, pCxt, pQuery);
+    ASSERT_NE(*pQuery, nullptr);
+    res_.calcConstAst_ = toString((*pQuery)->pRoot);
+  }
+
+  void doParseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatalogReq) {
+    DO_WITH_THROW(qParseSqlSyntax, pCxt, pQuery, pCatalogReq);
+    ASSERT_NE(*pQuery, nullptr);
+    res_.parsedAst_ = toString((*pQuery)->pRoot);
+  }
+
+  void doAnalyseSqlSemantic(SParseContext* pCxt, const SCatalogReq* pCatalogReq, const SMetaData* pMetaData,
+                            SQuery* pQuery) {
+    DO_WITH_THROW(qAnalyseSqlSemantic, pCxt, pCatalogReq, pMetaData, pQuery);
+    res_.calcConstAst_ = toString(pQuery->pRoot);
+  }
+
   string toString(const SNode* pRoot) {
     char*   pStr = NULL;
     int32_t len = 0;
@@ -239,8 +270,58 @@ class ParserTestBaseImpl {
 
   void checkQuery(const SQuery* pQuery, ParserStage stage) { pBase_->checkDdl(pQuery, stage); }
 
-  void runAsync(const string& sql, int32_t expect, ParserStage checkStage) {
-    reset(expect, checkStage);
+  void runInternalFuncs(const string& sql, int32_t expect, ParserStage checkStage) {
+    reset(expect, checkStage, TEST_INTERFACE_INTERNAL);
+    try {
+      SParseContext cxt = {0};
+      setParseContext(sql, &cxt);
+
+      SQuery* pQuery = nullptr;
+      doParse(&cxt, &pQuery);
+      unique_ptr<SQuery, void (*)(SQuery*)> query(pQuery, qDestroyQuery);
+
+      doAuthenticate(&cxt, pQuery, nullptr);
+
+      doTranslate(&cxt, pQuery, nullptr);
+
+      doCalculateConstant(&cxt, pQuery);
+
+      if (g_dump) {
+        dump();
+      }
+    } catch (const TerminateFlag& e) {
+      // success and terminate
+      return;
+    } catch (...) {
+      dump();
+      throw;
+    }
+  }
+
+  void runApis(const string& sql, int32_t expect, ParserStage checkStage) {
+    reset(expect, checkStage, TEST_INTERFACE_API);
+    try {
+      SParseContext cxt = {0};
+      setParseContext(sql, &cxt);
+
+      SQuery* pQuery = nullptr;
+      doParseSql(&cxt, &pQuery);
+      unique_ptr<SQuery, void (*)(SQuery*)> query(pQuery, qDestroyQuery);
+
+      if (g_dump) {
+        dump();
+      }
+    } catch (const TerminateFlag& e) {
+      // success and terminate
+      return;
+    } catch (...) {
+      dump();
+      throw;
+    }
+  }
+
+  void runAsyncInternalFuncs(const string& sql, int32_t expect, ParserStage checkStage) {
+    reset(expect, checkStage, TEST_INTERFACE_ASYNC_INTERNAL);
     try {
       SParseContext cxt = {0};
       setParseContext(sql, &cxt, true);
@@ -249,12 +330,12 @@ class ParserTestBaseImpl {
       doParse(&cxt, &pQuery);
       unique_ptr<SQuery, void (*)(SQuery*)> query(pQuery, qDestroyQuery);
 
-      SParseMetaCache metaCache = {0};
-      doCollectMetaKey(&cxt, pQuery, &metaCache);
+      unique_ptr<SParseMetaCache, void (*)(SParseMetaCache*)> metaCache(new SParseMetaCache(), _destoryParseMetaCache);
+      doCollectMetaKey(&cxt, pQuery, metaCache.get());
 
       unique_ptr<SCatalogReq, void (*)(SCatalogReq*)> catalogReq(new SCatalogReq(),
                                                                  MockCatalogService::destoryCatalogReq);
-      doBuildCatalogReq(&metaCache, catalogReq.get());
+      doBuildCatalogReq(metaCache.get(), catalogReq.get());
 
       string err;
       thread t1([&]() {
@@ -262,13 +343,58 @@ class ParserTestBaseImpl {
           unique_ptr<SMetaData, void (*)(SMetaData*)> metaData(new SMetaData(), MockCatalogService::destoryMetaData);
           doGetAllMeta(catalogReq.get(), metaData.get());
 
-          doPutMetaDataToCache(catalogReq.get(), metaData.get(), &metaCache);
+          doPutMetaDataToCache(catalogReq.get(), metaData.get(), metaCache.get());
 
-          doAuthenticate(&cxt, pQuery, &metaCache);
+          doAuthenticate(&cxt, pQuery, metaCache.get());
 
-          doTranslate(&cxt, pQuery, &metaCache);
+          doTranslate(&cxt, pQuery, metaCache.get());
 
           doCalculateConstant(&cxt, pQuery);
+        } catch (const TerminateFlag& e) {
+          // success and terminate
+        } catch (const runtime_error& e) {
+          err = e.what();
+        } catch (...) {
+          err = "unknown error";
+        }
+      });
+
+      t1.join();
+      if (!err.empty()) {
+        throw runtime_error(err);
+      }
+
+      if (g_dump) {
+        dump();
+      }
+    } catch (const TerminateFlag& e) {
+      // success and terminate
+      return;
+    } catch (...) {
+      dump();
+      throw;
+    }
+  }
+
+  void runAsyncApis(const string& sql, int32_t expect, ParserStage checkStage) {
+    reset(expect, checkStage, TEST_INTERFACE_ASYNC_API);
+    try {
+      SParseContext cxt = {0};
+      setParseContext(sql, &cxt);
+
+      unique_ptr<SCatalogReq, void (*)(SCatalogReq*)> catalogReq(new SCatalogReq(),
+                                                                 MockCatalogService::destoryCatalogReq);
+      SQuery*                                         pQuery = nullptr;
+      doParseSqlSyntax(&cxt, &pQuery, catalogReq.get());
+      unique_ptr<SQuery, void (*)(SQuery*)> query(pQuery, qDestroyQuery);
+
+      string err;
+      thread t1([&]() {
+        try {
+          unique_ptr<SMetaData, void (*)(SMetaData*)> metaData(new SMetaData(), MockCatalogService::destoryMetaData);
+          doGetAllMeta(catalogReq.get(), metaData.get());
+
+          doAnalyseSqlSemantic(&cxt, catalogReq.get(), metaData.get(), pQuery);
         } catch (const TerminateFlag& e) {
           // success and terminate
         } catch (const runtime_error& e) {

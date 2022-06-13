@@ -218,7 +218,7 @@ static int32_t getFuncInfo(SFunctionNode* pFunc) {
 }
 
 static SFunctionNode* createFunction(const char* pName, SNodeList* pParameterList) {
-  SFunctionNode* pFunc = nodesMakeNode(QUERY_NODE_FUNCTION);
+  SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
   if (NULL == pFunc) {
     return NULL;
   }
@@ -226,14 +226,14 @@ static SFunctionNode* createFunction(const char* pName, SNodeList* pParameterLis
   pFunc->pParameterList = pParameterList;
   if (TSDB_CODE_SUCCESS != getFuncInfo(pFunc)) {
     pFunc->pParameterList = NULL;
-    nodesDestroyNode(pFunc);
+    nodesDestroyNode((SNode*)pFunc);
     return NULL;
   }
   return pFunc;
 }
 
 static SColumnNode* createColumnByFunc(const SFunctionNode* pFunc) {
-  SColumnNode* pCol = nodesMakeNode(QUERY_NODE_COLUMN);
+  SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
   if (NULL == pCol) {
     return NULL;
   }
@@ -270,7 +270,7 @@ static int32_t createPartialFunction(const SFunctionNode* pSrcFunc, SFunctionNod
 static int32_t createMergeFunction(const SFunctionNode* pSrcFunc, const SFunctionNode* pPartialFunc,
                                    SFunctionNode** pMergeFunc) {
   SNodeList* pParameterList = NULL;
-  nodesListMakeStrictAppend(&pParameterList, createColumnByFunc(pPartialFunc));
+  nodesListMakeStrictAppend(&pParameterList, (SNode*)createColumnByFunc(pPartialFunc));
   *pMergeFunc = createFunction(funcMgtBuiltins[pSrcFunc->funcId].pMergeFunc, pParameterList);
   if (NULL == *pMergeFunc) {
     nodesDestroyList(pParameterList);
@@ -291,8 +291,8 @@ int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc
   }
 
   if (TSDB_CODE_SUCCESS != code) {
-    nodesDestroyNode(*pPartialFunc);
-    nodesDestroyNode(*pMergeFunc);
+    nodesDestroyNode((SNode*)*pPartialFunc);
+    nodesDestroyNode((SNode*)*pMergeFunc);
   }
 
   return code;

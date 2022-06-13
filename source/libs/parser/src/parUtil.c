@@ -552,9 +552,15 @@ int32_t buildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalog
   return code;
 }
 
-static int32_t putMetaDataToHash(const char* pKey, int32_t len, const SArray* pData, int32_t index, SHashObj* pHash) {
+static int32_t putMetaDataToHash(const char* pKey, int32_t len, const SArray* pData, int32_t index, SHashObj** pHash) {
+  if (NULL == *pHash) {
+    *pHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+    if (NULL == *pHash) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
   SMetaRes* pRes = taosArrayGet(pData, index);
-  return taosHashPut(pHash, pKey, len, &pRes, POINTER_BYTES);
+  return taosHashPut(*pHash, pKey, len, &pRes, POINTER_BYTES);
 }
 
 static int32_t getMetaDataFromHash(const char* pKey, int32_t len, SHashObj* pHash, void** pOutput) {
@@ -568,7 +574,7 @@ static int32_t getMetaDataFromHash(const char* pKey, int32_t len, SHashObj* pHas
   return (*pRes)->code;
 }
 
-static int32_t putTableDataToCache(const SArray* pTableReq, const SArray* pTableData, SHashObj* pTable) {
+static int32_t putTableDataToCache(const SArray* pTableReq, const SArray* pTableData, SHashObj** pTable) {
   int32_t ntables = taosArrayGetSize(pTableReq);
   for (int32_t i = 0; i < ntables; ++i) {
     char fullName[TSDB_TABLE_FNAME_LEN];
@@ -580,7 +586,7 @@ static int32_t putTableDataToCache(const SArray* pTableReq, const SArray* pTable
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t putDbDataToCache(const SArray* pDbReq, const SArray* pDbData, SHashObj* pDb) {
+static int32_t putDbDataToCache(const SArray* pDbReq, const SArray* pDbData, SHashObj** pDb) {
   int32_t nvgs = taosArrayGetSize(pDbReq);
   for (int32_t i = 0; i < nvgs; ++i) {
     char* pDbFName = taosArrayGet(pDbReq, i);
@@ -591,7 +597,7 @@ static int32_t putDbDataToCache(const SArray* pDbReq, const SArray* pDbData, SHa
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t putUserAuthToCache(const SArray* pUserAuthReq, const SArray* pUserAuthData, SHashObj* pUserAuth) {
+static int32_t putUserAuthToCache(const SArray* pUserAuthReq, const SArray* pUserAuthData, SHashObj** pUserAuth) {
   int32_t nvgs = taosArrayGetSize(pUserAuthReq);
   for (int32_t i = 0; i < nvgs; ++i) {
     SUserAuthInfo* pUser = taosArrayGet(pUserAuthReq, i);
@@ -604,7 +610,7 @@ static int32_t putUserAuthToCache(const SArray* pUserAuthReq, const SArray* pUse
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t putUdfToCache(const SArray* pUdfReq, const SArray* pUdfData, SHashObj* pUdf) {
+static int32_t putUdfToCache(const SArray* pUdfReq, const SArray* pUdfData, SHashObj** pUdf) {
   int32_t num = taosArrayGetSize(pUdfReq);
   for (int32_t i = 0; i < num; ++i) {
     char* pFunc = taosArrayGet(pUdfReq, i);
@@ -616,27 +622,27 @@ static int32_t putUdfToCache(const SArray* pUdfReq, const SArray* pUdfData, SHas
 }
 
 int32_t putMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMetaData, SParseMetaCache* pMetaCache) {
-  int32_t code = putTableDataToCache(pCatalogReq->pTableMeta, pMetaData->pTableMeta, pMetaCache->pTableMeta);
+  int32_t code = putTableDataToCache(pCatalogReq->pTableMeta, pMetaData->pTableMeta, &pMetaCache->pTableMeta);
   if (TSDB_CODE_SUCCESS == code) {
-    code = putDbDataToCache(pCatalogReq->pDbVgroup, pMetaData->pDbVgroup, pMetaCache->pDbVgroup);
+    code = putDbDataToCache(pCatalogReq->pDbVgroup, pMetaData->pDbVgroup, &pMetaCache->pDbVgroup);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = putTableDataToCache(pCatalogReq->pTableHash, pMetaData->pTableHash, pMetaCache->pTableVgroup);
+    code = putTableDataToCache(pCatalogReq->pTableHash, pMetaData->pTableHash, &pMetaCache->pTableVgroup);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = putDbDataToCache(pCatalogReq->pDbCfg, pMetaData->pDbCfg, pMetaCache->pDbCfg);
+    code = putDbDataToCache(pCatalogReq->pDbCfg, pMetaData->pDbCfg, &pMetaCache->pDbCfg);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = putDbDataToCache(pCatalogReq->pDbInfo, pMetaData->pDbInfo, pMetaCache->pDbInfo);
+    code = putDbDataToCache(pCatalogReq->pDbInfo, pMetaData->pDbInfo, &pMetaCache->pDbInfo);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = putUserAuthToCache(pCatalogReq->pUser, pMetaData->pUser, pMetaCache->pUserAuth);
+    code = putUserAuthToCache(pCatalogReq->pUser, pMetaData->pUser, &pMetaCache->pUserAuth);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = putUdfToCache(pCatalogReq->pUdf, pMetaData->pUdfList, pMetaCache->pUdf);
+    code = putUdfToCache(pCatalogReq->pUdf, pMetaData->pUdfList, &pMetaCache->pUdf);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = putTableDataToCache(pCatalogReq->pTableIndex, pMetaData->pTableIndex, pMetaCache->pTableIndex);
+    code = putTableDataToCache(pCatalogReq->pTableIndex, pMetaData->pTableIndex, &pMetaCache->pTableIndex);
   }
   return code;
 }

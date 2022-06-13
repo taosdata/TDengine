@@ -35,6 +35,8 @@ string toString(int32_t code) { return tstrerror(code); }
 //   [...];
 class InsertTest : public Test {
  protected:
+  ~InsertTest() { reset(); }
+
   void setDatabase(const string& acctId, const string& db) {
     acctId_ = acctId;
     db_ = db;
@@ -60,8 +62,8 @@ class InsertTest : public Test {
 
   int32_t runAsync() {
     cxt_.async = true;
-    SParseMetaCache metaCache = {0};
-    code_ = parseInsertSyntax(&cxt_, &res_, &metaCache);
+    unique_ptr<SParseMetaCache, void (*)(SParseMetaCache*)> metaCache(new SParseMetaCache(), _destoryParseMetaCache);
+    code_ = parseInsertSyntax(&cxt_, &res_, metaCache.get());
     if (code_ != TSDB_CODE_SUCCESS) {
       cout << "parseInsertSyntax code:" << toString(code_) << ", msg:" << errMagBuf_ << endl;
       return code_;
@@ -69,7 +71,7 @@ class InsertTest : public Test {
 
     unique_ptr<SCatalogReq, void (*)(SCatalogReq*)> catalogReq(new SCatalogReq(),
                                                                MockCatalogService::destoryCatalogReq);
-    code_ = buildCatalogReq(&metaCache, catalogReq.get());
+    code_ = buildCatalogReq(metaCache.get(), catalogReq.get());
     if (code_ != TSDB_CODE_SUCCESS) {
       cout << "buildCatalogReq code:" << toString(code_) << ", msg:" << errMagBuf_ << endl;
       return code_;
@@ -78,13 +80,13 @@ class InsertTest : public Test {
     unique_ptr<SMetaData, void (*)(SMetaData*)> metaData(new SMetaData(), MockCatalogService::destoryMetaData);
     g_mockCatalogService->catalogGetAllMeta(catalogReq.get(), metaData.get());
 
-    code_ = putMetaDataToCache(catalogReq.get(), metaData.get(), &metaCache);
+    code_ = putMetaDataToCache(catalogReq.get(), metaData.get(), metaCache.get());
     if (code_ != TSDB_CODE_SUCCESS) {
       cout << "putMetaDataToCache code:" << toString(code_) << ", msg:" << errMagBuf_ << endl;
       return code_;
     }
 
-    code_ = parseInsertSql(&cxt_, &res_, &metaCache);
+    code_ = parseInsertSql(&cxt_, &res_, metaCache.get());
     if (code_ != TSDB_CODE_SUCCESS) {
       cout << "parseInsertSql code:" << toString(code_) << ", msg:" << errMagBuf_ << endl;
       return code_;
@@ -141,12 +143,18 @@ class InsertTest : public Test {
   static const int max_err_len = 1024;
   static const int max_sql_len = 1024 * 1024;
 
+  static void _destoryParseMetaCache(SParseMetaCache* pMetaCache) {
+    destoryParseMetaCache(pMetaCache);
+    delete pMetaCache;
+  }
+
   void reset() {
     memset(&cxt_, 0, sizeof(cxt_));
     memset(errMagBuf_, 0, max_err_len);
     cxt_.pMsg = errMagBuf_;
     cxt_.msgLen = max_err_len;
     code_ = TSDB_CODE_SUCCESS;
+    qDestroyQuery(res_);
     res_ = nullptr;
   }
 

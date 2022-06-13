@@ -180,21 +180,22 @@ int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCata
   if (TSDB_CODE_SUCCESS == code) {
     if (NULL == pQuery->pRoot) {
       code = parseInsertSql(pCxt, &pQuery, &metaCache);
+    } else {
+      code = analyseSemantic(pCxt, pQuery, &metaCache);
     }
-    code = analyseSemantic(pCxt, pQuery, &metaCache);
   }
   destoryParseMetaCache(&metaCache);
   terrno = code;
   return code;
 }
 
-void qDestroyQuery(SQuery* pQueryNode) { nodesDestroyNode(pQueryNode); }
+void qDestroyQuery(SQuery* pQueryNode) { nodesDestroyNode((SNode*)pQueryNode); }
 
 int32_t qExtractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema) {
   return extractResultSchema(pRoot, numOfCols, pSchema);
 }
 
-int32_t qSetSTableIdForRSma(SNode* pStmt, int64_t uid) {
+int32_t qSetSTableIdForRsma(SNode* pStmt, int64_t uid) {
   if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
     SNode* pTable = ((SSelectStmt*)pStmt)->pFromTable;
     if (QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
