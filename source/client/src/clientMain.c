@@ -830,6 +830,11 @@ void taos_fetch_raw_block_a(TAOS_RES* res, __taos_async_fn_t fp, void* param) {
   SRequestObj *pRequest = res;
 
   pRequest->body.resInfo.convertUcs4 = false;
+
+  SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
+
+  // set the current block is all consumed
+  pResultInfo->current = pResultInfo->numOfRows;
   taos_fetch_rows_a(res, fp, param);
 }
 
