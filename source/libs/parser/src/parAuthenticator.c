@@ -39,8 +39,12 @@ static int32_t checkAuth(SAuthCxt* pCxt, const char* pDbName, AUTH_TYPE type) {
   if (NULL != pCxt->pMetaCache) {
     code = getUserAuthFromCache(pCxt->pMetaCache, pParseCxt->pUser, dbFname, type, &pass);
   } else {
-    code = catalogChkAuth(pParseCxt->pCatalog, pParseCxt->pTransporter, &pParseCxt->mgmtEpSet, pParseCxt->pUser,
-                          dbFname, type, &pass);
+    SRequestConnInfo conn = {.pTrans = pParseCxt->pTransporter, 
+                             .requestId = pParseCxt->requestId,
+                             .requestObjRefId = pParseCxt->requestRid,
+                             .mgmtEps = pParseCxt->mgmtEpSet};
+
+    code = catalogChkAuth(pParseCxt->pCatalog, &conn, pParseCxt->pUser, dbFname, type, &pass);
   }
   return TSDB_CODE_SUCCESS == code ? (pass ? TSDB_CODE_SUCCESS : TSDB_CODE_PAR_PERMISSION_DENIED) : code;
 }

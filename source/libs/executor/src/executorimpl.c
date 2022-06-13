@@ -4564,10 +4564,14 @@ static SArray* extractColumnInfo(SNodeList* pNodeList);
 static SArray* createSortInfo(SNodeList* pNodeList);
 static SArray* extractPartitionColInfo(SNodeList* pNodeList);
 
-void extractTableSchemaVersion(SReadHandle* pHandle, uint64_t uid, SExecTaskInfo* pTaskInfo) {
+int32_t extractTableSchemaVersion(SReadHandle* pHandle, uint64_t uid, SExecTaskInfo* pTaskInfo) {
   SMetaReader mr = {0};
   metaReaderInit(&mr, pHandle->meta, 0);
-  metaGetTableEntryByUid(&mr, uid);
+  int32_t code = metaGetTableEntryByUid(&mr, uid);
+  if (code) {
+    metaReaderClear(&mr);
+    return code;
+  }
 
   pTaskInfo->schemaVer.tablename = strdup(mr.me.name);
 
@@ -4584,6 +4588,8 @@ void extractTableSchemaVersion(SReadHandle* pHandle, uint64_t uid, SExecTaskInfo
   }
 
   metaReaderClear(&mr);
+
+  return TSDB_CODE_SUCCESS;
 }
 
 SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle,
@@ -4600,7 +4606,12 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         return NULL;
       }
       SArray* groupKyes = extractPartitionColInfo(pTableScanNode->pPartitionKeys);
-      extractTableSchemaVersion(pHandle, pTableScanNode->scan.uid, pTaskInfo);
+      int32_t code = extractTableSchemaVersion(pHandle, pTableScanNode->scan.uid, pTaskInfo);
+      if (code) {
+        tsdbCleanupReadHandle(pDataReader);
+        return NULL;
+      }
+      
       SOperatorInfo* pOperator =
           createTableScanOperatorInfo(pTableScanNode, pDataReader, pHandle, groupKyes, pTaskInfo);
 
