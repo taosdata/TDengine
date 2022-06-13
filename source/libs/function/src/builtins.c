@@ -326,7 +326,7 @@ static int32_t translateTbnameColumn(SFunctionNode* pFunc, char* pErrBuf, int32_
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateTop(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+static int32_t translateTopBot(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   if (2 != numOfParams) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
@@ -361,8 +361,62 @@ static int32_t translateTop(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateBottom(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  return translateTop(pFunc, pErrBuf, len);
+static int32_t translateTopBotImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isPartial) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+
+  if (isPartial) {
+    if (2 != numOfParams) {
+      return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+    uint8_t para2Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
+    if (!IS_NUMERIC_TYPE(para1Type) || !IS_INTEGER_TYPE(para2Type)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    // param1
+    SNode* pParamNode1 = nodesListGetNode(pFunc->pParameterList, 1);
+    if (nodeType(pParamNode1) != QUERY_NODE_VALUE) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    SValueNode* pValue = (SValueNode*)pParamNode1;
+    if (pValue->node.resType.type != TSDB_DATA_TYPE_BIGINT) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    if (pValue->datum.i < 1 || pValue->datum.i > 100) {
+      return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    pValue->notReserved = true;
+
+    // set result type
+    pFunc->node.resType = (SDataType){.bytes = getTopBotInfoSize(pValue->datum.i) + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  } else {
+    if (1 != numOfParams) {
+      return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+    if (TSDB_DATA_TYPE_BINARY != para1Type) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    // Do nothing. We can only access output of partial functions as input,
+    // so original input type cannot be obtained, resType will be set same
+    // as original function input type after merge function created.
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateTopBotPartial(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateTopBotImpl(pFunc, pErrBuf, len, true);
+}
+
+static int32_t translateTopBotMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateTopBotImpl(pFunc, pErrBuf, len, false);
 }
 
 static int32_t translateSpread(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
@@ -1527,22 +1581,70 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "top",
     .type = FUNCTION_TYPE_TOP,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC,
-    .translateFunc = translateTop,
+    .translateFunc = translateTopBot,
     .getEnvFunc   = getTopBotFuncEnv,
-    .initFunc     = functionSetup,
+    .initFunc     = topBotFunctionSetup,
     .processFunc  = topFunction,
     .finalizeFunc = topBotFinalize,
+    .combineFunc  = topCombine,
+    .pPartialFunc = "_top_partial",
+    .pMergeFunc   = "_top_merge"
+  },
+  {
+    .name = "_top_partial",
+    .type = FUNCTION_TYPE_TOP_PARTIAL,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC,
+    .translateFunc = translateTopBotPartial,
+    .getEnvFunc   = getTopBotFuncEnv,
+    .initFunc     = topBotFunctionSetup,
+    .processFunc  = topFunction,
+    .finalizeFunc = topBotPartialFinalize,
+    .combineFunc  = topCombine,
+  },
+  {
+    .name = "_top_merge",
+    .type = FUNCTION_TYPE_TOP_MERGE,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC,
+    .translateFunc = translateTopBotMerge,
+    .getEnvFunc   = getTopBotMergeFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = topFunctionMerge,
+    .finalizeFunc = topBotMergeFinalize,
     .combineFunc  = topCombine,
   },
   {
     .name = "bottom",
     .type = FUNCTION_TYPE_BOTTOM,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC,
-    .translateFunc = translateBottom,
+    .translateFunc = translateTopBot,
     .getEnvFunc   = getTopBotFuncEnv,
-    .initFunc     = functionSetup,
+    .initFunc     = topBotFunctionSetup,
     .processFunc  = bottomFunction,
     .finalizeFunc = topBotFinalize,
+    .combineFunc  = bottomCombine,
+    .pPartialFunc = "_bottom_partial",
+    .pMergeFunc   = "_bottom_merge"
+  },
+  {
+    .name = "_bottom_partial",
+    .type = FUNCTION_TYPE_BOTTOM_PARTIAL,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC,
+    .translateFunc = translateTopBotPartial,
+    .getEnvFunc   = getTopBotFuncEnv,
+    .initFunc     = topBotFunctionSetup,
+    .processFunc  = bottomFunction,
+    .finalizeFunc = topBotPartialFinalize,
+    .combineFunc  = bottomCombine,
+  },
+  {
+    .name = "_bottom_merge",
+    .type = FUNCTION_TYPE_BOTTOM_MERGE,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC,
+    .translateFunc = translateTopBotMerge,
+    .getEnvFunc   = getTopBotMergeFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = bottomFunctionMerge,
+    .finalizeFunc = topBotMergeFinalize,
     .combineFunc  = bottomCombine,
   },
   {

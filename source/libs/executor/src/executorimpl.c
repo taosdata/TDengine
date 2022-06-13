@@ -4553,7 +4553,7 @@ static SExecTaskInfo* createExecTaskInfo(uint64_t queryId, uint64_t taskId, EOPT
 }
 
 static tsdbReaderT doCreateDataReader(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle,
-                                      STableListInfo* pTableGroupInfo, uint64_t queryId, uint64_t taskId,
+                                      STableListInfo* pTableListInfo, uint64_t queryId, uint64_t taskId,
                                       SNode* pTagCond);
 
 static int32_t getTableList(void* metaHandle, int32_t tableType, uint64_t tableUid, STableListInfo* pListInfo,
