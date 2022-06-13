@@ -19,7 +19,7 @@
 #include "catalogInt.h"
 
 extern SCatalogMgmt gCtgMgmt;
-SCtgDebug gCTGDebug = {0};
+SCtgDebug gCTGDebug = {.apiEnable = true};
 
 void ctgdUserCallback(SMetaData* pResult, void* param, int32_t code) {
   ASSERT(*(int32_t*)param == 1);
@@ -147,7 +147,7 @@ grant write on db2.* to user1;
 create function udf1 as '/tmp/libudf1.so' outputtype int;
 create aggregate function udf2 as '/tmp/libudf2.so' outputtype int;
 */
-int32_t ctgdLaunchAsyncCall(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, uint64_t reqId, bool forceUpdate) {
+int32_t ctgdLaunchAsyncCall(SCatalog* pCtg, SRequestConnInfo* pConn, uint64_t reqId, bool forceUpdate) {
   int32_t code = 0;
   SCatalogReq req = {0};
   req.pTableMeta = taosArrayInit(2, sizeof(SName));
@@ -209,7 +209,8 @@ int32_t ctgdLaunchAsyncCall(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps
   *param = 1;
   
   int64_t jobId = 0;
-  CTG_ERR_JRET(catalogAsyncGetAllMeta(pCtg, pTrans, pMgmtEps, reqId, &req, ctgdUserCallback, param, &jobId));
+
+  CTG_ERR_JRET(catalogAsyncGetAllMeta(pCtg, pConn, reqId, &req, ctgdUserCallback, param, &jobId));
 
 _return:
 
