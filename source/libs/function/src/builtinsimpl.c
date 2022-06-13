@@ -4918,14 +4918,13 @@ int32_t derivativeFunction(SqlFunctionCtx *pCtx) {
   SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
   SColumnInfoData* pTsOutput = pCtx->pTsOutput;
 
-  int32_t step = 1;
   int32_t i = pInput->startRowIndex;
   TSKEY* tsList = (int64_t*)pInput->pPTS->pData;
 
-  if (pCtx->order == TSDB_ORDER_ASC) {
-    double v = 0;
+  double v = 0;
 
-    for (; i < pInput->numOfRows + pInput->startRowIndex && i >= 0; i += step) {
+  if (pCtx->order == TSDB_ORDER_ASC) {
+    for (; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
       if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
         continue;
       }
@@ -4952,7 +4951,32 @@ int32_t derivativeFunction(SqlFunctionCtx *pCtx) {
       pDerivInfo->prevTs = tsList[i];
     }
   } else {
+    for (; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
+      if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+        continue;
+      }
 
+      char*  d = (char*)pInputCol->pData + pInputCol->info.bytes * i;
+      GET_TYPED_DATA(v, double, pInputCol->info.type, d);
+
+      int32_t pos = pCtx->offset + numOfElems;
+      if (!pDerivInfo->valueSet) {  // initial value is not set yet
+        pDerivInfo->valueSet = true;
+      } else {
+        double r = ((pDerivInfo->prevValue - v) * pDerivInfo->tsWindow) / (pDerivInfo->prevTs - tsList[i]);
+        if (pDerivInfo->ignoreNegative && r < 0) {
+        } else {
+          colDataAppend(pOutput, pos, (const char*)&r, false);
+          if (pTsOutput != NULL) {
+            colDataAppendInt64(pTsOutput, pos, &pDerivInfo->prevTs);
+          }
+          numOfElems++;
+        }
+      }
+
+      pDerivInfo->prevValue = v;
+      pDerivInfo->prevTs = tsList[i];
+    }
   }
 
   return numOfElems;
