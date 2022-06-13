@@ -2562,7 +2562,8 @@ void relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray
     }
 
     if (p->info.colId == pmInfo->colId) {
-      taosArraySet(pBlock->pDataBlock, pmInfo->targetSlotId, p);
+      SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, pmInfo->targetSlotId);
+      colDataAssign(pDst, p, pBlock->info.rows);
       i++;
       j++;
     } else if (p->info.colId < pmInfo->colId) {

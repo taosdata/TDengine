@@ -525,7 +525,7 @@ static int32_t getTableScannerExecInfo(struct SOperatorInfo* pOptr, void** pOptr
 
 static void destroyTableScanOperatorInfo(void* param, int32_t numOfOutput) {
   STableScanInfo* pTableScanInfo = (STableScanInfo*)param;
-  taosMemoryFree(pTableScanInfo->pResBlock);
+  blockDataDestroy(pTableScanInfo->pResBlock);
   clearupQueryTableDataCond(&pTableScanInfo->cond);
 
   tsdbCleanupReadHandle(pTableScanInfo->dataReader);
