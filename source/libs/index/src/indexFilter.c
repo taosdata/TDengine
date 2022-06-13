@@ -183,6 +183,7 @@ static int32_t sifInitJsonParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
   memcpy(param->colName, r->literal, strlen(r->literal));
   // sprintf(param->colName, "%s_%s", l->colName, r->literal);
   param->colValType = r->typeData;
+  param->status = SFLT_COARSE_INDEX;
   return 0;
   // memcpy(param->colName, l->colName, sizeof(l->colName));
 }
@@ -254,11 +255,13 @@ static int32_t sifInitOperParams(SIFParam **params, SOperatorNode *node, SIFCtx 
     return code;
   }
   SIFParam *paramList = taosMemoryCalloc(nParam, sizeof(SIFParam));
+
   if (NULL == paramList) {
     SIF_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
-  if (nodeType(node->pLeft) == QUERY_NODE_OPERATOR) {
+  if (nodeType(node->pLeft) == QUERY_NODE_OPERATOR &&
+      (((SOperatorNode *)(node->pLeft))->opType == OP_TYPE_JSON_GET_VALUE)) {
     SNode *interNode = (node->pLeft);
     SIF_ERR_JRET(sifInitJsonParam(interNode, &paramList[0], ctx));
     if (nParam > 1) {
@@ -525,8 +528,8 @@ static int32_t sifExecOper(SOperatorNode *node, SIFCtx *ctx, SIFParam *output) {
   if (node->opType == OP_TYPE_JSON_GET_VALUE) {
     return code;
   }
-  SIFParam *params = NULL;
 
+  SIFParam *params = NULL;
   SIF_ERR_RET(sifInitOperParams(&params, node, ctx));
 
   if (params[0].status == SFLT_NOT_INDEX || (nParam > 1 && params[1].status == SFLT_NOT_INDEX)) {
