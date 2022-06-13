@@ -42,18 +42,18 @@ Please refer to [Version Support List](/reference/connector#version-support).
 TDengine currently supports timestamp, number, character, Boolean type, and the corresponding type conversion with Java is as follows:
 
 | TDengine DataType | JDBCType (driver version < 2.0.24) | JDBCType (driver version > = 2.0.24) |
-| ----------------- | --------------------------------- | ---------------------------------- |
-| TIMESTAMP         | java.lang.Long                    | java.sql.Timestamp                 |
-| INT               | java.lang.Integer                 | java.lang.Integer                  |
-| BIGINT            | java.lang.Long                    | java.lang.Long                     |
-| FLOAT             | java.lang.Float                   | java.lang.Float                    |
-| DOUBLE            | java.lang.Double                  | java.lang.Double                   |
-| SMALLINT          | java.lang.Short                   | java.lang.Short                    |
-| TINYINT           | java.lang.Byte                    | java.lang.Byte                     |
-| BOOL              | java.lang.Boolean                 | java.lang.Boolean                  |
-| BINARY            | java.lang.String                  | byte array                         |
-| NCHAR             | java.lang.String                  | java.lang.String                   |
-| JSON              | -                                 | java.lang.String                   |
+| ----------------- | ---------------------------------- | ------------------------------------ |
+| TIMESTAMP         | java.lang.Long                     | java.sql.Timestamp                   |
+| INT               | java.lang.Integer                  | java.lang.Integer                    |
+| BIGINT            | java.lang.Long                     | java.lang.Long                       |
+| FLOAT             | java.lang.Float                    | java.lang.Float                      |
+| DOUBLE            | java.lang.Double                   | java.lang.Double                     |
+| SMALLINT          | java.lang.Short                    | java.lang.Short                      |
+| TINYINT           | java.lang.Byte                     | java.lang.Byte                       |
+| BOOL              | java.lang.Boolean                  | java.lang.Boolean                    |
+| BINARY            | java.lang.String                   | byte array                           |
+| NCHAR             | java.lang.String                   | java.lang.String                     |
+| JSON              | -                                  | java.lang.String                     |
 
 **Note**: Only TAG supports JSON types
 
@@ -69,7 +69,7 @@ Before using Java Connector to connect to the database, the following conditions
 ### Install the connectors
 
 <Tabs defaultValue="maven">
-<TabItem value="maven" label="install via Maven">
+<TabItem value="maven" label="Install via Maven">
 
 - [sonatype](https://search.maven.org/artifact/com.taosdata.jdbc/taos-jdbcdriver)
 - [mvnrepository](https://mvnrepository.com/artifact/com.taosdata.jdbc/taos-jdbcdriver)
@@ -77,7 +77,7 @@ Before using Java Connector to connect to the database, the following conditions
 
 Add following dependency in the `pom.xml` file of your Maven project:
 
-```xml-dtd
+```xml
 <dependency>
  <groupId>com.taosdata.jdbc</groupId>
  <artifactId>taos-jdbcdriver</artifactId>
@@ -90,9 +90,9 @@ Add following dependency in the `pom.xml` file of your Maven project:
 
 You can build Java connector from source code after cloning the TDengine project:
 
-```shell
-git clone https://github.com/taosdata/TDengine.git
-cd TDengine/src/connector/jdbc
+```
+git clone https://github.com/taosdata/taos-connector-jdbc.git
+cd taos-connector-jdbc
 mvn clean install -Dmaven.test.skip=true
 ```
 
@@ -140,40 +140,43 @@ When you use a JDBC native connection to connect to a TDengine cluster, you can 
 
 1. Do not specify hostname and port in Java applications.
 
-```java
-public Connection getConn() throws Exception{
-  Class.forName("com.taosdata.jdbc.TSDBDriver");
-  String jdbcUrl = "jdbc:TAOS://:/test?user=root&password=taosdata";
-  Properties connProps = new Properties();
-  connProps.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
-  connProps.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
-  connProps.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
-  Connection conn = DriverManager.getConnection(jdbcUrl, connProps);
-  return conn;
-}
-```
+    ```java
+    public Connection getConn() throws Exception{
+    Class.forName("com.taosdata.jdbc.TSDBDriver");
+    String jdbcUrl = "jdbc:TAOS://:/test?user=root&password=taosdata";
+    Properties connProps = new Properties();
+    connProps.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
+    connProps.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
+    connProps.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
+    Connection conn = DriverManager.getConnection(jdbcUrl, connProps);
+    return conn;
+    }
+    ```
 
 2. specify the firstEp and the secondEp in the configuration file taos.cfg
 
-```shell
-# first fully qualified domain name (FQDN) for TDengine system
-firstEp               cluster_node1:6030
+    ```shell
+    # first fully qualified domain name (FQDN) for TDengine system
+    firstEp               cluster_node1:6030
 
-# second fully qualified domain name (FQDN) for TDengine system, for cluster only
-secondEp              cluster_node2:6030
+    # second fully qualified domain name (FQDN) for TDengine system, for cluster only
+    secondEp              cluster_node2:6030
 
-# default system charset
-# charset               UTF-8
+    # default system charset
+    # charset               UTF-8
 
-# system locale
-# locale                en_US.UTF-8
-```
+    # system locale
+    # locale                en_US.UTF-8
+    ```
 
 In the above example, JDBC uses the client's configuration file to establish a connection to a hostname `cluster_node1`, port 6030, and a database named `test`. When the firstEp node in the cluster fails, JDBC attempts to connect to the cluster using secondEp.
 
 In TDengine, as long as one node in firstEp and secondEp is valid, the connection to the cluster can be established normally.
 
-> **Note**: The configuration file here refers to the configuration file on the machine where the application that calls the JDBC Connector is located, the default path is `/etc/taos/taos.cfg` on Linux, and the default path is `C://TDengine/cfg/taos.cfg` on Windows.
+:::note
+The configuration file here refers to the configuration file on the machine where the application that calls the JDBC Connector is located, the default path is `/etc/taos/taos.cfg` on Linux, and the default path is `C://TDengine/cfg/taos.cfg` on Windows.
+
+:::
 
 </TabItem>
 <TabItem value="rest" label="REST connection">
@@ -197,6 +200,7 @@ The configuration parameters in the URL are as follows.
 - user: Login TDengine user name, default value 'root'.
 - password: user login password, default value 'taosdata'.
 - batchfetch: true: pull the result set in batch when executing the query; false: pull the result set row by row. The default value is false. batchfetch uses HTTP for data transfer. The JDBC REST connection supports bulk data pulling function in taos-jdbcdriver-2.0.38 and TDengine 2.4.0.12 and later versions. taos-jdbcdriver and TDengine transfer data via WebSocket connection. Compared with HTTP, WebSocket enables JDBC REST connection to support large data volume querying and improve query performance.
+- charset: specify the charset to parse the string, this parameter is valid only when set batchfetch to true.
 - batchErrorIgnore: true: when executing executeBatch of Statement, if one SQL execution fails in the middle, continue to execute the following SQL. false: no longer execute any statement after the failed SQL. The default value is: false.
 
 **Note**: Some configuration items (e.g., locale, timezone) do not work in the REST connection.
@@ -258,10 +262,10 @@ The configuration parameters in properties are as follows.
 - TSDBDriver.PROPERTY_KEY_BATCH_LOAD: true: pull the result set in batch when executing query; false: pull the result set row by row. The default value is: false.
 - TSDBDriver.PROPERTY_KEY_BATCH_ERROR_IGNORE: true: when executing executeBatch of Statement, if there is a SQL execution failure in the middle, continue to execute the following sq. false: no longer execute any statement after the failed SQL. The default value is: false.
 - TSDBDriver.PROPERTY_KEY_CONFIG_DIR: Only works when using JDBC native connection. Client configuration file directory path, default value `/etc/taos` on Linux OS, default value `C:/TDengine/cfg` on Windows OS.
-- TSDBDriver.PROPERTY_KEY_CHARSET: takes effect only when using JDBC native connection. In the character set used by the client, the default value is the system character set.
+- TSDBDriver.PROPERTY_KEY_CHARSET: In the character set used by the client, the default value is the system character set.
 - TSDBDriver.PROPERTY_KEY_LOCALE: this only takes effect when using JDBC native connection. Client language environment, the default value is system current locale.
 - TSDBDriver.PROPERTY_KEY_TIME_ZONE: only takes effect when using JDBC native connection. In the time zone used by the client, the default value is the system's current time zone.
-For JDBC native connections, you can specify other parameters, such as log level, SQL length, etc., by specifying URL and Properties. For more detailed configuration, please refer to [Client Configuration](/reference/config/#Client-Only).
+  For JDBC native connections, you can specify other parameters, such as log level, SQL length, etc., by specifying URL and Properties. For more detailed configuration, please refer to [Client Configuration](/reference/config/#Client-Only).
 
 ### Priority of configuration parameters
 
@@ -350,7 +354,7 @@ There are three types of error codes that the JDBC connector can report:
 
 For specific error codes, please refer to.
 
-- [TDengine Java Connector](https://github.com/taosdata/TDengine/blob/develop/src/connector/jdbc/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java)
+- [TDengine Java Connector](https://github.com/taosdata/taos-connector-jdbc/blob/main/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java)
 - [TDengine_ERROR_CODE](https://github.com/taosdata/TDengine/blob/develop/src/inc/taoserror.h)
 
 ### Writing data via parameter binding
@@ -808,11 +812,11 @@ Please refer to: [JDBC example](https://github.com/taosdata/TDengine/tree/develo
 
 ## Recent update logs
 
-| taos-jdbcdriver version | major changes |
-| :------------------: | :----------------------------: |
-| 2.0.38 | JDBC REST connections add bulk pull function |
-| 2.0.37 | Added support for json tags |
-| 2.0.36 | Add support for schemaless writing |
+| taos-jdbcdriver version |                major changes                 |
+| :---------------------: | :------------------------------------------: |
+|         2.0.38          | JDBC REST connections add bulk pull function |
+|         2.0.37          |         Added support for json tags          |
+|         2.0.36          |      Add support for schemaless writing      |
 
 ## Frequently Asked Questions
 

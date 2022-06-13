@@ -69,12 +69,11 @@ struct SMeta {
   TTB*    pUidIdx;
   TTB*    pNameIdx;
   TTB*    pCtbIdx;
-#ifdef USE_INVERTED_INDEX
+  // ivt idx and idx
   void* pTagIvtIdx;
-#else
-  TTB* pTagIdx;
-#endif
-  TTB*      pTtlIdx;
+  TTB*  pTagIdx;
+  TTB*  pTtlIdx;
+
   TTB*      pSmaIdx;
   SMetaIdx* pIdx;
 };
@@ -117,7 +116,7 @@ typedef struct {
 } SSmaIdxKey;
 
 // metaTable ==================
-int metaCreateTagIdxKey(tb_uid_t suid, int32_t cid, const void* pTagData, int32_t nTagData,  int8_t type, tb_uid_t uid,
+int metaCreateTagIdxKey(tb_uid_t suid, int32_t cid, const void* pTagData, int32_t nTagData, int8_t type, tb_uid_t uid,
                         STagIdxKey** ppTagIdxKey, int32_t* nTagIdxKey);
 
 #ifndef META_REFACT

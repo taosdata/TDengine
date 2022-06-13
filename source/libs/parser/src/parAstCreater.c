@@ -346,25 +346,30 @@ SNode* createPlaceholderValueNode(SAstCreateContext* pCxt, const SToken* pLitera
   return (SNode*)val;
 }
 
+static int32_t addParamToLogicConditionNode(SLogicConditionNode* pCond, SNode* pParam) {
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pParam) && pCond->condType == ((SLogicConditionNode*)pParam)->condType) {
+    int32_t code = nodesListAppendList(pCond->pParameterList, ((SLogicConditionNode*)pParam)->pParameterList);
+    ((SLogicConditionNode*)pParam)->pParameterList = NULL;
+    nodesDestroyNode(pParam);
+    return code;
+  } else {
+    return nodesListAppend(pCond->pParameterList, pParam);
+  }
+}
+
 SNode* createLogicConditionNode(SAstCreateContext* pCxt, ELogicConditionType type, SNode* pParam1, SNode* pParam2) {
   CHECK_PARSER_STATUS(pCxt);
   SLogicConditionNode* cond = (SLogicConditionNode*)nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
   CHECK_OUT_OF_MEM(cond);
   cond->condType = type;
   cond->pParameterList = nodesMakeList();
-  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pParam1) && type == ((SLogicConditionNode*)pParam1)->condType) {
-    nodesListAppendList(cond->pParameterList, ((SLogicConditionNode*)pParam1)->pParameterList);
-    ((SLogicConditionNode*)pParam1)->pParameterList = NULL;
-    nodesDestroyNode(pParam1);
-  } else {
-    nodesListAppend(cond->pParameterList, pParam1);
+  int32_t code = addParamToLogicConditionNode(cond, pParam1);
+  if (TSDB_CODE_SUCCESS == code && NULL != pParam2) {
+    code = addParamToLogicConditionNode(cond, pParam2);
   }
-  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pParam2) && type == ((SLogicConditionNode*)pParam2)->condType) {
-    nodesListAppendList(cond->pParameterList, ((SLogicConditionNode*)pParam2)->pParameterList);
-    ((SLogicConditionNode*)pParam2)->pParameterList = NULL;
-    nodesDestroyNode(pParam2);
-  } else {
-    nodesListAppend(cond->pParameterList, pParam2);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode(cond);
+    return NULL;
   }
   return (SNode*)cond;
 }
@@ -796,7 +801,8 @@ SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOpti
       ((SDatabaseOptions*)pOptions)->pRetentions = pVal;
       break;
     case DB_OPTION_SCHEMALESS:
-      ((SDatabaseOptions*)pOptions)->schemaless = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
+//      ((SDatabaseOptions*)pOptions)->schemaless = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
+      ((SDatabaseOptions*)pOptions)->schemaless = 1;
       break;
     default:
       break;
@@ -1435,25 +1441,37 @@ SNode* createKillStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pId
   return (SNode*)pStmt;
 }
 
+SNode* createBalanceVgroupStmt(SAstCreateContext* pCxt) {
+  CHECK_PARSER_STATUS(pCxt);
+  SBalanceVgroupStmt* pStmt = nodesMakeNode(QUERY_NODE_BALANCE_VGROUP_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  return (SNode*)pStmt;
+}
+
 SNode* createMergeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId1, const SToken* pVgId2) {
   CHECK_PARSER_STATUS(pCxt);
-  SNode* pStmt = nodesMakeNode(QUERY_NODE_MERGE_VGROUP_STMT);
+  SMergeVgroupStmt* pStmt = nodesMakeNode(QUERY_NODE_MERGE_VGROUP_STMT);
   CHECK_OUT_OF_MEM(pStmt);
-  return pStmt;
+  pStmt->vgId1 = taosStr2Int32(pVgId1->z, NULL, 10);
+  pStmt->vgId2 = taosStr2Int32(pVgId2->z, NULL, 10);
+  return (SNode*)pStmt;
 }
 
 SNode* createRedistributeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId, SNodeList* pDnodes) {
   CHECK_PARSER_STATUS(pCxt);
-  SNode* pStmt = nodesMakeNode(QUERY_NODE_REDISTRIBUTE_VGROUP_STMT);
+  SRedistributeVgroupStmt* pStmt = nodesMakeNode(QUERY_NODE_REDISTRIBUTE_VGROUP_STMT);
   CHECK_OUT_OF_MEM(pStmt);
-  return pStmt;
+  pStmt->vgId = taosStr2Int32(pVgId->z, NULL, 10);
+  pStmt->pDnodes = pDnodes;
+  return (SNode*)pStmt;
 }
 
 SNode* createSplitVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId) {
   CHECK_PARSER_STATUS(pCxt);
-  SNode* pStmt = nodesMakeNode(QUERY_NODE_SPLIT_VGROUP_STMT);
+  SSplitVgroupStmt* pStmt = nodesMakeNode(QUERY_NODE_SPLIT_VGROUP_STMT);
   CHECK_OUT_OF_MEM(pStmt);
-  return pStmt;
+  pStmt->vgId = taosStr2Int32(pVgId->z, NULL, 10);
+  return (SNode*)pStmt;
 }
 
 SNode* createSyncdbStmt(SAstCreateContext* pCxt, const SToken* pDbName) {
@@ -1486,5 +1504,30 @@ SNode* createRevokeStmt(SAstCreateContext* pCxt, int64_t privileges, SToken* pDb
   pStmt->privileges = privileges;
   strncpy(pStmt->dbName, pDbName->z, pDbName->n);
   strncpy(pStmt->userName, pUserName->z, pUserName->n);
+  return (SNode*)pStmt;
+}
+
+SNode* createCountFuncForDelete(SAstCreateContext* pCxt) {
+  SFunctionNode* pFunc = nodesMakeNode(QUERY_NODE_FUNCTION);
+  CHECK_OUT_OF_MEM(pFunc);
+  strcpy(pFunc->functionName, "count");
+  if (TSDB_CODE_SUCCESS != nodesListMakeStrictAppend(&pFunc->pParameterList, createPrimaryKeyCol(pCxt))) {
+    nodesDestroyNode(pFunc);
+    CHECK_OUT_OF_MEM(NULL);
+  }
+  return (SNode*)pFunc;
+}
+
+SNode* createDeleteStmt(SAstCreateContext* pCxt, SNode* pTable, SNode* pWhere) {
+  CHECK_PARSER_STATUS(pCxt);
+  SDeleteStmt* pStmt = nodesMakeNode(QUERY_NODE_DELETE_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  pStmt->pFromTable = pTable;
+  pStmt->pWhere = pWhere;
+  pStmt->pCountFunc = createCountFuncForDelete(pCxt);
+  if (NULL == pStmt->pCountFunc) {
+    nodesDestroyNode(pStmt);
+    CHECK_OUT_OF_MEM(NULL);
+  }
   return (SNode*)pStmt;
 }

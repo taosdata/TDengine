@@ -180,6 +180,12 @@ static bool addHandleToAcceptloop(void* arg);
       if (!transQueuePush(&conn->srvMsgs, srvMsg)) {                                  \
         return;                                                                       \
       }                                                                               \
+      if (conn->regArg.init) {                                                        \
+        tTrace("server conn %p release, notify server app", conn);                    \
+        STrans* pTransInst = conn->pTransInst;                                        \
+        (*pTransInst->cfp)(pTransInst->parent, &(conn->regArg.msg), NULL);            \
+        memset(&conn->regArg, 0, sizeof(conn->regArg));                               \
+      }                                                                               \
       uvStartSendRespInternal(srvMsg);                                                \
       return;                                                                         \
     }                                                                                 \
@@ -220,7 +226,7 @@ static bool addHandleToAcceptloop(void* arg);
       } else {                                                                                                        \
         refId = exh1->refId;                                                                                          \
       }                                                                                                               \
-    } else if (refId == -1) {                                                                                         \
+    } else if (refId < 0) {                                                                                           \
       tTrace("server handle step3");                                                                                  \
       goto _return2;                                                                                                  \
     }                                                                                                                 \
@@ -301,6 +307,13 @@ static void uvHandleReq(SSvrConn* pConn) {
   if (pHead->noResp == 1) {
     transMsg.info.refId = -1;
   }
+
+  // set up conn info
+  SRpcConnInfo* pConnInfo = &(transMsg.info.connInfo);
+  pConnInfo->clientIp = (uint32_t)(pConn->addr.sin_addr.s_addr);
+  pConnInfo->clientPort = ntohs(pConn->addr.sin_port);
+  tstrncpy(pConnInfo->user, pConn->user, sizeof(pConnInfo->user));
+
   transReleaseExHandle(refMgt, pConn->refId);
 
   STrans* pTransInst = pConn->pTransInst;
@@ -1147,19 +1160,6 @@ _return2:
   rpcFreeCont(msg->pCont);
 }
 
-int transGetConnInfo(void* thandle, STransHandleInfo* pInfo) {
-  if (thandle == NULL) {
-    tTrace("invalid handle %p, failed to Get Conn info", thandle);
-    return -1;
-  }
-  SExHandle* ex = thandle;
-  SSvrConn*  pConn = ex->handle;
-
-  struct sockaddr_in addr = pConn->addr;
-  pInfo->clientIp = (uint32_t)(addr.sin_addr.s_addr);
-  pInfo->clientPort = ntohs(addr.sin_port);
-  tstrncpy(pInfo->user, pConn->user, sizeof(pInfo->user));
-  return 0;
-}
+int transGetConnInfo(void* thandle, STransHandleInfo* pConnInfo) { return -1; }
 
 #endif

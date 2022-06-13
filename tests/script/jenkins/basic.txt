@@ -2,26 +2,27 @@
 #======================b1-start===============
 
 # ---- user
-./test.sh -f tsim/user/basic1.sim
-./test.sh -f tsim/user/pass_alter.sim
-./test.sh -f tsim/user/pass_len.sim
-./test.sh -f tsim/user/user_len.sim
-./test.sh -f tsim/user/privilege1.sim
-./test.sh -f tsim/user/privilege2.sim
+#./test.sh -f tsim/user/basic1.sim
+#./test.sh -f tsim/user/pass_alter.sim
+#./test.sh -f tsim/user/pass_len.sim
+#./test.sh -f tsim/user/user_len.sim
+#./test.sh -f tsim/user/privilege1.sim
+#./test.sh -f tsim/user/privilege2.sim#
 
-# ---- db
-./test.sh -f tsim/db/create_all_options.sim
-./test.sh -f tsim/db/alter_option.sim
-./test.sh -f tsim/db/basic1.sim
-./test.sh -f tsim/db/basic2.sim
-./test.sh -f tsim/db/basic3.sim
-./test.sh -f tsim/db/basic6.sim
+## ---- db
+#./test.sh -f tsim/db/create_all_options.sim
+#./test.sh -f tsim/db/alter_option.sim
+#./test.sh -f tsim/db/basic1.sim
+#./test.sh -f tsim/db/basic2.sim
+#./test.sh -f tsim/db/basic3.sim
+#./test.sh -f tsim/db/basic6.sim
 ./test.sh -f tsim/db/basic7.sim
 ./test.sh -f tsim/db/error1.sim
 ./test.sh -f tsim/db/taosdlog.sim
 
 # ---- dnode
-./test.sh -f tsim/dnode/basic1.sim
+./test.sh -f tsim/dnode/create_dnode.sim
+./test.sh -f tsim/dnode/drop_dnode_has_mnode.sim
 
 # ---- insert
 ./test.sh -f tsim/insert/basic0.sim
@@ -58,7 +59,8 @@
 ./test.sh -f tsim/mnode/basic1.sim
 ./test.sh -f tsim/mnode/basic2.sim
 ./test.sh -f tsim/mnode/basic3.sim
-#./test.sh -f tsim/mnode/basic4.sim
+./test.sh -f tsim/mnode/basic4.sim
+./test.sh -f tsim/mnode/basic5.sim
 
 # ---- show
 ./test.sh -f tsim/show/basic.sim
@@ -70,8 +72,13 @@
 ./test.sh -f tsim/stream/basic0.sim
 ./test.sh -f tsim/stream/basic1.sim
 ./test.sh -f tsim/stream/basic2.sim
+# ./test.sh -f tsim/stream/distributeInterval0.sim
 # ./test.sh -f tsim/stream/session0.sim
 # ./test.sh -f tsim/stream/session1.sim
+# ./test.sh -f tsim/stream/state0.sim
+# ./test.sh -f tsim/stream/triggerInterval0.sim
+# ./test.sh -f tsim/stream/triggerSession0.sim
+
 
 # ---- transaction
  ./test.sh -f tsim/trans/lossdata1.sim
@@ -135,6 +142,7 @@
 ./test.sh -f tsim/sync/3Replica5VgElect.sim
 ./test.sh -f tsim/sync/oneReplica1VgElect.sim
 ./test.sh -f tsim/sync/oneReplica5VgElect.sim
+# ./test.sh -f tsim/sync/3Replica5VgElect3mnode.sim
 
 # --- catalog
 ./test.sh -f tsim/catalog/alterInCurrent.sim

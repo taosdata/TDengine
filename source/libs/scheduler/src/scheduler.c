@@ -67,24 +67,27 @@ int32_t schedulerInit(SSchedulerCfg *cfg) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t schedulerExecJob(void *pTrans, SArray *pNodeList, SQueryPlan *pDag, int64_t *pJob, const char *sql,
-                         int64_t startTs, SQueryResult *pRes) {
-  if (NULL == pTrans || NULL == pDag || NULL == pDag->pSubplans || NULL == pJob || NULL == pRes) {
+int32_t schedulerExecJob(SSchedulerReq *pReq, int64_t *pJob, SQueryResult *pRes) {
+  if (NULL == pReq || NULL == pJob || NULL == pRes) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  SSchResInfo resInfo = {.queryRes = pRes};
-  SCH_RET(schExecJob(pTrans, pNodeList, pDag, pJob, sql, startTs, &resInfo));
+  SCH_RET(schExecJob(pReq, pJob, pRes));
 }
 
-int32_t schedulerAsyncExecJob(void *pTrans, SArray *pNodeList, SQueryPlan *pDag, int64_t *pJob, const char *sql,
-                         int64_t startTs, schedulerExecCallback fp, void* param) {
-   if (NULL == pTrans || NULL == pDag || NULL == pDag->pSubplans || NULL == pJob || NULL == fp || NULL == param) {
-     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
-   }
-   
-   SSchResInfo resInfo = {.execFp = fp, .userParam = param};                      
-   SCH_RET(schAsyncExecJob(pTrans, pNodeList, pDag, pJob, sql, startTs, &resInfo));
+int32_t schedulerAsyncExecJob(SSchedulerReq *pReq, int64_t *pJob) {
+  int32_t code = 0;
+  if (NULL == pReq || NULL == pJob) {
+    code = TSDB_CODE_QRY_INVALID_INPUT;
+  } else {
+    code = schAsyncExecJob(pReq, pJob);
+  }
+
+  if (code != TSDB_CODE_SUCCESS) {
+    pReq->fp(NULL, pReq->cbParam, code);
+  }
+
+  return code;
 }
 
 int32_t schedulerFetchRows(int64_t job, void **pData) {
@@ -95,7 +98,7 @@ int32_t schedulerFetchRows(int64_t job, void **pData) {
   int32_t  code = 0;
   SSchJob *pJob = schAcquireJob(job);
   if (NULL == pJob) {
-    qError("acquire job from jobRef list failed, may be dropped, refId:%" PRIx64, job);
+    qError("acquire job from jobRef list failed, may be dropped, jobId:0x%" PRIx64, job);
     SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
   }
 
@@ -108,27 +111,26 @@ int32_t schedulerFetchRows(int64_t job, void **pData) {
   SCH_RET(code);
 }
 
-int32_t schedulerAsyncFetchRows(int64_t job, schedulerFetchCallback fp, void* param) {
+void schedulerAsyncFetchRows(int64_t job, schedulerFetchCallback fp, void* param) {
   if (NULL == fp || NULL == param) {
-    SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+    fp(NULL, param, TSDB_CODE_QRY_INVALID_INPUT);
+    return;
   }
 
-  int32_t  code = 0;
   SSchJob *pJob = schAcquireJob(job);
   if (NULL == pJob) {
-    qError("acquire job from jobRef list failed, may be dropped, refId:%" PRIx64, job);
-    SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
+    qError("acquire job from jobRef list failed, may be dropped, jobId:0x%" PRIx64, job);
+    fp(NULL, param, TSDB_CODE_SCH_STATUS_ERROR);
+    return;
   }
 
   pJob->attr.syncSchedule = false;
   pJob->userRes.fetchFp = fp;
   pJob->userRes.userParam = param;
   
-  code = schAsyncFetchRows(pJob);
+  /*code = */schAsyncFetchRows(pJob);
 
   schReleaseJob(job);
-
-  SCH_RET(code);
 }
 
 int32_t schedulerGetTasksStatus(int64_t job, SArray *pSub) {
@@ -165,7 +167,7 @@ _return:
 int32_t scheduleCancelJob(int64_t job) {
   SSchJob *pJob = schAcquireJob(job);
   if (NULL == pJob) {
-    qError("acquire job from jobRef list failed, may be dropped, refId:%" PRIx64, job);
+    qError("acquire job from jobRef list failed, may be dropped, jobId:0x%" PRIx64, job);
     SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
   }
 
@@ -176,10 +178,18 @@ int32_t scheduleCancelJob(int64_t job) {
   SCH_RET(code);
 }
 
+void schedulerStopQueryHb(void *pTrans) {
+  if (NULL == pTrans) {
+    return;
+  }
+
+  schCleanClusterHb(pTrans);
+}
+
 void schedulerFreeJob(int64_t job) {
   SSchJob *pJob = schAcquireJob(job);
   if (NULL == pJob) {
-    qDebug("acquire job from jobRef list failed, may be dropped, refId:%" PRIx64, job);
+    qError("acquire job from jobRef list failed, may be dropped, jobId:0x%" PRIx64, job);
     return;
   }
 
@@ -214,6 +224,7 @@ void schedulerDestroy(void) {
     }
   }
 
+  SCH_LOCK(SCH_WRITE, &schMgmt.hbLock);
   if (schMgmt.hbConnections) {
     void *pIter = taosHashIterate(schMgmt.hbConnections, NULL);
     while (pIter != NULL) {
@@ -224,4 +235,5 @@ void schedulerDestroy(void) {
     taosHashCleanup(schMgmt.hbConnections);
     schMgmt.hbConnections = NULL;
   }
+  SCH_UNLOCK(SCH_WRITE, &schMgmt.hbLock);
 }

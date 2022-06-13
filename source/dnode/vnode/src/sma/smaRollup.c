@@ -65,7 +65,7 @@ static FORCE_INLINE int32_t tdUpdateTbUidListImpl(SSma *pSma, tb_uid_t *suid, SA
   pRSmaInfo = taosHashGet(SMA_STAT_INFO_HASH(pStat), suid, sizeof(tb_uid_t));
   if (!pRSmaInfo || !(pRSmaInfo = *(SRSmaInfo **)pRSmaInfo)) {
     smaError("vgId:%d, failed to get rsma info for uid:%" PRIi64, SMA_VID(pSma), *suid);
-    terrno = TSDB_CODE_TDB_INVALID_SMA_STAT;
+    terrno = TSDB_CODE_RSMA_INVALID_STAT;
     return TSDB_CODE_FAILED;
   }
 
@@ -132,7 +132,7 @@ int32_t tdFetchTbUidList(SSma *pSma, STbUidStore **ppStore, tb_uid_t suid, tb_ui
   SSmaStat *pStat = SMA_ENV_STAT(pEnv);
   SHashObj *infoHash = NULL;
   if (!pStat || !(infoHash = SMA_STAT_INFO_HASH(pStat))) {
-    terrno = TSDB_CODE_TDB_INVALID_SMA_STAT;
+    terrno = TSDB_CODE_RSMA_INVALID_STAT;
     return TSDB_CODE_FAILED;
   }
 
@@ -167,13 +167,13 @@ int32_t tdFetchTbUidList(SSma *pSma, STbUidStore **ppStore, tb_uid_t suid, tb_ui
  */
 int32_t tdProcessRSmaCreate(SVnode *pVnode, SVCreateStbReq *pReq) {
   SSma *pSma = pVnode->pSma;
-  SMeta *pMeta = pVnode->pMeta;
-  SMsgCb *pMsgCb = &pVnode->msgCb;
   if (!pReq->rollup) {
     smaTrace("vgId:%d, return directly since no rollup for stable %s %" PRIi64, SMA_VID(pSma), pReq->name, pReq->suid);
     return TSDB_CODE_SUCCESS;
   }
 
+  SMeta *pMeta = pVnode->pMeta;
+  SMsgCb *pMsgCb = &pVnode->msgCb;
   SRSmaParam *param = &pReq->pRSmaParam;
 
   if ((param->qmsg1Len == 0) && (param->qmsg2Len == 0)) {
@@ -181,7 +181,7 @@ int32_t tdProcessRSmaCreate(SVnode *pVnode, SVCreateStbReq *pReq) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (tdCheckAndInitSmaEnv(pSma, TSDB_SMA_TYPE_ROLLUP) != TSDB_CODE_SUCCESS) {
+  if (tdCheckAndInitSmaEnv(pSma, TSDB_SMA_TYPE_ROLLUP, false) != TSDB_CODE_SUCCESS) {
     terrno = TSDB_CODE_TDB_INIT_FAILED;
     return TSDB_CODE_FAILED;
   }
@@ -400,7 +400,11 @@ static FORCE_INLINE int32_t tdExecuteRSmaImpl(SSma *pSma, const void *pMsg, int3
   }
 
   if (taosArrayGetSize(pResult) > 0) {
-    blockDebugShowData(pResult);
+#if 1
+    char flag[10] = {0};
+    snprintf(flag, 10, "level %" PRIi8, level);
+    blockDebugShowData(pResult, flag);
+#endif
     STsdb      *sinkTsdb = (level == TSDB_RETENTION_L1 ? pSma->pRSmaTsdb1 : pSma->pRSmaTsdb2);
     SSubmitReq *pReq = NULL;
     if (buildSubmitReqFromDataBlock(&pReq, pResult, pTSchema, SMA_VID(pSma), suid) != 0) {
@@ -444,7 +448,7 @@ static int32_t tdExecuteRSma(SSma *pSma, const void *pMsg, int32_t inputType, tb
   }
 
   if (inputType == STREAM_DATA_TYPE_SUBMIT_BLOCK) {
-    // TODO: use the proper schema instead of 0, and cache STSchema in cache
+    // TODO: cache STSchema
     STSchema *pTSchema = metaGetTbTSchema(SMA_META(pSma), suid, -1);
     if (!pTSchema) {
       terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;

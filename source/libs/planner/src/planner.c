@@ -26,16 +26,15 @@ static void dumpQueryPlan(SQueryPlan* pPlan) {
 }
 
 int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNodeList) {
-  SLogicNode*      pLogicNode = NULL;
   SLogicSubplan*   pLogicSubplan = NULL;
   SQueryLogicPlan* pLogicPlan = NULL;
 
-  int32_t code = createLogicPlan(pCxt, &pLogicNode);
+  int32_t code = createLogicPlan(pCxt, &pLogicSubplan);
   if (TSDB_CODE_SUCCESS == code) {
-    code = optimizeLogicPlan(pCxt, pLogicNode);
+    code = optimizeLogicPlan(pCxt, pLogicSubplan);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = splitLogicPlan(pCxt, pLogicNode, &pLogicSubplan);
+    code = splitLogicPlan(pCxt, pLogicSubplan);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = scaleOutLogicPlan(pCxt, pLogicSubplan, &pLogicPlan);
@@ -47,7 +46,6 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
     dumpQueryPlan(*pPlan);
   }
 
-  nodesDestroyNode(pLogicNode);
   nodesDestroyNode(pLogicSubplan);
   nodesDestroyNode(pLogicPlan);
   terrno = code;
@@ -88,7 +86,7 @@ int32_t qSetSubplanExecutionNode(SSubplan* subplan, int32_t groupId, SDownstream
 }
 
 int32_t qSubPlanToString(const SSubplan* pSubplan, char** pStr, int32_t* pLen) {
-  if (SUBPLAN_TYPE_MODIFY == pSubplan->subplanType) {
+  if (SUBPLAN_TYPE_MODIFY == pSubplan->subplanType && NULL == pSubplan->pNode) {
     SDataInserterNode* insert = (SDataInserterNode*)pSubplan->pDataSink;
     *pLen = insert->size;
     *pStr = insert->pData;

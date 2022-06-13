@@ -32,7 +32,7 @@ extern "C" {
 #define TD_VER_MAX UINT64_MAX  // TODO: use the real max version from query handle
 
 // Bytes for each type.
-extern const int32_t TYPE_BYTES[15];
+extern const int32_t TYPE_BYTES[16];
 
 // TODO: replace and remove code below
 #define CHAR_BYTES      sizeof(char)
@@ -129,7 +129,7 @@ typedef enum EOperatorType {
   OP_TYPE_SUB,
   OP_TYPE_MULTI,
   OP_TYPE_DIV,
-  OP_TYPE_MOD,
+  OP_TYPE_REM,
   // unary arithmetic operator
   OP_TYPE_MINUS,
   OP_TYPE_ASSIGN,
@@ -356,8 +356,8 @@ typedef enum ELogicConditionType {
 
 #define TSDB_DEFAULT_EXPLAIN_VERBOSE false
 
-#define TSDB_EXPLAIN_RESULT_ROW_SIZE    1024
-#define TSDB_EXPLAIN_RESULT_COLUMN_NAME "QUERY PLAN"
+#define TSDB_EXPLAIN_RESULT_ROW_SIZE    512
+#define TSDB_EXPLAIN_RESULT_COLUMN_NAME "QUERY_PLAN"
 
 #define TSDB_MAX_FIELD_LEN             16384
 #define TSDB_MAX_BINARY_LEN            (TSDB_MAX_FIELD_LEN - TSDB_KEYSIZE)  // keep 16384

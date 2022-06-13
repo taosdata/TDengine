@@ -26,6 +26,7 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
+#include "parser.h"
 #include "tname.h"
 
 #define TSDB_SMA_VER_NUMBER   1
@@ -36,28 +37,31 @@ static SSdbRow *mndSmaActionDecode(SSdbRaw *pRaw);
 static int32_t  mndSmaActionInsert(SSdb *pSdb, SSmaObj *pSma);
 static int32_t  mndSmaActionDelete(SSdb *pSdb, SSmaObj *pSpSmatb);
 static int32_t  mndSmaActionUpdate(SSdb *pSdb, SSmaObj *pOld, SSmaObj *pNew);
+static int32_t  mndSmaGetVgEpSet(SMnode *pMnode, SDbObj *pDb, SVgEpSet **ppVgEpSet, int32_t *numOfVgroups);
 static int32_t  mndProcessMCreateSmaReq(SRpcMsg *pReq);
 static int32_t  mndProcessMDropSmaReq(SRpcMsg *pReq);
-static int32_t  mndProcessVCreateSmaRsp(SRpcMsg *pRsp);
-static int32_t  mndProcessVDropSmaRsp(SRpcMsg *pRsp);
 static int32_t  mndProcessGetSmaReq(SRpcMsg *pReq);
+static int32_t mndProcessGetTbSmaReq(SRpcMsg *pReq);
 static int32_t  mndRetrieveSma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextSma(SMnode *pMnode, void *pIter);
 
 int32_t mndInitSma(SMnode *pMnode) {
-  SSdbTable table = {.sdbType = SDB_SMA,
-                     .keyType = SDB_KEY_BINARY,
-                     .encodeFp = (SdbEncodeFp)mndSmaActionEncode,
-                     .decodeFp = (SdbDecodeFp)mndSmaActionDecode,
-                     .insertFp = (SdbInsertFp)mndSmaActionInsert,
-                     .updateFp = (SdbUpdateFp)mndSmaActionUpdate,
-                     .deleteFp = (SdbDeleteFp)mndSmaActionDelete};
+  SSdbTable table = {
+      .sdbType = SDB_SMA,
+      .keyType = SDB_KEY_BINARY,
+      .encodeFp = (SdbEncodeFp)mndSmaActionEncode,
+      .decodeFp = (SdbDecodeFp)mndSmaActionDecode,
+      .insertFp = (SdbInsertFp)mndSmaActionInsert,
+      .updateFp = (SdbUpdateFp)mndSmaActionUpdate,
+      .deleteFp = (SdbDeleteFp)mndSmaActionDelete,
+  };
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_SMA, mndProcessMCreateSmaReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_SMA, mndProcessMDropSmaReq);
-  mndSetMsgHandle(pMnode, TDMT_VND_CREATE_SMA_RSP, mndProcessVCreateSmaRsp);
-  mndSetMsgHandle(pMnode, TDMT_VND_DROP_SMA_RSP, mndProcessVDropSmaRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_CREATE_SMA_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_DROP_SMA_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_INDEX, mndProcessGetSmaReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_GET_TABLE_INDEX, mndProcessGetTbSmaReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_INDEX, mndRetrieveSma);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_INDEX, mndCancelGetNextSma);
@@ -79,10 +83,12 @@ static SSdbRaw *mndSmaActionEncode(SSmaObj *pSma) {
   SDB_SET_BINARY(pRaw, dataPos, pSma->name, TSDB_TABLE_FNAME_LEN, _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pSma->stb, TSDB_TABLE_FNAME_LEN, _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pSma->db, TSDB_DB_FNAME_LEN, _OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pSma->dstTbName, TSDB_DB_FNAME_LEN, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pSma->createdTime, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pSma->uid, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pSma->stbUid, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pSma->dbUid, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pSma->dstTbUid, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pSma->intervalUnit, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pSma->slidingUnit, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pSma->timezone, _OVER)
@@ -144,10 +150,12 @@ static SSdbRow *mndSmaActionDecode(SSdbRaw *pRaw) {
   SDB_GET_BINARY(pRaw, dataPos, pSma->name, TSDB_TABLE_FNAME_LEN, _OVER)
   SDB_GET_BINARY(pRaw, dataPos, pSma->stb, TSDB_TABLE_FNAME_LEN, _OVER)
   SDB_GET_BINARY(pRaw, dataPos, pSma->db, TSDB_DB_FNAME_LEN, _OVER)
+  SDB_GET_BINARY(pRaw, dataPos, pSma->dstTbName, TSDB_DB_FNAME_LEN, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pSma->createdTime, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pSma->uid, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pSma->stbUid, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pSma->dbUid, _OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pSma->dstTbUid, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pSma->intervalUnit, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pSma->slidingUnit, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pSma->timezone, _OVER)
@@ -257,11 +265,16 @@ static void *mndBuildVCreateSmaReq(SMnode *pMnode, SVgObj *pVgroup, SSmaObj *pSm
   req.tagsFilterLen = pSma->tagsFilterLen;
   req.indexUid = pSma->uid;
   req.tableUid = pSma->stbUid;
+  req.dstVgId = pSma->dstVgId;
+  req.dstTbUid = pSma->dstTbUid;
   req.interval = pSma->interval;
   req.offset = pSma->offset;
   req.sliding = pSma->sliding;
   req.expr = pSma->expr;
   req.tagsFilter = pSma->tagsFilter;
+  req.schemaRow = pSma->schemaRow;
+  req.schemaTag = pSma->schemaTag;
+  req.dstTbName = pSma->dstTbName;
 
   // get length
   int32_t ret = 0;
@@ -420,6 +433,31 @@ static int32_t mndSetCreateSmaVgroupRedoActions(SMnode *pMnode, STrans *pTrans, 
   mndReleaseDnode(pMnode, pDnode);
 
   // todo add sma info here
+  SNode *pAst = NULL;
+  if (nodesStringToNode(pSma->ast, &pAst) < 0) {
+    return -1;
+  }
+  if (qExtractResultSchema(pAst, &pSma->schemaRow.nCols, &pSma->schemaRow.pSchema) != 0) {
+    nodesDestroyNode(pAst);
+    return -1;
+  }
+  nodesDestroyNode(pAst);
+  pSma->schemaRow.version = 1;
+
+  // TODO: the schemaTag generated by qExtractResultXXX later.
+  pSma->schemaTag.nCols = 1;
+  pSma->schemaTag.version = 1;
+  pSma->schemaTag.pSchema = taosMemoryCalloc(1, sizeof(SSchema));
+  if (!pSma->schemaTag.pSchema) {
+    return -1;
+  }
+  pSma->schemaTag.pSchema[0].type = TSDB_DATA_TYPE_BIGINT;
+  pSma->schemaTag.pSchema[0].bytes = TYPE_BYTES[TSDB_DATA_TYPE_BIGINT];
+  pSma->schemaTag.pSchema[0].colId = pSma->schemaRow.nCols + PRIMARYKEY_TIMESTAMP_COL_ID;
+  pSma->schemaTag.pSchema[0].flags = 0;
+  snprintf(pSma->schemaTag.pSchema[0].name, TSDB_COL_NAME_LEN, "groupId");
+
+
   int32_t smaContLen = 0;
   void   *pSmaReq = mndBuildVCreateSmaReq(pMnode, pVgroup, pSma, &smaContLen);
   if (pSmaReq == NULL) return -1;
@@ -450,12 +488,15 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   memcpy(smaObj.db, pDb->name, TSDB_DB_FNAME_LEN);
   smaObj.createdTime = taosGetTimestampMs();
   smaObj.uid = mndGenerateUid(pCreate->name, TSDB_TABLE_FNAME_LEN);
+  char resultTbName[TSDB_TABLE_FNAME_LEN + 16] = {0};
+  snprintf(resultTbName, TSDB_TABLE_FNAME_LEN + 16, "td.tsma.rst.tb.%s", pCreate->name);
+  memcpy(smaObj.dstTbName, resultTbName, TSDB_TABLE_FNAME_LEN);
+  smaObj.dstTbUid = mndGenerateUid(smaObj.dstTbName, TSDB_TABLE_FNAME_LEN);
   smaObj.stbUid = pStb->uid;
   smaObj.dbUid = pStb->dbUid;
   smaObj.intervalUnit = pCreate->intervalUnit;
   smaObj.slidingUnit = pCreate->slidingUnit;
   smaObj.timezone = pCreate->timezone;
-  smaObj.dstVgId = pCreate->dstVgId;
   smaObj.interval = pCreate->interval;
   smaObj.offset = pCreate->offset;
   smaObj.sliding = pCreate->sliding;
@@ -510,10 +551,9 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   int32_t code = -1;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq);
   if (pTrans == NULL) goto _OVER;
-
-  mDebug("trans:%d, used to create sma:%s", pTrans->id, pCreate->name);
   mndTransSetDbName(pTrans, pDb->name);
   mndTransSetSerial(pTrans);
+  mDebug("trans:%d, used to create sma:%s", pTrans->id, pCreate->name);
 
   if (mndSetCreateSmaRedoLogs(pMnode, pTrans, &smaObj) != 0) goto _OVER;
   if (mndSetCreateSmaVgroupRedoLogs(pMnode, pTrans, &streamObj.fixedSinkVg) != 0) goto _OVER;
@@ -635,11 +675,6 @@ _OVER:
   tFreeSMCreateSmaReq(&createReq);
 
   return code;
-}
-
-static int32_t mndProcessVCreateSmaRsp(SRpcMsg *pRsp) {
-  mndTransProcessRsp(pRsp);
-  return 0;
 }
 
 static int32_t mndSetDropSmaRedoLogs(SMnode *pMnode, STrans *pTrans, SSmaObj *pSma) {
@@ -864,6 +899,64 @@ static int32_t mndGetSma(SMnode *pMnode, SUserIndexReq *indexReq, SUserIndexRsp 
   return code;
 }
 
+static int32_t mndGetTableSma(SMnode *pMnode, STableIndexReq *indexReq, STableIndexRsp *rsp, bool *exist) {
+  int32_t  code = 0;
+  SSmaObj *pSma = NULL;
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
+  STableIndexInfo info;
+
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_SMA, pIter, (void **)&pSma);
+    if (pIter == NULL) break;
+
+    if (pSma->stb[0] != indexReq->tbFName[0] || strcmp(pSma->stb, indexReq->tbFName)) {
+      continue;
+    }
+
+    info.intervalUnit = pSma->intervalUnit;
+    info.slidingUnit = pSma->slidingUnit;
+    info.interval = pSma->interval;
+    info.offset = pSma->offset;
+    info.sliding = pSma->sliding;
+    info.dstTbUid = pSma->dstTbUid;
+    info.dstVgId = pSma->dstVgId;
+
+    SVgObj* pVg = mndAcquireVgroup(pMnode, pSma->dstVgId);
+    if (pVg == NULL) {
+      code = -1;
+      sdbRelease(pSdb, pSma);
+      return code;
+    }
+    info.epSet = mndGetVgroupEpset(pMnode, pVg);
+    
+    info.expr = taosMemoryMalloc(pSma->exprLen + 1);
+    if (info.expr == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      code = -1;
+      sdbRelease(pSdb, pSma);
+      return code;
+    }
+
+    memcpy(info.expr, pSma->expr, pSma->exprLen);
+    info.expr[pSma->exprLen] = 0;
+
+    if (NULL == taosArrayPush(rsp->pIndex, &info)) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      code = -1;
+      taosMemoryFree(info.expr);
+      sdbRelease(pSdb, pSma);
+      return code;
+    }
+
+    *exist = true;
+
+    sdbRelease(pSdb, pSma);
+  }
+  
+  return code;
+}
+
 static int32_t mndProcessGetSmaReq(SRpcMsg *pReq) {
   SUserIndexReq indexReq = {0};
   SMnode       *pMnode = pReq->info.node;
@@ -910,10 +1003,58 @@ _OVER:
   return code;
 }
 
-static int32_t mndProcessVDropSmaRsp(SRpcMsg *pRsp) {
-  mndTransProcessRsp(pRsp);
-  return 0;
+static int32_t mndProcessGetTbSmaReq(SRpcMsg *pReq) {
+  STableIndexReq indexReq = {0};
+  SMnode       *pMnode = pReq->info.node;
+  int32_t       code = -1;
+  STableIndexRsp rsp = {0};
+  bool          exist = false;
+
+  if (tDeserializeSTableIndexReq(pReq->pCont, pReq->contLen, &indexReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+
+  rsp.pIndex = taosArrayInit(10, sizeof(STableIndexInfo));
+  if (NULL == rsp.pIndex) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = -1;
+    goto _OVER;
+  }
+
+  code = mndGetTableSma(pMnode, &indexReq, &rsp, &exist);
+  if (code) {
+    goto _OVER;
+  }
+
+  if (!exist) {
+    code = -1;
+    terrno = TSDB_CODE_MND_DB_INDEX_NOT_EXIST;
+  } else {
+    int32_t contLen = tSerializeSTableIndexRsp(NULL, 0, &rsp);
+    void   *pRsp = rpcMallocCont(contLen);
+    if (pRsp == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      code = -1;
+      goto _OVER;
+    }
+
+    tSerializeSTableIndexRsp(pRsp, contLen, &rsp);
+
+    pReq->info.rsp = pRsp;
+    pReq->info.rspLen = contLen;
+
+    code = 0;
+  }
+
+_OVER:
+  if (code != 0) {
+    mError("failed to get table index %s since %s", indexReq.tbFName, terrstr());
+  }
+
+  return code;
 }
+
 
 static int32_t mndRetrieveSma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode  *pMnode = pReq->info.node;

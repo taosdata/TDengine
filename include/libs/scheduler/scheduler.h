@@ -72,6 +72,16 @@ typedef struct SSchdFetchParam {
 typedef void (*schedulerExecCallback)(SQueryResult* pResult, void* param, int32_t code);
 typedef void (*schedulerFetchCallback)(void* pResult, void* param, int32_t code);
 
+typedef struct SSchedulerReq {
+  SRequestConnInfo *pConn;
+  SArray *pNodeList;
+  SQueryPlan *pDag;
+  const char *sql;
+  int64_t startTs;
+  schedulerExecCallback fp;
+  void* cbParam;
+} SSchedulerReq;
+
 
 int32_t schedulerInit(SSchedulerCfg *cfg);
 
@@ -81,7 +91,7 @@ int32_t schedulerInit(SSchedulerCfg *cfg);
  * @param nodeList  Qnode/Vnode address list, element is SQueryNodeAddr
  * @return
  */
-int32_t schedulerExecJob(void *transport, SArray *nodeList, SQueryPlan *pDag, int64_t *pJob, const char *sql, int64_t startTs, SQueryResult *pRes);
+int32_t schedulerExecJob(SSchedulerReq *pReq, int64_t *pJob, SQueryResult *pRes);
 
 /**
  * Process the query job, generated according to the query physical plan.
@@ -89,8 +99,7 @@ int32_t schedulerExecJob(void *transport, SArray *nodeList, SQueryPlan *pDag, in
  * @param pNodeList  Qnode/Vnode address list, element is SQueryNodeAddr
  * @return
  */
-  int32_t schedulerAsyncExecJob(void *pTrans, SArray *pNodeList, SQueryPlan *pDag, int64_t *pJob, const char *sql,
-                           int64_t startTs, schedulerExecCallback fp, void* param);
+  int32_t schedulerAsyncExecJob(SSchedulerReq *pReq, int64_t *pJob);
 
 /**
  * Fetch query result from the remote query executor
@@ -100,9 +109,11 @@ int32_t schedulerExecJob(void *transport, SArray *nodeList, SQueryPlan *pDag, in
  */
 int32_t schedulerFetchRows(int64_t job, void **data);
 
-int32_t schedulerAsyncFetchRows(int64_t job, schedulerFetchCallback fp, void* param);
+void schedulerAsyncFetchRows(int64_t job, schedulerFetchCallback fp, void* param);
 
 int32_t schedulerGetTasksStatus(int64_t job, SArray *pSub);
+
+void schedulerStopQueryHb(void *pTrans);
 
 
 /**
@@ -121,8 +132,6 @@ void schedulerFreeJob(int64_t job);
 void schedulerDestroy(void);
 
 void schdExecCallback(SQueryResult* pResult, void* param, int32_t code);
-void schdFetchCallback(void* pResult, void* param, int32_t code);
-
 
 #ifdef __cplusplus
 }

@@ -139,10 +139,40 @@ static int32_t mndCreateDir(SMnode *pMnode, const char *path) {
   return 0;
 }
 
+static int32_t mndInitWal(SMnode *pMnode) {
+  char path[PATH_MAX + 20] = {0};
+  snprintf(path, sizeof(path), "%s%swal", pMnode->path, TD_DIRSEP);
+  SWalCfg cfg = {
+      .vgId = 1,
+      .fsyncPeriod = 0,
+      .rollPeriod = -1,
+      .segSize = -1,
+      .retentionPeriod = -1,
+      .retentionSize = -1,
+      .level = TAOS_WAL_FSYNC,
+  };
+
+  pMnode->pWal = walOpen(path, &cfg);
+  if (pMnode->pWal == NULL) {
+    mError("failed to open wal since %s", terrstr());
+    return -1;
+  }
+
+  return 0;
+}
+
+static void mndCloseWal(SMnode *pMnode) {
+  if (pMnode->pWal != NULL) {
+    walClose(pMnode->pWal);
+    pMnode->pWal = NULL;
+  }
+}
+
 static int32_t mndInitSdb(SMnode *pMnode) {
   SSdbOpt opt = {0};
   opt.path = pMnode->path;
   opt.pMnode = pMnode;
+  opt.pWal = pMnode->pWal;
 
   pMnode->pSdb = sdbInit(&opt);
   if (pMnode->pSdb == NULL) {
@@ -156,7 +186,6 @@ static int32_t mndOpenSdb(SMnode *pMnode) {
   if (!pMnode->deploy) {
     return sdbReadFile(pMnode->pSdb);
   } else {
-    // return sdbDeploy(pMnode->pSdb);;
     return 0;
   }
 }
@@ -182,13 +211,14 @@ static int32_t mndAllocStep(SMnode *pMnode, char *name, MndInitFp initFp, MndCle
 }
 
 static int32_t mndInitSteps(SMnode *pMnode) {
+  if (mndAllocStep(pMnode, "mnode-wal", mndInitWal, mndCloseWal) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-sdb", mndInitSdb, mndCleanupSdb) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-trans", mndInitTrans, mndCleanupTrans) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-cluster", mndInitCluster, mndCleanupCluster) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-mnode", mndInitMnode, mndCleanupMnode) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-qnode", mndInitQnode, mndCleanupQnode) != 0) return -1;
-  if (mndAllocStep(pMnode, "mnode-qnode", mndInitSnode, mndCleanupSnode) != 0) return -1;
-  if (mndAllocStep(pMnode, "mnode-qnode", mndInitBnode, mndCleanupBnode) != 0) return -1;
+  if (mndAllocStep(pMnode, "mnode-snode", mndInitSnode, mndCleanupSnode) != 0) return -1;
+  if (mndAllocStep(pMnode, "mnode-bnode", mndInitBnode, mndCleanupBnode) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-dnode", mndInitDnode, mndCleanupDnode) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-user", mndInitUser, mndCleanupUser) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-grant", mndInitGrant, mndCleanupGrant) != 0) return -1;
@@ -201,7 +231,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   if (mndAllocStep(pMnode, "mnode-offset", mndInitOffset, mndCleanupOffset) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-vgroup", mndInitVgroup, mndCleanupVgroup) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-stb", mndInitStb, mndCleanupStb) != 0) return -1;
-  if (mndAllocStep(pMnode, "mnode-stb", mndInitSma, mndCleanupSma) != 0) return -1;
+  if (mndAllocStep(pMnode, "mnode-sma", mndInitSma, mndCleanupSma) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-infos", mndInitInfos, mndCleanupInfos) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-perfs", mndInitPerfs, mndCleanupPerfs) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-db", mndInitDb, mndCleanupDb) != 0) return -1;
@@ -373,44 +403,100 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
   char  logBuf[512] = {0};
   char *syncNodeStr = sync2SimpleStr(pMgmt->sync);
   snprintf(logBuf, sizeof(logBuf), "==vnodeProcessSyncReq== msgType:%d, syncNode: %s", pMsg->msgType, syncNodeStr);
+  static int64_t mndTick = 0;
+  if (++mndTick % 10 == 1) {
+    mTrace("sync trace msg:%s, %s", TMSG_INFO(pMsg->msgType), syncNodeStr);
+  }
   syncRpcMsgLog2(logBuf, pMsg);
   taosMemoryFree(syncNodeStr);
 
-  if (pMsg->msgType == TDMT_VND_SYNC_TIMEOUT) {
-    SyncTimeout *pSyncMsg = syncTimeoutFromRpcMsg2(pMsg);
-    code = syncNodeOnTimeoutCb(pSyncNode, pSyncMsg);
-    syncTimeoutDestroy(pSyncMsg);
-  } else if (pMsg->msgType == TDMT_VND_SYNC_PING) {
-    SyncPing *pSyncMsg = syncPingFromRpcMsg2(pMsg);
-    code = syncNodeOnPingCb(pSyncNode, pSyncMsg);
-    syncPingDestroy(pSyncMsg);
-  } else if (pMsg->msgType == TDMT_VND_SYNC_PING_REPLY) {
-    SyncPingReply *pSyncMsg = syncPingReplyFromRpcMsg2(pMsg);
-    code = syncNodeOnPingReplyCb(pSyncNode, pSyncMsg);
-    syncPingReplyDestroy(pSyncMsg);
-  } else if (pMsg->msgType == TDMT_VND_SYNC_CLIENT_REQUEST) {
-    SyncClientRequest *pSyncMsg = syncClientRequestFromRpcMsg2(pMsg);
-    code = syncNodeOnClientRequestCb(pSyncNode, pSyncMsg);
-    syncClientRequestDestroy(pSyncMsg);
-  } else if (pMsg->msgType == TDMT_VND_SYNC_REQUEST_VOTE) {
-    SyncRequestVote *pSyncMsg = syncRequestVoteFromRpcMsg2(pMsg);
-    code = syncNodeOnRequestVoteCb(pSyncNode, pSyncMsg);
-    syncRequestVoteDestroy(pSyncMsg);
-  } else if (pMsg->msgType == TDMT_VND_SYNC_REQUEST_VOTE_REPLY) {
-    SyncRequestVoteReply *pSyncMsg = syncRequestVoteReplyFromRpcMsg2(pMsg);
-    code = syncNodeOnRequestVoteReplyCb(pSyncNode, pSyncMsg);
-    syncRequestVoteReplyDestroy(pSyncMsg);
-  } else if (pMsg->msgType == TDMT_VND_SYNC_APPEND_ENTRIES) {
-    SyncAppendEntries *pSyncMsg = syncAppendEntriesFromRpcMsg2(pMsg);
-    code = syncNodeOnAppendEntriesCb(pSyncNode, pSyncMsg);
-    syncAppendEntriesDestroy(pSyncMsg);
-  } else if (pMsg->msgType == TDMT_VND_SYNC_APPEND_ENTRIES_REPLY) {
-    SyncAppendEntriesReply *pSyncMsg = syncAppendEntriesReplyFromRpcMsg2(pMsg);
-    code = syncNodeOnAppendEntriesReplyCb(pSyncNode, pSyncMsg);
-    syncAppendEntriesReplyDestroy(pSyncMsg);
+  // ToDo: ugly! use function pointer
+  if (syncNodeSnapshotEnable(pSyncNode)) {
+    if (pMsg->msgType == TDMT_SYNC_TIMEOUT) {
+      SyncTimeout *pSyncMsg = syncTimeoutFromRpcMsg2(pMsg);
+      code = syncNodeOnTimeoutCb(pSyncNode, pSyncMsg);
+      syncTimeoutDestroy(pSyncMsg);
+    } else if (pMsg->msgType == TDMT_SYNC_PING) {
+      SyncPing *pSyncMsg = syncPingFromRpcMsg2(pMsg);
+      code = syncNodeOnPingCb(pSyncNode, pSyncMsg);
+      syncPingDestroy(pSyncMsg);
+    } else if (pMsg->msgType == TDMT_SYNC_PING_REPLY) {
+      SyncPingReply *pSyncMsg = syncPingReplyFromRpcMsg2(pMsg);
+      code = syncNodeOnPingReplyCb(pSyncNode, pSyncMsg);
+      syncPingReplyDestroy(pSyncMsg);
+    } else if (pMsg->msgType == TDMT_SYNC_CLIENT_REQUEST) {
+      SyncClientRequest *pSyncMsg = syncClientRequestFromRpcMsg2(pMsg);
+      code = syncNodeOnClientRequestCb(pSyncNode, pSyncMsg);
+      syncClientRequestDestroy(pSyncMsg);
+
+    } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE) {
+      SyncRequestVote *pSyncMsg = syncRequestVoteFromRpcMsg2(pMsg);
+      code = syncNodeOnRequestVoteSnapshotCb(pSyncNode, pSyncMsg);
+      syncRequestVoteDestroy(pSyncMsg);
+    } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE_REPLY) {
+      SyncRequestVoteReply *pSyncMsg = syncRequestVoteReplyFromRpcMsg2(pMsg);
+      code = syncNodeOnRequestVoteReplySnapshotCb(pSyncNode, pSyncMsg);
+      syncRequestVoteReplyDestroy(pSyncMsg);
+    } else if (pMsg->msgType == TDMT_SYNC_APPEND_ENTRIES) {
+      SyncAppendEntries *pSyncMsg = syncAppendEntriesFromRpcMsg2(pMsg);
+      code = syncNodeOnAppendEntriesSnapshotCb(pSyncNode, pSyncMsg);
+      syncAppendEntriesDestroy(pSyncMsg);
+    } else if (pMsg->msgType == TDMT_SYNC_APPEND_ENTRIES_REPLY) {
+      SyncAppendEntriesReply *pSyncMsg = syncAppendEntriesReplyFromRpcMsg2(pMsg);
+      code = syncNodeOnAppendEntriesReplySnapshotCb(pSyncNode, pSyncMsg);
+      syncAppendEntriesReplyDestroy(pSyncMsg);
+
+    } else if (pMsg->msgType == TDMT_SYNC_SNAPSHOT_SEND) {
+      SyncSnapshotSend *pSyncMsg = syncSnapshotSendFromRpcMsg2(pMsg);
+      code = syncNodeOnSnapshotSendCb(pSyncNode, pSyncMsg);
+      syncSnapshotSendDestroy(pSyncMsg);
+    } else if (pMsg->msgType == TDMT_SYNC_SNAPSHOT_RSP) {
+      SyncSnapshotRsp *pSyncMsg = syncSnapshotRspFromRpcMsg2(pMsg);
+      code = syncNodeOnSnapshotRspCb(pSyncNode, pSyncMsg);
+      syncSnapshotRspDestroy(pSyncMsg);
+
+    } else {
+      mError("failed to process msg:%p since invalid type:%s", pMsg, TMSG_INFO(pMsg->msgType));
+      code = TAOS_SYNC_PROPOSE_OTHER_ERROR;
+    }
+
   } else {
-    mError("failed to process msg:%p since invalid type:%s", pMsg, TMSG_INFO(pMsg->msgType));
-    code = TAOS_SYNC_PROPOSE_OTHER_ERROR;
+    if (pMsg->msgType == TDMT_SYNC_TIMEOUT) {
+      SyncTimeout *pSyncMsg = syncTimeoutFromRpcMsg2(pMsg);
+      code = syncNodeOnTimeoutCb(pSyncNode, pSyncMsg);
+      syncTimeoutDestroy(pSyncMsg);
+    } else if (pMsg->msgType == TDMT_SYNC_PING) {
+      SyncPing *pSyncMsg = syncPingFromRpcMsg2(pMsg);
+      code = syncNodeOnPingCb(pSyncNode, pSyncMsg);
+      syncPingDestroy(pSyncMsg);
+    } else if (pMsg->msgType == TDMT_SYNC_PING_REPLY) {
+      SyncPingReply *pSyncMsg = syncPingReplyFromRpcMsg2(pMsg);
+      code = syncNodeOnPingReplyCb(pSyncNode, pSyncMsg);
+      syncPingReplyDestroy(pSyncMsg);
+    } else if (pMsg->msgType == TDMT_SYNC_CLIENT_REQUEST) {
+      SyncClientRequest *pSyncMsg = syncClientRequestFromRpcMsg2(pMsg);
+      code = syncNodeOnClientRequestCb(pSyncNode, pSyncMsg);
+      syncClientRequestDestroy(pSyncMsg);
+    } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE) {
+      SyncRequestVote *pSyncMsg = syncRequestVoteFromRpcMsg2(pMsg);
+      code = syncNodeOnRequestVoteCb(pSyncNode, pSyncMsg);
+      syncRequestVoteDestroy(pSyncMsg);
+    } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE_REPLY) {
+      SyncRequestVoteReply *pSyncMsg = syncRequestVoteReplyFromRpcMsg2(pMsg);
+      code = syncNodeOnRequestVoteReplyCb(pSyncNode, pSyncMsg);
+      syncRequestVoteReplyDestroy(pSyncMsg);
+    } else if (pMsg->msgType == TDMT_SYNC_APPEND_ENTRIES) {
+      SyncAppendEntries *pSyncMsg = syncAppendEntriesFromRpcMsg2(pMsg);
+      code = syncNodeOnAppendEntriesCb(pSyncNode, pSyncMsg);
+      syncAppendEntriesDestroy(pSyncMsg);
+    } else if (pMsg->msgType == TDMT_SYNC_APPEND_ENTRIES_REPLY) {
+      SyncAppendEntriesReply *pSyncMsg = syncAppendEntriesReplyFromRpcMsg2(pMsg);
+      code = syncNodeOnAppendEntriesReplyCb(pSyncNode, pSyncMsg);
+      syncAppendEntriesReplyDestroy(pSyncMsg);
+    } else {
+      mError("failed to process msg:%p since invalid type:%s", pMsg, TMSG_INFO(pMsg->msgType));
+      code = TAOS_SYNC_PROPOSE_OTHER_ERROR;
+    }
   }
 
   mndReleaseSyncRef(pMnode);
@@ -529,7 +615,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
     SMonDnodeDesc desc = {0};
     desc.dnode_id = pObj->id;
     tstrncpy(desc.dnode_ep, pObj->ep, sizeof(desc.dnode_ep));
-    if (mndIsDnodeOnline(pMnode, pObj, ms)) {
+    if (mndIsDnodeOnline(pObj, ms)) {
       tstrncpy(desc.status, "ready", sizeof(desc.status));
     } else {
       tstrncpy(desc.status, "offline", sizeof(desc.status));
@@ -625,7 +711,7 @@ int32_t mndAcquireRpcRef(SMnode *pMnode) {
     code = -1;
   } else {
     int32_t ref = atomic_add_fetch_32(&pMnode->rpcRef, 1);
-    mTrace("mnode rpc is acquired, ref:%d", ref);
+    // mTrace("mnode rpc is acquired, ref:%d", ref);
   }
   taosThreadRwlockUnlock(&pMnode->lock);
   return code;
@@ -634,7 +720,7 @@ int32_t mndAcquireRpcRef(SMnode *pMnode) {
 void mndReleaseRpcRef(SMnode *pMnode) {
   taosThreadRwlockRdlock(&pMnode->lock);
   int32_t ref = atomic_sub_fetch_32(&pMnode->rpcRef, 1);
-  mTrace("mnode rpc is released, ref:%d", ref);
+  // mTrace("mnode rpc is released, ref:%d", ref);
   taosThreadRwlockUnlock(&pMnode->lock);
 }
 
@@ -675,7 +761,7 @@ int32_t mndAcquireSyncRef(SMnode *pMnode) {
     code = -1;
   } else {
     int32_t ref = atomic_add_fetch_32(&pMnode->syncRef, 1);
-    mTrace("mnode sync is acquired, ref:%d", ref);
+    // mTrace("mnode sync is acquired, ref:%d", ref);
   }
   taosThreadRwlockUnlock(&pMnode->lock);
   return code;
@@ -684,6 +770,6 @@ int32_t mndAcquireSyncRef(SMnode *pMnode) {
 void mndReleaseSyncRef(SMnode *pMnode) {
   taosThreadRwlockRdlock(&pMnode->lock);
   int32_t ref = atomic_sub_fetch_32(&pMnode->syncRef, 1);
-  mTrace("mnode sync is released, ref:%d", ref);
+  // mTrace("mnode sync is released, ref:%d", ref);
   taosThreadRwlockUnlock(&pMnode->lock);
 }

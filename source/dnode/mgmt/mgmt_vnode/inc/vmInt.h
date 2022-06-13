@@ -34,6 +34,7 @@ typedef struct SVnodeMgmt {
   SQWorkerPool   fetchPool;
   SWWorkerPool   syncPool;
   SWWorkerPool   writePool;
+  SWWorkerPool   applyPool;
   SWWorkerPool   mergePool;
   SSingleWorker  mgmtWorker;
   SSingleWorker  monitorWorker;
@@ -52,10 +53,9 @@ typedef struct {
 
 typedef struct {
   int32_t     vgId;
-  int32_t     refCount;
   int32_t     vgVersion;
+  int32_t     refCount;
   int8_t      dropped;
-  int8_t      accessState;
   char       *path;
   SVnode     *pImpl;
   STaosQueue *pWriteQ;

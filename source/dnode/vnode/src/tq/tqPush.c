@@ -29,13 +29,13 @@ static int32_t tqLoopExecFromQueue(STQ* pTq, STqHandle* pHandle, SStreamDataSubm
     }
     // update processed
     atomic_store_64(&pHandle->pushHandle.processedVer, pSubmit->ver);
-    streamQSetSuccess(&pHandle->pushHandle.inputQ);
+    streamQueueProcessSuccess(&pHandle->pushHandle.inputQ);
     streamDataSubmitRefDec(pSubmit);
     if (pRsp->blockNum > 0) {
       *ppSubmit = pSubmit;
       return 0;
     } else {
-      pSubmit = streamQNextItem(&pHandle->pushHandle.inputQ);
+      pSubmit = streamQueueNextItem(&pHandle->pushHandle.inputQ);
     }
   }
   *ppSubmit = pSubmit;
@@ -52,14 +52,14 @@ int32_t tqExecFromInputQ(STQ* pTq, STqHandle* pHandle) {
     // 2. check processedVer
     // 2.1. if not missed, get msg from queue
     // 2.2. if missed, scan wal
-    pSubmit = streamQNextItem(&pHandle->pushHandle.inputQ);
+    pSubmit = streamQueueNextItem(&pHandle->pushHandle.inputQ);
     while (pHandle->pushHandle.processedVer <= pSubmit->ver) {
       // read from wal
     }
     while (pHandle->pushHandle.processedVer > pSubmit->ver + 1) {
-      streamQSetSuccess(&pHandle->pushHandle.inputQ);
+      streamQueueProcessSuccess(&pHandle->pushHandle.inputQ);
       streamDataSubmitRefDec(pSubmit);
-      pSubmit = streamQNextItem(&pHandle->pushHandle.inputQ);
+      pSubmit = streamQueueNextItem(&pHandle->pushHandle.inputQ);
       if (pSubmit == NULL) break;
     }
     // 3. exec, after each success, update processed ver
@@ -238,9 +238,6 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
   if (msgType == TDMT_VND_SUBMIT) {
     if (taosHashGetSize(pTq->pStreamTasks) == 0) return 0;
 
-    if (tdUpdateExpireWindow(pTq->pVnode->pSma, msg, ver) != 0) {
-      // TODO handle sma error
-    }
     void* data = taosMemoryMalloc(msgLen);
     if (data == NULL) {
       return -1;

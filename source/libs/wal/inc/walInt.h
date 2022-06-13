@@ -132,6 +132,7 @@ static inline void walResetVer(SWalVer* pVer) {
 
 int walLoadMeta(SWal* pWal);
 int walSaveMeta(SWal* pWal);
+int walRemoveMeta(SWal* pWal);
 int walRollFileInfo(SWal* pWal);
 
 int walCheckAndRepairMeta(SWal* pWal);

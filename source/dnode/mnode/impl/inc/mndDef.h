@@ -120,10 +120,10 @@ typedef struct {
   SArray*        commitActions;
   int64_t        createdTime;
   int64_t        lastExecTime;
-  int32_t        lastErrorAction;
+  int32_t        lastAction;
   int32_t        lastErrorNo;
-  tmsg_t         lastErrorMsgType;
-  SEpSet         lastErrorEpset;
+  tmsg_t         lastMsgType;
+  SEpSet         lastEpset;
   char           dbname[TSDB_DB_FNAME_LEN];
   int32_t        startFunc;
   int32_t        stopFunc;
@@ -298,28 +298,32 @@ typedef struct {
 } SVgObj;
 
 typedef struct {
-  char    name[TSDB_TABLE_FNAME_LEN];
-  char    stb[TSDB_TABLE_FNAME_LEN];
-  char    db[TSDB_DB_FNAME_LEN];
-  int64_t createdTime;
-  int64_t uid;
-  int64_t stbUid;
-  int64_t dbUid;
-  int8_t  intervalUnit;
-  int8_t  slidingUnit;
-  int8_t  timezone;
-  int32_t dstVgId;  // for stream
-  int64_t interval;
-  int64_t offset;
-  int64_t sliding;
-  int32_t exprLen;  // strlen + 1
-  int32_t tagsFilterLen;
-  int32_t sqlLen;
-  int32_t astLen;
-  char*   expr;
-  char*   tagsFilter;
-  char*   sql;
-  char*   ast;
+  char           name[TSDB_TABLE_FNAME_LEN];
+  char           stb[TSDB_TABLE_FNAME_LEN];
+  char           db[TSDB_DB_FNAME_LEN];
+  char           dstTbName[TSDB_TABLE_FNAME_LEN];
+  int64_t        createdTime;
+  int64_t        uid;
+  int64_t        stbUid;
+  int64_t        dbUid;
+  int64_t        dstTbUid;
+  int8_t         intervalUnit;
+  int8_t         slidingUnit;
+  int8_t         timezone;
+  int32_t        dstVgId;  // for stream
+  int64_t        interval;
+  int64_t        offset;
+  int64_t        sliding;
+  int32_t        exprLen;  // strlen + 1
+  int32_t        tagsFilterLen;
+  int32_t        sqlLen;
+  int32_t        astLen;
+  char*          expr;
+  char*          tagsFilter;
+  char*          sql;
+  char*          ast;
+  SSchemaWrapper schemaRow;  // for dstVgroup
+  SSchemaWrapper schemaTag;  // for dstVgroup
 } SSmaObj;
 
 typedef struct {
@@ -331,6 +335,7 @@ typedef struct {
   int64_t  dbUid;
   int32_t  tagVer;
   int32_t  colVer;
+  int32_t  smaVer;
   int32_t  nextColId;
   float    xFilesFactor;
   int32_t  delay;
@@ -481,6 +486,7 @@ typedef struct {
   int64_t   stbUid;
   SHashObj* consumerHash;   // consumerId -> SMqConsumerEp
   SArray*   unassignedVgs;  // SArray<SMqVgEp*>
+  char      dbName[TSDB_DB_FNAME_LEN];
 } SMqSubscribeObj;
 
 SMqSubscribeObj* tNewSubscribeObj(const char key[TSDB_SUBSCRIBE_KEY_LEN]);

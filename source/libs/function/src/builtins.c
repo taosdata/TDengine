@@ -177,13 +177,6 @@ static int32_t translatePercentile(SFunctionNode* pFunc, char* pErrBuf, int32_t 
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  // param0
-  SNode* pParamNode0 = nodesListGetNode(pFunc->pParameterList, 0);
-  if (nodeType(pParamNode0) != QUERY_NODE_COLUMN) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The first parameter of PERCENTILE function can only be column");
-  }
-
   // param1
   SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
 
@@ -216,13 +209,6 @@ static int32_t translateApercentile(SFunctionNode* pFunc, char* pErrBuf, int32_t
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   if (2 != numOfParams && 3 != numOfParams) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
-  }
-
-  // param0
-  SNode* pParamNode0 = nodesListGetNode(pFunc->pParameterList, 0);
-  if (nodeType(pParamNode0) != QUERY_NODE_COLUMN) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The first parameter of APERCENTILE function can only be column");
   }
 
   // param1
@@ -265,6 +251,74 @@ static int32_t translateApercentile(SFunctionNode* pFunc, char* pErrBuf, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateApercentileImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isPartial) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+
+  if (isPartial) {
+    if (2 != numOfParams && 3 != numOfParams) {
+      return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+    // param1
+    SNode* pParamNode1 = nodesListGetNode(pFunc->pParameterList, 1);
+    if (nodeType(pParamNode1) != QUERY_NODE_VALUE) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    SValueNode* pValue = (SValueNode*)pParamNode1;
+    if (pValue->datum.i < 0 || pValue->datum.i > 100) {
+      return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    pValue->notReserved = true;
+
+    uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+    uint8_t para2Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
+    if (!IS_NUMERIC_TYPE(para1Type) || !IS_INTEGER_TYPE(para2Type)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    // param2
+    if (3 == numOfParams) {
+      uint8_t para3Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 2))->resType.type;
+      if (!IS_VAR_DATA_TYPE(para3Type)) {
+        return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+      }
+
+      SNode* pParamNode2 = nodesListGetNode(pFunc->pParameterList, 2);
+      if (QUERY_NODE_VALUE != nodeType(pParamNode2) || !validateApercentileAlgo((SValueNode*)pParamNode2)) {
+        return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                               "Third parameter algorithm of apercentile must be 'default' or 't-digest'");
+      }
+
+      pValue = (SValueNode*)pParamNode2;
+      pValue->notReserved = true;
+    }
+
+    pFunc->node.resType =
+        (SDataType){.bytes = getApercentileMaxSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  } else {
+    if (1 != numOfParams) {
+      return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+    uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+    if (TSDB_DATA_TYPE_BINARY != para1Type) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateApercentilePartial(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateApercentileImpl(pFunc, pErrBuf, len, true);
+}
+
+static int32_t translateApercentileMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateApercentileImpl(pFunc, pErrBuf, len, false);
+}
+
 static int32_t translateTbnameColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // pseudo column do not need to check parameters
   pFunc->node.resType =
@@ -282,13 +336,6 @@ static int32_t translateTop(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   uint8_t para2Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
   if (!IS_NUMERIC_TYPE(para1Type) || !IS_INTEGER_TYPE(para2Type)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
-  }
-
-  // param0
-  SNode* pParamNode0 = nodesListGetNode(pFunc->pParameterList, 0);
-  if (nodeType(pParamNode0) != QUERY_NODE_COLUMN) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The first parameter of TOP/BOTTOM function can only be column");
   }
 
   // param1
@@ -332,17 +379,39 @@ static int32_t translateSpread(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateSpreadImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isPartial) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  if (isPartial) {
+    if (!IS_NUMERIC_TYPE(paraType) && TSDB_DATA_TYPE_TIMESTAMP != paraType) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+    pFunc->node.resType = (SDataType){.bytes = getSpreadInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  } else {
+    if (TSDB_DATA_TYPE_BINARY != paraType) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+    pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateSpreadPartial(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateSpreadImpl(pFunc, pErrBuf, len, true);
+}
+
+static int32_t translateSpreadMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateSpreadImpl(pFunc, pErrBuf, len, false);
+}
+
 static int32_t translateElapsed(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   if (1 != numOfParams && 2 != numOfParams) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
-  }
-
-  // param0
-  SNode* pParaNode0 = nodesListGetNode(pFunc->pParameterList, 0);
-  if (QUERY_NODE_COLUMN != nodeType(pParaNode0)) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The first parameter of ELAPSED function can only be column");
   }
 
   uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
@@ -374,6 +443,65 @@ static int32_t translateElapsed(SFunctionNode* pFunc, char* pErrBuf, int32_t len
 
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateElapsedImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isPartial) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+
+  if (isPartial) {
+    if (1 != numOfParams && 2 != numOfParams) {
+      return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+    if (TSDB_DATA_TYPE_TIMESTAMP != paraType) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    // param1
+    if (2 == numOfParams) {
+      SNode* pParamNode1 = nodesListGetNode(pFunc->pParameterList, 1);
+      if (QUERY_NODE_VALUE != nodeType(pParamNode1)) {
+        return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+      }
+
+      SValueNode* pValue = (SValueNode*)pParamNode1;
+
+      pValue->notReserved = true;
+
+      paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
+      if (!IS_INTEGER_TYPE(paraType)) {
+        return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+      }
+
+      if (pValue->datum.i == 0) {
+        return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                               "ELAPSED function time unit parameter should be greater than db precision");
+      }
+    }
+
+    pFunc->node.resType =
+        (SDataType){.bytes = getElapsedInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  } else {
+    if (1 != numOfParams) {
+      return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+    if (TSDB_DATA_TYPE_BINARY != paraType) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+    pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateElapsedPartial(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateElapsedImpl(pFunc, pErrBuf, len, true);
+}
+
+static int32_t translateElapsedMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateElapsedImpl(pFunc, pErrBuf, len, false);
 }
 
 static int32_t translateLeastSQR(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
@@ -410,13 +538,6 @@ static int32_t translateHistogram(SFunctionNode* pFunc, char* pErrBuf, int32_t l
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  // param0
-  SNode* pParaNode0 = nodesListGetNode(pFunc->pParameterList, 0);
-  if (QUERY_NODE_COLUMN != nodeType(pParaNode0)) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The first parameter of HISTOGRAM function can only be column");
-  }
-
   uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
   if (!IS_NUMERIC_TYPE(colType)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
@@ -444,19 +565,90 @@ static int32_t translateHistogram(SFunctionNode* pFunc, char* pErrBuf, int32_t l
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateHistogramImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isPartial) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  if (isPartial) {
+    if (4 != numOfParams) {
+      return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+    if (!IS_NUMERIC_TYPE(colType)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    // param1 ~ param3
+    for (int32_t i = 1; i < numOfParams; ++i) {
+      SNode* pParamNode = nodesListGetNode(pFunc->pParameterList, i);
+      if (QUERY_NODE_VALUE != nodeType(pParamNode)) {
+        return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+      }
+
+      SValueNode* pValue = (SValueNode*)pParamNode;
+
+      pValue->notReserved = true;
+    }
+
+    if (((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type != TSDB_DATA_TYPE_BINARY ||
+        ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 2))->resType.type != TSDB_DATA_TYPE_BINARY ||
+        ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 3))->resType.type != TSDB_DATA_TYPE_BIGINT) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    pFunc->node.resType =
+        (SDataType){.bytes = getHistogramInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  } else {
+    if (1 != numOfParams) {
+      return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    if (((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type != TSDB_DATA_TYPE_BINARY) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    pFunc->node.resType = (SDataType){.bytes = 512, .type = TSDB_DATA_TYPE_BINARY};
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateHistogramPartial(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateHistogramImpl(pFunc, pErrBuf, len, true);
+}
+
+static int32_t translateHistogramMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateHistogramImpl(pFunc, pErrBuf, len, false);
+}
+
 static int32_t translateHLL(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (1 != LIST_LENGTH(pFunc->pParameterList)) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
-  if (QUERY_NODE_COLUMN != nodeType(pPara)) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The input parameter of HYPERLOGLOG function can only be column");
-  }
-
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateHLLImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isPartial) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  if (isPartial) {
+    pFunc->node.resType =
+        (SDataType){.bytes = getHistogramInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  } else {
+    pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateHLLPartial(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateHLLImpl(pFunc, pErrBuf, len, true);
+}
+
+static int32_t translateHLLMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateHLLImpl(pFunc, pErrBuf, len, false);
 }
 
 static bool validateStateOper(const SValueNode* pVal) {
@@ -474,12 +666,6 @@ static int32_t translateStateCount(SFunctionNode* pFunc, char* pErrBuf, int32_t 
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  // param0
-  SNode* pParaNode0 = nodesListGetNode(pFunc->pParameterList, 0);
-  if (QUERY_NODE_COLUMN != nodeType(pParaNode0)) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The input parameter of STATECOUNT function can only be column");
-  }
   uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
   if (!IS_NUMERIC_TYPE(colType)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
@@ -520,12 +706,6 @@ static int32_t translateStateDuration(SFunctionNode* pFunc, char* pErrBuf, int32
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  // param0
-  SNode* pParaNode0 = nodesListGetNode(pFunc->pParameterList, 0);
-  if (QUERY_NODE_COLUMN != nodeType(pParaNode0)) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The input parameter of STATEDURATION function can only be column");
-  }
   uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
   if (!IS_NUMERIC_TYPE(colType)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
@@ -573,12 +753,6 @@ static int32_t translateCsum(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
-  if (QUERY_NODE_COLUMN != nodeType(pPara)) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The input parameter of CSUM function can only be column");
-  }
-
   uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
   uint8_t resType;
   if (!IS_NUMERIC_TYPE(colType)) {
@@ -602,13 +776,6 @@ static int32_t translateCsum(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
 static int32_t translateMavg(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (2 != LIST_LENGTH(pFunc->pParameterList)) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
-  }
-
-  // param0
-  SNode* pParaNode0 = nodesListGetNode(pFunc->pParameterList, 0);
-  if (QUERY_NODE_COLUMN != nodeType(pParaNode0)) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The first parameter of MAVG function can only be column");
   }
 
   uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
@@ -638,13 +805,6 @@ static int32_t translateMavg(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
 static int32_t translateSample(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (2 != LIST_LENGTH(pFunc->pParameterList)) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
-  }
-
-  // param0
-  SNode* pParamNode0 = nodesListGetNode(pFunc->pParameterList, 0);
-  if (QUERY_NODE_COLUMN != nodeType(pParamNode0)) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The first parameter of SAMPLE function can only be column");
   }
 
   SExprNode* pCol = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 0);
@@ -684,12 +844,6 @@ static int32_t translateTail(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  // param0
-  SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
-  if (QUERY_NODE_COLUMN != nodeType(pPara)) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The first parameter of TAIL function can only be column");
-  }
   SExprNode* pCol = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 0);
   uint8_t    colType = pCol->resType.type;
 
@@ -764,13 +918,6 @@ static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   if (numOfParams == 0 || numOfParams > 2) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
-  }
-
-  // param0
-  SNode* pParamNode0 = nodesListGetNode(pFunc->pParameterList, 0);
-  if (nodeType(pParamNode0) != QUERY_NODE_COLUMN) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The first parameter of DIFF function can only be column");
   }
 
   uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
@@ -960,6 +1107,22 @@ static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
  *
  */
 
+static bool validateHourRange(int8_t hour) {
+  if (hour < 0 || hour > 12) {
+    return false;
+  }
+
+  return true;
+}
+
+static bool validateMinuteRange(int8_t hour, int8_t minute, char sign) {
+  if (minute == 0 || (minute == 30 && (hour == 3 || hour == 5) && sign == '+')) {
+    return true;
+  }
+
+  return false;
+}
+
 static bool validateTimezoneFormat(const SValueNode* pVal) {
   if (TSDB_DATA_TYPE_BINARY != pVal->node.resType.type) {
     return false;
@@ -968,6 +1131,8 @@ static bool validateTimezoneFormat(const SValueNode* pVal) {
   char*   tz = varDataVal(pVal->datum.p);
   int32_t len = varDataLen(pVal->datum.p);
 
+  char   buf[3] = {0};
+  int8_t hour = -1, minute = -1;
   if (len == 0) {
     return false;
   } else if (len == 1 && (tz[0] == 'z' || tz[0] == 'Z')) {
@@ -980,6 +1145,20 @@ static bool validateTimezoneFormat(const SValueNode* pVal) {
           if (!isdigit(tz[i])) {
             return false;
           }
+
+          if (i == 2) {
+            memcpy(buf, &tz[i - 1], 2);
+            hour = taosStr2Int8(buf, NULL, 10);
+            if (!validateHourRange(hour)) {
+              return false;
+            }
+          } else if (i == 4) {
+            memcpy(buf, &tz[i - 1], 2);
+            minute = taosStr2Int8(buf, NULL, 10);
+            if (!validateMinuteRange(hour, minute, tz[0])) {
+              return false;
+            }
+          }
         }
         break;
       }
@@ -991,8 +1170,23 @@ static bool validateTimezoneFormat(const SValueNode* pVal) {
             }
             continue;
           }
+
           if (!isdigit(tz[i])) {
             return false;
+          }
+
+          if (i == 2) {
+            memcpy(buf, &tz[i - 1], 2);
+            hour = taosStr2Int8(buf, NULL, 10);
+            if (!validateHourRange(hour)) {
+              return false;
+            }
+          } else if (i == 5) {
+            memcpy(buf, &tz[i - 1], 2);
+            minute = taosStr2Int8(buf, NULL, 10);
+            if (!validateMinuteRange(hour, minute, tz[0])) {
+              return false;
+            }
           }
         }
         break;
@@ -1129,6 +1323,16 @@ static int32_t translateSelectValue(SFunctionNode* pFunc, char* pErrBuf, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateBlockDistFunc(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  pFunc->node.resType = (SDataType){.bytes = 128, .type = TSDB_DATA_TYPE_VARCHAR};
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool getBlockDistFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(STableBlockDistInfo);
+  return true;
+}
+
 // clang-format off
 const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
@@ -1142,9 +1346,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = countFunction,
     .finalizeFunc = functionFinalize,
     .invertFunc   = countInvertFunction,
-    .combineFunc = combineFunction,
-    // .pPartialFunc = "count",
-    // .pMergeFunc   = "sum"
+    .combineFunc  = combineFunction,
+    .pPartialFunc = "count",
+    .pMergeFunc   = "sum"
   },
   {
     .name = "sum",
@@ -1157,7 +1361,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = sumFunction,
     .finalizeFunc = functionFinalize,
     .invertFunc   = sumInvertFunction,
-    .combineFunc = sumCombine,
+    .combineFunc  = sumCombine,
+    .pPartialFunc = "sum",
+    .pMergeFunc   = "sum"
   },
   {
     .name = "min",
@@ -1169,7 +1375,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = minmaxFunctionSetup,
     .processFunc  = minFunction,
     .finalizeFunc = minmaxFunctionFinalize,
-    .combineFunc = minCombine
+    .combineFunc  = minCombine,
+    .pPartialFunc = "min",
+    .pMergeFunc   = "min"
   },
   {
     .name = "max",
@@ -1181,7 +1389,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = minmaxFunctionSetup,
     .processFunc  = maxFunction,
     .finalizeFunc = minmaxFunctionFinalize,
-    .combineFunc = maxCombine
+    .combineFunc  = maxCombine,
+    .pPartialFunc = "max",
+    .pMergeFunc   = "max"
   },
   {
     .name = "stddev",
@@ -1204,7 +1414,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = leastSQRFunctionSetup,
     .processFunc  = leastSQRFunction,
     .finalizeFunc = leastSQRFinalize,
-    .invertFunc   = leastSQRInvertFunction,
+    .invertFunc   = NULL,
+    .combineFunc  = leastSQRCombine,
   },
   {
     .name = "avg",
@@ -1226,7 +1437,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getPercentileFuncEnv,
     .initFunc     = percentileFunctionSetup,
     .processFunc  = percentileFunction,
-    .finalizeFunc = percentileFinalize
+    .finalizeFunc = percentileFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = NULL,
   },
   {
     .name = "apercentile",
@@ -1236,7 +1449,35 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getApercentileFuncEnv,
     .initFunc     = apercentileFunctionSetup,
     .processFunc  = apercentileFunction,
-    .finalizeFunc = apercentileFinalize
+    .finalizeFunc = apercentileFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = apercentileCombine,
+    .pPartialFunc = "_apercentile_partial",
+    .pMergeFunc   = "_apercentile_merge"
+  },
+  {
+    .name = "_apercentile_partial",
+    .type = FUNCTION_TYPE_APERCENTILE_PARTIAL,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateApercentilePartial,
+    .getEnvFunc   = getApercentileFuncEnv,
+    .initFunc     = apercentileFunctionSetup,
+    .processFunc  = apercentileFunction,
+    .finalizeFunc = apercentilePartialFinalize,
+    .invertFunc   = NULL,
+    .combineFunc = apercentileCombine,
+  },
+  {
+    .name = "_apercentile_merge",
+    .type = FUNCTION_TYPE_APERCENTILE_MERGE,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateApercentileMerge,
+    .getEnvFunc   = getApercentileFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = apercentileFunctionMerge,
+    .finalizeFunc = apercentileFinalize,
+    .invertFunc   = NULL,
+    .combineFunc = apercentileCombine,
   },
   {
     .name = "top",
@@ -1247,6 +1488,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = functionSetup,
     .processFunc  = topFunction,
     .finalizeFunc = topBotFinalize,
+    .combineFunc  = topCombine,
   },
   {
     .name = "bottom",
@@ -1256,7 +1498,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getTopBotFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = bottomFunction,
-    .finalizeFunc = topBotFinalize
+    .finalizeFunc = topBotFinalize,
+    .combineFunc  = bottomCombine,
   },
   {
     .name = "spread",
@@ -1267,7 +1510,37 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getSpreadFuncEnv,
     .initFunc     = spreadFunctionSetup,
     .processFunc  = spreadFunction,
-    .finalizeFunc = spreadFinalize
+    .finalizeFunc = spreadFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = spreadCombine,
+    .pPartialFunc = "_spread_partial",
+    .pMergeFunc   = "_spread_merge"
+  },
+  {
+    .name = "_spread_partial",
+    .type = FUNCTION_TYPE_SPREAD_PARTIAL,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateSpreadPartial,
+    .dataRequiredFunc = statisDataRequired,
+    .getEnvFunc   = getSpreadFuncEnv,
+    .initFunc     = spreadFunctionSetup,
+    .processFunc  = spreadFunction,
+    .finalizeFunc = spreadPartialFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = spreadCombine,
+  },
+  {
+    .name = "_spread_merge",
+    .type = FUNCTION_TYPE_SPREAD_MERGE,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateSpreadMerge,
+    .dataRequiredFunc = statisDataRequired,
+    .getEnvFunc   = getSpreadFuncEnv,
+    .initFunc     = spreadFunctionSetup,
+    .processFunc  = spreadFunctionMerge,
+    .finalizeFunc = spreadFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = spreadCombine,
   },
   {
     .name = "elapsed",
@@ -1278,7 +1551,37 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getElapsedFuncEnv,
     .initFunc     = elapsedFunctionSetup,
     .processFunc  = elapsedFunction,
-    .finalizeFunc = elapsedFinalize
+    .finalizeFunc = elapsedFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = elapsedCombine,
+    .pPartialFunc = "_elapsed_partial",
+    .pMergeFunc   = "_elapsed_merge"
+  },
+  {
+    .name = "_elapsed_partial",
+    .type = FUNCTION_TYPE_ELAPSED,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .dataRequiredFunc = statisDataRequired,
+    .translateFunc = translateElapsedPartial,
+    .getEnvFunc   = getElapsedFuncEnv,
+    .initFunc     = elapsedFunctionSetup,
+    .processFunc  = elapsedFunction,
+    .finalizeFunc = elapsedPartialFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = elapsedCombine,
+  },
+  {
+    .name = "_elapsed_merge",
+    .type = FUNCTION_TYPE_ELAPSED,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .dataRequiredFunc = statisDataRequired,
+    .translateFunc = translateElapsedMerge,
+    .getEnvFunc   = getElapsedFuncEnv,
+    .initFunc     = elapsedFunctionSetup,
+    .processFunc  = elapsedFunctionMerge,
+    .finalizeFunc = elapsedFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = elapsedCombine,
   },
   {
     .name = "last_row",
@@ -1299,7 +1602,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = functionSetup,
     .processFunc  = firstFunction,
     .finalizeFunc = firstLastFinalize,
-    .combineFunc = firstCombine,
+    .combineFunc  = firstCombine,
   },
   {
     .name = "last",
@@ -1325,12 +1628,40 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "histogram",
     .type = FUNCTION_TYPE_HISTOGRAM,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_FORBID_FILL_FUNC,
     .translateFunc = translateHistogram,
     .getEnvFunc   = getHistogramFuncEnv,
     .initFunc     = histogramFunctionSetup,
     .processFunc  = histogramFunction,
-    .finalizeFunc = histogramFinalize
+    .finalizeFunc = histogramFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = histogramCombine,
+    .pPartialFunc = "_histogram_partial",
+    .pMergeFunc   = "_histogram_merge",
+  },
+  {
+    .name = "_histogram_partial",
+    .type = FUNCTION_TYPE_HISTOGRAM_PARTIAL,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateHistogramPartial,
+    .getEnvFunc   = getHistogramFuncEnv,
+    .initFunc     = histogramFunctionSetup,
+    .processFunc  = histogramFunction,
+    .finalizeFunc = histogramPartialFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = histogramCombine,
+  },
+  {
+    .name = "_histogram_merge",
+    .type = FUNCTION_TYPE_HISTOGRAM_MERGE,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateHistogramMerge,
+    .getEnvFunc   = getHistogramFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = histogramFunctionMerge,
+    .finalizeFunc = histogramFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = histogramCombine,
   },
   {
     .name = "hyperloglog",
@@ -1340,7 +1671,35 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getHLLFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = hllFunction,
-    .finalizeFunc = hllFinalize
+    .finalizeFunc = hllFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = hllCombine,
+    .pPartialFunc = "_hyperloglog_partial",
+    .pMergeFunc   = "_hyperloglog_merge"
+  },
+  {
+    .name = "_hyperloglog_partial",
+    .type = FUNCTION_TYPE_HYPERLOGLOG_PARTIAL,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateHLLPartial,
+    .getEnvFunc   = getHLLFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = hllFunction,
+    .finalizeFunc = hllPartialFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = hllCombine,
+  },
+  {
+    .name = "_hyperloglog_merge",
+    .type = FUNCTION_TYPE_HYPERLOGLOG_MERGE,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateHLLMerge,
+    .getEnvFunc   = getHLLFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = hllFunctionMerge,
+    .finalizeFunc = hllFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = hllCombine,
   },
   {
     .name = "diff",
@@ -1395,12 +1754,12 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "sample",
     .type = FUNCTION_TYPE_SAMPLE,
-    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC,
     .translateFunc = translateSample,
     .getEnvFunc   = getSampleFuncEnv,
     .initFunc     = sampleFunctionSetup,
     .processFunc  = sampleFunction,
-    .finalizeFunc = NULL
+    .finalizeFunc = sampleFinalize
   },
   {
     .name = "tail",
@@ -1801,6 +2160,15 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = functionSetup,
     .processFunc  = NULL,
     .finalizeFunc = NULL
+  },
+  {
+    .name = "_block_dist",
+    .type = FUNCTION_TYPE_BLOCK_DIST,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateBlockDistFunc,
+    .getEnvFunc   = getBlockDistFuncEnv,
+    .processFunc  = blockDistFunction,
+    .finalizeFunc = blockDistFinalize
   }
 };
 // clang-format on

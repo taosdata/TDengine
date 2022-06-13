@@ -20,6 +20,7 @@ import time
 import base64
 import json
 import platform
+import socket
 from distutils.log import warn as printf
 from fabric2 import Connection
 sys.path.append("../pytest")
@@ -114,6 +115,7 @@ if __name__ == "__main__":
 
     if not execCmd == "":
         tdDnodes.init(deployPath)
+        print(execCmd)
         exec(execCmd)
         quit()
 
@@ -148,7 +150,7 @@ if __name__ == "__main__":
         tdLog.info('stop All dnodes')
     
     if masterIp == "":
-        host = '127.0.0.1'
+        host = socket.gethostname()
     else:
         try:
             config = eval(masterIp)
@@ -167,10 +169,10 @@ if __name__ == "__main__":
         key_word = 'tdCases.addWindows'
         is_test_framework = 0
         try:
-            if key_word in open(fileName).read():
+            if key_word in open(fileName, encoding='UTF-8').read():
                 is_test_framework = 1
-        except:
-            pass
+        except Exception as r:
+            print(r)
         updateCfgDictStr = ''
         if is_test_framework:
             moduleName = fileName.replace(".py", "").replace(os.sep, ".")
@@ -180,8 +182,8 @@ if __name__ == "__main__":
                 if ((json.dumps(updateCfgDict) == '{}') and (ucase.updatecfgDict is not None)):
                     updateCfgDict = ucase.updatecfgDict
                     updateCfgDictStr = "-d %s"%base64.b64encode(json.dumps(updateCfgDict).encode()).decode()
-            except :
-                pass
+            except Exception as r:
+                print(r)
         else:
             pass
         tdDnodes.deploy(1,updateCfgDict)

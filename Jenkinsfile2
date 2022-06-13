@@ -4,8 +4,10 @@ import jenkins.model.CauseOfInterruption
 node {
 }
 
-def skipbuild=0
-def win_stop=0
+win_test_stage = 0
+linux_ready = 0
+linux_node_ip = ""
+linux_node_pass = ""
 
 def abortPreviousBuilds() {
     def currentJobName = env.JOB_NAME
@@ -227,6 +229,16 @@ def pre_test_win(){
         cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\community
         git submodule update --init --recursive
     '''
+    bat '''
+        cd C:\\workspace\\%EXECUTOR_NUMBER%\\taos-connector-python
+        git branch
+        git reset --hard
+        git pull
+    '''
+    bat '''
+        cd C:\\workspace\\%EXECUTOR_NUMBER%\\taos-connector-python
+        git log -5
+    '''
 }
 def pre_test_build_win() {
     bat '''
@@ -246,7 +258,37 @@ def pre_test_build_win() {
         jom -j 6 || exit 8
         time /t
     '''
+    bat '''
+        cd C:\\workspace\\%EXECUTOR_NUMBER%\\taos-connector-python
+        python -m pip install .
+        xcopy /e/y/i/f C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
+    '''
     return 1
+}
+def run_win_ctest() {
+    bat '''
+        echo "windows ctest ..."
+        time /t
+        cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\debug
+        ctest -j 1 || exit 7
+        time /t
+    '''
+}
+def run_win_test() {
+    echo "LINUX NODE: ${linux_node_ip} - ${linux_node_pass}"
+    bat '''
+        echo "windows test ..."
+        cd C:\\workspace\\%EXECUTOR_NUMBER%\\taos-connector-python
+        python -m pip install .
+        xcopy /e/y/i/f C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
+        ls -l C:\\Windows\\System32\\taos.dll
+        time /t
+        cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\community\\tests\\system-test
+        echo "node: ''' + linux_node_ip + ''':''' + linux_node_pass + '''"
+        echo "testing ..."
+        test-all.bat  "{\\\"host\\\":\\\"''' + linux_node_ip + '''\\\",\\\"port\\\":22,\\\"user\\\":\\\"root\\\",\\\"password\\\":\\\"''' + linux_node_pass + '''\\\",\\\"path\\\":\\\"/var/lib/jenkins/workspace/TDinternal\\\"}"
+        time /t
+    '''
 }
 
 pipeline {
@@ -264,8 +306,22 @@ pipeline {
                 stage('windows test') {
                     agent{label " windows10_01 || windows10_02 || windows10_03 || windows10_04 "}
                     steps {
-                        pre_test_win()
-                        pre_test_build_win()
+                        catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                            timeout(time: 55, unit: 'MINUTES'){
+                                pre_test_win()
+                                pre_test_build_win()
+                                run_win_ctest()
+                                script {
+                                    while(linux_ready == 0) {
+                                        sleep(8)
+                                    }
+                                }
+                                run_win_test()
+                            }
+                        }
+                        script {
+                            win_test_stage = 1
+                        }
                     }
                 }
                 stage('linux test') {
@@ -275,22 +331,78 @@ pipeline {
                         changeRequest()
                     }
                     steps {
-                        timeout(time: 40, unit: 'MINUTES'){
-                            pre_test()
-                            script {
-                                sh '''
-                                    cd ${WKC}/tests/parallel_test
-                                    date
-                                    time ./container_build.sh -w ${WKDIR} -t 8 -e
-                                    rm -f /tmp/cases.task
-                                    ./collect_cases.sh -e
-                                '''
-                                sh '''
-                                    cd ${WKC}/tests/parallel_test
-                                    export DEFAULT_RETRY_TIME=2
-                                    date
-                                    timeout 2100 time ./run.sh -e -m /home/m.json -t /tmp/cases.task -b ${BRANCH_NAME}_${BUILD_ID} -l ${WKDIR}/log -o 480
-                                '''
+                        script {
+                            linux_node_ip = sh (
+                                script: 'jq .ip /home/node_info.json | sed "s/\\\"//g"',
+                                returnStdout: true
+                            ).trim()
+                            linux_node_pass = sh (
+                                script: 'jq .password /home/node_info.json | sed "s/\\\"//g" |sed "s/\\!/^^^^^^^^\\!/g"',
+                                returnStdout: true
+                            ).trim()
+                            echo "${linux_node_ip}:${linux_node_pass}"
+                        }
+                        catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                            timeout(time: 40, unit: 'MINUTES'){
+                                pre_test()
+                                script {
+                                    sh '''
+                                        date
+                                        rm -rf ${WKC}/debug
+                                        cd ${WKC}/tests/parallel_test
+                                        time ./container_build.sh -w ${WKDIR} -t 8 -e
+                                        rm -f /tmp/cases.task
+                                        ./collect_cases.sh -e
+                                    '''
+                                    sh '''
+                                        cd ${WKC}/tests/parallel_test
+                                        export DEFAULT_RETRY_TIME=2
+                                        date
+                                        timeout 2100 time ./run.sh -e -m /home/m.json -t /tmp/cases.task -b ${BRANCH_NAME}_${BUILD_ID} -l ${WKDIR}/log -o 480
+                                    '''
+                                }
+                            }
+                        }
+                        catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                            timeout(time: 15, unit: 'MINUTES'){
+                                script {
+                                    sh '''
+                                        echo "packaging ..."
+                                        date
+                                        rm -rf ${WKC}/release/*
+                                        cd ${WKC}/packaging
+                                        ./release.sh -v cluster -n 3.0.0.100 -s static
+                                    '''
+                                    sh '''
+                                        echo "install ..."
+                                        cd ${WKC}/release
+                                        tar xzf TDengine-enterprise-server-3.0.0.100-Linux-x64.tar.gz
+                                        cd TDengine-enterprise-server-3.0.0.100
+                                        service taosd stop || :
+                                        rm -rf /var/lib/taos
+                                        ./install.sh -e no
+                                    '''
+                                    sh '''
+                                        echo "checking ..."
+                                        which taos
+                                        which taosd
+                                        rm -rf ${WK}/debug
+                                        mv ${WKC}/debug ${WK}/
+                                    '''
+                                    sh '''
+                                        echo "install taospy ..."
+                                        cd ${WKPY}
+                                        pip3 install .
+                                    '''
+                                }
+                            }
+                        }
+                        script {
+                            linux_ready = 1
+                        }
+                        script {
+                            while(win_test_stage == 0){
+                                sleep(12)
                             }
                         }
                     }

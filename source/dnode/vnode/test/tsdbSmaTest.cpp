@@ -373,7 +373,7 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
   pTsdb->pTfs = tfsOpen(&pDisks, numOfDisks);
   EXPECT_NE(pTsdb->pTfs, nullptr);
 
-  // generate SSubmitReq msg and update expired window
+  // generate SSubmitReq msg and update expire window
   int16_t  schemaVer = 0;
   uint32_t mockRowLen = sizeof(STSRow);
   uint32_t mockRowNum = 2;

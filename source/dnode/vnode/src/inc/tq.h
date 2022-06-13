@@ -58,7 +58,7 @@ struct STqReadHandle {
   SArray*   pColIdList;  // SArray<int16_t>
 
   int32_t         cachedSchemaVer;
-  int64_t         cachedSchemaUid;
+  int64_t         cachedSchemaSuid;
   SSchemaWrapper* pSchemaWrapper;
   STSchema*       pSchema;
 };
@@ -78,10 +78,10 @@ typedef struct {
   tmr_h          timerId;
   int8_t         tmrStopped;
   // exec
-  int8_t   inputStatus;
-  int8_t   execStatus;
-  SStreamQ inputQ;
-  SRWLatch lock;
+  int8_t       inputStatus;
+  int8_t       execStatus;
+  SStreamQueue inputQ;
+  SRWLatch     lock;
 } STqPushHandle;
 
 // tqExec
@@ -107,7 +107,7 @@ typedef struct {
     STqExecCol execCol;
     STqExecTb  execTb;
     STqExecDb  execDb;
-  } exec;
+  };
 } STqExecHandle;
 
 typedef struct {

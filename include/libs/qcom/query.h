@@ -139,12 +139,19 @@ typedef struct SDataBuf {
 
 typedef struct STargetInfo {
   ETargetType type;
-  char        dbFName[TSDB_DB_FNAME_LEN]; // used to update db's vgroup epset
+  char*       dbFName; // used to update db's vgroup epset
   int32_t     vgId;
 } STargetInfo;
 
 typedef int32_t (*__async_send_cb_fn_t)(void* param, const SDataBuf* pMsg, int32_t code);
 typedef int32_t (*__async_exec_fn_t)(void* param);
+
+typedef struct SRequestConnInfo {
+  void*     pTrans;
+  uint64_t  requestId;
+  int64_t   requestObjRefId;
+  SEpSet    mgmtEps;
+} SRequestConnInfo;
 
 typedef struct SMsgSendInfo {
   __async_send_cb_fn_t fp;  // async callback function
@@ -210,8 +217,8 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t 
 #define NEED_CLIENT_RM_TBLMETA_ERROR(_code)                                                   \
   ((_code) == TSDB_CODE_PAR_TABLE_NOT_EXIST || (_code) == TSDB_CODE_VND_TB_NOT_EXIST ||       \
    (_code) == TSDB_CODE_PAR_INVALID_COLUMNS_NUM || (_code) == TSDB_CODE_PAR_INVALID_COLUMN || \
-   (_code) == TSDB_CODE_PAR_TAGS_NOT_MATCHED || (_code == TSDB_CODE_PAR_VALUE_TOO_LONG) || \
-   (_code == TSDB_CODE_PAR_INVALID_DROP_COL))
+   (_code) == TSDB_CODE_PAR_TAGS_NOT_MATCHED || (_code) == TSDB_CODE_PAR_VALUE_TOO_LONG || \
+   (_code) == TSDB_CODE_PAR_INVALID_DROP_COL || ((_code) == TSDB_CODE_TDB_INVALID_TABLE_ID))
 #define NEED_CLIENT_REFRESH_VG_ERROR(_code) \
   ((_code) == TSDB_CODE_VND_HASH_MISMATCH || (_code) == TSDB_CODE_VND_INVALID_VGROUP_ID)
 #define NEED_CLIENT_REFRESH_TBLMETA_ERROR(_code) ((_code) == TSDB_CODE_TDB_TABLE_RECREATED)
@@ -222,9 +229,9 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t 
   || (_type) == TDMT_VND_DROP_TABLE || (_type) == TDMT_VND_DROP_STB)
 
 #define NEED_SCHEDULER_RETRY_ERROR(_code) \
-  ((_code) == TSDB_CODE_RPC_REDIRECT || (_code) == TSDB_CODE_RPC_NETWORK_UNAVAIL)
+  ((_code) == TSDB_CODE_RPC_REDIRECT || (_code) == TSDB_CODE_RPC_NETWORK_UNAVAIL || (_code) == TSDB_CODE_SCH_TIMEOUT_ERROR)
 
-#define REQUEST_MAX_TRY_TIMES 1
+#define REQUEST_TOTAL_EXEC_TIMES 2
 
 #define qFatal(...)                                                                           \
   do {                                                                                        \

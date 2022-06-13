@@ -86,10 +86,14 @@ tb_uid_t metaGetTableEntryUidByName(SMeta *pMeta, const char *name) {
   int      nData = 0;
   tb_uid_t uid = 0;
 
+  metaRLock(pMeta);
+
   if (tdbTbGet(pMeta->pNameIdx, name, strlen(name) + 1, &pData, &nData) == 0) {
     uid = *(tb_uid_t *)pData;
     tdbFree(pData);
   }
+
+  metaULock(pMeta);
 
   return 0;
 }
@@ -163,37 +167,47 @@ SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, boo
   SDecoder        dc = {0};
 
   metaRLock(pMeta);
-  if (sver < 0) {
-    if (tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pData, &nData) < 0) {
-      goto _err;
-    }
-
-    version = *(int64_t *)pData;
-
-    tdbTbGet(pMeta->pTbDb, &(STbDbKey){.uid = uid, .version = version}, sizeof(STbDbKey), &pData, &nData);
-
-    SMetaEntry me = {0};
-    tDecoderInit(&dc, pData, nData);
-    metaDecodeEntry(&dc, &me);
-    if (me.type == TSDB_SUPER_TABLE) {
-      pSchema = tCloneSSchemaWrapper(&me.stbEntry.schemaRow);
-    } else if (me.type == TSDB_NORMAL_TABLE) {
-      pSchema = tCloneSSchemaWrapper(&me.ntbEntry.schemaRow);
-    } else {
-      ASSERT(0);
-    }
-    tDecoderClear(&dc);
-  } else {
-    if (tdbTbGet(pMeta->pSkmDb, &(SSkmDbKey){.uid = uid, .sver = sver}, sizeof(SSkmDbKey), &pData, &nData) < 0) {
-      goto _err;
-    }
-
-    tDecoderInit(&dc, pData, nData);
-    tDecodeSSchemaWrapper(&dc, &schema);
-    pSchema = tCloneSSchemaWrapper(&schema);
-    tDecoderClear(&dc);
+_query:
+  if (tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pData, &nData) < 0) {
+    goto _err;
   }
 
+  version = *(int64_t *)pData;
+
+  tdbTbGet(pMeta->pTbDb, &(STbDbKey){.uid = uid, .version = version}, sizeof(STbDbKey), &pData, &nData);
+  SMetaEntry me = {0};
+  tDecoderInit(&dc, pData, nData);
+  metaDecodeEntry(&dc, &me);
+  if (me.type == TSDB_SUPER_TABLE) {
+    if (sver == -1 || sver == me.stbEntry.schemaRow.version) {
+      pSchema = tCloneSSchemaWrapper(&me.stbEntry.schemaRow);
+      tDecoderClear(&dc);
+      goto _exit;
+    }
+  } else if (me.type == TSDB_CHILD_TABLE) {
+    uid = me.ctbEntry.suid;
+    tDecoderClear(&dc);
+    goto _query;
+  } else {
+    if (sver == -1 || sver == me.ntbEntry.schemaRow.version) {
+      pSchema = tCloneSSchemaWrapper(&me.ntbEntry.schemaRow);
+      tDecoderClear(&dc);
+      goto _exit;
+    }
+  }
+  tDecoderClear(&dc);
+
+  // query from skm db
+  if (tdbTbGet(pMeta->pSkmDb, &(SSkmDbKey){.uid = uid, .sver = sver}, sizeof(SSkmDbKey), &pData, &nData) < 0) {
+    goto _err;
+  }
+
+  tDecoderInit(&dc, pData, nData);
+  tDecodeSSchemaWrapper(&dc, &schema);
+  pSchema = tCloneSSchemaWrapper(&schema);
+  tDecoderClear(&dc);
+
+_exit:
   metaULock(pMeta);
   tdbFree(pData);
   return pSchema;
@@ -279,25 +293,13 @@ tb_uid_t metaCtbCursorNext(SMCtbCursor *pCtbCur) {
 }
 
 STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver) {
-  tb_uid_t        quid;
-  SMetaReader     mr = {0};
+  // SMetaReader     mr = {0};
   STSchema *      pTSchema = NULL;
   SSchemaWrapper *pSW = NULL;
   STSchemaBuilder sb = {0};
   SSchema *       pSchema;
 
-  metaReaderInit(&mr, pMeta, 0);
-  metaGetTableEntryByUid(&mr, uid);
-
-  if (mr.me.type == TSDB_CHILD_TABLE) {
-    quid = mr.me.ctbEntry.suid;
-  } else {
-    quid = uid;
-  }
-
-  metaReaderClear(&mr);
-
-  pSW = metaGetTableSchema(pMeta, quid, sver, 0);
+  pSW = metaGetTableSchema(pMeta, uid, sver, 0);
   if (!pSW) return NULL;
 
   tdInitTSchemaBuilder(&sb, pSW->version);
@@ -604,6 +606,8 @@ typedef struct {
 
 int32_t metaFilteTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
   SIdxCursor *pCursor = NULL;
+  char *      buf = NULL;
+  int32_t     maxSize = 0;
 
   int32_t ret = 0, valid = 0;
   pCursor = (SIdxCursor *)taosMemoryCalloc(1, sizeof(SIdxCursor));
@@ -623,15 +627,32 @@ int32_t metaFilteTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
   int32_t nTagData = 0;
   void *  tagData = NULL;
 
-  if (IS_VAR_DATA_TYPE(param->type)) {
-    tagData = varDataVal(param->val);
-    nTagData = varDataLen(param->val);
+  if (param->val == NULL) {
+    metaError("vgId:%d failed to filter NULL data", TD_VID(pMeta->pVnode));
+    return -1;
   } else {
-    tagData = param->val;
-    nTagData = tDataTypes[param->type].bytes;
+    if (IS_VAR_DATA_TYPE(param->type)) {
+      tagData = varDataVal(param->val);
+      nTagData = varDataLen(param->val);
+
+      if (param->type == TSDB_DATA_TYPE_NCHAR) {
+        maxSize = 4 * nTagData + 1;
+        buf = taosMemoryCalloc(1, maxSize);
+        if (false == taosMbsToUcs4(tagData, nTagData, (TdUcs4 *)buf, maxSize, &maxSize)) {
+          goto END;
+        }
+
+        tagData = buf;
+        nTagData = maxSize;
+      }
+    } else {
+      tagData = param->val;
+      nTagData = tDataTypes[param->type].bytes;
+    }
   }
   ret = metaCreateTagIdxKey(pCursor->suid, pCursor->cid, tagData, nTagData, pCursor->type,
                             param->reverse ? INT64_MAX : INT64_MIN, &pKey, &nKey);
+
   if (ret != 0) {
     goto END;
   }
@@ -674,6 +695,7 @@ int32_t metaFilteTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
 END:
   if (pCursor->pMeta) metaULock(pCursor->pMeta);
   if (pCursor->pCur) tdbTbcClose(pCursor->pCur);
+  taosMemoryFree(buf);
 
   taosMemoryFree(pCursor);
 

@@ -36,8 +36,6 @@ typedef struct {
 #define GET_BIT1(p, i)     (((p)[(i) / 8] >> ((i) % 8)) & ((uint8_t)1))
 #define GET_BIT2(p, i)     (((p)[(i) / 4] >> ((i) % 4)) & ((uint8_t)3))
 
-static FORCE_INLINE int tSKVIdxCmprFn(const void *p1, const void *p2);
-
 // SValue
 static FORCE_INLINE int32_t tPutValue(uint8_t *p, SValue *pValue, int8_t type) {
   int32_t n = 0;
@@ -141,6 +139,11 @@ static FORCE_INLINE int32_t tGetValue(uint8_t *p, SValue *pValue, int8_t type) {
   return n;
 }
 
+int tValueCmprFn(const SValue *pValue1, const SValue *pValue2, int8_t type) {
+  // TODO
+  return 0;
+}
+
 // STSRow2 ========================================================================
 static void setBitMap(uint8_t *pb, uint8_t v, int32_t idx, uint8_t flags) {
   if (pb) {
@@ -205,7 +208,7 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, S
     if (iColumn == 0) {
       ASSERT(pColVal->cid == pTColumn->colId);
       ASSERT(pTColumn->type == TSDB_DATA_TYPE_TIMESTAMP);
-      ASSERT(pTColumn->colId == 0);
+      ASSERT(pTColumn->colId == PRIMARYKEY_TIMESTAMP_COL_ID);
 
       iColVal++;
     } else {
@@ -265,6 +268,7 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, S
         nDataT = BIT2_SIZE(pTSchema->numOfCols - 1) + pTSchema->flen + ntv;
         break;
       default:
+        break;
         ASSERT(0);
     }
 
@@ -280,7 +284,7 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, S
       tflags |= TSROW_KV_BIG;
     }
 
-    if (nDataT < nDataK) {
+    if (nDataT <= nDataK) {
       nData = nDataT;
     } else {
       nData = nDataK;
@@ -349,7 +353,7 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, S
     ntv = 0;
     iColVal = 1;
 
-    if (flags & 0xf0 == 0) {
+    if ((flags & 0xf0) == 0) {
       switch (flags & 0xf) {
         case TSROW_HAS_VAL:
           pf = (*ppRow)->pData;
@@ -371,6 +375,7 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, S
           break;
         default:
           ASSERT(0);
+          break;
       }
     } else {
       pTSKVRow = (STSKVRow *)(*ppRow)->pData;
@@ -414,14 +419,28 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, S
       }
 
     _set_none:
-      if (flags & 0xf0 == 0) {
+      if ((flags & 0xf0) == 0) {
         setBitMap(pb, 0, iColumn - 1, flags);
+        if (flags & TSROW_HAS_VAL) { // set 0
+          if (IS_VAR_DATA_TYPE(pTColumn->type)) {
+            *(VarDataOffsetT *)(pf + pTColumn->offset) = 0;
+          } else {
+            tPutValue(pf + pTColumn->offset, &((SValue){0}), pTColumn->type);
+          }
+        }
       }
       continue;
 
     _set_null:
-      if (flags & 0xf0 == 0) {
+      if ((flags & 0xf0) == 0) {
         setBitMap(pb, 1, iColumn - 1, flags);
+        if (flags & TSROW_HAS_VAL) { // set 0
+          if (IS_VAR_DATA_TYPE(pTColumn->type)) {
+            *(VarDataOffsetT *)(pf + pTColumn->offset) = 0;
+          } else {
+            tPutValue(pf + pTColumn->offset, &((SValue){0}), pTColumn->type);
+          }
+        }
       } else {
         SET_IDX(pidx, pTSKVRow->nCols, nkv, flags);
         pTSKVRow->nCols++;
@@ -430,7 +449,7 @@ int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, S
       continue;
 
     _set_value:
-      if (flags & 0xf0 == 0) {
+      if ((flags & 0xf0) == 0) {
         setBitMap(pb, 2, iColumn - 1, flags);
 
         if (IS_VAR_DATA_TYPE(pTColumn->type)) {
@@ -486,7 +505,7 @@ void tTSRowFree(STSRow2 *pRow) {
 }
 
 void tTSRowGet(STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
-  uint8_t   isTuple = (pRow->flags & 0xf0 == 0) ? 1 : 0;
+  uint8_t   isTuple = ((pRow->flags & 0xf0) == 0) ? 1 : 0;
   STColumn *pTColumn = &pTSchema->columns[iCol];
   uint8_t   flags = pRow->flags & (uint8_t)0xf;
   SValue    value;
@@ -502,7 +521,7 @@ void tTSRowGet(STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal
 
   if (flags == TSROW_HAS_NONE) {
     goto _return_none;
-  } else if (flags == TSROW_HAS_NONE) {
+  } else if (flags == TSROW_HAS_NULL) {
     goto _return_null;
   }
 

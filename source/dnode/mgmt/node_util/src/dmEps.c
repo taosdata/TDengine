@@ -81,6 +81,13 @@ int32_t dmReadEps(SDnodeData *pData) {
   }
   pData->dnodeId = dnodeId->valueint;
 
+  cJSON *dnodeVer = cJSON_GetObjectItem(root, "dnodeVer");
+  if (!dnodeVer || dnodeVer->type != cJSON_String) {
+    dError("failed to read %s since dnodeVer not found", file);
+    goto _OVER;
+  }
+  pData->dnodeVer = atoll(dnodeVer->valuestring);
+
   cJSON *clusterId = cJSON_GetObjectItem(root, "clusterId");
   if (!clusterId || clusterId->type != cJSON_String) {
     dError("failed to read %s since clusterId not found", file);
@@ -193,6 +200,7 @@ int32_t dmWriteEps(SDnodeData *pData) {
 
   len += snprintf(content + len, maxLen - len, "{\n");
   len += snprintf(content + len, maxLen - len, "  \"dnodeId\": %d,\n", pData->dnodeId);
+  len += snprintf(content + len, maxLen - len, "  \"dnodeVer\": \"%" PRId64 "\",\n", pData->dnodeVer);
   len += snprintf(content + len, maxLen - len, "  \"clusterId\": \"%" PRId64 "\",\n", pData->clusterId);
   len += snprintf(content + len, maxLen - len, "  \"dropped\": %d,\n", pData->dropped);
   len += snprintf(content + len, maxLen - len, "  \"dnodes\": [{\n");
@@ -224,30 +232,15 @@ int32_t dmWriteEps(SDnodeData *pData) {
   }
 
   pData->updateTime = taosGetTimestampMs();
-  dDebug("successed to write %s", realfile);
+  dDebug("successed to write %s, dnodeVer:%" PRId64, realfile, pData->dnodeVer);
   return 0;
 }
 
 void dmUpdateEps(SDnodeData *pData, SArray *eps) {
-  int32_t numOfEps = taosArrayGetSize(eps);
-  if (numOfEps <= 0) return;
-
   taosThreadRwlockWrlock(&pData->lock);
-
-  int32_t numOfEpsOld = (int32_t)taosArrayGetSize(pData->dnodeEps);
-  if (numOfEps != numOfEpsOld) {
-    dDebug("new dnode list get from mnode");
-    dmResetEps(pData, eps);
-    dmWriteEps(pData);
-  } else {
-    int32_t size = numOfEps * sizeof(SDnodeEp);
-    if (memcmp(pData->dnodeEps->pData, eps->pData, size) != 0) {
-      dDebug("new dnode list get from mnode");
-      dmResetEps(pData, eps);
-      dmWriteEps(pData);
-    }
-  }
-
+  dDebug("new dnode list get from mnode, dnodeVer:%" PRId64, pData->dnodeVer);
+  dmResetEps(pData, eps);
+  dmWriteEps(pData);
   taosThreadRwlockUnlock(&pData->lock);
 }
 
@@ -318,9 +311,9 @@ void dmGetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet) {
 
 void dmGetMnodeEpSetForRedirect(SDnodeData *pData, SRpcMsg *pMsg, SEpSet *pEpSet) {
   dmGetMnodeEpSet(pData, pEpSet);
-  dDebug("msg:%p, is redirected, num:%d use:%d", pMsg, pEpSet->numOfEps, pEpSet->inUse);
+  dTrace("msg is redirected, handle:%p num:%d use:%d", pMsg->info.handle, pEpSet->numOfEps, pEpSet->inUse);
   for (int32_t i = 0; i < pEpSet->numOfEps; ++i) {
-    dDebug("mnode index:%d %s:%u", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
+    dTrace("mnode index:%d %s:%u", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
     if (strcmp(pEpSet->eps[i].fqdn, tsLocalFqdn) == 0 && pEpSet->eps[i].port == tsServerPort) {
       pEpSet->inUse = (i + 1) % pEpSet->numOfEps;
     }

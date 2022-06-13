@@ -71,20 +71,14 @@ SEpSet getEpSet_s(SCorEpSet* pEpSet);
 #define colDataGetData(p1_, r_) \
   ((IS_VAR_DATA_TYPE((p1_)->info.type)) ? colDataGetVarData(p1_, r_) : colDataGetNumData(p1_, r_))
 
-static FORCE_INLINE bool colDataIsNull_s(const SColumnInfoData* pColumnInfoData, uint32_t row) {
-  if (pColumnInfoData->info.type == TSDB_DATA_TYPE_JSON) {
-    if (colDataIsNull_var(pColumnInfoData, row)) {
-      return true;
-    }
-    char* data = colDataGetVarData(pColumnInfoData, row);
-    return (*data == TSDB_DATA_TYPE_NULL);
-  }
+#define IS_JSON_NULL(type, data) ((type) == TSDB_DATA_TYPE_JSON && *(data) == TSDB_DATA_TYPE_NULL)
 
+static FORCE_INLINE bool colDataIsNull_s(const SColumnInfoData* pColumnInfoData, uint32_t row) {
   if (!pColumnInfoData->hasNull) {
     return false;
   }
 
-  if (pColumnInfoData->info.type == TSDB_DATA_TYPE_VARCHAR || pColumnInfoData->info.type == TSDB_DATA_TYPE_NCHAR) {
+  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     return colDataIsNull_var(pColumnInfoData, row);
   } else {
     if (pColumnInfoData->nullbitmap == NULL) {
@@ -186,6 +180,8 @@ static FORCE_INLINE void colDataAppendDouble(SColumnInfoData* pColumnInfoData, u
   *(double*)p = *(double*)v;
 }
 
+int32_t getJsonValueLen(const char* data);
+
 int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, bool isNull);
 int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, int32_t* capacity,
                         const SColumnInfoData* pSource, uint32_t numOfRow2);
@@ -210,7 +206,7 @@ SSDataBlock* blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int3
 size_t blockDataGetSize(const SSDataBlock* pBlock);
 size_t blockDataGetRowSize(SSDataBlock* pBlock);
 double blockDataGetSerialRowSize(const SSDataBlock* pBlock);
-size_t blockDataGetSerialMetaSize(const SSDataBlock* pBlock);
+size_t blockDataGetSerialMetaSize(uint32_t numOfCols);
 
 int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo);
 int32_t blockDataSort_rv(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullFirst);
@@ -227,19 +223,22 @@ int32_t blockDataTrimFirstNRows(SSDataBlock* pBlock, size_t n);
 
 SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData);
 
-void  blockCompressEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen, int32_t numOfCols, int8_t needCompress);
+void        blockCompressEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen, int32_t numOfCols,
+                                int8_t needCompress);
 const char* blockCompressDecode(SSDataBlock* pBlock, int32_t numOfCols, int32_t numOfRows, const char* pData);
 
-void blockDebugShowData(const SArray* dataBlocks);
+void blockDebugShowData(const SArray* dataBlocks, const char* flag);
 
 int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks, STSchema* pTSchema, int32_t vgId,
                                     tb_uid_t suid);
+
+char* buildCtbNameByGroupId(const char* stbName, uint64_t groupId);
 
 SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pSchema, bool createTb, int64_t suid,
                             const char* stbFullName, int32_t vgId);
 
 static FORCE_INLINE int32_t blockGetEncodeSize(const SSDataBlock* pBlock) {
-  return blockDataGetSerialMetaSize(pBlock) + blockDataGetSize(pBlock);
+  return blockDataGetSerialMetaSize(pBlock->info.numOfCols) + blockDataGetSize(pBlock);
 }
 
 static FORCE_INLINE int32_t blockCompressColData(SColumnInfoData* pColRes, int32_t numOfRows, char* data,
