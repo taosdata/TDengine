@@ -3666,7 +3666,7 @@ static void* doFreeColumnInfoData(SArray* pColumnInfoData) {
   size_t cols = taosArrayGetSize(pColumnInfoData);
   for (int32_t i = 0; i < cols; ++i) {
     SColumnInfoData* pColInfo = taosArrayGet(pColumnInfoData, i);
-    taosMemoryFreeClear(pColInfo->pData);
+    colDataDestroy(pColInfo);
   }
 
   taosArrayDestroy(pColumnInfoData);
@@ -3698,6 +3698,7 @@ void tsdbCleanupReadHandle(tsdbReaderT queryHandle) {
   taosMemoryFreeClear(pTsdbReadHandle->pDataBlockInfo);
   taosMemoryFreeClear(pTsdbReadHandle->suppInfo.pstatis);
   taosMemoryFreeClear(pTsdbReadHandle->suppInfo.plist);
+  taosMemoryFree(pTsdbReadHandle->suppInfo.slotIds);
 
   if (!emptyQueryTimewindow(pTsdbReadHandle)) {
     //    tsdbMayUnTakeMemSnapshot(pTsdbReadHandle);
@@ -3724,5 +3725,7 @@ void tsdbCleanupReadHandle(tsdbReaderT queryHandle) {
             pTsdbReadHandle, pCost->headFileLoad, pCost->headFileLoadTime, pCost->statisInfoLoadTime,
             pCost->blockLoadTime, pCost->checkForNextTime, pTsdbReadHandle->idStr);
 
+  taosMemoryFree(pTsdbReadHandle->idStr);
+  taosMemoryFree(pTsdbReadHandle->pSchema);
   taosMemoryFreeClear(pTsdbReadHandle);
 }
