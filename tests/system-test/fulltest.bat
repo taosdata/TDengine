@@ -6,7 +6,7 @@ python3 .\test.py -f 0-others\telemetry.py
 python3 .\test.py -f 0-others\taosdMonitor.py
 python3 .\test.py -f 0-others\udfTest.py
 python3 .\test.py -f 0-others\udf_create.py
-python3 .\test.py -f 0-others\udf_restart_taosd.py
+@REM python3 .\test.py -f 0-others\udf_restart_taosd.py
 python3 .\test.py -f 0-others\cachelast.py
 
 python3 .\test.py -f 0-others\user_control.py
@@ -82,7 +82,7 @@ python3 .\test.py -f 2-query\elapsed.py
 python3 .\test.py -f 2-query\csum.py
 python3 .\test.py -f 2-query\mavg.py
 python3 .\test.py -f 2-query\diff.py
-python3 .\test.py -f 2-query\sample.py
+@REM python3 .\test.py -f 2-query\sample.py
 python3 .\test.py -f 2-query\function_diff.py
 python3 .\test.py -f 2-query\unique.py
 python3 .\test.py -f 2-query\stateduration.py
@@ -91,7 +91,7 @@ python3 .\test.py -f 2-query\statecount.py
 
 python3 .\test.py -f 7-tmq\basic5.py
 python3 .\test.py -f 7-tmq\subscribeDb.py
-python3 .\test.py -f 7-tmq\subscribeDb0.py
+@REM python3 .\test.py -f 7-tmq\subscribeDb0.py
 python3 .\test.py -f 7-tmq\subscribeDb1.py
 python3 .\test.py -f 7-tmq\subscribeStb.py
 python3 .\test.py -f 7-tmq\subscribeStb0.py
