@@ -17,6 +17,9 @@
 #define __SHELL__
 #if !(defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32))
 #include <sys/socket.h>
+#else
+#include <winsock2.h>
+#pragma comment(lib,"ws2_32.lib")
 #endif
 #include "stdbool.h"
 #include "taos.h"
@@ -46,8 +49,12 @@ typedef struct SShellArguments {
   char* timezone;
   bool  restful;
   char* token;
-  int   socket;
-  struct sockaddr_in serv_addr;
+#ifdef WINDOWS
+  SOCKET socket;
+#else
+  int socket;
+#endif
+
   TAOS* con;
   bool  is_raw_time;
   bool  is_use_passwd;
@@ -84,9 +91,7 @@ void shellCheck(TAOS* con, SShellArguments* args);
 void get_history_path(char* history);
 void shellCheck(TAOS* con, SShellArguments* args);
 void cleanup_handler(void* arg);
-int convertHostToServAddr();
 char *last_strstr(const char *haystack, const char *needle);
-void encode_base_64(char* base64_buf, char* user, char* password);
 void exitShell();
 int shellDumpResult(TAOS_RES* con, char* fname, int* error_no, bool printMode);
 void shellGetGrantInfo(void* con);
@@ -94,6 +99,7 @@ int isCommentLine(char* line);
 int wsclient_handshake();
 int wsclient_conn();
 void wsclient_query(char* command);
+int tcpConnect();
 
 /**************** Global variable declarations ****************/
 extern char           PROMPT_HEADER[];

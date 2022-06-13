@@ -74,17 +74,6 @@ void shellInit(SShellArguments *_args) {
 
   if (_args->restful) {
     _args->database = calloc(1, 128);
-    _args->socket = socket(AF_INET, SOCK_STREAM, 0);
-    if (_args->socket < 0) {
-      fprintf(stderr, "failed to create socket\n");
-      exit(EXIT_FAILURE);
-    }
-    int retConn = connect(_args->socket, (struct sockaddr *)&(_args->serv_addr), sizeof(struct sockaddr));
-    if (retConn < 0) {
-      fprintf(stderr, "failed to connect\n");
-      close(_args->socket);
-      exit(EXIT_FAILURE);
-    }
     if (wsclient_handshake()) {
       exit(EXIT_FAILURE);
     }
@@ -1178,30 +1167,6 @@ char *last_strstr(const char *haystack, const char *needle) {
     return res;
 }
 
-int convertHostToServAddr() {
-  if (args.port == 0) {
-    args.port = 6041;
-  }
-  if (NULL == args.host) {
-    args.host = "127.0.0.1";
-  }
-  struct hostent *server = gethostbyname(args.host);
-  if ((server == NULL) || (server->h_addr == NULL)) {
-    fprintf(stderr, "no such host: %s\n", args.host);
-    return -1;
-  }
-  memset(&(args.serv_addr), 0, sizeof(struct sockaddr_in));
-  args.serv_addr.sin_family = AF_INET;
-  args.serv_addr.sin_port = htons(args.port);
-#ifdef WINDOWS
-  args.serv_addr.sin_addr.s_addr = inet_addr(args.host);
-#else
-  memcpy(&(args.serv_addr.sin_addr.s_addr), server->h_addr, server->h_length);
-#endif
-
-  return 0;
-}
-
 int wsclient_handshake() {
   char          request_header[1024];
   char          recv_buf[1024];
@@ -1229,8 +1194,12 @@ int wsclient_handshake() {
   }
 
   ssize_t n = send(args.socket, request_header, strlen(request_header), 0);
-  if (n == 0) {
-    fprintf(stderr, "web socket handshake error\n");
+  if (n <= 0) {
+#ifdef WINDOWS
+      fprintf(stderr, "send failed with error: %d\n", WSAGetLastError());
+#else
+      fprintf(stderr, "web socket handshake error\n");
+#endif
     return -1;
   }
   n = recv(args.socket, recv_buf, 1023, 0);
