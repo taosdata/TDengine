@@ -1656,8 +1656,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = elapsedFinalize,
     .invertFunc   = NULL,
     .combineFunc  = elapsedCombine,
-    .pPartialFunc = "_elapsed_partial",
-    .pMergeFunc   = "_elapsed_merge"
+    //.pPartialFunc = "_elapsed_partial",
+    //.pMergeFunc   = "_elapsed_merge"
   },
   {
     .name = "_elapsed_partial",
