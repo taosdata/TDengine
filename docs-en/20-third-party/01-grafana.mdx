@@ -40,6 +40,16 @@ export TDENGINE_API=http://tdengine.local:6041
 # user + password
 export TDENGINE_USER=user
 export TDENGINE_PASSWORD=password
+
+# Other useful variables
+# - If to install TDengine data source, default is true
+export TDENGINE_DS_ENABLED=false
+# - Data source name to be created, default is TDengine
+export TDENGINE_DS_NAME=TDengine
+# - Data source organization id, default is 1
+export GF_ORG_ID=1
+# - Data source is editable in admin ui or not, default is 0 (false)
+export TDENGINE_EDITABLE=1
 ```
 
 Run `install.sh`:
@@ -48,7 +58,7 @@ Run `install.sh`:
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/taosdata/grafanaplugin/master/install.sh)"
 ```
 
-With this script, TDengine data source plugin and the Grafana data source will be installed and created automatically with Grafana provisioning configurations.
+With this script, TDengine data source plugin and the Grafana data source will be installed and created automatically with Grafana provisioning configurations. Save the script and type `./install.sh --help` for the full usage of the script.
 
 And then, restart Grafana service and open Grafana in web-browser, usually <http://localhost:3000>.
 

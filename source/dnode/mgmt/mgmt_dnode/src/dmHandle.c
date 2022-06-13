@@ -38,9 +38,13 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
     SStatusRsp statusRsp = {0};
     if (pRsp->pCont != NULL && pRsp->contLen > 0 &&
         tDeserializeSStatusRsp(pRsp->pCont, pRsp->contLen, &statusRsp) == 0) {
-      pMgmt->pData->dnodeVer = statusRsp.dnodeVer;
-      dmUpdateDnodeCfg(pMgmt, &statusRsp.dnodeCfg);
-      dmUpdateEps(pMgmt->pData, statusRsp.pDnodeEps);
+      dTrace("status msg received from mnode, dnodeVer:%" PRId64 " saved:%" PRId64, statusRsp.dnodeVer,
+             pMgmt->pData->dnodeVer);
+      if (pMgmt->pData->dnodeVer != statusRsp.dnodeVer) {
+        pMgmt->pData->dnodeVer = statusRsp.dnodeVer;
+        dmUpdateDnodeCfg(pMgmt, &statusRsp.dnodeCfg);
+        dmUpdateEps(pMgmt->pData, statusRsp.pDnodeEps);
+      }
     }
     rpcFreeCont(pRsp->pCont);
     tFreeSStatusRsp(&statusRsp);
@@ -89,7 +93,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   SRpcMsg rpcMsg = {.pCont = pHead, .contLen = contLen, .msgType = TDMT_MND_STATUS, .info.ahandle = (void *)0x9527};
   SRpcMsg rpcRsp = {0};
 
-  dTrace("send status msg to mnode");
+  dTrace("send status msg to mnode, dnodeVer:%" PRId64, req.dnodeVer);
 
   SEpSet epSet = {0};
   dmGetMnodeEpSet(pMgmt->pData, &epSet);

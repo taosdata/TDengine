@@ -75,35 +75,35 @@ char* idxInt2str(int64_t val, char* dst, int radix) {
     ;
   return dst - 1;
 }
-__compar_fn_t indexGetCompar(int8_t type) {
+__compar_fn_t idxGetCompar(int8_t type) {
   if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
     return (__compar_fn_t)strcmp;
   }
   return getComparFunc(type, 0);
 }
 static TExeCond tCompareLessThan(void* a, void* b, int8_t type) {
-  __compar_fn_t func = indexGetCompar(type);
+  __compar_fn_t func = idxGetCompar(type);
   return tCompare(func, QUERY_LESS_THAN, a, b, type);
 }
 static TExeCond tCompareLessEqual(void* a, void* b, int8_t type) {
-  __compar_fn_t func = indexGetCompar(type);
+  __compar_fn_t func = idxGetCompar(type);
   return tCompare(func, QUERY_LESS_EQUAL, a, b, type);
 }
 static TExeCond tCompareGreaterThan(void* a, void* b, int8_t type) {
-  __compar_fn_t func = indexGetCompar(type);
+  __compar_fn_t func = idxGetCompar(type);
   return tCompare(func, QUERY_GREATER_THAN, a, b, type);
 }
 static TExeCond tCompareGreaterEqual(void* a, void* b, int8_t type) {
-  __compar_fn_t func = indexGetCompar(type);
+  __compar_fn_t func = idxGetCompar(type);
   return tCompare(func, QUERY_GREATER_EQUAL, a, b, type);
 }
 
 static TExeCond tCompareContains(void* a, void* b, int8_t type) {
-  __compar_fn_t func = indexGetCompar(type);
+  __compar_fn_t func = idxGetCompar(type);
   return tCompare(func, QUERY_TERM, a, b, type);
 }
 static TExeCond tCompareEqual(void* a, void* b, int8_t type) {
-  __compar_fn_t func = indexGetCompar(type);
+  __compar_fn_t func = idxGetCompar(type);
   return tCompare(func, QUERY_TERM, a, b, type);
 }
 TExeCond tCompare(__compar_fn_t func, int8_t cmptype, void* a, void* b, int8_t dtype) {
@@ -205,14 +205,14 @@ TExeCond tDoCompare(__compar_fn_t func, int8_t comparType, void* a, void* b) {
 static TExeCond (*rangeCompare[])(void* a, void* b, int8_t type) = {
     tCompareLessThan, tCompareLessEqual, tCompareGreaterThan, tCompareGreaterEqual, tCompareContains, tCompareEqual};
 
-_cache_range_compare indexGetCompare(RangeType ty) { return rangeCompare[ty]; }
+_cache_range_compare idxGetCompare(RangeType ty) { return rangeCompare[ty]; }
 
 char* idxPackJsonData(SIndexTerm* itm) {
   /*
    * |<-----colname---->|<-----dataType---->|<--------colVal---------->|
    * |<-----string----->|<-----uint8_t----->|<----depend on dataType-->|
    */
-  uint8_t ty = INDEX_TYPE_GET_TYPE(itm->colType);
+  uint8_t ty = IDX_TYPE_GET_TYPE(itm->colType);
 
   int32_t sz = itm->nColName + itm->nColVal + sizeof(uint8_t) + sizeof(JSON_VALUE_DELIM) * 2 + 1;
   char*   buf = (char*)taosMemoryCalloc(1, sz);
@@ -240,7 +240,7 @@ char* idxPackJsonDataPrefix(SIndexTerm* itm, int32_t* skip) {
    * |<-----colname---->|<-----dataType---->|<--------colVal---------->|
    * |<-----string----->|<-----uint8_t----->|<----depend on dataType-->|
    */
-  uint8_t ty = INDEX_TYPE_GET_TYPE(itm->colType);
+  uint8_t ty = IDX_TYPE_GET_TYPE(itm->colType);
 
   int32_t sz = itm->nColName + itm->nColVal + sizeof(uint8_t) + sizeof(JSON_VALUE_DELIM) * 2 + 1;
   char*   buf = (char*)taosMemoryCalloc(1, sz);
@@ -267,7 +267,7 @@ char* idxPackJsonDataPrefixNoType(SIndexTerm* itm, int32_t* skip) {
    * |<-----colname---->|<-----dataType---->|<--------colVal---------->|
    * |<-----string----->|<-----uint8_t----->|<----depend on dataType-->|
    */
-  uint8_t ty = INDEX_TYPE_GET_TYPE(itm->colType);
+  uint8_t ty = IDX_TYPE_GET_TYPE(itm->colType);
 
   int32_t sz = itm->nColName + itm->nColVal + sizeof(uint8_t) + sizeof(JSON_VALUE_DELIM) * 2 + 1;
   char*   buf = (char*)taosMemoryCalloc(1, sz);

@@ -110,9 +110,7 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDisp
     return 0;
   }
   // continue dispatch
-  if (pTask->dispatchType != TASK_DISPATCH__NONE) {
-    streamDispatch(pTask, pMsgCb);
-  }
+  streamDispatch(pTask, pMsgCb);
   return 0;
 }
 

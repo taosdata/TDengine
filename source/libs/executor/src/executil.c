@@ -449,7 +449,7 @@ int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, STaskRuntimeEnv* pRun
 //  tbufWriteUint64(bw, pDist->totalRows);
 //  tbufWriteInt32(bw, pDist->maxRows);
 //  tbufWriteInt32(bw, pDist->minRows);
-//  tbufWriteUint32(bw, pDist->numOfRowsInMemTable);
+//  tbufWriteUint32(bw, pDist->numOfInmemRows);
 //  tbufWriteUint32(bw, pDist->numOfSmallBlocks);
 //  tbufWriteUint64(bw, taosArrayGetSize(pDist->dataBlockInfos));
 //
@@ -488,7 +488,7 @@ int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, STaskRuntimeEnv* pRun
 //  pDist->totalRows   = tbufReadUint64(&br);
 //  pDist->maxRows     = tbufReadInt32(&br);
 //  pDist->minRows     = tbufReadInt32(&br);
-//  pDist->numOfRowsInMemTable = tbufReadUint32(&br);
+//  pDist->numOfInmemRows = tbufReadUint32(&br);
 //  pDist->numOfSmallBlocks = tbufReadUint32(&br);
 //  int64_t numSteps = tbufReadUint64(&br);
 //

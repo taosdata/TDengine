@@ -76,7 +76,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_INVALID_KEEP_ORDER:
       return "Invalid keep value, should be keep0 <= keep1 <= keep2";
     case TSDB_CODE_PAR_INVALID_KEEP_VALUE:
-      return "Invalid option keep: %d, %d, %d valid range: [%d, %d]";
+      return "Invalid option keep: %" PRId64 ", %" PRId64 ", %" PRId64 " valid range: [%dm, %dm]";
     case TSDB_CODE_PAR_INVALID_COMMENT_OPTION:
       return "Invalid option comment, length cannot exceed %d";
     case TSDB_CODE_PAR_INVALID_F_RANGE_OPTION:
@@ -182,6 +182,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "The DELETE statement must have a definite time window range";
     case TSDB_CODE_PAR_INVALID_REDISTRIBUTE_VG:
       return "The REDISTRIBUTE VGROUP statement only support 1 to 3 dnodes";
+    case TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC:
+      return "%s function not allowed in fill query";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:
@@ -542,6 +544,9 @@ int32_t buildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalog
   if (TSDB_CODE_SUCCESS == code) {
     code = buildUdfReq(pMetaCache->pUdf, &pCatalogReq->pUdf);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildTableReq(pMetaCache->pTableIndex, &pCatalogReq->pTableIndex);
+  }
   return code;
 }
 
@@ -627,6 +632,9 @@ int32_t putMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMet
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = putUdfToCache(pCatalogReq->pUdf, pMetaData->pUdfList, pMetaCache->pUdf);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = putTableDataToCache(pCatalogReq->pTableIndex, pMetaData->pTableIndex, pMetaCache->pTableIndex);
   }
   return code;
 }
@@ -803,6 +811,46 @@ int32_t getUdfInfoFromCache(SParseMetaCache* pMetaCache, const char* pFunc, SFun
   int32_t    code = getMetaDataFromHash(pFunc, strlen(pFunc), pMetaCache->pUdf, (void**)&pFuncInfo);
   if (TSDB_CODE_SUCCESS == code) {
     memcpy(pInfo, pFuncInfo, sizeof(SFuncInfo));
+  }
+  return code;
+}
+
+static void destroySmaIndex(void* p) { taosMemoryFree(((STableIndexInfo*)p)->expr); }
+
+static SArray* smaIndexesDup(SArray* pSrc) {
+  SArray* pDst = taosArrayDup(pSrc);
+  if (NULL == pDst) {
+    return NULL;
+  }
+  int32_t size = taosArrayGetSize(pDst);
+  for (int32_t i = 0; i < size; ++i) {
+    ((STableIndexInfo*)taosArrayGet(pDst, i))->expr = NULL;
+  }
+  for (int32_t i = 0; i < size; ++i) {
+    STableIndexInfo* pIndex = taosArrayGet(pDst, i);
+    pIndex->expr = taosMemoryStrDup(((STableIndexInfo*)taosArrayGet(pSrc, i))->expr);
+    if (NULL == pIndex->expr) {
+      taosArrayDestroyEx(pDst, destroySmaIndex);
+      return NULL;
+    }
+  }
+  return pDst;
+}
+
+int32_t reserveTableIndexInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache) {
+  return reserveTableReqInCache(acctId, pDb, pTable, &pMetaCache->pTableIndex);
+}
+
+int32_t getTableIndexFromCache(SParseMetaCache* pMetaCache, const SName* pName, SArray** pIndexes) {
+  char fullName[TSDB_TABLE_FNAME_LEN];
+  tNameExtractFullName(pName, fullName);
+  SArray* pSmaIndexes = NULL;
+  int32_t code = getMetaDataFromHash(fullName, strlen(fullName), pMetaCache->pTableIndex, (void**)&pSmaIndexes);
+  if (TSDB_CODE_SUCCESS == code && NULL != pSmaIndexes) {
+    *pIndexes = smaIndexesDup(pSmaIndexes);
+    if (NULL == *pIndexes) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
   }
   return code;
 }

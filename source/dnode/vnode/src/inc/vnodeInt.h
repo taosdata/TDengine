@@ -119,8 +119,8 @@ int          tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq* pMsg, SSu
 int32_t      tsdbInsertTableData(STsdb* pTsdb, int64_t version, SSubmitMsgIter* pMsgIter, SSubmitBlk* pBlock,
                                  SSubmitBlkRsp* pRsp);
 int32_t      tsdbDeleteTableData(STsdb* pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
-tsdbReaderT* tsdbQueryTables(SVnode* pVnode, SQueryTableDataCond* pCond, STableListInfo* tableList, uint64_t qId,
-                             uint64_t taskId);
+tsdbReaderT* tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, STableListInfo* tableList, uint64_t qId,
+                            uint64_t taskId);
 tsdbReaderT  tsdbQueryCacheLastT(STsdb* tsdb, SQueryTableDataCond* pCond, STableListInfo* tableList, uint64_t qId,
                                  void* pMemRef);
 int32_t      tsdbSnapshotReaderOpen(STsdb* pTsdb, STsdbSnapshotReader** ppReader, int64_t sver, int64_t ever);
@@ -150,7 +150,6 @@ int32_t tqProcessTaskRecoverRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t smaOpen(SVnode* pVnode);
 int32_t smaClose(SSma* pSma);
 
-int32_t tdUpdateExpireWindow(SSma* pSma, const SSubmitReq* pMsg, int64_t version);
 int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
 int32_t tdProcessTSmaInsert(SSma* pSma, int64_t indexUid, const char* msg);
 
@@ -227,7 +226,7 @@ struct SVnode {
   SQHandle*  pQuery;
 };
 
-#define TD_VID(PVNODE) (PVNODE)->config.vgId
+#define TD_VID(PVNODE) ((PVNODE)->config.vgId)
 
 #define VND_TSDB(vnd)       ((vnd)->pTsdb)
 #define VND_RSMA0(vnd)      ((vnd)->pTsdb)

@@ -26,16 +26,15 @@ static void dumpQueryPlan(SQueryPlan* pPlan) {
 }
 
 int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNodeList) {
-  SLogicNode*      pLogicNode = NULL;
   SLogicSubplan*   pLogicSubplan = NULL;
   SQueryLogicPlan* pLogicPlan = NULL;
 
-  int32_t code = createLogicPlan(pCxt, &pLogicNode);
+  int32_t code = createLogicPlan(pCxt, &pLogicSubplan);
   if (TSDB_CODE_SUCCESS == code) {
-    code = optimizeLogicPlan(pCxt, pLogicNode);
+    code = optimizeLogicPlan(pCxt, pLogicSubplan);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = splitLogicPlan(pCxt, pLogicNode, &pLogicSubplan);
+    code = splitLogicPlan(pCxt, pLogicSubplan);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = scaleOutLogicPlan(pCxt, pLogicSubplan, &pLogicPlan);
@@ -47,7 +46,6 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
     dumpQueryPlan(*pPlan);
   }
 
-  nodesDestroyNode(pLogicNode);
   nodesDestroyNode(pLogicSubplan);
   nodesDestroyNode(pLogicPlan);
   terrno = code;
