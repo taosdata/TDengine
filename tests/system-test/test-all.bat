@@ -22,10 +22,11 @@ echo Windows Taosd Test
 for /F "usebackq tokens=*" %%i in (simpletest.bat) do (
     for /f "tokens=1* delims= " %%a in ("%%i") do if not "%%a" == "@REM" (
         set /a a+=1
+        set timeNow=!time!
         echo !a! Processing %%i
-        call :GetTimeSeconds !time!
+        call :GetTimeSeconds !timeNow!
         set time1=!_timeTemp!
-        echo Start at !time!
+        echo Start at !timeNow!
         call %%i ARG1 > result_!a!.txt 2>error_!a!.txt
         if errorlevel 1 ( call :colorEcho 0c "failed" &echo. && echo result: && cat result_!a!.txt && echo error: && cat error_!a!.txt && exit 8 ) else ( call :colorEcho 0a "Success" &echo. ) 
     )
@@ -45,10 +46,11 @@ for /F "usebackq tokens=*" %%i in (simpletest.bat) do (
 exit
 
 :colorEcho
-call :GetTimeSeconds %time%
+set timeNow=%time%
+call :GetTimeSeconds %timeNow%
 set time2=%_timeTemp%
 set /a interTime=%time2% - %time1%
-echo End at %time% , cast %interTime%s
+echo End at %timeNow% , cast %interTime%s
 echo off
 <nul set /p ".=%DEL%" > "%~2"
 findstr /v /a:%1 /R "^$" "%~2" nul

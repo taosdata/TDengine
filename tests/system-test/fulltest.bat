@@ -6,7 +6,7 @@ python3 .\test.py -f 0-others\telemetry.py
 python3 .\test.py -f 0-others\taosdMonitor.py
 python3 .\test.py -f 0-others\udfTest.py
 python3 .\test.py -f 0-others\udf_create.py
-@REM python3 .\test.py -f 0-others\udf_restart_taosd.py
+python3 .\test.py -f 0-others\udf_restart_taosd.py
 python3 .\test.py -f 0-others\cachelast.py
 
 python3 .\test.py -f 0-others\user_control.py
@@ -21,7 +21,7 @@ python3 .\test.py -f 1-insert\alter_table.py
 python3 .\test.py -f 2-query\between.py
 python3 .\test.py -f 2-query\distinct.py
 python3 .\test.py -f 2-query\varchar.py
-@REM python3 .\test.py -f 2-query\ltrim.py
+python3 .\test.py -f 2-query\ltrim.py
 python3 .\test.py -f 2-query\rtrim.py
 python3 .\test.py -f 2-query\length.py
 python3 .\test.py -f 2-query\char_length.py
@@ -32,12 +32,12 @@ python3 .\test.py -f 2-query\join2.py
 python3 .\test.py -f 2-query\cast.py
 python3 .\test.py -f 2-query\union.py
 python3 .\test.py -f 2-query\union1.py
-@REM python3 .\test.py -f 2-query\concat.py
+python3 .\test.py -f 2-query\concat.py
 python3 .\test.py -f 2-query\concat2.py
 python3 .\test.py -f 2-query\concat_ws.py
 python3 .\test.py -f 2-query\concat_ws2.py
-@REM python3 .\test.py -f 2-query\check_tsdb.py
-@REM python3 .\test.py -f 2-query\spread.py
+python3 .\test.py -f 2-query\check_tsdb.py
+python3 .\test.py -f 2-query\spread.py
 @REM python3 .\test.py -f 2-query\hyperloglog.py
 
 python3 .\test.py -f 2-query\timezone.py
@@ -71,7 +71,7 @@ python3 .\test.py -f 2-query\tan.py
 python3 .\test.py -f 2-query\arcsin.py
 python3 .\test.py -f 2-query\arccos.py
 python3 .\test.py -f 2-query\arctan.py
-@REM python3 .\test.py -f 2-query\query_cols_tags_and_or.py
+python3 .\test.py -f 2-query\query_cols_tags_and_or.py
 @REM # python3 .\test.py -f 2-query\nestedQuery.py
 @REM # TD-15983 subquery output duplicate name column. 
 @REM # Please Xiangyang Guo modify the following script
@@ -79,11 +79,11 @@ python3 .\test.py -f 2-query\arctan.py
 
 python3 .\test.py -f 2-query\avg.py
 python3 .\test.py -f 2-query\elapsed.py
-@REM python3 .\test.py -f 2-query\csum.py
+python3 .\test.py -f 2-query\csum.py
 python3 .\test.py -f 2-query\mavg.py
 python3 .\test.py -f 2-query\diff.py
 python3 .\test.py -f 2-query\sample.py
-@REM python3 .\test.py -f 2-query\function_diff.py
+python3 .\test.py -f 2-query\function_diff.py
 python3 .\test.py -f 2-query\unique.py
 python3 .\test.py -f 2-query\stateduration.py
 python3 .\test.py -f 2-query\function_stateduration.py

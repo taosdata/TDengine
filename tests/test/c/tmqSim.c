@@ -313,8 +313,10 @@ static int32_t msg_process(TAOS_RES* msg, SThreadInfo* pInfo, int32_t msgIndex) 
 
     taos_print_row(buf, row, fields, numOfFields);
 
+    const char* tbName = tmq_get_table_name(msg);
+
     if (0 != g_stConfInfo.showRowFlag) {
-      taosFprintfFile(g_fp, "rows[%d]: %s\n", totalRows, buf);
+      taosFprintfFile(g_fp, "tbname:%s, rows[%d]: %s\n", (tbName != NULL ? tbName:"null table"), totalRows, buf);
 	  if (0 != g_stConfInfo.saveRowFlag) {
 	    saveConsumeContentToTbl(pInfo, buf);
       }
@@ -360,6 +362,8 @@ void build_consumer(SThreadInfo* pInfo) {
   for (int32_t i = 0; i < pInfo->numOfKey; i++) {
     tmq_conf_set(conf, pInfo->key[i], pInfo->value[i]);
   }
+
+  tmq_conf_set(conf, "msg.with.table.name", "true");
 
   // tmq_conf_set(conf, "client.id", "c-001");
 
@@ -532,6 +536,12 @@ void* consumeThreadFunc(void* param) {
 
   // save consume result into consumeresult table
   saveConsumeResult(pInfo);
+
+  // save rows from per vgroup
+  taosFprintfFile(g_fp, "======== consumerId: %d, consume rows from per vgroups ========\n", pInfo->consumerId);
+  for (int32_t i = 0; i < pInfo->numOfVgroups; i++) {
+    taosFprintfFile(g_fp, "vgroups: %04d, rows: %d\n", pInfo->rowsOfPerVgroups[i][0], pInfo->rowsOfPerVgroups[i][1]);
+  }
 
   return NULL;
 }
