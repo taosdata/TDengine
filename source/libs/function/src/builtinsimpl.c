@@ -2951,13 +2951,6 @@ int32_t topBotFinalizeImpl(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, bool isMer
   return pEntryInfo->numOfRes;
 }
 
-<<<<<<< HEAD
-void addResult(SqlFunctionCtx* pCtx, STopBotResItem* pSourceItem, int16_t type, bool isTopQuery) {
-  SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(pCtx);
-  STopBotRes*          pRes = getTopBotOutputInfo(pCtx);
-  int32_t              maxSize = pCtx->param[1].param.i;
-  STopBotResItem*      pItems = pRes->pItems;
-=======
 int32_t topBotFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) { return topBotFinalizeImpl(pCtx, pBlock, false); }
 
 int32_t topBotMergeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
@@ -2986,7 +2979,6 @@ void addResult(SqlFunctionCtx* pCtx, STopBotResItem* pSourceItem, int16_t type, 
   SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(pCtx);
   STopBotRes*          pRes = getTopBotOutputInfo(pCtx);
   STopBotResItem*      pItems = pRes->pItems;
->>>>>>> origin/3.0
   assert(pItems != NULL);
 
   // not full yet
@@ -3048,13 +3040,7 @@ bool getSpreadFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
   return true;
 }
 
-<<<<<<< HEAD
-int32_t getSpreadInfoSize() { return (int32_t)sizeof(SSpreadInfo); }
-
 bool spreadFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
-=======
-bool spreadFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
->>>>>>> origin/3.0
   if (!functionSetup(pCtx, pResultInfo)) {
     return false;
   }
@@ -3179,15 +3165,9 @@ int32_t spreadFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
 int32_t spreadPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
-<<<<<<< HEAD
-  SSpreadInfo*         pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-  int32_t              resultBytes = (int32_t)sizeof(SSpreadInfo);
-  char*                res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
-=======
   SSpreadInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
   int32_t      resultBytes = getSpreadInfoSize();
   char*        res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
->>>>>>> origin/3.0
 
   memcpy(varDataVal(res), pInfo, resultBytes);
   varDataSetLen(res, resultBytes);
