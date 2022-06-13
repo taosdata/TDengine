@@ -1,6 +1,6 @@
 from taostest import TDCase, T
 from taostest.util.common import TDCom
-from taostest.util.sml_types import TDSmlProtocolType, TDSmlTimestampType
+from taostest.util.sml_types import TDSmlProtocolType
 from taos.error import SchemalessError
 import datetime
 import json
@@ -551,22 +551,22 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         self.tdCom.check_res(input_json, stb_name, condition=f'where t7="binaryTagValuebinaryTagValue"')
 
-    def lengthIcreaseCrashCheckCase(self):
-        """
-        check length increase
-        """
-        self.tdCom.cleanTb()
-        stb_name = "test_crash"
-        input_json = self.tdCom.gen_full_type_json(stb_name=stb_name)[0]
-        self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
-        os.system('python3 query/schemalessQueryCrash.py &')
-        time.sleep(2)
-        tb_name = self.tdCom.get_long_name(5, "letters")
-        input_json, stb_name = self.tdCom.gen_full_type_json(stb_name=stb_name, tb_name=tb_name, tag_value=self.tdCom.gen_tag_value(t7_value="binaryTagValuebinaryTagValue", t8_value="ncharTagValuencharTagValue"))
-        self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
-        time.sleep(3)
-        self.tdSql.query(f"select * from {stb_name}")
-        tdSql.checkRows(2)
+    # def lengthIcreaseCrashCheckCase(self):
+    #     """
+    #     check length increase
+    #     """
+    #     self.tdCom.cleanTb()
+    #     stb_name = "test_crash"
+    #     input_json = self.tdCom.gen_full_type_json(stb_name=stb_name)[0]
+    #     self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
+    #     os.system('python3 query/schemalessQueryCrash.py &')
+    #     time.sleep(2)
+    #     tb_name = self.tdCom.get_long_name(5, "letters")
+    #     input_json, stb_name = self.tdCom.gen_full_type_json(stb_name=stb_name, tb_name=tb_name, tag_value=self.tdCom.gen_tag_value(t7_value="binaryTagValuebinaryTagValue", t8_value="ncharTagValuencharTagValue"))
+    #     self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
+    #     time.sleep(3)
+    #     self.tdSql.query(f"select * from {stb_name}")
+    #     tdSql.checkRows(2)
 
     # * tag nchar max is 16374/4, col+ts nchar max  49151
     def tag_col_binary_max_length_check(self, value_type="obj"):
