@@ -73,7 +73,7 @@ class TestBuffer(TDCase):
         #! bug TD-16166
         # for i in [param_value_list[0] - 1,param_value_list[-1] + 1,'abc',100.1]:
         #     self.tdSql.error(f'alter database {dbname} {test_param} {i}')
-        self.tdSql.execute(f'drop database {dbname}')
+        # self.tdSql.execute(f'drop database {dbname}')
     def run(self) -> bool:
         self.buffer_check()
 

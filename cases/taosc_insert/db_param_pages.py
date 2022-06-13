@@ -74,7 +74,7 @@ class TestPages(TDCase):
         # for i in [param_value_list[0]-1,100.1,'abc']:
         #     self.tdSql.error(f'alter database {dbname} pages {i}')
         
-        self.tdSql.execute(f'drop database {dbname}')
+        # self.tdSql.execute(f'drop database {dbname}')
     def run(self):
         self.pages_check()
 

@@ -74,7 +74,7 @@ class TestPagesize(TDCase):
         # for i in [param_value_list[0]-1,param_value_list[-1]+1,100.5,'abc']:
         #     self.tdSql.error(f'alter database  {dbname} {test_param} {i}')
         
-        self.tdSql.execute(f'drop database {dbname}')
+        # self.tdSql.execute(f'drop database {dbname}')
     def run(self) -> bool:
         self.pagesize_check()
 
