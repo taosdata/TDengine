@@ -3157,6 +3157,7 @@ static bool loadDataBlockFromTableSeq(STsdbReadHandle* pTsdbReadHandle) {
 }
 
 // handle data in cache situation
+// bool tsdbNextDataBlock(tsdbReaderT pHandle, uint64_t uid)
 bool tsdbNextDataBlock(tsdbReaderT pHandle) {
   STsdbReadHandle* pTsdbReadHandle = (STsdbReadHandle*)pHandle;
 

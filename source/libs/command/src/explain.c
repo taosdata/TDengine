@@ -1036,7 +1036,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
       
       if (EXPLAIN_MODE_ANALYZE == ctx->mode) {
         // sort key
-        EXPLAIN_ROW_NEW(level + 1, "Sort Key: ");
+        EXPLAIN_ROW_NEW(level + 1, "Merge Key: ");
         if (pResNode->pExecInfo) {
           for (int32_t i = 0; i < LIST_LENGTH(pMergeNode->pMergeKeys); ++i) {
             SOrderByExprNode *ptn = nodesListGetNode(pMergeNode->pMergeKeys, i);
