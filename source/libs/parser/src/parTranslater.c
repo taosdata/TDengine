@@ -2762,15 +2762,16 @@ static int32_t checkTableSchema(STranslateContext* pCxt, SCreateTableStmt* pStmt
 }
 
 static int32_t checkSchemalessDb(STranslateContext* pCxt, const char* pDbName) {
-  if (0 != pCxt->pParseCxt->schemalessType) {
-    return TSDB_CODE_SUCCESS;
-  }
-  SDbCfgInfo info = {0};
-  int32_t    code = getDBCfg(pCxt, pDbName, &info);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = info.schemaless ? TSDB_CODE_SML_INVALID_DB_CONF : TSDB_CODE_SUCCESS;
-  }
-  return code;
+//  if (0 != pCxt->pParseCxt->schemalessType) {
+//    return TSDB_CODE_SUCCESS;
+//  }
+//  SDbCfgInfo info = {0};
+//  int32_t    code = getDBCfg(pCxt, pDbName, &info);
+//  if (TSDB_CODE_SUCCESS == code) {
+//    code = info.schemaless ? TSDB_CODE_SML_INVALID_DB_CONF : TSDB_CODE_SUCCESS;
+//  }
+//  return code;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt) {
@@ -5048,6 +5049,9 @@ static int32_t buildModifyVnodeArray(STranslateContext* pCxt, SAlterTableStmt* p
 static int32_t rewriteAlterTable(STranslateContext* pCxt, SQuery* pQuery) {
   SAlterTableStmt* pStmt = (SAlterTableStmt*)pQuery->pRoot;
   int32_t          code = checkSchemalessDb(pCxt, pStmt->dbName);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
   STableMeta*      pTableMeta = NULL;
   code = getTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pTableMeta);
   if (TSDB_CODE_SUCCESS != code) {

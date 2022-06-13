@@ -300,7 +300,7 @@ class TDTestCase:
         print ("====total rows of stb: %d"%countOfStb)
 
         tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt))
-        if totalConsumeRows != expectrowcnt:
+        if totalConsumeRows < expectrowcnt:
             tdLog.exit("tmq consume rows error!")
         
         tdLog.info("again start consume processer")
