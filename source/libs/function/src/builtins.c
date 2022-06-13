@@ -1749,7 +1749,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = firstFunction,
-    .finalizeFunc = firstLastFinalize,
+    .finalizeFunc = firstLastPartialFinalize,
     .combineFunc  = firstCombine,
   },
   {
@@ -1759,7 +1759,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateFirstLastMerge,
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
-    .processFunc  = firstFunction,
+    .processFunc  = firstFunctionMerge,
     .finalizeFunc = firstLastFinalize,
     .combineFunc  = firstCombine,
   },
