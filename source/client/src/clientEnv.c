@@ -167,7 +167,7 @@ void *createTscObj(const char *user, const char *auth, const char *db, int32_t c
 
   taosThreadMutexInit(&pObj->mutex, NULL);
   pObj->id = taosAddRef(clientConnRefPool, pObj);
-  pObj->schemalessType = 0;
+  pObj->schemalessType = 1;
 
   tscDebug("connObj created, 0x%" PRIx64, pObj->id);
   return pObj;
@@ -190,6 +190,8 @@ void *createRequest(STscObj *pObj, int32_t type) {
   pRequest->pDb = getDbOfConnection(pObj);
   pRequest->requestId = generateRequestId();
   pRequest->metric.start = taosGetTimestampUs();
+
+  pRequest->body.resInfo.convertUcs4 = true;  // convert ucs4 by default
 
   pRequest->type = type;
   pRequest->pTscObj = pObj;

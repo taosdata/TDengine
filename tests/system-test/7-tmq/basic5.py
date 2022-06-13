@@ -13,6 +13,12 @@ from util.dnodes import *
 
 class TDTestCase:
     hostname = socket.gethostname()
+    if (platform.system().lower() == 'windows' and not tdDnodes.dnodes[0].remoteIP == ""):
+        try:
+            config = eval(tdDnodes.dnodes[0].remoteIP)
+            hostname = config["host"]
+        except Exception:
+            hostname = tdDnodes.dnodes[0].remoteIP
     #rpcDebugFlagVal = '143'
     #clientCfgDict = {'serverPort': '', 'firstEp': '', 'secondEp':'', 'rpcDebugFlag':'135', 'fqdn':''}
     #clientCfgDict["rpcDebugFlag"]  = rpcDebugFlagVal
@@ -34,7 +40,7 @@ class TDTestCase:
             projPath = selfPath[:selfPath.find("tests")]
 
         for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
+            if ("taosd" in files or "taosd.exe" in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
                     buildPath = root[:len(root) - len("/build/bin")]
@@ -190,9 +196,14 @@ class TDTestCase:
         showMsg   = 1
         showRow   = 1
         
-        shellCmd = 'nohup ' + buildPath + '/build/bin/tmq_sim -c ' + cfgPath
-        shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName) 
-        shellCmd += "> /dev/null 2>&1 &"        
+        if (platform.system().lower() == 'windows'):
+            shellCmd = 'mintty -h never -w hide ' + buildPath + '\\build\\bin\\tmq_sim.exe -c ' + cfgPath
+            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName) 
+            shellCmd += "> nul 2>&1 &"   
+        else:
+            shellCmd = 'nohup ' + buildPath + '/build/bin/tmq_sim -c ' + cfgPath
+            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName) 
+            shellCmd += "> /dev/null 2>&1 &"  
         tdLog.info(shellCmd)
         os.system(shellCmd)        
 
@@ -303,10 +314,14 @@ class TDTestCase:
         pollDelay = 100
         showMsg   = 1
         showRow   = 1
-        
-        shellCmd = 'nohup ' + buildPath + '/build/bin/tmq_sim -c ' + cfgPath
-        shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName) 
-        shellCmd += "> /dev/null 2>&1 &"        
+        if (platform.system().lower() == 'windows'):
+            shellCmd = 'mintty -h never -w hide ' + buildPath + '\\build\\bin\\tmq_sim.exe -c ' + cfgPath
+            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName) 
+            shellCmd += "> nul 2>&1 &" 
+        else:
+            shellCmd = 'nohup ' + buildPath + '/build/bin/tmq_sim -c ' + cfgPath
+            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName) 
+            shellCmd += "> /dev/null 2>&1 &"  
         tdLog.info(shellCmd)
         os.system(shellCmd)        
 
@@ -436,9 +451,14 @@ class TDTestCase:
         showMsg   = 1
         showRow   = 1
         
-        shellCmd = 'nohup ' + buildPath + '/build/bin/tmq_sim -c ' + cfgPath
-        shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName) 
-        shellCmd += "> /dev/null 2>&1 &"        
+        if (platform.system().lower() == 'windows'):
+            shellCmd = 'mintty -h never -w hide ' + buildPath + '\\build\\bin\\tmq_sim.exe -c ' + cfgPath
+            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName) 
+            shellCmd += "> nul 2>&1 &"   
+        else:
+            shellCmd = 'nohup ' + buildPath + '/build/bin/tmq_sim -c ' + cfgPath
+            shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName) 
+            shellCmd += "> /dev/null 2>&1 &"        
         tdLog.info(shellCmd)
         os.system(shellCmd)        
 

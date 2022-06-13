@@ -385,7 +385,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   int64_t dnodeVer = sdbGetTableVer(pMnode->pSdb, SDB_DNODE) + sdbGetTableVer(pMnode->pSdb, SDB_MNODE);
   int64_t curMs = taosGetTimestampMs();
   bool    online = mndIsDnodeOnline(pDnode, curMs);
-  bool    dnodeChanged = (statusReq.dnodeVer != dnodeVer);
+  bool    dnodeChanged = (statusReq.dnodeVer == 0) || (statusReq.dnodeVer != dnodeVer);
   bool    reboot = (pDnode->rebootTime != statusReq.rebootTime);
   bool    needCheck = !online || dnodeChanged || reboot;
 
@@ -427,7 +427,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     if (!online) {
       mInfo("dnode:%d, from offline to online", pDnode->id);
     } else {
-      mDebug("dnode:%d, send dnode epset, online:%d dnode_ver:%" PRId64 ":%" PRId64 " reboot:%d", pDnode->id, online,
+      mDebug("dnode:%d, send dnode epset, online:%d dnodeVer:%" PRId64 ":%" PRId64 " reboot:%d", pDnode->id, online,
              statusReq.dnodeVer, dnodeVer, reboot);
     }
 
@@ -566,9 +566,11 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SM
   pRaw = NULL;
 
   if (pMObj != NULL) {
+    mDebug("trans:%d, mnode on dnode:%d will be dropped", pTrans->id, pDnode->id);
     if (mndSetDropMnodeInfoToTrans(pMnode, pTrans, pMObj) != 0) goto _OVER;
   }
   if (numOfVnodes > 0) {
+    mDebug("trans:%d, %d vnodes on dnode:%d will be dropped", pTrans->id, numOfVnodes, pDnode->id);
     if (mndSetMoveVgroupsInfoToTrans(pMnode, pTrans, pDnode->id) != 0) goto _OVER;
   }
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;

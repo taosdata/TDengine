@@ -67,6 +67,7 @@ typedef enum {
   CTG_TASK_GET_DB_INFO,
   CTG_TASK_GET_TB_META,
   CTG_TASK_GET_TB_HASH,
+  CTG_TASK_GET_TB_INDEX,
   CTG_TASK_GET_INDEX,
   CTG_TASK_GET_UDF,
   CTG_TASK_GET_USER,
@@ -92,6 +93,10 @@ typedef struct SCtgTbMetaCtx {
   SName* pName;
   int32_t flag;
 } SCtgTbMetaCtx;
+
+typedef struct SCtgTbIndexCtx {
+  SName* pName;
+} SCtgTbIndexCtx;
 
 typedef struct SCtgDbVgCtx {
   char dbFName[TSDB_DB_FNAME_LEN];
@@ -173,7 +178,6 @@ typedef struct SCtgJob {
   SArray*          pTasks;
   int32_t          taskDone;
   SMetaData        jobRes;
-  int32_t          rspCode;
 
   uint64_t         queryId;
   SCatalog*        pCtg; 
@@ -190,6 +194,7 @@ typedef struct SCtgJob {
   int32_t          indexNum;
   int32_t          userNum;
   int32_t          dbInfoNum;
+  int32_t          tbIndexNum;
 } SCtgJob;
 
 typedef struct SCtgMsgCtx {
@@ -201,11 +206,12 @@ typedef struct SCtgMsgCtx {
 
 typedef struct SCtgTask {
   CTG_TASK_TYPE type;
-  int32_t  taskId;
-  SCtgJob *pJob;
-  void* taskCtx;
-  SCtgMsgCtx msgCtx;
-  void* res;
+  int32_t       taskId;
+  SCtgJob*      pJob;
+  void*         taskCtx;
+  SCtgMsgCtx    msgCtx;
+  int32_t       code;
+  void*         res;
 } SCtgTask;
 
 typedef int32_t (*ctgLanchTaskFp)(SCtgTask*);
@@ -310,22 +316,19 @@ typedef struct SCtgCacheOperation {
   int32_t  opId;
   void    *data;
   bool     syncOp;
-  uint64_t seqId;
+  tsem_t   rspSem;  
 } SCtgCacheOperation;
 
 typedef struct SCtgQNode {
-  SCtgCacheOperation     op;
+  SCtgCacheOperation    *op;
   struct SCtgQNode      *next;
 } SCtgQNode;
 
 typedef struct SCtgQueue {
   SRWLatch              qlock;
-  uint64_t              seqId;
-  uint64_t              seqDone;
   SCtgQNode            *head;
   SCtgQNode            *tail;
   tsem_t                reqSem;  
-  tsem_t                rspSem;  
   uint64_t              qRemainNum;
 } SCtgQueue;
 
@@ -493,6 +496,7 @@ int32_t ctgGetDBVgInfoFromMnode(CTG_PARAMS, SBuildUseDBInput *input, SUseDbOutpu
 int32_t ctgGetQnodeListFromMnode(CTG_PARAMS, SArray *out, SCtgTask* pTask);
 int32_t ctgGetDBCfgFromMnode(CTG_PARAMS, const char *dbFName, SDbCfgInfo *out, SCtgTask* pTask);
 int32_t ctgGetIndexInfoFromMnode(CTG_PARAMS, const char *indexName, SIndexInfo *out, SCtgTask* pTask);
+int32_t ctgGetTbIndexFromMnode(CTG_PARAMS, SName* name, SArray** out, SCtgTask* pTask);
 int32_t ctgGetUdfInfoFromMnode(CTG_PARAMS, const char *funcName, SFuncInfo *out, SCtgTask* pTask);
 int32_t ctgGetUserDbAuthFromMnode(CTG_PARAMS, const char *user, SGetUserAuthRsp *out, SCtgTask* pTask);
 int32_t ctgGetTbMetaFromMnodeImpl(CTG_PARAMS, char *dbFName, char* tbName, STableMetaOutput* out, SCtgTask* pTask);

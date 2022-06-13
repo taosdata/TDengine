@@ -403,6 +403,7 @@ class TDDnode:
             self.remoteExec(self.cfgDict, "tdDnodes.dnodes[%d].deployed=1\ntdDnodes.dnodes[%d].logDir=\"%%s/sim/dnode%%d/log\"%%(tdDnodes.dnodes[%d].path,%d)\ntdDnodes.dnodes[%d].cfgDir=\"%%s/sim/dnode%%d/cfg\"%%(tdDnodes.dnodes[%d].path,%d)\ntdDnodes.start(%d)"%(self.index-1,self.index-1,self.index-1,self.index,self.index-1,self.index-1,self.index,self.index))
             self.running = 1
         else:
+            os.system("rm -rf %s/taosdlog.0"%self.logDir)
             if os.system(cmd) != 0:
                 tdLog.exit(cmd)
             self.running = 1
@@ -420,8 +421,6 @@ class TDDnode:
                     if i > 50:
                         break
                 tailCmdStr = 'tail -f '
-                if platform.system().lower() == 'windows':
-                    tailCmdStr = 'tail -n +0 -f '
                 popen = subprocess.Popen(
                     tailCmdStr + logFile,
                     stdout=subprocess.PIPE,
@@ -498,7 +497,7 @@ class TDDnode:
                     psCmd, shell=True).decode("utf-8")
             if not platform.system().lower() == 'windows':
                 for port in range(6030, 6041):
-                    fuserCmd = "fuser -k -n tcp %d" % port
+                    fuserCmd = "fuser -k -n tcp %d > /dev/null" % port
                     os.system(fuserCmd)
             if self.valgrind:
                 time.sleep(2)
@@ -694,6 +693,9 @@ class TDDnodes:
 
     def stopAll(self):
         tdLog.info("stop all dnodes")
+        if (not self.dnodes[0].remoteIP == ""):
+            self.dnodes[0].remoteExec(self.dnodes[0].cfgDict, "for i in range(len(tdDnodes.dnodes)):\n    tdDnodes.dnodes[i].running=1\ntdDnodes.stopAll()")
+            return
         for i in range(len(self.dnodes)):
             self.dnodes[i].stop()
 
@@ -707,7 +709,10 @@ class TDDnodes:
         psCmd = "ps -ef|grep -w taosd| grep -v grep| grep -v defunct | awk '{print $2}'"
         processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
         while(processID):
-            killCmd = "kill -9 %s > /dev/null 2>&1" % processID
+            if platform.system().lower() == 'windows':
+                killCmd = "kill -9 %s > nul 2>&1" % processID
+            else:
+                killCmd = "kill -9 %s > /dev/null 2>&1" % processID
             os.system(killCmd)
             time.sleep(1)
             processID = subprocess.check_output(
@@ -717,7 +722,10 @@ class TDDnodes:
             psCmd = "ps -ef|grep -w valgrind.bin| grep -v grep | awk '{print $2}'"
             processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
             while(processID):
-                killCmd = "kill -TERM %s > /dev/null 2>&1" % processID
+                if platform.system().lower() == 'windows':
+                    killCmd = "kill -TERM %s > nul 2>&1" % processID
+                else:
+                    killCmd = "kill -TERM %s > /dev/null 2>&1" % processID
                 os.system(killCmd)
                 time.sleep(1)
                 processID = subprocess.check_output(

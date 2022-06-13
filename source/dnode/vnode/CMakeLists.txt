@@ -28,7 +28,6 @@ target_sources(
 
     # sma
     "src/sma/sma.c"
-    "src/sma/smaTDBImpl.c"
     "src/sma/smaEnv.c"
     "src/sma/smaOpen.c"
     "src/sma/smaRollup.c"
@@ -36,12 +35,10 @@ target_sources(
 
     # tsdb
     "src/tsdb/tsdbCommit.c"
-    # "src/tsdb/tsdbCommit2.c"
     "src/tsdb/tsdbFile.c"
     "src/tsdb/tsdbFS.c"
     "src/tsdb/tsdbOpen.c"
     "src/tsdb/tsdbMemTable.c"
-    # "src/tsdb/tsdbMemTable2.c"
     "src/tsdb/tsdbRead.c"
     "src/tsdb/tsdbReadImpl.c"
     "src/tsdb/tsdbWrite.c"

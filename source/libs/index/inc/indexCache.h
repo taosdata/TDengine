@@ -62,27 +62,27 @@ typedef struct CacheTerm {
 } CacheTerm;
 //
 
-IndexCache* indexCacheCreate(SIndex* idx, uint64_t suid, const char* colName, int8_t type);
+IndexCache* idxCacheCreate(SIndex* idx, uint64_t suid, const char* colName, int8_t type);
 
-void indexCacheForceToMerge(void* cache);
-void indexCacheDestroy(void* cache);
-void indexCacheBroadcast(void* cache);
-void indexCacheWait(void* cache);
+void idxCacheForceToMerge(void* cache);
+void idxCacheDestroy(void* cache);
+void idxCacheBroadcast(void* cache);
+void idxCacheWait(void* cache);
 
-Iterate* indexCacheIteratorCreate(IndexCache* cache);
-void     indexCacheIteratorDestroy(Iterate* iiter);
+Iterate* idxCacheIteratorCreate(IndexCache* cache);
+void     idxCacheIteratorDestroy(Iterate* iiter);
 
-int indexCachePut(void* cache, SIndexTerm* term, uint64_t uid);
+int idxCachePut(void* cache, SIndexTerm* term, uint64_t uid);
 
 // int indexCacheGet(void *cache, uint64_t *rst);
-int indexCacheSearch(void* cache, SIndexTermQuery* query, SIdxTRslt* tr, STermValueType* s);
+int idxCacheSearch(void* cache, SIndexTermQuery* query, SIdxTRslt* tr, STermValueType* s);
 
-void indexCacheRef(IndexCache* cache);
-void indexCacheUnRef(IndexCache* cache);
+void idxCacheRef(IndexCache* cache);
+void idxCacheUnRef(IndexCache* cache);
 
-void indexCacheDebug(IndexCache* cache);
+void idxCacheDebug(IndexCache* cache);
 
-void indexCacheDestroyImm(IndexCache* cache);
+void idxCacheDestroyImm(IndexCache* cache);
 #ifdef __cplusplus
 }
 #endif

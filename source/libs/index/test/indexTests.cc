@@ -106,17 +106,17 @@ class FstReadMemory {
     return ok;
   }
   // add later
-  bool Search(AutomationCtx* ctx, std::vector<uint64_t>& result) {
-    FstStreamBuilder*      sb = fstSearch(_fst, ctx);
-    StreamWithState*       st = streamBuilderIntoStream(sb);
-    StreamWithStateResult* rt = NULL;
+  bool Search(FAutoCtx* ctx, std::vector<uint64_t>& result) {
+    FStmBuilder* sb = fstSearch(_fst, ctx);
+    FStmSt*      st = stmBuilderIntoStm(sb);
+    FStmStRslt*  rt = NULL;
 
-    while ((rt = streamWithStateNextWith(st, NULL)) != NULL) {
+    while ((rt = stmStNextWith(st, NULL)) != NULL) {
       result.push_back((uint64_t)(rt->out.out));
     }
     return true;
   }
-  bool SearchWithTimeCostUs(AutomationCtx* ctx, std::vector<uint64_t>& result) {
+  bool SearchWithTimeCostUs(FAutoCtx* ctx, std::vector<uint64_t>& result) {
     int64_t s = taosGetTimestampUs();
     bool    ok = this->Search(ctx, result);
     int64_t e = taosGetTimestampUs();
@@ -220,7 +220,7 @@ void checkFstPrefixSearch() {
   // prefix search
   std::vector<uint64_t> result;
 
-  AutomationCtx* ctx = automCtxCreate((void*)"ab", AUTOMATION_PREFIX);
+  FAutoCtx* ctx = automCtxCreate((void*)"ab", AUTOMATION_PREFIX);
   m->Search(ctx, result);
   assert(result.size() == count);
   for (int i = 0; i < result.size(); i++) {
@@ -521,10 +521,10 @@ class CacheObj {
  public:
   CacheObj() {
     // TODO
-    cache = indexCacheCreate(NULL, 0, "voltage", TSDB_DATA_TYPE_BINARY);
+    cache = idxCacheCreate(NULL, 0, "voltage", TSDB_DATA_TYPE_BINARY);
   }
   int Put(SIndexTerm* term, int16_t colId, int32_t version, uint64_t uid) {
-    int ret = indexCachePut(cache, term, uid);
+    int ret = idxCachePut(cache, term, uid);
     if (ret != 0) {
       //
       std::cout << "failed to put into cache: " << ret << std::endl;
@@ -533,12 +533,12 @@ class CacheObj {
   }
   void Debug() {
     //
-    indexCacheDebug(cache);
+    idxCacheDebug(cache);
   }
   int Get(SIndexTermQuery* query, int16_t colId, int32_t version, SArray* result, STermValueType* s) {
     SIdxTRslt* tr = idxTRsltCreate();
 
-    int ret = indexCacheSearch(cache, query, tr, s);
+    int ret = idxCacheSearch(cache, query, tr, s);
     idxTRsltMergeTo(tr, result);
     idxTRsltDestroy(tr);
 
@@ -549,7 +549,7 @@ class CacheObj {
   }
   ~CacheObj() {
     // TODO
-    indexCacheDestroy(cache);
+    idxCacheDestroy(cache);
   }
 
  private:

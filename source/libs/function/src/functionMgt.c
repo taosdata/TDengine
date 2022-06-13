@@ -159,6 +159,8 @@ bool fmIsRepeatScanFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, 
 
 bool fmIsUserDefinedFunc(int32_t funcId) { return funcId > FUNC_UDF_ID_START; }
 
+bool fmIsForbidFillFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_FORBID_FILL_FUNC); }
+
 void fmFuncMgtDestroy() {
   void* m = gFunMgtService.pFuncNameHashTable;
   if (m != NULL && atomic_val_compare_exchange_ptr((void**)&gFunMgtService.pFuncNameHashTable, m, 0) == m) {
@@ -200,6 +202,21 @@ bool fmIsInvertible(int32_t funcId) {
   return res;
 }
 
+static int32_t getFuncInfo(SFunctionNode* pFunc) {
+  char msg[64] = {0};
+  if (NULL != gFunMgtService.pFuncNameHashTable) {
+    return fmGetFuncInfo(pFunc, msg, sizeof(msg));
+  }
+  for (int32_t i = 0; i < funcMgtBuiltinsNum; ++i) {
+    if (0 == strcmp(funcMgtBuiltins[i].name, pFunc->functionName)) {
+      pFunc->funcId = i;
+      pFunc->funcType = funcMgtBuiltins[pFunc->funcId].type;
+      return funcMgtBuiltins[pFunc->funcId].translateFunc(pFunc, msg, sizeof(msg));
+    }
+  }
+  return TSDB_CODE_FUNC_NOT_BUILTIN_FUNTION;
+}
+
 static SFunctionNode* createFunction(const char* pName, SNodeList* pParameterList) {
   SFunctionNode* pFunc = nodesMakeNode(QUERY_NODE_FUNCTION);
   if (NULL == pFunc) {
@@ -207,8 +224,8 @@ static SFunctionNode* createFunction(const char* pName, SNodeList* pParameterLis
   }
   strcpy(pFunc->functionName, pName);
   pFunc->pParameterList = pParameterList;
-  char msg[64] = {0};
-  if (TSDB_CODE_SUCCESS != fmGetFuncInfo(pFunc, msg, sizeof(msg))) {
+  if (TSDB_CODE_SUCCESS != getFuncInfo(pFunc)) {
+    pFunc->pParameterList = NULL;
     nodesDestroyNode(pFunc);
     return NULL;
   }

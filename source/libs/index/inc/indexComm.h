@@ -26,26 +26,28 @@ extern "C" {
 extern char JSON_COLUMN[];
 extern char JSON_VALUE_DELIM;
 
-char* indexPackJsonData(SIndexTerm* itm);
-char* indexPackJsonDataPrefix(SIndexTerm* itm, int32_t* skip);
+char* idxPackJsonData(SIndexTerm* itm);
+char* idxPackJsonDataPrefix(SIndexTerm* itm, int32_t* skip);
+char* idxPackJsonDataPrefixNoType(SIndexTerm* itm, int32_t* skip);
 
 typedef enum { MATCH, CONTINUE, BREAK } TExeCond;
 
 typedef TExeCond (*_cache_range_compare)(void* a, void* b, int8_t type);
 
-__compar_fn_t indexGetCompar(int8_t type);
+__compar_fn_t idxGetCompar(int8_t type);
 TExeCond      tCompare(__compar_fn_t func, int8_t cmpType, void* a, void* b, int8_t dType);
 TExeCond      tDoCompare(__compar_fn_t func, int8_t cmpType, void* a, void* b);
 
-_cache_range_compare indexGetCompare(RangeType ty);
+_cache_range_compare idxGetCompare(RangeType ty);
 
-int32_t indexConvertData(void* src, int8_t type, void** dst);
-int32_t indexConvertDataToStr(void* src, int8_t type, void** dst);
+int32_t idxConvertData(void* src, int8_t type, void** dst);
+int32_t idxConvertDataToStr(void* src, int8_t type, void** dst);
 
-int32_t indexGetDataByteLen(int8_t type);
+int32_t idxGetDataByteLen(int8_t type);
 
-char* indexInt2str(int64_t val, char* dst, int radix);
+char* idxInt2str(int64_t val, char* dst, int radix);
 
+int idxUidCompare(const void* a, const void* b);
 #ifdef __cplusplus
 }
 #endif
