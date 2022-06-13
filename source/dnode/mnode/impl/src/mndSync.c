@@ -61,6 +61,12 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
     }
     tsem_post(&pMgmt->syncSem);
   } else {
+    STrans *pTrans = mndAcquireTrans(pMnode, transId);
+    if (pTrans != NULL) {
+      mndTransExecute(pMnode, pTrans);
+      mndReleaseTrans(pMnode, pTrans);
+    }
+
     if (cbMeta.index - sdbGetApplyIndex(pMnode->pSdb) > 100) {
       SSnapshotMeta sMeta = {0};
       if (syncGetSnapshotMeta(pMnode->syncMgmt.sync, &sMeta) == 0) {
@@ -96,9 +102,17 @@ void mndRestoreFinish(struct SSyncFSM *pFsm) {
   }
 }
 
-void mndReConfig(struct SSyncFSM *pFsm, SSyncCfg newCfg, SReConfigCbMeta cbMeta) {
+void mndReConfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReConfigCbMeta cbMeta) {
   SMnode    *pMnode = pFsm->data;
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
+
+#if 0
+// send response
+  SRpcMsg rpcMsg = {.msgType = pMsg->msgType, .contLen = pMsg->contLen, .conn.applyIndex = cbMeta.index};
+  rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
+  memcpy(rpcMsg.pCont, pMsg->pCont, pMsg->contLen);
+  syncGetAndDelRespRpc(pMnode->syncMgmt.sync, cbMeta.seqNum, &rpcMsg.info);
+#endif
 
   pMgmt->errCode = cbMeta.code;
   mInfo("trans:-1, sync reconfig is proposed, saved:%d code:0x%x, index:%" PRId64 " term:%" PRId64, pMgmt->transId,
@@ -192,14 +206,14 @@ int32_t mndInitSync(SMnode *pMnode) {
     return -1;
   }
 
-  mDebug("mnode sync is opened, id:%" PRId64, pMgmt->sync);
+  mDebug("mnode-sync is opened, id:%" PRId64, pMgmt->sync);
   return 0;
 }
 
 void mndCleanupSync(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   syncStop(pMgmt->sync);
-  mDebug("mnode sync is stopped, id:%" PRId64, pMgmt->sync);
+  mDebug("mnode-sync is stopped, id:%" PRId64, pMgmt->sync);
 
   tsem_destroy(&pMgmt->syncSem);
   memset(pMgmt, 0, sizeof(SSyncMgmt));

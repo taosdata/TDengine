@@ -14,6 +14,7 @@
  */
 
 #include "syncRaftLog.h"
+#include "syncRaftCfg.h"
 #include "wal.h"
 
 // refactor, log[0 .. n] ==> log[m .. n]
@@ -161,7 +162,9 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
 
   walFsync(pWal, true);
 
-  sTrace("sync event write index:%" PRId64, pEntry->index);
+  sDebug("vgId:%d sync event write index:%ld, %s, isStandBy:%d, msgType:%s, originalRpcType:%s", pData->pSyncNode->vgId,
+         pEntry->index, syncUtilState2String(pData->pSyncNode->state), pData->pSyncNode->pRaftCfg->isStandBy,
+         TMSG_INFO(pEntry->msgType), TMSG_INFO(pEntry->originalRpcType));
 
   return code;
 }
@@ -317,7 +320,7 @@ int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
 
   walFsync(pWal, true);
 
-  sTrace("sync event old write wal: %ld", pEntry->index);
+  sDebug("sync event old write wal: %ld", pEntry->index);
   return code;
 }
 
@@ -550,15 +553,19 @@ void logStorePrint2(char* s, SSyncLogStore* pLogStore) {
 }
 
 void logStoreLog(SSyncLogStore* pLogStore) {
-  char* serialized = logStore2Str(pLogStore);
-  sTraceLong("logStoreLog | len:%lu | %s", strlen(serialized), serialized);
-  taosMemoryFree(serialized);
+  if (gRaftDetailLog) {
+    char* serialized = logStore2Str(pLogStore);
+    sTraceLong("logStoreLog | len:%lu | %s", strlen(serialized), serialized);
+    taosMemoryFree(serialized);
+  }
 }
 
 void logStoreLog2(char* s, SSyncLogStore* pLogStore) {
-  char* serialized = logStore2Str(pLogStore);
-  sTraceLong("logStoreLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
-  taosMemoryFree(serialized);
+  if (gRaftDetailLog) {
+    char* serialized = logStore2Str(pLogStore);
+    sTraceLong("logStoreLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+    taosMemoryFree(serialized);
+  }
 }
 
 // for debug -----------------

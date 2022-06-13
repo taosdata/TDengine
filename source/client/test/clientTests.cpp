@@ -778,9 +778,9 @@ TEST(testCase, async_api_test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
-  taos_query(pConn, "use test");
+  taos_query(pConn, "use nest");
 
-  TAOS_RES* pRes = taos_query(pConn, "desc abc1.tu");
+  TAOS_RES* pRes = taos_query(pConn, "select NOW() from (select * from regular_table_2 where tbname in ('regular_table_2_1') and  q_bigint <= 9223372036854775807 and  q_tinyint <= 127 and    q_bool in ( true , false) ) order by ts;");
   if (taos_errno(pRes) != 0) {
     printf("failed, reason:%s\n", taos_errstr(pRes));
   }

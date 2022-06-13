@@ -149,6 +149,22 @@ class MockCatalogServiceImpl {
     return TSDB_CODE_SUCCESS;
   }
 
+  int32_t catalogGetTableIndex(const SName* pTableName, SArray** pIndexes) const {
+    char tbFName[TSDB_TABLE_FNAME_LEN] = {0};
+    tNameExtractFullName(pTableName, tbFName);
+    auto it = index_.find(tbFName);
+    if (index_.end() == it) {
+      return TSDB_CODE_SUCCESS;
+    }
+    *pIndexes = taosArrayInit(it->second.size(), sizeof(STableIndexInfo));
+    for (const auto& index : it->second) {
+      STableIndexInfo info;
+
+      taosArrayPush(*pIndexes, copyTableIndexInfo(&info, &index));
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
   int32_t catalogGetAllMeta(const SCatalogReq* pCatalogReq, SMetaData* pMetaData) const {
     int32_t code = getAllTableMeta(pCatalogReq->pTableMeta, &pMetaData->pTableMeta);
     if (TSDB_CODE_SUCCESS == code) {
@@ -169,6 +185,9 @@ class MockCatalogServiceImpl {
     if (TSDB_CODE_SUCCESS == code) {
       code = getAllUdf(pCatalogReq->pUdf, &pMetaData->pUdfList);
     }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = getAllTableIndex(pCatalogReq->pTableIndex, &pMetaData->pTableIndex);
+    }
     return code;
   }
 
@@ -176,7 +195,7 @@ class MockCatalogServiceImpl {
                                    int32_t numOfColumns, int32_t numOfTags) {
     builder_ = TableBuilder::createTableBuilder(tableType, numOfColumns, numOfTags);
     meta_[db][tbname] = builder_->table();
-    meta_[db][tbname]->schema->uid = id_++;
+    meta_[db][tbname]->schema->uid = getNextId();
     return *(builder_.get());
   }
 
@@ -187,14 +206,11 @@ class MockCatalogServiceImpl {
     }
     meta_[db][tbname].reset(new MockTableMeta());
     meta_[db][tbname]->schema = table.release();
-    meta_[db][tbname]->schema->uid = id_++;
+    meta_[db][tbname]->schema->uid = getNextId();
     meta_[db][tbname]->schema->tableType = TSDB_CHILD_TABLE;
 
     SVgroupInfo vgroup = {vgid, 0, 0, {0}, 0};
-    addEpIntoEpSet(&vgroup.epSet, "dnode_1", 6030);
-    addEpIntoEpSet(&vgroup.epSet, "dnode_2", 6030);
-    addEpIntoEpSet(&vgroup.epSet, "dnode_3", 6030);
-    vgroup.epSet.inUse = 0;
+    genEpSet(&vgroup.epSet);
 
     meta_[db][tbname]->vgs.emplace_back(vgroup);
     // super table
@@ -268,10 +284,45 @@ class MockCatalogServiceImpl {
     udf_.insert(std::make_pair(func, info));
   }
 
+  void createSmaIndex(const SMCreateSmaReq* pReq) {
+    STableIndexInfo info;
+    info.intervalUnit = pReq->intervalUnit;
+    info.slidingUnit = pReq->slidingUnit;
+    info.interval = pReq->interval;
+    info.offset = pReq->offset;
+    info.sliding = pReq->sliding;
+    info.dstTbUid = getNextId();
+    info.dstVgId = pReq->dstVgId;
+    genEpSet(&info.epSet);
+    info.expr = strdup(pReq->expr);
+    auto it = index_.find(pReq->stb);
+    if (index_.end() == it) {
+      index_.insert(std::make_pair(std::string(pReq->stb), std::vector<STableIndexInfo>{info}));
+    } else {
+      it->second.push_back(info);
+    }
+  }
+
  private:
   typedef std::map<std::string, std::shared_ptr<MockTableMeta>> TableMetaCache;
   typedef std::map<std::string, TableMetaCache>                 DbMetaCache;
   typedef std::map<std::string, std::shared_ptr<SFuncInfo>>     UdfMetaCache;
+  typedef std::map<std::string, std::vector<STableIndexInfo>>   IndexMetaCache;
+
+  uint64_t getNextId() { return id_++; }
+
+  void genEpSet(SEpSet* pEpSet) {
+    addEpIntoEpSet(pEpSet, "dnode_1", 6030);
+    addEpIntoEpSet(pEpSet, "dnode_2", 6030);
+    addEpIntoEpSet(pEpSet, "dnode_3", 6030);
+    pEpSet->inUse = 0;
+  }
+
+  STableIndexInfo* copyTableIndexInfo(STableIndexInfo* pDst, const STableIndexInfo* pSrc) const {
+    memcpy(pDst, pSrc, sizeof(STableIndexInfo));
+    pDst->expr = strdup(pSrc->expr);
+    return pDst;
+  }
 
   std::string toDbname(const std::string& dbFullName) const {
     std::string::size_type n = dbFullName.find(".");
@@ -463,10 +514,24 @@ class MockCatalogServiceImpl {
     return TSDB_CODE_SUCCESS;
   }
 
+  int32_t getAllTableIndex(SArray* pTableIndex, SArray** pTableIndexData) const {
+    if (NULL != pTableIndex) {
+      int32_t num = taosArrayGetSize(pTableIndex);
+      *pTableIndexData = taosArrayInit(num, sizeof(SMetaRes));
+      for (int32_t i = 0; i < num; ++i) {
+        SMetaRes res = {0};
+        res.code = catalogGetTableIndex((const SName*)taosArrayGet(pTableIndex, i), (SArray**)(&res.pRes));
+        taosArrayPush(*pTableIndexData, &res);
+      }
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
   uint64_t                      id_;
   std::unique_ptr<TableBuilder> builder_;
   DbMetaCache                   meta_;
   UdfMetaCache                  udf_;
+  IndexMetaCache                index_;
 };
 
 MockCatalogService::MockCatalogService() : impl_(new MockCatalogServiceImpl()) {}
@@ -490,6 +555,8 @@ void MockCatalogService::createFunction(const std::string& func, int8_t funcType
   impl_->createFunction(func, funcType, outputType, outputLen, bufSize);
 }
 
+void MockCatalogService::createSmaIndex(const SMCreateSmaReq* pReq) { impl_->createSmaIndex(pReq); }
+
 int32_t MockCatalogService::catalogGetTableMeta(const SName* pTableName, STableMeta** pTableMeta) const {
   return impl_->catalogGetTableMeta(pTableName, pTableMeta);
 }
@@ -508,6 +575,10 @@ int32_t MockCatalogService::catalogGetDBVgInfo(const char* pDbFName, SArray** pV
 
 int32_t MockCatalogService::catalogGetUdfInfo(const std::string& funcName, SFuncInfo* pInfo) const {
   return impl_->catalogGetUdfInfo(funcName, pInfo);
+}
+
+int32_t MockCatalogService::catalogGetTableIndex(const SName* pTableName, SArray** pIndexes) const {
+  return impl_->catalogGetTableIndex(pTableName, pIndexes);
 }
 
 int32_t MockCatalogService::catalogGetAllMeta(const SCatalogReq* pCatalogReq, SMetaData* pMetaData) const {

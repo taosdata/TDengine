@@ -112,6 +112,7 @@ int32_t spreadFunctionMerge(SqlFunctionCtx* pCtx);
 int32_t spreadFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t spreadPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t getSpreadInfoSize();
+int32_t spreadCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 
 bool getElapsedFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool elapsedFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
@@ -120,6 +121,7 @@ int32_t elapsedFunctionMerge(SqlFunctionCtx* pCtx);
 int32_t elapsedFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t elapsedPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t getElapsedInfoSize();
+int32_t elapsedCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 
 bool getHistogramFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool histogramFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
@@ -128,6 +130,7 @@ int32_t histogramFunctionMerge(SqlFunctionCtx* pCtx);
 int32_t histogramFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t histogramPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t getHistogramInfoSize();
+int32_t histogramCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 
 bool getHLLFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t hllFunction(SqlFunctionCtx* pCtx);
@@ -135,6 +138,7 @@ int32_t hllFunctionMerge(SqlFunctionCtx* pCtx);
 int32_t hllFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t hllPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t getHLLInfoSize();
+int32_t hllCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 
 bool getStateFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool stateFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);

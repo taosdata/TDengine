@@ -28,7 +28,6 @@ target_sources(
 
     # sma
     "src/sma/sma.c"
-    "src/sma/smaTDBImpl.c"
     "src/sma/smaEnv.c"
     "src/sma/smaOpen.c"
     "src/sma/smaRollup.c"

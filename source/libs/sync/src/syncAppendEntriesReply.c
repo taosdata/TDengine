@@ -121,7 +121,7 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
 
   syncIndexMgrLog2("recv SyncAppendEntriesReply, before pNextIndex:", ths->pNextIndex);
   syncIndexMgrLog2("recv SyncAppendEntriesReply, before pMatchIndex:", ths->pMatchIndex);
-  {
+  if (gRaftDetailLog) {
     SSnapshot snapshot;
     ths->pFsm->FpGetSnapshot(ths->pFsm, &snapshot);
     sTrace("recv SyncAppendEntriesReply, before snapshot.lastApplyIndex:%ld, snapshot.lastApplyTerm:%lu",
@@ -147,7 +147,10 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
   if (pMsg->success) {
     // nextIndex'  = [nextIndex  EXCEPT ![i][j] = m.mmatchIndex + 1]
     syncIndexMgrSetIndex(ths->pNextIndex, &(pMsg->srcId), pMsg->matchIndex + 1);
-    sTrace("update next match, index:%ld, success:%d", pMsg->matchIndex + 1, pMsg->success);
+
+    if (gRaftDetailLog) {
+      sTrace("update next match, index:%ld, success:%d", pMsg->matchIndex + 1, pMsg->success);
+    }
 
     // matchIndex' = [matchIndex EXCEPT ![i][j] = m.mmatchIndex]
     syncIndexMgrSetIndex(ths->pMatchIndex, &(pMsg->srcId), pMsg->matchIndex);
@@ -159,7 +162,9 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
 
   } else {
     SyncIndex nextIndex = syncIndexMgrGetIndex(ths->pNextIndex, &(pMsg->srcId));
-    sTrace("update next not match, begin, index:%ld, success:%d", nextIndex, pMsg->success);
+    if (gRaftDetailLog) {
+      sTrace("update next index not match, begin, index:%ld, success:%d", nextIndex, pMsg->success);
+    }
 
     // notice! int64, uint64
     if (nextIndex > SYNC_INDEX_BEGIN) {
@@ -178,9 +183,26 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
           pMsg->privateTerm < pSender->privateTerm) {
         snapshotSenderStart(pSender);
 
-        char* s = snapshotSender2Str(pSender);
-        sInfo("sync event snapshot send start sender first time, sender:%s", s);
-        taosMemoryFree(s);
+        char     host[128];
+        uint16_t port;
+        syncUtilU642Addr(pSender->pSyncNode->replicasId[pSender->replicaIndex].addr, host, sizeof(host), &port);
+
+        if (gRaftDetailLog) {
+          char* s = snapshotSender2Str(pSender);
+          sDebug(
+              "vgId:%d sync event snapshot send to %s:%d start sender first time, lastApplyIndex:%ld lastApplyTerm:%lu "
+              "lastConfigIndex:%ld"
+              "sender:%s",
+              ths->vgId, host, port, pSender->snapshot.lastApplyIndex, pSender->snapshot.lastApplyTerm,
+              pSender->snapshot.lastConfigIndex, s);
+          taosMemoryFree(s);
+        } else {
+          sDebug(
+              "vgId:%d sync event snapshot send to %s:%d start sender first time, lastApplyIndex:%ld "
+              "lastApplyTerm:%lu lastConfigIndex:%ld",
+              ths->vgId, host, port, pSender->snapshot.lastApplyIndex, pSender->snapshot.lastApplyTerm,
+              pSender->snapshot.lastConfigIndex);
+        }
       }
 
       SyncIndex sentryIndex = pSender->snapshot.lastApplyIndex + 1;
@@ -195,12 +217,14 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
     }
 
     syncIndexMgrSetIndex(ths->pNextIndex, &(pMsg->srcId), nextIndex);
-    sTrace("update next not match, end, index:%ld, success:%d", nextIndex, pMsg->success);
+    if (gRaftDetailLog) {
+      sTrace("update next index not match, end, index:%ld, success:%d", nextIndex, pMsg->success);
+    }
   }
 
   syncIndexMgrLog2("recv SyncAppendEntriesReply, after pNextIndex:", ths->pNextIndex);
   syncIndexMgrLog2("recv SyncAppendEntriesReply, after pMatchIndex:", ths->pMatchIndex);
-  {
+  if (gRaftDetailLog) {
     SSnapshot snapshot;
     ths->pFsm->FpGetSnapshot(ths->pFsm, &snapshot);
     sTrace("recv SyncAppendEntriesReply, after snapshot.lastApplyIndex:%ld, snapshot.lastApplyTerm:%lu",

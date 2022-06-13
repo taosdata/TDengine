@@ -69,7 +69,7 @@ Before using Java Connector to connect to the database, the following conditions
 ### Install the connectors
 
 <Tabs defaultValue="maven">
-<TabItem value="maven" label="install via Maven">
+<TabItem value="maven" label="Install via Maven">
 
 - [sonatype](https://search.maven.org/artifact/com.taosdata.jdbc/taos-jdbcdriver)
 - [mvnrepository](https://mvnrepository.com/artifact/com.taosdata.jdbc/taos-jdbcdriver)
@@ -77,7 +77,7 @@ Before using Java Connector to connect to the database, the following conditions
 
 Add following dependency in the `pom.xml` file of your Maven project:
 
-```xml-dtd
+```xml
 <dependency>
  <groupId>com.taosdata.jdbc</groupId>
  <artifactId>taos-jdbcdriver</artifactId>
@@ -90,7 +90,7 @@ Add following dependency in the `pom.xml` file of your Maven project:
 
 You can build Java connector from source code after cloning the TDengine project:
 
-```shell
+```
 git clone https://github.com/taosdata/taos-connector-jdbc.git
 cd taos-connector-jdbc
 mvn clean install -Dmaven.test.skip=true
@@ -140,40 +140,43 @@ When you use a JDBC native connection to connect to a TDengine cluster, you can 
 
 1. Do not specify hostname and port in Java applications.
 
-```java
-public Connection getConn() throws Exception{
-  Class.forName("com.taosdata.jdbc.TSDBDriver");
-  String jdbcUrl = "jdbc:TAOS://:/test?user=root&password=taosdata";
-  Properties connProps = new Properties();
-  connProps.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
-  connProps.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
-  connProps.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
-  Connection conn = DriverManager.getConnection(jdbcUrl, connProps);
-  return conn;
-}
-```
+    ```java
+    public Connection getConn() throws Exception{
+    Class.forName("com.taosdata.jdbc.TSDBDriver");
+    String jdbcUrl = "jdbc:TAOS://:/test?user=root&password=taosdata";
+    Properties connProps = new Properties();
+    connProps.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
+    connProps.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
+    connProps.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
+    Connection conn = DriverManager.getConnection(jdbcUrl, connProps);
+    return conn;
+    }
+    ```
 
 2. specify the firstEp and the secondEp in the configuration file taos.cfg
 
-```shell
-# first fully qualified domain name (FQDN) for TDengine system
-firstEp               cluster_node1:6030
+    ```shell
+    # first fully qualified domain name (FQDN) for TDengine system
+    firstEp               cluster_node1:6030
 
-# second fully qualified domain name (FQDN) for TDengine system, for cluster only
-secondEp              cluster_node2:6030
+    # second fully qualified domain name (FQDN) for TDengine system, for cluster only
+    secondEp              cluster_node2:6030
 
-# default system charset
-# charset               UTF-8
+    # default system charset
+    # charset               UTF-8
 
-# system locale
-# locale                en_US.UTF-8
-```
+    # system locale
+    # locale                en_US.UTF-8
+    ```
 
 In the above example, JDBC uses the client's configuration file to establish a connection to a hostname `cluster_node1`, port 6030, and a database named `test`. When the firstEp node in the cluster fails, JDBC attempts to connect to the cluster using secondEp.
 
 In TDengine, as long as one node in firstEp and secondEp is valid, the connection to the cluster can be established normally.
 
-> **Note**: The configuration file here refers to the configuration file on the machine where the application that calls the JDBC Connector is located, the default path is `/etc/taos/taos.cfg` on Linux, and the default path is `C://TDengine/cfg/taos.cfg` on Windows.
+:::note
+The configuration file here refers to the configuration file on the machine where the application that calls the JDBC Connector is located, the default path is `/etc/taos/taos.cfg` on Linux, and the default path is `C://TDengine/cfg/taos.cfg` on Windows.
+
+:::
 
 </TabItem>
 <TabItem value="rest" label="REST connection">

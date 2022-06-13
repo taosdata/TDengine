@@ -21,7 +21,7 @@ sql create dnode $hostname port 7500
 
 $x = 0
 step1:
-	$ = $x + 1
+	$x = $x + 1
 	sleep 1000
 	if $x == 10 then
 	  print ====> dnode not ready!
@@ -69,11 +69,12 @@ sql_error redistribute vgroup 2 dnode 5 dnode 3
 sql_error redistribute vgroup 2 dnode 2 dnode 3 
 sql_error redistribute vgroup 2 dnode 2 dnode 2 
 sql_error redistribute vgroup 3 dnode 2 dnode 2 
+sql_error redistribute vgroup 2 dnode 2 dnode 2 dnode 3 
 
 system sh/exec.sh -n dnode5 -s start
 $x = 0
 step2:
-	$ = $x + 1
+	$x = $x + 1
 	sleep 1000
 	if $x == 10 then
 	  print ====> dnode not ready!
@@ -112,9 +113,9 @@ $follower2 = 0
 
 $x = 0
 step3:
-	$ = $x + 1
+	$x = $x + 1
 	sleep 1000
-	if $x == 10 then
+	if $x == 60 then
 	  print ====> db not ready!
 		return -1
 	endi
@@ -149,31 +150,51 @@ print leader $leaderVnode
 print follower1 $follower1
 print follower2 $follower2
 
+sql use d1
+sql create table d1.st (ts timestamp, i int) tags (j int)
+sql create table d1.c1 using st tags(1)
+sql show d1.tables
+if $rows != 1 then
+  return -1
+endi
+
 print =============== step32: move follower2
 print redistribute vgroup 2 dnode $leaderVnode dnode $follower2 dnode 5 
 sql redistribute vgroup 2 dnode $leaderVnode dnode $follower2 dnode 5 
-return
+sql show d1.tables
+if $rows != 1 then
+  return -1
+endi
+
 print =============== step33: move follower1
 print redistribute vgroup 2 dnode $leaderVnode dnode $follower1 dnode 5 
 sql redistribute vgroup 2 dnode $leaderVnode dnode $follower1 dnode 5 
+sql show d1.tables
+if $rows != 1 then
+  return -1
+endi
 
 print =============== step34: move follower2
 print redistribute vgroup 2 dnode $leaderVnode dnode 5 dnode $follower2
 sql redistribute vgroup 2 dnode $leaderVnode dnode 5 dnode $follower2
+sql show d1.tables
+if $rows != 1 then
+  return -1
+endi
 
 print =============== step35: move follower1
 print redistribute vgroup 2 dnode $leaderVnode dnode 5 dnode $follower1
 sql redistribute vgroup 2 dnode $leaderVnode dnode 5 dnode $follower1
+sql show d1.tables
+if $rows != 1 then
+  return -1
+endi
 
 print =============== step4: move leader
 
 
-return
-
-print =============== step3: drop dnode 3
 
 
-return 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
 system sh/exec.sh -n dnode3 -s stop -x SIGINT
