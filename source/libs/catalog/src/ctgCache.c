@@ -970,7 +970,7 @@ int32_t ctgMetaRentUpdate(SCtgRentMgmt *mgmt, void *meta, int64_t id, int32_t si
 
   void *orig = taosArraySearch(slot->meta, &id, searchCompare, TD_EQ);
   if (NULL == orig) {
-    qError("meta not found in slot, id:%"PRIx64", slot idx:%d, type:%d, size:%d", id, widx, mgmt->type, (int32_t)taosArrayGetSize(slot->meta));
+    qDebug("meta not found in slot, id:%"PRIx64", slot idx:%d, type:%d, size:%d", id, widx, mgmt->type, (int32_t)taosArrayGetSize(slot->meta));
     CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
@@ -983,7 +983,7 @@ _return:
   CTG_UNLOCK(CTG_WRITE, &slot->lock);
 
   if (code) {
-    qWarn("meta in rent update failed, will try to add it, code:%x, id:%"PRIx64", slot idx:%d, type:%d", code, id, widx, mgmt->type);
+    qDebug("meta in rent update failed, will try to add it, code:%x, id:%"PRIx64", slot idx:%d, type:%d", code, id, widx, mgmt->type);
     CTG_RET(ctgMetaRentAdd(mgmt, meta, id, size));
   }
 
@@ -1233,6 +1233,27 @@ int32_t ctgGetAddDBCache(SCatalog* pCtg, const char *dbFName, uint64_t dbId, SCt
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t ctgUpdateRentStbVersion(SCatalog *pCtg, char* dbFName, char* tbName, uint64_t dbId, uint64_t suid, SCtgTbCache* pCache) {
+  SSTableVersion metaRent = {.dbId = dbId, .suid = suid};
+  if (pCache->pMeta) {
+    metaRent.sversion = pCache->pMeta->sversion;
+    metaRent.tversion = pCache->pMeta->tversion;
+  }
+
+  if (pCache->pIndex) {
+    metaRent.smaVer = pCache->pIndex->version;
+  }
+  
+  strcpy(metaRent.dbFName, dbFName);
+  strcpy(metaRent.stbName, tbName);
+  
+  CTG_ERR_RET(ctgMetaRentUpdate(&pCtg->stbRent, &metaRent, metaRent.suid, sizeof(SSTableVersion), ctgStbVersionSortCompare, ctgStbVersionSearchCompare));
+
+  ctgDebug("db %s,%" PRIx64 " stb %s,%" PRIx64 " sver %d tver %d smaVer %d updated to stbRent", 
+           dbFName, dbId, tbName, suid, metaRent.sversion, metaRent.tversion, metaRent.smaVer);
+}
+
+
 int32_t ctgWriteTbMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFName, uint64_t dbId, char *tbName, STableMeta *meta, int32_t metaSize) {
   if (NULL == dbCache->tbCache || NULL == dbCache->stbCache) {
     taosMemoryFree(meta);
@@ -1263,7 +1284,6 @@ int32_t ctgWriteTbMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFNam
         ctgDebug("stb removed from stbCache, dbFName:%s, stb:%s, suid:%"PRIx64, dbFName, tbName, orig->suid);
       }
       
-      ctgMetaRentRemove(&pCtg->stbRent, orig->suid, ctgStbVersionSortCompare, ctgStbVersionSearchCompare);
       origSuid = orig->suid;
     }
   }
@@ -1303,15 +1323,12 @@ int32_t ctgWriteTbMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFNam
 
   ctgDebug("stb updated to stbCache, dbFName:%s, tbName:%s, tbType:%d", dbFName, tbName, meta->tableType);
 
-  SSTableMetaVersion metaRent = {.dbId = dbId, .suid = meta->suid, .sversion = meta->sversion, .tversion = meta->tversion};
-  strcpy(metaRent.dbFName, dbFName);
-  strcpy(metaRent.stbName, tbName);
-  CTG_ERR_RET(ctgMetaRentAdd(&pCtg->stbRent, &metaRent, metaRent.suid, sizeof(SSTableMetaVersion)));
+  CTG_ERR_RET(ctgUpdateRentStbVersion(pCtg, dbFName, tbName, dbId, meta->suid, pCache));
   
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgWriteTbIndexToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *tbName, STableIndex **index) {
+int32_t ctgWriteTbIndexToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char* dbFName, char *tbName, STableIndex **index) {
   if (NULL == dbCache->tbCache) {
     taosMemoryFreeClear(*index);
     ctgError("db is dropping, dbId:%"PRIx64, dbCache->dbId);
@@ -1332,6 +1349,9 @@ int32_t ctgWriteTbIndexToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *tbNam
 
     *index = NULL;
     ctgDebug("table %s index updated to cache, ver:%d, num:%d", tbName, pIndex->version, taosArrayGetSize(pIndex->pIndex));
+
+    CTG_ERR_RET(ctgUpdateRentStbVersion(pCtg, dbFName, tbName, dbCache->dbId, pIndex->suid, pCache));
+
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1344,6 +1364,8 @@ int32_t ctgWriteTbIndexToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *tbNam
   *index = NULL;
 
   ctgDebug("table %s index updated to cache, ver:%d, num:%d", tbName, pIndex->version, taosArrayGetSize(pIndex->pIndex));
+
+  CTG_ERR_RET(ctgUpdateRentStbVersion(pCtg, dbFName, tbName, dbCache->dbId, pIndex->suid, pCache));
   
   return TSDB_CODE_SUCCESS;
 }
@@ -1728,7 +1750,7 @@ int32_t ctgOpUpdateTbIndex(SCtgCacheOperation *operation) {
     CTG_ERR_JRET(code);
   }
 
-  CTG_ERR_JRET(ctgWriteTbIndexToCache(pCtg, dbCache, msg->tbName, &pIndex));
+  CTG_ERR_JRET(ctgWriteTbIndexToCache(pCtg, dbCache, msg->dbFName, msg->tbName, &pIndex));
 
 _return:
 

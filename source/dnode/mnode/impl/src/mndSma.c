@@ -872,18 +872,29 @@ static int32_t mndGetSma(SMnode *pMnode, SUserIndexReq *indexReq, SUserIndexRsp 
   return code;
 }
 
-static int32_t mndGetTableSma(SMnode *pMnode, STableIndexReq *indexReq, STableIndexRsp *rsp, bool *exist) {
+static int32_t mndGetTableSma(SMnode *pMnode, char *tbFName, STableIndexRsp *rsp, bool *exist) {
   int32_t  code = 0;
   SSmaObj *pSma = NULL;
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
   STableIndexInfo info;
 
+  SStbObj* pStb = mndAcquireStb(pMnode, tbFName);
+  if (NULL == pStb) {
+    *exist = false;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  rsp->suid = pStb->uid;
+  rsp->version = pStb->smaVer;
+  mndReleaseStb(pMnode, pStb);
+  
+
   while (1) {
     pIter = sdbFetch(pSdb, SDB_SMA, pIter, (void **)&pSma);
     if (pIter == NULL) break;
 
-    if (pSma->stb[0] != indexReq->tbFName[0] || strcmp(pSma->stb, indexReq->tbFName)) {
+    if (pSma->stb[0] != tbFName[0] || strcmp(pSma->stb, tbFName)) {
       continue;
     }
 
@@ -995,7 +1006,7 @@ static int32_t mndProcessGetTbSmaReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  code = mndGetTableSma(pMnode, &indexReq, &rsp, &exist);
+  code = mndGetTableSma(pMnode, indexReq.tbFName, &rsp, &exist);
   if (code) {
     goto _OVER;
   }

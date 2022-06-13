@@ -2437,6 +2437,7 @@ int32_t tSerializeSTableIndexRsp(void *buf, int32_t bufLen, const STableIndexRsp
   tEncoderInit(&encoder, buf, bufLen);
 
   if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeU64(&encoder, pRsp->suid) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->version) < 0) return -1;
   int32_t num = taosArrayGetSize(pRsp->pIndex);
   if (tEncodeI32(&encoder, num) < 0) return -1;
@@ -2472,6 +2473,7 @@ int32_t tDeserializeSTableIndexRsp(void *buf, int32_t bufLen, STableIndexRsp *pR
   tDecoderInit(&decoder, buf, bufLen);
 
   if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeU64(&decoder, &pRsp->suid) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->version) < 0) return -1;
   int32_t num = 0;
   if (tDecodeI32(&decoder, &num) < 0) return -1;
@@ -2632,7 +2634,7 @@ int32_t tSerializeSTableMetaRsp(void *buf, int32_t bufLen, STableMetaRsp *pRsp) 
   return tlen;
 }
 
-int32_t tSerializeSTableMetaBatchRsp(void *buf, int32_t bufLen, STableMetaBatchRsp *pRsp) {
+int32_t tSerializeSSTbHbRsp(void *buf, int32_t bufLen, SSTbHbRsp *pRsp) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
 
@@ -2663,7 +2665,7 @@ int32_t tDeserializeSTableMetaRsp(void *buf, int32_t bufLen, STableMetaRsp *pRsp
   return 0;
 }
 
-int32_t tDeserializeSTableMetaBatchRsp(void *buf, int32_t bufLen, STableMetaBatchRsp *pRsp) {
+int32_t tDeserializeSSTbHbRsp(void *buf, int32_t bufLen, SSTbHbRsp *pRsp) {
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, bufLen);
 
@@ -2691,7 +2693,7 @@ int32_t tDeserializeSTableMetaBatchRsp(void *buf, int32_t bufLen, STableMetaBatc
 
 void tFreeSTableMetaRsp(STableMetaRsp *pRsp) { taosMemoryFreeClear(pRsp->pSchemas); }
 
-void tFreeSTableMetaBatchRsp(STableMetaBatchRsp *pRsp) {
+void tFreeSSTbHbRsp(SSTbHbRsp *pRsp) {
   int32_t numOfBatch = taosArrayGetSize(pRsp->pArray);
   for (int32_t i = 0; i < numOfBatch; ++i) {
     STableMetaRsp *pMetaRsp = taosArrayGet(pRsp->pArray, i);

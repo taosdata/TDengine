@@ -98,14 +98,15 @@ typedef struct SCatalogCfg {
   uint32_t stbRentSec;
 } SCatalogCfg;
 
-typedef struct SSTableMetaVersion {
+typedef struct SSTableVersion {
   char     dbFName[TSDB_DB_FNAME_LEN];
   char     stbName[TSDB_TABLE_NAME_LEN];
   uint64_t dbId;
   uint64_t suid;
   int16_t  sversion;
   int16_t  tversion;  
-} SSTableMetaVersion;
+  int32_t  smaVer;
+} SSTableVersion;
 
 typedef struct SDbVgVersion {
   char    dbFName[TSDB_DB_FNAME_LEN];
@@ -269,7 +270,7 @@ int32_t catalogAsyncGetAllMeta(SCatalog* pCtg, SRequestConnInfo* pConn, uint64_t
 
 int32_t catalogGetQnodeList(SCatalog* pCatalog, SRequestConnInfo* pConn, SArray* pQnodeList);
 
-int32_t catalogGetExpiredSTables(SCatalog* pCatalog, SSTableMetaVersion **stables, uint32_t *num);
+int32_t catalogGetExpiredSTables(SCatalog* pCatalog, SSTableVersion **stables, uint32_t *num);
 
 int32_t catalogGetExpiredDBs(SCatalog* pCatalog, SDbVgVersion **dbs, uint32_t *num);
 

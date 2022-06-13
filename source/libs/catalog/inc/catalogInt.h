@@ -156,7 +156,7 @@ typedef struct SCtgDBCache {
 typedef struct SCtgRentSlot {
   SRWLatch lock;
   bool     needSort;
-  SArray  *meta;  // element is SDbVgVersion or SSTableMetaVersion
+  SArray  *meta;  // element is SDbVgVersion or SSTableVersion
 } SCtgRentSlot;
 
 typedef struct SCtgRentMgmt {

@@ -546,9 +546,9 @@ int32_t ctgGetVgInfoFromHashValue(SCatalog *pCtg, SDBVgInfo *dbInfo, const SName
 }
 
 int32_t ctgStbVersionSearchCompare(const void* key1, const void* key2) {
-  if (*(uint64_t *)key1 < ((SSTableMetaVersion*)key2)->suid) {
+  if (*(uint64_t *)key1 < ((SSTableVersion*)key2)->suid) {
     return -1;
-  } else if (*(uint64_t *)key1 > ((SSTableMetaVersion*)key2)->suid) {
+  } else if (*(uint64_t *)key1 > ((SSTableVersion*)key2)->suid) {
     return 1;
   } else {
     return 0;
@@ -566,9 +566,9 @@ int32_t ctgDbVgVersionSearchCompare(const void* key1, const void* key2) {
 }
 
 int32_t ctgStbVersionSortCompare(const void* key1, const void* key2) {
-  if (((SSTableMetaVersion*)key1)->suid < ((SSTableMetaVersion*)key2)->suid) {
+  if (((SSTableVersion*)key1)->suid < ((SSTableVersion*)key2)->suid) {
     return -1;
-  } else if (((SSTableMetaVersion*)key1)->suid > ((SSTableMetaVersion*)key2)->suid) {
+  } else if (((SSTableVersion*)key1)->suid > ((SSTableVersion*)key2)->suid) {
     return 1;
   } else {
     return 0;
