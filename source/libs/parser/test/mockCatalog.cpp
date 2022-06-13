@@ -167,17 +167,17 @@ void generateFunctions(MockCatalogService* mcs) {
 
 int32_t __catalogGetHandle(const char* clusterId, struct SCatalog** catalogHandle) { return 0; }
 
-int32_t __catalogGetTableMeta(struct SCatalog* pCatalog, void* pRpc, const SEpSet* pMgmtEps, const SName* pTableName,
+int32_t __catalogGetTableMeta(struct SCatalog* pCatalog, SRequestConnInfo *pConn, const SName* pTableName,
                               STableMeta** pTableMeta) {
   return g_mockCatalogService->catalogGetTableMeta(pTableName, pTableMeta);
 }
 
-int32_t __catalogGetTableHashVgroup(struct SCatalog* pCatalog, void* pRpc, const SEpSet* pMgmtEps,
+int32_t __catalogGetTableHashVgroup(struct SCatalog* pCatalog, SRequestConnInfo *pConn,
                                     const SName* pTableName, SVgroupInfo* vgInfo) {
   return g_mockCatalogService->catalogGetTableHashVgroup(pTableName, vgInfo);
 }
 
-int32_t __catalogGetTableDistVgInfo(SCatalog* pCtg, void* pRpc, const SEpSet* pMgmtEps, const SName* pTableName,
+int32_t __catalogGetTableDistVgInfo(SCatalog* pCtg, SRequestConnInfo *pConn, const SName* pTableName,
                                     SArray** pVgList) {
   return g_mockCatalogService->catalogGetTableDistVgInfo(pTableName, pVgList);
 }
@@ -187,27 +187,27 @@ int32_t __catalogGetDBVgVersion(SCatalog* pCtg, const char* dbFName, int32_t* ve
   return 0;
 }
 
-int32_t __catalogGetDBVgInfo(SCatalog* pCtg, void* pRpc, const SEpSet* pMgmtEps, const char* dbFName,
+int32_t __catalogGetDBVgInfo(SCatalog* pCtg, SRequestConnInfo *pConn, const char* dbFName,
                              SArray** pVgList) {
   return g_mockCatalogService->catalogGetDBVgInfo(dbFName, pVgList);
 }
 
-int32_t __catalogGetDBCfg(SCatalog* pCtg, void* pRpc, const SEpSet* pMgmtEps, const char* dbFName, SDbCfgInfo* pDbCfg) {
+int32_t __catalogGetDBCfg(SCatalog* pCtg, SRequestConnInfo *pConn, const char* dbFName, SDbCfgInfo* pDbCfg) {
   return 0;
 }
 
-int32_t __catalogChkAuth(SCatalog* pCtg, void* pRpc, const SEpSet* pMgmtEps, const char* user, const char* dbFName,
+int32_t __catalogChkAuth(SCatalog* pCtg, SRequestConnInfo *pConn, const char* user, const char* dbFName,
                          AUTH_TYPE type, bool* pass) {
   *pass = true;
   return 0;
 }
 
-int32_t __catalogGetUdfInfo(SCatalog* pCtg, void* pTrans, const SEpSet* pMgmtEps, const char* funcName,
+int32_t __catalogGetUdfInfo(SCatalog* pCtg, SRequestConnInfo *pConn, const char* funcName,
                             SFuncInfo* pInfo) {
   return g_mockCatalogService->catalogGetUdfInfo(funcName, pInfo);
 }
 
-int32_t __catalogRefreshGetTableMeta(SCatalog* pCatalog, void* pTransporter, const SEpSet* pMgmtEps,
+int32_t __catalogRefreshGetTableMeta(SCatalog* pCatalog, SRequestConnInfo *pConn,
                                      const SName* pTableName, STableMeta** pTableMeta, int32_t isSTable) {
   return g_mockCatalogService->catalogGetTableMeta(pTableName, pTableMeta);
 }
