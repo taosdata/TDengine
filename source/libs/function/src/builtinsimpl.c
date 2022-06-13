@@ -2662,7 +2662,7 @@ bool getTopBotFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
 
 bool getTopBotMergeFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   //intermediate result is binary and length contains VAR header size
-  pEnv->calcMemSize = pFunc->node.resType.bytes - VARSTR_HEADER_SIZE;
+  pEnv->calcMemSize = pFunc->node.resType.bytes;
   return true;
 }
 
