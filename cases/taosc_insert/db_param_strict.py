@@ -24,7 +24,7 @@ class TestStrict(TDCase):
         """
         test_param = "strict"
         # default
-        default_value = "nostrict"
+        default_value = "no_strict"
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
         self.tdSql.execute(f'create database if not exists {dbname}')
         self.tdSql.query('show databases')
@@ -32,7 +32,7 @@ class TestStrict(TDCase):
         self.tdSql.checkEqual(db_field_kv_dict[test_param], default_value)
         self.tdSql.execute(f'drop database {dbname}')
         # param_list
-        param_key_value_dict = {"nostrict": 0, "strict": 1}
+        param_key_value_dict = {"no_strict": 0, "strict": 1}
         for param, param_value in param_key_value_dict.items():
             dbname = self.tdCom.get_long_name(length=10, mode="letters")
             self.tdSql.execute(f'create database if not exists {dbname} {test_param} {param_value}')
@@ -41,7 +41,7 @@ class TestStrict(TDCase):
             self.tdSql.checkEqual(db_field_kv_dict[test_param], param)
             self.tdSql.execute(f'drop database {dbname}')
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.error(f'create database if not exists {dbname} {test_param} {param_key_value_dict["nostrict"] - 1}')
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} {param_key_value_dict["no_strict"] - 1}')
         self.tdSql.error(f'create database if not exists {dbname} {test_param} {param_key_value_dict["strict"] + 1}')
 
     def run(self) -> bool:

@@ -1,5 +1,5 @@
 #taostest --use=empty.yaml --case=helloworld/hellocase.py --keep
-#taostest --setup=common_insert.yaml --group-dir=taosc_insert --keep --containers
+#taostest --use=common_insert.yaml --group-dir=taosc_insert --keep --containers
 #taostest --use=common_insert.yaml --group-dir=restful_insert --keep --containers
 #taostest --use=common_insert.yaml --group-dir=schemaless_insert --keep --containers
 
@@ -17,7 +17,7 @@ taostest --use=common_insert.yaml --case=taosc_insert/db_param_cachelast.py --ke
 taostest --use=common_insert.yaml --case=taosc_insert/db_param_comp.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/db_param_duration.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/db_param_fsync.py --keep --containers
-taostest --use=common_insert.yaml --case=taosc_insert/db_param_keep.py --keep --containers
+# taostest --use=common_insert.yaml --case=taosc_insert/db_param_keep.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/db_param_maxrows.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/db_param_minrows.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/db_param_ntables.py --keep --containers
@@ -38,7 +38,7 @@ taostest --use=common_insert.yaml --case=taosc_insert/int_boundary_check.py --ke
 # taostest --use=common_insert.yaml --case=taosc_insert/json_tag.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/multi_process_run.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/multi_table_insert.py --keep --containers
-taostest --use=common_insert.yaml --case=taosc_insert/multi_threads_test.py --keep --containers
+# taostest --use=common_insert.yaml --case=taosc_insert/multi_threads_test.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/nchar_boundary_check.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/null_check.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/smallint_boundary_check.py --keep --containers
@@ -53,13 +53,17 @@ taostest --use=common_insert.yaml --case=taosc_insert/ubigint_boundary_check.py 
 taostest --use=common_insert.yaml --case=taosc_insert/uint_boundary_check.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/usmallint_boundary_check.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/utinyint_boundary_check.py --keep --containers
+#taostest --use=common_insert.yaml --case=schemaless_insert/influxdb_line_protocol_taosc_insert.py --keep --containers
+#taostest --use=common_insert.yaml --case=schemaless_insert/opentsdb_telnet_protocol_taosc_insert.py --keep --containers
+#taostest --use=common_insert.yaml --case=schemaless_insert/opentsdb_json_protocol_taosc_insert.py --keep --containers
+
 
 #Query
-taostest --use=common_insert.yaml --case=Query/queryscript/table_query/table_query.py --keep --containers
-taostest --use=common_insert.yaml --case=Query/queryscript/table_query/table_query_null.py --keep --containers
+#taostest --use=common_insert.yaml --case=Query/queryscript/table_query/table_query.py --keep --containers
+#taostest --use=common_insert.yaml --case=Query/queryscript/table_query/table_query_null.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_query/table_query_union.py --keep --containers
 
-taostest --use=common_insert.yaml --case=Query/queryscript/table_function/time/table_time_now.py --keep --containers
+#taostest --use=common_insert.yaml --case=Query/queryscript/table_function/time/table_time_now.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/time/table_time_today.py --keep --containers
 
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/str/table_str_base.py --keep --containers
@@ -71,5 +75,35 @@ taostest --use=common_insert.yaml --case=Query/queryscript/table_function/str/ta
 #taostest --use=common_insert.yaml --case=Query/queryscript/table_function/str/table_str_substr.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/str/table_str_concat.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/str/table_str_concat_ws.py --keep --containers
-#taostest --use=common_insert.yaml --case=Query/queryscript/table_function/str/table_str_cast.py --keep --containers
-#taostest --use=common_insert.yaml --case=Query/queryscript/table_function/str/table_str_interval.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/table_function/str/table_str_cast.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/table_function/str/table_str_interval.py --keep --containers
+
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_base.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_upper.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_lower.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_ltrim.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_rtrim.py --keep --containers
+#taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_length.py --keep --containers
+#taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_substr.py --keep --containers
+#taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_concat.py --keep --containers
+#taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_concat_ws.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_cast.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_interval.py --keep --containers
+
+taostest --use=common_insert.yaml --case=Query/queryscript/table_function/math/table_math_interval.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/table_function/math/table_math_abs.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/table_function/math/table_math_pow_log.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/table_function/math/table_math_sin_cos_tan.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/table_function/math/table_math_sqrt.py --keep --containers
+#taostest --use=common_insert.yaml --case=Query/queryscript/table_function/math/table_math_apercentile.py --keep --containers
+#taostest --use=common_insert.yaml --case=Query/queryscript/table_function/math/table_math_derivative.py --keep --containers
+#taostest --use=common_insert.yaml --case=Query/queryscript/table_function/math/table_math_histogram.py --keep --containers
+#taostest --use=common_insert.yaml --case=Query/queryscript/table_function/math/table_math_leastsquares.py --keep --containers
+#taostest --use=common_insert.yaml --case=Query/queryscript/table_function/math/table_math_percentile.py --keep --containers
+
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/stable_math_interval.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/stable_math_abs.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/stable_math_pow_log.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/stable_math_sin_cos_tan.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/stable_math_sqrt.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/stable_math_apercentile.py --keep --containers

@@ -6,10 +6,13 @@ function usage() {
     echo -e "\t -s server pkg"
     echo -e "\t -c client pkg"
     echo -e "\t -f case file"
+    echo -e "\t -e force setup environment"
+    echo -e "\t -d debug log level"
+    echo -e "\t -t max execution time of each case"
     echo -e "\t -h help"
 }
 
-while getopts "l:s:c:f:h" opt; do
+while getopts "l:s:c:f:t:d:eh" opt; do
     case $opt in
         l)
             log_dir=$OPTARG
@@ -22,6 +25,15 @@ while getopts "l:s:c:f:h" opt; do
             ;;
         f)
             case_file=$OPTARG
+            ;;
+        d)
+            debug_level=$OPTARG
+            ;;
+        t)
+            TIMEOUT_PREFIX="timeout $OPTARG"
+            ;;
+        e)
+            force_setup=1
             ;;
         h)
             usage
@@ -75,6 +87,9 @@ function run() {
         date
         echo -e "\e[33m $i >>>>> \e[0m $line"
         cmd="$line"
+        if [ ! -z $force_setup ]; then
+            cmd="${cmd/--use/--setup}"
+        fi
         echo "$cmd" | grep -q "\-\-setup"
         if [ $? -eq 0 ]; then
             local setup_param=`echo "$cmd" | grep "\-\-setup.*"`
@@ -98,12 +113,18 @@ function run() {
                 cmd="$cmd --client-pkg=$client_pkg"
             fi
         fi
+        if [ ! -z "$TIMEOUT_PREFIX" ]; then
+            cmd="$TIMEOUT_PREFIX $cmd"
+        fi
+        if [ ! -z "$debug_level" ]; then
+            cmd="$cmd --log-level $debug_level"
+        fi
         echo "execute command: $cmd"
         $cmd
-        if [ $? -ne 0 ]; then
-            ret=1
-            echo -e "$line \e[31m FAILED\e[0m"
-            echo -e "$line \e[31m FAILED\e[0m" >>$failed_case_file
+        ret=$?
+        if [ $ret -ne 0 ]; then
+            echo -e "$line \e[31m FAILED\e[0m  RET:$ret"
+            echo -e "$line \e[31m FAILED\e[0m  RET:$ret" >>$failed_case_file
         else
             echo -e "$line \e[32m SUCCESS\e[0m"
         fi
@@ -117,6 +138,16 @@ echo "log file: $log_file"
 if [ -f $failed_case_file ]; then
     echo -e "\e[31m TEST FAILED\e[0m"
     cat $failed_case_file
+    if [ ! -z "$server_pkg" ]; then
+        if [ -f "$server_pkg" ]; then
+            cp -r $server_pkg $log_sub_dir/
+        fi
+    fi
+    if [ ! -z "$client_pkg" ]; then
+        if [ -f $client_pkg ]; then
+            cp -r $client_pkg $log_sub_dir/
+        fi
+    fi
     ret=1
 else
     echo -e "\e[32m TEST SUCCESS\e[0m"

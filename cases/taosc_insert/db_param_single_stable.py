@@ -23,13 +23,14 @@ class TestSingle_stable(TDCase):
         single_stable check
         """
         test_param = "single_stable"
+        get_param = "single_stable_model"
         # default
         default_value = 0
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
         self.tdSql.execute(f'create database if not exists {dbname}')
         self.tdSql.query('show databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
-        self.tdSql.checkEqual(db_field_kv_dict[test_param], default_value)
+        self.tdSql.checkEqual(db_field_kv_dict[get_param], default_value)
         self.tdSql.execute(f'drop database {dbname}')
         # param_list
         param_value_list = [0, 1]
@@ -38,7 +39,7 @@ class TestSingle_stable(TDCase):
             self.tdSql.execute(f'create database if not exists {dbname} {test_param} {param_value}')
             self.tdSql.query('show databases')
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
-            self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
+            self.tdSql.checkEqual(db_field_kv_dict[get_param], param_value)
             if param_value == 0:
                 self.tdSql.execute(f'create table {dbname}.stb1 (ts timestamp, c1 int) tags (t1 int);')
                 self.tdSql.execute(f'create table {dbname}.stb2 (ts timestamp, c1 int) tags (t1 int);')
