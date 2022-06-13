@@ -1591,9 +1591,13 @@ int32_t ctgOpUpdateEpset(SCtgCacheOperation *operation) {
     goto _return;
   }
 
-  pInfo->epSet = msg->epSet;
+  SEp* pOrigEp = &pInfo->epSet.eps[pInfo->epSet.inUse];
+  SEp* pNewEp = &msg->epSet.eps[msg->epSet.inUse];
+  ctgDebug("vgroup %d epset updated from %d/%d=>%s:%d to %d/%d=>%s:%d, dbFName:%s in ctg", 
+          pInfo->vgId, pInfo->epSet.inUse, pInfo->epSet.numOfEps, pOrigEp->fqdn, pOrigEp->port, 
+          msg->epSet.inUse, msg->epSet.numOfEps, pNewEp->fqdn, pNewEp->port, msg->dbFName);
 
-  ctgDebug("epset in vgroup %d updated, dbFName:%s", pInfo->vgId, msg->dbFName);
+  pInfo->epSet = msg->epSet;
 
   ctgWReleaseVgInfo(dbCache);
 

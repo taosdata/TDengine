@@ -2562,7 +2562,8 @@ void relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray
     }
 
     if (p->info.colId == pmInfo->colId) {
-      taosArraySet(pBlock->pDataBlock, pmInfo->targetSlotId, p);
+      SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, pmInfo->targetSlotId);
+      colDataAssign(pDst, p, pBlock->info.rows);
       i++;
       j++;
     } else if (p->info.colId < pmInfo->colId) {
@@ -2578,6 +2579,7 @@ int32_t setDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadIn
                                  SArray* pColList) {
   if (pColList == NULL) {  // data from other sources
     blockCompressDecode(pRes, numOfOutput, numOfRows, pData);
+    pRes->info.rows = numOfRows;
   } else {  // extract data according to pColList
     ASSERT(numOfOutput == taosArrayGetSize(pColList));
     char* pStart = pData;
@@ -2614,14 +2616,14 @@ int32_t setDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadIn
     }
 
     blockCompressDecode(pBlock, numOfCols, numOfRows, pStart);
+
     // data from mnode
+    pRes->info.rows = numOfRows;
     relocateColumnData(pRes, pColList, pBlock->pDataBlock);
     taosArrayDestroy(pBlock->pDataBlock);
     taosMemoryFree(pBlock);
     //    blockDataDestroy(pBlock);
   }
-
-  pRes->info.rows = numOfRows;
 
   // todo move this to time window aggregator, since the primary timestamp may not be known by exchange operator.
   blockDataUpdateTsWindow(pRes, 0);
@@ -4562,10 +4564,14 @@ static SArray* extractColumnInfo(SNodeList* pNodeList);
 static SArray* createSortInfo(SNodeList* pNodeList);
 static SArray* extractPartitionColInfo(SNodeList* pNodeList);
 
-void extractTableSchemaVersion(SReadHandle* pHandle, uint64_t uid, SExecTaskInfo* pTaskInfo) {
+int32_t extractTableSchemaVersion(SReadHandle* pHandle, uint64_t uid, SExecTaskInfo* pTaskInfo) {
   SMetaReader mr = {0};
   metaReaderInit(&mr, pHandle->meta, 0);
-  metaGetTableEntryByUid(&mr, uid);
+  int32_t code = metaGetTableEntryByUid(&mr, uid);
+  if (code) {
+    metaReaderClear(&mr);
+    return code;
+  }
 
   pTaskInfo->schemaVer.tablename = strdup(mr.me.name);
 
@@ -4582,6 +4588,8 @@ void extractTableSchemaVersion(SReadHandle* pHandle, uint64_t uid, SExecTaskInfo
   }
 
   metaReaderClear(&mr);
+
+  return TSDB_CODE_SUCCESS;
 }
 
 SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle,
@@ -4598,7 +4606,12 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         return NULL;
       }
       SArray* groupKyes = extractPartitionColInfo(pTableScanNode->pPartitionKeys);
-      extractTableSchemaVersion(pHandle, pTableScanNode->scan.uid, pTaskInfo);
+      int32_t code = extractTableSchemaVersion(pHandle, pTableScanNode->scan.uid, pTaskInfo);
+      if (code) {
+        tsdbCleanupReadHandle(pDataReader);
+        return NULL;
+      }
+      
       SOperatorInfo* pOperator =
           createTableScanOperatorInfo(pTableScanNode, pDataReader, pHandle, groupKyes, pTaskInfo);
 
@@ -4906,6 +4919,11 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
   return TSDB_CODE_SUCCESS;
 }
 
+void clearupQueryTableDataCond(SQueryTableDataCond* pCond) {
+  taosMemoryFree(pCond->twindows);
+  taosMemoryFree(pCond->colList);
+}
+
 SColumn extractColumnFromColumnNode(SColumnNode* pColNode) {
   SColumn c = {0};
   c.slotId = pColNode->slotId;
@@ -5111,7 +5129,10 @@ tsdbReaderT doCreateDataReader(STableScanPhysiNode* pTableScanNode, SReadHandle*
     goto _error;
   }
 
-  return tsdbReaderOpen(pHandle->vnode, &cond, pTableListInfo, queryId, taskId);
+  tsdbReaderT* pReader = tsdbReaderOpen(pHandle->vnode, &cond, pTableListInfo, queryId, taskId);
+  clearupQueryTableDataCond(&cond);
+
+  return pReader;
 
 _error:
   terrno = code;
