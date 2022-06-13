@@ -76,7 +76,7 @@ int32_t mndInitProfile(SMnode *pMnode) {
 
   //  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_CONNS, mndRetrieveConns);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_CONNS, mndCancelGetNextConn);
-  //  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_QUERIES, mndRetrieveQueries);
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_QUERIES, mndRetrieveQueries);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_QUERIES, mndCancelGetNextQuery);
 
   return 0;
@@ -619,16 +619,13 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, char *data, int3
   return numOfRows;
 }
 
-static int32_t mndRetrieveQueries(SRpcMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
-  SMnode *pMnode = pReq->info.node;
-  int32_t numOfRows = 0;
-#if 0
-  SConnObj *pConn = NULL;
-  int32_t   cols = 0;
-  char     *pWrite;
-  void     *pIter;
-  char      str[TSDB_IPv4ADDR_LEN + 6] = {0};
-
+static int32_t mndRetrieveQueries(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+  SMnode    *pMnode = pReq->info.node;
+  SSdb      *pSdb = pMnode->pSdb;
+  int32_t    numOfRows = 0;
+  int32_t    cols = 0;
+  SConnObj  *pConn = NULL;
+  
   if (pShow->pIter == NULL) {
     SProfileMgmt *pMgmt = &pMnode->profileMgmt;
     pShow->pIter = taosCacheCreateIter(pMgmt->cache);
@@ -636,90 +633,52 @@ static int32_t mndRetrieveQueries(SRpcMsg *pReq, SShowObj *pShow, char *data, in
 
   while (numOfRows < rows) {
     pConn = mndGetNextConn(pMnode, pShow->pIter);
-    if (pConn == NULL) {
-      pShow->pIter = NULL;
-      break;
+    if (pConn == NULL) break;
+
+    if (NULL == pConn->pQueries || taosArrayGetSize(pConn->pQueries) <= 0) {
+      continue;
     }
 
-    if (numOfRows + pConn->numOfQueries >= rows) {
-      taosCacheDestroyIter(pShow->pIter);
-      pShow->pIter = NULL;
-      break;
-    }
-
-    for (int32_t i = 0; i < pConn->numOfQueries; ++i) {
-      SQueryDesc *pDesc = pConn->pQueries + i;
+    int32_t numOfQueries = taosArrayGetSize(pConn->pQueries);
+    for (int32_t i = 0; i < numOfQueries; ++i) {
       cols = 0;
 
-      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
-      *(int64_t *)pWrite = htobe64(pDesc->queryId);
-      cols++;
+      SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)&pDnode->id, false);
 
-      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
-      *(int64_t *)pWrite = htobe64(pConn->id);
-      cols++;
+      char buf[tListLen(pDnode->ep) + VARSTR_HEADER_SIZE] = {0};
+      STR_WITH_MAXSIZE_TO_VARSTR(buf, pDnode->ep, pShow->pMeta->pSchemas[cols].bytes);
 
-      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
-      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pConn->user, pShow->pMeta->pSchemas[cols].bytes);
-      cols++;
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, buf, false);
 
-      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
-      snprintf(str, tListLen(str), "%s:%u", taosIpStr(pConn->ip), pConn->port);
-      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, str, pShow->pMeta->pSchemas[cols].bytes);
-      cols++;
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      int16_t id = mndGetVnodesNum(pMnode, pDnode->id);
+      colDataAppend(pColInfo, numOfRows, (const char *)&id, false);
 
-      char handleBuf[24] = {0};
-      snprintf(handleBuf, tListLen(handleBuf), "%" PRIu64, htobe64(pDesc->qId));
-      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)&pDnode->numOfSupportVnodes, false);
 
-      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, handleBuf, pShow->pMeta->pSchemas[cols].bytes);
-      cols++;
+      char b1[9] = {0};
+      STR_TO_VARSTR(b1, online ? "ready" : "offline");
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, b1, false);
 
-      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
-      *(int64_t *)pWrite = htobe64(pDesc->stime);
-      cols++;
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)&pDnode->createdTime, false);
 
-      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
-      *(int64_t *)pWrite = htobe64(pDesc->useconds);
-      cols++;
+      char b[tListLen(offlineReason) + VARSTR_HEADER_SIZE] = {0};
+      STR_TO_VARSTR(b, online ? "" : offlineReason[pDnode->offlineReason]);
 
-      snprintf(str, tListLen(str), "0x%" PRIx64, htobe64(pDesc->sqlObjId));
-      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
-      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, str, pShow->pMeta->pSchemas[cols].bytes);
-      cols++;
-
-      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
-      *(int32_t *)pWrite = htonl(pDesc->pid);
-      cols++;
-
-      char epBuf[TSDB_EP_LEN + 1] = {0};
-      snprintf(epBuf, tListLen(epBuf), "%s:%u", pDesc->fqdn, pConn->port);
-      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
-      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, epBuf, pShow->pMeta->pSchemas[cols].bytes);
-      cols++;
-
-      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
-      *(bool *)pWrite = pDesc->stableQuery;
-      cols++;
-
-      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
-      *(int32_t *)pWrite = htonl(pDesc->numOfSub);
-      cols++;
-
-      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
-      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pDesc->subSqlInfo, pShow->pMeta->pSchemas[cols].bytes);
-      cols++;
-
-      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
-      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pDesc->sql, pShow->pMeta->pSchemas[cols].bytes);
-      cols++;
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, b, false);
 
       numOfRows++;
+      sdbRelease(pSdb, pDnode);
     }
   }
 
   pShow->numOfRows += numOfRows;
-#endif
   return numOfRows;
 }
 
