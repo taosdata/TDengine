@@ -57,6 +57,23 @@ class TestBuffer(TDCase):
         self.tdSql.error(f'create database if not exists {dbname} {test_param} {param_value_list[0] - 1}')
         self.tdSql.error(f'create database if not exists {dbname} {test_param} {param_value_list[-1] + 1}')
 
+        #! alter database buffer TD-16323
+        # dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        # self.tdSql.execute(f'create database if not exists {dbname}')
+        
+        # param_value_list = [3,16384]
+        # for param_value in param_value_list:
+        #     self.tdSql.execute(f'alter database {dbname} buffer {param_value}')
+        #     self.tdSql.query('show databases')
+        #     db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
+        #     self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
+        #     db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
+        #     data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
+        #     self.tdSql.checkEqual(db_field_kv_dict[test_param],int(data['config']['szBuf'])/1024/1024)
+        #! bug TD-16166
+        # for i in [param_value_list[0] - 1,param_value_list[-1] + 1,'abc',100.1]:
+        #     self.tdSql.error(f'alter database {dbname} {test_param} {i}')
+        # self.tdSql.execute(f'drop database {dbname}')
     def run(self) -> bool:
         self.buffer_check()
 

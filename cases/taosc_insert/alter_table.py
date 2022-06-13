@@ -66,7 +66,7 @@ class TestAlterTag(TDCase):
         self.tdSql.execute(f'alter table {dbname}.{tbname} set tag t13 = "{tag_nchar}"')
         self.tdSql.query(f'select * from {dbname}.{stbname}')
         # bug TD-15899
-        # self.tdSql.checkData(0,2,'2022-01-01 00:00:00.000')
+        self.tdSql.checkData(0,2,'2022-01-01 00:00:00.000')
         self.tdSql.checkData(0,3,tag_tinyint)
         self.tdSql.checkData(0,4,tag_smallint)
         self.tdSql.checkData(0,5,tag_int)
@@ -80,6 +80,16 @@ class TestAlterTag(TDCase):
         self.tdSql.checkData(0,13,False)
         self.tdSql.checkData(0,14,tag_binary)
         self.tdSql.checkData(0,15,tag_nchar)
+
+        # bug TD-16211 insert length more than setting binary and nchar
+        # tag_binary = self.tdCom.get_long_name(length=21, mode="letters")
+        # tag_nchar = self.tdCom.get_long_name(length=21, mode="letters")
+        # self.tdSql.error(f'alter table {dbname}.{tbname} set tag t12 = "{tag_binary}"')
+        # self.tdSql.error(f'alter table {dbname}.{tbname} set tag t13 = "{tag_nchar}"')
+
+        # bug TD-16210 modify binary to nchar
+        # self.tdSql.error(f'alter table {dbname}.{tbname} modify tag t12 nchar(10)')
+
         self.tdSql.execute(f"drop database {dbname}")
     def alter_ntb_column_check(self):
         '''
@@ -112,33 +122,37 @@ class TestAlterTag(TDCase):
         self.tdSql.execute(f'alter table {dbname}.{tbname} modify column `c12` binary(35)')
         self.tdSql.query(f'describe {dbname}.{tbname}')
         self.tdSql.checkData(12,2,35)
+        self.tdSql.error(f'alter table {dbname}.{tbname} modify column c12 binary(34)')
+        self.tdSql.error(f'alter table {dbname}.{tbname} modify column c12 nchar(10)')
+        self.tdSql.error(f'alter table {dbname}.{tbname} modify column c12 int')
         self.tdSql.execute(f'alter table {dbname}.{tbname} modify column c13 nchar(30)')
         self.tdSql.query(f'describe {dbname}.{tbname}')
         self.tdSql.checkData(13,2,30)
         self.tdSql.execute(f'alter table {dbname}.{tbname} modify column `c13` nchar(35)')
         self.tdSql.query(f'describe {dbname}.{tbname}')
         self.tdSql.checkData(13,2,35)
+        self.tdSql.error(f'alter table {dbname}.{tbname} modify column c13 nchar(34)')
+        self.tdSql.error(f'alter table {dbname}.{tbname} modify column c13 binary(10)')
         self.tdSql.execute(f'alter table {dbname}.{tbname} rename column c1 c21')
         self.tdSql.query(f'describe {dbname}.{tbname}')
         self.tdSql.checkData(1,0,'c21')
         self.tdSql.execute(f'alter table {dbname}.{tbname} rename column `c21` c1')
         self.tdSql.query(f'describe {dbname}.{tbname}')
         self.tdSql.checkData(1,0,'c1')
-        # self.tdSql.execute(f'alter')
-        # error
 
+        self.tdSql.error(f'alter table {dbname}.{tbname} modify column c1 bigint')
         self.tdSql.error(f'alter table {dbname}.{tbname} modify column c1 double')
+        self.tdSql.error(f'alter table {dbname}.{tbname} modify column c4 int')
         self.tdSql.error(f'alter table {dbname}.{tbname} modify column `c1` double')
+        self.tdSql.error(f'alter table {dbname}.{tbname} modify column c9 double')
+        self.tdSql.error(f'alter table {dbname}.{tbname} modify column c10 float')
+        self.tdSql.error(f'alter table {dbname}.{tbname} modify column c1 bool')
+        self.tdSql.error(f'alter table {dbname}.{tbname} modify column c1 binary(10)')
         self.tdSql.execute(f'drop database {dbname}')
         
-
-
-        pass
     def run(self) -> bool:
         self.alter_tb_tag_check()
         self.alter_ntb_column_check()
-
-        pass
 
     def cleanup(self):
         pass
