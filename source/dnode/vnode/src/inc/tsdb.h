@@ -45,6 +45,7 @@ typedef struct STbDataIter  STbDataIter;
 typedef struct SMergeInfo   SMergeInfo;
 typedef struct STable       STable;
 typedef struct SOffset      SOffset;
+typedef struct SMapData     SMapData;
 
 // tsdbMemTable ==============================================================================================
 
@@ -149,6 +150,13 @@ void    tsdbFree(uint8_t *pBuf);
 
 int32_t tTABLEIDCmprFn(const void *p1, const void *p2);
 int32_t tsdbKeyCmprFn(const void *p1, const void *p2);
+
+// SMapData
+int32_t tMapDataClear(SMapData *pMapData);
+int32_t tMapDataPutItem(SMapData *pMapData, void *pItem, int32_t (*tPutItemFn)(uint8_t *, void *));
+int32_t tMapDataGetItemByIdx(SMapData *pMapData, int32_t idx, void *pItem, int32_t (*tGetItemFn)(uint8_t *, void *));
+int32_t tPutMapData(uint8_t *p, SMapData *pMapData);
+int32_t tGetMapData(uint8_t *p, SMapData *pMapData);
 
 // SBlockIdx
 int32_t tBlockIdxClear(SBlockIdx *pBlockIdx);
@@ -414,6 +422,14 @@ struct SDelFile {
   int64_t maxVersion;
   int64_t size;
   int64_t offset;
+};
+
+struct SMapData {
+  int32_t  nItem;
+  uint8_t  flag;
+  uint8_t *pOfst;
+  uint32_t nData;
+  uint8_t *pData;
 };
 
 #ifdef __cplusplus
