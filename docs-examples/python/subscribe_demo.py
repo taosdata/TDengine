@@ -27,12 +27,12 @@ def query_callback(p_sub, p_result, p_param, code):
 
 
 if __name__ == '__main__':
-    conn = taos.connect()
+    conn = taos.connect(host="192.168.0.101",user="root",password="taosdata")
     restart = True
     topic = "topic-meter-current-bg"
-    sql = "select * from power.meters where current > 10"  # Error sql
+    sql = "select * from test.meters where current > 10"  # Error sql
     interval = 2000  # consumption interval in microseconds.
-    _ = conn.subscribe(restart, topic, sql, interval, query_callback)
+    _ = conn.subscribe(restart, topic, sql, interval)
     # Note: we received the return value as _ above, to avoid the TaosSubscription object to be deleted by gc.
     while True:
         time.sleep(10)  # use Ctrl + C to interrupt
