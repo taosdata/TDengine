@@ -130,7 +130,18 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
           TD_VID(pTq->pVnode), pReq->currentOffset, fetchOffset);
 
   STqHandle* pHandle = taosHashGet(pTq->handles, pReq->subKey, strlen(pReq->subKey));
-  ASSERT(pHandle);
+  /*ASSERT(pHandle);*/
+  if (pHandle == NULL) {
+    tqError("tmq poll: no consumer handle for consumer %ld in vg %d, subkey %s", consumerId, pTq->pVnode->config.vgId,
+            pReq->subKey);
+    return -1;
+  }
+
+  if (pHandle->consumerId != consumerId) {
+    tqError("tmq poll: consumer handle mismatch for consumer %ld in vg %d, subkey %s, handle consumer id %ld",
+            consumerId, pTq->pVnode->config.vgId, pReq->subKey, pHandle->consumerId);
+    return -1;
+  }
 
   int32_t consumerEpoch = atomic_load_32(&pHandle->epoch);
   while (consumerEpoch < reqEpoch) {
@@ -364,6 +375,7 @@ int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen) {
         tdGetSTSChemaFromSSChema(&pTask->tbSink.pSchemaWrapper->pSchema, pTask->tbSink.pSchemaWrapper->nCols);
     ASSERT(pTask->tbSink.pTSchema);
   }
+  tqInfo("deploy stream task id %d child id %d on vg %d", pTask->taskId, pTask->childId, pTq->pVnode->config.vgId);
 
   taosHashPut(pTq->pStreamTasks, &pTask->taskId, sizeof(int32_t), pTask, sizeof(SStreamTask));
 
@@ -448,7 +460,7 @@ int32_t tqProcessTaskRecoverReq(STQ* pTq, SRpcMsg* pMsg) {
 }
 
 int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg) {
-  SStreamDispatchRsp* pRsp = pMsg->pCont;
+  SStreamDispatchRsp* pRsp = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   int32_t             taskId = pRsp->taskId;
   SStreamTask*        pTask = taosHashGet(pTq->pStreamTasks, &taskId, sizeof(int32_t));
   streamProcessDispatchRsp(pTask, &pTq->pVnode->msgCb, pRsp);

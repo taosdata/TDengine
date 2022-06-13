@@ -144,7 +144,9 @@ static int32_t doAddNewExternalMemSource(SDiskbasedBuf *pBuf, SArray* pAllSource
   (*sourceId) += 1;
 
   int32_t rowSize = blockDataGetSerialRowSize(pSource->src.pBlock);
-  int32_t numOfRows = (getBufPageSize(pBuf) - blockDataGetSerialMetaSize(pBlock))/rowSize;  // The value of numOfRows must be greater than 0, which is guaranteed by the previous memory allocation
+
+  // The value of numOfRows must be greater than 0, which is guaranteed by the previous memory allocation
+  int32_t numOfRows = (getBufPageSize(pBuf) - blockDataGetSerialMetaSize(pBlock->info.numOfCols))/rowSize;
   ASSERT(numOfRows > 0);
   return blockDataEnsureCapacity(pSource->src.pBlock, numOfRows);
 }
@@ -225,6 +227,8 @@ static int32_t sortComparInit(SMsortComparParam* cmpParam, SArray* pSources, int
     for (int32_t i = 0; i < cmpParam->numOfSources; ++i) {
       SSortSource* pSource = cmpParam->pSources[i];
       pSource->src.pBlock = pHandle->fetchfp(pSource->param);
+
+      // set current source id done
       if (pSource->src.pBlock == NULL) {
         pSource->src.rowIndex = -1;
         ++pHandle->numOfCompletedSources;
@@ -424,8 +428,16 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
   double sortPass = floorl(log2(numOfSources) / log2(pHandle->numOfPages));
 
   pHandle->totalElapsed = taosGetTimestampUs() - pHandle->startTs;
-  qDebug("%s %d rounds mergesort required to complete the sort, first-round sorted data size:%"PRIzu", sort elapsed:%"PRId64", total elapsed:%"PRId64,
-         pHandle->idStr, (int32_t) (sortPass + 1), pHandle->pBuf ? getTotalBufSize(pHandle->pBuf) : 0, pHandle->sortElapsed, pHandle->totalElapsed);
+
+  if (sortPass > 0) {
+    size_t s = pHandle->pBuf ? getTotalBufSize(pHandle->pBuf) : 0;
+    qDebug("%s %d rounds mergesort required to complete the sort, first-round sorted data size:%" PRIzu
+           ", sort elapsed:%" PRId64 ", total elapsed:%" PRId64,
+           pHandle->idStr, (int32_t)(sortPass + 1), s, pHandle->sortElapsed, pHandle->totalElapsed);
+  } else {
+    qDebug("%s ordered source:%"PRIzu", available buf:%d, no need internal sort", pHandle->idStr, numOfSources,
+        pHandle->numOfPages);
+  }
 
   int32_t numOfRows = blockDataGetCapacityInRow(pHandle->pDataBlock, pHandle->pageSize);
   blockDataEnsureCapacity(pHandle->pDataBlock, numOfRows);

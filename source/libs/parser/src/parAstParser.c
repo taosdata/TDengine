@@ -19,6 +19,7 @@
 #include "parInt.h"
 #include "parToken.h"
 #include "systable.h"
+#include "tglobal.h"
 
 typedef void* (*FMalloc)(size_t);
 typedef void (*FFree)(void*);
@@ -91,6 +92,7 @@ abort_parse:
 typedef struct SCollectMetaKeyCxt {
   SParseContext*   pParseCxt;
   SParseMetaCache* pMetaCache;
+  SNode*           pStmt;
 } SCollectMetaKeyCxt;
 
 static void destroyCollectMetaKeyCxt(SCollectMetaKeyCxt* pCxt) {
@@ -108,9 +110,18 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt);
 
 static EDealRes collectMetaKeyFromFunction(SCollectMetaKeyFromExprCxt* pCxt, SFunctionNode* pFunc) {
   if (fmIsBuiltinFunc(pFunc->functionName)) {
-    return TSDB_CODE_SUCCESS;
+    return DEAL_RES_CONTINUE;
   }
-  return reserveUdfInCache(pFunc->functionName, pCxt->pComCxt->pMetaCache);
+  pCxt->errCode = reserveUdfInCache(pFunc->functionName, pCxt->pComCxt->pMetaCache);
+  return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
+}
+
+static bool needGetTableIndex(SNode* pStmt) {
+  if (QUERY_SMA_OPTIMIZE_ENABLE == tsQuerySmaOptimize && QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
+    SSelectStmt* pSelect = (SSelectStmt*)pStmt;
+    return (NULL != pSelect->pWindow && QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow));
+  }
+  return false;
 }
 
 static int32_t collectMetaKeyFromRealTableImpl(SCollectMetaKeyCxt* pCxt, SRealTableNode* pRealTable,
@@ -127,6 +138,10 @@ static int32_t collectMetaKeyFromRealTableImpl(SCollectMetaKeyCxt* pCxt, SRealTa
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = reserveDbVgInfoInCache(pCxt->pParseCxt->acctId, pRealTable->table.dbName, pCxt->pMetaCache);
+  }
+  if (TSDB_CODE_SUCCESS == code && needGetTableIndex(pCxt->pStmt)) {
+    code = reserveTableIndexInCache(pCxt->pParseCxt->acctId, pRealTable->table.dbName, pRealTable->table.tableName,
+                                    pCxt->pMetaCache);
   }
   return code;
 }
@@ -177,6 +192,10 @@ static int32_t collectMetaKeyFromSelect(SCollectMetaKeyCxt* pCxt, SSelectStmt* p
   SCollectMetaKeyFromExprCxt cxt = {.pComCxt = pCxt, .errCode = TSDB_CODE_SUCCESS};
   nodesWalkSelectStmt(pStmt, SQL_CLAUSE_FROM, collectMetaKeyFromExprImpl, &cxt);
   return cxt.errCode;
+}
+
+static int32_t collectMetaKeyFromAlterDatabase(SCollectMetaKeyCxt* pCxt, SAlterDatabaseStmt* pStmt) {
+  return reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
 }
 
 static int32_t collectMetaKeyFromCreateTable(SCollectMetaKeyCxt* pCxt, SCreateTableStmt* pStmt) {
@@ -242,6 +261,9 @@ static int32_t collectMetaKeyFromCreateIndex(SCollectMetaKeyCxt* pCxt, SCreateIn
     if (TSDB_CODE_SUCCESS == code) {
       code =
           reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->db, pStmt->tableName, pCxt->pMetaCache);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = reserveDbVgInfoInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->db, pCxt->pMetaCache);
     }
   }
   return code;
@@ -371,11 +393,14 @@ static int32_t collectMetaKeyFromDelete(SCollectMetaKeyCxt* pCxt, SDeleteStmt* p
 }
 
 static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
+  pCxt->pStmt = pStmt;
   switch (nodeType(pStmt)) {
     case QUERY_NODE_SET_OPERATOR:
       return collectMetaKeyFromSetOperator(pCxt, (SSetOperator*)pStmt);
     case QUERY_NODE_SELECT_STMT:
       return collectMetaKeyFromSelect(pCxt, (SSelectStmt*)pStmt);
+    case QUERY_NODE_ALTER_DATABASE_STMT:
+      return collectMetaKeyFromAlterDatabase(pCxt, (SAlterDatabaseStmt*)pStmt);
     case QUERY_NODE_CREATE_TABLE_STMT:
       return collectMetaKeyFromCreateTable(pCxt, (SCreateTableStmt*)pStmt);
     case QUERY_NODE_CREATE_MULTI_TABLE_STMT:
@@ -439,7 +464,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
 }
 
 int32_t collectMetaKey(SParseContext* pParseCxt, SQuery* pQuery) {
-  SCollectMetaKeyCxt cxt = {.pParseCxt = pParseCxt, .pMetaCache = taosMemoryCalloc(1, sizeof(SParseMetaCache))};
+  SCollectMetaKeyCxt cxt = {
+      .pParseCxt = pParseCxt, .pMetaCache = taosMemoryCalloc(1, sizeof(SParseMetaCache)), .pStmt = pQuery->pRoot};
   if (NULL == cxt.pMetaCache) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }

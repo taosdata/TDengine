@@ -901,12 +901,22 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
 
     if (hasFraction) {
       int32_t fracLen = (int32_t)strlen(fraction) + 1;
-      char *tzInfo = strchr(buf, '+');
-      if (tzInfo) {
+
+      char *tzInfo;
+      if (buf[len - 1] == 'z' || buf[len - 1] == 'Z') {
+        tzInfo = &buf[len - 1];
         memmove(tzInfo + fracLen, tzInfo, strlen(tzInfo));
       } else {
-        tzInfo = strchr(buf, '-');
-        memmove(tzInfo + fracLen, tzInfo, strlen(tzInfo));
+        tzInfo = strchr(buf, '+');
+        if (tzInfo) {
+          memmove(tzInfo + fracLen, tzInfo, strlen(tzInfo));
+        } else {
+          //search '-' backwards
+          tzInfo = strrchr(buf, '-');
+          if (tzInfo) {
+            memmove(tzInfo + fracLen, tzInfo, strlen(tzInfo));
+          }
+        }
       }
 
       char tmp[32] = {0};

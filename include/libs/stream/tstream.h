@@ -141,8 +141,7 @@ void*   streamDataBlockDecode(const void* buf, SStreamDataBlock* pInput);
 #endif
 
 typedef struct {
-  int8_t parallelizable;
-  char*  qmsg;
+  char* qmsg;
   // followings are not applicable to encoder and decoder
   void* inputHandle;
   void* executor;
@@ -267,7 +266,7 @@ struct SStreamTask {
   // void* ahandle;
 };
 
-SStreamTask* tNewSStreamTask(int64_t streamId, int32_t childId);
+SStreamTask* tNewSStreamTask(int64_t streamId);
 int32_t      tEncodeSStreamTask(SEncoder* pEncoder, const SStreamTask* pTask);
 int32_t      tDecodeSStreamTask(SDecoder* pDecoder, SStreamTask* pTask);
 void         tFreeSStreamTask(SStreamTask* pTask);
@@ -308,9 +307,11 @@ static FORCE_INLINE int32_t streamTaskOutput(SStreamTask* pTask, SStreamDataBloc
   if (pTask->sinkType == TASK_SINK__TABLE) {
     ASSERT(pTask->dispatchType == TASK_DISPATCH__NONE);
     pTask->tbSink.tbSinkFunc(pTask, pTask->tbSink.vnode, 0, pBlock->blocks);
+    taosFreeQitem(pBlock);
   } else if (pTask->sinkType == TASK_SINK__SMA) {
     ASSERT(pTask->dispatchType == TASK_DISPATCH__NONE);
     pTask->smaSink.smaSink(pTask->smaSink.vnode, pTask->smaSink.smaId, pBlock->blocks);
+    taosFreeQitem(pBlock);
   } else {
     ASSERT(pTask->dispatchType != TASK_DISPATCH__NONE);
     taosWriteQitem(pTask->outputQueue->queue, pBlock);
@@ -339,6 +340,7 @@ typedef struct {
   int32_t sourceTaskId;
   int32_t sourceVg;
   int32_t sourceChildId;
+  int32_t upstreamNodeId;
 #if 0
   int64_t sourceVer;
 #endif

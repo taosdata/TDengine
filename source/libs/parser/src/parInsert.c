@@ -1006,7 +1006,7 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
     }
 
     SSchema* pTagSchema = &pSchema[pCxt->tags.boundColumns[i]];
-    char*    tmpTokenBuf = taosMemoryCalloc(1, sToken.n);  //todo this can be optimize with parse column
+    char*    tmpTokenBuf = taosMemoryCalloc(1, sToken.n);  // todo this can be optimize with parse column
     code = checkAndTrimValue(&sToken, tmpTokenBuf, &pCxt->msg);
     if (code != TSDB_CODE_SUCCESS) {
       taosMemoryFree(tmpTokenBuf);
@@ -1018,7 +1018,7 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
         taosMemoryFree(tmpTokenBuf);
         goto end;
       }
-      if(isNullStr(&sToken)) {
+      if (isNullStr(&sToken)) {
         code = tTagNew(pTagVals, 1, true, &pTag);
       } else {
         code = parseJsontoTagData(sToken.z, pTagVals, &pTag, &pCxt->msg);
@@ -1297,11 +1297,12 @@ static void destroyInsertParseContext(SInsertParseContext* pCxt) {
 }
 
 static int32_t checkSchemalessDb(SInsertParseContext* pCxt, char* pDbName) {
-  SDbCfgInfo pInfo = {0};
-  char       fullName[TSDB_TABLE_FNAME_LEN];
-  snprintf(fullName, sizeof(fullName), "%d.%s", pCxt->pComCxt->acctId, pDbName);
-  CHECK_CODE(getDBCfg(pCxt, fullName, &pInfo));
-  return pInfo.schemaless ? TSDB_CODE_SML_INVALID_DB_CONF : TSDB_CODE_SUCCESS;
+//  SDbCfgInfo pInfo = {0};
+//  char       fullName[TSDB_TABLE_FNAME_LEN];
+//  snprintf(fullName, sizeof(fullName), "%d.%s", pCxt->pComCxt->acctId, pDbName);
+//  CHECK_CODE(getDBCfg(pCxt, fullName, &pInfo));
+//  return pInfo.schemaless ? TSDB_CODE_SML_INVALID_DB_CONF : TSDB_CODE_SUCCESS;
+  return TSDB_CODE_SUCCESS;
 }
 
 //   tb_name
@@ -1530,10 +1531,13 @@ typedef struct SInsertParseSyntaxCxt {
 } SInsertParseSyntaxCxt;
 
 static int32_t skipParentheses(SInsertParseSyntaxCxt* pCxt) {
-  SToken sToken;
+  SToken  sToken;
+  int32_t expectRightParenthesis = 1;
   while (1) {
     NEXT_TOKEN(pCxt->pSql, sToken);
-    if (TK_NK_RP == sToken.type) {
+    if (TK_NK_LP == sToken.type) {
+      ++expectRightParenthesis;
+    } else if (TK_NK_RP == sToken.type && 0 == --expectRightParenthesis) {
       break;
     }
     if (0 == sToken.n) {
@@ -2040,6 +2044,10 @@ int32_t qBuildStmtTagFields(void* pBlock, void* boundTags, int32_t* fieldNum, TA
     return TSDB_CODE_QRY_APP_ERROR;
   }
 
+  if (pDataBlock->pTableMeta->tableType != TSDB_SUPER_TABLE && pDataBlock->pTableMeta->tableType != TSDB_CHILD_TABLE) {
+    return TSDB_CODE_TSC_STMT_API_ERROR;
+  }
+
   SSchema* pSchema = getTableTagSchema(pDataBlock->pTableMeta);
   if (tags->numOfBound <= 0) {
     *fieldNum = 0;
@@ -2112,9 +2120,11 @@ static int32_t smlBoundColumnData(SArray* cols, SParsedDataColInfo* pColList, SS
       isOrdered = false;
     }
     if (index < 0) {
+      uError("smlBoundColumnData. index:%d", index);
       return TSDB_CODE_SML_INVALID_DATA;
     }
     if (pColList->cols[index].valStat == VAL_STAT_HAS) {
+      uError("smlBoundColumnData. already set. index:%d", index);
       return TSDB_CODE_SML_INVALID_DATA;
     }
     lastColIdx = index;

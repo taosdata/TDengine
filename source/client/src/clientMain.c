@@ -219,14 +219,13 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
 
   if (TD_RES_QUERY(res)) {
     SRequestObj *pRequest = (SRequestObj *)res;
+#if SYNC_ON_TOP_OF_ASYNC
+    return doAsyncFetchRows(pRequest, true, true);
+#else
     if (pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT || pRequest->type == TSDB_SQL_INSERT ||
         pRequest->code != TSDB_CODE_SUCCESS || taos_num_fields(res) == 0) {
       return NULL;
     }
-
-#if SYNC_ON_TOP_OF_ASYNC
-    return doAsyncFetchRow(pRequest, true, true);
-#else
     return doFetchRows(pRequest, true, true);
 #endif
 
@@ -489,6 +488,7 @@ int taos_fetch_block_s(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows) {
   if (res == NULL) {
     return 0;
   }
+
   if (TD_RES_QUERY(res)) {
     SRequestObj *pRequest = (SRequestObj *)res;
 
@@ -500,7 +500,11 @@ int taos_fetch_block_s(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows) {
       return 0;
     }
 
-    doFetchRows(pRequest, false, true);
+#if SYNC_ON_TOP_OF_ASYNC
+    doAsyncFetchRows(pRequest, false, true);
+#else
+    doFetchRows(pRequest, true, true);
+#endif
 
     // TODO refactor
     SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
@@ -548,7 +552,11 @@ int taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData) {
     return 0;
   }
 
+#if SYNC_ON_TOP_OF_ASYNC
+  doAsyncFetchRows(pRequest, false, false);
+#else
   doFetchRows(pRequest, false, false);
+#endif
 
   SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
 
@@ -625,8 +633,10 @@ void retrieveMetaCallback(SMetaData* pResultMeta, void* param, int32_t code) {
     taosMemoryFree(pWrapper);
     launchAsyncQuery(pRequest, pQuery);
   } else {
+    tscDebug("error happens, code:%d", code);
     if (NEED_CLIENT_HANDLE_ERROR(code)) {
-      tscDebug("0x%"PRIx64" client retry to handle the error, code:%s, reqId:0x%"PRIx64, pRequest->self, tstrerror(code), pRequest->requestId);
+      tscDebug("0x%"PRIx64" client retry to handle the error, code:%d - %s, tryCount:%d, reqId:0x%"PRIx64, pRequest->self, code, tstrerror(code),
+               pRequest->retry, pRequest->requestId);
       pRequest->prevCode = code;
       doAsyncQuery(pRequest, true);
       return;
@@ -691,6 +701,7 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext** pCxt) {
                        .pTransporter = pTscObj->pAppInfo->pTransporter,
                        .pStmtCb = NULL,
                        .pUser = pTscObj->user,
+                       .schemalessType = pTscObj->schemalessType,
                        .isSuperUser = (0 == strcmp(pTscObj->user, TSDB_DEFAULT_USER)),
                        .async = true,};
   return TSDB_CODE_SUCCESS;
@@ -699,13 +710,14 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext** pCxt) {
 void doAsyncQuery(SRequestObj* pRequest, bool updateMetaForce) {
   SParseContext* pCxt = NULL;
   STscObj *pTscObj = pRequest->pTscObj;
+  int32_t code = 0;
 
   if (pRequest->retry++ > REQUEST_TOTAL_EXEC_TIMES) {
-    pRequest->code = pRequest->prevCode;
+    code = pRequest->prevCode;
     goto _error;
   }
 
-  int32_t code = createParseContext(pRequest, &pCxt);
+  code = createParseContext(pRequest, &pCxt);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -742,7 +754,7 @@ void doAsyncQuery(SRequestObj* pRequest, bool updateMetaForce) {
   }
 
   _error:
-  tscError("0x%"PRIx64" error happens, code:%s, reqId:0x%"PRIx64, pRequest->self, tstrerror(code), pRequest->requestId);
+  tscError("0x%"PRIx64" error happens, code:%d - %s, reqId:0x%"PRIx64, pRequest->self, code, tstrerror(code), pRequest->requestId);
   terrno = code;
   pRequest->code = code;
   pRequest->body.queryFp(pRequest->body.param, pRequest, code);
@@ -763,11 +775,11 @@ static void fetchCallback(void* pResult, void* param, int32_t code) {
   }
 
   if (pRequest->code != TSDB_CODE_SUCCESS) {
-    pRequest->code = code;
     pRequest->body.fetchFp(pRequest->body.param, pRequest, 0);
+    return;
   }
 
-  pRequest->code = setQueryResultFromRsp(&pRequest->body.resInfo, (SRetrieveTableRsp*)pResultInfo->pData, true, false);
+  pRequest->code = setQueryResultFromRsp(pResultInfo, (SRetrieveTableRsp*)pResultInfo->pData, pResultInfo->convertUcs4, false);
   if (pRequest->code != TSDB_CODE_SUCCESS) {
     pResultInfo->numOfRows = 0;
     pRequest->code = code;
@@ -805,6 +817,21 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
   }
 
   schedulerAsyncFetchRows(pRequest->body.queryJob, fetchCallback, pRequest);
+}
+
+void taos_fetch_raw_block_a(TAOS_RES* res, __taos_async_fn_t fp, void* param) {
+  ASSERT(res != NULL && fp != NULL);
+  SRequestObj *pRequest = res;
+
+  pRequest->body.resInfo.convertUcs4 = false;
+  taos_fetch_rows_a(res, fp, param);
+}
+
+const void* taos_get_raw_block(TAOS_RES* res) {
+  ASSERT(res != NULL);
+  SRequestObj* pRequest = res;
+
+  return pRequest->body.resInfo.pData;
 }
 
 TAOS_SUB *taos_subscribe(TAOS *taos, int restart, const char *topic, const char *sql, TAOS_SUBSCRIBE_CALLBACK fp,

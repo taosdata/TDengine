@@ -117,10 +117,10 @@ int          tfileWriterPut(TFileWriter* tw, void* data, bool order);
 int          tfileWriterFinish(TFileWriter* tw);
 
 //
-IndexTFile* indexTFileCreate(const char* path);
-void        indexTFileDestroy(IndexTFile* tfile);
-int         indexTFilePut(void* tfile, SIndexTerm* term, uint64_t uid);
-int         indexTFileSearch(void* tfile, SIndexTermQuery* query, SIdxTRslt* tr);
+IndexTFile* idxTFileCreate(const char* path);
+void        idxTFileDestroy(IndexTFile* tfile);
+int         idxTFilePut(void* tfile, SIndexTerm* term, uint64_t uid);
+int         idxTFileSearch(void* tfile, SIndexTermQuery* query, SIdxTRslt* tr);
 
 Iterate* tfileIteratorCreate(TFileReader* reader);
 void     tfileIteratorDestroy(Iterate* iterator);

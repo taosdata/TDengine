@@ -3,6 +3,7 @@ import taos
 import time
 import inspect
 import traceback
+import socket
 from dataclasses  import dataclass
 
 from util.log import *
@@ -102,7 +103,7 @@ class TDconnect:
 
 
 def taos_connect(
-    host    = "127.0.0.1",
+    host    = socket.gethostname(),
     port    = 6030,
     user    = "root",
     passwd  = "taosdata",

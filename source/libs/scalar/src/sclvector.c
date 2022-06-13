@@ -348,7 +348,7 @@ static FORCE_INLINE void varToNchar(char* buf, SScalarParam* pOut, int32_t rowIn
   int32_t outputMaxLen = (inputLen + 1) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
 
   char* t = taosMemoryCalloc(1, outputMaxLen);
-  /*int32_t resLen = */taosMbsToUcs4(varDataVal(buf), inputLen, (TdUcs4*) varDataVal(t), outputMaxLen, &len);
+  /*int32_t resLen = */taosMbsToUcs4(varDataVal(buf), inputLen, (TdUcs4*) varDataVal(t), outputMaxLen - VARSTR_HEADER_SIZE, &len);
   varDataSetLen(t, len);
 
   colDataAppend(pOut->columnData, rowIndex, t, false);
@@ -627,6 +627,11 @@ int32_t vectorConvertImpl(const SScalarParam* pIn, SScalarParam* pOut) {
   SColumnInfoData* pInputCol  = pIn->columnData;
   SColumnInfoData* pOutputCol = pOut->columnData;
 
+  if (NULL == pInputCol) {
+    sclError("input column is NULL, hashFilter %p", pIn->pHashFilter);
+    return TSDB_CODE_APP_ERROR;
+  }
+  
   int16_t inType   = pInputCol->info.type;
   int16_t outType  = pOutputCol->info.type;
 
@@ -827,11 +832,26 @@ int32_t vectorGetConvertType(int32_t type1, int32_t type2) {
   return gConvertTypes[type2][type1];
 }
 
-int32_t vectorConvert(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam* pLeftOut, SScalarParam* pRightOut) {
-  if (pLeft->pHashFilter != NULL || pRight->pHashFilter != NULL) {
-    return TSDB_CODE_SUCCESS;
+int32_t vectorConvertScalarParam(SScalarParam *input, SScalarParam *output, int32_t type) {
+  int32_t code = 0;
+  SDataType t = {.type = type, .bytes = tDataTypes[type].bytes};
+  output->numOfRows = input->numOfRows;
+
+  output->columnData = createColumnInfoData(&t, input->numOfRows);
+  if (output->columnData == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  code = vectorConvertImpl(input, output);
+  if (code) {
+//      taosMemoryFreeClear(paramOut1->data);
+    return code;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t vectorConvert(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam* pLeftOut, SScalarParam* pRightOut) {
   int32_t leftType  = GET_PARAM_TYPE(pLeft);
   int32_t rightType = GET_PARAM_TYPE(pRight);
   if (leftType == rightType) {
@@ -860,31 +880,14 @@ int32_t vectorConvert(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam* p
   }
 
   if (type != GET_PARAM_TYPE(param1)) {
-    SDataType t = {.type = type, .bytes = tDataTypes[type].bytes};
-    paramOut1->numOfRows = param1->numOfRows;
-
-    paramOut1->columnData = createColumnInfoData(&t, param1->numOfRows);
-    if (paramOut1->columnData == NULL) {
-      return terrno;
-    }
-
-    code = vectorConvertImpl(param1, paramOut1);
+    code = vectorConvertScalarParam(param1, paramOut1, type);
     if (code) {
-//      taosMemoryFreeClear(paramOut1->data);
       return code;
     }
   }
   
   if (type != GET_PARAM_TYPE(param2)) {
-    SDataType t = {.type = type, .bytes = tDataTypes[type].bytes};
-    paramOut2->numOfRows = param2->numOfRows;
-
-    paramOut2->columnData = createColumnInfoData(&t, param2->numOfRows);
-    if (paramOut2->columnData == NULL) {
-      return terrno;
-    }
-
-    code = vectorConvertImpl(param2, paramOut2);
+    code = vectorConvertScalarParam(param2, paramOut2, type);
     if (code) {
       return code;
     }

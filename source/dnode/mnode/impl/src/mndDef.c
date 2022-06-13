@@ -415,6 +415,7 @@ SMqSubscribeObj *tCloneSubscribeObj(const SMqSubscribeObj *pSub) {
     taosHashPut(pSubNew->consumerHash, &newEp.consumerId, sizeof(int64_t), &newEp, sizeof(SMqConsumerEp));
   }
   pSubNew->unassignedVgs = taosArrayDeepCopy(pSub->unassignedVgs, (FCopy)tCloneSMqVgEp);
+  memcpy(pSubNew->dbName, pSub->dbName, TSDB_DB_FNAME_LEN);
   return pSubNew;
 }
 
@@ -445,6 +446,7 @@ int32_t tEncodeSubscribeObj(void **buf, const SMqSubscribeObj *pSub) {
   }
   ASSERT(cnt == sz);
   tlen += taosEncodeArray(buf, pSub->unassignedVgs, (FEncode)tEncodeSMqVgEp);
+  tlen += taosEncodeString(buf, pSub->dbName);
   return tlen;
 }
 
@@ -467,6 +469,7 @@ void *tDecodeSubscribeObj(const void *buf, SMqSubscribeObj *pSub) {
   }
 
   buf = taosDecodeArray(buf, &pSub->unassignedVgs, (FDecode)tDecodeSMqVgEp, sizeof(SMqVgEp));
+  buf = taosDecodeStringTo(buf, pSub->dbName);
   return (void *)buf;
 }
 
