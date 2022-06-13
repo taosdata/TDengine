@@ -257,11 +257,11 @@ static FORCE_INLINE int tsdbAppendDFile(SDFile* pDFile, void* buf, int64_t nbyte
     return -1;
   }
 
-  //bug fix. To avoid data corruption, close the data file in advance.
-  //ASSERT(pDFile->info.size == toffset);
+  //bug fix. To avoid data corruption, 
+  //the end offset of current file should be checked with file size, 
+  //if not equal, known as file corrupted and return error.
   if (pDFile->info.size != toffset) {
-    tsdbCloseDFile(pDFile);
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
     return -1;
   }
 
