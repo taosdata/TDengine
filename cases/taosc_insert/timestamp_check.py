@@ -61,7 +61,6 @@ class TestTimestamp(TDCase):
             self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), "2022-01-16 21:18:01")
         self.tdSql.error(f'insert into {dbname}.ctb values ("2022-01-16 21:17:121", 3)')
         self.tdSql.error(f'insert into {dbname}.tb values ("2022-01-16 21:17:121", 3)')
-        # TODO confirm
         self.tdSql.error(f'insert into {dbname}.ctb values ("2022-01-16 21:17:62", 2)')
         self.tdSql.error(f'insert into {dbname}.tb values ("2022-01-16 21:17:62", 2)')
         self.tdSql.execute(f'drop database if exists {dbname}')
