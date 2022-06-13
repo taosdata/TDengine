@@ -158,7 +158,7 @@ int32_t ctgInitGetQnodeTask(SCtgJob *pJob, int32_t taskIdx) {
 
   taosArrayPush(pJob->pTasks, &task);
 
-  qDebug("QID:%" PRIx64 " the %d task type %s initialized", pJob->queryId, taskIdx, ctgTaskTypeStr(task.type));
+  qDebug("QID:0x%" PRIx64 " the %d task type %s initialized", pJob->queryId, taskIdx, ctgTaskTypeStr(task.type));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -181,7 +181,7 @@ int32_t ctgInitGetIndexTask(SCtgJob *pJob, int32_t taskIdx, char *name) {
 
   taosArrayPush(pJob->pTasks, &task);
 
-  qDebug("QID:%" PRIx64 " the %d task type %s initialized, indexFName:%s", pJob->queryId, taskIdx, ctgTaskTypeStr(task.type), name);
+  qDebug("QID:0x%" PRIx64 " the %d task type %s initialized, indexFName:%s", pJob->queryId, taskIdx, ctgTaskTypeStr(task.type), name);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -204,7 +204,7 @@ int32_t ctgInitGetUdfTask(SCtgJob *pJob, int32_t taskIdx, char *name) {
 
   taosArrayPush(pJob->pTasks, &task);
 
-  qDebug("QID:%" PRIx64 " the %d task type %s initialized, udfName:%s", pJob->queryId, taskIdx, ctgTaskTypeStr(task.type), name);
+  qDebug("QID:0x%" PRIx64 " the %d task type %s initialized, udfName:%s", pJob->queryId, taskIdx, ctgTaskTypeStr(task.type), name);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -227,7 +227,7 @@ int32_t ctgInitGetUserTask(SCtgJob *pJob, int32_t taskIdx, SUserAuthInfo *user) 
 
   taosArrayPush(pJob->pTasks, &task);
 
-  qDebug("QID:%" PRIx64 " the %d task type %s initialized, user:%s", pJob->queryId, taskIdx, ctgTaskTypeStr(task.type), user->user);
+  qDebug("QID:0x%" PRIx64 " the %d task type %s initialized, user:%s", pJob->queryId, taskIdx, ctgTaskTypeStr(task.type), user->user);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -255,7 +255,7 @@ int32_t ctgInitGetTbIndexTask(SCtgJob *pJob, int32_t taskIdx, SName *name) {
 
   taosArrayPush(pJob->pTasks, &task);
 
-  qDebug("QID:%" PRIx64 " the %d task type %s initialized, tbName:%s", pJob->queryId, taskIdx, ctgTaskTypeStr(task.type), name->tname);
+  qDebug("QID:0x%" PRIx64 " the %d task type %s initialized, tbName:%s", pJob->queryId, taskIdx, ctgTaskTypeStr(task.type), name->tname);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -347,7 +347,7 @@ int32_t ctgHandleForceUpdate(SCatalog* pCtg, SCtgJob *pJob, const SCatalogReq* p
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgInitJob(CTG_PARAMS, SCtgJob** job, uint64_t reqId, const SCatalogReq* pReq, catalogCallback fp, void* param, int32_t* taskNum) {
+int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgJob** job, uint64_t reqId, const SCatalogReq* pReq, catalogCallback fp, void* param, int32_t* taskNum) {
   int32_t code = 0;
   int32_t tbMetaNum = (int32_t)taosArrayGetSize(pReq->pTableMeta);
   int32_t dbVgNum = (int32_t)taosArrayGetSize(pReq->pDbVgroup);
@@ -377,8 +377,7 @@ int32_t ctgInitJob(CTG_PARAMS, SCtgJob** job, uint64_t reqId, const SCatalogReq*
   pJob->queryId = reqId;
   pJob->userFp = fp;
   pJob->pCtg    = pCtg;
-  pJob->pTrans    = pTrans;
-  pJob->pMgmtEps    = *pMgmtEps;
+  pJob->conn    = *pConn;
   pJob->userParam = param;
   
   pJob->tbMetaNum = tbMetaNum;
@@ -638,7 +637,7 @@ int32_t ctgHandleTaskEnd(SCtgTask* pTask, int32_t rspCode) {
 
 _return:
 
-  qDebug("QID:%" PRIx64 " user callback with rsp %s", pJob->queryId, tstrerror(code));
+  qDebug("QID:0x%" PRIx64 " user callback with rsp %s", pJob->queryId, tstrerror(code));
 
   (*pJob->userFp)(&pJob->jobRes, pJob->userParam, code);
 
@@ -650,12 +649,11 @@ _return:
 int32_t ctgHandleGetTbMetaRsp(SCtgTask* pTask, int32_t reqType, const SDataBuf *pMsg, int32_t rspCode) {
   int32_t code = 0;
   SCtgDBCache *dbCache = NULL;
-  CTG_ERR_JRET(ctgProcessRspMsg(pTask->msgCtx.out, reqType, pMsg->pData, pMsg->len, rspCode, pTask->msgCtx.target));
-
   SCtgTbMetaCtx* ctx = (SCtgTbMetaCtx*)pTask->taskCtx;
   SCatalog* pCtg = pTask->pJob->pCtg; 
-  void *pTrans = pTask->pJob->pTrans; 
-  const SEpSet* pMgmtEps = &pTask->pJob->pMgmtEps;
+  SRequestConnInfo* pConn = &pTask->pJob->conn;
+
+  CTG_ERR_JRET(ctgProcessRspMsg(pTask->msgCtx.out, reqType, pMsg->pData, pMsg->len, rspCode, pTask->msgCtx.target));
 
   switch (reqType) {
     case TDMT_MND_USE_DB: {
@@ -666,7 +664,8 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTask* pTask, int32_t reqType, const SDataBuf *
 
       ctgDebug("will refresh tbmeta, not supposed to be stb, tbName:%s, flag:%d", tNameGetTableName(ctx->pName), ctx->flag);
 
-      CTG_ERR_JRET(ctgGetTbMetaFromVnode(CTG_PARAMS_LIST(), ctx->pName, &vgInfo, NULL, pTask));
+      ctx->vgId = vgInfo.vgId;
+      CTG_ERR_JRET(ctgGetTbMetaFromVnode(pCtg, pConn, ctx->pName, &vgInfo, NULL, pTask));
 
       return TSDB_CODE_SUCCESS;
     }
@@ -684,8 +683,9 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTask* pTask, int32_t reqType, const SDataBuf *
             CTG_ERR_JRET(ctgGetVgInfoFromHashValue(pCtg, dbCache->vgInfo, ctx->pName, &vgInfo));
           
             ctgDebug("will refresh tbmeta, not supposed to be stb, tbName:%s, flag:%d", tNameGetTableName(ctx->pName), ctx->flag);
-          
-            CTG_ERR_JRET(ctgGetTbMetaFromVnode(CTG_PARAMS_LIST(), ctx->pName, &vgInfo, NULL, pTask));
+
+            ctx->vgId = vgInfo.vgId;          
+            CTG_ERR_JRET(ctgGetTbMetaFromVnode(pCtg, pConn, ctx->pName, &vgInfo, NULL, pTask));
 
             ctgReleaseVgInfo(dbCache);
             ctgReleaseDBCache(pCtg, dbCache);
@@ -695,7 +695,7 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTask* pTask, int32_t reqType, const SDataBuf *
             tstrncpy(input.db, dbFName, tListLen(input.db));
             input.vgVersion = CTG_DEFAULT_INVALID_VERSION;
           
-            CTG_ERR_JRET(ctgGetDBVgInfoFromMnode(pCtg, pTrans, pMgmtEps, &input, NULL, pTask));
+            CTG_ERR_JRET(ctgGetDBVgInfoFromMnode(pCtg, pConn, &input, NULL, pTask));
           }
 
           return TSDB_CODE_SUCCESS;
@@ -733,7 +733,7 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTask* pTask, int32_t reqType, const SDataBuf *
       
         taosMemoryFreeClear(pOut->tbMeta);
         
-        CTG_RET(ctgGetTbMetaFromMnode(CTG_PARAMS_LIST(), ctx->pName, NULL, pTask));
+        CTG_RET(ctgGetTbMetaFromMnode(pCtg, pConn, ctx->pName, NULL, pTask));
       } else if (CTG_IS_META_BOTH(pOut->metaType)) {
         int32_t exist = 0;
         if (!CTG_FLAG_IS_FORCE_UPDATE(ctx->flag)) {
@@ -742,7 +742,7 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTask* pTask, int32_t reqType, const SDataBuf *
       
         if (0 == exist) {
           TSWAP(pTask->msgCtx.lastOut, pTask->msgCtx.out);
-          CTG_RET(ctgGetTbMetaFromMnodeImpl(CTG_PARAMS_LIST(), pOut->dbFName, pOut->tbName, NULL, pTask));
+          CTG_RET(ctgGetTbMetaFromMnodeImpl(pCtg, pConn, pOut->dbFName, pOut->tbName, NULL, pTask));
         } else {
           taosMemoryFreeClear(pOut->tbMeta);
           
@@ -797,12 +797,10 @@ _return:
 
 int32_t ctgHandleGetDbVgRsp(SCtgTask* pTask, int32_t reqType, const SDataBuf *pMsg, int32_t rspCode) {
   int32_t code = 0;
-  CTG_ERR_JRET(ctgProcessRspMsg(pTask->msgCtx.out, reqType, pMsg->pData, pMsg->len, rspCode, pTask->msgCtx.target));
-
   SCtgDbVgCtx* ctx = (SCtgDbVgCtx*)pTask->taskCtx;
   SCatalog* pCtg = pTask->pJob->pCtg; 
-  void *pTrans = pTask->pJob->pTrans; 
-  const SEpSet* pMgmtEps = &pTask->pJob->pMgmtEps;
+
+  CTG_ERR_JRET(ctgProcessRspMsg(pTask->msgCtx.out, reqType, pMsg->pData, pMsg->len, rspCode, pTask->msgCtx.target));
 
   switch (reqType) {
     case TDMT_MND_USE_DB: {
@@ -831,12 +829,10 @@ _return:
 
 int32_t ctgHandleGetTbHashRsp(SCtgTask* pTask, int32_t reqType, const SDataBuf *pMsg, int32_t rspCode) {
   int32_t code = 0;
-  CTG_ERR_JRET(ctgProcessRspMsg(pTask->msgCtx.out, reqType, pMsg->pData, pMsg->len, rspCode, pTask->msgCtx.target));
-
   SCtgTbHashCtx* ctx = (SCtgTbHashCtx*)pTask->taskCtx;
   SCatalog* pCtg = pTask->pJob->pCtg; 
-  void *pTrans = pTask->pJob->pTrans; 
-  const SEpSet* pMgmtEps = &pTask->pJob->pMgmtEps;
+
+  CTG_ERR_JRET(ctgProcessRspMsg(pTask->msgCtx.out, reqType, pMsg->pData, pMsg->len, rspCode, pTask->msgCtx.target));
 
   switch (reqType) {
     case TDMT_MND_USE_DB: {
@@ -944,15 +940,13 @@ _return:
 int32_t ctgHandleGetUserRsp(SCtgTask* pTask, int32_t reqType, const SDataBuf *pMsg, int32_t rspCode) {
   int32_t code = 0;
   SCtgDBCache *dbCache = NULL;
-  CTG_ERR_JRET(ctgProcessRspMsg(pTask->msgCtx.out, reqType, pMsg->pData, pMsg->len, rspCode, pTask->msgCtx.target));
-
   SCtgUserCtx* ctx = (SCtgUserCtx*)pTask->taskCtx;
   SCatalog* pCtg = pTask->pJob->pCtg; 
-  void *pTrans = pTask->pJob->pTrans; 
-  const SEpSet* pMgmtEps = &pTask->pJob->pMgmtEps;
   bool pass = false;
   SGetUserAuthRsp* pOut = (SGetUserAuthRsp*)pTask->msgCtx.out;
-  
+
+  CTG_ERR_JRET(ctgProcessRspMsg(pTask->msgCtx.out, reqType, pMsg->pData, pMsg->len, rspCode, pTask->msgCtx.target));
+
   if (pOut->superAuth) {
     pass = true;
     goto _return;
@@ -990,22 +984,21 @@ _return:
 
 int32_t ctgAsyncRefreshTbMeta(SCtgTask *pTask) {
   SCatalog* pCtg = pTask->pJob->pCtg; 
-  void *pTrans = pTask->pJob->pTrans; 
-  const SEpSet* pMgmtEps = &pTask->pJob->pMgmtEps;
+  SRequestConnInfo* pConn = &pTask->pJob->conn;
   int32_t code = 0;
   SCtgTbMetaCtx* ctx = (SCtgTbMetaCtx*)pTask->taskCtx;
 
   if (CTG_FLAG_IS_SYS_DB(ctx->flag)) {
     ctgDebug("will refresh sys db tbmeta, tbName:%s", tNameGetTableName(ctx->pName));
 
-    CTG_RET(ctgGetTbMetaFromMnodeImpl(CTG_PARAMS_LIST(), (char *)ctx->pName->dbname, (char *)ctx->pName->tname, NULL, pTask));
+    CTG_RET(ctgGetTbMetaFromMnodeImpl(pCtg, pConn, (char *)ctx->pName->dbname, (char *)ctx->pName->tname, NULL, pTask));
   }
 
   if (CTG_FLAG_IS_STB(ctx->flag)) {
     ctgDebug("will refresh tbmeta, supposed to be stb, tbName:%s", tNameGetTableName(ctx->pName));
 
     // if get from mnode failed, will not try vnode
-    CTG_RET(ctgGetTbMetaFromMnode(CTG_PARAMS_LIST(), ctx->pName, NULL, pTask));
+    CTG_RET(ctgGetTbMetaFromMnode(pCtg, pConn, ctx->pName, NULL, pTask));
   }
 
   SCtgDBCache *dbCache = NULL;
@@ -1019,14 +1012,15 @@ int32_t ctgAsyncRefreshTbMeta(SCtgTask *pTask) {
 
     ctgDebug("will refresh tbmeta, not supposed to be stb, tbName:%s, flag:%d", tNameGetTableName(ctx->pName), ctx->flag);
 
-    CTG_ERR_JRET(ctgGetTbMetaFromVnode(CTG_PARAMS_LIST(), ctx->pName, &vgInfo, NULL, pTask));
+    ctx->vgId = vgInfo.vgId;
+    CTG_ERR_JRET(ctgGetTbMetaFromVnode(pCtg, pConn, ctx->pName, &vgInfo, NULL, pTask));
   } else {
     SBuildUseDBInput input = {0};
 
     tstrncpy(input.db, dbFName, tListLen(input.db));
     input.vgVersion = CTG_DEFAULT_INVALID_VERSION;
 
-    CTG_ERR_JRET(ctgGetDBVgInfoFromMnode(pCtg, pTrans, pMgmtEps, &input, NULL, pTask));
+    CTG_ERR_JRET(ctgGetDBVgInfoFromMnode(pCtg, pConn, &input, NULL, pTask));
   }
 
 _return:
@@ -1041,10 +1035,9 @@ _return:
 
 int32_t ctgLaunchGetTbMetaTask(SCtgTask *pTask) {
   SCatalog* pCtg = pTask->pJob->pCtg; 
-  void *pTrans = pTask->pJob->pTrans; 
-  const SEpSet* pMgmtEps = &pTask->pJob->pMgmtEps;
+  SRequestConnInfo* pConn = &pTask->pJob->conn;
 
-  CTG_ERR_RET(ctgGetTbMetaFromCache(CTG_PARAMS_LIST(), (SCtgTbMetaCtx*)pTask->taskCtx, (STableMeta**)&pTask->res));
+  CTG_ERR_RET(ctgGetTbMetaFromCache(pCtg, pConn, (SCtgTbMetaCtx*)pTask->taskCtx, (STableMeta**)&pTask->res));
   if (pTask->res) {
     CTG_ERR_RET(ctgHandleTaskEnd(pTask, 0));
     return TSDB_CODE_SUCCESS;
@@ -1058,8 +1051,7 @@ int32_t ctgLaunchGetTbMetaTask(SCtgTask *pTask) {
 int32_t ctgLaunchGetDbVgTask(SCtgTask *pTask) {
   int32_t code = 0;
   SCatalog* pCtg = pTask->pJob->pCtg; 
-  void *pTrans = pTask->pJob->pTrans; 
-  const SEpSet* pMgmtEps = &pTask->pJob->pMgmtEps;
+  SRequestConnInfo* pConn = &pTask->pJob->conn;
   SCtgDBCache *dbCache = NULL;
   SCtgDbVgCtx* pCtx = (SCtgDbVgCtx*)pTask->taskCtx;
   
@@ -1074,7 +1066,7 @@ int32_t ctgLaunchGetDbVgTask(SCtgTask *pTask) {
     tstrncpy(input.db, pCtx->dbFName, tListLen(input.db));
     input.vgVersion = CTG_DEFAULT_INVALID_VERSION;
     
-    CTG_ERR_RET(ctgGetDBVgInfoFromMnode(pCtg, pTrans, pMgmtEps, &input, NULL, pTask));
+    CTG_ERR_RET(ctgGetDBVgInfoFromMnode(pCtg, pConn, &input, NULL, pTask));
   }
 
 _return:
@@ -1090,8 +1082,7 @@ _return:
 int32_t ctgLaunchGetTbHashTask(SCtgTask *pTask) {
   int32_t code = 0;
   SCatalog* pCtg = pTask->pJob->pCtg; 
-  void *pTrans = pTask->pJob->pTrans; 
-  const SEpSet* pMgmtEps = &pTask->pJob->pMgmtEps;
+  SRequestConnInfo* pConn = &pTask->pJob->conn;
   SCtgDBCache *dbCache = NULL;
   SCtgTbHashCtx* pCtx = (SCtgTbHashCtx*)pTask->taskCtx;
   
@@ -1110,7 +1101,7 @@ int32_t ctgLaunchGetTbHashTask(SCtgTask *pTask) {
     tstrncpy(input.db, pCtx->dbFName, tListLen(input.db));
     input.vgVersion = CTG_DEFAULT_INVALID_VERSION;
     
-    CTG_ERR_RET(ctgGetDBVgInfoFromMnode(pCtg, pTrans, pMgmtEps, &input, NULL, pTask));
+    CTG_ERR_RET(ctgGetDBVgInfoFromMnode(pCtg, pConn, &input, NULL, pTask));
   }
 
 _return:
@@ -1126,31 +1117,28 @@ _return:
 int32_t ctgLaunchGetTbIndexTask(SCtgTask *pTask) {
   int32_t code = 0;
   SCatalog* pCtg = pTask->pJob->pCtg; 
-  void *pTrans = pTask->pJob->pTrans; 
-  const SEpSet* pMgmtEps = &pTask->pJob->pMgmtEps;
+  SRequestConnInfo* pConn = &pTask->pJob->conn;
   SCtgTbIndexCtx* pCtx = (SCtgTbIndexCtx*)pTask->taskCtx;
   
-  CTG_ERR_RET(ctgGetTbIndexFromMnode(CTG_PARAMS_LIST(), pCtx->pName, NULL, pTask));
+  CTG_ERR_RET(ctgGetTbIndexFromMnode(pCtg, pConn, pCtx->pName, NULL, pTask));
   return TSDB_CODE_SUCCESS;
 }
 
 
 int32_t ctgLaunchGetQnodeTask(SCtgTask *pTask) {
   SCatalog* pCtg = pTask->pJob->pCtg; 
-  void *pTrans = pTask->pJob->pTrans; 
-  const SEpSet* pMgmtEps = &pTask->pJob->pMgmtEps;
+  SRequestConnInfo* pConn = &pTask->pJob->conn;
 
-  CTG_ERR_RET(ctgGetQnodeListFromMnode(CTG_PARAMS_LIST(), NULL, pTask));
+  CTG_ERR_RET(ctgGetQnodeListFromMnode(pCtg, pConn, NULL, pTask));
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t ctgLaunchGetDbCfgTask(SCtgTask *pTask) {
   SCatalog* pCtg = pTask->pJob->pCtg; 
-  void *pTrans = pTask->pJob->pTrans; 
-  const SEpSet* pMgmtEps = &pTask->pJob->pMgmtEps;
+  SRequestConnInfo* pConn = &pTask->pJob->conn;
   SCtgDbCfgCtx* pCtx = (SCtgDbCfgCtx*)pTask->taskCtx;
 
-  CTG_ERR_RET(ctgGetDBCfgFromMnode(CTG_PARAMS_LIST(), pCtx->dbFName, NULL, pTask));
+  CTG_ERR_RET(ctgGetDBCfgFromMnode(pCtg, pConn, pCtx->dbFName, NULL, pTask));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1158,8 +1146,6 @@ int32_t ctgLaunchGetDbCfgTask(SCtgTask *pTask) {
 int32_t ctgLaunchGetDbInfoTask(SCtgTask *pTask) {
   int32_t code = 0;
   SCatalog* pCtg = pTask->pJob->pCtg; 
-  void *pTrans = pTask->pJob->pTrans; 
-  const SEpSet* pMgmtEps = &pTask->pJob->pMgmtEps;
   SCtgDBCache *dbCache = NULL;
   SCtgDbInfoCtx* pCtx = (SCtgDbInfoCtx*)pTask->taskCtx;
 
@@ -1192,30 +1178,27 @@ _return:
 
 int32_t ctgLaunchGetIndexTask(SCtgTask *pTask) {
   SCatalog* pCtg = pTask->pJob->pCtg; 
-  void *pTrans = pTask->pJob->pTrans; 
-  const SEpSet* pMgmtEps = &pTask->pJob->pMgmtEps;
+  SRequestConnInfo* pConn = &pTask->pJob->conn;
   SCtgIndexCtx* pCtx = (SCtgIndexCtx*)pTask->taskCtx;
 
-  CTG_ERR_RET(ctgGetIndexInfoFromMnode(CTG_PARAMS_LIST(), pCtx->indexFName, NULL, pTask));
+  CTG_ERR_RET(ctgGetIndexInfoFromMnode(pCtg, pConn, pCtx->indexFName, NULL, pTask));
 
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t ctgLaunchGetUdfTask(SCtgTask *pTask) {
   SCatalog* pCtg = pTask->pJob->pCtg; 
-  void *pTrans = pTask->pJob->pTrans; 
-  const SEpSet* pMgmtEps = &pTask->pJob->pMgmtEps;
+  SRequestConnInfo* pConn = &pTask->pJob->conn;
   SCtgUdfCtx* pCtx = (SCtgUdfCtx*)pTask->taskCtx;
 
-  CTG_ERR_RET(ctgGetUdfInfoFromMnode(CTG_PARAMS_LIST(), pCtx->udfName, NULL, pTask));
+  CTG_ERR_RET(ctgGetUdfInfoFromMnode(pCtg, pConn, pCtx->udfName, NULL, pTask));
 
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t ctgLaunchGetUserTask(SCtgTask *pTask) {
   SCatalog* pCtg = pTask->pJob->pCtg; 
-  void *pTrans = pTask->pJob->pTrans; 
-  const SEpSet* pMgmtEps = &pTask->pJob->pMgmtEps;
+  SRequestConnInfo* pConn = &pTask->pJob->conn;
   SCtgUserCtx* pCtx = (SCtgUserCtx*)pTask->taskCtx;
   bool inCache = false;
   bool pass = false;
@@ -1232,7 +1215,7 @@ int32_t ctgLaunchGetUserTask(SCtgTask *pTask) {
     return TSDB_CODE_SUCCESS;
   }
 
-  CTG_ERR_RET(ctgGetUserDbAuthFromMnode(CTG_PARAMS_LIST(), pCtx->user.user, NULL, pTask));
+  CTG_ERR_RET(ctgGetUserDbAuthFromMnode(pCtg, pConn, pCtx->user.user, NULL, pTask));
 
   return TSDB_CODE_SUCCESS;
 }
