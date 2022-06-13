@@ -523,10 +523,8 @@ static int32_t tdAppendTpRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols
     SCellVal  sVal = {0};
     if (pRowCol->colId == pDataCol->colId) {
       if (tdGetTpRowValOfCol(&sVal, pRow, pBitmap, pRowCol->type, pRowCol->offset - sizeof(TSKEY), rcol - 1) < 0) {
-        ASSERT(0);
         return terrno;
       }
-
       tdAppendValToDataCol(pDataCol, sVal.valType, sVal.val, pCols->numOfRows, pCols->maxPoints, pCols->bitmapMode,
                            isMerge);
       ++dcol;
