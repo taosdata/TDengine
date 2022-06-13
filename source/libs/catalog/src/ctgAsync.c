@@ -876,10 +876,9 @@ int32_t ctgHandleGetTbIndexRsp(SCtgTask* pTask, int32_t reqType, const SDataBuf 
   SArray* pInfo = NULL;
   CTG_ERR_JRET(ctgCloneTableIndex(pOut->pIndex, &pInfo));
   pTask->res = pInfo;
-  pTask->msgCtx.out = NULL;
 
   SCtgTbIndexCtx* ctx = pTask->taskCtx;  
-  CTG_ERR_JRET(ctgUpdateTbIndexEnqueue(pTask->pJob->pCtg, ctx->pName, pOut, false));
+  CTG_ERR_JRET(ctgUpdateTbIndexEnqueue(pTask->pJob->pCtg, (STableIndex**)&pTask->msgCtx.out, false));
   
 _return:
 

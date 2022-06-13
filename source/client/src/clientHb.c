@@ -105,9 +105,9 @@ static int32_t hbProcessStbInfoRsp(void *value, int32_t valueLen, struct SCatalo
     return -1;
   }
 
-  int32_t numOfBatchs = taosArrayGetSize(hbRsp.pArray);
-  for (int32_t i = 0; i < numOfBatchs; ++i) {
-    STableMetaRsp *rsp = taosArrayGet(hbRsp.pArray, i);
+  int32_t numOfMeta = taosArrayGetSize(hbRsp.pMetaRsp);
+  for (int32_t i = 0; i < numOfMeta; ++i) {
+    STableMetaRsp *rsp = taosArrayGet(hbRsp.pMetaRsp, i);
 
     if (rsp->numOfColumns < 0) {
       tscDebug("hb remove stb, db:%s, stb:%s", rsp->dbFName, rsp->stbName);
@@ -123,6 +123,16 @@ static int32_t hbProcessStbInfoRsp(void *value, int32_t valueLen, struct SCatalo
       catalogUpdateTableMeta(pCatalog, rsp);
     }
   }
+
+  int32_t numOfIndex = taosArrayGetSize(hbRsp.pIndexRsp);
+  for (int32_t i = 0; i < numOfIndex; ++i) {
+    STableIndexRsp *rsp = taosArrayGet(hbRsp.pIndexRsp, i);
+
+    catalogUpdateTableIndex(pCatalog, rsp);
+  }
+
+  taosArrayDestroy(hbRsp.pIndexRsp);
+  hbRsp.pIndexRsp = NULL;
 
   tFreeSSTbHbRsp(&hbRsp);
   return TSDB_CODE_SUCCESS;

@@ -1674,15 +1674,15 @@ _OVER:
 int32_t mndValidateStbInfo(SMnode *pMnode, SSTableVersion *pStbVersions, int32_t numOfStbs, void **ppRsp,
                            int32_t *pRspLen) {
   SSTbHbRsp hbRsp = {0};
-  hbRsp.pArray = taosArrayInit(numOfStbs, sizeof(STableMetaRsp));
-  if (hbRsp.pArray == NULL) {
+  hbRsp.pMetaRsp = taosArrayInit(numOfStbs, sizeof(STableMetaRsp));
+  if (hbRsp.pMetaRsp == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
-  hbRsp.pIndexRsp = taosMemoryCalloc(1, sizeof(STableIndexRsp));
+  hbRsp.pIndexRsp = taosArrayInit(numOfStbs, sizeof(STableIndexRsp));
   if (NULL == hbRsp.pIndexRsp) {
-    taosArrayDestroy(hbRsp.pArray);
+    taosArrayDestroy(hbRsp.pMetaRsp);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
@@ -1700,12 +1700,12 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableVersion *pStbVersions, int32_t
     if (mndBuildStbSchema(pMnode, pStbVersion->dbFName, pStbVersion->stbName, &metaRsp, &smaVer) != 0) {
       metaRsp.numOfColumns = -1;
       metaRsp.suid = pStbVersion->suid;
-      taosArrayPush(hbRsp.pArray, &metaRsp);
+      taosArrayPush(hbRsp.pMetaRsp, &metaRsp);
       continue;
     }
 
     if (pStbVersion->sversion != metaRsp.sversion || pStbVersion->tversion != metaRsp.tversion) {
-      taosArrayPush(hbRsp.pArray, &metaRsp);
+      taosArrayPush(hbRsp.pMetaRsp, &metaRsp);
     } else {
       tFreeSTableMetaRsp(&metaRsp);
     }
@@ -1713,11 +1713,19 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableVersion *pStbVersions, int32_t
     if (pStbVersion->smaVer != smaVer) {
       bool exist = false;
       char tbFName[TSDB_TABLE_FNAME_LEN];
+      STableIndexRsp indexRsp = {0};
       sprintf(tbFName, "%s.%s", pStbVersion->dbFName, pStbVersion->stbName);
-      int32_t code = mndGetTableSma(pMnode, tbFName, hbRsp.pIndexRsp, &exist);
+      int32_t code = mndGetTableSma(pMnode, tbFName, &indexRsp, &exist);
       if (code || !exist) {
-        taosMemoryFreeClear(hbRsp.pIndexRsp);
+        indexRsp.suid = pStbVersion->suid;
+        indexRsp.version = -1;
+        indexRsp.pIndex = NULL;
       }
+
+      strcpy(indexRsp->dbFName, pStbVersion->dbFName);
+      strcpy(indexRsp->tbName, pStbVersion->stbName);
+
+      taosArrayPush(hbRsp.pIndexRsp, &indexRsp);
     }
   }
 

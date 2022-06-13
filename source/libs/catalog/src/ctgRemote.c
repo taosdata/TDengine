@@ -431,7 +431,7 @@ int32_t ctgGetIndexInfoFromMnode(SCatalog* pCtg, SRequestConnInfo *pConn, const 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgGetTbIndexFromMnode(SCatalog* pCtg, SRequestConnInfo *pConn, SName *name, SArray** out, SCtgTask* pTask) {
+int32_t ctgGetTbIndexFromMnode(SCatalog* pCtg, SRequestConnInfo *pConn, SName *name, STableIndex* out, SCtgTask* pTask) {
   char *msg = NULL;
   int32_t msgLen = 0;
   int32_t reqType = TDMT_MND_GET_TABLE_INDEX;
@@ -448,7 +448,11 @@ int32_t ctgGetTbIndexFromMnode(SCatalog* pCtg, SRequestConnInfo *pConn, SName *n
   }
 
   if (pTask) {
-    void* pOut = NULL;
+    void* pOut = taosMemoryCalloc(1, sizeof(STableIndex));
+    if (NULL == pOut) {
+      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    
     CTG_ERR_RET(ctgUpdateMsgCtx(&pTask->msgCtx, reqType, pOut, (char*)tbFName));
     
     CTG_RET(ctgAsyncSendMsg(pCtg, pConn, pTask, reqType, msg, msgLen));

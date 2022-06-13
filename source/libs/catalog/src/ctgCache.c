@@ -838,7 +838,7 @@ _return:
   CTG_RET(code);
 }
 
-int32_t ctgUpdateTbIndexEnqueue(SCatalog* pCtg, SName* pName, STableIndex *pIndex, bool syncOp) {
+int32_t ctgUpdateTbIndexEnqueue(SCatalog* pCtg, STableIndex **pIndex, bool syncOp) {
   int32_t code = 0;
   SCtgCacheOperation *op = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
   op->opId = CTG_OP_UPDATE_TB_INDEX;
@@ -851,19 +851,19 @@ int32_t ctgUpdateTbIndexEnqueue(SCatalog* pCtg, SName* pName, STableIndex *pInde
   }
 
   msg->pCtg = pCtg;
-  msg->pIndex = pIndex;
-  tNameGetFullDbName(pName, msg->dbFName);
-  strcpy(msg->tbName, pName->tname);
+  msg->pIndex = *pIndex;
 
   op->data = msg;
 
   CTG_ERR_JRET(ctgEnqueue(pCtg, op));
-  
+
+  *pIndex = NULL;
   return TSDB_CODE_SUCCESS;
   
 _return:
 
-  taosArrayDestroyEx(pIndex, tFreeSTableIndexInfo);
+  taosArrayDestroyEx(*pIndex, tFreeSTableIndexInfo);
+  taosMemoryFreeClear(*pIndex);
   taosMemoryFreeClear(msg);
   
   CTG_RET(code);
@@ -1745,12 +1745,12 @@ int32_t ctgOpUpdateTbIndex(SCtgCacheOperation *operation) {
   STableIndex* pIndex = msg->pIndex;
   SCtgDBCache *dbCache = NULL;
    
-  CTG_ERR_JRET(ctgGetAddDBCache(pCtg, msg->dbFName, 0, &dbCache));
+  CTG_ERR_JRET(ctgGetAddDBCache(pCtg, pIndex->dbFName, 0, &dbCache));
   if (NULL == dbCache) {
     CTG_ERR_JRET(code);
   }
 
-  CTG_ERR_JRET(ctgWriteTbIndexToCache(pCtg, dbCache, msg->dbFName, msg->tbName, &pIndex));
+  CTG_ERR_JRET(ctgWriteTbIndexToCache(pCtg, dbCache, pIndex->dbFName, pIndex->tbName, &pIndex));
 
 _return:
 

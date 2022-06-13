@@ -319,8 +319,6 @@ typedef struct SCtgUpdateUserMsg {
 
 typedef struct SCtgUpdateTbIndexMsg {
   SCatalog*    pCtg;
-  char         dbFName[TSDB_DB_FNAME_LEN];
-  char         tbName[TSDB_TABLE_NAME_LEN];
   STableIndex* pIndex;
 } SCtgUpdateTbIndexMsg;
 
@@ -503,7 +501,7 @@ int32_t ctgUpdateVgroupEnqueue(SCatalog* pCtg, const char *dbFName, int64_t dbId
 int32_t ctgUpdateTbMetaEnqueue(SCatalog* pCtg, STableMetaOutput *output, bool syncReq);
 int32_t ctgUpdateUserEnqueue(SCatalog* pCtg, SGetUserAuthRsp *pAuth, bool syncReq);
 int32_t ctgUpdateVgEpsetEnqueue(SCatalog* pCtg, char *dbFName, int32_t vgId, SEpSet* pEpSet);
-int32_t ctgUpdateTbIndexEnqueue(SCatalog* pCtg, SName* pName, STableIndex *pIndex, bool syncOp);
+int32_t ctgUpdateTbIndexEnqueue(SCatalog* pCtg, STableIndex *pIndex, bool syncOp);
 int32_t ctgMetaRentInit(SCtgRentMgmt *mgmt, uint32_t rentSec, int8_t type);
 int32_t ctgMetaRentAdd(SCtgRentMgmt *mgmt, void *meta, int64_t id, int32_t size);
 int32_t ctgMetaRentGet(SCtgRentMgmt *mgmt, void **res, uint32_t *num, int32_t size);

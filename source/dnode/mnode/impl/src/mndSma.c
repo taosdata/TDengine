@@ -885,6 +885,8 @@ static int32_t mndGetTableSma(SMnode *pMnode, char *tbFName, STableIndexRsp *rsp
     return TSDB_CODE_SUCCESS;
   }
 
+  strcpy(rsp->dbFName, pStb->db);
+  strcpy(rsp->tbName, pStb->name);
   rsp->suid = pStb->uid;
   rsp->version = pStb->smaVer;
   mndReleaseStb(pMnode, pStb);
