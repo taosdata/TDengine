@@ -112,7 +112,11 @@ static int32_t getTableMetaImpl(STranslateContext* pCxt, const SName* pName, STa
     if (pParCxt->async) {
       code = getTableMetaFromCache(pCxt->pMetaCache, pName, pMeta);
     } else {
-      code = catalogGetTableMeta(pParCxt->pCatalog, pParCxt->pTransporter, &pParCxt->mgmtEpSet, pName, pMeta);
+      SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
+                               .requestId = pParCxt->requestId,
+                               .requestObjRefId = pParCxt->requestRid,
+                               .mgmtEps = pParCxt->mgmtEpSet};
+      code = catalogGetTableMeta(pParCxt->pCatalog, &conn, pName, pMeta);
     }
   }
   if (TSDB_CODE_SUCCESS != code) {
@@ -136,8 +140,12 @@ static int32_t refreshGetTableMeta(STranslateContext* pCxt, const char* pDbName,
   if (pParCxt->async) {
     code = getTableMetaFromCache(pCxt->pMetaCache, &name, pMeta);
   } else {
-    code =
-        catalogRefreshGetTableMeta(pParCxt->pCatalog, pParCxt->pTransporter, &pParCxt->mgmtEpSet, &name, pMeta, false);
+    SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
+                             .requestId = pParCxt->requestId,
+                             .requestObjRefId = pParCxt->requestRid,
+                             .mgmtEps = pParCxt->mgmtEpSet};
+
+    code = catalogRefreshGetTableMeta(pParCxt->pCatalog, &conn, &name, pMeta, false);
   }
   if (TSDB_CODE_SUCCESS != code) {
     parserError("catalogRefreshGetTableMeta error, code:%s, dbName:%s, tbName:%s", tstrerror(code), pDbName,
@@ -155,7 +163,11 @@ static int32_t getDBVgInfoImpl(STranslateContext* pCxt, const SName* pName, SArr
     if (pParCxt->async) {
       code = getDbVgInfoFromCache(pCxt->pMetaCache, fullDbName, pVgInfo);
     } else {
-      code = catalogGetDBVgInfo(pParCxt->pCatalog, pParCxt->pTransporter, &pParCxt->mgmtEpSet, fullDbName, pVgInfo);
+      SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
+                               .requestId = pParCxt->requestId,
+                               .requestObjRefId = pParCxt->requestRid,
+                               .mgmtEps = pParCxt->mgmtEpSet};
+      code = catalogGetDBVgInfo(pParCxt->pCatalog, &conn, fullDbName, pVgInfo);
     }
   }
   if (TSDB_CODE_SUCCESS != code) {
@@ -182,7 +194,11 @@ static int32_t getTableHashVgroupImpl(STranslateContext* pCxt, const SName* pNam
     if (pParCxt->async) {
       code = getTableVgroupFromCache(pCxt->pMetaCache, pName, pInfo);
     } else {
-      code = catalogGetTableHashVgroup(pParCxt->pCatalog, pParCxt->pTransporter, &pParCxt->mgmtEpSet, pName, pInfo);
+      SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
+                               .requestId = pParCxt->requestId,
+                               .requestObjRefId = pParCxt->requestRid,
+                               .mgmtEps = pParCxt->mgmtEpSet};
+      code = catalogGetTableHashVgroup(pParCxt->pCatalog, &conn, pName, pInfo);
     }
   }
   if (TSDB_CODE_SUCCESS != code) {
@@ -226,7 +242,12 @@ static int32_t getDBCfg(STranslateContext* pCxt, const char* pDbName, SDbCfgInfo
     if (pParCxt->async) {
       code = getDbCfgFromCache(pCxt->pMetaCache, dbFname, pInfo);
     } else {
-      code = catalogGetDBCfg(pParCxt->pCatalog, pParCxt->pTransporter, &pParCxt->mgmtEpSet, dbFname, pInfo);
+      SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
+                               .requestId = pParCxt->requestId,
+                               .requestObjRefId = pParCxt->requestRid,
+                               .mgmtEps = pParCxt->mgmtEpSet};
+
+      code = catalogGetDBCfg(pParCxt->pCatalog, &conn, dbFname, pInfo);
     }
   }
   if (TSDB_CODE_SUCCESS != code) {
@@ -242,8 +263,12 @@ static int32_t getUdfInfo(STranslateContext* pCxt, SFunctionNode* pFunc) {
   if (pParCxt->async) {
     code = getUdfInfoFromCache(pCxt->pMetaCache, pFunc->functionName, &funcInfo);
   } else {
-    code = catalogGetUdfInfo(pParCxt->pCatalog, pParCxt->pTransporter, &pParCxt->mgmtEpSet, pFunc->functionName,
-                             &funcInfo);
+    SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
+                             .requestId = pParCxt->requestId,
+                             .requestObjRefId = pParCxt->requestRid,
+                             .mgmtEps = pParCxt->mgmtEpSet};
+
+    code = catalogGetUdfInfo(pParCxt->pCatalog, &conn, pFunc->functionName, &funcInfo);
   }
   if (TSDB_CODE_SUCCESS == code) {
     pFunc->funcType = FUNCTION_TYPE_UDF;
@@ -265,7 +290,12 @@ static int32_t getTableIndex(STranslateContext* pCxt, const SName* pName, SArray
   if (pParCxt->async) {
     code = getTableIndexFromCache(pCxt->pMetaCache, pName, pIndexes);
   } else {
-    code = catalogGetTableIndex(pParCxt->pCatalog, pParCxt->pTransporter, &pParCxt->mgmtEpSet, pName, pIndexes);
+    SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
+                             .requestId = pParCxt->requestId,
+                             .requestObjRefId = pParCxt->requestRid,
+                             .mgmtEps = pParCxt->mgmtEpSet};
+
+    code = catalogGetTableIndex(pParCxt->pCatalog, &conn, pName, pIndexes);
   }
   if (TSDB_CODE_SUCCESS != code) {
     parserError("getTableIndex error, code:%s, dbName:%s, tbName:%s", tstrerror(code), pName->dbname, pName->tname);

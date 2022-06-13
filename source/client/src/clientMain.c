@@ -706,6 +706,7 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt) {
 
   **pCxt = (SParseContext){
       .requestId = pRequest->requestId,
+      .requestRid = pRequest->self,
       .acctId = pTscObj->acctId,
       .db = pRequest->pDb,
       .topicQuery = false,
@@ -763,8 +764,13 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
   pWrapper->pRequest = pRequest;
   pWrapper->catalogReq = catalogReq;
 
-  code = catalogAsyncGetAllMeta(pCxt->pCatalog, pCxt->pTransporter, &pCxt->mgmtEpSet, pRequest->requestId, &catalogReq,
-                                retrieveMetaCallback, pWrapper, &pRequest->body.queryJob);
+  SRequestConnInfo conn = {.pTrans = pCxt->pTransporter,
+                           .requestId = pCxt->requestId,
+                           .requestObjRefId = pCxt->requestRid,
+                           .mgmtEps = pCxt->mgmtEpSet};
+
+  code = catalogAsyncGetAllMeta(pCxt->pCatalog, &conn, pRequest->requestId, &catalogReq, retrieveMetaCallback, pWrapper,
+                                &pRequest->body.queryJob);
   if (code == TSDB_CODE_SUCCESS) {
     return;
   }

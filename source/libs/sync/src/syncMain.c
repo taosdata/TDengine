@@ -398,6 +398,7 @@ int32_t syncGetAndDelRespRpc(int64_t rid, uint64_t index, SRpcHandleInfo* pInfo)
     *pInfo = stub.rpcMsg.info;
   }
 
+  sTrace("vgId:%d, get seq:%" PRIu64 " rpc handle:%p", pSyncNode->vgId, index, pInfo->handle);
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
   return ret;
 }
@@ -470,13 +471,14 @@ int32_t syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
     return TAOS_SYNC_PROPOSE_OTHER_ERROR;
   }
   assert(rid == pSyncNode->rid);
-  sDebug("vgId:%d sync event propose msgType:%s", pSyncNode->vgId, TMSG_INFO(pMsg->msgType));
 
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
     SRespStub stub;
     stub.createTime = taosGetTimestampMs();
     stub.rpcMsg = *pMsg;
     uint64_t seqNum = syncRespMgrAdd(pSyncNode->pSyncRespMgr, &stub);
+    sDebug("vgId:%d, sync event propose, type:%s seq:%" PRIu64 " handle:%p", pSyncNode->vgId, TMSG_INFO(pMsg->msgType),
+           seqNum, pMsg->info.handle);
 
     SyncClientRequest* pSyncMsg = syncClientRequestBuild2(pMsg, seqNum, isWeak, pSyncNode->vgId);
     SRpcMsg            rpcMsg;
@@ -489,7 +491,8 @@ int32_t syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
     }
     syncClientRequestDestroy(pSyncMsg);
   } else {
-    sTrace("syncPropose not leader, %s", syncUtilState2String(pSyncNode->state));
+    sDebug("vgId:%d, failed to propose since not leader, type:%s handle:%p %s", pSyncNode->vgId,
+           TMSG_INFO(pMsg->msgType), pMsg->info.handle, syncUtilState2String(pSyncNode->state));
     ret = TAOS_SYNC_PROPOSE_NOT_LEADER;
   }
 
@@ -1241,7 +1244,7 @@ void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term) {
 
 void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr) {
   sDebug("vgId:%d sync event become follower, isStandBy:%d, %s", pSyncNode->vgId, pSyncNode->pRaftCfg->isStandBy,
-        debugStr);
+         debugStr);
 
   // maybe clear leader cache
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
@@ -1276,7 +1279,7 @@ void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr) {
 //
 void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
   sDebug("vgId:%d sync event become leader, isStandBy:%d, %s", pSyncNode->vgId, pSyncNode->pRaftCfg->isStandBy,
-        debugStr);
+         debugStr);
 
   // state change
   pSyncNode->state = TAOS_SYNC_STATE_LEADER;
@@ -1885,7 +1888,7 @@ int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex,
   int32_t    code = 0;
   ESyncState state = flag;
   sDebug("vgId:%d sync event commit by wal from index:%" PRId64 " to index:%" PRId64 ", %s", ths->vgId, beginIndex,
-        endIndex, syncUtilState2String(state));
+         endIndex, syncUtilState2String(state));
 
   // execute fsm
   if (ths->pFsm != NULL) {

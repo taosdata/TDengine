@@ -218,13 +218,10 @@ int vnodeValidateTableHash(SVnode *pVnode, char *tableFName) {
       break;
   }
 
-    // TODO OPEN THIS !!!!!!!
-#if 0
-  if (hashValue < pVnodeOptions->hashBegin || hashValue > pVnodeOptions->hashEnd) {
+  if (hashValue < pVnode->config.hashBegin || hashValue > pVnode->config.hashEnd) {
     terrno = TSDB_CODE_VND_HASH_MISMATCH;
     return TSDB_CODE_VND_HASH_MISMATCH;
   }
-#endif
 
   return 0;
 }

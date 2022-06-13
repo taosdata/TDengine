@@ -257,8 +257,12 @@ static int32_t checkAuth(SInsertParseContext* pCxt, char* pDbFname, bool* pPass)
   if (pBasicCtx->async) {
     return getUserAuthFromCache(pCxt->pMetaCache, pBasicCtx->pUser, pDbFname, AUTH_TYPE_WRITE, pPass);
   }
-  return catalogChkAuth(pBasicCtx->pCatalog, pBasicCtx->pTransporter, &pBasicCtx->mgmtEpSet, pBasicCtx->pUser, pDbFname,
-                        AUTH_TYPE_WRITE, pPass);
+  SRequestConnInfo conn = {.pTrans = pBasicCtx->pTransporter, 
+                           .requestId = pBasicCtx->requestId,
+                           .requestObjRefId = pBasicCtx->requestRid,
+                           .mgmtEps = pBasicCtx->mgmtEpSet};
+
+  return catalogChkAuth(pBasicCtx->pCatalog, &conn, pBasicCtx->pUser, pDbFname, AUTH_TYPE_WRITE, pPass);
 }
 
 static int32_t getTableSchema(SInsertParseContext* pCxt, SName* pTbName, bool isStb, STableMeta** pTableMeta) {
@@ -266,11 +270,15 @@ static int32_t getTableSchema(SInsertParseContext* pCxt, SName* pTbName, bool is
   if (pBasicCtx->async) {
     return getTableMetaFromCache(pCxt->pMetaCache, pTbName, pTableMeta);
   }
+  SRequestConnInfo conn = {.pTrans = pBasicCtx->pTransporter, 
+                           .requestId = pBasicCtx->requestId,
+                           .requestObjRefId = pBasicCtx->requestRid,
+                           .mgmtEps = pBasicCtx->mgmtEpSet};
+  
   if (isStb) {
-    return catalogGetSTableMeta(pBasicCtx->pCatalog, pBasicCtx->pTransporter, &pBasicCtx->mgmtEpSet, pTbName,
-                                pTableMeta);
+    return catalogGetSTableMeta(pBasicCtx->pCatalog, &conn, pTbName, pTableMeta);
   }
-  return catalogGetTableMeta(pBasicCtx->pCatalog, pBasicCtx->pTransporter, &pBasicCtx->mgmtEpSet, pTbName, pTableMeta);
+  return catalogGetTableMeta(pBasicCtx->pCatalog, &conn, pTbName, pTableMeta);
 }
 
 static int32_t getTableVgroup(SInsertParseContext* pCxt, SName* pTbName, SVgroupInfo* pVg) {
@@ -278,7 +286,11 @@ static int32_t getTableVgroup(SInsertParseContext* pCxt, SName* pTbName, SVgroup
   if (pBasicCtx->async) {
     return getTableVgroupFromCache(pCxt->pMetaCache, pTbName, pVg);
   }
-  return catalogGetTableHashVgroup(pBasicCtx->pCatalog, pBasicCtx->pTransporter, &pBasicCtx->mgmtEpSet, pTbName, pVg);
+  SRequestConnInfo conn = {.pTrans = pBasicCtx->pTransporter, 
+                           .requestId = pBasicCtx->requestId,
+                           .requestObjRefId = pBasicCtx->requestRid,
+                           .mgmtEps = pBasicCtx->mgmtEpSet};
+  return catalogGetTableHashVgroup(pBasicCtx->pCatalog, &conn, pTbName, pVg);
 }
 
 static int32_t getTableMetaImpl(SInsertParseContext* pCxt, SName* name, char* dbFname, bool isStb) {
@@ -310,7 +322,11 @@ static int32_t getDBCfg(SInsertParseContext* pCxt, const char* pDbFName, SDbCfgI
   if (pBasicCtx->async) {
     CHECK_CODE(getDbCfgFromCache(pCxt->pMetaCache, pDbFName, pInfo));
   } else {
-    CHECK_CODE(catalogGetDBCfg(pBasicCtx->pCatalog, pBasicCtx->pTransporter, &pBasicCtx->mgmtEpSet, pDbFName, pInfo));
+    SRequestConnInfo conn = {.pTrans = pBasicCtx->pTransporter, 
+                             .requestId = pBasicCtx->requestId,
+                             .requestObjRefId = pBasicCtx->requestRid,
+                             .mgmtEps = pBasicCtx->mgmtEpSet};
+    CHECK_CODE(catalogGetDBCfg(pBasicCtx->pCatalog, &conn, pDbFName, pInfo));
   }
   return TSDB_CODE_SUCCESS;
 }
