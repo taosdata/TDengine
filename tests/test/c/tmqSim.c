@@ -499,6 +499,7 @@ void* consumeThreadFunc(void* param) {
   build_consumer(pInfo);
   build_topic_list(pInfo);
   if ((NULL == pInfo->tmq) || (NULL == pInfo->topicList)) {
+    assert(0);
     return NULL;
   }
 

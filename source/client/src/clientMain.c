@@ -691,19 +691,20 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext** pCxt) {
   }
 
   **pCxt = (SParseContext){.requestId = pRequest->requestId,
-                       .acctId = pTscObj->acctId,
-                       .db = pRequest->pDb,
-                       .topicQuery = false,
-                       .pSql = pRequest->sqlstr,
-                       .sqlLen = pRequest->sqlLen,
-                       .pMsg = pRequest->msgBuf,
-                       .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
-                       .pTransporter = pTscObj->pAppInfo->pTransporter,
-                       .pStmtCb = NULL,
-                       .pUser = pTscObj->user,
-                       .schemalessType = pTscObj->schemalessType,
-                       .isSuperUser = (0 == strcmp(pTscObj->user, TSDB_DEFAULT_USER)),
-                       .async = true,};
+                           .requestRid = pRequest->self,
+                           .acctId = pTscObj->acctId,
+                           .db = pRequest->pDb,
+                           .topicQuery = false,
+                           .pSql = pRequest->sqlstr,
+                           .sqlLen = pRequest->sqlLen,
+                           .pMsg = pRequest->msgBuf,
+                           .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
+                           .pTransporter = pTscObj->pAppInfo->pTransporter,
+                           .pStmtCb = NULL,
+                           .pUser = pTscObj->user,
+                           .schemalessType = pTscObj->schemalessType,
+                           .isSuperUser = (0 == strcmp(pTscObj->user, TSDB_DEFAULT_USER)),
+                           .async = true,};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -747,7 +748,12 @@ void doAsyncQuery(SRequestObj* pRequest, bool updateMetaForce) {
   pWrapper->pRequest = pRequest;
   pWrapper->catalogReq = catalogReq;
 
-  code = catalogAsyncGetAllMeta(pCxt->pCatalog, pCxt->pTransporter, &pCxt->mgmtEpSet, pRequest->requestId,
+  SRequestConnInfo conn = {.pTrans = pCxt->pTransporter, 
+                           .requestId = pCxt->requestId,
+                           .requestObjRefId = pCxt->requestRid,
+                           .mgmtEps = pCxt->mgmtEpSet};
+
+  code = catalogAsyncGetAllMeta(pCxt->pCatalog, &conn, pRequest->requestId,
                                 &catalogReq, retrieveMetaCallback, pWrapper, &pRequest->body.queryJob);
   if (code == TSDB_CODE_SUCCESS) {
     return;
@@ -824,6 +830,11 @@ void taos_fetch_raw_block_a(TAOS_RES* res, __taos_async_fn_t fp, void* param) {
   SRequestObj *pRequest = res;
 
   pRequest->body.resInfo.convertUcs4 = false;
+
+  SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
+
+  // set the current block is all consumed
+  pResultInfo->current = pResultInfo->numOfRows;
   taos_fetch_rows_a(res, fp, param);
 }
 
