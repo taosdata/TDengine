@@ -15,6 +15,7 @@
 
 #include "tsdb.h"
 
+// SOffset =======================================================================
 #define TSDB_OFFSET_I32 ((uint8_t)0)
 #define TSDB_OFFSET_I16 ((uint8_t)1)
 #define TSDB_OFFSET_I8  ((uint8_t)2)
@@ -234,6 +235,13 @@ static FORCE_INLINE int32_t tGetDelIdxItem(uint8_t *p, SDelIdxItem *pDelIdxItem)
 }
 
 // SDelIdx ======================================================
+int32_t tDelIdxClear(SDelIdx *pDelIdx) {
+  int32_t code = 0;
+  tdbFree(pDelIdx->offset.pOffset);
+  tdbFree(pDelIdx->pData);
+  return code;
+}
+
 int32_t tDelIdxPutItem(SDelIdx *pDelIdx, SDelIdxItem *pItem) {
   int32_t  code = 0;
   uint32_t offset = pDelIdx->nData;

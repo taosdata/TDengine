@@ -107,6 +107,9 @@ int32_t tsdbDelFWriterOpen(SDelFWriter **ppWriter, SDelFile *pFile, STsdb *pTsdb
     goto _err;
   }
 
+  pDelFWriter->pFile->size = TSDB_FHDR_SIZE;
+  pDelFWriter->pFile->offset = 0;
+
   return code;
 
 _err:
@@ -188,7 +191,6 @@ int32_t tsdbWriteDelIdx(SDelFWriter *pWriter, SDelIdx *pDelIdx, uint8_t **ppBuf)
 
   // prepare
   pDelIdx->delimiter = TSDB_FILE_DLMT;
-  // pDelIdx->nOffset = (todo)
 
   // alloc
   if (!ppBuf) ppBuf = &pBuf;
@@ -219,7 +221,7 @@ int32_t tsdbWriteDelIdx(SDelFWriter *pWriter, SDelIdx *pDelIdx, uint8_t **ppBuf)
   return code;
 
 _err:
-  tsdbError("vgId:%d failed to write del idx since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d write del idx failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
   tsdbFree(pBuf);
   return code;
 }
@@ -379,8 +381,11 @@ _err:
 
 int32_t tsdbReadDelIdx(SDelFReader *pReader, SDelIdx *pDelIdx, uint8_t **ppBuf) {
   int32_t code = 0;
+  int32_t n;
   int64_t offset = pReader->pFile->offset;
   int64_t size = pReader->pFile->size - offset;
+
+  ASSERT(ppBuf && *ppBuf);
 
   // seek
   if (taosLSeekFile(pReader->pReadH, offset, SEEK_SET) < 0) {
@@ -407,10 +412,9 @@ int32_t tsdbReadDelIdx(SDelFReader *pReader, SDelIdx *pDelIdx, uint8_t **ppBuf) 
   }
 
   // decode
-  int32_t n = tGetDelIdx(*ppBuf, pDelIdx);
+  n = tGetDelIdx(*ppBuf, pDelIdx);
   ASSERT(n == size - sizeof(TSCKSUM));
   ASSERT(pDelIdx->delimiter == TSDB_FILE_DLMT);
-  // ASSERT(pDelIdx->nOffset > 0 && pDelIdx->nData > 0);
 
   return code;
 

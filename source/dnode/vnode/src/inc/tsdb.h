@@ -150,6 +150,7 @@ int32_t tTABLEIDCmprFn(const void *p1, const void *p2);
 int32_t tsdbKeyCmprFn(const void *p1, const void *p2);
 
 // SDelIdx
+int32_t tDelIdxClear(SDelIdx *pDelIdx);
 int32_t tDelIdxPutItem(SDelIdx *pDelIdx, SDelIdxItem *pItem);
 int32_t tDelIdxGetItemByIdx(SDelIdx *pDelIdx, SDelIdxItem *pItem, int32_t idx);
 int32_t tDelIdxGetItem(SDelIdx *pDelIdx, SDelIdxItem *pItem, TABLEID id);

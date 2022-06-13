@@ -265,6 +265,8 @@ static int32_t tsdbCommitDelEnd(SCommitter *pCommitter) {
     if (code) goto _err;
   }
 
+  tDelIdxClear(&pCommitter->delIdxNew);
+
   return code;
 
 _err:
@@ -300,7 +302,7 @@ static int32_t tsdbCommitDel(SCommitter *pCommitter) {
   }
 
 _exit:
-  tsdbDebug("vgId:%d commit del data done, nDel:%" PRId64, TD_VID(pTsdb->pVnode), pMemTable->nDel);
+  tsdbDebug("vgId:%d commit del done, nDel:%" PRId64, TD_VID(pTsdb->pVnode), pMemTable->nDel);
   return code;
 
 _err:
