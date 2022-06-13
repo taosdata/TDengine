@@ -1715,6 +1715,12 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableVersion *pStbVersions, int32_t
       bool exist = false;
       char tbFName[TSDB_TABLE_FNAME_LEN];
       STableIndexRsp indexRsp = {0};
+      indexRsp.pIndex = taosArrayInit(10, sizeof(STableIndexInfo));
+      if (NULL == indexRsp.pIndex) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return -1;
+      }
+      
       sprintf(tbFName, "%s.%s", pStbVersion->dbFName, pStbVersion->stbName);
       int32_t code = mndGetTableSma(pMnode, tbFName, &indexRsp, &exist);
       if (code || !exist) {

@@ -2652,7 +2652,8 @@ int32_t tSerializeSSTbHbRsp(void *buf, int32_t bufLen, SSTbHbRsp *pRsp) {
   }
 
   int32_t numOfIndex = taosArrayGetSize(pRsp->pIndexRsp);
-  for (int32_t i = 0; i < numOfMeta; ++i) {
+  if (tEncodeI32(&encoder, numOfIndex) < 0) return -1;  
+  for (int32_t i = 0; i < numOfIndex; ++i) {
     STableIndexRsp *pIndexRsp = taosArrayGet(pRsp->pIndexRsp, i);
     if (tEncodeCStr(&encoder, pIndexRsp->tbName) < 0) return -1;
     if (tEncodeCStr(&encoder, pIndexRsp->dbFName) < 0) return -1;
@@ -2660,12 +2661,10 @@ int32_t tSerializeSSTbHbRsp(void *buf, int32_t bufLen, SSTbHbRsp *pRsp) {
     if (tEncodeI32(&encoder, pIndexRsp->version) < 0) return -1;
     int32_t num = taosArrayGetSize(pIndexRsp->pIndex);
     if (tEncodeI32(&encoder, num) < 0) return -1;
-    if (num > 0) {
-      for (int32_t i = 0; i < num; ++i) {
-        STableIndexInfo *pInfo = (STableIndexInfo *)taosArrayGet(pIndexRsp->pIndex, i);
-        if (tSerializeSTableIndexInfo(&encoder, pInfo) < 0) return -1;
-      }
-    }  
+    for (int32_t i = 0; i < num; ++i) {
+      STableIndexInfo *pInfo = (STableIndexInfo *)taosArrayGet(pIndexRsp->pIndex, i);
+      if (tSerializeSTableIndexInfo(&encoder, pInfo) < 0) return -1;
+    }
   }
 
   tEndEncode(&encoder);
@@ -2693,9 +2692,8 @@ int32_t tDeserializeSSTbHbRsp(void *buf, int32_t bufLen, SSTbHbRsp *pRsp) {
 
   if (tStartDecode(&decoder) < 0) return -1;
 
-  int32_t numOfMeta = taosArrayGetSize(pRsp->pMetaRsp);
+  int32_t numOfMeta = 0;
   if (tDecodeI32(&decoder, &numOfMeta) < 0) return -1;
-
   pRsp->pMetaRsp = taosArrayInit(numOfMeta, sizeof(STableMetaRsp));
   if (pRsp->pMetaRsp == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -2708,7 +2706,7 @@ int32_t tDeserializeSSTbHbRsp(void *buf, int32_t bufLen, SSTbHbRsp *pRsp) {
     taosArrayPush(pRsp->pMetaRsp, &tableMetaRsp);
   }
 
-  int32_t numOfIndex = taosArrayGetSize(pRsp->pIndexRsp);
+  int32_t numOfIndex = 0;
   if (tDecodeI32(&decoder, &numOfIndex) < 0) return -1;
 
   pRsp->pIndexRsp = taosArrayInit(numOfIndex, sizeof(STableIndexRsp));

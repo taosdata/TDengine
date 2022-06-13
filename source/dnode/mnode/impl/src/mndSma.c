@@ -532,6 +532,7 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   SStreamObj streamObj = {0};
   tstrncpy(streamObj.name, pCreate->name, TSDB_STREAM_FNAME_LEN);
   tstrncpy(streamObj.sourceDb, pDb->name, TSDB_DB_FNAME_LEN);
+  tstrncpy(streamObj.targetDb, streamObj.sourceDb, TSDB_DB_FNAME_LEN);
   streamObj.createTime = taosGetTimestampMs();
   streamObj.updateTime = streamObj.createTime;
   streamObj.uid = mndGenerateUid(pCreate->name, strlen(pCreate->name));
@@ -913,7 +914,7 @@ int32_t mndGetTableSma(SMnode *pMnode, char *tbFName, STableIndexRsp *rsp, bool 
   }
 
   strcpy(rsp->dbFName, pStb->db);
-  strcpy(rsp->tbName, pStb->name);
+  strcpy(rsp->tbName, pStb->name + strlen(pStb->db) + 1);
   rsp->suid = pStb->uid;
   rsp->version = pStb->smaVer;
   mndReleaseStb(pMnode, pStb);
