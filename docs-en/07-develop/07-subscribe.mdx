@@ -1,0 +1,259 @@
+---
+sidebar_label: Data Subscription
+description: "Lightweight service for data subscription and publishing. Time series data inserted into TDengine continuously can be pushed automatically to subscribing clients."
+title: Data Subscription
+---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import Java from "./_sub_java.mdx";
+import Python from "./_sub_python.mdx";
+import Go from "./_sub_go.mdx";
+import Rust from "./_sub_rust.mdx";
+import Node from "./_sub_node.mdx";
+import CSharp from "./_sub_cs.mdx";
+import CDemo from "./_sub_c.mdx";
+
+## Introduction
+
+Due to the nature of time series data, data insertion into TDengine is similar to data publishing in message queues. Data is stored in ascending order of timestamp inside TDengine, and so each table in TDengine can essentially be considered as a message queue.
+
+A lightweight service for data subscription and publishing is built into TDengine. With the API provided by TDengine, client programs can use `select` statements to subscribe to data from one or more tables. The subscription and state maintenance is performed on the client side. The client programs poll the server to check whether there is new data, and if so the new data will be pushed back to the client side. If the client program is restarted, where to start retrieving new data is up to the client side.
+
+There are 3 major APIs related to subscription provided in the TDengine client driver.
+
+```c
+taos_subscribe
+taos_consume
+taos_unsubscribe
+```
+
+For more details about these APIs please refer to [C/C++ Connector](/reference/connector/cpp). Their usage will be introduced below using the use case of meters, in which the schema of STable and subtables from the previous section [Continuous Query](/develop/continuous-query) are used. Full sample code can be found [here](https://github.com/taosdata/TDengine/blob/master/examples/c/subscribe.c).
+
+If we want to get a notification and take some actions if the current exceeds a threshold, like 10A, from some meters, there are two ways:
+
+The first way is to query each sub table and record the last timestamp matching the criteria. Then after some time, query the data later than the recorded timestamp, and repeat this process. The SQL statements for this way are as below.
+
+```sql
+select * from D1001 where ts > {last_timestamp1} and current > 10;
+select * from D1002 where ts > {last_timestamp2} and current > 10;
+...
+```
+
+The above way works, but the problem is that the number of `select` statements increases with the number of meters. Additionally, the performance of both client side and server side will be unacceptable once the number of meters grows to a big enough number.
+
+A better way is to query on the STable, only one `select` is enough regardless of the number of meters, like below:
+
+```sql
+select * from meters where ts > {last_timestamp} and current > 10;
+```
+
+However, this presents a new problem in how to choose `last_timestamp`. First, the timestamp when the data is generated is different from the timestamp when the data is inserted into the database, sometimes the difference between them may be very big. Second, the time when the data from different meters arrives at the database may be different too. If the timestamp of the "slowest" meter is used as `last_timestamp` in the query, the data from other meters may be selected repeatedly; but if the timestamp of the "fastest" meter is used as `last_timestamp`, some data from other meters may be missed.
+
+All the problems mentioned above can be resolved easily using the subscription functionality provided by TDengine.
+
+The first step is to create subscription using `taos_subscribe`.
+
+```c
+TAOS_SUB* tsub = NULL;
+if (async) {
+　　// create an asynchronous subscription, the callback function will be called every 1s
+　　tsub = taos_subscribe(taos, restart, topic, sql, subscribe_callback, &blockFetch, 1000);
+} else {
+　　// create an synchronous subscription, need to call 'taos_consume' manually
+　　tsub = taos_subscribe(taos, restart, topic, sql, NULL, NULL, 0);
+}
+```
+
+The subscription in TDengine can be either synchronous or asynchronous. In the above sample code, the value of variable `async` is determined from the CLI input, then it's used to create either an async or sync subscription. Sync subscription means the client program needs to invoke `taos_consume` to retrieve data, and async subscription means another thread created by `taos_subscribe` internally invokes `taos_consume` to retrieve data and pass the data to `subscribe_callback` for processing. `subscribe_callback` is a callback function provided by the client program. You should not perform time consuming operations in the callback function.
+
+The parameter `taos` is an established connection. Nothing special needs to be done for thread safety for synchronous subscription. For asynchronous subscription, the taos_subscribe function should be called exclusively by the current thread, to avoid unpredictable errors.
+
+The parameter `sql` is a `select` statement in which the `where` clause can be used to specify filter conditions. In our example, we can subscribe to the records in which the current exceeds 10A, with the following SQL statement:
+
+```sql
+select * from meters where current > 10;
+```
+
+Please note that, all the data will be processed because no start time is specified. If we only want to process data for the past day, a time related condition can be added:
+
+```sql
+select * from meters where ts > now - 1d and current > 10;
+```
+
+The parameter `topic` is the name of the subscription. The client application must guarantee that the name is unique. However, it doesn't have to be globally unique because subscription is implemented in the APIs on the client side.
+
+If the subscription named as `topic` doesn't exist, the parameter `restart` will be ignored. If the subscription named as `topic` has been created before by the client program, when the client program is restarted with the subscription named `topic`, parameter `restart` is used to determine whether to retrieve data from the beginning or from the last point where the subscription was broken.
+
+If the value of `restart` is **true** (i.e. a non-zero value), data will be retrieved from the beginning. If it is **false** (i.e. zero), the data already consumed before will not be processed again.
+
+The last parameter of `taos_subscribe` is the polling interval in units of millisecond. In sync mode, if the time difference between two continuous invocations to `taos_consume` is smaller than the interval specified by `taos_subscribe`, `taos_consume` will be blocked until the interval is reached. In async mode, this interval is the minimum interval between two invocations to the call back function.
+
+The second to last parameter of `taos_subscribe` is used to pass arguments to the call back function. `taos_subscribe` doesn't process this parameter and simply passes it to the call back function. This parameter is simply ignored in sync mode.
+
+After a subscription is created, its data can be consumed and processed. Shown below is the sample code to consume data in sync mode, in the else condition of `if (async)`.
+
+```c
+if (async) {
+　　getchar();
+} else while(1) {
+　　TAOS_RES* res = taos_consume(tsub);
+　　if (res == NULL) {
+　　　　printf("failed to consume data.");
+　　　　break;
+　　} else {
+　　　　print_result(res, blockFetch);
+　　　　getchar();
+　　}
+}
+```
+
+In the above sample code in the else condition, there is an infinite loop. Each time carriage return is entered `taos_consume` is invoked. The return value of `taos_consume` is the selected result set. In the above sample, `print_result` is used to simplify the printing of the result set. It is similar to `taos_use_result`. Below is the implementation of `print_result`.
+
+```c
+void print_result(TAOS_RES* res, int blockFetch) {
+　　TAOS_ROW row = NULL;
+　　int num_fields = taos_num_fields(res);
+　　TAOS_FIELD* fields = taos_fetch_fields(res);
+　　int nRows = 0;
+　　if (blockFetch) {
+　　　　nRows = taos_fetch_block(res, &row);
+　　　　for (int i = 0; i < nRows; i++) {
+　　　　　　char temp[256];
+　　　　　　taos_print_row(temp, row + i, fields, num_fields);
+　　　　　　puts(temp);
+　　　　}
+　　} else {
+　　　　while ((row = taos_fetch_row(res))) {
+　　　　　　char temp[256];
+　　　　　　taos_print_row(temp, row, fields, num_fields);
+　　　　　　puts(temp);
+　　　　　　nRows++;
+　　　　}
+　　}
+　　printf("%d rows consumed.\n", nRows);
+}
+```
+
+In the above code `taos_print_row` is used to process the data consumed. All matching rows are printed.
+
+In async mode, consuming data is simpler as shown below.
+
+```c
+void subscribe_callback(TAOS_SUB* tsub, TAOS_RES *res, void* param, int code) {
+　　print_result(res, *(int*)param);
+}
+```
+
+`taos_unsubscribe` can be invoked to terminate a subscription.
+
+```c
+taos_unsubscribe(tsub, keep);
+```
+
+The second parameter `keep` is used to specify whether to keep the subscription progress on the client sde. If it is **false**, i.e. **0**, then subscription will be restarted from beginning regardless of the `restart` parameter's value when `taos_subscribe` is invoked again. The subscription progress information is stored in _{DataDir}/subscribe/_ , under which there is a file with the same name as `topic` for each subscription(Note: The default value of `DataDir` in the `taos.cfg` file is **/var/lib/taos/**. However, **/var/lib/taos/** does not exist on the Windows server. So you need to change the `DataDir` value to the corresponding existing directory."), the subscription will be restarted from the beginning if the corresponding progress file is removed.
+
+Now let's see the effect of the above sample code, assuming below prerequisites have been done.
+
+- The sample code has been downloaded to local system
+- TDengine has been installed and launched properly on same system
+- The database, STable, and subtables required in the sample code are ready
+
+Launch the command below in the directory where the sample code resides to compile and start the program.
+
+```bash
+make
+./subscribe -sql='select * from meters where current > 10;'
+```
+
+After the program is started, open another terminal and launch TDengine CLI `taos`, then use the below SQL commands to insert a row whose current is 12A into table **D1001**.
+
+```sql
+use test;
+insert into D1001 values(now, 12, 220, 1);
+```
+
+Then, this row of data will be shown by the example program on the first terminal because its current exceeds 10A. More data can be inserted for you to observe the output of the example program.
+
+## Examples
+
+The example program below demonstrates how to subscribe, using connectors, to data rows in which current exceeds 10A.
+
+### Prepare Data
+
+```bash
+# create database "power"
+taos> create database power;
+# use "power" as the database in following operations
+taos> use power;
+# create super table "meters"
+taos> create table meters(ts timestamp, current float, voltage int, phase int) tags(location binary(64), groupId int);
+# create tabes using the schema defined by super table "meters"
+taos> create table d1001 using meters tags ("California.SanFrancisco", 2);
+taos> create table d1002 using meters tags ("California.LoSangeles", 2);
+# insert some rows
+taos> insert into d1001 values("2020-08-15 12:00:00.000", 12, 220, 1),("2020-08-15 12:10:00.000", 12.3, 220, 2),("2020-08-15 12:20:00.000", 12.2, 220, 1);
+taos> insert into d1002 values("2020-08-15 12:00:00.000", 9.9, 220, 1),("2020-08-15 12:10:00.000", 10.3, 220, 1),("2020-08-15 12:20:00.000", 11.2, 220, 1);
+# filter out the rows in which current is bigger than 10A
+taos> select * from meters where current > 10;
+           ts            |    current   |    voltage   |  phase |         location          |   groupid   |
+===========================================================================================================
+ 2020-08-15 12:10:00.000 |    10.30000  |     220      |      1 |      California.LoSangeles      |           2 |
+ 2020-08-15 12:20:00.000 |    11.20000  |     220      |      1 |      California.LoSangeles      |           2 |
+ 2020-08-15 12:00:00.000 |    12.00000  |     220      |      1 |      California.SanFrancisco     |           2 |
+ 2020-08-15 12:10:00.000 |    12.30000  |     220      |      2 |      California.SanFrancisco     |           2 |
+ 2020-08-15 12:20:00.000 |    12.20000  |     220      |      1 |      California.SanFrancisco     |           2 |
+Query OK, 5 row(s) in set (0.004896s)
+```
+
+### Example Programs
+
+<Tabs defaultValue="java" groupId="lang">
+  <TabItem label="Java" value="java">
+    <Java />
+  </TabItem>
+  <TabItem label="Python" value="Python">
+    <Python />
+  </TabItem>
+  {/* <TabItem label="Go" value="go">
+      <Go/>
+  </TabItem> */}
+  <TabItem label="Rust" value="rust">
+    <Rust />
+  </TabItem>
+  {/* <TabItem label="Node.js" value="nodejs">
+      <Node/>
+  </TabItem>
+  <TabItem label="C#" value="csharp">
+      <CSharp/>
+  </TabItem> */}
+  <TabItem label="C" value="c">
+    <CDemo />
+  </TabItem>
+</Tabs>
+
+### Run the Examples
+
+The example programs first consume all historical data matching the criteria.
+
+```bash
+ts: 1597464000000	current: 12.0	voltage: 220	phase: 1	location: California.SanFrancisco	groupid : 2
+ts: 1597464600000	current: 12.3	voltage: 220	phase: 2	location: California.SanFrancisco	groupid : 2
+ts: 1597465200000	current: 12.2	voltage: 220	phase: 1	location: California.SanFrancisco	groupid : 2
+ts: 1597464600000	current: 10.3	voltage: 220	phase: 1	location: California.LoSangeles	groupid : 2
+ts: 1597465200000	current: 11.2	voltage: 220	phase: 1	location: California.LoSangeles	groupid : 2
+```
+
+Next, use TDengine CLI to insert a new row.
+
+```
+# taos
+taos> use power;
+taos> insert into d1001 values(now, 12.4, 220, 1);
+```
+
+Because the current in the inserted row exceeds 10A, it will be consumed by the example program.
+
+```
+ts: 1651146662805	current: 12.4	voltage: 220	phase: 1	location: California.SanFrancisco	groupid: 2
+```

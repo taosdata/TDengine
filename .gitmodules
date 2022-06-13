@@ -6,13 +6,13 @@
 	url = https://github.com/taosdata/hivemq-tdengine-extension.git
 [submodule "deps/jemalloc"]
 	path = deps/jemalloc
-	url = https://github.com/jemalloc/jemalloc
+	url = https://github.com/jemalloc/jemalloc.git
 [submodule "src/kit/taos-tools"]
 	path = src/kit/taos-tools
-	url = https://github.com/taosdata/taos-tools
+	url = https://github.com/taosdata/taos-tools.git
 [submodule "src/plugins/taosadapter"]
 	path = src/plugins/taosadapter
-	url = https://github.com/taosdata/taosadapter
+	url = https://github.com/taosdata/taosadapter.git
 [submodule "examples/rust"]
 	path = examples/rust
 	url = https://github.com/songtianyi/tdengine-rust-bindings.git

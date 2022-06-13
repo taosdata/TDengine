@@ -29,11 +29,11 @@ int main() {
   executeSQL(taos, "USE test");
   char *line =
       "[{\"metric\": \"meters.current\", \"timestamp\": 1648432611249, \"value\": 10.3, \"tags\": {\"location\": "
-      "\"Beijing.Chaoyang\", \"groupid\": 2}},{\"metric\": \"meters.voltage\", \"timestamp\": 1648432611249, "
-      "\"value\": 219, \"tags\": {\"location\": \"Beijing.Haidian\", \"groupid\": 1}},{\"metric\": \"meters.current\", "
-      "\"timestamp\": 1648432611250, \"value\": 12.6, \"tags\": {\"location\": \"Beijing.Chaoyang\", \"groupid\": "
+      "\"California.SanFrancisco\", \"groupid\": 2}},{\"metric\": \"meters.voltage\", \"timestamp\": 1648432611249, "
+      "\"value\": 219, \"tags\": {\"location\": \"California.LosAngeles\", \"groupid\": 1}},{\"metric\": \"meters.current\", "
+      "\"timestamp\": 1648432611250, \"value\": 12.6, \"tags\": {\"location\": \"California.SanFrancisco\", \"groupid\": "
       "2}},{\"metric\": \"meters.voltage\", \"timestamp\": 1648432611250, \"value\": 221, \"tags\": {\"location\": "
-      "\"Beijing.Haidian\", \"groupid\": 1}}]";
+      "\"California.LosAngeles\", \"groupid\": 1}}]";
 
   char     *lines[] = {line};
   TAOS_RES *res = taos_schemaless_insert(taos, lines, 1, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NOT_CONFIGURED);

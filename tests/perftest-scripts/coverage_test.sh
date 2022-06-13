@@ -110,7 +110,9 @@ function runTest {
 	$TDENGINE_DIR/debug/build/bin/taosd -c $TDENGINE_DIR/debug/test/cfg > /dev/null &
 	sleep 10
 
-	cd $TDENGINE_DIR/src/connector/jdbc
+	# cd $TDENGINE_DIR/src/connector/jdbc
+	git clone git@github.com:taosdata/taos-connector-jdbc.git --branch main --single-branch --depth 1
+	cd taos-connector-jdbc
 	mvn clean package > /dev/null 2>&1
 	mvn test > /dev/null 2>&1 | tee -a $TDENGINE_COVERAGE_REPORT
 
