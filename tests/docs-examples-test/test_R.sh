@@ -5,7 +5,7 @@ set -e
 pgrep taosd || taosd >> /dev/null 2>&1 &
 pgrep taosadapter || taosadapter >> /dev/null 2>&1 &
 
-cd ../../docs-examples/R
+cd ../../docs/examples/R
 
 jar_path=`find ../../../debug/build  -name taos-jdbcdriver-*-dist.jar`
 echo jar_path=$jar_path
