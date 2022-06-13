@@ -81,24 +81,24 @@ int32_t tsem_timewait(tsem_t* sem, int64_t nanosecs) {
   rel.tv_nsec = nanosecs;
 
   GetSystemTimeAsFileTime(&ft_before);
-  errno = 0;
-  rc = sem_timedwait(&sem, pthread_win32_getabstime_np(&ts, &rel));
+  // errno = 0;
+  rc = sem_timedwait(sem, pthread_win32_getabstime_np(&ts, &rel));
 
   /* This should have timed out */
-  assert(errno == ETIMEDOUT);
-  assert(rc != 0);
-  GetSystemTimeAsFileTime(&ft_after);
-  // We specified a non-zero wait. Time must advance.
-  if (ft_before.dwLowDateTime == ft_after.dwLowDateTime && ft_before.dwHighDateTime == ft_after.dwHighDateTime)
-    {
-      printf("nanoseconds: %d, rc: %d, errno: %d. before filetime: %d, %d; after filetime: %d, %d\n",
-          nanosecs, rc, errno,
-          (int)ft_before.dwLowDateTime, (int)ft_before.dwHighDateTime,
-          (int)ft_after.dwLowDateTime, (int)ft_after.dwHighDateTime);
-      printf("time must advance during sem_timedwait.");
-      return 1;
-    }
-  return 0;
+  // assert(errno == ETIMEDOUT);
+  // assert(rc != 0);
+  // GetSystemTimeAsFileTime(&ft_after);
+  // // We specified a non-zero wait. Time must advance.
+  // if (ft_before.dwLowDateTime == ft_after.dwLowDateTime && ft_before.dwHighDateTime == ft_after.dwHighDateTime)
+  //   {
+  //     printf("nanoseconds: %d, rc: %d, errno: %d. before filetime: %d, %d; after filetime: %d, %d\n",
+  //         nanosecs, rc, errno,
+  //         (int)ft_before.dwLowDateTime, (int)ft_before.dwHighDateTime,
+  //         (int)ft_after.dwLowDateTime, (int)ft_after.dwHighDateTime);
+  //     printf("time must advance during sem_timedwait.");
+  //     return 1;
+  //   }
+  return rc;
 }
 
 #elif defined(_TD_DARWIN_64)

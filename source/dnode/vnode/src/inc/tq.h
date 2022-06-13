@@ -58,7 +58,7 @@ struct STqReadHandle {
   SArray*   pColIdList;  // SArray<int16_t>
 
   int32_t         cachedSchemaVer;
-  int64_t         cachedSchemaUid;
+  int64_t         cachedSchemaSuid;
   SSchemaWrapper* pSchemaWrapper;
   STSchema*       pSchema;
 };

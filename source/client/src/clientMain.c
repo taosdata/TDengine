@@ -822,8 +822,16 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
 void taos_fetch_raw_block_a(TAOS_RES* res, __taos_async_fn_t fp, void* param) {
   ASSERT(res != NULL && fp != NULL);
   SRequestObj *pRequest = res;
+
   pRequest->body.resInfo.convertUcs4 = false;
   taos_fetch_rows_a(res, fp, param);
+}
+
+const void* taos_get_raw_block(TAOS_RES* res) {
+  ASSERT(res != NULL);
+  SRequestObj* pRequest = res;
+
+  return pRequest->body.resInfo.pData;
 }
 
 TAOS_SUB *taos_subscribe(TAOS *taos, int restart, const char *topic, const char *sql, TAOS_SUBSCRIBE_CALLBACK fp,

@@ -92,6 +92,8 @@ sql show mnodes
 if $rows != 2 then 
   return -1
 endi
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
 
 sql show users
 if $rows != 2 then 
@@ -111,6 +113,8 @@ step3:
 		return -1
 	endi
 sql show dnodes -x step3
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
 if $data(1)[4] != ready then
   goto step3
 endi

@@ -110,6 +110,16 @@ static int32_t sdbReadFileHead(SSdb *pSdb, TdFilePtr pFile) {
     return -1;
   }
 
+  ret = taosReadFile(pFile, &pSdb->curConfig, sizeof(int64_t));
+  if (ret < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+  if (ret != sizeof(int64_t)) {
+    terrno = TSDB_CODE_FILE_CORRUPTED;
+    return -1;
+  }
+
   for (int32_t i = 0; i < SDB_TABLE_SIZE; ++i) {
     int64_t maxId = 0;
     ret = taosReadFile(pFile, &maxId, sizeof(int64_t));
@@ -173,6 +183,11 @@ static int32_t sdbWriteFileHead(SSdb *pSdb, TdFilePtr pFile) {
     return -1;
   }
 
+  if (taosWriteFile(pFile, &pSdb->curConfig, sizeof(int64_t)) != sizeof(int64_t)) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
   for (int32_t i = 0; i < SDB_TABLE_SIZE; ++i) {
     int64_t maxId = 0;
     if (i < SDB_MAX) {
@@ -225,7 +240,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
   if (pFile == NULL) {
     taosMemoryFree(pRaw);
     terrno = TAOS_SYSTEM_ERROR(errno);
-    mError("failed to read sdb file:%s since %s", file, terrstr());
+    mDebug("failed to read sdb file:%s since %s", file, terrstr());
     return 0;
   }
 
@@ -288,8 +303,8 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
   pSdb->lastCommitVer = pSdb->curVer;
   pSdb->lastCommitTerm = pSdb->curTerm;
   memcpy(pSdb->tableVer, tableVer, sizeof(tableVer));
-  mDebug("read sdb file:%s successfully, ver:%" PRId64 " term:%" PRId64, file, pSdb->lastCommitVer,
-         pSdb->lastCommitTerm);
+  mDebug("read sdb file:%s successfully, index:%" PRId64 " term:%" PRId64 " config:%" PRId64, file, pSdb->lastCommitVer,
+         pSdb->lastCommitTerm, pSdb->curConfig);
 
 _OVER:
   taosCloseFile(&pFile);
@@ -342,7 +357,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
     SdbEncodeFp encodeFp = pSdb->encodeFps[i];
     if (encodeFp == NULL) continue;
 
-    mTrace("write %s to sdb file, total %d rows", sdbTableName(i), sdbGetSize(pSdb, i));
+    mDebug("write %s to sdb file, total %d rows", sdbTableName(i), sdbGetSize(pSdb, i));
 
     SHashObj       *hash = pSdb->hashObjs[i];
     TdThreadRwlock *pLock = &pSdb->locks[i];
@@ -417,8 +432,8 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
   } else {
     pSdb->lastCommitVer = pSdb->curVer;
     pSdb->lastCommitTerm = pSdb->curTerm;
-    mDebug("write sdb file successfully, ver:%" PRId64 " term:%" PRId64 " file:%s", pSdb->lastCommitVer,
-           pSdb->lastCommitTerm, curfile);
+    mDebug("write sdb file successfully, index:%" PRId64 " term:%" PRId64 " config:%" PRId64 " file:%s",
+           pSdb->lastCommitVer, pSdb->lastCommitTerm, pSdb->curConfig, curfile);
   }
 
   terrno = code;
@@ -426,12 +441,23 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
 }
 
 int32_t sdbWriteFile(SSdb *pSdb) {
+  int32_t code = 0;
   if (pSdb->curVer == pSdb->lastCommitVer) {
     return 0;
   }
 
   taosThreadMutexLock(&pSdb->filelock);
-  int32_t code = sdbWriteFileImp(pSdb);
+  if (pSdb->pWal != NULL) {
+    code = walBeginSnapshot(pSdb->pWal, pSdb->curVer);
+  }
+  if (code == 0) {
+    code = sdbWriteFileImp(pSdb);
+  }
+  if (code == 0) {
+    if (pSdb->pWal != NULL) {
+      code = walEndSnapshot(pSdb->pWal);
+    }
+  }
   if (code != 0) {
     mError("failed to write sdb file since %s", terrstr());
   }
@@ -496,6 +522,9 @@ int32_t sdbStartRead(SSdb *pSdb, SSdbIter **ppIter) {
   snprintf(datafile, sizeof(datafile), "%s%ssdb.data", pSdb->currDir, TD_DIRSEP);
 
   taosThreadMutexLock(&pSdb->filelock);
+  int64_t commitIndex = pSdb->lastCommitVer;
+  int64_t commitTerm = pSdb->lastCommitTerm;
+  int64_t curConfig = pSdb->curConfig;
   if (taosCopyFile(datafile, pIter->name) < 0) {
     taosThreadMutexUnlock(&pSdb->filelock);
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -514,7 +543,8 @@ int32_t sdbStartRead(SSdb *pSdb, SSdbIter **ppIter) {
   }
 
   *ppIter = pIter;
-  mInfo("sdbiter:%p, is created to read snapshot, file:%s", pIter, pIter->name);
+  mInfo("sdbiter:%p, is created to read snapshot, index:%" PRId64 " term:%" PRId64 " config:%" PRId64 " file:%s", pIter,
+        commitIndex, commitTerm, curConfig, pIter->name);
   return 0;
 }
 

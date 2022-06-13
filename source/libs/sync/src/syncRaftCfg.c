@@ -148,6 +148,11 @@ cJSON *raftCfg2Json(SRaftCfg *pRaftCfg) {
   cJSON *pRoot = cJSON_CreateObject();
   cJSON_AddItemToObject(pRoot, "SSyncCfg", syncCfg2Json(&(pRaftCfg->cfg)));
   cJSON_AddNumberToObject(pRoot, "isStandBy", pRaftCfg->isStandBy);
+  cJSON_AddNumberToObject(pRoot, "snapshotEnable", pRaftCfg->snapshotEnable);
+
+  char buf64[128];
+  snprintf(buf64, sizeof(buf64), "%ld", pRaftCfg->lastConfigIndex);
+  cJSON_AddStringToObject(pRoot, "lastConfigIndex", buf64);
 
   cJSON *pJson = cJSON_CreateObject();
   cJSON_AddItemToObject(pJson, "RaftCfg", pRoot);
@@ -161,7 +166,7 @@ char *raftCfg2Str(SRaftCfg *pRaftCfg) {
   return serialized;
 }
 
-int32_t raftCfgCreateFile(SSyncCfg *pCfg, int8_t isStandBy, const char *path) {
+int32_t raftCfgCreateFile(SSyncCfg *pCfg, SRaftCfgMeta meta, const char *path) {
   assert(pCfg != NULL);
 
   TdFilePtr pFile = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE);
@@ -169,7 +174,9 @@ int32_t raftCfgCreateFile(SSyncCfg *pCfg, int8_t isStandBy, const char *path) {
 
   SRaftCfg raftCfg;
   raftCfg.cfg = *pCfg;
-  raftCfg.isStandBy = isStandBy;
+  raftCfg.isStandBy = meta.isStandBy;
+  raftCfg.snapshotEnable = meta.snapshotEnable;
+  raftCfg.lastConfigIndex = meta.lastConfigIndex;
   char *s = raftCfg2Str(&raftCfg);
 
   char buf[CONFIG_FILE_LEN] = {0};
@@ -193,6 +200,12 @@ int32_t raftCfgFromJson(const cJSON *pRoot, SRaftCfg *pRaftCfg) {
 
   cJSON *pJsonIsStandBy = cJSON_GetObjectItem(pJson, "isStandBy");
   pRaftCfg->isStandBy = cJSON_GetNumberValue(pJsonIsStandBy);
+
+  cJSON *pJsonSnapshotEnable = cJSON_GetObjectItem(pJson, "snapshotEnable");
+  pRaftCfg->snapshotEnable = cJSON_GetNumberValue(pJsonSnapshotEnable);
+
+  cJSON *pJsonLastConfigIndex = cJSON_GetObjectItem(pJson, "lastConfigIndex");
+  pRaftCfg->lastConfigIndex = atoll(cJSON_GetStringValue(pJsonLastConfigIndex));
 
   cJSON * pJsonSyncCfg = cJSON_GetObjectItem(pJson, "SSyncCfg");
   int32_t code = syncCfgFromJson(pJsonSyncCfg, &(pRaftCfg->cfg));
