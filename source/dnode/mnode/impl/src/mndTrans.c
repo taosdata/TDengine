@@ -968,7 +968,7 @@ static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransActio
 static int32_t mndTransExecNullMsg(SMnode *pMnode, STrans *pTrans, STransAction *pAction) {
   pAction->rawWritten = 0;
   pAction->errCode = 0;
-  mDebug("trans:%d, %s:%d null action executed", pTrans->id, mndTransStr(pAction->stage), pAction->id);
+  mDebug("trans:%d, %s:%d confirm action executed", pTrans->id, mndTransStr(pAction->stage), pAction->id);
 
   pTrans->lastAction = pAction->id;
   pTrans->lastMsgType = pAction->msgType;
@@ -1025,18 +1025,18 @@ static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pA
   if (numOfExecuted == numOfActions) {
     if (errCode == 0) {
       pTrans->lastAction = 0;
-      pTrans->lastErrorNo = 0;
       pTrans->lastMsgType = 0;
       memset(&pTrans->lastEpset, 0, sizeof(pTrans->lastEpset));
+      pTrans->lastErrorNo = 0;
       mDebug("trans:%d, all %d actions execute successfully", pTrans->id, numOfActions);
       return 0;
     } else {
       mError("trans:%d, all %d actions executed, code:0x%x", pTrans->id, numOfActions, errCode & 0XFFFF);
       if (pErrAction != NULL) {
-        pTrans->lastMsgType = pErrAction->msgType;
         pTrans->lastAction = pErrAction->id;
-        pTrans->lastErrorNo = pErrAction->errCode;
+        pTrans->lastMsgType = pErrAction->msgType;
         pTrans->lastEpset = pErrAction->epSet;
+        pTrans->lastErrorNo = pErrAction->errCode;
       }
       mndTransResetActions(pMnode, pTrans, pArray);
       terrno = errCode;
@@ -1103,13 +1103,13 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
     }
 
     if (code == 0) {
-      pTrans->lastAction = 0;
-      pTrans->lastErrorNo = 0;
+      pTrans->lastAction = action;
       pTrans->lastMsgType = 0;
+      pTrans->lastErrorNo = 0;
       memset(&pTrans->lastEpset, 0, sizeof(pTrans->lastEpset));
     } else {
-      pTrans->lastMsgType = pAction->msgType;
       pTrans->lastAction = action;
+      pTrans->lastMsgType = pAction->msgType;
       pTrans->lastErrorNo = code;
       pTrans->lastEpset = pAction->epSet;
     }
