@@ -23,6 +23,7 @@ extern "C" {
 #include "functionMgtInt.h"
 
 typedef int32_t (*FTranslateFunc)(SFunctionNode* pFunc, char* pErrBuf, int32_t len);
+typedef int32_t (*FRewriteFunc)(SNode** pFunc);
 typedef EFuncDataRequired (*FFuncDataRequired)(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
 
 typedef struct SBuiltinFuncDefinition {
@@ -30,6 +31,7 @@ typedef struct SBuiltinFuncDefinition {
   EFunctionType      type;
   uint64_t           classification;
   FTranslateFunc     translateFunc;
+  FRewriteFunc       rewriteFunc;
   FFuncDataRequired  dataRequiredFunc;
   FExecGetEnv        getEnvFunc;
   FExecInit          initFunc;

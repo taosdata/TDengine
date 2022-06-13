@@ -35,6 +35,7 @@ string toString(int32_t code) { return tstrerror(code); }
 //   [...];
 class InsertTest : public Test {
  protected:
+  InsertTest() : res_(nullptr) {}
   ~InsertTest() { reset(); }
 
   void setDatabase(const string& acctId, const string& db) {

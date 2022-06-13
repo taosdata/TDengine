@@ -1076,29 +1076,32 @@ static void setFuncClassification(SSelectStmt* pSelect, SFunctionNode* pFunc) {
   }
 }
 
-static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode* pFunc) {
+static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc) {
   SNode* pParam = NULL;
-  FOREACH(pParam, pFunc->pParameterList) {
+  FOREACH(pParam, (*pFunc)->pParameterList) {
     if (isMultiResFunc(pParam)) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)pParam)->aliasName);
     }
   }
 
-  pCxt->errCode = getFuncInfo(pCxt, pFunc);
+  pCxt->errCode = getFuncInfo(pCxt, *pFunc);
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
-    pCxt->errCode = translateAggFunc(pCxt, pFunc);
+    pCxt->errCode = translateAggFunc(pCxt, *pFunc);
   }
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
-    pCxt->errCode = translateScanPseudoColumnFunc(pCxt, pFunc);
+    pCxt->errCode = translateScanPseudoColumnFunc(pCxt, *pFunc);
   }
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
-    pCxt->errCode = translateIndefiniteRowsFunc(pCxt, pFunc);
+    pCxt->errCode = translateIndefiniteRowsFunc(pCxt, *pFunc);
   }
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
-    pCxt->errCode = translateForbidFillFunc(pCxt, pFunc);
+    pCxt->errCode = translateForbidFillFunc(pCxt, *pFunc);
   }
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
-    setFuncClassification(pCxt->pCurrSelectStmt, pFunc);
+    setFuncClassification(pCxt->pCurrSelectStmt, *pFunc);
+  }
+  if (TSDB_CODE_SUCCESS == pCxt->errCode && fmNeedRewrite((*pFunc)->funcId)) {
+    pCxt->errCode = fmRewriteFunc((SNode**)pFunc);
   }
   return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
 }
@@ -1123,7 +1126,7 @@ static EDealRes doTranslateExpr(SNode** pNode, void* pContext) {
     case QUERY_NODE_OPERATOR:
       return translateOperator(pCxt, (SOperatorNode**)pNode);
     case QUERY_NODE_FUNCTION:
-      return translateFunction(pCxt, (SFunctionNode*)*pNode);
+      return translateFunction(pCxt, (SFunctionNode**)pNode);
     case QUERY_NODE_LOGIC_CONDITION:
       return translateLogicCond(pCxt, (SLogicConditionNode*)*pNode);
     case QUERY_NODE_TEMP_TABLE:
