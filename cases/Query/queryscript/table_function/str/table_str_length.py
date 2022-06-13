@@ -53,6 +53,8 @@ class TDTestQuery(TDCase):
     table_null = str(random.sample(table_null_list,1)).replace("[","").replace("]","").replace("'","")
     testcasePath = os.path.split(__file__)[0]
     testcaseFilename = os.path.split(__file__)[-1]
+    #通过第三方的numpy的校验的数量
+    np_check_num = 6;
 
     def case_common(self):
         #os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))    
@@ -85,6 +87,7 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_str(i)
             try:
                 # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                time.sleep(1)
                 taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
                 print(conn1)
@@ -135,6 +138,7 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_str(i)
             try:
                 # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                time.sleep(1)
                 taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
                 print(conn1)
@@ -201,6 +205,7 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_str(i)
             try:
                 # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                time.sleep(1)
                 taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
                 print(conn1)
@@ -259,6 +264,7 @@ class TDTestQuery(TDCase):
             func_desc = func # for desc
             try:
                 # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                time.sleep(1)
                 taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
                 print(conn1)
@@ -353,6 +359,7 @@ class TDTestQuery(TDCase):
             func_desc = func # for desc
             try:
                 # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                time.sleep(1)
                 taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
                 print(conn1)
@@ -518,6 +525,7 @@ class TDTestQuery(TDCase):
             func_desc = func # for desc
             try:
                 # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                time.sleep(1)
                 taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
                 print(conn1)
@@ -636,6 +644,7 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_str(i)
             try:
                 # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                time.sleep(1)
                 taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
                 print(conn1)
@@ -688,6 +697,7 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_str(i)
             try:
                 # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                time.sleep(1)
                 taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
                 print(conn1)
@@ -754,6 +764,7 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_str(i)
             try:
                 # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                time.sleep(1)
                 taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
                 print(conn1)
