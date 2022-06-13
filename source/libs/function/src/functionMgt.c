@@ -324,12 +324,3 @@ int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc
 
   return code;
 }
-
-bool fmNeedRewrite(int32_t funcId) {
-  if (fmIsUserDefinedFunc(funcId)) {
-    return false;
-  }
-  return NULL != funcMgtBuiltins[funcId].rewriteFunc;
-}
-
-int32_t fmRewriteFunc(SNode** pFunc) { return funcMgtBuiltins[((SFunctionNode*)*pFunc)->funcId].rewriteFunc(pFunc); }

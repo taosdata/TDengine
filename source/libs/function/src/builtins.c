@@ -1387,49 +1387,6 @@ static bool getBlockDistFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv
   return true;
 }
 
-static int32_t rewriteAvg(SNode** pFunc) {
-  SOperatorNode* pOper = (SOperatorNode*)nodesMakeNode(QUERY_NODE_OPERATOR);
-  if (NULL == pOper) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  SFunctionNode* pAvg = (SFunctionNode*)*pFunc;
-  pOper->node.resType = pAvg->node.resType;
-  strcpy(pOper->node.aliasName, pAvg->node.aliasName);
-  pOper->opType = OP_TYPE_DIV;
-  pOper->pLeft = nodesMakeNode(QUERY_NODE_FUNCTION);
-  pOper->pRight = nodesMakeNode(QUERY_NODE_FUNCTION);
-  if (NULL == pOper->pLeft || NULL == pOper->pRight) {
-    nodesDestroyNode((SNode*)pOper);
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  SFunctionNode* pSum = (SFunctionNode*)pOper->pLeft;
-  strcpy(pSum->functionName, "sum");
-  pSum->pParameterList = nodesCloneList(pAvg->pParameterList);
-  if (NULL == pSum->pParameterList) {
-    nodesDestroyNode((SNode*)pOper);
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  char    msgBuf[64] = {0};
-  int32_t code = fmGetFuncInfo(pSum, msgBuf, sizeof(msgBuf));
-  if (TSDB_CODE_SUCCESS == code) {
-    SFunctionNode* pCount = (SFunctionNode*)pOper->pRight;
-    strcpy(pCount->functionName, "count");
-    TSWAP(pCount->pParameterList, pAvg->pParameterList);
-    code = fmGetFuncInfo(pCount, msgBuf, sizeof(msgBuf));
-  }
-
-  if (TSDB_CODE_SUCCESS == code) {
-    nodesDestroyNode((SNode*)pAvg);
-    *pFunc = (SNode*)pOper;
-  } else {
-    nodesDestroyNode((SNode*)pOper);
-  }
-
-  return code;
-}
-
 // clang-format off
 const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
@@ -1519,7 +1476,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_AVG,
     .classification = FUNC_MGT_AGG_FUNC,
     .translateFunc = translateInNumOutDou,
-    // .rewriteFunc  = rewriteAvg,
     .getEnvFunc   = getAvgFuncEnv,
     .initFunc     = avgFunctionSetup,
     .processFunc  = avgFunction,

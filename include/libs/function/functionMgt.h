@@ -177,9 +177,6 @@ bool fmIsDistExecFunc(int32_t funcId);
 bool fmIsForbidFillFunc(int32_t funcId);
 bool fmIsForbidStreamFunc(int32_t funcId);
 
-bool    fmNeedRewrite(int32_t funcId);
-int32_t fmRewriteFunc(SNode** pFunc);
-
 int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMergeFunc);
 
 typedef enum EFuncDataRequired {
