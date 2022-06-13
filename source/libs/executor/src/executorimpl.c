@@ -1819,9 +1819,9 @@ void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numO
   }
 }
 
-static void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep, bool needFree);
+static void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep);
 
-void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, bool needFree) {
+void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock) {
   if (pFilterNode == NULL) {
     return;
   }
@@ -1840,29 +1840,28 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, bool needFree) {
   bool keep = filterExecute(filter, pBlock, &rowRes, NULL, param1.numOfCols);
   filterFreeInfo(filter);
 
-  extractQualifiedTupleByFilterResult(pBlock, rowRes, keep, needFree);
+  extractQualifiedTupleByFilterResult(pBlock, rowRes, keep);
   blockDataUpdateTsWindow(pBlock, 0);
 }
 
-void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep, bool needFree) {
+void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep) {
   if (keep) {
     return;
   }
 
   if (rowRes != NULL) {
-    SSDataBlock* px = createOneDataBlock(pBlock, false);
-    blockDataEnsureCapacity(px, pBlock->info.rows);
+    SSDataBlock* px = createOneDataBlock(pBlock, true);
 
     int32_t totalRows = pBlock->info.rows;
-
     for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
-      SColumnInfoData* pDst = taosArrayGet(px->pDataBlock, i);
-      SColumnInfoData* pSrc = taosArrayGet(pBlock->pDataBlock, i);
-
+      SColumnInfoData* pSrc = taosArrayGet(px->pDataBlock, i);
+      SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
       // it is a reserved column for scalar function, and no data in this column yet.
-      if (pSrc->pData == NULL) {
+      if (pDst->pData == NULL) {
         continue;
       }
+
+      colInfoDataCleanup(pDst, pBlock->info.rows);
 
       int32_t numOfRows = 0;
       for (int32_t j = 0; j < totalRows; ++j) {
@@ -1883,20 +1882,8 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowR
       } else {
         ASSERT(pBlock->info.rows == numOfRows);
       }
-
-      SColumnInfoData tmp = *pSrc;
-      *pSrc = *pDst;
-      *pDst = tmp;
-
-      if (!needFree) {
-        if (IS_VAR_DATA_TYPE(pDst->info.type)) {  // this elements do not need free
-          pDst->varmeta.offset = NULL;
-        } else {
-          pDst->nullbitmap = NULL;
-        }
-        pDst->pData = NULL;
-      }
     }
+
     blockDataDestroy(px);  // fix memory leak
   } else {
     // do nothing
@@ -2137,11 +2124,6 @@ static int32_t compressQueryColData(SColumnInfoData* pColRes, int32_t numOfRows,
 }
 
 int32_t doFillTimeIntervalGapsInResults(struct SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t capacity) {
-  //  for(int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
-  //    SColumnInfoData* pColInfoData = taosArrayGet(pOutput->pDataBlock, i);
-  //    p[i] = pColInfoData->pData + (pColInfoData->info.bytes * pOutput->info.rows);
-  //  }
-
   int32_t numOfRows = (int32_t)taosFillResultDataBlock(pFillInfo, pBlock, capacity - pBlock->info.rows);
   pBlock->info.rows += numOfRows;
 
@@ -2580,7 +2562,8 @@ void relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray
     }
 
     if (p->info.colId == pmInfo->colId) {
-      taosArraySet(pBlock->pDataBlock, pmInfo->targetSlotId, p);
+      SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, pmInfo->targetSlotId);
+      colDataAssign(pDst, p, pBlock->info.rows);
       i++;
       j++;
     } else if (p->info.colId < pmInfo->colId) {
@@ -2596,6 +2579,7 @@ int32_t setDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadIn
                                  SArray* pColList) {
   if (pColList == NULL) {  // data from other sources
     blockCompressDecode(pRes, numOfOutput, numOfRows, pData);
+    pRes->info.rows = numOfRows;
   } else {  // extract data according to pColList
     ASSERT(numOfOutput == taosArrayGetSize(pColList));
     char* pStart = pData;
@@ -2632,14 +2616,14 @@ int32_t setDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadIn
     }
 
     blockCompressDecode(pBlock, numOfCols, numOfRows, pStart);
+
     // data from mnode
+    pRes->info.rows = numOfRows;
     relocateColumnData(pRes, pColList, pBlock->pDataBlock);
     taosArrayDestroy(pBlock->pDataBlock);
     taosMemoryFree(pBlock);
     //    blockDataDestroy(pBlock);
   }
-
-  pRes->info.rows = numOfRows;
 
   // todo move this to time window aggregator, since the primary timestamp may not be known by exchange operator.
   blockDataUpdateTsWindow(pRes, 0);
@@ -2896,7 +2880,6 @@ static SSDataBlock* doLoadRemoteData(SOperatorInfo* pOperator) {
     return seqLoadRemoteData(pOperator);
   } else {
     return concurrentlyLoadRemoteDataImpl(pOperator, pExchangeInfo, pTaskInfo);
-    //    return concurrentlyLoadRemoteData(pOperator);
   }
 }
 
@@ -2922,8 +2905,13 @@ static int32_t initDataSource(int32_t numOfSources, SExchangeInfo* pInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t initExchangeOperator(SExchangePhysiNode* pExNode, SExchangeInfo* pInfo) {
+static int32_t initExchangeOperator(SExchangePhysiNode* pExNode, SExchangeInfo* pInfo, const char* id) {
   size_t numOfSources = LIST_LENGTH(pExNode->pSrcEndPoints);
+
+  if (numOfSources == 0) {
+    qError("%s invalid number: %d of sources in exchange operator", id, (int32_t) numOfSources);
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   pInfo->pSources = taosArrayInit(numOfSources, sizeof(SDownstreamSourceNode));
   pInfo->pSourceDataInfo = taosArrayInit(numOfSources, sizeof(SSourceDataInfo));
@@ -2946,7 +2934,7 @@ SOperatorInfo* createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode
     goto _error;
   }
 
-  int32_t code = initExchangeOperator(pExNode, pInfo);
+  int32_t code = initExchangeOperator(pExNode, pInfo, GET_TASKID(pTaskInfo));
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -2975,7 +2963,7 @@ _error:
 
   taosMemoryFreeClear(pInfo);
   taosMemoryFreeClear(pOperator);
-  pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
+  pTaskInfo->code = code;
   return NULL;
 }
 
@@ -3744,7 +3732,7 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       longjmp(pTaskInfo->env, code);
     }
 
-    doFilter(pProjectInfo->pFilterNode, pBlock, true);
+    doFilter(pProjectInfo->pFilterNode, pBlock);
 
     setInputDataBlock(pOperator, pInfo->pCtx, pBlock, order, scanFlag, false);
     blockDataEnsureCapacity(pInfo->pRes, pInfo->pRes->info.rows + pBlock->info.rows);
@@ -4565,7 +4553,7 @@ static SExecTaskInfo* createExecTaskInfo(uint64_t queryId, uint64_t taskId, EOPT
 }
 
 static tsdbReaderT doCreateDataReader(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle,
-                                      STableListInfo* pTableGroupInfo, uint64_t queryId, uint64_t taskId,
+                                      STableListInfo* pTableListInfo, uint64_t queryId, uint64_t taskId,
                                       SNode* pTagCond);
 
 static int32_t getTableList(void* metaHandle, int32_t tableType, uint64_t tableUid, STableListInfo* pListInfo,
@@ -4733,18 +4721,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         .waterMark = pIntervalPhyNode->window.watermark,
         .calTrigger = pIntervalPhyNode->window.triggerType,
         .maxTs = INT64_MIN,
-        .winMap = NULL,
     };
-    if (isSmaStream(pIntervalPhyNode->window.triggerType)) {
-      if (FLT_LESS(pIntervalPhyNode->window.filesFactor, 1.000000)) {
-        as.calTrigger = STREAM_TRIGGER_AT_ONCE_SMA;
-      } else {
-        _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_TIMESTAMP);
-        as.winMap = taosHashInit(64, hashFn, true, HASH_NO_LOCK);
-        as.waterMark = getSmaWaterMark(interval.interval, pIntervalPhyNode->window.filesFactor);
-        as.calTrigger = STREAM_TRIGGER_WINDOW_CLOSE_SMA;
-      }
-    }
 
     int32_t tsSlotId = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->slotId;
     bool    isStream = (QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL == type);
@@ -4940,6 +4917,11 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
 
   pCond->numOfCols = j;
   return TSDB_CODE_SUCCESS;
+}
+
+void clearupQueryTableDataCond(SQueryTableDataCond* pCond) {
+  taosMemoryFree(pCond->twindows);
+  taosMemoryFree(pCond->colList);
 }
 
 SColumn extractColumnFromColumnNode(SColumnNode* pColNode) {
@@ -5147,7 +5129,10 @@ tsdbReaderT doCreateDataReader(STableScanPhysiNode* pTableScanNode, SReadHandle*
     goto _error;
   }
 
-  return tsdbReaderOpen(pHandle->vnode, &cond, pTableListInfo, queryId, taskId);
+  tsdbReaderT* pReader = tsdbReaderOpen(pHandle->vnode, &cond, pTableListInfo, queryId, taskId);
+  clearupQueryTableDataCond(&cond);
+
+  return pReader;
 
 _error:
   terrno = code;
@@ -5285,7 +5270,7 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
   (*pTaskInfo)->pRoot = createOperatorTree(pPlan->pNode, *pTaskInfo, pHandle, queryId, taskId,
                                            &(*pTaskInfo)->tableqinfoList, pPlan->pTagCond);
   if (NULL == (*pTaskInfo)->pRoot) {
-    code = terrno;
+    code = (*pTaskInfo)->code;
     goto _complete;
   }
 
@@ -5298,7 +5283,6 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
 
 _complete:
   taosMemoryFreeClear(*pTaskInfo);
-
   terrno = code;
   return code;
 }
@@ -5457,16 +5441,3 @@ int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, const char* pKey, SqlF
   return code;
 }
 
-int64_t getSmaWaterMark(int64_t interval, double filesFactor) {
-  int64_t waterMark = 0;
-  ASSERT(FLT_GREATEREQUAL(filesFactor, 0.000000));
-  waterMark = -1 * filesFactor;
-  return waterMark;
-}
-
-bool isSmaStream(int8_t triggerType) {
-  if (triggerType == STREAM_TRIGGER_AT_ONCE || triggerType == STREAM_TRIGGER_WINDOW_CLOSE) {
-    return false;
-  }
-  return true;
-}

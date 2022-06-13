@@ -881,7 +881,9 @@ int32_t ctgHandleGetTbIndexRsp(SCtgTask* pTask, int32_t reqType, const SDataBuf 
   CTG_ERR_JRET(ctgUpdateTbIndexEnqueue(pTask->pJob->pCtg, (STableIndex**)&pTask->msgCtx.out, false));
   
 _return:
-
+  if (TSDB_CODE_MND_DB_INDEX_NOT_EXIST == code) {
+    code = TSDB_CODE_SUCCESS;
+  }
   ctgHandleTaskEnd(pTask, code);
 
   CTG_RET(code);

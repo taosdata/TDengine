@@ -27,7 +27,7 @@ class ParserInitialCTest : public ParserDdlTest {};
 TEST_F(ParserInitialCTest, createAccount) {
   useDb("root", "test");
 
-  run("CREATE ACCOUNT ac_wxy PASS '123456'", TSDB_CODE_PAR_EXPRIE_STATEMENT);
+  run("CREATE ACCOUNT ac_wxy PASS '123456'", TSDB_CODE_PAR_EXPRIE_STATEMENT, PARSER_STAGE_PARSE);
 }
 
 TEST_F(ParserInitialCTest, createBnode) {
@@ -186,7 +186,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
   setDbReplicaFunc(3);
   addDbRetentionFunc(15 * MILLISECOND_PER_SECOND, 7 * MILLISECOND_PER_DAY, TIME_UNIT_SECOND, TIME_UNIT_DAY);
   addDbRetentionFunc(1 * MILLISECOND_PER_MINUTE, 21 * MILLISECOND_PER_DAY, TIME_UNIT_MINUTE, TIME_UNIT_DAY);
-  addDbRetentionFunc(15 * MILLISECOND_PER_MINUTE, 5, TIME_UNIT_MINUTE, TIME_UNIT_YEAR);
+  addDbRetentionFunc(15 * MILLISECOND_PER_MINUTE, 500 * MILLISECOND_PER_DAY, TIME_UNIT_MINUTE, TIME_UNIT_DAY);
   setDbStrictaFunc(1);
   setDbWalLevelFunc(2);
   setDbVgroupsFunc(100);
@@ -205,7 +205,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
       "PAGESIZE 8 "
       "PRECISION 'ns' "
       "REPLICA 3 "
-      "RETENTIONS 15s:7d,1m:21d,15m:5y "
+      "RETENTIONS 15s:7d,1m:21d,15m:500d "
       "STRICT 1 "
       "WAL 2 "
       "VGROUPS 100 "
@@ -218,6 +218,17 @@ TEST_F(ParserInitialCTest, createDatabase) {
   run("CREATE DATABASE IF NOT EXISTS wxy_db "
       "DAYS 100m "
       "KEEP 1440m,300h,400d ");
+}
+
+TEST_F(ParserInitialCTest, createDatabaseSemanticCheck) {
+  useDb("root", "test");
+
+  run("create database db2 retentions 0s:1d", TSDB_CODE_PAR_INVALID_RETENTIONS_OPTION);
+  run("create database db2 retentions 10s:0d", TSDB_CODE_PAR_INVALID_RETENTIONS_OPTION);
+  run("create database db2 retentions 1w:1d", TSDB_CODE_PAR_INVALID_RETENTIONS_OPTION);
+  run("create database db2 retentions 1w:1n", TSDB_CODE_PAR_INVALID_RETENTIONS_OPTION);
+  run("create database db2 retentions 15s:7d,15m:21d,10m:500d", TSDB_CODE_PAR_INVALID_RETENTIONS_OPTION);
+  run("create database db2 retentions 15s:7d,5m:21d,10m:10d", TSDB_CODE_PAR_INVALID_RETENTIONS_OPTION);
 }
 
 TEST_F(ParserInitialCTest, createDnode) {
@@ -432,6 +443,13 @@ TEST_F(ParserInitialCTest, createStable) {
       "a8 BINARY(20), a9 SMALLINT, a10 SMALLINT UNSIGNED COMMENT 'test column comment', a11 TINYINT, "
       "a12 TINYINT UNSIGNED, a13 BOOL, a14 NCHAR(30), a15 VARCHAR(50)) "
       "TTL 100 COMMENT 'test create table' SMA(c1, c2, c3) ROLLUP (MIN) FILE_FACTOR 0.1");
+}
+
+TEST_F(ParserInitialCTest, createStableSemanticCheck) {
+  useDb("root", "test");
+
+  run("CREATE STABLE stb2 (ts TIMESTAMP, c1 INT) TAGS (tag1 INT) ROLLUP(CEIL) FILE_FACTOR 0.1",
+      TSDB_CODE_PAR_INVALID_ROLLUP_OPTION, PARSER_STAGE_TRANSLATE);
 }
 
 TEST_F(ParserInitialCTest, createStream) {

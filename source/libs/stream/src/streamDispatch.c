@@ -100,7 +100,6 @@ int32_t streamBuildDispatchMsg(SStreamTask* pTask, SStreamDataBlock* data, SRpcM
       .upstreamNodeId = pTask->nodeId,
       .blockNum = blockNum,
   };
-  qInfo("dispatch from task %d (child id %d)", pTask->taskId, pTask->childId);
 
   req.data = taosArrayInit(blockNum, sizeof(void*));
   req.dataLen = taosArrayInit(blockNum, sizeof(int32_t));
@@ -142,10 +141,13 @@ int32_t streamBuildDispatchMsg(SStreamTask* pTask, SStreamDataBlock* data, SRpcM
         break;
       }
     }
-    ASSERT(vgId != 0);
   }
 
+  ASSERT(vgId != 0);
   req.taskId = downstreamTaskId;
+
+  qInfo("dispatch from task %d (child id %d) to down stream task %d in vnode %d", pTask->taskId, pTask->childId,
+        downstreamTaskId, vgId);
 
   // serialize
   int32_t tlen;
@@ -180,6 +182,7 @@ FAIL:
 }
 
 int32_t streamDispatch(SStreamTask* pTask, SMsgCb* pMsgCb) {
+  ASSERT(pTask->dispatchType != TASK_DISPATCH__NONE);
 #if 1
   int8_t old =
       atomic_val_compare_exchange_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL, TASK_OUTPUT_STATUS__WAIT);

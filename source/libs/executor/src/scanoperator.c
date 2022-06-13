@@ -267,7 +267,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
   }
 
   int64_t st = taosGetTimestampMs();
-  doFilter(pTableScanInfo->pFilterNode, pBlock, false);
+  doFilter(pTableScanInfo->pFilterNode, pBlock);
 
   int64_t et = taosGetTimestampMs();
   pTableScanInfo->readRecorder.filterTime += (et - st);
@@ -525,7 +525,9 @@ static int32_t getTableScannerExecInfo(struct SOperatorInfo* pOptr, void** pOptr
 
 static void destroyTableScanOperatorInfo(void* param, int32_t numOfOutput) {
   STableScanInfo* pTableScanInfo = (STableScanInfo*)param;
-  taosMemoryFree(pTableScanInfo->pResBlock);
+  blockDataDestroy(pTableScanInfo->pResBlock);
+  clearupQueryTableDataCond(&pTableScanInfo->cond);
+
   tsdbCleanupReadHandle(pTableScanInfo->dataReader);
 
   taosArrayDestroy(pTableScanInfo->pGroupCols);
@@ -948,7 +950,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
         addTagPseudoColumnData(&pInfo->readHandle, pInfo->pPseudoExpr, pInfo->numOfPseudoExpr, pInfo->pRes);
       }
 
-      doFilter(pInfo->pCondition, pInfo->pRes, false);
+      doFilter(pInfo->pCondition, pInfo->pRes);
       blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
       break;
     }
@@ -1026,10 +1028,6 @@ SOperatorInfo* createStreamScanOperatorInfo(void* pDataReader, SReadHandle* pHan
   pInfo->tsArray = taosArrayInit(4, sizeof(TSKEY));
   if (pInfo->tsArray == NULL) {
     goto _error;
-  }
-
-  if (isSmaStream(pTableScanNode->triggerType)) {
-    pTwSup->waterMark = getSmaWaterMark(pSTInfo->interval.interval, pTableScanNode->filesFactor);
   }
 
   if (pSTInfo->interval.interval > 0 && pDataReader) {
@@ -1443,16 +1441,18 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
                pRsp->numOfRows, pInfo->loadInfo.totalRows);
 
         if (pRsp->numOfRows == 0) {
+
+          taosMemoryFree(pRsp);
           return NULL;
         }
       }
 
-      SRetrieveMetaTableRsp* pTableRsp = pInfo->pRsp;
-      setDataBlockFromFetchRsp(pInfo->pRes, &pInfo->loadInfo, pTableRsp->numOfRows, pTableRsp->data, pTableRsp->compLen,
+      setDataBlockFromFetchRsp(pInfo->pRes, &pInfo->loadInfo, pRsp->numOfRows, pRsp->data, pRsp->compLen,
                                pOperator->numOfExprs, startTs, NULL, pInfo->scanCols);
 
       // todo log the filter info
       doFilterResult(pInfo);
+      taosMemoryFree(pRsp);
       if (pInfo->pRes->info.rows > 0) {
         return pInfo->pRes;
       }
@@ -1720,7 +1720,7 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
   }
 
   pRes->info.rows = count;
-  doFilter(pInfo->pFilterNode, pRes, true);
+  doFilter(pInfo->pFilterNode, pRes);
 
   pOperator->resultInfo.totalRows += pRes->info.rows;
 

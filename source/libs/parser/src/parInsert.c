@@ -1313,11 +1313,12 @@ static void destroyInsertParseContext(SInsertParseContext* pCxt) {
 }
 
 static int32_t checkSchemalessDb(SInsertParseContext* pCxt, char* pDbName) {
-  SDbCfgInfo pInfo = {0};
-  char       fullName[TSDB_TABLE_FNAME_LEN];
-  snprintf(fullName, sizeof(fullName), "%d.%s", pCxt->pComCxt->acctId, pDbName);
-  CHECK_CODE(getDBCfg(pCxt, fullName, &pInfo));
-  return pInfo.schemaless ? TSDB_CODE_SML_INVALID_DB_CONF : TSDB_CODE_SUCCESS;
+//  SDbCfgInfo pInfo = {0};
+//  char       fullName[TSDB_TABLE_FNAME_LEN];
+//  snprintf(fullName, sizeof(fullName), "%d.%s", pCxt->pComCxt->acctId, pDbName);
+//  CHECK_CODE(getDBCfg(pCxt, fullName, &pInfo));
+//  return pInfo.schemaless ? TSDB_CODE_SML_INVALID_DB_CONF : TSDB_CODE_SUCCESS;
+  return TSDB_CODE_SUCCESS;
 }
 
 //   tb_name
@@ -2135,9 +2136,11 @@ static int32_t smlBoundColumnData(SArray* cols, SParsedDataColInfo* pColList, SS
       isOrdered = false;
     }
     if (index < 0) {
+      uError("smlBoundColumnData. index:%d", index);
       return TSDB_CODE_SML_INVALID_DATA;
     }
     if (pColList->cols[index].valStat == VAL_STAT_HAS) {
+      uError("smlBoundColumnData. already set. index:%d", index);
       return TSDB_CODE_SML_INVALID_DATA;
     }
     lastColIdx = index;

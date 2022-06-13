@@ -240,7 +240,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
   if (pFile == NULL) {
     taosMemoryFree(pRaw);
     terrno = TAOS_SYSTEM_ERROR(errno);
-    mError("failed to read sdb file:%s since %s", file, terrstr());
+    mDebug("failed to read sdb file:%s since %s", file, terrstr());
     return 0;
   }
 
@@ -432,8 +432,8 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
   } else {
     pSdb->lastCommitVer = pSdb->curVer;
     pSdb->lastCommitTerm = pSdb->curTerm;
-    mDebug("write sdb file successfully, ver:%" PRId64 " term:%" PRId64 " file:%s", pSdb->lastCommitVer,
-           pSdb->lastCommitTerm, curfile);
+    mDebug("write sdb file successfully, index:%" PRId64 " term:%" PRId64 " config:%" PRId64 " file:%s",
+           pSdb->lastCommitVer, pSdb->lastCommitTerm, pSdb->curConfig, curfile);
   }
 
   terrno = code;

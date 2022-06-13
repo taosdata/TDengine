@@ -52,8 +52,8 @@ static bool    mndTransPerformCommitActionStage(SMnode *pMnode, STrans *pTrans);
 static bool    mndTransPerformCommitStage(SMnode *pMnode, STrans *pTrans);
 static bool    mndTransPerformRollbackStage(SMnode *pMnode, STrans *pTrans);
 static bool    mndTransPerfromFinishedStage(SMnode *pMnode, STrans *pTrans);
+static bool    mndCantExecuteTransAction(SMnode *pMnode) { return !pMnode->deploy && !mndIsMaster(pMnode); }
 
-static void    mndTransExecute(SMnode *pMnode, STrans *pTrans);
 static void    mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans);
 static int32_t mndProcessTransReq(SRpcMsg *pReq);
 static int32_t mndProcessKillTransReq(SRpcMsg *pReq);
@@ -297,7 +297,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
       SDB_GET_INT32(pRaw, dataPos, &dataLen, _OVER)
       action.pRaw = taosMemoryMalloc(dataLen);
       if (action.pRaw == NULL) goto _OVER;
-      mTrace("raw:%p, is created", pData);
+      // mTrace("raw:%p, is created", pData);
       SDB_GET_BINARY(pRaw, dataPos, (void *)action.pRaw, dataLen, _OVER);
       if (taosArrayPush(pTrans->redoActions, &action) == NULL) goto _OVER;
       action.pRaw = NULL;
@@ -330,7 +330,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
       SDB_GET_INT32(pRaw, dataPos, &dataLen, _OVER)
       action.pRaw = taosMemoryMalloc(dataLen);
       if (action.pRaw == NULL) goto _OVER;
-      mTrace("raw:%p, is created", pData);
+      // mTrace("raw:%p, is created", action.pRaw);
       SDB_GET_BINARY(pRaw, dataPos, (void *)action.pRaw, dataLen, _OVER);
       if (taosArrayPush(pTrans->undoActions, &action) == NULL) goto _OVER;
       action.pRaw = NULL;
@@ -363,7 +363,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
       SDB_GET_INT32(pRaw, dataPos, &dataLen, _OVER)
       action.pRaw = taosMemoryMalloc(dataLen);
       if (action.pRaw == NULL) goto _OVER;
-      mTrace("raw:%p, is created", action.pRaw);
+      // mTrace("raw:%p, is created", action.pRaw);
       SDB_GET_BINARY(pRaw, dataPos, (void *)action.pRaw, dataLen, _OVER);
       if (taosArrayPush(pTrans->commitActions, &action) == NULL) goto _OVER;
       action.pRaw = NULL;
@@ -517,12 +517,12 @@ static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *pOld, STrans *pNew) {
 
   if (pOld->stage == TRN_STAGE_COMMIT) {
     pOld->stage = TRN_STAGE_COMMIT_ACTION;
-    mTrace("trans:%d, stage from commit to commitAction", pNew->id);
+    mTrace("trans:%d, stage from commit to commitAction since perform update action", pNew->id);
   }
 
   if (pOld->stage == TRN_STAGE_ROLLBACK) {
     pOld->stage = TRN_STAGE_FINISHED;
-    mTrace("trans:%d, stage from rollback to finished", pNew->id);
+    mTrace("trans:%d, stage from rollback to finished since perform update action", pNew->id);
   }
   return 0;
 }
@@ -914,7 +914,7 @@ static int32_t mndTransWriteSingleLog(SMnode *pMnode, STrans *pTrans, STransActi
 
 static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransAction *pAction) {
   if (pAction->msgSent) return 0;
-  if (!pMnode->deploy && !mndIsMaster(pMnode)) return -1;
+  if (mndCantExecuteTransAction(pMnode)) return -1;
 
   int64_t signature = pTrans->id;
   signature = (signature << 32);
@@ -968,7 +968,7 @@ static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransActio
 static int32_t mndTransExecNullMsg(SMnode *pMnode, STrans *pTrans, STransAction *pAction) {
   pAction->rawWritten = 0;
   pAction->errCode = 0;
-  mDebug("trans:%d, %s:%d null action executed", pTrans->id, mndTransStr(pAction->stage), pAction->id);
+  mDebug("trans:%d, %s:%d confirm action executed", pTrans->id, mndTransStr(pAction->stage), pAction->id);
 
   pTrans->lastAction = pAction->id;
   pTrans->lastMsgType = pAction->msgType;
@@ -1025,18 +1025,18 @@ static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pA
   if (numOfExecuted == numOfActions) {
     if (errCode == 0) {
       pTrans->lastAction = 0;
-      pTrans->lastErrorNo = 0;
       pTrans->lastMsgType = 0;
       memset(&pTrans->lastEpset, 0, sizeof(pTrans->lastEpset));
+      pTrans->lastErrorNo = 0;
       mDebug("trans:%d, all %d actions execute successfully", pTrans->id, numOfActions);
       return 0;
     } else {
       mError("trans:%d, all %d actions executed, code:0x%x", pTrans->id, numOfActions, errCode & 0XFFFF);
       if (pErrAction != NULL) {
-        pTrans->lastMsgType = pErrAction->msgType;
         pTrans->lastAction = pErrAction->id;
-        pTrans->lastErrorNo = pErrAction->errCode;
+        pTrans->lastMsgType = pErrAction->msgType;
         pTrans->lastEpset = pErrAction->epSet;
+        pTrans->lastErrorNo = pErrAction->errCode;
       }
       mndTransResetActions(pMnode, pTrans, pArray);
       terrno = errCode;
@@ -1103,20 +1103,20 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
     }
 
     if (code == 0) {
-      pTrans->lastAction = 0;
-      pTrans->lastErrorNo = 0;
+      pTrans->lastAction = action;
       pTrans->lastMsgType = 0;
+      pTrans->lastErrorNo = 0;
       memset(&pTrans->lastEpset, 0, sizeof(pTrans->lastEpset));
     } else {
-      pTrans->lastMsgType = pAction->msgType;
       pTrans->lastAction = action;
+      pTrans->lastMsgType = pAction->msgType;
       pTrans->lastErrorNo = code;
       pTrans->lastEpset = pAction->epSet;
     }
 
-    if (code == 0) {
-      if (!pMnode->deploy && !mndIsMaster(pMnode)) break;
+    if (mndCantExecuteTransAction(pMnode)) break;
 
+    if (code == 0) {
       pTrans->code = 0;
       pTrans->redoActionPos++;
       mDebug("trans:%d, %s:%d is executed and need sync to other mnodes", pTrans->id, mndTransStr(pAction->stage),
@@ -1160,6 +1160,8 @@ static bool mndTransPerformRedoActionStage(SMnode *pMnode, STrans *pTrans) {
     code = mndTransExecuteRedoActions(pMnode, pTrans);
   }
 
+  if (mndCantExecuteTransAction(pMnode)) return false;
+
   if (code == 0) {
     pTrans->code = 0;
     pTrans->stage = TRN_STAGE_COMMIT;
@@ -1185,6 +1187,8 @@ static bool mndTransPerformRedoActionStage(SMnode *pMnode, STrans *pTrans) {
 }
 
 static bool mndTransPerformCommitStage(SMnode *pMnode, STrans *pTrans) {
+  if (mndCantExecuteTransAction(pMnode)) return false;
+
   bool    continueExec = true;
   int32_t code = mndTransCommit(pMnode, pTrans);
 
@@ -1233,6 +1237,8 @@ static bool mndTransPerformUndoActionStage(SMnode *pMnode, STrans *pTrans) {
   bool    continueExec = true;
   int32_t code = mndTransExecuteUndoActions(pMnode, pTrans);
 
+  if (mndCantExecuteTransAction(pMnode)) return false;
+
   if (code == 0) {
     pTrans->stage = TRN_STAGE_ROLLBACK;
     mDebug("trans:%d, stage from undoAction to rollback", pTrans->id);
@@ -1250,6 +1256,8 @@ static bool mndTransPerformUndoActionStage(SMnode *pMnode, STrans *pTrans) {
 }
 
 static bool mndTransPerformRollbackStage(SMnode *pMnode, STrans *pTrans) {
+  if (mndCantExecuteTransAction(pMnode)) return false;
+
   bool    continueExec = true;
   int32_t code = mndTransRollback(pMnode, pTrans);
 
@@ -1284,10 +1292,11 @@ static bool mndTransPerfromFinishedStage(SMnode *pMnode, STrans *pTrans) {
   return continueExec;
 }
 
-static void mndTransExecute(SMnode *pMnode, STrans *pTrans) {
+void mndTransExecute(SMnode *pMnode, STrans *pTrans) {
   bool continueExec = true;
 
   while (continueExec) {
+    mDebug("trans:%d, continue to execute, stage:%s", pTrans->id, mndTransStr(pTrans->stage));
     pTrans->lastExecTime = taosGetTimestampMs();
     switch (pTrans->stage) {
       case TRN_STAGE_PREPARE:

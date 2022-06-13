@@ -159,6 +159,8 @@ bool fmIsRepeatScanFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, 
 
 bool fmIsUserDefinedFunc(int32_t funcId) { return funcId > FUNC_UDF_ID_START; }
 
+bool fmIsForbidFillFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_FORBID_FILL_FUNC); }
+
 void fmFuncMgtDestroy() {
   void* m = gFunMgtService.pFuncNameHashTable;
   if (m != NULL && atomic_val_compare_exchange_ptr((void**)&gFunMgtService.pFuncNameHashTable, m, 0) == m) {
@@ -192,6 +194,27 @@ bool fmIsInvertible(int32_t funcId) {
     case FUNCTION_TYPE_WSTARTTS:
     case FUNCTION_TYPE_WENDTS:
     case FUNCTION_TYPE_WDURATION:
+      res = true;
+      break;
+    default:
+      break;
+  }
+  return res;
+}
+
+//function has same input/output type
+bool fmIsSameInOutType(int32_t funcId) {
+  bool res = false;
+  switch (funcMgtBuiltins[funcId].type) {
+    case FUNCTION_TYPE_MAX:
+    case FUNCTION_TYPE_MIN:
+    case FUNCTION_TYPE_TOP:
+    case FUNCTION_TYPE_BOTTOM:
+    case FUNCTION_TYPE_FIRST:
+    case FUNCTION_TYPE_LAST:
+    case FUNCTION_TYPE_SAMPLE:
+    case FUNCTION_TYPE_TAIL:
+    case FUNCTION_TYPE_UNIQUE:
       res = true;
       break;
     default:
@@ -273,6 +296,10 @@ static int32_t createMergeFunction(const SFunctionNode* pSrcFunc, const SFunctio
   if (NULL == *pMergeFunc) {
     nodesDestroyList(pParameterList);
     return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  //overwrite function restype set by translate function
+  if (fmIsSameInOutType(pSrcFunc->funcId)) {
+    (*pMergeFunc)->node.resType = pSrcFunc->node.resType;
   }
   strcpy((*pMergeFunc)->node.aliasName, pSrcFunc->node.aliasName);
   return TSDB_CODE_SUCCESS;

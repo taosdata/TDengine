@@ -245,6 +245,8 @@ class TDTestCase:
 
                 tdSql.query(f"select {col} {alias} from {table_expr} {pre_condition}")
                 pre_data = np.array(tdSql.queryResult)[np.array(tdSql.queryResult) != None]
+                if (platform.system().lower() == 'windows' and pre_data.dtype == 'int32'):
+                    pre_data = np.array(pre_data, dtype = 'int64')
                 pre_mavg = np.convolve(pre_data, np.ones(k), "valid")/k
                 tdSql.query(self.mavg_query_form(
                     sel=sel, func=func, col=col, m_comm=m_comm, k=k, r_comm=r_comm, alias=alias, fr=fr,
@@ -291,6 +293,8 @@ class TDTestCase:
             # print(f"select {col} from {table_expr} {re.sub('limit [0-9]*|offset [0-9]*','',condition)}")
             if not tdSql.queryResult:
                 pre_result = np.array(tdSql.queryResult)[np.array(tdSql.queryResult) != None]
+                if (platform.system().lower() == 'windows' and pre_result.dtype == 'int32'):
+                    pre_result = np.array(pre_result, dtype = 'int64')
             
                 pre_mavg = pre_mavg = np.convolve(pre_result, np.ones(k), "valid")[offset_val:]/k
                 tdSql.query(self.mavg_query_form(

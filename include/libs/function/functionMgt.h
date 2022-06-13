@@ -121,10 +121,10 @@ typedef enum EFunctionType {
 
   // internal function
   FUNCTION_TYPE_SELECT_VALUE,
-  FUNCTION_TYPE_BLOCK_DIST,   // block distribution aggregate function
+  FUNCTION_TYPE_BLOCK_DIST,  // block distribution aggregate function
 
   // distributed splitting functions
-  FUNCTION_TYPE_APERCENTILE_PARTIAL,
+  FUNCTION_TYPE_APERCENTILE_PARTIAL = 4000,
   FUNCTION_TYPE_APERCENTILE_MERGE,
   FUNCTION_TYPE_SPREAD_PARTIAL,
   FUNCTION_TYPE_SPREAD_MERGE,
@@ -134,6 +134,10 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_HYPERLOGLOG_MERGE,
   FUNCTION_TYPE_ELAPSED_PARTIAL,
   FUNCTION_TYPE_ELAPSED_MERGE,
+  FUNCTION_TYPE_TOP_PARTIAL,
+  FUNCTION_TYPE_TOP_MERGE,
+  FUNCTION_TYPE_BOTTOM_PARTIAL,
+  FUNCTION_TYPE_BOTTOM_MERGE,
 
   // user defined funcion
   FUNCTION_TYPE_UDF = 10000
@@ -170,6 +174,7 @@ bool fmIsMultiResFunc(int32_t funcId);
 bool fmIsRepeatScanFunc(int32_t funcId);
 bool fmIsUserDefinedFunc(int32_t funcId);
 bool fmIsDistExecFunc(int32_t funcId);
+bool fmIsForbidFillFunc(int32_t funcId);
 
 int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMergeFunc);
 
