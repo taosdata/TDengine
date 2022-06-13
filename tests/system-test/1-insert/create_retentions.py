@@ -226,6 +226,8 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step3:all check")
         self.all_test()
+        tdSql.execute("drop database if exists db1 ")
+        tdSql.execute("drop database if exists db2 ")
 
         tdDnodes.stop(1)
         tdDnodes.start(1)
