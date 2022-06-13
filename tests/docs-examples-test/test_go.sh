@@ -5,7 +5,7 @@ set -e
 taosd >> /dev/null 2>&1 &
 taosadapter >> /dev/null 2>&1 &
 
-cd ../../docs-examples/go
+cd ../../docs/examples/go
 
 go mod tidy
 
