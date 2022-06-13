@@ -13,7 +13,7 @@ use std::{
     ops::{Deref, DerefMut},
     pin::Pin,
     sync::{Arc, Weak},
-    task::Poll,
+    task::Poll, str::FromStr,
 };
 
 use futures::{Sink, Stream, StreamExt, TryStreamExt};
@@ -26,7 +26,7 @@ use taos::{
 
 use crate::{
     plugins::sink::taos::TaosSinkBuilder,
-    stream::{source::XSourceBuilder, stream::XSinkBuilder},
+    stream::{source::XSourceBuilder, stream::XSinkBuilder, transformer::Action},
     util::sync_table,
 };
 
@@ -329,7 +329,7 @@ impl Stream for TaosSource {
     }
 }
 
-#[taos::test(log_level = "debug", databases = 2)]
+#[taos::test(log_level = "trace", databases = 2)]
 async fn test(taos: &Taos, databases: &[&str]) -> anyhow::Result<()> {
     taos.exec_many([
         "create table tb1 (ts timestamp, c_bool bool, c_int int, c_binary binary(10))",
@@ -342,7 +342,7 @@ async fn test(taos: &Taos, databases: &[&str]) -> anyhow::Result<()> {
     ])?;
 
     let db1 = databases[0];
-    taos.exec(format!("create topic {db1} as {db1}"))?;
+    taos.exec(format!("create topic {db1} as database {db1}"))?;
 
     let mut source_builder = TaosSourceBuilder::from_dsn(format!("taos:///{db1}?wait=1000"))?;
     let mut source = source_builder.build_source()?;
@@ -367,7 +367,8 @@ async fn test(taos: &Taos, databases: &[&str]) -> anyhow::Result<()> {
     ])?;
 
     let db2 = databases[1];
-    let mut sink = TaosSinkBuilder::from_dsn(format!("taos:///{db2}"))?.build_sink()?;
+    let transformers = vec![Action::from_str("add-tag:f1(10)=value1")?];
+    let mut sink = TaosSinkBuilder::from_dsn(format!("taos:///{db2}"))?.with_transformer(transformers).build_sink()?;
 
     source.forward(&mut sink).await?;
 

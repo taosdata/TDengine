@@ -335,95 +335,10 @@ impl Sink<(&Taos, SyncBlock)> for TaosSink {
     }
 
     fn start_send(
-        self: std::pin::Pin<&mut Self>,
+        mut self: std::pin::Pin<&mut Self>,
         item: (&Taos, SyncBlock),
     ) -> Result<(), Self::Error> {
-        let taos = item.0;
-        let block = item.1;
-        let idx = self.id;
-        let db = block.tmq_db_name().unwrap();
-        taos.exec(format!("use {db}"))?;
-        let table = block.tmq_table_name().unwrap();
-        log::info!("[{idx}] table name is {table}");
-
-        if let Some(transformer) = self.transformer.as_ref() {
-            if self.taos.exec(format!("describe {table}")).is_err() {
-                sync_table_with_transformer(taos, &self.taos, db, &table, &transformer)?;
-            }
-            let mut table = table.to_string();
-            let fields = block.fields();
-
-            let mut bind: Vec<TaosMultiBind> = Vec::new();
-
-            for action in transformer {
-                match action {
-                    Action::Select(Select::Subset { subset }) => {
-                        bind = block
-                            .columns_iter()
-                            .zip(fields)
-                            .filter_map(|(col, field)| {
-                                if subset.contains(&field.name().to_string()) {
-                                    Some(col.into())
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect()
-                    }
-                    Action::Select(Select::Exclude { exclude }) => {
-                        bind = block
-                            .columns_iter()
-                            .zip(fields)
-                            .filter_map(|(col, field)| {
-                                if !exclude.contains(&field.name().to_string()) {
-                                    Some(col.into())
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect()
-                    }
-                    Action::RenameChildTable(rename) | Action::RenameTable(rename) => {
-                        match rename {
-                            crate::stream::transformer::RenameOpts::Prefix { prefix } => {
-                                table = format!("{prefix}{table}");
-                            }
-                            crate::stream::transformer::RenameOpts::Suffix { suffix } => {
-                                table = format!("{table}{suffix}");
-                            }
-                            crate::stream::transformer::RenameOpts::Template { template } => {
-                                table = template.replace("{{ name }}", &table);
-                            }
-                        }
-                    }
-                    _ => (),
-                }
-            }
-            let questions = std::iter::repeat("?").take(bind.len()).join(",");
-            let mut stmt = self
-                .taos
-                .stmt(format!("insert into {table} values({questions})"))?;
-            stmt.multi_bind(&bind)?;
-            stmt.execute()?;
-            let inserted = stmt.affected_rows();
-            log::info!("[{idx}] inserted {inserted} rows into {table}");
-            return Ok(());
-        }
-        if self.taos.exec(format!("describe {table}")).is_err() {
-            sync_table(taos, &self.taos, db, &table)?;
-        }
-
-        let bind: Vec<TaosMultiBind> = block.columns_iter().map(|col| col.into()).collect();
-        let questions = std::iter::repeat("?").take(bind.len()).join(",");
-        let mut stmt = self
-            .taos
-            .stmt(format!("insert into {table} values({questions})"))?;
-        stmt.multi_bind(&bind)?;
-        stmt.execute()?;
-        let inserted = stmt.affected_rows();
-        log::info!("[{idx}] inserted {inserted} rows into {table}");
-
-        Ok(())
+        self.consume_block(item.0, &item.1)
     }
 
     fn poll_flush(
@@ -460,6 +375,71 @@ impl TaosxSink for TaosSink {
         log::debug!("[{idx}] db: {db}, table: {table}");
 
         if let Some(transformer) = self.transformer.as_ref() {
+            // if self.taos.exec(format!("describe {table}")).is_err() {
+            //     sync_table_with_transformer(taos, &self.taos, db, &table, &transformer)?;
+            // }
+            // let mut table = table.to_string();
+            // let fields = block.fields();
+
+            // let mut bind: Vec<TaosMultiBind> = Vec::new();
+
+            // for action in transformer {
+            //     match action {
+            //         Action::Select(Select::Subset { subset }) => {
+            //             bind = block
+            //                 .columns_iter()
+            //                 .zip(fields)
+            //                 .filter_map(|(col, field)| {
+            //                     if subset.contains(&field.name().to_string()) {
+            //                         Some(col.into())
+            //                     } else {
+            //                         None
+            //                     }
+            //                 })
+            //                 .collect()
+            //         }
+            //         Action::Select(Select::Exclude { exclude }) => {
+            //             bind = block
+            //                 .columns_iter()
+            //                 .zip(fields)
+            //                 .filter_map(|(col, field)| {
+            //                     if !exclude.contains(&field.name().to_string()) {
+            //                         Some(col.into())
+            //                     } else {
+            //                         None
+            //                     }
+            //                 })
+            //                 .collect()
+            //         }
+            //         Action::RenameChildTable(rename) | Action::RenameTable(rename) => {
+            //             match rename {
+            //                 crate::stream::transformer::RenameOpts::Prefix { prefix } => {
+            //                     table = format!("{prefix}{table}");
+            //                 }
+            //                 crate::stream::transformer::RenameOpts::Suffix { suffix } => {
+            //                     table = format!("{table}{suffix}");
+            //                 }
+            //                 crate::stream::transformer::RenameOpts::Template { template } => {
+            //                     table = template.replace("{{ name }}", &table);
+            //                 }
+            //             }
+            //         }
+            //         _ => (),
+            //     }
+            // }
+            // if bind.is_empty() {
+            //     bind = block.columns_iter().map(Into::into).collect();
+            // }
+
+            // let questions = std::iter::repeat("?").take(bind.len()).join(",");
+            // let mut stmt = self
+            //     .taos
+            //     .stmt(format!("insert into {table} values({questions})"))?;
+            // stmt.multi_bind(&bind)?;
+            // stmt.execute()?;
+            // let inserted = stmt.affected_rows();
+            // log::info!("[{idx}] inserted {inserted} rows into {table}");
+            // return Ok(());
             let mut table2 = table.to_string();
             let fields = block.fields();
 
@@ -509,8 +489,11 @@ impl TaosxSink for TaosSink {
                     _ => (),
                 }
             }
+            if bind.is_empty() {
+                bind = block.columns_iter().map(Into::into).collect();
+            }
 
-            if self.taos.exec(format!("describe {table}")).is_err() {
+            if self.taos.exec(format!("describe {table2}")).is_err() {
                 sync_table_with_transformer(taos, &self.taos, db, &table, &transformer)?;
             }
             let questions = std::iter::repeat("?").take(bind.len()).join(",");
@@ -520,6 +503,8 @@ impl TaosxSink for TaosSink {
             stmt.multi_bind(&bind)?;
             stmt.execute()?;
             let inserted = stmt.affected_rows();
+            self.metrics.blocks.fetch_add(1, Ordering::SeqCst);
+            self.metrics.rows.fetch_add(inserted, Ordering::SeqCst);
             log::info!("[{idx}] inserted {inserted} rows into {table2}");
             return Ok(());
         }
@@ -627,6 +612,64 @@ async fn test(taos: &Taos, databases: &[&str]) -> Result<(), Error> {
 }
 
 #[taos::test(log_level = "trace", databases = 2)]
+async fn test_with_action_add_tag(taos: &Taos, databases: &[&str]) -> Result<(), Error> {
+    taos.exec_many([
+        "create table tb1 (ts timestamp, c_bool bool, c_int int, c_binary binary(10))",
+        "create table tb2 (ts timestamp, c_bool bool, c_int int, c_binary binary(10))",
+        "create table stb1 (ts timestamp, c_bool bool, c_int int, c_binary binary(10)) tags(c_i8 tinyint)",
+        "insert into tb1 values(now, NULL, NULL, NULL) (now+1s, false, 0, 'abc')",
+        "insert into tb2 values(now, NULL, NULL, NULL) (now+1s, false, 0, 'abc')",
+        "insert into tb3 using stb1 tags(3) values(now, NULL, NULL, NULL) (now+1s, false, 0, 'abc')",
+        "insert into tb4 using stb1 tags(4) values(now, NULL, NULL, NULL) (now+1s, false, 0, 'abc')",
+    ])?;
+
+    let db1 = databases[0];
+    taos.exec(format!("create topic {db1} as database {db1}"))?;
+
+    let mut tmq =
+        TmqBuilder::from_dsn(format!("taos:///{db1}?topics={db1}&group.id={db1}"))?.build()?;
+
+    let db2 = databases[1];
+
+    let mut sink = TaosSinkBuilder::from_dsn(format!("taos:///{db2}"))?
+        .with_transformer(vec![Action::AddTag(AddTag {
+            name: "f1".to_string(),
+            len: 10,
+            opts: AddTagOpts::value("v1"),
+        })])
+        .build_sink_for_protocol(SinkProtocol::Block)?;
+
+    use futures::sink::SinkExt;
+
+    while let Some(rs) = tmq.poll() {
+        let mut rs = rs?;
+        for block in rs.blocks_iter() {
+            log::info!("send block");
+            sink.send((taos, block)).await?;
+        }
+    }
+    drop(tmq);
+
+    taos.exec(format!("drop topic {db1}"))?;
+
+    let taos2 = Taos::from_dsn(format!("taos:///{db2}"))?;
+    taos2.exec("reset query cache")?;
+
+    let mut rs = taos2.query("select tbname, f1 from stb1")?;
+    let values = rs.to_rows_vec();
+    dbg!(values);
+
+    let mut rs = taos2.query("select * from tb1")?;
+    let values = rs.to_rows_vec();
+    dbg!(values);
+
+    let mut rs = taos2.query("select * from tb2")?;
+    let values = rs.to_rows_vec();
+    dbg!(values);
+
+    Ok(())
+}
+#[taos::test(log_level = "trace", databases = 2)]
 async fn test_with_transformer(taos: &Taos, databases: &[&str]) -> Result<(), Error> {
     taos.exec_many([
         "create table tb1 (ts timestamp, c_bool bool, c_int int, c_binary binary(10))",
@@ -641,10 +684,8 @@ async fn test_with_transformer(taos: &Taos, databases: &[&str]) -> Result<(), Er
     let db1 = databases[0];
     taos.exec(format!("create topic {db1} as database {db1}"))?;
 
-    let mut tmq = TmqBuilder::from_dsn(format!(
-        "taos:///{db1}?topics={db1}&group.id={db1}&wait=1000&msg.with.table.name=true"
-    ))?
-    .build()?;
+    let mut tmq =
+        TmqBuilder::from_dsn(format!("taos:///{db1}?topics={db1}&group.id={db1}"))?.build()?;
 
     let db2 = databases[1];
 

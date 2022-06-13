@@ -7,6 +7,7 @@ use taosx::plugins::source::taos::TaosSourceBuilder;
 use taosx::stream::source::XSourceBuilder;
 use taosx::stream::stream::XSinkBuilder;
 
+use taosx::stream::transformer::Action;
 use taosx::TaosOpts;
 
 #[derive(Debug, Args)]
@@ -18,6 +19,19 @@ pub(crate) struct App {
     #[clap(short, long)]
     /// A DSN(database source name) format string for target TDengine: taos:///db2, for eg.
     to: Dsn,
+
+    /// Transformer actions.
+    ///
+    /// Supported action format:
+    ///
+    /// - 'add-tag:tag1=value1': add a tag named `tag1`, and valued `value1`.
+    /// - 'select:subset:a,b,c': select three columns: `a`, `b`, `c`
+    /// - 'select:exclude:a,b,c': select all columns except the three: `a`, `b`, `c`
+    /// - 'rename-table:prefix:v1_': rename all tables as `v1_{{ name }}`
+    /// - 'rename-super-table:suffix:_stb': rename all super tables as suffixed '_stb'
+    /// - 'rename-child-stable:template:prefix_{{ name }}_stb': rename all super tables with prefix 'prefix_' and suffix '_stb'
+    #[clap(short = 'T', long)]
+    transform: Vec<Action>,
     /// Number of workers for TMQ consumers.
     #[clap(short = 'j', long)]
     workers: Option<usize>,
@@ -30,7 +44,7 @@ impl App {
         let mut source_builder = TaosSourceBuilder::from_dsn(self.from)?;
         let max_workers = source_builder.max_workers();
 
-        let sink_builder = TaosSinkBuilder::from_dsn(self.to)?;
+        let sink_builder = TaosSinkBuilder::from_dsn(self.to)?.with_transformer(self.transform);
 
         let mut workers = self.workers.unwrap_or(max_workers);
         if max_workers != 0 && workers > max_workers {
