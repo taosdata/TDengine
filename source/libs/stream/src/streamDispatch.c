@@ -182,6 +182,7 @@ FAIL:
 }
 
 int32_t streamDispatch(SStreamTask* pTask, SMsgCb* pMsgCb) {
+  ASSERT(pTask->dispatchType != TASK_DISPATCH__NONE);
 #if 1
   int8_t old =
       atomic_val_compare_exchange_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL, TASK_OUTPUT_STATUS__WAIT);

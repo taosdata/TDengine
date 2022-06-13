@@ -140,16 +140,16 @@ void snapshotSenderStart(SSyncSnapshotSender *pSender) {
 
   if (gRaftDetailLog) {
     char *msgStr = syncSnapshotSend2Str(pMsg);
-    sTrace(
-        "sync event vgId:%d snapshot send to %s:%d begin seq:%d ack:%d lastApplyIndex:%ld lastApplyTerm:%lu "
+    sDebug(
+        "vgId:%d sync event snapshot send to %s:%d begin seq:%d ack:%d lastApplyIndex:%ld lastApplyTerm:%lu "
         "lastConfigIndex:%ld send "
         "msg:%s",
         pSender->pSyncNode->vgId, host, port, pSender->seq, pSender->ack, pSender->snapshot.lastApplyIndex,
         pSender->snapshot.lastApplyTerm, pSender->snapshot.lastConfigIndex, msgStr);
     taosMemoryFree(msgStr);
   } else {
-    sTrace(
-        "sync event vgId:%d snapshot send to %s:%d begin seq:%d ack:%d lastApplyIndex:%ld lastApplyTerm:%lu "
+    sDebug(
+        "vgId:%d sync event snapshot send to %s:%d begin seq:%d ack:%d lastApplyIndex:%ld lastApplyTerm:%lu "
         "lastConfigIndex:%ld",
         pSender->pSyncNode->vgId, host, port, pSender->seq, pSender->ack, pSender->snapshot.lastApplyIndex,
         pSender->snapshot.lastApplyTerm, pSender->snapshot.lastConfigIndex);
@@ -278,23 +278,23 @@ int32_t snapshotSend(SSyncSnapshotSender *pSender) {
   if (pSender->seq == SYNC_SNAPSHOT_SEQ_END) {
     if (gRaftDetailLog) {
       char *msgStr = syncSnapshotSend2Str(pMsg);
-      sTrace(
-          "sync event vgId:%d snapshot send to %s:%d finish seq:%d ack:%d lastApplyIndex:%ld lastApplyTerm:%lu "
+      sDebug(
+          "vgId:%d sync event snapshot send to %s:%d finish seq:%d ack:%d lastApplyIndex:%ld lastApplyTerm:%lu "
           "lastConfigIndex:%ld send "
           "msg:%s",
           pSender->pSyncNode->vgId, host, port, pSender->seq, pSender->ack, pSender->snapshot.lastApplyIndex,
           pSender->snapshot.lastApplyTerm, pSender->snapshot.lastConfigIndex, msgStr);
       taosMemoryFree(msgStr);
     } else {
-      sTrace(
-          "sync event vgId:%d snapshot send to %s:%d finish seq:%d ack:%d lastApplyIndex:%ld lastApplyTerm:%lu "
+      sDebug(
+          "vgId:%d sync event snapshot send to %s:%d finish seq:%d ack:%d lastApplyIndex:%ld lastApplyTerm:%lu "
           "lastConfigIndex:%ld",
           pSender->pSyncNode->vgId, host, port, pSender->seq, pSender->ack, pSender->snapshot.lastApplyIndex,
           pSender->snapshot.lastApplyTerm, pSender->snapshot.lastConfigIndex);
     }
   } else {
-    sTrace(
-        "sync event vgId:%d snapshot send to %s:%d sending seq:%d ack:%d lastApplyIndex:%ld lastApplyTerm:%lu "
+    sDebug(
+        "vgId:%d sync event snapshot send to %s:%d sending seq:%d ack:%d lastApplyIndex:%ld lastApplyTerm:%lu "
         "lastConfigIndex:%ld",
         pSender->pSyncNode->vgId, host, port, pSender->seq, pSender->ack, pSender->snapshot.lastApplyIndex,
         pSender->snapshot.lastApplyTerm, pSender->snapshot.lastConfigIndex);
@@ -328,11 +328,11 @@ int32_t snapshotReSend(SSyncSnapshotSender *pSender) {
 
     if (gRaftDetailLog) {
       char *msgStr = syncSnapshotSend2Str(pMsg);
-      sTrace("sync event vgId:%d snapshot send to %s:%d resend seq:%d ack:%d send msg:%s", pSender->pSyncNode->vgId,
+      sDebug("vgId:%d sync event snapshot send to %s:%d resend seq:%d ack:%d send msg:%s", pSender->pSyncNode->vgId,
              host, port, pSender->seq, pSender->ack, msgStr);
       taosMemoryFree(msgStr);
     } else {
-      sTrace("sync event vgId:%d snapshot send to %s:%d resend seq:%d ack:%d", pSender->pSyncNode->vgId, host, port,
+      sDebug("vgId:%d sync event snapshot send to %s:%d resend seq:%d ack:%d", pSender->pSyncNode->vgId, host, port,
              pSender->seq, pSender->ack);
     }
 
@@ -565,12 +565,17 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
 
         if (gRaftDetailLog) {
           char *msgStr = syncSnapshotSend2Str(pMsg);
-          sTrace("sync event vgId:%d snapshot recv from %s:%d begin ack:%d, lastIndex:%ld, lastTerm:%lu, recv msg:%s",
-                 pSyncNode->vgId, host, port, pReceiver->ack, pMsg->lastIndex, pMsg->lastTerm, msgStr);
+          sDebug(
+              "vgId:%d sync event snapshot recv from %s:%d begin ack:%d, lastIndex:%ld, lastTerm:%lu, "
+              "lastConfigIndex:%ld, recv msg:%s",
+              pSyncNode->vgId, host, port, pReceiver->ack, pMsg->lastIndex, pMsg->lastTerm, pMsg->lastConfigIndex,
+              msgStr);
           taosMemoryFree(msgStr);
         } else {
-          sTrace("sync event vgId:%d snapshot recv from %s:%d begin ack:%d, lastIndex:%ld, lastTerm:%lu",
-                 pSyncNode->vgId, host, port, pReceiver->ack, pMsg->lastIndex, pMsg->lastTerm);
+          sDebug(
+              "vgId:%d sync event snapshot recv from %s:%d begin ack:%d, lastIndex:%ld, lastTerm:%lu, "
+              "lastConfigIndex:%ld",
+              pSyncNode->vgId, host, port, pReceiver->ack, pMsg->lastIndex, pMsg->lastTerm, pMsg->lastConfigIndex);
         }
 
       } else if (pMsg->seq == SYNC_SNAPSHOT_SEQ_END) {
@@ -597,12 +602,12 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
 
           bool isDrop;
           if (IamInNew) {
-            sTrace("sync event vgId:%d update config by snapshot, lastIndex:%ld, lastTerm:%lu, lastConfigIndex:%ld ",
+            sDebug("vgId:%d sync event update config by snapshot, lastIndex:%ld, lastTerm:%lu, lastConfigIndex:%ld ",
                    pSyncNode->vgId, pMsg->lastIndex, pMsg->lastTerm, pMsg->lastConfigIndex);
             syncNodeUpdateConfig(pSyncNode, &newSyncCfg, pMsg->lastConfigIndex, &isDrop);
           } else {
-            sTrace(
-                "sync event vgId:%d do not update config by snapshot, I am not in newCfg, lastIndex:%ld, lastTerm:%lu, "
+            sDebug(
+                "vgId:%d sync event do not update config by snapshot, I am not in newCfg, lastIndex:%ld, lastTerm:%lu, "
                 "lastConfigIndex:%ld ",
                 pSyncNode->vgId, pMsg->lastIndex, pMsg->lastTerm, pMsg->lastConfigIndex);
           }
@@ -626,19 +631,20 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
 
         if (gRaftDetailLog) {
           char *logSimpleStr = logStoreSimple2Str(pSyncNode->pLogStore);
-          sInfo(
-              "sync event vgId:%d snapshot recv from %s:%d finish, update log begin index:%ld, "
+          sDebug(
+              "vgId:%d sync event snapshot recv from %s:%d finish, update log begin index:%ld, "
               "snapshot.lastApplyIndex:%ld, "
-              "snapshot.lastApplyTerm:%lu, raft log:%s",
+              "snapshot.lastApplyTerm:%lu, snapshot.lastConfigIndex:%ld, raft log:%s",
               pSyncNode->vgId, host, port, pMsg->lastIndex + 1, snapshot.lastApplyIndex, snapshot.lastApplyTerm,
-              logSimpleStr);
+              snapshot.lastConfigIndex, logSimpleStr);
           taosMemoryFree(logSimpleStr);
         } else {
-          sInfo(
-              "sync event vgId:%d snapshot recv from %s:%d finish, update log begin index:%ld, "
+          sDebug(
+              "vgId:%d sync event snapshot recv from %s:%d finish, update log begin index:%ld, "
               "snapshot.lastApplyIndex:%ld, "
-              "snapshot.lastApplyTerm:%lu",
-              pSyncNode->vgId, host, port, pMsg->lastIndex + 1, snapshot.lastApplyIndex, snapshot.lastApplyTerm);
+              "snapshot.lastApplyTerm:%lu, snapshot.lastConfigIndex:%ld",
+              pSyncNode->vgId, host, port, pMsg->lastIndex + 1, snapshot.lastApplyIndex, snapshot.lastApplyTerm,
+              snapshot.lastConfigIndex);
         }
 
         pReceiver->pWriter = NULL;
@@ -648,12 +654,18 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
 
         if (gRaftDetailLog) {
           char *msgStr = syncSnapshotSend2Str(pMsg);
-          sTrace("sync event vgId:%d snapshot recv from %s:%d end ack:%d, lastIndex:%ld, lastTerm:%lu, recv msg:%s",
-                 pReceiver->pSyncNode->vgId, host, port, pReceiver->ack, pMsg->lastIndex, pMsg->lastTerm, msgStr);
+          sDebug(
+              "vgId:%d sync event snapshot recv from %s:%d end ack:%d, lastIndex:%ld, lastTerm:%lu, "
+              "lastConfigIndex:%ld, recv msg:%s",
+              pReceiver->pSyncNode->vgId, host, port, pReceiver->ack, pMsg->lastIndex, pMsg->lastTerm,
+              pMsg->lastConfigIndex, msgStr);
           taosMemoryFree(msgStr);
         } else {
-          sTrace("sync event vgId:%d snapshot recv from %s:%d end ack:%d, lastIndex:%ld, lastTerm:%lu",
-                 pReceiver->pSyncNode->vgId, host, port, pReceiver->ack, pMsg->lastIndex, pMsg->lastTerm);
+          sDebug(
+              "vgId:%d sync event snapshot recv from %s:%d end ack:%d, lastIndex:%ld, lastTerm:%lu, "
+              "lastConfigIndex:%ld",
+              pReceiver->pSyncNode->vgId, host, port, pReceiver->ack, pMsg->lastIndex, pMsg->lastTerm,
+              pMsg->lastConfigIndex);
         }
 
       } else if (pMsg->seq == SYNC_SNAPSHOT_SEQ_FORCE_CLOSE) {
@@ -667,14 +679,19 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
 
         if (gRaftDetailLog) {
           char *msgStr = syncSnapshotSend2Str(pMsg);
-          sTrace(
-              "sync event vgId:%d snapshot recv from %s:%d force close ack:%d, lastIndex:%ld, lastTerm:%lu, recv "
+          sDebug(
+              "vgId:%d sync event snapshot recv from %s:%d force close ack:%d, lastIndex:%ld, lastTerm:%lu, "
+              "lastConfigIndex:%ld, recv "
               "msg:%s",
-              pReceiver->pSyncNode->vgId, host, port, pReceiver->ack, pMsg->lastIndex, pMsg->lastTerm, msgStr);
+              pReceiver->pSyncNode->vgId, host, port, pReceiver->ack, pMsg->lastIndex, pMsg->lastTerm,
+              pMsg->lastConfigIndex, msgStr);
           taosMemoryFree(msgStr);
         } else {
-          sTrace("sync event vgId:%d snapshot recv from %s:%d force close ack:%d, lastIndex:%ld, lastTerm:%lu",
-                 pReceiver->pSyncNode->vgId, host, port, pReceiver->ack, pMsg->lastIndex, pMsg->lastTerm);
+          sDebug(
+              "vgId:%d sync event snapshot recv from %s:%d force close ack:%d, lastIndex:%ld, lastTerm:%lu, "
+              "lastConfigIndex:%ld",
+              pReceiver->pSyncNode->vgId, host, port, pReceiver->ack, pMsg->lastIndex, pMsg->lastTerm,
+              pMsg->lastConfigIndex);
         }
 
       } else if (pMsg->seq > SYNC_SNAPSHOT_SEQ_BEGIN && pMsg->seq < SYNC_SNAPSHOT_SEQ_END) {
@@ -693,13 +710,17 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
 
         if (gRaftDetailLog) {
           char *msgStr = syncSnapshotSend2Str(pMsg);
-          sTrace(
-              "sync event vgId:%d snapshot recv from %s:%d receiving ack:%d, lastIndex:%ld, lastTerm:%lu, recv msg:%s",
-              pSyncNode->vgId, host, port, pReceiver->ack, pMsg->lastIndex, pMsg->lastTerm, msgStr);
+          sDebug(
+              "vgId:%d sync event snapshot recv from %s:%d receiving ack:%d, lastIndex:%ld, lastTerm:%lu, "
+              "lastConfigIndex:%ld, recv msg:%s",
+              pSyncNode->vgId, host, port, pReceiver->ack, pMsg->lastIndex, pMsg->lastTerm, pMsg->lastConfigIndex,
+              msgStr);
           taosMemoryFree(msgStr);
         } else {
-          sTrace("sync event vgId:%d snapshot recv from %s:%d receiving ack:%d, lastIndex:%ld, lastTerm:%lu",
-                 pSyncNode->vgId, host, port, pReceiver->ack, pMsg->lastIndex, pMsg->lastTerm);
+          sDebug(
+              "vgId:%d sync event snapshot recv from %s:%d receiving ack:%d, lastIndex:%ld, lastTerm:%lu, "
+              "lastConfigIndex:%ld",
+              pSyncNode->vgId, host, port, pReceiver->ack, pMsg->lastIndex, pMsg->lastTerm, pMsg->lastConfigIndex);
         }
 
       } else {
