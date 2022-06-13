@@ -2432,6 +2432,9 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
 }
 
 static void firstLastTransferInfo(SFirstLastRes* pInput, SFirstLastRes* pOutput) {
+  if (!pInput->hasResult) {
+    return;
+  }
   pOutput->bytes = pInput->bytes;
   TSKEY *tsIn = (TSKEY*)(pInput->buf + pInput->bytes);
   TSKEY *tsOut = (TSKEY*)(pOutput->buf + pInput->bytes);
