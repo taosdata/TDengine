@@ -46,6 +46,7 @@ class TDTestQuery(TDCase):
 
     #basic_param
     db = "table_alltype_tail"
+    service_host = "ceph01"
     table_list = ['regular_table_1','stable_1_1','regular_table_2','stable_1_2','stable_2_1']
     table = str(random.sample(table_list,1)).replace("[","").replace("]","").replace("'","")
     table_null_list = ['regular_table_null','stable_1_3','stable_1_4','stable_2_2','stable_null_data_1']
@@ -58,14 +59,20 @@ class TDTestQuery(TDCase):
         os.system("touch %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
         self.tdCreateData.dropandcreateDB_random("%s" % self.db, 2) 
 
-        conn1 = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos/")
+        # conn1 = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos/")
+        conn1 = taos.connect(host="%s" %self.service_host, user="root", password="taosdata", config="/etc/taos/")
         cur1 = conn1.cursor()        
-        cur1.execute('use "%s";' %self.db)
-        sql = 'select * from stable_1 limit 5;'
+        cur1.execute('use %s;' %self.db)
+        sql = 'select * from regular_table_1 limit 5;'
         cur1.execute(sql)
 
         return(conn1,cur1)  
- 
+
+    def explain_sql(self,sql):   
+        #执行sql解析    
+        sql = "explain " + sql 
+        self.tdSql.query(sql)
+  
     def right_case_1(self):
         print("\n==========================right case 1==========================\n")
         case_common = self.case_common()
@@ -78,10 +85,12 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_special(i)
             func_tbname = func # for tbname
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
                 print(conn1)
-                cur1.execute('use "%s";' %self.db)                
+                # cur1.execute('use "%s";' %self.db)                 
+                cur1.execute('use %s;' %self.db)                 
 
                 print("\n\n\n=======hanshu num = %d======right case========case1======\n\n\n" %i)
                 
@@ -158,10 +167,12 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_special(i)
             func_tbname = func # for tbname
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
                 print(conn1)
-                cur1.execute('use "%s";' %self.db)                
+                # cur1.execute('use "%s";' %self.db)                 
+                cur1.execute('use %s;' %self.db)                 
 
                 print("\n\n\n=======hanshu num = %d======right case_tbname========case1======\n\n\n" %i)
                 
@@ -234,10 +245,12 @@ class TDTestQuery(TDCase):
             func_tbname = func # for tbname
             func_desc = func # for desc
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
                 print(conn1)
-                cur1.execute('use "%s";' %self.db)                
+                # cur1.execute('use "%s";' %self.db)                 
+                cur1.execute('use %s;' %self.db)                
 
                 print("\n\n\n=======hanshu num = %d======right case========case2======\n\n\n" %i)
 
@@ -380,10 +393,12 @@ class TDTestQuery(TDCase):
             func_tbname = func # for tbname
             func_desc = func # for desc
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
                 print(conn1)
-                cur1.execute('use "%s";' %self.db)                
+                # cur1.execute('use "%s";' %self.db)                 
+                cur1.execute('use %s;' %self.db)                
 
                 print("\n\n\n=======hanshu num = %d======right case_tbname========case2======\n\n\n" %i)
 
@@ -511,10 +526,12 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_special(i)
             func_tbname = func # for tbname
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
                 print(conn1)
-                cur1.execute('use "%s";' %self.db)                
+                # cur1.execute('use "%s";' %self.db)                 
+                cur1.execute('use %s;' %self.db)                
 
                 print("\n\n\n=======hanshu num = %d======right case========case3======\n\n\n" %i)
                 
@@ -592,10 +609,12 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_special(i)
             func_tbname = func # for tbname
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
                 print(conn1)
-                cur1.execute('use "%s";' %self.db)                
+                # cur1.execute('use "%s";' %self.db)                 
+                cur1.execute('use %s;' %self.db)              
 
                 print("\n\n\n=======hanshu num = %d======right case_tbname========case3======\n\n\n" %i)
                 
