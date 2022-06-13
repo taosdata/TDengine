@@ -956,7 +956,7 @@ static int32_t translateFirstLast(SFunctionNode* pFunc, char* pErrBuf, int32_t l
 
 static int32_t translateFirstLastImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isPartial) {
   // first(col_list) will be rewritten as first(col)
-  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+  if (2 != LIST_LENGTH(pFunc->pParameterList)) { //input has two params c0,ts, is this a bug?
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1739,6 +1739,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = functionSetup,
     .processFunc  = firstFunction,
     .finalizeFunc = firstLastFinalize,
+    .pPartialFunc = "_first_partial",
+    .pMergeFunc   = "_first_merge",
     .combineFunc  = firstCombine,
   },
   {
