@@ -1,6 +1,0 @@
-[06/13 14:00:51.480051] INFO: start creating 100 table(s) with 8 thread(s)
-Spent 0.2650 seconds to create 100 table(s) with 8 thread(s), already exist 0 table(s), actual 100 table(s) pre created, 0 table(s) will be auto created
-Spent 0.0251 seconds to insert rows: 20000, affected rows: 20000 with 8 thread(s) into test 796527.14 records/second
-
-insert delay, min:  0.16ms, avg:  0.96ms, p90:  1.50ms, p95:  3.00ms, p99: 10.50ms, max: 10.50ms
-
