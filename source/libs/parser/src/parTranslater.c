@@ -1123,7 +1123,7 @@ static EDealRes doTranslateExpr(SNode** pNode, void* pContext) {
     case QUERY_NODE_OPERATOR:
       return translateOperator(pCxt, (SOperatorNode**)pNode);
     case QUERY_NODE_FUNCTION:
-      return translateFunction(pCxt, (SFunctionNode*)pNode);
+      return translateFunction(pCxt, (SFunctionNode*)*pNode);
     case QUERY_NODE_LOGIC_CONDITION:
       return translateLogicCond(pCxt, (SLogicConditionNode*)*pNode);
     case QUERY_NODE_TEMP_TABLE:
