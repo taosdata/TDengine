@@ -104,7 +104,7 @@ int32_t httpGenTaosdAuthToken(HttpContext *pContext, char *token, int32_t maxLen
   tstrncpy(buffer + sizeof(pContext->user), pContext->pass, size);
 
   char *encrypt = taosDesEncode(KEY_DES_4, buffer, TSDB_USER_LEN + HTTP_PASSWORD_LEN);
-  char *base64 = base64_encode((const unsigned char *)encrypt, TSDB_USER_LEN + HTTP_PASSWORD_LEN);
+  char *base64 = taos_base64_encode((const unsigned char *)encrypt, TSDB_USER_LEN + HTTP_PASSWORD_LEN);
 
   size_t len = strlen(base64);
   tstrncpy(token, base64, len + 1);

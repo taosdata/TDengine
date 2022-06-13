@@ -18,7 +18,7 @@
 // deprecated this file for bug prone
 // base64 encode
 static char basis_64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-char *base64_encode(const unsigned char *value, int vlen) {
+char *taos_base64_encode(const unsigned char *value, int vlen) {
   unsigned char oval = 0;
   char *        result = (char *)malloc((size_t)(vlen * 4) / 3 + 10);
   char *        out = result;
