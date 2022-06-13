@@ -150,7 +150,7 @@ class TDTestCase:
                 for select_claus in select_claus_list:
                     group_claus = self.__group_condition(col=select_claus)
                     where_claus = self.__where_condition(query_conditon=select_claus)
-                    having_claus = self.__group_condition(col=select_claus, having=f"{group_claus} is not null")
+                    having_claus = self.__group_condition(col=select_claus, having=f"{select_claus} is not null")
                     sqls.extend(
                         (
                             self.__single_sql(select_claus, tb, where_claus, having_claus),
