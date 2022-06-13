@@ -732,6 +732,10 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
 }
 
 // SColDataBlock ======================================================
+void tsdbColDataBlockReset(SColDataBlock *pColDataBlock) {
+  // TODO
+}
+
 int32_t tsdbColDataBlockAppend(SColDataBlock *pColDataBlock, TSDBROW *pRow, STSchema *pTSchema) {
   int32_t   code = 0;
   int32_t   nRow = pColDataBlock->nRow;
