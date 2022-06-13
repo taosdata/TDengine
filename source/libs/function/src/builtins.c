@@ -294,7 +294,8 @@ static int32_t translateApercentileImpl(SFunctionNode* pFunc, char* pErrBuf, int
       pValue->notReserved = true;
     }
 
-    pFunc->node.resType = (SDataType){.bytes = getApercentileMaxSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+    pFunc->node.resType =
+        (SDataType){.bytes = getApercentileMaxSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
   } else {
     if (1 != numOfParams) {
       return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
@@ -313,6 +314,7 @@ static int32_t translateApercentileImpl(SFunctionNode* pFunc, char* pErrBuf, int
 static int32_t translateApercentilePartial(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return translateApercentileImpl(pFunc, pErrBuf, len, true);
 }
+
 static int32_t translateApercentileMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return translateApercentileImpl(pFunc, pErrBuf, len, false);
 }
@@ -401,6 +403,7 @@ static int32_t translateSpreadImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t 
 static int32_t translateSpreadPartial(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return translateSpreadImpl(pFunc, pErrBuf, len, true);
 }
+
 static int32_t translateSpreadMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return translateSpreadImpl(pFunc, pErrBuf, len, false);
 }
@@ -440,6 +443,65 @@ static int32_t translateElapsed(SFunctionNode* pFunc, char* pErrBuf, int32_t len
 
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateElapsedImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isPartial) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+
+  if (isPartial) {
+    if (1 != numOfParams && 2 != numOfParams) {
+      return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+    if (TSDB_DATA_TYPE_TIMESTAMP != paraType) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    // param1
+    if (2 == numOfParams) {
+      SNode* pParamNode1 = nodesListGetNode(pFunc->pParameterList, 1);
+      if (QUERY_NODE_VALUE != nodeType(pParamNode1)) {
+        return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+      }
+
+      SValueNode* pValue = (SValueNode*)pParamNode1;
+
+      pValue->notReserved = true;
+
+      paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
+      if (!IS_INTEGER_TYPE(paraType)) {
+        return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+      }
+
+      if (pValue->datum.i == 0) {
+        return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                               "ELAPSED function time unit parameter should be greater than db precision");
+      }
+    }
+
+    pFunc->node.resType =
+        (SDataType){.bytes = getElapsedInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  } else {
+    if (1 != numOfParams) {
+      return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+    if (TSDB_DATA_TYPE_BINARY != paraType) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+    pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateElapsedPartial(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateElapsedImpl(pFunc, pErrBuf, len, true);
+}
+
+static int32_t translateElapsedMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateElapsedImpl(pFunc, pErrBuf, len, false);
 }
 
 static int32_t translateLeastSQR(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
@@ -533,7 +595,8 @@ static int32_t translateHistogramImpl(SFunctionNode* pFunc, char* pErrBuf, int32
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
 
-    pFunc->node.resType = (SDataType){.bytes = getHistogramInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+    pFunc->node.resType =
+        (SDataType){.bytes = getHistogramInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
   } else {
     if (1 != numOfParams) {
       return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
@@ -551,6 +614,7 @@ static int32_t translateHistogramImpl(SFunctionNode* pFunc, char* pErrBuf, int32
 static int32_t translateHistogramPartial(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return translateHistogramImpl(pFunc, pErrBuf, len, true);
 }
+
 static int32_t translateHistogramMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return translateHistogramImpl(pFunc, pErrBuf, len, false);
 }
@@ -562,6 +626,29 @@ static int32_t translateHLL(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
 
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateHLLImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isPartial) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  if (isPartial) {
+    pFunc->node.resType =
+        (SDataType){.bytes = getHistogramInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  } else {
+    pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateHLLPartial(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateHLLImpl(pFunc, pErrBuf, len, true);
+}
+
+static int32_t translateHLLMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateHLLImpl(pFunc, pErrBuf, len, false);
 }
 
 static bool validateStateOper(const SValueNode* pVal) {
@@ -1020,6 +1107,22 @@ static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
  *
  */
 
+static bool validateHourRange(int8_t hour) {
+  if (hour < 0 || hour > 12) {
+    return false;
+  }
+
+  return true;
+}
+
+static bool validateMinuteRange(int8_t hour, int8_t minute, char sign) {
+  if (minute == 0 || (minute == 30 && (hour == 3 || hour == 5) && sign == '+')) {
+    return true;
+  }
+
+  return false;
+}
+
 static bool validateTimezoneFormat(const SValueNode* pVal) {
   if (TSDB_DATA_TYPE_BINARY != pVal->node.resType.type) {
     return false;
@@ -1028,6 +1131,8 @@ static bool validateTimezoneFormat(const SValueNode* pVal) {
   char*   tz = varDataVal(pVal->datum.p);
   int32_t len = varDataLen(pVal->datum.p);
 
+  char   buf[3] = {0};
+  int8_t hour = -1, minute = -1;
   if (len == 0) {
     return false;
   } else if (len == 1 && (tz[0] == 'z' || tz[0] == 'Z')) {
@@ -1040,6 +1145,20 @@ static bool validateTimezoneFormat(const SValueNode* pVal) {
           if (!isdigit(tz[i])) {
             return false;
           }
+
+          if (i == 2) {
+            memcpy(buf, &tz[i - 1], 2);
+            hour = taosStr2Int8(buf, NULL, 10);
+            if (!validateHourRange(hour)) {
+              return false;
+            }
+          } else if (i == 4) {
+            memcpy(buf, &tz[i - 1], 2);
+            minute = taosStr2Int8(buf, NULL, 10);
+            if (!validateMinuteRange(hour, minute, tz[0])) {
+              return false;
+            }
+          }
         }
         break;
       }
@@ -1051,8 +1170,23 @@ static bool validateTimezoneFormat(const SValueNode* pVal) {
             }
             continue;
           }
+
           if (!isdigit(tz[i])) {
             return false;
+          }
+
+          if (i == 2) {
+            memcpy(buf, &tz[i - 1], 2);
+            hour = taosStr2Int8(buf, NULL, 10);
+            if (!validateHourRange(hour)) {
+              return false;
+            }
+          } else if (i == 5) {
+            memcpy(buf, &tz[i - 1], 2);
+            minute = taosStr2Int8(buf, NULL, 10);
+            if (!validateMinuteRange(hour, minute, tz[0])) {
+              return false;
+            }
           }
         }
         break;
@@ -1189,6 +1323,16 @@ static int32_t translateSelectValue(SFunctionNode* pFunc, char* pErrBuf, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateBlockDistFunc(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  pFunc->node.resType = (SDataType){.bytes = 128, .type = TSDB_DATA_TYPE_VARCHAR};
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool getBlockDistFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(STableBlockDistInfo);
+  return true;
+}
+
 // clang-format off
 const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
@@ -1306,6 +1450,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = apercentileFunctionSetup,
     .processFunc  = apercentileFunction,
     .finalizeFunc = apercentileFinalize,
+    .invertFunc   = NULL,
     .combineFunc  = apercentileCombine,
     .pPartialFunc = "_apercentile_partial",
     .pMergeFunc   = "_apercentile_merge"
@@ -1318,7 +1463,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getApercentileFuncEnv,
     .initFunc     = apercentileFunctionSetup,
     .processFunc  = apercentileFunction,
-    .finalizeFunc = apercentilePartialFinalize
+    .finalizeFunc = apercentilePartialFinalize,
+    .invertFunc   = NULL,
+    .combineFunc = apercentileCombine,
   },
   {
     .name = "_apercentile_merge",
@@ -1328,7 +1475,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getApercentileFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = apercentileFunctionMerge,
-    .finalizeFunc = apercentileFinalize
+    .finalizeFunc = apercentileFinalize,
+    .invertFunc   = NULL,
+    .combineFunc = apercentileCombine,
   },
   {
     .name = "top",
@@ -1339,6 +1488,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = functionSetup,
     .processFunc  = topFunction,
     .finalizeFunc = topBotFinalize,
+    .combineFunc  = topCombine,
   },
   {
     .name = "bottom",
@@ -1348,7 +1498,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getTopBotFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = bottomFunction,
-    .finalizeFunc = topBotFinalize
+    .finalizeFunc = topBotFinalize,
+    .combineFunc  = bottomCombine,
   },
   {
     .name = "spread",
@@ -1360,6 +1511,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = spreadFunctionSetup,
     .processFunc  = spreadFunction,
     .finalizeFunc = spreadFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = spreadCombine,
     .pPartialFunc = "_spread_partial",
     .pMergeFunc   = "_spread_merge"
   },
@@ -1372,7 +1525,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getSpreadFuncEnv,
     .initFunc     = spreadFunctionSetup,
     .processFunc  = spreadFunction,
-    .finalizeFunc = spreadPartialFinalize
+    .finalizeFunc = spreadPartialFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = spreadCombine,
   },
   {
     .name = "_spread_merge",
@@ -1383,7 +1538,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getSpreadFuncEnv,
     .initFunc     = spreadFunctionSetup,
     .processFunc  = spreadFunctionMerge,
-    .finalizeFunc = spreadFinalize
+    .finalizeFunc = spreadFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = spreadCombine,
   },
   {
     .name = "elapsed",
@@ -1394,7 +1551,37 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getElapsedFuncEnv,
     .initFunc     = elapsedFunctionSetup,
     .processFunc  = elapsedFunction,
-    .finalizeFunc = elapsedFinalize
+    .finalizeFunc = elapsedFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = elapsedCombine,
+    .pPartialFunc = "_elapsed_partial",
+    .pMergeFunc   = "_elapsed_merge"
+  },
+  {
+    .name = "_elapsed_partial",
+    .type = FUNCTION_TYPE_ELAPSED,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .dataRequiredFunc = statisDataRequired,
+    .translateFunc = translateElapsedPartial,
+    .getEnvFunc   = getElapsedFuncEnv,
+    .initFunc     = elapsedFunctionSetup,
+    .processFunc  = elapsedFunction,
+    .finalizeFunc = elapsedPartialFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = elapsedCombine,
+  },
+  {
+    .name = "_elapsed_merge",
+    .type = FUNCTION_TYPE_ELAPSED,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .dataRequiredFunc = statisDataRequired,
+    .translateFunc = translateElapsedMerge,
+    .getEnvFunc   = getElapsedFuncEnv,
+    .initFunc     = elapsedFunctionSetup,
+    .processFunc  = elapsedFunctionMerge,
+    .finalizeFunc = elapsedFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = elapsedCombine,
   },
   {
     .name = "last_row",
@@ -1441,14 +1628,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "histogram",
     .type = FUNCTION_TYPE_HISTOGRAM,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_FORBID_FILL_FUNC,
     .translateFunc = translateHistogram,
     .getEnvFunc   = getHistogramFuncEnv,
     .initFunc     = histogramFunctionSetup,
     .processFunc  = histogramFunction,
     .finalizeFunc = histogramFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = histogramCombine,
     .pPartialFunc = "_histogram_partial",
-    .pMergeFunc   = "_histogram_merge"
+    .pMergeFunc   = "_histogram_merge",
   },
   {
     .name = "_histogram_partial",
@@ -1458,7 +1647,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getHistogramFuncEnv,
     .initFunc     = histogramFunctionSetup,
     .processFunc  = histogramFunction,
-    .finalizeFunc = histogramPartialFinalize
+    .finalizeFunc = histogramPartialFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = histogramCombine,
   },
   {
     .name = "_histogram_merge",
@@ -1468,7 +1659,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getHistogramFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = histogramFunctionMerge,
-    .finalizeFunc = histogramFinalize
+    .finalizeFunc = histogramFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = histogramCombine,
   },
   {
     .name = "hyperloglog",
@@ -1478,7 +1671,35 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getHLLFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = hllFunction,
-    .finalizeFunc = hllFinalize
+    .finalizeFunc = hllFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = hllCombine,
+    .pPartialFunc = "_hyperloglog_partial",
+    .pMergeFunc   = "_hyperloglog_merge"
+  },
+  {
+    .name = "_hyperloglog_partial",
+    .type = FUNCTION_TYPE_HYPERLOGLOG_PARTIAL,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateHLLPartial,
+    .getEnvFunc   = getHLLFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = hllFunction,
+    .finalizeFunc = hllPartialFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = hllCombine,
+  },
+  {
+    .name = "_hyperloglog_merge",
+    .type = FUNCTION_TYPE_HYPERLOGLOG_MERGE,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateHLLMerge,
+    .getEnvFunc   = getHLLFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = hllFunctionMerge,
+    .finalizeFunc = hllFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = hllCombine,
   },
   {
     .name = "diff",
@@ -1939,6 +2160,15 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = functionSetup,
     .processFunc  = NULL,
     .finalizeFunc = NULL
+  },
+  {
+    .name = "_block_dist",
+    .type = FUNCTION_TYPE_BLOCK_DIST,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateBlockDistFunc,
+    .getEnvFunc   = getBlockDistFuncEnv,
+    .processFunc  = blockDistFunction,
+    .finalizeFunc = blockDistFinalize
   }
 };
 // clang-format on

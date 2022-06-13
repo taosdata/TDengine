@@ -2419,7 +2419,7 @@ int32_t tDeserializeSTableIndexReq(void *buf, int32_t bufLen, STableIndexReq *pR
   return 0;
 }
 
-int32_t tSerializeSTableIndexInfo(SEncoder *pEncoder, STableIndexInfo* pInfo) {
+int32_t tSerializeSTableIndexInfo(SEncoder *pEncoder, STableIndexInfo *pInfo) {
   if (tEncodeI8(pEncoder, pInfo->intervalUnit) < 0) return -1;
   if (tEncodeI8(pEncoder, pInfo->slidingUnit) < 0) return -1;
   if (tEncodeI64(pEncoder, pInfo->interval) < 0) return -1;
@@ -2441,7 +2441,7 @@ int32_t tSerializeSTableIndexRsp(void *buf, int32_t bufLen, const STableIndexRsp
   if (tEncodeI32(&encoder, num) < 0) return -1;
   if (num > 0) {
     for (int32_t i = 0; i < num; ++i) {
-      STableIndexInfo* pInfo = (STableIndexInfo*)taosArrayGet(pRsp->pIndex, i);
+      STableIndexInfo *pInfo = (STableIndexInfo *)taosArrayGet(pRsp->pIndex, i);
       if (tSerializeSTableIndexInfo(&encoder, pInfo) < 0) return -1;
     }
   }
@@ -2491,6 +2491,15 @@ int32_t tDeserializeSTableIndexRsp(void *buf, int32_t bufLen, STableIndexRsp *pR
   return 0;
 }
 
+void tFreeSTableIndexInfo(void *info) {
+  if (NULL == info) {
+    return;
+  }
+
+  STableIndexInfo *pInfo = (STableIndexInfo *)info;
+
+  taosMemoryFree(pInfo->expr);
+}
 
 int32_t tSerializeSShowReq(void *buf, int32_t bufLen, SShowReq *pReq) {
   SEncoder encoder = {0};
@@ -3439,6 +3448,31 @@ int32_t tDeserializeSRedistributeVgroupReq(void *buf, int32_t bufLen, SRedistrib
   return 0;
 }
 
+int32_t tSerializeSSplitVgroupReq(void *buf, int32_t bufLen, SSplitVgroupReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->vgId) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSSplitVgroupReq(void *buf, int32_t bufLen, SSplitVgroupReq *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->vgId) < 0) return -1;
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
 int32_t tSerializeSDCreateMnodeReq(void *buf, int32_t bufLen, SDCreateMnodeReq *pReq) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
@@ -3843,9 +3877,10 @@ int32_t tEncodeTSma(SEncoder *pCoder, const STSma *pSma) {
   if (tEncodeCStr(pCoder, pSma->indexName) < 0) return -1;
   if (tEncodeI32(pCoder, pSma->exprLen) < 0) return -1;
   if (tEncodeI32(pCoder, pSma->tagsFilterLen) < 0) return -1;
-  if (tEncodeI32(pCoder, pSma->numOfVgroups) < 0) return -1;
   if (tEncodeI64(pCoder, pSma->indexUid) < 0) return -1;
   if (tEncodeI64(pCoder, pSma->tableUid) < 0) return -1;
+  if (tEncodeI64(pCoder, pSma->dstTbUid) < 0) return -1;
+  if (tEncodeCStr(pCoder, pSma->dstTbName) < 0) return -1;
   if (tEncodeI64(pCoder, pSma->interval) < 0) return -1;
   if (tEncodeI64(pCoder, pSma->offset) < 0) return -1;
   if (tEncodeI64(pCoder, pSma->sliding) < 0) return -1;
@@ -3855,17 +3890,10 @@ int32_t tEncodeTSma(SEncoder *pCoder, const STSma *pSma) {
   if (pSma->tagsFilterLen > 0) {
     if (tEncodeCStr(pCoder, pSma->tagsFilter) < 0) return -1;
   }
-  for (int32_t v = 0; v < pSma->numOfVgroups; ++v) {
-    if (tEncodeI32(pCoder, pSma->pVgEpSet[v].vgId) < 0) return -1;
-    if (tEncodeI8(pCoder, pSma->pVgEpSet[v].epSet.inUse) < 0) return -1;
-    int8_t numOfEps = pSma->pVgEpSet[v].epSet.numOfEps;
-    if (tEncodeI8(pCoder, numOfEps) < 0) return -1;
-    for (int32_t n = 0; n < numOfEps; ++n) {
-      const SEp *pEp = &pSma->pVgEpSet[v].epSet.eps[n];
-      if (tEncodeCStr(pCoder, pEp->fqdn) < 0) return -1;
-      if (tEncodeU16(pCoder, pEp->port) < 0) return -1;
-    }
-  }
+
+  tEncodeSSchemaWrapper(pCoder, &pSma->schemaRow);
+  tEncodeSSchemaWrapper(pCoder, &pSma->schemaTag);
+
   return 0;
 }
 
@@ -3873,14 +3901,15 @@ int32_t tDecodeTSma(SDecoder *pCoder, STSma *pSma) {
   if (tDecodeI8(pCoder, &pSma->version) < 0) return -1;
   if (tDecodeI8(pCoder, &pSma->intervalUnit) < 0) return -1;
   if (tDecodeI8(pCoder, &pSma->slidingUnit) < 0) return -1;
-  if (tDecodeI32(pCoder, &pSma->dstVgId) < 0) return -1;
   if (tDecodeI8(pCoder, &pSma->timezoneInt) < 0) return -1;
+  if (tDecodeI32(pCoder, &pSma->dstVgId) < 0) return -1;
   if (tDecodeCStrTo(pCoder, pSma->indexName) < 0) return -1;
   if (tDecodeI32(pCoder, &pSma->exprLen) < 0) return -1;
   if (tDecodeI32(pCoder, &pSma->tagsFilterLen) < 0) return -1;
-  if (tDecodeI32(pCoder, &pSma->numOfVgroups) < 0) return -1;
   if (tDecodeI64(pCoder, &pSma->indexUid) < 0) return -1;
   if (tDecodeI64(pCoder, &pSma->tableUid) < 0) return -1;
+  if (tDecodeI64(pCoder, &pSma->dstTbUid) < 0) return -1;
+  if (tDecodeCStr(pCoder, &pSma->dstTbName) < 0) return -1;
   if (tDecodeI64(pCoder, &pSma->interval) < 0) return -1;
   if (tDecodeI64(pCoder, &pSma->offset) < 0) return -1;
   if (tDecodeI64(pCoder, &pSma->sliding) < 0) return -1;
@@ -3894,27 +3923,9 @@ int32_t tDecodeTSma(SDecoder *pCoder, STSma *pSma) {
   } else {
     pSma->tagsFilter = NULL;
   }
-  if (pSma->numOfVgroups > 0) {
-    pSma->pVgEpSet = (SVgEpSet *)tDecoderMalloc(pCoder, pSma->numOfVgroups * sizeof(SVgEpSet));
-    if (!pSma->pVgEpSet) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return -1;
-    }
-
-    memset(pSma->pVgEpSet, 0, pSma->numOfVgroups * sizeof(SVgEpSet));
-
-    for (int32_t v = 0; v < pSma->numOfVgroups; ++v) {
-      if (tDecodeI32(pCoder, &pSma->pVgEpSet[v].vgId) < 0) return -1;
-      if (tDecodeI8(pCoder, &pSma->pVgEpSet[v].epSet.inUse) < 0) return -1;
-      if (tDecodeI8(pCoder, &pSma->pVgEpSet[v].epSet.numOfEps) < 0) return -1;
-      int8_t numOfEps = pSma->pVgEpSet[v].epSet.numOfEps;
-      for (int32_t n = 0; n < numOfEps; ++n) {
-        SEp *pEp = &pSma->pVgEpSet[v].epSet.eps[n];
-        if (tDecodeCStrTo(pCoder, pEp->fqdn) < 0) return -1;
-        if (tDecodeU16(pCoder, &pEp->port) < 0) return -1;
-      }
-    }
-  }
+  // only needed in dstVgroup
+  tDecodeSSchemaWrapperEx(pCoder, &pSma->schemaRow);
+  tDecodeSSchemaWrapperEx(pCoder, &pSma->schemaTag);
 
   return 0;
 }
@@ -3952,55 +3963,6 @@ int32_t tDecodeSVDropTSmaReq(SDecoder *pCoder, SVDropTSmaReq *pReq) {
 
   if (tDecodeI64(pCoder, &pReq->indexUid) < 0) return -1;
   if (tDecodeCStrTo(pCoder, pReq->indexName) < 0) return -1;
-
-  tEndDecode(pCoder);
-  return 0;
-}
-
-int32_t tEncodeSVGetTSmaExpWndsReq(SEncoder *pCoder, const SVGetTsmaExpWndsReq *pReq) {
-  if (tStartEncode(pCoder) < 0) return -1;
-
-  if (tEncodeI64(pCoder, pReq->indexUid) < 0) return -1;
-  if (tEncodeI64(pCoder, pReq->queryWindow.skey) < 0) return -1;
-  if (tEncodeI64(pCoder, pReq->queryWindow.ekey) < 0) return -1;
-
-  tEndEncode(pCoder);
-  return 0;
-}
-
-int32_t tDecodeSVGetTsmaExpWndsReq(SDecoder *pCoder, SVGetTsmaExpWndsReq *pReq) {
-  if (tStartDecode(pCoder) < 0) return -1;
-
-  if (tDecodeI64(pCoder, &pReq->indexUid) < 0) return -1;
-  if (tDecodeI64(pCoder, &pReq->queryWindow.skey) < 0) return -1;
-  if (tDecodeI64(pCoder, &pReq->queryWindow.ekey) < 0) return -1;
-
-  tEndDecode(pCoder);
-  return 0;
-}
-
-int32_t tEncodeSVGetTSmaExpWndsRsp(SEncoder *pCoder, const SVGetTsmaExpWndsRsp *pReq) {
-  if (tStartEncode(pCoder) < 0) return -1;
-
-  if (tEncodeI64(pCoder, pReq->indexUid) < 0) return -1;
-  if (tEncodeI8(pCoder, pReq->flags) < 0) return -1;
-  if (tEncodeI32(pCoder, pReq->numExpWnds) < 0) return -1;
-  for (int32_t i = 0; i < pReq->numExpWnds; ++i) {
-    if (tEncodeI64(pCoder, pReq->wndSKeys[i]) < 0) return -1;
-  }
-  tEndEncode(pCoder);
-  return 0;
-}
-
-int32_t tDecodeSVGetTsmaExpWndsRsp(SDecoder *pCoder, SVGetTsmaExpWndsRsp *pReq) {
-  if (tStartDecode(pCoder) < 0) return -1;
-
-  if (tDecodeI64(pCoder, &pReq->indexUid) < 0) return -1;
-  if (tDecodeI8(pCoder, &pReq->flags) < 0) return -1;
-  if (tDecodeI32(pCoder, &pReq->numExpWnds) < 0) return -1;
-  for (int32_t i = 0; i < pReq->numExpWnds; ++i) {
-    if (tDecodeI64(pCoder, &pReq->wndSKeys[i]) < 0) return -1;
-  }
 
   tEndDecode(pCoder);
   return 0;

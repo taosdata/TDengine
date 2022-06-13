@@ -427,11 +427,13 @@ int32_t ctgGetIndexInfoFromMnode(CTG_PARAMS, const char *indexName, SIndexInfo *
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgGetTbIndexFromMnode(CTG_PARAMS, const char *tbFName, SArray** out, SCtgTask* pTask) {
+int32_t ctgGetTbIndexFromMnode(CTG_PARAMS, SName *name, SArray** out, SCtgTask* pTask) {
   char *msg = NULL;
   int32_t msgLen = 0;
   int32_t reqType = TDMT_MND_GET_TABLE_INDEX;
   void*(*mallocFp)(int32_t) = pTask ? taosMemoryMalloc : rpcMallocCont;
+  char tbFName[TSDB_TABLE_FNAME_LEN];
+  tNameExtractFullName(name, tbFName);
 
   ctgDebug("try to get tb index from mnode, tbFName:%s", tbFName);
 

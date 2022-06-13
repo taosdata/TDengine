@@ -96,6 +96,7 @@ extern bool    tsDeadLockKillQuery;
 
 // query client
 extern int32_t tsQueryPolicy;
+extern int32_t tsQuerySmaOptimize;
 
 // client
 extern int32_t tsMinSlidingTime;

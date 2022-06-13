@@ -174,7 +174,7 @@ static SKeyword keywordTable[] = {
     {"SNODE",         TK_SNODE},
     {"SNODES",        TK_SNODES},
     {"SOFFSET",       TK_SOFFSET},
-    // {"SPLIT",         TK_SPLIT},
+    {"SPLIT",         TK_SPLIT},
     {"STABLE",        TK_STABLE},
     {"STABLES",       TK_STABLES},
     {"STATE",         TK_STATE},

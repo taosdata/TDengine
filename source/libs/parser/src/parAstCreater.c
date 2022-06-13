@@ -346,25 +346,30 @@ SNode* createPlaceholderValueNode(SAstCreateContext* pCxt, const SToken* pLitera
   return (SNode*)val;
 }
 
+static int32_t addParamToLogicConditionNode(SLogicConditionNode* pCond, SNode* pParam) {
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pParam) && pCond->condType == ((SLogicConditionNode*)pParam)->condType) {
+    int32_t code = nodesListAppendList(pCond->pParameterList, ((SLogicConditionNode*)pParam)->pParameterList);
+    ((SLogicConditionNode*)pParam)->pParameterList = NULL;
+    nodesDestroyNode(pParam);
+    return code;
+  } else {
+    return nodesListAppend(pCond->pParameterList, pParam);
+  }
+}
+
 SNode* createLogicConditionNode(SAstCreateContext* pCxt, ELogicConditionType type, SNode* pParam1, SNode* pParam2) {
   CHECK_PARSER_STATUS(pCxt);
   SLogicConditionNode* cond = (SLogicConditionNode*)nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
   CHECK_OUT_OF_MEM(cond);
   cond->condType = type;
   cond->pParameterList = nodesMakeList();
-  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pParam1) && type == ((SLogicConditionNode*)pParam1)->condType) {
-    nodesListAppendList(cond->pParameterList, ((SLogicConditionNode*)pParam1)->pParameterList);
-    ((SLogicConditionNode*)pParam1)->pParameterList = NULL;
-    nodesDestroyNode(pParam1);
-  } else {
-    nodesListAppend(cond->pParameterList, pParam1);
+  int32_t code = addParamToLogicConditionNode(cond, pParam1);
+  if (TSDB_CODE_SUCCESS == code && NULL != pParam2) {
+    code = addParamToLogicConditionNode(cond, pParam2);
   }
-  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pParam2) && type == ((SLogicConditionNode*)pParam2)->condType) {
-    nodesListAppendList(cond->pParameterList, ((SLogicConditionNode*)pParam2)->pParameterList);
-    ((SLogicConditionNode*)pParam2)->pParameterList = NULL;
-    nodesDestroyNode(pParam2);
-  } else {
-    nodesListAppend(cond->pParameterList, pParam2);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode(cond);
+    return NULL;
   }
   return (SNode*)cond;
 }

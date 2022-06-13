@@ -19,6 +19,7 @@
 #include "mndDef.h"
 
 #include "sdb.h"
+#include "sync.h"
 #include "syncTools.h"
 #include "tcache.h"
 #include "tdatablock.h"
@@ -75,7 +76,6 @@ typedef struct {
 } STelemMgmt;
 
 typedef struct {
-  SWal   *pWal;
   sem_t   syncSem;
   int64_t sync;
   bool    standby;
@@ -108,6 +108,7 @@ typedef struct SMnode {
   SQHandle      *pQuery;
   SHashObj      *infosMeta;
   SHashObj      *perfsMeta;
+  SWal          *pWal;
   SShowMgmt      showMgmt;
   SProfileMgmt   profileMgmt;
   STelemMgmt     telemMgmt;

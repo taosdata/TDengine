@@ -15,6 +15,7 @@
 
 #include "planTestUtil.h"
 #include "planner.h"
+#include "tglobal.h"
 
 using namespace std;
 
@@ -42,7 +43,17 @@ TEST_F(PlanOtherTest, createStreamUseSTable) {
 TEST_F(PlanOtherTest, createSmaIndex) {
   useDb("root", "test");
 
-  run("create sma index index1 on t1 function(max(c1), min(c3 + 10), sum(c4)) interval(10s)");
+  run("CREATE SMA INDEX idx1 ON t1 FUNCTION(MAX(c1), MIN(c3 + 10), SUM(c4)) INTERVAL(10s)");
+
+  run("SELECT SUM(c4) FROM t1 INTERVAL(10s)");
+
+  run("SELECT _WSTARTTS, MIN(c3 + 10) FROM t1 "
+      "WHERE ts BETWEEN TIMESTAMP '2022-04-01 00:00:00' AND TIMESTAMP '2022-04-30 23:59:59.999' INTERVAL(10s)");
+
+  run("SELECT SUM(c4), MAX(c3) FROM t1 INTERVAL(10s)");
+
+  tsQuerySmaOptimize = 0;
+  run("SELECT SUM(c4) FROM t1 INTERVAL(10s)");
 }
 
 TEST_F(PlanOtherTest, explain) {

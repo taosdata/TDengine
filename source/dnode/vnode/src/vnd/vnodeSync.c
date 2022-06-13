@@ -180,13 +180,22 @@ static int32_t vnodeSyncGetSnapshot(SSyncFSM *pFsm, SSnapshot *pSnapshot) {
   return 0;
 }
 
-static void vnodeSyncReconfig(struct SSyncFSM *pFsm, SSyncCfg newCfg, SReConfigCbMeta cbMeta) {
+static void vnodeSyncReconfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReConfigCbMeta cbMeta) {
   SVnode *pVnode = pFsm->data;
   vInfo("vgId:%d, sync reconfig is confirmed", TD_VID(pVnode));
+
+#if 0
+// send response
+  SRpcMsg rpcMsg = {.msgType = pMsg->msgType, .contLen = pMsg->contLen, .conn.applyIndex = cbMeta.index};
+  rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
+  memcpy(rpcMsg.pCont, pMsg->pCont, pMsg->contLen);
+  syncGetAndDelRespRpc(pVnode->sync, cbMeta.seqNum, &rpcMsg.info);
+#endif
 
   // todo rpc response here
   // build rpc msg
   // put into apply queue
+  vnodePostBlockMsg(pVnode, TDMT_VND_ALTER_REPLICA);
 }
 
 static void vnodeSyncCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
@@ -212,6 +221,7 @@ static void vnodeSyncCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta c
     memcpy(rpcMsg.pCont, pMsg->pCont, pMsg->contLen);
     syncGetAndDelRespRpc(pVnode->sync, cbMeta.seqNum, &rpcMsg.info);
     tmsgPutToQueue(&pVnode->msgCb, APPLY_QUEUE, &rpcMsg);
+
   } else {
     char logBuf[256] = {0};
     snprintf(logBuf, sizeof(logBuf),
@@ -252,6 +262,8 @@ static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
 
 int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
   SSyncInfo syncInfo = {
+      .isStandBy = false,
+      .snapshotEnable = false,
       .vgId = pVnode->config.vgId,
       .isStandBy = pVnode->config.standby,
       .syncCfg = pVnode->config.syncCfg,
