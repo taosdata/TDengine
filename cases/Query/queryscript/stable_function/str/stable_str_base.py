@@ -92,6 +92,7 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_str(i)
             try:
                 # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                time.sleep(1)
                 taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
                 print(conn1)
@@ -142,6 +143,7 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_str(i)
             try:
                 # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                time.sleep(1)
                 taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
                 print(conn1)
@@ -192,6 +194,7 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_str(i)
             try:
                 # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                time.sleep(1)
                 taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
                 print(conn1)
@@ -253,6 +256,7 @@ class TDTestQuery(TDCase):
             func_desc = func # for desc
             try:
                 # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                time.sleep(1)
                 taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
                 print(conn1)
@@ -347,6 +351,7 @@ class TDTestQuery(TDCase):
             func_desc = func # for desc
             try:
                 # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                time.sleep(1)
                 taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
                 print(conn1)
@@ -546,6 +551,7 @@ class TDTestQuery(TDCase):
             func_desc = func # for desc
             try:
                 # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                time.sleep(1)
                 taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
                 print(conn1)
@@ -673,6 +679,7 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_str(i)
             try:
                 # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                time.sleep(1)
                 taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
                 print(conn1)
@@ -725,6 +732,7 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_str(i)
             try:
                 # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                time.sleep(1)
                 taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
                 print(conn1)
@@ -801,6 +809,7 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_str(i)
             try:
                 # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+                time.sleep(1)
                 taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
                 _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
                 print(conn1)
