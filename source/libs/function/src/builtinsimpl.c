@@ -4879,3 +4879,81 @@ int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   return row;
 }
+
+typedef struct SDerivInfo {
+  double   prevValue;     // previous value
+  TSKEY    prevTs;        // previous timestamp
+  bool     ignoreNegative;// ignore the negative value
+  int64_t  tsWindow;      // time window for derivative
+  bool     valueSet;      // the value has been set already
+} SDerivInfo;
+
+bool getDerivativeFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(SDerivInfo);
+  return true;
+}
+
+bool derivativeFuncSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResInfo) {
+  if (!functionSetup(pCtx, pResInfo)) {
+    return false;  // not initialized since it has been initialized
+  }
+
+  SDerivInfo* pDerivInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  pDerivInfo->ignoreNegative = pCtx->param[2].param.i;
+  pDerivInfo->prevTs   = -1;
+  pDerivInfo->tsWindow = pCtx->param[1].param.i;
+  pDerivInfo->valueSet = false;
+  return true;
+}
+
+int32_t derivativeFunction(SqlFunctionCtx *pCtx) {
+  SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
+  SDerivInfo* pDerivInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData* pInputCol = pInput->pData[0];
+  
+  int32_t numOfElems = 0;
+  SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
+  SColumnInfoData* pTsOutput = pCtx->pTsOutput;
+
+  int32_t step = 1;
+  int32_t i = pInput->startRowIndex;
+  TSKEY* tsList = (int64_t*)pInput->pPTS->pData;
+
+  if (pCtx->order == TSDB_ORDER_ASC) {
+    double v = 0;
+
+    for (; i < pInput->numOfRows + pInput->startRowIndex && i >= 0; i += step) {
+      if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+        continue;
+      }
+
+      char*  d = (char*)pInputCol->pData + pInputCol->info.bytes * i;
+      GET_TYPED_DATA(v, double, pInputCol->info.type, d);
+
+      int32_t pos = pCtx->offset + numOfElems;
+      if (!pDerivInfo->valueSet) {  // initial value is not set yet
+        pDerivInfo->valueSet = true;
+      } else {
+        double r = ((v - pDerivInfo->prevValue) * pDerivInfo->tsWindow) / (tsList[i] - pDerivInfo->prevTs);
+        if (pDerivInfo->ignoreNegative && r < 0) {
+        } else {
+          colDataAppend(pOutput, pos, (const char*)&r, false);
+          if (pTsOutput != NULL) {
+            colDataAppendInt64(pTsOutput, pos, &tsList[i]);
+          }
+          numOfElems++;
+        }
+      }
+
+      pDerivInfo->prevValue = v;
+      pDerivInfo->prevTs = tsList[i];
+    }
+  } else {
+
+  }
+
+  return numOfElems;
+}
