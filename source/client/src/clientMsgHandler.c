@@ -66,6 +66,12 @@ int32_t processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
     rpcSetDefaultAddr(pTscObj->pAppInfo->pTransporter, srcEpSet.eps[srcEpSet.inUse].fqdn,
                       dstEpSet.eps[dstEpSet.inUse].fqdn);
   } else if (connectRsp.dnodeNum > 1 && !isEpsetEqual(&pTscObj->pAppInfo->mgmtEp.epSet, &connectRsp.epSet)) {
+    SEpSet* pOrig = &pTscObj->pAppInfo->mgmtEp.epSet;
+    SEp* pOrigEp = &pOrig->eps[pOrig->inUse];
+    SEp* pNewEp = &connectRsp.epSet.eps[connectRsp.epSet.inUse];
+    tscDebug("mnode epset updated from %d/%d=>%s:%d to %d/%d=>%s:%d in connRsp", 
+        pOrig->inUse, pOrig->numOfEps, pOrigEp->fqdn, pOrigEp->port, 
+        connectRsp.epSet.inUse, connectRsp.epSet.numOfEps, pNewEp->fqdn, pNewEp->port);
     updateEpSet_s(&pTscObj->pAppInfo->mgmtEp, &connectRsp.epSet);
   }
 
@@ -102,6 +108,7 @@ SMsgSendInfo* buildMsgInfoImpl(SRequestObj* pRequest) {
   pMsgSendInfo->requestId = pRequest->requestId;
   pMsgSendInfo->param = pRequest;
   pMsgSendInfo->msgType = pRequest->type;
+  pMsgSendInfo->target.type = TARGET_TYPE_MNODE;
 
   assert(pRequest != NULL);
   pMsgSendInfo->msgInfo = pRequest->body.requestMsg;
