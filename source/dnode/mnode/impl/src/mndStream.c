@@ -252,8 +252,12 @@ int32_t mndAddStreamToTrans(SMnode *pMnode, SStreamObj *pStream, const char *ast
   }
 
   if (qExtractResultSchema(pAst, (int32_t *)&pStream->outputSchema.nCols, &pStream->outputSchema.pSchema) != 0) {
+    nodesDestroyNode(pAst);
     return -1;
   }
+  // free
+  nodesDestroyNode(pAst);
+
 
 #if 0
   printf("|");
@@ -269,7 +273,7 @@ int32_t mndAddStreamToTrans(SMnode *pMnode, SStreamObj *pStream, const char *ast
     return -1;
   }
 
-  if (mndScheduleStream1(pMnode, pTrans, pStream) < 0) {
+  if (mndScheduleStream(pMnode, pTrans, pStream) < 0) {
     mError("stream:%ld, schedule stream since %s", pStream->uid, terrstr());
     return -1;
   }

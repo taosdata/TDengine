@@ -86,6 +86,7 @@ bool tsSmlDataFormat =
 
 // query
 int32_t tsQueryPolicy = 1;
+int32_t tsQuerySmaOptimize = 1;
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
@@ -113,7 +114,7 @@ int32_t tsCompatibleModel = 1;
 int32_t tsCountAlwaysReturnValue = 1;
 
 // 10 ms for sliding time, the value will changed in case of time precision changed
-int32_t   tsMinSlidingTime = 10;
+int32_t tsMinSlidingTime = 10;
 
 // the maxinum number of distict query result
 int32_t tsMaxNumOfDistinctResults = 1000 * 10000;
@@ -331,6 +332,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "compressColData", tsCompressColData, -1, 100000000, 1) != 0) return -1;
   if (cfgAddBool(pCfg, "keepColumnName", tsKeepOriginalColumnName, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "queryPolicy", tsQueryPolicy, 1, 3, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "querySmaOptimize", tsQuerySmaOptimize, 0, 1, 1) != 0) return -1;
   if (cfgAddString(pCfg, "smlChildTableName", "", 1) != 0) return -1;
   if (cfgAddString(pCfg, "smlTagName", tsSmlTagName, 1) != 0) return -1;
   if (cfgAddBool(pCfg, "smlDataFormat", tsSmlDataFormat, 1) != 0) return -1;
@@ -541,6 +543,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsKeepOriginalColumnName = cfgGetItem(pCfg, "keepColumnName")->bval;
   tsNumOfTaskQueueThreads = cfgGetItem(pCfg, "numOfTaskQueueThreads")->i32;
   tsQueryPolicy = cfgGetItem(pCfg, "queryPolicy")->i32;
+  tsQuerySmaOptimize = cfgGetItem(pCfg, "querySmaOptimize")->i32;
   return 0;
 }
 

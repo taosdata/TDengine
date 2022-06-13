@@ -294,7 +294,8 @@ static int32_t translateApercentileImpl(SFunctionNode* pFunc, char* pErrBuf, int
       pValue->notReserved = true;
     }
 
-    pFunc->node.resType = (SDataType){.bytes = getApercentileMaxSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+    pFunc->node.resType =
+        (SDataType){.bytes = getApercentileMaxSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
   } else {
     if (1 != numOfParams) {
       return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
@@ -479,7 +480,8 @@ static int32_t translateElapsedImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t
       }
     }
 
-    pFunc->node.resType = (SDataType){.bytes = getElapsedInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+    pFunc->node.resType =
+        (SDataType){.bytes = getElapsedInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
   } else {
     if (1 != numOfParams) {
       return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
@@ -593,7 +595,8 @@ static int32_t translateHistogramImpl(SFunctionNode* pFunc, char* pErrBuf, int32
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
 
-    pFunc->node.resType = (SDataType){.bytes = getHistogramInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+    pFunc->node.resType =
+        (SDataType){.bytes = getHistogramInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
   } else {
     if (1 != numOfParams) {
       return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
@@ -631,7 +634,8 @@ static int32_t translateHLLImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len
   }
 
   if (isPartial) {
-    pFunc->node.resType = (SDataType){.bytes = getHistogramInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+    pFunc->node.resType =
+        (SDataType){.bytes = getHistogramInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
   } else {
     pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
   }
@@ -1127,7 +1131,7 @@ static bool validateTimezoneFormat(const SValueNode* pVal) {
   char*   tz = varDataVal(pVal->datum.p);
   int32_t len = varDataLen(pVal->datum.p);
 
-  char buf[3] = {0};
+  char   buf[3] = {0};
   int8_t hour = -1, minute = -1;
   if (len == 0) {
     return false;
@@ -1320,7 +1324,7 @@ static int32_t translateSelectValue(SFunctionNode* pFunc, char* pErrBuf, int32_t
 }
 
 static int32_t translateBlockDistFunc(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  pFunc->node.resType = (SDataType) {.bytes = 128, .type = TSDB_DATA_TYPE_VARCHAR};
+  pFunc->node.resType = (SDataType){.bytes = 128, .type = TSDB_DATA_TYPE_VARCHAR};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1328,7 +1332,6 @@ static bool getBlockDistFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv
   pEnv->calcMemSize = sizeof(STableBlockDistInfo);
   return true;
 }
-
 
 // clang-format off
 const SBuiltinFuncDefinition funcMgtBuiltins[] = {
@@ -1447,6 +1450,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = apercentileFunctionSetup,
     .processFunc  = apercentileFunction,
     .finalizeFunc = apercentileFinalize,
+    .invertFunc   = NULL,
     .combineFunc  = apercentileCombine,
     .pPartialFunc = "_apercentile_partial",
     .pMergeFunc   = "_apercentile_merge"
@@ -1459,7 +1463,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getApercentileFuncEnv,
     .initFunc     = apercentileFunctionSetup,
     .processFunc  = apercentileFunction,
-    .finalizeFunc = apercentilePartialFinalize
+    .finalizeFunc = apercentilePartialFinalize,
+    .invertFunc   = NULL,
+    .combineFunc = apercentileCombine,
   },
   {
     .name = "_apercentile_merge",
@@ -1469,7 +1475,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getApercentileFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = apercentileFunctionMerge,
-    .finalizeFunc = apercentileFinalize
+    .finalizeFunc = apercentileFinalize,
+    .invertFunc   = NULL,
+    .combineFunc = apercentileCombine,
   },
   {
     .name = "top",
@@ -1503,6 +1511,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = spreadFunctionSetup,
     .processFunc  = spreadFunction,
     .finalizeFunc = spreadFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = spreadCombine,
     .pPartialFunc = "_spread_partial",
     .pMergeFunc   = "_spread_merge"
   },
@@ -1515,7 +1525,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getSpreadFuncEnv,
     .initFunc     = spreadFunctionSetup,
     .processFunc  = spreadFunction,
-    .finalizeFunc = spreadPartialFinalize
+    .finalizeFunc = spreadPartialFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = spreadCombine,
   },
   {
     .name = "_spread_merge",
@@ -1526,7 +1538,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getSpreadFuncEnv,
     .initFunc     = spreadFunctionSetup,
     .processFunc  = spreadFunctionMerge,
-    .finalizeFunc = spreadFinalize
+    .finalizeFunc = spreadFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = spreadCombine,
   },
   {
     .name = "elapsed",
@@ -1538,6 +1552,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = elapsedFunctionSetup,
     .processFunc  = elapsedFunction,
     .finalizeFunc = elapsedFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = elapsedCombine,
     .pPartialFunc = "_elapsed_partial",
     .pMergeFunc   = "_elapsed_merge"
   },
@@ -1550,7 +1566,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getElapsedFuncEnv,
     .initFunc     = elapsedFunctionSetup,
     .processFunc  = elapsedFunction,
-    .finalizeFunc = elapsedPartialFinalize
+    .finalizeFunc = elapsedPartialFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = elapsedCombine,
   },
   {
     .name = "_elapsed_merge",
@@ -1561,7 +1579,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getElapsedFuncEnv,
     .initFunc     = elapsedFunctionSetup,
     .processFunc  = elapsedFunctionMerge,
-    .finalizeFunc = elapsedFinalize
+    .finalizeFunc = elapsedFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = elapsedCombine,
   },
   {
     .name = "last_row",
@@ -1608,14 +1628,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "histogram",
     .type = FUNCTION_TYPE_HISTOGRAM,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_FORBID_FILL_FUNC,
     .translateFunc = translateHistogram,
     .getEnvFunc   = getHistogramFuncEnv,
     .initFunc     = histogramFunctionSetup,
     .processFunc  = histogramFunction,
     .finalizeFunc = histogramFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = histogramCombine,
     .pPartialFunc = "_histogram_partial",
-    .pMergeFunc   = "_histogram_merge"
+    .pMergeFunc   = "_histogram_merge",
   },
   {
     .name = "_histogram_partial",
@@ -1625,7 +1647,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getHistogramFuncEnv,
     .initFunc     = histogramFunctionSetup,
     .processFunc  = histogramFunction,
-    .finalizeFunc = histogramPartialFinalize
+    .finalizeFunc = histogramPartialFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = histogramCombine,
   },
   {
     .name = "_histogram_merge",
@@ -1635,7 +1659,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getHistogramFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = histogramFunctionMerge,
-    .finalizeFunc = histogramFinalize
+    .finalizeFunc = histogramFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = histogramCombine,
   },
   {
     .name = "hyperloglog",
@@ -1646,6 +1672,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = functionSetup,
     .processFunc  = hllFunction,
     .finalizeFunc = hllFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = hllCombine,
     .pPartialFunc = "_hyperloglog_partial",
     .pMergeFunc   = "_hyperloglog_merge"
   },
@@ -1657,7 +1685,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getHLLFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = hllFunction,
-    .finalizeFunc = hllPartialFinalize
+    .finalizeFunc = hllPartialFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = hllCombine,
   },
   {
     .name = "_hyperloglog_merge",
@@ -1667,7 +1697,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getHLLFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = hllFunctionMerge,
-    .finalizeFunc = hllFinalize
+    .finalizeFunc = hllFinalize,
+    .invertFunc   = NULL,
+    .combineFunc  = hllCombine,
   },
   {
     .name = "diff",

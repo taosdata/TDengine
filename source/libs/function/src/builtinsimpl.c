@@ -142,10 +142,8 @@ typedef struct SElapsedInfo {
 typedef struct SHistoFuncBin {
   double lower;
   double upper;
-  union {
-    int64_t count;
-    double  percentage;
-  };
+  int64_t count;
+  double  percentage;
 } SHistoFuncBin;
 
 typedef struct SHistoFuncInfo {
@@ -2227,7 +2225,6 @@ int32_t apercentilePartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 int32_t apercentileCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
   SAPercentileInfo*    pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
-  int32_t type = pDestCtx->input.pData[0]->info.type;
 
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
   SAPercentileInfo*    pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
@@ -2845,6 +2842,7 @@ void copyTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pS
   for (int32_t i = 0; i < pSrcBlock->info.numOfCols; ++i) {
     SColumnInfoData* pCol = taosArrayGet(pSrcBlock->pDataBlock, i);
     if ((nullList[i] = colDataIsNull_s(pCol, rowIndex)) == true) {
+      offset += pCol->info.bytes;
       continue;
     }
 
@@ -3100,6 +3098,17 @@ int32_t spreadPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   return pResInfo->numOfRes;
 }
 
+int32_t spreadCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
+  SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
+  SSpreadInfo* pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
+
+  SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
+  SSpreadInfo* pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
+  spreadTransferInfo(pSBuf, pDBuf);
+  pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t getElapsedInfoSize() {
   return (int32_t)sizeof(SElapsedInfo);
 }
@@ -3257,6 +3266,18 @@ int32_t elapsedPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   taosMemoryFree(res);
   return pResInfo->numOfRes;
+}
+
+int32_t elapsedCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
+  SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
+  SElapsedInfo* pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
+
+  SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
+  SElapsedInfo* pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
+
+  elapsedTransferInfo(pSBuf, pDBuf);
+  pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t getHistogramInfoSize() {
@@ -3554,6 +3575,18 @@ int32_t histogramPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   return 1;
 }
 
+int32_t histogramCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
+  SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
+  SHistoFuncInfo*      pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
+
+  SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
+  SHistoFuncInfo*      pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
+
+  histogramTransferInfo(pSBuf, pDBuf);
+  pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t getHLLInfoSize() {
   return (int32_t)sizeof(SHLLInfo);
 }
@@ -3736,6 +3769,18 @@ int32_t hllPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   taosMemoryFree(res);
   return pResInfo->numOfRes;
+}
+
+int32_t hllCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
+  SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
+  SHLLInfo* pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
+
+  SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
+  SHLLInfo* pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
+
+  hllTransferInfo(pSBuf, pDBuf);
+  pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
+  return TSDB_CODE_SUCCESS;
 }
 
 bool getStateFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
@@ -4140,6 +4185,8 @@ int32_t sampleFunction(SqlFunctionCtx* pCtx) {
 
   SColumnInfoData* pInputCol = pInput->pData[0];
   SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
+
+  int32_t alreadySampled = pInfo->numSampled;
 
   int32_t startOffset = pCtx->offset;
   for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {

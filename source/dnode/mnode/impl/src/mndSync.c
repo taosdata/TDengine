@@ -61,6 +61,12 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
     }
     tsem_post(&pMgmt->syncSem);
   } else {
+    STrans *pTrans = mndAcquireTrans(pMnode, transId);
+    if (pTrans != NULL) {
+      mndTransExecute(pMnode, pTrans);
+      mndReleaseTrans(pMnode, pTrans);
+    }
+
     if (cbMeta.index - sdbGetApplyIndex(pMnode->pSdb) > 100) {
       SSnapshotMeta sMeta = {0};
       if (syncGetSnapshotMeta(pMnode->syncMgmt.sync, &sMeta) == 0) {
@@ -200,14 +206,14 @@ int32_t mndInitSync(SMnode *pMnode) {
     return -1;
   }
 
-  mDebug("mnode sync is opened, id:%" PRId64, pMgmt->sync);
+  mDebug("mnode-sync is opened, id:%" PRId64, pMgmt->sync);
   return 0;
 }
 
 void mndCleanupSync(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   syncStop(pMgmt->sync);
-  mDebug("mnode sync is stopped, id:%" PRId64, pMgmt->sync);
+  mDebug("mnode-sync is stopped, id:%" PRId64, pMgmt->sync);
 
   tsem_destroy(&pMgmt->syncSem);
   memset(pMgmt, 0, sizeof(SSyncMgmt));

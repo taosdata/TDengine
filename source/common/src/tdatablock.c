@@ -294,7 +294,7 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, in
 
 int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* pSource, int32_t numOfRows) {
   ASSERT(pColumnInfoData != NULL && pSource != NULL && pColumnInfoData->info.type == pSource->info.type);
-  if (numOfRows == 0) {
+  if (numOfRows <= 0) {
     return numOfRows;
   }
 
@@ -1239,6 +1239,9 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData) {
         return NULL;
       }
 
+      if (pSrc->pData == NULL) {
+        continue;
+      }
       colDataAssign(pDst, pSrc, pDataBlock->info.rows);
     }
 
@@ -1631,25 +1634,31 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks
             break;
           default:
             if (pColInfoData->info.type < TSDB_DATA_TYPE_MAX && pColInfoData->info.type > TSDB_DATA_TYPE_NULL) {
-              char tv[8] = {0};
-              if (pColInfoData->info.type == TSDB_DATA_TYPE_FLOAT) {
-                float v = 0;
-                GET_TYPED_DATA(v, float, pColInfoData->info.type, var);
-                SET_TYPED_DATA(&tv, pCol->type, v);
-              } else if (pColInfoData->info.type == TSDB_DATA_TYPE_DOUBLE) {
-                double v = 0;
-                GET_TYPED_DATA(v, double, pColInfoData->info.type, var);
-                SET_TYPED_DATA(&tv, pCol->type, v);
-              } else if (IS_SIGNED_NUMERIC_TYPE(pColInfoData->info.type)) {
-                int64_t v = 0;
-                GET_TYPED_DATA(v, int64_t, pColInfoData->info.type, var);
-                SET_TYPED_DATA(&tv, pCol->type, v);
+              if (pCol->type == pColInfoData->info.type) {
+                tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, pCol->type, TD_VTYPE_NORM, var, true, offset,
+                                    k);
               } else {
-                uint64_t v = 0;
-                GET_TYPED_DATA(v, uint64_t, pColInfoData->info.type, var);
-                SET_TYPED_DATA(&tv, pCol->type, v);
+                char tv[8] = {0};
+                if (pColInfoData->info.type == TSDB_DATA_TYPE_FLOAT) {
+                  float v = 0;
+                  GET_TYPED_DATA(v, float, pColInfoData->info.type, var);
+                  SET_TYPED_DATA(&tv, pCol->type, v);
+                } else if (pColInfoData->info.type == TSDB_DATA_TYPE_DOUBLE) {
+                  double v = 0;
+                  GET_TYPED_DATA(v, double, pColInfoData->info.type, var);
+                  SET_TYPED_DATA(&tv, pCol->type, v);
+                } else if (IS_SIGNED_NUMERIC_TYPE(pColInfoData->info.type)) {
+                  int64_t v = 0;
+                  GET_TYPED_DATA(v, int64_t, pColInfoData->info.type, var);
+                  SET_TYPED_DATA(&tv, pCol->type, v);
+                } else {
+                  uint64_t v = 0;
+                  GET_TYPED_DATA(v, uint64_t, pColInfoData->info.type, var);
+                  SET_TYPED_DATA(&tv, pCol->type, v);
+                }
+                tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, pCol->type, TD_VTYPE_NORM, tv, true, offset,
+                                    k);
               }
-              tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, pCol->type, TD_VTYPE_NORM, tv, true, offset, k);
             } else {
               uError("the column type %" PRIi16 " is undefined\n", pColInfoData->info.type);
               TASSERT(0);

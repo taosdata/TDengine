@@ -353,9 +353,6 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TDB_IVLD_TAG_VAL,             "TSDB invalid tag valu
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_NO_CACHE_LAST_ROW,        "TSDB no cache last row data")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TABLE_RECREATED,          "Table re-created")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TDB_ENV_OPEN_ERROR,       "TDB env open error")
-TAOS_DEFINE_ERROR(TSDB_CODE_TDB_NO_SMA_INDEX_IN_META,     "No sma index in meta")
-TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_SMA_STAT,         "Invalid sma state")
-TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TSMA_ALREADY_EXIST,       "TSMA already exists")
 
 
 // query
@@ -537,25 +534,38 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_DELETE_WHERE,       "The DELETE statemen
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_REDISTRIBUTE_VG,    "The REDISTRIBUTE VGROUP statement only support 1 to 3 dnodes")
 
 //planner
-TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_INTERNAL_ERROR,          "Planner internal error")
+TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_INTERNAL_ERROR,            "Planner internal error")
 
 //udf
-TAOS_DEFINE_ERROR(TSDB_CODE_UDF_STOPPING,                 "udf is stopping")
-TAOS_DEFINE_ERROR(TSDB_CODE_UDF_PIPE_READ_ERR,            "udf pipe read error")
-TAOS_DEFINE_ERROR(TSDB_CODE_UDF_PIPE_CONNECT_ERR,         "udf pipe connect error")
-TAOS_DEFINE_ERROR(TSDB_CODE_UDF_PIPE_NO_PIPE,             "udf no pipe")
-TAOS_DEFINE_ERROR(TSDB_CODE_UDF_LOAD_UDF_FAILURE,         "udf load failure")
-TAOS_DEFINE_ERROR(TSDB_CODE_UDF_INVALID_STATE,            "udf invalid state")
-TAOS_DEFINE_ERROR(TSDB_CODE_UDF_INVALID_INPUT,            "udf invalid function input")
-TAOS_DEFINE_ERROR(TSDB_CODE_UDF_NO_FUNC_HANDLE,           "udf no function handle")
-TAOS_DEFINE_ERROR(TSDB_CODE_UDF_INVALID_BUFSIZE,          "udf invalid bufsize")
-TAOS_DEFINE_ERROR(TSDB_CODE_UDF_INVALID_OUTPUT_TYPE,      "udf invalid output type")
+TAOS_DEFINE_ERROR(TSDB_CODE_UDF_STOPPING,                   "udf is stopping")
+TAOS_DEFINE_ERROR(TSDB_CODE_UDF_PIPE_READ_ERR,              "udf pipe read error")
+TAOS_DEFINE_ERROR(TSDB_CODE_UDF_PIPE_CONNECT_ERR,           "udf pipe connect error")
+TAOS_DEFINE_ERROR(TSDB_CODE_UDF_PIPE_NO_PIPE,               "udf no pipe")
+TAOS_DEFINE_ERROR(TSDB_CODE_UDF_LOAD_UDF_FAILURE,           "udf load failure")
+TAOS_DEFINE_ERROR(TSDB_CODE_UDF_INVALID_STATE,              "udf invalid state")
+TAOS_DEFINE_ERROR(TSDB_CODE_UDF_INVALID_INPUT,              "udf invalid function input")
+TAOS_DEFINE_ERROR(TSDB_CODE_UDF_NO_FUNC_HANDLE,             "udf no function handle")
+TAOS_DEFINE_ERROR(TSDB_CODE_UDF_INVALID_BUFSIZE,            "udf invalid bufsize")
+TAOS_DEFINE_ERROR(TSDB_CODE_UDF_INVALID_OUTPUT_TYPE,        "udf invalid output type")
 
 //schemaless
-TAOS_DEFINE_ERROR(TSDB_CODE_SML_INVALID_PROTOCOL_TYPE,    "Invalid line protocol type")
-TAOS_DEFINE_ERROR(TSDB_CODE_SML_INVALID_PRECISION_TYPE,   "Invalid timestamp precision type")
-TAOS_DEFINE_ERROR(TSDB_CODE_SML_INVALID_DATA,             "Invalid data type")
-TAOS_DEFINE_ERROR(TSDB_CODE_SML_INVALID_DB_CONF,          "Invalid schemaless db config")
+TAOS_DEFINE_ERROR(TSDB_CODE_SML_INVALID_PROTOCOL_TYPE,      "Invalid line protocol type")
+TAOS_DEFINE_ERROR(TSDB_CODE_SML_INVALID_PRECISION_TYPE,     "Invalid timestamp precision type")
+TAOS_DEFINE_ERROR(TSDB_CODE_SML_INVALID_DATA,               "Invalid data type")
+TAOS_DEFINE_ERROR(TSDB_CODE_SML_INVALID_DB_CONF,            "Invalid schemaless db config")
+
+//tsma
+TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_ALREADY_EXIST,             "Tsma already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_NO_INDEX_IN_META,          "No tsma index in meta")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_ENV,               "Invalid tsma env")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_STAT,              "Invalid tsma state")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_NO_INDEX_IN_CACHE,         "No tsma index in cache")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_RM_SKEY_IN_HASH,           "Rm tsma skey in cache")
+
+//rsma
+TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_INVALID_ENV,               "Invalid rsma env")
+TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_INVALID_STAT,              "Invalid rsma state")
+
 
 #ifdef TAOS_ERROR_C
 };
