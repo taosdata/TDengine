@@ -131,13 +131,15 @@ static FORCE_INLINE int32_t tGetOffset(uint8_t *p, SOffset *pOfst) {
 }
 
 // SMapData =======================================================================
-int32_t tMapDataClear(SMapData *pMapData) {
-  int32_t code = 0;
+void tMapDataReset(SMapData *pMapData) {
+  pMapData->flag = TSDB_OFFSET_I32;
+  pMapData->nItem = 0;
+  pMapData->nData = 0;
+}
 
+void tMapDataClear(SMapData *pMapData) {
   tsdbFree(pMapData->pOfst);
   tsdbFree(pMapData->pData);
-
-  return code;
 }
 
 int32_t tMapDataPutItem(SMapData *pMapData, void *pItem, int32_t (*tPutItemFn)(uint8_t *, void *)) {
@@ -723,3 +725,5 @@ int32_t tsdbKeyFid(TSKEY key, int32_t minutes, int8_t precision) {
     return (int)((key / tsTickPerMin[precision] / minutes));
   }
 }
+
+// SColDataBlock ======================================================

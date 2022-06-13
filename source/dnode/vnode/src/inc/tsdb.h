@@ -155,7 +155,8 @@ int32_t tTABLEIDCmprFn(const void *p1, const void *p2);
 int32_t tsdbKeyCmprFn(const void *p1, const void *p2);
 
 // SMapData
-int32_t tMapDataClear(SMapData *pMapData);
+void    tMapDataReset(SMapData *pMapData);
+void    tMapDataClear(SMapData *pMapData);
 int32_t tMapDataPutItem(SMapData *pMapData, void *pItem, int32_t (*tPutItemFn)(uint8_t *, void *));
 int32_t tMapDataGetItemByIdx(SMapData *pMapData, int32_t idx, void *pItem, int32_t (*tGetItemFn)(uint8_t *, void *));
 int32_t tPutMapData(uint8_t *p, SMapData *pMapData);
@@ -449,8 +450,7 @@ struct SMapData {
 };
 
 struct SVDataCols {
-  int64_t  *aVersion;
-  SDataCols dataCols;
+  int64_t *aVersion;
 };
 
 #ifdef __cplusplus

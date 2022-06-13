@@ -34,8 +34,6 @@ typedef struct SValue        SValue;
 typedef struct SColVal       SColVal;
 typedef struct STSRow2       STSRow2;
 typedef struct STSRowBuilder STSRowBuilder;
-typedef struct SColData      SColData;
-typedef struct SColDataBatch SColDataBatch;
 typedef struct STagVal       STagVal;
 typedef struct STag          STag;
 
@@ -170,17 +168,6 @@ struct STag {
   int8_t  idx[];
 };
 #pragma pack(pop)
-
-struct SColData {
-  int16_t  cid;
-  uint32_t nData;
-  uint8_t *pData;
-};
-
-struct SColDataBatch {
-  uint8_t   flags;
-  SColData *aColData[];
-};
 
 #if 1  //================================================================================================================================================
 // Imported since 3.0 and use bitmap to demonstrate None/Null/Norm, while use Null/Norm below 3.0 without of bitmap.
