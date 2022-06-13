@@ -203,6 +203,25 @@ int32_t tsdbKeyCmprFn(const void *p1, const void *p2) {
   return 0;
 }
 
+// TSDBKEY ======================================================
+static FORCE_INLINE int32_t tPutTSDBKEY(uint8_t *p, TSDBKEY *pKey) {
+  int32_t n = 0;
+
+  n += tPutI64v(p ? p + n : p, pKey->version);
+  n += tPutI64(p ? p + n : p, pKey->ts);
+
+  return n;
+}
+
+static FORCE_INLINE int32_t tGetTSDBKEY(uint8_t *p, TSDBKEY *pKey) {
+  int32_t n = 0;
+
+  n += tGetI64v(p + n, &pKey->version);
+  n += tGetI64(p + n, &pKey->ts);
+
+  return n;
+}
+
 // SDelIdxItem ======================================================
 static FORCE_INLINE int32_t tPutDelIdxItem(uint8_t *p, SDelIdxItem *pDelIdxItem) {
   int32_t n = 0;
@@ -230,6 +249,116 @@ static FORCE_INLINE int32_t tGetDelIdxItem(uint8_t *p, SDelIdxItem *pDelIdxItem)
   n += tGetI64v(p + n, &pDelIdxItem->maxVersion);
   n += tGetI64v(p + n, &pDelIdxItem->offset);
   n += tGetI64v(p + n, &pDelIdxItem->size);
+
+  return n;
+}
+
+// SBlockIdxItem ======================================================
+static FORCE_INLINE int32_t tPutBlockIdxItem(uint8_t *p, SBlockIdxItem *pItem) {
+  int32_t n = 0;
+
+  n += tPutI64(p ? p + n : p, pItem->suid);
+  n += tPutI64(p ? p + n : p, pItem->uid);
+  n += tPutTSDBKEY(p ? p + n : p, &pItem->minKey);
+  n += tPutTSDBKEY(p ? p + n : p, &pItem->maxKey);
+  n += tPutI64v(p ? p + n : p, pItem->minVersion);
+  n += tPutI64v(p ? p + n : p, pItem->maxVersion);
+  n += tPutI64v(p ? p + n : p, pItem->offset);
+  n += tPutI64v(p ? p + n : p, pItem->size);
+
+  return n;
+}
+
+static FORCE_INLINE int32_t tGetBlockIdxItem(uint8_t *p, SBlockIdxItem *pItem) {
+  int32_t n = 0;
+
+  n += tGetI64(p + n, &pItem->suid);
+  n += tGetI64(p + n, &pItem->uid);
+  n += tGetTSDBKEY(p + n, &pItem->minKey);
+  n += tGetTSDBKEY(p + n, &pItem->maxKey);
+  n += tGetI64v(p + n, &pItem->minVersion);
+  n += tGetI64v(p + n, &pItem->maxVersion);
+  n += tGetI64v(p + n, &pItem->offset);
+  n += tGetI64v(p + n, &pItem->size);
+
+  return n;
+}
+
+// SBlockIdx ======================================================
+int32_t tBlockIdxClear(SBlockIdx *pBlockIdx) {
+  int32_t code = 0;
+  tsdbFree(pBlockIdx->offset.pOffset);
+  tsdbFree(pBlockIdx->pData);
+  return code;
+}
+
+int32_t tBlockIdxPutItem(SBlockIdx *pBlockIdx, SBlockIdxItem *pItem) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tBlockIdxGetItemByIdx(SBlockIdx *pBlockIdx, SBlockIdxItem *pItem, int32_t idx) {
+  int32_t code = 0;
+  int32_t offset;
+
+  offset = tsdbGetOffset(&pBlockIdx->offset, idx);
+  if (offset < 0) {
+    code = TSDB_CODE_NOT_FOUND;
+    goto _exit;
+  }
+
+  tGetBlockIdxItem(pBlockIdx->pData + offset, pItem);
+
+_exit:
+  return code;
+}
+
+int32_t tBlockIdxGetItem(SBlockIdx *pBlockIdx, SBlockIdxItem *pItem, TABLEID id) {
+  int32_t code = 0;
+  int32_t lidx = 0;
+  int32_t ridx = pBlockIdx->offset.nOffset - 1;
+  int32_t midx;
+  int32_t c;
+
+  while (lidx <= ridx) {
+    midx = (lidx + midx) / 2;
+
+    code = tBlockIdxGetItemByIdx(pBlockIdx, pItem, midx);
+    if (code) goto _exit;
+
+    c = tTABLEIDCmprFn(&id, pItem);
+    if (c == 0) {
+      goto _exit;
+    } else if (c < 0) {
+      ridx = midx - 1;
+    } else {
+      lidx = midx + 1;
+    }
+  }
+
+  code = TSDB_CODE_NOT_FOUND;
+
+_exit:
+  return code;
+}
+
+int32_t tPutBlockIdx(uint8_t *p, SBlockIdx *pBlockIdx) {
+  int32_t n = 0;
+
+  n += tPutU32(p ? p + n : p, pBlockIdx->delimiter);
+  n += tPutOffset(p ? p + n : p, &pBlockIdx->offset);
+  n += tPutBinary(p ? p + n : p, pBlockIdx->pData, pBlockIdx->nData);
+
+  return n;
+}
+
+int32_t tGetBlockIdx(uint8_t *p, SBlockIdx *pBlockIdx) {
+  int32_t n = 0;
+
+  n += tGetU32(p + n, &pBlockIdx->delimiter);
+  n += tGetOffset(p + n, &pBlockIdx->offset);
+  n += tGetBinary(p + n, &pBlockIdx->pData, &pBlockIdx->nData);
 
   return n;
 }
@@ -279,12 +408,11 @@ _exit:
 }
 
 int32_t tDelIdxGetItem(SDelIdx *pDelIdx, SDelIdxItem *pItem, TABLEID id) {
-  int32_t  code = 0;
-  int32_t  lidx = 0;
-  int32_t  ridx = pDelIdx->offset.nOffset - 1;
-  int32_t  midx;
-  uint64_t offset;
-  int32_t  c;
+  int32_t code = 0;
+  int32_t lidx = 0;
+  int32_t ridx = pDelIdx->offset.nOffset - 1;
+  int32_t midx;
+  int32_t c;
 
   while (lidx <= ridx) {
     midx = (lidx + ridx) / 2;

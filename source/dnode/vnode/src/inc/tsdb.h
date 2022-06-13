@@ -112,14 +112,15 @@ typedef struct SCacheFReader SCacheFReader;
 // tsdbCommit.c ==============================================================================================
 
 // tsdbReadImpl.c ==============================================================================================
-typedef struct SBlockIdx    SBlockIdx;
-typedef struct SBlockInfo   SBlockInfo;
-typedef struct SBlock       SBlock;
-typedef struct SBlockCol    SBlockCol;
-typedef struct SBlockStatis SBlockStatis;
-typedef struct SAggrBlkCol  SAggrBlkCol;
-typedef struct SBlockData   SBlockData;
-typedef struct SReadH       SReadH;
+typedef struct SBlockIdxItem SBlockIdxItem;
+typedef struct SBlockIdx     SBlockIdx;
+typedef struct SBlockInfo    SBlockInfo;
+typedef struct SBlock        SBlock;
+typedef struct SBlockCol     SBlockCol;
+typedef struct SBlockStatis  SBlockStatis;
+typedef struct SAggrBlkCol   SAggrBlkCol;
+typedef struct SBlockData    SBlockData;
+typedef struct SReadH        SReadH;
 
 typedef struct SDFileSetReader SDFileSetReader;
 typedef struct SDFileSetWriter SDFileSetWriter;
@@ -148,6 +149,16 @@ void    tsdbFree(uint8_t *pBuf);
 
 int32_t tTABLEIDCmprFn(const void *p1, const void *p2);
 int32_t tsdbKeyCmprFn(const void *p1, const void *p2);
+
+// SBlockIdx
+int32_t tBlockIdxClear(SBlockIdx *pBlockIdx);
+int32_t tBlockIdxPutItem(SBlockIdx *pBlockIdx, SBlockIdxItem *pItem);
+int32_t tBlockIdxGetItemByIdx(SBlockIdx *pBlockIdx, SBlockIdxItem *pItem, int32_t idx);
+int32_t tBlockIdxGetItem(SBlockIdx *pBlockIdx, SBlockIdxItem *pItem, TABLEID id);
+int32_t tPutBlockIdx(uint8_t *p, SBlockIdx *pBlockIdx);
+int32_t tGetBlockIdx(uint8_t *p, SBlockIdx *pBlockIdx);
+
+// SBlock
 
 // SDelIdx
 int32_t tDelIdxClear(SDelIdx *pDelIdx);
@@ -251,13 +262,22 @@ struct TSDBROW {
   STSRow *pTSRow;
 };
 
-struct SBlockIdx {
+struct SBlockIdxItem {
   int64_t suid;
   int64_t uid;
-  int64_t maxVersion;
+  TSDBKEY minKey;
+  TSDBKEY maxKey;
   int64_t minVersion;
+  int64_t maxVersion;
   int64_t offset;
   int64_t size;
+};
+
+struct SBlockIdx {
+  uint32_t delimiter;
+  SOffset  offset;
+  uint32_t nData;
+  uint8_t *pData;
 };
 
 typedef enum {
@@ -267,19 +287,20 @@ typedef enum {
 
 #define SBlockVerLatest TSDB_SBLK_VER_0
 
-struct SBlock {
+struct SBlockItem {
   TSDBKEY minKey;
   TSDBKEY maxKey;
+  int64_t minVerion;
   int64_t maxVersion;
-  int64_t minVersion;
-  uint8_t flags;  // last, algorithm
 };
 
-struct SBlockInfo {
-  int32_t  delimiter;  // For recovery usage
-  uint64_t suid;
-  uint64_t uid;
-  SBlock   blocks[];
+struct SBlock {
+  uint32_t delimiter;
+  int64_t  suid;
+  int64_t  uid;
+  SOffset  offset;
+  uint32_t nData;
+  uint8_t *pData;
 };
 
 struct SBlockCol {

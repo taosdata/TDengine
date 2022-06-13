@@ -295,6 +295,7 @@ static int32_t tsdbCommitDelEnd(SCommitter *pCommitter) {
     if (code) goto _err;
   }
 
+  tDelDataClear(&pCommitter->delDataNew);
   tDelIdxClear(&pCommitter->delIdxNew);
 
   return code;
