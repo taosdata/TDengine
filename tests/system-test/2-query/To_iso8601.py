@@ -1,3 +1,4 @@
+import time
 from time import sleep
 
 from util.log import *
@@ -16,7 +17,7 @@ class TDTestCase:
         self.ts = 1640966400000  # 2022-1-1 00:00:00.000
     def check_customize_param_ms(self):
         
-        time_zone = os.popen('date "+%z"').read().strip()
+        time_zone = time.strftime('%z')
         tdSql.execute('create database db1 precision "ms"')
         tdSql.execute('use db1')
         tdSql.execute('create table if not exists ntb(ts timestamp, c1 int, c2 timestamp)')

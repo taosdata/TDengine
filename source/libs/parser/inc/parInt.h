@@ -24,6 +24,9 @@ extern "C" {
 #include "parUtil.h"
 #include "parser.h"
 
+#define QUERY_SMA_OPTIMIZE_DISABLE 0
+#define QUERY_SMA_OPTIMIZE_ENABLE  1
+
 int32_t parseInsertSyntax(SParseContext* pContext, SQuery** pQuery);
 int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery);
 int32_t parse(SParseContext* pParseCxt, SQuery** pQuery);

@@ -162,7 +162,7 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
 
   walFsync(pWal, true);
 
-  sTrace("sync event vgId:%d write index:%ld, %s, isStandBy:%d, msgType:%s, originalRpcType:%s", pData->pSyncNode->vgId,
+  sDebug("vgId:%d sync event write index:%ld, %s, isStandBy:%d, msgType:%s, originalRpcType:%s", pData->pSyncNode->vgId,
          pEntry->index, syncUtilState2String(pData->pSyncNode->state), pData->pSyncNode->pRaftCfg->isStandBy,
          TMSG_INFO(pEntry->msgType), TMSG_INFO(pEntry->originalRpcType));
 
@@ -320,7 +320,7 @@ int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
 
   walFsync(pWal, true);
 
-  sTrace("sync event old write wal: %ld", pEntry->index);
+  sDebug("sync event old write wal: %ld", pEntry->index);
   return code;
 }
 
