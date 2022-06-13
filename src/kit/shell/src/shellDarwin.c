@@ -54,13 +54,16 @@ void printHelp() {
   printf("%s%s%s\n", indent, indent, "Script to run without enter the shell.");
   printf("%s%s\n", indent, "-d");
   printf("%s%s%s\n", indent, indent, "Database to use when connecting to the server.");
-  printf("%s%s\n", indent, "-t");
+  printf("%s%s\n", indent, "-z");
   printf("%s%s%s\n", indent, indent, "Time zone of the shell, default is local.");
   printf("%s%s\n", indent, "-D");
   printf("%s%s%s\n", indent, indent, "Use multi-thread to import all SQL files in the directory separately.");
   printf("%s%s\n", indent, "-T");
   printf("%s%s%s\n", indent, indent, "Number of threads when using multi-thread to import data.");
-
+  printf("%s%s\n", indent, "-R");
+  printf("%s%s%s\n", indent, indent, "Connect and interact with TDengine use restful.");
+  printf("%s%s\n", indent, "-t");
+  printf("%s%s%s\n", indent, indent, "The token to use when connecting TDengine's cloud services.");
   exit(EXIT_SUCCESS);
 }
 
@@ -74,7 +77,15 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
     // for host
     if (strcmp(argv[i], "-h") == 0) {
       if (i < argc - 1) {
-        arguments->host = argv[++i];
+        char* arg = argv[++i];
+          char* tmp = strstr(arg, ":");
+          if (tmp == NULL) {
+              arguments->host = arg;
+          } else if ((tmp + 1) != NULL) {
+              arguments->port  = atoi(tmp + 1);
+              tmp[0] = '\0';
+              arguments->host = arg;
+          }
       } else {
         fprintf(stderr, "option -h requires an argument\n");
         exit(EXIT_FAILURE);
@@ -89,7 +100,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
                   || (strncmp(argv[i], "--password", 10) == 0)) {
             printf("Enter password: ");
             taosSetConsoleEcho(false);
-            if (scanf("%128s", g_password) > 1) {
+            if (scanf("%s", g_password) > 1) {
                 fprintf(stderr, "password read error\n");
             }
             taosSetConsoleEcho(true);
@@ -159,11 +170,11 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
       }
     }
       // For time zone
-    else if (strcmp(argv[i], "-t") == 0) {
+    else if (strcmp(argv[i], "-z") == 0) {
       if (i < argc - 1) {
         arguments->timezone = argv[++i];
       } else {
-        fprintf(stderr, "option -t requires an argument\n");
+        fprintf(stderr, "option -z requires an argument\n");
         exit(EXIT_FAILURE);
       }
     }
@@ -190,6 +201,20 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
         exit(EXIT_FAILURE);
       }
     }
+
+    else if (strcmp(argv[i], "-R") == 0) {
+        arguments->restful = true;
+    }
+
+    else if (strcmp(argv[i], "-t") == 0) {
+        if (i < argc - 1) {
+            arguments->token = argv[++i];
+        } else {
+            fprintf(stderr, "options -t requires an argument\n");
+            exit(EXIT_FAILURE);
+        }
+    }
+
       // For temperory command TODO
     else if (strcmp(argv[i], "--help") == 0) {
       printHelp();
@@ -546,4 +571,36 @@ void cleanup_handler(void *arg) { tcsetattr(0, TCSANOW, &oldtio); }
 void exitShell() {
   tcsetattr(0, TCSANOW, &oldtio);
   exit(EXIT_SUCCESS);
+}
+
+int tcpConnect() {
+    struct sockaddr_in serv_addr;
+    if (args.port == 0) {
+        args.port = 6041;
+    }
+    if (NULL == args.host) {
+        args.host = "localhost";
+    }
+
+    struct hostent *server = gethostbyname(args.host);
+    if ((server == NULL) || (server->h_addr == NULL)) {
+        fprintf(stderr, "no such host: %s\n", args.host);
+        return -1;
+    }
+    memset(&serv_addr, 0, sizeof(struct sockaddr_in));
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons(args.port);
+    memcpy(&(serv_addr.sin_addr.s_addr), server->h_addr, server->h_length);
+    args.socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (args.socket < 0) {
+        fprintf(stderr, "failed to create socket\n");
+        return -1;
+    }
+    int retConn = connect(args.socket, (struct sockaddr *)&serv_addr, sizeof(struct sockaddr));
+    if (retConn < 0) {
+        fprintf(stderr, "failed to connect\n");
+        close(args.socket);
+        return -1;
+    }
+    return 0;
 }

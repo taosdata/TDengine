@@ -1964,6 +1964,11 @@ int tscProcessRetrieveGlobalMergeRsp(SSqlObj *pSql) {
 
   // global aggregation may be the upstream for parent query
   SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd);
+  if (tscOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
+    pQueryInfo->limit.limit = pQueryInfo->clauseLimit;
+    pQueryInfo->limit.offset = pQueryInfo->prjOffset;
+  }
+  
   if (pQueryInfo->pQInfo == NULL) {
     STableGroupInfo tableGroupInfo = {.numOfTables = 1, .pGroupList = taosArrayInit(1, POINTER_BYTES),};
 

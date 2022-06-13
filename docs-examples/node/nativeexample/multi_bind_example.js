@@ -25,7 +25,7 @@ function insertData() {
 
   // bind table name and tags
   let tagBind = new taos.TaosBind(2);
-  tagBind.bindBinary("Beijing.Chaoyang");
+  tagBind.bindBinary("California.SanFrancisco");
   tagBind.bindInt(2);
   cursor.stmtSetTbnameTags("d1001", tagBind.getBind());
 

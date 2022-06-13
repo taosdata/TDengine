@@ -33,7 +33,7 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
 关键不同点在于：
 
 1. 使用 REST 连接，用户无需安装客户端驱动程序 taosc，具有跨平台易用的优势，但性能要下降 30%左右。
-2. 使用原生连接可以体验 TDengine 的全部功能，如[参数绑定接口](/reference/connector/cpp#参数绑定-api)、[订阅](reference/connector/cpp#数据订阅接口)等等。
+2. 使用原生连接可以体验 TDengine 的全部功能，如[参数绑定接口](/reference/connector/cpp#参数绑定-api)、[订阅](/reference/connector/cpp#订阅和消费-api)等等。
 
 ## 安装客户端驱动 taosc
 
@@ -212,7 +212,7 @@ curl -L -o php-tdengine.tar.gz https://github.com/Yurunsoft/php-tdengine/archive
 && tar -xzf php-tdengine.tar.gz -C php-tdengine --strip-components=1
 ```
 
-> 版本 `v1.0.0` 可替换为任意更新的版本，可在 Release 中查看最新版本。
+> 版本 `v1.0.2` 只是示例，可替换为任意更新的版本，可在 [TDengine PHP Connector 发布历史](https://github.com/Yurunsoft/php-tdengine/releases) 中查看可用版本。
 
 **非 Swoole 环境：**
 

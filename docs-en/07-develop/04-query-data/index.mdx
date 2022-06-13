@@ -1,6 +1,6 @@
 ---
-Sidebar_label: Select
-title: Select
+Sidebar_label: Query data
+title: Query data
 description: "This chapter introduces major query functionalities and how to perform sync and async query using connectors."
 ---
 
@@ -20,7 +20,7 @@ import CAsync from "./_c_async.mdx";
 
 ## Introduction
 
-SQL is used by TDengine as the query language. Application programs can send SQL statements to TDengine through REST API or connectors. TDengine CLI `taos` can also be used to execute SQL Ad-Hoc query. Here is the list of major query functionalities supported by TDengine：
+SQL is used by TDengine as its query language. Application programs can send SQL statements to TDengine through REST API or connectors. TDengine's CLI `taos` can also be used to execute ad hoc SQL queries. Here is the list of major query functionalities supported by TDengine：
 
 - Query on single column or multiple columns
 - Filter on tags or data columns：>, <, =, <\>, like
@@ -31,7 +31,7 @@ SQL is used by TDengine as the query language. Application programs can send SQL
 - Join query with timestamp alignment
 - Aggregate functions: count, max, min, avg, sum, twa, stddev, leastsquares, top, bottom, first, last, percentile, apercentile, last_row, spread, diff
 
-For example, below SQL statement can be executed in TDengine CLI `taos` to select the rows whose voltage column is bigger than 215 and limit the output to only 2 rows.
+For example, the SQL statement below can be executed in TDengine CLI `taos` to select records with voltage greater than 215 and limit the output to only 2 rows.
 
 ```sql
 select * from d1001 where voltage > 215 order by ts desc limit 2;
@@ -46,46 +46,46 @@ taos> select * from d1001 where voltage > 215 order by ts desc limit 2;
 Query OK, 2 row(s) in set (0.001100s)
 ```
 
-To meet the requirements in many use cases, some special functions have been added in TDengine, for example `twa` (Time Weighted Average), `spared` (The difference between the maximum and the minimum), `last_row` (the last row), more and more functions will be added to better perform in many use cases. Furthermore, continuous query is also supported in TDengine.
+To meet the requirements of varied use cases, some special functions have been added in TDengine. Some examples are `twa` (Time Weighted Average), `spread` (The difference between the maximum and the minimum), and `last_row` (the last row). Furthermore, continuous query is also supported in TDengine.
 
 For detailed query syntax please refer to [Select](/taos-sql/select).
 
 ## Aggregation among Tables
 
-In many use cases, there are always multiple kinds of data collection points. A new concept, called STable (abbreviated for super table), is used in TDengine to represent a kind of data collection points, and a table is used to represent a specific data collection point. Tags are used by TDengine to represent the static properties of data collection points. A specific data collection point has its own values for static properties. By specifying filter conditions on tags, aggregation can be performed efficiently among all the subtables created via the same STable, i.e. same kind of data collection points, can be. Aggregate functions applicable for tables can be used directly on STables, syntax is exactly same.
+In most use cases, there are always multiple kinds of data collection points. A new concept, called STable (abbreviation for super table), is used in TDengine to represent one type of data collection point, and a subtable is used to represent a specific data collection point of that type. Tags are used by TDengine to represent the static properties of data collection points. A specific data collection point has its own values for static properties. By specifying filter conditions on tags, aggregation can be performed efficiently among all the subtables created via the same STable, i.e. same type of data collection points. Aggregate functions applicable for tables can be used directly on STables; the syntax is exactly the same.
 
-In summary, for a STable, its subtables can be aggregated by a simple query on STable, it's kind of join operation. But tables belong to different STables could not be aggregated. 
+In summary, records across subtables can be aggregated by a simple query on their STable. It is like a join operation. However, tables belonging to different STables can not be aggregated. 
 
 ### Example 1
 
-In TDengine CLI `taos`, use below SQL to get the average voltage of all the meters in BeiJing grouped by location.
+In TDengine CLI `taos`, use the SQL below to get the average voltage of all the meters in California grouped by location.
 
 ```
 taos> SELECT AVG(voltage) FROM meters GROUP BY location;
        avg(voltage)        |            location            |
 =============================================================
-             222.000000000 | Beijing.Haidian                |
-             219.200000000 | Beijing.Chaoyang               |
+             222.000000000 | California.LosAngeles                |
+             219.200000000 | California.SanFrancisco               |
 Query OK, 2 row(s) in set (0.002136s)
 ```
 
 ### Example 2
 
-In TDengine CLI `taos`, use below SQL to get the number of rows and the maximum current in the past 24 hours from meters whose groupId is 2.
+In TDengine CLI `taos`, use the SQL below to get the number of rows and the maximum current in the past 24 hours from meters whose groupId is 2.
 
 ```
 taos> SELECT count(*), max(current) FROM meters where groupId = 2 and ts > now - 24h;
-     cunt(*)  |    max(current)  |
+     count(*)  |    max(current)  |
 ==================================
             5 |             13.4 |
 Query OK, 1 row(s) in set (0.002136s)
 ```
 
-Join query is allowed between only the tables of same STable. In [Select](/taos-sql/select), all query operations are marked as whether it supports STable or not.
+Join queries are only allowed between subtables of the same STable. In [Select](/taos-sql/select), all query operations are marked as to whether they support STables or not.
 
 ## Down Sampling and Interpolation
 
-In IoT use cases, down sampling is widely used to aggregate the data by time range. `INTERVAL` keyword in TDengine can be used to simplify the query by time window. For example, below SQL statement can be used to get the sum of current every 10 seconds from meters table d1001.
+In IoT use cases, down sampling is widely used to aggregate data by time range. The `INTERVAL` keyword in TDengine can be used to simplify the query by time window. For example, the SQL statement below can be used to get the sum of current every 10 seconds from meters table d1001.
 
 ```
 taos> SELECT sum(current) FROM d1001 INTERVAL(10s);
@@ -96,10 +96,10 @@ taos> SELECT sum(current) FROM d1001 INTERVAL(10s);
 Query OK, 2 row(s) in set (0.000883s)
 ```
 
-Down sampling can also be used for STable. For example, below SQL statement can be used to get the sum of current from all meters in BeiJing.
+Down sampling can also be used for STable. For example, the below SQL statement can be used to get the sum of current from all meters in California.
 
 ```
-taos> SELECT SUM(current) FROM meters where location like "Beijing%" INTERVAL(1s);
+taos> SELECT SUM(current) FROM meters where location like "California%" INTERVAL(1s);
            ts            |       sum(current)        |
 ======================================================
  2018-10-03 14:38:04.000 |              10.199999809 |
@@ -110,7 +110,7 @@ taos> SELECT SUM(current) FROM meters where location like "Beijing%" INTERVAL(1s
 Query OK, 5 row(s) in set (0.001538s)
 ```
 
-Down sampling also supports time offset. For example, below SQL statement can be used to get the sum of current from all meters but each time window must start at the boundary of 500 milliseconds.
+Down sampling also supports time offset. For example, the below SQL statement can be used to get the sum of current from all meters but each time window must start at the boundary of 500 milliseconds.
 
 ```
 taos> SELECT SUM(current) FROM meters INTERVAL(1s, 500a);
@@ -124,7 +124,7 @@ taos> SELECT SUM(current) FROM meters INTERVAL(1s, 500a);
 Query OK, 5 row(s) in set (0.001521s)
 ```
 
-In many use cases, it's hard to align the timestamp of the data collected by each collection point. However, a lot of algorithms like FFT require the data to be aligned with same time interval and application programs have to handle by themselves in many systems. In TDengine, it's easy to achieve the alignment using down sampling.
+In many use cases, it's hard to align the timestamp of the data collected by each collection point. However, a lot of algorithms like FFT require the data to be aligned with same time interval and application programs have to handle this by themselves. In TDengine, it's easy to achieve the alignment using down sampling.
 
 Interpolation can be performed in TDengine if there is no data in a time range.
 
@@ -162,16 +162,16 @@ In the section describing [Insert](/develop/insert-data/sql-writing), a database
 
 :::note
 
-1. With either REST connection or native connection, the above sample code work well.
-2. Please be noted that `use db` can't be used in case of REST connection because it's stateless.
+1. With either REST connection or native connection, the above sample code works well.
+2. Please note that `use db` can't be used in case of REST connection because it's stateless.
 
 :::
 
 ### Asynchronous Query
 
-Besides synchronous query, asynchronous query API is also provided by TDengine to insert or query data more efficiently. With similar hardware and software environment, async API is 2~4 times faster than sync APIs. Async API works in non-blocking mode, which means an operation can be returned without finishing so that the calling thread can switch to other works to improve the performance of the whole application system. Async APIs perform especially better in case of poor network.
+Besides synchronous queries, an asynchronous query API is also provided by TDengine to insert or query data more efficiently. With a similar hardware and software environment, the async API is 2~4 times faster than sync APIs. Async API works in non-blocking mode, which means an operation can be returned without finishing so that the calling thread can switch to other work to improve the performance of the whole application system. Async APIs perform especially better in the case of poor networks.
 
-Please be noted that async query can only be used with native connection.
+Please note that async query can only be used with a native connection.
 
 <Tabs defaultValue="python" groupId="lang">
   <TabItem label="Python" value="python">

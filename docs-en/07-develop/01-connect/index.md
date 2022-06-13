@@ -1,7 +1,7 @@
 ---
-sidebar_label: Connection
-title: Connect to TDengine
-description: "This document explains how to establish connection to TDengine, and briefly introduce how to install and use TDengine connectors."
+sidebar_label: Connect
+title: Connect
+description: "This document explains how to establish connections to TDengine, and briefly introduces how to install and use TDengine connectors."
 ---
 
 import Tabs from "@theme/Tabs";
@@ -19,25 +19,24 @@ import InstallOnLinux from "../../14-reference/03-connector/\_windows_install.md
 import VerifyLinux from "../../14-reference/03-connector/\_verify_linux.mdx";
 import VerifyWindows from "../../14-reference/03-connector/\_verify_windows.mdx";
 
-Any application programs running on any kind of platforms can access TDengine through the REST API provided by TDengine. For the details, please refer to [REST API](/reference/rest-api/). Besides, application programs can use the connectors of multiple programming languages to access TDengine, including C/C++, Java, Python, Go, Node.js, C#, and Rust. This chapter describes how to establish connection to TDengine and briefly introduce how to install and use connectors. For details about the connectors, please refer to [Connectors](/reference/connector/)
+Any application programs running on any kind of platform can access TDengine through the REST API provided by TDengine. For details, please refer to [REST API](/reference/rest-api/). Additionally, application programs can use the connectors of multiple programming languages including C/C++, Java, Python, Go, Node.js, C#, Rust to access TDengine. This chapter describes how to establish a connection to TDengine and briefly introduces how to install and use connectors. TDengine community also provides connectors in LUA and PHP languages. For details about the connectors, please refer to [Connectors](/reference/connector/).
 
 ## Establish Connection
 
 There are two ways for a connector to establish connections to TDengine:
 
-1. Connection through the REST API provided by taosAdapter component, this way is called "REST connection" hereinafter.
+1. Connection through the REST API provided by the taosAdapter component, this way is called "REST connection" hereinafter.
 2. Connection through the TDengine client driver (taosc), this way is called "Native connection" hereinafter.
-
-Either way, same or similar APIs are provided by connectors to access database or execute SQL statements, no obvious difference can be observed.
 
 Key differences：
 
-1. With REST connection, it's not necessary to install TDengine client driver (taosc), it's more friendly for cross-platform with the cost of 30% performance downgrade. When taosc has an upgrade, application does not need to make changes. 
-2. With native connection, full compatibility of TDengine can be utilized, like [Parameter Binding](/reference/connector/cpp#Parameter Binding-api), [Subscription](reference/connector/cpp#Subscription), etc. But taosc has to be installed, some platforms may not be supported.
+1. The TDengine client driver (taosc) has the highest performance with all the features of TDengine like [Parameter Binding](/reference/connector/cpp#parameter-binding-api), [Subscription](/reference/connector/cpp#subscription-and-consumption-api), etc.
+2. The TDengine client driver (taosc) is not supported across all platforms, and applications built on taosc may need to be modified when updating taosc to newer versions.
+3. The REST connection is more accessible with cross-platform support, however it results in a 30% performance downgrade.
 
 ## Install Client Driver taosc
 
-If choosing to use native connection and the application is not on the same host as TDengine server, TDengine client driver taosc needs to be installed on the host where the application is. If choosing to use REST connection or the application is on the same host as server side, this step can be skipped. It's better to use same version of taosc as the server.
+If you are choosing to use the native connection and the the application is not on the same host as TDengine server, the TDengine client driver taosc needs to be installed on the application host. If choosing to use the REST connection or the application is on the same host as TDengine server, this step can be skipped. It's better to use same version of taosc as the TDengine server.
 
 ### Install
 
@@ -200,6 +199,46 @@ install.packages("RJDBC")
 
 If the client driver (taosc) is already installed, then the C connector is already available.
 <br/>
+
+</TabItem>
+<TabItem label="PHP" value="php">
+
+**Download Source Code Package and Unzip：**
+
+```shell
+curl -L -o php-tdengine.tar.gz https://github.com/Yurunsoft/php-tdengine/archive/refs/tags/v1.0.2.tar.gz \
+&& mkdir php-tdengine \
+&& tar -xzf php-tdengine.tar.gz -C php-tdengine --strip-components=1
+```
+
+> Version number `v1.0.2` is only for example, it can be replaced to any newer version, please check available version from [TDengine PHP Connector Releases](https://github.com/Yurunsoft/php-tdengine/releases).
+
+**Non-Swoole Environment：**
+
+```shell
+phpize && ./configure && make -j && make install
+```
+
+**Specify TDengine Location：**
+
+```shell
+phpize && ./configure --with-tdengine-dir=/usr/local/Cellar/tdengine/2.4.0.0 && make -j && make install
+```
+
+> `--with-tdengine-dir=` is followed by the TDengine installation location.
+> This way is useful in case TDengine location can't be found automatically or macOS.
+
+**Swoole Environment：**
+
+```shell
+phpize && ./configure --enable-swoole && make -j && make install
+```
+
+**Enable The Extension:**
+
+Option One: Add `extension=tdengine` in `php.ini` 
+
+Option Two: Specify the extension on CLI `php -d extension=tdengine test.php`
 
 </TabItem>
 </Tabs>
