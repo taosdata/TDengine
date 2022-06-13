@@ -954,6 +954,41 @@ static int32_t translateFirstLast(SFunctionNode* pFunc, char* pErrBuf, int32_t l
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateFirstLastImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isPartial) {
+  // first(col_list) will be rewritten as first(col)
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
+  uint8_t paraType = ((SExprNode*)pPara)->resType.type;
+  int32_t paraBytes = ((SExprNode*)pPara)->resType.bytes;
+  if (isPartial) {
+    if (QUERY_NODE_COLUMN != nodeType(pPara)) {
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                             "The parameters of first/last can only be columns");
+    }
+
+    pFunc->node.resType = (SDataType){.bytes = getFirstLastInfoSize(paraBytes) + VARSTR_HEADER_SIZE,
+                                      .type = TSDB_DATA_TYPE_BINARY};
+  } else {
+    if (TSDB_DATA_TYPE_BINARY != paraType) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    pFunc->node.resType = ((SExprNode*)pPara)->resType;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateFirstLastPartial(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateFirstLastImpl(pFunc, pErrBuf, len, true);
+}
+
+static int32_t translateFirstLastMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateFirstLastImpl(pFunc, pErrBuf, len, false);
+}
+
 static int32_t translateUnique(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (1 != LIST_LENGTH(pFunc->pParameterList)) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
@@ -1700,6 +1735,28 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_FIRST,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_TIMELINE_FUNC,
     .translateFunc = translateFirstLast,
+    .getEnvFunc   = getFirstLastFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = firstFunction,
+    .finalizeFunc = firstLastFinalize,
+    .combineFunc  = firstCombine,
+  },
+  {
+    .name = "_first_partial",
+    .type = FUNCTION_TYPE_FIRST_PARTIAL,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_TIMELINE_FUNC,
+    .translateFunc = translateFirstLastPartial,
+    .getEnvFunc   = getFirstLastFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = firstFunction,
+    .finalizeFunc = firstLastFinalize,
+    .combineFunc  = firstCombine,
+  },
+  {
+    .name = "_first_merge",
+    .type = FUNCTION_TYPE_FIRST_MERGE,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_TIMELINE_FUNC,
+    .translateFunc = translateFirstLastMerge,
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = firstFunction,
