@@ -57,7 +57,7 @@ class TestBatchInsert(TDCase):
         self.tdSql.execute(f'drop database if exists {dbname}')
 
     def run(self):
-        # self.stb_batch_insert()
+        self.stb_batch_insert()
         self.tb_batch_insert()
 
     def cleanup(self):
