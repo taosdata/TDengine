@@ -350,7 +350,7 @@ int32_t ctgChkAuth(SCatalog* pCtg, SRequestConnInfo *pConn, const char* user, co
   
   *pass = false;
   
-  CTG_ERR_RET(ctgChkAuthFromCache(pCtg, user, dbFName, type, &inCache, pass));
+  CTG_ERR_RET(ctgChkAuthFromCache(pCtg, (char*)user, (char*)dbFName, type, &inCache, pass));
 
   if (inCache) {
     return TSDB_CODE_SUCCESS;
@@ -382,15 +382,38 @@ _return:
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgGetTbIndex(SCatalog* pCtg, SRequestConnInfo *pConn, const SName* pTableName, SArray** pRes) {
+int32_t ctgGetTbIndex(SCatalog* pCtg, SRequestConnInfo *pConn, SName* pTableName, SArray** pRes) {
   CTG_ERR_RET(ctgReadTbIndexFromCache(pCtg, pTableName, pRes));
   if (*pRes) {
     return TSDB_CODE_SUCCESS;
   }
 
-  CTG_ERR_RET(ctgGetTbIndexFromMnode(pCtg, pConn, (SName*)pTableName, pRes, NULL));
+  STableIndex *pIndex = taosMemoryCalloc(1, sizeof(STableIndex));
+  if (NULL == pIndex) {
+    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+  
+  int32_t code = 0;
+  CTG_ERR_JRET(ctgGetTbIndexFromMnode(pCtg, pConn, (SName*)pTableName, pIndex, NULL));
+  
+  SArray* pInfo = NULL;
+  CTG_ERR_JRET(ctgCloneTableIndex(pIndex->pIndex, &pInfo));
+
+  *pRes = pInfo;
+
+  CTG_ERR_JRET(ctgUpdateTbIndexEnqueue(pCtg, &pIndex, false));
 
   return TSDB_CODE_SUCCESS;
+
+_return:
+
+  tFreeSTableIndexRsp(pIndex);
+  taosMemoryFree(pIndex);
+
+  taosArrayDestroyEx(*pRes, tFreeSTableIndexInfo);
+  *pRes = NULL;
+
+  CTG_RET(code);
 }
 
 
@@ -416,7 +439,7 @@ int32_t ctgGetTbDistVgInfo(SCatalog* pCtg, SRequestConnInfo *pConn, SName* pTabl
   CTG_ERR_JRET(ctgGetDBVgInfo(pCtg, pConn, db, &dbCache, &vgInfo));
 
   if (dbCache) {
-    vgHash = dbCache->vgInfo->vgHash;
+    vgHash = dbCache->vgCache.vgInfo->vgHash;
   } else {
     vgHash = vgInfo->vgHash;
   }
@@ -640,9 +663,9 @@ int32_t catalogGetDBVgVersion(SCatalog* pCtg, const char* dbFName, int32_t* vers
     CTG_API_LEAVE(TSDB_CODE_SUCCESS);
   }
 
-  *version = dbCache->vgInfo->vgVersion;
+  *version = dbCache->vgCache.vgInfo->vgVersion;
   *dbId = dbCache->dbId;
-  *tableNum = dbCache->vgInfo->numOfTable;
+  *tableNum = dbCache->vgCache.vgInfo->numOfTable;
 
   ctgReleaseVgInfoToCache(pCtg, dbCache);
 
@@ -969,7 +992,7 @@ int32_t catalogGetTableHashVgroup(SCatalog *pCtg, SRequestConnInfo *pConn, const
   SDBVgInfo *vgInfo = NULL;
   CTG_ERR_JRET(ctgGetDBVgInfo(pCtg, pConn, db, &dbCache, &vgInfo));
 
-  CTG_ERR_JRET(ctgGetVgInfoFromHashValue(pCtg, vgInfo ? vgInfo : dbCache->vgInfo, pTableName, pVgroup));
+  CTG_ERR_JRET(ctgGetVgInfoFromHashValue(pCtg, vgInfo ? vgInfo : dbCache->vgCache.vgInfo, pTableName, pVgroup));
 
 _return:
 
@@ -1177,35 +1200,10 @@ int32_t catalogGetTableIndex(SCatalog* pCtg, SRequestConnInfo *pConn, const SNam
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  CTG_ERR_RET(ctgReadTbIndexFromCache(pCtg, pTableName, pRes));
-  if (*pRes) {
-    CTG_API_LEAVE(TSDB_CODE_SUCCESS);
-  }
-
-  STableIndex *pIndex = taosMemoryCalloc(1, sizeof(STableIndex));
-  if (NULL == pIndex) {
-    CTG_API_LEAVE(TSDB_CODE_OUT_OF_MEMORY);
-  }
-  
   int32_t code = 0;
-  CTG_ERR_JRET(ctgGetTbIndexFromMnode(pCtg, pConn, (SName*)pTableName, pIndex, NULL));
-  
-  SArray* pInfo = NULL;
-  CTG_ERR_JRET(ctgCloneTableIndex(pIndex->pIndex, &pInfo));
-
-  *pRes = pInfo;
-
-  CTG_ERR_JRET(ctgUpdateTbIndexEnqueue(pCtg, pTableName, &pIndex, false));
-
-  CTG_API_LEAVE(code);
+  CTG_ERR_JRET(ctgGetTbIndex(pCtg, pConn, (SName*)pTableName, pRes));
   
 _return:
-
-  tFreeSTableIndexRsp(pIndex);
-  taosMemoryFree(pIndex);
-
-  taosArrayDestroyEx(*pRes, tFreeSTableIndexInfo);
-  *pRes = NULL;
 
   CTG_API_LEAVE(code);
 }

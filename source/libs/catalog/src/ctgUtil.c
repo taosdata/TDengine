@@ -44,6 +44,16 @@ char *ctgTaskTypeStr(CTG_TASK_TYPE type) {
   }
 }
 
+void ctgFreeSTableIndex(void *info) {
+  if (NULL == info) {
+    return;
+  }
+
+  STableIndex *pInfo = (STableIndex *)info;
+
+  taosArrayDestroyEx(pInfo->pIndex, tFreeSTableIndexInfo);
+}
+
 void ctgFreeSMetaData(SMetaData* pData) {
   taosArrayDestroy(pData->pTableMeta);
   pData->pTableMeta = NULL;

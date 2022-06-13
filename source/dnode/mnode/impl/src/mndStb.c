@@ -27,6 +27,7 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
+#include "mndSma.h"
 #include "tname.h"
 
 #define STB_VER_NUMBER   1
@@ -1638,7 +1639,7 @@ static int32_t mndProcessTableMetaReq(SRpcMsg *pReq) {
     }
   } else {
     mDebug("stb:%s.%s, start to retrieve meta", infoReq.dbFName, infoReq.tbName);
-    if (mndBuildStbSchema(pMnode, infoReq.dbFName, infoReq.tbName, &metaRsp) != 0) {
+    if (mndBuildStbSchema(pMnode, infoReq.dbFName, infoReq.tbName, &metaRsp, NULL) != 0) {
       goto _OVER;
     }
   }
@@ -1710,7 +1711,7 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableVersion *pStbVersions, int32_t
       tFreeSTableMetaRsp(&metaRsp);
     }
 
-    if (pStbVersion->smaVer != smaVer) {
+    if (pStbVersion->smaVer && pStbVersion->smaVer != smaVer) {
       bool exist = false;
       char tbFName[TSDB_TABLE_FNAME_LEN];
       STableIndexRsp indexRsp = {0};
@@ -1722,8 +1723,8 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableVersion *pStbVersions, int32_t
         indexRsp.pIndex = NULL;
       }
 
-      strcpy(indexRsp->dbFName, pStbVersion->dbFName);
-      strcpy(indexRsp->tbName, pStbVersion->stbName);
+      strcpy(indexRsp.dbFName, pStbVersion->dbFName);
+      strcpy(indexRsp.tbName, pStbVersion->stbName);
 
       taosArrayPush(hbRsp.pIndexRsp, &indexRsp);
     }

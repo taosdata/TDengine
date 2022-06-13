@@ -2758,7 +2758,6 @@ void tFreeSTableIndexRsp(void *info) {
   taosArrayDestroyEx(pInfo->pIndex, tFreeSTableIndexInfo);
 }
 
-
 void tFreeSSTbHbRsp(SSTbHbRsp *pRsp) {
   int32_t numOfMeta = taosArrayGetSize(pRsp->pMetaRsp);
   for (int32_t i = 0; i < numOfMeta; ++i) {
