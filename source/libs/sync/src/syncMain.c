@@ -219,14 +219,21 @@ int32_t syncReconfig(int64_t rid, const SSyncCfg* pNewCfg) {
     SRaftId newId;
     newId.addr = syncUtilAddr2U64((pNewCfg->nodeInfo)[i].nodeFqdn, (pNewCfg->nodeInfo)[i].nodePort);
     newId.vgId = pSyncNode->vgId;
+
+    sTrace("new[%d]: %lu, %d, my: %lu, %d", i, newId.addr, newId.vgId, pSyncNode->myRaftId.addr, pSyncNode->myRaftId.vgId);
+
     if (syncUtilSameId(&(pSyncNode->myRaftId), &newId)) {
       IamInNew = true;
     }
   }
+
+ 
   if (!IamInNew) {
+    sError("sync reconfig error, not in new config");
     taosReleaseRef(tsNodeRefId, pSyncNode->rid);
     return TAOS_SYNC_NOT_IN_NEW_CONFIG;
   }
+
 
   char* newconfig = syncCfg2Str((SSyncCfg*)pNewCfg);
   if (gRaftDetailLog) {
