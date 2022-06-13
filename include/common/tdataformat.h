@@ -35,6 +35,7 @@ typedef struct SColVal       SColVal;
 typedef struct STSRow2       STSRow2;
 typedef struct STSRowBuilder STSRowBuilder;
 typedef struct SColData      SColData;
+typedef struct SColDataBatch SColDataBatch;
 typedef struct STagVal       STagVal;
 typedef struct STag          STag;
 

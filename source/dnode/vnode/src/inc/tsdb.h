@@ -128,7 +128,7 @@ typedef struct SDFileSetWriter SDFileSetWriter;
 
 // SDFileSetWriter
 int32_t tsdbDFileSetWriterOpen(SDFileSetWriter *pWriter, STsdb *pTsdb, SDFileSet *pSet);
-int32_t tsdbDFileSetWriterClose(SDFileSetWriter *pWriter);
+int32_t tsdbDFileSetWriterClose(SDFileSetWriter *pWriter, int8_t sync);
 int32_t tsdbWriteBlockData(SDFileSetWriter *pWriter, SDataCols *pDataCols, SBlock *pBlock);
 int32_t tsdbWriteSBlockInfo(SDFileSetWriter *pWriter, SBlockInfo *pBlockInfo, SBlockIdx *pBlockIdx);
 int32_t tsdbWriteSBlockIdx(SDFileSetWriter *pWriter, SBlockIdx *pBlockIdx);
@@ -145,6 +145,8 @@ int32_t tsdbLoadSBlockStatis(SDFileSetReader *pReader, SBlock *pBlock, SBlockSta
 // SDelFReader
 
 // tsdbUtil.c ==============================================================================================
+int32_t tsdbKeyFid(TSKEY key, int32_t minutes, int8_t precision);
+
 int32_t tsdbRealloc(uint8_t **ppBuf, int64_t size);
 void    tsdbFree(uint8_t *pBuf);
 
@@ -282,6 +284,8 @@ struct SBlockIdxItem {
 };
 
 struct SBlockIdx {
+  int64_t  suid;
+  int64_t  uid;
   uint32_t delimiter;
   SOffset  offset;
   uint32_t nData;

@@ -239,6 +239,8 @@ bool tsdbTbDataIterNext(STbDataIter *pIter) {
   SMemSkipListNode *pHead = pIter->pTbData->sl.pHead;
   SMemSkipListNode *pTail = pIter->pTbData->sl.pTail;
 
+  if (pIter == NULL) return false;
+
   if (pIter->backward) {
     ASSERT(pIter->pNode != pTail);
 
@@ -270,6 +272,8 @@ bool tsdbTbDataIterGet(STbDataIter *pIter, TSDBROW *pRow) {
   SMemSkipListNode *pHead = pIter->pTbData->sl.pHead;
   SMemSkipListNode *pTail = pIter->pTbData->sl.pTail;
   TSDBROW           row = {0};
+
+  if (pIter == NULL) return false;
 
   if (pRow == NULL) {
     pRow = &row;

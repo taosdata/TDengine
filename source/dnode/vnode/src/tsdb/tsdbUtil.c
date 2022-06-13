@@ -715,3 +715,11 @@ int32_t tGetDelFileHdr(uint8_t *p, SDelFile *pDelFile) {
 
   return n;
 }
+
+int32_t tsdbKeyFid(TSKEY key, int32_t minutes, int8_t precision) {
+  if (key < 0) {
+    return (int)((key + 1) / tsTickPerMin[precision] / minutes - 1);
+  } else {
+    return (int)((key / tsTickPerMin[precision] / minutes));
+  }
+}
