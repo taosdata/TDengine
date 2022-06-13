@@ -527,20 +527,6 @@ static int32_t tdAppendTpRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols
         return terrno;
       }
 
-      if (pRowCol->colId == 2) {
-        ASSERT(sVal.valType == 0);
-        int32_t val = *(int32_t *)sVal.val;
-        ASSERT(val == 7);
-      } else if (pRowCol->colId == 3) {
-        ASSERT(sVal.valType == 0);
-        int64_t val = *(int64_t *)sVal.val;
-        ASSERT(val == 77777);
-      } else if (pRowCol->colId == 4) {
-        ASSERT(sVal.valType == 0);
-        int16_t val = *(int16_t *)sVal.val;
-        ASSERT(val == 777);
-      }
-
       tdAppendValToDataCol(pDataCol, sVal.valType, sVal.val, pCols->numOfRows, pCols->maxPoints, pCols->bitmapMode,
                            isMerge);
       ++dcol;
@@ -551,7 +537,6 @@ static int32_t tdAppendTpRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols
       tdAppendValToDataCol(pDataCol, TD_VTYPE_NULL, NULL, pCols->numOfRows, pCols->maxPoints, pCols->bitmapMode,
                            isMerge);
       ++dcol;
-      ASSERT(0);
     }
   }
 #if 0  

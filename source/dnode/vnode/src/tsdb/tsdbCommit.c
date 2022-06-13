@@ -1350,24 +1350,6 @@ static int tsdbCommitMemData(SCommitH *pCommith, SCommitIter *pIter, TSKEY keyLi
       isLast = true;
     }
 
-    SDataCols *pCols = pCommith->pDataCols;
-    SDataCol   pCol_1 = pCols->cols[1];
-    SDataCol   pCol_2 = pCols->cols[2];
-    SDataCol   pCol_3 = pCols->cols[3];
-    SCellVal   sVal = {0};
-    tdGetColDataOfRow(&sVal, &pCol_1, 0, pCols->bitmapMode);
-    ASSERT(sVal.valType == 0);
-    int32_t val1 = *(int32_t *)sVal.val;
-    ASSERT(val1 == 7);
-    tdGetColDataOfRow(&sVal, &pCol_2, 0, pCols->bitmapMode);
-    ASSERT(sVal.valType == 0);
-    int64_t val2 = *(int64_t *)sVal.val;
-    ASSERT(val2 == 77777);
-    tdGetColDataOfRow(&sVal, &pCol_3, 0, pCols->bitmapMode);
-    ASSERT(sVal.valType == 0);
-    int16_t val3 = *(int16_t *)sVal.val;
-    ASSERT(val3 == 777);
-
     if (tsdbWriteBlock(pCommith, pDFile, pCommith->pDataCols, &block, isLast, true) < 0) return -1;
 
     if (tsdbCommitAddBlock(pCommith, &block, NULL, 0) < 0) {
