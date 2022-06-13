@@ -22,10 +22,6 @@
 extern "C" {
 #endif
 
-#define TSDB_OFFSET_U8  ((uint8_t)0x1)
-#define TSDB_OFFSET_U16 ((uint8_t)0x2)
-#define TSDB_OFFSET_U32 ((uint8_t)0x4)
-
 // tsdbDebug ================
 // clang-format off
 #define tsdbFatal(...) do { if (tsdbDebugFlag & DEBUG_FATAL) { taosPrintLog("TSDB FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
@@ -48,6 +44,7 @@ typedef struct SMemTable    SMemTable;
 typedef struct STbDataIter  STbDataIter;
 typedef struct SMergeInfo   SMergeInfo;
 typedef struct STable       STable;
+typedef struct SOffset      SOffset;
 
 // tsdbMemTable ==============================================================================================
 
@@ -153,16 +150,16 @@ int32_t tTABLEIDCmprFn(const void *p1, const void *p2);
 int32_t tsdbKeyCmprFn(const void *p1, const void *p2);
 
 // SDelIdx
-int32_t tDelIdxGetItem(SDelIdx *pDelIdx, SDelIdxItem *pItem, TABLEID id);
-int32_t tDelIdxGetItemByIdx(SDelIdx *pDelIdx, SDelIdxItem *pItem, int32_t idx);
 int32_t tDelIdxPutItem(SDelIdx *pDelIdx, SDelIdxItem *pItem);
+int32_t tDelIdxGetItemByIdx(SDelIdx *pDelIdx, SDelIdxItem *pItem, int32_t idx);
+int32_t tDelIdxGetItem(SDelIdx *pDelIdx, SDelIdxItem *pItem, TABLEID id);
 int32_t tPutDelIdx(uint8_t *p, SDelIdx *pDelIdx);
 int32_t tGetDelIdx(uint8_t *p, SDelIdx *pDelIdx);
 
 // SDelData
-int32_t tDelDataGetItem(SDelData *pDelData, SDelDataItem *pItem, int64_t version);
-int32_t tDelDataGetItemByIdx(SDelData *pDelData, SDelDataItem *pItem, int32_t idx);
 int32_t tDelDataPutItem(SDelData *pDelData, SDelDataItem *pItem);
+int32_t tDelDataGetItemByIdx(SDelData *pDelData, SDelDataItem *pItem, int32_t idx);
+int32_t tDelDataGetItem(SDelData *pDelData, SDelDataItem *pItem, int64_t version);
 int32_t tPutDelData(uint8_t *p, SDelData *pDelData);
 int32_t tGetDelData(uint8_t *p, SDelData *pDelData);
 
@@ -170,6 +167,12 @@ int32_t tPutDelFileHdr(uint8_t *p, SDelFile *pDelFile);
 int32_t tGetDelFileHdr(uint8_t *p, SDelFile *pDelFile);
 
 // structs
+struct SOffset {
+  int32_t  nOffset;
+  uint8_t  flag;
+  uint8_t *pOffset;
+};
+
 typedef struct {
   int   minFid;
   int   midFid;
@@ -358,9 +361,7 @@ struct SDelData {
   uint32_t delimiter;
   tb_uid_t suid;
   tb_uid_t uid;
-  uint8_t  flags;
-  uint32_t nItem;
-  uint8_t *pOffset;
+  SOffset  offset;
   uint32_t nData;
   uint8_t *pData;
 };
@@ -378,9 +379,7 @@ struct SDelIdxItem {
 
 struct SDelIdx {
   uint32_t delimiter;
-  uint8_t  flags;
-  uint32_t nItem;
-  uint8_t *pOffset;
+  SOffset  offset;
   uint32_t nData;
   uint8_t *pData;
 };
