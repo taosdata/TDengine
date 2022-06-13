@@ -112,6 +112,10 @@ _exit:
   rpcMsg.contLen = rspLen;
   rpcMsg.code = code;
 
+  if (code) {
+    qError("get table %s meta failed cause of %s", infoReq.tbName, tstrerror(code));
+  }
+
   tmsgSendRsp(&rpcMsg);
 
   taosMemoryFree(metaRsp.pSchemas);

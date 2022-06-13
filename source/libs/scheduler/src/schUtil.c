@@ -67,7 +67,7 @@ int32_t schAddHbConnection(SSchJob *pJob, SSchTask *pTask, SQueryNodeEpId *epId,
   int32_t     code = 0;
   SSchHbTrans hb = {0};
 
-  hb.trans.pTrans = pJob->pTrans;
+  hb.trans.pTrans = pJob->conn.pTrans;
   hb.taskNum = 1;
 
   SCH_ERR_RET(schMakeHbRpcCtx(pJob, pTask, &hb.rpcCtx));
@@ -260,5 +260,14 @@ void schFreeRpcCtx(SRpcCtx *pCtx) {
   if (pCtx->freeFunc) {
     (*pCtx->freeFunc)(pCtx->brokenVal.val);
   }
+}
+
+void schFreeSMsgSendInfo(SMsgSendInfo *msgSendInfo) {
+  if (NULL == msgSendInfo) {
+    return;
+  }
+
+  taosMemoryFree(msgSendInfo->param);
+  taosMemoryFree(msgSendInfo);
 }
 

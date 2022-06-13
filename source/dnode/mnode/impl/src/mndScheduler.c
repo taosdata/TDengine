@@ -351,9 +351,15 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
   ASSERT(totLevel <= 2);
   pStream->tasks = taosArrayInit(totLevel, sizeof(void*));
 
-  bool hasExtraSink = false;
-  bool externalTargetDB = strcmp(pStream->sourceDb, pStream->targetDb) != 0;
-  if (totLevel == 2 || externalTargetDB) {
+  bool    hasExtraSink = false;
+  bool    externalTargetDB = strcmp(pStream->sourceDb, pStream->targetDb) != 0;
+  SDbObj* pDbObj = mndAcquireDb(pMnode, pStream->targetDb);
+  ASSERT(pDbObj != NULL);
+  sdbRelease(pSdb, pDbObj);
+
+  bool multiTarget = pDbObj->cfg.numOfVgroups > 1;
+
+  if (totLevel == 2 || externalTargetDB || multiTarget) {
     SArray* taskOneLevel = taosArrayInit(0, sizeof(void*));
     taosArrayPush(pStream->tasks, &taskOneLevel);
     // add extra sink

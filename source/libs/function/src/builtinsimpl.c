@@ -142,10 +142,8 @@ typedef struct SElapsedInfo {
 typedef struct SHistoFuncBin {
   double lower;
   double upper;
-  union {
-    int64_t count;
-    double  percentage;
-  };
+  int64_t count;
+  double  percentage;
 } SHistoFuncBin;
 
 typedef struct SHistoFuncInfo {
@@ -198,7 +196,7 @@ typedef struct SSampleInfo {
   int32_t numSampled;
   uint8_t colType;
   int16_t colBytes;
-  char *data;
+  char    *data;
   int64_t *timestamp;
 } SSampleInfo;
 
@@ -2844,6 +2842,7 @@ void copyTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pS
   for (int32_t i = 0; i < pSrcBlock->info.numOfCols; ++i) {
     SColumnInfoData* pCol = taosArrayGet(pSrcBlock->pDataBlock, i);
     if ((nullList[i] = colDataIsNull_s(pCol, rowIndex)) == true) {
+      offset += pCol->info.bytes;
       continue;
     }
 
@@ -3105,7 +3104,7 @@ int32_t spreadCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
 
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
   SSpreadInfo* pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
-  spreadTransferInfo(pDBuf, pSBuf);
+  spreadTransferInfo(pSBuf, pDBuf);
   pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
   return TSDB_CODE_SUCCESS;
 }
@@ -3276,7 +3275,7 @@ int32_t elapsedCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
   SElapsedInfo* pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
 
-  elapsedTransferInfo(pDBuf, pSBuf);
+  elapsedTransferInfo(pSBuf, pDBuf);
   pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
   return TSDB_CODE_SUCCESS;
 }
@@ -3583,7 +3582,7 @@ int32_t histogramCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
   SHistoFuncInfo*      pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
 
-  histogramTransferInfo(pDBuf, pSBuf);
+  histogramTransferInfo(pSBuf, pDBuf);
   pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
   return TSDB_CODE_SUCCESS;
 }
@@ -3779,7 +3778,7 @@ int32_t hllCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
   SHLLInfo* pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
 
-  hllTransferInfo(pDBuf, pSBuf);
+  hllTransferInfo(pSBuf, pDBuf);
   pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
   return TSDB_CODE_SUCCESS;
 }
@@ -4182,26 +4181,38 @@ int32_t sampleFunction(SqlFunctionCtx* pCtx) {
   SSampleInfo*         pInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
   SInputColumnInfoData* pInput = &pCtx->input;
-  TSKEY* tsList = (int64_t*)pInput->pPTS->pData;
+
+  TSKEY* tsList = NULL;
+  if (pInput->pPTS != NULL) {
+    tsList = (int64_t*)pInput->pPTS->pData;
+  }
 
   SColumnInfoData* pInputCol = pInput->pData[0];
-  SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
-
-  int32_t startOffset = pCtx->offset;
   for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
     if (colDataIsNull_s(pInputCol, i)) {
-      //colDataAppendNULL(pOutput, i);
       continue;
     }
 
     char* data = colDataGetData(pInputCol, i);
-    doReservoirSample(pInfo, data, tsList[i], i);
+    doReservoirSample(pInfo, data, /*tsList[i]*/0, i);
   }
 
+  SET_VAL(pResInfo, pInfo->numSampled, pInfo->numSampled);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t sampleFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(pCtx);
+
+  SSampleInfo* pInfo = GET_ROWCELL_INTERBUF(pEntryInfo);
+  pEntryInfo->complete = true;
+
+  int32_t slotId = pCtx->pExpr->base.resSchema.slotId;
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+
+  int32_t currentRow = pBlock->info.rows;
   for (int32_t i = 0; i < pInfo->numSampled; ++i) {
-    int32_t pos = startOffset + i;
-    colDataAppend(pOutput, pos, pInfo->data + i * pInfo->colBytes, false);
-    //TODO: handle ts output
+    colDataAppend(pCol, currentRow + i, pInfo->data + i * pInfo->colBytes, false);
   }
 
   return pInfo->numSampled;

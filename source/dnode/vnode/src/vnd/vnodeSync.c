@@ -50,14 +50,14 @@ static inline void vnodePostBlockMsg(SVnode *pVnode, tmsg_t type) {
   }
 }
 
-static int32_t vnodeProcessSyncReconfigReq(SVnode *pVnode, SRpcMsg *pMsg) {
+static int32_t vnodeProcessAlterReplicaReq(SVnode *pVnode, SRpcMsg *pMsg) {
   SAlterVnodeReq req = {0};
   if (tDeserializeSAlterVnodeReq((char *)pMsg->pCont + sizeof(SMsgHead), pMsg->contLen - sizeof(SMsgHead), &req) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return TSDB_CODE_INVALID_MSG;
   }
 
-  vInfo("vgId:%d, start to alter vnode replica to %d", TD_VID(pVnode), req.replica);
+  vInfo("vgId:%d, start to alter vnode replica to %d, handle:%p", TD_VID(pVnode), req.replica, pMsg->info.handle);
   SSyncCfg cfg = {.replicaNum = req.replica, .myIndex = req.selfIndex};
   for (int32_t r = 0; r < req.replica; ++r) {
     SNodeInfo *pNode = &cfg.nodeInfo[r];
@@ -80,7 +80,7 @@ void vnodeProposeMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
     vTrace("vgId:%d, msg:%p get from vnode-write queue handle:%p", vgId, pMsg, pMsg->info.handle);
 
     if (pMsg->msgType == TDMT_VND_ALTER_REPLICA) {
-      code = vnodeProcessSyncReconfigReq(pVnode, pMsg);
+      code = vnodeProcessAlterReplicaReq(pVnode, pMsg);
     } else {
       code = vnodePreprocessReq(pVnode, pMsg);
       if (code != 0) {
@@ -92,11 +92,6 @@ void vnodeProposeMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
 
     if (code == 0) {
       vnodeAccumBlockMsg(pVnode, pMsg->msgType);
-      if (pMsg->msgType == TDMT_VND_ALTER_REPLICA) {
-        // todo refactor
-        SRpcMsg rsp = {.code = code, .info = pMsg->info};
-        tmsgSendRsp(&rsp);
-      }
     } else if (code == TAOS_SYNC_PROPOSE_NOT_LEADER) {
       SEpSet newEpSet = {0};
       syncGetEpSet(pVnode->sync, &newEpSet);
@@ -136,7 +131,8 @@ void vnodeApplyMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
 
   for (int32_t i = 0; i < numOfMsgs; ++i) {
     if (taosGetQitem(qall, (void **)&pMsg) == 0) continue;
-    vTrace("vgId:%d, msg:%p get from vnode-apply queue, handle:%p", vgId, pMsg, pMsg->info.handle);
+    vTrace("vgId:%d, msg:%p get from vnode-apply queue, type:%s handle:%p", vgId, pMsg, TMSG_INFO(pMsg->msgType),
+           pMsg->info.handle);
 
     SRpcMsg rsp = {.code = pMsg->code, .info = pMsg->info};
     if (rsp.code == 0) {
@@ -182,19 +178,16 @@ static int32_t vnodeSyncGetSnapshot(SSyncFSM *pFsm, SSnapshot *pSnapshot) {
 
 static void vnodeSyncReconfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReConfigCbMeta cbMeta) {
   SVnode *pVnode = pFsm->data;
-  vInfo("vgId:%d, sync reconfig is confirmed", TD_VID(pVnode));
 
-#if 0
-// send response
   SRpcMsg rpcMsg = {.msgType = pMsg->msgType, .contLen = pMsg->contLen, .conn.applyIndex = cbMeta.index};
-  rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
-  memcpy(rpcMsg.pCont, pMsg->pCont, pMsg->contLen);
   syncGetAndDelRespRpc(pVnode->sync, cbMeta.seqNum, &rpcMsg.info);
-#endif
 
-  // todo rpc response here
-  // build rpc msg
-  // put into apply queue
+  vInfo("vgId:%d, alter vnode replica is confirmed, type:%s contLen:%d seq:%" PRIu64 " handle:%p", TD_VID(pVnode),
+        TMSG_INFO(pMsg->msgType), pMsg->contLen, cbMeta.seqNum, rpcMsg.info.handle);
+  if (rpcMsg.info.handle != NULL) {
+    tmsgSendRsp(&rpcMsg);
+  }
+
   vnodePostBlockMsg(pVnode, TDMT_VND_ALTER_REPLICA);
 }
 

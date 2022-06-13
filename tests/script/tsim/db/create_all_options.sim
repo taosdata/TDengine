@@ -116,7 +116,7 @@ endi
 if $data6_db != 14400 then  # days
   return -1
 endi
-if $data7_db != 5256000,5256000,5256000 then # keep
+if $data7_db != 5256000m,5256000m,5256000m then # keep
   return -1
 endi
 if $data8_db != 96 then  # buffer
