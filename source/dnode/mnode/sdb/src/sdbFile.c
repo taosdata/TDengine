@@ -240,7 +240,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
   if (pFile == NULL) {
     taosMemoryFree(pRaw);
     terrno = TAOS_SYSTEM_ERROR(errno);
-    mError("failed to read sdb file:%s since %s", file, terrstr());
+    mDebug("failed to read sdb file:%s since %s", file, terrstr());
     return 0;
   }
 

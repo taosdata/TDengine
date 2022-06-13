@@ -499,6 +499,7 @@ TEST(testCase, smlGetTimestampLen_Test) {
   ASSERT_EQ(len, 3);
 }
 
+/*
 TEST(testCase, smlProcess_influx_Test) {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(taos, nullptr);
@@ -1259,4 +1260,4 @@ TEST(testCase, sml_16368_Test) {
   pRes = taos_schemaless_insert(taos, (char**)sql, sizeof(sql)/sizeof(sql[0]), TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_MICRO_SECONDS);
   ASSERT_EQ(taos_errno(pRes), 0);
   taos_free_result(pRes);
-}
+}*/

@@ -158,7 +158,9 @@ class MockCatalogServiceImpl {
     }
     *pIndexes = taosArrayInit(it->second.size(), sizeof(STableIndexInfo));
     for (const auto& index : it->second) {
-      taosArrayPush(*pIndexes, &index);
+      STableIndexInfo info;
+
+      taosArrayPush(*pIndexes, copyTableIndexInfo(&info, &index));
     }
     return TSDB_CODE_SUCCESS;
   }
@@ -314,6 +316,12 @@ class MockCatalogServiceImpl {
     addEpIntoEpSet(pEpSet, "dnode_2", 6030);
     addEpIntoEpSet(pEpSet, "dnode_3", 6030);
     pEpSet->inUse = 0;
+  }
+
+  STableIndexInfo* copyTableIndexInfo(STableIndexInfo* pDst, const STableIndexInfo* pSrc) const {
+    memcpy(pDst, pSrc, sizeof(STableIndexInfo));
+    pDst->expr = strdup(pSrc->expr);
+    return pDst;
   }
 
   std::string toDbname(const std::string& dbFullName) const {
