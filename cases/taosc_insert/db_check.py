@@ -111,8 +111,6 @@ class TestDB(TDCase):
     def desc(self) -> str:
         case_description = """
             dbname_length_check <jayden>: [TD-13419] : db name length check (max 64);\n
-            db_params_check <jayden>: [TD-1499-1to4] : db params check;\n
-            alter_db <jayden>: [TD-1499-1to4] : alter_db;\n
             dbname_backquote_check <jayden>: [TD-1499-1to4] : dbname_backquote_check;\n
             upper_lower_dbname_check <jayden>: [TD-13419] : case insensitive;\n
             illegal_dbsql_check <jayden>: [TD-13419] : illegal dbname check; """

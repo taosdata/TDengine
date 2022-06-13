@@ -192,6 +192,16 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         except SchemalessError as err:
             self.tdSql.checkNotEqual(err.errno, 0)
 
+    def table_id_check(self):
+        """
+        table name = id
+        """
+        self.tdCom.cleanTb()
+        input_json = [{"metric": "test_1", "timestamp": {"value": 1626006833639000, "type": "us"}, "value": True, "tags": {"t0": True, "id": "abcde"}}]
+        self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
+        self.tdSql.query("show tables")
+        self.tdSql.checkEqual(self.tdSql.query_data[0][0], "abcde")
+
     def tag_name_length_check(self):
         """
         check tag name limit <= 62
@@ -647,17 +657,16 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         self.tdCom.drop_all_db()
         self.tdCom.createDb(schemaless=1)
         # self.tdCom.cleanTb()
-        stb_name = "stb_name"
         # self.tdSql.execute(f'create stable {stb_name}(ts timestamp, f int) tags(t1 bigint)')
         input_json = [{"metric": "st123456", "timestamp": {"value": 1626006833639000, "type": "us"}, "value": {"value": 1, "type": "bigint"}, "tags": {"t1": {"value": 3, "type": "bigint"}, "t2": {"value": 4, "type": "double"}, "t3": {"value": "t3", "type": "binary"}}},
-                    {"metric": "st123456", "timestamp": {"value": 1626006833639001, "type": "us"}, "value": {"value": 2, "type": "bigint"}, "tags": {"t1": {"value": 4, "type": "bigint"}, "t3": {"value": "t4", "type": "binary"}, "t2": {"value": 5, "type": "double"}, "t4": {"value": 5, "type": "double"}}},
+                    {"metric": "st123456", "timestamp": {"value": 1626006833739000, "type": "us"}, "value": {"value": 2, "type": "bigint"}, "tags": {"t1": {"value": 4, "type": "bigint"}, "t3": {"value": "t4", "type": "binary"}, "t2": {"value": 5, "type": "double"}, "t4": {"value": 5, "type": "double"}}},
                     {"metric": "stb_name", "timestamp": {"value": 1626006833639100, "type": "us"}, "value": {"value": 3, "type": "bigint"}, "tags": {"t2": {"value": 5, "type": "double"}, "t3": {"value": "ste", "type": "nchar"}}},
                     {"metric": "stf567890", "timestamp": {"value": 1626006833639200, "type": "us"}, "value": {"value": 4, "type": "bigint"}, "tags": {"t1": {"value": 4, "type": "bigint"}, "t3": {"value": "t4", "type": "binary"}, "t2": {"value": 5, "type": "double"}, "t4": {"value": 5, "type": "double"}}},
                     {"metric": "st123456", "timestamp": {"value": 1626006833639300, "type": "us"}, "value": {"value": 5, "type": "bigint"}, "tags": {"t1": {"value": 4, "type": "bigint"}, "t2": {"value": 5, "type": "double"}, "t3": {"value": "t4", "type": "binary"}}},
                     {"metric": "stb_name", "timestamp": {"value": 1626006833639400, "type": "us"}, "value": {"value": 6, "type": "bigint"}, "tags": {"t2": {"value": 5, "type": "double"}, "t3": {"value": "ste2", "type": "nchar"}}},
-                    {"metric": "stb_name", "timestamp": {"value": 1626006833639500, "type": "us"}, "value": {"value": 7, "type": "bigint"}, "tags": {"t2": {"value": 5, "type": "double"}, "t3": {"value": "ste2", "type": "nchar"}}},
-                    {"metric": "st123456", "timestamp": {"value": 1626006833639600, "type": "us"}, "value": {"value": 8, "type": "bigint"}, "tags": {"t1": {"value": 4, "type": "bigint"}, "t3": {"value": "t4", "type": "binary"}, "t2": {"value": 5, "type": "double"}, "t4": {"value": 5, "type": "double"}}},
-                    {"metric": "st123456", "timestamp": {"value": 1626006833639700, "type": "us"}, "value": {"value": 9, "type": "bigint"}, "tags": {"t1": {"value": 4, "type": "bigint"}, "t3": {"value": "t4", "type": "binary"}, "t2": {"value": 5, "type": "double"}, "t4": {"value": 5, "type": "double"}}}]
+                    {"metric": "stb_name", "timestamp": {"value": 1626006834639400, "type": "us"}, "value": {"value": 7, "type": "bigint"}, "tags": {"t2": {"value": 5, "type": "double"}, "t3": {"value": "ste2", "type": "nchar"}}},
+                    {"metric": "st123456", "timestamp": {"value": 1626006833839006, "type": "us"}, "value": {"value": 8, "type": "bigint"}, "tags": {"t1": {"value": 4, "type": "bigint"}, "t3": {"value": "t4", "type": "binary"}, "t2": {"value": 5, "type": "double"}, "t4": {"value": 5, "type": "double"}}},
+                    {"metric": "st123456", "timestamp": {"value": 1626006833939007, "type": "us"}, "value": {"value": 9, "type": "bigint"}, "tags": {"t1": {"value": 4, "type": "bigint"}, "t3": {"value": "t4", "type": "binary"}, "t2": {"value": 5, "type": "double"}, "t4": {"value": 5, "type": "double"}}}]
         if value_type != "obj":
             input_json = [{"metric": "st123456", "timestamp": {"value": 1626006833639000, "type": "us"}, "value": 1, "tags": {"t1": 3, "t2": {"value": 4, "type": "double"}, "t3": {"value": "t3", "type": "binary"}}},
                         {"metric": "st123456", "timestamp": {"value": 1626006833739000, "type": "us"}, "value": 2, "tags": {"t1": {"value": 4, "type": "double"}, "t3": {"value": "t4", "type": "binary"}, "t2": {"value": 5, "type": "double"}, "t4": {"value": 5, "type": "double"}}},
@@ -668,24 +677,14 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
                         {"metric": "stb_name", "timestamp": {"value": 1626006834639400, "type": "us"}, "value": {"value": 7, "type": "double"}, "tags": {"t2": {"value": 5.0, "type": "double"}, "t3": {"value": "ste2", "type": "nchar"}}},
                         {"metric": "st123456", "timestamp": {"value": 1626006833839006, "type": "us"}, "value": {"value": 8, "type": "double"}, "tags": {"t1": {"value": 4, "type": "double"}, "t3": {"value": "t4", "type": "binary"}, "t2": {"value": 5, "type": "double"}, "t4": {"value": 5, "type": "double"}}},
                         {"metric": "st123456", "timestamp": {"value": 1626006833939007, "type": "us"}, "value": {"value": 9, "type": "double"}, "tags": {"t1": 4, "t3": {"value": "t4", "type": "binary"}, "t2": {"value": 5, "type": "double"}, "t4": {"value": 5, "type": "double"}}}]
-        # input_json = [{"metric": "st123456", "timestamp": {"value": 1626006833639000, "type": "us"}, "value": 1, "tags": {"t1": 3, "t2": {"value": 4, "type": "double"}, "t3": {"value": "t3", "type": "binary"}}},
-        #                 {"metric": "st123456", "timestamp": {"value": 1626006833739000, "type": "us"}, "value": 2, "tags": {"t1": {"value": 4, "type": "double"}, "t3": {"value": "t4", "type": "binary"}, "t2": {"value": 5, "type": "double"}, "t4": {"value": 5, "type": "double"}}},
-        #                 {"metric": "st123456", "timestamp": {"value": 1626006833639300, "type": "us"}, "value": {"value": 5, "type": "double"}, "tags": {"t1": {"value": 4, "type": "double"}, "t2": 5.0, "t3": {"value": "t4", "type": "binary"}}},
-        #                 {"metric": "st123456", "timestamp": {"value": 1626006833839006, "type": "us"}, "value": {"value": 8, "type": "double"}, "tags": {"t1": {"value": 4, "type": "double"}, "t3": {"value": "t4", "type": "binary"}, "t2": {"value": 5, "type": "double"}, "t4": {"value": 5, "type": "double"}}},
-        #                 {"metric": "st123456", "timestamp": {"value": 1626006833939007, "type": "us"}, "value": {"value": 9, "type": "double"}, "tags": {"t1": 4, "t3": {"value": "t4", "type": "binary"}, "t2": {"value": 5, "type": "double"}, "t4": {"value": 5, "type": "double"}}}]
-        # input_json = [{"metric": "stb_name", "timestamp": {"value": 1626006833639100, "type": "us"}, "value": 3, "tags": {"t2": {"value": 5, "type": "double"}, "t3": {"value": "ste", "type": "nchar"}}},
-        #                 {"metric": "stb_name", "timestamp": {"value": 1626006833639400, "type": "us"}, "value": {"value": 6, "type": "double"}, "tags": {"t2": 5.0, "t3": {"value": "ste2", "type": "nchar"}}},
-        #                 {"metric": "stb_name", "timestamp": {"value": 1626006834639400, "type": "us"}, "value": {"value": 7, "type": "double"}, "tags": {"t2": {"value": 5, "type": "double"}, "t3": {"value": "ste2", "type": "nchar"}}}]
-        # print(json.dumps(input_json))
-        # for i in input_json:
-        #     print(i)
-        #     self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
 
         self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         self.tdSql.query('show stables')
         self.tdSql.checkEqual(self.tdSql.query_row, 3)
         self.tdSql.query('show tables')
         self.tdSql.checkEqual(self.tdSql.query_row, 6)
+        self.tdSql.query('select * from stb_name')
+        self.tdSql.checkEqual(self.tdSql.query_row, 3)
         self.tdSql.query('select * from st123456')
         self.tdSql.checkEqual(self.tdSql.query_row, 5)
 
@@ -791,7 +790,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         input_json_list = [{"metric": f'{stb_name}_1', "timestamp": {"value": 1626006833639000000, "type": "Ns"}, "value": {"value": 1, "type": "Bigint"}, "tags": {"t1": {"value": 127, "type": "tinYint"}}},
                         {"metric": f'{stb_name}_2', "timestamp": {"value": 1626006833639000001, "type": "nS"}, "value": {"value": 32767, "type": "smallInt"}, "tags": {"t1": {"value": 32767, "type": "smallInt"}}},
                         {"metric": f'{stb_name}_3', "timestamp": {"value": 1626006833639000002, "type": "NS"}, "value": {"value": 2147483647, "type": "iNt"}, "tags": {"t1": {"value": 2147483647, "type": "iNt"}}},
-                        {"metric": f'{stb_name}_4', "timestamp": {"value": 1626006833639019, "type": "Us"}, "value": {"value": 9223372036854775807, "type": "bigInt"}, "tags": {"t1": {"value": 9223372036854775807, "type": "bigInt"}}},
+                        # {"metric": f'{stb_name}_4', "timestamp": {"value": 1626006833639019, "type": "Us"}, "value": {"value": 9223372036854775807, "type": "bigInt"}, "tags": {"t1": {"value": 9223372036854775807, "type": "bigInt"}}},
                         # {"metric": f'{stb_name}_5', "timestamp": {"value": 1626006833639018, "type": "uS"}, "value": {"value": 11.12345027923584, "type": "flOat"}, "tags": {"t1": {"value": 11.12345027923584, "type": "flOat"}}},
                         # {"metric": f'{stb_name}_6', "timestamp": {"value": 1626006833639017, "type": "US"}, "value": {"value": 22.123456789, "type": "douBle"}, "tags": {"t1": {"value": 22.123456789, "type": "douBle"}}},
                         {"metric": f'{stb_name}_7', "timestamp": {"value": 1626006833640, "type": "Ms"}, "value": {"value": "vozamcts", "type": "binaRy"}, "tags": {"t1": {"value": "vozamcts", "type": "binaRy"}}},
@@ -1020,51 +1019,55 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         self.tdSql.checkEqual(self.tdSql.query_row, 3)
 
     def test(self):
-        self.batch_insert_check()
+        self.table_id_check()
 
     def run(self):
-        self.test()
-        return 
-        for value_type in ["obj", "default"]:
-            self.init_check(value_type)
-            self.symbols_check(value_type)
-        # ! TD-15830  TD-15831   self.ts_check()
-            # self.max_col_tag_check(value_type)
-            self.now_check(value_type)
-            self.date_format_check(value_type)
-            self.illegal_ts_check(value_type)
-            # self.tag_value_length_check(value_type)
-            self.col_value_length_check(value_type)
-            self.tag_col_illegal_value_check(value_type)
-            self.tag_col_binary_nchar_length_increase_check(value_type)
-            # self.tag_col_binary_max_length_check(value_type)
-            # self.tag_col_nchar_max_length_check(value_type)
-            # self.batch_insert_check(value_type)
-            self.multi_insert_check(100, value_type)
-            self.multi_cols_insert_check(value_type)
-            self.blank_col_insert_check(value_type)
-            self.blank_tag_insert_check(value_type)
-            self.multi_field_check(value_type)
-            self.spell_check()
-            self.point_trans_check(value_type)
-            self.stb_insert_multi_thread_check(value_type)
-        self.tag_name_length_check()
-        self.bool_check()
-        self.stb_name_check()
-        self.batch_error_insert_check()
-        self.chinese_check()
-        self.tbname_tags_cols_name_check()
-        self.s_stb_s_tb_d_data_insert_multi_thread_check()
-        self.s_stb_s_tb_d_data_at_insert_multi_thread_check()
-        self.s_stb_stb_d_data_mt_insert_multi_thread_check()
-        self.s_stb_d_tb_d_data_insert_multi_thread_check()
-        self.s_stb_d_tb_d_data_mt_insert_multi_thread_check()
-        self.s_stb_d_tb_d_data_at_insert_multi_thread_check()
-        self.s_stb_s_tb_d_data_d_ts_insert_multi_thread_check()
-        self.s_stb_s_tb_d_data_d_ts_mt_insert_multi_thread_check()
-        self.s_stb_s_tb_d_data_d_ts_at_insert_multi_thread_check()
-        self.s_stb_d_tb_d_data_d_ts_insert_multi_thread_check()
-        self.s_stb_d_tb_d_data_d_ts_mt_insert_multi_thread_check()
+        # self.test()
+        # return 
+        if "smlChildTableName" in self.taospy_setting["spec"]["config"]:
+            if self.taospy_setting["spec"]["config"]["smlChildTableName"].upper() == "ID":
+                self.table_id_check()
+        else:
+            for value_type in ["obj", "default"]:
+                self.init_check(value_type)
+                self.symbols_check(value_type)
+            # ! TD-15830  TD-15831   self.ts_check()
+                # self.max_col_tag_check(value_type)
+                self.now_check(value_type)
+                self.date_format_check(value_type)
+                self.illegal_ts_check(value_type)
+                # self.tag_value_length_check(value_type)
+                self.col_value_length_check(value_type)
+                self.tag_col_illegal_value_check(value_type)
+                self.tag_col_binary_nchar_length_increase_check(value_type)
+                # self.tag_col_binary_max_length_check(value_type)
+                # self.tag_col_nchar_max_length_check(value_type)
+                self.batch_insert_check(value_type)
+                self.multi_insert_check(100, value_type)
+                self.multi_cols_insert_check(value_type)
+                self.blank_col_insert_check(value_type)
+                self.blank_tag_insert_check(value_type)
+                self.multi_field_check(value_type)
+                self.spell_check()
+                self.point_trans_check(value_type)
+                self.stb_insert_multi_thread_check(value_type)
+            self.tag_name_length_check()
+            self.bool_check()
+            self.stb_name_check()
+            self.batch_error_insert_check()
+            self.chinese_check()
+            self.tbname_tags_cols_name_check()
+            self.s_stb_s_tb_d_data_insert_multi_thread_check()
+            self.s_stb_s_tb_d_data_at_insert_multi_thread_check()
+            self.s_stb_stb_d_data_mt_insert_multi_thread_check()
+            self.s_stb_d_tb_d_data_insert_multi_thread_check()
+            self.s_stb_d_tb_d_data_mt_insert_multi_thread_check()
+            self.s_stb_d_tb_d_data_at_insert_multi_thread_check()
+            self.s_stb_s_tb_d_data_d_ts_insert_multi_thread_check()
+            self.s_stb_s_tb_d_data_d_ts_mt_insert_multi_thread_check()
+            self.s_stb_s_tb_d_data_d_ts_at_insert_multi_thread_check()
+            self.s_stb_d_tb_d_data_d_ts_insert_multi_thread_check()
+            self.s_stb_d_tb_d_data_d_ts_mt_insert_multi_thread_check()
 
     def cleanup(self):
         pass

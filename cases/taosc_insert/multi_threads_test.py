@@ -36,6 +36,7 @@ class TestMultiThreads(TDCase):
         for dbname in db_list:
             # could not use checkEqual because maybe other agent is writing to database such as prometheus
             self.tdSql.checkIn(dbname, self.tdSql.getColNameList())
+        self.tdSql.execute(f'drop database if exists {dbname}')
 
     def multi_threads_create_stb(self):
         """
@@ -55,6 +56,7 @@ class TestMultiThreads(TDCase):
         self.tdSql.multiThreadRun(tlist)
         self.tdSql.query(f'show {dbname}.stables')
         self.tdSql.checkEqual(sorted(stb_list), sorted(self.tdSql.getColNameList()))
+        self.tdSql.execute(f'drop database if exists {dbname}')
 
     def multi_threads_create_tb(self):
         """
@@ -74,6 +76,7 @@ class TestMultiThreads(TDCase):
         self.tdSql.multiThreadRun(tlist)
         self.tdSql.query(f'show {dbname}.tables')
         self.tdSql.checkEqual(sorted(tb_list), sorted(self.tdSql.getColNameList()))
+        self.tdSql.execute(f'drop database if exists {dbname}')
 
     def multi_threads_insert(self):
         """
@@ -92,6 +95,7 @@ class TestMultiThreads(TDCase):
         self.tdSql.multiThreadRun(tlist)
         self.tdSql.query(f'select count(*) from {dbname}.tb')
         self.tdSql.checkEqual(self.tdSql.query_data[0][0], 5)
+        self.tdSql.execute(f'drop database if exists {dbname}')
 
     def multi_threads_create_drop_db_stb_tb(self):
         """
@@ -163,6 +167,7 @@ class TestMultiThreads(TDCase):
         self.tdSql.query(f'show {db}.tables')
         for tb in tb_list:
             self.tdSql.checkNotIn(tb, self.tdSql.getColNameList())
+        self.tdSql.execute(f'drop database if exists {dbname}')
 
     def multi_threads_create_drop_db_stb_tb_mixed(self):
         """
@@ -194,6 +199,9 @@ class TestMultiThreads(TDCase):
 
         self.tdSql.query(f'show {db}.tables')
         self.tdSql.checkNotIn("tb2", self.tdSql.getColNameList())
+        self.tdSql.execute(f'drop database if exists {db}')
+        self.tdSql.execute(f'drop database if exists {db}_1')
+        self.tdSql.execute(f'drop database if exists {dbname}')
 
     def insert_when_dropping_tb(self):
         """
@@ -213,6 +221,7 @@ class TestMultiThreads(TDCase):
         self.tdSql.multiThreadRun(tlist)
         self.tdSql.query(f'show {dbname}.tables')
         self.tdSql.checkNotIn("tb", self.tdSql.getColNameList())
+        self.tdSql.execute(f'drop database if exists {dbname}')
 
     def insert_when_dropping_db(self):
         """
@@ -232,6 +241,7 @@ class TestMultiThreads(TDCase):
         self.tdSql.multiThreadRun(tlist)
         self.tdSql.query(f'show databases')
         self.tdSql.checkNotIn(dbname, self.tdSql.getColNameList())
+        self.tdSql.execute(f'drop database if exists {dbname}')
 
     def create_table_when_dropping_db(self):
         """
@@ -247,6 +257,7 @@ class TestMultiThreads(TDCase):
         self.tdSql.multiThreadRun(tlist)
         self.tdSql.query(f'show databases')
         self.tdSql.checkNotIn(dbname, self.tdSql.getColNameList())
+        self.tdSql.execute(f'drop database if exists {dbname}')
 
     def drop_table_when_dropping_db(self):
         """
@@ -264,6 +275,7 @@ class TestMultiThreads(TDCase):
         self.tdSql.multiThreadRun(tlist)
         self.tdSql.query(f'show databases')
         self.tdSql.checkNotIn(dbname, self.tdSql.getColNameList())
+        self.tdSql.execute(f'drop database if exists {dbname}')
 
     def del_column_inserting(self):
         """
@@ -281,8 +293,8 @@ class TestMultiThreads(TDCase):
         sql_list.append(f'alter table {dbname}.stb drop column c12')
         tlist = self.tdSql.genMultiThreadSeq(sql_list)
         self.tdSql.multiThreadRun(tlist)
-        # ! TD-16200
         self.tdSql.error(f'select c12 from {dbname}.stb')
+        self.tdSql.execute(f'drop database if exists {dbname}')
 
     def add_column_when_inserting(self):
         """
@@ -301,6 +313,7 @@ class TestMultiThreads(TDCase):
         tlist = self.tdSql.genMultiThreadSeq(sql_list)
         self.tdSql.multiThreadRun(tlist)
         self.tdSql.execute(f'select c13 from {dbname}.stb')
+        self.tdSql.execute(f'drop database if exists {dbname}')
 
     def alter_column_when_dropping(self):
         """
@@ -320,23 +333,25 @@ class TestMultiThreads(TDCase):
         self.tdSql.multiThreadRun(tlist)
         self.tdSql.query(f'show databases')
         self.tdSql.checkNotIn(dbname, self.tdSql.getColNameList())
+        self.tdSql.execute(f'drop database if exists {dbname}')
 
     def run(self) -> bool:
-        self.multi_threads_create_db()
-        self.multi_threads_create_stb()
-        self.multi_threads_create_tb()
-        self.multi_threads_insert()
-        self.multi_threads_create_drop_db_stb_tb()
-        self.multi_threads_create_drop_db_stb_tb_mixed()
-        self.insert_when_dropping_tb()
-        # ! TD-16209	
-        self.insert_when_dropping_db()
-        self.create_table_when_dropping_db()
-        # ! bug
-        self.drop_table_when_dropping_db()
-        self.del_column_inserting()
-        self.add_column_when_inserting()
-        self.alter_column_when_dropping()
+        for i in range(100):
+            self.multi_threads_create_db()
+            self.multi_threads_create_stb()
+            self.multi_threads_create_tb()
+            self.multi_threads_insert()
+            self.multi_threads_create_drop_db_stb_tb()
+            self.multi_threads_create_drop_db_stb_tb_mixed()
+            self.insert_when_dropping_tb()
+            # # # ! TD-16209	
+            # # # self.insert_when_dropping_db()
+            # # self.create_table_when_dropping_db()
+            # # # ! bug
+            # # # self.drop_table_when_dropping_db()
+            self.del_column_inserting()
+            self.add_column_when_inserting()
+            # self.alter_column_when_dropping()
 
     def cleanup(self):
         pass

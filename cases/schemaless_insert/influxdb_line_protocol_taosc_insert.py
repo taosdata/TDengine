@@ -509,10 +509,8 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdCom.cleanTb()
         tb_name = self.tdCom.get_long_name(7, "letters")
         input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name, t0="t", c0="t")
-        print(input_sql)
         self.tdCom.check_res(input_sql, stb_name)
         input_sql, stb_name = self.tdCom.gen_full_type_sql(stb_name=stb_name, tb_name=tb_name, t0="t", c0="f", ct_add_tag=True)
-        print(input_sql)
         self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
         self.tdSql.query(f'select * from {stb_name} where tbname like "{tb_name}"')
         self.tdSql.checkData(0, 1, False)
@@ -887,8 +885,6 @@ class TestInfluxdbLineTaoscInsert(TDCase):
                                         (f'{stb_name},t0=F,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=False,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="kzscucnt",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=f 1626006833639000000', 'hpxbys'), \
                                         (f'{stb_name},t0=F,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="asegdbqk",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=false 1626006833639000000', 'hpxbys'), \
                                         (f'{stb_name},t0=True,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64 c0=true,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7="yvqnhgmn",c8=L"ncharColValue",c9=7u64,c11=L"ncharColValue",c10=T 1626006833639000000', 'hpxbys')]
-        # for input_sql in s_stb_d_tb_a_col_m_tag_list:
-        #     self.tdSql._conn.schemaless_insert([input_sql[0]], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
 
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(s_stb_d_tb_a_col_m_tag_list))
         self.tdSql.query(f"show tables;")
@@ -1069,6 +1065,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
             # self.s_stb_d_tb_d_data_ac_mt_insert_multi_thread_check()
             self.s_stb_d_tb_d_data_at_mc_insert_multi_thread_check()
             self.s_stb_s_tb_d_data_d_ts_insert_multi_thread_check()
+            # for i in range(100):
             # self.s_stb_s_tb_d_data_d_ts_ac_mt_insert_multi_thread_check()
             self.s_stb_s_tb_d_data_d_ts_at_mc_insert_multi_thread_check()
             self.s_stb_d_tb_d_data_d_ts_insert_multi_thread_check()

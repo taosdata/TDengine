@@ -27,9 +27,9 @@ class TestKeep(TDCase):
         keep check
         """
         test_param = "keep"
-        get_data = GetJson(self.logger, self.run_log_dir,self.env_setting)
+        get_data = GetJson(self.logger, self.run_log_dir, self.env_setting)
         # default
-        default_value = "5256000,5256000,5256000"
+        default_value = "5256000m,5256000m,5256000m"
 
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
         self.tdSql.execute(f'create database if not exists {dbname}')
@@ -38,9 +38,9 @@ class TestKeep(TDCase):
         self.tdSql.checkEqual(db_field_kv_dict[test_param], default_value)
 
         self.tdSql.query(f'show {dbname}.vgroups')
-        db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
+        db_vnode_kv_dict = self.tdSql.getOneRow(1, dbname)
         data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
-        self.tdSql.checkEqual(db_field_kv_dict[test_param],f"{data['config']['keep0']},{data['config']['keep1']},{data['config']['keep2']}")
+        self.tdSql.checkEqual(db_field_kv_dict[test_param], f"{data['config']['keep0']}m,{data['config']['keep1']}m,{data['config']['keep2']}m")
         self.tdSql.execute(f'drop database {dbname}')
         # boundary
         param_value_list = [1, 365000,'1440m','525600000m','24h','8760000h','1d','365000d']
@@ -50,20 +50,20 @@ class TestKeep(TDCase):
             self.tdSql.query('show databases')
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
             if param_value==1 or param_value ==365000:
-                self.tdSql.checkEqual(db_field_kv_dict[test_param], f'{param_value*24*60},{param_value*24*60},{param_value*24*60}')
+                self.tdSql.checkEqual(db_field_kv_dict[test_param], f'{param_value*24*60}m,{param_value*24*60}m,{param_value*24*60}m')
             elif param_value == '1d' or param_value == '365000d':
-                param = int(re.sub('\D','',param_value))
-                self.tdSql.checkEqual(db_field_kv_dict[test_param], f'{param*24*60},{param*24*60},{param*24*60}')
+                param = int(re.sub('\D','', param_value))
+                self.tdSql.checkEqual(db_field_kv_dict[test_param], f'{param*24*60}m,{param*24*60}m,{param*24*60}m')
             elif param_value == '1440m' or param_value == '525600000m':
-                param = int(re.sub('\D','',param_value))
+                param = int(re.sub('\D','', param_value))
                 self.tdSql.checkEqual(db_field_kv_dict[test_param], f'{param},{param},{param}')
             elif param_value == '24h' or param_value =='8760000h':
-                param = int(re.sub('\D','',param_value))
-                self.tdSql.checkEqual(db_field_kv_dict[test_param], f'{param*60},{param*60},{param*60}')
+                param = int(re.sub('\D','', param_value))
+                self.tdSql.checkEqual(db_field_kv_dict[test_param], f'{param*60}m,{param*60}m,{param*60}m')
             self.tdSql.query(f'show {dbname}.vgroups')
             db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
             data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
-            self.tdSql.checkEqual(db_field_kv_dict[test_param],f"{data['config']['keep0']},{data['config']['keep1']},{data['config']['keep2']}")
+            self.tdSql.checkEqual(db_field_kv_dict[test_param], f"{data['config']['keep0']}m,{data['config']['keep1']}m,{data['config']['keep2']}m")
             self.tdSql.execute(f'drop database {dbname}')
         
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
@@ -81,33 +81,33 @@ class TestKeep(TDCase):
         self.tdSql.execute(f'create database if not exists {dbname} {test_param} 36500,36501,36502')
         self.tdSql.query('show databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
-        self.tdSql.checkEqual(db_field_kv_dict[test_param], "52560000,52561440,52562880")
+        self.tdSql.checkEqual(db_field_kv_dict[test_param], "52560000m,52561440m,52562880m")
         self.tdSql.query(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
         data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
-        self.tdSql.checkEqual(db_field_kv_dict[test_param],f"{data['config']['keep0']},{data['config']['keep1']},{data['config']['keep2']}")
+        self.tdSql.checkEqual(db_field_kv_dict[test_param], f"{data['config']['keep0']}m,{data['config']['keep1']}m,{data['config']['keep2']}m")
         self.tdSql.execute(f'drop database {dbname}')
         # keep2(default) > keep1 >= keep0 >= days
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
         self.tdSql.execute(f'create database if not exists {dbname} {test_param} 36500,36501')
         self.tdSql.query('show databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
-        self.tdSql.checkEqual(db_field_kv_dict[test_param], "52560000,52561440,52561440")
+        self.tdSql.checkEqual(db_field_kv_dict[test_param], "52560000m,52561440m,52561440m")
         self.tdSql.query(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
         data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
-        self.tdSql.checkEqual(db_field_kv_dict[test_param],f"{data['config']['keep0']},{data['config']['keep1']},{data['config']['keep2']}")
+        self.tdSql.checkEqual(db_field_kv_dict[test_param], f"{data['config']['keep0']}m,{data['config']['keep1']}m,{data['config']['keep2']}m")
         self.tdSql.execute(f'drop database {dbname}')
         # keep2 = keep1 = keep0 = days
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
         self.tdSql.execute(f'create database if not exists {dbname} days 10 {test_param} 10,10,10')
         self.tdSql.query('show databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
-        self.tdSql.checkEqual(db_field_kv_dict[test_param], "14400,14400,14400")
+        self.tdSql.checkEqual(db_field_kv_dict[test_param], "14400m,14400m,14400m")
         self.tdSql.query(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
         data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
-        self.tdSql.checkEqual(db_field_kv_dict[test_param],f"{data['config']['keep0']},{data['config']['keep1']},{data['config']['keep2']}")
+        self.tdSql.checkEqual(db_field_kv_dict[test_param], f"{data['config']['keep0']}m,{data['config']['keep1']}m,{data['config']['keep2']}m")
         self.tdSql.execute(f'drop database {dbname}')
         # error
         # keep2 >= keep1 >= days >= keep0
@@ -129,23 +129,23 @@ class TestKeep(TDCase):
         self.tdSql.execute("drop database if exists db1 ")
         self.tdSql.execute("create database if not exists db1 days 1d keep 10d,15d,20d")
         self.tdSql.execute("use db1")
-        self.tdSql.execute("create table ntb (ts timestamp,c0 int)")
-        self.tdSql.execute("insert into ntb values(now,1)")
+        self.tdSql.execute("create table ntb (ts timestamp, c0 int)")
+        self.tdSql.execute("insert into ntb values(now, 1)")
         self.tdSql.query("select * from ntb")
         self.tdSql.checkRow(1)
         self.tdSql.error("insert into ntb values('2020-1-1 00:00:00',1)")
-        self.tdSql.error("insert into ntb values(now+2d,1)")
+        self.tdSql.error("insert into ntb values(now+2d, 1)")
         self.tdSql.execute("drop database db1")
 
         # bug TD-15499
         self.tdSql.execute("drop database if exists db1")
         self.tdSql.execute("create database if not exists db1 keep 36500d")
         self.tdSql.execute("use db1")
-        self.tdSql.execute("create table ntb (ts timestamp,c0 int)")
-        self.tdSql.execute("insert into ntb values(0,1)")
+        self.tdSql.execute("create table ntb (ts timestamp, c0 int)")
+        self.tdSql.execute("insert into ntb values(0, 1)")
         self.tdSql.query("select * from ntb")
         self.tdSql.checkRow(1)
-        self.tdSql.execute("insert into ntb values(-1,1)")
+        self.tdSql.execute("insert into ntb values(-1, 1)")
         self.tdSql.checkRow(1)
         
 

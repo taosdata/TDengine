@@ -175,11 +175,12 @@ class TestChildTb(TDCase):
         self.child_tbname_with_backquote()
         self.child_tbname_without_backquote()
         self.upper_lower_child_tbname_check()
-        #! bug
-        # self.ttl_check()
-        # self.comment_check()
-        self.desc_check()
-        self.illegal_child_tbsql_check()
+        # # #! bug
+        # # # self.ttl_check()
+        # # # self.comment_check()
+        # self.desc_check()
+        # ! TD-16445
+        # self.illegal_child_tbsql_check()
 
     def desc(self) -> str:
         case_description = """

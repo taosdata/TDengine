@@ -59,11 +59,8 @@ class TestTimestamp(TDCase):
         for tbname in [f"{dbname}.ctb", f"{dbname}.stb", f"{dbname}.tb"]:
             self.tdSql.query(f'select * from {tbname} where c1 = 2')
             self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), "2022-01-16 21:18:01")
-        self.tdSql.execute(f'insert into {dbname}.ctb values ("2022-01-16 21:17:121", 3)')
-        self.tdSql.execute(f'insert into {dbname}.tb values ("2022-01-16 21:17:121", 3)')
-        for tbname in [f"{dbname}.ctb", f"{dbname}.stb", f"{dbname}.tb"]:
-            self.tdSql.query(f'select * from {tbname} where c1 = 3')
-            self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), "2022-01-16 21:17:12")
+        self.tdSql.error(f'insert into {dbname}.ctb values ("2022-01-16 21:17:121", 3)')
+        self.tdSql.error(f'insert into {dbname}.tb values ("2022-01-16 21:17:121", 3)')
         # TODO confirm
         self.tdSql.error(f'insert into {dbname}.ctb values ("2022-01-16 21:17:62", 2)')
         self.tdSql.error(f'insert into {dbname}.tb values ("2022-01-16 21:17:62", 2)')
@@ -229,15 +226,15 @@ class TestTimestamp(TDCase):
                 f'insert into {dbname}.ctb values (now + 1n, 1)',
                 f'insert into {dbname}.ctb values (now - 1n, 1)',
                 f'insert into {dbname}.ctb values (now + 1y, 1)',
-                f'insert into {dbname}.ctb values (now - 1y, 1)'
+                f'insert into {dbname}.ctb values (now - 1y, 1)',
+                f'insert into {dbname}.tb values ("2022-04-31 00:05:55", 1)',
+                f'insert into {dbname}.tb values ("2022-02-31 00:05:55", 1)',
                 ]:
-                # f'insert into {dbname}.tb values ("2022-04-31 00:05:55", 1)',
-                # f'insert into {dbname}.tb values ("2022-02-31 00:05:55", 1)',
                 self.tdSql.error(error_sql)
 
     def run(self) -> bool:
-        # self.ms_us_ns_db_check()
-        # self.h_m_s_check()
+        self.ms_us_ns_db_check()
+        self.h_m_s_check()
         self.human_date_check()
         self.now_check()
         self.epoch_check()
