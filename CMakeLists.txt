@@ -74,7 +74,7 @@ add_subdirectory(community/tests)
 add_subdirectory(community/examples/c)
 
 # docs 
-add_subdirectory(community/docs)
+add_subdirectory(community/docs/doxgen)
 
 set( TD_SOURCE_DIR ${PROJECT_SOURCE_DIR} )
 
