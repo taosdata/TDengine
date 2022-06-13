@@ -350,6 +350,13 @@ static FORCE_INLINE int32_t tGetDelDataItem(uint8_t *p, SDelDataItem *pItem) {
 }
 
 // SDelData ======================================================
+int32_t tDelDataClear(SDelData *pDelData) {
+  int32_t code = 0;
+  tsdbFree(pDelData->offset.pOffset);
+  tsdbFree(pDelData->pData);
+  return code;
+}
+
 int32_t tDelDataPutItem(SDelData *pDelData, SDelDataItem *pItem) {
   int32_t  code = 0;
   uint32_t offset = pDelData->nData;

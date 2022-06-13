@@ -147,7 +147,6 @@ int32_t tsdbWriteDelData(SDelFWriter *pWriter, SDelData *pDelData, uint8_t **ppB
 
   // prepare
   pDelData->delimiter = TSDB_FILE_DLMT;
-  // todo
 
   // alloc
   if (!ppBuf) ppBuf = &pBuf;

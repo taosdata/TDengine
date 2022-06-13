@@ -158,6 +158,7 @@ int32_t tPutDelIdx(uint8_t *p, SDelIdx *pDelIdx);
 int32_t tGetDelIdx(uint8_t *p, SDelIdx *pDelIdx);
 
 // SDelData
+int32_t tDelDataClear(SDelData *pDelData);
 int32_t tDelDataPutItem(SDelData *pDelData, SDelDataItem *pItem);
 int32_t tDelDataGetItemByIdx(SDelData *pDelData, SDelDataItem *pItem, int32_t idx);
 int32_t tDelDataGetItem(SDelData *pDelData, SDelDataItem *pItem, int64_t version);
