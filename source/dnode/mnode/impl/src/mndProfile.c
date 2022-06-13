@@ -641,23 +641,25 @@ static int32_t mndRetrieveQueries(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
 
     int32_t numOfQueries = taosArrayGetSize(pConn->pQueries);
     for (int32_t i = 0; i < numOfQueries; ++i) {
+      SQueryDesc* pQuery = taosArrayGet(pConn->pQueries, i);
       cols = 0;
 
       SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)&pDnode->id, false);
-
-      char buf[tListLen(pDnode->ep) + VARSTR_HEADER_SIZE] = {0};
-      STR_WITH_MAXSIZE_TO_VARSTR(buf, pDnode->ep, pShow->pMeta->pSchemas[cols].bytes);
+      colDataAppend(pColInfo, numOfRows, (const char *)&pQuery->queryId, false);
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, buf, false);
+      colDataAppend(pColInfo, numOfRows, (const char *)&pConn->id, false);
 
+      char user[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
+      STR_TO_VARSTR(b1, pConn->user);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      int16_t id = mndGetVnodesNum(pMnode, pDnode->id);
-      colDataAppend(pColInfo, numOfRows, (const char *)&id, false);
+      colDataAppend(pColInfo, numOfRows, (const char *)user, false);
 
+      char endpoint[TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
+      sprintf(&endpoint[VARSTR_HEADER_SIZE], "%s:%d", taosIpStr(pConn->ip), pConn->port);
+      varDataLen(endpoint) = strlen(&endpoint[VARSTR_HEADER_SIZE]);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)&pDnode->numOfSupportVnodes, false);
+      colDataAppend(pColInfo, numOfRows, (const char *)endpoint, false);
 
       char b1[9] = {0};
       STR_TO_VARSTR(b1, online ? "ready" : "offline");

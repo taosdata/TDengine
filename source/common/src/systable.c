@@ -298,8 +298,8 @@ static const SSysDbTableSchema offsetSchema[] = {
 };
 
 static const SSysDbTableSchema querySchema[] = {
-    {.name = "query_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "connId", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "query_id", .bytes = 8, .type = TSDB_DATA_TYPE_UBIGINT},
+    {.name = "connId", .bytes = 4, .type = TSDB_DATA_TYPE_UINT},
     {.name = "user", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "end_point", .bytes = TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "qid", .bytes = 22 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
