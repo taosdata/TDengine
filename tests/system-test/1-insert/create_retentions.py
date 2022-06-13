@@ -1,4 +1,5 @@
 import datetime
+from turtle import pos
 
 from util.log import *
 from util.sql import *
@@ -111,6 +112,15 @@ class TDTestCase:
         for i in range(4):
             tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
 
+    def __create_data_set(self, rows):
+        pos_data = []
+        neg_data = []
+        spec_data = []
+        for i in range(rows):
+            pos_data.append()
+
+
+        pass
     def __insert_data(self, rows):
         now_time = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
         for i in range(rows):
@@ -131,7 +141,7 @@ class TDTestCase:
             )
         tdSql.execute(
             f'''insert into ct1 values
-            ( { now_time - rows * 5 }, 0, 0, 0, 0, 0, 0, 0, 'binary0', 'nchar_测试_0', { now_time + 8 }, 0, 0, 0, 0, )
+            ( { now_time - rows * 5 }, 0, 0, 0, 0, 0, 0, 0, 'binary0', 'nchar_测试_0', { now_time + 8 }, 0, 0, 0, 0)
             ( { now_time + 10000 }, { rows }, -99999, -999, -99, -9.99, -99.99, 1, 'binary9', 'nchar_测试_9', { now_time + 9 }, 0, 0, 0, 0 )
             '''
         )
