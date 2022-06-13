@@ -113,14 +113,24 @@ class TDTestCase:
             tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
 
     def __create_data_set(self, rows):
+        now_time = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
         pos_data = []
         neg_data = []
         spec_data = []
         for i in range(rows):
-            pos_data.append()
+            pos_data.append(
+                (
+                    now_time - i * 1000, i, 11111 * i, 111 * i % 32767 , 11 * i % 127, 1.11 * i, 1100.0011 * i,
+                    i % 2, f'binary{i}', f'nchar_测试_{i}', now_time + 1 * i, 11 * i % 127, 111 * i % 32767, i, 11111 * i
+                )
+            )
+            neg_data.append(
+                (
+                    now_time - i * 7776000000, -i, -11111 * i, -111 * i % 32767, -11 * i % 127, -1.11 * i, -1100.0011 * i,
+                    i % 2, f'binary{i}', f'nchar_测试_{i}', now_time + 1 * i, 11 * i % 127, 111 * i % 32767, i, 11111 * i
+                )
+            )
 
-
-        pass
     def __insert_data(self, rows):
         now_time = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
         for i in range(rows):
