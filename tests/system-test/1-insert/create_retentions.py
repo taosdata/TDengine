@@ -67,11 +67,19 @@ class TDTestCase:
         ]
 
     @property
-    def create_stable_sql_err(self):
+    def create_stable_sql_current(self):
         return [
             f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(avg) delay 5",
         ]
 
+    def test_create_stb(self):
+        tdSql.execute("use db2")
+        for err_sql in self.create_stable_sql_err:
+            tdSql.error(err_sql)
+        for cur_sql in self.create_stable_sql_current:
+            tdSql.execute(cur_sql)
+        tdSql.query("show stables")
+        tdSql.checkRows(len(self.create_stable_sql_current))
 
     def test_create_databases(self):
         for err_sql in self.create_databases_sql_err:
@@ -84,6 +92,7 @@ class TDTestCase:
 
     def all_test(self):
         self.test_create_databases()
+        self.test_create_stb()
 
     def __create_tb(self):
         tdSql.prepare()
