@@ -172,19 +172,19 @@ class TestVgroups(TDCase):
         self.case_name = sys._getframe().f_code.co_name
         self.write_latency(self.case_name)
         # stb
-        self.tdSql.execute(f'create stream stb_downsampling_stream into output_downsampling_stb as select _wstartts AS start, min(c1), max(c2), sum(c1) from downsampling_stb interval(10m);')
+        self.tdSql.execute(f'create stream stb_downsampling_stream into output_downsampling_stb as select _wstartts AS start, min(c1), max(c2), sum(c1), first(c1), last(c1), apercentile(c1, 50) from downsampling_stb interval(10m);')
         # ctb
-        self.tdSql.execute(f'create stream ctb_downsampling_stream into output_downsampling_ctb as select _wstartts AS start, min(c1), max(c2), sum(c1) from downsampling_ct1 interval(10m);')
+        self.tdSql.execute(f'create stream ctb_downsampling_stream into output_downsampling_ctb as select _wstartts AS start, min(c1), max(c2), sum(c1), first(c1), last(c1), apercentile(c1, 50) from downsampling_ct1 interval(10m);')
         # tb
-        self.tdSql.execute(f'create stream tb_downsampling_stream into output_downsampling_tb as select _wstartts AS start, min(c1), max(c2), sum(c1) from downsampling_tb interval(10m);')
+        self.tdSql.execute(f'create stream tb_downsampling_stream into output_downsampling_tb as select _wstartts AS start, min(c1), max(c2), sum(c1), first(c1), last(c1), apercentile(c1, 50) from downsampling_tb interval(10m);')
         for tbname in ["downsampling_ct1", "downsampling_tb"]:
             self.tdSql.execute(f'insert into {tbname} values (1653547828591, 100, 100.1, "Beijing", True);')
             self.tdSql.execute(f'insert into {tbname} values (1653547828591+1s, -100, -100.1, "Tianjin", False);')
             self.tdSql.execute(f'insert into {tbname} values (1653547828591+2s, 50, 50.3, "HeBei", False);')
 
-        self.check_stream('select start, `min(c1)`, `max(c2)`, `sum(c1)` from output_downsampling_stb;', 'select _wstartts AS start, min(c1), max(c2), sum(c1) from downsampling_stb interval(10m);', 1)
-        self.check_stream('select start, `min(c1)`, `max(c2)`, `sum(c1)` from output_downsampling_ctb;', 'select _wstartts AS start, min(c1), max(c2), sum(c1) from downsampling_ct1 interval(10m);', 1)
-        self.check_stream('select start, `min(c1)`, `max(c2)`, `sum(c1)` from output_downsampling_tb;', 'select _wstartts AS start, min(c1), max(c2), sum(c1) from downsampling_tb interval(10m);', 1)
+        self.check_stream('select start, `min(c1)`, `max(c2)`, `sum(c1)`, `first(c1)`, `last(c1)`, `apercentile(c1, 50)` from output_downsampling_stb;', 'select _wstartts AS start, min(c1), max(c2), sum(c1), first(c1), last(c1), apercentile(c1, 50) from downsampling_stb interval(10m);', 1)
+        self.check_stream('select start, `min(c1)`, `max(c2)`, `sum(c1)`, `first(c1)`, `last(c1)`, `apercentile(c1, 50)` from output_downsampling_ctb;', 'select _wstartts AS start, min(c1), max(c2), sum(c1), first(c1), last(c1), apercentile(c1, 50) from downsampling_ct1 interval(10m);', 1)
+        self.check_stream('select start, `min(c1)`, `max(c2)`, `sum(c1)`, `first(c1)`, `last(c1)`, `apercentile(c1, 50)` from output_downsampling_tb;', 'select _wstartts AS start, min(c1), max(c2), sum(c1), first(c1), last(c1), apercentile(c1, 50) from downsampling_tb interval(10m);', 1)
         # self.write_latency('sql: select * from output_downsampling_stb;')
 
         # self.check_stream_res('select * from output_downsampling_stb;', 1)
@@ -207,9 +207,9 @@ class TestVgroups(TDCase):
                 count += 1
                 # expectd_res = count
             # check result
-            self.check_stream('select start, `min(c1)`, `max(c2)`, `sum(c1)` from output_downsampling_stb;', 'select _wstartts AS start, min(c1), max(c2), sum(c1) from downsampling_stb interval(10m);', count)
-            self.check_stream('select start, `min(c1)`, `max(c2)`, `sum(c1)` from output_downsampling_ctb;', 'select _wstartts AS start, min(c1), max(c2), sum(c1) from downsampling_ct1 interval(10m);', count)
-            self.check_stream('select start, `min(c1)`, `max(c2)`, `sum(c1)` from output_downsampling_tb;', 'select _wstartts AS start, min(c1), max(c2), sum(c1) from downsampling_tb interval(10m);', count)
+            self.check_stream('select start, `min(c1)`, `max(c2)`, `sum(c1)`, `first(c1)`, `last(c1)`, `apercentile(c1, 50)` from output_downsampling_stb;', 'select _wstartts AS start, min(c1), max(c2), sum(c1), first(c1), last(c1), apercentile(c1, 50) from downsampling_stb interval(10m);', count)
+            self.check_stream('select start, `min(c1)`, `max(c2)`, `sum(c1)`, `first(c1)`, `last(c1)`, `apercentile(c1, 50)` from output_downsampling_ctb;', 'select _wstartts AS start, min(c1), max(c2), sum(c1), first(c1), last(c1), apercentile(c1, 50) from downsampling_ct1 interval(10m);', count)
+            self.check_stream('select start, `min(c1)`, `max(c2)`, `sum(c1)`, `first(c1)`, `last(c1)`, `apercentile(c1, 50)` from output_downsampling_tb;', 'select _wstartts AS start, min(c1), max(c2), sum(c1), first(c1), last(c1), apercentile(c1, 50) from downsampling_tb interval(10m);', count)
         #     self.check_stream(f'select {select_elm} from output_data_filter_stb where {filter_sql};', f'select {select_elm} from data_filter_stb where {filter_sql};', count-1)
         #     self.check_stream(f'select {select_elm} from output_data_filter_ctb where {filter_sql};', f'select {select_elm} from data_filter_ct1 where {filter_sql};', count-1)
         #     self.check_stream(f'select {select_elm} from output_data_filter_tb where {filter_sql};', f'select {select_elm} from data_filter_tb where {filter_sql};', count-1)
@@ -455,7 +455,7 @@ class TestVgroups(TDCase):
         self.data_filter()
         self.life_cycle()
         # self.stream_tandem()
-        self.disorder_data()
+        # self.disorder_data()
 
     def cleanup(self):
         pass
