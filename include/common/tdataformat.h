@@ -177,6 +177,11 @@ struct SColData {
   uint8_t *pData;
 };
 
+struct SColDataBatch {
+  uint8_t   flags;
+  SColData *aColData[];
+};
+
 #if 1  //================================================================================================================================================
 // Imported since 3.0 and use bitmap to demonstrate None/Null/Norm, while use Null/Norm below 3.0 without of bitmap.
 #define TD_SUPPORT_BITMAP

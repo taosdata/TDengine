@@ -37,9 +37,11 @@ struct SCommitter {
   SMapData         oBlockIdx;
   SMapData         nBlockIdx;
   // commit table data
-  SBlockIdx *pBlockIdx;
-  SMapData   oBlock;
-  SMapData   nBlock;
+  SBlockIdx    *pBlockIdx;
+  SMapData      oBlock;
+  SMapData      nBlock;
+  SColDataBatch oBatch;
+  SColDataBatch nBatch;
   /* commit del */
   SDelFReader *pDelFReader;
   SDelFWriter *pDelFWriter;

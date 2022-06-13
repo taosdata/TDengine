@@ -46,6 +46,7 @@ typedef struct SMergeInfo   SMergeInfo;
 typedef struct STable       STable;
 typedef struct SOffset      SOffset;
 typedef struct SMapData     SMapData;
+typedef struct SVDataCols   SVDataCols;
 
 // tsdbMemTable ==============================================================================================
 
@@ -127,18 +128,18 @@ typedef struct SDFileSetReader SDFileSetReader;
 typedef struct SDFileSetWriter SDFileSetWriter;
 
 // SDFileSetWriter
-int32_t tsdbDFileSetWriterOpen(SDFileSetWriter *pWriter, STsdb *pTsdb, SDFileSet *pSet);
-int32_t tsdbDFileSetWriterClose(SDFileSetWriter *pWriter, int8_t sync);
-int32_t tsdbWriteBlockData(SDFileSetWriter *pWriter, SDataCols *pDataCols, SBlock *pBlock);
-int32_t tsdbWriteSBlockInfo(SDFileSetWriter *pWriter, SBlockInfo *pBlockInfo, SBlockIdx *pBlockIdx);
-int32_t tsdbWriteSBlockIdx(SDFileSetWriter *pWriter, SBlockIdx *pBlockIdx);
+// int32_t tsdbDFileSetWriterOpen(SDFileSetWriter *pWriter, STsdb *pTsdb, SDFileSet *pSet);
+// int32_t tsdbDFileSetWriterClose(SDFileSetWriter *pWriter, int8_t sync);
+// int32_t tsdbWriteBlockData(SDFileSetWriter *pWriter, SDataCols *pDataCols, SBlock *pBlock);
+// int32_t tsdbWriteSBlockInfo(SDFileSetWriter *pWriter, SBlockInfo *pBlockInfo, SBlockIdx *pBlockIdx);
+// int32_t tsdbWriteSBlockIdx(SDFileSetWriter *pWriter, SBlockIdx *pBlockIdx);
 
 // SDFileSetReader
-int32_t tsdbDFileSetReaderOpen(SDFileSetReader *pReader, STsdb *pTsdb, SDFileSet *pSet);
-int32_t tsdbDFileSetReaderClose(SDFileSetReader *pReader);
-int32_t tsdbLoadSBlockIdx(SDFileSetReader *pReader, SArray *pArray);
-int32_t tsdbLoadSBlockInfo(SDFileSetReader *pReader, SBlockIdx *pBlockIdx, SBlockInfo *pBlockInfo);
-int32_t tsdbLoadSBlockStatis(SDFileSetReader *pReader, SBlock *pBlock, SBlockStatis *pBlockStatis);
+// int32_t tsdbDFileSetReaderOpen(SDFileSetReader *pReader, STsdb *pTsdb, SDFileSet *pSet);
+// int32_t tsdbDFileSetReaderClose(SDFileSetReader *pReader);
+// int32_t tsdbLoadSBlockIdx(SDFileSetReader *pReader, SArray *pArray);
+// int32_t tsdbLoadSBlockInfo(SDFileSetReader *pReader, SBlockIdx *pBlockIdx, SBlockInfo *pBlockInfo);
+// int32_t tsdbLoadSBlockStatis(SDFileSetReader *pReader, SBlock *pBlock, SBlockStatis *pBlockStatis);
 
 // SDelFWriter
 
@@ -306,13 +307,24 @@ struct SBlockItem {
   int64_t maxVersion;
 };
 
+struct SBlockInfo {
+  uint8_t flags;
+  int32_t nCols;
+  int64_t offset;
+  int64_t size;
+  int32_t nSmaCols;
+  int64_t smaOffset;
+  int64_t smaSize;
+};
+
 struct SBlock {
-  uint32_t delimiter;
-  int64_t  suid;
-  int64_t  uid;
-  SOffset  offset;
-  uint32_t nData;
-  uint8_t *pData;
+  TSDBKEY    minKey;
+  TSDBKEY    maxKey;
+  int64_t    minVersion;
+  int64_t    maxVersion;
+  int32_t    nRows;
+  int8_t     nBlockInfo;
+  SBlockInfo blockInfos[];
 };
 
 struct SBlockCol {
@@ -434,6 +446,11 @@ struct SMapData {
   uint8_t *pOfst;
   uint32_t nData;
   uint8_t *pData;
+};
+
+struct SVDataCols {
+  int64_t  *aVersion;
+  SDataCols dataCols;
 };
 
 #ifdef __cplusplus
