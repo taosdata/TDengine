@@ -1062,14 +1062,13 @@ class TestInfluxdbLineTaoscInsert(TDCase):
             self.s_stb_s_tb_d_data_atc_insert_multi_thread_check()
             self.s_stb_stb_d_data_mtc_insert_multi_thread_check()
             self.s_stb_d_tb_d_data_insert_multi_thread_check()
-            # self.s_stb_d_tb_d_data_ac_mt_insert_multi_thread_check()
+            self.s_stb_d_tb_d_data_ac_mt_insert_multi_thread_check()
             self.s_stb_d_tb_d_data_at_mc_insert_multi_thread_check()
             self.s_stb_s_tb_d_data_d_ts_insert_multi_thread_check()
-            # for i in range(100):
-            # self.s_stb_s_tb_d_data_d_ts_ac_mt_insert_multi_thread_check()
+            self.s_stb_s_tb_d_data_d_ts_ac_mt_insert_multi_thread_check()
             self.s_stb_s_tb_d_data_d_ts_at_mc_insert_multi_thread_check()
             self.s_stb_d_tb_d_data_d_ts_insert_multi_thread_check()
-            # self.s_stb_d_tb_d_data_d_ts_ac_mt_insert_multi_thread_check()
+            self.s_stb_d_tb_d_data_d_ts_ac_mt_insert_multi_thread_check()
 
     def cleanup(self):
         pass
