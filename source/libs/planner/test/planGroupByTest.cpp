@@ -82,4 +82,6 @@ TEST_F(PlanGroupByTest, stable) {
   run("SELECT COUNT(*) FROM st1");
 
   run("SELECT COUNT(*) FROM st1 GROUP BY c1");
+
+  run("SELECT SUM(c1) FROM st1 GROUP BY c2 HAVING SUM(c1) IS NOT NULL");
 }
