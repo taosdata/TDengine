@@ -1273,7 +1273,7 @@ void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term) {
 
 void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr) {
   sDebug("vgId:%d sync event become follower, isStandBy:%d, %s", pSyncNode->vgId, pSyncNode->pRaftCfg->isStandBy,
-        debugStr);
+         debugStr);
 
   // maybe clear leader cache
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
@@ -1308,7 +1308,7 @@ void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr) {
 //
 void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
   sDebug("vgId:%d sync event become leader, isStandBy:%d, %s", pSyncNode->vgId, pSyncNode->pRaftCfg->isStandBy,
-        debugStr);
+         debugStr);
 
   // state change
   pSyncNode->state = TAOS_SYNC_STATE_LEADER;
@@ -1920,7 +1920,7 @@ int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex,
   int32_t    code = 0;
   ESyncState state = flag;
   sDebug("vgId:%d sync event commit by wal from index:%" PRId64 " to index:%" PRId64 ", %s", ths->vgId, beginIndex,
-        endIndex, syncUtilState2String(state));
+         endIndex, syncUtilState2String(state));
 
   // execute fsm
   if (ths->pFsm != NULL) {

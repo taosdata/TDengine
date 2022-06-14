@@ -23,11 +23,11 @@ class TDTestCase:
 
         self.rowNum = 10
         self.ts = 1537146000000
-        
+
     def run(self):
         tdSql.prepare()
 
-        
+
 
         tdSql.execute('''create table test(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 float, col6 double, 
                     col7 bool, col8 binary(20), col9 nchar(20), col11 tinyint unsigned, col12 smallint unsigned, col13 int unsigned, col14 bigint unsigned) tags(loc nchar(20))''')
@@ -35,9 +35,9 @@ class TDTestCase:
         for i in range(self.rowNum):
             tdSql.execute("insert into test1 values(%d, %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d', %d, %d, %d, %d)" 
                         % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1))
-                                
 
-        # top verifacation 
+
+        # top verifacation
         tdSql.error("select top(ts, 10) from test")
         tdSql.error("select top(col1, 0) from test")
         tdSql.error("select top(col1, 101) from test")
@@ -50,8 +50,8 @@ class TDTestCase:
         tdSql.error("select top(col5, 0) from test")
         tdSql.error("select top(col5, 101) from test")
         tdSql.error("select top(col6, 0) from test")
-        tdSql.error("select top(col6, 101) from test")        
-        tdSql.error("select top(col7, 10) from test")        
+        tdSql.error("select top(col6, 101) from test")
+        tdSql.error("select top(col7, 10) from test")
         tdSql.error("select top(col8, 10) from test")
         tdSql.error("select top(col9, 10) from test")
         tdSql.error("select top(col11, 0) from test")
@@ -95,7 +95,7 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.query('select top(col2,1) from test interval(1y) order by col2')
         tdSql.checkData(0,0,10)
-        
+
         tdSql.error("select * from test where bottom(col2,1)=1")
         tdSql.error("select top(col14, 0) from test;")
     def stop(self):
