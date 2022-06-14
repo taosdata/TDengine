@@ -66,7 +66,7 @@ static int32_t vnodeProcessAlterReplicaReq(SVnode *pVnode, SRpcMsg *pMsg) {
     vInfo("vgId:%d, replica:%d %s:%u", TD_VID(pVnode), r, pNode->nodeFqdn, pNode->nodePort);
   }
 
-  return syncReconfig(pVnode->sync, &cfg);
+  return syncReconfigBuild(pVnode->sync, &cfg, pMsg);
 }
 
 void vnodeProposeMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
@@ -241,6 +241,30 @@ static void vnodeSyncRollBackMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta
   syncRpcMsgLog2(logBuf, (SRpcMsg *)pMsg);
 }
 
+int32_t vnodeSnapshotStartRead(struct SSyncFSM *pFsm, void **ppReader) {
+  return 0;
+}
+
+int32_t vnodeSnapshotStopRead(struct SSyncFSM *pFsm, void *pReader) {
+  return 0;
+}
+
+int32_t vnodeSnapshotDoRead(struct SSyncFSM *pFsm, void *pReader, void **ppBuf, int32_t *len) {
+  return 0;
+}
+
+int32_t vnodeSnapshotStartWrite(struct SSyncFSM *pFsm, void **ppWriter) {
+  return 0;
+}
+
+int32_t vnodeSnapshotStopWrite(struct SSyncFSM *pFsm, void *pWriter, bool isApply) {
+  return 0;
+}
+
+int32_t vnodeSnapshotDoWrite(struct SSyncFSM *pFsm, void *pWriter, void *pBuf, int32_t len) {
+  return 0;
+}
+
 static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   SSyncFSM *pFsm = taosMemoryCalloc(1, sizeof(SSyncFSM));
   pFsm->data = pVnode;
@@ -250,6 +274,14 @@ static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   pFsm->FpGetSnapshot = vnodeSyncGetSnapshot;
   pFsm->FpRestoreFinishCb = NULL;
   pFsm->FpReConfigCb = vnodeSyncReconfig;
+
+  pFsm->FpSnapshotStartRead = vnodeSnapshotStartRead;
+  pFsm->FpSnapshotStopRead = vnodeSnapshotStopRead;
+  pFsm->FpSnapshotDoRead = vnodeSnapshotDoRead;
+  pFsm->FpSnapshotStartWrite = vnodeSnapshotStartWrite;
+  pFsm->FpSnapshotStopWrite = vnodeSnapshotStopWrite;
+  pFsm->FpSnapshotDoWrite = vnodeSnapshotDoWrite;
+
   return pFsm;
 }
 
