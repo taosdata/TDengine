@@ -863,7 +863,7 @@ class TDTestQuery(TDCase):
         startTime1 = time.time()
         self.right_case_1_groupby()
         self.right_case_1_tbname()
-        self.right_case_1()
+        #self.right_case_1() #已经和入到right_case_1_tbname中
         endTime1 = time.time()       
         print("total time1 %d s" % (endTime1 - startTime1))
     
