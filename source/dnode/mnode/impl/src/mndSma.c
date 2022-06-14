@@ -552,6 +552,7 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   SStreamObj streamObj = {0};
   tstrncpy(streamObj.name, pCreate->name, TSDB_STREAM_FNAME_LEN);
   tstrncpy(streamObj.sourceDb, pDb->name, TSDB_DB_FNAME_LEN);
+  tstrncpy(streamObj.targetDb, streamObj.sourceDb, TSDB_DB_FNAME_LEN);
   streamObj.createTime = taosGetTimestampMs();
   streamObj.updateTime = streamObj.createTime;
   streamObj.uid = mndGenerateUid(pCreate->name, strlen(pCreate->name));
@@ -993,18 +994,31 @@ static int32_t mndGetSma(SMnode *pMnode, SUserIndexReq *indexReq, SUserIndexRsp 
   return code;
 }
 
-static int32_t mndGetTableSma(SMnode *pMnode, STableIndexReq *indexReq, STableIndexRsp *rsp, bool *exist) {
+int32_t mndGetTableSma(SMnode *pMnode, char *tbFName, STableIndexRsp *rsp, bool *exist) {
   int32_t         code = 0;
   SSmaObj        *pSma = NULL;
   SSdb           *pSdb = pMnode->pSdb;
   void           *pIter = NULL;
   STableIndexInfo info;
 
+  SStbObj *pStb = mndAcquireStb(pMnode, tbFName);
+  if (NULL == pStb) {
+    *exist = false;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  strcpy(rsp->dbFName, pStb->db);
+  strcpy(rsp->tbName, pStb->name + strlen(pStb->db) + 1);
+  rsp->suid = pStb->uid;
+  rsp->version = pStb->smaVer;
+  mndReleaseStb(pMnode, pStb);
+  
+
   while (1) {
     pIter = sdbFetch(pSdb, SDB_SMA, pIter, (void **)&pSma);
     if (pIter == NULL) break;
 
-    if (pSma->stb[0] != indexReq->tbFName[0] || strcmp(pSma->stb, indexReq->tbFName)) {
+    if (pSma->stb[0] != tbFName[0] || strcmp(pSma->stb, tbFName)) {
       continue;
     }
 
@@ -1116,7 +1130,7 @@ static int32_t mndProcessGetTbSmaReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  code = mndGetTableSma(pMnode, &indexReq, &rsp, &exist);
+  code = mndGetTableSma(pMnode, indexReq.tbFName, &rsp, &exist);
   if (code) {
     goto _OVER;
   }

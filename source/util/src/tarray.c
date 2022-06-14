@@ -458,6 +458,9 @@ static void taosArrayInsertSort(SArray* pArray, __ext_compar_fn_t fn, const void
 }
 
 SArray* taosArrayDeepCopy(const SArray* pSrc, FCopy deepCopy) {
+  if (NULL == pSrc) {
+    return NULL;
+  }
   ASSERT(pSrc->elemSize == sizeof(void*));
   SArray* pArray = taosArrayInit(pSrc->size, sizeof(void*));
   for (int32_t i = 0; i < pSrc->size; i++) {

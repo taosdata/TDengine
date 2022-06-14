@@ -1134,14 +1134,16 @@ void    tFreeSMAlterStbRsp(SMAlterStbRsp* pRsp);
 int32_t tSerializeSTableMetaRsp(void* buf, int32_t bufLen, STableMetaRsp* pRsp);
 int32_t tDeserializeSTableMetaRsp(void* buf, int32_t bufLen, STableMetaRsp* pRsp);
 void    tFreeSTableMetaRsp(STableMetaRsp* pRsp);
+void tFreeSTableIndexRsp(void *info);
 
 typedef struct {
-  SArray* pArray;  // Array of STableMetaRsp
-} STableMetaBatchRsp;
+  SArray*         pMetaRsp;  // Array of STableMetaRsp
+  SArray*         pIndexRsp;  // Array of STableIndexRsp;
+} SSTbHbRsp;
 
-int32_t tSerializeSTableMetaBatchRsp(void* buf, int32_t bufLen, STableMetaBatchRsp* pRsp);
-int32_t tDeserializeSTableMetaBatchRsp(void* buf, int32_t bufLen, STableMetaBatchRsp* pRsp);
-void    tFreeSTableMetaBatchRsp(STableMetaBatchRsp* pRsp);
+int32_t tSerializeSSTbHbRsp(void* buf, int32_t bufLen, SSTbHbRsp* pRsp);
+int32_t tDeserializeSSTbHbRsp(void* buf, int32_t bufLen, SSTbHbRsp* pRsp);
+void    tFreeSSTbHbRsp(SSTbHbRsp* pRsp);
 
 typedef struct {
   int32_t numOfTables;
@@ -2502,7 +2504,11 @@ typedef struct {
 } STableIndexInfo;
 
 typedef struct {
-  SArray* pIndex;
+  char     tbName[TSDB_TABLE_NAME_LEN];
+  char     dbFName[TSDB_DB_FNAME_LEN];
+  uint64_t suid;
+  int32_t  version;
+  SArray*  pIndex;
 } STableIndexRsp;
 
 int32_t tSerializeSTableIndexRsp(void* buf, int32_t bufLen, const STableIndexRsp* pRsp);
