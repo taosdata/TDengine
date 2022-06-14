@@ -77,7 +77,7 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
 abort_parse:
   ParseFree(pParser, (FFree)taosMemoryFree);
   if (TSDB_CODE_SUCCESS == cxt.errCode) {
-    *pQuery = taosMemoryCalloc(1, sizeof(SQuery));
+    *pQuery = (SQuery*)nodesMakeNode(QUERY_NODE_QUERY);
     if (NULL == *pQuery) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -94,12 +94,6 @@ typedef struct SCollectMetaKeyCxt {
   SParseMetaCache* pMetaCache;
   SNode*           pStmt;
 } SCollectMetaKeyCxt;
-
-static void destroyCollectMetaKeyCxt(SCollectMetaKeyCxt* pCxt) {
-  if (NULL != pCxt->pMetaCache) {
-    // TODO
-  }
-}
 
 typedef struct SCollectMetaKeyFromExprCxt {
   SCollectMetaKeyCxt* pComCxt;
@@ -463,16 +457,7 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t collectMetaKey(SParseContext* pParseCxt, SQuery* pQuery) {
-  SCollectMetaKeyCxt cxt = {
-      .pParseCxt = pParseCxt, .pMetaCache = taosMemoryCalloc(1, sizeof(SParseMetaCache)), .pStmt = pQuery->pRoot};
-  if (NULL == cxt.pMetaCache) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  int32_t code = collectMetaKeyFromQuery(&cxt, pQuery->pRoot);
-  if (TSDB_CODE_SUCCESS == code) {
-    TSWAP(pQuery->pMetaCache, cxt.pMetaCache);
-  }
-  destroyCollectMetaKeyCxt(&cxt);
-  return code;
+int32_t collectMetaKey(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMetaCache) {
+  SCollectMetaKeyCxt cxt = {.pParseCxt = pParseCxt, .pMetaCache = pMetaCache, .pStmt = pQuery->pRoot};
+  return collectMetaKeyFromQuery(&cxt, pQuery->pRoot);
 }

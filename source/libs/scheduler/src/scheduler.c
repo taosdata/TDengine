@@ -67,28 +67,24 @@ int32_t schedulerInit(SSchedulerCfg *cfg) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t schedulerExecJob(void *pTrans, SArray *pNodeList, SQueryPlan *pDag, int64_t *pJob, const char *sql,
-                         int64_t startTs, SQueryResult *pRes) {
-  if (NULL == pTrans || NULL == pDag || NULL == pDag->pSubplans || NULL == pJob || NULL == pRes) {
+int32_t schedulerExecJob(SSchedulerReq *pReq, int64_t *pJob, SQueryResult *pRes) {
+  if (NULL == pReq || NULL == pJob || NULL == pRes) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  SSchResInfo resInfo = {.queryRes = pRes};
-  SCH_RET(schExecJob(pTrans, pNodeList, pDag, pJob, sql, startTs, &resInfo));
+  SCH_RET(schExecJob(pReq, pJob, pRes));
 }
 
-int32_t schedulerAsyncExecJob(void *pTrans, SArray *pNodeList, SQueryPlan *pDag, int64_t *pJob, const char *sql,
-                         int64_t startTs, schedulerExecCallback fp, void* param) {
+int32_t schedulerAsyncExecJob(SSchedulerReq *pReq, int64_t *pJob) {
   int32_t code = 0;
-  if (NULL == pTrans || NULL == pDag || NULL == pDag->pSubplans || NULL == pJob || NULL == fp) {
+  if (NULL == pReq || NULL == pJob) {
     code = TSDB_CODE_QRY_INVALID_INPUT;
   } else {
-    SSchResInfo resInfo = {.execFp = fp, .userParam = param};
-    code = schAsyncExecJob(pTrans, pNodeList, pDag, pJob, sql, startTs, &resInfo);
+    code = schAsyncExecJob(pReq, pJob);
   }
 
   if (code != TSDB_CODE_SUCCESS) {
-    fp(NULL, param, code);
+    pReq->fp(NULL, pReq->cbParam, code);
   }
 
   return code;

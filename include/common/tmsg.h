@@ -1295,6 +1295,14 @@ int32_t tSerializeSDCreateMnodeReq(void* buf, int32_t bufLen, SDCreateMnodeReq* 
 int32_t tDeserializeSDCreateMnodeReq(void* buf, int32_t bufLen, SDCreateMnodeReq* pReq);
 
 typedef struct {
+  int32_t dnodeId;
+  int8_t  standby;
+} SSetStandbyReq;
+
+int32_t tSerializeSSetStandbyReq(void* buf, int32_t bufLen, SSetStandbyReq* pReq);
+int32_t tDeserializeSSetStandbyReq(void* buf, int32_t bufLen, SSetStandbyReq* pReq);
+
+typedef struct {
   int32_t connId;
   int32_t queryId;
 } SKillQueryReq;
@@ -1506,6 +1514,7 @@ typedef struct {
   char*   sql;
   char*   ast;
   int8_t  triggerType;
+  int64_t maxDelay;
   int64_t watermark;
 } SCMCreateStreamReq;
 
