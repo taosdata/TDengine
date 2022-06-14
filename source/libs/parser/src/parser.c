@@ -207,6 +207,8 @@ int32_t qSetSTableIdForRsma(SNode* pStmt, int64_t uid) {
   return TSDB_CODE_FAILED;
 }
 
+void qCleanupKeywordsTable() { taosCleanupKeywordsTable(); }
+
 int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx) {
   int32_t code = TSDB_CODE_SUCCESS;
 

@@ -124,8 +124,6 @@ void    mndReleaseRpcRef(SMnode *pMnode);
 void    mndSetRestore(SMnode *pMnode, bool restored);
 void    mndSetStop(SMnode *pMnode);
 bool    mndGetStop(SMnode *pMnode);
-int32_t mndAcquireSyncRef(SMnode *pMnode);
-void    mndReleaseSyncRef(SMnode *pMnode);
 
 #ifdef __cplusplus
 }
