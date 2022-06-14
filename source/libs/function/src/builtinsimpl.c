@@ -1488,6 +1488,8 @@ int32_t maxCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   return minMaxCombine(pDestCtx, pSourceCtx, 0);
 }
 
+int32_t getStddevInfoSize() { return (int32_t)sizeof(SStddevRes); }
+
 bool getStddevFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   pEnv->calcMemSize = sizeof(SStddevRes);
   return true;
