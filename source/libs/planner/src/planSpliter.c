@@ -141,6 +141,10 @@ static bool stbSplHasMultiTbScan(bool streamQuery, SLogicNode* pNode) {
 
 static bool stbSplNeedSplit(bool streamQuery, SLogicNode* pNode) {
   switch (nodeType(pNode)) {
+    case QUERY_NODE_LOGIC_PLAN_SCAN:
+      return stbSplIsMultiTbScan(streamQuery, (SScanLogicNode*)pNode);
+    case QUERY_NODE_LOGIC_PLAN_JOIN:
+      return !(((SJoinLogicNode*)pNode)->isSingleTableJoin);
     case QUERY_NODE_LOGIC_PLAN_AGG:
       return !stbSplHasGatherExecFunc(((SAggLogicNode*)pNode)->pAggFuncs) && stbSplHasMultiTbScan(streamQuery, pNode);
     case QUERY_NODE_LOGIC_PLAN_WINDOW: {
@@ -152,8 +156,6 @@ static bool stbSplNeedSplit(bool streamQuery, SLogicNode* pNode) {
     }
     case QUERY_NODE_LOGIC_PLAN_SORT:
       return stbSplHasMultiTbScan(streamQuery, pNode);
-    case QUERY_NODE_LOGIC_PLAN_SCAN:
-      return stbSplIsMultiTbScan(streamQuery, (SScanLogicNode*)pNode);
     default:
       break;
   }
@@ -589,6 +591,10 @@ static int32_t stbSplSplitScanNode(SSplitContext* pCxt, SStableSplitInfo* pInfo)
   return code;
 }
 
+static int32_t stbSplSplitJoinNode(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
+  return TSDB_CODE_PLAN_INTERNAL_ERROR;
+}
+
 static int32_t stableSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
   if (pCxt->pPlanCxt->rSmaQuery) {
     return TSDB_CODE_SUCCESS;
@@ -601,6 +607,12 @@ static int32_t stableSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
 
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(info.pSplitNode)) {
+    case QUERY_NODE_LOGIC_PLAN_SCAN:
+      code = stbSplSplitScanNode(pCxt, &info);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_JOIN:
+      code = stbSplSplitJoinNode(pCxt, &info);
+      break;
     case QUERY_NODE_LOGIC_PLAN_AGG:
       code = stbSplSplitAggNode(pCxt, &info);
       break;
@@ -609,9 +621,6 @@ static int32_t stableSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
       break;
     case QUERY_NODE_LOGIC_PLAN_SORT:
       code = stbSplSplitSortNode(pCxt, &info);
-      break;
-    case QUERY_NODE_LOGIC_PLAN_SCAN:
-      code = stbSplSplitScanNode(pCxt, &info);
       break;
     default:
       break;
