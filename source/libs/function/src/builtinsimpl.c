@@ -2390,6 +2390,7 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
         memcpy(pInfo->buf, data, bytes);
         *(TSKEY*)(pInfo->buf + bytes) = cts;
         //        DO_UPDATE_TAG_COLUMNS(pCtx, ts);
+        pInfo->hasResult = true;
         pResInfo->numOfRes = 1;
       }
       break;
@@ -2407,6 +2408,7 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
       if (pResInfo->numOfRes == 0 || *(TSKEY*)(pInfo->buf + bytes) < cts) {
         memcpy(pInfo->buf, data, bytes);
         *(TSKEY*)(pInfo->buf + bytes) = cts;
+        pInfo->hasResult = true;
         pResInfo->numOfRes = 1;
         //        DO_UPDATE_TAG_COLUMNS(pCtx, ts);
       }
