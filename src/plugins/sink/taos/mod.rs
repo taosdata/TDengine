@@ -580,7 +580,7 @@ async fn test(taos: &Taos, databases: &[&str]) -> Result<(), Error> {
     taos.exec(format!("create topic {db1} as database {db1}"))?;
 
     let mut tmq = TmqBuilder::from_dsn(format!(
-        "taos:///{db1}?topics={db1}&group.id={db1}&wait=1000&msg.with.table.name=true"
+        "taos:///{db1}?topics={db1}&group.id={db1}&wait=1000"
     ))?
     .build()?;
 
@@ -734,7 +734,10 @@ async fn test_with_transformer(taos: &Taos, databases: &[&str]) -> Result<(), Er
 }
 
 #[taos::test(log_level = "debug", precision = "ns")]
-async fn sink_sml_line(taos: &Taos, database: &str) -> Result<(), Error> {
+async fn sink_sml_line(taos: &Taos) -> Result<(), Error> {
+    let database = "_rs_sml_";
+    taos.exec(format!("drop database if exists {database}"))?;
+    taos.exec(format!("create database {database} schemaless 1"))?;
     let lines = vec!["st,t1=abc c1=3i64,c3=\"def\",c2=false 1626006833639000000"];
     let builder = TaosSinkBuilder::from_dsn(format!("taos:///{database}"))?;
     let mut sink = builder.build_sink_for_protocol(SinkProtocol::Block)?;
