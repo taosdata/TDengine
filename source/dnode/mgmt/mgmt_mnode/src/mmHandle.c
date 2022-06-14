@@ -126,7 +126,7 @@ int32_t mmProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
 
 SArray *mmGetMsgHandles() {
   int32_t code = -1;
-  SArray *pArray = taosArrayInit(64, sizeof(SMgmtHandle));
+  SArray *pArray = taosArrayInit(128, sizeof(SMgmtHandle));
   if (pArray == NULL) goto _OVER;
 
   if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_MNODE_RSP, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;

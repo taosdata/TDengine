@@ -43,13 +43,9 @@ static void mmBuildOptionForDeploy(SMnodeMgmt *pMgmt, const SMgmtInputOpt *pInpu
   pOption->deploy = true;
   pOption->msgCb = pMgmt->msgCb;
   pOption->dnodeId = pMgmt->pData->dnodeId;
-  pOption->replica = 1;
-  pOption->selfIndex = 0;
-
-  SReplica *pReplica = &pOption->replicas[0];
-  pReplica->id = 1;
-  pReplica->port = tsServerPort;
-  tstrncpy(pReplica->fqdn, tsLocalFqdn, TSDB_FQDN_LEN);
+  pOption->replica.id = 1;
+  pOption->replica.port = tsServerPort;
+  tstrncpy(pOption->replica.fqdn, tsLocalFqdn, TSDB_FQDN_LEN);
 }
 
 static void mmBuildOptionForOpen(SMnodeMgmt *pMgmt, const SReplica *pReplica, SMnodeOpt *pOption) {
@@ -57,12 +53,9 @@ static void mmBuildOptionForOpen(SMnodeMgmt *pMgmt, const SReplica *pReplica, SM
   pOption->deploy = false;
   pOption->msgCb = pMgmt->msgCb;
   pOption->dnodeId = pMgmt->pData->dnodeId;
-
   if (pReplica->id > 0) {
     pOption->standby = true;
-    pOption->replica = 1;
-    pOption->selfIndex = 0;
-    memcpy(&pOption->replicas[0], pReplica, sizeof(SReplica));
+    pOption->replica = *pReplica;
   }
 }
 

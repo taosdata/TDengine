@@ -86,12 +86,14 @@ int32_t mmReadFile(SMnodeMgmt *pMgmt, SReplica *pReplica, bool *pDeployed) {
   }
 
   code = 0;
-  dDebug("succcessed to read file %s, deployed:%d", file, *pDeployed);
 
 _OVER:
   if (content != NULL) taosMemoryFree(content);
   if (root != NULL) cJSON_Delete(root);
   if (pFile != NULL) taosCloseFile(&pFile);
+  if (code == 0) {
+    dDebug("succcessed to read file %s, deployed:%d", file, *pDeployed);
+  }
 
   terrno = code;
   return code;
