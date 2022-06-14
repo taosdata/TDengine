@@ -235,10 +235,10 @@ static int32_t mndStreamGetPlanString(const char *ast, int8_t triggerType, int64
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = nodesNodeToString(pPlan, false, pStr, NULL);
+    code = nodesNodeToString((SNode*)pPlan, false, pStr, NULL);
   }
   nodesDestroyNode(pAst);
-  nodesDestroyNode(pPlan);
+  nodesDestroyNode((SNode*)pPlan);
   terrno = code;
   return code;
 }

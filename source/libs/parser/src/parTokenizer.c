@@ -117,6 +117,7 @@ static SKeyword keywordTable[] = {
     {"LOCAL",         TK_LOCAL},
     {"MATCH",         TK_MATCH},
     {"MAXROWS",       TK_MAXROWS},
+    {"MAX_DELAY",     TK_MAX_DELAY},
     {"MERGE",         TK_MERGE},
     {"MINROWS",       TK_MINROWS},
     {"MINUS",         TK_MINUS},

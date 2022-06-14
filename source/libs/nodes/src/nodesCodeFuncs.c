@@ -4205,7 +4205,7 @@ static int32_t jsonToNodeObject(const SJson* pJson, const char* pName, SNode** p
   return makeNodeByJson(pJsonNode, pNode);
 }
 
-int32_t nodesNodeToString(const SNodeptr pNode, bool format, char** pStr, int32_t* pLen) {
+int32_t nodesNodeToString(const SNode* pNode, bool format, char** pStr, int32_t* pLen) {
   if (NULL == pNode || NULL == pStr) {
     terrno = TSDB_CODE_FAILED;
     return TSDB_CODE_FAILED;
