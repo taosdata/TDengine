@@ -92,6 +92,9 @@ if [ ! -z "$last_failed" ]; then
             cat $last_log_dir/failed.log |sed 's/\x1B.*//' >$case_file
             echo "***** cases to run *****"
             cat $case_file
+        else
+            echo "***** no case to run *****"
+            exit 0
         fi
     fi
 fi
