@@ -171,6 +171,25 @@ pipeline {
                 '''
             }
         }
+        stage ('build docs') {
+            when {
+                allOf {
+                    changeRequest()
+                    { expression { env.CHANGE_BRANCH =~ /docs\// }}
+                }
+            }
+            agent {label "docusaurus"}
+            steps {
+                timeout(time: 5, unit: 'MINUTES') {
+                    sync_source()
+                    script {
+                        sh '''
+                        echo hello
+                        '''
+                    }
+                }
+            }
+        }
         stage ('Parallel build stage') {
             //only build pr
             options { skipDefaultCheckout() }
