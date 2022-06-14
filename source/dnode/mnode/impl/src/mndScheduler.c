@@ -77,7 +77,7 @@ int32_t mndConvertRsmaTask(char** pDst, int32_t* pDstLen, const char* ast, int64
     terrno = TSDB_CODE_QRY_INVALID_INPUT;
     goto END;
   }
-  SNodeListNode* inner = nodesListGetNode(pPlan->pSubplans, 0);
+  SNodeListNode* inner = (SNodeListNode*)nodesListGetNode(pPlan->pSubplans, 0);
 
   int32_t opNum = LIST_LENGTH(inner->pNodeList);
   if (opNum != 1) {
@@ -85,7 +85,7 @@ int32_t mndConvertRsmaTask(char** pDst, int32_t* pDstLen, const char* ast, int64
     goto END;
   }
 
-  SSubplan* plan = nodesListGetNode(inner->pNodeList, 0);
+  SSubplan* plan = (SSubplan*)nodesListGetNode(inner->pNodeList, 0);
   if (qSubPlanToString(plan, pDst, pDstLen) < 0) {
     terrno = TSDB_CODE_QRY_INVALID_INPUT;
     goto END;
@@ -93,7 +93,7 @@ int32_t mndConvertRsmaTask(char** pDst, int32_t* pDstLen, const char* ast, int64
 
 END:
   if (pAst) nodesDestroyNode(pAst);
-  if (pPlan) nodesDestroyNode(pPlan);
+  if (pPlan) nodesDestroyNode((SNode*)pPlan);
   return terrno;
 }
 
@@ -378,8 +378,8 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
       SArray* taskInnerLevel = taosArrayInit(0, sizeof(void*));
       taosArrayPush(pStream->tasks, &taskInnerLevel);
 
-      SNodeListNode* inner = nodesListGetNode(pPlan->pSubplans, 0);
-      SSubplan*      plan = nodesListGetNode(inner->pNodeList, 0);
+      SNodeListNode* inner = (SNodeListNode*)nodesListGetNode(pPlan->pSubplans, 0);
+      SSubplan*      plan = (SSubplan*)nodesListGetNode(inner->pNodeList, 0);
       ASSERT(plan->subplanType == SUBPLAN_TYPE_MERGE);
 
       pFinalTask = tNewSStreamTask(pStream->uid);
@@ -407,8 +407,8 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
     SArray* taskSourceLevel = taosArrayInit(0, sizeof(void*));
     taosArrayPush(pStream->tasks, &taskSourceLevel);
 
-    SNodeListNode* inner = nodesListGetNode(pPlan->pSubplans, 1);
-    SSubplan*      plan = nodesListGetNode(inner->pNodeList, 0);
+    SNodeListNode* inner = (SNodeListNode*)nodesListGetNode(pPlan->pSubplans, 1);
+    SSubplan*      plan = (SSubplan*)nodesListGetNode(inner->pNodeList, 0);
     ASSERT(plan->subplanType == SUBPLAN_TYPE_SCAN);
 
     void* pIter = NULL;
@@ -449,9 +449,9 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
     SArray* taskOneLevel = taosArrayInit(0, sizeof(void*));
     taosArrayPush(pStream->tasks, &taskOneLevel);
 
-    SNodeListNode* inner = nodesListGetNode(pPlan->pSubplans, 0);
+    SNodeListNode* inner = (SNodeListNode*)nodesListGetNode(pPlan->pSubplans, 0);
     ASSERT(LIST_LENGTH(inner->pNodeList) == 1);
-    SSubplan* plan = nodesListGetNode(inner->pNodeList, 0);
+    SSubplan* plan = (SSubplan*)nodesListGetNode(inner->pNodeList, 0);
     ASSERT(plan->subplanType == SUBPLAN_TYPE_SCAN);
 
     void* pIter = NULL;
@@ -509,7 +509,7 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
       return -1;
     }
 
-    SNodeListNode* inner = nodesListGetNode(pPlan->pSubplans, 0);
+    SNodeListNode* inner = (SNodeListNode*)nodesListGetNode(pPlan->pSubplans, 0);
 
     int32_t opNum = LIST_LENGTH(inner->pNodeList);
     if (opNum != 1) {
@@ -517,7 +517,7 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
       terrno = TSDB_CODE_MND_INVALID_TOPIC_QUERY;
       return -1;
     }
-    plan = nodesListGetNode(inner->pNodeList, 0);
+    plan = (SSubplan*)nodesListGetNode(inner->pNodeList, 0);
   }
 
   ASSERT(pSub->unassignedVgs);

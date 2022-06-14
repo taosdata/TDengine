@@ -142,6 +142,13 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
       tscDebug("tscObj rid %" PRIx64 " not exist", pRsp->connKey.tscRid);
     } else {      
       if (pRsp->query->totalDnodes > 1 && !isEpsetEqual(&pTscObj->pAppInfo->mgmtEp.epSet, &pRsp->query->epSet)) {
+        SEpSet* pOrig = &pTscObj->pAppInfo->mgmtEp.epSet;
+        SEp* pOrigEp = &pOrig->eps[pOrig->inUse];
+        SEp* pNewEp = &pRsp->query->epSet.eps[pRsp->query->epSet.inUse];
+        tscDebug("mnode epset updated from %d/%d=>%s:%d to %d/%d=>%s:%d in hb", 
+            pOrig->inUse, pOrig->numOfEps, pOrigEp->fqdn, pOrigEp->port, 
+            pRsp->query->epSet.inUse, pRsp->query->epSet.numOfEps, pNewEp->fqdn, pNewEp->port);
+            
         updateEpSet_s(&pTscObj->pAppInfo->mgmtEp, &pRsp->query->epSet);
       }
       pTscObj->connId = pRsp->query->connId;
@@ -691,7 +698,7 @@ SAppHbMgr *appHbMgrInit(SAppInstInfo *pAppInstInfo, char *key) {
     return NULL;
   }
 
-  taosHashSetFreeFp(pAppHbMgr->activeInfo, tFreeClientHbReq);
+  // taosHashSetFreeFp(pAppHbMgr->activeInfo, tFreeClientHbReq);
 
   taosThreadMutexLock(&clientHbMgr.lock);
   taosArrayPush(clientHbMgr.appHbMgrs, &pAppHbMgr);

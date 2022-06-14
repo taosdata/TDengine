@@ -99,11 +99,18 @@ int32_t firstCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 int32_t lastCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 
 bool getTopBotFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv);
+bool getTopBotMergeFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv);
+bool topBotFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t topFunction(SqlFunctionCtx *pCtx);
+int32_t topFunctionMerge(SqlFunctionCtx *pCtx);
 int32_t bottomFunction(SqlFunctionCtx *pCtx);
+int32_t bottomFunctionMerge(SqlFunctionCtx *pCtx);
 int32_t topBotFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+int32_t topBotPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+int32_t topBotMergeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t topCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 int32_t bottomCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
+int32_t getTopBotInfoSize(int64_t numOfItems);
 
 bool getSpreadFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool spreadFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
@@ -155,6 +162,7 @@ int32_t mavgFunction(SqlFunctionCtx* pCtx);
 bool getSampleFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool sampleFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t sampleFunction(SqlFunctionCtx* pCtx);
+int32_t sampleFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
 bool getTailFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool tailFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
