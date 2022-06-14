@@ -20,6 +20,7 @@ extern const char *TSDB_LEVEL_DNAME[];
 typedef enum { TSDB_TXN_TEMP_FILE = 0, TSDB_TXN_CURR_FILE } TSDB_TXN_FILE_T;
 static const char *tsdbTxnFname[] = {"current.t", "current"};
 #define TSDB_MAX_FSETS(keep, days) ((keep) / (days) + 3)
+#define TSDB_MAX_INIT_FSETS        (365000)
 
 static int  tsdbComparFidFSet(const void *arg1, const void *arg2);
 static void tsdbResetFSStatus(SFSStatus *pStatus);
@@ -208,6 +209,10 @@ STsdbFS *tsdbNewFS(const STsdbKeepCfg *pCfg) {
     terrno = TAOS_SYSTEM_ERROR(code);
     taosMemoryFree(pfs);
     return NULL;
+  }
+
+  if (maxFSet > TSDB_MAX_INIT_FSETS) {
+    maxFSet = TSDB_MAX_INIT_FSETS;
   }
 
   pfs->cstatus = tsdbNewFSStatus(maxFSet);
