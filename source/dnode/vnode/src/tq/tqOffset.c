@@ -17,21 +17,33 @@
 #include "tq.h"
 
 struct STqOffsetStore {
+  char*     fname;
   STQ*      pTq;
   SHashObj* pHash;  // SHashObj<subscribeKey, offset>
 };
+
+static char* buildFileName(const char* path) {
+  int32_t len = strlen(path);
+  char*   fname = taosMemoryCalloc(1, len + 20);
+  snprintf(fname, len + 20, "%s/offset", path);
+  return fname;
+}
 
 STqOffsetStore* tqOffsetOpen(STQ* pTq) {
   STqOffsetStore* pStore = taosMemoryCalloc(1, sizeof(STqOffsetStore));
   if (pStore == NULL) {
     return NULL;
   }
+  pStore->pTq = pTq;
+  pTq->pOffsetStore = pStore;
+
   pStore->pHash = taosHashInit(64, MurmurHash3_32, true, HASH_NO_LOCK);
   if (pStore->pHash == NULL) {
     if (pStore->pHash) taosHashCleanup(pStore->pHash);
     return NULL;
   }
-  TdFilePtr pFile = taosOpenFile(pStore->pTq->path, TD_FILE_READ);
+  char*     fname = buildFileName(pStore->pTq->path);
+  TdFilePtr pFile = taosOpenFile(fname, TD_FILE_READ);
   if (pFile != NULL) {
     STqOffsetHead head = {0};
     int64_t       code;
@@ -65,6 +77,7 @@ STqOffsetStore* tqOffsetOpen(STQ* pTq) {
     }
 
     taosCloseFile(&pFile);
+    taosMemoryFree(fname);
   }
   return pStore;
 }
@@ -85,7 +98,8 @@ int32_t tqOffsetWrite(STqOffsetStore* pStore, const STqOffset* pOffset) {
 int32_t tqOffsetSnapshot(STqOffsetStore* pStore) {
   // open file
   // TODO file name should be with a version
-  TdFilePtr pFile = taosOpenFile(pStore->pTq->path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
+  char*     fname = buildFileName(pStore->pTq->path);
+  TdFilePtr pFile = taosOpenFile(fname, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
   if (pFile == NULL) {
     ASSERT(0);
     return -1;
@@ -124,5 +138,6 @@ int32_t tqOffsetSnapshot(STqOffsetStore* pStore) {
   }
   // close and rename file
   taosCloseFile(&pFile);
+  taosMemoryFree(fname);
   return 0;
 }

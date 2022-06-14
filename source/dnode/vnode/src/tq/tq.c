@@ -47,7 +47,7 @@ void tqCleanUp() {
 }
 
 STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal) {
-  STQ* pTq = taosMemoryMalloc(sizeof(STQ));
+  STQ* pTq = taosMemoryCalloc(1, sizeof(STQ));
   if (pTq == NULL) {
     terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
     return NULL;
