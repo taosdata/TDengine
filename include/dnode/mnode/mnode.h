@@ -83,6 +83,7 @@ int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad);
  */
 int32_t mndProcessRpcMsg(SRpcMsg *pMsg);
 int32_t mndProcessSyncMsg(SRpcMsg *pMsg);
+int32_t mndPreprocessQueryMsg(SMnode * pMnode, SRpcMsg * pMsg);
 
 /**
  * @brief Generate machine code
