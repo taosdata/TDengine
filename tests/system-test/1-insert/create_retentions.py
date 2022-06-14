@@ -1,5 +1,7 @@
 import datetime
 
+from dataclasses import dataclass
+from typing import List
 from util.log import *
 from util.sql import *
 from util.cases import *
@@ -28,6 +30,23 @@ CHAR_COL    = [ BINARY_COL, NCHAR_COL, ]
 BOOLEAN_COL = [ BOOL_COL, ]
 TS_TYPE_COL = [ TS_COL, ]
 
+@dataclass
+class DataSet:
+    ts_data : List[int] = None
+    int_data : List[int] = None
+    bint_data : List[int] = None
+    sint_data : List[int] = None
+    tint_data : List[int] = None
+    int_un_data : List[int] = None
+    bint_un_data : List[int] = None
+    sint_un_data : List[int] = None
+    tint_un_data : List[int] = None
+    float_data : List[float] = None
+    double_data : List[float] = None
+    binary_data : List[str] = None
+    nchar_data : List[str] = None
+
+
 class TDTestCase:
 
     def init(self, conn, logSql):
@@ -37,10 +56,13 @@ class TDTestCase:
     @property
     def create_databases_sql_err(self):
         return [
-            "create database if not exists  db1 retentions 0s:1d",
-            "create database if not exists  db1 retentions 1s:1y",
-            "create database if not exists  db1 retentions 1s:1n",
-            "create database if not exists  db1 retentions 1s:1n,2s:2d,3s:3d,4s:4d",
+            "create database db1 retentions 0s:1d",
+            "create database db3 retentions 1s:0d",
+            "create database db1 retentions 1s:1y",
+            "create database db1 retentions 1s:1n",
+            "create database db2 retentions 1w:1d ;",
+            "create database db5 retentions 1s:1d,3s:3d,2s:2d",
+            "create database db1 retentions 1s:1n,2s:2d,3s:3d,4s:4d",
         ]
 
     @property
@@ -62,6 +84,8 @@ class TDTestCase:
         return [
             f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(ceil) delay 1",
             f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(count) delay 1",
+            f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) delay 0",
+            f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) delay -1.0",
             f"create stable stb2 ({PRIMARY_COL} timestamp, {INT_COL} int, {BINARY_COL} binary(16)) tags (tag1 int) rollup(avg) delay 1",
             f"create stable stb2 ({PRIMARY_COL} timestamp, {INT_COL} int, {BINARY_COL} nchar(16)) tags (tag1 int) rollup(avg) delay 1",
         ]
@@ -69,7 +93,12 @@ class TDTestCase:
     @property
     def create_stable_sql_current(self):
         return [
-            f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(avg) delay 5",
+            f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) delay 5",
+            f"create stable stb2 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) delay 5",
+            f"create stable stb3 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(max) delay 5",
+            f"create stable stb4 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(sum) delay 5",
+            f"create stable stb5 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(last) delay 5",
+            f"create stable stb6 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(first) delay 5",
         ]
 
     def test_create_stb(self):
@@ -80,6 +109,9 @@ class TDTestCase:
             tdSql.execute(cur_sql)
         tdSql.query("show stables")
         tdSql.checkRows(len(self.create_stable_sql_current))
+        tdSql.execute("use db")  # because db is a noraml database, not a rollup database, can not create a rollup database
+        tdSql.error(f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) delay 5")
+
 
     def test_create_databases(self):
         for err_sql in self.create_databases_sql_err:
@@ -120,27 +152,57 @@ class TDTestCase:
         for i in range(4):
             tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
 
-    def __create_data_set(self, rows):
+    def __data_set(self, rows):
         now_time = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
-        pos_data = []
-        neg_data = []
-        spec_data = []
+        data_set = DataSet()
+        # neg_data_set = DataSet()
+        data_set.ts_data = [None, None, None]
+        data_set.int_data = [None, None, None]
+        data_set.bint_data = [None, None, None]
+        data_set.sint_data = [None, None, None]
+        data_set.tint_data = [None, None, None]
+        data_set.int_un_data = [None, None, None]
+        data_set.bint_un_data = [None, None, None]
+        data_set.sint_un_data = [None, None, None]
+        data_set.tint_un_data = [None, None, None]
+        data_set.float_data = [None, None, None]
+        data_set.double_data = [None, None, None]
+        data_set.binary_data = [None, None, None]
+        data_set.nchar_data = [None, None, None]
         for i in range(rows):
-            pos_data.append(
-                (
-                    now_time - i * 1000, i, 11111 * i, 111 * i % 32767 , 11 * i % 127, 1.11 * i, 1100.0011 * i,
-                    i % 2, f'binary{i}', f'nchar_测试_{i}', now_time + 1 * i, 11 * i % 127, 111 * i % 32767, i, 11111 * i
-                )
-            )
-            neg_data.append(
-                (
-                    now_time - i * 7776000000, -i, -11111 * i, -111 * i % 32767, -11 * i % 127, -1.11 * i, -1100.0011 * i,
-                    i % 2, f'binary{i}', f'nchar_测试_{i}', now_time + 1 * i, 11 * i % 127, 111 * i % 32767, i, 11111 * i
-                )
-            )
+            data_set.ts_data.append(now_time + 1 * i)
+            data_set.int_data.append(i)
+            data_set.bint_data.append(11111 * i)
+            data_set.sint_data.append(111 * i % 32767)
+            data_set.tint_data.append(11 * i % 127)
+            data_set.int_un_data.append(i)
+            data_set.bint_un_data.append(11111 * i)
+            data_set.sint_un_data.append(111 * i % 32767)
+            data_set.tint_un_data.append(11 * i % 127)
+            data_set.float_data.append(1.11 * i)
+            data_set.double_data.append(1100.0011 * i)
+            data_set.binary_data.append(f'binary{i}')
+            data_set.nchar_data.append(f'nchar_测试_{i}')
+
+            # neg_data_set.ts_data.append(-1 * i)
+            # neg_data_set.int_data.append(-i)
+            # neg_data_set.bint_data.append(-11111 * i)
+            # neg_data_set.sint_data.append(-111 * i % 32767)
+            # neg_data_set.tint_data.append(-11 * i % 127)
+            # neg_data_set.int_un_data.append(-i)
+            # neg_data_set.bint_un_data.append(-11111 * i)
+            # neg_data_set.sint_un_data.append(-111 * i % 32767)
+            # neg_data_set.tint_un_data.append(-11 * i % 127)
+            # neg_data_set.float_data.append(-1.11 * i)
+            # neg_data_set.double_data.append(-1100.0011 * i)
+            # neg_data_set.binary_data.append(f'binary{i}')
+            # neg_data_set.nchar_data.append(f'nchar_测试_{i}')
+
+        return data_set
 
     def __insert_data(self, rows):
         now_time = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
+        data = self.__data_set(rows)
         for i in range(rows):
             tdSql.execute(
                 f'''insert into ct1 values (
