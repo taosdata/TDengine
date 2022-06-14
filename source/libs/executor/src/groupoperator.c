@@ -582,6 +582,15 @@ int32_t* setupColumnOffset(const SSDataBlock* pBlock, int32_t rowCapacity) {
   return offset;
 }
 
+static void clearPartitionOperator(SPartitionOperatorInfo* pInfo) {
+  void *ite = NULL;
+  while( (ite = taosHashIterate(pInfo->pGroupSet, ite)) != NULL ) {
+    taosArrayDestroy( ((SDataGroupInfo *)ite)->pPageList);
+  }
+  taosHashClear(pInfo->pGroupSet);
+  clearDiskbasedBuf(pInfo->pBuf);
+}
+
 static SSDataBlock* buildPartitionResult(SOperatorInfo* pOperator) {
   SPartitionOperatorInfo* pInfo = pOperator->info;
 
@@ -591,6 +600,7 @@ static SSDataBlock* buildPartitionResult(SOperatorInfo* pOperator) {
     pInfo->pGroupIter = taosHashIterate(pInfo->pGroupSet, pInfo->pGroupIter);
     if (pInfo->pGroupIter == NULL) {
       doSetOperatorCompleted(pOperator);
+      clearPartitionOperator(pInfo);
       return NULL;
     }
 
