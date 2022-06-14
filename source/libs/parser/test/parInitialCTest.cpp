@@ -548,12 +548,14 @@ TEST_F(ParserInitialCTest, createTable) {
       "a14 NCHAR(30), a15 VARCHAR(50)) "
       "TTL 100 COMMENT 'test create table' SMA(c1, c2, c3) ROLLUP (MIN) FILE_FACTOR 0.1");
 
-  run("CREATE TABLE IF NOT EXISTS t1 USING st1 TAGS(1, 'wxy')");
+  run("CREATE TABLE IF NOT EXISTS t1 USING st1 TAGS(1, 'wxy', NOW)");
 
   run("CREATE TABLE "
       "IF NOT EXISTS test.t1 USING test.st1 (tag1, tag2) TAGS(1, 'abc') "
       "IF NOT EXISTS test.t2 USING test.st1 (tag1, tag2) TAGS(2, 'abc') "
       "IF NOT EXISTS test.t3 USING test.st1 (tag1, tag2) TAGS(3, 'abc') ");
+
+  // run("CREATE TABLE IF NOT EXISTS t1 USING st1 TAGS(1, 'wxy', NOW + 1S)");
 }
 
 TEST_F(ParserInitialCTest, createTopic) {
