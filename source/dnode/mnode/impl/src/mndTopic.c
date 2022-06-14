@@ -387,7 +387,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
       return -1;
     }
 
-    if (nodesNodeToString(pPlan, false, &topicObj.physicalPlan, NULL) != 0) {
+    if (nodesNodeToString((SNode*)pPlan, false, &topicObj.physicalPlan, NULL) != 0) {
       mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
       taosMemoryFree(topicObj.ast);
       taosMemoryFree(topicObj.sql);

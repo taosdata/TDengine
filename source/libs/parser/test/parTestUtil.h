@@ -27,7 +27,7 @@ namespace ParserTest {
 
 class ParserTestBaseImpl;
 
-enum ParserStage { PARSER_STAGE_PARSE, PARSER_STAGE_TRANSLATE, PARSER_STAGE_CALC_CONST, PARSER_STAGE_ALL };
+enum ParserStage { PARSER_STAGE_PARSE = 1, PARSER_STAGE_TRANSLATE, PARSER_STAGE_CALC_CONST };
 
 class ParserTestBase : public testing::Test {
  public:
