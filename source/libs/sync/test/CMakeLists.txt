@@ -1,4 +1,5 @@
 add_executable(syncTest "")
+add_executable(syncRaftIdCheck "")
 add_executable(syncEnvTest "")
 add_executable(syncPingTimerTest "")
 add_executable(syncIOTickQTest "")
@@ -53,6 +54,10 @@ add_executable(syncLeaderTransferTest "")
 target_sources(syncTest
     PRIVATE
     "syncTest.cpp"
+)
+target_sources(syncRaftIdCheck
+    PRIVATE
+    "syncRaftIdCheck.cpp"
 )
 target_sources(syncEnvTest
     PRIVATE
@@ -253,6 +258,11 @@ target_sources(syncLeaderTransferTest
 
 
 target_include_directories(syncTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncRaftIdCheck
     PUBLIC
     "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
@@ -505,6 +515,10 @@ target_include_directories(syncLeaderTransferTest
 
 
 target_link_libraries(syncTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncRaftIdCheck
     sync
     gtest_main
 )
