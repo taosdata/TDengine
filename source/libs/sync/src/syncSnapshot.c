@@ -755,6 +755,12 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
 // sender receives ack, set seq = ack + 1, send msg from seq
 // if ack == SYNC_SNAPSHOT_SEQ_END, stop sender
 int32_t syncNodeOnSnapshotRspCb(SSyncNode *pSyncNode, SyncSnapshotRsp *pMsg) {
+  // if already drop replica, do not process
+  if (!syncNodeInRaftGroup(pSyncNode, &(pMsg->srcId)) && pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
+    sInfo("recv SyncSnapshotRsp maybe replica already dropped");
+    return 0;
+  }
+
   // get sender
   SSyncSnapshotSender *pSender = syncNodeGetSnapshotSender(pSyncNode, &(pMsg->srcId));
   ASSERT(pSender != NULL);
