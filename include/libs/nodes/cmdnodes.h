@@ -289,6 +289,7 @@ typedef struct SKillStmt {
 typedef struct SStreamOptions {
   ENodeType type;
   int8_t    triggerType;
+  SNode*    pDelay;
   SNode*    pWatermark;
 } SStreamOptions;
 

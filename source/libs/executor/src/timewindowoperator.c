@@ -1378,7 +1378,7 @@ void destroyStreamFinalIntervalOperatorInfo(void* param, int32_t numOfOutput) {
       taosMemoryFreeClear(pChildOp);
     }
   }
-  nodesDestroyNode(pInfo->pPhyNode);
+  nodesDestroyNode((SNode*)pInfo->pPhyNode);
 }
 
 static bool allInvertible(SqlFunctionCtx* pFCtx, int32_t numOfCols) {
@@ -2157,7 +2157,7 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   pInfo->pUpdateRes = createResDataBlock(pPhyNode->pOutputDataBlockDesc);
   pInfo->pUpdateRes->info.type = STREAM_REPROCESS;
   blockDataEnsureCapacity(pInfo->pUpdateRes, 128);
-  pInfo->pPhyNode = nodesCloneNode(pPhyNode);
+  pInfo->pPhyNode = (SPhysiNode*)nodesCloneNode((SNode*)pPhyNode);
 
   pOperator->name = "StreamFinalIntervalOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL;

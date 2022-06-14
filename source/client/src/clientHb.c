@@ -698,7 +698,7 @@ SAppHbMgr *appHbMgrInit(SAppInstInfo *pAppInstInfo, char *key) {
     return NULL;
   }
 
-  taosHashSetFreeFp(pAppHbMgr->activeInfo, tFreeClientHbReq);
+  // taosHashSetFreeFp(pAppHbMgr->activeInfo, tFreeClientHbReq);
 
   taosThreadMutexLock(&clientHbMgr.lock);
   taosArrayPush(clientHbMgr.appHbMgrs, &pAppHbMgr);
