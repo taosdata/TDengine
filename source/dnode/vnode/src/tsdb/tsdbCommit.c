@@ -28,14 +28,14 @@ typedef struct {
   int32_t minRow;
   int32_t maxRow;
   // commit file data
-  TSKEY            nextKey;
-  int32_t          commitFid;
-  TSKEY            minKey;
-  TSKEY            maxKey;
-  SDFileSetReader *pReader;
-  SMapData         oBlockIdx;  // SMapData<SBlockIdx>, read from reader
-  SDFileSetWriter *pWriter;
-  SMapData         nBlockIdx;  // SMapData<SBlockIdx>, build by committer
+  TSKEY         nextKey;
+  int32_t       commitFid;
+  TSKEY         minKey;
+  TSKEY         maxKey;
+  SDataFReader *pReader;
+  SMapData      oBlockIdx;  // SMapData<SBlockIdx>, read from reader
+  SDataFWriter *pWriter;
+  SMapData      nBlockIdx;  // SMapData<SBlockIdx>, build by committer
   // commit table data
   STbDataIter   iter;
   STbDataIter  *pIter;
@@ -46,15 +46,11 @@ typedef struct {
   SColDataBlock nColDataBlock;
   /* commit del */
   SDelFReader *pDelFReader;
+  SMapData     oDelIdxMap;   // SMapData<SDelIdx>, old
+  SMapData     oDelDataMap;  // SMapData<SDelData>, old
   SDelFWriter *pDelFWriter;
-  SDelIdx      delIdxOld;
-  SDelIdx      delIdxNew;
-  STbData     *pTbData;
-  SDelIdxItem *pDelIdxItem;
-  SDelData     delDataOld;
-  SDelData     delDataNew;
-  SDelIdxItem  delIdxItem;
-  /* commit cache */
+  SMapData     nDelIdxMap;   // SMapData<SDelIdx>, new
+  SMapData     nDelDataMap;  // SMapData<SDelData>, new
 } SCommitter;
 
 static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitter *pCommitter);
@@ -79,7 +75,7 @@ _err:
 
 int32_t tsdbCommit(STsdb *pTsdb) {
   if (!pTsdb) return 0;
-  
+
   int32_t    code = 0;
   SCommitter commith;
   SMemTable *pMemTable = pTsdb->mem;
@@ -179,22 +175,23 @@ static int32_t tsdbCommitDelStart(SCommitter *pCommitter) {
   SDelFile  *pDelFileR = NULL;  // TODO
   SDelFile  *pDelFileW = NULL;  // TODO
 
+  tMapDataReset(&pCommitter->oDelIdxMap);
+  tMapDataReset(&pCommitter->nDelIdxMap);
+
   // load old
-  pCommitter->delIdxOld = (SDelIdx){0};
   if (pDelFileR) {
     code = tsdbDelFReaderOpen(&pCommitter->pDelFReader, pDelFileR, pTsdb, NULL);
     if (code) {
       goto _err;
     }
 
-    code = tsdbReadDelIdx(pCommitter->pDelFReader, &pCommitter->delIdxOld, &pCommitter->pBuf1);
+    code = tsdbReadDelIdx(pCommitter->pDelFReader, &pCommitter->oDelIdxMap, &pCommitter->pBuf1);
     if (code) {
       goto _err;
     }
   }
 
   // prepare new
-  pCommitter->delIdxNew = (SDelIdx){0};
   code = tsdbDelFWriterOpen(&pCommitter->pDelFWriter, pDelFileW, pTsdb);
   if (code) {
     goto _err;

@@ -207,18 +207,30 @@ int32_t tPutMapData(uint8_t *p, SMapData *pMapData) {
   n += tPutI32v(p ? p + n : p, pMapData->nItem);
   if (maxOffset <= INT8_MAX) {
     n += tPutU8(p ? p + n : p, TSDB_OFFSET_I8);
-    for (int32_t iItem = 0; iItem < pMapData->nItem; iItem++) {
-      n += tPutI8(p ? p + n : p, (int8_t)(((int32_t *)pMapData->pData)[iItem]));
+    if (p) {
+      for (int32_t iItem = 0; iItem < pMapData->nItem; iItem++) {
+        n += tPutI8(p + n, (int8_t)(((int32_t *)pMapData->pData)[iItem]));
+      }
+    } else {
+      n = n + sizeof(int8_t) * pMapData->nItem;
     }
   } else if (maxOffset <= INT16_MAX) {
     n += tPutU8(p ? p + n : p, TSDB_OFFSET_I16);
-    for (int32_t iItem = 0; iItem < pMapData->nItem; iItem++) {
-      n += tPutI8(p ? p + n : p, (int16_t)(((int32_t *)pMapData->pData)[iItem]));
+    if (p) {
+      for (int32_t iItem = 0; iItem < pMapData->nItem; iItem++) {
+        n += tPutI16(p + n, (int16_t)(((int32_t *)pMapData->pData)[iItem]));
+      }
+    } else {
+      n = n + sizeof(int16_t) * pMapData->nItem;
     }
   } else {
     n += tPutU8(p ? p + n : p, TSDB_OFFSET_I32);
-    for (int32_t iItem = 0; iItem < pMapData->nItem; iItem++) {
-      n += tPutI8(p ? p + n : p, (int32_t)(((int32_t *)pMapData->pData)[iItem]));
+    if (p) {
+      for (int32_t iItem = 0; iItem < pMapData->nItem; iItem++) {
+        n += tPutI32(p + n, (int32_t)(((int32_t *)pMapData->pData)[iItem]));
+      }
+    } else {
+      n = n + sizeof(int32_t) * pMapData->nItem;
     }
   }
   n += tPutBinary(p ? p + n : p, pMapData->pData, pMapData->nData);
@@ -344,36 +356,36 @@ static FORCE_INLINE int32_t tGetTSDBKEY(uint8_t *p, TSDBKEY *pKey) {
   return n;
 }
 
-// SDelIdxItem ======================================================
-static FORCE_INLINE int32_t tPutDelIdxItem(uint8_t *p, SDelIdxItem *pDelIdxItem) {
-  int32_t n = 0;
+// // SDelIdxItem ======================================================
+// static FORCE_INLINE int32_t tPutDelIdxItem(uint8_t *p, SDelIdxItem *pDelIdxItem) {
+//   int32_t n = 0;
 
-  n += tPutI64(p ? p + n : p, pDelIdxItem->suid);
-  n += tPutI64(p ? p + n : p, pDelIdxItem->uid);
-  n += tPutI64(p ? p + n : p, pDelIdxItem->minKey);
-  n += tPutI64(p ? p + n : p, pDelIdxItem->maxKey);
-  n += tPutI64v(p ? p + n : p, pDelIdxItem->minVersion);
-  n += tPutI64v(p ? p + n : p, pDelIdxItem->maxVersion);
-  n += tPutI64v(p ? p + n : p, pDelIdxItem->offset);
-  n += tPutI64v(p ? p + n : p, pDelIdxItem->size);
+//   n += tPutI64(p ? p + n : p, pDelIdxItem->suid);
+//   n += tPutI64(p ? p + n : p, pDelIdxItem->uid);
+//   n += tPutI64(p ? p + n : p, pDelIdxItem->minKey);
+//   n += tPutI64(p ? p + n : p, pDelIdxItem->maxKey);
+//   n += tPutI64v(p ? p + n : p, pDelIdxItem->minVersion);
+//   n += tPutI64v(p ? p + n : p, pDelIdxItem->maxVersion);
+//   n += tPutI64v(p ? p + n : p, pDelIdxItem->offset);
+//   n += tPutI64v(p ? p + n : p, pDelIdxItem->size);
 
-  return n;
-}
+//   return n;
+// }
 
-static FORCE_INLINE int32_t tGetDelIdxItem(uint8_t *p, SDelIdxItem *pDelIdxItem) {
-  int32_t n = 0;
+// static FORCE_INLINE int32_t tGetDelIdxItem(uint8_t *p, SDelIdxItem *pDelIdxItem) {
+//   int32_t n = 0;
 
-  n += tGetI64(p + n, &pDelIdxItem->suid);
-  n += tGetI64(p + n, &pDelIdxItem->uid);
-  n += tGetI64(p + n, &pDelIdxItem->minKey);
-  n += tGetI64(p + n, &pDelIdxItem->maxKey);
-  n += tGetI64v(p + n, &pDelIdxItem->minVersion);
-  n += tGetI64v(p + n, &pDelIdxItem->maxVersion);
-  n += tGetI64v(p + n, &pDelIdxItem->offset);
-  n += tGetI64v(p + n, &pDelIdxItem->size);
+//   n += tGetI64(p + n, &pDelIdxItem->suid);
+//   n += tGetI64(p + n, &pDelIdxItem->uid);
+//   n += tGetI64(p + n, &pDelIdxItem->minKey);
+//   n += tGetI64(p + n, &pDelIdxItem->maxKey);
+//   n += tGetI64v(p + n, &pDelIdxItem->minVersion);
+//   n += tGetI64v(p + n, &pDelIdxItem->maxVersion);
+//   n += tGetI64v(p + n, &pDelIdxItem->offset);
+//   n += tGetI64v(p + n, &pDelIdxItem->size);
 
-  return n;
-}
+//   return n;
+// }
 
 // SBlockIdxItem ======================================================
 static FORCE_INLINE int32_t tPutBlockIdxItem(uint8_t *p, SBlockIdxItem *pItem) {
@@ -501,209 +513,219 @@ int32_t tBlockCmprFn(const void *p1, const void *p2) {
 }
 
 // SDelIdx ======================================================
-int32_t tDelIdxClear(SDelIdx *pDelIdx) {
-  int32_t code = 0;
-  tdbFree(pDelIdx->offset.pOffset);
-  tdbFree(pDelIdx->pData);
-  return code;
-}
+// int32_t tDelIdxClear(SDelIdx *pDelIdx) {
+//   int32_t code = 0;
+//   tdbFree(pDelIdx->offset.pOffset);
+//   tdbFree(pDelIdx->pData);
+//   return code;
+// }
 
-int32_t tDelIdxPutItem(SDelIdx *pDelIdx, SDelIdxItem *pItem) {
-  int32_t  code = 0;
-  uint32_t offset = pDelIdx->nData;
+// int32_t tDelIdxPutItem(SDelIdx *pDelIdx, SDelIdxItem *pItem) {
+//   int32_t  code = 0;
+//   uint32_t offset = pDelIdx->nData;
 
-  // offset
-  code = tsdbAddOffset(&pDelIdx->offset, offset);
-  if (code) goto _exit;
+//   // offset
+//   code = tsdbAddOffset(&pDelIdx->offset, offset);
+//   if (code) goto _exit;
 
-  // alloc
-  pDelIdx->nData += tPutDelIdxItem(NULL, pItem);
-  code = tsdbRealloc(&pDelIdx->pData, pDelIdx->nData);
-  if (code) goto _exit;
+//   // alloc
+//   pDelIdx->nData += tPutDelIdxItem(NULL, pItem);
+//   code = tsdbRealloc(&pDelIdx->pData, pDelIdx->nData);
+//   if (code) goto _exit;
 
-  // put
-  tPutDelIdxItem(pDelIdx->pData + offset, pItem);
+//   // put
+//   tPutDelIdxItem(pDelIdx->pData + offset, pItem);
 
-_exit:
-  return code;
-}
+// _exit:
+//   return code;
+// }
 
-int32_t tDelIdxGetItemByIdx(SDelIdx *pDelIdx, SDelIdxItem *pItem, int32_t idx) {
-  int32_t code = 0;
-  int32_t offset;
+// int32_t tDelIdxGetItemByIdx(SDelIdx *pDelIdx, SDelIdxItem *pItem, int32_t idx) {
+//   int32_t code = 0;
+//   int32_t offset;
 
-  offset = tsdbGetOffset(&pDelIdx->offset, idx);
-  if (offset < 0) {
-    code = TSDB_CODE_NOT_FOUND;
-    goto _exit;
-  }
+//   offset = tsdbGetOffset(&pDelIdx->offset, idx);
+//   if (offset < 0) {
+//     code = TSDB_CODE_NOT_FOUND;
+//     goto _exit;
+//   }
 
-  tGetDelIdxItem(pDelIdx->pData + offset, pItem);
+//   tGetDelIdxItem(pDelIdx->pData + offset, pItem);
 
-_exit:
-  return code;
-}
+// _exit:
+//   return code;
+// }
 
-int32_t tDelIdxGetItem(SDelIdx *pDelIdx, SDelIdxItem *pItem, TABLEID id) {
-  int32_t code = 0;
-  int32_t lidx = 0;
-  int32_t ridx = pDelIdx->offset.nOffset - 1;
-  int32_t midx;
-  int32_t c;
+// int32_t tDelIdxGetItem(SDelIdx *pDelIdx, SDelIdxItem *pItem, TABLEID id) {
+//   int32_t code = 0;
+//   int32_t lidx = 0;
+//   int32_t ridx = pDelIdx->offset.nOffset - 1;
+//   int32_t midx;
+//   int32_t c;
 
-  while (lidx <= ridx) {
-    midx = (lidx + ridx) / 2;
+//   while (lidx <= ridx) {
+//     midx = (lidx + ridx) / 2;
 
-    code = tDelIdxGetItemByIdx(pDelIdx, pItem, midx);
-    if (code) goto _exit;
+//     code = tDelIdxGetItemByIdx(pDelIdx, pItem, midx);
+//     if (code) goto _exit;
 
-    c = tTABLEIDCmprFn(&id, pItem);
-    if (c == 0) {
-      goto _exit;
-    } else if (c < 0) {
-      ridx = midx - 1;
-    } else {
-      lidx = midx + 1;
-    }
-  }
+//     c = tTABLEIDCmprFn(&id, pItem);
+//     if (c == 0) {
+//       goto _exit;
+//     } else if (c < 0) {
+//       ridx = midx - 1;
+//     } else {
+//       lidx = midx + 1;
+//     }
+//   }
 
-  code = TSDB_CODE_NOT_FOUND;
+//   code = TSDB_CODE_NOT_FOUND;
 
-_exit:
-  return code;
-}
+// _exit:
+//   return code;
+// }
 
-int32_t tPutDelIdx(uint8_t *p, SDelIdx *pDelIdx) {
-  int32_t n = 0;
+int32_t tPutDelIdx(uint8_t *p, void *ph) {
+  SDelIdx *pDelIdx = (SDelIdx *)ph;
+  int32_t  n = 0;
 
-  n += tPutU32(p ? p + n : p, pDelIdx->delimiter);
-  n += tPutOffset(p ? p + n : p, &pDelIdx->offset);
-  n += tPutBinary(p ? p + n : p, pDelIdx->pData, pDelIdx->nData);
-
-  return n;
-}
-
-int32_t tGetDelIdx(uint8_t *p, SDelIdx *pDelIdx) {
-  int32_t n = 0;
-
-  n += tGetU32(p + n, &pDelIdx->delimiter);
-  n += tGetOffset(p + n, &pDelIdx->offset);
-  n += tGetBinary(p + n, &pDelIdx->pData, &pDelIdx->nData);
+  n += tPutI64(p ? p + n : p, pDelIdx->suid);
+  n += tPutI64(p ? p + n : p, pDelIdx->uid);
+  n += tPutI64(p ? p + n : p, pDelIdx->minKey);
+  n += tPutI64(p ? p + n : p, pDelIdx->maxKey);
+  n += tPutI64v(p ? p + n : p, pDelIdx->minVersion);
+  n += tPutI64v(p ? p + n : p, pDelIdx->maxVersion);
+  n += tPutI64v(p ? p + n : p, pDelIdx->offset);
+  n += tPutI64v(p ? p + n : p, pDelIdx->size);
 
   return n;
 }
 
-// SDelDataItem ======================================================
-static FORCE_INLINE int32_t tPutDelDataItem(uint8_t *p, SDelDataItem *pItem) {
-  int32_t n = 0;
+int32_t tGetDelIdx(uint8_t *p, void *ph) {
+  SDelIdx *pDelIdx = (SDelIdx *)ph;
+  int32_t  n = 0;
 
-  n += tPutI64v(p ? p + n : p, pItem->version);
-  n += tPutI64(p ? p + n : p, pItem->sKey);
-  n += tPutI64(p ? p + n : p, pItem->eKey);
-
-  return n;
-}
-
-static FORCE_INLINE int32_t tGetDelDataItem(uint8_t *p, SDelDataItem *pItem) {
-  int32_t n = 0;
-
-  n += tGetI64v(p + n, &pItem->version);
-  n += tGetI64(p + n, &pItem->sKey);
-  n += tGetI64(p + n, &pItem->eKey);
+  n += tGetI64(p + n, &pDelIdx->suid);
+  n += tGetI64(p + n, &pDelIdx->uid);
+  n += tGetI64(p + n, &pDelIdx->minKey);
+  n += tGetI64(p + n, &pDelIdx->maxKey);
+  n += tGetI64v(p + n, &pDelIdx->minVersion);
+  n += tGetI64v(p + n, &pDelIdx->maxVersion);
+  n += tGetI64v(p + n, &pDelIdx->offset);
+  n += tGetI64v(p + n, &pDelIdx->size);
 
   return n;
 }
+
+// // SDelDataItem ======================================================
+// static FORCE_INLINE int32_t tPutDelDataItem(uint8_t *p, SDelDataItem *pItem) {
+//   int32_t n = 0;
+
+//   n += tPutI64v(p ? p + n : p, pItem->version);
+//   n += tPutI64(p ? p + n : p, pItem->sKey);
+//   n += tPutI64(p ? p + n : p, pItem->eKey);
+
+//   return n;
+// }
+
+// static FORCE_INLINE int32_t tGetDelDataItem(uint8_t *p, SDelDataItem *pItem) {
+//   int32_t n = 0;
+
+//   n += tGetI64v(p + n, &pItem->version);
+//   n += tGetI64(p + n, &pItem->sKey);
+//   n += tGetI64(p + n, &pItem->eKey);
+
+//   return n;
+// }
 
 // SDelData ======================================================
-int32_t tDelDataClear(SDelData *pDelData) {
-  int32_t code = 0;
-  tsdbFree(pDelData->offset.pOffset);
-  tsdbFree(pDelData->pData);
-  return code;
-}
+// int32_t tDelDataClear(SDelData *pDelData) {
+//   int32_t code = 0;
+//   tsdbFree(pDelData->offset.pOffset);
+//   tsdbFree(pDelData->pData);
+//   return code;
+// }
 
-int32_t tDelDataPutItem(SDelData *pDelData, SDelDataItem *pItem) {
-  int32_t  code = 0;
-  uint32_t offset = pDelData->nData;
+// int32_t tDelDataPutItem(SDelData *pDelData, SDelDataItem *pItem) {
+//   int32_t  code = 0;
+//   uint32_t offset = pDelData->nData;
 
-  // offset
-  code = tsdbAddOffset(&pDelData->offset, offset);
-  if (code) goto _exit;
+//   // offset
+//   code = tsdbAddOffset(&pDelData->offset, offset);
+//   if (code) goto _exit;
 
-  // alloc
-  pDelData->nData += tPutDelDataItem(NULL, pItem);
-  code = tsdbRealloc(&pDelData->pData, pDelData->nData);
-  if (code) goto _exit;
+//   // alloc
+//   pDelData->nData += tPutDelDataItem(NULL, pItem);
+//   code = tsdbRealloc(&pDelData->pData, pDelData->nData);
+//   if (code) goto _exit;
 
-  // put
-  tPutDelDataItem(pDelData->pData + offset, pItem);
+//   // put
+//   tPutDelDataItem(pDelData->pData + offset, pItem);
 
-_exit:
-  return code;
-}
+// _exit:
+//   return code;
+// }
 
-int32_t tDelDataGetItemByIdx(SDelData *pDelData, SDelDataItem *pItem, int32_t idx) {
-  int32_t code = 0;
-  int32_t offset;
+// int32_t tDelDataGetItemByIdx(SDelData *pDelData, SDelDataItem *pItem, int32_t idx) {
+//   int32_t code = 0;
+//   int32_t offset;
 
-  offset = tsdbGetOffset(&pDelData->offset, idx);
-  if (offset < 0) {
-    code = TSDB_CODE_NOT_FOUND;
-    goto _exit;
-  }
-  tGetDelDataItem(pDelData->pData + offset, pItem);
+//   offset = tsdbGetOffset(&pDelData->offset, idx);
+//   if (offset < 0) {
+//     code = TSDB_CODE_NOT_FOUND;
+//     goto _exit;
+//   }
+//   tGetDelDataItem(pDelData->pData + offset, pItem);
 
-_exit:
-  return code;
-}
+// _exit:
+//   return code;
+// }
 
-int32_t tDelDataGetItem(SDelData *pDelData, SDelDataItem *pItem, int64_t version) {
-  int32_t code = 0;
-  int32_t lidx = 0;
-  int32_t ridx = pDelData->offset.nOffset - 1;
-  int32_t midx;
+// int32_t tDelDataGetItem(SDelData *pDelData, SDelDataItem *pItem, int64_t version) {
+//   int32_t code = 0;
+//   int32_t lidx = 0;
+//   int32_t ridx = pDelData->offset.nOffset - 1;
+//   int32_t midx;
 
-  while (lidx <= ridx) {
-    midx = (lidx + ridx) / 2;
+//   while (lidx <= ridx) {
+//     midx = (lidx + ridx) / 2;
 
-    code = tDelDataGetItemByIdx(pDelData, pItem, midx);
-    if (code) goto _exit;
+//     code = tDelDataGetItemByIdx(pDelData, pItem, midx);
+//     if (code) goto _exit;
 
-    if (version == pItem->version) {
-      goto _exit;
-    } else if (version < pItem->version) {
-      ridx = midx - 1;
-    } else {
-      ridx = midx + 1;
-    }
-  }
+//     if (version == pItem->version) {
+//       goto _exit;
+//     } else if (version < pItem->version) {
+//       ridx = midx - 1;
+//     } else {
+//       ridx = midx + 1;
+//     }
+//   }
 
-  code = TSDB_CODE_NOT_FOUND;
+//   code = TSDB_CODE_NOT_FOUND;
 
-_exit:
-  return code;
-}
+// _exit:
+//   return code;
+// }
 
-int32_t tPutDelData(uint8_t *p, SDelData *pDelData) {
-  int32_t n = 0;
+int32_t tPutDelData(uint8_t *p, void *ph) {
+  SDelData *pDelData = (SDelData *)ph;
+  int32_t   n = 0;
 
-  n += tPutU32(p ? p + n : p, pDelData->delimiter);
-  n += tPutI64(p ? p + n : p, pDelData->suid);
-  n += tPutI64(p ? p + n : p, pDelData->uid);
-  n += tPutOffset(p ? p + n : p, &pDelData->offset);
-  n += tPutBinary(p ? p + n : p, pDelData->pData, pDelData->nData);
+  n += tPutI64v(p ? p + n : p, pDelData->version);
+  n += tPutI64(p ? p + n : p, pDelData->sKey);
+  n += tPutI64(p ? p + n : p, pDelData->eKey);
 
   return n;
 }
 
-int32_t tGetDelData(uint8_t *p, SDelData *pDelData) {
-  int32_t n = 0;
+int32_t tGetDelData(uint8_t *p, void *ph) {
+  SDelData *pDelData = (SDelData *)ph;
+  int32_t   n = 0;
 
-  n += tGetU32(p + n, &pDelData->delimiter);
-  n += tGetI64(p + n, &pDelData->suid);
-  n += tGetI64(p + n, &pDelData->uid);
-  n += tGetOffset(p + n, &pDelData->offset);
-  n += tGetBinary(p + n, &pDelData->pData, &pDelData->nData);
+  n += tGetI64v(p + n, &pDelData->version);
+  n += tGetI64(p + n, &pDelData->sKey);
+  n += tGetI64(p + n, &pDelData->eKey);
 
   return n;
 }

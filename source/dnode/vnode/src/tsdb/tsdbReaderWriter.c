@@ -139,23 +139,29 @@ _err:
   return code;
 }
 
-int32_t tsdbWriteDelData(SDelFWriter *pWriter, SDelData *pDelData, uint8_t **ppBuf, int64_t *rOffset, int64_t *rSize) {
+int32_t tsdbWriteDelData(SDelFWriter *pWriter, SDelDataInfo *pInfo, SMapData *pDelDataMap, uint8_t **ppBuf,
+                         int64_t *rOffset, int64_t *rSize) {
   int32_t  code = 0;
   uint8_t *pBuf = NULL;
-  int64_t  size;
-  int64_t  n;
+  int64_t  size = 0;
+  int64_t  n = 0;
 
   // prepare
-  pDelData->delimiter = TSDB_FILE_DLMT;
+  size += tPutU32(NULL, TSDB_FILE_DLMT);
+  size += tPutI64(NULL, pInfo->suid);
+  size += tPutI64(NULL, pInfo->uid);
+  size = size + tPutMapData(NULL, pDelDataMap) + sizeof(TSCKSUM);
 
   // alloc
   if (!ppBuf) ppBuf = &pBuf;
-  size = tPutDelData(NULL, pDelData) + sizeof(TSCKSUM);
   code = tsdbRealloc(ppBuf, size);
   if (code) goto _err;
 
   // build
-  n = tPutDelData(*ppBuf, pDelData);
+  n += tPutU32(*ppBuf + n, TSDB_FILE_DLMT);
+  n += tPutI64(*ppBuf + n, pInfo->suid);
+  n += tPutI64(*ppBuf + n, pInfo->uid);
+  n += tPutMapData(*ppBuf + n, pDelDataMap);
   taosCalcChecksumAppend(0, *ppBuf, size);
 
   ASSERT(n + sizeof(TSCKSUM) == size);
@@ -184,23 +190,24 @@ _err:
   return code;
 }
 
-int32_t tsdbWriteDelIdx(SDelFWriter *pWriter, SDelIdx *pDelIdx, uint8_t **ppBuf) {
+int32_t tsdbWriteDelIdx(SDelFWriter *pWriter, SMapData *pDelIdxMap, uint8_t **ppBuf) {
   int32_t  code = 0;
-  int64_t  size;
-  int64_t  n;
+  int64_t  size = 0;
+  int64_t  n = 0;
   uint8_t *pBuf = NULL;
 
   // prepare
-  pDelIdx->delimiter = TSDB_FILE_DLMT;
+  size += tPutU32(NULL, TSDB_FILE_DLMT);
+  size = size + tPutMapData(NULL, pDelIdxMap) + sizeof(TSCKSUM);
 
   // alloc
   if (!ppBuf) ppBuf = &pBuf;
-  size = tPutDelIdx(NULL, pDelIdx) + sizeof(TSCKSUM);
   code = tsdbRealloc(ppBuf, size);
   if (code) goto _err;
 
   // build
-  n = tPutDelIdx(*ppBuf, pDelIdx);
+  n += tPutU32(*ppBuf + n, TSDB_FILE_DLMT);
+  n += tPutMapData(*ppBuf + n, pDelIdxMap);
   taosCalcChecksumAppend(0, *ppBuf, size);
 
   ASSERT(n + sizeof(TSCKSUM) == size);
@@ -261,7 +268,7 @@ int32_t tsdbUpdateDelFileHdr(SDelFWriter *pWriter, uint8_t **ppBuf) {
   return code;
 
 _err:
-  tsdbError("vgId:%d failed to update del file header since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d update del file hdr failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
   tsdbFree(pBuf);
   return code;
 }
@@ -320,6 +327,7 @@ _exit:
   return code;
 
 _err:
+  tsdbError("vgId:%d del file reader open failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
   *ppReader = NULL;
   return code;
 }
@@ -339,39 +347,46 @@ _exit:
   return code;
 }
 
-int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdxItem *pItem, SDelData *pDelData, uint8_t **ppBuf) {
-  int32_t code = 0;
-  int64_t n;
+int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SMapData *pDelDataMap, uint8_t **ppBuf) {
+  int32_t      code = 0;
+  int64_t      n;
+  uint32_t     delimiter;
+  SDelDataInfo info;
 
   // seek
-  if (taosLSeekFile(pReader->pReadH, pItem->offset, SEEK_SET) < 0) {
+  if (taosLSeekFile(pReader->pReadH, pDelIdx->offset, SEEK_SET) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
 
   // alloc
-  code = tsdbRealloc(ppBuf, pItem->size);
+  if (!ppBuf) ppBuf = &pDelDataMap->pBuf;
+  code = tsdbRealloc(ppBuf, pDelIdx->size);
   if (code) goto _err;
 
   // read
-  n = taosReadFile(pReader->pReadH, *ppBuf, pItem->size);
+  n = taosReadFile(pReader->pReadH, *ppBuf, pDelIdx->size);
   if (n < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
 
   // check
-  if (!taosCheckChecksumWhole(*ppBuf, pItem->size)) {
+  if (!taosCheckChecksumWhole(*ppBuf, pDelIdx->size)) {
     code = TSDB_CODE_FILE_CORRUPTED;
     goto _err;
   }
 
-  // decode
-  n = tGetDelData(*ppBuf, pDelData);
-  ASSERT(n + sizeof(TSCKSUM) == pItem->size);
-  ASSERT(pDelData->delimiter == TSDB_FILE_DLMT);
-  ASSERT(pDelData->suid = pItem->suid);
-  ASSERT(pDelData->uid = pItem->uid);
+  // // decode
+  n = 0;
+  n += tGetU32(*ppBuf + n, &delimiter);
+  ASSERT(delimiter == TSDB_FILE_DLMT);
+  n += tGetI64(*ppBuf + n, &info.suid);
+  ASSERT(info.suid == pDelIdx->suid);
+  n += tGetI64(*ppBuf + n, &info.uid);
+  ASSERT(info.uid == pDelIdx->uid);
+  n += tGetMapData(*ppBuf + n, pDelDataMap);
+  ASSERT(n + sizeof(TSCKSUM) == pDelIdx->size);
 
   return code;
 
@@ -380,11 +395,12 @@ _err:
   return code;
 }
 
-int32_t tsdbReadDelIdx(SDelFReader *pReader, SDelIdx *pDelIdx, uint8_t **ppBuf) {
-  int32_t code = 0;
-  int32_t n;
-  int64_t offset = pReader->pFile->offset;
-  int64_t size = pReader->pFile->size - offset;
+int32_t tsdbReadDelIdx(SDelFReader *pReader, SMapData *pDelIdxMap, uint8_t **ppBuf) {
+  int32_t  code = 0;
+  int32_t  n;
+  int64_t  offset = pReader->pFile->offset;
+  int64_t  size = pReader->pFile->size - offset;
+  uint32_t delimiter;
 
   ASSERT(ppBuf && *ppBuf);
 
@@ -395,10 +411,9 @@ int32_t tsdbReadDelIdx(SDelFReader *pReader, SDelIdx *pDelIdx, uint8_t **ppBuf) 
   }
 
   // alloc
+  if (!ppBuf) ppBuf = &pDelIdxMap->pBuf;
   code = tsdbRealloc(ppBuf, size);
-  if (code) {
-    goto _err;
-  }
+  if (code) goto _err;
 
   // read
   if (taosReadFile(pReader->pReadH, *ppBuf, size) < size) {
@@ -413,13 +428,15 @@ int32_t tsdbReadDelIdx(SDelFReader *pReader, SDelIdx *pDelIdx, uint8_t **ppBuf) 
   }
 
   // decode
-  n = tGetDelIdx(*ppBuf, pDelIdx);
-  ASSERT(n == size - sizeof(TSCKSUM));
-  ASSERT(pDelIdx->delimiter == TSDB_FILE_DLMT);
+  n = 0;
+  n += tGetU32(*ppBuf + n, &delimiter);
+  ASSERT(delimiter == TSDB_FILE_DLMT);
+  n += tGetMapData(*ppBuf + n, pDelIdxMap);
+  ASSERT(n + sizeof(TSCKSUM) == size);
 
   return code;
 
 _err:
-  tsdbError("vgId:%d failed to read del idx since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d read del idx failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
   return code;
 }
