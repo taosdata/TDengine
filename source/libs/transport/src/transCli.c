@@ -54,7 +54,8 @@ typedef struct SCliMsg {
 } SCliMsg;
 
 typedef struct SCliThrdObj {
-  TdThread    thread;
+  TdThread    thread;  // tid
+  int64_t     pid;     // pid
   uv_loop_t*  loop;
   SAsyncPool* asyncPool;
   uv_timer_t  timer;
@@ -822,6 +823,7 @@ static void cliAsyncCb(uv_async_t* handle) {
 
 static void* cliWorkThread(void* arg) {
   SCliThrdObj* pThrd = (SCliThrdObj*)arg;
+  pThrd->pid = taosGetSelfPthreadId();
   setThreadName("trans-cli-work");
   uv_run(pThrd->loop, UV_RUN_DEFAULT);
   return NULL;
@@ -1089,7 +1091,7 @@ void transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STra
 
   SCliThrdObj* thrd = ((SCliObj*)pTransInst->tcphandle)->pThreadObj[index];
 
-  tDebug("send request at thread:%d, threadID: %" PRId64 ",  msg: %p, dst: %s:%d, app:%p", index, thrd->thread, pReq,
+  tDebug("send request at thread:%d, threadID: %08" PRId64 ",  msg: %p, dst: %s:%d, app:%p", index, thrd->pid, pReq,
          EPSET_GET_INUSE_IP(&pCtx->epSet), EPSET_GET_INUSE_PORT(&pCtx->epSet), pReq->info.ahandle);
   ASSERT(transSendAsync(thrd->asyncPool, &(cliMsg->q)) == 0);
 }
@@ -1118,7 +1120,7 @@ void transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransM
   cliMsg->type = Normal;
 
   SCliThrdObj* thrd = ((SCliObj*)pTransInst->tcphandle)->pThreadObj[index];
-  tDebug("send request at thread:%d, threadID:%" PRId64 ", msg: %p, dst: %s:%d, app:%p", index, thrd->thread, pReq,
+  tDebug("send request at thread:%d, threadID:%08" PRId64 ", msg: %p, dst: %s:%d, app:%p", index, thrd->pid, pReq,
          EPSET_GET_INUSE_IP(&pCtx->epSet), EPSET_GET_INUSE_PORT(&pCtx->epSet), pReq->info.ahandle);
 
   transSendAsync(thrd->asyncPool, &(cliMsg->q));
@@ -1149,7 +1151,7 @@ void transSetDefaultAddr(void* ahandle, const char* ip, const char* fqdn) {
     cliMsg->type = Update;
 
     SCliThrdObj* thrd = ((SCliObj*)pTransInst->tcphandle)->pThreadObj[i];
-    tDebug("update epset at thread:%d, threadID:%" PRId64 "", i, thrd->thread);
+    tDebug("update epset at thread:%d, threadID:%08" PRId64 "", i, thrd->pid);
 
     transSendAsync(thrd->asyncPool, &(cliMsg->q));
   }

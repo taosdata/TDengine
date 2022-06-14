@@ -695,6 +695,9 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_RSMA_INVALID_ENV               TAOS_DEF_ERROR_CODE(0, 0x3150)
 #define TSDB_CODE_RSMA_INVALID_STAT              TAOS_DEF_ERROR_CODE(0, 0x3151)
 
+// index
+#define TSDB_CODE_INDEX_REBUILD                  TAOS_DEF_ERROR_CODE(0, 0x3251)              
+
 
 #ifdef __cplusplus
 }
