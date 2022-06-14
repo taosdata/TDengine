@@ -2355,12 +2355,13 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
   int32_t numOfElems = 0;
 
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
-  char*                buf = GET_ROWCELL_INTERBUF(pResInfo);
+  SFirstLastRes *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pInputCol = pInput->pData[0];
 
   int32_t bytes = pInputCol->info.bytes;
+  pInfo->bytes  = bytes;
 
   // All null data column, return directly.
   if (pInput->colDataAggIsSet && (pInput->pColumnDataAgg[0]->numOfNull == pInput->totalRows)) {
@@ -2385,9 +2386,9 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
 
       char* data = colDataGetData(pInputCol, i);
       TSKEY cts = getRowPTs(pInput->pPTS, i);
-      if (pResInfo->numOfRes == 0 || *(TSKEY*)(buf + bytes) < cts) {
-        memcpy(buf, data, bytes);
-        *(TSKEY*)(buf + bytes) = cts;
+      if (pResInfo->numOfRes == 0 || *(TSKEY*)(pInfo->buf + bytes) < cts) {
+        memcpy(pInfo->buf, data, bytes);
+        *(TSKEY*)(pInfo->buf + bytes) = cts;
         //        DO_UPDATE_TAG_COLUMNS(pCtx, ts);
         pResInfo->numOfRes = 1;
       }
@@ -2403,9 +2404,9 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
 
       char* data = colDataGetData(pInputCol, i);
       TSKEY cts = getRowPTs(pInput->pPTS, i);
-      if (pResInfo->numOfRes == 0 || *(TSKEY*)(buf + bytes) < cts) {
-        memcpy(buf, data, bytes);
-        *(TSKEY*)(buf + bytes) = cts;
+      if (pResInfo->numOfRes == 0 || *(TSKEY*)(pInfo->buf + bytes) < cts) {
+        memcpy(pInfo->buf, data, bytes);
+        *(TSKEY*)(pInfo->buf + bytes) = cts;
         pResInfo->numOfRes = 1;
         //        DO_UPDATE_TAG_COLUMNS(pCtx, ts);
       }
