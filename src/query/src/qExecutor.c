@@ -944,6 +944,8 @@ void doInvokeUdf(SUdfInfo* pUdfInfo, SQLFunctionCtx *pCtx, int32_t idx, int32_t 
 
 static void doApplyFunctions(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx, STimeWindow* pWin, int32_t offset,
                              int32_t forwardStep, TSKEY* tsCol, int32_t numOfTotal, int32_t numOfOutput) {
+  SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
+
   for (int32_t k = 0; k < numOfOutput; ++k) {
     bool hasAggregates = pCtx[k].preAggVals.isSet;
 
@@ -954,13 +956,13 @@ static void doApplyFunctions(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx
     // keep it temporarialy
     char* start = pCtx[k].pInput;
 
-    // deal order by in aAggs.xFunction, not here
+    int32_t pos = (QUERY_IS_ASC_QUERY(pQueryAttr)) ? offset : offset - (forwardStep - 1);
     if (pCtx[k].pInput != NULL) {
-      pCtx[k].pInput = (char *)pCtx[k].pInput + offset * pCtx[k].inputBytes;
+      pCtx[k].pInput = (char *)pCtx[k].pInput + pos * pCtx[k].inputBytes;
     }
 
     if (tsCol != NULL) {
-      pCtx[k].ptsList = &tsCol[offset];
+      pCtx[k].ptsList = &tsCol[pos];
     }
 
     // not a whole block involved in query processing, statistics data can not be used
@@ -1711,6 +1713,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
       longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_APP_ERROR);
     }
 
+    int32_t offset = QUERY_IS_ASC_QUERY(pQueryAttr) ? j - num : j - 1;
     doApplyFunctions(pRuntimeEnv, pInfo->binfo.pCtx, &w, j - num, num, tsList, pSDataBlock->info.rows, pOperator->numOfOutput);
 
     num = 1;
@@ -1731,7 +1734,8 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
       if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
         longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_APP_ERROR);
       }
-      doApplyFunctions(pRuntimeEnv, pInfo->binfo.pCtx, &w, pSDataBlock->info.rows - num, num, tsList, pSDataBlock->info.rows, pOperator->numOfOutput);
+      int32_t offset = QUERY_IS_ASC_QUERY(pQueryAttr) ? pSDataBlock->info.rows - num : pSDataBlock->info.rows - 1;
+      doApplyFunctions(pRuntimeEnv, pInfo->binfo.pCtx, &w, offset, num, tsList, pSDataBlock->info.rows, pOperator->numOfOutput);
     }
   }
 
