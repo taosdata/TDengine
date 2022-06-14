@@ -48,6 +48,7 @@ typedef struct SOffset       SOffset;
 typedef struct SMapData      SMapData;
 typedef struct SColData      SColData;
 typedef struct SColDataBlock SColDataBlock;
+typedef struct SBlockSMA     SBlockSMA;
 
 // tsdbMemTable ==============================================================================================
 
@@ -86,8 +87,23 @@ int32_t tsdbFSEnd(STsdbFS *pFS, int8_t rollback);
 // SDataFWriter
 typedef struct SDataFWriter SDataFWriter;
 
+int32_t tsdbDataFWriterOpen(SDataFWriter *pWriter, STsdb *pTsdb, SDFileSet *pSet);
+int32_t tsdbDataFWriterClose(SDataFWriter *pWriter);
+int32_t tsdbWriteBlockIdx(SDataFWriter *pWriter, SMapData *pMapData, uint8_t **ppBuf);
+int32_t tsdbWriteBlock(SDataFWriter *pWriter, SMapData *pMapData, uint8_t **ppBuf, int64_t *rOffset, int64_t *rSize);
+int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SColDataBlock *pBlockData, uint8_t **ppBuf, int64_t *rOffset,
+                           int64_t *rSize);
+int32_t tsdbWriteBlockSMA(SDataFWriter *pWriter, SBlockSMA *pBlockSMA, int64_t *rOffset, int64_t *rSize);
+
 // SDataFReader
 typedef struct SDataFReader SDataFReader;
+
+int32_t tsdbDataFReaderOpen(SDataFReader *pReader, STsdb *pTsdb, SDFileSet *pSet);
+int32_t tsdbDataFReaderClose(SDataFReader *pReader);
+int32_t tsdbReadBlockIdx(SDataFReader *pReader, SMapData *pMapData, uint8_t **ppBuf);
+int32_t tsdbReadBlock(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *pMapData, uint8_t **ppBuf);
+int32_t tsdbReadBlockData(SDataFReader *pReader, SBlock *pBlock, SColDataBlock *pBlockData, uint8_t **ppBuf);
+int32_t tsdbReadBlockSMA(SDataFReader *pReader, SBlockSMA *pBlkSMA);
 
 // SDelFWriter
 typedef struct SDelFWriter SDelFWriter;
@@ -125,29 +141,9 @@ typedef struct SAggrBlkCol   SAggrBlkCol;
 typedef struct SBlockData    SBlockData;
 typedef struct SReadH        SReadH;
 
-typedef struct SDFileSetReader SDFileSetReader;
-typedef struct SDFileSetWriter SDFileSetWriter;
-
-// SDFileSetWriter
-// int32_t tsdbDFileSetWriterOpen(SDFileSetWriter *pWriter, STsdb *pTsdb, SDFileSet *pSet);
-// int32_t tsdbDFileSetWriterClose(SDFileSetWriter *pWriter, int8_t sync);
-// int32_t tsdbWriteBlockData(SDFileSetWriter *pWriter, SDataCols *pDataCols, SBlock *pBlock);
-// int32_t tsdbWriteSBlockInfo(SDFileSetWriter *pWriter, SBlockInfo *pBlockInfo, SBlockIdx *pBlockIdx);
-// int32_t tsdbWriteSBlockIdx(SDFileSetWriter *pWriter, SBlockIdx *pBlockIdx);
-
-// SDFileSetReader
-// int32_t tsdbDFileSetReaderOpen(SDFileSetReader *pReader, STsdb *pTsdb, SDFileSet *pSet);
-// int32_t tsdbDFileSetReaderClose(SDFileSetReader *pReader);
-// int32_t tsdbLoadSBlockIdx(SDFileSetReader *pReader, SArray *pArray);
-// int32_t tsdbLoadSBlockInfo(SDFileSetReader *pReader, SBlockIdx *pBlockIdx, SBlockInfo *pBlockInfo);
-// int32_t tsdbLoadSBlockStatis(SDFileSetReader *pReader, SBlock *pBlock, SBlockStatis *pBlockStatis);
-
-// SDelFWriter
-
-// SDelFReader
-
 // tsdbUtil.c ==============================================================================================
 int32_t tsdbKeyFid(TSKEY key, int32_t minutes, int8_t precision);
+void    tsdbFidKeyRange(int32_t fid, int32_t minutes, int8_t precision, TSKEY *minKey, TSKEY *maxKey);
 
 int32_t tsdbRealloc(uint8_t **ppBuf, int64_t size);
 void    tsdbFree(uint8_t *pBuf);
@@ -284,7 +280,7 @@ struct TSDBROW {
   };
 };
 
-struct SBlockIdxItem {
+struct SBlockIdx {
   int64_t suid;
   int64_t uid;
   TSDBKEY minKey;
@@ -293,15 +289,6 @@ struct SBlockIdxItem {
   int64_t maxVersion;
   int64_t offset;
   int64_t size;
-};
-
-struct SBlockIdx {
-  int64_t  suid;
-  int64_t  uid;
-  uint32_t delimiter;
-  SOffset  offset;
-  uint32_t nData;
-  uint8_t *pData;
 };
 
 typedef enum {
@@ -364,26 +351,6 @@ struct SBlockData {
 };
 
 typedef void SAggrBlkData;  // SBlockCol cols[];
-
-static FORCE_INLINE int TSDB_KEY_FID(TSKEY key, int32_t minutes, int8_t precision) {
-  if (key < 0) {
-    return (int)((key + 1) / tsTickPerMin[precision] / minutes - 1);
-  } else {
-    return (int)((key / tsTickPerMin[precision] / minutes));
-  }
-}
-
-static FORCE_INLINE int tsdbGetFidLevel(int fid, SRtn *pRtn) {
-  if (fid >= pRtn->maxFid) {
-    return 0;
-  } else if (fid >= pRtn->midFid) {
-    return 1;
-  } else if (fid >= pRtn->minFid) {
-    return 2;
-  } else {
-    return -1;
-  }
-}
 
 // ================== TSDB global config
 extern bool tsdbForceKeepFile;
@@ -457,6 +424,7 @@ struct SMapData {
   uint8_t *pOfst;
   uint32_t nData;
   uint8_t *pData;
+  uint8_t *pBuf;
 };
 
 struct SColData {
@@ -472,6 +440,21 @@ struct SColDataBlock {
   TSKEY    *aTSKey;
   int32_t   nColData;
   SColData *aColData;
+};
+
+typedef struct {
+  int16_t colId;
+  int16_t maxIndex;
+  int16_t minIndex;
+  int16_t numOfNull;
+  int64_t sum;
+  int64_t max;
+  int64_t min;
+} SColSMA;
+
+struct SBlockSMA {
+  int32_t  nCol;
+  SColSMA *aColSMA;
 };
 
 #ifdef __cplusplus

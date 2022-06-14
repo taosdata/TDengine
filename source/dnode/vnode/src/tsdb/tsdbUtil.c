@@ -140,6 +140,7 @@ void tMapDataReset(SMapData *pMapData) {
 void tMapDataClear(SMapData *pMapData) {
   tsdbFree(pMapData->pOfst);
   tsdbFree(pMapData->pData);
+  tsdbFree(pMapData->pBuf);
 }
 
 int32_t tMapDataPutItem(SMapData *pMapData, void *pItem, int32_t (*tPutItemFn)(uint8_t *, void *)) {
@@ -740,6 +741,23 @@ int32_t tsdbKeyFid(TSKEY key, int32_t minutes, int8_t precision) {
     return (int)((key / tsTickPerMin[precision] / minutes));
   }
 }
+
+void tsdbFidKeyRange(int32_t fid, int32_t minutes, int8_t precision, TSKEY *minKey, TSKEY *maxKey) {
+  *minKey = fid * minutes * tsTickPerMin[precision];
+  *maxKey = *minKey + minutes * tsTickPerMin[precision] - 1;
+}
+
+// int tsdFidLevel(int fid, TSKEY now, minute) {
+//   if (fid >= pRtn->maxFid) {
+//     return 0;
+//   } else if (fid >= pRtn->midFid) {
+//     return 1;
+//   } else if (fid >= pRtn->minFid) {
+//     return 2;
+//   } else {
+//     return -1;
+//   }
+// }
 
 // TSDBROW ======================================================
 void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {

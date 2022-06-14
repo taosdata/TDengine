@@ -15,9 +15,7 @@
 
 #include "tsdb.h"
 
-typedef struct SCommitter SCommitter;
-
-struct SCommitter {
+typedef struct {
   STsdb   *pTsdb;
   uint8_t *pBuf1;
   uint8_t *pBuf2;
@@ -29,15 +27,15 @@ struct SCommitter {
   int8_t  precision;
   int32_t minRow;
   int32_t maxRow;
-  TSKEY   nextCommitKey;
   // commit file data
+  TSKEY            nextKey;
   int32_t          commitFid;
   TSKEY            minKey;
   TSKEY            maxKey;
   SDFileSetReader *pReader;
+  SMapData         oBlockIdx;  // SMapData<SBlockIdx>, read from reader
   SDFileSetWriter *pWriter;
-  SMapData         oBlockIdx;
-  SMapData         nBlockIdx;
+  SMapData         nBlockIdx;  // SMapData<SBlockIdx>, build by committer
   // commit table data
   STbDataIter   iter;
   STbDataIter  *pIter;
@@ -57,7 +55,7 @@ struct SCommitter {
   SDelData     delDataNew;
   SDelIdxItem  delIdxItem;
   /* commit cache */
-};
+} SCommitter;
 
 static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitter *pCommitter);
 static int32_t tsdbCommitData(SCommitter *pCommitter);
@@ -81,8 +79,15 @@ _err:
 
 int32_t tsdbCommit(STsdb *pTsdb) {
   int32_t    code = 0;
-  SCommitter commith = {0};
-  int        fid;
+  SCommitter commith;
+  SMemTable *pMemTable = pTsdb->mem;
+
+  // check
+  if (pMemTable->nRow == 0 && pMemTable->nDel == 0) {  // TODO
+    pTsdb->mem = NULL;
+    tsdbMemTableDestroy(pMemTable);
+    goto _exit;
+  }
 
   // start commit
   code = tsdbStartCommit(pTsdb, &commith);
@@ -112,9 +117,11 @@ int32_t tsdbCommit(STsdb *pTsdb) {
     goto _err;
   }
 
+_exit:
   return code;
 
 _err:
+  tsdbEndCommit(&commith, code);
   tsdbError("vgId:%d, failed to commit since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
   return code;
 }
@@ -122,6 +129,7 @@ _err:
 static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitter *pCommitter) {
   int32_t code = 0;
 
+  memset(pCommitter, 0, sizeof(*pCommitter));
   ASSERT(pTsdb->mem && pTsdb->imem == NULL);
   // lock();
   pTsdb->imem = pTsdb->mem;
@@ -133,36 +141,24 @@ static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitter *pCommitter) {
   return code;
 }
 
-static int32_t tsdbCommitDataStart(SCommitter *pCommitter);
-static int32_t tsdbCommitDataImpl(SCommitter *pCommitter);
-static int32_t tsdbCommitDataEnd(SCommitter *pCommitter);
-
 static int32_t tsdbCommitData(SCommitter *pCommitter) {
   int32_t    code = 0;
   STsdb     *pTsdb = pCommitter->pTsdb;
   SMemTable *pMemTable = pTsdb->imem;
 
-  // no data, just return
+  // check
   if (pMemTable->nRow == 0) {
     goto _exit;
   }
 
-  // start
-  code = tsdbCommitDataStart(pCommitter);
-  if (code) {
-    goto _err;
-  }
-
-  // commit
-  code = tsdbCommitDataImpl(pCommitter);
-  if (code) {
-    goto _err;
-  }
-
-  // end
-  code = tsdbCommitDataEnd(pCommitter);
-  if (code) {
-    goto _err;
+  // loop
+  pCommitter->nextKey = pMemTable->minKey.ts;
+  while (pCommitter->nextKey < TSKEY_MAX) {
+    pCommitter->commitFid = tsdbKeyFid(pCommitter->nextKey, pCommitter->minutes, pCommitter->precision);
+    tsdbFidKeyRange(pCommitter->commitFid, pCommitter->minutes, pCommitter->precision, &pCommitter->minKey,
+                    &pCommitter->maxKey);
+    code = tsdbCommitFileData(pCommitter);
+    if (code) goto _err;
   }
 
 _exit:
@@ -359,40 +355,6 @@ static int32_t tsdbEndCommit(SCommitter *pCommitter, int32_t eno) {
   return code;
 }
 
-static int32_t tsdbCommitDataStart(SCommitter *pCommitter) {
-  int32_t    code = 0;
-  STsdb     *pTsdb = pCommitter->pTsdb;
-  SMemTable *pMemTable = pTsdb->imem;
-
-  pCommitter->nextCommitKey = pMemTable->minKey.ts;
-
-  return code;
-}
-
-static int32_t tsdbCommitFileData(SCommitter *pCommitter);
-
-static int32_t tsdbCommitDataImpl(SCommitter *pCommitter) {
-  int32_t code = 0;
-
-  while (pCommitter->nextCommitKey < TSKEY_MAX) {
-    pCommitter->commitFid = tsdbKeyFid(pCommitter->nextCommitKey, pCommitter->minutes, pCommitter->precision);
-    code = tsdbCommitFileData(pCommitter);
-    if (code) goto _err;
-  }
-
-_exit:
-  return code;
-
-_err:
-  return code;
-}
-
-static int32_t tsdbCommitDataEnd(SCommitter *pCommitter) {
-  int32_t code = 0;
-  // TODO
-  return code;
-}
-
 static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter);
 static int32_t tsdbCommitFileDataImpl(SCommitter *pCommitter);
 static int32_t tsdbCommitFileDataEnd(SCommitter *pCommitter);
@@ -430,10 +392,11 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
   SDFileSet *pRSet = NULL;  // TODO
   SDFileSet *pWSet = NULL;  // TODO
 
+  // memory
+  tMapDataReset(&pCommitter->oBlockIdx);
+  tMapDataReset(&pCommitter->nBlockIdx);
+
   // load old
-  pCommitter->oBlockIdx.nItem = 0;
-  pCommitter->oBlockIdx.flag = 0;
-  pCommitter->oBlockIdx.nData = 0;
   if (pRSet) {
     code = tsdbDFileSetReaderOpen(&pCommitter->pReader, pTsdb, pRSet);
     if (code) goto _err;
@@ -443,9 +406,6 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
   }
 
   // create new
-  pCommitter->nBlockIdx.nItem = 0;
-  pCommitter->nBlockIdx.flag = 0;
-  pCommitter->nBlockIdx.nData = 0;
   code = tsdbDFileSetWriterOpen(&pCommitter->pWriter, pTsdb, pWSet);
   if (code) goto _err;
 
