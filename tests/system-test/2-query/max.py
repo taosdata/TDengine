@@ -11,192 +11,68 @@ class TDTestCase:
 
         self.rowNum = 10
         self.ts = 1537146000000
-
-    def prepare_data(self):
-        
-        pass    
-    def run(self):
+        self.binary_str = 'taosdata'
+        self.nchar_str = '涛思数据'
+    def max_check_stb_and_tb_base(self):
         tdSql.prepare()
-
         intData = []        
         floatData = []
-
-        tdSql.execute('''create table stb(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 float, col6 double, 
-                    col7 bool, col8 binary(20), col9 nchar(20), col11 tinyint unsigned, col12 smallint unsigned, col13 int unsigned, col14 bigint unsigned) tags(loc nchar(20))''')
+        tdSql.execute('''create table stb(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 tinyint unsigned, col6 smallint unsigned, 
+                    col7 int unsigned, col8 bigint unsigned, col9 float, col10 double, col11 bool, col12 binary(20), col13 nchar(20)) tags(loc nchar(20))''')
         tdSql.execute("create table stb_1 using stb tags('beijing')")
-        tdSql.execute('''create table ntb(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 float, col6 double, 
-                    col7 bool, col8 binary(20), col9 nchar(20), col11 tinyint unsigned, col12 smallint unsigned, col13 int unsigned, col14 bigint unsigned)''')
         for i in range(self.rowNum):
-            tdSql.execute("insert into ntb values(%d, %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d', %d, %d, %d, %d)" 
-                        % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1))
+            tdSql.execute(f"insert into stb_1 values(%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '{self.binary_str}%d', '{self.nchar_str}%d')"
+                          % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1))
             intData.append(i + 1)            
             floatData.append(i + 0.1)
-        for i in range(self.rowNum):
-            tdSql.execute("insert into stb_1 values(%d, %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d', %d, %d, %d, %d)" 
-                        % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1))
-            intData.append(i + 1)            
-            floatData.append(i + 0.1)                        
+        for i in ['ts','col11','col12','col13']:
+            for j in ['db.stb','stb','db.stb_1','stb_1']:
+                tdSql.error(f'select max({i} from {j} )')
 
-        # max verifacation 
-        tdSql.error("select max(ts) from stb_1")
-        tdSql.error("select max(ts) from db.stb_1")
-        tdSql.error("select max(col7) from stb_1")
-        tdSql.error("select max(col7) from db.stb_1")
-        tdSql.error("select max(col8) from stb_1")
-        tdSql.error("select max(col8) from db.stb_1")
-        tdSql.error("select max(col9) from stb_1")
-        tdSql.error("select max(col9) from db.stb_1")
-
-        tdSql.query("select max(col1) from stb_1")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col1) from db.stb_1")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col2) from stb_1")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col2) from db.stb_1")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col3) from stb_1")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col3) from db.stb_1")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col4) from stb_1")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col4) from db.stb_1")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col11) from stb_1")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col11) from db.stb_1")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col12) from stb_1")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col12) from db.stb_1")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col13) from stb_1")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col13) from db.stb_1")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col14) from stb_1")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col14) from db.stb_1")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col5) from stb_1")
-        tdSql.checkData(0, 0, np.max(floatData))
-        tdSql.query("select max(col5) from db.stb_1")
-        tdSql.checkData(0, 0, np.max(floatData))
-        tdSql.query("select max(col6) from stb_1")
-        tdSql.checkData(0, 0, np.max(floatData))
-        tdSql.query("select max(col6) from db.stb_1")
-        tdSql.checkData(0, 0, np.max(floatData))
+        for i in range(1,11):
+            for j in ['db.stb','stb','db.stb_1','stb_1']:
+                tdSql.query(f"select max(col{i}) from {j}")
+                if i<9:
+                    tdSql.checkData(0, 0, np.max(intData))
+                elif i>=9:
+                    tdSql.checkData(0, 0, np.max(floatData))
         tdSql.query("select max(col1) from stb_1 where col2<=5")
         tdSql.checkData(0,0,5)
-        
-
-
-        tdSql.error("select max(ts) from stb")
-        tdSql.error("select max(ts) from db.stb")
-        tdSql.error("select max(col7) from stb")
-        tdSql.error("select max(col7) from db.stb")
-        tdSql.error("select max(col8) from stb")
-        tdSql.error("select max(col8) from db.stb")
-        tdSql.error("select max(col9) from stb")
-        tdSql.error("select max(col9) from db.stb")
-
-        tdSql.query("select max(col1) from stb")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col1) from db.stb")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col2) from stb")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col2) from db.stb")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col3) from stb")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col3) from db.stb")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col4) from stb")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col4) from db.stb")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col11) from stb")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col11) from db.stb")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col12) from stb")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col12) from db.stb")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col13) from stb")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col13) from db.stb")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col14) from stb")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col14) from db.stb")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col5) from stb")
-        tdSql.checkData(0, 0, np.max(floatData))
-        tdSql.query("select max(col5) from db.stb")
-        tdSql.checkData(0, 0, np.max(floatData))
-        tdSql.query("select max(col6) from stb")
-        tdSql.checkData(0, 0, np.max(floatData))
-        tdSql.query("select max(col6) from db.stb")
-        tdSql.checkData(0, 0, np.max(floatData))
         tdSql.query("select max(col1) from stb where col2<=5")
         tdSql.checkData(0,0,5)
-
-
-
-        tdSql.error("select max(ts) from ntb")
-        tdSql.error("select max(ts) from db.ntb")
-        tdSql.error("select max(col7) from ntb")
-        tdSql.error("select max(col7) from db.ntb")
-        tdSql.error("select max(col8) from ntb")
-        tdSql.error("select max(col8) from db.ntb")
-        tdSql.error("select max(col9) from ntb")
-        tdSql.error("select max(col9) from db.ntb")
-
-        tdSql.query("select max(col1) from ntb")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col1) from db.ntb")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col2) from ntb")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col2) from db.ntb")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col3) from ntb")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col3) from db.ntb")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col4) from ntb")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col4) from db.ntb")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col11) from ntb")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col11) from db.ntb")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col12) from ntb")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col12) from db.ntb")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col13) from ntb")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col13) from db.ntb")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col14) from ntb")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col14) from db.ntb")
-        tdSql.checkData(0, 0, np.max(intData))
-        tdSql.query("select max(col5) from ntb")
-        tdSql.checkData(0, 0, np.max(floatData))
-        tdSql.query("select max(col5) from db.ntb")
-        tdSql.checkData(0, 0, np.max(floatData))
-        tdSql.query("select max(col6) from ntb")
-        tdSql.checkData(0, 0, np.max(floatData))
-        tdSql.query("select max(col6) from db.ntb")
-        tdSql.checkData(0, 0, np.max(floatData))
-        tdSql.query("select max(col1) from stb_1 where col2<=5")
+        tdSql.execute('drop database db')
+        
+    def max_check_ntb_base(self):
+        tdSql.prepare()
+        intData = []        
+        floatData = []
+        tdSql.execute('''create table ntb(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 tinyint unsigned, col6 smallint unsigned, 
+                    col7 int unsigned, col8 bigint unsigned, col9 float, col10 double, col11 bool, col12 binary(20), col13 nchar(20))''')
+        for i in range(self.rowNum):
+            tdSql.execute(f"insert into ntb values(%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '{self.binary_str}%d', '{self.nchar_str}%d')"
+                          % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1))
+            intData.append(i + 1)            
+            floatData.append(i + 0.1)
+        for i in ['ts','col11','col12','col13']:
+            for j in ['db.ntb','ntb']:
+                tdSql.error(f'select max({i} from {j} )')
+        for i in range(1,11):
+            for j in ['db.ntb','ntb']:
+                tdSql.query(f"select max(col{i}) from {j}")
+                if i<9:
+                    tdSql.checkData(0, 0, np.max(intData))
+                elif i>=9:
+                    tdSql.checkData(0, 0, np.max(floatData))
+        tdSql.query("select max(col1) from ntb where col2<=5")
         tdSql.checkData(0,0,5)
+        tdSql.execute('drop database db')
+    
+    def run(self):
+        self.max_check_stb_and_tb_base()
+        self.max_check_ntb_base()
+
+        
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
