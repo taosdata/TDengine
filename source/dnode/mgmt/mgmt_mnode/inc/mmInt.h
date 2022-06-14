@@ -34,20 +34,14 @@ typedef struct SMnodeMgmt {
   SSingleWorker  writeWorker;
   SSingleWorker  syncWorker;
   SSingleWorker  monitorWorker;
-  SReplica       replicas[TSDB_MAX_REPLICA];
-  int8_t         replica;
   bool           stopped;
   int32_t        refCount;
   TdThreadRwlock lock;
 } SMnodeMgmt;
 
 // mmFile.c
-int32_t mmReadFile(SMnodeMgmt *pMgmt, bool *pDeployed);
-int32_t mmWriteFile(SMnodeMgmt *pMgmt, SDCreateMnodeReq *pMsg, bool deployed);
-
-// mmInt.c
-int32_t mmAcquire(SMnodeMgmt *pMgmt);
-void    mmRelease(SMnodeMgmt *pMgmt);
+int32_t mmReadFile(SMnodeMgmt *pMgmt, SReplica *pReplica, bool *pDeployed);
+int32_t mmWriteFile(SMnodeMgmt *pMgmt, const SReplica *pReplica, bool deployed);
 
 // mmHandle.c
 SArray *mmGetMsgHandles();

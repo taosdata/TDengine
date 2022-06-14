@@ -65,7 +65,7 @@ static bool isCondition(const SNode* pNode) {
 }
 
 static int32_t rewriteIsTrue(SNode* pSrc, SNode** pIsTrue) {
-  SOperatorNode* pOp = nodesMakeNode(QUERY_NODE_OPERATOR);
+  SOperatorNode* pOp = (SOperatorNode*)nodesMakeNode(QUERY_NODE_OPERATOR);
   if (NULL == pOp) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }

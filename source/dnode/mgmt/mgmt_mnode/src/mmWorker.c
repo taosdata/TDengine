@@ -16,6 +16,25 @@
 #define _DEFAULT_SOURCE
 #include "mmInt.h"
 
+static inline int32_t mmAcquire(SMnodeMgmt *pMgmt) {
+  int32_t code = 0;
+
+  taosThreadRwlockRdlock(&pMgmt->lock);
+  if (pMgmt->stopped) {
+    code = -1;
+  } else {
+    atomic_add_fetch_32(&pMgmt->refCount, 1);
+  }
+  taosThreadRwlockUnlock(&pMgmt->lock);
+  return code;
+}
+
+static inline void mmRelease(SMnodeMgmt *pMgmt) {
+  taosThreadRwlockRdlock(&pMgmt->lock);
+  atomic_sub_fetch_32(&pMgmt->refCount, 1);
+  taosThreadRwlockUnlock(&pMgmt->lock);
+}
+
 static inline void mmSendRsp(SRpcMsg *pMsg, int32_t code) {
   SRpcMsg rsp = {
       .code = code,
@@ -82,52 +101,57 @@ static inline int32_t mmPutMsgToWorker(SMnodeMgmt *pMgmt, SSingleWorker *pWorker
   }
 }
 
-inline int32_t mmPutMsgToWriteQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+int32_t mmPutMsgToWriteQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return mmPutMsgToWorker(pMgmt, &pMgmt->writeWorker, pMsg);
 }
 
-inline int32_t mmPutMsgToSyncQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+int32_t mmPutMsgToSyncQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return mmPutMsgToWorker(pMgmt, &pMgmt->syncWorker, pMsg);
 }
 
-inline int32_t mmPutMsgToReadQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+int32_t mmPutMsgToReadQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return mmPutMsgToWorker(pMgmt, &pMgmt->readWorker, pMsg);
 }
 
-inline int32_t mmPutMsgToQueryQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  if (mndPreprocessQueryMsg(pMgmt->pMnode, pMsg) != 0) {
+int32_t mmPutMsgToQueryQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  pMsg->info.node = pMgmt->pMnode;
+  if (mndPreProcessMsg(pMsg) != 0) {
     dError("msg:%p, failed to pre-process in mnode since %s, type:%s", pMsg, terrstr(), TMSG_INFO(pMsg->msgType));
     return -1;
   }
   return mmPutMsgToWorker(pMgmt, &pMgmt->queryWorker, pMsg);
 }
 
-inline int32_t mmPutMsgToMonitorQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+int32_t mmPutMsgToMonitorQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return mmPutMsgToWorker(pMgmt, &pMgmt->monitorWorker, pMsg);
 }
 
-inline int32_t mmPutMsgToQueue(SMnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
-  SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM);
-  if (pMsg == NULL) return -1;
-  dTrace("msg:%p, is created", pMsg);
-
-  memcpy(pMsg, pRpc, sizeof(SRpcMsg));
+int32_t mmPutMsgToQueue(SMnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
+  SSingleWorker *pWorker = NULL;
   switch (qtype) {
     case WRITE_QUEUE:
-      return mmPutMsgToWorker(pMgmt, &pMgmt->writeWorker, pMsg);
+      pWorker = &pMgmt->writeWorker;
+      break;
     case QUERY_QUEUE:
-      return mmPutMsgToWorker(pMgmt, &pMgmt->queryWorker, pMsg);
+      pWorker = &pMgmt->queryWorker;
+      break;
     case READ_QUEUE:
-      return mmPutMsgToWorker(pMgmt, &pMgmt->readWorker, pMsg);
+      pWorker = &pMgmt->readWorker;
+      break;
     case SYNC_QUEUE:
-      return mmPutMsgToWorker(pMgmt, &pMgmt->syncWorker, pMsg);
+      pWorker = &pMgmt->syncWorker;
+      break;
     default:
       terrno = TSDB_CODE_INVALID_PARA;
-      dTrace("msg:%p, is freed", pMsg);
-      taosFreeQitem(pMsg);
-      rpcFreeCont(pMsg->pCont);
-      return -1;
   }
+
+  if (pWorker == NULL) return -1;
+  SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM);
+  if (pMsg == NULL) return -1;
+  memcpy(pMsg, pRpc, sizeof(SRpcMsg));
+
+  dTrace("msg:%p, is created and will put int %s queue", pMsg, pWorker->name);
+  return mmPutMsgToWorker(pMgmt, pWorker, pMsg);
 }
 
 int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
