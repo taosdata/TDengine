@@ -1714,7 +1714,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
     }
 
     int32_t offset = QUERY_IS_ASC_QUERY(pQueryAttr) ? j - num : j - 1;
-    doApplyFunctions(pRuntimeEnv, pInfo->binfo.pCtx, &w, j - num, num, tsList, pSDataBlock->info.rows, pOperator->numOfOutput);
+    doApplyFunctions(pRuntimeEnv, pInfo->binfo.pCtx, &w, offset, num, tsList, pSDataBlock->info.rows, pOperator->numOfOutput);
 
     num = 1;
 
