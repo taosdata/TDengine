@@ -268,6 +268,7 @@ typedef struct SSourceDataInfo {
   uint64_t              totalRows;
   int32_t               code;
   EX_SOURCE_STATUS      status;
+  const char*           id;
 } SSourceDataInfo;
 
 typedef struct SLoadRemoteDataInfo {
