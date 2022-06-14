@@ -24,6 +24,10 @@ TEST_F(PlanPartitionByTest, basic) {
   useDb("root", "test");
 
   run("select * from t1 partition by c1");
+
+  run("select ts, c1 + 1 from st1 partition by c1 + 1");
+
+  run("select ts, jtag->'tag1' from st2 partition by jtag->'tag1'");
 }
 
 TEST_F(PlanPartitionByTest, withAggFunc) {

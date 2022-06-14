@@ -60,7 +60,8 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
       }
       pCol->node.resType = pExpr->resType;
       strcpy(pCol->colName, pExpr->aliasName);
-      return (TSDB_CODE_SUCCESS == nodesListAppend(pCxt->pList, pCol) ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
+      return (TSDB_CODE_SUCCESS == nodesListStrictAppend(pCxt->pList, (SNode*)pCol) ? DEAL_RES_IGNORE_CHILD
+                                                                                    : DEAL_RES_ERROR);
     }
     default:
       break;
@@ -111,7 +112,7 @@ int32_t replaceLogicNode(SLogicSubplan* pSubplan, SLogicNode* pOld, SLogicNode* 
 
   SNode* pNode;
   FOREACH(pNode, pOld->pParent->pChildren) {
-    if (nodesEqualNode(pNode, pOld)) {
+    if (nodesEqualNode(pNode, (SNode*)pOld)) {
       REPLACE_NODE(pNew);
       pNew->pParent = pOld->pParent;
       return TSDB_CODE_SUCCESS;

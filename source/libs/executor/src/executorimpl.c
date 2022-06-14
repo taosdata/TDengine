@@ -202,7 +202,7 @@ SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode) {
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData idata = {{0}};
-    SSlotDescNode*  pDescNode = nodesListGetNode(pNode->pSlots, i);
+    SSlotDescNode*  pDescNode = (SSlotDescNode*)nodesListGetNode(pNode->pSlots, i);
     //    if (!pDescNode->output) {  // todo disable it temporarily
     //      continue;
     //    }
@@ -2920,7 +2920,7 @@ static int32_t initExchangeOperator(SExchangePhysiNode* pExNode, SExchangeInfo* 
   }
 
   for (int32_t i = 0; i < numOfSources; ++i) {
-    SNodeListNode* pNode = nodesListGetNode((SNodeList*)pExNode->pSrcEndPoints, i);
+    SNodeListNode* pNode = (SNodeListNode*)nodesListGetNode((SNodeList*)pExNode->pSrcEndPoints, i);
     taosArrayPush(pInfo->pSources, pNode);
   }
 
@@ -4494,7 +4494,7 @@ SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* 
         if (NULL == res) {  // todo handle error
         } else {
           res->node.resType = (SDataType){.bytes = sizeof(int64_t), .type = TSDB_DATA_TYPE_BIGINT};
-          nodesListAppend(pFuncNode->pParameterList, res);
+          nodesListAppend(pFuncNode->pParameterList, (SNode*)res);
         }
       }
 #endif
