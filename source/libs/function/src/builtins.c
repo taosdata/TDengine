@@ -1774,6 +1774,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = functionSetup,
     .processFunc  = lastFunction,
     .finalizeFunc = firstLastFinalize,
+    .pPartialFunc = "_last_partial",
+    .pMergeFunc   = "_last_merge",
     .combineFunc  = lastCombine,
   },
   {
