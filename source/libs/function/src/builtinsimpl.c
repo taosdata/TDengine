@@ -774,8 +774,8 @@ _avg_over:
 }
 
 static void avgTransferInfo(SAvgRes* pInput, SAvgRes* pOutput) {
-  int16_t type = pInput->type;
-  if (IS_INTEGER_TYPE(type)) {
+  pOutput->type = pInput->type;
+  if (IS_INTEGER_TYPE(pOutput->type)) {
     pOutput->sum.isum += pInput->sum.isum;
   } else {
     pOutput->sum.dsum += pInput->sum.dsum;
@@ -792,11 +792,10 @@ int32_t avgFunctionMerge(SqlFunctionCtx* pCtx) {
   ASSERT(pCol->info.type == TSDB_DATA_TYPE_BINARY);
 
   SAvgRes* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-  SAvgRes* pInputInfo;
 
   int32_t start = pInput->startRowIndex;
   char*   data = colDataGetData(pCol, start);
-  pInputInfo = (SAvgRes*)varDataVal(data);
+  SAvgRes* pInputInfo = (SAvgRes*)varDataVal(data);
 
   avgTransferInfo(pInputInfo, pInfo);
 
@@ -889,8 +888,8 @@ int32_t avgCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
 int32_t avgFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SInputColumnInfoData* pInput = &pCtx->input;
 
-  int32_t  type = pInput->pData[0]->info.type;
   SAvgRes* pAvgRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  int32_t  type = pAvgRes->type;
 
   if (IS_INTEGER_TYPE(type)) {
     pAvgRes->result = pAvgRes->sum.isum / ((double)pAvgRes->count);
@@ -3292,11 +3291,10 @@ int32_t spreadFunctionMerge(SqlFunctionCtx* pCtx) {
   ASSERT(pCol->info.type == TSDB_DATA_TYPE_BINARY);
 
   SSpreadInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-  SSpreadInfo* pInputInfo;
 
   int32_t start = pInput->startRowIndex;
   char*   data = colDataGetData(pCol, start);
-  pInputInfo = (SSpreadInfo*)varDataVal(data);
+  SSpreadInfo* pInputInfo = (SSpreadInfo*)varDataVal(data);
 
   spreadTransferInfo(pInputInfo, pInfo);
 
