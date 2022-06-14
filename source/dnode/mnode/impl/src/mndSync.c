@@ -188,15 +188,15 @@ int32_t mndInitSync(SMnode *pMnode) {
   syncInfo.isStandBy = pMgmt->standby;
   syncInfo.snapshotEnable = true;
 
-  SSyncCfg *pCfg = &syncInfo.syncCfg;
-  pCfg->replicaNum = pMnode->replica;
-  pCfg->myIndex = pMnode->selfIndex;
-  mInfo("start to open mnode sync, replica:%d myindex:%d standby:%d", pCfg->replicaNum, pCfg->myIndex, pMgmt->standby);
-  for (int32_t i = 0; i < pMnode->replica; ++i) {
-    SNodeInfo *pNode = &pCfg->nodeInfo[i];
-    tstrncpy(pNode->nodeFqdn, pMnode->replicas[i].fqdn, sizeof(pNode->nodeFqdn));
-    pNode->nodePort = pMnode->replicas[i].port;
-    mInfo("index:%d, fqdn:%s port:%d", i, pNode->nodeFqdn, pNode->nodePort);
+  mInfo("start to open mnode sync, standby:%d", pMgmt->standby);
+  if (pMgmt->standby || pMgmt->replica.id > 0) {
+    SSyncCfg *pCfg = &syncInfo.syncCfg;
+    pCfg->replicaNum = 1;
+    pCfg->myIndex = 0;
+    SNodeInfo *pNode = &pCfg->nodeInfo[0];
+    tstrncpy(pNode->nodeFqdn, pMgmt->replica.fqdn, sizeof(pNode->nodeFqdn));
+    pNode->nodePort = pMgmt->replica.port;
+    mInfo("fqdn:%s port:%u", pNode->nodeFqdn, pNode->nodePort);
   }
 
   tsem_init(&pMgmt->syncSem, 0, 0);

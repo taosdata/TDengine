@@ -32,9 +32,7 @@ typedef struct {
   int32_t  dnodeId;
   bool     standby;
   bool     deploy;
-  int8_t   replica;
-  int8_t   selfIndex;
-  SReplica replicas[TSDB_MAX_REPLICA];
+  SReplica replica;
   SMsgCb   msgCb;
 } SMnodeOpt;
 
@@ -83,6 +81,7 @@ int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad);
  */
 int32_t mndProcessRpcMsg(SRpcMsg *pMsg);
 int32_t mndProcessSyncMsg(SRpcMsg *pMsg);
+int32_t mndPreprocessQueryMsg(SMnode * pMnode, SRpcMsg * pMsg);
 
 /**
  * @brief Generate machine code

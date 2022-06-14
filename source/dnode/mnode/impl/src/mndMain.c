@@ -289,11 +289,9 @@ static int32_t mndExecSteps(SMnode *pMnode) {
 }
 
 static void mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
-  pMnode->replica = pOption->replica;
-  pMnode->selfIndex = pOption->selfIndex;
-  memcpy(&pMnode->replicas, pOption->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
   pMnode->msgCb = pOption->msgCb;
   pMnode->selfDnodeId = pOption->dnodeId;
+  pMnode->syncMgmt.replica = pOption->replica;
   pMnode->syncMgmt.standby = pOption->standby;
 }
 
