@@ -416,6 +416,8 @@ static int32_t stbSplCreatePartAggNode(SAggLogicNode* pMergeAgg, SLogicNode** pO
   pMergeAgg->node.pTargets = NULL;
   SNodeList* pChildren = pMergeAgg->node.pChildren;
   pMergeAgg->node.pChildren = NULL;
+  SNode* pConditions = pMergeAgg->node.pConditions;
+  pMergeAgg->node.pConditions = NULL;
 
   int32_t        code = TSDB_CODE_SUCCESS;
   SAggLogicNode* pPartAgg = (SAggLogicNode*)nodesCloneNode((SNode*)pMergeAgg);
@@ -434,6 +436,7 @@ static int32_t stbSplCreatePartAggNode(SAggLogicNode* pMergeAgg, SLogicNode** pO
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
+    pMergeAgg->node.pConditions = pConditions;
     pMergeAgg->node.pTargets = pTargets;
     pPartAgg->node.pChildren = pChildren;
 
