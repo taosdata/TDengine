@@ -139,8 +139,7 @@ _err:
   return code;
 }
 
-int32_t tsdbWriteDelData(SDelFWriter *pWriter, SDelDataInfo *pInfo, SMapData *pDelDataMap, uint8_t **ppBuf,
-                         int64_t *rOffset, int64_t *rSize) {
+int32_t tsdbWriteDelData(SDelFWriter *pWriter, SMapData *pDelDataMap, uint8_t **ppBuf, SDelIdx *pDelIdx) {
   int32_t  code = 0;
   uint8_t *pBuf = NULL;
   int64_t  size = 0;
@@ -148,8 +147,8 @@ int32_t tsdbWriteDelData(SDelFWriter *pWriter, SDelDataInfo *pInfo, SMapData *pD
 
   // prepare
   size += tPutU32(NULL, TSDB_FILE_DLMT);
-  size += tPutI64(NULL, pInfo->suid);
-  size += tPutI64(NULL, pInfo->uid);
+  size += tPutI64(NULL, pDelIdx->suid);
+  size += tPutI64(NULL, pDelIdx->uid);
   size = size + tPutMapData(NULL, pDelDataMap) + sizeof(TSCKSUM);
 
   // alloc
@@ -159,8 +158,8 @@ int32_t tsdbWriteDelData(SDelFWriter *pWriter, SDelDataInfo *pInfo, SMapData *pD
 
   // build
   n += tPutU32(*ppBuf + n, TSDB_FILE_DLMT);
-  n += tPutI64(*ppBuf + n, pInfo->suid);
-  n += tPutI64(*ppBuf + n, pInfo->uid);
+  n += tPutI64(*ppBuf + n, pDelIdx->suid);
+  n += tPutI64(*ppBuf + n, pDelIdx->uid);
   n += tPutMapData(*ppBuf + n, pDelDataMap);
   taosCalcChecksumAppend(0, *ppBuf, size);
 
@@ -176,8 +175,8 @@ int32_t tsdbWriteDelData(SDelFWriter *pWriter, SDelDataInfo *pInfo, SMapData *pD
   ASSERT(n == size);
 
   // update
-  *rOffset = pWriter->pFile->size;
-  *rSize = size;
+  pDelIdx->offset = pWriter->pFile->size;
+  pDelIdx->size = size;
   pWriter->pFile->offset = pWriter->pFile->size;
   pWriter->pFile->size += size;
 
@@ -348,10 +347,11 @@ _exit:
 }
 
 int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SMapData *pDelDataMap, uint8_t **ppBuf) {
-  int32_t      code = 0;
-  int64_t      n;
-  uint32_t     delimiter;
-  SDelDataInfo info;
+  int32_t  code = 0;
+  int64_t  n;
+  uint32_t delimiter;
+  tb_uid_t suid;
+  tb_uid_t uid;
 
   // seek
   if (taosLSeekFile(pReader->pReadH, pDelIdx->offset, SEEK_SET) < 0) {
@@ -381,10 +381,10 @@ int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SMapData *pDelDa
   n = 0;
   n += tGetU32(*ppBuf + n, &delimiter);
   ASSERT(delimiter == TSDB_FILE_DLMT);
-  n += tGetI64(*ppBuf + n, &info.suid);
-  ASSERT(info.suid == pDelIdx->suid);
-  n += tGetI64(*ppBuf + n, &info.uid);
-  ASSERT(info.uid == pDelIdx->uid);
+  n += tGetI64(*ppBuf + n, &suid);
+  ASSERT(suid == pDelIdx->suid);
+  n += tGetI64(*ppBuf + n, &uid);
+  ASSERT(uid == pDelIdx->uid);
   n += tGetMapData(*ppBuf + n, pDelDataMap);
   ASSERT(n + sizeof(TSCKSUM) == pDelIdx->size);
 

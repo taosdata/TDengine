@@ -37,7 +37,6 @@ typedef struct TABLEID       TABLEID;
 typedef struct SDelOp        SDelOp;
 typedef struct SDelData      SDelData;
 typedef struct SDelIdx       SDelIdx;
-typedef struct SDelDataInfo  SDelDataInfo;
 typedef struct STbData       STbData;
 typedef struct SMemTable     SMemTable;
 typedef struct STbDataIter   STbDataIter;
@@ -48,7 +47,6 @@ typedef struct SMapData      SMapData;
 typedef struct SColData      SColData;
 typedef struct SColDataBlock SColDataBlock;
 typedef struct SBlockSMA     SBlockSMA;
-typedef struct SBlockIdxItem SBlockIdxItem;
 typedef struct SBlockIdx     SBlockIdx;
 typedef struct SBlockInfo    SBlockInfo;
 typedef struct SBlock        SBlock;
@@ -118,8 +116,7 @@ typedef struct SDelFWriter SDelFWriter;
 
 int32_t tsdbDelFWriterOpen(SDelFWriter **ppWriter, SDelFile *pFile, STsdb *pTsdb);
 int32_t tsdbDelFWriterClose(SDelFWriter *pWriter, int8_t sync);
-int32_t tsdbWriteDelData(SDelFWriter *pWriter, SDelDataInfo *pInfo, SMapData *pDelDataMap, uint8_t **ppBuf,
-                         int64_t *rOffset, int64_t *rSize);
+int32_t tsdbWriteDelData(SDelFWriter *pWriter, SMapData *pDelDataMap, uint8_t **ppBuf, SDelIdx *pDelIdx);
 int32_t tsdbWriteDelIdx(SDelFWriter *pWriter, SMapData *pDelIdxMap, uint8_t **ppBuf);
 int32_t tsdbUpdateDelFileHdr(SDelFWriter *pWriter, uint8_t **ppBuf);
 
@@ -150,29 +147,17 @@ int32_t tPutMapData(uint8_t *p, SMapData *pMapData);
 int32_t tGetMapData(uint8_t *p, SMapData *pMapData);
 
 // SBlockIdx
-int32_t tBlockIdxClear(SBlockIdx *pBlockIdx);
-int32_t tBlockIdxPutItem(SBlockIdx *pBlockIdx, SBlockIdxItem *pItem);
-int32_t tBlockIdxGetItemByIdx(SBlockIdx *pBlockIdx, SBlockIdxItem *pItem, int32_t idx);
-int32_t tBlockIdxGetItem(SBlockIdx *pBlockIdx, SBlockIdxItem *pItem, TABLEID id);
-int32_t tPutBlockIdx(uint8_t *p, SBlockIdx *pBlockIdx);
-int32_t tGetBlockIdx(uint8_t *p, SBlockIdx *pBlockIdx);
+int32_t tPutBlockIdx(uint8_t *p, void *ph);
+int32_t tGetBlockIdx(uint8_t *p, void *ph);
 
 // SBlock
 int32_t tBlockCmprFn(const void *p1, const void *p2);
 
 // SDelIdx
-// int32_t tDelIdxClear(SDelIdx *pDelIdx);
-// int32_t tDelIdxPutItem(SDelIdx *pDelIdx, SDelIdxItem *pItem);
-// int32_t tDelIdxGetItemByIdx(SDelIdx *pDelIdx, SDelIdxItem *pItem, int32_t idx);
-// int32_t tDelIdxGetItem(SDelIdx *pDelIdx, SDelIdxItem *pItem, TABLEID id);
 int32_t tPutDelIdx(uint8_t *p, void *ph);
 int32_t tGetDelIdx(uint8_t *p, void *ph);
 
 // SDelData
-// int32_t tDelDataClear(SDelData *pDelData);
-// int32_t tDelDataPutItem(SDelData *pDelData, SDelDataItem *pItem);
-// int32_t tDelDataGetItemByIdx(SDelData *pDelData, SDelDataItem *pItem, int32_t idx);
-// int32_t tDelDataGetItem(SDelData *pDelData, SDelDataItem *pItem, int64_t version);
 int32_t tPutDelData(uint8_t *p, void *ph);
 int32_t tGetDelData(uint8_t *p, void *ph);
 

@@ -139,35 +139,6 @@ static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitter *pCommitter) {
   return code;
 }
 
-static int32_t tsdbCommitData(SCommitter *pCommitter) {
-  int32_t    code = 0;
-  STsdb     *pTsdb = pCommitter->pTsdb;
-  SMemTable *pMemTable = pTsdb->imem;
-
-  // check
-  if (pMemTable->nRow == 0) {
-    goto _exit;
-  }
-
-  // loop
-  pCommitter->nextKey = pMemTable->minKey.ts;
-  while (pCommitter->nextKey < TSKEY_MAX) {
-    pCommitter->commitFid = tsdbKeyFid(pCommitter->nextKey, pCommitter->minutes, pCommitter->precision);
-    tsdbFidKeyRange(pCommitter->commitFid, pCommitter->minutes, pCommitter->precision, &pCommitter->minKey,
-                    &pCommitter->maxKey);
-    code = tsdbCommitFileData(pCommitter);
-    if (code) goto _err;
-  }
-
-_exit:
-  tsdbDebug("vgId:%d commit data done, nRow:%" PRId64, TD_VID(pTsdb->pVnode), pMemTable->nRow);
-  return code;
-
-_err:
-  tsdbError("vgId:%d commit data failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
-  return code;
-}
-
 static int32_t tsdbCommitDelStart(SCommitter *pCommitter) {
   int32_t    code = 0;
   STsdb     *pTsdb = pCommitter->pTsdb;
@@ -197,6 +168,90 @@ _exit:
 
 _err:
   tsdbError("vgId:%d commit del start failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  return code;
+}
+
+static int32_t tsdbCommitTableDel(SCommitter *pCommitter, STbData *pTbData, SDelIdx *pDelIdx) {
+  int32_t  code = 0;
+  SDelData delData;
+  SDelOp  *pDelOp;
+  tb_uid_t suid;
+  tb_uid_t uid;
+  SDelIdx  delIdx;  // TODO
+
+  // check no del data, just return
+  if (pTbData && pTbData->pHead == NULL) {
+    pTbData = NULL;
+  }
+  if (pTbData == NULL && pDelIdx == NULL) goto _exit;
+
+  // prepare
+  if (pTbData) {
+    delIdx.suid = pTbData->suid;
+    delIdx.uid = pTbData->uid;
+  } else {
+    delIdx.suid = pDelIdx->suid;
+    delIdx.uid = pDelIdx->uid;
+  }
+  delIdx.minKey = TSKEY_MAX;
+  delIdx.maxKey = TSKEY_MIN;
+  delIdx.minVersion = INT64_MAX;
+  delIdx.maxVersion = -1;
+
+  // start
+  tMapDataReset(&pCommitter->oDelDataMap);
+  tMapDataReset(&pCommitter->nDelDataMap);
+
+  if (pDelIdx) {
+    code = tsdbReadDelData(pCommitter->pDelFReader, pDelIdx, &pCommitter->oDelDataMap, NULL);
+    if (code) goto _err;
+  }
+
+  // disk
+  for (int32_t iDelData = 0; iDelData < pCommitter->oDelDataMap.nItem; iDelData++) {
+    code = tMapDataGetItemByIdx(&pCommitter->oDelDataMap, iDelData, &delData, tGetDelData);
+    if (code) goto _err;
+
+    code = tMapDataPutItem(&pCommitter->nDelDataMap, &delData, tPutDelData);
+    if (code) goto _err;
+
+    if (delIdx.minKey > delData.sKey) delIdx.minKey = delData.sKey;
+    if (delIdx.maxKey < delData.eKey) delIdx.maxKey = delData.eKey;
+    if (delIdx.minVersion > delData.version) delIdx.minVersion = delData.version;
+    if (delIdx.maxVersion < delData.version) delIdx.maxVersion = delData.version;
+  }
+
+  // memory
+  pDelOp = pTbData ? pTbData->pHead : NULL;
+  for (; pDelOp; pDelOp = pDelOp->pNext) {
+    delData.version = pDelOp->version;
+    delData.sKey = pDelOp->sKey;
+    delData.eKey = pDelOp->eKey;
+
+    code = tMapDataPutItem(&pCommitter->nDelDataMap, &delData, tPutDelData);
+    if (code) goto _err;
+
+    if (delIdx.minKey > delData.sKey) delIdx.minKey = delData.sKey;
+    if (delIdx.maxKey < delData.eKey) delIdx.maxKey = delData.eKey;
+    if (delIdx.minVersion > delData.version) delIdx.minVersion = delData.version;
+    if (delIdx.maxVersion < delData.version) delIdx.maxVersion = delData.version;
+  }
+
+  ASSERT(pCommitter->nDelDataMap.nItem > 0);
+
+  // write
+  code = tsdbWriteDelData(pCommitter->pDelFWriter, &pCommitter->nDelDataMap, NULL, &delIdx);
+  if (code) goto _err;
+
+  // put delIdx
+  code = tMapDataPutItem(&pCommitter->nDelIdxMap, &delIdx, tPutDelIdx);
+  if (code) goto _err;
+
+_exit:
+  return code;
+
+_err:
+  tsdbError("vgId:%d commit table del failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -313,48 +368,6 @@ static int32_t tsdbCommitDelEnd(SCommitter *pCommitter) {
 
 _err:
   tsdbError("vgId:%d commit del end failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
-  return code;
-}
-
-static int32_t tsdbCommitDel(SCommitter *pCommitter) {
-  int32_t    code = 0;
-  STsdb     *pTsdb = pCommitter->pTsdb;
-  SMemTable *pMemTable = pTsdb->imem;
-
-  if (pMemTable->nDel == 0) {
-    goto _exit;
-  }
-
-  // start
-  code = tsdbCommitDelStart(pCommitter);
-  if (code) {
-    goto _err;
-  }
-
-  // impl
-  code = tsdbCommitDelImpl(pCommitter);
-  if (code) {
-    goto _err;
-  }
-
-  // end
-  code = tsdbCommitDelEnd(pCommitter);
-  if (code) {
-    goto _err;
-  }
-
-_exit:
-  tsdbDebug("vgId:%d commit del done, nDel:%" PRId64, TD_VID(pTsdb->pVnode), pMemTable->nDel);
-  return code;
-
-_err:
-  tsdbError("vgId:%d commit del failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
-  return code;
-}
-
-static int32_t tsdbCommitCache(SCommitter *pCommitter) {
-  int32_t code = 0;
-  // TODO
   return code;
 }
 
@@ -619,89 +632,73 @@ static int32_t tsdbCommitTableDataEnd(SCommitter *pCommitter) {
   return code;
 }
 
-static int32_t tsdbCommitTableDel(SCommitter *pCommitter, STbData *pTbData, SDelIdx *pDelIdx) {
-  int32_t      code = 0;
-  SDelData     delData;
-  SDelOp      *pDelOp;
-  tb_uid_t     suid;
-  tb_uid_t     uid;
-  SDelIdx      delIdx;  // TODO
-  SDelDataInfo info;    // TODO
+static int32_t tsdbCommitData(SCommitter *pCommitter) {
+  int32_t    code = 0;
+  STsdb     *pTsdb = pCommitter->pTsdb;
+  SMemTable *pMemTable = pTsdb->imem;
 
-  // check no del data, just return
-  if (pTbData && pTbData->pHead == NULL) {
-    pTbData = NULL;
+  // check
+  if (pMemTable->nRow == 0) {
+    goto _exit;
   }
-  if (pTbData == NULL && pDelIdx == NULL) goto _exit;
 
-  // prepare
-  if (pTbData) {
-    info.suid = pTbData->suid;
-    info.uid = pTbData->uid;
-  } else {
-    info.suid = pDelIdx->suid;
-    info.uid = pDelIdx->uid;
-  }
-  delIdx.suid = info.suid;
-  delIdx.uid = info.uid;
-  delIdx.minKey = TSKEY_MAX;
-  delIdx.maxKey = TSKEY_MIN;
-  delIdx.minVersion = INT64_MAX;
-  delIdx.maxVersion = -1;
-
-  // start
-  tMapDataReset(&pCommitter->oDelDataMap);
-  tMapDataReset(&pCommitter->nDelDataMap);
-
-  if (pDelIdx) {
-    code = tsdbReadDelData(pCommitter->pDelFReader, pDelIdx, &pCommitter->oDelDataMap, NULL);
+  // loop
+  pCommitter->nextKey = pMemTable->minKey.ts;
+  while (pCommitter->nextKey < TSKEY_MAX) {
+    pCommitter->commitFid = tsdbKeyFid(pCommitter->nextKey, pCommitter->minutes, pCommitter->precision);
+    tsdbFidKeyRange(pCommitter->commitFid, pCommitter->minutes, pCommitter->precision, &pCommitter->minKey,
+                    &pCommitter->maxKey);
+    code = tsdbCommitFileData(pCommitter);
     if (code) goto _err;
   }
-
-  // disk
-  for (int32_t iDelData = 0; iDelData < pCommitter->oDelDataMap.nItem; iDelData++) {
-    code = tMapDataGetItemByIdx(&pCommitter->oDelDataMap, iDelData, &delData, tGetDelData);
-    if (code) goto _err;
-
-    code = tMapDataPutItem(&pCommitter->nDelDataMap, &delData, tPutDelData);
-    if (code) goto _err;
-
-    if (delIdx.minKey > delData.sKey) delIdx.minKey = delData.sKey;
-    if (delIdx.maxKey < delData.eKey) delIdx.maxKey = delData.eKey;
-    if (delIdx.minVersion > delData.version) delIdx.minVersion = delData.version;
-    if (delIdx.maxVersion < delData.version) delIdx.maxVersion = delData.version;
-  }
-
-  // memory
-  pDelOp = pTbData ? pTbData->pHead : NULL;
-  for (; pDelOp; pDelOp = pDelOp->pNext) {
-    delData.version = pDelOp->version;
-    delData.sKey = pDelOp->sKey;
-    delData.eKey = pDelOp->eKey;
-
-    code = tMapDataPutItem(&pCommitter->nDelDataMap, &delData, tPutDelData);
-    if (code) goto _err;
-
-    if (delIdx.minKey > delData.sKey) delIdx.minKey = delData.sKey;
-    if (delIdx.maxKey < delData.eKey) delIdx.maxKey = delData.eKey;
-    if (delIdx.minVersion > delData.version) delIdx.minVersion = delData.version;
-    if (delIdx.maxVersion < delData.version) delIdx.maxVersion = delData.version;
-  }
-
-  ASSERT(pCommitter->nDelDataMap.nItem > 0);
-
-  // write
-  code = tsdbWriteDelData(pCommitter->pDelFWriter, &info, &pCommitter->nDelDataMap, NULL, &delIdx.offset, &delIdx.size);
-  if (code) goto _err;
-
-  // put delIdx
-  code = tMapDataPutItem(&pCommitter->nDelIdxMap, &delIdx, tPutDelIdx);
-  if (code) goto _err;
 
 _exit:
+  tsdbDebug("vgId:%d commit data done, nRow:%" PRId64, TD_VID(pTsdb->pVnode), pMemTable->nRow);
   return code;
 
 _err:
-  tsdbError("vgId:%d commit table del failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d commit data failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  return code;
+}
+
+static int32_t tsdbCommitDel(SCommitter *pCommitter) {
+  int32_t    code = 0;
+  STsdb     *pTsdb = pCommitter->pTsdb;
+  SMemTable *pMemTable = pTsdb->imem;
+
+  if (pMemTable->nDel == 0) {
+    goto _exit;
+  }
+
+  // start
+  code = tsdbCommitDelStart(pCommitter);
+  if (code) {
+    goto _err;
+  }
+
+  // impl
+  code = tsdbCommitDelImpl(pCommitter);
+  if (code) {
+    goto _err;
+  }
+
+  // end
+  code = tsdbCommitDelEnd(pCommitter);
+  if (code) {
+    goto _err;
+  }
+
+_exit:
+  tsdbDebug("vgId:%d commit del done, nDel:%" PRId64, TD_VID(pTsdb->pVnode), pMemTable->nDel);
+  return code;
+
+_err:
+  tsdbError("vgId:%d commit del failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  return code;
+}
+
+static int32_t tsdbCommitCache(SCommitter *pCommitter) {
+  int32_t code = 0;
+  // TODO
   return code;
 }
