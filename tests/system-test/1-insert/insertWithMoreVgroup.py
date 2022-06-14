@@ -274,27 +274,9 @@ class TDTestCase:
 
         return 
 
-    # test case2 base:insert data
-    def test_case2(self):
-
-        tdLog.debug("-----muti-thread insert data test------- ")
-        # drop database
-        tdSql.execute("drop database if exists db1")
-        tdSql.execute("drop database if exists db4")
-        tdSql.execute("drop database if exists db6")
-        tdSql.execute("drop database if exists db8")
-        tdSql.execute("drop database if exists db12")
-        tdSql.execute("drop database if exists db16")
-
-        #create database and tables;
-
-        tdSql.execute("create database db1 vgroups 1")
-        self.create_tables("db1", "stb1", 1*100)
-        self.insert_data("db1", "stb1", self.ts, 1*50,1*10000)
-        return
 
     def test_case3(self):
-        self.taosBenchCreate("127.0.0.1","no","db1", "stb1", 1, 1, 1*10)
+        self.taosBenchCreate("127.0.0.1","no","db1", "stb1", 1, 8, 1*10)
         # self.taosBenchCreate("test209","no","db2", "stb2", 1, 8, 1*10000)
 
         # self.taosBenchCreate("chenhaoran02","no","db1", "stb1", 1, 8, 1*10000)
@@ -349,22 +331,18 @@ class TDTestCase:
     # run case   
     def run(self):
 
-        # # create database and tables。
-        # self.test_case1()
-        # tdLog.debug(" LIMIT test_case1 ............ [OK]")
-
-    #    # taosBenchmark ： create database and table 
-    #     self.test_case2()
-    #     tdLog.debug(" LIMIT test_case2 ............ [OK]")
+        # create database and tables。
+        self.test_case1()
+        tdLog.debug(" LIMIT test_case1 ............ [OK]")
 
         # taosBenchmark：create database/table and insert data
         self.test_case3()
         tdLog.debug(" LIMIT test_case3 ............ [OK]")
 
 
-        # # test qnode
-        # self.test_case4()
-        # tdLog.debug(" LIMIT test_case3 ............ [OK]")
+        # test qnode
+        self.test_case4()
+        tdLog.debug(" LIMIT test_case3 ............ [OK]")
 
 
         return 
