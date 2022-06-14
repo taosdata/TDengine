@@ -50,7 +50,7 @@ STqOffsetStore* tqOffsetOpen(STQ* pTq) {
 
     while (1) {
       if ((code = taosReadFile(pFile, &head, sizeof(STqOffsetHead))) != sizeof(STqOffsetHead)) {
-        if (code < 0) {
+        if (code == 0) {
           break;
         } else {
           ASSERT(0);
