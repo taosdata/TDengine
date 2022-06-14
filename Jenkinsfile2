@@ -115,6 +115,7 @@ def pre_test(){
         cd ${WKPY}
         git reset --hard
         git pull
+        git log -5
     '''
     return 1
 }
