@@ -942,8 +942,6 @@ void doInvokeUdf(SUdfInfo* pUdfInfo, SQLFunctionCtx *pCtx, int32_t idx, int32_t 
 
 static void doApplyFunctions(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx, STimeWindow* pWin, int32_t offset,
                              int32_t forwardStep, TSKEY* tsCol, int32_t numOfTotal, int32_t numOfOutput) {
-  SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
-
   for (int32_t k = 0; k < numOfOutput; ++k) {
     bool hasAggregates = pCtx[k].preAggVals.isSet;
 
@@ -953,13 +951,13 @@ static void doApplyFunctions(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx
     // keep it temporarialy
     char* start = pCtx[k].pInput;
 
-    int32_t pos = (QUERY_IS_ASC_QUERY(pQueryAttr)) ? offset : offset - (forwardStep - 1);
+    // deal order by in aAggs.xFunction, not here
     if (pCtx[k].pInput != NULL) {
-      pCtx[k].pInput = (char *)pCtx[k].pInput + pos * pCtx[k].inputBytes;
+      pCtx[k].pInput = (char *)pCtx[k].pInput + offset * pCtx[k].inputBytes;
     }
 
     if (tsCol != NULL) {
-      pCtx[k].ptsList = &tsCol[pos];
+      pCtx[k].ptsList = &tsCol[offset];
     }
 
     // not a whole block involved in query processing, statistics data can not be used
