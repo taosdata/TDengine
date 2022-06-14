@@ -957,9 +957,9 @@ SNode* createCreateSubTableClause(SAstCreateContext* pCxt, bool ignoreExists, SN
   pStmt->ignoreExists = ignoreExists;
   pStmt->pSpecificTags = pSpecificTags;
   pStmt->pValsOfTags = pValsOfTags;
+  pStmt->pOptions = (STableOptions*)pOptions;
   nodesDestroyNode(pRealTable);
   nodesDestroyNode(pUseRealTable);
-  nodesDestroyNode(pOptions);
   return (SNode*)pStmt;
 }
 

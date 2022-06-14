@@ -121,6 +121,7 @@ typedef struct SCreateSubTableClause {
   bool       ignoreExists;
   SNodeList* pSpecificTags;
   SNodeList* pValsOfTags;
+  STableOptions* pOptions;
 } SCreateSubTableClause;
 
 typedef struct SCreateMultiTableStmt {
