@@ -15,120 +15,9 @@
 
 #include "tsdb.h"
 
-// SOffset =======================================================================
 #define TSDB_OFFSET_I32 ((uint8_t)0)
 #define TSDB_OFFSET_I16 ((uint8_t)1)
 #define TSDB_OFFSET_I8  ((uint8_t)2)
-
-static FORCE_INLINE int32_t tsdbOffsetSize(SOffset *pOfst) {
-  switch (pOfst->flag) {
-    case TSDB_OFFSET_I32:
-      return sizeof(int32_t);
-    case TSDB_OFFSET_I16:
-      return sizeof(int16_t);
-    case TSDB_OFFSET_I8:
-      return sizeof(int8_t);
-    default:
-      ASSERT(0);
-  }
-}
-
-static FORCE_INLINE int32_t tsdbGetOffset(SOffset *pOfst, int32_t idx) {
-  int32_t offset = -1;
-
-  if (idx >= 0 && idx < pOfst->nOffset) {
-    switch (pOfst->flag) {
-      case TSDB_OFFSET_I32:
-        offset = ((int32_t *)pOfst->pOffset)[idx];
-        break;
-      case TSDB_OFFSET_I16:
-        offset = ((int16_t *)pOfst->pOffset)[idx];
-        break;
-      case TSDB_OFFSET_I8:
-        offset = ((int8_t *)pOfst->pOffset)[idx];
-        break;
-      default:
-        ASSERT(0);
-    }
-
-    ASSERT(offset >= 0);
-  }
-
-  return offset;
-}
-
-static FORCE_INLINE int32_t tsdbAddOffset(SOffset *pOfst, int32_t offset) {
-  int32_t code = 0;
-  int32_t nOffset = pOfst->nOffset;
-
-  ASSERT(pOfst->flag == TSDB_OFFSET_I32);
-  ASSERT(offset >= 0);
-
-  pOfst->nOffset++;
-
-  // alloc
-  code = tsdbRealloc(&pOfst->pOffset, sizeof(int32_t) * pOfst->nOffset);
-  if (code) goto _exit;
-
-  // put
-  ((int32_t *)pOfst->pOffset)[nOffset] = offset;
-
-_exit:
-  return code;
-}
-
-static FORCE_INLINE int32_t tPutOffset(uint8_t *p, SOffset *pOfst) {
-  int32_t n = 0;
-  int32_t maxOffset;
-
-  ASSERT(pOfst->flag == TSDB_OFFSET_I32);
-  ASSERT(pOfst->nOffset > 0);
-
-  maxOffset = tsdbGetOffset(pOfst, pOfst->nOffset - 1);
-
-  n += tPutI32v(p ? p + n : p, pOfst->nOffset);
-  if (maxOffset <= INT8_MAX) {
-    n += tPutU8(p ? p + n : p, TSDB_OFFSET_I8);
-    for (int32_t iOffset = 0; iOffset < pOfst->nOffset; iOffset++) {
-      n += tPutI8(p ? p + n : p, (int8_t)tsdbGetOffset(pOfst, iOffset));
-    }
-  } else if (maxOffset <= INT16_MAX) {
-    n += tPutU8(p ? p + n : p, TSDB_OFFSET_I16);
-    for (int32_t iOffset = 0; iOffset < pOfst->nOffset; iOffset++) {
-      n += tPutI16(p ? p + n : p, (int16_t)tsdbGetOffset(pOfst, iOffset));
-    }
-  } else {
-    n += tPutU8(p ? p + n : p, TSDB_OFFSET_I32);
-    for (int32_t iOffset = 0; iOffset < pOfst->nOffset; iOffset++) {
-      n += tPutI32(p ? p + n : p, (int32_t)tsdbGetOffset(pOfst, iOffset));
-    }
-  }
-
-  return n;
-}
-
-static FORCE_INLINE int32_t tGetOffset(uint8_t *p, SOffset *pOfst) {
-  int32_t n = 0;
-
-  n += tGetI32v(p + n, &pOfst->nOffset);
-  n += tGetU8(p + n, &pOfst->flag);
-  pOfst->pOffset = p + n;
-  switch (pOfst->flag) {
-    case TSDB_OFFSET_I32:
-      n = n + pOfst->nOffset + sizeof(int32_t);
-      break;
-    case TSDB_OFFSET_I16:
-      n = n + pOfst->nOffset + sizeof(int16_t);
-      break;
-    case TSDB_OFFSET_I8:
-      n = n + pOfst->nOffset + sizeof(int8_t);
-      break;
-    default:
-      ASSERT(0);
-  }
-
-  return n;
-}
 
 // SMapData =======================================================================
 void tMapDataReset(SMapData *pMapData) {
@@ -299,6 +188,7 @@ void tsdbFree(uint8_t *pBuf) {
   }
 }
 
+// TABLEID =======================================================================
 int32_t tTABLEIDCmprFn(const void *p1, const void *p2) {
   TABLEID *pId1 = (TABLEID *)p1;
   TABLEID *pId2 = (TABLEID *)p2;
@@ -318,6 +208,7 @@ int32_t tTABLEIDCmprFn(const void *p1, const void *p2) {
   return 0;
 }
 
+// TSDBKEY =======================================================================
 int32_t tsdbKeyCmprFn(const void *p1, const void *p2) {
   TSDBKEY *pKey1 = (TSDBKEY *)p1;
   TSDBKEY *pKey2 = (TSDBKEY *)p2;

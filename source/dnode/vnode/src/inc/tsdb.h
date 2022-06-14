@@ -42,7 +42,6 @@ typedef struct SMemTable     SMemTable;
 typedef struct STbDataIter   STbDataIter;
 typedef struct SMergeInfo    SMergeInfo;
 typedef struct STable        STable;
-typedef struct SOffset       SOffset;
 typedef struct SMapData      SMapData;
 typedef struct SColData      SColData;
 typedef struct SColDataBlock SColDataBlock;
@@ -93,10 +92,11 @@ int32_t tsdbFSEnd(STsdbFS *pFS, int8_t rollback);
 // SDataFWriter
 typedef struct SDataFWriter SDataFWriter;
 
-int32_t tsdbDataFWriterOpen(SDataFWriter *pWriter, STsdb *pTsdb, SDFileSet *pSet);
-int32_t tsdbDataFWriterClose(SDataFWriter *pWriter);
+int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pSet);
+int32_t tsdbDataFWriterClose(SDataFWriter *pWriter, int8_t sync);
+int32_t tsdbUpdateDFileSetHeader(SDataFWriter *pWriter, uint8_t **ppBuf);
 int32_t tsdbWriteBlockIdx(SDataFWriter *pWriter, SMapData *pMapData, uint8_t **ppBuf);
-int32_t tsdbWriteBlock(SDataFWriter *pWriter, SMapData *pMapData, uint8_t **ppBuf, int64_t *rOffset, int64_t *rSize);
+int32_t tsdbWriteBlock(SDataFWriter *pWriter, SMapData *pMapData, uint8_t **ppBuf, SBlockIdx *pBlockIdx);
 int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SColDataBlock *pBlockData, uint8_t **ppBuf, int64_t *rOffset,
                            int64_t *rSize);
 int32_t tsdbWriteBlockSMA(SDataFWriter *pWriter, SBlockSMA *pBlockSMA, int64_t *rOffset, int64_t *rSize);
@@ -104,7 +104,7 @@ int32_t tsdbWriteBlockSMA(SDataFWriter *pWriter, SBlockSMA *pBlockSMA, int64_t *
 // SDataFReader
 typedef struct SDataFReader SDataFReader;
 
-int32_t tsdbDataFReaderOpen(SDataFReader *pReader, STsdb *pTsdb, SDFileSet *pSet);
+int32_t tsdbDataFReaderOpen(SDataFReader **ppReader, STsdb *pTsdb, SDFileSet *pSet);
 int32_t tsdbDataFReaderClose(SDataFReader *pReader);
 int32_t tsdbReadBlockIdx(SDataFReader *pReader, SMapData *pMapData, uint8_t **ppBuf);
 int32_t tsdbReadBlock(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *pMapData, uint8_t **ppBuf);
@@ -165,12 +165,6 @@ int32_t tPutDelFileHdr(uint8_t *p, SDelFile *pDelFile);
 int32_t tGetDelFileHdr(uint8_t *p, SDelFile *pDelFile);
 
 // structs
-struct SOffset {
-  int32_t  nOffset;
-  uint8_t  flag;
-  uint8_t *pOffset;
-};
-
 typedef struct {
   int   minFid;
   int   midFid;

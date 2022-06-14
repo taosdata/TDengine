@@ -18,64 +18,6 @@
 #define TSDB_FHDR_SIZE 512
 #define TSDB_FILE_DLMT ((uint32_t)0xF00AFA0F)
 
-// SDFileSetWritter ====================================================
-struct SDFileSetWritter {
-  STsdb   *pTsdb;
-  int32_t  szBuf1;
-  uint8_t *pBuf1;
-  int32_t  szBuf2;
-  uint8_t *pBuf2;
-};
-
-// SDFileSetReader ====================================================
-struct SDFileSetReader {
-  STsdb   *pTsdb;
-  int32_t  szBuf1;
-  uint8_t *pBuf1;
-  int32_t  szBuf2;
-  uint8_t *pBuf2;
-};
-
-int32_t tsdbDFileSetReaderOpen(SDFileSetReader *pReader, STsdb *pTsdb, SDFileSet *pSet) {
-  int32_t code = 0;
-
-  memset(pReader, 0, sizeof(*pReader));
-  pReader->pTsdb = pTsdb;
-
-  return code;
-
-_err:
-  tsdbError("vgId:%d failed to open SDFileSetReader since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
-  return code;
-}
-
-int32_t tsdbDFileSetReaderClose(SDFileSetReader *pReader) {
-  int32_t code = 0;
-
-  taosMemoryFreeClear(pReader->pBuf1);
-  taosMemoryFreeClear(pReader->pBuf2);
-
-  return code;
-}
-
-int32_t tsdbLoadSBlockIdx(SDFileSetReader *pReader, SArray *pArray) {
-  int32_t code = 0;
-  // TODO
-  return code;
-}
-
-int32_t tsdbLoadSBlockInfo(SDFileSetReader *pReader, SBlockIdx *pBlockIdx, SBlockInfo *pBlockInfo) {
-  int32_t code = 0;
-  // TODO
-  return code;
-}
-
-int32_t tsdbLoadSBlockStatis(SDFileSetReader *pReader, SBlock *pBlock, SBlockStatis *pBlockStatis) {
-  int32_t code = 0;
-  // TODO
-  return code;
-}
-
 // SDelFWriter ====================================================
 struct SDelFWriter {
   STsdb    *pTsdb;
@@ -438,5 +380,98 @@ int32_t tsdbReadDelIdx(SDelFReader *pReader, SMapData *pDelIdxMap, uint8_t **ppB
 
 _err:
   tsdbError("vgId:%d read del idx failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
+  return code;
+}
+
+// SDataFReader ====================================================
+struct SDataFReader {
+  STsdb     *pTsdb;
+  SDFileSet *pSet;
+  TdFilePtr  pReadH;
+};
+
+int32_t tsdbDataFReaderOpen(SDataFReader **ppReader, STsdb *pTsdb, SDFileSet *pSet) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbDataFReaderClose(SDataFReader *pReader) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbReadBlockIdx(SDataFReader *pReader, SMapData *pMapData, uint8_t **ppBuf) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbReadBlock(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *pMapData, uint8_t **ppBuf) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbReadBlockData(SDataFReader *pReader, SBlock *pBlock, SColDataBlock *pBlockData, uint8_t **ppBuf) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbReadBlockSMA(SDataFReader *pReader, SBlockSMA *pBlkSMA) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+// SDataFWriter ====================================================
+struct SDataFWriter {
+  STsdb     *pTsdb;
+  SDFileSet *pSet;
+  TdFilePtr  pWriteH;
+};
+
+int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pSet) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbDataFWriterClose(SDataFWriter *pWriter, int8_t sync) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbUpdateDFileSetHeader(SDataFWriter *pWriter, uint8_t **ppBuf) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbWriteBlockIdx(SDataFWriter *pWriter, SMapData *pMapData, uint8_t **ppBuf) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbWriteBlock(SDataFWriter *pWriter, SMapData *pMapData, uint8_t **ppBuf, SBlockIdx *pBlockIdx) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SColDataBlock *pBlockData, uint8_t **ppBuf, int64_t *rOffset,
+                           int64_t *rSize) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+int32_t tsdbWriteBlockSMA(SDataFWriter *pWriter, SBlockSMA *pBlockSMA, int64_t *rOffset, int64_t *rSize) {
+  int32_t code = 0;
+  // TODO
   return code;
 }
