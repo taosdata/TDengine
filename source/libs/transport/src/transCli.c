@@ -982,10 +982,10 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
       } else {
         SEpSet epSet = {0};
         tDeserializeSEpSet(pResp->pCont, pResp->contLen, &epSet);
-        pCtx->epSet = epSet;
         if (!transEpSetIsEqual(&epSet, &pCtx->epSet)) {
           pCtx->retryCount = 0;
         }
+        pCtx->epSet = epSet;
       }
       addConnToPool(pThrd->pool, pConn);
       tTrace("use remote epset, current in use: %d, retry count:%d, try limit: %d", pEpSet->inUse, pCtx->retryCount + 1,
