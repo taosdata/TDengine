@@ -164,22 +164,3 @@ SMgmtFunc mmGetMgmtFunc() {
 
   return mgmtFunc;
 }
-
-int32_t mmAcquire(SMnodeMgmt *pMgmt) {
-  int32_t code = 0;
-
-  taosThreadRwlockRdlock(&pMgmt->lock);
-  if (pMgmt->stopped) {
-    code = -1;
-  } else {
-    atomic_add_fetch_32(&pMgmt->refCount, 1);
-  }
-  taosThreadRwlockUnlock(&pMgmt->lock);
-  return code;
-}
-
-void mmRelease(SMnodeMgmt *pMgmt) {
-  taosThreadRwlockRdlock(&pMgmt->lock);
-  atomic_sub_fetch_32(&pMgmt->refCount, 1);
-  taosThreadRwlockUnlock(&pMgmt->lock);
-}

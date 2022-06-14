@@ -43,10 +43,6 @@ typedef struct SMnodeMgmt {
 int32_t mmReadFile(SMnodeMgmt *pMgmt, SReplica *pReplica, bool *pDeployed);
 int32_t mmWriteFile(SMnodeMgmt *pMgmt, const SReplica *pReplica, bool deployed);
 
-// mmInt.c
-int32_t mmAcquire(SMnodeMgmt *pMgmt);
-void    mmRelease(SMnodeMgmt *pMgmt);
-
 // mmHandle.c
 SArray *mmGetMsgHandles();
 int32_t mmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg);
