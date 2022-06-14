@@ -1670,8 +1670,12 @@ static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
     }
     syncTimeoutDestroy(pSyncMsg);
 
+    if (gSyncEnv != NULL) {
     taosTmrReset(syncNodeEqHeartbeatTimer, pSyncNode->heartbeatTimerMS, pSyncNode, gSyncEnv->pTimerManager,
                  &pSyncNode->pHeartbeatTimer);
+    } else {
+      sError("sync env is already stop");
+    }
   } else {
     sTrace("==syncNodeEqHeartbeatTimer== heartbeatTimerLogicClock:%" PRIu64 ", heartbeatTimerLogicClockUser:%" PRIu64
            "",
