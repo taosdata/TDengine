@@ -1968,8 +1968,9 @@ static int32_t syncNodeConfigChange(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftE
   bool isDrop;
 
   if (IamInNew || (!IamInNew && ths->state != TAOS_SYNC_STATE_LEADER)) {
-    syncNodeUpdateConfig(ths, &newSyncCfg, pEntry->index, &isDrop);
 
+    syncNodeUpdateConfig(ths, &newSyncCfg, pEntry->index, &isDrop);
+    
     // change isStandBy to normal
     if (!isDrop) {
       if (ths->state == TAOS_SYNC_STATE_LEADER) {
@@ -1978,14 +1979,16 @@ static int32_t syncNodeConfigChange(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftE
         syncNodeBecomeFollower(ths, "config change");
       }
     }
-
-    if (gRaftDetailLog) {
-      char* sOld = syncCfg2Str(&oldSyncCfg);
-      char* sNew = syncCfg2Str(&newSyncCfg);
-      sInfo("==config change== 0x11 old:%s new:%s isDrop:%d \n", sOld, sNew, isDrop);
-      taosMemoryFree(sOld);
-      taosMemoryFree(sNew);
-    }
+  } else {
+    syncNodeBecomeFollower(ths, "config change");
+  }
+  
+  if (gRaftDetailLog) {
+    char* sOld = syncCfg2Str(&oldSyncCfg);
+    char* sNew = syncCfg2Str(&newSyncCfg);
+    sInfo("==config change== 0x11 old:%s new:%s isDrop:%d index:%ld IamInNew:%d \n", sOld, sNew, isDrop, pEntry->index, IamInNew);
+    taosMemoryFree(sOld);
+    taosMemoryFree(sNew);
   }
 
   // always call FpReConfigCb
