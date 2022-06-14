@@ -4556,8 +4556,6 @@ static tsdbReaderT doCreateDataReader(STableScanPhysiNode* pTableScanNode, SRead
                                       STableListInfo* pTableListInfo, uint64_t queryId, uint64_t taskId,
                                       SNode* pTagCond);
 
-static int32_t getTableList(void* metaHandle, int32_t tableType, uint64_t tableUid, STableListInfo* pListInfo,
-                            SNode* pTagCond);
 static SArray* extractColumnInfo(SNodeList* pNodeList);
 
 static SArray* createSortInfo(SNodeList* pNodeList);
