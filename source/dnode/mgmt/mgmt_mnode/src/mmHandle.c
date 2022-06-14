@@ -90,7 +90,7 @@ int32_t mmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
   SMnodeMgmt mgmt = {0};
   mgmt.path = pInput->path;
   mgmt.name = pInput->name;
-  if (mmWriteFile(&mgmt, &createReq, deployed) != 0) {
+  if (mmWriteFile(&mgmt, &createReq.replicas[0], deployed) != 0) {
     dError("failed to write mnode file since %s", terrstr());
     return -1;
   }
