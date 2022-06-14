@@ -66,7 +66,13 @@ static int32_t vnodeProcessAlterReplicaReq(SVnode *pVnode, SRpcMsg *pMsg) {
     vInfo("vgId:%d, replica:%d %s:%u", TD_VID(pVnode), r, pNode->nodeFqdn, pNode->nodePort);
   }
 
-  return syncReconfigBuild(pVnode->sync, &cfg, pMsg);
+  SRpcMsg rpcMsg = {.info = pMsg->info};
+  if (syncReconfigBuild(pVnode->sync, &cfg, &rpcMsg) != 0) {
+    vError("vgId:%d, failed to build reconfig msg since %s", TD_VID(pVnode), terrstr());
+    return -1;
+  }
+
+  return syncPropose(pVnode->sync, &rpcMsg, false);
 }
 
 void vnodeProposeMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
