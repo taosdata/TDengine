@@ -147,6 +147,9 @@ int32_t tqProcessTaskRecoverReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRecoverRsp(STQ* pTq, SRpcMsg* pMsg);
 
+SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pSchema, bool createTb, int64_t suid,
+                            const char* stbFullName, int32_t vgId);
+
 // sma
 int32_t smaOpen(SVnode* pVnode);
 int32_t smaClose(SSma* pSma);
@@ -245,7 +248,6 @@ struct STbUidStore {
 };
 
 struct SSma {
-  int16_t       nTSma;
   bool          locked;
   TdThreadMutex mutex;
   SVnode*       pVnode;
@@ -261,7 +263,6 @@ struct SSma {
 #define SMA_META(s)       ((s)->pVnode->pMeta)
 #define SMA_VID(s)        TD_VID((s)->pVnode)
 #define SMA_TFS(s)        ((s)->pVnode->pTfs)
-#define SMA_TSMA_NUM(s)   ((s)->nTSma)
 #define SMA_TSMA_ENV(s)   ((s)->pTSmaEnv)
 #define SMA_RSMA_ENV(s)   ((s)->pRSmaEnv)
 #define SMA_RSMA_TSDB0(s) ((s)->pVnode->pTsdb)

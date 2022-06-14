@@ -121,7 +121,7 @@ TEST(testCase, tSma_Meta_Encode_Decode_Test) {
 
   // decode
   STSmaWrapper dstTSmaWrapper = {0};
-  void        *result = tDecodeTSmaWrapper(pSW, &dstTSmaWrapper);
+  void        *result = tDecodeTSmaWrapper(pSW, &dstTSmaWrapper, false);
   EXPECT_NE(result, nullptr);
 
   EXPECT_EQ(tSmaWrapper.number, dstTSmaWrapper.number);
