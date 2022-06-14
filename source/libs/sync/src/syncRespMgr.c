@@ -44,6 +44,10 @@ int64_t syncRespMgrAdd(SSyncRespMgr *pObj, SRespStub *pStub) {
   uint64_t keyCode = ++(pObj->seqNum);
   taosHashPut(pObj->pRespHash, &keyCode, sizeof(keyCode), pStub, sizeof(SRespStub));
 
+  SSyncNode *pSyncNode = pObj->data;
+  sDebug("vgId:%d sync event resp mgr add, type:%s seq:%lu handle:%p", pSyncNode->vgId,
+         TMSG_INFO(pStub->rpcMsg.msgType), keyCode, pStub->rpcMsg.info.handle);
+
   taosThreadMutexUnlock(&(pObj->mutex));
   return keyCode;
 }

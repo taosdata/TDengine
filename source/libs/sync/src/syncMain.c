@@ -561,8 +561,6 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, const SRpcMsg* pMsg, bool isWeak) 
     stub.createTime = taosGetTimestampMs();
     stub.rpcMsg = *pMsg;
     uint64_t seqNum = syncRespMgrAdd(pSyncNode->pSyncRespMgr, &stub);
-    sDebug("vgId:%d sync event resp mgr add, type:%s seq:%" PRIu64 " handle:%p", pSyncNode->vgId,
-           TMSG_INFO(pMsg->msgType), seqNum, pMsg->info.handle);
 
     SyncClientRequest* pSyncMsg = syncClientRequestBuild2(pMsg, seqNum, isWeak, pSyncNode->vgId);
     SRpcMsg            rpcMsg;
