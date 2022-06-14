@@ -211,9 +211,15 @@ void *tsdbTbDataIterDestroy(STbDataIter *pIter) {
   return NULL;
 }
 
-void tsdbTbDataIterOpen(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter *pIter) {
+bool tsdbTbDataIterOpen(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter *pIter) {
   SMemSkipListNode *pos[SL_MAX_LEVEL];
+  SMemSkipListNode *pHead;
+  SMemSkipListNode *pTail;
 
+  if (pTbData == NULL) return false;
+
+  pHead = pTbData->sl.pHead;
+  pTail = pTbData->sl.pTail;
   pIter->pTbData = pTbData;
   pIter->backward = backward;
   if (pFrom == NULL) {
@@ -233,6 +239,12 @@ void tsdbTbDataIterOpen(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDa
       pIter->pNode = SL_NODE_FORWARD(pos[0], 0);
     }
   }
+
+  if ((backward && pIter->pNode == pHead) || (!backward && pIter->pNode == pTail)) {
+    return false;
+  }
+
+  return true;
 }
 
 bool tsdbTbDataIterNext(STbDataIter *pIter) {

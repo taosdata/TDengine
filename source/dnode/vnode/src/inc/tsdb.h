@@ -59,7 +59,7 @@ void    tsdbGetTbDataFromMemTable(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t 
 // STbDataIter
 int32_t tsdbTbDataIterCreate(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter **ppIter);
 void   *tsdbTbDataIterDestroy(STbDataIter *pIter);
-void    tsdbTbDataIterOpen(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter *pIter);
+bool    tsdbTbDataIterOpen(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter *pIter);
 bool    tsdbTbDataIterNext(STbDataIter *pIter);
 bool    tsdbTbDataIterGet(STbDataIter *pIter, TSDBROW *pRow);
 
@@ -172,6 +172,7 @@ int32_t tPutBlockIdx(uint8_t *p, SBlockIdx *pBlockIdx);
 int32_t tGetBlockIdx(uint8_t *p, SBlockIdx *pBlockIdx);
 
 // SBlock
+int32_t tBlockCmprFn(const void *p1, const void *p2);
 
 // SDelIdx
 int32_t tDelIdxClear(SDelIdx *pDelIdx);

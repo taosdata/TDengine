@@ -39,6 +39,8 @@ struct SCommitter {
   SMapData         oBlockIdx;
   SMapData         nBlockIdx;
   // commit table data
+  STbDataIter   iter;
+  STbDataIter  *pIter;
   SBlockIdx    *pBlockIdx;
   SMapData      oBlock;
   SMapData      nBlock;
@@ -503,7 +505,8 @@ static int32_t tsdbCommitFileDataImpl(SCommitter *pCommitter) {
       }
     }
 
-    if (pTbData && pTbData->sl.size == 0) {
+    if (pTbData && !tsdbTbDataIterOpen(pTbData, &(TSDBKEY){.ts = pCommitter->minKey, .version = 0}), 0,
+        &pCommitter->iter) {
       pTbData = NULL;
     }
 
@@ -613,26 +616,23 @@ static int32_t tsdbCommitTableDataImpl(SCommitter *pCommitter) {
     if (code) goto _err;
   }
 
-  // merge loop
-  for (;;) {
-    tsdbTbDataIterGet(pIter, pRow);
-
-    code = tsdbColDataBlockAppend(&pCommitter->nColDataBlock, pRow, pTSchema);
-    if (code) goto _err;
-
-    if (pCommitter->nColDataBlock.nRow >= pCommitter->maxRow) {
-      code = tsdbWriteColDataBlock(pCommitter->pWriter, &pCommitter->nColDataBlock, NULL);
-      if (code) goto _err;
-
-      tsdbColDataBlockReset(&pCommitter->nColDataBlock);
-    }
-
-    if (!tsdbTbDataIterNext(pIter)) break;
+  if (iBlock < nBlock) {
+    pBlock = &block;
+  } else {
+    pBlock = NULL;
   }
 
-  if (pCommitter->nColDataBlock.nRow) {
-    code = tsdbWriteColDataBlock(pCommitter->pWriter, &pCommitter->nColDataBlock, NULL);
-    if (code) goto _err;
+  tsdbTbDataIterGet(pIter, pRow);
+
+  // loop to merge memory data and disk data
+  for (; pBlock == NULL || (pRow && pRow->pTSRow->ts <= pCommitter->maxKey);) {
+    if (pRow == NULL || pRow->pTSRow->ts > pCommitter->maxKey) {
+      // only has block data, then move to new index file
+    } else if (0) {
+      // only commit memory data
+    } else {
+      // merge memory and block data
+    }
   }
 
   tsdbTbDataIterDestroy(pIter);
