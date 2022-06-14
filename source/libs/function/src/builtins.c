@@ -1718,16 +1718,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .invertFunc   = NULL,
     .combineFunc  = elapsedCombine,
   },
-//  {
-//    .name = "interp",
-//    .type = FUNCTION_TYPE_INTERP,
-//    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_INTERVAL_INTERPO_FUNC,
-//    .translateFunc = translateFirstLast,
-//    .getEnvFunc    = getSelectivityFuncEnv,
-//    .initFunc      = functionSetup,
-//    .processFunc   = interpFunction,
-//    .finalizeFunc  = NULL
-//  },
+  {
+    .name = "interp",
+    .type = FUNCTION_TYPE_INTERP,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_INTERVAL_INTERPO_FUNC,
+    .translateFunc = translateFirstLast,
+    .getEnvFunc    = getSelectivityFuncEnv,
+    .initFunc      = functionSetup,
+    .processFunc   = NULL,
+    .finalizeFunc  = NULL
+  },
   {
     .name = "derivative",
     .type = FUNCTION_TYPE_DERIVATIVE,
