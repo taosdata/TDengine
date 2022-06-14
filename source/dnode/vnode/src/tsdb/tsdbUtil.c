@@ -493,7 +493,7 @@ int32_t tBlockCmprFn(const void *p1, const void *p2) {
   if (tsdbKeyCmprFn(&pBlock1->maxKey, &pBlock2->minKey) < 0) {
     return -1;
   } else if (tsdbKeyCmprFn(&pBlock1->minKey, &pBlock2->maxKey) > 0) {
-    return 1
+    return 1;
   }
 
   return 0;

@@ -505,8 +505,8 @@ static int32_t tsdbCommitFileDataImpl(SCommitter *pCommitter) {
       }
     }
 
-    if (pTbData && !tsdbTbDataIterOpen(pTbData, &(TSDBKEY){.ts = pCommitter->minKey, .version = 0}), 0,
-        &pCommitter->iter) {
+    if (pTbData &&
+        !tsdbTbDataIterOpen(pTbData, &(TSDBKEY){.ts = pCommitter->minKey, .version = 0}, 0, &pCommitter->iter)) {
       pTbData = NULL;
     }
 
