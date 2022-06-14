@@ -114,7 +114,8 @@ int32_t mmPutMsgToReadQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 }
 
 int32_t mmPutMsgToQueryQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  if (mndPreprocessQueryMsg(pMgmt->pMnode, pMsg) != 0) {
+  pMsg->info.node = pMgmt->pMnode;
+  if (mndPreProcessMsg(pMsg) != 0) {
     dError("msg:%p, failed to pre-process in mnode since %s, type:%s", pMsg, terrstr(), TMSG_INFO(pMsg->msgType));
     return -1;
   }

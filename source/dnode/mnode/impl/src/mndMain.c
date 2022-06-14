@@ -393,11 +393,6 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
     return TAOS_SYNC_OTHER_ERROR;
   }
 
-  if (mndAcquireSyncRef(pMnode) != 0) {
-    mError("failed to process sync msg:%p type:%s since %s", pMsg, TMSG_INFO(pMsg->msgType), terrstr());
-    return TAOS_SYNC_OTHER_ERROR;
-  }
-
   char  logBuf[512] = {0};
   char *syncNodeStr = sync2SimpleStr(pMgmt->sync);
   snprintf(logBuf, sizeof(logBuf), "==vnodeProcessSyncReq== msgType:%d, syncNode: %s", pMsg->msgType, syncNodeStr);
@@ -450,7 +445,7 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
       SyncSnapshotRsp *pSyncMsg = syncSnapshotRspFromRpcMsg2(pMsg);
       code = syncNodeOnSnapshotRspCb(pSyncNode, pSyncMsg);
       syncSnapshotRspDestroy(pSyncMsg);
-    } else if (pMsg->msgType == TDMT_MND_SET_STANDBY) {
+    } else if (pMsg->msgType == TDMT_SYNC_SET_MNODE_STANDBY) {
       code = syncSetStandby(pMgmt->sync);
       SRpcMsg rsp = {.code = code, .info = pMsg->info};
       tmsgSendRsp(&rsp);
@@ -491,7 +486,7 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
       SyncAppendEntriesReply *pSyncMsg = syncAppendEntriesReplyFromRpcMsg2(pMsg);
       code = syncNodeOnAppendEntriesReplyCb(pSyncNode, pSyncMsg);
       syncAppendEntriesReplyDestroy(pSyncMsg);
-    } else if (pMsg->msgType == TDMT_MND_SET_STANDBY) {
+    } else if (pMsg->msgType == TDMT_SYNC_SET_MNODE_STANDBY) {
       code = syncSetStandby(pMgmt->sync);
       SRpcMsg rsp = {.code = code, .info = pMsg->info};
       tmsgSendRsp(&rsp);
@@ -501,7 +496,6 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
     }
   }
 
-  mndReleaseSyncRef(pMnode);
   return code;
 }
 
@@ -754,24 +748,3 @@ void mndSetStop(SMnode *pMnode) {
 }
 
 bool mndGetStop(SMnode *pMnode) { return pMnode->stopped; }
-
-int32_t mndAcquireSyncRef(SMnode *pMnode) {
-  int32_t code = 0;
-  taosThreadRwlockRdlock(&pMnode->lock);
-  if (pMnode->stopped) {
-    terrno = TSDB_CODE_APP_NOT_READY;
-    code = -1;
-  } else {
-    int32_t ref = atomic_add_fetch_32(&pMnode->syncRef, 1);
-    // mTrace("mnode sync is acquired, ref:%d", ref);
-  }
-  taosThreadRwlockUnlock(&pMnode->lock);
-  return code;
-}
-
-void mndReleaseSyncRef(SMnode *pMnode) {
-  taosThreadRwlockRdlock(&pMnode->lock);
-  int32_t ref = atomic_sub_fetch_32(&pMnode->syncRef, 1);
-  // mTrace("mnode sync is released, ref:%d", ref);
-  taosThreadRwlockUnlock(&pMnode->lock);
-}
