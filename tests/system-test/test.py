@@ -165,7 +165,7 @@ if __name__ == "__main__":
 
     tdLog.info("Procedures for tdengine deployed in %s" % (host))
     if platform.system().lower() == 'windows':
-        if (masterIp == ""):
+        if (masterIp == "" and not fileName[0:3] == "udf"):
             threading.Thread(target=checkRunTimeError,daemon=True).start()
         tdCases.logSql(logSql)
         tdLog.info("Procedures for testing self-deployment")
