@@ -188,15 +188,15 @@ int32_t mndInitSync(SMnode *pMnode) {
   syncInfo.isStandBy = pMgmt->standby;
   syncInfo.snapshotEnable = true;
 
-  SSyncCfg *pCfg = &syncInfo.syncCfg;
-  pCfg->replicaNum = pMnode->replica;
-  pCfg->myIndex = pMnode->selfIndex;
-  mInfo("start to open mnode sync, replica:%d myindex:%d standby:%d", pCfg->replicaNum, pCfg->myIndex, pMgmt->standby);
-  for (int32_t i = 0; i < pMnode->replica; ++i) {
-    SNodeInfo *pNode = &pCfg->nodeInfo[i];
-    tstrncpy(pNode->nodeFqdn, pMnode->replicas[i].fqdn, sizeof(pNode->nodeFqdn));
-    pNode->nodePort = pMnode->replicas[i].port;
-    mInfo("index:%d, fqdn:%s port:%d", i, pNode->nodeFqdn, pNode->nodePort);
+  mInfo("start to open mnode sync, standby:%d", pMgmt->standby);
+  if (pMgmt->standby || pMgmt->replica.id > 0) {
+    SSyncCfg *pCfg = &syncInfo.syncCfg;
+    pCfg->replicaNum = 1;
+    pCfg->myIndex = 0;
+    SNodeInfo *pNode = &pCfg->nodeInfo[0];
+    tstrncpy(pNode->nodeFqdn, pMgmt->replica.fqdn, sizeof(pNode->nodeFqdn));
+    pNode->nodePort = pMgmt->replica.port;
+    mInfo("fqdn:%s port:%u", pNode->nodeFqdn, pNode->nodePort);
   }
 
   tsem_init(&pMgmt->syncSem, 0, 0);
@@ -236,7 +236,7 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
     tsem_wait(&pMgmt->syncSem);
   } else if (code == TAOS_SYNC_PROPOSE_NOT_LEADER) {
     terrno = TSDB_CODE_APP_NOT_READY;
-  } else if (code == TAOS_SYNC_PROPOSE_OTHER_ERROR) {
+  } else if (code == TAOS_SYNC_OTHER_ERROR) {
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
   } else {
     terrno = TSDB_CODE_APP_ERROR;
@@ -254,13 +254,16 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
 void mndSyncStart(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   syncSetMsgCb(pMgmt->sync, &pMnode->msgCb);
+  syncStart(pMgmt->sync);
+  mDebug("mnode sync started, id:%" PRId64 " standby:%d", pMgmt->sync, pMgmt->standby);
 
+/*
   if (pMgmt->standby) {
     syncStartStandBy(pMgmt->sync);
   } else {
     syncStart(pMgmt->sync);
   }
-  mDebug("mnode sync started, id:%" PRId64 " standby:%d", pMgmt->sync, pMgmt->standby);
+*/  
 }
 
 void mndSyncStop(SMnode *pMnode) {}

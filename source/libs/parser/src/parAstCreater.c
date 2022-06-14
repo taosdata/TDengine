@@ -230,9 +230,13 @@ SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
   SRawExprNode* pRawExpr = (SRawExprNode*)pNode;
   SNode*        pExpr = pRawExpr->pNode;
   if (nodesIsExprNode(pExpr)) {
-    int32_t len = TMIN(sizeof(((SExprNode*)pExpr)->aliasName) - 1, pRawExpr->n);
-    strncpy(((SExprNode*)pExpr)->aliasName, pRawExpr->p, len);
-    ((SExprNode*)pExpr)->aliasName[len] = '\0';
+    if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
+      strcpy(((SExprNode*)pExpr)->aliasName, ((SColumnNode*)pExpr)->colName);
+    } else {
+      int32_t len = TMIN(sizeof(((SExprNode*)pExpr)->aliasName) - 1, pRawExpr->n);
+      strncpy(((SExprNode*)pExpr)->aliasName, pRawExpr->p, len);
+      ((SExprNode*)pExpr)->aliasName[len] = '\0';
+    }
   }
   taosMemoryFreeClear(pNode);
   return pExpr;
@@ -800,10 +804,10 @@ SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOpti
     case DB_OPTION_RETENTIONS:
       ((SDatabaseOptions*)pOptions)->pRetentions = pVal;
       break;
-    case DB_OPTION_SCHEMALESS:
+//    case DB_OPTION_SCHEMALESS:
 //      ((SDatabaseOptions*)pOptions)->schemaless = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
-      ((SDatabaseOptions*)pOptions)->schemaless = 0;
-      break;
+//      ((SDatabaseOptions*)pOptions)->schemaless = 0;
+//      break;
     default:
       break;
   }

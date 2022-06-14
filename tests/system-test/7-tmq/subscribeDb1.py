@@ -437,12 +437,12 @@ class TDTestCase:
         event.wait()
 
         tdLog.info("start consume processor")
-        pollDelay = 100
+        pollDelay = 20
         showMsg   = 1
         showRow   = 1
         self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
 
-        time.sleep(5)
+        time.sleep(3)
         tdLog.info("pkill consume processor")
         if (platform.system().lower() == 'windows'):
             os.system("TASKKILL /F /IM tmq_sim.exe")
@@ -465,7 +465,7 @@ class TDTestCase:
             totalConsumeRows += resultList[i]
         
         if totalConsumeRows >= expectrowcnt or totalConsumeRows <= 0:
-            tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt))
+            tdLog.info("act consume rows: %d, expect consume rows between %d and 0"%(totalConsumeRows, expectrowcnt))
             tdLog.exit("tmq consume rows error!")
 
         time.sleep(15)
