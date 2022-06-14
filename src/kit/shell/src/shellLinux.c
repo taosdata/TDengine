@@ -77,13 +77,15 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         }
 
         char* tmp = last_strstr(cloud_url, ":");
-        if ((tmp == NULL) && ((tmp + 1) != NULL )) {
-            fprintf(stderr, "Invalid format in environment variable TDENGINE_CLOUD_URL: %s\n", cloud_url);
-            exit(EXIT_FAILURE);
-        } else {
+        if (tmp == NULL) {
+            args.host = cloud_url;
+        } else if ((tmp + 1) != NULL) {
             args.port = atoi(tmp + 1);
             tmp[0] = '\0';
             args.host = cloud_url;
+        } else {
+            fprintf(stderr, "Invalid format in environment variable TDENGINE_CLOUD_URL: %s\n", cloud_url);
+            exit(EXIT_FAILURE);
         }
         break;
     }
