@@ -895,9 +895,9 @@ void *ctgTestSetCtableMetaThread(void *param) {
     output = (STableMetaOutput *)taosMemoryMalloc(sizeof(STableMetaOutput));
     ctgTestBuildCTableMetaOutput(output);
 
-    SCtgUpdateTblMsg *msg = (SCtgUpdateTblMsg *)taosMemoryMalloc(sizeof(SCtgUpdateTblMsg));
+    SCtgUpdateTbMetaMsg *msg = (SCtgUpdateTbMetaMsg *)taosMemoryMalloc(sizeof(SCtgUpdateTbMetaMsg));
     msg->pCtg = pCtg;
-    msg->output = output;
+    msg->pMeta = output;
     operation.data = msg;
 
     code = ctgOpUpdateTbMeta(&operation);
@@ -989,7 +989,7 @@ TEST(tableMeta, normalTable) {
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
   SDbVgVersion       *dbs = NULL;
-  SSTableMetaVersion *stb = NULL;
+  SSTableVersion *stb = NULL;
   uint32_t            dbNum = 0, stbNum = 0, allDbNum = 0, allStbNum = 0;
   int32_t             i = 0;
   while (i < 5) {
@@ -1098,7 +1098,7 @@ TEST(tableMeta, childTableCase) {
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
   SDbVgVersion       *dbs = NULL;
-  SSTableMetaVersion *stb = NULL;
+  SSTableVersion *stb = NULL;
   uint32_t            dbNum = 0, stbNum = 0, allDbNum = 0, allStbNum = 0;
   int32_t             i = 0;
   while (i < 5) {
@@ -1220,7 +1220,7 @@ TEST(tableMeta, superTableCase) {
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
   SDbVgVersion       *dbs = NULL;
-  SSTableMetaVersion *stb = NULL;
+  SSTableVersion *stb = NULL;
   uint32_t            dbNum = 0, stbNum = 0, allDbNum = 0, allStbNum = 0;
   int32_t             i = 0;
   while (i < 5) {
@@ -2299,7 +2299,7 @@ TEST(rentTest, allRent) {
   SArray          *vgList = NULL;
   ctgTestStop = false;
   SDbVgVersion       *dbs = NULL;
-  SSTableMetaVersion *stable = NULL;
+  SSTableVersion *stable = NULL;
   uint32_t            num = 0;
 
   ctgTestInitLogFile();

@@ -32,9 +32,7 @@ typedef struct {
   int32_t  dnodeId;
   bool     standby;
   bool     deploy;
-  int8_t   replica;
-  int8_t   selfIndex;
-  SReplica replicas[TSDB_MAX_REPLICA];
+  SReplica replica;
   SMsgCb   msgCb;
 } SMnodeOpt;
 
@@ -61,7 +59,13 @@ void mndClose(SMnode *pMnode);
  * @param pMnode The mnode object.
  */
 int32_t mndStart(SMnode *pMnode);
-void    mndStop(SMnode *pMnode);
+
+/**
+ * @brief Stop mnode
+ *
+ * @param pMnode The mnode object.
+ */
+void mndStop(SMnode *pMnode);
 
 /**
  * @brief Get mnode monitor info.
@@ -73,16 +77,25 @@ void    mndStop(SMnode *pMnode);
  * @return int32_t 0 for success, -1 for failure.
  */
 int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pCluster, SMonVgroupInfo *pVgroup, SMonGrantInfo *pGrant);
+
+/**
+ * @brief Get mnode loads for status msg.
+ *
+ * @param pMnode The mnode object.
+ * @param pLoad
+ * @return int32_t 0 for success, -1 for failure.
+ */
 int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad);
 
 /**
- * @brief Process the read, write, sync request.
+ * @brief Process the rpc, sync request.
  *
  * @param pMsg The request msg.
  * @return int32_t 0 for success, -1 for failure.
  */
 int32_t mndProcessRpcMsg(SRpcMsg *pMsg);
 int32_t mndProcessSyncMsg(SRpcMsg *pMsg);
+int32_t mndPreProcessMsg(SRpcMsg *pMsg);
 
 /**
  * @brief Generate machine code
