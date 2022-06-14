@@ -1708,6 +1708,7 @@ char* buildCtbNameByGroupId(const char* stbName, uint64_t groupId) {
   pTag->keyLen = strlen(pTag->key);
   pTag->type = TSDB_DATA_TYPE_UBIGINT;
   pTag->u = groupId;
+  pTag->length = sizeof(uint64_t);
   taosArrayPush(tags, &pTag);
 
   void* cname = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1);
