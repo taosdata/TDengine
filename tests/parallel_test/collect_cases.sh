@@ -49,7 +49,7 @@ if [ $ent -eq 0 ]; then
 else
     cd ../../../../
     rm -rf TDinternal.tar.gz
-    tar --exclude=TDinternal/debug --exclude=TDinternal/sim --exclude=TDinternal/community/debug --exclude=TDinternal/community/release -czf TDinternal.tar.gz TDinternal taos-connector-python
+    tar --exclude=TDinternal/debug --exclude=TDinternal/sim --exclude=TDinternal/community/debug --exclude=TDinternal/community/release --exclude=TDinternal/community/sim -czf TDinternal.tar.gz TDinternal taos-connector-python
 fi
 
 exit 0
