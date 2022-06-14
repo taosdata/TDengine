@@ -124,7 +124,7 @@ static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
   } else {
     dInfo("node:%s, has been created", pWrapper->name);
     code = dmOpenNode(pWrapper);
-    if (code != 0) {
+    if (code == 0) {
       code = dmStartNode(pWrapper);
     }
     pWrapper->deployed = true;

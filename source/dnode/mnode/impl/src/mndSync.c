@@ -236,7 +236,7 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
     tsem_wait(&pMgmt->syncSem);
   } else if (code == TAOS_SYNC_PROPOSE_NOT_LEADER) {
     terrno = TSDB_CODE_APP_NOT_READY;
-  } else if (code == TAOS_SYNC_PROPOSE_OTHER_ERROR) {
+  } else if (code == TAOS_SYNC_OTHER_ERROR) {
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
   } else {
     terrno = TSDB_CODE_APP_ERROR;
@@ -254,13 +254,16 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
 void mndSyncStart(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   syncSetMsgCb(pMgmt->sync, &pMnode->msgCb);
+  syncStart(pMgmt->sync);
+  mDebug("mnode sync started, id:%" PRId64 " standby:%d", pMgmt->sync, pMgmt->standby);
 
+/*
   if (pMgmt->standby) {
     syncStartStandBy(pMgmt->sync);
   } else {
     syncStart(pMgmt->sync);
   }
-  mDebug("mnode sync started, id:%" PRId64 " standby:%d", pMgmt->sync, pMgmt->standby);
+*/  
 }
 
 void mndSyncStop(SMnode *pMnode) {}
