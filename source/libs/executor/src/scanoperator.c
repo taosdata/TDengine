@@ -391,20 +391,14 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
       longjmp(pOperator->pTaskInfo->env, code);
     }
 
-    recordNewGroupKeys(pTableScanInfo->pGroupCols, pTableScanInfo->pGroupColVals, pBlock, 0);
-    int32_t len = buildGroupKeys(pTableScanInfo->keyBuf, pTableScanInfo->pGroupColVals);
-
-    uint64_t* groupId = taosHashGet(pTableScanInfo->pGroupSet, pTableScanInfo->keyBuf, len);
-    if (groupId) {
-      pBlock->info.groupId = *groupId;
-    } else if (len != 0) {
-      pBlock->info.groupId = calcGroupId(pTableScanInfo->keyBuf, len);
-      taosHashPut(pTableScanInfo->pGroupSet, pTableScanInfo->keyBuf, len, &pBlock->info.groupId, sizeof(uint64_t));
-    }
-
     // current block is filter out according to filter condition, continue load the next block
     if (status == FUNC_DATA_REQUIRED_FILTEROUT || pBlock->info.rows == 0) {
       continue;
+    }
+
+    uint64_t* groupId = taosHashGet(pOperator->pTaskInfo->tableqinfoList.map, &pBlock->info.uid, sizeof(int64_t));
+    if (groupId) {
+      pBlock->info.groupId = *groupId;
     }
 
     pOperator->resultInfo.totalRows = pTableScanInfo->readRecorder.totalRows;
@@ -530,21 +524,13 @@ static void destroyTableScanOperatorInfo(void* param, int32_t numOfOutput) {
 
   tsdbCleanupReadHandle(pTableScanInfo->dataReader);
 
-  taosArrayDestroy(pTableScanInfo->pGroupCols);
-  for (int i = 0; i < taosArrayGetSize(pTableScanInfo->pGroupColVals); i++) {
-    SGroupKeys key = *(SGroupKeys*)taosArrayGet(pTableScanInfo->pGroupColVals, i);
-    taosMemoryFree(key.pData);
-  }
-  taosArrayDestroy(pTableScanInfo->pGroupColVals);
-  taosMemoryFree(pTableScanInfo->keyBuf);
-  taosHashCleanup(pTableScanInfo->pGroupSet);
   if (pTableScanInfo->pColMatchInfo != NULL) {
     taosArrayDestroy(pTableScanInfo->pColMatchInfo);
   }
 }
 
 SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, tsdbReaderT pDataReader,
-                                           SReadHandle* readHandle, SArray* groupKyes, SExecTaskInfo* pTaskInfo) {
+                                           SReadHandle* readHandle, SExecTaskInfo* pTaskInfo) {
   STableScanInfo* pInfo = taosMemoryCalloc(1, sizeof(STableScanInfo));
   SOperatorInfo*  pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -590,18 +576,6 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   pOperator->info = pInfo;
   pOperator->numOfExprs = numOfCols;
   pOperator->pTaskInfo = pTaskInfo;
-
-  // for table group
-  pInfo->pGroupCols = groupKyes;
-  _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
-  pInfo->pGroupSet = taosHashInit(100, hashFn, false, HASH_NO_LOCK);
-  if (pInfo->pGroupSet == NULL) {
-    goto _error;
-  }
-  code = initGroupOptrInfo(&pInfo->pGroupColVals, &pInfo->groupKeyLen, &pInfo->keyBuf, groupKyes);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
-  }
 
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doTableScan, NULL, NULL, destroyTableScanOperatorInfo,
                                          NULL, NULL, getTableScannerExecInfo);
@@ -912,6 +886,11 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
         pInfo->pRes->info.groupId = groupId;
       }
 
+      uint64_t* groupIdPre = taosHashGet(pOperator->pTaskInfo->tableqinfoList.map, &uid, sizeof(int64_t));
+      if (groupIdPre) {
+        pInfo->pRes->info.groupId = *groupIdPre;
+      }
+
       for (int32_t i = 0; i < taosArrayGetSize(pInfo->pColMatchInfo); ++i) {
         SColMatchInfo* pColMatchInfo = taosArrayGet(pInfo->pColMatchInfo, i);
         if (!pColMatchInfo->output) {
@@ -979,11 +958,24 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
   }
 }
 
-SOperatorInfo* createStreamScanOperatorInfo(void* pDataReader, SReadHandle* pHandle, SArray* pTableIdList,
+static SArray* extractTableIdList(const STableListInfo* pTableGroupInfo) {
+  SArray* tableIdList = taosArrayInit(4, sizeof(uint64_t));
+
+  // Transfer the Array of STableKeyInfo into uid list.
+  for (int32_t i = 0; i < taosArrayGetSize(pTableGroupInfo->pTableList); ++i) {
+    STableKeyInfo* pkeyInfo = taosArrayGet(pTableGroupInfo->pTableList, i);
+    taosArrayPush(tableIdList, &pkeyInfo->uid);
+  }
+
+  return tableIdList;
+}
+
+SOperatorInfo* createStreamScanOperatorInfo(void* pDataReader, SReadHandle* pHandle,
                                             STableScanPhysiNode* pTableScanNode, SExecTaskInfo* pTaskInfo,
                                             STimeWindowAggSupp* pTwSup) {
   SStreamBlockScanInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamBlockScanInfo));
   SOperatorInfo*        pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
+
   if (pInfo == NULL || pOperator == NULL) {
     terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
     goto _error;
@@ -992,7 +984,7 @@ SOperatorInfo* createStreamScanOperatorInfo(void* pDataReader, SReadHandle* pHan
   SScanPhysiNode* pScanPhyNode = &pTableScanNode->scan;
 
   SDataBlockDescNode* pDescNode = pScanPhyNode->node.pOutputDataBlockDesc;
-  SOperatorInfo* pTableScanDummy = createTableScanOperatorInfo(pTableScanNode, pDataReader, pHandle, NULL, pTaskInfo);
+  SOperatorInfo* pTableScanDummy = createTableScanOperatorInfo(pTableScanNode, pDataReader, pHandle, pTaskInfo);
 
   STableScanInfo* pSTInfo = (STableScanInfo*)pTableScanDummy->info;
 
@@ -1014,10 +1006,13 @@ SOperatorInfo* createStreamScanOperatorInfo(void* pDataReader, SReadHandle* pHan
 
   // set the extract column id to streamHandle
   tqReadHandleSetColIdList((STqReadHandle*)pHandle->reader, pColIds);
-  int32_t code = tqReadHandleSetTbUidList(pHandle->reader, pTableIdList);
+  SArray* tableIdList = extractTableIdList(&pTaskInfo->tableqinfoList);
+  int32_t code = tqReadHandleSetTbUidList(pHandle->reader, tableIdList);
   if (code != 0) {
+    taosArrayDestroy(tableIdList);
     goto _error;
   }
+  taosArrayDestroy(tableIdList);
 
   pInfo->pBlockLists = taosArrayInit(4, POINTER_BYTES);
   if (pInfo->pBlockLists == NULL) {
