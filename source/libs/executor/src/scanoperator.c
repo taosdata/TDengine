@@ -1865,7 +1865,7 @@ _error:
 static int32_t loadDataBlockFromOneTable(SOperatorInfo* pOperator, STableMergeScanInfo* pTableScanInfo,
                                          int32_t readerIdx, SSDataBlock* pBlock, uint32_t* status) {
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
-  STableScanInfo* pInfo = pOperator->info;
+  STableMergeScanInfo* pInfo = pOperator->info;
 
   SFileBlockLoadRecorder* pCost = &pTableScanInfo->readRecorder;
 
@@ -2154,7 +2154,6 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
 
 void destroyTableMergeScanOperatorInfo(void* param, int32_t numOfOutput) {
   STableMergeScanInfo* pTableScanInfo = (STableMergeScanInfo*)param;
-  blockDataDestroy(pTableScanInfo->pResBlock);
   clearupQueryTableDataCond(&pTableScanInfo->cond);
 
   for (int32_t i = 0; i < taosArrayGetSize(pTableScanInfo->dataReaders); ++i) {

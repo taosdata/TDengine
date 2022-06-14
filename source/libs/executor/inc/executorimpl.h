@@ -909,6 +909,11 @@ int32_t finalizeResultRowIntoResultDataBlock(SDiskbasedBuf* pBuf, SResultRowPosi
                                        SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
 int32_t getTableList(void* metaHandle, int32_t tableType, uint64_t tableUid, STableListInfo* pListInfo,
                             SNode* pTagCond);
+int32_t createMultipleDataReaders(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle,
+                                  STableListInfo* pTableListInfo, SArray* arrayReader, uint64_t queryId,
+                                  uint64_t taskId, SNode* pTagCond);
+SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SArray* dataReaders,
+                                                SReadHandle* readHandle, SExecTaskInfo* pTaskInfo);
 #ifdef __cplusplus
 }
 #endif
