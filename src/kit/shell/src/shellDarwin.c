@@ -77,14 +77,25 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
     // for host
     if (strcmp(argv[i], "-h") == 0) {
       if (i < argc - 1) {
-        char* arg = argv[++i];
-          char* tmp = strstr(arg, ":");
-          if (tmp == NULL) {
-              arguments->host = arg;
-          } else if ((tmp + 1) != NULL) {
-              arguments->port  = atoi(tmp + 1);
+          char* cloud_url = argv[++i];
+          char* start = strstr(cloud_url, "http://");
+          if (start != NULL) {
+              cloud_url = start + strlen("http://");
+          } else {
+              start = strstr(cloud_url, "https://");
+              if (start != NULL) {
+                  cloud_url = start + strlen("https://");
+              }
+          }
+
+          char* tmp = last_strstr(cloud_url, ":");
+          if ((tmp == NULL) && ((tmp + 1) != NULL )) {
+              fprintf(stderr, "Invalid format in environment variable TDENGINE_CLOUD_URL: %s\n", cloud_url);
+              exit(EXIT_FAILURE);
+          } else {
+              arguments->port = atoi(tmp + 1);
               tmp[0] = '\0';
-              arguments->host = arg;
+              arguments->host = cloud_url;
           }
       } else {
         fprintf(stderr, "option -h requires an argument\n");
