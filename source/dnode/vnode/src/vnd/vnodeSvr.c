@@ -148,17 +148,24 @@ int32_t vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
     case TDMT_VND_MQ_VG_CHANGE:
       if (tqProcessVgChangeReq(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
                                pMsg->contLen - sizeof(SMsgHead)) < 0) {
-        // TODO: handle error
+        goto _err;
       }
       break;
     case TDMT_VND_MQ_VG_DELETE:
       if (tqProcessVgDeleteReq(pVnode->pTq, pMsg->pCont, pMsg->contLen) < 0) {
-        // TODO: handle error
+        goto _err;
+      }
+      break;
+    case TDMT_VND_MQ_COMMIT_OFFSET:
+      if (tqProcessOffsetCommitReq(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
+                                   pMsg->contLen - sizeof(SMsgHead)) < 0) {
+        goto _err;
       }
       break;
     case TDMT_STREAM_TASK_DEPLOY: {
       if (tqProcessTaskDeploy(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
                               pMsg->contLen - sizeof(SMsgHead)) < 0) {
+        goto _err;
       }
     } break;
     case TDMT_VND_ALTER_CONFIRM:
@@ -368,6 +375,10 @@ int32_t vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       ret = syncNodeOnAppendEntriesReplyCb(pSyncNode, pSyncMsg);
       syncAppendEntriesReplyDestroy(pSyncMsg);
 
+    } else if (pRpcMsg->msgType == TDMT_SYNC_SET_MNODE_STANDBY) {
+      ret = syncSetStandby(pVnode->sync);
+      SRpcMsg rsp = {.code = ret, .info = pMsg->info};
+      tmsgSendRsp(&rsp);
     } else {
       vError("==vnodeProcessSyncReq== error msg type:%d", pRpcMsg->msgType);
       ret = TAOS_SYNC_OTHER_ERROR;
@@ -901,8 +912,8 @@ static int32_t vnodeProcessAlterConfirmReq(SVnode *pVnode, int64_t version, void
 static int32_t vnodeProcessAlterHasnRangeReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
   vInfo("vgId:%d, alter hashrange msg will be processed", TD_VID(pVnode));
 
-  // todo 
-  // 1. stop work 
+  // todo
+  // 1. stop work
   // 2. adjust hash range / compact / remove wals / rename vgroups
   // 3. reload sync
   return 0;

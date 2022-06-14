@@ -62,7 +62,7 @@ int32_t getLogLevel() { return g_logLevel; }
 
 class ParserTestBaseImpl {
  public:
-  ParserTestBaseImpl(ParserTestBase* pBase) : pBase_(pBase) {}
+  ParserTestBaseImpl(ParserTestBase* pBase) : pBase_(pBase), sqlNo_(0) {}
 
   void login(const std::string& user) { caseEnv_.user_ = user; }
 
@@ -73,6 +73,7 @@ class ParserTestBaseImpl {
   }
 
   void run(const string& sql, int32_t expect, ParserStage checkStage) {
+    ++sqlNo_;
     if (caseEnv_.nsql_ > 0) {
       --(caseEnv_.nsql_);
       return;
@@ -174,7 +175,7 @@ class ParserTestBaseImpl {
   }
 
   void dump() {
-    cout << "==========================================sql : [" << stmtEnv_.sql_ << "]" << endl;
+    cout << "========================================== " << sqlNo_ << " sql : [" << stmtEnv_.sql_ << "]" << endl;
     if (!res_.parsedAst_.empty()) {
       cout << "raw syntax tree : " << endl;
       cout << res_.parsedAst_ << endl;
@@ -425,6 +426,7 @@ class ParserTestBaseImpl {
   stmtEnv         stmtEnv_;
   stmtRes         res_;
   ParserTestBase* pBase_;
+  int32_t         sqlNo_;
 };
 
 ParserTestBase::ParserTestBase() : impl_(new ParserTestBaseImpl(this)) {}
