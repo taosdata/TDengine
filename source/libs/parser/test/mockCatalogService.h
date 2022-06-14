@@ -50,6 +50,10 @@ struct MockTableMeta {
 class MockCatalogServiceImpl;
 class MockCatalogService {
  public:
+  static void destoryCatalogReq(SCatalogReq* pReq);
+  static void destoryMetaRes(void* p);
+  static void destoryMetaData(SMetaData* pData);
+
   MockCatalogService();
   ~MockCatalogService();
   ITableBuilder& createTableBuilder(const std::string& db, const std::string& tbname, int8_t tableType,

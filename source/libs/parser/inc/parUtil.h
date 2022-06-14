@@ -87,6 +87,7 @@ int32_t getUserAuthFromCache(SParseMetaCache* pMetaCache, const char* pUser, con
                              bool* pPass);
 int32_t getUdfInfoFromCache(SParseMetaCache* pMetaCache, const char* pFunc, SFuncInfo* pInfo);
 int32_t getTableIndexFromCache(SParseMetaCache* pMetaCache, const SName* pName, SArray** pIndexes);
+void    destoryParseMetaCache(SParseMetaCache* pMetaCache);
 
 #ifdef __cplusplus
 }
