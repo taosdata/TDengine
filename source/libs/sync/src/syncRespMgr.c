@@ -63,6 +63,11 @@ int32_t syncRespMgrGet(SSyncRespMgr *pObj, uint64_t index, SRespStub *pStub) {
   void *pTmp = taosHashGet(pObj->pRespHash, &index, sizeof(index));
   if (pTmp != NULL) {
     memcpy(pStub, pTmp, sizeof(SRespStub));
+
+    SSyncNode *pSyncNode = pObj->data;
+    sDebug("vgId:%d sync event resp mgr get, type:%s seq:%lu handle:%p", pSyncNode->vgId,
+           TMSG_INFO(pStub->rpcMsg.msgType), index, pStub->rpcMsg.info.handle);
+
     taosThreadMutexUnlock(&(pObj->mutex));
     return 1;  // get one object
   }
@@ -76,6 +81,11 @@ int32_t syncRespMgrGetAndDel(SSyncRespMgr *pObj, uint64_t index, SRespStub *pStu
   void *pTmp = taosHashGet(pObj->pRespHash, &index, sizeof(index));
   if (pTmp != NULL) {
     memcpy(pStub, pTmp, sizeof(SRespStub));
+
+    SSyncNode *pSyncNode = pObj->data;
+    sDebug("vgId:%d sync event resp mgr get and del, type:%s seq:%lu handle:%p", pSyncNode->vgId,
+           TMSG_INFO(pStub->rpcMsg.msgType), index, pStub->rpcMsg.info.handle);
+
     taosHashRemove(pObj->pRespHash, &index, sizeof(index));
     taosThreadMutexUnlock(&(pObj->mutex));
     return 1;  // get one object
