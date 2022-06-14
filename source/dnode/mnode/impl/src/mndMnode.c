@@ -55,6 +55,7 @@ int32_t mndInitMnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_ALTER_MNODE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_MNODE, mndProcessDropMnodeReq);
   mndSetMsgHandle(pMnode, TDMT_DND_DROP_MNODE_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_SET_STANDBY_RSP, mndTransProcessRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_MNODE, mndRetrieveMnodes);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_MNODE, mndCancelGetNextMnode);
@@ -460,6 +461,7 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
   int32_t         numOfReplicas = 0;
   SDAlterMnodeReq alterReq = {0};
   SDDropMnodeReq  dropReq = {0};
+  SSetStandbyReq  standbyReq = {0};
   SEpSet          alterEpset = {0};
   SEpSet          dropEpSet = {0};
 
@@ -493,6 +495,31 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
   dropEpSet.numOfEps = 1;
   dropEpSet.eps[0].port = pDnode->port;
   memcpy(dropEpSet.eps[0].fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
+
+  standbyReq.dnodeId = pDnode->id;
+  standbyReq.standby = 1;
+
+  {
+    int32_t contLen = tSerializeSSetStandbyReq(NULL, 0, &standbyReq) + sizeof(SMsgHead);
+    void   *pReq = taosMemoryMalloc(contLen);
+    tSerializeSSetStandbyReq((char*)pReq + sizeof(SMsgHead), contLen, &standbyReq);
+    SMsgHead *pHead = pReq;
+    pHead->contLen = htonl(contLen);
+    pHead->vgId = htonl(MNODE_HANDLE);
+
+    STransAction action = {
+        .epSet = dropEpSet,
+        .pCont = pReq,
+        .contLen = contLen,
+        .msgType = TDMT_MND_SET_STANDBY,
+        .acceptableCode = TSDB_CODE_NODE_NOT_DEPLOYED,
+    };
+
+    if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+      taosMemoryFree(pReq);
+      return -1;
+    }
+  }
 
   {
     int32_t contLen = tSerializeSDCreateMnodeReq(NULL, 0, &alterReq);

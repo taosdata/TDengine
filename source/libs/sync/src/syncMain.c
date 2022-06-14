@@ -152,7 +152,7 @@ int32_t syncSetStandby(int64_t rid) {
     return -1;
   }
 
-  if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
+  if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
     taosReleaseRef(tsNodeRefId, pSyncNode->rid);
     return -1;
   }
@@ -170,6 +170,7 @@ int32_t syncSetStandby(int64_t rid) {
   raftCfgPersist(pSyncNode->pRaftCfg);
 
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+  sInfo("vgId:%d, set to standby", pSyncNode->vgId);
   return 0;
 }
 
@@ -1157,6 +1158,13 @@ void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* newConfig, SyncIndex l
 
   int32_t ret = 0;
 
+  // save snapshot senders
+  int32_t oldReplicaNum = pSyncNode->replicaNum;
+  SRaftId oldReplicasId[TSDB_MAX_REPLICA];
+  memcpy(oldReplicasId, pSyncNode->replicasId, sizeof(oldReplicasId));
+  SSyncSnapshotSender*   oldSenders[TSDB_MAX_REPLICA];
+  memcpy(oldSenders, pSyncNode->senders, sizeof(oldSenders));
+
   // init internal
   pSyncNode->myNodeInfo = pSyncNode->pRaftCfg->cfg.nodeInfo[pSyncNode->pRaftCfg->cfg.myIndex];
   syncUtilnodeInfo2raftId(&pSyncNode->myNodeInfo, pSyncNode->vgId, &pSyncNode->myRaftId);
@@ -1186,6 +1194,27 @@ void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* newConfig, SyncIndex l
   votesRespondUpdate(pSyncNode->pVotesRespond, pSyncNode);
 
   pSyncNode->quorum = syncUtilQuorum(pSyncNode->pRaftCfg->cfg.replicaNum);
+
+  // reset snapshot senders, memory leak
+  for (int i = 0; i < TSDB_MAX_REPLICA; ++i) {
+    (pSyncNode->senders)[i] = NULL;
+  }
+  for (int i = 0; i < pSyncNode->replicaNum; ++i) {
+    for (int j = 0; j < TSDB_MAX_REPLICA; ++j) {
+      if (syncUtilSameId(&(pSyncNode->replicasId)[i], &oldReplicasId[j])) {
+        char host[128];
+        uint16_t port;
+        syncUtilU642Addr((pSyncNode->replicasId)[i].addr, host, sizeof(host), &port);
+        sDebug("vgId:%d sync event reset sender for %lu, %s:%d", pSyncNode->vgId, (pSyncNode->replicasId)[i].addr, host, port);
+        (pSyncNode->senders)[i] = oldSenders[j];
+      }
+    }
+  }
+  for (int i = 0; i < TSDB_MAX_REPLICA; ++i) {
+    if ((pSyncNode->senders)[i] == NULL) {
+      (pSyncNode->senders)[i] = snapshotSenderCreate(pSyncNode, i);
+    }
+  }
 
   bool IamInOld = false;
   bool IamInNew = false;
@@ -1244,7 +1273,7 @@ void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term) {
 
 void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr) {
   sDebug("vgId:%d sync event become follower, isStandBy:%d, %s", pSyncNode->vgId, pSyncNode->pRaftCfg->isStandBy,
-        debugStr);
+         debugStr);
 
   // maybe clear leader cache
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
@@ -1279,7 +1308,7 @@ void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr) {
 //
 void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
   sDebug("vgId:%d sync event become leader, isStandBy:%d, %s", pSyncNode->vgId, pSyncNode->pRaftCfg->isStandBy,
-        debugStr);
+         debugStr);
 
   // state change
   pSyncNode->state = TAOS_SYNC_STATE_LEADER;
@@ -1845,7 +1874,8 @@ static int32_t syncNodeConfigChange(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftE
 
   bool isDrop;
 
-  if (IamInNew || (!IamInNew && ths->state != TAOS_SYNC_STATE_LEADER)) {
+  //if (IamInNew || (!IamInNew && ths->state != TAOS_SYNC_STATE_LEADER)) {
+  if (IamInNew) {
     syncNodeUpdateConfig(ths, &newSyncCfg, pEntry->index, &isDrop);
 
     // change isStandBy to normal
@@ -1856,14 +1886,16 @@ static int32_t syncNodeConfigChange(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftE
         syncNodeBecomeFollower(ths, "config change");
       }
     }
-
-    if (gRaftDetailLog) {
-      char* sOld = syncCfg2Str(&oldSyncCfg);
-      char* sNew = syncCfg2Str(&newSyncCfg);
-      sInfo("==config change== 0x11 old:%s new:%s isDrop:%d \n", sOld, sNew, isDrop);
-      taosMemoryFree(sOld);
-      taosMemoryFree(sNew);
-    }
+  } else {
+    syncNodeBecomeFollower(ths, "config change2");
+  }
+  
+  if (gRaftDetailLog) {
+    char* sOld = syncCfg2Str(&oldSyncCfg);
+    char* sNew = syncCfg2Str(&newSyncCfg);
+    sInfo("==config change== 0x11 old:%s new:%s isDrop:%d index:%ld \n", sOld, sNew, isDrop, pEntry->index);
+    taosMemoryFree(sOld);
+    taosMemoryFree(sNew);
   }
 
   // always call FpReConfigCb
@@ -1888,7 +1920,7 @@ int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex,
   int32_t    code = 0;
   ESyncState state = flag;
   sDebug("vgId:%d sync event commit by wal from index:%" PRId64 " to index:%" PRId64 ", %s", ths->vgId, beginIndex,
-        endIndex, syncUtilState2String(state));
+         endIndex, syncUtilState2String(state));
 
   // execute fsm
   if (ths->pFsm != NULL) {

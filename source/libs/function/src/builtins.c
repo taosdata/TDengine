@@ -1309,7 +1309,7 @@ void static addTimezoneParam(SNodeList* pList) {
   varDataSetLen(pVal->datum.p, len);
   strncpy(varDataVal(pVal->datum.p), pVal->literal, len);
 
-  nodesListAppend(pList, pVal);
+  nodesListAppend(pList, (SNode*)pVal);
 }
 
 static int32_t translateToIso8601(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
@@ -1398,7 +1398,7 @@ static int32_t translateToJson(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  SExprNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
+  SExprNode* pPara = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 0);
   if (QUERY_NODE_VALUE != nodeType(pPara) || (!IS_VAR_DATA_TYPE(pPara->resType.type))) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
@@ -1691,8 +1691,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = elapsedFinalize,
     .invertFunc   = NULL,
     .combineFunc  = elapsedCombine,
-    .pPartialFunc = "_elapsed_partial",
-    .pMergeFunc   = "_elapsed_merge"
+    //.pPartialFunc = "_elapsed_partial",
+    //.pMergeFunc   = "_elapsed_merge"
   },
   {
     .name = "_elapsed_partial",

@@ -308,7 +308,7 @@ void qwFreeTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
   }
 
   if (ctx->plan) {
-    nodesDestroyNode(ctx->plan);
+    nodesDestroyNode((SNode*)ctx->plan);
     ctx->plan = NULL;
   }
 }
