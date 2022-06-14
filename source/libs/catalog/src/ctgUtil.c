@@ -44,6 +44,16 @@ char *ctgTaskTypeStr(CTG_TASK_TYPE type) {
   }
 }
 
+void ctgFreeSTableIndex(void *info) {
+  if (NULL == info) {
+    return;
+  }
+
+  STableIndex *pInfo = (STableIndex *)info;
+
+  taosArrayDestroyEx(pInfo->pIndex, tFreeSTableIndexInfo);
+}
+
 void ctgFreeSMetaData(SMetaData* pData) {
   taosArrayDestroy(pData->pTableMeta);
   pData->pTableMeta = NULL;
@@ -110,25 +120,39 @@ void ctgFreeMetaRent(SCtgRentMgmt *mgmt) {
   taosMemoryFreeClear(mgmt->slots);
 }
 
-
-void ctgFreeTbMetaCache(SCtgTbMetaCache *cache) {
-  CTG_LOCK(CTG_WRITE, &cache->stbLock);
-  if (cache->stbCache) {
-    int32_t stblNum = taosHashGetSize(cache->stbCache);  
-    taosHashCleanup(cache->stbCache);
-    cache->stbCache = NULL;
-    CTG_CACHE_STAT_DEC(stblNum, stblNum);
+void ctgFreeStbMetaCache(SCtgDBCache *dbCache) {
+  if (NULL == dbCache->stbCache) {
+    return;
   }
-  CTG_UNLOCK(CTG_WRITE, &cache->stbLock);
 
-  CTG_LOCK(CTG_WRITE, &cache->metaLock);
-  if (cache->metaCache) {
-    int32_t tblNum = taosHashGetSize(cache->metaCache);
-    taosHashCleanup(cache->metaCache);
-    cache->metaCache = NULL;
-    CTG_CACHE_STAT_DEC(tblNum, tblNum);
+  int32_t stblNum = taosHashGetSize(dbCache->stbCache);  
+  taosHashCleanup(dbCache->stbCache);
+  dbCache->stbCache = NULL;
+  CTG_CACHE_STAT_DEC(stblNum, stblNum);
+}
+
+void ctgFreeTbCacheImpl(SCtgTbCache *pCache) {
+  taosMemoryFreeClear(pCache->pMeta);
+  if (pCache->pIndex) {
+    taosArrayDestroyEx(pCache->pIndex->pIndex, tFreeSTableIndexInfo);
+    taosMemoryFreeClear(pCache->pIndex);
   }
-  CTG_UNLOCK(CTG_WRITE, &cache->metaLock);
+}
+
+void ctgFreeTbCache(SCtgDBCache *dbCache) {
+  if (NULL == dbCache->tbCache) {
+    return;
+  }
+
+  int32_t tblNum = taosHashGetSize(dbCache->tbCache);
+  SCtgTbCache *pCache = taosHashIterate(dbCache->tbCache, NULL);
+  while (NULL != pCache) {
+    ctgFreeTbCacheImpl(pCache);
+    pCache = taosHashIterate(dbCache->tbCache, pCache);
+  }
+  taosHashCleanup(dbCache->tbCache);
+  dbCache->tbCache = NULL;
+  CTG_CACHE_STAT_DEC(tblNum, tblNum);
 }
 
 void ctgFreeVgInfo(SDBVgInfo *vgInfo) {
@@ -144,16 +168,18 @@ void ctgFreeVgInfo(SDBVgInfo *vgInfo) {
   taosMemoryFreeClear(vgInfo);
 }
 
+void ctgFreeVgInfoCache(SCtgDBCache *dbCache) {
+  ctgFreeVgInfo(dbCache->vgCache.vgInfo);
+}
+
 void ctgFreeDbCache(SCtgDBCache *dbCache) {
   if (NULL == dbCache) {
     return;
   }
 
-  CTG_LOCK(CTG_WRITE, &dbCache->vgLock);
-  ctgFreeVgInfo (dbCache->vgInfo);
-  CTG_UNLOCK(CTG_WRITE, &dbCache->vgLock);
-
-  ctgFreeTbMetaCache(&dbCache->tbCache);
+  ctgFreeVgInfoCache(dbCache);
+  ctgFreeStbMetaCache(dbCache);
+  ctgFreeTbCache(dbCache);
 }
 
 
@@ -167,16 +193,13 @@ void ctgFreeHandle(SCatalog* pCtg) {
     void *pIter = taosHashIterate(pCtg->dbCache, NULL);
     while (pIter) {
       SCtgDBCache *dbCache = pIter;
-
       atomic_store_8(&dbCache->deleted, 1);
-
       ctgFreeDbCache(dbCache);
             
       pIter = taosHashIterate(pCtg->dbCache, pIter);
     }  
 
     taosHashCleanup(pCtg->dbCache);
-    
     CTG_CACHE_STAT_DEC(dbNum, dbNum);
   }
 
@@ -186,14 +209,12 @@ void ctgFreeHandle(SCatalog* pCtg) {
     void *pIter = taosHashIterate(pCtg->userCache, NULL);
     while (pIter) {
       SCtgUserAuth *userCache = pIter;
-
       ctgFreeSCtgUserAuth(userCache);
 
       pIter = taosHashIterate(pCtg->userCache, pIter);
     }  
 
     taosHashCleanup(pCtg->userCache);
-
     CTG_CACHE_STAT_DEC(userNum, userNum);
   }
 
@@ -252,9 +273,9 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
       break;
     }
     case TDMT_MND_GET_TABLE_INDEX: {
-      SArray** pOut = (SArray**)pCtx->out;
+      STableIndex* pOut = (STableIndex*)pCtx->out;
       if (pOut) {
-        taosArrayDestroyEx(*pOut, tFreeSTableIndexInfo);
+        taosArrayDestroyEx(pOut->pIndex, tFreeSTableIndexInfo);
         taosMemoryFreeClear(pCtx->out);
       }
       break;
@@ -535,9 +556,9 @@ int32_t ctgGetVgInfoFromHashValue(SCatalog *pCtg, SDBVgInfo *dbInfo, const SName
 }
 
 int32_t ctgStbVersionSearchCompare(const void* key1, const void* key2) {
-  if (*(uint64_t *)key1 < ((SSTableMetaVersion*)key2)->suid) {
+  if (*(uint64_t *)key1 < ((SSTableVersion*)key2)->suid) {
     return -1;
-  } else if (*(uint64_t *)key1 > ((SSTableMetaVersion*)key2)->suid) {
+  } else if (*(uint64_t *)key1 > ((SSTableVersion*)key2)->suid) {
     return 1;
   } else {
     return 0;
@@ -555,9 +576,9 @@ int32_t ctgDbVgVersionSearchCompare(const void* key1, const void* key2) {
 }
 
 int32_t ctgStbVersionSortCompare(const void* key1, const void* key2) {
-  if (((SSTableMetaVersion*)key1)->suid < ((SSTableMetaVersion*)key2)->suid) {
+  if (((SSTableVersion*)key1)->suid < ((SSTableVersion*)key2)->suid) {
     return -1;
-  } else if (((SSTableMetaVersion*)key1)->suid > ((SSTableMetaVersion*)key2)->suid) {
+  } else if (((SSTableVersion*)key1)->suid > ((SSTableVersion*)key2)->suid) {
     return 1;
   } else {
     return 0;
@@ -640,5 +661,41 @@ int32_t ctgCloneMetaOutput(STableMetaOutput *output, STableMetaOutput **pOutput)
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t ctgCloneTableIndex(SArray* pIndex, SArray** pRes) {
+  if (NULL == pIndex) {
+    *pRes = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t num = taosArrayGetSize(pIndex);
+  *pRes = taosArrayInit(num, sizeof(STableIndexInfo));
+  if (NULL == *pRes) {
+    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  for (int32_t i = 0; i < num; ++i) {
+    STableIndexInfo *pInfo = taosArrayGet(pIndex, i);
+    taosArrayPush(*pRes, pInfo);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t ctgUpdateSendTargetInfo(SMsgSendInfo *pMsgSendInfo, int32_t msgType, SCtgTask* pTask) {
+  if (msgType == TDMT_VND_TABLE_META) {
+    SCtgTbMetaCtx* ctx = (SCtgTbMetaCtx*)pTask->taskCtx;
+    char dbFName[TSDB_DB_FNAME_LEN];
+    tNameGetFullDbName(ctx->pName, dbFName);
+    
+    pMsgSendInfo->target.type = TARGET_TYPE_VNODE;
+    pMsgSendInfo->target.vgId = ctx->vgId;
+    pMsgSendInfo->target.dbFName = strdup(dbFName);
+  } else {
+    pMsgSendInfo->target.type = TARGET_TYPE_MNODE;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
 
 

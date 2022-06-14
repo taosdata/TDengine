@@ -289,11 +289,9 @@ static int32_t mndExecSteps(SMnode *pMnode) {
 }
 
 static void mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
-  pMnode->replica = pOption->replica;
-  pMnode->selfIndex = pOption->selfIndex;
-  memcpy(&pMnode->replicas, pOption->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
   pMnode->msgCb = pOption->msgCb;
   pMnode->selfDnodeId = pOption->dnodeId;
+  pMnode->syncMgmt.replica = pOption->replica;
   pMnode->syncMgmt.standby = pOption->standby;
 }
 
@@ -428,7 +426,6 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
       SyncClientRequest *pSyncMsg = syncClientRequestFromRpcMsg2(pMsg);
       code = syncNodeOnClientRequestCb(pSyncNode, pSyncMsg);
       syncClientRequestDestroy(pSyncMsg);
-
     } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE) {
       SyncRequestVote *pSyncMsg = syncRequestVoteFromRpcMsg2(pMsg);
       code = syncNodeOnRequestVoteSnapshotCb(pSyncNode, pSyncMsg);
@@ -445,7 +442,6 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
       SyncAppendEntriesReply *pSyncMsg = syncAppendEntriesReplyFromRpcMsg2(pMsg);
       code = syncNodeOnAppendEntriesReplySnapshotCb(pSyncNode, pSyncMsg);
       syncAppendEntriesReplyDestroy(pSyncMsg);
-
     } else if (pMsg->msgType == TDMT_SYNC_SNAPSHOT_SEND) {
       SyncSnapshotSend *pSyncMsg = syncSnapshotSendFromRpcMsg2(pMsg);
       code = syncNodeOnSnapshotSendCb(pSyncNode, pSyncMsg);
@@ -454,12 +450,14 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
       SyncSnapshotRsp *pSyncMsg = syncSnapshotRspFromRpcMsg2(pMsg);
       code = syncNodeOnSnapshotRspCb(pSyncNode, pSyncMsg);
       syncSnapshotRspDestroy(pSyncMsg);
-
+    } else if (pMsg->msgType == TDMT_MND_SET_STANDBY) {
+      code = syncSetStandby(pMgmt->sync);
+      SRpcMsg rsp = {.code = code, .info = pMsg->info};
+      tmsgSendRsp(&rsp);
     } else {
       mError("failed to process msg:%p since invalid type:%s", pMsg, TMSG_INFO(pMsg->msgType));
       code = TAOS_SYNC_PROPOSE_OTHER_ERROR;
     }
-
   } else {
     if (pMsg->msgType == TDMT_SYNC_TIMEOUT) {
       SyncTimeout *pSyncMsg = syncTimeoutFromRpcMsg2(pMsg);
@@ -493,6 +491,10 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
       SyncAppendEntriesReply *pSyncMsg = syncAppendEntriesReplyFromRpcMsg2(pMsg);
       code = syncNodeOnAppendEntriesReplyCb(pSyncNode, pSyncMsg);
       syncAppendEntriesReplyDestroy(pSyncMsg);
+    } else if (pMsg->msgType == TDMT_MND_SET_STANDBY) {
+      code = syncSetStandby(pMgmt->sync);
+      SRpcMsg rsp = {.code = code, .info = pMsg->info};
+      tmsgSendRsp(&rsp);
     } else {
       mError("failed to process msg:%p since invalid type:%s", pMsg, TMSG_INFO(pMsg->msgType));
       code = TAOS_SYNC_PROPOSE_OTHER_ERROR;

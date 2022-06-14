@@ -525,7 +525,9 @@ static int32_t getTableScannerExecInfo(struct SOperatorInfo* pOptr, void** pOptr
 
 static void destroyTableScanOperatorInfo(void* param, int32_t numOfOutput) {
   STableScanInfo* pTableScanInfo = (STableScanInfo*)param;
-  taosMemoryFree(pTableScanInfo->pResBlock);
+  blockDataDestroy(pTableScanInfo->pResBlock);
+  clearupQueryTableDataCond(&pTableScanInfo->cond);
+
   tsdbCleanupReadHandle(pTableScanInfo->dataReader);
 
   taosArrayDestroy(pTableScanInfo->pGroupCols);
@@ -1439,16 +1441,18 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
                pRsp->numOfRows, pInfo->loadInfo.totalRows);
 
         if (pRsp->numOfRows == 0) {
+
+          taosMemoryFree(pRsp);
           return NULL;
         }
       }
 
-      SRetrieveMetaTableRsp* pTableRsp = pInfo->pRsp;
-      setDataBlockFromFetchRsp(pInfo->pRes, &pInfo->loadInfo, pTableRsp->numOfRows, pTableRsp->data, pTableRsp->compLen,
+      setDataBlockFromFetchRsp(pInfo->pRes, &pInfo->loadInfo, pRsp->numOfRows, pRsp->data, pRsp->compLen,
                                pOperator->numOfExprs, startTs, NULL, pInfo->scanCols);
 
       // todo log the filter info
       doFilterResult(pInfo);
+      taosMemoryFree(pRsp);
       if (pInfo->pRes->info.rows > 0) {
         return pInfo->pRes;
       }

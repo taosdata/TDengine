@@ -98,14 +98,15 @@ typedef struct SCatalogCfg {
   uint32_t stbRentSec;
 } SCatalogCfg;
 
-typedef struct SSTableMetaVersion {
+typedef struct SSTableVersion {
   char     dbFName[TSDB_DB_FNAME_LEN];
   char     stbName[TSDB_TABLE_NAME_LEN];
   uint64_t dbId;
   uint64_t suid;
   int16_t  sversion;
-  int16_t  tversion;
-} SSTableMetaVersion;
+  int16_t  tversion;  
+  int32_t  smaVer;
+} SSTableVersion;
 
 typedef struct SDbVgVersion {
   char    dbFName[TSDB_DB_FNAME_LEN];
@@ -159,8 +160,7 @@ int32_t catalogGetDBVgVersion(SCatalog* pCtg, const char* dbFName, int32_t* vers
  * @param pVgroupList (output, vgroup info list, element is SVgroupInfo, NEED to simply free the array by caller)
  * @return error code
  */
-int32_t catalogGetDBVgInfo(SCatalog* pCatalog, void* pTransporter, const SEpSet* pMgmtEps, const char* pDBName,
-                           SArray** pVgroupList);
+int32_t catalogGetDBVgInfo(SCatalog* pCatalog, SRequestConnInfo* pConn, const char* pDBName, SArray** pVgroupList);
 
 int32_t catalogUpdateDBVgInfo(SCatalog* pCatalog, const char* dbName, uint64_t dbId, SDBVgInfo* dbInfo);
 
@@ -179,8 +179,7 @@ int32_t catalogRemoveStbMeta(SCatalog* pCtg, const char* dbFName, uint64_t dbId,
  * @param pTableMeta(output, table meta data, NEED to free it by calller)
  * @return error code
  */
-int32_t catalogGetTableMeta(SCatalog* pCatalog, void* pTransporter, const SEpSet* pMgmtEps, const SName* pTableName,
-                            STableMeta** pTableMeta);
+int32_t catalogGetTableMeta(SCatalog* pCatalog, SRequestConnInfo* pConn, const SName* pTableName, STableMeta** pTableMeta);
 
 /**
  * Get a super table's meta data.
@@ -191,8 +190,9 @@ int32_t catalogGetTableMeta(SCatalog* pCatalog, void* pTransporter, const SEpSet
  * @param pTableMeta(output, table meta data, NEED to free it by calller)
  * @return error code
  */
-int32_t catalogGetSTableMeta(SCatalog* pCatalog, void* pTransporter, const SEpSet* pMgmtEps, const SName* pTableName,
-                             STableMeta** pTableMeta);
+int32_t catalogGetSTableMeta(SCatalog* pCatalog, SRequestConnInfo* pConn, const SName* pTableName, STableMeta** pTableMeta);
+
+int32_t catalogUpdateTableMeta(SCatalog* pCatalog, STableMetaRsp *rspMsg);
 
 int32_t catalogUpdateTableMeta(SCatalog* pCatalog, STableMetaRsp* rspMsg);
 
@@ -204,9 +204,9 @@ int32_t catalogUpdateTableMeta(SCatalog* pCatalog, STableMetaRsp* rspMsg);
  * @param dbFName (input, db full name)
  * @return error code
  */
-int32_t catalogRefreshDBVgInfo(SCatalog* pCtg, void* pTrans, const SEpSet* pMgmtEps, const char* dbFName);
+int32_t catalogRefreshDBVgInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbFName);
 
-int32_t catalogChkTbMetaVersion(SCatalog* pCtg, void* pTrans, const SEpSet* pMgmtEps, SArray* pTables);
+int32_t catalogChkTbMetaVersion(SCatalog* pCtg, SRequestConnInfo* pConn, SArray* pTables);
 
 /**
  * Force refresh a table's local cached meta data.
@@ -217,8 +217,7 @@ int32_t catalogChkTbMetaVersion(SCatalog* pCtg, void* pTrans, const SEpSet* pMgm
  * @param isSTable (input, is super table or not, 1:supposed to be stable, 0: supposed not to be stable, -1:not sure)
  * @return error code
  */
-int32_t catalogRefreshTableMeta(SCatalog* pCatalog, void* pTransporter, const SEpSet* pMgmtEps, const SName* pTableName,
-                                int32_t isSTable);
+int32_t catalogRefreshTableMeta(SCatalog* pCatalog, SRequestConnInfo* pConn, const SName* pTableName, int32_t isSTable);
 
 /**
  * Force refresh a table's local cached meta data and get the new one.
@@ -230,8 +229,7 @@ int32_t catalogRefreshTableMeta(SCatalog* pCatalog, void* pTransporter, const SE
  * @param isSTable (input, is super table or not, 1:supposed to be stable, 0: supposed not to be stable, -1:not sure)
  * @return error code
  */
-int32_t catalogRefreshGetTableMeta(SCatalog* pCatalog, void* pTransporter, const SEpSet* pMgmtEps,
-                                   const SName* pTableName, STableMeta** pTableMeta, int32_t isSTable);
+int32_t catalogRefreshGetTableMeta(SCatalog* pCatalog, SRequestConnInfo* pConn, const SName* pTableName, STableMeta** pTableMeta, int32_t isSTable);
 
 /**
  * Get a table's actual vgroup, for stable it's all possible vgroup list.
@@ -242,8 +240,7 @@ int32_t catalogRefreshGetTableMeta(SCatalog* pCatalog, void* pTransporter, const
  * @param pVgroupList (output, vgroup info list, element is SVgroupInfo, NEED to simply free the array by caller)
  * @return error code
  */
-int32_t catalogGetTableDistVgInfo(SCatalog* pCatalog, void* pTransporter, const SEpSet* pMgmtEps,
-                                  const SName* pTableName, SArray** pVgroupList);
+int32_t catalogGetTableDistVgInfo(SCatalog* pCatalog, SRequestConnInfo* pConn, const SName* pTableName, SArray** pVgroupList);
 
 /**
  * Get a table's vgroup from its name's hash value.
@@ -254,8 +251,7 @@ int32_t catalogGetTableDistVgInfo(SCatalog* pCatalog, void* pTransporter, const 
  * @param vgInfo (output, vgroup info)
  * @return error code
  */
-int32_t catalogGetTableHashVgroup(SCatalog* pCatalog, void* pTransporter, const SEpSet* pMgmtEps, const SName* pName,
-                                  SVgroupInfo* vgInfo);
+int32_t catalogGetTableHashVgroup(SCatalog* pCatalog, SRequestConnInfo* pConn, const SName* pName, SVgroupInfo* vgInfo);
 
 /**
  * Get all meta data required in pReq.
@@ -266,38 +262,35 @@ int32_t catalogGetTableHashVgroup(SCatalog* pCatalog, void* pTransporter, const 
  * @param pRsp (output, response data)
  * @return error code
  */
-int32_t catalogGetAllMeta(SCatalog* pCatalog, void* pTransporter, const SEpSet* pMgmtEps, const SCatalogReq* pReq,
-                          SMetaData* pRsp);
+int32_t catalogGetAllMeta(SCatalog* pCatalog, SRequestConnInfo* pConn, const SCatalogReq* pReq, SMetaData* pRsp);
 
-int32_t catalogAsyncGetAllMeta(SCatalog* pCtg, void* pTrans, const SEpSet* pMgmtEps, uint64_t reqId,
-                               const SCatalogReq* pReq, catalogCallback fp, void* param, int64_t* jobId);
+int32_t catalogAsyncGetAllMeta(SCatalog* pCtg, SRequestConnInfo* pConn, uint64_t reqId, const SCatalogReq* pReq, catalogCallback fp, void* param, int64_t* jobId);
 
-int32_t catalogGetQnodeList(SCatalog* pCatalog, void* pTransporter, const SEpSet* pMgmtEps, SArray* pQnodeList);
+int32_t catalogGetQnodeList(SCatalog* pCatalog, SRequestConnInfo* pConn, SArray* pQnodeList);
 
-int32_t catalogGetExpiredSTables(SCatalog* pCatalog, SSTableMetaVersion** stables, uint32_t* num);
+int32_t catalogGetExpiredSTables(SCatalog* pCatalog, SSTableVersion **stables, uint32_t *num);
 
 int32_t catalogGetExpiredDBs(SCatalog* pCatalog, SDbVgVersion** dbs, uint32_t* num);
 
 int32_t catalogGetExpiredUsers(SCatalog* pCtg, SUserAuthVersion** users, uint32_t* num);
 
-int32_t catalogGetDBCfg(SCatalog* pCtg, void* pRpc, const SEpSet* pMgmtEps, const char* dbFName, SDbCfgInfo* pDbCfg);
+int32_t catalogGetDBCfg(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbFName, SDbCfgInfo* pDbCfg);
 
-int32_t catalogGetIndexMeta(SCatalog* pCtg, void* pRpc, const SEpSet* pMgmtEps, const char* indexName,
-                            SIndexInfo* pInfo);
+int32_t catalogGetIndexMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const char* indexName, SIndexInfo* pInfo);
 
-int32_t catalogGetTableIndex(SCatalog* pCtg, void* pTrans, const SEpSet* pMgmtEps, const SName* pTableName,
-                             SArray** pRes);
+int32_t catalogGetTableIndex(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SArray** pRes);
 
-int32_t catalogGetUdfInfo(SCatalog* pCtg, void* pRpc, const SEpSet* pMgmtEps, const char* funcName, SFuncInfo* pInfo);
+int32_t catalogUpdateTableIndex(SCatalog* pCtg, STableIndexRsp *pRsp);
 
-int32_t catalogChkAuth(SCatalog* pCtg, void* pRpc, const SEpSet* pMgmtEps, const char* user, const char* dbFName,
-                       AUTH_TYPE type, bool* pass);
+int32_t catalogGetUdfInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const char* funcName, SFuncInfo* pInfo);
+
+int32_t catalogChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user, const char* dbFName, AUTH_TYPE type, bool *pass);
 
 int32_t catalogUpdateUserAuthInfo(SCatalog* pCtg, SGetUserAuthRsp* pAuth);
 
-int32_t catalogUpdateVgEpSet(SCatalog* pCtg, const char* dbFName, int32_t vgId, SEpSet* epSet);
+int32_t catalogUpdateVgEpSet(SCatalog* pCtg, const char* dbFName, int32_t vgId, SEpSet *epSet);
 
-int32_t ctgdLaunchAsyncCall(SCatalog* pCtg, void* pTrans, const SEpSet* pMgmtEps, uint64_t reqId, bool forceUpdate);
+int32_t ctgdLaunchAsyncCall(SCatalog* pCtg, SRequestConnInfo* pConn, uint64_t reqId, bool forceUpdate);
 
 /**
  * Destroy catalog and relase all resources
