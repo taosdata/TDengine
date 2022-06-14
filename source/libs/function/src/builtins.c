@@ -155,6 +155,35 @@ static int32_t translateSum(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateAvgPartial(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  if (!IS_NUMERIC_TYPE(paraType) && !IS_NULL_TYPE(paraType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = getAvgInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateAvgMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  if (TSDB_DATA_TYPE_BINARY != paraType) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateWduration(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // pseudo column do not need to check parameters
   pFunc->node.resType = (SDataType){.bytes = sizeof(int64_t), .type = TSDB_DATA_TYPE_BIGINT};
@@ -1514,6 +1543,32 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getAvgFuncEnv,
     .initFunc     = avgFunctionSetup,
     .processFunc  = avgFunction,
+    .finalizeFunc = avgFinalize,
+    .invertFunc   = avgInvertFunction,
+    .combineFunc  = avgCombine,
+    .pPartialFunc = "_avg_partial",
+    .pMergeFunc   = "_avg_merge"
+  },
+  {
+    .name = "_avg_partial",
+    .type = FUNCTION_TYPE_AVG_PARTIAL,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateAvgPartial,
+    .getEnvFunc   = getAvgFuncEnv,
+    .initFunc     = avgFunctionSetup,
+    .processFunc  = avgFunction,
+    .finalizeFunc = avgPartialFinalize,
+    .invertFunc   = avgInvertFunction,
+    .combineFunc  = avgCombine,
+  },
+  {
+    .name = "_avg_merge",
+    .type = FUNCTION_TYPE_AVG_MERGE,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateAvgMerge,
+    .getEnvFunc   = getAvgFuncEnv,
+    .initFunc     = avgFunctionSetup,
+    .processFunc  = avgFunctionMerge,
     .finalizeFunc = avgFinalize,
     .invertFunc   = avgInvertFunction,
     .combineFunc  = avgCombine,
