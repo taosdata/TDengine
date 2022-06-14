@@ -95,6 +95,7 @@ bool getFirstLastFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t firstFunction(SqlFunctionCtx *pCtx);
 int32_t firstFunctionMerge(SqlFunctionCtx *pCtx);
 int32_t lastFunction(SqlFunctionCtx *pCtx);
+int32_t lastFunctionMerge(SqlFunctionCtx *pCtx);
 int32_t firstLastFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t firstLastPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t firstCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
