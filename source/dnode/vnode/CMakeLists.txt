@@ -31,7 +31,7 @@ target_sources(
     "src/sma/smaEnv.c"
     "src/sma/smaOpen.c"
     "src/sma/smaRollup.c"
-    "src/sma/smaTimeRange2.c"
+    "src/sma/smaTimeRange.c"
 
     # tsdb
     "src/tsdb/tsdbCommit.c"
