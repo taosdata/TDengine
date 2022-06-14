@@ -344,6 +344,11 @@ int32_t ctgHandleForceUpdate(SCatalog* pCtg, SCtgJob *pJob, const SCatalogReq* p
     }
   }
 
+  for (int32_t i = 0; i < pJob->tbIndexNum; ++i) {
+    SName* name = taosArrayGet(pReq->pTableIndex, i);
+    ctgDropTbIndexEnqueue(pCtg, name, true);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -680,15 +685,14 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTask* pTask, int32_t reqType, const SDataBuf *
           CTG_ERR_RET(ctgAcquireVgInfoFromCache(pCtg, dbFName, &dbCache));
           if (NULL != dbCache) {
             SVgroupInfo vgInfo = {0};
-            CTG_ERR_JRET(ctgGetVgInfoFromHashValue(pCtg, dbCache->vgInfo, ctx->pName, &vgInfo));
+            CTG_ERR_JRET(ctgGetVgInfoFromHashValue(pCtg, dbCache->vgCache.vgInfo, ctx->pName, &vgInfo));
           
             ctgDebug("will refresh tbmeta, not supposed to be stb, tbName:%s, flag:%d", tNameGetTableName(ctx->pName), ctx->flag);
 
             ctx->vgId = vgInfo.vgId;          
             CTG_ERR_JRET(ctgGetTbMetaFromVnode(pCtg, pConn, ctx->pName, &vgInfo, NULL, pTask));
 
-            ctgReleaseVgInfo(dbCache);
-            ctgReleaseDBCache(pCtg, dbCache);
+            ctgReleaseVgInfoToCache(pCtg, dbCache);
           } else {
             SBuildUseDBInput input = {0};
           
@@ -786,7 +790,7 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTask* pTask, int32_t reqType, const SDataBuf *
 _return:
 
   if (dbCache) {
-    ctgReleaseVgInfo(dbCache);
+    ctgRUnlockVgInfo(dbCache);
     ctgReleaseDBCache(pCtg, dbCache);
   }
 
@@ -866,9 +870,15 @@ _return:
 
 int32_t ctgHandleGetTbIndexRsp(SCtgTask* pTask, int32_t reqType, const SDataBuf *pMsg, int32_t rspCode) {
   int32_t code = 0;
-  CTG_ERR_JRET(ctgProcessRspMsg(pTask->msgCtx.out, reqType, pMsg->pData, pMsg->len, rspCode, pTask->msgCtx.target));
+  CTG_ERR_JRET(ctgProcessRspMsg(&pTask->msgCtx.out, reqType, pMsg->pData, pMsg->len, rspCode, pTask->msgCtx.target));
 
-  TSWAP(pTask->res, pTask->msgCtx.out);
+  STableIndex* pOut = (STableIndex*)pTask->msgCtx.out;
+  SArray* pInfo = NULL;
+  CTG_ERR_JRET(ctgCloneTableIndex(pOut->pIndex, &pInfo));
+  pTask->res = pInfo;
+
+  SCtgTbIndexCtx* ctx = pTask->taskCtx;  
+  CTG_ERR_JRET(ctgUpdateTbIndexEnqueue(pTask->pJob->pCtg, (STableIndex**)&pTask->msgCtx.out, false));
   
 _return:
   if (TSDB_CODE_MND_DB_INDEX_NOT_EXIST == code) {
@@ -1008,7 +1018,7 @@ int32_t ctgAsyncRefreshTbMeta(SCtgTask *pTask) {
   CTG_ERR_RET(ctgAcquireVgInfoFromCache(pCtg, dbFName, &dbCache));
   if (dbCache) {
     SVgroupInfo vgInfo = {0};
-    CTG_ERR_RET(ctgGetVgInfoFromHashValue(pCtg, dbCache->vgInfo, ctx->pName, &vgInfo));
+    CTG_ERR_RET(ctgGetVgInfoFromHashValue(pCtg, dbCache->vgCache.vgInfo, ctx->pName, &vgInfo));
 
     ctgDebug("will refresh tbmeta, not supposed to be stb, tbName:%s, flag:%d", tNameGetTableName(ctx->pName), ctx->flag);
 
@@ -1026,8 +1036,7 @@ int32_t ctgAsyncRefreshTbMeta(SCtgTask *pTask) {
 _return:
 
   if (dbCache) {
-    ctgReleaseVgInfo(dbCache);
-    ctgReleaseDBCache(pCtg, dbCache);
+    ctgReleaseVgInfoToCache(pCtg, dbCache);
   }
 
   CTG_RET(code);
@@ -1057,7 +1066,7 @@ int32_t ctgLaunchGetDbVgTask(SCtgTask *pTask) {
   
   CTG_ERR_RET(ctgAcquireVgInfoFromCache(pCtg, pCtx->dbFName, &dbCache));
   if (NULL != dbCache) {
-    CTG_ERR_JRET(ctgGenerateVgList(pCtg, dbCache->vgInfo->vgHash, (SArray**)&pTask->res));
+    CTG_ERR_JRET(ctgGenerateVgList(pCtg, dbCache->vgCache.vgInfo->vgHash, (SArray**)&pTask->res));
     
     CTG_ERR_JRET(ctgHandleTaskEnd(pTask, 0));
   } else {
@@ -1072,8 +1081,7 @@ int32_t ctgLaunchGetDbVgTask(SCtgTask *pTask) {
 _return:
 
   if (dbCache) {
-    ctgReleaseVgInfo(dbCache);
-    ctgReleaseDBCache(pCtg, dbCache);
+    ctgReleaseVgInfoToCache(pCtg, dbCache);
   }
 
   CTG_RET(code);
@@ -1092,7 +1100,7 @@ int32_t ctgLaunchGetTbHashTask(SCtgTask *pTask) {
     if (NULL == pTask->res) {
       CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
     }
-    CTG_ERR_JRET(ctgGetVgInfoFromHashValue(pCtg, dbCache->vgInfo, pCtx->pName, (SVgroupInfo*)pTask->res));
+    CTG_ERR_JRET(ctgGetVgInfoFromHashValue(pCtg, dbCache->vgCache.vgInfo, pCtx->pName, (SVgroupInfo*)pTask->res));
     
     CTG_ERR_JRET(ctgHandleTaskEnd(pTask, 0));
   } else {
@@ -1107,8 +1115,7 @@ int32_t ctgLaunchGetTbHashTask(SCtgTask *pTask) {
 _return:
 
   if (dbCache) {
-    ctgReleaseVgInfo(dbCache);
-    ctgReleaseDBCache(pCtg, dbCache);
+    ctgReleaseVgInfoToCache(pCtg, dbCache);
   }
 
   CTG_RET(code);
@@ -1119,6 +1126,15 @@ int32_t ctgLaunchGetTbIndexTask(SCtgTask *pTask) {
   SCatalog* pCtg = pTask->pJob->pCtg; 
   SRequestConnInfo* pConn = &pTask->pJob->conn;
   SCtgTbIndexCtx* pCtx = (SCtgTbIndexCtx*)pTask->taskCtx;
+  SArray* pRes = NULL;
+
+  CTG_ERR_RET(ctgReadTbIndexFromCache(pCtg, pCtx->pName, &pRes));
+  if (pRes) {
+    pTask->res = pRes;
+    
+    CTG_ERR_RET(ctgHandleTaskEnd(pTask, 0));
+    return TSDB_CODE_SUCCESS;
+  }
   
   CTG_ERR_RET(ctgGetTbIndexFromMnode(pCtg, pConn, pCtx->pName, NULL, pTask));
   return TSDB_CODE_SUCCESS;
@@ -1157,9 +1173,9 @@ int32_t ctgLaunchGetDbInfoTask(SCtgTask *pTask) {
   SDbInfo* pInfo = (SDbInfo*)pTask->res;
   CTG_ERR_RET(ctgAcquireVgInfoFromCache(pCtg, pCtx->dbFName, &dbCache));
   if (NULL != dbCache) {
-    pInfo->vgVer = dbCache->vgInfo->vgVersion;
+    pInfo->vgVer = dbCache->vgCache.vgInfo->vgVersion;
     pInfo->dbId = dbCache->dbId;
-    pInfo->tbNum = dbCache->vgInfo->numOfTable;
+    pInfo->tbNum = dbCache->vgCache.vgInfo->numOfTable;
   } else {
     pInfo->vgVer = CTG_DEFAULT_INVALID_VERSION;
   }
@@ -1169,8 +1185,7 @@ int32_t ctgLaunchGetDbInfoTask(SCtgTask *pTask) {
 _return:
 
   if (dbCache) {
-    ctgReleaseVgInfo(dbCache);
-    ctgReleaseDBCache(pCtg, dbCache);
+    ctgReleaseVgInfoToCache(pCtg, dbCache);
   }
 
   CTG_RET(code);

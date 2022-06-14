@@ -110,6 +110,8 @@ int32_t tsdbBegin(STsdb *pTsdb) {
 }
 
 int32_t tsdbCommit(STsdb *pTsdb) {
+  if (!pTsdb) return 0;
+  
   int32_t    code = 0;
   SCommitH   commith = {0};
   SDFileSet *pSet = NULL;
