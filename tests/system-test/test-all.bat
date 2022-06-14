@@ -61,19 +61,19 @@ goto :eof
 set tt=%1
 set tt=%tt:.= %
 set tt=%tt::= %
-set index=1
+set /a index=1
 for %%a in (%tt%) do (
     if !index! EQU 1 (
-        set /a hh=%%a
+        set /a hh=%%a || echo 11 %%a
     )^
     else if  !index! EQU 2 (
-        set /a mm=%%a
+        set /a mm=%%a || echo 22 %%a
  
     )^
     else if  !index! EQU 3 (
-        set /a ss=%%a
+        set /a ss=%%a || echo 33 %%a
     )
    set /a index=index+1
 )
-set /a _timeTemp=(%hh%*60+%mm%)*60+%ss%  || echo hh:%hh% mm:%mm% ss:%ss%
+set /a _timeTemp=(%hh%*60+%mm%)*60+%ss%  || echo 44 hh:%hh% mm:%mm% ss:%ss%
 goto :eof

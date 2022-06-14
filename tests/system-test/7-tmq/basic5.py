@@ -134,7 +134,7 @@ class TDTestCase:
         parameterDict['cfg'] = cfgPath
         prepareEnvThread = threading.Thread(target=self.prepareEnv, kwargs=parameterDict)
         prepareEnvThread.start()
-        time.sleep(2)
+        prepareEnvThread.join()
         
         # wait stb ready
         while 1:
@@ -245,6 +245,7 @@ class TDTestCase:
 
         prepareEnvThread = threading.Thread(target=self.prepareEnv, kwargs=parameterDict)
         prepareEnvThread.start()
+        prepareEnvThread.join()
         
         # wait db ready
         while 1:
@@ -371,6 +372,7 @@ class TDTestCase:
 
         prepareEnvThread = threading.Thread(target=self.prepareEnv, kwargs=parameterDict)
         prepareEnvThread.start()
+        prepareEnvThread.join()
         
         # wait db ready
         while 1:
