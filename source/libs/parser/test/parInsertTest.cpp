@@ -245,8 +245,8 @@ TEST_F(InsertTest, autoCreateTableTest) {
   setDatabase("root", "test");
 
   bind(
-      "insert into st1s1 using st1 tags(1, 'wxy') values (now, 1, \"beijing\")(now+1s, 2, \"shanghai\")(now+2s, 3, "
-      "\"guangzhou\")");
+      "insert into st1s1 using st1 tags(1, 'wxy', now) "
+      "values (now, 1, \"beijing\")(now+1s, 2, \"shanghai\")(now+2s, 3, \"guangzhou\")");
   ASSERT_EQ(run(), TSDB_CODE_SUCCESS);
   dumpReslut();
   checkReslut(1, 3);
@@ -257,8 +257,8 @@ TEST_F(InsertTest, autoCreateTableTest) {
   ASSERT_EQ(run(), TSDB_CODE_SUCCESS);
 
   bind(
-      "insert into st1s1 using st1 tags(1, 'wxy') values (now, 1, \"beijing\")(now+1s, 2, \"shanghai\")(now+2s, 3, "
-      "\"guangzhou\")");
+      "insert into st1s1 using st1 tags(1, 'wxy', now) "
+      "values (now, 1, \"beijing\")(now+1s, 2, \"shanghai\")(now+2s, 3, \"guangzhou\")");
   ASSERT_EQ(runAsync(), TSDB_CODE_SUCCESS);
 
   bind(
