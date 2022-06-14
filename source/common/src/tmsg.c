@@ -4746,3 +4746,32 @@ void tFreeSMAlterStbRsp(SMAlterStbRsp *pRsp) {
     taosMemoryFree(pRsp->pMeta);
   }
 }
+
+int32_t tEncodeSTqOffset(SEncoder *pEncoder, const STqOffset *pOffset) {
+  if (tEncodeI8(pEncoder, pOffset->type) < 0) return -1;
+  if (pOffset->type == TMQ_OFFSET__SNAPSHOT) {
+    if (tEncodeI64(pEncoder, pOffset->uid) < 0) return -1;
+    if (tEncodeI64(pEncoder, pOffset->ts) < 0) return -1;
+  } else if (pOffset->type == TMQ_OFFSET__LOG) {
+    if (tEncodeI64(pEncoder, pOffset->version) < 0) return -1;
+  } else {
+    ASSERT(0);
+  }
+  if (tEncodeCStr(pEncoder, pOffset->subKey) < 0) return -1;
+  return 0;
+}
+
+int32_t tDecodeSTqOffset(SDecoder *pDecoder, STqOffset *pOffset) {
+  if (tDecodeI8(pDecoder, &pOffset->type) < 0) return -1;
+  if (pOffset->type == TMQ_OFFSET__SNAPSHOT) {
+    if (tDecodeI64(pDecoder, &pOffset->uid) < 0) return -1;
+    if (tDecodeI64(pDecoder, &pOffset->ts) < 0) return -1;
+  } else if (pOffset->type == TMQ_OFFSET__LOG) {
+    if (tDecodeI64(pDecoder, &pOffset->version) < 0) return -1;
+  } else {
+    ASSERT(0);
+  }
+  if (tDecodeCStrTo(pDecoder, pOffset->subKey) < 0) return -1;
+  return 0;
+}
+

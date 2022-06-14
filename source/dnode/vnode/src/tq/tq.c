@@ -66,19 +66,23 @@ STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal) {
     ASSERT(0);
   }
 
+  if (tqOffsetOpen(pTq) < 0) {
+    ASSERT(0);
+  }
+
   return pTq;
 }
 
 void tqClose(STQ* pTq) {
   if (pTq) {
-    taosMemoryFreeClear(pTq->path);
+    tqOffsetClose(pTq->pOffsetStore);
     taosHashCleanup(pTq->handles);
     taosHashCleanup(pTq->pStreamTasks);
     taosHashCleanup(pTq->pushMgr);
+    taosMemoryFree(pTq->path);
     tqMetaClose(pTq);
     taosMemoryFree(pTq);
   }
-  // TODO
 }
 
 int32_t tqSendPollRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataBlkRsp* pRsp) {
@@ -105,6 +109,33 @@ int32_t tqSendPollRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, con
 
   tqDebug("vg %d from consumer %ld (epoch %d) send rsp, block num: %d, reqOffset: %ld, rspOffset: %ld",
           TD_VID(pTq->pVnode), pReq->consumerId, pReq->epoch, pRsp->blockNum, pRsp->reqOffset, pRsp->rspOffset);
+
+  return 0;
+}
+
+int32_t tqProcessOffsetCommitReq(STQ* pTq, char* msg, int32_t msgLen) {
+  STqOffset offset = {0};
+  SDecoder  decoder;
+  tDecoderInit(&decoder, msg, msgLen);
+  if (tDecodeSTqOffset(&decoder, &offset) < 0) {
+    ASSERT(0);
+    return -1;
+  }
+  tDecoderClear(&decoder);
+
+  if (offset.type == TMQ_OFFSET__SNAPSHOT) {
+    tqDebug("receive offset commit msg to %s, offset(type:snapshot) uid: %ld, ts: %ld", offset.subKey, offset.uid,
+            offset.ts);
+  } else if (offset.type == TMQ_OFFSET__LOG) {
+    tqDebug("receive offset commit msg to %s, offset(type:log) version: %ld", offset.subKey, offset.version);
+  } else {
+    ASSERT(0);
+  }
+
+  if (tqOffsetWrite(pTq->pOffsetStore, &offset) < 0) {
+    ASSERT(0);
+    return -1;
+  }
 
   return 0;
 }

@@ -1756,7 +1756,7 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
       createTbReq.type = TSDB_CHILD_TABLE;
       createTbReq.ctb.suid = suid;
 
-      STagVal tagVal = {.cid = 1,
+      STagVal tagVal = {.cid = pDataBlock->info.numOfCols + 1,
                         .type = TSDB_DATA_TYPE_UBIGINT,
                         .pData = (uint8_t*)&pDataBlock->info.groupId,
                         .nData = sizeof(uint64_t)};
@@ -1821,7 +1821,7 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
       createTbReq.type = TSDB_CHILD_TABLE;
       createTbReq.ctb.suid = suid;
 
-      STagVal tagVal = {.cid = 1,
+      STagVal tagVal = {.cid = pDataBlock->info.numOfCols + 1,
                         .type = TSDB_DATA_TYPE_UBIGINT,
                         .pData = (uint8_t*)&pDataBlock->info.groupId,
                         .nData = sizeof(uint64_t)};

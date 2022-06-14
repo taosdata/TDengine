@@ -205,7 +205,7 @@ int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   SRetrieveTableRsp* pRsp = NULL;
   int32_t            code = qExecCommand(pQuery->pRoot, &pRsp);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
-    code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false, false);
+    code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false, true);
   }
 
   return code;
@@ -232,9 +232,7 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
   return TSDB_CODE_SUCCESS;
 }
 
-static SAppInstInfo* getAppInfo(SRequestObj* pRequest) {
-  return pRequest->pTscObj->pAppInfo;
-}
+static SAppInstInfo* getAppInfo(SRequestObj* pRequest) { return pRequest->pTscObj->pAppInfo; }
 
 void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   SRetrieveTableRsp* pRsp = NULL;
@@ -258,7 +256,7 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   }
 
   pRequest->body.queryFp(pRequest->body.param, pRequest, 0);
-//  pRequest->body.fetchFp(pRequest->body.param, pRequest, pResultInfo->numOfRows);
+  //  pRequest->body.fetchFp(pRequest->body.param, pRequest, pResultInfo->numOfRows);
 }
 
 int32_t asyncExecDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
@@ -401,7 +399,7 @@ int32_t scheduleAsyncQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNod
 
   SQueryResult res = {.code = 0, .numOfRows = 0};
   int32_t      code = schedulerAsyncExecJob(pTransporter, pNodeList, pDag, &pRequest->body.queryJob, pRequest->sqlstr,
-                                       pRequest->metric.start, schdExecCallback, &res);
+                                            pRequest->metric.start, schdExecCallback, &res);
 
   pRequest->body.resInfo.execRes = res.res;
 
@@ -457,7 +455,8 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
     return pRequest->code;
   }
 
-  if (TDMT_VND_SUBMIT == pRequest->type || TDMT_VND_DELETE == pRequest->type || TDMT_VND_CREATE_TABLE == pRequest->type) {
+  if (TDMT_VND_SUBMIT == pRequest->type || TDMT_VND_DELETE == pRequest->type ||
+      TDMT_VND_CREATE_TABLE == pRequest->type) {
     pRequest->body.resInfo.numOfRows = res.numOfRows;
 
     if (pRequest->body.queryJob != 0) {
@@ -470,9 +469,9 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
   return pRequest->code;
 }
 
-int32_t handleSubmitExecRes(SRequestObj* pRequest, void* res, SCatalog* pCatalog, SEpSet *epset) {
-  int32_t code = 0;
-  SArray* pArray = NULL;
+int32_t handleSubmitExecRes(SRequestObj* pRequest, void* res, SCatalog* pCatalog, SEpSet* epset) {
+  int32_t     code = 0;
+  SArray*     pArray = NULL;
   SSubmitRsp* pRsp = (SSubmitRsp*)res;
   if (pRsp->nBlocks <= 0) {
     return TSDB_CODE_SUCCESS;
@@ -502,7 +501,7 @@ _return:
   return code;
 }
 
-int32_t handleQueryExecRes(SRequestObj* pRequest, void* res, SCatalog* pCatalog, SEpSet *epset) {
+int32_t handleQueryExecRes(SRequestObj* pRequest, void* res, SCatalog* pCatalog, SEpSet* epset) {
   int32_t code = 0;
   SArray* pArray = NULL;
   SArray* pTbArray = (SArray*)res;
@@ -540,15 +539,15 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SCatalog* pCatalog = NULL;
-  SAppInstInfo*   pAppInfo = getAppInfo(pRequest);
+  SCatalog*     pCatalog = NULL;
+  SAppInstInfo* pAppInfo = getAppInfo(pRequest);
 
   int32_t code = catalogGetHandle(pAppInfo->clusterId, &pCatalog);
   if (code) {
     return code;
   }
 
-  SEpSet epset = getEpSet_s(&pAppInfo->mgmtEp);
+  SEpSet         epset = getEpSet_s(&pAppInfo->mgmtEp);
   SQueryExecRes* pRes = &pRequest->body.resInfo.execRes;
 
   switch (pRes->msgType) {
@@ -566,8 +565,8 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
       break;
     }
     default:
-      tscError("0x%"PRIx64", invalid exec result for request type %d, reqId:0x%"PRIx64, pRequest->self,
-          pRequest->type, pRequest->requestId);
+      tscError("0x%" PRIx64 ", invalid exec result for request type %d, reqId:0x%" PRIx64, pRequest->self,
+               pRequest->type, pRequest->requestId);
       code = TSDB_CODE_APP_ERROR;
   }
 
@@ -575,13 +574,13 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
 }
 
 void schedulerExecCb(SQueryResult* pResult, void* param, int32_t code) {
-  SRequestObj* pRequest = (SRequestObj*) param;
+  SRequestObj* pRequest = (SRequestObj*)param;
   pRequest->code = code;
 
   STscObj* pTscObj = pRequest->pTscObj;
   if (code != TSDB_CODE_SUCCESS && NEED_CLIENT_HANDLE_ERROR(code)) {
-    tscDebug("0x%"PRIx64" client retry to handle the error, code:%d - %s, tryCount:%d, reqId:0x%"PRIx64, pRequest->self, code, tstrerror(code),
-        pRequest->retry, pRequest->requestId);
+    tscDebug("0x%" PRIx64 " client retry to handle the error, code:%d - %s, tryCount:%d, reqId:0x%" PRIx64,
+             pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
     pRequest->prevCode = code;
     doAsyncQuery(pRequest, true);
     return;
@@ -589,7 +588,7 @@ void schedulerExecCb(SQueryResult* pResult, void* param, int32_t code) {
 
   if (code == TSDB_CODE_SUCCESS) {
     code = handleQueryExecRsp(pRequest);
-    ASSERT(pRequest->code ==  TSDB_CODE_SUCCESS);
+    ASSERT(pRequest->code == TSDB_CODE_SUCCESS);
     pRequest->code = code;
   }
 
@@ -697,16 +696,17 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery) {
         schedulerAsyncExecJob(pAppInfo->pTransporter, pNodeList, pRequest->body.pDag, &pRequest->body.queryJob,
                               pRequest->sqlstr, pRequest->metric.start, schedulerExecCb, pRequest);
       } else {
-        tscError("0x%"PRIx64" failed to create query plan, code:%s 0x%"PRIx64, pRequest->self, tstrerror(code), pRequest->requestId);
+        tscError("0x%" PRIx64 " failed to create query plan, code:%s 0x%" PRIx64, pRequest->self, tstrerror(code),
+                 pRequest->requestId);
         pRequest->body.queryFp(pRequest->body.param, pRequest, code);
       }
 
-      //todo not to be released here
+      // todo not to be released here
       taosArrayDestroy(pNodeList);
       break;
     }
     case QUERY_EXEC_MODE_EMPTY_RESULT:
-      pRequest->type = TSDB_SQL_RETRIEVE_EMPTY_RESULT;      
+      pRequest->type = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
       pRequest->body.queryFp(pRequest->body.param, pRequest, 0);
       break;
     default:
@@ -1349,14 +1349,14 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
   p += sizeof(uint64_t);
 
   // check fields
-  for(int32_t i = 0; i < numOfCols; ++i) {
-    int16_t type = *(int16_t*) p;
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    int16_t type = *(int16_t*)p;
     p += sizeof(int16_t);
 
-    int32_t bytes = *(int32_t*) p;
+    int32_t bytes = *(int32_t*)p;
     p += sizeof(int32_t);
 
-//    ASSERT(type == pFields[i].type && bytes == pFields[i].bytes);
+    ASSERT(type == pFields[i].type && bytes == pFields[i].bytes);
   }
 
   int32_t* colLength = (int32_t*)p;
