@@ -139,12 +139,19 @@ typedef struct SDataBuf {
 
 typedef struct STargetInfo {
   ETargetType type;
-  char        dbFName[TSDB_DB_FNAME_LEN]; // used to update db's vgroup epset
+  char*       dbFName; // used to update db's vgroup epset
   int32_t     vgId;
 } STargetInfo;
 
 typedef int32_t (*__async_send_cb_fn_t)(void* param, const SDataBuf* pMsg, int32_t code);
 typedef int32_t (*__async_exec_fn_t)(void* param);
+
+typedef struct SRequestConnInfo {
+  void*     pTrans;
+  uint64_t  requestId;
+  int64_t   requestObjRefId;
+  SEpSet    mgmtEps;
+} SRequestConnInfo;
 
 typedef struct SMsgSendInfo {
   __async_send_cb_fn_t fp;  // async callback function

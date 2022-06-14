@@ -1134,14 +1134,16 @@ void    tFreeSMAlterStbRsp(SMAlterStbRsp* pRsp);
 int32_t tSerializeSTableMetaRsp(void* buf, int32_t bufLen, STableMetaRsp* pRsp);
 int32_t tDeserializeSTableMetaRsp(void* buf, int32_t bufLen, STableMetaRsp* pRsp);
 void    tFreeSTableMetaRsp(STableMetaRsp* pRsp);
+void tFreeSTableIndexRsp(void *info);
 
 typedef struct {
-  SArray* pArray;  // Array of STableMetaRsp
-} STableMetaBatchRsp;
+  SArray*         pMetaRsp;  // Array of STableMetaRsp
+  SArray*         pIndexRsp;  // Array of STableIndexRsp;
+} SSTbHbRsp;
 
-int32_t tSerializeSTableMetaBatchRsp(void* buf, int32_t bufLen, STableMetaBatchRsp* pRsp);
-int32_t tDeserializeSTableMetaBatchRsp(void* buf, int32_t bufLen, STableMetaBatchRsp* pRsp);
-void    tFreeSTableMetaBatchRsp(STableMetaBatchRsp* pRsp);
+int32_t tSerializeSSTbHbRsp(void* buf, int32_t bufLen, SSTbHbRsp* pRsp);
+int32_t tDeserializeSSTbHbRsp(void* buf, int32_t bufLen, SSTbHbRsp* pRsp);
+void    tFreeSSTbHbRsp(SSTbHbRsp* pRsp);
 
 typedef struct {
   int32_t numOfTables;
@@ -1293,6 +1295,14 @@ typedef struct {
 
 int32_t tSerializeSDCreateMnodeReq(void* buf, int32_t bufLen, SDCreateMnodeReq* pReq);
 int32_t tDeserializeSDCreateMnodeReq(void* buf, int32_t bufLen, SDCreateMnodeReq* pReq);
+
+typedef struct {
+  int32_t dnodeId;
+  int8_t  standby;
+} SSetStandbyReq;
+
+int32_t tSerializeSSetStandbyReq(void* buf, int32_t bufLen, SSetStandbyReq* pReq);
+int32_t tDeserializeSSetStandbyReq(void* buf, int32_t bufLen, SSetStandbyReq* pReq);
 
 typedef struct {
   int32_t connId;
@@ -1494,9 +1504,9 @@ typedef struct {
   int32_t code;
 } STaskDropRsp;
 
-#define STREAM_TRIGGER_AT_ONCE          1
-#define STREAM_TRIGGER_WINDOW_CLOSE     2
-#define STREAM_TRIGGER_MAX_DELAY        3
+#define STREAM_TRIGGER_AT_ONCE      1
+#define STREAM_TRIGGER_WINDOW_CLOSE 2
+#define STREAM_TRIGGER_MAX_DELAY    3
 
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
@@ -1506,6 +1516,7 @@ typedef struct {
   char*   sql;
   char*   ast;
   int8_t  triggerType;
+  int64_t maxDelay;
   int64_t watermark;
 } SCMCreateStreamReq;
 
@@ -2493,7 +2504,11 @@ typedef struct {
 } STableIndexInfo;
 
 typedef struct {
-  SArray* pIndex;
+  char     tbName[TSDB_TABLE_NAME_LEN];
+  char     dbFName[TSDB_DB_FNAME_LEN];
+  uint64_t suid;
+  int32_t  version;
+  SArray*  pIndex;
 } STableIndexRsp;
 
 int32_t tSerializeSTableIndexRsp(void* buf, int32_t bufLen, const STableIndexRsp* pRsp);
