@@ -6,7 +6,7 @@ python3 .\test.py -f 0-others\telemetry.py
 python3 .\test.py -f 0-others\taosdMonitor.py
 python3 .\test.py -f 0-others\udfTest.py
 python3 .\test.py -f 0-others\udf_create.py
-@REM python3 .\test.py -f 0-others\udf_restart_taosd.py
+python3 .\test.py -f 0-others\udf_restart_taosd.py
 python3 .\test.py -f 0-others\cachelast.py
 
 python3 .\test.py -f 0-others\user_control.py
@@ -38,7 +38,7 @@ python3 .\test.py -f 2-query\concat_ws.py
 python3 .\test.py -f 2-query\concat_ws2.py
 python3 .\test.py -f 2-query\check_tsdb.py
 python3 .\test.py -f 2-query\spread.py
-@REM python3 .\test.py -f 2-query\hyperloglog.py
+python3 .\test.py -f 2-query\hyperloglog.py
 
 python3 .\test.py -f 2-query\timezone.py
 python3 .\test.py -f 2-query\Now.py
@@ -82,7 +82,7 @@ python3 .\test.py -f 2-query\elapsed.py
 python3 .\test.py -f 2-query\csum.py
 python3 .\test.py -f 2-query\mavg.py
 python3 .\test.py -f 2-query\diff.py
-@REM python3 .\test.py -f 2-query\sample.py
+python3 .\test.py -f 2-query\sample.py
 python3 .\test.py -f 2-query\function_diff.py
 python3 .\test.py -f 2-query\unique.py
 python3 .\test.py -f 2-query\stateduration.py
@@ -91,7 +91,7 @@ python3 .\test.py -f 2-query\statecount.py
 
 python3 .\test.py -f 7-tmq\basic5.py
 python3 .\test.py -f 7-tmq\subscribeDb.py
-@REM python3 .\test.py -f 7-tmq\subscribeDb0.py
+python3 .\test.py -f 7-tmq\subscribeDb0.py
 python3 .\test.py -f 7-tmq\subscribeDb1.py
 python3 .\test.py -f 7-tmq\subscribeStb.py
 python3 .\test.py -f 7-tmq\subscribeStb0.py
