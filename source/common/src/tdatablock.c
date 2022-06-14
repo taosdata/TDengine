@@ -1708,6 +1708,7 @@ char* buildCtbNameByGroupId(const char* stbName, uint64_t groupId) {
   pTag->keyLen = strlen(pTag->key);
   pTag->type = TSDB_DATA_TYPE_UBIGINT;
   pTag->u = groupId;
+  pTag->length = sizeof(uint64_t);
   taosArrayPush(tags, &pTag);
 
   void* cname = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1);
@@ -1756,10 +1757,10 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
       createTbReq.type = TSDB_CHILD_TABLE;
       createTbReq.ctb.suid = suid;
 
-      STagVal tagVal = {.cid = 1,
+      STagVal tagVal = {.cid = pDataBlock->info.numOfCols + 1,
                         .type = TSDB_DATA_TYPE_UBIGINT,
-                        .pData = (uint8_t*)&pDataBlock->info.groupId,
-                        .nData = sizeof(uint64_t)};
+                        .i64 = (int64_t)pDataBlock->info.groupId,
+                        };
       STag*   pTag = NULL;
       taosArrayClear(tagArray);
       taosArrayPush(tagArray, &tagVal);
@@ -1821,10 +1822,10 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
       createTbReq.type = TSDB_CHILD_TABLE;
       createTbReq.ctb.suid = suid;
 
-      STagVal tagVal = {.cid = 1,
+      STagVal tagVal = {.cid = pDataBlock->info.numOfCols + 1,
                         .type = TSDB_DATA_TYPE_UBIGINT,
-                        .pData = (uint8_t*)&pDataBlock->info.groupId,
-                        .nData = sizeof(uint64_t)};
+                        .i64 = (int64_t)pDataBlock->info.groupId,
+                        };
       taosArrayClear(tagArray);
       taosArrayPush(tagArray, &tagVal);
       STag* pTag = NULL;
