@@ -234,9 +234,6 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks
 
 char* buildCtbNameByGroupId(const char* stbName, uint64_t groupId);
 
-SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pSchema, bool createTb, int64_t suid,
-                            const char* stbFullName, int32_t vgId);
-
 static FORCE_INLINE int32_t blockGetEncodeSize(const SSDataBlock* pBlock) {
   return blockDataGetSerialMetaSize(pBlock->info.numOfCols) + blockDataGetSize(pBlock);
 }

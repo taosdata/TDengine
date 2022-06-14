@@ -2308,6 +2308,29 @@ int32_t tDecodeSMqOffset(SDecoder* decoder, SMqOffset* pOffset);
 int32_t tEncodeSMqCMCommitOffsetReq(SEncoder* encoder, const SMqCMCommitOffsetReq* pReq);
 int32_t tDecodeSMqCMCommitOffsetReq(SDecoder* decoder, SMqCMCommitOffsetReq* pReq);
 
+// tqOffset
+enum {
+  TMQ_OFFSET__SNAPSHOT = 1,
+  TMQ_OFFSET__LOG,
+};
+
+typedef struct {
+  int8_t type;
+  union {
+    struct {
+      int64_t uid;
+      int64_t ts;
+    };
+    struct {
+      int64_t version;
+    };
+  };
+  char subKey[TSDB_SUBSCRIBE_KEY_LEN];
+} STqOffset;
+
+int32_t tEncodeSTqOffset(SEncoder* pEncoder, const STqOffset* pOffset);
+int32_t tDecodeSTqOffset(SDecoder* pDecoder, STqOffset* pOffset);
+
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
   char    stb[TSDB_TABLE_FNAME_LEN];

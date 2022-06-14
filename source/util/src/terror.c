@@ -566,6 +566,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_RM_SKEY_IN_HASH,           "Rm tsma skey in cac
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_INVALID_ENV,               "Invalid rsma env")
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_INVALID_STAT,              "Invalid rsma state")
 
+TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_REBUILDING,               "Index is rebuilding")
 
 #ifdef TAOS_ERROR_C
 };
