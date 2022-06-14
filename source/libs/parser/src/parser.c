@@ -76,28 +76,8 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
   int32_t inputSize = (NULL != pParam->length ? *(pParam->length) : tDataTypes[pParam->buffer_type].bytes);
   pVal->node.resType.type = pParam->buffer_type;
   pVal->node.resType.bytes = inputSize;
+
   switch (pParam->buffer_type) {
-    case TSDB_DATA_TYPE_BOOL:
-      pVal->datum.b = *((bool*)pParam->buffer);
-      break;
-    case TSDB_DATA_TYPE_TINYINT:
-      pVal->datum.i = *((int8_t*)pParam->buffer);
-      break;
-    case TSDB_DATA_TYPE_SMALLINT:
-      pVal->datum.i = *((int16_t*)pParam->buffer);
-      break;
-    case TSDB_DATA_TYPE_INT:
-      pVal->datum.i = *((int32_t*)pParam->buffer);
-      break;
-    case TSDB_DATA_TYPE_BIGINT:
-      pVal->datum.i = *((int64_t*)pParam->buffer);
-      break;
-    case TSDB_DATA_TYPE_FLOAT:
-      pVal->datum.d = *((float*)pParam->buffer);
-      break;
-    case TSDB_DATA_TYPE_DOUBLE:
-      pVal->datum.d = *((double*)pParam->buffer);
-      break;
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
       pVal->datum.p = taosMemoryCalloc(1, pVal->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
@@ -124,28 +104,13 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
       pVal->node.resType.bytes = output + VARSTR_HEADER_SIZE;
       break;
     }
-    case TSDB_DATA_TYPE_TIMESTAMP:
-      pVal->datum.i = *((int64_t*)pParam->buffer);
+    default: {
+      int32_t code = nodesSetValueNodeValue(pVal, pParam->buffer);
+      if (code) {
+        return code;
+      }
       break;
-    case TSDB_DATA_TYPE_UTINYINT:
-      pVal->datum.u = *((uint8_t*)pParam->buffer);
-      break;
-    case TSDB_DATA_TYPE_USMALLINT:
-      pVal->datum.u = *((uint16_t*)pParam->buffer);
-      break;
-    case TSDB_DATA_TYPE_UINT:
-      pVal->datum.u = *((uint32_t*)pParam->buffer);
-      break;
-    case TSDB_DATA_TYPE_UBIGINT:
-      pVal->datum.u = *((uint64_t*)pParam->buffer);
-      break;
-    case TSDB_DATA_TYPE_JSON:
-    case TSDB_DATA_TYPE_DECIMAL:
-    case TSDB_DATA_TYPE_BLOB:
-    case TSDB_DATA_TYPE_MEDIUMBLOB:
-      // todo
-    default:
-      break;
+    }
   }
   pVal->translate = true;
   return TSDB_CODE_SUCCESS;
@@ -221,7 +186,7 @@ int32_t qExtractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** p
   return extractResultSchema(pRoot, numOfCols, pSchema);
 }
 
-int32_t qSetSTableIdForRSma(SNode* pStmt, int64_t uid) {
+int32_t qSetSTableIdForRsma(SNode* pStmt, int64_t uid) {
   if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
     SNode* pTable = ((SSelectStmt*)pStmt)->pFromTable;
     if (QUERY_NODE_REAL_TABLE == nodeType(pTable)) {

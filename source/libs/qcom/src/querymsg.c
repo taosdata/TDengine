@@ -37,6 +37,8 @@ int32_t queryBuildUseDbOutput(SUseDbOutput *pOut, SUseDbRsp *usedbRsp) {
   pOut->dbVgroup->vgVersion = usedbRsp->vgVersion;
   pOut->dbVgroup->hashMethod = usedbRsp->hashMethod;
 
+  qDebug("Got %d vgroup for db %s", usedbRsp->vgNum, usedbRsp->db);
+
   if (usedbRsp->vgNum <= 0) {
     return TSDB_CODE_SUCCESS;
   }
@@ -50,6 +52,8 @@ int32_t queryBuildUseDbOutput(SUseDbOutput *pOut, SUseDbRsp *usedbRsp) {
   for (int32_t i = 0; i < usedbRsp->vgNum; ++i) {
     SVgroupInfo *pVgInfo = taosArrayGet(usedbRsp->pVgroupInfos, i);
     pOut->dbVgroup->numOfTable += pVgInfo->numOfTable;
+    qDebug("the %dth vgroup, id %d, epNum %d, current %s port %d", i, pVgInfo->vgId, pVgInfo->epSet.numOfEps,
+      pVgInfo->epSet.eps[pVgInfo->epSet.inUse].fqdn, pVgInfo->epSet.eps[pVgInfo->epSet.inUse].port);
     if (0 != taosHashPut(pOut->dbVgroup->vgHash, &pVgInfo->vgId, sizeof(int32_t), pVgInfo, sizeof(SVgroupInfo))) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
@@ -199,6 +203,24 @@ int32_t queryBuildGetUserAuthMsg(void *input, char **msg, int32_t msgSize, int32
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t queryBuildGetTbIndexMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void*(*mallcFp)(int32_t)) {
+  if (NULL == msg || NULL == msgLen) {
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  STableIndexReq indexReq = {0};
+  strcpy(indexReq.tbFName, input);
+
+  int32_t bufLen = tSerializeSTableIndexReq(NULL, 0, &indexReq);
+  void   *pBuf = (*mallcFp)(bufLen);
+  tSerializeSTableIndexReq(pBuf, bufLen, &indexReq);
+
+  *msg = pBuf;
+  *msgLen = bufLen;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 
 int32_t queryProcessUseDBRsp(void *output, char *msg, int32_t msgSize) {
   SUseDbOutput *pOut = output;
@@ -273,7 +295,7 @@ static int32_t queryConvertTableMetaMsg(STableMetaRsp *pMetaMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isSuperTable, STableMeta **pMeta) {
+int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta **pMeta) {
   int32_t total = msg->numOfColumns + msg->numOfTags;
   int32_t metaSize = sizeof(STableMeta) + sizeof(SSchema) * total;
 
@@ -283,16 +305,12 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isSuperTable, STabl
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  pTableMeta->vgId = isSuperTable ? 0 : msg->vgId;
-  pTableMeta->tableType = isSuperTable ? TSDB_SUPER_TABLE : msg->tableType;
-  pTableMeta->uid = isSuperTable ? msg->suid : msg->tuid;
+  pTableMeta->vgId = isStb ? 0 : msg->vgId;
+  pTableMeta->tableType = isStb ? TSDB_SUPER_TABLE : msg->tableType;
+  pTableMeta->uid = isStb ? msg->suid : msg->tuid;
   pTableMeta->suid = msg->suid;
   pTableMeta->sversion = msg->sversion;
   pTableMeta->tversion = msg->tversion;
-
-  if (isSuperTable) {
-    qDebug("stable %s meta returned, suid:%" PRIx64, msg->stbName, pTableMeta->suid);
-  }
 
   pTableMeta->tableInfo.numOfTags = msg->numOfTags;
   pTableMeta->tableInfo.precision = msg->precision;
@@ -303,6 +321,12 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isSuperTable, STabl
   for (int32_t i = 0; i < msg->numOfColumns; ++i) {
     pTableMeta->tableInfo.rowSize += pTableMeta->schema[i].bytes;
   }
+
+  qDebug("table %s uid %" PRIx64 " meta returned, type %d vgId %d db %s stb %s suid %" PRIx64 " sver %d tver %d" PRIx64 
+    " tagNum %d colNum %d precision %d rowSize %d", 
+    msg->tbName, pTableMeta->uid, pTableMeta->tableType, pTableMeta->vgId, msg->dbFName, msg->stbName, pTableMeta->suid,
+    pTableMeta->sversion, pTableMeta->tversion, pTableMeta->tableInfo.numOfTags, pTableMeta->tableInfo.numOfColumns,
+    pTableMeta->tableInfo.precision, pTableMeta->tableInfo.rowSize);
 
   *pMeta = pTableMeta;
   return TSDB_CODE_SUCCESS;
@@ -373,7 +397,7 @@ int32_t queryProcessQnodeListRsp(void *output, char *msg, int32_t msgSize) {
     return code;
   }
 
-  out.addrsList = (SArray *)output;
+  out.qnodeList = (SArray *)output;
   if (tDeserializeSQnodeListRsp(msg, msgSize, &out) != 0) {
     qError("invalid qnode list rsp msg, msgSize:%d", msgSize);
     code = TSDB_CODE_INVALID_MSG;
@@ -455,26 +479,43 @@ int32_t queryProcessGetUserAuthRsp(void *output, char *msg, int32_t msgSize) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t queryProcessGetTbIndexRsp(void *output, char *msg, int32_t msgSize) {
+  if (NULL == output || NULL == msg || msgSize <= 0) {
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  STableIndexRsp out = {0};
+  if (tDeserializeSTableIndexRsp(msg, msgSize, &out) != 0) {
+    qError("tDeserializeSTableIndexRsp failed, msgSize:%d", msgSize);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  *(void **)output = out.pIndex;
+  
+  return TSDB_CODE_SUCCESS;
+}
+
 
 void initQueryModuleMsgHandle() {
-  queryBuildMsg[TMSG_INDEX(TDMT_VND_TABLE_META)] = queryBuildTableMetaReqMsg;
-  queryBuildMsg[TMSG_INDEX(TDMT_MND_TABLE_META)] = queryBuildTableMetaReqMsg;
-  queryBuildMsg[TMSG_INDEX(TDMT_MND_USE_DB)]     = queryBuildUseDbMsg;
-  queryBuildMsg[TMSG_INDEX(TDMT_MND_QNODE_LIST)] = queryBuildQnodeListMsg;
-  queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_DB_CFG)] = queryBuildGetDBCfgMsg;
-  queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_INDEX)]  = queryBuildGetIndexMsg;
-  queryBuildMsg[TMSG_INDEX(TDMT_MND_RETRIEVE_FUNC)]  = queryBuildRetrieveFuncMsg;
-  queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_USER_AUTH)]  = queryBuildGetUserAuthMsg;
-  
+  queryBuildMsg[TMSG_INDEX(TDMT_VND_TABLE_META)]       = queryBuildTableMetaReqMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_MND_TABLE_META)]       = queryBuildTableMetaReqMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_MND_USE_DB)]           = queryBuildUseDbMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_MND_QNODE_LIST)]       = queryBuildQnodeListMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_DB_CFG)]       = queryBuildGetDBCfgMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_INDEX)]        = queryBuildGetIndexMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_MND_RETRIEVE_FUNC)]    = queryBuildRetrieveFuncMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_USER_AUTH)]    = queryBuildGetUserAuthMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_TABLE_INDEX)]  = queryBuildGetTbIndexMsg;
 
-  queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_TABLE_META)] = queryProcessTableMetaRsp;
-  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_TABLE_META)] = queryProcessTableMetaRsp;
-  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_USE_DB)]     = queryProcessUseDBRsp;
-  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_QNODE_LIST)] = queryProcessQnodeListRsp;
-  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_DB_CFG)] = queryProcessGetDbCfgRsp;
-  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_INDEX)]  = queryProcessGetIndexRsp;
-  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_RETRIEVE_FUNC)]  = queryProcessRetrieveFuncRsp;
-  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_USER_AUTH)]  = queryProcessGetUserAuthRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_TABLE_META)]      = queryProcessTableMetaRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_TABLE_META)]      = queryProcessTableMetaRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_USE_DB)]          = queryProcessUseDBRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_QNODE_LIST)]      = queryProcessQnodeListRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_DB_CFG)]      = queryProcessGetDbCfgRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_INDEX)]       = queryProcessGetIndexRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_RETRIEVE_FUNC)]   = queryProcessRetrieveFuncRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_USER_AUTH)]   = queryProcessGetUserAuthRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_TABLE_INDEX)] = queryProcessGetTbIndexRsp;
 }
 
 #pragma GCC diagnostic pop

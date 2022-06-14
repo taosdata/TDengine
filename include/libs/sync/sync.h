@@ -48,6 +48,7 @@ typedef enum {
   TAOS_SYNC_PROPOSE_SUCCESS = 0,
   TAOS_SYNC_PROPOSE_NOT_LEADER = 1,
   TAOS_SYNC_PROPOSE_OTHER_ERROR = 2,
+  TAOS_SYNC_ONLY_ONE_REPLICA = 3,
 } ESyncProposeCode;
 
 typedef enum {
@@ -83,15 +84,22 @@ typedef struct SReConfigCbMeta {
   SyncTerm  term;
   SyncTerm  currentTerm;
   SSyncCfg  oldCfg;
+  SSyncCfg  newCfg;
   bool      isDrop;
   uint64_t  flag;
+  uint64_t  seqNum;
 } SReConfigCbMeta;
 
 typedef struct SSnapshot {
-  void *data;
+  void*     data;
   SyncIndex lastApplyIndex;
   SyncTerm  lastApplyTerm;
+  SyncIndex lastConfigIndex;
 } SSnapshot;
+
+typedef struct SSnapshotMeta {
+  SyncIndex lastConfigIndex;
+} SSnapshotMeta;
 
 typedef struct SSyncFSM {
   void* data;
@@ -101,7 +109,7 @@ typedef struct SSyncFSM {
   void (*FpRollBackCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
 
   void (*FpRestoreFinishCb)(struct SSyncFSM* pFsm);
-  void (*FpReConfigCb)(struct SSyncFSM* pFsm, SSyncCfg newCfg, SReConfigCbMeta cbMeta);
+  void (*FpReConfigCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SReConfigCbMeta cbMeta);
 
   int32_t (*FpGetSnapshot)(struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
 
@@ -141,10 +149,28 @@ typedef struct SSyncLogStore {
   // return commit index of log
   SyncIndex (*getCommitIndex)(struct SSyncLogStore* pLogStore);
 
+  // refactor, log[0 .. n] ==> log[m .. n]
+  int32_t (*syncLogSetBeginIndex)(struct SSyncLogStore* pLogStore, SyncIndex beginIndex);
+  int32_t (*syncLogResetBeginIndex)(struct SSyncLogStore* pLogStore);
+  SyncIndex (*syncLogBeginIndex)(struct SSyncLogStore* pLogStore);
+  SyncIndex (*syncLogEndIndex)(struct SSyncLogStore* pLogStore);
+  bool (*syncLogIsEmpty)(struct SSyncLogStore* pLogStore);
+  int32_t (*syncLogEntryCount)(struct SSyncLogStore* pLogStore);
+  bool (*syncLogInRange)(struct SSyncLogStore* pLogStore, SyncIndex index);
+
+  SyncIndex (*syncLogWriteIndex)(struct SSyncLogStore* pLogStore);
+  SyncIndex (*syncLogLastIndex)(struct SSyncLogStore* pLogStore);
+  SyncTerm (*syncLogLastTerm)(struct SSyncLogStore* pLogStore);
+
+  int32_t (*syncLogAppendEntry)(struct SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry);
+  int32_t (*syncLogGetEntry)(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncRaftEntry** ppEntry);
+  int32_t (*syncLogTruncate)(struct SSyncLogStore* pLogStore, SyncIndex fromIndex);
+
 } SSyncLogStore;
 
 typedef struct SSyncInfo {
   bool        isStandBy;
+  bool        snapshotEnable;
   SyncGroupId vgId;
   SSyncCfg    syncCfg;
   char        path[TSDB_FILENAME_LEN];
@@ -161,7 +187,6 @@ int64_t     syncOpen(const SSyncInfo* pSyncInfo);
 void        syncStart(int64_t rid);
 void        syncStop(int64_t rid);
 int32_t     syncSetStandby(int64_t rid);
-int32_t     syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg);
 ESyncState  syncGetMyRole(int64_t rid);
 const char* syncGetMyRoleStr(int64_t rid);
 SyncTerm    syncGetMyTerm(int64_t rid);
@@ -171,6 +196,13 @@ int32_t     syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak);
 bool        syncEnvIsStart();
 const char* syncStr(ESyncState state);
 bool        syncIsRestoreFinish(int64_t rid);
+int32_t     syncGetSnapshotMeta(int64_t rid, struct SSnapshotMeta* sMeta);
+
+int32_t syncReconfig(int64_t rid, const SSyncCfg* pNewCfg);
+int32_t syncReconfigRaw(int64_t rid, const SSyncCfg* pNewCfg, SRpcMsg* pRpcMsg);
+
+int32_t syncLeaderTransfer(int64_t rid);
+int32_t syncLeaderTransferTo(int64_t rid, SNodeInfo newLeader);
 
 // to be moved to static
 void syncStartNormal(int64_t rid);

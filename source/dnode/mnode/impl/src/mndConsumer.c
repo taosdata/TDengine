@@ -35,7 +35,7 @@
 
 #define MND_CONSUMER_LOST_HB_CNT 3
 
-static int8_t mqRebLock = 0;
+static int8_t mqRebInExecCnt = 0;
 
 static const char *mndConsumerStatusName(int status);
 
@@ -76,15 +76,15 @@ int32_t mndInitConsumer(SMnode *pMnode) {
 void mndCleanupConsumer(SMnode *pMnode) {}
 
 bool mndRebTryStart() {
-  int8_t old = atomic_val_compare_exchange_8(&mqRebLock, 0, 1);
+  int8_t old = atomic_val_compare_exchange_8(&mqRebInExecCnt, 0, 1);
   return old == 0;
 }
 
-void mndRebEnd() { atomic_sub_fetch_8(&mqRebLock, 1); }
+void mndRebEnd() { atomic_sub_fetch_8(&mqRebInExecCnt, 1); }
 
-void mndRebCntInc() { atomic_add_fetch_8(&mqRebLock, 1); }
+void mndRebCntInc() { atomic_add_fetch_8(&mqRebInExecCnt, 1); }
 
-void mndRebCntDec() { atomic_sub_fetch_8(&mqRebLock, 1); }
+void mndRebCntDec() { atomic_sub_fetch_8(&mqRebInExecCnt, 1); }
 
 static int32_t mndProcessConsumerLostMsg(SRpcMsg *pMsg) {
   SMnode             *pMnode = pMsg->info.node;
@@ -92,12 +92,20 @@ static int32_t mndProcessConsumerLostMsg(SRpcMsg *pMsg) {
   SMqConsumerObj     *pConsumer = mndAcquireConsumer(pMnode, pLostMsg->consumerId);
   ASSERT(pConsumer);
 
+  mInfo("receive consumer lost msg, consumer id %ld, status %s", pLostMsg->consumerId,
+        mndConsumerStatusName(pConsumer->status));
+
+  if (pConsumer->status != MQ_CONSUMER_STATUS__READY) {
+    mndReleaseConsumer(pMnode, pConsumer);
+    return -1;
+  }
+
   SMqConsumerObj *pConsumerNew = tNewSMqConsumerObj(pConsumer->consumerId, pConsumer->cgroup);
   pConsumerNew->updateType = CONSUMER_UPDATE__LOST;
 
   mndReleaseConsumer(pMnode, pConsumer);
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_CONSUMER_LOST, pMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pMsg);
   if (pTrans == NULL) goto FAIL;
   if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) goto FAIL;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto FAIL;
@@ -116,12 +124,20 @@ static int32_t mndProcessConsumerRecoverMsg(SRpcMsg *pMsg) {
   SMqConsumerObj        *pConsumer = mndAcquireConsumer(pMnode, pRecoverMsg->consumerId);
   ASSERT(pConsumer);
 
+  mInfo("receive consumer recover msg, consumer id %ld, status %s", pRecoverMsg->consumerId,
+        mndConsumerStatusName(pConsumer->status));
+
+  if (pConsumer->status != MQ_CONSUMER_STATUS__READY) {
+    mndReleaseConsumer(pMnode, pConsumer);
+    return -1;
+  }
+
   SMqConsumerObj *pConsumerNew = tNewSMqConsumerObj(pConsumer->consumerId, pConsumer->cgroup);
   pConsumerNew->updateType = CONSUMER_UPDATE__RECOVER;
 
   mndReleaseConsumer(pMnode, pConsumer);
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_CONSUMER_RECOVER, pMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pMsg);
   if (pTrans == NULL) goto FAIL;
   if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) goto FAIL;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto FAIL;
@@ -306,6 +322,7 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
       SMqTopicObj *pTopic = mndAcquireTopic(pMnode, topic);
       ASSERT(pTopic);
       taosRLockLatch(&pTopic->lock);
+      tstrncpy(topicEp.db, pTopic->db, TSDB_DB_FNAME_LEN);
       topicEp.schema.nCols = pTopic->schema.nCols;
       if (topicEp.schema.nCols) {
         topicEp.schema.pSchema = taosMemoryCalloc(topicEp.schema.nCols, sizeof(SSchema));
@@ -403,7 +420,7 @@ static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
 
   int32_t newTopicNum = taosArrayGetSize(newSub);
   // check topic existance
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_SUBSCRIBE, pMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pMsg);
   if (pTrans == NULL) goto SUBSCRIBE_OVER;
 
   for (int32_t i = 0; i < newTopicNum; i++) {
@@ -414,6 +431,7 @@ static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
       goto SUBSCRIBE_OVER;
     }
 
+#if 0
     // ref topic to prevent drop
     // TODO make topic complete
     SMqTopicObj topicObj = {0};
@@ -422,12 +440,15 @@ static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
     mInfo("subscribe topic %s by consumer %ld cgroup %s, refcnt %d", pTopic->name, consumerId, cgroup,
           topicObj.refConsumerCnt);
     if (mndSetTopicCommitLogs(pMnode, pTrans, &topicObj) != 0) goto SUBSCRIBE_OVER;
+#endif
 
     mndReleaseTopic(pMnode, pTopic);
   }
 
   pConsumerOld = mndAcquireConsumer(pMnode, consumerId);
   if (pConsumerOld == NULL) {
+    mInfo("receive subscribe request from new consumer: %ld", consumerId);
+
     pConsumerNew = tNewSMqConsumerObj(consumerId, cgroup);
     tstrncpy(pConsumerNew->clientId, subscribe.clientId, 256);
     pConsumerNew->updateType = CONSUMER_UPDATE__MODIFY;
@@ -444,7 +465,12 @@ static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
 
   } else {
     /*taosRLockLatch(&pConsumerOld->lock);*/
+
     int32_t status = atomic_load_32(&pConsumerOld->status);
+
+    mInfo("receive subscribe request from old consumer: %ld, current status: %s", consumerId,
+          mndConsumerStatusName(status));
+
     if (status != MQ_CONSUMER_STATUS__READY) {
       terrno = TSDB_CODE_MND_CONSUMER_NOT_READY;
       goto SUBSCRIBE_OVER;
@@ -832,10 +858,11 @@ static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
       topicSz = 1;
     }
 
+    if (numOfRows + topicSz > rowsCapacity) {
+      blockDataEnsureCapacity(pBlock, numOfRows + topicSz);
+    }
+
     for (int32_t i = 0; i < topicSz; i++) {
-      if (numOfRows + topicSz > rowsCapacity) {
-        blockDataEnsureCapacity(pBlock, numOfRows + topicSz);
-      }
       SColumnInfoData *pColInfo;
       int32_t          cols = 0;
 

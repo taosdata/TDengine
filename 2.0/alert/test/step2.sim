@@ -1,5 +1,0 @@
-sql connect
-sleep 100
-
-print ====== insert another records table 0
-sql insert into test.car0 values(now , 100)

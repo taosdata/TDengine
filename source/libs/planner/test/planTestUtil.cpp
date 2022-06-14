@@ -14,12 +14,14 @@
  */
 
 #include "planTestUtil.h"
+
 #include <getopt.h>
 
 #include <algorithm>
 #include <array>
 
 #include "cmdnodes.h"
+#include "mockCatalogService.h"
 #include "parser.h"
 #include "planInt.h"
 
@@ -81,6 +83,8 @@ int32_t getLogLevel() { return g_logLevel; }
 
 class PlannerTestBaseImpl {
  public:
+  PlannerTestBaseImpl() : sqlNo_(0) {}
+
   void useDb(const string& acctId, const string& db) {
     caseEnv_.acctId_ = acctId;
     caseEnv_.db_ = db;
@@ -88,6 +92,7 @@ class PlannerTestBaseImpl {
   }
 
   void run(const string& sql) {
+    ++sqlNo_;
     if (caseEnv_.nsql_ > 0) {
       --(caseEnv_.nsql_);
       return;
@@ -101,13 +106,12 @@ class PlannerTestBaseImpl {
       SPlanContext cxt = {0};
       setPlanContext(pQuery, &cxt);
 
-      SLogicNode* pLogicNode = nullptr;
-      doCreateLogicPlan(&cxt, &pLogicNode);
-
-      doOptimizeLogicPlan(&cxt, pLogicNode);
-
       SLogicSubplan* pLogicSubplan = nullptr;
-      doSplitLogicPlan(&cxt, pLogicNode, &pLogicSubplan);
+      doCreateLogicPlan(&cxt, &pLogicSubplan);
+
+      doOptimizeLogicPlan(&cxt, pLogicSubplan);
+
+      doSplitLogicPlan(&cxt, pLogicSubplan);
 
       SQueryLogicPlan* pLogicPlan = nullptr;
       doScaleOutLogicPlan(&cxt, pLogicSubplan, &pLogicPlan);
@@ -161,13 +165,12 @@ class PlannerTestBaseImpl {
       SPlanContext cxt = {0};
       setPlanContext(stmtEnv_.pQuery_, &cxt);
 
-      SLogicNode* pLogicNode = nullptr;
-      doCreateLogicPlan(&cxt, &pLogicNode);
-
-      doOptimizeLogicPlan(&cxt, pLogicNode);
-
       SLogicSubplan* pLogicSubplan = nullptr;
-      doSplitLogicPlan(&cxt, pLogicNode, &pLogicSubplan);
+      doCreateLogicPlan(&cxt, &pLogicSubplan);
+
+      doOptimizeLogicPlan(&cxt, pLogicSubplan);
+
+      doSplitLogicPlan(&cxt, pLogicSubplan);
 
       SQueryLogicPlan* pLogicPlan = nullptr;
       doScaleOutLogicPlan(&cxt, pLogicSubplan, &pLogicPlan);
@@ -187,6 +190,8 @@ class PlannerTestBaseImpl {
     string  acctId_;
     string  db_;
     int32_t nsql_;
+
+    caseEnv() : nsql_(0) {}
   };
 
   struct stmtEnv {
@@ -194,6 +199,7 @@ class PlannerTestBaseImpl {
     array<char, 1024> msgBuf_;
     SQuery*           pQuery_;
 
+    stmtEnv() : pQuery_(nullptr) {}
     ~stmtEnv() { qDestroyQuery(pQuery_); }
   };
 
@@ -229,7 +235,7 @@ class PlannerTestBaseImpl {
       return;
     }
 
-    cout << "==========================================sql : [" << stmtEnv_.sql_ << "]" << endl;
+    cout << "========================================== " << sqlNo_ << " sql : [" << stmtEnv_.sql_ << "]" << endl;
 
     if (DUMP_MODULE_ALL == module || DUMP_MODULE_PARSER == module) {
       if (res_.prepareAst_.empty()) {
@@ -318,19 +324,19 @@ class PlannerTestBaseImpl {
     res_.ast_ = toString(pQuery->pRoot);
   }
 
-  void doCreateLogicPlan(SPlanContext* pCxt, SLogicNode** pLogicNode) {
-    DO_WITH_THROW(createLogicPlan, pCxt, pLogicNode);
-    res_.rawLogicPlan_ = toString((SNode*)(*pLogicNode));
+  void doCreateLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan) {
+    DO_WITH_THROW(createLogicPlan, pCxt, pLogicSubplan);
+    res_.rawLogicPlan_ = toString((SNode*)(*pLogicSubplan));
   }
 
-  void doOptimizeLogicPlan(SPlanContext* pCxt, SLogicNode* pLogicNode) {
-    DO_WITH_THROW(optimizeLogicPlan, pCxt, pLogicNode);
-    res_.optimizedLogicPlan_ = toString((SNode*)pLogicNode);
+  void doOptimizeLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
+    DO_WITH_THROW(optimizeLogicPlan, pCxt, pLogicSubplan);
+    res_.optimizedLogicPlan_ = toString((SNode*)pLogicSubplan);
   }
 
-  void doSplitLogicPlan(SPlanContext* pCxt, SLogicNode* pLogicNode, SLogicSubplan** pLogicSubplan) {
-    DO_WITH_THROW(splitLogicPlan, pCxt, pLogicNode, pLogicSubplan);
-    res_.splitLogicPlan_ = toString((SNode*)(*pLogicSubplan));
+  void doSplitLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
+    DO_WITH_THROW(splitLogicPlan, pCxt, pLogicSubplan);
+    res_.splitLogicPlan_ = toString((SNode*)(pLogicSubplan));
   }
 
   void doScaleOutLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan, SQueryLogicPlan** pLogicPlan) {
@@ -357,6 +363,7 @@ class PlannerTestBaseImpl {
     } else if (QUERY_NODE_CREATE_INDEX_STMT == nodeType(pQuery->pRoot)) {
       SMCreateSmaReq req = {0};
       tDeserializeSMCreateSmaReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req);
+      g_mockCatalogService->createSmaIndex(&req);
       nodesStringToNode(req.ast, &pCxt->pAstRoot);
       pCxt->streamQuery = true;
     } else if (QUERY_NODE_CREATE_STREAM_STMT == nodeType(pQuery->pRoot)) {
@@ -382,6 +389,7 @@ class PlannerTestBaseImpl {
   caseEnv caseEnv_;
   stmtEnv stmtEnv_;
   stmtRes res_;
+  int32_t sqlNo_;
 };
 
 PlannerTestBase::PlannerTestBase() : impl_(new PlannerTestBaseImpl()) {}

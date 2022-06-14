@@ -151,31 +151,11 @@ static SSmaEnv *tdNewSmaEnv(const SSma *pSma, int8_t smaType, const char *path, 
     return NULL;
   }
 
-  ASSERT(path && (strlen(path) > 0));
-  SMA_ENV_PATH(pEnv) = strdup(path);
-  if (!SMA_ENV_PATH(pEnv)) {
-    tdFreeSmaEnv(pEnv);
-    return NULL;
-  }
-
-  SMA_ENV_DID(pEnv) = did;
-
   if (tdInitSmaStat(&SMA_ENV_STAT(pEnv), smaType) != TSDB_CODE_SUCCESS) {
     tdFreeSmaEnv(pEnv);
     return NULL;
   }
 
-  char aname[TSDB_FILENAME_LEN] = {0};
-  tfsAbsoluteName(SMA_TFS(pSma), did, path, aname);
-  if (smaOpenDBEnv(&pEnv->dbEnv, aname) != TSDB_CODE_SUCCESS) {
-    tdFreeSmaEnv(pEnv);
-    return NULL;
-  }
-
-  if (!(pEnv->pPool = openPool())) {
-    tdFreeSmaEnv(pEnv);
-    return NULL;
-  }
 
   return pEnv;
 }
@@ -205,10 +185,7 @@ void tdDestroySmaEnv(SSmaEnv *pSmaEnv) {
   if (pSmaEnv) {
     tdDestroySmaState(pSmaEnv->pStat, SMA_ENV_TYPE(pSmaEnv));
     taosMemoryFreeClear(pSmaEnv->pStat);
-    taosMemoryFreeClear(pSmaEnv->path);
     taosThreadRwlockDestroy(&(pSmaEnv->lock));
-    smaCloseDBEnv(pSmaEnv->dbEnv);
-    closePool(pSmaEnv->pPool);
   }
 }
 
@@ -222,7 +199,7 @@ int32_t tdRefSmaStat(SSma *pSma, SSmaStat *pStat) {
   if (!pStat) return 0;
 
   int ref = T_REF_INC(pStat);
-  smaDebug("vgId:%d ref sma stat:%p, val:%d", SMA_VID(pSma), pStat, ref);
+  smaDebug("vgId:%d, ref sma stat:%p, val:%d", SMA_VID(pSma), pStat, ref);
   return 0;
 }
 
@@ -230,7 +207,7 @@ int32_t tdUnRefSmaStat(SSma *pSma, SSmaStat *pStat) {
   if (!pStat) return 0;
 
   int ref = T_REF_DEC(pStat);
-  smaDebug("vgId:%d unref sma stat:%p, val:%d", SMA_VID(pSma), pStat, ref);
+  smaDebug("vgId:%d, unref sma stat:%p, val:%d", SMA_VID(pSma), pStat, ref);
   return 0;
 }
 
@@ -242,7 +219,7 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType) {
   }
 
   /**
-   *  1. Lazy mode utilized when init SSmaStat to update expired window(or hungry mode when tdNew).
+   *  1. Lazy mode utilized when init SSmaStat to update expire window(or hungry mode when tdNew).
    *  2. Currently, there is mutex lock when init SSmaEnv, thus no need add lock on SSmaStat, and please add lock if
    * tdInitSmaStat invoked in other multithread environment later.
    */
@@ -278,9 +255,8 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType) {
 
 void *tdFreeSmaStatItem(SSmaStatItem *pSmaStatItem) {
   if (pSmaStatItem) {
-    tdDestroyTSma(pSmaStatItem->pTSma);
+    tDestroyTSma(pSmaStatItem->pTSma);
     taosMemoryFreeClear(pSmaStatItem->pTSma);
-    taosHashCleanup(pSmaStatItem->expiredWindows);
     taosMemoryFreeClear(pSmaStatItem);
   }
   return NULL;
@@ -321,7 +297,7 @@ int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType) {
 int32_t tdLockSma(SSma *pSma) {
   int code = taosThreadMutexLock(&pSma->mutex);
   if (code != 0) {
-    smaError("vgId:%d failed to lock td since %s", SMA_VID(pSma), strerror(errno));
+    smaError("vgId:%d, failed to lock td since %s", SMA_VID(pSma), strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(code);
     return -1;
   }
@@ -334,14 +310,14 @@ int32_t tdUnLockSma(SSma *pSma) {
   pSma->locked = false;
   int code = taosThreadMutexUnlock(&pSma->mutex);
   if (code != 0) {
-    smaError("vgId:%d failed to unlock td since %s", SMA_VID(pSma), strerror(errno));
+    smaError("vgId:%d, failed to unlock td since %s", SMA_VID(pSma), strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(code);
     return -1;
   }
   return 0;
 }
 
-int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType) {
+int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType, bool onlyCheck) {
   SSmaEnv *pEnv = NULL;
 
   // return if already init
@@ -376,7 +352,7 @@ int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType) {
 
     if (did.level < 0 || did.id < 0) {
       tdUnLockSma(pSma);
-      smaError("vgId:%d init sma env failed since invalid did(%d,%d)", SMA_VID(pSma), did.level, did.id);
+      smaError("vgId:%d, init sma env failed since invalid did(%d,%d)", SMA_VID(pSma), did.level, did.id);
       return TSDB_CODE_FAILED;
     }
 
@@ -399,63 +375,3 @@ int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType) {
 
   return TSDB_CODE_SUCCESS;
 };
-
-int32_t tdSmaBeginCommit(SSmaEnv *pEnv) {
-  TXN *pTxn = &pEnv->txn;
-  // start a new txn
-  tdbTxnOpen(pTxn, 0, poolMalloc, poolFree, pEnv->pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
-  if (tdbBegin(pEnv->dbEnv, pTxn) != 0) {
-    smaWarn("tdSma tdb begin commit fail");
-    return -1;
-  }
-  return 0;
-}
-
-int32_t tdSmaEndCommit(SSmaEnv *pEnv) {
-  TXN *pTxn = &pEnv->txn;
-
-  // Commit current txn
-  if (tdbCommit(pEnv->dbEnv, pTxn) != 0) {
-    smaWarn("tdSma tdb end commit fail");
-    return -1;
-  }
-  tdbTxnClose(pTxn);
-  clearPool(pEnv->pPool);
-  return 0;
-}
-
-#if 0
-/**
- * @brief Get the start TS key of the last data block of one interval/sliding.
- *
- * @param pSma
- * @param param
- * @param result
- * @return int32_t
- *         1) Return 0 and fill the result if the check procedure is normal;
- *         2) Return -1 if error occurs during the check procedure.
- */
-int32_t tdGetTSmaStatus(SSma *pSma, void *smaIndex, void *result) {
-  const char *procedure = "";
-  if (strncmp(procedure, "get the start TS key of the last data block", 100) != 0) {
-    return -1;
-  }
-  // fill the result
-  return TSDB_CODE_SUCCESS;
-}
-
-/**
- * @brief Remove the tSma data files related to param between pWin.
- *
- * @param pSma
- * @param param
- * @param pWin
- * @return int32_t
- */
-int32_t tdRemoveTSmaData(SSma *pSma, void *smaIndex, STimeWindow *pWin) {
-  // for ("tSmaFiles of param-interval-sliding between pWin") {
-  //   // remove the tSmaFile
-  // }
-  return TSDB_CODE_SUCCESS;
-}
-#endif

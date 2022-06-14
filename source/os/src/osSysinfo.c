@@ -276,7 +276,8 @@ int32_t taosGetEmail(char *email, int32_t maxLen) {
 
 int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen) {
 #ifdef WINDOWS
-  assert(0);
+  snprintf(releaseName, maxLen, "Windows");
+  return 0;
 #elif defined(_TD_DARWIN_64)
   char   *line = NULL;
   size_t  size = 0;
@@ -332,7 +333,15 @@ int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen) {
 
 int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
 #ifdef WINDOWS
-  assert(0);
+  char value[100];
+  DWORD bufferSize = sizeof(value);
+  RegGetValue(HKEY_LOCAL_MACHINE, "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0", "ProcessorNameString", RRF_RT_ANY, NULL, (PVOID)&value, &bufferSize);
+  tstrncpy(cpuModel, value, maxLen);
+  SYSTEM_INFO si;
+  memset(&si,0,sizeof(SYSTEM_INFO));
+  GetSystemInfo(&si);
+  *numOfCores = si.dwNumberOfProcessors;
+  return 0;
 #elif defined(_TD_DARWIN_64)
   char   *line = NULL;
   size_t  size = 0;

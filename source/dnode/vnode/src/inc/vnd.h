@@ -81,9 +81,9 @@ int32_t vnodeSyncCommit(SVnode* pVnode);
 int32_t vnodeAsyncCommit(SVnode* pVnode);
 
 // vnodeSync.c
-int32_t   vnodeSyncOpen(SVnode* pVnode, char* path);
-void      vnodeSyncStart(SVnode* pVnode);
-void      vnodeSyncClose(SVnode* pVnode);
+int32_t vnodeSyncOpen(SVnode* pVnode, char* path);
+void    vnodeSyncStart(SVnode* pVnode);
+void    vnodeSyncClose(SVnode* pVnode);
 
 #ifdef __cplusplus
 }

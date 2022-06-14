@@ -21,6 +21,7 @@
 #include "mndMnode.h"
 #include "mndShow.h"
 #include "mndStb.h"
+#include "mndTopic.h"
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
@@ -178,17 +179,28 @@ static int32_t mndProcessCommitOffsetReq(SRpcMsg *pMsg) {
 
   tDecodeSMqCMCommitOffsetReq(&decoder, &commitOffsetReq);
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_COMMIT_OFFSET, pMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pMsg);
 
   for (int32_t i = 0; i < commitOffsetReq.num; i++) {
     SMqOffset *pOffset = &commitOffsetReq.offsets[i];
+    mInfo("commit offset %ld to vg %d of consumer group %s on topic %s", pOffset->offset, pOffset->vgId,
+          pOffset->cgroup, pOffset->topicName);
     if (mndMakePartitionKey(key, pOffset->cgroup, pOffset->topicName, pOffset->vgId) < 0) {
+      mError("submit offset to topic %s failed", pOffset->topicName);
       return -1;
     }
     bool          create = false;
     SMqOffsetObj *pOffsetObj = mndAcquireOffset(pMnode, key);
     if (pOffsetObj == NULL) {
+      SMqTopicObj *pTopic = mndAcquireTopic(pMnode, pOffset->topicName);
+      if (pTopic == NULL) {
+        terrno = TSDB_CODE_MND_TOPIC_NOT_EXIST;
+        mError("submit offset to topic %s failed since %s", pOffset->topicName, terrstr());
+        continue;
+      }
       pOffsetObj = taosMemoryMalloc(sizeof(SMqOffsetObj));
+      pOffsetObj->dbUid = pTopic->dbUid;
+      mndReleaseTopic(pMnode, pTopic);
       memcpy(pOffsetObj->key, key, TSDB_PARTITION_KEY_LEN);
       create = true;
     }

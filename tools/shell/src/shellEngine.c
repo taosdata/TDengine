@@ -886,7 +886,9 @@ void shellGetGrantInfo() {
     memcpy(expiretime, row[1], fields[1].bytes);
     memcpy(expired, row[2], fields[2].bytes);
 
-    if (strcmp(expiretime, "unlimited") == 0) {
+    if (strcmp(serverVersion, "community") == 0) {
+      fprintf(stdout, "Server is Community Edition.\n");
+    } else if (strcmp(expiretime, "unlimited") == 0) {
       fprintf(stdout, "Server is Enterprise %s Edition, %s and will never expire.\n", serverVersion, sinfo);
     } else {
       fprintf(stdout, "Server is Enterprise %s Edition, %s and will expire at %s.\n", serverVersion, sinfo, expiretime);
@@ -1003,7 +1005,7 @@ int32_t shellExecute() {
 
   taosSetSignal(SIGINT, shellSigintHandler);
 
-  shellGetGrantInfo(shell.conn);
+  shellGetGrantInfo();
 
   while (1) {
     taosThreadCreate(&shell.pid, NULL, shellThreadLoop, shell.conn);

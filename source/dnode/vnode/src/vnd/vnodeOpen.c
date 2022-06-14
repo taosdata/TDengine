@@ -23,13 +23,13 @@ int vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
 
   // check config
   if (vnodeCheckCfg(pCfg) < 0) {
-    vError("vgId:%d failed to create vnode since: %s", pCfg->vgId, tstrerror(terrno));
+    vError("vgId:%d, failed to create vnode since: %s", pCfg->vgId, tstrerror(terrno));
     return -1;
   }
 
   // create vnode env
   if (tfsMkdir(pTfs, path) < 0) {
-    vError("vgId:%d failed to create vnode since: %s", pCfg->vgId, tstrerror(terrno));
+    vError("vgId:%d, failed to create vnode since: %s", pCfg->vgId, tstrerror(terrno));
     return -1;
   }
 
@@ -39,11 +39,11 @@ int vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
   info.state.applied = -1;
 
   if (vnodeSaveInfo(dir, &info) < 0 || vnodeCommitInfo(dir, &info) < 0) {
-    vError("vgId:%d failed to save vnode config since %s", pCfg->vgId, tstrerror(terrno));
+    vError("vgId:%d, failed to save vnode config since %s", pCfg->vgId, tstrerror(terrno));
     return -1;
   }
 
-  vInfo("vgId:%d vnode is created", pCfg->vgId);
+  vInfo("vgId:%d, vnode is created", pCfg->vgId);
 
   return 0;
 }
@@ -70,7 +70,7 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   pVnode = (SVnode *)taosMemoryCalloc(1, sizeof(*pVnode) + strlen(path) + 1);
   if (pVnode == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    vError("vgId:%d failed to open vnode since %s", info.config.vgId, tstrerror(terrno));
+    vError("vgId:%d, failed to open vnode since %s", info.config.vgId, tstrerror(terrno));
     return NULL;
   }
 
@@ -81,30 +81,32 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   pVnode->state.applied = info.state.committed;
   pVnode->pTfs = pTfs;
   pVnode->msgCb = msgCb;
+  pVnode->syncCount = 0;
 
+  tsem_init(&pVnode->syncSem, 0, 0);
   tsem_init(&(pVnode->canCommit), 0, 1);
 
   // open buffer pool
   if (vnodeOpenBufPool(pVnode, pVnode->config.isHeap ? 0 : pVnode->config.szBuf / 3) < 0) {
-    vError("vgId:%d failed to open vnode buffer pool since %s", TD_VID(pVnode), tstrerror(terrno));
+    vError("vgId:%d, failed to open vnode buffer pool since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open meta
   if (metaOpen(pVnode, &pVnode->pMeta) < 0) {
-    vError("vgId:%d failed to open vnode meta since %s", TD_VID(pVnode), tstrerror(terrno));
+    vError("vgId:%d, failed to open vnode meta since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open tsdb
-  if (!vnodeIsRollup(pVnode) && tsdbOpen(pVnode, &VND_TSDB(pVnode), VNODE_TSDB_DIR, TSDB_TYPE_TSDB) < 0) {
-    vError("vgId:%d failed to open vnode tsdb since %s", TD_VID(pVnode), tstrerror(terrno));
+  if (!VND_IS_RSMA(pVnode) && tsdbOpen(pVnode, &VND_TSDB(pVnode), VNODE_TSDB_DIR, NULL) < 0) {
+    vError("vgId:%d, failed to open vnode tsdb since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open sma
   if (smaOpen(pVnode)) {
-    vError("vgId:%d failed to open vnode sma since %s", TD_VID(pVnode), tstrerror(terrno));
+    vError("vgId:%d, failed to open vnode sma since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
@@ -113,7 +115,7 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   taosRealPath(tdir, NULL, sizeof(tdir));
   pVnode->pWal = walOpen(tdir, &(pVnode->config.walCfg));
   if (pVnode->pWal == NULL) {
-    vError("vgId:%d failed to open vnode wal since %s", TD_VID(pVnode), tstrerror(terrno));
+    vError("vgId:%d, failed to open vnode wal since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
@@ -122,27 +124,27 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   taosRealPath(tdir, NULL, sizeof(tdir));
   pVnode->pTq = tqOpen(tdir, pVnode, pVnode->pWal);
   if (pVnode->pTq == NULL) {
-    vError("vgId:%d failed to open vnode tq since %s", TD_VID(pVnode), tstrerror(terrno));
+    vError("vgId:%d, failed to open vnode tq since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open query
   if (vnodeQueryOpen(pVnode)) {
-    vError("vgId:%d failed to open vnode query since %s", TD_VID(pVnode), tstrerror(terrno));
+    vError("vgId:%d, failed to open vnode query since %s", TD_VID(pVnode), tstrerror(terrno));
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
 
   // vnode begin
   if (vnodeBegin(pVnode) < 0) {
-    vError("vgId:%d failed to begin since %s", TD_VID(pVnode), tstrerror(terrno));
+    vError("vgId:%d, failed to begin since %s", TD_VID(pVnode), tstrerror(terrno));
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
 
   // open sync
   if (vnodeSyncOpen(pVnode, dir)) {
-    vError("vgId:%d failed to open sync since %s", TD_VID(pVnode), tstrerror(terrno));
+    vError("vgId:%d, failed to open sync since %s", TD_VID(pVnode), tstrerror(terrno));
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
@@ -175,6 +177,7 @@ void vnodeClose(SVnode *pVnode) {
     vnodeCloseBufPool(pVnode);
     // destroy handle
     tsem_destroy(&(pVnode->canCommit));
+    tsem_destroy(&pVnode->syncSem);
     taosMemoryFree(pVnode);
   }
 }

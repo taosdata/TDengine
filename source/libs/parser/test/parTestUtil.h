@@ -36,7 +36,7 @@ class ParserTestBase : public testing::Test {
 
   void login(const std::string& user);
   void useDb(const std::string& acctId, const std::string& db);
-  void run(const std::string& sql, int32_t expect = TSDB_CODE_SUCCESS, ParserStage checkStage = PARSER_STAGE_ALL);
+  void run(const std::string& sql, int32_t expect = TSDB_CODE_SUCCESS, ParserStage checkStage = PARSER_STAGE_TRANSLATE);
 
   virtual void checkDdl(const SQuery* pQuery, ParserStage stage);
 
@@ -50,11 +50,13 @@ class ParserDdlTest : public ParserTestBase {
 
   virtual void checkDdl(const SQuery* pQuery, ParserStage stage) {
     ASSERT_NE(pQuery, nullptr);
-    ASSERT_EQ(pQuery->haveResultSet, false);
     ASSERT_NE(pQuery->pRoot, nullptr);
-    ASSERT_EQ(pQuery->numOfResCols, 0);
-    ASSERT_EQ(pQuery->pResSchema, nullptr);
-    ASSERT_EQ(pQuery->precision, 0);
+    if (QUERY_EXEC_MODE_RPC == pQuery->execMode) {
+      ASSERT_EQ(pQuery->haveResultSet, false);
+      ASSERT_EQ(pQuery->numOfResCols, 0);
+      ASSERT_EQ(pQuery->pResSchema, nullptr);
+      ASSERT_EQ(pQuery->precision, 0);
+    }
     if (nullptr != checkDdl_) {
       checkDdl_(pQuery, stage);
     }

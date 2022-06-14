@@ -136,14 +136,14 @@ int indexRebuild(SIndex* index, SIndexOpts* opt);
  * @param index (output, index json object)
  * @return error code
  */
-int tIndexJsonOpen(SIndexJsonOpts* opts, const char* path, SIndexJson** index);
+int indexJsonOpen(SIndexJsonOpts* opts, const char* path, SIndexJson** index);
 /*
  * close index
  * @param index (input, index to be closed)
  * @return void
  */
 
-void tIndexJsonClose(SIndexJson* index);
+void indexJsonClose(SIndexJson* index);
 
 /*
  * insert terms into index
@@ -152,7 +152,7 @@ void tIndexJsonClose(SIndexJson* index);
  * @param uid  (input, uid of terms)
  * @return error code
  */
-int tIndexJsonPut(SIndexJson* index, SIndexJsonMultiTerm* terms, uint64_t uid);
+int indexJsonPut(SIndexJson* index, SIndexJsonMultiTerm* terms, uint64_t uid);
 /*
  * search index
  * @param index (input, index object)
@@ -161,7 +161,7 @@ int tIndexJsonPut(SIndexJson* index, SIndexJsonMultiTerm* terms, uint64_t uid);
  * @return error code
  */
 
-int tIndexJsonSearch(SIndexJson* index, SIndexJsonMultiTermQuery* query, SArray* result);
+int indexJsonSearch(SIndexJson* index, SIndexJsonMultiTermQuery* query, SArray* result);
 /*
  * @param
  * @param
@@ -193,7 +193,9 @@ void indexInit();
 
 /* index filter */
 typedef struct SIndexMetaArg {
-  void*    metaHandle;
+  void*    metaEx;
+  void*    idx;
+  void*    ivtIdx;
   uint64_t suid;
 } SIndexMetaArg;
 

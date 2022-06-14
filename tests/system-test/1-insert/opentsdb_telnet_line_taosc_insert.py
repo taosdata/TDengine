@@ -22,6 +22,10 @@ from util.sql import *
 from util.common import tdCom
 from util.types import TDSmlProtocolType, TDSmlTimestampType
 import threading
+import platform
+import io
+if platform.system().lower() == 'windows':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf8') 
 
 class TDTestCase:
     def init(self, conn, logSql):
@@ -36,10 +40,10 @@ class TDTestCase:
             
         if db_update_tag == 0:
             tdSql.execute(f"drop database if exists {name}")
-            tdSql.execute(f"create database if not exists {name} precision 'ms'")
+            tdSql.execute(f"create database if not exists {name} precision 'us' schemaless 1")
         else:
             tdSql.execute(f"drop database if exists {name}")
-            tdSql.execute(f"create database if not exists {name} precision 'ms' update 1")
+            tdSql.execute(f"create database if not exists {name} precision 'ns' update 1 schemaless 1")
         tdSql.execute(f'use {name}')
 
     def timeTrans(self, time_value, ts_type):
@@ -393,7 +397,7 @@ class TDTestCase:
         self.resCmp(input_sql, stb_name, ts_type=TDSmlTimestampType.SECOND.value)
 
         tdSql.execute(f"drop database if exists test_ts")
-        tdSql.execute(f"create database if not exists test_ts precision 'ms'")
+        tdSql.execute(f"create database if not exists test_ts precision 'ms'  schemaless 1")
         tdSql.execute("use test_ts")
         input_sql = ['test_ms 1626006833640 t t0=t', 'test_ms 1626006833641 f t0=t']
         self._conn.schemaless_insert(input_sql, TDSmlProtocolType.TELNET.value, None)

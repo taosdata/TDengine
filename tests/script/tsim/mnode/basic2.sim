@@ -15,7 +15,7 @@ if $data00 != 1 then
   return -1
 endi
 
-if $data02 != LEADER then 
+if $data02 != leader then 
   return -1
 endi
 
@@ -56,13 +56,13 @@ endi
 if $data(1)[0] != 1 then 
   return -1
 endi
-if $data(1)[2] != LEADER then 
+if $data(1)[2] != leader then 
   return -1
 endi
 if $data(2)[0] != 2 then 
   return -1
 endi
-if $data(2)[2] != FOLLOWER then 
+if $data(2)[2] != follower then 
   goto step2
 endi
 
@@ -92,6 +92,8 @@ sql show mnodes
 if $rows != 2 then 
   return -1
 endi
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
 
 sql show users
 if $rows != 2 then 
@@ -111,6 +113,8 @@ step3:
 		return -1
 	endi
 sql show dnodes -x step3
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
 if $data(1)[4] != ready then
   goto step3
 endi

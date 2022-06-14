@@ -24,8 +24,8 @@
 extern "C" {
 #endif
 
-#ifndef _TSTREAM_H_
-#define _TSTREAM_H_
+#ifndef _STREAM_H_
+#define _STREAM_H_
 
 typedef struct SStreamTask SStreamTask;
 
@@ -39,6 +39,7 @@ enum {
   TASK_INPUT_STATUS__NORMAL = 1,
   TASK_INPUT_STATUS__BLOCKED,
   TASK_INPUT_STATUS__RECOVER,
+  TASK_INPUT_STATUS__PROCESSING,
   TASK_INPUT_STATUS__STOP,
   TASK_INPUT_STATUS__FAILED,
 };
@@ -62,10 +63,11 @@ enum {
 
 typedef struct {
   int8_t type;
+} SStreamQueueItem;
 
-  int32_t sourceVg;
-  int64_t sourceVer;
-
+typedef struct {
+  int8_t      type;
+  int64_t     ver;
   int32_t*    dataRef;
   SSubmitReq* data;
 } SStreamDataSubmit;
@@ -83,40 +85,63 @@ typedef struct {
   int8_t type;
 } SStreamCheckpoint;
 
-static FORCE_INLINE SStreamDataSubmit* streamDataSubmitNew(SSubmitReq* pReq) {
-  SStreamDataSubmit* pDataSubmit = (SStreamDataSubmit*)taosAllocateQitem(sizeof(SStreamDataSubmit), DEF_QITEM);
-  if (pDataSubmit == NULL) return NULL;
-  pDataSubmit->dataRef = (int32_t*)taosMemoryMalloc(sizeof(int32_t));
-  if (pDataSubmit->dataRef == NULL) goto FAIL;
-  pDataSubmit->data = pReq;
-  *pDataSubmit->dataRef = 1;
-  pDataSubmit->type = STREAM_INPUT__DATA_SUBMIT;
-  return pDataSubmit;
-FAIL:
-  taosFreeQitem(pDataSubmit);
-  return NULL;
+enum {
+  STREAM_QUEUE__SUCESS = 1,
+  STREAM_QUEUE__FAILED,
+  STREAM_QUEUE__PROCESSING,
+};
+
+typedef struct {
+  STaosQueue* queue;
+  STaosQall*  qall;
+  void*       qItem;
+  int8_t      status;
+} SStreamQueue;
+
+SStreamQueue* streamQueueOpen();
+void          streamQueueClose(SStreamQueue* queue);
+
+static FORCE_INLINE void streamQueueProcessSuccess(SStreamQueue* queue) {
+  ASSERT(atomic_load_8(&queue->status) == STREAM_QUEUE__PROCESSING);
+  queue->qItem = NULL;
+  atomic_store_8(&queue->status, STREAM_QUEUE__SUCESS);
 }
 
-static FORCE_INLINE void streamDataSubmitRefInc(SStreamDataSubmit* pDataSubmit) {
-  //
-  atomic_add_fetch_32(pDataSubmit->dataRef, 1);
+static FORCE_INLINE void streamQueueProcessFail(SStreamQueue* queue) {
+  ASSERT(atomic_load_8(&queue->status) == STREAM_QUEUE__PROCESSING);
+  atomic_store_8(&queue->status, STREAM_QUEUE__FAILED);
 }
 
-static FORCE_INLINE void streamDataSubmitRefDec(SStreamDataSubmit* pDataSubmit) {
-  int32_t ref = atomic_sub_fetch_32(pDataSubmit->dataRef, 1);
-  ASSERT(ref >= 0);
-  if (ref == 0) {
-    taosMemoryFree(pDataSubmit->data);
-    taosMemoryFree(pDataSubmit->dataRef);
+static FORCE_INLINE void* streamQueueCurItem(SStreamQueue* queue) { return queue->qItem; }
+
+static FORCE_INLINE void* streamQueueNextItem(SStreamQueue* queue) {
+  int8_t dequeueFlag = atomic_exchange_8(&queue->status, STREAM_QUEUE__PROCESSING);
+  if (dequeueFlag == STREAM_QUEUE__FAILED) {
+    ASSERT(queue->qItem != NULL);
+    return streamQueueCurItem(queue);
+  } else {
+    taosGetQitem(queue->qall, &queue->qItem);
+    if (queue->qItem == NULL) {
+      taosReadAllQitems(queue->queue, queue->qall);
+      taosGetQitem(queue->qall, &queue->qItem);
+    }
+    return streamQueueCurItem(queue);
   }
 }
 
+SStreamDataSubmit* streamDataSubmitNew(SSubmitReq* pReq);
+
+void streamDataSubmitRefDec(SStreamDataSubmit* pDataSubmit);
+
+SStreamDataSubmit* streamSubmitRefClone(SStreamDataSubmit* pSubmit);
+
+#if 0
 int32_t streamDataBlockEncode(void** buf, const SStreamDataBlock* pOutput);
 void*   streamDataBlockDecode(const void* buf, SStreamDataBlock* pInput);
+#endif
 
 typedef struct {
-  int8_t parallelizable;
-  char*  qmsg;
+  char* qmsg;
   // followings are not applicable to encoder and decoder
   void* inputHandle;
   void* executor;
@@ -156,6 +181,7 @@ typedef void FSmaSink(void* vnode, int64_t smaId, const SArray* data);
 typedef struct {
   int64_t smaId;
   // following are not applicable to encoder and decoder
+  void*     vnode;
   FSmaSink* smaSink;
 } STaskSinkSma;
 
@@ -206,15 +232,17 @@ struct SStreamTask {
   int8_t  dispatchType;
   int16_t dispatchMsgType;
 
+  // node info
+  int32_t childId;
   int32_t nodeId;
   SEpSet  epSet;
-
-  // source preprocess
 
   // exec
   STaskExec exec;
 
-  // local sink
+  // TODO: merge sink and dispatch
+
+  //  local sink
   union {
     STaskSinkTb    tbSink;
     STaskSinkSma   smaSink;
@@ -231,13 +259,11 @@ struct SStreamTask {
   int8_t inputStatus;
   int8_t outputStatus;
 
-  STaosQueue* inputQ;
-  STaosQall*  inputQAll;
-  STaosQueue* outputQ;
-  STaosQall*  outputQAll;
+  SStreamQueue* inputQueue;
+  SStreamQueue* outputQueue;
 
   // application storage
-  void* ahandle;
+  // void* ahandle;
 };
 
 SStreamTask* tNewSStreamTask(int64_t streamId);
@@ -245,36 +271,62 @@ int32_t      tEncodeSStreamTask(SEncoder* pEncoder, const SStreamTask* pTask);
 int32_t      tDecodeSStreamTask(SDecoder* pDecoder, SStreamTask* pTask);
 void         tFreeSStreamTask(SStreamTask* pTask);
 
-typedef struct {
-  // SMsgHead     head;
-  SStreamTask* task;
-} SStreamTaskDeployReq;
+static FORCE_INLINE int32_t streamTaskInput(SStreamTask* pTask, SStreamQueueItem* pItem) {
+  while (1) {
+    int8_t inputStatus =
+        atomic_val_compare_exchange_8(&pTask->inputStatus, TASK_INPUT_STATUS__NORMAL, TASK_INPUT_STATUS__PROCESSING);
+    if (inputStatus == TASK_INPUT_STATUS__NORMAL) {
+      break;
+    }
+    ASSERT(0);
+  }
+
+  if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
+    SStreamDataSubmit* pSubmitClone = streamSubmitRefClone((SStreamDataSubmit*)pItem);
+    if (pSubmitClone == NULL) {
+      atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__FAILED);
+      return -1;
+    }
+    taosWriteQitem(pTask->inputQueue->queue, pSubmitClone);
+  } else if (pItem->type == STREAM_INPUT__DATA_BLOCK) {
+    taosWriteQitem(pTask->inputQueue->queue, pItem);
+  } else if (pItem->type == STREAM_INPUT__CHECKPOINT) {
+    taosWriteQitem(pTask->inputQueue->queue, pItem);
+  }
+
+  // TODO: back pressure
+  atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__NORMAL);
+  return 0;
+}
+
+static FORCE_INLINE void streamTaskInputFail(SStreamTask* pTask) {
+  atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__FAILED);
+}
+
+static FORCE_INLINE int32_t streamTaskOutput(SStreamTask* pTask, SStreamDataBlock* pBlock) {
+  if (pTask->sinkType == TASK_SINK__TABLE) {
+    ASSERT(pTask->dispatchType == TASK_DISPATCH__NONE);
+    pTask->tbSink.tbSinkFunc(pTask, pTask->tbSink.vnode, 0, pBlock->blocks);
+    taosFreeQitem(pBlock);
+  } else if (pTask->sinkType == TASK_SINK__SMA) {
+    ASSERT(pTask->dispatchType == TASK_DISPATCH__NONE);
+    pTask->smaSink.smaSink(pTask->smaSink.vnode, pTask->smaSink.smaId, pBlock->blocks);
+    taosFreeQitem(pBlock);
+  } else {
+    ASSERT(pTask->dispatchType != TASK_DISPATCH__NONE);
+    taosWriteQitem(pTask->outputQueue->queue, pBlock);
+  }
+  return 0;
+}
 
 typedef struct {
   int32_t reserved;
 } SStreamTaskDeployRsp;
 
 typedef struct {
-  // SMsgHead head;
-  int64_t streamId;
-  int32_t taskId;
-  SArray* data;  // SArray<SSDataBlock>
-} SStreamTaskExecReq;
-
-int32_t tEncodeSStreamTaskExecReq(void** buf, const SStreamTaskExecReq* pReq);
-void*   tDecodeSStreamTaskExecReq(const void* buf, SStreamTaskExecReq* pReq);
-void    tFreeSStreamTaskExecReq(SStreamTaskExecReq* pReq);
-
-typedef struct {
-  int32_t reserved;
-} SStreamTaskExecRsp;
-
-typedef struct {
-  // SMsgHead head;
-  int64_t streamId;
-  int64_t version;
-  SArray* res;  // SArray<SSDataBlock>
-} SStreamSinkReq;
+  // SMsgHead     head;
+  SStreamTask* task;
+} SStreamTaskDeployReq;
 
 typedef struct {
   SMsgHead head;
@@ -287,10 +339,14 @@ typedef struct {
   int32_t taskId;
   int32_t sourceTaskId;
   int32_t sourceVg;
+  int32_t sourceChildId;
+  int32_t upstreamNodeId;
 #if 0
   int64_t sourceVer;
 #endif
-  SArray* data;  // SArray<SSDataBlock>
+  int32_t blockNum;
+  SArray* dataLen;  // SArray<int32_t>
+  SArray* data;     // SArray<SRetrieveTableRsp*>
 } SStreamDispatchReq;
 
 typedef struct {
@@ -312,13 +368,11 @@ typedef struct {
   int8_t  inputStatus;
 } SStreamTaskRecoverRsp;
 
-int32_t streamEnqueueDataSubmit(SStreamTask* pTask, SStreamDataSubmit* input);
-int32_t streamEnqueueDataBlk(SStreamTask* pTask, SStreamDataBlock* input);
-int32_t streamDequeueOutput(SStreamTask* pTask, void** output);
+int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq);
+
+int32_t streamTriggerByWrite(SStreamTask* pTask, int32_t vgId, SMsgCb* pMsgCb);
 
 int32_t streamTaskRun(SStreamTask* pTask);
-
-int32_t streamTaskHandleInput(SStreamTask* pTask, void* data);
 
 int32_t streamTaskProcessRunReq(SStreamTask* pTask, SMsgCb* pMsgCb);
 int32_t streamProcessDispatchReq(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDispatchReq* pReq, SRpcMsg* pMsg);
@@ -330,4 +384,4 @@ int32_t streamProcessRecoverRsp(SStreamTask* pTask, SStreamTaskRecoverRsp* pRsp)
 }
 #endif
 
-#endif /* ifndef _TSTREAM_H_ */
+#endif /* ifndef _STREAM_H_ */

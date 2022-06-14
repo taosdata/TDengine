@@ -33,6 +33,8 @@ TEST_F(ParserSelectTest, basic) {
   run("SELECT ts, t.c1 FROM (SELECT * FROM t1) t");
 
   run("SELECT * FROM t1 tt1, t1 tt2 WHERE tt1.c1 = tt2.c1");
+
+  run("SELECT * FROM st1");
 }
 
 TEST_F(ParserSelectTest, constant) {
@@ -44,6 +46,8 @@ TEST_F(ParserSelectTest, constant) {
       "timestamp '2022-02-09 17:30:20', true, false, 15s FROM t1");
 
   run("SELECT 123 + 45 FROM t1 WHERE 2 - 1");
+
+  run("SELECT * FROM t1 WHERE -2");
 }
 
 TEST_F(ParserSelectTest, expression) {
@@ -61,6 +65,8 @@ TEST_F(ParserSelectTest, condition) {
 
   run("SELECT c1 FROM t1 WHERE ts in (true, false)");
 
+  run("SELECT c1 FROM t1 WHERE NOT ts in (true, false)");
+
   run("SELECT * FROM t1 WHERE c1 > 10 and c1 is not null");
 }
 
@@ -74,6 +80,12 @@ TEST_F(ParserSelectTest, pseudoColumnSemanticCheck) {
   useDb("root", "test");
 
   run("SELECT TBNAME FROM (SELECT * FROM st1s1)", TSDB_CODE_PAR_INVALID_TBNAME, PARSER_STAGE_TRANSLATE);
+}
+
+TEST_F(ParserSelectTest, aggFunc) {
+  useDb("root", "test");
+
+  run("SELECT LEASTSQUARES(c1, -1, 1) FROM t1");
 }
 
 TEST_F(ParserSelectTest, multiResFunc) {
@@ -202,9 +214,11 @@ TEST_F(ParserSelectTest, interval) {
 TEST_F(ParserSelectTest, intervalSemanticCheck) {
   useDb("root", "test");
 
-  run("SELECT c1 FROM t1 INTERVAL(10s)", TSDB_CODE_PAR_NOT_SINGLE_GROUP, PARSER_STAGE_TRANSLATE);
-  run("SELECT DISTINCT c1, c2 FROM t1 WHERE c1 > 3 INTERVAL(1d) FILL(NEXT)", TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE,
-      PARSER_STAGE_TRANSLATE);
+  run("SELECT c1 FROM t1 INTERVAL(10s)", TSDB_CODE_PAR_NOT_SINGLE_GROUP);
+  run("SELECT DISTINCT c1, c2 FROM t1 WHERE c1 > 3 INTERVAL(1d) FILL(NEXT)", TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE);
+  run("SELECT HISTOGRAM(c1, 'log_bin', '{\"start\": -33,\"factor\": 55,\"count\": 5,\"infinity\": false}', 1) FROM t1 "
+      "WHERE ts > TIMESTAMP '2022-04-01 00:00:00' and ts < TIMESTAMP '2022-04-30 23:59:59' INTERVAL(10s) FILL(NULL)",
+      TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC);
 }
 
 TEST_F(ParserSelectTest, subquery) {
@@ -219,14 +233,14 @@ TEST_F(ParserSelectTest, subquery) {
   run("SELECT SUM(a) FROM (SELECT MAX(c1) a, _wstartts FROM st1s1 PARTITION BY TBNAME INTERVAL(1m)) INTERVAL(1n)");
 }
 
-TEST_F(ParserSelectTest, subquerySemanticError) {
+TEST_F(ParserSelectTest, subquerySemanticCheck) {
   useDb("root", "test");
 
   run("SELECT SUM(a) FROM (SELECT MAX(c1) a FROM st1s1 INTERVAL(1m)) INTERVAL(1n)", TSDB_CODE_PAR_NOT_ALLOWED_WIN_QUERY,
       PARSER_STAGE_TRANSLATE);
 }
 
-TEST_F(ParserSelectTest, semanticError) {
+TEST_F(ParserSelectTest, semanticCheck) {
   useDb("root", "test");
 
   // TSDB_CODE_PAR_INVALID_COLUMN
@@ -243,6 +257,8 @@ TEST_F(ParserSelectTest, semanticError) {
 
   // TSDB_CODE_PAR_AMBIGUOUS_COLUMN
   run("SELECT c2 FROM t1 tt1, t1 tt2 WHERE tt1.c1 = tt2.c1", TSDB_CODE_PAR_AMBIGUOUS_COLUMN, PARSER_STAGE_TRANSLATE);
+
+  run("SELECT c2 FROM (SELECT c1 c2, c2 FROM t1)", TSDB_CODE_PAR_AMBIGUOUS_COLUMN, PARSER_STAGE_TRANSLATE);
 
   // TSDB_CODE_PAR_WRONG_VALUE_TYPE
   run("SELECT timestamp '2010a' FROM t1", TSDB_CODE_PAR_WRONG_VALUE_TYPE, PARSER_STAGE_TRANSLATE);

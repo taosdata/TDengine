@@ -30,25 +30,25 @@ static int32_t  mndBnodeActionInsert(SSdb *pSdb, SBnodeObj *pObj);
 static int32_t  mndBnodeActionUpdate(SSdb *pSdb, SBnodeObj *pOld, SBnodeObj *pNew);
 static int32_t  mndBnodeActionDelete(SSdb *pSdb, SBnodeObj *pObj);
 static int32_t  mndProcessCreateBnodeReq(SRpcMsg *pReq);
-static int32_t  mndProcessCreateBnodeRsp(SRpcMsg *pRsp);
 static int32_t  mndProcessDropBnodeReq(SRpcMsg *pReq);
-static int32_t  mndProcessDropBnodeRsp(SRpcMsg *pRsp);
 static int32_t  mndRetrieveBnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextBnode(SMnode *pMnode, void *pIter);
 
 int32_t mndInitBnode(SMnode *pMnode) {
-  SSdbTable table = {.sdbType = SDB_BNODE,
-                     .keyType = SDB_KEY_INT32,
-                     .encodeFp = (SdbEncodeFp)mndBnodeActionEncode,
-                     .decodeFp = (SdbDecodeFp)mndBnodeActionDecode,
-                     .insertFp = (SdbInsertFp)mndBnodeActionInsert,
-                     .updateFp = (SdbUpdateFp)mndBnodeActionUpdate,
-                     .deleteFp = (SdbDeleteFp)mndBnodeActionDelete};
+  SSdbTable table = {
+      .sdbType = SDB_BNODE,
+      .keyType = SDB_KEY_INT32,
+      .encodeFp = (SdbEncodeFp)mndBnodeActionEncode,
+      .decodeFp = (SdbDecodeFp)mndBnodeActionDecode,
+      .insertFp = (SdbInsertFp)mndBnodeActionInsert,
+      .updateFp = (SdbUpdateFp)mndBnodeActionUpdate,
+      .deleteFp = (SdbDeleteFp)mndBnodeActionDelete,
+  };
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_BNODE, mndProcessCreateBnodeReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_BNODE, mndProcessDropBnodeReq);
-  mndSetMsgHandle(pMnode, TDMT_DND_CREATE_BNODE_RSP, mndProcessCreateBnodeRsp);
-  mndSetMsgHandle(pMnode, TDMT_DND_DROP_BNODE_RSP, mndProcessDropBnodeRsp);
+  mndSetMsgHandle(pMnode, TDMT_DND_CREATE_BNODE_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_DND_DROP_BNODE_RSP, mndTransProcessRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_BNODE, mndRetrieveBnodes);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_BNODE, mndCancelGetNextBnode);
@@ -246,7 +246,7 @@ static int32_t mndCreateBnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, 
   bnodeObj.createdTime = taosGetTimestampMs();
   bnodeObj.updateTime = bnodeObj.createdTime;
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_BNODE, pReq);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq);
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to create bnode:%d", pTrans->id, pCreate->dnodeId);
@@ -299,7 +299,7 @@ static int32_t mndProcessCreateBnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (mndCheckNodeAuth(pUser)) {
+  if (mndCheckNodeAuth(pUser) != 0) {
     goto _OVER;
   }
 
@@ -363,7 +363,7 @@ static int32_t mndSetDropBnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SBn
 static int32_t mndDropBnode(SMnode *pMnode, SRpcMsg *pReq, SBnodeObj *pObj) {
   int32_t code = -1;
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_DROP_BNODE, pReq);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq);
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to drop bnode:%d", pTrans->id, pObj->id);
@@ -409,7 +409,7 @@ static int32_t mndProcessDropBnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (mndCheckNodeAuth(pUser)) {
+  if (mndCheckNodeAuth(pUser) != 0) {
     goto _OVER;
   }
 
@@ -425,16 +425,6 @@ _OVER:
   mndReleaseUser(pMnode, pUser);
 
   return code;
-}
-
-static int32_t mndProcessCreateBnodeRsp(SRpcMsg *pRsp) {
-  mndTransProcessRsp(pRsp);
-  return 0;
-}
-
-static int32_t mndProcessDropBnodeRsp(SRpcMsg *pRsp) {
-  mndTransProcessRsp(pRsp);
-  return 0;
 }
 
 static int32_t mndRetrieveBnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {

@@ -43,35 +43,17 @@ typedef struct SRSmaInfo    SRSmaInfo;
 struct SSmaEnv {
   TdThreadRwlock lock;
   int8_t         type;
-  TXN            txn;
-  void          *pPool;  // SPoolMem
-  SDiskID        did;
-  TDB           *dbEnv;  // TODO: If it's better to put it in smaIndex level?
-  char          *path;   // relative path
   SSmaStat      *pStat;
 };
 
 #define SMA_ENV_LOCK(env)       ((env)->lock)
 #define SMA_ENV_TYPE(env)       ((env)->type)
-#define SMA_ENV_DID(env)        ((env)->did)
-#define SMA_ENV_ENV(env)        ((env)->dbEnv)
-#define SMA_ENV_PATH(env)       ((env)->path)
 #define SMA_ENV_STAT(env)       ((env)->pStat)
 #define SMA_ENV_STAT_ITEMS(env) ((env)->pStat->smaStatItems)
 
 struct SSmaStatItem {
-  /**
-   * @brief The field 'state' is here to demonstrate if one smaIndex is ready to provide service.
-   *    - TSDB_SMA_STAT_OK: 1) The sma calculation of history data is finished; 2) Or recevied information from
-   * Streaming Module or TSDB local persistence.
-   *    - TSDB_SMA_STAT_EXPIRED: 1) If sma calculation of history TS data is not finished; 2) Or if the TSDB is open,
-   * without information about its previous state.
-   *    - TSDB_SMA_STAT_DROPPED: 1)sma dropped
-   * N.B. only applicable to tsma
-   */
-  int8_t    state;           // ETsdbSmaStat
-  SHashObj *expiredWindows;  // key: skey of time window, value: version
-  STSma    *pTSma;           // cache schema
+  int8_t state;  // ETsdbSmaStat
+  STSma *pTSma;  // cache schema
 };
 
 struct SSmaStat {
@@ -84,42 +66,12 @@ struct SSmaStat {
 #define SMA_STAT_ITEMS(s)     ((s)->smaStatItems)
 #define SMA_STAT_INFO_HASH(s) ((s)->rsmaInfoHash)
 
-struct SSmaKey {
-  TSKEY   skey;
-  int64_t groupId;
-};
-
-typedef struct SDBFile SDBFile;
-
-struct SDBFile {
-  int32_t fid;
-  TTB    *pDB;
-  char   *path;
-};
-
-int32_t tdSmaBeginCommit(SSmaEnv *pEnv);
-int32_t tdSmaEndCommit(SSmaEnv *pEnv);
-
-int32_t smaOpenDBEnv(TDB **ppEnv, const char *path);
-int32_t smaCloseDBEnv(TDB *pEnv);
-int32_t smaOpenDBF(TDB *pEnv, SDBFile *pDBF);
-int32_t smaCloseDBF(SDBFile *pDBF);
-int32_t smaSaveSmaToDB(SDBFile *pDBF, void *pKey, int32_t keyLen, void *pVal, int32_t valLen, TXN *txn);
-void   *smaGetSmaDataByKey(SDBFile *pDBF, const void *pKey, int32_t keyLen, int32_t *valLen);
-
 void  tdDestroySmaEnv(SSmaEnv *pSmaEnv);
 void *tdFreeSmaEnv(SSmaEnv *pSmaEnv);
 #if 0
 int32_t tbGetTSmaStatus(SSma *pSma, STSma *param, void *result);
 int32_t tbRemoveTSmaData(SSma *pSma, STSma *param, STimeWindow *pWin);
 #endif
-
-static FORCE_INLINE int32_t tdEncodeTSmaKey(int64_t groupId, TSKEY tsKey, void **pData) {
-  int32_t len = 0;
-  len += taosEncodeFixedI64(pData, tsKey);
-  len += taosEncodeFixedI64(pData, groupId);
-  return len;
-}
 
 int32_t tdInitSma(SSma *pSma);
 int32_t tdDropTSma(SSma *pSma, char *pMsg);
@@ -128,12 +80,10 @@ int32_t tdInsertRSmaData(SSma *pSma, char *msg);
 
 int32_t tdRefSmaStat(SSma *pSma, SSmaStat *pStat);
 int32_t tdUnRefSmaStat(SSma *pSma, SSmaStat *pStat);
-int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType);
+int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType, bool onlyCheck);
 
 int32_t tdLockSma(SSma *pSma);
 int32_t tdUnLockSma(SSma *pSma);
-
-int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg);
 
 static FORCE_INLINE int16_t tdTSmaAdd(SSma *pSma, int16_t n) { return atomic_add_fetch_16(&SMA_TSMA_NUM(pSma), n); }
 static FORCE_INLINE int16_t tdTSmaSub(SSma *pSma, int16_t n) { return atomic_sub_fetch_16(&SMA_TSMA_NUM(pSma), n); }
@@ -219,9 +169,8 @@ static int32_t  tdInitSmaEnv(SSma *pSma, int8_t smaType, const char *path, SDisk
 void *tdFreeRSmaInfo(SRSmaInfo *pInfo);
 
 int32_t tdProcessTSmaCreateImpl(SSma *pSma, int64_t version, const char *pMsg);
-int32_t tdUpdateExpiredWindowImpl(SSma *pSma, SSubmitReq *pMsg, int64_t version);
-// TODO: This is the basic params, and should wrap the params to a queryHandle.
-int32_t tdGetTSmaDataImpl(SSma *pSma, char *pData, int64_t indexUid, TSKEY querySKey, int32_t nMaxResult);
+int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg);
+int32_t tdProcessTSmaGetDaysImpl(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);
 
 #ifdef __cplusplus
 }

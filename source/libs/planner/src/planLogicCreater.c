@@ -21,8 +21,10 @@ typedef struct SLogicPlanContext {
   SPlanContext* pPlanCxt;
 } SLogicPlanContext;
 
-typedef int32_t (*FCreateLogicNode)(SLogicPlanContext*, SSelectStmt*, SLogicNode**);
+typedef int32_t (*FCreateLogicNode)(SLogicPlanContext*, void*, SLogicNode**);
+typedef int32_t (*FCreateSelectLogicNode)(SLogicPlanContext*, SSelectStmt*, SLogicNode**);
 typedef int32_t (*FCreateSetOpLogicNode)(SLogicPlanContext*, SSetOperator*, SLogicNode**);
+typedef int32_t (*FCreateDeleteLogicNode)(SLogicPlanContext*, SDeleteStmt*, SLogicNode**);
 
 static int32_t doCreateLogicNodeByTable(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SNode* pTable,
                                         SLogicNode** pLogicNode);
@@ -96,7 +98,15 @@ static int32_t rewriteExprForSelect(SNodeList* pExprs, SSelectStmt* pSelect, ESq
   return cxt.errCode;
 }
 
+static int32_t rewriteExpr(SNodeList* pExprs, SNode** pTarget) {
+  nodesWalkExprs(pExprs, doNameExpr, NULL);
+  SRewriteExprCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pExprs = pExprs};
+  nodesRewriteExpr(pTarget, doRewriteExpr, &cxt);
+  return cxt.errCode;
+}
+
 static int32_t rewriteExprs(SNodeList* pExprs, SNodeList* pTarget) {
+  nodesWalkExprs(pExprs, doNameExpr, NULL);
   SRewriteExprCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pExprs = pExprs};
   nodesRewriteExprs(pTarget, doRewriteExpr, &cxt);
   return cxt.errCode;
@@ -119,11 +129,12 @@ static int32_t pushLogicNode(SLogicPlanContext* pCxt, SLogicNode** pOldRoot, SLo
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t createChildLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, FCreateLogicNode func,
-                                    SLogicNode** pRoot) {
+static int32_t createRootLogicNode(SLogicPlanContext* pCxt, void* pStmt, uint8_t precision, FCreateLogicNode func,
+                                   SLogicNode** pRoot) {
   SLogicNode* pNode = NULL;
-  int32_t     code = func(pCxt, pSelect, &pNode);
+  int32_t     code = func(pCxt, pStmt, &pNode);
   if (TSDB_CODE_SUCCESS == code && NULL != pNode) {
+    pNode->precision = precision;
     code = pushLogicNode(pCxt, pRoot, pNode);
   }
   if (TSDB_CODE_SUCCESS != code) {
@@ -132,59 +143,13 @@ static int32_t createChildLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelec
   return code;
 }
 
-typedef struct SCreateColumnCxt {
-  int32_t    errCode;
-  SNodeList* pList;
-} SCreateColumnCxt;
-
-static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
-  SCreateColumnCxt* pCxt = (SCreateColumnCxt*)pContext;
-  switch (nodeType(pNode)) {
-    case QUERY_NODE_COLUMN: {
-      SNode* pCol = nodesCloneNode(pNode);
-      if (NULL == pCol) {
-        return DEAL_RES_ERROR;
-      }
-      return (TSDB_CODE_SUCCESS == nodesListAppend(pCxt->pList, pCol) ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
-    }
-    case QUERY_NODE_OPERATOR:
-    case QUERY_NODE_LOGIC_CONDITION:
-    case QUERY_NODE_FUNCTION: {
-      SExprNode*   pExpr = (SExprNode*)pNode;
-      SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
-      if (NULL == pCol) {
-        return DEAL_RES_ERROR;
-      }
-      pCol->node.resType = pExpr->resType;
-      strcpy(pCol->colName, pExpr->aliasName);
-      return (TSDB_CODE_SUCCESS == nodesListAppend(pCxt->pList, pCol) ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
-    }
-    default:
-      break;
-  }
-
-  return DEAL_RES_CONTINUE;
-}
-
-static int32_t createColumnByRewriteExps(SLogicPlanContext* pCxt, SNodeList* pExprs, SNodeList** pList) {
-  SCreateColumnCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pList = (NULL == *pList ? nodesMakeList() : *pList)};
-  if (NULL == cxt.pList) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  nodesWalkExprs(pExprs, doCreateColumn, &cxt);
-  if (TSDB_CODE_SUCCESS != cxt.errCode) {
-    nodesDestroyList(cxt.pList);
-    return cxt.errCode;
-  }
-  if (NULL == *pList) {
-    *pList = cxt.pList;
-  }
-  return cxt.errCode;
+static int32_t createSelectRootLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, FCreateSelectLogicNode func,
+                                         SLogicNode** pRoot) {
+  return createRootLogicNode(pCxt, pSelect, pSelect->precision, (FCreateLogicNode)func, pRoot);
 }
 
 static EScanType getScanType(SLogicPlanContext* pCxt, SNodeList* pScanPseudoCols, SNodeList* pScanCols,
-                             STableMeta* pMeta) {
+                             int8_t tableType) {
   if (pCxt->pPlanCxt->topicQuery || pCxt->pPlanCxt->streamQuery) {
     return SCAN_TYPE_STREAM;
   }
@@ -194,7 +159,7 @@ static EScanType getScanType(SLogicPlanContext* pCxt, SNodeList* pScanPseudoCols
     return NULL == pScanPseudoCols ? SCAN_TYPE_TABLE : SCAN_TYPE_TAG;
   }
 
-  if (TSDB_SYSTEM_TABLE == pMeta->tableType) {
+  if (TSDB_SYSTEM_TABLE == tableType) {
     return SCAN_TYPE_SYSTEM_TABLE;
   }
 
@@ -247,16 +212,19 @@ static int32_t addPrimaryKeyCol(uint64_t tableId, SNodeList** pCols) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SRealTableNode* pRealTable,
-                                   SLogicNode** pLogicNode) {
+static int32_t makeScanLogicNode(SLogicPlanContext* pCxt, SRealTableNode* pRealTable, bool hasRepeatScanFuncs,
+                                 SLogicNode** pLogicNode) {
   SScanLogicNode* pScan = (SScanLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SCAN);
   if (NULL == pScan) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  TSWAP(pScan->pMeta, pRealTable->pMeta);
   TSWAP(pScan->pVgroupList, pRealTable->pVgroupList);
-  pScan->scanSeq[0] = pSelect->hasRepeatScanFuncs ? 2 : 1;
+  TSWAP(pScan->pSmaIndexes, pRealTable->pSmaIndexes);
+  pScan->tableId = pRealTable->pMeta->uid;
+  pScan->stableId = pRealTable->pMeta->suid;
+  pScan->tableType = pRealTable->pMeta->tableType;
+  pScan->scanSeq[0] = hasRepeatScanFuncs ? 2 : 1;
   pScan->scanSeq[1] = 0;
   pScan->scanRange = TSWINDOW_INITIALIZER;
   pScan->tableName.type = TSDB_TABLE_NAME_T;
@@ -267,9 +235,21 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pScan->ratio = pRealTable->ratio;
   pScan->dataRequired = FUNC_DATA_REQUIRED_DATA_LOAD;
 
+  *pLogicNode = (SLogicNode*)pScan;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SRealTableNode* pRealTable,
+                                   SLogicNode** pLogicNode) {
+  SScanLogicNode* pScan = NULL;
+  int32_t         code = makeScanLogicNode(pCxt, pRealTable, pSelect->hasRepeatScanFuncs, (SLogicNode**)&pScan);
+
   // set columns to scan
-  int32_t code = nodesCollectColumns(pSelect, SQL_CLAUSE_FROM, pRealTable->table.tableAlias, COLLECT_COL_TYPE_COL,
-                                     &pScan->pScanCols);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesCollectColumns(pSelect, SQL_CLAUSE_FROM, pRealTable->table.tableAlias, COLLECT_COL_TYPE_COL,
+                               &pScan->pScanCols);
+  }
 
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesCollectColumns(pSelect, SQL_CLAUSE_FROM, pRealTable->table.tableAlias, COLLECT_COL_TYPE_TAG,
@@ -285,18 +265,18 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     code = rewriteExprForSelect(pScan->pScanPseudoCols, pSelect, SQL_CLAUSE_FROM);
   }
 
-  pScan->scanType = getScanType(pCxt, pScan->pScanPseudoCols, pScan->pScanCols, pScan->pMeta);
+  pScan->scanType = getScanType(pCxt, pScan->pScanPseudoCols, pScan->pScanCols, pScan->tableType);
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = addPrimaryKeyCol(pScan->pMeta->uid, &pScan->pScanCols);
+    code = addPrimaryKeyCol(pScan->tableId, &pScan->pScanCols);
   }
 
   // set output
   if (TSDB_CODE_SUCCESS == code) {
-    code = createColumnByRewriteExps(pCxt, pScan->pScanCols, &pScan->node.pTargets);
+    code = createColumnByRewriteExprs(pScan->pScanCols, &pScan->node.pTargets);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = createColumnByRewriteExps(pCxt, pScan->pScanPseudoCols, &pScan->node.pTargets);
+    code = createColumnByRewriteExprs(pScan->pScanPseudoCols, &pScan->node.pTargets);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -400,6 +380,7 @@ static int32_t createLogicNodeByTable(SLogicPlanContext* pCxt, SSelectStmt* pSel
       nodesDestroyNode(pNode);
       return TSDB_CODE_OUT_OF_MEMORY;
     }
+    pNode->precision = pSelect->precision;
     *pLogicNode = pNode;
   }
   return code;
@@ -461,16 +442,47 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
 
   // set the output
   if (TSDB_CODE_SUCCESS == code && NULL != pAgg->pGroupKeys) {
-    code = createColumnByRewriteExps(pCxt, pAgg->pGroupKeys, &pAgg->node.pTargets);
+    code = createColumnByRewriteExprs(pAgg->pGroupKeys, &pAgg->node.pTargets);
   }
   if (TSDB_CODE_SUCCESS == code && NULL != pAgg->pAggFuncs) {
-    code = createColumnByRewriteExps(pCxt, pAgg->pAggFuncs, &pAgg->node.pTargets);
+    code = createColumnByRewriteExprs(pAgg->pAggFuncs, &pAgg->node.pTargets);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
     *pLogicNode = (SLogicNode*)pAgg;
   } else {
     nodesDestroyNode(pAgg);
+  }
+
+  return code;
+}
+
+static int32_t createIndefRowsFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
+  // top/bottom are both an aggregate function and a indefinite rows function
+  if (!pSelect->hasIndefiniteRowsFunc || pSelect->hasAggFuncs || NULL != pSelect->pWindow) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SIndefRowsFuncLogicNode* pIdfRowsFunc =
+      (SIndefRowsFuncLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC);
+  if (NULL == pIdfRowsFunc) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  int32_t code = nodesCollectFuncs(pSelect, SQL_CLAUSE_SELECT, fmIsVectorFunc, &pIdfRowsFunc->pVectorFuncs);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = rewriteExprForSelect(pIdfRowsFunc->pVectorFuncs, pSelect, SQL_CLAUSE_SELECT);
+  }
+
+  // set the output
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createColumnByRewriteExprs(pIdfRowsFunc->pVectorFuncs, &pIdfRowsFunc->node.pTargets);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pLogicNode = (SLogicNode*)pIdfRowsFunc;
+  } else {
+    nodesDestroyNode(pIdfRowsFunc);
   }
 
   return code;
@@ -485,12 +497,16 @@ static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStm
     pWindow->watermark = pCxt->pPlanCxt->watermark;
   }
 
+  if (pCxt->pPlanCxt->rSmaQuery) {
+    pWindow->filesFactor = pCxt->pPlanCxt->filesFactor;
+  }
+
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteExprForSelect(pWindow->pFuncs, pSelect, SQL_CLAUSE_WINDOW);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = createColumnByRewriteExps(pCxt, pWindow->pFuncs, &pWindow->node.pTargets);
+    code = createColumnByRewriteExprs(pWindow->pFuncs, &pWindow->node.pTargets);
   }
 
   pSelect->hasAggFuncs = false;
@@ -556,6 +572,7 @@ static int32_t createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SInterva
   pWindow->sliding = (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->datum.i : pWindow->interval);
   pWindow->slidingUnit =
       (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->unit : pWindow->intervalUnit);
+  pWindow->intervalAlgo = pCxt->pPlanCxt->streamQuery ? INTERVAL_ALGO_STREAM_SINGLE : INTERVAL_ALGO_HASH;
 
   pWindow->pTspk = nodesCloneNode(pInterval->pCol);
   if (NULL == pWindow->pTspk) {
@@ -760,7 +777,7 @@ static int32_t createDistinctLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSe
 
   // set the output
   if (TSDB_CODE_SUCCESS == code) {
-    code = createColumnByRewriteExps(pCxt, pAgg->pGroupKeys, &pAgg->node.pTargets);
+    code = createColumnByRewriteExprs(pAgg->pGroupKeys, &pAgg->node.pTargets);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -776,25 +793,28 @@ static int32_t createSelectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSele
   SLogicNode* pRoot = NULL;
   int32_t     code = createLogicNodeByTable(pCxt, pSelect, pSelect->pFromTable, &pRoot);
   if (TSDB_CODE_SUCCESS == code) {
-    code = createChildLogicNode(pCxt, pSelect, createPartitionLogicNode, &pRoot);
+    code = createSelectRootLogicNode(pCxt, pSelect, createPartitionLogicNode, &pRoot);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = createChildLogicNode(pCxt, pSelect, createWindowLogicNode, &pRoot);
+    code = createSelectRootLogicNode(pCxt, pSelect, createWindowLogicNode, &pRoot);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = createChildLogicNode(pCxt, pSelect, createFillLogicNode, &pRoot);
+    code = createSelectRootLogicNode(pCxt, pSelect, createFillLogicNode, &pRoot);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = createChildLogicNode(pCxt, pSelect, createAggLogicNode, &pRoot);
+    code = createSelectRootLogicNode(pCxt, pSelect, createAggLogicNode, &pRoot);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = createChildLogicNode(pCxt, pSelect, createDistinctLogicNode, &pRoot);
+    code = createSelectRootLogicNode(pCxt, pSelect, createIndefRowsFuncLogicNode, &pRoot);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = createChildLogicNode(pCxt, pSelect, createSortLogicNode, &pRoot);
+    code = createSelectRootLogicNode(pCxt, pSelect, createDistinctLogicNode, &pRoot);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = createChildLogicNode(pCxt, pSelect, createProjectLogicNode, &pRoot);
+    code = createSelectRootLogicNode(pCxt, pSelect, createSortLogicNode, &pRoot);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createSelectRootLogicNode(pCxt, pSelect, createProjectLogicNode, &pRoot);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -806,17 +826,9 @@ static int32_t createSelectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSele
   return code;
 }
 
-static int32_t createSetOpChildLogicNode(SLogicPlanContext* pCxt, SSetOperator* pSetOperator,
-                                         FCreateSetOpLogicNode func, SLogicNode** pRoot) {
-  SLogicNode* pNode = NULL;
-  int32_t     code = func(pCxt, pSetOperator, &pNode);
-  if (TSDB_CODE_SUCCESS == code && NULL != pNode) {
-    code = pushLogicNode(pCxt, pRoot, pNode);
-  }
-  if (TSDB_CODE_SUCCESS != code) {
-    nodesDestroyNode(pNode);
-  }
-  return code;
+static int32_t createSetOpRootLogicNode(SLogicPlanContext* pCxt, SSetOperator* pSetOperator, FCreateSetOpLogicNode func,
+                                        SLogicNode** pRoot) {
+  return createRootLogicNode(pCxt, pSetOperator, pSetOperator->precision, (FCreateLogicNode)func, pRoot);
 }
 
 static int32_t createSetOpSortLogicNode(SLogicPlanContext* pCxt, SSetOperator* pSetOperator, SLogicNode** pLogicNode) {
@@ -907,7 +919,7 @@ static int32_t createSetOpAggLogicNode(SLogicPlanContext* pCxt, SSetOperator* pS
 
   // set the output
   if (TSDB_CODE_SUCCESS == code) {
-    code = createColumnByRewriteExps(pCxt, pAgg->pGroupKeys, &pAgg->node.pTargets);
+    code = createColumnByRewriteExprs(pAgg->pGroupKeys, &pAgg->node.pTargets);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -963,7 +975,7 @@ static int32_t createSetOperatorLogicNode(SLogicPlanContext* pCxt, SSetOperator*
   SLogicNode* pRoot = NULL;
   int32_t     code = createSetOpLogicNode(pCxt, pSetOperator, &pRoot);
   if (TSDB_CODE_SUCCESS == code) {
-    code = createSetOpChildLogicNode(pCxt, pSetOperator, createSetOpSortLogicNode, &pRoot);
+    code = createSetOpRootLogicNode(pCxt, pSetOperator, createSetOpSortLogicNode, &pRoot);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -991,14 +1003,122 @@ static int32_t getMsgType(ENodeType sqlType) {
 }
 
 static int32_t createVnodeModifLogicNode(SLogicPlanContext* pCxt, SVnodeModifOpStmt* pStmt, SLogicNode** pLogicNode) {
-  SVnodeModifLogicNode* pModif = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_VNODE_MODIF);
+  SVnodeModifyLogicNode* pModif = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_VNODE_MODIFY);
   if (NULL == pModif) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  pModif->modifyType = MODIFY_TABLE_TYPE_INSERT;
   TSWAP(pModif->pDataBlocks, pStmt->pDataBlocks);
   pModif->msgType = getMsgType(pStmt->sqlNodeType);
   *pLogicNode = (SLogicNode*)pModif;
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t createDeleteRootLogicNode(SLogicPlanContext* pCxt, SDeleteStmt* pDelete, FCreateDeleteLogicNode func,
+                                         SLogicNode** pRoot) {
+  return createRootLogicNode(pCxt, pDelete, pDelete->precision, (FCreateLogicNode)func, pRoot);
+}
+
+static int32_t createDeleteScanLogicNode(SLogicPlanContext* pCxt, SDeleteStmt* pDelete, SLogicNode** pLogicNode) {
+  SScanLogicNode* pScan = NULL;
+  int32_t         code = makeScanLogicNode(pCxt, (SRealTableNode*)pDelete->pFromTable, false, (SLogicNode**)&pScan);
+
+  // set columns to scan
+  if (TSDB_CODE_SUCCESS == code) {
+    pScan->scanType = SCAN_TYPE_TABLE;
+    pScan->pScanCols = nodesCloneList(((SFunctionNode*)pDelete->pCountFunc)->pParameterList);
+    if (NULL == pScan->pScanCols) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code && NULL != pDelete->pTagIndexCond) {
+    pScan->pTagCond = nodesCloneNode(pDelete->pTagIndexCond);
+    if (NULL == pScan->pTagCond) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
+  // set output
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createColumnByRewriteExprs(pScan->pScanCols, &pScan->node.pTargets);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pLogicNode = (SLogicNode*)pScan;
+  } else {
+    nodesDestroyNode(pScan);
+  }
+
+  return code;
+}
+
+static int32_t createDeleteAggLogicNode(SLogicPlanContext* pCxt, SDeleteStmt* pDelete, SLogicNode** pLogicNode) {
+  SAggLogicNode* pAgg = (SAggLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_AGG);
+  if (NULL == pAgg) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  int32_t code = nodesListMakeStrictAppend(&pAgg->pAggFuncs, nodesCloneNode(pDelete->pCountFunc));
+  if (TSDB_CODE_SUCCESS == code) {
+    code = rewriteExpr(pAgg->pAggFuncs, &pDelete->pCountFunc);
+  }
+  // set the output
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createColumnByRewriteExprs(pAgg->pAggFuncs, &pAgg->node.pTargets);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pLogicNode = (SLogicNode*)pAgg;
+  } else {
+    nodesDestroyNode(pAgg);
+  }
+
+  return code;
+}
+
+static int32_t createVnodeModifLogicNodeByDelete(SLogicPlanContext* pCxt, SDeleteStmt* pDelete,
+                                                 SLogicNode** pLogicNode) {
+  SVnodeModifyLogicNode* pModify = (SVnodeModifyLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_VNODE_MODIFY);
+  if (NULL == pModify) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  SRealTableNode* pRealTable = (SRealTableNode*)pDelete->pFromTable;
+
+  pModify->modifyType = MODIFY_TABLE_TYPE_DELETE;
+  pModify->tableId = pRealTable->pMeta->uid;
+  pModify->tableType = pRealTable->pMeta->tableType;
+  snprintf(pModify->tableFName, sizeof(pModify->tableFName), "%d.%s.%s", pCxt->pPlanCxt->acctId,
+           pRealTable->table.dbName, pRealTable->table.tableName);
+  pModify->deleteTimeRange = pDelete->timeRange;
+  pModify->pAffectedRows = nodesCloneNode(pDelete->pCountFunc);
+  if (NULL == pModify->pAffectedRows) {
+    nodesDestroyNode(pModify);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  *pLogicNode = (SLogicNode*)pModify;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t createDeleteLogicNode(SLogicPlanContext* pCxt, SDeleteStmt* pDelete, SLogicNode** pLogicNode) {
+  SLogicNode* pRoot = NULL;
+  int32_t     code = createDeleteScanLogicNode(pCxt, pDelete, &pRoot);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createDeleteRootLogicNode(pCxt, pDelete, createDeleteAggLogicNode, &pRoot);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createDeleteRootLogicNode(pCxt, pDelete, createVnodeModifLogicNodeByDelete, &pRoot);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pLogicNode = pRoot;
+  } else {
+    nodesDestroyNode(pRoot);
+  }
+
+  return code;
 }
 
 static int32_t createQueryLogicNode(SLogicPlanContext* pCxt, SNode* pStmt, SLogicNode** pLogicNode) {
@@ -1011,17 +1131,48 @@ static int32_t createQueryLogicNode(SLogicPlanContext* pCxt, SNode* pStmt, SLogi
       return createQueryLogicNode(pCxt, ((SExplainStmt*)pStmt)->pQuery, pLogicNode);
     case QUERY_NODE_SET_OPERATOR:
       return createSetOperatorLogicNode(pCxt, (SSetOperator*)pStmt, pLogicNode);
+    case QUERY_NODE_DELETE_STMT:
+      return createDeleteLogicNode(pCxt, (SDeleteStmt*)pStmt, pLogicNode);
     default:
       break;
   }
   return TSDB_CODE_FAILED;
 }
 
-int32_t createLogicPlan(SPlanContext* pCxt, SLogicNode** pLogicNode) {
+static void doSetLogicNodeParent(SLogicNode* pNode, SLogicNode* pParent) {
+  pNode->pParent = pParent;
+  SNode* pChild;
+  FOREACH(pChild, pNode->pChildren) { doSetLogicNodeParent((SLogicNode*)pChild, pNode); }
+}
+
+static void setLogicNodeParent(SLogicNode* pNode) { doSetLogicNodeParent(pNode, NULL); }
+
+int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan) {
   SLogicPlanContext cxt = {.pPlanCxt = pCxt};
-  int32_t           code = createQueryLogicNode(&cxt, pCxt->pAstRoot, pLogicNode);
-  if (TSDB_CODE_SUCCESS != code) {
-    return code;
+
+  SLogicSubplan* pSubplan = (SLogicSubplan*)nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN);
+  if (NULL == pSubplan) {
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
-  return TSDB_CODE_SUCCESS;
+  pSubplan->id.queryId = pCxt->queryId;
+  pSubplan->id.groupId = 1;
+  pSubplan->id.subplanId = 1;
+
+  int32_t code = createQueryLogicNode(&cxt, pCxt->pAstRoot, &pSubplan->pNode);
+  if (TSDB_CODE_SUCCESS == code) {
+    setLogicNodeParent(pSubplan->pNode);
+    if (QUERY_NODE_LOGIC_PLAN_VNODE_MODIFY == nodeType(pSubplan->pNode)) {
+      pSubplan->subplanType = SUBPLAN_TYPE_MODIFY;
+    } else {
+      pSubplan->subplanType = SUBPLAN_TYPE_SCAN;
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pLogicSubplan = pSubplan;
+  } else {
+    nodesDestroyNode(pSubplan);
+  }
+
+  return code;
 }

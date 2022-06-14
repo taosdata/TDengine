@@ -30,26 +30,26 @@ static int32_t  mndQnodeActionInsert(SSdb *pSdb, SQnodeObj *pObj);
 static int32_t  mndQnodeActionUpdate(SSdb *pSdb, SQnodeObj *pOld, SQnodeObj *pNew);
 static int32_t  mndQnodeActionDelete(SSdb *pSdb, SQnodeObj *pObj);
 static int32_t  mndProcessCreateQnodeReq(SRpcMsg *pReq);
-static int32_t  mndProcessCreateQnodeRsp(SRpcMsg *pRsp);
 static int32_t  mndProcessDropQnodeReq(SRpcMsg *pReq);
-static int32_t  mndProcessDropQnodeRsp(SRpcMsg *pRsp);
 static int32_t  mndProcessQnodeListReq(SRpcMsg *pReq);
 static int32_t  mndRetrieveQnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextQnode(SMnode *pMnode, void *pIter);
 
 int32_t mndInitQnode(SMnode *pMnode) {
-  SSdbTable table = {.sdbType = SDB_QNODE,
-                     .keyType = SDB_KEY_INT32,
-                     .encodeFp = (SdbEncodeFp)mndQnodeActionEncode,
-                     .decodeFp = (SdbDecodeFp)mndQnodeActionDecode,
-                     .insertFp = (SdbInsertFp)mndQnodeActionInsert,
-                     .updateFp = (SdbUpdateFp)mndQnodeActionUpdate,
-                     .deleteFp = (SdbDeleteFp)mndQnodeActionDelete};
+  SSdbTable table = {
+      .sdbType = SDB_QNODE,
+      .keyType = SDB_KEY_INT32,
+      .encodeFp = (SdbEncodeFp)mndQnodeActionEncode,
+      .decodeFp = (SdbDecodeFp)mndQnodeActionDecode,
+      .insertFp = (SdbInsertFp)mndQnodeActionInsert,
+      .updateFp = (SdbUpdateFp)mndQnodeActionUpdate,
+      .deleteFp = (SdbDeleteFp)mndQnodeActionDelete,
+  };
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_QNODE, mndProcessCreateQnodeReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_QNODE, mndProcessDropQnodeReq);
-  mndSetMsgHandle(pMnode, TDMT_DND_CREATE_QNODE_RSP, mndProcessCreateQnodeRsp);
-  mndSetMsgHandle(pMnode, TDMT_DND_DROP_QNODE_RSP, mndProcessDropQnodeRsp);
+  mndSetMsgHandle(pMnode, TDMT_DND_CREATE_QNODE_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_DND_DROP_QNODE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_QNODE_LIST, mndProcessQnodeListReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_QNODE, mndRetrieveQnodes);
@@ -60,7 +60,7 @@ int32_t mndInitQnode(SMnode *pMnode) {
 
 void mndCleanupQnode(SMnode *pMnode) {}
 
-static SQnodeObj *mndAcquireQnode(SMnode *pMnode, int32_t qnodeId) {
+SQnodeObj *mndAcquireQnode(SMnode *pMnode, int32_t qnodeId) {
   SQnodeObj *pObj = sdbAcquire(pMnode->pSdb, SDB_QNODE, &qnodeId);
   if (pObj == NULL && terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
     terrno = TSDB_CODE_MND_QNODE_NOT_EXIST;
@@ -68,7 +68,7 @@ static SQnodeObj *mndAcquireQnode(SMnode *pMnode, int32_t qnodeId) {
   return pObj;
 }
 
-static void mndReleaseQnode(SMnode *pMnode, SQnodeObj *pObj) {
+void mndReleaseQnode(SMnode *pMnode, SQnodeObj *pObj) {
   SSdb *pSdb = pMnode->pSdb;
   sdbRelease(pSdb, pObj);
 }
@@ -248,7 +248,7 @@ static int32_t mndCreateQnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, 
   qnodeObj.createdTime = taosGetTimestampMs();
   qnodeObj.updateTime = qnodeObj.createdTime;
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_QNODE, pReq);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq);
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to create qnode:%d", pTrans->id, pCreate->dnodeId);
@@ -301,7 +301,7 @@ static int32_t mndProcessCreateQnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (mndCheckNodeAuth(pUser)) {
+  if (mndCheckNodeAuth(pUser) != 0) {
     goto _OVER;
   }
 
@@ -365,7 +365,7 @@ static int32_t mndSetDropQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SQn
 static int32_t mndDropQnode(SMnode *pMnode, SRpcMsg *pReq, SQnodeObj *pObj) {
   int32_t code = -1;
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_DROP_QNODE, pReq);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq);
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to drop qnode:%d", pTrans->id, pObj->id);
@@ -411,7 +411,7 @@ static int32_t mndProcessDropQnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (mndCheckNodeAuth(pUser)) {
+  if (mndCheckNodeAuth(pUser) != 0) {
     goto _OVER;
   }
 
@@ -429,12 +429,49 @@ _OVER:
   return code;
 }
 
+int32_t mndCreateQnodeList(SMnode       *pMnode, SArray** pList, int32_t limit) {
+  SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
+  SQnodeObj    *pObj = NULL;
+  int32_t       numOfRows = 0;
+
+  SArray* qnodeList = taosArrayInit(5, sizeof(SQueryNodeLoad));
+  if (NULL == qnodeList) {
+    mError("failed to alloc epSet while process qnode list req");
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
+  }
+  
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_QNODE, pIter, (void **)&pObj);
+    if (pIter == NULL) break;
+
+    SQueryNodeLoad nodeLoad = {0};
+    nodeLoad.addr.nodeId = QNODE_HANDLE;
+    nodeLoad.addr.epSet.numOfEps = 1;
+    tstrncpy(nodeLoad.addr.epSet.eps[0].fqdn, pObj->pDnode->fqdn, TSDB_FQDN_LEN);
+    nodeLoad.addr.epSet.eps[0].port = pObj->pDnode->port;
+    nodeLoad.load = QNODE_LOAD_VALUE(pObj);
+
+    (void)taosArrayPush(qnodeList, &nodeLoad);
+
+    numOfRows++;
+    sdbRelease(pSdb, pObj);
+
+    if (limit > 0 && numOfRows >= limit) {
+      break;
+    }
+  }
+
+  *pList = qnodeList;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 static int32_t mndProcessQnodeListReq(SRpcMsg *pReq) {
   int32_t       code = -1;
-  int32_t       numOfRows = 0;
   SMnode       *pMnode = pReq->info.node;
-  SSdb         *pSdb = pMnode->pSdb;
-  SQnodeObj    *pObj = NULL;
   SQnodeListReq qlistReq = {0};
   SQnodeListRsp qlistRsp = {0};
 
@@ -444,32 +481,8 @@ static int32_t mndProcessQnodeListReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  qlistRsp.addrsList = taosArrayInit(5, sizeof(SQueryNodeAddr));
-  if (NULL == qlistRsp.addrsList) {
-    mError("failed to alloc epSet while process qnode list req");
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+  if (mndCreateQnodeList(pMnode, &qlistRsp.qnodeList, qlistReq.rowNum) != 0) {
     goto _OVER;
-  }
-
-  void *pIter = NULL;
-  while (1) {
-    pIter = sdbFetch(pSdb, SDB_QNODE, pIter, (void **)&pObj);
-    if (pIter == NULL) break;
-
-    SQueryNodeAddr nodeAddr = {0};
-    nodeAddr.nodeId = QNODE_HANDLE;
-    nodeAddr.epSet.numOfEps = 1;
-    tstrncpy(nodeAddr.epSet.eps[0].fqdn, pObj->pDnode->fqdn, TSDB_FQDN_LEN);
-    nodeAddr.epSet.eps[0].port = pObj->pDnode->port;
-
-    (void)taosArrayPush(qlistRsp.addrsList, &nodeAddr);
-
-    numOfRows++;
-    sdbRelease(pSdb, pObj);
-
-    if (qlistReq.rowNum > 0 && numOfRows >= qlistReq.rowNum) {
-      break;
-    }
   }
 
   int32_t rspLen = tSerializeSQnodeListRsp(NULL, 0, &qlistRsp);
@@ -488,16 +501,6 @@ static int32_t mndProcessQnodeListReq(SRpcMsg *pReq) {
 _OVER:
   tFreeSQnodeListRsp(&qlistRsp);
   return code;
-}
-
-static int32_t mndProcessCreateQnodeRsp(SRpcMsg *pRsp) {
-  mndTransProcessRsp(pRsp);
-  return 0;
-}
-
-static int32_t mndProcessDropQnodeRsp(SRpcMsg *pRsp) {
-  mndTransProcessRsp(pRsp);
-  return 0;
 }
 
 static int32_t mndRetrieveQnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {

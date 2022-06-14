@@ -17,15 +17,27 @@
 #include "mndSync.h"
 #include "mndTrans.h"
 
-int32_t mndSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
+static int32_t mndSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
   SMsgHead *pHead = pMsg->pCont;
   pHead->contLen = htonl(pHead->contLen);
   pHead->vgId = htonl(pHead->vgId);
 
-  return tmsgPutToQueue(msgcb, SYNC_QUEUE, pMsg);
+  int32_t code = tmsgPutToQueue(msgcb, SYNC_QUEUE, pMsg);
+  if (code != 0) {
+    rpcFreeCont(pMsg->pCont);
+    pMsg->pCont = NULL;
+  }
+  return code;
 }
 
-int32_t mndSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) { return tmsgSendReq(pEpSet, pMsg); }
+static int32_t mndSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
+  int32_t code = tmsgSendReq(pEpSet, pMsg);
+  if (code != 0) {
+    rpcFreeCont(pMsg->pCont);
+    pMsg->pCont = NULL;
+  }
+  return code;
+}
 
 void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
   SMnode    *pMnode = pFsm->data;
@@ -34,7 +46,7 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
 
   int32_t transId = sdbGetIdFromRaw(pMnode->pSdb, pRaw);
   pMgmt->errCode = cbMeta.code;
-  mTrace("trans:%d, is proposed, savedTransId:%d code:0x%x, ver:%" PRId64 " term:%" PRId64 " role:%s raw:%p", transId,
+  mDebug("trans:%d, is proposed, saved:%d code:0x%x, index:%" PRId64 " term:%" PRId64 " role:%s raw:%p", transId,
          pMgmt->transId, cbMeta.code, cbMeta.index, cbMeta.term, syncStr(cbMeta.state), pRaw);
 
   if (pMgmt->errCode == 0) {
@@ -49,7 +61,17 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
     }
     tsem_post(&pMgmt->syncSem);
   } else {
+    STrans *pTrans = mndAcquireTrans(pMnode, transId);
+    if (pTrans != NULL) {
+      mndTransExecute(pMnode, pTrans);
+      mndReleaseTrans(pMnode, pTrans);
+    }
+
     if (cbMeta.index - sdbGetApplyIndex(pMnode->pSdb) > 100) {
+      SSnapshotMeta sMeta = {0};
+      if (syncGetSnapshotMeta(pMnode->syncMgmt.sync, &sMeta) == 0) {
+        sdbSetCurConfig(pMnode->pSdb, sMeta.lastConfigIndex);
+      }
       sdbWriteFile(pMnode->pSdb);
     }
   }
@@ -57,15 +79,22 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
 
 int32_t mndSyncGetSnapshot(struct SSyncFSM *pFsm, SSnapshot *pSnapshot) {
   SMnode *pMnode = pFsm->data;
-  pSnapshot->lastApplyIndex = sdbGetApplyIndex(pMnode->pSdb);
-  pSnapshot->lastApplyTerm = sdbGetApplyTerm(pMnode->pSdb);
+  pSnapshot->lastApplyIndex = sdbGetCommitIndex(pMnode->pSdb);
+  pSnapshot->lastApplyTerm = sdbGetCommitTerm(pMnode->pSdb);
+  pSnapshot->lastConfigIndex = sdbGetCurConfig(pMnode->pSdb);
   return 0;
 }
 
 void mndRestoreFinish(struct SSyncFSM *pFsm) {
   SMnode *pMnode = pFsm->data;
+
+  SSnapshotMeta sMeta = {0};
+  if (syncGetSnapshotMeta(pMnode->syncMgmt.sync, &sMeta) == 0) {
+    sdbSetCurConfig(pMnode->pSdb, sMeta.lastConfigIndex);
+  }
+
   if (!pMnode->deploy) {
-    mInfo("mnode sync restore finished");
+    mInfo("mnode sync restore finished, and will handle outstanding transactions");
     mndTransPullup(pMnode);
     mndSetRestore(pMnode, true);
   } else {
@@ -73,13 +102,21 @@ void mndRestoreFinish(struct SSyncFSM *pFsm) {
   }
 }
 
-void mndReConfig(struct SSyncFSM *pFsm, SSyncCfg newCfg, SReConfigCbMeta cbMeta) {
+void mndReConfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReConfigCbMeta cbMeta) {
   SMnode    *pMnode = pFsm->data;
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
 
+#if 0
+// send response
+  SRpcMsg rpcMsg = {.msgType = pMsg->msgType, .contLen = pMsg->contLen, .conn.applyIndex = cbMeta.index};
+  rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
+  memcpy(rpcMsg.pCont, pMsg->pCont, pMsg->contLen);
+  syncGetAndDelRespRpc(pMnode->syncMgmt.sync, cbMeta.seqNum, &rpcMsg.info);
+#endif
+
   pMgmt->errCode = cbMeta.code;
-  mInfo("trans:-1, sync reconfig is proposed, savedTransId:%d code:0x%x, curTerm:%" PRId64 " term:%" PRId64,
-        pMgmt->transId, cbMeta.code, cbMeta.index, cbMeta.term);
+  mInfo("trans:-1, sync reconfig is proposed, saved:%d code:0x%x, index:%" PRId64 " term:%" PRId64, pMgmt->transId,
+        cbMeta.code, cbMeta.index, cbMeta.term);
 
   if (pMgmt->transId == -1) {
     if (pMgmt->errCode != 0) {
@@ -144,29 +181,12 @@ SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
 int32_t mndInitSync(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
 
-  char path[PATH_MAX + 20] = {0};
-  snprintf(path, sizeof(path), "%s%swal", pMnode->path, TD_DIRSEP);
-  SWalCfg cfg = {
-      .vgId = 1,
-      .fsyncPeriod = 0,
-      .rollPeriod = -1,
-      .segSize = -1,
-      .retentionPeriod = -1,
-      .retentionSize = -1,
-      .level = TAOS_WAL_FSYNC,
-  };
-
-  pMgmt->pWal = walOpen(path, &cfg);
-  if (pMgmt->pWal == NULL) {
-    mError("failed to open wal since %s", terrstr());
-    return -1;
-  }
-
   SSyncInfo syncInfo = {.vgId = 1, .FpSendMsg = mndSyncSendMsg, .FpEqMsg = mndSyncEqMsg};
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s%ssync", pMnode->path, TD_DIRSEP);
-  syncInfo.pWal = pMgmt->pWal;
+  syncInfo.pWal = pMnode->pWal;
   syncInfo.pFsm = mndSyncMakeFsm(pMnode);
   syncInfo.isStandBy = pMgmt->standby;
+  syncInfo.snapshotEnable = true;
 
   SSyncCfg *pCfg = &syncInfo.syncCfg;
   pCfg->replicaNum = pMnode->replica;
@@ -186,20 +206,16 @@ int32_t mndInitSync(SMnode *pMnode) {
     return -1;
   }
 
-  mDebug("mnode sync is opened, id:%" PRId64, pMgmt->sync);
+  mDebug("mnode-sync is opened, id:%" PRId64, pMgmt->sync);
   return 0;
 }
 
 void mndCleanupSync(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   syncStop(pMgmt->sync);
-  mDebug("sync:%" PRId64 " is stopped", pMgmt->sync);
+  mDebug("mnode-sync is stopped, id:%" PRId64, pMgmt->sync);
 
   tsem_destroy(&pMgmt->syncSem);
-  if (pMgmt->pWal != NULL) {
-    walClose(pMgmt->pWal);
-  }
-
   memset(pMgmt, 0, sizeof(SSyncMgmt));
 }
 
@@ -244,7 +260,7 @@ void mndSyncStart(SMnode *pMnode) {
   } else {
     syncStart(pMgmt->sync);
   }
-  mDebug("sync:%" PRId64 " is started, standby:%d", pMgmt->sync, pMgmt->standby);
+  mDebug("mnode sync started, id:%" PRId64 " standby:%d", pMgmt->sync, pMgmt->standby);
 }
 
 void mndSyncStop(SMnode *pMnode) {}

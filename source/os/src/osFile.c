@@ -174,9 +174,9 @@ int32_t taosRenameFile(const char *oldName, const char *newName) {
 int32_t taosStatFile(const char *path, int64_t *size, int32_t *mtime) {
   struct stat fileStat;
 #ifdef WINDOWS
-  int32_t     code = _stat(path, &fileStat);
+  int32_t code = _stat(path, &fileStat);
 #else
-  int32_t     code = stat(path, &fileStat);
+  int32_t code = stat(path, &fileStat);
 #endif
   if (code < 0) {
     return code;
@@ -201,7 +201,7 @@ int32_t taosDevInoFile(TdFilePtr pFile, int64_t *stDev, int64_t *stIno) {
 #ifdef WINDOWS
 
   BY_HANDLE_FILE_INFORMATION bhfi;
-  HANDLE handle = (HANDLE)_get_osfhandle(pFile->fd);
+  HANDLE                     handle = (HANDLE)_get_osfhandle(pFile->fd);
   if (GetFileInformationByHandle(handle, &bhfi) == FALSE) {
     printf("taosFStatFile get file info fail.");
     return -1;
@@ -216,7 +216,7 @@ int32_t taosDevInoFile(TdFilePtr pFile, int64_t *stDev, int64_t *stIno) {
   }
 
 #else
-  
+
   struct stat fileStat;
   int32_t     code = fstat(pFile->fd, &fileStat);
   if (code < 0) {
@@ -238,7 +238,7 @@ int32_t taosDevInoFile(TdFilePtr pFile, int64_t *stDev, int64_t *stIno) {
 
 void autoDelFileListAdd(const char *path) { return; }
 
-TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {  
+TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
   int   fd = -1;
   FILE *fp = NULL;
   if (tdFileOptions & TD_FILE_STREAM) {
@@ -316,12 +316,12 @@ int64_t taosCloseFile(TdFilePtr *ppFile) {
     (*ppFile)->fp = NULL;
   }
   if ((*ppFile)->fd >= 0) {
-  #ifdef WINDOWS
+#ifdef WINDOWS
     HANDLE h = (HANDLE)_get_osfhandle((*ppFile)->fd);
     !FlushFileBuffers(h);
-  #else
+#else
     fsync((*ppFile)->fd);
-  #endif
+#endif
     close((*ppFile)->fd);
     (*ppFile)->fd = -1;
   }
@@ -345,11 +345,11 @@ int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
   char   *tbuf = (char *)buf;
 
   while (leftbytes > 0) {
-  #ifdef WINDOWS
+#ifdef WINDOWS
     readbytes = _read(pFile->fd, (void *)tbuf, (uint32_t)leftbytes);
-  #else
+#else
     readbytes = read(pFile->fd, (void *)tbuf, (uint32_t)leftbytes);
-  #endif
+#endif
     if (readbytes < 0) {
       if (errno == EINTR) {
         continue;
@@ -399,6 +399,9 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
 }
 
 int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {
+  if (pFile == NULL) {
+    return 0;
+  }
 #if FILE_WITH_LOCK
   taosThreadRwlockWrlock(&(pFile->rwlock));
 #endif
@@ -453,9 +456,9 @@ int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
 
   struct stat fileStat;
 #ifdef WINDOWS
-  int32_t     code = _fstat(pFile->fd, &fileStat);
+  int32_t code = _fstat(pFile->fd, &fileStat);
 #else
-  int32_t     code = fstat(pFile->fd, &fileStat);
+  int32_t code = fstat(pFile->fd, &fileStat);
 #endif
   if (code < 0) {
     return code;
@@ -559,12 +562,12 @@ int32_t taosFsyncFile(TdFilePtr pFile) {
 
   if (pFile->fp != NULL) return fflush(pFile->fp);
   if (pFile->fd >= 0) {
-  #ifdef WINDOWS
+#ifdef WINDOWS
     HANDLE h = (HANDLE)_get_osfhandle(pFile->fd);
     return !FlushFileBuffers(h);
-  #else
+#else
     return fsync(pFile->fd);
-  #endif
+#endif
   }
   return 0;
 }

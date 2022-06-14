@@ -23,20 +23,30 @@ class PlanOrderByTest : public PlannerTestBase {};
 TEST_F(PlanOrderByTest, basic) {
   useDb("root", "test");
 
-  // order by key is in the projection list
-  run("select c1 from t1 order by c1");
-  // order by key is not in the projection list
-  run("select c1 from t1 order by c2");
+  // ORDER BY key is in the projection list
+  run("SELECT c1 FROM t1 ORDER BY c1");
+  // ORDER BY key is not in the projection list
+  run("SELECT c1 FROM t1 ORDER BY c2");
 }
 
 TEST_F(PlanOrderByTest, expr) {
   useDb("root", "test");
 
-  run("select * from t1 order by c1 + 10, c2");
+  run("SELECT * FROM t1 ORDER BY c1 + 10, c2");
 }
 
 TEST_F(PlanOrderByTest, nullsOrder) {
   useDb("root", "test");
 
-  run("select * from t1 order by c1 desc nulls first");
+  run("SELECT * FROM t1 ORDER BY c1 DESC NULLS FIRST");
+}
+
+TEST_F(PlanOrderByTest, stable) {
+  useDb("root", "test");
+
+  // ORDER BY key is in the projection list
+  run("SELECT c1 FROM st1 ORDER BY c1");
+
+  // ORDER BY key is not in the projection list
+  run("SELECT c2 FROM st1 ORDER BY c1");
 }

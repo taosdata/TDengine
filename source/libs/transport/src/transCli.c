@@ -15,6 +15,9 @@
 #ifdef USE_UV
 #include "transComm.h"
 
+static int32_t transSCliInst = 0;
+static int32_t refMgt = 0;
+
 typedef struct SCliConn {
   T_REF_DECLARE()
   uv_connect_t connReq;
@@ -335,8 +338,7 @@ void cliHandleResp(SCliConn* conn) {
     return;
   }
 
-  int ret = cliAppCb(conn, &transMsg, pMsg);
-  if (ret != 0) {
+  if (cliAppCb(conn, &transMsg, pMsg) != 0) {
     tTrace("try to send req to next node");
     return;
   }
@@ -400,15 +402,13 @@ void cliHandleExcept(SCliConn* pConn) {
         continue;
       }
     }
-    int ret = cliAppCb(pConn, &transMsg, pMsg);
-    if (ret != 0) {
+    if (cliAppCb(pConn, &transMsg, pMsg) != 0) {
       tTrace("try to send req to next node");
       return;
     }
     destroyCmsg(pMsg);
     tTrace("%s cli conn %p start to destroy", CONN_GET_INST_LABEL(pConn), pConn);
   } while (!transQueueEmpty(&pConn->cliMsgs));
-
   transUnrefCliHandle(pConn);
 }
 
@@ -846,6 +846,11 @@ void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads,
     }
     cli->pThreadObj[i] = pThrd;
   }
+  int ref = atomic_add_fetch_32(&transSCliInst, 1);
+  if (ref == 1) {
+    refMgt = transOpenExHandleMgt(50000);
+  }
+
   return cli;
 }
 
@@ -954,7 +959,7 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
    * upper layer handle retry if code equal TSDB_CODE_RPC_NETWORK_UNAVAIL
    */
   tmsg_t msgType = pCtx->msgType;
-  if ((pTransInst->retry != NULL && (pTransInst->retry(pResp->code))) ||
+  if ((pTransInst->retry != NULL && pEpSet->numOfEps > 1 && (pTransInst->retry(pResp->code))) ||
       (pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || pResp->code == TSDB_CODE_APP_NOT_READY ||
        pResp->code == TSDB_CODE_NODE_NOT_DEPLOYED || pResp->code == TSDB_CODE_SYN_NOT_LEADER)) {
     pMsg->sent = 0;
@@ -968,7 +973,7 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
         arg->param1 = pMsg;
         arg->param2 = pThrd;
         transDQSched(pThrd->delayQueue, doDelayTask, arg, TRANS_RETRY_INTERVAL);
-        cliDestroyConn(pConn, true);
+        transUnrefCliHandle(pConn);
         return -1;
       }
     } else if (pCtx->retryCount < TRANS_RETRY_COUNT_LIMIT) {
@@ -1019,6 +1024,10 @@ void transCloseClient(void* arg) {
   }
   taosMemoryFree(cli->pThreadObj);
   taosMemoryFree(cli);
+  int ref = atomic_sub_fetch_32(&transSCliInst, 1);
+  if (ref == 0) {
+    transCloseExHandleMgt(refMgt);
+  }
 }
 void transRefCliHandle(void* handle) {
   if (handle == NULL) {
@@ -1088,15 +1097,16 @@ void transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransM
   if (index == -1) {
     index = cliRBChoseIdx(pTransInst);
   }
+  tsem_t* sem = taosMemoryCalloc(1, sizeof(tsem_t));
+  tsem_init(sem, 0, 0);
 
   STransConnCtx* pCtx = taosMemoryCalloc(1, sizeof(STransConnCtx));
   pCtx->epSet = *pEpSet;
   pCtx->ahandle = pReq->info.ahandle;
   pCtx->msgType = pReq->msgType;
   pCtx->hThrdIdx = index;
-  pCtx->pSem = taosMemoryCalloc(1, sizeof(tsem_t));
+  pCtx->pSem = sem;
   pCtx->pRsp = pRsp;
-  tsem_init(pCtx->pSem, 0, 0);
 
   SCliMsg* cliMsg = taosMemoryCalloc(1, sizeof(SCliMsg));
   cliMsg->ctx = pCtx;
@@ -1109,10 +1119,9 @@ void transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransM
          EPSET_GET_INUSE_IP(&pCtx->epSet), EPSET_GET_INUSE_PORT(&pCtx->epSet), pReq->info.ahandle);
 
   transSendAsync(thrd->asyncPool, &(cliMsg->q));
-  tsem_t* pSem = pCtx->pSem;
-  tsem_wait(pSem);
-  tsem_destroy(pSem);
-  taosMemoryFree(pSem);
+  tsem_wait(sem);
+  tsem_destroy(sem);
+  taosMemoryFree(sem);
 }
 
 /*
@@ -1139,7 +1148,6 @@ void transSetDefaultAddr(void* ahandle, const char* ip, const char* fqdn) {
     SCliThrdObj* thrd = ((SCliObj*)pTransInst->tcphandle)->pThreadObj[i];
     tDebug("update epset at thread:%d, threadID:%" PRId64 "", i, thrd->thread);
 
-    tsem_t* pSem = pCtx->pSem;
     transSendAsync(thrd->asyncPool, &(cliMsg->q));
   }
 }

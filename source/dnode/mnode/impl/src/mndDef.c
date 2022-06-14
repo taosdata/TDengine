@@ -395,10 +395,8 @@ SMqSubscribeObj *tCloneSubscribeObj(const SMqSubscribeObj *pSub) {
   taosInitRWLatch(&pSubNew->lock);
 
   pSubNew->dbUid = pSub->dbUid;
+  pSubNew->stbUid = pSub->stbUid;
   pSubNew->subType = pSub->subType;
-  pSubNew->withTbName = pSub->withTbName;
-  pSubNew->withSchema = pSub->withSchema;
-  pSubNew->withTag = pSub->withTag;
 
   pSubNew->vgNum = pSub->vgNum;
   pSubNew->consumerHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
@@ -417,6 +415,7 @@ SMqSubscribeObj *tCloneSubscribeObj(const SMqSubscribeObj *pSub) {
     taosHashPut(pSubNew->consumerHash, &newEp.consumerId, sizeof(int64_t), &newEp, sizeof(SMqConsumerEp));
   }
   pSubNew->unassignedVgs = taosArrayDeepCopy(pSub->unassignedVgs, (FCopy)tCloneSMqVgEp);
+  memcpy(pSubNew->dbName, pSub->dbName, TSDB_DB_FNAME_LEN);
   return pSubNew;
 }
 
@@ -431,9 +430,7 @@ int32_t tEncodeSubscribeObj(void **buf, const SMqSubscribeObj *pSub) {
   tlen += taosEncodeFixedI64(buf, pSub->dbUid);
   tlen += taosEncodeFixedI32(buf, pSub->vgNum);
   tlen += taosEncodeFixedI8(buf, pSub->subType);
-  tlen += taosEncodeFixedI8(buf, pSub->withTbName);
-  tlen += taosEncodeFixedI8(buf, pSub->withSchema);
-  tlen += taosEncodeFixedI8(buf, pSub->withTag);
+  tlen += taosEncodeFixedI64(buf, pSub->stbUid);
 
   void   *pIter = NULL;
   int32_t sz = taosHashGetSize(pSub->consumerHash);
@@ -449,6 +446,7 @@ int32_t tEncodeSubscribeObj(void **buf, const SMqSubscribeObj *pSub) {
   }
   ASSERT(cnt == sz);
   tlen += taosEncodeArray(buf, pSub->unassignedVgs, (FEncode)tEncodeSMqVgEp);
+  tlen += taosEncodeString(buf, pSub->dbName);
   return tlen;
 }
 
@@ -458,9 +456,7 @@ void *tDecodeSubscribeObj(const void *buf, SMqSubscribeObj *pSub) {
   buf = taosDecodeFixedI64(buf, &pSub->dbUid);
   buf = taosDecodeFixedI32(buf, &pSub->vgNum);
   buf = taosDecodeFixedI8(buf, &pSub->subType);
-  buf = taosDecodeFixedI8(buf, &pSub->withTbName);
-  buf = taosDecodeFixedI8(buf, &pSub->withSchema);
-  buf = taosDecodeFixedI8(buf, &pSub->withTag);
+  buf = taosDecodeFixedI64(buf, &pSub->stbUid);
 
   int32_t sz;
   buf = taosDecodeFixedI32(buf, &sz);
@@ -473,6 +469,7 @@ void *tDecodeSubscribeObj(const void *buf, SMqSubscribeObj *pSub) {
   }
 
   buf = taosDecodeArray(buf, &pSub->unassignedVgs, (FDecode)tDecodeSMqVgEp, sizeof(SMqVgEp));
+  buf = taosDecodeStringTo(buf, pSub->dbName);
   return (void *)buf;
 }
 

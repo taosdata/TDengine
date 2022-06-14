@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.0)
 
 project(
     TDengine
@@ -35,9 +35,9 @@ endif(${BUILD_TEST})
 add_subdirectory(source)
 add_subdirectory(tools)
 add_subdirectory(tests)
-add_subdirectory(example)
+add_subdirectory(examples/c)
 
 # docs 
-add_subdirectory(docs)
+add_subdirectory(docs/doxgen)
 
 # tests (TODO)

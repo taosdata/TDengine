@@ -1,10 +1,10 @@
-#include "qworker.h"
 #include "dataSinkMgt.h"
 #include "executor.h"
 #include "planner.h"
 #include "query.h"
 #include "qwInt.h"
 #include "qwMsg.h"
+#include "qworker.h"
 #include "tcommon.h"
 #include "tmsg.h"
 #include "tname.h"
@@ -290,8 +290,11 @@ int32_t qwKillTaskHandle(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
   QW_RET(code);
 }
 
-void qwFreeTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
-  tmsgReleaseHandle(&ctx->ctrlConnInfo, TAOS_CONN_SERVER);
+void qwFreeTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
+  if (ctx->ctrlConnInfo.handle) {
+    tmsgReleaseHandle(&ctx->ctrlConnInfo, TAOS_CONN_SERVER);
+  }
+  
   ctx->ctrlConnInfo.handle = NULL;
   ctx->ctrlConnInfo.refId = -1;
 
@@ -333,7 +336,7 @@ int32_t qwDropTaskCtx(QW_FPARAMS_DEF) {
     QW_ERR_RET(TSDB_CODE_QRY_TASK_CTX_NOT_EXIST);
   }
 
-  qwFreeTask(QW_FPARAMS(), &octx);
+  qwFreeTaskCtx(QW_FPARAMS(), &octx);
 
   QW_TASK_DLOG_E("task ctx dropped");
 
@@ -406,7 +409,6 @@ int32_t qwDropTask(QW_FPARAMS_DEF) {
   return TSDB_CODE_SUCCESS;
 }
 
-
 void qwSetHbParam(int64_t refId, SQWHbParam **pParam) {
   int32_t paramIdx = 0;
   int32_t newParamIdx = 0;
@@ -430,11 +432,10 @@ void qwSetHbParam(int64_t refId, SQWHbParam **pParam) {
   *pParam = &gQwMgmt.param[paramIdx];
 }
 
-
-void qwSaveTbVersionInfo(qTaskInfo_t       pTaskInfo, SQWTaskCtx *ctx) {
+void qwSaveTbVersionInfo(qTaskInfo_t pTaskInfo, SQWTaskCtx *ctx) {
   char dbFName[TSDB_DB_FNAME_LEN];
   char tbName[TSDB_TABLE_NAME_LEN];
-  
+
   qGetQueriedTableSchemaVersion(pTaskInfo, dbFName, tbName, &ctx->tbInfo.sversion, &ctx->tbInfo.tversion);
 
   if (dbFName[0] && tbName[0]) {
@@ -443,7 +444,6 @@ void qwSaveTbVersionInfo(qTaskInfo_t       pTaskInfo, SQWTaskCtx *ctx) {
     ctx->tbInfo.tbFName[0] = 0;
   }
 }
-
 
 void qwCloseRef(void) {
   taosWLockLatch(&gQwMgmt.lock);
@@ -454,13 +454,13 @@ void qwCloseRef(void) {
   taosWUnLockLatch(&gQwMgmt.lock);
 }
 
-
 void qwDestroySchStatus(SQWSchStatus *pStatus) { taosHashCleanup(pStatus->tasksHash); }
 
 void qwDestroyImpl(void *pMgmt) {
   SQWorker *mgmt = (SQWorker *)pMgmt;
 
-  taosTmrStopA(&mgmt->hbTimer);
+  taosTmrStop(mgmt->hbTimer);
+  mgmt->hbTimer = NULL;
   taosTmrCleanUp(mgmt->timer);
 
   // TODO STOP ALL QUERY
@@ -499,7 +499,7 @@ int32_t qwOpenRef(void) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwUpdateWaitTimeInQueue(SQWorker *mgmt, int64_t ts, EQueueType type) {
+int32_t qwUpdateTimeInQueue(SQWorker *mgmt, int64_t ts, EQueueType type) {
   if (ts <= 0) {
     return TSDB_CODE_SUCCESS;
   }
@@ -507,12 +507,12 @@ int32_t qwUpdateWaitTimeInQueue(SQWorker *mgmt, int64_t ts, EQueueType type) {
   int64_t duration = taosGetTimestampUs() - ts;
   switch (type) {
     case QUERY_QUEUE:
-      ++mgmt->stat.msgWait[0].num;
-      mgmt->stat.msgWait[0].total += duration;
+      ++mgmt->stat.msgStat.waitTime[0].num;
+      mgmt->stat.msgStat.waitTime[0].total += duration;
       break;
     case FETCH_QUEUE:
-      ++mgmt->stat.msgWait[1].num;
-      mgmt->stat.msgWait[1].total += duration;
+      ++mgmt->stat.msgStat.waitTime[1].num;
+      mgmt->stat.msgStat.waitTime[1].total += duration;
       break;
     default:
       qError("unsupported queue type %d", type);
@@ -522,20 +522,40 @@ int32_t qwUpdateWaitTimeInQueue(SQWorker *mgmt, int64_t ts, EQueueType type) {
   return TSDB_CODE_SUCCESS;
 }
 
-int64_t qwGetWaitTimeInQueue(SQWorker *mgmt, EQueueType type) {
-  SQWWaitTimeStat *pStat = NULL;
+int64_t qwGetTimeInQueue(SQWorker *mgmt, EQueueType type) {
+  SQWTimeInQ *pStat = NULL;
   switch (type) {
     case QUERY_QUEUE:
-      pStat = &mgmt->stat.msgWait[0];
-      return pStat->num ? (pStat->total/pStat->num) : 0;
+      pStat = &mgmt->stat.msgStat.waitTime[0];
+      return pStat->num ? (pStat->total / pStat->num) : 0;
     case FETCH_QUEUE:
-      pStat = &mgmt->stat.msgWait[1];
-      return pStat->num ? (pStat->total/pStat->num) : 0;
+      pStat = &mgmt->stat.msgStat.waitTime[1];
+      return pStat->num ? (pStat->total / pStat->num) : 0;
     default:
       qError("unsupported queue type %d", type);
-      return -1;
   }
+
+  return -1;
 }
 
+
+void qwClearExpiredSch(SQWorker *mgmt, SArray* pExpiredSch) {
+  int32_t num = taosArrayGetSize(pExpiredSch);
+  for (int32_t i = 0; i < num; ++i) {
+    uint64_t *sId = taosArrayGet(pExpiredSch, i);
+    SQWSchStatus *pSch = NULL;
+    if (qwAcquireScheduler(mgmt, *sId, QW_WRITE, &pSch)) {
+      continue;
+    }
+
+    if (taosHashGetSize(pSch->tasksHash) <= 0) {
+      qwDestroySchStatus(pSch);
+      taosHashRemove(mgmt->schHash, sId, sizeof(*sId));
+      qDebug("sch %" PRIx64 " destroyed", *sId);
+    }
+
+    qwReleaseScheduler(QW_WRITE, mgmt);
+  }
+}
 
 

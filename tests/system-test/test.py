@@ -20,6 +20,7 @@ import time
 import base64
 import json
 import platform
+import socket
 from distutils.log import warn as printf
 from fabric2 import Connection
 sys.path.append("../pytest")
@@ -37,6 +38,7 @@ if __name__ == "__main__":
     masterIp = ""
     testCluster = False
     valgrind = 0
+    killValgrind = 1
     logSql = True
     stop = 0
     restart = False
@@ -45,8 +47,8 @@ if __name__ == "__main__":
         windows = 1
     updateCfgDict = {}
     execCmd = ""
-    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:e:', [
-        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'execCmd'])
+    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:', [
+        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'killv', 'execCmd'])
     for key, value in opts:
         if key in ['-h', '--help']:
             tdLog.printNoPrefix(
@@ -60,6 +62,7 @@ if __name__ == "__main__":
             tdLog.printNoPrefix('-g valgrind Test Flag')
             tdLog.printNoPrefix('-r taosd restart test')
             tdLog.printNoPrefix('-d update cfg dict, base64 json str')
+            tdLog.printNoPrefix('-k not kill valgrind processer')
             tdLog.printNoPrefix('-e eval str to run')
             sys.exit(0)
 
@@ -100,6 +103,9 @@ if __name__ == "__main__":
                 print('updateCfgDict convert fail.')
                 sys.exit(0)
 
+        if key in ['-k', '--killValgrind']:
+            killValgrind = 0
+
         if key in ['-e', '--execCmd']:
             try:
                 execCmd = base64.b64decode(value.encode()).decode()
@@ -109,6 +115,7 @@ if __name__ == "__main__":
 
     if not execCmd == "":
         tdDnodes.init(deployPath)
+        print(execCmd)
         exec(execCmd)
         quit()
 
@@ -143,7 +150,7 @@ if __name__ == "__main__":
         tdLog.info('stop All dnodes')
     
     if masterIp == "":
-        host = '127.0.0.1'
+        host = socket.gethostname()
     else:
         try:
             config = eval(masterIp)
@@ -162,10 +169,10 @@ if __name__ == "__main__":
         key_word = 'tdCases.addWindows'
         is_test_framework = 0
         try:
-            if key_word in open(fileName).read():
+            if key_word in open(fileName, encoding='UTF-8').read():
                 is_test_framework = 1
-        except:
-            pass
+        except Exception as r:
+            print(r)
         updateCfgDictStr = ''
         if is_test_framework:
             moduleName = fileName.replace(".py", "").replace(os.sep, ".")
@@ -175,8 +182,8 @@ if __name__ == "__main__":
                 if ((json.dumps(updateCfgDict) == '{}') and (ucase.updatecfgDict is not None)):
                     updateCfgDict = ucase.updatecfgDict
                     updateCfgDictStr = "-d %s"%base64.b64encode(json.dumps(updateCfgDict).encode()).decode()
-            except :
-                pass
+            except Exception as r:
+                print(r)
         else:
             pass
         tdDnodes.deploy(1,updateCfgDict)
@@ -189,6 +196,7 @@ if __name__ == "__main__":
         else:
             tdCases.runAllWindows(conn)
     else:
+        tdDnodes.setKillValgrind(killValgrind)
         tdDnodes.init(deployPath, masterIp)
         tdDnodes.setTestCluster(testCluster)
         tdDnodes.setValgrind(valgrind)

@@ -57,11 +57,14 @@ class MockCatalogService {
   void createSubTable(const std::string& db, const std::string& stbname, const std::string& tbname, int16_t vgid);
   void showTables() const;
   void createFunction(const std::string& func, int8_t funcType, int8_t outputType, int32_t outputLen, int32_t bufSize);
+  void createSmaIndex(const SMCreateSmaReq* pReq);
 
   int32_t catalogGetTableMeta(const SName* pTableName, STableMeta** pTableMeta) const;
   int32_t catalogGetTableHashVgroup(const SName* pTableName, SVgroupInfo* vgInfo) const;
   int32_t catalogGetTableDistVgInfo(const SName* pTableName, SArray** pVgList) const;
+  int32_t catalogGetDBVgInfo(const char* pDbFName, SArray** pVgList) const;
   int32_t catalogGetUdfInfo(const std::string& funcName, SFuncInfo* pInfo) const;
+  int32_t catalogGetTableIndex(const SName* pTableName, SArray** pIndexes) const;
   int32_t catalogGetAllMeta(const SCatalogReq* pCatalogReq, SMetaData* pMetaData) const;
 
  private:
