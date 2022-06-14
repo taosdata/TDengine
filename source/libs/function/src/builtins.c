@@ -1551,6 +1551,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = stddevFinalize,
     .invertFunc   = stddevInvertFunction,
     .combineFunc  = stddevCombine,
+    .pPartialFunc = "_stddev_partial",
+    .pMergeFunc   = "_stddev_merge"
   },
   {
     .name = "_stddev_partial",
@@ -1560,7 +1562,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getStddevFuncEnv,
     .initFunc     = stddevFunctionSetup,
     .processFunc  = stddevFunction,
-    .finalizeFunc = stddevFinalize,
+    .finalizeFunc = stddevPartialFinalize,
     .invertFunc   = stddevInvertFunction,
     .combineFunc  = stddevCombine,
   },
@@ -1571,7 +1573,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateStddevMerge,
     .getEnvFunc   = getStddevFuncEnv,
     .initFunc     = stddevFunctionSetup,
-    .processFunc  = stddevFunction,
+    .processFunc  = stddevFunctionMerge,
     .finalizeFunc = stddevFinalize,
     .invertFunc   = stddevInvertFunction,
     .combineFunc  = stddevCombine,
