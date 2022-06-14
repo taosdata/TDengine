@@ -995,7 +995,7 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
             ths->commitIndex = snapshot.lastApplyIndex;
 
             sDebug("vgId:%d sync event commit by snapshot from index:%ld to index:%ld, %s", ths->vgId, commitBegin,
-                  commitEnd, syncUtilState2String(ths->state));
+                   commitEnd, syncUtilState2String(ths->state));
           }
 
           SyncIndex beginIndex = ths->commitIndex + 1;
