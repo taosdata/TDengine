@@ -247,7 +247,7 @@ static int32_t osdOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan)
 }
 
 static int32_t cpdMergeCond(SNode** pDst, SNode** pSrc) {
-  SLogicConditionNode* pLogicCond = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
+  SLogicConditionNode* pLogicCond = (SLogicConditionNode*)nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
   if (NULL == pLogicCond) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -262,7 +262,7 @@ static int32_t cpdMergeCond(SNode** pDst, SNode** pSrc) {
   if (TSDB_CODE_SUCCESS == code) {
     *pDst = (SNode*)pLogicCond;
   } else {
-    nodesDestroyNode(pLogicCond);
+    nodesDestroyNode((SNode*)pLogicCond);
   }
   return code;
 }
@@ -662,13 +662,13 @@ static int32_t opkGetScanNodesImpl(SLogicNode* pNode, bool* pNotOptimize, SNodeL
   switch (nodeType(pNode)) {
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       if (TSDB_SUPER_TABLE != ((SScanLogicNode*)pNode)->tableType) {
-        return nodesListMakeAppend(pScanNodes, pNode);
+        return nodesListMakeAppend(pScanNodes, (SNode*)pNode);
       }
       break;
     case QUERY_NODE_LOGIC_PLAN_JOIN:
-      code = opkGetScanNodesImpl(nodesListGetNode(pNode->pChildren, 0), pNotOptimize, pScanNodes);
+      code = opkGetScanNodesImpl((SLogicNode*)nodesListGetNode(pNode->pChildren, 0), pNotOptimize, pScanNodes);
       if (TSDB_CODE_SUCCESS == code) {
-        code = opkGetScanNodesImpl(nodesListGetNode(pNode->pChildren, 1), pNotOptimize, pScanNodes);
+        code = opkGetScanNodesImpl((SLogicNode*)nodesListGetNode(pNode->pChildren, 1), pNotOptimize, pScanNodes);
       }
       return code;
     case QUERY_NODE_LOGIC_PLAN_AGG:
@@ -683,7 +683,7 @@ static int32_t opkGetScanNodesImpl(SLogicNode* pNode, bool* pNotOptimize, SNodeL
     return TSDB_CODE_SUCCESS;
   }
 
-  return opkGetScanNodesImpl(nodesListGetNode(pNode->pChildren, 0), pNotOptimize, pScanNodes);
+  return opkGetScanNodesImpl((SLogicNode*)nodesListGetNode(pNode->pChildren, 0), pNotOptimize, pScanNodes);
 }
 
 static int32_t opkGetScanNodes(SLogicNode* pNode, SNodeList** pScanNodes) {
@@ -721,12 +721,12 @@ static int32_t opkDoOptimized(SOptimizeContext* pCxt, SSortLogicNode* pSort, SNo
   SNode* pDownNode = opkRewriteDownNode(pSort);
   SNode* pNode;
   FOREACH(pNode, pSort->node.pParent->pChildren) {
-    if (nodesEqualNode(pNode, pSort)) {
+    if (nodesEqualNode(pNode, (SNode*)pSort)) {
       REPLACE_NODE(pDownNode);
       break;
     }
   }
-  nodesDestroyNode(pSort);
+  nodesDestroyNode((SNode*)pSort);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -736,7 +736,7 @@ static int32_t opkOptimizeImpl(SOptimizeContext* pCxt, SSortLogicNode* pSort) {
     return TSDB_CODE_SUCCESS;
   }
   SNodeList* pScanNodes = NULL;
-  int32_t    code = opkGetScanNodes(nodesListGetNode(pSort->node.pChildren, 0), &pScanNodes);
+  int32_t    code = opkGetScanNodes((SLogicNode*)nodesListGetNode(pSort->node.pChildren, 0), &pScanNodes);
   if (TSDB_CODE_SUCCESS == code && NULL != pScanNodes) {
     code = opkDoOptimized(pCxt, pSort, pScanNodes);
   }
@@ -768,7 +768,7 @@ static bool smaOptMayBeOptimized(SLogicNode* pNode) {
 }
 
 static int32_t smaOptCreateMerge(SLogicNode* pChild, SNodeList* pMergeKeys, SNodeList* pTargets, SLogicNode** pOutput) {
-  SMergeLogicNode* pMerge = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_MERGE);
+  SMergeLogicNode* pMerge = (SMergeLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_MERGE);
   if (NULL == pMerge) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -778,7 +778,7 @@ static int32_t smaOptCreateMerge(SLogicNode* pChild, SNodeList* pMergeKeys, SNod
   pMerge->node.pTargets = pTargets;
   pMerge->pInputs = nodesCloneList(pChild->pTargets);
   if (NULL == pMerge->pInputs) {
-    nodesDestroyNode(pMerge);
+    nodesDestroyNode((SNode*)pMerge);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -788,9 +788,9 @@ static int32_t smaOptCreateMerge(SLogicNode* pChild, SNodeList* pMergeKeys, SNod
 
 static int32_t smaOptRecombinationNode(SLogicSubplan* pLogicSubplan, SLogicNode* pInterval, SLogicNode* pMerge,
                                        SLogicNode* pSmaScan) {
-  int32_t code = nodesListMakeAppend(&pMerge->pChildren, pInterval);
+  int32_t code = nodesListMakeAppend(&pMerge->pChildren, (SNode*)pInterval);
   if (TSDB_CODE_SUCCESS == code) {
-    code = nodesListMakeAppend(&pMerge->pChildren, pSmaScan);
+    code = nodesListMakeAppend(&pMerge->pChildren, (SNode*)pSmaScan);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = replaceLogicNode(pLogicSubplan, pInterval, pMerge);
@@ -802,7 +802,7 @@ static int32_t smaOptRecombinationNode(SLogicSubplan* pLogicSubplan, SLogicNode*
 
 static int32_t smaOptCreateSmaScan(SScanLogicNode* pScan, STableIndexInfo* pIndex, SNodeList* pCols,
                                    SLogicNode** pOutput) {
-  SScanLogicNode* pSmaScan = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SCAN);
+  SScanLogicNode* pSmaScan = (SScanLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SCAN);
   if (NULL == pSmaScan) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -819,7 +819,7 @@ static int32_t smaOptCreateSmaScan(SScanLogicNode* pScan, STableIndexInfo* pInde
   pSmaScan->pVgroupList = taosMemoryCalloc(1, sizeof(SVgroupsInfo) + sizeof(SVgroupInfo));
   pSmaScan->node.pTargets = nodesCloneList(pCols);
   if (NULL == pSmaScan->pVgroupList || NULL == pSmaScan->node.pTargets) {
-    nodesDestroyNode(pSmaScan);
+    nodesDestroyNode((SNode*)pSmaScan);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pSmaScan->pVgroupList->numOfVgroups = 1;
@@ -851,7 +851,7 @@ static bool smaOptEqualInterval(SScanLogicNode* pScan, SWindowLogicNode* pWindow
 }
 
 static SNode* smaOptCreateSmaCol(SNode* pFunc, uint64_t tableId, int32_t colId) {
-  SColumnNode* pCol = nodesMakeNode(QUERY_NODE_COLUMN);
+  SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
   if (NULL == pCol) {
     return NULL;
   }
@@ -926,32 +926,32 @@ static int32_t smaOptCouldApplyIndex(SScanLogicNode* pScan, STableIndexInfo* pIn
 }
 
 static SNode* smaOptCreateWStartTs() {
-  SFunctionNode* pWStart = nodesMakeNode(QUERY_NODE_FUNCTION);
+  SFunctionNode* pWStart = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
   if (NULL == pWStart) {
     return NULL;
   }
   strcpy(pWStart->functionName, "_wstartts");
   snprintf(pWStart->node.aliasName, sizeof(pWStart->node.aliasName), "%s.%p", pWStart->functionName, pWStart);
   if (TSDB_CODE_SUCCESS != fmGetFuncInfo(pWStart, NULL, 0)) {
-    nodesDestroyNode(pWStart);
+    nodesDestroyNode((SNode*)pWStart);
     return NULL;
   }
   return (SNode*)pWStart;
 }
 
 static int32_t smaOptCreateMergeKey(SNode* pCol, SNodeList** pMergeKeys) {
-  SOrderByExprNode* pMergeKey = nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR);
+  SOrderByExprNode* pMergeKey = (SOrderByExprNode*)nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR);
   if (NULL == pMergeKey) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pMergeKey->pExpr = nodesCloneNode(pCol);
   if (NULL == pMergeKey->pExpr) {
-    nodesDestroyNode(pMergeKey);
+    nodesDestroyNode((SNode*)pMergeKey);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pMergeKey->order = ORDER_ASC;
   pMergeKey->nullOrder = NULL_ORDER_FIRST;
-  return nodesListMakeStrictAppend(pMergeKeys, pMergeKey);
+  return nodesListMakeStrictAppend(pMergeKeys, (SNode*)pMergeKey);
 }
 
 static int32_t smaOptRewriteInterval(SWindowLogicNode* pInterval, int32_t wstrartIndex, SNodeList** pMergeKeys) {
