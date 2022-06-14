@@ -101,13 +101,13 @@ echo "verMode=${verMode} verType=${verType} cpuType=${cpuType} osType=${osType} 
 curr_dir=$(pwd)
 
 if [ "$osType" == "Darwin" ]; then
+  script_dir="$(dirname $(readlink -f $0))"
+  top_dir="$(readlink -f ${script_dir}/..)"
+else
   script_dir=$(dirname $0)
   cd ${script_dir}
   script_dir="$(pwd)"
   top_dir=${script_dir}/..
-else
-  script_dir="$(dirname $(readlink -f $0))"
-  top_dir="$(readlink -f ${script_dir}/..)"
 fi
 
 csudo=""
@@ -198,6 +198,7 @@ else
   allocator_macro=""
 fi
 
+# 3. replace product info
 if [[ "$dbName" != "taos" ]]; then
   source ${enterprise_dir}/packaging/oem/sed_$dbName.sh
   replace_community_$dbName
