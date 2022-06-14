@@ -4511,7 +4511,8 @@ static int32_t translateTagVal(STranslateContext* pCxt, uint8_t precision, SSche
                 ? pCxt->errCode
                 : TSDB_CODE_SUCCESS);
   } else {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)pNode)->aliasName);
+    // return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)pNode)->aliasName);
+    return TSDB_CODE_FAILED;
   }
 }
 
