@@ -30,18 +30,18 @@ static int64_t* extractTsCol(SSDataBlock* pBlock, const SIntervalAggOperatorInfo
 static SResultRowPosition addToOpenWindowList(SResultRowInfo* pResultRowInfo, const SResultRow* pResult);
 static void doCloseWindow(SResultRowInfo* pResultRowInfo, const SIntervalAggOperatorInfo* pInfo, SResultRow* pResult);
 
-/*
- * There are two cases to handle:
- *
- * 1. Query range is not set yet (queryRangeSet = 0). we need to set the query range info, including
- * pQueryAttr->lastKey, pQueryAttr->window.skey, and pQueryAttr->eKey.
- * 2. Query range is set and query is in progress. There may be another result with the same query ranges to be
- *    merged during merge stage. In this case, we need the pTableQueryInfo->lastResRows to decide if there
- *    is a previous result generated or not.
- */
-static void setIntervalQueryRange(STableQueryInfo* pTableQueryInfo, TSKEY key, STimeWindow* pQRange) {
-  // do nothing
-}
+///*
+// * There are two cases to handle:
+// *
+// * 1. Query range is not set yet (queryRangeSet = 0). we need to set the query range info, including
+// * pQueryAttr->lastKey, pQueryAttr->window.skey, and pQueryAttr->eKey.
+// * 2. Query range is set and query is in progress. There may be another result with the same query ranges to be
+// *    merged during merge stage. In this case, we need the pTableQueryInfo->lastResRows to decide if there
+// *    is a previous result generated or not.
+// */
+//static void setIntervalQueryRange(STableQueryInfo* pTableQueryInfo, TSKEY key, STimeWindow* pQRange) {
+//  // do nothing
+//}
 
 static TSKEY getStartTsKey(STimeWindow* win, const TSKEY* tsCols) { return tsCols == NULL ? win->skey : tsCols[0]; }
 
@@ -327,8 +327,7 @@ void doTimeWindowInterpolation(SIntervalAggOperatorInfo* pInfo, int32_t numOfExp
 
   int32_t index = 1;
   for (int32_t k = 0; k < numOfExprs; ++k) {
-    // todo use flag instead of function name
-    if (strcmp(pCtx[k].pExpr->pExpr->_function.functionName, "twa") != 0) {
+    if (!fmIsIntervalInterpoFunc(pCtx[k].functionId)) {
       pCtx[k].start.key = INT64_MIN;
       continue;
     }
@@ -958,9 +957,6 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
 
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pInfo->binfo.pCtx, pBlock, pInfo->order, scanFlag, true);
-    STableQueryInfo* pTableQueryInfo = pInfo->pCurrent;
-
-    setIntervalQueryRange(pTableQueryInfo, pBlock->info.window.skey, &pTaskInfo->window);
     hashIntervalAgg(pOperator, &pInfo->binfo.resultRowInfo, pBlock, scanFlag, NULL);
 
 #if 0  // test for encode/decode result info
@@ -1415,7 +1411,7 @@ static bool timeWindowinterpNeeded(SqlFunctionCtx* pCtx, int32_t numOfCols, SInt
   for (int32_t i = 0; i < numOfCols; ++i) {
     SExprInfo* pExpr = pCtx[i].pExpr;
 
-    if (strcmp(pExpr->pExpr->_function.functionName, "twa") == 0) {
+    if (fmIsIntervalInterpoFunc(pCtx[i].functionId)) {
       SFunctParam* pParam = &pExpr->base.pParam[0];
 
       SColumn c = *pParam->pCol;
@@ -1476,11 +1472,9 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* 
   pInfo->timeWindowInterpo = timeWindowinterpNeeded(pInfo->binfo.pCtx, numOfCols, pInfo);
   if (pInfo->timeWindowInterpo) {
     pInfo->binfo.resultRowInfo.openWindow = tdListNew(sizeof(SResultRowPosition));
-  }
-
-  //  pInfo->pTableQueryInfo = initTableQueryInfo(pTableGroupInfo);
-  if (code != TSDB_CODE_SUCCESS /* || pInfo->pTableQueryInfo == NULL*/) {
-    goto _error;
+    if (pInfo->binfo.resultRowInfo.openWindow == NULL) {
+      goto _error;
+    }
   }
 
   initResultRowInfo(&pInfo->binfo.resultRowInfo, (int32_t)1);
@@ -1695,22 +1689,25 @@ static SSDataBlock* doSessionWindowAgg(SOperatorInfo* pOperator) {
   return (rows == 0) ? NULL : pBInfo->pRes;
 }
 
-static SSDataBlock* doAllIntervalAgg(SOperatorInfo* pOperator) {
+static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
   }
 
   STimeSliceOperatorInfo* pSliceInfo = pOperator->info;
+  SSDataBlock* pResBlock = pSliceInfo->binfo.pRes;
+
   if (pOperator->status == OP_RES_TO_RETURN) {
     //    doBuildResultDatablock(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pIntervalInfo->pRes);
-    if (pSliceInfo->binfo.pRes->info.rows == 0 || !hashRemainDataInGroupInfo(&pSliceInfo->groupResInfo)) {
+    if (pResBlock->info.rows == 0 || !hashRemainDataInGroupInfo(&pSliceInfo->groupResInfo)) {
       doSetOperatorCompleted(pOperator);
     }
 
-    return pSliceInfo->binfo.pRes;
+    return pResBlock;
   }
 
-  int32_t        order = TSDB_ORDER_ASC;
+  int32_t order = TSDB_ORDER_ASC;
+  SInterval* pInterval = &pSliceInfo->interval;
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
   while (1) {
@@ -1721,7 +1718,38 @@ static SSDataBlock* doAllIntervalAgg(SOperatorInfo* pOperator) {
 
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pSliceInfo->binfo.pCtx, pBlock, order, MAIN_SCAN, true);
-    //    hashAllIntervalAgg(pOperator, &pSliceInfo->binfo.resultRowInfo, pBlock, 0);
+
+    SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, 0);
+    for(int32_t i = 0; i < pBlock->info.rows; ++i) {
+      int64_t ts = *(int64_t*) colDataGetData(pTsCol, i);
+
+      if (ts == pSliceInfo->current) {
+        // output the result
+
+        pSliceInfo->current += taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
+        if (pSliceInfo->current > pSliceInfo->win.ekey) {
+          doSetOperatorCompleted(pOperator);
+          break;
+        }
+      } else if (ts < pSliceInfo->current) {
+        if (i != pBlock->info.window.ekey) {
+          int64_t nextTs = *(int64_t*) colDataGetData(pTsCol, i + 1);
+          if (nextTs > pSliceInfo->current) {
+            // output the result
+
+            pSliceInfo->current += taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
+            if (pSliceInfo->current > pSliceInfo->win.ekey) {
+              doSetOperatorCompleted(pOperator);
+              break;
+            }
+          } else {
+            // keep current row
+          }
+        } else {  // it is the last row of current block
+          // keep current row
+        }
+      }
+    }
   }
 
   // restore the value
@@ -1733,11 +1761,38 @@ static SSDataBlock* doAllIntervalAgg(SOperatorInfo* pOperator) {
   //  initGroupedResultInfo(&pSliceInfo->groupResInfo, &pSliceInfo->binfo.resultRowInfo);
   //  doBuildResultDatablock(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pSliceInfo->pRes);
 
-  if (pSliceInfo->binfo.pRes->info.rows == 0 || !hashRemainDataInGroupInfo(&pSliceInfo->groupResInfo)) {
+  if (pResBlock->info.rows == 0 || !hashRemainDataInGroupInfo(&pSliceInfo->groupResInfo)) {
     pOperator->status = OP_EXEC_DONE;
   }
 
-  return pSliceInfo->binfo.pRes->info.rows == 0 ? NULL : pSliceInfo->binfo.pRes;
+  return pResBlock->info.rows == 0 ? NULL : pResBlock;
+}
+
+static int32_t initTimesliceInfo(STimeSliceOperatorInfo* pInfo, SqlFunctionCtx* pCtx, int32_t numOfCols) {
+  pInfo->pPrevRow = taosArrayInit(4, sizeof(SGroupKeys));
+  pInfo->pCols = taosArrayInit(4, sizeof(SColumn));
+
+  if (pInfo->pPrevRow == NULL || pInfo->pCols == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SExprInfo* pExpr = pCtx[i].pExpr;
+
+    SFunctParam* pParam = &pExpr->base.pParam[0];
+
+    SColumn c = *pParam->pCol;
+    taosArrayPush(pInfo->pCols, &c);
+
+    SGroupKeys key = {0};
+    key.bytes = c.bytes;
+    key.type = c.type;
+    key.isNull = false;
+    key.pData = taosMemoryCalloc(1, c.bytes);
+    taosArrayPush(pInfo->pPrevRow, &key);
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
@@ -1748,21 +1803,28 @@ SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SExprInfo*
     goto _error;
   }
 
+  int32_t code = initTimesliceInfo(pInfo, pInfo->binfo.pCtx, numOfCols);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
   initResultRowInfo(&pInfo->binfo.resultRowInfo, 8);
 
-  pOperator->name = "TimeSliceOperator";
-  //  pOperator->operatorType = OP_AllTimeWindow;
-  pOperator->blocking = true;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->pExpr = pExprInfo;
-  pOperator->numOfExprs = numOfCols;
-  pOperator->info = pInfo;
-  pOperator->pTaskInfo = pTaskInfo;
+  pInfo->binfo.pRes = pResultBlock;
 
-  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doAllIntervalAgg, NULL, NULL, destroyBasicOperatorInfo,
+  pOperator->name       = "TimeSliceOperator";
+  //  pOperator->operatorType = OP_AllTimeWindow;
+  pOperator->blocking   = true;
+  pOperator->status     = OP_NOT_OPENED;
+  pOperator->pExpr      = pExprInfo;
+  pOperator->numOfExprs = numOfCols;
+  pOperator->info       = pInfo;
+  pOperator->pTaskInfo  = pTaskInfo;
+
+  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doTimeslice, NULL, NULL, destroyBasicOperatorInfo,
                                          NULL, NULL, NULL);
 
-  int32_t code = appendDownstream(pOperator, &downstream, 1);
+  code = appendDownstream(pOperator, &downstream, 1);
   return pOperator;
 
 _error:
@@ -3326,9 +3388,6 @@ static SSDataBlock* doMergeIntervalAgg(SOperatorInfo* pOperator) {
 
       getTableScanInfo(pOperator, &iaInfo->order, &scanFlag);
       setInputDataBlock(pOperator, iaInfo->binfo.pCtx, pBlock, iaInfo->order, scanFlag, true);
-      STableQueryInfo* pTableQueryInfo = iaInfo->pCurrent;
-
-      setIntervalQueryRange(pTableQueryInfo, pBlock->info.window.skey, &pTaskInfo->window);
       doMergeIntervalAggImpl(pOperator, &iaInfo->binfo.resultRowInfo, pBlock, scanFlag, pRes);
 
       if (pRes->info.rows >= pOperator->resultInfo.threshold) {

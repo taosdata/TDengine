@@ -472,10 +472,8 @@ typedef struct SIntervalAggOperatorInfo {
   bool               timeWindowInterpo;  // interpolation needed or not
   char**             pRow;               // previous row/tuple of already processed datablock
   SArray*            pInterpCols;        // interpolation columns
-  STableQueryInfo*   pCurrent;           // current tableQueryInfo struct
   int32_t            order;              // current SSDataBlock scan order
   EOPTR_EXEC_MODEL   execModel;          // operator execution model [batch model|stream model]
-  SArray*            pUpdatedWindow;     // updated time window due to the input data block from the downstream operator.
   STimeWindowAggSupp twAggSup;
   bool               invertible;
   SArray*            pPrevValues;        //  SArray<SGroupKeys> used to keep the previous not null value for interpolation.
@@ -504,8 +502,6 @@ typedef struct SAggOperatorInfo {
   STableQueryInfo   *current;
   uint64_t           groupId;
   SGroupResInfo      groupResInfo;
-  STableQueryInfo   *pTableQueryInfo;
-
   SExprInfo         *pScalarExprInfo;
   int32_t            numOfScalarExpr;      // the number of scalar expression before the aggregate function can be applied
   SqlFunctionCtx    *pScalarCtx;                 // scalar function requried sql function struct.
@@ -640,8 +636,12 @@ typedef struct SStreamSessionAggOperatorInfo {
 
 typedef struct STimeSliceOperatorInfo {
   SOptrBasicInfo binfo;
+  STimeWindow    win;
   SInterval      interval;
+  int64_t        current;
   SGroupResInfo  groupResInfo;  // multiple results build supporter
+  SArray*        pPrevRow;      // SArray<SGroupValue>
+  SArray*        pCols;         // SArray<SColumn>
 } STimeSliceOperatorInfo;
 
 typedef struct SStateWindowOperatorInfo {
