@@ -82,6 +82,7 @@ def pre_test(){
         sh '''
             cd ${WKC}
             git pull >/dev/null
+            git log -5
             git fetch origin +refs/pull/${CHANGE_ID}/merge
             git checkout -qf FETCH_HEAD
             git log -5
@@ -93,6 +94,7 @@ def pre_test(){
         sh '''
             cd ${WK}
             git pull >/dev/null
+            git log -5
             git fetch origin +refs/pull/${CHANGE_ID}/merge
             git checkout -qf FETCH_HEAD
             git log -5
