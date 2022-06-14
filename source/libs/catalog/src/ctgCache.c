@@ -311,6 +311,9 @@ _return:
   ctgReleaseTbMetaToCache(pCtg, dbCache, pCache);
 
   CTG_CACHE_STAT_INC(tbMetaMissNum, 1);
+
+  *pDb = NULL;
+  *pTb = NULL;
   
   return TSDB_CODE_SUCCESS;
 }
@@ -427,8 +430,6 @@ int32_t ctgReadTbMetaFromCache(SCatalog* pCtg, SCtgTbMetaCtx* ctx, STableMeta** 
   ctgDebug("Got ctb %s meta from cache, will continue to get its stb meta, type:%d, dbFName:%s", 
            ctx->pName->tname, ctx->tbInfo.tbType, dbFName);
 
-  dbCache = NULL;
-  tbCache = NULL;
   ctgAcquireStbMetaFromCache(pCtg, dbFName, ctx->tbInfo.suid, &dbCache, &tbCache);
   if (NULL == tbCache) {
     ctgReleaseTbMetaToCache(pCtg, dbCache, tbCache);
