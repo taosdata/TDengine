@@ -4558,7 +4558,6 @@ static tsdbReaderT doCreateDataReader(STableScanPhysiNode* pTableScanNode, SRead
 
 static int32_t getTableList(void* metaHandle, int32_t tableType, uint64_t tableUid, STableListInfo* pListInfo,
                             SNode* pTagCond);
-static SArray* extractTableIdList(const STableListInfo* pTableGroupInfo);
 static SArray* extractColumnInfo(SNodeList* pNodeList);
 
 static SArray* createSortInfo(SNodeList* pNodeList);
@@ -4725,12 +4724,17 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       } else {
         qDebug("%s pDataReader is not NULL", GET_TASKID(pTaskInfo));
       }
-      SArray* tableIdList = extractTableIdList(pTableListInfo);
+
+      SArray* groupKyes = extractPartitionColInfo(pTableScanNode->pPartitionKeys);
+      int32_t code = generateGroupIdMap(pTableListInfo, pHandle, groupKyes); //todo for json
+      if (code){
+        tsdbCleanupReadHandle(pDataReader);
+        return NULL;
+      }
 
       SOperatorInfo* pOperator =
-          createStreamScanOperatorInfo(pDataReader, pHandle, tableIdList, pTableScanNode, pTaskInfo, &twSup);
+          createStreamScanOperatorInfo(pDataReader, pHandle, pTableScanNode, pTaskInfo, &twSup);
 
-      taosArrayDestroy(tableIdList);
       return pOperator;
     } else if (QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN == type) {
       SSystemTableScanPhysiNode* pSysScanPhyNode = (SSystemTableScanPhysiNode*)pPhyNode;
@@ -5181,18 +5185,6 @@ int32_t getTableList(void* metaHandle, int32_t tableType, uint64_t tableUid, STa
   }
 
   return code;
-}
-
-SArray* extractTableIdList(const STableListInfo* pTableGroupInfo) {
-  SArray* tableIdList = taosArrayInit(4, sizeof(uint64_t));
-
-  // Transfer the Array of STableKeyInfo into uid list.
-  for (int32_t i = 0; i < taosArrayGetSize(pTableGroupInfo->pTableList); ++i) {
-    STableKeyInfo* pkeyInfo = taosArrayGet(pTableGroupInfo->pTableList, i);
-    taosArrayPush(tableIdList, &pkeyInfo->uid);
-  }
-
-  return tableIdList;
 }
 
 tsdbReaderT doCreateDataReader(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle,

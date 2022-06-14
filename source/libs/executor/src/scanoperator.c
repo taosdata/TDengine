@@ -886,6 +886,11 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
         pInfo->pRes->info.groupId = groupId;
       }
 
+      uint64_t* groupIdPre = taosHashGet(pOperator->pTaskInfo->tableqinfoList.map, &uid, sizeof(int64_t));
+      if (groupIdPre) {
+        pInfo->pRes->info.groupId = *groupIdPre;
+      }
+
       for (int32_t i = 0; i < taosArrayGetSize(pInfo->pColMatchInfo); ++i) {
         SColMatchInfo* pColMatchInfo = taosArrayGet(pInfo->pColMatchInfo, i);
         if (!pColMatchInfo->output) {
@@ -953,11 +958,24 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
   }
 }
 
-SOperatorInfo* createStreamScanOperatorInfo(void* pDataReader, SReadHandle* pHandle, SArray* pTableIdList,
+static SArray* extractTableIdList(const STableListInfo* pTableGroupInfo) {
+  SArray* tableIdList = taosArrayInit(4, sizeof(uint64_t));
+
+  // Transfer the Array of STableKeyInfo into uid list.
+  for (int32_t i = 0; i < taosArrayGetSize(pTableGroupInfo->pTableList); ++i) {
+    STableKeyInfo* pkeyInfo = taosArrayGet(pTableGroupInfo->pTableList, i);
+    taosArrayPush(tableIdList, &pkeyInfo->uid);
+  }
+
+  return tableIdList;
+}
+
+SOperatorInfo* createStreamScanOperatorInfo(void* pDataReader, SReadHandle* pHandle,
                                             STableScanPhysiNode* pTableScanNode, SExecTaskInfo* pTaskInfo,
                                             STimeWindowAggSupp* pTwSup) {
   SStreamBlockScanInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamBlockScanInfo));
   SOperatorInfo*        pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
+
   if (pInfo == NULL || pOperator == NULL) {
     terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
     goto _error;
@@ -988,10 +1006,13 @@ SOperatorInfo* createStreamScanOperatorInfo(void* pDataReader, SReadHandle* pHan
 
   // set the extract column id to streamHandle
   tqReadHandleSetColIdList((STqReadHandle*)pHandle->reader, pColIds);
-  int32_t code = tqReadHandleSetTbUidList(pHandle->reader, pTableIdList);
+  SArray* tableIdList = extractTableIdList(&pTaskInfo->tableqinfoList);
+  int32_t code = tqReadHandleSetTbUidList(pHandle->reader, tableIdList);
   if (code != 0) {
+    taosArrayDestroy(tableIdList);
     goto _error;
   }
+  taosArrayDestroy(tableIdList);
 
   pInfo->pBlockLists = taosArrayInit(4, POINTER_BYTES);
   if (pInfo->pBlockLists == NULL) {
