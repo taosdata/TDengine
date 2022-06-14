@@ -1312,27 +1312,11 @@ static int32_t smlKvTimeHashCompare(const void* key1, const void* key2) {
 
 static int32_t smlDealCols(SSmlTableInfo* oneTable, bool dataFormat, SArray *cols){
   if(dataFormat){
-    void *p = taosArraySearch(oneTable->cols, &cols, smlKvTimeArrayCompare, TD_GE);
+    void *p = taosArraySearch(oneTable->cols, &cols, smlKvTimeArrayCompare, TD_GT);
     if(p == NULL){
       taosArrayPush(oneTable->cols, &cols);
-    }else{      // to make the sort stable for update data
-      SArray *sa = *(SArray **)p;
-      SSmlKv *cur = (SSmlKv*)taosArrayGetP(sa, 0);
-      SSmlKv *dCur = (SSmlKv*)taosArrayGetP(cols, 0);
-      if(cur->i > dCur->i){
-        taosArrayInsert(oneTable->cols, TARRAY_ELEM_IDX(oneTable->cols, p), &cols);
-      }else{
-        ASSERT(cur->i == dCur->i);
-        int32_t index = TARRAY_ELEM_IDX(oneTable->cols, p) + 1;
-        for(; index < taosArrayGetSize(oneTable->cols); index++){
-          SArray *tmp = (SArray *)taosArrayGetP(oneTable->cols, index);
-          SSmlKv *curTs = (SSmlKv*)taosArrayGetP(tmp, 0);
-          if(curTs->i > dCur->i){
-            break;
-          }
-        }
-        taosArrayInsert(oneTable->cols, index, &cols);
-      }
+    }else{
+      taosArrayInsert(oneTable->cols, TARRAY_ELEM_IDX(oneTable->cols, p), &cols);
     }
     return TSDB_CODE_SUCCESS;
   }
@@ -1347,28 +1331,13 @@ static int32_t smlDealCols(SSmlTableInfo* oneTable, bool dataFormat, SArray *col
     taosHashPut(kvHash, kv->key, kv->keyLen, &kv, POINTER_BYTES);
   }
 
-  void *p = taosArraySearch(oneTable->cols, &kvHash, smlKvTimeHashCompare, TD_GE);
+  void *p = taosArraySearch(oneTable->cols, &kvHash, smlKvTimeHashCompare, TD_GT);
   if(p == NULL){
     taosArrayPush(oneTable->cols, &kvHash);
-  }else{    // to make the sort stable for update data
-    SHashObj *sa = *(SHashObj **)p;
-    SSmlKv *cur = *(SSmlKv **)taosHashGet(sa, TS, TS_LEN);
-    SSmlKv *dCur = (SSmlKv*)taosArrayGetP(cols, 0);
-    if(cur->i > dCur->i){
-      taosArrayInsert(oneTable->cols, TARRAY_ELEM_IDX(oneTable->cols, p), &cols);
-    }else{
-      ASSERT(cur->i == dCur->i);
-      int32_t index = TARRAY_ELEM_IDX(oneTable->cols, p) + 1;
-      for(; index < taosArrayGetSize(oneTable->cols); index++){
-        SHashObj *tmp = (SHashObj *)taosArrayGetP(oneTable->cols, index);
-        SSmlKv *curTs = *(SSmlKv **)taosHashGet(tmp, TS, TS_LEN);
-        if(curTs->i > dCur->i){
-          break;
-        }
-      }
-      taosArrayInsert(oneTable->cols, index, &kvHash);
-    }
+  }else{
+    taosArrayInsert(oneTable->cols, TARRAY_ELEM_IDX(oneTable->cols, p), &kvHash);
   }
+  return TSDB_CODE_SUCCESS;
   return TSDB_CODE_SUCCESS;
 }
 
