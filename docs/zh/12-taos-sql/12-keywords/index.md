@@ -101,7 +101,6 @@ title: TDengine 参数限制与保留关键字
 - DAYS      
 - DBS       
 - DEFERRED  
-- DELETE
 - DELIMITERS
 - DESC      
 - DESCRIBE  
