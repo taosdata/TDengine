@@ -639,9 +639,10 @@ typedef struct STimeSliceOperatorInfo {
   STimeWindow    win;
   SInterval      interval;
   int64_t        current;
-  SGroupResInfo  groupResInfo;  // multiple results build supporter
   SArray*        pPrevRow;      // SArray<SGroupValue>
   SArray*        pCols;         // SArray<SColumn>
+  int32_t        fillType;      // fill type
+  struct SFillColInfo*  pFillColInfo;  // fill column info
 } STimeSliceOperatorInfo;
 
 typedef struct SStateWindowOperatorInfo {
@@ -841,7 +842,7 @@ SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SExprInfo*
                                            SSDataBlock* pResultBlock, SArray* pGroupColList, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
-                                           SSDataBlock* pResultBlock, SExecTaskInfo* pTaskInfo);
+                                           SSDataBlock* pResultBlock, const SNodeListNode* pValNode, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResBlock, SNode* pOnCondition, SExecTaskInfo* pTaskInfo);
 

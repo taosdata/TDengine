@@ -332,12 +332,7 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
 
   pOperator->status = OP_RES_TO_RETURN;
   closeAllResultRows(&pInfo->binfo.resultRowInfo);
-  //  if (!stableQuery) { // finalize include the update of result rows
-  //    finalizeQueryResult(pInfo->binfo.pCtx, pOperator->numOfExprs);
-  //  } else {
-  //    updateNumOfRowsInResultRows(pInfo->binfo.pCtx, pOperator->numOfExprs, &pInfo->binfo.resultRowInfo,
-  //    pInfo->binfo.rowCellInfoOffset);
-  //  }
+
 #if 0
   if(pOperator->fpSet.encodeResultRow){
     char *result = NULL;
