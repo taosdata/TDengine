@@ -63,6 +63,7 @@ There are about 200 keywords reserved by TDengine, they can't be used as the nam
 - DBS       
 - DEFERRED  
 - DELIMITERS
+- DELETE
 - DESC      
 - DESCRIBE  
 - DETACH    
