@@ -14,11 +14,8 @@
  */
 
 #include "syncUtil.h"
-#include <arpa/inet.h>
 #include <netdb.h>
-#include <netinet/in.h>
 #include <stdio.h>
-#include <sys/socket.h>
 
 #include "syncEnv.h"
 
