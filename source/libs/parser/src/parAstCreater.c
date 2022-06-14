@@ -802,7 +802,7 @@ SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOpti
       break;
     case DB_OPTION_SCHEMALESS:
 //      ((SDatabaseOptions*)pOptions)->schemaless = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
-      ((SDatabaseOptions*)pOptions)->schemaless = 1;
+      ((SDatabaseOptions*)pOptions)->schemaless = 0;
       break;
     default:
       break;
