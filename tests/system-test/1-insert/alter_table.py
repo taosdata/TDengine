@@ -90,13 +90,13 @@ class TDTestCase:
         tdSql.checkData(0,15,tag_nchar)
 
         # bug TD-16211 insert length more than setting binary and nchar
-        # tag_binary = self.get_long_name(length=21, mode="letters")
-        # tag_nchar = self.get_long_name(length=21, mode="letters")
-        # tdSql.error(f'alter table {dbname}.{tbname} set tag t12 = "{tag_binary}"')
-        # tdSql.error(f'alter table {dbname}.{tbname} set tag t13 = "{tag_nchar}"')
+        tag_binary = self.get_long_name(length=21, mode="letters")
+        tag_nchar = self.get_long_name(length=21, mode="letters")
+        tdSql.error(f'alter table {dbname}.{tbname} set tag t12 = "{tag_binary}"')
+        tdSql.error(f'alter table {dbname}.{tbname} set tag t13 = "{tag_nchar}"')
 
         # bug TD-16210 modify binary to nchar
-        # tdSql.error(f'alter table {dbname}.{tbname} modify tag t12 nchar(10)')
+        tdSql.error(f'alter table {dbname}.{tbname} modify tag t12 nchar(10)')
         tdSql.execute(f"drop database {dbname}")
     def alter_ntb_column_check(self):
         '''

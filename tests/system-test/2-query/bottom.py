@@ -46,10 +46,10 @@ class TDTestCase:
                 tdSql.error(f'select bottom({i},{j}) from stb_1')
         for i in error_column_list:
             tdSql.error(f'select bottom({i},10) from stb_1')
-        # tdSql.query("select ts,bottom(col1, 2),ts from stb_1 group by tbname")
-        # tdSql.checkRows(2)
-        # tdSql.query('select bottom(col2,1) from stb_1 interval(1y) order by col2')
-        # tdSql.checkData(0,0,1)
+        tdSql.query("select ts,bottom(col1, 2),ts from stb_1 group by tbname")
+        tdSql.checkRows(2)
+        tdSql.query('select bottom(col2,1) from stb_1 interval(1y) order by col2')
+        tdSql.checkData(0,0,1)
 
 
         tdSql.error('select * from stb_1 where bottom(col2,1)=1')
