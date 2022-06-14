@@ -199,8 +199,8 @@ typedef struct {
   int8_t         automatic;
   int8_t         async;
   int8_t         freeOffsets;
-  int8_t         waitingRspNum;
-  int8_t         totalRspNum;
+  int32_t        waitingRspNum;
+  int32_t        totalRspNum;
   tmq_resp_err_t rspErr;
   tmq_commit_cb* userCb;
   SArray*        successfulOffsets;
@@ -373,8 +373,9 @@ int32_t tmqCommitCb2(void* param, const SDataBuf* pBuf, int32_t code) {
   } else {
     taosArrayPush(pParamSet->successfulOffsets, &pParam->pOffset);
   }
+
   // count down waiting rsp
-  int8_t waitingRspNum = atomic_sub_fetch_8(&pParam->params->waitingRspNum, 1);
+  int32_t waitingRspNum = atomic_sub_fetch_32(&pParamSet->waitingRspNum, 1);
   ASSERT(waitingRspNum >= 0);
 
   if (waitingRspNum == 0) {
@@ -395,7 +396,8 @@ int32_t tmqCommitCb2(void* param, const SDataBuf* pBuf, int32_t code) {
   return 0;
 }
 
-int32_t tmqComitInner2(tmq_t* tmq, int8_t automatic, int8_t async, tmq_commit_cb* userCb, void* userParam) {
+int32_t tmqCommitInner2(tmq_t* tmq, const tmq_topic_vgroup_list_t* offsets, int8_t automatic, int8_t async,
+                        tmq_commit_cb* userCb, void* userParam) {
   int32_t code = -1;
 
   SMqCommitCbParamSet* pParamSet = taosMemoryCalloc(1, sizeof(SMqCommitCbParamSet));
@@ -466,6 +468,8 @@ int32_t tmqComitInner2(tmq_t* tmq, int8_t automatic, int8_t async, tmq_commit_cb
       SEpSet  epSet = getEpSet_s(&tmq->pTscObj->pAppInfo->mgmtEp);
       int64_t transporterId = 0;
       asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, pMsgSendInfo);
+      pParamSet->waitingRspNum++;
+      pParamSet->totalRspNum++;
     }
   }
 

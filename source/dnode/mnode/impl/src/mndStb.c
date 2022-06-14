@@ -23,6 +23,7 @@
 #include "mndPerfSchema.h"
 #include "mndScheduler.h"
 #include "mndShow.h"
+#include "mndSma.h"
 #include "mndTopic.h"
 #include "mndTrans.h"
 #include "mndUser.h"
@@ -37,9 +38,9 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw);
 static int32_t  mndStbActionInsert(SSdb *pSdb, SStbObj *pStb);
 static int32_t  mndStbActionDelete(SSdb *pSdb, SStbObj *pStb);
 static int32_t  mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew);
-static int32_t  mndProcessMCreateStbReq(SRpcMsg *pReq);
-static int32_t  mndProcessMAlterStbReq(SRpcMsg *pReq);
-static int32_t  mndProcessMDropStbReq(SRpcMsg *pReq);
+static int32_t  mndProcessCreateStbReq(SRpcMsg *pReq);
+static int32_t  mndProcessAlterStbReq(SRpcMsg *pReq);
+static int32_t  mndProcessDropStbReq(SRpcMsg *pReq);
 static int32_t  mndProcessTableMetaReq(SRpcMsg *pReq);
 static int32_t  mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextStb(SMnode *pMnode, void *pIter);
@@ -55,9 +56,9 @@ int32_t mndInitStb(SMnode *pMnode) {
       .deleteFp = (SdbDeleteFp)mndStbActionDelete,
   };
 
-  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_STB, mndProcessMCreateStbReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_ALTER_STB, mndProcessMAlterStbReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_DROP_STB, mndProcessMDropStbReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_STB, mndProcessCreateStbReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_ALTER_STB, mndProcessAlterStbReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_DROP_STB, mndProcessDropStbReq);
   mndSetMsgHandle(pMnode, TDMT_VND_CREATE_STB_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_ALTER_STB_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_DROP_STB_RSP, mndTransProcessRsp);
@@ -319,6 +320,7 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
   pOld->updateTime = pNew->updateTime;
   pOld->tagVer = pNew->tagVer;
   pOld->colVer = pNew->colVer;
+  pOld->smaVer = pNew->smaVer;
   pOld->nextColId = pNew->nextColId;
   pOld->ttl = pNew->ttl;
   pOld->numOfColumns = pNew->numOfColumns;
@@ -362,7 +364,7 @@ SDbObj *mndAcquireDbByStb(SMnode *pMnode, const char *stbName) {
   return mndAcquireDb(pMnode, db);
 }
 
-static FORCE_INLINE int schemaExColIdCompare(const void *colId, const void *pSchema) {
+static FORCE_INLINE int32_t schemaExColIdCompare(const void *colId, const void *pSchema) {
   if (*(col_id_t *)colId < ((SSchema *)pSchema)->colId) {
     return -1;
   } else if (*(col_id_t *)colId > ((SSchema *)pSchema)->colId) {
@@ -396,14 +398,14 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
     req.pRSmaParam.xFilesFactor = pStb->xFilesFactor;
     req.pRSmaParam.delay = pStb->delay;
     if (pStb->ast1Len > 0) {
-      if (mndConvertRsmaTask(&req.pRSmaParam.qmsg1, &req.pRSmaParam.qmsg1Len, pStb->pAst1, pStb->uid, STREAM_TRIGGER_AT_ONCE, 0,
-                             req.pRSmaParam.xFilesFactor) != TSDB_CODE_SUCCESS) {
+      if (mndConvertRsmaTask(&req.pRSmaParam.qmsg1, &req.pRSmaParam.qmsg1Len, pStb->pAst1, pStb->uid,
+                             STREAM_TRIGGER_AT_ONCE, 0, req.pRSmaParam.xFilesFactor) != TSDB_CODE_SUCCESS) {
         return NULL;
       }
     }
     if (pStb->ast2Len > 0) {
-      if (mndConvertRsmaTask(&req.pRSmaParam.qmsg2, &req.pRSmaParam.qmsg2Len, pStb->pAst2, pStb->uid, STREAM_TRIGGER_AT_ONCE, 0,
-                             req.pRSmaParam.xFilesFactor) != TSDB_CODE_SUCCESS) {
+      if (mndConvertRsmaTask(&req.pRSmaParam.qmsg2, &req.pRSmaParam.qmsg2Len, pStb->pAst2, pStb->uid,
+                             STREAM_TRIGGER_AT_ONCE, 0, req.pRSmaParam.xFilesFactor) != TSDB_CODE_SUCCESS) {
         return NULL;
       }
     }
@@ -762,7 +764,7 @@ int32_t mndAddStbToTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *p
   return 0;
 }
 
-static int32_t mndProcessMCreateStbReq(SRpcMsg *pReq) {
+static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
   SMnode        *pMnode = pReq->info.node;
   int32_t        code = -1;
   SStbObj       *pStb = NULL;
@@ -1301,7 +1303,7 @@ static int32_t mndBuildStbSchema(SMnode *pMnode, const char *dbFName, const char
 
 static int32_t mndBuildSMAlterStbRsp(SDbObj *pDb, const SMAlterStbReq *pAlter, SStbObj *pObj, void **pCont,
                                      int32_t *pLen) {
-  int           ret;
+  int32_t       ret;
   SEncoder      ec = {0};
   uint32_t      contLen = 0;
   SMAlterStbRsp alterRsp = {0};
@@ -1420,7 +1422,7 @@ _OVER:
   return code;
 }
 
-static int32_t mndProcessMAlterStbReq(SRpcMsg *pReq) {
+static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
   SMnode       *pMnode = pReq->info.node;
   int32_t       code = -1;
   SDbObj       *pDb = NULL;
@@ -1550,6 +1552,7 @@ static int32_t mndDropStb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *p
   if (mndSetDropStbRedoLogs(pMnode, pTrans, pStb) != 0) goto _OVER;
   if (mndSetDropStbCommitLogs(pMnode, pTrans, pStb) != 0) goto _OVER;
   if (mndSetDropStbRedoActions(pMnode, pTrans, pDb, pStb) != 0) goto _OVER;
+  if (mndDropSmasByStb(pMnode, pTrans, pDb, pStb) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
   code = 0;
@@ -1559,7 +1562,7 @@ _OVER:
   return code;
 }
 
-static int32_t mndProcessMDropStbReq(SRpcMsg *pReq) {
+static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;
   int32_t      code = -1;
   SUserObj    *pUser = NULL;

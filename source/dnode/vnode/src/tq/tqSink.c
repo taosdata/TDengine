@@ -15,10 +15,7 @@
 
 #include "tq.h"
 
-static SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pSchema, bool createTb, int64_t suid,
-                                   const char* stbFullName, int32_t vgId);
-
-static SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, bool createTb, int64_t suid,
+SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, bool createTb, int64_t suid,
                                    const char* stbFullName, int32_t vgId) {
   SSubmitReq* ret = NULL;
   SArray*     tagArray = taosArrayInit(1, sizeof(STagVal));
@@ -46,11 +43,12 @@ static SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSche
       createTbReq.type = TSDB_CHILD_TABLE;
       createTbReq.ctb.suid = suid;
 
-      STagVal tagVal = {.cid = pDataBlock->info.numOfCols + 1,
-                        .type = TSDB_DATA_TYPE_UBIGINT,
-                        .pData = (uint8_t*)&pDataBlock->info.groupId,
-                        .nData = sizeof(uint64_t)};
-      STag*   pTag = NULL;
+      STagVal tagVal = {
+          .cid = pDataBlock->info.numOfCols + 1,
+          .type = TSDB_DATA_TYPE_UBIGINT,
+          .i64 = (int64_t)pDataBlock->info.groupId,
+      };
+      STag* pTag = NULL;
       taosArrayClear(tagArray);
       taosArrayPush(tagArray, &tagVal);
       tTagNew(tagArray, 1, false, &pTag);
@@ -110,10 +108,11 @@ static SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSche
       createTbReq.type = TSDB_CHILD_TABLE;
       createTbReq.ctb.suid = suid;
 
-      STagVal tagVal = {.cid = pDataBlock->info.numOfCols + 1,
-                        .type = TSDB_DATA_TYPE_UBIGINT,
-                        .pData = (uint8_t*)&pDataBlock->info.groupId,
-                        .nData = sizeof(uint64_t)};
+      STagVal tagVal = {
+          .cid = pDataBlock->info.numOfCols + 1,
+          .type = TSDB_DATA_TYPE_UBIGINT,
+          .i64 = (int64_t)pDataBlock->info.groupId,
+      };
       taosArrayClear(tagArray);
       taosArrayPush(tagArray, &tagVal);
       STag* pTag = NULL;

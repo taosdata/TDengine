@@ -2653,7 +2653,7 @@ int32_t tSerializeSSTbHbRsp(void *buf, int32_t bufLen, SSTbHbRsp *pRsp) {
   }
 
   int32_t numOfIndex = taosArrayGetSize(pRsp->pIndexRsp);
-  if (tEncodeI32(&encoder, numOfIndex) < 0) return -1;  
+  if (tEncodeI32(&encoder, numOfIndex) < 0) return -1;
   for (int32_t i = 0; i < numOfIndex; ++i) {
     STableIndexRsp *pIndexRsp = taosArrayGet(pRsp->pIndexRsp, i);
     if (tEncodeCStr(&encoder, pIndexRsp->tbName) < 0) return -1;
@@ -2738,7 +2738,7 @@ int32_t tDeserializeSSTbHbRsp(void *buf, int32_t bufLen, SSTbHbRsp *pRsp) {
     }
     taosArrayPush(pRsp->pIndexRsp, &tableIndexRsp);
   }
-  
+
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
@@ -4000,7 +4000,7 @@ int32_t tEncodeTSma(SEncoder *pCoder, const STSma *pSma) {
   return 0;
 }
 
-int32_t tDecodeTSma(SDecoder *pCoder, STSma *pSma) {
+int32_t tDecodeTSma(SDecoder *pCoder, STSma *pSma, bool deepCopy) {
   if (tDecodeI8(pCoder, &pSma->version) < 0) return -1;
   if (tDecodeI8(pCoder, &pSma->intervalUnit) < 0) return -1;
   if (tDecodeI8(pCoder, &pSma->slidingUnit) < 0) return -1;
@@ -4012,17 +4012,30 @@ int32_t tDecodeTSma(SDecoder *pCoder, STSma *pSma) {
   if (tDecodeI64(pCoder, &pSma->indexUid) < 0) return -1;
   if (tDecodeI64(pCoder, &pSma->tableUid) < 0) return -1;
   if (tDecodeI64(pCoder, &pSma->dstTbUid) < 0) return -1;
-  if (tDecodeCStr(pCoder, &pSma->dstTbName) < 0) return -1;
+  if (deepCopy) {
+    if (tDecodeCStrAlloc(pCoder, &pSma->dstTbName) < 0) return -1;
+  } else {
+    if (tDecodeCStr(pCoder, &pSma->dstTbName) < 0) return -1;
+  }
+
   if (tDecodeI64(pCoder, &pSma->interval) < 0) return -1;
   if (tDecodeI64(pCoder, &pSma->offset) < 0) return -1;
   if (tDecodeI64(pCoder, &pSma->sliding) < 0) return -1;
   if (pSma->exprLen > 0) {
-    if (tDecodeCStr(pCoder, &pSma->expr) < 0) return -1;
+    if (deepCopy) {
+      if (tDecodeCStrAlloc(pCoder, &pSma->expr) < 0) return -1;
+    } else {
+      if (tDecodeCStr(pCoder, &pSma->expr) < 0) return -1;
+    }
   } else {
     pSma->expr = NULL;
   }
   if (pSma->tagsFilterLen > 0) {
-    if (tDecodeCStr(pCoder, &pSma->tagsFilter) < 0) return -1;
+    if (deepCopy) {
+      if (tDecodeCStrAlloc(pCoder, &pSma->tagsFilter) < 0) return -1;
+    } else {
+      if (tDecodeCStr(pCoder, &pSma->tagsFilter) < 0) return -1;
+    }
   } else {
     pSma->tagsFilter = NULL;
   }
@@ -4045,7 +4058,7 @@ int32_t tEncodeSVCreateTSmaReq(SEncoder *pCoder, const SVCreateTSmaReq *pReq) {
 int32_t tDecodeSVCreateTSmaReq(SDecoder *pCoder, SVCreateTSmaReq *pReq) {
   if (tStartDecode(pCoder) < 0) return -1;
 
-  tDecodeTSma(pCoder, pReq);
+  tDecodeTSma(pCoder, pReq, false);
 
   tEndDecode(pCoder);
   return 0;
@@ -4879,4 +4892,3 @@ int32_t tDecodeSTqOffset(SDecoder *pDecoder, STqOffset *pOffset) {
   if (tDecodeCStrTo(pDecoder, pOffset->subKey) < 0) return -1;
   return 0;
 }
-

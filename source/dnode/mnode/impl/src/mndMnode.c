@@ -55,7 +55,8 @@ int32_t mndInitMnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_ALTER_MNODE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_MNODE, mndProcessDropMnodeReq);
   mndSetMsgHandle(pMnode, TDMT_DND_DROP_MNODE_RSP, mndTransProcessRsp);
-  mndSetMsgHandle(pMnode, TDMT_MND_SET_STANDBY_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_SYNC_SET_MNODE_STANDBY_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_SYNC_SET_VNODE_STANDBY_RSP, mndTransProcessRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_MNODE, mndRetrieveMnodes);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_MNODE, mndCancelGetNextMnode);
@@ -511,7 +512,7 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
         .epSet = dropEpSet,
         .pCont = pReq,
         .contLen = contLen,
-        .msgType = TDMT_MND_SET_STANDBY,
+        .msgType = TDMT_SYNC_SET_MNODE_STANDBY,
         .acceptableCode = TSDB_CODE_NODE_NOT_DEPLOYED,
     };
 
