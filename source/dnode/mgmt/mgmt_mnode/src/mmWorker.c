@@ -147,8 +147,9 @@ int32_t mmPutMsgToQueue(SMnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   if (pWorker == NULL) return -1;
   SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM);
   if (pMsg == NULL) return -1;
-  dTrace("msg:%p, is created and will put int %s queue", pMsg, pWorker->name);
+  memcpy(pMsg, pRpc, sizeof(SRpcMsg));
 
+  dTrace("msg:%p, is created and will put int %s queue", pMsg, pWorker->name);
   return mmPutMsgToWorker(pMgmt, pWorker, pMsg);
 }
 
