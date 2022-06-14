@@ -4690,8 +4690,9 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         return NULL;
       }
 
-      SArray* groupKyes = extractPartitionColInfo(pTableScanNode->pPartitionKeys);
-      code = generateGroupIdMap(pTableListInfo, pHandle, groupKyes); //todo for json
+      SArray* groupKeys = extractPartitionColInfo(pTableScanNode->pPartitionKeys);
+      code = generateGroupIdMap(pTableListInfo, pHandle, groupKeys); //todo for json
+      taosArrayDestroy(groupKeys);
       if (code){
         tsdbCleanupReadHandle(pDataReader);
         return NULL;
@@ -4725,8 +4726,9 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         qDebug("%s pDataReader is not NULL", GET_TASKID(pTaskInfo));
       }
 
-      SArray* groupKyes = extractPartitionColInfo(pTableScanNode->pPartitionKeys);
-      int32_t code = generateGroupIdMap(pTableListInfo, pHandle, groupKyes); //todo for json
+      SArray* groupKeys = extractPartitionColInfo(pTableScanNode->pPartitionKeys);
+      int32_t code = generateGroupIdMap(pTableListInfo, pHandle, groupKeys); //todo for json
+      taosArrayDestroy(groupKeys);
       if (code){
         tsdbCleanupReadHandle(pDataReader);
         return NULL;
@@ -5059,6 +5061,7 @@ SArray* extractColumnInfo(SNodeList* pNodeList) {
 }
 
 SArray* extractPartitionColInfo(SNodeList* pNodeList) {
+  if(!pNodeList) return NULL;
   size_t  numOfCols = LIST_LENGTH(pNodeList);
   SArray* pList = taosArrayInit(numOfCols, sizeof(SColumn));
   if (pList == NULL) {
@@ -5163,7 +5166,9 @@ int32_t getTableList(void* metaHandle, int32_t tableType, uint64_t tableUid, STa
 
       SArray* res = taosArrayInit(8, sizeof(uint64_t));
       code = doFilterTag(pTagCond, &metaArg, res);
-      if (code != TSDB_CODE_SUCCESS) {
+      if (code == TSDB_CODE_INDEX_REBUILDING){    // todo
+        // doFilter();
+      } else if (code != TSDB_CODE_SUCCESS) {
         qError("failed  to  get tableIds, reason: %s, suid: %" PRIu64 "", tstrerror(code), tableUid);
         taosArrayDestroy(res);
         terrno = code;
@@ -5171,6 +5176,7 @@ int32_t getTableList(void* metaHandle, int32_t tableType, uint64_t tableUid, STa
       } else {
         qDebug("sucess to  get tableIds, size: %d, suid: %" PRIu64 "", (int)taosArrayGetSize(res), tableUid);
       }
+
       for (int i = 0; i < taosArrayGetSize(res); i++) {
         STableKeyInfo info = {.lastKey = TSKEY_INITIAL_VAL, .uid = *(uint64_t*)taosArrayGet(res, i)};
         taosArrayPush(pListInfo->pTableList, &info);
