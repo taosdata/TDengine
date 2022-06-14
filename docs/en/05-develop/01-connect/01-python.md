@@ -14,7 +14,7 @@ First, you need to install the `taospy` module version >= `2.3.3`. Run the comma
 <TabItem value="pip" label="pip">
 
 ```
-pip3 install taospy>=2.3.3
+pip3 install -U taospy
 ```
 You'll need to have Python3 installed.
 
@@ -22,7 +22,7 @@ You'll need to have Python3 installed.
 <TabItem value="conda" label="conda">
 
 ```
-conda install taospy=2.3.3
+conda install -c conda-forge taospy
 ```
 
 </TabItem>
