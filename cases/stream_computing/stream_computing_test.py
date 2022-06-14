@@ -39,6 +39,22 @@ class TestVgroups(TDCase):
         # self.tdSql.execute(f'create table ownsampling_ct2 using downsampling_stb tags(20, 20.2, "TIANJIN", False);')
         # self.tdSql.execute(f'create table ownsampling_ct3 using downsampling_stb tags(30, 30.3, "HeBei", False);')
         self.tdSql.execute('create table if not exists downsampling_tb (ts timestamp, c1 int, c2 double, c3 varchar(100), c4 bool);')
+
+        self.tdSql.execute('create table if not exists top_stb (ts timestamp, c1 int, c2 double, c3 varchar(100), c4 bool) tags (t1 int, t2 double, t3 varchar(100), t4 bool);')
+        self.tdSql.execute('create table top_ct1 using top_stb tags(10, 10.1, "Beijing", True);')
+        self.tdSql.execute('create table if not exists top_tb (ts timestamp, c1 int, c2 double, c3 varchar(100), c4 bool);')
+
+        self.tdSql.execute('create table if not exists bottom_stb (ts timestamp, c1 int, c2 double, c3 varchar(100), c4 bool) tags (t1 int, t2 double, t3 varchar(100), t4 bool);')
+        self.tdSql.execute('create table bottom_ct1 using bottom_stb tags(10, 10.1, "Beijing", True);')
+        self.tdSql.execute('create table if not exists bottom_tb (ts timestamp, c1 int, c2 double, c3 varchar(100), c4 bool);')
+
+        self.tdSql.execute('create table if not exists state_window_stb (ts timestamp, c1 int, c2 double, c3 varchar(100), c4 bool) tags (t1 int, t2 double, t3 varchar(100), t4 bool);')
+        self.tdSql.execute('create table state_window_ct1 using state_window_stb tags(10, 10.1, "Beijing", True);')
+        self.tdSql.execute('create table if not exists state_window_tb (ts timestamp, c1 int, c2 double, c3 varchar(100), c4 bool);')
+
+        self.tdSql.execute('create table if not exists session_window_stb (ts timestamp, c1 int, c2 double, c3 varchar(100), c4 bool) tags (t1 int, t2 double, t3 varchar(100), t4 bool);')
+        self.tdSql.execute('create table session_window_ct1 using session_window_stb tags(10, 10.1, "Beijing", True);')
+        self.tdSql.execute('create table if not exists session_window_tb (ts timestamp, c1 int, c2 double, c3 varchar(100), c4 bool);')
         
         self.tdSql.execute('create table if not exists scalar_stb (ts timestamp, c1 int, c2 double, c3 binary(20), c4 binary(20), c5 nchar(20)) tags (t1 int);')
         self.tdSql.execute('create table scalar_ct1 using scalar_stb tags(10);')
@@ -224,6 +240,164 @@ class TestVgroups(TDCase):
         # self.write_latency('sql: select * from output_downsampling_stb;')
         # self.check_stream_res('select * from output_downsampling_stb;', 3)
         # self.check_query_data('select start, `min(c1)`, `max(c2)`, `sum(c1)` from output_downsampling_stb;', 'select _wstartts AS start, min(c1), max(c2), sum(c1) from downsampling_stb interval(10m);')
+
+    def bottom_function(self):
+        self.case_name = sys._getframe().f_code.co_name
+        self.write_latency(self.case_name)
+        # stb
+        self.tdSql.execute(f'create stream stb_bottom_stream into output_bottom_stb as select _wstartts AS start, bottom(c1, 2) from bottom_stb interval(10m);')
+        # ctb
+        self.tdSql.execute(f'create stream ctb_bottom_stream into output_bottom_ctb as select _wstartts AS start, bottom(c1, 2) from bottom_ct1 interval(10m);')
+        # tb
+        self.tdSql.execute(f'create stream tb_bottom_stream into output_bottom_tb as select _wstartts AS start, bottom(c1, 2) from bottom_tb interval(10m);')
+        for tbname in ["bottom_ct1", "bottom_tb"]:
+            self.tdSql.execute(f'insert into {tbname} values (1653547828591, 100, 100.1, "Beijing", True);')
+            self.tdSql.execute(f'insert into {tbname} values (1653547828591+1s, -100, -100.1, "Tianjin", False);')
+            self.tdSql.execute(f'insert into {tbname} values (1653547828591+2s, 50, 50.3, "HeBei", False);')
+
+        self.check_stream('select start, `bottom(c1, 2)` from output_bottom_stb;', 'select _wstartts AS start, bottom(c1, 2) from bottom_stb interval(10m);', 1)
+        self.check_stream('select start, `bottom(c1, 2)` from output_bottom_ctb;', 'select _wstartts AS start, bottom(c1, 2) from bottom_ct1 interval(10m);', 1)
+        self.check_stream('select start, `bottom(c1, 2)` from output_bottom_tb;', 'select _wstartts AS start, bottom(c1, 2) from bottom_tb interval(10m);', 1)
+        count = 1
+        step_count = 1
+        for i in range(1, 10):
+            if i % 2 == 0:
+                step_count += i
+                for j in range(count, step_count):
+                    self.tdSql.execute(f'insert into bottom_ct1 values (1653547828591+{j}0m, 60, 60.3, "heilongjiang", True);')
+                    self.tdSql.execute(f'insert into bottom_tb values (1653547828591+{j}1m, 70, 70.3, "heilongjiang", True);')
+                count += i
+            else:
+                step_count += 1
+                for i in range(2):
+                    self.tdSql.execute(f'insert into bottom_ct1 values (1653547828591+{count}1m, 60, 60.3, "heilongjiang", True);')
+                    self.tdSql.execute(f'insert into bottom_tb values (1653547828591+{count}1m, 70, 70.3, "heilongjiang", True);')
+                count += 1
+            # check result
+            self.check_stream('select start, `bottom(c1, 2)` from output_bottom_stb;', 'select _wstartts AS start, bottom(c1, 2) from bottom_stb interval(10m);', count)
+            self.check_stream('select start, `bottom(c1, 2)` from output_bottom_ctb;', 'select _wstartts AS start, bottom(c1, 2) from bottom_ct1 interval(10m);', count)
+            self.check_stream('select start, `bottom(c1, 2)` from output_bottom_tb;', 'select _wstartts AS start, bottom(c1, 2) from bottom_tb interval(10m);', count)
+
+    def top_function(self):
+        self.case_name = sys._getframe().f_code.co_name
+        self.write_latency(self.case_name)
+        # stb
+        self.tdSql.execute(f'create stream stb_top_stream into output_top_stb as select _wstartts AS start, top(c1, 3) from top_stb interval(10m);')
+        # ctb
+        self.tdSql.execute(f'create stream ctb_top_stream into output_top_ctb as select _wstartts AS start, top(c1, 3) from top_ct1 interval(10m);')
+        # tb
+        self.tdSql.execute(f'create stream tb_top_stream into output_top_tb as select _wstartts AS start, top(c1, 3) from top_tb interval(10m);')
+        for tbname in ["top_ct1", "top_tb"]:
+            self.tdSql.execute(f'insert into {tbname} values (1653547828591, 100, 100.1, "Beijing", True);')
+            self.tdSql.execute(f'insert into {tbname} values (1653547828591+1s, -100, -100.1, "Tianjin", False);')
+            self.tdSql.execute(f'insert into {tbname} values (1653547828591+2s, 50, 50.3, "HeBei", False);')
+
+        self.check_stream('select start, `top(c1, 3)` from output_top_stb;', 'select _wstartts AS start, top(c1, 3) from top_stb interval(10m);', 1)
+        self.check_stream('select start, `top(c1, 3)` from output_top_ctb;', 'select _wstartts AS start, top(c1, 3) from top_ct1 interval(10m);', 1)
+        self.check_stream('select start, `top(c1, 3)` from output_top_tb;', 'select _wstartts AS start, top(c1, 3) from top_tb interval(10m);', 1)
+        count = 1
+        step_count = 1
+        for i in range(1, 10):
+            if i % 2 == 0:
+                step_count += i
+                for j in range(count, step_count):
+                    self.tdSql.execute(f'insert into top_ct1 values (1653547828591+{j}0m, 60, 60.3, "heilongjiang", True);')
+                    self.tdSql.execute(f'insert into top_tb values (1653547828591+{j}1m, 70, 70.3, "heilongjiang", True);')
+                count += i
+            else:
+                step_count += 1
+                for i in range(2):
+                    self.tdSql.execute(f'insert into top_ct1 values (1653547828591+{count}1m, 60, 60.3, "heilongjiang", True);')
+                    self.tdSql.execute(f'insert into top_tb values (1653547828591+{count}1m, 70, 70.3, "heilongjiang", True);')
+                count += 1
+            # check result
+            self.check_stream('select start, `top(c1, 3)` from output_top_stb;', 'select _wstartts AS start, top(c1, 3) from top_stb interval(10m);', count)
+            self.check_stream('select start, `top(c1, 3)` from output_top_ctb;', 'select _wstartts AS start, top(c1, 3) from top_ct1 interval(10m);', count)
+            self.check_stream('select start, `top(c1, 3)` from output_top_tb;', 'select _wstartts AS start, top(c1, 3) from top_tb interval(10m);', count)
+
+    def state_window_function(self):
+        self.case_name = sys._getframe().f_code.co_name
+        self.write_latency(self.case_name)
+        # stb not supported
+        # self.tdSql.execute(f'create stream stb_state_window_stream into output_state_window_stb as select _wstartts AS start, max(c1) from state_window_stb state_window(c1);')
+        # ctb
+        self.tdSql.execute(f'create stream ctb_state_window_stream into output_state_window_ctb as select _wstartts AS start, min(c1), max(c2), sum(c1), first(c1), last(c1), apercentile(c1, 50) from state_window_ct1 state_window(c1);')
+        # tb
+        self.tdSql.execute(f'create stream tb_state_window_stream into output_state_window_tb as select _wstartts AS start, min(c1), max(c2), sum(c1), first(c1), last(c1), apercentile(c1, 50) from state_window_tb state_window(c1);')
+        for tbname in ["state_window_ct1", "state_window_tb"]:
+            self.tdSql.execute(f'insert into {tbname} values (1653547828591, 100, 100.1, "Beijing", True);')
+            self.tdSql.execute(f'insert into {tbname} values (1653547828591+1s, -100, -100.1, "Tianjin", False);')
+            self.tdSql.execute(f'insert into {tbname} values (1653547828591+2s, 50, 50.3, "HeBei", False);')
+
+        # self.check_stream('select start, `min(c1)` from output_state_window_stb;', 'select _wstartts AS start, max(c1) from state_window_stb state_window(c1);', 1)
+        self.check_stream('select start, `min(c1)`, `max(c2)`, `sum(c1)`, `first(c1)`, `last(c1)`, `apercentile(c1, 50)` from output_state_window_ctb;', 'select _wstartts AS start, min(c1), max(c2), sum(c1), first(c1), last(c1), apercentile(c1, 50) from state_window_ct1 state_window(c1);', 3)
+        self.check_stream('select start, `min(c1)`, `max(c2)`, `sum(c1)`, `first(c1)`, `last(c1)`, `apercentile(c1, 50)` from output_state_window_tb;', 'select _wstartts AS start, min(c1), max(c2), sum(c1), first(c1), last(c1), apercentile(c1, 50) from state_window_tb state_window(c1);', 3)
+        count = 3
+        step_count = 1
+        for i in range(1, 10):
+            if i % 2 == 0:
+                step_count += i
+                for j in range(count, step_count):
+                    self.tdSql.execute(f'insert into state_window_ct1 values (1653547828591+{j}0m, 60, 60.3, "heilongjiang", True);')
+                    self.tdSql.execute(f'insert into state_window_tb values (1653547828591+{j}1m, 70, 70.3, "heilongjiang", True);')
+                count += i
+            else:
+                step_count += 1
+                for i in range(2):
+                    self.tdSql.execute(f'insert into state_window_ct1 values (1653547828591+{count}1m, 60, 60.3, "heilongjiang", True);')
+                    self.tdSql.execute(f'insert into state_window_tb values (1653547828591+{count}1m, 70, 70.3, "heilongjiang", True);')
+                count += 1
+            # check result
+            # stb not supported
+            # self.check_stream('select start, `min(c1)` from output_state_window_stb;', 'select _wstartts AS start, max(c1) from state_window_stb state_window(c1);', 1)
+            self.check_stream('select start, `min(c1)`, `max(c2)`, `sum(c1)`, `first(c1)`, `last(c1)`, `apercentile(c1, 50)` from output_state_window_ctb;', 'select _wstartts AS start, min(c1), max(c2), sum(c1), first(c1), last(c1), apercentile(c1, 50) from state_window_ct1 state_window(c1);', 4)
+            self.check_stream('select start, `min(c1)`, `max(c2)`, `sum(c1)`, `first(c1)`, `last(c1)`, `apercentile(c1, 50)` from output_state_window_tb;', 'select _wstartts AS start, min(c1), max(c2), sum(c1), first(c1), last(c1), apercentile(c1, 50) from state_window_tb state_window(c1);', 4)
+
+    def session_window(self):
+        self.case_name = sys._getframe().f_code.co_name
+        self.write_latency(self.case_name)
+        function_list = ["min(c1)", "max(c2)", "sum(c1)", "first(c1)", "last(c1)", "apercentile(c1, 50)"]
+        for test_function in function_list:
+            # # stb
+            # self.tdSql.execute(f'create stream stb_session_window_stream into output_session_window_stb as select min(c1), max(c2), sum(c1), first(c1), last(c1), apercentile(c1, 50) from session_window_stb session(ts, 10m);')
+            # ctb
+            function_name = test_function.split('(')[0]
+            self.tdSql.execute(f'create stream ctb_session_window_{function_name}_stream into output_session_window_{function_name}_ctb as select ts, {test_function} from session_window_ct1 session(ts, 10m);')
+            # tb
+            self.tdSql.execute(f'create stream tb_session_window_{function_name}_stream into output_session_window_{function_name}_tb as select ts, {test_function} from session_window_tb session(ts, 10m);')
+            for tbname in ["session_window_ct1", "session_window_tb"]:
+                self.tdSql.execute(f'insert into {tbname} values (1653547828591, 100, 100.1, "Beijing", True);')
+                self.tdSql.execute(f'insert into {tbname} values (1653547828591+1s, -100, -100.1, "Tianjin", False);')
+                self.tdSql.execute(f'insert into {tbname} values (1653547828591+2s, 50, 50.3, "HeBei", False);')
+
+            # self.check_stream('select `min(c1)`, `max(c2)`, `sum(c1)`, `first(c1)`, `last(c1)`, `apercentile(c1, 50)` from output_session_window_stb;', 'select min(c1), max(c2), sum(c1), first(c1), last(c1), apercentile(c1, 50) from session_window_stb session(ts, 10m);', 1)
+            self.check_stream(f'select ts, `{test_function}` from output_session_window_{function_name}_ctb;', f'select ts, {test_function} from session_window_ct1 session(ts, 10m);', 2)
+            self.check_stream(f'select ts, `{test_function}` from output_session_window_{function_name}_tb;', f'select ts, {test_function} from session_window_tb session(ts, 10m);', 2)
+            # self.write_latency('sql: select * from output_session_window_stb;')
+
+            # self.check_stream_res('select * from output_session_window_stb;', 1)
+            # self.check_query_data('select `min(c1)`, `max(c2)`, `sum(c1)` from output_session_window_stb;', 'select min(c1), max(c2), sum(c1) from session_window_stb session(ts, 10m);')
+            count = 2
+            step_count = 1
+            for i in range(1, 10):
+                if i % 2 == 0:
+                    step_count += i
+                    for j in range(count, step_count):
+                        self.tdSql.execute(f'insert into session_window_ct1 values (1653547828591+{j}0m, 60, 60.3, "heilongjiang", True);')
+                        self.tdSql.execute(f'insert into session_window_tb values (1653547828591+{j}1m, 70, 70.3, "heilongjiang", True);')
+                    count += i
+                    # expectd_res = count - 1
+                else:
+                    step_count += 1
+                    for i in range(2):
+                        self.tdSql.execute(f'insert into session_window_ct1 values (1653547828591+{count}1m, 60, 60.3, "heilongjiang", True);')
+                        self.tdSql.execute(f'insert into session_window_tb values (1653547828591+{count}1m, 70, 70.3, "heilongjiang", True);')
+                    count += 1
+                    # expectd_res = count
+                # check result
+                # self.check_stream('select `min(c1)`, `max(c2)`, `sum(c1)`, `first(c1)`, `last(c1)`, `apercentile(c1, 50)` from output_session_window_stb;', 'select min(c1), max(c2), sum(c1), first(c1), last(c1), apercentile(c1, 50) from session_window_stb session(ts, 10m);', count)
+                self.check_stream(f'select ts, `{test_function}` from output_session_window_{function_name}_ctb;', f'select ts, {test_function} from session_window_ct1 session(ts, 10m);', count)
+                self.check_stream(f'select ts, `{test_function}` from output_session_window_{function_name}_tb;', f'select ts, {test_function} from session_window_tb session(ts, 10m);', count)
 
     def scalar_function(self):
         # self.prepare_stream_data()
@@ -449,13 +623,17 @@ class TestVgroups(TDCase):
 
     def run(self) -> bool:
         self.prepare_stream_data()
-        self.downsampling()
-        # ! TD-16145
-        # self.scalar_function()
-        self.data_filter()
-        self.life_cycle()
-        # self.stream_tandem()
-        # self.disorder_data()
+        # self.downsampling()
+        # self.bottom_function()
+        # self.top_function()
+        # self.state_window_function()
+        self.session_window()
+        # # ! TD-16145
+        # # self.scalar_function()
+        # # self.data_filter()
+        # self.life_cycle()
+        # # self.stream_tandem()
+        # # self.disorder_data()
 
     def cleanup(self):
         pass
