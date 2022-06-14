@@ -19,7 +19,7 @@
 #include "catalogInt.h"
 
 extern SCatalogMgmt gCtgMgmt;
-SCtgDebug gCTGDebug = {.apiEnable = true};
+SCtgDebug gCTGDebug = {0};
 
 void ctgdUserCallback(SMetaData* pResult, void* param, int32_t code) {
   ASSERT(*(int32_t*)param == 1);
@@ -266,11 +266,11 @@ int32_t ctgdGetStatNum(char *option, void *res) {
 }
 
 int32_t ctgdGetTbMetaNum(SCtgDBCache *dbCache) {
-  return dbCache->tbCache.metaCache ? (int32_t)taosHashGetSize(dbCache->tbCache.metaCache) : 0;
+  return dbCache->tbCache ? (int32_t)taosHashGetSize(dbCache->tbCache) : 0;
 }
 
 int32_t ctgdGetStbNum(SCtgDBCache *dbCache) {
-  return dbCache->tbCache.stbCache ? (int32_t)taosHashGetSize(dbCache->tbCache.stbCache) : 0;
+  return dbCache->stbCache ? (int32_t)taosHashGetSize(dbCache->stbCache) : 0;
 }
 
 int32_t ctgdGetRentNum(SCtgRentMgmt *rent) {
@@ -363,17 +363,17 @@ void ctgdShowDBCache(SCatalog* pCtg, SHashObj *dbHash) {
 
     dbFName = taosHashGetKey(pIter, &len);
 
-    int32_t metaNum = dbCache->tbCache.metaCache ? taosHashGetSize(dbCache->tbCache.metaCache) : 0;
-    int32_t stbNum = dbCache->tbCache.stbCache ? taosHashGetSize(dbCache->tbCache.stbCache) : 0;
+    int32_t metaNum = dbCache->tbCache ? taosHashGetSize(dbCache->tbCache) : 0;
+    int32_t stbNum = dbCache->stbCache ? taosHashGetSize(dbCache->stbCache) : 0;
     int32_t vgVersion = CTG_DEFAULT_INVALID_VERSION;
     int32_t hashMethod = -1;
     int32_t vgNum = 0;
 
-    if (dbCache->vgInfo) {
-      vgVersion = dbCache->vgInfo->vgVersion;
-      hashMethod = dbCache->vgInfo->hashMethod;
-      if (dbCache->vgInfo->vgHash) {
-        vgNum = taosHashGetSize(dbCache->vgInfo->vgHash);
+    if (dbCache->vgCache.vgInfo) {
+      vgVersion = dbCache->vgCache.vgInfo->vgVersion;
+      hashMethod = dbCache->vgCache.vgInfo->hashMethod;
+      if (dbCache->vgCache.vgInfo->vgHash) {
+        vgNum = taosHashGetSize(dbCache->vgCache.vgInfo->vgHash);
       }
     }
     

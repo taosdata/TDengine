@@ -78,6 +78,8 @@ _err:
 }
 
 int32_t tsdbCommit(STsdb *pTsdb) {
+  if (!pTsdb) return 0;
+  
   int32_t    code = 0;
   SCommitter commith;
   SMemTable *pMemTable = pTsdb->mem;

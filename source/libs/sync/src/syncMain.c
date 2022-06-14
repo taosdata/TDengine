@@ -1658,14 +1658,24 @@ static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
     syncTimeout2RpcMsg(pSyncMsg, &rpcMsg);
     syncRpcMsgLog2((char*)"==syncNodeEqHeartbeatTimer==", &rpcMsg);
     if (pSyncNode->FpEqMsg != NULL) {
-      pSyncNode->FpEqMsg(pSyncNode->msgcb, &rpcMsg);
+      int32_t code = pSyncNode->FpEqMsg(pSyncNode->msgcb, &rpcMsg);
+      if (code != 0) {
+        sError("vgId:%d sync enqueue timer msg error, code:%d", pSyncNode->vgId, code);
+        rpcFreeCont(rpcMsg.pCont);
+        return;
+      }
+
     } else {
       sTrace("syncNodeEqHeartbeatTimer pSyncNode->FpEqMsg is NULL");
     }
     syncTimeoutDestroy(pSyncMsg);
 
+    if (gSyncEnv != NULL) {
     taosTmrReset(syncNodeEqHeartbeatTimer, pSyncNode->heartbeatTimerMS, pSyncNode, gSyncEnv->pTimerManager,
                  &pSyncNode->pHeartbeatTimer);
+    } else {
+      sError("sync env is already stop");
+    }
   } else {
     sTrace("==syncNodeEqHeartbeatTimer== heartbeatTimerLogicClock:%" PRIu64 ", heartbeatTimerLogicClockUser:%" PRIu64
            "",
