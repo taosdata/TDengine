@@ -45,11 +45,11 @@ grep "^python" ../system-test/fulltest.sh |sed "s/^/,,system-test,/" >>$case_fil
 if [ $ent -eq 0 ]; then
     cd ../../../
     rm -rf TDengine.tar.gz
-    tar czf TDengine.tar.gz TDengine taos-connector-python --exclude=TDengine/debug
+    tar --exclude=TDengine/debug --exclude=TDengine/sim --exclude=TDengine/release -czf TDengine.tar.gz TDengine taos-connector-python
 else
     cd ../../../../
     rm -rf TDinternal.tar.gz
-    tar czf TDinternal.tar.gz TDinternal taos-connector-python --exclude=TDinternal/debug --exclude=TDinternal/community/debug
+    tar --exclude=TDinternal/debug --exclude=TDinternal/sim --exclude=TDinternal/community/debug --exclude=TDinternal/community/release -czf TDinternal.tar.gz TDinternal taos-connector-python
 fi
 
 exit 0
