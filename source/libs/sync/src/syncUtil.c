@@ -14,7 +14,6 @@
  */
 
 #include "syncUtil.h"
-#include <netdb.h>
 #include <stdio.h>
 
 #include "syncEnv.h"
@@ -24,6 +23,14 @@ void addEpIntoEpSet(SEpSet* pEpSet, const char* fqdn, uint16_t port);
 // ---- encode / decode
 uint64_t syncUtilAddr2U64(const char* host, uint16_t port) {
   uint64_t u64;
+
+  uint32_t hostU32 = taosGetIpv4FromFqdn(host);
+  if (hostU32 == (uint32_t)-1) {
+    sError("Get IP address error");
+    return -1;
+  }
+
+  /*
   uint32_t hostU32 = (uint32_t)taosInetAddr(host);
   if (hostU32 == (uint32_t)-1) {
     struct hostent* hostEnt = gethostbyname(host);
@@ -39,6 +46,8 @@ uint64_t syncUtilAddr2U64(const char* host, uint16_t port) {
     }
     // ASSERT(hostU32 != (uint32_t)-1);
   }
+  */
+
   u64 = (((uint64_t)hostU32) << 32) | (((uint32_t)port) << 16);
   return u64;
 }
