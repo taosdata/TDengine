@@ -1415,7 +1415,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
     int32_t bytes = *(int32_t*)p;
     p += sizeof(int32_t);
 
-    ASSERT(type == pFields[i].type && bytes == pFields[i].bytes);
+    /*ASSERT(type == pFields[i].type && bytes == pFields[i].bytes);*/
   }
 
   int32_t* colLength = (int32_t*)p;
