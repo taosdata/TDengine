@@ -291,7 +291,6 @@ int32_t mndAddStreamToTrans(SMnode *pMnode, SStreamObj *pStream, const char *ast
 static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStreamObj *pStream, const char *user) {
   SStbObj  *pStb = NULL;
   SDbObj   *pDb = NULL;
-  SUserObj *pUser = NULL;
 
   SMCreateStbReq createReq = {0};
   tstrncpy(createReq.name, pStream->targetSTbName, TSDB_TABLE_FNAME_LEN);
@@ -333,12 +332,8 @@ static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStre
     goto _OVER;
   }
 
-  pUser = mndAcquireUser(pMnode, user);
-  if (pUser == NULL) {
-    goto _OVER;
-  }
 
-  if (mndCheckWriteAuth(pUser, pDb) != 0) {
+  if (mndCheckDbAuth(pMnode, user, MND_OPER_WRITE_DB, pDb) != 0) {
     goto _OVER;
   }
 
@@ -366,7 +361,6 @@ static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStre
 _OVER:
   mndReleaseStb(pMnode, pStb);
   mndReleaseDb(pMnode, pDb);
-  mndReleaseUser(pMnode, pUser);
   return -1;
 }
 
@@ -435,19 +429,18 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   int32_t            code = -1;
   SStreamObj        *pStream = NULL;
   SDbObj            *pDb = NULL;
-  SUserObj          *pUser = NULL;
   SCMCreateStreamReq createStreamReq = {0};
 
   if (tDeserializeSCMCreateStreamReq(pReq->pCont, pReq->contLen, &createStreamReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
-    goto CREATE_STREAM_OVER;
+    goto _OVER;
   }
 
   mDebug("stream:%s, start to create, sql:%s", createStreamReq.name, createStreamReq.sql);
 
   if (mndCheckCreateStreamReq(&createStreamReq) != 0) {
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
-    goto CREATE_STREAM_OVER;
+    goto _OVER;
   }
 
   pStream = mndAcquireStream(pMnode, createStreamReq.name);
@@ -455,41 +448,35 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     if (createStreamReq.igExists) {
       mDebug("stream:%s, already exist, ignore exist is set", createStreamReq.name);
       code = 0;
-      goto CREATE_STREAM_OVER;
+      goto _OVER;
     } else {
       terrno = TSDB_CODE_MND_STREAM_ALREADY_EXIST;
-      goto CREATE_STREAM_OVER;
+      goto _OVER;
     }
   } else if (terrno != TSDB_CODE_MND_STREAM_NOT_EXIST) {
-    goto CREATE_STREAM_OVER;
+    goto _OVER;
   }
 
   pDb = mndAcquireDb(pMnode, createStreamReq.sourceDB);
   if (pDb == NULL) {
     terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
-    goto CREATE_STREAM_OVER;
+    goto _OVER;
   }
 
-  pUser = mndAcquireUser(pMnode, pReq->conn.user);
-  if (pUser == NULL) {
-    goto CREATE_STREAM_OVER;
-  }
-
-  if (mndCheckWriteAuth(pUser, pDb) != 0) {
-    goto CREATE_STREAM_OVER;
+  if (mndCheckDbAuth(pMnode, pReq->conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
+    goto _OVER;
   }
 
   code = mndCreateStream(pMnode, pReq, &createStreamReq, pDb);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-CREATE_STREAM_OVER:
+_OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
   }
 
   mndReleaseStream(pMnode, pStream);
   mndReleaseDb(pMnode, pDb);
-  mndReleaseUser(pMnode, pUser);
 
   tFreeSCMCreateStreamReq(&createStreamReq);
   return code;

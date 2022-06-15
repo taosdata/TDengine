@@ -226,6 +226,9 @@ typedef struct {
   int64_t   createdTime;
   int64_t   updateTime;
   int8_t    superUser;
+  int8_t    sysInfo;
+  int8_t    enable;
+  int8_t    reserve;
   int32_t   acctId;
   int32_t   authVersion;
   SHashObj* readDbs;

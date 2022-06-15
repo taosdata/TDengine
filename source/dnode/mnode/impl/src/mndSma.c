@@ -631,7 +631,6 @@ static int32_t mndProcessCreateSmaReq(SRpcMsg *pReq) {
   SSmaObj       *pSma = NULL;
   SStreamObj    *pStream = NULL;
   SDbObj        *pDb = NULL;
-  SUserObj      *pUser = NULL;
   SMCreateSmaReq createReq = {0};
 
   if (tDeserializeSMCreateSmaReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
@@ -675,12 +674,7 @@ static int32_t mndProcessCreateSmaReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  pUser = mndAcquireUser(pMnode, pReq->conn.user);
-  if (pUser == NULL) {
-    goto _OVER;
-  }
-
-  if (mndCheckWriteAuth(pUser, pDb) != 0) {
+  if (mndCheckDbAuth(pMnode, pReq->conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
     goto _OVER;
   }
 
@@ -696,7 +690,6 @@ _OVER:
   mndReleaseSma(pMnode, pSma);
   mndReleaseStream(pMnode, pStream);
   mndReleaseDb(pMnode, pDb);
-  mndReleaseUser(pMnode, pUser);
   tFreeSMCreateSmaReq(&createReq);
 
   return code;
@@ -913,7 +906,6 @@ _OVER:
 static int32_t mndProcessDropSmaReq(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;
   int32_t      code = -1;
-  SUserObj    *pUser = NULL;
   SDbObj      *pDb = NULL;
   SSmaObj     *pSma = NULL;
   SMDropSmaReq dropReq = {0};
@@ -943,12 +935,7 @@ static int32_t mndProcessDropSmaReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  pUser = mndAcquireUser(pMnode, pReq->conn.user);
-  if (pUser == NULL) {
-    goto _OVER;
-  }
-
-  if (mndCheckWriteAuth(pUser, pDb) != 0) {
+  if (mndCheckDbAuth(pMnode, pReq->conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
     goto _OVER;
   }
 
@@ -961,9 +948,6 @@ _OVER:
   }
 
   mndReleaseDb(pMnode, pDb);
-  mndReleaseSma(pMnode, pSma);
-  mndReleaseUser(pMnode, pUser);
-
   return code;
 }
 
