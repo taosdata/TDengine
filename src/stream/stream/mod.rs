@@ -9,6 +9,8 @@ use std::{
 
 use taos::prelude::{SchemalessPrecision, SyncBlock, Taos, Value};
 
+use super::transformer::Action;
+
 #[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub enum SinkProtocol {
@@ -51,6 +53,8 @@ where
 {
     type Error: std::error::Error;
     fn from_dsn<T: IntoDsn>(dsn: T) -> Result<Self, Self::Error>;
+
+    fn with_transformer(self, transformers: Vec<Action>) -> Self;
 
     fn build_sink(&self) -> Result<XSink<Self::Error>, Self::Error>;
 

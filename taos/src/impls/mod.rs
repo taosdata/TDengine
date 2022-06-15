@@ -29,8 +29,8 @@ pub enum Error {
     InvalidDatabase(String),
     #[error("Error: {0}")]
     Custom(String),
-    // #[error(transparent)]
-    // Other(#[from] anyhow::Error),
+    #[error(transparent)]
+    Other(#[from] anyhow::Error),
 }
 
 impl Error {

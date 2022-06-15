@@ -139,6 +139,16 @@ impl TmqBuilder {
         _set_opt!(password, "pass");
         _set_opt!(database, "db");
 
+        if let Some(addr) = dsn.addresses.first() {
+            if let Some(host) = addr.host.as_ref() {
+                conf.set("td.connect.ip", host)?;
+            }
+            if let Some(port) = addr.port.as_ref() {
+                conf.set("td.connect.port", format!("{}", port))?;
+            }
+        }
+        conf.set("msg.with.table.name", "true")?;
+
         // let tmq_params = dsn.params.iter_mut().filter(|(k, _)| k.contains(".")).collect();
         let mut conf = conf.with(dsn.params.iter().filter(|(k, _)| k.contains(".")))?;
         // conf.set("msg.with.table.name".to_string(), "true".to_string()).unwrap();
@@ -147,7 +157,7 @@ impl TmqBuilder {
             .params
             .get("wait")
             .and_then(|s| s.parse().ok())
-            .unwrap_or(0);
+            .unwrap_or(100);
         log::debug!("with wait time {wait}ms");
         let mut topics = TmqList::new();
         if let Some(t) = dsn.params.get("topics") {

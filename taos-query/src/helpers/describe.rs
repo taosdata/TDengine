@@ -1,4 +1,8 @@
-use std::{fmt, ops::Deref, str::FromStr};
+use std::{
+    fmt,
+    ops::{Deref, DerefMut},
+    str::FromStr,
+};
 
 use serde::{
     de::{self, MapAccess, SeqAccess, Visitor},
@@ -46,6 +50,14 @@ impl Deref for ColumnMeta {
     }
 }
 
+impl DerefMut for ColumnMeta {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match self {
+            ColumnMeta::Column(v) => v,
+            ColumnMeta::Tag(v) => v,
+        }
+    }
+}
 unsafe impl Send for ColumnMeta {}
 impl<'de> Deserialize<'de> for ColumnMeta {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>

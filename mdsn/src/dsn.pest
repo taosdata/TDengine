@@ -34,7 +34,7 @@ varchar = { ASCII_ALPHANUMERIC | "." | "_" | "-" | "%" | "," }
 value = { varchar* }
 param = { name ~ "=" ~ value }
 
-database_char = { nondot | "," }
+database_char = { nondot | "," | "_" }
 database = { database_char+ }
 
 dsn = {
