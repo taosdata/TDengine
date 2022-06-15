@@ -413,6 +413,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INVALID_MSGLEN,           "Invalid msg length")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INVALID_MSGTYPE,          "Invalid msg type")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_NOT_LEADER,               "Sync not leader")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_ONE_REPLICA,              "Sync one replica")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_NOT_IN_NEW_CONFIG,        "Sync not in new config")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INTERNAL_ERROR,           "Sync internal error")
 
 // wal
