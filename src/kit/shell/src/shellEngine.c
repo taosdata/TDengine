@@ -73,7 +73,6 @@ void shellInit(SShellArguments *_args) {
   }
 
   if (_args->restful) {
-    _args->database = calloc(1, 128);
     if (wsclient_handshake()) {
       exit(EXIT_FAILURE);
     }
@@ -1267,9 +1266,9 @@ int wsclient_send_sql(char *command, WS_ACTION_TYPE type, int id) {
   switch (type) {
     case WS_CONN:
       cJSON_AddStringToObject(json, "action", "conn");
-      cJSON_AddStringToObject(_args, "user", "root");
-      cJSON_AddStringToObject(_args, "password", "taosdata");
-      cJSON_AddStringToObject(_args, "db", "");
+      cJSON_AddStringToObject(_args, "user", args.user);
+      cJSON_AddStringToObject(_args, "password", args.password);
+      cJSON_AddStringToObject(_args, "db", args.database);
 
       break;
     case WS_QUERY:
@@ -1322,6 +1321,7 @@ int wsclient_conn() {
   }
   if (code->valueint == 0) {
     cJSON_Delete(root);
+    fprintf(stdout, "Successfully connect to %s in taos shell restful mode\n", args.host);
     return 0;
   } else {
     cJSON *message = cJSON_GetObjectItem(root, "message");

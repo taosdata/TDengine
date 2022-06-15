@@ -111,6 +111,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       arguments->auth = arg;
       break;
     case 'c':
+      args.restful = false;
       if (wordexp(arg, &full_path, 0) != 0) {
         fprintf(stderr, "Invalid path %s\n", arg);
         return -1;
