@@ -40,7 +40,7 @@ taostest --use=common_insert.yaml --case=taosc_insert/multi_process_run.py --kee
 taostest --use=common_insert.yaml --case=taosc_insert/multi_table_insert.py --keep --containers
 # taostest --use=common_insert.yaml --case=taosc_insert/multi_threads_test.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/nchar_boundary_check.py --keep --containers
-taostest --use=common_insert.yaml --case=taosc_insert/null_check.py --keep --containers
+# taostest --use=common_insert.yaml --case=taosc_insert/null_check.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/smallint_boundary_check.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/specified_column_insert.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/stable_param_comment.py --keep --containers
