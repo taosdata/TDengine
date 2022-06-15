@@ -171,7 +171,7 @@ sql_error create topic t1 partitions -1;
 sql_error create topic t1 partitions 10001;
 
 print =============step3 create with db para
-sql create topic db cache 2 blocks 4 days 10 keep 20 minRows 300 maxRows 400 ctime 120 precision 'ms' comp 2 wal 1 replica 1
+sql create topic db cache 2 blocks 4 duration 10 keep 20 minRows 300 maxRows 400 ctime 120 precision 'ms' comp 2 wal 1 replica 1
 sql show databases
 if $data00 != db then 
   return -1
@@ -199,7 +199,7 @@ if $data09 != 4 then
 endi
 sql drop topic db;
 
-sql create topic db cache 2 blocks 4 days 10 keep 20 minRows 300 maxRows 400 ctime 120 precision 'ms' comp 2 wal 1 replica 1 partitions 7
+sql create topic db cache 2 blocks 4 duration 10 keep 20 minRows 300 maxRows 400 ctime 120 precision 'ms' comp 2 wal 1 replica 1 partitions 7
 sql show databases
 if $data00 != db then 
   return -1
@@ -334,19 +334,19 @@ sql_error alter topic db quorum 4
 sql_error alter topic db quorum 5
 sql_error alter topic db quorum -1
 
-print ============== step days
-sql_error alter database db days 0
-sql_error alter database db days 1
-sql_error alter database db days 2
-sql_error alter database db days 10
-sql_error alter database db days 50
-sql_error alter database db days 100
-sql_error alter topic db days 0
-sql_error alter topic db days 1
-sql_error alter topic db days 2
-sql_error alter topic db days 10
-sql_error alter topic db days 50
-sql_error alter topic db days 100
+print ============== step duration
+sql_error alter database db duration 0
+sql_error alter database db duration 1
+sql_error alter database db duration 2
+sql_error alter database db duration 10
+sql_error alter database db duration 50
+sql_error alter database db duration 100
+sql_error alter topic db duration 0
+sql_error alter topic db duration 1
+sql_error alter topic db duration 2
+sql_error alter topic db duration 10
+sql_error alter topic db duration 50
+sql_error alter topic db duration 100
 
 print ============== step keep
 sql show databases
