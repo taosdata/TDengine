@@ -1743,16 +1743,26 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
     syncTimeout2RpcMsg(pSyncMsg, &rpcMsg);
     syncRpcMsgLog2((char*)"==syncNodeEqElectTimer==", &rpcMsg);
     if (pSyncNode->FpEqMsg != NULL) {
-      pSyncNode->FpEqMsg(pSyncNode->msgcb, &rpcMsg);
+      int32_t code = pSyncNode->FpEqMsg(pSyncNode->msgcb, &rpcMsg);
+      if (code != 0) {
+        sError("vgId:%d sync enqueue elect msg error, code:%d", pSyncNode->vgId, code);
+        rpcFreeCont(rpcMsg.pCont);
+        syncTimeoutDestroy(pSyncMsg);
+        return;
+      }
     } else {
-      sTrace("syncNodeEqElectTimer pSyncNode->FpEqMsg is NULL");
+      sTrace("syncNodeEqElectTimer FpEqMsg is NULL");
     }
     syncTimeoutDestroy(pSyncMsg);
 
     // reset timer ms
-    pSyncNode->electTimerMS = syncUtilElectRandomMS(pSyncNode->electBaseLine, 2 * pSyncNode->electBaseLine);
-    taosTmrReset(syncNodeEqElectTimer, pSyncNode->electTimerMS, pSyncNode, gSyncEnv->pTimerManager,
-                 &pSyncNode->pElectTimer);
+    if (gSyncEnv != NULL) {
+      pSyncNode->electTimerMS = syncUtilElectRandomMS(pSyncNode->electBaseLine, 2 * pSyncNode->electBaseLine);
+      taosTmrReset(syncNodeEqElectTimer, pSyncNode->electTimerMS, pSyncNode, gSyncEnv->pTimerManager,
+                   &pSyncNode->pElectTimer);
+    } else {
+      sError("sync env elect is already stop");
+    }
   } else {
     sTrace("==syncNodeEqElectTimer== electTimerLogicClock:%" PRIu64 ", electTimerLogicClockUser:%" PRIu64 "",
            pSyncNode->electTimerLogicClock, pSyncNode->electTimerLogicClockUser);
@@ -1774,19 +1784,19 @@ static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
       if (code != 0) {
         sError("vgId:%d sync enqueue timer msg error, code:%d", pSyncNode->vgId, code);
         rpcFreeCont(rpcMsg.pCont);
+        syncTimeoutDestroy(pSyncMsg);
         return;
       }
-
     } else {
-      sTrace("syncNodeEqHeartbeatTimer pSyncNode->FpEqMsg is NULL");
+      sError("syncNodeEqHeartbeatTimer FpEqMsg is NULL");
     }
     syncTimeoutDestroy(pSyncMsg);
 
     if (gSyncEnv != NULL) {
-    taosTmrReset(syncNodeEqHeartbeatTimer, pSyncNode->heartbeatTimerMS, pSyncNode, gSyncEnv->pTimerManager,
-                 &pSyncNode->pHeartbeatTimer);
+      taosTmrReset(syncNodeEqHeartbeatTimer, pSyncNode->heartbeatTimerMS, pSyncNode, gSyncEnv->pTimerManager,
+                   &pSyncNode->pHeartbeatTimer);
     } else {
-      sError("sync env is already stop");
+      sError("sync env heartbeat is already stop");
     }
   } else {
     sTrace("==syncNodeEqHeartbeatTimer== heartbeatTimerLogicClock:%" PRIu64 ", heartbeatTimerLogicClockUser:%" PRIu64
