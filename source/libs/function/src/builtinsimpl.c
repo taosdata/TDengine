@@ -2385,6 +2385,7 @@ int32_t firstFunction(SqlFunctionCtx* pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pInputCol = pInput->pData[0];
 
+  int32_t type  = pInputCol->info.type;
   int32_t bytes = pInputCol->info.bytes;
   pInfo->bytes  = bytes;
 
@@ -2421,6 +2422,10 @@ int32_t firstFunction(SqlFunctionCtx* pCtx) {
       TSKEY cts = getRowPTs(pInput->pPTS, i);
 
       if (pResInfo->numOfRes == 0 || *(TSKEY*)(pInfo->buf + bytes) > cts) {
+        if (IS_VAR_DATA_TYPE(type)) {
+          bytes = varDataTLen(data);
+          pInfo->bytes = bytes;
+        }
         memcpy(pInfo->buf, data, bytes);
         *(TSKEY*)(pInfo->buf + bytes) = cts;
         pInfo->hasResult = true;
@@ -2451,6 +2456,10 @@ int32_t firstFunction(SqlFunctionCtx* pCtx) {
       TSKEY cts = getRowPTs(pInput->pPTS, i);
 
       if (pResInfo->numOfRes == 0 || *(TSKEY*)(pInfo->buf + bytes) > cts) {
+        if (IS_VAR_DATA_TYPE(type)) {
+          bytes = varDataTLen(data);
+          pInfo->bytes = bytes;
+        }
         memcpy(pInfo->buf, data, bytes);
         *(TSKEY*)(pInfo->buf + bytes) = cts;
         pInfo->hasResult = true;
@@ -2474,6 +2483,7 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pInputCol = pInput->pData[0];
 
+  int32_t type  = pInputCol->info.type;
   int32_t bytes = pInputCol->info.bytes;
   pInfo->bytes  = bytes;
 
@@ -2501,6 +2511,10 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
       char* data = colDataGetData(pInputCol, i);
       TSKEY cts = getRowPTs(pInput->pPTS, i);
       if (pResInfo->numOfRes == 0 || *(TSKEY*)(pInfo->buf + bytes) < cts) {
+        if (IS_VAR_DATA_TYPE(type)) {
+          bytes = varDataTLen(data);
+          pInfo->bytes = bytes;
+        }
         memcpy(pInfo->buf, data, bytes);
         *(TSKEY*)(pInfo->buf + bytes) = cts;
         //        DO_UPDATE_TAG_COLUMNS(pCtx, ts);
@@ -2520,6 +2534,10 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
       char* data = colDataGetData(pInputCol, i);
       TSKEY cts = getRowPTs(pInput->pPTS, i);
       if (pResInfo->numOfRes == 0 || *(TSKEY*)(pInfo->buf + bytes) < cts) {
+        if (IS_VAR_DATA_TYPE(type)) {
+          bytes = varDataTLen(data);
+          pInfo->bytes = bytes;
+        }
         memcpy(pInfo->buf, data, bytes);
         *(TSKEY*)(pInfo->buf + bytes) = cts;
         pInfo->hasResult = true;

@@ -365,7 +365,9 @@ typedef struct SCatchSupporter {
 } SCatchSupporter;
 
 typedef struct SStreamAggSupporter {
-  SArray*        pResultRows;
+  SHashObj*      pResultRows;
+  SArray*        pCurWins;
+  int32_t        valueSize;
   int32_t        keySize;
   char*          pKeyBuf;              // window key buffer
   SDiskbasedBuf* pResultBuf;           // query result buffer based on blocked-wised disk file
@@ -899,9 +901,9 @@ int32_t getNumOfRowsInTimeWindow(SDataBlockInfo* pDataBlockInfo, TSKEY* pPrimary
     __block_search_fn_t searchFn, STableQueryInfo* item, int32_t order);
 int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order);
 int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, const char* pKey,
-    SqlFunctionCtx* pCtx, int32_t numOfOutput, size_t size);
+    SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t size);
 SResultRow* getNewResultRow(SDiskbasedBuf* pResultBuf, int64_t tableGroupId, int32_t interBufSize);
-SResultWindowInfo* getSessionTimeWindow(SArray* pWinInfos, TSKEY ts, int64_t gap, int32_t* pIndex);
+SResultWindowInfo* getSessionTimeWindow(SStreamAggSupporter* pAggSup, TSKEY ts, uint64_t groupId, int64_t gap, int32_t* pIndex);
 int32_t updateSessionWindowInfo(SResultWindowInfo* pWinInfo, TSKEY* pTs, int32_t rows,
     int32_t start, int64_t gap, SHashObj* pStDeleted);
 bool functionNeedToExecute(SqlFunctionCtx* pCtx);
