@@ -1078,6 +1078,8 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
   if (numOfActions == 0) return code;
   if (pTrans->redoActionPos >= numOfActions) return code;
 
+  int32_t retryTimes = 0;
+
   for (int32_t action = pTrans->redoActionPos; action < numOfActions; ++action) {
     STransAction *pAction = taosArrayGet(pTrans->redoActions, pTrans->redoActionPos);
 
@@ -1126,17 +1128,26 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
         pTrans->code = terrno;
         mError("trans:%d, %s:%d is executed and failed to sync to other mnodes since %s", pTrans->id,
                mndTransStr(pAction->stage), pAction->id, terrstr());
-        break;
+        if (retryTimes >= 3)
+          break;
+        else
+          continue;
       }
+      retryTimes = 0;
     } else if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
       mDebug("trans:%d, %s:%d is in progress and wait it finish", pTrans->id, mndTransStr(pAction->stage), pAction->id);
       break;
     } else {
       terrno = code;
       pTrans->code = code;
-      mError("trans:%d, %s:%d failed to execute since %s", pTrans->id, mndTransStr(pAction->stage), pAction->id,
-             terrstr());
-      break;
+      pAction->epSet.inUse++;
+      if (pAction->epSet.inUse >= pAction->epSet.numOfEps) pAction->epSet.inUse = 0;
+      mError("trans:%d, %s:%d failed to execute since %s, inUse set to %d", pTrans->id, mndTransStr(pAction->stage),
+             pAction->id, terrstr(), pAction->epSet.inUse);
+      if (retryTimes >= 3)
+        break;
+      else
+        continue;
     }
   }
 

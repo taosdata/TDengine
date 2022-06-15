@@ -72,7 +72,19 @@ static int32_t vnodeProcessAlterReplicaReq(SVnode *pVnode, SRpcMsg *pMsg) {
     return -1;
   }
 
-  return syncPropose(pVnode->sync, &rpcMsg, false);
+  int32_t code = syncPropose(pVnode->sync, &rpcMsg, false);
+  if (code != 0) {
+    vDebug("vgId:%d, failed to propose reconfig msg since %s", TD_VID(pVnode), terrstr());
+    if (syncLeaderTransfer(pVnode->sync) != 0) {
+      vError("vgId:%d, failed to transfer leader since %s", TD_VID(pVnode), terrstr());
+    } else {
+      vDebug("vgId:%d, transfer leader success, propose reconfig config again", TD_VID(pVnode));
+      taosMsleep(10);
+      code = syncPropose(pVnode->sync, &rpcMsg, false);
+    }
+  }
+
+  return code;
 }
 
 void vnodeProposeMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
