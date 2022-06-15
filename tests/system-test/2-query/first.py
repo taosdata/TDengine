@@ -26,7 +26,35 @@ class TDTestCase:
 
         self.rowNum = 10
         self.ts = 1537146000000
+        self.binary_str = 'taosdata'
+        self.nchar_str = '涛思数据'
+    def first_check_base(self):
+        tdSql.prepare()
+
+        tdSql.execute('''create table stb(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 tinyint unsigned, col6 smallint unsigned, 
+                    col7 int unsigned, col8 bigint unsigned, col9 float, col10 double, col11 bool, col12 binary(20), col13 nchar(20)) tags(loc nchar(20))''')
+        tdSql.execute("create table stb_1 using stb tags('beijing')")
+        tdSql.execute("insert into stb_1(ts) values(%d)" % (self.ts - 1))
         
+        for i in ['stb_1','db.stb_1','stb_1','db.stb_1']:
+            tdSql.query(f"select first(*) from {i}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, None)
+        #!bug TD-16561
+        # for i in ['stb','db.stb','stb','db.stb']:
+        #     tdSql.query(f"select first(*) from {i}")
+        #     tdSql.checkRows(1)
+        #     tdSql.checkData(0, 1, None)
+        for i in range(1, 14):
+            for j in ['stb_1','db.stb_1','stb_1','db.stb_1']:
+                tdSql.query(f"select first(col{i}) from {j}")
+                tdSql.checkRows(0)
+        for i in range(self.rowNum):
+            tdSql.execute(f"insert into stb_1 values(%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '{self.binary_str}%d', '{self.nchar_str}%d')"
+                          % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1))
+        
+
+        pass
     def run(self):
         tdSql.prepare()
 
@@ -40,6 +68,7 @@ class TDTestCase:
         tdSql.query("select first(*) from test1")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, None)
+        
 
         tdSql.query("select first(col1) from test1")
         tdSql.checkRows(0)        
