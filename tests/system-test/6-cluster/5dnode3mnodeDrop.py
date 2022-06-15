@@ -275,8 +275,25 @@ class TDTestCase:
             for i in range(1,3):
                 tdLog.debug("drop mnode on dnode %d"%(i+1))
                 tdSql.execute("drop mnode on dnode %d"%(i+1))
+                tdSql.query("show mnodes;")
+                count=0
+                while count<10:
+                    time.sleep(1)
+                    tdSql.query("show mnodes;")
+                    if tdSql.checkRows(2):
+                        print("drop mnode %d successfully"%(i+1))
+                        break
+                    count+=1
                 tdLog.debug("create mnode on dnode %d"%(i+1))
                 tdSql.execute("create mnode on dnode %d"%(i+1))
+                count=0
+                while count<10:
+                    time.sleep(1)
+                    tdSql.query("show mnodes;")
+                    if tdSql.checkRows(3):
+                        print("drop mnode %d successfully"%(i+1))
+                        break
+                    count+=1
             dropcount+=1
         self.check3mnode()
 
