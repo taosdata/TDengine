@@ -1347,13 +1347,11 @@ int32_t mndKillTrans(SMnode *pMnode, STrans *pTrans) {
 
   for (int32_t i = 0; i < taosArrayGetSize(pArray); ++i) {
     STransAction *pAction = taosArrayGet(pArray, i);
-    if (pAction->errCode != 0) {
-      mInfo("trans:%d, %s:%d set processed for kill msg received, errCode from %s to success", pTrans->id,
-            mndTransStr(pAction->stage), i, tstrerror(pAction->errCode));
-      pAction->msgSent = 1;
-      pAction->msgReceived = 1;
-      pAction->errCode = 0;
-    }
+    mInfo("trans:%d, %s:%d set processed for kill msg received, errCode from %s to success", pTrans->id,
+          mndTransStr(pAction->stage), i, tstrerror(pAction->errCode));
+    pAction->msgSent = 1;
+    pAction->msgReceived = 1;
+    pAction->errCode = 0;
   }
 
   mndTransExecute(pMnode, pTrans);
