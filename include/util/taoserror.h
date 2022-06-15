@@ -702,6 +702,7 @@ int32_t* taosGetErrno();
 //index
 #define TSDB_CODE_INDEX_REBUILDING               TAOS_DEF_ERROR_CODE(0, 0x3200)
 
+
 #ifdef __cplusplus
 }
 #endif

@@ -53,7 +53,7 @@ class TDTestCase:
         # fisrt add data : db\stable\childtable\general table
         for couti in count:
             tdSql.execute("drop database if exists db%d" %couti)
-            tdSql.execute("create database if not exists db%d replica 1 days 300" %couti)
+            tdSql.execute("create database if not exists db%d replica 1 duration 300" %couti)
             tdSql.execute("use db%d" %couti)
             tdSql.execute(
             '''create table stb1
@@ -230,7 +230,7 @@ class TDTestCase:
 
 
 
-    def five_dnode_three_mnode(self,dnodenumber):
+    def five_dnode_three_mnode(self):
         tdSql.query("show dnodes;")
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(4,1,'%s:6430'%self.host)
@@ -260,7 +260,9 @@ class TDTestCase:
         dropcount =0 
         while dropcount <= 10:
             for i in range(1,3):
+                tdLog.debug("drop mnode on dnode %d"%(i+1))
                 tdSql.execute("drop mnode on dnode %d"%(i+1))
+                tdLog.debug("create mnode on dnode %d"%(i+1))
                 tdSql.execute("create mnode on dnode %d"%(i+1))
             dropcount+=1
         self.check3mnode()
@@ -276,7 +278,7 @@ class TDTestCase:
     def run(self): 
         # print(self.master_dnode.cfgDict)
         self.buildcluster(5)
-        self.five_dnode_three_mnode(5)
+        self.five_dnode_three_mnode()
 
     def stop(self):
         tdSql.close()

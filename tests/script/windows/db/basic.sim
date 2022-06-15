@@ -17,7 +17,7 @@ $db = $dbPrefix . $i
 $tb = $tbPrefix . $i
 
 print =============== step1
-sql create database $db replica 1 days 20 keep 2000 cache 16
+sql create database $db replica 1 duration 20 keep 2000 cache 16
 sql show databases
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07
 if $data00 != $db then 
@@ -57,7 +57,7 @@ print =============== step4
 sql_error drop database $db
 
 print =============== step5
-sql create database $db replica 1 days 15 keep 1500
+sql create database $db replica 1 duration 15 keep 1500
 sql show databases
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07
 if $data00 != $db then 
