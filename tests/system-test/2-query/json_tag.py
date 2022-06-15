@@ -243,7 +243,6 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.query("select * from jsons1 where jtag->'tag2'!='beijing'")
         tdSql.checkRows(5)
-	#open 
         tdSql.query("select * from jsons1 where jtag->'tag2'=''")
         tdSql.checkRows(2)
         #
@@ -253,7 +252,6 @@ class TDTestCase:
         tdSql.checkData(0, 1, 2)
         tdSql.query("select * from jsons1 where jtag->'tag1'=10")
         tdSql.checkRows(0)
-	# open 
         tdSql.query("select * from jsons1 where jtag->'tag1'<54")
         tdSql.checkRows(4)
         tdSql.query("select * from jsons1 where jtag->'tag1'<=11")
@@ -270,7 +268,6 @@ class TDTestCase:
         # # where json value is double
         tdSql.query("select * from jsons1 where jtag->'tag1'=1.232")
         tdSql.checkRows(1)
-	# open
         tdSql.query("select * from jsons1 where jtag->'tag1'<1.232")
         tdSql.checkRows(1)
         tdSql.query("select * from jsons1 where jtag->'tag1'<=1.232")
@@ -279,7 +276,6 @@ class TDTestCase:
         tdSql.checkRows(3)
         tdSql.query("select * from jsons1 where jtag->'tag1'>=1.232")
         tdSql.checkRows(3)
-	# open
         tdSql.query("select * from jsons1 where jtag->'tag1'!=1.232")
         tdSql.checkRows(6)
         tdSql.query("select * from jsons1 where jtag->'tag1'!=3.232")
@@ -289,7 +285,6 @@ class TDTestCase:
         #
         # # where json value is bool
         tdSql.query("select * from jsons1 where jtag->'tag1'=true")
-	# open
         tdSql.checkRows(0)
         #tdSql.query("select * from jsons1 where jtag->'tag1'=false")
         #tdSql.checkRows(1)
@@ -303,7 +298,6 @@ class TDTestCase:
         #tdSql.checkRows(1)
         #
         # # where json key is null
-	# open
         tdSql.query("select * from jsons1 where jtag->'tag_no_exist'=3")
         tdSql.checkRows(0)
         #
