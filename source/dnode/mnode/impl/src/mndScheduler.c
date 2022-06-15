@@ -387,6 +387,9 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
       // input
       pFinalTask->inputType = TASK_INPUT_TYPE__DATA_BLOCK;
 
+      // trigger
+      pFinalTask->triggerParam = pStream->triggerParam;
+
       // dispatch
       if (mndAddDispatcherToInnerTask(pMnode, pTrans, pStream, pFinalTask) < 0) {
         qDestroyQueryPlan(pPlan);

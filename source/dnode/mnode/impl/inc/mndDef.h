@@ -554,8 +554,8 @@ typedef struct {
   SVgObj         fixedSinkVg;
   int64_t        smaId;  // 0 for unused
   int8_t         trigger;
-  int32_t        triggerParam;
-  int64_t        waterMark;
+  int64_t        triggerParam;
+  int64_t        watermark;
   char*          sql;
   char*          physicalPlan;
   SArray*        tasks;  // SArray<SArray<SStreamTask>>

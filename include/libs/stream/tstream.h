@@ -58,6 +58,7 @@ enum {
 enum {
   STREAM_INPUT__DATA_SUBMIT = 1,
   STREAM_INPUT__DATA_BLOCK,
+  STREAM_INPUT__TRIGGER,
   STREAM_INPUT__CHECKPOINT,
 };
 
@@ -85,6 +86,11 @@ typedef struct {
   int8_t type;
 } SStreamCheckpoint;
 
+typedef struct {
+  int8_t       type;
+  SSDataBlock* pBlock;
+} SStreamTrigger;
+
 enum {
   STREAM_QUEUE__SUCESS = 1,
   STREAM_QUEUE__FAILED,
@@ -97,6 +103,9 @@ typedef struct {
   void*       qItem;
   int8_t      status;
 } SStreamQueue;
+
+int32_t streamInit();
+void    streamCleanUp();
 
 SStreamQueue* streamQueueOpen();
 void          streamQueueClose(SStreamQueue* queue);
@@ -220,6 +229,11 @@ enum {
   TASK_INPUT_TYPE__DATA_BLOCK,
 };
 
+enum {
+  TASK_TRIGGER_STATUS__IN_ACTIVE = 1,
+  TASK_TRIGGER_STATUS__ACTIVE,
+};
+
 struct SStreamTask {
   int64_t streamId;
   int32_t taskId;
@@ -262,8 +276,16 @@ struct SStreamTask {
   SStreamQueue* inputQueue;
   SStreamQueue* outputQueue;
 
+  // trigger
+  int8_t  triggerStatus;
+  int64_t triggerParam;
+  void*   timer;
+
   // application storage
   // void* ahandle;
+
+  // msg handle
+  SMsgCb* pMsgCb;
 };
 
 SStreamTask* tNewSStreamTask(int64_t streamId);
@@ -292,6 +314,13 @@ static FORCE_INLINE int32_t streamTaskInput(SStreamTask* pTask, SStreamQueueItem
     taosWriteQitem(pTask->inputQueue->queue, pItem);
   } else if (pItem->type == STREAM_INPUT__CHECKPOINT) {
     taosWriteQitem(pTask->inputQueue->queue, pItem);
+  } else if (pItem->type == STREAM_INPUT__TRIGGER) {
+    taosWriteQitem(pTask->inputQueue->queue, pItem);
+  }
+
+  if (pItem->type != STREAM_INPUT__TRIGGER && pItem->type != STREAM_INPUT__CHECKPOINT && pTask->triggerParam != 0 &&
+      pTask->triggerStatus == TASK_TRIGGER_STATUS__IN_ACTIVE) {
+    atomic_store_8(&pTask->triggerStatus, TASK_TRIGGER_STATUS__ACTIVE);
   }
 
   // TODO: back pressure
@@ -370,7 +399,8 @@ typedef struct {
 
 int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq);
 
-int32_t streamTriggerByWrite(SStreamTask* pTask, int32_t vgId, SMsgCb* pMsgCb);
+int32_t streamLaunchByWrite(SStreamTask* pTask, int32_t vgId, SMsgCb* pMsgCb);
+int32_t streamSetupTrigger(SStreamTask* pTask);
 
 int32_t streamTaskRun(SStreamTask* pTask);
 
