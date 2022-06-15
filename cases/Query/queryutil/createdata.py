@@ -513,6 +513,9 @@ class TDCreateData():
         elif abs(float(str(list1).replace("]","").replace("[","").replace("e+","")) - float(str(list2).replace("]","").replace("[","").replace("e+",""))) <= 0.0001:
             #print(("=====list_abs+e+===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             self.logger.info(("===list_abs+e+===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
+        elif str(list1).replace("]","").replace("[","") == str(list2).replace("]","").replace("[",""):
+            #result is NAN -NAN
+            self.logger.info(("===list_nan===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
         else:
             print(("=====list_error===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             self.logger.info(("sql1:'%s' result != sql2:'%s' result") %(sql1,sql2))
