@@ -24,7 +24,7 @@ extern "C" {
 #include "tdef.h"
 #include "tmsgcb.h"
 
-#define SYNC_INDEX_BEGIN 0
+#define SYNC_INDEX_BEGIN   0
 #define SYNC_INDEX_INVALID -1
 
 typedef uint64_t SyncNodeId;
@@ -43,14 +43,6 @@ typedef enum {
   TAOS_SYNC_STATE_LEADER = 102,
   TAOS_SYNC_STATE_ERROR = 103,
 } ESyncState;
-
-typedef enum {
-  TAOS_SYNC_PROPOSE_SUCCESS = 0,
-  TAOS_SYNC_PROPOSE_NOT_LEADER = 1,
-  TAOS_SYNC_ONLY_ONE_REPLICA = 2,
-  TAOS_SYNC_NOT_IN_NEW_CONFIG = 3,
-  TAOS_SYNC_OTHER_ERROR = 100,
-} ESyncProposeCode;
 
 typedef enum {
   TAOS_SYNC_FSM_CB_SUCCESS = 0,

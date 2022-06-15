@@ -149,12 +149,14 @@ void syncStop(int64_t rid) {
 int32_t syncSetStandby(int64_t rid) {
   SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
-    return TAOS_SYNC_OTHER_ERROR;
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    return -1;
   }
 
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
     taosReleaseRef(tsNodeRefId, pSyncNode->rid);
-    return TAOS_SYNC_OTHER_ERROR;
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    return -1;
   }
 
   // state change
@@ -177,7 +179,8 @@ int32_t syncSetStandby(int64_t rid) {
 int32_t syncReconfigBuild(int64_t rid, const SSyncCfg* pNewCfg, SRpcMsg* pRpcMsg) {
   SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
-    return TAOS_SYNC_OTHER_ERROR;
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    return -1;
   }
   ASSERT(rid == pSyncNode->rid);
 
@@ -201,7 +204,8 @@ int32_t syncReconfigBuild(int64_t rid, const SSyncCfg* pNewCfg, SRpcMsg* pRpcMsg
 
   if (!IamInNew) {
     taosReleaseRef(tsNodeRefId, pSyncNode->rid);
-    return TAOS_SYNC_NOT_IN_NEW_CONFIG;
+    terrno = TSDB_CODE_SYN_NOT_IN_NEW_CONFIG;
+    return -1;
   }
 
   char* newconfig = syncCfg2Str((SSyncCfg*)pNewCfg);
@@ -219,7 +223,8 @@ int32_t syncReconfigBuild(int64_t rid, const SSyncCfg* pNewCfg, SRpcMsg* pRpcMsg
 int32_t syncReconfig(int64_t rid, const SSyncCfg* pNewCfg) {
   SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
-    return TAOS_SYNC_OTHER_ERROR;
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    return -1;
   }
   ASSERT(rid == pSyncNode->rid);
 
@@ -246,7 +251,8 @@ int32_t syncReconfig(int64_t rid, const SSyncCfg* pNewCfg) {
   if (!IamInNew) {
     sError("sync reconfig error, not in new config");
     taosReleaseRef(tsNodeRefId, pSyncNode->rid);
-    return TAOS_SYNC_NOT_IN_NEW_CONFIG;
+    terrno = TSDB_CODE_SYN_NOT_IN_NEW_CONFIG;
+    return -1;
   }
 
   char* newconfig = syncCfg2Str((SSyncCfg*)pNewCfg);
@@ -272,13 +278,15 @@ int32_t syncReconfig(int64_t rid, const SSyncCfg* pNewCfg) {
 int32_t syncLeaderTransfer(int64_t rid) {
   SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
-    return TAOS_SYNC_OTHER_ERROR;
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    return -1;
   }
   ASSERT(rid == pSyncNode->rid);
 
   if (pSyncNode->peersNum == 0) {
     taosReleaseRef(tsNodeRefId, pSyncNode->rid);
-    return TAOS_SYNC_OTHER_ERROR;
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    return -1;
   }
 
   SNodeInfo newLeader = (pSyncNode->peersNodeInfo)[0];
@@ -291,7 +299,8 @@ int32_t syncLeaderTransfer(int64_t rid) {
 int32_t syncLeaderTransferTo(int64_t rid, SNodeInfo newLeader) {
   SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
-    return TAOS_SYNC_OTHER_ERROR;
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    return -1;
   }
   ASSERT(rid == pSyncNode->rid);
   int32_t ret = 0;
@@ -299,7 +308,8 @@ int32_t syncLeaderTransferTo(int64_t rid, SNodeInfo newLeader) {
   if (pSyncNode->replicaNum == 1) {
     sError("only one replica, cannot drop leader");
     taosReleaseRef(tsNodeRefId, pSyncNode->rid);
-    return TAOS_SYNC_ONLY_ONE_REPLICA;
+    terrno = TSDB_CODE_SYN_ONE_REPLICA;
+    return -1;
   }
 
   SyncLeaderTransfer* pMsg = syncLeaderTransferBuild(pSyncNode->vgId);
@@ -538,11 +548,12 @@ void setHeartbeatTimerMS(int64_t rid, int32_t hbTimerMS) {
 }
 
 int32_t syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
-  int32_t ret = TAOS_SYNC_PROPOSE_SUCCESS;
+  int32_t ret = 0;
 
   SSyncNode* pSyncNode = taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
-    return TAOS_SYNC_OTHER_ERROR;
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    return -1;
   }
   assert(rid == pSyncNode->rid);
   sDebug("vgId:%d sync event propose msgType:%s", pSyncNode->vgId, TMSG_INFO(pMsg->msgType));
@@ -553,7 +564,7 @@ int32_t syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
 }
 
 int32_t syncNodePropose(SSyncNode* pSyncNode, const SRpcMsg* pMsg, bool isWeak) {
-  int32_t ret = TAOS_SYNC_PROPOSE_SUCCESS;
+  int32_t ret = 0;
   sDebug("vgId:%d sync event propose msgType:%s", pSyncNode->vgId, TMSG_INFO(pMsg->msgType));
 
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
@@ -567,14 +578,17 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, const SRpcMsg* pMsg, bool isWeak) 
     syncClientRequest2RpcMsg(pSyncMsg, &rpcMsg);
 
     if (pSyncNode->FpEqMsg != NULL && (*pSyncNode->FpEqMsg)(pSyncNode->msgcb, &rpcMsg) == 0) {
-      ret = TAOS_SYNC_PROPOSE_SUCCESS;
+      ret = 0;
     } else {
+      ret = -1;
+      terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
       sError("syncPropose pSyncNode->FpEqMsg is NULL");
     }
     syncClientRequestDestroy(pSyncMsg);
   } else {
+    ret = -1;
+    terrno = TSDB_CODE_SYN_NOT_LEADER;
     sError("syncPropose not leader, %s", syncUtilState2String(pSyncNode->state));
-    ret = TAOS_SYNC_PROPOSE_NOT_LEADER;
   }
 
   return ret;
