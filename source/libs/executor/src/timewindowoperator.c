@@ -1985,7 +1985,7 @@ static void clearUpdateDataBlock(SSDataBlock* pBlock) {
   blockDataCleanup(pBlock);
 }
 
-static void copyUpdateDataBlock(SSDataBlock* pDest, SSDataBlock* pSource, int32_t tsColIndex) {
+void copyUpdateDataBlock(SSDataBlock* pDest, SSDataBlock* pSource, int32_t tsColIndex) {
   ASSERT(pDest->info.capacity >= pSource->info.rows);
   clearUpdateDataBlock(pDest);
   SColumnInfoData* pDestCol = taosArrayGet(pDest->pDataBlock, 0);
@@ -1997,6 +1997,8 @@ static void copyUpdateDataBlock(SSDataBlock* pDest, SSDataBlock* pSource, int32_
     colDataAppendNNULL(pCol, 0, pSource->info.rows);
   }
   pDest->info.rows = pSource->info.rows;
+  pDest->info.groupId = pSource->info.groupId;
+  pDest->info.type = pSource->info.type;
   blockDataUpdateTsWindow(pDest, 0);
 }
 
