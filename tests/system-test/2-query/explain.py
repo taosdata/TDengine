@@ -33,7 +33,50 @@ class TDTestCase:
         tdSql.init(conn.cursor())
 
     def __query_condition(self,tbname):
-        return [ f"{any_col}" for any_col in ALL_COL ]
+        query_condition = [f"{tbname}.{col}" for col in ALL_COL]
+        for num_col in NUM_COL:
+            query_condition.extend(
+                (
+                    f"abs( {tbname}.{num_col} )",
+                    f"acos( {tbname}.{num_col} )",
+                    f"asin( {tbname}.{num_col} )",
+                    f"atan( {tbname}.{num_col} )",
+                    f"avg( {tbname}.{num_col} )",
+                    f"ceil( {tbname}.{num_col} )",
+                    f"cos( {tbname}.{num_col} )",
+                    f"count( {tbname}.{num_col} )",
+                    f"floor( {tbname}.{num_col} )",
+                    f"log( {tbname}.{num_col},  {tbname}.{num_col})",
+                    f"max( {tbname}.{num_col} )",
+                    f"min( {tbname}.{num_col} )",
+                    f"pow( {tbname}.{num_col}, 2)",
+                    f"round( {tbname}.{num_col} )",
+                    f"sum( {tbname}.{num_col} )",
+                    f"sin( {tbname}.{num_col} )",
+                    f"sqrt( {tbname}.{num_col} )",
+                    f"tan( {tbname}.{num_col} )",
+                    f"cast( {tbname}.{num_col} as timestamp)",
+                )
+            )
+            query_condition.extend((f"{num_col} + {any_col}" for any_col in ALL_COL))
+        for char_col in CHAR_COL:
+            query_condition.extend(
+                (
+                    f"sum(cast({tbname}.{char_col} as bigint ))",
+                    f"max(cast({tbname}.{char_col} as bigint ))",
+                    f"min(cast({tbname}.{char_col} as bigint ))",
+                    f"avg(cast({tbname}.{char_col} as bigint ))",
+                )
+            )
+        query_condition.extend(
+            (
+                1010,
+                ''' "test1234!@#$%^&*():'><?/.,][}{" ''',
+                "null"
+            )
+        )
+
+        return query_condition
 
     def __join_condition(self, tb_list, filter=PRIMARY_COL, INNER=False):
         table_reference = tb_list[0]
@@ -53,6 +96,8 @@ class TDTestCase:
             elif query_conditon.startswith("sum"):
                 query_conditon = query_conditon[4:-1]
             elif query_conditon.startswith("min"):
+                query_conditon = query_conditon[4:-1]
+            elif query_conditon.startswith("avg"):
                 query_conditon = query_conditon[4:-1]
 
         if query_conditon:
@@ -78,12 +123,14 @@ class TDTestCase:
                 col = col[4:-1]
             elif col.startswith("min"):
                 col = col[4:-1]
+            elif col.startswith("avg"):
+                col = col[4:-1]
         return f" group by {col} having {having}" if having else f" group by {col} "
 
     def __single_sql(self, select_clause, from_clause, where_condition="", group_condition=""):
         if isinstance(select_clause, str) and "on" not in from_clause and select_clause.split(".")[0].split("(")[-1] != from_clause.split(".")[0]:
             return
-        return f"select hyperloglog({select_clause}) from {from_clause} {where_condition} {group_condition}"
+        return f"explain select {select_clause} from {from_clause} {where_condition} {group_condition}"
 
     @property
     def __tb_list(self):
@@ -148,7 +195,7 @@ class TDTestCase:
         if tdSql.cursor.istype(col, "BIGINT UNSIGNED"):
             return "BIGINT UNSIGNED"
 
-    def hyperloglog_check(self):
+    def explain_check(self):
         sqls = self.sql_list()
         tdLog.printNoPrefix("===step 1: curent case, must return query OK")
         for i in range(len(sqls)):
@@ -156,34 +203,25 @@ class TDTestCase:
             tdSql.query(sqls[i])
 
     def __test_current(self):
-        tdSql.query("select hyperloglog(ts) from ct1")
-        tdSql.checkRows(1)
-        tdSql.query("select hyperloglog(c1) from ct2")
-        tdSql.checkRows(1)
-        tdSql.query("select hyperloglog(c1) from ct4 group by c1")
-        tdSql.checkRows(self.rows + 3)
-        tdSql.query("select hyperloglog(c1) from ct4 group by c7")
-        tdSql.checkRows(3)
-        tdSql.query("select hyperloglog(ct2.c1) from ct4 join ct2 on ct4.ts=ct2.ts")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, self.rows + 2)
-        tdSql.query("select hyperloglog(c1), c1 from stb1 group by c1")
-        for i in range(tdSql.queryRows):
-            tdSql.checkData(i, 0, 1) if  tdSql.queryResult[i][1] is not None else tdSql.checkData(i, 0, 0)
+        tdSql.query("explain select c1 from ct1")
+        tdSql.query("explain select 1 from ct2")
+        tdSql.query("explain select cast(ceil(c6) as bigint) from ct4 group by c6")
+        tdSql.query("explain select count(c3) from ct4 group by c7 having count(c3) > 0")
+        tdSql.query("explain select ct2.c3 from ct4 join ct2 on ct4.ts=ct2.ts")
+        tdSql.query("explain select c1 from stb1 where c1 is not null and c1 in (0, 1, 2) or c1 between 2 and 100 ")
 
-        self.hyperloglog_check()
+        self.explain_check()
 
     def __test_error(self):
 
         tdLog.printNoPrefix("===step 0: err case, must return err")
-        tdSql.error( "select hyperloglog() from ct1" )
-        tdSql.error( "select hyperloglog(c1, c2) from ct2" )
-        # tdSql.error( "select hyperloglog(1) from stb1" )
-        # tdSql.error( "select hyperloglog(abs(c1)) from ct4" )
-        tdSql.error( "select hyperloglog(count(c1)) from t1" )
-        # tdSql.error( "select hyperloglog(1) from ct2" )
-        tdSql.error( f"select hyperloglog({NUM_COL[0]}, {NUM_COL[1]}) from ct4" )
-        tdSql.error( ''' select hyperloglog(['c1 + c1', 'c1 + c2', 'c1 + c3', 'c1 + c4', 'c1 + c5', 'c1 + c6', 'c1 + c7', 'c1 + c8', 'c1 + c9', 'c1 + c10'])
+        tdSql.error( "explain select hyperloglog(c1) from ct8" )
+        tdSql.error( "explain show databases " )
+        tdSql.error( "explain show stables " )
+        tdSql.error( "explain show tables " )
+        tdSql.error( "explain show vgroups " )
+        tdSql.error( "explain show dnodes " )
+        tdSql.error( '''explain select hyperloglog(['c1 + c1', 'c1 + c2', 'c1 + c3', 'c1 + c4', 'c1 + c5', 'c1 + c6', 'c1 + c7', 'c1 + c8', 'c1 + c9', 'c1 + c10'])
                     from ct1
                     where ['c1 + c1', 'c1 + c2', 'c1 + c3', 'c1 + c4', 'c1 + c5', 'c1 + c6', 'c1 + c7', 'c1 + c8', 'c1 + c9', 'c1 + c10'] is not null
                     group by ['c1 + c1', 'c1 + c2', 'c1 + c3', 'c1 + c4', 'c1 + c5', 'c1 + c6', 'c1 + c7', 'c1 + c8', 'c1 + c9', 'c1 + c10']

@@ -2355,34 +2355,34 @@ static int smlProcess(SSmlHandle *info, char *lines[], int numLines) {
 }
 
 static int32_t isSchemalessDb(STscObj *taos, SRequestObj *request) {
-  SCatalog *catalog = NULL;
-  int32_t   code = catalogGetHandle(((STscObj *)taos)->pAppInfo->clusterId, &catalog);
-  if (code != TSDB_CODE_SUCCESS) {
-    uError("SML get catalog error %d", code);
-    return code;
-  }
-
-  SName name;
-  tNameSetDbName(&name, taos->acctId, taos->db, strlen(taos->db));
-  char dbFname[TSDB_DB_FNAME_LEN] = {0};
-  tNameGetFullDbName(&name, dbFname);
-  SDbCfgInfo pInfo = {0};
-
-  SRequestConnInfo conn = {0};
-  conn.pTrans = taos->pAppInfo->pTransporter;
-  conn.requestId = request->requestId;
-  conn.requestObjRefId = request->self;
-  conn.mgmtEps = getEpSet_s(&taos->pAppInfo->mgmtEp);
-
-  code = catalogGetDBCfg(catalog, &conn, dbFname, &pInfo);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
-  taosArrayDestroy(pInfo.pRetensions);
-
-  if (!pInfo.schemaless) {
-    return TSDB_CODE_SML_INVALID_DB_CONF;
-  }
+//  SCatalog *catalog = NULL;
+//  int32_t   code = catalogGetHandle(((STscObj *)taos)->pAppInfo->clusterId, &catalog);
+//  if (code != TSDB_CODE_SUCCESS) {
+//    uError("SML get catalog error %d", code);
+//    return code;
+//  }
+//
+//  SName name;
+//  tNameSetDbName(&name, taos->acctId, taos->db, strlen(taos->db));
+//  char dbFname[TSDB_DB_FNAME_LEN] = {0};
+//  tNameGetFullDbName(&name, dbFname);
+//  SDbCfgInfo pInfo = {0};
+//
+//  SRequestConnInfo conn = {0};
+//  conn.pTrans = taos->pAppInfo->pTransporter;
+//  conn.requestId = request->requestId;
+//  conn.requestObjRefId = request->self;
+//  conn.mgmtEps = getEpSet_s(&taos->pAppInfo->mgmtEp);
+//
+//  code = catalogGetDBCfg(catalog, &conn, dbFname, &pInfo);
+//  if (code != TSDB_CODE_SUCCESS) {
+//    return code;
+//  }
+//  taosArrayDestroy(pInfo.pRetensions);
+//
+//  if (!pInfo.schemaless) {
+//    return TSDB_CODE_SML_INVALID_DB_CONF;
+//  }
   return TSDB_CODE_SUCCESS;
 }
 
