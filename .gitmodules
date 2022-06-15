@@ -16,3 +16,6 @@
 [submodule "tools/taos-tools"]
 	path = tools/taos-tools
 	url = https://github.com/taosdata/taos-tools
+[submodule "tools/taosadapter"]
+	path = tools/taosadapter
+	url = https://github.com/taosdata/taosadapter.git
