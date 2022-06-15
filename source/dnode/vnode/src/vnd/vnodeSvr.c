@@ -168,6 +168,11 @@ int32_t vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
         goto _err;
       }
     } break;
+    case TDMT_VND_STREAM_TASK_DROP: {
+      if (tqProcessTaskDropReq(pVnode->pTq, pMsg->pCont, pMsg->contLen) < 0) {
+        goto _err;
+      }
+    } break;
     case TDMT_VND_ALTER_CONFIRM:
       vnodeProcessAlterConfirmReq(pVnode, version, pReq, len, pRsp);
       break;

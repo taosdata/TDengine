@@ -436,6 +436,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_WAL_SIZE_LIMIT                TAOS_DEF_ERROR_CODE(0, 0x1002)
 #define TSDB_CODE_WAL_INVALID_VER               TAOS_DEF_ERROR_CODE(0, 0x1003)
 #define TSDB_CODE_WAL_OUT_OF_MEMORY             TAOS_DEF_ERROR_CODE(0, 0x1004)
+#define TSDB_CODE_WAL_LOG_NOT_EXIST             TAOS_DEF_ERROR_CODE(0, 0x1005)
 
 // http
 #define TSDB_CODE_HTTP_SERVER_OFFLINE           TAOS_DEF_ERROR_CODE(0, 0x1100)  //"http server is not online"
