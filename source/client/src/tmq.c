@@ -992,6 +992,90 @@ CREATE_MSG_FAIL:
   return -1;
 }
 
+bool tmqUpdateEp2(tmq_t* tmq, int32_t epoch, SMqAskEpRsp* pRsp) {
+  bool set = false;
+
+  int32_t topicNumGet = taosArrayGetSize(pRsp->topics);
+  char    vgKey[TSDB_TOPIC_FNAME_LEN + 22];
+  tscDebug("consumer %ld update ep epoch %d to epoch %d, topic num: %d", tmq->consumerId, tmq->epoch, epoch,
+           topicNumGet);
+
+  SArray* newTopics = taosArrayInit(topicNumGet, sizeof(SMqClientTopic));
+  if (newTopics == NULL) {
+    return false;
+  }
+
+  SHashObj* pHash = taosHashInit(64, MurmurHash3_32, false, HASH_NO_LOCK);
+  if (pHash == NULL) {
+    taosArrayDestroy(newTopics);
+    return false;
+  }
+  int32_t topicNumCur = taosArrayGetSize(tmq->clientTopics);
+  for (int32_t i = 0; i < topicNumCur; i++) {
+    // find old topic
+    SMqClientTopic* pTopicCur = taosArrayGet(tmq->clientTopics, i);
+    if (pTopicCur->vgs) {
+      int32_t vgNumCur = taosArrayGetSize(pTopicCur->vgs);
+      tscDebug("consumer %ld new vg num: %d", tmq->consumerId, vgNumCur);
+      if (vgNumCur == 0) break;
+      for (int32_t j = 0; j < vgNumCur; j++) {
+        SMqClientVg* pVgCur = taosArrayGet(pTopicCur->vgs, j);
+        sprintf(vgKey, "%s:%d", pTopicCur->topicName, pVgCur->vgId);
+        tscDebug("consumer %ld epoch %d vg %d build %s", tmq->consumerId, epoch, pVgCur->vgId, vgKey);
+        taosHashPut(pHash, vgKey, strlen(vgKey), &pVgCur->currentOffset, sizeof(int64_t));
+      }
+      break;
+    }
+  }
+
+  for (int32_t i = 0; i < topicNumGet; i++) {
+    SMqClientTopic topic = {0};
+    SMqSubTopicEp* pTopicEp = taosArrayGet(pRsp->topics, i);
+    topic.schema = pTopicEp->schema;
+    taosHashClear(pHash);
+    topic.topicName = strdup(pTopicEp->topic);
+    tstrncpy(topic.db, pTopicEp->db, TSDB_DB_FNAME_LEN);
+
+    tscDebug("consumer %ld update topic: %s", tmq->consumerId, topic.topicName);
+
+    int32_t vgNumGet = taosArrayGetSize(pTopicEp->vgs);
+    topic.vgs = taosArrayInit(vgNumGet, sizeof(SMqClientVg));
+    for (int32_t j = 0; j < vgNumGet; j++) {
+      SMqSubVgEp* pVgEp = taosArrayGet(pTopicEp->vgs, j);
+      sprintf(vgKey, "%s:%d", topic.topicName, pVgEp->vgId);
+      int64_t* pOffset = taosHashGet(pHash, vgKey, strlen(vgKey));
+      int64_t  offset = tmq->resetOffsetCfg;
+      if (pOffset != NULL) {
+        offset = *pOffset;
+      }
+
+      tscDebug("consumer %ld(epoch %d) offset of vg %d updated to %ld", tmq->consumerId, epoch, pVgEp->vgId, offset);
+      SMqClientVg clientVg = {
+          .pollCnt = 0,
+          .currentOffset = offset,
+          .vgId = pVgEp->vgId,
+          .epSet = pVgEp->epSet,
+          .vgStatus = TMQ_VG_STATUS__IDLE,
+          .vgSkipCnt = 0,
+      };
+      taosArrayPush(topic.vgs, &clientVg);
+      set = true;
+    }
+    taosArrayPush(newTopics, &topic);
+  }
+  if (tmq->clientTopics) taosArrayDestroy(tmq->clientTopics);
+  taosHashCleanup(pHash);
+  tmq->clientTopics = newTopics;
+
+  if (taosArrayGetSize(tmq->clientTopics) == 0)
+    atomic_store_8(&tmq->status, TMQ_CONSUMER_STATUS__NO_TOPIC);
+  else
+    atomic_store_8(&tmq->status, TMQ_CONSUMER_STATUS__READY);
+
+  atomic_store_32(&tmq->epoch, epoch);
+  return set;
+}
+
 bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, SMqAskEpRsp* pRsp) {
   /*printf("call update ep %d\n", epoch);*/
   bool    set = false;

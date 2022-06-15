@@ -61,7 +61,8 @@ goto :eof
 set tt=%1
 set tt=%tt:.= %
 set tt=%tt::= %
-set index=1
+set tt=%tt: 0= %
+set /a index=1
 for %%a in (%tt%) do (
     if !index! EQU 1 (
         set /a hh=%%a
@@ -75,5 +76,5 @@ for %%a in (%tt%) do (
     )
    set /a index=index+1
 )
-set /a _timeTemp=(%hh%*60+%mm%)*60+%ss%  || echo hh:%hh% mm:%mm% ss:%ss%
+set /a _timeTemp=(%hh%*60+%mm%)*60+%ss%
 goto :eof

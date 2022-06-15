@@ -14,8 +14,74 @@
  */
 
 #include "streamInc.h"
+#include "ttimer.h"
 
-int32_t streamTriggerByWrite(SStreamTask* pTask, int32_t vgId, SMsgCb* pMsgCb) {
+int32_t streamInit() {
+  int8_t old;
+  while (1) {
+    old = atomic_val_compare_exchange_8(&streamEnv.inited, 0, 2);
+    if (old != 2) break;
+  }
+
+  if (old == 0) {
+    streamEnv.timer = taosTmrInit(10000, 100, 10000, "STREAM");
+    if (streamEnv.timer == NULL) {
+      atomic_store_8(&streamEnv.inited, 0);
+      return -1;
+    }
+    atomic_store_8(&streamEnv.inited, 1);
+  }
+  return 0;
+}
+
+void streamCleanUp() {
+  int8_t old;
+  while (1) {
+    old = atomic_val_compare_exchange_8(&streamEnv.inited, 1, 2);
+    if (old != 2) break;
+  }
+
+  if (old == 1) {
+    taosTmrCleanUp(streamEnv.timer);
+    atomic_store_8(&streamEnv.inited, 0);
+  }
+}
+
+void streamTriggerByTimer(void* param, void* tmrId) {
+  SStreamTask* pTask = (void*)param;
+
+  if (atomic_load_8(&pTask->triggerStatus) == TASK_TRIGGER_STATUS__ACTIVE) {
+    SStreamTrigger* trigger = taosAllocateQitem(sizeof(SStreamTrigger), DEF_QITEM);
+    if (trigger == NULL) return;
+    trigger->type = STREAM_INPUT__TRIGGER;
+    trigger->pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+    if (trigger->pBlock == NULL) {
+      taosFreeQitem(trigger);
+      return;
+    }
+    trigger->pBlock->info.type = STREAM_GET_ALL;
+
+    atomic_store_8(&pTask->triggerStatus, TASK_TRIGGER_STATUS__IN_ACTIVE);
+
+    streamTaskInput(pTask, (SStreamQueueItem*)trigger);
+    streamLaunchByWrite(pTask, pTask->nodeId, pTask->pMsgCb);
+  }
+
+  taosTmrReset(streamTriggerByTimer, (int32_t)pTask->triggerParam, pTask, streamEnv.timer, &pTask->timer);
+}
+
+int32_t streamSetupTrigger(SStreamTask* pTask) {
+  if (pTask->triggerParam != 0) {
+    if (streamInit() < 0) {
+      return -1;
+    }
+    pTask->timer = taosTmrStart(streamTriggerByTimer, (int32_t)pTask->triggerParam, pTask, streamEnv.timer);
+    pTask->triggerStatus = TASK_TRIGGER_STATUS__IN_ACTIVE;
+  }
+  return 0;
+}
+
+int32_t streamLaunchByWrite(SStreamTask* pTask, int32_t vgId, SMsgCb* pMsgCb) {
   int8_t execStatus = atomic_load_8(&pTask->status);
   if (execStatus == TASK_STATUS__IDLE || execStatus == TASK_STATUS__CLOSING) {
     SStreamTaskRunReq* pRunReq = rpcMallocCont(sizeof(SStreamTaskRunReq));

@@ -33,8 +33,8 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
   if (tEncodeI8(pEncoder, pObj->status) < 0) return -1;
   if (tEncodeI8(pEncoder, pObj->createdBy) < 0) return -1;
   if (tEncodeI8(pEncoder, pObj->trigger) < 0) return -1;
-  if (tEncodeI32(pEncoder, pObj->triggerParam) < 0) return -1;
-  if (tEncodeI64(pEncoder, pObj->waterMark) < 0) return -1;
+  if (tEncodeI64(pEncoder, pObj->triggerParam) < 0) return -1;
+  if (tEncodeI64(pEncoder, pObj->watermark) < 0) return -1;
   if (tEncodeI32(pEncoder, pObj->fixedSinkVgId) < 0) return -1;
   if (tEncodeI64(pEncoder, pObj->smaId) < 0) return -1;
   if (tEncodeCStr(pEncoder, pObj->sql) < 0) return -1;
@@ -85,8 +85,8 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj) {
   if (tDecodeI8(pDecoder, &pObj->status) < 0) return -1;
   if (tDecodeI8(pDecoder, &pObj->createdBy) < 0) return -1;
   if (tDecodeI8(pDecoder, &pObj->trigger) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pObj->triggerParam) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pObj->waterMark) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pObj->triggerParam) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pObj->watermark) < 0) return -1;
   if (tDecodeI32(pDecoder, &pObj->fixedSinkVgId) < 0) return -1;
   if (tDecodeI64(pDecoder, &pObj->smaId) < 0) return -1;
   if (tDecodeCStrAlloc(pDecoder, &pObj->sql) < 0) return -1;
