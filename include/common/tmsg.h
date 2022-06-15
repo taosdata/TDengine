@@ -1134,11 +1134,11 @@ void    tFreeSMAlterStbRsp(SMAlterStbRsp* pRsp);
 int32_t tSerializeSTableMetaRsp(void* buf, int32_t bufLen, STableMetaRsp* pRsp);
 int32_t tDeserializeSTableMetaRsp(void* buf, int32_t bufLen, STableMetaRsp* pRsp);
 void    tFreeSTableMetaRsp(STableMetaRsp* pRsp);
-void tFreeSTableIndexRsp(void *info);
+void    tFreeSTableIndexRsp(void* info);
 
 typedef struct {
-  SArray*         pMetaRsp;  // Array of STableMetaRsp
-  SArray*         pIndexRsp;  // Array of STableIndexRsp;
+  SArray* pMetaRsp;   // Array of STableMetaRsp
+  SArray* pIndexRsp;  // Array of STableIndexRsp;
 } SSTbHbRsp;
 
 int32_t tSerializeSSTbHbRsp(void* buf, int32_t bufLen, SSTbHbRsp* pRsp);
@@ -1305,8 +1305,9 @@ int32_t tSerializeSSetStandbyReq(void* buf, int32_t bufLen, SSetStandbyReq* pReq
 int32_t tDeserializeSSetStandbyReq(void* buf, int32_t bufLen, SSetStandbyReq* pReq);
 
 typedef struct {
-  int32_t connId;
-  int32_t queryId;
+  int32_t connId;   // todo remove
+  int32_t queryId;  // todo remove
+  char    queryStrId[TSDB_QUERY_ID_LEN];
 } SKillQueryReq;
 
 int32_t tSerializeSKillQueryReq(void* buf, int32_t bufLen, SKillQueryReq* pReq);

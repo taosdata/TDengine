@@ -675,7 +675,8 @@ int32_t ctgCloneTableIndex(SArray* pIndex, SArray** pRes) {
 
   for (int32_t i = 0; i < num; ++i) {
     STableIndexInfo *pInfo = taosArrayGet(pIndex, i);
-    taosArrayPush(*pRes, pInfo);
+    pInfo = taosArrayPush(*pRes, pInfo);
+    pInfo->expr = strdup(pInfo->expr);
   }
 
   return TSDB_CODE_SUCCESS;

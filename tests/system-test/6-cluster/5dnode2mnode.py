@@ -104,7 +104,7 @@ class TDTestCase:
         tdSql.error("drop mnode on dnode 1;")
 
         tdSql.execute("drop database if exists db")
-        tdSql.execute("create database if not exists db replica 1 days 300")
+        tdSql.execute("create database if not exists db replica 1 duration 300")
         tdSql.execute("use db")
         tdSql.execute(
         '''create table stb1
@@ -163,7 +163,7 @@ class TDTestCase:
         # fisrt add data : db\stable\childtable\general table
 
         tdSql.execute("drop database if exists db2")
-        tdSql.execute("create database if not exists db2 replica 1 days 300")
+        tdSql.execute("create database if not exists db2 replica 1 duration 300")
         tdSql.execute("use db2")
         tdSql.execute(
         '''create table stb1
