@@ -88,10 +88,10 @@ class TDTestCase:
         tdSql.checkData(0,15,tag_nchar)
 
         # bug TD-16211 insert length more than setting binary and nchar
-        # error_tag_binary = self.get_long_name(length=21, mode="letters")
-        # error_tag_nchar = self.get_long_name(length=21, mode="letters")
-        # tdSql.error(f'alter table {dbname}.{tbname} set tag t12 = "{error_tag_binary}"')
-        # tdSql.error(f'alter table {dbname}.{tbname} set tag t13 = "{error_tag_nchar}"')
+        error_tag_binary = self.get_long_name(length=21, mode="letters")
+        error_tag_nchar = self.get_long_name(length=21, mode="letters")
+        tdSql.error(f'alter table {dbname}.{tbname} set tag t12 = "{error_tag_binary}"')
+        tdSql.error(f'alter table {dbname}.{tbname} set tag t13 = "{error_tag_nchar}"')
 
         # bug TD-16210 modify binary to nchar
         tdSql.error(f'alter table {dbname}.{tbname} modify tag t12 nchar(10)')
