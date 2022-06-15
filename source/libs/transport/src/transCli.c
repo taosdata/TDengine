@@ -967,30 +967,31 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
     pMsg->st = taosGetTimestampUs();
     pCtx->retryCount += 1;
     if (pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
-      if (pCtx->retryCount < pEpSet->numOfEps) {
+      if (pCtx->retryCount < pEpSet->numOfEps * 3) {
         pEpSet->inUse = (++pEpSet->inUse) % pEpSet->numOfEps;
 
         STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));
         arg->param1 = pMsg;
         arg->param2 = pThrd;
         transDQSched(pThrd->delayQueue, doDelayTask, arg, TRANS_RETRY_INTERVAL);
+        tTrace("use local epset, current in use: %d, retry count:%d, limit: %d", pEpSet->inUse, pCtx->retryCount + 1,
+               pEpSet->numOfEps * 3);
         transUnrefCliHandle(pConn);
         return -1;
       }
     } else if (pCtx->retryCount < TRANS_RETRY_COUNT_LIMIT) {
       if (pResp->contLen == 0) {
         pEpSet->inUse = (++pEpSet->inUse) % pEpSet->numOfEps;
+        tTrace("use local epset, current in use: %d, retry count:%d, limit: %d", pEpSet->inUse, pCtx->retryCount + 1,
+               TRANS_RETRY_COUNT_LIMIT);
       } else {
         SEpSet epSet = {0};
         tDeserializeSEpSet(pResp->pCont, pResp->contLen, &epSet);
         pCtx->epSet = epSet;
-        if (!transEpSetIsEqual(&epSet, &pCtx->epSet)) {
-          pCtx->retryCount = 0;
-        }
+        tTrace("use remote epset, current in use: %d, retry count:%d, limit: %d", pEpSet->inUse, pCtx->retryCount + 1,
+               TRANS_RETRY_COUNT_LIMIT);
       }
       addConnToPool(pThrd->pool, pConn);
-      tTrace("use remote epset, current in use: %d, retry count:%d, try limit: %d", pEpSet->inUse, pCtx->retryCount + 1,
-             TRANS_RETRY_COUNT_LIMIT);
 
       STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));
       arg->param1 = pMsg;
