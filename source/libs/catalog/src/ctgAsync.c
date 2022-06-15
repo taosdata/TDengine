@@ -784,8 +784,7 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTask* pTask, int32_t reqType, const SDataBuf *
 _return:
 
   if (dbCache) {
-    ctgRUnlockVgInfo(dbCache);
-    ctgReleaseDBCache(pCtg, dbCache);
+    ctgReleaseVgInfoToCache(pCtg, dbCache);
   }
 
   ctgHandleTaskEnd(pTask, code);
@@ -943,7 +942,6 @@ _return:
 
 int32_t ctgHandleGetUserRsp(SCtgTask* pTask, int32_t reqType, const SDataBuf *pMsg, int32_t rspCode) {
   int32_t code = 0;
-  SCtgDBCache *dbCache = NULL;
   SCtgUserCtx* ctx = (SCtgUserCtx*)pTask->taskCtx;
   SCatalog* pCtg = pTask->pJob->pCtg; 
   bool pass = false;
@@ -1012,7 +1010,7 @@ int32_t ctgAsyncRefreshTbMeta(SCtgTask *pTask) {
   CTG_ERR_RET(ctgAcquireVgInfoFromCache(pCtg, dbFName, &dbCache));
   if (dbCache) {
     SVgroupInfo vgInfo = {0};
-    CTG_ERR_RET(ctgGetVgInfoFromHashValue(pCtg, dbCache->vgCache.vgInfo, ctx->pName, &vgInfo));
+    CTG_ERR_JRET(ctgGetVgInfoFromHashValue(pCtg, dbCache->vgCache.vgInfo, ctx->pName, &vgInfo));
 
     ctgDebug("will refresh tbmeta, not supposed to be stb, tbName:%s, flag:%d", tNameGetTableName(ctx->pName), ctx->flag);
 
@@ -1061,6 +1059,9 @@ int32_t ctgLaunchGetDbVgTask(SCtgTask *pTask) {
   CTG_ERR_RET(ctgAcquireVgInfoFromCache(pCtg, pCtx->dbFName, &dbCache));
   if (NULL != dbCache) {
     CTG_ERR_JRET(ctgGenerateVgList(pCtg, dbCache->vgCache.vgInfo->vgHash, (SArray**)&pTask->res));
+
+    ctgReleaseVgInfoToCache(pCtg, dbCache);
+    dbCache = NULL;
     
     CTG_ERR_JRET(ctgHandleTaskEnd(pTask, 0));
   } else {
@@ -1095,6 +1096,9 @@ int32_t ctgLaunchGetTbHashTask(SCtgTask *pTask) {
       CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
     }
     CTG_ERR_JRET(ctgGetVgInfoFromHashValue(pCtg, dbCache->vgCache.vgInfo, pCtx->pName, (SVgroupInfo*)pTask->res));
+
+    ctgReleaseVgInfoToCache(pCtg, dbCache);
+    dbCache = NULL;
     
     CTG_ERR_JRET(ctgHandleTaskEnd(pTask, 0));
   } else {
@@ -1170,6 +1174,9 @@ int32_t ctgLaunchGetDbInfoTask(SCtgTask *pTask) {
     pInfo->vgVer = dbCache->vgCache.vgInfo->vgVersion;
     pInfo->dbId = dbCache->dbId;
     pInfo->tbNum = dbCache->vgCache.vgInfo->numOfTable;
+
+    ctgReleaseVgInfoToCache(pCtg, dbCache);
+    dbCache = NULL;
   } else {
     pInfo->vgVer = CTG_DEFAULT_INVALID_VERSION;
   }
