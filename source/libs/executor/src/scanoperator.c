@@ -2052,16 +2052,19 @@ static int32_t loadDataBlockFromOneTable(SOperatorInfo* pOperator, STableMergeSc
 typedef struct STableMergeScanSortSourceParam {
   SOperatorInfo* pOperator;
   int32_t        readerIdx;
+  SSDataBlock*   inputBlock;
 } STableMergeScanSortSourceParam;
 
 static SSDataBlock* getTableDataBlock(void* param) {
   STableMergeScanSortSourceParam* source = param;
   SOperatorInfo*                  pOperator = source->pOperator;
   int32_t                         readerIdx = source->readerIdx;
+  SSDataBlock*                    pBlock = source->inputBlock;
   STableMergeScanInfo*            pTableScanInfo = pOperator->info;
-  SSDataBlock*                    pBlock = pTableScanInfo->pResBlock;
 
   int64_t st = taosGetTimestampUs();
+
+  blockDataCleanup(pBlock);
 
   tsdbReaderT* reader = taosArrayGetP(pTableScanInfo->dataReaders, readerIdx);
   while (tsdbNextDataBlock(reader)) {
@@ -2097,7 +2100,6 @@ static SSDataBlock* getTableDataBlock(void* param) {
     pOperator->resultInfo.totalRows = pTableScanInfo->readRecorder.totalRows;
     pTableScanInfo->readRecorder.elapsedTime += (taosGetTimestampUs() - st) / 1000.0;
 
-    pOperator->cost.totalCost = pTableScanInfo->readRecorder.elapsedTime;
     return pBlock;
   }
   return NULL;
@@ -2134,9 +2136,7 @@ int32_t doOpenTableMergeScanOperator(SOperatorInfo* pOperator) {
   size_t numReaders = taosArrayGetSize(pInfo->dataReaders);
   for (int32_t i = 0; i < numReaders; ++i) {
     SSortSource*                    ps = taosMemoryCalloc(1, sizeof(SSortSource));
-    STableMergeScanSortSourceParam* param = taosMemoryCalloc(1, sizeof(STableMergeScanSortSourceParam));
-    param->readerIdx = i;
-    param->pOperator = pOperator;
+    STableMergeScanSortSourceParam* param = taosArrayGet(pInfo->sortSourceParams, i);
     ps->param = param;
     tsortAddSource(pInfo->pSortHandle, ps);
   }
@@ -2310,6 +2310,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
     STableMergeScanSortSourceParam* param = taosMemoryCalloc(1, sizeof(STableMergeScanSortSourceParam));
     param->readerIdx = i;
     param->pOperator = pOperator;
+    param->inputBlock = createOneDataBlock(pInfo->pResBlock, false);
     taosArrayPush(pInfo->sortSourceParams, param);
     taosMemoryFree(param);
   }
