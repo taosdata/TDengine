@@ -360,7 +360,7 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (mndCheckCreateUserAuth(pOperUser) != 0) {
+  if (mndCheckOperAuth(pMnode, pReq->conn.user, MND_OPER_CREATE_USER) != 0) {
     goto _OVER;
   }
 
@@ -623,7 +623,6 @@ static int32_t mndProcessDropUserReq(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;
   int32_t      code = -1;
   SUserObj    *pUser = NULL;
-  SUserObj    *pOperUser = NULL;
   SDropUserReq dropReq = {0};
 
   if (tDeserializeSDropUserReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
@@ -644,13 +643,7 @@ static int32_t mndProcessDropUserReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  pOperUser = mndAcquireUser(pMnode, pReq->conn.user);
-  if (pOperUser == NULL) {
-    terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
-    goto _OVER;
-  }
-
-  if (mndCheckDropUserAuth(pOperUser) != 0) {
+  if (mndCheckOperAuth(pMnode, pReq->conn.user, MND_OPER_DROP_USER) != 0) {
     goto _OVER;
   }
 
@@ -662,9 +655,7 @@ _OVER:
     mError("user:%s, failed to drop since %s", dropReq.user, terrstr());
   }
 
-  mndReleaseUser(pMnode, pOperUser);
   mndReleaseUser(pMnode, pUser);
-
   return code;
 }
 
