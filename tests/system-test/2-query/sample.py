@@ -31,6 +31,7 @@ class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
+        self.ts = 1537146000000
 
     def sample_query_form(self, sel="select", func="sample(", col="c1", m_comm =",", k=1,r_comm=")", alias="", fr="from",table_expr="t1", condition=""):
         '''
@@ -854,11 +855,29 @@ class TDTestCase:
 
         self.basic_sample_query()
 
+    def sample_big_data(self):
+        tdSql.execute("create database sample_db")
+        tdSql.execute("use sample_db")
+        tdSql.execute("create stable st (ts timestamp ,c1 int ) tags(ind int)" )
+        tdSql.execute("create table sub_tb using st tags(1)")
+
+        for i in range(2000):
+            ts = self.ts+i*10
+            tdSql.execute(f"insert into sub_tb values({ts} ,{i})")
+        
+        tdSql.query("select count(*) from st")
+        tdSql.checkData(0,0,2000)
+        tdSql.query("select sample(c1 ,1000) from st")
+        tdSql.checkRows(1000)
+
+
+
     def run(self):
         import traceback
         try:
             # run in  develop branch
             self.sample_test_run()
+            # self.sample_big_data()
             pass
         except Exception as e:
             traceback.print_exc()
