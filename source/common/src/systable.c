@@ -170,7 +170,9 @@ static const SSysDbTableSchema userTblDistSchema[] = {
 
 static const SSysDbTableSchema userUsersSchema[] = {
     {.name = "name", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "privilege", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "super", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
+    {.name = "enable", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
+    {.name = "sysinfo", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
 };
 
