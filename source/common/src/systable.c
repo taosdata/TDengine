@@ -315,6 +315,24 @@ static const SSysDbTableSchema querySchema[] = {
     {.name = "sql", .bytes = TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
 };
 
+static const SSysDbTableSchema appSchema[] = {
+    {.name = "app_id", .bytes = 8, .type = TSDB_DATA_TYPE_UBIGINT},
+    {.name = "ip", .bytes = TSDB_IPv4ADDR_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_UBIGINT},
+    {.name = "pid", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "name", .bytes = TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},    
+    {.name = "start_time", .bytes = 8 , .type = TSDB_DATA_TYPE_TIMESTAMP},
+    {.name = "insert_req", .bytes = 8 , .type = TSDB_DATA_TYPE_UBIGINT},
+    {.name = "insert_row", .bytes = 8 , .type = TSDB_DATA_TYPE_UBIGINT},
+    {.name = "insert_time", .bytes = 8 , .type = TSDB_DATA_TYPE_UBIGINT},
+    {.name = "insert_bytes", .bytes = 8 , .type = TSDB_DATA_TYPE_UBIGINT},
+    {.name = "fetch_bytes", .bytes = 8 , .type = TSDB_DATA_TYPE_UBIGINT},
+    {.name = "query_time", .bytes = 8 , .type = TSDB_DATA_TYPE_UBIGINT},
+    {.name = "show_query", .bytes = 8 , .type = TSDB_DATA_TYPE_UBIGINT},
+    {.name = "total_req", .bytes = 8 , .type = TSDB_DATA_TYPE_UBIGINT},
+    {.name = "current_req", .bytes = 8 , .type = TSDB_DATA_TYPE_UBIGINT},
+    {.name = "last_access", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
+};
+
 static const SSysTableMeta perfsMeta[] = {
     {TSDB_PERFS_TABLE_CONNECTIONS, connectionsSchema, tListLen(connectionsSchema)},
     {TSDB_PERFS_TABLE_QUERIES, querySchema, tListLen(querySchema)},
@@ -325,6 +343,7 @@ static const SSysTableMeta perfsMeta[] = {
     {TSDB_PERFS_TABLE_TRANS, transSchema, tListLen(transSchema)},
     {TSDB_PERFS_TABLE_SMAS, smaSchema, tListLen(smaSchema)},
     {TSDB_PERFS_TABLE_STREAMS, streamSchema, tListLen(streamSchema)},
+    {TSDB_PERFS_TABLE_APPS, appSchema, tListLen(appSchema)}
 };
 
 void getInfosDbMeta(const SSysTableMeta** pInfosTableMeta, size_t* size) {

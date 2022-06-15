@@ -122,6 +122,13 @@ int32_t mmPutMsgToQueryQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return mmPutMsgToWorker(pMgmt, &pMgmt->queryWorker, pMsg);
 }
 
+int32_t mmPutMsgToFetchQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  pMsg->info.node = pMgmt->pMnode;
+
+  return mmPutMsgToWorker(pMgmt, &pMgmt->fetchWorker, pMsg);
+}
+
+
 int32_t mmPutMsgToMonitorQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return mmPutMsgToWorker(pMgmt, &pMgmt->monitorWorker, pMsg);
 }
@@ -134,6 +141,9 @@ int32_t mmPutMsgToQueue(SMnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
       break;
     case QUERY_QUEUE:
       pWorker = &pMgmt->queryWorker;
+      break;
+    case FETCH_QUEUE:
+      pWorker = &pMgmt->fetchWorker;
       break;
     case READ_QUEUE:
       pWorker = &pMgmt->readWorker;
@@ -164,6 +174,18 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
   };
   if (tSingleWorkerInit(&pMgmt->queryWorker, &qCfg) != 0) {
     dError("failed to start mnode-query worker since %s", terrstr());
+    return -1;
+  }
+
+  SSingleWorkerCfg fCfg = {
+      .min = tsNumOfMnodeFetchThreads,
+      .max = tsNumOfMnodeFetchThreads,
+      .name = "mnode-fetch",
+      .fp = (FItem)mmProcessRpcMsg,
+      .param = pMgmt,
+  };
+  if (tSingleWorkerInit(&pMgmt->fetchWorker, &fCfg) != 0) {
+    dError("failed to start mnode-fetch worker since %s", terrstr());
     return -1;
   }
 
@@ -227,6 +249,7 @@ void mmStopWorker(SMnodeMgmt *pMgmt) {
 
   tSingleWorkerCleanup(&pMgmt->monitorWorker);
   tSingleWorkerCleanup(&pMgmt->queryWorker);
+  tSingleWorkerCleanup(&pMgmt->fetchWorker);
   tSingleWorkerCleanup(&pMgmt->readWorker);
   tSingleWorkerCleanup(&pMgmt->writeWorker);
   tSingleWorkerCleanup(&pMgmt->syncWorker);

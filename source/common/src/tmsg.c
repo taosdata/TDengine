@@ -191,13 +191,25 @@ static int32_t tSerializeSClientHbReq(SEncoder *pEncoder, const SClientHbReq *pR
   if (tEncodeSClientHbKey(pEncoder, &pReq->connKey) < 0) return -1;
 
   if (pReq->connKey.connType == CONN_TYPE__QUERY) {
+    if (tEncodeI64(pEncoder, pReq->app.appId) < 0) return -1;
+    if (tEncodeI32(pEncoder, pReq->app.pid) < 0) return -1;
+    if (tEncodeCStr(pEncoder, pReq->app.name) < 0) return -1;
+    if (tEncodeI64(pEncoder, pReq->app.startTime) < 0) return -1;
+    if (tEncodeU64(pEncoder, pReq->app.summary.numOfInsertsReq) < 0) return -1;
+    if (tEncodeU64(pEncoder, pReq->app.summary.numOfInsertRows) < 0) return -1;
+    if (tEncodeU64(pEncoder, pReq->app.summary.insertElapsedTime) < 0) return -1;
+    if (tEncodeU64(pEncoder, pReq->app.summary.insertBytes) < 0) return -1;
+    if (tEncodeU64(pEncoder, pReq->app.summary.fetchBytes) < 0) return -1;
+    if (tEncodeU64(pEncoder, pReq->app.summary.queryElapsedTime) < 0) return -1;
+    if (tEncodeU64(pEncoder, pReq->app.summary.numOfSlowQueries) < 0) return -1;
+    if (tEncodeU64(pEncoder, pReq->app.summary.totalRequests) < 0) return -1;
+    if (tEncodeU64(pEncoder, pReq->app.summary.currentRequests) < 0) return -1;
+    
     int32_t queryNum = 0;
     if (pReq->query) {
       queryNum = 1;
       if (tEncodeI32(pEncoder, queryNum) < 0) return -1;
       if (tEncodeU32(pEncoder, pReq->query->connId) < 0) return -1;
-      if (tEncodeI32(pEncoder, pReq->query->pid) < 0) return -1;
-      if (tEncodeCStr(pEncoder, pReq->query->app) < 0) return -1;
 
       int32_t num = taosArrayGetSize(pReq->query->queryDesc);
       if (tEncodeI32(pEncoder, num) < 0) return -1;
@@ -209,7 +221,6 @@ static int32_t tSerializeSClientHbReq(SEncoder *pEncoder, const SClientHbReq *pR
         if (tEncodeI64(pEncoder, desc->useconds) < 0) return -1;
         if (tEncodeI64(pEncoder, desc->stime) < 0) return -1;
         if (tEncodeI64(pEncoder, desc->reqRid) < 0) return -1;
-        if (tEncodeI32(pEncoder, desc->pid) < 0) return -1;
         if (tEncodeI8(pEncoder, desc->stableQuery) < 0) return -1;
         if (tEncodeCStr(pEncoder, desc->fqdn) < 0) return -1;
         if (tEncodeI32(pEncoder, desc->subPlanNum) < 0) return -1;
@@ -243,14 +254,26 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
   if (tDecodeSClientHbKey(pDecoder, &pReq->connKey) < 0) return -1;
 
   if (pReq->connKey.connType == CONN_TYPE__QUERY) {
+    if (tDecodeI64(pDecoder, &pReq->app.appId) < 0) return -1;
+    if (tDecodeI32(pDecoder, &pReq->app.pid) < 0) return -1;
+    if (tDecodeCStrTo(pDecoder, pReq->app.name) < 0) return -1;
+    if (tDecodeI64(pDecoder, &pReq->app.startTime) < 0) return -1;
+    if (tDecodeU64(pDecoder, &pReq->app.summary.numOfInsertsReq) < 0) return -1;
+    if (tDecodeU64(pDecoder, &pReq->app.summary.numOfInsertRows) < 0) return -1;
+    if (tDecodeU64(pDecoder, &pReq->app.summary.insertElapsedTime) < 0) return -1;
+    if (tDecodeU64(pDecoder, &pReq->app.summary.insertBytes) < 0) return -1;
+    if (tDecodeU64(pDecoder, &pReq->app.summary.fetchBytes) < 0) return -1;
+    if (tDecodeU64(pDecoder, &pReq->app.summary.queryElapsedTime) < 0) return -1;
+    if (tDecodeU64(pDecoder, &pReq->app.summary.numOfSlowQueries) < 0) return -1;
+    if (tDecodeU64(pDecoder, &pReq->app.summary.totalRequests) < 0) return -1;
+    if (tDecodeU64(pDecoder, &pReq->app.summary.currentRequests) < 0) return -1;
+
     int32_t queryNum = 0;
     if (tDecodeI32(pDecoder, &queryNum) < 0) return -1;
     if (queryNum) {
       pReq->query = taosMemoryCalloc(1, sizeof(*pReq->query));
       if (NULL == pReq->query) return -1;
       if (tDecodeU32(pDecoder, &pReq->query->connId) < 0) return -1;
-      if (tDecodeI32(pDecoder, &pReq->query->pid) < 0) return -1;
-      if (tDecodeCStrTo(pDecoder, pReq->query->app) < 0) return -1;
 
       int32_t num = 0;
       if (tDecodeI32(pDecoder, &num) < 0) return -1;
@@ -265,7 +288,6 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
           if (tDecodeI64(pDecoder, &desc.useconds) < 0) return -1;
           if (tDecodeI64(pDecoder, &desc.stime) < 0) return -1;
           if (tDecodeI64(pDecoder, &desc.reqRid) < 0) return -1;
-          if (tDecodeI32(pDecoder, &desc.pid) < 0) return -1;
           if (tDecodeI8(pDecoder, (int8_t*)&desc.stableQuery) < 0) return -1;
           if (tDecodeCStrTo(pDecoder, desc.fqdn) < 0) return -1;
           if (tDecodeI32(pDecoder, &desc.subPlanNum) < 0) return -1;

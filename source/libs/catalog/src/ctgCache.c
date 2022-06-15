@@ -1972,8 +1972,6 @@ void* ctgUpdateThreadFunc(void* param) {
     ctgdShowClusterCache(pCtg);
   }
 
-  if (CTG_IS_LOCKED(&gCtgMgmt.lock)) CTG_UNLOCK(CTG_READ, &gCtgMgmt.lock);
-
   qInfo("catalog update thread stopped");
   
   return NULL;

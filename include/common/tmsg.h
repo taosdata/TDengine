@@ -106,6 +106,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_CONNS,
   TSDB_MGMT_TABLE_QUERIES,
   TSDB_MGMT_TABLE_VNODES,
+  TSDB_MGMT_TABLE_APPS,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -2000,7 +2001,6 @@ typedef struct {
   int64_t  useconds;
   int64_t  stime;            // timestamp precision ms
   int64_t  reqRid;
-  int32_t  pid;
   bool     stableQuery;
   char     fqdn[TSDB_FQDN_LEN];
   int32_t  subPlanNum;
@@ -2009,8 +2009,6 @@ typedef struct {
 
 typedef struct {
   uint32_t connId;
-  int32_t  pid;
-  char     app[TSDB_APP_NAME_LEN];
   SArray*  queryDesc;  // SArray<SQueryDesc>
 } SQueryHbReqBasic;
 
@@ -2025,9 +2023,31 @@ typedef struct {
   SArray*  pQnodeList;
 } SQueryHbRspBasic;
 
+typedef struct SAppClusterSummary {
+  uint64_t numOfInsertsReq;
+  uint64_t numOfInsertRows;
+  uint64_t insertElapsedTime;
+  uint64_t insertBytes;  // submit to tsdb since launched.
+
+  uint64_t fetchBytes;
+  uint64_t queryElapsedTime;
+  uint64_t numOfSlowQueries;
+  uint64_t totalRequests;
+  uint64_t currentRequests;  // the number of SRequestObj
+} SAppClusterSummary;
+
+typedef struct {
+  int64_t            appId;
+  int32_t            pid;
+  char               name[TSDB_APP_NAME_LEN];
+  int64_t            startTime;
+  SAppClusterSummary summary;
+} SAppHbReq;
+
 typedef struct {
   SClientHbKey      connKey;
   int64_t           clusterId;
+  SAppHbReq         app;
   SQueryHbReqBasic* query;
   SHashObj*         info;  // hash<Skv.key, Skv>
 } SClientHbReq;
