@@ -177,7 +177,8 @@ typedef enum ESubplanType {
   SUBPLAN_TYPE_MERGE = 1,
   SUBPLAN_TYPE_PARTIAL,
   SUBPLAN_TYPE_SCAN,
-  SUBPLAN_TYPE_MODIFY
+  SUBPLAN_TYPE_MODIFY,
+  SUBPLAN_TYPE_COMPUTE
 } ESubplanType;
 
 typedef struct SSubplanId {
@@ -196,6 +197,7 @@ typedef struct SLogicSubplan {
   SVgroupsInfo* pVgroupList;
   int32_t       level;
   int32_t       splitFlag;
+  int32_t       numOfComputeNodes;
 } SLogicSubplan;
 
 typedef struct SQueryLogicPlan {
