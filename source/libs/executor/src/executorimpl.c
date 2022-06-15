@@ -4675,32 +4675,33 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
   if (pPhyNode->pChildren == NULL || LIST_LENGTH(pPhyNode->pChildren) == 0) {
     if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == type) {
       STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pPhyNode;
-//
-//      tsdbReaderT pDataReader =
-//          doCreateDataReader(pTableScanNode, pHandle, pTableListInfo, (uint64_t)queryId, taskId, pTagCond);
-//      if (pDataReader == NULL && terrno != 0) {
-//        return NULL;
-//      }
-//
-//      int32_t code = extractTableSchemaVersion(pHandle, pTableScanNode->scan.uid, pTaskInfo);
-//      if (code) {
-//        tsdbCleanupReadHandle(pDataReader);
-//        return NULL;
-//      }
-//
-//      SArray* groupKeys = extractPartitionColInfo(pTableScanNode->pPartitionKeys);
-//      code = generateGroupIdMap(pTableListInfo, pHandle, groupKeys); //todo for json
-//      taosArrayDestroy(groupKeys);
-//      if (code){
-//        tsdbCleanupReadHandle(pDataReader);
-//        return NULL;
-//      }
-//
-//      SOperatorInfo* pOperator =
-//          createTableScanOperatorInfo(pTableScanNode, pDataReader, pHandle, pTaskInfo);
-//
-//      STableScanInfo* pScanInfo = pOperator->info;
-//      pTaskInfo->cost.pRecoder = &pScanInfo->readRecorder;
+
+      tsdbReaderT pDataReader =
+          doCreateDataReader(pTableScanNode, pHandle, pTableListInfo, (uint64_t)queryId, taskId, pTagCond);
+      if (pDataReader == NULL && terrno != 0) {
+        return NULL;
+      }
+
+      int32_t code = extractTableSchemaVersion(pHandle, pTableScanNode->scan.uid, pTaskInfo);
+      if (code) {
+        tsdbCleanupReadHandle(pDataReader);
+        return NULL;
+      }
+
+      SArray* groupKeys = extractPartitionColInfo(pTableScanNode->pPartitionKeys);
+      code = generateGroupIdMap(pTableListInfo, pHandle, groupKeys);  // todo for json
+      taosArrayDestroy(groupKeys);
+      if (code) {
+        tsdbCleanupReadHandle(pDataReader);
+        return NULL;
+      }
+
+      SOperatorInfo* pOperator = createTableScanOperatorInfo(pTableScanNode, pDataReader, pHandle, pTaskInfo);
+      STableScanInfo* pScanInfo = pOperator->info;
+      pTaskInfo->cost.pRecoder = &pScanInfo->readRecorder;
+      return pOperator;
+    } else if (QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == type) {
+      STableMergeScanPhysiNode* pTableScanNode = (STableMergeScanPhysiNode*)pPhyNode;
 
       SArray* dataReaders = taosArrayInit(8, POINTER_BYTES);
       createMultipleDataReaders(pTableScanNode, pHandle, pTableListInfo, dataReaders, queryId, taskId, pTagCond);
