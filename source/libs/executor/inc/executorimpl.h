@@ -391,7 +391,9 @@ typedef struct SStreamBlockScanInfo {
   void*           streamBlockReader;// stream block reader handle
   SArray*         pColMatchInfo;    //
   SNode*          pCondition;
+  int32_t         tsArrayIndex;
   SArray*         tsArray;
+  uint64_t        groupId;
   SUpdateInfo*    pUpdateInfo;
 
   SExprInfo*      pPseudoExpr;
@@ -582,6 +584,7 @@ typedef struct SPartitionOperatorInfo {
   int32_t*       columnOffset;  // start position for each column data
   void*          pGroupIter;  // group iterator
   int32_t        pageIndex;   // page index of current group
+  SSDataBlock*   pUpdateRes;
 } SPartitionOperatorInfo;
 
 typedef struct SWindowRowsSup {
@@ -907,6 +910,7 @@ int32_t compareTimeWindow(const void* p1, const void* p2, const void* param);
 int32_t finalizeResultRowIntoResultDataBlock(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition,
                                        SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, int32_t numOfExprs, const int32_t* rowCellOffset,
                                        SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
+void copyUpdateDataBlock(SSDataBlock* pDest, SSDataBlock* pSource, int32_t tsColIndex);
 
 #ifdef __cplusplus
 }

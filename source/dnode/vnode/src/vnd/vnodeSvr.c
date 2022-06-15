@@ -284,7 +284,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, int64_t version, SRpcMsg *pMsg, SRp
 void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data) {
   // TODO
 
-  // blockDebugShowData(data, __func__);
+  blockDebugShowData(data, __func__);
   tdProcessTSmaInsert(((SVnode *)pVnode)->pSma, smaId, (const char *)data);
 }
 
@@ -375,6 +375,10 @@ int32_t vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       ret = syncNodeOnAppendEntriesReplyCb(pSyncNode, pSyncMsg);
       syncAppendEntriesReplyDestroy(pSyncMsg);
 
+    } else if (pRpcMsg->msgType == TDMT_SYNC_SET_MNODE_STANDBY) {
+      ret = syncSetStandby(pVnode->sync);
+      SRpcMsg rsp = {.code = ret, .info = pMsg->info};
+      tmsgSendRsp(&rsp);
     } else {
       vError("==vnodeProcessSyncReq== error msg type:%d", pRpcMsg->msgType);
       ret = TAOS_SYNC_OTHER_ERROR;

@@ -25,6 +25,7 @@
 #include "tref.h"
 #include "trpc.h"
 #include "version.h"
+#include "functionMgt.h"
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
@@ -60,6 +61,9 @@ void taos_cleanup(void) {
   taosCloseRef(id);
 
   cleanupTaskQueue();
+
+  fmFuncMgtDestroy();
+  qCleanupKeywordsTable();
 
   id = clientConnRefPool;
   clientConnRefPool = -1;

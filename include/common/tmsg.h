@@ -1134,11 +1134,11 @@ void    tFreeSMAlterStbRsp(SMAlterStbRsp* pRsp);
 int32_t tSerializeSTableMetaRsp(void* buf, int32_t bufLen, STableMetaRsp* pRsp);
 int32_t tDeserializeSTableMetaRsp(void* buf, int32_t bufLen, STableMetaRsp* pRsp);
 void    tFreeSTableMetaRsp(STableMetaRsp* pRsp);
-void tFreeSTableIndexRsp(void *info);
+void    tFreeSTableIndexRsp(void* info);
 
 typedef struct {
-  SArray*         pMetaRsp;  // Array of STableMetaRsp
-  SArray*         pIndexRsp;  // Array of STableIndexRsp;
+  SArray* pMetaRsp;   // Array of STableMetaRsp
+  SArray* pIndexRsp;  // Array of STableIndexRsp;
 } SSTbHbRsp;
 
 int32_t tSerializeSSTbHbRsp(void* buf, int32_t bufLen, SSTbHbRsp* pRsp);
@@ -1305,8 +1305,9 @@ int32_t tSerializeSSetStandbyReq(void* buf, int32_t bufLen, SSetStandbyReq* pReq
 int32_t tDeserializeSSetStandbyReq(void* buf, int32_t bufLen, SSetStandbyReq* pReq);
 
 typedef struct {
-  int32_t connId;
-  int32_t queryId;
+  int32_t connId;   // todo remove
+  int32_t queryId;  // todo remove
+  char    queryStrId[TSDB_QUERY_ID_LEN];
 } SKillQueryReq;
 
 int32_t tSerializeSKillQueryReq(void* buf, int32_t bufLen, SKillQueryReq* pReq);
@@ -2427,6 +2428,7 @@ typedef struct {
 
 static FORCE_INLINE void tDestroyTSma(STSma* pSma) {
   if (pSma) {
+    taosMemoryFreeClear(pSma->dstTbName);
     taosMemoryFreeClear(pSma->expr);
     taosMemoryFreeClear(pSma->tagsFilter);
   }
@@ -2455,7 +2457,7 @@ int32_t tEncodeSVCreateTSmaReq(SEncoder* pCoder, const SVCreateTSmaReq* pReq);
 int32_t tDecodeSVCreateTSmaReq(SDecoder* pCoder, SVCreateTSmaReq* pReq);
 
 int32_t tEncodeTSma(SEncoder* pCoder, const STSma* pSma);
-int32_t tDecodeTSma(SDecoder* pCoder, STSma* pSma);
+int32_t tDecodeTSma(SDecoder* pCoder, STSma* pSma, bool deepCopy);
 
 static int32_t tEncodeTSmaWrapper(SEncoder* pEncoder, const STSmaWrapper* pReq) {
   if (tEncodeI32(pEncoder, pReq->number) < 0) return -1;
@@ -2465,10 +2467,10 @@ static int32_t tEncodeTSmaWrapper(SEncoder* pEncoder, const STSmaWrapper* pReq) 
   return 0;
 }
 
-static int32_t tDecodeTSmaWrapper(SDecoder* pDecoder, STSmaWrapper* pReq) {
+static int32_t tDecodeTSmaWrapper(SDecoder* pDecoder, STSmaWrapper* pReq, bool deepCopy) {
   if (tDecodeI32(pDecoder, &pReq->number) < 0) return -1;
   for (int32_t i = 0; i < pReq->number; ++i) {
-    tDecodeTSma(pDecoder, pReq->tSma + i);
+    tDecodeTSma(pDecoder, pReq->tSma + i, deepCopy);
   }
   return 0;
 }
