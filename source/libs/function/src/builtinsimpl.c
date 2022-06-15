@@ -2345,14 +2345,7 @@ int32_t apercentileCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx)
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
   SAPercentileInfo*    pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
   ASSERT(pDBuf->algo == pSBuf->algo);
-  if (pDBuf->algo == APERCT_ALGO_TDIGEST) {
-    tdigestMerge(pDBuf->pTDigest, pSBuf->pTDigest);
-  } else {
-    SHistogramInfo* pTmp = tHistogramMerge(pDBuf->pHisto, pSBuf->pHisto, MAX_HISTOGRAM_BIN);
-    memcpy(pDBuf->pHisto, pTmp, sizeof(SHistogramInfo) + sizeof(SHistBin) * (MAX_HISTOGRAM_BIN + 1));
-    pDBuf->pHisto->elems = (SHistBin*)((char*)pDBuf->pHisto + sizeof(SHistogramInfo));
-    tHistogramDestroy(&pTmp);
-  }
+  apercentileTransferInfo(pSBuf, pDBuf);
   pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
   return TSDB_CODE_SUCCESS;
 }

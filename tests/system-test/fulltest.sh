@@ -18,7 +18,7 @@ python3 ./test.py -f 0-others/fsync.py
 python3 ./test.py -f 1-insert/influxdb_line_taosc_insert.py
 python3 ./test.py -f 1-insert/opentsdb_telnet_line_taosc_insert.py
 python3 ./test.py -f 1-insert/opentsdb_json_taosc_insert.py
-# python3 ./test.py -f 1-insert/test_stmt_muti_insert_query.py
+# BUG python3 ./test.py -f 1-insert/test_stmt_muti_insert_query.py
 python3 ./test.py -f 1-insert/alter_stable.py
 python3 ./test.py -f 1-insert/alter_table.py
 python3 ./test.py -f 1-insert/insertWithMoreVgroup.py
@@ -101,7 +101,9 @@ python3 ./test.py -f 2-query/tail.py
 
 python3 ./test.py -f 6-cluster/5dnode1mnode.py 
 python3 ./test.py -f 6-cluster/5dnode2mnode.py 
-python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py
+# BUG python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py
+python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py
+# BUG python3 ./test.py -f 6-cluster/5dnode3mnodeStopInsert.py 
 
 python3 ./test.py -f 7-tmq/basic5.py
 python3 ./test.py -f 7-tmq/subscribeDb.py
@@ -114,3 +116,5 @@ python3 ./test.py -f 7-tmq/subscribeStb2.py
 python3 ./test.py -f 7-tmq/subscribeStb3.py
 python3 ./test.py -f 7-tmq/subscribeStb4.py
 python3 ./test.py -f 7-tmq/db.py
+python3 ./test.py -f 7-tmq/tmqError.py
+python3 ./test.py -f 7-tmq/schema.py

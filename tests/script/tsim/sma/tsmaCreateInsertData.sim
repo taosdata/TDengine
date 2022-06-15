@@ -37,6 +37,14 @@ print =============== trigger stream to execute sma aggr task and insert sma dat
 sql insert into ct1 values(now+5s, 20, 20.0, 30.0)
 #===================================================================
 
+print =============== show streams ================================
+sql show streams;
+print $data00 $data01 $data02
+
+if $data00 != d1 then
+  return -1
+endi
+
 print =============== select * from ct1 from memory
 sql select * from ct1;
 print $data00 $data01
