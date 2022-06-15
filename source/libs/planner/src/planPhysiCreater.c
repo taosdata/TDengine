@@ -470,7 +470,8 @@ static ENodeType getScanOperatorType(EScanType scanType) {
     case SCAN_TYPE_STREAM:
       return QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN;
     case SCAN_TYPE_TABLE_MERGE:
-      return QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN;
+      return QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
+      // return QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN;
     default:
       break;
   }
