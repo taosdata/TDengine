@@ -359,7 +359,6 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
         return -1;
       } else {
         mDebug("user:%s, conn:%u is freed and create a new conn:%u", connInfo.user, pBasic->connId, pConn->id);
-        pConn = mndAcquireConn(pMnode, pBasic->connId);
       }
     }
     
