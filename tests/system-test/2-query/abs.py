@@ -68,7 +68,7 @@ class TDTestCase:
 
     def prepare_tag_datas(self):
                 # prepare datas
-        tdSql.execute("create database if not exists testdb keep 3650 days 1000")
+        tdSql.execute("create database if not exists testdb keep 3650 duration 1000")
         tdSql.execute(" use testdb ")
         tdSql.execute(
             '''create table stb1

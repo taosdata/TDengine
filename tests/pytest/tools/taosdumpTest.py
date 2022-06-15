@@ -60,8 +60,8 @@ class TDTestCase:
         if not os.path.exists("./taosdumptest/tmp2"):
             os.makedirs("./taosdumptest/tmp2")
         tdSql.execute("drop database if exists db")
-        tdSql.execute("create database db  days 11 keep 3649 blocks 8 ")
-        tdSql.execute("create database db1  days 12 keep 3640 blocks 7 ")
+        tdSql.execute("create database db  duration 11 keep 3649 blocks 8 ")
+        tdSql.execute("create database db1  duration 12 keep 3640 blocks 7 ")
         tdSql.execute("use db")
         tdSql.execute(
             "create table st(ts timestamp, c1 int, c2 nchar(10)) tags(t1 int, t2 binary(10))")
@@ -102,7 +102,7 @@ class TDTestCase:
         tdSql.query("show databases")
         tdSql.checkRows(2)
         dbresult = tdSql.queryResult
-        # 6--days,7--keep0,keep1,keep, 12--block,
+        # 6--duration,7--keep0,keep1,keep, 12--block,
 
         isCommunity = self.checkCommunity()
         print("iscommunity: %d" % isCommunity)

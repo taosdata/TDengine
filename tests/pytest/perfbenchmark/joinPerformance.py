@@ -81,7 +81,7 @@ class JoinPerf:
             "name": self.dbname,
             "drop": self.drop,
             "replica": 1,
-            "days": 10,
+            "duration": 10,
             "cache": 16,
             "blocks": 8,
             "precision": "ms",

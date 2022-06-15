@@ -228,23 +228,22 @@ static int32_t mndStreamGetPlanString(const char *ast, int8_t triggerType, int64
         .pAstRoot = pAst,
         .topicQuery = false,
         .streamQuery = true,
-        .triggerType = triggerType,
+        .triggerType = triggerType == STREAM_TRIGGER_MAX_DELAY ? STREAM_TRIGGER_WINDOW_CLOSE : triggerType,
         .watermark = watermark,
     };
     code = qCreateQueryPlan(&cxt, &pPlan, NULL);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = nodesNodeToString((SNode*)pPlan, false, pStr, NULL);
+    code = nodesNodeToString((SNode *)pPlan, false, pStr, NULL);
   }
   nodesDestroyNode(pAst);
-  nodesDestroyNode((SNode*)pPlan);
+  nodesDestroyNode((SNode *)pPlan);
   terrno = code;
   return code;
 }
 
-int32_t mndAddStreamToTrans(SMnode *pMnode, SStreamObj *pStream, const char *ast, int8_t triggerType, int64_t watermark,
-                            STrans *pTrans) {
+int32_t mndAddStreamToTrans(SMnode *pMnode, SStreamObj *pStream, const char *ast, STrans *pTrans) {
   SNode *pAst = NULL;
 
   if (nodesStringToNode(ast, &pAst) < 0) {
@@ -258,7 +257,6 @@ int32_t mndAddStreamToTrans(SMnode *pMnode, SStreamObj *pStream, const char *ast
   // free
   nodesDestroyNode(pAst);
 
-
 #if 0
   printf("|");
   for (int i = 0; i < pStream->outputSchema.nCols; i++) {
@@ -268,7 +266,7 @@ int32_t mndAddStreamToTrans(SMnode *pMnode, SStreamObj *pStream, const char *ast
 
 #endif
 
-  if (TSDB_CODE_SUCCESS != mndStreamGetPlanString(ast, triggerType, watermark, &pStream->physicalPlan)) {
+  if (TSDB_CODE_SUCCESS != mndStreamGetPlanString(ast, pStream->trigger, pStream->watermark, &pStream->physicalPlan)) {
     mError("topic:%s, failed to get plan since %s", pStream->name, terrstr());
     return -1;
   }
@@ -391,7 +389,8 @@ static int32_t mndCreateStream(SMnode *pMnode, SRpcMsg *pReq, SCMCreateStreamReq
   streamObj.smaId = 0;
   /*streamObj.physicalPlan = "";*/
   streamObj.trigger = pCreate->triggerType;
-  streamObj.waterMark = pCreate->watermark;
+  streamObj.watermark = pCreate->watermark;
+  streamObj.triggerParam = pCreate->maxDelay;
 
   if (streamObj.targetSTbName[0]) {
     pDb = mndAcquireDbByStb(pMnode, streamObj.targetSTbName);
@@ -409,7 +408,7 @@ static int32_t mndCreateStream(SMnode *pMnode, SRpcMsg *pReq, SCMCreateStreamReq
   }
   mDebug("trans:%d, used to create stream:%s", pTrans->id, pCreate->name);
 
-  if (mndAddStreamToTrans(pMnode, &streamObj, pCreate->ast, pCreate->triggerType, pCreate->watermark, pTrans) != 0) {
+  if (mndAddStreamToTrans(pMnode, &streamObj, pCreate->ast, pTrans) != 0) {
     mError("trans:%d, failed to add stream since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
     return -1;
@@ -566,7 +565,7 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     colDataAppend(pColInfo, numOfRows, (const char *)&pStream->targetSTbName, true);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pStream->waterMark, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pStream->watermark, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&pStream->trigger, false);
