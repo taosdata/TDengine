@@ -138,6 +138,14 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_TOP_MERGE,
   FUNCTION_TYPE_BOTTOM_PARTIAL,
   FUNCTION_TYPE_BOTTOM_MERGE,
+  FUNCTION_TYPE_FIRST_PARTIAL,
+  FUNCTION_TYPE_FIRST_MERGE,
+  FUNCTION_TYPE_LAST_PARTIAL,
+  FUNCTION_TYPE_LAST_MERGE,
+  FUNCTION_TYPE_AVG_PARTIAL,
+  FUNCTION_TYPE_AVG_MERGE,
+  FUNCTION_TYPE_STDDEV_PARTIAL,
+  FUNCTION_TYPE_STDDEV_MERGE,
 
   // user defined funcion
   FUNCTION_TYPE_UDF = 10000
@@ -175,6 +183,7 @@ bool fmIsRepeatScanFunc(int32_t funcId);
 bool fmIsUserDefinedFunc(int32_t funcId);
 bool fmIsDistExecFunc(int32_t funcId);
 bool fmIsForbidFillFunc(int32_t funcId);
+bool fmIsForbidStreamFunc(int32_t funcId);
 
 int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMergeFunc);
 

@@ -41,7 +41,6 @@ extern "C" {
 #define tqTrace(...) do { if (tqDebugFlag & DEBUG_TRACE) { taosPrintLog("TQ  ", DEBUG_TRACE, tqDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
-typedef struct STqOffsetCfg   STqOffsetCfg;
 typedef struct STqOffsetStore STqOffsetStore;
 
 // tqRead
@@ -127,14 +126,15 @@ typedef struct {
 } STqHandle;
 
 struct STQ {
-  char*     path;
-  SHashObj* pushMgr;       // consumerId -> STqHandle*
-  SHashObj* handles;       // subKey -> STqHandle
-  SHashObj* pStreamTasks;  // taksId -> SStreamTask
-  SVnode*   pVnode;
-  SWal*     pWal;
-  TDB*      pMetaStore;
-  TTB*      pExecStore;
+  char*           path;
+  SHashObj*       pushMgr;       // consumerId -> STqHandle*
+  SHashObj*       handles;       // subKey -> STqHandle
+  SHashObj*       pStreamTasks;  // taksId -> SStreamTask
+  STqOffsetStore* pOffsetStore;
+  SVnode*         pVnode;
+  SWal*           pWal;
+  TDB*            pMetaStore;
+  TTB*            pExecStore;
 };
 
 typedef struct {
@@ -157,16 +157,18 @@ int32_t tqMetaClose(STQ* pTq);
 int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle);
 int32_t tqMetaDeleteHandle(STQ* pTq, const char* key);
 
+typedef struct {
+  int32_t size;
+} STqOffsetHead;
+
+STqOffsetStore* tqOffsetOpen();
+void            tqOffsetClose(STqOffsetStore*);
+STqOffset*      tqOffsetRead(STqOffsetStore* pStore, const char* subscribeKey);
+int32_t         tqOffsetWrite(STqOffsetStore* pStore, const STqOffset* pOffset);
+int32_t         tqOffsetSnapshot(STqOffsetStore* pStore);
+
 // tqSink
 void tqTableSink(SStreamTask* pTask, void* vnode, int64_t ver, void* data);
-
-// tqOffset
-STqOffsetStore* tqOffsetOpen(STqOffsetCfg*);
-void            tqOffsetClose(STqOffsetStore*);
-int64_t         tqOffsetFetch(STqOffsetStore* pStore, const char* subscribeKey);
-int32_t         tqOffsetCommit(STqOffsetStore* pStore, const char* subscribeKey, int64_t offset);
-int32_t         tqOffsetPersist(STqOffsetStore* pStore, const char* subscribeKey);
-int32_t         tqOffsetPersistAll(STqOffsetStore* pStore);
 
 #ifdef __cplusplus
 }

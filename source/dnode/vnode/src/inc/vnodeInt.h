@@ -137,6 +137,7 @@ int     tqCommit(STQ*);
 int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd);
 int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessVgDeleteReq(STQ* pTq, char* msg, int32_t msgLen);
+int32_t tqProcessOffsetCommitReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId);
 int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessStreamTrigger(STQ* pTq, SSubmitReq* data);
@@ -145,6 +146,9 @@ int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRecoverReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRecoverRsp(STQ* pTq, SRpcMsg* pMsg);
+
+SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pSchema, bool createTb, int64_t suid,
+                            const char* stbFullName, int32_t vgId);
 
 // sma
 int32_t smaOpen(SVnode* pVnode);
@@ -244,7 +248,6 @@ struct STbUidStore {
 };
 
 struct SSma {
-  int16_t       nTSma;
   bool          locked;
   TdThreadMutex mutex;
   SVnode*       pVnode;
@@ -260,7 +263,6 @@ struct SSma {
 #define SMA_META(s)       ((s)->pVnode->pMeta)
 #define SMA_VID(s)        TD_VID((s)->pVnode)
 #define SMA_TFS(s)        ((s)->pVnode->pTfs)
-#define SMA_TSMA_NUM(s)   ((s)->nTSma)
 #define SMA_TSMA_ENV(s)   ((s)->pTSmaEnv)
 #define SMA_RSMA_ENV(s)   ((s)->pRSmaEnv)
 #define SMA_RSMA_TSDB0(s) ((s)->pVnode->pTsdb)

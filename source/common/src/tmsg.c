@@ -694,6 +694,7 @@ int32_t tDeserializeSMAlterStbReq(void *buf, int32_t bufLen, SMAlterStbReq *pReq
 void tFreeSMAltertbReq(SMAlterStbReq *pReq) {
   taosArrayDestroy(pReq->pFields);
   pReq->pFields = NULL;
+  taosMemoryFreeClear(pReq->comment);
 }
 
 int32_t tSerializeSEpSet(void *buf, int32_t bufLen, const SEpSet *pEpset) {
@@ -2654,7 +2655,7 @@ int32_t tSerializeSSTbHbRsp(void *buf, int32_t bufLen, SSTbHbRsp *pRsp) {
   }
 
   int32_t numOfIndex = taosArrayGetSize(pRsp->pIndexRsp);
-  if (tEncodeI32(&encoder, numOfIndex) < 0) return -1;  
+  if (tEncodeI32(&encoder, numOfIndex) < 0) return -1;
   for (int32_t i = 0; i < numOfIndex; ++i) {
     STableIndexRsp *pIndexRsp = taosArrayGet(pRsp->pIndexRsp, i);
     if (tEncodeCStr(&encoder, pIndexRsp->tbName) < 0) return -1;
@@ -2739,7 +2740,7 @@ int32_t tDeserializeSSTbHbRsp(void *buf, int32_t bufLen, SSTbHbRsp *pRsp) {
     }
     taosArrayPush(pRsp->pIndexRsp, &tableIndexRsp);
   }
-  
+
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
@@ -3583,6 +3584,33 @@ int32_t tDeserializeSDCreateMnodeReq(void *buf, int32_t bufLen, SDCreateMnodeReq
   return 0;
 }
 
+int32_t tSerializeSSetStandbyReq(void *buf, int32_t bufLen, SSetStandbyReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->dnodeId) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->standby) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSSetStandbyReq(void *buf, int32_t bufLen, SSetStandbyReq *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->dnodeId) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->standby) < 0) return -1;
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
 int32_t tSerializeSAuthReq(void *buf, int32_t bufLen, SAuthReq *pReq) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
@@ -3974,7 +4002,7 @@ int32_t tEncodeTSma(SEncoder *pCoder, const STSma *pSma) {
   return 0;
 }
 
-int32_t tDecodeTSma(SDecoder *pCoder, STSma *pSma) {
+int32_t tDecodeTSma(SDecoder *pCoder, STSma *pSma, bool deepCopy) {
   if (tDecodeI8(pCoder, &pSma->version) < 0) return -1;
   if (tDecodeI8(pCoder, &pSma->intervalUnit) < 0) return -1;
   if (tDecodeI8(pCoder, &pSma->slidingUnit) < 0) return -1;
@@ -3986,17 +4014,30 @@ int32_t tDecodeTSma(SDecoder *pCoder, STSma *pSma) {
   if (tDecodeI64(pCoder, &pSma->indexUid) < 0) return -1;
   if (tDecodeI64(pCoder, &pSma->tableUid) < 0) return -1;
   if (tDecodeI64(pCoder, &pSma->dstTbUid) < 0) return -1;
-  if (tDecodeCStr(pCoder, &pSma->dstTbName) < 0) return -1;
+  if (deepCopy) {
+    if (tDecodeCStrAlloc(pCoder, &pSma->dstTbName) < 0) return -1;
+  } else {
+    if (tDecodeCStr(pCoder, &pSma->dstTbName) < 0) return -1;
+  }
+
   if (tDecodeI64(pCoder, &pSma->interval) < 0) return -1;
   if (tDecodeI64(pCoder, &pSma->offset) < 0) return -1;
   if (tDecodeI64(pCoder, &pSma->sliding) < 0) return -1;
   if (pSma->exprLen > 0) {
-    if (tDecodeCStr(pCoder, &pSma->expr) < 0) return -1;
+    if (deepCopy) {
+      if (tDecodeCStrAlloc(pCoder, &pSma->expr) < 0) return -1;
+    } else {
+      if (tDecodeCStr(pCoder, &pSma->expr) < 0) return -1;
+    }
   } else {
     pSma->expr = NULL;
   }
   if (pSma->tagsFilterLen > 0) {
-    if (tDecodeCStr(pCoder, &pSma->tagsFilter) < 0) return -1;
+    if (deepCopy) {
+      if (tDecodeCStrAlloc(pCoder, &pSma->tagsFilter) < 0) return -1;
+    } else {
+      if (tDecodeCStr(pCoder, &pSma->tagsFilter) < 0) return -1;
+    }
   } else {
     pSma->tagsFilter = NULL;
   }
@@ -4019,7 +4060,7 @@ int32_t tEncodeSVCreateTSmaReq(SEncoder *pCoder, const SVCreateTSmaReq *pReq) {
 int32_t tDecodeSVCreateTSmaReq(SDecoder *pCoder, SVCreateTSmaReq *pReq) {
   if (tStartDecode(pCoder) < 0) return -1;
 
-  tDecodeTSma(pCoder, pReq);
+  tDecodeTSma(pCoder, pReq, false);
 
   tEndDecode(pCoder);
   return 0;
@@ -4141,6 +4182,7 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
   if (tEncodeI32(&encoder, sqlLen) < 0) return -1;
   if (tEncodeI32(&encoder, astLen) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->triggerType) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->maxDelay) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->watermark) < 0) return -1;
   if (sqlLen > 0 && tEncodeCStr(&encoder, pReq->sql) < 0) return -1;
   if (astLen > 0 && tEncodeCStr(&encoder, pReq->ast) < 0) return -1;
@@ -4167,6 +4209,7 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
   if (tDecodeI32(&decoder, &sqlLen) < 0) return -1;
   if (tDecodeI32(&decoder, &astLen) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->triggerType) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->maxDelay) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->watermark) < 0) return -1;
 
   if (sqlLen > 0) {
@@ -4822,4 +4865,32 @@ void tFreeSMAlterStbRsp(SMAlterStbRsp *pRsp) {
     taosMemoryFree(pRsp->pMeta->pSchemas);
     taosMemoryFree(pRsp->pMeta);
   }
+}
+
+int32_t tEncodeSTqOffset(SEncoder *pEncoder, const STqOffset *pOffset) {
+  if (tEncodeI8(pEncoder, pOffset->type) < 0) return -1;
+  if (pOffset->type == TMQ_OFFSET__SNAPSHOT) {
+    if (tEncodeI64(pEncoder, pOffset->uid) < 0) return -1;
+    if (tEncodeI64(pEncoder, pOffset->ts) < 0) return -1;
+  } else if (pOffset->type == TMQ_OFFSET__LOG) {
+    if (tEncodeI64(pEncoder, pOffset->version) < 0) return -1;
+  } else {
+    ASSERT(0);
+  }
+  if (tEncodeCStr(pEncoder, pOffset->subKey) < 0) return -1;
+  return 0;
+}
+
+int32_t tDecodeSTqOffset(SDecoder *pDecoder, STqOffset *pOffset) {
+  if (tDecodeI8(pDecoder, &pOffset->type) < 0) return -1;
+  if (pOffset->type == TMQ_OFFSET__SNAPSHOT) {
+    if (tDecodeI64(pDecoder, &pOffset->uid) < 0) return -1;
+    if (tDecodeI64(pDecoder, &pOffset->ts) < 0) return -1;
+  } else if (pOffset->type == TMQ_OFFSET__LOG) {
+    if (tDecodeI64(pDecoder, &pOffset->version) < 0) return -1;
+  } else {
+    ASSERT(0);
+  }
+  if (tDecodeCStrTo(pDecoder, pOffset->subKey) < 0) return -1;
+  return 0;
 }

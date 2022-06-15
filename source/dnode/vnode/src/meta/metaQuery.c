@@ -663,12 +663,23 @@ int32_t metaFilteTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
 
   void *  entryKey = NULL, *entryVal = NULL;
   int32_t nEntryKey, nEntryVal;
+  bool    first = true;
   while (1) {
     valid = tdbTbcGet(pCursor->pCur, (const void **)&entryKey, &nEntryKey, (const void **)&entryVal, &nEntryVal);
     if (valid < 0) {
       break;
     }
     STagIdxKey *p = entryKey;
+    if (p->type != pCursor->type) {
+      if (first) {
+        valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
+        if (valid < 0) break;
+        continue;
+      } else {
+        break;
+      }
+    }
+    first = false;
     if (p != NULL) {
       int32_t cmp = (*param->filterFunc)(p->data, pKey->data, pKey->type);
       if (cmp == 0) {

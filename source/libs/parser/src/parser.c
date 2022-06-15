@@ -34,8 +34,8 @@ bool qIsInsertSql(const char* pStr, size_t length) {
   } while (1);
 }
 
-static int32_t analyseSemantic(SParseContext* pCxt, SQuery* pQuery) {
-  int32_t code = authenticate(pCxt, pQuery);
+static int32_t analyseSemantic(SParseContext* pCxt, SQuery* pQuery, SParseMetaCache* pMetaCache) {
+  int32_t code = authenticate(pCxt, pQuery, pMetaCache);
 
   if (TSDB_CODE_SUCCESS == code && pQuery->placeholderNum > 0) {
     TSWAP(pQuery->pPrepareRoot, pQuery->pRoot);
@@ -43,7 +43,7 @@ static int32_t analyseSemantic(SParseContext* pCxt, SQuery* pQuery) {
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = translate(pCxt, pQuery);
+    code = translate(pCxt, pQuery, pMetaCache);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = calculateConstant(pCxt, pQuery);
@@ -54,15 +54,15 @@ static int32_t analyseSemantic(SParseContext* pCxt, SQuery* pQuery) {
 static int32_t parseSqlIntoAst(SParseContext* pCxt, SQuery** pQuery) {
   int32_t code = parse(pCxt, pQuery);
   if (TSDB_CODE_SUCCESS == code) {
-    code = analyseSemantic(pCxt, *pQuery);
+    code = analyseSemantic(pCxt, *pQuery, NULL);
   }
   return code;
 }
 
-static int32_t parseSqlSyntax(SParseContext* pCxt, SQuery** pQuery) {
+static int32_t parseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, SParseMetaCache* pMetaCache) {
   int32_t code = parse(pCxt, pQuery);
   if (TSDB_CODE_SUCCESS == code) {
-    code = collectMetaKey(pCxt, *pQuery);
+    code = collectMetaKey(pCxt, *pQuery, pMetaCache);
   }
   return code;
 }
@@ -149,7 +149,7 @@ static void rewriteExprAlias(SNode* pRoot) {
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (qIsInsertSql(pCxt->pSql, pCxt->sqlLen)) {
-    code = parseInsertSql(pCxt, pQuery);
+    code = parseInsertSql(pCxt, pQuery, NULL);
   } else {
     code = parseSqlIntoAst(pCxt, pQuery);
   }
@@ -158,29 +158,38 @@ int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery) {
 }
 
 int32_t qParseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq* pCatalogReq) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  SParseMetaCache metaCache = {0};
+  int32_t         code = TSDB_CODE_SUCCESS;
   if (qIsInsertSql(pCxt->pSql, pCxt->sqlLen)) {
-    code = parseInsertSyntax(pCxt, pQuery);
+    code = parseInsertSyntax(pCxt, pQuery, &metaCache);
   } else {
-    code = parseSqlSyntax(pCxt, pQuery);
+    code = parseSqlSyntax(pCxt, pQuery, &metaCache);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildCatalogReq((*pQuery)->pMetaCache, pCatalogReq);
+    code = buildCatalogReq(&metaCache, pCatalogReq);
   }
+  destoryParseMetaCache(&metaCache);
   terrno = code;
   return code;
 }
 
 int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCatalogReq,
                             const struct SMetaData* pMetaData, SQuery* pQuery) {
-  int32_t code = putMetaDataToCache(pCatalogReq, pMetaData, pQuery->pMetaCache);
-  if (NULL == pQuery->pRoot) {
-    return parseInsertSql(pCxt, &pQuery);
+  SParseMetaCache metaCache = {0};
+  int32_t         code = putMetaDataToCache(pCatalogReq, pMetaData, &metaCache);
+  if (TSDB_CODE_SUCCESS == code) {
+    if (NULL == pQuery->pRoot) {
+      code = parseInsertSql(pCxt, &pQuery, &metaCache);
+    } else {
+      code = analyseSemantic(pCxt, pQuery, &metaCache);
+    }
   }
-  return analyseSemantic(pCxt, pQuery);
+  destoryParseMetaCache(&metaCache);
+  terrno = code;
+  return code;
 }
 
-void qDestroyQuery(SQuery* pQueryNode) { nodesDestroyNode(pQueryNode); }
+void qDestroyQuery(SQuery* pQueryNode) { nodesDestroyNode((SNode*)pQueryNode); }
 
 int32_t qExtractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema) {
   return extractResultSchema(pRoot, numOfCols, pSchema);
@@ -197,6 +206,8 @@ int32_t qSetSTableIdForRsma(SNode* pStmt, int64_t uid) {
   }
   return TSDB_CODE_FAILED;
 }
+
+void qCleanupKeywordsTable() { taosCleanupKeywordsTable(); }
 
 int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -226,10 +237,9 @@ int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx
 }
 
 int32_t qStmtParseQuerySql(SParseContext* pCxt, SQuery* pQuery) {
-  int32_t code = translate(pCxt, pQuery);
+  int32_t code = translate(pCxt, pQuery, NULL);
   if (TSDB_CODE_SUCCESS == code) {
     code = calculateConstant(pCxt, pQuery);
   }
-
   return code;
 }

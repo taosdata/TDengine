@@ -392,8 +392,12 @@ int32_t ctgGetTbIndex(SCatalog* pCtg, SRequestConnInfo *pConn, SName* pTableName
     CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
   
-  int32_t code = 0;
-  CTG_ERR_JRET(ctgGetTbIndexFromMnode(pCtg, pConn, (SName*)pTableName, pIndex, NULL));
+  int32_t code = ctgGetTbIndexFromMnode(pCtg, pConn, (SName*)pTableName, pIndex, NULL);
+  if (TSDB_CODE_MND_DB_INDEX_NOT_EXIST == code) {
+    code = 0;
+    goto _return;
+  }
+  CTG_ERR_JRET(code);
   
   SArray* pInfo = NULL;
   CTG_ERR_JRET(ctgCloneTableIndex(pIndex->pIndex, &pInfo));

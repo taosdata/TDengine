@@ -76,6 +76,11 @@ TEST_F(ParserInitialATest, alterSTable) {
 
   SMAlterStbReq expect = {0};
 
+  auto clearAlterStbReq = [&]() {
+    tFreeSMAltertbReq(&expect);
+    memset(&expect, 0, sizeof(SMAlterStbReq));
+  };
+
   auto setAlterStbReqFunc = [&](const char* pTbname, int8_t alterType, int32_t numOfFields = 0,
                                 const char* pField1Name = nullptr, int8_t field1Type = 0, int32_t field1Bytes = 0,
                                 const char* pField2Name = nullptr, const char* pComment = nullptr,
@@ -139,39 +144,49 @@ TEST_F(ParserInitialATest, alterSTable) {
       ASSERT_EQ(pField->type, pExpectField->type);
       ASSERT_EQ(pField->bytes, pExpectField->bytes);
     }
+    tFreeSMAltertbReq(&req);
   });
 
   setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_OPTIONS, 0, nullptr, 0, 0, nullptr, nullptr, 10);
   run("ALTER TABLE st1 TTL 10");
+  clearAlterStbReq();
 
   setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_OPTIONS, 0, nullptr, 0, 0, nullptr, "test");
   run("ALTER TABLE st1 COMMENT 'test'");
+  clearAlterStbReq();
 
   setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_ADD_COLUMN, 1, "cc1", TSDB_DATA_TYPE_BIGINT);
   run("ALTER TABLE st1 ADD COLUMN cc1 BIGINT");
+  clearAlterStbReq();
 
   setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_DROP_COLUMN, 1, "c1");
   run("ALTER TABLE st1 DROP COLUMN c1");
+  clearAlterStbReq();
 
-  setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES, 1, "c1", TSDB_DATA_TYPE_VARCHAR,
-                     20 + VARSTR_HEADER_SIZE);
-  run("ALTER TABLE st1 MODIFY COLUMN c1 VARCHAR(20)");
+  setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES, 1, "c2", TSDB_DATA_TYPE_VARCHAR,
+                     30 + VARSTR_HEADER_SIZE);
+  run("ALTER TABLE st1 MODIFY COLUMN c2 VARCHAR(30)");
+  clearAlterStbReq();
 
   // setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME, 2, "c1", 0, 0, "cc1");
   // run("ALTER TABLE st1 RENAME COLUMN c1 cc1");
 
   setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_ADD_TAG, 1, "tag11", TSDB_DATA_TYPE_BIGINT);
   run("ALTER TABLE st1 ADD TAG tag11 BIGINT");
+  clearAlterStbReq();
 
   setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_DROP_TAG, 1, "tag1");
   run("ALTER TABLE st1 DROP TAG tag1");
+  clearAlterStbReq();
 
-  setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_TAG_BYTES, 1, "tag1", TSDB_DATA_TYPE_VARCHAR,
-                     20 + VARSTR_HEADER_SIZE);
-  run("ALTER TABLE st1 MODIFY TAG tag1 VARCHAR(20)");
+  setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_TAG_BYTES, 1, "tag2", TSDB_DATA_TYPE_VARCHAR,
+                     30 + VARSTR_HEADER_SIZE);
+  run("ALTER TABLE st1 MODIFY TAG tag2 VARCHAR(30)");
+  clearAlterStbReq();
 
   setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_TAG_NAME, 2, "tag1", 0, 0, "tag11");
   run("ALTER TABLE st1 RENAME TAG tag1 tag11");
+  clearAlterStbReq();
 
   // todo
   // ADD {FULLTEXT | SMA} INDEX index_name (col_name [, col_name] ...) [index_option]
@@ -181,6 +196,10 @@ TEST_F(ParserInitialATest, alterSTableSemanticCheck) {
   useDb("root", "test");
 
   run("ALTER TABLE st1 RENAME COLUMN c1 cc1", TSDB_CODE_PAR_INVALID_ALTER_TABLE);
+
+  run("ALTER TABLE st1 MODIFY COLUMN c2 NCHAR(10)", TSDB_CODE_PAR_INVALID_MODIFY_COL);
+
+  run("ALTER TABLE st1 MODIFY TAG tag2 NCHAR(10)", TSDB_CODE_PAR_INVALID_MODIFY_COL);
 }
 
 TEST_F(ParserInitialATest, alterTable) {
@@ -188,9 +207,16 @@ TEST_F(ParserInitialATest, alterTable) {
 
   SVAlterTbReq expect = {0};
 
+  auto clearAlterTbReq = [&]() {
+    free(expect.tbName);
+    free(expect.colName);
+    free(expect.colNewName);
+    free(expect.tagName);
+    memset(&expect, 0, sizeof(SVAlterTbReq));
+  };
+
   auto setAlterColFunc = [&](const char* pTbname, int8_t alterType, const char* pColName, int8_t dataType = 0,
                              int32_t dataBytes = 0, const char* pNewColName = nullptr) {
-    memset(&expect, 0, sizeof(SVAlterTbReq));
     expect.tbName = strdup(pTbname);
     expect.action = alterType;
     expect.colName = strdup(pColName);
@@ -213,7 +239,6 @@ TEST_F(ParserInitialATest, alterTable) {
   };
 
   auto setAlterTagFunc = [&](const char* pTbname, const char* pTagName, uint8_t* pNewVal, uint32_t bytes) {
-    memset(&expect, 0, sizeof(SVAlterTbReq));
     expect.tbName = strdup(pTbname);
     expect.action = TSDB_ALTER_TABLE_UPDATE_TAG_VAL;
     expect.tagName = strdup(pTagName);
@@ -224,7 +249,6 @@ TEST_F(ParserInitialATest, alterTable) {
   };
 
   auto setAlterOptionsFunc = [&](const char* pTbname, int32_t ttl, char* pComment = nullptr) {
-    memset(&expect, 0, sizeof(SVAlterTbReq));
     expect.tbName = strdup(pTbname);
     expect.action = TSDB_ALTER_TABLE_UPDATE_OPTIONS;
     if (-1 != ttl) {
@@ -281,25 +305,32 @@ TEST_F(ParserInitialATest, alterTable) {
 
   setAlterOptionsFunc("t1", 10, nullptr);
   run("ALTER TABLE t1 TTL 10");
+  clearAlterTbReq();
 
   setAlterOptionsFunc("t1", -1, (char*)"test");
   run("ALTER TABLE t1 COMMENT 'test'");
+  clearAlterTbReq();
 
   setAlterColFunc("t1", TSDB_ALTER_TABLE_ADD_COLUMN, "cc1", TSDB_DATA_TYPE_BIGINT);
   run("ALTER TABLE t1 ADD COLUMN cc1 BIGINT");
+  clearAlterTbReq();
 
   setAlterColFunc("t1", TSDB_ALTER_TABLE_DROP_COLUMN, "c1");
   run("ALTER TABLE t1 DROP COLUMN c1");
+  clearAlterTbReq();
 
   setAlterColFunc("t1", TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES, "c2", TSDB_DATA_TYPE_VARCHAR, 30 + VARSTR_HEADER_SIZE);
   run("ALTER TABLE t1 MODIFY COLUMN c2 VARCHAR(30)");
+  clearAlterTbReq();
 
   setAlterColFunc("t1", TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME, "c1", 0, 0, "cc1");
   run("ALTER TABLE t1 RENAME COLUMN c1 cc1");
+  clearAlterTbReq();
 
   int32_t val = 10;
   setAlterTagFunc("st1s1", "tag1", (uint8_t*)&val, sizeof(val));
   run("ALTER TABLE st1s1 SET TAG tag1=10");
+  clearAlterTbReq();
 
   // todo
   // ADD {FULLTEXT | SMA} INDEX index_name (col_name [, col_name] ...) [index_option]
@@ -309,6 +340,8 @@ TEST_F(ParserInitialATest, alterTableSemanticCheck) {
   useDb("root", "test");
 
   run("ALTER TABLE st1s1 RENAME COLUMN c1 cc1", TSDB_CODE_PAR_INVALID_ALTER_TABLE);
+
+  run("ALTER TABLE st1s1 SET TAG tag2 =  '123456789012345678901'", TSDB_CODE_PAR_WRONG_VALUE_TYPE);
 }
 
 TEST_F(ParserInitialATest, alterUser) {
