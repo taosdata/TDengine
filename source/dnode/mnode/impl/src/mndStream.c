@@ -228,7 +228,7 @@ static int32_t mndStreamGetPlanString(const char *ast, int8_t triggerType, int64
         .pAstRoot = pAst,
         .topicQuery = false,
         .streamQuery = true,
-        .triggerType = triggerType,
+        .triggerType = triggerType == STREAM_TRIGGER_MAX_DELAY ? STREAM_TRIGGER_WINDOW_CLOSE : triggerType,
         .watermark = watermark,
     };
     code = qCreateQueryPlan(&cxt, &pPlan, NULL);
