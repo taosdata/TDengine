@@ -76,11 +76,12 @@ typedef struct {
 } STelemMgmt;
 
 typedef struct {
-  sem_t   syncSem;
-  int64_t sync;
-  bool    standby;
-  int32_t errCode;
-  int32_t transId;
+  sem_t    syncSem;
+  int64_t  sync;
+  bool     standby;
+  SReplica replica;
+  int32_t  errCode;
+  int32_t  transId;
 } SSyncMgmt;
 
 typedef struct {
@@ -98,9 +99,6 @@ typedef struct SMnode {
   bool           stopped;
   bool           restored;
   bool           deploy;
-  int8_t         replica;
-  int8_t         selfIndex;
-  SReplica       replicas[TSDB_MAX_REPLICA];
   char          *path;
   int64_t        checkTime;
   SSdb          *pSdb;
@@ -126,8 +124,6 @@ void    mndReleaseRpcRef(SMnode *pMnode);
 void    mndSetRestore(SMnode *pMnode, bool restored);
 void    mndSetStop(SMnode *pMnode);
 bool    mndGetStop(SMnode *pMnode);
-int32_t mndAcquireSyncRef(SMnode *pMnode);
-void    mndReleaseSyncRef(SMnode *pMnode);
 
 #ifdef __cplusplus
 }

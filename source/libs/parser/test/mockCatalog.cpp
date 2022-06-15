@@ -141,20 +141,44 @@ void generateTestT1(MockCatalogService* mcs) {
  *          c2         |       column       |      VARCHAR       |    20    |
  *         tag1        |        tag         |        INT         |    4     |
  *         tag2        |        tag         |      VARCHAR       |    20    |
+ *         tag3        |        tag         |     TIMESTAMP      |    8     |
  * Child Table: st1s1, st1s2
  */
 void generateTestST1(MockCatalogService* mcs) {
-  ITableBuilder& builder = mcs->createTableBuilder("test", "st1", TSDB_SUPER_TABLE, 3, 2)
+  ITableBuilder& builder = mcs->createTableBuilder("test", "st1", TSDB_SUPER_TABLE, 3, 3)
                                .setPrecision(TSDB_TIME_PRECISION_MILLI)
                                .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
                                .addColumn("c1", TSDB_DATA_TYPE_INT)
                                .addColumn("c2", TSDB_DATA_TYPE_BINARY, 20)
                                .addTag("tag1", TSDB_DATA_TYPE_INT)
-                               .addTag("tag2", TSDB_DATA_TYPE_BINARY, 20);
+                               .addTag("tag2", TSDB_DATA_TYPE_BINARY, 20)
+                               .addTag("tag3", TSDB_DATA_TYPE_TIMESTAMP);
   builder.done();
   mcs->createSubTable("test", "st1", "st1s1", 1);
   mcs->createSubTable("test", "st1", "st1s2", 2);
   mcs->createSubTable("test", "st1", "st1s3", 1);
+}
+
+/*
+ * Super Table: st2
+ *        Field        |        Type        |      DataType      |  Bytes   |
+ * ==========================================================================
+ *          ts         |       column       |     TIMESTAMP      |    8     |
+ *          c1         |       column       |        INT         |    4     |
+ *          c2         |       column       |      VARCHAR       |    20    |
+ *         jtag        |        tag         |        json        |    --    |
+ * Child Table: st2s1, st2s2
+ */
+void generateTestST2(MockCatalogService* mcs) {
+  ITableBuilder& builder = mcs->createTableBuilder("test", "st2", TSDB_SUPER_TABLE, 3, 1)
+                               .setPrecision(TSDB_TIME_PRECISION_MILLI)
+                               .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
+                               .addColumn("c1", TSDB_DATA_TYPE_INT)
+                               .addColumn("c2", TSDB_DATA_TYPE_BINARY, 20)
+                               .addTag("jtag", TSDB_DATA_TYPE_JSON);
+  builder.done();
+  mcs->createSubTable("test", "st2", "st2s1", 1);
+  mcs->createSubTable("test", "st2", "st2s2", 2);
 }
 
 void generateFunctions(MockCatalogService* mcs) {
@@ -167,17 +191,17 @@ void generateFunctions(MockCatalogService* mcs) {
 
 int32_t __catalogGetHandle(const char* clusterId, struct SCatalog** catalogHandle) { return 0; }
 
-int32_t __catalogGetTableMeta(struct SCatalog* pCatalog, SRequestConnInfo *pConn, const SName* pTableName,
+int32_t __catalogGetTableMeta(struct SCatalog* pCatalog, SRequestConnInfo* pConn, const SName* pTableName,
                               STableMeta** pTableMeta) {
   return g_mockCatalogService->catalogGetTableMeta(pTableName, pTableMeta);
 }
 
-int32_t __catalogGetTableHashVgroup(struct SCatalog* pCatalog, SRequestConnInfo *pConn,
-                                    const SName* pTableName, SVgroupInfo* vgInfo) {
+int32_t __catalogGetTableHashVgroup(struct SCatalog* pCatalog, SRequestConnInfo* pConn, const SName* pTableName,
+                                    SVgroupInfo* vgInfo) {
   return g_mockCatalogService->catalogGetTableHashVgroup(pTableName, vgInfo);
 }
 
-int32_t __catalogGetTableDistVgInfo(SCatalog* pCtg, SRequestConnInfo *pConn, const SName* pTableName,
+int32_t __catalogGetTableDistVgInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName,
                                     SArray** pVgList) {
   return g_mockCatalogService->catalogGetTableDistVgInfo(pTableName, pVgList);
 }
@@ -187,28 +211,26 @@ int32_t __catalogGetDBVgVersion(SCatalog* pCtg, const char* dbFName, int32_t* ve
   return 0;
 }
 
-int32_t __catalogGetDBVgInfo(SCatalog* pCtg, SRequestConnInfo *pConn, const char* dbFName,
-                             SArray** pVgList) {
+int32_t __catalogGetDBVgInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbFName, SArray** pVgList) {
   return g_mockCatalogService->catalogGetDBVgInfo(dbFName, pVgList);
 }
 
-int32_t __catalogGetDBCfg(SCatalog* pCtg, SRequestConnInfo *pConn, const char* dbFName, SDbCfgInfo* pDbCfg) {
+int32_t __catalogGetDBCfg(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbFName, SDbCfgInfo* pDbCfg) {
   return 0;
 }
 
-int32_t __catalogChkAuth(SCatalog* pCtg, SRequestConnInfo *pConn, const char* user, const char* dbFName,
-                         AUTH_TYPE type, bool* pass) {
+int32_t __catalogChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user, const char* dbFName, AUTH_TYPE type,
+                         bool* pass) {
   *pass = true;
   return 0;
 }
 
-int32_t __catalogGetUdfInfo(SCatalog* pCtg, SRequestConnInfo *pConn, const char* funcName,
-                            SFuncInfo* pInfo) {
+int32_t __catalogGetUdfInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const char* funcName, SFuncInfo* pInfo) {
   return g_mockCatalogService->catalogGetUdfInfo(funcName, pInfo);
 }
 
-int32_t __catalogRefreshGetTableMeta(SCatalog* pCatalog, SRequestConnInfo *pConn,
-                                     const SName* pTableName, STableMeta** pTableMeta, int32_t isSTable) {
+int32_t __catalogRefreshGetTableMeta(SCatalog* pCatalog, SRequestConnInfo* pConn, const SName* pTableName,
+                                     STableMeta** pTableMeta, int32_t isSTable) {
   return g_mockCatalogService->catalogGetTableMeta(pTableName, pTableMeta);
 }
 
@@ -283,6 +305,7 @@ void generateMetaData() {
   generatePerformanceSchema(g_mockCatalogService.get());
   generateTestT1(g_mockCatalogService.get());
   generateTestST1(g_mockCatalogService.get());
+  generateTestST2(g_mockCatalogService.get());
   generateFunctions(g_mockCatalogService.get());
   g_mockCatalogService->showTables();
 }

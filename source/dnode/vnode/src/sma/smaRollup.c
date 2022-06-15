@@ -181,7 +181,7 @@ int32_t tdProcessRSmaCreate(SVnode *pVnode, SVCreateStbReq *pReq) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (tdCheckAndInitSmaEnv(pSma, TSDB_SMA_TYPE_ROLLUP, false) != TSDB_CODE_SUCCESS) {
+  if (tdCheckAndInitSmaEnv(pSma, TSDB_SMA_TYPE_ROLLUP) != TSDB_CODE_SUCCESS) {
     terrno = TSDB_CODE_TDB_INIT_FAILED;
     return TSDB_CODE_FAILED;
   }

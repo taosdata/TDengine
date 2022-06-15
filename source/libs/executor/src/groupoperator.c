@@ -37,7 +37,7 @@ static void destroyGroupOperatorInfo(void* param, int32_t numOfOutput) {
   taosArrayDestroy(pInfo->pGroupColVals);
 }
 
-int32_t initGroupOptrInfo(SArray** pGroupColVals, int32_t* keyLen, char** keyBuf, const SArray* pGroupColList) {
+static int32_t initGroupOptrInfo(SArray** pGroupColVals, int32_t* keyLen, char** keyBuf, const SArray* pGroupColList) {
   *pGroupColVals = taosArrayInit(4, sizeof(SGroupKeys));
   if ((*pGroupColVals) == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -118,7 +118,7 @@ static bool groupKeyCompare(SArray* pGroupCols, SArray* pGroupColVals, SSDataBlo
   return true;
 }
 
-void recordNewGroupKeys(SArray* pGroupCols, SArray* pGroupColVals, SSDataBlock* pBlock, int32_t rowIndex) {
+static void recordNewGroupKeys(SArray* pGroupCols, SArray* pGroupColVals, SSDataBlock* pBlock, int32_t rowIndex) {
   SColumnDataAgg* pColAgg = NULL;
 
   size_t numOfGroupCols = taosArrayGetSize(pGroupCols);
@@ -150,7 +150,7 @@ void recordNewGroupKeys(SArray* pGroupCols, SArray* pGroupColVals, SSDataBlock* 
   }
 }
 
-int32_t buildGroupKeys(void* pKey, const SArray* pGroupColVals) {
+static int32_t buildGroupKeys(void* pKey, const SArray* pGroupColVals) {
   ASSERT(pKey != NULL);
   size_t numOfGroupCols = taosArrayGetSize(pGroupColVals);
 
@@ -582,6 +582,15 @@ int32_t* setupColumnOffset(const SSDataBlock* pBlock, int32_t rowCapacity) {
   return offset;
 }
 
+static void clearPartitionOperator(SPartitionOperatorInfo* pInfo) {
+  void *ite = NULL;
+  while( (ite = taosHashIterate(pInfo->pGroupSet, ite)) != NULL ) {
+    taosArrayDestroy( ((SDataGroupInfo *)ite)->pPageList);
+  }
+  taosHashClear(pInfo->pGroupSet);
+  clearDiskbasedBuf(pInfo->pBuf);
+}
+
 static SSDataBlock* buildPartitionResult(SOperatorInfo* pOperator) {
   SPartitionOperatorInfo* pInfo = pOperator->info;
 
@@ -591,6 +600,7 @@ static SSDataBlock* buildPartitionResult(SOperatorInfo* pOperator) {
     pInfo->pGroupIter = taosHashIterate(pInfo->pGroupSet, pInfo->pGroupIter);
     if (pInfo->pGroupIter == NULL) {
       doSetOperatorCompleted(pOperator);
+      clearPartitionOperator(pInfo);
       return NULL;
     }
 

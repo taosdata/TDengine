@@ -99,15 +99,15 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
 static int32_t hbProcessStbInfoRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog) {
   int32_t code = 0;
 
-  STableMetaBatchRsp batchMetaRsp = {0};
-  if (tDeserializeSTableMetaBatchRsp(value, valueLen, &batchMetaRsp) != 0) {
+  SSTbHbRsp hbRsp = {0};
+  if (tDeserializeSSTbHbRsp(value, valueLen, &hbRsp) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
 
-  int32_t numOfBatchs = taosArrayGetSize(batchMetaRsp.pArray);
-  for (int32_t i = 0; i < numOfBatchs; ++i) {
-    STableMetaRsp *rsp = taosArrayGet(batchMetaRsp.pArray, i);
+  int32_t numOfMeta = taosArrayGetSize(hbRsp.pMetaRsp);
+  for (int32_t i = 0; i < numOfMeta; ++i) {
+    STableMetaRsp *rsp = taosArrayGet(hbRsp.pMetaRsp, i);
 
     if (rsp->numOfColumns < 0) {
       tscDebug("hb remove stb, db:%s, stb:%s", rsp->dbFName, rsp->stbName);
@@ -116,7 +116,7 @@ static int32_t hbProcessStbInfoRsp(void *value, int32_t valueLen, struct SCatalo
       tscDebug("hb update stb, db:%s, stb:%s", rsp->dbFName, rsp->stbName);
       if (rsp->pSchemas[0].colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
         tscError("invalid colId[%" PRIi16 "] for the first column in table meta rsp msg", rsp->pSchemas[0].colId);
-        tFreeSTableMetaBatchRsp(&batchMetaRsp);
+        tFreeSSTbHbRsp(&hbRsp);
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
 
@@ -124,7 +124,17 @@ static int32_t hbProcessStbInfoRsp(void *value, int32_t valueLen, struct SCatalo
     }
   }
 
-  tFreeSTableMetaBatchRsp(&batchMetaRsp);
+  int32_t numOfIndex = taosArrayGetSize(hbRsp.pIndexRsp);
+  for (int32_t i = 0; i < numOfIndex; ++i) {
+    STableIndexRsp *rsp = taosArrayGet(hbRsp.pIndexRsp, i);
+
+    catalogUpdateTableIndex(pCatalog, rsp);
+  }
+
+  taosArrayDestroy(hbRsp.pIndexRsp);
+  hbRsp.pIndexRsp = NULL;
+
+  tFreeSSTbHbRsp(&hbRsp);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -455,7 +465,7 @@ int32_t hbGetExpiredDBInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SCl
 }
 
 int32_t hbGetExpiredStbInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SClientHbReq *req) {
-  SSTableMetaVersion *stbs = NULL;
+  SSTableVersion *stbs = NULL;
   uint32_t            stbNum = 0;
   int32_t             code = 0;
 
@@ -469,15 +479,16 @@ int32_t hbGetExpiredStbInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SC
   }
 
   for (int32_t i = 0; i < stbNum; ++i) {
-    SSTableMetaVersion *stb = &stbs[i];
+    SSTableVersion *stb = &stbs[i];
     stb->suid = htobe64(stb->suid);
     stb->sversion = htons(stb->sversion);
     stb->tversion = htons(stb->tversion);
+    stb->smaVer = htonl(stb->smaVer);
   }
 
   SKv kv = {
       .key = HEARTBEAT_KEY_STBINFO,
-      .valueLen = sizeof(SSTableMetaVersion) * stbNum,
+      .valueLen = sizeof(SSTableVersion) * stbNum,
       .value = stbs,
   };
 
@@ -698,7 +709,7 @@ SAppHbMgr *appHbMgrInit(SAppInstInfo *pAppInstInfo, char *key) {
     return NULL;
   }
 
-  taosHashSetFreeFp(pAppHbMgr->activeInfo, tFreeClientHbReq);
+  // taosHashSetFreeFp(pAppHbMgr->activeInfo, tFreeClientHbReq);
 
   taosThreadMutexLock(&clientHbMgr.lock);
   taosArrayPush(clientHbMgr.appHbMgrs, &pAppHbMgr);

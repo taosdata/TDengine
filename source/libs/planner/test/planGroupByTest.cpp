@@ -53,6 +53,14 @@ TEST_F(PlanGroupByTest, aggFunc) {
   run("SELECT SUM(10), COUNT(c1) FROM t1 GROUP BY c2");
 }
 
+TEST_F(PlanGroupByTest, rewriteFunc) {
+  useDb("root", "test");
+
+  run("SELECT AVG(c1) FROM t1");
+
+  run("SELECT AVG(c1) FROM t1 GROUP BY c2");
+}
+
 TEST_F(PlanGroupByTest, selectFunc) {
   useDb("root", "test");
 
@@ -74,4 +82,8 @@ TEST_F(PlanGroupByTest, stable) {
   run("SELECT COUNT(*) FROM st1");
 
   run("SELECT COUNT(*) FROM st1 GROUP BY c1");
+
+  run("SELECT COUNT(*) FROM st1 PARTITION BY c2 GROUP BY c1");
+
+  run("SELECT SUM(c1) FROM st1 GROUP BY c2 HAVING SUM(c1) IS NOT NULL");
 }

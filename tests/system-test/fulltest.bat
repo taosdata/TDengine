@@ -38,7 +38,7 @@ python3 .\test.py -f 2-query\concat_ws.py
 python3 .\test.py -f 2-query\concat_ws2.py
 python3 .\test.py -f 2-query\check_tsdb.py
 python3 .\test.py -f 2-query\spread.py
-@REM python3 .\test.py -f 2-query\hyperloglog.py
+python3 .\test.py -f 2-query\hyperloglog.py
 
 python3 .\test.py -f 2-query\timezone.py
 python3 .\test.py -f 2-query\Now.py

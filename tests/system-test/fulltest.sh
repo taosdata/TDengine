@@ -97,6 +97,7 @@ python3 ./test.py -f 2-query/unique.py
 python3 ./test.py -f 2-query/stateduration.py
 python3 ./test.py -f 2-query/function_stateduration.py
 python3 ./test.py -f 2-query/statecount.py
+python3 ./test.py -f 2-query/tail.py
 
 python3 ./test.py -f 6-cluster/5dnode1mnode.py 
 python3 ./test.py -f 6-cluster/5dnode2mnode.py 
@@ -105,7 +106,7 @@ python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py
 python3 ./test.py -f 7-tmq/basic5.py
 python3 ./test.py -f 7-tmq/subscribeDb.py
 python3 ./test.py -f 7-tmq/subscribeDb0.py
-# python3 ./test.py -f 7-tmq/subscribeDb1.py
+python3 ./test.py -f 7-tmq/subscribeDb1.py
 python3 ./test.py -f 7-tmq/subscribeStb.py
 python3 ./test.py -f 7-tmq/subscribeStb0.py
 python3 ./test.py -f 7-tmq/subscribeStb1.py
