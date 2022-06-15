@@ -129,6 +129,7 @@ int main(int argc, char* argv[]) {
 
   if (cloud_token != NULL) {
     args.token = cloud_token;
+    args.restful = true;
   }
 
   shellParseArgument(argc, argv, &args);
@@ -154,7 +155,7 @@ int main(int argc, char* argv[]) {
     taosNetTest(args.netTestRole, args.host, args.port, args.pktLen, args.pktNum, args.pktType);
     exit(0);
   }
-
+  
   if (args.restful) {
     if (tcpConnect()) {
       exit(EXIT_FAILURE);
