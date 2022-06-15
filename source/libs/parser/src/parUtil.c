@@ -186,6 +186,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "The REDISTRIBUTE VGROUP statement only support 1 to 3 dnodes";
     case TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC:
       return "%s function not allowed in fill query";
+    case TSDB_CODE_PAR_INVALID_WINDOW_PC:
+      return "_WSTARTTS, _WENDTS and _WDURATION can only be used in window queries";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:

@@ -183,12 +183,12 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
     pDb->cfg.pRetensions = taosArrayInit(pDb->cfg.numOfRetensions, sizeof(SRetention));
     if (pDb->cfg.pRetensions == NULL) goto _OVER;
     for (int32_t i = 0; i < pDb->cfg.numOfRetensions; ++i) {
-      SRetention retension = {0};
-      SDB_GET_INT64(pRaw, dataPos, &retension.freq, _OVER)
-      SDB_GET_INT64(pRaw, dataPos, &retension.keep, _OVER)
-      SDB_GET_INT8(pRaw, dataPos, &retension.freqUnit, _OVER)
-      SDB_GET_INT8(pRaw, dataPos, &retension.keepUnit, _OVER)
-      if (taosArrayPush(pDb->cfg.pRetensions, &retension) == NULL) {
+      SRetention retention = {0};
+      SDB_GET_INT64(pRaw, dataPos, &retention.freq, _OVER)
+      SDB_GET_INT64(pRaw, dataPos, &retention.keep, _OVER)
+      SDB_GET_INT8(pRaw, dataPos, &retention.freqUnit, _OVER)
+      SDB_GET_INT8(pRaw, dataPos, &retention.keepUnit, _OVER)
+      if (taosArrayPush(pDb->cfg.pRetensions, &retention) == NULL) {
         goto _OVER;
       }
     }
@@ -472,7 +472,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   }
 
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB, pReq);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq);
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to create db:%s", pTrans->id, pCreate->db);
@@ -935,6 +935,7 @@ static int32_t mndDropDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
   if (mndDropOffsetByDB(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndDropSubByDB(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndDropTopicByDB(pMnode, pTrans, pDb) != 0) goto _OVER;
+  if (mndDropSmasByDb(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndSetDropDbRedoActions(pMnode, pTrans, pDb) != 0) goto _OVER;
 
   SUserObj *pUser = mndAcquireUser(pMnode, pDb->createUser);
@@ -1366,7 +1367,7 @@ char *buildRetension(SArray *pRetension) {
 }
 
 static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, int32_t rows, int64_t numOfTables,
-                           bool sysDb) {
+                           bool sysDb, ESdbStatus objStatus) {
   int32_t cols = 0;
 
   int32_t     bytes = pShow->pMeta->pSchemas[cols].bytes;
@@ -1379,7 +1380,9 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
   }
 
   char *status = "ready";
-  char  statusB[24] = {0};
+  if (objStatus == SDB_STATUS_CREATING) status = "creating";
+  if (objStatus == SDB_STATUS_DROPPING) status = "dropping";
+  char statusB[24] = {0};
   STR_WITH_SIZE_TO_VARSTR(statusB, status, strlen(status));
 
   if (sysDb) {
@@ -1503,8 +1506,8 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, rows, (const char *)statusB, false);
 
-//    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-//    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.schemaless, false);
+    //    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    //    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.schemaless, false);
 
     char *p = buildRetension(pDb->cfg.pRetensions);
 
@@ -1548,29 +1551,30 @@ static bool mndGetTablesOfDbFp(SMnode *pMnode, void *pObj, void *p1, void *p2, v
 }
 
 static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity) {
-  SMnode *pMnode = pReq->info.node;
-  SSdb   *pSdb = pMnode->pSdb;
-  int32_t numOfRows = 0;
-  SDbObj *pDb = NULL;
+  SMnode    *pMnode = pReq->info.node;
+  SSdb      *pSdb = pMnode->pSdb;
+  int32_t    numOfRows = 0;
+  SDbObj    *pDb = NULL;
+  ESdbStatus objStatus = 0;
 
   // Append the information_schema database into the result.
   if (!pShow->sysDbRsp) {
     SDbObj infoschemaDb = {0};
     setInformationSchemaDbCfg(&infoschemaDb);
-    dumpDbInfoData(pBlock, &infoschemaDb, pShow, numOfRows, 14, true);
+    dumpDbInfoData(pBlock, &infoschemaDb, pShow, numOfRows, 14, true, 0);
 
     numOfRows += 1;
 
     SDbObj perfschemaDb = {0};
     setPerfSchemaDbCfg(&perfschemaDb);
-    dumpDbInfoData(pBlock, &perfschemaDb, pShow, numOfRows, 3, true);
+    dumpDbInfoData(pBlock, &perfschemaDb, pShow, numOfRows, 3, true, 0);
 
     numOfRows += 1;
     pShow->sysDbRsp = true;
   }
 
   while (numOfRows < rowsCapacity) {
-    pShow->pIter = sdbFetch(pSdb, SDB_DB, pShow->pIter, (void **)&pDb);
+    pShow->pIter = sdbFetchAll(pSdb, SDB_DB, pShow->pIter, (void **)&pDb, &objStatus);
     if (pShow->pIter == NULL) {
       break;
     }
@@ -1578,7 +1582,7 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     int32_t numOfTables = 0;
     sdbTraverse(pSdb, SDB_VGROUP, mndGetTablesOfDbFp, &numOfTables, NULL, NULL);
 
-    dumpDbInfoData(pBlock, pDb, pShow, numOfRows, numOfTables, false);
+    dumpDbInfoData(pBlock, pDb, pShow, numOfRows, numOfTables, false, objStatus);
     numOfRows++;
     sdbRelease(pSdb, pDb);
   }
