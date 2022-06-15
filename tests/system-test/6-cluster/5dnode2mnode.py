@@ -54,7 +54,9 @@ class TDTestCase:
         valgrind = 0  
         hostname = socket.gethostname()
         dnodes = []
-        start_port = 6030
+        start_port = 6030        
+        start_port_sec = 6130
+
         for num in range(1, dnodes_nums+1):
             dnode = TDDnode(num)
             dnode.addExtraCfg("firstEp", f"{hostname}:{start_port}")
@@ -62,6 +64,8 @@ class TDTestCase:
             dnode.addExtraCfg("serverPort", f"{start_port + (num-1)*100}")
             dnode.addExtraCfg("monitorFqdn", hostname)
             dnode.addExtraCfg("monitorPort", 7043)
+            dnode.addExtraCfg("secondEp", f"{hostname}:{start_port_sec}")
+ 
             dnodes.append(dnode)
         
         self.TDDnodes = MyDnodes(dnodes)
