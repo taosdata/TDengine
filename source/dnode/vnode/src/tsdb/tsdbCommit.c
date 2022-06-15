@@ -355,6 +355,7 @@ static int32_t tsdbCommitTableData(SCommitter *pCommitter, STbData *pTbData, SBl
   int32_t      iBlock;
   int32_t      nBlock;
   SBlock      *pBlock;
+  SBlock       block;
 
   // check
   if (pTbData) {
@@ -389,6 +390,25 @@ static int32_t tsdbCommitTableData(SCommitter *pCommitter, STbData *pTbData, SBl
   blockIdx.size = -1;
 
   // impl (todo)
+  iBlock = 0;
+  nBlock = pCommitter->oBlock.nItem;
+  do {
+    pRow = tsdbTbDataIterGet(pIter);
+    if (iBlock < nBlock) {
+      pBlock = &block;
+      code = tMapDataGetItemByIdx(&pCommitter->oBlock, iBlock, pBlock, tGetBlock);
+      if (code) goto _err;
+    } else {
+      pBlock == NULL;
+    }
+
+    if ((pRow == NULL || pRow->pTSRow->ts > pCommitter->maxKey) && pBlock == NULL) break;
+
+    code = tsdbMergeData(pCommitter, pIter, pBlock);
+    if (code) goto _err;
+
+    if (iBlock < nBlock) iBlock++;
+  } while (true);
 
   // end
   code = tsdbWriteBlock(pCommitter->pWriter, &pCommitter->nBlock, NULL, &blockIdx);

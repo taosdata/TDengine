@@ -151,6 +151,8 @@ int32_t tPutBlockIdx(uint8_t *p, void *ph);
 int32_t tGetBlockIdx(uint8_t *p, void *ph);
 
 // SBlock
+int32_t tPutBlock(uint8_t *p, void *ph);
+int32_t tGetBlock(uint8_t *p, void *ph);
 int32_t tBlockCmprFn(const void *p1, const void *p2);
 
 // SDelIdx

@@ -273,6 +273,9 @@ bool tsdbTbDataIterNext(STbDataIter *pIter) {
 }
 
 TSDBROW *tsdbTbDataIterGet(STbDataIter *pIter) {
+  // we add here for commit usage
+  if (pIter == NULL) return NULL;
+
   if (pIter->pRow) {
     goto _exit;
   }

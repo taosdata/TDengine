@@ -281,6 +281,20 @@ int32_t tGetBlockIdx(uint8_t *p, void *ph) {
 }
 
 // SBlock ======================================================
+int32_t tPutBlock(uint8_t *p, void *ph) {
+  int32_t n = 0;
+  ASSERT(0);
+  // TODO
+  return n;
+}
+
+int32_t tGetBlock(uint8_t *p, void *ph) {
+  int32_t n = 0;
+  ASSERT(0);
+  // TODO
+  return n;
+}
+
 int32_t tBlockCmprFn(const void *p1, const void *p2) {
   int32_t c;
   SBlock *pBlock1 = (SBlock *)p1;
