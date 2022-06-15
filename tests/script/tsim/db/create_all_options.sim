@@ -79,7 +79,7 @@ print ============= create database with all options
 #$data2_db  : vgroups
 #$data3_db  : ntables
 #$data4_db  : replica
-#$data6_db  : days
+#$data6_db  : duration
 #$data7_db  : keep
 #$data10_db : minrows
 #$data11_db : maxrows
@@ -113,7 +113,7 @@ endi
 if $data5_db != no_strict then  # strict
   return -1
 endi
-if $data6_db != 14400 then  # days
+if $data6_db != 14400 then  # duration
   return -1
 endi
 if $data7_db != 5256000m,5256000m,5256000m then # keep
