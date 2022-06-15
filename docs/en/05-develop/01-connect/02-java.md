@@ -76,18 +76,7 @@ To obtain the value of JDBC URL, please log in [TDengine Cloud](https://cloud.td
 Code bellow get JDBC URL from environment variables first and then create a `Connection` object, witch is a standard JDBC Connection object.
 
 ```java
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.SQLException;
-
-
-public class ConnectCloudExample {
-    public static void main(String[] args) throws SQLException {
-        String jdbcUrl = System.getenv("TDENGINE_JDBC_URL");
-        Connection conn = DriverManager.getConnection(jdbcUrl);
-        conn.close();
-    }
-}
+{{#include docs/examples/java/src/main/java/com/taos/example/ConnectCloudExample.java:connect}}
 ```
 
 The client connection is then established. For how to write data and query data using the connection, please refer to [usage-examples](https://docs.tdengine.com/reference/connector/java#usage-examples).

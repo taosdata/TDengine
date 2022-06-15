@@ -9,6 +9,8 @@ url = os.environ["TDENGINE_CLOUD_URL"]
 token = os.environ["TDENGINE_CLOUD_TOKEN"]
 
 conn = taosrest.connect(url=url, token=token)
+# test the connection by getting version info
+print("server version:", conn.server_info)
 # ANCHOR_END: connect
 # ANCHOR: basic
 from taosrest import TaosRestCursor
