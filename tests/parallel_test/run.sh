@@ -255,7 +255,6 @@ function run_thread() {
             $cmd # 2>/dev/null
             local case_info=`echo "$line"|cut -d, -f 3,4`
             local corefile=`ls $log_dir/${case_file}.coredump/`
-            corefile=`find $log_dir/${case_file}.coredump/ -name "*"`
             echo -e "$case_info \e[31m failed\e[0m"
             echo "=========================log============================"
             cat $log_dir/$case_file.log
