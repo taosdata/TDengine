@@ -284,7 +284,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, int64_t version, SRpcMsg *pMsg, SRp
 void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data) {
   // TODO
 
-  // blockDebugShowData(data, __func__);
+  blockDebugShowData(data, __func__);
   tdProcessTSmaInsert(((SVnode *)pVnode)->pSma, smaId, (const char *)data);
 }
 

@@ -38,8 +38,6 @@ typedef struct SSmaStatItem SSmaStatItem;
 typedef struct SSmaKey      SSmaKey;
 typedef struct SRSmaInfo    SRSmaInfo;
 
-#define SMA_IVLD_FID INT_MIN
-
 struct SSmaEnv {
   TdThreadRwlock lock;
   int8_t         type;
@@ -49,44 +47,37 @@ struct SSmaEnv {
 #define SMA_ENV_LOCK(env)       ((env)->lock)
 #define SMA_ENV_TYPE(env)       ((env)->type)
 #define SMA_ENV_STAT(env)       ((env)->pStat)
-#define SMA_ENV_STAT_ITEMS(env) ((env)->pStat->smaStatItems)
+#define SMA_ENV_STAT_ITEM(env) ((env)->pStat->tsmaStatItem)
 
 struct SSmaStatItem {
-  int8_t state;  // ETsdbSmaStat
-  STSma *pTSma;  // cache schema
+  int8_t    state;  // ETsdbSmaStat
+  STSma    *pTSma;  // cache schema
+  STSchema *pTSchema;
 };
 
 struct SSmaStat {
   union {
-    SHashObj *smaStatItems;  // key: indexUid, value: SSmaStatItem for tsma
-    SHashObj *rsmaInfoHash;  // key: stbUid, value: SRSmaInfo;
+    SSmaStatItem tsmaStatItem;
+    SHashObj    *rsmaInfoHash;  // key: stbUid, value: SRSmaInfo;
   };
   T_REF_DECLARE()
 };
-#define SMA_STAT_ITEMS(s)     ((s)->smaStatItems)
+#define SMA_STAT_ITEM(s)      ((s)->tsmaStatItem)
 #define SMA_STAT_INFO_HASH(s) ((s)->rsmaInfoHash)
 
 void  tdDestroySmaEnv(SSmaEnv *pSmaEnv);
 void *tdFreeSmaEnv(SSmaEnv *pSmaEnv);
-#if 0
-int32_t tbGetTSmaStatus(SSma *pSma, STSma *param, void *result);
-int32_t tbRemoveTSmaData(SSma *pSma, STSma *param, STimeWindow *pWin);
-#endif
 
-int32_t tdInitSma(SSma *pSma);
 int32_t tdDropTSma(SSma *pSma, char *pMsg);
 int32_t tdDropTSmaData(SSma *pSma, int64_t indexUid);
 int32_t tdInsertRSmaData(SSma *pSma, char *msg);
 
 int32_t tdRefSmaStat(SSma *pSma, SSmaStat *pStat);
 int32_t tdUnRefSmaStat(SSma *pSma, SSmaStat *pStat);
-int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType, bool onlyCheck);
+int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType);
 
 int32_t tdLockSma(SSma *pSma);
 int32_t tdUnLockSma(SSma *pSma);
-
-static FORCE_INLINE int16_t tdTSmaAdd(SSma *pSma, int16_t n) { return atomic_add_fetch_16(&SMA_TSMA_NUM(pSma), n); }
-static FORCE_INLINE int16_t tdTSmaSub(SSma *pSma, int16_t n) { return atomic_sub_fetch_16(&SMA_TSMA_NUM(pSma), n); }
 
 static FORCE_INLINE int32_t tdRLockSmaEnv(SSmaEnv *pEnv) {
   int code = taosThreadRwlockRdlock(&(pEnv->lock));
@@ -160,11 +151,10 @@ static FORCE_INLINE void tdSmaStatSetDropped(SSmaStatItem *pStatItem) {
   }
 }
 
-static int32_t  tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType);
-void           *tdFreeSmaStatItem(SSmaStatItem *pSmaStatItem);
-static int32_t  tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType);
-static SSmaEnv *tdNewSmaEnv(const SSma *pSma, int8_t smaType, const char *path, SDiskID did);
-static int32_t  tdInitSmaEnv(SSma *pSma, int8_t smaType, const char *path, SDiskID did, SSmaEnv **pEnv);
+static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType);
+void          *tdFreeSmaStatItem(SSmaStatItem *pSmaStatItem);
+static int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType);
+void          *tdFreeSmaState(SSmaStat *pSmaStat, int8_t smaType);
 
 void *tdFreeRSmaInfo(SRSmaInfo *pInfo);
 
