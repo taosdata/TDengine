@@ -2,7 +2,7 @@
 set -e
 set -x
 
-#python3 ./test.py -f 0-others/taosShell.py
+python3 ./test.py -f 0-others/taosShell.py
 python3 ./test.py -f 0-others/taosShellError.py
 python3 ./test.py -f 0-others/taosShellNetChk.py
 python3 ./test.py -f 0-others/telemetry.py
@@ -105,7 +105,7 @@ python3 ./test.py -f 6-cluster/5dnode2mnode.py
 python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py
 # BUG python3 ./test.py -f 6-cluster/5dnode3mnodeStopInsert.py 
 
-#python3 ./test.py -f 7-tmq/basic5.py
+python3 ./test.py -f 7-tmq/basic5.py
 python3 ./test.py -f 7-tmq/subscribeDb.py
 python3 ./test.py -f 7-tmq/subscribeDb0.py
 python3 ./test.py -f 7-tmq/subscribeDb1.py
