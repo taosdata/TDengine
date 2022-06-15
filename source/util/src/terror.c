@@ -414,6 +414,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INVALID_MSGLEN,           "Invalid msg length")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INVALID_MSGTYPE,          "Invalid msg type")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_NOT_LEADER,               "Sync not leader")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_ONE_REPLICA,              "Sync one replica")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_NOT_IN_NEW_CONFIG,        "Sync not in new config")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INTERNAL_ERROR,           "Sync internal error")
 
 // wal
@@ -560,12 +562,15 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_ALREADY_EXIST,             "Tsma already exists
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_NO_INDEX_IN_META,          "No tsma index in meta")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_ENV,               "Invalid tsma env")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_STAT,              "Invalid tsma state")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_PTR,               "Invalid tsma pointer")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_PARA,              "Invalid tsma parameters")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_NO_INDEX_IN_CACHE,         "No tsma index in cache")
-TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_RM_SKEY_IN_HASH,           "Rm tsma skey in cache")
+
 
 //rsma
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_INVALID_ENV,               "Invalid rsma env")
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_INVALID_STAT,              "Invalid rsma state")
+
 
 TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_REBUILDING,               "Index is rebuilding")
 

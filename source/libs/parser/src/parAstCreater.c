@@ -804,10 +804,10 @@ SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOpti
     case DB_OPTION_RETENTIONS:
       ((SDatabaseOptions*)pOptions)->pRetentions = pVal;
       break;
-    case DB_OPTION_SCHEMALESS:
+      //    case DB_OPTION_SCHEMALESS:
       //      ((SDatabaseOptions*)pOptions)->schemaless = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
-      ((SDatabaseOptions*)pOptions)->schemaless = 1;
-      break;
+      //      ((SDatabaseOptions*)pOptions)->schemaless = 0;
+      //      break;
     default:
       break;
   }
@@ -867,6 +867,7 @@ SNode* createDefaultTableOptions(SAstCreateContext* pCxt) {
   CHECK_PARSER_STATUS(pCxt);
   STableOptions* pOptions = (STableOptions*)nodesMakeNode(QUERY_NODE_TABLE_OPTIONS);
   CHECK_OUT_OF_MEM(pOptions);
+  // pOptions->delay = TSDB_DEFAULT_ROLLUP_DELAY;
   pOptions->filesFactor = TSDB_DEFAULT_ROLLUP_FILE_FACTOR;
   pOptions->ttl = TSDB_DEFAULT_TABLE_TTL;
   return (SNode*)pOptions;
@@ -876,7 +877,7 @@ SNode* createAlterTableOptions(SAstCreateContext* pCxt) {
   CHECK_PARSER_STATUS(pCxt);
   STableOptions* pOptions = (STableOptions*)nodesMakeNode(QUERY_NODE_TABLE_OPTIONS);
   CHECK_OUT_OF_MEM(pOptions);
-  pOptions->filesFactor = -1;
+  pOptions->delay = -1;
   pOptions->ttl = -1;
   return (SNode*)pOptions;
 }
@@ -890,8 +891,8 @@ SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType
                                   sizeof(((STableOptions*)pOptions)->comment));
       }
       break;
-    case TABLE_OPTION_FILE_FACTOR:
-      ((STableOptions*)pOptions)->filesFactor = taosStr2Double(((SToken*)pVal)->z, NULL);
+    case TABLE_OPTION_DELAY:
+      ((STableOptions*)pOptions)->delay = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     case TABLE_OPTION_ROLLUP:
       ((STableOptions*)pOptions)->pRollupFuncs = pVal;
@@ -1431,7 +1432,7 @@ SNode* createDropStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const
   CHECK_PARSER_STATUS(pCxt);
   SDropStreamStmt* pStmt = (SDropStreamStmt*)nodesMakeNode(QUERY_NODE_DROP_STREAM_STMT);
   CHECK_OUT_OF_MEM(pStmt);
-  strncpy(pStmt->streamName, pStreamName->z, pStreamName->n);
+  strncpy(pStmt->streamName, pStreamName->z, TMIN(pStreamName->n, sizeof(pStmt->streamName) - 1));
   pStmt->ignoreNotExists = ignoreNotExists;
   return (SNode*)pStmt;
 }
@@ -1441,6 +1442,14 @@ SNode* createKillStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pId
   SKillStmt* pStmt = (SKillStmt*)nodesMakeNode(type);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->targetId = taosStr2Int32(pId->z, NULL, 10);
+  return (SNode*)pStmt;
+}
+
+SNode* createKillQueryStmt(SAstCreateContext* pCxt, const SToken* pQueryId) {
+  CHECK_PARSER_STATUS(pCxt);
+  SKillQueryStmt* pStmt = (SKillQueryStmt*)nodesMakeNode(QUERY_NODE_KILL_QUERY_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  strncpy(pStmt->queryId, pQueryId->z, TMIN(pQueryId->n, sizeof(pStmt->queryId) - 1));
   return (SNode*)pStmt;
 }
 

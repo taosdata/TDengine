@@ -4814,6 +4814,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         .calTrigger = pIntervalPhyNode->window.triggerType,
         .maxTs = INT64_MIN,
     };
+    ASSERT(as.calTrigger != STREAM_TRIGGER_MAX_DELAY);
 
     int32_t tsSlotId = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->slotId;
     bool    isStream = (QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL == type);
@@ -5498,14 +5499,16 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SExplainExecInfo
 }
 
 int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, const char* pKey, SqlFunctionCtx* pCtx, int32_t numOfOutput,
-                               size_t size) {
+                               int32_t size) {
   pSup->resultRowSize = getResultRowSize(pCtx, numOfOutput);
   pSup->keySize = sizeof(int64_t) + sizeof(TSKEY);
   pSup->pKeyBuf = taosMemoryCalloc(1, pSup->keySize);
-  pSup->pResultRows = taosArrayInit(1024, size);
+  _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+  pSup->pResultRows = taosHashInit(1024, hashFn, false, HASH_NO_LOCK);
   if (pSup->pKeyBuf == NULL || pSup->pResultRows == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  pSup->valueSize = size;
 
   pSup->pScanWindow = taosArrayInit(4, sizeof(STimeWindow));
 

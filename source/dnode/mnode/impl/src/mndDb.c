@@ -183,12 +183,12 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
     pDb->cfg.pRetensions = taosArrayInit(pDb->cfg.numOfRetensions, sizeof(SRetention));
     if (pDb->cfg.pRetensions == NULL) goto _OVER;
     for (int32_t i = 0; i < pDb->cfg.numOfRetensions; ++i) {
-      SRetention retension = {0};
-      SDB_GET_INT64(pRaw, dataPos, &retension.freq, _OVER)
-      SDB_GET_INT64(pRaw, dataPos, &retension.keep, _OVER)
-      SDB_GET_INT8(pRaw, dataPos, &retension.freqUnit, _OVER)
-      SDB_GET_INT8(pRaw, dataPos, &retension.keepUnit, _OVER)
-      if (taosArrayPush(pDb->cfg.pRetensions, &retension) == NULL) {
+      SRetention retention = {0};
+      SDB_GET_INT64(pRaw, dataPos, &retention.freq, _OVER)
+      SDB_GET_INT64(pRaw, dataPos, &retention.keep, _OVER)
+      SDB_GET_INT8(pRaw, dataPos, &retention.freqUnit, _OVER)
+      SDB_GET_INT8(pRaw, dataPos, &retention.keepUnit, _OVER)
+      if (taosArrayPush(pDb->cfg.pRetensions, &retention) == NULL) {
         goto _OVER;
       }
     }
@@ -472,7 +472,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   }
 
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB, pReq);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq);
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to create db:%s", pTrans->id, pCreate->db);
@@ -1352,7 +1352,7 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
   char *status = "ready";
   if (objStatus == SDB_STATUS_CREATING) status = "creating";
   if (objStatus == SDB_STATUS_DROPPING) status = "dropping";
-  char  statusB[24] = {0};
+  char statusB[24] = {0};
   STR_WITH_SIZE_TO_VARSTR(statusB, status, strlen(status));
 
   if (sysDb) {

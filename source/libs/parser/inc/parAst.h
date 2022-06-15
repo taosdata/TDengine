@@ -60,6 +60,7 @@ typedef enum EDatabaseOptionType {
 typedef enum ETableOptionType {
   TABLE_OPTION_COMMENT = 1,
   TABLE_OPTION_FILE_FACTOR,
+  TABLE_OPTION_DELAY,
   TABLE_OPTION_ROLLUP,
   TABLE_OPTION_TTL,
   TABLE_OPTION_SMA
@@ -187,6 +188,7 @@ SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, const 
                               SNode* pOptions, SNode* pQuery);
 SNode* createDropStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const SToken* pStreamName);
 SNode* createKillStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pId);
+SNode* createKillQueryStmt(SAstCreateContext* pCxt, const SToken* pQueryId);
 SNode* createBalanceVgroupStmt(SAstCreateContext* pCxt);
 SNode* createMergeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId1, const SToken* pVgId2);
 SNode* createRedistributeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId, SNodeList* pDnodes);
