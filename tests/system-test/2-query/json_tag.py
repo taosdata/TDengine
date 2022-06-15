@@ -548,7 +548,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, 1.5)
         #tdSql.query("select last_row(dataint) from jsons1 where jtag->'tag1'>1")
         #tdSql.checkData(0, 0, 11)
-        tdSql.error("select interp(dataint) from jsons1 where ts = '2020-06-02 09:17:08.000' and jtag->'tag1'>1")
+        #tdSql.error("select interp(dataint) from jsons1 where ts = '2020-06-02 09:17:08.000' and jtag->'tag1'>1")
         #
         # #test calculation function:diff/derivative/spread/ceil/floor/round/
         #tdSql.error("select diff(dataint) from jsons1 where jtag->'tag1'>1")
