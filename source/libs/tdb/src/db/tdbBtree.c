@@ -1245,6 +1245,52 @@ int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
   return 0;
 }
 
+int tdbBtreePrev(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
+  SCell       *pCell;
+  SCellDecoder cd;
+  void        *pKey, *pVal;
+  int          ret;
+
+  // current cursor points to an invalid position
+  if (pBtc->idx < 0) {
+    return -1;
+  }
+
+  pCell = tdbPageGetCell(pBtc->pPage, pBtc->idx);
+
+  tdbBtreeDecodeCell(pBtc->pPage, pCell, &cd);
+
+  pKey = tdbRealloc(*ppKey, cd.kLen);
+  if (pKey == NULL) {
+    return -1;
+  }
+
+  *ppKey = pKey;
+  *kLen = cd.kLen;
+  memcpy(pKey, cd.pKey, cd.kLen);
+
+  if (ppVal) {
+    // TODO: vLen may be zero
+    pVal = tdbRealloc(*ppVal, cd.vLen);
+    if (pVal == NULL) {
+      tdbFree(pKey);
+      return -1;
+    }
+
+    *ppVal = pVal;
+    *vLen = cd.vLen;
+    memcpy(pVal, cd.pVal, cd.vLen);
+  }
+
+  ret = tdbBtcMoveToPrev(pBtc);
+  if (ret < 0) {
+    ASSERT(0);
+    return -1;
+  }
+
+  return 0;
+}
+
 int tdbBtcMoveToNext(SBTC *pBtc) {
   int    nCells;
   int    ret;

@@ -498,7 +498,7 @@ int32_t tSerializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pReq
   }
 
   if (pReq->commentLen > 0) {
-    if (tEncodeBinary(&encoder, pReq->comment, pReq->commentLen) < 0) return -1;
+    if (tEncodeCStrWithLen(&encoder, pReq->comment, pReq->commentLen) < 0) return -1;
   }
   if (pReq->ast1Len > 0) {
     if (tEncodeBinary(&encoder, pReq->pAst1, pReq->ast1Len) < 0) return -1;
@@ -561,7 +561,7 @@ int32_t tDeserializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pR
   }
 
   if (pReq->commentLen > 0) {
-    pReq->comment = taosMemoryMalloc(pReq->commentLen);
+    pReq->comment = taosMemoryCalloc(1, pReq->commentLen + 1);
     if (pReq->comment == NULL) return -1;
     if (tDecodeCStrTo(&decoder, pReq->comment) < 0) return -1;
   }

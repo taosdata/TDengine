@@ -671,12 +671,12 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   pDst->numOfTags = pCreate->numOfTags;
   pDst->commentLen = pCreate->commentLen;
   if (pDst->commentLen > 0) {
-    pDst->comment = taosMemoryCalloc(pDst->commentLen, 1);
+    pDst->comment = taosMemoryCalloc(pDst->commentLen + 1, 1);
     if (pDst->comment == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
-    memcpy(pDst->comment, pCreate->comment, pDst->commentLen);
+    memcpy(pDst->comment, pCreate->comment, pDst->commentLen + 1);
   }
 
   pDst->ast1Len = pCreate->ast1Len;
