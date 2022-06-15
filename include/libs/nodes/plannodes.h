@@ -34,7 +34,13 @@ typedef struct SLogicNode {
   uint8_t            precision;
 } SLogicNode;
 
-typedef enum EScanType { SCAN_TYPE_TAG = 1, SCAN_TYPE_TABLE, SCAN_TYPE_SYSTEM_TABLE, SCAN_TYPE_STREAM } EScanType;
+typedef enum EScanType {
+  SCAN_TYPE_TAG = 1,
+  SCAN_TYPE_TABLE,
+  SCAN_TYPE_SYSTEM_TABLE,
+  SCAN_TYPE_STREAM,
+  SCAN_TYPE_TABLE_MERGE
+} EScanType;
 
 typedef struct SScanLogicNode {
   SLogicNode    node;
@@ -262,6 +268,7 @@ typedef struct STableScanPhysiNode {
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;
+typedef STableScanPhysiNode STableMergeScanPhysiNode;
 typedef STableScanPhysiNode SStreamScanPhysiNode;
 
 typedef struct SProjectPhysiNode {

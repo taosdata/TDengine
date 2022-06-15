@@ -95,8 +95,8 @@ static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
   dnodeObj.id = 1;
   dnodeObj.createdTime = taosGetTimestampMs();
   dnodeObj.updateTime = dnodeObj.createdTime;
-  dnodeObj.port = pMnode->replicas[0].port;
-  memcpy(&dnodeObj.fqdn, pMnode->replicas[0].fqdn, TSDB_FQDN_LEN);
+  dnodeObj.port = tsServerPort;
+  memcpy(&dnodeObj.fqdn, tsLocalFqdn, TSDB_FQDN_LEN);
   snprintf(dnodeObj.ep, TSDB_EP_LEN, "%s:%u", dnodeObj.fqdn, dnodeObj.port);
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, NULL);

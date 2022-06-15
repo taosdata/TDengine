@@ -52,6 +52,7 @@ extern "C" {
 #define TSDB_PERFS_TABLE_OFFSETS       "offsets"
 #define TSDB_PERFS_TABLE_TRANS         "trans"
 #define TSDB_PERFS_TABLE_STREAMS       "streams"
+#define TSDB_PERFS_TABLE_APPS          "apps"
 
 typedef struct SSysDbTableSchema {
   const char*   name;

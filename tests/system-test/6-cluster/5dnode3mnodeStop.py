@@ -53,7 +53,7 @@ class TDTestCase:
         # fisrt add data : db\stable\childtable\general table
         for couti in count:
             tdSql.execute("drop database if exists db%d" %couti)
-            tdSql.execute("create database if not exists db%d replica 1 days 300" %couti)
+            tdSql.execute("create database if not exists db%d replica 1 duration 300" %couti)
             tdSql.execute("use db%d" %couti)
             tdSql.execute(
             '''create table stb1
@@ -145,6 +145,7 @@ class TDTestCase:
         tdSql.checkData(2,3,'ready')
 
     def check3mnode1off(self):
+        tdSql.error("drop mnode on dnode 1;")
         count=0
         while count < 10:
             time.sleep(1)
@@ -174,6 +175,7 @@ class TDTestCase:
         tdSql.checkData(2,3,'ready')
 
     def check3mnode2off(self):
+        tdSql.error("drop mnode on dnode 2;")
         count=0
         while count < 10:
             time.sleep(1)
@@ -201,6 +203,7 @@ class TDTestCase:
         tdSql.checkData(2,3,'ready')
 
     def check3mnode3off(self):
+        tdSql.error("drop mnode on dnode 3;")
         count=0
         while count < 10:
             time.sleep(1)
@@ -255,17 +258,17 @@ class TDTestCase:
         print(tdSql.queryResult)
 
         tdLog.debug("stop and follower of mnode") 
-        # self.TDDnodes.stoptaosd(2)
-        # self.check3mnode2off()
-        # self.TDDnodes.starttaosd(2)
+        self.TDDnodes.stoptaosd(2)
+        self.check3mnode2off()
+        self.TDDnodes.starttaosd(2)
 
-        # self.TDDnodes.stoptaosd(3)
-        # self.check3mnode3off()
-        # self.TDDnodes.starttaosd(2)
+        self.TDDnodes.stoptaosd(3)
+        self.check3mnode3off()
+        self.TDDnodes.starttaosd(2)
 
-        # self.TDDnodes.stoptaosd(1)
-        # self.check3mnode1off()
-        # self.TDDnodes.starttaosd(1)
+        self.TDDnodes.stoptaosd(1)
+        self.check3mnode1off()
+        self.TDDnodes.starttaosd(1)
 
         # self.check3mnode()
         stopcount =0 

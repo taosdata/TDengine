@@ -16,21 +16,9 @@
 #include "sma.h"
 #include "tsdb.h"
 
-typedef STsdbCfg STSmaKeepCfg;
-
-#undef _TEST_SMA_PRINT_DEBUG_LOG_
 #define SMA_STORAGE_MINUTES_MAX  86400
 #define SMA_STORAGE_MINUTES_DAY  1440
-#define SMA_STORAGE_MINUTES_MIN  1440
-#define SMA_STORAGE_TSDB_MINUTES 86400
-#define SMA_STORAGE_TSDB_TIMES   10
-#define SMA_STORAGE_SPLIT_FACTOR 14400  // least records in tsma file TODO: the feasible value?
-#define SMA_KEY_LEN              16     // TSKEY+groupId 8+8
-#define SMA_DROP_EXPIRED_TIME    10     // default is 10 seconds
-
-#define SMA_STATE_ITEM_HASH_SLOT 32
-
-// static func
+#define SMA_STORAGE_SPLIT_FACTOR 14400  // least records in tsma file
 
 /**
  * @brief Judge the tsma file split days
@@ -80,79 +68,23 @@ _err:
   return -1;
 }
 
-// read data
-
-// implementation
-
 /**
- * @brief Insert/Update Time-range-wise SMA data.
- *  - If interval < SMA_STORAGE_SPLIT_HOURS(e.g. 24), save the SMA data as a part of DFileSet to e.g.
- * v3f1900.tsma.${sma_index_name}. The days is the same with that for TS data files.
- *  - If interval >= SMA_STORAGE_SPLIT_HOURS, save the SMA data to e.g. vnode3/tsma/v3f632.tsma.${sma_index_name}. The
- * days is 30 times of the interval, and the minimum days is SMA_STORAGE_TSDB_DAYS(30d).
- *  - The destination file of one data block for some interval is determined by its start TS key.
+ * @brief create tsma meta and result stable
  *
  * @param pSma
- * @param msg
+ * @param version
+ * @param pMsg
  * @return int32_t
  */
-int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg) {
-  STsdbCfg *pCfg = SMA_TSDB_CFG(pSma);
-
-  const SArray *pDataBlocks = (const SArray *)msg;
-
-  // TODO: destroy SSDataBlocks(msg)
-
-  // For super table aggregation, the sma data is stored in vgroup calculated from the hash value of stable name. Thus
-  // the sma data would arrive ahead of the update-expired-window msg.
-  if (tdCheckAndInitSmaEnv(pSma, TSDB_SMA_TYPE_TIME_RANGE, false) != TSDB_CODE_SUCCESS) {
-    terrno = TSDB_CODE_TDB_INIT_FAILED;
-    return TSDB_CODE_FAILED;
-  }
-
-  if (!pDataBlocks) {
-    terrno = TSDB_CODE_INVALID_PTR;
-    smaWarn("vgId:%d, insert tsma data failed since pDataBlocks is NULL", SMA_VID(pSma));
-    return terrno;
-  }
-
-  if (taosArrayGetSize(pDataBlocks) <= 0) {
-    terrno = TSDB_CODE_INVALID_PARA;
-    smaWarn("vgId:%d, insert tsma data failed since pDataBlocks is empty", SMA_VID(pSma));
-    return TSDB_CODE_FAILED;
-  }
-
-  SSmaEnv      *pEnv = SMA_TSMA_ENV(pSma);
-  SSmaStat     *pStat = SMA_ENV_STAT(pEnv);
-  SSmaStatItem *pItem = NULL;
-
-  tdRefSmaStat(pSma, pStat);
-
-  if (pStat && SMA_STAT_ITEMS(pStat)) {
-    pItem = taosHashGet(SMA_STAT_ITEMS(pStat), &indexUid, sizeof(indexUid));
-  }
-
-  if (!pItem || !(pItem = *(SSmaStatItem **)pItem) || tdSmaStatIsDropped(pItem)) {
-    terrno = TSDB_CODE_TSMA_INVALID_STAT;
-    tdUnRefSmaStat(pSma, pStat);
-    return TSDB_CODE_FAILED;
-  }
-
-  STSma *pTSma = pItem->pTSma;
-
-  tdUnRefSmaStat(pSma, pStat);
-
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t tdProcessTSmaCreateImpl(SSma *pSma, int64_t version, const char *pMsg) {
   SSmaCfg *pCfg = (SSmaCfg *)pMsg;
 
-  if (metaCreateTSma(SMA_META(pSma), version, pCfg) < 0) {
-    return -1;
-  }
-
   if (TD_VID(pSma->pVnode) == pCfg->dstVgId) {
+    // create tsma meta in dstVgId
+    if (metaCreateTSma(SMA_META(pSma), version, pCfg) < 0) {
+      return -1;
+    }
+
     // create stable to save tsma result in dstVgId
     SVCreateStbReq pReq = {0};
     pReq.name = pCfg->dstTbName;
@@ -165,6 +97,82 @@ int32_t tdProcessTSmaCreateImpl(SSma *pSma, int64_t version, const char *pMsg) {
     }
   }
 
-  tdTSmaAdd(pSma, 1);
   return 0;
+}
+
+/**
+ * @brief Insert/Update Time-range-wise SMA data.
+ *
+ * @param pSma
+ * @param msg
+ * @return int32_t
+ */
+int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg) {
+  const SArray *pDataBlocks = (const SArray *)msg;
+  // TODO: destroy SSDataBlocks(msg)
+  if (!pDataBlocks) {
+    terrno = TSDB_CODE_TSMA_INVALID_PTR;
+    smaWarn("vgId:%d, insert tsma data failed since pDataBlocks is NULL", SMA_VID(pSma));
+    return terrno;
+  }
+
+  if (taosArrayGetSize(pDataBlocks) <= 0) {
+    terrno = TSDB_CODE_TSMA_INVALID_PARA;
+    smaWarn("vgId:%d, insert tsma data failed since pDataBlocks is empty", SMA_VID(pSma));
+    return TSDB_CODE_FAILED;
+  }
+
+  if (tdCheckAndInitSmaEnv(pSma, TSDB_SMA_TYPE_TIME_RANGE) != 0) {
+    terrno = TSDB_CODE_TSMA_INIT_FAILED;
+    return TSDB_CODE_FAILED;
+  }
+
+  SSmaEnv      *pEnv = SMA_TSMA_ENV(pSma);
+  SSmaStat     *pStat = NULL;
+  SSmaStatItem *pItem = NULL;
+
+  if (!pEnv || !(pStat = SMA_ENV_STAT(pEnv))) {
+    terrno = TSDB_CODE_TSMA_INVALID_STAT;
+    return TSDB_CODE_FAILED;
+  }
+
+  tdRefSmaStat(pSma, pStat);
+  pItem = &pStat->tsmaStatItem;
+
+  ASSERT(pItem);
+
+  if (!pItem->pTSma) {
+    STSma *pTSma = metaGetSmaInfoByIndex(SMA_META(pSma), indexUid);
+    if (!pTSma) {
+      terrno = TSDB_CODE_TSMA_NO_INDEX_IN_META;
+      smaWarn("vgId:%d, tsma insert for smaIndex %" PRIi64 " since %s", SMA_VID(pSma), indexUid, tstrerror(terrno));
+      return TSDB_CODE_FAILED;
+    }
+    pItem->pTSma = pTSma;
+    pItem->pTSchema = metaGetTbTSchema(SMA_META(pSma), pTSma->dstTbUid, -1);
+    ASSERT(pItem->pTSchema);  // TODO
+  }
+
+  ASSERT(pItem->pTSma->indexUid == indexUid);
+
+  SSubmitReq *pSubmitReq = NULL;
+
+  pSubmitReq = tdBlockToSubmit((const SArray *)msg, pItem->pTSchema, true, pItem->pTSma->dstTbUid,
+                               pItem->pTSma->dstTbName, pItem->pTSma->dstVgId);
+
+  ASSERT(pSubmitReq);  // TODO
+
+  ASSERT(!strncasecmp("td.tsma.rst.tb", pItem->pTSma->dstTbName, 14));
+
+  SRpcMsg submitReqMsg = {
+      .msgType = TDMT_VND_SUBMIT,
+      .pCont = pSubmitReq,
+      .contLen = ntohl(pSubmitReq->length),
+  };
+
+  ASSERT(tmsgPutToQueue(&pSma->pVnode->msgCb, WRITE_QUEUE, &submitReqMsg) == 0);
+
+  tdUnRefSmaStat(pSma, pStat);
+
+  return TSDB_CODE_SUCCESS;
 }

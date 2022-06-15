@@ -1476,6 +1476,11 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
       for (uint32_t i = 0; i < info->fields[FLD_TYPE_VALUE].num; ++i) {
         SFilterField *field = &info->fields[FLD_TYPE_VALUE].fields[i];
         if (field->desc) {
+          if (QUERY_NODE_VALUE != nodeType(field->desc)) {
+            qDebug("VAL%d => [type:not value node][val:NIL]", i); //TODO
+            continue;
+          }
+
           SValueNode *var = (SValueNode *)field->desc;
           SDataType *dType = &var->node.resType;
           if (dType->type == TSDB_DATA_TYPE_VALUE_ARRAY) {

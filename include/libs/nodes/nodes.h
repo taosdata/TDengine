@@ -204,6 +204,7 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN,
   QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN,
   QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN,
+  QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN,
   QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN,
   QUERY_NODE_PHYSICAL_PLAN_PROJECT,
@@ -252,22 +253,20 @@ typedef struct SNodeList {
   SListCell* pTail;
 } SNodeList;
 
-#define SNodeptr void*
-
-SNodeptr nodesMakeNode(ENodeType type);
-void     nodesDestroyNode(SNodeptr pNode);
+SNode* nodesMakeNode(ENodeType type);
+void   nodesDestroyNode(SNode* pNode);
 
 SNodeList* nodesMakeList();
-int32_t    nodesListAppend(SNodeList* pList, SNodeptr pNode);
-int32_t    nodesListStrictAppend(SNodeList* pList, SNodeptr pNode);
-int32_t    nodesListMakeAppend(SNodeList** pList, SNodeptr pNode);
-int32_t    nodesListMakeStrictAppend(SNodeList** pList, SNodeptr pNode);
+int32_t    nodesListAppend(SNodeList* pList, SNode* pNode);
+int32_t    nodesListStrictAppend(SNodeList* pList, SNode* pNode);
+int32_t    nodesListMakeAppend(SNodeList** pList, SNode* pNode);
+int32_t    nodesListMakeStrictAppend(SNodeList** pList, SNode* pNode);
 int32_t    nodesListAppendList(SNodeList* pTarget, SNodeList* pSrc);
 int32_t    nodesListStrictAppendList(SNodeList* pTarget, SNodeList* pSrc);
-int32_t    nodesListPushFront(SNodeList* pList, SNodeptr pNode);
+int32_t    nodesListPushFront(SNodeList* pList, SNode* pNode);
 SListCell* nodesListErase(SNodeList* pList, SListCell* pCell);
 void       nodesListInsertList(SNodeList* pTarget, SListCell* pPos, SNodeList* pSrc);
-SNodeptr   nodesListGetNode(SNodeList* pList, int32_t index);
+SNode*     nodesListGetNode(SNodeList* pList, int32_t index);
 void       nodesDestroyList(SNodeList* pList);
 // Only clear the linked list structure, without releasing the elements inside
 void nodesClearList(SNodeList* pList);
@@ -275,9 +274,9 @@ void nodesClearList(SNodeList* pList);
 typedef enum EDealRes { DEAL_RES_CONTINUE = 1, DEAL_RES_IGNORE_CHILD, DEAL_RES_ERROR, DEAL_RES_END } EDealRes;
 
 typedef EDealRes (*FNodeWalker)(SNode* pNode, void* pContext);
-void nodesWalkExpr(SNodeptr pNode, FNodeWalker walker, void* pContext);
+void nodesWalkExpr(SNode* pNode, FNodeWalker walker, void* pContext);
 void nodesWalkExprs(SNodeList* pList, FNodeWalker walker, void* pContext);
-void nodesWalkExprPostOrder(SNodeptr pNode, FNodeWalker walker, void* pContext);
+void nodesWalkExprPostOrder(SNode* pNode, FNodeWalker walker, void* pContext);
 void nodesWalkExprsPostOrder(SNodeList* pList, FNodeWalker walker, void* pContext);
 
 typedef EDealRes (*FNodeRewriter)(SNode** pNode, void* pContext);
@@ -286,13 +285,13 @@ void nodesRewriteExprs(SNodeList* pList, FNodeRewriter rewriter, void* pContext)
 void nodesRewriteExprPostOrder(SNode** pNode, FNodeRewriter rewriter, void* pContext);
 void nodesRewriteExprsPostOrder(SNodeList* pList, FNodeRewriter rewriter, void* pContext);
 
-bool nodesEqualNode(const SNodeptr a, const SNodeptr b);
+bool nodesEqualNode(const SNode* a, const SNode* b);
 
-SNodeptr   nodesCloneNode(const SNodeptr pNode);
+SNode*     nodesCloneNode(const SNode* pNode);
 SNodeList* nodesCloneList(const SNodeList* pList);
 
 const char* nodesNodeName(ENodeType type);
-int32_t     nodesNodeToString(const SNodeptr pNode, bool format, char** pStr, int32_t* pLen);
+int32_t     nodesNodeToString(const SNode* pNode, bool format, char** pStr, int32_t* pLen);
 int32_t     nodesStringToNode(const char* pStr, SNode** pNode);
 
 int32_t nodesListToString(const SNodeList* pList, bool format, char** pStr, int32_t* pLen);

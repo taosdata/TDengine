@@ -41,7 +41,7 @@ typedef struct SCliConn {
 
   // debug and log info
   struct sockaddr_in addr;
-  struct sockaddr_in locaddr;
+  struct sockaddr_in localAddr;
 } SCliConn;
 
 typedef struct SCliMsg {
@@ -54,7 +54,8 @@ typedef struct SCliMsg {
 } SCliMsg;
 
 typedef struct SCliThrdObj {
-  TdThread    thread;
+  TdThread    thread;  // tid
+  int64_t     pid;     // pid
   uv_loop_t*  loop;
   SAsyncPool* asyncPool;
   uv_timer_t  timer;
@@ -325,7 +326,7 @@ void cliHandleResp(SCliConn* conn) {
 
   tDebug("%s cli conn %p %s received from %s:%d, local info: %s:%d, msg size: %d", pTransInst->label, conn,
          TMSG_INFO(pHead->msgType), taosInetNtoa(conn->addr.sin_addr), ntohs(conn->addr.sin_port),
-         taosInetNtoa(conn->locaddr.sin_addr), ntohs(conn->locaddr.sin_port), transMsg.contLen);
+         taosInetNtoa(conn->localAddr.sin_addr), ntohs(conn->localAddr.sin_port), transMsg.contLen);
 
   if (pCtx == NULL && CONN_NO_PERSIST_BY_APP(conn)) {
     tTrace("except, server continue send while cli ignore it");
@@ -643,7 +644,7 @@ void cliSend(SCliConn* pConn) {
   uv_buf_t wb = uv_buf_init((char*)pHead, msgLen);
   tDebug("%s cli conn %p %s is send to %s:%d, local info %s:%d", CONN_GET_INST_LABEL(pConn), pConn,
          TMSG_INFO(pHead->msgType), taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port),
-         taosInetNtoa(pConn->locaddr.sin_addr), ntohs(pConn->locaddr.sin_port));
+         taosInetNtoa(pConn->localAddr.sin_addr), ntohs(pConn->localAddr.sin_port));
 
   if (pHead->persist == 1) {
     CONN_SET_PERSIST_BY_APP(pConn);
@@ -668,8 +669,8 @@ void cliConnCb(uv_connect_t* req, int status) {
   int addrlen = sizeof(pConn->addr);
   uv_tcp_getpeername((uv_tcp_t*)pConn->stream, (struct sockaddr*)&pConn->addr, &addrlen);
 
-  addrlen = sizeof(pConn->locaddr);
-  uv_tcp_getsockname((uv_tcp_t*)pConn->stream, (struct sockaddr*)&pConn->locaddr, &addrlen);
+  addrlen = sizeof(pConn->localAddr);
+  uv_tcp_getsockname((uv_tcp_t*)pConn->stream, (struct sockaddr*)&pConn->localAddr, &addrlen);
 
   tTrace("%s cli conn %p connect to server successfully", CONN_GET_INST_LABEL(pConn), pConn);
   assert(pConn->stream == req->handle);
@@ -742,8 +743,7 @@ void cliMayCvtFqdnToIp(SEpSet* pEpSet, SCvtAddr* pCvtAddr) {
 void cliHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd) {
   uint64_t et = taosGetTimestampUs();
   uint64_t el = et - pMsg->st;
-  tTrace("%s cli msg tran time cost: %" PRIu64 "us, threadID: %" PRId64 "", ((STrans*)pThrd->pTransInst)->label, el,
-         pThrd->thread);
+  // tTrace("%s cli msg tran time cost: %" PRIu64 "us", ((STrans*)pThrd->pTransInst)->label, el);
 
   STransConnCtx* pCtx = pMsg->ctx;
   STrans*        pTransInst = pThrd->pTransInst;
@@ -822,6 +822,7 @@ static void cliAsyncCb(uv_async_t* handle) {
 
 static void* cliWorkThread(void* arg) {
   SCliThrdObj* pThrd = (SCliThrdObj*)arg;
+  pThrd->pid = taosGetSelfPthreadId();
   setThreadName("trans-cli-work");
   uv_run(pThrd->loop, UV_RUN_DEFAULT);
   return NULL;
@@ -966,27 +967,31 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
     pMsg->st = taosGetTimestampUs();
     pCtx->retryCount += 1;
     if (pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
-      if (pCtx->retryCount < pEpSet->numOfEps) {
+      if (pCtx->retryCount < pEpSet->numOfEps * 3) {
         pEpSet->inUse = (++pEpSet->inUse) % pEpSet->numOfEps;
 
         STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));
         arg->param1 = pMsg;
         arg->param2 = pThrd;
         transDQSched(pThrd->delayQueue, doDelayTask, arg, TRANS_RETRY_INTERVAL);
+        tTrace("use local epset, current in use: %d, retry count:%d, limit: %d", pEpSet->inUse, pCtx->retryCount + 1,
+               pEpSet->numOfEps * 3);
         transUnrefCliHandle(pConn);
         return -1;
       }
     } else if (pCtx->retryCount < TRANS_RETRY_COUNT_LIMIT) {
       if (pResp->contLen == 0) {
         pEpSet->inUse = (++pEpSet->inUse) % pEpSet->numOfEps;
+        tTrace("use local epset, current in use: %d, retry count:%d, limit: %d", pEpSet->inUse, pCtx->retryCount + 1,
+               TRANS_RETRY_COUNT_LIMIT);
       } else {
         SEpSet epSet = {0};
         tDeserializeSEpSet(pResp->pCont, pResp->contLen, &epSet);
         pCtx->epSet = epSet;
+        tTrace("use remote epset, current in use: %d, retry count:%d, limit: %d", pEpSet->inUse, pCtx->retryCount + 1,
+               TRANS_RETRY_COUNT_LIMIT);
       }
       addConnToPool(pThrd->pool, pConn);
-      tTrace("use remote epset, current in use: %d, retry count:%d, try limit: %d", pEpSet->inUse, pCtx->retryCount + 1,
-             TRANS_RETRY_COUNT_LIMIT);
 
       STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));
       arg->param1 = pMsg;
@@ -1086,7 +1091,7 @@ void transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STra
 
   SCliThrdObj* thrd = ((SCliObj*)pTransInst->tcphandle)->pThreadObj[index];
 
-  tDebug("send request at thread:%d, threadID: %" PRId64 ",  msg: %p, dst: %s:%d, app:%p", index, thrd->thread, pReq,
+  tDebug("send request at thread:%d, threadID: %08" PRId64 ",  msg: %p, dst: %s:%d, app:%p", index, thrd->pid, pReq,
          EPSET_GET_INUSE_IP(&pCtx->epSet), EPSET_GET_INUSE_PORT(&pCtx->epSet), pReq->info.ahandle);
   ASSERT(transSendAsync(thrd->asyncPool, &(cliMsg->q)) == 0);
 }
@@ -1115,7 +1120,7 @@ void transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransM
   cliMsg->type = Normal;
 
   SCliThrdObj* thrd = ((SCliObj*)pTransInst->tcphandle)->pThreadObj[index];
-  tDebug("send request at thread:%d, threadID:%" PRId64 ", msg: %p, dst: %s:%d, app:%p", index, thrd->thread, pReq,
+  tDebug("send request at thread:%d, threadID:%08" PRId64 ", msg: %p, dst: %s:%d, app:%p", index, thrd->pid, pReq,
          EPSET_GET_INUSE_IP(&pCtx->epSet), EPSET_GET_INUSE_PORT(&pCtx->epSet), pReq->info.ahandle);
 
   transSendAsync(thrd->asyncPool, &(cliMsg->q));
@@ -1146,7 +1151,7 @@ void transSetDefaultAddr(void* ahandle, const char* ip, const char* fqdn) {
     cliMsg->type = Update;
 
     SCliThrdObj* thrd = ((SCliObj*)pTransInst->tcphandle)->pThreadObj[i];
-    tDebug("update epset at thread:%d, threadID:%" PRId64 "", i, thrd->thread);
+    tDebug("update epset at thread:%d, threadID:%08" PRId64 "", i, thrd->pid);
 
     transSendAsync(thrd->asyncPool, &(cliMsg->q));
   }

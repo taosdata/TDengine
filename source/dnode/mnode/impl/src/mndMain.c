@@ -289,11 +289,9 @@ static int32_t mndExecSteps(SMnode *pMnode) {
 }
 
 static void mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
-  pMnode->replica = pOption->replica;
-  pMnode->selfIndex = pOption->selfIndex;
-  memcpy(&pMnode->replicas, pOption->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
   pMnode->msgCb = pOption->msgCb;
   pMnode->selfDnodeId = pOption->dnodeId;
+  pMnode->syncMgmt.replica = pOption->replica;
   pMnode->syncMgmt.standby = pOption->standby;
 }
 
@@ -382,22 +380,17 @@ void mndStop(SMnode *pMnode) {
 int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
   SMnode    *pMnode = pMsg->info.node;
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
-  int32_t    code = TAOS_SYNC_PROPOSE_OTHER_ERROR;
+  int32_t    code = TAOS_SYNC_OTHER_ERROR;
 
   if (!syncEnvIsStart()) {
     mError("failed to process sync msg:%p type:%s since syncEnv stop", pMsg, TMSG_INFO(pMsg->msgType));
-    return TAOS_SYNC_PROPOSE_OTHER_ERROR;
+    return TAOS_SYNC_OTHER_ERROR;
   }
 
   SSyncNode *pSyncNode = syncNodeAcquire(pMgmt->sync);
   if (pSyncNode == NULL) {
     mError("failed to process sync msg:%p type:%s since syncNode is null", pMsg, TMSG_INFO(pMsg->msgType));
-    return TAOS_SYNC_PROPOSE_OTHER_ERROR;
-  }
-
-  if (mndAcquireSyncRef(pMnode) != 0) {
-    mError("failed to process sync msg:%p type:%s since %s", pMsg, TMSG_INFO(pMsg->msgType), terrstr());
-    return TAOS_SYNC_PROPOSE_OTHER_ERROR;
+    return TAOS_SYNC_OTHER_ERROR;
   }
 
   char  logBuf[512] = {0};
@@ -428,7 +421,6 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
       SyncClientRequest *pSyncMsg = syncClientRequestFromRpcMsg2(pMsg);
       code = syncNodeOnClientRequestCb(pSyncNode, pSyncMsg);
       syncClientRequestDestroy(pSyncMsg);
-
     } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE) {
       SyncRequestVote *pSyncMsg = syncRequestVoteFromRpcMsg2(pMsg);
       code = syncNodeOnRequestVoteSnapshotCb(pSyncNode, pSyncMsg);
@@ -445,7 +437,6 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
       SyncAppendEntriesReply *pSyncMsg = syncAppendEntriesReplyFromRpcMsg2(pMsg);
       code = syncNodeOnAppendEntriesReplySnapshotCb(pSyncNode, pSyncMsg);
       syncAppendEntriesReplyDestroy(pSyncMsg);
-
     } else if (pMsg->msgType == TDMT_SYNC_SNAPSHOT_SEND) {
       SyncSnapshotSend *pSyncMsg = syncSnapshotSendFromRpcMsg2(pMsg);
       code = syncNodeOnSnapshotSendCb(pSyncNode, pSyncMsg);
@@ -454,12 +445,14 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
       SyncSnapshotRsp *pSyncMsg = syncSnapshotRspFromRpcMsg2(pMsg);
       code = syncNodeOnSnapshotRspCb(pSyncNode, pSyncMsg);
       syncSnapshotRspDestroy(pSyncMsg);
-
+    } else if (pMsg->msgType == TDMT_SYNC_SET_MNODE_STANDBY) {
+      code = syncSetStandby(pMgmt->sync);
+      SRpcMsg rsp = {.code = code, .info = pMsg->info};
+      tmsgSendRsp(&rsp);
     } else {
       mError("failed to process msg:%p since invalid type:%s", pMsg, TMSG_INFO(pMsg->msgType));
-      code = TAOS_SYNC_PROPOSE_OTHER_ERROR;
+      code = TAOS_SYNC_OTHER_ERROR;
     }
-
   } else {
     if (pMsg->msgType == TDMT_SYNC_TIMEOUT) {
       SyncTimeout *pSyncMsg = syncTimeoutFromRpcMsg2(pMsg);
@@ -493,13 +486,16 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
       SyncAppendEntriesReply *pSyncMsg = syncAppendEntriesReplyFromRpcMsg2(pMsg);
       code = syncNodeOnAppendEntriesReplyCb(pSyncNode, pSyncMsg);
       syncAppendEntriesReplyDestroy(pSyncMsg);
+    } else if (pMsg->msgType == TDMT_SYNC_SET_MNODE_STANDBY) {
+      code = syncSetStandby(pMgmt->sync);
+      SRpcMsg rsp = {.code = code, .info = pMsg->info};
+      tmsgSendRsp(&rsp);
     } else {
       mError("failed to process msg:%p since invalid type:%s", pMsg, TMSG_INFO(pMsg->msgType));
-      code = TAOS_SYNC_PROPOSE_OTHER_ERROR;
+      code = TAOS_SYNC_OTHER_ERROR;
     }
   }
 
-  mndReleaseSyncRef(pMnode);
   return code;
 }
 
@@ -752,24 +748,3 @@ void mndSetStop(SMnode *pMnode) {
 }
 
 bool mndGetStop(SMnode *pMnode) { return pMnode->stopped; }
-
-int32_t mndAcquireSyncRef(SMnode *pMnode) {
-  int32_t code = 0;
-  taosThreadRwlockRdlock(&pMnode->lock);
-  if (pMnode->stopped) {
-    terrno = TSDB_CODE_APP_NOT_READY;
-    code = -1;
-  } else {
-    int32_t ref = atomic_add_fetch_32(&pMnode->syncRef, 1);
-    // mTrace("mnode sync is acquired, ref:%d", ref);
-  }
-  taosThreadRwlockUnlock(&pMnode->lock);
-  return code;
-}
-
-void mndReleaseSyncRef(SMnode *pMnode) {
-  taosThreadRwlockRdlock(&pMnode->lock);
-  int32_t ref = atomic_sub_fetch_32(&pMnode->syncRef, 1);
-  // mTrace("mnode sync is released, ref:%d", ref);
-  taosThreadRwlockUnlock(&pMnode->lock);
-}

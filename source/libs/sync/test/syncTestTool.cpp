@@ -153,6 +153,16 @@ void ReConfigCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SReConfigCbMeta cbMe
   taosMemoryFree(s);
 }
 
+void LeaderTransferCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
+  char logBuf[256] = {0};
+  snprintf(logBuf, sizeof(logBuf),
+           "==callback== ==LeaderTransferCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s, flag:%lu, term:%lu "
+           "currentTerm:%lu \n",
+           pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state),
+           cbMeta.flag, cbMeta.term, cbMeta.currentTerm);
+  syncRpcMsgLog2(logBuf, (SRpcMsg*)pMsg);
+}
+
 SSyncFSM* createFsm() {
   SSyncFSM* pFsm = (SSyncFSM*)taosMemoryMalloc(sizeof(SSyncFSM));
   memset(pFsm, 0, sizeof(*pFsm));
@@ -171,6 +181,8 @@ SSyncFSM* createFsm() {
   pFsm->FpSnapshotStartWrite = SnapshotStartWrite;
   pFsm->FpSnapshotStopWrite = SnapshotStopWrite;
   pFsm->FpSnapshotDoWrite = SnapshotDoWrite;
+
+  pFsm->FpLeaderTransferCb = LeaderTransferCb;
 
   return pFsm;
 }
@@ -277,7 +289,8 @@ void usage(char* exe) {
   printf(
       "usage: %s  replicaNum(1-5)  myIndex(0-..)  enableSnapshot(0/1)  lastApplyIndex(>=-1)  lastApplyTerm(>=0)  "
       "writeRecordNum(>=0)  "
-      "isStandBy(0/1)  isConfigChange(0-5)  iterTimes(>=0)  finishLastApplyIndex(>=-1)  finishLastApplyTerm(>=0) \n",
+      "isStandBy(0/1)  isConfigChange(0-5)  iterTimes(>=0)  finishLastApplyIndex(>=-1)  finishLastApplyTerm(>=0) "
+      "leaderTransfer(0/1) \n",
       exe);
 }
 
@@ -294,9 +307,9 @@ SRpcMsg* createRpcMsg(int i, int count, int myIndex) {
 int main(int argc, char** argv) {
   sprintf(tsTempDir, "%s", ".");
   tsAsyncLog = 0;
-  sDebugFlag = DEBUG_SCREEN + DEBUG_FILE + DEBUG_TRACE + DEBUG_INFO + DEBUG_ERROR;
+  sDebugFlag = DEBUG_SCREEN + DEBUG_FILE + DEBUG_TRACE + DEBUG_INFO + DEBUG_ERROR + DEBUG_DEBUG;
 
-  if (argc != 12) {
+  if (argc != 13) {
     usage(argv[0]);
     exit(-1);
   }
@@ -312,12 +325,14 @@ int main(int argc, char** argv) {
   int32_t iterTimes = atoi(argv[9]);
   int32_t finishLastApplyIndex = atoi(argv[10]);
   int32_t finishLastApplyTerm = atoi(argv[11]);
+  int32_t leaderTransfer = atoi(argv[12]);
 
-  sTrace(
+  sInfo(
       "args: replicaNum:%d, myIndex:%d, enableSnapshot:%d, lastApplyIndex:%d, lastApplyTerm:%d, writeRecordNum:%d, "
-      "isStandBy:%d, isConfigChange:%d, iterTimes:%d, finishLastApplyIndex:%d, finishLastApplyTerm:%d",
+      "isStandBy:%d, isConfigChange:%d, iterTimes:%d, finishLastApplyIndex:%d, finishLastApplyTerm:%d, "
+      "leaderTransfer:%d",
       replicaNum, myIndex, enableSnapshot, lastApplyIndex, lastApplyTerm, writeRecordNum, isStandBy, isConfigChange,
-      iterTimes, finishLastApplyIndex, finishLastApplyTerm);
+      iterTimes, finishLastApplyIndex, finishLastApplyTerm, leaderTransfer);
 
   // check parameter
   assert(replicaNum >= 1 && replicaNum <= 5);
@@ -363,24 +378,31 @@ int main(int argc, char** argv) {
 
   //---------------------------
   int32_t alreadySend = 0;
+  int32_t leaderTransferWait = 0;
   while (1) {
     char* simpleStr = syncNode2SimpleStr(pSyncNode);
+
+    leaderTransferWait++;
+    if (leaderTransferWait == 7) {
+      sTrace("begin leader transfer ...");
+      int32_t ret = syncLeaderTransfer(rid);
+    }
 
     if (alreadySend < writeRecordNum) {
       SRpcMsg* pRpcMsg = createRpcMsg(alreadySend, writeRecordNum, myIndex);
       int32_t  ret = syncPropose(rid, pRpcMsg, false);
       if (ret == TAOS_SYNC_PROPOSE_NOT_LEADER) {
-        sTrace("%s value%d write not leader", simpleStr, alreadySend);
+        sTrace("%s value%d write not leader, leaderTransferWait:%d", simpleStr, alreadySend, leaderTransferWait);
       } else {
         assert(ret == 0);
-        sTrace("%s value%d write ok", simpleStr, alreadySend);
+        sTrace("%s value%d write ok, leaderTransferWait:%d", simpleStr, alreadySend, leaderTransferWait);
       }
       alreadySend++;
 
       rpcFreeCont(pRpcMsg->pCont);
       taosMemoryFree(pRpcMsg);
     } else {
-      sTrace("%s", simpleStr);
+      sTrace("%s, leaderTransferWait:%d", simpleStr, leaderTransferWait);
     }
 
     taosMsleep(1000);
