@@ -63,10 +63,11 @@ int32_t mndConvertRsmaTask(char** pDst, int32_t* pDstLen, const char* ast, int64
       .topicQuery = false,
       .streamQuery = true,
       .rSmaQuery = true,
-      .triggerType = triggerType,
+      .triggerType = STREAM_TRIGGER_WINDOW_CLOSE,
       .watermark = watermark,
-      .filesFactor = filesFactor,
+      /*.filesFactor = filesFactor,*/
   };
+
   if (qCreateQueryPlan(&cxt, &pPlan, NULL) < 0) {
     terrno = TSDB_CODE_QRY_INVALID_INPUT;
     goto END;
