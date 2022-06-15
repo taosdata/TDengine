@@ -48,13 +48,11 @@ typedef struct SShellArguments {
   char* database;
   char* timezone;
   bool  restful;
-  char* token;
 #ifdef WINDOWS
   SOCKET socket;
 #else
   int socket;
 #endif
-
   TAOS* con;
   bool  is_raw_time;
   bool  is_use_passwd;
@@ -70,6 +68,8 @@ typedef struct SShellArguments {
   int   pktNum;
   char* pktType;
   char* netTestRole;
+  char* cloudDsn;
+  bool  cloud;
 } SShellArguments;
 
 typedef enum WS_ACTION_TYPE_S { WS_CONN, WS_QUERY, WS_FETCH, WS_FETCH_BLOCK } WS_ACTION_TYPE;

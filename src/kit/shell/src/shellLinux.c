@@ -54,7 +54,7 @@ static struct argp_option options[] = {
   {"pktnum",     'N', "PKTNUM",     0,                   "Packet numbers used for net test, default is 100."},
   {"pkttype",    'S', "PKTTYPE",    0,                   "Choose packet type used for net test, default is TCP. Only speed test could be either TCP or UDP."},
   {"restful", 'R', 0, 0, "Connect and interact with TDengine use restful."},
-  {"token", 't', "TOKEN", 0, "The token to use when connecting TDengine's cloud services."},
+  {0, 'E', "DSN", 0, "The DSN to use when connecting TDengine's cloud services."},
   {0}};
 
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
@@ -64,35 +64,20 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
   wordexp_t full_path;
 
   switch (key) {
-    case 'h':{
-        char* cloud_url = arg;
-        char* start = strstr(cloud_url, "http://");
-        if (start != NULL) {
-            cloud_url = start + strlen("http://");
+    case 'h':
+        if (arg) {
+          args.cloud = false;
+          args.host = arg;
         } else {
-            start = strstr(cloud_url, "https://");
-            if (start != NULL) {
-                cloud_url = start + strlen("https://");
-            }
-        }
-
-        char* tmp = last_strstr(cloud_url, ":");
-        if (tmp == NULL) {
-            args.host = cloud_url;
-        } else if ((tmp + 1) != NULL) {
-            args.port = atoi(tmp + 1);
-            tmp[0] = '\0';
-            args.host = cloud_url;
-        } else {
-            fprintf(stderr, "Invalid format in environment variable TDENGINE_CLOUD_URL: %s\n", cloud_url);
-            exit(EXIT_FAILURE);
+          fprintf(stderr, "Invalid host\n");
+          return -1;
         }
         break;
-    }
     case 'p':
       break;
     case 'P':
       if (arg) {
+        args.cloud = false;
         tsDnodeShellPort = atoi(arg);
         p_port = atoi(arg);
       } else {
@@ -111,7 +96,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       arguments->auth = arg;
       break;
     case 'c':
-      args.restful = false;
       if (wordexp(arg, &full_path, 0) != 0) {
         fprintf(stderr, "Invalid path %s\n", arg);
         return -1;
@@ -121,6 +105,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         wordfree(&full_path);
         return -1;
       }
+      args.cloud = false;
       tstrncpy(configDir, full_path.we_wordv[0], TSDB_FILENAME_LEN);
       wordfree(&full_path);
       break;
@@ -188,11 +173,17 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
     case OPT_ABORT:
       arguments->abort = 1;
       break;
-    case 't':
-      arguments->token = arg;
-      break;
     case 'R':
       arguments->restful = true;
+      arguments->cloud = false;
+      break;
+    case 'E':
+      if (arg) {
+         arguments->cloudDsn = arg;
+       } else {
+         fprintf(stderr, "Invalid -E option\n");
+         return -1;
+       }
       break;
     default:
       return ARGP_ERR_UNKNOWN;
@@ -246,8 +237,16 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
   }
 
   argp_parse(&argp, argc, argv, 0, 0, arguments);
-  if (arguments->token == NULL) {
-    arguments->port = p_port;
+
+  if (args.cloudDsn == NULL) {
+      if (args.cloud) {
+          args.cloudDsn = getenv("TDENGINE_CLOUD_DSN");
+          if (args.cloudDsn == NULL) {
+              args.cloud = false;
+          }
+      }
+  } else {
+      args.cloud = true;
   }
   
   if (arguments->abort) {

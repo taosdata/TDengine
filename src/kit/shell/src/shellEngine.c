@@ -72,7 +72,7 @@ void shellInit(SShellArguments *_args) {
     _args->user = TSDB_DEFAULT_USER;
   }
 
-  if (_args->restful) {
+  if (_args->restful || _args->cloud) {
     if (wsclient_handshake()) {
       exit(EXIT_FAILURE);
     }
@@ -158,7 +158,7 @@ static int32_t shellRunSingleCommand(TAOS *con, char *command) {
 
   // Analyse the command.
   if (regex_match(command, "^[ \t]*(quit|q|exit)[ \t;]*$", REG_EXTENDED | REG_ICASE)) {
-    if (args.restful) {
+    if (args.restful || args.cloud) {
       close(args.socket);
     } else {
       taos_close(con);
@@ -289,7 +289,7 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
     printMode = true;  // When output to a file, the switch does not work.
   }
 
-  if (args.restful) {
+  if (args.restful || args.cloud) {
     wsclient_query(command);
     return;
   }
@@ -1160,12 +1160,39 @@ int wsclient_handshake() {
     key_nonce[i] = rand() & 0xff;
   }
   taos_base64_encode(key_nonce, 16, websocket_key, 256);
-  if (args.token) {
-    snprintf(request_header, 1024,
-             "GET /rest/ws?token=%s HTTP/1.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nHost: "
-             "%s:%d\r\nSec-WebSocket-Key: "
-             "%s\r\nSec-WebSocket-Version: 13\r\n\r\n",
-             args.token, args.host, args.port, websocket_key);
+  if (args.cloud) {
+    if (args.cloudDsn == NULL) {
+        fprintf(stderr, "Cannot read cloud service info\n");
+        return -1;
+    } else {
+        char* start = strstr(args.cloudDsn, "http://");
+        if (start != NULL) {
+            args.cloudDsn = start + strlen("http://");
+        } else {
+            start = strstr(args.cloudDsn, "https://");
+            if (start != NULL) {
+                args.cloudDsn = start + strlen("https://");
+            }
+        }
+        char* port = strstr(args.cloudDsn, ":");
+        if ((port == NULL) || (port + 1) == NULL) {
+            fprintf(stderr, "Invalid format in TDengine cloud dsn: %s\n", args.cloudDsn);
+            return -1;
+        }
+        port[0] = '\0';
+        char* token = strstr(port+ strlen(":"), "?token=");
+        if ((token == NULL) || (token + strlen("?token=")) == NULL) {
+            fprintf(stderr, "Invalid format in TDengine cloud dsn: %s\n", args.cloudDsn);
+            return -1;
+        }
+        token[0] = '\0';
+        snprintf(request_header, 1024,
+                 "GET /rest/ws?token=%s HTTP/1.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nHost: "
+                 "%s:%s\r\nSec-WebSocket-Key: "
+                 "%s\r\nSec-WebSocket-Version: 13\r\n\r\n",
+                 token + strlen("?token="), args.cloudDsn, port + strlen(":"), websocket_key);
+    }
+
   } else {
     snprintf(request_header, 1024,
              "GET /rest/ws HTTP/1.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nHost: %s:%d\r\nSec-WebSocket-Key: "
@@ -1321,7 +1348,12 @@ int wsclient_conn() {
   }
   if (code->valueint == 0) {
     cJSON_Delete(root);
-    fprintf(stdout, "Successfully connect to %s in taos shell restful mode\n", args.host);
+    if (args.cloud) {
+        fprintf(stdout, "Successfully connect to cloud service in restful mode\n");
+    } else {
+        fprintf(stdout, "Successfully connect to %s in restful mode\n", args.host);
+    }
+
     return 0;
   } else {
     cJSON *message = cJSON_GetObjectItem(root, "message");

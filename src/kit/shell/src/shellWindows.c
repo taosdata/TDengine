@@ -64,8 +64,8 @@ void printHelp() {
   printf("%s%s%s\n", indent, indent, "Packet numbers used for net test, default is 100.");
   printf("%s%s\n", indent, "-R");
   printf("%s%s%s\n", indent, indent, "Connect and interact with TDengine use restful.");
-  printf("%s%s\n", indent, "-t");
-  printf("%s%s%s\n", indent, indent, "The token to use when connecting TDengine's cloud services.");
+  printf("%s%s\n", indent, "-E");
+  printf("%s%s%s\n", indent, indent, "The DSN to use when connecting TDengine's cloud services.");
   printf("%s%s\n", indent, "-S");
   printf("%s%s%s\n", indent, indent, "Packet type used for net test, default is TCP.");
   printf("%s%s\n", indent, "-V");
@@ -80,28 +80,8 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
     // for host
     if (strcmp(argv[i], "-h") == 0) {
       if (i < argc - 1) {
-          char* cloud_url = argv[++i];
-          char* start = strstr(cloud_url, "http://");
-          if (start != NULL) {
-              cloud_url = start + strlen("http://");
-          } else {
-              start = strstr(cloud_url, "https://");
-              if (start != NULL) {
-                  cloud_url = start + strlen("https://");
-              }
-          }
-
-          char* tmp = last_strstr(cloud_url, ":");
-          if (tmp == NULL) {
-              arguments->host = cloud_url;
-          } else if ((tmp + 1) != NULL) {
-              arguments->port = atoi(tmp + 1);
-              tmp[0] = '\0';
-              arguments->host = cloud_url;
-          } else {
-              fprintf(stderr, "Invalid format in environment variable TDENGINE_CLOUD_URL: %s\n", cloud_url);
-              exit(EXIT_FAILURE);
-          }
+          arguments->cloud = false;
+          arguments->host = argv[++i];
       } else {
         fprintf(stderr, "option -h requires an argument\n");
         exit(EXIT_FAILURE);
@@ -132,6 +112,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
     // for management port
     else if (strcmp(argv[i], "-P") == 0) {
       if (i < argc - 1) {
+        arguments->cloud = false;
         arguments->port = atoi(argv[++i]);
       } else {
         fprintf(stderr, "option -P requires an argument\n");
@@ -155,7 +136,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
       }
     } else if (strcmp(argv[i], "-c") == 0) {
       if (i < argc - 1) {
-        arguments->restful = false;
+        arguments->cloud = false;
         char *tmp = argv[++i];
         if (strlen(tmp) >= TSDB_FILENAME_LEN) {
           fprintf(stderr, "config file path: %s overflow max len %d\n", tmp, TSDB_FILENAME_LEN - 1);
@@ -239,14 +220,15 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
     }
 
     else if (strcmp(argv[i], "-R") == 0) {
+        arguments->cloud = false;
         arguments->restful = true;
     }
 
-    else if (strcmp(argv[i], "-t") == 0) {
+    else if (strcmp(argv[i], "-E") == 0) {
         if (i < argc - 1) {
-            arguments->token = argv[++i];
+            arguments->cloudDsn = argv[++i];
         } else {
-            fprintf(stderr, "options -t requires an argument\n");
+            fprintf(stderr, "options -E requires an argument\n");
             exit(EXIT_FAILURE);
         }
     }
@@ -264,6 +246,16 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
       printHelp();
       exit(EXIT_FAILURE);
     }
+  }
+  if (args.cloudDsn == NULL) {
+      if (args.cloud) {
+          args.cloudDsn = getenv("TDENGINE_CLOUD_DSN");
+          if (args.cloudDsn == NULL) {
+              args.cloud = false;
+          }
+      }
+  } else {
+      args.cloud = true;
   }
 }
 
