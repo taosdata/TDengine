@@ -1117,6 +1117,7 @@ static const char* jkLogicSubplanVgroupsSize = "VgroupsSize";
 static const char* jkLogicSubplanVgroups = "Vgroups";
 static const char* jkLogicSubplanLevel = "Level";
 static const char* jkLogicSubplanSplitFlag = "SplitFlag";
+static const char* jkLogicSubplanNumOfComputeNodes = "NumOfComputeNodes";
 
 static int32_t logicSubplanToJson(const void* pObj, SJson* pJson) {
   const SLogicSubplan* pNode = (const SLogicSubplan*)pObj;
@@ -1143,6 +1144,9 @@ static int32_t logicSubplanToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkLogicSubplanSplitFlag, pNode->splitFlag);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkLogicSubplanNumOfComputeNodes, pNode->numOfComputeNodes);
+  }
 
   return code;
 }
@@ -1159,7 +1163,6 @@ static int32_t jsonToLogicSubplan(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     tjsonGetNumberValue(pJson, jkLogicSubplanType, pNode->subplanType, code);
-    ;
   }
   int32_t objSize = 0;
   if (TSDB_CODE_SUCCESS == code) {
@@ -1173,6 +1176,9 @@ static int32_t jsonToLogicSubplan(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetIntValue(pJson, jkLogicSubplanSplitFlag, &pNode->splitFlag);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkLogicSubplanNumOfComputeNodes, &pNode->numOfComputeNodes);
   }
 
   return code;
@@ -1478,14 +1484,6 @@ static int32_t jsonToPhysiTableScanNode(const SJson* pJson, void* pObj) {
     code = tjsonGetDoubleValue(pJson, jkTableScanPhysiPlanFilesFactor, &pNode->filesFactor);
   }
   return code;
-}
-
-static int32_t physiStreamScanNodeToJson(const void* pObj, SJson* pJson) {
-  return physiTableScanNodeToJson(pObj, pJson);
-}
-
-static int32_t jsonToPhysiStreamScanNode(const SJson* pJson, void* pObj) {
-  return jsonToPhysiTableScanNode(pJson, pObj);
 }
 
 static const char* jkSysTableScanPhysiPlanMnodeEpSet = "MnodeEpSet";
@@ -3964,9 +3962,9 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
       return physiTagScanNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
-      return physiTableScanNodeToJson(pObj, pJson);
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
-      return physiStreamScanNodeToJson(pObj, pJson);
+      return physiTableScanNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
       return physiSysTableScanNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
@@ -4097,9 +4095,9 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
       return jsonToPhysiTagScanNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
-      return jsonToPhysiTableScanNode(pJson, pObj);
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
-      return jsonToPhysiStreamScanNode(pJson, pObj);
+      return jsonToPhysiTableScanNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
       return jsonToPhysiSysTableScanNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:

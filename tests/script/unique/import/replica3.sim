@@ -58,7 +58,7 @@ if $data4_3 != ready then
   goto step1
 endi
 
-sql create database ir3db replica 3 days 7
+sql create database ir3db replica 3 duration 7
 sql use ir3db
 sql create table tb(ts timestamp, i bigint)
 

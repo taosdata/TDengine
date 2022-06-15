@@ -2839,6 +2839,9 @@ static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt
   if (TSDB_CODE_SUCCESS == code) {
     code = checTableFactorOption(pCxt, pStmt->pOptions->filesFactor);
   }
+  // if (TSDB_CODE_SUCCESS == code) {
+  //   code = checkRangeOption(pCxt, "delay", pStmt->pOptions->delay, TSDB_MIN_ROLLUP_DELAY, TSDB_MAX_ROLLUP_DELAY);
+  // }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkTableRollupOption(pCxt, pStmt->pOptions->pRollupFuncs);
   }
@@ -3081,6 +3084,7 @@ static int32_t buildRollupAst(STranslateContext* pCxt, SCreateTableStmt* pStmt, 
 
 static int32_t buildCreateStbReq(STranslateContext* pCxt, SCreateTableStmt* pStmt, SMCreateStbReq* pReq) {
   pReq->igExists = pStmt->ignoreExists;
+  // pReq->delay = pStmt->pOptions->delay;
   pReq->xFilesFactor = pStmt->pOptions->filesFactor;
   pReq->ttl = pStmt->pOptions->ttl;
   columnDefNodeToField(pStmt->pCols, &pReq->pColumns);
@@ -3253,6 +3257,8 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
   strcpy(createReq.user, pStmt->useName);
   createReq.createType = 0;
   createReq.superUser = 0;
+  createReq.sysInfo = 1;
+  createReq.enable = 1;
   strcpy(createReq.pass, pStmt->password);
 
   return buildCmdMsg(pCxt, TDMT_MND_CREATE_USER, (FSerializeFunc)tSerializeSCreateUserReq, &createReq);
@@ -3626,9 +3632,9 @@ static int32_t translateKillConnection(STranslateContext* pCxt, SKillStmt* pStmt
   return buildCmdMsg(pCxt, TDMT_MND_KILL_CONN, (FSerializeFunc)tSerializeSKillQueryReq, &killReq);
 }
 
-static int32_t translateKillQuery(STranslateContext* pCxt, SKillStmt* pStmt) {
+static int32_t translateKillQuery(STranslateContext* pCxt, SKillQueryStmt* pStmt) {
   SKillQueryReq killReq = {0};
-  killReq.queryId = pStmt->targetId;
+  strcpy(killReq.queryStrId, pStmt->queryId);
   return buildCmdMsg(pCxt, TDMT_MND_KILL_QUERY, (FSerializeFunc)tSerializeSKillQueryReq, &killReq);
 }
 
@@ -3970,7 +3976,7 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       code = translateKillConnection(pCxt, (SKillStmt*)pNode);
       break;
     case QUERY_NODE_KILL_QUERY_STMT:
-      code = translateKillQuery(pCxt, (SKillStmt*)pNode);
+      code = translateKillQuery(pCxt, (SKillQueryStmt*)pNode);
       break;
     case QUERY_NODE_KILL_TRANSACTION_STMT:
       code = translateKillTransaction(pCxt, (SKillStmt*)pNode);
@@ -4124,12 +4130,14 @@ static const char* getSysDbName(ENodeType type) {
     case QUERY_NODE_SHOW_SNODES_STMT:
     case QUERY_NODE_SHOW_LICENCE_STMT:
     case QUERY_NODE_SHOW_CLUSTER_STMT:
+    case QUERY_NODE_SHOW_VARIABLE_STMT:
       return TSDB_INFORMATION_SCHEMA_DB;
     case QUERY_NODE_SHOW_CONNECTIONS_STMT:
     case QUERY_NODE_SHOW_QUERIES_STMT:
     case QUERY_NODE_SHOW_TOPICS_STMT:
     case QUERY_NODE_SHOW_STREAMS_STMT:
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
+    case QUERY_NODE_SHOW_APPS_STMT:
       return TSDB_PERFORMANCE_SCHEMA_DB;
     default:
       break;
@@ -4179,6 +4187,10 @@ static const char* getSysTableName(ENodeType type) {
       return TSDB_PERFS_TABLE_TOPICS;
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
       return TSDB_PERFS_TABLE_TRANS;
+    case QUERY_NODE_SHOW_VARIABLE_STMT:
+      return TSDB_INS_TABLE_CONFIGS;
+    case QUERY_NODE_SHOW_APPS_STMT:
+      return TSDB_PERFS_TABLE_APPS;
     default:
       break;
   }
@@ -5233,6 +5245,8 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_CLUSTER_STMT:
     case QUERY_NODE_SHOW_TOPICS_STMT:
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
+    case QUERY_NODE_SHOW_VARIABLE_STMT:
+    case QUERY_NODE_SHOW_APPS_STMT:
       code = rewriteShow(pCxt, pQuery);
       break;
     case QUERY_NODE_CREATE_TABLE_STMT:

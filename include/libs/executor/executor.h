@@ -38,8 +38,10 @@ typedef struct SReadHandle {
   SMsgCb* pMsgCb;
 } SReadHandle;
 
-#define STREAM_DATA_TYPE_SUBMIT_BLOCK 0x1
-#define STREAM_DATA_TYPE_SSDATA_BLOCK 0x2
+enum {
+  STREAM_DATA_TYPE_SUBMIT_BLOCK = 1,
+  STREAM_DATA_TYPE_SSDATA_BLOCK = 2,
+};
 
 typedef enum {
   OPTR_EXEC_MODEL_BATCH = 0x1,
@@ -102,7 +104,8 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
  * @param tversion
  * @return
  */
-int32_t qGetQueriedTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* tableName, int32_t* sversion, int32_t* tversion);
+int32_t qGetQueriedTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* tableName, int32_t* sversion,
+                                      int32_t* tversion);
 
 /**
  * The main task execution function, including query on both table and multiple tables,

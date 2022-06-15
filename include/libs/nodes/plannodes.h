@@ -34,7 +34,13 @@ typedef struct SLogicNode {
   uint8_t            precision;
 } SLogicNode;
 
-typedef enum EScanType { SCAN_TYPE_TAG = 1, SCAN_TYPE_TABLE, SCAN_TYPE_SYSTEM_TABLE, SCAN_TYPE_STREAM } EScanType;
+typedef enum EScanType {
+  SCAN_TYPE_TAG = 1,
+  SCAN_TYPE_TABLE,
+  SCAN_TYPE_SYSTEM_TABLE,
+  SCAN_TYPE_STREAM,
+  SCAN_TYPE_TABLE_MERGE
+} EScanType;
 
 typedef struct SScanLogicNode {
   SLogicNode    node;
@@ -171,7 +177,8 @@ typedef enum ESubplanType {
   SUBPLAN_TYPE_MERGE = 1,
   SUBPLAN_TYPE_PARTIAL,
   SUBPLAN_TYPE_SCAN,
-  SUBPLAN_TYPE_MODIFY
+  SUBPLAN_TYPE_MODIFY,
+  SUBPLAN_TYPE_COMPUTE
 } ESubplanType;
 
 typedef struct SSubplanId {
@@ -190,6 +197,7 @@ typedef struct SLogicSubplan {
   SVgroupsInfo* pVgroupList;
   int32_t       level;
   int32_t       splitFlag;
+  int32_t       numOfComputeNodes;
 } SLogicSubplan;
 
 typedef struct SQueryLogicPlan {
@@ -262,6 +270,7 @@ typedef struct STableScanPhysiNode {
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;
+typedef STableScanPhysiNode STableMergeScanPhysiNode;
 typedef STableScanPhysiNode SStreamScanPhysiNode;
 
 typedef struct SProjectPhysiNode {

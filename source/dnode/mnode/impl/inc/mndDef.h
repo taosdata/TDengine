@@ -226,6 +226,9 @@ typedef struct {
   int64_t   createdTime;
   int64_t   updateTime;
   int8_t    superUser;
+  int8_t    sysInfo;
+  int8_t    enable;
+  int8_t    reserve;
   int32_t   acctId;
   int32_t   authVersion;
   SHashObj* readDbs;
@@ -554,8 +557,8 @@ typedef struct {
   SVgObj         fixedSinkVg;
   int64_t        smaId;  // 0 for unused
   int8_t         trigger;
-  int32_t        triggerParam;
-  int64_t        waterMark;
+  int64_t        triggerParam;
+  int64_t        watermark;
   char*          sql;
   char*          physicalPlan;
   SArray*        tasks;  // SArray<SArray<SStreamTask>>
