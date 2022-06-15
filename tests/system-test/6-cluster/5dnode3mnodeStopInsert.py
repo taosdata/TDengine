@@ -23,39 +23,6 @@ class MyDnodes(TDDnodes):
         self.dnodes = dnodes_lists  # dnode must be TDDnode instance
         self.simDeployed = False
 
-class MyThreadFunc(object):
-    '''
-    手动终止线程的方法
-    '''
-    def __init__(self, func):
-        self.myThread = threading.Thread(target=func)
-
-    def start(self):
-        print('线程启动')
-        self.myThread.start()
-
-    def stop(self):
-        print('线程终止')
-        try:
-            for i in range(5):
-                self._async_raise(self.myThread.ident, SystemExit)
-                time.sleep(1)
-        except Exception as e:
-            print(e)
-
-    def _async_raise(self, tid, exctype):
-        """raises the exception, performs cleanup if needed"""
-        tid = ctypes.c_long(tid)
-        if not inspect.isclass(exctype):
-            exctype = type(exctype)
-        res = ctypes.pythonapi.PyThreadState_SetAsyncExc(tid, ctypes.py_object(exctype))
-        if res == 0:
-            raise ValueError("invalid thread id")
-        elif res != 1:
-            # """if it returns a number greater than one, you're in trouble,
-            # and you should call it again with exc=NULL to revert the effect"""
-            ctypes.pythonapi.PyThreadState_SetAsyncExc(tid, None)
-            raise SystemError("PyThreadState_SetAsyncExc failed")
 
 class TDTestCase:
 
@@ -86,7 +53,24 @@ class TDTestCase:
                     buildPath = root[:len(root) - len("/build/bin")]
                     break
         return buildPath
-    
+
+    def _async_raise(self, tid, exctype):
+        """raises the exception, performs cleanup if needed"""
+        if not inspect.isclass(exctype):
+            exctype = type(exctype)
+        res = ctypes.pythonapi.PyThreadState_SetAsyncExc(tid, ctypes.py_object(exctype))
+        if res == 0:
+            raise ValueError("invalid thread id")
+        elif res != 1:
+            # """if it returns a number greater than one, you're in trouble, 
+            # and you should call it again with exc=NULL to revert the effect"""
+            ctypes.pythonapi.PyThreadState_SetAsyncExc(tid, None)
+            raise SystemError("PyThreadState_SetAsyncExc failed")
+
+    def stop_thread(self,thread):
+        self._async_raise(thread.ident, SystemExit)
+
+
     def insert_data(self,countstart,countstop):
         # fisrt add data : db\stable\childtable\general table
         
@@ -339,13 +323,13 @@ class TDTestCase:
                 threads.start()
                 self.TDDnodes.stoptaosd(i+1)
                 self.TDDnodes.starttaosd(i+1)
-                
+
                 if self.checkdnodes(5):
                     print("123")
                     threads.join()
                 else:
                     print("456")
-                    self._is_stopped = True
+                    self.stop_thread(threads)
                     assert 1 == 2 ,"some dnode started failed"
                     return False
                 # self.check3mnode()
