@@ -211,17 +211,16 @@ void *tsdbTbDataIterDestroy(STbDataIter *pIter) {
   return NULL;
 }
 
-bool tsdbTbDataIterOpen(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter *pIter) {
+void tsdbTbDataIterOpen(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter *pIter) {
   SMemSkipListNode *pos[SL_MAX_LEVEL];
   SMemSkipListNode *pHead;
   SMemSkipListNode *pTail;
-
-  if (pTbData == NULL) return false;
 
   pHead = pTbData->sl.pHead;
   pTail = pTbData->sl.pTail;
   pIter->pTbData = pTbData;
   pIter->backward = backward;
+  pIter->pRow = NULL;
   if (pFrom == NULL) {
     // create from head or tail
     if (backward) {
@@ -239,20 +238,13 @@ bool tsdbTbDataIterOpen(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDa
       pIter->pNode = SL_NODE_FORWARD(pos[0], 0);
     }
   }
-
-  if ((backward && pIter->pNode == pHead) || (!backward && pIter->pNode == pTail)) {
-    return false;
-  }
-
-  return true;
 }
 
 bool tsdbTbDataIterNext(STbDataIter *pIter) {
   SMemSkipListNode *pHead = pIter->pTbData->sl.pHead;
   SMemSkipListNode *pTail = pIter->pTbData->sl.pTail;
 
-  if (pIter == NULL) return false;
-
+  pIter->pRow = NULL;
   if (pIter->backward) {
     ASSERT(pIter->pNode != pTail);
 
@@ -280,33 +272,26 @@ bool tsdbTbDataIterNext(STbDataIter *pIter) {
   return true;
 }
 
-bool tsdbTbDataIterGet(STbDataIter *pIter, TSDBROW *pRow) {
-  SMemSkipListNode *pHead = pIter->pTbData->sl.pHead;
-  SMemSkipListNode *pTail = pIter->pTbData->sl.pTail;
-  TSDBROW           row = {0};
-
-  if (pIter == NULL) return false;
-
-  if (pRow == NULL) {
-    pRow = &row;
+TSDBROW *tsdbTbDataIterGet(STbDataIter *pIter) {
+  if (pIter->pRow) {
+    goto _exit;
   }
 
   if (pIter->backward) {
-    ASSERT(pIter->pNode != pTail);
-
-    if (pIter->pNode == pHead) {
-      return false;
+    if (pIter->pNode == pIter->pTbData->sl.pHead) {
+      goto _exit;
     }
   } else {
-    ASSERT(pIter->pNode != pHead);
-
-    if (pIter->pNode == pTail) {
-      return false;
+    if (pIter->pNode == pIter->pTbData->sl.pTail) {
+      goto _exit;
     }
   }
 
-  tGetTSDBRow((uint8_t *)SL_NODE_DATA(pIter->pNode), pRow);
-  return true;
+  tGetTSDBRow((uint8_t *)SL_NODE_DATA(pIter->pNode), &pIter->row);
+  pIter->pRow = &pIter->row;
+
+_exit:
+  return pIter->pRow;
 }
 
 static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t uid, STbData **ppTbData) {

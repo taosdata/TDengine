@@ -63,11 +63,11 @@ void    tsdbMemTableDestroy(SMemTable *pMemTable);
 void    tsdbGetTbDataFromMemTable(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t uid, STbData **ppTbData);
 
 // STbDataIter
-int32_t tsdbTbDataIterCreate(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter **ppIter);
-void   *tsdbTbDataIterDestroy(STbDataIter *pIter);
-bool    tsdbTbDataIterOpen(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter *pIter);
-bool    tsdbTbDataIterNext(STbDataIter *pIter);
-bool    tsdbTbDataIterGet(STbDataIter *pIter, TSDBROW *pRow);
+int32_t  tsdbTbDataIterCreate(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter **ppIter);
+void    *tsdbTbDataIterDestroy(STbDataIter *pIter);
+void     tsdbTbDataIterOpen(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter *pIter);
+TSDBROW *tsdbTbDataIterGet(STbDataIter *pIter);
+bool     tsdbTbDataIterNext(STbDataIter *pIter);
 
 // tsdbFile.c ==============================================================================================
 typedef struct SDelFile       SDelFile;
@@ -341,6 +341,8 @@ struct STbDataIter {
   STbData          *pTbData;
   int8_t            backward;
   SMemSkipListNode *pNode;
+  TSDBROW          *pRow;
+  TSDBROW           row;
 };
 
 struct SDelOp {
