@@ -2839,6 +2839,9 @@ static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt
   if (TSDB_CODE_SUCCESS == code) {
     code = checTableFactorOption(pCxt, pStmt->pOptions->filesFactor);
   }
+  // if (TSDB_CODE_SUCCESS == code) {
+  //   code = checkRangeOption(pCxt, "delay", pStmt->pOptions->delay, TSDB_MIN_ROLLUP_DELAY, TSDB_MAX_ROLLUP_DELAY);
+  // }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkTableRollupOption(pCxt, pStmt->pOptions->pRollupFuncs);
   }
@@ -3081,6 +3084,7 @@ static int32_t buildRollupAst(STranslateContext* pCxt, SCreateTableStmt* pStmt, 
 
 static int32_t buildCreateStbReq(STranslateContext* pCxt, SCreateTableStmt* pStmt, SMCreateStbReq* pReq) {
   pReq->igExists = pStmt->ignoreExists;
+  // pReq->delay = pStmt->pOptions->delay;
   pReq->xFilesFactor = pStmt->pOptions->filesFactor;
   pReq->ttl = pStmt->pOptions->ttl;
   columnDefNodeToField(pStmt->pCols, &pReq->pColumns);
@@ -3626,9 +3630,9 @@ static int32_t translateKillConnection(STranslateContext* pCxt, SKillStmt* pStmt
   return buildCmdMsg(pCxt, TDMT_MND_KILL_CONN, (FSerializeFunc)tSerializeSKillQueryReq, &killReq);
 }
 
-static int32_t translateKillQuery(STranslateContext* pCxt, SKillStmt* pStmt) {
+static int32_t translateKillQuery(STranslateContext* pCxt, SKillQueryStmt* pStmt) {
   SKillQueryReq killReq = {0};
-  killReq.queryId = pStmt->targetId;
+  strcpy(killReq.queryStrId, pStmt->queryId);
   return buildCmdMsg(pCxt, TDMT_MND_KILL_QUERY, (FSerializeFunc)tSerializeSKillQueryReq, &killReq);
 }
 
@@ -3970,7 +3974,7 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       code = translateKillConnection(pCxt, (SKillStmt*)pNode);
       break;
     case QUERY_NODE_KILL_QUERY_STMT:
-      code = translateKillQuery(pCxt, (SKillStmt*)pNode);
+      code = translateKillQuery(pCxt, (SKillQueryStmt*)pNode);
       break;
     case QUERY_NODE_KILL_TRANSACTION_STMT:
       code = translateKillTransaction(pCxt, (SKillStmt*)pNode);
