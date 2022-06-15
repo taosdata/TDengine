@@ -97,8 +97,8 @@ class TDTestCase:
             f"create stable stb2 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) file_factor 5.0",
             f"create stable stb3 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(max) file_factor 5.0",
             f"create stable stb4 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(sum) file_factor 5.0",
-            f"create stable stb5 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(last) file_factor 5.0",
-            f"create stable stb6 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(first) file_factor 5.0",
+            # f"create stable stb5 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(last) file_factor 5.0",
+            # f"create stable stb6 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(first) file_factor 5.0",
         ]
 
     def test_create_stb(self):
@@ -203,7 +203,11 @@ class TDTestCase:
     def __insert_data_0(self):
         data = self.__data_set(rows=self.rows)
         for i in range(self.rows):
-            tdSql.execute()
+            tdSql.execute(
+                f'''insert into ct1 values (
+
+                )'''
+            )
 
     def __insert_data(self, rows):
         now_time = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
