@@ -877,7 +877,7 @@ class TDTestCase:
         try:
             # run in  develop branch
             self.sample_test_run()
-            # self.sample_big_data()
+            self.sample_big_data()
             pass
         except Exception as e:
             traceback.print_exc()
