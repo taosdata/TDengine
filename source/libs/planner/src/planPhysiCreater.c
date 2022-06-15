@@ -500,7 +500,9 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
   tNameGetFullDbName(&pScanLogicNode->tableName, pSubplan->dbFName);
   pTableScan->dataRequired = pScanLogicNode->dataRequired;
   pTableScan->pDynamicScanFuncs = nodesCloneList(pScanLogicNode->pDynamicScanFuncs);
-  if (NULL != pScanLogicNode->pDynamicScanFuncs && NULL == pTableScan->pDynamicScanFuncs) {
+  pTableScan->pPartitionTags = nodesCloneList(pScanLogicNode->pPartTags);
+  if ((NULL != pScanLogicNode->pDynamicScanFuncs && NULL == pTableScan->pDynamicScanFuncs) ||
+      (NULL != pScanLogicNode->pPartTags && NULL == pTableScan->pPartitionTags)) {
     nodesDestroyNode((SNode*)pTableScan);
     return TSDB_CODE_OUT_OF_MEMORY;
   }

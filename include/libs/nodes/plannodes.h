@@ -69,6 +69,7 @@ typedef struct SScanLogicNode {
   int16_t       tsColId;
   double        filesFactor;
   SArray*       pSmaIndexes;
+  SNodeList*    pPartTags;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -257,7 +258,7 @@ typedef struct STableScanPhysiNode {
   double         ratio;
   int32_t        dataRequired;
   SNodeList*     pDynamicScanFuncs;
-  SNodeList*     pPartitionKeys;
+  SNodeList*     pPartitionTags;
   int64_t        interval;
   int64_t        offset;
   int64_t        sliding;
