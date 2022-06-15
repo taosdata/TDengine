@@ -17,6 +17,7 @@
 #include "clientInt.h"
 #include "clientLog.h"
 #include "clientStmt.h"
+#include "functionMgt.h"
 #include "os.h"
 #include "query.h"
 #include "scheduler.h"
@@ -25,7 +26,6 @@
 #include "tref.h"
 #include "trpc.h"
 #include "version.h"
-#include "functionMgt.h"
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
@@ -223,18 +223,18 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
 
   if (TD_RES_QUERY(res)) {
     SRequestObj *pRequest = (SRequestObj *)res;
-#if SYNC_ON_TOP_OF_ASYNC
-    return doAsyncFetchRows(pRequest, true, true);
-#else
     if (pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT || pRequest->type == TSDB_SQL_INSERT ||
         pRequest->code != TSDB_CODE_SUCCESS || taos_num_fields(res) == 0) {
       return NULL;
     }
+#if SYNC_ON_TOP_OF_ASYNC
+    return doAsyncFetchRows(pRequest, true, true);
+#else
     return doFetchRows(pRequest, true, true);
 #endif
 
   } else if (TD_RES_TMQ(res)) {
-    SMqRspObj      *msg = ((SMqRspObj *)res);
+    SMqRspObj *     msg = ((SMqRspObj *)res);
     SReqResultInfo *pResultInfo;
     if (msg->resIter == -1) {
       pResultInfo = tmqGetNextResInfo(res, true);
@@ -408,7 +408,7 @@ int taos_affected_rows(TAOS_RES *res) {
     return 0;
   }
 
-  SRequestObj    *pRequest = (SRequestObj *)res;
+  SRequestObj *   pRequest = (SRequestObj *)res;
   SReqResultInfo *pResInfo = &pRequest->body.resInfo;
   return pResInfo->numOfRows;
 }
@@ -582,7 +582,7 @@ int *taos_get_column_data_offset(TAOS_RES *res, int columnIndex) {
   }
 
   SReqResultInfo *pResInfo = tscGetCurResInfo(res);
-  TAOS_FIELD     *pField = &pResInfo->userFields[columnIndex];
+  TAOS_FIELD *    pField = &pResInfo->userFields[columnIndex];
   if (!IS_VAR_DATA_TYPE(pField->type)) {
     return 0;
   }
@@ -612,8 +612,8 @@ const char *taos_get_server_info(TAOS *taos) {
 typedef struct SqlParseWrapper {
   SParseContext *pCtx;
   SCatalogReq    catalogReq;
-  SRequestObj   *pRequest;
-  SQuery        *pQuery;
+  SRequestObj *  pRequest;
+  SQuery *       pQuery;
 } SqlParseWrapper;
 
 static void destorySqlParseWrapper(SqlParseWrapper *pWrapper) {
@@ -632,8 +632,8 @@ static void destorySqlParseWrapper(SqlParseWrapper *pWrapper) {
 
 void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
   SqlParseWrapper *pWrapper = (SqlParseWrapper *)param;
-  SQuery          *pQuery = pWrapper->pQuery;
-  SRequestObj     *pRequest = pWrapper->pRequest;
+  SQuery *         pQuery = pWrapper->pQuery;
+  SRequestObj *    pRequest = pWrapper->pRequest;
 
   if (code == TSDB_CODE_SUCCESS) {
     code = qAnalyseSqlSemantic(pWrapper->pCtx, &pWrapper->catalogReq, pResultMeta, pQuery);
@@ -730,7 +730,7 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt) {
 
 void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
   SParseContext *pCxt = NULL;
-  STscObj       *pTscObj = pRequest->pTscObj;
+  STscObj *      pTscObj = pRequest->pTscObj;
   int32_t        code = 0;
 
   if (pRequest->retry++ > REQUEST_TOTAL_EXEC_TIMES) {
