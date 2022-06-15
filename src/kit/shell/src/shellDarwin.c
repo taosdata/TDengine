@@ -62,8 +62,8 @@ void printHelp() {
   printf("%s%s%s\n", indent, indent, "Number of threads when using multi-thread to import data.");
   printf("%s%s\n", indent, "-R");
   printf("%s%s%s\n", indent, indent, "Connect and interact with TDengine use restful.");
-  printf("%s%s\n", indent, "-t");
-  printf("%s%s%s\n", indent, indent, "The token to use when connecting TDengine's cloud services.");
+  printf("%s%s\n", indent, "-E");
+  printf("%s%s%s\n", indent, indent, "The DSN to use when connecting TDengine's cloud services.");
   exit(EXIT_SUCCESS);
 }
 
@@ -76,20 +76,13 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
   for (int i = 1; i < argc; i++) {
     // for host
     if (strcmp(argv[i], "-h") == 0) {
-      if (i < argc - 1) {
-        char* arg = argv[++i];
-          char* tmp = strstr(arg, ":");
-          if (tmp == NULL) {
-              arguments->host = arg;
-          } else if ((tmp + 1) != NULL) {
-              arguments->port  = atoi(tmp + 1);
-              tmp[0] = '\0';
-              arguments->host = arg;
-          }
-      } else {
-        fprintf(stderr, "option -h requires an argument\n");
-        exit(EXIT_FAILURE);
-      }
+        if (i < argc - 1) {
+            arguments->cloud = false;
+            arguments->host = argv[++i];
+        } else {
+            fprintf(stderr, "option -h requires an argument\n");
+            exit(EXIT_FAILURE);
+        }
     }
       // for password
     else if ((strncmp(argv[i], "-p", 2) == 0)
@@ -116,6 +109,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
     // for management port
     else if (strcmp(argv[i], "-P") == 0) {
       if (i < argc - 1) {
+        arguments->cloud = false;
         arguments->port = atoi(argv[++i]);
       } else {
         fprintf(stderr, "option -P requires an argument\n");
@@ -132,6 +126,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
       }
     } else if (strcmp(argv[i], "-c") == 0) {
       if (i < argc - 1) {
+        arguments->cloud = false;
         if (strlen(argv[++i]) >= TSDB_FILENAME_LEN) {
           fprintf(stderr, "config file path: %s overflow max len %d\n", argv[i], TSDB_FILENAME_LEN - 1);
           exit(EXIT_FAILURE);
@@ -203,14 +198,15 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
     }
 
     else if (strcmp(argv[i], "-R") == 0) {
+        arguments->cloud = false;
         arguments->restful = true;
     }
 
-    else if (strcmp(argv[i], "-t") == 0) {
+    else if (strcmp(argv[i], "-E") == 0) {
         if (i < argc - 1) {
-            arguments->token = argv[++i];
+            arguments->cloudDsn = argv[++i];
         } else {
-            fprintf(stderr, "options -t requires an argument\n");
+            fprintf(stderr, "options -E requires an argument\n");
             exit(EXIT_FAILURE);
         }
     }
@@ -224,6 +220,16 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
       printHelp();
       exit(EXIT_FAILURE);
     }
+  }
+  if (args.cloudDsn == NULL) {
+      if (args.cloud) {
+          args.cloudDsn = getenv("TDENGINE_CLOUD_DSN");
+          if (args.cloudDsn == NULL) {
+              args.cloud = false;
+          }
+      }
+  } else {
+      args.cloud = true;
   }
 }
 
