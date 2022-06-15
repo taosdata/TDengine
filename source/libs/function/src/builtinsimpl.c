@@ -3410,7 +3410,7 @@ bool elapsedFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo
   pInfo->min = MAX_TS_KEY;
   pInfo->max = 0;
 
-  if (pCtx->numOfParams == 2) {
+  if (pCtx->numOfParams > 2) {
     pInfo->timeUnit = pCtx->param[1].param.i;
   } else {
     pInfo->timeUnit = 1;
