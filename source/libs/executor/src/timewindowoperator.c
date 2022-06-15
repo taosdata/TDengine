@@ -333,11 +333,6 @@ void doTimeWindowInterpolation(SIntervalAggOperatorInfo* pInfo, int32_t numOfExp
       continue;
     }
 
-    //    if (functionId != FUNCTION_TWA && functionId != FUNCTION_INTERP) {
-    //      pCtx[k].start.key = INT64_MIN;
-    //      continue;
-    //    }
-
     SFunctParam*     pParam = &pCtx[k].param[0];
     SColumnInfoData* pColInfo = taosArrayGet(pDataBlock, pParam->pCol->slotId);
 
