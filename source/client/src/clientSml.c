@@ -1460,7 +1460,7 @@ static void smlDestroyInfo(SSmlHandle* info){
   taosMemoryFreeClear(info);
 }
 
-static SSmlHandle* smlBuildSmlInfo(TAOS* taos, SRequestObj* request, SMLProtocolType protocol, int8_t precision){
+static SSmlHandle* smlBuildSmlInfo(STscObj* pTscObj, SRequestObj* request, SMLProtocolType protocol, int8_t precision){
   int32_t code = TSDB_CODE_SUCCESS;
   SSmlHandle* info = (SSmlHandle*)taosMemoryCalloc(1, sizeof(SSmlHandle));
   if (NULL == info) {
@@ -1483,7 +1483,7 @@ static SSmlHandle* smlBuildSmlInfo(TAOS* taos, SRequestObj* request, SMLProtocol
   }
   ((SVnodeModifOpStmt*)(info->pQuery->pRoot))->payloadType = PAYLOAD_TYPE_KV;
 
-  info->taos        = (STscObj *)taos;
+  info->taos        = pTscObj;
   code = catalogGetHandle(info->taos->pAppInfo->clusterId, &info->pCatalog);
   if(code != TSDB_CODE_SUCCESS){
     uError("SML:0x%"PRIx64" get catalog error %d", info->id, code);
@@ -2447,13 +2447,21 @@ static void smlInsertCallback(void* param, void* res, int32_t code) {
  */
 
 TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol, int precision) {
-  SRequestObj* request = (SRequestObj*)createRequest((STscObj *)taos, TSDB_SQL_INSERT);
+  STscObj* pTscObj = acquireTscObj((int64_t)taos);
+  if (NULL == pTscObj) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    uError("SML:taos_schemaless_insert invalid taos");
+    return NULL;
+  }
+  
+  SRequestObj* request = (SRequestObj*)createRequest(pTscObj, TSDB_SQL_INSERT);
   if(!request){
+    releaseTscObj((int64_t)taos);
     uError("SML:taos_schemaless_insert error request is null");
     return NULL;
   }
 
-  ((STscObj *)taos)->schemalessType = 1;
+  pTscObj->schemalessType = 1;
   SSmlMsgBuf msg = {ERROR_MSG_BUF_DEFAULT_SIZE, request->msgBuf};
 
   int cnt = ceil(((double)numLines)/LINE_BATCH);
@@ -2468,7 +2476,7 @@ TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int pr
     goto end;
   }
 
-  if(isSchemalessDb(((STscObj *)taos), request) != TSDB_CODE_SUCCESS){
+  if(isSchemalessDb(pTscObj, request) != TSDB_CODE_SUCCESS){
     request->code = TSDB_CODE_SML_INVALID_DB_CONF;
     smlBuildInvalidDataMsg(&msg, "Cannot write data to a non schemaless database", NULL);
     goto end;
@@ -2493,13 +2501,13 @@ TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int pr
   }
 
   for (int i = 0; i < cnt; ++i) {
-    SRequestObj* req = (SRequestObj*)createRequest((STscObj *)taos, TSDB_SQL_INSERT);
+    SRequestObj* req = (SRequestObj*)createRequest(pTscObj, TSDB_SQL_INSERT);
     if(!req){
       request->code = TSDB_CODE_OUT_OF_MEMORY;
       uError("SML:taos_schemaless_insert error request is null");
       goto end;
     }
-    SSmlHandle* info = smlBuildSmlInfo(taos, req, (SMLProtocolType)protocol, precision);
+    SSmlHandle* info = smlBuildSmlInfo(pTscObj, req, (SMLProtocolType)protocol, precision);
     if(!info){
       request->code = TSDB_CODE_OUT_OF_MEMORY;
       uError("SML:taos_schemaless_insert error SSmlHandle is null");
@@ -2533,8 +2541,9 @@ end:
   taosThreadSpinDestroy(&params.lock);
   tsem_destroy(&params.sem);
 //  ((STscObj *)taos)->schemalessType = 0;
-  ((STscObj *)taos)->schemalessType = 1;
+  pTscObj->schemalessType = 1;
   uDebug("resultend:%s", request->msgBuf);
+  releaseTscObj((int64_t)taos);
   return (TAOS_RES*)request;
 }
 

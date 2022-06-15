@@ -45,7 +45,7 @@ extern "C" {
 
 #define ERROR_MSG_BUF_DEFAULT_SIZE 512
 #define HEARTBEAT_INTERVAL         1500  // ms
-#define SYNC_ON_TOP_OF_ASYNC       0
+#define SYNC_ON_TOP_OF_ASYNC       1
 
 enum {
   RES_TYPE__QUERY = 1,
@@ -213,6 +213,7 @@ typedef struct SRequestObj {
   SArray*              tableList;
   SQueryExecMetric     metric;
   SRequestSendRecvBody body;
+  bool                 stableQuery;
 
   uint32_t             prevCode; //previous error code: todo refactor, add update flag for catalog
   uint32_t             retry;
@@ -294,7 +295,7 @@ void* openTransporter(const char* user, const char* auth, int32_t numOfThreads);
 bool persistConnForSpecificMsg(void* parenct, tmsg_t msgType);
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet);
 
-TAOS* taos_connect_internal(const char* ip, const char* user, const char* pass, const char* auth, const char* db,
+STscObj* taos_connect_internal(const char* ip, const char* user, const char* pass, const char* auth, const char* db,
                             uint16_t port, int connType);
 
 SRequestObj* launchQuery(STscObj* pTscObj, const char* sql, int sqlLen);
@@ -304,6 +305,8 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
 int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray** pNodeList);
 
 int32_t buildRequest(STscObj* pTscObj, const char* sql, int sqlLen, SRequestObj** pRequest);
+
+void taos_close_internal(void *taos);
 
 // --- heartbeat
 // global, called by mgmt

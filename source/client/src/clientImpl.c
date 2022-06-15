@@ -58,7 +58,7 @@ static char* getClusterKey(const char* user, const char* auth, const char* ip, i
 static STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __taos_async_fn_t fp, void* param,
                                 SAppInstInfo* pAppInfo, int connType);
 
-TAOS* taos_connect_internal(const char* ip, const char* user, const char* pass, const char* auth, const char* db,
+STscObj* taos_connect_internal(const char* ip, const char* user, const char* pass, const char* auth, const char* db,
                             uint16_t port, int connType) {
   if (taos_init() != TSDB_CODE_SUCCESS) {
     return NULL;
@@ -697,6 +697,8 @@ SRequestObj* launchQuery(STscObj* pTscObj, const char* sql, int sqlLen) {
     return pRequest;
   }
 
+  pRequest->stableQuery = pQuery->stableQuery;
+
   return launchQueryImpl(pRequest, pQuery, false, NULL);
 }
 
@@ -923,7 +925,7 @@ STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __t
 
     terrno = pRequest->code;
     destroyRequest(pRequest);
-    taos_close(pTscObj);
+    taos_close_internal(pTscObj);
     pTscObj = NULL;
   } else {
     tscDebug("0x%" PRIx64 " connection is opening, connId:%u, dnodeConn:%p, reqId:0x%" PRIx64, pTscObj->id,
@@ -958,8 +960,8 @@ static SMsgSendInfo* buildConnectMsg(SRequestObj* pRequest) {
   taosMemoryFreeClear(db);
 
   connectReq.connType = pObj->connType;
-  connectReq.pid = htonl(appInfo.pid);
-  connectReq.startTime = htobe64(appInfo.startTime);
+  connectReq.pid = appInfo.pid;
+  connectReq.startTime = appInfo.startTime;
 
   tstrncpy(connectReq.app, appInfo.appName, sizeof(connectReq.app));
   tstrncpy(connectReq.user, pObj->user, sizeof(connectReq.user));
@@ -1088,7 +1090,12 @@ TAOS* taos_connect_auth(const char* ip, const char* user, const char* auth, cons
     return NULL;
   }
 
-  return taos_connect_internal(ip, user, NULL, auth, db, port, CONN_TYPE__QUERY);
+  STscObj* pObj = taos_connect_internal(ip, user, NULL, auth, db, port, CONN_TYPE__QUERY);
+  if (pObj) {
+    return (TAOS*)pObj->id;
+  }
+  
+  return (TAOS*)0;
 }
 
 TAOS* taos_connect_l(const char* ip, int ipLen, const char* user, int userLen, const char* pass, int passLen,

@@ -42,6 +42,7 @@ typedef struct STranslateContext {
   SExplainOptions* pExplainOpt;
   SParseMetaCache* pMetaCache;
   bool             createStream;
+  bool             stableQuery;
 } STranslateContext;
 
 typedef struct SFullDatabaseName {
@@ -1477,6 +1478,9 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
       pRealTable->table.singleTable = isSingleTable(pRealTable);
       if (TSDB_CODE_SUCCESS == code) {
         code = addNamespace(pCxt, pRealTable);
+      }
+      if (TSDB_SUPER_TABLE == pRealTable->pMeta->tableType) {
+        pCxt->stableQuery = true;
       }
       break;
     }
@@ -4054,12 +4058,14 @@ static const char* getSysDbName(ENodeType type) {
     case QUERY_NODE_SHOW_SNODES_STMT:
     case QUERY_NODE_SHOW_LICENCE_STMT:
     case QUERY_NODE_SHOW_CLUSTER_STMT:
+    case QUERY_NODE_SHOW_VARIABLE_STMT:
       return TSDB_INFORMATION_SCHEMA_DB;
     case QUERY_NODE_SHOW_CONNECTIONS_STMT:
     case QUERY_NODE_SHOW_QUERIES_STMT:
     case QUERY_NODE_SHOW_TOPICS_STMT:
     case QUERY_NODE_SHOW_STREAMS_STMT:
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
+    case QUERY_NODE_SHOW_APPS_STMT:
       return TSDB_PERFORMANCE_SCHEMA_DB;
     default:
       break;
@@ -4109,6 +4115,10 @@ static const char* getSysTableName(ENodeType type) {
       return TSDB_PERFS_TABLE_TOPICS;
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
       return TSDB_PERFS_TABLE_TRANS;
+    case QUERY_NODE_SHOW_VARIABLE_STMT:
+      return TSDB_INS_TABLE_CONFIGS;
+    case QUERY_NODE_SHOW_APPS_STMT:
+      return TSDB_PERFS_TABLE_APPS;
     default:
       break;
   }
@@ -4714,6 +4724,7 @@ static int32_t buildDropTableVgroupHashmap(STranslateContext* pCxt, SDropTableCl
 
   if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code && pClause->ignoreNotExists) {
     code = TSDB_CODE_SUCCESS;
+    goto over;
   }
 
   *pIsSuperTable = false;
@@ -4807,7 +4818,7 @@ static int32_t rewriteDropTable(STranslateContext* pCxt, SQuery* pQuery) {
     }
   }
 
-  if (isSuperTable) {
+  if (isSuperTable || 0 == taosHashGetSize(pVgroupHashmap)) {
     taosHashCleanup(pVgroupHashmap);
     return TSDB_CODE_SUCCESS;
   }
@@ -5152,6 +5163,8 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_CLUSTER_STMT:
     case QUERY_NODE_SHOW_TOPICS_STMT:
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
+    case QUERY_NODE_SHOW_VARIABLE_STMT:
+    case QUERY_NODE_SHOW_APPS_STMT:
       code = rewriteShow(pCxt, pQuery);
       break;
     case QUERY_NODE_CREATE_TABLE_STMT:
@@ -5247,6 +5260,8 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
       }
       break;
   }
+
+  pQuery->stableQuery = pCxt->stableQuery;
 
   if (pQuery->haveResultSet) {
     if (TSDB_CODE_SUCCESS != extractResultSchema(pQuery->pRoot, &pQuery->numOfResCols, &pQuery->pResSchema)) {

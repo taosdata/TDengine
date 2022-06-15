@@ -253,8 +253,8 @@ static const SSysTableMeta infosMeta[] = {
 static const SSysDbTableSchema connectionsSchema[] = {
     {.name = "conn_id", .bytes = 4, .type = TSDB_DATA_TYPE_UINT},
     {.name = "user", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "program", .bytes = TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "pid", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "app", .bytes = TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "pid", .bytes = 4, .type = TSDB_DATA_TYPE_UINT},
     {.name = "end_point", .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
     {.name = "login_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
     {.name = "last_access", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
@@ -298,19 +298,18 @@ static const SSysDbTableSchema offsetSchema[] = {
 };
 
 static const SSysDbTableSchema querySchema[] = {
-    {.name = "query_id", .bytes = 8, .type = TSDB_DATA_TYPE_UBIGINT},
+    {.name = "query_id", .bytes = 26 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "req_id", .bytes = 8, .type = TSDB_DATA_TYPE_UBIGINT},
     {.name = "connId", .bytes = 4, .type = TSDB_DATA_TYPE_UINT},
+    {.name = "app", .bytes = TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},    
+    {.name = "pid", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "user", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "end_point", .bytes = TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "qid", .bytes = 22 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
-    {.name = "time", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
-    {.name = "sql_obj_id", .bytes = QUERY_OBJ_ID_SIZE + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "pid", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "ep", .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "exec_usec", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
     {.name = "stable_query", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL},
-    {.name = "sub_queries", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "sub_query_info", .bytes = TSDB_SHOW_SUBQUERY_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "sub_num", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "sub_status", .bytes = TSDB_SHOW_SUBQUERY_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "sql", .bytes = TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
 };
 

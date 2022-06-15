@@ -352,6 +352,7 @@ typedef struct SQuery {
   SArray*                 pPlaceholderValues;
   SNode*                  pPrepareRoot;
   struct SParseMetaCache* pMetaCache;
+  bool                    stableQuery;
 } SQuery;
 
 void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker walker, void* pContext);
