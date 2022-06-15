@@ -323,10 +323,14 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
   pOld->smaVer = pNew->smaVer;
   pOld->nextColId = pNew->nextColId;
   pOld->ttl = pNew->ttl;
-  pOld->numOfColumns = pNew->numOfColumns;
-  pOld->numOfTags = pNew->numOfTags;
-  memcpy(pOld->pColumns, pNew->pColumns, pOld->numOfColumns * sizeof(SSchema));
-  memcpy(pOld->pTags, pNew->pTags, pOld->numOfTags * sizeof(SSchema));
+  if (pNew->numOfColumns > 0) {
+    pOld->numOfColumns = pNew->numOfColumns;
+    memcpy(pOld->pColumns, pNew->pColumns, pOld->numOfColumns * sizeof(SSchema));
+  }
+  if (pNew->numOfTags > 0) {
+    pOld->numOfTags = pNew->numOfTags;
+    memcpy(pOld->pTags, pNew->pTags, pOld->numOfTags * sizeof(SSchema));
+  }
   if (pNew->commentLen != 0) {
     memcpy(pOld->comment, pNew->comment, pNew->commentLen);
   }
