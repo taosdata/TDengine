@@ -1399,7 +1399,7 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
     };
 
     SUdfInfo* pUdfInfo = NULL;
-    
+
     size_t size = tscNumOfExprs(px);
     for (int32_t j = 0; j < size; ++j) {
       SExprInfo* pExprInfo = tscExprGet(px, j);
@@ -1410,7 +1410,7 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
           pSql->res.code = tscInvalidOperationMsg(pSql->cmd.payload, "only one udf allowed", NULL);
           return;
         }
-        
+
         pUdfInfo = taosArrayGet(px->pUdfInfo, -1 * functionId - 1);
         int32_t code = initUdfInfo(pUdfInfo);
         if (code != TSDB_CODE_SUCCESS) {
@@ -1515,7 +1515,7 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
 
     px->pQInfo->runtimeEnv.udfIsCopy = true;
     px->pQInfo->runtimeEnv.pUdfInfo = pUdfInfo;
-    
+
     tfree(schema);
 
     // set the pRuntimeEnv for pSourceOperator
@@ -3035,6 +3035,12 @@ int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded)
       }
     }
 
+    if (escapeEnabled && pToken->type == TK_ID) {
+      if (pToken->z[0] == TS_BACKQUOTE_CHAR) {
+        pToken->n = stringProcess(pToken->z, pToken->n);
+        firstPartQuote = true;
+      }
+    }
     int32_t firstPartLen = pToken->n;
 
     pToken->z = sep + 1;
