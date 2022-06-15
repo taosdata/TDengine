@@ -4396,8 +4396,6 @@ static tsdbReaderT doCreateDataReader(STableScanPhysiNode* pTableScanNode, SRead
                                       STableListInfo* pTableListInfo, uint64_t queryId, uint64_t taskId,
                                       SNode* pTagCond);
 
-static int32_t getTableList(void* metaHandle, int32_t tableType, uint64_t tableUid, STableListInfo* pListInfo,
-                            SNode* pTagCond);
 static SArray* extractColumnInfo(SNodeList* pNodeList);
 
 static SArray* createSortInfo(SNodeList* pNodeList);
@@ -4530,19 +4528,30 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       }
 
       SArray* groupKeys = extractPartitionColInfo(pTableScanNode->pPartitionKeys);
-      code = generateGroupIdMap(pTableListInfo, pHandle, groupKeys); //todo for json
+      code = generateGroupIdMap(pTableListInfo, pHandle, groupKeys);  // todo for json
       taosArrayDestroy(groupKeys);
-      if (code){
+      if (code) {
         tsdbCleanupReadHandle(pDataReader);
         return NULL;
       }
 
-      SOperatorInfo* pOperator =
-          createTableScanOperatorInfo(pTableScanNode, pDataReader, pHandle, pTaskInfo);
-
+      SOperatorInfo* pOperator = createTableScanOperatorInfo(pTableScanNode, pDataReader, pHandle, pTaskInfo);
       STableScanInfo* pScanInfo = pOperator->info;
       pTaskInfo->cost.pRecoder = &pScanInfo->readRecorder;
+      return pOperator;
+    } else if (QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == type) {
+      STableMergeScanPhysiNode* pTableScanNode = (STableMergeScanPhysiNode*)pPhyNode;
 
+      SArray* dataReaders = taosArrayInit(8, POINTER_BYTES);
+      createMultipleDataReaders(pTableScanNode, pHandle, pTableListInfo, dataReaders, queryId, taskId, pTagCond);
+      extractTableSchemaVersion(pHandle, pTableScanNode->scan.uid, pTaskInfo);
+      SArray* groupKeys = extractPartitionColInfo(pTableScanNode->pPartitionKeys);
+      generateGroupIdMap(pTableListInfo, pHandle, groupKeys); //todo for json
+      taosArrayDestroy(groupKeys);
+      SOperatorInfo* pOperator =
+        createTableMergeScanOperatorInfo(pTableScanNode, dataReaders, pHandle, pTaskInfo);
+      STableScanInfo* pScanInfo = pOperator->info;
+      pTaskInfo->cost.pRecoder = &pScanInfo->readRecorder;
       return pOperator;
     } else if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == type) {
       return createExchangeOperatorInfo(pHandle->pMsgCb->clientRpc, (SExchangePhysiNode*)pPhyNode, pTaskInfo);
@@ -4653,6 +4662,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         .calTrigger = pIntervalPhyNode->window.triggerType,
         .maxTs = INT64_MIN,
     };
+    ASSERT(as.calTrigger != STREAM_TRIGGER_MAX_DELAY);
 
     int32_t tsSlotId = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->slotId;
     bool    isStream = (QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL == type);
@@ -5330,14 +5340,16 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SExplainExecInfo
 }
 
 int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, const char* pKey, SqlFunctionCtx* pCtx, int32_t numOfOutput,
-                               size_t size) {
+                               int32_t size) {
   pSup->resultRowSize = getResultRowSize(pCtx, numOfOutput);
   pSup->keySize = sizeof(int64_t) + sizeof(TSKEY);
   pSup->pKeyBuf = taosMemoryCalloc(1, pSup->keySize);
-  pSup->pResultRows = taosArrayInit(1024, size);
+  _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+  pSup->pResultRows = taosHashInit(1024, hashFn, false, HASH_NO_LOCK);
   if (pSup->pKeyBuf == NULL || pSup->pResultRows == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  pSup->valueSize = size;
 
   pSup->pScanWindow = taosArrayInit(4, sizeof(STimeWindow));
 
