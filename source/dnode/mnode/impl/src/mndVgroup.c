@@ -940,7 +940,7 @@ static int32_t mndAddSetVnodeStandByAction(SMnode *pMnode, STrans *pTrans, SDbOb
 
   action.pCont = pReq;
   action.contLen = contLen;
-  action.msgType = TDMT_DND_DROP_VNODE;
+  action.msgType = TDMT_SYNC_SET_VNODE_STANDBY;
   action.acceptableCode = TSDB_CODE_NODE_NOT_DEPLOYED;
 
   if (isRedo) {
