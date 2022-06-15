@@ -12,7 +12,8 @@ from util.dnodes import TDDnode
 import time
 import socket
 import subprocess
-from multiprocessing import Process
+import threading as thd
+
 class MyDnodes(TDDnodes):
     def __init__(self ,dnodes_lists):
         super(MyDnodes,self).__init__()
@@ -49,10 +50,10 @@ class TDTestCase:
                     buildPath = root[:len(root) - len("/build/bin")]
                     break
         return buildPath
-    
-    def insert_data(self,count):
+
+    def insert_data(self,countstart,countstop):
         # fisrt add data : db\stable\childtable\general table
-        for couti in count:
+        for couti in range(countstart,countstop):
             tdSql.execute("drop database if exists db%d" %couti)
             tdSql.execute("create database if not exists db%d replica 1 days 300" %couti)
             tdSql.execute("use db%d" %couti)
@@ -258,6 +259,11 @@ class TDTestCase:
         stopcount =0 
         while stopcount <= 2:
             for i in range(dnodenumber):
+                threads = []
+                threads.append(thd.Thread(target=self.insert_data, args=(i*2,i*2+2))) 
+                # start_time = time.time()
+                threads[0].start()
+                # end_time = time.time()
                 self.TDDnodes.stoptaosd(i+1)
                 # if i == 1 :
                 #     self.check3mnode2off()
@@ -265,12 +271,11 @@ class TDTestCase:
                 #     self.check3mnode3off()
                 # elif i == 0:
                 #     self.check3mnode1off()
-
                 self.TDDnodes.starttaosd(i+1)
+                threads[0].join()
                 # self.check3mnode()
             stopcount+=1
         self.check3mnode()
-
 
     def getConnection(self, dnode):
         host = dnode.cfgDict["fqdn"]
