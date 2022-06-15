@@ -341,7 +341,7 @@ void doTimeWindowInterpolation(SIntervalAggOperatorInfo* pInfo, int32_t numOfExp
     SFunctParam*     pParam = &pCtx[k].param[0];
     SColumnInfoData* pColInfo = taosArrayGet(pDataBlock, pParam->pCol->slotId);
 
-    ASSERT(pColInfo->info.colId == pParam->pCol->colId && curTs != windowKey);
+    ASSERT(pColInfo->info.type == pParam->pCol->type && curTs != windowKey);
 
     double v1 = 0, v2 = 0, v = 0;
     if (prevRowIndex == -1) {
