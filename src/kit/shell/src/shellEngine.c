@@ -148,7 +148,7 @@ void shellInit(SShellArguments *_args) {
       exit(EXIT_SUCCESS);
     }
 #endif
-  
+
   return;
 }
 
@@ -335,7 +335,7 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
 
   int64_t oresult = atomic_load_64(&result);
 
-  if (regex_match(command, "^\\s*use\\s+[a-zA-Z0-9_]+\\s*;\\s*$", REG_EXTENDED | REG_ICASE)) {
+  if (regex_match(command, "^\\s*use\\s+([a-zA-Z0-9_]+|`.+`)\\s*;\\s*$", REG_EXTENDED | REG_ICASE)) {
     fprintf(stdout, "Database changed.\n\n");
     fflush(stdout);
 
@@ -1520,7 +1520,7 @@ int wsclient_print_data(int rows, TAOS_FIELD *fields, int cols, int64_t id, int 
     if (*pshowed_rows == DEFAULT_RES_SHOW_NUM) {
       free(recv_buffer);
       return 0;
-    } 
+    }
     for (int c = 0; c < cols; c++) {
       pos = start;
       pos += i * fields[c].bytes;
