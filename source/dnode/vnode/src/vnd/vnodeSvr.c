@@ -375,8 +375,9 @@ int32_t vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       ret = syncNodeOnAppendEntriesReplyCb(pSyncNode, pSyncMsg);
       syncAppendEntriesReplyDestroy(pSyncMsg);
 
-    } else if (pRpcMsg->msgType == TDMT_SYNC_SET_MNODE_STANDBY) {
+    } else if (pRpcMsg->msgType == TDMT_SYNC_SET_VNODE_STANDBY) {
       ret = syncSetStandby(pVnode->sync);
+      vInfo("vgId:%d, set standby result:0x%x rid:%" PRId64, pVnode->config.vgId, ret, pVnode->sync);
       SRpcMsg rsp = {.code = ret, .info = pMsg->info};
       tmsgSendRsp(&rsp);
     } else {
