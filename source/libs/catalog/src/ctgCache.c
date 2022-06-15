@@ -1899,7 +1899,7 @@ _return:
 
 
 void ctgUpdateThreadUnexpectedStopped(void) {
-  if (CTG_IS_LOCKED(&gCtgMgmt.lock) > 0) CTG_UNLOCK(CTG_READ, &gCtgMgmt.lock);
+  if (!atomic_load_8((int8_t*)&gCtgMgmt.exit) && CTG_IS_LOCKED(&gCtgMgmt.lock) > 0) CTG_UNLOCK(CTG_READ, &gCtgMgmt.lock);
 }
 
 void ctgCleanupCacheQueue(void) {
