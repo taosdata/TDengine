@@ -352,30 +352,78 @@ static FORCE_INLINE bool tsdbCommitIterEnd(SCommitter *pCommitter, STbDataIter *
 }
 
 static int32_t tsdbCommitTableDataImpl(SCommitter *pCommitter, STbDataIter *pIter, SBlockIdx *pBlockIdx) {
-  int32_t  code = 0;
-  TSDBROW *pRow;
-  int32_t  iBlock;
-  int32_t  nBlock;
-  SBlock  *pBlock;
-  SBlock   block;
+  int32_t   code = 0;
+  int32_t   c;
+  int32_t   iBlock;
+  int32_t   nBlock;
+  SBlock   *pBlock;
+  SBlock    block;
+  SBlockIdx blockIdx;  // todo
 
-  // start(todo)
+  // start ================================
+  tMapDataReset(&pCommitter->oBlock);
+  tMapDataReset(&pCommitter->nBlock);
+  if (pBlockIdx) {
+    code = tsdbReadBlock(pCommitter->pReader, pBlockIdx, &pCommitter->oBlock, NULL);
+    if (code) goto _err;
+  }
 
-  // impl
-  pRow = tsdbTbDataIterGet(pIter);
+  // impl ===============================
+  iBlock = 0;
+  nBlock = pCommitter->oBlock.nItem;
+
   if (iBlock < nBlock) {
     pBlock = &block;
-    tMapDataGetItemByIdx(&pCommitter->oBlock, iBlock, pBlock, tGetBlock);
+    tMapDataGetItemByIdx(&pCommitter->nBlock, iBlock, pBlock, tGetBlock);
+  } else {
+    pBlock = NULL;
   }
   while (true) {
-    if ((pRow == NULL || pRow->pTSRow->ts > pCommitter->maxKey) && pBlock == NULL) break;
+    TSDBROW *pRow = tsdbTbDataIterGet(pIter);
+    bool     iterEnd = ((pRow == NULL) || (pRow->pTSRow->ts > pCommitter->maxKey));
+    bool     blockEnd = (pBlock == NULL);
+
+    if (iterEnd && blockEnd) break;
+
+    if (!iterEnd && !blockEnd) {
+      c = tBlockCmprFn(&(SBlock){.maxKey.ts = pRow->pTSRow->ts}, pBlock);
+
+      if (c == 0) {
+        // merge until pBlock->maxKey
+        // if (pBlock->last), merge until pCommitter->maxKey
+        // else merge until pBlock->maxKey
+      } else if (c < 0) {
+        // tsdbCommitTableMemData(pIter, pBlock);
+        // if (pBlock->last), merge until pCommitter->maxKey
+        // else, commit until pBlock->minKey-1
+      } else {
+        // tsdbCommitTableDiskData(pBlock);
+        // if (pBlock->last), merge until pCommitter->maxKey
+        // else, move the block to new one
+      }
+    } else if (!iterEnd) {
+      // no block on disk, commit to last when there are no enough data
+      // commit memory data to pCommitter->maxKey
+      // tsdbCommitTableMemData(pIter, NULL);
+    } else {
+      // tsdbCommitTableDiskData(pBlock); // only left block
+      // if (last block ? ) else ?
+      // tMapDataPutItem(&pCommitter->nBlock, pBlock, tPutBlock);
+      iBlock++;  // get new SBlock
+    }
   }
 
-  // end
+  // end ===============================
+  code = tsdbWriteBlock(pCommitter->pWriter, &pCommitter->nBlock, NULL, &blockIdx);
+  if (code) goto _err;
+
+  code = tMapDataPutItem(&pCommitter->nBlockIdx, &blockIdx, tPutBlockIdx);
+  if (code) goto _err;
 
   return code;
 
 _err:
+  tsdbError("vgId:%d commit table data impl failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 

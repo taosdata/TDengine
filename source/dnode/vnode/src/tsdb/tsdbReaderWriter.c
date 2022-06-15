@@ -669,8 +669,10 @@ _err:
   return code;
 }
 
-int32_t tsdbWriteBlock(SDataFWriter *pWriter, SMapData *pMapData, uint8_t **ppBuf, SBlockIdx *pBlockIdx) {
+int32_t tsdbWriteBlock(SDataFWriter *pWriter, SMapData *pBlockMap, uint8_t **ppBuf, SBlockIdx *pBlockIdx) {
   int32_t code = 0;
+
+  ASSERT(pBlockMap->nItem > 0);
   // TODO
   return code;
 }
