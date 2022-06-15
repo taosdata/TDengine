@@ -2427,6 +2427,7 @@ typedef struct {
 
 static FORCE_INLINE void tDestroyTSma(STSma* pSma) {
   if (pSma) {
+    taosMemoryFreeClear(pSma->dstTbName);
     taosMemoryFreeClear(pSma->expr);
     taosMemoryFreeClear(pSma->tagsFilter);
   }
@@ -2455,7 +2456,7 @@ int32_t tEncodeSVCreateTSmaReq(SEncoder* pCoder, const SVCreateTSmaReq* pReq);
 int32_t tDecodeSVCreateTSmaReq(SDecoder* pCoder, SVCreateTSmaReq* pReq);
 
 int32_t tEncodeTSma(SEncoder* pCoder, const STSma* pSma);
-int32_t tDecodeTSma(SDecoder* pCoder, STSma* pSma);
+int32_t tDecodeTSma(SDecoder* pCoder, STSma* pSma, bool deepCopy);
 
 static int32_t tEncodeTSmaWrapper(SEncoder* pEncoder, const STSmaWrapper* pReq) {
   if (tEncodeI32(pEncoder, pReq->number) < 0) return -1;
@@ -2465,10 +2466,10 @@ static int32_t tEncodeTSmaWrapper(SEncoder* pEncoder, const STSmaWrapper* pReq) 
   return 0;
 }
 
-static int32_t tDecodeTSmaWrapper(SDecoder* pDecoder, STSmaWrapper* pReq) {
+static int32_t tDecodeTSmaWrapper(SDecoder* pDecoder, STSmaWrapper* pReq, bool deepCopy) {
   if (tDecodeI32(pDecoder, &pReq->number) < 0) return -1;
   for (int32_t i = 0; i < pReq->number; ++i) {
-    tDecodeTSma(pDecoder, pReq->tSma + i);
+    tDecodeTSma(pDecoder, pReq->tSma + i, deepCopy);
   }
   return 0;
 }
