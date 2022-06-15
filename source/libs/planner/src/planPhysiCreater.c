@@ -181,7 +181,7 @@ static int16_t getUnsetSlotId(const SArray* pSlotIdsInfo) {
 }
 
 static int32_t addDataBlockSlotsImpl(SPhysiPlanContext* pCxt, SNodeList* pList, SDataBlockDescNode* pDataBlockDesc,
-                                     const char* pStmtName, bool output,  bool reserve) {
+                                     const char* pStmtName, bool output, bool reserve) {
   if (NULL == pList) {
     return TSDB_CODE_SUCCESS;
   }
@@ -463,10 +463,24 @@ static int32_t createTagScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubpla
   return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pTagScan, pPhyNode);
 }
 
+static ENodeType getScanOperatorType(EScanType scanType) {
+  switch (scanType) {
+    case SCAN_TYPE_TABLE:
+      return QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
+    case SCAN_TYPE_STREAM:
+      return QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN;
+    case SCAN_TYPE_TABLE_MERGE:
+      return QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN;
+    default:
+      break;
+  }
+  return QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
+}
+
 static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SScanLogicNode* pScanLogicNode,
                                         SPhysiNode** pPhyNode) {
-  STableScanPhysiNode* pTableScan =
-      (STableScanPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pScanLogicNode, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
+  STableScanPhysiNode* pTableScan = (STableScanPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pScanLogicNode,
+                                                                        getScanOperatorType(pScanLogicNode->scanType));
   if (NULL == pTableScan) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -528,12 +542,12 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
 
 static int32_t createStreamScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SScanLogicNode* pScanLogicNode,
                                          SPhysiNode** pPhyNode) {
-  int32_t res = createTableScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
-  if (res == TSDB_CODE_SUCCESS) {
-    ENodeType type = QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN;
-    setNodeType(*pPhyNode, type);
-  }
-  return res;
+  return createTableScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
+}
+
+static int32_t createTableMergeScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan,
+                                             SScanLogicNode* pScanLogicNode, SPhysiNode** pPhyNode) {
+  return createTableScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
 }
 
 static int32_t createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SScanLogicNode* pScanLogicNode,
@@ -547,6 +561,8 @@ static int32_t createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, 
       return createSystemTableScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
     case SCAN_TYPE_STREAM:
       return createStreamScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
+    case SCAN_TYPE_TABLE_MERGE:
+      return createTableMergeScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
     default:
       break;
   }

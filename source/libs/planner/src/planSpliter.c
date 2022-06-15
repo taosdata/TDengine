@@ -170,8 +170,8 @@ static bool stbSplNeedSplit(bool streamQuery, SLogicNode* pNode) {
   switch (nodeType(pNode)) {
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return stbSplIsMultiTbScan(streamQuery, (SScanLogicNode*)pNode);
-    // case QUERY_NODE_LOGIC_PLAN_JOIN:
-    //   return !(((SJoinLogicNode*)pNode)->isSingleTableJoin);
+    case QUERY_NODE_LOGIC_PLAN_JOIN:
+      return !(((SJoinLogicNode*)pNode)->isSingleTableJoin);
     case QUERY_NODE_LOGIC_PLAN_AGG:
       return !stbSplHasGatherExecFunc(((SAggLogicNode*)pNode)->pAggFuncs) && stbSplHasMultiTbScan(streamQuery, pNode);
     case QUERY_NODE_LOGIC_PLAN_WINDOW: {
@@ -642,6 +642,8 @@ static int32_t stbSplSplitScanNodeForJoin(SSplitContext* pCxt, SLogicSubplan* pS
     code = nodesListMakeStrictAppend(&pSubplan->pChildren,
                                      (SNode*)splCreateScanSubplan(pCxt, (SLogicNode*)pScan, SPLIT_FLAG_STABLE_SPLIT));
   }
+  pScan->scanType = SCAN_TYPE_TABLE_MERGE;
+  ++(pCxt->groupId);
   return code;
 }
 
@@ -703,7 +705,6 @@ static int32_t stableSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
       break;
   }
 
-  ++(pCxt->groupId);
   pCxt->split = true;
   return code;
 }
