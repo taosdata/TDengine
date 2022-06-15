@@ -20,6 +20,8 @@
 extern "C" {
 #endif
 
+extern int32_t exchangeObjRefPool;
+
 typedef struct {
   char*           pData;
   bool            isNull;

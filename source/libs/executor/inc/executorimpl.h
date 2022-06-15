@@ -181,7 +181,6 @@ typedef struct SExecTaskInfo {
   STaskCostInfo    cost;
   int64_t          owner;  // if it is in execution
   int32_t          code;
-//  uint64_t         totalRows;            // total number of rows
   struct {
     char          *tablename;
     char          *dbname;
@@ -222,10 +221,10 @@ typedef struct STaskRuntimeEnv {
 } STaskRuntimeEnv;
 
 enum {
-  OP_NOT_OPENED = 0x0,
-  OP_OPENED = 0x1,
+  OP_NOT_OPENED    = 0x0,
+  OP_OPENED        = 0x1,
   OP_RES_TO_RETURN = 0x5,
-  OP_EXEC_DONE = 0x9,
+  OP_EXEC_DONE     = 0x9,
 };
 
 typedef struct SOperatorFpSet {
@@ -262,13 +261,12 @@ typedef enum {
 } EX_SOURCE_STATUS;
 
 typedef struct SSourceDataInfo {
-  struct SExchangeInfo* pEx;
   int32_t               index;
   SRetrieveTableRsp*    pRsp;
   uint64_t              totalRows;
   int32_t               code;
   EX_SOURCE_STATUS      status;
-  const char*           id;
+  const char*           taskId;
 } SSourceDataInfo;
 
 typedef struct SLoadRemoteDataInfo {
@@ -286,6 +284,7 @@ typedef struct SExchangeInfo {
   bool                seqLoadData;  // sequential load data or not, false by default
   int32_t             current;
   SLoadRemoteDataInfo loadInfo;
+  uint64_t            self;
 } SExchangeInfo;
 
 #define COL_MATCH_FROM_COL_ID  0x1
@@ -735,6 +734,8 @@ typedef struct SJoinOperatorInfo {
 
 #define OPTR_IS_OPENED(_optr)  (((_optr)->status & OP_OPENED) == OP_OPENED)
 #define OPTR_SET_OPENED(_optr) ((_optr)->status |= OP_OPENED)
+
+void doDestroyExchangeOperatorInfo(void* param);
 
 SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, __optr_fn_t streamFn,
     __optr_fn_t cleanup, __optr_close_fn_t closeFn, __optr_encode_fn_t encode,
