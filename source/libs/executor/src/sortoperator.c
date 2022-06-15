@@ -76,7 +76,9 @@ void appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle) {
       colDataAppendNULL(pColInfo, pBlock->info.rows);
     } else {
       char* pData = tsortGetValue(pTupleHandle, i);
-      colDataAppend(pColInfo, pBlock->info.rows, pData, false);
+      if (pData != NULL) {
+        colDataAppend(pColInfo, pBlock->info.rows, pData, false);
+      }
     }
   }
 

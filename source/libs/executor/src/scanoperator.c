@@ -2077,12 +2077,9 @@ int32_t doOpenTableMergeScanOperator(SOperatorInfo* pOperator) {
   return TSDB_CODE_SUCCESS;
 }
 
-SSDataBlock* getSortedTableMergeScanBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity,
-                                              SOperatorInfo* pOperator) {
+SSDataBlock* getSortedTableMergeScanBlockData(SSortHandle* pHandle, int32_t capacity, SOperatorInfo* pOperator) {
   STableMergeScanInfo* pInfo = pOperator->info;
   SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
-
-  blockDataCleanup(pDataBlock);
 
   SSDataBlock* p = tsortGetSortedDataBlock(pHandle);
   if (p == NULL) {
@@ -2122,10 +2119,9 @@ SSDataBlock* getSortedTableMergeScanBlockData(SSortHandle* pHandle, SSDataBlock*
     }
   }
 
-  blockDataDestroy(p);
 
-  qDebug("%s get sorted row blocks, rows:%d", GET_TASKID(pTaskInfo), pDataBlock->info.rows);
-  return (pDataBlock->info.rows > 0) ? pDataBlock : NULL;
+  qDebug("%s get sorted row blocks, rows:%d", GET_TASKID(pTaskInfo), p->info.rows);
+  return (p->info.rows > 0) ? p : NULL;
 }
 
 SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
@@ -2142,7 +2138,7 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
   }
 
   SSDataBlock* pBlock =
-      getSortedTableMergeScanBlockData(pInfo->pSortHandle, pInfo->pResBlock, pOperator->resultInfo.capacity, pOperator);
+      getSortedTableMergeScanBlockData(pInfo->pSortHandle, pOperator->resultInfo.capacity, pOperator);
 
   if (pBlock != NULL) {
     pOperator->resultInfo.totalRows += pBlock->info.rows;
