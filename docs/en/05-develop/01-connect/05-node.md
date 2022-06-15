@@ -1,6 +1,7 @@
 ---
 sidebar_label: Node.js
 title: Connect with Node.js Connector
+pagination_next: develop/insert-data
 ---
 
 ## Install Connector

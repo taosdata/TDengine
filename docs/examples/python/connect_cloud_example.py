@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+load_dotenv() # read .env file from current working directory 
+
 # ANCHOR: connect
 import taosrest
 import os
@@ -6,7 +9,6 @@ url = os.environ["TDENGINE_CLOUD_URL"]
 token = os.environ["TDENGINE_CLOUD_TOKEN"]
 
 conn = taosrest.connect(url=url, token=token)
-
 # ANCHOR_END: connect
 # ANCHOR: basic
 from taosrest import TaosRestCursor

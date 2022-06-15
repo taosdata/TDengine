@@ -1,6 +1,7 @@
 ---
 sidebar_label: Java
 title: Connect with Java Connector
+pagination_next: develop/insert-data
 ---
 
 import Tabs from '@theme/Tabs';
@@ -36,11 +37,31 @@ dependencies {
 
 Run this command in your terminal to save the JDBC URL as variable:
 
+
+<Tabs defaultValue="bash">
+<TabItem value="bash" label="Bash">
+
 ```bash
 export TDENGINE_JDBC_URL=<jdbcURL>
 ```
+</TabItem>
+<TabItem value="cmd" label="CMD">
 
-Alternatively, set environment variable in your IDE's run configurations.
+```bash
+set TDENGINE_JDBC_URL="<jdbcURL>"
+```
+</TabItem>
+<TabItem value="powershell" label="Powershell">
+
+```powershell
+$env:TDENGINE_JDBC_URL="<jdbcURL>"
+```
+
+</TabItem>
+</Tabs>
+
+
+Alternatively, you can set environment variable in your IDE's run configurations.
 
 
 <!-- exclude -->

@@ -1,1 +1,4 @@
 .idea
+.vscode
+*.un~
+*~

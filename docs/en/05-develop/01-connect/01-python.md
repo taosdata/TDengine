@@ -1,6 +1,7 @@
 ---
 sidebar_label: Python
 title: Connect with Python Connector
+pagination_next: develop/insert-data
 ---
 
 import Tabs from '@theme/Tabs';
@@ -30,14 +31,37 @@ conda install -c conda-forge taospy
 
 ## Config
 
-Run this command in your terminal to save TDengine cloud token as variables:
+Run this command in your terminal to save TDengine cloud token and URL as variables:
+
+<Tabs defaultValue="bash">
+<TabItem value="bash" label="Bash">
 
 ```bash
 export TDENGINE_CLOUD_TOKEN=<token>
 export TDENGINE_CLOUD_URL=<url>
 ```
 
-Alternatively, set environment variables in your IDE's run configurations.
+</TabItem>
+<TabItem value="cmd" label="CMD">
+
+```bash
+set TDENGINE_CLOUD_TOKEN="<token>"
+set TDENGINE_CLOUD_URL="<url>"
+```
+
+</TabItem>
+<TabItem value="powershell" label="Powershell">
+
+```powershell
+$env:TDENGINE_CLOUD_TOKEN="<token>"
+$env:TDENGINE_CLOUD_URL="<url>"
+```
+
+</TabItem>
+</Tabs>
+
+
+Alternatively, you can also set environment variables in your IDE's run configurations.
 
 
 <!-- exclude -->
@@ -50,16 +74,10 @@ To obtain the value of cloud token and URL, please log in [TDengine Cloud](https
 
 ## Connect
 
-Copy code bellow to your editor and run it with `python3` command.
+Copy code bellow to your editor and run it.
 
 ```python
-import taosrest
-import os
-
-token = os.environ["TDENGINE_CLOUD_TOKEN"]
-url = os.environ["TDENGINE_ClOUD_URL"]
-
-conn = taosrest.connect(url=url, token=token)
+{{#include docs/examples/python/connect_cloud_example.py:connect}}
 ```
 
 The client connection is then established. For how to write data and query data, please refer to [sample-program](https://docs.tdengine.com/cloud/connector/python/#sample-program).

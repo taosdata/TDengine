@@ -13,7 +13,7 @@ The TDengine command-line interface (hereafter referred to as `TDengine CLI`) is
 
 To run TDengine CLI to access TDengine cloud, please install [TDengine client installation package](https://www.taosdata.com/assets-download/TDengine-client-2.6.0.2-Linux-x64.tar.gz) first.
 
-<Tabs defaultValue="ConfigOnLinux">
+<Tabs defaultValue="ConfigOnLinux" groupId="sys">
 <TabItem value="ConfigOnLinux" label="Config on Linux">
 
 Run this command in your Linux terminal to save your URL and token as variables:
@@ -34,7 +34,7 @@ set TDENGINE_CLOUD_TOKEN=<token>
 ```
 
 </TabItem>
-<TabItem value="ConfigOnMac" label="Config on Mac (coming soon)">
+<TabItem value="ConfigOnMac" label="Config on Mac (coming soon)" groupId="sys">
 
 Run this command in your Mac terminal to save your URL and token as variables:
 
@@ -46,7 +46,7 @@ export TDENGINE_CLOUD_TOKEN=<token>
 </TabItem>
 </Tabs>
 
-<Tabs defaultValue="ConnectOnLinux">
+<Tabs defaultValue="ConnectOnLinux" groupId="sys">
 <TabItem value="ConnectOnLinux" label="Connect on Linux">
 
 To access the TDengine Cloud, you can execute below command from a Linux terminal.
