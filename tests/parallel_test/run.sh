@@ -291,7 +291,7 @@ function run_thread() {
             fi
             cmd="$scpcmd:${remote_sim_tar} $log_dir/${case_file}.sim.tar.gz"
             $cmd
-            # backup source code
+            # backup source code (disabled)
             source_tar_dir=$log_dir/TDengine_${hosts[index]}
             source_tar_file=TDengine.tar.gz
             if [ $ent -ne 0 ]; then
@@ -301,8 +301,8 @@ function run_thread() {
             mkdir $source_tar_dir 2>/dev/null
             if [ $? -eq 0 ]; then
                 cmd="$scpcmd:${workdirs[index]}/$source_tar_file $source_tar_dir"
-                echo "$cmd"
-                $cmd
+                # echo "$cmd"
+                # $cmd
             fi
         fi
     done
