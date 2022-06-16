@@ -24,7 +24,7 @@ extern "C" {
 #include "tdef.h"
 #include "tmsgcb.h"
 
-#define SYNC_INDEX_BEGIN   0
+#define SYNC_INDEX_BEGIN 0
 #define SYNC_INDEX_INVALID -1
 
 typedef uint64_t SyncNodeId;
@@ -182,6 +182,7 @@ void        syncStart(int64_t rid);
 void        syncStop(int64_t rid);
 int32_t     syncSetStandby(int64_t rid);
 ESyncState  syncGetMyRole(int64_t rid);
+bool        syncIsReady(int64_t rid);
 const char* syncGetMyRoleStr(int64_t rid);
 SyncTerm    syncGetMyTerm(int64_t rid);
 void        syncGetEpSet(int64_t rid, SEpSet* pEpSet);
