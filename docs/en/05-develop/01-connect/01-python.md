@@ -77,7 +77,7 @@ To obtain the value of cloud token and URL, please log in [TDengine Cloud](https
 Copy code bellow to your editor and run it.
 
 ```python
-{{#include docs/examples/python/connect_cloud_example.py:connect}}
+{{#include docs/examples/python/develop_tutorial.py:connect}}
 ```
 
 The client connection is then established. For how to write data and query data, please refer to [sample-program](https://docs.tdengine.com/cloud/connector/python/#sample-program).

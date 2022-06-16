@@ -1,7 +1,9 @@
 # Query Data
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
 
-## Introduction
+## Query Using SQL
 
 SQL is used by TDengine as its query language. Application programs can send SQL statements to TDengine through REST API or connectors. TDengine's CLI `taos` can also be used to execute ad hoc SQL queries. Here is the list of major query functionalities supported by TDengine：
 
@@ -113,3 +115,42 @@ Interpolation can be performed in TDengine if there is no data in a time range.
 
 For more details please refer to [Aggregate by Window](/taos-sql/interval).
 
+## Connector Examples
+
+<Tabs>
+<TabItem value="python" label="Python">
+
+In this example, we use `query` method to execute SQL and get a `result` object. 
+
+```python
+{{#include docs/examples/python/develop_tutorial.py:query:nrc}}
+```
+
+Get column metadata(column name, column type and column length) from `result`:
+
+```python
+{{#include docs/examples/python/develop_tutorial.py:fields:nrc}}
+```
+
+Get total rows from `result`:
+
+```python
+{{#include docs/examples/python/develop_tutorial.py:rows:nrc}}
+```
+
+Iterate over each rows: 
+
+```python
+{{#include docs/examples/python/develop_tutorial.py:iter}}
+```
+
+</TabItem>
+<TabItem value="java" label="Java">
+</TabItem>
+<TabItem value="go" label="Go">
+</TabItem>
+<TabItem value="rust" label="Rust">
+</TabItem>
+<TabItem value="node" label="Node.js">
+</TabItem>
+</Tabs>

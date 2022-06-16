@@ -1,8 +1,11 @@
 # Insert Data
 
-## Introduction
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
 
-Application programs can execute `INSERT` statement through connectors to insert rows. The TAOS CLI can also be used to manually insert data.
+## SQL Examples
+
+Here are some brief examples for `INSET` statement. You can execute these statements manually by TDengine CLI or TDengine Cloud Explorer or programmatically by TDengine connectors. 
 
 ### Insert Single Row
 
@@ -30,16 +33,24 @@ INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 12.6, 
 
 For more details about `INSERT` please refer to [INSERT](/taos-sql/insert).
 
-:::info
 
-- Inserting in batches can improve performance. Normally, the higher the batch size, the better the performance. Please note that a single row can't exceed 48K bytes and each SQL statement can't exceed 1MB.
-- Inserting with multiple threads can also improve performance. However, depending on the system resources on the application side and the server side, when the number of inserting threads grows beyond a specific point the performance may drop instead of improving. The proper number of threads needs to be tested in a specific environment to find the best number.
+## Connector Examples
 
-:::
+<Tabs>
+<TabItem value="python" label="Python">
 
-:::warning
+In this example, we use `execute` method to execute SQL and get affected rows. The variable `conn` is an instance of class  `taosrest.TaosRestConnection` we just created at [Connect Tutorial](./connect/python#connect).
 
-- If the timestamp for the row to be inserted already exists in the table, the behavior depends on the value of parameter `UPDATE`. If it's set to 0 (the default value), the row will be discarded. If it's set to 1, the new values will override the old values for the same row.
-- The timestamp to be inserted must be newer than the timestamp of subtracting current time by the parameter `KEEP`. If `KEEP` is set to 3650 days, then the data older than 3650 days ago can't be inserted. The timestamp to be inserted can't be newer than the timestamp of current time plus parameter `DAYS`. If `DAYS` is set to 2, the data newer than 2 days later can't be inserted.
-
-:::
+```python
+{{#include docs/examples/python/develop_tutorial.py:insert}}
+```
+</TabItem>
+<TabItem value="java" label="Java">
+</TabItem>
+<TabItem value="go" label="Go">
+</TabItem>
+<TabItem value="rust" label="Rust">
+</TabItem>
+<TabItem value="node" label="Node.js">
+</TabItem>
+</Tabs>

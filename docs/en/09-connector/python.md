@@ -3,7 +3,6 @@ sidebar_label: Python
 title: TDengine Python Connector
 ---
 
-
 `taospy` is the official Python connector for TDengine. `taospy` wraps the  [REST interface](/reference/rest-api) of TDengine. Additionally `taospy`  provides a set of programming interfaces that conforms to the [Python Data Access Specification (PEP 249)](https://peps.python.org/pep-0249/). It is easy to integrate `taospy` with many third-party tools, such as [SQLAlchemy](https://www.sqlalchemy.org/) and [pandas](https://pandas.pydata.org/).
 
 The source code for the Python connector is hosted on [GitHub](https://github.com/taosdata/taos-connector-python).
@@ -18,7 +17,12 @@ The source code for the Python connector is hosted on [GitHub](https://github.co
 ### Install via pip
 
 ```
-pip3 install taospy>=2.3.3
+pip3 install -U taospy
+```
+### Install vial conda
+
+```
+conda install -c conda-forge taospy
 ```
 
 ### Installation verification
@@ -32,7 +36,7 @@ import taosrest
 ## Establish connection
 
 ```python
-{{#include docs/examples/python/connect_cloud_example.py:connect}}
+{{#include docs/examples/python/reference_connection.py:connect}}
 ```
 
 All arguments to the `connect()` function are optional keyword arguments. The following are the connection parameters specified.
@@ -43,12 +47,18 @@ All arguments to the `connect()` function are optional keyword arguments. The fo
 
 ## Sample program
 
-### Use of TaosRestCursor class
+### Use of TaosRestConnection Class
 
-The ``TaosRestCursor`` class is an implementation of the PEP249 Cursor interface.
+```python
+{{#include docs/examples/python/reference_connection.py:example}}
+```
 
-```python title="Use of TaosRestCursor"
-{{#include docs/examples/python/connect_cloud_example.py:basic}}
+### Use of TaosRestCursor Class
+
+The `TaosRestCursor` class is an implementation of the PEP249 Cursor interface.
+
+```python
+{{#include docs/examples/python/reference_cursor.py:basic}}
 ```
 - `cursor.execute` : Used to execute arbitrary SQL statements.
 - `cursor.rowcount` : For write operations, returns the number of successful rows written. For query operations, returns the number of rows in the result set.
@@ -58,8 +68,8 @@ The ``TaosRestCursor`` class is an implementation of the PEP249 Cursor interface
 
 The `RestClient` class is a direct wrapper for the [REST API](/reference/rest-api). It contains only a `sql()` method for executing arbitrary SQL statements and returning the result.
 
-```python title="Use of RestClient"
-{{#include docs/examples/python/rest_client_cloud_example.py}}
+```python
+{{#include docs/examples/python/reference_rest_client.py}}
 ```
 
 For a more detailed description of the `sql()` method, please refer to [RestClient](https://docs.taosdata.com/api/taospy/taosrest/restclient.html).
