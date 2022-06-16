@@ -107,8 +107,8 @@ typedef struct SBlockLoadSuppInfo {
 struct STsdbReader {
   STsdb*        pTsdb;
   uint64_t      suid;
-  SQueryFilePos cur;  // current position
   int16_t       order;
+  SQueryFilePos cur;     // current position
   STimeWindow   window;  // the primary query time window that applies to all queries
   //  SColumnDataAgg* statis;  // query level statistics, only one table block statistics info exists at any time
   //  SColumnDataAgg** pstatis;// the ptr array list to return to caller
@@ -292,138 +292,110 @@ struct STsdbReader {
 //   }
 // }
 
-// static STsdb* getTsdbByRetentions(SVnode* pVnode, STsdbReader* pReadHandle, TSKEY winSKey, SRetention* retentions) {
-//   if (VND_IS_RSMA(pVnode)) {
-//     int     level = 0;
-//     int64_t now = taosGetTimestamp(pVnode->config.tsdbCfg.precision);
+static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, uint64_t qId, uint64_t taskId,
+                                STsdbReader** ppReader) {
+  int32_t      code = 0;
+  STsdbReader* pReader = NULL;
 
-//     for (int i = 0; i < TSDB_RETENTION_MAX; ++i) {
-//       SRetention* pRetention = retentions + level;
-//       if (pRetention->keep <= 0) {
-//         if (level > 0) {
-//           --level;
-//         }
-//         break;
-//       }
-//       if ((now - pRetention->keep) <= winSKey) {
-//         break;
-//       }
-//       ++level;
-//     }
+  // alloc
+  pReader = (STsdbReader*)taosMemoryCalloc(1, sizeof(*pReader));
+  if (pReader == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+  pReader->pTsdb = pVnode->pTsdb;  // TODO: pass in pTsdb directly
+  pReader->suid = pCond->suid;
+  pReader->order = pCond->order;
+  pReader->loadType = pCond->type;
+  pReader->loadExternalRow = pCond->loadExternalRows;
+  pReader->currentLoadExternalRows = pCond->loadExternalRows;
+  pReader->type = TSDB_QUERY_TYPE_ALL;
+  pReader->cur.fid = INT32_MIN;
+  pReader->cur.win = TSWINDOW_INITIALIZER;
+  pReader->checkFiles = true;
+  pReader->activeIndex = 0;  // current active table index
+  pReader->allocSize = 0;
+  pReader->locateStart = false;
+  pReader->outputCapacity = 4096;  //((STsdb*)tsdb)->config.maxRowsPerFileBlock;
 
-//     if (level == TSDB_RETENTION_L0) {
-//       tsdbDebug("vgId:%d, read handle %p rsma level %d is selected to query", TD_VID(pVnode), pReadHandle,
-//                 TSDB_RETENTION_L0);
-//       return VND_RSMA0(pVnode);
-//     } else if (level == TSDB_RETENTION_L1) {
-//       tsdbDebug("vgId:%d, read handle %p rsma level %d is selected to query", TD_VID(pVnode), pReadHandle,
-//                 TSDB_RETENTION_L1);
-//       return VND_RSMA1(pVnode);
-//     } else {
-//       tsdbDebug("vgId:%d, read handle %p rsma level %d is selected to query", TD_VID(pVnode), pReadHandle,
-//                 TSDB_RETENTION_L2);
-//       return VND_RSMA2(pVnode);
-//     }
-//   }
-//   return VND_TSDB(pVnode);
-// }
+  //   char buf[128] = {0};
+  //   snprintf(buf, tListLen(buf), "TID:0x%" PRIx64 " QID:0x%" PRIx64, taskId, qId);
+  //   pReadHandle->idStr = strdup(buf);
 
-// static STsdbReader* tsdbQueryTablesImpl(SVnode* pVnode, SQueryTableDataCond* pCond, uint64_t qId, uint64_t taskId) {
-//   STsdbReader* pReadHandle = taosMemoryCalloc(1, sizeof(STsdbReader));
-//   if (pReadHandle == NULL) {
-//     goto _end;
-//   }
+  //   // if (tsdbInitReadH(&pReadHandle->rhelper, pReadHandle->pTsdb) != 0) {
+  //   //   goto _end;
+  //   // }
 
-//   STsdb* pTsdb = getTsdbByRetentions(pVnode, pReadHandle, pCond->twindows[0].skey,
-//   pVnode->config.tsdbCfg.retentions);
+  //   setQueryTimewindow(pReadHandle, pCond, 0);
 
-//   pReadHandle->pTsdb = pTsdb;
-//   pReadHandle->suid = pCond->suid;
-//   pReadHandle->order = pCond->order;
-//   pReadHandle->loadType = pCond->type;
-//   pReadHandle->loadExternalRow = pCond->loadExternalRows;
-//   pReadHandle->currentLoadExternalRows = pCond->loadExternalRows;
-//   pReadHandle->type = TSDB_QUERY_TYPE_ALL;
-//   pReadHandle->cur.fid = INT32_MIN;
-//   pReadHandle->cur.win = TSWINDOW_INITIALIZER;
-//   pReadHandle->checkFiles = true;
-//   pReadHandle->activeIndex = 0;  // current active table index
-//   pReadHandle->allocSize = 0;
-//   pReadHandle->locateStart = false;
+  //   if (pCond->numOfCols > 0) {
+  //     int32_t rowLen = 0;
+  //     for (int32_t i = 0; i < pCond->numOfCols; ++i) {
+  //       rowLen += pCond->colList[i].bytes;
+  //     }
 
-//   pReadHandle->outputCapacity = 4096;  //((STsdb*)tsdb)->config.maxRowsPerFileBlock;
+  //     // make sure the output SSDataBlock size be less than 2MB.
+  //     int32_t TWOMB = 2 * 1024 * 1024;
+  //     if (pReadHandle->outputCapacity * rowLen > TWOMB) {
+  //       pReadHandle->outputCapacity = TWOMB / rowLen;
+  //     }
 
-//   char buf[128] = {0};
-//   snprintf(buf, tListLen(buf), "TID:0x%" PRIx64 " QID:0x%" PRIx64, taskId, qId);
-//   pReadHandle->idStr = strdup(buf);
+  //     // allocate buffer in order to load data blocks from file
+  //     pReadHandle->suppInfo.pstatis = taosMemoryCalloc(pCond->numOfCols, sizeof(SColumnDataAgg));
+  //     if (pReadHandle->suppInfo.pstatis == NULL) {
+  //       goto _end;
+  //     }
 
-//   // if (tsdbInitReadH(&pReadHandle->rhelper, pReadHandle->pTsdb) != 0) {
-//   //   goto _end;
-//   // }
+  //     // todo: use list instead of array?
+  //     pReadHandle->pColumns = taosArrayInit(pCond->numOfCols, sizeof(SColumnInfoData));
+  //     if (pReadHandle->pColumns == NULL) {
+  //       goto _end;
+  //     }
 
-//   assert(pCond != NULL);
-//   setQueryTimewindow(pReadHandle, pCond, 0);
+  //     for (int32_t i = 0; i < pCond->numOfCols; ++i) {
+  //       SColumnInfoData colInfo = {{0}, 0};
+  //       colInfo.info = pCond->colList[i];
 
-//   if (pCond->numOfCols > 0) {
-//     int32_t rowLen = 0;
-//     for (int32_t i = 0; i < pCond->numOfCols; ++i) {
-//       rowLen += pCond->colList[i].bytes;
-//     }
+  //       int32_t code = colInfoDataEnsureCapacity(&colInfo, 0, pReadHandle->outputCapacity);
+  //       if (code != TSDB_CODE_SUCCESS) {
+  //         goto _end;
+  //       }
 
-//     // make sure the output SSDataBlock size be less than 2MB.
-//     int32_t TWOMB = 2 * 1024 * 1024;
-//     if (pReadHandle->outputCapacity * rowLen > TWOMB) {
-//       pReadHandle->outputCapacity = TWOMB / rowLen;
-//     }
+  //       taosArrayPush(pReadHandle->pColumns, &colInfo);
+  //     }
 
-//     // allocate buffer in order to load data blocks from file
-//     pReadHandle->suppInfo.pstatis = taosMemoryCalloc(pCond->numOfCols, sizeof(SColumnDataAgg));
-//     if (pReadHandle->suppInfo.pstatis == NULL) {
-//       goto _end;
-//     }
+  //     pReadHandle->suppInfo.defaultLoadColumn = getDefaultLoadColumns(pReadHandle, true);
 
-//     // todo: use list instead of array?
-//     pReadHandle->pColumns = taosArrayInit(pCond->numOfCols, sizeof(SColumnInfoData));
-//     if (pReadHandle->pColumns == NULL) {
-//       goto _end;
-//     }
+  //     size_t size = taosArrayGetSize(pReadHandle->suppInfo.defaultLoadColumn);
+  //     pReadHandle->suppInfo.slotIds = taosMemoryCalloc(size, sizeof(int32_t));
+  //     pReadHandle->suppInfo.plist = taosMemoryCalloc(size, POINTER_BYTES);
+  //   }
 
-//     for (int32_t i = 0; i < pCond->numOfCols; ++i) {
-//       SColumnInfoData colInfo = {{0}, 0};
-//       colInfo.info = pCond->colList[i];
+  //   pReadHandle->pDataCols = tdNewDataCols(1000, pVnode->config.tsdbCfg.maxRows);
+  //   if (pReadHandle->pDataCols == NULL) {
+  //     tsdbError("%p failed to malloc buf for pDataCols, %s", pReadHandle, pReadHandle->idStr);
+  //     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+  //     goto _end;
+  //   }
 
-//       int32_t code = colInfoDataEnsureCapacity(&colInfo, 0, pReadHandle->outputCapacity);
-//       if (code != TSDB_CODE_SUCCESS) {
-//         goto _end;
-//       }
+  //   tsdbInitDataBlockLoadInfo(&pReadHandle->dataBlockLoadInfo);
+  //   tsdbInitCompBlockLoadInfo(&pReadHandle->compBlockLoadInfo);
 
-//       taosArrayPush(pReadHandle->pColumns, &colInfo);
-//     }
+  //   return (STsdbReader*)pReadHandle;
 
-//     pReadHandle->suppInfo.defaultLoadColumn = getDefaultLoadColumns(pReadHandle, true);
+  // _end:
+  //   tsdbReaderClose(pReadHandle);
+  //   terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+  //   return NULL;
 
-//     size_t size = taosArrayGetSize(pReadHandle->suppInfo.defaultLoadColumn);
-//     pReadHandle->suppInfo.slotIds = taosMemoryCalloc(size, sizeof(int32_t));
-//     pReadHandle->suppInfo.plist = taosMemoryCalloc(size, POINTER_BYTES);
-//   }
+  *ppReader = pReader;
+  return code;
 
-//   pReadHandle->pDataCols = tdNewDataCols(1000, pVnode->config.tsdbCfg.maxRows);
-//   if (pReadHandle->pDataCols == NULL) {
-//     tsdbError("%p failed to malloc buf for pDataCols, %s", pReadHandle, pReadHandle->idStr);
-//     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-//     goto _end;
-//   }
-
-//   tsdbInitDataBlockLoadInfo(&pReadHandle->dataBlockLoadInfo);
-//   tsdbInitCompBlockLoadInfo(&pReadHandle->compBlockLoadInfo);
-
-//   return (STsdbReader*)pReadHandle;
-
-// _end:
-//   tsdbReaderClose(pReadHandle);
-//   terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-//   return NULL;
-// }
+_err:
+  // tsdbError("");
+  *ppReader = NULL;
+  return code;
+}
 
 // static int32_t setCurrentSchema(SVnode* pVnode, STsdbReader* pTsdbReadHandle) {
 //   STableCheckInfo* pCheckInfo = taosArrayGet(pTsdbReadHandle->pTableCheckInfo, 0);
@@ -2659,10 +2631,8 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, STableListInf
                        uint64_t taskId, STsdbReader** ppReader) {
   int32_t code = 0;
 
-  // STsdbReader* pReader = tsdbQueryTablesImpl(pVnode, pCond, qId, taskId);
-  // if (pReader == NULL) {
-  //   return NULL;
-  // }
+  code = tsdbReaderCreate(pVnode, pCond, qId, taskId, ppReader);
+  if (code) goto _err;
 
   // if (emptyQueryTimewindow(pReader)) {
   //   return (STsdbReader*)pReader;
@@ -2705,6 +2675,10 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, STableListInf
   // tsdbDebug("%p total numOfTable:%" PRIzu " in this query, table %" PRIzu " %s", pReader,
   //           taosArrayGetSize(pReader->pTableCheckInfo), taosArrayGetSize(tableList->pTableList), pReader->idStr);
 
+  return code;
+
+_err:
+  // tsdbError("");
   return code;
 }
 
