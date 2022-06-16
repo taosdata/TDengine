@@ -132,7 +132,7 @@ class TDTestCase:
         tdSql.error("select col1 from ntb where last(col9)='涛思数据10'")
 
     def last_check_stb_distribute(self):
-        # prepare data for vgroup 5
+        # prepare data for vgroup 4
         dbname = self.get_long_name(length=10, mode="letters")
         stbname = self.get_long_name(length=5, mode="letters")
         tdSql.execute(f"create database if not exists {dbname} vgroups 4")
@@ -152,16 +152,15 @@ class TDTestCase:
         for i in range(len(tdSql.queryResult)):
             vgroup_list.append(tdSql.queryResult[i][6])
         vgroup_list_set = set(vgroup_list)
-        print(vgroup_list_set)
-        print(vgroup_list)
+        # print(vgroup_list_set)
+        # print(vgroup_list)
         for i in vgroup_list_set:
             vgroups_num = vgroup_list.count(i)
             if vgroups_num >=2:
                 tdLog.info(f'This scene with {vgroups_num} vgroups is ok!')
                 continue
             else:
-                tdLog.info('This scene does not meet the requirements!\n')
-                tdLog.exit(1)
+                tdLog.exit('This scene does not meet the requirements with {vgroups_num} vgroup!\n')
         
         for i in range(1,21):
             for j in range(self.rowNum):

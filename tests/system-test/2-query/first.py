@@ -11,6 +11,8 @@
 
 # -*- coding: utf-8 -*-
 
+import random
+import string
 import sys
 import taos
 from util.log import *
@@ -28,6 +30,21 @@ class TDTestCase:
         self.ts = 1537146000000
         self.binary_str = 'taosdata'
         self.nchar_str = '涛思数据'
+    
+    def get_long_name(self, length, mode="mixed"):
+        """
+        generate long name
+        mode could be numbers/letters/letters_mixed/mixed
+        """
+        if mode == "numbers":
+            population = string.digits
+        elif mode == "letters":
+            population = string.ascii_letters.lower()
+        elif mode == "letters_mixed":
+            population = string.ascii_letters.upper() + string.ascii_letters.lower()
+        else:
+            population = string.ascii_letters.lower() + string.digits
+        return "".join(random.choices(population, k=length))
     def first_check_base(self):
         tdSql.prepare()
 
@@ -41,7 +58,7 @@ class TDTestCase:
             tdSql.checkRows(1)
             tdSql.checkData(0, 1, None)
         #!bug TD-16561
-        # for i in ['stb','db.stb','stb','db.stb']:
+        # for i in ['stb','db.stb']:
         #     tdSql.query(f"select first(*) from {i}")
         #     tdSql.checkRows(1)
         #     tdSql.checkData(0, 1, None)
@@ -52,126 +69,98 @@ class TDTestCase:
         for i in range(self.rowNum):
             tdSql.execute(f"insert into stb_1 values(%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '{self.binary_str}%d', '{self.nchar_str}%d')"
                           % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1))
+        for i in range(1, 14):
+            for j in ['stb_1', 'db.stb_1', 'stb', 'db.stb']:
+                tdSql.query(f"select first(col{i}) from {j}")
+                tdSql.checkRows(1)
+                # tinyint,smallint,int,bigint,tinyint unsigned,smallint unsigned,int unsigned,bigint unsigned
+                if i >=1 and i<9:
+                    tdSql.checkData(0, 0, 1)
+                # float,double
+                elif i>=9 and i<11:
+                    tdSql.checkData(0, 0, 0.1)
+                # bool
+                elif i == 11:
+                    tdSql.checkData(0, 0, False)
+                # binary
+                elif i == 12:
+                    tdSql.checkData(0, 0, f'{self.binary_str}1')
+                # nchar
+                elif i == 13:
+                    tdSql.checkData(0, 0, f'{self.nchar_str}1')
+        # tdSql.query("select first(*),last(*) from stb where ts < 23 interval(1s)")
+        # tdSql.checkRows(0)
+        # tdSql.execute('drop database db')
+    def first_check_stb_distribute(self):
+        # prepare data for vgroup 4
+        dbname = self.get_long_name(length=10, mode="letters")
+        stbname = self.get_long_name(length=5, mode="letters")
+        tdSql.execute(f"create database if not exists {dbname} vgroups 4")
+        tdSql.execute(f'use {dbname}')
+        # build 20 child tables,every table insert 10 rows
+        tdSql.execute(f'''create table {stbname}(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 tinyint unsigned, col6 smallint unsigned, 
+                    col7 int unsigned, col8 bigint unsigned, col9 float, col10 double, col11 bool, col12 binary(20), col13 nchar(20)) tags(loc nchar(20))''')
+        for i in range(1,21):
+            tdSql.execute(f"create table {stbname}_{i} using {stbname} tags('beijing')")
+            tdSql.execute(f"insert into {stbname}_{i}(ts) values(%d)" % (self.ts - 1-i))
+        # for i in [f'{stbname}', f'{dbname}.{stbname}']:
+        #     tdSql.query(f"select last(*) from {i}")
+        #     tdSql.checkRows(1)
+        #     tdSql.checkData(0, 1, None)
+        tdSql.query('show tables')
+        vgroup_list = []
+        for i in range(len(tdSql.queryResult)):
+            vgroup_list.append(tdSql.queryResult[i][6])
+        vgroup_list_set = set(vgroup_list)
+        # print(vgroup_list_set)
+        # print(vgroup_list)
+        for i in vgroup_list_set:
+            vgroups_num = vgroup_list.count(i)
+            if vgroups_num >=2:
+                tdLog.info(f'This scene with {vgroups_num} vgroups is ok!')
+                continue
+            else:
+                tdLog.exit('This scene does not meet the requirements with {vgroups_num} vgroup!\n')
         
-
+        for i in range(1,21):
+            for j in range(self.rowNum):
+                tdSql.execute(f"insert into {stbname}_{i} values(%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '{self.binary_str}%d', '{self.nchar_str}%d')"
+                          % (self.ts + j + i, j + 1, j + 1, j + 1, j + 1, j + 1, j + 1, j + 1, j + 1, j + 0.1, j + 0.1, j % 2, j + 1, j + 1))
+        #!bug TD-16561
+        # for i in [f'{stbname}', f'{dbname}.{stbname}']:
+        #     tdSql.query(f"select first(*) from {i}")
+        #     tdSql.checkRows(1)
+        #     tdSql.checkData(0, 1, None)
+        for i in range(1, 14):
+            for j in ['stb_1', 'db.stb_1', 'stb', 'db.stb']:
+                tdSql.query(f"select first(col{i}) from {j}")
+                tdSql.checkRows(1)
+                # tinyint,smallint,int,bigint,tinyint unsigned,smallint unsigned,int unsigned,bigint unsigned
+                if i >=1 and i<9:
+                    tdSql.checkData(0, 0, 1)
+                # float,double
+                elif i>=9 and i<11:
+                    tdSql.checkData(0, 0, 0.1)
+                # bool
+                elif i == 11:
+                    tdSql.checkData(0, 0, False)
+                # binary
+                elif i == 12:
+                    tdSql.checkData(0, 0, f'{self.binary_str}1')
+                # nchar
+                elif i == 13:
+                    tdSql.checkData(0, 0, f'{self.nchar_str}1')
+        # tdSql.query("select first(*),last(*) from {stbname} where ts < 23 interval(1s)")
+        # tdSql.checkRows(0)
+        # tdSql.execute('drop database db')
+        
+        
+        
         pass
     def run(self):
-        tdSql.prepare()
+        self.first_check_base()
 
-        tdSql.execute('''create table test(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 float, col6 double, 
-                    col7 bool, col8 binary(20), col9 nchar(20), col11 tinyint unsigned, col12 smallint unsigned, col13 int unsigned, col14 bigint unsigned) tags(loc nchar(20))''')
-        tdSql.execute("create table test1 using test tags('beijing')")
-        tdSql.execute("insert into test1(ts) values(%d)" % (self.ts - 1))
-
-        # first verifacation        
-        # bug TD-15957 
-        tdSql.query("select first(*) from test1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, None)
         
-
-        tdSql.query("select first(col1) from test1")
-        tdSql.checkRows(0)        
-
-        tdSql.query("select first(col2) from test1")
-        tdSql.checkRows(0)
-
-        tdSql.query("select first(col3) from test1")
-        tdSql.checkRows(0)
-
-        tdSql.query("select first(col4) from test1")
-        tdSql.checkRows(0)
-
-        tdSql.query("select first(col11) from test1")
-        tdSql.checkRows(0)        
-
-        tdSql.query("select first(col12) from test1")
-        tdSql.checkRows(0)
-
-        tdSql.query("select first(col13) from test1")
-        tdSql.checkRows(0)
-
-        tdSql.query("select first(col14) from test1")
-        tdSql.checkRows(0)
-
-        tdSql.query("select first(col5) from test1")
-        tdSql.checkRows(0)
-
-        tdSql.query("select first(col6) from test1")
-        tdSql.checkRows(0)
-
-        tdSql.query("select first(col7) from test1")
-        tdSql.checkRows(0)
-
-        tdSql.query("select first(col8) from test1")
-        tdSql.checkRows(0)
-
-        tdSql.query("select first(col9) from test1")
-        tdSql.checkRows(0)
-
-        for i in range(self.rowNum):
-            tdSql.execute("insert into test1 values(%d, %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d', %d, %d, %d, %d)" 
-                        % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1))            
-
-        tdSql.query("select first(*) from test1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, 1)
-
-        tdSql.query("select first(col1) from test1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1)
-
-        tdSql.query("select first(col2) from test1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1)
-
-        tdSql.query("select first(col3) from test1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1)
-
-        tdSql.query("select first(col4) from test1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1)
-
-        tdSql.query("select first(col11) from test1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1)
-
-        tdSql.query("select first(col12) from test1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1)
-
-        tdSql.query("select first(col13) from test1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1)
-
-        tdSql.query("select first(col14) from test1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1)
-
-        tdSql.query("select first(col5) from test1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 0.1)
-
-        tdSql.query("select first(col6) from test1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 0.1)
-
-        tdSql.query("select first(col7) from test1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, False)
-
-        tdSql.query("select first(col8) from test1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 'taosdata1')
-
-        tdSql.query("select first(col9) from test1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, '涛思数据1')
-        
-        
-        tdSql.query("select first(*),last(*) from test1 where ts < 23 interval(1s)")
-        tdSql.checkRows(0)
                 
     def stop(self):
         tdSql.close()
