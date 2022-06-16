@@ -110,30 +110,28 @@ int32_t     metaTbCursorNext(SMTbCursor *pTbCur);
 
 // tsdb
 // typedef struct STsdb STsdb;
-typedef void *tsdbReaderT;
+typedef void *STsdbReader;
 
 #define BLOCK_LOAD_OFFSET_SEQ_ORDER 1
 #define BLOCK_LOAD_TABLE_SEQ_ORDER  2
 #define BLOCK_LOAD_TABLE_RR_ORDER   3
 
-tsdbReaderT *tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, STableListInfo *tableInfoGroup, uint64_t qId,
+STsdbReader *tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, STableListInfo *tableInfoGroup, uint64_t qId,
                             uint64_t taskId);
-tsdbReaderT  tsdbQueryCacheLast(SVnode *pVnode, SQueryTableDataCond *pCond, STableListInfo *groupList, uint64_t qId,
-                                void *pMemRef);
-int32_t      tsdbGetFileBlocksDistInfo(tsdbReaderT *pReader, STableBlockDistInfo *pTableBlockInfo);
-bool         isTsdbCacheLastRow(tsdbReaderT *pReader);
+int32_t      tsdbGetFileBlocksDistInfo(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
+bool         isTsdbCacheLastRow(STsdbReader *pReader);
 int32_t      tsdbGetAllTableList(SMeta *pMeta, uint64_t uid, SArray *list);
 int32_t      tsdbGetCtbIdList(SMeta *pMeta, int64_t suid, SArray *list);
 void        *tsdbGetIdx(SMeta *pMeta);
 void        *tsdbGetIvtIdx(SMeta *pMeta);
-int64_t      tsdbGetNumOfRowsInMemTable(tsdbReaderT *pHandle);
+int64_t      tsdbGetNumOfRowsInMemTable(STsdbReader *pHandle);
 
-bool    tsdbNextDataBlock(tsdbReaderT pTsdbReadHandle);
-void    tsdbRetrieveDataBlockInfo(tsdbReaderT *pTsdbReadHandle, SDataBlockInfo *pBlockInfo);
-int32_t tsdbRetrieveDataBlockStatisInfo(tsdbReaderT *pTsdbReadHandle, SColumnDataAgg ***pBlockStatis, bool *allHave);
-SArray *tsdbRetrieveDataBlock(tsdbReaderT *pTsdbReadHandle, SArray *pColumnIdList);
-void    tsdbResetReadHandle(tsdbReaderT queryHandle, SQueryTableDataCond *pCond, int32_t tWinIdx);
-void    tsdbCleanupReadHandle(tsdbReaderT queryHandle);
+bool    tsdbNextDataBlock(STsdbReader pTsdbReadHandle);
+void    tsdbRetrieveDataBlockInfo(STsdbReader *pTsdbReadHandle, SDataBlockInfo *pBlockInfo);
+int32_t tsdbRetrieveDataBlockStatisInfo(STsdbReader *pTsdbReadHandle, SColumnDataAgg ***pBlockStatis, bool *allHave);
+SArray *tsdbRetrieveDataBlock(STsdbReader *pTsdbReadHandle, SArray *pColumnIdList);
+void    tsdbResetReadHandle(STsdbReader queryHandle, SQueryTableDataCond *pCond, int32_t tWinIdx);
+void    tsdbCleanupReadHandle(STsdbReader queryHandle);
 
 // tq
 

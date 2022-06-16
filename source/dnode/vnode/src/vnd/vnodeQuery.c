@@ -149,12 +149,3 @@ void vnodeGetInfo(SVnode *pVnode, const char **dbname, int32_t *vgId) {
     *vgId = TD_VID(pVnode);
   }
 }
-
-// wrapper of tsdb read interface
-tsdbReaderT tsdbQueryCacheLast(SVnode *pVnode, SQueryTableDataCond *pCond, STableListInfo* tableList, uint64_t qId,
-                               void *pMemRef) {
-#if 0
-  return tsdbQueryCacheLastT(pVnode->pTsdb, pCond, groupList, qId, pMemRef);
-#endif
-  return 0;
-}
