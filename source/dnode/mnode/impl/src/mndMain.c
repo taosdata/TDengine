@@ -397,7 +397,7 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
 
   char  logBuf[512] = {0};
   char *syncNodeStr = sync2SimpleStr(pMgmt->sync);
-  snprintf(logBuf, sizeof(logBuf), "==vnodeProcessSyncReq== msgType:%d, syncNode: %s", pMsg->msgType, syncNodeStr);
+  snprintf(logBuf, sizeof(logBuf), "==mndProcessSyncMsg== msgType:%d, syncNode: %s", pMsg->msgType, syncNodeStr);
   static int64_t mndTick = 0;
   if (++mndTick % 10 == 1) {
     mTrace("sync trace msg:%s, %s", TMSG_INFO(pMsg->msgType), syncNodeStr);
