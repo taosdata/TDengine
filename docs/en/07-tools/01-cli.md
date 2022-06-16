@@ -11,7 +11,7 @@ The TDengine command-line interface (hereafter referred to as `TDengine CLI`) is
 
 ## Installation
 
-To run TDengine CLI to access TDengine cloud, please install [TDengine client installation package](https://www.taosdata.com/assets-download/TDengine-client-2.6.0.4-Linux-x64.tar.gz) first.
+To run TDengine CLI to access TDengine cloud, please install [TDengine client installation package](http://cloud.tdengine.com/download/TDengine-client-2.6.0.4-Linux-x64.tar.gz) first.
 
 <Tabs defaultValue="ConfigOnLinux" groupId="sys">
 <TabItem value="ConfigOnLinux" label="Config on Linux">
