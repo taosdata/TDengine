@@ -110,7 +110,7 @@ int32_t     metaTbCursorNext(SMTbCursor *pTbCur);
 
 // tsdb
 // typedef struct STsdb STsdb;
-typedef void *STsdbReader;
+typedef struct STsdbReader STsdbReader;
 
 #define BLOCK_LOAD_OFFSET_SEQ_ORDER 1
 #define BLOCK_LOAD_TABLE_SEQ_ORDER  2
@@ -118,19 +118,19 @@ typedef void *STsdbReader;
 
 STsdbReader *tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, STableListInfo *tableInfoGroup, uint64_t qId,
                             uint64_t taskId);
+bool         tsdbNextDataBlock(STsdbReader *pReader);
+void         tsdbRetrieveDataBlockInfo(STsdbReader *pReader, SDataBlockInfo *pDataBlockInfo);
+int32_t      tsdbRetrieveDataBlockStatisInfo(STsdbReader *pReader, SColumnDataAgg ***pBlockStatis, bool *allHave);
+SArray      *tsdbRetrieveDataBlock(STsdbReader *pTsdbReadHandle, SArray *pColumnIdList);
+void         tsdbResetReadHandle(STsdbReader *pReader, SQueryTableDataCond *pCond, int32_t tWinIdx);
+void         tsdbCleanupReadHandle(STsdbReader *pReader);
 int32_t      tsdbGetFileBlocksDistInfo(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
-int32_t      tsdbGetAllTableList(SMeta *pMeta, uint64_t uid, SArray *list);
-int32_t      tsdbGetCtbIdList(SMeta *pMeta, int64_t suid, SArray *list);
-void        *tsdbGetIdx(SMeta *pMeta);
-void        *tsdbGetIvtIdx(SMeta *pMeta);
 int64_t      tsdbGetNumOfRowsInMemTable(STsdbReader *pHandle);
 
-bool    tsdbNextDataBlock(STsdbReader pTsdbReadHandle);
-void    tsdbRetrieveDataBlockInfo(STsdbReader *pTsdbReadHandle, SDataBlockInfo *pBlockInfo);
-int32_t tsdbRetrieveDataBlockStatisInfo(STsdbReader *pTsdbReadHandle, SColumnDataAgg ***pBlockStatis, bool *allHave);
-SArray *tsdbRetrieveDataBlock(STsdbReader *pTsdbReadHandle, SArray *pColumnIdList);
-void    tsdbResetReadHandle(STsdbReader queryHandle, SQueryTableDataCond *pCond, int32_t tWinIdx);
-void    tsdbCleanupReadHandle(STsdbReader queryHandle);
+int32_t tsdbGetAllTableList(SMeta *pMeta, uint64_t uid, SArray *list);
+int32_t tsdbGetCtbIdList(SMeta *pMeta, int64_t suid, SArray *list);
+void   *tsdbGetIdx(SMeta *pMeta);
+void   *tsdbGetIvtIdx(SMeta *pMeta);
 
 // tq
 
