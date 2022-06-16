@@ -442,7 +442,7 @@ int transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_
     }
   }
 
-  tTrace("timer %p put task into queue, timeoutMs: %" PRIu64 "", queue->timer, timeoutMs);
+  tTrace("timer %p put task into delay queue, timeoutMs: %" PRIu64 "", queue->timer, timeoutMs);
   heapInsert(queue->heap, &task->node);
   uv_timer_start(queue->timer, transDQTimeout, timeoutMs, 0);
   return 0;
@@ -453,11 +453,17 @@ void transPrintEpSet(SEpSet* pEpSet) {
     tTrace("NULL epset");
     return;
   }
-  tTrace("epset begin  inUse: %d", pEpSet->inUse);
+  char buf[512] = {0};
+  int  len = snprintf(buf, sizeof(buf), "epset { ");
   for (int i = 0; i < pEpSet->numOfEps; i++) {
-    tTrace("ip: %s, port: %d", pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
+    if (i == pEpSet->numOfEps - 1) {
+      len += snprintf(buf + len, sizeof(buf) - len, "%d. %s:%d ", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
+    } else {
+      len += snprintf(buf + len, sizeof(buf) - len, "%d. %s:%d, ", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
+    }
   }
-  tTrace("epset end");
+  len += snprintf(buf + len, sizeof(buf) - len, "}");
+  tTrace("%s, inUse: %d", buf, pEpSet->inUse);
 }
 bool transEpSetIsEqual(SEpSet* a, SEpSet* b) {
   if (a->numOfEps != b->numOfEps || a->inUse != b->inUse) {
