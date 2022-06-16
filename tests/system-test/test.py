@@ -13,7 +13,6 @@
 # pip install src/connector/python/
 
 # -*- coding: utf-8 -*-
-from ast import If
 import sys
 import getopt
 import subprocess
