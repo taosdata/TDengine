@@ -250,9 +250,26 @@ class TDTestCase:
         # wait db ready
         while 1:
             tdSql.query("show databases")
-            if tdSql.getRows() == 4: 
-                print (tdSql.getData(0,0), tdSql.getData(1,0),tdSql.getData(2,0),)           
-                break
+            if tdSql.getRows() == 4:
+                print ('==================================================')
+                print (tdSql.getData(0,0), tdSql.getData(1,0),tdSql.getData(2,0))   
+                index = 0
+                if tdSql.getData(0,0) == parameterDict['dbName']:
+                    index = 0
+                elif tdSql.getData(1,0) == parameterDict['dbName']:
+                    index = 1
+                elif tdSql.getData(2,0) == parameterDict['dbName']:
+                    index = 2
+                elif tdSql.getData(3,0) == parameterDict['dbName']:
+                    index = 3
+                else:
+                    continue
+                
+                if tdSql.getData(index,19) == 'ready':
+                    print("******************** index: %d"%index)
+                    break
+
+                continue
             else:
                 time.sleep(1)
         
@@ -378,8 +395,27 @@ class TDTestCase:
         while 1:
             tdSql.query("show databases")
             if tdSql.getRows() == 5: 
-                print (tdSql.getData(0,0), tdSql.getData(1,0),tdSql.getData(2,0),)           
-                break
+                print ('==================================================')
+                print (tdSql.getData(0,0), tdSql.getData(1,0),tdSql.getData(2,0),tdSql.getData(3,0),tdSql.getData(4,0))   
+                index = 0
+                if tdSql.getData(0,0) == parameterDict['dbName']:
+                    index = 0
+                elif tdSql.getData(1,0) == parameterDict['dbName']:
+                    index = 1
+                elif tdSql.getData(2,0) == parameterDict['dbName']:
+                    index = 2
+                elif tdSql.getData(3,0) == parameterDict['dbName']:
+                    index = 3
+                elif tdSql.getData(4,0) == parameterDict['dbName']:
+                    index = 4
+                else:
+                    continue
+                
+                if tdSql.getData(index,19) == 'ready':
+                    print("******************** index: %d"%index)
+                    break
+
+                continue
             else:
                 time.sleep(1)
         
