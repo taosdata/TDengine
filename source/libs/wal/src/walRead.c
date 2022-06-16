@@ -125,7 +125,7 @@ static int32_t walReadSeekVer(SWalReadHandle *pRead, int64_t ver) {
   }
   if (ver > pWal->vers.lastVer || ver < pWal->vers.firstVer) {
     wError("invalid version: % " PRId64 ", first ver %ld, last ver %ld", ver, pWal->vers.firstVer, pWal->vers.lastVer);
-    terrno = TSDB_CODE_WAL_INVALID_VER;
+    terrno = TSDB_CODE_WAL_LOG_NOT_EXIST;
     return -1;
   }
   if (ver < pWal->vers.snapshotVer) {

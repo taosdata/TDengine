@@ -135,6 +135,8 @@ typedef enum _mgmt_table {
 #define TSDB_ALTER_USER_REMOVE_WRITE_DB 0x6
 #define TSDB_ALTER_USER_ADD_ALL_DB      0x7
 #define TSDB_ALTER_USER_REMOVE_ALL_DB   0x8
+#define TSDB_ALTER_USER_ENABLE          0x9
+#define TSDB_ALTER_USER_SYSINFO         0xA
 
 #define TSDB_ALTER_USER_PRIVILEGES 0x2
 
@@ -534,6 +536,8 @@ int32_t tDeserializeSDropUserReq(void* buf, int32_t bufLen, SDropUserReq* pReq);
 typedef struct {
   int8_t createType;
   int8_t superUser;  // denote if it is a super user or not
+  int8_t sysInfo;
+  int8_t enable;
   char   user[TSDB_USER_LEN];
   char   pass[TSDB_USET_PASSWORD_LEN];
 } SCreateUserReq;
@@ -544,6 +548,8 @@ int32_t tDeserializeSCreateUserReq(void* buf, int32_t bufLen, SCreateUserReq* pR
 typedef struct {
   int8_t alterType;
   int8_t superUser;
+  int8_t sysInfo;
+  int8_t enable;
   char   user[TSDB_USER_LEN];
   char   pass[TSDB_USET_PASSWORD_LEN];
   char   dbname[TSDB_DB_FNAME_LEN];
@@ -563,6 +569,9 @@ typedef struct {
   char      user[TSDB_USER_LEN];
   int32_t   version;
   int8_t    superAuth;
+  int8_t    sysInfo;
+  int8_t    enable;
+  int8_t    reserve;
   SHashObj* createdDbs;
   SHashObj* readDbs;
   SHashObj* writeDbs;
@@ -1992,16 +2001,17 @@ typedef struct {
 
 typedef struct {
   int64_t tid;
-  int32_t status;
+  char    status[TSDB_JOB_STATUS_LEN];
 } SQuerySubDesc;
 
 typedef struct {
   char     sql[TSDB_SHOW_SQL_LEN];
   uint64_t queryId;
   int64_t  useconds;
-  int64_t  stime;
+  int64_t  stime;            // timestamp precision ms
   int64_t  reqRid;
   int32_t  pid;
+  bool     stableQuery;
   char     fqdn[TSDB_FQDN_LEN];
   int32_t  subPlanNum;
   SArray*  subDesc;  // SArray<SQuerySubDesc>
@@ -2245,6 +2255,25 @@ typedef struct {
 typedef struct {
   int8_t reserved;
 } SMqVDeleteRsp;
+
+typedef struct {
+  char    name[TSDB_STREAM_FNAME_LEN];
+  int64_t streamId;
+} SMDropStreamTaskReq;
+
+typedef struct {
+  int8_t reserved;
+} SMDropStreamTaskRsp;
+
+typedef struct {
+  SMsgHead head;
+  int64_t  leftForVer;
+  int32_t  taskId;
+} SVDropStreamTaskReq;
+
+typedef struct {
+  int8_t reserved;
+} SVDropStreamTaskRsp;
 
 typedef struct {
   int64_t leftForVer;
