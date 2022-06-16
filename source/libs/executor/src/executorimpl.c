@@ -4519,7 +4519,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
 
       int32_t code = extractTableSchemaVersion(pHandle, pTableScanNode->scan.uid, pTaskInfo);
       if (code) {
-        tsdbCleanupReadHandle(pDataReader);
+        tsdbReaderClose(pDataReader);
         pTaskInfo->code = terrno;
         return NULL;
       }
@@ -4528,7 +4528,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       code = generateGroupIdMap(pTableListInfo, pHandle, groupKeys);  // todo for json
       taosArrayDestroy(groupKeys);
       if (code) {
-        tsdbCleanupReadHandle(pDataReader);
+        tsdbReaderClose(pDataReader);
         pTaskInfo->code = terrno;
         return NULL;
       }
@@ -4575,7 +4575,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       int32_t code = generateGroupIdMap(pTableListInfo, pHandle, groupKeys);  // todo for json
       taosArrayDestroy(groupKeys);
       if (code) {
-        tsdbCleanupReadHandle(pDataReader);
+        tsdbReaderClose(pDataReader);
         return NULL;
       }
 
@@ -4900,8 +4900,8 @@ SArray* extractColumnInfo(SNodeList* pNodeList) {
 }
 
 SArray* extractPartitionColInfo(SNodeList* pNodeList) {
-  if(!pNodeList) {
-      return NULL;
+  if (!pNodeList) {
+    return NULL;
   }
 
   size_t  numOfCols = LIST_LENGTH(pNodeList);

@@ -118,12 +118,12 @@ typedef struct STsdbReader STsdbReader;
 
 int32_t tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, STableListInfo *tableInfoGroup, uint64_t qId,
                        uint64_t taskId, STsdbReader **ppReader);
+void    tsdbReaderClose(STsdbReader *pReader);
 bool    tsdbNextDataBlock(STsdbReader *pReader);
 void    tsdbRetrieveDataBlockInfo(STsdbReader *pReader, SDataBlockInfo *pDataBlockInfo);
 int32_t tsdbRetrieveDataBlockStatisInfo(STsdbReader *pReader, SColumnDataAgg ***pBlockStatis, bool *allHave);
 SArray *tsdbRetrieveDataBlock(STsdbReader *pTsdbReadHandle, SArray *pColumnIdList);
 void    tsdbResetReadHandle(STsdbReader *pReader, SQueryTableDataCond *pCond, int32_t tWinIdx);
-void    tsdbCleanupReadHandle(STsdbReader *pReader);
 int32_t tsdbGetFileBlocksDistInfo(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
 int64_t tsdbGetNumOfRowsInMemTable(STsdbReader *pHandle);
 

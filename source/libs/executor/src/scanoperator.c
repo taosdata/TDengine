@@ -522,7 +522,7 @@ static void destroyTableScanOperatorInfo(void* param, int32_t numOfOutput) {
   blockDataDestroy(pTableScanInfo->pResBlock);
   clearupQueryTableDataCond(&pTableScanInfo->cond);
 
-  tsdbCleanupReadHandle(pTableScanInfo->dataReader);
+  tsdbReaderClose(pTableScanInfo->dataReader);
 
   if (pTableScanInfo->pColMatchInfo != NULL) {
     taosArrayDestroy(pTableScanInfo->pColMatchInfo);
@@ -2222,7 +2222,7 @@ void destroyTableMergeScanOperatorInfo(void* param, int32_t numOfOutput) {
 
   for (int32_t i = 0; i < taosArrayGetSize(pTableScanInfo->dataReaders); ++i) {
     STsdbReader* reader = taosArrayGetP(pTableScanInfo->dataReaders, i);
-    tsdbCleanupReadHandle(reader);
+    tsdbReaderClose(reader);
   }
   taosArrayDestroy(pTableScanInfo->dataReaders);
 
