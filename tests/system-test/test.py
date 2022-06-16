@@ -41,6 +41,7 @@ def checkRunTimeError():
             os.system("TASKKILL /F /IM taosd.exe")
             os.system("TASKKILL /F /IM taos.exe")
             os.system("TASKKILL /F /IM tmq_sim.exe")
+            os.system("TASKKILL /F /IM mintty.exe")
             quit(0)
         hwnd = win32gui.FindWindow(None, "Microsoft Visual C++ Runtime Library")
         if hwnd:
