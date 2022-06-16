@@ -679,7 +679,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   /*SDbObj     *pDb = NULL;*/
   /*SUserObj   *pUser = NULL;*/
 
-  SMDropStreamTaskReq dropReq = *(SMDropStreamTaskReq *)pReq->pCont;
+  SMDropStreamReq dropReq = *(SMDropStreamReq *)pReq->pCont;
 
   pStream = mndAcquireStream(pMnode, dropReq.name);
 
