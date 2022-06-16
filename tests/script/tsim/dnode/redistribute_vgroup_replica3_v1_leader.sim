@@ -4,6 +4,11 @@ system sh/deploy.sh -n dnode2 -i 2
 system sh/deploy.sh -n dnode3 -i 3
 system sh/deploy.sh -n dnode4 -i 4
 system sh/deploy.sh -n dnode5 -i 5
+system sh/cfg.sh -n dnode1 -c transPullupInterval -v 1
+system sh/cfg.sh -n dnode2 -c transPullupInterval -v 1
+system sh/cfg.sh -n dnode3 -c transPullupInterval -v 1
+system sh/cfg.sh -n dnode4 -c transPullupInterval -v 1
+system sh/cfg.sh -n dnode5 -c transPullupInterval -v 1
 system sh/cfg.sh -n dnode1 -c supportVnodes -v 0
 system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode2 -s start
@@ -128,9 +133,9 @@ if $rows != 1 then
 endi
 if $data(2)[4] == leader then
   $leaderExist = 1
-  $leaderVnode = 4
-  $follower1 = 2
-  $follower2 = 3
+  $leaderVnode = 2
+  $follower1 = 3
+  $follower2 = 4
 endi
 if $data(2)[6] == leader then
   $leaderExist = 1
@@ -140,9 +145,9 @@ if $data(2)[6] == leader then
 endi
 if $data(2)[8] == leader then
   $leaderExist = 1
-  $leaderVnode = 2
-  $follower1 = 3
-  $follower2 = 4
+  $leaderVnode = 4
+  $follower1 = 2
+  $follower2 = 3
 endi
 if  $leaderExist != 1 then
   goto step3
@@ -160,110 +165,22 @@ if $rows != 1 then
   return -1
 endi
 
-<<<<<<< HEAD
-print =============== step32: move follower2
-print redistribute vgroup 2 dnode $leaderVnode dnode $follower2 dnode 5 
-sql redistribute vgroup 2 dnode $leaderVnode dnode $follower2 dnode 5 
-<<<<<<< HEAD:tests/script/tsim/dnode/redistribute_vgroup_replica3_v1_leader.sim
-=======
-sql show d1.vgroups
-print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
-
->>>>>>> origin/3.0:tests/script/tsim/dnode/redistribute_vgroup_replica3_v1_follower.sim
-=======
 print =============== step32: move leader
 print redistribute vgroup 2 dnode $follower1 dnode $follower2 dnode 5 
 sql redistribute vgroup 2 dnode $follower1 dnode $follower2 dnode 5 
 sql show d1.vgroups
 print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
 
->>>>>>> origin/3.0
 sql show d1.tables
 if $rows != 1 then
   return -1
 endi
 
-<<<<<<< HEAD
+return 
+
 print =============== step33: move follower1
-print redistribute vgroup 2 dnode $leaderVnode dnode $follower1 dnode 5 
-sql redistribute vgroup 2 dnode $leaderVnode dnode $follower1 dnode 5 
-<<<<<<< HEAD:tests/script/tsim/dnode/redistribute_vgroup_replica3_v1_leader.sim
-=======
-sql show d1.vgroups
-print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
-
->>>>>>> origin/3.0:tests/script/tsim/dnode/redistribute_vgroup_replica3_v1_follower.sim
-=======
-print =============== step33: move follower2
-print redistribute vgroup 2 dnode $leaderVnode dnode $follower1 dnode 5 
-sql redistribute vgroup 2 dnode $leaderVnode dnode $follower1 dnode 5 
-sql show d1.vgroups
-print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
-
->>>>>>> origin/3.0
-sql show d1.tables
-if $rows != 1 then
-  return -1
-endi
-
-<<<<<<< HEAD
-print =============== step34: move follower2
-print redistribute vgroup 2 dnode $leaderVnode dnode 5 dnode $follower2
-sql redistribute vgroup 2 dnode $leaderVnode dnode 5 dnode $follower2
-<<<<<<< HEAD:tests/script/tsim/dnode/redistribute_vgroup_replica3_v1_leader.sim
-=======
-sql show d1.vgroups
-print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
-
->>>>>>> origin/3.0:tests/script/tsim/dnode/redistribute_vgroup_replica3_v1_follower.sim
-=======
-print =============== step34: move follower1
-print redistribute vgroup 2 dnode $follower2 dnode 5 dnode $leaderVnode
-sql redistribute vgroup 2 dnode $follower2 dnode 5 dnode $leaderVnode
-sql show d1.vgroups
-print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
-
->>>>>>> origin/3.0
-sql show d1.tables
-if $rows != 1 then
-  return -1
-endi
-
-<<<<<<< HEAD
-print =============== step35: move follower1
-print redistribute vgroup 2 dnode $leaderVnode dnode 5 dnode $follower1
-sql redistribute vgroup 2 dnode $leaderVnode dnode 5 dnode $follower1
-<<<<<<< HEAD:tests/script/tsim/dnode/redistribute_vgroup_replica3_v1_leader.sim
-sql show d1.tables
-if $rows != 1 then
-  return -1
-endi
-=======
-sql show d1.vgroups
-print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
->>>>>>> origin/3.0:tests/script/tsim/dnode/redistribute_vgroup_replica3_v1_follower.sim
-=======
-print =============== step35: move 5
-print redistribute vgroup 2 dnode $leaderVnode dnode $follower1 dnode $follower2
-sql redistribute vgroup 2 dnode $leaderVnode dnode $follower1 dnode $follower2
-sql show d1.vgroups
-print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
->>>>>>> origin/3.0
-
-sql show d1.tables
-if $rows != 1 then
-  return -1
-endi
-
-<<<<<<< HEAD
-print =============== step36: move follower2
 print redistribute vgroup 2 dnode $leaderVnode dnode $follower2 dnode 5 
 sql redistribute vgroup 2 dnode $leaderVnode dnode $follower2 dnode 5 
-=======
-print =============== step36: move follower1
-print redistribute vgroup 2 dnode $follower1 dnode $follower2 dnode 5 
-sql redistribute vgroup 2 dnode $follower1 dnode $follower2 dnode 5 
->>>>>>> origin/3.0
 sql show d1.vgroups
 print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
 
@@ -272,11 +189,40 @@ if $rows != 1 then
   return -1
 endi
 
-<<<<<<< HEAD
-print =============== step37: move follower1
-=======
+print =============== step34: move follower2
+print redistribute vgroup 2 dnode $follower1 dnode 5 dnode $leaderVnode
+sql redistribute vgroup 2 dnode $follower1 dnode 5 dnode $leaderVnode
+sql show d1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+
+sql show d1.tables
+if $rows != 1 then
+  return -1
+endi
+
+print =============== step35: move leader
+print redistribute vgroup 2 dnode $follower2 dnode 5 dnode $follower1
+sql redistribute vgroup 2 dnode $follower2 dnode 5 dnode $follower1
+sql show d1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+
+sql show d1.tables
+if $rows != 1 then
+  return -1
+endi
+
+print =============== step36: move follower1
+print redistribute vgroup 2 dnode $leaderVnode dnode $follower2 dnode 5 
+sql redistribute vgroup 2 dnode $leaderVnode dnode $follower2 dnode 5 
+sql show d1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+
+sql show d1.tables
+if $rows != 1 then
+  return -1
+endi
+
 print =============== step37: move follower2
->>>>>>> origin/3.0
 print redistribute vgroup 2 dnode $leaderVnode dnode $follower1 dnode 5 
 sql redistribute vgroup 2 dnode $leaderVnode dnode $follower1 dnode 5 
 sql show d1.vgroups
@@ -287,17 +233,9 @@ if $rows != 1 then
   return -1
 endi
 
-<<<<<<< HEAD
-<<<<<<< HEAD:tests/script/tsim/dnode/redistribute_vgroup_replica3_v1_leader.sim
-=======
-print =============== step38: move follower2
-print redistribute vgroup 2 dnode $leaderVnode dnode 5 dnode $follower2
-sql redistribute vgroup 2 dnode $leaderVnode dnode 5 dnode $follower2
-=======
 print =============== step38: move leader
 print redistribute vgroup 2 dnode $follower1 dnode 5 dnode $follower2
 sql redistribute vgroup 2 dnode $follower1 dnode 5 dnode $follower2
->>>>>>> origin/3.0
 sql show d1.vgroups
 print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
 
@@ -305,18 +243,10 @@ sql show d1.tables
 if $rows != 1 then
   return -1
 endi
-<<<<<<< HEAD
->>>>>>> origin/3.0:tests/script/tsim/dnode/redistribute_vgroup_replica3_v1_follower.sim
 
 print =============== step39: move follower1
-print redistribute vgroup 2 dnode $leaderVnode dnode 5 dnode $follower1
-sql redistribute vgroup 2 dnode $leaderVnode dnode 5 dnode $follower1
-=======
-
-print =============== step39: move 5
-print redistribute vgroup 2 dnode $leaderVnode dnode $follower2 dnode $follower1
-sql redistribute vgroup 2 dnode $leaderVnode dnode $follower2 dnode $follower1
->>>>>>> origin/3.0
+print redistribute vgroup 2 dnode $leaderVnode dnode 5 dnode $follower2
+sql redistribute vgroup 2 dnode $leaderVnode dnode 5 dnode $follower2
 sql show d1.vgroups
 print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
 

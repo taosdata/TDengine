@@ -28,7 +28,6 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
-#include "mndSma.h"
 #include "tname.h"
 
 #define STB_VER_NUMBER   1
@@ -1271,7 +1270,8 @@ static int32_t mndBuildStbSchemaImp(SDbObj *pDb, SStbObj *pStb, const char *tbNa
   return 0;
 }
 
-static int32_t mndBuildStbSchema(SMnode *pMnode, const char *dbFName, const char *tbName, STableMetaRsp *pRsp, int32_t *smaVer) {
+static int32_t mndBuildStbSchema(SMnode *pMnode, const char *dbFName, const char *tbName, STableMetaRsp *pRsp,
+                                 int32_t *smaVer) {
   char tbFName[TSDB_TABLE_FNAME_LEN] = {0};
   snprintf(tbFName, sizeof(tbFName), "%s.%s", dbFName, tbName);
 
@@ -1672,7 +1672,7 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableVersion *pStbVersions, int32_t
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
-  
+
   for (int32_t i = 0; i < numOfStbs; ++i) {
     SSTableVersion *pStbVersion = &pStbVersions[i];
     pStbVersion->suid = be64toh(pStbVersion->suid);
@@ -1681,7 +1681,7 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableVersion *pStbVersions, int32_t
     pStbVersion->smaVer = ntohl(pStbVersion->smaVer);
 
     STableMetaRsp metaRsp = {0};
-    int32_t smaVer = 0;
+    int32_t       smaVer = 0;
     mDebug("stb:%s.%s, start to retrieve meta", pStbVersion->dbFName, pStbVersion->stbName);
     if (mndBuildStbSchema(pMnode, pStbVersion->dbFName, pStbVersion->stbName, &metaRsp, &smaVer) != 0) {
       metaRsp.numOfColumns = -1;
@@ -1697,15 +1697,15 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableVersion *pStbVersions, int32_t
     }
 
     if (pStbVersion->smaVer && pStbVersion->smaVer != smaVer) {
-      bool exist = false;
-      char tbFName[TSDB_TABLE_FNAME_LEN];
+      bool           exist = false;
+      char           tbFName[TSDB_TABLE_FNAME_LEN];
       STableIndexRsp indexRsp = {0};
       indexRsp.pIndex = taosArrayInit(10, sizeof(STableIndexInfo));
       if (NULL == indexRsp.pIndex) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         return -1;
       }
-      
+
       sprintf(tbFName, "%s.%s", pStbVersion->dbFName, pStbVersion->stbName);
       int32_t code = mndGetTableSma(pMnode, tbFName, &indexRsp, &exist);
       if (code || !exist) {
@@ -1769,16 +1769,23 @@ int32_t mndGetNumOfStbs(SMnode *pMnode, char *dbName, int32_t *pNumOfStbs) {
   return 0;
 }
 
-static void mndExtractTableName(char *tableId, char *name) {
+void mndExtractDbNameFromStbFullName(const char *stbFullName, char *dst) {
+  SName name = {0};
+  tNameFromString(&name, stbFullName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+
+  tNameGetFullDbName(&name, dst);
+}
+
+void mndExtractTbNameFromStbFullName(const char *stbFullName, char *dst, int32_t dstSize) {
   int32_t pos = -1;
   int32_t num = 0;
-  for (pos = 0; tableId[pos] != 0; ++pos) {
-    if (tableId[pos] == TS_PATH_DELIMITER[0]) num++;
+  for (pos = 0; stbFullName[pos] != 0; ++pos) {
+    if (stbFullName[pos] == TS_PATH_DELIMITER[0]) num++;
     if (num == 2) break;
   }
 
   if (num == 2) {
-    strcpy(name, tableId + pos + 1);
+    tstrncpy(dst, stbFullName + pos + 1, dstSize);
   }
 }
 
@@ -1808,7 +1815,7 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
 
     SName name = {0};
     char  stbName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    mndExtractTableName(pStb->name, &stbName[VARSTR_HEADER_SIZE]);
+    mndExtractTbNameFromStbFullName(pStb->name, &stbName[VARSTR_HEADER_SIZE], TSDB_TABLE_NAME_LEN);
     varDataSetLen(stbName, strlen(&stbName[VARSTR_HEADER_SIZE]));
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
