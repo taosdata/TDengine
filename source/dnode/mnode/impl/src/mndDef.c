@@ -19,7 +19,6 @@
 
 int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
   int32_t sz = 0;
-  /*int32_t outputNameSz = 0;*/
   if (tEncodeCStr(pEncoder, pObj->name) < 0) return -1;
   if (tEncodeCStr(pEncoder, pObj->sourceDb) < 0) return -1;
   if (tEncodeCStr(pEncoder, pObj->targetDb) < 0) return -1;
@@ -28,10 +27,12 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
   if (tEncodeI64(pEncoder, pObj->createTime) < 0) return -1;
   if (tEncodeI64(pEncoder, pObj->updateTime) < 0) return -1;
   if (tEncodeI64(pEncoder, pObj->uid) < 0) return -1;
-  if (tEncodeI64(pEncoder, pObj->dbUid) < 0) return -1;
+  if (tEncodeI64(pEncoder, pObj->sourceDbUid) < 0) return -1;
+  if (tEncodeI64(pEncoder, pObj->targetDbUid) < 0) return -1;
   if (tEncodeI32(pEncoder, pObj->version) < 0) return -1;
+  if (tEncodeI32(pEncoder, pObj->vgNum) < 0) return -1;
+  if (tEncodeI8(pEncoder, pObj->dropPolicy) < 0) return -1;
   if (tEncodeI8(pEncoder, pObj->status) < 0) return -1;
-  if (tEncodeI8(pEncoder, pObj->createdBy) < 0) return -1;
   if (tEncodeI8(pEncoder, pObj->trigger) < 0) return -1;
   if (tEncodeI64(pEncoder, pObj->triggerParam) < 0) return -1;
   if (tEncodeI64(pEncoder, pObj->watermark) < 0) return -1;
@@ -57,17 +58,6 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
   }
 
   if (tEncodeSSchemaWrapper(pEncoder, &pObj->outputSchema) < 0) return -1;
-
-#if 0
-  if (pObj->ColAlias != NULL) {
-    outputNameSz = taosArrayGetSize(pObj->ColAlias);
-  }
-  if (tEncodeI32(pEncoder, outputNameSz) < 0) return -1;
-  for (int32_t i = 0; i < outputNameSz; i++) {
-    char *name = taosArrayGetP(pObj->ColAlias, i);
-    if (tEncodeCStr(pEncoder, name) < 0) return -1;
-  }
-#endif
   return pEncoder->pos;
 }
 
@@ -80,10 +70,12 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj) {
   if (tDecodeI64(pDecoder, &pObj->createTime) < 0) return -1;
   if (tDecodeI64(pDecoder, &pObj->updateTime) < 0) return -1;
   if (tDecodeI64(pDecoder, &pObj->uid) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pObj->dbUid) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pObj->sourceDbUid) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pObj->targetDbUid) < 0) return -1;
   if (tDecodeI32(pDecoder, &pObj->version) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pObj->vgNum) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pObj->dropPolicy) < 0) return -1;
   if (tDecodeI8(pDecoder, &pObj->status) < 0) return -1;
-  if (tDecodeI8(pDecoder, &pObj->createdBy) < 0) return -1;
   if (tDecodeI8(pDecoder, &pObj->trigger) < 0) return -1;
   if (tDecodeI64(pDecoder, &pObj->triggerParam) < 0) return -1;
   if (tDecodeI64(pDecoder, &pObj->watermark) < 0) return -1;
@@ -112,21 +104,6 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj) {
   }
 
   if (tDecodeSSchemaWrapper(pDecoder, &pObj->outputSchema) < 0) return -1;
-#if 0
-  int32_t outputNameSz;
-  if (tDecodeI32(pDecoder, &outputNameSz) < 0) return -1;
-  if (outputNameSz != 0) {
-    pObj->ColAlias = taosArrayInit(outputNameSz, sizeof(void *));
-    if (pObj->ColAlias == NULL) {
-      return -1;
-    }
-  }
-  for (int32_t i = 0; i < outputNameSz; i++) {
-    char *name;
-    if (tDecodeCStrAlloc(pDecoder, &name) < 0) return -1;
-    taosArrayPush(pObj->ColAlias, &name);
-  }
-#endif
   return 0;
 }
 

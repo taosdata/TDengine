@@ -520,6 +520,7 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   memcpy(smaObj.db, pDb->name, TSDB_DB_FNAME_LEN);
   smaObj.createdTime = taosGetTimestampMs();
   smaObj.uid = mndGenerateUid(pCreate->name, TSDB_TABLE_FNAME_LEN);
+  ASSERT(smaObj.uid != 0);
   char resultTbName[TSDB_TABLE_FNAME_LEN + 16] = {0};
   snprintf(resultTbName, TSDB_TABLE_FNAME_LEN + 16, "td.tsma.rst.tb.%s", pCreate->name);
   memcpy(smaObj.dstTbName, resultTbName, TSDB_TABLE_FNAME_LEN);
@@ -556,10 +557,9 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   streamObj.createTime = taosGetTimestampMs();
   streamObj.updateTime = streamObj.createTime;
   streamObj.uid = mndGenerateUid(pCreate->name, strlen(pCreate->name));
-  streamObj.dbUid = pDb->uid;
+  streamObj.sourceDbUid = pDb->uid;
   streamObj.version = 1;
   streamObj.sql = pCreate->sql;
-  streamObj.createdBy = STREAM_CREATED_BY__SMA;
   streamObj.smaId = smaObj.uid;
   streamObj.watermark = 0;
   streamObj.trigger = STREAM_TRIGGER_AT_ONCE;

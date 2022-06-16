@@ -539,27 +539,38 @@ typedef struct {
 } SMqRebOutputObj;
 
 typedef struct {
-  char           name[TSDB_STREAM_FNAME_LEN];
-  char           sourceDb[TSDB_DB_FNAME_LEN];
-  char           targetDb[TSDB_DB_FNAME_LEN];
-  char           targetSTbName[TSDB_TABLE_FNAME_LEN];
-  int64_t        targetStbUid;
-  int64_t        createTime;
-  int64_t        updateTime;
-  int64_t        uid;
-  int64_t        dbUid;
-  int32_t        version;
-  int32_t        vgNum;
-  SRWLatch       lock;
-  int8_t         status;
-  int8_t         createdBy;      // STREAM_CREATED_BY__USER or SMA
-  int32_t        fixedSinkVgId;  // 0 for shuffle
-  SVgObj         fixedSinkVg;
-  int64_t        smaId;  // 0 for unused
-  int8_t         trigger;
-  int64_t        triggerParam;
-  int64_t        watermark;
+  char name[TSDB_STREAM_FNAME_LEN];
+  // ctl
+  SRWLatch lock;
+  // create info
+  int64_t createTime;
+  int64_t updateTime;
+  int32_t version;
+  // TODO remove it
+  int64_t smaId;  // 0 for unused
+  // info
+  int64_t uid;
+  int8_t  status;
+  // TODO remove it
+  int32_t vgNum;
+  // config
+  int8_t  dropPolicy;
+  int8_t  trigger;
+  int64_t triggerParam;
+  int64_t watermark;
+  // source and target
+  int64_t sourceDbUid;
+  int64_t targetDbUid;
+  char    sourceDb[TSDB_DB_FNAME_LEN];
+  char    targetDb[TSDB_DB_FNAME_LEN];
+  char    targetSTbName[TSDB_TABLE_FNAME_LEN];
+  int64_t targetStbUid;
+  // assigned when scheduling
+  int32_t fixedSinkVgId;  // 0 for shuffle
+  SVgObj  fixedSinkVg;
+  // transformation
   char*          sql;
+  char*          ast;
   char*          physicalPlan;
   SArray*        tasks;  // SArray<SArray<SStreamTask>>
   SSchemaWrapper outputSchema;
