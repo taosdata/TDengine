@@ -91,6 +91,9 @@ SShellArguments args = {.host = NULL,
   .cloudPort = 0,
   .cloudHost = NULL,
   .cloud = true,
+  .cloudHost = NULL,
+  .cloudPort = NULL,
+  .cloudToken = NULL,
   };
 
 /*
@@ -130,10 +133,17 @@ int main(int argc, char* argv[]) {
     exit(0);
   }
 
-  if (args.restful || args.cloud) {
-    if (tcpConnect()) {
-      exit(EXIT_FAILURE);
-    }
+  if (args.cloud) {
+      if (parse_cloud_dsn()) {
+          exit(EXIT_FAILURE);
+      }
+      if (tcpConnect(args.cloudHost, atoi(args.cloudPort))) {
+          exit(EXIT_FAILURE);
+      }
+  } else if (args.restful) {
+      if (tcpConnect(args.host, args.port)) {
+          exit(EXIT_FAILURE);
+      }
   }
 
   /* Initialize the shell */

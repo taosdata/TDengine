@@ -1152,18 +1152,39 @@ int taos_base64_encode(unsigned char *source, size_t sourcelen, char *target, si
   return 1;
 }
 
-char *last_strstr(const char *haystack, const char *needle) {
-    if (*needle == '\0')
-        return (char *) haystack;
-
-    char *res = NULL;
-    for (;;) {
-        char *p = strstr(haystack, needle);
-        if (p == NULL) break;
-        res = p;
-        haystack = p + 1;
+int parse_cloud_dsn() {
+    if (args.cloudDsn == NULL) {
+        fprintf(stderr, "Cannot read cloud service info\n");
+        return 1;
+    } else {
+        char *start = strstr(args.cloudDsn, "http://");
+        if (start != NULL) {
+            args.cloudHost = start + strlen("http://");
+        } else {
+            start = strstr(args.cloudDsn, "https://");
+            if (start != NULL) {
+                args.cloudHost = start + strlen("https://");
+            } else {
+                args.cloudHost = args.cloudDsn;
+            }
+        }
+        char *port = strstr(args.cloudHost, ":");
+        if ((port == NULL) || (port + strlen(":")) == NULL) {
+            fprintf(stderr, "Invalid format in TDengine cloud dsn: %s\n", args.cloudDsn);
+            return 1;
+        }
+        char *token = strstr(port + strlen(":"), "?token=");
+        if ((token == NULL) || (token + strlen("?token=")) == NULL ||
+            (strlen(token + strlen("?token=")) == 0)) {
+            fprintf(stderr, "Invalid format in TDengine cloud dsn: %s\n", args.cloudDsn);
+            return -1;
+        }
+        port[0] = '\0';
+        args.cloudPort = port + strlen(":");
+        token[0] = '\0';
+        args.cloudToken = token + strlen("?token=");
     }
-    return res;
+    return 0;
 }
 
 int wsclient_handshake() {
@@ -1180,38 +1201,11 @@ int wsclient_handshake() {
   }
   taos_base64_encode(key_nonce, 16, websocket_key, 256);
   if (args.cloud) {
-    if (args.cloudDsn == NULL) {
-        fprintf(stderr, "Cannot read cloud service info\n");
-        return -1;
-    } else {
-        char* start = strstr(args.cloudDsn, "http://");
-        if (start != NULL) {
-            args.cloudDsn = start + strlen("http://");
-        } else {
-            start = strstr(args.cloudDsn, "https://");
-            if (start != NULL) {
-                args.cloudDsn = start + strlen("https://");
-            }
-        }
-        char* port = strstr(args.cloudDsn, ":");
-        if ((port == NULL) || (port + 1) == NULL) {
-            fprintf(stderr, "Invalid format in TDengine cloud dsn: %s\n", args.cloudDsn);
-            return -1;
-        }
-        port[0] = '\0';
-        char* token = strstr(port+ strlen(":"), "?token=");
-        if ((token == NULL) || (token + strlen("?token=")) == NULL) {
-            fprintf(stderr, "Invalid format in TDengine cloud dsn: %s\n", args.cloudDsn);
-            return -1;
-        }
-        token[0] = '\0';
         snprintf(request_header, 1024,
                  "GET /rest/ws?token=%s HTTP/1.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nHost: "
                  "%s:%s\r\nSec-WebSocket-Key: "
                  "%s\r\nSec-WebSocket-Version: 13\r\n\r\n",
-                 token + strlen("?token="), args.cloudDsn, port + strlen(":"), websocket_key);
-    }
-
+                args.cloudToken, args.cloudHost, args.cloudPort, websocket_key);
   } else {
     snprintf(request_header, 1024,
              "GET /rest/ws HTTP/1.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nHost: %s:%d\r\nSec-WebSocket-Key: "
@@ -1368,9 +1362,9 @@ int wsclient_conn() {
   if (code->valueint == 0) {
     cJSON_Delete(root);
     if (args.cloud) {
-        fprintf(stdout, "Successfully connect to cloud service in restful mode\n");
+        fprintf(stdout, "Successfully connect to %s:%s in restful mode\n\n", args.cloudHost, args.cloudPort);
     } else {
-        fprintf(stdout, "Successfully connect to %s in restful mode\n", args.host);
+        fprintf(stdout, "Successfully connect to %s:%d in restful mode\n\n", args.host, args.port);
     }
 
     return 0;
