@@ -88,9 +88,9 @@ class TDTestCase:
                 # nchar
                 elif i == 13:
                     tdSql.checkData(0, 0, f'{self.nchar_str}1')
-        tdSql.query("select first(*),last(*) from stb where ts < 23 interval(1s)")
-        tdSql.checkRows(0)
-        tdSql.execute('drop database db')
+        # tdSql.query("select first(*),last(*) from stb where ts < 23 interval(1s)")
+        # tdSql.checkRows(0)
+        # tdSql.execute('drop database db')
     def first_check_stb_distribute(self):
         # prepare data for vgroup 4
         dbname = self.get_long_name(length=10, mode="letters")
@@ -159,7 +159,7 @@ class TDTestCase:
         pass
     def run(self):
         self.first_check_base()
-        self.first_check_stb_distribute()
+        # self.first_check_stb_distribute()
         
                 
     def stop(self):
