@@ -609,23 +609,23 @@ void exitShell() {
   exit(EXIT_SUCCESS);
 }
 
-int tcpConnect() {
+int tcpConnect(char* host, int port) {
     struct sockaddr_in serv_addr;
-    if (args.port == 0) {
-        args.port = 6041;
+    if (port == 0) {
+        port = 6041;
     }
-    if (NULL == args.host) {
-        args.host = "localhost";
+    if (NULL == host) {
+        host = "localhost";
     }
 
-    struct hostent *server = gethostbyname(args.host);
+    struct hostent *server = gethostbyname(host);
     if ((server == NULL) || (server->h_addr == NULL)) {
-        fprintf(stderr, "no such host: %s\n", args.host);
+        fprintf(stderr, "no such host: %s\n", host);
         return -1;
     }
     memset(&serv_addr, 0, sizeof(struct sockaddr_in));
     serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(args.port);
+    serv_addr.sin_port = htons(port);
     memcpy(&(serv_addr.sin_addr.s_addr), server->h_addr, server->h_length);
     args.socket = socket(AF_INET, SOCK_STREAM, 0);
     if (args.socket < 0) {

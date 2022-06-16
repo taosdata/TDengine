@@ -70,6 +70,9 @@ typedef struct SShellArguments {
   char* netTestRole;
   char* cloudDsn;
   bool  cloud;
+  char* cloudHost;
+  char* cloudPort;
+  char* cloudToken;
 } SShellArguments;
 
 typedef enum WS_ACTION_TYPE_S { WS_CONN, WS_QUERY, WS_FETCH, WS_FETCH_BLOCK } WS_ACTION_TYPE;
@@ -91,7 +94,6 @@ void shellCheck(TAOS* con, SShellArguments* args);
 void get_history_path(char* history);
 void shellCheck(TAOS* con, SShellArguments* args);
 void cleanup_handler(void* arg);
-char *last_strstr(const char *haystack, const char *needle);
 void exitShell();
 int shellDumpResult(TAOS_RES* con, char* fname, int* error_no, bool printMode);
 void shellGetGrantInfo(void* con);
@@ -100,6 +102,7 @@ int wsclient_handshake();
 int wsclient_conn();
 void wsclient_query(char* command);
 int tcpConnect();
+int parse_cloud_dsn();
 
 /**************** Global variable declarations ****************/
 extern char           PROMPT_HEADER[];
