@@ -83,7 +83,8 @@ class TDTestCase:
         tdSql.query("select count(*) from test.meters where groupid >= 0")
         tdSql.checkData(0, 0, 10000)
 
-        tdSql.query("select count(*) from test.meters where location = 'beijing' or location = 'shanghai'")
+        tdSql.query("select count(*) from test.meters where location = 'San Francisco' or location = 'Los Angles' or location = 'San Diego' or location = 'San Jose' or \
+            location = 'Palo Alto' or location = 'Campbell' or location = 'Mountain View' or location = 'Sunnyvale' or location = 'Santa Clara' or location = 'Cupertino' ")
         tdSql.checkData(0, 0, 10000)
 
     def stop(self):

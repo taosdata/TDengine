@@ -1501,6 +1501,11 @@ int tsParseInsertSql(SSqlObj *pSql) {
         tscInvalidOperationMsg(pInsertParam->msg, "invalid filename", sToken.z);
         goto _clean;
       }
+
+      if (++pInsertParam->numOfFiles > 1) {
+        code = tscInvalidOperationMsg(pInsertParam->msg, "data from multi files is not supported", NULL);
+        goto _clean;
+      }
     } else {
       if (bindedColumns == NULL) {
         STableMeta *pTableMeta = pTableMetaInfo->pTableMeta;

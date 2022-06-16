@@ -1713,7 +1713,8 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
       longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_APP_ERROR);
     }
 
-    doApplyFunctions(pRuntimeEnv, pInfo->binfo.pCtx, &w, j - num, num, tsList, pSDataBlock->info.rows, pOperator->numOfOutput);
+    int32_t offset = QUERY_IS_ASC_QUERY(pQueryAttr) ? j - num : j - 1;
+    doApplyFunctions(pRuntimeEnv, pInfo->binfo.pCtx, &w, offset, num, tsList, pSDataBlock->info.rows, pOperator->numOfOutput);
 
     num = 1;
 
@@ -1733,7 +1734,8 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
       if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
         longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_APP_ERROR);
       }
-      doApplyFunctions(pRuntimeEnv, pInfo->binfo.pCtx, &w, pSDataBlock->info.rows - num, num, tsList, pSDataBlock->info.rows, pOperator->numOfOutput);
+      int32_t offset = QUERY_IS_ASC_QUERY(pQueryAttr) ? pSDataBlock->info.rows - num : pSDataBlock->info.rows - 1;
+      doApplyFunctions(pRuntimeEnv, pInfo->binfo.pCtx, &w, offset, num, tsList, pSDataBlock->info.rows, pOperator->numOfOutput);
     }
   }
 
@@ -2896,7 +2898,7 @@ static bool overlapWithTimeWindow(SQueryAttr* pQueryAttr, SDataBlockInfo* pBlock
   return false;
 }
 
-static int32_t doTSJoinFilter(SQueryRuntimeEnv *pRuntimeEnv, TSKEY key, bool ascQuery) {
+static int32_t doTSJoinFilter(SQueryRuntimeEnv *pRuntimeEnv, TSKEY key, tVariant *pTag, bool ascQuery) {
   STSElem elem = tsBufGetElem(pRuntimeEnv->pTsBuf);
 
 #if defined(_DEBUG_VIEW)
@@ -2904,6 +2906,10 @@ static int32_t doTSJoinFilter(SQueryRuntimeEnv *pRuntimeEnv, TSKEY key, bool asc
          elem.ts, key, elem.tag.i64, pQueryAttr->order.order, pRuntimeEnv->pTsBuf->tsOrder,
          pRuntimeEnv->pTsBuf->cur.order, pRuntimeEnv->pTsBuf->cur.tsIndex);
 #endif
+
+  if (pTag && elem.tag && tVariantCompare(pTag, elem.tag) != 0) {
+    return TS_JOIN_TAG_NOT_EQUALS;
+  }
 
   if (ascQuery) {
     if (key < elem.ts) {
@@ -3031,10 +3037,16 @@ void filterRowsInDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SSingleColumnFilterInf
   if (pRuntimeEnv->pTsBuf != NULL) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, 0);
 
+    tVariant tag = { .nType = -1 };
+
     TSKEY* k = (TSKEY*) pColInfoData->pData;
     for (int32_t i = 0; i < numOfRows; ++i) {
-      int32_t offset = ascQuery? i:(numOfRows - i - 1);
-      int32_t ret = doTSJoinFilter(pRuntimeEnv, k[offset], ascQuery);
+      if (tag.nType == -1) {
+        tVariantAssign(&tag, &pRuntimeEnv->pTsBuf->block.tag);
+      }
+
+      int32_t offset = ascQuery? i : (numOfRows - i - 1);
+      int32_t ret = doTSJoinFilter(pRuntimeEnv, k[offset], &tag, ascQuery);
       if (ret == TS_JOIN_TAG_NOT_EQUALS) {
         break;
       } else if (ret == TS_JOIN_TS_NOT_EQUALS) {
@@ -3044,6 +3056,8 @@ void filterRowsInDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SSingleColumnFilterInf
         assert(ret == TS_JOIN_TS_EQUAL);
         p[offset] = true;
       }
+
+      tVariantAssign(&tag, &pRuntimeEnv->pTsBuf->block.tag);
 
       if (!tsBufNextPos(pRuntimeEnv->pTsBuf)) {
         if (i < (numOfRows - 1)) {
@@ -3077,10 +3091,16 @@ void filterColRowsInDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SSDataBlock* pBlock
    SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, 0);
    p = calloc(numOfRows, sizeof(int8_t));
 
+   tVariant tag = { .nType = -1 };
+
    TSKEY* k = (TSKEY*) pColInfoData->pData;
    for (int32_t i = 0; i < numOfRows; ++i) {
-     int32_t offset = ascQuery? i:(numOfRows - i - 1);
-     int32_t ret = doTSJoinFilter(pRuntimeEnv, k[offset], ascQuery);
+     if (tag.nType == -1) {
+       tVariantAssign(&tag, &pRuntimeEnv->pTsBuf->block.tag);
+     }
+
+     int32_t offset = ascQuery ? i : (numOfRows - i - 1);
+     int32_t ret = doTSJoinFilter(pRuntimeEnv, k[offset], &tag, ascQuery);
      if (ret == TS_JOIN_TAG_NOT_EQUALS) {
        break;
      } else if (ret == TS_JOIN_TS_NOT_EQUALS) {
@@ -3090,6 +3110,8 @@ void filterColRowsInDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SSDataBlock* pBlock
        assert(ret == TS_JOIN_TS_EQUAL);
        p[offset] = true;
      }
+
+     tVariantAssign(&tag, &pRuntimeEnv->pTsBuf->block.tag);
 
      if (!tsBufNextPos(pRuntimeEnv->pTsBuf)) {
        if (i < (numOfRows - 1)) {
@@ -3164,6 +3186,10 @@ void doSetFilterColumnInfo(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFi
 FORCE_INLINE int32_t getColumnDataFromId(void *param, int32_t id, void **data) {
   int32_t numOfCols = ((SColumnDataParam *)param)->numOfCols;
   SArray* pDataBlock = ((SColumnDataParam *)param)->pDataBlock;
+  if (id == INT32_MAX) {
+    *data = pDataBlock;
+    return TSDB_CODE_SUCCESS;
+  }
 
   for (int32_t j = 0; j < numOfCols; ++j) {
     SColumnInfoData* pColInfo = taosArrayGet(pDataBlock, j);

@@ -3347,6 +3347,12 @@ static void col_project_function(SQLFunctionCtx *pCtx) {
     memcpy(pCtx->pOutput, pData, (size_t) numOfRows * pCtx->inputBytes);
   } else {
     // DESC
+    if (pCtx->param[0].i64 == 1) {
+      // only output one row, copy first row to output
+      memcpy(pCtx->pOutput, pData, (size_t)pCtx->inputBytes);
+      return ;
+    }
+
     for(int32_t i = 0; i < pCtx->size; ++i) {
       char* dst = pCtx->pOutput + (pCtx->size - 1 - i) * pCtx->inputBytes;
       char* src = pData + i * pCtx->inputBytes;
