@@ -611,7 +611,8 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
 
         // maybe update lastconfig
         if (pMsg->lastConfigIndex >= SYNC_INDEX_BEGIN) {
-          int32_t oldReplicaNum = pSyncNode->replicaNum;
+          // int32_t  oldReplicaNum = pSyncNode->replicaNum;
+          SSyncCfg oldSyncCfg = pSyncNode->pRaftCfg->cfg;
 
           // update new config myIndex
           SSyncCfg newSyncCfg = pMsg->lastConfig;
@@ -651,8 +652,16 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
 
           // change isStandBy to normal
           if (!isDrop) {
-            char tmpbuf[128];
-            snprintf(tmpbuf, sizeof(tmpbuf), "config change3 from %d to %d", oldReplicaNum, newSyncCfg.replicaNum);
+            char  tmpbuf[512];
+            char *oldStr = syncCfg2Str(&oldSyncCfg);
+            char *newStr = syncCfg2Str(&newSyncCfg);
+            syncUtilJson2Line(oldStr);
+            syncUtilJson2Line(newStr);
+            snprintf(tmpbuf, sizeof(tmpbuf), "config change3 from %d to %d, %s  -->  %s", oldSyncCfg.replicaNum,
+                     newSyncCfg.replicaNum, oldStr, newStr);
+            taosMemoryFree(oldStr);
+            taosMemoryFree(newStr);
+
             if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
               syncNodeBecomeLeader(pSyncNode, tmpbuf);
             } else {

@@ -2180,8 +2180,16 @@ static int32_t syncNodeConfigChange(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftE
 
     // change isStandBy to normal
     if (!isDrop) {
-      char tmpbuf[128];
-      snprintf(tmpbuf, sizeof(tmpbuf), "config change from %d to %d", oldSyncCfg.replicaNum, newSyncCfg.replicaNum);
+      char  tmpbuf[512];
+      char* oldStr = syncCfg2Str(&oldSyncCfg);
+      char* newStr = syncCfg2Str(&newSyncCfg);
+      syncUtilJson2Line(oldStr);
+      syncUtilJson2Line(newStr);
+      snprintf(tmpbuf, sizeof(tmpbuf), "config change from %d to %d, %s  -->  %s", oldSyncCfg.replicaNum,
+               newSyncCfg.replicaNum, oldStr, newStr);
+      taosMemoryFree(oldStr);
+      taosMemoryFree(newStr);
+
       if (ths->state == TAOS_SYNC_STATE_LEADER) {
         syncNodeBecomeLeader(ths, tmpbuf);
       } else {
@@ -2189,8 +2197,16 @@ static int32_t syncNodeConfigChange(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftE
       }
     }
   } else {
-    char tmpbuf[128];
-    snprintf(tmpbuf, sizeof(tmpbuf), "config change2 from %d to %d", oldSyncCfg.replicaNum, newSyncCfg.replicaNum);
+    char  tmpbuf[512];
+    char* oldStr = syncCfg2Str(&oldSyncCfg);
+    char* newStr = syncCfg2Str(&newSyncCfg);
+    syncUtilJson2Line(oldStr);
+    syncUtilJson2Line(newStr);
+    snprintf(tmpbuf, sizeof(tmpbuf), "config change2 from %d to %d, %s  -->  %s", oldSyncCfg.replicaNum,
+             newSyncCfg.replicaNum, oldStr, newStr);
+    taosMemoryFree(oldStr);
+    taosMemoryFree(newStr);
+
     syncNodeBecomeFollower(ths, tmpbuf);
   }
 
