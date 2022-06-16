@@ -28,8 +28,7 @@ class TestDuration(TDCase):
         """
         duration check
         """
-        test_param = "days"
-        test_param_bak = "duration"
+        test_param = "duration"
         get_data = GetJson(self.logger, self.run_log_dir,self.env_setting)
         # default
         default_value = 14400
@@ -37,12 +36,12 @@ class TestDuration(TDCase):
         self.tdSql.execute(f'create database if not exists {dbname}')
         self.tdSql.query('show databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
-        self.tdSql.checkEqual(db_field_kv_dict[test_param_bak], default_value)
+        self.tdSql.checkEqual(db_field_kv_dict[test_param], default_value)
         self.tdSql.query(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
         data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
         # print(data['config']['daysPerFile'])
-        self.tdSql.checkEqual(db_field_kv_dict[test_param_bak],int(data['config']['daysPerFile']))
+        self.tdSql.checkEqual(db_field_kv_dict[test_param],int(data['config']['daysPerFile']))
         self.tdSql.execute(f'drop database {dbname}')
         # param_list
         # without unit
@@ -53,18 +52,18 @@ class TestDuration(TDCase):
             self.tdSql.query('show databases')
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
             if param_value == 1 or param_value == 3650: # days
-                self.tdSql.checkEqual(db_field_kv_dict[test_param_bak], param_value*60*24)
+                self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value*60*24)
             elif param_value == '60m' or param_value == '5256000m': # minutes
-                self.tdSql.checkEqual(db_field_kv_dict[test_param_bak], int(re.sub('\D','',param_value)))
+                self.tdSql.checkEqual(db_field_kv_dict[test_param], int(re.sub('\D','',param_value)))
             elif param_value == '1h' or param_value =='87600h': # hours
-                self.tdSql.checkEqual(db_field_kv_dict[test_param_bak], int(re.sub('\D','',param_value)) * 60)
+                self.tdSql.checkEqual(db_field_kv_dict[test_param], int(re.sub('\D','',param_value)) * 60)
             elif param_value == '1d' or param_value == '3650d':
-                self.tdSql.checkEqual(db_field_kv_dict[test_param_bak], int(re.sub('\D','',param_value)) * 60 *24)
+                self.tdSql.checkEqual(db_field_kv_dict[test_param], int(re.sub('\D','',param_value)) * 60 *24)
             self.tdSql.query(f'show {dbname}.vgroups')
             db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
             data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
             # print(data['config']['daysPerFile'])
-            self.tdSql.checkEqual(db_field_kv_dict[test_param_bak],int(data['config']['daysPerFile']))
+            self.tdSql.checkEqual(db_field_kv_dict[test_param],int(data['config']['daysPerFile']))
             self.tdSql.execute(f'drop database {dbname}')
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
         self.tdSql.error(f'create database if not exists {dbname} {test_param} -1')
