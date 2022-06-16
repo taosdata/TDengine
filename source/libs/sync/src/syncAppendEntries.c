@@ -880,6 +880,40 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
     }
   } while (0);
 
+  // fake match
+  //
+  // condition1:
+  // preIndex <= my commit index
+  //
+  // operation:
+  // match my commit index
+  // no operation on log
+  do {
+    bool condition = (pMsg->term == ths->pRaftStore->currentTerm) && (ths->state == TAOS_SYNC_STATE_FOLLOWER) &&
+                     (pMsg->prevLogIndex <= ths->commitIndex);
+    if (condition) {
+      sTrace("recv SyncAppendEntries, fake match2, msg-prevLogIndex:%ld, my-commitIndex:%ld", pMsg->prevLogIndex,
+             ths->commitIndex);
+
+      // prepare response msg
+      SyncAppendEntriesReply* pReply = syncAppendEntriesReplyBuild(ths->vgId);
+      pReply->srcId = ths->myRaftId;
+      pReply->destId = pMsg->srcId;
+      pReply->term = ths->pRaftStore->currentTerm;
+      pReply->privateTerm = ths->pNewNodeReceiver->privateTerm;
+      pReply->success = true;
+      pReply->matchIndex = ths->commitIndex;
+
+      // send response
+      SRpcMsg rpcMsg;
+      syncAppendEntriesReply2RpcMsg(pReply, &rpcMsg);
+      syncNodeSendMsgById(&pReply->destId, ths, &rpcMsg);
+      syncAppendEntriesReplyDestroy(pReply);
+
+      return ret;
+    }
+  } while (0);
+
   // calculate logOK here, before will coredump, due to fake match
   bool logOK = syncNodeOnAppendEntriesLogOK(ths, pMsg);
 
