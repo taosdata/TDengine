@@ -738,7 +738,11 @@ bool tsortIsNullVal(STupleHandle* pVHandle, int32_t colIndex) {
 
 void* tsortGetValue(STupleHandle* pVHandle, int32_t colIndex) {
   SColumnInfoData* pColInfo = TARRAY_GET_ELEM(pVHandle->pBlock->pDataBlock, colIndex);
-  return colDataGetData(pColInfo, pVHandle->rowIndex);
+  if (pColInfo->pData == NULL) {
+    return NULL;
+  } else {
+    return colDataGetData(pColInfo, pVHandle->rowIndex);
+  }
 }
 
 uint64_t tsortGetGroupId(STupleHandle* pVHandle) {

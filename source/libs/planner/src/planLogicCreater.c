@@ -498,7 +498,7 @@ static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStm
   }
 
   if (pCxt->pPlanCxt->rSmaQuery) {
-    pWindow->filesFactor = pCxt->pPlanCxt->filesFactor;
+    /*pWindow->filesFactor = pCxt->pPlanCxt->filesFactor;*/
   }
 
   if (TSDB_CODE_SUCCESS == code) {

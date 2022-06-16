@@ -161,13 +161,13 @@ typedef struct SRateInfo {
   bool    isIRate;    // true for IRate functions, false for Rate functions
 } SRateInfo;
 
-typedef struct SDerivInfo {
-  double   prevValue;     // previous value
-  TSKEY    prevTs;        // previous timestamp
-  bool     ignoreNegative;// ignore the negative value
-  int64_t  tsWindow;      // time window for derivative
-  bool     valueSet;      // the value has been set already
-} SDerivInfo;
+//typedef struct SDerivInfo {
+//  double   prevValue;     // previous value
+//  TSKEY    prevTs;        // previous timestamp
+//  bool     ignoreNegative;// ignore the negative value
+//  int64_t  tsWindow;      // time window for derivative
+//  bool     valueSet;      // the value has been set already
+//} SDerivInfo;
 
 typedef struct SResPair {
   TSKEY  key;

@@ -2256,6 +2256,25 @@ typedef struct {
 } SMqVDeleteRsp;
 
 typedef struct {
+  char    name[TSDB_STREAM_FNAME_LEN];
+  int64_t streamId;
+} SMDropStreamTaskReq;
+
+typedef struct {
+  int8_t reserved;
+} SMDropStreamTaskRsp;
+
+typedef struct {
+  SMsgHead head;
+  int64_t  leftForVer;
+  int32_t  taskId;
+} SVDropStreamTaskReq;
+
+typedef struct {
+  int8_t reserved;
+} SVDropStreamTaskRsp;
+
+typedef struct {
   int64_t leftForVer;
   int32_t vgId;
   int64_t oldConsumerId;
