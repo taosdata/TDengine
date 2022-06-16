@@ -931,15 +931,15 @@ bool taosCacheIterNext(SCacheIter *pIter) {
   SCacheObj *pCacheObj = pIter->pCacheObj;
 
   if (pIter->index + 1 >= pIter->numOfObj) {
-    if (pIter->entryIndex + 1 >= pCacheObj->capacity) {
-      return false;
-    }
-
     // release the reference for all objects in the snapshot
     for (int32_t i = 0; i < pIter->numOfObj; ++i) {
       char *p = pIter->pCurrent[i]->data;
       taosCacheRelease(pCacheObj, (void **)&p, false);
       pIter->pCurrent[i] = NULL;
+    }   
+
+    if (pIter->entryIndex + 1 >= pCacheObj->capacity) {
+      return false;
     }
 
     while (1) {
