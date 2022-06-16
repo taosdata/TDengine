@@ -13,6 +13,7 @@
 # pip install src/connector/python/
 
 # -*- coding: utf-8 -*-
+from ast import If
 import sys
 import getopt
 import subprocess
@@ -33,8 +34,15 @@ import taos
 
 def checkRunTimeError():
     import win32gui
+    timeCount = 0
     while 1:
         time.sleep(1)
+        timeCount = timeCount + 1
+        if (timeCount>900):
+            os.system("TASKKILL /F /IM taosd.exe")
+            os.system("TASKKILL /F /IM taos.exe")
+            os.system("TASKKILL /F /IM tmq_sim.exe")
+            quit(0)
         hwnd = win32gui.FindWindow(None, "Microsoft Visual C++ Runtime Library")
         if hwnd:
             os.system("TASKKILL /F /IM taosd.exe")
