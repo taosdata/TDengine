@@ -53,19 +53,19 @@ typedef struct SCacheEntry {
   SCacheNode *next;
 } SCacheEntry;
 
-typedef struct STrashElem {
+struct STrashElem {
   struct STrashElem *prev;
   struct STrashElem *next;
   SCacheNode        *pData;
-} STrashElem;
+};
 
-typedef struct SCacheIter {
+struct SCacheIter {
   SCacheObj   *pCacheObj;
   SCacheNode **pCurrent;
   int32_t      entryIndex;
   int32_t      index;
   int32_t      numOfObj;
-} SCacheIter;
+};
 
 /*
  * to accommodate the old data which has the same key value of new one in hashList

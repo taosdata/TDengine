@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "mndShow.h"
 #include "systable.h"
+#include "mndAuth.h"
 
 #define SHOW_STEP_SIZE 100
 
@@ -229,6 +230,8 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   }
 
   mDebug("show:0x%" PRIx64 ", start retrieve data, type:%d", pShow->id, pShow->type);
+
+  // if (mndCheckShowAuth(pMnode, pReq->conn.user, pShow->type) != 0) return -1;
 
   int32_t      numOfCols = pShow->pMeta->numOfColumns;
   SSDataBlock *pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));

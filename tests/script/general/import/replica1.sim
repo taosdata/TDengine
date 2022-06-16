@@ -30,7 +30,7 @@ system sh/exec.sh -n dnode1 -s start
 sleep 2000
 sql connect
 
-sql create database ir1db days 7
+sql create database ir1db duration 7
 sql use ir1db
 sql create table tb(ts timestamp, i bigint)
 
