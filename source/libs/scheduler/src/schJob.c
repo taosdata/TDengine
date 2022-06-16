@@ -1488,13 +1488,15 @@ int32_t schExecJobImpl(SSchedulerReq *pReq, int64_t *job, SQueryResult* pRes, bo
   qDebug("QID:0x%" PRIx64 " job refId 0x%"PRIx64 " started", pReq->pDag->queryId, pJob->refId);
   *job = pJob->refId;
 
+  if (!sync) {
+    pJob->userCb = SCH_EXEC_CB; 
+  }
+
   SCH_ERR_JRET(schLaunchJob(pJob));
 
   if (sync) {
     SCH_JOB_DLOG("will wait for rsp now, job status:%s", SCH_GET_JOB_STATUS_STR(pJob));
     tsem_wait(&pJob->rspSem);
-  } else {
-    pJob->userCb = SCH_EXEC_CB; 
   }
 
   SCH_JOB_DLOG("job exec done, job status:%s, jobId:0x%"PRIx64, SCH_GET_JOB_STATUS_STR(pJob), pJob->refId);
