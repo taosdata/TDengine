@@ -1463,6 +1463,26 @@ int32_t nodesCollectSpecialNodes(SSelectStmt* pSelect, ESqlClause clause, ENodeT
   return TSDB_CODE_SUCCESS;
 }
 
+static EDealRes hasColumn(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    *(bool*)pContext = true;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+bool nodesExprHasColumn(SNode* pNode) {
+  bool hasCol = false;
+  nodesWalkExprPostOrder(pNode, hasColumn, &hasCol);
+  return hasCol;
+}
+
+bool nodesExprsHasColumn(SNodeList* pList) {
+  bool hasCol = false;
+  nodesWalkExprsPostOrder(pList, hasColumn, &hasCol);
+  return hasCol;
+}
+
 char* nodesGetFillModeString(EFillMode mode) {
   switch (mode) {
     case FILL_MODE_NONE:

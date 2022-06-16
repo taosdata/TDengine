@@ -2170,6 +2170,7 @@ static EDealRes rewriteSeletcValueFunc(STranslateContext* pCxt, SNode** pNode) {
   }
   strcpy(pFirst->functionName, "first");
   TSWAP(pFirst->pParameterList, ((SFunctionNode*)*pNode)->pParameterList);
+  strcpy(pFirst->node.aliasName, ((SExprNode*)*pNode)->aliasName);
   nodesDestroyNode(*pNode);
   *pNode = (SNode*)pFirst;
   pCxt->errCode = fmGetFuncInfo(pFirst, pCxt->msgBuf.buf, pCxt->msgBuf.len);
@@ -2184,6 +2185,7 @@ static EDealRes rewriteUniqueFunc(SNode** pNode, void* pContext) {
     if (FUNCTION_TYPE_UNIQUE == pFunc->funcType) {
       SNode* pExpr = nodesListGetNode(pFunc->pParameterList, 0);
       NODES_CLEAR_LIST(pFunc->pParameterList);
+      strcpy(((SExprNode*)pExpr)->aliasName, ((SExprNode*)*pNode)->aliasName);
       nodesDestroyNode(*pNode);
       *pNode = pExpr;
       pCxt->pExpr = pExpr;
@@ -2238,6 +2240,7 @@ static EDealRes rewriteTailFunc(SNode** pNode, void* pContext) {
         pCxt->offset = ((SValueNode*)nodesListGetNode(pFunc->pParameterList, 2))->datum.i;
       }
       SNode* pExpr = nodesListGetNode(pFunc->pParameterList, 0);
+      strcpy(((SExprNode*)pExpr)->aliasName, ((SExprNode*)*pNode)->aliasName);
       NODES_CLEAR_LIST(pFunc->pParameterList);
       nodesDestroyNode(*pNode);
       *pNode = pExpr;
