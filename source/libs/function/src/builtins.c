@@ -997,6 +997,38 @@ static int32_t translateLastRow(SFunctionNode* pFunc, char* pErrBuf, int32_t len
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateDerivative(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (3 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+
+  // param1
+  SNode* pParamNode1 = nodesListGetNode(pFunc->pParameterList, 1);
+  if (QUERY_NODE_VALUE != nodeType(pParamNode1)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  SValueNode* pValue = (SValueNode*)pParamNode1;
+  pValue->notReserved = true;
+
+  if (!IS_NUMERIC_TYPE(colType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  SNode* pParamNode2 = nodesListGetNode(pFunc->pParameterList, 2);
+  SValueNode* pValue2 = (SValueNode*)pParamNode2;
+  pValue2->notReserved = true;
+
+  if (pValue2->datum.i != 0 && pValue2->datum.i != 1) {
+    return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateFirstLast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // first(col_list) will be rewritten as first(col)
   if (1 != LIST_LENGTH(pFunc->pParameterList)) {
@@ -1596,6 +1628,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_AVG,
     .classification = FUNC_MGT_AGG_FUNC,
     .translateFunc = translateInNumOutDou,
+    .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getAvgFuncEnv,
     .initFunc     = avgFunctionSetup,
     .processFunc  = avgFunction,
@@ -1682,7 +1715,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "top",
     .type = FUNCTION_TYPE_TOP,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
     .translateFunc = translateTopBot,
     .getEnvFunc   = getTopBotFuncEnv,
     .initFunc     = topBotFunctionSetup,
@@ -1717,7 +1750,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "bottom",
     .type = FUNCTION_TYPE_BOTTOM,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
     .translateFunc = translateTopBot,
     .getEnvFunc   = getTopBotFuncEnv,
     .initFunc     = topBotFunctionSetup,
@@ -1793,7 +1826,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "elapsed",
     .type = FUNCTION_TYPE_ELAPSED,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_INTERVAL_INTERPO_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
     .dataRequiredFunc = statisDataRequired,
     .translateFunc = translateElapsed,
     .getEnvFunc   = getElapsedFuncEnv,
@@ -1830,6 +1863,26 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = elapsedFinalize,
     .invertFunc   = NULL,
     .combineFunc  = elapsedCombine,
+  },
+  {
+    .name = "interp",
+    .type = FUNCTION_TYPE_INTERP,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_INTERVAL_INTERPO_FUNC,
+    .translateFunc = translateFirstLast,
+    .getEnvFunc    = getSelectivityFuncEnv,
+    .initFunc      = functionSetup,
+    .processFunc   = NULL,
+    .finalizeFunc  = NULL
+  },
+  {
+    .name = "derivative",
+    .type = FUNCTION_TYPE_DERIVATIVE,
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_TIMELINE_FUNC,
+    .translateFunc = translateDerivative,
+    .getEnvFunc   = getDerivativeFuncEnv,
+    .initFunc     = derivativeFuncSetup,
+    .processFunc  = derivativeFunction,
+    .finalizeFunc = functionFinalize
   },
   {
     .name = "last_row",
@@ -1914,8 +1967,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "twa",
     .type = FUNCTION_TYPE_TWA,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_INTERVAL_INTERPO_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
     .translateFunc = translateInNumOutDou,
+    .dataRequiredFunc = statisDataRequired,
     .getEnvFunc    = getTwaFuncEnv,
     .initFunc      = twaFunctionSetup,
     .processFunc   = twaFunction,

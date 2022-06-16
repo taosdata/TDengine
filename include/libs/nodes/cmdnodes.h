@@ -89,6 +89,7 @@ typedef struct STableOptions {
   ENodeType  type;
   char       comment[TSDB_TB_COMMENT_LEN];
   double     filesFactor;
+  int32_t    delay;
   SNodeList* pRollupFuncs;
   int32_t    ttl;
   SNodeList* pSma;
@@ -285,6 +286,11 @@ typedef struct SKillStmt {
   ENodeType type;
   int32_t   targetId;
 } SKillStmt;
+
+typedef struct SKillQueryStmt {
+  ENodeType type;
+  char      queryId[TSDB_QUERY_ID_LEN];
+} SKillQueryStmt;
 
 typedef struct SStreamOptions {
   ENodeType type;

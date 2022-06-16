@@ -170,8 +170,8 @@ static bool stbSplNeedSplit(bool streamQuery, SLogicNode* pNode) {
   switch (nodeType(pNode)) {
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return stbSplIsMultiTbScan(streamQuery, (SScanLogicNode*)pNode);
-    // case QUERY_NODE_LOGIC_PLAN_JOIN:
-    //   return !(((SJoinLogicNode*)pNode)->isSingleTableJoin);
+    case QUERY_NODE_LOGIC_PLAN_JOIN:
+      return !(((SJoinLogicNode*)pNode)->isSingleTableJoin);
     case QUERY_NODE_LOGIC_PLAN_AGG:
       return !stbSplHasGatherExecFunc(((SAggLogicNode*)pNode)->pAggFuncs) && stbSplHasMultiTbScan(streamQuery, pNode);
     case QUERY_NODE_LOGIC_PLAN_WINDOW: {
@@ -392,6 +392,7 @@ static int32_t stbSplSplitIntervalForBatch(SSplitContext* pCxt, SStableSplitInfo
                                      (SNode*)splCreateScanSubplan(pCxt, pPartWindow, SPLIT_FLAG_STABLE_SPLIT));
   }
   pInfo->pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
+  ++(pCxt->groupId);
   return code;
 }
 
@@ -408,6 +409,7 @@ static int32_t stbSplSplitIntervalForStream(SSplitContext* pCxt, SStableSplitInf
                                      (SNode*)splCreateScanSubplan(pCxt, pPartWindow, SPLIT_FLAG_STABLE_SPLIT));
   }
   pInfo->pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
+  ++(pCxt->groupId);
   return code;
 }
 
@@ -496,6 +498,7 @@ static int32_t stbSplSplitAggNode(SSplitContext* pCxt, SStableSplitInfo* pInfo) 
                                      (SNode*)splCreateScanSubplan(pCxt, pPartAgg, SPLIT_FLAG_STABLE_SPLIT));
   }
   pInfo->pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
+  ++(pCxt->groupId);
   return code;
 }
 
@@ -610,6 +613,7 @@ static int32_t stbSplSplitSortNode(SSplitContext* pCxt, SStableSplitInfo* pInfo)
                                      (SNode*)splCreateScanSubplan(pCxt, pPartSort, SPLIT_FLAG_STABLE_SPLIT));
   }
   pInfo->pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
+  ++(pCxt->groupId);
   return code;
 }
 
@@ -619,6 +623,7 @@ static int32_t stbSplSplitScanNode(SSplitContext* pCxt, SStableSplitInfo* pInfo)
     code = nodesListMakeStrictAppend(&pInfo->pSubplan->pChildren,
                                      (SNode*)splCreateScanSubplan(pCxt, pInfo->pSplitNode, SPLIT_FLAG_STABLE_SPLIT));
   }
+  ++(pCxt->groupId);
   return code;
 }
 
@@ -642,6 +647,8 @@ static int32_t stbSplSplitScanNodeForJoin(SSplitContext* pCxt, SLogicSubplan* pS
     code = nodesListMakeStrictAppend(&pSubplan->pChildren,
                                      (SNode*)splCreateScanSubplan(pCxt, (SLogicNode*)pScan, SPLIT_FLAG_STABLE_SPLIT));
   }
+  pScan->scanType = SCAN_TYPE_TABLE_MERGE;
+  ++(pCxt->groupId);
   return code;
 }
 
@@ -703,7 +710,6 @@ static int32_t stableSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
       break;
   }
 
-  ++(pCxt->groupId);
   pCxt->split = true;
   return code;
 }
@@ -988,8 +994,20 @@ static int32_t qnodeSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
   }
   int32_t code = splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pSplitNode, info.pSubplan->subplanType);
   if (TSDB_CODE_SUCCESS == code) {
-    code = nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)splCreateScanSubplan(pCxt, info.pSplitNode, 0));
+    SLogicSubplan* pScanSubplan = splCreateScanSubplan(pCxt, info.pSplitNode, 0);
+    if (NULL != pScanSubplan) {
+      if (NULL != info.pSubplan->pVgroupList) {
+        info.pSubplan->numOfComputeNodes = info.pSubplan->pVgroupList->numOfVgroups;
+        TSWAP(pScanSubplan->pVgroupList, info.pSubplan->pVgroupList);
+      } else {
+        info.pSubplan->numOfComputeNodes = 1;
+      }
+      code = nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)pScanSubplan);
+    } else {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
   }
+  info.pSubplan->subplanType = SUBPLAN_TYPE_COMPUTE;
   ++(pCxt->groupId);
   pCxt->split = true;
   return code;
@@ -1001,8 +1019,7 @@ static const SSplitRule splitRuleSet[] = {
   {.pName = "SingleTableJoinSplit", .splitFunc = singleTableJoinSplit},
   {.pName = "UnionAllSplit",        .splitFunc = unionAllSplit},
   {.pName = "UnionDistinctSplit",   .splitFunc = unionDistinctSplit},
-  {.pName = "SmaIndexSplit",        .splitFunc = smaIndexSplit},
-  {.pName = "QnodeSplit",           .splitFunc = qnodeSplit}
+  {.pName = "SmaIndexSplit",        .splitFunc = smaIndexSplit}
 };
 // clang-format on
 
@@ -1033,7 +1050,7 @@ static int32_t applySplitRule(SPlanContext* pCxt, SLogicSubplan* pSubplan) {
       }
     }
   } while (split);
-  return TSDB_CODE_SUCCESS;
+  return qnodeSplit(&cxt, pSubplan);
 }
 
 static void setVgroupsInfo(SLogicNode* pNode, SLogicSubplan* pSubplan) {

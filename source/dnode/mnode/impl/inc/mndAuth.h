@@ -22,23 +22,42 @@
 extern "C" {
 #endif
 
+typedef enum {
+  MND_OPER_CREATE_USER = 1,
+  MND_OPER_DROP_USER,
+  MND_OPER_ALTER_USER,
+  MND_OPER_CREATE_BNODE,
+  MND_OPER_DROP_BNODE,
+  MND_OPER_CREATE_DNODE,
+  MND_OPER_DROP_DNODE,
+  MND_OPER_CREATE_MNODE,
+  MND_OPER_DROP_MNODE,
+  MND_OPER_CREATE_QNODE,
+  MND_OPER_DROP_QNODE,
+  MND_OPER_CREATE_SNODE,
+  MND_OPER_DROP_SNODE,
+  MND_OPER_REDISTRIBUTE_VGROUP,
+  MND_OPER_SPLIT_VGROUP,
+  MND_OPER_BALANCE_VGROUP,
+  MND_OPER_CREATE_FUNC,
+  MND_OPER_DROP_FUNC,
+  MND_OPER_KILL_TRANS,
+  MND_OPER_CREATE_DB,
+  MND_OPER_ALTER_DB,
+  MND_OPER_DROP_DB,
+  MND_OPER_COMPACT_DB,
+  MND_OPER_USE_DB,
+  MND_OPER_WRITE_DB,
+  MND_OPER_READ_DB,
+} EOperType;
+
 int32_t mndInitAuth(SMnode *pMnode);
 void    mndCleanupAuth(SMnode *pMnode);
 
-int32_t mndCheckCreateUserAuth(SUserObj *pOperUser);
+int32_t mndCheckOperAuth(SMnode *pMnode, const char *user, EOperType operType);
+int32_t mndCheckDbAuth(SMnode *pMnode, const char *user, EOperType operType, SDbObj *pDb);
+int32_t mndCheckShowAuth(SMnode *pMnode, const char *user, int32_t showType);
 int32_t mndCheckAlterUserAuth(SUserObj *pOperUser, SUserObj *pUser, SAlterUserReq *pAlter);
-int32_t mndCheckDropUserAuth(SUserObj *pOperUser);
-
-int32_t mndCheckNodeAuth(SUserObj *pOperUser);
-int32_t mndCheckFuncAuth(SUserObj *pOperUser);
-int32_t mndCheckTransAuth(SUserObj *pOperUser);
-
-int32_t mndCheckCreateDbAuth(SUserObj *pOperUser);
-int32_t mndCheckAlterDropCompactDbAuth(SUserObj *pOperUser, SDbObj *pDb);
-int32_t mndCheckUseDbAuth(SUserObj *pOperUser, SDbObj *pDb);
-
-int32_t mndCheckWriteAuth(SUserObj *pOperUser, SDbObj *pDb);
-int32_t mndCheckReadAuth(SUserObj *pOperUser, SDbObj *pDb);
 
 #ifdef __cplusplus
 }

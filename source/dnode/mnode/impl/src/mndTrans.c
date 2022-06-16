@@ -1347,13 +1347,11 @@ int32_t mndKillTrans(SMnode *pMnode, STrans *pTrans) {
 
   for (int32_t i = 0; i < taosArrayGetSize(pArray); ++i) {
     STransAction *pAction = taosArrayGet(pArray, i);
-    if (pAction->errCode != 0) {
-      mInfo("trans:%d, %s:%d set processed for kill msg received, errCode from %s to success", pTrans->id,
-            mndTransStr(pAction->stage), i, tstrerror(pAction->errCode));
-      pAction->msgSent = 1;
-      pAction->msgReceived = 1;
-      pAction->errCode = 0;
-    }
+    mInfo("trans:%d, %s:%d set processed for kill msg received, errCode from %s to success", pTrans->id,
+          mndTransStr(pAction->stage), i, tstrerror(pAction->errCode));
+    pAction->msgSent = 1;
+    pAction->msgReceived = 1;
+    pAction->errCode = 0;
   }
 
   mndTransExecute(pMnode, pTrans);
@@ -1364,7 +1362,6 @@ static int32_t mndProcessKillTransReq(SRpcMsg *pReq) {
   SMnode       *pMnode = pReq->info.node;
   SKillTransReq killReq = {0};
   int32_t       code = -1;
-  SUserObj     *pUser = NULL;
   STrans       *pTrans = NULL;
 
   if (tDeserializeSKillTransReq(pReq->pCont, pReq->contLen, &killReq) != 0) {
@@ -1374,12 +1371,7 @@ static int32_t mndProcessKillTransReq(SRpcMsg *pReq) {
 
   mInfo("trans:%d, start to kill", killReq.transId);
 
-  pUser = mndAcquireUser(pMnode, pReq->conn.user);
-  if (pUser == NULL) {
-    goto _OVER;
-  }
-
-  if (mndCheckTransAuth(pUser) != 0) {
+  if (mndCheckOperAuth(pMnode, pReq->conn.user, MND_OPER_KILL_TRANS) != 0) {
     goto _OVER;
   }
 
@@ -1395,7 +1387,6 @@ _OVER:
     mError("trans:%d, failed to kill since %s", killReq.transId, terrstr());
   }
 
-  mndReleaseUser(pMnode, pUser);
   mndReleaseTrans(pMnode, pTrans);
   return code;
 }

@@ -210,6 +210,7 @@ static int32_t tSerializeSClientHbReq(SEncoder *pEncoder, const SClientHbReq *pR
         if (tEncodeI64(pEncoder, desc->stime) < 0) return -1;
         if (tEncodeI64(pEncoder, desc->reqRid) < 0) return -1;
         if (tEncodeI32(pEncoder, desc->pid) < 0) return -1;
+        if (tEncodeI8(pEncoder, desc->stableQuery) < 0) return -1;
         if (tEncodeCStr(pEncoder, desc->fqdn) < 0) return -1;
         if (tEncodeI32(pEncoder, desc->subPlanNum) < 0) return -1;
 
@@ -218,7 +219,7 @@ static int32_t tSerializeSClientHbReq(SEncoder *pEncoder, const SClientHbReq *pR
         for (int32_t m = 0; m < snum; ++m) {
           SQuerySubDesc *sDesc = taosArrayGet(desc->subDesc, m);
           if (tEncodeI64(pEncoder, sDesc->tid) < 0) return -1;
-          if (tEncodeI32(pEncoder, sDesc->status) < 0) return -1;
+          if (tEncodeCStr(pEncoder, sDesc->status) < 0) return -1;
         }
       }
     } else {
@@ -265,6 +266,7 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
           if (tDecodeI64(pDecoder, &desc.stime) < 0) return -1;
           if (tDecodeI64(pDecoder, &desc.reqRid) < 0) return -1;
           if (tDecodeI32(pDecoder, &desc.pid) < 0) return -1;
+          if (tDecodeI8(pDecoder, (int8_t*)&desc.stableQuery) < 0) return -1;
           if (tDecodeCStrTo(pDecoder, desc.fqdn) < 0) return -1;
           if (tDecodeI32(pDecoder, &desc.subPlanNum) < 0) return -1;
 
@@ -277,7 +279,7 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
             for (int32_t m = 0; m < snum; ++m) {
               SQuerySubDesc sDesc = {0};
               if (tDecodeI64(pDecoder, &sDesc.tid) < 0) return -1;
-              if (tDecodeI32(pDecoder, &sDesc.status) < 0) return -1;
+              if (tDecodeCStrTo(pDecoder, sDesc.status) < 0) return -1;
               taosArrayPush(desc.subDesc, &sDesc);
             }
           }
@@ -1160,6 +1162,8 @@ int32_t tSerializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pReq
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->createType) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->superUser) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->sysInfo) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->enable) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->user) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->pass) < 0) return -1;
   tEndEncode(&encoder);
@@ -1176,6 +1180,8 @@ int32_t tDeserializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pR
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->createType) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->superUser) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->sysInfo) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->enable) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->user) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->pass) < 0) return -1;
   tEndDecode(&decoder);
@@ -1191,6 +1197,8 @@ int32_t tSerializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq) 
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->alterType) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->superUser) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->sysInfo) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->enable) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->user) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->pass) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->dbname) < 0) return -1;
@@ -1208,6 +1216,8 @@ int32_t tDeserializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->alterType) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->superUser) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->sysInfo) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->enable) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->user) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->pass) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->dbname) < 0) return -1;
@@ -1245,6 +1255,9 @@ int32_t tDeserializeSGetUserAuthReq(void *buf, int32_t bufLen, SGetUserAuthReq *
 int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp) {
   if (tEncodeCStr(pEncoder, pRsp->user) < 0) return -1;
   if (tEncodeI8(pEncoder, pRsp->superAuth) < 0) return -1;
+  if (tEncodeI8(pEncoder, pRsp->sysInfo) < 0) return -1;
+  if (tEncodeI8(pEncoder, pRsp->enable) < 0) return -1;
+  if (tEncodeI8(pEncoder, pRsp->reserve) < 0) return -1;
   if (tEncodeI32(pEncoder, pRsp->version) < 0) return -1;
 
   int32_t numOfCreatedDbs = taosHashGetSize(pRsp->createdDbs);
@@ -1300,6 +1313,9 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
 
   if (tDecodeCStrTo(pDecoder, pRsp->user) < 0) return -1;
   if (tDecodeI8(pDecoder, &pRsp->superAuth) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pRsp->sysInfo) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pRsp->enable) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pRsp->reserve) < 0) return -1;
   if (tDecodeI32(pDecoder, &pRsp->version) < 0) return -1;
 
   int32_t numOfCreatedDbs = 0;
@@ -3369,8 +3385,7 @@ int32_t tSerializeSKillQueryReq(void *buf, int32_t bufLen, SKillQueryReq *pReq) 
   tEncoderInit(&encoder, buf, bufLen);
 
   if (tStartEncode(&encoder) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->connId) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->queryId) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->queryStrId) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -3383,8 +3398,7 @@ int32_t tDeserializeSKillQueryReq(void *buf, int32_t bufLen, SKillQueryReq *pReq
   tDecoderInit(&decoder, buf, bufLen);
 
   if (tStartDecode(&decoder) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->connId) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->queryId) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->queryStrId) < 0) return -1;
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
