@@ -546,13 +546,10 @@ typedef struct {
   int64_t createTime;
   int64_t updateTime;
   int32_t version;
-  // TODO remove it
   int64_t smaId;  // 0 for unused
   // info
   int64_t uid;
   int8_t  status;
-  // TODO remove it
-  int32_t vgNum;
   // config
   int8_t  dropPolicy;
   int8_t  trigger;
@@ -565,9 +562,10 @@ typedef struct {
   char    targetDb[TSDB_DB_FNAME_LEN];
   char    targetSTbName[TSDB_TABLE_FNAME_LEN];
   int64_t targetStbUid;
-  // assigned when scheduling
   int32_t fixedSinkVgId;  // 0 for shuffle
-  SVgObj  fixedSinkVg;
+  // fixedSinkVg is not applicable for encode and decode
+  SVgObj fixedSinkVg;
+
   // transformation
   char*          sql;
   char*          ast;

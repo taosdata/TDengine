@@ -640,6 +640,12 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  if (mndPersistStream(pMnode, pTrans, &streamObj) < 0) {
+    mError("stream:%s, failed to schedule since %s", createStreamReq.name, terrstr());
+    mndTransDrop(pTrans);
+    goto _OVER;
+  }
+
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
@@ -707,7 +713,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     return code;
   }
 
-  // drop  stream
+  // drop stream
   if (mndPersistDropStreamLog(pMnode, pTrans, pStream) < 0) {
     sdbRelease(pMnode->pSdb, pStream);
     return -1;

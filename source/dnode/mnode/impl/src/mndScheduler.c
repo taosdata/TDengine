@@ -346,8 +346,6 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
     terrno = TSDB_CODE_QRY_INVALID_INPUT;
     return -1;
   }
-  ASSERT(pStream->vgNum == 0);
-
   int32_t totLevel = LIST_LENGTH(pPlan->pSubplans);
   ASSERT(totLevel <= 2);
   pStream->tasks = taosArrayInit(totLevel, sizeof(void*));
