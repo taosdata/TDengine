@@ -39,7 +39,7 @@ class TDTestCase:
     def prepare_datas_of_distribute(self):
         
         # prepate datas for  20 tables distributed at different vgroups
-        tdSql.execute("create database if not exists testdb keep 3650 days 1000 vgroups 5")
+        tdSql.execute("create database if not exists testdb keep 3650 duration 1000 vgroups 5")
         tdSql.execute(" use testdb ")
         tdSql.execute(
             '''create table stb1
