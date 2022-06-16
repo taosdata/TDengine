@@ -16,12 +16,14 @@ import taos
 from util.log import *
 from util.cases import *
 from util.sql import *
+from util.types import TDSmlProtocolType, TDSmlTimestampType
 
 
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
+        self._conn = conn
 
     def run(self):        
 
@@ -101,8 +103,7 @@ class TDTestCase:
 
         tdSql.execute("alter table stb add column c2 int")
         tdSql.execute("alter table stb add tag t2 int")
-        tdSql.execute("alter table `TB` add column c2 int")
-        tdSql.execute("alter table `TB` add tag t2 int")        
+        tdSql.execute("alter table `TB` add column c2 int")             
         
         # column
         tdSql.error("alter table tb add column C1 int")
