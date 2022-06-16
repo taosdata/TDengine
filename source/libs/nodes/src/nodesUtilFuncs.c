@@ -199,6 +199,7 @@ SNode* nodesMakeNode(ENodeType type) {
     case QUERY_NODE_SHOW_SUBSCRIBES_STMT:
     case QUERY_NODE_SHOW_SMAS_STMT:
     case QUERY_NODE_SHOW_CONFIGS_STMT:
+    case QUERY_NODE_SHOW_CONNECTIONS_STMT:
     case QUERY_NODE_SHOW_QUERIES_STMT:
     case QUERY_NODE_SHOW_VNODES_STMT:
     case QUERY_NODE_SHOW_APPS_STMT:
@@ -209,9 +210,10 @@ SNode* nodesMakeNode(ENodeType type) {
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
       return makeNode(type, sizeof(SShowStmt));
-    case QUERY_NODE_KILL_CONNECTION_STMT:
     case QUERY_NODE_KILL_QUERY_STMT:
+      return makeNode(type, sizeof(SKillQueryStmt));
     case QUERY_NODE_KILL_TRANSACTION_STMT:
+    case QUERY_NODE_KILL_CONNECTION_STMT:
       return makeNode(type, sizeof(SKillStmt));
     case QUERY_NODE_DELETE_STMT:
       return makeNode(type, sizeof(SDeleteStmt));
@@ -251,6 +253,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(STableScanPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN:
       return makeNode(type, sizeof(STableSeqScanPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
+      return makeNode(type, sizeof(STableMergeScanPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
       return makeNode(type, sizeof(SStreamScanPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:

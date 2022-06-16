@@ -274,7 +274,6 @@ _OVER:
 static int32_t mndProcessCreateFuncReq(SRpcMsg *pReq) {
   SMnode        *pMnode = pReq->info.node;
   int32_t        code = -1;
-  SUserObj      *pUser = NULL;
   SFuncObj      *pFunc = NULL;
   SCreateFuncReq createReq = {0};
 
@@ -309,23 +308,17 @@ static int32_t mndProcessCreateFuncReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
- if (createReq.codeLen <= 1) {
-   terrno = TSDB_CODE_MND_INVALID_FUNC_CODE;
-   goto _OVER;
- }
+  if (createReq.codeLen <= 1) {
+    terrno = TSDB_CODE_MND_INVALID_FUNC_CODE;
+    goto _OVER;
+  }
 
   if (createReq.bufSize < 0 || createReq.bufSize > TSDB_FUNC_BUF_SIZE) {
     terrno = TSDB_CODE_MND_INVALID_FUNC_BUFSIZE;
     goto _OVER;
   }
 
-  pUser = mndAcquireUser(pMnode, pReq->conn.user);
-  if (pUser == NULL) {
-    terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
-    goto _OVER;
-  }
-
-  if (mndCheckFuncAuth(pUser)) {
+  if (mndCheckOperAuth(pMnode, pReq->conn.user, MND_OPER_CREATE_FUNC) != 0) {
     goto _OVER;
   }
 
@@ -338,16 +331,13 @@ _OVER:
   }
 
   mndReleaseFunc(pMnode, pFunc);
-  mndReleaseUser(pMnode, pUser);
   tFreeSCreateFuncReq(&createReq);
-
   return code;
 }
 
 static int32_t mndProcessDropFuncReq(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;
   int32_t      code = -1;
-  SUserObj    *pUser = NULL;
   SFuncObj    *pFunc = NULL;
   SDropFuncReq dropReq = {0};
 
@@ -375,13 +365,7 @@ static int32_t mndProcessDropFuncReq(SRpcMsg *pReq) {
     }
   }
 
-  pUser = mndAcquireUser(pMnode, pReq->conn.user);
-  if (pUser == NULL) {
-    terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
-    goto _OVER;
-  }
-
-  if (mndCheckFuncAuth(pUser)) {
+  if (mndCheckOperAuth(pMnode, pReq->conn.user, MND_OPER_DROP_FUNC) != 0) {
     goto _OVER;
   }
 
@@ -394,8 +378,6 @@ _OVER:
   }
 
   mndReleaseFunc(pMnode, pFunc);
-  mndReleaseUser(pMnode, pUser);
-
   return code;
 }
 

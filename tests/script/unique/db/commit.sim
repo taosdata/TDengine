@@ -24,7 +24,7 @@ system sh/exec.sh -n dnode2 -s start
 sleep 2000
 
 print ======== step1 create db
-sql create database commitdb replica 1 days 7 keep 30
+sql create database commitdb replica 1 duration 7 keep 30
 sql use commitdb
 sql create table tb (ts timestamp, i int)
 

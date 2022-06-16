@@ -1177,7 +1177,6 @@ _OVER:
 
 static int32_t mndProcessRedistributeVgroupMsg(SRpcMsg *pReq) {
   SMnode    *pMnode = pReq->info.node;
-  SUserObj  *pUser = NULL;
   SDnodeObj *pNew1 = NULL;
   SDnodeObj *pNew2 = NULL;
   SDnodeObj *pNew3 = NULL;
@@ -1200,13 +1199,8 @@ static int32_t mndProcessRedistributeVgroupMsg(SRpcMsg *pReq) {
   }
 
   mInfo("vgId:%d, start to redistribute to dnode %d:%d:%d", req.vgId, req.dnodeId1, req.dnodeId2, req.dnodeId3);
-  pUser = mndAcquireUser(pMnode, pReq->conn.user);
-  if (pUser == NULL) {
-    terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
-    goto _OVER;
-  }
 
-  if (mndCheckNodeAuth(pUser) != 0) goto _OVER;
+  if (mndCheckOperAuth(pMnode, pReq->conn.user, MND_OPER_REDISTRIBUTE_VGROUP) != 0) goto _OVER;
 
   pVgroup = mndAcquireVgroup(pMnode, req.vgId);
   if (pVgroup == NULL) goto _OVER;
@@ -1368,7 +1362,6 @@ _OVER:
   mndReleaseDnode(pMnode, pOld1);
   mndReleaseDnode(pMnode, pOld2);
   mndReleaseDnode(pMnode, pOld3);
-  mndReleaseUser(pMnode, pUser);
   mndReleaseVgroup(pMnode, pVgroup);
   mndReleaseDb(pMnode, pDb);
 
@@ -1493,12 +1486,11 @@ _OVER:
 }
 
 static int32_t mndProcessSplitVgroupMsg(SRpcMsg *pReq) {
-  SMnode   *pMnode = pReq->info.node;
-  int32_t   code = -1;
-  int32_t   vgId = 2;
-  SUserObj *pUser = NULL;
-  SVgObj   *pVgroup = NULL;
-  SDbObj   *pDb = NULL;
+  SMnode *pMnode = pReq->info.node;
+  int32_t code = -1;
+  int32_t vgId = 2;
+  SVgObj *pVgroup = NULL;
+  SDbObj *pDb = NULL;
 
   mDebug("vgId:%d, start to split", vgId);
 
@@ -1508,19 +1500,12 @@ static int32_t mndProcessSplitVgroupMsg(SRpcMsg *pReq) {
   pDb = mndAcquireDb(pMnode, pVgroup->dbName);
   if (pDb == NULL) goto _OVER;
 
-  pUser = mndAcquireUser(pMnode, pReq->conn.user);
-  if (pUser == NULL) {
-    terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
-    goto _OVER;
-  }
-
-  if (mndCheckNodeAuth(pUser) != 0) goto _OVER;
+  if (mndCheckOperAuth(pMnode, pReq->conn.user, MND_OPER_SPLIT_VGROUP) != 0) goto _OVER;
 
   code = mndSplitVgroup(pMnode, pReq, pDb, pVgroup);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 _OVER:
-  mndReleaseUser(pMnode, pUser);
   mndReleaseVgroup(pMnode, pVgroup);
   mndReleaseDb(pMnode, pDb);
   return code;
@@ -1631,21 +1616,15 @@ _OVER:
 }
 
 static int32_t mndProcessBalanceVgroupMsg(SRpcMsg *pReq) {
-  SMnode   *pMnode = pReq->info.node;
-  int32_t   code = -1;
-  SUserObj *pUser = NULL;
-  SArray   *pArray = NULL;
-  void     *pIter = NULL;
-  int64_t   curMs = taosGetTimestampMs();
+  SMnode *pMnode = pReq->info.node;
+  int32_t code = -1;
+  SArray *pArray = NULL;
+  void   *pIter = NULL;
+  int64_t curMs = taosGetTimestampMs();
 
   mDebug("start to balance vgroup");
-  pUser = mndAcquireUser(pMnode, pReq->conn.user);
-  if (pUser == NULL) {
-    terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
-    goto _OVER;
-  }
 
-  if (mndCheckNodeAuth(pUser) != 0) goto _OVER;
+  if (mndCheckOperAuth(pMnode, pReq->conn.user, MND_OPER_BALANCE_VGROUP) != 0) goto _OVER;
 
   while (1) {
     SDnodeObj *pDnode = NULL;
@@ -1676,7 +1655,6 @@ _OVER:
     mError("failed to balance vgroup since %s", terrstr());
   }
 
-  mndReleaseUser(pMnode, pUser);
   taosArrayDestroy(pArray);
   return code;
 }

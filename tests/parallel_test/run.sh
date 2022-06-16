@@ -255,7 +255,6 @@ function run_thread() {
             $cmd # 2>/dev/null
             local case_info=`echo "$line"|cut -d, -f 3,4`
             local corefile=`ls $log_dir/${case_file}.coredump/`
-            corefile=`find $log_dir/${case_file}.coredump/ -name "core.*"`
             echo -e "$case_info \e[31m failed\e[0m"
             echo "=========================log============================"
             cat $log_dir/$case_file.log
@@ -291,6 +290,19 @@ function run_thread() {
             fi
             cmd="$scpcmd:${remote_sim_tar} $log_dir/${case_file}.sim.tar.gz"
             $cmd
+            # backup source code (disabled)
+            source_tar_dir=$log_dir/TDengine_${hosts[index]}
+            source_tar_file=TDengine.tar.gz
+            if [ $ent -ne 0 ]; then
+                source_tar_dir=$log_dir/TDinternal_${hosts[index]}
+                source_tar_file=TDinternal.tar.gz
+            fi
+            mkdir $source_tar_dir 2>/dev/null
+            if [ $? -eq 0 ]; then
+                cmd="$scpcmd:${workdirs[index]}/$source_tar_file $source_tar_dir"
+                # echo "$cmd"
+                # $cmd
+            fi
         fi
     done
 }

@@ -23,6 +23,13 @@
 extern "C" {
 #endif
 
+typedef struct {
+  int8_t inited;
+  void*  timer;
+} SStreamGlobalEnv;
+
+static SStreamGlobalEnv streamEnv;
+
 int32_t streamExec(SStreamTask* pTask, SMsgCb* pMsgCb);
 int32_t streamDispatch(SStreamTask* pTask, SMsgCb* pMsgCb);
 int32_t streamDispatchReqToData(const SStreamDispatchReq* pReq, SStreamDataBlock* pData);

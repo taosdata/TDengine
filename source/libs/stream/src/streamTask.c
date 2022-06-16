@@ -72,6 +72,7 @@ int32_t tEncodeSStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
     if (tSerializeSUseDbRspImp(pEncoder, &pTask->shuffleDispatcher.dbInfo) < 0) return -1;
     /*if (tEncodeI8(pEncoder, pTask->shuffleDispatcher.hashMethod) < 0) return -1;*/
   }
+  if (tEncodeI64(pEncoder, pTask->triggerParam) < 0) return -1;
 
   /*tEndEncode(pEncoder);*/
   return pEncoder->pos;
@@ -121,6 +122,7 @@ int32_t tDecodeSStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
     /*if (tDecodeI8(pDecoder, &pTask->shuffleDispatcher.hashMethod) < 0) return -1;*/
     if (tDeserializeSUseDbRspImp(pDecoder, &pTask->shuffleDispatcher.dbInfo) < 0) return -1;
   }
+  if (tDecodeI64(pDecoder, &pTask->triggerParam) < 0) return -1;
 
   /*tEndDecode(pDecoder);*/
   return 0;

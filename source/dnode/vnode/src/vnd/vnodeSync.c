@@ -72,7 +72,17 @@ static int32_t vnodeProcessAlterReplicaReq(SVnode *pVnode, SRpcMsg *pMsg) {
     return -1;
   }
 
-  return syncPropose(pVnode->sync, &rpcMsg, false);
+  int32_t code = syncPropose(pVnode->sync, &rpcMsg, false);
+  if (code != 0) {
+    vDebug("vgId:%d, failed to propose reconfig msg since %s", TD_VID(pVnode), terrstr());
+    if (syncLeaderTransfer(pVnode->sync) != 0) {
+      vError("vgId:%d, failed to transfer leader since %s", TD_VID(pVnode), terrstr());
+    } else {
+      vDebug("vgId:%d, transfer leader success, propose reconfig config again", TD_VID(pVnode));
+    }
+  }
+
+  return code;
 }
 
 void vnodeProposeMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
@@ -98,7 +108,8 @@ void vnodeProposeMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
 
     if (code == 0) {
       vnodeAccumBlockMsg(pVnode, pMsg->msgType);
-    } else if (code == TAOS_SYNC_PROPOSE_NOT_LEADER) {
+
+    } else if (code == -1 && terrno == TSDB_CODE_SYN_NOT_LEADER) {
       SEpSet newEpSet = {0};
       syncGetEpSet(pVnode->sync, &newEpSet);
       SEp *pEp = &newEpSet.eps[newEpSet.inUse];
@@ -247,29 +258,17 @@ static void vnodeSyncRollBackMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta
   syncRpcMsgLog2(logBuf, (SRpcMsg *)pMsg);
 }
 
-int32_t vnodeSnapshotStartRead(struct SSyncFSM *pFsm, void **ppReader) {
-  return 0;
-}
+int32_t vnodeSnapshotStartRead(struct SSyncFSM *pFsm, void **ppReader) { return 0; }
 
-int32_t vnodeSnapshotStopRead(struct SSyncFSM *pFsm, void *pReader) {
-  return 0;
-}
+int32_t vnodeSnapshotStopRead(struct SSyncFSM *pFsm, void *pReader) { return 0; }
 
-int32_t vnodeSnapshotDoRead(struct SSyncFSM *pFsm, void *pReader, void **ppBuf, int32_t *len) {
-  return 0;
-}
+int32_t vnodeSnapshotDoRead(struct SSyncFSM *pFsm, void *pReader, void **ppBuf, int32_t *len) { return 0; }
 
-int32_t vnodeSnapshotStartWrite(struct SSyncFSM *pFsm, void **ppWriter) {
-  return 0;
-}
+int32_t vnodeSnapshotStartWrite(struct SSyncFSM *pFsm, void **ppWriter) { return 0; }
 
-int32_t vnodeSnapshotStopWrite(struct SSyncFSM *pFsm, void *pWriter, bool isApply) {
-  return 0;
-}
+int32_t vnodeSnapshotStopWrite(struct SSyncFSM *pFsm, void *pWriter, bool isApply) { return 0; }
 
-int32_t vnodeSnapshotDoWrite(struct SSyncFSM *pFsm, void *pWriter, void *pBuf, int32_t len) {
-  return 0;
-}
+int32_t vnodeSnapshotDoWrite(struct SSyncFSM *pFsm, void *pWriter, void *pBuf, int32_t len) { return 0; }
 
 static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   SSyncFSM *pFsm = taosMemoryCalloc(1, sizeof(SSyncFSM));

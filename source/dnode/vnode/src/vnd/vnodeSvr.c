@@ -168,6 +168,11 @@ int32_t vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
         goto _err;
       }
     } break;
+    case TDMT_VND_STREAM_TASK_DROP: {
+      if (tqProcessTaskDropReq(pVnode->pTq, pMsg->pCont, pMsg->contLen) < 0) {
+        goto _err;
+      }
+    } break;
     case TDMT_VND_ALTER_CONFIRM:
       vnodeProcessAlterConfirmReq(pVnode, version, pReq, len, pRsp);
       break;
@@ -296,7 +301,7 @@ void vnodeUpdateMetaRsp(SVnode *pVnode, STableMetaRsp *pMetaRsp) {
 }
 
 int32_t vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  int32_t ret = TAOS_SYNC_OTHER_ERROR;
+  int32_t ret = 0;
 
   if (syncEnvIsStart()) {
     SSyncNode *pSyncNode = syncNodeAcquire(pVnode->sync);
@@ -375,21 +380,25 @@ int32_t vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       ret = syncNodeOnAppendEntriesReplyCb(pSyncNode, pSyncMsg);
       syncAppendEntriesReplyDestroy(pSyncMsg);
 
-    } else if (pRpcMsg->msgType == TDMT_SYNC_SET_MNODE_STANDBY) {
+    } else if (pRpcMsg->msgType == TDMT_SYNC_SET_VNODE_STANDBY) {
       ret = syncSetStandby(pVnode->sync);
+      vInfo("vgId:%d, set standby result:0x%x rid:%" PRId64, pVnode->config.vgId, ret, pVnode->sync);
       SRpcMsg rsp = {.code = ret, .info = pMsg->info};
       tmsgSendRsp(&rsp);
     } else {
       vError("==vnodeProcessSyncReq== error msg type:%d", pRpcMsg->msgType);
-      ret = TAOS_SYNC_OTHER_ERROR;
+      ret = -1;
     }
 
     syncNodeRelease(pSyncNode);
   } else {
     vError("==vnodeProcessSyncReq== error syncEnv stop");
-    ret = TAOS_SYNC_OTHER_ERROR;
+    ret = -1;
   }
 
+  if (ret != 0) {
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+  }
   return ret;
 }
 

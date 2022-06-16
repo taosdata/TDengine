@@ -65,6 +65,12 @@ extern "C" {
     (list) = NULL;            \
   } while (0)
 
+#define NODES_CLEAR_LIST(list) \
+  do {                         \
+    nodesClearList((list));    \
+    (list) = NULL;             \
+  } while (0)
+
 typedef enum ENodeType {
   // Syntax nodes are used in parser and planner module, and some are also used in executor module, such as COLUMN,
   // VALUE, OPERATOR, FUNCTION and so on.
@@ -204,6 +210,7 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN,
   QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN,
   QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN,
+  QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN,
   QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN,
   QUERY_NODE_PHYSICAL_PLAN_PROJECT,
