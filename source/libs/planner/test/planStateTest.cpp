@@ -45,7 +45,7 @@ TEST_F(PlanStateTest, stable) {
   useDb("root", "test");
 
   // select function for STATE_WINDOW clause
-  run("SELECT MAX(c1), MIN(c1) FROM st1 STATE_WINDOW(c3)");
+  run("SELECT MAX(c1), MIN(c1) FROM st1 STATE_WINDOW(c2)");
   // select function along with the columns of select row, and with STATE_WINDOW clause
-  run("SELECT MAX(c1), c2 FROM st1 STATE_WINDOW(c3)");
+  run("SELECT MAX(c1), c2 FROM st1 STATE_WINDOW(c2)");
 }

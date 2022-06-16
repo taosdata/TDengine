@@ -1994,9 +1994,6 @@ static EDealRes checkStateExpr(SNode* pNode, void* pContext) {
     if (COLUMN_TYPE_TAG == pCol->colType) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_STATE_WIN_COL);
     }
-    if (TSDB_SUPER_TABLE == pCol->tableType) {
-      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_STATE_WIN_TABLE);
-    }
   }
   return DEAL_RES_CONTINUE;
 }
