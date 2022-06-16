@@ -623,6 +623,8 @@ int32_t hbGatherAppInfo(void) {
     req.appId = clientHbMgr.appId;
     taosGetAppName(req.name, NULL);
   }
+
+  taosHashClear(clientHbMgr.appSummary);
   
   for (int32_t i = 0; i < sz; ++i) {
     SAppHbMgr *pAppHbMgr = taosArrayGetP(clientHbMgr.appHbMgrs, i);
@@ -630,6 +632,7 @@ int32_t hbGatherAppInfo(void) {
     SAppHbReq* pApp = taosHashGet(clientHbMgr.appSummary, &clusterId, sizeof(clusterId));
     if (NULL == pApp) {
       memcpy(&req.summary, &pAppHbMgr->pAppInstInfo->summary, sizeof(req.summary));
+      req.startTime = pAppHbMgr->startTime;
       taosHashPut(clientHbMgr.appSummary, &clusterId, sizeof(clusterId), &req, sizeof(req));
     } else {
       if (pAppHbMgr->startTime < pApp->startTime) {

@@ -863,47 +863,53 @@ static int32_t mndRetrieveApps(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&pApp->appId, false);
 
+    char ip[TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
+    sprintf(&ip[VARSTR_HEADER_SIZE], "%s", taosIpStr(pApp->ip));
+    varDataLen(ip) = strlen(&ip[VARSTR_HEADER_SIZE]);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pApp->ip, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)ip, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&pApp->pid, false);
 
+    char name[TSDB_APP_NAME_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
+    sprintf(&name[VARSTR_HEADER_SIZE], "%s", pApp->name);
+    varDataLen(name) = strlen(&name[VARSTR_HEADER_SIZE]);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)pApp->name, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)name, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)pApp->startTime, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pApp->startTime, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)pApp->summary.numOfInsertsReq, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pApp->summary.numOfInsertsReq, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)pApp->summary.numOfInsertRows, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pApp->summary.numOfInsertRows, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)pApp->summary.insertElapsedTime, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pApp->summary.insertElapsedTime, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)pApp->summary.insertBytes, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pApp->summary.insertBytes, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)pApp->summary.fetchBytes, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pApp->summary.fetchBytes, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)pApp->summary.queryElapsedTime, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pApp->summary.queryElapsedTime, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)pApp->summary.numOfSlowQueries, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pApp->summary.numOfSlowQueries, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)pApp->summary.totalRequests, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pApp->summary.totalRequests, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)pApp->summary.currentRequests, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pApp->summary.currentRequests, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)pApp->lastAccessTimeMs, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pApp->lastAccessTimeMs, false);
 
     numOfRows++;
   }

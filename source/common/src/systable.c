@@ -317,7 +317,7 @@ static const SSysDbTableSchema querySchema[] = {
 
 static const SSysDbTableSchema appSchema[] = {
     {.name = "app_id", .bytes = 8, .type = TSDB_DATA_TYPE_UBIGINT},
-    {.name = "ip", .bytes = TSDB_IPv4ADDR_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_UBIGINT},
+    {.name = "ip", .bytes = TSDB_IPv4ADDR_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "pid", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "name", .bytes = TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},    
     {.name = "start_time", .bytes = 8 , .type = TSDB_DATA_TYPE_TIMESTAMP},

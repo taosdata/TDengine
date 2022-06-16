@@ -172,8 +172,6 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowSubscribesStmt";
     case QUERY_NODE_SHOW_SMAS_STMT:
       return "ShowSmasStmt";
-    case QUERY_NODE_SHOW_CONFIGS_STMT:
-      return "ShowConfigsStmt";
     case QUERY_NODE_SHOW_QUERIES_STMT:
       return "ShowQueriesStmt";
     case QUERY_NODE_SHOW_VNODES_STMT:
