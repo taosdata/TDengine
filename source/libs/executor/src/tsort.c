@@ -532,6 +532,19 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
   return 0;
 }
 
+int32_t getProperSortPageSize(size_t rowSize) {
+  uint32_t defaultPageSize = 4096;
+
+  uint32_t pgSize = 0;
+  if (rowSize * 4 > defaultPageSize) {
+    pgSize = rowSize * 4;
+  } else {
+    pgSize = defaultPageSize;
+  }
+
+  return pgSize;
+}
+
 static int32_t createInitialSources(SSortHandle* pHandle) {
   size_t sortBufSize = pHandle->numOfPages * pHandle->pageSize;
 
@@ -557,14 +570,9 @@ static int32_t createInitialSources(SSortHandle* pHandle) {
 
       if (!hasGroupId) {
         // calculate the buffer pages according to the total available buffers.
-        int32_t rowSize = blockDataGetRowSize(pBlock);
-        if (rowSize * 4 > 4096) {
-          pHandle->pageSize = rowSize * 4;
-        } else {
-          pHandle->pageSize = 4096;
-        }
-        
-        // todo!!
+        pHandle->pageSize = getProperSortPageSize(blockDataGetRowSize(pBlock));
+
+        // todo, number of pages are set according to the total available sort buffer
         pHandle->numOfPages = 1024;
         sortBufSize = pHandle->numOfPages * pHandle->pageSize;
 
@@ -577,7 +585,7 @@ static int32_t createInitialSources(SSortHandle* pHandle) {
         if (pHandle->beforeFp != NULL) {
           pHandle->beforeFp(pBlock, pHandle->param);
         }
-        // todo relocate the columns
+
         int32_t code = blockDataMerge(pHandle->pDataBlock, pBlock);
         if (code != 0) {
           return code;

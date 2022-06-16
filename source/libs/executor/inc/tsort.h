@@ -151,6 +151,13 @@ SSDataBlock* tsortGetSortedDataBlock(const SSortHandle* pSortHandle);
  */
 SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle);
 
+/**
+ * get proper sort buffer pages according to the row size
+ * @param rowSize
+ * @return
+ */
+int32_t getProperSortPageSize(size_t rowSize);
+
 #ifdef __cplusplus
 }
 #endif
