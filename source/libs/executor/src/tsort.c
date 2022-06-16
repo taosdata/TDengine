@@ -204,7 +204,12 @@ static int32_t sortComparInit(SMsortComparParam* cmpParam, SArray* pSources, int
   if (pHandle->type == SORT_SINGLESOURCE_SORT) {
     for (int32_t i = 0; i < cmpParam->numOfSources; ++i) {
       SSortSource* pSource = cmpParam->pSources[i];
-      SPageInfo*          pPgInfo = *(SPageInfo**)taosArrayGet(pSource->pageIdList, pSource->pageIndex);
+
+      if (taosArrayGetSize(pSource->pageIdList) == 0) {
+        return TSDB_CODE_SUCCESS;
+      }
+
+      SPageInfo* pPgInfo = *(SPageInfo**)taosArrayGet(pSource->pageIdList, pSource->pageIndex);
 
       void* pPage = getBufPage(pHandle->pBuf, getPageId(pPgInfo));
       code = blockDataFromBuf(pSource->src.pBlock, pPage);
