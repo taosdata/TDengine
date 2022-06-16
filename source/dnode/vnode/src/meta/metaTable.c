@@ -320,11 +320,13 @@ int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq) {
   if (me.type == TSDB_CHILD_TABLE) {
     me.ctbEntry.ctime = pReq->ctime;
     me.ctbEntry.ttlDays = pReq->ttl;
+    me.ctbEntry.comment = pReq->comment;
     me.ctbEntry.suid = pReq->ctb.suid;
     me.ctbEntry.pTags = pReq->ctb.pTag;
   } else {
     me.ntbEntry.ctime = pReq->ctime;
     me.ntbEntry.ttlDays = pReq->ttl;
+    me.ntbEntry.comment = pReq->comment;
     me.ntbEntry.schemaRow = pReq->ntb.schemaRow;
     me.ntbEntry.ncid = me.ntbEntry.schemaRow.pSchema[me.ntbEntry.schemaRow.nCols - 1].colId + 1;
   }
@@ -412,12 +414,11 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type) {
   void *     pData = NULL;
   int        nData = 0;
   int        rc = 0;
-  int64_t    version;
   SMetaEntry e = {0};
   SDecoder   dc = {0};
 
   rc = tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pData, &nData);
-  version = *(int64_t *)pData;
+  int64_t version = *(int64_t *)pData;
 
   tdbTbGet(pMeta->pTbDb, &(STbDbKey){.version = version, .uid = uid}, sizeof(STbDbKey), &pData, &nData);
 
@@ -439,6 +440,7 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type) {
     // drop schema.db (todo)
   }
 
+  metaError("ttl drop table:%s", e.name);
   tDecoderClear(&dc);
   tdbFree(pData);
 
@@ -494,6 +496,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
   tDecoderInit(&dc, entry.pBuf, nData);
   ret = metaDecodeEntry(&dc, &entry);
   ASSERT(ret == 0);
+  tDecoderClear(&dc);
 
   if (entry.type != TSDB_NORMAL_TABLE) {
     terrno = TSDB_CODE_VND_INVALID_TABLE_ACTION;
@@ -579,6 +582,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
   // save to table db
   metaSaveToTbDb(pMeta, &entry);
 
+  tdbTbcOpen(pMeta->pUidIdx, &pUidIdxc, &pMeta->txn);
   tdbTbcUpsert(pUidIdxc, &entry.uid, sizeof(tb_uid_t), &version, sizeof(version), 0);
 
   metaSaveToSkmDb(pMeta, &entry);
@@ -587,14 +591,14 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
 
   metaUpdateMetaRsp(uid, pAlterTbReq->tbName, pSchema, pMetaRsp);
 
+  if (entry.pBuf) taosMemoryFree(entry.pBuf);
   if (pNewSchema) taosMemoryFree(pNewSchema);
-  tDecoderClear(&dc);
   tdbTbcClose(pTbDbc);
   tdbTbcClose(pUidIdxc);
   return 0;
 
 _err:
-  tDecoderClear(&dc);
+  if (entry.pBuf) taosMemoryFree(entry.pBuf);
   tdbTbcClose(pTbDbc);
   tdbTbcClose(pUidIdxc);
   return -1;
@@ -748,18 +752,84 @@ _err:
 }
 
 static int metaUpdateTableOptions(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTbReq) {
-  if (commentLen > 0) {
-    pNew->commentLen = commentLen;
-    pNew->comment = taosMemoryCalloc(1, commentLen);
-    if (pNew->comment == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return -1;
+  void *          pVal = NULL;
+  int             nVal = 0;
+  const void *    pData = NULL;
+  int             nData = 0;
+  int             ret = 0;
+  tb_uid_t        uid;
+  int64_t         oversion;
+  SMetaEntry      entry = {0};
+  int             c = 0;
+
+  // search name index
+  ret = tdbTbGet(pMeta->pNameIdx, pAlterTbReq->tbName, strlen(pAlterTbReq->tbName) + 1, &pVal, &nVal);
+  if (ret < 0) {
+    terrno = TSDB_CODE_VND_TABLE_NOT_EXIST;
+    return -1;
+  }
+
+  uid = *(tb_uid_t *)pVal;
+  tdbFree(pVal);
+  pVal = NULL;
+
+  // search uid index
+  TBC *pUidIdxc = NULL;
+
+  tdbTbcOpen(pMeta->pUidIdx, &pUidIdxc, &pMeta->txn);
+  tdbTbcMoveTo(pUidIdxc, &uid, sizeof(uid), &c);
+  ASSERT(c == 0);
+
+  tdbTbcGet(pUidIdxc, NULL, NULL, &pData, &nData);
+  oversion = *(int64_t *)pData;
+
+  // search table.db
+  TBC *pTbDbc = NULL;
+
+  tdbTbcOpen(pMeta->pTbDb, &pTbDbc, &pMeta->txn);
+  tdbTbcMoveTo(pTbDbc, &((STbDbKey){.uid = uid, .version = oversion}), sizeof(STbDbKey), &c);
+  ASSERT(c == 0);
+  tdbTbcGet(pTbDbc, NULL, NULL, &pData, &nData);
+
+  // get table entry
+  SDecoder dc = {0};
+  entry.pBuf = taosMemoryMalloc(nData);
+  memcpy(entry.pBuf, pData, nData);
+  tDecoderInit(&dc, entry.pBuf, nData);
+  ret = metaDecodeEntry(&dc, &entry);
+  ASSERT(ret == 0);
+  tDecoderClear(&dc);
+
+  entry.version = version;
+  metaWLock(pMeta);
+  // build SMetaEntry
+  if (entry.type == TSDB_CHILD_TABLE) {
+    if(pAlterTbReq->updateTTL) {
+      metaDeleteTtlIdx(pMeta, &entry);
+      entry.ctbEntry.ttlDays = pAlterTbReq->newTTL;
+      metaUpdateTtlIdx(pMeta, &entry);
     }
-    memcpy(pNew->comment, pComment, commentLen);
+    if(pAlterTbReq->updateComment) entry.ctbEntry.comment = pAlterTbReq->newComment;
+  } else {
+    if(pAlterTbReq->updateTTL) {
+      metaDeleteTtlIdx(pMeta, &entry);
+      entry.ntbEntry.ttlDays = pAlterTbReq->newTTL;
+      metaUpdateTtlIdx(pMeta, &entry);
+    }
+    if(pAlterTbReq->updateComment) entry.ntbEntry.comment = pAlterTbReq->newComment;
   }
-  if (ttl >= 0) {
-    pNew->ttl = ttl;
-  }
+
+  // save to table db
+  metaSaveToTbDb(pMeta, &entry);
+
+  tdbTbcOpen(pMeta->pUidIdx, &pUidIdxc, &pMeta->txn);
+  tdbTbcUpsert(pUidIdxc, &entry.uid, sizeof(tb_uid_t), &version, sizeof(version), 0);
+
+  metaULock(pMeta);
+
+  tdbTbcClose(pTbDbc);
+  tdbTbcClose(pUidIdxc);
+  if (entry.pBuf) taosMemoryFree(entry.pBuf);
   return 0;
 }
 

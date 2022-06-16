@@ -210,12 +210,14 @@ struct SMetaEntry {
     struct {
       int64_t  ctime;
       int32_t  ttlDays;
+      char    *comment;
       tb_uid_t suid;
       uint8_t *pTags;
     } ctbEntry;
     struct {
       int64_t        ctime;
       int32_t        ttlDays;
+      char          *comment;
       int32_t        ncid;  // next column id
       SSchemaWrapper schemaRow;
     } ntbEntry;

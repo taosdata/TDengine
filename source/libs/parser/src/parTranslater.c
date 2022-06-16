@@ -4253,6 +4253,13 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
   req.type = TD_NORMAL_TABLE;
   req.name = strdup(pStmt->tableName);
   req.ttl = pStmt->pOptions->ttl;
+  if ('\0' != pStmt->pOptions->comment[0]) {
+    req.comment = strdup(pStmt->pOptions->comment);
+    if (NULL == req.comment) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    req.commentLen = strlen(pStmt->pOptions->comment) + 1;
+  }
   req.ntb.schemaRow.nCols = LIST_LENGTH(pStmt->pCols);
   req.ntb.schemaRow.version = 1;
   req.ntb.schemaRow.pSchema = taosMemoryCalloc(req.ntb.schemaRow.nCols, sizeof(SSchema));
@@ -4404,6 +4411,10 @@ static void addCreateTbReqIntoVgroup(int32_t acctId, SHashObj* pVgroupHashmap, S
   req.type = TD_CHILD_TABLE;
   req.name = strdup(pStmt->tableName);
   req.ttl  = pStmt->pOptions->ttl;
+  if ('\0' != pStmt->pOptions->comment[0]) {
+    req.comment = strdup(pStmt->pOptions->comment);
+    req.commentLen = strlen(pStmt->pOptions->comment) + 1;
+  }
   req.ctb.suid = suid;
   req.ctb.pTag = (uint8_t*)pTag;
   if (pStmt->ignoreExists) {
@@ -4982,7 +4993,7 @@ static int32_t buildUpdateOptionsReq(STranslateContext* pCxt, SAlterTableStmt* p
     }
   }
 
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS == code && '\0' != pStmt->pOptions->comment[0]) {
     pReq->updateComment = true;
     pReq->newComment = strdup(pStmt->pOptions->comment);
     if (NULL == pReq->newComment) {

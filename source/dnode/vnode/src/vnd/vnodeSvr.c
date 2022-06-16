@@ -398,7 +398,9 @@ static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t version, void *p
   SArray *tbUids = taosArrayInit(8, sizeof(int64_t));
   if (tbUids == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
-  int32_t ret = metaTtlDropTable(pVnode->pMeta, *(int64_t*)pReq, tbUids);
+  int32_t t = ntohl(*(int32_t*)pReq);
+  vError("rec ttl time:%d", t);
+  int32_t ret = metaTtlDropTable(pVnode->pMeta, t, tbUids);
   if(ret != 0){
     goto end;
   }

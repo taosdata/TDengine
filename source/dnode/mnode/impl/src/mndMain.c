@@ -77,12 +77,52 @@ static void mndPullupTelem(SMnode *pMnode) {
   tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
 }
 
+static void mndPushTtlTime(SMnode *pMnode) {
+  SSdb   *pSdb = pMnode->pSdb;
+  SVgObj *pVgroup = NULL;
+  void   *pIter = NULL;
+
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) break;
+
+    int32_t contLen = sizeof(SMsgHead) + sizeof(int32_t);
+
+    SMsgHead *pHead = taosMemoryMalloc(contLen);
+    if (pHead == NULL) {
+      mError("ttl time malloc err. contLen:%d", contLen);
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
+    pHead->contLen = htonl(pHead->contLen);
+    pHead->vgId = htonl(pHead->vgId);
+
+    int32_t t = taosGetTimestampSec();
+    *(int32_t*)(pHead + sizeof(SMsgHead)) = htonl(t);
+
+    SRpcMsg rpcMsg = {.msgType = TDMT_VND_DROP_TTL_TABLE, .pCont = pHead, .contLen = contLen};
+
+    SEpSet epSet = mndGetVgroupEpset(pMnode, pVgroup);
+    int32_t code = tmsgSendReq(&epSet, &rpcMsg);
+    if(code != 0){
+      mError("ttl time seed err. code:%d", code);
+    }
+    mError("ttl time seed succ. time:%d", t);
+    sdbRelease(pSdb, pVgroup);
+    taosMemoryFree(pHead);
+  }
+}
+
 static void *mndThreadFp(void *param) {
   SMnode *pMnode = param;
   int64_t lastTime = 0;
   setThreadName("mnode-timer");
 
   while (1) {
+    if (lastTime % (100) == 0) {   // sleep 1 day for ttl
+      mndPushTtlTime(pMnode);
+    }
+
     lastTime++;
     taosMsleep(100);
     if (mndGetStop(pMnode)) break;
@@ -98,6 +138,8 @@ static void *mndThreadFp(void *param) {
     if (lastTime % (tsTelemInterval * 10) == 0) {
       mndPullupTelem(pMnode);
     }
+
+
   }
 
   return NULL;

@@ -671,12 +671,12 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   pDst->numOfTags = pCreate->numOfTags;
   pDst->commentLen = pCreate->commentLen;
   if (pDst->commentLen > 0) {
-    pDst->comment = taosMemoryCalloc(pDst->commentLen + 1, 1);
+    pDst->comment = taosMemoryCalloc(pDst->commentLen, 1);
     if (pDst->comment == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
-    memcpy(pDst->comment, pCreate->comment, pDst->commentLen + 1);
+    memcpy(pDst->comment, pCreate->comment, pDst->commentLen);
   }
 
   pDst->ast1Len = pCreate->ast1Len;
@@ -1208,7 +1208,6 @@ static int32_t mndSetAlterStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
       sdbRelease(pSdb, pVgroup);
       return -1;
     }
-
     STransAction action = {0};
     action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
     action.pCont = pReq;
