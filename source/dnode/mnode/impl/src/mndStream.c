@@ -278,8 +278,8 @@ int32_t mndAddStreamToTrans(SMnode *pMnode, SStreamObj *pStream, const char *ast
 }
 
 static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStreamObj *pStream, const char *user) {
-  SStbObj  *pStb = NULL;
-  SDbObj   *pDb = NULL;
+  SStbObj *pStb = NULL;
+  SDbObj  *pDb = NULL;
 
   SMCreateStbReq createReq = {0};
   tstrncpy(createReq.name, pStream->targetSTbName, TSDB_TABLE_FNAME_LEN);
@@ -320,7 +320,6 @@ static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStre
     terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
     goto _OVER;
   }
-
 
   if (mndCheckDbAuth(pMnode, user, MND_OPER_WRITE_DB, pDb) != 0) {
     goto _OVER;
@@ -520,13 +519,19 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   /*SDbObj     *pDb = NULL;*/
   /*SUserObj   *pUser = NULL;*/
 
-  SMDropStreamTaskReq dropStreamReq = *(SMDropStreamTaskReq *)pReq->pCont;
+  SMDropStreamTaskReq dropReq = *(SMDropStreamTaskReq *)pReq->pCont;
 
-  pStream = mndAcquireStream(pMnode, dropStreamReq.name);
+  pStream = mndAcquireStream(pMnode, dropReq.name);
 
   if (pStream == NULL) {
-    terrno = TSDB_CODE_MND_STREAM_NOT_EXIST;
-    return -1;
+    if (dropReq.igNotExists) {
+      mDebug("stream:%s, not exist, ignore not exist is set", dropReq.name);
+      code = 0;
+      goto DROP_STREAM_OVER;
+    } else {
+      terrno = TSDB_CODE_MND_STREAM_NOT_EXIST;
+      return -1;
+    }
   }
 
 #if 0
@@ -539,19 +544,19 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq);
   if (pTrans == NULL) {
-    mError("stream:%s, failed to drop since %s", dropStreamReq.name, terrstr());
-    return -1;
+    mError("stream:%s, failed to drop since %s", dropReq.name, terrstr());
+    return code;
   }
-  mDebug("trans:%d, used to drop stream:%s", pTrans->id, dropStreamReq.name);
+  mDebug("trans:%d, used to drop stream:%s", pTrans->id, dropReq.name);
 
   // drop all tasks
   if (mndDropStreamTasks(pMnode, pTrans, pStream) < 0) {
-    mError("stream:%s, failed to drop task since %s", dropStreamReq.name, terrstr());
-    return -1;
+    mError("stream:%s, failed to drop task since %s", dropReq.name, terrstr());
+    return code;
   }
 
 DROP_STREAM_OVER:
-  return 0;
+  return code;
 }
 
 static int32_t mndGetNumOfStreams(SMnode *pMnode, char *dbName, int32_t *pNumOfStreams) {

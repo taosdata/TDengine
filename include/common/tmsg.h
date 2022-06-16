@@ -2008,7 +2008,7 @@ typedef struct {
   char     sql[TSDB_SHOW_SQL_LEN];
   uint64_t queryId;
   int64_t  useconds;
-  int64_t  stime;            // timestamp precision ms
+  int64_t  stime;  // timestamp precision ms
   int64_t  reqRid;
   int32_t  pid;
   bool     stableQuery;
@@ -2257,8 +2257,8 @@ typedef struct {
 } SMqVDeleteRsp;
 
 typedef struct {
-  char    name[TSDB_STREAM_FNAME_LEN];
-  int64_t streamId;
+  char   name[TSDB_STREAM_FNAME_LEN];
+  int8_t igNotExists;
 } SMDropStreamTaskReq;
 
 typedef struct {
