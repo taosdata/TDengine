@@ -156,7 +156,7 @@ int32_t syncSetStandby(int64_t rid) {
 
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
     taosReleaseRef(tsNodeRefId, pSyncNode->rid);
-    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    terrno = TSDB_CODE_SYN_IS_LEADER;
     sError("failed to set standby since it is leader, rid:%" PRId64, rid);
     return -1;
   }

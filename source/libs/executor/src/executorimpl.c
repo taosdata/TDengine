@@ -40,9 +40,6 @@
 #define IS_MAIN_SCAN(runtime)          ((runtime)->scanFlag == MAIN_SCAN)
 #define SET_REVERSE_SCAN_FLAG(runtime) ((runtime)->scanFlag = REVERSE_SCAN)
 
-#define SDATA_BLOCK_INITIALIZER \
-  (SDataBlockInfo) { {0}, 0 }
-
 #define GET_FORWARD_DIRECTION_FACTOR(ord) (((ord) == TSDB_ORDER_ASC) ? QUERY_ASC_FORWARD_STEP : QUERY_DESC_FORWARD_STEP)
 
 #if 0
@@ -94,8 +91,6 @@ static void doSetTagValueToResultBuf(char* output, const char* val, int16_t type
 static void setBlockStatisInfo(SqlFunctionCtx* pCtx, SExprInfo* pExpr, SSDataBlock* pSDataBlock);
 
 static void destroyTableQueryInfoImpl(STableQueryInfo* pTableQueryInfo);
-
-static SColumnInfo* extractColumnFilterInfo(SExprInfo* pExpr, int32_t numOfOutput, int32_t* numOfFilterCols);
 
 static void releaseQueryBuf(size_t numOfTables);
 
@@ -453,75 +448,6 @@ static bool chkWindowOutputBufByKey(STaskRuntimeEnv* pRuntimeEnv, SResultRowInfo
   assert(win->skey <= win->ekey);
   return chkResultRowFromKey(pRuntimeEnv, pResultRowInfo, (char*)&win->skey, TSDB_KEYSIZE, masterscan, groupId);
 }
-
-static void doUpdateResultRowIndex(SResultRowInfo* pResultRowInfo, TSKEY lastKey, bool ascQuery,
-                                   bool timeWindowInterpo) {
-  int64_t skey = TSKEY_INITIAL_VAL;
-#if 0
-  int32_t i = 0;
-  for (i = pResultRowInfo->size - 1; i >= 0; --i) {
-    SResultRow* pResult = pResultRowInfo->pResult[i];
-    if (pResult->closed) {
-      break;
-    }
-
-    // new closed result rows
-    if (timeWindowInterpo) {
-      if (pResult->endInterp &&
-          ((pResult->win.skey <= lastKey && ascQuery) || (pResult->win.skey >= lastKey && !ascQuery))) {
-        if (i > 0) {  // the first time window, the startInterp is false.
-          assert(pResult->startInterp);
-        }
-
-        closeResultRow(pResultRowInfo, i);
-      } else {
-        skey = pResult->win.skey;
-      }
-    } else {
-      if ((pResult->win.ekey <= lastKey && ascQuery) || (pResult->win.skey >= lastKey && !ascQuery)) {
-        closeResultRow(pResultRowInfo, i);
-      } else {
-        skey = pResult->win.skey;
-      }
-    }
-  }
-
-  // all result rows are closed, set the last one to be the skey
-  if (skey == TSKEY_INITIAL_VAL) {
-    if (pResultRowInfo->size == 0) {
-      //      assert(pResultRowInfo->current == NULL);
-      assert(pResultRowInfo->curPos == -1);
-      pResultRowInfo->curPos = -1;
-    } else {
-      pResultRowInfo->curPos = pResultRowInfo->size - 1;
-    }
-  } else {
-    for (i = pResultRowInfo->size - 1; i >= 0; --i) {
-      SResultRow* pResult = pResultRowInfo->pResult[i];
-      if (pResult->closed) {
-        break;
-      }
-    }
-
-    if (i == pResultRowInfo->size - 1) {
-      pResultRowInfo->curPos = i;
-    } else {
-      pResultRowInfo->curPos = i + 1;  // current not closed result object
-    }
-  }
-#endif
-}
-//
-// static void updateResultRowInfoActiveIndex(SResultRowInfo* pResultRowInfo, const STimeWindow* pWin, TSKEY lastKey,
-//                                           bool ascQuery, bool interp) {
-//  if ((lastKey > pWin->ekey && ascQuery) || (lastKey < pWin->ekey && (!ascQuery))) {
-//    closeAllResultRows(pResultRowInfo);
-//    pResultRowInfo->curPos = pResultRowInfo->size - 1;
-//  } else {
-//    int32_t step = ascQuery ? 1 : -1;
-//    doUpdateResultRowIndex(pResultRowInfo, lastKey - step, ascQuery, interp);
-//  }
-//}
 
 //  query_range_start, query_range_end, window_duration, window_start, window_end
 void initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQueryWindow) {
@@ -886,7 +812,6 @@ int32_t setGroupResultOutputBuf(SOptrBasicInfo* binfo, int32_t numOfCols, char* 
       doSetResultOutBufByKey(pBuf, pResultRowInfo, (char*)pData, bytes, true, groupId, pTaskInfo, false, pAggSup);
   assert(pResultRow != NULL);
 
-  setResultRowKey(pResultRow, pData, type);
   setResultRowInitCtx(pResultRow, pCtx, numOfCols, binfo->rowCellInfoOffset);
   return TSDB_CODE_SUCCESS;
 }
@@ -907,21 +832,6 @@ bool functionNeedToExecute(SqlFunctionCtx* pCtx) {
   if (isRowEntryCompleted(pResInfo)) {
     return false;
   }
-
-  //  if (functionId == FUNCTION_FIRST_DST || functionId == FUNCTION_FIRST) {
-  //    //    return QUERY_IS_ASC_QUERY(pQueryAttr);
-  //  }
-  //
-  //  // denote the order type
-  //  if ((functionId == FUNCTION_LAST_DST || functionId == FUNCTION_LAST)) {
-  //    //    return pCtx->param[0].i == pQueryAttr->order.order;
-  //  }
-
-  // in the reverse table scan, only the following functions need to be executed
-  //  if (IS_REVERSE_SCAN(pRuntimeEnv) ||
-  //      (pRuntimeEnv->scanFlag == REPEAT_SCAN && functionId != FUNCTION_STDDEV && functionId != FUNCTION_PERCT)) {
-  //    return false;
-  //  }
 
   return true;
 }
@@ -3935,27 +3845,6 @@ void initResultSizeInfo(SOperatorInfo* pOperator, int32_t numOfRows) {
   }
 }
 
-// static STableQueryInfo* initTableQueryInfo(const STableListInfo* pTableListInfo) {
-//  int32_t size = taosArrayGetSize(pTableListInfo->pTableList);
-//  if (size == 0) {
-//    return NULL;
-//  }
-//
-//  STableQueryInfo* pTableQueryInfo = taosMemoryCalloc(size, sizeof(STableQueryInfo));
-//  if (pTableQueryInfo == NULL) {
-//    return NULL;
-//  }
-//
-//  for (int32_t j = 0; j < size; ++j) {
-//    STableKeyInfo*   pk = taosArrayGet(pTableListInfo->pTableList, j);
-//    STableQueryInfo* pTQueryInfo = &pTableQueryInfo[j];
-//    pTQueryInfo->lastKey = pk->lastKey;
-//  }
-//
-//  pTableQueryInfo->lastKey = 0;
-//  return pTableQueryInfo;
-//}
-
 SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                            SSDataBlock* pResultBlock, SExprInfo* pScalarExprInfo,
                                            int32_t numOfScalarExpr, SExecTaskInfo* pTaskInfo) {
@@ -4525,7 +4414,6 @@ static tsdbReaderT doCreateDataReader(STableScanPhysiNode* pTableScanNode, SRead
 static SArray* extractColumnInfo(SNodeList* pNodeList);
 
 static SArray* createSortInfo(SNodeList* pNodeList);
-static SArray* extractPartitionColInfo(SNodeList* pNodeList);
 
 int32_t extractTableSchemaVersion(SReadHandle* pHandle, uint64_t uid, SExecTaskInfo* pTaskInfo) {
   SMetaReader mr = {0};
@@ -4645,12 +4533,14 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       tsdbReaderT pDataReader =
           doCreateDataReader(pTableScanNode, pHandle, pTableListInfo, (uint64_t)queryId, taskId, pTagCond);
       if (pDataReader == NULL && terrno != 0) {
+        pTaskInfo->code = terrno;
         return NULL;
       }
 
       int32_t code = extractTableSchemaVersion(pHandle, pTableScanNode->scan.uid, pTaskInfo);
       if (code) {
         tsdbCleanupReadHandle(pDataReader);
+        pTaskInfo->code = terrno;
         return NULL;
       }
 
@@ -4659,6 +4549,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       taosArrayDestroy(groupKeys);
       if (code) {
         tsdbCleanupReadHandle(pDataReader);
+        pTaskInfo->code = terrno;
         return NULL;
       }
 
@@ -4871,12 +4762,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
                                                pTaskInfo);
 
   } else if (QUERY_NODE_PHYSICAL_PLAN_PARTITION == type) {
-    SPartitionPhysiNode* pPartNode = (SPartitionPhysiNode*)pPhyNode;
-    SArray*              pColList = extractPartitionColInfo(pPartNode->pPartitionKeys);
-    SSDataBlock*         pResBlock = createResDataBlock(pPhyNode->pOutputDataBlockDesc);
-
-    SExprInfo* pExprInfo = createExprInfo(pPartNode->pTargets, NULL, &num);
-    pOptr = createPartitionOperatorInfo(ops[0], pExprInfo, num, pResBlock, pColList, pTaskInfo);
+    pOptr = createPartitionOperatorInfo(ops[0], (SPartitionPhysiNode*)pPhyNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE == type) {
     SStateWinodwPhysiNode* pStateNode = (SStateWinodwPhysiNode*)pPhyNode;
 
@@ -5314,7 +5200,7 @@ int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, qTaskInfo_t* pT
 }
 
 int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
-                               EOPTR_EXEC_MODEL model) {
+                               const char* sql, EOPTR_EXEC_MODEL model) {
   uint64_t queryId = pPlan->id.queryId;
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -5324,6 +5210,7 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
     goto _complete;
   }
 
+  (*pTaskInfo)->sql = sql;
   (*pTaskInfo)->pRoot = createOperatorTree(pPlan->pNode, *pTaskInfo, pHandle, queryId, taskId,
                                            &(*pTaskInfo)->tableqinfoList, pPlan->pTagCond);
   if (NULL == (*pTaskInfo)->pRoot) {

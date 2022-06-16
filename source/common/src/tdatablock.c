@@ -1226,6 +1226,7 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData) {
     SColumnInfoData  colInfo = {0};
     SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
     colInfo.info = p->info;
+    colInfo.hasNull = true;
     taosArrayPush(pBlock->pDataBlock, &colInfo);
   }
 

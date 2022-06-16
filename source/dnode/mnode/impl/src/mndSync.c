@@ -258,14 +258,6 @@ void mndSyncStart(SMnode *pMnode) {
   syncSetMsgCb(pMgmt->sync, &pMnode->msgCb);
   syncStart(pMgmt->sync);
   mDebug("mnode sync started, id:%" PRId64 " standby:%d", pMgmt->sync, pMgmt->standby);
-
-  /*
-    if (pMgmt->standby) {
-      syncStartStandBy(pMgmt->sync);
-    } else {
-      syncStart(pMgmt->sync);
-    }
-  */
 }
 
 void mndSyncStop(SMnode *pMnode) {
