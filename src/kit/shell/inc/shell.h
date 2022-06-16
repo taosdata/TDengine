@@ -101,7 +101,7 @@ int isCommentLine(char* line);
 int wsclient_handshake();
 int wsclient_conn();
 void wsclient_query(char* command);
-int tcpConnect();
+int tcpConnect(char* host, int port);
 int parse_cloud_dsn();
 
 /**************** Global variable declarations ****************/
