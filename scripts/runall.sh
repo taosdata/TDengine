@@ -71,6 +71,8 @@ log_file=$log_sub_dir/test.log
 failed_case_file=$log_sub_dir/failed.log
 env_file=$log_sub_dir/env.txt
 touch $env_file
+stat_file=$log_sub_dir/stat.txt
+touch $stat_file
 ret=0
 cpwd=`dirname $0`
 cd ${cpwd}
@@ -101,6 +103,9 @@ fi
 
 function run() {
     local i=0
+    local total_cases=0
+    local success_cases=0
+    local failed_cases=0
     while read line; do
         echo "$line" | grep -q "^#"
         if [ $? -eq 0 ]; then
@@ -149,15 +154,21 @@ function run() {
         if [ ! -z "$source_dir" ]; then
             cmd="$cmd --source-dir $source_dir"
         fi
+        total_cases=$(( total_cases + 1 ))
         echo "execute command: $cmd"
         $cmd
         ret=$?
         if [ $ret -ne 0 ]; then
+            failed_cases=$(( failed_cases + 1 ))
             echo -e "$line \e[31m FAILED\e[0m  RET:$ret"
             echo -e "$line \e[31m FAILED\e[0m  RET:$ret" >>$failed_case_file
         else
+            success_cases=$(( success_cases + 1 ))
             echo -e "$line \e[32m SUCCESS\e[0m"
         fi
+        echo "Total Cases: $total_cases" >$stat_file
+        echo "Successful:  $success_cases" >>$stat_file
+        echo "Failed:      $failed_cases" >>$stat_file
     done <${case_file}
 }
 
@@ -165,6 +176,7 @@ run 2>&1 | tee -a $log_file
 
 echo "====================================================================="
 echo "log file: $log_file"
+cat $stat_file
 if [ -f $failed_case_file ]; then
     echo -e "\e[31m TEST FAILED\e[0m"
     cat $failed_case_file
