@@ -607,10 +607,18 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   }
 #endif
 
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq);
+  if (pTrans == NULL) {
+    mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
+    goto _OVER;
+  }
+
+  mndTransSetDbName(pTrans, createStreamReq.sourceDB);
+  // TODO
+  /*mndTransSetDbName(pTrans, streamObj.targetDb);*/
+  mDebug("trans:%d, used to create stream:%s", pTrans->id, createStreamReq.name);
+
   // build stream obj from request
-  //
-  // schedule stream task for stream obj
-  //
   SStreamObj streamObj = {0};
   if (mndBuildStreamObjFromCreateReq(pMnode, &streamObj, &createStreamReq) < 0) {
     ASSERT(0);
@@ -618,34 +626,28 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq);
-  if (pTrans == NULL) {
-    mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
-    goto _OVER;
-  }
-  mndTransSetDbName(pTrans, streamObj.sourceDb);
-  // TODO
-  /*mndTransSetDbName(pTrans, streamObj.targetDb);*/
-  mDebug("trans:%d, used to create stream:%s", pTrans->id, createStreamReq.name);
-
+  // create stb for stream
   if (mndCreateStbForStream(pMnode, pTrans, &streamObj, pReq->conn.user) < 0) {
     mError("trans:%d, failed to create stb for stream %s since %s", pTrans->id, createStreamReq.name, terrstr());
     mndTransDrop(pTrans);
     goto _OVER;
   }
 
+  // schedule stream task for stream obj
   if (mndScheduleStream(pMnode, pTrans, &streamObj) < 0) {
     mError("stream:%s, failed to schedule since %s", createStreamReq.name, terrstr());
     mndTransDrop(pTrans);
     goto _OVER;
   }
 
+  // add stream to trans
   if (mndPersistStream(pMnode, pTrans, &streamObj) < 0) {
     mError("stream:%s, failed to schedule since %s", createStreamReq.name, terrstr());
     mndTransDrop(pTrans);
     goto _OVER;
   }
 
+  // execute creation
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
