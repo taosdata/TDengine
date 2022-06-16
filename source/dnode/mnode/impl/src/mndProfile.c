@@ -634,16 +634,27 @@ static int32_t mndProcessKillQueryReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  mInfo("kill query msg is received, queryId:%d", killReq.queryId);
+  mInfo("kill query msg is received, queryId:%s", killReq.queryStrId);
+  int32_t connId = 0;
+  uint64_t queryId = 0;
+  char* p = strchr(killReq.queryStrId, ':');
+  if (NULL == p) {
+    mError("invalid query id %s", killReq.queryStrId);
+    terrno = TSDB_CODE_MND_INVALID_QUERY_ID;
+    return -1;
+  }
+  *p = 0;
+  connId = taosStr2Int32(killReq.queryStrId, NULL, 16);
+  queryId = taosStr2UInt64(p + 1, NULL, 16);
 
-  SConnObj *pConn = taosCacheAcquireByKey(pMgmt->connCache, &killReq.connId, sizeof(int32_t));
+  SConnObj *pConn = taosCacheAcquireByKey(pMgmt->connCache, &connId, sizeof(int32_t));
   if (pConn == NULL) {
-    mError("connId:%d, failed to kill queryId:%d, conn not exist", killReq.connId, killReq.queryId);
+    mError("connId:%x, failed to kill queryId:%" PRIx64 ", conn not exist", connId, queryId);
     terrno = TSDB_CODE_MND_INVALID_CONN_ID;
     return -1;
   } else {
-    mInfo("connId:%d, queryId:%d is killed by user:%s", killReq.connId, killReq.queryId, pReq->conn.user);
-    pConn->killId = killReq.queryId;
+    mInfo("connId:%x, queryId:%" PRIx64 " is killed by user:%s", connId, queryId, pReq->conn.user);
+    pConn->killId = queryId;
     taosCacheRelease(pMgmt->connCache, (void **)&pConn, false);
     return 0;
   }

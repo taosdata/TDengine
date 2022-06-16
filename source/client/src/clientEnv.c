@@ -229,7 +229,7 @@ static void doDestroyRequest(void *p) {
   taosHashRemove(pRequest->pTscObj->pRequests, &pRequest->self, sizeof(pRequest->self));
 
   if (pRequest->body.queryJob != 0) {
-    schedulerFreeJob(pRequest->body.queryJob);
+    schedulerFreeJob(pRequest->body.queryJob, 0);
   }
 
   taosMemoryFreeClear(pRequest->msgBuf);

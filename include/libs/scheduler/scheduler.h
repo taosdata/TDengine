@@ -127,7 +127,7 @@ void schedulerStopQueryHb(void *pTrans);
  * Free the query job
  * @param pJob
  */
-void schedulerFreeJob(int64_t job);
+void schedulerFreeJob(int64_t job, int32_t errCode);
 
 void schedulerDestroy(void);
 

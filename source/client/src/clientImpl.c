@@ -418,7 +418,7 @@ int32_t scheduleAsyncQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNod
   while (true) {
     if (code != TSDB_CODE_SUCCESS) {
       if (pRequest->body.queryJob != 0) {
-        schedulerFreeJob(pRequest->body.queryJob);
+        schedulerFreeJob(pRequest->body.queryJob, 0);
       }
 
       pRequest->code = code;
@@ -439,7 +439,7 @@ int32_t scheduleAsyncQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNod
     pRequest->body.resInfo.numOfRows = res.numOfRows;
 
     if (pRequest->body.queryJob != 0) {
-      schedulerFreeJob(pRequest->body.queryJob);
+      schedulerFreeJob(pRequest->body.queryJob, 0);
     }
   }
 
@@ -468,7 +468,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
 
   if (code != TSDB_CODE_SUCCESS) {
     if (pRequest->body.queryJob != 0) {
-      schedulerFreeJob(pRequest->body.queryJob);
+      schedulerFreeJob(pRequest->body.queryJob, 0);
     }
 
     pRequest->code = code;
@@ -481,7 +481,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
     pRequest->body.resInfo.numOfRows = res.numOfRows;
 
     if (pRequest->body.queryJob != 0) {
-      schedulerFreeJob(pRequest->body.queryJob);
+      schedulerFreeJob(pRequest->body.queryJob, 0);
     }
   }
 

@@ -164,6 +164,7 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
       pTscObj->connId = pRsp->query->connId;
 
       if (pRsp->query->killRid) {
+        tscDebug("request rid %" PRIx64 " need to be killed now", pRsp->query->killRid);
         SRequestObj *pRequest = acquireRequest(pRsp->query->killRid);
         if (NULL == pRequest) {
           tscDebug("request 0x%" PRIx64 " not exist to kill", pRsp->query->killRid);
@@ -304,7 +305,7 @@ int32_t hbBuildQueryDesc(SQueryHbReqBasic *hbBasic, STscObj *pObj) {
   while (pIter != NULL) {
     int64_t     *rid = pIter;
     SRequestObj *pRequest = acquireRequest(*rid);
-    if (NULL == pRequest) {
+    if (NULL == pRequest || pRequest->killed) {
       pIter = taosHashIterate(pObj->pRequests, pIter);
       continue;
     }

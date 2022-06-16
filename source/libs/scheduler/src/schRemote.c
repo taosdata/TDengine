@@ -315,8 +315,6 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
           return TSDB_CODE_SUCCESS;
         }
 
-        atomic_val_compare_exchange_32(&pJob->remoteFetch, 1, 0);
-
         SCH_ERR_JRET(schFetchFromRemote(pJob));
 
         taosMemoryFreeClear(msg);              

@@ -52,7 +52,6 @@ int32_t schInitJob(SSchedulerReq *pReq, SSchJob **pSchJob, SQueryResult* pRes, b
   }
 
   pJob->attr.explainMode = pReq->pDag->explainInfo.mode;
-  pJob->attr.syncSchedule = syncSchedule;
   pJob->conn = *pReq->pConn;
   pJob->sql = pReq->sql;
   pJob->userRes.queryRes = pRes;
@@ -161,12 +160,11 @@ FORCE_INLINE bool schJobNeedToStop(SSchJob *pJob, int8_t *pStatus) {
     *pStatus = status;
   }
 
-  return (status == JOB_TASK_STATUS_FAILED || status == JOB_TASK_STATUS_CANCELLED ||
-          status == JOB_TASK_STATUS_CANCELLING || status == JOB_TASK_STATUS_DROPPING ||
+  return (status == JOB_TASK_STATUS_FAILED || status == JOB_TASK_STATUS_DROPPING ||
           status == JOB_TASK_STATUS_SUCCEED);
 }
 
-int32_t schChkUpdateJobStatus(SSchJob *pJob, int8_t newStatus) {
+int32_t schUpdateJobStatus(SSchJob *pJob, int8_t newStatus) {
   int32_t code = 0;
 
   int8_t oriStatus = 0;
@@ -175,7 +173,11 @@ int32_t schChkUpdateJobStatus(SSchJob *pJob, int8_t newStatus) {
     oriStatus = SCH_GET_JOB_STATUS(pJob);
 
     if (oriStatus == newStatus) {
-      SCH_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+      if (newStatus == JOB_TASK_STATUS_DROPPING) {
+        SCH_ERR_JRET(TSDB_CODE_SCH_JOB_IS_DROPPING);
+      }
+      
+      SCH_ERR_JRET(TSDB_CODE_SCH_IGNORE_ERROR);
     }
 
     switch (oriStatus) {
@@ -193,7 +195,6 @@ int32_t schChkUpdateJobStatus(SSchJob *pJob, int8_t newStatus) {
         break;
       case JOB_TASK_STATUS_EXECUTING:
         if (newStatus != JOB_TASK_STATUS_PARTIAL_SUCCEED && newStatus != JOB_TASK_STATUS_FAILED &&
-            newStatus != JOB_TASK_STATUS_CANCELLING && newStatus != JOB_TASK_STATUS_CANCELLED &&
             newStatus != JOB_TASK_STATUS_DROPPING) {
           SCH_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
         }
@@ -208,13 +209,11 @@ int32_t schChkUpdateJobStatus(SSchJob *pJob, int8_t newStatus) {
         break;
       case JOB_TASK_STATUS_SUCCEED:
       case JOB_TASK_STATUS_FAILED:
-      case JOB_TASK_STATUS_CANCELLING:
         if (newStatus != JOB_TASK_STATUS_DROPPING) {
           SCH_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
         }
 
         break;
-      case JOB_TASK_STATUS_CANCELLED:
       case JOB_TASK_STATUS_DROPPING:
         SCH_ERR_JRET(TSDB_CODE_QRY_JOB_FREED);
         break;
@@ -238,8 +237,65 @@ int32_t schChkUpdateJobStatus(SSchJob *pJob, int8_t newStatus) {
 _return:
 
   SCH_JOB_ELOG("invalid job status update, from %s to %s", jobTaskStatusStr(oriStatus), jobTaskStatusStr(newStatus));
-  SCH_ERR_RET(code);
+  SCH_RET(code);
+}
+
+
+void schEndOperation(SSchJob *pJob) {
+  int32_t op = atomic_load_32(&pJob->opStatus.op);
+  if (SCH_OP_NULL == op) {
+    SCH_JOB_DLOG("job already not in any operation, status:%s", jobTaskStatusStr(pJob->status));
+    return;
+  }
+
+  atomic_store_32(&pJob->opStatus.op, SCH_OP_NULL);
+  
+  SCH_JOB_DLOG("job end %s operation", schGetOpStr(op));
+}
+
+int32_t schBeginOperation(SSchJob *pJob, SCH_OP_TYPE type, bool sync) {
+  int32_t code = 0;
+  
+  if (SCH_OP_NULL != atomic_val_compare_exchange_32(&pJob->opStatus.op, SCH_OP_NULL, type)) {
+    SCH_JOB_ELOG("job already in %s operation", schGetOpStr(pJob->opStatus.op));
+    SCH_ERR_JRET(TSDB_CODE_TSC_APP_ERROR);
+  }
+
+  SCH_JOB_ELOG("job start %s operation", schGetOpStr(pJob->opStatus.op));
+
+  pJob->opStatus.sync = sync;
+
+  switch (type) {
+    case SCH_OP_EXEC:
+      SCH_ERR_JRET(schUpdateJobStatus(pJob, JOB_TASK_STATUS_EXECUTING));
+      break;
+    case SCH_OP_FETCH:
+      if (!SCH_JOB_NEED_FETCH(pJob)) {
+        SCH_JOB_ELOG("no need to fetch data, status:%s", SCH_GET_JOB_STATUS_STR(pJob));
+        SCH_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+      }
+
+      int8_t status = 0;
+      if (schJobNeedToStop(pJob, &status)) {
+        SCH_JOB_ELOG("job need to stop cause of status %s", jobTaskStatusStr(status));
+        SCH_ERR_JRET(TSDB_CODE_SCH_STATUS_ERROR);
+      } else if (status != JOB_TASK_STATUS_PARTIAL_SUCCEED) {
+        SCH_JOB_ELOG("job status error for fetch, status:%s", jobTaskStatusStr(status));
+        SCH_ERR_JRET(TSDB_CODE_SCH_STATUS_ERROR);
+      }
+      break;
+    default:
+      SCH_JOB_ELOG("unknown operation type %d", type);
+      SCH_ERR_JRET(TSDB_CODE_TSC_APP_ERROR);
+  }
+
   return TSDB_CODE_SUCCESS;
+
+_return:
+
+  schEndOperation(pJob);
+
+  SCH_RET(code);
 }
 
 int32_t schBuildTaskRalation(SSchJob *pJob, SHashObj *planToTask) {
@@ -828,7 +884,7 @@ int32_t schSetJobQueryRes(SSchJob* pJob, SQueryResult* pRes) {
 int32_t schSetJobFetchRes(SSchJob* pJob, void** pData) {
   int32_t code = 0;
   if (pJob->resData && ((SRetrieveTableRsp *)pJob->resData)->completed) {
-    SCH_ERR_RET(schChkUpdateJobStatus(pJob, JOB_TASK_STATUS_SUCCEED));
+    SCH_ERR_RET(schUpdateJobStatus(pJob, JOB_TASK_STATUS_SUCCEED));
   }
 
   while (true) {
@@ -855,15 +911,17 @@ int32_t schSetJobFetchRes(SSchJob* pJob, void** pData) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t schNotifyUserQueryRes(SSchJob* pJob) {
-  pJob->userRes.queryRes = taosMemoryCalloc(1, sizeof(*pJob->userRes.queryRes));
-  if (pJob->userRes.queryRes) {
-    schSetJobQueryRes(pJob, pJob->userRes.queryRes);
+int32_t schNotifyUserExecRes(SSchJob* pJob) {
+  SQueryResult* pRes = taosMemoryCalloc(1, sizeof(SQueryResult));
+  if (pRes) {
+    schSetJobQueryRes(pJob, pRes);
   }
 
-  (*pJob->userRes.execFp)(pJob->userRes.queryRes, pJob->userRes.userParam, atomic_load_32(&pJob->errCode));
+  schEndOperation(pJob);
 
-  pJob->userRes.queryRes = NULL;
+  SCH_JOB_DLOG("sch start to invoke exec cb, code: %s", tstrerror(pJob->errCode));
+  (*pJob->userRes.execFp)(pRes, pJob->userRes.userParam, atomic_load_32(&pJob->errCode));
+  SCH_JOB_DLOG("sch end from query cb, code: %s", tstrerror(pJob->errCode));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -871,35 +929,49 @@ int32_t schNotifyUserQueryRes(SSchJob* pJob) {
 int32_t schNotifyUserFetchRes(SSchJob* pJob) {
   void* pRes = NULL;
   
-  SCH_ERR_RET(schSetJobFetchRes(pJob, &pRes));
+  schSetJobFetchRes(pJob, &pRes);
 
+  schEndOperation(pJob);
+
+  SCH_JOB_DLOG("sch start to invoke fetch cb, code: %s", tstrerror(pJob->errCode));
   (*pJob->userRes.fetchFp)(pRes, pJob->userRes.userParam, atomic_load_32(&pJob->errCode));
+  SCH_JOB_DLOG("sch end from fetch cb, code: %s", tstrerror(pJob->errCode));
 
   return TSDB_CODE_SUCCESS;
 }
 
+void schPostJobRes(SSchJob *pJob, SCH_OP_TYPE op) {
+  if (SCH_OP_NULL == pJob->opStatus.op) {
+    SCH_JOB_DLOG("job not in any op, no need to post job res, status:%s", jobTaskStatusStr(pJob->status));
+    return;
+  }
+  
+  if (op && pJob->opStatus.op != op) {
+    SCH_JOB_ELOG("job in op %s mis-match with expected %s", schGetOpStr(pJob->opStatus.op), schGetOpStr(op));
+    return;
+  }
+  
+  if (SCH_JOB_IN_SYNC_OP(pJob)) {
+    tsem_post(&pJob->rspSem);
+  } else if (SCH_JOB_IN_ASYNC_EXEC_OP(pJob)) {
+    schNotifyUserExecRes(pJob);
+  } else if (SCH_JOB_IN_ASYNC_FETCH_OP(pJob)) {
+    schNotifyUserFetchRes(pJob);
+  } else {
+    SCH_JOB_ELOG("job not in any operation, status:%s", jobTaskStatusStr(pJob->status));
+  }
+}
+
 int32_t schProcessOnJobFailureImpl(SSchJob *pJob, int32_t status, int32_t errCode) {
   // if already FAILED, no more processing
-  SCH_ERR_RET(schChkUpdateJobStatus(pJob, status));
+  SCH_ERR_RET(schUpdateJobStatus(pJob, status));
 
   schUpdateJobErrCode(pJob, errCode);
-
-  if (atomic_load_8(&pJob->userFetch) || pJob->attr.syncSchedule) {
-    tsem_post(&pJob->rspSem);
-  }
-
+  
   int32_t code = atomic_load_32(&pJob->errCode);
-
   SCH_JOB_DLOG("job failed with error: %s", tstrerror(code));
 
-  if (!pJob->attr.syncSchedule) {
-    if (SCH_EXEC_CB == atomic_val_compare_exchange_32(&pJob->userCb, SCH_EXEC_CB, 0)) {
-      schNotifyUserQueryRes(pJob);
-    } else if (SCH_FETCH_CB == atomic_val_compare_exchange_32(&pJob->userCb, SCH_FETCH_CB, 0)) {
-      atomic_val_compare_exchange_8(&pJob->userFetch, 1, 0);
-      schNotifyUserFetchRes(pJob);
-    }
-  }
+  schPostJobRes(pJob, 0);
 
   SCH_RET(code);
 }
@@ -918,20 +990,9 @@ int32_t schProcessOnJobDropped(SSchJob *pJob, int32_t errCode) {
 int32_t schProcessOnJobPartialSuccess(SSchJob *pJob) {
   int32_t code = 0;
 
-  SCH_ERR_RET(schChkUpdateJobStatus(pJob, JOB_TASK_STATUS_PARTIAL_SUCCEED));
+  SCH_ERR_RET(schUpdateJobStatus(pJob, JOB_TASK_STATUS_PARTIAL_SUCCEED));
 
-  if (pJob->attr.syncSchedule) {
-    tsem_post(&pJob->rspSem);
-  } else if (SCH_EXEC_CB == atomic_val_compare_exchange_32(&pJob->userCb, SCH_EXEC_CB, 0)) {
-    schNotifyUserQueryRes(pJob);
-  } else if (SCH_FETCH_CB == atomic_val_compare_exchange_32(&pJob->userCb, SCH_FETCH_CB, 0)) {
-    atomic_val_compare_exchange_8(&pJob->userFetch, 1, 0);
-    schNotifyUserFetchRes(pJob);
-  }
-
-  if (atomic_load_8(&pJob->userFetch)) {
-    SCH_ERR_JRET(schFetchFromRemote(pJob));
-  }
+  schPostJobRes(pJob, SCH_OP_EXEC);
 
   return TSDB_CODE_SUCCESS;
 
@@ -940,16 +1001,8 @@ _return:
   SCH_RET(schProcessOnJobFailure(pJob, code));
 }
 
-void schProcessOnDataFetched(SSchJob *job) {
-  atomic_val_compare_exchange_32(&job->remoteFetch, 1, 0);
-
-  if (job->attr.syncSchedule) {
-    tsem_post(&job->rspSem);
-  } else if (SCH_FETCH_CB == atomic_val_compare_exchange_32(&job->userCb, SCH_FETCH_CB, 0)) {
-    atomic_val_compare_exchange_8(&job->userFetch, 1, 0);
-    
-    schNotifyUserFetchRes(job);
-  }
+void schProcessOnDataFetched(SSchJob *pJob) {
+  schPostJobRes(pJob, SCH_OP_FETCH);
 }
 
 // Note: no more task error processing, handled in function internal
@@ -1127,15 +1180,8 @@ _return:
 int32_t schFetchFromRemote(SSchJob *pJob) {
   int32_t code = 0;
 
-  if (atomic_val_compare_exchange_32(&pJob->remoteFetch, 0, 1) != 0) {
-    SCH_JOB_ELOG("prior fetching not finished, remoteFetch:%d", atomic_load_32(&pJob->remoteFetch));
-    return TSDB_CODE_SUCCESS;
-  }
-
   void *resData = atomic_load_ptr(&pJob->resData);
   if (resData) {
-    atomic_val_compare_exchange_32(&pJob->remoteFetch, 1, 0);
-
     SCH_JOB_DLOG("res already fetched, res:%p", resData);
     return TSDB_CODE_SUCCESS;
   }
@@ -1145,8 +1191,6 @@ int32_t schFetchFromRemote(SSchJob *pJob) {
   return TSDB_CODE_SUCCESS;
 
 _return:
-
-  atomic_val_compare_exchange_32(&pJob->remoteFetch, 1, 0);
 
   SCH_RET(schProcessOnTaskFailure(pJob, pJob->fetchTask, code));
 }
@@ -1382,8 +1426,6 @@ int32_t schLaunchLevelTasks(SSchJob *pJob, SSchLevel *level) {
 int32_t schLaunchJob(SSchJob *pJob) {
   SSchLevel *level = taosArrayGet(pJob->levels, pJob->levelIdx);
 
-  SCH_ERR_RET(schChkUpdateJobStatus(pJob, JOB_TASK_STATUS_EXECUTING));
-
   SCH_ERR_RET(schChkJobNeedFlowCtrl(pJob, level));
 
   SCH_ERR_RET(schLaunchLevelTasks(pJob, level));
@@ -1483,23 +1525,35 @@ int32_t schExecJobImpl(SSchedulerReq *pReq, int64_t *job, SQueryResult* pRes, bo
 
   int32_t  code = 0;
   SSchJob *pJob = NULL;
-  SCH_ERR_RET(schInitJob(pReq, &pJob, pRes, sync));
+  SCH_ERR_JRET(schInitJob(pReq, &pJob, pRes, sync));
 
-  qDebug("QID:0x%" PRIx64 " job refId 0x%"PRIx64 " started", pReq->pDag->queryId, pJob->refId);
+  qDebug("QID:0x%" PRIx64 " sch job refId 0x%"PRIx64 " started", pReq->pDag->queryId, pJob->refId);
   *job = pJob->refId;
 
-  SCH_ERR_JRET(schLaunchJob(pJob));
+  SCH_ERR_JRET(schBeginOperation(pJob, SCH_OP_EXEC, sync));
+
+  code = schLaunchJob(pJob);
 
   if (sync) {
     SCH_JOB_DLOG("will wait for rsp now, job status:%s", SCH_GET_JOB_STATUS_STR(pJob));
     tsem_wait(&pJob->rspSem);
-  } else {
-    pJob->userCb = SCH_EXEC_CB; 
+    
+    schEndOperation(pJob);
+  } else if (code) {
+    schPostJobRes(pJob, SCH_OP_EXEC);
   }
 
-  SCH_JOB_DLOG("job exec done, job status:%s, jobId:0x%"PRIx64, SCH_GET_JOB_STATUS_STR(pJob), pJob->refId);
+  SCH_JOB_DLOG("job exec done, job status:%s, jobId:0x%" PRIx64, SCH_GET_JOB_STATUS_STR(pJob), pJob->refId);
+
+  schReleaseJob(pJob->refId);
+  
+  SCH_RET(code);
 
 _return:
+
+  if (!sync) {
+    pReq->fp(NULL, pReq->cbParam, code);
+  }
 
   schReleaseJob(pJob->refId);
   
@@ -1534,10 +1588,10 @@ int32_t schAsyncExecJob(SSchedulerReq *pReq, int64_t *pJob) {
   *pJob = 0;
 
   if (EXPLAIN_MODE_STATIC == pReq->pDag->explainInfo.mode) {
-    SCH_ERR_RET(schExecStaticExplainJob(pReq, pJob, false));
-  } else {
-    SCH_ERR_RET(schExecJobImpl(pReq, pJob, NULL, false));
+    SCH_RET(schExecStaticExplainJob(pReq, pJob, false));
   }
+  
+  SCH_ERR_RET(schExecJobImpl(pReq, pJob, NULL, false));
 
   return code;
 }
@@ -1549,17 +1603,24 @@ int32_t schExecStaticExplainJob(SSchedulerReq *pReq, int64_t *job, bool sync) {
   SSchJob *pJob = taosMemoryCalloc(1, sizeof(SSchJob));
   if (NULL == pJob) {
     qError("QID:%" PRIx64 " calloc %d failed", pReq->pDag->queryId, (int32_t)sizeof(SSchJob));
-    SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+    pReq->fp(NULL, pReq->cbParam, code);
+    SCH_ERR_RET(code);
   }
 
   pJob->sql = pReq->sql;
   pJob->attr.queryJob = true;
-  pJob->attr.syncSchedule = sync;
   pJob->attr.explainMode = pReq->pDag->explainInfo.mode;
   pJob->queryId = pReq->pDag->queryId;
   pJob->subPlans = pReq->pDag->pSubplans;
   pJob->userRes.execFp = pReq->fp;
   pJob->userRes.userParam = pReq->cbParam;
+
+  code = schBeginOperation(pJob, SCH_OP_EXEC, sync);
+  if (code) {
+    pReq->fp(NULL, pReq->cbParam, code);
+    SCH_ERR_RET(code);
+  }
   
   SCH_ERR_JRET(qExecStaticExplain(pReq->pDag, (SRetrieveTableRsp **)&pJob->resData));
 
@@ -1571,7 +1632,7 @@ int32_t schExecStaticExplainJob(SSchedulerReq *pReq, int64_t *job, bool sync) {
 
   if (NULL == schAcquireJob(refId)) {
     SCH_JOB_ELOG("schAcquireJob job failed, refId:%" PRIx64, refId);
-    SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
+    SCH_ERR_JRET(TSDB_CODE_SCH_STATUS_ERROR);
   }
 
   pJob->refId = refId;
@@ -1582,9 +1643,11 @@ int32_t schExecStaticExplainJob(SSchedulerReq *pReq, int64_t *job, bool sync) {
   
   *job = pJob->refId;
   SCH_JOB_DLOG("job exec done, job status:%s", SCH_GET_JOB_STATUS_STR(pJob));
-
-  if (!pJob->attr.syncSchedule) {
-    code = schNotifyUserQueryRes(pJob);
+  
+  if (!sync) {
+    schPostJobRes(pJob, SCH_OP_EXEC);
+  } else {
+    schEndOperation(pJob);
   }
 
   schReleaseJob(pJob->refId);
@@ -1593,56 +1656,29 @@ int32_t schExecStaticExplainJob(SSchedulerReq *pReq, int64_t *job, bool sync) {
 
 _return:
 
+  schEndOperation(pJob);
+  if (!sync) {
+    pReq->fp(NULL, pReq->cbParam, code);
+  }
+  
   schFreeJobImpl(pJob);
+  
   SCH_RET(code);
 }
 
 int32_t schFetchRows(SSchJob *pJob) {
   int32_t  code = 0;
 
-  int8_t status = SCH_GET_JOB_STATUS(pJob);
-  if (status == JOB_TASK_STATUS_DROPPING) {
-    SCH_JOB_ELOG("job is dropping, status:%s", jobTaskStatusStr(status));
-    SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
-  }
-
-  if (!SCH_JOB_NEED_FETCH(pJob)) {
-    SCH_JOB_ELOG("no need to fetch data, status:%s", SCH_GET_JOB_STATUS_STR(pJob));
-    SCH_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
-  }
-
-  if (atomic_val_compare_exchange_8(&pJob->userFetch, 0, 1) != 0) {
-    SCH_JOB_ELOG("prior fetching not finished, userFetch:%d", atomic_load_8(&pJob->userFetch));
-    SCH_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
-  }
-
-  if (JOB_TASK_STATUS_FAILED == status || JOB_TASK_STATUS_DROPPING == status) {
-    SCH_JOB_ELOG("job failed or dropping, status:%s", jobTaskStatusStr(status));
-    SCH_ERR_JRET(atomic_load_32(&pJob->errCode));
-  } else if (status == JOB_TASK_STATUS_SUCCEED) {
-    SCH_JOB_DLOG("job already succeed, status:%s", jobTaskStatusStr(status));
-    goto _return;
-  } else if (status != JOB_TASK_STATUS_PARTIAL_SUCCEED) {
-    SCH_JOB_ELOG("job status error for fetch, status:%s", jobTaskStatusStr(status));
-    SCH_ERR_JRET(TSDB_CODE_SCH_STATUS_ERROR);
-  }
-
   if (!(pJob->attr.explainMode == EXPLAIN_MODE_STATIC)) {
     SCH_ERR_JRET(schFetchFromRemote(pJob));
     tsem_wait(&pJob->rspSem);
-  
-    status = SCH_GET_JOB_STATUS(pJob);      
-    if (JOB_TASK_STATUS_FAILED == status || JOB_TASK_STATUS_DROPPING == status) {
-      SCH_JOB_ELOG("job failed or dropping, status:%s", jobTaskStatusStr(status));
-      SCH_ERR_JRET(atomic_load_32(&pJob->errCode));
-    }
   }
 
   SCH_ERR_JRET(schSetJobFetchRes(pJob, pJob->userRes.fetchRes));
 
 _return:
 
-  atomic_val_compare_exchange_8(&pJob->userFetch, 1, 0);
+  schEndOperation(pJob);
 
   SCH_RET(code);
 }
@@ -1650,50 +1686,14 @@ _return:
 int32_t schAsyncFetchRows(SSchJob *pJob) {
   int32_t  code = 0;
 
-  int8_t status = SCH_GET_JOB_STATUS(pJob);
-  if (status == JOB_TASK_STATUS_DROPPING) {
-    SCH_JOB_ELOG("job is dropping, status:%s", jobTaskStatusStr(status));
-    SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
-  }
-
-  if (!SCH_JOB_NEED_FETCH(pJob)) {
-    SCH_JOB_ELOG("no need to fetch data, status:%s", SCH_GET_JOB_STATUS_STR(pJob));
-    SCH_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
-  }
-
-  if (atomic_val_compare_exchange_8(&pJob->userFetch, 0, 1) != 0) {
-    SCH_JOB_ELOG("prior fetching not finished, userFetch:%d", atomic_load_8(&pJob->userFetch));
-    SCH_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
-  }
-
-  if (JOB_TASK_STATUS_FAILED == status || JOB_TASK_STATUS_DROPPING == status) {
-    SCH_JOB_ELOG("job failed or dropping, status:%s", jobTaskStatusStr(status));
-    SCH_ERR_JRET(atomic_load_32(&pJob->errCode));
-  } else if (status == JOB_TASK_STATUS_SUCCEED) {
-    SCH_JOB_DLOG("job already succeed, status:%s", jobTaskStatusStr(status));
-    goto _return;
-  } else if (status != JOB_TASK_STATUS_PARTIAL_SUCCEED) {
-    SCH_JOB_ELOG("job status error for fetch, status:%s", jobTaskStatusStr(status));
-    SCH_ERR_JRET(TSDB_CODE_SCH_STATUS_ERROR);
-  }
-
   if (pJob->attr.explainMode == EXPLAIN_MODE_STATIC) {
-    atomic_val_compare_exchange_8(&pJob->userFetch, 1, 0);
-
-    SCH_ERR_JRET(schNotifyUserFetchRes(pJob));    
-  } else {
-    pJob->userCb = SCH_FETCH_CB;
-    
-    SCH_ERR_JRET(schFetchFromRemote(pJob));
+    schPostJobRes(pJob, SCH_OP_FETCH);
+    return TSDB_CODE_SUCCESS;
   }
+  
+  SCH_ERR_RET(schFetchFromRemote(pJob));
 
   return TSDB_CODE_SUCCESS;
-
-_return:
-
-  atomic_val_compare_exchange_8(&pJob->userFetch, 1, 0);
-
-  SCH_RET(code);
 }
 
 

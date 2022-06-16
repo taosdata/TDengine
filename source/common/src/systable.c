@@ -77,7 +77,7 @@ static const SSysDbTableSchema userDBSchema[] = {
     {.name = "ntables", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
     {.name = "replica", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
     {.name = "strict", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "duration", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "duration", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "keep", .bytes = 32 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "buffer", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "pagesize", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
@@ -302,7 +302,7 @@ static const SSysDbTableSchema offsetSchema[] = {
 };
 
 static const SSysDbTableSchema querySchema[] = {
-    {.name = "query_id", .bytes = 26 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "query_id", .bytes = TSDB_QUERY_ID_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "req_id", .bytes = 8, .type = TSDB_DATA_TYPE_UBIGINT},
     {.name = "connId", .bytes = 4, .type = TSDB_DATA_TYPE_UINT},
     {.name = "app", .bytes = TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},    

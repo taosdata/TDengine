@@ -1315,8 +1315,6 @@ int32_t tSerializeSSetStandbyReq(void* buf, int32_t bufLen, SSetStandbyReq* pReq
 int32_t tDeserializeSSetStandbyReq(void* buf, int32_t bufLen, SSetStandbyReq* pReq);
 
 typedef struct {
-  int32_t connId;   // todo remove
-  int32_t queryId;  // todo remove
   char    queryStrId[TSDB_QUERY_ID_LEN];
 } SKillQueryReq;
 

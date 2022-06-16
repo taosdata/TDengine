@@ -21,6 +21,18 @@
 #include "tref.h"
 #include "trpc.h"
 
+char* schGetOpStr(SCH_OP_TYPE type) {
+  switch (type) {
+    case SCH_OP_NULL:
+      return "NULL";
+    case SCH_OP_EXEC:
+      return "EXEC";
+    case SCH_OP_FETCH:
+      return "FETCH";
+    default:
+      return "UNKNOWN";
+  }
+}
 
 void schCleanClusterHb(void* pTrans) {
   SCH_LOCK(SCH_WRITE, &schMgmt.hbLock);

@@ -204,6 +204,7 @@ typedef struct SRequestObj {
   SRequestSendRecvBody body;
   bool                 stableQuery;
 
+  bool                 killed;
   uint32_t             prevCode; //previous error code: todo refactor, add update flag for catalog
   uint32_t             retry;
 } SRequestObj;
