@@ -263,13 +263,15 @@ void mndSyncStart(SMnode *pMnode) {
 void mndSyncStop(SMnode *pMnode) {
   if (pMnode->syncMgmt.transId != 0) {
     tsem_post(&pMnode->syncMgmt.syncSem);
+    pMnode->syncMgmt.transId = 0;
   }
 }
 
 bool mndIsMaster(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
 
-  if (!syncIsReady(pMgmt->sync)) {
+  ESyncState state = syncGetMyRole(pMgmt->sync);
+  if (state != TAOS_SYNC_STATE_LEADER) {
     terrno = TSDB_CODE_SYN_NOT_LEADER;
     return false;
   }
