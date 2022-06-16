@@ -55,7 +55,6 @@ typedef struct SResultRow {
   uint32_t      numOfRows;   // number of rows of current time window
   STimeWindow   win;
   struct SResultRowEntryInfo pEntryInfo[];  // For each result column, there is a resultInfo
-//  char         *key;       // start key of current result row
 } SResultRow;
 
 typedef struct SResultRowPosition {

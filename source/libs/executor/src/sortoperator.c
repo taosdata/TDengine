@@ -420,24 +420,29 @@ SOperatorInfo* createMultiwaySortMergeOperatorInfo(SOperatorInfo** downStreams, 
     goto _error;
   }
 
-  pInfo->binfo.pRes = pResBlock;
 
   initResultSizeInfo(pOperator, 1024);
 
-  pInfo->pSortInfo = pSortInfo;
+  pInfo->binfo.pRes    = pResBlock;
+  pInfo->pSortInfo     = pSortInfo;
   pInfo->pColMatchInfo = pColMatchColInfo;
-  pInfo->pInputBlock = pInputBlock;
-  pOperator->name = "MultiwaySortMerge";
+  pInfo->pInputBlock   = pInputBlock;
+  pOperator->name      = "MultiwaySortMerge";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_MERGE;
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
-
-  pInfo->bufPageSize = rowSize < 1024 ? 1024 : rowSize * 2;
-  pInfo->sortBufSize = pInfo->bufPageSize * 16;
-  pInfo->hasGroupId = false;
+  pOperator->blocking  = false;
+  pOperator->status    = OP_NOT_OPENED;
+  pOperator->info      = pInfo;
+  pInfo->hasGroupId    = false;
   pInfo->prefetchedTuple = NULL;
   pOperator->pTaskInfo = pTaskInfo;
+
+  pInfo->bufPageSize   = getProperSortPageSize(rowSize);
+
+  uint32_t numOfSources = taosArrayGetSize(pSortInfo);
+  numOfSources = TMAX(2, numOfSources);
+
+  pInfo->sortBufSize    = numOfSources * pInfo->bufPageSize;
+
   pOperator->fpSet =
       createOperatorFpSet(doOpenMultiwaySortMergeOperator, doMultiwaySortMerge, NULL, NULL,
                           destroyMultiwaySortMergeOperatorInfo, NULL, NULL, getMultiwaySortMergeExplainExecInfo);
