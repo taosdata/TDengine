@@ -370,6 +370,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   SMnodeObj *pObj = mndAcquireMnode(pMnode, pDnode->id);
   if (pObj != NULL) {
     if (pObj->state != statusReq.mload.syncState) {
+      mInfo("dnode:%d, mnode syncstate from %s to %s", pObj->id, syncStr(pObj->state), syncStr(statusReq.mload.syncState));
       pObj->state = statusReq.mload.syncState;
       pObj->stateStartTime = taosGetTimestampMs();
     }

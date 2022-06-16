@@ -667,6 +667,10 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     }
     if (pObj->pDnode && mndIsDnodeOnline(pObj->pDnode, curMs)) {
       roles = syncStr(pObj->state);
+      if (pObj->state == TAOS_SYNC_STATE_LEADER && pObj->id != pMnode->selfDnodeId) {
+        roles = syncStr(TAOS_SYNC_STATE_ERROR);
+        mError("mnode:%d, is leader too", pObj->id);
+      }
     }
     char b2[12 + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(b2, roles, pShow->pMeta->pSchemas[cols].bytes);
