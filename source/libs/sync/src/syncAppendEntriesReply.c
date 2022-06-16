@@ -191,17 +191,17 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
           char* s = snapshotSender2Str(pSender);
           sDebug(
               "vgId:%d sync event snapshot send to %s:%d start sender first time, lastApplyIndex:%ld lastApplyTerm:%lu "
-              "lastConfigIndex:%ld"
+              "lastConfigIndex:%ld privateTerm:%lu "
               "sender:%s",
               ths->vgId, host, port, pSender->snapshot.lastApplyIndex, pSender->snapshot.lastApplyTerm,
-              pSender->snapshot.lastConfigIndex, s);
+              pSender->snapshot.lastConfigIndex, pSender->privateTerm, s);
           taosMemoryFree(s);
         } else {
           sDebug(
               "vgId:%d sync event snapshot send to %s:%d start sender first time, lastApplyIndex:%ld "
-              "lastApplyTerm:%lu lastConfigIndex:%ld",
+              "lastApplyTerm:%lu lastConfigIndex:%ld privateTerm:%lu",
               ths->vgId, host, port, pSender->snapshot.lastApplyIndex, pSender->snapshot.lastApplyTerm,
-              pSender->snapshot.lastConfigIndex);
+              pSender->snapshot.lastConfigIndex, pSender->privateTerm);
         }
       }
 
