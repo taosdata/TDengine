@@ -16,3 +16,10 @@
 #include "tsdb.h"
 
 typedef struct STsdbReader STsdbReader;
+
+// https://www.geeksforgeeks.org/the-skyline-problem-using-divide-and-conquer-algorithm/
+static int32_t tsdbBuildDeleteSkyline(SArray *pDelArray, SArray *pSkylineArray) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}

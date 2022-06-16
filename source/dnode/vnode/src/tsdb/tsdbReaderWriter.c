@@ -670,10 +670,53 @@ _err:
 }
 
 int32_t tsdbWriteBlock(SDataFWriter *pWriter, SMapData *pBlockMap, uint8_t **ppBuf, SBlockIdx *pBlockIdx) {
-  int32_t code = 0;
+  int32_t  code = 0;
+  uint8_t *pBuf = NULL;
+  int64_t  size;
+  int64_t  n;
 
   ASSERT(pBlockMap->nItem > 0);
-  // TODO
+
+  // prepare
+  size = 0;
+  size += tPutU32(NULL, TSDB_FILE_DLMT);
+  size += tPutI64(NULL, pBlockIdx->suid);
+  size += tPutI64(NULL, pBlockIdx->uid);
+  size = size + tPutMapData(NULL, pBlockMap) + sizeof(TSCKSUM);
+
+  // alloc
+  if (!ppBuf) ppBuf = &pBuf;
+  code = tsdbRealloc(ppBuf, size);
+  if (code) goto _err;
+
+  // build
+  n = 0;
+  n += tPutU32(*ppBuf + n, TSDB_FILE_DLMT);
+  n += tPutI64(*ppBuf + n, pBlockIdx->suid);
+  n += tPutI64(*ppBuf + n, pBlockIdx->uid);
+  n += tPutMapData(*ppBuf + n, pBlockMap);
+  taosCalcChecksumAppend(0, *ppBuf, size);
+
+  ASSERT(n + sizeof(TSCKSUM) == size);
+
+  // write
+  n = taosWriteFile(pWriter->pHeadFD, *ppBuf, size);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  // update (todo)
+  // pBlockIdx->offset = -1;
+  pBlockIdx->size = size;
+  // pWriter->pSet->pHeadF.offset
+
+  tsdbTrace("vgId:%d write block, offset:%" PRId64 " size:%" PRId64, TD_VID(pWriter->pTsdb->pVnode), pBlockIdx->offset,
+            pBlockIdx->size);
+  return code;
+
+_err:
+  tsdbError("vgId:%d write block failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
