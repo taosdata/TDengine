@@ -189,7 +189,7 @@ typedef struct SExecTaskInfo {
   } schemaVer;
 
   STableListInfo   tableqinfoList;       // this is a table list
-  char*            sql;                  // query sql string
+  const char*      sql;                  // query sql string
   jmp_buf          env;                  // jump to this position when error happens.
   EOPTR_EXEC_MODEL execModel;            // operator execution model [batch model|stream model]
   struct SOperatorInfo* pRoot;
@@ -894,7 +894,7 @@ int32_t decodeOperator(SOperatorInfo* ops, char* data, int32_t length);
 
 void    setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status);
 int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
-                               EOPTR_EXEC_MODEL model);
+                               const char* sql, EOPTR_EXEC_MODEL model);
 int32_t createDataSinkParam(SDataSinkNode *pNode, void **pParam, qTaskInfo_t* pTaskInfo);                               
 int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SExplainExecInfo** pRes, int32_t* capacity,
                                    int32_t* resNum);

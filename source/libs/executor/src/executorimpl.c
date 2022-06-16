@@ -736,6 +736,20 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
       // _rowts/_c0, not tbname column
       if (fmIsPseudoColumnFunc(pfCtx->functionId) && (!fmIsScanPseudoColumnFunc(pfCtx->functionId))) {
         // do nothing
+      } else if (fmIsIndefiniteRowsFunc(pfCtx->functionId)) {
+        SResultRowEntryInfo* pResInfo = GET_RES_INFO(&pCtx[k]);
+        pfCtx->fpSet.init(&pCtx[k], pResInfo);
+
+        pfCtx->pOutput = taosArrayGet(pResult->pDataBlock, outputSlotId);
+        pfCtx->offset = createNewColModel ? 0 : pResult->info.rows;  // set the start offset
+
+        // set the timestamp(_rowts) output buffer
+        if (taosArrayGetSize(pPseudoList) > 0) {
+          int32_t* outputColIndex = taosArrayGet(pPseudoList, 0);
+          pfCtx->pTsOutput = (SColumnInfoData*)pCtx[*outputColIndex].pOutput;
+        }
+
+        numOfRows = pfCtx->fpSet.process(pfCtx);
       } else {
         SArray* pBlockList = taosArrayInit(4, POINTER_BYTES);
         taosArrayPush(pBlockList, &pSrcBlock);
@@ -5183,7 +5197,7 @@ int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, qTaskInfo_t* pT
 }
 
 int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
-                               EOPTR_EXEC_MODEL model) {
+                               const char* sql, EOPTR_EXEC_MODEL model) {
   uint64_t queryId = pPlan->id.queryId;
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -5193,6 +5207,7 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
     goto _complete;
   }
 
+  (*pTaskInfo)->sql = sql;
   (*pTaskInfo)->pRoot = createOperatorTree(pPlan->pNode, *pTaskInfo, pHandle, queryId, taskId,
                                            &(*pTaskInfo)->tableqinfoList, pPlan->pTagCond);
   if (NULL == (*pTaskInfo)->pRoot) {
