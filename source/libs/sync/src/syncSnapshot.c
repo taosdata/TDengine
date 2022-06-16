@@ -592,6 +592,12 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
           int32_t oldReplicaNum = pSyncNode->replicaNum;
 
           // update new config myIndex
+          SSyncCfg newSyncCfg = pMsg->lastConfig;
+          syncNodeUpdateNewConfigIndex(pSyncNode, &newSyncCfg);
+          bool IamInNew = syncNodeInConfig(pSyncNode, &newSyncCfg);
+
+#if 0
+          // update new config myIndex
           bool     IamInNew = false;
           SSyncCfg newSyncCfg = pMsg->lastConfig;
           for (int i = 0; i < newSyncCfg.replicaNum; ++i) {
@@ -602,6 +608,7 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
               break;
             }
           }
+#endif
 
           bool isDrop;
           if (IamInNew) {

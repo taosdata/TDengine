@@ -45,8 +45,9 @@ int64_t syncRespMgrAdd(SSyncRespMgr *pObj, SRespStub *pStub) {
   taosHashPut(pObj->pRespHash, &keyCode, sizeof(keyCode), pStub, sizeof(SRespStub));
 
   SSyncNode *pSyncNode = pObj->data;
-  sDebug("vgId:%d sync event resp mgr add, type:%s seq:%lu handle:%p", pSyncNode->vgId,
-         TMSG_INFO(pStub->rpcMsg.msgType), keyCode, pStub->rpcMsg.info.handle);
+  sDebug("vgId:%d sync event resp mgr add, msgType:%s,%d seq:%lu handle:%p ahandle:%p", pSyncNode->vgId,
+         TMSG_INFO(pStub->rpcMsg.msgType), pStub->rpcMsg.msgType, keyCode, pStub->rpcMsg.info.handle,
+         pStub->rpcMsg.info.ahandle);
 
   taosThreadMutexUnlock(&(pObj->mutex));
   return keyCode;
@@ -69,8 +70,9 @@ int32_t syncRespMgrGet(SSyncRespMgr *pObj, uint64_t index, SRespStub *pStub) {
     memcpy(pStub, pTmp, sizeof(SRespStub));
 
     SSyncNode *pSyncNode = pObj->data;
-    sDebug("vgId:%d sync event resp mgr get, type:%s seq:%lu handle:%p", pSyncNode->vgId,
-           TMSG_INFO(pStub->rpcMsg.msgType), index, pStub->rpcMsg.info.handle);
+    sDebug("vgId:%d sync event resp mgr get, msgType:%s,%d seq:%lu handle:%p ahandle:%p", pSyncNode->vgId,
+           TMSG_INFO(pStub->rpcMsg.msgType), pStub->rpcMsg.msgType, index, pStub->rpcMsg.info.handle,
+           pStub->rpcMsg.info.ahandle);
 
     taosThreadMutexUnlock(&(pObj->mutex));
     return 1;  // get one object
@@ -87,8 +89,9 @@ int32_t syncRespMgrGetAndDel(SSyncRespMgr *pObj, uint64_t index, SRespStub *pStu
     memcpy(pStub, pTmp, sizeof(SRespStub));
 
     SSyncNode *pSyncNode = pObj->data;
-    sDebug("vgId:%d sync event resp mgr get and del, type:%s seq:%lu handle:%p", pSyncNode->vgId,
-           TMSG_INFO(pStub->rpcMsg.msgType), index, pStub->rpcMsg.info.handle);
+    sDebug("vgId:%d sync event resp mgr get and del, msgType:%s,%d seq:%lu handle:%p ahandle:%p", pSyncNode->vgId,
+           TMSG_INFO(pStub->rpcMsg.msgType), pStub->rpcMsg.msgType, index, pStub->rpcMsg.info.handle,
+           pStub->rpcMsg.info.ahandle);
 
     taosHashRemove(pObj->pRespHash, &index, sizeof(index));
     taosThreadMutexUnlock(&(pObj->mutex));
