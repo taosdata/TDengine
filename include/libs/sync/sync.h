@@ -182,6 +182,7 @@ void        syncStart(int64_t rid);
 void        syncStop(int64_t rid);
 int32_t     syncSetStandby(int64_t rid);
 ESyncState  syncGetMyRole(int64_t rid);
+bool        syncIsReady(int64_t rid);
 const char* syncGetMyRoleStr(int64_t rid);
 SyncTerm    syncGetMyTerm(int64_t rid);
 void        syncGetEpSet(int64_t rid, SEpSet* pEpSet);
