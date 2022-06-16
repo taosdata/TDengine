@@ -829,7 +829,11 @@ void *taosCacheTimedRefresh(void *handle) {
 
   const int32_t SLEEP_DURATION = 500;  // 500 ms
   int64_t       count = 0;
-  atexit(taosCacheRefreshWorkerUnexpectedStopped);
+#ifdef WINDOWS
+  if (taosCheckCurrentInDll()) {
+    atexit(taosCacheRefreshWorkerUnexpectedStopped);
+  }
+#endif
 
   while (1) {
     taosMsleep(SLEEP_DURATION);

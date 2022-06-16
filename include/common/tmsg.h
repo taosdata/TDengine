@@ -1519,7 +1519,7 @@ typedef struct {
 #define STREAM_TRIGGER_MAX_DELAY    3
 
 typedef struct {
-  char    name[TSDB_TABLE_FNAME_LEN];
+  char    name[TSDB_STREAM_FNAME_LEN];
   char    sourceDB[TSDB_DB_FNAME_LEN];
   char    targetStbFullName[TSDB_TABLE_FNAME_LEN];
   int8_t  igExists;
@@ -1539,7 +1539,7 @@ int32_t tDeserializeSCMCreateStreamReq(void* buf, int32_t bufLen, SCMCreateStrea
 void    tFreeSCMCreateStreamReq(SCMCreateStreamReq* pReq);
 
 typedef struct {
-  char    name[TSDB_TOPIC_FNAME_LEN];
+  char    name[TSDB_STREAM_FNAME_LEN];
   int64_t streamId;
   char*   sql;
   char*   executorMsg;
@@ -2008,7 +2008,7 @@ typedef struct {
   char     sql[TSDB_SHOW_SQL_LEN];
   uint64_t queryId;
   int64_t  useconds;
-  int64_t  stime;            // timestamp precision ms
+  int64_t  stime;  // timestamp precision ms
   int64_t  reqRid;
   int32_t  pid;
   bool     stableQuery;
@@ -2257,13 +2257,13 @@ typedef struct {
 } SMqVDeleteRsp;
 
 typedef struct {
-  char    name[TSDB_STREAM_FNAME_LEN];
-  int64_t streamId;
-} SMDropStreamTaskReq;
+  char   name[TSDB_STREAM_FNAME_LEN];
+  int8_t igNotExists;
+} SMDropStreamReq;
 
 typedef struct {
   int8_t reserved;
-} SMDropStreamTaskRsp;
+} SMDropStreamRsp;
 
 typedef struct {
   SMsgHead head;

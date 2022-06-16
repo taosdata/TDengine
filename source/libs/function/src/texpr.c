@@ -17,15 +17,7 @@
 #include "os.h"
 
 #include "texception.h"
-#include "taosdef.h"
 #include "tmsg.h"
-#include "tarray.h"
-#include "tbuffer.h"
-#include "tcompare.h"
-#include "thash.h"
-#include "texpr.h"
-#include "tvariant.h"
-#include "tdef.h"
 
 static void doExprTreeDestroy(tExprNode **pExpr, void (*fp)(void *));
 
