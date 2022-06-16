@@ -499,7 +499,6 @@ _OVER:
 static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
   SMnode         *pMnode = pReq->info.node;
   int32_t         code = -1;
-  SUserObj       *pUser = NULL;
   SDnodeObj      *pDnode = NULL;
   SCreateDnodeReq createReq = {0};
 
@@ -522,13 +521,7 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  pUser = mndAcquireUser(pMnode, pReq->conn.user);
-  if (pUser == NULL) {
-    terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
-    goto _OVER;
-  }
-
-  if (mndCheckNodeAuth(pUser) != 0) {
+  if (mndCheckOperAuth(pMnode, pReq->conn.user, MND_OPER_CREATE_DNODE) != 0) {
     goto _OVER;
   }
 
@@ -541,7 +534,6 @@ _OVER:
   }
 
   mndReleaseDnode(pMnode, pDnode);
-  mndReleaseUser(pMnode, pUser);
   return code;
 }
 
@@ -586,7 +578,6 @@ _OVER:
 static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
   SMnode        *pMnode = pReq->info.node;
   int32_t        code = -1;
-  SUserObj      *pUser = NULL;
   SDnodeObj     *pDnode = NULL;
   SMnodeObj     *pMObj = NULL;
   SMDropMnodeReq dropReq = {0};
@@ -631,13 +622,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
     }
   }
 
-  pUser = mndAcquireUser(pMnode, pReq->conn.user);
-  if (pUser == NULL) {
-    terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
-    goto _OVER;
-  }
-
-  if (mndCheckNodeAuth(pUser) != 0) {
+  if (mndCheckOperAuth(pMnode, pReq->conn.user, MND_OPER_DROP_MNODE) != 0) {
     goto _OVER;
   }
 
@@ -650,7 +635,6 @@ _OVER:
   }
 
   mndReleaseDnode(pMnode, pDnode);
-  mndReleaseUser(pMnode, pUser);
   mndReleaseMnode(pMnode, pMObj);
   return code;
 }

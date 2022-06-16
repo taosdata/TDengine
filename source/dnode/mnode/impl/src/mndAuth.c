@@ -73,29 +73,44 @@ static int32_t mndProcessAuthReq(SRpcMsg *pReq) {
   return code;
 }
 
-int32_t mndCheckCreateUserAuth(SUserObj *pOperUser) {
-  if (pOperUser->superUser) return 0;
+int32_t mndCheckOperAuth(SMnode *pMnode, const char *user, EOperType operType) {
+  int32_t   code = 0;
+  SUserObj *pUser = mndAcquireUser(pMnode, user);
+
+  if (pUser == NULL) {
+    terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
+    code = -1;
+    goto _OVER;
+  }
+
+  if (pUser->superUser) {
+    goto _OVER;
+  }
+
+  if (!pUser->enable) {
+    terrno = TSDB_CODE_MND_USER_DISABLED;
+    code = -1;
+    goto _OVER;
+  }
+
   terrno = TSDB_CODE_MND_NO_RIGHTS;
-  return -1;
+  code = -1;
+
+_OVER:
+  mndReleaseUser(pMnode, pUser);
+  return code;
 }
 
 int32_t mndCheckAlterUserAuth(SUserObj *pOperUser, SUserObj *pUser, SAlterUserReq *pAlter) {
+  if (pOperUser->superUser) return 0;
+  if (!pOperUser->enable) {
+    terrno = TSDB_CODE_MND_USER_DISABLED;
+    return -1;
+  }
+
   if (pAlter->alterType == TSDB_ALTER_USER_PASSWD) {
-    if (pOperUser->superUser || strcmp(pUser->user, pOperUser->user) == 0) {
-      return 0;
-    }
-  } else if (pAlter->alterType == TSDB_ALTER_USER_SUPERUSER) {
-    if (strcmp(pUser->user, TSDB_DEFAULT_USER) == 0) {
-      terrno = TSDB_CODE_MND_NO_RIGHTS;
-      return -1;
-    }
-
-    if (pOperUser->superUser) {
-      return 0;
-    }
-  } else {
-    if (pOperUser->superUser) {
-      return 0;
+    if (strcmp(pUser->user, pOperUser->user) == 0) {
+      if (pOperUser->sysInfo) return 0;
     }
   }
 
@@ -103,65 +118,92 @@ int32_t mndCheckAlterUserAuth(SUserObj *pOperUser, SUserObj *pUser, SAlterUserRe
   return -1;
 }
 
-int32_t mndCheckDropUserAuth(SUserObj *pOperUser) {
-  if (pOperUser->superUser) return 0;
-  terrno = TSDB_CODE_MND_NO_RIGHTS;
-  return -1;
-}
+int32_t mndCheckShowAuth(SMnode *pMnode, const char *user, int32_t showType) {
+  int32_t   code = 0;
+  SUserObj *pUser = mndAcquireUser(pMnode, user);
 
-int32_t mndCheckNodeAuth(SUserObj *pOperUser) {
-  if (pOperUser->superUser) return 0;
-  terrno = TSDB_CODE_MND_NO_RIGHTS;
-  return -1;
-}
+  if (pUser == NULL) {
+    code = -1;
+    goto _OVER;
+  }
 
-int32_t mndCheckFuncAuth(SUserObj *pOperUser) {
-  if (pOperUser->superUser) return 0;
-  terrno = TSDB_CODE_MND_NO_RIGHTS;
-  return -1;
-}
+  if (pUser->superUser) {
+    goto _OVER;
+  }
 
-int32_t mndCheckTransAuth(SUserObj *pOperUser) {
-  if (pOperUser->superUser) return 0;
-  terrno = TSDB_CODE_MND_NO_RIGHTS;
-  return -1;
-}
+  if (!pUser->enable) {
+    terrno = TSDB_CODE_MND_USER_DISABLED;
+    code = -1;
+    goto _OVER;
+  }
 
-int32_t mndCheckCreateDbAuth(SUserObj *pOperUser) { return 0; }
-
-int32_t mndCheckAlterDropCompactDbAuth(SUserObj *pOperUser, SDbObj *pDb) {
-  if (pOperUser->superUser || strcmp(pOperUser->user, pDb->createUser) == 0) {
-    return 0;
+  if (!pUser->sysInfo) {
+    terrno = TSDB_CODE_MND_NO_RIGHTS;
+    code = -1;
+    goto _OVER;
   }
 
   terrno = TSDB_CODE_MND_NO_RIGHTS;
-  return -1;
+  code = -1;
+
+_OVER:
+  mndReleaseUser(pMnode, pUser);
+  return code;
 }
 
-int32_t mndCheckUseDbAuth(SUserObj *pOperUser, SDbObj *pDb) { return 0; }
+int32_t mndCheckDbAuth(SMnode *pMnode, const char *user, EOperType operType, SDbObj *pDb) {
+  int32_t   code = 0;
+  SUserObj *pUser = mndAcquireUser(pMnode, user);
 
-int32_t mndCheckWriteAuth(SUserObj *pOperUser, SDbObj *pDb) {
-  if (pOperUser->superUser || strcmp(pOperUser->user, pDb->createUser) == 0) {
-    return 0;
+  if (pUser == NULL) {
+    code = -1;
+    goto _OVER;
   }
 
-  if (taosHashGet(pOperUser->writeDbs, pDb->name, strlen(pDb->name) + 1) != NULL) {
-    return 0;
+  if (pUser->superUser) goto _OVER;
+
+  if (!pUser->enable) {
+    terrno = TSDB_CODE_MND_USER_DISABLED;
+    code = -1;
+    goto _OVER;
+  }
+
+  if (operType == MND_OPER_CREATE_DB) {
+    if (pUser->sysInfo) goto _OVER;
+  }
+
+  if (operType == MND_OPER_ALTER_DB) {
+    if (strcmp(pUser->user, pDb->createUser) == 0 && pUser->sysInfo) goto _OVER;
+  }
+
+  if (operType == MND_OPER_DROP_DB) {
+    if (strcmp(pUser->user, pDb->createUser) == 0 && pUser->sysInfo) goto _OVER;
+  }
+
+  if (operType == MND_OPER_COMPACT_DB) {
+    if (strcmp(pUser->user, pDb->createUser) == 0 && pUser->sysInfo) goto _OVER;
+  }
+
+  if (operType == MND_OPER_USE_DB) {
+    if (strcmp(pUser->user, pDb->createUser) == 0) goto _OVER;
+    if (taosHashGet(pUser->readDbs, pDb->name, strlen(pDb->name) + 1) != NULL) goto _OVER;
+    if (taosHashGet(pUser->writeDbs, pDb->name, strlen(pDb->name) + 1) != NULL) goto _OVER;
+  }
+
+  if (operType == MND_OPER_WRITE_DB) {
+    if (strcmp(pUser->user, pDb->createUser) == 0) goto _OVER;
+    if (taosHashGet(pUser->writeDbs, pDb->name, strlen(pDb->name) + 1) != NULL) goto _OVER;
+  }
+
+  if (operType == MND_OPER_READ_DB) {
+    if (strcmp(pUser->user, pDb->createUser) == 0) goto _OVER;
+    if (taosHashGet(pUser->readDbs, pDb->name, strlen(pDb->name) + 1) != NULL) goto _OVER;
   }
 
   terrno = TSDB_CODE_MND_NO_RIGHTS;
-  return -1;
-}
+  code = -1;
 
-int32_t mndCheckReadAuth(SUserObj *pOperUser, SDbObj *pDb) {
-  if (pOperUser->superUser || strcmp(pOperUser->user, pDb->createUser) == 0) {
-    return 0;
-  }
-
-  if (taosHashGet(pOperUser->readDbs, pDb->name, strlen(pDb->name) + 1) != NULL) {
-    return 0;
-  }
-
-  terrno = TSDB_CODE_MND_NO_RIGHTS;
-  return -1;
+_OVER:
+  mndReleaseUser(pMnode, pUser);
+  return code;
 }

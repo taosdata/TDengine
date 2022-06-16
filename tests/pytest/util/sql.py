@@ -156,6 +156,7 @@ class TDSql:
     def checkRows(self, expectRows):
         if self.queryRows == expectRows:
             tdLog.info("sql:%s, queryRows:%d == expect:%d" % (self.sql, self.queryRows, expectRows))
+            return True
         else:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             args = (caller.filename, caller.lineno, self.sql, self.queryRows, expectRows)

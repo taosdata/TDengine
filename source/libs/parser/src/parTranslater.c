@@ -3257,6 +3257,8 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
   strcpy(createReq.user, pStmt->useName);
   createReq.createType = 0;
   createReq.superUser = 0;
+  createReq.sysInfo = 1;
+  createReq.enable = 1;
   strcpy(createReq.pass, pStmt->password);
 
   return buildCmdMsg(pCxt, TDMT_MND_CREATE_USER, (FSerializeFunc)tSerializeSCreateUserReq, &createReq);
