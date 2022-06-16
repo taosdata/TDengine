@@ -377,6 +377,16 @@ static int32_t collectMetaKeyFromShowTopics(SCollectMetaKeyCxt* pCxt, SShowStmt*
                                  pCxt->pMetaCache);
 }
 
+static int32_t collectMetaKeyFromShowConnections(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_PERFORMANCE_SCHEMA_DB, TSDB_PERFS_TABLE_CONNECTIONS,
+                                 pCxt->pMetaCache);
+}
+
+static int32_t collectMetaKeyFromShowQueries(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_PERFORMANCE_SCHEMA_DB, TSDB_PERFS_TABLE_QUERIES,
+                                 pCxt->pMetaCache);
+}
+
 static int32_t collectMetaKeyFromShowTransactions(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_PERFORMANCE_SCHEMA_DB, TSDB_PERFS_TABLE_TRANS,
                                  pCxt->pMetaCache);
@@ -447,6 +457,10 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromShowVgroups(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_TOPICS_STMT:
       return collectMetaKeyFromShowTopics(pCxt, (SShowStmt*)pStmt);
+    case QUERY_NODE_SHOW_CONNECTIONS_STMT:
+      return collectMetaKeyFromShowConnections(pCxt, (SShowStmt*)pStmt);
+    case QUERY_NODE_SHOW_QUERIES_STMT:
+      return collectMetaKeyFromShowQueries(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
       return collectMetaKeyFromShowTransactions(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_DELETE_STMT:

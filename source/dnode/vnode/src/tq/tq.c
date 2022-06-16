@@ -510,3 +510,13 @@ int32_t tqProcessTaskRecoverRsp(STQ* pTq, SRpcMsg* pMsg) {
   streamProcessRecoverRsp(pTask, pRsp);
   return 0;
 }
+
+int32_t tqProcessTaskDropReq(STQ* pTq, char* msg, int32_t msgLen) {
+  SVDropStreamTaskReq* pReq = (SVDropStreamTaskReq*)msg;
+  int32_t              code = taosHashRemove(pTq->pStreamTasks, &pReq->taskId, sizeof(int32_t));
+  if (code == 0) {
+    // sendrsp
+  }
+  ASSERT(code == 0);
+  return code;
+}

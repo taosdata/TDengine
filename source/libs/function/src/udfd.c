@@ -468,8 +468,8 @@ int32_t udfdConnectToMnode() {
   char pass[TSDB_PASSWORD_LEN + 1] = {0};
   taosEncryptPass_c((uint8_t *)(TSDB_DEFAULT_PASS), strlen(TSDB_DEFAULT_PASS), pass);
   tstrncpy(connReq.passwd, pass, sizeof(connReq.passwd));
-  connReq.pid = htonl(taosGetPId());
-  connReq.startTime = htobe64(taosGetTimestampMs());
+  connReq.pid = taosGetPId();
+  connReq.startTime = taosGetTimestampMs();
 
   int32_t contLen = tSerializeSConnectReq(NULL, 0, &connReq);
   void *  pReq = rpcMallocCont(contLen);

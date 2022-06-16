@@ -76,7 +76,9 @@ void appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle) {
       colDataAppendNULL(pColInfo, pBlock->info.rows);
     } else {
       char* pData = tsortGetValue(pTupleHandle, i);
-      colDataAppend(pColInfo, pBlock->info.rows, pData, false);
+      if (pData != NULL) {
+        colDataAppend(pColInfo, pBlock->info.rows, pData, false);
+      }
     }
   }
 
@@ -427,7 +429,7 @@ SOperatorInfo* createMultiwaySortMergeOperatorInfo(SOperatorInfo** downStreams, 
   pInfo->pInputBlock = pInputBlock;
   pOperator->name = "MultiwaySortMerge";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_MERGE;
-  pOperator->blocking = true;
+  pOperator->blocking = false;
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
 

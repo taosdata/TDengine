@@ -44,7 +44,6 @@
 typedef struct SGroupResInfo {
   int32_t index;
   SArray* pRows;      // SArray<SResKeyPos>
-  int32_t position;
 } SGroupResInfo;
 
 typedef struct SResultRow {
@@ -56,7 +55,7 @@ typedef struct SResultRow {
   uint32_t      numOfRows;   // number of rows of current time window
   STimeWindow   win;
   struct SResultRowEntryInfo pEntryInfo[];  // For each result column, there is a resultInfo
-//  char         *key;         // start key of current result row
+//  char         *key;       // start key of current result row
 } SResultRow;
 
 typedef struct SResultRowPosition {
@@ -71,9 +70,7 @@ typedef struct SResKeyPos {
 } SResKeyPos;
 
 typedef struct SResultRowInfo {
-  SResultRowPosition *pPosition;  // todo remove this
   int32_t      size;       // number of result set
-  int32_t      capacity;   // max capacity
   SResultRowPosition cur;
   SList*       openWindow;
 } SResultRowInfo;
