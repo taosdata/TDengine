@@ -583,9 +583,11 @@ int tcpConnect(char* host, int port) {
     struct sockaddr_in serv_addr;
     if (port == 0) {
         port = 6041;
+        args.port = 6041;
     }
     if (NULL == host) {
         host = "localhost";
+        args.host = "localhost";
     }
 
     struct hostent *server = gethostbyname(host);
