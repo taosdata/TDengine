@@ -369,21 +369,21 @@ void get_history_path(char *history) {
 
 void exitShell() { exit(EXIT_SUCCESS); }
 
-int tcpConnect() {
+int tcpConnect(char* host, int iport) {
     int iResult;
     WSADATA wsaData;
     struct addrinfo *aResult = NULL,
             *ptr = NULL,
             hints;
-    if (args.port == 0) {
-        args.port = 6041;
+    if (iport == 0) {
+        iport = 6041;
     }
-    if (NULL == args.host) {
-        args.host = "localhost";
+    if (NULL == host) {
+        host = "localhost";
     }
     char port[10] = {0};
 
-    sprintf_s(port, 10, "%d", args.port);
+    sprintf_s(port, 10, "%d", iport);
 
     iResult = WSAStartup(MAKEWORD(2,2), &wsaData);
     if (iResult != 0) {
@@ -394,7 +394,7 @@ int tcpConnect() {
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_protocol = IPPROTO_TCP;
-    iResult = getaddrinfo(args.host, port, &hints, &aResult);
+    iResult = getaddrinfo(host, port, &hints, &aResult);
     if ( iResult != 0 ) {
         printf("getaddrinfo failed with error: %d\n", iResult);
         WSACleanup();
