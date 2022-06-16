@@ -1,13 +1,22 @@
+<p>
+<p align="center">
+  <a href="https://tdengine.com" target="_blank">
+  <img
+    src="docs/assets/tdengine.svg"
+    alt="TDengine"
+    width="500"
+  />
+  </a>
+</p>
+<p>
+
 [![Build Status](https://travis-ci.org/taosdata/TDengine.svg?branch=master)](https://travis-ci.org/taosdata/TDengine)
 [![Build status](https://ci.appveyor.com/api/projects/status/kf3pwh2or5afsgl9/branch/master?svg=true)](https://ci.appveyor.com/project/sangshuduo/tdengine-2n8ge/branch/master)
 [![Coverage Status](https://coveralls.io/repos/github/taosdata/TDengine/badge.svg?branch=develop)](https://coveralls.io/github/taosdata/TDengine?branch=develop)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/4201/badge)](https://bestpractices.coreinfrastructure.org/projects/4201)
 [![tdengine](https://snapcraft.io//tdengine/badge.svg)](https://snapcraft.io/tdengine)
 
-[![TDengine](TDenginelogo.png)](https://www.taosdata.com)
-
-简体中文 | [English](./README.md)
-很多职位正在热招中，请看[这里](https://www.taosdata.com/cn/careers/)
+简体中文 | [English](README.md) | 很多职位正在热招中，请看[这里](https://www.taosdata.com/cn/careers/)
 
 # TDengine 简介
 
