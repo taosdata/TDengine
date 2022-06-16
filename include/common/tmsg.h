@@ -2001,16 +2001,17 @@ typedef struct {
 
 typedef struct {
   int64_t tid;
-  int32_t status;
+  char    status[TSDB_JOB_STATUS_LEN];
 } SQuerySubDesc;
 
 typedef struct {
   char     sql[TSDB_SHOW_SQL_LEN];
   uint64_t queryId;
   int64_t  useconds;
-  int64_t  stime;
+  int64_t  stime;            // timestamp precision ms
   int64_t  reqRid;
   int32_t  pid;
+  bool     stableQuery;
   char     fqdn[TSDB_FQDN_LEN];
   int32_t  subPlanNum;
   SArray*  subDesc;  // SArray<SQuerySubDesc>

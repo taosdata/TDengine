@@ -39,6 +39,7 @@ typedef struct {
   int64_t  lastAccessTimeMs;
   uint64_t killId;
   int32_t  numOfQueries;
+  SRWLatch queryLock;
   SArray  *pQueries;  // SArray<SQueryDesc>
 } SConnObj;
 
@@ -53,8 +54,8 @@ static int32_t   mndProcessHeartBeatReq(SRpcMsg *pReq);
 static int32_t   mndProcessConnectReq(SRpcMsg *pReq);
 static int32_t   mndProcessKillQueryReq(SRpcMsg *pReq);
 static int32_t   mndProcessKillConnReq(SRpcMsg *pReq);
-static int32_t   mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
-static int32_t   mndRetrieveQueries(SRpcMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
+static int32_t   mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
+static int32_t   mndRetrieveQueries(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void      mndCancelGetNextQuery(SMnode *pMnode, void *pIter);
 
 int32_t mndInitProfile(SMnode *pMnode) {
@@ -74,9 +75,9 @@ int32_t mndInitProfile(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_KILL_QUERY, mndProcessKillQueryReq);
   mndSetMsgHandle(pMnode, TDMT_MND_KILL_CONN, mndProcessKillConnReq);
 
-  //  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_CONNS, mndRetrieveConns);
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_CONNS, mndRetrieveConns);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_CONNS, mndCancelGetNextConn);
-  //  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_QUERIES, mndRetrieveQueries);
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_QUERIES, mndRetrieveQueries);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_QUERIES, mndCancelGetNextQuery);
 
   return 0;
@@ -129,7 +130,9 @@ static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType
 }
 
 static void mndFreeConn(SConnObj *pConn) {
+  taosWLockLatch(&pConn->queryLock);
   taosArrayDestroyEx(pConn->pQueries, tFreeClientHbQueryDesc);
+  taosWUnLockLatch(&pConn->queryLock);
   
   mTrace("conn:%u, is destroyed, data:%p", pConn->id, pConn);
 }
@@ -222,8 +225,6 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     goto CONN_OVER;
   }
 
-  mndAcquireConn(pMnode, pConn->id);
-
   SConnectRsp connectRsp = {0};
   connectRsp.acctId = pUser->acctId;
   connectRsp.superUser = pUser->superUser;
@@ -259,12 +260,17 @@ CONN_OVER:
 }
 
 static int32_t mndSaveQueryList(SConnObj *pConn, SQueryHbReqBasic *pBasic) {
+  taosWLockLatch(&pConn->queryLock);
+
   taosArrayDestroyEx(pConn->pQueries, tFreeClientHbQueryDesc);
 
   pConn->pQueries = pBasic->queryDesc;
+  pConn->numOfQueries = pBasic->queryDesc ? taosArrayGetSize(pBasic->queryDesc) : 0;
   pBasic->queryDesc = NULL;
 
-  pConn->numOfQueries = pBasic->queryDesc ? taosArrayGetSize(pBasic->queryDesc) : 0;
+  mDebug("queries updated in conn %d, num:%d", pConn->id, pConn->numOfQueries);
+
+  taosWUnLockLatch(&pConn->queryLock);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -354,13 +360,8 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
       } else {
         mDebug("user:%s, conn:%u is freed and create a new conn:%u", connInfo.user, pBasic->connId, pConn->id);
       }
-    } else if (pConn->killed) {
-      mError("user:%s, conn:%u is already killed", connInfo.user, pConn->id);
-      mndReleaseConn(pMnode, pConn);
-      terrno = TSDB_CODE_MND_INVALID_CONNECTION;
-      return -1;
     }
-
+    
     SQueryHbRspBasic *rspBasic = taosMemoryCalloc(1, sizeof(SQueryHbRspBasic));
     if (rspBasic == NULL) {
       mndReleaseConn(pMnode, pConn);
@@ -389,6 +390,8 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
     mndReleaseConn(pMnode, pConn);
 
     hbRsp.query = rspBasic;
+  } else {
+    mDebug("no query info in hb msg");
   }
 
   int32_t kvNum = taosHashGetSize(pHbReq->info);
@@ -559,76 +562,13 @@ static int32_t mndProcessKillConnReq(SRpcMsg *pReq) {
   }
 }
 
-static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
-  SMnode   *pMnode = pReq->info.node;
-  int32_t   numOfRows = 0;
-  SConnObj *pConn = NULL;
-  int32_t   cols = 0;
-  char     *pWrite;
-  char      ipStr[TSDB_IPv4ADDR_LEN + 6];
-
-  if (pShow->pIter == NULL) {
-    SProfileMgmt *pMgmt = &pMnode->profileMgmt;
-    pShow->pIter = taosCacheCreateIter(pMgmt->cache);
-  }
-
-  while (numOfRows < rows) {
-    pConn = mndGetNextConn(pMnode, pShow->pIter);
-    if (pConn == NULL) break;
-
-    cols = 0;
-#if 0
-    pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
-    *(uint32_t *)pWrite = pConn->id;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pConn->user, pShow->pMeta->pSchemas[cols].bytes);
-    cols++;
-
-    // app name
-    pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pConn->app, pShow->pMeta->pSchemas[cols].bytes);
-    cols++;
-
-    // app pid
-    pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
-    *(int32_t *)pWrite = pConn->pid;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
-    taosIpPort2String(pConn->ip, pConn->port, ipStr);
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, ipStr, pShow->pMeta->pSchemas[cols].bytes);
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
-    *(int64_t *)pWrite = pConn->loginTimeMs;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
-    if (pConn->lastAccessTimeMs < pConn->loginTimeMs) pConn->lastAccessTimeMs = pConn->loginTimeMs;
-    *(int64_t *)pWrite = pConn->lastAccessTimeMs;
-    cols++;
-#endif
-
-    numOfRows++;
-  }
-
-  pShow->numOfRows += numOfRows;
-
-  return numOfRows;
-}
-
-static int32_t mndRetrieveQueries(SRpcMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
-  SMnode *pMnode = pReq->info.node;
-  int32_t numOfRows = 0;
-#if 0
-  SConnObj *pConn = NULL;
-  int32_t   cols = 0;
-  char     *pWrite;
-  void     *pIter;
-  char      str[TSDB_IPv4ADDR_LEN + 6] = {0};
-
+static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+  SMnode    *pMnode = pReq->info.node;
+  SSdb      *pSdb = pMnode->pSdb;
+  int32_t    numOfRows = 0;
+  int32_t    cols = 0;
+  SConnObj  *pConn = NULL;
+  
   if (pShow->pIter == NULL) {
     SProfileMgmt *pMgmt = &pMnode->profileMgmt;
     pShow->pIter = taosCacheCreateIter(pMgmt->cache);
@@ -641,85 +581,142 @@ static int32_t mndRetrieveQueries(SRpcMsg *pReq, SShowObj *pShow, char *data, in
       break;
     }
 
-    if (numOfRows + pConn->numOfQueries >= rows) {
-      taosCacheDestroyIter(pShow->pIter);
+    cols = 0;
+
+    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pConn->id, false);
+
+    char user[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_TO_VARSTR(user, pConn->user);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)user, false);
+
+    char app[TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE];
+    STR_TO_VARSTR(app, pConn->app);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)app, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pConn->pid, false);
+
+    char endpoint[TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
+    sprintf(&endpoint[VARSTR_HEADER_SIZE], "%s:%d", taosIpStr(pConn->ip), pConn->port);
+    varDataLen(endpoint) = strlen(&endpoint[VARSTR_HEADER_SIZE]);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)endpoint, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pConn->loginTimeMs, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pConn->lastAccessTimeMs, false);
+
+    numOfRows++;
+  }
+
+  pShow->numOfRows += numOfRows;
+  return numOfRows;
+}
+
+static int32_t mndRetrieveQueries(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+  SMnode    *pMnode = pReq->info.node;
+  SSdb      *pSdb = pMnode->pSdb;
+  int32_t    numOfRows = 0;
+  int32_t    cols = 0;
+  SConnObj  *pConn = NULL;
+  
+  if (pShow->pIter == NULL) {
+    SProfileMgmt *pMgmt = &pMnode->profileMgmt;
+    pShow->pIter = taosCacheCreateIter(pMgmt->cache);
+  }
+
+  while (numOfRows < rows) {
+    pConn = mndGetNextConn(pMnode, pShow->pIter);
+    if (pConn == NULL) {
       pShow->pIter = NULL;
       break;
     }
 
-    for (int32_t i = 0; i < pConn->numOfQueries; ++i) {
-      SQueryDesc *pDesc = pConn->pQueries + i;
+    taosRLockLatch(&pConn->queryLock);
+    if (NULL == pConn->pQueries || taosArrayGetSize(pConn->pQueries) <= 0) {
+      taosRUnLockLatch(&pConn->queryLock);
+      continue;
+    }
+
+    int32_t numOfQueries = taosArrayGetSize(pConn->pQueries);
+    for (int32_t i = 0; i < numOfQueries; ++i) {
+      SQueryDesc* pQuery = taosArrayGet(pConn->pQueries, i);
       cols = 0;
 
-      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
-      *(int64_t *)pWrite = htobe64(pDesc->queryId);
-      cols++;
+      char queryId[26 + VARSTR_HEADER_SIZE] = {0};
+      sprintf(&queryId[VARSTR_HEADER_SIZE], "%x:%" PRIx64, pConn->id, pQuery->reqRid);
+      varDataLen(queryId) = strlen(&queryId[VARSTR_HEADER_SIZE]);
+      SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)queryId, false);
 
-      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
-      *(int64_t *)pWrite = htobe64(pConn->id);
-      cols++;
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)&pQuery->queryId, false);
 
-      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
-      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pConn->user, pShow->pMeta->pSchemas[cols].bytes);
-      cols++;
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)&pConn->id, false);
 
-      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
-      snprintf(str, tListLen(str), "%s:%u", taosIpStr(pConn->ip), pConn->port);
-      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, str, pShow->pMeta->pSchemas[cols].bytes);
-      cols++;
+      char app[TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE];
+      STR_TO_VARSTR(app, pConn->app);
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)app, false);
 
-      char handleBuf[24] = {0};
-      snprintf(handleBuf, tListLen(handleBuf), "%" PRIu64, htobe64(pDesc->qId));
-      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)&pQuery->pid, false);
 
-      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, handleBuf, pShow->pMeta->pSchemas[cols].bytes);
-      cols++;
+      char user[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
+      STR_TO_VARSTR(user, pConn->user);
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)user, false);
 
-      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
-      *(int64_t *)pWrite = htobe64(pDesc->stime);
-      cols++;
+      char endpoint[TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
+      sprintf(&endpoint[VARSTR_HEADER_SIZE], "%s:%d", taosIpStr(pConn->ip), pConn->port);
+      varDataLen(endpoint) = strlen(&endpoint[VARSTR_HEADER_SIZE]);
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)endpoint, false);
 
-      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
-      *(int64_t *)pWrite = htobe64(pDesc->useconds);
-      cols++;
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)&pQuery->stime, false);
 
-      snprintf(str, tListLen(str), "0x%" PRIx64, htobe64(pDesc->sqlObjId));
-      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
-      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, str, pShow->pMeta->pSchemas[cols].bytes);
-      cols++;
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)&pQuery->useconds, false);
 
-      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
-      *(int32_t *)pWrite = htonl(pDesc->pid);
-      cols++;
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)&pQuery->stableQuery, false);
 
-      char epBuf[TSDB_EP_LEN + 1] = {0};
-      snprintf(epBuf, tListLen(epBuf), "%s:%u", pDesc->fqdn, pConn->port);
-      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
-      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, epBuf, pShow->pMeta->pSchemas[cols].bytes);
-      cols++;
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)&pQuery->subPlanNum, false);
 
-      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
-      *(bool *)pWrite = pDesc->stableQuery;
-      cols++;
+      char subStatus[TSDB_SHOW_SUBQUERY_LEN + VARSTR_HEADER_SIZE] = {0};
+      int32_t strSize = sizeof(subStatus);
+      int32_t offset = VARSTR_HEADER_SIZE;
+      for (int32_t i = 0; i < pQuery->subPlanNum && offset < strSize; ++i) {
+        if (i) {
+          offset += snprintf(subStatus + offset, strSize - offset - 1, ",");
+        }
+        SQuerySubDesc* pDesc = taosArrayGet(pQuery->subDesc, i);
+        offset += snprintf(subStatus + offset, strSize - offset - 1, "%" PRIu64 ":%s", pDesc->tid, pDesc->status);
+      }
+      varDataLen(subStatus) = strlen(&subStatus[VARSTR_HEADER_SIZE]);
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, subStatus, false);
 
-      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
-      *(int32_t *)pWrite = htonl(pDesc->numOfSub);
-      cols++;
-
-      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
-      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pDesc->subSqlInfo, pShow->pMeta->pSchemas[cols].bytes);
-      cols++;
-
-      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
-      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pDesc->sql, pShow->pMeta->pSchemas[cols].bytes);
-      cols++;
+      char sql[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
+      STR_TO_VARSTR(sql, pQuery->sql);
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)sql, false);
 
       numOfRows++;
     }
+    
+    taosRUnLockLatch(&pConn->queryLock);
   }
 
   pShow->numOfRows += numOfRows;
-#endif
   return numOfRows;
 }
 

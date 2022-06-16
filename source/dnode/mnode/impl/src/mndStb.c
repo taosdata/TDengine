@@ -1284,7 +1284,7 @@ static int32_t mndBuildStbSchema(SMnode *pMnode, const char *dbFName, const char
   SStbObj *pStb = mndAcquireStb(pMnode, tbFName);
   if (pStb == NULL) {
     mndReleaseDb(pMnode, pDb);
-    terrno = TSDB_CODE_MND_INVALID_STB;
+    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
     return -1;
   }
 
