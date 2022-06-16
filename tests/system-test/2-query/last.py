@@ -12,6 +12,7 @@ class TDTestCase:
         tdSql.init(conn.cursor())
 
         self.rowNum = 10
+        self.tbnum = 20
         self.ts = 1537146000000
         self.binary_str = 'taosdata'
         self.nchar_str = '涛思数据'
@@ -78,8 +79,9 @@ class TDTestCase:
                 # nchar
                 elif i == 13:
                     tdSql.checkData(0, 0, f'{self.nchar_str}{self.rowNum}')
-        tdSql.query("select last(col1,col2,col3) from stb_1")
-        tdSql.checkData(0, 2, 10)
+        for i in ['stb_1', 'db.stb_1', 'stb', 'db.stb']:            
+            tdSql.query("select last(col1,col2,col3) from stb_1")
+            tdSql.checkData(0, 2, 10)
 
         tdSql.error("select col1 from stb where last(col13)='涛思数据10'")
         tdSql.error("select col1 from stb_1 where last(col13)='涛思数据10'")
@@ -140,7 +142,7 @@ class TDTestCase:
         # build 20 child tables,every table insert 10 rows
         tdSql.execute(f'''create table {stbname}(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 tinyint unsigned, col6 smallint unsigned, 
                     col7 int unsigned, col8 bigint unsigned, col9 float, col10 double, col11 bool, col12 binary(20), col13 nchar(20)) tags(loc nchar(20))''')
-        for i in range(1,21):
+        for i in range(self.tbnum):
             tdSql.execute(f"create table {stbname}_{i} using {stbname} tags('beijing')")
             tdSql.execute(f"insert into {stbname}_{i}(ts) values(%d)" % (self.ts - 1-i))
         # for i in [f'{stbname}', f'{dbname}.{stbname}']:
@@ -152,8 +154,6 @@ class TDTestCase:
         for i in range(len(tdSql.queryResult)):
             vgroup_list.append(tdSql.queryResult[i][6])
         vgroup_list_set = set(vgroup_list)
-        # print(vgroup_list_set)
-        # print(vgroup_list)
         for i in vgroup_list_set:
             vgroups_num = vgroup_list.count(i)
             if vgroups_num >=2:
@@ -162,7 +162,7 @@ class TDTestCase:
             else:
                 tdLog.exit('This scene does not meet the requirements with {vgroups_num} vgroup!\n')
         
-        for i in range(1,21):
+        for i in range(self.tbnum):
             for j in range(self.rowNum):
                 tdSql.execute(f"insert into {stbname}_{i} values(%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '{self.binary_str}%d', '{self.nchar_str}%d')"
                           % (self.ts + j + i, j + 1, j + 1, j + 1, j + 1, j + 1, j + 1, j + 1, j + 1, j + 0.1, j + 0.1, j % 2, j + 1, j + 1))

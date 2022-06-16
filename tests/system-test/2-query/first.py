@@ -27,6 +27,7 @@ class TDTestCase:
         tdSql.init(conn.cursor())
 
         self.rowNum = 10
+        self.tbnum = 20
         self.ts = 1537146000000
         self.binary_str = 'taosdata'
         self.nchar_str = '涛思数据'
@@ -91,7 +92,7 @@ class TDTestCase:
         #!bug TD-16569
         # tdSql.query("select first(*),last(*) from stb where ts < 23 interval(1s)")
         # tdSql.checkRows(0)
-        # tdSql.execute('drop database db')
+        tdSql.execute('drop database db')
     def first_check_stb_distribute(self):
         # prepare data for vgroup 4
         dbname = self.get_long_name(length=10, mode="letters")
@@ -104,10 +105,9 @@ class TDTestCase:
         for i in range(1,21):
             tdSql.execute(f"create table {stbname}_{i} using {stbname} tags('beijing')")
             tdSql.execute(f"insert into {stbname}_{i}(ts) values(%d)" % (self.ts - 1-i))
-        # for i in [f'{stbname}', f'{dbname}.{stbname}']:
-        #     tdSql.query(f"select last(*) from {i}")
-        #     tdSql.checkRows(1)
-        #     tdSql.checkData(0, 1, None)
+        for i in [f'{stbname}', f'{dbname}.{stbname}']:
+            tdSql.query(f"select first(*) from {i}")
+            tdSql.checkRows(0)
         tdSql.query('show tables')
         vgroup_list = []
         for i in range(len(tdSql.queryResult)):
@@ -123,7 +123,7 @@ class TDTestCase:
             else:
                 tdLog.exit('This scene does not meet the requirements with {vgroups_num} vgroup!\n')
         
-        for i in range(1,21):
+        for i in range(self.tbnum):
             for j in range(self.rowNum):
                 tdSql.execute(f"insert into {stbname}_{i} values(%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '{self.binary_str}%d', '{self.nchar_str}%d')"
                           % (self.ts + j + i, j + 1, j + 1, j + 1, j + 1, j + 1, j + 1, j + 1, j + 1, j + 0.1, j + 0.1, j % 2, j + 1, j + 1))
@@ -154,7 +154,7 @@ class TDTestCase:
         #!bug TD-16569
         # tdSql.query("select first(*),last(*) from {stbname} where ts < 23 interval(1s)")
         # tdSql.checkRows(0)
-        # tdSql.execute('drop database db')
+        tdSql.execute('drop database db')
         
         
         
