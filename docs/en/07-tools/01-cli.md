@@ -18,7 +18,7 @@ To run TDengine CLI to access TDengine cloud, please install [TDengine client in
 
 Run this command in your Linux terminal to save your URL and token as variable:
 
-```
+```bash
 export TDENGINE_CLOUD_DSN=<DSN>
 ```
 
@@ -27,8 +27,8 @@ export TDENGINE_CLOUD_DSN=<DSN>
 
 Run this command in your Windows terminal to save your URL and token as variable:
 
-```
-set TDENGINE_CLOUD_DSN=<DSN>
+```bash
+set TDENGINE_CLOUD_DSN="<DSN>"
 ```
 
 </TabItem>
@@ -36,7 +36,7 @@ set TDENGINE_CLOUD_DSN=<DSN>
 
 Run this command in your Mac terminal to save your URL and token as variable:
 
-```
+```bash
 export TDENGINE_CLOUD_DSN=<DSN>
 ```
 
