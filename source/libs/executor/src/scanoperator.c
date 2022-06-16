@@ -529,7 +529,7 @@ static void destroyTableScanOperatorInfo(void* param, int32_t numOfOutput) {
   }
 }
 
-SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, STsdbReader pDataReader,
+SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, STsdbReader* pDataReader,
                                            SReadHandle* readHandle, SExecTaskInfo* pTaskInfo) {
   STableScanInfo* pInfo = taosMemoryCalloc(1, sizeof(STableScanInfo));
   SOperatorInfo*  pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
@@ -1929,7 +1929,8 @@ int32_t createMultipleDataReaders(STableScanPhysiNode* pTableScanNode, SReadHand
     subListInfo->pTableList = taosArrayInit(1, sizeof(STableKeyInfo));
     taosArrayPush(subListInfo->pTableList, taosArrayGet(pTableListInfo->pTableList, i));
 
-    STsdbReader* pReader = tsdbReaderOpen(pHandle->vnode, &cond, subListInfo, queryId, taskId);
+    STsdbReader* pReader;
+    code = tsdbReaderOpen(pHandle->vnode, &cond, subListInfo, queryId, taskId, &pReader);
     taosArrayPush(arrayReader, &pReader);
 
     taosArrayDestroy(subListInfo->pTableList);
