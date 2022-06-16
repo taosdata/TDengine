@@ -203,10 +203,10 @@ typedef struct {
   int32_t        totalRspNum;
   tmq_resp_err_t rspErr;
   tmq_commit_cb* userCb;
-  SArray*        successfulOffsets;
-  SArray*        failedOffsets;
-  void*          userParam;
-  tsem_t         rspSem;
+  /*SArray*        successfulOffsets;*/
+  /*SArray*        failedOffsets;*/
+  void*  userParam;
+  tsem_t rspSem;
 } SMqCommitCbParamSet;
 
 typedef struct {
@@ -368,11 +368,13 @@ int32_t tmqCommitCb2(void* param, const SDataBuf* pBuf, int32_t code) {
   SMqCommitCbParam2*   pParam = (SMqCommitCbParam2*)param;
   SMqCommitCbParamSet* pParamSet = (SMqCommitCbParamSet*)pParam->params;
   // push into array
+#if 0
   if (code == 0) {
     taosArrayPush(pParamSet->failedOffsets, &pParam->pOffset);
   } else {
     taosArrayPush(pParamSet->successfulOffsets, &pParam->pOffset);
   }
+#endif
 
   // count down waiting rsp
   int32_t waitingRspNum = atomic_sub_fetch_32(&pParamSet->waitingRspNum, 1);
@@ -388,10 +390,14 @@ int32_t tmqCommitCb2(void* param, const SDataBuf* pBuf, int32_t code) {
         // sem post
         pParamSet->userCb(pParamSet->tmq, pParamSet->rspErr, NULL, pParamSet->userParam);
       }
+    } else {
+      tsem_post(&pParamSet->rspSem);
     }
 
+#if 0
     taosArrayDestroyP(pParamSet->successfulOffsets, taosMemoryFree);
     taosArrayDestroyP(pParamSet->failedOffsets, taosMemoryFree);
+#endif
   }
   return 0;
 }
@@ -417,11 +423,17 @@ int32_t tmqCommitInner2(tmq_t* tmq, const tmq_topic_vgroup_list_t* offsets, int8
     SMqClientTopic* pTopic = taosArrayGet(tmq->clientTopics, i);
     for (int32_t j = 0; j < taosArrayGetSize(pTopic->vgs); j++) {
       SMqClientVg* pVg = taosArrayGet(pTopic->vgs, i);
-      STqOffset*   pOffset = taosMemoryCalloc(1, sizeof(STqOffset));
+      if (pVg->currentOffset < 0) {
+        /*if (pVg->currentOffset < 0 || pVg->committedOffset == pVg->currentOffset) {*/
+        continue;
+      }
+      STqOffset* pOffset = taosMemoryCalloc(1, sizeof(STqOffset));
       if (pOffset == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         return -1;
       }
+      pOffset->type = TMQ_OFFSET__LOG;
+      pOffset->version = pVg->currentOffset;
       int32_t tlen = strlen(tmq->groupId);
       memcpy(pOffset->subKey, tmq->groupId, tlen);
       pOffset->subKey[tlen] = TMQ_SEPARATOR;
@@ -454,23 +466,31 @@ int32_t tmqCommitInner2(tmq_t* tmq, const tmq_topic_vgroup_list_t* offsets, int8
       }
       pMsgSendInfo->msgInfo = (SDataBuf){
           .pData = buf,
-          .len = len,
+          .len = sizeof(SMsgHead) + len,
           .handle = NULL,
       };
+
+      // TODO: put into cb
+      pVg->committedOffset = pVg->currentOffset;
 
       pMsgSendInfo->requestId = generateRequestId();
       pMsgSendInfo->requestObjRefId = 0;
       pMsgSendInfo->param = pParam;
       pMsgSendInfo->fp = tmqCommitCb2;
-      pMsgSendInfo->msgType = TDMT_MND_MQ_COMMIT_OFFSET;
+      pMsgSendInfo->msgType = TDMT_VND_MQ_COMMIT_OFFSET;
       // send msg
 
-      SEpSet  epSet = getEpSet_s(&tmq->pTscObj->pAppInfo->mgmtEp);
       int64_t transporterId = 0;
-      asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, pMsgSendInfo);
+      asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &pVg->epSet, &transporterId, pMsgSendInfo);
       pParamSet->waitingRspNum++;
       pParamSet->totalRspNum++;
     }
+  }
+
+  if (pParamSet->totalRspNum == 0) {
+    tsem_destroy(&pParamSet->rspSem);
+    taosMemoryFree(pParamSet);
+    return 0;
   }
 
   if (!async) {
@@ -489,10 +509,12 @@ int32_t tmqCommitInner2(tmq_t* tmq, const tmq_topic_vgroup_list_t* offsets, int8
     }
   }
 
+#if 0
   if (!async) {
     taosArrayDestroyP(pParamSet->successfulOffsets, taosMemoryFree);
     taosArrayDestroyP(pParamSet->failedOffsets, taosMemoryFree);
   }
+#endif
 
   return 0;
 }
@@ -648,7 +670,7 @@ int32_t tmqHandleAllDelayedTask(tmq_t* tmq) {
       tmqAskEp(tmq, true);
       taosTmrReset(tmqAssignDelayedHbTask, 1000, tmq, tmqMgmt.timer, &tmq->hbTimer);
     } else if (*pTaskType == TMQ_DELAYED_TASK__COMMIT) {
-      tmqCommitInner(tmq, NULL, 1, 1, tmq->commitCb, tmq->commitCbUserParam);
+      tmqCommitInner2(tmq, NULL, 1, 1, tmq->commitCb, tmq->commitCbUserParam);
       taosTmrReset(tmqAssignDelayedCommitTask, tmq->autoCommitInterval, tmq, tmqMgmt.timer, &tmq->commitTimer);
     } else if (*pTaskType == TMQ_DELAYED_TASK__REPORT) {
     } else {
@@ -819,7 +841,7 @@ FAIL:
 }
 
 tmq_resp_err_t tmq_commit(tmq_t* tmq, const tmq_topic_vgroup_list_t* offsets, int32_t async) {
-  return tmqCommitInner(tmq, offsets, 0, async, tmq->commitCb, tmq->commitCbUserParam);
+  return tmqCommitInner2(tmq, offsets, 0, async, tmq->commitCb, tmq->commitCbUserParam);
 }
 
 tmq_resp_err_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
@@ -1076,6 +1098,7 @@ bool tmqUpdateEp2(tmq_t* tmq, int32_t epoch, SMqAskEpRsp* pRsp) {
   return set;
 }
 
+#if 0
 bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, SMqAskEpRsp* pRsp) {
   /*printf("call update ep %d\n", epoch);*/
   bool    set = false;
@@ -1160,6 +1183,7 @@ bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, SMqAskEpRsp* pRsp) {
   atomic_store_32(&tmq->epoch, epoch);
   return set;
 }
+#endif
 
 int32_t tmqAskEpCb(void* param, const SDataBuf* pMsg, int32_t code) {
   SMqAskEpCbParam* pParam = (SMqAskEpCbParam*)param;
@@ -1186,7 +1210,7 @@ int32_t tmqAskEpCb(void* param, const SDataBuf* pMsg, int32_t code) {
     tDecodeSMqAskEpRsp(POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), &rsp);
     /*printf("rsp epoch %ld sz %ld\n", rsp.epoch, rsp.topics->size);*/
     /*printf("tmq epoch %ld sz %ld\n", tmq->epoch, tmq->clientTopics->size);*/
-    tmqUpdateEp(tmq, head->epoch, &rsp);
+    tmqUpdateEp2(tmq, head->epoch, &rsp);
     tDeleteSMqAskEpRsp(&rsp);
   } else {
     SMqAskEpRspWrapper* pWrapper = taosAllocateQitem(sizeof(SMqAskEpRspWrapper), DEF_QITEM);
@@ -1311,10 +1335,10 @@ SMqPollReq* tmqBuildConsumeReqImpl(tmq_t* tmq, int64_t timeout, SMqClientTopic* 
   if (pVg->currentOffset >= 0) {
     reqOffset = pVg->currentOffset;
   } else {
-    if (tmq->resetOffsetCfg == TMQ_CONF__RESET_OFFSET__NONE) {
-      tscError("unable to poll since no committed offset but reset offset is set to none");
-      return NULL;
-    }
+    /*if (tmq->resetOffsetCfg == TMQ_CONF__RESET_OFFSET__NONE) {*/
+    /*tscError("unable to poll since no committed offset but reset offset is set to none");*/
+    /*return NULL;*/
+    /*}*/
     reqOffset = tmq->resetOffsetCfg;
   }
 
@@ -1440,7 +1464,7 @@ int32_t tmqHandleNoPollRsp(tmq_t* tmq, SMqRspWrapper* rspWrapper, bool* pReset) 
     if (rspWrapper->epoch > atomic_load_32(&tmq->epoch)) {
       SMqAskEpRspWrapper* pEpRspWrapper = (SMqAskEpRspWrapper*)rspWrapper;
       SMqAskEpRsp*        rspMsg = &pEpRspWrapper->msg;
-      tmqUpdateEp(tmq, rspWrapper->epoch, rspMsg);
+      tmqUpdateEp2(tmq, rspWrapper->epoch, rspMsg);
       /*tmqClearUnhandleMsg(tmq);*/
       *pReset = true;
     } else {
@@ -1608,9 +1632,9 @@ const char* tmq_get_table_name(TAOS_RES* res) {
 }
 
 void tmq_commit_async(tmq_t* tmq, const tmq_topic_vgroup_list_t* offsets, tmq_commit_cb* cb, void* param) {
-  tmqCommitInner(tmq, offsets, 0, 1, cb, param);
+  tmqCommitInner2(tmq, offsets, 0, 1, cb, param);
 }
 
 tmq_resp_err_t tmq_commit_sync(tmq_t* tmq, const tmq_topic_vgroup_list_t* offsets) {
-  return tmqCommitInner(tmq, offsets, 0, 0, NULL, NULL);
+  return tmqCommitInner2(tmq, offsets, 0, 0, NULL, NULL);
 }

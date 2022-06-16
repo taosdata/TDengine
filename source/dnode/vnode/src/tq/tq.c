@@ -149,16 +149,28 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   int32_t     code = 0;
 
   // get offset to fetch message
-  if (pReq->currentOffset == TMQ_CONF__RESET_OFFSET__EARLIEAST) {
-    fetchOffset = walGetFirstVer(pTq->pWal);
-  } else if (pReq->currentOffset == TMQ_CONF__RESET_OFFSET__LATEST) {
-    fetchOffset = walGetCommittedVer(pTq->pWal);
-  } else {
+  if (pReq->currentOffset >= 0) {
     fetchOffset = pReq->currentOffset + 1;
+  } else {
+    STqOffset* pOffset = tqOffsetRead(pTq->pOffsetStore, pReq->subKey);
+    if (pOffset != NULL) {
+      ASSERT(pOffset->type == TMQ_OFFSET__LOG);
+      fetchOffset = pOffset->version + 1;
+    } else {
+      if (pReq->currentOffset == TMQ_CONF__RESET_OFFSET__EARLIEAST) {
+        fetchOffset = walGetFirstVer(pTq->pWal);
+      } else if (pReq->currentOffset == TMQ_CONF__RESET_OFFSET__LATEST) {
+        fetchOffset = walGetCommittedVer(pTq->pWal);
+      } else if (pReq->currentOffset == TMQ_CONF__RESET_OFFSET__NONE) {
+        tqError("tmq poll: no offset committed for consumer %ld in vg %d, subkey %s", consumerId,
+                pTq->pVnode->config.vgId, pReq->subKey);
+        return -1;
+      }
+    }
   }
 
-  tqDebug("tmq poll: consumer %ld (epoch %d) recv poll req in vg %d, req %ld %ld", consumerId, pReq->epoch,
-          TD_VID(pTq->pVnode), pReq->currentOffset, fetchOffset);
+  tqDebug("tmq poll: consumer %ld (epoch %d) recv poll req in vg %d, req offset %ld fetch offset %ld", consumerId,
+          pReq->epoch, TD_VID(pTq->pVnode), pReq->currentOffset, fetchOffset);
 
   STqHandle* pHandle = taosHashGet(pTq->handles, pReq->subKey, strlen(pReq->subKey));
   /*ASSERT(pHandle);*/
