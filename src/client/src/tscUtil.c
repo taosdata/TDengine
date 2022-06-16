@@ -4236,7 +4236,8 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
     tscAddIntoSqlList(pSql);
   }
 
-  if (taosArrayGetSize(pQueryInfo->pUpstream) > 0) {  // nest query. do execute it firstly
+  // upstream may be freed before retry
+  if (pQueryInfo->pUpstream && taosArrayGetSize(pQueryInfo->pUpstream) > 0) {  // nest query. do execute it firstly
     code = doInitSubState(pSql, (int32_t) taosArrayGetSize(pQueryInfo->pUpstream));
     if (code != TSDB_CODE_SUCCESS) {
       goto _error;
