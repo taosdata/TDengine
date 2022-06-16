@@ -1098,11 +1098,43 @@ static int32_t translateWindowPseudoColumnFunc(STranslateContext* pCxt, SFunctio
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateForbidWindowFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
+  if (!fmIsForbidWindowFunc(pFunc->funcId)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (NULL != pCxt->pCurrSelectStmt->pWindow) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WINDOW_NOT_ALLOWED_FUNC, pFunc->functionName);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateForbidStreamFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
+  if (!fmIsForbidStreamFunc(pFunc->funcId)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pCxt->createStream) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_STREAM_NOT_ALLOWED_FUNC, pFunc->functionName);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateForbidGroupByFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
+  if (!fmIsForbidGroupByFunc(pFunc->funcId)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (NULL != pCxt->pCurrSelectStmt->pGroupByList) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GROUP_BY_NOT_ALLOWED_FUNC, pFunc->functionName);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static void setFuncClassification(SSelectStmt* pSelect, SFunctionNode* pFunc) {
   if (NULL != pSelect) {
     pSelect->hasAggFuncs = pSelect->hasAggFuncs ? true : fmIsAggFunc(pFunc->funcId);
     pSelect->hasRepeatScanFuncs = pSelect->hasRepeatScanFuncs ? true : fmIsRepeatScanFunc(pFunc->funcId);
     pSelect->hasIndefiniteRowsFunc = pSelect->hasIndefiniteRowsFunc ? true : fmIsIndefiniteRowsFunc(pFunc->funcId);
+    pSelect->hasUniqueFunc = pSelect->hasUniqueFunc ? true : (FUNCTION_TYPE_UNIQUE == pFunc->funcType);
+    pSelect->hasTailFunc = pSelect->hasTailFunc ? true : (FUNCTION_TYPE_TAIL == pFunc->funcType);
   }
 }
 
@@ -1129,6 +1161,15 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode* pFunc)
   }
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
     pCxt->errCode = translateWindowPseudoColumnFunc(pCxt, pFunc);
+  }
+  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+    pCxt->errCode = translateForbidWindowFunc(pCxt, pFunc);
+  }
+  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+    pCxt->errCode = translateForbidStreamFunc(pCxt, pFunc);
+  }
+  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+    pCxt->errCode = translateForbidGroupByFunc(pCxt, pFunc);
   }
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
     setFuncClassification(pCxt->pCurrSelectStmt, pFunc);
@@ -2116,6 +2157,136 @@ static int32_t rewriteTimelineFunc(STranslateContext* pCxt, SSelectStmt* pSelect
   return pCxt->errCode;
 }
 
+typedef struct SRwriteUniqueCxt {
+  STranslateContext* pTranslateCxt;
+  SNode*             pExpr;
+} SRwriteUniqueCxt;
+
+static EDealRes rewriteSeletcValueFunc(STranslateContext* pCxt, SNode** pNode) {
+  SFunctionNode* pFirst = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
+  if (NULL == pFirst) {
+    pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+    return DEAL_RES_ERROR;
+  }
+  strcpy(pFirst->functionName, "first");
+  TSWAP(pFirst->pParameterList, ((SFunctionNode*)*pNode)->pParameterList);
+  nodesDestroyNode(*pNode);
+  *pNode = (SNode*)pFirst;
+  pCxt->errCode = fmGetFuncInfo(pFirst, pCxt->msgBuf.buf, pCxt->msgBuf.len);
+  pCxt->pCurrSelectStmt->hasAggFuncs = true;
+  return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR;
+}
+
+static EDealRes rewriteUniqueFunc(SNode** pNode, void* pContext) {
+  SRwriteUniqueCxt* pCxt = pContext;
+  if (QUERY_NODE_FUNCTION == nodeType(*pNode)) {
+    SFunctionNode* pFunc = (SFunctionNode*)*pNode;
+    if (FUNCTION_TYPE_UNIQUE == pFunc->funcType) {
+      SNode* pExpr = nodesListGetNode(pFunc->pParameterList, 0);
+      NODES_CLEAR_LIST(pFunc->pParameterList);
+      nodesDestroyNode(*pNode);
+      *pNode = pExpr;
+      pCxt->pExpr = pExpr;
+      return DEAL_RES_IGNORE_CHILD;
+    } else if (FUNCTION_TYPE_SELECT_VALUE == pFunc->funcType) {
+      return rewriteSeletcValueFunc(pCxt->pTranslateCxt, pNode);
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static SNode* createGroupingSet(SNode* pExpr) {
+  SGroupingSetNode* pGroupingSet = (SGroupingSetNode*)nodesMakeNode(QUERY_NODE_GROUPING_SET);
+  if (NULL == pGroupingSet) {
+    return NULL;
+  }
+  pGroupingSet->groupingSetType = GP_TYPE_NORMAL;
+  if (TSDB_CODE_SUCCESS != nodesListMakeStrictAppend(&pGroupingSet->pParameterList, nodesCloneNode(pExpr))) {
+    nodesDestroyNode((SNode*)pGroupingSet);
+    return NULL;
+  }
+  return (SNode*)pGroupingSet;
+}
+
+static int32_t rewriteUniqueStmt(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (!pSelect->hasUniqueFunc) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SRwriteUniqueCxt cxt = {.pTranslateCxt = pCxt, .pExpr = NULL};
+  nodesRewriteExprs(pSelect->pProjectionList, rewriteUniqueFunc, &cxt);
+  if (TSDB_CODE_SUCCESS == cxt.pTranslateCxt->errCode) {
+    cxt.pTranslateCxt->errCode = nodesListMakeStrictAppend(&pSelect->pGroupByList, createGroupingSet(cxt.pExpr));
+  }
+  pSelect->hasIndefiniteRowsFunc = false;
+  return cxt.pTranslateCxt->errCode;
+}
+
+typedef struct SRwriteTailCxt {
+  STranslateContext* pTranslateCxt;
+  int64_t            limit;
+  int64_t            offset;
+} SRwriteTailCxt;
+
+static EDealRes rewriteTailFunc(SNode** pNode, void* pContext) {
+  SRwriteTailCxt* pCxt = pContext;
+  if (QUERY_NODE_FUNCTION == nodeType(*pNode)) {
+    SFunctionNode* pFunc = (SFunctionNode*)*pNode;
+    if (FUNCTION_TYPE_TAIL == pFunc->funcType) {
+      pCxt->limit = ((SValueNode*)nodesListGetNode(pFunc->pParameterList, 1))->datum.i;
+      if (3 == LIST_LENGTH(pFunc->pParameterList)) {
+        pCxt->offset = ((SValueNode*)nodesListGetNode(pFunc->pParameterList, 2))->datum.i;
+      }
+      SNode* pExpr = nodesListGetNode(pFunc->pParameterList, 0);
+      NODES_CLEAR_LIST(pFunc->pParameterList);
+      nodesDestroyNode(*pNode);
+      *pNode = pExpr;
+      return DEAL_RES_IGNORE_CHILD;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t createLimieNode(SRwriteTailCxt* pCxt, SLimitNode** pOutput) {
+  *pOutput = (SLimitNode*)nodesMakeNode(QUERY_NODE_LIMIT);
+  if (NULL == *pOutput) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  (*pOutput)->limit = pCxt->limit;
+  (*pOutput)->offset = pCxt->offset;
+  return TSDB_CODE_SUCCESS;
+}
+
+static SNode* createOrderByExpr(STranslateContext* pCxt) {
+  SOrderByExprNode* pOrder = (SOrderByExprNode*)nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR);
+  if (NULL == pOrder) {
+    return NULL;
+  }
+  pCxt->errCode = createPrimaryKeyCol(pCxt, &pOrder->pExpr);
+  if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+    nodesDestroyNode((SNode*)pOrder);
+    return NULL;
+  }
+  pOrder->order = ORDER_DESC;
+  pOrder->nullOrder = NULL_ORDER_FIRST;
+  return (SNode*)pOrder;
+}
+
+static int32_t rewriteTailStmt(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (!pSelect->hasTailFunc) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SRwriteTailCxt cxt = {.pTranslateCxt = pCxt, .limit = -1, .offset = -1};
+  nodesRewriteExprs(pSelect->pProjectionList, rewriteTailFunc, &cxt);
+  int32_t code = nodesListMakeStrictAppend(&pSelect->pOrderByList, createOrderByExpr(pCxt));
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createLimieNode(&cxt, &pSelect->pLimit);
+  }
+  pSelect->hasIndefiniteRowsFunc = false;
+  return code;
+}
+
 static int32_t translateSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->pCurrSelectStmt = pSelect;
   int32_t code = translateFrom(pCxt, pSelect->pFromTable);
@@ -2146,6 +2317,12 @@ static int32_t translateSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkLimit(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = rewriteUniqueStmt(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = rewriteTailStmt(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteTimelineFunc(pCxt, pSelect);

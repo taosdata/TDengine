@@ -53,3 +53,21 @@ TEST_F(PlanBasicTest, func) {
 
   run("SELECT TOP(c1, 60) FROM t1");
 }
+
+TEST_F(PlanBasicTest, uniqueFunc) {
+  useDb("root", "test");
+
+  run("SELECT UNIQUE(c1) FROM t1");
+
+  run("SELECT UNIQUE(c2 + 10) FROM t1 WHERE c1 > 10");
+
+  run("SELECT UNIQUE(c2 + 10), ts, c2 FROM t1 WHERE c1 > 10");
+}
+
+TEST_F(PlanBasicTest, tailFunc) {
+  useDb("root", "test");
+
+  run("SELECT TAIL(c1, 10) FROM t1");
+
+  run("SELECT TAIL(c2 + 10, 10, 80) FROM t1 WHERE c1 > 10");
+}

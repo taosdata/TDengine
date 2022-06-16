@@ -161,6 +161,40 @@ TEST_F(ParserSelectTest, useDefinedFunc) {
   run("SELECT udf2(c1) FROM t1 GROUP BY c2");
 }
 
+TEST_F(ParserSelectTest, uniqueFunc) {
+  useDb("root", "test");
+
+  run("SELECT UNIQUE(c1) FROM t1");
+
+  run("SELECT UNIQUE(c2 + 10) FROM t1 WHERE c1 > 10");
+
+  run("SELECT UNIQUE(c2 + 10), ts, c2 FROM t1 WHERE c1 > 10");
+}
+
+TEST_F(ParserSelectTest, uniqueFuncSemanticCheck) {
+  useDb("root", "test");
+
+  run("SELECT UNIQUE(c1) FROM t1 INTERVAL(10S)", TSDB_CODE_PAR_WINDOW_NOT_ALLOWED_FUNC);
+
+  run("SELECT UNIQUE(c1) FROM t1 GROUP BY c2", TSDB_CODE_PAR_GROUP_BY_NOT_ALLOWED_FUNC);
+}
+
+TEST_F(ParserSelectTest, tailFunc) {
+  useDb("root", "test");
+
+  run("SELECT TAIL(c1, 10) FROM t1");
+
+  run("SELECT TAIL(c2 + 10, 10, 80) FROM t1 WHERE c1 > 10");
+}
+
+TEST_F(ParserSelectTest, tailFuncSemanticCheck) {
+  useDb("root", "test");
+
+  run("SELECT TAIL(c1, 10) FROM t1 INTERVAL(10S)", TSDB_CODE_PAR_WINDOW_NOT_ALLOWED_FUNC);
+
+  run("SELECT TAIL(c1, 10) FROM t1 GROUP BY c2", TSDB_CODE_PAR_GROUP_BY_NOT_ALLOWED_FUNC);
+}
+
 TEST_F(ParserSelectTest, groupBy) {
   useDb("root", "test");
 

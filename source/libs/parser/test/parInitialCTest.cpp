@@ -528,6 +528,12 @@ TEST_F(ParserInitialCTest, createStream) {
   clearCreateStreamReq();
 }
 
+TEST_F(ParserInitialCTest, createStreamSemanticCheck) {
+  useDb("root", "test");
+
+  run("CREATE STREAM s1 AS SELECT PERCENTILE(c1, 30) FROM t1", TSDB_CODE_PAR_STREAM_NOT_ALLOWED_FUNC);
+}
+
 TEST_F(ParserInitialCTest, createTable) {
   useDb("root", "test");
 
