@@ -42,7 +42,7 @@ Run this command in your terminal to save the JDBC URL as variable:
 <TabItem value="bash" label="Bash">
 
 ```bash
-export TDENGINE_JDBC_URL=<jdbcURL>
+export TDENGINE_JDBC_URL="<jdbcURL>"
 ```
 </TabItem>
 <TabItem value="cmd" label="CMD">

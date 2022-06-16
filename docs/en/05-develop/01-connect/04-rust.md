@@ -23,8 +23,8 @@ Run this command in your terminal to save TDengine cloud token as variables:
 <TabItem value="bash" label="Bash">
 
 ```bash
-export TDENGINE_CLOUD_TOKEN=<token>
-export TDENGINE_CLOUD_URL=<url>
+export TDENGINE_CLOUD_TOKEN="<token>"
+export TDENGINE_CLOUD_URL="<url>"
 ```
 
 </TabItem>
