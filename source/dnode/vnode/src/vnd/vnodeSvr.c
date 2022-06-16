@@ -34,7 +34,7 @@ int32_t vnodePreprocessReq(SVnode *pVnode, SRpcMsg *pMsg) {
 
   switch (pMsg->msgType) {
     case TDMT_VND_CREATE_TABLE: {
-      int64_t ctime = taosGetTimestampSec();
+      int64_t ctime = taosGetTimestampMs();
       int32_t nReqs;
 
       tDecoderInit(&dc, (uint8_t *)pMsg->pCont + sizeof(SMsgHead), pMsg->contLen - sizeof(SMsgHead));
@@ -61,7 +61,7 @@ int32_t vnodePreprocessReq(SVnode *pVnode, SRpcMsg *pMsg) {
       SSubmitMsgIter msgIter = {0};
       SSubmitReq    *pSubmitReq = (SSubmitReq *)pMsg->pCont;
       SSubmitBlk    *pBlock = NULL;
-      int64_t        ctime = taosGetTimestampSec();
+      int64_t        ctime = taosGetTimestampMs();
       tb_uid_t       uid;
 
       tInitSubmitMsgIter(pSubmitReq, &msgIter);
@@ -106,7 +106,7 @@ int32_t vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
   int32_t len;
   int32_t ret;
 
-  vTrace("vgId:%d, start to process write request %s, index:%" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType),
+  vError("vgId:%d, start to process write request %s, index:%" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType),
          version);
 
   pVnode->state.applied = version;
@@ -404,7 +404,9 @@ static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t version, void *p
   if(ret != 0){
     goto end;
   }
-  tqUpdateTbUidList(pVnode->pTq, tbUids, false);
+  if(taosArrayGetSize(tbUids) > 0){
+    tqUpdateTbUidList(pVnode->pTq, tbUids, false);
+  }
 
 end:
   taosArrayDestroy(tbUids);

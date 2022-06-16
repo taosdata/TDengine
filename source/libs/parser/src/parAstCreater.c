@@ -865,6 +865,7 @@ SNode* createDefaultTableOptions(SAstCreateContext* pCxt) {
   CHECK_OUT_OF_MEM(pOptions);
   pOptions->filesFactor = TSDB_DEFAULT_ROLLUP_FILE_FACTOR;
   pOptions->ttl = TSDB_DEFAULT_TABLE_TTL;
+  pOptions->commentNull = true;    // mark null
   return (SNode*)pOptions;
 }
 
@@ -874,6 +875,7 @@ SNode* createAlterTableOptions(SAstCreateContext* pCxt) {
   CHECK_OUT_OF_MEM(pOptions);
   pOptions->filesFactor = -1;
   pOptions->ttl = -1;
+  pOptions->commentNull = true;    // mark null
   return (SNode*)pOptions;
 }
 
@@ -882,6 +884,7 @@ SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType
   switch (type) {
     case TABLE_OPTION_COMMENT:
       if (checkComment(pCxt, (SToken*)pVal, true)) {
+        ((STableOptions*)pOptions)->commentNull = false;
         copyStringFormStringToken((SToken*)pVal, ((STableOptions*)pOptions)->comment,
                                   sizeof(((STableOptions*)pOptions)->comment));
       }

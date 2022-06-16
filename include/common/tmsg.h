@@ -1922,7 +1922,7 @@ typedef struct {
   // TSDB_ALTER_TABLE_UPDATE_OPTIONS
   int8_t  updateTTL;
   int32_t newTTL;
-  int8_t  updateComment;
+  int32_t newCommentLen;
   char*   newComment;
 } SVAlterTbReq;
 

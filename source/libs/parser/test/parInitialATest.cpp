@@ -91,7 +91,7 @@ TEST_F(ParserInitialATest, alterSTable) {
     expect.ttl = ttl;
     if (nullptr != pComment) {
       expect.comment = strdup(pComment);
-      expect.commentLen = strlen(pComment) + 1;
+      expect.commentLen = strlen(pComment);
     }
 
     expect.numOfFields = numOfFields;
@@ -252,7 +252,7 @@ TEST_F(ParserInitialATest, alterTable) {
       expect.newTTL = ttl;
     }
     if (nullptr != pComment) {
-      expect.updateComment = true;
+      expect.newCommentLen = strlen(pComment);
       expect.newComment = pComment;
     }
   };
@@ -291,9 +291,10 @@ TEST_F(ParserInitialATest, alterTable) {
     ASSERT_EQ(memcmp(req.pTagVal, expect.pTagVal, expect.nTagVal), 0);
     ASSERT_EQ(req.updateTTL, expect.updateTTL);
     ASSERT_EQ(req.newTTL, expect.newTTL);
-    ASSERT_EQ(req.updateComment, expect.updateComment);
     if (nullptr != expect.newComment) {
       ASSERT_EQ(std::string(req.newComment), std::string(expect.newComment));
+      ASSERT_EQ(req.newCommentLen, strlen(req.newComment));
+      ASSERT_EQ(expect.newCommentLen, strlen(expect.newComment));
     }
 
     tDecoderClear(&coder);

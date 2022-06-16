@@ -332,7 +332,7 @@ TEST_F(ParserInitialCTest, createStable) {
     expect.ttl = ttl;
     if (nullptr != pComment) {
       expect.comment = strdup(pComment);
-      expect.commentLen = strlen(pComment) + 1;
+      expect.commentLen = strlen(pComment);
     }
   };
 

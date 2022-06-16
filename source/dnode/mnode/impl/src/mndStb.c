@@ -117,7 +117,7 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   }
 
   if (pStb->commentLen > 0) {
-    SDB_SET_BINARY(pRaw, dataPos, pStb->comment, pStb->commentLen, _OVER)
+    SDB_SET_BINARY(pRaw, dataPos, pStb->comment, pStb->commentLen + 1, _OVER)
   }
   if (pStb->ast1Len > 0) {
     SDB_SET_BINARY(pRaw, dataPos, pStb->pAst1, pStb->ast1Len, _OVER)
@@ -204,9 +204,9 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
   }
 
   if (pStb->commentLen > 0) {
-    pStb->comment = taosMemoryCalloc(pStb->commentLen, 1);
+    pStb->comment = taosMemoryCalloc(pStb->commentLen + 1, 1);
     if (pStb->comment == NULL) goto _OVER;
-    SDB_GET_BINARY(pRaw, dataPos, pStb->comment, pStb->commentLen, _OVER)
+    SDB_GET_BINARY(pRaw, dataPos, pStb->comment, pStb->commentLen + 1, _OVER)
   }
   if (pStb->ast1Len > 0) {
     pStb->pAst1 = taosMemoryCalloc(pStb->ast1Len, 1);
@@ -281,7 +281,7 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
   }
 
   if (pOld->commentLen < pNew->commentLen) {
-    void *comment = taosMemoryMalloc(pNew->commentLen);
+    void *comment = taosMemoryMalloc(pNew->commentLen + 1);
     if (comment != NULL) {
       taosMemoryFree(pOld->comment);
       pOld->comment = comment;
@@ -326,7 +326,7 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
   memcpy(pOld->pColumns, pNew->pColumns, pOld->numOfColumns * sizeof(SSchema));
   memcpy(pOld->pTags, pNew->pTags, pOld->numOfTags * sizeof(SSchema));
   if (pNew->commentLen != 0) {
-    memcpy(pOld->comment, pNew->comment, pNew->commentLen);
+    memcpy(pOld->comment, pNew->comment, pNew->commentLen + 1);
   }
   if (pNew->ast1Len != 0) {
     memcpy(pOld->pAst1, pNew->pAst1, pNew->ast1Len);
@@ -671,12 +671,12 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   pDst->numOfTags = pCreate->numOfTags;
   pDst->commentLen = pCreate->commentLen;
   if (pDst->commentLen > 0) {
-    pDst->comment = taosMemoryCalloc(pDst->commentLen, 1);
+    pDst->comment = taosMemoryCalloc(pDst->commentLen + 1, 1);
     if (pDst->comment == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
-    memcpy(pDst->comment, pCreate->comment, pDst->commentLen);
+    memcpy(pDst->comment, pCreate->comment, pDst->commentLen + 1);
   }
 
   pDst->ast1Len = pCreate->ast1Len;
@@ -892,13 +892,16 @@ static int32_t mndUpdateStbCommentAndTTL(const SStbObj *pOld, SStbObj *pNew, cha
                                          int32_t ttl) {
   if (commentLen > 0) {
     pNew->commentLen = commentLen;
-    pNew->comment = taosMemoryCalloc(1, commentLen);
+    pNew->comment = taosMemoryCalloc(1, commentLen + 1);
     if (pNew->comment == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
-    memcpy(pNew->comment, pComment, commentLen);
+    memcpy(pNew->comment, pComment, commentLen + 1);
+  } else if(commentLen == 0){
+    pNew->commentLen = 0;
   }
+
   if (ttl >= 0) {
     pNew->ttl = ttl;
   }
@@ -1848,17 +1851,17 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&pStb->updateTime, false);  // number of tables
 
-    char *p = taosMemoryCalloc(1, pStb->commentLen + 1 + VARSTR_HEADER_SIZE);  // check malloc failures
-    if (p != NULL) {
-      if (pStb->commentLen != 0) {
-        STR_TO_VARSTR(p, pStb->comment);
-      } else {
-        STR_TO_VARSTR(p, "");
-      }
-
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-      colDataAppend(pColInfo, numOfRows, (const char *)p, false);
-      taosMemoryFree(p);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    if (pStb->commentLen > 0) {
+      char comment[TSDB_TB_COMMENT_LEN + VARSTR_HEADER_SIZE] = {0};
+      STR_TO_VARSTR(comment, pStb->comment);
+      colDataAppend(pColInfo, numOfRows, comment, false);
+    } else if(pStb->commentLen == 0) {
+      char comment[VARSTR_HEADER_SIZE + VARSTR_HEADER_SIZE] = {0};
+      STR_TO_VARSTR(comment, "");
+      colDataAppend(pColInfo, numOfRows, comment, false);
+    } else {
+      colDataAppendNULL(pColInfo, numOfRows);
     }
 
     numOfRows++;

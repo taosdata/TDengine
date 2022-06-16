@@ -3055,12 +3055,14 @@ static int32_t buildCreateStbReq(STranslateContext* pCxt, SCreateTableStmt* pStm
   columnDefNodeToField(pStmt->pTags, &pReq->pTags);
   pReq->numOfColumns = LIST_LENGTH(pStmt->pCols);
   pReq->numOfTags = LIST_LENGTH(pStmt->pTags);
-  if ('\0' != pStmt->pOptions->comment[0]) {
+  if(pStmt->pOptions->commentNull == false){
     pReq->comment = strdup(pStmt->pOptions->comment);
     if (NULL == pReq->comment) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-    pReq->commentLen = strlen(pStmt->pOptions->comment) + 1;
+    pReq->commentLen = strlen(pStmt->pOptions->comment);
+  }else{
+    pReq->commentLen = -1;
   }
 
   SName tableName;
@@ -3109,13 +3111,16 @@ static int32_t translateDropSuperTable(STranslateContext* pCxt, SDropSuperTableS
 static int32_t setAlterTableField(SAlterTableStmt* pStmt, SMAlterStbReq* pAlterReq) {
   if (TSDB_ALTER_TABLE_UPDATE_OPTIONS == pStmt->alterType) {
     pAlterReq->ttl = pStmt->pOptions->ttl;
-    if ('\0' != pStmt->pOptions->comment[0]) {
+    if (pStmt->pOptions->commentNull == false) {
       pAlterReq->comment = strdup(pStmt->pOptions->comment);
       if (NULL == pAlterReq->comment) {
         return TSDB_CODE_OUT_OF_MEMORY;
       }
-      pAlterReq->commentLen = strlen(pStmt->pOptions->comment) + 1;
+      pAlterReq->commentLen = strlen(pStmt->pOptions->comment);
+    }else{
+      pAlterReq->commentLen = -1;
     }
+
     return TSDB_CODE_SUCCESS;
   }
 
@@ -4253,12 +4258,14 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
   req.type = TD_NORMAL_TABLE;
   req.name = strdup(pStmt->tableName);
   req.ttl = pStmt->pOptions->ttl;
-  if ('\0' != pStmt->pOptions->comment[0]) {
+  if (pStmt->pOptions->commentNull == false) {
     req.comment = strdup(pStmt->pOptions->comment);
     if (NULL == req.comment) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-    req.commentLen = strlen(pStmt->pOptions->comment) + 1;
+    req.commentLen = strlen(pStmt->pOptions->comment);
+  }else{
+    req.commentLen = -1;
   }
   req.ntb.schemaRow.nCols = LIST_LENGTH(pStmt->pCols);
   req.ntb.schemaRow.version = 1;
@@ -4411,9 +4418,11 @@ static void addCreateTbReqIntoVgroup(int32_t acctId, SHashObj* pVgroupHashmap, S
   req.type = TD_CHILD_TABLE;
   req.name = strdup(pStmt->tableName);
   req.ttl  = pStmt->pOptions->ttl;
-  if ('\0' != pStmt->pOptions->comment[0]) {
+  if (pStmt->pOptions->commentNull == false) {
     req.comment = strdup(pStmt->pOptions->comment);
-    req.commentLen = strlen(pStmt->pOptions->comment) + 1;
+    req.commentLen = strlen(pStmt->pOptions->comment);
+  } else{
+    req.commentLen = -1;
   }
   req.ctb.suid = suid;
   req.ctb.pTag = (uint8_t*)pTag;
@@ -4993,11 +5002,16 @@ static int32_t buildUpdateOptionsReq(STranslateContext* pCxt, SAlterTableStmt* p
     }
   }
 
-  if (TSDB_CODE_SUCCESS == code && '\0' != pStmt->pOptions->comment[0]) {
-    pReq->updateComment = true;
-    pReq->newComment = strdup(pStmt->pOptions->comment);
-    if (NULL == pReq->newComment) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
+  if (TSDB_CODE_SUCCESS == code){
+    if(pStmt->pOptions->commentNull == false) {
+      pReq->newComment = strdup(pStmt->pOptions->comment);
+      if (NULL == pReq->newComment) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+      }
+      pReq->newCommentLen = strlen(pReq->newComment);
+    }
+    else{
+      pReq->newCommentLen = -1;
     }
   }
 

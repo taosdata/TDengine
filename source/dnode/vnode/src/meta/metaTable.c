@@ -320,12 +320,14 @@ int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq) {
   if (me.type == TSDB_CHILD_TABLE) {
     me.ctbEntry.ctime = pReq->ctime;
     me.ctbEntry.ttlDays = pReq->ttl;
+    me.ctbEntry.commentLen = pReq->commentLen;
     me.ctbEntry.comment = pReq->comment;
     me.ctbEntry.suid = pReq->ctb.suid;
     me.ctbEntry.pTags = pReq->ctb.pTag;
   } else {
     me.ntbEntry.ctime = pReq->ctime;
     me.ntbEntry.ttlDays = pReq->ttl;
+    me.ntbEntry.commentLen = pReq->commentLen;
     me.ntbEntry.comment = pReq->comment;
     me.ntbEntry.schemaRow = pReq->ntb.schemaRow;
     me.ntbEntry.ncid = me.ntbEntry.schemaRow.pSchema[me.ntbEntry.schemaRow.nCols - 1].colId + 1;
@@ -398,7 +400,8 @@ static void metaBuildTtlIdxKey(STtlIdxKey *ttlKey, const SMetaEntry *pME){
 
   if (ttlDays <= 0) return;
 
-  ttlKey->dtime = ctime + ttlDays * 24 * 60 * 60;
+//  ttlKey->dtime = ctime / 1000 + ttlDays * 24 * 60 * 60;
+  ttlKey->dtime = ctime / 1000 + ttlDays;
   ttlKey->uid = pME->uid;
 }
 
@@ -582,7 +585,6 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
   // save to table db
   metaSaveToTbDb(pMeta, &entry);
 
-  tdbTbcOpen(pMeta->pUidIdx, &pUidIdxc, &pMeta->txn);
   tdbTbcUpsert(pUidIdxc, &entry.uid, sizeof(tb_uid_t), &version, sizeof(version), 0);
 
   metaSaveToSkmDb(pMeta, &entry);
@@ -809,22 +811,25 @@ static int metaUpdateTableOptions(SMeta *pMeta, int64_t version, SVAlterTbReq *p
       entry.ctbEntry.ttlDays = pAlterTbReq->newTTL;
       metaUpdateTtlIdx(pMeta, &entry);
     }
-    if(pAlterTbReq->updateComment) entry.ctbEntry.comment = pAlterTbReq->newComment;
+    if(pAlterTbReq->newCommentLen >= 0) {
+      entry.ctbEntry.commentLen = pAlterTbReq->newCommentLen;
+      entry.ctbEntry.comment = pAlterTbReq->newComment;
+    }
   } else {
     if(pAlterTbReq->updateTTL) {
       metaDeleteTtlIdx(pMeta, &entry);
       entry.ntbEntry.ttlDays = pAlterTbReq->newTTL;
       metaUpdateTtlIdx(pMeta, &entry);
     }
-    if(pAlterTbReq->updateComment) entry.ntbEntry.comment = pAlterTbReq->newComment;
+    if(pAlterTbReq->newCommentLen >= 0) {
+      entry.ntbEntry.commentLen = pAlterTbReq->newCommentLen;
+      entry.ntbEntry.comment = pAlterTbReq->newComment;
+    }
   }
 
   // save to table db
   metaSaveToTbDb(pMeta, &entry);
-
-  tdbTbcOpen(pMeta->pUidIdx, &pUidIdxc, &pMeta->txn);
   tdbTbcUpsert(pUidIdxc, &entry.uid, sizeof(tb_uid_t), &version, sizeof(version), 0);
-
   metaULock(pMeta);
 
   tdbTbcClose(pTbDbc);

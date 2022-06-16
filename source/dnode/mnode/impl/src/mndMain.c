@@ -87,18 +87,17 @@ static void mndPushTtlTime(SMnode *pMnode) {
     if (pIter == NULL) break;
 
     int32_t contLen = sizeof(SMsgHead) + sizeof(int32_t);
-
-    SMsgHead *pHead = taosMemoryMalloc(contLen);
+    SMsgHead   *pHead = rpcMallocCont(contLen);
     if (pHead == NULL) {
       mError("ttl time malloc err. contLen:%d", contLen);
       sdbRelease(pSdb, pVgroup);
       continue;
     }
-    pHead->contLen = htonl(pHead->contLen);
-    pHead->vgId = htonl(pHead->vgId);
+    pHead->contLen = htonl(contLen);
+    pHead->vgId = htonl(pVgroup->vgId);
 
     int32_t t = taosGetTimestampSec();
-    *(int32_t*)(pHead + sizeof(SMsgHead)) = htonl(t);
+    *(int32_t*)(POINTER_SHIFT(pHead, sizeof(SMsgHead))) = htonl(t);
 
     SRpcMsg rpcMsg = {.msgType = TDMT_VND_DROP_TTL_TABLE, .pCont = pHead, .contLen = contLen};
 
@@ -109,7 +108,6 @@ static void mndPushTtlTime(SMnode *pMnode) {
     }
     mError("ttl time seed succ. time:%d", t);
     sdbRelease(pSdb, pVgroup);
-    taosMemoryFree(pHead);
   }
 }
 
@@ -138,8 +136,6 @@ static void *mndThreadFp(void *param) {
     if (lastTime % (tsTelemInterval * 10) == 0) {
       mndPullupTelem(pMnode);
     }
-
-
   }
 
   return NULL;

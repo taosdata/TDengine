@@ -124,7 +124,7 @@ static const SSysDbTableSchema userStbsSchema[] = {
     {.name = "columns", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "tags", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "last_update", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
-    {.name = "table_comment", .bytes = 1024 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "table_comment", .bytes = TSDB_TB_COMMENT_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
 };
 
 static const SSysDbTableSchema streamSchema[] = {
@@ -148,7 +148,7 @@ static const SSysDbTableSchema userTblsSchema[] = {
     {.name = "uid", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
     {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "ttl", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "table_comment", .bytes = 512 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "table_comment", .bytes = TSDB_TB_COMMENT_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "type", .bytes = 20 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
 };
 
