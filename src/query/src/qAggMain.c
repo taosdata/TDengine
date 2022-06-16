@@ -3645,7 +3645,6 @@ static void diff_function(SQLFunctionCtx *pCtx) {
   SDiffFuncInfo *pDiffInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
   void *data = GET_INPUT_DATA_LIST(pCtx);
-  bool  isFirstBlock = (pDiffInfo->valueAssigned == false);
 
   int32_t notNullElems = 0;
 
@@ -3668,7 +3667,7 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         if (pDiffInfo->valueAssigned) {
           int32_t diff = (int32_t)(pData[i] - pDiffInfo->i64Prev);
           if (diff >= 0 || !pDiffInfo->ignoreNegative) {
-            *pOutput = (int32_t)(pData[i] - pDiffInfo->i64Prev);  // direct previous may be null
+            *pOutput = diff;
             *pTimestamp = (tsList != NULL)? tsList[i]:0;
             pOutput    += 1;
             pTimestamp += 1;
@@ -3694,7 +3693,7 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         if (pDiffInfo->valueAssigned) {
           int64_t diff = pData[i] - pDiffInfo->i64Prev;
           if (diff >= 0 || !pDiffInfo->ignoreNegative) {
-            *pOutput = pData[i] - pDiffInfo->i64Prev;  // direct previous may be null
+            *pOutput = diff;
             *pTimestamp = (tsList != NULL)? tsList[i]:0;
             pOutput    += 1;
             pTimestamp += 1;
@@ -3720,7 +3719,7 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         if (pDiffInfo->valueAssigned) {
           double diff = pData[i] - pDiffInfo->d64Prev;
           if (diff >= 0 || !pDiffInfo->ignoreNegative) {
-            SET_DOUBLE_VAL(pOutput, pData[i] - pDiffInfo->d64Prev);  // direct previous may be null
+            SET_DOUBLE_VAL(pOutput, diff);
             *pTimestamp = (tsList != NULL)? tsList[i]:0;
             pOutput    += 1;
             pTimestamp += 1;
@@ -3746,7 +3745,7 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         if (pDiffInfo->valueAssigned) {  
           float diff = (float)(pData[i] - pDiffInfo->d64Prev);
           if (diff >= 0 || !pDiffInfo->ignoreNegative) {
-            *pOutput = (float)(pData[i] - pDiffInfo->d64Prev);  
+            *pOutput = diff;  
             *pTimestamp = (tsList != NULL)? tsList[i]:0;
             pOutput    += 1;
             pTimestamp += 1;
@@ -3772,7 +3771,7 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         if (pDiffInfo->valueAssigned) {
           int16_t diff = (int16_t)(pData[i] - pDiffInfo->i64Prev);
           if (diff >= 0 || !pDiffInfo->ignoreNegative) {
-            *pOutput = (int16_t)(pData[i] - pDiffInfo->i64Prev);
+            *pOutput = diff;
             *pTimestamp = (tsList != NULL)? tsList[i]:0;
             pOutput    += 1;
             pTimestamp += 1;
@@ -3798,7 +3797,7 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         if (pDiffInfo->valueAssigned) {
           int8_t diff = (int8_t)(pData[i] - pDiffInfo->i64Prev);
           if (diff >= 0 || !pDiffInfo->ignoreNegative) {
-            *pOutput = (int8_t)(pData[i] - pDiffInfo->i64Prev);
+            *pOutput = diff;
             *pTimestamp = (tsList != NULL)? tsList[i]:0;
             pOutput    += 1;
             pTimestamp += 1;
@@ -3816,23 +3815,15 @@ static void diff_function(SQLFunctionCtx *pCtx) {
       qError("error input type");
   }
 
-  // initial value is not set yet
-  if (!pDiffInfo->valueAssigned || notNullElems <= 0) {
-    /*
-     * 1. current block and blocks before are full of null
-     * 2. current block may be null value
-     */
-    assert(pCtx->hasNull);
-  } else {
+  if (notNullElems > 0) {
     for (int t = 0; t < pCtx->tagInfo.numOfTagCols; ++t) {
       SQLFunctionCtx* tagCtx = pCtx->tagInfo.pTagCtxList[t];
       if (tagCtx->functionId == TSDB_FUNC_TAG_DUMMY) {
         aAggs[TSDB_FUNC_TAGPRJ].xFunction(tagCtx);
       }
     }
-    int32_t forwardStep = (isFirstBlock) ? notNullElems : notNullElems;
 
-    GET_RES_INFO(pCtx)->numOfRes += forwardStep;
+    GET_RES_INFO(pCtx)->numOfRes += notNullElems;
   }
 }
 
