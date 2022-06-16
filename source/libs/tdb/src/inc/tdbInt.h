@@ -252,7 +252,19 @@ struct SPage {
   int       minLocal;
   int (*xCellSize)(const SPage *, SCell *);
   // Fields used by SPCache
-  TDB_PCACHE_PAGE
+  // TDB_PCACHE_PAGE
+  u8           isAnchor;
+  u8           isLocal;
+  u8           isDirty;
+  volatile i32 nRef;
+  i32          id;
+  SPage       *pFreeNext;
+  SPage       *pHashNext;
+  SPage       *pLruNext;
+  SPage       *pLruPrev;
+  SPage       *pDirtyNext;
+  SPager      *pPager;
+  SPgid        pgid;
 };
 
 static inline i32 tdbRefPage(SPage *pPage) {
