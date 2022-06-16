@@ -867,8 +867,6 @@ SNode* createDefaultTableOptions(SAstCreateContext* pCxt) {
   CHECK_PARSER_STATUS(pCxt);
   STableOptions* pOptions = (STableOptions*)nodesMakeNode(QUERY_NODE_TABLE_OPTIONS);
   CHECK_OUT_OF_MEM(pOptions);
-  // pOptions->delay = TSDB_DEFAULT_ROLLUP_DELAY;
-  pOptions->filesFactor = TSDB_DEFAULT_ROLLUP_FILE_FACTOR;
   pOptions->ttl = TSDB_DEFAULT_TABLE_TTL;
   return (SNode*)pOptions;
 }
@@ -877,7 +875,6 @@ SNode* createAlterTableOptions(SAstCreateContext* pCxt) {
   CHECK_PARSER_STATUS(pCxt);
   STableOptions* pOptions = (STableOptions*)nodesMakeNode(QUERY_NODE_TABLE_OPTIONS);
   CHECK_OUT_OF_MEM(pOptions);
-  pOptions->delay = -1;
   pOptions->ttl = -1;
   return (SNode*)pOptions;
 }
@@ -891,8 +888,11 @@ SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType
                                   sizeof(((STableOptions*)pOptions)->comment));
       }
       break;
-    case TABLE_OPTION_DELAY:
-      ((STableOptions*)pOptions)->delay = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+    case TABLE_OPTION_MAXDELAY:
+      ((STableOptions*)pOptions)->pMaxDelay = pVal;
+      break;
+    case TABLE_OPTION_WATERMARK:
+      ((STableOptions*)pOptions)->pWatermark = pVal;
       break;
     case TABLE_OPTION_ROLLUP:
       ((STableOptions*)pOptions)->pRollupFuncs = pVal;

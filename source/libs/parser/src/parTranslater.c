@@ -2668,14 +2668,6 @@ static SColumnDefNode* findColDef(SNodeList* pCols, const SColumnNode* pCol) {
   return NULL;
 }
 
-static int32_t checTableFactorOption(STranslateContext* pCxt, float val) {
-  if (val < TSDB_MIN_ROLLUP_FILE_FACTOR || val > TSDB_MAX_ROLLUP_FILE_FACTOR) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_F_RANGE_OPTION, "file_factor", val,
-                                TSDB_MIN_ROLLUP_FILE_FACTOR, TSDB_MAX_ROLLUP_FILE_FACTOR);
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
 static int32_t checkTableSmaOption(STranslateContext* pCxt, SCreateTableStmt* pStmt) {
   if (NULL != pStmt->pOptions->pSma) {
     SNode* pNode = NULL;
@@ -2825,24 +2817,22 @@ static int32_t checkTableSchema(STranslateContext* pCxt, SCreateTableStmt* pStmt
   return code;
 }
 
-static int32_t checkSchemalessDb(STranslateContext* pCxt, const char* pDbName) {
-  //  if (0 != pCxt->pParseCxt->schemalessType) {
-  //    return TSDB_CODE_SUCCESS;
-  //  }
-  //  SDbCfgInfo info = {0};
-  //  int32_t    code = getDBCfg(pCxt, pDbName, &info);
-  //  if (TSDB_CODE_SUCCESS == code) {
-  //    code = info.schemaless ? TSDB_CODE_SML_INVALID_DB_CONF : TSDB_CODE_SUCCESS;
-  //  }
-  //  return code;
-  return TSDB_CODE_SUCCESS;
+static int32_t checkTableMaxDelayOption(STranslateContext* pCxt, STableOptions* pOptions) {
+  if (NULL != pOptions->pMaxDelay) {
+    if (DEAL_RES_ERROR == translateValue(pCxt, pOptions->pMaxDelay)) {
+      return pCxt->errCode;
+    }
+    if (TIME_UNIT_MINUTE != pOptions->pDaysPerFile->unit) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_UNIT, "daysPerFile",
+                                  pOptions->pDaysPerFile->unit);
+    }
+    pOptions->daysPerFile = getBigintFromValueNode(pOptions->pDaysPerFile);
+  }
+  return checkRangeOption(pCxt, "maxDelay", pOptions->pMaxDelay, TSDB_MIN_ROLLUP_MAX_DELAY, TSDB_MAX_ROLLUP_MAX_DELAY);
 }
 
 static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt) {
-  int32_t code = checkSchemalessDb(pCxt, pStmt->dbName);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = checTableFactorOption(pCxt, pStmt->pOptions->filesFactor);
-  }
+  int32_t code = checkTableMaxDelayOption(pCxt, pStmt->pOptions->pMaxDelay);
   // if (TSDB_CODE_SUCCESS == code) {
   //   code = checkRangeOption(pCxt, "delay", pStmt->pOptions->delay, TSDB_MIN_ROLLUP_DELAY, TSDB_MAX_ROLLUP_DELAY);
   // }
@@ -3089,7 +3079,7 @@ static int32_t buildRollupAst(STranslateContext* pCxt, SCreateTableStmt* pStmt, 
 static int32_t buildCreateStbReq(STranslateContext* pCxt, SCreateTableStmt* pStmt, SMCreateStbReq* pReq) {
   pReq->igExists = pStmt->ignoreExists;
   // pReq->delay = pStmt->pOptions->delay;
-  pReq->xFilesFactor = pStmt->pOptions->filesFactor;
+  // pReq->xFilesFactor = pStmt->pOptions->filesFactor;
   pReq->ttl = pStmt->pOptions->ttl;
   columnDefNodeToField(pStmt->pCols, &pReq->pColumns);
   columnDefNodeToField(pStmt->pTags, &pReq->pTags);
@@ -4757,10 +4747,7 @@ static int32_t rewriteCreateMultiTable(STranslateContext* pCxt, SQuery* pQuery) 
   SNode*  pNode;
   FOREACH(pNode, pStmt->pSubTables) {
     SCreateSubTableClause* pClause = (SCreateSubTableClause*)pNode;
-    code = checkSchemalessDb(pCxt, pClause->dbName);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = rewriteCreateSubTable(pCxt, pClause, pVgroupHashmap);
-    }
+    code = rewriteCreateSubTable(pCxt, pClause, pVgroupHashmap);
     if (TSDB_CODE_SUCCESS != code) {
       taosHashCleanup(pVgroupHashmap);
       return code;
