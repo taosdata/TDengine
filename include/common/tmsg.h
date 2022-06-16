@@ -2259,11 +2259,11 @@ typedef struct {
 typedef struct {
   char   name[TSDB_STREAM_FNAME_LEN];
   int8_t igNotExists;
-} SMDropStreamTaskReq;
+} SMDropStreamReq;
 
 typedef struct {
   int8_t reserved;
-} SMDropStreamTaskRsp;
+} SMDropStreamRsp;
 
 typedef struct {
   SMsgHead head;
