@@ -1,4 +1,4 @@
 ---
 sidebar_label: Introduction
-title: TDengine Cloud
+title: TDengine Cloud Service
 ---
