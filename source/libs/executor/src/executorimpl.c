@@ -4533,12 +4533,14 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       tsdbReaderT pDataReader =
           doCreateDataReader(pTableScanNode, pHandle, pTableListInfo, (uint64_t)queryId, taskId, pTagCond);
       if (pDataReader == NULL && terrno != 0) {
+        pTaskInfo->code = terrno;
         return NULL;
       }
 
       int32_t code = extractTableSchemaVersion(pHandle, pTableScanNode->scan.uid, pTaskInfo);
       if (code) {
         tsdbCleanupReadHandle(pDataReader);
+        pTaskInfo->code = terrno;
         return NULL;
       }
 
@@ -4547,6 +4549,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       taosArrayDestroy(groupKeys);
       if (code) {
         tsdbCleanupReadHandle(pDataReader);
+        pTaskInfo->code = terrno;
         return NULL;
       }
 
