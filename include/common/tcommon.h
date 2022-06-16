@@ -109,8 +109,8 @@ typedef struct SQueryTableDataCond {
   int32_t      type;              // data block load type:
   int32_t      numOfTWindows;
   STimeWindow* twindows;
-  int32_t      startVersion;
-  int32_t      endVersion;
+  int64_t      startVersion;
+  int64_t      endVersion;
 } SQueryTableDataCond;
 
 void*   blockDataDestroy(SSDataBlock* pBlock);

@@ -119,7 +119,6 @@ typedef void *STsdbReader;
 STsdbReader *tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, STableListInfo *tableInfoGroup, uint64_t qId,
                             uint64_t taskId);
 int32_t      tsdbGetFileBlocksDistInfo(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
-bool         isTsdbCacheLastRow(STsdbReader *pReader);
 int32_t      tsdbGetAllTableList(SMeta *pMeta, uint64_t uid, SArray *list);
 int32_t      tsdbGetCtbIdList(SMeta *pMeta, int64_t suid, SArray *list);
 void        *tsdbGetIdx(SMeta *pMeta);

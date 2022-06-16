@@ -138,6 +138,8 @@ void    tsdbFree(uint8_t *pBuf);
 int32_t tTABLEIDCmprFn(const void *p1, const void *p2);
 int32_t tsdbKeyCmprFn(const void *p1, const void *p2);
 
+int32_t tsdbBuildDeleteSkyline(SArray *aDelData, int32_t sidx, int32_t eidx, SArray *aSkyline);
+
 // SMapData
 void    tMapDataReset(SMapData *pMapData);
 void    tMapDataClear(SMapData *pMapData);
