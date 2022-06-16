@@ -64,7 +64,10 @@ int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
 int32_t walCommit(SWal *pWal, int64_t ver) {
   ASSERT(pWal->vers.commitVer >= pWal->vers.snapshotVer);
   ASSERT(pWal->vers.commitVer <= pWal->vers.lastVer);
-  if (ver < pWal->vers.commitVer || ver > pWal->vers.lastVer) {
+  if (ver < pWal->vers.commitVer) {
+    return 0;
+  }
+  if (ver > pWal->vers.lastVer) {
     terrno = TSDB_CODE_WAL_INVALID_VER;
     return -1;
   }

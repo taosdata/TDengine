@@ -59,8 +59,8 @@ class TDTestCase:
     def initConsumerTable(self,cdbName='cdb'):        
         tdLog.info("create consume database, and consume info table, and consume result table")
         tdSql.query("create database if not exists %s vgroups 1"%(cdbName))
-        # tdSql.query("drop table if exists %s.consumeinfo "%(cdbName))
-        # tdSql.query("drop table if exists %s.consumeresult "%(cdbName))
+        tdSql.query("drop table if exists %s.consumeinfo "%(cdbName))
+        tdSql.query("drop table if exists %s.consumeresult "%(cdbName))
 
         tdSql.query("create table %s.consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)"%cdbName)
         tdSql.query("create table %s.consumeresult (ts timestamp, consumerid int, consummsgcnt bigint, consumrowcnt bigint, checkresult int)"%cdbName)

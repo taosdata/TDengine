@@ -78,6 +78,7 @@ class TDTestCase:
         print(hostname)
         dnodes = []
         start_port = 6030
+        start_port_sec = 6130
         for num in range(1, dnodes_nums+1):
             dnode = TDDnode(num)
             dnode.addExtraCfg("firstEp", f"{hostname}:{start_port}")
@@ -85,6 +86,7 @@ class TDTestCase:
             dnode.addExtraCfg("serverPort", f"{start_port + (num-1)*100}")
             dnode.addExtraCfg("monitorFqdn", hostname)
             dnode.addExtraCfg("monitorPort", 7043)
+            dnode.addExtraCfg("secondEp", f"{hostname}:{start_port_sec}")
             dnodes.append(dnode)
         
         self.TDDnodes = MyDnodes(dnodes)
@@ -116,25 +118,28 @@ class TDTestCase:
         while count < 10:
             time.sleep(1)
             tdSql.query("show mnodes;")
-            if tdSql.checkRows(3) :                
-                if  tdSql.queryResult[0][2]=='leader' :
-                    if  tdSql.queryResult[1][2]=='follower':
-                        if  tdSql.queryResult[2][2]=='follower':
-                            print("three mnodes is ready in 10s")
-                            break
-                elif tdSql.queryResult[0][2]=='follower' :
-                    if  tdSql.queryResult[1][2]=='leader':
-                        if  tdSql.queryResult[2][2]=='follower':
-                            print("three mnodes is ready in 10s")
-                            break      
-                elif tdSql.queryResult[0][2]=='follower' :
-                    if  tdSql.queryResult[1][2]=='follower':
-                        if  tdSql.queryResult[2][2]=='leader':
-                            print("three mnodes is ready in 10s")
-                            break                   
+            if tdSql.checkRows(3) :     
+                print("mnode is  three nodes")           
+            if  tdSql.queryResult[0][2]=='leader' :
+                if  tdSql.queryResult[1][2]=='follower':
+                    if  tdSql.queryResult[2][2]=='follower':
+                        print("three mnodes is ready in 10s")
+                        break
+            elif tdSql.queryResult[0][2]=='follower' :
+                if  tdSql.queryResult[1][2]=='leader':
+                    if  tdSql.queryResult[2][2]=='follower':
+                        print("three mnodes is ready in 10s")
+                        break      
+            elif tdSql.queryResult[0][2]=='follower' :
+                if  tdSql.queryResult[1][2]=='follower':
+                    if  tdSql.queryResult[2][2]=='leader':
+                        print("three mnodes is ready in 10s")
+                        break                   
             count+=1
         else:
+            print(tdSql.queryResult)
             print("three mnodes is not ready in 10s ")
+            return -1
 
         tdSql.query("show mnodes;")       
         tdSql.checkRows(3) 
@@ -151,18 +156,21 @@ class TDTestCase:
             time.sleep(1)
             tdSql.query("show mnodes;")
             if tdSql.checkRows(3) :
-                if  tdSql.queryResult[0][2]=='offline' :
-                    if  tdSql.queryResult[1][2]=='leader':
-                        if  tdSql.queryResult[2][2]=='follower':
-                            print("stop mnodes  on dnode 2 successfully in 10s")
-                            break
-                    elif tdSql.queryResult[1][2]=='follower':
-                        if  tdSql.queryResult[2][2]=='leader':
-                            print("stop mnodes  on dnode 2 successfully in 10s")
-                            break
+                print("mnode is  three nodes")
+            if  tdSql.queryResult[0][2]=='offline' :
+                if  tdSql.queryResult[1][2]=='leader':
+                    if  tdSql.queryResult[2][2]=='follower':
+                        print("stop mnodes  on dnode 2 successfully in 10s")
+                        break
+                elif tdSql.queryResult[1][2]=='follower':
+                    if  tdSql.queryResult[2][2]=='leader':
+                        print("stop mnodes  on dnode 2 successfully in 10s")
+                        break
             count+=1
         else:
             print("stop mnodes  on dnode 2 failed in 10s ")
+            return -1 
+        tdSql.error("drop mnode on dnode 1;")
 
         tdSql.query("show mnodes;")       
         tdSql.checkRows(3) 
@@ -174,20 +182,23 @@ class TDTestCase:
         tdSql.checkData(2,1,'%s:6230'%self.host)
         tdSql.checkData(2,3,'ready')
 
-    def check3mnode2drop(self):
+    def check3mnode2off(self):
         count=0
-        while count < 10:
+        while count < 40:
             time.sleep(1)
             tdSql.query("show mnodes;")
             if tdSql.checkRows(3) :
-                if  tdSql.queryResult[0][2]=='leader' :
-                    if  tdSql.queryResult[1][2]=='offline':
-                        if  tdSql.queryResult[2][2]=='follower':
-                            print("stop mnodes  on dnode 2 successfully in 10s")
-                            break
+                print("mnode is  three nodes")
+            if  tdSql.queryResult[0][2]=='leader' :
+                if  tdSql.queryResult[1][2]=='offline':
+                    if  tdSql.queryResult[2][2]=='follower':
+                        print("stop mnodes  on dnode 2 successfully in 10s")
+                        break
             count+=1
         else:
             print("stop mnodes  on dnode 2 failed in 10s ")
+            return -1
+        tdSql.error("drop mnode on dnode 2;")
 
         tdSql.query("show mnodes;")       
         tdSql.checkRows(3) 
@@ -197,7 +208,7 @@ class TDTestCase:
         tdSql.checkData(1,1,'%s:6130'%self.host)
         tdSql.checkData(1,2,'offline')
         tdSql.checkData(1,3,'ready')
-        tdSql.checkData(2,1,'%s:6230')
+        tdSql.checkData(2,1,'%s:6230'%self.host)
         tdSql.checkData(2,2,'follower')
         tdSql.checkData(2,3,'ready')
 
@@ -207,15 +218,17 @@ class TDTestCase:
             time.sleep(1)
             tdSql.query("show mnodes;")
             if tdSql.checkRows(3) :
-                if  tdSql.queryResult[0][2]=='leader' :
-                    if  tdSql.queryResult[2][2]=='offline':
-                        if  tdSql.queryResult[1][2]=='follower':
-                            print("stop mnodes  on dnode 3 successfully in 10s")
-                            break
+                print("mnode is  three nodes")
+            if  tdSql.queryResult[0][2]=='leader' :
+                if  tdSql.queryResult[2][2]=='offline':
+                    if  tdSql.queryResult[1][2]=='follower':
+                        print("stop mnodes  on dnode 3 successfully in 10s")
+                        break
             count+=1
         else:
             print("stop mnodes  on dnode 3 failed in 10s")
-            
+            return -1
+        tdSql.error("drop mnode on dnode 3;")
         tdSql.query("show mnodes;")       
         tdSql.checkRows(3) 
         tdSql.checkData(0,1,'%s:6030'%self.host)
@@ -262,8 +275,25 @@ class TDTestCase:
             for i in range(1,3):
                 tdLog.debug("drop mnode on dnode %d"%(i+1))
                 tdSql.execute("drop mnode on dnode %d"%(i+1))
+                tdSql.query("show mnodes;")
+                count=0
+                while count<10:
+                    time.sleep(1)
+                    tdSql.query("show mnodes;")
+                    if tdSql.checkRows(2):
+                        print("drop mnode %d successfully"%(i+1))
+                        break
+                    count+=1
                 tdLog.debug("create mnode on dnode %d"%(i+1))
                 tdSql.execute("create mnode on dnode %d"%(i+1))
+                count=0
+                while count<10:
+                    time.sleep(1)
+                    tdSql.query("show mnodes;")
+                    if tdSql.checkRows(3):
+                        print("drop mnode %d successfully"%(i+1))
+                        break
+                    count+=1
             dropcount+=1
         self.check3mnode()
 

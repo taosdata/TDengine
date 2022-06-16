@@ -478,7 +478,7 @@ int32_t stmtResetStmt(STscStmt* pStmt) {
   return TSDB_CODE_SUCCESS;
 }
 
-TAOS_STMT* stmtInit(TAOS* taos) {
+TAOS_STMT* stmtInit(STscObj* taos) {
   STscObj*  pObj = (STscObj*)taos;
   STscStmt* pStmt = NULL;
 

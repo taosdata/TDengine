@@ -168,6 +168,11 @@ int32_t vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
         goto _err;
       }
     } break;
+    case TDMT_VND_STREAM_TASK_DROP: {
+      if (tqProcessTaskDropReq(pVnode->pTq, pMsg->pCont, pMsg->contLen) < 0) {
+        goto _err;
+      }
+    } break;
     case TDMT_VND_ALTER_CONFIRM:
       vnodeProcessAlterConfirmReq(pVnode, version, pReq, len, pRsp);
       break;
@@ -375,8 +380,9 @@ int32_t vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       ret = syncNodeOnAppendEntriesReplyCb(pSyncNode, pSyncMsg);
       syncAppendEntriesReplyDestroy(pSyncMsg);
 
-    } else if (pRpcMsg->msgType == TDMT_SYNC_SET_MNODE_STANDBY) {
+    } else if (pRpcMsg->msgType == TDMT_SYNC_SET_VNODE_STANDBY) {
       ret = syncSetStandby(pVnode->sync);
+      vInfo("vgId:%d, set standby result:0x%x rid:%" PRId64, pVnode->config.vgId, ret, pVnode->sync);
       SRpcMsg rsp = {.code = ret, .info = pMsg->info};
       tmsgSendRsp(&rsp);
     } else {
