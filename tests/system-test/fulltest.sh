@@ -98,6 +98,9 @@ python3 ./test.py -f 2-query/stateduration.py
 python3 ./test.py -f 2-query/function_stateduration.py
 python3 ./test.py -f 2-query/statecount.py
 python3 ./test.py -f 2-query/tail.py
+python3 ./test.py -f 2-query/distribute_agg_count.py
+python3 ./test.py -f 2-query/distribute_agg_max.py
+
 
 python3 ./test.py -f 6-cluster/5dnode1mnode.py 
 python3 ./test.py -f 6-cluster/5dnode2mnode.py 
