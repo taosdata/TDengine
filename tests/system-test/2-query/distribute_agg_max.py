@@ -212,9 +212,70 @@ class TDTestCase:
         tdSql.query("select max(c1) from stb1 where t1> 4  partition by tbname")
         tdSql.checkRows(15)
 
-        tdSql.query("select max(c1) from stb1 where t1> 4  partition by tbname")
-        tdSql.checkRows(15)
+        # union all 
+        tdSql.query("select max(c1) from stb1 union all select max(c1) from stb1 ")
+        tdSql.checkRows(2)
+        tdSql.checkData(0,0,28)
 
+        # join 
+
+        tdSql.execute(" create database if not exists db ")
+        tdSql.execute(" use db ")
+        tdSql.execute(" create stable st (ts timestamp , c1 int ,c2 float) tags(t1 int) ")
+        tdSql.execute(" create table tb1 using st tags(1) ")
+        tdSql.execute(" create table tb2 using st tags(2) ")
+
+        
+        for i in range(10):
+            ts = i*10 + self.ts
+            tdSql.execute(f" insert into tb1 values({ts},{i},{i}.0)")
+            tdSql.execute(f" insert into tb2 values({ts},{i},{i}.0)")
+
+        tdSql.query("select max(tb1.c1), tb2.c2 from tb1, tb2 where tb1.ts=tb2.ts")
+        tdSql.checkRows(1)
+        tdSql.checkData(0,0,9)
+        tdSql.checkData(0,0,9.00000)
+
+        # group by 
+        tdSql.execute(" use testdb ")
+        tdSql.query(" select max(c1),c1  from stb1 group by t1 ")
+        tdSql.checkRows(20)
+        tdSql.query(" select max(c1),c1  from stb1 group by c1 ")
+        tdSql.checkRows(30)
+        tdSql.query(" select max(c1),c2  from stb1 group by c2 ")
+        tdSql.checkRows(31)
+
+        # partition by tbname or partition by tag
+        tdSql.query("select max(c1),tbname from stb1 partition by tbname")
+        query_data = tdSql.queryResult
+        
+        for row in query_data:
+            tbname = row[1]
+            tdSql.query(" select max(c1) from %s "%tbname)
+            tdSql.checkData(0,0,row[0])
+
+        tdSql.query("select max(c1),tbname from stb1 partition by t1")
+        query_data = tdSql.queryResult
+        
+        for row in query_data:
+            tbname = row[1]
+            tdSql.query(" select max(c1) from %s "%tbname)
+            tdSql.checkData(0,0,row[0])
+
+        # nest query for support max
+        tdSql.query("select abs(c2+2)+1 from (select max(c1) c2  from stb1)")
+        tdSql.checkData(0,0,31.000000000)
+        tdSql.query("select max(c1+2)+1  as c2 from (select ts ,c1 ,c2  from stb1)")
+        tdSql.checkData(0,0,31.000000000)
+        tdSql.query("select max(a+2)+1  as c2 from (select ts ,abs(c1) a ,c2  from stb1)")
+        tdSql.checkData(0,0,31.000000000)
+
+        # mixup with other functions
+        tdSql.query("select max(c1),count(c1),last(c2,c3) from stb1")
+        tdSql.checkData(0,0,28)
+        tdSql.checkData(0,1,184)
+        tdSql.checkData(0,2,-99999)
+        tdSql.checkData(0,3,-999)
 
     def run(self):
 
