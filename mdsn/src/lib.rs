@@ -419,6 +419,18 @@ fn username_with_password() {
     );
     assert_eq!(dsn.to_string(), s);
 
+    let s = "taos:///";
+
+    let dsn = Dsn::from_str(&s).unwrap();
+    assert_eq!(
+        dsn,
+        Dsn {
+            driver: "taos".to_string(),
+            ..Default::default()
+        }
+    );
+    assert_eq!(dsn.to_string(), "taos://");
+
     let s = "taos://root@";
 
     let dsn = Dsn::from_str(&s).unwrap();
@@ -785,6 +797,8 @@ fn params() {
 }
 
 #[test]
-fn tmq() {
-    let tmq = "taos://root:taosdata@localhost/aa23d04011eca42cf7d8c1dd05a37985?topics=aa23d04011eca42cf7d8c1dd05a37985&group.id=tg2";
+fn parse_taos_tmq() {
+    let s = "taos://root:taosdata@localhost/aa23d04011eca42cf7d8c1dd05a37985?topics=aa23d04011eca42cf7d8c1dd05a37985&group.id=tg2";
+    let _ = Dsn::from_str(&s).unwrap();
+
 }

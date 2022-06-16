@@ -40,7 +40,7 @@ database = { database_char+ }
 dsn = {
   SOI ~
   scheme ~ SCHEME_IDENT ~
-      username_with_password* ~ protocol_with_addresses ~ (fragment | "/" ~ database)?
+      username_with_password* ~ protocol_with_addresses ~ (fragment | "/" ~ database?)?
      ~ ("?" ~ param ~ ("&" ~ param)*)? ~
   EOI
 }
