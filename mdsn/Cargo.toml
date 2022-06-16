@@ -1,6 +1,6 @@
 [package]
 name = "mdsn"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 keywords = ["url", "dsn", "mdsn"]
 license = "MIT OR Apache-2.0"
