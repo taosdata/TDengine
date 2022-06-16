@@ -88,6 +88,7 @@ class TDTestCase:
                 # nchar
                 elif i == 13:
                     tdSql.checkData(0, 0, f'{self.nchar_str}1')
+        #!bug TD-16569
         # tdSql.query("select first(*),last(*) from stb where ts < 23 interval(1s)")
         # tdSql.checkRows(0)
         # tdSql.execute('drop database db')
@@ -150,9 +151,10 @@ class TDTestCase:
                 # nchar
                 elif i == 13:
                     tdSql.checkData(0, 0, f'{self.nchar_str}1')
-        tdSql.query("select first(*),last(*) from {stbname} where ts < 23 interval(1s)")
-        tdSql.checkRows(0)
-        tdSql.execute('drop database db')
+        #!bug TD-16569
+        # tdSql.query("select first(*),last(*) from {stbname} where ts < 23 interval(1s)")
+        # tdSql.checkRows(0)
+        # tdSql.execute('drop database db')
         
         
         
