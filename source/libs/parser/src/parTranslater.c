@@ -42,6 +42,7 @@ typedef struct STranslateContext {
   SExplainOptions* pExplainOpt;
   SParseMetaCache* pMetaCache;
   bool             createStream;
+  bool             stableQuery;
 } STranslateContext;
 
 typedef struct SFullDatabaseName {
@@ -1507,6 +1508,9 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
       pRealTable->table.singleTable = isSingleTable(pRealTable);
       if (TSDB_CODE_SUCCESS == code) {
         code = addNamespace(pCxt, pRealTable);
+      }
+      if (TSDB_SUPER_TABLE == pRealTable->pMeta->tableType) {
+        pCxt->stableQuery = true;
       }
       break;
     }
@@ -4805,6 +4809,7 @@ static int32_t buildDropTableVgroupHashmap(STranslateContext* pCxt, SDropTableCl
 
   if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code && pClause->ignoreNotExists) {
     code = TSDB_CODE_SUCCESS;
+    goto over;
   }
 
   *pIsSuperTable = false;
@@ -4898,7 +4903,7 @@ static int32_t rewriteDropTable(STranslateContext* pCxt, SQuery* pQuery) {
     }
   }
 
-  if (isSuperTable) {
+  if (isSuperTable || 0 == taosHashGetSize(pVgroupHashmap)) {
     taosHashCleanup(pVgroupHashmap);
     return TSDB_CODE_SUCCESS;
   }
@@ -5342,6 +5347,8 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
       }
       break;
   }
+
+  pQuery->stableQuery = pCxt->stableQuery;
 
   if (pQuery->haveResultSet) {
     if (TSDB_CODE_SUCCESS != extractResultSchema(pQuery->pRoot, &pQuery->numOfResCols, &pQuery->pResSchema)) {

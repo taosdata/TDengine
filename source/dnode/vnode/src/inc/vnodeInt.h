@@ -140,6 +140,7 @@ int32_t tqProcessVgDeleteReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessOffsetCommitReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId);
 int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen);
+int32_t tqProcessTaskDropReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessStreamTrigger(STQ* pTq, SSubmitReq* data);
 int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg);
@@ -259,6 +260,7 @@ struct SSma {
 
 #define SMA_CFG(s)        (&(s)->pVnode->config)
 #define SMA_TSDB_CFG(s)   (&(s)->pVnode->config.tsdbCfg)
+#define SMA_RETENTION(s)  ((SRetention *)&(s)->pVnode->config.tsdbCfg.retentions)
 #define SMA_LOCKED(s)     ((s)->locked)
 #define SMA_META(s)       ((s)->pVnode->pMeta)
 #define SMA_VID(s)        TD_VID((s)->pVnode)

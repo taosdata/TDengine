@@ -13,29 +13,31 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <vnode.h>
-#include "dataSinkMgt.h"
-#include "texception.h"
 #include "os.h"
-#include "tarray.h"
-#include "tcache.h"
-#include "tglobal.h"
+#include "tref.h"
+#include "dataSinkMgt.h"
 #include "tmsg.h"
 #include "tudf.h"
 
 #include "executor.h"
 #include "executorimpl.h"
 #include "query.h"
-#include "thash.h"
-#include "tlosertree.h"
-#include "ttypes.h"
+
+static TdThreadOnce initPoolOnce = PTHREAD_ONCE_INIT;
+int32_t exchangeObjRefPool = -1;
+
+static void initRefPool() {
+  exchangeObjRefPool = taosOpenRef(1024, doDestroyExchangeOperatorInfo);
+}
 
 int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, SSubplan* pSubplan,
-    qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, EOPTR_EXEC_MODEL model) {
+                        qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, const char* sql, EOPTR_EXEC_MODEL model) {
   assert(readHandle != NULL && pSubplan != NULL);
   SExecTaskInfo** pTask = (SExecTaskInfo**)pTaskInfo;
 
-  int32_t code = createExecTaskInfoImpl(pSubplan, pTask, readHandle, taskId, model);
+  taosThreadOnce(&initPoolOnce, initRefPool);
+
+  int32_t code = createExecTaskInfoImpl(pSubplan, pTask, readHandle, taskId, sql, model);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }

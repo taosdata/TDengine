@@ -60,6 +60,7 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
       mError("trans:%d, failed to propose since %s", transId, tstrerror(pMgmt->errCode));
     }
     tsem_post(&pMgmt->syncSem);
+    pMgmt->transId = 0;
   } else {
     STrans *pTrans = mndAcquireTrans(pMnode, transId);
     if (pTrans != NULL) {
@@ -123,6 +124,7 @@ void mndReConfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReConfigCbMeta cbM
       mError("trans:-1, failed to propose sync reconfig since %s", tstrerror(pMgmt->errCode));
     }
     tsem_post(&pMgmt->syncSem);
+    pMgmt->transId = 0;
   }
 }
 
@@ -221,17 +223,17 @@ void mndCleanupSync(SMnode *pMnode) {
 
 int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
-  SRpcMsg    rsp = {.code = TDMT_MND_APPLY_MSG, .contLen = sdbGetRawTotalSize(pRaw)};
-  rsp.pCont = rpcMallocCont(rsp.contLen);
-  if (rsp.pCont == NULL) return -1;
-  memcpy(rsp.pCont, pRaw, rsp.contLen);
+  SRpcMsg    req = {.msgType = TDMT_MND_APPLY_MSG, .contLen = sdbGetRawTotalSize(pRaw)};
+  req.pCont = rpcMallocCont(req.contLen);
+  if (req.pCont == NULL) return -1;
+  memcpy(req.pCont, pRaw, req.contLen);
 
   pMgmt->errCode = 0;
   pMgmt->transId = transId;
   mTrace("trans:%d, will be proposed", pMgmt->transId);
 
   const bool isWeak = false;
-  int32_t    code = syncPropose(pMgmt->sync, &rsp, isWeak);
+  int32_t    code = syncPropose(pMgmt->sync, &req, isWeak);
   if (code == 0) {
     tsem_wait(&pMgmt->syncSem);
   } else if (code == -1 && terrno == TSDB_CODE_SYN_NOT_LEADER) {
@@ -242,7 +244,7 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
     terrno = TSDB_CODE_APP_ERROR;
   }
 
-  rpcFreeCont(rsp.pCont);
+  rpcFreeCont(req.pCont);
   if (code != 0) {
     mError("trans:%d, failed to propose, code:0x%x", pMgmt->transId, code);
     return code;
@@ -256,17 +258,14 @@ void mndSyncStart(SMnode *pMnode) {
   syncSetMsgCb(pMgmt->sync, &pMnode->msgCb);
   syncStart(pMgmt->sync);
   mDebug("mnode sync started, id:%" PRId64 " standby:%d", pMgmt->sync, pMgmt->standby);
-
-  /*
-    if (pMgmt->standby) {
-      syncStartStandBy(pMgmt->sync);
-    } else {
-      syncStart(pMgmt->sync);
-    }
-  */
 }
 
-void mndSyncStop(SMnode *pMnode) {}
+void mndSyncStop(SMnode *pMnode) {
+  if (pMnode->syncMgmt.transId != 0) {
+    tsem_post(&pMnode->syncMgmt.syncSem);
+    pMnode->syncMgmt.transId = 0;
+  }
+}
 
 bool mndIsMaster(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;

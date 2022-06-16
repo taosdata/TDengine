@@ -151,7 +151,9 @@ int32_t schedulerGetTasksStatus(int64_t job, SArray *pSub) {
 
     for (int32_t m = 0; m < pLevel->taskNum; ++m) {
       SSchTask     *pTask = taosArrayGet(pLevel->subTasks, m);
-      SQuerySubDesc subDesc = {.tid = pTask->taskId, .status = pTask->status};
+      SQuerySubDesc subDesc = {0};
+      subDesc.tid = pTask->taskId;
+      strcpy(subDesc.status, jobTaskStatusStr(pTask->status));
 
       taosArrayPush(pSub, &subDesc);
     }
