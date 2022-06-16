@@ -873,7 +873,8 @@ static void mndTransResetActions(SMnode *pMnode, STrans *pTrans, SArray *pArray)
     pAction->rawWritten = 0;
     pAction->msgSent = 0;
     pAction->msgReceived = 0;
-    if (pAction->errCode == TSDB_CODE_RPC_REDIRECT) {
+    if (pAction->errCode == TSDB_CODE_RPC_REDIRECT || pAction->errCode == TSDB_CODE_SYN_NOT_IN_NEW_CONFIG ||
+        pAction->errCode == TSDB_CODE_SYN_INTERNAL_ERROR || pAction->errCode == TSDB_CODE_SYN_NOT_LEADER) {
       pAction->epSet.inUse = (pAction->epSet.inUse + 1) % pAction->epSet.numOfEps;
       mDebug("trans:%d, %s:%d execute status is reset and set epset inuse:%d", pTrans->id, mndTransStr(pAction->stage),
              action, pAction->epSet.inUse);
@@ -1078,8 +1079,6 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
   if (numOfActions == 0) return code;
   if (pTrans->redoActionPos >= numOfActions) return code;
 
-  int32_t retryTimes = 0;
-
   for (int32_t action = pTrans->redoActionPos; action < numOfActions; ++action) {
     STransAction *pAction = taosArrayGet(pTrans->redoActions, pTrans->redoActionPos);
 
@@ -1128,26 +1127,14 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
         pTrans->code = terrno;
         mError("trans:%d, %s:%d is executed and failed to sync to other mnodes since %s", pTrans->id,
                mndTransStr(pAction->stage), pAction->id, terrstr());
-        if (retryTimes >= 3)
-          break;
-        else
-          continue;
       }
-      retryTimes = 0;
     } else if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
       mDebug("trans:%d, %s:%d is in progress and wait it finish", pTrans->id, mndTransStr(pAction->stage), pAction->id);
       break;
     } else {
       terrno = code;
       pTrans->code = code;
-      pAction->epSet.inUse++;
-      if (pAction->epSet.inUse >= pAction->epSet.numOfEps) pAction->epSet.inUse = 0;
-      mError("trans:%d, %s:%d failed to execute since %s, inUse set to %d", pTrans->id, mndTransStr(pAction->stage),
-             pAction->id, terrstr(), pAction->epSet.inUse);
-      if (retryTimes >= 3)
-        break;
-      else
-        continue;
+      break;
     }
   }
 

@@ -79,8 +79,6 @@ static int32_t vnodeProcessAlterReplicaReq(SVnode *pVnode, SRpcMsg *pMsg) {
       vError("vgId:%d, failed to transfer leader since %s", TD_VID(pVnode), terrstr());
     } else {
       vDebug("vgId:%d, transfer leader success, propose reconfig config again", TD_VID(pVnode));
-      taosMsleep(10);
-      code = syncPropose(pVnode->sync, &rpcMsg, false);
     }
   }
 
