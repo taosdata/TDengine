@@ -903,6 +903,18 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
         SSyncRaftEntry* pAppendEntry = syncEntryDeserialize(pMsg->data, pMsg->dataLen);
         ASSERT(pAppendEntry != NULL);
 
+        {
+          // has extra entries (> preIndex) in local log
+          SyncIndex logLastIndex = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
+          bool      hasExtraEntries = logLastIndex > pMsg->prevLogIndex;
+
+          if (hasExtraEntries) {
+            // make log same, rollback deleted entries
+            code = syncNodeMakeLogSame(ths, pMsg);
+            ASSERT(code == 0);
+          }
+        }
+
         code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pAppendEntry);
         ASSERT(code == 0);
 
