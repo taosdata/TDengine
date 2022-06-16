@@ -11,36 +11,33 @@ The TDengine command-line interface (hereafter referred to as `TDengine CLI`) is
 
 ## Installation
 
-To run TDengine CLI to access TDengine cloud, please install [TDengine client installation package](https://www.taosdata.com/assets-download/TDengine-client-2.6.0.2-Linux-x64.tar.gz) first.
+To run TDengine CLI to access TDengine cloud, please install [TDengine client installation package](https://www.taosdata.com/assets-download/TDengine-client-2.6.0.4-Linux-x64.tar.gz) first.
 
 <Tabs defaultValue="ConfigOnLinux" groupId="sys">
 <TabItem value="ConfigOnLinux" label="Config on Linux">
 
-Run this command in your Linux terminal to save your URL and token as variables:
+Run this command in your Linux terminal to save your URL and token as variable:
 
 ```
-export TDENGINE_CLOUD_URL=<URL>
-export TDENGINE_CLOUD_TOKEN=<token>
+export TDENGINE_CLOUD_DSN=<DSN>
 ```
 
 </TabItem>
 <TabItem value="ConfigOnWindows" label="Config on Windows (coming soon)">
 
-Run this command in your Windows terminal to save your URL and token as variables:
+Run this command in your Windows terminal to save your URL and token as variable:
 
 ```
-set TDENGINE_CLOUD_URL=<URL>
-set TDENGINE_CLOUD_TOKEN=<token>
+set TDENGINE_CLOUD_DSN=<DSN>
 ```
 
 </TabItem>
 <TabItem value="ConfigOnMac" label="Config on Mac (coming soon)" groupId="sys">
 
-Run this command in your Mac terminal to save your URL and token as variables:
+Run this command in your Mac terminal to save your URL and token as variable:
 
 ```
-export TDENGINE_CLOUD_URL=<URL>
-export TDENGINE_CLOUD_TOKEN=<token>
+export TDENGINE_CLOUD_DSN=<DSN>
 ```
 
 </TabItem>
@@ -49,28 +46,46 @@ export TDENGINE_CLOUD_TOKEN=<token>
 <Tabs defaultValue="ConnectOnLinux" groupId="sys">
 <TabItem value="ConnectOnLinux" label="Connect on Linux">
 
-To access the TDengine Cloud, you can execute below command from a Linux terminal.
+To access the TDengine Cloud, you can execute `taos` if you already set the environment variable.
 
 ```
-taos -R -h $TDENGINE_CLOUD_URL -t $TDENGINE_CLOUD_TOKEN
+taos
+```
+
+If you did not set environment variable for a TDengine Cloud instance, or you want to access other TDengine Cloud instances rather than the instance you already set the environment variable, you can use `taos -E <DSN>` as below.
+
+```
+taos -E $TDENGINE_CLOUD_DSN
 ```
 
 </TabItem>
 <TabItem value="ConnectOnWindows" label="Connect on Windows (coming soon)">
 
-To access the TDengine Cloud, you can execute below command from a Windows terminal.
+To access the TDengine Cloud, you can execute `taos` if you already set the environment variable.
 
 ```
-taos -R -h %TDENGINE_CLOUD_URL% -t %TDENGINE_CLOUD_TOKEN%
+taos
+```
+
+If you did not set environment variable for a TDengine Cloud instance, or you want to access other TDengine Cloud instances rather than the instance you already set the environment variable, you can use `taos -E <DSN>` as below.
+
+```
+taos.exe -E $TDENGINE_CLOUD_DSN
 ```
 
 </TabItem>
 <TabItem value="ConnectOnMac" label="Connect on Mac (coming soon)">
 
-To access the TDengine Cloud, you can execute below command from a Mac terminal.
+To access the TDengine Cloud, you can execute `taos` if you already set the environment variable.
 
 ```
-taos -R -h $TDENGINE_CLOUD_URL -t $TDENGINE_CLOUD_TOKEN
+taos
+```
+
+If you did not set environment variable for a TDengine Cloud instance, or you want to access other TDengine Cloud instances rather than the instance you already set the environment variable, you can use `taos -E <DSN>` as below.
+
+```
+taos -E $TDENGINE_CLOUD_DSN
 ```
 
 </TabItem>
@@ -82,8 +97,10 @@ TDengine CLI will display a welcome message and version information if it succes
 
 ```cmd
 
-Welcome to the TDengine shell from Linux, Client Version:2.6.0.2
+Welcome to the TDengine shell from Linux, Client Version:2.6.0.4
 Copyright (c) 2022 by TAOS Data, Inc. All rights reserved.
+
+Successfully connect to cloud.tdengine.com:8085 in restful mode
 
 taos>
 ```
