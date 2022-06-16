@@ -1,0 +1,248 @@
+---
+toc_max_heading_level: 4
+sidebar_position: 6
+sidebar_label: Node.js
+title: TDengine Node.js Connector
+---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+
+import Preparation from "./_preparation.mdx";
+import NodeInsert from "../../07-develop/03-insert-data/_js_sql.mdx";
+import NodeInfluxLine from "../../07-develop/03-insert-data/_js_line.mdx";
+import NodeOpenTSDBTelnet from "../../07-develop/03-insert-data/_js_opts_telnet.mdx";
+import NodeOpenTSDBJson from "../../07-develop/03-insert-data/_js_opts_json.mdx";
+import NodeQuery from "../../07-develop/04-query-data/_js.mdx";
+
+`td2.0-connector` and `td2.0-rest-connector` are the official Node.js language connectors for TDengine. Node.js developers can develop applications to access TDengine instance data.
+
+`td2.0-connector` is a **native connector** that connects to TDengine instances via the TDengine client driver (taosc) and supports data writing, querying, subscriptions, schemaless writing, and bind interface. The `td2.0-rest-connector` is a **REST connector** that connects to TDengine instances via the REST interface provided by taosAdapter. The REST connector can run on any platform, but performance is slightly degraded, and the interface implements a somewhat different set of functional features than the native interface.
+
+The Node.js connector source code is hosted on [GitHub](https://github.com/taosdata/taos-connector-node).
+
+## Supported Platforms
+
+The platforms supported by the native connector are the same as those supported by the TDengine client driver.
+The REST connector supports all platforms that can run Node.js.
+
+## Version support
+
+Please refer to [version support list](/reference/connector#version-support)
+
+## Supported features
+
+### Native connectors
+
+1. connection management
+2. general query
+3. continuous query
+4. parameter binding
+5. subscription function
+6. Schemaless
+
+### REST Connector
+
+1. connection management
+2. general queries
+3. Continuous query
+
+## Installation steps
+
+### Pre-installation
+
+- Install the Node.js development environment
+- If you are using the REST connector, skip this step. However, if you use the native connector, please install the TDengine client driver. Please refer to [Install Client Driver](/reference/connector#Install-Client-Driver) for more details. We use [node-gyp](https://github.com/nodejs/node-gyp) to interact with TDengine instances and also need to install some dependencies mentioned below depending on the specific OS.
+
+<Tabs defaultValue="Linux">
+<TabItem value="Linux" label="Linux system installation dependencies">
+
+- `python` (recommended for `v2.7` , `v3.x.x` currently not supported)
+- `td2.0-connector` 2.0.6 supports Node.js LTS v10.9.0 or later, Node.js LTS v12.8.0 or later; 2.0.5 and earlier support Node.js LTS v10.x versions. Other versions may have package compatibility issues
+- `make`
+- C compiler, [GCC](https://gcc.gnu.org) v4.8.5 or higher
+
+</TabItem>
+<TabItem value="Windows" label="Windows system installation dependencies">
+
+- Installation method 1
+
+Use Microsoft's [windows-build-tools](https://github.com/felixrieseberg/windows-build-tools) to execute `npm install --global --production` from the `cmd` command-line interface to install all the necessary tools.
+
+- Installation method 2
+
+Manually install the following tools.
+
+- Install Visual Studio related: [Visual Studio Build Tools](https://visualstudio.microsoft.com/thank-you-downloading-visual-studio/?sku=BuildTools) or [Visual Studio 2017 Community](https://visualstudio.microsoft.com/pl/thank-you-downloading-visual-studio/?sku=Community)
+- Install [Python](https://www.python.org/downloads/) 2.7 (`v3.x.x` is not supported) and execute `npm config set python python2.7`.
+- Go to the `cmd` command-line interface, `npm config set msvs_version 2017`
+
+Refer to Microsoft's Node.js User Manual [Microsoft's Node.js Guidelines for Windows](https://github.com/Microsoft/nodejs-guidelines/blob/master/windows-environment.md#compiling-native-addon-modules).
+
+If using ARM64 Node.js on Windows 10 ARM, you must add "Visual C++ compilers and libraries for ARM64" and "Visual C++ ATL for ARM64".
+
+</TabItem>
+</Tabs>
+
+### Install via npm
+
+<Tabs defaultValue="install_native">
+<TabItem value="install_native" label="Install native connector">
+
+```bash
+npm install td2.0-connector
+```
+
+</TabItem>
+<TabItem value="install_rest" label="Install REST connector">
+
+```bash
+npm i td2.0-rest-connector
+```
+
+</TabItem>
+</Tabs>
+
+### Installation verification
+
+After installing the TDengine client, use the `nodejsChecker.js` program to verify that the current environment supports Node.js access to TDengine.
+
+Verification in details:
+
+- Create a new installation verification directory, e.g. `~/tdengine-test`, and download the [nodejsChecker.js source code](https://github.com/taosdata/TDengine/tree/develop/examples/nodejs/) from GitHub. to the work directory.
+
+- Execute the following command from the command-line.
+
+```bash
+npm init -y
+npm install td2.0-connector
+node nodejsChecker.js host=localhost
+```
+
+- After executing the above steps, the command-line will output the result of `nodejsChecker.js` connecting to the TDengine instance and performing a simple insert and query.
+
+## Establishing a connection
+
+Please choose to use one of the connectors.
+
+<Tabs defaultValue="native">
+<TabItem value="native" label="Native connection">
+
+Install and refer to `td2.0-connector` package:
+
+```javascript
+//A cursor also needs to be initialized in order to interact with TDengine from Node.js.
+const taos = require("td2.0-connector");
+var conn = taos.connect({
+  host: "127.0.0.1",
+  user: "root",
+  password: "taosdata",
+  config: "/etc/taos",
+  port: 0,
+});
+var cursor = conn.cursor(); // Initializing a new cursor
+
+//Close a connection
+conn.close();
+```
+
+</TabItem>
+<TabItem value="rest" label="REST connection">
+
+Install and refer to `td2.0-rest-connector`package:
+
+```javascript
+//A cursor also needs to be initialized in order to interact with TDengine from Node.js.
+import { options, connect } from "td2.0-rest-connector";
+options.path = "/rest/sqlt";
+// set host
+options.host = "localhost";
+// set other options like user/passwd
+
+let conn = connect(options);
+let cursor = conn.cursor();
+```
+
+</TabItem>
+</Tabs>
+
+## Usage examples
+
+### Write data
+
+#### SQL Writing
+
+<NodeInsert />
+
+#### InfluxDB line protocol writing
+
+<NodeInfluxLine />
+
+#### OpenTSDB Telnet line protocol writing
+
+<NodeOpenTSDBTelnet />
+
+#### OpenTSDB JSON line protocol writing
+
+<NodeOpenTSDBJson />
+
+### Query data
+
+<NodeQuery />
+
+## More Sample Programs
+
+| Sample Programs | Sample Program Description |
+| --------------------------------------------------------------------------------------------------------------------------------- --------- | -------------------------------------- |
+| [connection](https://github.com/taosdata/taos-connector-node/tree/develop/nodejs/examples/cursorClose.js) | Example of establishing a connection.                       |
+| [stmtBindBatch](https://github.com/taosdata/taos-connector-node/tree/develop/nodejs/examples/stmtBindParamBatchSample.js) | Example of binding a multi-line parameter Example of inserting.               |
+| [stmtBind](https://github.com/taosdata/taos-connector-node/tree/develop/nodejs/examples/stmtBindParamSample.js) | Example of a line-by-line bind parameter insertion.           |
+| [stmtBindSingleParamBatch](https://github.com/taosdata/taos-connector-node/tree/develop/nodejs/examples/) stmtBindSingleParamBatchSample.js) | Example of binding parameters by column.               |
+| [stmtUseResult](https://github.com/taosdata/taos-connector-node/tree/develop/nodejs/examples/stmtUseResultSample.js) | Example of a bound parameter query.                   |
+| [json tag](https://github.com/taosdata/taos-connector-node/tree/develop/nodejs/examples/testJsonTag.js) | Example of using Json tag.                  |
+| [Nanosecond](https://github.com/taosdata/taos-connector-node/tree/develop/nodejs/examples/testNanoseconds.js) | An example of using timestamps with nanosecond precision.         |
+| [Microsecond](https://github.com/taosdata/taos-connector-node/tree/develop/nodejs/examples/testMicroseconds.js) | Example of using microsecond timestamp.         |
+| [schemless insert](https://github.com/taosdata/taos-connector-node/tree/develop/nodejs/examples/testSchemalessInsert.js) | schemless Example of a schemless insert.                 |
+| [subscribe](https://github.com/taosdata/taos-connector-node/tree/develop/nodejs/examples/testSubscribe.js) | Example of using subscribe.                       |
+| [asyncQuery](https://github.com/taosdata/taos-connector-node/tree/develop/nodejs/examples/tset.js) | An example of using asynchronous queries.                   |
+| [REST](https://github.com/taosdata/taos-connector-node/blob/develop/typescript-rest/example/example.ts) | An example of using TypeScript with REST connections. |
+
+## Usage restrictions
+
+Node.js Connector >= v2.0.6 currently supports node versions >=v12.8.0 <= v12.9.1 || >=v10.20.0 <= v10.9.0; v10.x versions are supported in 2.0.5 and earlier, other versions may have package compatibility issues.
+
+## Other notes
+
+See [video tutorial](https://www.taosdata.com/blog/2020/11/11/1957.html) for the Node.js connector usage.
+
+## Frequently Asked Questions
+
+1. Using REST connections requires starting taosadapter.
+
+   ```bash
+   sudo systemctl start taosadapter
+   ```
+
+2. "Unable to establish connection", "Unable to resolve FQDN"
+
+  Usually, the root cause is an incorrect FQDN configuration. You can refer to this section in the [FAQ](https://docs.tdengine.com/2.4/train-faq/faq/#2-how-to-handle-unable-to-establish-connection) to troubleshoot.
+
+## Important Updates
+
+### Native connectors
+
+| td2.0-connector version | description |
+| -------------------- | ---------------------------------------------------------------- |
+| 2.0.12 | Fix bug with cursor.close() error. | 2.0.12 | Fix bug with cursor.close() error.
+| 2.0.11 | Support for binding parameters, json tag, schemaless interface, etc.                  |
+| 2.0.10 | Support connection management, general query, continuous query, get system information, subscribe function, etc. | ### REST Connector
+
+### REST Connector
+
+| td2.0-rest-connector version | Description |
+| ------------------------- | ---------------------------------------------------------------- |
+| 1.0.3 | Support connection management, general query, get system information, error message, continuous query, etc. |# API Reference
+
+## API Reference
+
+[API Reference](https://docs.taosdata.com/api/td2.0-connector/)

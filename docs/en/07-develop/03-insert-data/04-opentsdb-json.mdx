@@ -1,0 +1,99 @@
+---
+sidebar_label: OpenTSDB JSON Protocol
+title: OpenTSDB JSON Protocol
+---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import JavaJson from "./_java_opts_json.mdx";
+import PyJson from "./_py_opts_json.mdx";
+import GoJson from "./_go_opts_json.mdx";
+import RustJson from "./_rust_opts_json.mdx";
+import NodeJson from "./_js_opts_json.mdx";
+import CsJson from "./_cs_opts_json.mdx";
+import CJson from "./_c_opts_json.mdx";
+
+## Introduction
+
+A JSON string is used in OpenTSDB JSON to represent one or more rows of data, for example:
+
+```json
+[
+    {
+        "metric": "sys.cpu.nice",
+        "timestamp": 1346846400,
+        "value": 18,
+        "tags": {
+           "host": "web01",
+           "dc": "lga"
+        }
+    },
+    {
+        "metric": "sys.cpu.nice",
+        "timestamp": 1346846400,
+        "value": 9,
+        "tags": {
+           "host": "web02",
+           "dc": "lga"
+        }
+    }
+]
+```
+
+Similar to OpenTSDB line protocol, `metric` will be used as the STable name, `timestamp` is the timestamp to be used, `value` represents the metric collected, `tags` are the tag sets.
+
+
+Please refer to [OpenTSDB HTTP API](http://opentsdb.net/docs/build/html/api_http/put.html) for more details.
+
+:::note
+- In JSON protocol, strings will be converted to nchar type and numeric values will be converted to double type.
+- Only data in array format is accepted and so an array must be used even if there is only one row.
+
+:::
+
+## Examples
+
+<Tabs defaultValue="java" groupId="lang">
+  <TabItem label="Java" value="java">
+    <JavaJson />
+  </TabItem>
+  <TabItem label="Python" value="Python">
+    <PyJson />
+  </TabItem>
+  <TabItem label="Go" value="go">
+    <GoJson />
+  </TabItem>
+  <TabItem label="Rust" value="rust">
+    <RustJson />
+  </TabItem>
+  <TabItem label="Node.js" value="nodejs">
+    <NodeJson />
+  </TabItem>
+  <TabItem label="C#" value="csharp">
+    <CsJson />
+  </TabItem>
+  <TabItem label="C" value="c">
+    <CJson />
+  </TabItem>
+</Tabs>
+
+The above sample code will created 2 STables automatically while each STable has 2 rows of data.
+
+```cmd
+taos> use test;
+Database changed.
+
+taos> show STables;
+              name              |      created_time       | columns |  tags  |   tables    |
+============================================================================================
+ meters.current                 | 2022-03-29 16:05:25.193 |       2 |      2 |           1 |
+ meters.voltage                 | 2022-03-29 16:05:25.200 |       2 |      2 |           1 |
+Query OK, 2 row(s) in set (0.001954s)
+
+taos> select * from `meters.current`;
+           ts            |           value           |          groupid          |            location            |
+===================================================================================================================
+ 2022-03-28 09:56:51.249 |              10.300000000 |               2.000000000 | California.SanFrancisco               |
+ 2022-03-28 09:56:51.250 |              12.600000000 |               2.000000000 | California.SanFrancisco               |
+Query OK, 2 row(s) in set (0.004076s)
+```

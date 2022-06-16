@@ -1,0 +1,69 @@
+---
+sidebar_label: InfluxDB 行协议
+title: InfluxDB 行协议
+---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import JavaLine from "./_java_line.mdx";
+import PyLine from "./_py_line.mdx";
+import GoLine from "./_go_line.mdx";
+import RustLine from "./_rust_line.mdx";
+import NodeLine from "./_js_line.mdx";
+import CsLine from "./_cs_line.mdx";
+import CLine from "./_c_line.mdx";
+
+## 协议介绍
+
+InfluxDB Line 协议采用一行字符串来表示一行数据。分为四部分：
+
+```
+measurement,tag_set field_set timestamp
+```
+
+- measurement 将作为超级表名。它与 tag_set 之间使用一个英文逗号来分隔。
+- tag_set 将作为标签数据，其格式形如 `<tag_key>=<tag_value>,<tag_key>=<tag_value>`，也即可以使用英文逗号来分隔多个标签数据。它与 field_set 之间使用一个半角空格来分隔。
+- field_set 将作为普通列数据，其格式形如 `<field_key>=<field_value>,<field_key>=<field_value>`，同样是使用英文逗号来分隔多个普通列的数据。它与 timestamp 之间使用一个半角空格来分隔。
+- timestamp 即本行数据对应的主键时间戳。
+
+例如：
+
+```
+meters,location=California.LosAngeles,groupid=2 current=13.4,voltage=223,phase=0.29 1648432611249500
+```
+
+:::note
+
+- tag_set 中的所有的数据自动转化为 nchar 数据类型;
+- field_set 中的每个数据项都需要对自身的数据类型进行描述, 比如 1.2f32 代表 float 类型的数值 1.2, 如果不带类型后缀会被当作 double 处理;
+- timestamp 支持多种时间精度。写入数据的时候需要用参数指定时间精度，支持从小时到纳秒的 6 种时间精度。
+
+:::
+
+要了解更多可参考：[InfluxDB Line 协议官方文档](https://docs.influxdata.com/influxdb/v2.0/reference/syntax/line-protocol/) 和 [TDengine 无模式写入参考指南](/reference/schemaless/#无模式写入行协议)
+
+## 示例代码
+
+<Tabs defaultValue="java" groupId="lang">
+  <TabItem label="Java" value="java">
+    <JavaLine />
+  </TabItem>
+  <TabItem label="Python" value="Python">
+    <PyLine />
+  </TabItem>
+  <TabItem label="Go" value="go">
+    <GoLine />
+  </TabItem>
+  <TabItem label="Rust" value="rust">
+    <RustLine />
+  </TabItem>
+  <TabItem label="Node.js" value="nodejs">
+    <NodeLine />
+  </TabItem>
+  <TabItem label="C#" value="csharp">
+    <CsLine />
+  </TabItem>
+  <TabItem label="C" value="c">
+    <CLine />
+  </TabItem>
+</Tabs>

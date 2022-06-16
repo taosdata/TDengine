@@ -31,8 +31,31 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
+    def getPath(self, tool="taosBenchmark"):
+        selfPath = os.path.dirname(os.path.realpath(__file__))
+
+        if ("community" in selfPath):
+            projPath = selfPath[:selfPath.find("community")]
+        else:
+            projPath = selfPath[:selfPath.find("tests")]
+
+        paths = []
+        for root, dirs, files in os.walk(projPath):
+            if ((tool) in files):
+                rootRealPath = os.path.dirname(os.path.realpath(root))
+                if ("packaging" not in rootRealPath):
+                    paths.append(os.path.join(root, tool))
+                    break
+        if (len(paths) == 0):
+            tdLog.exit("taosBenchmark not found!")
+            return
+        else:
+            tdLog.info("taosBenchmark found in %s" % paths[0])
+            return paths[0]
+
     def run(self):
-        cmd = "taosBenchmark -n 100 -t 100 -y"
+        binPath = self.getPath()
+        cmd = "%s -n 100 -t 100 -y" %binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("use test")
@@ -60,7 +83,8 @@ class TDTestCase:
         tdSql.query("select count(*) from test.meters where groupid >= 0")
         tdSql.checkData(0, 0, 10000)
 
-        tdSql.query("select count(*) from test.meters where location = 'beijing' or location = 'shanghai'")
+        tdSql.query("select count(*) from test.meters where location = 'San Francisco' or location = 'Los Angles' or location = 'San Diego' or location = 'San Jose' or \
+            location = 'Palo Alto' or location = 'Campbell' or location = 'Mountain View' or location = 'Sunnyvale' or location = 'Santa Clara' or location = 'Cupertino' ")
         tdSql.checkData(0, 0, 10000)
 
     def stop(self):
