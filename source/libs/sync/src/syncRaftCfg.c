@@ -66,6 +66,13 @@ int32_t raftCfgPersist(SRaftCfg *pRaftCfg) {
   return 0;
 }
 
+int32_t raftCfgAddConfigIndex(SRaftCfg *pRaftCfg, SyncIndex configIndex) {
+  ASSERT(pRaftCfg->configIndexCount <= MAX_CONFIG_INDEX_COUNT);
+  (pRaftCfg->configIndexArr)[pRaftCfg->configIndexCount] = configIndex;
+  ++(pRaftCfg->configIndexCount);
+  return 0;
+}
+
 cJSON *syncCfg2Json(SSyncCfg *pSyncCfg) {
   char   u64buf[128] = {0};
   cJSON *pRoot = cJSON_CreateObject();

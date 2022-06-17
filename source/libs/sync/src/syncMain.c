@@ -2307,6 +2307,8 @@ int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex,
 
         // config change
         if (pEntry->originalRpcType == TDMT_SYNC_CONFIG_CHANGE) {
+          raftCfgAddConfigIndex(ths->pRaftCfg, pEntry->index);
+          raftCfgPersist(ths->pRaftCfg);
           code = syncNodeConfigChange(ths, &rpcMsg, pEntry);
           ASSERT(code == 0);
         }
