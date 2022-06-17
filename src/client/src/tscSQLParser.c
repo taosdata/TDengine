@@ -2270,10 +2270,6 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
        hasDistinct = (pItem->distinct == true);
        distIdx     =  hasDistinct ? i : -1;
     }
-    if(pItem->aliasName != NULL && validateColumnName(pItem->aliasName) != TSDB_CODE_SUCCESS){
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg11);
-    }
-
     if(pItem->aliasName != NULL && strcasecmp(pItem->aliasName, DEFAULT_PRIMARY_TIMESTAMP_COL_NAME) == 0){
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg11);
     }
