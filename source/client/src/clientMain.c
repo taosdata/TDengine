@@ -246,13 +246,14 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
 
   if (TD_RES_QUERY(res)) {
     SRequestObj *pRequest = (SRequestObj *)res;
+    if (pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT || pRequest->type == TSDB_SQL_INSERT ||
+        pRequest->code != TSDB_CODE_SUCCESS || taos_num_fields(res) == 0 || pRequest->killed) {
+      return NULL;
+    }
+
 #if SYNC_ON_TOP_OF_ASYNC
     return doAsyncFetchRows(pRequest, true, true);
 #else
-    if (pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT || pRequest->type == TSDB_SQL_INSERT ||
-        pRequest->code != TSDB_CODE_SUCCESS || taos_num_fields(res) == 0) {
-      return NULL;
-    }
     return doFetchRows(pRequest, true, true);
 #endif
 
@@ -482,14 +483,20 @@ void taos_stop_query(TAOS_RES *res) {
   }
 
   SRequestObj *pRequest = (SRequestObj *)res;
+  pRequest->killed = true;
+  
   int32_t      numOfFields = taos_num_fields(pRequest);
-
   // It is not a query, no need to stop.
   if (numOfFields == 0) {
+    tscDebug("request %" PRIx64 " no need to be killed since not query", pRequest->requestId);
     return;
   }
 
-  schedulerFreeJob(pRequest->body.queryJob);
+  if (pRequest->body.queryJob) {
+    schedulerFreeJob(pRequest->body.queryJob, TSDB_CODE_TSC_QUERY_KILLED);
+  }
+
+  tscDebug("request %" PRIx64 " killed", pRequest->requestId);
 }
 
 bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col) {
@@ -829,6 +836,9 @@ static void fetchCallback(void *pResult, void *param, int32_t code) {
   SRequestObj *pRequest = (SRequestObj *)param;
 
   SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
+
+  tscDebug("0x%" PRIx64 " enter scheduler fetch cb, code:%d - %s, reqId:0x%" PRIx64,
+             pRequest->self, code, tstrerror(code), pRequest->requestId);
 
   pResultInfo->pData = pResult;
   pResultInfo->numOfRows = 0;

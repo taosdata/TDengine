@@ -130,13 +130,17 @@ typedef struct SMergeLogicNode {
 
 typedef enum EWindowType { WINDOW_TYPE_INTERVAL = 1, WINDOW_TYPE_SESSION, WINDOW_TYPE_STATE } EWindowType;
 
-typedef enum EIntervalAlgorithm {
+typedef enum EWindowAlgorithm {
   INTERVAL_ALGO_HASH = 1,
   INTERVAL_ALGO_MERGE,
   INTERVAL_ALGO_STREAM_FINAL,
   INTERVAL_ALGO_STREAM_SEMI,
   INTERVAL_ALGO_STREAM_SINGLE,
-} EIntervalAlgorithm;
+  SESSION_ALGO_STREAM_SEMI,
+  SESSION_ALGO_STREAM_FINAL,
+  SESSION_ALGO_STREAM_SINGLE,
+  SESSION_ALGO_MERGE,
+} EWindowAlgorithm;
 
 typedef struct SWindowLogicNode {
   SLogicNode         node;
@@ -153,7 +157,7 @@ typedef struct SWindowLogicNode {
   int8_t             triggerType;
   int64_t            watermark;
   double             filesFactor;
-  EIntervalAlgorithm intervalAlgo;
+  EWindowAlgorithm   windowAlgo;
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
@@ -371,6 +375,8 @@ typedef struct SSessionWinodwPhysiNode {
 } SSessionWinodwPhysiNode;
 
 typedef SSessionWinodwPhysiNode SStreamSessionWinodwPhysiNode;
+typedef SSessionWinodwPhysiNode SStreamSemiSessionWinodwPhysiNode;
+typedef SSessionWinodwPhysiNode SStreamFinalSessionWinodwPhysiNode;
 
 typedef struct SStateWinodwPhysiNode {
   SWinodwPhysiNode window;

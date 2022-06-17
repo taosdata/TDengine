@@ -285,7 +285,7 @@ class MockCatalogServiceImpl {
   }
 
   void createSmaIndex(const SMCreateSmaReq* pReq) {
-    STableIndexInfo info;
+    STableIndexInfo info = {0};
     info.intervalUnit = pReq->intervalUnit;
     info.slidingUnit = pReq->slidingUnit;
     info.interval = pReq->interval;
