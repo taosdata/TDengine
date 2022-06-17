@@ -1297,12 +1297,12 @@ end:
   return string;
 }
 
-static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t numOfRows, int32_t numOfCols, int32_t* colLength) {
+static int32_t doConvert(SReqResultInfo* pResultInfo, int32_t numOfRows, int32_t numOfCols, int32_t* colLength, bool convertUCS4) {
   for (int32_t i = 0; i < numOfCols; ++i) {
     int32_t type = pResultInfo->fields[i].type;
     int32_t bytes = pResultInfo->fields[i].bytes;
 
-    if (type == TSDB_DATA_TYPE_NCHAR && colLength[i] > 0) {
+    if (type == TSDB_DATA_TYPE_NCHAR && colLength[i] > 0 && convertUCS4) {
       char* p = taosMemoryRealloc(pResultInfo->convertBuf[i], colLength[i]);
       if (p == NULL) {
         return TSDB_CODE_OUT_OF_MEMORY;
@@ -1448,10 +1448,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
     pStart += colLength[i];
   }
 
-  // convert UCS4-LE encoded character to native multi-bytes character in current data block.
-  if (convertUcs4) {
-    code = doConvertUCS4(pResultInfo, numOfRows, numOfCols, colLength);
-  }
+  code = doConvert(pResultInfo, numOfRows, numOfCols, colLength, convertUcs4);
 
   return code;
 }
