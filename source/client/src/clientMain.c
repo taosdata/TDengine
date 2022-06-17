@@ -99,10 +99,12 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
 
   STscObj* pObj = taos_connect_internal(ip, user, pass, NULL, db, port, CONN_TYPE__QUERY);
   if (pObj) {
-    return (TAOS*)pObj->id;
+    uint64_t *id = taosMemoryMalloc(sizeof(uint64_t));
+    *id = pObj->id;
+    return (TAOS*)id;
   }
   
-  return (TAOS*)0;
+  return NULL;
 }
 
 void taos_close_internal(void *taos) {
@@ -117,13 +119,14 @@ void taos_close_internal(void *taos) {
 }
 
 void taos_close(TAOS *taos) {
-  STscObj* pObj = acquireTscObj((int64_t)taos);
+  STscObj* pObj = acquireTscObj(*(int64_t*)taos);
   if (NULL == pObj) {
     return;
   }
   
   taos_close_internal(pObj);
-  releaseTscObj((int64_t)taos);
+  releaseTscObj(*(int64_t*)taos);
+  taosMemoryFree(taos);
 }
 
 
@@ -206,7 +209,7 @@ static void syncQueryFn(void *param, void *res, int32_t code) {
 }
 
 TAOS_RES *taos_query(TAOS *taos, const char *sql) {
-  STscObj* pTscObj = acquireTscObj((int64_t)taos);
+  STscObj* pTscObj = acquireTscObj(*(int64_t*)taos);
   if (pTscObj == NULL || sql == NULL) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     return NULL;
@@ -219,13 +222,13 @@ TAOS_RES *taos_query(TAOS *taos, const char *sql) {
   taos_query_a(taos, sql, syncQueryFn, param);
   tsem_wait(&param->sem);
 
-  releaseTscObj((int64_t)taos);
+  releaseTscObj(*(int64_t*)taos);
 
   return param->pRequest;
 #else
   size_t sqlLen = strlen(sql);
   if (sqlLen > (size_t)TSDB_MAX_ALLOWED_SQL_LEN) {
-    releaseTscObj((int64_t)taos);
+    releaseTscObj(*(int64_t*)taos);
     tscError("sql string exceeds max length:%d", TSDB_MAX_ALLOWED_SQL_LEN);
     terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
     return NULL;
@@ -233,7 +236,7 @@ TAOS_RES *taos_query(TAOS *taos, const char *sql) {
 
   TAOS_RES* pRes = execQuery(pTscObj, sql, sqlLen);
 
-  releaseTscObj((int64_t)taos);
+  releaseTscObj(*(int64_t*)taos);
 
   return pRes;
 #endif
@@ -453,15 +456,15 @@ int taos_result_precision(TAOS_RES *res) {
 }
 
 int taos_select_db(TAOS *taos, const char *db) {
-  STscObj* pObj = acquireTscObj((int64_t)taos);
+  STscObj* pObj = acquireTscObj(*(int64_t*)taos);
   if (pObj == NULL) {
-    releaseTscObj((int64_t)taos);
+    releaseTscObj(*(int64_t*)taos);
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     return TSDB_CODE_TSC_DISCONNECTED;
   }
 
   if (db == NULL || strlen(db) == 0) {
-    releaseTscObj((int64_t)taos);
+    releaseTscObj(*(int64_t*)taos);
     terrno = TSDB_CODE_TSC_INVALID_INPUT;
     return terrno;
   }
@@ -473,7 +476,7 @@ int taos_select_db(TAOS *taos, const char *db) {
   int32_t   code = taos_errno(pRequest);
 
   taos_free_result(pRequest);
-  releaseTscObj((int64_t)taos);
+  releaseTscObj(*(int64_t*)taos);
   return code;
 }
 
@@ -626,7 +629,7 @@ int *taos_get_column_data_offset(TAOS_RES *res, int columnIndex) {
 int taos_validate_sql(TAOS *taos, const char *sql) { return true; }
 
 void taos_reset_current_db(TAOS *taos) {
-  STscObj* pTscObj = acquireTscObj((int64_t)taos);
+  STscObj* pTscObj = acquireTscObj(*(int64_t*)taos);
   if (pTscObj == NULL) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     return;
@@ -634,17 +637,17 @@ void taos_reset_current_db(TAOS *taos) {
 
   resetConnectDB(pTscObj);
 
-  releaseTscObj((int64_t)taos);
+  releaseTscObj(*(int64_t*)taos);
 }
 
 const char *taos_get_server_info(TAOS *taos) {
-  STscObj* pTscObj = acquireTscObj((int64_t)taos);
+  STscObj* pTscObj = acquireTscObj(*(int64_t*)taos);
   if (pTscObj == NULL) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     return NULL;
   }
 
-  releaseTscObj((int64_t)taos);
+  releaseTscObj(*(int64_t*)taos);
 
   return pTscObj->ver;
 }
@@ -711,11 +714,11 @@ void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
 }
 
 void taos_query_a(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param) {
-  STscObj* pTscObj = acquireTscObj((int64_t)taos);
+  STscObj* pTscObj = acquireTscObj(*(int64_t*)taos);
   if (pTscObj == NULL || sql == NULL || NULL == fp) {
     terrno = TSDB_CODE_INVALID_PARA;
     if (pTscObj) {
-      releaseTscObj((int64_t)taos);
+      releaseTscObj(*(int64_t*)taos);
     } else {
       terrno = TSDB_CODE_TSC_DISCONNECTED;
     }
@@ -936,7 +939,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
 }
 
 TAOS_STMT *taos_stmt_init(TAOS *taos) {
-  STscObj* pObj = acquireTscObj((int64_t)taos);
+  STscObj* pObj = acquireTscObj(*(int64_t*)taos);
   if (NULL == pObj) {
     tscError("invalid parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_TSC_DISCONNECTED;
@@ -945,7 +948,7 @@ TAOS_STMT *taos_stmt_init(TAOS *taos) {
 
   TAOS_STMT* pStmt = stmtInit(pObj);
   
-  releaseTscObj((int64_t)taos);
+  releaseTscObj(*(int64_t*)taos);
 
   return pStmt;
 }

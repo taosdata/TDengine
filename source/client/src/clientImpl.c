@@ -1100,10 +1100,12 @@ TAOS* taos_connect_auth(const char* ip, const char* user, const char* auth, cons
 
   STscObj* pObj = taos_connect_internal(ip, user, NULL, auth, db, port, CONN_TYPE__QUERY);
   if (pObj) {
-    return (TAOS*)pObj->id;
+    uint64_t *id = taosMemoryMalloc(sizeof(uint64_t));
+    *id = pObj->id;
+    return (TAOS*)id;
   }
   
-  return (TAOS*)0;
+  return NULL;
 }
 
 TAOS* taos_connect_l(const char* ip, int ipLen, const char* user, int userLen, const char* pass, int passLen,

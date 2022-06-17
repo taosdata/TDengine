@@ -2434,7 +2434,7 @@ static void smlInsertCallback(void *param, void *res, int32_t code) {
  */
 
 TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol, int precision) {
-  STscObj* pTscObj = acquireTscObj((int64_t)taos);
+  STscObj* pTscObj = acquireTscObj(*(int64_t*)taos);
   if (NULL == pTscObj) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     uError("SML:taos_schemaless_insert invalid taos");
@@ -2443,7 +2443,7 @@ TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int pr
   
   SRequestObj* request = (SRequestObj*)createRequest(pTscObj, TSDB_SQL_INSERT);
   if(!request){
-    releaseTscObj((int64_t)taos);
+    releaseTscObj(*(int64_t*)taos);
     uError("SML:taos_schemaless_insert error request is null");
     return NULL;
   }
@@ -2531,6 +2531,6 @@ end:
 //  ((STscObj *)taos)->schemalessType = 0;
   pTscObj->schemalessType = 1;
   uDebug("resultend:%s", request->msgBuf);
-  releaseTscObj((int64_t)taos);
+  releaseTscObj(*(int64_t*)taos);
   return (TAOS_RES*)request;
 }
