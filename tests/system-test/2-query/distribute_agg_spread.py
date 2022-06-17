@@ -246,7 +246,7 @@ class TDTestCase:
         tdSql.checkRows(31)
 
         # partition by tbname or partition by tag
-        tdSql.query("select spread(c1),tbname from stb1 partition by tbname")
+        tdSql.query("select spread(c1) from stb1 partition by tbname")
         query_data = tdSql.queryResult
 
         # nest query for support max
