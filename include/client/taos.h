@@ -209,21 +209,20 @@ DLL_EXPORT TAOS_RES *taos_schemaless_insert(TAOS *taos, char *lines[], int numLi
 
 /* --------------------------TMQ INTERFACE------------------------------- */
 
+#if 0
 enum {
   TMQ_RESP_ERR__FAIL = -1,
   TMQ_RESP_ERR__SUCCESS = 0,
 };
 
 typedef int32_t tmq_resp_err_t;
+#endif
 
-typedef struct tmq_t                   tmq_t;
-typedef struct tmq_topic_vgroup_t      tmq_topic_vgroup_t;
-typedef struct tmq_topic_vgroup_list_t tmq_topic_vgroup_list_t;
-
+typedef struct tmq_t      tmq_t;
 typedef struct tmq_conf_t tmq_conf_t;
 typedef struct tmq_list_t tmq_list_t;
 
-typedef void(tmq_commit_cb(tmq_t *, tmq_resp_err_t, tmq_topic_vgroup_list_t *, void *param));
+typedef void(tmq_commit_cb(tmq_t *, int32_t code, void *param));
 
 DLL_EXPORT tmq_list_t *tmq_list_new();
 DLL_EXPORT int32_t     tmq_list_append(tmq_list_t *, const char *);
@@ -233,24 +232,19 @@ DLL_EXPORT char      **tmq_list_to_c_array(const tmq_list_t *);
 
 DLL_EXPORT tmq_t *tmq_consumer_new(tmq_conf_t *conf, char *errstr, int32_t errstrLen);
 
-DLL_EXPORT const char *tmq_err2str(tmq_resp_err_t);
+DLL_EXPORT const char *tmq_err2str(int32_t code);
 
 /* ------------------------TMQ CONSUMER INTERFACE------------------------ */
 
-DLL_EXPORT tmq_resp_err_t tmq_subscribe(tmq_t *tmq, const tmq_list_t *topic_list);
-DLL_EXPORT tmq_resp_err_t tmq_unsubscribe(tmq_t *tmq);
-DLL_EXPORT tmq_resp_err_t tmq_subscription(tmq_t *tmq, tmq_list_t **topics);
+DLL_EXPORT int32_t tmq_subscribe(tmq_t *tmq, const tmq_list_t *topic_list);
+DLL_EXPORT int32_t tmq_unsubscribe(tmq_t *tmq);
+DLL_EXPORT int32_t tmq_subscription(tmq_t *tmq, tmq_list_t **topics);
 // timeout: -1 means infinitely waiting
-DLL_EXPORT TAOS_RES      *tmq_consumer_poll(tmq_t *tmq, int64_t timeout);
-DLL_EXPORT tmq_resp_err_t tmq_consumer_close(tmq_t *tmq);
+DLL_EXPORT TAOS_RES *tmq_consumer_poll(tmq_t *tmq, int64_t timeout);
+DLL_EXPORT int32_t   tmq_consumer_close(tmq_t *tmq);
 
-DLL_EXPORT tmq_resp_err_t tmq_commit_sync(tmq_t *tmq, const tmq_topic_vgroup_list_t *offsets);
-DLL_EXPORT void tmq_commit_async(tmq_t *tmq, const tmq_topic_vgroup_list_t *offsets, tmq_commit_cb *cb, void *param);
-
-#if 0
-DLL_EXPORT tmq_resp_err_t tmq_commit(tmq_t *tmq, const tmq_topic_vgroup_list_t *offsets, int32_t async);
-DLL_EXPORT tmq_resp_err_t tmq_seek(tmq_t *tmq, const tmq_topic_vgroup_t *offset);
-#endif
+DLL_EXPORT int32_t tmq_commit_sync(tmq_t *tmq, const TAOS_RES *msg);
+DLL_EXPORT void    tmq_commit_async(tmq_t *tmq, const TAOS_RES *msg, tmq_commit_cb *cb, void *param);
 
 /* ----------------------TMQ CONFIGURATION INTERFACE---------------------- */
 

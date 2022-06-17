@@ -339,8 +339,8 @@ int queryDB(TAOS* taos, char* command) {
   return 0;
 }
 
-static void tmq_commit_cb_print(tmq_t* tmq, tmq_resp_err_t resp, tmq_topic_vgroup_list_t* offsets, void* param) {
-  pError("tmq_commit_cb_print() commit %d\n", resp);
+static void tmq_commit_cb_print(tmq_t* tmq, int32_t code, void* param) {
+  pError("tmq_commit_cb_print() commit %d\n", code);
 }
 
 void build_consumer(SThreadInfo* pInfo) {
@@ -443,7 +443,7 @@ int32_t saveConsumeResult(SThreadInfo* pInfo) {
 }
 
 void loop_consume(SThreadInfo* pInfo) {
-  tmq_resp_err_t err;
+  int32_t code;
 
   int64_t totalMsgs = 0;
   int64_t totalRows = 0;
@@ -496,8 +496,8 @@ void* consumeThreadFunc(void* param) {
     return NULL;
   }
 
-  tmq_resp_err_t err = tmq_subscribe(pInfo->tmq, pInfo->topicList);
-  if (err) {
+  int32_t err = tmq_subscribe(pInfo->tmq, pInfo->topicList);
+  if (err != 0) {
     pError("tmq_subscribe() fail, reason: %s\n", tmq_err2str(err));
     exit(-1);
   }
@@ -517,14 +517,14 @@ void* consumeThreadFunc(void* param) {
   }
 
   err = tmq_unsubscribe(pInfo->tmq);
-  if (err) {
+  if (err != 0) {
     pError("tmq_unsubscribe() fail, reason: %s\n", tmq_err2str(err));
     /*pInfo->consumeMsgCnt = -1;*/
     /*return NULL;*/
   }
 
   err = tmq_consumer_close(pInfo->tmq);
-  if (err) {
+  if (err != 0) {
     pError("tmq_consumer_close() fail, reason: %s\n", tmq_err2str(err));
     /*exit(-1);*/
   }
