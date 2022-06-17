@@ -132,12 +132,6 @@ void* tsortGetValue(STupleHandle* pVHandle, int32_t colId);
 
 /**
  *
- * @param pVHandle
- * @return
- */
-uint64_t tsortGetGroupId(STupleHandle* pVHandle);
-/**
- *
  * @param pSortHandle
  * @return
  */
@@ -150,6 +144,13 @@ SSDataBlock* tsortGetSortedDataBlock(const SSortHandle* pSortHandle);
  * @return
  */
 SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle);
+
+/**
+ * get proper sort buffer pages according to the row size
+ * @param rowSize
+ * @return
+ */
+int32_t getProperSortPageSize(size_t rowSize);
 
 #ifdef __cplusplus
 }

@@ -27,6 +27,8 @@ TEST_F(PlanOrderByTest, basic) {
   run("SELECT c1 FROM t1 ORDER BY c1");
   // ORDER BY key is not in the projection list
   run("SELECT c1 FROM t1 ORDER BY c2");
+
+  run("SELECT c1 + 10 AS a FROM t1 ORDER BY a");
 }
 
 TEST_F(PlanOrderByTest, expr) {
@@ -39,6 +41,12 @@ TEST_F(PlanOrderByTest, nullsOrder) {
   useDb("root", "test");
 
   run("SELECT * FROM t1 ORDER BY c1 DESC NULLS FIRST");
+}
+
+TEST_F(PlanOrderByTest, withGroupBy) {
+  useDb("root", "test");
+
+  run("SELECT SUM(c1) AS a FROM t1 GROUP BY c2 ORDER BY a");
 }
 
 TEST_F(PlanOrderByTest, stable) {

@@ -397,7 +397,7 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
 
   char  logBuf[512] = {0};
   char *syncNodeStr = sync2SimpleStr(pMgmt->sync);
-  snprintf(logBuf, sizeof(logBuf), "==vnodeProcessSyncReq== msgType:%d, syncNode: %s", pMsg->msgType, syncNodeStr);
+  snprintf(logBuf, sizeof(logBuf), "==mndProcessSyncMsg== msgType:%d, syncNode: %s", pMsg->msgType, syncNodeStr);
   static int64_t mndTick = 0;
   if (++mndTick % 10 == 1) {
     mTrace("sync trace msg:%s, %s", TMSG_INFO(pMsg->msgType), syncNodeStr);
@@ -505,6 +505,7 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
 }
 
 static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
+  if (!IsReq(pMsg)) return 0;
   if (mndAcquireRpcRef(pMsg->info.node) == 0) return 0;
 
   if (IsReq(pMsg) && pMsg->msgType != TDMT_MND_MQ_TIMER && pMsg->msgType != TDMT_MND_TELEM_TIMER &&
@@ -699,6 +700,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
 
 int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad) {
   pLoad->syncState = syncGetMyRole(pMnode->syncMgmt.sync);
+  mTrace("mnode current syncstate is %s", syncStr(pLoad->syncState));
   return 0;
 }
 
