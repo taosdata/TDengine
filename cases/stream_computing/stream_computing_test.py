@@ -28,13 +28,7 @@ class TestVgroups(TDCase):
         self.tbname = None
         self.tdCom.drop_all_db()
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdCom.createDb(dbname=dbname, vgroups=1)
-
-    def set_tb_name(self, tbname):
-        """
-        tbname = "stb"/"tb"/"ctb"
-        """
-        self.tbname = tbname
+        self.tdCom.createDb(dbname=dbname, vgroups=10)
 
     def write_latency(self, msg):
         with open(self.latency_log, 'a') as f:
@@ -94,7 +88,7 @@ class TestVgroups(TDCase):
             
 
     def check_stream(self, sql1, sql2, expected_count):
-        self.write_latency(f'sql: sql1')
+        self.write_latency(f'sql: {sql1}')
         self.check_stream_res(sql1, expected_count)
         self.check_query_data(sql1, sql2)
 
@@ -109,11 +103,11 @@ class TestVgroups(TDCase):
             c8 between "na" and "nchar4" and c8 not between "bi" and "binary" and c8 match "nchar[19]" and c8 nmatch "nchar[25]" or c9 = True or \
             c10 in (1, 2, 3) or c10 not in (6, 7) and c8 like "nch%" and c7 not like "bina_" and c11 <= 10 or c12 is Null or c13 >= 4'
         # stb
-        self.tdSql.execute(f'create stream stb_data_filter_stream into output_data_filter_stb as select * from data_filter_stb where {filter_sql};')
+        self.tdSql.execute(f'create stream stb_data_filter_stream trigger at_once into output_data_filter_stb as select * from data_filter_stb where {filter_sql};')
         # ctb
-        self.tdSql.execute(f'create stream ctb_data_filter_stream into output_data_filter_ctb as select * from data_filter_ct1 where {filter_sql};')
+        self.tdSql.execute(f'create stream ctb_data_filter_stream trigger at_once into output_data_filter_ctb as select * from data_filter_ct1 where {filter_sql};')
         # tb
-        self.tdSql.execute(f'create stream tb_data_filter_stream into output_data_filter_tb as select * from data_filter_tb where {filter_sql};')
+        self.tdSql.execute(f'create stream tb_data_filter_stream trigger at_once into output_data_filter_tb as select * from data_filter_tb where {filter_sql};')
         # insert data
         count = 1
         step_count = 1
@@ -143,24 +137,24 @@ class TestVgroups(TDCase):
         # self.tdSql.execute(f'create table ownsampling_ct2 using downsampling_stb tags(20, 20.2, "TIANJIN", False);')
         # self.tdSql.execute(f'create table ownsampling_ct3 using downsampling_stb tags(30, 30.3, "HeBei", False);')
         self.tdSql.execute('create table if not exists downsampling_tb (ts timestamp, c1 int, c2 double, c3 varchar(100), c4 bool);')
-        function_list = ['to_unixtimestamp("1970-01-01T08:00:00+08:00")']
         # ! TD-16571 histogram
         # ! TD-16570 last_row(c1)
-        # ! now() timezone() to_iso8601(now)
+        # ! now() timezone() to_iso8601(1)
         function_list = ["min(c1)", "max(c2)", "sum(c1)", "first(c1)", "last(c1)", "apercentile(c1, 50)", "avg(c1)", "count(c1)", "leastsquares(c1, 1, 2)", "spread(c1)", "stddev(c2)", "hyperloglog(c3)", 
-           "timediff(1, 0, 1h)", "timetruncate(_wstartts, 1m)", 'to_unixtimestamp("1970-01-01T08:00:00+08:00")']
-        function_list = ["now()"]
+           "timediff(1, 0, 1h)", "timetruncate(_wstartts, 1m)", "to_iso8601(1)", 'to_unixtimestamp("1970-01-01T08:00:00+08:00")']
+        # function_list = ['to_unixtimestamp("1970-01-01T08:00:00+08:00")']
+        # function_list = ["to_iso8601(1)"]
         # function_list = ["min(c1)", "max(c2)", "sum(c1)", "first(c1)", "last(c1)", "apercentile(c1, 50)", "last_row(c1)", "avg(c1)", "count(c1)", "leastsquares(c1, 1, 2)", "spread(c1)", "stddev(c2)", "hyperloglog(c3)", 
-        #     'histogram(c1, "user_input", "[1, 3, 5, 7]", 0)', "now()", "timediff(1, 0, 1h)", "timetruncate(_wstartts, 1m)", "timezone()", "today()", "to_iso8601(now)",  'to_unixtimestamp("1970-01-01T08:00:00+08:00")']
+        #     'histogram(c1, "user_input", "[1, 3, 5, 7]", 0)', "now()", "timediff(1, 0, 1h)", "timetruncate(_wstartts, 1m)", "timezone()", "today()", "to_iso8601(1)",  'to_unixtimestamp("1970-01-01T08:00:00+08:00")']
         output_select_str = ','.join(list(map(lambda x:f'`{x}`', function_list)))
         source_select_str = ','.join(function_list)
         self.write_latency(self.case_name)
         # stb
-        self.tdSql.execute(f'create stream stb_downsampling_stream into output_downsampling_stb as select _wstartts AS start, {source_select_str} from downsampling_stb interval(10m);')
+        self.tdSql.execute(f'create stream stb_downsampling_stream trigger at_once into output_downsampling_stb as select _wstartts AS start, {source_select_str} from downsampling_stb interval(10m);')
         # ctb
-        self.tdSql.execute(f'create stream ctb_downsampling_stream into output_downsampling_ctb as select _wstartts AS start, {source_select_str} from downsampling_ct1 interval(10m);')
+        self.tdSql.execute(f'create stream ctb_downsampling_stream trigger at_once into output_downsampling_ctb as select _wstartts AS start, {source_select_str} from downsampling_ct1 interval(10m);')
         # tb
-        self.tdSql.execute(f'create stream tb_downsampling_stream into output_downsampling_tb as select _wstartts AS start, {source_select_str} from downsampling_tb interval(10m);')
+        self.tdSql.execute(f'create stream tb_downsampling_stream trigger at_once into output_downsampling_tb as select _wstartts AS start, {source_select_str} from downsampling_tb interval(10m);')
         for tbname in ["downsampling_ct1", "downsampling_tb"]:
             self.tdSql.execute(f'insert into {tbname} values (1653547828591, 100, 100.1, "Beijing", True);')
             self.tdSql.execute(f'insert into {tbname} values (1653547828591+1s, -100, -100.1, "Tianjin", False);')
@@ -224,11 +218,11 @@ class TestVgroups(TDCase):
         self.tdSql.execute('create table if not exists bottom_tb (ts timestamp, c1 int, c2 double, c3 varchar(100), c4 bool);')
         self.write_latency(self.case_name)
         # stb
-        self.tdSql.execute(f'create stream stb_bottom_stream into output_bottom_stb as select _wstartts AS start, bottom(c1, 2) from bottom_stb interval(10m);')
+        self.tdSql.execute(f'create stream stb_bottom_stream trigger at_once into output_bottom_stb as select _wstartts AS start, bottom(c1, 2) from bottom_stb interval(10m);')
         # ctb
-        self.tdSql.execute(f'create stream ctb_bottom_stream into output_bottom_ctb as select _wstartts AS start, bottom(c1, 2) from bottom_ct1 interval(10m);')
+        self.tdSql.execute(f'create stream ctb_bottom_stream trigger at_once into output_bottom_ctb as select _wstartts AS start, bottom(c1, 2) from bottom_ct1 interval(10m);')
         # tb
-        self.tdSql.execute(f'create stream tb_bottom_stream into output_bottom_tb as select _wstartts AS start, bottom(c1, 2) from bottom_tb interval(10m);')
+        self.tdSql.execute(f'create stream tb_bottom_stream trigger at_once into output_bottom_tb as select _wstartts AS start, bottom(c1, 2) from bottom_tb interval(10m);')
         for tbname in ["bottom_ct1", "bottom_tb"]:
             self.tdSql.execute(f'insert into {tbname} values (1653547828591, 100, 100.1, "Beijing", True);')
             self.tdSql.execute(f'insert into {tbname} values (1653547828591+1s, -100, -100.1, "Tianjin", False);')
@@ -265,11 +259,11 @@ class TestVgroups(TDCase):
 
         self.write_latency(self.case_name)
         # stb
-        self.tdSql.execute(f'create stream stb_top_stream into output_top_stb as select _wstartts AS start, top(c1, 3) from top_stb interval(10m);')
+        self.tdSql.execute(f'create stream stb_top_stream trigger at_once into output_top_stb as select _wstartts AS start, top(c1, 3) from top_stb interval(10m);')
         # ctb
-        self.tdSql.execute(f'create stream ctb_top_stream into output_top_ctb as select _wstartts AS start, top(c1, 3) from top_ct1 interval(10m);')
+        self.tdSql.execute(f'create stream ctb_top_stream trigger at_once into output_top_ctb as select _wstartts AS start, top(c1, 3) from top_ct1 interval(10m);')
         # tb
-        self.tdSql.execute(f'create stream tb_top_stream into output_top_tb as select _wstartts AS start, top(c1, 3) from top_tb interval(10m);')
+        self.tdSql.execute(f'create stream tb_top_stream trigger at_once into output_top_tb as select _wstartts AS start, top(c1, 3) from top_tb interval(10m);')
         for tbname in ["top_ct1", "top_tb"]:
             self.tdSql.execute(f'insert into {tbname} values (1653547828591, 100, 100.1, "Beijing", True);')
             self.tdSql.execute(f'insert into {tbname} values (1653547828591+1s, -100, -100.1, "Tianjin", False);')
@@ -308,9 +302,9 @@ class TestVgroups(TDCase):
         # stb not supported
         # self.tdSql.execute(f'create stream stb_state_window_stream into output_state_window_stb as select _wstartts AS start, max(c1) from state_window_stb state_window(c1);')
         # ctb
-        self.tdSql.execute(f'create stream ctb_state_window_stream into output_state_window_ctb as select _wstartts AS start, min(c1), max(c2), sum(c1), first(c1), last(c1), apercentile(c1, 50) from state_window_ct1 state_window(c1);')
+        self.tdSql.execute(f'create stream ctb_state_window_stream trigger at_once into output_state_window_ctb as select _wstartts AS start, min(c1), max(c2), sum(c1), first(c1), last(c1), apercentile(c1, 50) from state_window_ct1 state_window(c1);')
         # tb
-        self.tdSql.execute(f'create stream tb_state_window_stream into output_state_window_tb as select _wstartts AS start, min(c1), max(c2), sum(c1), first(c1), last(c1), apercentile(c1, 50) from state_window_tb state_window(c1);')
+        self.tdSql.execute(f'create stream tb_state_window_stream trigger at_once into output_state_window_tb as select _wstartts AS start, min(c1), max(c2), sum(c1), first(c1), last(c1), apercentile(c1, 50) from state_window_tb state_window(c1);')
         for tbname in ["state_window_ct1", "state_window_tb"]:
             self.tdSql.execute(f'insert into {tbname} values (1653547828591, 100, 100.1, "Beijing", True);')
             self.tdSql.execute(f'insert into {tbname} values (1653547828591+1s, -100, -100.1, "Tianjin", False);')
@@ -352,9 +346,9 @@ class TestVgroups(TDCase):
             # self.tdSql.execute(f'create stream stb_session_window_stream into output_session_window_stb as select min(c1), max(c2), sum(c1), first(c1), last(c1), apercentile(c1, 50) from session_window_stb session(ts, 10m);')
             # ctb
             function_name = test_function.split('(')[0]
-            self.tdSql.execute(f'create stream ctb_session_window_{function_name}_stream into output_session_window_{function_name}_ctb as select ts, {test_function} from session_window_ct1 session(ts, 10m);')
+            self.tdSql.execute(f'create stream ctb_session_window_{function_name}_stream trigger at_once into output_session_window_{function_name}_ctb as select ts, {test_function} from session_window_ct1 session(ts, 10m);')
             # tb
-            self.tdSql.execute(f'create stream tb_session_window_{function_name}_stream into output_session_window_{function_name}_tb as select ts, {test_function} from session_window_tb session(ts, 10m);')
+            self.tdSql.execute(f'create stream tb_session_window_{function_name}_stream trigger at_once into output_session_window_{function_name}_tb as select ts, {test_function} from session_window_tb session(ts, 10m);')
             for tbname in ["session_window_ct1", "session_window_tb"]:
                 self.tdSql.execute(f'insert into {tbname} values (1653547828591, 100, 100.1, "Beijing", True);')
                 self.tdSql.execute(f'insert into {tbname} values (1653547828591+1s, -100, -100.1, "Tianjin", False);')
@@ -401,39 +395,41 @@ class TestVgroups(TDCase):
         self.write_latency(self.case_name)
         math_function_list = ["abs", "acos", "asin", "atan", "ceil", "cos", "floor", "log", "pow", "round", "sin", "sqrt", "tan"]
         # string_function_list = ["lower", "ltrim", "rtrim", "substr", "upper"]
-        string_function_list = ["char_length", "concat", "concat_ws", "length", "lower", "ltrim", "rtrim", "substr", "upper"]
+        # ! TD-16624 commit out
+        # string_function_list = ["char_length", "concat", "concat_ws", "length", "lower", "ltrim", "rtrim", "substr", "upper"]
+        # string_function_list = ["char_length", "concat", "concat_ws", "length", "lower", "ltrim", "rtrim", "substr"]
         for math_function in math_function_list:
             if math_function in ["log", "pow"]:
-                self.tdSql.execute(f'create stream stb_{math_function}_stream into output_{math_function}_stb as select ts, {math_function}(c1, 2), {math_function}(c2, 2), c3 from scalar_stb;')
-                self.tdSql.execute(f'create stream ctb_{math_function}_stream into output_{math_function}_ctb as select ts, {math_function}(c1, 2), {math_function}(c2, 2), c3 from scalar_ct1;')
-                self.tdSql.execute(f'create stream tb_{math_function}_stream into output_{math_function}_tb as select ts, {math_function}(c1, 2), {math_function}(c2, 2), c3 from scalar_tb;')
+                self.tdSql.execute(f'create stream stb_{math_function}_stream trigger at_once into output_{math_function}_stb as select ts, {math_function}(c1, 2), {math_function}(c2, 2), c3 from scalar_stb;')
+                self.tdSql.execute(f'create stream ctb_{math_function}_stream trigger at_once into output_{math_function}_ctb as select ts, {math_function}(c1, 2), {math_function}(c2, 2), c3 from scalar_ct1;')
+                self.tdSql.execute(f'create stream tb_{math_function}_stream trigger at_once into output_{math_function}_tb as select ts, {math_function}(c1, 2), {math_function}(c2, 2), c3 from scalar_tb;')
             else:
-                self.tdSql.execute(f'create stream stb_{math_function}_stream into output_{math_function}_stb as select ts, {math_function}(c1), {math_function}(c2), c3 from scalar_stb;')
-                self.tdSql.execute(f'create stream ctb_{math_function}_stream into output_{math_function}_ctb as select ts, {math_function}(c1), {math_function}(c2), c3 from scalar_ct1;')
-                self.tdSql.execute(f'create stream tb_{math_function}_stream into output_{math_function}_tb as select ts, {math_function}(c1), {math_function}(c2), c3 from scalar_tb;')
+                self.tdSql.execute(f'create stream stb_{math_function}_stream trigger at_once into output_{math_function}_stb as select ts, {math_function}(c1), {math_function}(c2), c3 from scalar_stb;')
+                self.tdSql.execute(f'create stream ctb_{math_function}_stream trigger at_once into output_{math_function}_ctb as select ts, {math_function}(c1), {math_function}(c2), c3 from scalar_ct1;')
+                self.tdSql.execute(f'create stream tb_{math_function}_stream trigger at_once into output_{math_function}_tb as select ts, {math_function}(c1), {math_function}(c2), c3 from scalar_tb;')
             self.check_stream_field_type(f"describe output_{math_function}_stb", math_function)
             self.check_stream_field_type(f"describe output_{math_function}_ctb", math_function)
             self.check_stream_field_type(f"describe output_{math_function}_tb", math_function)
-        for string_function in string_function_list:
-            if string_function == "concat":
-                self.tdSql.execute(f'create stream stb_{string_function}_stream into output_{string_function}_stb as select ts, {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_stb;')
-                self.tdSql.execute(f'create stream ctb_{string_function}_stream into output_{string_function}_ctb as select ts, {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_ct1;')
-                self.tdSql.execute(f'create stream tb_{string_function}_stream into output_{string_function}_tb as select ts, {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_tb;')
-            elif string_function == "concat_ws":
-                self.tdSql.execute(f'create stream stb_{string_function}_stream into output_{string_function}_stb as select ts, {string_function}("aND", c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_stb;')
-                self.tdSql.execute(f'create stream ctb_{string_function}_stream into output_{string_function}_ctb as select ts, {string_function}("aND", c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_ct1;')
-                self.tdSql.execute(f'create stream tb_{string_function}_stream into output_{string_function}_tb as select ts, {string_function}("aND", c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_tb;')
-            elif string_function == "substr":
-                self.tdSql.execute(f'create stream stb_{string_function}_stream into output_{string_function}_stb as select ts, {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1), {string_function}(c5, 3, 4) from scalar_stb;')
-                self.tdSql.execute(f'create stream ctb_{string_function}_stream into output_{string_function}_ctb as select ts, {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1), {string_function}(c5, 3, 4) from scalar_ct1;')
-                self.tdSql.execute(f'create stream tb_{string_function}_stream into output_{string_function}_tb as select ts, {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1), {string_function}(c5, 3, 4) from scalar_tb;')
-            else:
-                self.tdSql.execute(f'create stream stb_{string_function}_stream into output_{string_function}_stb as select ts, {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_stb;')
-                self.tdSql.execute(f'create stream ctb_{string_function}_stream into output_{string_function}_ctb as select ts, {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_ct1;')
-                self.tdSql.execute(f'create stream tb_{string_function}_stream into output_{string_function}_tb as select ts, {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_tb;')
-            self.check_stream_field_type(f"describe output_{string_function}_stb", string_function)
-            self.check_stream_field_type(f"describe output_{string_function}_ctb", string_function)
-            self.check_stream_field_type(f"describe output_{string_function}_tb", string_function)
+        # for string_function in string_function_list:
+        #     if string_function == "concat":
+        #         self.tdSql.execute(f'create stream stb_{string_function}_stream into output_{string_function}_stb as select ts, {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_stb;')
+        #         self.tdSql.execute(f'create stream ctb_{string_function}_stream into output_{string_function}_ctb as select ts, {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_ct1;')
+        #         self.tdSql.execute(f'create stream tb_{string_function}_stream into output_{string_function}_tb as select ts, {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_tb;')
+        #     elif string_function == "concat_ws":
+        #         self.tdSql.execute(f'create stream stb_{string_function}_stream into output_{string_function}_stb as select ts, {string_function}("aND", c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_stb;')
+        #         self.tdSql.execute(f'create stream ctb_{string_function}_stream into output_{string_function}_ctb as select ts, {string_function}("aND", c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_ct1;')
+        #         self.tdSql.execute(f'create stream tb_{string_function}_stream into output_{string_function}_tb as select ts, {string_function}("aND", c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_tb;')
+        #     elif string_function == "substr":
+        #         self.tdSql.execute(f'create stream stb_{string_function}_stream into output_{string_function}_stb as select ts, {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1), {string_function}(c5, 3, 4) from scalar_stb;')
+        #         self.tdSql.execute(f'create stream ctb_{string_function}_stream into output_{string_function}_ctb as select ts, {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1), {string_function}(c5, 3, 4) from scalar_ct1;')
+        #         self.tdSql.execute(f'create stream tb_{string_function}_stream into output_{string_function}_tb as select ts, {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1), {string_function}(c5, 3, 4) from scalar_tb;')
+        #     else:
+        #         self.tdSql.execute(f'create stream stb_{string_function}_stream into output_{string_function}_stb as select ts, {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_stb;')
+        #         self.tdSql.execute(f'create stream ctb_{string_function}_stream into output_{string_function}_ctb as select ts, {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_ct1;')
+        #         self.tdSql.execute(f'create stream tb_{string_function}_stream into output_{string_function}_tb as select ts, {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_tb;')
+        #     self.check_stream_field_type(f"describe output_{string_function}_stb", string_function)
+        #     self.check_stream_field_type(f"describe output_{string_function}_ctb", string_function)
+        #     self.check_stream_field_type(f"describe output_{string_function}_tb", string_function)
 
         # for tbname in ["scalar_ct1", "scalar_tb"]:
         #     self.tdSql.execute(f'insert into {tbname} values ({self.date_time}, 100, 100.1, "beijing", "taos", "Taos");')
@@ -464,23 +460,23 @@ class TestVgroups(TDCase):
                     self.check_stream(f'select `{math_function}(c1)`, `{math_function}(c2)` from output_{math_function}_stb;', f'select {math_function}(c1), {math_function}(c2) from scalar_stb;', count-1)
                     self.check_stream(f'select `{math_function}(c1)`, `{math_function}(c2)` from output_{math_function}_ctb;', f'select {math_function}(c1), {math_function}(c2) from scalar_ct1;', count-1)
                     self.check_stream(f'select `{math_function}(c1)`, `{math_function}(c2)` from output_{math_function}_tb;', f'select {math_function}(c1), {math_function}(c2) from scalar_tb;', count-1)
-            for string_function in string_function_list:
-                if string_function == "concat":
-                    self.check_stream(f'select `{string_function}(c3, c4)`, `{string_function}(c3, c5)`, `{string_function}(c4, c5)`, `{string_function}(c3, c4, c5)` from output_{string_function}_stb;', f'select {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_stb;', count-1)
-                    self.check_stream(f'select `{string_function}(c3, c4)`, `{string_function}(c3, c5)`, `{string_function}(c4, c5)`, `{string_function}(c3, c4, c5)` from output_{string_function}_ctb;', f'select {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_ct1;', count-1)
-                    self.check_stream(f'select `{string_function}(c3, c4)`, `{string_function}(c3, c5)`, `{string_function}(c4, c5)`, `{string_function}(c3, c4, c5)` from output_{string_function}_tb;', f'select {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_tb;', count-1)
-                elif string_function == "concat_ws":
-                    self.check_stream(f'select `{string_function}("aND", c3, c4)`, `{string_function}("and", c3, c5)`, `{string_function}("And", c4, c5)`, `{string_function}("AND", c3, c4, c5)` from output_{string_function}_stb;', f'select {string_function}("aND", c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_stb;', count-1)
-                    self.check_stream(f'select `{string_function}("aND", c3, c4)`, `{string_function}("and", c3, c5)`, `{string_function}("And", c4, c5)`, `{string_function}("AND", c3, c4, c5)` from output_{string_function}_ctb;', f'select {string_function}("aND", c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_ct1;', count-1)
-                    self.check_stream(f'select `{string_function}("aND", c3, c4)`, `{string_function}("and", c3, c5)`, `{string_function}("And", c4, c5)`, `{string_function}("AND", c3, c4, c5)` from output_{string_function}_tb;', f'select {string_function}("aND", c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_tb;', count-1)
-                elif string_function == "substr":
-                    self.check_stream(f'select `{string_function}(c3, 2)`, `{string_function}(c3, 2, 2)`, `{string_function}(c4, 5, 1)`, `{string_function}(c5, 3, 4)` from output_{string_function}_stb;', f'select {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1), {string_function}(c5, 3, 4) from scalar_stb;', count-1)
-                    self.check_stream(f'select `{string_function}(c3, 2)`, `{string_function}(c3, 2, 2)`, `{string_function}(c4, 5, 1)`, `{string_function}(c5, 3, 4)` from output_{string_function}_ctb;', f'select {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1), {string_function}(c5, 3, 4) from scalar_ct1;', count-1)
-                    self.check_stream(f'select `{string_function}(c3, 2)`, `{string_function}(c3, 2, 2)`, `{string_function}(c4, 5, 1)`, `{string_function}(c5, 3, 4)` from output_{string_function}_tb;', f'select {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1), {string_function}(c5, 3, 4) from scalar_tb;', count-1)
-                else:
-                    self.check_stream(f'select `{string_function}(c3)`, `{string_function}(c4)`, `{string_function}(c5)` from output_{string_function}_stb;', f'select {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_stb;', count-1)
-                    self.check_stream(f'select `{string_function}(c3)`, `{string_function}(c4)`, `{string_function}(c5)` from output_{string_function}_ctb;', f'select {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_ct1;', count-1)
-                    self.check_stream(f'select `{string_function}(c3)`, `{string_function}(c4)`, `{string_function}(c5)` from output_{string_function}_tb;', f'select {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_tb;', count-1)
+            # for string_function in string_function_list:
+            #     if string_function == "concat":
+            #         self.check_stream(f'select `{string_function}(c3, c4)`, `{string_function}(c3, c5)`, `{string_function}(c4, c5)`, `{string_function}(c3, c4, c5)` from output_{string_function}_stb;', f'select {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_stb;', count-1)
+            #         self.check_stream(f'select `{string_function}(c3, c4)`, `{string_function}(c3, c5)`, `{string_function}(c4, c5)`, `{string_function}(c3, c4, c5)` from output_{string_function}_ctb;', f'select {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_ct1;', count-1)
+            #         self.check_stream(f'select `{string_function}(c3, c4)`, `{string_function}(c3, c5)`, `{string_function}(c4, c5)`, `{string_function}(c3, c4, c5)` from output_{string_function}_tb;', f'select {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_tb;', count-1)
+            #     elif string_function == "concat_ws":
+            #         self.check_stream(f'select `{string_function}("aND", c3, c4)`, `{string_function}("and", c3, c5)`, `{string_function}("And", c4, c5)`, `{string_function}("AND", c3, c4, c5)` from output_{string_function}_stb;', f'select {string_function}("aND", c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_stb;', count-1)
+            #         self.check_stream(f'select `{string_function}("aND", c3, c4)`, `{string_function}("and", c3, c5)`, `{string_function}("And", c4, c5)`, `{string_function}("AND", c3, c4, c5)` from output_{string_function}_ctb;', f'select {string_function}("aND", c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_ct1;', count-1)
+            #         self.check_stream(f'select `{string_function}("aND", c3, c4)`, `{string_function}("and", c3, c5)`, `{string_function}("And", c4, c5)`, `{string_function}("AND", c3, c4, c5)` from output_{string_function}_tb;', f'select {string_function}("aND", c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_tb;', count-1)
+            #     elif string_function == "substr":
+            #         self.check_stream(f'select `{string_function}(c3, 2)`, `{string_function}(c3, 2, 2)`, `{string_function}(c4, 5, 1)`, `{string_function}(c5, 3, 4)` from output_{string_function}_stb;', f'select {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1), {string_function}(c5, 3, 4) from scalar_stb;', count-1)
+            #         self.check_stream(f'select `{string_function}(c3, 2)`, `{string_function}(c3, 2, 2)`, `{string_function}(c4, 5, 1)`, `{string_function}(c5, 3, 4)` from output_{string_function}_ctb;', f'select {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1), {string_function}(c5, 3, 4) from scalar_ct1;', count-1)
+            #         self.check_stream(f'select `{string_function}(c3, 2)`, `{string_function}(c3, 2, 2)`, `{string_function}(c4, 5, 1)`, `{string_function}(c5, 3, 4)` from output_{string_function}_tb;', f'select {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1), {string_function}(c5, 3, 4) from scalar_tb;', count-1)
+            #     else:
+            #         self.check_stream(f'select `{string_function}(c3)`, `{string_function}(c4)`, `{string_function}(c5)` from output_{string_function}_stb;', f'select {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_stb;', count-1)
+            #         self.check_stream(f'select `{string_function}(c3)`, `{string_function}(c4)`, `{string_function}(c5)` from output_{string_function}_ctb;', f'select {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_ct1;', count-1)
+            #         self.check_stream(f'select `{string_function}(c3)`, `{string_function}(c4)`, `{string_function}(c5)` from output_{string_function}_tb;', f'select {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_tb;', count-1)
             
         # count = 1
         # step_count = 1
@@ -534,11 +530,11 @@ class TestVgroups(TDCase):
 
         self.write_latency(self.case_name)
         # stb
-        self.tdSql.execute(f'create stream stb_life_cycle_stream into short_life_cycle.output_life_cycle_stb as select * from long_life_cycle.life_cycle_stb;')
+        self.tdSql.execute(f'create stream stb_life_cycle_stream trigger at_once into short_life_cycle.output_life_cycle_stb as select * from long_life_cycle.life_cycle_stb;')
         # ctb
-        self.tdSql.execute(f'create stream ctb_life_cycle_stream into short_life_cycle.output_life_cycle_ctb as select * from long_life_cycle.life_cycle_ct1;')
+        self.tdSql.execute(f'create stream ctb_life_cycle_stream trigger at_once into short_life_cycle.output_life_cycle_ctb as select * from long_life_cycle.life_cycle_ct1;')
         # # tb
-        self.tdSql.execute(f'create stream tb_life_cycle_stream into short_life_cycle.output_life_cycle_tb as select * from long_life_cycle.life_cycle_tb;')
+        self.tdSql.execute(f'create stream tb_life_cycle_stream trigger at_once into short_life_cycle.output_life_cycle_tb as select * from long_life_cycle.life_cycle_tb;')
         
         self.tdSql.execute(f'insert into long_life_cycle.life_cycle_ct1 values ({self.date_time}, 100, 100.1, "beijing", "taos", "Taos");')
         self.tdSql.execute(f'insert into long_life_cycle.life_cycle_ct1 values ({self.date_time}-1d, -50, -50.1, "tianjin", "taosdata", "Taosdata");')
@@ -566,8 +562,8 @@ class TestVgroups(TDCase):
         self.tdSql.execute('create table if not exists tandem_stb2 (ts timestamp, c1 int, c2 double, c3 binary(20), c4 binary(20), c5 nchar(20)) tags (t1 int);')
         self.tdSql.execute('create table tandem_ct2 using tandem_stb2 tags(1);')
         self.write_latency(self.case_name)
-        self.tdSql.execute(f'create stream tandem_stream1 into output_tandem_stream_stb1 as select ts, concat(c3, c4) c3, concat(c3, c5) c4 , concat(c4, c5) c5 from tandem_stb1;')
-        self.tdSql.execute(f'create stream tandem_stream2 into output_tandem_stream_stb2 as select ts, char_length(c3) c3, char_length(c4) c4, char_length(c5) c5 from output_tandem_stream_stb1;')
+        self.tdSql.execute(f'create stream tandem_stream1 trigger at_once into output_tandem_stream_stb1 as select ts, concat(c3, c4) c3, concat(c3, c5) c4 , concat(c4, c5) c5 from tandem_stb1;')
+        self.tdSql.execute(f'create stream tandem_stream2 trigger at_once into output_tandem_stream_stb2 as select ts, char_length(c3) c3, char_length(c4) c4, char_length(c5) c5 from output_tandem_stream_stb1;')
         self.tdSql.execute(f'insert into tandem_ct1 values ({self.date_time}, 100, 100.1, "beijing", "taos", "Taos");')
         self.tdSql.execute(f'insert into tandem_ct1 values ({self.date_time}+1s, -50, -50.1, "tianjin", "taosdata", "Taosdata");')
         self.tdSql.execute(f'insert into tandem_ct1 values ({self.date_time}+2s, 0, Null, "hebei", "TDengine", Null);')
@@ -615,16 +611,17 @@ class TestVgroups(TDCase):
 
     def run(self) -> bool:
         self.downsampling()
-        # self.bottom_function()
-        # self.top_function()
-        # self.state_window_function()
+        # # self.bottom_function()
+        # # self.top_function()
+        self.state_window_function()
         # self.session_window()
-        # # ! TD-16145
-        # # self.scalar_function()
-        # # self.data_filter()
-        # self.life_cycle()
+        # # # ! TD-16145
+        # self.scalar_function()
+        self.data_filter()
+        self.life_cycle()
+        # # ! TD-16617
         # # self.stream_tandem()
-        # # self.disorder_data()
+        # self.disorder_data()
 
     def cleanup(self):
         pass
