@@ -285,13 +285,14 @@ static void uvHandleReq(SSvrConn* pConn) {
   }
   if (pConn->status == ConnNormal && pHead->noResp == 0) {
     transRefSrvHandle(pConn);
-    tDebug("server conn %p %s received from %s:%d, local info: %s:%d, msg size: %d", pConn, TMSG_INFO(transMsg.msgType),
-           taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port), taosInetNtoa(pConn->localAddr.sin_addr),
-           ntohs(pConn->localAddr.sin_port), transMsg.contLen);
-  } else {
-    tDebug("server conn %p %s received from %s:%d, local info: %s:%d, msg size: %d, resp:%d ", pConn,
+    tDebug("server conn %p %s received from %s:%d, local info:%s:%d, msg size:%d code:0x%x", pConn,
            TMSG_INFO(transMsg.msgType), taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port),
-           taosInetNtoa(pConn->localAddr.sin_addr), ntohs(pConn->localAddr.sin_port), transMsg.contLen, pHead->noResp);
+           taosInetNtoa(pConn->localAddr.sin_addr), ntohs(pConn->localAddr.sin_port), transMsg.contLen, transMsg.code);
+  } else {
+    tDebug("server conn %p %s received from %s:%d, local info:%s:%d, msg size:%d, resp:%d code:0x%x", pConn,
+           TMSG_INFO(transMsg.msgType), taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port),
+           taosInetNtoa(pConn->localAddr.sin_addr), ntohs(pConn->localAddr.sin_port), transMsg.contLen, pHead->noResp,
+           transMsg.code);
     // no ref here
   }
 
@@ -309,7 +310,7 @@ static void uvHandleReq(SSvrConn* pConn) {
   }
 
   // set up conn info
-  SRpcConnInfo* pConnInfo = &(transMsg.info.connInfo);
+  SRpcConnInfo* pConnInfo = &(transMsg.info.conn);
   pConnInfo->clientIp = (uint32_t)(pConn->addr.sin_addr.s_addr);
   pConnInfo->clientPort = ntohs(pConn->addr.sin_port);
   tstrncpy(pConnInfo->user, pConn->user, sizeof(pConnInfo->user));

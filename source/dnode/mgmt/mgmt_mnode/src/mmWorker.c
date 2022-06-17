@@ -242,9 +242,6 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
 }
 
 void mmStopWorker(SMnodeMgmt *pMgmt) {
-  taosThreadRwlockWrlock(&pMgmt->lock);
-  pMgmt->stopped = 1;
-  taosThreadRwlockUnlock(&pMgmt->lock);
   while (pMgmt->refCount > 0) taosMsleep(10);
 
   tSingleWorkerCleanup(&pMgmt->monitorWorker);

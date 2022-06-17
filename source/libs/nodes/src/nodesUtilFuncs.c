@@ -88,6 +88,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SStreamOptions));
     case QUERY_NODE_LEFT_VALUE:
       return makeNode(type, sizeof(SLeftValueNode));
+    case QUERY_NODE_COLUMN_REF:
+      return makeNode(type, sizeof(SColumnDefNode));
     case QUERY_NODE_SET_OPERATOR:
       return makeNode(type, sizeof(SSetOperator));
     case QUERY_NODE_SELECT_STMT:
@@ -1459,6 +1461,26 @@ int32_t nodesCollectSpecialNodes(SSelectStmt* pSelect, ESqlClause clause, ENodeT
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+static EDealRes hasColumn(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    *(bool*)pContext = true;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+bool nodesExprHasColumn(SNode* pNode) {
+  bool hasCol = false;
+  nodesWalkExprPostOrder(pNode, hasColumn, &hasCol);
+  return hasCol;
+}
+
+bool nodesExprsHasColumn(SNodeList* pList) {
+  bool hasCol = false;
+  nodesWalkExprsPostOrder(pList, hasColumn, &hasCol);
+  return hasCol;
 }
 
 char* nodesGetFillModeString(EFillMode mode) {

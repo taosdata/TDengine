@@ -185,9 +185,15 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_INVALID_REDISTRIBUTE_VG:
       return "The REDISTRIBUTE VGROUP statement only support 1 to 3 dnodes";
     case TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC:
-      return "%s function not allowed in fill query";
+      return "%s function does not supportted in fill query";
     case TSDB_CODE_PAR_INVALID_WINDOW_PC:
-      return "_WSTARTTS, _WENDTS and _WDURATION can only be used in window queries";
+      return "_WSTARTTS, _WENDTS and _WDURATION can only be used in window query";
+    case TSDB_CODE_PAR_WINDOW_NOT_ALLOWED_FUNC:
+      return "%s function does not supportted in time window query";
+    case TSDB_CODE_PAR_STREAM_NOT_ALLOWED_FUNC:
+      return "%s function does not supportted in stream query";
+    case TSDB_CODE_PAR_GROUP_BY_NOT_ALLOWED_FUNC:
+      return "%s function does not supportted in group query";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:

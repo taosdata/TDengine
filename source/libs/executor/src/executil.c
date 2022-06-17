@@ -28,17 +28,6 @@ typedef struct SCompSupporter {
   int32_t           order;
 } SCompSupporter;
 
-int32_t getOutputInterResultBufSize(STaskAttr* pQueryAttr) {
-  int32_t size = 0;
-
-  for (int32_t i = 0; i < pQueryAttr->numOfOutput; ++i) {
-//    size += pQueryAttr->pExpr1[i].base.interBytes;
-  }
-
-  assert(size >= 0);
-  return size;
-}
-
 int32_t initResultRowInfo(SResultRowInfo *pResultRowInfo, int32_t size) {
   pResultRowInfo->size       = 0;
   pResultRowInfo->cur.pageId = -1;
