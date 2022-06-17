@@ -21,9 +21,9 @@
 #include "tref.h"
 #include "trpc.h"
 
-FORCE_INLINE SSchJob *schAcquireJob(int64_t refId) { qDebug("acquire jobId:0x%"PRIx64, refId); return (SSchJob *)taosAcquireRef(schMgmt.jobRef, refId); }
+FORCE_INLINE SSchJob *schAcquireJob(int64_t refId) { qDebug("sch acquire jobId:0x%"PRIx64, refId); return (SSchJob *)taosAcquireRef(schMgmt.jobRef, refId); }
 
-FORCE_INLINE int32_t schReleaseJob(int64_t refId) { qDebug("release jobId:0x%"PRIx64, refId); return taosReleaseRef(schMgmt.jobRef, refId); }
+FORCE_INLINE int32_t schReleaseJob(int64_t refId) { qDebug("sch release jobId:0x%"PRIx64, refId); return taosReleaseRef(schMgmt.jobRef, refId); }
 
 int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *pLevel) {
   pTask->plan = pPlan;
@@ -47,7 +47,7 @@ int32_t schInitJob(SSchedulerReq *pReq, SSchJob **pSchJob, SQueryResult* pRes, b
   int64_t  refId = -1;
   SSchJob *pJob = taosMemoryCalloc(1, sizeof(SSchJob));
   if (NULL == pJob) {
-    qError("QID:%" PRIx64 " calloc %d failed", pReq->pDag->queryId, (int32_t)sizeof(SSchJob));
+    qError("QID:0x%" PRIx64 " calloc %d failed", pReq->pDag->queryId, (int32_t)sizeof(SSchJob));
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
@@ -108,7 +108,7 @@ int32_t schInitJob(SSchedulerReq *pReq, SSchJob **pSchJob, SQueryResult* pRes, b
   atomic_add_fetch_32(&schMgmt.jobNum, 1);
 
   if (NULL == schAcquireJob(refId)) {
-    SCH_JOB_ELOG("schAcquireJob job failed, refId:%" PRIx64, refId);
+    SCH_JOB_ELOG("schAcquireJob job failed, refId:0x%" PRIx64, refId);
     SCH_ERR_JRET(TSDB_CODE_SCH_STATUS_ERROR);
   }
 
@@ -194,7 +194,7 @@ FORCE_INLINE bool schJobNeedToStop(SSchJob *pJob, int8_t *pStatus) {
     *pStatus = status;
   }
 
-  if (pJob->reqKilled) {
+  if (*pJob->reqKilled) {
     schUpdateJobStatus(pJob, JOB_TASK_STATUS_DROPPING);
     schUpdateJobErrCode(pJob, TSDB_CODE_TSC_QUERY_KILLED);
 
@@ -229,7 +229,7 @@ int32_t schUpdateJobStatus(SSchJob *pJob, int8_t newStatus) {
 
         break;
       case JOB_TASK_STATUS_NOT_START:
-        if (newStatus != JOB_TASK_STATUS_EXECUTING) {
+        if (newStatus != JOB_TASK_STATUS_EXECUTING && newStatus != JOB_TASK_STATUS_DROPPING) {
           SCH_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
         }
 
@@ -299,7 +299,7 @@ int32_t schBeginOperation(SSchJob *pJob, SCH_OP_TYPE type, bool sync) {
   int8_t status = 0;
   
   if (schJobNeedToStop(pJob, &status)) {
-    SCH_JOB_ELOG("job need to stop cause of status %s", jobTaskStatusStr(status));
+    SCH_JOB_ELOG("abort op %s cause of job need to stop", schGetOpStr(type));
     SCH_ERR_JRET(pJob->errCode);
   }
       
@@ -308,7 +308,7 @@ int32_t schBeginOperation(SSchJob *pJob, SCH_OP_TYPE type, bool sync) {
     SCH_ERR_JRET(TSDB_CODE_TSC_APP_ERROR);
   }
 
-  SCH_JOB_ELOG("job start %s operation", schGetOpStr(pJob->opStatus.op));
+  SCH_JOB_DLOG("job start %s operation", schGetOpStr(pJob->opStatus.op));
 
   pJob->opStatus.sync = sync;
 
@@ -377,7 +377,7 @@ int32_t schBuildTaskRalation(SSchJob *pJob, SHashObj *planToTask) {
           SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
         }
 
-        SCH_TASK_DLOG("children info, the %d child TID %" PRIx64, n, (*childTask)->taskId);
+        SCH_TASK_DLOG("children info, the %d child TID 0x%" PRIx64, n, (*childTask)->taskId);
       }
 
       if (parentNum > 0) {
@@ -411,7 +411,7 @@ int32_t schBuildTaskRalation(SSchJob *pJob, SHashObj *planToTask) {
           SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
         }
 
-        SCH_TASK_DLOG("parents info, the %d parent TID %" PRIx64, n, (*parentTask)->taskId);        
+        SCH_TASK_DLOG("parents info, the %d parent TID 0x%" PRIx64, n, (*parentTask)->taskId);        
       }
 
       SCH_TASK_DLOG("level:%d, parentNum:%d, childNum:%d", i, parentNum, childNum);
@@ -981,7 +981,9 @@ int32_t schProcessOnJobFailureImpl(SSchJob *pJob, int32_t status, int32_t errCod
   schUpdateJobErrCode(pJob, errCode);
   
   int32_t code = atomic_load_32(&pJob->errCode);
-  SCH_JOB_DLOG("job failed with error: %s", tstrerror(code));
+  if (code) {
+    SCH_JOB_DLOG("job failed with error: %s", tstrerror(code));
+  }
 
   schPostJobRes(pJob, 0);
 
@@ -1174,7 +1176,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
     SCH_UNLOCK(SCH_WRITE, &parent->lock);
 
     if (SCH_TASK_READY_FOR_LAUNCH(readyNum, parent)) {
-      SCH_TASK_DLOG("all %d children task done, start to launch parent task %" PRIx64, readyNum, parent->taskId);
+      SCH_TASK_DLOG("all %d children task done, start to launch parent task 0x%" PRIx64, readyNum, parent->taskId);
       SCH_ERR_RET(schLaunchTask(pJob, parent));
     }
   }
@@ -1347,7 +1349,7 @@ int32_t schGetTaskFromList(SHashObj *pTaskList, uint64_t taskId, SSchTask **pTas
 int32_t schGetTaskInJob(SSchJob *pJob, uint64_t taskId, SSchTask **pTask) {
   schGetTaskFromList(pJob->taskList, taskId, pTask);
   if (NULL == *pTask) {
-    SCH_JOB_ELOG("task not found in job task list, taskId:%" PRIx64, taskId);
+    SCH_JOB_ELOG("task not found in job task list, taskId:0x%" PRIx64, taskId);
     SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
   }
 
@@ -1520,9 +1522,9 @@ void schFreeJobImpl(void *job) {
 
   taosMemoryFreeClear(pJob->userRes.queryRes);
   taosMemoryFreeClear(pJob->resData);
-  taosMemoryFreeClear(pJob);
+  taosMemoryFree(pJob);
 
-  qDebug("QID:0x%" PRIx64 " job freed, refId:%" PRIx64 ", pointer:%p", queryId, refId, pJob);
+  qDebug("QID:0x%" PRIx64 " sch job freed, refId:0x%" PRIx64 ", pointer:%p", queryId, refId, pJob);
 
   int32_t jobNum = atomic_sub_fetch_32(&schMgmt.jobNum, 1);
   if (jobNum == 0) {
@@ -1614,7 +1616,7 @@ int32_t schExecStaticExplainJob(SSchedulerReq *pReq, int64_t *job, bool sync) {
   int32_t  code = 0;
   SSchJob *pJob = taosMemoryCalloc(1, sizeof(SSchJob));
   if (NULL == pJob) {
-    qError("QID:%" PRIx64 " calloc %d failed", pReq->pDag->queryId, (int32_t)sizeof(SSchJob));
+    qError("QID:0x%" PRIx64 " calloc %d failed", pReq->pDag->queryId, (int32_t)sizeof(SSchJob));
     code = TSDB_CODE_QRY_OUT_OF_MEMORY;
     pReq->fp(NULL, pReq->cbParam, code);
     SCH_ERR_RET(code);
@@ -1643,13 +1645,13 @@ int32_t schExecStaticExplainJob(SSchedulerReq *pReq, int64_t *job, bool sync) {
   }
 
   if (NULL == schAcquireJob(refId)) {
-    SCH_JOB_ELOG("schAcquireJob job failed, refId:%" PRIx64, refId);
+    SCH_JOB_ELOG("schAcquireJob job failed, refId:0x%" PRIx64, refId);
     SCH_ERR_JRET(TSDB_CODE_SCH_STATUS_ERROR);
   }
 
   pJob->refId = refId;
 
-  SCH_JOB_DLOG("job refId:%" PRIx64, pJob->refId);
+  SCH_JOB_DLOG("job refId:0x%" PRIx64, pJob->refId);
 
   pJob->status = JOB_TASK_STATUS_PARTIAL_SUCCEED;
   
