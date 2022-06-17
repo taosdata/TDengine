@@ -261,9 +261,9 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
   relocateColumnData(pBlock, pTableScanInfo->pColMatchInfo, pCols);
 
   // currently only the tbname pseudo column
-  if (pTableScanInfo->numOfPseudoExpr > 0) {
-    addTagPseudoColumnData(&pTableScanInfo->readHandle, pTableScanInfo->pPseudoExpr, pTableScanInfo->numOfPseudoExpr,
-                           pBlock);
+  if (pTableScanInfo->pseudoSup.numOfExprs > 0) {
+    SExecSupp* pSup = &pTableScanInfo->pseudoSup;
+    addTagPseudoColumnData(&pTableScanInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pBlock);
   }
 
   int64_t st = taosGetTimestampMs();
@@ -538,8 +538,9 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   }
 
   if (pTableScanNode->scan.pScanPseudoCols != NULL) {
-    pInfo->pPseudoExpr = createExprInfo(pTableScanNode->scan.pScanPseudoCols, NULL, &pInfo->numOfPseudoExpr);
-    pInfo->pPseudoCtx = createSqlFunctionCtx(pInfo->pPseudoExpr, pInfo->numOfPseudoExpr, &pInfo->rowCellInfoOffset);
+    SExecSupp* pSup = &pInfo->pseudoSup;
+    pSup->pExprInfo = createExprInfo(pTableScanNode->scan.pScanPseudoCols, NULL, &pSup->numOfExprs);
+    pSup->pCtx = createSqlFunctionCtx(pSup->pExprInfo, pSup->numOfExprs, &pSup->rowEntryInfoOffset);
   }
 
   pInfo->scanInfo = (SScanInfo){.numOfAsc = pTableScanNode->scanSeq[0], .numOfDesc = pTableScanNode->scanSeq[1]};
@@ -1869,7 +1870,7 @@ typedef struct STableMergeScanInfo {
   SNode*          pFilterNode;  // filter info, which is push down by optimizer
   SqlFunctionCtx* pCtx;         // which belongs to the direct upstream operator operator query context
   SResultRowInfo* pResultRowInfo;
-  int32_t*        rowCellInfoOffset;
+  int32_t*        rowEntryInfoOffset;
   SExprInfo*      pExpr;
   SSDataBlock*    pResBlock;
   SArray*         pColMatchInfo;
@@ -1878,7 +1879,7 @@ typedef struct STableMergeScanInfo {
   SExprInfo*      pPseudoExpr;
   int32_t         numOfPseudoExpr;
   SqlFunctionCtx* pPseudoCtx;
-  //  int32_t*        rowCellInfoOffset;
+  //  int32_t*        rowEntryInfoOffset;
 
   SQueryTableDataCond cond;
   int32_t             scanFlag;  // table scan flag to denote if it is a repeat/reverse/main scan
@@ -2257,7 +2258,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
 
   if (pTableScanNode->scan.pScanPseudoCols != NULL) {
     pInfo->pPseudoExpr = createExprInfo(pTableScanNode->scan.pScanPseudoCols, NULL, &pInfo->numOfPseudoExpr);
-    pInfo->pPseudoCtx = createSqlFunctionCtx(pInfo->pPseudoExpr, pInfo->numOfPseudoExpr, &pInfo->rowCellInfoOffset);
+    pInfo->pPseudoCtx = createSqlFunctionCtx(pInfo->pPseudoExpr, pInfo->numOfPseudoExpr, &pInfo->rowEntryInfoOffset);
   }
 
   pInfo->scanInfo = (SScanInfo){.numOfAsc = pTableScanNode->scanSeq[0], .numOfDesc = pTableScanNode->scanSeq[1]};
