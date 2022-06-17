@@ -377,7 +377,7 @@ int tcpConnect(char* host, int iport) {
             hints;
     if (iport == 0) {
         iport = 6041;
-        args.port = 6041
+        args.port = 6041;
     }
     if (NULL == host) {
         host = "localhost";
