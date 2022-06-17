@@ -23,6 +23,7 @@ class TestDuration(TDCase):
         self.tdCom = TDCom(self.tdSql)
         self._remote: Remote = Remote(self.logger)
         self.cfg = self.tdCom.Boundary.DB_PARAM_DURATION_CONFIG
+        self.error_value_list = [-1, 3651, "59m", "5256001m", "0h", "87601h", "0d", "3651d"]
 
     def duration_check(self):
         """
@@ -30,18 +31,17 @@ class TestDuration(TDCase):
         """
         test_param = self.cfg["create_name"]
         get_data = GetJson(self.logger, self.run_log_dir,self.env_setting)
-        # default
         dbname = self.tdCom.get_long_name()
         self.tdSql.execute(f'create database if not exists {dbname}')
         self.tdSql.query('show databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
+        # default
         self.tdSql.checkEqual(db_field_kv_dict[test_param], self.cfg["default"])
         self.tdSql.query(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdSql.getOneRow(1, dbname)
         data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
         self.tdSql.checkEqual(db_field_kv_dict[test_param], int(data['config'][self.cfg["vnode_json_key"]]))
         self.tdSql.execute(f'drop database {dbname}')
-        # param_list
         # without unit
         for param_value in self.cfg["boundary"]:
             dbname = self.tdCom.get_long_name()
@@ -61,14 +61,8 @@ class TestDuration(TDCase):
             data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
             self.tdSql.checkEqual(db_field_kv_dict[test_param],int(data['config'][self.cfg["vnode_json_key"]]))
             self.tdSql.execute(f'drop database {dbname}')
-        self.tdSql.error(f'create database if not exists {dbname} {test_param} -1')
-        self.tdSql.error(f'create database if not exists {dbname} {test_param} 3651')
-        self.tdSql.error(f'create database if not exists {dbname} {test_param} 59m')
-        self.tdSql.error(f'create database if not exists {dbname} {test_param} 5256001m')
-        self.tdSql.error(f'create database if not exists {dbname} {test_param} 0h')
-        self.tdSql.error(f'create database if not exists {dbname} {test_param} 87601h')
-        self.tdSql.error(f'create database if not exists {dbname} {test_param} "0d"')
-        self.tdSql.error(f'create database if not exists {dbname} {test_param} "3651d"')
+        for error_value in self.error_value_list:
+            self.tdSql.error(f'create database if not exists {dbname} {test_param} {error_value}')
         
     def run(self) -> bool:
         self.duration_check()
@@ -78,8 +72,7 @@ class TestDuration(TDCase):
 
     def desc(self) -> str:
         case_description = """
-            duration check <jayden>: [TD-14991] : duration check;
-            duration check <jiacy> : [TD-15381] : duration check for taosd;
+                duration check <jiacy> : [TD-15381] : duration check for taosd;
             """
         return case_description
 

@@ -28,12 +28,12 @@ class TestBuffer(TDCase):
         """
         test_param = self.cfg["create_name"]
         get_data = GetJson(self.logger, self.run_log_dir,self.env_setting)
-        # default
         
         dbname = self.tdCom.get_long_name()
         self.tdSql.execute(f'create database if not exists {dbname}')
         self.tdSql.query('show databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
+        # default
         self.tdSql.checkEqual(db_field_kv_dict[test_param], self.cfg["default"])
 
         self.tdSql.query(f'show {dbname}.vgroups')

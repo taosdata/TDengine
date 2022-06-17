@@ -21,12 +21,11 @@ class TestVgroups(TDCase):
         self.tdCom = TDCom(self.tdSql)
         self._remote: Remote = Remote(self.logger)
         self.taosd = TaosD(self._remote)
-        for env_setting in self.env_setting["settings"]:
-            if env_setting["name"].lower() == "taosd":
-                self.taosd_setting = env_setting
-                self.fqdn = self.taosd_setting["fqdn"][0]
-                self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + "/vnode"
-                self.endpoint = self.taosd_setting["spec"]["config"]["firstEP"]
+        self.cfg = self.tdCom.Boundary.DB_PARAM_VGROUPS_CONFIG
+        self.taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
+        self.fqdn = self.taosd_setting["fqdn"][0]
+        self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + "/vnode"
+        self.endpoint = self.taosd_setting["spec"]["config"]["firstEP"]
 
     def get_vnode_count(self):
         return int(self._remote.cmd(self.fqdn, [f'ls {self.vnode_dir} | grep -v vnodes.json | grep -v shmfile | wc -l']))
@@ -35,44 +34,42 @@ class TestVgroups(TDCase):
         """
         vgroups check
         """
-        self.taosd.update_cfg('/tmp', self.taosd_setting, {"supportVnodes": 32}, self.endpoint, True)
+        self.taosd.update_cfg('/tmp', self.taosd_setting, {"supportVnodes": self.cfg["boundary"][-1]}, self.endpoint, True)
         self.tdCom.drop_all_db()
-        test_param = "vgroups"
-        # default
-        default_value = 2
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        test_param = self.cfg["create_name"]
+        dbname = self.tdCom.get_long_name()
         self.tdSql.execute(f'create database if not exists {dbname}')
         self.tdSql.query('show databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
-        self.tdSql.checkEqual(db_field_kv_dict[test_param], default_value)
+        # default
+        self.tdSql.checkEqual(db_field_kv_dict[test_param], self.cfg["default"])
         self.tdSql.execute(f'drop database {dbname}')
         # boundary
         # ! 4096 bug TD-15451
-        param_value_list = [1, 32]
-        for param_value in param_value_list:
-            dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        for param_value in self.cfg["boundary"]:
+            dbname = self.tdCom.get_long_name()
             self.tdSql.execute(f'create database if not exists {dbname} {test_param} {param_value}')
             self.tdSql.query('show databases')
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
             self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
-            if param_value == param_value_list[-1]:
+            if param_value == self.cfg["boundary"][-1]:
                 self.tdSql.error(f'create database if not exists {dbname}_error {test_param} 1')
             self.tdSql.execute(f'drop database {dbname}')
-        self.tdSql.error(f'create database if not exists {dbname} {test_param} {param_value_list[0] - 1}')
-        self.tdSql.error(f'create database if not exists {dbname} vgroups {param_value_list[-1] + 1}')
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][0] - 1}')
+        self.tdSql.error(f'create database if not exists {dbname} vgroups {self.cfg["boundary"][-1] + 1}')
         # check logic
-        dbname1 = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.execute(f'create database if not exists {dbname1} vgroups 3')
+        dbname1 = self.tdCom.get_long_name()
+        self.tdSql.execute(f'create database if not exists {dbname1} vgroups  {int(self.cfg["boundary"][-1]/4)}')
         self.tdSql.query(f'show {dbname1}.vgroups')
-        self.tdSql.checkEqual(self.tdSql.query_row, 3)
-        self.tdSql.checkEqual(self.get_vnode_count(), 3)
-        dbname2 = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.execute(f'create database if not exists {dbname2} vgroups 4')
+        self.tdSql.checkEqual(self.tdSql.query_row, int(self.cfg["boundary"][-1]/4))
+        self.tdSql.checkEqual(self.get_vnode_count(), int(self.cfg["boundary"][-1]/4))
+        dbname2 = self.tdCom.get_long_name()
+        self.tdSql.execute(f'create database if not exists {dbname2} vgroups {int(self.cfg["boundary"][-1]/4) + 1}')
         self.tdSql.query(f'show {dbname2}.vgroups')
-        self.tdSql.checkEqual(self.tdSql.query_row, 4)
-        self.tdSql.checkEqual(self.get_vnode_count(), 4+3)
+        self.tdSql.checkEqual(self.tdSql.query_row, int(self.cfg["boundary"][-1]/4) + 1)
+        self.tdSql.checkEqual(self.get_vnode_count(), int(self.cfg["boundary"][-1]/4)*2 + 1)
         self.tdSql.execute(f'drop database {dbname1}')
-        self.tdSql.checkEqual(self.get_vnode_count(), 4)
+        self.tdSql.checkEqual(self.get_vnode_count(), int(self.cfg["boundary"][-1]/4) + 1)
         self.tdSql.execute(f'drop database {dbname2}')
         self.tdSql.checkEqual(self.get_vnode_count(), 0)
 

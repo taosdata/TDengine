@@ -17,19 +17,19 @@ from taostest.util.common import TDCom
 class TestNtables(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
+        self.cfg = self.tdCom.Boundary.DB_PARAM_NTABLES_CONFIG
 
     def ntables_check(self):
         """
         ntables check
         """
-        test_param = "ntables"
-        # default
-        default_value = 0
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        test_param = self.cfg["create_name"]
+        dbname = self.tdCom.get_long_name()
         self.tdSql.execute(f'create database if not exists {dbname}')
         self.tdSql.query('show databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
-        self.tdSql.checkEqual(db_field_kv_dict[test_param], default_value)
+        # default
+        self.tdSql.checkEqual(db_field_kv_dict[test_param], self.cfg["default"])
         self.tdSql.execute(f'drop database {dbname}')
         # param_list
         # TODO

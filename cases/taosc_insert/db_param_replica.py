@@ -17,25 +17,24 @@ from taostest.util.common import TDCom
 class TestReplica(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
+        self.cfg = self.tdCom.Boundary.DB_PARAM_REPLICA_CONFIG
+        self.error_boundary_list = [0, 2, 4]
 
     def replica_check(self):
         """
         replica check
         """
-        test_param = "replica"
-        # default
-        default_value = 1
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        test_param = self.cfg["create_name"]
+        dbname = self.tdCom.get_long_name()
         self.tdSql.execute(f'create database if not exists {dbname}')
         self.tdSql.query('show databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
-        self.tdSql.checkEqual(db_field_kv_dict[test_param], default_value)
+        # default
+        self.tdSql.checkEqual(db_field_kv_dict[test_param], self.cfg["default"])
         self.tdSql.execute(f'drop database {dbname}')
-        # param_list
-        # param_value_list = [1, 3]
-        param_value_list = [1]
-        for param_value in param_value_list:
-            dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        # boundary
+        for param_value in self.cfg["boundary"]:
+            dbname = self.tdCom.get_long_name()
             self.tdSql.execute(f'create database if not exists {dbname} {test_param} {param_value}')
             self.tdSql.query('show databases')
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
@@ -46,15 +45,13 @@ class TestReplica(TDCase):
             self.tdSql.execute(f'create table if not exists {dbname}.tb (ts timestamp, c1 int)')
             self.tdSql.execute(f'insert into {dbname}.tb values (now, 1)')
             for sql in [f'select c1 from {dbname}.stb', f'select * from {dbname}.sub_tb', f'select * from {dbname}.tb']:
-            # for sql in [f'select * from {dbname}.sub_tb', f'select * from {dbname}.tb']:
                 self.tdSql.query(sql)
                 self.tdSql.checkEqual(self.tdSql.query_row, 1)
             self.tdSql.execute(f'drop table {dbname}.tb')
             self.tdSql.execute(f'drop table {dbname}.sub_tb')
             self.tdSql.execute(f'drop table {dbname}.stb')
             self.tdSql.execute(f'drop database {dbname}')
-        error_param_value_list = [0, 2, 4]
-        for error_param_value in error_param_value_list:
+        for error_param_value in self.error_boundary_list:
             self.tdSql.error(f'create database if not exists {dbname}_error {test_param} {error_param_value}')
 
 
