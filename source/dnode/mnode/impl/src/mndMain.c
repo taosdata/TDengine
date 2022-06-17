@@ -505,6 +505,7 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
 }
 
 static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
+  if (!IsReq(pMsg)) return 0;
   if (mndAcquireRpcRef(pMsg->info.node) == 0) return 0;
 
   if (IsReq(pMsg) && pMsg->msgType != TDMT_MND_MQ_TIMER && pMsg->msgType != TDMT_MND_TELEM_TIMER &&

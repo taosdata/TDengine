@@ -713,8 +713,8 @@ static int32_t syncNodeMakeLogSame(SSyncNode* ths, SyncAppendEntries* pMsg) {
   // delete confict entries
   code = ths->pLogStore->syncLogTruncate(ths->pLogStore, delBegin);
   ASSERT(code == 0);
-  sDebug("vgId:%d sync event %s currentTerm:%lu log truncate, from %ld to %ld", ths->vgId,
-         syncUtilState2String(ths->state), ths->pRaftStore->currentTerm, delBegin, delEnd);
+  sDebug("vgId:%d sync event %s commitIndex:%ld currentTerm:%lu log truncate, from %ld to %ld", ths->vgId,
+         syncUtilState2String(ths->state), ths->commitIndex, ths->pRaftStore->currentTerm, delBegin, delEnd);
   logStoreSimpleLog2("after syncNodeMakeLogSame", ths->pLogStore);
 
   return code;
@@ -880,6 +880,72 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
     }
   } while (0);
 
+  // fake match2
+  //
+  // condition1:
+  // preIndex <= my commit index
+  //
+  // operation:
+  // if hasAppendEntries && pMsg->prevLogIndex == ths->commitIndex, append entry
+  // match my-commit-index or my-commit-index + 1
+  // no operation on log
+  do {
+    bool condition = (pMsg->term == ths->pRaftStore->currentTerm) && (ths->state == TAOS_SYNC_STATE_FOLLOWER) &&
+                     (pMsg->prevLogIndex <= ths->commitIndex);
+    if (condition) {
+      sTrace("recv SyncAppendEntries, fake match2, msg-prevLogIndex:%ld, my-commitIndex:%ld", pMsg->prevLogIndex,
+             ths->commitIndex);
+
+      SyncIndex matchIndex = ths->commitIndex;
+      bool      hasAppendEntries = pMsg->dataLen > 0;
+      if (hasAppendEntries && pMsg->prevLogIndex == ths->commitIndex) {
+        // append entry
+        SSyncRaftEntry* pAppendEntry = syncEntryDeserialize(pMsg->data, pMsg->dataLen);
+        ASSERT(pAppendEntry != NULL);
+
+        {
+          // has extra entries (> preIndex) in local log
+          SyncIndex logLastIndex = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
+          bool      hasExtraEntries = logLastIndex > pMsg->prevLogIndex;
+
+          if (hasExtraEntries) {
+            // make log same, rollback deleted entries
+            code = syncNodeMakeLogSame(ths, pMsg);
+            ASSERT(code == 0);
+          }
+        }
+
+        code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pAppendEntry);
+        ASSERT(code == 0);
+
+        // pre commit
+        code = syncNodePreCommit(ths, pAppendEntry);
+        ASSERT(code == 0);
+
+        matchIndex = pMsg->prevLogIndex + 1;
+
+        syncEntryDestory(pAppendEntry);
+      }
+
+      // prepare response msg
+      SyncAppendEntriesReply* pReply = syncAppendEntriesReplyBuild(ths->vgId);
+      pReply->srcId = ths->myRaftId;
+      pReply->destId = pMsg->srcId;
+      pReply->term = ths->pRaftStore->currentTerm;
+      pReply->privateTerm = ths->pNewNodeReceiver->privateTerm;
+      pReply->success = true;
+      pReply->matchIndex = matchIndex;
+
+      // send response
+      SRpcMsg rpcMsg;
+      syncAppendEntriesReply2RpcMsg(pReply, &rpcMsg);
+      syncNodeSendMsgById(&pReply->destId, ths, &rpcMsg);
+      syncAppendEntriesReplyDestroy(pReply);
+
+      return ret;
+    }
+  } while (0);
+
   // calculate logOK here, before will coredump, due to fake match
   bool logOK = syncNodeOnAppendEntriesLogOK(ths, pMsg);
 
@@ -995,8 +1061,10 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
             SyncIndex commitEnd = snapshot.lastApplyIndex;
             ths->commitIndex = snapshot.lastApplyIndex;
 
-            sDebug("vgId:%d sync event %s currentTerm:%lu commit by snapshot from index:%ld to index:%ld", ths->vgId,
-                   syncUtilState2String(ths->state), ths->pRaftStore->currentTerm, commitBegin, commitEnd);
+            sDebug(
+                "vgId:%d sync event %s commitIndex:%ld currentTerm:%lu commit by snapshot from index:%ld to index:%ld",
+                ths->vgId, syncUtilState2String(ths->state), ths->commitIndex, ths->pRaftStore->currentTerm,
+                commitBegin, commitEnd);
           }
 
           SyncIndex beginIndex = ths->commitIndex + 1;
