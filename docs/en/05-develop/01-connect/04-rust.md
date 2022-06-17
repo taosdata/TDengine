@@ -9,14 +9,14 @@ import TabItem from '@theme/TabItem';
 ## Create Project
 
 ```
-cargo new cloud_example
+cargo new --bin cloud-example
 ```
 ## Add Dependency
 
 Add dependency to `Cargo.toml`. 
 
 ```toml title="Cargo.toml"
-{{#include docs/examples/rust/cloud_example/Cargo.toml}}
+{{#include docs/examples/rust/cloud-example/Cargo.toml}}
 ```
 
 ## Config
@@ -59,7 +59,7 @@ Replace  <DSN\> with real TDengine cloud DSN. To obtain the real value, please l
 Copy following code to `main.rs`.
 
 ```rust title="main.rs"
-{{#include docs/examples/rust/cloud_example/src/main.rs}}
+{{#include docs/examples/rust/cloud-example/src/main.rs}}
 ```
 
 Then you can execute `cargo run` to test the connection.
