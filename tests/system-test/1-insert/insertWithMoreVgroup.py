@@ -264,7 +264,7 @@ class TDTestCase:
         speedCreate=count/spendTime
         tdLog.debug("spent %.2fs to create 1 stable and %d table, create speed is %.2f table/s... [OK]"% (spendTime,count,speedCreate))
         return
-    # test case1 base 
+
     def checkData(self,dbname,stbname,stableCount,CtableCount,rowsPerSTable,):
         tdSql.execute("use %s"%dbname)
         tdSql.query("show stables")
@@ -275,7 +275,9 @@ class TDTestCase:
             tdSql.query("select count(*) from %s%d"%(stbname,i))
             tdSql.checkData(0,0,rowsPerSTable)
         return 
-        return
+     
+     
+    # test case1 base 
     def test_case1(self):
         #stableCount=threadNumbersCtb
         parameterDict = {'vgroups':        1,    \

@@ -29,7 +29,6 @@ class TDTestCase:
     def init(self,conn ,logSql):
         tdLog.debug(f"start to excute {__file__}")
         self.TDDnodes = None
-        self.ts = 1500000000000
 
     def buildcluster(self,dnodenumber):
         self.depoly_cluster(dnodenumber)
@@ -72,20 +71,20 @@ class TDTestCase:
         self._async_raise(thread.ident, SystemExit)
 
 
-    def createDbTbale(self,dbcountStart,dbcountStop,stbname,chilCount):
+    def insert_data(self,countstart,countstop):
         # fisrt add data : db\stable\childtable\general table
         
-        for couti in range(dbcountStart,dbcountStop):
+        for couti in range(countstart,countstop):
             tdLog.debug("drop database if exists db%d" %couti)
             tdSql.execute("drop database if exists db%d" %couti)
             print("create database if not exists db%d replica 1 duration 300" %couti)
             tdSql.execute("create database if not exists db%d replica 1 duration 300" %couti)
             tdSql.execute("use db%d" %couti)
             tdSql.execute(
-            '''create table %s
-            (ts timestamp, c1 int, c2 bigint,c3 binary(16), c4 timestamp)
+            '''create table stb1
+            (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
             tags (t1 int)
-            '''%stbname
+            '''
             )
             tdSql.execute(
                 '''
@@ -93,37 +92,8 @@ class TDTestCase:
                 (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
                 '''
             )
-            for i in range(chilCount):
-                tdSql.execute(f'create table {stbname}_{i+1} using {stbname} tags ( {i+1} )')
-
-    def insertTabaleData(self,dbcountStart,dbcountStop,stbname,chilCount,ts_start,rowCount):
-        #  insert data : create childtable and data
-        
-        for couti in range(dbcountStart,dbcountStop):
-            tdSql.execute("use db%d" %couti)
-            pre_insert = "insert into "
-            sql = pre_insert
-            chilCount=int(chilCount)
-            allRows=chilCount*rowCount
-            tdLog.debug("doing insert data into stable-index:%s rows:%d ..."%(stbname, allRows))
-            exeStartTime=time.time()
-            for i in range(0,chilCount):
-                sql += " %s_%d values "%(stbname,i)
-                for j in range(rowCount):
-                    sql += "(%d, %d, %d,'taos_%d',%d) "%(ts_start + j*1000, j, j, j, ts_start + j*1000)
-                    if j >0 and j%4000 == 0:
-                        # print(sql)
-                        tdSql.execute(sql)
-                        sql = "insert into %s_%d values " %(stbname,i)
-            # end sql        
-            if sql != pre_insert:
-                # print(sql)
-                print(len(sql))
-                tdSql.execute(sql)
-            exeEndTime=time.time()
-            spendTime=exeEndTime-exeStartTime
-            speedInsert=allRows/spendTime
-            tdLog.debug("spent %.2fs to INSERT  %d rows into %s , insert rate is  %.2f rows/s... [OK]"% (spendTime,allRows,stbname,speedInsert))
+            for i in range(4):
+                tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
 
     def checkData(self,dbname,stbname,stableCount,CtableCount,rowsPerSTable,):
         tdSql.execute("use %s"%dbname)
@@ -135,9 +105,8 @@ class TDTestCase:
             tdSql.query("select count(*) from %s%d"%(stbname,i))
             tdSql.checkData(0,0,rowsPerSTable)
         return 
-     
 
-    def depoly_cluster(self ,dnodes_nums): 
+    def depoly_cluster(self ,dnodes_nums=5,independent=True): 
 
         testCluster = False
         valgrind = 0  
@@ -153,6 +122,10 @@ class TDTestCase:
             dnode.addExtraCfg("monitorFqdn", hostname)
             dnode.addExtraCfg("monitorPort", 7043)
             dnode.addExtraCfg("secondEp", f"{hostname}:{start_port_sec}")
+            # configure three dnoe don't support vnodes
+            if independent and (num < 4):
+                dnode.addExtraCfg("supportVnodes", 0)
+
             dnodes.append(dnode)
         
         self.TDDnodes = MyDnodes(dnodes)
@@ -181,7 +154,7 @@ class TDTestCase:
 
     def checkdnodes(self,dnodenumber):
         count=0
-        while count < 10:
+        while count < 100:
             time.sleep(1)
             statusReadyBumber=0
             tdSql.query("show dnodes;")
@@ -333,16 +306,6 @@ class TDTestCase:
         tdSql.checkData(2,3,'ready')
 
     def five_dnode_three_mnode(self,dnodenumber):
-        # testcase parameters
-        vgroups=1
-        dbcountStart=0
-        dbcountStop=1
-        dbname="db"
-        stbname="stb"
-        tablesPerStb=1000
-        rowsPerTable=100
-        startTs=1640966400000  # 2022-01-01 00:00:00.000
-
         tdSql.query("show dnodes;")
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(4,1,'%s:6430'%self.host)
@@ -366,46 +329,32 @@ class TDTestCase:
         print(tdSql.queryResult)
         tdLog.debug("stop all of mnode ") 
 
-        #  drop follower of mnode and insert data
-        self.createDbTbale(dbcountStart, dbcountStop,stbname,tablesPerStb)
-        #(method) insertTabaleData: (dbcountStart: Any, dbcountStop: Any, stbname: Any, chilCount: Any, ts_start: Any, rowCount: Any) -> None
-        threads=threading.Thread(target=self.insertTabaleData, args=(
-        dbcountStart,
-        dbcountStop,
-        stbname,
-        tablesPerStb,
-        startTs,
-        rowsPerTable))
+        # seperate vnode and mnode in different dnodes.
+        # create database and stable
+        stopcount =0 
+        while stopcount < 2:
+            for i in range(dnodenumber):
+                # threads=[]
+                # threads = MyThreadFunc(self.insert_data(i*2,i*2+2)) 
+                threads=threading.Thread(target=self.insert_data, args=(i,i+1))
+                threads.start()
+                self.TDDnodes.stoptaosd(i+1)
+                self.TDDnodes.starttaosd(i+1)
 
-        threads.start()
-        dropcount =0 
-        while dropcount <= 10:
-            for i in range(1,3):
-                tdLog.debug("drop mnode on dnode %d"%(i+1))
-                tdSql.execute("drop mnode on dnode %d"%(i+1))
-                tdSql.query("show mnodes;")
-                count=0
-                while count<10:
-                    time.sleep(1)
-                    tdSql.query("show mnodes;")
-                    if tdSql.checkRows(2):
-                        print("drop mnode %d successfully"%(i+1))
-                        break
-                    count+=1
-                tdLog.debug("create mnode on dnode %d"%(i+1))
-                tdSql.execute("create mnode on dnode %d"%(i+1))
-                count=0
-                while count<10:
-                    time.sleep(1)
-                    tdSql.query("show mnodes;")
-                    if tdSql.checkRows(3):
-                        print("drop mnode %d successfully"%(i+1))
-                        break
-                    count+=1
-            dropcount+=1
-        threads.join()
+                if self.checkdnodes(5):
+                    print("123")
+                    threads.join()
+                else:
+                    print("456")
+                    self.stop_thread(threads)
+                    assert 1 == 2 ,"some dnode started failed"
+                    return False
+                # self.check3mnode()
+            self.check3mnode()
+            
+
+            stopcount+=1
         self.check3mnode()
-
 
 
     def getConnection(self, dnode):
