@@ -50,7 +50,18 @@ In this example, we use `execute` method to execute SQL and get affected rows. T
 <TabItem value="go" label="Go">
 </TabItem>
 <TabItem value="rust" label="Rust">
+
+In this example, we use `exec` method to execute SQL. `exec` is designed for some non-query SQL statements, all returned data would be ignored.
+
+```rust
+{{#include docs/examples/rust/cloud-example/examples/tutorial.rs:insert}}
+```
+
 </TabItem>
 <TabItem value="node" label="Node.js">
 </TabItem>
 </Tabs>
+
+:::note 
+`Use` statement is not applicable for cloud service since REST API is stateless.
+:::

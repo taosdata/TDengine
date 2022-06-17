@@ -150,6 +150,25 @@ Iterate over each rows:
 <TabItem value="go" label="Go">
 </TabItem>
 <TabItem value="rust" label="Rust">
+
+In this example, we use query method to execute SQL and get a result object.
+
+```rust
+{{#include docs/examples/rust/cloud-example/examples/tutorial.rs:query:nrc}}
+```
+
+Get column meta from the result:
+
+```rust
+{{#include docs/examples/rust/cloud-example/examples/tutorial.rs:meta:nrc}}
+```
+
+Get all rows and print each row:
+
+```rust
+{{#include docs/examples/rust/cloud-example/examples/tutorial.rs:iter}}
+```
+
 </TabItem>
 <TabItem value="node" label="Node.js">
 </TabItem>
