@@ -855,8 +855,7 @@ void shellGetGrantInfo() {
     if (code == TSDB_CODE_OPS_NOT_SUPPORT) {
       fprintf(stdout, "Server is Community Edition, %s\n\n", sinfo);
     } else {
-      fprintf(stderr, "Failed to check Server Edition, Reason:0x%04x:%s\n\n", taos_errno(shell.conn),
-              taos_errstr(shell.conn));
+      fprintf(stderr, "Failed to check Server Edition, Reason:0x%04x:%s\n\n", code, taos_errstr(tres));
     }
     return;
   }
