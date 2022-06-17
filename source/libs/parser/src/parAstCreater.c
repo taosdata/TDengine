@@ -895,9 +895,15 @@ SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType
     case TABLE_OPTION_ROLLUP:
       ((STableOptions*)pOptions)->pRollupFuncs = pVal;
       break;
-    case TABLE_OPTION_TTL:
-      ((STableOptions*)pOptions)->ttl = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+    case TABLE_OPTION_TTL:{
+      int64_t ttl = taosStr2Int64(((SToken*)pVal)->z, NULL, 10);
+      if (ttl > INT32_MAX){
+        ttl = INT32_MAX;
+      }
+      // ttl can not be smaller than 0, because there is a limitation in sql.y (TTL NK_INTEGER)
+      ((STableOptions*)pOptions)->ttl = ttl;
       break;
+    }
     case TABLE_OPTION_SMA:
       ((STableOptions*)pOptions)->pSma = pVal;
       break;

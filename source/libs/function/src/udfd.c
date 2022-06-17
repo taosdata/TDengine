@@ -785,7 +785,7 @@ static void udfdPrintVersion() {
 #else
   char *releaseName = "community";
 #endif
-  printf("%s version: %s compatible_version: %s\n", releaseName, version, compatible_version);
+  printf("%s version: %s compatible_version: %s\n", releaseName, td_version, compatible_version);
   printf("gitinfo: %s\n", gitinfo);
   printf("buildInfo: %s\n", buildinfo);
 }

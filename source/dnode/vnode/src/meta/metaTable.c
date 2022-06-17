@@ -400,8 +400,8 @@ static void metaBuildTtlIdxKey(STtlIdxKey *ttlKey, const SMetaEntry *pME){
 
   if (ttlDays <= 0) return;
 
-//  ttlKey->dtime = ctime / 1000 + ttlDays * 24 * 60 * 60;
-  ttlKey->dtime = ctime / 1000 + ttlDays;
+  ttlKey->dtime = ctime / 1000 + ttlDays * 24 * 60 * 60;
+//  ttlKey->dtime = ctime / 1000 + ttlDays;
   ttlKey->uid = pME->uid;
 }
 
@@ -499,7 +499,6 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
   tDecoderInit(&dc, entry.pBuf, nData);
   ret = metaDecodeEntry(&dc, &entry);
   ASSERT(ret == 0);
-  tDecoderClear(&dc);
 
   if (entry.type != TSDB_NORMAL_TABLE) {
     terrno = TSDB_CODE_VND_INVALID_TABLE_ACTION;
@@ -597,12 +596,16 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
   if (pNewSchema) taosMemoryFree(pNewSchema);
   tdbTbcClose(pTbDbc);
   tdbTbcClose(pUidIdxc);
+  tDecoderClear(&dc);
+
   return 0;
 
 _err:
   if (entry.pBuf) taosMemoryFree(entry.pBuf);
   tdbTbcClose(pTbDbc);
   tdbTbcClose(pUidIdxc);
+  tDecoderClear(&dc);
+
   return -1;
 }
 
@@ -800,7 +803,6 @@ static int metaUpdateTableOptions(SMeta *pMeta, int64_t version, SVAlterTbReq *p
   tDecoderInit(&dc, entry.pBuf, nData);
   ret = metaDecodeEntry(&dc, &entry);
   ASSERT(ret == 0);
-  tDecoderClear(&dc);
 
   entry.version = version;
   metaWLock(pMeta);
@@ -834,6 +836,7 @@ static int metaUpdateTableOptions(SMeta *pMeta, int64_t version, SVAlterTbReq *p
 
   tdbTbcClose(pTbDbc);
   tdbTbcClose(pUidIdxc);
+  tDecoderClear(&dc);
   if (entry.pBuf) taosMemoryFree(entry.pBuf);
   return 0;
 }

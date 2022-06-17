@@ -280,7 +280,7 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
     }
   }
 
-  if (pOld->commentLen < pNew->commentLen) {
+  if (pOld->commentLen < pNew->commentLen && pNew->commentLen > 0) {
     void *comment = taosMemoryMalloc(pNew->commentLen + 1);
     if (comment != NULL) {
       taosMemoryFree(pOld->comment);
@@ -291,6 +291,7 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
       taosWUnLockLatch(&pOld->lock);
     }
   }
+  pOld->commentLen = pNew->commentLen;
 
   if (pOld->ast1Len < pNew->ast1Len) {
     void *pAst1 = taosMemoryMalloc(pNew->ast1Len);
@@ -325,7 +326,7 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
   pOld->numOfTags = pNew->numOfTags;
   memcpy(pOld->pColumns, pNew->pColumns, pOld->numOfColumns * sizeof(SSchema));
   memcpy(pOld->pTags, pNew->pTags, pOld->numOfTags * sizeof(SSchema));
-  if (pNew->commentLen != 0) {
+  if (pNew->commentLen > 0) {
     memcpy(pOld->comment, pNew->comment, pNew->commentLen + 1);
   }
   if (pNew->ast1Len != 0) {

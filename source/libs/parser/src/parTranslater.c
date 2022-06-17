@@ -2811,9 +2811,6 @@ static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt
     code = checkTableRollupOption(pCxt, pStmt->pOptions->pRollupFuncs);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkRangeOption(pCxt, "ttl", pStmt->pOptions->ttl, TSDB_MIN_TABLE_TTL, INT32_MAX);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
     code = checkTableSmaOption(pCxt, pStmt);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -4995,11 +4992,8 @@ static int32_t buildUpdateOptionsReq(STranslateContext* pCxt, SAlterTableStmt* p
   int32_t code = TSDB_CODE_SUCCESS;
 
   if (-1 != pStmt->pOptions->ttl) {
-    code = checkRangeOption(pCxt, "ttl", pStmt->pOptions->ttl, TSDB_MIN_TABLE_TTL, INT32_MAX);
-    if (TSDB_CODE_SUCCESS == code) {
-      pReq->updateTTL = true;
-      pReq->newTTL = pStmt->pOptions->ttl;
-    }
+    pReq->updateTTL = true;
+    pReq->newTTL = pStmt->pOptions->ttl;
   }
 
   if (TSDB_CODE_SUCCESS == code){

@@ -67,7 +67,7 @@ void shellPrintHelp() {
 #include <argp.h>
 #include <termio.h>
 
-const char *argp_program_version = version;
+const char *argp_program_version = td_version;
 const char *argp_program_bug_address = SHELL_EMAIL;
 
 static struct argp_option shellOptions[] = {
@@ -342,7 +342,7 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
   shell.info.promptHeader = "taos> ";
   shell.info.promptContinue = "   -> ";
   shell.info.promptSize = 6;
-  snprintf(shell.info.programVersion, sizeof(shell.info.programVersion), "version: %s", version);
+  snprintf(shell.info.programVersion, sizeof(shell.info.programVersion), "version: %s", td_version);
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   shell.info.osname = "Windows";

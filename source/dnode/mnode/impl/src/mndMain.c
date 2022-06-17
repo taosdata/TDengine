@@ -117,7 +117,7 @@ static void *mndThreadFp(void *param) {
   setThreadName("mnode-timer");
 
   while (1) {
-    if (lastTime % (100) == 0) {   // sleep 1 day for ttl
+    if (lastTime % (864000) == 0) {   // sleep 1 day for ttl
       mndPushTtlTime(pMnode);
     }
 
@@ -642,7 +642,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
   }
 
   // cluster info
-  tstrncpy(pClusterInfo->version, version, sizeof(pClusterInfo->version));
+  tstrncpy(pClusterInfo->version, td_version, sizeof(pClusterInfo->version));
   pClusterInfo->monitor_interval = tsMonitorInterval;
   pClusterInfo->connections_total = mndGetNumOfConnections(pMnode);
 

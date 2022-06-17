@@ -397,7 +397,7 @@ const char *taos_data_type(int type) {
   }
 }
 
-const char *taos_get_client_info() { return version; }
+const char *taos_get_client_info() { return td_version; }
 
 int taos_affected_rows(TAOS_RES *res) {
   if (res == NULL || TD_RES_TMQ(res)) {
