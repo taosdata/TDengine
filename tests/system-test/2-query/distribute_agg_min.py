@@ -2,6 +2,7 @@ from util.log import *
 from util.cases import *
 from util.sql import *
 import numpy as np
+import random 
 
 
 class TDTestCase:
@@ -9,88 +10,33 @@ class TDTestCase:
     "jniDebugFlag":143 ,"simDebugFlag":143,"dDebugFlag":143, "dDebugFlag":143,"vDebugFlag":143,"mDebugFlag":143,"qDebugFlag":143,
     "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"fnDebugFlag":143,
     "maxTablesPerVnode":2 ,"minTablesPerVnode":2,"tableIncStepPerVnode":2 }
+
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
-
-        self.rowNum = 10
+        self.vnode_disbutes = None
         self.ts = 1537146000000
-        self.binary_str = 'taosdata'
-        self.nchar_str = '涛思数据'
-    def max_check_stb_and_tb_base(self):
-        tdSql.prepare()
-        intData = []        
-        floatData = []
-        tdSql.execute('''create table stb(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 tinyint unsigned, col6 smallint unsigned, 
-                    col7 int unsigned, col8 bigint unsigned, col9 float, col10 double, col11 bool, col12 binary(20), col13 nchar(20)) tags(loc nchar(20))''')
-        tdSql.execute("create table stb_1 using stb tags('beijing')")
-        for i in range(self.rowNum):
-            tdSql.execute(f"insert into stb_1 values(%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '{self.binary_str}%d', '{self.nchar_str}%d')"
-                          % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1))
-            intData.append(i + 1)            
-            floatData.append(i + 0.1)
-        for i in ['ts','col11','col12','col13']:
-            for j in ['db.stb','stb','db.stb_1','stb_1']:
-                tdSql.error(f'select max({i} from {j} )')
-
-        for i in range(1,11):
-            for j in ['db.stb','stb','db.stb_1','stb_1']:
-                tdSql.query(f"select max(col{i}) from {j}")
-                if i<9:
-                    tdSql.checkData(0, 0, np.max(intData))
-                elif i>=9:
-                    tdSql.checkData(0, 0, np.max(floatData))
-        tdSql.query("select max(col1) from stb_1 where col2<=5")
-        tdSql.checkData(0,0,5)
-        tdSql.query("select max(col1) from stb where col2<=5")
-        tdSql.checkData(0,0,5)
-        tdSql.execute('drop database db')
-        
-    def max_check_ntb_base(self):
-        tdSql.prepare()
-        intData = []        
-        floatData = []
-        tdSql.execute('''create table ntb(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 tinyint unsigned, col6 smallint unsigned, 
-                    col7 int unsigned, col8 bigint unsigned, col9 float, col10 double, col11 bool, col12 binary(20), col13 nchar(20))''')
-        for i in range(self.rowNum):
-            tdSql.execute(f"insert into ntb values(%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '{self.binary_str}%d', '{self.nchar_str}%d')"
-                          % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1))
-            intData.append(i + 1)            
-            floatData.append(i + 0.1)
-        for i in ['ts','col11','col12','col13']:
-            for j in ['db.ntb','ntb']:
-                tdSql.error(f'select max({i} from {j} )')
-        for i in range(1,11):
-            for j in ['db.ntb','ntb']:
-                tdSql.query(f"select max(col{i}) from {j}")
-                if i<9:
-                    tdSql.checkData(0, 0, np.max(intData))
-                elif i>=9:
-                    tdSql.checkData(0, 0, np.max(floatData))
-        tdSql.query("select max(col1) from ntb where col2<=5")
-        tdSql.checkData(0,0,5)
-        tdSql.execute('drop database db')
 
 
-    def check_max_functions(self, tbname , col_name):
+    def check_min_functions(self, tbname , col_name):
 
-        max_sql = f"select max({col_name}) from {tbname};"
+        min_sql = f"select min({col_name}) from {tbname};"
 
-        same_sql = f"select {col_name} from {tbname} order by {col_name} desc limit 1"
+        same_sql = f"select {col_name} from {tbname} where {col_name} is not null order by {col_name} asc limit 1"
 
-        tdSql.query(max_sql)
-        max_result = tdSql.queryResult 
+        tdSql.query(min_sql)
+        min_result = tdSql.queryResult 
 
         tdSql.query(same_sql)
         same_result = tdSql.queryResult
 
-        if max_result !=same_result:
-            tdLog.exit(" max function work not as expected, sql : %s "% max_sql)
+        if min_result !=same_result:
+            tdLog.exit(" min function work not as expected, sql : %s "% min_sql)
         else:
-            tdLog.info(" max function work as expected, sql : %s "% max_sql)
+            tdLog.info(" min function work as expected, sql : %s "% min_sql)
 
 
-    def support_distributed_aggregate(self):
+    def prepare_datas_of_distribute(self):
         
         # prepate datas for  20 tables distributed at different vgroups
         tdSql.execute("create database if not exists testdb keep 3650 duration 1000 vgroups 5")
@@ -156,6 +102,7 @@ class TDTestCase:
 
         tdLog.info(" prepare data for distributed_aggregate done! ")
 
+    def check_distribute_datas(self):
         # get vgroup_ids of all
         tdSql.query("show vgroups ")
         vgroups = tdSql.queryResult
@@ -172,6 +119,7 @@ class TDTestCase:
         tablenames = []
         for table_name in table_names:
             vnode_tables[table_name[6]].append(table_name[0]) 
+        self.vnode_disbutes = vnode_tables
 
         count = 0
         for k ,v in vnode_tables.items():
@@ -180,6 +128,40 @@ class TDTestCase:
         if count < 2:
             tdLog.exit(" the datas of all not satisfy sub_table has been distributed ")
 
+    def check_min_distribute_diff_vnode(self,col_name):
+    
+        vgroup_ids = []
+        for k ,v in self.vnode_disbutes.items():
+            if len(v)>=2:
+                vgroup_ids.append(k)
+        
+        distribute_tbnames = []
+        
+        for vgroup_id in vgroup_ids:
+            vnode_tables = self.vnode_disbutes[vgroup_id]
+            distribute_tbnames.append(random.sample(vnode_tables,1)[0])
+        tbname_ins = ""
+        for tbname in distribute_tbnames:
+            tbname_ins += "'%s' ,"%tbname
+
+        tbname_filters = tbname_ins[:-1]
+        
+        min_sql = f"select min({col_name}) from stb1 where tbname in ({tbname_filters});"
+
+        same_sql = f"select {col_name} from stb1 where tbname in ({tbname_filters}) and {col_name} is not null order by {col_name} asc limit 1"
+
+        tdSql.query(min_sql)
+        min_result = tdSql.queryResult 
+
+        tdSql.query(same_sql)
+        same_result = tdSql.queryResult
+
+        if min_result !=same_result:
+            tdLog.exit(" min function work not as expected, sql : %s "% min_sql)
+        else:
+            tdLog.info(" min function work as expected, sql : %s "% min_sql)
+
+    def check_min_status(self):
         # check max function work status 
         
         tdSql.query("show tables like 'ct%'")
@@ -198,20 +180,110 @@ class TDTestCase:
         
         for tablename in tablenames:
             for colname in colnames:
-                self.check_max_functions(tablename,colname)
+                self.check_min_functions(tablename,colname)
 
-        # max function with basic filter 
-        print(vnode_tables)
+        # check max function for different vnode 
 
+        for colname in colnames:
+            if colname.startswith("c"):
+                self.check_min_distribute_diff_vnode(colname)
+            else:
+                # self.check_min_distribute_diff_vnode(colname) # bug for tag 
+                pass
 
+        
+    def distribute_agg_query(self):
+        # basic filter
+        tdSql.query("select min(c1) from stb1 where c1 is null")
+        tdSql.checkRows(0)
 
-    def run(self):                 
+        tdSql.query("select min(c1) from stb1 where t1=1")
+        tdSql.checkData(0,0,2)
 
-        # max verifacation 
-        self.max_check_stb_and_tb_base()
-        self.max_check_ntb_base()
+        tdSql.query("select min(c1+c2) from stb1 where c1 =1 ")
+        tdSql.checkData(0,0,11112.000000000)
 
-        self.support_distributed_aggregate()
+        tdSql.query("select min(c1) from stb1 where tbname=\"ct2\"")
+        tdSql.checkData(0,0,2)
+
+        tdSql.query("select min(c1) from stb1 partition by tbname")
+        tdSql.checkRows(20)
+
+        tdSql.query("select min(c1) from stb1 where t1> 4  partition by tbname")
+        tdSql.checkRows(15)
+
+        # union all 
+        tdSql.query("select min(c1) from stb1 union all select min(c1) from stb1 ")
+        tdSql.checkRows(2)
+        tdSql.checkData(0,0,0)
+
+        # join 
+
+        tdSql.execute(" create database if not exists db ")
+        tdSql.execute(" use db ")
+        tdSql.execute(" create stable st (ts timestamp , c1 int ,c2 float) tags(t1 int) ")
+        tdSql.execute(" create table tb1 using st tags(1) ")
+        tdSql.execute(" create table tb2 using st tags(2) ")
+
+        
+        for i in range(10):
+            ts = i*10 + self.ts
+            tdSql.execute(f" insert into tb1 values({ts},{i},{i}.0)")
+            tdSql.execute(f" insert into tb2 values({ts},{i},{i}.0)")
+
+        tdSql.query("select min(tb1.c1), tb2.c2 from tb1, tb2 where tb1.ts=tb2.ts")
+        tdSql.checkRows(1)
+        tdSql.checkData(0,0,0)
+        tdSql.checkData(0,0,0.00000)
+
+        # group by 
+        tdSql.execute(" use testdb ")
+        tdSql.query(" select min(c1),c1  from stb1 group by t1 ")
+        tdSql.checkRows(20)
+        tdSql.query(" select min(c1),c1  from stb1 group by c1 ")
+        tdSql.checkRows(30)
+        tdSql.query(" select min(c1),c2  from stb1 group by c2 ")
+        tdSql.checkRows(31)
+
+        # partition by tbname or partition by tag
+        tdSql.query("select min(c1),tbname from stb1 partition by tbname")
+        query_data = tdSql.queryResult
+        
+        for row in query_data:
+            tbname = row[1]
+            tdSql.query(" select min(c1) from %s "%tbname)
+            tdSql.checkData(0,0,row[0])
+
+        tdSql.query("select min(c1),tbname from stb1 partition by t1")
+        query_data = tdSql.queryResult
+        
+        for row in query_data:
+            tbname = row[1]
+            tdSql.query(" select min(c1) from %s "%tbname)
+            tdSql.checkData(0,0,row[0])
+
+        # nest query for support max
+        tdSql.query("select abs(c2+2)+1 from (select min(c1) c2  from stb1)")
+        tdSql.checkData(0,0,3.000000000)
+        tdSql.query("select min(c1+2)+1  as c2 from (select ts ,c1 ,c2  from stb1)")
+        tdSql.checkData(0,0,3.000000000)
+        tdSql.query("select min(a+2)+1  as c2 from (select ts ,abs(c1) a ,c2  from stb1)")
+        tdSql.checkData(0,0,3.000000000)
+
+        # mixup with other functions
+        tdSql.query("select max(c1),count(c1),last(c2,c3),min(c1) from stb1")
+        tdSql.checkData(0,0,28)
+        tdSql.checkData(0,1,184)
+        tdSql.checkData(0,2,-99999)
+        tdSql.checkData(0,3,-999)
+        tdSql.checkData(0,4,0)
+
+    def run(self):
+
+        self.prepare_datas_of_distribute()
+        self.check_distribute_datas()
+        self.check_min_status()
+        self.distribute_agg_query()
 
     
     def stop(self):
