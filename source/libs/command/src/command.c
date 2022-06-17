@@ -14,6 +14,7 @@
  */
 
 #include "command.h"
+#include "catalog.h"
 #include "tdatablock.h"
 
 static int32_t getSchemaBytes(const SSchema* pSchema) {
@@ -120,8 +121,7 @@ static int32_t execDescribe(SNode* pStmt, SRetrieveTableRsp** pRsp) {
 }
 
 static int32_t execResetQueryCache() {
-  // todo
-  return TSDB_CODE_SUCCESS;
+  return catalogClearCache();
 }
 
 int32_t qExecCommand(SNode* pStmt, SRetrieveTableRsp** pRsp) {

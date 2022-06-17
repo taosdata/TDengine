@@ -48,7 +48,7 @@ static void registerRequest(SRequestObj *pRequest) {
   int32_t num = atomic_add_fetch_32(&pTscObj->numOfReqs, 1);
 
   if (pTscObj->pAppInfo) {
-    SInstanceSummary *pSummary = &pTscObj->pAppInfo->summary;
+    SAppClusterSummary *pSummary = &pTscObj->pAppInfo->summary;
 
     int32_t total = atomic_add_fetch_64((int64_t *)&pSummary->totalRequests, 1);
     int32_t currentInst = atomic_add_fetch_64((int64_t *)&pSummary->currentRequests, 1);
@@ -62,7 +62,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
   assert(pRequest != NULL);
 
   STscObj          *pTscObj = pRequest->pTscObj;
-  SInstanceSummary *pActivity = &pTscObj->pAppInfo->summary;
+  SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
 
   int32_t currentInst = atomic_sub_fetch_64((int64_t *)&pActivity->currentRequests, 1);
   int32_t num = atomic_sub_fetch_32(&pTscObj->numOfReqs, 1);
@@ -229,7 +229,7 @@ static void doDestroyRequest(void *p) {
   taosHashRemove(pRequest->pTscObj->pRequests, &pRequest->self, sizeof(pRequest->self));
 
   if (pRequest->body.queryJob != 0) {
-    schedulerFreeJob(pRequest->body.queryJob);
+    schedulerFreeJob(pRequest->body.queryJob, 0);
   }
 
   taosMemoryFreeClear(pRequest->msgBuf);

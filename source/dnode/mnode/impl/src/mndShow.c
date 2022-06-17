@@ -104,6 +104,8 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_TOPICS;
   } else if (strncasecmp(name, TSDB_PERFS_TABLE_STREAMS, len) == 0) {
     type = TSDB_MGMT_TABLE_STREAMS;
+  } else if (strncasecmp(name, TSDB_PERFS_TABLE_APPS, len) == 0) {
+    type = TSDB_MGMT_TABLE_APPS;
   } else {
     //    ASSERT(0);
   }
