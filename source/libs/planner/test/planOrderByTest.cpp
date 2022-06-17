@@ -28,6 +28,8 @@ TEST_F(PlanOrderByTest, basic) {
   // ORDER BY key is not in the projection list
   run("SELECT c1 FROM t1 ORDER BY c2");
 
+  run("SELECT c1 AS a FROM t1 ORDER BY a");
+
   run("SELECT c1 + 10 AS a FROM t1 ORDER BY a");
 }
 
@@ -59,4 +61,6 @@ TEST_F(PlanOrderByTest, stable) {
   run("SELECT c2 FROM st1 ORDER BY c1");
 
   run("SELECT c2 FROM st1 PARTITION BY c2 ORDER BY c1");
+
+  run("SELECT c1 AS a FROM st1 ORDER BY a");
 }
