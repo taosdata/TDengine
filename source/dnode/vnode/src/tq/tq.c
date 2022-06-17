@@ -47,7 +47,7 @@ void tqCleanUp() {
 }
 
 STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal) {
-  STQ* pTq = taosMemoryMalloc(sizeof(STQ));
+  STQ* pTq = taosMemoryCalloc(1, sizeof(STQ));
   if (pTq == NULL) {
     terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
     return NULL;
@@ -66,19 +66,23 @@ STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal) {
     ASSERT(0);
   }
 
+  if (tqOffsetOpen(pTq) < 0) {
+    ASSERT(0);
+  }
+
   return pTq;
 }
 
 void tqClose(STQ* pTq) {
   if (pTq) {
-    taosMemoryFreeClear(pTq->path);
+    tqOffsetClose(pTq->pOffsetStore);
     taosHashCleanup(pTq->handles);
     taosHashCleanup(pTq->pStreamTasks);
     taosHashCleanup(pTq->pushMgr);
+    taosMemoryFree(pTq->path);
     tqMetaClose(pTq);
     taosMemoryFree(pTq);
   }
-  // TODO
 }
 
 int32_t tqSendPollRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataBlkRsp* pRsp) {
@@ -105,6 +109,33 @@ int32_t tqSendPollRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, con
 
   tqDebug("vg %d from consumer %ld (epoch %d) send rsp, block num: %d, reqOffset: %ld, rspOffset: %ld",
           TD_VID(pTq->pVnode), pReq->consumerId, pReq->epoch, pRsp->blockNum, pRsp->reqOffset, pRsp->rspOffset);
+
+  return 0;
+}
+
+int32_t tqProcessOffsetCommitReq(STQ* pTq, char* msg, int32_t msgLen) {
+  STqOffset offset = {0};
+  SDecoder  decoder;
+  tDecoderInit(&decoder, msg, msgLen);
+  if (tDecodeSTqOffset(&decoder, &offset) < 0) {
+    ASSERT(0);
+    return -1;
+  }
+  tDecoderClear(&decoder);
+
+  if (offset.type == TMQ_OFFSET__SNAPSHOT) {
+    tqDebug("receive offset commit msg to %s, offset(type:snapshot) uid: %ld, ts: %ld", offset.subKey, offset.uid,
+            offset.ts);
+  } else if (offset.type == TMQ_OFFSET__LOG) {
+    tqDebug("receive offset commit msg to %s, offset(type:log) version: %ld", offset.subKey, offset.version);
+  } else {
+    ASSERT(0);
+  }
+
+  if (tqOffsetWrite(pTq->pOffsetStore, &offset) < 0) {
+    ASSERT(0);
+    return -1;
+  }
 
   return 0;
 }
@@ -344,6 +375,8 @@ int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen) {
 
   if (pTask->inputQueue == NULL || pTask->outputQueue == NULL) goto FAIL;
 
+  pTask->pMsgCb = &pTq->pVnode->msgCb;
+
   // exec
   if (pTask->execType != TASK_EXEC__NONE) {
     // expand runners
@@ -375,9 +408,12 @@ int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen) {
         tdGetSTSChemaFromSSChema(&pTask->tbSink.pSchemaWrapper->pSchema, pTask->tbSink.pSchemaWrapper->nCols);
     ASSERT(pTask->tbSink.pTSchema);
   }
+
+  streamSetupTrigger(pTask);
+
   tqInfo("deploy stream task id %d child id %d on vg %d", pTask->taskId, pTask->childId, pTq->pVnode->config.vgId);
 
-  taosHashPut(pTq->pStreamTasks, &pTask->taskId, sizeof(int32_t), pTask, sizeof(SStreamTask));
+  taosHashPut(pTq->pStreamTasks, &pTask->taskId, sizeof(int32_t), &pTask, sizeof(void*));
 
   return 0;
 FAIL:
@@ -400,7 +436,7 @@ int32_t tqProcessStreamTrigger(STQ* pTq, SSubmitReq* pReq) {
   while (1) {
     pIter = taosHashIterate(pTq->pStreamTasks, pIter);
     if (pIter == NULL) break;
-    SStreamTask* pTask = (SStreamTask*)pIter;
+    SStreamTask* pTask = *(SStreamTask**)pIter;
     if (pTask->inputType != STREAM_INPUT__DATA_SUBMIT) continue;
 
     if (!failed) {
@@ -408,7 +444,7 @@ int32_t tqProcessStreamTrigger(STQ* pTq, SSubmitReq* pReq) {
         continue;
       }
 
-      if (streamTriggerByWrite(pTask, pTq->pVnode->config.vgId, &pTq->pVnode->msgCb) < 0) {
+      if (streamLaunchByWrite(pTask, pTq->pVnode->config.vgId, &pTq->pVnode->msgCb) < 0) {
         continue;
       }
     } else {
@@ -428,7 +464,7 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
   //
   SStreamTaskRunReq* pReq = pMsg->pCont;
   int32_t            taskId = pReq->taskId;
-  SStreamTask*       pTask = taosHashGet(pTq->pStreamTasks, &taskId, sizeof(int32_t));
+  SStreamTask*       pTask = *(SStreamTask**)taosHashGet(pTq->pStreamTasks, &taskId, sizeof(int32_t));
   streamTaskProcessRunReq(pTask, &pTq->pVnode->msgCb);
   return 0;
 }
@@ -442,7 +478,7 @@ int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg) {
   tDecoderInit(&decoder, msgBody, msgLen);
   tDecodeStreamDispatchReq(&decoder, &req);
   int32_t      taskId = req.taskId;
-  SStreamTask* pTask = taosHashGet(pTq->pStreamTasks, &taskId, sizeof(int32_t));
+  SStreamTask* pTask = *(SStreamTask**)taosHashGet(pTq->pStreamTasks, &taskId, sizeof(int32_t));
   SRpcMsg      rsp = {
            .info = pMsg->info,
            .code = 0,
@@ -454,7 +490,7 @@ int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg) {
 int32_t tqProcessTaskRecoverReq(STQ* pTq, SRpcMsg* pMsg) {
   SStreamTaskRecoverReq* pReq = pMsg->pCont;
   int32_t                taskId = pReq->taskId;
-  SStreamTask*           pTask = taosHashGet(pTq->pStreamTasks, &taskId, sizeof(int32_t));
+  SStreamTask*           pTask = *(SStreamTask**)taosHashGet(pTq->pStreamTasks, &taskId, sizeof(int32_t));
   streamProcessRecoverReq(pTask, &pTq->pVnode->msgCb, pReq, pMsg);
   return 0;
 }
@@ -462,7 +498,7 @@ int32_t tqProcessTaskRecoverReq(STQ* pTq, SRpcMsg* pMsg) {
 int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg) {
   SStreamDispatchRsp* pRsp = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   int32_t             taskId = pRsp->taskId;
-  SStreamTask*        pTask = taosHashGet(pTq->pStreamTasks, &taskId, sizeof(int32_t));
+  SStreamTask*        pTask = *(SStreamTask**)taosHashGet(pTq->pStreamTasks, &taskId, sizeof(int32_t));
   streamProcessDispatchRsp(pTask, &pTq->pVnode->msgCb, pRsp);
   return 0;
 }
@@ -470,7 +506,17 @@ int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg) {
 int32_t tqProcessTaskRecoverRsp(STQ* pTq, SRpcMsg* pMsg) {
   SStreamTaskRecoverRsp* pRsp = pMsg->pCont;
   int32_t                taskId = pRsp->taskId;
-  SStreamTask*           pTask = taosHashGet(pTq->pStreamTasks, &taskId, sizeof(int32_t));
+  SStreamTask*           pTask = *(SStreamTask**)taosHashGet(pTq->pStreamTasks, &taskId, sizeof(int32_t));
   streamProcessRecoverRsp(pTask, pRsp);
   return 0;
+}
+
+int32_t tqProcessTaskDropReq(STQ* pTq, char* msg, int32_t msgLen) {
+  SVDropStreamTaskReq* pReq = (SVDropStreamTaskReq*)msg;
+  int32_t              code = taosHashRemove(pTq->pStreamTasks, &pReq->taskId, sizeof(int32_t));
+  if (code == 0) {
+    // sendrsp
+  }
+  ASSERT(code == 0);
+  return code;
 }

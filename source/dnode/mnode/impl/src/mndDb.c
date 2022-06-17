@@ -183,12 +183,12 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
     pDb->cfg.pRetensions = taosArrayInit(pDb->cfg.numOfRetensions, sizeof(SRetention));
     if (pDb->cfg.pRetensions == NULL) goto _OVER;
     for (int32_t i = 0; i < pDb->cfg.numOfRetensions; ++i) {
-      SRetention retension = {0};
-      SDB_GET_INT64(pRaw, dataPos, &retension.freq, _OVER)
-      SDB_GET_INT64(pRaw, dataPos, &retension.keep, _OVER)
-      SDB_GET_INT8(pRaw, dataPos, &retension.freqUnit, _OVER)
-      SDB_GET_INT8(pRaw, dataPos, &retension.keepUnit, _OVER)
-      if (taosArrayPush(pDb->cfg.pRetensions, &retension) == NULL) {
+      SRetention retention = {0};
+      SDB_GET_INT64(pRaw, dataPos, &retention.freq, _OVER)
+      SDB_GET_INT64(pRaw, dataPos, &retention.keep, _OVER)
+      SDB_GET_INT8(pRaw, dataPos, &retention.freqUnit, _OVER)
+      SDB_GET_INT8(pRaw, dataPos, &retention.keepUnit, _OVER)
+      if (taosArrayPush(pDb->cfg.pRetensions, &retention) == NULL) {
         goto _OVER;
       }
     }
@@ -472,7 +472,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   }
 
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB, pReq);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq);
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to create db:%s", pTrans->id, pCreate->db);
@@ -521,12 +521,12 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  pUser = mndAcquireUser(pMnode, pReq->conn.user);
+  pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
   if (pUser == NULL) {
     goto _OVER;
   }
 
-  if (mndCheckCreateDbAuth(pUser) != 0) {
+  if (mndCheckDbAuth(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DB, NULL) != 0) {
     goto _OVER;
   }
 
@@ -684,7 +684,6 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   int32_t     code = -1;
   SDbObj     *pDb = NULL;
-  SUserObj   *pUser = NULL;
   SAlterDbReq alterReq = {0};
   SDbObj      dbObj = {0};
 
@@ -701,12 +700,7 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  pUser = mndAcquireUser(pMnode, pReq->conn.user);
-  if (pUser == NULL) {
-    goto _OVER;
-  }
-
-  if (mndCheckAlterDropCompactDbAuth(pUser, pDb) != 0) {
+  if (mndCheckDbAuth(pMnode, pReq->info.conn.user, MND_OPER_ALTER_DB, pDb) != 0) {
     goto _OVER;
   }
 
@@ -733,7 +727,6 @@ _OVER:
   }
 
   mndReleaseDb(pMnode, pDb);
-  mndReleaseUser(pMnode, pUser);
   taosArrayDestroy(dbObj.cfg.pRetensions);
 
   return code;
@@ -935,6 +928,7 @@ static int32_t mndDropDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
   if (mndDropOffsetByDB(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndDropSubByDB(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndDropTopicByDB(pMnode, pTrans, pDb) != 0) goto _OVER;
+  if (mndDropSmasByDb(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndSetDropDbRedoActions(pMnode, pTrans, pDb) != 0) goto _OVER;
 
   SUserObj *pUser = mndAcquireUser(pMnode, pDb->createUser);
@@ -966,7 +960,6 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
   SMnode    *pMnode = pReq->info.node;
   int32_t    code = -1;
   SDbObj    *pDb = NULL;
-  SUserObj  *pUser = NULL;
   SDropDbReq dropReq = {0};
 
   if (tDeserializeSDropDbReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
@@ -987,12 +980,7 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
     }
   }
 
-  pUser = mndAcquireUser(pMnode, pReq->conn.user);
-  if (pUser == NULL) {
-    goto _OVER;
-  }
-
-  if (mndCheckAlterDropCompactDbAuth(pUser, pDb) != 0) {
+  if (mndCheckDbAuth(pMnode, pReq->info.conn.user, MND_OPER_DROP_DB, pDb) != 0) {
     goto _OVER;
   }
 
@@ -1005,8 +993,6 @@ _OVER:
   }
 
   mndReleaseDb(pMnode, pDb);
-  mndReleaseUser(pMnode, pUser);
-
   return code;
 }
 
@@ -1102,7 +1088,6 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
   SMnode   *pMnode = pReq->info.node;
   int32_t   code = -1;
   SDbObj   *pDb = NULL;
-  SUserObj *pUser = NULL;
   SUseDbReq usedbReq = {0};
   SUseDbRsp usedbRsp = {0};
 
@@ -1142,12 +1127,7 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
 
       mError("db:%s, failed to process use db req since %s", usedbReq.db, terrstr());
     } else {
-      pUser = mndAcquireUser(pMnode, pReq->conn.user);
-      if (pUser == NULL) {
-        goto _OVER;
-      }
-
-      if (mndCheckUseDbAuth(pUser, pDb) != 0) {
+      if (mndCheckDbAuth(pMnode, pReq->info.conn.user, MND_OPER_USE_DB, pDb) != 0) {
         goto _OVER;
       }
 
@@ -1178,7 +1158,6 @@ _OVER:
   }
 
   mndReleaseDb(pMnode, pDb);
-  mndReleaseUser(pMnode, pUser);
   tFreeSUsedbRsp(&usedbRsp);
 
   return code;
@@ -1259,7 +1238,6 @@ static int32_t mndProcessCompactDbReq(SRpcMsg *pReq) {
   SMnode       *pMnode = pReq->info.node;
   int32_t       code = -1;
   SDbObj       *pDb = NULL;
-  SUserObj     *pUser = NULL;
   SCompactDbReq compactReq = {0};
 
   if (tDeserializeSCompactDbReq(pReq->pCont, pReq->contLen, &compactReq) != 0) {
@@ -1274,12 +1252,7 @@ static int32_t mndProcessCompactDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  pUser = mndAcquireUser(pMnode, pReq->conn.user);
-  if (pUser == NULL) {
-    goto _OVER;
-  }
-
-  if (mndCheckAlterDropCompactDbAuth(pUser, pDb) != 0) {
+  if (mndCheckDbAuth(pMnode, pReq->info.conn.user, MND_OPER_COMPACT_DB, pDb) != 0) {
     goto _OVER;
   }
 
@@ -1291,8 +1264,6 @@ _OVER:
   }
 
   mndReleaseDb(pMnode, pDb);
-  mndReleaseUser(pMnode, pUser);
-
   return code;
 }
 
@@ -1381,7 +1352,7 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
   char *status = "ready";
   if (objStatus == SDB_STATUS_CREATING) status = "creating";
   if (objStatus == SDB_STATUS_DROPPING) status = "dropping";
-  char  statusB[24] = {0};
+  char statusB[24] = {0};
   STR_WITH_SIZE_TO_VARSTR(statusB, status, strlen(status));
 
   if (sysDb) {

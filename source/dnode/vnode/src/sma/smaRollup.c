@@ -181,7 +181,7 @@ int32_t tdProcessRSmaCreate(SVnode *pVnode, SVCreateStbReq *pReq) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (tdCheckAndInitSmaEnv(pSma, TSDB_SMA_TYPE_ROLLUP, false) != TSDB_CODE_SUCCESS) {
+  if (tdCheckAndInitSmaEnv(pSma, TSDB_SMA_TYPE_ROLLUP) != TSDB_CODE_SUCCESS) {
     terrno = TSDB_CODE_TDB_INIT_FAILED;
     return TSDB_CODE_FAILED;
   }
@@ -400,22 +400,24 @@ static FORCE_INLINE int32_t tdExecuteRSmaImpl(SSma *pSma, const void *pMsg, int3
   }
 
   if (taosArrayGetSize(pResult) > 0) {
-#if 1
+#if 0
     char flag[10] = {0};
     snprintf(flag, 10, "level %" PRIi8, level);
     blockDebugShowData(pResult, flag);
 #endif
     STsdb      *sinkTsdb = (level == TSDB_RETENTION_L1 ? pSma->pRSmaTsdb1 : pSma->pRSmaTsdb2);
     SSubmitReq *pReq = NULL;
-    if (buildSubmitReqFromDataBlock(&pReq, pResult, pTSchema, SMA_VID(pSma), suid) != 0) {
+    if (buildSubmitReqFromDataBlock(&pReq, pResult, pTSchema, SMA_VID(pSma), suid) < 0) {
       taosArrayDestroy(pResult);
       return TSDB_CODE_FAILED;
     }
-    if (tdProcessSubmitReq(sinkTsdb, INT64_MAX, pReq) != 0) {
+    
+    if (pReq && tdProcessSubmitReq(sinkTsdb, INT64_MAX, pReq) < 0) {
       taosArrayDestroy(pResult);
       taosMemoryFreeClear(pReq);
       return TSDB_CODE_FAILED;
     }
+
     taosMemoryFreeClear(pReq);
   } else {
     smaDebug("vgId:%d, no rsma % " PRIi8 " data generated since %s", SMA_VID(pSma), level, tstrerror(terrno));
@@ -466,6 +468,12 @@ int32_t tdProcessRSmaSubmit(SSma *pSma, void *pMsg, int32_t inputType) {
   SSmaEnv *pEnv = SMA_RSMA_ENV(pSma);
   if (!pEnv) {
     // only applicable when rsma env exists
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SRetention *pRetention = SMA_RETENTION(pSma);
+  if (!RETENTION_VALID(pRetention + 1)) {
+    // return directly if retention level 1 is invalid
     return TSDB_CODE_SUCCESS;
   }
 

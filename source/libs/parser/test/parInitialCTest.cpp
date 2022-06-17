@@ -46,7 +46,7 @@ TEST_F(ParserInitialCTest, createBnode) {
  *     BUFFER value
  *   | CACHELAST value
  *   | COMP {0 | 1 | 2}
- *   | DAYS value
+ *   | DURATION value
  *   | FSYNC value
  *   | MAXROWS value
  *   | MINROWS value
@@ -155,7 +155,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
     ASSERT_EQ(req.replications, expect.replications);
     ASSERT_EQ(req.strict, expect.strict);
     ASSERT_EQ(req.cacheLastRow, expect.cacheLastRow);
-    ASSERT_EQ(req.schemaless, expect.schemaless);
+    // ASSERT_EQ(req.schemaless, expect.schemaless);
     ASSERT_EQ(req.ignoreExist, expect.ignoreExist);
     ASSERT_EQ(req.numOfRetensions, expect.numOfRetensions);
     if (expect.numOfRetensions > 0) {
@@ -202,7 +202,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
       "BUFFER 64 "
       "CACHELAST 2 "
       "COMP 1 "
-      "DAYS 100 "
+      "DURATION 100 "
       "FSYNC 100 "
       "MAXROWS 1000 "
       "MINROWS 100 "
@@ -223,7 +223,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
   setDbDaysFunc(100);
   setDbKeepFunc(1440, 300 * 60, 400 * 1440);
   run("CREATE DATABASE IF NOT EXISTS wxy_db "
-      "DAYS 100m "
+      "DURATION 100m "
       "KEEP 1440m,300h,400d ");
   clearCreateDbReq();
 }
@@ -528,6 +528,12 @@ TEST_F(ParserInitialCTest, createStream) {
   clearCreateStreamReq();
 }
 
+TEST_F(ParserInitialCTest, createStreamSemanticCheck) {
+  useDb("root", "test");
+
+  run("CREATE STREAM s1 AS SELECT PERCENTILE(c1, 30) FROM t1", TSDB_CODE_PAR_STREAM_NOT_ALLOWED_FUNC);
+}
+
 TEST_F(ParserInitialCTest, createTable) {
   useDb("root", "test");
 
@@ -548,12 +554,14 @@ TEST_F(ParserInitialCTest, createTable) {
       "a14 NCHAR(30), a15 VARCHAR(50)) "
       "TTL 100 COMMENT 'test create table' SMA(c1, c2, c3) ROLLUP (MIN) FILE_FACTOR 0.1");
 
-  run("CREATE TABLE IF NOT EXISTS t1 USING st1 TAGS(1, 'wxy')");
+  run("CREATE TABLE IF NOT EXISTS t1 USING st1 TAGS(1, 'wxy', NOW)");
 
   run("CREATE TABLE "
       "IF NOT EXISTS test.t1 USING test.st1 (tag1, tag2) TAGS(1, 'abc') "
       "IF NOT EXISTS test.t2 USING test.st1 (tag1, tag2) TAGS(2, 'abc') "
       "IF NOT EXISTS test.t3 USING test.st1 (tag1, tag2) TAGS(3, 'abc') ");
+
+  // run("CREATE TABLE IF NOT EXISTS t1 USING st1 TAGS(1, 'wxy', NOW + 1S)");
 }
 
 TEST_F(ParserInitialCTest, createTopic) {

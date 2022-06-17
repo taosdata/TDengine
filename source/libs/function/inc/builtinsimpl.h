@@ -55,16 +55,22 @@ int32_t maxCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 bool getAvgFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool avgFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t avgFunction(SqlFunctionCtx* pCtx);
+int32_t avgFunctionMerge(SqlFunctionCtx* pCtx);
 int32_t avgFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+int32_t avgPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t avgInvertFunction(SqlFunctionCtx* pCtx);
 int32_t avgCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
+int32_t getAvgInfoSize();
 
 bool getStddevFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool stddevFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t stddevFunction(SqlFunctionCtx* pCtx);
+int32_t stddevFunctionMerge(SqlFunctionCtx* pCtx);
 int32_t stddevFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+int32_t stddevPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t stddevInvertFunction(SqlFunctionCtx* pCtx);
 int32_t stddevCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
+int32_t getStddevInfoSize();
 
 bool getLeastSQRFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool leastSQRFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
@@ -90,6 +96,10 @@ int32_t getApercentileMaxSize();
 bool getDiffFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool diffFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResInfo);
 int32_t diffFunction(SqlFunctionCtx *pCtx);
+
+bool getDerivativeFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+bool derivativeFuncSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResInfo);
+int32_t derivativeFunction(SqlFunctionCtx *pCtx);
 
 bool getFirstLastFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t firstFunction(SqlFunctionCtx *pCtx);

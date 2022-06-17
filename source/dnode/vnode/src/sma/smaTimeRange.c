@@ -142,7 +142,6 @@ int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg) {
   ASSERT(pItem);
 
   if (!pItem->pTSma) {
-    // cache smaMeta
     STSma *pTSma = metaGetSmaInfoByIndex(SMA_META(pSma), indexUid);
     if (!pTSma) {
       terrno = TSDB_CODE_TSMA_NO_INDEX_IN_META;
@@ -150,27 +149,28 @@ int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg) {
       return TSDB_CODE_FAILED;
     }
     pItem->pTSma = pTSma;
+    pItem->pTSchema = metaGetTbTSchema(SMA_META(pSma), pTSma->dstTbUid, -1);
+    ASSERT(pItem->pTSchema);  // TODO
   }
 
-  STSma *pTSma = pItem->pTSma;
-
-  ASSERT(pTSma->indexUid == indexUid);
-
-  SMetaReader mr = {0};
-
-  const char *dbName = "testDb";
-  if (metaGetTableEntryByName(&mr, dbName) != 0) {
-    smaDebug("vgId:%d, tsma no table testTb exists for smaIndex %" PRIi64 " since %s", SMA_VID(pSma), indexUid, tstrerror(terrno));
-    SVCreateStbReq pReq = {0};
-    pReq.name = dbName;
-    pReq.suid = pTSma->dstTbUid;
-    pReq.schemaRow = pCfg->schemaRow;
-    pReq.schemaTag = pCfg->schemaTag;
-  }
+  ASSERT(pItem->pTSma->indexUid == indexUid);
 
   SSubmitReq *pSubmitReq = NULL;
-  buildSubmitReqFromDataBlock(&pSubmitReq, (const SArray *)msg, NULL, pItem->pTSma->dstVgId,
-                              pItem->pTSma->dstTbUid);
+
+  pSubmitReq = tdBlockToSubmit((const SArray *)msg, pItem->pTSchema, true, pItem->pTSma->dstTbUid,
+                               pItem->pTSma->dstTbName, pItem->pTSma->dstVgId);
+
+  ASSERT(pSubmitReq);  // TODO
+
+  ASSERT(!strncasecmp("td.tsma.rst.tb", pItem->pTSma->dstTbName, 14));
+
+  SRpcMsg submitReqMsg = {
+      .msgType = TDMT_VND_SUBMIT,
+      .pCont = pSubmitReq,
+      .contLen = ntohl(pSubmitReq->length),
+  };
+
+  ASSERT(tmsgPutToQueue(&pSma->pVnode->msgCb, WRITE_QUEUE, &submitReqMsg) == 0);
 
   tdUnRefSmaStat(pSma, pStat);
 

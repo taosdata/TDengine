@@ -174,7 +174,7 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
       }
 
       if (pRsp->query->killConnection) {
-        taos_close(pTscObj);
+        taos_close_internal(pTscObj);
       }
 
       if (pRsp->query->pQnodeList) {
@@ -310,11 +310,12 @@ int32_t hbBuildQueryDesc(SQueryHbReqBasic *hbBasic, STscObj *pObj) {
     }
 
     tstrncpy(desc.sql, pRequest->sqlstr, sizeof(desc.sql));
-    desc.stime = pRequest->metric.start;
+    desc.stime = pRequest->metric.start / 1000;
     desc.queryId = pRequest->requestId;
     desc.useconds = now - pRequest->metric.start;
     desc.reqRid = pRequest->self;
     desc.pid = hbBasic->pid;
+    desc.stableQuery = pRequest->stableQuery;
     taosGetFqdn(desc.fqdn);
     desc.subPlanNum = pRequest->body.pDag ? pRequest->body.pDag->numOfSubplans : 0;
 
@@ -329,6 +330,7 @@ int32_t hbBuildQueryDesc(SQueryHbReqBasic *hbBasic, STscObj *pObj) {
       if (code) {
         taosArrayDestroy(desc.subDesc);
         desc.subDesc = NULL;
+        desc.subPlanNum = 0;
       }
     } else {
       desc.subDesc = NULL;
@@ -350,18 +352,23 @@ int32_t hbGetQueryBasicInfo(SClientHbKey *connKey, SClientHbReq *req) {
     return TSDB_CODE_QRY_APP_ERROR;
   }
 
-  int32_t numOfQueries = pTscObj->pRequests ? taosHashGetSize(pTscObj->pRequests) : 0;
-  if (numOfQueries <= 0) {
-    releaseTscObj(connKey->tscRid);
-    tscDebug("no queries on connection");
-    return TSDB_CODE_QRY_APP_ERROR;
-  }
-
   SQueryHbReqBasic *hbBasic = (SQueryHbReqBasic *)taosMemoryCalloc(1, sizeof(SQueryHbReqBasic));
   if (NULL == hbBasic) {
     tscError("calloc %d failed", (int32_t)sizeof(SQueryHbReqBasic));
     releaseTscObj(connKey->tscRid);
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
+  }
+  
+  hbBasic->connId = pTscObj->connId;
+  hbBasic->pid = taosGetPId();
+  taosGetAppName(hbBasic->app, NULL);
+
+  int32_t numOfQueries = pTscObj->pRequests ? taosHashGetSize(pTscObj->pRequests) : 0;
+  if (numOfQueries <= 0) {
+    req->query = hbBasic;
+    releaseTscObj(connKey->tscRid);
+    tscDebug("no queries on connection");
+    return TSDB_CODE_SUCCESS;
   }
 
   hbBasic->queryDesc = taosArrayInit(numOfQueries, sizeof(SQueryDesc));
@@ -372,9 +379,6 @@ int32_t hbGetQueryBasicInfo(SClientHbKey *connKey, SClientHbReq *req) {
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
 
-  hbBasic->connId = pTscObj->connId;
-  hbBasic->pid = taosGetPId();
-  taosGetAppName(hbBasic->app, NULL);
 
   int32_t code = hbBuildQueryDesc(hbBasic, pTscObj);
   if (code) {
@@ -588,7 +592,9 @@ void hbThreadFuncUnexpectedStopped(void) {
 static void *hbThreadFunc(void *param) {
   setThreadName("hb");
 #ifdef WINDOWS
-  atexit(hbThreadFuncUnexpectedStopped);
+  if (taosCheckCurrentInDll()) {
+    atexit(hbThreadFuncUnexpectedStopped);
+  }
 #endif
   while (1) {
     int8_t threadStop = atomic_val_compare_exchange_8(&clientHbMgr.threadStop, 1, 2);

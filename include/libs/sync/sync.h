@@ -45,13 +45,6 @@ typedef enum {
 } ESyncState;
 
 typedef enum {
-  TAOS_SYNC_PROPOSE_SUCCESS = 0,
-  TAOS_SYNC_PROPOSE_NOT_LEADER = 1,
-  TAOS_SYNC_PROPOSE_OTHER_ERROR = 2,
-  TAOS_SYNC_ONLY_ONE_REPLICA = 3,
-} ESyncProposeCode;
-
-typedef enum {
   TAOS_SYNC_FSM_CB_SUCCESS = 0,
   TAOS_SYNC_FSM_CB_OTHER_ERROR = 1,
 } ESyncFsmCbCode;
@@ -110,6 +103,7 @@ typedef struct SSyncFSM {
 
   void (*FpRestoreFinishCb)(struct SSyncFSM* pFsm);
   void (*FpReConfigCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SReConfigCbMeta cbMeta);
+  void (*FpLeaderTransferCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
 
   int32_t (*FpGetSnapshot)(struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
 
@@ -188,6 +182,7 @@ void        syncStart(int64_t rid);
 void        syncStop(int64_t rid);
 int32_t     syncSetStandby(int64_t rid);
 ESyncState  syncGetMyRole(int64_t rid);
+bool        syncIsReady(int64_t rid);
 const char* syncGetMyRoleStr(int64_t rid);
 SyncTerm    syncGetMyTerm(int64_t rid);
 void        syncGetEpSet(int64_t rid, SEpSet* pEpSet);
@@ -197,16 +192,15 @@ bool        syncEnvIsStart();
 const char* syncStr(ESyncState state);
 bool        syncIsRestoreFinish(int64_t rid);
 int32_t     syncGetSnapshotMeta(int64_t rid, struct SSnapshotMeta* sMeta);
+int32_t     syncGetSnapshotMetaByIndex(int64_t rid, SyncIndex snapshotIndex, struct SSnapshotMeta* sMeta);
 
 int32_t syncReconfig(int64_t rid, const SSyncCfg* pNewCfg);
-int32_t syncReconfigRaw(int64_t rid, const SSyncCfg* pNewCfg, SRpcMsg* pRpcMsg);
+
+// build SRpcMsg, need to call syncPropose with SRpcMsg
+int32_t syncReconfigBuild(int64_t rid, const SSyncCfg* pNewCfg, SRpcMsg* pRpcMsg);
 
 int32_t syncLeaderTransfer(int64_t rid);
 int32_t syncLeaderTransferTo(int64_t rid, SNodeInfo newLeader);
-
-// to be moved to static
-void syncStartNormal(int64_t rid);
-void syncStartStandBy(int64_t rid);
 
 #ifdef __cplusplus
 }
