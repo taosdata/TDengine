@@ -1225,7 +1225,7 @@ static int32_t mnodeProcessDropSuperTableMsg(SMnodeMsg *pMsg) {
 static int32_t mnodeFindSuperTableTagIndex(SSTableObj *pStable, const char *tagName) {
   SSchema *schema = (SSchema *) pStable->schema;
   for (int32_t tag = 0; tag < pStable->numOfTags; tag++) {
-    if (strcasecmp(schema[pStable->numOfColumns + tag].name, tagName) == 0) {
+    if (strcmp(schema[pStable->numOfColumns + tag].name, tagName) == 0) {
       return tag;
     }
   }
@@ -1378,7 +1378,7 @@ static int32_t mnodeModifySuperTableTagName(SMnodeMsg *pMsg, char *oldTagName, c
 static int32_t mnodeFindSuperTableColumnIndex(SSTableObj *pStable, char *colName) {
   SSchema *schema = (SSchema *) pStable->schema;
   for (int32_t col = 0; col < pStable->numOfColumns; col++) {
-    if (strcasecmp(schema[col].name, colName) == 0) {
+    if (strcmp(schema[col].name, colName) == 0) {
       return col;
     }
   }
@@ -3548,7 +3548,7 @@ static int32_t mnodeRetrieveStreamTables(SShowObj *pShow, char *data, int32_t ro
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pTable->sql, pShow->bytes[cols]);    
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pTable->sql, pShow->bytes[cols]);
     cols++;
 
     numOfRows++;
@@ -3583,13 +3583,13 @@ static int32_t mnodeCompactSuperTables() {
     };
 
     //mInfo("compact super %" PRIu64, pTable->uid);
-    
+
     sdbInsertCompactRow(&row);
   }
 
   mInfo("end to compact super table...");
 
-  return 0; 
+  return 0;
 }
 
 static int32_t mnodeCompactChildTables() {
@@ -3609,13 +3609,13 @@ static int32_t mnodeCompactChildTables() {
     };
 
     //mInfo("compact child %" PRIu64 ":%d", pTable->uid, pTable->tid);
-    
+
     sdbInsertCompactRow(&row);
   }
 
   mInfo("end to compact child table...");
 
-  return 0; 
+  return 0;
 }
 
 int32_t mnodeCompactTables() {
