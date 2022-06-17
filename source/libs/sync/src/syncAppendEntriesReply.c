@@ -190,21 +190,21 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
         if (gRaftDetailLog) {
           char* s = snapshotSender2Str(pSender);
           sDebug(
-              "vgId:%d sync event %s currentTerm:%lu snapshot send to %s:%d start sender first time, "
+              "vgId:%d, sync event %s commitIndex:%ld currentTerm:%lu snapshot send to %s:%d start sender first time, "
               "lastApplyIndex:%ld "
               "lastApplyTerm:%lu "
               "lastConfigIndex:%ld privateTerm:%lu "
               "sender:%s",
-              ths->vgId, syncUtilState2String(ths->state), ths->pRaftStore->currentTerm, host, port,
+              ths->vgId, syncUtilState2String(ths->state), ths->commitIndex, ths->pRaftStore->currentTerm, host, port,
               pSender->snapshot.lastApplyIndex, pSender->snapshot.lastApplyTerm, pSender->snapshot.lastConfigIndex,
               pSender->privateTerm, s);
           taosMemoryFree(s);
         } else {
           sDebug(
-              "vgId:%d sync event %s currentTerm:%lu snapshot send to %s:%d start sender first time, "
+              "vgId:%d, sync event %s commitIndex:%ld currentTerm:%lu snapshot send to %s:%d start sender first time, "
               "lastApplyIndex:%ld "
               "lastApplyTerm:%lu lastConfigIndex:%ld privateTerm:%lu",
-              ths->vgId, syncUtilState2String(ths->state), ths->pRaftStore->currentTerm, host, port,
+              ths->vgId, syncUtilState2String(ths->state), ths->commitIndex, ths->pRaftStore->currentTerm, host, port,
               pSender->snapshot.lastApplyIndex, pSender->snapshot.lastApplyTerm, pSender->snapshot.lastConfigIndex,
               pSender->privateTerm);
         }

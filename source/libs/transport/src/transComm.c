@@ -376,17 +376,19 @@ static void transDQTimeout(uv_timer_t* timer) {
   SDelayQueue* queue = timer->data;
   tTrace("timer %p timeout", timer);
   uint64_t timeout = 0;
+  int64_t  current = taosGetTimestampMs();
   do {
     HeapNode* minNode = heapMin(queue->heap);
     if (minNode == NULL) break;
     SDelayTask* task = container_of(minNode, SDelayTask, node);
-    if (task->execTime <= taosGetTimestampMs()) {
+
+    if (task->execTime <= current) {
       heapRemove(queue->heap, minNode);
       task->func(task->arg);
       taosMemoryFree(task);
       timeout = 0;
     } else {
-      timeout = task->execTime - taosGetTimestampMs();
+      timeout = task->execTime - current;
       break;
     }
   } while (1);

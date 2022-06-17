@@ -220,7 +220,7 @@ int vnodeCommit(SVnode *pVnode) {
   info.state.committed = pVnode->state.applied;
   snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path);
   if (vnodeSaveInfo(dir, &info) < 0) {
-    // ASSERT(0);
+    ASSERT(0);
     return -1;
   }
 

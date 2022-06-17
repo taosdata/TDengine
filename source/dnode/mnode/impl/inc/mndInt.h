@@ -67,7 +67,8 @@ typedef struct {
 } SShowMgmt;
 
 typedef struct {
-  SCacheObj *cache;
+  SCacheObj *connCache;
+  SCacheObj *appCache;  
 } SProfileMgmt;
 
 typedef struct {

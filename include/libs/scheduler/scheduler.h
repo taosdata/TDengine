@@ -73,13 +73,14 @@ typedef void (*schedulerExecCallback)(SQueryResult* pResult, void* param, int32_
 typedef void (*schedulerFetchCallback)(void* pResult, void* param, int32_t code);
 
 typedef struct SSchedulerReq {
-  SRequestConnInfo *pConn;
-  SArray *pNodeList;
-  SQueryPlan *pDag;
-  const char *sql;
-  int64_t startTs;
+  bool                 *reqKilled;
+  SRequestConnInfo     *pConn;
+  SArray               *pNodeList;
+  SQueryPlan           *pDag;
+  const char           *sql;
+  int64_t               startTs;
   schedulerExecCallback fp;
-  void* cbParam;
+  void*                 cbParam;
 } SSchedulerReq;
 
 
@@ -127,7 +128,7 @@ void schedulerStopQueryHb(void *pTrans);
  * Free the query job
  * @param pJob
  */
-void schedulerFreeJob(int64_t job);
+void schedulerFreeJob(int64_t job, int32_t errCode);
 
 void schedulerDestroy(void);
 

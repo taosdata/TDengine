@@ -26,8 +26,10 @@
 #include "ttypes.h"
 #include "executorInt.h"
 
+static void*    getCurrentDataGroupInfo(const SPartitionOperatorInfo* pInfo, SDataGroupInfo** pGroupInfo, int32_t len);
 static int32_t* setupColumnOffset(const SSDataBlock* pBlock, int32_t rowCapacity);
-static void* getCurrentDataGroupInfo(const SPartitionOperatorInfo* pInfo, SDataGroupInfo** pGroupInfo, int32_t len);
+static int32_t  setGroupResultOutputBuf(SOptrBasicInfo* binfo, int32_t numOfCols, char* pData, int16_t type, int16_t bytes,
+                                       int32_t groupId, SDiskbasedBuf* pBuf, SExecTaskInfo* pTaskInfo, SAggSupporter* pAggSup);
 
 static void destroyGroupOperatorInfo(void* param, int32_t numOfOutput) {
   SGroupbyOperatorInfo* pInfo = (SGroupbyOperatorInfo*)param;
@@ -291,7 +293,7 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
     doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
 
     size_t rows = pRes->info.rows;
-    if (rows == 0 || !hashRemainDataInGroupInfo(&pInfo->groupResInfo)) {
+    if (rows == 0 || !hasDataInGroupInfo(&pInfo->groupResInfo)) {
       doSetOperatorCompleted(pOperator);
     }
 
@@ -331,7 +333,6 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
   }
 
   pOperator->status = OP_RES_TO_RETURN;
-  closeAllResultRows(&pInfo->binfo.resultRowInfo);
 
 #if 0
   if(pOperator->fpSet.encodeResultRow){
@@ -356,7 +357,7 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
     doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
     doFilter(pInfo->pCondition, pRes);
 
-    bool hasRemain = hashRemainDataInGroupInfo(&pInfo->groupResInfo);
+    bool hasRemain = hasDataInGroupInfo(&pInfo->groupResInfo);
     if (!hasRemain) {
       doSetOperatorCompleted(pOperator);
       break;
@@ -396,7 +397,7 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pEx
 
   initResultSizeInfo(pOperator, 4096);
   initAggInfo(&pInfo->binfo, &pInfo->aggSup, pExprInfo, numOfCols, pResultBlock, pInfo->groupKeyLen, pTaskInfo->id.str);
-  initResultRowInfo(&pInfo->binfo.resultRowInfo, 8);
+  initResultRowInfo(&pInfo->binfo.resultRowInfo);
 
   pOperator->name         = "GroupbyAggOperator";
   pOperator->blocking     = true;
@@ -739,4 +740,18 @@ SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SPartition
   taosMemoryFreeClear(pInfo);
   taosMemoryFreeClear(pOperator);
   return NULL;
+}
+
+int32_t setGroupResultOutputBuf(SOptrBasicInfo* binfo, int32_t numOfCols, char* pData, int16_t type, int16_t bytes,
+                                int32_t groupId, SDiskbasedBuf* pBuf, SExecTaskInfo* pTaskInfo,
+                                SAggSupporter* pAggSup) {
+  SResultRowInfo* pResultRowInfo = &binfo->resultRowInfo;
+  SqlFunctionCtx* pCtx = binfo->pCtx;
+
+  SResultRow* pResultRow =
+      doSetResultOutBufByKey(pBuf, pResultRowInfo, (char*)pData, bytes, true, groupId, pTaskInfo, false, pAggSup);
+  assert(pResultRow != NULL);
+
+  setResultRowInitCtx(pResultRow, pCtx, numOfCols, binfo->rowCellInfoOffset);
+  return TSDB_CODE_SUCCESS;
 }
