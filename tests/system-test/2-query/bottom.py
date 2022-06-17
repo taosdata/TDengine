@@ -16,6 +16,7 @@ import string
 from util.log import *
 from util.cases import *
 from util.sql import *
+from util.common import *
 
 
 
@@ -29,20 +30,6 @@ class TDTestCase:
         self.ts = 1537146000000
         self.binary_str = 'taosdata'
         self.nchar_str = '涛思数据'
-    def get_long_name(self, length, mode="mixed"):
-        """
-        generate long name
-        mode could be numbers/letters/letters_mixed/mixed
-        """
-        if mode == "numbers":
-            population = string.digits
-        elif mode == "letters":
-            population = string.ascii_letters.lower()
-        elif mode == "letters_mixed":
-            population = string.ascii_letters.upper() + string.ascii_letters.lower()
-        else:
-            population = string.ascii_letters.lower() + string.digits
-        return "".join(random.choices(population, k=length))
     def bottom_check_base(self):
         tdSql.prepare()
         tdSql.execute('''create table stb(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 tinyint unsigned, col6 smallint unsigned, 
@@ -72,8 +59,8 @@ class TDTestCase:
         tdSql.execute('drop database db')
     def bottom_check_distribute(self):
         # prepare data for vgroup 4
-        dbname = self.get_long_name(length=10, mode="letters")
-        stbname = self.get_long_name(length=5, mode="letters")
+        dbname = tdCom.getLongName(5, "letters")
+        stbname = tdCom.getLongName(5, "letters")
         vgroup_num = 2
         child_table_num = 20
         tdSql.execute(f"create database if not exists {dbname} vgroups {vgroup_num}")

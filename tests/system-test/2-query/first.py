@@ -15,6 +15,7 @@ import random
 import string
 import sys
 import taos
+from util.common import *
 from util.log import *
 from util.cases import *
 from util.sql import *
@@ -32,20 +33,6 @@ class TDTestCase:
         self.binary_str = 'taosdata'
         self.nchar_str = '涛思数据'
     
-    def get_long_name(self, length, mode="mixed"):
-        """
-        generate long name
-        mode could be numbers/letters/letters_mixed/mixed
-        """
-        if mode == "numbers":
-            population = string.digits
-        elif mode == "letters":
-            population = string.ascii_letters.lower()
-        elif mode == "letters_mixed":
-            population = string.ascii_letters.upper() + string.ascii_letters.lower()
-        else:
-            population = string.ascii_letters.lower() + string.digits
-        return "".join(random.choices(population, k=length))
     def first_check_base(self):
         tdSql.prepare()
         column_dict = {
@@ -110,8 +97,8 @@ class TDTestCase:
         tdSql.execute('drop database db')
     def first_check_stb_distribute(self):
         # prepare data for vgroup 4
-        dbname = self.get_long_name(length=10, mode="letters")
-        stbname = self.get_long_name(length=5, mode="letters")
+        dbname = tdCom.getLongName(10, "letters")
+        stbname = tdCom.getLongName(5, "letters")
         child_table_num = 20
         vgroup = 2
         column_dict = {

@@ -3,6 +3,7 @@ import string
 from util.log import *
 from util.cases import *
 from util.sql import *
+from util.common import *
 import numpy as np
 
 
@@ -16,21 +17,6 @@ class TDTestCase:
         self.ts = 1537146000000
         self.binary_str = 'taosdata'
         self.nchar_str = '涛思数据'
-
-    def get_long_name(self, length, mode="mixed"):
-        """
-        generate long name
-        mode could be numbers/letters/letters_mixed/mixed
-        """
-        if mode == "numbers":
-            population = string.digits
-        elif mode == "letters":
-            population = string.ascii_letters.lower()
-        elif mode == "letters_mixed":
-            population = string.ascii_letters.upper() + string.ascii_letters.lower()
-        else:
-            population = string.ascii_letters.lower() + string.digits
-        return "".join(random.choices(population, k=length))
 
     def set_create_normaltable_sql(self, ntbname, column_dict):
         column_sql = ''
@@ -51,7 +37,7 @@ class TDTestCase:
     
     def last_check_stb_tb_base(self):
         tdSql.prepare()
-        stbname = self.get_long_name(length=5, mode="letters")
+        stbname = tdCom.getLongName(5, "letters")
         column_dict = {
             'col1': 'tinyint',
             'col2': 'smallint',
@@ -127,7 +113,7 @@ class TDTestCase:
 
     def last_check_ntb_base(self):
         tdSql.prepare()
-        ntbname = self.get_long_name(length=5, mode="letters")
+        ntbname = tdCom.getLongName(5, "letters")
         column_dict = {
             'col1': 'tinyint',
             'col2': 'smallint',
@@ -191,8 +177,8 @@ class TDTestCase:
 
     def last_check_stb_distribute(self):
         # prepare data for vgroup 4
-        dbname = self.get_long_name(length=10, mode="letters")
-        stbname = self.get_long_name(length=5, mode="letters")
+        dbname = tdCom.getLongName(10, "letters")
+        stbname = tdCom.getLongName(5, "letters")
         vgroup_num = 4
         column_dict = {
             'col1': 'tinyint',
