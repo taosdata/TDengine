@@ -23,9 +23,9 @@ class PlanSetOpTest : public PlannerTestBase {};
 TEST_F(PlanSetOpTest, unionAll) {
   useDb("root", "test");
 
-  // sql 1: single UNION ALL operator
+  // single UNION ALL operator
   run("SELECT c1, c2 FROM t1 WHERE c1 > 10 UNION ALL SELECT c1, c2 FROM t1 WHERE c1 > 20");
-  // sql 2: multi UNION ALL operator
+  // multi UNION ALL operator
   run("SELECT c1, c2 FROM t1 WHERE c1 > 10 "
       "UNION ALL SELECT c1, c2 FROM t1 WHERE c1 > 20 "
       "UNION ALL SELECT c1, c2 FROM t1 WHERE c1 > 30");
@@ -44,6 +44,14 @@ TEST_F(PlanSetOpTest, unionAllWithSubquery) {
   run("SELECT ts FROM (SELECT ts FROM st1s1) UNION ALL SELECT ts FROM (SELECT ts FROM st1s2)");
   // super table
   run("SELECT ts FROM (SELECT ts FROM st1) UNION ALL SELECT ts FROM (SELECT ts FROM st1)");
+}
+
+TEST_F(PlanSetOpTest, unionAllWithOrderBy) {
+  useDb("root", "test");
+
+  run("SELECT c1, c2 FROM t1 WHERE c1 > 10 UNION ALL SELECT c1, c2 FROM t1 WHERE c1 > 20 ORDER BY c1");
+
+  run("SELECT c1, c2 FROM t1 WHERE c1 > 10 UNION ALL SELECT c1, c2 FROM t1 WHERE c1 > 20 ORDER BY 1");
 }
 
 TEST_F(PlanSetOpTest, union) {

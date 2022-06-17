@@ -34,7 +34,7 @@ endi
 if $data24 != 1 then
   return -1
 endi
-if $data26 != 2880 then
+if $data26 != 2880m then
   return -1
 endi
 if $data27 != 14400m,14400m,14400m then
@@ -78,7 +78,7 @@ endi
 if $data24 != 1 then
   return -1
 endi
-if $data26 != 21600 then
+if $data26 != 21600m then
   return -1
 endi
 

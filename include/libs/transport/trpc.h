@@ -46,7 +46,6 @@ typedef struct SRpcHandleInfo {
   int32_t noResp;         // has response or not(default 0, 0: resp, 1: no resp);
   int32_t persistHandle;  // persist handle or not
 
-  SRpcConnInfo connInfo;
   // app info
   void *ahandle;  // app handle set by client
   void *wrapper;  // wrapper handle
@@ -55,6 +54,9 @@ typedef struct SRpcHandleInfo {
   // resp info
   void *  rsp;
   int32_t rspLen;
+
+  // conn info
+  SRpcConnInfo conn;
 } SRpcHandleInfo;
 
 typedef struct SRpcMsg {
@@ -63,7 +65,6 @@ typedef struct SRpcMsg {
   int32_t        contLen;
   int32_t        code;
   SRpcHandleInfo info;
-  SRpcConnInfo   conn;
 } SRpcMsg;
 
 typedef void (*RpcCfp)(void *parent, SRpcMsg *, SEpSet *rf);
