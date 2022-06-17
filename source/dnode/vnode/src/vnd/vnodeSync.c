@@ -329,8 +329,9 @@ static int32_t vnodeSyncGetSnapshot(SSyncFSM *pFsm, SSnapshot *pSnapshot) {
 static void vnodeSyncReconfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReConfigCbMeta cbMeta) {
   SVnode *pVnode = pFsm->data;
 
-  SRpcMsg rpcMsg = {.msgType = pMsg->msgType, .contLen = pMsg->contLen, .info.conn.applyIndex = cbMeta.index};
+  SRpcMsg rpcMsg = {.msgType = pMsg->msgType, .contLen = pMsg->contLen};
   syncGetAndDelRespRpc(pVnode->sync, cbMeta.seqNum, &rpcMsg.info);
+  rpcMsg.info.conn.applyIndex = cbMeta.index;
 
   vInfo("vgId:%d, alter vnode replica is confirmed, type:%s contLen:%d seq:%" PRIu64 " handle:%p", TD_VID(pVnode),
         TMSG_INFO(pMsg->msgType), pMsg->contLen, cbMeta.seqNum, rpcMsg.info.handle);
@@ -359,10 +360,11 @@ static void vnodeSyncCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta c
         pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state), beginIndex);
     syncRpcMsgLog2(logBuf, (SRpcMsg *)pMsg);
 
-    SRpcMsg rpcMsg = {.msgType = pMsg->msgType, .contLen = pMsg->contLen, .info.conn.applyIndex = cbMeta.index};
+    SRpcMsg rpcMsg = {.msgType = pMsg->msgType, .contLen = pMsg->contLen};
     rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
     memcpy(rpcMsg.pCont, pMsg->pCont, pMsg->contLen);
     syncGetAndDelRespRpc(pVnode->sync, cbMeta.seqNum, &rpcMsg.info);
+    rpcMsg.info.conn.applyIndex = cbMeta.index;
     tmsgPutToQueue(&pVnode->msgCb, APPLY_QUEUE, &rpcMsg);
 
   } else {
