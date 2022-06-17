@@ -62,6 +62,7 @@ typedef struct SSyncCfg {
 
 typedef struct SFsmCbMeta {
   SyncIndex  index;
+  SyncIndex  lastConfigIndex;
   bool       isWeak;
   int32_t    code;
   ESyncState state;
@@ -75,6 +76,7 @@ typedef struct SReConfigCbMeta {
   int32_t   code;
   SyncIndex index;
   SyncTerm  term;
+  SyncIndex lastConfigIndex;
   SyncTerm  currentTerm;
   SSyncCfg  oldCfg;
   SSyncCfg  newCfg;
