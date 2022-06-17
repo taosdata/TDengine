@@ -1796,9 +1796,7 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
   }
 
   pRes->info.rows = count;
-  doFilter(pInfo->pFilterNode, pRes);
-
-  pOperator->resultInfo.totalRows += pRes->info.rows;
+  pOperator->resultInfo.totalRows += count;
 
   return (pRes->info.rows == 0) ? NULL : pInfo->pRes;
 }
@@ -1830,7 +1828,6 @@ SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysi
   ;
   pInfo->readHandle = *pReadHandle;
   pInfo->curPos = 0;
-  pInfo->pFilterNode = pPhyNode->node.pConditions;
   pOperator->name = "TagScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN;
   pOperator->blocking = false;

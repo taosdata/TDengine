@@ -1346,7 +1346,7 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t numOfRows, int
           if (jsonInnerType == TSDB_DATA_TYPE_NULL) {
             sprintf(varDataVal(dst), "%s", TSDB_DATA_NULL_STR_L);
             varDataSetLen(dst, strlen(varDataVal(dst)));
-          } else if (jsonInnerType == TD_TAG_JSON) {
+          } else if (jsonInnerType & TD_TAG_JSON) {
             char* jsonString = parseTagDatatoJson(pStart);
             STR_TO_VARSTR(dst, jsonString);
             taosMemoryFree(jsonString);
