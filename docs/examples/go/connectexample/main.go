@@ -15,11 +15,12 @@ func main() {
 		fmt.Println(err)
 		return
 	}
-	_, err = taos.Query("select server_version()")
+	defer taos.Close()
+	rows, err := taos.Query("select server_version()")
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
+	rows.Close()
 	fmt.Println("connect success")
-	defer taos.Close()
 }

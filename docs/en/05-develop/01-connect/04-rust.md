@@ -6,13 +6,18 @@ pagination_next: develop/insert-data
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
+## Create Project
+
+```
+cargo new cloud_example
+```
 ## Add Dependency
 
 Add dependency to `Cargo.toml`. 
 
 ```toml title="Cargo.toml"
 [dependencies]
-libtaos = { version = "0.4.2"}
+libtaos = { version="*", feature=["rest"]}
 ```
 
 ## Config
@@ -59,15 +64,7 @@ To obtain the value of cloud token and URL, please log in [TDengine Cloud](https
 Copy following code to `main.rs`.
 
 ```rust title="main.rs"
-use libtaos::*;
-
-fn main() {
-    let token =  std::env::var("TDENGINE_CLOUD_TOKEN").unwrap();
-    let url = std::env::var("TDENGINE_CLOUD_URL").unwrap();
-    let dsn = url + "?token=" + &token;
-    let taos = Taos::from_dsn(dsn)?;
-    println!("connected");
-}
+{{#include docs/examples/rust/cloud_example/src/main.rs}}
 ```
 
 Then you can execute `cargo run` to test the connection.
