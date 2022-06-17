@@ -282,6 +282,8 @@ int32_t tfsMkdir(STfs *pTfs, const char *rname) {
 }
 
 int32_t tfsRmdir(STfs *pTfs, const char *rname) {
+  ASSERT(rname[0] != 0);
+    
   char aname[TMPNAME_LEN] = "\0";
 
   for (int32_t level = 0; level < pTfs->nlevel; level++) {
@@ -289,6 +291,7 @@ int32_t tfsRmdir(STfs *pTfs, const char *rname) {
     for (int32_t id = 0; id < pTier->ndisk; id++) {
       STfsDisk *pDisk = pTier->disks[id];
       snprintf(aname, TMPNAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, rname);
+      uInfo("====> tfs remove dir : path:%s aname:%s rname:[%s]", pDisk->path, aname, rname);
       taosRemoveDir(aname);
     }
   }
