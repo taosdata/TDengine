@@ -461,7 +461,8 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
                           .sql = pRequest->sqlstr,
                           .startTs = pRequest->metric.start,
                           .fp = NULL,
-                          .cbParam = NULL};
+                          .cbParam = NULL,
+                          .reqKilled = &pRequest->killed};
 
   int32_t code = schedulerExecJob(&req, &pRequest->body.queryJob, &res);
   pRequest->body.resInfo.execRes = res.res;
@@ -738,7 +739,8 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery) {
                              .sql = pRequest->sqlstr,
                              .startTs = pRequest->metric.start,
                              .fp = schedulerExecCb,
-                             .cbParam = pRequest};
+                             .cbParam = pRequest,
+                             .reqKilled = &pRequest->killed};
         code = schedulerAsyncExecJob(&req, &pRequest->body.queryJob);
       } else {
         tscError("0x%" PRIx64 " failed to create query plan, code:%s 0x%" PRIx64, pRequest->self, tstrerror(code),

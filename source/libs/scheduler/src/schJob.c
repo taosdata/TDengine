@@ -54,6 +54,7 @@ int32_t schInitJob(SSchedulerReq *pReq, SSchJob **pSchJob, SQueryResult* pRes, b
   pJob->attr.explainMode = pReq->pDag->explainInfo.mode;
   pJob->conn = *pReq->pConn;
   pJob->sql = pReq->sql;
+  pJob->reqKilled = pReq->reqKilled;
   pJob->userRes.queryRes = pRes;
   pJob->userRes.execFp = pReq->fp;
   pJob->userRes.userParam = pReq->cbParam;
@@ -154,11 +155,51 @@ void schFreeTask(SSchJob *pJob, SSchTask *pTask) {
   }
 }
 
+
+void schUpdateJobErrCode(SSchJob *pJob, int32_t errCode) {
+  if (TSDB_CODE_SUCCESS == errCode) {
+    return;
+  }
+
+  int32_t origCode = atomic_load_32(&pJob->errCode);
+  if (TSDB_CODE_SUCCESS == origCode) {
+    if (origCode == atomic_val_compare_exchange_32(&pJob->errCode, origCode, errCode)) {
+      goto _return;
+    }
+
+    origCode = atomic_load_32(&pJob->errCode);
+  }
+
+  if (NEED_CLIENT_HANDLE_ERROR(origCode)) {
+    return;
+  }
+
+  if (NEED_CLIENT_HANDLE_ERROR(errCode)) {
+    atomic_store_32(&pJob->errCode, errCode);
+    goto _return;
+  }
+
+  return;
+
+_return:
+
+  SCH_JOB_DLOG("job errCode updated to %x - %s", errCode, tstrerror(errCode));
+}
+
+
+
 FORCE_INLINE bool schJobNeedToStop(SSchJob *pJob, int8_t *pStatus) {
   int8_t status = SCH_GET_JOB_STATUS(pJob);
   if (pStatus) {
     *pStatus = status;
   }
+
+  if (pJob->reqKilled) {
+    schUpdateJobStatus(pJob, JOB_TASK_STATUS_DROPPING);
+    schUpdateJobErrCode(pJob, TSDB_CODE_TSC_QUERY_KILLED);
+
+    return true;
+  }  
 
   return (status == JOB_TASK_STATUS_FAILED || status == JOB_TASK_STATUS_DROPPING ||
           status == JOB_TASK_STATUS_SUCCEED);
@@ -255,7 +296,13 @@ void schEndOperation(SSchJob *pJob) {
 
 int32_t schBeginOperation(SSchJob *pJob, SCH_OP_TYPE type, bool sync) {
   int32_t code = 0;
+  int8_t status = 0;
   
+  if (schJobNeedToStop(pJob, &status)) {
+    SCH_JOB_ELOG("job need to stop cause of status %s", jobTaskStatusStr(status));
+    SCH_ERR_JRET(pJob->errCode);
+  }
+      
   if (SCH_OP_NULL != atomic_val_compare_exchange_32(&pJob->opStatus.op, SCH_OP_NULL, type)) {
     SCH_JOB_ELOG("job already in %s operation", schGetOpStr(pJob->opStatus.op));
     SCH_ERR_JRET(TSDB_CODE_TSC_APP_ERROR);
@@ -275,11 +322,7 @@ int32_t schBeginOperation(SSchJob *pJob, SCH_OP_TYPE type, bool sync) {
         SCH_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
       }
 
-      int8_t status = 0;
-      if (schJobNeedToStop(pJob, &status)) {
-        SCH_JOB_ELOG("job need to stop cause of status %s", jobTaskStatusStr(status));
-        SCH_ERR_JRET(TSDB_CODE_SCH_STATUS_ERROR);
-      } else if (status != JOB_TASK_STATUS_PARTIAL_SUCCEED) {
+      if (status != JOB_TASK_STATUS_PARTIAL_SUCCEED) {
         SCH_JOB_ELOG("job status error for fetch, status:%s", jobTaskStatusStr(status));
         SCH_ERR_JRET(TSDB_CODE_SCH_STATUS_ERROR);
       }
@@ -840,37 +883,6 @@ int32_t schHandleTaskRetry(SSchJob *pJob, SSchTask *pTask) {
 
   return TSDB_CODE_SUCCESS;
 }
-
-void schUpdateJobErrCode(SSchJob *pJob, int32_t errCode) {
-  if (TSDB_CODE_SUCCESS == errCode) {
-    return;
-  }
-
-  int32_t origCode = atomic_load_32(&pJob->errCode);
-  if (TSDB_CODE_SUCCESS == origCode) {
-    if (origCode == atomic_val_compare_exchange_32(&pJob->errCode, origCode, errCode)) {
-      goto _return;
-    }
-
-    origCode = atomic_load_32(&pJob->errCode);
-  }
-
-  if (NEED_CLIENT_HANDLE_ERROR(origCode)) {
-    return;
-  }
-
-  if (NEED_CLIENT_HANDLE_ERROR(errCode)) {
-    atomic_store_32(&pJob->errCode, errCode);
-    goto _return;
-  }
-
-  return;
-
-_return:
-
-  SCH_JOB_DLOG("job errCode updated to %x - %s", errCode, tstrerror(errCode));
-}
-
 
 int32_t schSetJobQueryRes(SSchJob* pJob, SQueryResult* pRes) {
   pRes->code = atomic_load_32(&pJob->errCode);

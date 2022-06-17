@@ -228,6 +228,7 @@ typedef struct SSchJob {
   SQueryNodeAddr   resNode;
   tsem_t           rspSem;
   SSchOpStatus     opStatus;
+  bool            *reqKilled;
   SSchTask        *fetchTask;
   int32_t          errCode;
   SRWLatch         resLock;
