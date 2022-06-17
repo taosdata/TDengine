@@ -165,7 +165,7 @@ void sdbSetApplyInfo(SSdb *pSdb, int64_t index, int64_t term, int64_t config) {
          " term:%" PRId64 " config:%" PRId64,
          pSdb->applyIndex, pSdb->applyTerm, pSdb->applyConfig, index, term, config);
   pSdb->applyIndex = index;
-  pSdb->applyIndex = term;
+  pSdb->applyTerm = term;
   pSdb->applyConfig = config;
 }
 
