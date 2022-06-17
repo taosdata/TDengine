@@ -869,6 +869,10 @@ SNode* createDefaultTableOptions(SAstCreateContext* pCxt) {
   CHECK_PARSER_STATUS(pCxt);
   STableOptions* pOptions = (STableOptions*)nodesMakeNode(QUERY_NODE_TABLE_OPTIONS);
   CHECK_OUT_OF_MEM(pOptions);
+  pOptions->maxDelay1 = -1;
+  pOptions->maxDelay2 = -1;
+  pOptions->watermark1 = TSDB_DEFAULT_ROLLUP_WATERMARK;
+  pOptions->watermark2 = TSDB_DEFAULT_ROLLUP_WATERMARK;
   pOptions->ttl = TSDB_DEFAULT_TABLE_TTL;
   return (SNode*)pOptions;
 }

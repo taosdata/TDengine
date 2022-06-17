@@ -428,8 +428,10 @@ STSchema* tdGetSTSChemaFromSSChema(SSchema** pSchema, int32_t nCols);
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
   int8_t  igExists;
-  float   xFilesFactor;
-  int32_t delay;
+  int64_t delay1;
+  int64_t delay2;
+  int64_t watermark1;
+  int64_t watermark2;
   int32_t ttl;
   int32_t numOfColumns;
   int32_t numOfTags;

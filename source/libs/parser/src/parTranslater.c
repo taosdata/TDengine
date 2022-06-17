@@ -2623,7 +2623,7 @@ static int32_t checkDbDaysOption(STranslateContext* pCxt, SDatabaseOptions* pOpt
     if (TIME_UNIT_MINUTE != pOptions->pDaysPerFile->unit && TIME_UNIT_HOUR != pOptions->pDaysPerFile->unit &&
         TIME_UNIT_DAY != pOptions->pDaysPerFile->unit) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_UNIT, "daysPerFile",
-                                  pOptions->pDaysPerFile->unit);
+                                  pOptions->pDaysPerFile->unit, TIME_UNIT_MINUTE, TIME_UNIT_HOUR, TIME_UNIT_DAY);
     }
     pOptions->daysPerFile = getBigintFromValueNode(pOptions->pDaysPerFile);
   }
@@ -3074,25 +3074,74 @@ static int32_t checkTableSchema(STranslateContext* pCxt, SCreateTableStmt* pStmt
   return code;
 }
 
-static int32_t checkTableMaxDelayOption(STranslateContext* pCxt, STableOptions* pOptions) {
-  if (NULL != pOptions->pMaxDelay) {
-    if (DEAL_RES_ERROR == translateValue(pCxt, pOptions->pMaxDelay)) {
-      return pCxt->errCode;
-    }
-    if (TIME_UNIT_MINUTE != pOptions->pDaysPerFile->unit) {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_UNIT, "daysPerFile",
-                                  pOptions->pDaysPerFile->unit);
-    }
-    pOptions->daysPerFile = getBigintFromValueNode(pOptions->pDaysPerFile);
+static int32_t getTableDelayOrWatermarkOption(STranslateContext* pCxt, const char* pName, int64_t minVal,
+                                              int64_t maxVal, SValueNode* pVal, int64_t* pMaxDelay) {
+  int32_t code = (DEAL_RES_ERROR == translateValue(pCxt, pVal) ? pCxt->errCode : TSDB_CODE_SUCCESS);
+  if (TSDB_CODE_SUCCESS == code && TIME_UNIT_MILLISECOND != pVal->unit && TIME_UNIT_SECOND != pVal->unit &&
+      TIME_UNIT_MINUTE != pVal->unit) {
+    code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_UNIT, pName, pVal->unit,
+                                TIME_UNIT_MILLISECOND, TIME_UNIT_SECOND, TIME_UNIT_MINUTE);
   }
-  return checkRangeOption(pCxt, "maxDelay", pOptions->pMaxDelay, TSDB_MIN_ROLLUP_MAX_DELAY, TSDB_MAX_ROLLUP_MAX_DELAY);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkRangeOption(pCxt, pName, pVal->datum.i, minVal, maxVal);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    *pMaxDelay = pVal->datum.i;
+  }
+  return code;
+}
+
+static int32_t getTableMaxDelayOption(STranslateContext* pCxt, SValueNode* pVal, int64_t* pMaxDelay) {
+  return getTableDelayOrWatermarkOption(pCxt, "maxDelay", TSDB_MIN_ROLLUP_MAX_DELAY, TSDB_MAX_ROLLUP_MAX_DELAY, pVal,
+                                        pMaxDelay);
+}
+
+static int32_t checkTableMaxDelayOption(STranslateContext* pCxt, STableOptions* pOptions) {
+  if (NULL == pOptions->pMaxDelay) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (LIST_LENGTH(pOptions->pMaxDelay) > 2) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_OPTION, "maxdelay");
+  }
+
+  int32_t code =
+      getTableMaxDelayOption(pCxt, (SValueNode*)nodesListGetNode(pOptions->pMaxDelay, 0), &pOptions->maxDelay1);
+  if (TSDB_CODE_SUCCESS == code && 2 == LIST_LENGTH(pOptions->pMaxDelay)) {
+    code = getTableMaxDelayOption(pCxt, (SValueNode*)nodesListGetNode(pOptions->pMaxDelay, 1), &pOptions->maxDelay2);
+  }
+
+  return code;
+}
+
+static int32_t getTableWatermarkOption(STranslateContext* pCxt, SValueNode* pVal, int64_t* pMaxDelay) {
+  return getTableDelayOrWatermarkOption(pCxt, "watermark", TSDB_MIN_ROLLUP_WATERMARK, TSDB_MAX_ROLLUP_WATERMARK, pVal,
+                                        pMaxDelay);
+}
+
+static int32_t checkTableWatermarkOption(STranslateContext* pCxt, STableOptions* pOptions) {
+  if (NULL == pOptions->pWatermark) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (LIST_LENGTH(pOptions->pWatermark) > 2) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_OPTION, "watermark");
+  }
+
+  int32_t code =
+      getTableWatermarkOption(pCxt, (SValueNode*)nodesListGetNode(pOptions->pWatermark, 0), &pOptions->watermark1);
+  if (TSDB_CODE_SUCCESS == code && 2 == LIST_LENGTH(pOptions->pWatermark)) {
+    code = getTableWatermarkOption(pCxt, (SValueNode*)nodesListGetNode(pOptions->pWatermark, 1), &pOptions->watermark2);
+  }
+
+  return code;
 }
 
 static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt) {
-  int32_t code = checkTableMaxDelayOption(pCxt, pStmt->pOptions->pMaxDelay);
-  // if (TSDB_CODE_SUCCESS == code) {
-  //   code = checkRangeOption(pCxt, "delay", pStmt->pOptions->delay, TSDB_MIN_ROLLUP_DELAY, TSDB_MAX_ROLLUP_DELAY);
-  // }
+  int32_t code = checkTableMaxDelayOption(pCxt, pStmt->pOptions);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkTableWatermarkOption(pCxt, pStmt->pOptions);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkTableRollupOption(pCxt, pStmt->pOptions->pRollupFuncs);
   }
@@ -3335,8 +3384,10 @@ static int32_t buildRollupAst(STranslateContext* pCxt, SCreateTableStmt* pStmt, 
 
 static int32_t buildCreateStbReq(STranslateContext* pCxt, SCreateTableStmt* pStmt, SMCreateStbReq* pReq) {
   pReq->igExists = pStmt->ignoreExists;
-  // pReq->delay = pStmt->pOptions->delay;
-  // pReq->xFilesFactor = pStmt->pOptions->filesFactor;
+  pReq->delay1 = pStmt->pOptions->maxDelay1;
+  pReq->delay2 = pStmt->pOptions->maxDelay2;
+  pReq->watermark1 = pStmt->pOptions->watermark1;
+  pReq->watermark2 = pStmt->pOptions->watermark2;
   pReq->ttl = pStmt->pOptions->ttl;
   columnDefNodeToField(pStmt->pCols, &pReq->pColumns);
   columnDefNodeToField(pStmt->pTags, &pReq->pTags);
