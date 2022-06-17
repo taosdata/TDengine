@@ -445,9 +445,13 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
   return code;
 }
 
-int32_t sdbWriteFile(SSdb *pSdb) {
+int32_t sdbWriteFile(SSdb *pSdb, int32_t delta) {
   int32_t code = 0;
   if (pSdb->applyIndex == pSdb->commitIndex) {
+    return 0;
+  }
+
+  if (pSdb->applyIndex - pSdb->commitIndex < delta) {
     return 0;
   }
 
@@ -475,7 +479,7 @@ int32_t sdbDeploy(SSdb *pSdb) {
     return -1;
   }
 
-  if (sdbWriteFile(pSdb) != 0) {
+  if (sdbWriteFile(pSdb, 0) != 0) {
     return -1;
   }
 
