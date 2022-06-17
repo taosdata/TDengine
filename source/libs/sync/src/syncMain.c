@@ -2197,8 +2197,8 @@ static int32_t syncNodeConfigChange(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftE
       char* newStr = syncCfg2Str(&newSyncCfg);
       syncUtilJson2Line(oldStr);
       syncUtilJson2Line(newStr);
-      snprintf(tmpbuf, sizeof(tmpbuf), "config change from %d to %d, %s  -->  %s", oldSyncCfg.replicaNum,
-               newSyncCfg.replicaNum, oldStr, newStr);
+      snprintf(tmpbuf, sizeof(tmpbuf), "config change from %d to %d, index:%ld, %s  -->  %s", oldSyncCfg.replicaNum,
+          newSyncCfg.replicaNum, pEntry->index, oldStr, newStr);
       taosMemoryFree(oldStr);
       taosMemoryFree(newStr);
 
@@ -2214,8 +2214,8 @@ static int32_t syncNodeConfigChange(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftE
     char* newStr = syncCfg2Str(&newSyncCfg);
     syncUtilJson2Line(oldStr);
     syncUtilJson2Line(newStr);
-    snprintf(tmpbuf, sizeof(tmpbuf), "config change2 from %d to %d, %s  -->  %s", oldSyncCfg.replicaNum,
-             newSyncCfg.replicaNum, oldStr, newStr);
+    snprintf(tmpbuf, sizeof(tmpbuf), "config change2 from %d to %d, index:%ld, %s  -->  %s", oldSyncCfg.replicaNum,
+         newSyncCfg.replicaNum, pEntry->index, oldStr, newStr);
     taosMemoryFree(oldStr);
     taosMemoryFree(newStr);
 

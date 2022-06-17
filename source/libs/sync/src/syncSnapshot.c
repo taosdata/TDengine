@@ -671,8 +671,8 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
             char *newStr = syncCfg2Str(&newSyncCfg);
             syncUtilJson2Line(oldStr);
             syncUtilJson2Line(newStr);
-            snprintf(tmpbuf, sizeof(tmpbuf), "config change3 from %d to %d, %s  -->  %s", oldSyncCfg.replicaNum,
-                     newSyncCfg.replicaNum, oldStr, newStr);
+            snprintf(tmpbuf, sizeof(tmpbuf), "config change3 from %d to %d, index:%ld, %s  -->  %s",
+                     oldSyncCfg.replicaNum, newSyncCfg.replicaNum, pMsg->lastConfigIndex, oldStr, newStr);
             taosMemoryFree(oldStr);
             taosMemoryFree(newStr);
 
