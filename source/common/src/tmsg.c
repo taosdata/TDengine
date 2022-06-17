@@ -3432,7 +3432,7 @@ int32_t tSerializeSKillConnReq(void *buf, int32_t bufLen, SKillConnReq *pReq) {
   tEncoderInit(&encoder, buf, bufLen);
 
   if (tStartEncode(&encoder) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->connId) < 0) return -1;
+  if (tEncodeU32(&encoder, pReq->connId) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -3445,7 +3445,7 @@ int32_t tDeserializeSKillConnReq(void *buf, int32_t bufLen, SKillConnReq *pReq) 
   tDecoderInit(&decoder, buf, bufLen);
 
   if (tStartDecode(&decoder) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->connId) < 0) return -1;
+  if (tDecodeU32(&decoder, &pReq->connId) < 0) return -1;
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);

@@ -1322,7 +1322,7 @@ int32_t tSerializeSKillQueryReq(void* buf, int32_t bufLen, SKillQueryReq* pReq);
 int32_t tDeserializeSKillQueryReq(void* buf, int32_t bufLen, SKillQueryReq* pReq);
 
 typedef struct {
-  int32_t connId;
+  uint32_t connId;
 } SKillConnReq;
 
 int32_t tSerializeSKillConnReq(void* buf, int32_t bufLen, SKillConnReq* pReq);

@@ -76,7 +76,7 @@ int32_t mndInitProfile(SMnode *pMnode) {
 
   // in ms
   int32_t checkTime = tsShellActivityTimer * 2 * 1000;
-  pMgmt->connCache = taosCacheInit(TSDB_DATA_TYPE_INT, checkTime, true, (__cache_free_fn_t)mndFreeConn, "conn");
+  pMgmt->connCache = taosCacheInit(TSDB_DATA_TYPE_UINT, checkTime, true, (__cache_free_fn_t)mndFreeConn, "conn");
   if (pMgmt->connCache == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed to alloc profile cache since %s", terrstr());
@@ -124,7 +124,7 @@ static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType
 
   char    connStr[255] = {0};
   int32_t len = snprintf(connStr, sizeof(connStr), "%s%d%d%d%s", user, ip, port, pid, app);
-  int32_t connId = mndGenerateUid(connStr, len);
+  uint32_t connId = mndGenerateUid(connStr, len);
   if (startTime == 0) startTime = taosGetTimestampMs();
 
   SConnObj connObj = {.id = connId,
@@ -145,7 +145,7 @@ static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType
   tstrncpy(connObj.app, app, TSDB_APP_NAME_LEN);
 
   int32_t   keepTime = tsShellActivityTimer * 3;
-  SConnObj *pConn = taosCachePut(pMgmt->connCache, &connId, sizeof(int32_t), &connObj, sizeof(connObj), keepTime * 1000);
+  SConnObj *pConn = taosCachePut(pMgmt->connCache, &connId, sizeof(uint32_t), &connObj, sizeof(connObj), keepTime * 1000);
   if (pConn == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("conn:%d, failed to put into cache since %s, user:%s", connId, user, terrstr());
@@ -448,6 +448,7 @@ static int32_t mndUpdateAppInfo(SMnode *pMnode, SClientHbReq *pHbReq, SRpcConnIn
       return -1;
     } else {
       mDebug("a new app %" PRIx64 "created", pReq->appId);
+      mndReleaseApp(pMnode, pApp);      
       return TSDB_CODE_SUCCESS;
     }
   }
@@ -463,7 +464,7 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
                                         SClientHbBatchRsp *pBatchRsp) {
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
   SClientHbRsp  hbRsp = {.connKey = pHbReq->connKey, .status = 0, .info = NULL, .query = NULL};
-  SRpcConnInfo connInfo = pMsg->conn;
+  SRpcConnInfo connInfo = pMsg->info.conn;
 
   mndUpdateAppInfo(pMnode, pHbReq, &connInfo);
 
@@ -654,7 +655,7 @@ static int32_t mndProcessKillQueryReq(SRpcMsg *pReq) {
     terrno = TSDB_CODE_MND_INVALID_CONN_ID;
     return -1;
   } else {
-    mInfo("connId:%x, queryId:%" PRIx64 " is killed by user:%s", connId, queryId, pReq->conn.user);
+    mInfo("connId:%x, queryId:%" PRIx64 " is killed by user:%s", connId, queryId, pReq->info.conn.user);
     pConn->killId = queryId;
     taosCacheRelease(pMgmt->connCache, (void **)&pConn, false);
     return 0;
@@ -680,13 +681,13 @@ static int32_t mndProcessKillConnReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  SConnObj *pConn = taosCacheAcquireByKey(pMgmt->connCache, &killReq.connId, sizeof(int32_t));
+  SConnObj *pConn = taosCacheAcquireByKey(pMgmt->connCache, &killReq.connId, sizeof(uint32_t));
   if (pConn == NULL) {
-    mError("connId:%d, failed to kill connection, conn not exist", killReq.connId);
+    mError("connId:%u, failed to kill connection, conn not exist", killReq.connId);
     terrno = TSDB_CODE_MND_INVALID_CONN_ID;
     return -1;
   } else {
-    mInfo("connId:%d, is killed by user:%s", killReq.connId, pReq->info.conn.user);
+    mInfo("connId:%u, is killed by user:%s", killReq.connId, pReq->info.conn.user);
     pConn->killed = 1;
     taosCacheRelease(pMgmt->connCache, (void **)&pConn, false);
     return TSDB_CODE_SUCCESS;
