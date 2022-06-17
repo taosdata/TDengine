@@ -33,50 +33,7 @@ class TDTestCase:
         tdSql.init(conn.cursor())
 
     def __query_condition(self,tbname):
-        query_condition = [f"cast({col} as bigint)" for col in ALL_COL]
-        for num_col in NUM_COL:
-            query_condition.extend(
-                (
-                    f"{tbname}.{num_col}",
-                    f"abs( {tbname}.{num_col} )",
-                    f"acos( {tbname}.{num_col} )",
-                    f"asin( {tbname}.{num_col} )",
-                    f"atan( {tbname}.{num_col} )",
-                    f"avg( {tbname}.{num_col} )",
-                    f"ceil( {tbname}.{num_col} )",
-                    f"cos( {tbname}.{num_col} )",
-                    f"count( {tbname}.{num_col} )",
-                    f"floor( {tbname}.{num_col} )",
-                    f"log( {tbname}.{num_col},  {tbname}.{num_col})",
-                    f"max( {tbname}.{num_col} )",
-                    f"min( {tbname}.{num_col} )",
-                    f"pow( {tbname}.{num_col}, 2)",
-                    f"round( {tbname}.{num_col} )",
-                    f"sum( {tbname}.{num_col} )",
-                    f"sin( {tbname}.{num_col} )",
-                    f"sqrt( {tbname}.{num_col} )",
-                    f"tan( {tbname}.{num_col} )",
-                    f"cast( {tbname}.{num_col} as timestamp)",
-                )
-            )
-            query_condition.extend((f"{num_col} + {any_col}" for any_col in ALL_COL))
-        for char_col in CHAR_COL:
-            query_condition.extend(
-                (
-                    f"count({tbname}.{char_col})",
-                    f"sum(cast({tbname}.{char_col}) as bigint)",
-                    f"max(cast({tbname}.{char_col}) as bigint)",
-                    f"min(cast({tbname}.{char_col}) as bigint)",
-                    f"avg(cast({tbname}.{char_col}) as bigint)",
-                )
-            )
-        # query_condition.extend(
-        #     (
-        #         1010,
-        #     )
-        # )
-
-        return query_condition
+        return [ f"{any_col}" for any_col in ALL_COL ]
 
     def __join_condition(self, tb_list, filter=PRIMARY_COL, INNER=False):
         table_reference = tb_list[0]
@@ -124,7 +81,7 @@ class TDTestCase:
         return f" group by {col} having {having}" if having else f" group by {col} "
 
     def __single_sql(self, select_clause, from_clause, where_condition="", group_condition=""):
-        if isinstance(select_clause, str) and "on" not in from_clause and select_clause.split(".")[0] != from_clause.split(".")[0]:
+        if isinstance(select_clause, str) and "on" not in from_clause and select_clause.split(".")[0].split("(")[-1] != from_clause.split(".")[0]:
             return
         return f"select hyperloglog({select_clause}) from {from_clause} {where_condition} {group_condition}"
 
@@ -191,7 +148,7 @@ class TDTestCase:
         if tdSql.cursor.istype(col, "BIGINT UNSIGNED"):
             return "BIGINT UNSIGNED"
 
-    def spread_check(self):
+    def hyperloglog_check(self):
         sqls = self.sql_list()
         tdLog.printNoPrefix("===step 1: curent case, must return query OK")
         for i in range(len(sqls)):
@@ -214,15 +171,16 @@ class TDTestCase:
         for i in range(tdSql.queryRows):
             tdSql.checkData(i, 0, 1) if  tdSql.queryResult[i][1] is not None else tdSql.checkData(i, 0, 0)
 
-
-
-        self.spread_check()
+        self.hyperloglog_check()
 
     def __test_error(self):
 
         tdLog.printNoPrefix("===step 0: err case, must return err")
         tdSql.error( "select hyperloglog() from ct1" )
         tdSql.error( "select hyperloglog(c1, c2) from ct2" )
+        # tdSql.error( "select hyperloglog(1) from stb1" )
+        # tdSql.error( "select hyperloglog(abs(c1)) from ct4" )
+        tdSql.error( "select hyperloglog(count(c1)) from t1" )
         # tdSql.error( "select hyperloglog(1) from ct2" )
         tdSql.error( f"select hyperloglog({NUM_COL[0]}, {NUM_COL[1]}) from ct4" )
         tdSql.error( ''' select hyperloglog(['c1 + c1', 'c1 + c2', 'c1 + c3', 'c1 + c4', 'c1 + c5', 'c1 + c6', 'c1 + c7', 'c1 + c8', 'c1 + c9', 'c1 + c10'])

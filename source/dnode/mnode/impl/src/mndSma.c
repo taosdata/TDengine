@@ -20,6 +20,7 @@
 #include "mndDnode.h"
 #include "mndInfoSchema.h"
 #include "mndMnode.h"
+#include "mndScheduler.h"
 #include "mndShow.h"
 #include "mndStb.h"
 #include "mndStream.h"
@@ -38,12 +39,13 @@ static int32_t  mndSmaActionInsert(SSdb *pSdb, SSmaObj *pSma);
 static int32_t  mndSmaActionDelete(SSdb *pSdb, SSmaObj *pSpSmatb);
 static int32_t  mndSmaActionUpdate(SSdb *pSdb, SSmaObj *pOld, SSmaObj *pNew);
 static int32_t  mndSmaGetVgEpSet(SMnode *pMnode, SDbObj *pDb, SVgEpSet **ppVgEpSet, int32_t *numOfVgroups);
-static int32_t  mndProcessMCreateSmaReq(SRpcMsg *pReq);
-static int32_t  mndProcessMDropSmaReq(SRpcMsg *pReq);
+static int32_t  mndProcessCreateSmaReq(SRpcMsg *pReq);
+static int32_t  mndProcessDropSmaReq(SRpcMsg *pReq);
 static int32_t  mndProcessGetSmaReq(SRpcMsg *pReq);
-static int32_t mndProcessGetTbSmaReq(SRpcMsg *pReq);
+static int32_t  mndProcessGetTbSmaReq(SRpcMsg *pReq);
 static int32_t  mndRetrieveSma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextSma(SMnode *pMnode, void *pIter);
+static void     mndDestroySmaObj(SSmaObj *pSmaObj);
 
 int32_t mndInitSma(SMnode *pMnode) {
   SSdbTable table = {
@@ -56,8 +58,8 @@ int32_t mndInitSma(SMnode *pMnode) {
       .deleteFp = (SdbDeleteFp)mndSmaActionDelete,
   };
 
-  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_SMA, mndProcessMCreateSmaReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_DROP_SMA, mndProcessMDropSmaReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_SMA, mndProcessCreateSmaReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_DROP_SMA, mndProcessDropSmaReq);
   mndSetMsgHandle(pMnode, TDMT_VND_CREATE_SMA_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_DROP_SMA_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_INDEX, mndProcessGetSmaReq);
@@ -79,7 +81,6 @@ static SSdbRaw *mndSmaActionEncode(SSmaObj *pSma) {
   if (pRaw == NULL) goto _OVER;
 
   int32_t dataPos = 0;
-
   SDB_SET_BINARY(pRaw, dataPos, pSma->name, TSDB_TABLE_FNAME_LEN, _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pSma->stb, TSDB_TABLE_FNAME_LEN, _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pSma->db, TSDB_DB_FNAME_LEN, _OVER)
@@ -100,6 +101,7 @@ static SSdbRaw *mndSmaActionEncode(SSmaObj *pSma) {
   SDB_SET_INT32(pRaw, dataPos, pSma->tagsFilterLen, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pSma->sqlLen, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pSma->astLen, _OVER)
+
   if (pSma->exprLen > 0) {
     SDB_SET_BINARY(pRaw, dataPos, pSma->expr, pSma->exprLen, _OVER)
   }
@@ -115,6 +117,7 @@ static SSdbRaw *mndSmaActionEncode(SSmaObj *pSma) {
 
   SDB_SET_RESERVE(pRaw, dataPos, TSDB_SMA_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
+
   terrno = 0;
 
 _OVER:
@@ -193,6 +196,7 @@ static SSdbRow *mndSmaActionDecode(SSdbRaw *pRaw) {
   }
 
   SDB_GET_RESERVE(pRaw, dataPos, TSDB_SMA_RESERVE_SIZE, _OVER)
+
   terrno = 0;
 
 _OVER:
@@ -383,6 +387,28 @@ static int32_t mndSetCreateSmaVgroupCommitLogs(SMnode *pMnode, STrans *pTrans, S
   return 0;
 }
 
+static int32_t mndSetUpdateSmaStbCommitLogs(SMnode *pMnode, STrans *pTrans, SStbObj *pStb) {
+  SStbObj stbObj = {0};
+  taosRLockLatch(&pStb->lock);
+  memcpy(&stbObj, pStb, sizeof(SStbObj));
+  taosRUnLockLatch(&pStb->lock);
+  stbObj.numOfColumns = 0;
+  stbObj.pColumns = NULL;
+  stbObj.numOfTags = 0;
+  stbObj.pTags = NULL;
+  stbObj.updateTime = taosGetTimestampMs();
+  stbObj.lock = 0;
+  stbObj.smaVer++;
+
+  SSdbRaw *pCommitRaw = mndStbActionEncode(&stbObj);
+  if (pCommitRaw == NULL) return -1;
+  if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) return -1;
+  if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY) != 0) return -1;
+
+  return 0;
+}
+
+#if 0
 static int32_t mndSetCreateSmaRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SSmaObj *pSma) {
   SSdb   *pSdb = pMnode->pSdb;
   SVgObj *pVgroup = NULL;
@@ -421,6 +447,7 @@ static int32_t mndSetCreateSmaRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj
 
   return 0;
 }
+#endif
 
 static int32_t mndSetCreateSmaVgroupRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup,
                                                 SSmaObj *pSma) {
@@ -457,7 +484,6 @@ static int32_t mndSetCreateSmaVgroupRedoActions(SMnode *pMnode, STrans *pTrans, 
   pSma->schemaTag.pSchema[0].flags = 0;
   snprintf(pSma->schemaTag.pSchema[0].name, TSDB_COL_NAME_LEN, "groupId");
 
-
   int32_t smaContLen = 0;
   void   *pSmaReq = mndBuildVCreateSmaReq(pMnode, pVgroup, pSma, &smaContLen);
   if (pSmaReq == NULL) return -1;
@@ -481,6 +507,13 @@ static int32_t mndSetCreateSmaVgroupRedoActions(SMnode *pMnode, STrans *pTrans, 
   return 0;
 }
 
+static void mndDestroySmaObj(SSmaObj *pSmaObj) {
+  if (pSmaObj) {
+    taosMemoryFreeClear(pSmaObj->schemaRow.pSchema);
+    taosMemoryFreeClear(pSmaObj->schemaTag.pSchema);
+  }
+}
+
 static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCreate, SDbObj *pDb, SStbObj *pStb) {
   SSmaObj smaObj = {0};
   memcpy(smaObj.name, pCreate->name, TSDB_TABLE_FNAME_LEN);
@@ -488,6 +521,7 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   memcpy(smaObj.db, pDb->name, TSDB_DB_FNAME_LEN);
   smaObj.createdTime = taosGetTimestampMs();
   smaObj.uid = mndGenerateUid(pCreate->name, TSDB_TABLE_FNAME_LEN);
+  ASSERT(smaObj.uid != 0);
   char resultTbName[TSDB_TABLE_FNAME_LEN + 16] = {0};
   snprintf(resultTbName, TSDB_TABLE_FNAME_LEN + 16, "td.tsma.rst.tb.%s", pCreate->name);
   memcpy(smaObj.dstTbName, resultTbName, TSDB_TABLE_FNAME_LEN);
@@ -504,29 +538,17 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   smaObj.tagsFilterLen = pCreate->tagsFilterLen;
   smaObj.sqlLen = pCreate->sqlLen;
   smaObj.astLen = pCreate->astLen;
-
   if (smaObj.exprLen > 0) {
-    smaObj.expr = taosMemoryMalloc(smaObj.exprLen);
-    if (smaObj.expr == NULL) goto _OVER;
-    memcpy(smaObj.expr, pCreate->expr, smaObj.exprLen);
+    smaObj.expr = pCreate->expr;
   }
-
   if (smaObj.tagsFilterLen > 0) {
-    smaObj.tagsFilter = taosMemoryMalloc(smaObj.tagsFilterLen);
-    if (smaObj.tagsFilter == NULL) goto _OVER;
-    memcpy(smaObj.tagsFilter, pCreate->tagsFilter, smaObj.tagsFilterLen);
+    smaObj.tagsFilter = pCreate->tagsFilter;
   }
-
   if (smaObj.sqlLen > 0) {
-    smaObj.sql = taosMemoryMalloc(smaObj.sqlLen);
-    if (smaObj.sql == NULL) goto _OVER;
-    memcpy(smaObj.sql, pCreate->sql, smaObj.sqlLen);
+    smaObj.sql = pCreate->sql;
   }
-
   if (smaObj.astLen > 0) {
-    smaObj.ast = taosMemoryMalloc(smaObj.astLen);
-    if (smaObj.ast == NULL) goto _OVER;
-    memcpy(smaObj.ast, pCreate->ast, smaObj.astLen);
+    smaObj.ast = pCreate->ast;
   }
 
   SStreamObj streamObj = {0};
@@ -536,11 +558,13 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   streamObj.createTime = taosGetTimestampMs();
   streamObj.updateTime = streamObj.createTime;
   streamObj.uid = mndGenerateUid(pCreate->name, strlen(pCreate->name));
-  streamObj.dbUid = pDb->uid;
+  streamObj.sourceDbUid = pDb->uid;
   streamObj.version = 1;
   streamObj.sql = pCreate->sql;
-  streamObj.createdBy = STREAM_CREATED_BY__SMA;
   streamObj.smaId = smaObj.uid;
+  streamObj.watermark = 0;
+  streamObj.trigger = STREAM_TRIGGER_AT_ONCE;
+  streamObj.ast = strdup(smaObj.ast);
 
   if (mndAllocSmaVgroup(pMnode, pDb, &streamObj.fixedSinkVg) != 0) {
     mError("sma:%s, failed to create since %s", smaObj.name, terrstr());
@@ -548,6 +572,39 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   }
   smaObj.dstVgId = streamObj.fixedSinkVg.vgId;
   streamObj.fixedSinkVgId = smaObj.dstVgId;
+
+  SNode *pAst = NULL;
+  if (nodesStringToNode(streamObj.ast, &pAst) < 0) {
+    ASSERT(0);
+    return -1;
+  }
+
+  // extract output schema from ast
+  if (qExtractResultSchema(pAst, (int32_t *)&streamObj.outputSchema.nCols, &streamObj.outputSchema.pSchema) != 0) {
+    ASSERT(0);
+    return -1;
+  }
+
+  SQueryPlan  *pPlan = NULL;
+  SPlanContext cxt = {
+      .pAstRoot = pAst,
+      .topicQuery = false,
+      .streamQuery = true,
+      .triggerType = streamObj.trigger,
+      .watermark = streamObj.watermark,
+  };
+
+  if (qCreateQueryPlan(&cxt, &pPlan, NULL) < 0) {
+    ASSERT(0);
+    return -1;
+  }
+
+  // save physcial plan
+  if (nodesNodeToString((SNode *)pPlan, false, &streamObj.physicalPlan, NULL) != 0) {
+    ASSERT(0);
+    return -1;
+  }
+  if (pAst != NULL) nodesDestroyNode(pAst);
 
   int32_t code = -1;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq);
@@ -560,14 +617,17 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   if (mndSetCreateSmaVgroupRedoLogs(pMnode, pTrans, &streamObj.fixedSinkVg) != 0) goto _OVER;
   if (mndSetCreateSmaCommitLogs(pMnode, pTrans, &smaObj) != 0) goto _OVER;
   if (mndSetCreateSmaVgroupCommitLogs(pMnode, pTrans, &streamObj.fixedSinkVg) != 0) goto _OVER;
-  if (mndSetCreateSmaRedoActions(pMnode, pTrans, pDb, &smaObj) != 0) goto _OVER;
+  if (mndSetUpdateSmaStbCommitLogs(pMnode, pTrans, pStb) != 0) goto _OVER;
+  // if (mndSetCreateSmaRedoActions(pMnode, pTrans, pDb, &smaObj) != 0) goto _OVER;
   if (mndSetCreateSmaVgroupRedoActions(pMnode, pTrans, pDb, &streamObj.fixedSinkVg, &smaObj) != 0) goto _OVER;
-  if (mndAddStreamToTrans(pMnode, &streamObj, pCreate->ast, STREAM_TRIGGER_AT_ONCE, 0, pTrans) != 0) goto _OVER;
+  if (mndScheduleStream(pMnode, pTrans, &streamObj) != 0) goto _OVER;
+  if (mndPersistStream(pMnode, pTrans, &streamObj) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
   code = 0;
 
 _OVER:
+  mndDestroySmaObj(&smaObj);
   mndTransDrop(pTrans);
   return code;
 }
@@ -600,14 +660,13 @@ static int32_t mndCheckCreateSmaReq(SMCreateSmaReq *pCreate) {
   return 0;
 }
 
-static int32_t mndProcessMCreateSmaReq(SRpcMsg *pReq) {
+static int32_t mndProcessCreateSmaReq(SRpcMsg *pReq) {
   SMnode        *pMnode = pReq->info.node;
   int32_t        code = -1;
   SStbObj       *pStb = NULL;
   SSmaObj       *pSma = NULL;
   SStreamObj    *pStream = NULL;
   SDbObj        *pDb = NULL;
-  SUserObj      *pUser = NULL;
   SMCreateSmaReq createReq = {0};
 
   if (tDeserializeSMCreateSmaReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
@@ -651,12 +710,7 @@ static int32_t mndProcessMCreateSmaReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  pUser = mndAcquireUser(pMnode, pReq->conn.user);
-  if (pUser == NULL) {
-    goto _OVER;
-  }
-
-  if (mndCheckWriteAuth(pUser, pDb) != 0) {
+  if (mndCheckDbAuth(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
     goto _OVER;
   }
 
@@ -672,7 +726,6 @@ _OVER:
   mndReleaseSma(pMnode, pSma);
   mndReleaseStream(pMnode, pStream);
   mndReleaseDb(pMnode, pDb);
-  mndReleaseUser(pMnode, pUser);
   tFreeSMCreateSmaReq(&createReq);
 
   return code;
@@ -714,6 +767,7 @@ static int32_t mndSetDropSmaVgroupCommitLogs(SMnode *pMnode, STrans *pTrans, SVg
   return 0;
 }
 
+#if 0
 static int32_t mndSetDropSmaRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SSmaObj *pSma) {
   SSdb   *pSdb = pMnode->pSdb;
   SVgObj *pVgroup = NULL;
@@ -754,6 +808,7 @@ static int32_t mndSetDropSmaRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
 
   return 0;
 }
+#endif
 
 static int32_t mndSetDropSmaVgroupRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup) {
   SVnodeGid *pVgid = pVgroup->vnodeGid + 0;
@@ -782,12 +837,16 @@ static int32_t mndSetDropSmaVgroupRedoActions(SMnode *pMnode, STrans *pTrans, SD
 }
 
 static int32_t mndDropSma(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SSmaObj *pSma) {
-  int32_t code = -1;
-  SVgObj *pVgroup = NULL;
-  STrans *pTrans = NULL;
+  int32_t  code = -1;
+  SVgObj  *pVgroup = NULL;
+  SStbObj *pStb = NULL;
+  STrans  *pTrans = NULL;
 
   pVgroup = mndAcquireVgroup(pMnode, pSma->dstVgId);
   if (pVgroup == NULL) goto _OVER;
+
+  pStb = mndAcquireStb(pMnode, pSma->stb);
+  if (pStb == NULL) goto _OVER;
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB, pReq);
   if (pTrans == NULL) goto _OVER;
@@ -799,7 +858,8 @@ static int32_t mndDropSma(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SSmaObj *p
   if (mndSetDropSmaVgroupRedoLogs(pMnode, pTrans, pVgroup) != 0) goto _OVER;
   if (mndSetDropSmaCommitLogs(pMnode, pTrans, pSma) != 0) goto _OVER;
   if (mndSetDropSmaVgroupCommitLogs(pMnode, pTrans, pVgroup) != 0) goto _OVER;
-  if (mndSetDropSmaRedoActions(pMnode, pTrans, pDb, pSma) != 0) goto _OVER;
+  if (mndSetUpdateSmaStbCommitLogs(pMnode, pTrans, pStb) != 0) goto _OVER;
+  // if (mndSetDropSmaRedoActions(pMnode, pTrans, pDb, pSma) != 0) goto _OVER;
   if (mndSetDropSmaVgroupRedoActions(pMnode, pTrans, pDb, pVgroup) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
@@ -808,13 +868,80 @@ static int32_t mndDropSma(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SSmaObj *p
 _OVER:
   mndTransDrop(pTrans);
   mndReleaseVgroup(pMnode, pVgroup);
+  mndReleaseStb(pMnode, pStb);
   return code;
 }
 
-static int32_t mndProcessMDropSmaReq(SRpcMsg *pReq) {
+int32_t mndDropSmasByStb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb) {
+  SSdb    *pSdb = pMnode->pSdb;
+  SSmaObj *pSma = NULL;
+  void    *pIter = NULL;
+  SVgObj  *pVgroup = NULL;
+  int32_t  code = -1;
+
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_SMA, pIter, (void **)&pSma);
+    if (pIter == NULL) break;
+
+    if (pSma->stbUid == pStb->uid) {
+      pVgroup = mndAcquireVgroup(pMnode, pSma->dstVgId);
+      if (pVgroup == NULL) goto _OVER;
+      if (mndSetDropSmaVgroupCommitLogs(pMnode, pTrans, pVgroup) != 0) goto _OVER;
+      if (mndSetDropSmaVgroupRedoActions(pMnode, pTrans, pDb, pVgroup) != 0) goto _OVER;
+      if (mndSetDropSmaCommitLogs(pMnode, pTrans, pSma) != 0) goto _OVER;
+      // if (mndSetDropSmaRedoActions(pMnode, pTrans, pDb, pSma) != 0) goto _OVER;
+      mndReleaseVgroup(pMnode, pVgroup);
+      pVgroup = NULL;
+    }
+
+    sdbRelease(pSdb, pSma);
+  }
+
+  code = 0;
+
+_OVER:
+  sdbCancelFetch(pSdb, pIter);
+  sdbRelease(pSdb, pSma);
+  mndReleaseVgroup(pMnode, pVgroup);
+  return code;
+}
+
+int32_t mndDropSmasByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
+  SSdb    *pSdb = pMnode->pSdb;
+  SSmaObj *pSma = NULL;
+  void    *pIter = NULL;
+  SVgObj  *pVgroup = NULL;
+  int32_t  code = -1;
+
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_SMA, pIter, (void **)&pSma);
+    if (pIter == NULL) break;
+
+    if (pSma->dbUid == pDb->uid) {
+      pVgroup = mndAcquireVgroup(pMnode, pSma->dstVgId);
+      if (pVgroup == NULL) goto _OVER;
+      if (mndSetDropSmaVgroupCommitLogs(pMnode, pTrans, pVgroup) != 0) goto _OVER;
+      if (mndSetDropSmaVgroupRedoActions(pMnode, pTrans, pDb, pVgroup) != 0) goto _OVER;
+      if (mndSetDropSmaCommitLogs(pMnode, pTrans, pSma) != 0) goto _OVER;
+      mndReleaseVgroup(pMnode, pVgroup);
+      pVgroup = NULL;
+    }
+
+    sdbRelease(pSdb, pSma);
+  }
+
+  code = 0;
+
+_OVER:
+  sdbCancelFetch(pSdb, pIter);
+  sdbRelease(pSdb, pSma);
+  mndReleaseVgroup(pMnode, pVgroup);
+  return code;
+}
+
+static int32_t mndProcessDropSmaReq(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;
   int32_t      code = -1;
-  SUserObj    *pUser = NULL;
   SDbObj      *pDb = NULL;
   SSmaObj     *pSma = NULL;
   SMDropSmaReq dropReq = {0};
@@ -844,12 +971,7 @@ static int32_t mndProcessMDropSmaReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  pUser = mndAcquireUser(pMnode, pReq->conn.user);
-  if (pUser == NULL) {
-    goto _OVER;
-  }
-
-  if (mndCheckWriteAuth(pUser, pDb) != 0) {
+  if (mndCheckDbAuth(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
     goto _OVER;
   }
 
@@ -862,9 +984,6 @@ _OVER:
   }
 
   mndReleaseDb(pMnode, pDb);
-  mndReleaseSma(pMnode, pSma);
-  mndReleaseUser(pMnode, pUser);
-
   return code;
 }
 
@@ -901,13 +1020,13 @@ static int32_t mndGetSma(SMnode *pMnode, SUserIndexReq *indexReq, SUserIndexRsp 
 }
 
 int32_t mndGetTableSma(SMnode *pMnode, char *tbFName, STableIndexRsp *rsp, bool *exist) {
-  int32_t  code = 0;
-  SSmaObj *pSma = NULL;
-  SSdb   *pSdb = pMnode->pSdb;
-  void   *pIter = NULL;
+  int32_t         code = 0;
+  SSmaObj        *pSma = NULL;
+  SSdb           *pSdb = pMnode->pSdb;
+  void           *pIter = NULL;
   STableIndexInfo info;
 
-  SStbObj* pStb = mndAcquireStb(pMnode, tbFName);
+  SStbObj *pStb = mndAcquireStb(pMnode, tbFName);
   if (NULL == pStb) {
     *exist = false;
     return TSDB_CODE_SUCCESS;
@@ -918,7 +1037,6 @@ int32_t mndGetTableSma(SMnode *pMnode, char *tbFName, STableIndexRsp *rsp, bool 
   rsp->suid = pStb->uid;
   rsp->version = pStb->smaVer;
   mndReleaseStb(pMnode, pStb);
-  
 
   while (1) {
     pIter = sdbFetch(pSdb, SDB_SMA, pIter, (void **)&pSma);
@@ -936,14 +1054,14 @@ int32_t mndGetTableSma(SMnode *pMnode, char *tbFName, STableIndexRsp *rsp, bool 
     info.dstTbUid = pSma->dstTbUid;
     info.dstVgId = pSma->dstVgId;
 
-    SVgObj* pVg = mndAcquireVgroup(pMnode, pSma->dstVgId);
+    SVgObj *pVg = mndAcquireVgroup(pMnode, pSma->dstVgId);
     if (pVg == NULL) {
       code = -1;
       sdbRelease(pSdb, pSma);
       return code;
     }
     info.epSet = mndGetVgroupEpset(pMnode, pVg);
-    
+
     info.expr = taosMemoryMalloc(pSma->exprLen + 1);
     if (info.expr == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -967,7 +1085,7 @@ int32_t mndGetTableSma(SMnode *pMnode, char *tbFName, STableIndexRsp *rsp, bool 
 
     sdbRelease(pSdb, pSma);
   }
-  
+
   return code;
 }
 
@@ -1019,10 +1137,10 @@ _OVER:
 
 static int32_t mndProcessGetTbSmaReq(SRpcMsg *pReq) {
   STableIndexReq indexReq = {0};
-  SMnode       *pMnode = pReq->info.node;
-  int32_t       code = -1;
+  SMnode        *pMnode = pReq->info.node;
+  int32_t        code = -1;
   STableIndexRsp rsp = {0};
-  bool          exist = false;
+  bool           exist = false;
 
   if (tDeserializeSTableIndexReq(pReq->pCont, pReq->contLen, &indexReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -1068,7 +1186,6 @@ _OVER:
 
   return code;
 }
-
 
 static int32_t mndRetrieveSma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode  *pMnode = pReq->info.node;

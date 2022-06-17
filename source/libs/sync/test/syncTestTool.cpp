@@ -297,7 +297,7 @@ void usage(char* exe) {
 SRpcMsg* createRpcMsg(int i, int count, int myIndex) {
   SRpcMsg* pMsg = (SRpcMsg*)taosMemoryMalloc(sizeof(SRpcMsg));
   memset(pMsg, 0, sizeof(SRpcMsg));
-  pMsg->msgType = 9999;
+  pMsg->msgType = TDMT_VND_SUBMIT;
   pMsg->contLen = 256;
   pMsg->pCont = rpcMallocCont(pMsg->contLen);
   snprintf((char*)(pMsg->pCont), pMsg->contLen, "value-myIndex:%u-%d-%d-%ld", myIndex, i, count, taosGetTimestampMs());
@@ -384,14 +384,16 @@ int main(int argc, char** argv) {
 
     leaderTransferWait++;
     if (leaderTransferWait == 7) {
-      sTrace("begin leader transfer ...");
-      int32_t ret = syncLeaderTransfer(rid);
+      if (leaderTransfer) {
+        sTrace("begin leader transfer ...");
+        int32_t ret = syncLeaderTransfer(rid);
+      }
     }
 
     if (alreadySend < writeRecordNum) {
       SRpcMsg* pRpcMsg = createRpcMsg(alreadySend, writeRecordNum, myIndex);
       int32_t  ret = syncPropose(rid, pRpcMsg, false);
-      if (ret == TAOS_SYNC_PROPOSE_NOT_LEADER) {
+      if (ret == -1 && terrno == TSDB_CODE_SYN_NOT_LEADER) {
         sTrace("%s value%d write not leader, leaderTransferWait:%d", simpleStr, alreadySend, leaderTransferWait);
       } else {
         assert(ret == 0);

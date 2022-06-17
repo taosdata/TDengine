@@ -1226,6 +1226,7 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData) {
     SColumnInfoData  colInfo = {0};
     SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
     colInfo.info = p->info;
+    colInfo.hasNull = true;
     taosArrayPush(pBlock->pDataBlock, &colInfo);
   }
 
@@ -1583,6 +1584,11 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks
     int32_t      rowSize = pDataBlock->info.rowSize;
     int64_t      groupId = pDataBlock->info.groupId;
 
+    if (colNum <= 1) {
+      // invalid if only with TS col
+      continue;
+    }
+
     if (rb.nCols != colNum) {
       tdSRowSetTpInfo(&rb, colNum, pTSchema->flen);
     }
@@ -1679,23 +1685,28 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks
     msgLen += pSubmitBlk->dataLen;
   }
 
-  (*pReq)->length = msgLen;
+  if (numOfBlks > 0) {
+    (*pReq)->length = msgLen;
 
-  (*pReq)->header.vgId = htonl(vgId);
-  (*pReq)->header.contLen = htonl(msgLen);
-  (*pReq)->length = (*pReq)->header.contLen;
-  (*pReq)->numOfBlocks = htonl(numOfBlks);
-  SSubmitBlk* blk = (SSubmitBlk*)((*pReq) + 1);
-  while (numOfBlks--) {
-    int32_t dataLen = blk->dataLen;
-    blk->uid = htobe64(blk->uid);
-    blk->suid = htobe64(blk->suid);
-    blk->padding = htonl(blk->padding);
-    blk->sversion = htonl(blk->sversion);
-    blk->dataLen = htonl(blk->dataLen);
-    blk->schemaLen = htonl(blk->schemaLen);
-    blk->numOfRows = htons(blk->numOfRows);
-    blk = (SSubmitBlk*)(blk->data + dataLen);
+    (*pReq)->header.vgId = htonl(vgId);
+    (*pReq)->header.contLen = htonl(msgLen);
+    (*pReq)->length = (*pReq)->header.contLen;
+    (*pReq)->numOfBlocks = htonl(numOfBlks);
+    SSubmitBlk* blk = (SSubmitBlk*)((*pReq) + 1);
+    while (numOfBlks--) {
+      int32_t dataLen = blk->dataLen;
+      blk->uid = htobe64(blk->uid);
+      blk->suid = htobe64(blk->suid);
+      blk->padding = htonl(blk->padding);
+      blk->sversion = htonl(blk->sversion);
+      blk->dataLen = htonl(blk->dataLen);
+      blk->schemaLen = htonl(blk->schemaLen);
+      blk->numOfRows = htons(blk->numOfRows);
+      blk = (SSubmitBlk*)(blk->data + dataLen);
+    }
+  } else {
+    // no valid rows
+    taosMemoryFreeClear(*pReq);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1708,6 +1719,7 @@ char* buildCtbNameByGroupId(const char* stbName, uint64_t groupId) {
   pTag->keyLen = strlen(pTag->key);
   pTag->type = TSDB_DATA_TYPE_UBIGINT;
   pTag->u = groupId;
+  pTag->length = sizeof(uint64_t);
   taosArrayPush(tags, &pTag);
 
   void* cname = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1);

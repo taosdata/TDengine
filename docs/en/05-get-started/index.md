@@ -1,6 +1,6 @@
 ---
 title: Get Started
-description: 'Install TDengine from Docker image, apt-get or package, and run TAOS CLI and taosBenchmark to experience the features'
+description: 'Install TDengine from Docker image, apt-get or package, and run TDengine CLI and taosBenchmark to experience the features'
 ---
 
 import Tabs from "@theme/Tabs";
@@ -120,7 +120,7 @@ select * from t;
 Query OK, 2 row(s) in set (0.003128s)
 ```
 
-Besides executing SQL commands, system administrators can check running status, add/drop user accounts and manage the running instances. TAOS CLI with client driver can be installed and run on either Linux or Windows machines. For more details on CLI, please [check here](../reference/taos-shell/).
+Besides executing SQL commands, system administrators can check running status, add/drop user accounts and manage the running instances. TDengine CLI with client driver can be installed and run on either Linux or Windows machines. For more details on CLI, please [check here](../reference/taos-shell/).
 
 ## Experience the blazing fast speed
 

@@ -53,19 +53,19 @@ typedef struct SCacheEntry {
   SCacheNode *next;
 } SCacheEntry;
 
-typedef struct STrashElem {
+struct STrashElem {
   struct STrashElem *prev;
   struct STrashElem *next;
   SCacheNode        *pData;
-} STrashElem;
+};
 
-typedef struct SCacheIter {
+struct SCacheIter {
   SCacheObj   *pCacheObj;
   SCacheNode **pCurrent;
   int32_t      entryIndex;
   int32_t      index;
   int32_t      numOfObj;
-} SCacheIter;
+};
 
 /*
  * to accommodate the old data which has the same key value of new one in hashList
@@ -829,7 +829,11 @@ void *taosCacheTimedRefresh(void *handle) {
 
   const int32_t SLEEP_DURATION = 500;  // 500 ms
   int64_t       count = 0;
-  atexit(taosCacheRefreshWorkerUnexpectedStopped);
+#ifdef WINDOWS
+  if (taosCheckCurrentInDll()) {
+    atexit(taosCacheRefreshWorkerUnexpectedStopped);
+  }
+#endif
 
   while (1) {
     taosMsleep(SLEEP_DURATION);
@@ -931,15 +935,15 @@ bool taosCacheIterNext(SCacheIter *pIter) {
   SCacheObj *pCacheObj = pIter->pCacheObj;
 
   if (pIter->index + 1 >= pIter->numOfObj) {
-    if (pIter->entryIndex + 1 >= pCacheObj->capacity) {
-      return false;
-    }
-
     // release the reference for all objects in the snapshot
     for (int32_t i = 0; i < pIter->numOfObj; ++i) {
       char *p = pIter->pCurrent[i]->data;
       taosCacheRelease(pCacheObj, (void **)&p, false);
       pIter->pCurrent[i] = NULL;
+    }   
+
+    if (pIter->entryIndex + 1 >= pCacheObj->capacity) {
+      return false;
     }
 
     while (1) {

@@ -21,6 +21,7 @@ import base64
 import json
 import platform
 import socket
+import threading
 from distutils.log import warn as printf
 from fabric2 import Connection
 sys.path.append("../pytest")
@@ -30,6 +31,21 @@ from util.cases import *
 
 import taos
 
+def checkRunTimeError():
+    import win32gui
+    timeCount = 0
+    while 1:
+        time.sleep(1)
+        timeCount = timeCount + 1
+        if (timeCount>900):
+            os.system("TASKKILL /F /IM taosd.exe")
+            os.system("TASKKILL /F /IM taos.exe")
+            os.system("TASKKILL /F /IM tmq_sim.exe")
+            os.system("TASKKILL /F /IM mintty.exe")
+            quit(0)
+        hwnd = win32gui.FindWindow(None, "Microsoft Visual C++ Runtime Library")
+        if hwnd:
+            os.system("TASKKILL /F /IM taosd.exe")
 
 if __name__ == "__main__":
     
@@ -42,9 +58,6 @@ if __name__ == "__main__":
     logSql = True
     stop = 0
     restart = False
-    windows = 0
-    if platform.system().lower() == 'windows':
-        windows = 1
     updateCfgDict = {}
     execCmd = ""
     opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:', [
@@ -159,7 +172,9 @@ if __name__ == "__main__":
             host = masterIp
 
     tdLog.info("Procedures for tdengine deployed in %s" % (host))
-    if windows:
+    if platform.system().lower() == 'windows':
+        if (masterIp == "" and not fileName[0:12] == "0-others\\udf"):
+            threading.Thread(target=checkRunTimeError,daemon=True).start()
         tdCases.logSql(logSql)
         tdLog.info("Procedures for testing self-deployment")
         tdDnodes.init(deployPath, masterIp)

@@ -163,9 +163,9 @@ TEST_F(ParserInitialATest, alterSTable) {
   run("ALTER TABLE st1 DROP COLUMN c1");
   clearAlterStbReq();
 
-  setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES, 1, "c1", TSDB_DATA_TYPE_VARCHAR,
-                     20 + VARSTR_HEADER_SIZE);
-  run("ALTER TABLE st1 MODIFY COLUMN c1 VARCHAR(20)");
+  setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES, 1, "c2", TSDB_DATA_TYPE_VARCHAR,
+                     30 + VARSTR_HEADER_SIZE);
+  run("ALTER TABLE st1 MODIFY COLUMN c2 VARCHAR(30)");
   clearAlterStbReq();
 
   // setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME, 2, "c1", 0, 0, "cc1");
@@ -179,9 +179,9 @@ TEST_F(ParserInitialATest, alterSTable) {
   run("ALTER TABLE st1 DROP TAG tag1");
   clearAlterStbReq();
 
-  setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_TAG_BYTES, 1, "tag1", TSDB_DATA_TYPE_VARCHAR,
-                     20 + VARSTR_HEADER_SIZE);
-  run("ALTER TABLE st1 MODIFY TAG tag1 VARCHAR(20)");
+  setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_TAG_BYTES, 1, "tag2", TSDB_DATA_TYPE_VARCHAR,
+                     30 + VARSTR_HEADER_SIZE);
+  run("ALTER TABLE st1 MODIFY TAG tag2 VARCHAR(30)");
   clearAlterStbReq();
 
   setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_TAG_NAME, 2, "tag1", 0, 0, "tag11");
@@ -196,6 +196,10 @@ TEST_F(ParserInitialATest, alterSTableSemanticCheck) {
   useDb("root", "test");
 
   run("ALTER TABLE st1 RENAME COLUMN c1 cc1", TSDB_CODE_PAR_INVALID_ALTER_TABLE);
+
+  run("ALTER TABLE st1 MODIFY COLUMN c2 NCHAR(10)", TSDB_CODE_PAR_INVALID_MODIFY_COL);
+
+  run("ALTER TABLE st1 MODIFY TAG tag2 NCHAR(10)", TSDB_CODE_PAR_INVALID_MODIFY_COL);
 }
 
 TEST_F(ParserInitialATest, alterTable) {
@@ -337,6 +341,8 @@ TEST_F(ParserInitialATest, alterTableSemanticCheck) {
   useDb("root", "test");
 
   run("ALTER TABLE st1s1 RENAME COLUMN c1 cc1", TSDB_CODE_PAR_INVALID_ALTER_TABLE);
+
+  run("ALTER TABLE st1s1 SET TAG tag2 =  '123456789012345678901'", TSDB_CODE_PAR_WRONG_VALUE_TYPE);
 }
 
 TEST_F(ParserInitialATest, alterUser) {

@@ -628,7 +628,7 @@ class TDTestCase:
 
     def basic_sample_query(self):
         tdSql.execute(" drop database if exists db ")
-        tdSql.execute(" create database if not exists db days 300 ")
+        tdSql.execute(" create database if not exists db duration 300 ")
         tdSql.execute(" use db ")
         tdSql.execute(
             '''create table stb1

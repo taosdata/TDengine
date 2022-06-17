@@ -161,6 +161,40 @@ TEST_F(ParserSelectTest, useDefinedFunc) {
   run("SELECT udf2(c1) FROM t1 GROUP BY c2");
 }
 
+TEST_F(ParserSelectTest, uniqueFunc) {
+  useDb("root", "test");
+
+  run("SELECT UNIQUE(c1) FROM t1");
+
+  run("SELECT UNIQUE(c2 + 10) FROM t1 WHERE c1 > 10");
+
+  run("SELECT UNIQUE(c2 + 10), ts, c2 FROM t1 WHERE c1 > 10");
+}
+
+TEST_F(ParserSelectTest, uniqueFuncSemanticCheck) {
+  useDb("root", "test");
+
+  run("SELECT UNIQUE(c1) FROM t1 INTERVAL(10S)", TSDB_CODE_PAR_WINDOW_NOT_ALLOWED_FUNC);
+
+  run("SELECT UNIQUE(c1) FROM t1 GROUP BY c2", TSDB_CODE_PAR_GROUP_BY_NOT_ALLOWED_FUNC);
+}
+
+TEST_F(ParserSelectTest, tailFunc) {
+  useDb("root", "test");
+
+  run("SELECT TAIL(c1, 10) FROM t1");
+
+  run("SELECT TAIL(c2 + 10, 10, 80) FROM t1 WHERE c1 > 10");
+}
+
+TEST_F(ParserSelectTest, tailFuncSemanticCheck) {
+  useDb("root", "test");
+
+  run("SELECT TAIL(c1, 10) FROM t1 INTERVAL(10S)", TSDB_CODE_PAR_WINDOW_NOT_ALLOWED_FUNC);
+
+  run("SELECT TAIL(c1, 10) FROM t1 GROUP BY c2", TSDB_CODE_PAR_GROUP_BY_NOT_ALLOWED_FUNC);
+}
+
 TEST_F(ParserSelectTest, groupBy) {
   useDb("root", "test");
 
@@ -219,6 +253,7 @@ TEST_F(ParserSelectTest, intervalSemanticCheck) {
   run("SELECT HISTOGRAM(c1, 'log_bin', '{\"start\": -33,\"factor\": 55,\"count\": 5,\"infinity\": false}', 1) FROM t1 "
       "WHERE ts > TIMESTAMP '2022-04-01 00:00:00' and ts < TIMESTAMP '2022-04-30 23:59:59' INTERVAL(10s) FILL(NULL)",
       TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC);
+  run("SELECT _WSTARTTS, _WENDTS, _WDURATION, sum(c1) FROM t1", TSDB_CODE_PAR_INVALID_WINDOW_PC);
 }
 
 TEST_F(ParserSelectTest, subquery) {
@@ -231,13 +266,22 @@ TEST_F(ParserSelectTest, subquery) {
   run("SELECT SUM(a) FROM (SELECT MAX(c1) a, ts FROM st1s1 PARTITION BY TBNAME INTERVAL(1m)) INTERVAL(1n)");
 
   run("SELECT SUM(a) FROM (SELECT MAX(c1) a, _wstartts FROM st1s1 PARTITION BY TBNAME INTERVAL(1m)) INTERVAL(1n)");
+
+  run("SELECT _C0 FROM (SELECT _ROWTS, ts FROM st1s1)");
+
+  run("SELECT ts FROM (SELECT t1.ts FROM st1s1 t1)");
 }
 
 TEST_F(ParserSelectTest, subquerySemanticCheck) {
   useDb("root", "test");
 
-  run("SELECT SUM(a) FROM (SELECT MAX(c1) a FROM st1s1 INTERVAL(1m)) INTERVAL(1n)", TSDB_CODE_PAR_NOT_ALLOWED_WIN_QUERY,
-      PARSER_STAGE_TRANSLATE);
+  run("SELECT SUM(a) FROM (SELECT MAX(c1) a FROM st1s1 INTERVAL(1m)) INTERVAL(1n)",
+      TSDB_CODE_PAR_NOT_ALLOWED_WIN_QUERY);
+
+  run("SELECT ts FROM (SELECT t1.ts AS ts, t2.ts FROM st1s1 t1, st1s2 t2 WHERE t1.ts = t2.ts)",
+      TSDB_CODE_PAR_AMBIGUOUS_COLUMN);
+
+  run("SELECT ts FROM (SELECT ts AS c1 FROM st1s1 t1)", TSDB_CODE_PAR_INVALID_COLUMN);
 }
 
 TEST_F(ParserSelectTest, semanticCheck) {
@@ -318,6 +362,8 @@ TEST_F(ParserSelectTest, setOperator) {
   run("(SELECT * FROM t1) UNION ALL (SELECT * FROM t1)");
 
   run("SELECT c1 FROM (SELECT c1 FROM t1 UNION ALL SELECT c1 FROM t1)");
+
+  run("SELECT c1, c2 FROM t1 UNION ALL SELECT c1 as a, c2 as b FROM t1 ORDER BY c1");
 }
 
 TEST_F(ParserSelectTest, informationSchema) {

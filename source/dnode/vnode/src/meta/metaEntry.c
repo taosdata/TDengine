@@ -92,7 +92,7 @@ int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
-    if (tDecodeTSma(pCoder, pME->smaEntry.tsma) < 0) return -1;
+    if (tDecodeTSma(pCoder, pME->smaEntry.tsma, true) < 0) return -1;
   } else {
     ASSERT(0);
   }

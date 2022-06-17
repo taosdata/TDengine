@@ -91,8 +91,8 @@ static const SSysDbTableSchema userDBSchema[] = {
     {.name = "precision", .bytes = 2 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "single_stable_model", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL},
     {.name = "status", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-//    {.name = "schemaless", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL},
-    {.name = "retension", .bytes = 60 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    //    {.name = "schemaless", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL},
+    {.name = "retention", .bytes = 60 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
 
     // {.name = "update", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},  // disable update
 };
@@ -137,7 +137,7 @@ static const SSysDbTableSchema streamSchema[] = {
     {.name = "target_table", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "watermark", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
     {.name = "trigger", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    };
+};
 
 static const SSysDbTableSchema userTblsSchema[] = {
     {.name = "table_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
@@ -170,7 +170,9 @@ static const SSysDbTableSchema userTblDistSchema[] = {
 
 static const SSysDbTableSchema userUsersSchema[] = {
     {.name = "name", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "privilege", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "super", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
+    {.name = "enable", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
+    {.name = "sysinfo", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
 };
 
@@ -221,7 +223,9 @@ static const SSysDbTableSchema transSchema[] = {
     {.name = "db", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "failed_times", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "last_exec_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
-    {.name = "last_action_info", .bytes = (TSDB_TRANS_ERROR_LEN - 1) + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "last_action_info",
+     .bytes = (TSDB_TRANS_ERROR_LEN - 1) + VARSTR_HEADER_SIZE,
+     .type = TSDB_DATA_TYPE_VARCHAR},
 };
 
 static const SSysDbTableSchema configSchema[] = {
@@ -253,8 +257,8 @@ static const SSysTableMeta infosMeta[] = {
 static const SSysDbTableSchema connectionsSchema[] = {
     {.name = "conn_id", .bytes = 4, .type = TSDB_DATA_TYPE_UINT},
     {.name = "user", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "program", .bytes = TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "pid", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "app", .bytes = TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "pid", .bytes = 4, .type = TSDB_DATA_TYPE_UINT},
     {.name = "end_point", .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
     {.name = "login_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
     {.name = "last_access", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
@@ -298,23 +302,20 @@ static const SSysDbTableSchema offsetSchema[] = {
 };
 
 static const SSysDbTableSchema querySchema[] = {
-    {.name = "query_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "connId", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "query_id", .bytes = 26 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "req_id", .bytes = 8, .type = TSDB_DATA_TYPE_UBIGINT},
+    {.name = "connId", .bytes = 4, .type = TSDB_DATA_TYPE_UINT},
+    {.name = "app", .bytes = TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},    
+    {.name = "pid", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "user", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "end_point", .bytes = TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "qid", .bytes = 22 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
-    {.name = "time", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
-    {.name = "sql_obj_id", .bytes = QUERY_OBJ_ID_SIZE + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
-    {.name = "pid", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "ep", .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "exec_usec", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
     {.name = "stable_query", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL},
-    {.name = "sub_queries", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
-    {.name = "sub_query_info", .bytes = TSDB_SHOW_SUBQUERY_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "sub_num", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "sub_status", .bytes = TSDB_SHOW_SUBQUERY_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "sql", .bytes = TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
 };
-
-
 
 static const SSysTableMeta perfsMeta[] = {
     {TSDB_PERFS_TABLE_CONNECTIONS, connectionsSchema, tListLen(connectionsSchema)},
