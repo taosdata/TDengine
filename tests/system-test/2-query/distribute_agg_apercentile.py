@@ -130,7 +130,7 @@ class TDTestCase:
         tdSql.checkRows(15)
 
         # union all 
-        tdSql.query("select apercentile(c1,20) from stb1 union all select apercentile(c1,10) from stb1 ")
+        tdSql.query("select apercentile(c1,20) from stb1 union all select apercentile(c1,20) from stb1 ")
         tdSql.checkRows(2)
         tdSql.checkData(0,0,7.389181281)
 
