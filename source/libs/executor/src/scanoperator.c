@@ -2133,7 +2133,7 @@ int32_t doOpenTableMergeScanOperator(SOperatorInfo* pOperator) {
   int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
 
   pInfo->pSortHandle =
-      tsortCreateSortHandle(pInfo->pSortInfo, pInfo->pColMatchInfo, SORT_MULTISOURCE_MERGE, pInfo->bufPageSize,
+      tsortCreateSortHandle(pInfo->pSortInfo, SORT_MULTISOURCE_MERGE, pInfo->bufPageSize,
                             numOfBufPage, pInfo->pSortInputBlock, pTaskInfo->id.str);
 
   tsortSetFetchRawDataFp(pInfo->pSortHandle, getTableDataBlock, NULL, NULL);

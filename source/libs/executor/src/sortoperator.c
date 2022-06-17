@@ -154,7 +154,7 @@ int32_t doOpenSortOperator(SOperatorInfo* pOperator) {
   pInfo->startTs = taosGetTimestampUs();
 
   //  pInfo->binfo.pRes is not equalled to the input datablock.
-  pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, pInfo->pColMatchInfo, SORT_SINGLESOURCE_SORT, -1, -1,
+  pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_SINGLESOURCE_SORT, -1, -1,
                                              NULL, pTaskInfo->id.str);
 
   tsortSetFetchRawDataFp(pInfo->pSortHandle, loadNextDataBlock, applyScalarFunction, pOperator);
@@ -248,7 +248,7 @@ int32_t doOpenMultiwaySortMergeOperator(SOperatorInfo* pOperator) {
 
   int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
 
-  pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, pInfo->pColMatchInfo, SORT_MULTISOURCE_MERGE,
+  pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_MULTISOURCE_MERGE,
                                              pInfo->bufPageSize, numOfBufPage, pInfo->pInputBlock, pTaskInfo->id.str);
 
   tsortSetFetchRawDataFp(pInfo->pSortHandle, loadNextDataBlock, NULL, NULL);

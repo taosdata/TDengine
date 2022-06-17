@@ -3073,7 +3073,7 @@ static SSDataBlock* doSortedMerge(SOperatorInfo* pOperator) {
   }
 
   int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
-  pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, NULL, SORT_MULTISOURCE_MERGE, pInfo->bufPageSize,
+  pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_MULTISOURCE_MERGE, pInfo->bufPageSize,
                                              numOfBufPage, pInfo->binfo.pRes, "GET_TASKID(pTaskInfo)");
 
   tsortSetFetchRawDataFp(pInfo->pSortHandle, loadNextDataBlock, NULL, NULL);
@@ -4162,18 +4162,9 @@ static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr, int32_t 
   }
 }
 
-SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfCols,
-                                      SInterval* pInterval, STimeWindow* pWindow, SSDataBlock* pResBlock,
-                                      int32_t fillType, SNodeListNode* pValueNode, bool multigroupResult,
-                                      SExecTaskInfo* pTaskInfo) {
-  SFillOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SFillOperatorInfo));
-  SOperatorInfo*     pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
-
-  pInfo->pRes = pResBlock;
-  pInfo->multigroupResult = multigroupResult;
-
+static int32_t convertFillType(int32_t mode) {
   int32_t type = TSDB_FILL_NONE;
-  switch (fillType) {
+  switch (mode) {
     case FILL_MODE_PREV:
       type = TSDB_FILL_PREV;
       break;
@@ -4196,26 +4187,46 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExp
       type = TSDB_FILL_NONE;
   }
 
+  return type;
+}
+
+SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFillNode, bool multigroupResult,
+                                      SExecTaskInfo* pTaskInfo) {
+  SFillOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SFillOperatorInfo));
+  SOperatorInfo*     pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
+  if (pInfo == NULL || pOperator == NULL) {
+    goto _error;
+  }
+
+  int32_t num = 0;
+  SSDataBlock*    pResBlock = createResDataBlock(pPhyFillNode->node.pOutputDataBlockDesc);
+  SExprInfo* pExprInfo = createExprInfo(pPhyFillNode->pTargets, NULL, &num);
+  SInterval* pInterval = &((SIntervalAggOperatorInfo*)downstream->info)->interval;
+  int32_t    type = convertFillType(pPhyFillNode->mode);
+
   SResultInfo* pResultInfo = &pOperator->resultInfo;
   initResultSizeInfo(pOperator, 4096);
 
-  int32_t code = initFillInfo(pInfo, pExpr, numOfCols, pValueNode, *pWindow, pResultInfo->capacity, pTaskInfo->id.str,
-                              pInterval, type);
+  int32_t code = initFillInfo(pInfo, pExprInfo, num, (SNodeListNode*)pPhyFillNode->pValues, pPhyFillNode->timeRange,
+                              pResultInfo->capacity, pTaskInfo->id.str, pInterval, type);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
 
-  pOperator->name = "FillOperator";
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
+  pInfo->pRes             = pResBlock;
+  pInfo->multigroupResult = multigroupResult;
+  pOperator->name         = "FillOperator";
+  pOperator->blocking     = false;
+  pOperator->status       = OP_NOT_OPENED;
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_FILL;
-  pOperator->pExpr = pExpr;
-  pOperator->numOfExprs = numOfCols;
-  pOperator->info = pInfo;
+  pOperator->pExpr        = pExprInfo;
+  pOperator->numOfExprs   = num;
+  pOperator->info         = pInfo;
+  pOperator->pTaskInfo    = pTaskInfo;
 
   pOperator->fpSet =
       createOperatorFpSet(operatorDummyOpenFn, doFill, NULL, NULL, destroySFillOperatorInfo, NULL, NULL, NULL);
-  pOperator->pTaskInfo = pTaskInfo;
+
   code = appendDownstream(pOperator, &downstream, 1);
   return pOperator;
 
@@ -4590,6 +4601,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       int32_t code = getTableList(pHandle->meta, pScanPhyNode->tableType, pScanPhyNode->uid, pTableListInfo,
                                   pScanPhyNode->node.pConditions);
       if (code != TSDB_CODE_SUCCESS) {
+        pTaskInfo->code = terrno;
         return NULL;
       }
 
@@ -4763,13 +4775,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     SExprInfo* pExprInfo = createExprInfo(pJoinNode->pTargets, NULL, &num);
     pOptr = createMergeJoinOperatorInfo(ops, size, pExprInfo, num, pResBlock, pJoinNode->pOnConditions, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_FILL == type) {
-    SFillPhysiNode* pFillNode = (SFillPhysiNode*)pPhyNode;
-    SSDataBlock*    pResBlock = createResDataBlock(pPhyNode->pOutputDataBlockDesc);
-    SExprInfo*      pExprInfo = createExprInfo(pFillNode->pTargets, NULL, &num);
-
-    SInterval* pInterval = &((SIntervalAggOperatorInfo*)ops[0]->info)->interval;
-    pOptr = createFillOperatorInfo(ops[0], pExprInfo, num, pInterval, &pFillNode->timeRange, pResBlock, pFillNode->mode,
-                                   (SNodeListNode*)pFillNode->pValues, false, pTaskInfo);
+    pOptr = createFillOperatorInfo(ops[0], (SFillPhysiNode*)pPhyNode, false, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC == type) {
     pOptr = createIndefinitOutputOperatorInfo(ops[0], pPhyNode, pTaskInfo);
   } else {
