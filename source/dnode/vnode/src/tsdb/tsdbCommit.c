@@ -398,26 +398,81 @@ _err:
   return code;
 }
 
-static int32_t tsdbMergeCommitImpl(SCommitter *pCommitter, SBlockIdx *pBlockIdx, STbDataIter *pIter, SBlock *pBlock) {
-  int32_t code = 0;
-  int32_t nRow = 0;
-  SBlock  block = BLOCK_INIT_VAL;
+static int32_t tsdbGetOverlapRowNumber(STbDataIter *pIter, SBlock *pBlock) {
+  int32_t     nRow = 0;
+  TSDBROW    *pRow;
+  TSDBKEY     key;
+  int32_t     c = 0;
+  STbDataIter iter = *pIter;
 
-  if (pBlock->last) {
-    // load last and merge until {pCommitter->maxKey, INT64_MAX}
-  } else {
-    // scan pIter, check  how many rows in the block range
-    if (pBlock->nRow + nRow <= pCommitter->maxRow) {
-      if (pBlock->nSubBlock < TSDB_MAX_SUBBLOCKS) {
-        // add as a subblock
-      } else {
-        // load the block, merge until pBlock->maxKey
-      }
+  iter.pRow = NULL;
+  while (true) {
+    pRow = tsdbTbDataIterGet(pIter);
+
+    if (pRow == NULL) break;
+    key = tsdbRowKey(pRow);
+
+    c = tBlockCmprFn(&(SBlock){.info.maxKey = key, .info.minKey = key}, pBlock);
+    if (c == 0) {
+      nRow++;
+    } else if (c > 0) {
+      break;
     } else {
-      // load the block, merge until pBlock->maxKey
+      ASSERT(0);
     }
   }
 
+  return nRow;
+}
+
+static int32_t tsdbMergeCommitImpl(SCommitter *pCommitter, SBlockIdx *pBlockIdx, STbDataIter *pIter, SBlock *pBlock,
+                                   int8_t toDataOnly) {
+  int32_t  code = 0;
+  int32_t  iRow = 0;
+  int32_t  nRow = 0;
+  int32_t  c;
+  TSDBROW *pRow;
+  SBlock   block = BLOCK_INIT_VAL;
+  TSDBKEY  key1;
+  TSDBKEY  key2;
+
+  tsdbBlockDataClear(&pCommitter->bDataN);
+
+  // load last and merge until {pCommitter->maxKey, INT64_MAX}
+  code = tsdbReadBlockData(pCommitter->pReader, pBlockIdx, pBlock, &pCommitter->bDataO, NULL, 0, NULL, NULL);
+  if (code) goto _err;
+
+  iRow = 0;
+  nRow = pCommitter->bDataO.nRow;
+  pRow = tsdbTbDataIterGet(pIter);
+
+  while (true) {
+    if ((pRow == NULL || pRow->pTSRow->ts > pCommitter->maxKey) && (iRow >= nRow)) {
+      if (pCommitter->bDataN.nRow > 0) {
+        goto _write_block_data;
+      } else {
+        break;
+      }
+    }
+
+    // TODO
+
+  _write_block_data:
+    block.last = pCommitter->bDataN.nRow < pCommitter->minRow ? 1 : 0;
+    code = tsdbWriteBlockData(pCommitter->pWriter, &pCommitter->bDataN, NULL, pBlockIdx, &block);
+    if (code) goto _err;
+
+    code = tMapDataPutItem(&pCommitter->nBlock, &block, tPutBlock);
+    if (code) goto _err;
+  }
+
+  block = BLOCK_INIT_VAL;
+  tsdbBlockDataClear(&pCommitter->bDataN);
+
+  return code;
+
+_err:
+  tsdbError("vgId:%d merge commit impl failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -436,7 +491,7 @@ static int32_t tsdbMergeCommit(SCommitter *pCommitter, SBlockIdx *pBlockIdx, STb
     if (code) goto _err;
   } else if (pBlock->last) {
     // merge
-    code = tsdbMergeCommitImpl(pCommitter, pBlockIdx, pIter, pBlock);
+    code = tsdbMergeCommitImpl(pCommitter, pBlockIdx, pIter, pBlock, 0);
     if (code) goto _err;
   } else {
     // memory
@@ -456,9 +511,14 @@ static int32_t tsdbMergeCommit(SCommitter *pCommitter, SBlockIdx *pBlockIdx, STb
       code = tMapDataPutItem(&pCommitter->nBlock, pBlock, tPutBlock);
       if (code) goto _err;
     } else if (c == 0) {
-      // merge
-      code = tsdbMergeCommitImpl(pCommitter, pBlockIdx, pIter, pBlock);
-      if (code) goto _err;
+      int32_t nOverlap = tsdbGetOverlapRowNumber(pIter, pBlock);
+
+      if (pBlock->nRow + nOverlap > pCommitter->maxRow || pBlock->nSubBlock == TSDB_MAX_SUBBLOCKS) {
+        code = tsdbMergeCommitImpl(pCommitter, pBlockIdx, pIter, pBlock, 1);
+        if (code) goto _err;
+      } else {
+        // add as a subblock
+      }
     } else {
       ASSERT(0);
     }
