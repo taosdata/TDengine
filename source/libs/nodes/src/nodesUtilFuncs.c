@@ -287,6 +287,10 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SSessionWinodwPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION:
       return makeNode(type, sizeof(SStreamSessionWinodwPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION:
+      return makeNode(type, sizeof(SStreamSemiSessionWinodwPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION:
+      return makeNode(type, sizeof(SStreamFinalSessionWinodwPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE:
       return makeNode(type, sizeof(SStateWinodwPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE:
@@ -804,6 +808,7 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION:
       destroyWinodwPhysiNode((SWinodwPhysiNode*)pNode);
       break;
