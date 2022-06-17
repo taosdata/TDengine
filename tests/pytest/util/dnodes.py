@@ -334,22 +334,22 @@ class TDDnode:
                 bkey2 = bytes(key2, encoding="utf8")
                 logFile = self.logDir + "/taosdlog.0"
                 i = 0
-                while not os.path.exists(logFile):
-                    sleep(0.1)
-                    i += 1
-                    if i > 10:
-                        break
-                tailCmdStr = 'tail -f '
-                if platform.system().lower() == 'windows':
-                    tailCmdStr = 'tail -n +0 -f '
-                popen = subprocess.Popen(
-                    tailCmdStr + logFile,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    shell=True)
-                pid = popen.pid
-                # print('Popen.pid:' + str(pid))
-                timeout = time.time() + 60 * 2
+                # while not os.path.exists(logFile):
+                #     sleep(0.1)
+                #     i += 1
+                #     if i > 10:
+                #         break
+                # tailCmdStr = 'tail -f '
+                # if platform.system().lower() == 'windows':
+                #     tailCmdStr = 'tail -n +0 -f '
+                # popen = subprocess.Popen(
+                #     tailCmdStr + logFile,
+                #     stdout=subprocess.PIPE,
+                #     stderr=subprocess.PIPE,
+                #     shell=True)
+                # pid = popen.pid
+                # # print('Popen.pid:' + str(pid))
+                # timeout = time.time() + 60 * 2
                 # while True:
                 #     line = popen.stdout.readline().strip()
                 #     print(line)

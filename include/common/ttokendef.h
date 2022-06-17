@@ -78,7 +78,7 @@
 #define TK_BUFFER        60
 #define TK_CACHELAST     61
 #define TK_COMP          62
-#define TK_DAYS          63
+#define TK_DURATION      63
 #define TK_NK_VARIABLE   64
 #define TK_FSYNC         65
 #define TK_MAXROWS       66

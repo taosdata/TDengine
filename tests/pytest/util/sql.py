@@ -57,7 +57,7 @@ class TDSql:
             tdLog.notice("'reset query cache' is not supported")
         s = 'drop database if exists db'
         self.cursor.execute(s)
-        s = 'create database db days 300'
+        s = 'create database db duration 300'
         self.cursor.execute(s)
         s = 'use db'
         self.cursor.execute(s)
@@ -156,6 +156,7 @@ class TDSql:
     def checkRows(self, expectRows):
         if self.queryRows == expectRows:
             tdLog.info("sql:%s, queryRows:%d == expect:%d" % (self.sql, self.queryRows, expectRows))
+            return True
         else:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             args = (caller.filename, caller.lineno, self.sql, self.queryRows, expectRows)

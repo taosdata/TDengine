@@ -30,7 +30,7 @@ sleep 2000
 sql connect
 
 print ========= step1
-sql create database ic1db days 7;
+sql create database ic1db duration 7;
 sql create table ic1db.tb(ts timestamp, s int);
 sql insert into ic1db.tb values(now-30d, -30);
 sql insert into ic1db.tb values(now-20d, -20);
@@ -50,7 +50,7 @@ if $rows != 12 then
 endi
 
 print ========= step2
-sql create database ic2db days 7;
+sql create database ic2db duration 7;
 sql create table ic2db.tb(ts timestamp, s int);
 sql insert into ic2db.tb values(now, 0);
 sql import into ic2db.tb values(now-30d, -30);

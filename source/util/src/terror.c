@@ -137,6 +137,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSC_STMT_CLAUSE_ERROR,        "not supported stmt cl
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_APP_ERROR,                "Mnode internal error")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_NOT_READY,                "Mnode not ready")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_NO_RIGHTS,                "Insufficient privilege for operation")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_USER_DISABLED,            "User is disabled")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_CONNECTION,       "Invalid message connection")
 
 // mnode-show
@@ -275,9 +276,14 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TOPIC,            "Invalid topic")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TOPIC_QUERY,      "Topic with invalid query")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TOPIC_OPTION,     "Topic with invalid option")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_CONSUMER_NOT_EXIST,       "Consumer not exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_CGROUP_USED,              "Consumer group being used by some consumer")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOPIC_OPTION_UNCHNAGED,   "Consumer unchanged")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_SUBSCRIBE_NOT_EXIST,      "Subcribe not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_OFFSET_NOT_EXIST,         "Offset not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_CONSUMER_NOT_READY,       "Consumer not ready")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOPIC_SUBSCRIBED,         "Topic subscribed cannot be dropped")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_CGROUP_USED,              "Consumer group being used by some consumer")
 
+// mnode-stream
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_ALREADY_EXIST,     "Stream already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_NOT_EXIST,         "Stream not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_STREAM_OPTION,    "Invalid stream option")
@@ -411,8 +417,10 @@ TAOS_DEFINE_ERROR(TSDB_CODE_SYN_MISMATCHED_SIGNATURE,     "Mismatched signature"
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INVALID_CHECKSUM,         "Invalid msg checksum")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INVALID_MSGLEN,           "Invalid msg length")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INVALID_MSGTYPE,          "Invalid msg type")
-
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_IS_LEADER,                "Sync is leader")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_NOT_LEADER,               "Sync not leader")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_ONE_REPLICA,              "Sync one replica")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_NOT_IN_NEW_CONFIG,        "Sync not in new config")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INTERNAL_ERROR,           "Sync internal error")
 
 // wal
@@ -420,6 +428,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_WAL_APP_ERROR,                "Unexpected generic er
 TAOS_DEFINE_ERROR(TSDB_CODE_WAL_FILE_CORRUPTED,           "WAL file is corrupted")
 TAOS_DEFINE_ERROR(TSDB_CODE_WAL_SIZE_LIMIT,               "WAL size exceeds limit")
 TAOS_DEFINE_ERROR(TSDB_CODE_WAL_INVALID_VER,              "WAL use invalid version")
+TAOS_DEFINE_ERROR(TSDB_CODE_WAL_LOG_NOT_EXIST,            "WAL log not exist")
 
 // tfs
 TAOS_DEFINE_ERROR(TSDB_CODE_FS_APP_ERROR,                 "tfs out of memory")
@@ -559,12 +568,15 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_ALREADY_EXIST,             "Tsma already exists
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_NO_INDEX_IN_META,          "No tsma index in meta")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_ENV,               "Invalid tsma env")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_STAT,              "Invalid tsma state")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_PTR,               "Invalid tsma pointer")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_INVALID_PARA,              "Invalid tsma parameters")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_NO_INDEX_IN_CACHE,         "No tsma index in cache")
-TAOS_DEFINE_ERROR(TSDB_CODE_TSMA_RM_SKEY_IN_HASH,           "Rm tsma skey in cache")
+
 
 //rsma
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_INVALID_ENV,               "Invalid rsma env")
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_INVALID_STAT,              "Invalid rsma state")
+
 
 TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_REBUILDING,               "Index is rebuilding")
 

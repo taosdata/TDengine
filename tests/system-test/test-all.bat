@@ -5,7 +5,12 @@ set /a a=0
 if %1 == full (
     echo Windows Taosd Full Test
     set /a exitNum=0
-    for /F "usebackq tokens=*" %%i in (fulltest.bat) do (
+    del /Q /F failed.txt
+    set caseFile="fulltest.bat"
+    if not "%2" == "" (
+        set caseFile="%2"
+    )
+    for /F "usebackq tokens=*" %%i in (!caseFile!) do (
         for /f "tokens=1* delims= " %%a in ("%%i") do if not "%%a" == "@REM" (
             set /a a+=1
             echo !a! Processing %%i
@@ -13,7 +18,7 @@ if %1 == full (
             set time1=!_timeTemp!
             echo Start at !time!
             call %%i ARG1 > result_!a!.txt 2>error_!a!.txt
-            if errorlevel 1 ( call :colorEcho 0c "failed" &echo. && set /a exitNum=8 ) else ( call :colorEcho 0a "Success" &echo. ) 
+            if errorlevel 1 ( call :colorEcho 0c "failed" &echo. && set /a exitNum=8 && echo %%i >>failed.txt ) else ( call :colorEcho 0a "Success" &echo. )
         )
     )
     exit !exitNum!
@@ -61,7 +66,8 @@ goto :eof
 set tt=%1
 set tt=%tt:.= %
 set tt=%tt::= %
-set index=1
+set tt=%tt: 0= %
+set /a index=1
 for %%a in (%tt%) do (
     if !index! EQU 1 (
         set /a hh=%%a
@@ -75,5 +81,5 @@ for %%a in (%tt%) do (
     )
    set /a index=index+1
 )
-set /a _timeTemp=(%hh%*60+%mm%)*60+%ss%  || echo hh:%hh% mm:%mm% ss:%ss%
+set /a _timeTemp=(%hh%*60+%mm%)*60+%ss%
 goto :eof

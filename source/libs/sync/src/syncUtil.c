@@ -14,6 +14,8 @@
  */
 
 #include "syncUtil.h"
+#include <stdio.h>
+
 #include "syncEnv.h"
 
 void addEpIntoEpSet(SEpSet* pEpSet, const char* fqdn, uint16_t port);
@@ -21,8 +23,31 @@ void addEpIntoEpSet(SEpSet* pEpSet, const char* fqdn, uint16_t port);
 // ---- encode / decode
 uint64_t syncUtilAddr2U64(const char* host, uint16_t port) {
   uint64_t u64;
+
+  uint32_t hostU32 = taosGetIpv4FromFqdn(host);
+  if (hostU32 == (uint32_t)-1) {
+    sError("Get IP address error");
+    return -1;
+  }
+
+  /*
   uint32_t hostU32 = (uint32_t)taosInetAddr(host);
-  // assert(hostU32 != (uint32_t)-1);
+  if (hostU32 == (uint32_t)-1) {
+    struct hostent* hostEnt = gethostbyname(host);
+    if (hostEnt == NULL) {
+      sError("Get IP address error");
+      return -1;
+    }
+
+    const char* newHost = taosInetNtoa(*(struct in_addr*)(hostEnt->h_addr_list[0]));
+    hostU32 = (uint32_t)taosInetAddr(newHost);
+    if (hostU32 == (uint32_t)-1) {
+      sError("change %s to id, error", newHost);
+    }
+    // ASSERT(hostU32 != (uint32_t)-1);
+  }
+  */
+
   u64 = (((uint64_t)hostU32) << 32) | (((uint32_t)port) << 16);
   return u64;
 }
@@ -143,14 +168,26 @@ char* syncUtilRaftId2Str(const SRaftId* p) {
 }
 
 const char* syncUtilState2String(ESyncState state) {
+  /*
+    if (state == TAOS_SYNC_STATE_FOLLOWER) {
+      return "TAOS_SYNC_STATE_FOLLOWER";
+    } else if (state == TAOS_SYNC_STATE_CANDIDATE) {
+      return "TAOS_SYNC_STATE_CANDIDATE";
+    } else if (state == TAOS_SYNC_STATE_LEADER) {
+      return "TAOS_SYNC_STATE_LEADER";
+    } else {
+      return "TAOS_SYNC_STATE_UNKNOWN";
+    }
+  */
+
   if (state == TAOS_SYNC_STATE_FOLLOWER) {
-    return "TAOS_SYNC_STATE_FOLLOWER";
+    return "follower";
   } else if (state == TAOS_SYNC_STATE_CANDIDATE) {
-    return "TAOS_SYNC_STATE_CANDIDATE";
+    return "candidate";
   } else if (state == TAOS_SYNC_STATE_LEADER) {
-    return "TAOS_SYNC_STATE_LEADER";
+    return "leader";
   } else {
-    return "TAOS_SYNC_STATE_UNKNOWN";
+    return "state_error";
   }
 }
 

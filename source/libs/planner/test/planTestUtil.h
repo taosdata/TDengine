@@ -18,6 +18,10 @@
 
 #include <gtest/gtest.h>
 
+#define ALLOW_FORBID_FUNC
+
+#include "planInt.h"
+
 class PlannerTestBaseImpl;
 struct TAOS_MULTI_BIND;
 

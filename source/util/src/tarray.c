@@ -174,7 +174,11 @@ void taosArrayRemoveDuplicate(SArray* pArray, __compar_fn_t comparFn, void (*fp)
 }
 
 void* taosArrayAddAll(SArray* pArray, const SArray* pInput) {
-  return taosArrayAddBatch(pArray, pInput->pData, (int32_t)taosArrayGetSize(pInput));
+  if (pInput) {
+    return taosArrayAddBatch(pArray, pInput->pData, (int32_t)taosArrayGetSize(pInput));
+  } else {
+    return NULL;
+  }
 }
 
 void* taosArrayPop(SArray* pArray) {

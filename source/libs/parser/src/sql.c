@@ -564,7 +564,7 @@ static const YYCODETYPE yy_lookahead[] = {
  /*  1260 */     0,    0,   40,    0,  271,   72,    0,   47,  175,  175,
  /*  1270 */    47,   47,  279,  310,   47,    0,  313,  314,  315,  316,
  /*  1280 */   317,  318,  289,  320,   47,   47,  293,  243,  175,    0,
- /*  1290 */   175,    0,   47,    0,   47,    0,  243,   47,    0,   81,
+ /*  1290 */   175,    0,   47,    0,   22,    0,  243,   47,    0,   81,
  /*  1300 */   113,  160,  156,  310,  159,    0,  313,  314,  315,  316,
  /*  1310 */   317,  318,    0,  320,  152,  271,  323,  151,    0,  356,
  /*  1320 */   357,  328,    0,  279,  271,   44,    0,    0,    0,    0,
@@ -693,7 +693,7 @@ static const unsigned short int yy_shift_ofst[] = {
  /*   310 */   929,  931,  826,  875,  934,  952,  962,  965,  974,  976,
  /*   320 */   859,  935, 1260, 1261, 1222, 1263, 1193, 1266, 1220, 1093,
  /*   330 */  1223, 1224, 1227, 1094, 1275, 1237, 1238, 1113, 1289, 1115,
- /*   340 */  1291, 1245, 1293, 1247, 1295, 1250, 1298, 1218, 1141, 1145,
+ /*   340 */  1291, 1245, 1293, 1272, 1295, 1250, 1298, 1218, 1141, 1145,
  /*   350 */  1187, 1146, 1305, 1312, 1162, 1166, 1318, 1322, 1281, 1326,
  /*   360 */  1327, 1328, 1329, 1330, 1331, 1334, 1335, 1336, 1338, 1339,
  /*   370 */  1340, 1341, 1343, 1344, 1345, 1347, 1348, 1309, 1351, 1352,
@@ -898,7 +898,7 @@ static const YYCODETYPE yyFallback[] = {
     0,  /*     BUFFER => nothing */
     0,  /*  CACHELAST => nothing */
     0,  /*       COMP => nothing */
-    0,  /*       DAYS => nothing */
+    0,  /*   DURATION => nothing */
     0,  /* NK_VARIABLE => nothing */
     0,  /*      FSYNC => nothing */
     0,  /*    MAXROWS => nothing */
@@ -1225,7 +1225,7 @@ static const char *const yyTokenName[] = {
   /*   60 */ "BUFFER",
   /*   61 */ "CACHELAST",
   /*   62 */ "COMP",
-  /*   63 */ "DAYS",
+  /*   63 */ "DURATION",
   /*   64 */ "NK_VARIABLE",
   /*   65 */ "FSYNC",
   /*   66 */ "MAXROWS",
@@ -1600,8 +1600,8 @@ static const char *const yyRuleName[] = {
  /*  68 */ "db_options ::= db_options BUFFER NK_INTEGER",
  /*  69 */ "db_options ::= db_options CACHELAST NK_INTEGER",
  /*  70 */ "db_options ::= db_options COMP NK_INTEGER",
- /*  71 */ "db_options ::= db_options DAYS NK_INTEGER",
- /*  72 */ "db_options ::= db_options DAYS NK_VARIABLE",
+ /*  71 */ "db_options ::= db_options DURATION NK_INTEGER",
+ /*  72 */ "db_options ::= db_options DURATION NK_VARIABLE",
  /*  73 */ "db_options ::= db_options FSYNC NK_INTEGER",
  /*  74 */ "db_options ::= db_options MAXROWS NK_INTEGER",
  /*  75 */ "db_options ::= db_options MINROWS NK_INTEGER",
@@ -1783,7 +1783,7 @@ static const char *const yyRuleName[] = {
  /* 251 */ "stream_options ::= stream_options TRIGGER MAX_DELAY duration_literal",
  /* 252 */ "stream_options ::= stream_options WATERMARK duration_literal",
  /* 253 */ "cmd ::= KILL CONNECTION NK_INTEGER",
- /* 254 */ "cmd ::= KILL QUERY NK_INTEGER",
+ /* 254 */ "cmd ::= KILL QUERY NK_STRING",
  /* 255 */ "cmd ::= KILL TRANSACTION NK_INTEGER",
  /* 256 */ "cmd ::= BALANCE VGROUP",
  /* 257 */ "cmd ::= MERGE VGROUP NK_INTEGER NK_INTEGER",
@@ -2646,8 +2646,8 @@ static const struct {
   {  254,   -3 }, /* (68) db_options ::= db_options BUFFER NK_INTEGER */
   {  254,   -3 }, /* (69) db_options ::= db_options CACHELAST NK_INTEGER */
   {  254,   -3 }, /* (70) db_options ::= db_options COMP NK_INTEGER */
-  {  254,   -3 }, /* (71) db_options ::= db_options DAYS NK_INTEGER */
-  {  254,   -3 }, /* (72) db_options ::= db_options DAYS NK_VARIABLE */
+  {  254,   -3 }, /* (71) db_options ::= db_options DURATION NK_INTEGER */
+  {  254,   -3 }, /* (72) db_options ::= db_options DURATION NK_VARIABLE */
   {  254,   -3 }, /* (73) db_options ::= db_options FSYNC NK_INTEGER */
   {  254,   -3 }, /* (74) db_options ::= db_options MAXROWS NK_INTEGER */
   {  254,   -3 }, /* (75) db_options ::= db_options MINROWS NK_INTEGER */
@@ -2829,7 +2829,7 @@ static const struct {
   {  305,   -4 }, /* (251) stream_options ::= stream_options TRIGGER MAX_DELAY duration_literal */
   {  305,   -3 }, /* (252) stream_options ::= stream_options WATERMARK duration_literal */
   {  240,   -3 }, /* (253) cmd ::= KILL CONNECTION NK_INTEGER */
-  {  240,   -3 }, /* (254) cmd ::= KILL QUERY NK_INTEGER */
+  {  240,   -3 }, /* (254) cmd ::= KILL QUERY NK_STRING */
   {  240,   -3 }, /* (255) cmd ::= KILL TRANSACTION NK_INTEGER */
   {  240,   -2 }, /* (256) cmd ::= BALANCE VGROUP */
   {  240,   -4 }, /* (257) cmd ::= MERGE VGROUP NK_INTEGER NK_INTEGER */
@@ -3326,8 +3326,8 @@ static YYACTIONTYPE yy_reduce(
 { yylhsminor.yy632 = setDatabaseOption(pCxt, yymsp[-2].minor.yy632, DB_OPTION_COMP, &yymsp[0].minor.yy0); }
   yymsp[-2].minor.yy632 = yylhsminor.yy632;
         break;
-      case 71: /* db_options ::= db_options DAYS NK_INTEGER */
-      case 72: /* db_options ::= db_options DAYS NK_VARIABLE */ yytestcase(yyruleno==72);
+      case 71: /* db_options ::= db_options DURATION NK_INTEGER */
+      case 72: /* db_options ::= db_options DURATION NK_VARIABLE */ yytestcase(yyruleno==72);
 { yylhsminor.yy632 = setDatabaseOption(pCxt, yymsp[-2].minor.yy632, DB_OPTION_DAYS, &yymsp[0].minor.yy0); }
   yymsp[-2].minor.yy632 = yylhsminor.yy632;
         break;
@@ -3907,8 +3907,8 @@ static YYACTIONTYPE yy_reduce(
       case 253: /* cmd ::= KILL CONNECTION NK_INTEGER */
 { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_CONNECTION_STMT, &yymsp[0].minor.yy0); }
         break;
-      case 254: /* cmd ::= KILL QUERY NK_INTEGER */
-{ pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_QUERY_STMT, &yymsp[0].minor.yy0); }
+      case 254: /* cmd ::= KILL QUERY NK_STRING */
+{ pCxt->pRootNode = createKillQueryStmt(pCxt, &yymsp[0].minor.yy0); }
         break;
       case 255: /* cmd ::= KILL TRANSACTION NK_INTEGER */
 { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_TRANSACTION_STMT, &yymsp[0].minor.yy0); }
