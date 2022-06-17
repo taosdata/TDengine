@@ -466,10 +466,10 @@ static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t version, void *pRe
   }
 
   // process request
-  // if (metaDropSTable(pVnode->pMeta, version, &req) < 0) {
-  //   rcode = terrno;
-  //   goto _exit;
-  // }
+  if (metaDropSTable(pVnode->pMeta, version, &req) < 0) {
+    rcode = terrno;
+    goto _exit;
+  }
 
   // return rsp
 _exit:

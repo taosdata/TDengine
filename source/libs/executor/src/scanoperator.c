@@ -2310,14 +2310,14 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
   pInfo->pSortInfo = generateSortByTsInfo(pInfo->cond.order);
   pInfo->pSortInputBlock = createOneDataBlock(pInfo->pResBlock, false);
   int32_t rowSize = pInfo->pResBlock->info.rowSize;
-  pInfo->bufPageSize = rowSize < 1024 ? 1024 : rowSize * 2;
+  int32_t blockMetaSize = (int32_t)blockDataGetSerialMetaSize(pInfo->pResBlock->info.numOfCols);
+  pInfo->bufPageSize = (rowSize * 2 + blockMetaSize) < 1024 ? 1024 : (rowSize * 2 + blockMetaSize);
   pInfo->sortBufSize = pInfo->bufPageSize * 16;
   pInfo->hasGroupId = false;
   pInfo->prefetchedTuple = NULL;
 
   pOperator->name = "TableMergeScanOperator";
-  // TODO : change it
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
+  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN;
   pOperator->blocking = false;
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
