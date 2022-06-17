@@ -30,7 +30,7 @@ class TDTestCase:
         
         tdSql.query("show tables")
         tdSql.checkRows(1)
-        tdSql.query("show create tables tb")
+        tdSql.query("show create table tb")
         tdSql.checkRows(1)
 
         tdSql.error("create table Tb(ts timestamp, c1 int)") 
@@ -38,7 +38,7 @@ class TDTestCase:
         
         tdSql.query("show tables")
         tdSql.checkRows(2)
-        tdSql.query("show create tables `TB`")
+        tdSql.query("show create table `TB`")
         tdSql.checkRows(1)
 
         tdSql.query("describe tb")
@@ -97,21 +97,21 @@ class TDTestCase:
         # corner cases
         tdSql.execute("create table `超级表`(ts timestamp, c1 int) tags(t1 int)")
         tdSql.execute("create table `子表一` using `超级表` tags(1)")
-        tdSql.execute("insert into table `子表二` using `超级表` tags(1) values(now, 1)")
+        tdSql.execute("insert into `子表二` using `超级表` tags(1) values(now, 1)")
         
         tdSql.query("select * from `超级表`")
         tdSql.checkRows(1)
         tdSql.query("select * from `子表二`")
         tdSql.checkRows(1)
         tdSql.query("show tables")
-        tdSql.checkRows(2)
+        tdSql.checkRows(7)
 
         tdSql.execute("create table `普通表` (ts timestamp, c1 int)")
         tdSql.execute("insert into `普通表` values(now, 2)")
         tdSql.query("select * from `普通表`")
         tdSql.checkRows(1)
         tdSql.query("show tables")
-        tdSql.checkRows(3)        
+        tdSql.checkRows(8)        
 
     def stop(self):
         tdSql.close()

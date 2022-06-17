@@ -26,9 +26,9 @@ class TDTestCase:
         
         # tag
         tdSql.error("create table `STB3`(ts timesatmp, c1 int) tags(t1 int, T1 int)")
-        tdSql.execute("create table `STB3`(ts timesatmp, c1 int) tags(t1 int)")
+        tdSql.execute("create table `STB3`(ts timestamp, c1 int) tags(t1 int)")
         tdSql.execute("alter table `STB3` add tag `T1` int")
-        tdSql.execute("create table `STB4`(ts timesatmp, c1 int) tags(t1 int, `T1` int)")
+        tdSql.execute("create table `STB4`(ts timestamp, c1 int) tags(t1 int, `T1` int)")
         tdSql.execute("create table tt3 using `STB3`(t1) tags(1)")
         tdSql.execute("create table tt4 using `STB3`(`T1`) tags(1)")
         tdSql.query("select t1, `T1` from `STB3`")
@@ -39,16 +39,16 @@ class TDTestCase:
         tdSql.checkRows(3)
 
         # cornor case
-        tdSql.execute("create table `STB4`(ts timesatmp, c1 int) tags(t1 int, `标签` int)")
-        tdSql.execute("insert into `测试` using `STB4` tags(1, 1) values(now, 1)")
+        tdSql.execute("create table `STB5`(ts timestamp, c1 int) tags(t1 int, `标签` int)")
+        tdSql.execute("insert into `测试` using `STB5` tags(1, 1) values(now, 1)")
         tdSql.query("select * from `测试`")
         tdSql.checkRows(1)
 
         tdSql.query("select `标签` t from `测试`")
         tdSql.checkRows(1)
 
-        tdSql.execute("alter talbe `STB4` add tag `标签2` double")
-        tdSql.query("describe `STB4`")
+        tdSql.execute("alter table `STB5` add tag `标签2` double")
+        tdSql.query("describe `STB5`")
         tdSql.checkRows(5)
 
     def stop(self):

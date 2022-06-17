@@ -27,7 +27,7 @@ class TDTestCase:
         tdSql.execute("create table tb(ts timestamp, c1 int)")
         tdSql.execute("create table `TB`(ts timestamp, c1 int)")
         tdSql.error("alter table tb add column C1 int")
-        tdSql.excute("alter table tb add column `C1` int")
+        tdSql.execute("alter table tb add column `C1` int")
         tdSql.error("alter table `TB` add column C1 int")
         tdSql.execute("alter table `TB` add column `C1` int")
 
@@ -150,6 +150,8 @@ class TDTestCase:
         tdSql.query("select ts as `TS` from tt3")
         tdSql.checkRows(1)
         tdSql.query("select ts as `时间戳` from tt3")
+        tdSql.checkRows(1)
+        tdSql.query("select ts `时间戳` from tt3")        
         tdSql.checkRows(1)
 
     def stop(self):

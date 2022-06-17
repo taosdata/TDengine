@@ -33,6 +33,7 @@ class TDTestCase:
         tdSql.error("create database Db")
         tdSql.error("create database `db`")
         tdSql.execute("create database `Db`")
+        tdSql.query("show databases")
         tdSql.checkRows(2)
 
         tdSql.execute("alter database db cachelast 1")
@@ -41,14 +42,17 @@ class TDTestCase:
         tdSql.execute("use db")
         tdSql.query("select database()")
         tdSql.checkData(0, 0, 'db');
-        tdSql.query("show db.vgroups()")
+        tdSql.query("show db.vgroups")
         tdSql.checkRows(0)
 
         tdSql.execute("use `Db`")
         tdSql.query("select database()")
         tdSql.checkData(0, 0, 'Db');
-        tdSql.query("show `Db`.vgroups()")
+        tdSql.query("show `Db`.vgroups")
         tdSql.checkRows(0)
+        tdSql.query("show create database `Db`")
+        tdSql.checkRows(1)
+
 
         tdSql.execute("drop database db")
         tdSql.execute("drop database `Db`")
