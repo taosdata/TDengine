@@ -2303,7 +2303,9 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
 
   int32_t rowSize = pInfo->pResBlock->info.rowSize;
   pInfo->bufPageSize     = getProperSortPageSize(rowSize);
-  pInfo->sortBufSize     = pInfo->bufPageSize * 16;
+
+  // the additional one is reserved for merge result
+  pInfo->sortBufSize     = pInfo->bufPageSize * (taosArrayGetSize(dataReaders) + 1);
   pInfo->hasGroupId      = false;
   pInfo->prefetchedTuple = NULL;
 
