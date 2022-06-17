@@ -169,6 +169,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
       } else if (pReq->currentOffset == TMQ_CONF__RESET_OFFSET__NONE) {
         tqError("tmq poll: no offset committed for consumer %ld in vg %d, subkey %s", consumerId,
                 pTq->pVnode->config.vgId, pReq->subKey);
+        terrno = TSDB_CODE_TQ_NO_COMMITTED_OFFSET;
         return -1;
       }
       tqDebug("consumer %ld, restore offset of %s on vg %d failed, config is %ld, set to %ld", consumerId, pReq->subKey,

@@ -983,6 +983,19 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
   if (code != 0) {
     tscWarn("msg discard from vg %d, epoch %d, code:%x", vgId, epoch, code);
     if (pMsg->pData) taosMemoryFree(pMsg->pData);
+    if (code == TSDB_CODE_TQ_NO_COMMITTED_OFFSET) {
+      SMqPollRspWrapper* pRspWrapper = taosAllocateQitem(sizeof(SMqPollRspWrapper), DEF_QITEM);
+      if (pRspWrapper == NULL) {
+        taosMemoryFree(pMsg->pData);
+        tscWarn("msg discard from vg %d, epoch %d since out of memory", vgId, epoch);
+        goto CREATE_MSG_FAIL;
+      }
+      pRspWrapper->tmqRspType = TMQ_MSG_TYPE__END_RSP;
+      /*pRspWrapper->vgHandle = pVg;*/
+      /*pRspWrapper->topicHandle = pTopic;*/
+      taosWriteQitem(tmq->mqueue, pRspWrapper);
+      tsem_post(&tmq->rspSem);
+    }
     goto CREATE_MSG_FAIL;
   }
 
@@ -1115,7 +1128,7 @@ bool tmqUpdateEp2(tmq_t* tmq, int32_t epoch, SMqAskEpRsp* pRsp) {
   return set;
 }
 
-#if 0
+#if 1
 bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, SMqAskEpRsp* pRsp) {
   /*printf("call update ep %d\n", epoch);*/
   bool    set = false;
@@ -1503,7 +1516,11 @@ SMqRspObj* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
       if (rspWrapper == NULL) return NULL;
     }
 
-    if (rspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_RSP) {
+    if (rspWrapper->tmqRspType == TMQ_MSG_TYPE__END_RSP) {
+      taosFreeQitem(rspWrapper);
+      terrno = TSDB_CODE_TQ_NO_COMMITTED_OFFSET;
+      return NULL;
+    } else if (rspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_RSP) {
       SMqPollRspWrapper* pollRspWrapper = (SMqPollRspWrapper*)rspWrapper;
       /*atomic_sub_fetch_32(&tmq->readyRequest, 1);*/
       int32_t consumerEpoch = atomic_load_32(&tmq->epoch);
@@ -1564,6 +1581,8 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
     rspObj = tmqHandleAllRsp(tmq, timeout, false);
     if (rspObj) {
       return (TAOS_RES*)rspObj;
+    } else if (terrno == TSDB_CODE_TQ_NO_COMMITTED_OFFSET) {
+      return NULL;
     }
     if (timeout != -1) {
       int64_t endTime = taosGetTimestampMs();
