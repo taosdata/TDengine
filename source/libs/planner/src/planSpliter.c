@@ -537,10 +537,12 @@ static int32_t stbSplCreateMergeKeys(SNodeList* pSortKeys, SNodeList* pTargets, 
   SNode*     pNode = NULL;
   FOREACH(pNode, pSortKeys) {
     SOrderByExprNode* pSortKey = (SOrderByExprNode*)pNode;
+    SExprNode*        pSortExpr = (SExprNode*)pSortKey->pExpr;
     SNode*            pTarget = NULL;
     bool              found = false;
     FOREACH(pTarget, pTargets) {
-      if (0 == strcmp(((SExprNode*)pSortKey->pExpr)->aliasName, ((SColumnNode*)pTarget)->colName)) {
+      if ((QUERY_NODE_COLUMN == nodeType(pSortExpr) && nodesEqualNode((SNode*)pSortExpr, pTarget)) ||
+          (0 == strcmp(pSortExpr->aliasName, ((SColumnNode*)pTarget)->colName))) {
         code = nodesListMakeStrictAppend(&pMergeKeys, stbSplCreateOrderByExpr(pSortKey, pTarget));
         if (TSDB_CODE_SUCCESS != code) {
           break;
@@ -549,7 +551,7 @@ static int32_t stbSplCreateMergeKeys(SNodeList* pSortKeys, SNodeList* pTargets, 
       }
     }
     if (TSDB_CODE_SUCCESS == code && !found) {
-      SNode* pCol = stbSplCreateColumnNode((SExprNode*)pSortKey->pExpr);
+      SNode* pCol = stbSplCreateColumnNode(pSortExpr);
       code = nodesListMakeStrictAppend(&pMergeKeys, stbSplCreateOrderByExpr(pSortKey, pCol));
       if (TSDB_CODE_SUCCESS == code) {
         code = nodesListStrictAppend(pTargets, pCol);

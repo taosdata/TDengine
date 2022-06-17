@@ -392,10 +392,8 @@ SOperatorInfo* createMultiwaySortMergeOperatorInfo(SOperatorInfo** downStreams, 
 
   pInfo->bufPageSize   = getProperSortPageSize(rowSize);
 
-  uint32_t numOfSources = taosArrayGetSize(pSortInfo);
-  numOfSources = TMAX(4, numOfSources);
-
-  pInfo->sortBufSize    = numOfSources * pInfo->bufPageSize;
+  // one additional is reserved for merged result.
+  pInfo->sortBufSize   = pInfo->bufPageSize * (numStreams + 1);
 
   pOperator->fpSet =
       createOperatorFpSet(doOpenMultiwaySortMergeOperator, doMultiwaySortMerge, NULL, NULL,
