@@ -720,8 +720,8 @@ _err:
   return code;
 }
 
-int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SColDataBlock *pBlockData, uint8_t **ppBuf, int64_t *rOffset,
-                           int64_t *rSize) {
+int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, uint8_t **ppBuf, SBlockIdx *pBlockIdx,
+                           SBlock *pBlock) {
   int32_t code = 0;
   // TODO
   return code;

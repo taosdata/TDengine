@@ -564,3 +564,10 @@ int32_t tsdbBuildDeleteSkyline(SArray *aDelData, int32_t sidx, int32_t eidx, SAr
 
   return code;
 }
+
+// SBlockData ======================================================
+int32_t tsdbBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}

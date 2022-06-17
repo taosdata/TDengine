@@ -31,6 +31,9 @@ extern "C" {
 #define tsdbDebug(...) do { if (tsdbDebugFlag & DEBUG_DEBUG) { taosPrintLog("TSDB ", DEBUG_DEBUG, tsdbDebugFlag, __VA_ARGS__); }} while(0)
 #define tsdbTrace(...) do { if (tsdbDebugFlag & DEBUG_TRACE) { taosPrintLog("TSDB ", DEBUG_TRACE, tsdbDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
+
+#define TSDB_MAX_SUBBLOCKS 8
+
 typedef struct TSDBROW       TSDBROW;
 typedef struct TSDBKEY       TSDBKEY;
 typedef struct TABLEID       TABLEID;
@@ -97,8 +100,8 @@ int32_t tsdbDataFWriterClose(SDataFWriter *pWriter, int8_t sync);
 int32_t tsdbUpdateDFileSetHeader(SDataFWriter *pWriter, uint8_t **ppBuf);
 int32_t tsdbWriteBlockIdx(SDataFWriter *pWriter, SMapData *pMapData, uint8_t **ppBuf);
 int32_t tsdbWriteBlock(SDataFWriter *pWriter, SMapData *pMapData, uint8_t **ppBuf, SBlockIdx *pBlockIdx);
-int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SColDataBlock *pBlockData, uint8_t **ppBuf, int64_t *rOffset,
-                           int64_t *rSize);
+int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, uint8_t **ppBuf, SBlockIdx *pBlockIdx,
+                           SBlock *pBlock);
 int32_t tsdbWriteBlockSMA(SDataFWriter *pWriter, SBlockSMA *pBlockSMA, int64_t *rOffset, int64_t *rSize);
 
 // SDataFReader
@@ -153,9 +156,15 @@ int32_t tPutBlockIdx(uint8_t *p, void *ph);
 int32_t tGetBlockIdx(uint8_t *p, void *ph);
 
 // SBlock
+#define BLOCK_INIT_VAL ((SBlock){})
+
 int32_t tPutBlock(uint8_t *p, void *ph);
 int32_t tGetBlock(uint8_t *p, void *ph);
 int32_t tBlockCmprFn(const void *p1, const void *p2);
+
+// SBlockData
+void    tsdbBlockDataReset(SBlockData *pBlockData);
+int32_t tsdbBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema);
 
 // SDelIdx
 int32_t tPutDelIdx(uint8_t *p, void *ph);
@@ -293,14 +302,21 @@ struct SBlockInfo {
   int64_t smaSize;
 };
 
+typedef struct {
+  int64_t offset;
+  int64_t size;
+} SSubBlock;
+
 struct SBlock {
-  TSDBKEY    minKey;
-  TSDBKEY    maxKey;
-  int64_t    minVersion;
-  int64_t    maxVersion;
-  int32_t    nRows;
-  int8_t     nBlockInfo;
-  SBlockInfo blockInfos[];
+  TSDBKEY   minKey;
+  TSDBKEY   maxKey;
+  int64_t   minVersion;
+  int64_t   maxVersion;
+  int32_t   nRows;
+  int8_t    last;
+  int8_t    hasDup;
+  int8_t    nSubBlock;
+  SSubBlock sBlocks[TSDB_MAX_SUBBLOCKS];
 };
 
 struct SBlockCol {
@@ -322,9 +338,7 @@ struct SAggrBlkCol {
 };
 
 struct SBlockData {
-  int32_t   delimiter;  // For recovery usage
-  int32_t   numOfCols;  // For recovery usage
-  uint64_t  uid;        // For recovery usage
+  int32_t   nRow;
   SBlockCol cols[];
 };
 
