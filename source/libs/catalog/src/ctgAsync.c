@@ -622,7 +622,7 @@ int32_t ctgHandleTaskEnd(SCtgTask* pTask, int32_t rspCode) {
   SCtgJob* pJob = pTask->pJob;
   int32_t code = 0;
 
-  qDebug("QID:0x%" PRIx64 " task %d end with rsp %s", pJob->queryId, pTask->taskId, tstrerror(rspCode));
+  qDebug("QID:0x%" PRIx64 " task %d end with res %s", pJob->queryId, pTask->taskId, tstrerror(rspCode));
 
   pTask->code = rspCode;
 
@@ -1276,7 +1276,7 @@ int32_t ctgLaunchJob(SCtgJob *pJob) {
   for (int32_t i = 0; i < taskNum; ++i) {
     SCtgTask *pTask = taosArrayGet(pJob->pTasks, i);
 
-    qDebug("QID:0x%" PRIx64 " start to launch task %d", pJob->queryId, pTask->taskId);
+    qDebug("QID:0x%" PRIx64 " ctg start to launch task %d", pJob->queryId, pTask->taskId);
     CTG_ERR_RET((*gCtgAsyncFps[pTask->type].launchFp)(pTask));
   }
 

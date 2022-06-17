@@ -537,6 +537,8 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
     goto _error;
   }
 
+  //taosSsleep(20);
+
   SDataBlockDescNode* pDescNode = pTableScanNode->scan.node.pOutputDataBlockDesc;
 
   int32_t numOfCols = 0;
