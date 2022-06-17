@@ -116,7 +116,7 @@ int32_t schInitJob(SSchedulerReq *pReq, SSchJob **pSchJob, SQueryResult* pRes, b
 
   SCH_JOB_DLOG("job refId:0x%" PRIx64" created", pJob->refId);
 
-  pJob->status = JOB_TASK_STATUS_NOT_START;
+  schUpdateJobStatus(pJob, JOB_TASK_STATUS_NOT_START);
 
   *pSchJob = pJob;
 
@@ -1623,12 +1623,15 @@ int32_t schExecStaticExplainJob(SSchedulerReq *pReq, int64_t *job, bool sync) {
   }
 
   pJob->sql = pReq->sql;
+  pJob->reqKilled = pReq->reqKilled;
   pJob->attr.queryJob = true;
   pJob->attr.explainMode = pReq->pDag->explainInfo.mode;
   pJob->queryId = pReq->pDag->queryId;
   pJob->subPlans = pReq->pDag->pSubplans;
   pJob->userRes.execFp = pReq->fp;
   pJob->userRes.userParam = pReq->cbParam;
+  
+  schUpdateJobStatus(pJob, JOB_TASK_STATUS_NOT_START);
 
   code = schBeginOperation(pJob, SCH_OP_EXEC, sync);
   if (code) {
