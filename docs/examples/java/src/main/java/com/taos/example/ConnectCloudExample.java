@@ -14,6 +14,7 @@ public class ConnectCloudExample {
         Statement stmt = conn.createStatement();
         // test the connection by firing a query
         stmt.executeQuery("select server_version()");
+        stmt.close();
         conn.close();
     }
 }

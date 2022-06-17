@@ -46,8 +46,18 @@ In this example, we use `execute` method to execute SQL and get affected rows. T
 ```
 </TabItem>
 <TabItem value="java" label="Java">
+
+```java
+{{#include docs/examples/java/src/main/java/com/taos/example/CloudTutorial.java:insert}}
+```
+
 </TabItem>
 <TabItem value="go" label="Go">
+
+```go
+
+```
+
 </TabItem>
 <TabItem value="rust" label="Rust">
 
@@ -59,6 +69,11 @@ In this example, we use `exec` method to execute SQL. `exec` is designed for som
 
 </TabItem>
 <TabItem value="node" label="Node.js">
+
+```javascript
+
+```
+
 </TabItem>
 </Tabs>
 

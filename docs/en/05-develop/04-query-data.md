@@ -146,6 +146,25 @@ Iterate over each rows:
 
 </TabItem>
 <TabItem value="java" label="Java">
+
+In this example we use `executeQuery` method of `Statement` object and get a `ResultSet` object.
+
+```java
+{{#include docs/examples/java/src/main/java/com/taos/example/CloudTutorial.java:query:nrc}}
+```
+
+Get column meta from the result:
+
+```java
+{{#include docs/examples/java/src/main/java/com/taos/example/CloudTutorial.java:meta:nrc}}
+```
+
+Iterate over the result and print each row:
+
+```java
+{{#include docs/examples/java/src/main/java/com/taos/example/CloudTutorial.java:iter}}
+```
+
 </TabItem>
 <TabItem value="go" label="Go">
 </TabItem>
