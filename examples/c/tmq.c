@@ -47,7 +47,7 @@ int32_t init_env() {
     return -1;
   }
 
-  TAOS_RES* pRes = taos_query(pConn, "create database if not exists abc1 vgroups 2");
+  TAOS_RES* pRes = taos_query(pConn, "create database if not exists abc1 vgroups 1");
   if (taos_errno(pRes) != 0) {
     printf("error in create db, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -167,7 +167,7 @@ tmq_t* build_consumer() {
   tmq_conf_set(conf, "td.connect.user", "root");
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
   tmq_conf_set(conf, "msg.with.table.name", "true");
-  tmq_conf_set(conf, "enable.auto.commit", "false");
+  tmq_conf_set(conf, "enable.auto.commit", "true");
   tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
   tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);
   assert(tmq);
@@ -201,6 +201,7 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
       taos_free_result(tmqmessage);
       /*} else {*/
       /*break;*/
+      /*tmq_commit_sync(tmq, NULL);*/
     }
   }
 
@@ -239,7 +240,7 @@ void sync_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
       msg_process(tmqmessage);
       taos_free_result(tmqmessage);
 
-      /*tmq_commit_async(tmq, NULL, tmq_commit_cb_print, NULL);*/
+      /*tmq_commit_sync(tmq, NULL);*/
       /*if ((++msg_count % MIN_COMMIT_COUNT) == 0) tmq_commit(tmq, NULL, 0);*/
     }
   }
