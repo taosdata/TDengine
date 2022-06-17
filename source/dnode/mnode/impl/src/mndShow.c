@@ -104,6 +104,8 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_TOPICS;
   } else if (strncasecmp(name, TSDB_PERFS_TABLE_STREAMS, len) == 0) {
     type = TSDB_MGMT_TABLE_STREAMS;
+  } else if (strncasecmp(name, TSDB_PERFS_TABLE_APPS, len) == 0) {
+    type = TSDB_MGMT_TABLE_APPS;
   } else {
     //    ASSERT(0);
   }
@@ -229,7 +231,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
 
   mDebug("show:0x%" PRIx64 ", start retrieve data, type:%d", pShow->id, pShow->type);
 
-  // if (mndCheckShowAuth(pMnode, pReq->conn.user, pShow->type) != 0) return -1;
+  // if (mndCheckShowAuth(pMnode, pReq->info.conn.user, pShow->type) != 0) return -1;
 
   int32_t      numOfCols = pShow->pMeta->numOfColumns;
   SSDataBlock *pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));

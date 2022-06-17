@@ -22,8 +22,8 @@
 #include "mndSync.h"
 #include "mndUser.h"
 
-#define TRANS_VER_NUMBER   1
-#define TRANS_ARRAY_SIZE   8
+#define TRANS_VER_NUMBER 1
+#define TRANS_ARRAY_SIZE 8
 #define TRANS_RESERVE_SIZE 64
 
 static SSdbRaw *mndTransActionEncode(STrans *pTrans);
@@ -661,7 +661,7 @@ static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
   }
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
-  mDebug("trans:%d, sync to other mnodes", pTrans->id);
+  mDebug("trans:%d, sync to other mnodes, stage:%s", pTrans->id, mndTransStr(pTrans->stage));
   int32_t code = mndSyncPropose(pMnode, pRaw, pTrans->id);
   if (code != 0) {
     mError("trans:%d, failed to sync since %s", pTrans->id, terrstr());
@@ -1369,7 +1369,7 @@ static int32_t mndProcessKillTransReq(SRpcMsg *pReq) {
 
   mInfo("trans:%d, start to kill", killReq.transId);
 
-  if (mndCheckOperAuth(pMnode, pReq->conn.user, MND_OPER_KILL_TRANS) != 0) {
+  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_KILL_TRANS) != 0) {
     goto _OVER;
   }
 
@@ -1417,7 +1417,9 @@ void mndTransPullup(SMnode *pMnode) {
   }
 
   SSnapshotMeta sMeta = {0};
-  if (syncGetSnapshotMeta(pMnode->syncMgmt.sync, &sMeta) == 0) {
+  // if (syncGetSnapshotMeta(pMnode->syncMgmt.sync, &sMeta) == 0) {
+  SyncIndex snapshotIndex = sdbGetApplyIndex(pMnode->pSdb);
+  if (syncGetSnapshotMetaByIndex(pMnode->syncMgmt.sync, snapshotIndex, &sMeta) == 0) {
     sdbSetCurConfig(pMnode->pSdb, sMeta.lastConfigIndex);
   }
   sdbWriteFile(pMnode->pSdb);
