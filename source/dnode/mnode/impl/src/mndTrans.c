@@ -683,6 +683,12 @@ static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
   return 0;
 }
 
+static bool mndCheckDbConflict(const char *db, STrans *pTrans) {
+  if (db[0] == 0) return false;
+  if (strcmp(db, pTrans->dbname1) == 0 || strcmp(db, pTrans->dbname2) == 0) return true;
+  return false;
+}
+
 static bool mndCheckTransConflict(SMnode *pMnode, STrans *pNew) {
   STrans *pTrans = NULL;
   void   *pIter = NULL;
@@ -698,21 +704,18 @@ static bool mndCheckTransConflict(SMnode *pMnode, STrans *pNew) {
     if (pNew->conflict == TRN_CONFLICT_DB) {
       if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
       if (pTrans->conflict == TRN_CONFLICT_DB || pTrans->conflict == TRN_CONFLICT_DB_INSIDE) {
-        if (strcmp(pNew->dbname1, pTrans->dbname1) == 0 || strcmp(pNew->dbname1, pTrans->dbname2) == 0 ||
-            strcmp(pNew->dbname2, pTrans->dbname1) == 0 || strcmp(pNew->dbname2, pTrans->dbname2) == 0) {
-          conflict = true;
-        }
+        if (mndCheckDbConflict(pNew->dbname1, pTrans)) conflict = true;
+        if (mndCheckDbConflict(pNew->dbname2, pTrans)) conflict = true;
       }
     }
     if (pNew->conflict == TRN_CONFLICT_DB_INSIDE) {
       if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
       if (pTrans->conflict == TRN_CONFLICT_DB) {
-        if (strcmp(pNew->dbname1, pTrans->dbname1) == 0 || strcmp(pNew->dbname1, pTrans->dbname2) == 0 ||
-            strcmp(pNew->dbname2, pTrans->dbname1) == 0 || strcmp(pNew->dbname2, pTrans->dbname2) == 0) {
-          conflict = true;
-        }
+        if (mndCheckDbConflict(pNew->dbname1, pTrans)) conflict = true;
+        if (mndCheckDbConflict(pNew->dbname2, pTrans)) conflict = true;
       }
     }
+
     mError("trans:%d, can't execute since conflict with trans:%d, db1:%s db2:%s", pNew->id, pTrans->id, pTrans->dbname1,
            pTrans->dbname2);
     sdbRelease(pMnode->pSdb, pTrans);
