@@ -195,6 +195,7 @@ int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, S
 cJSON*  syncNode2Json(const SSyncNode* pSyncNode);
 char*   syncNode2Str(const SSyncNode* pSyncNode);
 char*   syncNode2SimpleStr(const SSyncNode* pSyncNode);
+bool    syncNodeInConfig(SSyncNode* pSyncNode, const SSyncCfg* config);
 void    syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* newConfig, SyncIndex lastConfigChangeIndex, bool* isDrop);
 
 SSyncNode* syncNodeAcquire(int64_t rid);
@@ -229,6 +230,8 @@ SyncTerm  syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index);
 int32_t   syncNodeGetPreIndexTerm(SSyncNode* pSyncNode, SyncIndex index, SyncIndex* pPreIndex, SyncTerm* pPreTerm);
 
 int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex, uint64_t flag);
+
+int32_t syncNodeUpdateNewConfigIndex(SSyncNode* ths, SSyncCfg* pNewCfg);
 
 bool                 syncNodeInRaftGroup(SSyncNode* ths, SRaftId* pRaftId);
 SSyncSnapshotSender* syncNodeGetSnapshotSender(SSyncNode* ths, SRaftId* pDestId);

@@ -289,9 +289,10 @@ static void uvHandleReq(SSvrConn* pConn) {
            taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port), taosInetNtoa(pConn->localAddr.sin_addr),
            ntohs(pConn->localAddr.sin_port), transMsg.contLen);
   } else {
-    tDebug("conn %p %s received from %s:%d, local info: %s:%d, msg size: %d, resp:%d ", pConn,
+    tDebug("conn %p %s received from %s:%d, local info: %s:%d, msg size: %d, resp:%d, code: %d", pConn,
            TMSG_INFO(transMsg.msgType), taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port),
-           taosInetNtoa(pConn->localAddr.sin_addr), ntohs(pConn->localAddr.sin_port), transMsg.contLen, pHead->noResp);
+           taosInetNtoa(pConn->localAddr.sin_addr), ntohs(pConn->localAddr.sin_port), transMsg.contLen, pHead->noResp,
+           transMsg.code);
     // no ref here
   }
 
