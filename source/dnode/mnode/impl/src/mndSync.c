@@ -59,8 +59,8 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
     if (pMgmt->errCode != 0) {
       mError("trans:%d, failed to propose since %s", transId, tstrerror(pMgmt->errCode));
     }
-    tsem_post(&pMgmt->syncSem);
     pMgmt->transId = 0;
+    tsem_post(&pMgmt->syncSem);
   } else {
     STrans *pTrans = mndAcquireTrans(pMnode, transId);
     if (pTrans != NULL) {
@@ -123,8 +123,8 @@ void mndReConfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReConfigCbMeta cbM
     if (pMgmt->errCode != 0) {
       mError("trans:-1, failed to propose sync reconfig since %s", tstrerror(pMgmt->errCode));
     }
-    tsem_post(&pMgmt->syncSem);
     pMgmt->transId = 0;
+    tsem_post(&pMgmt->syncSem);
   }
 }
 
@@ -262,6 +262,7 @@ void mndSyncStart(SMnode *pMnode) {
 
 void mndSyncStop(SMnode *pMnode) {
   if (pMnode->syncMgmt.transId != 0) {
+    pMnode->syncMgmt.transId = 0;
     tsem_post(&pMnode->syncMgmt.syncSem);
   }
 }
