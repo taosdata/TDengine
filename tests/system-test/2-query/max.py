@@ -204,7 +204,6 @@ class TDTestCase:
         print(vnode_tables)
 
 
-
     def run(self):                 
 
         # max verifacation 
@@ -213,7 +212,6 @@ class TDTestCase:
 
         self.support_distributed_aggregate()
 
-    
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
