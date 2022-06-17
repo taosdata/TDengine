@@ -20,6 +20,9 @@ import numpy as np
 import pandas as pd
 import time, datetime
 from taostest import TDCase
+import subprocess
+import os
+import taos
 
 class TDCreateData():
     def __init__(self, tdSql, logger):
@@ -484,6 +487,35 @@ class TDCreateData():
         pass
 
 
+    def explain_sql(self,sql):   
+        #执行sql解析    
+        sql = "explain " + sql 
+        self.tdSql.query(sql) 
+        
+    def taos_f(self,testcasePath,testcaseFilename):   
+        #执行taos_f 导入解析            
+        #taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+        #taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
+        # service_host = "ceph01"
+        # testcasePath = os.path.split(__file__)[0]
+        # testcaseFilename = os.path.split(__file__)[-1]
+        # taos_cmd1 = "taos -h %s -f %s/%s.sql" % (service_host,testcasePath,testcaseFilename)
+        # _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
+        service_host = "ceph01"
+        taos_cmd1 = "taos -h %s -f %s/%s.sql" % (service_host,testcasePath,testcaseFilename)
+        _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
+        print("sqlname :============= %s/%s.sql"% (testcasePath,testcaseFilename))
+
+    def case_sql_subprocess_execute(self,db):
+        service_host = "ceph01"
+        conn1 = taos.connect(host="%s" %service_host, user="root", password="taosdata", config="/etc/taos/")
+        cur1 = conn1.cursor()        
+        cur1.execute('use %s;' %db)
+        sql = 'select * from regular_table_1 limit 5;'
+        cur1.execute(sql)
+
+        return(conn1,cur1)  
+             
     def result_0(self,sql):
         self.logger.info(sql) 
         self.tdSql.query(sql)
