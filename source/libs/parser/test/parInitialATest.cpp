@@ -88,7 +88,7 @@ TEST_F(ParserInitialATest, alterSTable) {
     int32_t len = snprintf(expect.name, sizeof(expect.name), "0.test.%s", pTbname);
     expect.name[len] = '\0';
     expect.alterType = alterType;
-    expect.ttl = ttl;
+//    expect.ttl = ttl;
     if (nullptr != pComment) {
       expect.comment = strdup(pComment);
       expect.commentLen = strlen(pComment);
@@ -147,9 +147,9 @@ TEST_F(ParserInitialATest, alterSTable) {
     tFreeSMAltertbReq(&req);
   });
 
-  setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_OPTIONS, 0, nullptr, 0, 0, nullptr, nullptr, 10);
-  run("ALTER TABLE st1 TTL 10");
-  clearAlterStbReq();
+//  setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_OPTIONS, 0, nullptr, 0, 0, nullptr, nullptr, 10);
+//  run("ALTER TABLE st1 TTL 10");
+//  clearAlterStbReq();
 
   setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_OPTIONS, 0, nullptr, 0, 0, nullptr, "test");
   run("ALTER TABLE st1 COMMENT 'test'");
