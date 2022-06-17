@@ -71,7 +71,7 @@ SSDataBlock* tsortGetSortedDataBlock(const SSortHandle* pSortHandle) {
  * @param type
  * @return
  */
-SSortHandle* tsortCreateSortHandle(SArray* pSortInfo, SArray* pIndexMap, int32_t type, int32_t pageSize, int32_t numOfPages, SSDataBlock* pBlock, const char* idstr) {
+SSortHandle* tsortCreateSortHandle(SArray* pSortInfo, int32_t type, int32_t pageSize, int32_t numOfPages, SSDataBlock* pBlock, const char* idstr) {
   SSortHandle* pSortHandle = taosMemoryCalloc(1, sizeof(SSortHandle));
 
   pSortHandle->type       = type;

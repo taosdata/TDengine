@@ -219,4 +219,23 @@ int32_t qGetExplainExecInfo(qTaskInfo_t tinfo, int32_t *resNum, SExplainExecInfo
   return getOperatorExplainExecInfo(pTaskInfo->pRoot, pRes, &capacity, resNum);  
 }
 
+int32_t qSerializeTaskStatus(qTaskInfo_t tinfo, char** pOutput, int32_t* len) {
+  SExecTaskInfo* pTaskInfo = (struct SExecTaskInfo*)tinfo;
+  if (pTaskInfo->pRoot == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  return encodeOperator(pTaskInfo->pRoot, pOutput, len);
+}
+
+int32_t qDeserializeTaskStatus(qTaskInfo_t tinfo, const char* pInput, int32_t len) {
+  SExecTaskInfo* pTaskInfo = (struct SExecTaskInfo*) tinfo;
+
+  if (pTaskInfo == NULL || pInput == NULL || len == 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  return decodeOperator(pTaskInfo->pRoot, pInput, len);
+}
+
 
