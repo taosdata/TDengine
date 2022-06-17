@@ -192,6 +192,7 @@ bool        syncEnvIsStart();
 const char* syncStr(ESyncState state);
 bool        syncIsRestoreFinish(int64_t rid);
 int32_t     syncGetSnapshotMeta(int64_t rid, struct SSnapshotMeta* sMeta);
+int32_t     syncGetSnapshotMetaByIndex(int64_t rid, SyncIndex snapshotIndex, struct SSnapshotMeta* sMeta);
 
 int32_t syncReconfig(int64_t rid, const SSyncCfg* pNewCfg);
 
