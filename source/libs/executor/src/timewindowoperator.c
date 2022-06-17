@@ -2456,10 +2456,12 @@ SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPh
   }
   initDummyFunction(pInfo->pDummyCtx, pInfo->binfo.pCtx, numOfCols);
 
-  pInfo->twAggSup = (STimeWindowAggSupp) {.waterMark = pSessionNode->window.watermark,
+  pInfo->twAggSup = (STimeWindowAggSupp) {
+      .waterMark = pSessionNode->window.watermark,
       .calTrigger = pSessionNode->window.triggerType,
       .maxTs = INT64_MIN};
-  initResultRowInfo(&pInfo->binfo.resultRowInfo, 8);
+
+  initResultRowInfo(&pInfo->binfo.resultRowInfo);
   initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
 
   pInfo->primaryTsIndex = tsSlotId;
