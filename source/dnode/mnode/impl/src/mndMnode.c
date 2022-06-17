@@ -414,7 +414,7 @@ static int32_t mndProcessCreateMnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (mndCheckOperAuth(pMnode, pReq->conn.user, MND_OPER_CREATE_MNODE) != 0) {
+  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_CREATE_MNODE) != 0) {
     goto _OVER;
   }
 
@@ -621,7 +621,7 @@ static int32_t mndProcessDropMnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (mndCheckOperAuth(pMnode, pReq->conn.user, MND_OPER_DROP_MNODE) != 0) {
+  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_DROP_MNODE) != 0) {
     goto _OVER;
   }
 
@@ -667,6 +667,10 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     }
     if (pObj->pDnode && mndIsDnodeOnline(pObj->pDnode, curMs)) {
       roles = syncStr(pObj->state);
+      if (pObj->state == TAOS_SYNC_STATE_LEADER && pObj->id != pMnode->selfDnodeId) {
+        roles = syncStr(TAOS_SYNC_STATE_ERROR);
+        mError("mnode:%d, is leader too", pObj->id);
+      }
     }
     char b2[12 + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(b2, roles, pShow->pMeta->pSchemas[cols].bytes);
@@ -738,7 +742,7 @@ static int32_t mndProcessAlterMnodeReq(SRpcMsg *pReq) {
     pMgmt->errCode = 0;
     pMgmt->transId = -1;
     tsem_wait(&pMgmt->syncSem);
-    mInfo("alter mnode sync result:%s", tstrerror(pMgmt->errCode));
+    mInfo("alter mnode sync result:0x%x %s", pMgmt->errCode, tstrerror(pMgmt->errCode));
     terrno = pMgmt->errCode;
     return pMgmt->errCode;
   }

@@ -29,6 +29,8 @@ extern "C" {
 
 #define CONFIG_FILE_LEN 1024
 
+#define MAX_CONFIG_INDEX_COUNT 512
+
 typedef struct SRaftCfg {
   SSyncCfg  cfg;
   TdFilePtr pFile;
@@ -36,6 +38,10 @@ typedef struct SRaftCfg {
   int8_t    isStandBy;
   int8_t    snapshotEnable;
   SyncIndex lastConfigIndex;
+
+  SyncIndex configIndexArr[MAX_CONFIG_INDEX_COUNT];
+  int32_t   configIndexCount;
+
 } SRaftCfg;
 
 SRaftCfg *raftCfgOpen(const char *path);

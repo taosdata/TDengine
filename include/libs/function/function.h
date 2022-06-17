@@ -150,12 +150,8 @@ typedef struct SqlFunctionCtx {
 } SqlFunctionCtx;
 
 enum {
-  TEXPR_NODE_DUMMY     = 0x0,
   TEXPR_BINARYEXPR_NODE= 0x1,
   TEXPR_UNARYEXPR_NODE = 0x2,
-  TEXPR_FUNCTION_NODE  = 0x3,
-  TEXPR_COL_NODE       = 0x4,
-  TEXPR_VALUE_NODE     = 0x8,
 };
 
 typedef struct tExprNode {

@@ -189,7 +189,7 @@ typedef struct SExecTaskInfo {
   } schemaVer;
 
   STableListInfo   tableqinfoList;       // this is a table list
-  char*            sql;                  // query sql string
+  const char*      sql;                  // query sql string
   jmp_buf          env;                  // jump to this position when error happens.
   EOPTR_EXEC_MODEL execModel;            // operator execution model [batch model|stream model]
   struct SOperatorInfo* pRoot;
@@ -544,6 +544,13 @@ typedef struct SFillOperatorInfo {
   bool              multigroupResult;
 } SFillOperatorInfo;
 
+typedef struct SScalarSupp {
+  SExprInfo*      pScalarExprInfo;
+  int32_t         numOfScalarExpr;  // the number of scalar expression in group operator
+  SqlFunctionCtx* pScalarFuncCtx;
+  int32_t*        rowCellInfoOffset;  // offset value for each row result cell info
+} SScalarSupp;
+
 typedef struct SGroupbyOperatorInfo {
   // SOptrBasicInfo should be first, SAggSupporter should be second for stream encode
   SOptrBasicInfo  binfo;
@@ -556,10 +563,7 @@ typedef struct SGroupbyOperatorInfo {
   char*           keyBuf;       // group by keys for hash
   int32_t         groupKeyLen;  // total group by column width
   SGroupResInfo   groupResInfo;
-  SExprInfo*      pScalarExprInfo;
-  int32_t         numOfScalarExpr;  // the number of scalar expression in group operator
-  SqlFunctionCtx* pScalarFuncCtx;
-  int32_t*        rowCellInfoOffset;  // offset value for each row result cell info
+  SScalarSupp     scalarSup;
 } SGroupbyOperatorInfo;
 
 typedef struct SDataGroupInfo {
@@ -583,6 +587,7 @@ typedef struct SPartitionOperatorInfo {
   void*          pGroupIter;  // group iterator
   int32_t        pageIndex;   // page index of current group
   SSDataBlock*   pUpdateRes;
+  SScalarSupp    scalarSupp;
 } SPartitionOperatorInfo;
 
 typedef struct SWindowRowsSup {
@@ -691,10 +696,6 @@ typedef struct SSortedMergeOperatorInfo {
   int32_t          numOfResPerPage;
   char**           groupVal;
   SArray          *groupInfo;
-
-  bool hasGroupId;
-  uint64_t groupId;
-  STupleHandle* prefetchedTuple;
 } SSortedMergeOperatorInfo;
 
 typedef struct SSortOperatorInfo {
@@ -707,10 +708,6 @@ typedef struct SSortOperatorInfo {
 
   int64_t      startTs;       // sort start time
   uint64_t     sortElapsed;   // sort elapsed time, time to flush to disk not included.
-
-  STupleHandle *prefetchedTuple;
-  bool  hasGroupId;
-  uint64_t groupId;
 } SSortOperatorInfo;
 
 typedef struct STagFilterOperatorInfo {
@@ -759,6 +756,8 @@ int32_t setDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadIn
 void    getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t key, STimeWindow* win);
 int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t *order, int32_t* scanFlag);
 int32_t getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, uint32_t* defaultBufsz);
+
+SArray* extractPartitionColInfo(SNodeList* pNodeList);
 
 void    doSetOperatorCompleted(SOperatorInfo* pOperator);
 void    doFilter(const SNode* pFilterNode, SSDataBlock* pBlock);
@@ -839,8 +838,7 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExp
 SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfCols,
                                              SSDataBlock* pResBlock, STimeWindowAggSupp *pTwAggSupp, int32_t tsSlotId, SColumn* pStateKeyCol, SExecTaskInfo* pTaskInfo);
 
-SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
-                                           SSDataBlock* pResultBlock, SArray* pGroupColList, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SPartitionPhysiNode* pPartNode, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                            SSDataBlock* pResultBlock, const SNodeListNode* pValNode, SExecTaskInfo* pTaskInfo);
@@ -848,11 +846,11 @@ SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SExprInfo*
 SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResBlock, SNode* pOnCondition, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream,
-    SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResBlock, int64_t gap,
-    int32_t tsSlotId, STimeWindowAggSupp* pTwAggSupp, SExecTaskInfo* pTaskInfo);
-
-SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream,
     SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createStreamFinalSessionAggOperatorInfo(SOperatorInfo* downstream,
+    SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, int32_t numOfChild);
+
+SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo);
 
 #if 0
 SOperatorInfo* createTableSeqScanOperatorInfo(void* pTsdbReadHandle, STaskRuntimeEnv* pRuntimeEnv);
@@ -890,7 +888,7 @@ int32_t decodeOperator(SOperatorInfo* ops, char* data, int32_t length);
 
 void    setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status);
 int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
-                               EOPTR_EXEC_MODEL model);
+                               const char* sql, EOPTR_EXEC_MODEL model);
 int32_t createDataSinkParam(SDataSinkNode *pNode, void **pParam, qTaskInfo_t* pTaskInfo);                               
 int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SExplainExecInfo** pRes, int32_t* capacity,
                                    int32_t* resNum);

@@ -292,6 +292,8 @@ int32_t catalogUpdateVgEpSet(SCatalog* pCtg, const char* dbFName, int32_t vgId, 
 
 int32_t ctgdLaunchAsyncCall(SCatalog* pCtg, SRequestConnInfo* pConn, uint64_t reqId, bool forceUpdate);
 
+int32_t catalogClearCache(void);
+
 /**
  * Destroy catalog and relase all resources
  */

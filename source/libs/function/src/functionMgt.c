@@ -165,6 +165,10 @@ bool fmIsIntervalInterpoFunc(int32_t funcId) { return isSpecificClassifyFunc(fun
 
 bool fmIsForbidStreamFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_FORBID_STREAM_FUNC); }
 
+bool fmIsForbidWindowFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_FORBID_WINDOW_FUNC); }
+
+bool fmIsForbidGroupByFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_FORBID_GROUP_BY_FUNC); }
+
 void fmFuncMgtDestroy() {
   void* m = gFunMgtService.pFuncNameHashTable;
   if (m != NULL && atomic_val_compare_exchange_ptr((void**)&gFunMgtService.pFuncNameHashTable, m, 0) == m) {
@@ -206,7 +210,7 @@ bool fmIsInvertible(int32_t funcId) {
   return res;
 }
 
-//function has same input/output type
+// function has same input/output type
 bool fmIsSameInOutType(int32_t funcId) {
   bool res = false;
   switch (funcMgtBuiltins[funcId].type) {
@@ -301,7 +305,7 @@ static int32_t createMergeFunction(const SFunctionNode* pSrcFunc, const SFunctio
     nodesDestroyList(pParameterList);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  //overwrite function restype set by translate function
+  // overwrite function restype set by translate function
   if (fmIsSameInOutType(pSrcFunc->funcId)) {
     (*pMergeFunc)->node.resType = pSrcFunc->node.resType;
   }

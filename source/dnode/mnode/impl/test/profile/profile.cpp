@@ -88,7 +88,7 @@ TEST_F(MndTestProfile, 02_ConnectMsg_InvalidDB) {
 
 TEST_F(MndTestProfile, 03_ConnectMsg_Show) {
   test.SendShowReq(TSDB_MGMT_TABLE_CONNS, "connections", "");
-  EXPECT_EQ(test.GetShowRows(), 0);
+  EXPECT_EQ(test.GetShowRows(), 1);
 }
 
 TEST_F(MndTestProfile, 04_HeartBeatMsg) {
@@ -295,8 +295,7 @@ TEST_F(MndTestProfile, 07_KillQueryMsg) {
 
 TEST_F(MndTestProfile, 08_KillQueryMsg_InvalidConn) {
   SKillQueryReq killReq = {0};
-  killReq.connId = 2345;
-  killReq.queryId = 2345;
+  strcpy(killReq.queryStrId, "2345:2345");
 
   int32_t contLen = tSerializeSKillQueryReq(NULL, 0, &killReq);
   void*   pReq = rpcMallocCont(contLen);
