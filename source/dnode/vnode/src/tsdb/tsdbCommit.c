@@ -497,7 +497,7 @@ static int32_t tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
 
     if (pIter && pIter->pTable &&
         (!pIdx || ((pIter->pTable->suid < pIdx->suid) ||
-                   (pIter->pTable->suid == pIdx->suid && pIter->pTable->uid <= pIdx->uid)))) {
+                   ((pIter->pTable->suid == pIdx->suid) && (pIter->pTable->uid <= pIdx->uid))))) {
       if (tsdbCommitToTable(pCommith, mIter) < 0) {
         tsdbCloseCommitFile(pCommith, true);
         // revert the file change
