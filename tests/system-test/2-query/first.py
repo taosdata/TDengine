@@ -90,24 +90,27 @@ class TDTestCase:
                 elif i == 13:
                     tdSql.checkData(0, 0, f'{self.nchar_str}1')
         #!bug TD-16569
-        # tdSql.query("select first(*),last(*) from stb where ts < 23 interval(1s)")
-        # tdSql.checkRows(0)
+        tdSql.query("select first(*),last(*) from stb where ts < 23 interval(1s)")
+        tdSql.checkRows(0)
         tdSql.execute('drop database db')
     def first_check_stb_distribute(self):
         # prepare data for vgroup 4
         dbname = self.get_long_name(length=10, mode="letters")
         stbname = self.get_long_name(length=5, mode="letters")
+        child_table_num = 20
         tdSql.execute(f"create database if not exists {dbname} vgroups 4")
         tdSql.execute(f'use {dbname}')
         # build 20 child tables,every table insert 10 rows
         tdSql.execute(f'''create table {stbname}(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 tinyint unsigned, col6 smallint unsigned, 
                     col7 int unsigned, col8 bigint unsigned, col9 float, col10 double, col11 bool, col12 binary(20), col13 nchar(20)) tags(loc nchar(20))''')
-        for i in range(1,21):
+        for i in range(child_table_num):
             tdSql.execute(f"create table {stbname}_{i} using {stbname} tags('beijing')")
             tdSql.execute(f"insert into {stbname}_{i}(ts) values(%d)" % (self.ts - 1-i))
-        for i in [f'{stbname}', f'{dbname}.{stbname}']:
-            tdSql.query(f"select first(*) from {i}")
-            tdSql.checkRows(0)
+        #!bug TD-16561
+        # for i in [f'{stbname}', f'{dbname}.{stbname}']:
+        #     tdSql.query(f"select first(*) from {i}")
+        #     tdSql.checkRows(1)
+        #     tdSql.checkData(0, 1, None)
         tdSql.query('show tables')
         vgroup_list = []
         for i in range(len(tdSql.queryResult)):
@@ -123,17 +126,13 @@ class TDTestCase:
             else:
                 tdLog.exit('This scene does not meet the requirements with {vgroups_num} vgroup!\n')
         
-        for i in range(self.tbnum):
+        for i in range(child_table_num):
             for j in range(self.rowNum):
                 tdSql.execute(f"insert into {stbname}_{i} values(%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '{self.binary_str}%d', '{self.nchar_str}%d')"
                           % (self.ts + j + i, j + 1, j + 1, j + 1, j + 1, j + 1, j + 1, j + 1, j + 1, j + 0.1, j + 0.1, j % 2, j + 1, j + 1))
-        #!bug TD-16561
-        # for i in [f'{stbname}', f'{dbname}.{stbname}']:
-        #     tdSql.query(f"select first(*) from {i}")
-        #     tdSql.checkRows(1)
-        #     tdSql.checkData(0, 1, None)
+        
         for i in range(1, 14):
-            for j in ['stb_1', 'db.stb_1', 'stb', 'db.stb']:
+            for j in [f'{stbname}_{i}', f'{dbname}.{stbname}_{i}', f'{stbname}', f'{dbname}.{stbname}']:
                 tdSql.query(f"select first(col{i}) from {j}")
                 tdSql.checkRows(1)
                 # tinyint,smallint,int,bigint,tinyint unsigned,smallint unsigned,int unsigned,bigint unsigned
@@ -152,16 +151,16 @@ class TDTestCase:
                 elif i == 13:
                     tdSql.checkData(0, 0, f'{self.nchar_str}1')
         #!bug TD-16569
-        # tdSql.query("select first(*),last(*) from {stbname} where ts < 23 interval(1s)")
-        # tdSql.checkRows(0)
-        tdSql.execute('drop database db')
+        tdSql.query(f"select first(*),last(*) from {stbname} where ts < 23 interval(1s)")
+        tdSql.checkRows(0)
+        tdSql.execute(f'drop database {dbname}')
         
         
         
         pass
     def run(self):
         self.first_check_base()
-        # self.first_check_stb_distribute()
+        self.first_check_stb_distribute()
         
                 
     def stop(self):
