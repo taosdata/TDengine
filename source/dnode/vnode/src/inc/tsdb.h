@@ -32,31 +32,29 @@ extern "C" {
 #define tsdbTrace(...) do { if (tsdbDebugFlag & DEBUG_TRACE) { taosPrintLog("TSDB ", DEBUG_TRACE, tsdbDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
-#define TSDB_MAX_SUBBLOCKS 8
+typedef struct TSDBROW      TSDBROW;
+typedef struct TSDBKEY      TSDBKEY;
+typedef struct TABLEID      TABLEID;
+typedef struct KEYINFO      KEYINFO;
+typedef struct SDelOp       SDelOp;
+typedef struct SDelData     SDelData;
+typedef struct SDelIdx      SDelIdx;
+typedef struct STbData      STbData;
+typedef struct SMemTable    SMemTable;
+typedef struct STbDataIter  STbDataIter;
+typedef struct SMergeInfo   SMergeInfo;
+typedef struct STable       STable;
+typedef struct SMapData     SMapData;
+typedef struct SBlockSMA    SBlockSMA;
+typedef struct SBlockIdx    SBlockIdx;
+typedef struct SBlock       SBlock;
+typedef struct SBlockCol    SBlockCol;
+typedef struct SBlockStatis SBlockStatis;
+typedef struct SAggrBlkCol  SAggrBlkCol;
+typedef struct SBlockData   SBlockData;
+typedef struct SReadH       SReadH;
 
-typedef struct TSDBROW       TSDBROW;
-typedef struct TSDBKEY       TSDBKEY;
-typedef struct TABLEID       TABLEID;
-typedef struct SDelOp        SDelOp;
-typedef struct SDelData      SDelData;
-typedef struct SDelIdx       SDelIdx;
-typedef struct STbData       STbData;
-typedef struct SMemTable     SMemTable;
-typedef struct STbDataIter   STbDataIter;
-typedef struct SMergeInfo    SMergeInfo;
-typedef struct STable        STable;
-typedef struct SMapData      SMapData;
-typedef struct SColData      SColData;
-typedef struct SColDataBlock SColDataBlock;
-typedef struct SBlockSMA     SBlockSMA;
-typedef struct SBlockIdx     SBlockIdx;
-typedef struct SBlockInfo    SBlockInfo;
-typedef struct SBlock        SBlock;
-typedef struct SBlockCol     SBlockCol;
-typedef struct SBlockStatis  SBlockStatis;
-typedef struct SAggrBlkCol   SAggrBlkCol;
-typedef struct SBlockData    SBlockData;
-typedef struct SReadH        SReadH;
+#define TSDB_MAX_SUBBLOCKS 8
 
 // tsdbMemTable ==============================================================================================
 
@@ -111,7 +109,8 @@ int32_t tsdbDataFReaderOpen(SDataFReader **ppReader, STsdb *pTsdb, SDFileSet *pS
 int32_t tsdbDataFReaderClose(SDataFReader *pReader);
 int32_t tsdbReadBlockIdx(SDataFReader *pReader, SMapData *pMapData, uint8_t **ppBuf);
 int32_t tsdbReadBlock(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *pMapData, uint8_t **ppBuf);
-int32_t tsdbReadBlockData(SDataFReader *pReader, SBlock *pBlock, SColDataBlock *pBlockData, uint8_t **ppBuf);
+int32_t tsdbReadBlockData(SDataFReader *pReader, SBlockIdx *pBlockIdx, SBlock *pBlock, SBlockData *pBlockData,
+                          int16_t *aColId, int32_t nCol, uint8_t **ppBuf1, uint8_t **ppBuf2);
 int32_t tsdbReadBlockSMA(SDataFReader *pReader, SBlockSMA *pBlkSMA);
 
 // SDelFWriter
@@ -142,6 +141,18 @@ int32_t tTABLEIDCmprFn(const void *p1, const void *p2);
 int32_t tsdbKeyCmprFn(const void *p1, const void *p2);
 
 int32_t tsdbBuildDeleteSkyline(SArray *aDelData, int32_t sidx, int32_t eidx, SArray *aSkyline);
+
+// KEYINFO
+#define KEYINFO_INIT_VAL                  \
+  ((KEYINFO){.maxKey.ts = TSKEY_MIN,      \
+             .maxKey.version = 0,         \
+             .minKey.ts = TSKEY_MAX,      \
+             .minKey.version = INT64_MAX, \
+             .minVerion = INT64_MAX,      \
+             .maxVersion = 0})
+
+int32_t tPutKEYINFO(uint8_t *p, KEYINFO *pKeyInfo);
+int32_t tGetKEYINFO(uint8_t *p, KEYINFO *pKeyInfo);
 
 // SMapData
 void    tMapDataReset(SMapData *pMapData);
@@ -211,6 +222,13 @@ struct TSDBKEY {
   TSKEY   ts;
 };
 
+struct KEYINFO {
+  TSDBKEY minKey;
+  TSDBKEY maxKey;
+  int64_t minVerion;
+  int64_t maxVersion;
+};
+
 typedef struct SMemSkipListNode SMemSkipListNode;
 struct SMemSkipListNode {
   int8_t            level;
@@ -233,8 +251,7 @@ struct SDelDataInfo {
 struct STbData {
   tb_uid_t     suid;
   tb_uid_t     uid;
-  TSDBKEY      minKey;
-  TSDBKEY      maxKey;
+  KEYINFO      info;
   SDelOp      *pHead;
   SDelOp      *pTail;
   SMemSkipList sl;
@@ -244,8 +261,7 @@ struct SMemTable {
   SRWLatch latch;
   STsdb   *pTsdb;
   int32_t  nRef;
-  TSDBKEY  minKey;
-  TSDBKEY  maxKey;
+  KEYINFO  info;
   int64_t  nRow;
   int64_t  nDel;
   SArray  *aTbData;  // SArray<STbData*>
@@ -261,8 +277,8 @@ struct TSDBROW {
       STSRow *pTSRow;
     };
     struct {
-      SColDataBlock *pColDataBlock;
-      int32_t        iRow;
+      SBlockData *pBlockData;
+      int32_t     iRow;
     };
   };
 };
@@ -270,36 +286,9 @@ struct TSDBROW {
 struct SBlockIdx {
   int64_t suid;
   int64_t uid;
-  TSDBKEY minKey;
-  TSDBKEY maxKey;
-  int64_t minVersion;
-  int64_t maxVersion;
+  KEYINFO info;
   int64_t offset;
   int64_t size;
-};
-
-typedef enum {
-  TSDB_SBLK_VER_0 = 0,
-  TSDB_SBLK_VER_MAX,
-} ESBlockVer;
-
-#define SBlockVerLatest TSDB_SBLK_VER_0
-
-struct SBlockItem {
-  TSDBKEY minKey;
-  TSDBKEY maxKey;
-  int64_t minVerion;
-  int64_t maxVersion;
-};
-
-struct SBlockInfo {
-  uint8_t flags;
-  int32_t nCols;
-  int64_t offset;
-  int64_t size;
-  int32_t nSmaCols;
-  int64_t smaOffset;
-  int64_t smaSize;
 };
 
 typedef struct {
@@ -308,11 +297,8 @@ typedef struct {
 } SSubBlock;
 
 struct SBlock {
-  TSDBKEY   minKey;
-  TSDBKEY   maxKey;
-  int64_t   minVersion;
-  int64_t   maxVersion;
-  int32_t   nRows;
+  KEYINFO   info;
+  int32_t   nRow;
   int8_t    last;
   int8_t    hasDup;
   int8_t    nSubBlock;
@@ -388,10 +374,7 @@ struct SDelIdx {
 };
 
 struct SDelFile {
-  TSKEY   minKey;
-  TSKEY   maxKey;
-  int64_t minVersion;
-  int64_t maxVersion;
+  KEYINFO info;
   int64_t size;
   int64_t offset;
 };
@@ -403,21 +386,6 @@ struct SMapData {
   uint32_t nData;
   uint8_t *pData;
   uint8_t *pBuf;
-};
-
-struct SColData {
-  int16_t  cid;
-  uint8_t  flags;
-  uint32_t nData;
-  uint8_t *pData;
-};
-
-struct SColDataBlock {
-  int32_t   nRow;
-  int64_t  *aVersion;
-  TSKEY    *aTSKey;
-  int32_t   nColData;
-  SColData *aColData;
 };
 
 typedef struct {

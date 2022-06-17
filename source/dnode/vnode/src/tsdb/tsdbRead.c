@@ -65,10 +65,10 @@ enum {
 };
 
 typedef struct STableCheckInfo {
-  uint64_t     suid;
-  uint64_t     tableId;
-  TSKEY        lastKey;
-  SBlockInfo*  pCompInfo;
+  uint64_t suid;
+  uint64_t tableId;
+  TSKEY    lastKey;
+  // SBlockInfo*  pCompInfo;
   int32_t      compSize;
   int32_t      numOfBlocks : 29;  // number of qualified data blocks not the original blocks
   uint8_t      chosen : 2;        // indicate which iterator should move forward

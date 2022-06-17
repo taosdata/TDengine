@@ -44,8 +44,7 @@ int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable) {
   taosInitRWLatch(&pMemTable->latch);
   pMemTable->pTsdb = pTsdb;
   pMemTable->nRef = 1;
-  pMemTable->minKey = (TSDBKEY){.ts = TSKEY_MAX, .version = INT64_MAX};
-  pMemTable->maxKey = (TSDBKEY){.ts = TSKEY_MIN, .version = -1};
+  pMemTable->info = KEYINFO_INIT_VAL;
   pMemTable->nRow = 0;
   pMemTable->nDel = 0;
   pMemTable->aTbData = taosArrayInit(128, sizeof(STbData *));
@@ -321,8 +320,7 @@ static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid
   }
   pTbData->suid = suid;
   pTbData->uid = uid;
-  pTbData->minKey = (TSDBKEY){.ts = TSKEY_MAX, .version = INT64_MAX};
-  pTbData->maxKey = (TSDBKEY){.ts = TSKEY_MIN, .version = -1};
+  pTbData->info = KEYINFO_INIT_VAL;
   pTbData->pHead = NULL;
   pTbData->pTail = NULL;
   pTbData->sl.seed = taosRand();
@@ -512,12 +510,12 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, i
     goto _err;
   }
 
-  if (tsdbKeyCmprFn(&key, &pTbData->minKey) < 0) {
-    pTbData->minKey = key;
+  if (tsdbKeyCmprFn(&key, &pTbData->info.minKey) < 0) {
+    pTbData->info.minKey = key;
   }
 
-  if (tsdbKeyCmprFn(&key, &pMemTable->minKey) < 0) {
-    pMemTable->minKey = key;
+  if (tsdbKeyCmprFn(&key, &pMemTable->info.minKey) < 0) {
+    pMemTable->info.minKey = key;
   }
 
   // forward put rest data
@@ -539,13 +537,16 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, i
     } while (row.pTSRow);
   }
 
-  if (tsdbKeyCmprFn(&key, &pTbData->maxKey) > 0) {
-    pTbData->maxKey = key;
+  if (tsdbKeyCmprFn(&key, &pTbData->info.maxKey) > 0) {
+    pTbData->info.maxKey = key;
   }
 
-  if (tsdbKeyCmprFn(&key, &pMemTable->maxKey) > 0) {
-    pMemTable->maxKey = key;
+  if (tsdbKeyCmprFn(&key, &pMemTable->info.maxKey) > 0) {
+    pMemTable->info.maxKey = key;
   }
+  if (pTbData->info.minVerion > version) pTbData->info.minVerion = version;
+  if (pTbData->info.maxVersion < version) pTbData->info.maxVersion = version;
+
   pMemTable->nRef++;
   pRsp->numOfRows = nRow;
   pRsp->affectedRows = nRow;

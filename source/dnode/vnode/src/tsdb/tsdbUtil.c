@@ -254,10 +254,7 @@ int32_t tPutBlockIdx(uint8_t *p, void *ph) {
 
   n += tPutI64(p ? p + n : p, pBlockIdx->suid);
   n += tPutI64(p ? p + n : p, pBlockIdx->uid);
-  n += tPutTSDBKEY(p ? p + n : p, &pBlockIdx->minKey);
-  n += tPutTSDBKEY(p ? p + n : p, &pBlockIdx->maxKey);
-  n += tPutI64v(p ? p + n : p, pBlockIdx->minVersion);
-  n += tPutI64v(p ? p + n : p, pBlockIdx->maxVersion);
+  n += tPutKEYINFO(p ? p + n : p, &pBlockIdx->info);
   n += tPutI64v(p ? p + n : p, pBlockIdx->offset);
   n += tPutI64v(p ? p + n : p, pBlockIdx->size);
 
@@ -270,10 +267,7 @@ int32_t tGetBlockIdx(uint8_t *p, void *ph) {
 
   n += tGetI64(p + n, &pBlockIdx->suid);
   n += tGetI64(p + n, &pBlockIdx->uid);
-  n += tGetTSDBKEY(p + n, &pBlockIdx->minKey);
-  n += tGetTSDBKEY(p + n, &pBlockIdx->maxKey);
-  n += tGetI64v(p + n, &pBlockIdx->minVersion);
-  n += tGetI64v(p + n, &pBlockIdx->maxVersion);
+  n += tGetKEYINFO(p + n, &pBlockIdx->info);
   n += tGetI64v(p + n, &pBlockIdx->offset);
   n += tGetI64v(p + n, &pBlockIdx->size);
 
@@ -300,9 +294,9 @@ int32_t tBlockCmprFn(const void *p1, const void *p2) {
   SBlock *pBlock1 = (SBlock *)p1;
   SBlock *pBlock2 = (SBlock *)p2;
 
-  if (tsdbKeyCmprFn(&pBlock1->maxKey, &pBlock2->minKey) < 0) {
+  if (tsdbKeyCmprFn(&pBlock1->info.maxKey, &pBlock2->info.minKey) < 0) {
     return -1;
-  } else if (tsdbKeyCmprFn(&pBlock1->minKey, &pBlock2->maxKey) > 0) {
+  } else if (tsdbKeyCmprFn(&pBlock1->info.minKey, &pBlock2->info.maxKey) > 0) {
     return 1;
   }
 
@@ -368,10 +362,7 @@ int32_t tGetDelData(uint8_t *p, void *ph) {
 int32_t tPutDelFileHdr(uint8_t *p, SDelFile *pDelFile) {
   int32_t n = 0;
 
-  n += tPutI64(p ? p + n : p, pDelFile->minKey);
-  n += tPutI64(p ? p + n : p, pDelFile->maxKey);
-  n += tPutI64v(p ? p + n : p, pDelFile->minVersion);
-  n += tPutI64v(p ? p + n : p, pDelFile->maxVersion);
+  n += tPutKEYINFO(p ? p + n : p, &pDelFile->info);
   n += tPutI64v(p ? p + n : p, pDelFile->size);
   n += tPutI64v(p ? p + n : p, pDelFile->offset);
 
@@ -381,10 +372,7 @@ int32_t tPutDelFileHdr(uint8_t *p, SDelFile *pDelFile) {
 int32_t tGetDelFileHdr(uint8_t *p, SDelFile *pDelFile) {
   int32_t n = 0;
 
-  n += tGetI64(p + n, &pDelFile->minKey);
-  n += tGetI64(p + n, &pDelFile->maxKey);
-  n += tGetI64v(p + n, &pDelFile->minVersion);
-  n += tGetI64v(p + n, &pDelFile->maxVersion);
+  n += tGetKEYINFO(p + n, &pDelFile->info);
   n += tGetI64v(p + n, &pDelFile->size);
   n += tGetI64v(p + n, &pDelFile->offset);
 
@@ -419,44 +407,6 @@ void tsdbFidKeyRange(int32_t fid, int32_t minutes, int8_t precision, TSKEY *minK
 // TSDBROW ======================================================
 void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
   // TODO
-}
-
-// SColDataBlock ======================================================
-void tsdbColDataBlockReset(SColDataBlock *pColDataBlock) {
-  // TODO
-}
-
-int32_t tsdbColDataBlockAppend(SColDataBlock *pColDataBlock, TSDBROW *pRow, STSchema *pTSchema) {
-  int32_t   code = 0;
-  int32_t   nRow = pColDataBlock->nRow;
-  STColumn *pTColumn;
-  SColData *pColData;
-  SColVal   colVal;
-
-  pColDataBlock->nRow++;
-
-  // version
-  pColDataBlock->aVersion[nRow] = pRow->version;  // TODO
-
-  // ts
-  pColDataBlock->aTSKey[nRow] = pRow->pTSRow->ts;  // TODO
-
-  // other rows
-  for (int32_t iCol = 1; iCol < pTSchema->numOfCols; iCol++) {
-    pTColumn = &pTSchema->columns[iCol];
-
-    tsdbRowGetColVal(pRow, pTSchema, iCol, &colVal);
-
-    if (colVal.isNone) {
-      // TODO
-    } else if (colVal.isNull) {
-      // TODO
-    } else {
-      pColData->nData += tPutValue(pColData->pData + pColData->nData, &colVal.value, pTColumn->type);
-    }
-  }
-
-  return code;
 }
 
 // delete skyline ======================================================
@@ -570,4 +520,27 @@ int32_t tsdbBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *
   int32_t code = 0;
   // TODO
   return code;
+}
+
+// KEYINFO ======================================================
+int32_t tPutKEYINFO(uint8_t *p, KEYINFO *pKeyInfo) {
+  int32_t n = 0;
+
+  n += tPutTSDBKEY(p ? p + n : p, &pKeyInfo->minKey);
+  n += tPutTSDBKEY(p ? p + n : p, &pKeyInfo->maxKey);
+  n += tPutI64v(p ? p + n : p, pKeyInfo->minVerion);
+  n += tPutI64v(p ? p + n : p, pKeyInfo->maxVersion);
+
+  return n;
+}
+
+int32_t tGetKEYINFO(uint8_t *p, KEYINFO *pKeyInfo) {
+  int32_t n = 0;
+
+  n += tGetTSDBKEY(p + n, &pKeyInfo->minKey);
+  n += tGetTSDBKEY(p + n, &pKeyInfo->maxKey);
+  n += tGetI64v(p + n, &pKeyInfo->minVerion);
+  n += tGetI64v(p + n, &pKeyInfo->maxVersion);
+
+  return n;
 }

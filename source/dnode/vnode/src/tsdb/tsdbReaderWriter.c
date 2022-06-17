@@ -543,7 +543,8 @@ _err:
   return code;
 }
 
-int32_t tsdbReadBlockData(SDataFReader *pReader, SBlock *pBlock, SColDataBlock *pBlockData, uint8_t **ppBuf) {
+int32_t tsdbReadBlockData(SDataFReader *pReader, SBlockIdx *pBlockIdx, SBlock *pBlock, SBlockData *pBlockData,
+                          int16_t *aColId, int32_t nCol, uint8_t **ppBuf1, uint8_t **ppBuf2) {
   int32_t code = 0;
   // TODO
   return code;
