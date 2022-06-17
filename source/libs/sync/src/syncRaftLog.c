@@ -410,20 +410,18 @@ SyncTerm logStoreLastTerm(SSyncLogStore* pLogStore) {
 }
 
 int32_t logStoreUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index) {
-  
-    SSyncLogStoreData* pData = pLogStore->data;
-    SWal*              pWal = pData->pWal;
-    // assert(walCommit(pWal, index) == 0);
-    int32_t code = walCommit(pWal, index);
-    if (code != 0) {
-      int32_t     err = terrno;
-      const char* errStr = tstrerror(err);
-      int32_t     linuxErr = errno;
-      const char* linuxErrMsg = strerror(errno);
-      sError("walCommit error, err:%d %X, msg:%s, linuxErr:%d, linuxErrMsg:%s", err, err, errStr, linuxErr,
-    linuxErrMsg); ASSERT(0);
-    }
-   
+  SSyncLogStoreData* pData = pLogStore->data;
+  SWal*              pWal = pData->pWal;
+  // assert(walCommit(pWal, index) == 0);
+  int32_t code = walCommit(pWal, index);
+  if (code != 0) {
+    int32_t     err = terrno;
+    const char* errStr = tstrerror(err);
+    int32_t     linuxErr = errno;
+    const char* linuxErrMsg = strerror(errno);
+    sError("walCommit error, err:%d %X, msg:%s, linuxErr:%d, linuxErrMsg:%s", err, err, errStr, linuxErr, linuxErrMsg);
+    ASSERT(0);
+  }
   return 0;
 }
 

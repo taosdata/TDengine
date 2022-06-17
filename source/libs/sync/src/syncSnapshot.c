@@ -421,7 +421,7 @@ cJSON *snapshotSender2Json(SSyncSnapshotSender *pSender) {
 
 char *snapshotSender2Str(SSyncSnapshotSender *pSender) {
   cJSON *pJson = snapshotSender2Json(pSender);
-  char  *serialized = cJSON_Print(pJson);
+  char * serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
 }
@@ -542,7 +542,7 @@ cJSON *snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver) {
     cJSON_AddStringToObject(pFromId, "addr", u64buf);
     {
       uint64_t u64 = pReceiver->fromId.addr;
-      cJSON   *pTmp = pFromId;
+      cJSON *  pTmp = pFromId;
       char     host[128] = {0};
       uint16_t port;
       syncUtilU642Addr(u64, host, sizeof(host), &port);
@@ -566,7 +566,7 @@ cJSON *snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver) {
 
 char *snapshotReceiver2Str(SSyncSnapshotReceiver *pReceiver) {
   cJSON *pJson = snapshotReceiver2Json(pReceiver);
-  char  *serialized = cJSON_Print(pJson);
+  char * serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
 }
@@ -671,8 +671,8 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
             char *newStr = syncCfg2Str(&newSyncCfg);
             syncUtilJson2Line(oldStr);
             syncUtilJson2Line(newStr);
-            snprintf(tmpbuf, sizeof(tmpbuf), "config change3 from %d to %d, %s  -->  %s", oldSyncCfg.replicaNum,
-                     newSyncCfg.replicaNum, oldStr, newStr);
+            snprintf(tmpbuf, sizeof(tmpbuf), "config change3 from %d to %d, index:%ld, %s  -->  %s",
+                     oldSyncCfg.replicaNum, newSyncCfg.replicaNum, pMsg->lastConfigIndex, oldStr, newStr);
             taosMemoryFree(oldStr);
             taosMemoryFree(newStr);
 
