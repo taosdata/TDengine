@@ -458,11 +458,17 @@ bool simExecuteSystemContentCmd(SScript *script, char *option) {
   char buf[4096] = {0};
   char buf1[4096 + 512] = {0};
   char filename[400] = {0};
-  sprintf(filename, "%s/%s.tmp", simScriptDir, script->fileName);
+  sprintf(filename, "%s" TD_DIRSEP "%s.tmp", simScriptDir, script->fileName);
 
+#ifdef WINDOWS
+  sprintf(buf, "cd %s && ", simScriptDir);
+  simVisuallizeOption(script, option, buf + strlen(buf));
+  sprintf(buf1, "%s > %s 2>nul", buf, filename);
+#else
   sprintf(buf, "cd %s; ", simScriptDir);
   simVisuallizeOption(script, option, buf + strlen(buf));
   sprintf(buf1, "%s > %s 2>/dev/null", buf, filename);
+#endif
 
   sprintf(script->system_exit_code, "%d", system(buf1));
   simStoreSystemContentResult(script, filename);

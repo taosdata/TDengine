@@ -648,6 +648,8 @@ SNode* addOrderByClause(SAstCreateContext* pCxt, SNode* pStmt, SNodeList* pOrder
   CHECK_PARSER_STATUS(pCxt);
   if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
     ((SSelectStmt*)pStmt)->pOrderByList = pOrderByList;
+  } else {
+    ((SSetOperator*)pStmt)->pOrderByList = pOrderByList;
   }
   return pStmt;
 }
@@ -1449,7 +1451,7 @@ SNode* createKillQueryStmt(SAstCreateContext* pCxt, const SToken* pQueryId) {
   CHECK_PARSER_STATUS(pCxt);
   SKillQueryStmt* pStmt = (SKillQueryStmt*)nodesMakeNode(QUERY_NODE_KILL_QUERY_STMT);
   CHECK_OUT_OF_MEM(pStmt);
-  strncpy(pStmt->queryId, pQueryId->z, TMIN(pQueryId->n, sizeof(pStmt->queryId) - 1));
+  trimString(pQueryId->z, pQueryId->n, pStmt->queryId, sizeof(pStmt->queryId) - 1);
   return (SNode*)pStmt;
 }
 

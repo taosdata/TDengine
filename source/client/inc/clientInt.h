@@ -76,10 +76,12 @@ typedef int32_t (*FHbReqHandle)(SClientHbKey* connKey, void* param, SClientHbReq
 
 typedef struct {
   int8_t inited;
+  int64_t       appId;
   // ctl
   int8_t        threadStop;
   TdThread      thread;
   TdThreadMutex lock;       // used when app init and cleanup
+  SHashObj     *appSummary;
   SArray*       appHbMgrs;  // SArray<SAppHbMgr*> one for each cluster
   FHbReqHandle  reqHandle[CONN_TYPE__MAX];
   FHbRspHandle  rspHandle[CONN_TYPE__MAX];
@@ -92,33 +94,20 @@ typedef struct SQueryExecMetric {
   int64_t rsp;     // receive response from server, us
 } SQueryExecMetric;
 
-typedef struct SInstanceSummary {
-  uint64_t numOfInsertsReq;
-  uint64_t numOfInsertRows;
-  uint64_t insertElapsedTime;
-  uint64_t insertBytes;  // submit to tsdb since launched.
-
-  uint64_t fetchBytes;
-  uint64_t queryElapsedTime;
-  uint64_t numOfSlowQueries;
-  uint64_t totalRequests;
-  uint64_t currentRequests;  // the number of SRequestObj
-} SInstanceSummary;
-
 typedef struct SHeartBeatInfo {
   void* pTimer;  // timer, used to send request msg to mnode
 } SHeartBeatInfo;
 
 struct SAppInstInfo {
-  int64_t          numOfConns;
-  SCorEpSet        mgmtEp;
-  TdThreadMutex    qnodeMutex;
-  SArray*          pQnodeList;
-  SInstanceSummary summary;
-  SList*           pConnList;  // STscObj linked list
-  uint64_t         clusterId;
-  void*            pTransporter;
-  SAppHbMgr*       pAppHbMgr;
+  int64_t            numOfConns;
+  SCorEpSet          mgmtEp;
+  TdThreadMutex      qnodeMutex;
+  SArray*            pQnodeList;
+  SAppClusterSummary summary;
+  SList*             pConnList;  // STscObj linked list
+  uint64_t           clusterId;
+  void*              pTransporter;
+  SAppHbMgr*         pAppHbMgr;
 };
 
 typedef struct SAppInfo {
@@ -215,6 +204,7 @@ typedef struct SRequestObj {
   SRequestSendRecvBody body;
   bool                 stableQuery;
 
+  bool                 killed;
   uint32_t             prevCode; //previous error code: todo refactor, add update flag for catalog
   uint32_t             retry;
 } SRequestObj;
