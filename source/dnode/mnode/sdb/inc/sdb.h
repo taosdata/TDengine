@@ -169,11 +169,12 @@ typedef struct SSdb {
   SWal          *pWal;
   char          *currDir;
   char          *tmpDir;
-  int64_t        lastCommitVer;
-  int64_t        lastCommitTerm;
-  int64_t        curVer;
-  int64_t        curTerm;
-  int64_t        curConfig;
+  int64_t        commitIndex;
+  int64_t        commitTerm;
+  int64_t        commitConfig;
+  int64_t        applyIndex;
+  int64_t        applyTerm;
+  int64_t        applyConfig;
   int64_t        tableVer[SDB_MAX];
   int64_t        maxId[SDB_MAX];
   EKeyType       keyTypes[SDB_MAX];
