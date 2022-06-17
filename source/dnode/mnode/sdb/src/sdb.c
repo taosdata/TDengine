@@ -68,7 +68,7 @@ SSdb *sdbInit(SSdbOpt *pOption) {
 void sdbCleanup(SSdb *pSdb) {
   mDebug("start to cleanup sdb");
 
-  sdbWriteFile(pSdb);
+  sdbWriteFile(pSdb, 0);
 
   if (pSdb->currDir != NULL) {
     taosMemoryFreeClear(pSdb->currDir);
@@ -160,23 +160,20 @@ static int32_t sdbCreateDir(SSdb *pSdb) {
   return 0;
 }
 
-void sdbSetApplyIndex(SSdb *pSdb, int64_t index) { pSdb->applyIndex = index; }
-
-void sdbSetApplyTerm(SSdb *pSdb, int64_t term) { pSdb->applyTerm = term; }
-
-void sdbSetCurConfig(SSdb *pSdb, int64_t config) {
-  if (pSdb->applyConfig != config) {
-    mDebug("mnode sync config set from %" PRId64 " to %" PRId64, pSdb->applyConfig, config);
-    pSdb->applyConfig = config;
-  }
+void sdbSetApplyInfo(SSdb *pSdb, int64_t index, int64_t term, int64_t config) {
+  mTrace("mnode apply info changed, from index:%" PRId64 " term:%" PRId64 " config:%" PRId64 ", to index:%" PRId64
+         " term:%" PRId64 " config:%" PRId64,
+         pSdb->applyIndex, pSdb->applyTerm, pSdb->applyConfig, index, term, config);
+  pSdb->applyIndex = index;
+  pSdb->applyTerm = term;
+  pSdb->applyConfig = config;
 }
 
-int64_t sdbGetApplyIndex(SSdb *pSdb) { return pSdb->applyIndex; }
-
-int64_t sdbGetApplyTerm(SSdb *pSdb) { return pSdb->applyTerm; }
-
-int64_t sdbGetCommitIndex(SSdb *pSdb) { return pSdb->commitIndex; }
-
-int64_t sdbGetCommitTerm(SSdb *pSdb) { return pSdb->commitTerm; }
-
-int64_t sdbGetCurConfig(SSdb *pSdb) { return pSdb->commitConfig; }
+void sdbGetCommitInfo(SSdb *pSdb, int64_t *index, int64_t *term, int64_t *config) {
+  *index = pSdb->commitIndex;
+  *term = pSdb->commitTerm;
+  *config = pSdb->commitConfig;
+  mTrace("mnode current info, apply index:%" PRId64 " term:%" PRId64 " config:%" PRId64 ", commit index:%" PRId64
+         " term:%" PRId64 " config:%" PRId64,
+         pSdb->applyIndex, pSdb->applyTerm, pSdb->applyConfig, *index, *term, *config);
+}
