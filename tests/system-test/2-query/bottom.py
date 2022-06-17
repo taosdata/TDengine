@@ -11,6 +11,8 @@
 
 # -*- coding: utf-8 -*-
 
+import random
+import string
 from util.log import *
 from util.cases import *
 from util.sql import *
@@ -27,6 +29,20 @@ class TDTestCase:
         self.ts = 1537146000000
         self.binary_str = 'taosdata'
         self.nchar_str = '涛思数据'
+    def get_long_name(self, length, mode="mixed"):
+        """
+        generate long name
+        mode could be numbers/letters/letters_mixed/mixed
+        """
+        if mode == "numbers":
+            population = string.digits
+        elif mode == "letters":
+            population = string.ascii_letters.lower()
+        elif mode == "letters_mixed":
+            population = string.ascii_letters.upper() + string.ascii_letters.lower()
+        else:
+            population = string.ascii_letters.lower() + string.digits
+        return "".join(random.choices(population, k=length))
     def bottom_check_base(self):
         tdSql.prepare()
         tdSql.execute('''create table stb(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 tinyint unsigned, col6 smallint unsigned, 
@@ -58,15 +74,19 @@ class TDTestCase:
         # prepare data for vgroup 4
         dbname = self.get_long_name(length=10, mode="letters")
         stbname = self.get_long_name(length=5, mode="letters")
-        tdSql.execute(f"create database if not exists {dbname} vgroups 4")
+        vgroup_num = 4
+        child_table_num = 20
+        tdSql.execute(f"create database if not exists {dbname} vgroups {vgroup_num}")
         tdSql.execute(f'use {dbname}')
         # build 20 child tables,every table insert 10 rows
         tdSql.execute(f'''create table {stbname}(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 tinyint unsigned, col6 smallint unsigned, 
                     col7 int unsigned, col8 bigint unsigned, col9 float, col10 double, col11 bool, col12 binary(20), col13 nchar(20)) tags(loc nchar(20))''')
-        for i in range(self.tbnum):
+        for i in range(child_table_num):
             tdSql.execute(f"create table {stbname}_{i} using {stbname} tags('beijing')")
             tdSql.execute(f"insert into {stbname}_{i}(ts) values(%d)" % (self.ts - 1-i))
         column_list = ['col1','col2','col3','col4','col5','col6','col7','col8']
+        error_column_list = ['col11','col12','col13']
+        error_param_list = [0,101]
         for i in [f'{stbname}', f'{dbname}.{stbname}']:
             for j in column_list:
                 tdSql.query(f"select bottom({j},1) from {i}")
@@ -85,14 +105,23 @@ class TDTestCase:
             else:
                 tdLog.exit('This scene does not meet the requirements with {vgroups_num} vgroup!\n')
         for i in range(self.rowNum):
-            for j in range(self.tbnum):
+            for j in range(child_table_num):
                 tdSql.execute(f"insert into {stbname}_{j} values(%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '{self.binary_str}%d', '{self.nchar_str}%d')"
                           % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1))  
-
-        pass
+        for i in column_list:
+            tdSql.query(f'select bottom({i},2) from {stbname}')
+            tdSql.checkRows(2)
+            tdSql.checkEqual(tdSql.queryResult,[(1,),(1,)])
+            for j in error_param_list:
+                tdSql.error(f'select bottom({i},{j}) from {stbname}')
+        for i in error_column_list:
+            tdSql.error(f'select bottom({i},10) from {stbname}')
+        
+        tdSql.execute(f'drop database {dbname}')
     def run(self):
 
         self.bottom_check_base()
+        self.bottom_check_distribute()
         
 
     def stop(self):
