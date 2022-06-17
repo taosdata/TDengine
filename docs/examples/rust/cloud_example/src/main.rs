@@ -1,9 +1,12 @@
+use anyhow::Result;
 use libtaos::*;
 
-fn main() {
-    let token =  std::env::var("TDENGINE_CLOUD_TOKEN").unwrap();
-    let url = std::env::var("TDENGINE_CLOUD_URL").unwrap();
-    let dsn = url + "?token=" + &token;
-    let taos = TaosCfg::from_dsn(dsn)?;
-    println!("connected");
+#[tokio::main]
+async fn main() -> Result<()> {
+    let dsn = std::env::var("TDENGINE_CLOUD_DSN").unwrap();
+    let cfg = TaosCfg::from_dsn(dsn)?;
+    let conn = cfg.connect()?;
+    let _ = conn.query("show databases").await?;
+    println!("Connected");
+    Ok(())
 }

@@ -16,7 +16,7 @@ func main() {
 		return
 	}
 	defer taos.Close()
-	rows, err := taos.Query("select server_version()")
+	rows, err := taos.Query("show databases")
 	if err != nil {
 		fmt.Println(err)
 		return

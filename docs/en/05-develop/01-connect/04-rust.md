@@ -17,7 +17,10 @@ Add dependency to `Cargo.toml`.
 
 ```toml title="Cargo.toml"
 [dependencies]
-libtaos = { version="*", feature=["rest"]}
+[dependencies]
+libtaos = { version="0.4.5-alpha.0", features=["rest"]}
+tokio = { version = "1", features = ["full"]}
+anyhow = "*"
 ```
 
 ## Config
@@ -28,24 +31,21 @@ Run this command in your terminal to save TDengine cloud token as variables:
 <TabItem value="bash" label="Bash">
 
 ```bash
-export TDENGINE_CLOUD_TOKEN="<token>"
-export TDENGINE_CLOUD_URL="<url>"
+export TDENGINE_CLOUD_DSN="<DSN>"
 ```
 
 </TabItem>
 <TabItem value="cmd" label="CMD">
 
 ```bash
-set TDENGINE_CLOUD_TOKEN="<token>"
-set TDENGINE_CLOUD_URL="<url>"
+set TDENGINE_CLOUD_DSN="<DSN>"
 ```
 
 </TabItem>
 <TabItem value="powershell" label="Powershell">
 
 ```powershell
-$env:TDENGINE_CLOUD_TOKEN="<token>"
-$env:TDENGINE_CLOUD_URL="<url>"
+$env:TDENGINE_CLOUD_DSN="<DSN>"
 ```
 
 </TabItem>
@@ -53,8 +53,7 @@ $env:TDENGINE_CLOUD_URL="<url>"
 
 <!-- exclude -->
 :::note
-Replace  <token\> and <url\> with cloud token and URL.
-To obtain the value of cloud token and URL, please log in [TDengine Cloud](https://cloud.tdengine.com) and click "Connector" and then select "Rust".
+Replace  <DSN\> with real TDengine cloud DSN. To obtain the real value, please log in [TDengine Cloud](https://cloud.tdengine.com) and click "Connector" and then select "Rust".
 
 :::
 <!-- exclude-end -->

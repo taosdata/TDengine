@@ -7,5 +7,6 @@ edition = "2021"
 
 
 [dependencies]
-libtaos = { version="0.4.5-alpha.0", feature=["rest"]}
+libtaos = { version="0.4.5-alpha.0", features=["rest"]}
 tokio = { version = "1", features = ["full"]}
+anyhow = "*"
