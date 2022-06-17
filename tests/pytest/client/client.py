@@ -15,6 +15,7 @@ import sys
 from util.log import *
 from util.cases import *
 from util.sql import *
+import os
 
 from datetime import timedelta
 
@@ -73,6 +74,14 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 2)
         tdSql.checkData(0, 1, "master")
+        
+        cmd = "taos -h 127.0.0.1 -s 'show databases'"        
+        r = os.popen(cmd)
+        text = r.read()
+        r.close
+
+        if 'Unable to establish connection' in text:
+            tdLog.exit("%s failed: command 'taos -h 127.0.0.1' Unable to establish connection" % __file__)
 
     def stop(self):
         tdSql.close()
