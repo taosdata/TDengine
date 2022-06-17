@@ -609,6 +609,16 @@ void schedulerExecCb(SQueryResult* pResult, void* param, int32_t code) {
   SRequestObj* pRequest = (SRequestObj*)param;
   pRequest->code = code;
 
+  if (TDMT_VND_SUBMIT == pRequest->type || TDMT_VND_DELETE == pRequest->type ||
+      TDMT_VND_CREATE_TABLE == pRequest->type) {
+    pRequest->body.resInfo.numOfRows = pResult->numOfRows;
+
+    if (pRequest->body.queryJob != 0) {
+      schedulerFreeJob(pRequest->body.queryJob, 0);
+      pRequest->body.queryJob = 0;
+    }
+  }
+
   tscDebug("0x%" PRIx64 " enter scheduler exec cb, code:%d - %s, reqId:0x%" PRIx64,
              pRequest->self, code, tstrerror(code), pRequest->requestId);
 

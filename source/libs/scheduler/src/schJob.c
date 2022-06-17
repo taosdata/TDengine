@@ -614,7 +614,7 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
       ++pJob->taskNum;
     }
 
-    SCH_JOB_DLOG("level initialized, taskNum:%d", taskNum);
+    SCH_JOB_DLOG("level %d initialized, taskNum:%d", i, taskNum);
   }
 
   SCH_ERR_JRET(schBuildTaskRalation(pJob, planToTask));
