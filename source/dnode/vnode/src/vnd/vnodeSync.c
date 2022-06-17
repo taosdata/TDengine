@@ -61,6 +61,7 @@ static int32_t vnodeSetStandBy(SVnode *pVnode) {
     return -1;
   }
 
+  vInfo("vgId:%d, start to transfer leader", TD_VID(pVnode));
   if (syncLeaderTransfer(pVnode->sync) != 0) {
     vError("vgId:%d, failed to transfer leader since:%s", TD_VID(pVnode), terrstr());
     return -1;
@@ -297,7 +298,7 @@ int32_t vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
     ret = -1;
   }
 
-  if (ret != 0) {
+  if (ret != 0 && terrno == 0) {
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
   }
   return ret;

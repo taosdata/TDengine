@@ -124,17 +124,20 @@ int32_t tqProcessOffsetCommitReq(STQ* pTq, char* msg, int32_t msgLen) {
   tDecoderClear(&decoder);
 
   if (offset.type == TMQ_OFFSET__SNAPSHOT) {
-    tqDebug("receive offset commit msg to %s, offset(type:snapshot) uid: %ld, ts: %ld", offset.subKey, offset.uid,
-            offset.ts);
+    tqDebug("receive offset commit msg to %s on vg %d, offset(type:snapshot) uid: %ld, ts: %ld", offset.subKey,
+            pTq->pVnode->config.vgId, offset.uid, offset.ts);
   } else if (offset.type == TMQ_OFFSET__LOG) {
-    tqDebug("receive offset commit msg to %s, offset(type:log) version: %ld", offset.subKey, offset.version);
+    tqDebug("receive offset commit msg to %s on vg %d, offset(type:log) version: %ld", offset.subKey,
+            pTq->pVnode->config.vgId, offset.version);
   } else {
     ASSERT(0);
   }
-
-  if (tqOffsetWrite(pTq->pOffsetStore, &offset) < 0) {
-    ASSERT(0);
-    return -1;
+  STqOffset* pOffset = tqOffsetRead(pTq->pOffsetStore, offset.subKey);
+  if (pOffset == NULL || pOffset->version < offset.version) {
+    if (tqOffsetWrite(pTq->pOffsetStore, &offset) < 0) {
+      ASSERT(0);
+      return -1;
+    }
   }
 
   return 0;
@@ -149,16 +152,33 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   int32_t     code = 0;
 
   // get offset to fetch message
-  if (pReq->currentOffset == TMQ_CONF__RESET_OFFSET__EARLIEAST) {
-    fetchOffset = walGetFirstVer(pTq->pWal);
-  } else if (pReq->currentOffset == TMQ_CONF__RESET_OFFSET__LATEST) {
-    fetchOffset = walGetCommittedVer(pTq->pWal);
-  } else {
+  if (pReq->currentOffset >= 0) {
     fetchOffset = pReq->currentOffset + 1;
+  } else {
+    STqOffset* pOffset = tqOffsetRead(pTq->pOffsetStore, pReq->subKey);
+    if (pOffset != NULL) {
+      ASSERT(pOffset->type == TMQ_OFFSET__LOG);
+      tqDebug("consumer %ld, restore offset of %s on vg %d, offset(type:log) version: %ld", consumerId, pReq->subKey,
+              pTq->pVnode->config.vgId, pOffset->version);
+      fetchOffset = pOffset->version + 1;
+    } else {
+      if (pReq->currentOffset == TMQ_CONF__RESET_OFFSET__EARLIEAST) {
+        fetchOffset = walGetFirstVer(pTq->pWal);
+      } else if (pReq->currentOffset == TMQ_CONF__RESET_OFFSET__LATEST) {
+        fetchOffset = walGetCommittedVer(pTq->pWal);
+      } else if (pReq->currentOffset == TMQ_CONF__RESET_OFFSET__NONE) {
+        tqError("tmq poll: no offset committed for consumer %ld in vg %d, subkey %s", consumerId,
+                pTq->pVnode->config.vgId, pReq->subKey);
+        terrno = TSDB_CODE_TQ_NO_COMMITTED_OFFSET;
+        return -1;
+      }
+      tqDebug("consumer %ld, restore offset of %s on vg %d failed, config is %ld, set to %ld", consumerId, pReq->subKey,
+              pTq->pVnode->config.vgId, pReq->currentOffset, fetchOffset);
+    }
   }
 
-  tqDebug("tmq poll: consumer %ld (epoch %d) recv poll req in vg %d, req %ld %ld", consumerId, pReq->epoch,
-          TD_VID(pTq->pVnode), pReq->currentOffset, fetchOffset);
+  tqDebug("tmq poll: consumer %ld (epoch %d) recv poll req in vg %d, req offset %ld fetch offset %ld", consumerId,
+          pReq->epoch, TD_VID(pTq->pVnode), pReq->currentOffset, fetchOffset);
 
   STqHandle* pHandle = taosHashGet(pTq->handles, pReq->subKey, strlen(pReq->subKey));
   /*ASSERT(pHandle);*/
