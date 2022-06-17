@@ -242,9 +242,9 @@ TEST_F(ParserInitialCTest, createDatabaseSemanticCheck) {
 TEST_F(ParserInitialCTest, createDnode) {
   useDb("root", "test");
 
-  run("CREATE DNODE abc1 PORT 7000");
+  run("CREATE DNODE 'abc1' PORT 7000");
 
-  run("CREATE DNODE 1.1.1.1 PORT 9000");
+  run("CREATE DNODE '1.1.1.1' PORT 9000");
 }
 
 // CREATE [AGGREGATE] FUNCTION [IF NOT EXISTS] func_name AS library_path OUTPUTTYPE type_name [BUFSIZE value]

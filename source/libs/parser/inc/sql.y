@@ -125,8 +125,7 @@ dnode_endpoint(A) ::= NK_STRING(B).                                             
 
 %type dnode_host_name                                                             { SToken }
 %destructor dnode_host_name                                                       { }
-dnode_host_name(A) ::= NK_ID(B).                                                  { A = B; }
-dnode_host_name(A) ::= NK_IPTOKEN(B).                                             { A = B; }
+dnode_host_name(A) ::= NK_STRING(B).                                              { A = B; }
 
 /************************************************ alter local *********************************************************/
 cmd ::= ALTER LOCAL NK_STRING(A).                                                 { pCxt->pRootNode = createAlterLocalStmt(pCxt, &A, NULL); }

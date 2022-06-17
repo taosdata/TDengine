@@ -36,6 +36,14 @@
     }                                         \
   } while (0)
 
+#define COPY_STRING_FORM_ID_TOKEN(buf, pToken) strncpy(buf, (pToken)->z, TMIN((pToken)->n, sizeof(buf) - 1))
+#define COPY_STRING_FORM_STR_TOKEN(buf, pToken)                              \
+  do {                                                                       \
+    if ((pToken)->n > 2) {                                                   \
+      strncpy(buf, (pToken)->z + 1, TMIN((pToken)->n - 2, sizeof(buf) - 1)); \
+    }                                                                        \
+  } while (0)
+
 SToken nil_token = {.type = TK_NK_NIL, .n = 0, .z = NULL};
 
 void initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt) {
@@ -48,12 +56,6 @@ void initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt) {
   pCxt->placeholderNo = 0;
   pCxt->pPlaceholderValues = NULL;
   pCxt->errCode = TSDB_CODE_SUCCESS;
-}
-
-static void copyStringFormStringToken(SToken* pToken, char* pBuf, int32_t len) {
-  if (pToken->n > 2) {
-    strncpy(pBuf, pToken->z + 1, TMIN(pToken->n - 2, len - 1));
-  }
 }
 
 static void trimEscape(SToken* pName) {
@@ -97,7 +99,7 @@ static bool checkPassword(SAstCreateContext* pCxt, const SToken* pPasswordToken,
   } else if (pPasswordToken->n >= (TSDB_USET_PASSWORD_LEN + 2)) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
   } else {
-    strncpy(pPassword, pPasswordToken->z, pPasswordToken->n);
+    COPY_STRING_FORM_ID_TOKEN(pPassword, pPasswordToken);
     strdequote(pPassword);
     if (strtrim(pPassword) <= 0) {
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_PASSWD_EMPTY);
@@ -114,8 +116,8 @@ static bool checkAndSplitEndpoint(SAstCreateContext* pCxt, const SToken* pEp, ch
   } else if (pEp->n >= TSDB_FQDN_LEN + 2 + 6) {  // format 'fqdn:port'
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
   } else {
-    char ep[TSDB_FQDN_LEN + 2 + 6];
-    strncpy(ep, pEp->z, pEp->n);
+    char ep[TSDB_FQDN_LEN + 6];
+    COPY_STRING_FORM_STR_TOKEN(ep, pEp);
     strdequote(ep);
     strtrim(ep);
     char* pColon = strchr(ep, ':');
@@ -274,9 +276,9 @@ SNode* createColumnNode(SAstCreateContext* pCxt, SToken* pTableAlias, SToken* pC
   SColumnNode* col = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
   CHECK_OUT_OF_MEM(col);
   if (NULL != pTableAlias) {
-    strncpy(col->tableAlias, pTableAlias->z, pTableAlias->n);
+    COPY_STRING_FORM_ID_TOKEN(col->tableAlias, pTableAlias);
   }
-  strncpy(col->colName, pColumnName->z, pColumnName->n);
+  COPY_STRING_FORM_ID_TOKEN(col->colName, pColumnName);
   return (SNode*)col;
 }
 
@@ -417,7 +419,7 @@ SNode* createFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncName, SNod
   }
   SFunctionNode* func = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
   CHECK_OUT_OF_MEM(func);
-  strncpy(func->functionName, pFuncName->z, pFuncName->n);
+  COPY_STRING_FORM_ID_TOKEN(func->functionName, pFuncName);
   func->pParameterList = pParameterList;
   return (SNode*)func;
 }
@@ -464,16 +466,16 @@ SNode* createRealTableNode(SAstCreateContext* pCxt, SToken* pDbName, SToken* pTa
   SRealTableNode* realTable = (SRealTableNode*)nodesMakeNode(QUERY_NODE_REAL_TABLE);
   CHECK_OUT_OF_MEM(realTable);
   if (NULL != pDbName) {
-    strncpy(realTable->table.dbName, pDbName->z, pDbName->n);
+    COPY_STRING_FORM_ID_TOKEN(realTable->table.dbName, pDbName);
   } else {
     strcpy(realTable->table.dbName, pCxt->pQueryCxt->db);
   }
   if (NULL != pTableAlias && TK_NK_NIL != pTableAlias->type) {
-    strncpy(realTable->table.tableAlias, pTableAlias->z, pTableAlias->n);
+    COPY_STRING_FORM_ID_TOKEN(realTable->table.tableAlias, pTableAlias);
   } else {
-    strncpy(realTable->table.tableAlias, pTableName->z, pTableName->n);
+    COPY_STRING_FORM_ID_TOKEN(realTable->table.tableAlias, pTableName);
   }
-  strncpy(realTable->table.tableName, pTableName->z, pTableName->n);
+  COPY_STRING_FORM_ID_TOKEN(realTable->table.tableName, pTableName);
   return (SNode*)realTable;
 }
 
@@ -483,7 +485,7 @@ SNode* createTempTableNode(SAstCreateContext* pCxt, SNode* pSubquery, const STok
   CHECK_OUT_OF_MEM(tempTable);
   tempTable->pSubquery = pSubquery;
   if (NULL != pTableAlias && TK_NK_NIL != pTableAlias->type) {
-    strncpy(tempTable->table.tableAlias, pTableAlias->z, pTableAlias->n);
+    COPY_STRING_FORM_ID_TOKEN(tempTable->table.tableAlias, pTableAlias);
   } else {
     sprintf(tempTable->table.tableAlias, "%p", tempTable);
   }
@@ -785,8 +787,7 @@ SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOpti
       ((SDatabaseOptions*)pOptions)->pagesize = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_PRECISION:
-      copyStringFormStringToken((SToken*)pVal, ((SDatabaseOptions*)pOptions)->precisionStr,
-                                sizeof(((SDatabaseOptions*)pOptions)->precisionStr));
+      COPY_STRING_FORM_STR_TOKEN(((SDatabaseOptions*)pOptions)->precisionStr, (SToken*)pVal);
       break;
     case DB_OPTION_REPLICA:
       ((SDatabaseOptions*)pOptions)->replica = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
@@ -835,7 +836,7 @@ SNode* createCreateDatabaseStmt(SAstCreateContext* pCxt, bool ignoreExists, STok
   }
   SCreateDatabaseStmt* pStmt = (SCreateDatabaseStmt*)nodesMakeNode(QUERY_NODE_CREATE_DATABASE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
-  strncpy(pStmt->dbName, pDbName->z, pDbName->n);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
   pStmt->ignoreExists = ignoreExists;
   pStmt->pOptions = (SDatabaseOptions*)pOptions;
   return (SNode*)pStmt;
@@ -848,7 +849,7 @@ SNode* createDropDatabaseStmt(SAstCreateContext* pCxt, bool ignoreNotExists, STo
   }
   SDropDatabaseStmt* pStmt = (SDropDatabaseStmt*)nodesMakeNode(QUERY_NODE_DROP_DATABASE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
-  strncpy(pStmt->dbName, pDbName->z, pDbName->n);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
   pStmt->ignoreNotExists = ignoreNotExists;
   return (SNode*)pStmt;
 }
@@ -860,7 +861,7 @@ SNode* createAlterDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* 
   }
   SAlterDatabaseStmt* pStmt = (SAlterDatabaseStmt*)nodesMakeNode(QUERY_NODE_ALTER_DATABASE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
-  strncpy(pStmt->dbName, pDbName->z, pDbName->n);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
   pStmt->pOptions = (SDatabaseOptions*)pOptions;
   return (SNode*)pStmt;
 }
@@ -890,8 +891,7 @@ SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType
   switch (type) {
     case TABLE_OPTION_COMMENT:
       if (checkComment(pCxt, (SToken*)pVal, true)) {
-        copyStringFormStringToken((SToken*)pVal, ((STableOptions*)pOptions)->comment,
-                                  sizeof(((STableOptions*)pOptions)->comment));
+        COPY_STRING_FORM_STR_TOKEN(((STableOptions*)pOptions)->comment, (SToken*)pVal);
       }
       break;
     case TABLE_OPTION_MAXDELAY:
@@ -922,7 +922,7 @@ SNode* createColumnDefNode(SAstCreateContext* pCxt, SToken* pColName, SDataType 
   }
   SColumnDefNode* pCol = (SColumnDefNode*)nodesMakeNode(QUERY_NODE_COLUMN_DEF);
   CHECK_OUT_OF_MEM(pCol);
-  strncpy(pCol->colName, pColName->z, pColName->n);
+  COPY_STRING_FORM_ID_TOKEN(pCol->colName, pColName);
   pCol->dataType = dataType;
   if (NULL != pComment) {
     trimString(pComment->z, pComment->n, pCol->comments, sizeof(pCol->comments));
@@ -1037,7 +1037,7 @@ SNode* createAlterTableAddModifyCol(SAstCreateContext* pCxt, SNode* pRealTable, 
   SAlterTableStmt* pStmt = (SAlterTableStmt*)nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->alterType = alterType;
-  strncpy(pStmt->colName, pColName->z, pColName->n);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pColName);
   pStmt->dataType = dataType;
   return createAlterTableStmtFinalize(pRealTable, pStmt);
 }
@@ -1050,7 +1050,7 @@ SNode* createAlterTableDropCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_
   SAlterTableStmt* pStmt = (SAlterTableStmt*)nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->alterType = alterType;
-  strncpy(pStmt->colName, pColName->z, pColName->n);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pColName);
   return createAlterTableStmtFinalize(pRealTable, pStmt);
 }
 
@@ -1063,8 +1063,8 @@ SNode* createAlterTableRenameCol(SAstCreateContext* pCxt, SNode* pRealTable, int
   SAlterTableStmt* pStmt = (SAlterTableStmt*)nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->alterType = alterType;
-  strncpy(pStmt->colName, pOldColName->z, pOldColName->n);
-  strncpy(pStmt->newColName, pNewColName->z, pNewColName->n);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pOldColName);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->newColName, pNewColName);
   return createAlterTableStmtFinalize(pRealTable, pStmt);
 }
 
@@ -1076,7 +1076,7 @@ SNode* createAlterTableSetTag(SAstCreateContext* pCxt, SNode* pRealTable, SToken
   SAlterTableStmt* pStmt = (SAlterTableStmt*)nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->alterType = TSDB_ALTER_TABLE_UPDATE_TAG_VAL;
-  strncpy(pStmt->colName, pTagName->z, pTagName->n);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pTagName);
   pStmt->pVal = (SValueNode*)pVal;
   return createAlterTableStmtFinalize(pRealTable, pStmt);
 }
@@ -1088,7 +1088,7 @@ SNode* createUseDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {
   }
   SUseDatabaseStmt* pStmt = (SUseDatabaseStmt*)nodesMakeNode(QUERY_NODE_USE_DATABASE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
-  strncpy(pStmt->dbName, pDbName->z, pDbName->n);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
   return (SNode*)pStmt;
 }
 
@@ -1111,18 +1111,24 @@ SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pDbName, S
   return (SNode*)pStmt;
 }
 
-SNode* createShowCreateDatabaseStmt(SAstCreateContext* pCxt, const SToken* pDbName) {
+SNode* createShowCreateDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {
   CHECK_PARSER_STATUS(pCxt);
-  SNode* pStmt = nodesMakeNode(QUERY_NODE_SHOW_CREATE_DATABASE_STMT);
+  if (!checkDbName(pCxt, pDbName, true)) {
+    return NULL;
+  }
+  SShowCreateDatabaseStmt* pStmt = (SShowCreateDatabaseStmt*)nodesMakeNode(QUERY_NODE_SHOW_CREATE_DATABASE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
-  return pStmt;
+  COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
+  return (SNode*)pStmt;
 }
 
 SNode* createShowCreateTableStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable) {
   CHECK_PARSER_STATUS(pCxt);
-  SNode* pStmt = nodesMakeNode(type);
+  SShowCreateTableStmt* pStmt = (SShowCreateTableStmt*)nodesMakeNode(type);
   CHECK_OUT_OF_MEM(pStmt);
-  return pStmt;
+  strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
+  strcpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName);
+  return (SNode*)pStmt;
 }
 
 SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const SToken* pPassword) {
@@ -1133,7 +1139,7 @@ SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const ST
   }
   SCreateUserStmt* pStmt = (SCreateUserStmt*)nodesMakeNode(QUERY_NODE_CREATE_USER_STMT);
   CHECK_OUT_OF_MEM(pStmt);
-  strncpy(pStmt->useName, pUserName->z, pUserName->n);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->useName, pUserName);
   strcpy(pStmt->password, password);
   return (SNode*)pStmt;
 }
@@ -1145,7 +1151,7 @@ SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, int8_t al
   }
   SAlterUserStmt* pStmt = (SAlterUserStmt*)nodesMakeNode(QUERY_NODE_ALTER_USER_STMT);
   CHECK_OUT_OF_MEM(pStmt);
-  strncpy(pStmt->useName, pUserName->z, pUserName->n);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->useName, pUserName);
   if (TSDB_ALTER_USER_PASSWD == alterType) {
     char password[TSDB_USET_PASSWORD_LEN] = {0};
     if (!checkPassword(pCxt, pVal, password)) {
@@ -1165,7 +1171,7 @@ SNode* createDropUserStmt(SAstCreateContext* pCxt, SToken* pUserName) {
   }
   SDropUserStmt* pStmt = (SDropUserStmt*)nodesMakeNode(QUERY_NODE_DROP_USER_STMT);
   CHECK_OUT_OF_MEM(pStmt);
-  strncpy(pStmt->useName, pUserName->z, pUserName->n);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->useName, pUserName);
   return (SNode*)pStmt;
 }
 
@@ -1185,7 +1191,7 @@ SNode* createCreateDnodeStmt(SAstCreateContext* pCxt, const SToken* pFqdn, const
   if (NULL == pPort) {
     strcpy(pStmt->fqdn, fqdn);
   } else {
-    strncpy(pStmt->fqdn, pFqdn->z, pFqdn->n);
+    COPY_STRING_FORM_ID_TOKEN(pStmt->fqdn, pFqdn);
   }
   pStmt->port = port;
   return (SNode*)pStmt;
@@ -1229,8 +1235,8 @@ SNode* createCreateIndexStmt(SAstCreateContext* pCxt, EIndexType type, bool igno
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->indexType = type;
   pStmt->ignoreExists = ignoreExists;
-  strncpy(pStmt->indexName, pIndexName->z, pIndexName->n);
-  strncpy(pStmt->tableName, pTableName->z, pTableName->n);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->indexName, pIndexName);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->tableName, pTableName);
   pStmt->pCols = pCols;
   pStmt->pOptions = (SIndexOptions*)pOptions;
   return (SNode*)pStmt;
@@ -1256,8 +1262,8 @@ SNode* createDropIndexStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken
   SDropIndexStmt* pStmt = (SDropIndexStmt*)nodesMakeNode(QUERY_NODE_DROP_INDEX_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->ignoreNotExists = ignoreNotExists;
-  strncpy(pStmt->indexName, pIndexName->z, pIndexName->n);
-  strncpy(pStmt->tableName, pTableName->z, pTableName->n);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->indexName, pIndexName);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->tableName, pTableName);
   return (SNode*)pStmt;
 }
 
@@ -1282,14 +1288,14 @@ SNode* createCreateTopicStmt(SAstCreateContext* pCxt, bool ignoreExists, const S
   CHECK_PARSER_STATUS(pCxt);
   SCreateTopicStmt* pStmt = (SCreateTopicStmt*)nodesMakeNode(QUERY_NODE_CREATE_TOPIC_STMT);
   CHECK_OUT_OF_MEM(pStmt);
-  strncpy(pStmt->topicName, pTopicName->z, pTopicName->n);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->topicName, pTopicName);
   pStmt->ignoreExists = ignoreExists;
   if (NULL != pRealTable) {
     strcpy(pStmt->subDbName, ((SRealTableNode*)pRealTable)->table.dbName);
     strcpy(pStmt->subSTbName, ((SRealTableNode*)pRealTable)->table.tableName);
     nodesDestroyNode(pRealTable);
   } else if (NULL != pSubDbName) {
-    strncpy(pStmt->subDbName, pSubDbName->z, pSubDbName->n);
+    COPY_STRING_FORM_ID_TOKEN(pStmt->subDbName, pSubDbName);
   } else {
     pStmt->pQuery = pQuery;
   }
@@ -1300,7 +1306,7 @@ SNode* createDropTopicStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const 
   CHECK_PARSER_STATUS(pCxt);
   SDropTopicStmt* pStmt = (SDropTopicStmt*)nodesMakeNode(QUERY_NODE_DROP_TOPIC_STMT);
   CHECK_OUT_OF_MEM(pStmt);
-  strncpy(pStmt->topicName, pTopicName->z, pTopicName->n);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->topicName, pTopicName);
   pStmt->ignoreNotExists = ignoreNotExists;
   return (SNode*)pStmt;
 }
@@ -1311,8 +1317,8 @@ SNode* createDropCGroupStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const
   SDropCGroupStmt* pStmt = (SDropCGroupStmt*)nodesMakeNode(QUERY_NODE_DROP_CGROUP_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->ignoreNotExists = ignoreNotExists;
-  strncpy(pStmt->topicName, pTopicName->z, pTopicName->n);
-  strncpy(pStmt->cgroup, pCGroupId->z, pCGroupId->n);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->topicName, pTopicName);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->cgroup, pCGroupId);
   return (SNode*)pStmt;
 }
 
@@ -1392,9 +1398,9 @@ SNode* createCreateFunctionStmt(SAstCreateContext* pCxt, bool ignoreExists, bool
   SCreateFunctionStmt* pStmt = (SCreateFunctionStmt*)nodesMakeNode(QUERY_NODE_CREATE_FUNCTION_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->ignoreExists = ignoreExists;
-  strncpy(pStmt->funcName, pFuncName->z, pFuncName->n);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->funcName, pFuncName);
   pStmt->isAgg = aggFunc;
-  strncpy(pStmt->libraryPath, pLibPath->z + 1, pLibPath->n - 2);
+  COPY_STRING_FORM_STR_TOKEN(pStmt->libraryPath, pLibPath);
   pStmt->outputDt = dataType;
   pStmt->bufSize = bufSize;
   return (SNode*)pStmt;
@@ -1405,7 +1411,7 @@ SNode* createDropFunctionStmt(SAstCreateContext* pCxt, bool ignoreNotExists, con
   SDropFunctionStmt* pStmt = (SDropFunctionStmt*)nodesMakeNode(QUERY_NODE_DROP_FUNCTION_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->ignoreNotExists = ignoreNotExists;
-  strncpy(pStmt->funcName, pFuncName->z, pFuncName->n);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->funcName, pFuncName);
   return (SNode*)pStmt;
 }
 
@@ -1422,7 +1428,7 @@ SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, const 
   CHECK_PARSER_STATUS(pCxt);
   SCreateStreamStmt* pStmt = (SCreateStreamStmt*)nodesMakeNode(QUERY_NODE_CREATE_STREAM_STMT);
   CHECK_OUT_OF_MEM(pStmt);
-  strncpy(pStmt->streamName, pStreamName->z, pStreamName->n);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->streamName, pStreamName);
   if (NULL != pRealTable) {
     strcpy(pStmt->targetDbName, ((SRealTableNode*)pRealTable)->table.dbName);
     strcpy(pStmt->targetTabName, ((SRealTableNode*)pRealTable)->table.tableName);
@@ -1438,7 +1444,7 @@ SNode* createDropStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const
   CHECK_PARSER_STATUS(pCxt);
   SDropStreamStmt* pStmt = (SDropStreamStmt*)nodesMakeNode(QUERY_NODE_DROP_STREAM_STMT);
   CHECK_OUT_OF_MEM(pStmt);
-  strncpy(pStmt->streamName, pStreamName->z, TMIN(pStreamName->n, sizeof(pStmt->streamName) - 1));
+  COPY_STRING_FORM_ID_TOKEN(pStmt->streamName, pStreamName);
   pStmt->ignoreNotExists = ignoreNotExists;
   return (SNode*)pStmt;
 }
@@ -1507,8 +1513,8 @@ SNode* createGrantStmt(SAstCreateContext* pCxt, int64_t privileges, SToken* pDbN
   SGrantStmt* pStmt = (SGrantStmt*)nodesMakeNode(QUERY_NODE_GRANT_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->privileges = privileges;
-  strncpy(pStmt->dbName, pDbName->z, pDbName->n);
-  strncpy(pStmt->userName, pUserName->z, pUserName->n);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->userName, pUserName);
   return (SNode*)pStmt;
 }
 
@@ -1520,8 +1526,8 @@ SNode* createRevokeStmt(SAstCreateContext* pCxt, int64_t privileges, SToken* pDb
   SRevokeStmt* pStmt = (SRevokeStmt*)nodesMakeNode(QUERY_NODE_REVOKE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->privileges = privileges;
-  strncpy(pStmt->dbName, pDbName->z, pDbName->n);
-  strncpy(pStmt->userName, pUserName->z, pUserName->n);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->userName, pUserName);
   return (SNode*)pStmt;
 }
 

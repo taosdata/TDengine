@@ -20,6 +20,7 @@
 
 #define ALLOW_FORBID_FUNC
 
+#include "cmdnodes.h"
 #include "querynodes.h"
 #include "taoserror.h"
 
