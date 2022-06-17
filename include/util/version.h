@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-extern char td_version[];
+extern char version[];
 extern char compatible_version[];
 extern char gitinfo[];
 extern char buildinfo[];

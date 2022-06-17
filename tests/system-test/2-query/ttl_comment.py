@@ -132,23 +132,32 @@ class TDTestCase:
 
         print("============== STEP 3 ===== test child table")
 
-        tdSql.execute("create table child_table1 using super_table1 tags(1)")
+        tdSql.execute("create table child_table1 using super_table1 tags(1) ttl 10")
         tdSql.execute("create table child_table2 using super_table1 tags(1) comment ''")
         tdSql.execute("create table child_table3 using super_table1 tags(1) comment 'child'")
+        tdSql.execute("insert into child_table4 using super_table1 tags(1) values(now, 1)")
+
 
         tdSql.query("show tables like 'child_table1'")
         tdSql.checkData(0, 0, 'child_table1')
+        tdSql.checkData(0, 7, 10)
         tdSql.checkData(0, 8, None)
 
 
         tdSql.query("show tables like 'child_table2'")
         tdSql.checkData(0, 0, 'child_table2')
+        tdSql.checkData(0, 7, 0)
         tdSql.checkData(0, 8, '')
 
 
         tdSql.query("show tables like 'child_table3'")
         tdSql.checkData(0, 0, 'child_table3')
         tdSql.checkData(0, 8, 'child')
+
+        tdSql.query("show tables like 'child_table4'")
+        tdSql.checkData(0, 0, 'child_table4')
+        tdSql.checkData(0, 7, 0)
+        tdSql.checkData(0, 8, None)
 
 
         tdSql.execute("alter table child_table1 comment 'nihao'")
@@ -170,6 +179,22 @@ class TDTestCase:
         tdSql.query("show tables like 'child_table3'")
         tdSql.checkData(0, 0, 'child_table3')
         tdSql.checkData(0, 8, 'tdengine')
+
+
+        tdSql.execute("alter table child_table4 comment 'tdengine'")
+        tdSql.query("show tables like 'child_table4'")
+        tdSql.checkData(0, 0, 'child_table4')
+        tdSql.checkData(0, 8, 'tdengine')
+
+        tdSql.execute("alter table child_table4 ttl 9")
+        tdSql.query("show tables like 'child_table4'")
+        tdSql.checkData(0, 0, 'child_table4')
+        tdSql.checkData(0, 7, 9)
+
+        tdSql.execute("alter table child_table3 ttl 9")
+        tdSql.query("show tables like 'child_table3'")
+        tdSql.checkData(0, 0, 'child_table3')
+        tdSql.checkData(0, 7, 9)
 
     def stop(self):
         tdSql.close()

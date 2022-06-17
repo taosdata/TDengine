@@ -108,7 +108,7 @@ extern float   tsStreamComputDelayRatio;  // the delayed computing ration of the
 extern int64_t tsMaxRetentWindow;
 
 // build info
-extern char td_version[];
+extern char version[];
 extern char compatible_version[];
 extern char gitinfo[];
 extern char buildinfo[];

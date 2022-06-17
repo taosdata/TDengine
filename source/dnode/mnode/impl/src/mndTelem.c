@@ -110,7 +110,7 @@ static char* mndBuildTelemetryReport(SMnode* pMnode) {
   snprintf(tmp, sizeof(tmp), "%" PRId64 " kB", tsTotalMemoryKB);
   tjsonAddStringToObject(pJson, "memory", tmp);
 
-  tjsonAddStringToObject(pJson, "version", td_version);
+  tjsonAddStringToObject(pJson, "version", version);
   tjsonAddStringToObject(pJson, "buildInfo", buildinfo);
   tjsonAddStringToObject(pJson, "gitInfo", gitinfo);
   tjsonAddStringToObject(pJson, "email", pMgmt->email);
