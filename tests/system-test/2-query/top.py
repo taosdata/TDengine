@@ -71,7 +71,7 @@ class TDTestCase:
         # prepare data for vgroup 4
         dbname = self.get_long_name(length=10, mode="letters")
         stbname = self.get_long_name(length=5, mode="letters")
-        tdSql.execute(f"create database if not exists {dbname} vgroups 4")
+        tdSql.execute(f"create database if not exists {dbname} vgroups 2")
         tdSql.execute(f'use {dbname}')
         # build 20 child tables,every table insert 10 rows
         tdSql.execute(f'''create table {stbname}(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 tinyint unsigned, col6 smallint unsigned, 
@@ -96,7 +96,7 @@ class TDTestCase:
                 tdLog.info(f'This scene with {vgroups_num} vgroups is ok!')
                 continue
             else:
-                tdLog.exit('This scene does not meet the requirements with {vgroups_num} vgroup!\n')
+                tdLog.exit(f'This scene does not meet the requirements with {vgroups_num} vgroup!\n')
         for i in range(self.rowNum):
             for j in range(self.tbnum):
                 tdSql.execute(f"insert into {stbname}_{j} values(%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '{self.binary_str}%d', '{self.nchar_str}%d')"

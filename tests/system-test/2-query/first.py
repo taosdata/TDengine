@@ -113,6 +113,7 @@ class TDTestCase:
         dbname = self.get_long_name(length=10, mode="letters")
         stbname = self.get_long_name(length=5, mode="letters")
         child_table_num = 20
+        vgroup = 2
         column_dict = {
             'col1': 'tinyint',
             'col2': 'smallint',
@@ -128,7 +129,7 @@ class TDTestCase:
             'col12': 'binary(20)',
             'col13': 'nchar(20)'
         }
-        tdSql.execute(f"create database if not exists {dbname} vgroups 4")
+        tdSql.execute(f"create database if not exists {dbname} vgroups {vgroup}")
         tdSql.execute(f'use {dbname}')
         # build 20 child tables,every table insert 10 rows
         tdSql.execute(f'''create table {stbname}(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 tinyint unsigned, col6 smallint unsigned, 

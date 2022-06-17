@@ -91,7 +91,7 @@ class TDTestCase:
         tdSql.query(f"select last({list(column_dict.keys())[0]}) from {stbname}_1 group by {list(column_dict.keys())[-1]}")
         tdSql.checkRows(1)
         for i in range(self.rowNum):
-            tdSql.execute(f"insert into stb_1 values(%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '{self.binary_str}%d', '{self.nchar_str}%d')"
+            tdSql.execute(f"insert into {stbname}_1 values(%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '{self.binary_str}%d', '{self.nchar_str}%d')"
                           % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1))
         for i in [f'{stbname}_1', f'db.{stbname}_1', f'{stbname}', f'db.{stbname}']:
             tdSql.query(f"select last(*) from {i}")
@@ -102,20 +102,20 @@ class TDTestCase:
                 tdSql.query(f"select last({k}) from {j}")
                 tdSql.checkRows(1)
                 # tinyint,smallint,int,bigint,tinyint unsigned,smallint unsigned,int unsigned,bigint unsigned
-                if v == 'tinyint' or v == 'smallint' or v == 'int' or v == 'bigint' or v == 'tinyint unsigned' or v == 'smallint unsigned'\
-                        or v == 'int unsigned' or v == 'bigint unsigned':
+                if v.lower() == 'tinyint' or v.lower() == 'smallint' or v.lower() == 'int' or v.lower() == 'bigint' or v.lower() == 'tinyint unsigned' or v.lower() == 'smallint unsigned'\
+                        or v.lower() == 'int unsigned' or v.lower() == 'bigint unsigned':
                     tdSql.checkData(0, 0, 10)
                 # float,double
-                elif v == 'float' or v == 'double':
+                elif v.lower() == 'float' or v.lower() == 'double':
                     tdSql.checkData(0, 0, 9.1)
                 # bool
-                elif v == 'bool':
+                elif v.lower() == 'bool':
                     tdSql.checkData(0, 0, True)
                 # binary
-                elif 'binary' in v:
+                elif 'binary' in v.lower():
                     tdSql.checkData(0, 0, f'{self.binary_str}{self.rowNum}')
                 # nchar
-                elif 'nchar' in v:
+                elif 'nchar' in v.lower():
                     tdSql.checkData(0, 0, f'{self.nchar_str}{self.rowNum}')
         for i in [f'{stbname}_1', f'db.{stbname}_1', f'{stbname}', f'db.{stbname}']:
             tdSql.query(f"select last({list(column_dict.keys())[0]},{list(column_dict.keys())[1]},{list(column_dict.keys())[2]}) from {stbname}_1")
@@ -170,20 +170,20 @@ class TDTestCase:
                 tdSql.query(f"select last({k}) from {j}")
                 tdSql.checkRows(1)
                 # tinyint,smallint,int,bigint,tinyint unsigned,smallint unsigned,int unsigned,bigint unsigned
-                if v == 'tinyint' or v == 'smallint' or v == 'int' or v == 'bigint' or v == 'tinyint unsigned' or v == 'smallint unsigned'\
-                        or v == 'int unsigned' or v == 'bigint unsigned':
+                if v.lower() == 'tinyint' or v.lower() == 'smallint' or v.lower() == 'int' or v.lower() == 'bigint' or v.lower() == 'tinyint unsigned' or v.lower() == 'smallint unsigned'\
+                        or v.lower() == 'int unsigned' or v.lower() == 'bigint unsigned':
                     tdSql.checkData(0, 0, 10)
                 # float,double
-                elif v == 'float' or v == 'double':
+                elif v.lower() == 'float' or v.lower() == 'double':
                     tdSql.checkData(0, 0, 9.1)
                 # bool
-                elif v == 'bool':
+                elif v.lower() == 'bool':
                     tdSql.checkData(0, 0, True)
                 # binary
-                elif 'binary' in v:
+                elif 'binary' in v.lower():
                     tdSql.checkData(0, 0, f'{self.binary_str}{self.rowNum}')
                 # nchar
-                elif 'nchar' in v:
+                elif 'nchar' in v.lower():
                     tdSql.checkData(0, 0, f'{self.nchar_str}{self.rowNum}')
 
         tdSql.error(
@@ -194,8 +194,21 @@ class TDTestCase:
         dbname = self.get_long_name(length=10, mode="letters")
         stbname = self.get_long_name(length=5, mode="letters")
         vgroup_num = 4
-        column_list = ['col1', 'col2', 'col3', 'col4', 'col5', 'col6',
-                       'col7', 'col8', 'col9', 'col10', 'col11', 'col12', 'col13']
+        column_dict = {
+            'col1': 'tinyint',
+            'col2': 'smallint',
+            'col3': 'int',
+            'col4': 'bigint',
+            'col5': 'tinyint unsigned',
+            'col6': 'smallint unsigned',
+            'col7': 'int unsigned',
+            'col8': 'bigint unsigned',
+            'col9': 'float',
+            'col10': 'double',
+            'col11': 'bool',
+            'col12': 'binary(20)',
+            'col13': 'nchar(20)'
+        }
 
         tdSql.execute(
             f"create database if not exists {dbname} vgroups {vgroup_num}")
@@ -235,31 +248,32 @@ class TDTestCase:
             tdSql.query(f"select last(*) from {i}")
             tdSql.checkRows(1)
             tdSql.checkData(0, 1, 10)
-        for i in column_list:
+        for k, v in column_dict.items():
             for j in [f'{stbname}', f'{dbname}.{stbname}']:
-                tdSql.query(f"select last({i}) from {j}")
+                tdSql.query(f"select last({k}) from {j}")
                 tdSql.checkRows(1)
                 # tinyint,smallint,int,bigint,tinyint unsigned,smallint unsigned,int unsigned,bigint unsigned
-                if i >= 1 and i < 9:
+                if v.lower() == 'tinyint' or v.lower() == 'smallint' or v.lower() == 'int' or v.lower() == 'bigint' or v.lower() == 'tinyint unsigned' or v.lower() == 'smallint unsigned'\
+                        or v.lower() == 'int unsigned' or v.lower() == 'bigint unsigned':
                     tdSql.checkData(0, 0, 10)
                 # float,double
-                elif i >= 9 and i < 11:
+                elif v.lower() == 'float' or v.lower() == 'double':
                     tdSql.checkData(0, 0, 9.1)
                 # bool
-                elif i == 11:
+                elif v.lower() == 'bool':
                     tdSql.checkData(0, 0, True)
                 # binary
-                elif i == 12:
+                elif 'binary' in v.lower():
                     tdSql.checkData(0, 0, f'{self.binary_str}{self.rowNum}')
                 # nchar
-                elif i == 13:
+                elif 'nchar' in v.lower():
                     tdSql.checkData(0, 0, f'{self.nchar_str}{self.rowNum}')
         tdSql.execute(f'drop database {dbname}')
 
     def run(self):
         self.last_check_stb_tb_base()
-        # self.last_check_ntb_base()
-        # self.last_check_stb_distribute()
+        self.last_check_ntb_base()
+        self.last_check_stb_distribute()
 
     def stop(self):
         tdSql.close()
