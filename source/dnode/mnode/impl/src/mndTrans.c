@@ -52,7 +52,7 @@ static bool    mndTransPerformCommitActionStage(SMnode *pMnode, STrans *pTrans);
 static bool    mndTransPerformCommitStage(SMnode *pMnode, STrans *pTrans);
 static bool    mndTransPerformRollbackStage(SMnode *pMnode, STrans *pTrans);
 static bool    mndTransPerfromFinishedStage(SMnode *pMnode, STrans *pTrans);
-static bool    mndCantExecuteTransAction(SMnode *pMnode) { return !pMnode->deploy && !mndIsMaster(pMnode); }
+static bool    mndCannotExecuteTransAction(SMnode *pMnode) { return !pMnode->deploy && !mndIsMaster(pMnode); }
 
 static void    mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans);
 static int32_t mndProcessTransReq(SRpcMsg *pReq);
@@ -523,9 +523,10 @@ static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *pOld, STrans *pNew) {
   }
 
   if (pOld->stage == TRN_STAGE_ROLLBACK) {
-    pOld->stage = TRN_STAGE_FINISHED;
-    mTrace("trans:%d, stage from rollback to finished since perform update action", pNew->id);
+    pOld->stage = TRN_STAGE_REDO_ACTION;
+    mTrace("trans:%d, stage from rollback to undoAction since perform update action", pNew->id);
   }
+
   return 0;
 }
 
@@ -934,7 +935,7 @@ static int32_t mndTransWriteSingleLog(SMnode *pMnode, STrans *pTrans, STransActi
 
 static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransAction *pAction) {
   if (pAction->msgSent) return 0;
-  if (mndCantExecuteTransAction(pMnode)) return -1;
+  if (mndCannotExecuteTransAction(pMnode)) return -1;
 
   int64_t signature = pTrans->id;
   signature = (signature << 32);
@@ -1134,7 +1135,7 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
       pTrans->lastEpset = pAction->epSet;
     }
 
-    if (mndCantExecuteTransAction(pMnode)) break;
+    if (mndCannotExecuteTransAction(pMnode)) break;
 
     if (code == 0) {
       pTrans->code = 0;
@@ -1177,7 +1178,7 @@ static bool mndTransPerformRedoActionStage(SMnode *pMnode, STrans *pTrans) {
     code = mndTransExecuteRedoActions(pMnode, pTrans);
   }
 
-  if (mndCantExecuteTransAction(pMnode)) return false;
+  if (mndCannotExecuteTransAction(pMnode)) return false;
 
   if (code == 0) {
     pTrans->code = 0;
@@ -1190,8 +1191,8 @@ static bool mndTransPerformRedoActionStage(SMnode *pMnode, STrans *pTrans) {
   } else {
     pTrans->code = terrno;
     if (pTrans->policy == TRN_POLICY_ROLLBACK) {
-      pTrans->stage = TRN_STAGE_UNDO_ACTION;
-      mError("trans:%d, stage from redoAction to undoAction since %s", pTrans->id, terrstr());
+      pTrans->stage = TRN_STAGE_ROLLBACK;
+      mError("trans:%d, stage from redoAction to rollback since %s", pTrans->id, terrstr());
       continueExec = true;
     } else {
       pTrans->failedTimes++;
@@ -1204,7 +1205,7 @@ static bool mndTransPerformRedoActionStage(SMnode *pMnode, STrans *pTrans) {
 }
 
 static bool mndTransPerformCommitStage(SMnode *pMnode, STrans *pTrans) {
-  if (mndCantExecuteTransAction(pMnode)) return false;
+  if (mndCannotExecuteTransAction(pMnode)) return false;
 
   bool    continueExec = true;
   int32_t code = mndTransCommit(pMnode, pTrans);
@@ -1216,16 +1217,9 @@ static bool mndTransPerformCommitStage(SMnode *pMnode, STrans *pTrans) {
     continueExec = true;
   } else {
     pTrans->code = terrno;
-    if (pTrans->policy == TRN_POLICY_ROLLBACK) {
-      pTrans->stage = TRN_STAGE_UNDO_ACTION;
-      mError("trans:%d, stage from commit to undoAction since %s, failedTimes:%d", pTrans->id, terrstr(),
-             pTrans->failedTimes);
-      continueExec = true;
-    } else {
-      pTrans->failedTimes++;
-      mError("trans:%d, stage keep on commit since %s, failedTimes:%d", pTrans->id, terrstr(), pTrans->failedTimes);
-      continueExec = false;
-    }
+    pTrans->failedTimes++;
+    mError("trans:%d, stage keep on commit since %s, failedTimes:%d", pTrans->id, terrstr(), pTrans->failedTimes);
+    continueExec = false;
   }
 
   return continueExec;
@@ -1254,11 +1248,9 @@ static bool mndTransPerformUndoActionStage(SMnode *pMnode, STrans *pTrans) {
   bool    continueExec = true;
   int32_t code = mndTransExecuteUndoActions(pMnode, pTrans);
 
-  if (mndCantExecuteTransAction(pMnode)) return false;
-
   if (code == 0) {
-    pTrans->stage = TRN_STAGE_ROLLBACK;
-    mDebug("trans:%d, stage from undoAction to rollback", pTrans->id);
+    pTrans->stage = TRN_STAGE_FINISHED;
+    mDebug("trans:%d, stage from undoAction to finished", pTrans->id);
     continueExec = true;
   } else if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
     mDebug("trans:%d, stage keep on undoAction since %s", pTrans->id, tstrerror(code));
@@ -1273,14 +1265,14 @@ static bool mndTransPerformUndoActionStage(SMnode *pMnode, STrans *pTrans) {
 }
 
 static bool mndTransPerformRollbackStage(SMnode *pMnode, STrans *pTrans) {
-  if (mndCantExecuteTransAction(pMnode)) return false;
+  if (mndCannotExecuteTransAction(pMnode)) return false;
 
   bool    continueExec = true;
   int32_t code = mndTransRollback(pMnode, pTrans);
 
   if (code == 0) {
-    pTrans->stage = TRN_STAGE_FINISHED;
-    mDebug("trans:%d, stage from rollback to finished", pTrans->id);
+    pTrans->stage = TRN_STAGE_UNDO_ACTION;
+    mDebug("trans:%d, stage from rollback to undoAction", pTrans->id);
     continueExec = true;
   } else {
     pTrans->failedTimes++;
@@ -1328,11 +1320,11 @@ void mndTransExecute(SMnode *pMnode, STrans *pTrans) {
       case TRN_STAGE_COMMIT_ACTION:
         continueExec = mndTransPerformCommitActionStage(pMnode, pTrans);
         break;
-      case TRN_STAGE_UNDO_ACTION:
-        continueExec = mndTransPerformUndoActionStage(pMnode, pTrans);
-        break;
       case TRN_STAGE_ROLLBACK:
         continueExec = mndTransPerformRollbackStage(pMnode, pTrans);
+        break;
+      case TRN_STAGE_UNDO_ACTION:
+        continueExec = mndTransPerformUndoActionStage(pMnode, pTrans);
         break;
       case TRN_STAGE_FINISHED:
         continueExec = mndTransPerfromFinishedStage(pMnode, pTrans);
