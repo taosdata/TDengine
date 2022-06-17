@@ -22,8 +22,8 @@
 #include "mndSync.h"
 #include "mndUser.h"
 
-#define TRANS_VER_NUMBER   1
-#define TRANS_ARRAY_SIZE   8
+#define TRANS_VER_NUMBER 1
+#define TRANS_ARRAY_SIZE 8
 #define TRANS_RESERVE_SIZE 64
 
 static SSdbRaw *mndTransActionEncode(STrans *pTrans);
@@ -661,7 +661,7 @@ static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
   }
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
-  mDebug("trans:%d, sync to other mnodes", pTrans->id);
+  mDebug("trans:%d, sync to other mnodes, stage:%s", pTrans->id, mndTransStr(pTrans->stage));
   int32_t code = mndSyncPropose(pMnode, pRaw, pTrans->id);
   if (code != 0) {
     mError("trans:%d, failed to sync since %s", pTrans->id, terrstr());
@@ -873,7 +873,8 @@ static void mndTransResetActions(SMnode *pMnode, STrans *pTrans, SArray *pArray)
     pAction->rawWritten = 0;
     pAction->msgSent = 0;
     pAction->msgReceived = 0;
-    if (pAction->errCode == TSDB_CODE_RPC_REDIRECT) {
+    if (pAction->errCode == TSDB_CODE_RPC_REDIRECT || pAction->errCode == TSDB_CODE_SYN_NOT_IN_NEW_CONFIG ||
+        pAction->errCode == TSDB_CODE_SYN_INTERNAL_ERROR || pAction->errCode == TSDB_CODE_SYN_NOT_LEADER) {
       pAction->epSet.inUse = (pAction->epSet.inUse + 1) % pAction->epSet.numOfEps;
       mDebug("trans:%d, %s:%d execute status is reset and set epset inuse:%d", pTrans->id, mndTransStr(pAction->stage),
              action, pAction->epSet.inUse);
@@ -1126,7 +1127,6 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
         pTrans->code = terrno;
         mError("trans:%d, %s:%d is executed and failed to sync to other mnodes since %s", pTrans->id,
                mndTransStr(pAction->stage), pAction->id, terrstr());
-        break;
       }
     } else if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
       mDebug("trans:%d, %s:%d is in progress and wait it finish", pTrans->id, mndTransStr(pAction->stage), pAction->id);
@@ -1134,8 +1134,6 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
     } else {
       terrno = code;
       pTrans->code = code;
-      mError("trans:%d, %s:%d failed to execute since %s", pTrans->id, mndTransStr(pAction->stage), pAction->id,
-             terrstr());
       break;
     }
   }
@@ -1362,7 +1360,6 @@ static int32_t mndProcessKillTransReq(SRpcMsg *pReq) {
   SMnode       *pMnode = pReq->info.node;
   SKillTransReq killReq = {0};
   int32_t       code = -1;
-  SUserObj     *pUser = NULL;
   STrans       *pTrans = NULL;
 
   if (tDeserializeSKillTransReq(pReq->pCont, pReq->contLen, &killReq) != 0) {
@@ -1372,12 +1369,7 @@ static int32_t mndProcessKillTransReq(SRpcMsg *pReq) {
 
   mInfo("trans:%d, start to kill", killReq.transId);
 
-  pUser = mndAcquireUser(pMnode, pReq->conn.user);
-  if (pUser == NULL) {
-    goto _OVER;
-  }
-
-  if (mndCheckTransAuth(pUser) != 0) {
+  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_KILL_TRANS) != 0) {
     goto _OVER;
   }
 
@@ -1393,7 +1385,6 @@ _OVER:
     mError("trans:%d, failed to kill since %s", killReq.transId, terrstr());
   }
 
-  mndReleaseUser(pMnode, pUser);
   mndReleaseTrans(pMnode, pTrans);
   return code;
 }
@@ -1426,7 +1417,9 @@ void mndTransPullup(SMnode *pMnode) {
   }
 
   SSnapshotMeta sMeta = {0};
-  if (syncGetSnapshotMeta(pMnode->syncMgmt.sync, &sMeta) == 0) {
+  // if (syncGetSnapshotMeta(pMnode->syncMgmt.sync, &sMeta) == 0) {
+  SyncIndex snapshotIndex = sdbGetApplyIndex(pMnode->pSdb);
+  if (syncGetSnapshotMetaByIndex(pMnode->syncMgmt.sync, snapshotIndex, &sMeta) == 0) {
     sdbSetCurConfig(pMnode->pSdb, sMeta.lastConfigIndex);
   }
   sdbWriteFile(pMnode->pSdb);

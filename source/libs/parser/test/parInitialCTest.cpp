@@ -46,7 +46,7 @@ TEST_F(ParserInitialCTest, createBnode) {
  *     BUFFER value
  *   | CACHELAST value
  *   | COMP {0 | 1 | 2}
- *   | DAYS value
+ *   | DURATION value
  *   | FSYNC value
  *   | MAXROWS value
  *   | MINROWS value
@@ -155,7 +155,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
     ASSERT_EQ(req.replications, expect.replications);
     ASSERT_EQ(req.strict, expect.strict);
     ASSERT_EQ(req.cacheLastRow, expect.cacheLastRow);
-    //ASSERT_EQ(req.schemaless, expect.schemaless);
+    // ASSERT_EQ(req.schemaless, expect.schemaless);
     ASSERT_EQ(req.ignoreExist, expect.ignoreExist);
     ASSERT_EQ(req.numOfRetensions, expect.numOfRetensions);
     if (expect.numOfRetensions > 0) {
@@ -202,7 +202,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
       "BUFFER 64 "
       "CACHELAST 2 "
       "COMP 1 "
-      "DAYS 100 "
+      "DURATION 100 "
       "FSYNC 100 "
       "MAXROWS 1000 "
       "MINROWS 100 "
@@ -223,7 +223,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
   setDbDaysFunc(100);
   setDbKeepFunc(1440, 300 * 60, 400 * 1440);
   run("CREATE DATABASE IF NOT EXISTS wxy_db "
-      "DAYS 100m "
+      "DURATION 100m "
       "KEEP 1440m,300h,400d ");
   clearCreateDbReq();
 }
@@ -526,6 +526,12 @@ TEST_F(ParserInitialCTest, createStream) {
                       "st1", 1, STREAM_TRIGGER_MAX_DELAY, 20 * MILLISECOND_PER_SECOND, 10 * MILLISECOND_PER_SECOND);
   run("CREATE STREAM IF NOT EXISTS s1 TRIGGER MAX_DELAY 20s WATERMARK 10s INTO st1 AS SELECT * FROM t1");
   clearCreateStreamReq();
+}
+
+TEST_F(ParserInitialCTest, createStreamSemanticCheck) {
+  useDb("root", "test");
+
+  run("CREATE STREAM s1 AS SELECT PERCENTILE(c1, 30) FROM t1", TSDB_CODE_PAR_STREAM_NOT_ALLOWED_FUNC);
 }
 
 TEST_F(ParserInitialCTest, createTable) {

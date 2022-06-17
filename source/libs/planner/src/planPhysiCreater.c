@@ -181,7 +181,7 @@ static int16_t getUnsetSlotId(const SArray* pSlotIdsInfo) {
 }
 
 static int32_t addDataBlockSlotsImpl(SPhysiPlanContext* pCxt, SNodeList* pList, SDataBlockDescNode* pDataBlockDesc,
-                                     const char* pStmtName, bool output,  bool reserve) {
+                                     const char* pStmtName, bool output, bool reserve) {
   if (NULL == pList) {
     return TSDB_CODE_SUCCESS;
   }
@@ -463,10 +463,25 @@ static int32_t createTagScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubpla
   return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pTagScan, pPhyNode);
 }
 
+static ENodeType getScanOperatorType(EScanType scanType) {
+  switch (scanType) {
+    case SCAN_TYPE_TABLE:
+      return QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
+    case SCAN_TYPE_STREAM:
+      return QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN;
+    case SCAN_TYPE_TABLE_MERGE:
+      // return QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
+      return QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN;
+    default:
+      break;
+  }
+  return QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
+}
+
 static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SScanLogicNode* pScanLogicNode,
                                         SPhysiNode** pPhyNode) {
-  STableScanPhysiNode* pTableScan =
-      (STableScanPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pScanLogicNode, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
+  STableScanPhysiNode* pTableScan = (STableScanPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pScanLogicNode,
+                                                                        getScanOperatorType(pScanLogicNode->scanType));
   if (NULL == pTableScan) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -485,7 +500,9 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
   tNameGetFullDbName(&pScanLogicNode->tableName, pSubplan->dbFName);
   pTableScan->dataRequired = pScanLogicNode->dataRequired;
   pTableScan->pDynamicScanFuncs = nodesCloneList(pScanLogicNode->pDynamicScanFuncs);
-  if (NULL != pScanLogicNode->pDynamicScanFuncs && NULL == pTableScan->pDynamicScanFuncs) {
+  pTableScan->pPartitionTags = nodesCloneList(pScanLogicNode->pPartTags);
+  if ((NULL != pScanLogicNode->pDynamicScanFuncs && NULL == pTableScan->pDynamicScanFuncs) ||
+      (NULL != pScanLogicNode->pPartTags && NULL == pTableScan->pPartitionTags)) {
     nodesDestroyNode((SNode*)pTableScan);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -528,12 +545,12 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
 
 static int32_t createStreamScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SScanLogicNode* pScanLogicNode,
                                          SPhysiNode** pPhyNode) {
-  int32_t res = createTableScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
-  if (res == TSDB_CODE_SUCCESS) {
-    ENodeType type = QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN;
-    setNodeType(*pPhyNode, type);
-  }
-  return res;
+  return createTableScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
+}
+
+static int32_t createTableMergeScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan,
+                                             SScanLogicNode* pScanLogicNode, SPhysiNode** pPhyNode) {
+  return createTableScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
 }
 
 static int32_t createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SScanLogicNode* pScanLogicNode,
@@ -547,6 +564,8 @@ static int32_t createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, 
       return createSystemTableScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
     case SCAN_TYPE_STREAM:
       return createStreamScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
+    case SCAN_TYPE_TABLE_MERGE:
+      return createTableMergeScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
     default:
       break;
   }
@@ -958,8 +977,8 @@ static int32_t createWindowPhysiNodeFinalize(SPhysiPlanContext* pCxt, SNodeList*
   return code;
 }
 
-static ENodeType getIntervalOperatorType(EIntervalAlgorithm intervalAlgo) {
-  switch (intervalAlgo) {
+static ENodeType getIntervalOperatorType(EWindowAlgorithm windowAlgo) {
+  switch (windowAlgo) {
     case INTERVAL_ALGO_HASH:
       return QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL;
     case INTERVAL_ALGO_MERGE:
@@ -970,6 +989,14 @@ static ENodeType getIntervalOperatorType(EIntervalAlgorithm intervalAlgo) {
       return QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL;
     case INTERVAL_ALGO_STREAM_SINGLE:
       return QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL;
+    case SESSION_ALGO_STREAM_FINAL:
+      return QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION;
+    case SESSION_ALGO_STREAM_SEMI:
+      return QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION;
+    case SESSION_ALGO_STREAM_SINGLE:
+      return QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION;
+    case SESSION_ALGO_MERGE:
+      return QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION;
     default:
       break;
   }
@@ -979,7 +1006,7 @@ static ENodeType getIntervalOperatorType(EIntervalAlgorithm intervalAlgo) {
 static int32_t createIntervalPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                        SWindowLogicNode* pWindowLogicNode, SPhysiNode** pPhyNode) {
   SIntervalPhysiNode* pInterval = (SIntervalPhysiNode*)makePhysiNode(
-      pCxt, (SLogicNode*)pWindowLogicNode, getIntervalOperatorType(pWindowLogicNode->intervalAlgo));
+      pCxt, (SLogicNode*)pWindowLogicNode, getIntervalOperatorType(pWindowLogicNode->windowAlgo));
   if (NULL == pInterval) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -996,8 +1023,7 @@ static int32_t createIntervalPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChil
 static int32_t createSessionWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                             SWindowLogicNode* pWindowLogicNode, SPhysiNode** pPhyNode) {
   SSessionWinodwPhysiNode* pSession = (SSessionWinodwPhysiNode*)makePhysiNode(
-      pCxt, (SLogicNode*)pWindowLogicNode,
-      (pCxt->pPlanCxt->streamQuery ? QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION : QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION));
+      pCxt, (SLogicNode*)pWindowLogicNode, getIntervalOperatorType(pWindowLogicNode->windowAlgo));
   if (NULL == pSession) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }

@@ -47,7 +47,7 @@ int32_t init_env() {
     return -1;
   }
 
-  TAOS_RES* pRes = taos_query(pConn, "create database if not exists abc1 vgroups 2");
+  TAOS_RES* pRes = taos_query(pConn, "create database if not exists abc1 vgroups 1");
   if (taos_errno(pRes) != 0) {
     printf("error in create db, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -146,8 +146,8 @@ int32_t create_topic() {
   return 0;
 }
 
-void tmq_commit_cb_print(tmq_t* tmq, tmq_resp_err_t resp, tmq_topic_vgroup_list_t* offsets, void* param) {
-  printf("commit %d tmq %p offsets %p param %p\n", resp, tmq, offsets, param);
+void tmq_commit_cb_print(tmq_t* tmq, int32_t code, void* param) {
+  printf("commit %d tmq %p param %p\n", code, tmq, param);
 }
 
 tmq_t* build_consumer() {
@@ -167,7 +167,7 @@ tmq_t* build_consumer() {
   tmq_conf_set(conf, "td.connect.user", "root");
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
   tmq_conf_set(conf, "msg.with.table.name", "true");
-  tmq_conf_set(conf, "enable.auto.commit", "false");
+  tmq_conf_set(conf, "enable.auto.commit", "true");
   tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
   tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);
   assert(tmq);
@@ -183,10 +183,10 @@ tmq_list_t* build_topic_list() {
 }
 
 void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
-  tmq_resp_err_t err;
+  int32_t code;
 
-  if ((err = tmq_subscribe(tmq, topics))) {
-    fprintf(stderr, "%% Failed to start consuming topics: %s\n", tmq_err2str(err));
+  if ((code = tmq_subscribe(tmq, topics))) {
+    fprintf(stderr, "%% Failed to start consuming topics: %s\n", tmq_err2str(code));
     printf("subscribe err\n");
     return;
   }
@@ -201,12 +201,13 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
       taos_free_result(tmqmessage);
       /*} else {*/
       /*break;*/
+      /*tmq_commit_sync(tmq, NULL);*/
     }
   }
 
-  err = tmq_consumer_close(tmq);
-  if (err)
-    fprintf(stderr, "%% Failed to close consumer: %s\n", tmq_err2str(err));
+  code = tmq_consumer_close(tmq);
+  if (code)
+    fprintf(stderr, "%% Failed to close consumer: %s\n", tmq_err2str(code));
   else
     fprintf(stderr, "%% Consumer closed\n");
 }
@@ -214,11 +215,11 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
 void sync_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
   static const int MIN_COMMIT_COUNT = 1;
 
-  int            msg_count = 0;
-  tmq_resp_err_t err;
+  int     msg_count = 0;
+  int32_t code;
 
-  if ((err = tmq_subscribe(tmq, topics))) {
-    fprintf(stderr, "%% Failed to start consuming topics: %s\n", tmq_err2str(err));
+  if ((code = tmq_subscribe(tmq, topics))) {
+    fprintf(stderr, "%% Failed to start consuming topics: %s\n", tmq_err2str(code));
     return;
   }
 
@@ -239,14 +240,14 @@ void sync_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
       msg_process(tmqmessage);
       taos_free_result(tmqmessage);
 
-      /*tmq_commit_async(tmq, NULL, tmq_commit_cb_print, NULL);*/
+      /*tmq_commit_sync(tmq, NULL);*/
       /*if ((++msg_count % MIN_COMMIT_COUNT) == 0) tmq_commit(tmq, NULL, 0);*/
     }
   }
 
-  err = tmq_consumer_close(tmq);
-  if (err)
-    fprintf(stderr, "%% Failed to close consumer: %s\n", tmq_err2str(err));
+  code = tmq_consumer_close(tmq);
+  if (code)
+    fprintf(stderr, "%% Failed to close consumer: %s\n", tmq_err2str(code));
   else
     fprintf(stderr, "%% Consumer closed\n");
 }

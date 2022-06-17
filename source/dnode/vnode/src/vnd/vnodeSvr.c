@@ -168,6 +168,11 @@ int32_t vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
         goto _err;
       }
     } break;
+    case TDMT_VND_STREAM_TASK_DROP: {
+      if (tqProcessTaskDropReq(pVnode->pTq, pMsg->pCont, pMsg->contLen) < 0) {
+        goto _err;
+      }
+    } break;
     case TDMT_VND_ALTER_CONFIRM:
       vnodeProcessAlterConfirmReq(pVnode, version, pReq, len, pRsp);
       break;
@@ -293,104 +298,6 @@ void vnodeUpdateMetaRsp(SVnode *pVnode, STableMetaRsp *pMetaRsp) {
   pMetaRsp->dbId = pVnode->config.dbId;
   pMetaRsp->vgId = TD_VID(pVnode);
   pMetaRsp->precision = pVnode->config.tsdbCfg.precision;
-}
-
-int32_t vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  int32_t ret = TAOS_SYNC_OTHER_ERROR;
-
-  if (syncEnvIsStart()) {
-    SSyncNode *pSyncNode = syncNodeAcquire(pVnode->sync);
-    assert(pSyncNode != NULL);
-
-    ESyncState state = syncGetMyRole(pVnode->sync);
-    SyncTerm   currentTerm = syncGetMyTerm(pVnode->sync);
-
-    SMsgHead *pHead = pMsg->pCont;
-
-    char  logBuf[512] = {0};
-    char *syncNodeStr = sync2SimpleStr(pVnode->sync);
-    snprintf(logBuf, sizeof(logBuf), "==vnodeProcessSyncReq== msgType:%d, syncNode: %s", pMsg->msgType, syncNodeStr);
-    static int64_t vndTick = 0;
-    if (++vndTick % 10 == 1) {
-      vTrace("sync trace msg:%s, %s", TMSG_INFO(pMsg->msgType), syncNodeStr);
-    }
-    syncRpcMsgLog2(logBuf, pMsg);
-    taosMemoryFree(syncNodeStr);
-
-    SRpcMsg *pRpcMsg = pMsg;
-
-    if (pRpcMsg->msgType == TDMT_SYNC_TIMEOUT) {
-      SyncTimeout *pSyncMsg = syncTimeoutFromRpcMsg2(pRpcMsg);
-      assert(pSyncMsg != NULL);
-
-      ret = syncNodeOnTimeoutCb(pSyncNode, pSyncMsg);
-      syncTimeoutDestroy(pSyncMsg);
-
-    } else if (pRpcMsg->msgType == TDMT_SYNC_PING) {
-      SyncPing *pSyncMsg = syncPingFromRpcMsg2(pRpcMsg);
-      assert(pSyncMsg != NULL);
-
-      ret = syncNodeOnPingCb(pSyncNode, pSyncMsg);
-      syncPingDestroy(pSyncMsg);
-
-    } else if (pRpcMsg->msgType == TDMT_SYNC_PING_REPLY) {
-      SyncPingReply *pSyncMsg = syncPingReplyFromRpcMsg2(pRpcMsg);
-      assert(pSyncMsg != NULL);
-
-      ret = syncNodeOnPingReplyCb(pSyncNode, pSyncMsg);
-      syncPingReplyDestroy(pSyncMsg);
-
-    } else if (pRpcMsg->msgType == TDMT_SYNC_CLIENT_REQUEST) {
-      SyncClientRequest *pSyncMsg = syncClientRequestFromRpcMsg2(pRpcMsg);
-      assert(pSyncMsg != NULL);
-
-      ret = syncNodeOnClientRequestCb(pSyncNode, pSyncMsg);
-      syncClientRequestDestroy(pSyncMsg);
-
-    } else if (pRpcMsg->msgType == TDMT_SYNC_REQUEST_VOTE) {
-      SyncRequestVote *pSyncMsg = syncRequestVoteFromRpcMsg2(pRpcMsg);
-      assert(pSyncMsg != NULL);
-
-      ret = syncNodeOnRequestVoteCb(pSyncNode, pSyncMsg);
-      syncRequestVoteDestroy(pSyncMsg);
-
-    } else if (pRpcMsg->msgType == TDMT_SYNC_REQUEST_VOTE_REPLY) {
-      SyncRequestVoteReply *pSyncMsg = syncRequestVoteReplyFromRpcMsg2(pRpcMsg);
-      assert(pSyncMsg != NULL);
-
-      ret = syncNodeOnRequestVoteReplyCb(pSyncNode, pSyncMsg);
-      syncRequestVoteReplyDestroy(pSyncMsg);
-
-    } else if (pRpcMsg->msgType == TDMT_SYNC_APPEND_ENTRIES) {
-      SyncAppendEntries *pSyncMsg = syncAppendEntriesFromRpcMsg2(pRpcMsg);
-      assert(pSyncMsg != NULL);
-
-      ret = syncNodeOnAppendEntriesCb(pSyncNode, pSyncMsg);
-      syncAppendEntriesDestroy(pSyncMsg);
-
-    } else if (pRpcMsg->msgType == TDMT_SYNC_APPEND_ENTRIES_REPLY) {
-      SyncAppendEntriesReply *pSyncMsg = syncAppendEntriesReplyFromRpcMsg2(pRpcMsg);
-      assert(pSyncMsg != NULL);
-
-      ret = syncNodeOnAppendEntriesReplyCb(pSyncNode, pSyncMsg);
-      syncAppendEntriesReplyDestroy(pSyncMsg);
-
-    } else if (pRpcMsg->msgType == TDMT_SYNC_SET_MNODE_STANDBY) {
-      ret = syncSetStandby(pVnode->sync);
-      SRpcMsg rsp = {.code = ret, .info = pMsg->info};
-      tmsgSendRsp(&rsp);
-    } else {
-      vError("==vnodeProcessSyncReq== error msg type:%d", pRpcMsg->msgType);
-      ret = TAOS_SYNC_OTHER_ERROR;
-    }
-
-    syncNodeRelease(pSyncNode);
-  } else {
-    vError("==vnodeProcessSyncReq== error syncEnv stop");
-    ret = TAOS_SYNC_OTHER_ERROR;
-  }
-
-  return ret;
 }
 
 static int32_t vnodeProcessCreateStbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
@@ -559,10 +466,10 @@ static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t version, void *pRe
   }
 
   // process request
-  // if (metaDropSTable(pVnode->pMeta, version, &req) < 0) {
-  //   rcode = terrno;
-  //   goto _exit;
-  // }
+  if (metaDropSTable(pVnode->pMeta, version, &req) < 0) {
+    rcode = terrno;
+    goto _exit;
+  }
 
   // return rsp
 _exit:

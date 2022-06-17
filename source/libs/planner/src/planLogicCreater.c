@@ -498,7 +498,7 @@ static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStm
   }
 
   if (pCxt->pPlanCxt->rSmaQuery) {
-    pWindow->filesFactor = pCxt->pPlanCxt->filesFactor;
+    /*pWindow->filesFactor = pCxt->pPlanCxt->filesFactor;*/
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -548,6 +548,7 @@ static int32_t createWindowLogicNodeBySession(SLogicPlanContext* pCxt, SSessionW
 
   pWindow->winType = WINDOW_TYPE_SESSION;
   pWindow->sessionGap = ((SValueNode*)pSession->pGap)->datum.i;
+  pWindow->windowAlgo = pCxt->pPlanCxt->streamQuery ? SESSION_ALGO_STREAM_SINGLE : SESSION_ALGO_MERGE;
 
   pWindow->pTspk = nodesCloneNode((SNode*)pSession->pCol);
   if (NULL == pWindow->pTspk) {
@@ -572,7 +573,7 @@ static int32_t createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SInterva
   pWindow->sliding = (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->datum.i : pWindow->interval);
   pWindow->slidingUnit =
       (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->unit : pWindow->intervalUnit);
-  pWindow->intervalAlgo = pCxt->pPlanCxt->streamQuery ? INTERVAL_ALGO_STREAM_SINGLE : INTERVAL_ALGO_HASH;
+  pWindow->windowAlgo = pCxt->pPlanCxt->streamQuery ? INTERVAL_ALGO_STREAM_SINGLE : INTERVAL_ALGO_HASH;
 
   pWindow->pTspk = nodesCloneNode(pInterval->pCol);
   if (NULL == pWindow->pTspk) {

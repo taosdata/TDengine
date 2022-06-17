@@ -132,7 +132,6 @@ typedef struct SqlFunctionCtx {
   char                  *pOutput;       // final result output buffer, point to sdata->data
   int32_t                numOfParams;
   SFunctParam           *param;         // input parameter, e.g., top(k, 20), the number of results for top query is kept in param
-  int64_t               *ptsList;       // corresponding timestamp array list, todo remove it
   SColumnInfoData       *pTsOutput;     // corresponding output buffer for timestamp of each result, e.g., top/bottom*/
   int32_t                offset;
   struct  SResultRowEntryInfo *resultInfo;
@@ -151,12 +150,8 @@ typedef struct SqlFunctionCtx {
 } SqlFunctionCtx;
 
 enum {
-  TEXPR_NODE_DUMMY     = 0x0,
   TEXPR_BINARYEXPR_NODE= 0x1,
   TEXPR_UNARYEXPR_NODE = 0x2,
-  TEXPR_FUNCTION_NODE  = 0x3,
-  TEXPR_COL_NODE       = 0x4,
-  TEXPR_VALUE_NODE     = 0x8,
 };
 
 typedef struct tExprNode {

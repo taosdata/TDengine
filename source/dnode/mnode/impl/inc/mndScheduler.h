@@ -32,6 +32,8 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream);
 int32_t mndConvertRsmaTask(char** pDst, int32_t* pDstLen, const char* ast, int64_t uid, int8_t triggerType,
                            int64_t watermark, double filesFactor);
 
+int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream);
+
 #ifdef __cplusplus
 }
 #endif

@@ -380,22 +380,24 @@ void mndStop(SMnode *pMnode) {
 int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
   SMnode    *pMnode = pMsg->info.node;
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
-  int32_t    code = TAOS_SYNC_OTHER_ERROR;
+  int32_t    code = 0;
 
   if (!syncEnvIsStart()) {
     mError("failed to process sync msg:%p type:%s since syncEnv stop", pMsg, TMSG_INFO(pMsg->msgType));
-    return TAOS_SYNC_OTHER_ERROR;
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    return -1;
   }
 
   SSyncNode *pSyncNode = syncNodeAcquire(pMgmt->sync);
   if (pSyncNode == NULL) {
     mError("failed to process sync msg:%p type:%s since syncNode is null", pMsg, TMSG_INFO(pMsg->msgType));
-    return TAOS_SYNC_OTHER_ERROR;
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    return -1;
   }
 
   char  logBuf[512] = {0};
   char *syncNodeStr = sync2SimpleStr(pMgmt->sync);
-  snprintf(logBuf, sizeof(logBuf), "==vnodeProcessSyncReq== msgType:%d, syncNode: %s", pMsg->msgType, syncNodeStr);
+  snprintf(logBuf, sizeof(logBuf), "==mndProcessSyncMsg== msgType:%d, syncNode: %s", pMsg->msgType, syncNodeStr);
   static int64_t mndTick = 0;
   if (++mndTick % 10 == 1) {
     mTrace("sync trace msg:%s, %s", TMSG_INFO(pMsg->msgType), syncNodeStr);
@@ -451,7 +453,7 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
       tmsgSendRsp(&rsp);
     } else {
       mError("failed to process msg:%p since invalid type:%s", pMsg, TMSG_INFO(pMsg->msgType));
-      code = TAOS_SYNC_OTHER_ERROR;
+      code = -1;
     }
   } else {
     if (pMsg->msgType == TDMT_SYNC_TIMEOUT) {
@@ -492,20 +494,23 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
       tmsgSendRsp(&rsp);
     } else {
       mError("failed to process msg:%p since invalid type:%s", pMsg, TMSG_INFO(pMsg->msgType));
-      code = TAOS_SYNC_OTHER_ERROR;
+      code = -1;
     }
   }
 
+  if (code != 0) {
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+  }
   return code;
 }
 
 static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
+  if (!IsReq(pMsg)) return 0;
   if (mndAcquireRpcRef(pMsg->info.node) == 0) return 0;
 
   if (IsReq(pMsg) && pMsg->msgType != TDMT_MND_MQ_TIMER && pMsg->msgType != TDMT_MND_TELEM_TIMER &&
       pMsg->msgType != TDMT_MND_TRANS_TIMER) {
-    mError("msg:%p, failed to check mnode state since %s, app:%p type:%s", pMsg, terrstr(), pMsg->info.ahandle,
-           TMSG_INFO(pMsg->msgType));
+    mError("msg:%p, failed to check mnode state since %s, type:%s", pMsg, terrstr(), TMSG_INFO(pMsg->msgType));
 
     SEpSet epSet = {0};
     mndGetMnodeEpSet(pMsg->info.node, &epSet);
@@ -528,7 +533,8 @@ static int32_t mndCheckMsgContent(SRpcMsg *pMsg) {
   if (!IsReq(pMsg)) return 0;
   if (pMsg->contLen != 0 && pMsg->pCont != NULL) return 0;
 
-  mError("msg:%p, failed to check msg content, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
+  mError("msg:%p, failed to check msg, cont:%p contLen:%d, app:%p type:%s", pMsg, pMsg->pCont, pMsg->contLen,
+         pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
   terrno = TSDB_CODE_INVALID_MSG_LEN;
   return -1;
 }
@@ -552,7 +558,7 @@ int32_t mndProcessRpcMsg(SRpcMsg *pMsg) {
   if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
     mTrace("msg:%p, won't response immediately since in progress", pMsg);
   } else if (code == 0) {
-    mTrace("msg:%p, successfully processed and response", pMsg);
+    mTrace("msg:%p, successfully processed", pMsg);
   } else {
     mError("msg:%p, failed to process since %s, app:%p type:%s", pMsg, terrstr(), pMsg->info.ahandle,
            TMSG_INFO(pMsg->msgType));
@@ -694,6 +700,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
 
 int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad) {
   pLoad->syncState = syncGetMyRole(pMnode->syncMgmt.sync);
+  mTrace("mnode current syncstate is %s", syncStr(pLoad->syncState));
   return 0;
 }
 

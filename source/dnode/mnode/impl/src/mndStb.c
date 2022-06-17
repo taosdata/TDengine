@@ -28,7 +28,6 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
-#include "mndSma.h"
 #include "tname.h"
 
 #define STB_VER_NUMBER   1
@@ -323,10 +322,14 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
   pOld->smaVer = pNew->smaVer;
   pOld->nextColId = pNew->nextColId;
   pOld->ttl = pNew->ttl;
-  pOld->numOfColumns = pNew->numOfColumns;
-  pOld->numOfTags = pNew->numOfTags;
-  memcpy(pOld->pColumns, pNew->pColumns, pOld->numOfColumns * sizeof(SSchema));
-  memcpy(pOld->pTags, pNew->pTags, pOld->numOfTags * sizeof(SSchema));
+  if (pNew->numOfColumns > 0) {
+    pOld->numOfColumns = pNew->numOfColumns;
+    memcpy(pOld->pColumns, pNew->pColumns, pOld->numOfColumns * sizeof(SSchema));
+  }
+  if (pNew->numOfTags > 0) {
+    pOld->numOfTags = pNew->numOfTags;
+    memcpy(pOld->pTags, pNew->pTags, pOld->numOfTags * sizeof(SSchema));
+  }
   if (pNew->commentLen != 0) {
     memcpy(pOld->comment, pNew->comment, pNew->commentLen);
   }
@@ -769,7 +772,6 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
   int32_t        code = -1;
   SStbObj       *pStb = NULL;
   SDbObj        *pDb = NULL;
-  SUserObj      *pUser = NULL;
   SMCreateStbReq createReq = {0};
 
   if (tDeserializeSMCreateStbReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
@@ -803,12 +805,7 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  pUser = mndAcquireUser(pMnode, pReq->conn.user);
-  if (pUser == NULL) {
-    goto _OVER;
-  }
-
-  if (mndCheckWriteAuth(pUser, pDb) != 0) {
+  if (mndCheckDbAuth(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
     goto _OVER;
   }
 
@@ -832,7 +829,6 @@ _OVER:
 
   mndReleaseStb(pMnode, pStb);
   mndReleaseDb(pMnode, pDb);
-  mndReleaseUser(pMnode, pUser);
   tFreeSMCreateStbReq(&createReq);
 
   return code;
@@ -1274,7 +1270,8 @@ static int32_t mndBuildStbSchemaImp(SDbObj *pDb, SStbObj *pStb, const char *tbNa
   return 0;
 }
 
-static int32_t mndBuildStbSchema(SMnode *pMnode, const char *dbFName, const char *tbName, STableMetaRsp *pRsp, int32_t *smaVer) {
+static int32_t mndBuildStbSchema(SMnode *pMnode, const char *dbFName, const char *tbName, STableMetaRsp *pRsp,
+                                 int32_t *smaVer) {
   char tbFName[TSDB_TABLE_FNAME_LEN] = {0};
   snprintf(tbFName, sizeof(tbFName), "%s.%s", dbFName, tbName);
 
@@ -1287,7 +1284,7 @@ static int32_t mndBuildStbSchema(SMnode *pMnode, const char *dbFName, const char
   SStbObj *pStb = mndAcquireStb(pMnode, tbFName);
   if (pStb == NULL) {
     mndReleaseDb(pMnode, pDb);
-    terrno = TSDB_CODE_MND_INVALID_STB;
+    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
     return -1;
   }
 
@@ -1427,7 +1424,6 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
   int32_t       code = -1;
   SDbObj       *pDb = NULL;
   SStbObj      *pStb = NULL;
-  SUserObj     *pUser = NULL;
   SMAlterStbReq alterReq = {0};
 
   if (tDeserializeSMAlterStbReq(pReq->pCont, pReq->contLen, &alterReq) != 0) {
@@ -1458,12 +1454,7 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  pUser = mndAcquireUser(pMnode, pReq->conn.user);
-  if (pUser == NULL) {
-    goto _OVER;
-  }
-
-  if (mndCheckWriteAuth(pUser, pDb) != 0) {
+  if (mndCheckDbAuth(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
     goto _OVER;
   }
 
@@ -1477,7 +1468,6 @@ _OVER:
 
   mndReleaseStb(pMnode, pStb);
   mndReleaseDb(pMnode, pDb);
-  mndReleaseUser(pMnode, pUser);
   taosArrayDestroy(alterReq.pFields);
 
   return code;
@@ -1565,7 +1555,6 @@ _OVER:
 static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;
   int32_t      code = -1;
-  SUserObj    *pUser = NULL;
   SDbObj      *pDb = NULL;
   SStbObj     *pStb = NULL;
   SMDropStbReq dropReq = {0};
@@ -1595,12 +1584,7 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  pUser = mndAcquireUser(pMnode, pReq->conn.user);
-  if (pUser == NULL) {
-    goto _OVER;
-  }
-
-  if (mndCheckWriteAuth(pUser, pDb) != 0) {
+  if (mndCheckDbAuth(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
     goto _OVER;
   }
 
@@ -1614,8 +1598,6 @@ _OVER:
 
   mndReleaseDb(pMnode, pDb);
   mndReleaseStb(pMnode, pStb);
-  mndReleaseUser(pMnode, pUser);
-
   return code;
 }
 
@@ -1690,7 +1672,7 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableVersion *pStbVersions, int32_t
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
-  
+
   for (int32_t i = 0; i < numOfStbs; ++i) {
     SSTableVersion *pStbVersion = &pStbVersions[i];
     pStbVersion->suid = be64toh(pStbVersion->suid);
@@ -1699,7 +1681,7 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableVersion *pStbVersions, int32_t
     pStbVersion->smaVer = ntohl(pStbVersion->smaVer);
 
     STableMetaRsp metaRsp = {0};
-    int32_t smaVer = 0;
+    int32_t       smaVer = 0;
     mDebug("stb:%s.%s, start to retrieve meta", pStbVersion->dbFName, pStbVersion->stbName);
     if (mndBuildStbSchema(pMnode, pStbVersion->dbFName, pStbVersion->stbName, &metaRsp, &smaVer) != 0) {
       metaRsp.numOfColumns = -1;
@@ -1715,15 +1697,15 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableVersion *pStbVersions, int32_t
     }
 
     if (pStbVersion->smaVer && pStbVersion->smaVer != smaVer) {
-      bool exist = false;
-      char tbFName[TSDB_TABLE_FNAME_LEN];
+      bool           exist = false;
+      char           tbFName[TSDB_TABLE_FNAME_LEN];
       STableIndexRsp indexRsp = {0};
       indexRsp.pIndex = taosArrayInit(10, sizeof(STableIndexInfo));
       if (NULL == indexRsp.pIndex) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         return -1;
       }
-      
+
       sprintf(tbFName, "%s.%s", pStbVersion->dbFName, pStbVersion->stbName);
       int32_t code = mndGetTableSma(pMnode, tbFName, &indexRsp, &exist);
       if (code || !exist) {
@@ -1787,16 +1769,23 @@ int32_t mndGetNumOfStbs(SMnode *pMnode, char *dbName, int32_t *pNumOfStbs) {
   return 0;
 }
 
-static void mndExtractTableName(char *tableId, char *name) {
+void mndExtractDbNameFromStbFullName(const char *stbFullName, char *dst) {
+  SName name = {0};
+  tNameFromString(&name, stbFullName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+
+  tNameGetFullDbName(&name, dst);
+}
+
+void mndExtractTbNameFromStbFullName(const char *stbFullName, char *dst, int32_t dstSize) {
   int32_t pos = -1;
   int32_t num = 0;
-  for (pos = 0; tableId[pos] != 0; ++pos) {
-    if (tableId[pos] == TS_PATH_DELIMITER[0]) num++;
+  for (pos = 0; stbFullName[pos] != 0; ++pos) {
+    if (stbFullName[pos] == TS_PATH_DELIMITER[0]) num++;
     if (num == 2) break;
   }
 
   if (num == 2) {
-    strcpy(name, tableId + pos + 1);
+    tstrncpy(dst, stbFullName + pos + 1, dstSize);
   }
 }
 
@@ -1826,7 +1815,7 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
 
     SName name = {0};
     char  stbName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    mndExtractTableName(pStb->name, &stbName[VARSTR_HEADER_SIZE]);
+    mndExtractTbNameFromStbFullName(pStb->name, &stbName[VARSTR_HEADER_SIZE], TSDB_TABLE_NAME_LEN);
     varDataSetLen(stbName, strlen(&stbName[VARSTR_HEADER_SIZE]));
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);

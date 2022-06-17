@@ -88,6 +88,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SStreamOptions));
     case QUERY_NODE_LEFT_VALUE:
       return makeNode(type, sizeof(SLeftValueNode));
+    case QUERY_NODE_COLUMN_REF:
+      return makeNode(type, sizeof(SColumnDefNode));
     case QUERY_NODE_SET_OPERATOR:
       return makeNode(type, sizeof(SSetOperator));
     case QUERY_NODE_SELECT_STMT:
@@ -198,7 +200,7 @@ SNode* nodesMakeNode(ENodeType type) {
     case QUERY_NODE_SHOW_CONSUMERS_STMT:
     case QUERY_NODE_SHOW_SUBSCRIBES_STMT:
     case QUERY_NODE_SHOW_SMAS_STMT:
-    case QUERY_NODE_SHOW_CONFIGS_STMT:
+    case QUERY_NODE_SHOW_CONNECTIONS_STMT:
     case QUERY_NODE_SHOW_QUERIES_STMT:
     case QUERY_NODE_SHOW_VNODES_STMT:
     case QUERY_NODE_SHOW_APPS_STMT:
@@ -209,9 +211,10 @@ SNode* nodesMakeNode(ENodeType type) {
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
       return makeNode(type, sizeof(SShowStmt));
-    case QUERY_NODE_KILL_CONNECTION_STMT:
     case QUERY_NODE_KILL_QUERY_STMT:
+      return makeNode(type, sizeof(SKillQueryStmt));
     case QUERY_NODE_KILL_TRANSACTION_STMT:
+    case QUERY_NODE_KILL_CONNECTION_STMT:
       return makeNode(type, sizeof(SKillStmt));
     case QUERY_NODE_DELETE_STMT:
       return makeNode(type, sizeof(SDeleteStmt));
@@ -251,6 +254,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(STableScanPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN:
       return makeNode(type, sizeof(STableSeqScanPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
+      return makeNode(type, sizeof(STableMergeScanPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
       return makeNode(type, sizeof(SStreamScanPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
@@ -283,6 +288,10 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SSessionWinodwPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION:
       return makeNode(type, sizeof(SStreamSessionWinodwPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION:
+      return makeNode(type, sizeof(SStreamSemiSessionWinodwPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION:
+      return makeNode(type, sizeof(SStreamFinalSessionWinodwPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE:
       return makeNode(type, sizeof(SStateWinodwPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE:
@@ -609,7 +618,6 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_CONSUMERS_STMT:
     case QUERY_NODE_SHOW_SUBSCRIBES_STMT:
     case QUERY_NODE_SHOW_SMAS_STMT:
-    case QUERY_NODE_SHOW_CONFIGS_STMT:
     case QUERY_NODE_SHOW_CONNECTIONS_STMT:
     case QUERY_NODE_SHOW_QUERIES_STMT:
     case QUERY_NODE_SHOW_VNODES_STMT:
@@ -800,6 +808,7 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION:
       destroyWinodwPhysiNode((SWinodwPhysiNode*)pNode);
       break;
@@ -1457,6 +1466,26 @@ int32_t nodesCollectSpecialNodes(SSelectStmt* pSelect, ESqlClause clause, ENodeT
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+static EDealRes hasColumn(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    *(bool*)pContext = true;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+bool nodesExprHasColumn(SNode* pNode) {
+  bool hasCol = false;
+  nodesWalkExprPostOrder(pNode, hasColumn, &hasCol);
+  return hasCol;
+}
+
+bool nodesExprsHasColumn(SNodeList* pList) {
+  bool hasCol = false;
+  nodesWalkExprsPostOrder(pList, hasColumn, &hasCol);
+  return hasCol;
 }
 
 char* nodesGetFillModeString(EFillMode mode) {

@@ -104,10 +104,13 @@ static bool osdMayBeOptimized(SLogicNode* pNode) {
     return false;
   }
   if (NULL == pNode->pParent || (QUERY_NODE_LOGIC_PLAN_WINDOW != nodeType(pNode->pParent) &&
-                                 QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode->pParent))) {
+                                 QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode->pParent) &&
+                                 QUERY_NODE_LOGIC_PLAN_PARTITION != nodeType(pNode->pParent))) {
     return false;
   }
-  if (QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode->pParent)) {
+  if (QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode->pParent) ||
+      (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode->pParent) && pNode->pParent->pParent &&
+       QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode->pParent->pParent))) {
     return true;
   }
   return !osdHaveNormalCol(((SAggLogicNode*)pNode->pParent)->pGroupKeys);
@@ -217,16 +220,21 @@ static int32_t osdGetDataRequired(SNodeList* pFuncs) {
 }
 
 static void setScanWindowInfo(SScanLogicNode* pScan) {
-  if (QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pScan->node.pParent)) {
-    pScan->interval = ((SWindowLogicNode*)pScan->node.pParent)->interval;
-    pScan->offset = ((SWindowLogicNode*)pScan->node.pParent)->offset;
-    pScan->sliding = ((SWindowLogicNode*)pScan->node.pParent)->sliding;
-    pScan->intervalUnit = ((SWindowLogicNode*)pScan->node.pParent)->intervalUnit;
-    pScan->slidingUnit = ((SWindowLogicNode*)pScan->node.pParent)->slidingUnit;
-    pScan->triggerType = ((SWindowLogicNode*)pScan->node.pParent)->triggerType;
-    pScan->watermark = ((SWindowLogicNode*)pScan->node.pParent)->watermark;
-    pScan->tsColId = ((SColumnNode*)((SWindowLogicNode*)pScan->node.pParent)->pTspk)->colId;
-    pScan->filesFactor = ((SWindowLogicNode*)pScan->node.pParent)->filesFactor;
+  SLogicNode* pParent = pScan->node.pParent;
+  if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pParent) && pParent->pParent &&
+      QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pParent->pParent)) {
+    pParent = pParent->pParent;
+  }
+  if (QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pParent)) {
+    pScan->interval = ((SWindowLogicNode*)pParent)->interval;
+    pScan->offset = ((SWindowLogicNode*)pParent)->offset;
+    pScan->sliding = ((SWindowLogicNode*)pParent)->sliding;
+    pScan->intervalUnit = ((SWindowLogicNode*)pParent)->intervalUnit;
+    pScan->slidingUnit = ((SWindowLogicNode*)pParent)->slidingUnit;
+    pScan->triggerType = ((SWindowLogicNode*)pParent)->triggerType;
+    pScan->watermark = ((SWindowLogicNode*)pParent)->watermark;
+    pScan->tsColId = ((SColumnNode*)((SWindowLogicNode*)pParent)->pTspk)->colId;
+    pScan->filesFactor = ((SWindowLogicNode*)pParent)->filesFactor;
   }
 }
 
@@ -723,6 +731,7 @@ static int32_t opkDoOptimized(SOptimizeContext* pCxt, SSortLogicNode* pSort, SNo
   FOREACH(pNode, pSort->node.pParent->pChildren) {
     if (nodesEqualNode(pNode, (SNode*)pSort)) {
       REPLACE_NODE(pDownNode);
+      ((SLogicNode*)pDownNode)->pParent = pSort->node.pParent;
       break;
     }
   }
@@ -1031,12 +1040,55 @@ static int32_t smaOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan)
   return smaOptimizeImpl(pCxt, pLogicSubplan, pScan);
 }
 
+static EDealRes partTagsOptHasColImpl(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    if (COLUMN_TYPE_TAG != ((SColumnNode*)pNode)->colType) {
+      *(bool*)pContext = true;
+      return DEAL_RES_END;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static bool partTagsOptHasCol(SNodeList* pPartKeys) {
+  bool hasCol = false;
+  nodesWalkExprs(pPartKeys, partTagsOptHasColImpl, &hasCol);
+  return hasCol;
+}
+
+static bool partTagsOptMayBeOptimized(SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_PARTITION != nodeType(pNode) || 1 != LIST_LENGTH(pNode->pChildren) ||
+      QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(nodesListGetNode(pNode->pChildren, 0))) {
+    return false;
+  }
+
+  return !partTagsOptHasCol(((SPartitionLogicNode*)pNode)->pPartitionKeys);
+}
+
+static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  SPartitionLogicNode* pPart =
+      (SPartitionLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, partTagsOptMayBeOptimized);
+  if (NULL == pPart) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SScanLogicNode* pScan = (SScanLogicNode*)nodesListGetNode(pPart->node.pChildren, 0);
+  TSWAP(pPart->pPartitionKeys, pScan->pPartTags);
+  int32_t code = replaceLogicNode(pLogicSubplan, (SLogicNode*)pPart, (SLogicNode*)pScan);
+  if (TSDB_CODE_SUCCESS == code) {
+    NODES_CLEAR_LIST(pPart->node.pChildren);
+    nodesDestroyNode((SNode*)pPart);
+  }
+  return code;
+}
+
 // clang-format off
 static const SOptimizeRule optimizeRuleSet[] = {
-  {.pName = "OptimizeScanData", .optimizeFunc = osdOptimize},
+  {.pName = "OptimizeScanData",  .optimizeFunc = osdOptimize},
   {.pName = "ConditionPushDown", .optimizeFunc = cpdOptimize},
   {.pName = "OrderByPrimaryKey", .optimizeFunc = opkOptimize},
-  {.pName = "SmaIndex",          .optimizeFunc = smaOptimize}
+  {.pName = "SmaIndex",          .optimizeFunc = smaOptimize},
+  {.pName = "PartitionByTags",   .optimizeFunc = partTagsOptimize}
 };
 // clang-format on
 

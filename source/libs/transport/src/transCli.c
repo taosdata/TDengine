@@ -324,9 +324,9 @@ void cliHandleResp(SCliConn* conn) {
     tDebug("%s cli conn %p ref by app", CONN_GET_INST_LABEL(conn), conn);
   }
 
-  tDebug("%s cli conn %p %s received from %s:%d, local info: %s:%d, msg size: %d", pTransInst->label, conn,
+  tDebug("%s cli conn %p %s received from %s:%d, local info:%s:%d, msg size:%d code:0x%x", pTransInst->label, conn,
          TMSG_INFO(pHead->msgType), taosInetNtoa(conn->addr.sin_addr), ntohs(conn->addr.sin_port),
-         taosInetNtoa(conn->localAddr.sin_addr), ntohs(conn->localAddr.sin_port), transMsg.contLen);
+         taosInetNtoa(conn->localAddr.sin_addr), ntohs(conn->localAddr.sin_port), transMsg.contLen, transMsg.code);
 
   if (pCtx == NULL && CONN_NO_PERSIST_BY_APP(conn)) {
     tTrace("except, server continue send while cli ignore it");

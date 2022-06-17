@@ -1,6 +1,6 @@
 ---
 title: 立即开始
-description: '从 Docker，安装包或使用 apt-get 快速安装 TDengine, 通过命令行程序TAOS CLI和工具 taosdemo 快速体验 TDengine 功能'
+description: '从 Docker，安装包或使用 apt-get 快速安装 TDengine, 通过命令行程序TDengine CLI和工具 taosdemo 快速体验 TDengine 功能'
 ---
 
 import Tabs from "@theme/Tabs";
@@ -122,7 +122,7 @@ select * from t;
 Query OK, 2 row(s) in set (0.003128s)
 ```
 
-除执行 SQL 语句外，系统管理员还可以从 TDengine CLI 进行检查系统运行状态、添加删除用户账号等操作。TAOS CLI 连同应用驱动也可以独立安装在 Linux 或 Windows 机器上运行，更多细节请参考 [这里](../reference/taos-shell/)
+除执行 SQL 语句外，系统管理员还可以从 TDengine CLI 进行检查系统运行状态、添加删除用户账号等操作。TDengine CLI 连同应用驱动也可以独立安装在 Linux 或 Windows 机器上运行，更多细节请参考 [这里](../reference/taos-shell/)
 
 ## 使用 taosBenchmark 体验写入速度
 

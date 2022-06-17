@@ -370,6 +370,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   SMnodeObj *pObj = mndAcquireMnode(pMnode, pDnode->id);
   if (pObj != NULL) {
     if (pObj->state != statusReq.mload.syncState) {
+      mInfo("dnode:%d, mnode syncstate from %s to %s", pObj->id, syncStr(pObj->state), syncStr(statusReq.mload.syncState));
       pObj->state = statusReq.mload.syncState;
       pObj->stateStartTime = taosGetTimestampMs();
     }
@@ -499,7 +500,6 @@ _OVER:
 static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
   SMnode         *pMnode = pReq->info.node;
   int32_t         code = -1;
-  SUserObj       *pUser = NULL;
   SDnodeObj      *pDnode = NULL;
   SCreateDnodeReq createReq = {0};
 
@@ -522,13 +522,7 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  pUser = mndAcquireUser(pMnode, pReq->conn.user);
-  if (pUser == NULL) {
-    terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
-    goto _OVER;
-  }
-
-  if (mndCheckNodeAuth(pUser) != 0) {
+  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DNODE) != 0) {
     goto _OVER;
   }
 
@@ -541,7 +535,6 @@ _OVER:
   }
 
   mndReleaseDnode(pMnode, pDnode);
-  mndReleaseUser(pMnode, pUser);
   return code;
 }
 
@@ -586,7 +579,6 @@ _OVER:
 static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
   SMnode        *pMnode = pReq->info.node;
   int32_t        code = -1;
-  SUserObj      *pUser = NULL;
   SDnodeObj     *pDnode = NULL;
   SMnodeObj     *pMObj = NULL;
   SMDropMnodeReq dropReq = {0};
@@ -631,13 +623,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
     }
   }
 
-  pUser = mndAcquireUser(pMnode, pReq->conn.user);
-  if (pUser == NULL) {
-    terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
-    goto _OVER;
-  }
-
-  if (mndCheckNodeAuth(pUser) != 0) {
+  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_DROP_MNODE) != 0) {
     goto _OVER;
   }
 
@@ -650,7 +636,6 @@ _OVER:
   }
 
   mndReleaseDnode(pMnode, pDnode);
-  mndReleaseUser(pMnode, pUser);
   mndReleaseMnode(pMnode, pMObj);
   return code;
 }
@@ -776,11 +761,12 @@ static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&pDnode->createdTime, false);
 
-    char b[tListLen(offlineReason) + VARSTR_HEADER_SIZE] = {0};
+    char *b = taosMemoryCalloc(VARSTR_HEADER_SIZE + strlen(offlineReason[pDnode->offlineReason]) + 1, 1);
     STR_TO_VARSTR(b, online ? "" : offlineReason[pDnode->offlineReason]);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, b, false);
+    taosMemoryFreeClear(b);
 
     numOfRows++;
     sdbRelease(pSdb, pDnode);

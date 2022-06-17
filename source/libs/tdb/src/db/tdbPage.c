@@ -246,14 +246,17 @@ void tdbPageCopy(SPage *pFromPage, SPage *pToPage) {
 
 int tdbPageCapacity(int pageSize, int amHdrSize) {
   int szPageHdr;
+  int minCellIndexSize; // at least one cell in cell index
 
   if (pageSize < 65536) {
     szPageHdr = pageMethods.szPageHdr;
+    minCellIndexSize = pageMethods.szOffset;
   } else {
     szPageHdr = pageLargeMethods.szPageHdr;
+    minCellIndexSize = pageLargeMethods.szOffset;
   }
 
-  return pageSize - szPageHdr - amHdrSize;
+  return pageSize - szPageHdr - amHdrSize - sizeof(SPageFtr) - minCellIndexSize;
 }
 
 static int tdbPageAllocate(SPage *pPage, int szCell, SCell **ppCell) {

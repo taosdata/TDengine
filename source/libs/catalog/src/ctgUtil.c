@@ -434,7 +434,7 @@ void ctgFreeJob(void* job) {
 
   taosMemoryFree(job);
 
-  qDebug("QID:%" PRIx64 ", job %" PRIx64 " freed", qid, rid);
+  qDebug("QID:0x%" PRIx64 ", ctg job 0x%" PRIx64 " freed", qid, rid);
 }
 
 int32_t ctgUpdateMsgCtx(SCtgMsgCtx* pCtx, int32_t reqType, void* out, char* target) {
@@ -675,7 +675,8 @@ int32_t ctgCloneTableIndex(SArray* pIndex, SArray** pRes) {
 
   for (int32_t i = 0; i < num; ++i) {
     STableIndexInfo *pInfo = taosArrayGet(pIndex, i);
-    taosArrayPush(*pRes, pInfo);
+    pInfo = taosArrayPush(*pRes, pInfo);
+    pInfo->expr = strdup(pInfo->expr);
   }
 
   return TSDB_CODE_SUCCESS;

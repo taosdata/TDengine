@@ -510,7 +510,7 @@ _return:
 }
 
 
-int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType, int8_t explain) {
+int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType, int8_t explain, const char* sql) {
   int32_t        code = 0;
   bool           queryRsped = false;
   SSubplan      *plan = NULL;
@@ -537,7 +537,7 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType, int8_t ex
 
   ctx->plan = plan;
 
-  code = qCreateExecTask(qwMsg->node, mgmt->nodeId, tId, plan, &pTaskInfo, &sinkHandle, OPTR_EXEC_MODEL_BATCH);
+  code = qCreateExecTask(qwMsg->node, mgmt->nodeId, tId, plan, &pTaskInfo, &sinkHandle, sql, OPTR_EXEC_MODEL_BATCH);
   if (code) {
     QW_TASK_ELOG("qCreateExecTask failed, code:%x - %s", code, tstrerror(code));
     QW_ERR_JRET(code);
@@ -614,6 +614,8 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
         QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_FETCH);
 
         qwBuildAndSendFetchRsp(&qwMsg->connInfo, rsp, dataLen, code);
+        rsp = NULL;
+        
         QW_TASK_DLOG("fetch rsp send, handle:%p, code:%x - %s, dataLen:%d", qwMsg->connInfo.handle, code,
                      tstrerror(code), dataLen);
       } else {
@@ -633,7 +635,7 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
       rsp = NULL;
 
       qwMsg->connInfo = ctx->dataConnInfo;
-      qwBuildAndSendFetchRsp(&qwMsg->connInfo, rsp, 0, code);
+      qwBuildAndSendFetchRsp(&qwMsg->connInfo, NULL, 0, code);
       QW_TASK_DLOG("fetch rsp send, handle:%p, code:%x - %s, dataLen:%d", qwMsg->connInfo.handle, code, tstrerror(code),
                    0);
     }
@@ -938,7 +940,7 @@ int32_t qwProcessDelete(QW_FPARAMS_DEF, SQWMsg *qwMsg, SRpcMsg *pRsp, SDeleteRes
 
   ctx.plan = plan;
 
-  code = qCreateExecTask(qwMsg->node, mgmt->nodeId, tId, plan, &pTaskInfo, &sinkHandle, OPTR_EXEC_MODEL_BATCH);
+  code = qCreateExecTask(qwMsg->node, mgmt->nodeId, tId, plan, &pTaskInfo, &sinkHandle, NULL, OPTR_EXEC_MODEL_BATCH);
   if (code) {
     QW_TASK_ELOG("qCreateExecTask failed, code:%x - %s", code, tstrerror(code));
     QW_ERR_JRET(code);

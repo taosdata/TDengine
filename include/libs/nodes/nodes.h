@@ -65,6 +65,12 @@ extern "C" {
     (list) = NULL;            \
   } while (0)
 
+#define NODES_CLEAR_LIST(list) \
+  do {                         \
+    nodesClearList((list));    \
+    (list) = NULL;             \
+  } while (0)
+
 typedef enum ENodeType {
   // Syntax nodes are used in parser and planner module, and some are also used in executor module, such as COLUMN,
   // VALUE, OPERATOR, FUNCTION and so on.
@@ -96,6 +102,7 @@ typedef enum ENodeType {
   QUERY_NODE_EXPLAIN_OPTIONS,
   QUERY_NODE_STREAM_OPTIONS,
   QUERY_NODE_LEFT_VALUE,
+  QUERY_NODE_COLUMN_REF,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR,
@@ -204,6 +211,7 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN,
   QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN,
   QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN,
+  QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN,
   QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN,
   QUERY_NODE_PHYSICAL_PLAN_PROJECT,
@@ -220,6 +228,7 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_FILL,
   QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION,
+  QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION,
   QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE,
