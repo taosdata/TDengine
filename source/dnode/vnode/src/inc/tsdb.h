@@ -131,6 +131,9 @@ int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SMapData *pDelDa
 int32_t tsdbReadDelIdx(SDelFReader *pReader, SMapData *pDelIdxMap, uint8_t **ppBuf);
 
 // tsdbUtil.c ==============================================================================================
+// TSDBROW
+TSDBKEY tsdbRowKey(TSDBROW *pRow);
+
 int32_t tsdbKeyFid(TSKEY key, int32_t minutes, int8_t precision);
 void    tsdbFidKeyRange(int32_t fid, int32_t minutes, int8_t precision, TSKEY *minKey, TSKEY *maxKey);
 
@@ -174,8 +177,10 @@ int32_t tGetBlock(uint8_t *p, void *ph);
 int32_t tBlockCmprFn(const void *p1, const void *p2);
 
 // SBlockData
-void    tsdbBlockDataReset(SBlockData *pBlockData);
+#define tsdbBlockDataCreate() ((SBlockData){0})
+void    tsdbBlockDataClear(SBlockData *pBlockData);
 int32_t tsdbBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema);
+void    tsdbBlockDataDestroy(SBlockData *pBlockData);
 
 // SDelIdx
 int32_t tPutDelIdx(uint8_t *p, void *ph);
@@ -326,8 +331,12 @@ struct SColData {
 };
 
 struct SBlockData {
-  int32_t nRow;
-  SArray *aColData;
+  int32_t   maxRow;
+  int32_t   nRow;
+  TSDBKEY  *aKey;
+  int32_t   maxCol;
+  int32_t   nCol;
+  SColData *aColData;
 };
 
 // ================== TSDB global config

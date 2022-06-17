@@ -388,7 +388,7 @@ static int32_t tsdbCommitMemoryData(SCommitter *pCommitter, SBlockIdx *pBlockIdx
     if (code) goto _err;
 
     block = BLOCK_INIT_VAL;
-    tsdbBlockDataReset(&pCommitter->bDataN);
+    tsdbBlockDataClear(&pCommitter->bDataN);
   }
 
   return code;

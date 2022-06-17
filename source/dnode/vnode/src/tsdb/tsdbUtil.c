@@ -405,6 +405,11 @@ void tsdbFidKeyRange(int32_t fid, int32_t minutes, int8_t precision, TSKEY *minK
 // }
 
 // TSDBROW ======================================================
+TSDBKEY tsdbRowKey(TSDBROW *pRow) {
+  // TODO: support SBlockData version
+  return (TSDBKEY){.version = pRow->version, .ts = pRow->pTSRow->ts};
+}
+
 void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
   // TODO
 }
@@ -515,13 +520,6 @@ int32_t tsdbBuildDeleteSkyline(SArray *aDelData, int32_t sidx, int32_t eidx, SAr
   return code;
 }
 
-// SBlockData ======================================================
-int32_t tsdbBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema) {
-  int32_t code = 0;
-  // TODO
-  return code;
-}
-
 // KEYINFO ======================================================
 int32_t tPutKEYINFO(uint8_t *p, KEYINFO *pKeyInfo) {
   int32_t n = 0;
@@ -546,3 +544,80 @@ int32_t tGetKEYINFO(uint8_t *p, KEYINFO *pKeyInfo) {
 }
 
 // SBlockData ======================================================
+void tsdbBlockDataClear(SBlockData *pBlockData) {
+  pBlockData->nRow = 0;
+  for (int32_t iCol = 0; iCol < pBlockData->nCol; iCol++) {
+    pBlockData->aColData[iCol] = (SColData){.cid = 0, .type = 0, .bytes = 0, .flags = 0, .nData = 0};
+  }
+}
+
+int32_t tsdbBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema) {
+  int32_t   code = 0;
+  TSDBKEY   key = tsdbRowKey(pRow);
+  int32_t   nRow = pBlockData->nRow;
+  SColVal   colVal;
+  SColVal  *pColVal = &colVal;
+  STColumn *pTColumn;
+  SColData *pColData;
+
+  pBlockData->nRow++;
+
+  // aKey
+  if (nRow >= pBlockData->maxRow) {
+    if (pBlockData->maxRow == 0) {
+      pBlockData->maxRow = 1024;
+    } else {
+      pBlockData->maxRow = pBlockData->maxRow * 2;
+    }
+    ASSERT(pBlockData->maxRow > pBlockData->nRow);
+
+    code = tsdbRealloc((uint8_t **)&pBlockData->aKey, sizeof(TSDBKEY) * pBlockData->maxRow);
+    if (code) goto _err;
+  }
+  pBlockData->aKey[nRow] = key;
+
+  // other cols
+  int16_t iColData = 0;
+  int16_t iCol = 1;
+  while (iCol < pTSchema->numOfCols) {
+    pTColumn = &pTSchema->columns[iCol];
+
+    if (iColData < pBlockData->nCol) {
+      pColData = &pBlockData->aColData[iColData];
+      if (pColData->cid < pTColumn->colId) {
+        iColData++;
+      } else if (pColData->cid > pTColumn->colId) {
+        // add a new SColData
+        iCol++;
+      } else {
+        iCol++;
+        iColData++;
+      }
+    } else {
+      // add a new column data
+    }
+
+    if (pColVal->isNone) {
+      // set bit
+    } else if (pColVal->isNull) {
+      // set bit
+    } else {
+      // set bit
+      // put data
+    }
+  }
+
+  return code;
+
+_err:
+  tsdbError("block data append row failed since %s", tstrerror(code));
+  return code;
+}
+
+void tsdbBlockDataDestroy(SBlockData *pBlockData) {
+  tsdbFree((uint8_t *)pBlockData->aKey);
+  for (int32_t iCol = 0; iCol < pBlockData->nCol; iCol++) {
+    tsdbFree(pBlockData->aColData[iCol].pBitMap);
+    tsdbFree(pBlockData->aColData[iCol].pData);
+  }
+}
