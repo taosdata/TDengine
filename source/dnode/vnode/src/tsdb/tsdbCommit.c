@@ -519,7 +519,6 @@ static int32_t tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
         tsdbApplyDFileSetChange(TSDB_COMMIT_WRITE_FSET(pCommith), pSet);
         return -1;
       }
-
       ++fIter;
     } else {
       ASSERT(0);
