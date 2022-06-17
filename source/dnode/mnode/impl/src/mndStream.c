@@ -545,7 +545,7 @@ static int32_t mndCreateStream(SMnode *pMnode, SRpcMsg *pReq, SCMCreateStreamReq
     return -1;
   }
 
-  if (streamObj.targetSTbName[0] && mndCreateStbForStream(pMnode, pTrans, &streamObj, pReq->conn.user) < 0) {
+  if (streamObj.targetSTbName[0] && mndCreateStbForStream(pMnode, pTrans, &streamObj, pReq->info.conn.user) < 0) {
     mError("trans:%d, failed to create stb for stream since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
     return -1;
@@ -602,7 +602,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (mndCheckDbAuth(pMnode, pReq->conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
+  if (mndCheckDbAuth(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
     goto _OVER;
   }
 #endif
@@ -627,7 +627,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   }
 
   // create stb for stream
-  if (mndCreateStbForStream(pMnode, pTrans, &streamObj, pReq->conn.user) < 0) {
+  if (mndCreateStbForStream(pMnode, pTrans, &streamObj, pReq->info.conn.user) < 0) {
     mError("trans:%d, failed to create stb for stream %s since %s", pTrans->id, createStreamReq.name, terrstr());
     mndTransDrop(pTrans);
     goto _OVER;
@@ -696,7 +696,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
 
 #if 0
   // todo check auth
-  pUser = mndAcquireUser(pMnode, pReq->conn.user);
+  pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
   if (pUser == NULL) {
     goto DROP_STREAM_OVER;
   }

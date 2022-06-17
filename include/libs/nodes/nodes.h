@@ -102,6 +102,7 @@ typedef enum ENodeType {
   QUERY_NODE_EXPLAIN_OPTIONS,
   QUERY_NODE_STREAM_OPTIONS,
   QUERY_NODE_LEFT_VALUE,
+  QUERY_NODE_COLUMN_REF,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR,

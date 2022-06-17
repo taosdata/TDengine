@@ -56,7 +56,7 @@ static int32_t mndProcessAuthReq(SRpcMsg *pReq) {
   memcpy(authRsp.user, authReq.user, TSDB_USER_LEN);
 
   int32_t code = mndRetriveAuth(pReq->info.node, &authRsp);
-  mTrace("user:%s, auth req received, spi:%d encrypt:%d ruser:%s", pReq->conn.user, authRsp.spi, authRsp.encrypt,
+  mTrace("user:%s, auth req received, spi:%d encrypt:%d ruser:%s", pReq->info.conn.user, authRsp.spi, authRsp.encrypt,
          authRsp.user);
 
   int32_t contLen = tSerializeSAuthReq(NULL, 0, &authRsp);
