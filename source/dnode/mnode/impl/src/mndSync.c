@@ -59,6 +59,7 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
     if (pMgmt->errCode != 0) {
       mError("trans:%d, failed to propose since %s", transId, tstrerror(pMgmt->errCode));
     }
+    pMgmt->transId = 0;
     tsem_post(&pMgmt->syncSem);
   } else {
     STrans *pTrans = mndAcquireTrans(pMnode, transId);
@@ -122,6 +123,7 @@ void mndReConfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReConfigCbMeta cbM
     if (pMgmt->errCode != 0) {
       mError("trans:-1, failed to propose sync reconfig since %s", tstrerror(pMgmt->errCode));
     }
+    pMgmt->transId = 0;
     tsem_post(&pMgmt->syncSem);
   }
 }
@@ -258,13 +260,17 @@ void mndSyncStart(SMnode *pMnode) {
   mDebug("mnode sync started, id:%" PRId64 " standby:%d", pMgmt->sync, pMgmt->standby);
 }
 
-void mndSyncStop(SMnode *pMnode) {}
+void mndSyncStop(SMnode *pMnode) {
+  if (pMnode->syncMgmt.transId != 0) {
+    pMnode->syncMgmt.transId = 0;
+    tsem_post(&pMnode->syncMgmt.syncSem);
+  }
+}
 
 bool mndIsMaster(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
 
-  ESyncState state = syncGetMyRole(pMgmt->sync);
-  if (state != TAOS_SYNC_STATE_LEADER) {
+  if (!syncIsReady(pMgmt->sync)) {
     terrno = TSDB_CODE_SYN_NOT_LEADER;
     return false;
   }
