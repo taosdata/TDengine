@@ -69,7 +69,8 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
 
     if (cbMeta.index - sdbGetApplyIndex(pMnode->pSdb) > 100) {
       SSnapshotMeta sMeta = {0};
-      if (syncGetSnapshotMeta(pMnode->syncMgmt.sync, &sMeta) == 0) {
+      // if (syncGetSnapshotMeta(pMnode->syncMgmt.sync, &sMeta) == 0) {
+      if (syncGetSnapshotMetaByIndex(pMnode->syncMgmt.sync, cbMeta.index, &sMeta) == 0) {
         sdbSetCurConfig(pMnode->pSdb, sMeta.lastConfigIndex);
       }
       sdbWriteFile(pMnode->pSdb);
@@ -89,7 +90,10 @@ void mndRestoreFinish(struct SSyncFSM *pFsm) {
   SMnode *pMnode = pFsm->data;
 
   SSnapshotMeta sMeta = {0};
-  if (syncGetSnapshotMeta(pMnode->syncMgmt.sync, &sMeta) == 0) {
+  // if (syncGetSnapshotMeta(pMnode->syncMgmt.sync, &sMeta) == 0) {
+
+  SyncIndex snapshotIndex = sdbGetApplyIndex(pMnode->pSdb);
+  if (syncGetSnapshotMetaByIndex(pMnode->syncMgmt.sync, snapshotIndex, &sMeta) == 0) {
     sdbSetCurConfig(pMnode->pSdb, sMeta.lastConfigIndex);
   }
 
