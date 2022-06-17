@@ -212,6 +212,8 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiTagScan";
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
       return "PhysiTableScan";
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
+      return "PhysiTableMergeScan";
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN:
       return "PhysiTableSeqScan";
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
