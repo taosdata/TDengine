@@ -1234,6 +1234,8 @@ static SSDataBlock* doFilterResult(SSysTableScanInfo* pInfo) {
     return pInfo->pRes->info.rows == 0 ? NULL : pInfo->pRes;
   }
 
+  doFilter(pInfo->pCondition, pInfo->pRes);
+#if 0
   SFilterInfo* filter = NULL;
 
   int32_t code = filterInitFromNode(pInfo->pCondition, &filter, 0);
@@ -1279,6 +1281,7 @@ static SSDataBlock* doFilterResult(SSysTableScanInfo* pInfo) {
 
   px->info.rows = numOfRow;
   pInfo->pRes = px;
+#endif
 
   return pInfo->pRes->info.rows == 0 ? NULL : pInfo->pRes;
 }
@@ -1457,6 +1460,8 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
       relocateColumnData(pInfo->pRes, pInfo->scanCols, p->pDataBlock);
       doFilterResult(pInfo);
 
+      blockDataDestroy(p);
+
       pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
       return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
     }
@@ -1545,10 +1550,10 @@ int32_t buildSysDbTableInfo(const SSysTableScanInfo* pInfo, int32_t capacity) {
   p->info.rows = buildDbTableInfoBlock(p, pSysDbTableMeta, size, TSDB_PERFORMANCE_SCHEMA_DB);
 
   relocateColumnData(pInfo->pRes, pInfo->scanCols, p->pDataBlock);
-  //  blockDataDestroy(p);  todo handle memory leak
-
   pInfo->pRes->info.rows = p->info.rows;
-  return p->info.rows;
+  blockDataDestroy(p);
+
+  return pInfo->pRes->info.rows;
 }
 
 int32_t buildDbTableInfoBlock(const SSDataBlock* p, const SSysTableMeta* pSysDbTableMeta, size_t size,
@@ -2170,25 +2175,13 @@ SSDataBlock* getSortedTableMergeScanBlockData(SSortHandle* pHandle, int32_t capa
       pTupleHandle = tsortNextTuple(pHandle);
     } else {
       pTupleHandle = pInfo->prefetchedTuple;
-      pInfo->groupId = tsortGetGroupId(pTupleHandle);
-      pInfo->prefetchedTuple = NULL;
     }
 
     if (pTupleHandle == NULL) {
       break;
     }
 
-    uint64_t tupleGroupId = tsortGetGroupId(pTupleHandle);
-    if (!pInfo->hasGroupId) {
-      pInfo->groupId = tupleGroupId;
-      pInfo->hasGroupId = true;
-      appendOneRowToDataBlock(p, pTupleHandle);
-    } else if (pInfo->groupId == tupleGroupId) {
-      appendOneRowToDataBlock(p, pTupleHandle);
-    } else {
-      pInfo->prefetchedTuple = pTupleHandle;
-      break;
-    }
+    appendOneRowToDataBlock(p, pTupleHandle);
 
     if (p->info.rows >= capacity) {
       break;
@@ -2317,14 +2310,14 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
   pInfo->pSortInfo = generateSortByTsInfo(pInfo->cond.order);
   pInfo->pSortInputBlock = createOneDataBlock(pInfo->pResBlock, false);
   int32_t rowSize = pInfo->pResBlock->info.rowSize;
-  pInfo->bufPageSize = rowSize < 1024 ? 1024 : rowSize * 2;
+  int32_t blockMetaSize = (int32_t)blockDataGetSerialMetaSize(pInfo->pResBlock->info.numOfCols);
+  pInfo->bufPageSize = (rowSize * 2 + blockMetaSize) < 1024 ? 1024 : (rowSize * 2 + blockMetaSize);
   pInfo->sortBufSize = pInfo->bufPageSize * 16;
   pInfo->hasGroupId = false;
   pInfo->prefetchedTuple = NULL;
 
   pOperator->name = "TableMergeScanOperator";
-  // TODO : change it
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
+  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN;
   pOperator->blocking = false;
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
