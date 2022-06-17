@@ -72,6 +72,9 @@ int32_t taosEnvToCfg(const char *envStr, char *cfgStr) {
     if (cfgNameLen > 0) {
       memcpy(cfgStr, buf, cfgNameLen);
       memset(&cfgStr[cfgNameLen], ' ', p - cfgStr - cfgNameLen + 1);
+    } else {
+      *cfgStr = '\0';
+      return -1;
     }
   }
   return strlen(cfgStr);
