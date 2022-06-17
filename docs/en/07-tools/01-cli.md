@@ -15,8 +15,8 @@ To run TDengine CLI to access TDengine cloud, please install [TDengine client in
 
 ## Config
 
-<Tabs defaultValue="ConfigOnLinux" groupId="sys">
-<TabItem value="ConfigOnLinux" label="Config on Linux">
+<Tabs defaultValue="linux" groupId="sys">
+<TabItem value="linux" label="Config on Linux">
 
 Run this command in your Linux terminal to save your URL and token as variable:
 
@@ -25,7 +25,7 @@ export TDENGINE_CLOUD_DSN="<DSN>"
 ```
 
 </TabItem>
-<TabItem value="ConfigOnWindows" label="Config on Windows (coming soon)">
+<TabItem value="windows" label="Config on Windows (coming soon)">
 
 Run this command in your Windows terminal to save your URL and token as variable:
 
@@ -34,7 +34,7 @@ set TDENGINE_CLOUD_DSN="<DSN>"
 ```
 
 </TabItem>
-<TabItem value="ConfigOnMac" label="Config on Mac (coming soon)" groupId="sys">
+<TabItem value="mac" label="Config on Mac (coming soon)" groupId="sys">
 
 Run this command in your Mac terminal to save your URL and token as variable:
 
@@ -45,8 +45,10 @@ export TDENGINE_CLOUD_DSN="<DSN>"
 </TabItem>
 </Tabs>
 
-<Tabs defaultValue="ConnectOnLinux" groupId="sys">
-<TabItem value="ConnectOnLinux" label="Connect on Linux">
+## Connect 
+
+<Tabs defaultValue="linux" groupId="sys">
+<TabItem value="linux" label="Connect on Linux">
 
 To access the TDengine Cloud, you can execute `taos` if you already set the environment variable.
 
@@ -61,7 +63,7 @@ taos -E $TDENGINE_CLOUD_DSN
 ```
 
 </TabItem>
-<TabItem value="ConnectOnWindows" label="Connect on Windows (coming soon)">
+<TabItem value="windows" label="Connect on Windows (coming soon)">
 
 To access the TDengine Cloud, you can execute `taos` if you already set the environment variable.
 
@@ -76,7 +78,7 @@ taos.exe -E $TDENGINE_CLOUD_DSN
 ```
 
 </TabItem>
-<TabItem value="ConnectOnMac" label="Connect on Mac (coming soon)">
+<TabItem value="mac" label="Connect on Mac (coming soon)">
 
 To access the TDengine Cloud, you can execute `taos` if you already set the environment variable.
 
@@ -93,7 +95,7 @@ taos -E $TDENGINE_CLOUD_DSN
 </TabItem>
 </Tabs>
 
-## using TDengine CLI
+## Using TDengine CLI
 
 TDengine CLI will display a welcome message and version information if it successfully connected to the TDengine service. If it fails, TDengine CLI will print an error message. See [FAQ](/train-faq/faq) to solve the problem of terminal connection failure to the server. The TDengine CLI prompts as follows:
 
