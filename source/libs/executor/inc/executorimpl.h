@@ -868,7 +868,7 @@ int32_t encodeOperator(SOperatorInfo* ops, char** data, int32_t *length);
  * length: the length of data
  * return: result code, 0 means success
  */
-int32_t decodeOperator(SOperatorInfo* ops, char* data, int32_t length);
+int32_t decodeOperator(SOperatorInfo* ops, const char* data, int32_t length);
 
 void    setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status);
 int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,

@@ -4515,15 +4515,17 @@ int32_t encodeOperator(SOperatorInfo* ops, char** result, int32_t* length) {
   return TDB_CODE_SUCCESS;
 }
 
-int32_t decodeOperator(SOperatorInfo* ops, char* result, int32_t length) {
+int32_t decodeOperator(SOperatorInfo* ops, const char* result, int32_t length) {
   int32_t code = TDB_CODE_SUCCESS;
   if (ops->fpSet.decodeResultRow) {
     if (result == NULL) {
       return TSDB_CODE_TSC_INVALID_INPUT;
     }
+
     ASSERT(length == *(int32_t*)result);
-    char* data = result + sizeof(int32_t);
-    code = ops->fpSet.decodeResultRow(ops, data);
+
+    const char* data = result + sizeof(int32_t);
+    code = ops->fpSet.decodeResultRow(ops, (char*) data);
     if (code != TDB_CODE_SUCCESS) {
       return code;
     }
