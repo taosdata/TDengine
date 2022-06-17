@@ -53,11 +53,12 @@ SSdb *sdbInit(SSdbOpt *pOption) {
   }
 
   pSdb->pWal = pOption->pWal;
-  pSdb->curVer = -1;
-  pSdb->curTerm = -1;
-  pSdb->lastCommitVer = -1;
-  pSdb->lastCommitTerm = -1;
-  pSdb->curConfig = -1;
+  pSdb->applyIndex = -1;
+  pSdb->applyTerm = -1;
+  pSdb->applyConfig = -1;
+  pSdb->commitIndex = -1;
+  pSdb->commitTerm = -1;
+  pSdb->commitConfig = -1;
   pSdb->pMnode = pOption->pMnode;
   taosThreadMutexInit(&pSdb->filelock, NULL);
   mDebug("sdb init successfully");
@@ -159,23 +160,23 @@ static int32_t sdbCreateDir(SSdb *pSdb) {
   return 0;
 }
 
-void sdbSetApplyIndex(SSdb *pSdb, int64_t index) { pSdb->curVer = index; }
+void sdbSetApplyIndex(SSdb *pSdb, int64_t index) { pSdb->applyIndex = index; }
 
-void sdbSetApplyTerm(SSdb *pSdb, int64_t term) { pSdb->curTerm = term; }
+void sdbSetApplyTerm(SSdb *pSdb, int64_t term) { pSdb->applyTerm = term; }
 
 void sdbSetCurConfig(SSdb *pSdb, int64_t config) {
-  if (pSdb->curConfig != config) {
-    mDebug("mnode sync config set from %" PRId64 " to %" PRId64, pSdb->curConfig, config);
-    pSdb->curConfig = config;
+  if (pSdb->applyConfig != config) {
+    mDebug("mnode sync config set from %" PRId64 " to %" PRId64, pSdb->applyConfig, config);
+    pSdb->applyConfig = config;
   }
 }
 
-int64_t sdbGetApplyIndex(SSdb *pSdb) { return pSdb->curVer; }
+int64_t sdbGetApplyIndex(SSdb *pSdb) { return pSdb->applyIndex; }
 
-int64_t sdbGetApplyTerm(SSdb *pSdb) { return pSdb->curTerm; }
+int64_t sdbGetApplyTerm(SSdb *pSdb) { return pSdb->applyTerm; }
 
-int64_t sdbGetCommitIndex(SSdb *pSdb) { return pSdb->lastCommitVer; }
+int64_t sdbGetCommitIndex(SSdb *pSdb) { return pSdb->commitIndex; }
 
-int64_t sdbGetCommitTerm(SSdb *pSdb) { return pSdb->lastCommitTerm; }
+int64_t sdbGetCommitTerm(SSdb *pSdb) { return pSdb->commitTerm; }
 
-int64_t sdbGetCurConfig(SSdb *pSdb) { return pSdb->curConfig; }
+int64_t sdbGetCurConfig(SSdb *pSdb) { return pSdb->commitConfig; }
