@@ -146,8 +146,8 @@ int32_t create_topic() {
   return 0;
 }
 
-void tmq_commit_cb_print(tmq_t* tmq, tmq_resp_err_t resp, tmq_topic_vgroup_list_t* offsets, void* param) {
-  printf("commit %d tmq %p offsets %p param %p\n", resp, tmq, offsets, param);
+void tmq_commit_cb_print(tmq_t* tmq, int32_t code, void* param) {
+  printf("commit %d tmq %p param %p\n", code, tmq, param);
 }
 
 tmq_t* build_consumer() {
@@ -183,10 +183,10 @@ tmq_list_t* build_topic_list() {
 }
 
 void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
-  tmq_resp_err_t err;
+  int32_t code;
 
-  if ((err = tmq_subscribe(tmq, topics))) {
-    fprintf(stderr, "%% Failed to start consuming topics: %s\n", tmq_err2str(err));
+  if ((code = tmq_subscribe(tmq, topics))) {
+    fprintf(stderr, "%% Failed to start consuming topics: %s\n", tmq_err2str(code));
     printf("subscribe err\n");
     return;
   }
@@ -205,9 +205,9 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
     }
   }
 
-  err = tmq_consumer_close(tmq);
-  if (err)
-    fprintf(stderr, "%% Failed to close consumer: %s\n", tmq_err2str(err));
+  code = tmq_consumer_close(tmq);
+  if (code)
+    fprintf(stderr, "%% Failed to close consumer: %s\n", tmq_err2str(code));
   else
     fprintf(stderr, "%% Consumer closed\n");
 }
@@ -215,11 +215,11 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
 void sync_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
   static const int MIN_COMMIT_COUNT = 1;
 
-  int            msg_count = 0;
-  tmq_resp_err_t err;
+  int     msg_count = 0;
+  int32_t code;
 
-  if ((err = tmq_subscribe(tmq, topics))) {
-    fprintf(stderr, "%% Failed to start consuming topics: %s\n", tmq_err2str(err));
+  if ((code = tmq_subscribe(tmq, topics))) {
+    fprintf(stderr, "%% Failed to start consuming topics: %s\n", tmq_err2str(code));
     return;
   }
 
@@ -245,9 +245,9 @@ void sync_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
     }
   }
 
-  err = tmq_consumer_close(tmq);
-  if (err)
-    fprintf(stderr, "%% Failed to close consumer: %s\n", tmq_err2str(err));
+  code = tmq_consumer_close(tmq);
+  if (code)
+    fprintf(stderr, "%% Failed to close consumer: %s\n", tmq_err2str(code));
   else
     fprintf(stderr, "%% Consumer closed\n");
 }
