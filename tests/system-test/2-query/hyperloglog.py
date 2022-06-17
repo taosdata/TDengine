@@ -226,7 +226,7 @@ class TDTestCase:
             column_sql += f"{k} {v},"
         for k,v in tag_dict.items():
             tag_sql += f"{k} {v},"
-        tdSql.execute(f'create table is not exists {stbname} ({column_sql[:-1]}) tags({tag_sql[:-1]})')
+        tdSql.execute(f'create table if not exists {stbname} ({column_sql[:-1]}) tags({tag_sql[:-1]})')
 
     def __insert_data(self): 
 
