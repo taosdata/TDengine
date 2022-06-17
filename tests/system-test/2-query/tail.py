@@ -188,8 +188,8 @@ class TDTestCase:
 
     def check_tail_table(self , tbname , col_name , tail_rows , offset):
         tail_sql = f"select tail({col_name} , {tail_rows} , {offset}) from {tbname}"
-        #equal_sql = f"select {col_name} from (select ts , {col_name} from {tbname} order by ts desc limit {tail_rows} offset {offset}) order by ts"
-        equal_sql = f"select {col_name} from {tbname} order by ts desc limit {tail_rows} offset {offset}"
+        equal_sql = f"select {col_name} from (select ts , {col_name} from {tbname} order by ts desc limit {tail_rows} offset {offset}) order by ts"
+        #equal_sql = f"select {col_name} from {tbname} order by ts desc limit {tail_rows} offset {offset}"
         tdSql.query(tail_sql)
         tail_result = tdSql.queryResult
 
@@ -294,19 +294,19 @@ class TDTestCase:
         tdSql.checkData(0, 0, None)
         tdSql.checkData(1, 0, None)
 
-        tdSql.query("select tail(c1,3,2) from ct4 where c1 >2 ")
+        tdSql.query("select tail(c1,3,2) from ct4 where c1 >2 order by 1")
         tdSql.checkData(0, 0, 5)
         tdSql.checkData(1, 0, 6)
         tdSql.checkData(2, 0, 7)
 
-        tdSql.query("select tail(c1,2,1) from ct4  where c2 between 0  and   99999")
+        tdSql.query("select tail(c1,2,1) from ct4  where c2 between 0  and   99999 order by 1")
         tdSql.checkData(0, 0, 1)
         tdSql.checkData(1, 0, 2)
 
         # tail with union all 
         tdSql.query("select tail(c1,2,1) from ct4 union all select c1 from ct1")
         tdSql.checkRows(15)
-        tdSql.query("select tail(c1,2,1) from ct4 union all select c1 from ct2")
+        tdSql.query("select tail(c1,2,1) from ct4 union all select c1 from ct2 order by 1")
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(1, 0, 1)
@@ -335,7 +335,7 @@ class TDTestCase:
             tdSql.execute(f" insert into ttb1 values({ts_value} , {i})")
             tdSql.execute(f" insert into ttb2 values({ts_value} , {i})")
 
-        tdSql.query("select tail(tb2.num,3,2)  from tb1, tb2 where tb1.ts=tb2.ts ")
+        tdSql.query("select tail(tb2.num,3,2)  from tb1, tb2 where tb1.ts=tb2.ts order by 1 desc")
         tdSql.checkRows(3)
         tdSql.checkData(0,0,7)
         tdSql.checkData(1,0,6)
@@ -343,7 +343,7 @@ class TDTestCase:
 
         # nest query
         # tdSql.query("select tail(c1,2) from (select c1 from ct1)")
-        tdSql.query("select c1 from (select tail(c1,2) c1 from ct4)")
+        tdSql.query("select c1 from (select tail(c1,2) c1 from ct4) order by 1 nulls first")
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, None)
         tdSql.checkData(1, 0, 0)

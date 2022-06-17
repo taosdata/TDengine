@@ -36,6 +36,7 @@ typedef struct STranslateContext {
   int32_t          currLevel;
   ESqlClause       currClause;
   SSelectStmt*     pCurrSelectStmt;
+  SSetOperator*    pCurrSetOperator;
   SCmdMsgInfo*     pCmdMsg;
   SHashObj*        pDbs;
   SHashObj*        pTables;
@@ -432,7 +433,7 @@ static void setColumnInfoBySchema(const SRealTableNode* pTable, const SSchema* p
 static void setColumnInfoByExpr(const STableNode* pTable, SExprNode* pExpr, SColumnNode** pColRef) {
   SColumnNode* pCol = *pColRef;
 
-  pCol->pProjectRef = (SNode*)pExpr;
+  // pCol->pProjectRef = (SNode*)pExpr;
   if (NULL == pExpr->pAssociation) {
     pExpr->pAssociation = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
   }
@@ -613,17 +614,36 @@ static EDealRes translateColumnWithoutPrefix(STranslateContext* pCxt, SColumnNod
   return DEAL_RES_CONTINUE;
 }
 
-static bool translateColumnUseAlias(STranslateContext* pCxt, SColumnNode** pCol) {
-  SNodeList* pProjectionList = pCxt->pCurrSelectStmt->pProjectionList;
+static SNodeList* getProjectListFromCxt(STranslateContext* pCxt) {
+  if (NULL != pCxt->pCurrSelectStmt) {
+    return pCxt->pCurrSelectStmt->pProjectionList;
+  } else if (NULL != pCxt->pCurrSetOperator) {
+    return pCxt->pCurrSetOperator->pProjectionList;
+  } else {
+    return NULL;
+  }
+}
+
+static EDealRes translateColumnUseAlias(STranslateContext* pCxt, SColumnNode** pCol, bool* pFound) {
+  SNodeList* pProjectionList = getProjectListFromCxt(pCxt);
   SNode*     pNode;
   FOREACH(pNode, pProjectionList) {
     SExprNode* pExpr = (SExprNode*)pNode;
     if (0 == strcmp((*pCol)->colName, pExpr->aliasName)) {
-      setColumnInfoByExpr(NULL, pExpr, pCol);
-      return true;
+      SColumnRefNode* pColRef = (SColumnRefNode*)nodesMakeNode(QUERY_NODE_COLUMN_REF);
+      if (NULL == pColRef) {
+        pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+        return DEAL_RES_ERROR;
+      }
+      strcpy(pColRef->colName, pExpr->aliasName);
+      nodesDestroyNode(*(SNode**)pCol);
+      *(SNode**)pCol = (SNode*)pColRef;
+      *pFound = true;
+      return DEAL_RES_CONTINUE;
     }
   }
-  return false;
+  *pFound = false;
+  return DEAL_RES_CONTINUE;
 }
 
 static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
@@ -638,9 +658,11 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
   } else {
     bool found = false;
     if (SQL_CLAUSE_ORDER_BY == pCxt->currClause) {
-      found = translateColumnUseAlias(pCxt, pCol);
+      res = translateColumnUseAlias(pCxt, pCol, &found);
     }
-    res = (found ? DEAL_RES_CONTINUE : translateColumnWithoutPrefix(pCxt, pCol));
+    if (DEAL_RES_ERROR != res && !found) {
+      res = translateColumnWithoutPrefix(pCxt, pCol);
+    }
   }
   return res;
 }
@@ -1803,11 +1825,11 @@ static int32_t translateOrderByPosition(STranslateContext* pCxt, SNodeList* pPro
       } else if (0 == pos || pos > LIST_LENGTH(pProjectionList)) {
         return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_NUMBER_OF_SELECT);
       } else {
-        SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
+        SColumnRefNode* pCol = (SColumnRefNode*)nodesMakeNode(QUERY_NODE_COLUMN_REF);
         if (NULL == pCol) {
           return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_OUT_OF_MEMORY);
         }
-        setColumnInfoByExpr(NULL, (SExprNode*)nodesListGetNode(pProjectionList, pos - 1), &pCol);
+        strcpy(pCol->colName, ((SExprNode*)nodesListGetNode(pProjectionList, pos - 1))->aliasName);
         ((SOrderByExprNode*)pNode)->pExpr = (SNode*)pCol;
         nodesDestroyNode(pExpr);
       }
@@ -1822,16 +1844,15 @@ static int32_t translateOrderByPosition(STranslateContext* pCxt, SNodeList* pPro
 static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
   bool    other;
   int32_t code = translateOrderByPosition(pCxt, pSelect->pProjectionList, pSelect->pOrderByList, &other);
-  if (TSDB_CODE_SUCCESS != code) {
-    return code;
-  }
-  if (!other) {
-    return TSDB_CODE_SUCCESS;
-  }
-  pCxt->currClause = SQL_CLAUSE_ORDER_BY;
-  code = translateExprList(pCxt, pSelect->pOrderByList);
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkExprListForGroupBy(pCxt, pSelect->pOrderByList);
+    if (!other) {
+      return TSDB_CODE_SUCCESS;
+    }
+    pCxt->currClause = SQL_CLAUSE_ORDER_BY;
+    code = translateExprList(pCxt, pSelect->pOrderByList);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = checkExprListForGroupBy(pCxt, pSelect->pOrderByList);
+    }
   }
   return code;
 }
@@ -2290,6 +2311,39 @@ static int32_t rewriteTailStmt(STranslateContext* pCxt, SSelectStmt* pSelect) {
   return code;
 }
 
+typedef struct SReplaceOrderByAliasCxt {
+  STranslateContext* pTranslateCxt;
+  SNodeList*         pProjectionList;
+} SReplaceOrderByAliasCxt;
+
+static EDealRes replaceOrderByAliasImpl(SNode** pNode, void* pContext) {
+  SReplaceOrderByAliasCxt* pCxt = pContext;
+  if (QUERY_NODE_COLUMN_REF == nodeType(*pNode)) {
+    SNodeList* pProjectionList = pCxt->pProjectionList;
+    SNode*     pProject = NULL;
+    FOREACH(pProject, pProjectionList) {
+      SExprNode* pExpr = (SExprNode*)pProject;
+      if (0 == strcmp(((SColumnRefNode*)*pNode)->colName, pExpr->aliasName)) {
+        SNode* pNew = nodesCloneNode(pProject);
+        if (NULL == pNew) {
+          pCxt->pTranslateCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+          return DEAL_RES_ERROR;
+        }
+        nodesDestroyNode(*pNode);
+        *pNode = pNew;
+        return DEAL_RES_CONTINUE;
+      }
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t replaceOrderByAlias(STranslateContext* pCxt, SNodeList* pProjectionList, SNodeList* pOrderByList) {
+  SReplaceOrderByAliasCxt cxt = {.pTranslateCxt = pCxt, .pProjectionList = pProjectionList};
+  nodesRewriteExprsPostOrder(pOrderByList, replaceOrderByAliasImpl, &cxt);
+  return pCxt->errCode;
+}
+
 static int32_t translateSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->pCurrSelectStmt = pSelect;
   int32_t code = translateFrom(pCxt, pSelect->pFromTable);
@@ -2324,11 +2378,14 @@ static int32_t translateSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteUniqueStmt(pCxt, pSelect);
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = rewriteTailStmt(pCxt, pSelect);
-  }
+  // if (TSDB_CODE_SUCCESS == code) {
+  //   code = rewriteTailStmt(pCxt, pSelect);
+  // }
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteTimelineFunc(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = replaceOrderByAlias(pCxt, pSelect->pProjectionList, pSelect->pOrderByList);
   }
   return code;
 }
@@ -2366,7 +2423,7 @@ static int32_t createCastFunc(STranslateContext* pCxt, SNode* pExpr, SDataType d
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateSetOperatorImpl(STranslateContext* pCxt, SSetOperator* pSetOperator) {
+static int32_t translateSetOperProject(STranslateContext* pCxt, SSetOperator* pSetOperator) {
   SNodeList* pLeftProjections = getProjectList(pSetOperator->pLeft);
   SNodeList* pRightProjections = getProjectList(pSetOperator->pRight);
   if (LIST_LENGTH(pLeftProjections) != LIST_LENGTH(pRightProjections)) {
@@ -2401,6 +2458,23 @@ static uint8_t calcSetOperatorPrecision(SSetOperator* pSetOperator) {
   return calcPrecision(getStmtPrecision(pSetOperator->pLeft), getStmtPrecision(pSetOperator->pRight));
 }
 
+static int32_t translateSetOperOrderBy(STranslateContext* pCxt, SSetOperator* pSetOperator) {
+  bool    other;
+  int32_t code = translateOrderByPosition(pCxt, pSetOperator->pProjectionList, pSetOperator->pOrderByList, &other);
+  if (TSDB_CODE_SUCCESS == code) {
+    if (other) {
+      pCxt->currClause = SQL_CLAUSE_ORDER_BY;
+      pCxt->pCurrSelectStmt = NULL;
+      pCxt->pCurrSetOperator = pSetOperator;
+      code = translateExprList(pCxt, pSetOperator->pOrderByList);
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = replaceOrderByAlias(pCxt, pSetOperator->pProjectionList, pSetOperator->pOrderByList);
+  }
+  return code;
+}
+
 static int32_t translateSetOperator(STranslateContext* pCxt, SSetOperator* pSetOperator) {
   int32_t code = translateQuery(pCxt, pSetOperator->pLeft);
   if (TSDB_CODE_SUCCESS == code) {
@@ -2411,7 +2485,10 @@ static int32_t translateSetOperator(STranslateContext* pCxt, SSetOperator* pSetO
   }
   if (TSDB_CODE_SUCCESS == code) {
     pSetOperator->precision = calcSetOperatorPrecision(pSetOperator);
-    code = translateSetOperatorImpl(pCxt, pSetOperator);
+    code = translateSetOperProject(pCxt, pSetOperator);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateSetOperOrderBy(pCxt, pSetOperator);
   }
   return code;
 }

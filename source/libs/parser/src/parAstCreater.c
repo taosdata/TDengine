@@ -648,6 +648,8 @@ SNode* addOrderByClause(SAstCreateContext* pCxt, SNode* pStmt, SNodeList* pOrder
   CHECK_PARSER_STATUS(pCxt);
   if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
     ((SSelectStmt*)pStmt)->pOrderByList = pOrderByList;
+  } else {
+    ((SSetOperator*)pStmt)->pOrderByList = pOrderByList;
   }
   return pStmt;
 }

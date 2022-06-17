@@ -88,6 +88,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SStreamOptions));
     case QUERY_NODE_LEFT_VALUE:
       return makeNode(type, sizeof(SLeftValueNode));
+    case QUERY_NODE_COLUMN_REF:
+      return makeNode(type, sizeof(SColumnDefNode));
     case QUERY_NODE_SET_OPERATOR:
       return makeNode(type, sizeof(SSetOperator));
     case QUERY_NODE_SELECT_STMT:

@@ -362,6 +362,8 @@ TEST_F(ParserSelectTest, setOperator) {
   run("(SELECT * FROM t1) UNION ALL (SELECT * FROM t1)");
 
   run("SELECT c1 FROM (SELECT c1 FROM t1 UNION ALL SELECT c1 FROM t1)");
+
+  run("SELECT c1, c2 FROM t1 UNION ALL SELECT c1 as a, c2 as b FROM t1 ORDER BY c1");
 }
 
 TEST_F(ParserSelectTest, informationSchema) {

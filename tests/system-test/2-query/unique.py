@@ -289,13 +289,13 @@ class TDTestCase:
         tdSql.query("select unique(c1) from ct4 where c1 is null")
         tdSql.checkData(0, 0, None)
 
-        tdSql.query("select unique(c1) from ct4 where c1 >2")
-        tdSql.checkData(0, 0, 8)
-        tdSql.checkData(1, 0, 7)
-        tdSql.checkData(2, 0, 6)
-        tdSql.checkData(5, 0, 3)
+        tdSql.query("select unique(c1) from ct4 where c1 >2 order by 1")
+        tdSql.checkData(0, 0, 3)
+        tdSql.checkData(1, 0, 4)
+        tdSql.checkData(2, 0, 5)
+        tdSql.checkData(5, 0, 8)
 
-        tdSql.query("select unique(c1) from ct4  where c2 between 0  and   99999")
+        tdSql.query("select unique(c1) from ct4  where c2 between 0  and   99999 order by 1 desc")
         tdSql.checkData(0, 0, 8)
         tdSql.checkData(1, 0, 7)
         tdSql.checkData(2, 0, 6)
@@ -336,23 +336,23 @@ class TDTestCase:
             tdSql.execute(f" insert into ttb1 values({ts_value} , {i})")
             tdSql.execute(f" insert into ttb2 values({ts_value} , {i})")
 
-        tdSql.query("select unique(tb2.num)  from tb1, tb2 where tb1.ts=tb2.ts ")
+        tdSql.query("select unique(tb2.num)  from tb1, tb2 where tb1.ts=tb2.ts order by 1")
         tdSql.checkRows(10)
         tdSql.checkData(0,0,0)
         tdSql.checkData(1,0,1)
         tdSql.checkData(2,0,2)
         tdSql.checkData(9,0,9)
 
-        tdSql.query("select unique(tb2.num)  from tb1, tb2 where tb1.ts=tb2.ts union all select unique(tb1.num)  from tb1, tb2 where tb1.ts=tb2.ts ")
+        tdSql.query("select unique(tb2.num)  from tb1, tb2 where tb1.ts=tb2.ts union all select unique(tb1.num)  from tb1, tb2 where tb1.ts=tb2.ts order by 1")
         tdSql.checkRows(20)
         tdSql.checkData(0,0,0)
-        tdSql.checkData(1,0,1)
-        tdSql.checkData(2,0,2)
-        tdSql.checkData(9,0,9)
+        tdSql.checkData(2,0,1)
+        tdSql.checkData(4,0,2)
+        tdSql.checkData(18,0,9)
 
         # nest query
         # tdSql.query("select unique(c1) from (select c1 from ct1)")
-        tdSql.query("select c1 from (select unique(c1) c1 from ct4)")
+        tdSql.query("select c1 from (select unique(c1) c1 from ct4) order by 1 desc nulls first")
         tdSql.checkRows(10)
         tdSql.checkData(0, 0, None)
         tdSql.checkData(1, 0, 8)
@@ -367,7 +367,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, 45)
         tdSql.checkData(1, 0, 45)
 
-        tdSql.query("select 1-abs(c1) from (select unique(c1) c1 from ct4)")
+        tdSql.query("select 1-abs(c1) from (select unique(c1) c1 from ct4) order by 1 nulls first")
         tdSql.checkRows(10)
         tdSql.checkData(0, 0, None)
         tdSql.checkData(1, 0, -7.000000000)
@@ -422,7 +422,7 @@ class TDTestCase:
                 f"insert into sub1_bound values ( now()+1s, 2147483648, 9223372036854775808, 32768, 128, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
         
-        tdSql.query("select unique(c2) from sub1_bound")
+        tdSql.query("select unique(c2) from sub1_bound order by 1 desc")
         tdSql.checkRows(5)
         tdSql.checkData(0,0,9223372036854775807)
 
