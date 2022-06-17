@@ -184,7 +184,7 @@ class TDTestCase:
             if colname.startswith("c"):
                 self.check_sum_distribute_diff_vnode(colname)
             else:
-                # self.check_count_distribute_diff_vnode(colname) # bug for tag 
+                # self.check_sum_distribute_diff_vnode(colname) # bug for tag 
                 pass
 
         

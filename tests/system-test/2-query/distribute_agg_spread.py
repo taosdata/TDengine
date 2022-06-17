@@ -18,22 +18,22 @@ class TDTestCase:
         self.ts = 1537146000000
 
 
-    def check_min_functions(self, tbname , col_name):
+    def check_spread_functions(self, tbname , col_name):
 
-        min_sql = f"select min({col_name}) from {tbname};"
+        spread_sql = f"select spread({col_name}) from {tbname};"
 
-        same_sql = f"select {col_name} from {tbname} where {col_name} is not null order by {col_name} asc limit 1"
+        same_sql = f"select max({col_name})-min({col_name}) from {tbname}"
 
-        tdSql.query(min_sql)
-        min_result = tdSql.queryResult 
+        tdSql.query(spread_sql)
+        spread_result = tdSql.queryResult 
 
         tdSql.query(same_sql)
         same_result = tdSql.queryResult
 
-        if min_result !=same_result:
-            tdLog.exit(" min function work not as expected, sql : %s "% min_sql)
+        if spread_result !=same_result:
+            tdLog.exit(" max function work not as expected, sql : %s "% spread_sql)
         else:
-            tdLog.info(" min function work as expected, sql : %s "% min_sql)
+            tdLog.info(" max function work as expected, sql : %s "% spread_sql)
 
 
     def prepare_datas_of_distribute(self):
@@ -128,7 +128,7 @@ class TDTestCase:
         if count < 2:
             tdLog.exit(" the datas of all not satisfy sub_table has been distributed ")
 
-    def check_min_distribute_diff_vnode(self,col_name):
+    def check_spread_distribute_diff_vnode(self,col_name):
     
         vgroup_ids = []
         for k ,v in self.vnode_disbutes.items():
@@ -146,22 +146,22 @@ class TDTestCase:
 
         tbname_filters = tbname_ins[:-1]
         
-        min_sql = f"select min({col_name}) from stb1 where tbname in ({tbname_filters});"
+        spread_sql = f"select spread({col_name}) from stb1 where tbname in ({tbname_filters})"
 
-        same_sql = f"select {col_name} from stb1 where tbname in ({tbname_filters}) and {col_name} is not null order by {col_name} asc limit 1"
+        same_sql = f"select max({col_name}) - min({col_name}) from stb1 where tbname in ({tbname_filters})"
 
-        tdSql.query(min_sql)
-        min_result = tdSql.queryResult 
+        tdSql.query(spread_sql)
+        spread_result = tdSql.queryResult 
 
         tdSql.query(same_sql)
         same_result = tdSql.queryResult
 
-        if min_result !=same_result:
-            tdLog.exit(" min function work not as expected, sql : %s "% min_sql)
+        if spread_result !=same_result:
+            tdLog.exit(" spread function work not as expected, sql : %s "% spread_sql)
         else:
-            tdLog.info(" min function work as expected, sql : %s "% min_sql)
+            tdLog.info(" spread function work as expected, sql : %s "% spread_sql)
 
-    def check_min_status(self):
+    def check_spread_status(self):
         # check max function work status 
         
         tdSql.query("show tables like 'ct%'")
@@ -180,42 +180,42 @@ class TDTestCase:
         
         for tablename in tablenames:
             for colname in colnames:
-                self.check_min_functions(tablename,colname)
+                self.check_spread_functions(tablename,colname)
 
         # check max function for different vnode 
 
         for colname in colnames:
             if colname.startswith("c"):
-                self.check_min_distribute_diff_vnode(colname)
+                self.check_spread_distribute_diff_vnode(colname)
             else:
-                # self.check_min_distribute_diff_vnode(colname) # bug for tag 
+                # self.check_spread_distribute_diff_vnode(colname) # bug for tag 
                 pass
 
         
     def distribute_agg_query(self):
         # basic filter
-        tdSql.query("select min(c1) from stb1 where c1 is null")
+        tdSql.query("select spread(c1) from stb1 where c1 is null")
         tdSql.checkRows(0)
 
-        tdSql.query("select min(c1) from stb1 where t1=1")
-        tdSql.checkData(0,0,2)
+        tdSql.query("select spread(c1) from stb1 where t1=1")
+        tdSql.checkData(0,0,8.000000000)
 
-        tdSql.query("select min(c1+c2) from stb1 where c1 =1 ")
-        tdSql.checkData(0,0,11112.000000000)
+        tdSql.query("select spread(c1+c2) from stb1 where c1 =1 ")
+        tdSql.checkData(0,0,0.000000000)
 
-        tdSql.query("select min(c1) from stb1 where tbname=\"ct2\"")
-        tdSql.checkData(0,0,2)
+        tdSql.query("select spread(c1) from stb1 where tbname=\"ct2\"")
+        tdSql.checkData(0,0,8.000000000)
 
-        tdSql.query("select min(c1) from stb1 partition by tbname")
+        tdSql.query("select spread(c1) from stb1 partition by tbname")
         tdSql.checkRows(20)
 
-        tdSql.query("select min(c1) from stb1 where t1> 4  partition by tbname")
+        tdSql.query("select spread(c1) from stb1 where t1> 4  partition by tbname")
         tdSql.checkRows(15)
 
         # union all 
-        tdSql.query("select min(c1) from stb1 union all select min(c1) from stb1 ")
+        tdSql.query("select spread(c1) from stb1 union all select max(c1)-min(c1) from stb1 ")
         tdSql.checkRows(2)
-        tdSql.checkData(0,0,0)
+        tdSql.checkData(0,0,28.000000000)
 
         # join 
 
@@ -231,58 +231,45 @@ class TDTestCase:
             tdSql.execute(f" insert into tb1 values({ts},{i},{i}.0)")
             tdSql.execute(f" insert into tb2 values({ts},{i},{i}.0)")
 
-        tdSql.query("select min(tb1.c1), tb2.c2 from tb1, tb2 where tb1.ts=tb2.ts")
+        tdSql.query("select spread(tb1.c1), spread(tb2.c2) from tb1, tb2 where tb1.ts=tb2.ts")
         tdSql.checkRows(1)
-        tdSql.checkData(0,0,0)
-        tdSql.checkData(0,0,0.00000)
+        tdSql.checkData(0,0,9.000000000)
+        tdSql.checkData(0,0,9.00000)
 
         # group by 
         tdSql.execute(" use testdb ")
-        tdSql.query(" select min(c1),c1  from stb1 group by t1 ")
+        tdSql.query(" select max(c1),c1  from stb1 group by t1 ")
         tdSql.checkRows(20)
-        tdSql.query(" select min(c1),c1  from stb1 group by c1 ")
+        tdSql.query(" select max(c1),c1  from stb1 group by c1 ")
         tdSql.checkRows(30)
-        tdSql.query(" select min(c1),c2  from stb1 group by c2 ")
+        tdSql.query(" select max(c1),c2  from stb1 group by c2 ")
         tdSql.checkRows(31)
 
         # partition by tbname or partition by tag
-        tdSql.query("select min(c1),tbname from stb1 partition by tbname")
+        tdSql.query("select spread(c1),tbname from stb1 partition by tbname")
         query_data = tdSql.queryResult
-        
-        for row in query_data:
-            tbname = row[1]
-            tdSql.query(" select min(c1) from %s "%tbname)
-            tdSql.checkData(0,0,row[0])
-
-        tdSql.query("select min(c1),tbname from stb1 partition by t1")
-        query_data = tdSql.queryResult
-        
-        for row in query_data:
-            tbname = row[1]
-            tdSql.query(" select min(c1) from %s "%tbname)
-            tdSql.checkData(0,0,row[0])
 
         # nest query for support max
-        tdSql.query("select abs(c2+2)+1 from (select min(c1) c2  from stb1)")
-        tdSql.checkData(0,0,3.000000000)
-        tdSql.query("select min(c1+2)+1  as c2 from (select ts ,c1 ,c2  from stb1)")
-        tdSql.checkData(0,0,3.000000000)
-        tdSql.query("select min(a+2)+1  as c2 from (select ts ,abs(c1) a ,c2  from stb1)")
-        tdSql.checkData(0,0,3.000000000)
+        tdSql.query("select spread(c2+2)+1 from (select max(c1) c2  from stb1)")
+        tdSql.checkData(0,0,1.000000000)
+        tdSql.query("select spread(c1+2)+1  as c2 from (select ts ,c1 ,c2  from stb1)")
+        tdSql.checkData(0,0,29.000000000)
+        tdSql.query("select spread(a+2)+1  as c2 from (select ts ,abs(c1) a ,c2  from stb1)")
+        tdSql.checkData(0,0,29.000000000)
 
         # mixup with other functions
-        tdSql.query("select max(c1),count(c1),last(c2,c3),min(c1) from stb1")
+        tdSql.query("select max(c1),count(c1),last(c2,c3),spread(c1) from stb1")
         tdSql.checkData(0,0,28)
         tdSql.checkData(0,1,184)
         tdSql.checkData(0,2,-99999)
         tdSql.checkData(0,3,-999)
-        tdSql.checkData(0,4,0)
+        tdSql.checkData(0,4,28.000000000)
 
     def run(self):
 
         self.prepare_datas_of_distribute()
         self.check_distribute_datas()
-        self.check_min_status()
+        self.check_spread_status()
         self.distribute_agg_query()
 
     
