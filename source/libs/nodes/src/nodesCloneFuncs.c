@@ -427,7 +427,7 @@ static SNode* logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* pD
   COPY_SCALAR_FIELD(triggerType);
   COPY_SCALAR_FIELD(watermark);
   COPY_SCALAR_FIELD(filesFactor);
-  COPY_SCALAR_FIELD(intervalAlgo);
+  COPY_SCALAR_FIELD(windowAlgo);
   return (SNode*)pDst;
 }
 
@@ -535,6 +535,12 @@ static SNode* physiIntervalCopy(const SIntervalPhysiNode* pSrc, SIntervalPhysiNo
   COPY_SCALAR_FIELD(sliding);
   COPY_SCALAR_FIELD(intervalUnit);
   COPY_SCALAR_FIELD(slidingUnit);
+  return (SNode*)pDst;
+}
+
+static SNode* physiSessionCopy(const SSessionWinodwPhysiNode* pSrc, SSessionWinodwPhysiNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(window, physiWindowCopy);
+  COPY_SCALAR_FIELD(gap);
   return (SNode*)pDst;
 }
 
@@ -678,6 +684,9 @@ SNode* nodesCloneNode(const SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
       return physiIntervalCopy((const SIntervalPhysiNode*)pNode, (SIntervalPhysiNode*)pDst);
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION:
+      return physiSessionCopy((const SSessionWinodwPhysiNode*)pNode, (SSessionWinodwPhysiNode*)pDst);
     default:
       break;
   }
