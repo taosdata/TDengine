@@ -258,7 +258,7 @@ struct SSma {
 
 #define SMA_CFG(s)        (&(s)->pVnode->config)
 #define SMA_TSDB_CFG(s)   (&(s)->pVnode->config.tsdbCfg)
-#define SMA_RETENTION(s)  ((SRetention *)&(s)->pVnode->config.tsdbCfg.retentions)
+#define SMA_RETENTION(s)  ((SRetention*)&(s)->pVnode->config.tsdbCfg.retentions)
 #define SMA_LOCKED(s)     ((s)->locked)
 #define SMA_META(s)       ((s)->pVnode->pMeta)
 #define SMA_VID(s)        TD_VID((s)->pVnode)

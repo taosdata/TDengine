@@ -48,9 +48,9 @@ typedef struct SMapData     SMapData;
 typedef struct SBlockSMA    SBlockSMA;
 typedef struct SBlockIdx    SBlockIdx;
 typedef struct SBlock       SBlock;
-typedef struct SBlockCol    SBlockCol;
 typedef struct SBlockStatis SBlockStatis;
 typedef struct SAggrBlkCol  SAggrBlkCol;
+typedef struct SColData     SColData;
 typedef struct SBlockData   SBlockData;
 typedef struct SReadH       SReadH;
 
@@ -305,14 +305,6 @@ struct SBlock {
   SSubBlock sBlocks[TSDB_MAX_SUBBLOCKS];
 };
 
-struct SBlockCol {
-  int16_t  colId;
-  uint16_t type : 6;
-  uint16_t blen : 10;  // 0 no bitmap if all rows are NORM, > 0 bitmap length
-  uint32_t len;        // data length + bitmap length
-  uint32_t offset;
-};
-
 struct SAggrBlkCol {
   int16_t colId;
   int16_t maxIndex;
@@ -323,12 +315,20 @@ struct SAggrBlkCol {
   int64_t min;
 };
 
-struct SBlockData {
-  int32_t   nRow;
-  SBlockCol cols[];
+struct SColData {
+  int16_t  cid;
+  int8_t   type;
+  int32_t  bytes;
+  uint8_t  flags;
+  uint8_t *pBitMap;
+  uint32_t nData;
+  uint8_t *pData;
 };
 
-typedef void SAggrBlkData;  // SBlockCol cols[];
+struct SBlockData {
+  int32_t nRow;
+  SArray *aColData;
+};
 
 // ================== TSDB global config
 extern bool tsdbForceKeepFile;

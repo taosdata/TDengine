@@ -164,7 +164,7 @@ int32_t tsdbRealloc(uint8_t **ppBuf, int64_t size) {
 
   if (bsize >= size) goto _exit;
 
-  if (bsize == 0) bsize = 128;
+  if (bsize == 0) bsize = 16;
   while (bsize < size) {
     bsize *= 2;
   }
@@ -544,3 +544,5 @@ int32_t tGetKEYINFO(uint8_t *p, KEYINFO *pKeyInfo) {
 
   return n;
 }
+
+// SBlockData ======================================================
