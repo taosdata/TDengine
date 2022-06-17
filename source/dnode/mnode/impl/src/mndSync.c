@@ -221,17 +221,17 @@ void mndCleanupSync(SMnode *pMnode) {
 
 int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
-  SRpcMsg    rsp = {.code = TDMT_MND_APPLY_MSG, .contLen = sdbGetRawTotalSize(pRaw)};
-  rsp.pCont = rpcMallocCont(rsp.contLen);
-  if (rsp.pCont == NULL) return -1;
-  memcpy(rsp.pCont, pRaw, rsp.contLen);
+  SRpcMsg    req = {.msgType = TDMT_MND_APPLY_MSG, .contLen = sdbGetRawTotalSize(pRaw)};
+  req.pCont = rpcMallocCont(req.contLen);
+  if (req.pCont == NULL) return -1;
+  memcpy(req.pCont, pRaw, req.contLen);
 
   pMgmt->errCode = 0;
   pMgmt->transId = transId;
   mTrace("trans:%d, will be proposed", pMgmt->transId);
 
   const bool isWeak = false;
-  int32_t    code = syncPropose(pMgmt->sync, &rsp, isWeak);
+  int32_t    code = syncPropose(pMgmt->sync, &req, isWeak);
   if (code == 0) {
     tsem_wait(&pMgmt->syncSem);
   } else if (code == -1 && terrno == TSDB_CODE_SYN_NOT_LEADER) {
@@ -242,7 +242,7 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
     terrno = TSDB_CODE_APP_ERROR;
   }
 
-  rpcFreeCont(rsp.pCont);
+  rpcFreeCont(req.pCont);
   if (code != 0) {
     mError("trans:%d, failed to propose, code:0x%x", pMgmt->transId, code);
     return code;
