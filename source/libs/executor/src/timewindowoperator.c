@@ -2425,12 +2425,15 @@ int32_t initSessionAggSupporter(SStreamAggSupporter* pSup, const char* pKey, Sql
   return initStreamAggSupporter(pSup, pKey, pCtx, numOfOutput, sizeof(SResultWindowInfo));
 }
 
-SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
-                                                  SSDataBlock* pResBlock, int64_t gap, int32_t tsSlotId,
-                                                  STimeWindowAggSupp* pTwAggSupp, SExecTaskInfo* pTaskInfo) {
-  int32_t                        code = TSDB_CODE_OUT_OF_MEMORY;
+SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo) {
+  SSessionWinodwPhysiNode* pSessionNode = (SSessionWinodwPhysiNode*)pPhyNode;
+  int32_t numOfCols = 0;
+  SExprInfo*   pExprInfo = createExprInfo(pSessionNode->window.pFuncs, NULL, &numOfCols);
+  SSDataBlock* pResBlock = createResDataBlock(pPhyNode->pOutputDataBlockDesc);
+  int32_t tsSlotId = ((SColumnNode*)pSessionNode->window.pTspk)->slotId;
+  int32_t code = TSDB_CODE_OUT_OF_MEMORY;
   SStreamSessionAggOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamSessionAggOperatorInfo));
-  SOperatorInfo*                 pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
+  SOperatorInfo* pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
     goto _error;
   }
@@ -2453,12 +2456,14 @@ SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SEx
   }
   initDummyFunction(pInfo->pDummyCtx, pInfo->binfo.pCtx, numOfCols);
 
-  pInfo->twAggSup = *pTwAggSupp;
+  pInfo->twAggSup = (STimeWindowAggSupp) {.waterMark = pSessionNode->window.watermark,
+      .calTrigger = pSessionNode->window.triggerType,
+      .maxTs = INT64_MIN};
   initResultRowInfo(&pInfo->binfo.resultRowInfo, 8);
   initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
 
   pInfo->primaryTsIndex = tsSlotId;
-  pInfo->gap = gap;
+  pInfo->gap = pSessionNode->gap;
   pInfo->binfo.pRes = pResBlock;
   pInfo->order = TSDB_ORDER_ASC;
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
@@ -2960,25 +2965,20 @@ static SSDataBlock* doStreamSessionAgg(SOperatorInfo* pOperator) {
   return pBInfo->pRes->info.rows == 0 ? NULL : pBInfo->pRes;
 }
 
-SOperatorInfo* createStreamFinalSessionAggOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo,
-                                                       int32_t numOfCols, SSDataBlock* pResBlock, int64_t gap,
-                                                       int32_t tsSlotId, STimeWindowAggSupp* pTwAggSupp,
-                                                       SExecTaskInfo* pTaskInfo) {
-  int32_t                        code = TSDB_CODE_OUT_OF_MEMORY;
-  SStreamSessionAggOperatorInfo* pInfo = NULL;
-  SOperatorInfo* pOperator = createStreamSessionAggOperatorInfo(downstream, pExprInfo, numOfCols, pResBlock, gap,
-                                                                tsSlotId, pTwAggSupp, pTaskInfo);
+SOperatorInfo* createStreamFinalSessionAggOperatorInfo(SOperatorInfo* downstream,
+    SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, int32_t numOfChild) {
+  int32_t        code = TSDB_CODE_OUT_OF_MEMORY;
+  SOperatorInfo* pOperator = createStreamSessionAggOperatorInfo(downstream, pPhyNode, pTaskInfo);
   if (pOperator == NULL) {
     goto _error;
   }
   pOperator->name = "StreamFinalSessionWindowAggOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION;
-  int32_t numOfChild = 1;  // Todo(liuyao) get it from phy plan
-  pInfo = pOperator->info;
+  SStreamSessionAggOperatorInfo* pInfo = pOperator->info;
   pInfo->pChildren = taosArrayInit(8, sizeof(void*));
   for (int32_t i = 0; i < numOfChild; i++) {
     SOperatorInfo* pChild =
-        createStreamSessionAggOperatorInfo(NULL, pExprInfo, numOfCols, NULL, gap, tsSlotId, pTwAggSupp, pTaskInfo);
+        createStreamSessionAggOperatorInfo(NULL, pPhyNode, pTaskInfo);
     if (pChild == NULL) {
       goto _error;
     }
@@ -2988,7 +2988,7 @@ SOperatorInfo* createStreamFinalSessionAggOperatorInfo(SOperatorInfo* downstream
 
 _error:
   if (pInfo != NULL) {
-    destroyStreamSessionAggOperatorInfo(pInfo, numOfCols);
+    destroyStreamSessionAggOperatorInfo(pInfo, pOperator->numOfExprs);
   }
 
   taosMemoryFreeClear(pInfo);

@@ -186,13 +186,13 @@ int32_t ctgHandleMsgCallback(void *param, const SDataBuf *pMsg, int32_t rspCode)
 
   SCtgJob* pJob = taosAcquireRef(gCtgMgmt.jobPool, cbParam->refId);
   if (NULL == pJob) {
-    qDebug("job refId %" PRIx64 " already dropped", cbParam->refId);
+    qDebug("ctg job refId 0x%" PRIx64 " already dropped", cbParam->refId);
     goto _return;
   }
 
   SCtgTask *pTask = taosArrayGet(pJob->pTasks, cbParam->taskId);
 
-  qDebug("QID:0x%" PRIx64 " task %d start to handle rsp %s", pJob->queryId, pTask->taskId, TMSG_INFO(cbParam->reqType + 1));
+  qDebug("QID:0x%" PRIx64 " ctg task %d start to handle rsp %s", pJob->queryId, pTask->taskId, TMSG_INFO(cbParam->reqType + 1));
   
   CTG_ERR_JRET((*gCtgAsyncFps[pTask->type].handleRspFp)(pTask, cbParam->reqType, pMsg, rspCode));
  
@@ -263,7 +263,7 @@ int32_t ctgAsyncSendMsg(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgTask* pTask
     CTG_ERR_JRET(code);
   }
 
-  ctgDebug("req msg sent, reqId:0x%" PRIx64 ", msg type:%d, %s", pTask->pJob->queryId, msgType, TMSG_INFO(msgType));
+  ctgDebug("ctg req msg sent, reqId:0x%" PRIx64 ", msg type:%d, %s", pTask->pJob->queryId, msgType, TMSG_INFO(msgType));
   return TSDB_CODE_SUCCESS;
 
 _return:

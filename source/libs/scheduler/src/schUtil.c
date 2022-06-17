@@ -21,6 +21,18 @@
 #include "tref.h"
 #include "trpc.h"
 
+char* schGetOpStr(SCH_OP_TYPE type) {
+  switch (type) {
+    case SCH_OP_NULL:
+      return "NULL";
+    case SCH_OP_EXEC:
+      return "EXEC";
+    case SCH_OP_FETCH:
+      return "FETCH";
+    default:
+      return "UNKNOWN";
+  }
+}
 
 void schCleanClusterHb(void* pTrans) {
   SCH_LOCK(SCH_WRITE, &schMgmt.hbLock);
@@ -188,7 +200,7 @@ int32_t schUpdateHbConnection(SQueryNodeEpId *epId, SSchTrans *trans) {
   SCH_UNLOCK(SCH_WRITE, &hb->lock);
   SCH_UNLOCK(SCH_READ, &schMgmt.hbLock);
 
-  qDebug("hb connection updated, sId:%" PRIx64 ", nodeId:%d, fqdn:%s, port:%d, pTrans:%p, pHandle:%p", schMgmt.sId,
+  qDebug("hb connection updated, sId:0x%" PRIx64 ", nodeId:%d, fqdn:%s, port:%d, pTrans:%p, pHandle:%p", schMgmt.sId,
          epId->nodeId, epId->ep.fqdn, epId->ep.port, trans->pTrans, trans->pHandle);
 
   return TSDB_CODE_SUCCESS;
