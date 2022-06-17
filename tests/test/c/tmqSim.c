@@ -513,6 +513,7 @@ void* consumeThreadFunc(void* param) {
     /*tmq_commit(pInfo->tmq, NULL, 0);*/
     tmq_commit_sync(pInfo->tmq, NULL);
     taosFprintfFile(g_fp, "tmq_commit() manual commit over.\n");
+    pPrint("tmq_commit() manual commit over.\n");
   }
 
   err = tmq_unsubscribe(pInfo->tmq);
