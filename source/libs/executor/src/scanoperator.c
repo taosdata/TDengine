@@ -2171,19 +2171,12 @@ SSDataBlock* getSortedTableMergeScanBlockData(SSortHandle* pHandle, int32_t capa
   blockDataEnsureCapacity(p, capacity);
 
   while (1) {
-    STupleHandle* pTupleHandle = NULL;
-    if (pInfo->prefetchedTuple == NULL) {
-      pTupleHandle = tsortNextTuple(pHandle);
-    } else {
-      pTupleHandle = pInfo->prefetchedTuple;
-    }
-
+    STupleHandle* pTupleHandle = tsortNextTuple(pHandle);
     if (pTupleHandle == NULL) {
       break;
     }
 
     appendOneRowToDataBlock(p, pTupleHandle);
-
     if (p->info.rows >= capacity) {
       break;
     }
@@ -2260,7 +2253,6 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
                                                 SReadHandle* readHandle, SExecTaskInfo* pTaskInfo) {
   STableMergeScanInfo* pInfo = taosMemoryCalloc(1, sizeof(STableMergeScanInfo));
   SOperatorInfo*       pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
-
   if (pInfo == NULL || pOperator == NULL) {
     goto _error;
   }
@@ -2283,17 +2275,16 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
 
   pInfo->scanInfo = (SScanInfo){.numOfAsc = pTableScanNode->scanSeq[0], .numOfDesc = pTableScanNode->scanSeq[1]};
 
-  pInfo->readHandle = *readHandle;
-  pInfo->interval = extractIntervalInfo(pTableScanNode);
+  pInfo->readHandle         = *readHandle;
+  pInfo->interval           = extractIntervalInfo(pTableScanNode);
   pInfo->sample.sampleRatio = pTableScanNode->ratio;
-  pInfo->sample.seed = taosGetTimestampSec();
-
-  pInfo->dataBlockLoadFlag = pTableScanNode->dataRequired;
-  pInfo->pFilterNode = pTableScanNode->scan.node.pConditions;
-  pInfo->dataReaders = dataReaders;
-  pInfo->scanFlag = MAIN_SCAN;
-  pInfo->pColMatchInfo = pColList;
-  pInfo->curTWinIdx = 0;
+  pInfo->sample.seed        = taosGetTimestampSec();
+  pInfo->dataBlockLoadFlag  = pTableScanNode->dataRequired;
+  pInfo->pFilterNode        = pTableScanNode->scan.node.pConditions;
+  pInfo->dataReaders        = dataReaders;
+  pInfo->scanFlag           = MAIN_SCAN;
+  pInfo->pColMatchInfo      = pColList;
+  pInfo->curTWinIdx         = 0;
 
   pInfo->pResBlock = createResDataBlock(pDescNode);
 
@@ -2306,22 +2297,27 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
     taosArrayPush(pInfo->sortSourceParams, param);
     taosMemoryFree(param);
   }
+
   pInfo->pSortInfo = generateSortByTsInfo(pInfo->cond.order);
   pInfo->pSortInputBlock = createOneDataBlock(pInfo->pResBlock, false);
+
   int32_t rowSize = pInfo->pResBlock->info.rowSize;
-  int32_t blockMetaSize = (int32_t)blockDataGetSerialMetaSize(pInfo->pResBlock->info.numOfCols);
-  pInfo->bufPageSize = (rowSize * 2 + blockMetaSize) < 1024 ? 1024 : (rowSize * 2 + blockMetaSize);
-  pInfo->sortBufSize = pInfo->bufPageSize * 16;
-  pInfo->hasGroupId = false;
+  pInfo->bufPageSize     = getProperSortPageSize(rowSize);
+
+  // todo the total available buffer should be determined by total capacity of buffer of this task.
+  // the additional one is reserved for merge result
+  pInfo->sortBufSize     = pInfo->bufPageSize * (taosArrayGetSize(dataReaders) + 1);
+  pInfo->hasGroupId      = false;
   pInfo->prefetchedTuple = NULL;
 
-  pOperator->name = "TableMergeScanOperator";
+  pOperator->name         = "TableMergeScanOperator";
+  // TODO : change it
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN;
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
-  pOperator->numOfExprs = numOfCols;
-  pOperator->pTaskInfo = pTaskInfo;
+  pOperator->blocking     = false;
+  pOperator->status       = OP_NOT_OPENED;
+  pOperator->info         = pInfo;
+  pOperator->numOfExprs   = numOfCols;
+  pOperator->pTaskInfo    = pTaskInfo;
   initResultSizeInfo(pOperator, 1024);
 
   pOperator->fpSet =

@@ -420,6 +420,29 @@ int32_t syncGetSnapshotMeta(int64_t rid, struct SSnapshotMeta* sMeta) {
   return 0;
 }
 
+int32_t syncGetSnapshotMetaByIndex(int64_t rid, SyncIndex snapshotIndex, struct SSnapshotMeta* sMeta) {
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    return -1;
+  }
+  assert(rid == pSyncNode->rid);
+
+  ASSERT(pSyncNode->pRaftCfg->configIndexCount >= 1);
+  SyncIndex lastIndex = (pSyncNode->pRaftCfg->configIndexArr)[0];
+
+  for (int i = 0; i < pSyncNode->pRaftCfg->configIndexCount; ++i) {
+    if ((pSyncNode->pRaftCfg->configIndexArr)[i] > lastIndex &&
+        (pSyncNode->pRaftCfg->configIndexArr)[i] <= snapshotIndex) {
+      lastIndex = (pSyncNode->pRaftCfg->configIndexArr)[i];
+    }
+  }
+  sMeta->lastConfigIndex = lastIndex;
+  sTrace("sync get snapshot meta by index:%ld lastConfigIndex:%ld", snapshotIndex, sMeta->lastConfigIndex);
+
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+  return 0;
+}
+
 const char* syncGetMyRoleStr(int64_t rid) {
   const char* s = syncUtilState2String(syncGetMyRole(rid));
   return s;
@@ -2197,8 +2220,8 @@ static int32_t syncNodeConfigChange(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftE
       char* newStr = syncCfg2Str(&newSyncCfg);
       syncUtilJson2Line(oldStr);
       syncUtilJson2Line(newStr);
-      snprintf(tmpbuf, sizeof(tmpbuf), "config change from %d to %d, %s  -->  %s", oldSyncCfg.replicaNum,
-               newSyncCfg.replicaNum, oldStr, newStr);
+      snprintf(tmpbuf, sizeof(tmpbuf), "config change from %d to %d, index:%ld, %s  -->  %s", oldSyncCfg.replicaNum,
+      newSyncCfg.replicaNum, pEntry->index, oldStr, newStr);
       taosMemoryFree(oldStr);
       taosMemoryFree(newStr);
 
@@ -2214,8 +2237,8 @@ static int32_t syncNodeConfigChange(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftE
     char* newStr = syncCfg2Str(&newSyncCfg);
     syncUtilJson2Line(oldStr);
     syncUtilJson2Line(newStr);
-    snprintf(tmpbuf, sizeof(tmpbuf), "config change2 from %d to %d, %s  -->  %s", oldSyncCfg.replicaNum,
-             newSyncCfg.replicaNum, oldStr, newStr);
+    snprintf(tmpbuf, sizeof(tmpbuf), "config change2 from %d to %d, index:%ld, %s  -->  %s", oldSyncCfg.replicaNum,
+    newSyncCfg.replicaNum, pEntry->index, oldStr, newStr);
     taosMemoryFree(oldStr);
     taosMemoryFree(newStr);
 
@@ -2297,6 +2320,7 @@ int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex,
         }
 
         // restore finish
+        // if only snapshot, a noop entry will be append, so syncLogLastIndex is always ok
         if (pEntry->index == ths->pLogStore->syncLogLastIndex(ths->pLogStore)) {
           if (ths->restoreFinish == false) {
             if (ths->pFsm->FpRestoreFinishCb != NULL) {
