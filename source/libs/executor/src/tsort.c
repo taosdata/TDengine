@@ -204,7 +204,12 @@ static int32_t sortComparInit(SMsortComparParam* cmpParam, SArray* pSources, int
   if (pHandle->type == SORT_SINGLESOURCE_SORT) {
     for (int32_t i = 0; i < cmpParam->numOfSources; ++i) {
       SSortSource* pSource = cmpParam->pSources[i];
-      SPageInfo*          pPgInfo = *(SPageInfo**)taosArrayGet(pSource->pageIdList, pSource->pageIndex);
+
+      if (taosArrayGetSize(pSource->pageIdList) == 0) {
+        return TSDB_CODE_SUCCESS;
+      }
+
+      SPageInfo* pPgInfo = *(SPageInfo**)taosArrayGet(pSource->pageIdList, pSource->pageIndex);
 
       void* pPage = getBufPage(pHandle->pBuf, getPageId(pPgInfo));
       code = blockDataFromBuf(pSource->src.pBlock, pPage);
@@ -532,6 +537,19 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
   return 0;
 }
 
+int32_t getProperSortPageSize(size_t rowSize) {
+  uint32_t defaultPageSize = 4096;
+
+  uint32_t pgSize = 0;
+  if (rowSize * 4 > defaultPageSize) {
+    pgSize = rowSize * 4;
+  } else {
+    pgSize = defaultPageSize;
+  }
+
+  return pgSize;
+}
+
 static int32_t createInitialSources(SSortHandle* pHandle) {
   size_t sortBufSize = pHandle->numOfPages * pHandle->pageSize;
 
@@ -539,64 +557,40 @@ static int32_t createInitialSources(SSortHandle* pHandle) {
     SSortSource* source = taosArrayGetP(pHandle->pOrderedSource, 0);
     taosArrayClear(pHandle->pOrderedSource);
 
-    bool hasGroupId = false;
-    SSDataBlock* prefetchedDataBlock = NULL;
-
     while (1) {
-      SSDataBlock* pBlock = NULL;
-      if (prefetchedDataBlock == NULL) {
-        pBlock = pHandle->fetchfp(source->param);
-      } else {
-        pBlock = prefetchedDataBlock;
-        prefetchedDataBlock = NULL;
-      }
-
+      SSDataBlock* pBlock = pHandle->fetchfp(source->param);
       if (pBlock == NULL) {
         break;
       }
 
-      if (!hasGroupId) {
-        // calculate the buffer pages according to the total available buffers.
-        int32_t rowSize = blockDataGetRowSize(pBlock);
-        if (rowSize * 4 > 4096) {
-          pHandle->pageSize = rowSize * 4;
-        } else {
-          pHandle->pageSize = 4096;
-        }
-        
-        // todo!!
+      if (pHandle->pDataBlock == NULL) {
+        pHandle->pageSize = getProperSortPageSize(blockDataGetRowSize(pBlock));
+
+        // todo, number of pages are set according to the total available sort buffer
         pHandle->numOfPages = 1024;
         sortBufSize = pHandle->numOfPages * pHandle->pageSize;
-
-        hasGroupId = true;
         pHandle->pDataBlock = createOneDataBlock(pBlock, false);
       }
 
-      if (pHandle->pDataBlock->info.groupId == pBlock->info.groupId) {
-        // perform the scalar function calculation before apply the sort
-        if (pHandle->beforeFp != NULL) {
-          pHandle->beforeFp(pBlock, pHandle->param);
-        }
-        // todo relocate the columns
-        int32_t code = blockDataMerge(pHandle->pDataBlock, pBlock);
-        if (code != 0) {
-          return code;
-        }
+      if (pHandle->beforeFp != NULL) {
+        pHandle->beforeFp(pBlock, pHandle->param);
+      }
 
-        size_t size = blockDataGetSize(pHandle->pDataBlock);
-        if (size > sortBufSize) {
-          // Perform the in-memory sort and then flush data in the buffer into disk.
-          int64_t p = taosGetTimestampUs();
-          blockDataSort(pHandle->pDataBlock, pHandle->pSortInfo);
+      int32_t code = blockDataMerge(pHandle->pDataBlock, pBlock);
+      if (code != 0) {
+        return code;
+      }
 
-          int64_t el = taosGetTimestampUs() - p;
-          pHandle->sortElapsed += el;
+      size_t size = blockDataGetSize(pHandle->pDataBlock);
+      if (size > sortBufSize) {
+        // Perform the in-memory sort and then flush data in the buffer into disk.
+        int64_t p = taosGetTimestampUs();
+        blockDataSort(pHandle->pDataBlock, pHandle->pSortInfo);
 
-          doAddToBuf(pHandle->pDataBlock, pHandle);
-        }
-      } else {
-        prefetchedDataBlock = pBlock;
-        pHandle->pDataBlock = createOneDataBlock(pBlock, false);
+        int64_t el = taosGetTimestampUs() - p;
+        pHandle->sortElapsed += el;
+
+        doAddToBuf(pHandle->pDataBlock, pHandle);
       }
     }
 
@@ -743,10 +737,6 @@ void* tsortGetValue(STupleHandle* pVHandle, int32_t colIndex) {
   } else {
     return colDataGetData(pColInfo, pVHandle->rowIndex);
   }
-}
-
-uint64_t tsortGetGroupId(STupleHandle* pVHandle) {
-  return pVHandle->pBlock->info.groupId;
 }
 
 SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle) {

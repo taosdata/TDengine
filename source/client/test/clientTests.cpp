@@ -44,6 +44,7 @@ void showDB(TAOS* pConn) {
 }
 
 void fetchCallback(void* param, void* res, int32_t numOfRow) {
+#if 0
   printf("numOfRow = %d \n", numOfRow);
   int         numFields = taos_num_fields(res);
   TAOS_FIELD *fields = taos_fetch_fields(res);
@@ -63,6 +64,13 @@ void fetchCallback(void* param, void* res, int32_t numOfRow) {
 //    taos_close(_taos);
 //    taos_cleanup();
   }
+#endif
+  if (numOfRow == 0) {
+    printf("completed\n");
+    return;
+  }
+
+  taos_fetch_raw_block_a(res, fetchCallback, param);
 }
 
 void queryCallback(void* param, void* res, int32_t code) {
@@ -70,7 +78,7 @@ void queryCallback(void* param, void* res, int32_t code) {
     printf("failed to execute, reason:%s\n", taos_errstr(res));
   }
   printf("start to fetch data\n");
-  taos_fetch_rows_a(res, fetchCallback, param);
+  taos_fetch_raw_block_a(res, fetchCallback, param);
 }
 
 void queryCallback1(void* param, void* res, int32_t code) {
@@ -778,9 +786,9 @@ TEST(testCase, async_api_test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
-  taos_query(pConn, "use nest");
-
-  TAOS_RES* pRes = taos_query(pConn, "select NOW() from (select * from regular_table_2 where tbname in ('regular_table_2_1') and  q_bigint <= 9223372036854775807 and  q_tinyint <= 127 and    q_bool in ( true , false) ) order by ts;");
+  taos_query(pConn, "use table_alltype_hyperloglog");
+#if 0
+  TAOS_RES* pRes = taos_query(pConn, "insert into tu(ts) values('2022-02-27 12:12:61')");
   if (taos_errno(pRes) != 0) {
     printf("failed, reason:%s\n", taos_errstr(pRes));
   }
@@ -802,8 +810,9 @@ TEST(testCase, async_api_test) {
     printf("%s\n", str);
     memset(str, 0, sizeof(str));
   }
+#endif
 
-  taos_query_a(pConn, "alter table test.m1 comment 'abcde' ", queryCallback, pConn);
+  taos_query_a(pConn, "select HYPERLOGLOG(q_ts) from stable_1_2 where ts between 1630000001000 and 1630100001000 interval(19d) Fill(NONE);", queryCallback, pConn);
   getchar();
   taos_close(pConn);
 }
