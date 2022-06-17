@@ -16,11 +16,7 @@ cargo new cloud_example
 Add dependency to `Cargo.toml`. 
 
 ```toml title="Cargo.toml"
-[dependencies]
-[dependencies]
-libtaos = { version="0.4.5-alpha.0", features=["rest"]}
-tokio = { version = "1", features = ["full"]}
-anyhow = "*"
+{{#include docs/examples/rust/cloud_example/Cargo.toml}}
 ```
 
 ## Config
