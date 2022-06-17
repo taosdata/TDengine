@@ -122,7 +122,8 @@ static SSdbRaw *mndTransActionEncode(STrans *pTrans) {
   SDB_SET_INT8(pRaw, dataPos, pTrans->conflict, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pTrans->exec, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pTrans->createdTime, _OVER)
-  SDB_SET_BINARY(pRaw, dataPos, pTrans->dbname, TSDB_DB_FNAME_LEN, _OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pTrans->dbname1, TSDB_DB_FNAME_LEN, _OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pTrans->dbname2, TSDB_DB_FNAME_LEN, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pTrans->redoActionPos, _OVER)
 
   int32_t redoActionNum = taosArrayGetSize(pTrans->redoActions);
@@ -270,7 +271,8 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
   pTrans->conflict = conflict;
   pTrans->exec = exec;
   SDB_GET_INT64(pRaw, dataPos, &pTrans->createdTime, _OVER)
-  SDB_GET_BINARY(pRaw, dataPos, pTrans->dbname, TSDB_DB_FNAME_LEN, _OVER)
+  SDB_GET_BINARY(pRaw, dataPos, pTrans->dbname1, TSDB_DB_FNAME_LEN, _OVER)
+  SDB_GET_BINARY(pRaw, dataPos, pTrans->dbname2, TSDB_DB_FNAME_LEN, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pTrans->redoActionPos, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &redoActionNum, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &undoActionNum, _OVER)
@@ -649,7 +651,14 @@ void mndTransSetCb(STrans *pTrans, ETrnFunc startFunc, ETrnFunc stopFunc, void *
   pTrans->paramLen = paramLen;
 }
 
-void mndTransSetDbName(STrans *pTrans, const char *dbname) { memcpy(pTrans->dbname, dbname, TSDB_DB_FNAME_LEN); }
+void mndTransSetDbName(STrans *pTrans, const char *dbname1, const char *dbname2) {
+  if (dbname1 != NULL) {
+    memcpy(pTrans->dbname1, dbname1, TSDB_DB_FNAME_LEN);
+  }
+  if (dbname2 != NULL) {
+    memcpy(pTrans->dbname2, dbname2, TSDB_DB_FNAME_LEN);
+  }
+}
 
 void mndTransSetSerial(STrans *pTrans) { pTrans->exec = TRN_EXEC_SERIAL; }
 
@@ -688,14 +697,24 @@ static bool mndCheckTransConflict(SMnode *pMnode, STrans *pNew) {
     if (pNew->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
     if (pNew->conflict == TRN_CONFLICT_DB) {
       if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
-      if (pTrans->conflict == TRN_CONFLICT_DB && strcmp(pNew->dbname, pTrans->dbname) == 0) conflict = true;
-      if (pTrans->conflict == TRN_CONFLICT_DB_INSIDE && strcmp(pNew->dbname, pTrans->dbname) == 0) conflict = true;
+      if (pTrans->conflict == TRN_CONFLICT_DB || pTrans->conflict == TRN_CONFLICT_DB_INSIDE) {
+        if (strcmp(pNew->dbname1, pTrans->dbname1) == 0 || strcmp(pNew->dbname1, pTrans->dbname2) == 0 ||
+            strcmp(pNew->dbname2, pTrans->dbname1) == 0 || strcmp(pNew->dbname2, pTrans->dbname2) == 0) {
+          conflict = true;
+        }
+      }
     }
     if (pNew->conflict == TRN_CONFLICT_DB_INSIDE) {
       if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
-      if (pTrans->conflict == TRN_CONFLICT_DB && strcmp(pNew->dbname, pTrans->dbname) == 0) conflict = true;
+      if (pTrans->conflict == TRN_CONFLICT_DB) {
+        if (strcmp(pNew->dbname1, pTrans->dbname1) == 0 || strcmp(pNew->dbname1, pTrans->dbname2) == 0 ||
+            strcmp(pNew->dbname2, pTrans->dbname1) == 0 || strcmp(pNew->dbname2, pTrans->dbname2) == 0) {
+          conflict = true;
+        }
+      }
     }
-    mError("trans:%d, can't execute since conflict with trans:%d, db:%s", pNew->id, pTrans->id, pTrans->dbname);
+    mError("trans:%d, can't execute since conflict with trans:%d, db1:%s db2:%s", pNew->id, pTrans->id, pTrans->dbname1,
+           pTrans->dbname2);
     sdbRelease(pMnode->pSdb, pTrans);
   }
 
@@ -704,7 +723,7 @@ static bool mndCheckTransConflict(SMnode *pMnode, STrans *pNew) {
 
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
   if (pTrans->conflict == TRN_CONFLICT_DB || pTrans->conflict == TRN_CONFLICT_DB_INSIDE) {
-    if (strlen(pTrans->dbname) == 0) {
+    if (strlen(pTrans->dbname1) == 0 && strlen(pTrans->dbname2) == 0) {
       terrno = TSDB_CODE_MND_TRANS_CONFLICT;
       mError("trans:%d, failed to prepare conflict db not set", pTrans->id);
       return -1;
@@ -1449,10 +1468,15 @@ static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)stage, false);
 
-    char dbname[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(dbname, mndGetDbStr(pTrans->dbname), pShow->pMeta->pSchemas[cols].bytes);
+    char dbname1[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(dbname1, mndGetDbStr(pTrans->dbname1), pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)dbname, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)dbname1, false);
+
+    char dbname2[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(dbname2, mndGetDbStr(pTrans->dbname2), pShow->pMeta->pSchemas[cols].bytes);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)dbname2, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&pTrans->failedTimes, false);

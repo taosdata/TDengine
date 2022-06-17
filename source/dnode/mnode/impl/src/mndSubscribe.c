@@ -403,7 +403,7 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
 
 static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOutputObj *pOutput) {
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pMsg);
-  mndTransSetDbName(pTrans, pOutput->pSub->dbName);
+  mndTransSetDbName(pTrans, pOutput->pSub->dbName, NULL);
   if (pTrans == NULL) return -1;
 
   // make txn:
