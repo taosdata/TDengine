@@ -530,7 +530,10 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   smaObj.dbUid = pStb->dbUid;
   smaObj.intervalUnit = pCreate->intervalUnit;
   smaObj.slidingUnit = pCreate->slidingUnit;
+#if 0
   smaObj.timezone = pCreate->timezone;
+#endif
+  smaObj.timezone = tsTimezone; // use timezone of server
   smaObj.interval = pCreate->interval;
   smaObj.offset = pCreate->offset;
   smaObj.sliding = pCreate->sliding;

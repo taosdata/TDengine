@@ -35,7 +35,7 @@ typedef struct SPhysiPlanContext {
   int32_t       errCode;
   int16_t       nextDataBlockId;
   SArray*       pLocationHelper;
-  SArray*       pExecNodeList;
+  SArray*       pExecNodeList;  // SArray<SQueryNodeLoad>
 } SPhysiPlanContext;
 
 static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char* pKey) {
@@ -459,7 +459,7 @@ static int32_t createTagScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubpla
   }
   vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
   SQueryNodeLoad node = {.addr = pSubplan->execNode, .load = 0};
-  taosArrayPush(pCxt->pExecNodeList, &pSubplan->execNode);
+  taosArrayPush(pCxt->pExecNodeList, &node);
   return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pTagScan, pPhyNode);
 }
 
@@ -529,10 +529,11 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
 
   pScan->showRewrite = pScanLogicNode->showRewrite;
   pScan->accountId = pCxt->pPlanCxt->acctId;
-  if (0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_USER_TABLES)) {
+  if (0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_USER_TABLES) ||
+      0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED)) {
     vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
     SQueryNodeLoad node = {.addr = pSubplan->execNode, .load = 0};
-    taosArrayPush(pCxt->pExecNodeList, &pSubplan->execNode);
+    taosArrayPush(pCxt->pExecNodeList, &node);
   } else {
     SQueryNodeLoad node = {.addr = {.nodeId = MNODE_HANDLE, .epSet = pCxt->pPlanCxt->mgmtEpSet}, .load = 0};
     taosArrayPush(pCxt->pExecNodeList, &node);

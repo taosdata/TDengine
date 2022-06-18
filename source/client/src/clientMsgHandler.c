@@ -77,7 +77,7 @@ int32_t processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
 
   for (int32_t i = 0; i < connectRsp.epSet.numOfEps; ++i) {
     tscDebug("0x%" PRIx64 " epSet.fqdn[%d]:%s port:%d, connObj:0x%" PRIx64, pRequest->requestId, i,
-             connectRsp.epSet.eps[i].fqdn, connectRsp.epSet.eps[i].port, pTscObj->id);
+             connectRsp.epSet.eps[i].fqdn, connectRsp.epSet.eps[i].port, *(int64_t*)pTscObj->id);
   }
 
   pTscObj->connId = connectRsp.connId;
@@ -90,7 +90,7 @@ int32_t processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
 
   pTscObj->connType = connectRsp.connType;
 
-  hbRegisterConn(pTscObj->pAppInfo->pAppHbMgr, pTscObj->id, connectRsp.clusterId, connectRsp.connType);
+  hbRegisterConn(pTscObj->pAppInfo->pAppHbMgr, *(int64_t*)pTscObj->id, connectRsp.clusterId, connectRsp.connType);
 
   //  pRequest->body.resInfo.pRspMsg = pMsg->pData;
   tscDebug("0x%" PRIx64 " clusterId:%" PRId64 ", totalConn:%" PRId64, pRequest->requestId, connectRsp.clusterId,

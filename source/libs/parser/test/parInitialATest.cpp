@@ -43,7 +43,40 @@ TEST_F(ParserInitialATest, alterDatabase) {
   run("ALTER DATABASE wxy_db KEEP 2400");
 }
 
-// todo ALTER local
+TEST_F(ParserInitialATest, alterLocal) {
+  useDb("root", "test");
+
+  pair<string, string> expect;
+
+  auto clearAlterLocal = [&]() {
+    expect.first.clear();
+    expect.second.clear();
+  };
+
+  auto setAlterLocalFunc = [&](const char* pConfig, const char* pValue = nullptr) {
+    expect.first.assign(pConfig);
+    if (nullptr != pValue) {
+      expect.second.assign(pValue);
+    }
+  };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_ALTER_LOCAL_STMT);
+    ASSERT_EQ(pQuery->execMode, QUERY_EXEC_MODE_LOCAL);
+    SAlterLocalStmt* pStmt = (SAlterLocalStmt*)pQuery->pRoot;
+    ASSERT_EQ(string(pStmt->config), expect.first);
+    ASSERT_EQ(string(pStmt->value), expect.second);
+  });
+
+  setAlterLocalFunc("resetlog");
+  run("ALTER LOCAL 'resetlog'");
+  clearAlterLocal();
+
+  setAlterLocalFunc("querypolicy", "2");
+  run("ALTER LOCAL 'querypolicy' '2'");
+  clearAlterLocal();
+}
+
 // todo ALTER stable
 
 /*

@@ -51,6 +51,7 @@ int32_t   raftCfgAddConfigIndex(SRaftCfg *pRaftCfg, SyncIndex configIndex);
 
 cJSON  *syncCfg2Json(SSyncCfg *pSyncCfg);
 char   *syncCfg2Str(SSyncCfg *pSyncCfg);
+char   *syncCfg2SimpleStr(SSyncCfg *pSyncCfg);
 int32_t syncCfgFromJson(const cJSON *pRoot, SSyncCfg *pSyncCfg);
 int32_t syncCfgFromStr(const char *s, SSyncCfg *pSyncCfg);
 
@@ -72,6 +73,7 @@ void syncCfgPrint(SSyncCfg *pCfg);
 void syncCfgPrint2(char *s, SSyncCfg *pCfg);
 void syncCfgLog(SSyncCfg *pCfg);
 void syncCfgLog2(char *s, SSyncCfg *pCfg);
+void syncCfgLog3(char *s, SSyncCfg *pCfg);
 
 void raftCfgPrint(SRaftCfg *pCfg);
 void raftCfgPrint2(char *s, SRaftCfg *pCfg);

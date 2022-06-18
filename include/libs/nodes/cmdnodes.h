@@ -89,8 +89,12 @@ typedef struct STableOptions {
   ENodeType  type;
   bool       commentNull;
   char       comment[TSDB_TB_COMMENT_LEN];
-  double     filesFactor;
-  int32_t    delay;
+  SNodeList* pMaxDelay;
+  int64_t    maxDelay1;
+  int64_t    maxDelay2;
+  SNodeList* pWatermark;
+  int64_t    watermark1;
+  int64_t    watermark2;
   SNodeList* pRollupFuncs;
   int32_t    ttl;
   SNodeList* pSma;
@@ -206,11 +210,18 @@ typedef struct SShowStmt {
   SNode*    pTbNamePattern;  // SValueNode
 } SShowStmt;
 
-typedef struct SShowCreatStmt {
+typedef struct SShowCreateDatabaseStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];
-  char      tableName[TSDB_TABLE_NAME_LEN];
-} SShowCreatStmt;
+  void*     pCfg;  // SDbCfgInfo
+} SShowCreateDatabaseStmt;
+
+typedef struct SShowCreateTableStmt {
+  ENodeType   type;
+  char        dbName[TSDB_DB_NAME_LEN];
+  char        tableName[TSDB_TABLE_NAME_LEN];
+  STableMeta* pMeta;
+} SShowCreateTableStmt;
 
 typedef enum EIndexType { INDEX_TYPE_SMA = 1, INDEX_TYPE_FULLTEXT } EIndexType;
 

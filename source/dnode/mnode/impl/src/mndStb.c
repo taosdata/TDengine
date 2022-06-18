@@ -670,8 +670,8 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   pDst->tagVer = 1;
   pDst->colVer = 1;
   pDst->nextColId = 1;
-  pDst->xFilesFactor = pCreate->xFilesFactor;
-  pDst->delay = pCreate->delay;
+  // pDst->xFilesFactor = pCreate->xFilesFactor;
+  // pDst->delay = pCreate->delay;
   pDst->ttl = pCreate->ttl;
   pDst->numOfColumns = pCreate->numOfColumns;
   pDst->numOfTags = pCreate->numOfTags;
@@ -836,7 +836,7 @@ _OVER:
 }
 
 static int32_t mndCheckAlterStbReq(SMAlterStbReq *pAlter) {
-  if (pAlter->commentLen != 0 || pAlter->ttl != 0) return 0;
+  if (pAlter->commentLen >= 0 || pAlter->ttl != 0) return 0;
 
   if (pAlter->numOfFields < 1 || pAlter->numOfFields != (int32_t)taosArrayGetSize(pAlter->pFields)) {
     terrno = TSDB_CODE_MND_INVALID_STB_OPTION;

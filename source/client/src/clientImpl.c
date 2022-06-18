@@ -263,6 +263,7 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
 int32_t asyncExecDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
   // drop table if exists not_exists_table
   if (NULL == pQuery->pCmdMsg) {
+    pRequest->body.queryFp(pRequest->body.param, pRequest, 0);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -609,6 +610,16 @@ void schedulerExecCb(SQueryResult* pResult, void* param, int32_t code) {
   SRequestObj* pRequest = (SRequestObj*)param;
   pRequest->code = code;
 
+  if (TDMT_VND_SUBMIT == pRequest->type || TDMT_VND_DELETE == pRequest->type ||
+      TDMT_VND_CREATE_TABLE == pRequest->type) {
+    pRequest->body.resInfo.numOfRows = pResult->numOfRows;
+
+    if (pRequest->body.queryJob != 0) {
+      schedulerFreeJob(pRequest->body.queryJob, 0);
+      pRequest->body.queryJob = 0;
+    }
+  }
+
   tscDebug("0x%" PRIx64 " enter scheduler exec cb, code:%d - %s, reqId:0x%" PRIx64,
              pRequest->self, code, tstrerror(code), pRequest->requestId);
 
@@ -712,7 +723,7 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery) {
       code = asyncExecDdlQuery(pRequest, pQuery);
       break;
     case QUERY_EXEC_MODE_SCHEDULE: {
-      SArray* pNodeList = taosArrayInit(4, sizeof(struct SQueryNodeAddr));
+      SArray* pNodeList = taosArrayInit(4, sizeof(SQueryNodeLoad));
 
       pRequest->type = pQuery->msgType;
 
@@ -725,12 +736,10 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery) {
                           .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE};
 
       SAppInstInfo* pAppInfo = getAppInfo(pRequest);
-      if (TSDB_CODE_SUCCESS == code) {
-        code = qCreateQueryPlan(&cxt, &pRequest->body.pDag, pNodeList);
-        if (code) {
-          tscError("0x%" PRIx64 " failed to create query plan, code:%s 0x%" PRIx64, pRequest->self, tstrerror(code),
-                   pRequest->requestId);
-        }
+      code = qCreateQueryPlan(&cxt, &pRequest->body.pDag, pNodeList);
+      if (code) {
+        tscError("0x%" PRIx64 " failed to create query plan, code:%s 0x%" PRIx64, pRequest->self, tstrerror(code),
+                 pRequest->requestId);
       }
 
       if (TSDB_CODE_SUCCESS == code) {
@@ -927,7 +936,7 @@ STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __t
     taos_close_internal(pTscObj);
     pTscObj = NULL;
   } else {
-    tscDebug("0x%" PRIx64 " connection is opening, connId:%u, dnodeConn:%p, reqId:0x%" PRIx64, pTscObj->id,
+    tscDebug("0x%" PRIx64 " connection is opening, connId:%u, dnodeConn:%p, reqId:0x%" PRIx64, *(int64_t*)pTscObj->id,
              pTscObj->connId, pTscObj->pAppInfo->pTransporter, pRequest->requestId);
     destroyRequest(pRequest);
   }
@@ -1090,10 +1099,10 @@ TAOS* taos_connect_auth(const char* ip, const char* user, const char* auth, cons
 
   STscObj* pObj = taos_connect_internal(ip, user, NULL, auth, db, port, CONN_TYPE__QUERY);
   if (pObj) {
-    return (TAOS*)pObj->id;
+    return pObj->id;
   }
   
-  return (TAOS*)0;
+  return NULL;
 }
 
 TAOS* taos_connect_l(const char* ip, int ipLen, const char* user, int userLen, const char* pass, int passLen,
