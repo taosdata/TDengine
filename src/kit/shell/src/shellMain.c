@@ -40,7 +40,6 @@ void *cancelHandler(void *arg) {
       if (wsclient_send_sql(NULL, WS_CLOSE, ws_id)) {
         exit(EXIT_FAILURE);
       }
-      return NULL;
     }
 #ifdef LINUX
     int64_t rid = atomic_val_compare_exchange_64(&result, result, 0);

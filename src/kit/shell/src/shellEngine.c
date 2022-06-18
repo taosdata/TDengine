@@ -1587,7 +1587,7 @@ void wsclient_query(char *command) {
         if (cJSON_IsNumber(id)) {
           ws_id = id->valueint;
           bool completed = false;
-          while (!completed || stop_fetch) {
+          while (!completed && !stop_fetch) {
             if (wsclient_send_sql(NULL, WS_FETCH, id->valueint) == 0) {
               char *fetch_buffer = wsclient_get_response();
               cJSON* fetch = cJSON_Parse(fetch_buffer);
@@ -1638,6 +1638,7 @@ void wsclient_query(char *command) {
           }
           et = taosGetTimestampUs();
           printf("Query OK, %" PRId64 " row(s) in set (%.6fs)\n\n", total_rows, (et - st) / 1E6);
+          stop_fetch = false;
         } else {
           fprintf(stderr, "Invalid id key in json\n");
         }
