@@ -99,9 +99,7 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
 
   STscObj* pObj = taos_connect_internal(ip, user, pass, NULL, db, port, CONN_TYPE__QUERY);
   if (pObj) {
-    uint64_t *id = taosMemoryMalloc(sizeof(uint64_t));
-    *id = pObj->id;
-    return (TAOS*)id;
+    return pObj->id;
   }
   
   return NULL;
@@ -113,9 +111,9 @@ void taos_close_internal(void *taos) {
   }
 
   STscObj *pTscObj = (STscObj *)taos;
-  tscDebug("0x%" PRIx64 " try to close connection, numOfReq:%d", pTscObj->id, pTscObj->numOfReqs);
+  tscDebug("0x%" PRIx64 " try to close connection, numOfReq:%d", *(int64_t*)pTscObj->id, pTscObj->numOfReqs);
 
-  taosRemoveRef(clientConnRefPool, pTscObj->id);
+  taosRemoveRef(clientConnRefPool, *(int64_t*)pTscObj->id);
 }
 
 void taos_close(TAOS *taos) {
@@ -683,6 +681,8 @@ static void destorySqlParseWrapper(SqlParseWrapper *pWrapper) {
 }
 
 void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
+  tscDebug("enter meta callback, code %s", tstrerror(code));
+  
   SqlParseWrapper *pWrapper = (SqlParseWrapper *)param;
   SQuery          *pQuery = pWrapper->pQuery;
   SRequestObj     *pRequest = pWrapper->pRequest;
