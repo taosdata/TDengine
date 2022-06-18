@@ -195,6 +195,7 @@ int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRp
 int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, SRpcMsg* pMsg);
 cJSON*  syncNode2Json(const SSyncNode* pSyncNode);
 char*   syncNode2Str(const SSyncNode* pSyncNode);
+void    syncNodeEventLog(const SSyncNode* pSyncNode, char* str);
 char*   syncNode2SimpleStr(const SSyncNode* pSyncNode);
 bool    syncNodeInConfig(SSyncNode* pSyncNode, const SSyncCfg* config);
 void    syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* newConfig, SyncIndex lastConfigChangeIndex, bool* isDrop);

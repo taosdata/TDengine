@@ -101,6 +101,29 @@ char *syncCfg2Str(SSyncCfg *pSyncCfg) {
   return serialized;
 }
 
+char *syncCfg2SimpleStr(SSyncCfg *pSyncCfg) {
+  int32_t len = 512;
+  char   *s = taosMemoryMalloc(len);
+  memset(s, 0, len);
+
+  snprintf(s, len, "{replica-num:%d, my-index:%d, ", pSyncCfg->replicaNum, pSyncCfg->myIndex);
+  char *p = s + strlen(s);
+  for (int i = 0; i < pSyncCfg->replicaNum; ++i) {
+    /*
+    if (p + 128 + 32 > s + len) {
+      break;
+    }
+    */
+    char buf[128 + 32];
+    snprintf(buf, sizeof(buf), "%s:%d, ", pSyncCfg->nodeInfo[i].nodeFqdn, pSyncCfg->nodeInfo[i].nodePort);
+    strncpy(p, buf, sizeof(buf));
+    p = s + strlen(s);
+  }
+  strcpy(p - 2, "}");
+
+  return s;
+}
+
 int32_t syncCfgFromJson(const cJSON *pRoot, SSyncCfg *pSyncCfg) {
   memset(pSyncCfg, 0, sizeof(SSyncCfg));
   // cJSON *pJson = cJSON_GetObjectItem(pRoot, "SSyncCfg");
@@ -281,6 +304,12 @@ void syncCfgLog(SSyncCfg *pCfg) {
 void syncCfgLog2(char *s, SSyncCfg *pCfg) {
   char *serialized = syncCfg2Str(pCfg);
   sTrace("syncCfgLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+  taosMemoryFree(serialized);
+}
+
+void syncCfgLog3(char *s, SSyncCfg *pCfg) {
+  char *serialized = syncCfg2SimpleStr(pCfg);
+  sTrace("syncCfgLog3 | len:%lu | %s | %s", strlen(serialized), s, serialized);
   taosMemoryFree(serialized);
 }
 
