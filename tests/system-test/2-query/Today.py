@@ -18,6 +18,30 @@ class TDTestCase:
         self.error_param = ['1.5','abc','!@#','"abc"','today()']
         self.arithmetic_operators = ['+','-','*','/']
         self.relational_operator = ['<','<=','=','>=','>']
+        # prepare data
+        self.ntbname = 'ntb'
+        self.stbname = 'stb'
+        self.column_dict = {
+            'ts':'timestamp',
+            'c1':'int',
+            'c2':'float',
+            'c3':'double',
+            'c4':'timestamp'
+        }
+        self.tag_dict = {
+            't0':'int'
+        }
+        self.tbnum = 2
+        self.tag_values = [
+            f'10',
+            f'100'
+        ]
+        self.values_list = [f'now,1,1.55,100.555555,today()',
+                        f'now+1d,10,11.11,99.999999,now()',
+                        f'today(),3,3.333,333.333333,now()',
+                        f'today()-1d,10,11.11,99.999999,now()',
+                        f'today()+1d,1,1.55,100.555555,today()']
+                       
     def set_create_normaltable_sql(self, ntbname, column_dict):
         column_sql = ''
         for k, v in column_dict.items():
@@ -107,65 +131,25 @@ class TDTestCase:
                     for i in range(num_same):
                         tdSql.checkData(i, 0, str(self.today_date))
     def today_check_ntb(self):
-        # prepare param
-        ntbname = 'ntb'
-        column_dict = {
-            'ts':'timestamp',
-            'c1':'int',
-            'c2':'float',
-            'c3':'double',
-            'c4':'timestamp'
-        }
-        values_list = [f'now,1,1.55,100.555555,today()',
-                        f'now+1d,10,11.11,99.999999,now()',
-                        f'today(),3,3.333,333.333333,now()',
-                        f'today()-1d,10,11.11,99.999999,now()',
-                        f'today()+1d,1,1.55,100.555555,today()']
-        # execute case
         tdSql.prepare()
-        tdSql.execute(self.set_create_normaltable_sql(ntbname,column_dict))
-        for i in values_list:
+        tdSql.execute(self.set_create_normaltable_sql(self.ntbname,self.column_dict))
+        for i in self.values_list:
             tdSql.execute(
-                f'insert into {ntbname} values({i})')
-        self.data_check(column_dict,ntbname,values_list)
+                f'insert into {self.ntbname} values({i})')
+        self.data_check(self.column_dict,self.ntbname,self.values_list)
         tdSql.execute('drop database db')
-    
     def today_check_stb_tb(self):
-        # prepare param
-        stbname = 'stb'
-        column_dict = {
-            'ts':'timestamp',
-            'c1':'int',
-            'c2':'float',
-            'c3':'double',
-            'c4':'timestamp'
-        }
-        tag_dict = {
-            't0':'int'
-        }
-        tb_num = 2
-        tag_values = [
-            f'10',
-            f'100'
-        ]
-        values_list = [
-            f'now,1,1.55,100.555555,today()',
-            f'now+1d,10,11.11,99.999999,now()',
-            f'today(),3,3.333,333.333333,now()',
-            f'today()-1d,10,11.11,99.999999,now()'
-        ]
-        # execute case
         tdSql.prepare()
-        tdSql.execute(self.set_create_stable_sql(stbname,column_dict,tag_dict))
-        for i in range(tb_num):
-            tdSql.execute(f'create table if not exists {stbname}_{i} using {stbname} tags({tag_values[i]})')
-            for j in values_list:
-                tdSql.execute(f'insert into {stbname}_{i} values ({j})')
+        tdSql.execute(self.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
+        for i in range(self.tb_num):
+            tdSql.execute(f'create table if not exists {self.stbname}_{i} using {self.stbname} tags({self.tag_values[i]})')
+            for j in self.values_list:
+                tdSql.execute(f'insert into {self.stbname}_{i} values ({j})')
         # check child table
-        for i in range(tb_num):
-            self.data_check(column_dict,f'{stbname}_{i}',values_list)
+        for i in range(self.tb_num):
+            self.data_check(self.column_dict,f'{self.stbname}_{i}',self.values_list)
         # check stable
-        self.data_check(column_dict,stbname,values_list,tb_num,'stb')
+        self.data_check(self.column_dict,self.stbname,self.values_list,self.tb_num,'stb')
         tdSql.execute('drop database db')
 
     def run(self):  # sourcery skip: extract-duplicate-method
