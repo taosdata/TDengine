@@ -162,6 +162,7 @@ typedef struct SReqResultInfo {
   int32_t        precision;
   bool           convertUcs4;
   int32_t        payloadLen;
+  char*          convertJson;
 } SReqResultInfo;
 
 typedef struct SRequestSendRecvBody {
@@ -242,6 +243,7 @@ static FORCE_INLINE SReqResultInfo* tmqGetNextResInfo(TAOS_RES* res, bool conver
       taosMemoryFreeClear(msg->resInfo.pCol);
       taosMemoryFreeClear(msg->resInfo.length);
       taosMemoryFreeClear(msg->resInfo.convertBuf);
+      taosMemoryFreeClear(msg->resInfo.convertJson);
     }
     setQueryResultFromRsp(&msg->resInfo, pRetrieve, convertUcs4, false);
     return &msg->resInfo;
