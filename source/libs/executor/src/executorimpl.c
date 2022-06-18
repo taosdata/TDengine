@@ -885,10 +885,6 @@ static bool isCachedLastQuery(STaskAttr* pQueryAttr) {
     return false;
   }
 
-  if (pQueryAttr->groupbyColumn) {
-    return false;
-  }
-
   if (pQueryAttr->interval.interval > 0) {
     return false;
   }

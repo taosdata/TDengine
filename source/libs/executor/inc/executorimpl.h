@@ -128,9 +128,6 @@ typedef struct STaskAttr {
   SLimit      limit;
   SLimit      slimit;
   bool        stableQuery;        // super table query or not
-  bool        topBotQuery;        // TODO used bitwise flag
-  bool        groupbyColumn;      // denote if this is a groupby normal column query
-  bool        timeWindowInterpo;  // if the time window start/end required interpolation
   bool        tsCompQuery;        // is tscomp query
   bool        diffQuery;          // is diff query
   bool        pointInterpQuery;   // point interpolation query
@@ -439,7 +436,7 @@ typedef struct SAggSupporter {
   SHashObj*      pResultRowHashTable;  // quick locate the window object for each result
   char*          keyBuf;               // window key buffer
   SDiskbasedBuf* pResultBuf;           // query result buffer based on blocked-wised disk file
-  int32_t        resultRowSize;        // the result buffer size for each result row, with the meta data size for each row, todo remove it
+  int32_t        resultRowSize;        // the result buffer size for each result row, with the meta data size for each row
 } SAggSupporter;
 
 typedef struct STimeWindowSupp {
