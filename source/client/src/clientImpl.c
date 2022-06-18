@@ -307,6 +307,21 @@ int32_t updateQnodeList(SAppInstInfo* pInfo, SArray* pNodeList) {
   return TSDB_CODE_SUCCESS;
 }
 
+bool qnodeRequired(SRequestObj* pRequest) {
+  if (QUERY_POLICY_VNODE == tsQueryPolicy) {
+    return false;
+  }
+
+  SAppInstInfo* pInfo = pRequest->pTscObj->pAppInfo;
+  bool required = false;
+  
+  taosThreadMutexLock(&pInfo->qnodeMutex);
+  required = (NULL == pInfo->pQnodeList);
+  taosThreadMutexUnlock(&pInfo->qnodeMutex);
+
+  return required;
+}
+
 int32_t getQnodeList(SRequestObj* pRequest, SArray** pNodeList) {
   SAppInstInfo* pInfo = pRequest->pTscObj->pAppInfo;
   int32_t       code = 0;
@@ -337,7 +352,7 @@ int32_t getQnodeList(SRequestObj* pRequest, SArray** pNodeList) {
   return code;
 }
 
-int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray** pNodeList) {
+int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray* pNodeList) {
   pRequest->type = pQuery->msgType;
   SAppInstInfo* pAppInfo = getAppInfo(pRequest);
 
@@ -349,12 +364,7 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
                       .pMsg = pRequest->msgBuf,
                       .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE};
 
-  int32_t code = getQnodeList(pRequest, pNodeList);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = qCreateQueryPlan(&cxt, pPlan, *pNodeList);
-  }
-
-  return code;
+  return qCreateQueryPlan(&cxt, pPlan, pNodeList);
 }
 
 void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols) {
@@ -396,6 +406,195 @@ void setResPrecision(SReqResultInfo* pResInfo, int32_t precision) {
 
   pResInfo->precision = precision;
 }
+
+int32_t buildVnodePolicyNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray* pMnodeList, SArray* pDbVgList) {
+  SArray* nodeList = taosArrayInit(4, sizeof(SQueryNodeLoad));
+
+  int32_t dbNum = taosArrayGetSize(pDbVgList);
+  for (int32_t i = 0; i < dbNum; ++i) {
+    SArray* pVg = taosArrayGetP(pDbVgList, i);
+    int32_t vgNum = taosArrayGetSize(pVg);
+    if (vgNum <= 0) {
+      continue;
+    }
+
+    for (int32_t j = 0; j < vgNum; ++j) {
+      SVgroupInfo* pInfo = taosArrayGet(pVg, j);
+      SQueryNodeLoad load = {0};
+      load.addr.nodeId = pInfo->vgId;
+      load.addr.epSet = pInfo->epSet;
+      
+      taosArrayPush(nodeList, &load);
+    }
+  }
+
+  int32_t vnodeNum = taosArrayGetSize(nodeList);
+  if (vnodeNum > 0) {
+    tscDebug("0x%" PRIx64 " vnode policy, use vnode list, num:%d", pRequest->requestId, vnodeNum);
+    goto _return;
+  }
+
+  int32_t mnodeNum = taosArrayGetSize(pMnodeList);
+  if (mnodeNum <= 0) {
+    tscDebug("0x%" PRIx64 " vnode policy, empty node list", pRequest->requestId);
+    goto _return;
+  }
+
+  void* pData = taosArrayGet(pMnodeList, 0);
+  taosArrayAddBatch(nodeList, pData, mnodeNum);
+
+  tscDebug("0x%" PRIx64 " vnode policy, use mnode list, num:%d", pRequest->requestId, mnodeNum);
+
+_return:
+
+  *pNodeList = nodeList;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t buildQnodePolicyNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray* pMnodeList, SArray* pQnodeList) {
+  SArray* nodeList = taosArrayInit(4, sizeof(SQueryNodeLoad));
+
+  int32_t qNodeNum = taosArrayGetSize(pQnodeList);
+  if (qNodeNum > 0) {
+    void* pData = taosArrayGet(pQnodeList, 0);
+    taosArrayAddBatch(nodeList, pData, qNodeNum);
+    tscDebug("0x%" PRIx64 " qnode policy, use qnode list, num:%d", pRequest->requestId, qNodeNum);
+    goto _return;
+  }
+
+  int32_t mnodeNum = taosArrayGetSize(pMnodeList);
+  if (mnodeNum <= 0) {
+    tscDebug("0x%" PRIx64 " qnode policy, empty node list", pRequest->requestId);
+    goto _return;
+  }
+
+  void* pData = taosArrayGet(pMnodeList, 0);
+  taosArrayAddBatch(nodeList, pData, mnodeNum);
+
+  tscDebug("0x%" PRIx64 " qnode policy, use mnode list, num:%d", pRequest->requestId, mnodeNum);
+
+_return:
+
+  *pNodeList = nodeList;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t buildAsyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray* pMnodeList, SMetaData *pResultMeta) {
+  SArray* pDbVgList = NULL;
+  SArray* pQnodeList = NULL;
+  int32_t code = 0;
+  
+  switch (tsQueryPolicy) {
+    case QUERY_POLICY_VNODE: {
+      if (pResultMeta) {
+        pDbVgList = taosArrayInit(4, POINTER_BYTES);
+        
+        int32_t dbNum = taosArrayGetSize(pResultMeta->pDbVgroup);
+        for (int32_t i = 0; i < dbNum; ++i) {
+          SMetaRes* pRes = taosArrayGet(pResultMeta->pDbVgroup, i);
+          if (pRes->code || NULL == pRes->pRes) {
+            continue;
+          }
+
+          taosArrayPush(pDbVgList, &pRes->pRes);
+        } 
+      }
+    
+      code = buildVnodePolicyNodeList(pRequest, pNodeList, pMnodeList, pDbVgList);
+      break;
+    }
+    case QUERY_POLICY_HYBRID:
+    case QUERY_POLICY_QNODE: {
+      if (pResultMeta && taosArrayGetSize(pResultMeta->pQnodeList) > 0) {
+        SMetaRes* pRes = taosArrayGet(pResultMeta->pQnodeList, 0);
+        if (pRes->code) {
+          pQnodeList = NULL;
+        } else {
+          pQnodeList = taosArrayDup((SArray*)pRes->pRes);
+        }
+      } else {
+        SAppInstInfo* pInst = pRequest->pTscObj->pAppInfo;
+        taosThreadMutexLock(&pInst->qnodeMutex);
+        if (pInst->pQnodeList) {
+          pQnodeList = taosArrayDup(pInst->pQnodeList);
+        }
+        taosThreadMutexUnlock(&pInst->qnodeMutex);
+      }
+      
+      code = buildQnodePolicyNodeList(pRequest, pNodeList, pMnodeList, pQnodeList);
+      break;
+    }
+    default:
+      tscError("unknown query policy: %d", tsQueryPolicy);
+      return TSDB_CODE_TSC_APP_ERROR;
+  }
+
+  taosArrayDestroy(pDbVgList);
+  taosArrayDestroy(pQnodeList);
+  
+  return code;
+}
+
+int32_t buildSyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray* pMnodeList) {
+  SArray* pDbVgList = NULL;
+  SArray* pQnodeList = NULL;
+  int32_t code = 0;
+  
+  switch (tsQueryPolicy) {
+    case QUERY_POLICY_VNODE: {
+      int32_t dbNum = taosArrayGetSize(pRequest->dbList);
+      if (dbNum > 0) {
+        SCatalog* pCtg = NULL;
+        SAppInstInfo* pInst = pRequest->pTscObj->pAppInfo;
+        code = catalogGetHandle(pInst->clusterId, &pCtg);
+        if (code != TSDB_CODE_SUCCESS) {
+          goto _return;
+        }
+
+        pDbVgList = taosArrayInit(dbNum, POINTER_BYTES);   
+        SArray* pVgList = NULL;
+        for (int32_t i = 0; i < dbNum; ++i) {
+          char* dbFName = taosArrayGet(pRequest->dbList, i);
+          SRequestConnInfo conn = {.pTrans = pInst->pTransporter,
+                                   .requestId = pRequest->requestId,
+                                   .requestObjRefId = pRequest->self,
+                                   .mgmtEps = getEpSet_s(&pInst->mgmtEp)};    
+                                   
+          code = catalogGetDBVgInfo(pCtg, &conn, dbFName, &pVgList);
+          if (code) {
+            goto _return;
+          }
+        
+          taosArrayPush(pDbVgList, &pVgList);
+        } 
+      }
+    
+      code = buildVnodePolicyNodeList(pRequest, pNodeList, pMnodeList, pDbVgList);
+      break;
+    }
+    case QUERY_POLICY_HYBRID:
+    case QUERY_POLICY_QNODE: {
+      getQnodeList(pRequest, &pQnodeList);
+      
+      code = buildQnodePolicyNodeList(pRequest, pNodeList, pMnodeList, pQnodeList);
+      break;
+    }
+    default:
+      tscError("unknown query policy: %d", tsQueryPolicy);
+      return TSDB_CODE_TSC_APP_ERROR;
+  }
+
+_return:
+
+  taosArrayDestroy(pDbVgList);
+  taosArrayDestroy(pQnodeList);
+  
+  return code;
+}
+
 
 int32_t scheduleAsyncQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList) {
   tsem_init(&schdRspSem, 0, 0);
@@ -658,12 +857,16 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQue
       code = execDdlQuery(pRequest, pQuery);
       break;
     case QUERY_EXEC_MODE_SCHEDULE: {
-      SArray* pNodeList = NULL;
-      code = getPlan(pRequest, pQuery, &pRequest->body.pDag, &pNodeList);
+      SArray* pMnodeList = taosArrayInit(4, sizeof(SQueryNodeLoad));
+      code = getPlan(pRequest, pQuery, &pRequest->body.pDag, pMnodeList);
       if (TSDB_CODE_SUCCESS == code) {
+        SArray* pNodeList = NULL;
+        buildSyncExecNodeList(pRequest, &pNodeList, pMnodeList);
+        
         code = scheduleQuery(pRequest, pRequest->body.pDag, pNodeList);
+        taosArrayDestroy(pNodeList);
       }
-      taosArrayDestroy(pNodeList);
+      taosArrayDestroy(pMnodeList);
       break;
     }
     case QUERY_EXEC_MODE_EMPTY_RESULT:
@@ -712,7 +915,7 @@ SRequestObj* launchQuery(STscObj* pTscObj, const char* sql, int sqlLen) {
   return launchQueryImpl(pRequest, pQuery, false, NULL);
 }
 
-void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery) {
+void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData *pResultMeta) {
   int32_t code = 0;
 
   switch (pQuery->execMode) {
@@ -723,7 +926,7 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery) {
       code = asyncExecDdlQuery(pRequest, pQuery);
       break;
     case QUERY_EXEC_MODE_SCHEDULE: {
-      SArray* pNodeList = taosArrayInit(4, sizeof(SQueryNodeLoad));
+      SArray* pMnodeList = taosArrayInit(4, sizeof(SQueryNodeLoad));
 
       pRequest->type = pQuery->msgType;
 
@@ -736,13 +939,16 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery) {
                           .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE};
 
       SAppInstInfo* pAppInfo = getAppInfo(pRequest);
-      code = qCreateQueryPlan(&cxt, &pRequest->body.pDag, pNodeList);
+      code = qCreateQueryPlan(&cxt, &pRequest->body.pDag, pMnodeList);
       if (code) {
         tscError("0x%" PRIx64 " failed to create query plan, code:%s 0x%" PRIx64, pRequest->self, tstrerror(code),
                  pRequest->requestId);
       }
 
       if (TSDB_CODE_SUCCESS == code) {
+        SArray* pNodeList = NULL;
+        buildAsyncExecNodeList(pRequest, &pNodeList, pMnodeList, pResultMeta);
+        
         SRequestConnInfo conn = {
             .pTrans = pAppInfo->pTransporter, .requestId = pRequest->requestId, .requestObjRefId = pRequest->self};
         SSchedulerReq req = {.pConn = &conn,
@@ -754,6 +960,7 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery) {
                              .cbParam = pRequest,
                              .reqKilled = &pRequest->killed};
         code = schedulerAsyncExecJob(&req, &pRequest->body.queryJob);
+        taosArrayDestroy(pNodeList);
       } else {
         tscError("0x%" PRIx64 " failed to create query plan, code:%s 0x%" PRIx64, pRequest->self, tstrerror(code),
                  pRequest->requestId);
@@ -761,7 +968,7 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery) {
       }
 
       // todo not to be released here
-      taosArrayDestroy(pNodeList);
+      taosArrayDestroy(pMnodeList);
       break;
     }
     case QUERY_EXEC_MODE_EMPTY_RESULT:
