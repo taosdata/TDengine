@@ -68,6 +68,7 @@ typedef struct SCatalogReq {
   SArray* pIndex;         // element is index name
   SArray* pUser;          // element is SUserAuthInfo
   SArray* pTableIndex;    // element is SNAME
+  SArray* pTableCfg;      // element is SNAME
   bool    qNodeRequired;  // valid qnode
   bool    forceUpdate;
 } SCatalogReq;
@@ -88,6 +89,7 @@ typedef struct SMetaData {
   SArray* pIndex;       // pRes = SIndexInfo*
   SArray* pUser;        // pRes = bool*
   SArray* pQnodeList;   // pRes = SQueryNodeAddr*
+  SArray* pTableCfg;
 } SMetaData;
 
 typedef struct SCatalogCfg {

@@ -133,6 +133,30 @@ static int32_t getTableMeta(STranslateContext* pCxt, const char* pDbName, const 
   return getTableMetaImpl(pCxt, toName(pCxt->pParseCxt->acctId, pDbName, pTableName, &name), pMeta);
 }
 
+static int32_t getTableCfg(STranslateContext* pCxt, const SName* pName, STableCfg** pCfg) {
+  SParseContext* pParCxt = pCxt->pParseCxt;
+  int32_t        code = collectUseDatabase(pName, pCxt->pDbs);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = collectUseTable(pName, pCxt->pTables);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pParCxt->async) {
+      code = getTableCfgFromCache(pCxt->pMetaCache, pName, pCfg);
+    } else {
+      SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
+                               .requestId = pParCxt->requestId,
+                               .requestObjRefId = pParCxt->requestRid,
+                               .mgmtEps = pParCxt->mgmtEpSet};
+      code = catalogGetTableCfg(pParCxt->pCatalog, &conn, pName, pCfg);
+    }
+  }
+  if (TSDB_CODE_SUCCESS != code) {
+    parserError("catalogGetTableMeta error, code:%s, dbName:%s, tbName:%s", tstrerror(code), pName->dbname,
+                pName->tname);
+  }
+  return code;
+}
+
 static int32_t refreshGetTableMeta(STranslateContext* pCxt, const char* pDbName, const char* pTableName,
                                    STableMeta** pMeta) {
   SParseContext* pParCxt = pCxt->pParseCxt;
@@ -4168,7 +4192,7 @@ static int32_t translateShowCreateDatabase(STranslateContext* pCxt, SShowCreateD
 }
 
 static int32_t translateShowCreateTable(STranslateContext* pCxt, SShowCreateTableStmt* pStmt) {
-  return getTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pStmt->pMeta);
+  return getTableCfg(pCxt, pStmt->dbName, pStmt->tableName, (STableCfg*)&pStmt->pCfg);
 }
 
 static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {

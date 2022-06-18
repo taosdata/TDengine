@@ -668,6 +668,23 @@ int32_t tSerializeSQueryTableRsp(void* buf, int32_t bufLen, SQueryTableRsp* pRsp
 int32_t tDeserializeSQueryTableRsp(void* buf, int32_t bufLen, SQueryTableRsp* pRsp);
 
 typedef struct {
+  char     tbName[TSDB_TABLE_NAME_LEN];
+  char     stbName[TSDB_TABLE_NAME_LEN];
+  char     dbFName[TSDB_DB_FNAME_LEN];
+  int32_t  numOfTags;
+  int32_t  numOfColumns;
+  int8_t   tableType;
+  int64_t  delay1;
+  int64_t  delay2;
+  int64_t  watermark1;
+  int64_t  watermark2;
+  int32_t  ttl;
+  char*    pAst1;
+  char*    pAst2;
+  SSchema* pSchemas;
+} STableCfg;
+
+typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
   int32_t numOfVgroups;
   int32_t numOfStables;  // single_stable

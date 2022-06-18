@@ -1390,7 +1390,7 @@ void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncIndex 
         syncUtilU642Addr((pSyncNode->replicasId)[i].addr, host, sizeof(host), &port);
 
         do {
-          char eventLog[128];
+          char eventLog[256];
           snprintf(eventLog, sizeof(eventLog), "snapshot sender reset for %lu, newIndex:%d, %s:%d, %p",
                    (pSyncNode->replicasId)[i].addr, i, host, port, oldSenders[j]);
           syncNodeEventLog(pSyncNode, eventLog);
@@ -1405,7 +1405,7 @@ void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncIndex 
         (pSyncNode->senders)[i]->replicaIndex = i;
 
         do {
-          char eventLog[128];
+          char eventLog[256];
           snprintf(eventLog, sizeof(eventLog), "snapshot sender udpate replicaIndex from %d to %d, %s:%d, %p, reset:%d",
                    oldreplicaIndex, i, host, port, (pSyncNode->senders)[i], reset);
           syncNodeEventLog(pSyncNode, eventLog);

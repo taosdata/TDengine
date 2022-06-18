@@ -559,6 +559,9 @@ int32_t buildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalog
   if (TSDB_CODE_SUCCESS == code) {
     code = buildTableReq(pMetaCache->pTableIndex, &pCatalogReq->pTableIndex);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildTableReq(pMetaCache->pTableCfg, &pCatalogReq->pTableCfg);
+  }
   return code;
 }
 
@@ -653,6 +656,9 @@ int32_t putMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMet
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = putTableDataToCache(pCatalogReq->pTableIndex, pMetaData->pTableIndex, &pMetaCache->pTableIndex);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = putTableDataToCache(pCatalogReq->pTableCfg, pMetaData->pTableCfg, &pMetaCache->pTableCfg);
   }
   return code;
 }
@@ -859,6 +865,10 @@ int32_t reserveTableIndexInCache(int32_t acctId, const char* pDb, const char* pT
   return reserveTableReqInCache(acctId, pDb, pTable, &pMetaCache->pTableIndex);
 }
 
+int32_t reserveTableCfgInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache) {
+  return reserveTableReqInCache(acctId, pDb, pTable, &pMetaCache->pTableCfg);
+}
+
 int32_t getTableIndexFromCache(SParseMetaCache* pMetaCache, const SName* pName, SArray** pIndexes) {
   char fullName[TSDB_TABLE_FNAME_LEN];
   tNameExtractFullName(pName, fullName);
@@ -867,6 +877,20 @@ int32_t getTableIndexFromCache(SParseMetaCache* pMetaCache, const SName* pName, 
   if (TSDB_CODE_SUCCESS == code && NULL != pSmaIndexes) {
     *pIndexes = smaIndexesDup(pSmaIndexes);
     if (NULL == *pIndexes) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  return code;
+}
+
+int32_t getTableCfgFromCache(SParseMetaCache* pMetaCache, const char* pFunc, STableCfg** pOutput) {
+  char fullName[TSDB_TABLE_FNAME_LEN];
+  tNameExtractFullName(pName, fullName);
+  STableCfg* pCfg = NULL;
+  int32_t code = getMetaDataFromHash(fullName, strlen(fullName), pMetaCache->pTableIndex, (void**)&pCfg);
+  if (TSDB_CODE_SUCCESS == code) {
+    *pOutput = tableCfgDup(pCfg);
+    if (NULL == *pOutput) {
       code = TSDB_CODE_OUT_OF_MEMORY;
     }
   }
@@ -882,4 +906,5 @@ void destoryParseMetaCache(SParseMetaCache* pMetaCache) {
   taosHashCleanup(pMetaCache->pUserAuth);
   taosHashCleanup(pMetaCache->pUdf);
   taosHashCleanup(pMetaCache->pTableIndex);
+  taosHashCleanup(pMetaCache->pTableCfg);
 }

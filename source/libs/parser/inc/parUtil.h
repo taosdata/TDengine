@@ -47,6 +47,7 @@ typedef struct SParseMetaCache {
   SHashObj* pUserAuth;     // key is SUserAuthInfo serialized string, element is bool indicating whether or not to pass
   SHashObj* pUdf;          // key is funcName, element is SFuncInfo*
   SHashObj* pTableIndex;   // key is tbFName, element is SArray<STableIndexInfo>*
+  SHashObj* pTableCfg;    // key is tbFName, element is STableMeta*
 } SParseMetaCache;
 
 int32_t generateSyntaxErrMsg(SMsgBuf* pBuf, int32_t errCode, ...);
@@ -77,6 +78,7 @@ int32_t reserveUserAuthInCache(int32_t acctId, const char* pUser, const char* pD
 int32_t reserveUserAuthInCacheExt(const char* pUser, const SName* pName, AUTH_TYPE type, SParseMetaCache* pMetaCache);
 int32_t reserveUdfInCache(const char* pFunc, SParseMetaCache* pMetaCache);
 int32_t reserveTableIndexInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
+int32_t reserveTableCfgInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
 int32_t getTableMetaFromCache(SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta);
 int32_t getDbVgInfoFromCache(SParseMetaCache* pMetaCache, const char* pDbFName, SArray** pVgInfo);
 int32_t getTableVgroupFromCache(SParseMetaCache* pMetaCache, const SName* pName, SVgroupInfo* pVgroup);
@@ -87,6 +89,7 @@ int32_t getUserAuthFromCache(SParseMetaCache* pMetaCache, const char* pUser, con
                              bool* pPass);
 int32_t getUdfInfoFromCache(SParseMetaCache* pMetaCache, const char* pFunc, SFuncInfo* pInfo);
 int32_t getTableIndexFromCache(SParseMetaCache* pMetaCache, const SName* pName, SArray** pIndexes);
+int32_t getTableCfgFromCache(SParseMetaCache* pMetaCache, const char* pFunc, STableCfg** pInfo);
 void    destoryParseMetaCache(SParseMetaCache* pMetaCache);
 
 #ifdef __cplusplus
