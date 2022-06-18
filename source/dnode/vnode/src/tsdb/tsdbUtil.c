@@ -443,8 +443,11 @@ void tsdbFidKeyRange(int32_t fid, int32_t minutes, int8_t precision, TSKEY *minK
 
 // TSDBROW ======================================================
 TSDBKEY tsdbRowKey(TSDBROW *pRow) {
-  // TODO: support SBlockData version
+  // if (pRow->type == 0) {
   return (TSDBKEY){.version = pRow->version, .ts = pRow->pTSRow->ts};
+  // } else {
+  // return (TSDBKEY){.version = pRow->pBlockData->aVersion[pRow->iRow], .ts = pRow->pBlockData->aTSKEY[pRow->iRow]};
+  // }
 }
 
 void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {

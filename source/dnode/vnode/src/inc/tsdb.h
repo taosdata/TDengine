@@ -32,26 +32,27 @@ extern "C" {
 #define tsdbTrace(...) do { if (tsdbDebugFlag & DEBUG_TRACE) { taosPrintLog("TSDB ", DEBUG_TRACE, tsdbDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
-typedef struct TSDBROW      TSDBROW;
-typedef struct TSDBKEY      TSDBKEY;
-typedef struct TABLEID      TABLEID;
-typedef struct KEYINFO      KEYINFO;
-typedef struct SDelData     SDelData;
-typedef struct SDelIdx      SDelIdx;
-typedef struct STbData      STbData;
-typedef struct SMemTable    SMemTable;
-typedef struct STbDataIter  STbDataIter;
-typedef struct SMergeInfo   SMergeInfo;
-typedef struct STable       STable;
-typedef struct SMapData     SMapData;
-typedef struct SBlockSMA    SBlockSMA;
-typedef struct SBlockIdx    SBlockIdx;
-typedef struct SBlock       SBlock;
-typedef struct SBlockStatis SBlockStatis;
-typedef struct SAggrBlkCol  SAggrBlkCol;
-typedef struct SColData     SColData;
-typedef struct SBlockData   SBlockData;
-typedef struct SReadH       SReadH;
+typedef struct TSDBROW       TSDBROW;
+typedef struct TSDBKEY       TSDBKEY;
+typedef struct TABLEID       TABLEID;
+typedef struct KEYINFO       KEYINFO;
+typedef struct SDelData      SDelData;
+typedef struct SDelIdx       SDelIdx;
+typedef struct STbData       STbData;
+typedef struct SMemTable     SMemTable;
+typedef struct STbDataIter   STbDataIter;
+typedef struct SMergeInfo    SMergeInfo;
+typedef struct STable        STable;
+typedef struct SMapData      SMapData;
+typedef struct SBlockSMA     SBlockSMA;
+typedef struct SBlockIdx     SBlockIdx;
+typedef struct SBlock        SBlock;
+typedef struct SBlockStatis  SBlockStatis;
+typedef struct SAggrBlkCol   SAggrBlkCol;
+typedef struct SColData      SColData;
+typedef struct SBlockDataHdr SBlockDataHdr;
+typedef struct SBlockData    SBlockData;
+typedef struct SReadH        SReadH;
 
 #define TSDB_MAX_SUBBLOCKS 8
 
@@ -105,8 +106,8 @@ int32_t tsdbDataFWriterClose(SDataFWriter *pWriter, int8_t sync);
 int32_t tsdbUpdateDFileSetHeader(SDataFWriter *pWriter, uint8_t **ppBuf);
 int32_t tsdbWriteBlockIdx(SDataFWriter *pWriter, SMapData *pMapData, uint8_t **ppBuf);
 int32_t tsdbWriteBlock(SDataFWriter *pWriter, SMapData *pMapData, uint8_t **ppBuf, SBlockIdx *pBlockIdx);
-int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, uint8_t **ppBuf, SBlockIdx *pBlockIdx,
-                           SBlock *pBlock);
+int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, uint8_t **ppBuf1, uint8_t **ppBuf2,
+                           SBlockIdx *pBlockIdx, SBlock *pBlock);
 int32_t tsdbWriteBlockSMA(SDataFWriter *pWriter, SBlockSMA *pBlockSMA, int64_t *rOffset, int64_t *rSize);
 
 // SDataFReader
@@ -343,11 +344,10 @@ struct SBlock {
   int32_t   nRow;
   int8_t    last;
   int8_t    hasDup;
+  int8_t    cmprAlg;
   int8_t    nSubBlock;
   SSubBlock aSubBlock[TSDB_MAX_SUBBLOCKS];
 };
-
-int a = sizeof(SBlock);
 
 struct SAggrBlkCol {
   int16_t colId;
@@ -435,6 +435,12 @@ typedef struct {
 struct SBlockSMA {
   int32_t  nCol;
   SColSMA *aColSMA;
+};
+
+struct SBlockDataHdr {
+  uint8_t delimiter;
+  int64_t suid;
+  int64_t uid;
 };
 
 #ifdef __cplusplus
