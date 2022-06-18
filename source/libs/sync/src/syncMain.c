@@ -841,15 +841,6 @@ void syncNodeStart(SSyncNode* pSyncNode) {
     syncNodeBecomeLeader(pSyncNode, "one replica start");
 
     // Raft 3.6.2 Committing entries from previous terms
-
-    // use this now
-    syncNodeAppendNoop(pSyncNode);
-    syncMaybeAdvanceCommitIndex(pSyncNode);  // maybe only one replica
-
-    if (gRaftDetailLog) {
-      syncNodeLog2("==state change become leader immediately==", pSyncNode);
-    }
-
     return;
   }
 
@@ -1583,6 +1574,10 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
   // start heartbeat timer
   syncNodeStartHeartbeatTimer(pSyncNode);
 
+  // append noop
+  syncNodeAppendNoop(pSyncNode);
+  syncMaybeAdvanceCommitIndex(pSyncNode);  // maybe only one replica
+
   // trace log
   do {
     int32_t debugStrLen = strlen(debugStr);
@@ -1607,10 +1602,6 @@ void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
   syncNodeLog2("==state change syncNodeCandidate2Leader==", pSyncNode);
 
   // Raft 3.6.2 Committing entries from previous terms
-
-  // use this now
-  syncNodeAppendNoop(pSyncNode);
-  syncMaybeAdvanceCommitIndex(pSyncNode);  // maybe only one replica
 
   // do not use this
   // syncNodeEqNoop(pSyncNode);
