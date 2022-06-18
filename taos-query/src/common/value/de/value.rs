@@ -176,7 +176,7 @@ impl<'de, 'b: 'de> serde::de::Deserializer<'de> for Value {
                 .into_deserializer()
                 .deserialize_any(visitor)
                 .map_err(<Self::Error as de::Error>::custom),
-            Timestamp(v) => visitor.visit_i64(*v.as_raw_i64()),
+            Timestamp(v) => visitor.visit_i64(v.as_raw_i64()),
             VarBinary(v) | Blob(v) | MediumBlob(v) => {
                 v.into_deserializer().deserialize_any(visitor)
             }

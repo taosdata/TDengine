@@ -58,8 +58,9 @@ use serde::de::Visitor;
 /// - Decimal/Blob/MediumBlob is not supported in 2.0/3.0 .
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde_repr::Serialize_repr)]
 #[repr(u8)]
+#[non_exhaustive]
 pub enum Ty {
-    /// 0: Null is only a value, not a *real* type, a nullable data type will be represented as [Option<T>] in Rust.
+    /// 0: Null is only a value, not a *real* type, a nullable data type could be represented as [Option<T>] in Rust.
     Null = 0,
     /// 1: Bool, `bool` type in sql, will be represented as [bool] in Rust.
     Bool, // 1

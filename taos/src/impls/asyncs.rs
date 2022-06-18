@@ -57,7 +57,7 @@ impl<'q> AsyncQueryable<'q> for Taos {
     ) -> Result<Self::AsyncResultSet, Self::Error> {
         // todo(3.0): remove these line to use taos_query_a in async/await impl.
         if crate::client_info().starts_with("3") {
-            let raw = self.0.query(sql.as_ref().into_c_str().as_ptr())?;
+            let raw = self.0.query(sql.as_ref())?;
             return Ok(ResultSet::new(raw));
         }
         use tokio::sync::oneshot::{channel, Sender};
@@ -98,8 +98,11 @@ mod tests {
     #[test(log_level = "info")]
     async fn async_query_de(taos: &Taos, _database: &str) -> Result<()> {
         use taos_query::{AsyncFetchable, AsyncQueryable};
-        taos.exec("create table tb1 (ts timestamp, level tinyint, content varchar(100), dnode_id int, dnode_ep varchar(100))")
-            .await?;
+        taos.exec(
+            "create table tb1 (ts timestamp, level tinyint, content varchar(100),\
+             dnode_id int, dnode_ep varchar(100))",
+        )
+        .await?;
         taos.exec("insert into tb1 values(now, 1, '', 1, 'abc')")
             .await?;
         let mut rs = <Taos as AsyncQueryable>::query(taos, "select * from tb1").await?;

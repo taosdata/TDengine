@@ -60,7 +60,7 @@ impl FromStr for AddTag {
                     .unwrap();
         }
         // RE.matches(s).into_iter()
-        if let Some(cap) = dbg!(RE.captures(s)) {
+        if let Some(cap) = RE.captures(s) {
             let name = cap["f"].to_string();
             let len = cap
                 .name("l")

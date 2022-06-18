@@ -131,7 +131,10 @@ impl<'de, 'b: 'de> serde::de::Deserializer<'de> for BorrowedValue<'de> {
             Float(v) => visitor.visit_f32(v),
             Double(v) => visitor.visit_f64(v),
             VarChar(v) => visitor.visit_borrowed_str(v),
-            NChar(v) => visitor.visit_borrowed_str(v),
+            NChar(v) => match v {
+                Cow::Borrowed(v) => visitor.visit_borrowed_str(v),
+                Cow::Owned(v) => visitor.visit_string(v),
+            },
             Json(v) => match v {
                 Cow::Borrowed(v) => serde_json::Deserializer::from_slice(v)
                     .deserialize_any(visitor)
@@ -142,7 +145,7 @@ impl<'de, 'b: 'de> serde::de::Deserializer<'de> for BorrowedValue<'de> {
                     .deserialize_any(visitor)
                     .map_err(<Self::Error as de::Error>::custom),
             },
-            Timestamp(v) => visitor.visit_i64(*v.as_raw_i64()),
+            Timestamp(v) => visitor.visit_i64(v.as_raw_i64()),
             VarBinary(v) | Blob(v) | MediumBlob(v) => visitor.visit_borrowed_bytes(v),
             _ => Err(<Self::Error as de::Error>::custom(
                 "un supported type to deserialize",
@@ -185,7 +188,11 @@ impl<'de, 'b: 'de> serde::de::Deserializer<'de> for BorrowedValue<'de> {
                     .map_err(<Self::Error as serde::de::Error>::custom)
                     .and_then(|s| visitor.visit_string(s)),
             },
-            VarChar(v) | NChar(v) => visitor.visit_borrowed_str(v),
+            VarChar(v) => visitor.visit_borrowed_str(v),
+            NChar(v) => match v {
+                Cow::Borrowed(v) => visitor.visit_borrowed_str(v),
+                Cow::Owned(v) => visitor.visit_str(&v),
+            },
             Timestamp(v) => visitor.visit_string(
                 v.to_naive_datetime()
                     .format("%Y-%m-%dT%H:%M:%S%.f")
@@ -258,7 +265,7 @@ impl<'de, 'b: 'de> serde::de::Deserializer<'de> for BorrowedValue<'de> {
                     .deserialize_newtype_struct(_name, visitor)
                     .map_err(<Self::Error as de::Error>::custom),
             },
-            Timestamp(v) => visitor.visit_i64(*v.as_raw_i64()),
+            Timestamp(v) => visitor.visit_i64(v.as_raw_i64()),
             VarBinary(v) | Blob(v) | MediumBlob(v) => visitor.visit_borrowed_bytes(v),
             _ => Err(<Self::Error as de::Error>::custom(
                 "un supported type to deserialize",
@@ -286,7 +293,12 @@ impl<'de, 'b: 'de> serde::de::Deserializer<'de> for BorrowedValue<'de> {
                 .deserialize_seq(visitor),
             Json(v) => v.to_vec().into_deserializer().deserialize_seq(visitor),
             Timestamp(_) => todo!(),
-            VarChar(v) | NChar(v) => v
+            VarChar(v) => v
+                .as_bytes()
+                .to_vec()
+                .into_deserializer()
+                .deserialize_seq(visitor),
+            NChar(v) => v
                 .as_bytes()
                 .to_vec()
                 .into_deserializer()
@@ -413,7 +425,7 @@ mod tests {
             Float(1.0), f32, 1.0
             Double(f64::MAX), f64, f64::MAX
             VarChar(""), String, "".to_string()
-            NChar(""), String, "".to_string()
+            NChar("".into()), String, "".to_string()
             Timestamp(crate::Timestamp::Milliseconds(1)), crate::Timestamp, crate::Timestamp::Milliseconds(1)
             VarBinary(&[0, 1,2]), Vec<u8>, vec![0, 1, 2]
             Blob(&[0, 1,2]), Vec<u8>, vec![0, 1, 2]

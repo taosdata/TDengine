@@ -16,14 +16,12 @@ use taos_sys::*;
 unsafe extern "C" fn tmq_commit_callback(
     _tmq: *mut tmq_t,
     resp: tmq_resp_err_t,
-    _topic: *mut tmq_topic_vgroup_list_t,
     param: *mut c_void,
 ) {
     log::info!("commit {resp:?}");
     let cons = ConsumerRef::from_ptr(_tmq);
-    let topic = resp.ok_or("commit failed").map(|_| Offsets(_topic));
-    let cb: &Weak<fn(ConsumerRef, Result<Offsets>)> = std::mem::transmute(param);
-    (*cb.as_ptr())(cons, topic);
+    let cb: &Weak<fn(ConsumerRef, Result<()>)> = std::mem::transmute(param);
+    (*cb.as_ptr())(cons, resp.ok_or("commit failed"));
 }
 
 #[derive(Debug)]
@@ -104,16 +102,13 @@ pub use conf::*;
 mod consumer;
 pub use consumer::Consumer;
 
-mod offset;
-pub use offset::*;
-
 use self::consumer::ConsumerRef;
 
 pub struct TmqBuilder {
     conf: TmqConf,
     wait: i64,
     topics: TmqList,
-    on_commit: Option<Arc<fn(ConsumerRef, Result<Offsets>)>>,
+    on_commit: Option<Arc<fn(ConsumerRef, Result<()>)>>,
 }
 
 impl TmqBuilder {
@@ -173,7 +168,7 @@ impl TmqBuilder {
         })
     }
 
-    pub fn on_auto_commit(&mut self, callback: fn(ConsumerRef, Result<Offsets>)) -> &mut Self {
+    pub fn on_auto_commit(&mut self, callback: fn(ConsumerRef, Result<()>)) -> &mut Self {
         let on_commit = Arc::new(callback);
         let cb = Arc::downgrade(&on_commit);
         self.on_commit = Some(on_commit);
@@ -282,7 +277,6 @@ mod test {
         unsafe extern "C" fn tmq_commit_callback(
             _tmq: *mut tmq_t,
             resp: tmq_resp_err_t,
-            _topic: *mut tmq_topic_vgroup_list_t,
             param: *mut c_void,
         ) {
             log::info!("commit {resp:?}");
@@ -340,7 +334,7 @@ mod test {
                 process_message(&mut msg);
                 msg_count.fetch_add(1, atomic::Ordering::SeqCst);
 
-                consumer.commit_sync(())?;
+                consumer.commit_sync(&msg)?;
                 println!("msg summary: {:?}", msg.summary());
             }
         }
@@ -372,7 +366,7 @@ mod test {
         log::info!("subscribe with dsn: {dsn}");
         let mut consumer = TmqBuilder::from_dsn(&dsn)?
             .on_auto_commit(
-                |_: ConsumerRef, _: std::result::Result<Offsets, taos_error::Error>| {
+                |_: ConsumerRef, _: std::result::Result<(), taos_error::Error>| {
                     log::info!("rust callback");
                 },
             )
@@ -412,7 +406,7 @@ mod test {
         log::info!("subscribe with dsn: {dsn}");
         let consumer = TmqBuilder::from_dsn(&dsn)?
             .on_auto_commit(
-                |_: ConsumerRef, _: std::result::Result<Offsets, taos_error::Error>| {
+                |_: ConsumerRef, _: std::result::Result<(), taos_error::Error>| {
                     log::info!("rust callback");
                 },
             )
