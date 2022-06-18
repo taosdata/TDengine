@@ -2,7 +2,7 @@ const { options, connect } = require("td2.0-rest-connector");
 
 async function test() {
   options.url = process.env.TDENGINE_CLOUD_URL;
-  options.token = process.env.TDENGINE_CLOUD_TOKEN;
+  options.query = { token: process.env.TDENGINE_CLOUD_TOKEN };
   let conn = connect(options);
   let cursor = conn.cursor();
   try {
