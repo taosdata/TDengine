@@ -57,7 +57,7 @@ class TDTestQuery(TDCase):
     def data_create(self,db):
         #os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))    
         os.system("touch %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
-        self.tdCreateData.dropandcreateDB_random("%s" % self.db, 20) 
+        self.tdCreateData.dropandcreateDB_random("%s" % db, 20) 
         
     # def case_common(self):
     #     #os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))    

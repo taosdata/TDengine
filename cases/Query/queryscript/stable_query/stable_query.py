@@ -48,6 +48,7 @@ class TDTestQuery(TDCase):
         
     #basic_param
     db = "stable_all"
+    service_host = ""
     table_list = ['stable_1','stable_2',]
     table = str(random.sample(table_list,1)).replace("[","").replace("]","").replace("'","")
     table_null_list = ['stable_null_data','stable_null_childtable']
@@ -55,34 +56,37 @@ class TDTestQuery(TDCase):
     testcasePath = os.path.split(__file__)[0]
     testcaseFilename = os.path.split(__file__)[-1]
 
-    def case_common(self):
+    # def case_common(self):
+    #     #os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))    
+    #     os.system("touch %s/%s.sql" % (self.testcasePath,self.testcaseFilename)) 
+    #     self.tdCreateData.dropandcreateDB_random("%s" % self.db, 1) 
+
+    #     conn1 = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos/")
+    #     cur1 = conn1.cursor()        
+    #     cur1.execute('use "%s";' %self.db)
+    #     sql = 'select * from stable_1 limit 5;'
+    #     cur1.execute(sql)
+
+    #     return(conn1,cur1)
+
+    def data_create(self,db):
         #os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))    
-        os.system("touch %s/%s.sql" % (self.testcasePath,self.testcaseFilename)) 
-        self.tdCreateData.dropandcreateDB_random("%s" % self.db, 1) 
-
-        conn1 = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos/")
-        cur1 = conn1.cursor()        
-        cur1.execute('use "%s";' %self.db)
-        sql = 'select * from stable_1 limit 5;'
-        cur1.execute(sql)
-
-        return(conn1,cur1)
-
+        os.system("touch %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
+        self.tdCreateData.dropandcreateDB_random("%s" % db, 1) 
+        
     def right_case1(self):
         print("case1:select * from stable where condition && select * from ( select front )")
         print("\n\n\n=========================================case1=========================================\n\n\n")
         
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]
         sql = 'Count the number of sqls'
 
         for i in range(2):
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                cur1.execute('use "%s";' %self.db)                 
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)                 
 
                 stable_where = tdWhere.stable_where()
                 sql1 = 'select * from %s;' % self.table
@@ -125,17 +129,15 @@ class TDTestQuery(TDCase):
         print("case2:select * from stable where condition order by ts asc | desc && select * from ( select front )")
         print("\n\n\n=========================================case2=========================================\n\n\n")
 
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]
         sql = 'Count the number of sqls'
 
         for i in range(2):
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                cur1.execute('use "%s";' %self.db)    
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db) 
                 
                 stable_where = tdWhere.stable_where()
                 sql1 = 'select * from %s;' % self.table 
@@ -258,17 +260,15 @@ class TDTestQuery(TDCase):
         print("case3:select * from stable where condition order by ts limit && select * from ( select front ) ")
         print("\n\n\n=========================================case3=========================================\n\n\n")
         
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]
         sql = 'Count the number of sqls'
 
         for i in range(2):
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                cur1.execute('use "%s";' %self.db)                 
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)                
 
                 stable_where = tdWhere.stable_where()
                 sql1 = 'select * from %s;' % self.table 
@@ -310,17 +310,15 @@ class TDTestQuery(TDCase):
         print("case4:select * from stable where condition order by ts limit offset && select * from ( select front )")
         print("\n\n\n=========================================case4=========================================\n\n\n")
         
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]
         sql = 'Count the number of sqls'
 
         for i in range(2):
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                cur1.execute('use "%s";' %self.db)                 
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)                
 
                 stable_where = tdWhere.stable_where()
                 sql1 = 'select * from  %s limit 10 offset 5;'  % self.table
@@ -363,16 +361,14 @@ class TDTestQuery(TDCase):
         ("case1:select * from stable where condition interval | sliding | Fill && select * from ( select front )")
         print("\n\n\n=========================================case1=========================================\n\n\n")
 
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]
 
         for i in range(2):
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                cur1.execute('use "%s";' %self.db)                 
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)               
 
                 stable_where = tdWhere.stable_where()
                 sql1 = 'select * from stable_1 interval(3s) sliding(3n) Fill(NEXT);'  
@@ -411,6 +407,8 @@ class TDTestQuery(TDCase):
         
     def run(self)-> bool:
         
+        self.data_create(self.db)
+           
         startTime1 = time.time()
         self.right_case1()
         endTime1 = time.time()       

@@ -73,7 +73,7 @@ class TDTestQuery(TDCase):
     def data_create(self,db):
         #os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))    
         os.system("touch %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
-        self.tdCreateData.dropandcreateDB_random("%s" % self.db, 1)  
+        self.tdCreateData.dropandcreateDB_random("%s" % db, 1)  
  
     def np_check(self,sql1,sql2):  
         #通过第三方的numpy去校验 
