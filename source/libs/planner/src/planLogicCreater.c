@@ -156,7 +156,11 @@ static EScanType getScanType(SLogicPlanContext* pCxt, SNodeList* pScanPseudoCols
 
   if (NULL == pScanCols) {
     // select count(*) from t
-    return NULL == pScanPseudoCols ? SCAN_TYPE_TABLE : SCAN_TYPE_TAG;
+    return NULL == pScanPseudoCols
+               ? SCAN_TYPE_TABLE
+               : ((FUNCTION_TYPE_BLOCK_DIST_INFO == ((SFunctionNode*)nodesListGetNode(pScanPseudoCols, 0))->funcType)
+                      ? SCAN_TYPE_BLOCK_INFO
+                      : SCAN_TYPE_TAG);
   }
 
   if (TSDB_SYSTEM_TABLE == tableType) {

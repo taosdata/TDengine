@@ -39,7 +39,8 @@ typedef enum EScanType {
   SCAN_TYPE_TABLE,
   SCAN_TYPE_SYSTEM_TABLE,
   SCAN_TYPE_STREAM,
-  SCAN_TYPE_TABLE_MERGE
+  SCAN_TYPE_TABLE_MERGE,
+  SCAN_TYPE_BLOCK_INFO
 } EScanType;
 
 typedef struct SScanLogicNode {
@@ -143,21 +144,21 @@ typedef enum EWindowAlgorithm {
 } EWindowAlgorithm;
 
 typedef struct SWindowLogicNode {
-  SLogicNode         node;
-  EWindowType        winType;
-  SNodeList*         pFuncs;
-  int64_t            interval;
-  int64_t            offset;
-  int64_t            sliding;
-  int8_t             intervalUnit;
-  int8_t             slidingUnit;
-  int64_t            sessionGap;
-  SNode*             pTspk;
-  SNode*             pStateExpr;
-  int8_t             triggerType;
-  int64_t            watermark;
-  double             filesFactor;
-  EWindowAlgorithm   windowAlgo;
+  SLogicNode       node;
+  EWindowType      winType;
+  SNodeList*       pFuncs;
+  int64_t          interval;
+  int64_t          offset;
+  int64_t          sliding;
+  int8_t           intervalUnit;
+  int8_t           slidingUnit;
+  int64_t          sessionGap;
+  SNode*           pTspk;
+  SNode*           pStateExpr;
+  int8_t           triggerType;
+  int64_t          watermark;
+  double           filesFactor;
+  EWindowAlgorithm windowAlgo;
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
@@ -247,6 +248,7 @@ typedef struct SScanPhysiNode {
 } SScanPhysiNode;
 
 typedef SScanPhysiNode STagScanPhysiNode;
+typedef SScanPhysiNode SBlockDistScanPhysiNode;
 
 typedef struct SSystemTableScanPhysiNode {
   SScanPhysiNode scan;
