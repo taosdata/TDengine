@@ -44,8 +44,7 @@ class TDTestCase:
                     buildPath = root[:len(root) - len("/build/bin")]
                     break
         return buildPath
-
-    def run(self):
+    def histogram_check_base(self):
         print("running {}".format(__file__))
         tdSql.execute("drop database if exists db")
         tdSql.execute("create database if not exists db")
@@ -3183,6 +3182,72 @@ class TDTestCase:
 
 
         tdSql.execute('drop database db')
+
+    def histogram_check_distribute(self):
+        dbname = "db"
+        stbname = "stb"
+        row_num = 10
+        child_table_num = 20
+        vgroups = 2
+        user_input_json = "[1,3,5,7]"
+        ts = 1537146000000
+        binary_str = 'taosdata'
+        nchar_str = '涛思数据'
+        column_dict = {
+            'ts'   : 'timestamp',
+            'col1' : 'tinyint',
+            'col2' : 'smallint',
+            'col3' : 'int',
+            'col4' : 'bigint',
+            'col5' : 'tinyint unsigned',
+            'col6' : 'smallint unsigned',
+            'col7' : 'int unsigned',
+            'col8' : 'bigint unsigned',
+            'col9' : 'float',
+            'col10': 'double',
+            'col11': 'bool',
+            'col12': 'binary(20)',
+            'col13': 'nchar(20)'
+        }
+        tdSql.execute(f"create database if not exists {dbname} vgroups {vgroups}")
+        tdSql.execute(f'use {dbname}')
+        # build 20 child tables,every table insert 10 rows
+        tdSql.execute(f'''create table {stbname}(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 tinyint unsigned, col6 smallint unsigned, 
+                    col7 int unsigned, col8 bigint unsigned, col9 float, col10 double, col11 bool, col12 binary(20), col13 nchar(20)) tags(loc nchar(20))''')
+        for i in range(child_table_num):
+            tdSql.execute(f"create table {stbname}_{i} using {stbname} tags('beijing')")
+        tdSql.query('show tables')
+        vgroup_list = []
+        for i in range(len(tdSql.queryResult)):
+            vgroup_list.append(tdSql.queryResult[i][6])
+        vgroup_list_set = set(vgroup_list)
+        for i in vgroup_list_set:
+            vgroups_num = vgroup_list.count(i)
+            if vgroups_num >=2:
+                tdLog.info(f'This scene with {vgroups_num} vgroups is ok!')
+                continue
+            else:
+                tdLog.exit(f'This scene does not meet the requirements with {vgroups_num} vgroup!\n')
+        for i in range(child_table_num):
+            for j in range(row_num):
+                tdSql.execute(f"insert into {stbname}_{i} values(%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '{binary_str}%d', '{nchar_str}%d')"
+                          % (ts + j + i, j + 1, j + 1, j + 1, j + 1, j + 1, j + 1, j + 1, j + 1, j + 0.1, j + 0.1, j % 2, j + 1, j + 1))
+        # user_input
+        for k,v in column_dict.items():
+            if v.lower() == 'tinyint' or v.lower() == 'smallint' or v.lower() == 'int' or v.lower() == 'bigint' or v.lower() =='float' or v.lower() =='double'\
+                or v.lower() =='tinyint unsigned' or v.lower() =='smallint unsigned' or v.lower() =='int unsigned' or v.lower() =='bigint unsigned':
+                tdSql.query(f'select histogram({k}, "user_input", "{user_input_json}", 0) from {stbname}')
+                tdSql.checkRows(len(user_input_json[1:-1].split(','))-1)
+            elif 'binary' in v.lower() or 'nchar' in v.lower() or 'bool' == v.lower():
+                tdSql.error(f'select histogram({k}, "user_input", "{user_input_json}", 0) from {stbname}')
+
+        tdSql.execute(f'drop database {dbname}')
+
+        
+    def run(self):
+        self.histogram_check_base()
+        self.histogram_check_distribute()
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

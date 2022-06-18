@@ -134,6 +134,7 @@ int32_t streamBuildDispatchMsg(SStreamTask* pTask, SStreamDataBlock* data, SRpcM
     int32_t sz = taosArrayGetSize(vgInfo);
     for (int32_t i = 0; i < sz; i++) {
       SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, i);
+      ASSERT(pVgInfo->vgId > 0);
       if (hashValue >= pVgInfo->hashBegin && hashValue <= pVgInfo->hashEnd) {
         vgId = pVgInfo->vgId;
         downstreamTaskId = pVgInfo->taskId;

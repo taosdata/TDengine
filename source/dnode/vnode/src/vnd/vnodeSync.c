@@ -61,6 +61,7 @@ static int32_t vnodeSetStandBy(SVnode *pVnode) {
     return -1;
   }
 
+  vInfo("vgId:%d, start to transfer leader", TD_VID(pVnode));
   if (syncLeaderTransfer(pVnode->sync) != 0) {
     vError("vgId:%d, failed to transfer leader since:%s", TD_VID(pVnode), terrstr());
     return -1;
@@ -186,7 +187,7 @@ void vnodeApplyMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
 
     SRpcMsg rsp = {.code = pMsg->code, .info = pMsg->info};
     if (rsp.code == 0) {
-      if (vnodeProcessWriteReq(pVnode, pMsg, pMsg->conn.applyIndex, &rsp) < 0) {
+      if (vnodeProcessWriteReq(pVnode, pMsg, pMsg->info.conn.applyIndex, &rsp) < 0) {
         rsp.code = terrno;
         vError("vgId:%d, msg:%p failed to apply since %s", vgId, pMsg, terrstr());
       }
@@ -300,7 +301,7 @@ int32_t vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
     ret = -1;
   }
 
-  if (ret != 0) {
+  if (ret != 0 && terrno == 0) {
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
   }
   return ret;
@@ -332,8 +333,9 @@ static int32_t vnodeSyncGetSnapshot(SSyncFSM *pFsm, SSnapshot *pSnapshot) {
 static void vnodeSyncReconfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReConfigCbMeta cbMeta) {
   SVnode *pVnode = pFsm->data;
 
-  SRpcMsg rpcMsg = {.msgType = pMsg->msgType, .contLen = pMsg->contLen, .conn.applyIndex = cbMeta.index};
+  SRpcMsg rpcMsg = {.msgType = pMsg->msgType, .contLen = pMsg->contLen};
   syncGetAndDelRespRpc(pVnode->sync, cbMeta.seqNum, &rpcMsg.info);
+  rpcMsg.info.conn.applyIndex = cbMeta.index;
 
   STraceId *trace = (STraceId *)&pMsg->info.traceId;
   vGTrace("vgId:%d, alter vnode replica is confirmed, type:%s contLen:%d seq:%" PRIu64 " handle:%p", TD_VID(pVnode),
@@ -363,10 +365,11 @@ static void vnodeSyncCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta c
         pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state), beginIndex);
     syncRpcMsgLog2(logBuf, (SRpcMsg *)pMsg);
 
-    SRpcMsg rpcMsg = {.msgType = pMsg->msgType, .contLen = pMsg->contLen, .conn.applyIndex = cbMeta.index};
+    SRpcMsg rpcMsg = {.msgType = pMsg->msgType, .contLen = pMsg->contLen};
     rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
     memcpy(rpcMsg.pCont, pMsg->pCont, pMsg->contLen);
     syncGetAndDelRespRpc(pVnode->sync, cbMeta.seqNum, &rpcMsg.info);
+    rpcMsg.info.conn.applyIndex = cbMeta.index;
     tmsgPutToQueue(&pVnode->msgCb, APPLY_QUEUE, &rpcMsg);
 
   } else {

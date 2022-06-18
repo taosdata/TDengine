@@ -183,27 +183,9 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
           pMsg->privateTerm < pSender->privateTerm) {
         snapshotSenderStart(pSender);
 
-        char     host[128];
-        uint16_t port;
-        syncUtilU642Addr(pSender->pSyncNode->replicasId[pSender->replicaIndex].addr, host, sizeof(host), &port);
-
-        if (gRaftDetailLog) {
-          char* s = snapshotSender2Str(pSender);
-          sDebug(
-              "vgId:%d sync event currentTerm:%lu snapshot send to %s:%d start sender first time, lastApplyIndex:%ld "
-              "lastApplyTerm:%lu "
-              "lastConfigIndex:%ld privateTerm:%lu "
-              "sender:%s",
-              ths->vgId, ths->pRaftStore->currentTerm, host, port, pSender->snapshot.lastApplyIndex,
-              pSender->snapshot.lastApplyTerm, pSender->snapshot.lastConfigIndex, pSender->privateTerm, s);
-          taosMemoryFree(s);
-        } else {
-          sDebug(
-              "vgId:%d sync event currentTerm:%lu snapshot send to %s:%d start sender first time, lastApplyIndex:%ld "
-              "lastApplyTerm:%lu lastConfigIndex:%ld privateTerm:%lu",
-              ths->vgId, ths->pRaftStore->currentTerm, host, port, pSender->snapshot.lastApplyIndex,
-              pSender->snapshot.lastApplyTerm, pSender->snapshot.lastConfigIndex, pSender->privateTerm);
-        }
+        char* eventLog = snapshotSender2SimpleStr(pSender, "snapshot sender start");
+        syncNodeEventLog(ths, eventLog);
+        taosMemoryFree(eventLog);
       }
 
       SyncIndex sentryIndex = pSender->snapshot.lastApplyIndex + 1;
