@@ -419,6 +419,14 @@ static int32_t translateTopBot(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t topCreateMergePara(SNodeList* pRawParameters, SNode* pPartialRes, SNodeList** pParameters) {
+  int32_t code = nodesListMakeAppend(pParameters, pPartialRes);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesListStrictAppend(*pParameters, nodesCloneNode(nodesListGetNode(pRawParameters, 1)));
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateTopBotImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isPartial) {
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
 
@@ -1728,7 +1736,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = topBotFinalize,
     .combineFunc  = topCombine,
     .pPartialFunc = "_top_partial",
-    .pMergeFunc   = "_top_merge"
+    .pMergeFunc   = "_top_merge",
+    .createMergeParaFuc = topCreateMergePara
   },
   {
     .name = "_top_partial",
