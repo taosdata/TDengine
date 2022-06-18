@@ -55,6 +55,10 @@ typedef struct SReadH       SReadH;
 
 #define TSDB_MAX_SUBBLOCKS 8
 
+#define HAS_NONE  ((int8_t)0x1)
+#define HAS_NULL  ((int8_t)0x2)
+#define HAS_VALUE ((int8_t)0x4)
+
 // tsdbMemTable ==============================================================================================
 
 // SMemTable
@@ -185,6 +189,10 @@ int32_t tPutBlock(uint8_t *p, void *ph);
 int32_t tGetBlock(uint8_t *p, void *ph);
 int32_t tBlockCmprFn(const void *p1, const void *p2);
 
+// SBlockCol
+int32_t tPutBlockCol(uint8_t *p, void *ph);
+int32_t tGetBlockCol(uint8_t *p, void *ph);
+
 // SBlockData
 #define tsdbBlockDataCreate() ((SBlockData){0})
 void    tsdbBlockDataClear(SBlockData *pBlockData);
@@ -306,9 +314,28 @@ struct SBlockIdx {
   int64_t size;
 };
 
+struct SMapData {
+  int32_t  nItem;
+  uint8_t  flag;
+  uint8_t *pOfst;
+  uint32_t nData;
+  uint8_t *pData;
+  uint8_t *pBuf;
+};
+
 typedef struct {
+  int16_t cid;
+  int8_t  type;
+  int8_t  flag;
   int64_t offset;
   int64_t size;
+} SBlockCol;
+
+typedef struct {
+  int64_t  offset;
+  int64_t  ksize;
+  int64_t  bsize;
+  SMapData mBlockCol;  // SMapData<SBlockCol>
 } SSubBlock;
 
 struct SBlock {
@@ -317,8 +344,10 @@ struct SBlock {
   int8_t    last;
   int8_t    hasDup;
   int8_t    nSubBlock;
-  SSubBlock sBlocks[TSDB_MAX_SUBBLOCKS];
+  SSubBlock aSubBlock[TSDB_MAX_SUBBLOCKS];
 };
+
+int a = sizeof(SBlock);
 
 struct SAggrBlkCol {
   int16_t colId;
@@ -391,15 +420,6 @@ struct SDelFile {
   KEYINFO info;
   int64_t size;
   int64_t offset;
-};
-
-struct SMapData {
-  int32_t  nItem;
-  uint8_t  flag;
-  uint8_t *pOfst;
-  uint32_t nData;
-  uint8_t *pData;
-  uint8_t *pBuf;
 };
 
 typedef struct {

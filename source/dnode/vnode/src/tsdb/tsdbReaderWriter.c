@@ -723,8 +723,48 @@ _err:
 
 int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, uint8_t **ppBuf, SBlockIdx *pBlockIdx,
                            SBlock *pBlock) {
-  int32_t code = 0;
-  // TODO
+  int32_t    code = 0;
+  SSubBlock *pSubBlock = &pBlock->aSubBlock[pBlock->nSubBlock++];
+  SBlockCol  bCol;
+
+  pSubBlock->offset = 0;
+  pSubBlock->ksize = 0;
+  pSubBlock->bsize = 0;
+  tMapDataClear(&pSubBlock->mBlockCol);
+
+  // TSDBKEY
+
+  // other columns
+  for (int32_t iCol = 0; iCol < pBlockData->nCol; iCol++) {
+    SColData *pColData = &pBlockData->aColData[iCol];
+
+    ASSERT(pColData->flags);
+
+    if (pColData->flags == HAS_NONE) continue;
+
+    bCol.cid = pColData->cid;
+    bCol.type = pColData->type;
+    bCol.flag = pColData->flags;
+
+    if (pColData->flags != HAS_NULL) {
+      if (pColData->flags != HAS_VALUE) {
+        // handle bitmap
+      }
+
+      // handle real data
+
+      // bCol.offset = ;
+      // bCol.size = ;
+    }
+
+    code = tMapDataPutItem(&pSubBlock->mBlockCol, &bCol, tPutBlockCol);
+    if (code) goto _err;
+  }
+
+  return code;
+
+_err:
+  tsdbError("vgId:%d write block data failed since %s", pWriter->pTsdb, tstrerror(code));
   return code;
 }
 

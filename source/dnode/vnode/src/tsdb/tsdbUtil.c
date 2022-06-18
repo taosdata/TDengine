@@ -277,14 +277,14 @@ int32_t tGetBlockIdx(uint8_t *p, void *ph) {
 // SBlock ======================================================
 int32_t tPutBlock(uint8_t *p, void *ph) {
   int32_t n = 0;
-  ASSERT(0);
+  SBlock *pBlock = (SBlock *)ph;
   // TODO
   return n;
 }
 
 int32_t tGetBlock(uint8_t *p, void *ph) {
   int32_t n = 0;
-  ASSERT(0);
+  SBlock *pBlock = (SBlock *)ph;
   // TODO
   return n;
 }
@@ -301,6 +301,43 @@ int32_t tBlockCmprFn(const void *p1, const void *p2) {
   }
 
   return 0;
+}
+
+// SBlockCol ======================================================
+int32_t tPutBlockCol(uint8_t *p, void *ph) {
+  int32_t    n = 0;
+  SBlockCol *pBlockCol = (SBlockCol *)ph;
+
+  ASSERT(pBlockCol->flag && (pBlockCol->flag != HAS_NONE));
+
+  n += tPutI16v(p ? p + n : p, pBlockCol->cid);
+  n += tPutI8(p ? p + n : p, pBlockCol->type);
+  n += tPutI8(p ? p + n : p, pBlockCol->flag);
+
+  if (pBlockCol->flag != HAS_NULL) {
+    n += tPutI64v(p ? p + n : p, pBlockCol->offset);
+    n += tPutI64v(p ? p + n : p, pBlockCol->size);
+  }
+
+  return n;
+}
+
+int32_t tGetBlockCol(uint8_t *p, void *ph) {
+  int32_t    n = 0;
+  SBlockCol *pBlockCol = (SBlockCol *)ph;
+
+  n += tGetI16v(p + n, &pBlockCol->cid);
+  n += tGetI8(p + n, &pBlockCol->type);
+  n += tGetI8(p + n, &pBlockCol->flag);
+
+  ASSERT(pBlockCol->flag && (pBlockCol->flag != HAS_NONE));
+
+  if (pBlockCol->flag != HAS_NULL) {
+    n += tGetI64v(p + n, &pBlockCol->offset);
+    n += tGetI64v(p + n, &pBlockCol->size);
+  }
+
+  return n;
 }
 
 // SDelIdx ======================================================
