@@ -70,6 +70,10 @@ TEST_F(PlanOtherTest, show) {
   useDb("root", "test");
 
   run("SHOW DATABASES");
+
+  run("SHOW TABLE DISTRIBUTED t1");
+
+  run("SHOW TABLE DISTRIBUTED st1");
 }
 
 TEST_F(PlanOtherTest, delete) {
