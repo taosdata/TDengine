@@ -150,6 +150,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SDropTopicStmt));
     case QUERY_NODE_DROP_CGROUP_STMT:
       return makeNode(type, sizeof(SDropCGroupStmt));
+    case QUERY_NODE_ALTER_LOCAL_STMT:
+      return makeNode(type, sizeof(SAlterLocalStmt));
     case QUERY_NODE_EXPLAIN_STMT:
       return makeNode(type, sizeof(SExplainStmt));
     case QUERY_NODE_DESCRIBE_STMT:
@@ -206,11 +208,15 @@ SNode* nodesMakeNode(ENodeType type) {
     case QUERY_NODE_SHOW_APPS_STMT:
     case QUERY_NODE_SHOW_SCORES_STMT:
     case QUERY_NODE_SHOW_VARIABLE_STMT:
-    case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
-    case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
-    case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
       return makeNode(type, sizeof(SShowStmt));
+    case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
+      return makeNode(type, sizeof(SShowCreateDatabaseStmt));
+    case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
+    case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
+      return makeNode(type, sizeof(SShowCreateTableStmt));
+    case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
+      return makeNode(type, sizeof(SShowTableDistributedStmt));
     case QUERY_NODE_KILL_QUERY_STMT:
       return makeNode(type, sizeof(SKillQueryStmt));
     case QUERY_NODE_KILL_TRANSACTION_STMT:
@@ -260,6 +266,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SStreamScanPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
       return makeNode(type, sizeof(SSystemTableScanPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN:
+      return makeNode(type, sizeof(SBlockDistScanPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       return makeNode(type, sizeof(SProjectPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN:
@@ -624,18 +632,23 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_APPS_STMT:
     case QUERY_NODE_SHOW_SCORES_STMT:
     case QUERY_NODE_SHOW_VARIABLE_STMT:
-    case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
-    case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
-    case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT: {
       SShowStmt* pStmt = (SShowStmt*)pNode;
       nodesDestroyNode(pStmt->pDbName);
-      nodesDestroyNode(pStmt->pTbNamePattern);
+      nodesDestroyNode(pStmt->pTbName);
       break;
     }
-    case QUERY_NODE_KILL_CONNECTION_STMT:   // no pointer field
-    case QUERY_NODE_KILL_QUERY_STMT:        // no pointer field
-    case QUERY_NODE_KILL_TRANSACTION_STMT:  // no pointer field
+    case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
+      taosMemoryFreeClear(((SShowCreateDatabaseStmt*)pNode)->pCfg);
+      break;
+    case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
+    case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
+      taosMemoryFreeClear(((SShowCreateTableStmt*)pNode)->pMeta);
+      break;
+    case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:  // no pointer field
+    case QUERY_NODE_KILL_CONNECTION_STMT:         // no pointer field
+    case QUERY_NODE_KILL_QUERY_STMT:              // no pointer field
+    case QUERY_NODE_KILL_TRANSACTION_STMT:        // no pointer field
       break;
     case QUERY_NODE_DELETE_STMT: {
       SDeleteStmt* pStmt = (SDeleteStmt*)pNode;
@@ -748,6 +761,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN:
       destroyScanPhysiNode((SScanPhysiNode*)pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT: {

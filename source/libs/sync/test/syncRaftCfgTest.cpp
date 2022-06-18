@@ -55,6 +55,8 @@ SSyncCfg* createSyncCfg() {
 void test1() {
   SSyncCfg* pCfg = createSyncCfg();
   syncCfgLog2((char*)__FUNCTION__, pCfg);
+  syncCfgLog3((char*)__FUNCTION__, pCfg);
+
   taosMemoryFree(pCfg);
 }
 

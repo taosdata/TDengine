@@ -35,7 +35,7 @@ typedef struct SPhysiPlanContext {
   int32_t       errCode;
   int16_t       nextDataBlockId;
   SArray*       pLocationHelper;
-  SArray*       pExecNodeList;
+  SArray*       pExecNodeList;  // SArray<SQueryNodeLoad>
 } SPhysiPlanContext;
 
 static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char* pKey) {
@@ -450,32 +450,35 @@ static void vgroupInfoToNodeAddr(const SVgroupInfo* vg, SQueryNodeAddr* pNodeAdd
   pNodeAddr->epSet = vg->epSet;
 }
 
-static int32_t createTagScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SScanLogicNode* pScanLogicNode,
-                                      SPhysiNode** pPhyNode) {
-  STagScanPhysiNode* pTagScan =
-      (STagScanPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pScanLogicNode, QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN);
-  if (NULL == pTagScan) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
-  SQueryNodeLoad node = {.addr = pSubplan->execNode, .load = 0};
-  taosArrayPush(pCxt->pExecNodeList, &pSubplan->execNode);
-  return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pTagScan, pPhyNode);
-}
-
 static ENodeType getScanOperatorType(EScanType scanType) {
   switch (scanType) {
+    case SCAN_TYPE_TAG:
+      return QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN;
     case SCAN_TYPE_TABLE:
       return QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
     case SCAN_TYPE_STREAM:
       return QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN;
     case SCAN_TYPE_TABLE_MERGE:
-      // return QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
       return QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN;
+    case SCAN_TYPE_BLOCK_INFO:
+      return QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN;
     default:
       break;
   }
   return QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
+}
+
+static int32_t createSimpleScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SScanLogicNode* pScanLogicNode,
+                                         SPhysiNode** pPhyNode) {
+  SScanPhysiNode* pScan =
+      (SScanPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pScanLogicNode, getScanOperatorType(pScanLogicNode->scanType));
+  if (NULL == pScan) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
+  SQueryNodeLoad node = {.addr = pSubplan->execNode, .load = 0};
+  taosArrayPush(pCxt->pExecNodeList, &node);
+  return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, pScan, pPhyNode);
 }
 
 static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SScanLogicNode* pScanLogicNode,
@@ -529,10 +532,11 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
 
   pScan->showRewrite = pScanLogicNode->showRewrite;
   pScan->accountId = pCxt->pPlanCxt->acctId;
-  if (0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_USER_TABLES)) {
+  if (0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_USER_TABLES) ||
+      0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED)) {
     vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
     SQueryNodeLoad node = {.addr = pSubplan->execNode, .load = 0};
-    taosArrayPush(pCxt->pExecNodeList, &pSubplan->execNode);
+    taosArrayPush(pCxt->pExecNodeList, &node);
   } else {
     SQueryNodeLoad node = {.addr = {.nodeId = MNODE_HANDLE, .epSet = pCxt->pPlanCxt->mgmtEpSet}, .load = 0};
     taosArrayPush(pCxt->pExecNodeList, &node);
@@ -557,7 +561,8 @@ static int32_t createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, 
                                    SPhysiNode** pPhyNode) {
   switch (pScanLogicNode->scanType) {
     case SCAN_TYPE_TAG:
-      return createTagScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
+    case SCAN_TYPE_BLOCK_INFO:
+      return createSimpleScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
     case SCAN_TYPE_TABLE:
       return createTableScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
     case SCAN_TYPE_SYSTEM_TABLE:
