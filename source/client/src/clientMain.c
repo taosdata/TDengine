@@ -119,6 +119,10 @@ void taos_close_internal(void *taos) {
 }
 
 void taos_close(TAOS *taos) {
+  if (taos == NULL) {
+    return;
+  }
+  
   STscObj* pObj = acquireTscObj(*(int64_t*)taos);
   if (NULL == pObj) {
     return;
@@ -209,6 +213,11 @@ static void syncQueryFn(void *param, void *res, int32_t code) {
 }
 
 TAOS_RES *taos_query(TAOS *taos, const char *sql) {
+  if (NULL == taos) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return NULL;
+  }
+  
   STscObj* pTscObj = acquireTscObj(*(int64_t*)taos);
   if (pTscObj == NULL || sql == NULL) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
