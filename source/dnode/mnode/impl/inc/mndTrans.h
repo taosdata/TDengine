@@ -68,7 +68,7 @@ int32_t mndTransAppendRedoAction(STrans *pTrans, STransAction *pAction);
 int32_t mndTransAppendUndoAction(STrans *pTrans, STransAction *pAction);
 void    mndTransSetRpcRsp(STrans *pTrans, void *pCont, int32_t contLen);
 void    mndTransSetCb(STrans *pTrans, ETrnFunc startFunc, ETrnFunc stopFunc, void *param, int32_t paramLen);
-void    mndTransSetDbName(STrans *pTrans, const char *dbname);
+void    mndTransSetDbName(STrans *pTrans, const char *dbname1, const char *dbname2);
 void    mndTransSetSerial(STrans *pTrans);
 
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans);

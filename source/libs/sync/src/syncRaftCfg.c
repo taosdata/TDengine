@@ -66,6 +66,13 @@ int32_t raftCfgPersist(SRaftCfg *pRaftCfg) {
   return 0;
 }
 
+int32_t raftCfgAddConfigIndex(SRaftCfg *pRaftCfg, SyncIndex configIndex) {
+  ASSERT(pRaftCfg->configIndexCount <= MAX_CONFIG_INDEX_COUNT);
+  (pRaftCfg->configIndexArr)[pRaftCfg->configIndexCount] = configIndex;
+  ++(pRaftCfg->configIndexCount);
+  return 0;
+}
+
 cJSON *syncCfg2Json(SSyncCfg *pSyncCfg) {
   char   u64buf[128] = {0};
   cJSON *pRoot = cJSON_CreateObject();
@@ -85,16 +92,11 @@ cJSON *syncCfg2Json(SSyncCfg *pSyncCfg) {
   }
 
   return pRoot;
-  /*
-  cJSON *pJson = cJSON_CreateObject();
-  cJSON_AddItemToObject(pJson, "SSyncCfg", pRoot);
-  return pJson;
-  */
 }
 
 char *syncCfg2Str(SSyncCfg *pSyncCfg) {
   cJSON *pJson = syncCfg2Json(pSyncCfg);
-  char * serialized = cJSON_Print(pJson);
+  char  *serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
 }
@@ -154,6 +156,16 @@ cJSON *raftCfg2Json(SRaftCfg *pRaftCfg) {
   snprintf(buf64, sizeof(buf64), "%ld", pRaftCfg->lastConfigIndex);
   cJSON_AddStringToObject(pRoot, "lastConfigIndex", buf64);
 
+  cJSON_AddNumberToObject(pRoot, "configIndexCount", pRaftCfg->configIndexCount);
+  cJSON *pIndexArr = cJSON_CreateArray();
+  cJSON_AddItemToObject(pRoot, "configIndexArr", pIndexArr);
+  for (int i = 0; i < pRaftCfg->configIndexCount; ++i) {
+    snprintf(buf64, sizeof(buf64), "%ld", (pRaftCfg->configIndexArr)[i]);
+    cJSON *pIndexObj = cJSON_CreateObject();
+    cJSON_AddStringToObject(pIndexObj, "index", buf64);
+    cJSON_AddItemToArray(pIndexArr, pIndexObj);
+  }
+
   cJSON *pJson = cJSON_CreateObject();
   cJSON_AddItemToObject(pJson, "RaftCfg", pRoot);
   return pJson;
@@ -161,7 +173,7 @@ cJSON *raftCfg2Json(SRaftCfg *pRaftCfg) {
 
 char *raftCfg2Str(SRaftCfg *pRaftCfg) {
   cJSON *pJson = raftCfg2Json(pRaftCfg);
-  char * serialized = cJSON_Print(pJson);
+  char  *serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
 }
@@ -177,6 +189,9 @@ int32_t raftCfgCreateFile(SSyncCfg *pCfg, SRaftCfgMeta meta, const char *path) {
   raftCfg.isStandBy = meta.isStandBy;
   raftCfg.snapshotEnable = meta.snapshotEnable;
   raftCfg.lastConfigIndex = meta.lastConfigIndex;
+  raftCfg.configIndexCount = 1;
+  memset(raftCfg.configIndexArr, 0, sizeof(raftCfg.configIndexArr));
+  raftCfg.configIndexArr[0] = -1;
   char *s = raftCfg2Str(&raftCfg);
 
   char buf[CONFIG_FILE_LEN] = {0};
@@ -207,7 +222,24 @@ int32_t raftCfgFromJson(const cJSON *pRoot, SRaftCfg *pRaftCfg) {
   cJSON *pJsonLastConfigIndex = cJSON_GetObjectItem(pJson, "lastConfigIndex");
   pRaftCfg->lastConfigIndex = atoll(cJSON_GetStringValue(pJsonLastConfigIndex));
 
-  cJSON * pJsonSyncCfg = cJSON_GetObjectItem(pJson, "SSyncCfg");
+  cJSON *pJsonConfigIndexCount = cJSON_GetObjectItem(pJson, "configIndexCount");
+  pRaftCfg->configIndexCount = cJSON_GetNumberValue(pJsonConfigIndexCount);
+
+  cJSON *pIndexArr = cJSON_GetObjectItem(pJson, "configIndexArr");
+  int    arraySize = cJSON_GetArraySize(pIndexArr);
+  assert(arraySize == pRaftCfg->configIndexCount);
+
+  memset(pRaftCfg->configIndexArr, 0, sizeof(pRaftCfg->configIndexArr));
+  for (int i = 0; i < arraySize; ++i) {
+    cJSON *pIndexObj = cJSON_GetArrayItem(pIndexArr, i);
+    assert(pIndexObj != NULL);
+
+    cJSON *pIndex = cJSON_GetObjectItem(pIndexObj, "index");
+    assert(cJSON_IsString(pIndex));
+    (pRaftCfg->configIndexArr)[i] = atoll(pIndex->valuestring);
+  }
+
+  cJSON  *pJsonSyncCfg = cJSON_GetObjectItem(pJson, "SSyncCfg");
   int32_t code = syncCfgFromJson(pJsonSyncCfg, &(pRaftCfg->cfg));
   ASSERT(code == 0);
 

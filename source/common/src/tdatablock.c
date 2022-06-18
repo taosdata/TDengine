@@ -1713,6 +1713,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks
 }
 
 char* buildCtbNameByGroupId(const char* stbName, uint64_t groupId) {
+  ASSERT(stbName[0] != 0);
   SArray* tags = taosArrayInit(0, sizeof(void*));
   SSmlKv* pTag = taosMemoryCalloc(1, sizeof(SSmlKv));
   pTag->key = "group_id";
