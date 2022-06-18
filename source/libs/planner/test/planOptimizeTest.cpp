@@ -59,4 +59,5 @@ TEST_F(PlanOptimizeTest, eliminateProjection) {
   run("SELECT c1, sum(c3) FROM t1 GROUP BY c1");
   run("SELECT c1 FROM t1");
   run("SELECT * FROM st1");
+  run("SELECT c1 FROM st1s3");
 }
