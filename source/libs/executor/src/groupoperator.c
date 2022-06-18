@@ -33,7 +33,7 @@ static int32_t  setGroupResultOutputBuf(SOperatorInfo* pOperator, SOptrBasicInfo
 
 static void destroyGroupOperatorInfo(void* param, int32_t numOfOutput) {
   SGroupbyOperatorInfo* pInfo = (SGroupbyOperatorInfo*)param;
-  doDestroyBasicInfo(&pInfo->binfo, numOfOutput);
+  cleanupBasicInfo(&pInfo->binfo);
   taosMemoryFreeClear(pInfo->keyBuf);
   taosArrayDestroy(pInfo->pGroupCols);
   taosArrayDestroy(pInfo->pGroupColVals);
@@ -397,7 +397,8 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pEx
   }
 
   initResultSizeInfo(pOperator, 4096);
-  initAggInfo(&pInfo->binfo, &pOperator->exprSupp, &pInfo->aggSup, pExprInfo, numOfCols, pResultBlock, pInfo->groupKeyLen, pTaskInfo->id.str);
+  initAggInfo(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, numOfCols, pInfo->groupKeyLen, pTaskInfo->id.str);
+  initBasicInfo(&pInfo->binfo, pResultBlock);
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
 
   pOperator->name         = "GroupbyAggOperator";
@@ -665,7 +666,7 @@ static SSDataBlock* hashPartition(SOperatorInfo* pOperator) {
 
 static void destroyPartitionOperatorInfo(void* param, int32_t numOfOutput) {
   SPartitionOperatorInfo* pInfo = (SPartitionOperatorInfo*)param;
-  doDestroyBasicInfo(&pInfo->binfo, numOfOutput);
+  cleanupBasicInfo(&pInfo->binfo);
   taosArrayDestroy(pInfo->pGroupCols);
 
   for(int i = 0; i < taosArrayGetSize(pInfo->pGroupColVals); i++){

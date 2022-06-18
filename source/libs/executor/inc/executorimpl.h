@@ -433,10 +433,7 @@ typedef struct SAggOperatorInfo {
   STableQueryInfo   *current;
   uint64_t           groupId;
   SGroupResInfo      groupResInfo;
-  SExprInfo         *pScalarExprInfo;
-  int32_t            numOfScalarExpr;      // the number of scalar expression before the aggregate function can be applied
-  SqlFunctionCtx    *pScalarCtx;                 // scalar function requried sql function struct.
-  int32_t           *rowEntryInfoOffset;  // offset value for each row result cell info
+  SExprSupp          scalarExprSup;
 } SAggOperatorInfo;
 
 typedef struct SProjectOperatorInfo {
@@ -662,15 +659,19 @@ SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, 
 int32_t operatorDummyOpenFn(SOperatorInfo* pOperator);
 void    operatorDummyCloseFn(void* param, int32_t numOfCols);
 int32_t appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t num);
-int32_t initAggInfo(SOptrBasicInfo* pBasicInfo, SExprSupp *pSup, SAggSupporter* pAggSup, SExprInfo* pExprInfo, int32_t numOfCols,
-                    SSDataBlock* pResultBlock, size_t keyBufSize, const char* pkey);
+
+void    initBasicInfo(SOptrBasicInfo* pInfo, SSDataBlock* pBlock);
+void    cleanupBasicInfo(SOptrBasicInfo* pInfo);
+void    initExprSupp(SExprSupp* pSup, SExprInfo* pExprInfo, int32_t numOfExpr);
+void    cleanupExprSup(SExprSupp* pSup);
+int32_t initAggInfo(SExprSupp *pSup, SAggSupporter* pAggSup, SExprInfo* pExprInfo, int32_t numOfCols, size_t keyBufSize,
+                    const char* pkey);
 void    initResultSizeInfo(SOperatorInfo* pOperator, int32_t numOfRows);
 void    doBuildResultDatablock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SGroupResInfo* pGroupResInfo, SDiskbasedBuf* pBuf);
 
 void    doApplyFunctions(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, STimeWindow* pWin, SColumnInfoData* pTimeWindowData, int32_t offset,
                          int32_t forwardStep, TSKEY* tsCol, int32_t numOfTotal, int32_t numOfOutput, int32_t order);
 
-void    doDestroyBasicInfo(SOptrBasicInfo* pInfo, int32_t numOfOutput);
 int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadInfo, int32_t numOfRows, char* pData,
                                   int32_t compLen, int32_t numOfOutput, int64_t startTs, uint64_t* total,
                                   SArray* pColList);

@@ -90,8 +90,6 @@ static void doSetTagValueToResultBuf(char* output, const char* val, int16_t type
 
 static void setBlockStatisInfo(SqlFunctionCtx* pCtx, SExprInfo* pExpr, SSDataBlock* pSDataBlock);
 
-static void destroyTableQueryInfoImpl(STableQueryInfo* pTableQueryInfo);
-
 static void releaseQueryBuf(size_t numOfTables);
 
 static void destroySFillOperatorInfo(void* param, int32_t numOfOutput);
@@ -2862,9 +2860,9 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
     }
 
     // there is an scalar expression that needs to be calculated before apply the group aggregation.
-    if (pAggInfo->pScalarExprInfo != NULL) {
-      code = projectApplyFunctions(pAggInfo->pScalarExprInfo, pBlock, pBlock, pAggInfo->pScalarCtx,
-                                   pAggInfo->numOfScalarExpr, NULL);
+    if (pAggInfo->scalarExprSup.pExprInfo != NULL) {
+      SExprSupp* pSup1 = &pAggInfo->scalarExprSup;
+      code = projectApplyFunctions(pSup1->pExprInfo, pBlock, pBlock, pSup1->pCtx, pSup1->numOfExprs, NULL);
       if (code != TSDB_CODE_SUCCESS) {
         longjmp(pTaskInfo->env, code);
       }
@@ -3405,13 +3403,10 @@ void cleanupAggSup(SAggSupporter* pAggSup) {
   destroyDiskbasedBuf(pAggSup->pResultBuf);
 }
 
-int32_t initAggInfo(SOptrBasicInfo* pBasicInfo, SExprSupp* pSup, SAggSupporter* pAggSup, SExprInfo* pExprInfo, int32_t numOfCols,
-                    SSDataBlock* pResultBlock, size_t keyBufSize, const char* pkey) {
-  pSup->pCtx = createSqlFunctionCtx(pExprInfo, numOfCols, &pSup->rowEntryInfoOffset);
-  pBasicInfo->pRes = pResultBlock;
-
+int32_t initAggInfo(SExprSupp* pSup, SAggSupporter* pAggSup, SExprInfo* pExprInfo, int32_t numOfCols,
+                    size_t keyBufSize, const char* pkey) {
+  initExprSupp(pSup, pExprInfo, numOfCols);
   doInitAggInfoSup(pAggSup, pSup->pCtx, numOfCols, keyBufSize, pkey);
-
   for (int32_t i = 0; i < numOfCols; ++i) {
     pSup->pCtx[i].pBuf = pAggSup->pResultBuf;
   }
@@ -3428,6 +3423,19 @@ void initResultSizeInfo(SOperatorInfo* pOperator, int32_t numOfRows) {
   }
 }
 
+void initBasicInfo(SOptrBasicInfo* pInfo, SSDataBlock* pBlock) {
+  pInfo->pRes = pBlock;
+  initResultRowInfo(&pInfo->resultRowInfo);
+}
+
+void initExprSupp(SExprSupp* pSup, SExprInfo* pExprInfo, int32_t numOfExpr) {
+  pSup->pExprInfo = pExprInfo;
+  pSup->numOfExprs = numOfExpr;
+  if (pSup->pExprInfo != NULL) {
+    pSup->pCtx = createSqlFunctionCtx(pExprInfo, numOfExpr, &pSup->rowEntryInfoOffset);
+  }
+}
+
 SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                            SSDataBlock* pResultBlock, SExprInfo* pScalarExprInfo,
                                            int32_t numOfScalarExpr, SExecTaskInfo* pTaskInfo) {
@@ -3441,28 +3449,20 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo*
   size_t  keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
 
   initResultSizeInfo(pOperator, numOfRows);
-  int32_t code =
-      initAggInfo(&pInfo->binfo, &pOperator->exprSupp, &pInfo->aggSup, pExprInfo, numOfCols, pResultBlock, keyBufSize, pTaskInfo->id.str);
+  int32_t code = initAggInfo(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
 
-  pInfo->groupId = INT32_MIN;
-  initResultRowInfo(&pInfo->binfo.resultRowInfo);
+  initBasicInfo(&pInfo->binfo, pResultBlock);
+  initExprSupp(&pInfo->scalarExprSup, pScalarExprInfo, numOfScalarExpr);
 
-  pInfo->pScalarExprInfo = pScalarExprInfo;
-  pInfo->numOfScalarExpr = numOfScalarExpr;
-  if (pInfo->pScalarExprInfo != NULL) {
-    pInfo->pScalarCtx = createSqlFunctionCtx(pScalarExprInfo, numOfScalarExpr, &pInfo->rowEntryInfoOffset);
-  }
-
-  pOperator->name = "TableAggregate";
+  pInfo->groupId       = INT32_MIN;
+  pOperator->name      = "TableAggregate";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_HASH_AGG;
-  pOperator->blocking = true;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
-  pOperator->exprSupp.pExprInfo = pExprInfo;
-  pOperator->exprSupp.numOfExprs = numOfCols;
+  pOperator->blocking  = true;
+  pOperator->status    = OP_NOT_OPENED;
+  pOperator->info      = pInfo;
   pOperator->pTaskInfo = pTaskInfo;
 
   pOperator->fpSet = createOperatorFpSet(doOpenAggregateOptr, getAggregateResult, NULL, NULL, destroyAggOperatorInfo,
@@ -3501,7 +3501,7 @@ static void* destroySqlFunctionCtx(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
   return NULL;
 }
 
-void doDestroyBasicInfo(SOptrBasicInfo* pInfo, int32_t numOfOutput) {
+void cleanupBasicInfo(SOptrBasicInfo* pInfo) {
   assert(pInfo != NULL);
   cleanupResultRowInfo(&pInfo->resultRowInfo);
   pInfo->pRes = blockDataDestroy(pInfo->pRes);
@@ -3509,12 +3509,12 @@ void doDestroyBasicInfo(SOptrBasicInfo* pInfo, int32_t numOfOutput) {
 
 void destroyBasicOperatorInfo(void* param, int32_t numOfOutput) {
   SOptrBasicInfo* pInfo = (SOptrBasicInfo*)param;
-  doDestroyBasicInfo(pInfo, numOfOutput);
+  cleanupBasicInfo(pInfo);
 }
 
 void destroyAggOperatorInfo(void* param, int32_t numOfOutput) {
   SAggOperatorInfo* pInfo = (SAggOperatorInfo*)param;
-  doDestroyBasicInfo(&pInfo->binfo, numOfOutput);
+  cleanupBasicInfo(&pInfo->binfo);
 }
 
 void destroySFillOperatorInfo(void* param, int32_t numOfOutput) {
@@ -3529,7 +3529,7 @@ static void destroyProjectOperatorInfo(void* param, int32_t numOfOutput) {
     return;
   }
   SProjectOperatorInfo* pInfo = (SProjectOperatorInfo*)param;
-  doDestroyBasicInfo(&pInfo->binfo, numOfOutput);
+  cleanupBasicInfo(&pInfo->binfo);
   cleanupAggSup(&pInfo->aggSup);
   taosArrayDestroy(pInfo->pPseudoColInfo);
 }
@@ -3543,7 +3543,7 @@ void cleanupExecSupp(SExprSupp* pSupp) {
 
 static void destroyIndefinitOperatorInfo(void* param, int32_t numOfOutput) {
   SIndefOperatorInfo* pInfo = (SIndefOperatorInfo*)param;
-  doDestroyBasicInfo(&pInfo->binfo, numOfOutput);
+  cleanupBasicInfo(&pInfo->binfo);
 
   taosArrayDestroy(pInfo->pPseudoColInfo);
   cleanupAggSup(&pInfo->aggSup);
@@ -3609,7 +3609,8 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
   }
   initResultSizeInfo(pOperator, numOfRows);
 
-  initAggInfo(&pInfo->binfo, &pOperator->exprSupp, &pInfo->aggSup, pExprInfo, numOfCols, pResBlock, keyBufSize, pTaskInfo->id.str);
+  initAggInfo(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str);
+  initBasicInfo(&pInfo->binfo, pResBlock);
   setFunctionResultOutput(pOperator, &pInfo->binfo, &pInfo->aggSup, MAIN_SCAN, numOfCols);
 
   pInfo->pPseudoColInfo = setRowTsColumnOutputInfo(pOperator->exprSupp.pCtx, numOfCols);
@@ -3618,8 +3619,6 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
   pOperator->blocking   = false;
   pOperator->status     = OP_NOT_OPENED;
   pOperator->info       = pInfo;
-  pOperator->exprSupp.pExprInfo      = pExprInfo;
-  pOperator->exprSupp.numOfExprs = numOfCols;
   pOperator->pTaskInfo  = pTaskInfo;
 
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doProjectOperation, NULL, NULL,
@@ -3719,11 +3718,10 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
   int32_t    numOfExpr = 0;
   SExprInfo* pExprInfo = createExprInfo(pPhyNode->pVectorFuncs, NULL, &numOfExpr);
 
-  int32_t numOfScalarExpr = 0;
   if (pPhyNode->pExprs != NULL) {
-    SExprSupp* pSup = &pInfo->scalarSup;
-    pSup->pExprInfo = createExprInfo(pPhyNode->pExprs, NULL, &pSup->numOfExprs);
-    pSup->pCtx = createSqlFunctionCtx(pSup->pExprInfo, numOfScalarExpr, &pSup->rowEntryInfoOffset);
+    SExprSupp* pSup1 = &pInfo->scalarSup;
+    pSup1->pExprInfo = createExprInfo(pPhyNode->pExprs, NULL, &pSup1->numOfExprs);
+    pSup1->pCtx = createSqlFunctionCtx(pSup1->pExprInfo, pSup1->numOfExprs, &pSup1->rowEntryInfoOffset);
   }
 
   SSDataBlock* pResBlock = createResDataBlock(pPhyNode->node.pOutputDataBlockDesc);
@@ -3739,20 +3737,22 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
   }
   initResultSizeInfo(pOperator, numOfRows);
 
-  initAggInfo(&pInfo->binfo, &pOperator->exprSupp, &pInfo->aggSup, pExprInfo, numOfExpr, pResBlock, keyBufSize, pTaskInfo->id.str);
+  initAggInfo(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, numOfExpr, keyBufSize, pTaskInfo->id.str);
+  initBasicInfo(&pInfo->binfo, pResBlock);
+
   setFunctionResultOutput(pOperator, &pInfo->binfo, &pInfo->aggSup, MAIN_SCAN, numOfExpr);
 
   pInfo->binfo.pRes = pResBlock;
   pInfo->pPseudoColInfo = setRowTsColumnOutputInfo(pSup->pCtx, numOfExpr);
 
-  pOperator->name = "IndefinitOperator";
+  pOperator->name         = "IndefinitOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_PROJECT;
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
+  pOperator->blocking     = false;
+  pOperator->status       = OP_NOT_OPENED;
+  pOperator->info         = pInfo;
   pOperator->exprSupp.pExprInfo = pExprInfo;
   pOperator->exprSupp.numOfExprs = numOfExpr;
-  pOperator->pTaskInfo = pTaskInfo;
+  pOperator->pTaskInfo    = pTaskInfo;
 
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doApplyIndefinitFunction, NULL, NULL,
                                          destroyIndefinitOperatorInfo, NULL, NULL, NULL);
