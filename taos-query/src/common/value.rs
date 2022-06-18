@@ -17,7 +17,7 @@ pub enum BorrowedValue<'b> {
     Double(f64),
     VarChar(&'b str),
     Timestamp(Timestamp),
-    NChar(&'b str),
+    NChar(Cow<'b, str>),
     UTinyInt(u8),
     USmallInt(u16),
     UInt(u32),
@@ -62,11 +62,11 @@ impl<'b> BorrowedValue<'b> {
         matches!(self, BorrowedValue::Null)
     }
     /// Only VarChar, NChar, Json could be treated as [&str].
-    const fn strict_as_str(&self) -> &str {
+    fn strict_as_str(&self) -> &str {
         use BorrowedValue::*;
         match self {
             VarChar(v) => *v,
-            NChar(v) => *v,
+            NChar(v) => &v,
             Null => panic!("expect str but value is null"),
             Timestamp(_) => panic!("expect str but value is timestamp"),
             _ => panic!("expect str but only varchar/binary/nchar is supported"),
@@ -234,7 +234,7 @@ impl Value {
             VarChar(v) => BorrowedValue::VarChar(v),
             Timestamp(v) => BorrowedValue::Timestamp(*v),
             Json(j) => BorrowedValue::Json(j.to_string().into_bytes().into()),
-            NChar(v) => BorrowedValue::NChar(v),
+            NChar(v) => BorrowedValue::NChar(v.as_str().into()),
             VarBinary(v) => BorrowedValue::VarBinary(v),
             Decimal(v) => BorrowedValue::Decimal(*v),
             Blob(v) => BorrowedValue::Blob(v),

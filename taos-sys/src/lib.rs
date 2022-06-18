@@ -1,9 +1,11 @@
+#![feature(const_slice_from_raw_parts)]
 #![allow(non_camel_case_types)]
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
 use std::{ffi::CStr, marker::PhantomData, ops::Deref, os::raw::*, sync::Arc};
 
+use into_c_str::IntoCStr;
 use once_cell::sync::OnceCell;
 use taos_error::{Code, Error};
 use taos_query::common::{Field, Ty};
@@ -80,6 +82,15 @@ impl RawTaos {
         port: u16,
     ) -> Result<Self, Error> {
         let ptr = unsafe { taos_connect(host, user, pass, db, port) };
+        let null = std::ptr::null_mut();
+        let code = unsafe { taos_errno(null) };
+        if code != 0 {
+            let err = unsafe { CStr::from_ptr(taos_errstr(null)) }
+                .to_string_lossy()
+                .to_string();
+            let err = Error::new(code, err);
+            log::trace!("error: {err}");
+        }
 
         if ptr.is_null() {
             let null = std::ptr::null_mut();
@@ -119,8 +130,9 @@ impl RawTaos {
     }
 
     #[inline]
-    pub fn query(&self, sql: *const i8) -> Result<DroppableRawRes, Error> {
-        RawRes::from_ptr(unsafe { taos_query(self.as_ptr(), sql) }).map(DroppableRawRes::new)
+    pub fn query<'a, S: IntoCStr<'a>>(&self, sql: S) -> Result<DroppableRawRes, Error> {
+        RawRes::from_ptr(unsafe { taos_query(self.as_ptr(), sql.into_c_str().as_ptr()) })
+            .map(DroppableRawRes::new)
     }
 
     #[inline]
@@ -309,13 +321,13 @@ impl RawRes {
     }
 
     #[inline]
-    pub fn fetch_raw_block(&self) -> Result<(*mut c_void, i32), Error> {
+    pub fn fetch_raw_block(&self) -> Result<(*mut u8, u32), Error> {
         let block = Box::into_raw(Box::new(std::ptr::null_mut()));
         let mut num = 0;
         err_or!(
             self,
             taos_fetch_raw_block(self.as_ptr(), &mut num as _, block),
-            (*block, num as _)
+            (*block as _, num as _)
         )
     }
 

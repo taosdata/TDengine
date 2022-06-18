@@ -1,27 +1,27 @@
-use std::{borrow::Cow, os::raw::*};
+use std::{borrow::Cow, fmt::Display, os::raw::*};
 
 use taos_macros::c_cfg;
 
-use crate::{ffi::TAOS_RES, TAOS_FIELD, TAOS_ROW};
+use crate::ffi::TAOS_RES;
 
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub enum tmq_resp_err_t {
-    Fail = -1,
-    Success = 0,
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct tmq_resp_err_t(i32);
+
+impl PartialEq<i32> for tmq_conf_res_t {
+    fn eq(&self, other: &i32) -> bool {
+        self == other
+    }
 }
 
 impl tmq_resp_err_t {
     pub fn ok_or(self, s: impl Into<Cow<'static, str>>) -> Result<(), taos_error::Error> {
         match self {
-            tmq_resp_err_t::Success => Ok(()),
-            tmq_resp_err_t::Fail => Err(taos_error::Error::from_string(s.into())),
+            Self(0) => Ok(()),
+            _ => Err(taos_error::Error::from_string(s.into())),
         }
     }
 }
-
-pub const TMQ_RESP_ERR__FAIL: tmq_resp_err_t = tmq_resp_err_t::Fail;
-pub const TMQ_RESP_ERR__SUCCESS: tmq_resp_err_t = tmq_resp_err_t::Success;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -29,16 +29,6 @@ pub struct tmq_t {
     _unused: [u8; 0],
 }
 
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct tmq_topic_vgroup_t {
-    _unused: [u8; 0],
-}
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct tmq_topic_vgroup_list_t {
-    _unused: [u8; 0],
-}
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct tmq_conf_t {
@@ -62,16 +52,20 @@ pub enum tmq_conf_res_t {
     Ok = 0,
 }
 
-pub const TMQ_CONF_UNKNOWN: tmq_conf_res_t = tmq_conf_res_t::Unknown;
-pub const TMQ_CONF_INVALID: tmq_conf_res_t = tmq_conf_res_t::Invalid;
-pub const TMQ_CONF_OK: tmq_conf_res_t = tmq_conf_res_t::Ok;
+impl tmq_conf_res_t {
+    pub fn ok(self, k: &str, v: &str) -> Result<(), taos_error::Error> {
+        match self {
+            Self::Ok => Ok(()),
+            Self::Invalid => Err(taos_error::Error::from_string(format!(
+                "Invalid key value pair ({k}, {v})"
+            ))),
+            Self::Unknown => Err(taos_error::Error::from_string(format!("Unknown key {k}"))),
+        }
+    }
+}
 
-pub type tmq_commit_cb = unsafe extern "C" fn(
-    tmq: *mut tmq_t,
-    resp: tmq_resp_err_t,
-    topic: *mut tmq_topic_vgroup_list_t,
-    param: *mut c_void,
-);
+pub type tmq_commit_cb =
+    unsafe extern "C" fn(tmq: *mut tmq_t, resp: tmq_resp_err_t, param: *mut c_void);
 
 // TMQ streaming/consuming API.
 #[c_cfg(taos_tmq)]
@@ -98,14 +92,11 @@ extern "C" {
 
     pub fn tmq_consumer_close(tmq: *mut tmq_t) -> tmq_resp_err_t;
 
-    pub fn tmq_commit_sync(
-        tmq: *mut tmq_t,
-        offsets: *const tmq_topic_vgroup_list_t,
-    ) -> tmq_resp_err_t;
+    pub fn tmq_commit_sync(tmq: *mut tmq_t, msg: *const TAOS_RES) -> tmq_resp_err_t;
 
     pub fn tmq_commit_async(
         tmq: *mut tmq_t,
-        offsets: *const tmq_topic_vgroup_list_t,
+        msg: *const TAOS_RES,
         cb: tmq_commit_cb,
         param: *mut c_void,
     );

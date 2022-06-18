@@ -170,12 +170,11 @@ fn test_tbname_tags() -> Result<(), Error> {
     let db = null();
     let port = 0;
     let taos = RawTaos::connect(host, user, pass, db, port)?;
-    taos.query(b"drop database if exists stt1\0".as_ptr() as _)?;
-    taos.query(b"create database if not exists stt1 keep 36500\0".as_ptr() as _)?;
-    taos.query(b"use stt1\0".as_ptr() as _)?;
+    taos.query("drop database if exists stt1")?;
+    taos.query("create database if not exists stt1 keep 36500")?;
+    taos.query("use stt1")?;
     taos.query(
-        b"create stable if not exists st1(ts timestamp, v int) tags(t1 int, t2 bool)\0".as_ptr()
-            as _,
+        "create stable if not exists st1(ts timestamp, v int) tags(t1 int, t2 bool)"
     )?;
 
     let mut stmt = RawStmt::from_raw_taos(&taos);
@@ -201,8 +200,8 @@ fn test_tbname_tags() -> Result<(), Error> {
 
     assert!(stmt.affected_rows() == 1);
 
-    let res = taos.query(b"select count(*) from st1\0".as_ptr() as _)?;
+    let res = taos.query("select count(*) from st1")?;
 
-    taos.query(b"drop database stt1\0".as_ptr() as _)?;
+    taos.query("drop database stt1")?;
     Ok(())
 }

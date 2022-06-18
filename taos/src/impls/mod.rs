@@ -11,7 +11,7 @@ use taos_error::Code;
 use thiserror::Error;
 
 use taos_query::{common::*, Address, BlockExt, Dsn, DsnError, Fetchable, FromDsn, Queryable};
-use taos_sys::{DroppableRawRes, RawRes};
+use taos_sys::{DroppableRawRes, RawRes, ffi::TAOS_RES};
 
 use crate::{util::IntoCStr, Taos, TaosOptions};
 
@@ -79,6 +79,10 @@ impl ResultSet {
             independent: false,
             summary: Default::default(),
         })
+    }
+
+    pub(crate) fn as_ptr(&self) -> *mut TAOS_RES {
+        self.raw.as_ptr()
     }
 
     pub(crate) fn from_raw_res(raw: RawRes) -> Self {
@@ -218,9 +222,9 @@ impl<'b> BlockExt for SyncBlock {
             Ty::VarChar => BorrowedValue::VarChar(std::str::from_utf8_unchecked(
                 read_bytes_from_ptr(inner, col),
             )),
-            Ty::NChar => BorrowedValue::NChar(std::str::from_utf8_unchecked(read_bytes_from_ptr(
-                inner, col,
-            ))),
+            Ty::NChar => BorrowedValue::NChar(
+                std::str::from_utf8_unchecked(read_bytes_from_ptr(inner, col)).into(),
+            ),
             Ty::Json => BorrowedValue::Json(read_bytes_from_ptr(inner, col).into()),
             _ => BorrowedValue::Null,
         };
@@ -390,7 +394,7 @@ impl<'q> Queryable<'q> for Taos {
 
     fn query<T: AsRef<str>>(&self, sql: T) -> Result<ResultSet, Self::Error> {
         log::trace!("sql: {}", sql.as_ref());
-        let raw = self.0.query(sql.as_ref().into_c_str().as_ptr())?;
+        let raw = self.0.query(sql.as_ref())?;
         Ok(ResultSet::new(raw))
     }
 }

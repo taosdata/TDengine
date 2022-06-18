@@ -179,12 +179,13 @@ extern "C" {
 #[c_cfg(taos_v3)]
 extern "C" {
     pub fn taos_get_column_data_offset(res: *mut TAOS_RES, col: i32) -> *mut i32;
-}
 
-#[c_cfg(taos_fetch_raw_block)]
-extern "C" {
     pub fn taos_fetch_raw_block(res: *mut TAOS_RES, num: *mut i32, data: *mut *mut c_void)
         -> c_int;
+
+    pub fn taos_fetch_raw_block_a(res: *mut TAOS_RES, fp: taos_async_fetch_cb, param: *mut c_void);
+
+    pub fn taos_get_raw_block(taos: *mut TAOS_RES) -> *mut c_void;
 }
 
 #[c_cfg(taos_result_block)]

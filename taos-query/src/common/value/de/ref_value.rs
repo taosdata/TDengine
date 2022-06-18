@@ -177,7 +177,7 @@ impl<'de, 'v: 'de> serde::de::Deserializer<'de> for &'v Value {
                 .into_deserializer()
                 .deserialize_any(visitor)
                 .map_err(<Self::Error as de::Error>::custom),
-            Timestamp(v) => visitor.visit_i64(*v.as_raw_i64()),
+            Timestamp(v) => visitor.visit_i64(v.as_raw_i64()),
             VarBinary(v) | Blob(v) | MediumBlob(v) => visitor.visit_borrowed_bytes(v),
             _ => Err(<Self::Error as de::Error>::custom(
                 "un supported type to deserialize",
@@ -257,7 +257,7 @@ impl<'de, 'v: 'de> serde::de::Deserializer<'de> for &'v Value {
         use Value::*;
         macro_rules! _v_ {
             ($v:expr) => {
-                visitor.visit_newtype_struct((*$v).into_deserializer())
+                visitor.visit_newtype_struct($v.into_deserializer())
             };
         }
         match self {
