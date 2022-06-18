@@ -329,9 +329,9 @@ void cliHandleResp(SCliConn* conn) {
   // char buf[64] = {0};
   // TRACE_TO_STR(&transMsg.info.traceId, buf);
   STraceId* trace = &transMsg.info.traceId;
-  tTR("conn %p %s received from %s:%d, local info: %s:%d, msg size: %d, code: %d", conn, TMSG_INFO(pHead->msgType),
-      taosInetNtoa(conn->addr.sin_addr), ntohs(conn->addr.sin_port), taosInetNtoa(conn->localAddr.sin_addr),
-      ntohs(conn->localAddr.sin_port), transMsg.contLen, transMsg.code);
+  tGTrace("conn %p %s received from %s:%d, local info: %s:%d, msg size: %d, code: %d", conn, TMSG_INFO(pHead->msgType),
+          taosInetNtoa(conn->addr.sin_addr), ntohs(conn->addr.sin_port), taosInetNtoa(conn->localAddr.sin_addr),
+          ntohs(conn->localAddr.sin_port), transMsg.contLen, transMsg.code);
 
   if (pCtx == NULL && CONN_NO_PERSIST_BY_APP(conn)) {
     tDebug("%s except, server continue send while cli ignore it", CONN_GET_INST_LABEL(conn));
@@ -650,9 +650,9 @@ void cliSend(SCliConn* pConn) {
   // char buf[64] = {0};
   // TRACE_TO_STR(&pMsg->info.traceId, buf);
   STraceId* trace = &pMsg->info.traceId;
-  tTR("conn %p %s is sent to %s:%d, local info %s:%d", pConn, TMSG_INFO(pHead->msgType),
-      taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port), taosInetNtoa(pConn->localAddr.sin_addr),
-      ntohs(pConn->localAddr.sin_port));
+  tGTrace("conn %p %s is sent to %s:%d, local info %s:%d", pConn, TMSG_INFO(pHead->msgType),
+          taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port), taosInetNtoa(pConn->localAddr.sin_addr),
+          ntohs(pConn->localAddr.sin_port));
 
   if (pHead->persist == 1) {
     CONN_SET_PERSIST_BY_APP(pConn);
@@ -1018,16 +1018,16 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
 
   STraceId* trace = &pResp->info.traceId;
   if (pCtx->pSem != NULL) {
-    tTR("conn %p(sync) handle resp", pConn);
+    tGTrace("conn %p(sync) handle resp", pConn);
     if (pCtx->pRsp == NULL) {
-      tTR("conn %p(sync) failed to resp, ignore", pConn);
+      tGTrace("conn %p(sync) failed to resp, ignore", pConn);
     } else {
       memcpy((char*)pCtx->pRsp, (char*)pResp, sizeof(*pResp));
     }
     tsem_post(pCtx->pSem);
     pCtx->pRsp = NULL;
   } else {
-    tTR("conn %p handle resp", pConn);
+    tGTrace("conn %p handle resp", pConn);
     if (pResp->code != 0 || pCtx->retryCount == 0 || transEpSetIsEqual(&pCtx->epSet, &pCtx->origEpSet)) {
       pTransInst->cfp(pTransInst->parent, pResp, NULL);
     } else {
@@ -1110,8 +1110,8 @@ void transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STra
   SCliThrdObj* thrd = ((SCliObj*)pTransInst->tcphandle)->pThreadObj[idx];
 
   STraceId* trace = &pReq->info.traceId;
-  tTR("%s send request at thread:%08" PRId64 ", dst: %s:%d, app:%p", pTransInst->label, thrd->pid,
-      EPSET_GET_INUSE_IP(&pCtx->epSet), EPSET_GET_INUSE_PORT(&pCtx->epSet), pReq->info.ahandle);
+  tGTrace("%s send request at thread:%08" PRId64 ", dst: %s:%d, app:%p", pTransInst->label, thrd->pid,
+          EPSET_GET_INUSE_IP(&pCtx->epSet), EPSET_GET_INUSE_PORT(&pCtx->epSet), pReq->info.ahandle);
   ASSERT(transSendAsync(thrd->asyncPool, &(cliMsg->q)) == 0);
 }
 
@@ -1143,8 +1143,8 @@ void transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransM
   SCliThrdObj* thrd = ((SCliObj*)pTransInst->tcphandle)->pThreadObj[idx];
 
   STraceId* trace = &pReq->info.traceId;
-  tTR("%s send request at thread:%08" PRId64 ", dst: %s:%d, app:%p", pTransInst->label, thrd->pid,
-      EPSET_GET_INUSE_IP(&pCtx->epSet), EPSET_GET_INUSE_PORT(&pCtx->epSet), pReq->info.ahandle);
+  tGTrace("%s send request at thread:%08" PRId64 ", dst: %s:%d, app:%p", pTransInst->label, thrd->pid,
+          EPSET_GET_INUSE_IP(&pCtx->epSet), EPSET_GET_INUSE_PORT(&pCtx->epSet), pReq->info.ahandle);
 
   transSendAsync(thrd->asyncPool, &(cliMsg->q));
   tsem_wait(sem);

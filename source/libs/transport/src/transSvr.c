@@ -284,14 +284,14 @@ static void uvHandleReq(SSvrConn* pConn) {
   if (pConn->status == ConnNormal && pHead->noResp == 0) {
     transRefSrvHandle(pConn);
 
-    tTR("conn %p %s received from %s:%d, local info: %s:%d, msg size: %d", pConn, TMSG_INFO(transMsg.msgType),
-        taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port), taosInetNtoa(pConn->localAddr.sin_addr),
-        ntohs(pConn->localAddr.sin_port), transMsg.contLen);
+    tGTrace("conn %p %s received from %s:%d, local info: %s:%d, msg size: %d", pConn, TMSG_INFO(transMsg.msgType),
+            taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port), taosInetNtoa(pConn->localAddr.sin_addr),
+            ntohs(pConn->localAddr.sin_port), transMsg.contLen);
   } else {
-    tTR("conn %p %s received from %s:%d, local info: %s:%d, msg size: %d, resp:%d, code: %d", pConn,
-        TMSG_INFO(transMsg.msgType), taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port),
-        taosInetNtoa(pConn->localAddr.sin_addr), ntohs(pConn->localAddr.sin_port), transMsg.contLen, pHead->noResp,
-        transMsg.code);
+    tGTrace("conn %p %s received from %s:%d, local info: %s:%d, msg size: %d, resp:%d, code: %d", pConn,
+            TMSG_INFO(transMsg.msgType), taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port),
+            taosInetNtoa(pConn->localAddr.sin_addr), ntohs(pConn->localAddr.sin_port), transMsg.contLen, pHead->noResp,
+            transMsg.code);
     // no ref here
   }
 
@@ -304,7 +304,7 @@ static void uvHandleReq(SSvrConn* pConn) {
   transMsg.info.refId = pConn->refId;
   transMsg.info.traceId = pHead->traceId;
 
-  tTR("handle %p conn: %p translated to app, refId: %" PRIu64 "", transMsg.info.handle, pConn, pConn->refId);
+  tGTrace("handle %p conn: %p translated to app, refId: %" PRIu64 "", transMsg.info.handle, pConn, pConn->refId);
   assert(transMsg.info.handle != NULL);
 
   if (pHead->noResp == 1) {
@@ -457,9 +457,9 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
   int32_t len = transMsgLenFromCont(pMsg->contLen);
 
   STraceId* trace = &pMsg->info.traceId;
-  tTR("conn %p %s is sent to %s:%d, local info: %s:%d, msglen:%d", pConn, TMSG_INFO(pHead->msgType),
-      taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port), taosInetNtoa(pConn->localAddr.sin_addr),
-      ntohs(pConn->localAddr.sin_port), len);
+  tGTrace("conn %p %s is sent to %s:%d, local info: %s:%d, msglen:%d", pConn, TMSG_INFO(pHead->msgType),
+          taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port), taosInetNtoa(pConn->localAddr.sin_addr),
+          ntohs(pConn->localAddr.sin_port), len);
   pHead->msgLen = htonl(len);
 
   wb->base = msg;
@@ -1121,7 +1121,9 @@ void transSendResponse(const STransMsg* msg) {
   SSvrMsg* m = taosMemoryCalloc(1, sizeof(SSvrMsg));
   m->msg = tmsg;
   m->type = Normal;
-  tDebug("conn %p start to send resp (1/2)", exh->handle);
+
+  STraceId* trace = (STraceId*)&msg->info.traceId;
+  tGTrace("conn %p start to send resp (1/2)", exh->handle);
   transSendAsync(pThrd->asyncPool, &m->q);
   transReleaseExHandle(refMgt, refId);
   return;
@@ -1149,6 +1151,7 @@ void transRegisterMsg(const STransMsg* msg) {
   SSvrMsg* m = taosMemoryCalloc(1, sizeof(SSvrMsg));
   m->msg = tmsg;
   m->type = Register;
+
   tTrace("conn %p start to register brokenlink callback", exh->handle);
   transSendAsync(pThrd->asyncPool, &m->q);
   transReleaseExHandle(refMgt, refId);

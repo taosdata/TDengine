@@ -18,6 +18,7 @@
 
 #include "sync.h"
 #include "syncTools.h"
+#include "ttrace.h"
 #include "vnodeInt.h"
 
 #ifdef __cplusplus
@@ -31,6 +32,7 @@ extern "C" {
 #define vInfo(...)  do { if (vDebugFlag & DEBUG_INFO)  { taosPrintLog("VND ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
 #define vDebug(...) do { if (vDebugFlag & DEBUG_DEBUG) { taosPrintLog("VND ", DEBUG_DEBUG, vDebugFlag, __VA_ARGS__); }}    while(0)
 #define vTrace(...) do { if (vDebugFlag & DEBUG_TRACE) { taosPrintLog("VND ", DEBUG_TRACE, vDebugFlag, __VA_ARGS__); }}    while(0)
+#define vGTrace(...) do { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vTrace(param " GID: %s", __VA_ARGS__, buf);}      while(0)//#define vDye(...)   do
 // clang-format on
 
 // vnodeCfg.c

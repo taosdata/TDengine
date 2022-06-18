@@ -22,7 +22,8 @@ extern "C" {
 #endif
 
 #pragma(push, 1)
-typedef struct {
+
+typedef struct STraceId {
   int64_t rootId;
   int64_t msgId;
 } STraceId;
@@ -43,9 +44,9 @@ typedef struct {
 
 #define TRACE_GET_MSGID(traceId) (traceId)->msgId
 
-#define TRACE_TO_STR(traceId, buf)                                                 \
-  do {                                                                             \
-    sprintf(buf, "0x%" PRIx64 ": 0x%" PRIx64 "", traceId->rootId, traceId->msgId); \
+#define TRACE_TO_STR(traceId, buf)                                                \
+  do {                                                                            \
+    sprintf(buf, "0x%" PRIx64 ":0x%" PRIx64 "", traceId->rootId, traceId->msgId); \
   } while (0)
 
 #ifdef __cplusplus

@@ -33,7 +33,7 @@ extern "C" {
 #define tDump(x, y) do {if (rpcDebugFlag & DEBUG_DUMP) { taosDumpData((unsigned char *)x, y); } } while(0)
 
 //#define tTR(param, ...) do { char buf[40] = {0};TRACE_TO_STR(trace, buf);tTrace("TRID: %s "param, buf, __VA_ARGS__);} while(0)
-#define tTR(param, ...) do { char buf[40] = {0}; TRACE_TO_STR(trace, buf); tTrace(param " TRID: %s", __VA_ARGS__, buf);} while(0)
+#define tGTrace(param, ...) do { char buf[40] = {0}; TRACE_TO_STR(trace, buf); tTrace(param ", GID: %s", __VA_ARGS__, buf);} while(0)
 
 // clang-format on 
 #ifdef __cplusplus

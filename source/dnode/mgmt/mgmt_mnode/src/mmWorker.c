@@ -48,7 +48,8 @@ static inline void mmSendRsp(SRpcMsg *pMsg, int32_t code) {
 static void mmProcessRpcMsg(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SMnodeMgmt *pMgmt = pInfo->ahandle;
   int32_t     code = -1;
-  dTrace("msg:%p, get from mnode queue", pMsg);
+  STraceId *  trace = &pMsg->info.traceId;
+  dGTrace("msg:%p, get from mnode queue", pMsg);
 
   switch (pMsg->msgType) {
     case TDMT_MON_MM_INFO:

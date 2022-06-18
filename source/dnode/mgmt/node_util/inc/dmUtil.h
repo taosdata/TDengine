@@ -34,13 +34,13 @@
 
 #include "dnode.h"
 #include "mnode.h"
-#include "qnode.h"
 #include "monitor.h"
+#include "qnode.h"
 #include "sync.h"
 #include "wal.h"
 
 #include "libs/function/function.h"
-
+// clang-format off
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -51,6 +51,7 @@ extern "C" {
 #define dInfo(...)  { if (dDebugFlag & DEBUG_INFO)  { taosPrintLog("DND ", DEBUG_INFO, 255, __VA_ARGS__); }}
 #define dDebug(...) { if (dDebugFlag & DEBUG_DEBUG) { taosPrintLog("DND ", DEBUG_DEBUG, dDebugFlag, __VA_ARGS__); }}
 #define dTrace(...) { if (dDebugFlag & DEBUG_TRACE) { taosPrintLog("DND ", DEBUG_TRACE, dDebugFlag, __VA_ARGS__); }}
+#define dGTrace(param, ...) do { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dTrace(param ",GID: %s", __VA_ARGS__, buf);} while(0)
 
 typedef enum {
   DNODE = 0,
@@ -184,3 +185,4 @@ void    dmSetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet);
 #endif
 
 #endif /*_TD_DM_INT_H_*/
+// clang-format on
