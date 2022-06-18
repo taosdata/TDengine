@@ -36,7 +36,6 @@ typedef struct TSDBROW      TSDBROW;
 typedef struct TSDBKEY      TSDBKEY;
 typedef struct TABLEID      TABLEID;
 typedef struct KEYINFO      KEYINFO;
-typedef struct SDelOp       SDelOp;
 typedef struct SDelData     SDelData;
 typedef struct SDelIdx      SDelIdx;
 typedef struct STbData      STbData;
@@ -257,8 +256,8 @@ struct STbData {
   tb_uid_t     suid;
   tb_uid_t     uid;
   KEYINFO      info;
-  SDelOp      *pHead;
-  SDelOp      *pTail;
+  SDelData    *pHead;
+  SDelData    *pTail;
   SMemSkipList sl;
 };
 
@@ -358,17 +357,11 @@ struct STbDataIter {
   TSDBROW           row;
 };
 
-struct SDelOp {
-  int64_t version;
-  TSKEY   sKey;  // included
-  TSKEY   eKey;  // included
-  SDelOp *pNext;
-};
-
 struct SDelData {
-  int64_t version;
-  TSKEY   sKey;
-  TSKEY   eKey;
+  int64_t   version;
+  TSKEY     sKey;
+  TSKEY     eKey;
+  SDelData *pNext;
 };
 
 struct SDelIdx {

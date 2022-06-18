@@ -149,12 +149,11 @@ _err:
 }
 
 static int32_t tsdbCommitTableDel(SCommitter *pCommitter, STbData *pTbData, SDelIdx *pDelIdx) {
-  int32_t  code = 0;
-  SDelData delData;
-  SDelOp  *pDelOp;
-  tb_uid_t suid;
-  tb_uid_t uid;
-  SDelIdx  delIdx;  // TODO
+  int32_t   code = 0;
+  SDelData *pDelData;
+  tb_uid_t  suid;
+  tb_uid_t  uid;
+  SDelIdx   delIdx;  // TODO
 
   // check no del data, just return
   if (pTbData && pTbData->pHead == NULL) {
@@ -186,32 +185,28 @@ static int32_t tsdbCommitTableDel(SCommitter *pCommitter, STbData *pTbData, SDel
 
   // disk
   for (int32_t iDelData = 0; iDelData < pCommitter->oDelDataMap.nItem; iDelData++) {
-    code = tMapDataGetItemByIdx(&pCommitter->oDelDataMap, iDelData, &delData, tGetDelData);
+    code = tMapDataGetItemByIdx(&pCommitter->oDelDataMap, iDelData, pDelData, tGetDelData);
     if (code) goto _err;
 
-    code = tMapDataPutItem(&pCommitter->nDelDataMap, &delData, tPutDelData);
+    code = tMapDataPutItem(&pCommitter->nDelDataMap, pDelData, tPutDelData);
     if (code) goto _err;
 
-    if (delIdx.minKey > delData.sKey) delIdx.minKey = delData.sKey;
-    if (delIdx.maxKey < delData.eKey) delIdx.maxKey = delData.eKey;
-    if (delIdx.minVersion > delData.version) delIdx.minVersion = delData.version;
-    if (delIdx.maxVersion < delData.version) delIdx.maxVersion = delData.version;
+    if (delIdx.minKey > pDelData->sKey) delIdx.minKey = pDelData->sKey;
+    if (delIdx.maxKey < pDelData->eKey) delIdx.maxKey = pDelData->eKey;
+    if (delIdx.minVersion > pDelData->version) delIdx.minVersion = pDelData->version;
+    if (delIdx.maxVersion < pDelData->version) delIdx.maxVersion = pDelData->version;
   }
 
   // memory
-  pDelOp = pTbData ? pTbData->pHead : NULL;
-  for (; pDelOp; pDelOp = pDelOp->pNext) {
-    delData.version = pDelOp->version;
-    delData.sKey = pDelOp->sKey;
-    delData.eKey = pDelOp->eKey;
-
-    code = tMapDataPutItem(&pCommitter->nDelDataMap, &delData, tPutDelData);
+  pDelData = pTbData ? pTbData->pHead : NULL;
+  for (; pDelData; pDelData = pDelData->pNext) {
+    code = tMapDataPutItem(&pCommitter->nDelDataMap, pDelData, tPutDelData);
     if (code) goto _err;
 
-    if (delIdx.minKey > delData.sKey) delIdx.minKey = delData.sKey;
-    if (delIdx.maxKey < delData.eKey) delIdx.maxKey = delData.eKey;
-    if (delIdx.minVersion > delData.version) delIdx.minVersion = delData.version;
-    if (delIdx.maxVersion < delData.version) delIdx.maxVersion = delData.version;
+    if (delIdx.minKey > pDelData->sKey) delIdx.minKey = pDelData->sKey;
+    if (delIdx.maxKey < pDelData->eKey) delIdx.maxKey = pDelData->eKey;
+    if (delIdx.minVersion > pDelData->version) delIdx.minVersion = pDelData->version;
+    if (delIdx.maxVersion < pDelData->version) delIdx.maxVersion = pDelData->version;
   }
 
   ASSERT(pCommitter->nDelDataMap.nItem > 0);

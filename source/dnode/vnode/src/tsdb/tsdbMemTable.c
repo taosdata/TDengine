@@ -154,21 +154,21 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
   }
 
   // do delete
-  SDelOp *pDelOp = (SDelOp *)vnodeBufPoolMalloc(pPool, sizeof(*pDelOp));
-  if (pDelOp == NULL) {
+  SDelData *pDelData = (SDelData *)vnodeBufPoolMalloc(pPool, sizeof(*pDelData));
+  if (pDelData == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
-  pDelOp->version = version;
-  pDelOp->sKey = sKey;
-  pDelOp->eKey = eKey;
-  pDelOp->pNext = NULL;
+  pDelData->version = version;
+  pDelData->sKey = sKey;
+  pDelData->eKey = eKey;
+  pDelData->pNext = NULL;
   if (pTbData->pHead == NULL) {
     ASSERT(pTbData->pTail == NULL);
-    pTbData->pHead = pTbData->pTail = pDelOp;
+    pTbData->pHead = pTbData->pTail = pDelData;
   } else {
-    pTbData->pTail->pNext = pDelOp;
-    pTbData->pTail = pDelOp;
+    pTbData->pTail->pNext = pDelData;
+    pTbData->pTail = pDelData;
   }
 
   // update the state of pMemTable and other (todo)
