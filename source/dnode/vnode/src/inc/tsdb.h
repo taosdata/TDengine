@@ -438,9 +438,9 @@ struct SBlockSMA {
 };
 
 struct SBlockDataHdr {
-  uint8_t delimiter;
-  int64_t suid;
-  int64_t uid;
+  uint32_t delimiter;
+  int64_t  suid;
+  int64_t  uid;
 };
 
 #ifdef __cplusplus

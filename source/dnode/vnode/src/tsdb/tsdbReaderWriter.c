@@ -728,7 +728,7 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, uint8_
   SBlockCol     bCol;
   int64_t       size;
   int64_t       n;
-  TdFilePtr    *pFileFD = pWriter->pDataFD;  // TODO
+  TdFilePtr     pFileFD = pWriter->pDataFD;  // TODO
   SBlockDataHdr hdr = {.delimiter = TSDB_FILE_DLMT, .suid = pBlockIdx->suid, .uid = pBlockIdx->uid};
   TSCKSUM       cksm;
   uint8_t      *p;
@@ -791,8 +791,8 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, uint8_
     }
 
     // TSKEY
-    n = tsCompressTimestamp(pBlockData->aTSKEY, sizeof(TSKEY) * pBlockData->nRow, pBlockData->nRow, *ppBuf1, size,
-                            pBlock->cmprAlg, *ppBuf2, size);
+    n = tsCompressTimestamp((char *)pBlockData->aTSKEY, sizeof(TSKEY) * pBlockData->nRow, pBlockData->nRow, *ppBuf1,
+                            size, pBlock->cmprAlg, *ppBuf2, size);
     if (n <= 0) {
       code = TSDB_CODE_COMPRESS_ERROR;
       goto _err;
@@ -800,7 +800,7 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, uint8_
     pSubBlock->ksize += n;
 
     // version
-    n = tsCompressBigint(pBlockData->aVersion, sizeof(int64_t) * pBlockData->nRow, pBlockData->nRow,
+    n = tsCompressBigint((char *)pBlockData->aVersion, sizeof(int64_t) * pBlockData->nRow, pBlockData->nRow,
                          *ppBuf1 + pSubBlock->ksize, size - pSubBlock->ksize, pBlock->cmprAlg, *ppBuf2, size);
     if (n <= 0) {
       code = TSDB_CODE_COMPRESS_ERROR;
