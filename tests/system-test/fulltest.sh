@@ -105,6 +105,7 @@ python3 ./test.py -f 2-query/distribute_agg_sum.py
 python3 ./test.py -f 2-query/distribute_agg_spread.py
 python3 ./test.py -f 2-query/distribute_agg_apercentile.py
 python3 ./test.py -f 2-query/distribute_agg_avg.py
+python3 ./test.py -f 2-query/distribute_agg_stddev.py
 
 python3 ./test.py -f 6-cluster/5dnode1mnode.py 
 python3 ./test.py -f 6-cluster/5dnode2mnode.py 
