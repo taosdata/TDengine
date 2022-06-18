@@ -35,7 +35,7 @@ typedef struct SPhysiPlanContext {
   int32_t       errCode;
   int16_t       nextDataBlockId;
   SArray*       pLocationHelper;
-  SArray*       pExecNodeList;     // SArray<SQueryNodeLoad>
+  SArray*       pExecNodeList;  // SArray<SQueryNodeLoad>
 } SPhysiPlanContext;
 
 static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char* pKey) {
@@ -529,7 +529,8 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
 
   pScan->showRewrite = pScanLogicNode->showRewrite;
   pScan->accountId = pCxt->pPlanCxt->acctId;
-  if (0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_USER_TABLES)) {
+  if (0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_USER_TABLES) ||
+      0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED)) {
     vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
     SQueryNodeLoad node = {.addr = pSubplan->execNode, .load = 0};
     taosArrayPush(pCxt->pExecNodeList, &node);
