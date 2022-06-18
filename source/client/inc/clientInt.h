@@ -128,7 +128,7 @@ typedef struct STscObj {
   int8_t        connType;
   int32_t       acctId;
   uint32_t      connId;
-  uint64_t      id;         // ref ID returned by taosAddRef
+  TAOS         *id;         // ref ID returned by taosAddRef
   TdThreadMutex mutex;      // used to protect the operation on db
   int32_t       numOfReqs;  // number of sqlObj bound to this connection
   SAppInstInfo* pAppInfo;
