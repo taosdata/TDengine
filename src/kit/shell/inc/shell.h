@@ -40,6 +40,11 @@ typedef struct SShellHistory {
   int   hend;
 } SShellHistory;
 
+typedef struct SWSParser {
+  int offset;
+  int payload_length;
+} SWSParser;
+
 typedef struct SShellArguments {
   char* host;
   char* password;
