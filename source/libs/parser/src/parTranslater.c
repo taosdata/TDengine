@@ -1450,7 +1450,8 @@ static int32_t addMnodeToVgroupList(const SEpSet* pEpSet, SArray** pVgroupList) 
 }
 
 static int32_t setSysTableVgroupList(STranslateContext* pCxt, SName* pName, SRealTableNode* pRealTable) {
-  if (0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_USER_TABLES)) {
+  if (0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_USER_TABLES) &&
+      0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED)) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1531,7 +1532,8 @@ static bool joinTableIsSingleTable(SJoinTableNode* pJoinTable) {
 static bool isSingleTable(SRealTableNode* pRealTable) {
   int8_t tableType = pRealTable->pMeta->tableType;
   if (TSDB_SYSTEM_TABLE == tableType) {
-    return 0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_USER_TABLES);
+    return 0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_USER_TABLES) &&
+           0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED);
   }
   return (TSDB_CHILD_TABLE == tableType || TSDB_NORMAL_TABLE == tableType);
 }
