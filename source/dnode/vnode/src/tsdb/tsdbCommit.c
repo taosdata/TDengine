@@ -376,7 +376,7 @@ static int32_t tsdbCommitMemoryData(SCommitter *pCommitter, SBlockIdx *pBlockIdx
       block.last = 0;
     }
 
-    code = tsdbWriteBlockData(pCommitter->pWriter, &pCommitter->bDataN, NULL, pBlockIdx, &block);
+    code = tsdbWriteBlockData(pCommitter->pWriter, &pCommitter->bDataN, NULL, NULL, pBlockIdx, &block);
     if (code) goto _err;
 
     code = tMapDataPutItem(&pCommitter->nBlock, &block, tPutBlock);
@@ -454,7 +454,7 @@ static int32_t tsdbMergeCommitImpl(SCommitter *pCommitter, SBlockIdx *pBlockIdx,
 
   _write_block_data:
     block.last = pCommitter->bDataN.nRow < pCommitter->minRow ? 1 : 0;
-    code = tsdbWriteBlockData(pCommitter->pWriter, &pCommitter->bDataN, NULL, pBlockIdx, &block);
+    code = tsdbWriteBlockData(pCommitter->pWriter, &pCommitter->bDataN, NULL, NULL, pBlockIdx, &block);
     if (code) goto _err;
 
     code = tMapDataPutItem(&pCommitter->nBlock, &block, tPutBlock);
