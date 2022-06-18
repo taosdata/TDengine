@@ -23,6 +23,8 @@
 #include "cmdnodes.h"
 #include "querynodes.h"
 #include "taoserror.h"
+#include "tglobal.h"
+#include "ttime.h"
 
 namespace ParserTest {
 

@@ -18,6 +18,7 @@
 
 #include "parAst.h"
 #include "parUtil.h"
+#include "tglobal.h"
 #include "ttime.h"
 
 #define CHECK_OUT_OF_MEM(p)                                                      \
@@ -99,7 +100,7 @@ static bool checkPassword(SAstCreateContext* pCxt, const SToken* pPasswordToken,
   } else if (pPasswordToken->n >= (TSDB_USET_PASSWORD_LEN + 2)) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
   } else {
-    COPY_STRING_FORM_ID_TOKEN(pPassword, pPasswordToken);
+    strncpy(pPassword, pPasswordToken->z, pPasswordToken->n);
     strdequote(pPassword);
     if (strtrim(pPassword) <= 0) {
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_PASSWD_EMPTY);
@@ -110,50 +111,52 @@ static bool checkPassword(SAstCreateContext* pCxt, const SToken* pPasswordToken,
   return TSDB_CODE_SUCCESS == pCxt->errCode;
 }
 
-static bool checkAndSplitEndpoint(SAstCreateContext* pCxt, const SToken* pEp, char* pFqdn, int32_t* pPort) {
+static int32_t parsePort(SAstCreateContext* pCxt, const char* p, int32_t* pPort) {
+  *pPort = taosStr2Int32(p, NULL, 10);
+  if (*pPort >= UINT16_MAX || *pPort <= 0) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PORT);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t parseEndpoint(SAstCreateContext* pCxt, const SToken* pEp, char* pFqdn, int32_t* pPort) {
+  if (pEp->n >= (NULL == pPort ? (TSDB_FQDN_LEN + 1 + 5) : TSDB_FQDN_LEN)) {  // format 'fqdn:port' or 'fqdn'
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
+  }
+
+  char ep[TSDB_FQDN_LEN + 1 + 5];
+  COPY_STRING_FORM_ID_TOKEN(ep, pEp);
+  strdequote(ep);
+  strtrim(ep);
+  if (NULL == pPort) {
+    strcpy(pFqdn, ep);
+    return TSDB_CODE_SUCCESS;
+  }
+  char* pColon = strchr(ep, ':');
+  if (NULL == pColon) {
+    *pPort = tsServerPort;
+    strcpy(pFqdn, ep);
+    return TSDB_CODE_SUCCESS;
+  }
+  strncpy(pFqdn, ep, pColon - ep);
+  return parsePort(pCxt, pColon + 1, pPort);
+}
+
+static bool checkAndSplitEndpoint(SAstCreateContext* pCxt, const SToken* pEp, const SToken* pPortToken, char* pFqdn,
+                                  int32_t* pPort) {
   if (NULL == pEp) {
     pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
-  } else if (pEp->n >= TSDB_FQDN_LEN + 2 + 6) {  // format 'fqdn:port'
-    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
-  } else {
-    char ep[TSDB_FQDN_LEN + 6];
-    COPY_STRING_FORM_STR_TOKEN(ep, pEp);
-    strdequote(ep);
-    strtrim(ep);
-    char* pColon = strchr(ep, ':');
-    if (NULL == pColon) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ENDPOINT);
-    } else {
-      strncpy(pFqdn, ep, pColon - ep);
-      *pPort = taosStr2Int32(pColon + 1, NULL, 10);
-      if (*pPort >= UINT16_MAX || *pPort <= 0) {
-        pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PORT);
-      }
-    }
+    return false;
   }
-  return TSDB_CODE_SUCCESS == pCxt->errCode;
-}
 
-static bool checkFqdn(SAstCreateContext* pCxt, const SToken* pFqdn) {
-  if (NULL == pFqdn) {
-    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
-  } else {
-    if (pFqdn->n >= TSDB_FQDN_LEN) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
-    }
+  if (NULL != pPortToken) {
+    pCxt->errCode = parsePort(pCxt, pPortToken->z, pPort);
   }
-  return TSDB_CODE_SUCCESS == pCxt->errCode;
-}
 
-static bool checkPort(SAstCreateContext* pCxt, const SToken* pPortToken, int32_t* pPort) {
-  if (NULL == pPortToken) {
-    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
-  } else {
-    *pPort = taosStr2Int32(pPortToken->z, NULL, 10);
-    if (*pPort >= UINT16_MAX || *pPort <= 0) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PORT);
-    }
+  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+    pCxt->errCode = parseEndpoint(pCxt, pEp, pFqdn, (NULL != pPortToken ? NULL : pPort));
   }
+
   return TSDB_CODE_SUCCESS == pCxt->errCode;
 }
 
@@ -1177,23 +1180,12 @@ SNode* createDropUserStmt(SAstCreateContext* pCxt, SToken* pUserName) {
 
 SNode* createCreateDnodeStmt(SAstCreateContext* pCxt, const SToken* pFqdn, const SToken* pPort) {
   CHECK_PARSER_STATUS(pCxt);
-  int32_t port = 0;
-  char    fqdn[TSDB_FQDN_LEN] = {0};
-  if (NULL == pPort) {
-    if (!checkAndSplitEndpoint(pCxt, pFqdn, fqdn, &port)) {
-      return NULL;
-    }
-  } else if (!checkFqdn(pCxt, pFqdn) || !checkPort(pCxt, pPort, &port)) {
-    return NULL;
-  }
   SCreateDnodeStmt* pStmt = (SCreateDnodeStmt*)nodesMakeNode(QUERY_NODE_CREATE_DNODE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
-  if (NULL == pPort) {
-    strcpy(pStmt->fqdn, fqdn);
-  } else {
-    COPY_STRING_FORM_ID_TOKEN(pStmt->fqdn, pFqdn);
+  if (!checkAndSplitEndpoint(pCxt, pFqdn, pPort, pStmt->fqdn, &pStmt->port)) {
+    nodesDestroyNode((SNode*)pStmt);
+    return NULL;
   }
-  pStmt->port = port;
   return (SNode*)pStmt;
 }
 
@@ -1204,7 +1196,7 @@ SNode* createDropDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode) {
   if (TK_NK_INTEGER == pDnode->type) {
     pStmt->dnodeId = taosStr2Int32(pDnode->z, NULL, 10);
   } else {
-    if (!checkAndSplitEndpoint(pCxt, pDnode, pStmt->fqdn, &pStmt->port)) {
+    if (!checkAndSplitEndpoint(pCxt, pDnode, NULL, pStmt->fqdn, &pStmt->port)) {
       nodesDestroyNode((SNode*)pStmt);
       return NULL;
     }

@@ -14,7 +14,6 @@
  */
 
 #include "parTestUtil.h"
-#include "ttime.h"
 
 using namespace std;
 
@@ -242,9 +241,47 @@ TEST_F(ParserInitialCTest, createDatabaseSemanticCheck) {
 TEST_F(ParserInitialCTest, createDnode) {
   useDb("root", "test");
 
-  run("CREATE DNODE 'abc1' PORT 7000");
+  SCreateDnodeReq expect = {0};
 
-  run("CREATE DNODE '1.1.1.1' PORT 9000");
+  auto clearCreateDnodeReq = [&]() { memset(&expect, 0, sizeof(SCreateDnodeReq)); };
+
+  auto setCreateDnodeReqFunc = [&](const char* pFqdn, int32_t port = tsServerPort) {
+    strcpy(expect.fqdn, pFqdn);
+    expect.port = port;
+  };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_DNODE_STMT);
+    SCreateDnodeReq req = {0};
+    ASSERT_TRUE(TSDB_CODE_SUCCESS == tDeserializeSCreateDnodeReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+
+    ASSERT_EQ(std::string(req.fqdn), std::string(expect.fqdn));
+    ASSERT_EQ(req.port, expect.port);
+  });
+
+  setCreateDnodeReqFunc("abc1", 7030);
+  run("CREATE DNODE 'abc1' PORT 7030");
+  clearCreateDnodeReq();
+
+  setCreateDnodeReqFunc("1.1.1.1", 8030);
+  run("CREATE DNODE 1.1.1.1 PORT 8030");
+  clearCreateDnodeReq();
+
+  setCreateDnodeReqFunc("host1", 9030);
+  run("CREATE DNODE host1 PORT 9030");
+  clearCreateDnodeReq();
+
+  setCreateDnodeReqFunc("abc2", 7040);
+  run("CREATE DNODE 'abc2:7040'");
+  clearCreateDnodeReq();
+
+  setCreateDnodeReqFunc("1.1.1.2");
+  run("CREATE DNODE 1.1.1.2");
+  clearCreateDnodeReq();
+
+  setCreateDnodeReqFunc("host2");
+  run("CREATE DNODE host2");
+  clearCreateDnodeReq();
 }
 
 // CREATE [AGGREGATE] FUNCTION [IF NOT EXISTS] func_name AS library_path OUTPUTTYPE type_name [BUFSIZE value]
