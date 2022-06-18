@@ -141,15 +141,15 @@ class TDTestCase:
     def today_check_stb_tb(self):
         tdSql.prepare()
         tdSql.execute(self.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
-        for i in range(self.tb_num):
+        for i in range(self.tbnum):
             tdSql.execute(f'create table if not exists {self.stbname}_{i} using {self.stbname} tags({self.tag_values[i]})')
             for j in self.values_list:
                 tdSql.execute(f'insert into {self.stbname}_{i} values ({j})')
         # check child table
-        for i in range(self.tb_num):
+        for i in range(self.tbnum):
             self.data_check(self.column_dict,f'{self.stbname}_{i}',self.values_list)
         # check stable
-        self.data_check(self.column_dict,self.stbname,self.values_list,self.tb_num,'stb')
+        self.data_check(self.column_dict,self.stbname,self.values_list,self.tbnum,'stb')
         tdSql.execute('drop database db')
 
     def run(self):  # sourcery skip: extract-duplicate-method
