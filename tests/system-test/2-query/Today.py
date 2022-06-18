@@ -87,7 +87,7 @@ class TDTestCase:
                             tdSql.checkRows(len(values_list)*tb_num)
                     for unit in self.error_param:
                         for symbol in self.arithmetic_operators:
-                            tdSql.error(f'select today() {symbol}{self.error_param} from {i}')
+                            tdSql.error(f'select today() {symbol}{unit} from {i}')
                     for symbol in self.arithmetic_operators:
                         tdSql.query(f'select now(){symbol}null from {i}')
                         tdSql.checkData(0,0,None)
