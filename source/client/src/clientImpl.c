@@ -1297,12 +1297,12 @@ end:
   return string;
 }
 
-static int32_t doConvert(SReqResultInfo* pResultInfo, int32_t numOfRows, int32_t numOfCols, int32_t* colLength, bool convertUCS4) {
+static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t numOfRows, int32_t numOfCols, int32_t* colLength) {
   for (int32_t i = 0; i < numOfCols; ++i) {
     int32_t type = pResultInfo->fields[i].type;
     int32_t bytes = pResultInfo->fields[i].bytes;
 
-    if (type == TSDB_DATA_TYPE_NCHAR && colLength[i] > 0 && convertUCS4) {
+    if (type == TSDB_DATA_TYPE_NCHAR && colLength[i] > 0) {
       char* p = taosMemoryRealloc(pResultInfo->convertBuf[i], colLength[i]);
       if (p == NULL) {
         return TSDB_CODE_OUT_OF_MEMORY;
@@ -1327,70 +1327,119 @@ static int32_t doConvert(SReqResultInfo* pResultInfo, int32_t numOfRows, int32_t
 
       pResultInfo->pCol[i].pData = pResultInfo->convertBuf[i];
       pResultInfo->row[i] = pResultInfo->pCol[i].pData;
-    } else if (type == TSDB_DATA_TYPE_JSON && colLength[i] > 0) {
-      char* p = taosMemoryRealloc(pResultInfo->convertBuf[i], colLength[i]);
-      if (p == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
-      }
-
-      pResultInfo->convertBuf[i] = p;
-      int32_t        len = 0;
-      SResultColumn* pCol = &pResultInfo->pCol[i];
-      for (int32_t j = 0; j < numOfRows; ++j) {
-        if (pCol->offset[j] != -1) {
-          char* pStart = pCol->offset[j] + pCol->pData;
-
-          int32_t jsonInnerType = *pStart;
-          char*   jsonInnerData = pStart + CHAR_BYTES;
-          char    dst[TSDB_MAX_JSON_TAG_LEN] = {0};
-          if (jsonInnerType == TSDB_DATA_TYPE_NULL) {
-            sprintf(varDataVal(dst), "%s", TSDB_DATA_NULL_STR_L);
-            varDataSetLen(dst, strlen(varDataVal(dst)));
-          } else if (jsonInnerType == TD_TAG_JSON) {
-            char* jsonString = parseTagDatatoJson(pStart);
-            STR_TO_VARSTR(dst, jsonString);
-            taosMemoryFree(jsonString);
-          } else if (jsonInnerType == TSDB_DATA_TYPE_NCHAR) {  // value -> "value"
-            *(char*)varDataVal(dst) = '\"';
-            int32_t length = taosUcs4ToMbs((TdUcs4*)varDataVal(jsonInnerData), varDataLen(jsonInnerData),
-                                           varDataVal(dst) + CHAR_BYTES);
-            if (length <= 0) {
-              tscError("charset:%s to %s. convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset);
-              length = 0;
-            }
-            varDataSetLen(dst, length + CHAR_BYTES * 2);
-            *(char*)POINTER_SHIFT(varDataVal(dst), length + CHAR_BYTES) = '\"';
-          } else if (jsonInnerType == TSDB_DATA_TYPE_DOUBLE) {
-            double jsonVd = *(double*)(jsonInnerData);
-            sprintf(varDataVal(dst), "%.9lf", jsonVd);
-            varDataSetLen(dst, strlen(varDataVal(dst)));
-          } else if (jsonInnerType == TSDB_DATA_TYPE_BOOL) {
-            sprintf(varDataVal(dst), "%s", (*((char*)jsonInnerData) == 1) ? "true" : "false");
-            varDataSetLen(dst, strlen(varDataVal(dst)));
-          } else {
-            ASSERT(0);
-          }
-
-          if (len + varDataTLen(dst) > colLength[i]) {
-            p = taosMemoryRealloc(pResultInfo->convertBuf[i], len + varDataTLen(dst));
-            if (p == NULL) {
-              return TSDB_CODE_OUT_OF_MEMORY;
-            }
-
-            pResultInfo->convertBuf[i] = p;
-          }
-          p = pResultInfo->convertBuf[i] + len;
-          memcpy(p, dst, varDataTLen(dst));
-          pCol->offset[j] = len;
-          len += varDataTLen(dst);
-        }
-      }
-
-      pResultInfo->pCol[i].pData = pResultInfo->convertBuf[i];
-      pResultInfo->row[i] = pResultInfo->pCol[i].pData;
     }
   }
 
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int32_t numOfRows) {
+  bool needConvert = false;
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    if (pResultInfo->fields[i].type == TSDB_DATA_TYPE_JSON) {
+      needConvert = true;
+      break;
+    }
+  }
+  if(!needConvert) return TSDB_CODE_SUCCESS;
+
+  char* p = (char*)pResultInfo->pData;
+  int32_t dataLen = *(int32_t*)p;
+  pResultInfo->convertJson = taosMemoryCalloc(1, dataLen);
+  if(pResultInfo->convertJson == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  char* p1 = pResultInfo->convertJson;
+
+  int32_t len = sizeof(int32_t) + sizeof(uint64_t) + numOfCols *(sizeof(int16_t) + sizeof(int32_t));
+  memcpy(p1, p, len);
+
+  p += len;
+  p1 += len;
+
+  len = sizeof(int32_t) * numOfCols;
+  int32_t* colLength = (int32_t*)p;
+  int32_t* colLength1 = (int32_t*)p1;
+  memcpy(p1, p, len);
+  p += len;
+  p1 += len;
+
+  char* pStart = p;
+  char* pStart1 = p1;
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    int32_t colLen = htonl(colLength[i]);
+    int32_t colLen1 = htonl(colLength1[i]);
+    ASSERT(colLen < dataLen);
+
+    if (pResultInfo->fields[i].type == TSDB_DATA_TYPE_JSON) {
+      int32_t* offset = (int32_t*)pStart;
+      int32_t* offset1 = (int32_t*)pStart1;
+      len = numOfRows * sizeof(int32_t);
+      memcpy(pStart1, pStart, len);
+      pStart += len;
+      pStart1 += len;
+
+      len = 0;
+      for (int32_t j = 0; j < numOfRows; ++j) {
+        if (offset[j] == -1) {
+          continue;
+        }
+        char* data = offset[j] + pStart;
+
+        int32_t jsonInnerType = *data;
+        char*   jsonInnerData = data + CHAR_BYTES;
+        char    dst[TSDB_MAX_JSON_TAG_LEN] = {0};
+        if (jsonInnerType == TSDB_DATA_TYPE_NULL) {
+          sprintf(varDataVal(dst), "%s", TSDB_DATA_NULL_STR_L);
+          varDataSetLen(dst, strlen(varDataVal(dst)));
+        } else if (jsonInnerType == TD_TAG_JSON) {
+          char* jsonString = parseTagDatatoJson(data);
+          STR_TO_VARSTR(dst, jsonString);
+          taosMemoryFree(jsonString);
+        } else if (jsonInnerType == TSDB_DATA_TYPE_NCHAR) {  // value -> "value"
+          *(char*)varDataVal(dst) = '\"';
+          int32_t length = taosUcs4ToMbs((TdUcs4*)varDataVal(jsonInnerData), varDataLen(jsonInnerData),
+                                         varDataVal(dst) + CHAR_BYTES);
+          if (length <= 0) {
+            tscError("charset:%s to %s. convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset);
+            length = 0;
+          }
+          varDataSetLen(dst, length + CHAR_BYTES * 2);
+          *(char*)POINTER_SHIFT(varDataVal(dst), length + CHAR_BYTES) = '\"';
+        } else if (jsonInnerType == TSDB_DATA_TYPE_DOUBLE) {
+          double jsonVd = *(double*)(jsonInnerData);
+          sprintf(varDataVal(dst), "%.9lf", jsonVd);
+          varDataSetLen(dst, strlen(varDataVal(dst)));
+        } else if (jsonInnerType == TSDB_DATA_TYPE_BOOL) {
+          sprintf(varDataVal(dst), "%s", (*((char*)jsonInnerData) == 1) ? "true" : "false");
+          varDataSetLen(dst, strlen(varDataVal(dst)));
+        } else {
+          ASSERT(0);
+        }
+
+        offset1[j]= len;
+        memcpy(pStart1 + len, dst, varDataTLen(dst));
+        len += varDataTLen(dst);
+      }
+      colLen1 = len;
+      colLength1[i] = htonl(len);
+    } else if (IS_VAR_DATA_TYPE(pResultInfo->fields[i].type)) {
+      len = numOfRows * sizeof(int32_t);
+      memcpy(pStart1, pStart, len);
+      pStart += len;
+      pStart1 += len;
+      memcpy(pStart1, pStart, colLen);
+    } else {
+      len = BitmapLen(pResultInfo->numOfRows);
+      memcpy(pStart1, pStart, len);
+      pStart += len;
+      pStart1 += len;
+      memcpy(pStart1, pStart, colLen);
+
+    }
+    pStart += colLen;
+    pStart1 += colLen1;
+  }
+
+  pResultInfo->pData = pResultInfo->convertJson;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1402,6 +1451,10 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
   }
 
   int32_t code = doPrepareResPtr(pResultInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  code = doConvertJson(pResultInfo, numOfCols, numOfRows);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -1448,7 +1501,9 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
     pStart += colLength[i];
   }
 
-  code = doConvert(pResultInfo, numOfRows, numOfCols, colLength, convertUcs4);
+  if(convertUcs4){
+    code = doConvertUCS4(pResultInfo, numOfRows, numOfCols, colLength);
+  }
 
   return code;
 }
