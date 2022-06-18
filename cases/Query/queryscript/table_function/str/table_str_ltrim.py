@@ -83,7 +83,7 @@ class TDTestQuery(TDCase):
     def data_create(self,db):
         #os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))   
         os.system("touch %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
-        self.tdCreateData.dropandcreateDB_random("%s" % self.db, 1) 
+        self.tdCreateData.dropandcreateDB_random("%s" % db, 1) 
                               
     def right_case_1_groupby(self):
         print("\n==========================right case 1_groupby==========================\n")
