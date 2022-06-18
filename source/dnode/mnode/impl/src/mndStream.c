@@ -613,9 +613,9 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mndTransSetDbName(pTrans, createStreamReq.sourceDB);
+  mndTransSetDbName(pTrans, createStreamReq.sourceDB, NULL);
   // TODO
-  /*mndTransSetDbName(pTrans, streamObj.targetDb);*/
+  /*mndTransSetDbName(pTrans, streamObj.targetDb, NULL);*/
   mDebug("trans:%d, used to create stream:%s", pTrans->id, createStreamReq.name);
 
   // build stream obj from request

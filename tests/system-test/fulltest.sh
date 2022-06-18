@@ -98,17 +98,25 @@ python3 ./test.py -f 2-query/stateduration.py
 python3 ./test.py -f 2-query/function_stateduration.py
 python3 ./test.py -f 2-query/statecount.py
 python3 ./test.py -f 2-query/tail.py
+python3 ./test.py -f 2-query/distribute_agg_count.py
+python3 ./test.py -f 2-query/distribute_agg_max.py
+python3 ./test.py -f 2-query/distribute_agg_min.py
+python3 ./test.py -f 2-query/distribute_agg_sum.py
+python3 ./test.py -f 2-query/distribute_agg_spread.py
+python3 ./test.py -f 2-query/distribute_agg_apercentile.py
 
 python3 ./test.py -f 6-cluster/5dnode1mnode.py 
 python3 ./test.py -f 6-cluster/5dnode2mnode.py 
 #python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py
-python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py
+#python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py
 # BUG python3 ./test.py -f 6-cluster/5dnode3mnodeStopInsert.py 
 
 python3 ./test.py -f 7-tmq/basic5.py
 python3 ./test.py -f 7-tmq/subscribeDb.py
 python3 ./test.py -f 7-tmq/subscribeDb0.py
 python3 ./test.py -f 7-tmq/subscribeDb1.py
+python3 ./test.py -f 7-tmq/subscribeDb2.py
+python3 ./test.py -f 7-tmq/subscribeDb3.py
 python3 ./test.py -f 7-tmq/subscribeStb.py
 python3 ./test.py -f 7-tmq/subscribeStb0.py
 python3 ./test.py -f 7-tmq/subscribeStb1.py

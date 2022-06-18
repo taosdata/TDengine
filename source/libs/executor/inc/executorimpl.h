@@ -747,42 +747,26 @@ void    doBuildResultDatablock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo,
 
 void    doApplyFunctions(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, STimeWindow* pWin, SColumnInfoData* pTimeWindowData, int32_t offset,
                          int32_t forwardStep, TSKEY* tsCol, int32_t numOfTotal, int32_t numOfOutput, int32_t order);
-int32_t setGroupResultOutputBuf(SOptrBasicInfo* binfo, int32_t numOfCols, char* pData, int16_t type, int16_t bytes,
-                                int32_t groupId, SDiskbasedBuf* pBuf, SExecTaskInfo* pTaskInfo, SAggSupporter* pAggSup);
+
 void    doDestroyBasicInfo(SOptrBasicInfo* pInfo, int32_t numOfOutput);
-int32_t setDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadInfo, int32_t numOfRows, char* pData,
+int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadInfo, int32_t numOfRows, char* pData,
                                   int32_t compLen, int32_t numOfOutput, int64_t startTs, uint64_t* total,
                                   SArray* pColList);
 void    getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t key, STimeWindow* win);
 int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t *order, int32_t* scanFlag);
 int32_t getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, uint32_t* defaultBufsz);
 
-SArray* extractPartitionColInfo(SNodeList* pNodeList);
-
 void    doSetOperatorCompleted(SOperatorInfo* pOperator);
 void    doFilter(const SNode* pFilterNode, SSDataBlock* pBlock);
-SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, int32_t** rowCellInfoOffset);
-void    relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray* pCols);
-void    initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQueryWindow);
+
 void    cleanupAggSup(SAggSupporter* pAggSup);
 void    destroyBasicOperatorInfo(void* param, int32_t numOfOutput);
 void    appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle);
 void    setTbNameColData(void* pMeta, const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId);
-SInterval extractIntervalInfo(const STableScanPhysiNode* pTableScanNode);
-SColumn extractColumnFromColumnNode(SColumnNode* pColNode);
 
-SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity, SArray* pColMatchInfo, SSortOperatorInfo* pInfo);
 SSDataBlock* loadNextDataBlock(void* param);
 
 void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t* rowCellInfoOffset);
-
-SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols,
-                            SExecTaskInfo* pTaskInfo, int32_t type);
-
-SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* numOfExprs);
-SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode);
-int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysiNode* pTableScanNode);
-void clearupQueryTableDataCond(SQueryTableDataCond* pCond);
 
 SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pResultRowInfo,
                                    char* pData, int16_t bytes, bool masterscan, uint64_t groupId,
@@ -799,9 +783,9 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo*
                                            int32_t numOfScalarExpr, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode *pNode, SExecTaskInfo* pTaskInfo);
-SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t num, SSDataBlock* pResBlock, SLimit* pLimit, SLimit* pSlimit, SNode* pCondition, SExecTaskInfo* pTaskInfo);
-SOperatorInfo *createSortOperatorInfo(SOperatorInfo* downstream, SSDataBlock* pResBlock, SArray* pSortInfo, SExprInfo* pExprInfo, int32_t numOfCols,
-                                      SArray* pIndexMap, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* pProjPhyNode, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortPhyNode, SExecTaskInfo* pTaskInfo);
+
 SOperatorInfo* createMultiwaySortMergeOperatorInfo(SOperatorInfo** downStreams, int32_t numStreams, SSDataBlock* pInputBlock,
                                                    SSDataBlock* pResBlock, SArray* pSortInfo, SArray* pColMatchColInfo,
                                                    SExecTaskInfo* pTaskInfo);
@@ -831,10 +815,9 @@ SOperatorInfo* createDataBlockInfoScanOperator(void* dataReader, SExecTaskInfo* 
 SOperatorInfo* createStreamScanOperatorInfo(void* pDataReader, SReadHandle* pHandle,
     STableScanPhysiNode* pTableScanNode, SExecTaskInfo* pTaskInfo, STimeWindowAggSupp* pTwSup);
 
+SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFillNode, bool multigroupResult,
+                                      SExecTaskInfo* pTaskInfo);
 
-SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfCols,
-                                      SInterval* pInterval, STimeWindow* pWindow, SSDataBlock* pResBlock, int32_t fillType, SNodeListNode* fillVal,
-                                      bool multigroupResult, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfCols,
                                              SSDataBlock* pResBlock, STimeWindowAggSupp *pTwAggSupp, int32_t tsSlotId, SColumn* pStateKeyCol, SExecTaskInfo* pTaskInfo);
 
@@ -843,7 +826,8 @@ SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SPartition
 SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                            SSDataBlock* pResultBlock, const SNodeListNode* pValNode, SExecTaskInfo* pTaskInfo);
 
-SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResBlock, SNode* pOnCondition, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream, SJoinPhysiNode* pJoinNode,
+                                           SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream,
     SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo);
@@ -864,8 +848,8 @@ void setInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx, SSDataBlo
 bool    isTaskKilled(SExecTaskInfo* pTaskInfo);
 int32_t checkForQueryBuf(size_t numOfTables);
 
-void setTaskKilled(SExecTaskInfo* pTaskInfo);
-void queryCostStatis(SExecTaskInfo* pTaskInfo);
+void    setTaskKilled(SExecTaskInfo* pTaskInfo);
+void    queryCostStatis(SExecTaskInfo* pTaskInfo);
 
 void    doDestroyTask(SExecTaskInfo* pTaskInfo);
 int32_t getMaximumIdleDurationSec();
@@ -884,7 +868,7 @@ int32_t encodeOperator(SOperatorInfo* ops, char** data, int32_t *length);
  * length: the length of data
  * return: result code, 0 means success
  */
-int32_t decodeOperator(SOperatorInfo* ops, char* data, int32_t length);
+int32_t decodeOperator(SOperatorInfo* ops, const char* data, int32_t length);
 
 void    setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status);
 int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
@@ -914,8 +898,6 @@ int32_t finalizeResultRowIntoResultDataBlock(SDiskbasedBuf* pBuf, SResultRowPosi
                                        SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, int32_t numOfExprs, const int32_t* rowCellOffset,
                                        SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
 
-int32_t getTableList(void* metaHandle, int32_t tableType, uint64_t tableUid, STableListInfo* pListInfo,
-                            SNode* pTagCond);
 int32_t createMultipleDataReaders(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle,
                                   STableListInfo* pTableListInfo, SArray* arrayReader, uint64_t queryId,
                                   uint64_t taskId, SNode* pTagCond);
