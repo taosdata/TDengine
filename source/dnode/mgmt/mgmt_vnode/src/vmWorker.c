@@ -31,7 +31,8 @@ static void vmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SVnodeMgmt *pMgmt = pInfo->ahandle;
   int32_t     code = -1;
 
-  dTrace("msg:%p, get from vnode-mgmt queue", pMsg);
+  STraceId *trace = &pMsg->info.traceId;
+  dGTrace("msg:%p, get from vnode-mgmt queue", pMsg);
   switch (pMsg->msgType) {
     case TDMT_MON_VM_INFO:
       code = vmProcessGetMonitorInfoReq(pMgmt, pMsg);
@@ -97,7 +98,7 @@ static void vmProcessFetchQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
 
 static void vmProcessSyncQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
   SVnodeObj *pVnode = pInfo->ahandle;
-  SRpcMsg   *pMsg = NULL;
+  SRpcMsg *  pMsg = NULL;
 
   for (int32_t i = 0; i < numOfMsgs; ++i) {
     if (taosGetQitem(qall, (void **)&pMsg) == 0) continue;
@@ -118,7 +119,7 @@ static void vmProcessSyncQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOf
 
 static void vmProcessMergeQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
   SVnodeObj *pVnode = pInfo->ahandle;
-  SRpcMsg   *pMsg = NULL;
+  SRpcMsg *  pMsg = NULL;
 
   for (int32_t i = 0; i < numOfMsgs; ++i) {
     if (taosGetQitem(qall, (void **)&pMsg) == 0) continue;
