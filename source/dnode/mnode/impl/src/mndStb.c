@@ -669,8 +669,8 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   pDst->tagVer = 1;
   pDst->colVer = 1;
   pDst->nextColId = 1;
-  pDst->xFilesFactor = pCreate->xFilesFactor;
-  pDst->delay = pCreate->delay;
+  // pDst->xFilesFactor = pCreate->xFilesFactor;
+  // pDst->delay = pCreate->delay;
   pDst->ttl = pCreate->ttl;
   pDst->numOfColumns = pCreate->numOfColumns;
   pDst->numOfTags = pCreate->numOfTags;

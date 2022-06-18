@@ -66,6 +66,13 @@ int32_t raftCfgPersist(SRaftCfg *pRaftCfg) {
   return 0;
 }
 
+int32_t raftCfgAddConfigIndex(SRaftCfg *pRaftCfg, SyncIndex configIndex) {
+  ASSERT(pRaftCfg->configIndexCount <= MAX_CONFIG_INDEX_COUNT);
+  (pRaftCfg->configIndexArr)[pRaftCfg->configIndexCount] = configIndex;
+  ++(pRaftCfg->configIndexCount);
+  return 0;
+}
+
 cJSON *syncCfg2Json(SSyncCfg *pSyncCfg) {
   char   u64buf[128] = {0};
   cJSON *pRoot = cJSON_CreateObject();
@@ -92,6 +99,29 @@ char *syncCfg2Str(SSyncCfg *pSyncCfg) {
   char  *serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
+}
+
+char *syncCfg2SimpleStr(SSyncCfg *pSyncCfg) {
+  int32_t len = 512;
+  char   *s = taosMemoryMalloc(len);
+  memset(s, 0, len);
+
+  snprintf(s, len, "{replica-num:%d, my-index:%d, ", pSyncCfg->replicaNum, pSyncCfg->myIndex);
+  char *p = s + strlen(s);
+  for (int i = 0; i < pSyncCfg->replicaNum; ++i) {
+    /*
+    if (p + 128 + 32 > s + len) {
+      break;
+    }
+    */
+    char buf[128 + 32];
+    snprintf(buf, sizeof(buf), "%s:%d, ", pSyncCfg->nodeInfo[i].nodeFqdn, pSyncCfg->nodeInfo[i].nodePort);
+    strncpy(p, buf, sizeof(buf));
+    p = s + strlen(s);
+  }
+  strcpy(p - 2, "}");
+
+  return s;
 }
 
 int32_t syncCfgFromJson(const cJSON *pRoot, SSyncCfg *pSyncCfg) {
@@ -274,6 +304,12 @@ void syncCfgLog(SSyncCfg *pCfg) {
 void syncCfgLog2(char *s, SSyncCfg *pCfg) {
   char *serialized = syncCfg2Str(pCfg);
   sTrace("syncCfgLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+  taosMemoryFree(serialized);
+}
+
+void syncCfgLog3(char *s, SSyncCfg *pCfg) {
+  char *serialized = syncCfg2SimpleStr(pCfg);
+  sTrace("syncCfgLog3 | len:%lu | %s | %s", strlen(serialized), s, serialized);
   taosMemoryFree(serialized);
 }
 
