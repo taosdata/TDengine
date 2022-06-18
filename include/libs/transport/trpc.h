@@ -23,6 +23,7 @@ extern "C" {
 #include <stdint.h>
 #include "taosdef.h"
 #include "tmsg.h"
+#include "ttrace.h"
 
 #define TAOS_CONN_SERVER 0
 #define TAOS_CONN_CLIENT 1
@@ -41,10 +42,12 @@ typedef struct {
 
 typedef struct SRpcHandleInfo {
   // rpc info
-  void *  handle;         // rpc handle returned to app
-  int64_t refId;          // refid, used by server
-  int32_t noResp;         // has response or not(default 0, 0: resp, 1: no resp);
-  int32_t persistHandle;  // persist handle or not
+  void *   handle;         // rpc handle returned to app
+  int64_t  refId;          // refid, used by server
+  int32_t  noResp;         // has response or not(default 0, 0: resp, 1: no resp);
+  int32_t  persistHandle;  // persist handle or not
+  STraceId traceId;
+  // int64_t traceId;
 
   // app info
   void *ahandle;  // app handle set by client

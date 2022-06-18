@@ -774,9 +774,6 @@ static int32_t vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *
     goto _err;
   }
 
-  // record current timezone of server side
-  req.timezoneInt = tsTimezone;
-
   if (tdProcessTSmaCreate(pVnode->pSma, version, (const char *)&req) < 0) {
     if (pRsp) pRsp->code = terrno;
     goto _err;

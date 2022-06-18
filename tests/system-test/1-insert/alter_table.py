@@ -52,8 +52,6 @@ class TDTestCase:
         tdSql.execute(f'create database if not exists {dbname}')
         stbname = self.get_long_name(length=3, mode="letters")
         tbname = self.get_long_name(length=3, mode="letters")
-        tdLog.info('--------------------------child table tag check--------------------------------------')
-        tdLog.info(f'-----------------create stable {stbname} and child table {tbname}-------------------')
         tdSql.execute(f'create stable if not exists {dbname}.{stbname} (col_ts timestamp, c1 int) tags (tag_ts timestamp, t1 tinyint, t2 smallint, t3 int, \
                 t4 bigint, t5 tinyint unsigned, t6 smallint unsigned, t7 int unsigned, t8 bigint unsigned, t9 float, t10 double, t11 bool,t12 binary(20),t13 nchar(20))')
         tdSql.execute(f'create table if not exists {dbname}.{tbname} using {dbname}.{stbname} tags(now, 1, 2, 3, 4, 5, 6, 7, 8, 9.9, 10.1, True,"abc123","涛思数据")')
@@ -90,13 +88,16 @@ class TDTestCase:
         tdSql.checkData(0,15,tag_nchar)
 
         # bug TD-16211 insert length more than setting binary and nchar
-        # tag_binary = self.get_long_name(length=21, mode="letters")
-        # tag_nchar = self.get_long_name(length=21, mode="letters")
-        # tdSql.error(f'alter table {dbname}.{tbname} set tag t12 = "{tag_binary}"')
-        # tdSql.error(f'alter table {dbname}.{tbname} set tag t13 = "{tag_nchar}"')
-
+        # error_tag_binary = self.get_long_name(length=21, mode="letters")
+        # error_tag_nchar = self.get_long_name(length=21, mode="letters")
+        # tdSql.error(f'alter table {dbname}.{tbname} set tag t12 = "{error_tag_binary}"')
+        # tdSql.error(f'alter table {dbname}.{tbname} set tag t13 = "{error_tag_nchar}"')
+        error_tag_binary = self.get_long_name(length=25, mode="letters")
+        error_tag_nchar = self.get_long_name(length=25, mode="letters")
+        tdSql.error(f'alter table {dbname}.{tbname} set tag t12 = "{error_tag_binary}"')
+        tdSql.error(f'alter table {dbname}.{tbname} set tag t13 = "{error_tag_nchar}"')
         # bug TD-16210 modify binary to nchar
-        # tdSql.error(f'alter table {dbname}.{tbname} modify tag t12 nchar(10)')
+        tdSql.error(f'alter table {dbname}.{tbname} modify tag t12 nchar(10)')
         tdSql.execute(f"drop database {dbname}")
     def alter_ntb_column_check(self):
         '''
@@ -125,6 +126,20 @@ class TDTestCase:
         tdSql.execute(f'alter table {dbname}.{tbname} drop column `c15`')
         tdSql.query(f'describe {dbname}.{tbname}')
         tdSql.checkRows(14)
+        #! TD-16422
+        # tdSql.execute(f'alter table {dbname}.{tbname} add column c16 binary(10)')
+        # tdSql.query(f'describe {dbname}.{tbname}')
+        # tdSql.checkRows(15)
+        # tdSql.checkEqual(tdSql.queryResult[14][2],10)
+        # tdSql.execute(f'alter table {dbname}.{tbname} drop column c16')
+
+        # tdSql.execute(f'alter table {dbname}.{tbname} add column c16 nchar(10)')
+        # tdSql.query(f'describe {dbname}.{tbname}')
+        # tdSql.checkRows(15)
+        # tdSql.checkEqual(tdSql.queryResult[14][2],10)
+        # tdSql.execute(f'alter table {dbname}.{tbname} drop column c16')
+
+
         tdSql.execute(f'alter table {dbname}.{tbname} modify column c12 binary(30)')
         tdSql.query(f'describe {dbname}.{tbname}')
         tdSql.checkData(12,2,30)
