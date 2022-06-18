@@ -52,8 +52,6 @@ class TDTestCase:
                 tdSql.checkRows(len(values_list)*tb_num)
                 tdSql.checkData(0, 0, str(self.today_date))
                 tdSql.query(f"select * from {tbname} where {k}=today()")
-                print('=============')
-                print(num_same)
                 if tb == 'tb':
                     tdSql.checkRows(num_same*tb_num)
                 elif tb == 'stb':
