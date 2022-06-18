@@ -23,7 +23,7 @@ There are two ways to install taosBenchmark:
 
 TaosBenchmark needs to be executed on the terminal of the operating system, it supports two configuration methods: [Command-line arguments](#command-line-arguments-in-detail) and [JSON configuration file](#configuration-file-parameters-in-detail). These two methods are mutually exclusive. Users can use `-f <json file>` to specify a configuration file. When running taosBenchmark with command-line arguments to control its behavior, users should use other parameters for configuration, but not the `-f` parameter. In addition, taosBenchmark offers a special way of running without parameters.
 
-taosBenchmark supports the complete performance testing of TDengine by providing functionaly to write, query, and subscribe. These three functions are mutually exclusive, users can only select one of them each time taosBenchmark runs. The query and subscribe functionalities are only configurable using a json configuration file by specifying the parameter `filetype`, while write can be performed through both the command-line and a configuration file.
+taosBenchmark supports the complete performance testing of TDengine by providing functionally to write, query, and subscribe. These three functions are mutually exclusive, users can only select one of them each time taosBenchmark runs. The query and subscribe functionalities are only configurable using a json configuration file by specifying the parameter `filetype`, while write can be performed through both the command-line and a configuration file.
 
 **Make sure that the TDengine cluster is running correctly before running taosBenchmark. **
 
@@ -171,7 +171,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
   specify whether to use escape characters in the super table and sub-table names, the default is no.
 
 - **-C/--chinese** :
-  specify whether to use Unicode Chinese characters in nchar and binary, the deault is no.
+  specify whether to use Unicode Chinese characters in nchar and binary, the default is no.
 
 - **-N/--normal-table** :
   specify whether taosBenchmark will create only normal tables instead of super tables. The default value is false. It can be used if the insert mode is taosc, stmt, and rest.
