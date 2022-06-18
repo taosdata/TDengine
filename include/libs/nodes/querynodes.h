@@ -283,11 +283,11 @@ typedef enum ESqlClause {
 } ESqlClause;
 
 typedef struct SDeleteStmt {
-  ENodeType   type;           // QUERY_NODE_DELETE_STMT
-  SNode*      pFromTable;     // FROM clause
-  SNode*      pWhere;         // WHERE clause
-  SNode*      pCountFunc;     // count the number of rows affected
-  SNode*      pTagIndexCond;  // pWhere divided into pTagIndexCond and timeRange
+  ENodeType   type;        // QUERY_NODE_DELETE_STMT
+  SNode*      pFromTable;  // FROM clause
+  SNode*      pWhere;      // WHERE clause
+  SNode*      pCountFunc;  // count the number of rows affected
+  SNode*      pTagCond;    // pWhere divided into pTagCond and timeRange
   STimeWindow timeRange;
   uint8_t     precision;
   bool        deleteZeroRows;
@@ -391,7 +391,8 @@ void    nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal);
 
 char*   nodesGetFillModeString(EFillMode mode);
 int32_t nodesMergeConds(SNode** pDst, SNodeList** pSrc);
-int32_t nodesPartitionCond(SNode** pCondition, SNode** pPrimaryKeyCond, SNode** pTagCond, SNode** pOtherCond);
+int32_t nodesPartitionCond(SNode** pCondition, SNode** pPrimaryKeyCond, SNode** pTagIndexCond, SNode** pTagCond,
+                           SNode** pOtherCond);
 
 #ifdef __cplusplus
 }

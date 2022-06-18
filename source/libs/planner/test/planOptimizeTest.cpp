@@ -40,6 +40,8 @@ TEST_F(PlanOptimizeTest, ConditionPushDown) {
   run("SELECT ts, c1 FROM st1 WHERE tag1 > 4 or tag1 < 2");
 
   run("SELECT ts, c1 FROM st1 WHERE tag1 > 4 AND tag2 = 'hello'");
+
+  run("SELECT ts, c1 FROM st1 WHERE tag1 > 4 AND tag2 = 'hello' AND c1 > 10");
 }
 
 TEST_F(PlanOptimizeTest, orderByPrimaryKey) {

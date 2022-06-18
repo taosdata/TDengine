@@ -15,7 +15,6 @@
 
 #include "filter.h"
 #include "functionMgt.h"
-#include "index.h"
 #include "planInt.h"
 #include "ttime.h"
 
@@ -307,32 +306,6 @@ static int32_t cpdCalcTimeRange(SScanLogicNode* pScan, SNode** pPrimaryKeyCond, 
   return code;
 }
 
-static int32_t cpdApplyTagIndex(SScanLogicNode* pScan, SNode** pTagCond, SNode** pOtherCond) {
-  int32_t       code = TSDB_CODE_SUCCESS;
-  SIdxFltStatus idxStatus = idxGetFltStatus(*pTagCond);
-  switch (idxStatus) {
-    case SFLT_NOT_INDEX:
-      code = cpdCondAppend(pOtherCond, pTagCond);
-      break;
-    case SFLT_COARSE_INDEX:
-      pScan->pTagCond = nodesCloneNode(*pTagCond);
-      if (NULL == pScan->pTagCond) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        break;
-      }
-      code = cpdCondAppend(pOtherCond, pTagCond);
-      break;
-    case SFLT_ACCURATE_INDEX:
-      pScan->pTagCond = *pTagCond;
-      *pTagCond = NULL;
-      break;
-    default:
-      code = TSDB_CODE_FAILED;
-      break;
-  }
-  return code;
-}
-
 static int32_t cpdOptimizeScanCondition(SOptimizeContext* pCxt, SScanLogicNode* pScan) {
   if (NULL == pScan->node.pConditions || OPTIMIZE_FLAG_TEST_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_CPD) ||
       TSDB_SYSTEM_TABLE == pScan->tableType) {
@@ -340,14 +313,11 @@ static int32_t cpdOptimizeScanCondition(SOptimizeContext* pCxt, SScanLogicNode* 
   }
 
   SNode*  pPrimaryKeyCond = NULL;
-  SNode*  pTagCond = NULL;
   SNode*  pOtherCond = NULL;
-  int32_t code = nodesPartitionCond(&pScan->node.pConditions, &pPrimaryKeyCond, &pTagCond, &pOtherCond);
+  int32_t code = nodesPartitionCond(&pScan->node.pConditions, &pPrimaryKeyCond, &pScan->pTagIndexCond, &pScan->pTagCond,
+                                    &pOtherCond);
   if (TSDB_CODE_SUCCESS == code && NULL != pPrimaryKeyCond) {
     code = cpdCalcTimeRange(pScan, &pPrimaryKeyCond, &pOtherCond);
-  }
-  if (TSDB_CODE_SUCCESS == code && NULL != pTagCond) {
-    code = cpdApplyTagIndex(pScan, &pTagCond, &pOtherCond);
   }
   if (TSDB_CODE_SUCCESS == code) {
     pScan->node.pConditions = pOtherCond;
