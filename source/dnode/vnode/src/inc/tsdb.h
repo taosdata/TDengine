@@ -79,6 +79,10 @@ typedef struct STsdbSmaFile   STsdbSmaFile;
 typedef struct STsdbSmalFile  STsdbSmalFile;
 typedef struct SDFileSet      SDFileSet;
 
+// SDelFile
+#define tsdbDelFileCreate() ((SDelFile){.info = KEYINFO_INIT_VAL, .size = 0, .offset = 0})
+char *tsdbDelFileName(STsdb *pTsdb, SDelFile *pFile);
+
 // tsdbFS.c ==============================================================================================
 typedef struct STsdbFS STsdbFS;
 
@@ -131,15 +135,21 @@ int32_t tsdbReadDelIdx(SDelFReader *pReader, SMapData *pDelIdxMap, uint8_t **ppB
 
 // tsdbUtil.c ==============================================================================================
 // TSDBROW
+#define tsdbRowFromTSRow(VERSION, TSROW)      ((TSDBROW){.type = 0, .version = (VERSION), .pTSRow = (TSROW)});
+#define tsdbRowFromBlockData(BLOCKDATA, IROW) ((TSDBROW){.type = 1, .pBlockData = (BLOCKDATA), .pTSRow = (IROW)});
 TSDBKEY tsdbRowKey(TSDBROW *pRow);
 
 int32_t tsdbKeyFid(TSKEY key, int32_t minutes, int8_t precision);
 void    tsdbFidKeyRange(int32_t fid, int32_t minutes, int8_t precision, TSKEY *minKey, TSKEY *maxKey);
 
+// memory
 int32_t tsdbRealloc(uint8_t **ppBuf, int64_t size);
 void    tsdbFree(uint8_t *pBuf);
 
+// TABLEID
 int32_t tTABLEIDCmprFn(const void *p1, const void *p2);
+
+// TSDBKEY
 int32_t tsdbKeyCmprFn(const void *p1, const void *p2);
 
 int32_t tsdbBuildDeleteSkyline(SArray *aDelData, int32_t sidx, int32_t eidx, SArray *aSkyline);
@@ -275,6 +285,7 @@ int tsdbLockRepo(STsdb *pTsdb);
 int tsdbUnlockRepo(STsdb *pTsdb);
 
 struct TSDBROW {
+  int8_t type;  // 0 for row from tsRow, 1 for row from block data
   union {
     struct {
       int64_t version;
@@ -332,7 +343,8 @@ struct SColData {
 struct SBlockData {
   int32_t   maxRow;
   int32_t   nRow;
-  TSDBKEY  *aKey;
+  int64_t  *aVersion;
+  TSKEY    *aTSKEY;
   int32_t   maxCol;
   int32_t   nCol;
   SColData *aColData;

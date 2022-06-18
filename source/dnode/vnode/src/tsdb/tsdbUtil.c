@@ -544,6 +544,18 @@ int32_t tGetKEYINFO(uint8_t *p, KEYINFO *pKeyInfo) {
 }
 
 // SBlockData ======================================================
+static int32_t tsdbBlockDataAppendRow0(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
+static int32_t tsdbBlockDataAppendRow1(SBlockData *pBlockData, TSDBROW *pRow) {
+  int32_t code = 0;
+  // TODO
+  return code;
+}
+
 void tsdbBlockDataClear(SBlockData *pBlockData) {
   pBlockData->nRow = 0;
   for (int32_t iCol = 0; iCol < pBlockData->nCol; iCol++) {
@@ -571,10 +583,10 @@ int32_t tsdbBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *
     }
     ASSERT(pBlockData->maxRow > pBlockData->nRow);
 
-    code = tsdbRealloc((uint8_t **)&pBlockData->aKey, sizeof(TSDBKEY) * pBlockData->maxRow);
+    // code = tsdbRealloc((uint8_t **)&pBlockData->aKey, sizeof(TSDBKEY) * pBlockData->maxRow);
     if (code) goto _err;
   }
-  pBlockData->aKey[nRow] = key;
+  // pBlockData->aKey[nRow] = key;
 
   // other cols
   int16_t iColData = 0;
@@ -615,7 +627,8 @@ _err:
 }
 
 void tsdbBlockDataDestroy(SBlockData *pBlockData) {
-  tsdbFree((uint8_t *)pBlockData->aKey);
+  tsdbFree((uint8_t *)pBlockData->aVersion);
+  tsdbFree((uint8_t *)pBlockData->aTSKEY);
   for (int32_t iCol = 0; iCol < pBlockData->nCol; iCol++) {
     tsdbFree(pBlockData->aColData[iCol].pBitMap);
     tsdbFree(pBlockData->aColData[iCol].pData);
