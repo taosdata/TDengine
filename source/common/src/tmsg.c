@@ -707,7 +707,7 @@ int32_t tDeserializeSMAlterStbReq(void *buf, int32_t bufLen, SMAlterStbReq *pReq
   if (tDecodeI32(&decoder, &pReq->ttl) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->commentLen) < 0) return -1;
   if (pReq->commentLen > 0) {
-    pReq->comment = taosMemoryMalloc(pReq->commentLen);
+    pReq->comment = taosMemoryMalloc(pReq->commentLen + 1);
     if (pReq->comment == NULL) return -1;
     if (tDecodeCStrTo(&decoder, pReq->comment) < 0) return -1;
   }
