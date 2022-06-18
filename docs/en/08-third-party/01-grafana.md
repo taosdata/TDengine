@@ -15,15 +15,15 @@ TDengine currently supports Grafana versions 7.5 and above. Users can go to the 
 
 Please copy the following shell commands to export `TDENGINE_CLOUD_URL` and `TDENGINE_CLOUD_TOKEN` for the data source installation.
 
+```bash
+export TDENGINE_CLOUD_TOKEN="<token>"
+export TDENGINE_CLOUD_URL="<url>"
+```
+
 Run below script from Linux terminal to install TDengine data source plugin.
 
 ```bash
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/taosdata/grafanaplugin/master/install.sh)"
-```
-
-Please restart Grafana after install plugins. Refer to Grafana documentation for instructions if necessary.
-
-* Provisioning /etc/grafana/provisioning/datasources/TDengine.yaml
 ```
 
 After that completed, please restart grafana-server.
