@@ -15,6 +15,7 @@
 #ifndef _TD_TRACE_H_
 #define _TD_TRACE_H_
 
+#include <stdint.h>
 #include <stdlib.h>
 
 #ifdef __cplusplus
