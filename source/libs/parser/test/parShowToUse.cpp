@@ -24,9 +24,45 @@ class ParserShowToUseTest : public ParserDdlTest {};
 // todo SHOW accounts
 // todo SHOW apps
 // todo SHOW connections
-// todo SHOW create database
-// todo SHOW create stable
-// todo SHOW create table
+
+TEST_F(ParserShowToUseTest, showCreateDatabase) {
+  useDb("root", "test");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_SHOW_CREATE_DATABASE_STMT);
+    ASSERT_EQ(pQuery->execMode, QUERY_EXEC_MODE_LOCAL);
+    ASSERT_TRUE(pQuery->haveResultSet);
+    ASSERT_NE(((SShowCreateDatabaseStmt*)pQuery->pRoot)->pCfg, nullptr);
+  });
+
+  run("SHOW CREATE DATABASE test");
+}
+
+TEST_F(ParserShowToUseTest, showCreateSTable) {
+  useDb("root", "test");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_SHOW_CREATE_STABLE_STMT);
+    ASSERT_EQ(pQuery->execMode, QUERY_EXEC_MODE_LOCAL);
+    ASSERT_TRUE(pQuery->haveResultSet);
+    ASSERT_NE(((SShowCreateTableStmt*)pQuery->pRoot)->pMeta, nullptr);
+  });
+
+  run("SHOW CREATE STABLE st1");
+}
+
+TEST_F(ParserShowToUseTest, showCreateTable) {
+  useDb("root", "test");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_SHOW_CREATE_TABLE_STMT);
+    ASSERT_EQ(pQuery->execMode, QUERY_EXEC_MODE_LOCAL);
+    ASSERT_TRUE(pQuery->haveResultSet);
+    ASSERT_NE(((SShowCreateTableStmt*)pQuery->pRoot)->pMeta, nullptr);
+  });
+
+  run("SHOW CREATE TABLE t1");
+}
 
 TEST_F(ParserShowToUseTest, showDatabases) {
   useDb("root", "test");

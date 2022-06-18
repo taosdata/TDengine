@@ -113,7 +113,7 @@ SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
 
 SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* numOfExprs);
 
-SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, int32_t** rowCellInfoOffset);
+SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, int32_t** rowEntryInfoOffset);
 void    relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray* pCols);
 void    initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQueryWindow);
 
@@ -121,6 +121,6 @@ SInterval extractIntervalInfo(const STableScanPhysiNode* pTableScanNode);
 SColumn   extractColumnFromColumnNode(SColumnNode* pColNode);
 
 int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysiNode* pTableScanNode);
-void cleanupQueryTableDataCond(SQueryTableDataCond* pCond);
+void    cleanupQueryTableDataCond(SQueryTableDataCond* pCond);
 
 #endif  // TDENGINE_QUERYUTIL_H
