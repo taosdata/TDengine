@@ -47,7 +47,7 @@ class TDTestQuery(TDCase):
 
     #basic_param
     db = "table_str_base"
-    service_host = "ceph01"
+    service_host = ""
     table_list = ['regular_table_1','stable_1_1','regular_table_2','stable_1_2','stable_2_1']
     table = str(random.sample(table_list,1)).replace("[","").replace("]","").replace("'","")
     table_null_list = ['regular_table_null','stable_1_3','stable_1_4','stable_2_2','stable_null_data_1']
@@ -82,7 +82,7 @@ class TDTestQuery(TDCase):
      
     def right_case_1_groupby(self):
         print("\n==========================right case 1_groupby==========================\n")
-        case_common = self.tdCreateData.case_sql_subprocess_execute(self.db)
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]
         sql = 'Count the number of sqls'         
@@ -91,7 +91,7 @@ class TDTestQuery(TDCase):
         for i in (1,):
             func = tdFunction.func_stable_str(i)
             try:
-                self.tdCreateData.taos_f(self.testcasePath,self.testcaseFilename)                 
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)                
 
                 print("\n\n\n=======hanshu num = %d======right case 1_groupby=======case1======\n\n\n" %i)
@@ -128,7 +128,7 @@ class TDTestQuery(TDCase):
 
     def right_case_1_tbname(self):
         print("\n==========================right case 1_tbname==========================\n")
-        case_common = self.tdCreateData.case_sql_subprocess_execute(self.db)
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]
         sql = 'Count the number of sqls'         
@@ -137,7 +137,7 @@ class TDTestQuery(TDCase):
         for i in (1,):
             func = tdFunction.func_stable_str(i)
             try:
-                self.tdCreateData.taos_f(self.testcasePath,self.testcaseFilename)                 
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)                 
 
                 print("\n\n\n=======hanshu num = %d======right case_tbname========case1======\n\n\n" %i)
@@ -190,7 +190,7 @@ class TDTestQuery(TDCase):
 
     def right_case_1(self):
         print("\n==========================right case 1==========================\n")
-        case_common = self.tdCreateData.case_sql_subprocess_execute(self.db)
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]
         sql = 'Count the number of sqls'         
@@ -199,7 +199,7 @@ class TDTestQuery(TDCase):
         for i in (1,):
             func = tdFunction.func_stable_str(i)
             try:
-                self.tdCreateData.taos_f(self.testcasePath,self.testcaseFilename)                 
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)                   
 
                 print("\n\n\n=======hanshu num = %d======right case========case1======\n\n\n" %i)
@@ -248,7 +248,7 @@ class TDTestQuery(TDCase):
                 
     def right_case_2_groupby(self):
         print("\n==========================right case 2_groupby==========================\n")
-        case_common = self.tdCreateData.case_sql_subprocess_execute(self.db)
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]        
         sql = 'Count the number of sqls'       
@@ -258,7 +258,7 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_str(i)
             func_desc = func # for desc
             try:
-                self.tdCreateData.taos_f(self.testcasePath,self.testcaseFilename)                 
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)                 
 
                 print("\n\n\n=======hanshu num = %d======right case========case2_groupby======\n\n\n" %i)
@@ -338,7 +338,7 @@ class TDTestQuery(TDCase):
         
     def right_case_2_tbname(self):
         print("\n==========================right case 2_tbname==========================\n")
-        case_common = self.tdCreateData.case_sql_subprocess_execute(self.db)
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]        
         sql = 'Count the number of sqls'       
@@ -348,7 +348,7 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_str(i)
             func_desc = func # for desc
             try:
-                self.tdCreateData.taos_f(self.testcasePath,self.testcaseFilename)                 
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)                 
 
                 print("\n\n\n=======hanshu num = %d======right case_tbname========case2======\n\n\n" %i)
@@ -499,7 +499,7 @@ class TDTestQuery(TDCase):
 
     def right_case_2(self):
         print("\n==========================right case 2==========================\n")
-        case_common = self.tdCreateData.case_sql_subprocess_execute(self.db)
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]        
         sql = 'Count the number of sqls'       
@@ -509,7 +509,7 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_str(i)
             func_desc = func # for desc
             try:
-                self.tdCreateData.taos_f(self.testcasePath,self.testcaseFilename)                 
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)                  
 
                 print("\n\n\n=======hanshu num = %d======right case========case2======\n\n\n" %i)
@@ -606,7 +606,7 @@ class TDTestQuery(TDCase):
                                
     def right_case_3_groupby(self):
         print("\n==========================right case 3_groupby==========================\n")
-        case_common = self.tdCreateData.case_sql_subprocess_execute(self.db)
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]       
         sql = 'Count the number of sqls'
@@ -615,7 +615,7 @@ class TDTestQuery(TDCase):
         for i in (1,):
             func = tdFunction.func_stable_str(i)
             try:
-                self.tdCreateData.taos_f(self.testcasePath,self.testcaseFilename)                 
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)                   
 
                 print("\n\n\n=======hanshu num = %d======right case========case3======\n\n\n" %i)
@@ -654,7 +654,7 @@ class TDTestQuery(TDCase):
  
     def right_case_3_tbname(self):
         print("\n==========================right case 3_tbname==========================\n")
-        case_common = self.tdCreateData.case_sql_subprocess_execute(self.db)
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]       
         sql = 'Count the number of sqls'
@@ -663,7 +663,7 @@ class TDTestQuery(TDCase):
         for i in (1,):
             func = tdFunction.func_stable_str(i)
             try:
-                self.tdCreateData.taos_f(self.testcasePath,self.testcaseFilename)                 
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)                   
 
                 print("\n\n\n=======hanshu num = %d======right case_tbname========case3======\n\n\n" %i)
@@ -716,7 +716,7 @@ class TDTestQuery(TDCase):
 
     def right_case_3(self):
         print("\n==========================right case 3==========================\n")
-        case_common = self.tdCreateData.case_sql_subprocess_execute(self.db)
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]       
         sql = 'Count the number of sqls'
@@ -725,7 +725,7 @@ class TDTestQuery(TDCase):
         for i in (1,):
             func = tdFunction.func_stable_str(i)
             try:
-                self.tdCreateData.taos_f(self.testcasePath,self.testcaseFilename)                 
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)                 
 
                 print("\n\n\n=======hanshu num = %d======right case========case3======\n\n\n" %i)
