@@ -367,13 +367,14 @@ void setTbNameColData(void* pMeta, const SSDataBlock* pBlock, SColumnInfoData* p
 
 static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
   STableScanInfo* pTableScanInfo = pOperator->info;
+  SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   SSDataBlock*    pBlock = pTableScanInfo->pResBlock;
 
   int64_t st = taosGetTimestampUs();
 
   while (tsdbNextDataBlock(pTableScanInfo->dataReader)) {
-    if (isTaskKilled(pOperator->pTaskInfo)) {
-      longjmp(pOperator->pTaskInfo->env, TSDB_CODE_TSC_QUERY_CANCELLED);
+    if (isTaskKilled(pTaskInfo)) {
+      longjmp(pTaskInfo->env, TSDB_CODE_TSC_QUERY_CANCELLED);
     }
 
     // process this data block based on the probabilities
@@ -396,7 +397,7 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
       continue;
     }
 
-    uint64_t* groupId = taosHashGet(pOperator->pTaskInfo->tableqinfoList.map, &pBlock->info.uid, sizeof(int64_t));
+    uint64_t* groupId = taosHashGet(pTaskInfo->tableqinfoList.map, &pBlock->info.uid, sizeof(int64_t));
     if (groupId) {
       pBlock->info.groupId = *groupId;
     }
