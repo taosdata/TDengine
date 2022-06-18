@@ -105,7 +105,7 @@ int32_t mndPersistTaskDeployReq(STrans* pTrans, SStreamTask* pTask, const SEpSet
   int32_t size = encoder.pos;
   int32_t tlen = sizeof(SMsgHead) + size;
   tEncoderClear(&encoder);
-  void* buf = taosMemoryMalloc(tlen);
+  void* buf = taosMemoryCalloc(1, tlen);
   if (buf == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -157,6 +157,7 @@ int32_t mndAddDispatcherToInnerTask(SMnode* pMnode, STrans* pTrans, SStreamObj* 
     }
     sdbRelease(pMnode->pSdb, pDb);
 
+    memcpy(pTask->shuffleDispatcher.stbFullName, pStream->targetSTbName, TSDB_TABLE_FNAME_LEN);
     SArray* pVgs = pTask->shuffleDispatcher.dbInfo.pVgroupInfos;
     int32_t sz = taosArrayGetSize(pVgs);
     SArray* sinkLv = taosArrayGetP(pStream->tasks, 0);
@@ -166,6 +167,7 @@ int32_t mndAddDispatcherToInnerTask(SMnode* pMnode, STrans* pTrans, SStreamObj* 
       for (int32_t j = 0; j < sinkLvSize; j++) {
         SStreamTask* pLastLevelTask = taosArrayGetP(sinkLv, j);
         if (pLastLevelTask->nodeId == pVgInfo->vgId) {
+          ASSERT(pVgInfo->vgId > 0);
           pVgInfo->taskId = pLastLevelTask->taskId;
           ASSERT(pVgInfo->taskId != 0);
           break;

@@ -208,8 +208,9 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
               SRpcMsg rpcMsg;
               syncEntry2OriginalRpc(pRollBackEntry, &rpcMsg);
 
-              SFsmCbMeta cbMeta;
+              SFsmCbMeta cbMeta = {0};
               cbMeta.index = pRollBackEntry->index;
+              cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(ths, cbMeta.index);
               cbMeta.isWeak = pRollBackEntry->isWeak;
               cbMeta.code = 0;
               cbMeta.state = ths->state;
@@ -234,8 +235,9 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
         if (ths->pFsm != NULL) {
           // if (ths->pFsm->FpPreCommitCb != NULL && pAppendEntry->originalRpcType != TDMT_SYNC_NOOP) {
           if (ths->pFsm->FpPreCommitCb != NULL && syncUtilUserPreCommit(pAppendEntry->originalRpcType)) {
-            SFsmCbMeta cbMeta;
+            SFsmCbMeta cbMeta = {0};
             cbMeta.index = pAppendEntry->index;
+            cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(ths, cbMeta.index);
             cbMeta.isWeak = pAppendEntry->isWeak;
             cbMeta.code = 2;
             cbMeta.state = ths->state;
@@ -266,8 +268,9 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
       if (ths->pFsm != NULL) {
         // if (ths->pFsm->FpPreCommitCb != NULL && pAppendEntry->originalRpcType != TDMT_SYNC_NOOP) {
         if (ths->pFsm->FpPreCommitCb != NULL && syncUtilUserPreCommit(pAppendEntry->originalRpcType)) {
-          SFsmCbMeta cbMeta;
+          SFsmCbMeta cbMeta = {0};
           cbMeta.index = pAppendEntry->index;
+          cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(ths, cbMeta.index);
           cbMeta.isWeak = pAppendEntry->isWeak;
           cbMeta.code = 3;
           cbMeta.state = ths->state;
@@ -696,8 +699,9 @@ static int32_t syncNodeMakeLogSame(SSyncNode* ths, SyncAppendEntries* pMsg) {
         SRpcMsg rpcMsg;
         syncEntry2OriginalRpc(pRollBackEntry, &rpcMsg);
 
-        SFsmCbMeta cbMeta;
+        SFsmCbMeta cbMeta = {0};
         cbMeta.index = pRollBackEntry->index;
+        cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(ths, cbMeta.index);
         cbMeta.isWeak = pRollBackEntry->isWeak;
         cbMeta.code = 0;
         cbMeta.state = ths->state;
@@ -713,7 +717,7 @@ static int32_t syncNodeMakeLogSame(SSyncNode* ths, SyncAppendEntries* pMsg) {
   // delete confict entries
   code = ths->pLogStore->syncLogTruncate(ths->pLogStore, delBegin);
   ASSERT(code == 0);
-  sDebug("vgId:%d sync event %s commitIndex:%ld currentTerm:%lu log truncate, from %ld to %ld", ths->vgId,
+  sDebug("vgId:%d, sync event %s commitIndex:%ld currentTerm:%lu log truncate, from %ld to %ld", ths->vgId,
          syncUtilState2String(ths->state), ths->commitIndex, ths->pRaftStore->currentTerm, delBegin, delEnd);
   logStoreSimpleLog2("after syncNodeMakeLogSame", ths->pLogStore);
 
@@ -725,8 +729,9 @@ static int32_t syncNodePreCommit(SSyncNode* ths, SSyncRaftEntry* pEntry) {
   syncEntry2OriginalRpc(pEntry, &rpcMsg);
   if (ths->pFsm != NULL) {
     if (ths->pFsm->FpPreCommitCb != NULL && syncUtilUserPreCommit(pEntry->originalRpcType)) {
-      SFsmCbMeta cbMeta;
+      SFsmCbMeta cbMeta = {0};
       cbMeta.index = pEntry->index;
+      cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(ths, cbMeta.index);
       cbMeta.isWeak = pEntry->isWeak;
       cbMeta.code = 2;
       cbMeta.state = ths->state;
@@ -1062,7 +1067,7 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
             ths->commitIndex = snapshot.lastApplyIndex;
 
             sDebug(
-                "vgId:%d sync event %s commitIndex:%ld currentTerm:%lu commit by snapshot from index:%ld to index:%ld",
+                "vgId:%d, sync event %s commitIndex:%ld currentTerm:%lu commit by snapshot from index:%ld to index:%ld",
                 ths->vgId, syncUtilState2String(ths->state), ths->commitIndex, ths->pRaftStore->currentTerm,
                 commitBegin, commitEnd);
           }

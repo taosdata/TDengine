@@ -71,7 +71,7 @@ SSDataBlock* tsortGetSortedDataBlock(const SSortHandle* pSortHandle) {
  * @param type
  * @return
  */
-SSortHandle* tsortCreateSortHandle(SArray* pSortInfo, SArray* pIndexMap, int32_t type, int32_t pageSize, int32_t numOfPages, SSDataBlock* pBlock, const char* idstr) {
+SSortHandle* tsortCreateSortHandle(SArray* pSortInfo, int32_t type, int32_t pageSize, int32_t numOfPages, SSDataBlock* pBlock, const char* idstr) {
   SSortHandle* pSortHandle = taosMemoryCalloc(1, sizeof(SSortHandle));
 
   pSortHandle->type       = type;
@@ -195,6 +195,11 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
   return doAddNewExternalMemSource(pHandle->pBuf, pHandle->pOrderedSource, pBlock, &pHandle->sourceId);
 }
 
+static void setCurrentSourceIsDone(SSortSource* pSource, SSortHandle* pHandle) {
+  pSource->src.rowIndex = -1;
+  ++pHandle->numOfCompletedSources;
+}
+
 static int32_t sortComparInit(SMsortComparParam* cmpParam, SArray* pSources, int32_t startIndex, int32_t endIndex, SSortHandle* pHandle) {
   cmpParam->pSources  = taosArrayGet(pSources, startIndex);
   cmpParam->numOfSources = (endIndex - startIndex + 1);
@@ -205,8 +210,10 @@ static int32_t sortComparInit(SMsortComparParam* cmpParam, SArray* pSources, int
     for (int32_t i = 0; i < cmpParam->numOfSources; ++i) {
       SSortSource* pSource = cmpParam->pSources[i];
 
+      // set current source is done
       if (taosArrayGetSize(pSource->pageIdList) == 0) {
-        return TSDB_CODE_SUCCESS;
+        setCurrentSourceIsDone(pSource, pHandle);
+        continue;
       }
 
       SPageInfo* pPgInfo = *(SPageInfo**)taosArrayGet(pSource->pageIdList, pSource->pageIndex);
@@ -233,10 +240,9 @@ static int32_t sortComparInit(SMsortComparParam* cmpParam, SArray* pSources, int
       SSortSource* pSource = cmpParam->pSources[i];
       pSource->src.pBlock = pHandle->fetchfp(pSource->param);
 
-      // set current source id done
+      // set current source is done
       if (pSource->src.pBlock == NULL) {
-        pSource->src.rowIndex = -1;
-        ++pHandle->numOfCompletedSources;
+        setCurrentSourceIsDone(pSource, pHandle);
       }
     }
   }

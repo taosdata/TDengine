@@ -731,6 +731,7 @@ static int32_t opkDoOptimized(SOptimizeContext* pCxt, SSortLogicNode* pSort, SNo
   FOREACH(pNode, pSort->node.pParent->pChildren) {
     if (nodesEqualNode(pNode, (SNode*)pSort)) {
       REPLACE_NODE(pDownNode);
+      ((SLogicNode*)pDownNode)->pParent = pSort->node.pParent;
       break;
     }
   }

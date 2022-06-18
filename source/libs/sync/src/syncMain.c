@@ -414,7 +414,7 @@ int32_t syncGetSnapshotMeta(int64_t rid, struct SSnapshotMeta* sMeta) {
   assert(rid == pSyncNode->rid);
   sMeta->lastConfigIndex = pSyncNode->pRaftCfg->lastConfigIndex;
 
-  sTrace("sync get snapshot meta: lastConfigIndex:%ld", pSyncNode->pRaftCfg->lastConfigIndex);
+  sTrace("vgId:%d, get snapshot meta, lastConfigIndex:%" PRId64, pSyncNode->vgId, pSyncNode->pRaftCfg->lastConfigIndex);
 
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
   return 0;
@@ -437,10 +437,26 @@ int32_t syncGetSnapshotMetaByIndex(int64_t rid, SyncIndex snapshotIndex, struct 
     }
   }
   sMeta->lastConfigIndex = lastIndex;
-  sTrace("sync get snapshot meta by index:%ld lastConfigIndex:%ld", snapshotIndex, sMeta->lastConfigIndex);
+  sTrace("vgId:%d, get snapshot meta by index:%" PRId64 " lastConfigIndex:%" PRId64, pSyncNode->vgId, snapshotIndex,
+         sMeta->lastConfigIndex);
 
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
   return 0;
+}
+
+SyncIndex syncNodeGetSnapshotConfigIndex(SSyncNode* pSyncNode, SyncIndex snapshotLastApplyIndex) {
+  ASSERT(pSyncNode->pRaftCfg->configIndexCount >= 1);
+  SyncIndex lastIndex = (pSyncNode->pRaftCfg->configIndexArr)[0];
+
+  for (int i = 0; i < pSyncNode->pRaftCfg->configIndexCount; ++i) {
+    if ((pSyncNode->pRaftCfg->configIndexArr)[i] > lastIndex &&
+        (pSyncNode->pRaftCfg->configIndexArr)[i] <= snapshotLastApplyIndex) {
+      lastIndex = (pSyncNode->pRaftCfg->configIndexArr)[i];
+    }
+  }
+
+  sTrace("sync syncNodeGetSnapshotConfigIndex index:%ld lastConfigIndex:%ld", snapshotLastApplyIndex, lastIndex);
+  return lastIndex;
 }
 
 const char* syncGetMyRoleStr(int64_t rid) {
@@ -598,7 +614,7 @@ int32_t syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
     return -1;
   }
   assert(rid == pSyncNode->rid);
-  sDebug("vgId:%d sync event %s commitIndex:%ld currentTerm:%lu propose msgType:%s,%d", pSyncNode->vgId,
+  sDebug("vgId:%d, sync event %s commitIndex:%ld currentTerm:%lu propose msgType:%s,%d", pSyncNode->vgId,
          syncUtilState2String(pSyncNode->state), pSyncNode->commitIndex, pSyncNode->pRaftStore->currentTerm,
          TMSG_INFO(pMsg->msgType), pMsg->msgType);
   ret = syncNodePropose(pSyncNode, pMsg, isWeak);
@@ -609,7 +625,7 @@ int32_t syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
 
 int32_t syncNodePropose(SSyncNode* pSyncNode, const SRpcMsg* pMsg, bool isWeak) {
   int32_t ret = 0;
-  sDebug("vgId:%d sync event %s commitIndex:%ld currentTerm:%lu propose msgType:%s,%d", pSyncNode->vgId,
+  sDebug("vgId:%d, sync event %s commitIndex:%ld currentTerm:%lu propose msgType:%s,%d", pSyncNode->vgId,
          syncUtilState2String(pSyncNode->state), pSyncNode->commitIndex, pSyncNode->pRaftStore->currentTerm,
          TMSG_INFO(pMsg->msgType), pMsg->msgType);
 
@@ -857,7 +873,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
   // snapshot meta
   // pSyncNode->sMeta.lastConfigIndex = -1;
 
-  sDebug("vgId:%d sync event %s commitIndex:%ld currentTerm:%lu sync open", pSyncNode->vgId,
+  sDebug("vgId:%d, sync event %s commitIndex:%ld currentTerm:%lu sync open", pSyncNode->vgId,
          syncUtilState2String(pSyncNode->state), pSyncNode->commitIndex, pSyncNode->pRaftStore->currentTerm);
 
   return pSyncNode;
@@ -905,7 +921,7 @@ void syncNodeStartStandBy(SSyncNode* pSyncNode) {
 }
 
 void syncNodeClose(SSyncNode* pSyncNode) {
-  sDebug("vgId:%d sync event %s commitIndex:%ld currentTerm:%lu sync close", pSyncNode->vgId,
+  sDebug("vgId:%d, sync event %s commitIndex:%ld currentTerm:%lu sync close", pSyncNode->vgId,
          syncUtilState2String(pSyncNode->state), pSyncNode->commitIndex, pSyncNode->pRaftStore->currentTerm);
 
   int32_t ret;
@@ -1294,7 +1310,7 @@ char* syncNode2SimpleStr(const SSyncNode* pSyncNode) {
   int   len = 256;
   char* s = (char*)taosMemoryMalloc(len);
   snprintf(s, len,
-           "syncNode: vgId:%d currentTerm:%lu, commitIndex:%ld, state:%d %s, isStandBy:%d, "
+           "syncNode: vgId:%d, currentTerm:%lu, commitIndex:%ld, state:%d %s, isStandBy:%d, "
            "electTimerLogicClock:%lu, "
            "electTimerLogicClockUser:%lu, "
            "electTimerMS:%d, replicaNum:%d",
@@ -1345,7 +1361,7 @@ void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncIndex 
   SSyncSnapshotSender* oldSenders[TSDB_MAX_REPLICA];
   for (int i = 0; i < TSDB_MAX_REPLICA; ++i) {
     oldSenders[i] = (pSyncNode->senders)[i];
-    sDebug("vgId:%d sync event %s commitIndex:%ld currentTerm:%lu save senders %d, %p, privateTerm:%lu",
+    sDebug("vgId:%d, sync event %s commitIndex:%ld currentTerm:%lu save senders %d, %p, privateTerm:%lu",
            pSyncNode->vgId, syncUtilState2String(pSyncNode->state), pSyncNode->commitIndex,
            pSyncNode->pRaftStore->currentTerm, i, oldSenders[i], oldSenders[i]->privateTerm);
     if (gRaftDetailLog) {
@@ -1400,7 +1416,7 @@ void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncIndex 
         uint16_t port;
         syncUtilU642Addr((pSyncNode->replicasId)[i].addr, host, sizeof(host), &port);
         sDebug(
-            "vgId:%d sync event %s commitIndex:%ld currentTerm:%lu reset sender for %lu, newIndex:%d, %s:%d, %p, "
+            "vgId:%d, sync event %s commitIndex:%ld currentTerm:%lu reset sender for %lu, newIndex:%d, %s:%d, %p, "
             "privateTerm:%lu",
             pSyncNode->vgId, syncUtilState2String(pSyncNode->state), pSyncNode->commitIndex,
             pSyncNode->pRaftStore->currentTerm, (pSyncNode->replicasId)[i].addr, i, host, port, oldSenders[j],
@@ -1413,7 +1429,7 @@ void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncIndex 
         int32_t oldreplicaIndex = (pSyncNode->senders)[i]->replicaIndex;
         (pSyncNode->senders)[i]->replicaIndex = i;
         sDebug(
-            "vgId:%d sync event %s commitIndex:%ld currentTerm:%lu udpate replicaIndex from %d to %d, %s:%d, %p, "
+            "vgId:%d, sync event %s commitIndex:%ld currentTerm:%lu udpate replicaIndex from %d to %d, %s:%d, %p, "
             "reset:%d",
             pSyncNode->vgId, syncUtilState2String(pSyncNode->state), pSyncNode->commitIndex,
             pSyncNode->pRaftStore->currentTerm, oldreplicaIndex, i, host, port, (pSyncNode->senders)[i], reset);
@@ -1426,7 +1442,7 @@ void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncIndex 
     if ((pSyncNode->senders)[i] == NULL) {
       (pSyncNode->senders)[i] = snapshotSenderCreate(pSyncNode, i);
       sDebug(
-          "vgId:%d sync event %s commitIndex:%ld currentTerm:%lu create new sender %p replicaIndex:%d, privateTerm:%lu",
+          "vgId:%d, sync event %s commitIndex:%ld currentTerm:%lu create new sender %p replicaIndex:%d, privateTerm:%lu",
           pSyncNode->vgId, syncUtilState2String(pSyncNode->state), pSyncNode->commitIndex,
           pSyncNode->pRaftStore->currentTerm, (pSyncNode->senders)[i], i, (pSyncNode->senders)[i]->privateTerm);
     }
@@ -1436,7 +1452,7 @@ void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncIndex 
   for (int i = 0; i < TSDB_MAX_REPLICA; ++i) {
     if (oldSenders[i] != NULL) {
       snapshotSenderDestroy(oldSenders[i]);
-      sDebug("vgId:%d sync event %s commitIndex:%ld currentTerm:%lu delete old sender %p replicaIndex:%d",
+      sDebug("vgId:%d, sync event %s commitIndex:%ld currentTerm:%lu delete old sender %p replicaIndex:%d",
              pSyncNode->vgId, syncUtilState2String(pSyncNode->state), pSyncNode->commitIndex,
              pSyncNode->pRaftStore->currentTerm, oldSenders[i], i);
       oldSenders[i] = NULL;
@@ -1509,7 +1525,7 @@ void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term) {
 
 void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr) {
   sDebug(
-      "vgId:%d sync event %s commitIndex:%ld currentTerm:%lu become follower, isStandBy:%d, replicaNum:%d, "
+      "vgId:%d, sync event %s commitIndex:%ld currentTerm:%lu become follower, isStandBy:%d, replicaNum:%d, "
       "restoreFinish:%d, %s",
       pSyncNode->vgId, syncUtilState2String(pSyncNode->state), pSyncNode->commitIndex,
       pSyncNode->pRaftStore->currentTerm, pSyncNode->pRaftCfg->isStandBy, pSyncNode->replicaNum,
@@ -1551,7 +1567,7 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
   pSyncNode->restoreFinish = false;
 
   sDebug(
-      "vgId:%d sync event %s commitIndex:%ld currentTerm:%lu become leader, isStandBy:%d, replicaNum:%d, "
+      "vgId:%d, sync event %s commitIndex:%ld currentTerm:%lu become leader, isStandBy:%d, replicaNum:%d, "
       "restoreFinish:%d, %s",
       pSyncNode->vgId, syncUtilState2String(pSyncNode->state), pSyncNode->commitIndex,
       pSyncNode->pRaftStore->currentTerm, pSyncNode->pRaftCfg->isStandBy, pSyncNode->replicaNum,
@@ -1857,7 +1873,7 @@ static void syncNodeEqPingTimer(void* param, void* tmrId) {
     if (pSyncNode->FpEqMsg != NULL) {
       int32_t code = pSyncNode->FpEqMsg(pSyncNode->msgcb, &rpcMsg);
       if (code != 0) {
-        sError("vgId:%d sync enqueue ping msg error, code:%d", pSyncNode->vgId, code);
+        sError("vgId:%d, sync enqueue ping msg error, code:%d", pSyncNode->vgId, code);
         rpcFreeCont(rpcMsg.pCont);
         syncTimeoutDestroy(pSyncMsg);
         return;
@@ -1891,7 +1907,7 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
     if (pSyncNode->FpEqMsg != NULL) {
       int32_t code = pSyncNode->FpEqMsg(pSyncNode->msgcb, &rpcMsg);
       if (code != 0) {
-        sError("vgId:%d sync enqueue elect msg error, code:%d", pSyncNode->vgId, code);
+        sError("vgId:%d, sync enqueue elect msg error, code:%d", pSyncNode->vgId, code);
         rpcFreeCont(rpcMsg.pCont);
         syncTimeoutDestroy(pSyncMsg);
         return;
@@ -1929,7 +1945,7 @@ static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
       if (pSyncNode->FpEqMsg != NULL) {
         int32_t code = pSyncNode->FpEqMsg(pSyncNode->msgcb, &rpcMsg);
         if (code != 0) {
-          sError("vgId:%d sync enqueue timer msg error, code:%d", pSyncNode->vgId, code);
+          sError("vgId:%d, sync enqueue timer msg error, code:%d", pSyncNode->vgId, code);
           rpcFreeCont(rpcMsg.pCont);
           syncTimeoutDestroy(pSyncMsg);
           return;
@@ -2067,8 +2083,9 @@ int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg) {
     if (ths->pFsm != NULL) {
       // if (ths->pFsm->FpPreCommitCb != NULL && pEntry->originalRpcType != TDMT_SYNC_NOOP) {
       if (ths->pFsm->FpPreCommitCb != NULL && syncUtilUserPreCommit(pEntry->originalRpcType)) {
-        SFsmCbMeta cbMeta;
+        SFsmCbMeta cbMeta = {0};
         cbMeta.index = pEntry->index;
+        cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(ths, cbMeta.index);
         cbMeta.isWeak = pEntry->isWeak;
         cbMeta.code = 0;
         cbMeta.state = ths->state;
@@ -2089,8 +2106,9 @@ int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg) {
     if (ths->pFsm != NULL) {
       // if (ths->pFsm->FpPreCommitCb != NULL && pEntry->originalRpcType != TDMT_SYNC_NOOP) {
       if (ths->pFsm->FpPreCommitCb != NULL && syncUtilUserPreCommit(pEntry->originalRpcType)) {
-        SFsmCbMeta cbMeta;
+        SFsmCbMeta cbMeta = {0};
         cbMeta.index = pEntry->index;
+        cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(ths, cbMeta.index);
         cbMeta.isWeak = pEntry->isWeak;
         cbMeta.code = 1;
         cbMeta.state = ths->state;
@@ -2129,12 +2147,12 @@ const char* syncStr(ESyncState state) {
 static int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* pEntry) {
   SyncLeaderTransfer* pSyncLeaderTransfer = syncLeaderTransferFromRpcMsg2(pRpcMsg);
 
-  sDebug("vgId:%d sync event %s commitIndex:%ld currentTerm:%lu begin leader transfer", ths->vgId,
+  sDebug("vgId:%d, sync event %s commitIndex:%ld currentTerm:%lu begin leader transfer", ths->vgId,
          syncUtilState2String(ths->state), ths->commitIndex, ths->pRaftStore->currentTerm);
 
   if (strcmp(pSyncLeaderTransfer->newNodeInfo.nodeFqdn, ths->myNodeInfo.nodeFqdn) == 0 &&
       pSyncLeaderTransfer->newNodeInfo.nodePort == ths->myNodeInfo.nodePort) {
-    sDebug("vgId:%d sync event %s commitIndex:%ld currentTerm:%lu maybe leader transfer to %s:%d %lu", ths->vgId,
+    sDebug("vgId:%d, sync event %s commitIndex:%ld currentTerm:%lu maybe leader transfer to %s:%d %lu", ths->vgId,
            syncUtilState2String(ths->state), ths->commitIndex, ths->pRaftStore->currentTerm,
            pSyncLeaderTransfer->newNodeInfo.nodeFqdn, pSyncLeaderTransfer->newNodeInfo.nodePort,
            pSyncLeaderTransfer->newLeaderId.addr);
@@ -2154,11 +2172,12 @@ static int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftE
     }
   */
   if (ths->pFsm->FpLeaderTransferCb != NULL) {
-    SFsmCbMeta cbMeta;
+    SFsmCbMeta cbMeta = {0};
     cbMeta.code = 0;
     cbMeta.currentTerm = ths->pRaftStore->currentTerm;
     cbMeta.flag = 0;
     cbMeta.index = pEntry->index;
+    cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(ths, cbMeta.index);
     cbMeta.isWeak = pEntry->isWeak;
     cbMeta.seqNum = pEntry->seqNum;
     cbMeta.state = ths->state;
@@ -2260,6 +2279,7 @@ static int32_t syncNodeConfigChange(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftE
     cbMeta.code = 0;
     cbMeta.currentTerm = ths->pRaftStore->currentTerm;
     cbMeta.index = pEntry->index;
+    cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(ths, pEntry->index);
     cbMeta.term = pEntry->term;
     cbMeta.newCfg = newSyncCfg;
     cbMeta.oldCfg = oldSyncCfg;
@@ -2275,7 +2295,7 @@ static int32_t syncNodeConfigChange(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftE
 int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex, uint64_t flag) {
   int32_t    code = 0;
   ESyncState state = flag;
-  sDebug("vgId:%d sync event %s commitIndex:%ld currentTerm:%lu commit by wal from index:%" PRId64 " to index:%" PRId64
+  sDebug("vgId:%d, sync event %s commitIndex:%ld currentTerm:%lu commit by wal from index:%" PRId64 " to index:%" PRId64
          ", %s",
          ths->vgId, syncUtilState2String(ths->state), ths->commitIndex, ths->pRaftStore->currentTerm, beginIndex,
          endIndex, syncUtilState2String(state));
@@ -2294,8 +2314,9 @@ int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex,
 
         // user commit
         if (ths->pFsm->FpCommitCb != NULL && syncUtilUserCommit(pEntry->originalRpcType)) {
-          SFsmCbMeta cbMeta;
+          SFsmCbMeta cbMeta = {0};
           cbMeta.index = pEntry->index;
+          cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(ths, cbMeta.index);
           cbMeta.isWeak = pEntry->isWeak;
           cbMeta.code = 0;
           cbMeta.state = ths->state;
@@ -2309,6 +2330,8 @@ int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex,
 
         // config change
         if (pEntry->originalRpcType == TDMT_SYNC_CONFIG_CHANGE) {
+          raftCfgAddConfigIndex(ths->pRaftCfg, pEntry->index);
+          raftCfgPersist(ths->pRaftCfg);
           code = syncNodeConfigChange(ths, &rpcMsg, pEntry);
           ASSERT(code == 0);
         }
@@ -2327,7 +2350,7 @@ int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex,
               ths->pFsm->FpRestoreFinishCb(ths->pFsm);
             }
             ths->restoreFinish = true;
-            sDebug("vgId:%d sync event %s commitIndex:%ld currentTerm:%lu restore finish, %s, index:%ld", ths->vgId,
+            sDebug("vgId:%d, sync event %s commitIndex:%ld currentTerm:%lu restore finish, %s, index:%ld", ths->vgId,
                    syncUtilState2String(ths->state), ths->commitIndex, ths->pRaftStore->currentTerm,
                    syncUtilState2String(ths->state), pEntry->index);
           }

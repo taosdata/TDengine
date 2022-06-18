@@ -171,7 +171,8 @@ void       syncNodeClose(SSyncNode* pSyncNode);
 int32_t    syncNodePropose(SSyncNode* pSyncNode, const SRpcMsg* pMsg, bool isWeak);
 
 // option
-bool syncNodeSnapshotEnable(SSyncNode* pSyncNode);
+bool      syncNodeSnapshotEnable(SSyncNode* pSyncNode);
+SyncIndex syncNodeGetSnapshotConfigIndex(SSyncNode* pSyncNode, SyncIndex snapshotLastApplyIndex);
 
 // ping --------------
 int32_t syncNodePing(SSyncNode* pSyncNode, const SRaftId* destRaftId, SyncPing* pMsg);

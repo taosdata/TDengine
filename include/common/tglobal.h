@@ -61,6 +61,7 @@ extern int32_t tsNumOfRpcThreads;
 extern int32_t tsNumOfCommitThreads;
 extern int32_t tsNumOfTaskQueueThreads;
 extern int32_t tsNumOfMnodeQueryThreads;
+extern int32_t tsNumOfMnodeFetchThreads;
 extern int32_t tsNumOfMnodeReadThreads;
 extern int32_t tsNumOfVnodeQueryThreads;
 extern int32_t tsNumOfVnodeFetchThreads;

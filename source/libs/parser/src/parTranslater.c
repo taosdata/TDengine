@@ -3892,7 +3892,7 @@ static int32_t translateDescribe(STranslateContext* pCxt, SDescribeStmt* pStmt) 
 static int32_t translateKillConnection(STranslateContext* pCxt, SKillStmt* pStmt) {
   SKillConnReq killReq = {0};
   killReq.connId = pStmt->targetId;
-  return buildCmdMsg(pCxt, TDMT_MND_KILL_CONN, (FSerializeFunc)tSerializeSKillQueryReq, &killReq);
+  return buildCmdMsg(pCxt, TDMT_MND_KILL_CONN, (FSerializeFunc)tSerializeSKillConnReq, &killReq);
 }
 
 static int32_t translateKillQuery(STranslateContext* pCxt, SKillQueryStmt* pStmt) {
