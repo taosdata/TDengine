@@ -49,8 +49,6 @@ typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int
 #define Q_STATUS_EQUAL(p, s)  (((p) & (s)) != 0u)
 #define QUERY_IS_ASC_QUERY(q) (GET_FORWARD_DIRECTION_FACTOR((q)->order.order) == QUERY_ASC_FORWARD_STEP)
 
-//#define GET_TABLEGROUP(q, _index) ((SArray*)taosArrayGetP((q)->tableqinfoGroupInfo.pGroupList, (_index)))
-
 #define NEEDTO_COMPRESS_QUERY(size) ((size) > tsCompressColData ? 1 : 0)
 
 enum {
@@ -63,11 +61,6 @@ enum {
    */
   TASK_COMPLETED = 0x2u,
 };
-
-typedef struct SResultRowCell {
-  uint64_t           groupId;
-  SResultRowPosition pos;
-} SResultRowCell;
 
 /**
  * If the number of generated results is greater than this value,
@@ -122,35 +115,6 @@ typedef struct SOperatorCostInfo {
   double   totalCost;
 } SOperatorCostInfo;
 
-// The basic query information extracted from the SQueryInfo tree to support the
-// execution of query in a data node.
-typedef struct STaskAttr {
-  SLimit      limit;
-  SLimit      slimit;
-  bool        stableQuery;        // super table query or not
-  bool        tsCompQuery;        // is tscomp query
-  bool        diffQuery;          // is diff query
-  bool        pointInterpQuery;   // point interpolation query
-  int32_t     havingNum;          // having expr number
-  int16_t     numOfCols;
-  int16_t     numOfTags;
-  STimeWindow window;
-  SInterval   interval;
-  int16_t     precision;
-  int16_t     numOfOutput;
-  int16_t     fillType;
-  int32_t     resultRowSize;
-  int32_t     tagLen;  // tag value length of current query
-
-  SExprInfo*      pExpr1;
-  SColumnInfo*    tagColList;
-  int32_t         numOfFilterCols;
-  int64_t*        fillVal;
-  void*           tsdb;
-//  STableListInfo tableGroupInfo;  // table list
-  int32_t         vgId;
-} STaskAttr;
-
 struct SOperatorInfo;
 
 typedef int32_t (*__optr_encode_fn_t)(struct SOperatorInfo* pOperator, char** result, int32_t* length);
@@ -189,21 +153,6 @@ typedef struct SExecTaskInfo {
   struct SOperatorInfo* pRoot;
 } SExecTaskInfo;
 
-typedef struct STaskRuntimeEnv {
-  STaskAttr*      pQueryAttr;
-  uint32_t        status;  // query status
-  uint8_t         scanFlag;  // denotes reversed scan of data or not
-  SHashObj*       pResultRowHashTable;  // quick locate the window object for each result
-  SHashObj*       pResultRowListSet;    // used to check if current ResultRowInfo has ResultRow object or not
-  char*           keyBuf;               // window key buffer
-  STSCursor       cur;
-  char*           tagVal;  // tag value of current data block
-  struct SOperatorInfo* proot;
-  int64_t         currentOffset;  // dynamic offset value
-  STableQueryInfo* current;
-  SResultInfo      resultInfo;
-} STaskRuntimeEnv;
-
 enum {
   OP_NOT_OPENED    = 0x0,
   OP_OPENED        = 0x1,
@@ -222,14 +171,20 @@ typedef struct SOperatorFpSet {
   __optr_explain_fn_t  getExplainFn;
 } SOperatorFpSet;
 
+typedef struct SExprSupp {
+  SExprInfo*      pExprInfo;
+  int32_t         numOfExprs;          // the number of scalar expression in group operator
+  SqlFunctionCtx* pCtx;
+  int32_t*        rowEntryInfoOffset;  // offset value for each row result cell info
+} SExprSupp;
+
 typedef struct SOperatorInfo {
   uint8_t                 operatorType;
   bool                    blocking;      // block operator or not
   uint8_t                 status;        // denote if current operator is completed
-  int32_t                 numOfExprs;   // number of columns of the current operator results
   char*                   name;          // name, for debug purpose
   void*                   info;          // extension attribution
-  SExprInfo*              pExpr;
+  SExprSupp               exprSupp;
   SExecTaskInfo*          pTaskInfo;
   SOperatorCostInfo       cost;
   SResultInfo             resultInfo;
@@ -243,6 +198,9 @@ typedef enum {
   EX_SOURCE_DATA_READY     = 0x2,
   EX_SOURCE_DATA_EXHAUSTED = 0x3,
 } EX_SOURCE_STATUS;
+
+#define COL_MATCH_FROM_COL_ID  0x1
+#define COL_MATCH_FROM_SLOT_ID 0x2
 
 typedef struct SSourceDataInfo {
   int32_t               index;
@@ -271,9 +229,6 @@ typedef struct SExchangeInfo {
   uint64_t            self;
 } SExchangeInfo;
 
-#define COL_MATCH_FROM_COL_ID  0x1
-#define COL_MATCH_FROM_SLOT_ID 0x2
-
 typedef struct SColMatchInfo {
   int32_t srcSlotId;     // source slot id
   int32_t colId;
@@ -283,21 +238,14 @@ typedef struct SColMatchInfo {
 } SColMatchInfo;
 
 typedef struct SScanInfo {
-  int32_t numOfAsc;
-  int32_t numOfDesc;
+  int32_t         numOfAsc;
+  int32_t         numOfDesc;
 } SScanInfo;
 
 typedef struct SSampleExecInfo {
   double          sampleRatio;  // data block sample ratio, 1 by default
   uint32_t        seed;         // random seed value
 } SSampleExecInfo;
-
-typedef struct SExecSupp {
-  SExprInfo*      pExprInfo;
-  int32_t         numOfExprs;          // the number of scalar expression in group operator
-  SqlFunctionCtx* pCtx;
-  int32_t*        rowEntryInfoOffset;  // offset value for each row result cell info
-} SExecSupp;
 
 typedef struct STableScanInfo {
   void*           dataReader;
@@ -317,7 +265,7 @@ typedef struct STableScanInfo {
   SArray*         pColMatchInfo;
   int32_t         numOfOutput;
 
-  SExecSupp       pseudoSup;
+  SExprSupp       pseudoSup;
   SQueryTableDataCond cond;
   int32_t         scanFlag;     // table scan flag to denote if it is a repeat/reverse/main scan
   int32_t         dataBlockLoadFlag;
@@ -426,12 +374,9 @@ typedef struct SBlockDistInfo {
 // todo remove this
 typedef struct SOptrBasicInfo {
   SResultRowInfo  resultRowInfo;
-  int32_t*        rowEntryInfoOffset;  // offset value for each row result cell info
-  SqlFunctionCtx* pCtx;
   SSDataBlock*    pRes;
 } SOptrBasicInfo;
 
-// TODO move the resultrowsiz together with SOptrBasicInfo:rowEntryInfoOffset
 typedef struct SAggSupporter {
   SHashObj*      pResultRowHashTable;  // quick locate the window object for each result
   char*          keyBuf;               // window key buffer
@@ -516,7 +461,7 @@ typedef struct SIndefOperatorInfo {
   SOptrBasicInfo     binfo;
   SAggSupporter      aggSup;
   SArray*            pPseudoColInfo;
-  SExecSupp          scalarSup;
+  SExprSupp          scalarSup;
 } SIndefOperatorInfo;
 
 typedef struct SFillOperatorInfo {
@@ -540,7 +485,7 @@ typedef struct SGroupbyOperatorInfo {
   char*           keyBuf;       // group by keys for hash
   int32_t         groupKeyLen;  // total group by column width
   SGroupResInfo   groupResInfo;
-  SExecSupp       scalarSup;
+  SExprSupp       scalarSup;
 } SGroupbyOperatorInfo;
 
 typedef struct SDataGroupInfo {
@@ -564,7 +509,7 @@ typedef struct SPartitionOperatorInfo {
   void*          pGroupIter;  // group iterator
   int32_t        pageIndex;   // page index of current group
   SSDataBlock*   pUpdateRes;
-  SExecSupp      scalarSup;
+  SExprSupp      scalarSup;
 } SPartitionOperatorInfo;
 
 typedef struct SWindowRowsSup {
@@ -717,7 +662,7 @@ SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, 
 int32_t operatorDummyOpenFn(SOperatorInfo* pOperator);
 void    operatorDummyCloseFn(void* param, int32_t numOfCols);
 int32_t appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t num);
-int32_t initAggInfo(SOptrBasicInfo* pBasicInfo, SAggSupporter* pAggSup, SExprInfo* pExprInfo, int32_t numOfCols,
+int32_t initAggInfo(SOptrBasicInfo* pBasicInfo, SExprSupp *pSup, SAggSupporter* pAggSup, SExprInfo* pExprInfo, int32_t numOfCols,
                     SSDataBlock* pResultBlock, size_t keyBufSize, const char* pkey);
 void    initResultSizeInfo(SOperatorInfo* pOperator, int32_t numOfRows);
 void    doBuildResultDatablock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SGroupResInfo* pGroupResInfo, SDiskbasedBuf* pBuf);
@@ -741,7 +686,7 @@ void    destroyBasicOperatorInfo(void* param, int32_t numOfOutput);
 void    appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle);
 void    setTbNameColData(void* pMeta, const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId);
 
-void    cleanupExecSupp(SExecSupp* pSupp);
+void    cleanupExecSupp(SExprSupp* pSupp);
 
 SSDataBlock* loadNextDataBlock(void* param);
 

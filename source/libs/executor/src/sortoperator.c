@@ -39,7 +39,7 @@ SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode*
   SArray* pColMatchColInfo =
       extractColMatchInfo(pSortPhyNode->pTargets, pDescNode, &numOfOutputCols, COL_MATCH_FROM_SLOT_ID);
 
-  pInfo->binfo.pCtx = createSqlFunctionCtx(pExprInfo, numOfCols, &pInfo->binfo.rowEntryInfoOffset);
+  pOperator->exprSupp.pCtx = createSqlFunctionCtx(pExprInfo, numOfCols, &pOperator->exprSupp.rowEntryInfoOffset);
   pInfo->binfo.pRes = pResBlock;
 
   initResultSizeInfo(pOperator, 1024);
@@ -51,8 +51,8 @@ SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode*
   pOperator->blocking     = true;
   pOperator->status       = OP_NOT_OPENED;
   pOperator->info         = pInfo;
-  pOperator->pExpr        = pExprInfo;
-  pOperator->numOfExprs   = numOfCols;
+  pOperator->exprSupp.pExprInfo        = pExprInfo;
+  pOperator->exprSupp.numOfExprs   = numOfCols;
   pOperator->pTaskInfo    = pTaskInfo;
 
   // lazy evaluation for the following parameter since the input datablock is not known till now.
@@ -145,9 +145,9 @@ SSDataBlock* loadNextDataBlock(void* param) {
 void applyScalarFunction(SSDataBlock* pBlock, void* param) {
   SOperatorInfo*     pOperator = param;
   SSortOperatorInfo* pSort = pOperator->info;
-  if (pOperator->pExpr != NULL) {
+  if (pOperator->exprSupp.pExprInfo != NULL) {
     int32_t code =
-        projectApplyFunctions(pOperator->pExpr, pBlock, pBlock, pSort->binfo.pCtx, pOperator->numOfExprs, NULL);
+        projectApplyFunctions(pOperator->exprSupp.pExprInfo, pBlock, pBlock, pOperator->exprSupp.pCtx, pOperator->exprSupp.numOfExprs, NULL);
     if (code != TSDB_CODE_SUCCESS) {
       longjmp(pOperator->pTaskInfo->env, code);
     }
