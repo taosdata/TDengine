@@ -30,6 +30,10 @@ CHAR_COL    = [ BINARY_COL, NCHAR_COL, ]
 BOOLEAN_COL = [ BOOL_COL, ]
 TS_TYPE_COL = [ TS_COL, ]
 
+## insert data args：
+TIME_STEP = 10000
+NOW = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
+
 @dataclass
 class DataSet:
     ts_data         : List[int]     = None
@@ -148,7 +152,7 @@ class TDTestCase:
         self.test_create_stb()
 
     def __create_tb(self):
-        tdLog.printNoPrefix("==========step1:create table")
+        tdLog.printNoPrefix("==========step: create table")
         create_stb_sql  =  f'''create table stb1(
                 ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
                 {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
@@ -172,7 +176,6 @@ class TDTestCase:
             tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
 
     def __data_set(self, rows):
-        now_time = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
         data_set = DataSet()
         # neg_data_set = DataSet()
         data_set.ts_data = []
@@ -191,7 +194,7 @@ class TDTestCase:
         data_set.nchar_data = []
 
         for i in range(rows):
-            data_set.ts_data.append(now_time + 1 * (rows - i))
+            data_set.ts_data.append(NOW + 1 * (rows - i))
             data_set.int_data.append(rows - i)
             data_set.bint_data.append(11111 * (rows - i))
             data_set.sint_data.append(111 * (rows - i) % 32767)
@@ -222,10 +225,10 @@ class TDTestCase:
 
         return data_set
 
-    def __insert_data_0(self):
+    def __insert_data(self):
         data = self.__data_set(rows=self.rows)
 
-        now_time = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
+        # now_time = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
         null_data = '''null, null, null, null, null, null, null, null, null, null, null, null, null, null'''
         zero_data = "0, 0, 0, 0, 0, 0, 0, 'binary_0', 'nchar_0', 0, 0, 0, 0, 0"
 
@@ -241,129 +244,42 @@ class TDTestCase:
                 {1 * data.sint_un_data[i]}, {1 * data.int_un_data[i]}, {1 * data.bint_un_data[i]}
             '''
 
-            tdSql.execute( f"insert into ct1 values ( {now_time - i * 10000}, {row_data} )" )
-            tdSql.execute( f"insert into ct4 values ( {now_time - i * 8000}, {row_data} )" )
-            tdSql.execute( f"insert into t1 values ( {now_time - i * 8000}, {row_data} )" )
-            tdSql.execute( f"insert into ct2 values ( {now_time - i * 12000}, {neg_row_data} )" )
+            tdSql.execute( f"insert into ct1 values ( {NOW - i * TIME_STEP}, {row_data} )" )
+            tdSql.execute( f"insert into ct2 values ( {NOW - i * int(TIME_STEP * 0.6)}, {neg_row_data} )" )
+            tdSql.execute( f"insert into ct4 values ( {NOW - i * int(TIME_STEP * 0.8) }, {row_data} )" )
+            tdSql.execute( f"insert into t1 values ( {NOW - i * int(TIME_STEP * 1.2)}, {row_data} )" )
 
-        tdSql.execute( f"insert into ct2 values ( {now_time + 6000}, {null_data} )" )
-        tdSql.execute( f"insert into ct2 values ( {now_time - (self.rows + 1) * 6000}, {null_data} )" )
-        tdSql.execute( f"insert into ct2 values ( {now_time - self.rows * 2900}, {null_data} )" )
+        tdSql.execute( f"insert into ct2 values ( {NOW + int(TIME_STEP * 0.6)}, {null_data} )" )
+        tdSql.execute( f"insert into ct2 values ( {NOW - (self.rows + 1) * int(TIME_STEP * 0.6)}, {null_data} )" )
+        tdSql.execute( f"insert into ct2 values ( {NOW - self.rows * int(TIME_STEP * 0.29) }, {null_data} )" )
 
-        tdSql.execute( f"insert into ct4 values ( {now_time + 8000}, {null_data} )" )
-        tdSql.execute( f"insert into ct4 values ( {now_time - (self.rows + 1) * 8000}, {null_data} )" )
-        tdSql.execute( f"insert into ct4 values ( {now_time - self.rows * 3900}, {null_data} )" )
+        tdSql.execute( f"insert into ct4 values ( {NOW + int(TIME_STEP * 0.8)}, {null_data} )" )
+        tdSql.execute( f"insert into ct4 values ( {NOW - (self.rows + 1) * int(TIME_STEP * 0.8)}, {null_data} )" )
+        tdSql.execute( f"insert into ct4 values ( {NOW - self.rows * int(TIME_STEP * 0.39)}, {null_data} )" )
 
-        tdSql.execute( f"insert into t1 values ( {now_time + 12000}, {null_data} )" )
-        tdSql.execute( f"insert into t1 values ( {now_time - (self.rows + 1) * 12000}, {null_data} )" )
-        tdSql.execute( f"insert into t1 values ( {now_time - self.rows * 5900}, {null_data} )" )
-
-
-
-    def __insert_data(self, rows):
-        now_time = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
-        data = self.__data_set(rows)
-        for i in range(rows):
-            tdSql.execute(
-                f'''insert into ct1 values (
-                { now_time - i * 1000 }, {i}, {11111 * i}, {111 * i % 32767 }, {11 * i % 127}, {1.11*i}, {1100.0011*i},
-                {i%2}, 'binary{i}', 'nchar_测试_{i}', { now_time + 1 * i }, {11 * i % 127}, {111 * i % 32767}, {i}, {11111 * i} )'''
-            )
-            tdSql.execute(
-                f'''insert into ct4 values (
-                { now_time - i * 7776000000 }, {i}, {11111 * i}, {111 * i % 32767 }, {11 * i % 127}, {1.11*i}, {1100.0011*i},
-                {i%2}, 'binary{i}', 'nchar_测试_{i}', { now_time + 1 * i }, {11 * i % 127}, {111 * i % 32767}, {i}, {11111 * i} )'''
-            )
-            tdSql.execute(
-                f'''insert into ct2 values (
-                { now_time - i * 7776000000 }, {-i},  {-11111 * i}, {-111 * i % 32767 }, {-11 * i % 127}, {-1.11*i}, {-1100.0011*i},
-                {i%2}, 'binary{i}', 'nchar_测试_{i}', { now_time + 1 * i }, {11 * i % 127}, {111 * i % 32767}, {i}, {11111 * i} )'''
-            )
-        tdSql.execute(
-            f'''insert into ct1 values
-            ( { now_time - rows * 5 }, 0, 0, 0, 0, 0, 0, 0, 'binary0', 'nchar_测试_0', { now_time + 8 }, 0, 0, 0, 0)
-            ( { now_time + 10000 }, { rows }, -99999, -999, -99, -9.99, -99.99, 1, 'binary9', 'nchar_测试_9', { now_time + 9 }, 0, 0, 0, 0 )
-            '''
-        )
-
-        tdSql.execute(
-            f'''insert into ct4 values
-            ( { now_time - rows * 7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
-            ( { now_time - rows * 3888000000 + 10800000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
-            ( { now_time +  7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
-            (
-                { now_time + 5184000000}, {pow(2,31)-pow(2,15)}, {pow(2,63)-pow(2,30)}, 32767, 127,
-                { 3.3 * pow(10,38) }, { 1.3 * pow(10,308) }, { rows % 2 }, "binary_limit-1", "nchar_测试_limit-1", { now_time - 86400000},
-                254, 65534, {pow(2,32)-pow(2,16)}, {pow(2,64)-pow(2,31)}
-                )
-            (
-                { now_time + 2592000000 }, {pow(2,31)-pow(2,16)}, {pow(2,63)-pow(2,31)}, 32766, 126,
-                { 3.2 * pow(10,38) }, { 1.2 * pow(10,308) }, { (rows-1) % 2 }, "binary_limit-2", "nchar_测试_limit-2", { now_time - 172800000},
-                255, 65535, {pow(2,32)-pow(2,15)}, {pow(2,64)-pow(2,30)}
-                )
-            '''
-        )
-
-        tdSql.execute(
-            f'''insert into ct2 values
-            ( { now_time - rows * 7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
-            ( { now_time - rows * 3888000000 + 10800000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
-            ( { now_time + 7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
-            (
-                { now_time + 5184000000 }, { -1 * pow(2,31) + pow(2,15) }, { -1 * pow(2,63) + pow(2,30) }, -32766, -126, { -1 * 3.2 * pow(10,38) },
-                { -1.2 * pow(10,308) }, { rows % 2 }, "binary_limit-1", "nchar_测试_limit-1", { now_time - 86400000 }, 1, 1, 1, 1
-                )
-            (
-                { now_time + 2592000000 }, { -1 * pow(2,31) + pow(2,16) }, { -1 * pow(2,63) + pow(2,31) }, -32767, -127, { - 3.3 * pow(10,38) },
-                { -1.3 * pow(10,308) }, { (rows-1) % 2 }, "binary_limit-2", "nchar_测试_limit-2", { now_time - 172800000 }, 1, 1, 1, 1
-                )
-            '''
-        )
-
-        for i in range(rows):
-            insert_data = f'''insert into t1 values
-                ( { now_time - i * 3600000 }, {i}, {i * 11111}, { i % 32767 }, { i % 127}, { i * 1.11111 }, { i * 1000.1111 }, { i % 2},
-                "binary_{i}", "nchar_测试_{i}", { now_time - 1000 * i }, {i % 127}, {i % 32767}, {i}, {i * 11111})
-                '''
-            tdSql.execute(insert_data)
-        tdSql.execute(
-            f'''insert into t1 values
-            ( { now_time + 10800000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
-            ( { now_time - (( rows // 2 ) * 60 + 30) * 60000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
-            ( { now_time - rows * 3600000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
-            (
-                { now_time + 7200000 }, { pow(2,31) - pow(2,15) }, { pow(2,63) - pow(2,30) }, 32767, 127, { 3.3 * pow(10,38) },
-                { 1.3 * pow(10,308) }, { rows % 2 }, "binary_limit-1", "nchar_测试_limit-1", { now_time - 86400000 },
-                254, 65534, {pow(2,32)-pow(2,16)}, {pow(2,64)-pow(2,31)}
-                )
-            (
-                { now_time + 3600000 } , { pow(2,31) - pow(2,16) }, { pow(2,63) - pow(2,31) }, 32766, 126, { 3.2 * pow(10,38) },
-                { 1.2 * pow(10,308) }, { (rows-1) % 2 }, "binary_limit-2", "nchar_测试_limit-2", { now_time - 172800000 },
-                255, 65535, {pow(2,32)-pow(2,15)}, {pow(2,64)-pow(2,30)}
-                )
-            '''
-        )
+        tdSql.execute( f"insert into t1 values ( {NOW + int(TIME_STEP * 1.2)}, {null_data} )" )
+        tdSql.execute( f"insert into t1 values ( {NOW - (self.rows + 1) * int(TIME_STEP * 1.2)}, {null_data} )" )
+        tdSql.execute( f"insert into t1 values ( {NOW - self.rows * int(TIME_STEP * 0.59)}, {null_data} )" )
 
 
     def run(self):
         self.rows = 10
 
+
         tdLog.printNoPrefix("==========step0:all check")
-        self.all_test()
+        # self.all_test()
 
         tdLog.printNoPrefix("==========step1:create table in normal database")
         tdSql.prepare()
         self.__create_tb()
-        # self.__insert_data(self.rows)
-        self.__insert_data_0()
+        self.__insert_data()
         # return
 
         tdLog.printNoPrefix("==========step2:create table in rollup database")
         tdSql.execute("create database db3 retentions 1s:4m,2s:8m,3s:12m")
         tdSql.execute("use db3")
-        # return
         self.__create_tb()
-        self.__insert_data_0()
+        self.__insert_data()
 
         tdSql.execute("drop database if exists db1 ")
         tdSql.execute("drop database if exists db2 ")
