@@ -423,6 +423,7 @@ static SNode* logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* pD
   COPY_SCALAR_FIELD(slidingUnit);
   COPY_SCALAR_FIELD(sessionGap);
   CLONE_NODE_FIELD(pTspk);
+  CLONE_NODE_FIELD(pTsEnd);
   CLONE_NODE_FIELD(pStateExpr);
   COPY_SCALAR_FIELD(triggerType);
   COPY_SCALAR_FIELD(watermark);
@@ -522,6 +523,7 @@ static SNode* physiWindowCopy(const SWinodwPhysiNode* pSrc, SWinodwPhysiNode* pD
   CLONE_NODE_LIST_FIELD(pExprs);
   CLONE_NODE_LIST_FIELD(pFuncs);
   CLONE_NODE_FIELD(pTspk);
+  CLONE_NODE_FIELD(pTsEnd);
   COPY_SCALAR_FIELD(triggerType);
   COPY_SCALAR_FIELD(watermark);
   COPY_SCALAR_FIELD(filesFactor);

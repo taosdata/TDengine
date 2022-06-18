@@ -70,11 +70,21 @@ int32_t fmFuncMgtInit() {
 }
 
 int32_t fmGetFuncInfo(SFunctionNode* pFunc, char* pMsg, int32_t msgLen) {
-  void* pVal = taosHashGet(gFunMgtService.pFuncNameHashTable, pFunc->functionName, strlen(pFunc->functionName));
-  if (NULL != pVal) {
-    pFunc->funcId = *(int32_t*)pVal;
-    pFunc->funcType = funcMgtBuiltins[pFunc->funcId].type;
-    return funcMgtBuiltins[pFunc->funcId].translateFunc(pFunc, pMsg, msgLen);
+  if (NULL != gFunMgtService.pFuncNameHashTable) {
+    void* pVal = taosHashGet(gFunMgtService.pFuncNameHashTable, pFunc->functionName, strlen(pFunc->functionName));
+    if (NULL != pVal) {
+      pFunc->funcId = *(int32_t*)pVal;
+      pFunc->funcType = funcMgtBuiltins[pFunc->funcId].type;
+      return funcMgtBuiltins[pFunc->funcId].translateFunc(pFunc, pMsg, msgLen);
+    }
+    return TSDB_CODE_FUNC_NOT_BUILTIN_FUNTION;
+  }
+  for (int32_t i = 0; i < funcMgtBuiltinsNum; ++i) {
+    if (0 == strcmp(funcMgtBuiltins[i].name, pFunc->functionName)) {
+      pFunc->funcId = i;
+      pFunc->funcType = funcMgtBuiltins[pFunc->funcId].type;
+      return funcMgtBuiltins[pFunc->funcId].translateFunc(pFunc, pMsg, msgLen);
+    }
   }
   return TSDB_CODE_FUNC_NOT_BUILTIN_FUNTION;
 }
@@ -233,17 +243,7 @@ bool fmIsSameInOutType(int32_t funcId) {
 
 static int32_t getFuncInfo(SFunctionNode* pFunc) {
   char msg[64] = {0};
-  if (NULL != gFunMgtService.pFuncNameHashTable) {
-    return fmGetFuncInfo(pFunc, msg, sizeof(msg));
-  }
-  for (int32_t i = 0; i < funcMgtBuiltinsNum; ++i) {
-    if (0 == strcmp(funcMgtBuiltins[i].name, pFunc->functionName)) {
-      pFunc->funcId = i;
-      pFunc->funcType = funcMgtBuiltins[pFunc->funcId].type;
-      return funcMgtBuiltins[pFunc->funcId].translateFunc(pFunc, msg, sizeof(msg));
-    }
-  }
-  return TSDB_CODE_FUNC_NOT_BUILTIN_FUNTION;
+  return fmGetFuncInfo(pFunc, msg, sizeof(msg));
 }
 
 static SFunctionNode* createFunction(const char* pName, SNodeList* pParameterList) {

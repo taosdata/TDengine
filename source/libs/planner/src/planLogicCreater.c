@@ -559,6 +559,7 @@ static int32_t createWindowLogicNodeBySession(SLogicPlanContext* pCxt, SSessionW
     nodesDestroyNode((SNode*)pWindow);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  pWindow->pTsEnd = nodesCloneNode((SNode*)pSession->pCol);
 
   return createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
 }

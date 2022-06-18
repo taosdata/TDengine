@@ -352,6 +352,7 @@ static void destroyWinodwPhysiNode(SWinodwPhysiNode* pNode) {
   nodesDestroyList(pNode->pExprs);
   nodesDestroyList(pNode->pFuncs);
   nodesDestroyNode(pNode->pTspk);
+  nodesDestroyNode(pNode->pTsEnd);
 }
 
 static void destroyScanPhysiNode(SScanPhysiNode* pNode) {
@@ -718,6 +719,7 @@ void nodesDestroyNode(SNode* pNode) {
       destroyLogicNode((SLogicNode*)pLogicNode);
       nodesDestroyList(pLogicNode->pFuncs);
       nodesDestroyNode(pLogicNode->pTspk);
+      nodesDestroyNode(pLogicNode->pTsEnd);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_FILL: {
