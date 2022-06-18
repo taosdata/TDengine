@@ -154,8 +154,6 @@ class TDTestCase:
             f'today(),3,3.333,333.333333,now()',
             f'today()-1d,10,11.11,99.999999,now()'
         ]
-
-        
         # execute case
         tdSql.prepare()
         tdSql.execute(self.set_create_stable_sql(stbname,column_dict,tag_dict))
