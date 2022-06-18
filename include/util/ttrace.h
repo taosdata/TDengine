@@ -21,18 +21,33 @@
 extern "C" {
 #endif
 
-typedef int64_t STraceId;
-typedef int32_t STraceSubId;
+#pragma(push, 1)
+typedef struct {
+  int64_t rootId;
+  int64_t msgId;
+} STraceId;
 
-STraceId traceInitId(STraceSubId *h, STraceSubId *l);
+#pragma(pop)
 
-void traceId2Str(STraceId *id, char *buf);
+#define TRACE_SET_ROOTID(traceId, root) \
+  do {                                  \
+    (traceId)->rootId = root;           \
+  } while (0);
 
-void traceSetSubId(STraceId *id, int32_t *subId);
+#define TRACE_GET_ROOTID(traceId) (traceId)->rootId
 
-STraceSubId traceGetParentId(STraceId *id);
+#define TRACE_SET_MSGID(traceId, mId) \
+  do {                                \
+    (traceId)->msgId = mId;           \
+  } while (0)
 
-STraceSubId traceGenSubId();
+#define TRACE_GET_MSGID(traceId) (traceId)->msgId
+
+#define TRACE_TO_STR(traceId, buf)                                                 \
+  do {                                                                             \
+    sprintf(buf, "0x%" PRIx64 ": 0x%" PRIx64 "", traceId->rootId, traceId->msgId); \
+  } while (0)
+
 #ifdef __cplusplus
 }
 #endif

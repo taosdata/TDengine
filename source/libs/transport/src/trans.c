@@ -163,6 +163,11 @@ void rpcSetDefaultAddr(void* thandle, const char* ip, const char* fqdn) {
   transSetDefaultAddr(thandle, ip, fqdn);
 }
 
+// void rpcSetMsgTraceId(SRpcMsg* pMsg, STraceId uid) {
+//  SRpcHandleInfo* pInfo = &pMsg->info;
+//  pInfo->traceId = uid;
+//}
+
 int32_t rpcInit() {
   // impl later
   return 0;

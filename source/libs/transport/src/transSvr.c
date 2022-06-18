@@ -270,11 +270,8 @@ static void uvHandleReq(SSvrConn* pConn) {
   transMsg.msgType = pHead->msgType;
   transMsg.code = pHead->code;
 
-  transMsg.info.ahandle = (void*)pHead->ahandle;
-  transMsg.info.handle = NULL;
-
-  // transDestroyBuffer(&pConn->readBuf);
   transClearBuffer(&pConn->readBuf);
+
   pConn->inType = pHead->msgType;
   if (pConn->status == ConnNormal) {
     if (pHead->persist == 1) {
@@ -283,16 +280,18 @@ static void uvHandleReq(SSvrConn* pConn) {
       tDebug("conn %p acquired by server app", pConn);
     }
   }
+  STraceId* trace = &pHead->traceId;
   if (pConn->status == ConnNormal && pHead->noResp == 0) {
     transRefSrvHandle(pConn);
-    tDebug("conn %p %s received from %s:%d, local info: %s:%d, msg size: %d", pConn, TMSG_INFO(transMsg.msgType),
-           taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port), taosInetNtoa(pConn->localAddr.sin_addr),
-           ntohs(pConn->localAddr.sin_port), transMsg.contLen);
+
+    tTR("conn %p %s received from %s:%d, local info: %s:%d, msg size: %d", pConn, TMSG_INFO(transMsg.msgType),
+        taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port), taosInetNtoa(pConn->localAddr.sin_addr),
+        ntohs(pConn->localAddr.sin_port), transMsg.contLen);
   } else {
-    tDebug("conn %p %s received from %s:%d, local info: %s:%d, msg size: %d, resp:%d, code: %d", pConn,
-           TMSG_INFO(transMsg.msgType), taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port),
-           taosInetNtoa(pConn->localAddr.sin_addr), ntohs(pConn->localAddr.sin_port), transMsg.contLen, pHead->noResp,
-           transMsg.code);
+    tTR("conn %p %s received from %s:%d, local info: %s:%d, msg size: %d, resp:%d, code: %d", pConn,
+        TMSG_INFO(transMsg.msgType), taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port),
+        taosInetNtoa(pConn->localAddr.sin_addr), ntohs(pConn->localAddr.sin_port), transMsg.contLen, pHead->noResp,
+        transMsg.code);
     // no ref here
   }
 
@@ -300,11 +299,14 @@ static void uvHandleReq(SSvrConn* pConn) {
   // 1. server application should not send resp on handle
   // 2. once send out data, cli conn released to conn pool immediately
   // 3. not mixed with persist
-
+  transMsg.info.ahandle = (void*)pHead->ahandle;
   transMsg.info.handle = (void*)transAcquireExHandle(refMgt, pConn->refId);
   transMsg.info.refId = pConn->refId;
-  tTrace("handle %p conn: %p translated to app, refId: %" PRIu64 "", transMsg.info.handle, pConn, pConn->refId);
+  transMsg.info.traceId = pHead->traceId;
+
+  tTR("handle %p conn: %p translated to app, refId: %" PRIu64 "", transMsg.info.handle, pConn, pConn->refId);
   assert(transMsg.info.handle != NULL);
+
   if (pHead->noResp == 1) {
     transMsg.info.refId = -1;
   }
@@ -424,8 +426,6 @@ static void uvOnPipeWriteCb(uv_write_t* req, int status) {
 }
 
 static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
-  tTrace("conn %p prepare to send resp", smsg->pConn);
-
   SSvrConn*  pConn = smsg->pConn;
   STransMsg* pMsg = &smsg->msg;
   if (pMsg->pCont == 0) {
@@ -434,6 +434,7 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
   }
   STransMsgHead* pHead = transHeadFromCont(pMsg->pCont);
   pHead->ahandle = (uint64_t)pMsg->info.ahandle;
+  pHead->traceId = pMsg->info.traceId;
 
   if (pConn->status == ConnNormal) {
     pHead->msgType = pConn->inType + 1;
@@ -454,9 +455,11 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
 
   char*   msg = (char*)pHead;
   int32_t len = transMsgLenFromCont(pMsg->contLen);
-  tDebug("conn %p %s is sent to %s:%d, local info: %s:%d, msglen:%d", pConn, TMSG_INFO(pHead->msgType),
-         taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port), taosInetNtoa(pConn->localAddr.sin_addr),
-         ntohs(pConn->localAddr.sin_port), len);
+
+  STraceId* trace = &pMsg->info.traceId;
+  tTR("conn %p %s is sent to %s:%d, local info: %s:%d, msglen:%d", pConn, TMSG_INFO(pHead->msgType),
+      taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port), taosInetNtoa(pConn->localAddr.sin_addr),
+      ntohs(pConn->localAddr.sin_port), len);
   pHead->msgLen = htonl(len);
 
   wb->base = msg;

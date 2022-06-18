@@ -154,7 +154,7 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
                     .info.persistHandle = persistHandle,
                     .code = 0};
   assert(pInfo->fp != NULL);
-
+  TRACE_SET_ROOTID(&rpcMsg.info.traceId, pInfo->requestId);
   rpcSendRequestWithCtx(pTransporter, epSet, &rpcMsg, pTransporterId, rpcCtx);
   return TSDB_CODE_SUCCESS;
 }
@@ -208,14 +208,14 @@ void destroyQueryExecRes(SQueryExecRes* pRes) {
   switch (pRes->msgType) {
     case TDMT_VND_ALTER_TABLE:
     case TDMT_MND_ALTER_STB: {
-      tFreeSTableMetaRsp((STableMetaRsp *)pRes->res);
+      tFreeSTableMetaRsp((STableMetaRsp*)pRes->res);
       taosMemoryFreeClear(pRes->res);
       break;
     }
     case TDMT_VND_SUBMIT: {
       tFreeSSubmitRsp((SSubmitRsp*)pRes->res);
       break;
-    } 
+    }
     case TDMT_VND_QUERY: {
       taosArrayDestroy((SArray*)pRes->res);
       break;
@@ -224,5 +224,3 @@ void destroyQueryExecRes(SQueryExecRes* pRes) {
       qError("invalid exec result for request type %d", pRes->msgType);
   }
 }
-
-
