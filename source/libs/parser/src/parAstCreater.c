@@ -1100,7 +1100,15 @@ static bool needDbShowStmt(ENodeType type) {
          QUERY_NODE_SHOW_VGROUPS_STMT == type;
 }
 
-SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pDbName, SNode* pTbNamePattern) {
+SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type) {
+  CHECK_PARSER_STATUS(pCxt);
+  SShowStmt* pStmt = (SShowStmt*)nodesMakeNode(type);
+  CHECK_OUT_OF_MEM(pStmt);
+  return (SNode*)pStmt;
+}
+
+SNode* createShowStmtWithCond(SAstCreateContext* pCxt, ENodeType type, SNode* pDbName, SNode* pTbName,
+                              EOperatorType tableCondType) {
   CHECK_PARSER_STATUS(pCxt);
   if (needDbShowStmt(type) && NULL == pDbName && NULL == pCxt->pQueryCxt->db) {
     snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "db not specified");
@@ -1110,7 +1118,8 @@ SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pDbName, S
   SShowStmt* pStmt = (SShowStmt*)nodesMakeNode(type);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->pDbName = pDbName;
-  pStmt->pTbNamePattern = pTbNamePattern;
+  pStmt->pTbName = pTbName;
+  pStmt->tableCondType = tableCondType;
   return (SNode*)pStmt;
 }
 
@@ -1131,6 +1140,17 @@ SNode* createShowCreateTableStmt(SAstCreateContext* pCxt, ENodeType type, SNode*
   CHECK_OUT_OF_MEM(pStmt);
   strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
   strcpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName);
+  nodesDestroyNode(pRealTable);
+  return (SNode*)pStmt;
+}
+
+SNode* createShowTableDistributedStmt(SAstCreateContext* pCxt, SNode* pRealTable) {
+  CHECK_PARSER_STATUS(pCxt);
+  SShowTableDistributedStmt* pStmt = (SShowTableDistributedStmt*)nodesMakeNode(QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
+  strcpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName);
+  nodesDestroyNode(pRealTable);
   return (SNode*)pStmt;
 }
 

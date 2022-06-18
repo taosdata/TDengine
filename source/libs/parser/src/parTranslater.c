@@ -4534,26 +4534,34 @@ static const char* getSysTableName(ENodeType type) {
   return NULL;
 }
 
-static int32_t createSelectStmtForShow(ENodeType showType, SSelectStmt** pStmt) {
+static int32_t createSimpleSelectStmt(const char* pDb, const char* pTable, SSelectStmt** pStmt) {
   SSelectStmt* pSelect = (SSelectStmt*)nodesMakeNode(QUERY_NODE_SELECT_STMT);
   if (NULL == pSelect) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   sprintf(pSelect->stmtName, "%p", pSelect);
 
-  SRealTableNode* pTable = (SRealTableNode*)nodesMakeNode(QUERY_NODE_REAL_TABLE);
-  if (NULL == pTable) {
+  SRealTableNode* pRealTable = (SRealTableNode*)nodesMakeNode(QUERY_NODE_REAL_TABLE);
+  if (NULL == pRealTable) {
     nodesDestroyNode((SNode*)pSelect);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  strcpy(pTable->table.dbName, getSysDbName(showType));
-  strcpy(pTable->table.tableName, getSysTableName(showType));
-  strcpy(pTable->table.tableAlias, pTable->table.tableName);
-  pSelect->pFromTable = (SNode*)pTable;
+  strcpy(pRealTable->table.dbName, pDb);
+  strcpy(pRealTable->table.tableName, pTable);
+  strcpy(pRealTable->table.tableAlias, pTable);
+  pSelect->pFromTable = (SNode*)pRealTable;
 
   *pStmt = pSelect;
 
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t createSelectStmtForShow(ENodeType showType, SSelectStmt** pStmt) {
+  return createSimpleSelectStmt(getSysDbName(showType), getSysTableName(showType), pStmt);
+}
+
+static int32_t createSelectStmtForShowTableDist(SShowTableDistributedStmt* pStmt, SSelectStmt** pOutput) {
+  return createSimpleSelectStmt(pStmt->dbName, pStmt->tableName, pOutput);
 }
 
 static int32_t createOperatorNode(EOperatorType opType, const char* pColName, SNode* pRight, SNode** pOp) {
@@ -4609,7 +4617,7 @@ static int32_t createShowCondition(const SShowStmt* pShow, SSelectStmt* pSelect)
   SNode* pTbCond = NULL;
   if (TSDB_CODE_SUCCESS != createOperatorNode(OP_TYPE_EQUAL, "db_name", pShow->pDbName, &pDbCond) ||
       TSDB_CODE_SUCCESS !=
-          createOperatorNode(OP_TYPE_LIKE, getTbNameColName(nodeType(pShow)), pShow->pTbNamePattern, &pTbCond)) {
+          createOperatorNode(pShow->tableCondType, getTbNameColName(nodeType(pShow)), pShow->pTbName, &pTbCond)) {
     nodesDestroyNode(pDbCond);
     nodesDestroyNode(pTbCond);
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -4637,6 +4645,46 @@ static int32_t rewriteShow(STranslateContext* pCxt, SQuery* pQuery) {
   int32_t      code = createSelectStmtForShow(nodeType(pQuery->pRoot), &pStmt);
   if (TSDB_CODE_SUCCESS == code) {
     code = createShowCondition((SShowStmt*)pQuery->pRoot, pStmt);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    pQuery->showRewrite = true;
+    nodesDestroyNode(pQuery->pRoot);
+    pQuery->pRoot = (SNode*)pStmt;
+  }
+  return code;
+}
+
+static SNode* createBlockDistInfoFunc() {
+  SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
+  if (NULL == pFunc) {
+    return NULL;
+  }
+
+  strcpy(pFunc->functionName, "_block_dist_info");
+  strcpy(pFunc->node.aliasName, "_block_dist_info");
+  return (SNode*)pFunc;
+}
+
+static SNode* createBlockDistFunc() {
+  SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
+  if (NULL == pFunc) {
+    return NULL;
+  }
+
+  strcpy(pFunc->functionName, "_block_dist");
+  strcpy(pFunc->node.aliasName, "_block_dist");
+  if (TSDB_CODE_SUCCESS != nodesListMakeStrictAppend(&pFunc->pParameterList, createBlockDistInfoFunc())) {
+    nodesDestroyNode((SNode*)pFunc);
+    return NULL;
+  }
+  return (SNode*)pFunc;
+}
+
+static int32_t rewriteShowTableDist(STranslateContext* pCxt, SQuery* pQuery) {
+  SSelectStmt* pStmt = NULL;
+  int32_t      code = createSelectStmtForShowTableDist((SShowTableDistributedStmt*)pQuery->pRoot, &pStmt);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesListMakeStrictAppend(&pStmt->pProjectionList, createBlockDistFunc());
   }
   if (TSDB_CODE_SUCCESS == code) {
     pQuery->showRewrite = true;
@@ -5583,6 +5631,9 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_VARIABLE_STMT:
     case QUERY_NODE_SHOW_APPS_STMT:
       code = rewriteShow(pCxt, pQuery);
+      break;
+    case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
+      code = rewriteShowTableDist(pCxt, pQuery);
       break;
     case QUERY_NODE_CREATE_TABLE_STMT:
       if (NULL == ((SCreateTableStmt*)pQuery->pRoot)->pTags) {
