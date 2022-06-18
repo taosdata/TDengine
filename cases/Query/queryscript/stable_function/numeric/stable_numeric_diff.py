@@ -47,6 +47,7 @@ class TDTestQuery(TDCase):
 
     #basic_param
     db = "stable_numeric_diff"
+    service_host = ""
     table_list = ['stable_1','stable_2',]
     table = str(random.sample(table_list,1)).replace("[","").replace("]","").replace("'","")
     table_null_list = ['stable_null_data','stable_null_childtable']
@@ -54,22 +55,27 @@ class TDTestQuery(TDCase):
     testcasePath = os.path.split(__file__)[0]
     testcaseFilename = os.path.split(__file__)[-1]
 
-    def case_common(self):
+    # def case_common(self):
+    #     #os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))    
+    #     os.system("touch %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
+    #     self.tdCreateData.dropandcreateDB_random_diff("%s" % self.db, 1) 
+
+    #     conn1 = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos/")
+    #     cur1 = conn1.cursor()        
+    #     cur1.execute('use "%s";' %self.db)
+    #     sql = 'select * from stable_1 limit 5;'
+    #     cur1.execute(sql)
+
+    #     return(conn1,cur1)  
+
+    def data_create(self,db):
         #os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))    
         os.system("touch %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
-        self.tdCreateData.dropandcreateDB_random_diff("%s" % self.db, 1) 
-
-        conn1 = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos/")
-        cur1 = conn1.cursor()        
-        cur1.execute('use "%s";' %self.db)
-        sql = 'select * from stable_1 limit 5;'
-        cur1.execute(sql)
-
-        return(conn1,cur1)  
- 
+        self.tdCreateData.dropandcreateDB_random_diff("%s" % db, 1)  
+         
     def right_case_1(self):
         print("\n==========================right case 1==========================\n")
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]
         sql = 'Count the number of sqls'         
@@ -136,7 +142,7 @@ class TDTestQuery(TDCase):
 
     def right_case_1_tbname(self):
         print("\n==========================right case 1_tbname==========================\n")
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]
         sql = 'Count the number of sqls'         
@@ -201,7 +207,7 @@ class TDTestQuery(TDCase):
 
     def error_case_1(self):
         print("\n==========================error case 1==========================\n")
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]
         sql = 'Count the number of sqls'         
@@ -250,7 +256,7 @@ class TDTestQuery(TDCase):
                 
     def right_case_2(self):
         print("\n==========================right case 2==========================\n")
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]        
         sql = 'Count the number of sqls'       
@@ -377,7 +383,7 @@ class TDTestQuery(TDCase):
         
     def right_case_2_tbname(self):
         print("\n==========================right case 2_tbname==========================\n")
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]        
         sql = 'Count the number of sqls'       
@@ -518,7 +524,7 @@ class TDTestQuery(TDCase):
 
     def error_case_2(self):
         print("\n==========================error case 2==========================\n")
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]        
         sql = 'Count the number of sqls'       
@@ -612,7 +618,7 @@ class TDTestQuery(TDCase):
                                
     def right_case_3(self):
         print("\n==========================right case 3==========================\n")
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]       
         sql = 'Count the number of sqls'
@@ -679,7 +685,7 @@ class TDTestQuery(TDCase):
  
     def right_case_3_tbname(self):
         print("\n==========================right case 3_tbname==========================\n")
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]       
         sql = 'Count the number of sqls'
@@ -744,7 +750,7 @@ class TDTestQuery(TDCase):
 
     def error_case_3(self):
         print("\n==========================error case 3==========================\n")
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]       
         sql = 'Count the number of sqls'
@@ -798,6 +804,8 @@ class TDTestQuery(TDCase):
     def run(self):
         startTime = time.time() 
         
+        self.data_create(self.db)
+          
         startTime1 = time.time()
         self.right_case_1()
         self.right_case_1_tbname()
