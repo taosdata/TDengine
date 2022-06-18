@@ -192,7 +192,7 @@ class TDTestCase:
                 time.sleep(1)
         
         tdLog.info("start consume processor")
-        pollDelay = 100
+        pollDelay = 20
         showMsg   = 1
         showRow   = 1
         
@@ -208,7 +208,7 @@ class TDTestCase:
         os.system(shellCmd)        
 
         # wait for data ready
-        prepareEnvThread.join()
+        # prepareEnvThread.join()
         
         tdLog.info("insert process end, and start to check consume result")
         while 1:

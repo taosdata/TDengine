@@ -312,7 +312,7 @@ static void uvHandleReq(SSvrConn* pConn) {
   }
 
   // set up conn info
-  SRpcConnInfo* pConnInfo = &(transMsg.info.connInfo);
+  SRpcConnInfo* pConnInfo = &(transMsg.info.conn);
   pConnInfo->clientIp = (uint32_t)(pConn->addr.sin_addr.s_addr);
   pConnInfo->clientPort = ntohs(pConn->addr.sin_port);
   tstrncpy(pConnInfo->user, pConn->user, sizeof(pConnInfo->user));

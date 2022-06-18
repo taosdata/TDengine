@@ -309,7 +309,7 @@ static int32_t smlApplySchemaAction(SSmlHandle *info, SSchemaAction *action) {
     case SCHEMA_ACTION_ADD_COLUMN: {
       int n = sprintf(result, "alter stable `%s` add column ", action->alterSTable.sTableName);
       smlBuildColumnDescription(action->alterSTable.field, result + n, capacity - n, &outBytes);
-      TAOS_RES *res = taos_query((TAOS*)info->taos->id, result);  // TODO async doAsyncQuery
+      TAOS_RES *res = taos_query(info->taos->id, result);  // TODO async doAsyncQuery
       code = taos_errno(res);
       const char *errStr = taos_errstr(res);
       if (code != TSDB_CODE_SUCCESS) {
@@ -323,7 +323,7 @@ static int32_t smlApplySchemaAction(SSmlHandle *info, SSchemaAction *action) {
     case SCHEMA_ACTION_ADD_TAG: {
       int n = sprintf(result, "alter stable `%s` add tag ", action->alterSTable.sTableName);
       smlBuildColumnDescription(action->alterSTable.field, result + n, capacity - n, &outBytes);
-      TAOS_RES *res = taos_query((TAOS*)info->taos->id, result);  // TODO async doAsyncQuery
+      TAOS_RES *res = taos_query(info->taos->id, result);  // TODO async doAsyncQuery
       code = taos_errno(res);
       const char *errStr = taos_errstr(res);
       if (code != TSDB_CODE_SUCCESS) {
@@ -337,7 +337,7 @@ static int32_t smlApplySchemaAction(SSmlHandle *info, SSchemaAction *action) {
     case SCHEMA_ACTION_CHANGE_COLUMN_SIZE: {
       int n = sprintf(result, "alter stable `%s` modify column ", action->alterSTable.sTableName);
       smlBuildColumnDescription(action->alterSTable.field, result + n, capacity - n, &outBytes);
-      TAOS_RES *res = taos_query((TAOS*)info->taos->id, result);  // TODO async doAsyncQuery
+      TAOS_RES *res = taos_query(info->taos->id, result);  // TODO async doAsyncQuery
       code = taos_errno(res);
       if (code != TSDB_CODE_SUCCESS) {
         uError("SML:0x%" PRIx64 " apply schema action. error : %s", info->id, taos_errstr(res));
@@ -350,7 +350,7 @@ static int32_t smlApplySchemaAction(SSmlHandle *info, SSchemaAction *action) {
     case SCHEMA_ACTION_CHANGE_TAG_SIZE: {
       int n = sprintf(result, "alter stable `%s` modify tag ", action->alterSTable.sTableName);
       smlBuildColumnDescription(action->alterSTable.field, result + n, capacity - n, &outBytes);
-      TAOS_RES *res = taos_query((TAOS*)info->taos->id, result);  // TODO async doAsyncQuery
+      TAOS_RES *res = taos_query(info->taos->id, result);  // TODO async doAsyncQuery
       code = taos_errno(res);
       if (code != TSDB_CODE_SUCCESS) {
         uError("SML:0x%" PRIx64 " apply schema action. error : %s", info->id, taos_errstr(res));
@@ -405,7 +405,7 @@ static int32_t smlApplySchemaAction(SSmlHandle *info, SSchemaAction *action) {
       pos--;
       ++freeBytes;
       outBytes = snprintf(pos, freeBytes, ")");
-      TAOS_RES *res = taos_query((TAOS*)info->taos->id, result);
+      TAOS_RES *res = taos_query(info->taos->id, result);
       code = taos_errno(res);
       if (code != TSDB_CODE_SUCCESS) {
         uError("SML:0x%" PRIx64 " apply schema action. error : %s", info->id, taos_errstr(res));
@@ -2434,7 +2434,7 @@ static void smlInsertCallback(void *param, void *res, int32_t code) {
  */
 
 TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol, int precision) {
-  STscObj* pTscObj = acquireTscObj((int64_t)taos);
+  STscObj* pTscObj = acquireTscObj(*(int64_t*)taos);
   if (NULL == pTscObj) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     uError("SML:taos_schemaless_insert invalid taos");
@@ -2443,7 +2443,7 @@ TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int pr
   
   SRequestObj* request = (SRequestObj*)createRequest(pTscObj, TSDB_SQL_INSERT);
   if(!request){
-    releaseTscObj((int64_t)taos);
+    releaseTscObj(*(int64_t*)taos);
     uError("SML:taos_schemaless_insert error request is null");
     return NULL;
   }
@@ -2531,6 +2531,6 @@ end:
 //  ((STscObj *)taos)->schemalessType = 0;
   pTscObj->schemalessType = 1;
   uDebug("resultend:%s", request->msgBuf);
-  releaseTscObj((int64_t)taos);
+  releaseTscObj(*(int64_t*)taos);
   return (TAOS_RES*)request;
 }

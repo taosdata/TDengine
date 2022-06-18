@@ -21,21 +21,6 @@ static void dmSendRedirectRsp(SRpcMsg *pMsg, const SEpSet *pNewEpSet);
 static void dmSendRsp(SRpcMsg *pMsg);
 static void dmBuildMnodeRedirectRsp(SDnode *pDnode, SRpcMsg *pMsg);
 
-static inline int32_t dmBuildNodeMsg(SRpcMsg *pMsg, SRpcMsg *pRpc) {
-  SRpcConnInfo *pConnInfo = &(pRpc->info.connInfo);
-  // if (IsReq(pRpc)) {
-  //  terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
-  //  dError("failed to build msg since %s, app:%p handle:%p", terrstr(), pRpc->info.ahandle, pRpc->info.handle);
-  //  return -1;
-  //}
-
-  memcpy(pMsg, pRpc, sizeof(SRpcMsg));
-  memcpy(pMsg->conn.user, pConnInfo->user, TSDB_USER_LEN);
-  pMsg->conn.clientIp = pConnInfo->clientIp;
-  pMsg->conn.clientPort = pConnInfo->clientPort;
-  return 0;
-}
-
 int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
   NodeMsgFp msgFp = pWrapper->msgFps[TMSG_INDEX(pMsg->msgType)];
   if (msgFp == NULL) {
@@ -117,14 +102,10 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   }
 
   pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM);
-  if (pMsg == NULL) {
-    goto _OVER;
-  }
-  dTrace("msg:%p, is created, type:%s", pMsg, TMSG_INFO(pRpc->msgType));
+  if (pMsg == NULL) goto _OVER;
+  memcpy(pMsg, pRpc, sizeof(SRpcMsg));
 
-  if (dmBuildNodeMsg(pMsg, pRpc) != 0) {
-    goto _OVER;
-  }
+  dTrace("msg:%p, is created, type:%s handle:%p", pMsg, TMSG_INFO(pRpc->msgType), pMsg->info.handle);
 
   if (InParentProc(pWrapper)) {
     code = dmPutToProcCQueue(&pWrapper->proc, pMsg, DND_FUNC_REQ);

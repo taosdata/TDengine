@@ -269,7 +269,8 @@ class TDTestCase:
 
         tdSql.query("show dnodes;")
         print(tdSql.queryResult)
-        #  drop and follower of mnode 
+
+        #  drop follower of mnode 
         dropcount =0 
         while dropcount <= 10:
             for i in range(1,3):

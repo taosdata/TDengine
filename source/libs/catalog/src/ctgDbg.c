@@ -19,7 +19,7 @@
 #include "catalogInt.h"
 
 extern SCatalogMgmt gCtgMgmt;
-SCtgDebug gCTGDebug = {.lockEnable = true, .apiEnable = true};
+SCtgDebug gCTGDebug = {.cacheEnable = true};
 
 void ctgdUserCallback(SMetaData* pResult, void* param, int32_t code) {
   ASSERT(*(int32_t*)param == 1);
@@ -40,9 +40,9 @@ void ctgdUserCallback(SMetaData* pResult, void* param, int32_t code) {
       STableComInfo *c = &p->tableInfo;
       
       if (TSDB_CHILD_TABLE == p->tableType) {
-        qDebug("table meta: type:%d, vgId:%d, uid:%" PRIx64 ",suid:%" PRIx64, p->tableType, p->vgId, p->uid, p->suid);
+        qDebug("table meta: type:%d, vgId:%d, uid:0x%" PRIx64 ",suid:0x%" PRIx64, p->tableType, p->vgId, p->uid, p->suid);
       } else {
-        qDebug("table meta: type:%d, vgId:%d, uid:%" PRIx64 ",suid:%" PRIx64 ",sv:%d, tv:%d, tagNum:%d, precision:%d, colNum:%d, rowSize:%d",
+        qDebug("table meta: type:%d, vgId:%d, uid:0x%" PRIx64 ",suid:0x%" PRIx64 ",sv:%d, tv:%d, tagNum:%d, precision:%d, colNum:%d, rowSize:%d",
          p->tableType, p->vgId, p->uid, p->suid, p->sversion, p->tversion, c->numOfTags, c->precision, c->numOfColumns, c->rowSize);
       }
       
@@ -75,7 +75,7 @@ void ctgdUserCallback(SMetaData* pResult, void* param, int32_t code) {
     num = taosArrayGetSize(pResult->pDbInfo);
     for (int32_t i = 0; i < num; ++i) {
       SDbInfo *pDb = taosArrayGet(pResult->pDbInfo, i);
-      qDebug("db %d dbInfo: vgVer:%d, tbNum:%d, dbId:%" PRIx64, i, pDb->vgVer, pDb->tbNum, pDb->dbId);
+      qDebug("db %d dbInfo: vgVer:%d, tbNum:%d, dbId:0x%" PRIx64, i, pDb->vgVer, pDb->tbNum, pDb->dbId);
     }
   } else {
     qDebug("empty db info");
@@ -333,10 +333,10 @@ void ctgdShowTableMeta(SCatalog* pCtg, const char *tbName, STableMeta* p) {
   STableComInfo *c = &p->tableInfo;
 
   if (TSDB_CHILD_TABLE == p->tableType) {
-    ctgDebug("table [%s] meta: type:%d, vgId:%d, uid:%" PRIx64 ",suid:%" PRIx64, tbName, p->tableType, p->vgId, p->uid, p->suid);
+    ctgDebug("table [%s] meta: type:%d, vgId:%d, uid:0x%" PRIx64 ",suid:0x%" PRIx64, tbName, p->tableType, p->vgId, p->uid, p->suid);
     return;
   } else {
-    ctgDebug("table [%s] meta: type:%d, vgId:%d, uid:%" PRIx64 ",suid:%" PRIx64 ",sv:%d, tv:%d, tagNum:%d, precision:%d, colNum:%d, rowSize:%d",
+    ctgDebug("table [%s] meta: type:%d, vgId:%d, uid:0x%" PRIx64 ",suid:0x%" PRIx64 ",sv:%d, tv:%d, tagNum:%d, precision:%d, colNum:%d, rowSize:%d",
      tbName, p->tableType, p->vgId, p->uid, p->suid, p->sversion, p->tversion, c->numOfTags, c->precision, c->numOfColumns, c->rowSize);
   }
 
@@ -377,7 +377,7 @@ void ctgdShowDBCache(SCatalog* pCtg, SHashObj *dbHash) {
       }
     }
     
-    ctgDebug("[%d] db [%.*s][%"PRIx64"] %s: metaNum:%d, stbNum:%d, vgVersion:%d, hashMethod:%d, vgNum:%d",
+    ctgDebug("[%d] db [%.*s][0x%"PRIx64"] %s: metaNum:%d, stbNum:%d, vgVersion:%d, hashMethod:%d, vgNum:%d",
       i, (int32_t)len, dbFName, dbCache->dbId, dbCache->deleted?"deleted":"", metaNum, stbNum, vgVersion, hashMethod, vgNum);
 
     pIter = taosHashIterate(dbHash, pIter);
@@ -392,13 +392,13 @@ void ctgdShowClusterCache(SCatalog* pCtg) {
     return;
   }
 
-  ctgDebug("## cluster %"PRIx64" %p cache Info BEGIN ##", pCtg->clusterId, pCtg);
+  ctgDebug("## cluster 0x%"PRIx64" %p cache Info BEGIN ##", pCtg->clusterId, pCtg);
   ctgDebug("db:%d meta:%d stb:%d dbRent:%d stbRent:%d", ctgdGetClusterCacheNum(pCtg, CTG_DBG_DB_NUM), ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM),
     ctgdGetClusterCacheNum(pCtg, CTG_DBG_STB_NUM), ctgdGetClusterCacheNum(pCtg, CTG_DBG_DB_RENT_NUM), ctgdGetClusterCacheNum(pCtg, CTG_DBG_STB_RENT_NUM));    
   
   ctgdShowDBCache(pCtg, pCtg->dbCache);
 
-  ctgDebug("## cluster %"PRIx64" %p cache Info END ##", pCtg->clusterId, pCtg);
+  ctgDebug("## cluster 0x%"PRIx64" %p cache Info END ##", pCtg->clusterId, pCtg);
 }
 
 int32_t ctgdShowCacheInfo(void) {
@@ -407,6 +407,8 @@ int32_t ctgdShowCacheInfo(void) {
   }
 
   CTG_API_ENTER();
+
+  qDebug("# total catalog cluster number %d #", taosHashGetSize(gCtgMgmt.pCluster));
   
   SCatalog *pCtg = NULL;
   void *pIter = taosHashIterate(gCtgMgmt.pCluster, NULL);

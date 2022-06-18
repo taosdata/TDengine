@@ -92,7 +92,7 @@ endi
 if $data5_db != no_strict then  # strict
   return -1
 endi
-if $data6_db != 345600 then  # duration
+if $data6_db != 345600m then  # duration
   return -1
 endi
 if $data7_db != 1440000m,1440000m,1440000m then # keep
