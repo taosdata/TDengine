@@ -70,7 +70,7 @@ class TDTestQuery(TDCase):
     def data_create(self,db):
         #os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))    
         os.system("touch %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
-        self.tdCreateData.dropandcreateDB_random("%s" % self.db, 1)  
+        self.tdCreateData.dropandcreateDB_random("%s" % db, 1)  
  
     def data_check(self,sql1, throw=True) -> bool: 
         # apercentile(column_name, 50, "default") 与 apercentile(column_name, 50) 等价 ,t-digest是个概率值
