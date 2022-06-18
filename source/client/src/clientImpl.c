@@ -418,7 +418,7 @@ int32_t scheduleAsyncQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNod
   while (true) {
     if (code != TSDB_CODE_SUCCESS) {
       if (pRequest->body.queryJob != 0) {
-        schedulerFreeJob(pRequest->body.queryJob);
+        schedulerFreeJob(pRequest->body.queryJob, 0);
       }
 
       pRequest->code = code;
@@ -439,7 +439,7 @@ int32_t scheduleAsyncQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNod
     pRequest->body.resInfo.numOfRows = res.numOfRows;
 
     if (pRequest->body.queryJob != 0) {
-      schedulerFreeJob(pRequest->body.queryJob);
+      schedulerFreeJob(pRequest->body.queryJob, 0);
     }
   }
 
@@ -461,14 +461,15 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
                           .sql = pRequest->sqlstr,
                           .startTs = pRequest->metric.start,
                           .fp = NULL,
-                          .cbParam = NULL};
+                          .cbParam = NULL,
+                          .reqKilled = &pRequest->killed};
 
   int32_t code = schedulerExecJob(&req, &pRequest->body.queryJob, &res);
   pRequest->body.resInfo.execRes = res.res;
 
   if (code != TSDB_CODE_SUCCESS) {
     if (pRequest->body.queryJob != 0) {
-      schedulerFreeJob(pRequest->body.queryJob);
+      schedulerFreeJob(pRequest->body.queryJob, 0);
     }
 
     pRequest->code = code;
@@ -481,7 +482,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
     pRequest->body.resInfo.numOfRows = res.numOfRows;
 
     if (pRequest->body.queryJob != 0) {
-      schedulerFreeJob(pRequest->body.queryJob);
+      schedulerFreeJob(pRequest->body.queryJob, 0);
     }
   }
 
@@ -607,6 +608,9 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
 void schedulerExecCb(SQueryResult* pResult, void* param, int32_t code) {
   SRequestObj* pRequest = (SRequestObj*)param;
   pRequest->code = code;
+
+  tscDebug("0x%" PRIx64 " enter scheduler exec cb, code:%d - %s, reqId:0x%" PRIx64,
+             pRequest->self, code, tstrerror(code), pRequest->requestId);
 
   STscObj* pTscObj = pRequest->pTscObj;
   if (code != TSDB_CODE_SUCCESS && NEED_CLIENT_HANDLE_ERROR(code)) {
@@ -738,7 +742,8 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery) {
                              .sql = pRequest->sqlstr,
                              .startTs = pRequest->metric.start,
                              .fp = schedulerExecCb,
-                             .cbParam = pRequest};
+                             .cbParam = pRequest,
+                             .reqKilled = &pRequest->killed};
         code = schedulerAsyncExecJob(&req, &pRequest->body.queryJob);
       } else {
         tscError("0x%" PRIx64 " failed to create query plan, code:%s 0x%" PRIx64, pRequest->self, tstrerror(code),

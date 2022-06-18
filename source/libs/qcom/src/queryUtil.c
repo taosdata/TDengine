@@ -177,10 +177,6 @@ char* jobTaskStatusStr(int32_t status) {
       return "SUCCEED";
     case JOB_TASK_STATUS_FAILED:
       return "FAILED";
-    case JOB_TASK_STATUS_CANCELLING:
-      return "CANCELLING";
-    case JOB_TASK_STATUS_CANCELLED:
-      return "CANCELLED";
     case JOB_TASK_STATUS_DROPPING:
       return "DROPPING";
     default:
