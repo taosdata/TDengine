@@ -58,21 +58,21 @@ static void *mndBuildTimerMsg(int32_t *pContLen) {
 
 static void mndPullupTrans(SMnode *pMnode) {
   int32_t contLen = 0;
-  void   *pReq = mndBuildTimerMsg(&contLen);
+  void *  pReq = mndBuildTimerMsg(&contLen);
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_TRANS_TIMER, .pCont = pReq, .contLen = contLen};
   tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
 }
 
 static void mndCalMqRebalance(SMnode *pMnode) {
   int32_t contLen = 0;
-  void   *pReq = mndBuildTimerMsg(&contLen);
+  void *  pReq = mndBuildTimerMsg(&contLen);
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_MQ_TIMER, .pCont = pReq, .contLen = contLen};
   tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
 }
 
 static void mndPullupTelem(SMnode *pMnode) {
   int32_t contLen = 0;
-  void   *pReq = mndBuildTimerMsg(&contLen);
+  void *  pReq = mndBuildTimerMsg(&contLen);
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_TELEM_TIMER, .pCont = pReq, .contLen = contLen};
   tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
 }
@@ -378,7 +378,7 @@ void mndStop(SMnode *pMnode) {
 }
 
 int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
-  SMnode    *pMnode = pMsg->info.node;
+  SMnode *   pMnode = pMsg->info.node;
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   int32_t    code = 0;
 
@@ -510,8 +510,7 @@ static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
 
   if (IsReq(pMsg) && pMsg->msgType != TDMT_MND_MQ_TIMER && pMsg->msgType != TDMT_MND_TELEM_TIMER &&
       pMsg->msgType != TDMT_MND_TRANS_TIMER) {
-    mError("msg:%p, failed to check mnode state since %s, app:%p type:%s", pMsg, terrstr(), pMsg->info.ahandle,
-           TMSG_INFO(pMsg->msgType));
+    mError("msg:%p, failed to check mnode state since %s, type:%s", pMsg, terrstr(), TMSG_INFO(pMsg->msgType));
 
     SEpSet epSet = {0};
     mndGetMnodeEpSet(pMsg->info.node, &epSet);
@@ -534,13 +533,14 @@ static int32_t mndCheckMsgContent(SRpcMsg *pMsg) {
   if (!IsReq(pMsg)) return 0;
   if (pMsg->contLen != 0 && pMsg->pCont != NULL) return 0;
 
-  mError("msg:%p, failed to check msg content, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
+  mError("msg:%p, failed to check msg, cont:%p contLen:%d, app:%p type:%s", pMsg, pMsg->pCont, pMsg->contLen,
+         pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
   terrno = TSDB_CODE_INVALID_MSG_LEN;
   return -1;
 }
 
 int32_t mndProcessRpcMsg(SRpcMsg *pMsg) {
-  SMnode  *pMnode = pMsg->info.node;
+  SMnode * pMnode = pMsg->info.node;
   MndMsgFp fp = pMnode->msgFp[TMSG_INDEX(pMsg->msgType)];
   if (fp == NULL) {
     mError("msg:%p, failed to get msg handle, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
@@ -551,14 +551,15 @@ int32_t mndProcessRpcMsg(SRpcMsg *pMsg) {
   if (mndCheckMsgContent(pMsg) != 0) return -1;
   if (mndCheckMnodeState(pMsg) != 0) return -1;
 
-  mTrace("msg:%p, start to process in mnode, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
+  STraceId *trace = &pMsg->info.traceId;
+  mGTrace("msg:%p, start to process in mnode, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
   int32_t code = (*fp)(pMsg);
   mndReleaseRpcRef(pMnode);
 
   if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
     mTrace("msg:%p, won't response immediately since in progress", pMsg);
   } else if (code == 0) {
-    mTrace("msg:%p, successfully processed and response", pMsg);
+    mTrace("msg:%p, successfully processed", pMsg);
   } else {
     mError("msg:%p, failed to process since %s, app:%p type:%s", pMsg, terrstr(), pMsg->info.ahandle,
            TMSG_INFO(pMsg->msgType));
@@ -592,7 +593,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
                           SMonGrantInfo *pGrantInfo) {
   if (mndAcquireRpcRef(pMnode) != 0) return -1;
 
-  SSdb   *pSdb = pMnode->pSdb;
+  SSdb *  pSdb = pMnode->pSdb;
   int64_t ms = taosGetTimestampMs();
 
   pClusterInfo->dnodes = taosArrayInit(sdbGetSize(pSdb, SDB_DNODE), sizeof(SMonDnodeDesc));
@@ -668,7 +669,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
     pGrantInfo->timeseries_used += pVgroup->numOfTimeSeries;
     tstrncpy(desc.status, "unsynced", sizeof(desc.status));
     for (int32_t i = 0; i < pVgroup->replica; ++i) {
-      SVnodeGid     *pVgid = &pVgroup->vnodeGid[i];
+      SVnodeGid *    pVgid = &pVgroup->vnodeGid[i];
       SMonVnodeDesc *pVnDesc = &desc.vnodes[i];
       pVnDesc->dnode_id = pVgid->dnodeId;
       tstrncpy(pVnDesc->vnode_role, syncStr(pVgid->role), sizeof(pVnDesc->vnode_role));

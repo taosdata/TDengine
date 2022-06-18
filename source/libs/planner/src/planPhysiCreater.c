@@ -35,7 +35,7 @@ typedef struct SPhysiPlanContext {
   int32_t       errCode;
   int16_t       nextDataBlockId;
   SArray*       pLocationHelper;
-  SArray*       pExecNodeList;
+  SArray*       pExecNodeList;  // SArray<SQueryNodeLoad>
 } SPhysiPlanContext;
 
 static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char* pKey) {
@@ -459,7 +459,7 @@ static int32_t createTagScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubpla
   }
   vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
   SQueryNodeLoad node = {.addr = pSubplan->execNode, .load = 0};
-  taosArrayPush(pCxt->pExecNodeList, &pSubplan->execNode);
+  taosArrayPush(pCxt->pExecNodeList, &node);
   return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pTagScan, pPhyNode);
 }
 
@@ -529,10 +529,11 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
 
   pScan->showRewrite = pScanLogicNode->showRewrite;
   pScan->accountId = pCxt->pPlanCxt->acctId;
-  if (0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_USER_TABLES)) {
+  if (0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_USER_TABLES) ||
+      0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED)) {
     vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
     SQueryNodeLoad node = {.addr = pSubplan->execNode, .load = 0};
-    taosArrayPush(pCxt->pExecNodeList, &pSubplan->execNode);
+    taosArrayPush(pCxt->pExecNodeList, &node);
   } else {
     SQueryNodeLoad node = {.addr = {.nodeId = MNODE_HANDLE, .epSet = pCxt->pPlanCxt->mgmtEpSet}, .load = 0};
     taosArrayPush(pCxt->pExecNodeList, &node);
@@ -977,8 +978,8 @@ static int32_t createWindowPhysiNodeFinalize(SPhysiPlanContext* pCxt, SNodeList*
   return code;
 }
 
-static ENodeType getIntervalOperatorType(EIntervalAlgorithm intervalAlgo) {
-  switch (intervalAlgo) {
+static ENodeType getIntervalOperatorType(EWindowAlgorithm windowAlgo) {
+  switch (windowAlgo) {
     case INTERVAL_ALGO_HASH:
       return QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL;
     case INTERVAL_ALGO_MERGE:
@@ -989,6 +990,14 @@ static ENodeType getIntervalOperatorType(EIntervalAlgorithm intervalAlgo) {
       return QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL;
     case INTERVAL_ALGO_STREAM_SINGLE:
       return QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL;
+    case SESSION_ALGO_STREAM_FINAL:
+      return QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION;
+    case SESSION_ALGO_STREAM_SEMI:
+      return QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION;
+    case SESSION_ALGO_STREAM_SINGLE:
+      return QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION;
+    case SESSION_ALGO_MERGE:
+      return QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION;
     default:
       break;
   }
@@ -998,7 +1007,7 @@ static ENodeType getIntervalOperatorType(EIntervalAlgorithm intervalAlgo) {
 static int32_t createIntervalPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                        SWindowLogicNode* pWindowLogicNode, SPhysiNode** pPhyNode) {
   SIntervalPhysiNode* pInterval = (SIntervalPhysiNode*)makePhysiNode(
-      pCxt, (SLogicNode*)pWindowLogicNode, getIntervalOperatorType(pWindowLogicNode->intervalAlgo));
+      pCxt, (SLogicNode*)pWindowLogicNode, getIntervalOperatorType(pWindowLogicNode->windowAlgo));
   if (NULL == pInterval) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -1015,8 +1024,7 @@ static int32_t createIntervalPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChil
 static int32_t createSessionWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                             SWindowLogicNode* pWindowLogicNode, SPhysiNode** pPhyNode) {
   SSessionWinodwPhysiNode* pSession = (SSessionWinodwPhysiNode*)makePhysiNode(
-      pCxt, (SLogicNode*)pWindowLogicNode,
-      (pCxt->pPlanCxt->streamQuery ? QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION : QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION));
+      pCxt, (SLogicNode*)pWindowLogicNode, getIntervalOperatorType(pWindowLogicNode->windowAlgo));
   if (NULL == pSession) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
