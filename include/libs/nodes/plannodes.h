@@ -154,6 +154,7 @@ typedef struct SWindowLogicNode {
   int8_t           slidingUnit;
   int64_t          sessionGap;
   SNode*           pTspk;
+  SNode*             pTsEnd;
   SNode*           pStateExpr;
   int8_t           triggerType;
   int64_t          watermark;
@@ -338,6 +339,7 @@ typedef struct SWinodwPhysiNode {
   SNodeList* pExprs;  // these are expression list of parameter expression of function
   SNodeList* pFuncs;
   SNode*     pTspk;  // timestamp primary key
+  SNode*     pTsEnd; // window end timestamp
   int8_t     triggerType;
   int64_t    watermark;
   double     filesFactor;
