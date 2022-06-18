@@ -209,5 +209,10 @@ Get all rows and print each row:
 
 </TabItem>
 <TabItem value="node" label="Node.js">
+
+```javascript
+{{#include docs/examples/node/query.js}}
+```
+
 </TabItem>
 </Tabs>

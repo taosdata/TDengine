@@ -71,7 +71,7 @@ In this example, we use `exec` method to execute SQL. `exec` is designed for som
 <TabItem value="node" label="Node.js">
 
 ```javascript
-
+{{#include docs/examples/node/insert.js}}
 ```
 
 </TabItem>
