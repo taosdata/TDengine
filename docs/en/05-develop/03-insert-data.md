@@ -55,7 +55,7 @@ In this example, we use `execute` method to execute SQL and get affected rows. T
 <TabItem value="go" label="Go">
 
 ```go
-
+{{#include docs/examples/go/tutorial/main.go:insert}}
 ```
 
 </TabItem>

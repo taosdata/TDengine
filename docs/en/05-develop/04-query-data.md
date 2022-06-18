@@ -167,6 +167,25 @@ Iterate over the result and print each row:
 
 </TabItem>
 <TabItem value="go" label="Go">
+
+In this example we use `Query` method to execute SQL and get a `sql.Rows` object.
+
+```go
+{{#include docs/examples/go/tutorial/main.go:query:nrc}}
+```
+
+Get column names from rows:
+
+```go
+{{#include docs/examples/go/tutorial/main.go:meta:nrc}}
+```
+
+Iterate over rows and print each row:
+
+```go
+{{#include docs/examples/go/tutorial/main.go:iter}}
+```
+
 </TabItem>
 <TabItem value="rust" label="Rust">
 
