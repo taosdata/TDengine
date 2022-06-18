@@ -151,9 +151,12 @@ SNode* createAlterTableRenameCol(SAstCreateContext* pCxt, SNode* pRealTable, int
                                  SToken* pNewColName);
 SNode* createAlterTableSetTag(SAstCreateContext* pCxt, SNode* pRealTable, SToken* pTagName, SNode* pVal);
 SNode* createUseDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName);
-SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pDbName, SNode* pTbNamePattern);
+SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type);
+SNode* createShowStmtWithCond(SAstCreateContext* pCxt, ENodeType type, SNode* pDbName, SNode* pTbName,
+                              EOperatorType tableCondType);
 SNode* createShowCreateDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName);
 SNode* createShowCreateTableStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable);
+SNode* createShowTableDistributedStmt(SAstCreateContext* pCxt, SNode* pRealTable);
 SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const SToken* pPassword);
 SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, int8_t alterType, const SToken* pVal);
 SNode* createDropUserStmt(SAstCreateContext* pCxt, SToken* pUserName);
