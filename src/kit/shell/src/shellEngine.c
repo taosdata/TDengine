@@ -1210,12 +1210,11 @@ int wsclient_handshake() {
   return 0;
 }
 
-int wsclient_send(char *strdata) {
+int wsclient_send(char *strdata, WebSocketFrameType frame) {
   struct timeval     tv;
   unsigned char      mask[4];
   unsigned int       mask_int;
   unsigned long long payload_len;
-  unsigned char      finNopcode;
   unsigned int       payload_len_small;
   unsigned int       payload_offset = 6;
   unsigned int       len_size;
@@ -1229,7 +1228,6 @@ int wsclient_send(char *strdata) {
   mask_int = rand();
   memcpy(mask, &mask_int, 4);
   payload_len = strlen(strdata);
-  finNopcode = 0x81;
   if (payload_len <= 125) {
     frame_size = 6 + payload_len;
     payload_len_small = payload_len;
@@ -1247,7 +1245,7 @@ int wsclient_send(char *strdata) {
   }
   data = (char *)malloc(frame_size);
   memset(data, 0, frame_size);
-  *data = finNopcode;
+  *data = frame;
   *(data + 1) = payload_len_small | 0x80;
   if (payload_len_small == 126) {
     payload_len &= 0xffff;
@@ -1280,7 +1278,7 @@ int wsclient_send(char *strdata) {
   return 0;
 }
 
-int wsclient_send_sql(char *command, WS_ACTION_TYPE type, int id) {
+int wsclient_send_sql(char *command, WS_ACTION_TYPE type, int64_t id) {
   int code = 1;
   cJSON *json = cJSON_CreateObject();
   cJSON *_args = cJSON_CreateObject();
@@ -1305,11 +1303,15 @@ int wsclient_send_sql(char *command, WS_ACTION_TYPE type, int id) {
       cJSON_AddStringToObject(json, "action", "fetch_block");
       cJSON_AddNumberToObject(_args, "id", id);
       break;
+    case WS_CLOSE:
+      cJSON_AddStringToObject(json, "action", "close");
+      cJSON_AddNumberToObject(_args, "id", id);
+      break;
   }
   cJSON_AddItemToObject(json, "args", _args);
   char *strdata = NULL;
   strdata = cJSON_Print(json);
-  if (wsclient_send(strdata)) {
+  if (wsclient_send(strdata, TEXT_FRAME)) {
     goto OVER;
   }
   code = 0;
@@ -1367,6 +1369,7 @@ int wsclient_conn() {
 }
 
 void wsclient_parse_frame(SWSParser * parser, uint8_t * recv_buffer) {
+  unsigned char msg_opcode = recv_buffer[0] & 0x0F;
   unsigned char msg_masked = (recv_buffer[1] >> 7) & 0x01;
   int payload_length = 0;
   int pos = 2;
@@ -1395,30 +1398,40 @@ void wsclient_parse_frame(SWSParser * parser, uint8_t * recv_buffer) {
       recv_buffer[i] = c[i] ^ ((unsigned char *) (&mask))[i % 4];
     }
   }
+  if (msg_opcode == 0x9) {
+    parser->frame = PING_FRAME;
+  }
   parser->offset = pos;
   parser->payload_length = payload_length;
 }
 
 char *wsclient_get_response() {
-  uint8_t *recv_buffer = calloc(1, 1024);
+  uint8_t recv_buffer[1024]= {0};
   int   received = 0;
   SWSParser parser;
   int bytes = recv(args.socket, recv_buffer + received, 1023, 0);
   if (bytes <= 0) {
-    free(recv_buffer);
     fprintf(stderr, "websocket recv failed with bytes: %d\n", bytes);
     return NULL;
   }
   wsclient_parse_frame(&parser, recv_buffer);
+  if (parser.frame == PING_FRAME) {
+    if (wsclient_send("pong", PONG_FRAME)) {
+      return NULL;
+    }
+    return wsclient_get_response();
+  }
   char* response = calloc(1, parser.payload_length + 1);
   int pos = bytes - parser.offset;
   memcpy(response, recv_buffer + parser.offset, pos);
-  free(recv_buffer);
   while (pos < parser.payload_length) {
     bytes = recv(args.socket, response + pos, parser.payload_length - pos, 0);
     pos += bytes;
   }
   response[pos] = '\0';
+  if (NULL != strstr(response, "unexpected")) {
+    printf("motherfucker");
+  }
   return response;
 }
 
@@ -1498,6 +1511,11 @@ int wsclient_print_data(int rows, TAOS_FIELD *fields, int cols, int64_t id, int 
   }
   for (int i = 0; i < rows; i++) {
     if (*pshowed_rows == DEFAULT_RES_SHOW_NUM) {
+      printf("\n");
+      printf(" Notice: The result shows only the first %d rows.\n", DEFAULT_RES_SHOW_NUM);
+      printf("\n");
+      printf("         You can use Ctrl+C to stop the underway fetching.\n");
+      printf("\n");
       free(response);
       return 0;
     }
@@ -1567,9 +1585,10 @@ void wsclient_query(char *command) {
       if (fields != NULL) {
         cJSON *id = cJSON_GetObjectItem(query, "id");
         if (cJSON_IsNumber(id)) {
+          ws_id = id->valueint;
           bool completed = false;
-          while (!completed) {
-            if (wsclient_send_sql(NULL, WS_FETCH, (int)id->valueint) == 0) {
+          while (!completed || stop_fetch) {
+            if (wsclient_send_sql(NULL, WS_FETCH, id->valueint) == 0) {
               char *fetch_buffer = wsclient_get_response();
               cJSON* fetch = cJSON_Parse(fetch_buffer);
               if (fetch != NULL) {
@@ -1591,7 +1610,7 @@ void wsclient_query(char *command) {
                           fields[i].bytes = (int16_t)(cJSON_GetArrayItem(lengths, i)->valueint);
                         }
                         if (showed_rows < DEFAULT_RES_SHOW_NUM) {
-                          if (wsclient_send_sql(NULL, WS_FETCH_BLOCK, (int)id->valueint) == 0) {
+                          if (wsclient_send_sql(NULL, WS_FETCH_BLOCK, id->valueint) == 0) {
                             wsclient_print_data((int)rows->valueint, fields, cols, id->valueint, precision, &showed_rows);
                           }
                         }
@@ -1609,18 +1628,13 @@ void wsclient_query(char *command) {
                 }
                 cJSON_Delete(fetch);
               } else {
-                free(fetch_buffer);
                 fprintf(stderr, "failed to parse response into json: %s\n", fetch_buffer);
+                free(fetch_buffer);
                 break;
               }
             }
             fprintf(stderr, "err occured in fetch/fetch_block ws actions\n");
             break;
-          }
-          if (showed_rows == DEFAULT_RES_SHOW_NUM) {
-            printf("\n");
-            printf(" Notice: The result shows only the first %d rows.\n", DEFAULT_RES_SHOW_NUM);
-            printf("\n");
           }
           et = taosGetTimestampUs();
           printf("Query OK, %" PRId64 " row(s) in set (%.6fs)\n\n", total_rows, (et - st) / 1E6);

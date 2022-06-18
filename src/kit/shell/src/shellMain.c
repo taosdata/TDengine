@@ -20,6 +20,8 @@
 
 pthread_t pid;
 static tsem_t cancelSem;
+bool stop_fetch = false;
+int64_t ws_id = 0;
 
 void shellQueryInterruptHandler(int32_t signum, void *sigInfo, void *context) {
   tsem_post(&cancelSem);
@@ -33,7 +35,13 @@ void *cancelHandler(void *arg) {
       taosMsleep(10);
       continue;
     }
-
+    if (args.restful || args.cloud) {
+      stop_fetch = true;
+      if (wsclient_send_sql(NULL, WS_CLOSE, ws_id)) {
+        exit(EXIT_FAILURE);
+      }
+      return NULL;
+    }
 #ifdef LINUX
     int64_t rid = atomic_val_compare_exchange_64(&result, result, 0);
     SSqlObj* pSql = taosAcquireRef(tscObjRef, rid);

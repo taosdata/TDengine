@@ -40,9 +40,16 @@ typedef struct SShellHistory {
   int   hend;
 } SShellHistory;
 
+typedef enum enumWebSocketFrameType {
+  TEXT_FRAME = 0x81,
+  PING_FRAME = 0x19,
+  PONG_FRAME = 0x8A,
+} WebSocketFrameType;
+
 typedef struct SWSParser {
   int offset;
   int payload_length;
+  WebSocketFrameType frame;
 } SWSParser;
 
 typedef struct SShellArguments {
@@ -80,7 +87,13 @@ typedef struct SShellArguments {
   char* cloudToken;
 } SShellArguments;
 
-typedef enum WS_ACTION_TYPE_S { WS_CONN, WS_QUERY, WS_FETCH, WS_FETCH_BLOCK } WS_ACTION_TYPE;
+typedef enum WS_ACTION_TYPE_S {
+  WS_CONN,
+  WS_QUERY,
+  WS_FETCH,
+  WS_FETCH_BLOCK,
+  WS_CLOSE,
+} WS_ACTION_TYPE;
 
 /**************** Function declarations ****************/
 extern void shellParseArgument(int argc, char* argv[], SShellArguments* arguments);
@@ -106,6 +119,7 @@ int isCommentLine(char* line);
 int wsclient_handshake();
 int wsclient_conn();
 void wsclient_query(char* command);
+int wsclient_send_sql(char *command, WS_ACTION_TYPE type, int64_t id);
 int tcpConnect(char* host, int port);
 int parse_cloud_dsn();
 
@@ -120,5 +134,7 @@ extern int get_old_terminal_mode(struct termios* tio);
 extern void            reset_terminal_mode();
 extern SShellArguments args;
 extern int64_t         result;
+extern int64_t         ws_id;
+extern bool            stop_fetch;
 
 #endif

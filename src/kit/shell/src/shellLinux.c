@@ -426,6 +426,7 @@ void *shellLoopQuery(void *arg) {
   setThreadName("shellLoopQuery");
 
   pthread_cleanup_push(cleanup_handler, NULL);
+  stop_fetch = false;
 
   char *command = malloc(MAX_COMMAND_SIZE);
   if (command == NULL){
