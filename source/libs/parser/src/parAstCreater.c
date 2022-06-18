@@ -124,7 +124,7 @@ static int32_t parseEndpoint(SAstCreateContext* pCxt, const SToken* pEp, char* p
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
   }
 
-  char ep[TSDB_FQDN_LEN + 1 + 5];
+  char ep[TSDB_FQDN_LEN + 1 + 5] = {0};
   COPY_STRING_FORM_ID_TOKEN(ep, pEp);
   strdequote(ep);
   strtrim(ep);
