@@ -1333,6 +1333,60 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t numOfRows, int
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t estimateJsonLen(SReqResultInfo* pResultInfo, int32_t numOfCols, int32_t numOfRows){
+  char* p = (char*)pResultInfo->pData;
+
+  int32_t len = sizeof(int32_t) + sizeof(uint64_t) + numOfCols * (sizeof(int16_t) + sizeof(int32_t));
+  int32_t* colLength = (int32_t*)(p + len);
+  len += sizeof(int32_t) * numOfCols;
+
+  char* pStart = p + len;
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    int32_t colLen = htonl(colLength[i]);
+
+    if (pResultInfo->fields[i].type == TSDB_DATA_TYPE_JSON) {
+      int32_t* offset = (int32_t*)pStart;
+      int32_t lenTmp = numOfRows * sizeof(int32_t);
+      len += lenTmp;
+      pStart += lenTmp;
+
+      for (int32_t j = 0; j < numOfRows; ++j) {
+        if (offset[j] == -1) {
+          continue;
+        }
+        char* data = offset[j] + pStart;
+
+        int32_t jsonInnerType = *data;
+        char*   jsonInnerData = data + CHAR_BYTES;
+        if (jsonInnerType == TSDB_DATA_TYPE_NULL) {
+          len += (VARSTR_HEADER_SIZE + strlen(TSDB_DATA_NULL_STR_L));
+        } else if (jsonInnerType & TD_TAG_JSON) {
+          len += (VARSTR_HEADER_SIZE + ((const STag*)(data))->len);
+        } else if (jsonInnerType == TSDB_DATA_TYPE_NCHAR) {  // value -> "value"
+          len += varDataTLen(jsonInnerData) + CHAR_BYTES * 2;
+        } else if (jsonInnerType == TSDB_DATA_TYPE_DOUBLE) {
+          len += (VARSTR_HEADER_SIZE + 32);
+        } else if (jsonInnerType == TSDB_DATA_TYPE_BOOL) {
+          len += (VARSTR_HEADER_SIZE + 5);
+        } else {
+          ASSERT(0);
+        }
+
+      }
+    } else if (IS_VAR_DATA_TYPE(pResultInfo->fields[i].type)) {
+      int32_t lenTmp = numOfRows * sizeof(int32_t);
+      len += (lenTmp + colLen);
+      pStart += lenTmp;
+    } else {
+      int32_t lenTmp = BitmapLen(pResultInfo->numOfRows);
+      len += (lenTmp + colLen);
+      pStart += lenTmp;
+    }
+    pStart += colLen;
+  }
+  return len;
+}
+
 static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int32_t numOfRows) {
   bool needConvert = false;
   for (int32_t i = 0; i < numOfCols; ++i) {
@@ -1344,12 +1398,13 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
   if(!needConvert) return TSDB_CODE_SUCCESS;
 
   char* p = (char*)pResultInfo->pData;
-  int32_t dataLen = *(int32_t*)p;
+  int32_t dataLen = estimateJsonLen(pResultInfo, numOfCols, numOfRows);
+
   pResultInfo->convertJson = taosMemoryCalloc(1, dataLen);
   if(pResultInfo->convertJson == NULL) return TSDB_CODE_OUT_OF_MEMORY;
   char* p1 = pResultInfo->convertJson;
 
-  int32_t len = sizeof(int32_t) + sizeof(uint64_t) + numOfCols *(sizeof(int16_t) + sizeof(int32_t));
+  int32_t len = sizeof(int32_t) + sizeof(uint64_t) + numOfCols * (sizeof(int16_t) + sizeof(int32_t));
   memcpy(p1, p, len);
 
   p += len;
@@ -1390,7 +1445,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
         if (jsonInnerType == TSDB_DATA_TYPE_NULL) {
           sprintf(varDataVal(dst), "%s", TSDB_DATA_NULL_STR_L);
           varDataSetLen(dst, strlen(varDataVal(dst)));
-        } else if (jsonInnerType == TD_TAG_JSON) {
+        } else if (jsonInnerType & TD_TAG_JSON) {
           char* jsonString = parseTagDatatoJson(data);
           STR_TO_VARSTR(dst, jsonString);
           taosMemoryFree(jsonString);
