@@ -2510,7 +2510,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getSelectivityFuncEnv,  // todo remove this function later.
     .initFunc     = functionSetup,
     .processFunc  = NULL,
-    .finalizeFunc = NULL
+    .finalizeFunc = NULL,
+    .pPartialFunc = "_select_value",
+    .pMergeFunc   = "_select_value"
   },
   {
     .name = "_block_dist",
