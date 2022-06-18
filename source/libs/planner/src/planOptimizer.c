@@ -1082,13 +1082,70 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
   return code;
 }
 
+static bool eliminateProjOptMayBeOptimized(SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_PROJECT != nodeType(pNode) || 1 != LIST_LENGTH(pNode->pChildren)) {
+    return false;
+  }
+
+  SProjectLogicNode* pProjectNode = (SProjectLogicNode*)pNode;
+  SNode* pProjection;
+  FOREACH(pProjection, pProjectNode->pProjections) {
+    SExprNode* pExprNode = (SExprNode*)pProjection;
+    if (QUERY_NODE_COLUMN != nodeType(pExprNode)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan, SProjectLogicNode* pProjectNode) {
+  SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pProjectNode->node.pChildren, 0);
+  SNodeList* pNewChildTargets = nodesMakeList();
+
+  SNode* pProjection = NULL;
+  FOREACH(pProjection, pProjectNode->pProjections) {
+    SColumnNode* projColumn = (SColumnNode*)pProjection;
+    SNode* pChildTarget = NULL;
+    FOREACH(pChildTarget, pChild->pTargets) {
+      SExprNode* childExpr = (SExprNode*)pChildTarget;
+      char* projColumnName = projColumn->colName;
+      if (QUERY_NODE_COLUMN == nodeType(childExpr) && strcmp(projColumnName, ((SColumnNode*)childExpr)->colName) == 0 ||
+          strcmp(projColumnName, childExpr->aliasName) == 0) {
+        nodesListAppend(pNewChildTargets, pChildTarget);
+      }
+    }
+  }
+
+  TSWAP(pChild->pTargets, pNewChildTargets);
+  int32_t code = replaceLogicNode(pLogicSubplan, (SLogicNode*)pProjectNode, pChild);
+  if (TSDB_CODE_SUCCESS == code) {
+    NODES_CLEAR_LIST(pProjectNode->node.pChildren);
+    nodesDestroyNode((SNode*)pProjectNode);
+  }
+  NODES_CLEAR_LIST(pNewChildTargets);
+  return code;
+}
+
+static int32_t eliminateProjOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  SProjectLogicNode* pProjectNode =
+    (SProjectLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, eliminateProjOptMayBeOptimized);
+
+  if (NULL == pProjectNode) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  return eliminateProjOptimizeImpl(pCxt, pLogicSubplan, pProjectNode);
+}
+
 // clang-format off
 static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "OptimizeScanData",  .optimizeFunc = osdOptimize},
   {.pName = "ConditionPushDown", .optimizeFunc = cpdOptimize},
   {.pName = "OrderByPrimaryKey", .optimizeFunc = opkOptimize},
   {.pName = "SmaIndex",          .optimizeFunc = smaOptimize},
-  {.pName = "PartitionByTags",   .optimizeFunc = partTagsOptimize}
+  {.pName = "PartitionByTags",   .optimizeFunc = partTagsOptimize},
+  {.pName = "EliminateProject",  .optimizeFunc = eliminateProjOptimize}
 };
 // clang-format on
 

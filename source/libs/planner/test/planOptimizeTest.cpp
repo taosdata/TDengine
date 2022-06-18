@@ -52,3 +52,9 @@ TEST_F(PlanOptimizeTest, orderByPrimaryKey) {
 
   run("SELECT COUNT(*) FROM t1 INTERVAL(10S) ORDER BY _WSTARTTS DESC");
 }
+
+TEST_F(PlanOptimizeTest, eliminateProjection) {
+  useDb("root", "test");
+
+  run("SELECT c1, sum(c3) FROM t1 GROUP BY c1");
+}
