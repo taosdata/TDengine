@@ -42,21 +42,6 @@ void cleanupResultRowInfo(SResultRowInfo *pResultRowInfo) {
   }
 }
 
-void resetResultRowInfo(STaskRuntimeEnv *pRuntimeEnv, SResultRowInfo *pResultRowInfo) {
-  for (int32_t i = 0; i < pResultRowInfo->size; ++i) {
-//    SResultRow *pWindowRes = pResultRowInfo->pResult[i];
-//    clearResultRow(pRuntimeEnv, pWindowRes);
-
-    int32_t groupIndex = 0;
-    int64_t uid = 0;
-
-    SET_RES_WINDOW_KEY(pRuntimeEnv->keyBuf, &groupIndex, sizeof(groupIndex), uid);
-    taosHashRemove(pRuntimeEnv->pResultRowHashTable, (const char *)pRuntimeEnv->keyBuf, GET_RES_WINDOW_KEY_LEN(sizeof(groupIndex)));
-  }
-
-  pResultRowInfo->size     = 0;
-}
-
 void closeAllResultRows(SResultRowInfo *pResultRowInfo) {
 // do nothing
 }
@@ -518,14 +503,14 @@ static int32_t setSelectValueColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutpu
   return TSDB_CODE_SUCCESS;
 }
 
-SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, int32_t** rowCellInfoOffset) {
+SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, int32_t** rowEntryInfoOffset) {
   SqlFunctionCtx* pFuncCtx = (SqlFunctionCtx*)taosMemoryCalloc(numOfOutput, sizeof(SqlFunctionCtx));
   if (pFuncCtx == NULL) {
     return NULL;
   }
 
-  *rowCellInfoOffset = taosMemoryCalloc(numOfOutput, sizeof(int32_t));
-  if (*rowCellInfoOffset == 0) {
+  *rowEntryInfoOffset = taosMemoryCalloc(numOfOutput, sizeof(int32_t));
+  if (*rowEntryInfoOffset == 0) {
     taosMemoryFreeClear(pFuncCtx);
     return NULL;
   }
@@ -584,8 +569,8 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
   }
 
   for (int32_t i = 1; i < numOfOutput; ++i) {
-    (*rowCellInfoOffset)[i] =
-        (int32_t)((*rowCellInfoOffset)[i - 1] + sizeof(SResultRowEntryInfo) + pFuncCtx[i - 1].resDataInfo.interBufSize);
+    (*rowEntryInfoOffset)[i] =
+        (int32_t)((*rowEntryInfoOffset)[i - 1] + sizeof(SResultRowEntryInfo) + pFuncCtx[i - 1].resDataInfo.interBufSize);
   }
 
   setSelectValueColumnInfo(pFuncCtx, numOfOutput);

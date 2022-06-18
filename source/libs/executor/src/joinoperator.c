@@ -48,8 +48,8 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN;
   pOperator->blocking     = false;
   pOperator->status       = OP_NOT_OPENED;
-  pOperator->pExpr        = pExprInfo;
-  pOperator->numOfExprs   = numOfCols;
+  pOperator->exprSupp.pExprInfo   = pExprInfo;
+  pOperator->exprSupp.numOfExprs  = numOfCols;
   pOperator->info         = pInfo;
   pOperator->pTaskInfo    = pTaskInfo;
 
@@ -132,10 +132,10 @@ SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
     // only the timestamp match support for ordinary table
     ASSERT(pLeftCol->info.type == TSDB_DATA_TYPE_TIMESTAMP);
     if (*(int64_t*)pLeftVal == *(int64_t*)pRightVal) {
-      for (int32_t i = 0; i < pOperator->numOfExprs; ++i) {
+      for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
         SColumnInfoData* pDst = taosArrayGet(pRes->pDataBlock, i);
 
-        SExprInfo* pExprInfo = &pOperator->pExpr[i];
+        SExprInfo* pExprInfo = &pOperator->exprSupp.pExprInfo[i];
 
         int32_t blockId = pExprInfo->base.pParam[0].pCol->dataBlockId;
         int32_t slotId = pExprInfo->base.pParam[0].pCol->slotId;
