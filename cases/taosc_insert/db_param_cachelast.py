@@ -17,33 +17,31 @@ from taostest.util.common import TDCom
 class TestCachelast(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
+        self.cfg = self.tdCom.Boundary.DB_PARAM_CACHELAST_CONFIG
 
     def cachelast_check(self):
         """
         cachelast check
         """
-        test_param = "cachelast"
-        get_param = "cache_model"
-        # default
-        default_value = 0
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        test_param = self.cfg["create_name"]
+        get_param = self.cfg["query_name"]
+        dbname = self.tdCom.get_long_name()
         self.tdSql.execute(f'create database if not exists {dbname}')
         self.tdSql.query('show databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
-        self.tdSql.checkEqual(db_field_kv_dict[get_param], default_value)
+        # default
+        self.tdSql.checkEqual(db_field_kv_dict[get_param], self.cfg["default"])
         self.tdSql.execute(f'drop database {dbname}')
         # param_list
-        param_value_list = [0, 1, 2, 3]
-        for param_value in param_value_list:
-            dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        for param_value in self.cfg["boundary"]:
+            dbname = self.tdCom.get_long_name()
             self.tdSql.execute(f'create database if not exists {dbname} {test_param} {param_value}')
             self.tdSql.query('show databases')
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
             self.tdSql.checkEqual(db_field_kv_dict[get_param], param_value)
             self.tdSql.execute(f'drop database {dbname}')
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.error(f'create database if not exists {dbname} {test_param} {param_value_list[0] - 1}')
-        self.tdSql.error(f'create database if not exists {dbname} {test_param} {param_value_list[-1] + 1}')
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][0] - 1}')
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][-1] + 1}')
 
     def run(self) -> bool:
         self.cachelast_check()
