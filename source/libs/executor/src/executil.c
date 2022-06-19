@@ -328,10 +328,11 @@ SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
         break;
       }
     }
-    ASSERT(foundSource);
+
     if (pNode->output) {
       (*numOfOutputCols) += 1;
     } else {
+      ASSERT(foundSource);
       info->output = false;
     }
   }
