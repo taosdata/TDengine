@@ -86,7 +86,7 @@ static void toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* pIn
   SDataCacheEntry* pEntry = (SDataCacheEntry*)pBuf->pData;
   pEntry->compressed = (int8_t)needCompress(pInput->pData, numOfCols);
   pEntry->numOfRows = pInput->pData->info.rows;
-  pEntry->numOfCols = pInput->pData->info.numOfCols;
+  pEntry->numOfCols = numOfCols;
   pEntry->dataLen = 0;
 
   pBuf->useSize = sizeof(SDataCacheEntry);
