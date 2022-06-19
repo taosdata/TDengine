@@ -321,16 +321,18 @@ static int32_t createMergeFunction(const SFunctionNode* pSrcFunc, const SFunctio
   if (TSDB_CODE_SUCCESS == code) {
     // overwrite function restype set by translate function
     if (fmIsSameInOutType(pSrcFunc->funcId)) {
-      (*pMergeFunc)->node.resType = pSrcFunc->node.resType;
+      pFunc->node.resType = pSrcFunc->node.resType;
     }
-    strcpy((*pMergeFunc)->node.aliasName, pSrcFunc->node.aliasName);
+    strcpy(pFunc->node.aliasName, pSrcFunc->node.aliasName);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
     *pMergeFunc = pFunc;
   } else {
-    pFunc->pParameterList = NULL;
-    nodesDestroyNode((SNode*)pFunc);
+    if (NULL != pFunc) {
+      pFunc->pParameterList = NULL;
+      nodesDestroyNode((SNode*)pFunc);
+    }
     nodesDestroyList(pParameterList);
   }
 

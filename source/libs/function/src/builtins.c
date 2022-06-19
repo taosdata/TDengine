@@ -1737,7 +1737,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .combineFunc  = topCombine,
     .pPartialFunc = "_top_partial",
     .pMergeFunc   = "_top_merge",
-    .createMergeParaFuc = topCreateMergePara
+    // .createMergeParaFuc = topCreateMergePara
   },
   {
     .name = "_top_partial",
