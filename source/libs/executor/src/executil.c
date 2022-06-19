@@ -193,9 +193,9 @@ SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode) {
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData idata = {{0}};
     SSlotDescNode*  pDescNode = (SSlotDescNode*)nodesListGetNode(pNode->pSlots, i);
-    if (!pDescNode->output) {  // todo disable it temporarily
-      continue;
-    }
+//    if (!pDescNode->output) {  // todo disable it temporarily
+//      continue;
+//    }
 
     idata.info.type = pDescNode->dataType.type;
     idata.info.bytes = pDescNode->dataType.bytes;
@@ -594,10 +594,10 @@ void relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray
   while (i < numOfSrcCols && j < taosArrayGetSize(pColMatchInfo)) {
     SColumnInfoData* p = taosArrayGet(pCols, i);
     SColMatchInfo*   pmInfo = taosArrayGet(pColMatchInfo, j);
-    if (!pmInfo->output) {
-      j++;
-      continue;
-    }
+//    if (!pmInfo->output) {
+//      j++;
+//      continue;
+//    }
 
     if (p->info.colId == pmInfo->colId) {
       SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, pmInfo->targetSlotId);
