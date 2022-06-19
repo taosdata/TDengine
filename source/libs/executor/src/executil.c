@@ -193,9 +193,9 @@ SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode) {
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData idata = {{0}};
     SSlotDescNode*  pDescNode = (SSlotDescNode*)nodesListGetNode(pNode->pSlots, i);
-    //    if (!pDescNode->output) {  // todo disable it temporarily
-    //      continue;
-    //    }
+    if (!pDescNode->output) {  // todo disable it temporarily
+      continue;
+    }
 
     idata.info.type = pDescNode->dataType.type;
     idata.info.bytes = pDescNode->dataType.bytes;
@@ -319,7 +319,16 @@ SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
       continue;
     }
 
-    SColMatchInfo* info = taosArrayGet(pList, pNode->slotId);
+    bool foundSource = false;
+    SColMatchInfo* info = NULL;
+    for (int32_t j = 0; j < taosArrayGetSize(pList); ++j) {
+      info = taosArrayGet(pList, j);
+      if (info->targetSlotId == pNode->slotId) {
+        foundSource = true;
+        break;
+      }
+    }
+    ASSERT(foundSource);
     if (pNode->output) {
       (*numOfOutputCols) += 1;
     } else {
