@@ -455,7 +455,15 @@ static SNode* logicPartitionCopy(const SPartitionLogicNode* pSrc, SPartitionLogi
 
 static SNode* logicIndefRowsFuncCopy(const SIndefRowsFuncLogicNode* pSrc, SIndefRowsFuncLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
-  CLONE_NODE_LIST_FIELD(pVectorFuncs);
+  CLONE_NODE_LIST_FIELD(pFuncs);
+  return (SNode*)pDst;
+}
+
+static SNode* logicInterpFuncCopy(const SInterpFuncLogicNode* pSrc, SInterpFuncLogicNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
+  CLONE_NODE_LIST_FIELD(pFuncs);
+  COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
+  COPY_SCALAR_FIELD(interval);
   return (SNode*)pDst;
 }
 
@@ -670,6 +678,8 @@ SNode* nodesCloneNode(const SNode* pNode) {
       return logicPartitionCopy((const SPartitionLogicNode*)pNode, (SPartitionLogicNode*)pDst);
     case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC:
       return logicIndefRowsFuncCopy((const SIndefRowsFuncLogicNode*)pNode, (SIndefRowsFuncLogicNode*)pDst);
+    case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
+      return logicInterpFuncCopy((const SInterpFuncLogicNode*)pNode, (SInterpFuncLogicNode*)pDst);
     case QUERY_NODE_LOGIC_SUBPLAN:
       return logicSubplanCopy((const SLogicSubplan*)pNode, (SLogicSubplan*)pDst);
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:

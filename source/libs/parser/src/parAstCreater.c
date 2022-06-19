@@ -599,6 +599,11 @@ SNode* createGroupingSetNode(SAstCreateContext* pCxt, SNode* pNode) {
   return (SNode*)groupingSet;
 }
 
+SNode* createInterpTimeRange(SAstCreateContext* pCxt, SNode* pStart, SNode* pEnd) {
+  CHECK_PARSER_STATUS(pCxt);
+  return createBetweenAnd(pCxt, createPrimaryKeyCol(pCxt), pStart, pEnd);
+}
+
 SNode* setProjectionAlias(SAstCreateContext* pCxt, SNode* pNode, const SToken* pAlias) {
   CHECK_PARSER_STATUS(pCxt);
   int32_t len = TMIN(sizeof(((SExprNode*)pNode)->aliasName) - 1, pAlias->n);
@@ -671,6 +676,32 @@ SNode* addLimitClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pLimit) {
   CHECK_PARSER_STATUS(pCxt);
   if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
     ((SSelectStmt*)pStmt)->pLimit = (SLimitNode*)pLimit;
+  } else {
+    ((SSetOperator*)pStmt)->pLimit = pLimit;
+  }
+  return pStmt;
+}
+
+SNode* addRangeClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pRange) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
+    ((SSelectStmt*)pStmt)->pRange = pRange;
+  }
+  return pStmt;
+}
+
+SNode* addEveryClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pEvery) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
+    ((SSelectStmt*)pStmt)->pEvery = pEvery;
+  }
+  return pStmt;
+}
+
+SNode* addFillClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pFill) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
+    ((SSelectStmt*)pStmt)->pFill = pFill;
   }
   return pStmt;
 }

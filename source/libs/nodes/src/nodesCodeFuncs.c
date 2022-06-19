@@ -202,6 +202,8 @@ const char* nodesNodeName(ENodeType type) {
       return "LogicPartition";
     case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC:
       return "LogicIndefRowsFunc";
+    case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
+      return "LogicInterpFunc";
     case QUERY_NODE_LOGIC_SUBPLAN:
       return "LogicSubplan";
     case QUERY_NODE_LOGIC_PLAN:
@@ -258,6 +260,8 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiPartition";
     case QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC:
       return "PhysiIndefRowsFunc";
+    case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
+      return "PhysiInterpFunc";
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       return "PhysiDispatch";
     case QUERY_NODE_PHYSICAL_PLAN_INSERT:
@@ -935,14 +939,14 @@ static int32_t jsonToLogicPartitionNode(const SJson* pJson, void* pObj) {
   return code;
 }
 
-static const char* jkIndefRowsFuncLogicPlanVectorFuncs = "VectorFuncs";
+static const char* jkIndefRowsFuncLogicPlanFuncs = "Funcs";
 
 static int32_t logicIndefRowsFuncNodeToJson(const void* pObj, SJson* pJson) {
   const SIndefRowsFuncLogicNode* pNode = (const SIndefRowsFuncLogicNode*)pObj;
 
   int32_t code = logicPlanNodeToJson(pObj, pJson);
   if (TSDB_CODE_SUCCESS == code) {
-    code = nodeListToJson(pJson, jkIndefRowsFuncLogicPlanVectorFuncs, pNode->pVectorFuncs);
+    code = nodeListToJson(pJson, jkIndefRowsFuncLogicPlanFuncs, pNode->pFuncs);
   }
 
   return code;
@@ -953,7 +957,52 @@ static int32_t jsonToLogicIndefRowsFuncNode(const SJson* pJson, void* pObj) {
 
   int32_t code = jsonToLogicPlanNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeList(pJson, jkIndefRowsFuncLogicPlanVectorFuncs, &pNode->pVectorFuncs);
+    code = jsonToNodeList(pJson, jkIndefRowsFuncLogicPlanFuncs, &pNode->pFuncs);
+  }
+
+  return code;
+}
+
+static const char* jkInterpFuncLogicPlanFuncs = "Funcs";
+static const char* jkInterpFuncLogicPlanStartTime = "StartTime";
+static const char* jkInterpFuncLogicPlanEndTime = "EndTime";
+static const char* jkInterpFuncLogicPlanInterval = "Interval";
+
+static int32_t logicInterpFuncNodeToJson(const void* pObj, SJson* pJson) {
+  const SInterpFuncLogicNode* pNode = (const SInterpFuncLogicNode*)pObj;
+
+  int32_t code = logicPlanNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkInterpFuncLogicPlanFuncs, pNode->pFuncs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkInterpFuncLogicPlanStartTime, pNode->timeRange.skey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkInterpFuncLogicPlanEndTime, pNode->timeRange.ekey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkInterpFuncLogicPlanInterval, pNode->interval);
+  }
+
+  return code;
+}
+
+static int32_t jsonToLogicInterpFuncNode(const SJson* pJson, void* pObj) {
+  SInterpFuncLogicNode* pNode = (SInterpFuncLogicNode*)pObj;
+
+  int32_t code = jsonToLogicPlanNode(pJson, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkInterpFuncLogicPlanFuncs, &pNode->pFuncs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBigIntValue(pJson, jkInterpFuncLogicPlanStartTime, &pNode->timeRange.skey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBigIntValue(pJson, jkInterpFuncLogicPlanEndTime, &pNode->timeRange.ekey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBigIntValue(pJson, jkInterpFuncLogicPlanInterval, &pNode->interval);
   }
 
   return code;
@@ -2049,7 +2098,7 @@ static int32_t jsonToPhysiPartitionNode(const SJson* pJson, void* pObj) {
 }
 
 static const char* jkIndefRowsFuncPhysiPlanExprs = "Exprs";
-static const char* jkIndefRowsFuncPhysiPlanVectorFuncs = "VectorFuncs";
+static const char* jkIndefRowsFuncPhysiPlanFuncs = "Funcs";
 
 static int32_t physiIndefRowsFuncNodeToJson(const void* pObj, SJson* pJson) {
   const SIndefRowsFuncPhysiNode* pNode = (const SIndefRowsFuncPhysiNode*)pObj;
@@ -2059,7 +2108,7 @@ static int32_t physiIndefRowsFuncNodeToJson(const void* pObj, SJson* pJson) {
     code = nodeListToJson(pJson, jkIndefRowsFuncPhysiPlanExprs, pNode->pExprs);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = nodeListToJson(pJson, jkIndefRowsFuncPhysiPlanVectorFuncs, pNode->pVectorFuncs);
+    code = nodeListToJson(pJson, jkIndefRowsFuncPhysiPlanFuncs, pNode->pFuncs);
   }
 
   return code;
@@ -2073,7 +2122,59 @@ static int32_t jsonToPhysiIndefRowsFuncNode(const SJson* pJson, void* pObj) {
     code = jsonToNodeList(pJson, jkIndefRowsFuncPhysiPlanExprs, &pNode->pExprs);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeList(pJson, jkIndefRowsFuncPhysiPlanVectorFuncs, &pNode->pVectorFuncs);
+    code = jsonToNodeList(pJson, jkIndefRowsFuncPhysiPlanFuncs, &pNode->pFuncs);
+  }
+
+  return code;
+}
+
+static const char* jkInterpFuncPhysiPlanExprs = "Exprs";
+static const char* jkInterpFuncPhysiPlanFuncs = "Funcs";
+static const char* jkInterpFuncPhysiPlanStartTime = "StartTime";
+static const char* jkInterpFuncPhysiPlanEndTime = "EndTime";
+static const char* jkInterpFuncPhysiPlanInterval = "Interval";
+
+static int32_t physiInterpFuncNodeToJson(const void* pObj, SJson* pJson) {
+  const SInterpFuncPhysiNode* pNode = (const SInterpFuncPhysiNode*)pObj;
+
+  int32_t code = physicPlanNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkInterpFuncPhysiPlanExprs, pNode->pExprs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkInterpFuncPhysiPlanFuncs, pNode->pFuncs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkInterpFuncPhysiPlanStartTime, pNode->timeRange.skey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkInterpFuncPhysiPlanEndTime, pNode->timeRange.ekey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkInterpFuncPhysiPlanInterval, pNode->interval);
+  }
+
+  return code;
+}
+
+static int32_t jsonToPhysiInterpFuncNode(const SJson* pJson, void* pObj) {
+  SInterpFuncPhysiNode* pNode = (SInterpFuncPhysiNode*)pObj;
+
+  int32_t code = jsonToPhysicPlanNode(pJson, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkInterpFuncPhysiPlanExprs, &pNode->pExprs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkInterpFuncPhysiPlanFuncs, &pNode->pFuncs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBigIntValue(pJson, jkInterpFuncPhysiPlanStartTime, &pNode->timeRange.skey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBigIntValue(pJson, jkInterpFuncPhysiPlanEndTime, &pNode->timeRange.ekey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBigIntValue(pJson, jkInterpFuncPhysiPlanInterval, &pNode->interval);
   }
 
   return code;
@@ -3975,6 +4076,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return logicPartitionNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC:
       return logicIndefRowsFuncNodeToJson(pObj, pJson);
+    case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
+      return logicInterpFuncNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_SUBPLAN:
       return logicSubplanToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN:
@@ -4020,6 +4123,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return physiPartitionNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC:
       return physiIndefRowsFuncNodeToJson(pObj, pJson);
+    case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
+      return physiInterpFuncNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       return physiDispatchNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_INSERT:
@@ -4111,6 +4216,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToLogicPartitionNode(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC:
       return jsonToLogicIndefRowsFuncNode(pJson, pObj);
+    case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
+      return jsonToLogicInterpFuncNode(pJson, pObj);
     case QUERY_NODE_LOGIC_SUBPLAN:
       return jsonToLogicSubplan(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN:
@@ -4156,6 +4263,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToPhysiPartitionNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC:
       return jsonToPhysiIndefRowsFuncNode(pJson, pObj);
+    case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
+      return jsonToPhysiInterpFuncNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       return jsonToPhysiDispatchNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_DELETE:
