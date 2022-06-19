@@ -52,6 +52,8 @@ TEST_F(PlanBasicTest, func) {
   run("SELECT PERCENTILE(c1, 60) FROM t1");
 
   run("SELECT TOP(c1, 60) FROM t1");
+
+  run("SELECT TOP(c1, 60) FROM st1");
 }
 
 TEST_F(PlanBasicTest, uniqueFunc) {
