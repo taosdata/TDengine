@@ -1881,7 +1881,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "interp",
     .type = FUNCTION_TYPE_INTERP,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_INTERVAL_INTERPO_FUNC,
+    .classification = FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_INTERVAL_INTERPO_FUNC,
     .translateFunc = translateFirstLast,
     .getEnvFunc    = getSelectivityFuncEnv,
     .initFunc      = functionSetup,

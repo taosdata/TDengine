@@ -250,6 +250,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SPartitionLogicNode));
     case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC:
       return makeNode(type, sizeof(SIndefRowsFuncLogicNode));
+    case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
+      return makeNode(type, sizeof(SInterpFuncLogicNode));
     case QUERY_NODE_LOGIC_SUBPLAN:
       return makeNode(type, sizeof(SLogicSubplan));
     case QUERY_NODE_LOGIC_PLAN:
@@ -308,6 +310,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SPartitionPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC:
       return makeNode(type, sizeof(SIndefRowsFuncPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
+      return makeNode(type, sizeof(SInterpFuncLogicNode));
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       return makeNode(type, sizeof(SDataDispatcherNode));
     case QUERY_NODE_PHYSICAL_PLAN_INSERT:
@@ -744,7 +748,13 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC: {
       SIndefRowsFuncLogicNode* pLogicNode = (SIndefRowsFuncLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
-      nodesDestroyList(pLogicNode->pVectorFuncs);
+      nodesDestroyList(pLogicNode->pFuncs);
+      break;
+    }
+    case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC: {
+      SInterpFuncLogicNode* pLogicNode = (SInterpFuncLogicNode*)pNode;
+      destroyLogicNode((SLogicNode*)pLogicNode);
+      nodesDestroyList(pLogicNode->pFuncs);
       break;
     }
     case QUERY_NODE_LOGIC_SUBPLAN: {
@@ -847,7 +857,14 @@ void nodesDestroyNode(SNode* pNode) {
       SIndefRowsFuncPhysiNode* pPhyNode = (SIndefRowsFuncPhysiNode*)pNode;
       destroyPhysiNode((SPhysiNode*)pPhyNode);
       nodesDestroyList(pPhyNode->pExprs);
-      nodesDestroyList(pPhyNode->pVectorFuncs);
+      nodesDestroyList(pPhyNode->pFuncs);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC: {
+      SInterpFuncPhysiNode* pPhyNode = (SInterpFuncPhysiNode*)pNode;
+      destroyPhysiNode((SPhysiNode*)pPhyNode);
+      nodesDestroyList(pPhyNode->pExprs);
+      nodesDestroyList(pPhyNode->pFuncs);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
