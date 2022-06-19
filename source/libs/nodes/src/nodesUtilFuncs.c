@@ -526,6 +526,7 @@ void nodesDestroyNode(SNode* pNode) {
       SCreateSubTableClause* pStmt = (SCreateSubTableClause*)pNode;
       nodesDestroyList(pStmt->pSpecificTags);
       nodesDestroyList(pStmt->pValsOfTags);
+      nodesDestroyNode((SNode*)pStmt->pOptions);
       break;
     }
     case QUERY_NODE_CREATE_MULTI_TABLE_STMT:

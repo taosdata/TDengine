@@ -878,6 +878,7 @@ SNode* createDefaultTableOptions(SAstCreateContext* pCxt) {
   pOptions->watermark1 = TSDB_DEFAULT_ROLLUP_WATERMARK;
   pOptions->watermark2 = TSDB_DEFAULT_ROLLUP_WATERMARK;
   pOptions->ttl = TSDB_DEFAULT_TABLE_TTL;
+  pOptions->commentNull = true;    // mark null
   return (SNode*)pOptions;
 }
 
@@ -886,6 +887,7 @@ SNode* createAlterTableOptions(SAstCreateContext* pCxt) {
   STableOptions* pOptions = (STableOptions*)nodesMakeNode(QUERY_NODE_TABLE_OPTIONS);
   CHECK_OUT_OF_MEM(pOptions);
   pOptions->ttl = -1;
+  pOptions->commentNull = true;    // mark null
   return (SNode*)pOptions;
 }
 
@@ -894,6 +896,7 @@ SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType
   switch (type) {
     case TABLE_OPTION_COMMENT:
       if (checkComment(pCxt, (SToken*)pVal, true)) {
+        ((STableOptions*)pOptions)->commentNull = false;
         COPY_STRING_FORM_STR_TOKEN(((STableOptions*)pOptions)->comment, (SToken*)pVal);
       }
       break;
@@ -906,9 +909,15 @@ SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType
     case TABLE_OPTION_ROLLUP:
       ((STableOptions*)pOptions)->pRollupFuncs = pVal;
       break;
-    case TABLE_OPTION_TTL:
-      ((STableOptions*)pOptions)->ttl = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+    case TABLE_OPTION_TTL:{
+      int64_t ttl = taosStr2Int64(((SToken*)pVal)->z, NULL, 10);
+      if (ttl > INT32_MAX){
+        ttl = INT32_MAX;
+      }
+      // ttl can not be smaller than 0, because there is a limitation in sql.y (TTL NK_INTEGER)
+      ((STableOptions*)pOptions)->ttl = ttl;
       break;
+    }
     case TABLE_OPTION_SMA:
       ((STableOptions*)pOptions)->pSma = pVal;
       break;
@@ -971,9 +980,9 @@ SNode* createCreateSubTableClause(SAstCreateContext* pCxt, bool ignoreExists, SN
   pStmt->ignoreExists = ignoreExists;
   pStmt->pSpecificTags = pSpecificTags;
   pStmt->pValsOfTags = pValsOfTags;
+  pStmt->pOptions = (STableOptions*)pOptions;
   nodesDestroyNode(pRealTable);
   nodesDestroyNode(pUseRealTable);
-  nodesDestroyNode(pOptions);
   return (SNode*)pStmt;
 }
 

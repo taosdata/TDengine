@@ -132,6 +132,10 @@ int tdbTbcNext(TBC *pTbc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
   return tdbBtreeNext(&pTbc->btc, ppKey, kLen, ppVal, vLen);
 }
 
+int tdbTbcPrev(TBC *pTbc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
+  return tdbBtreePrev(&pTbc->btc, ppKey, kLen, ppVal, vLen);
+}
+
 int tdbTbcUpsert(TBC *pTbc, const void *pKey, int nKey, const void *pData, int nData, int insert) {
   return tdbBtcUpsert(&pTbc->btc, pKey, nKey, pData, nData, insert);
 }
