@@ -451,7 +451,60 @@ TSDBKEY tsdbRowKey(TSDBROW *pRow) {
 }
 
 void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
-  // TODO
+  STColumn *pTColumn = &pTSchema->columns[iCol];
+  SValue    value;
+
+  if (pRow->type == 0) {
+    // get from row (todo);
+  } else if (pRow->type == 1) {
+    SColData *pColData;
+    void     *p;
+
+    p = taosbsearch(&(SColData){.cid = pTColumn->colId}, pRow->pBlockData->aColData, pRow->pBlockData->nCol,
+                    sizeof(SBlockCol), tColDataCmprFn, TD_EQ);
+    if (p) {
+      pColData = (SBlockCol *)p;
+      ASSERT(pColData->flags);
+
+      if (pColData->flags == HAS_NONE) {
+        goto _return_none;
+      } else if (pColData->flags == HAS_NULL) {
+        goto _return_null;
+      } else {
+        uint8_t v = GET_BIT2(pColData->pBitMap, pRow->iRow);
+        if (v == 0) {
+          goto _return_none;
+        } else if (v == 1) {
+          goto _return_null;
+        } else {
+          int32_t offset;
+          if (IS_VAR_DATA_TYPE(pTColumn->type)) {
+            // offset = ; (todo)
+            ASSERT(0);
+          } else {
+            offset = tDataTypes[pTColumn->type].bytes * pRow->iRow;
+          }
+          tGetValue(pColData->pData + offset, &value, pTColumn->type);
+        }
+      }
+    } else {
+      goto _return_none;
+    }
+  } else {
+    ASSERT(0);
+  }
+
+_return_none:
+  *pColVal = COL_VAL_NONE(pTColumn->colId);
+  return;
+
+_return_null:
+  *pColVal = COL_VAL_NULL(pTColumn->colId);
+  return;
+
+_return_value:
+  *pColVal = COL_VAL_VALUE(pTColumn->colId, value);
+  return;
 }
 
 // delete skyline ======================================================
@@ -586,13 +639,21 @@ int32_t tGetKEYINFO(uint8_t *p, KEYINFO *pKeyInfo) {
 // SBlockData ======================================================
 static int32_t tsdbBlockDataAppendRow0(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema) {
   int32_t code = 0;
-  // TODO
+
+  // aKey
+
+  // other cols
+
   return code;
 }
 
 static int32_t tsdbBlockDataAppendRow1(SBlockData *pBlockData, TSDBROW *pRow) {
   int32_t code = 0;
-  // TODO
+
+  // aKey
+
+  // other cols
+
   return code;
 }
 
@@ -604,65 +665,14 @@ void tsdbBlockDataClear(SBlockData *pBlockData) {
 }
 
 int32_t tsdbBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema) {
-  int32_t   code = 0;
-  TSDBKEY   key = tsdbRowKey(pRow);
-  int32_t   nRow = pBlockData->nRow;
-  SColVal   colVal;
-  SColVal  *pColVal = &colVal;
-  STColumn *pTColumn;
-  SColData *pColData;
+  int32_t code = 0;
 
-  pBlockData->nRow++;
-
-  // aKey
-  if (nRow >= pBlockData->maxRow) {
-    if (pBlockData->maxRow == 0) {
-      pBlockData->maxRow = 1024;
-    } else {
-      pBlockData->maxRow = pBlockData->maxRow * 2;
-    }
-    ASSERT(pBlockData->maxRow > pBlockData->nRow);
-
-    // code = tsdbRealloc((uint8_t **)&pBlockData->aKey, sizeof(TSDBKEY) * pBlockData->maxRow);
-    if (code) goto _err;
-  }
-  // pBlockData->aKey[nRow] = key;
-
-  // other cols
-  int16_t iColData = 0;
-  int16_t iCol = 1;
-  while (iCol < pTSchema->numOfCols) {
-    pTColumn = &pTSchema->columns[iCol];
-
-    if (iColData < pBlockData->nCol) {
-      pColData = &pBlockData->aColData[iColData];
-      if (pColData->cid < pTColumn->colId) {
-        iColData++;
-      } else if (pColData->cid > pTColumn->colId) {
-        // add a new SColData
-        iCol++;
-      } else {
-        iCol++;
-        iColData++;
-      }
-    } else {
-      // add a new column data
-    }
-
-    if (pColVal->isNone) {
-      // set bit
-    } else if (pColVal->isNull) {
-      // set bit
-    } else {
-      // set bit
-      // put data
-    }
+  if (pRow->type == 0) {
+    code = tsdbBlockDataAppendRow0(pBlockData, pRow, pTSchema);
+  } else if (pRow->type == 1) {
+    code = tsdbBlockDataAppendRow1(pBlockData, pRow);
   }
 
-  return code;
-
-_err:
-  tsdbError("block data append row failed since %s", tstrerror(code));
   return code;
 }
 
@@ -673,4 +683,15 @@ void tsdbBlockDataDestroy(SBlockData *pBlockData) {
     tsdbFree(pBlockData->aColData[iCol].pBitMap);
     tsdbFree(pBlockData->aColData[iCol].pData);
   }
+}
+
+// SColData ========================================
+int32_t tColDataCmprFn(const void *p1, const void *p2) {
+  if (((SColData *)p1)->cid < ((SColData *)p2)->cid) {
+    return -1;
+  } else if (((SColData *)p1)->cid > ((SColData *)p2)->cid) {
+    return 1;
+  }
+
+  return 0;
 }
