@@ -706,11 +706,12 @@ static bool prepareDataScan(SStreamBlockScanInfo* pInfo) {
       SStreamAggSupporter* pAggSup = pInfo->sessionSup.pStreamAggSup;
       int64_t              gap = pInfo->sessionSup.gap;
       int32_t              winIndex = 0;
-      SResultWindowInfo*   pCurWin =
-          getSessionTimeWindow(pAggSup, tsCols[pInfo->updateResIndex], pSDB->info.groupId, gap, &winIndex);
+      SResultWindowInfo*   pCurWin = 
+          getSessionTimeWindow(pAggSup, tsCols[pInfo->updateResIndex], INT64_MIN,
+              pSDB->info.groupId, gap, &winIndex);
       win = pCurWin->win;
       pInfo->updateResIndex +=
-          updateSessionWindowInfo(pCurWin, tsCols, pSDB->info.rows, pInfo->updateResIndex, gap, NULL);
+          updateSessionWindowInfo(pCurWin, tsCols, NULL, pSDB->info.rows, pInfo->updateResIndex, gap, NULL);
     } else {
       win = getActiveTimeWindow(NULL, &dumyInfo, tsCols[pInfo->updateResIndex], &pInfo->interval,
                                 pInfo->interval.precision, NULL);

@@ -205,9 +205,10 @@ typedef struct SAlterDnodeStmt {
 } SAlterDnodeStmt;
 
 typedef struct SShowStmt {
-  ENodeType type;
-  SNode*    pDbName;         // SValueNode
-  SNode*    pTbNamePattern;  // SValueNode
+  ENodeType     type;
+  SNode*        pDbName;  // SValueNode
+  SNode*        pTbName;  // SValueNode
+  EOperatorType tableCondType;
 } SShowStmt;
 
 typedef struct SShowCreateDatabaseStmt {
@@ -222,6 +223,12 @@ typedef struct SShowCreateTableStmt {
   char        tableName[TSDB_TABLE_NAME_LEN];
   STableMeta* pMeta;
 } SShowCreateTableStmt;
+
+typedef struct SShowTableDistributedStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      tableName[TSDB_TABLE_NAME_LEN];
+} SShowTableDistributedStmt;
 
 typedef enum EIndexType { INDEX_TYPE_SMA = 1, INDEX_TYPE_FULLTEXT } EIndexType;
 

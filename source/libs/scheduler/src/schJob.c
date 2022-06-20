@@ -652,7 +652,7 @@ int32_t schSetAddrsFromNodeList(SSchJob *pJob, SSchTask *pTask) {
 
   if (addNum <= 0) {
     SCH_TASK_ELOG("no available execNode as candidates, nodeNum:%d", nodeNum);
-    SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+    SCH_ERR_RET(TSDB_CODE_TSC_NO_EXEC_NODE);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -677,7 +677,7 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
       SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
 
-    SCH_TASK_DLOG("use execNode from plan as candidate addr, numOfEps:%d", pTask->plan->execNode.epSet.numOfEps);
+    SCH_TASK_DLOG("use execNode in plan as candidate addr, numOfEps:%d", pTask->plan->execNode.epSet.numOfEps);
 
     return TSDB_CODE_SUCCESS;
   }

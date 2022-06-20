@@ -238,6 +238,9 @@ int32_t syncNodeUpdateNewConfigIndex(SSyncNode* ths, SSyncCfg* pNewCfg);
 bool                 syncNodeInRaftGroup(SSyncNode* ths, SRaftId* pRaftId);
 SSyncSnapshotSender* syncNodeGetSnapshotSender(SSyncNode* ths, SRaftId* pDestId);
 
+int32_t     syncGetSnapshotMeta(int64_t rid, struct SSnapshotMeta* sMeta);
+int32_t     syncGetSnapshotMetaByIndex(int64_t rid, SyncIndex snapshotIndex, struct SSnapshotMeta* sMeta);
+
 void syncStartNormal(int64_t rid);
 void syncStartStandBy(int64_t rid);
 

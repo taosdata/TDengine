@@ -809,9 +809,9 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
   pSyncNode->restoreFinish = false;
 
   // pSyncNode->pSnapshot = NULL;
-  // if (pSyncNode->pFsm->FpGetSnapshot != NULL) {
+  // if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
   //   pSyncNode->pSnapshot = taosMemoryMalloc(sizeof(SSnapshot));
-  //   pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, pSyncNode->pSnapshot);
+  //   pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, pSyncNode->pSnapshot);
   // }
   // tsem_init(&(pSyncNode->restoreSem), 0, 0);
 
@@ -841,15 +841,6 @@ void syncNodeStart(SSyncNode* pSyncNode) {
     syncNodeBecomeLeader(pSyncNode, "one replica start");
 
     // Raft 3.6.2 Committing entries from previous terms
-
-    // use this now
-    syncNodeAppendNoop(pSyncNode);
-    syncMaybeAdvanceCommitIndex(pSyncNode);  // maybe only one replica
-
-    if (gRaftDetailLog) {
-      syncNodeLog2("==state change become leader immediately==", pSyncNode);
-    }
-
     return;
   }
 
@@ -1390,7 +1381,7 @@ void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncIndex 
         syncUtilU642Addr((pSyncNode->replicasId)[i].addr, host, sizeof(host), &port);
 
         do {
-          char eventLog[128];
+          char eventLog[256];
           snprintf(eventLog, sizeof(eventLog), "snapshot sender reset for %lu, newIndex:%d, %s:%d, %p",
                    (pSyncNode->replicasId)[i].addr, i, host, port, oldSenders[j]);
           syncNodeEventLog(pSyncNode, eventLog);
@@ -1405,7 +1396,7 @@ void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncIndex 
         (pSyncNode->senders)[i]->replicaIndex = i;
 
         do {
-          char eventLog[128];
+          char eventLog[256];
           snprintf(eventLog, sizeof(eventLog), "snapshot sender udpate replicaIndex from %d to %d, %s:%d, %p, reset:%d",
                    oldreplicaIndex, i, host, port, (pSyncNode->senders)[i], reset);
           syncNodeEventLog(pSyncNode, eventLog);
@@ -1583,6 +1574,10 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
   // start heartbeat timer
   syncNodeStartHeartbeatTimer(pSyncNode);
 
+  // append noop
+  syncNodeAppendNoop(pSyncNode);
+  syncMaybeAdvanceCommitIndex(pSyncNode);  // maybe only one replica
+
   // trace log
   do {
     int32_t debugStrLen = strlen(debugStr);
@@ -1607,10 +1602,6 @@ void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
   syncNodeLog2("==state change syncNodeCandidate2Leader==", pSyncNode);
 
   // Raft 3.6.2 Committing entries from previous terms
-
-  // use this now
-  syncNodeAppendNoop(pSyncNode);
-  syncMaybeAdvanceCommitIndex(pSyncNode);  // maybe only one replica
 
   // do not use this
   // syncNodeEqNoop(pSyncNode);
@@ -1667,8 +1658,8 @@ void syncNodeVoteForSelf(SSyncNode* pSyncNode) {
 bool syncNodeHasSnapshot(SSyncNode* pSyncNode) {
   bool      ret = false;
   SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
-  if (pSyncNode->pFsm->FpGetSnapshot != NULL) {
-    pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
+  if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
+    pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
     if (snapshot.lastApplyIndex >= SYNC_INDEX_BEGIN) {
       ret = true;
     }
@@ -1678,19 +1669,19 @@ bool syncNodeHasSnapshot(SSyncNode* pSyncNode) {
 
 bool syncNodeIsIndexInSnapshot(SSyncNode* pSyncNode, SyncIndex index) {
   ASSERT(syncNodeHasSnapshot(pSyncNode));
-  ASSERT(pSyncNode->pFsm->FpGetSnapshot != NULL);
+  ASSERT(pSyncNode->pFsm->FpGetSnapshotInfo != NULL);
   ASSERT(index >= SYNC_INDEX_BEGIN);
 
   SSnapshot snapshot;
-  pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
+  pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
   bool b = (index <= snapshot.lastApplyIndex);
   return b;
 }
 
 SyncIndex syncNodeGetLastIndex(SSyncNode* pSyncNode) {
   SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
-  if (pSyncNode->pFsm->FpGetSnapshot != NULL) {
-    pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
+  if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
+    pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
   }
   SyncIndex logLastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
 
@@ -1703,8 +1694,8 @@ SyncTerm syncNodeGetLastTerm(SSyncNode* pSyncNode) {
   if (syncNodeHasSnapshot(pSyncNode)) {
     // has snapshot
     SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
-    if (pSyncNode->pFsm->FpGetSnapshot != NULL) {
-      pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
+    if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
+      pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
     }
 
     SyncIndex logLastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
@@ -1756,8 +1747,8 @@ SyncTerm syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index) {
   if (syncNodeHasSnapshot(pSyncNode)) {
     // has snapshot
     SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
-    if (pSyncNode->pFsm->FpGetSnapshot != NULL) {
-      pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
+    if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
+      pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
     }
 
     if (index > snapshot.lastApplyIndex + 1) {

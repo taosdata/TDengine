@@ -40,7 +40,7 @@ SSyncSnapshotSender* createSender() {
   pSyncNode->pFsm->FpSnapshotStartRead = SnapshotStartRead;
   pSyncNode->pFsm->FpSnapshotStopRead = SnapshotStopRead;
   pSyncNode->pFsm->FpSnapshotDoRead = SnapshotDoRead;
-  pSyncNode->pFsm->FpGetSnapshot = GetSnapshot;
+  pSyncNode->pFsm->FpGetSnapshotInfo = GetSnapshot;
 
   SSyncSnapshotSender* pSender = snapshotSenderCreate(pSyncNode, 2);
   pSender->start = true;
