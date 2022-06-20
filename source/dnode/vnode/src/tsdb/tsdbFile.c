@@ -15,17 +15,29 @@
 
 #include "tsdb.h"
 
-static const char *tsdbFileSuffix[] = {".tombstone", ".cache", ".index", ".data", ".last", ".sma", ""};
+static const char *tsdbFileSuffix[] = {".del", ".cache", ".head", ".data", ".last", ".sma", ""};
 
-// .tombstone
+// SHeadFile ===============================================
+void tsdbHeadFileName(STsdb *pTsdb, SHeadFile *pFile, char fname[]) {
+  // TODO
+}
+
+// SDataFile ===============================================
+void tsdbDataFileName(STsdb *pTsdb, SDataFile *pFile, char fname[]) {
+  // TODO
+}
+
+// SLastFile ===============================================
+void tsdbLastFileName(STsdb *pTsdb, SLastFile *pFile, char fname[]) {
+  // TODO
+}
+
+// SSmaFile ===============================================
+void tsdbSmaFileName(STsdb *pTsdb, SSmaFile *pFile, char fname[]) {
+  // TODO
+}
 
 // SDelFile ===============================================
-char *tsdbDelFileName(STsdb *pTsdb, SDelFile *pFile) {
-  char   *pName = NULL;
-  int32_t size;
-
-  // TODO
-  // sprintf(pName, "", pTsdb->path, );
-
-  return pName;
+void tsdbDelFileName(STsdb *pTsdb, SDelFile *pFile, char fname[]) {
+  // snprintf(fname, TSDB_FILENAME_LEN, "", pTsdb->path);
 }

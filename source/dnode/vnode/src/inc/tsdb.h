@@ -72,6 +72,7 @@ typedef struct SDelFReader    SDelFReader;
 #define HAS_VALUE ((int8_t)0x4)
 // tsdbUtil.c ==============================================================================================
 // TSDBROW
+#define TSDBROW_SVERSION(ROW)                 TD_ROW_SVER((ROW)->pTSRow)
 #define tsdbRowFromTSRow(VERSION, TSROW)      ((TSDBROW){.type = 0, .version = (VERSION), .pTSRow = (TSROW)});
 #define tsdbRowFromBlockData(BLOCKDATA, IROW) ((TSDBROW){.type = 1, .pBlockData = (BLOCKDATA), .pTSRow = (IROW)});
 TSDBKEY tsdbRowKey(TSDBROW *pRow);
@@ -149,9 +150,18 @@ void     tsdbTbDataIterOpen(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, S
 TSDBROW *tsdbTbDataIterGet(STbDataIter *pIter);
 bool     tsdbTbDataIterNext(STbDataIter *pIter);
 // tsdbFile.c ==============================================================================================
+// SDataFSet
+// SHeadFile
+void tsdbHeadFileName(STsdb *pTsdb, SHeadFile *pFile, char fname[]);
+// SDataFile
+void tsdbDataFileName(STsdb *pTsdb, SDataFile *pFile, char fname[]);
+// SLastFile
+void tsdbLastFileName(STsdb *pTsdb, SLastFile *pFile, char fname[]);
+// SSmaFile
+void tsdbSmaFileName(STsdb *pTsdb, SSmaFile *pFile, char fname[]);
 // SDelFile
 #define tsdbDelFileCreate() ((SDelFile){.info = KEYINFO_INIT_VAL, .size = 0, .offset = 0})
-char *tsdbDelFileName(STsdb *pTsdb, SDelFile *pFile);
+void tsdbDelFileName(STsdb *pTsdb, SDelFile *pFile, char fname[]);
 // tsdbFS.c ==============================================================================================
 typedef struct STsdbFS STsdbFS;
 int32_t                tsdbFSOpen(STsdb *pTsdb, STsdbFS **ppFS);
@@ -442,6 +452,8 @@ struct SSmaFile {
 };
 
 struct SDFileSet {
+  SDiskID    diskId;
+  int32_t    nRef;
   SHeadFile *pHeadFile;
   SDataFile *pDataFile;
   SLastFile *pLastFile;

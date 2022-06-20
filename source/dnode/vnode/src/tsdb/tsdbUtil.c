@@ -727,6 +727,7 @@ int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
   int32_t code = 0;
 
   if (pRow->type == 0) {
+    ASSERT(pTSchema);
     code = tsdbBlockDataAppendRow0(pBlockData, pRow, pTSchema);
   } else if (pRow->type == 1) {
     code = tsdbBlockDataAppendRow1(pBlockData, pRow);

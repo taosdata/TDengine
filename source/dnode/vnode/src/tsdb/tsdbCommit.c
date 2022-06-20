@@ -339,10 +339,16 @@ _err:
 
 static int32_t tsdbCommitMemoryData(SCommitter *pCommitter, SBlockIdx *pBlockIdx, STbDataIter *pIter, TSDBKEY eKey,
                                     bool toDataOnly) {
-  int32_t  code = 0;
-  TSDBROW *pRow;
-  SBlock   block = tBlockInit();
+  int32_t   code = 0;
+  TSDBROW  *pRow;
+  STSchema *pTSchema = NULL;  // TODO
+  TSDBKEY   key;
+  SBlock   *pBlock = &pCommitter->nBlock;
 
+  if (pIter == NULL) goto _exit;
+
+  tBlockReset(pBlock);
+  tBlockDataReset(&pCommitter->nBlockData);
   while (true) {
     pRow = tsdbTbDataIterGet(pIter);
 
@@ -354,30 +360,55 @@ static int32_t tsdbCommitMemoryData(SCommitter *pCommitter, SBlockIdx *pBlockIdx
       }
     }
 
-    code = tBlockDataAppendRow(&pCommitter->nBlockData, pRow, NULL /*TODO*/);
+    // update schema
+    if (pTSchema == NULL || pTSchema->version != TSDBROW_SVERSION(pRow)) {
+      // TODO
+      // pTSchema = NULL;
+    }
+
+    // append row
+    code = tBlockDataAppendRow(&pCommitter->nBlockData, pRow, pTSchema);
     if (code) goto _err;
 
+    // update info
+    key = tsdbRowKey(pRow);
+    if (tsdbKeyCmprFn(&key, &pBlock->info.maxKey) > 0) pBlock->info.maxKey = key;
+    if (tsdbKeyCmprFn(&key, &pBlock->info.minKey) < 0) pBlock->info.minKey = key;
+    if (key.version > pBlock->info.maxVersion) pBlock->info.maxVersion = key.version;
+    if (key.version < pBlock->info.minVerion) pBlock->info.minVerion = key.version;
+
+    // iter next
+    tsdbTbDataIterNext(pIter);
+
+    // check write
     if (pCommitter->nBlockData.nRow < pCommitter->maxRow * 4 / 5) {
       continue;
     }
 
   _write_block_data:
     if (!toDataOnly && pCommitter->nBlockData.nRow < pCommitter->minKey) {
-      block.last = 1;
+      pCommitter->nBlock.last = 1;
     } else {
-      block.last = 0;
+      pCommitter->nBlock.last = 0;
     }
 
-    code = tsdbWriteBlockData(pCommitter->pWriter, &pCommitter->nBlockData, NULL, NULL, pBlockIdx, &block);
+    code = tsdbWriteBlockData(pCommitter->pWriter, &pCommitter->nBlockData, NULL, NULL, pBlockIdx, pBlock);
     if (code) goto _err;
 
-    code = tMapDataPutItem(&pCommitter->nBlockMap, &block, tPutBlock);
+    code = tMapDataPutItem(&pCommitter->nBlockMap, pBlock, tPutBlock);
     if (code) goto _err;
 
-    tBlockReset(&block);
+    // update info
+    if (tsdbKeyCmprFn(&pBlock->info.minKey, &pBlockIdx->info.minKey) < 0) pBlock->info.minKey = pBlockIdx->info.minKey;
+    if (tsdbKeyCmprFn(&pBlock->info.maxKey, &pBlockIdx->info.maxKey) < 0) pBlock->info.maxKey = pBlockIdx->info.maxKey;
+    if (pBlock->info.minVerion < pBlockIdx->info.minVerion) pBlockIdx->info.minVerion = pBlock->info.minVerion;
+    if (pBlock->info.maxVersion < pBlockIdx->info.maxVersion) pBlockIdx->info.maxVersion = pBlock->info.maxVersion;
+
+    tBlockReset(pBlock);
     tBlockDataReset(&pCommitter->nBlockData);
   }
 
+_exit:
   return code;
 
 _err:
@@ -465,14 +496,12 @@ _err:
 
 static int32_t tsdbMergeCommit(SCommitter *pCommitter, SBlockIdx *pBlockIdx, STbDataIter *pIter, SBlock *pBlock,
                                int8_t isLastBlock) {
-  int32_t    code = 0;
-  TSDBROW   *pRow;
-  SBlock     block = tBlockInit();
-  SBlockData nBlockData;
-  TSDBKEY    key;
-  int32_t    c;
+  int32_t  code = 0;
+  TSDBROW *pRow;
+  TSDBKEY  key;
+  int32_t  c;
 
-  if (pBlock == NULL) {
+  if (pBlock == NULL) {  // (pIter && pBlock == NULL)
     key.ts = pCommitter->maxKey;
     key.version = INT64_MAX;
     code = tsdbCommitMemoryData(pCommitter, pBlockIdx, pIter, key, 0);
@@ -481,12 +510,14 @@ static int32_t tsdbMergeCommit(SCommitter *pCommitter, SBlockIdx *pBlockIdx, STb
     // merge
     code = tsdbMergeCommitImpl(pCommitter, pBlockIdx, pIter, pBlock, 0);
     if (code) goto _err;
-  } else {
+  } else {  // pBlock && pBlock->last == 0 && (pIter == NULL || pIter)
     // memory
-    key.ts = pBlock->info.minKey.ts;
-    key.version = pBlock->info.minKey.version - 1;
-    code = tsdbCommitMemoryData(pCommitter, pBlockIdx, pIter, key, 1);
-    if (code) goto _err;
+    if (pIter) {
+      key.ts = pBlock->info.minKey.ts;
+      key.version = pBlock->info.minKey.version - 1;
+      code = tsdbCommitMemoryData(pCommitter, pBlockIdx, pIter, key, 1);
+      if (code) goto _err;
+    }
 
     // merge or move block
     pRow = tsdbTbDataIterGet(pIter);

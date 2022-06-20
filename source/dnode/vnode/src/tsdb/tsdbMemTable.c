@@ -218,6 +218,7 @@ void tsdbTbDataIterOpen(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDa
   pIter->pTbData = pTbData;
   pIter->backward = backward;
   pIter->pRow = NULL;
+  pIter->row.type = 0;
   if (pFrom == NULL) {
     // create from head or tail
     if (backward) {
