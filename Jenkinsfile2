@@ -163,16 +163,6 @@ pipeline {
         LOGDIR = '/var/data/jenkins/workspace/log'
     }
     stages {
-        stage ('pre_build') {
-            steps {
-                sh '''
-                    date
-                    pwd
-                    env
-                    hostname
-                '''
-            }
-        }
         stage('run test') {
             options { skipDefaultCheckout() }
             when {
@@ -215,6 +205,8 @@ pipeline {
                     steps {
                         sh '''
                             date
+                            pwd
+                            env
                             hostname
                         '''
                         timeout(time: 15, unit: 'MINUTES') {
