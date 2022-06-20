@@ -353,8 +353,8 @@ static void vnodeSyncCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta c
   SyncIndex beginIndex = SYNC_INDEX_INVALID;
   char      logBuf[256] = {0};
 
-  if (pFsm->FpGetSnapshot != NULL) {
-    (*pFsm->FpGetSnapshot)(pFsm, &snapshot);
+  if (pFsm->FpGetSnapshotInfo != NULL) {
+    (*pFsm->FpGetSnapshotInfo)(pFsm, &snapshot);
     beginIndex = snapshot.lastApplyIndex;
   }
 
@@ -416,7 +416,7 @@ static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   pFsm->FpCommitCb = vnodeSyncCommitMsg;
   pFsm->FpPreCommitCb = vnodeSyncPreCommitMsg;
   pFsm->FpRollBackCb = vnodeSyncRollBackMsg;
-  pFsm->FpGetSnapshot = vnodeSyncGetSnapshot;
+  pFsm->FpGetSnapshotInfo = vnodeSyncGetSnapshot;
   pFsm->FpRestoreFinishCb = NULL;
   pFsm->FpReConfigCb = vnodeSyncReconfig;
   pFsm->FpSnapshotStartRead = vnodeSnapshotStartRead;
