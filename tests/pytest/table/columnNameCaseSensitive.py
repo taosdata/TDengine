@@ -40,8 +40,8 @@ class TDTestCase:
         tdSql.checkData(2, 0, 'C1')        
 
         tdSql.execute("insert into tb2(ts, c1) values(now, 1)")
-        tdSql.execute("insert into tb2(ts, `C1`) values(now, 1)")
-        tdSql.execute("insert into tb2(ts, c1, `C1`) values(now, 1, 2)")
+        tdSql.execute("insert into tb2(ts, `C1`) values(now + 1s, 1)")
+        tdSql.execute("insert into tb2(ts, c1, `C1`) values(now + 2s, 1, 2)")
         tdSql.query("select * from tb2")
         tdSql.checkRows(3)
 
@@ -76,8 +76,8 @@ class TDTestCase:
         tdSql.checkData(2, 0, 'C1')
 
         tdSql.execute("insert into `TB2`(ts, c1) values(now, 1)")
-        tdSql.execute("insert into `TB2`(ts, `C1`) values(now, 1)")
-        tdSql.execute("insert into `TB2`(ts, c1, `C1`) values(now, 1, 2)")
+        tdSql.execute("insert into `TB2`(ts, `C1`) values(now + 1s, 1)")
+        tdSql.execute("insert into `TB2`(ts, c1, `C1`) values(now + 2s, 1, 2)")
         tdSql.query("select * from `TB2`")
         tdSql.checkRows(3)
 
@@ -113,8 +113,8 @@ class TDTestCase:
         tdSql.checkData(3, 0, 't1')
 
         tdSql.execute("insert into tt2(ts, c1) using `STB2` tags(1) values(now, 1)")
-        tdSql.execute("insert into tt2(ts, `C1`) using `STB2` tags(1) values(now, 1)")
-        tdSql.execute("insert into tt2(ts, c1, `C1`) using `STB2` tags(1) values(now, 1, 2)")
+        tdSql.execute("insert into tt2(ts, `C1`) using `STB2` tags(1) values(now + 1s, 1)")
+        tdSql.execute("insert into tt2(ts, c1, `C1`) using `STB2` tags(1) values(now + 2s, 1, 2)")
         tdSql.query("select * from `STB2`")
         tdSql.checkRows(3)
 
@@ -142,7 +142,7 @@ class TDTestCase:
 
         # cornor cases
         tdSql.execute("alter table `STB2` add column `数量` int")
-        tdSql.execute("insert into tt3(ts, `数量`) using `STB2` tags(2) values(now, 1)")
+        tdSql.execute("insert into tt3(ts, `数量`) using `STB2` tags(2) values(now + 3s, 1)")
         tdSql.query("select * from tt3")
         tdSql.checkRows(1)
         tdSql.query("select ts `TS` from tt3")
