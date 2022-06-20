@@ -22,7 +22,7 @@ python3 ./test.py -f 1-insert/opentsdb_json_taosc_insert.py
 python3 ./test.py -f 1-insert/alter_stable.py
 python3 ./test.py -f 1-insert/alter_table.py
 python3 ./test.py -f 1-insert/insertWithMoreVgroup.py
-python3 ./test.py -f 1-inerst/table_comment.py
+python3 ./test.py -f 1-insert/table_comment.py
 python3 ./test.py -f 2-query/between.py
 python3 ./test.py -f 2-query/distinct.py
 python3 ./test.py -f 2-query/varchar.py
