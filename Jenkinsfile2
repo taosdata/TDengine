@@ -37,6 +37,12 @@ def sync_source() {
                 git clean -fxd
                 git checkout 2.4
             '''
+        } else if (env.CHANGE_TARGET == '2.6') {
+            sh '''
+                cd ${WKC}
+                git clean -fxd
+                git checkout 2.6
+            '''
         } else {
             sh '''
                 cd ${WKC}
@@ -52,6 +58,7 @@ def sync_source() {
         [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
         git pull >/dev/null
         git clean -dfx
+        git log -5
     '''
     script {
         if (env.CHANGE_TARGET == 'master') {
@@ -69,6 +76,11 @@ def sync_source() {
                 cd ${WK}
                 git checkout 2.4
             '''
+        } else if (env.CHANGE_TARGET == '2.6') {
+            sh '''
+                cd ${WK}
+                git checkout 2.6
+            '''
         } else {
             sh '''
                 cd ${WK}
@@ -80,6 +92,7 @@ def sync_source() {
         cd ${WK}
         git pull >/dev/null
         git clean -dfx
+        git log -5
     '''
     script {
         if (env.CHANGE_URL =~ /\/TDengine\//) {
@@ -88,6 +101,7 @@ def sync_source() {
                 cd ${WKC}
                 git fetch origin +refs/pull/${CHANGE_ID}/merge
                 git checkout -qf FETCH_HEAD
+                git log -5
             '''
             sh '''
                 cd ${WKC}
@@ -106,6 +120,7 @@ def sync_source() {
                 cd ${WK}
                 git fetch origin +refs/pull/${CHANGE_ID}/merge
                 git checkout -qf FETCH_HEAD
+                git log -5
             '''
             sh '''
                 cd ${WKC}
