@@ -539,42 +539,9 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
           // update new config myIndex
           SSyncCfg newSyncCfg = pMsg->lastConfig;
           syncNodeUpdateNewConfigIndex(pSyncNode, &newSyncCfg);
-          bool IamInNew = syncNodeInConfig(pSyncNode, &newSyncCfg);
 
-          bool isDrop = false;
-          if (IamInNew) {
-            char eventLog[128];
-            snprintf(eventLog, sizeof(eventLog),
-                     "update config by snapshot, lastIndex:%ld, lastTerm:%lu, lastConfigIndex:%ld", pMsg->lastIndex,
-                     pMsg->lastTerm, pMsg->lastConfigIndex);
-            syncNodeEventLog(pSyncNode, eventLog);
-
-            syncNodeDoConfigChange(pSyncNode, &newSyncCfg, pMsg->lastConfigIndex, &isDrop);
-
-          } else {
-            char eventLog[128];
-            snprintf(eventLog, sizeof(eventLog),
-                     "do not update config by snapshot, not in new, lastIndex:%ld, lastTerm:%lu, lastConfigIndex:%ld",
-                     pMsg->lastIndex, pMsg->lastTerm, pMsg->lastConfigIndex);
-            syncNodeEventLog(pSyncNode, eventLog);
-          }
-
-          // change isStandBy to normal
-          if (!isDrop) {
-            char  tmpbuf[512];
-            char *oldStr = syncCfg2SimpleStr(&oldSyncCfg);
-            char *newStr = syncCfg2SimpleStr(&newSyncCfg);
-            snprintf(tmpbuf, sizeof(tmpbuf), "config change3 from %d to %d, index:%ld, %s  -->  %s",
-                     oldSyncCfg.replicaNum, newSyncCfg.replicaNum, pMsg->lastConfigIndex, oldStr, newStr);
-            taosMemoryFree(oldStr);
-            taosMemoryFree(newStr);
-
-            if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
-              syncNodeBecomeLeader(pSyncNode, tmpbuf);
-            } else {
-              syncNodeBecomeFollower(pSyncNode, tmpbuf);
-            }
-          }
+          // do config change
+          syncNodeDoConfigChange(pSyncNode, &newSyncCfg, pMsg->lastConfigIndex);
         }
 
         SSnapshot snapshot;

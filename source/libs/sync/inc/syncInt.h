@@ -199,7 +199,7 @@ char*   syncNode2Str(const SSyncNode* pSyncNode);
 void    syncNodeEventLog(const SSyncNode* pSyncNode, char* str);
 char*   syncNode2SimpleStr(const SSyncNode* pSyncNode);
 bool    syncNodeInConfig(SSyncNode* pSyncNode, const SSyncCfg* config);
-void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* newConfig, SyncIndex lastConfigChangeIndex, bool* isDrop);
+void    syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* newConfig, SyncIndex lastConfigChangeIndex);
 
 SSyncNode* syncNodeAcquire(int64_t rid);
 void       syncNodeRelease(SSyncNode* pNode);
