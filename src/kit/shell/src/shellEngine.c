@@ -1241,7 +1241,7 @@ int wsclient_send(char *strdata, WebSocketFrameType frame) {
     payload_offset += 8;
   } else {
     fprintf(stderr, "websocket send too large data\n");
-    return -1;
+    return 1;
   }
   data = (char *)malloc(frame_size);
   memset(data, 0, frame_size);
@@ -1272,7 +1272,9 @@ int wsclient_send(char *strdata, WebSocketFrameType frame) {
     sent += i;
   }
   if (i < 0) {
-    fprintf(stderr, "websocket send data error\n");
+    fprintf(stderr, "websocket send data error, please check the server\n");
+    free(data);
+    return 1;
   }
   free(data);
   return 0;

@@ -27,6 +27,8 @@ void shellQueryInterruptHandler(int32_t signum, void *sigInfo, void *context) {
   tsem_post(&cancelSem);
 }
 
+void shellRestfulSendInterruptHandler(int32_t signum, void *sigInfo, void *context) {}
+
 void *cancelHandler(void *arg) {
   setThreadName("cancelHandler");
 
@@ -167,6 +169,9 @@ int main(int argc, char* argv[]) {
   taosSetSignal(SIGINT, shellQueryInterruptHandler);
   taosSetSignal(SIGHUP, shellQueryInterruptHandler);
   taosSetSignal(SIGABRT, shellQueryInterruptHandler);
+  if (args.restful || args.cloud) {
+    taosSetSignal(SIGPIPE, shellRestfulSendInterruptHandler);
+  }
 
   /* Get grant information */
   shellGetGrantInfo(args.con);
