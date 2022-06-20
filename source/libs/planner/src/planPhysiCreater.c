@@ -534,7 +534,11 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
   }
   SQueryNodeLoad node = {.addr = {.nodeId = MNODE_HANDLE, .epSet = pCxt->pPlanCxt->mgmtEpSet}, .load = 0};
   taosArrayPush(pCxt->pExecNodeList, &node);
-  pScan->mgmtEpSet = pCxt->pPlanCxt->mgmtEpSet;
+  if (0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_DNODE_VARIABLES)) {
+    pScan->mgmtEpSet = pScanLogicNode->pVgroupList->vgroups->epSet;
+  } else {
+    pScan->mgmtEpSet = pCxt->pPlanCxt->mgmtEpSet;
+  }
   tNameGetFullDbName(&pScanLogicNode->tableName, pSubplan->dbFName);
 
   return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pScan, pPhyNode);
