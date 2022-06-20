@@ -1617,32 +1617,34 @@ void wsclient_query(char *command) {
       continue;
     }
     total_rows += rows->valueint;
-    if (!cJSON_IsArray(lengths)) {
-      fprintf(stderr, "Invalid or miss 'lengths' in fetch response\n");
-      cJSON_Delete(fetch);
-      return;
-    }
-    for (int i = 0; i < cols; i++) {
-      cJSON* length = cJSON_GetArrayItem(lengths, i);
-      if (!cJSON_IsNumber(length)) {
-        fprintf(stderr, "Invalid or miss 'lengths' key in fetch response\n");
-        cJSON_Delete(fetch);
-        return;
-      }
-      fields[i].bytes = (int16_t)(length->valueint);
-    }
-    if (showed_rows < DEFAULT_RES_SHOW_NUM) {
-      if (wsclient_send_sql(NULL, WS_FETCH_BLOCK, ws_id)) {
-        cJSON_Delete(fetch);
-        return;
-      }
-      if (wsclient_print_data((int)rows->valueint, fields, cols, ws_id, precision, &showed_rows)) {
-        cJSON_Delete(fetch);
-        return;
-      }
+    if (showed_rows >= DEFAULT_RES_SHOW_NUM) {
       cJSON_Delete(fetch);
       continue;
     }
+
+    if (!cJSON_IsArray(lengths)) {
+        fprintf(stderr, "Invalid or miss 'lengths' in fetch response\n");
+        cJSON_Delete(fetch);
+        return;
+    }
+    for (int i = 0; i < cols; i++) {
+        cJSON* length = cJSON_GetArrayItem(lengths, i);
+        if (!cJSON_IsNumber(length)) {
+            fprintf(stderr, "Invalid or miss 'lengths' key in fetch response\n");
+            cJSON_Delete(fetch);
+            return;
+        }
+        fields[i].bytes = (int16_t)(length->valueint);
+    }
+    if (wsclient_send_sql(NULL, WS_FETCH_BLOCK, ws_id)) {
+      cJSON_Delete(fetch);
+      return;
+    }
+    if (wsclient_print_data((int)rows->valueint, fields, cols, ws_id, precision, &showed_rows)) {
+      cJSON_Delete(fetch);
+      return;
+    }
+    cJSON_Delete(fetch);
   }
   et = taosGetTimestampUs();
   if (stop_fetch) {
