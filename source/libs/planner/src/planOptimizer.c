@@ -1111,8 +1111,8 @@ static bool eliminateProjOptMayBeOptimized(SLogicNode* pNode) {
       taosHashPut(pProjColNameHash, projColumnName, strlen(projColumnName), &exist, sizeof(exist));
     }
   }
-
   taosHashCleanup(pProjColNameHash);
+
   return true;
 }
 
@@ -1123,12 +1123,9 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
   SNode* pProjection = NULL;
   FOREACH(pProjection, pProjectNode->pProjections) {
     SColumnNode* projColumn = (SColumnNode*)pProjection;
-    char* projColumnName = projColumn->colName;
     SNode* pChildTarget = NULL;
     FOREACH(pChildTarget, pChild->pTargets) {
-      SExprNode* childExpr = (SExprNode*)pChildTarget;
-      if (QUERY_NODE_COLUMN == nodeType(childExpr) && strcmp(projColumnName, ((SColumnNode*)childExpr)->colName) == 0 ||
-          strcmp(projColumnName, childExpr->aliasName) == 0) {
+      if (strcmp(projColumn->colName, ((SColumnNode*)pChildTarget)->colName) == 0) {
         nodesListAppend(pNewChildTargets, nodesCloneNode(pChildTarget));
         break;
       }
