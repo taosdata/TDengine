@@ -81,7 +81,7 @@ class TDTestCase:
         tdSql.query("select * from `STB`")
         tdSql.checkRows(1)
 
-        tdSql.execute("insert into `T2` using `STB` tags(1) values(now, 1)")
+        tdSql.execute("insert into `T2` using `STB` tags(1) values(now + 1s, 1)")
         tdSql.query("select * from `STB`")
         tdSql.checkRows(2)
 
