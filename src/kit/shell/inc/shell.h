@@ -34,6 +34,7 @@
 #define HISTORY_FILE           ".taos_history"
 #define DEFAULT_RES_SHOW_NUM   100
 #define TEMP_RECV_BUF          1024
+#define BIGINT_BUFF_LEN        22
 
 typedef struct SShellHistory {
   char* hist[MAX_HISTORY_SIZE];
@@ -119,7 +120,7 @@ void shellGetGrantInfo(void* con);
 int isCommentLine(char* line);
 int wsclient_handshake();
 int wsclient_conn();
-void wsclient_query(char* command);
+void wsclient_query(char* command, uint64_t limit);
 int wsclient_send_sql(char *command, WS_ACTION_TYPE type, int64_t id);
 int tcpConnect(char* host, int port);
 int parse_cloud_dsn();

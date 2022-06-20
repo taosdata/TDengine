@@ -290,7 +290,24 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
   }
 
   if (args.restful || args.cloud) {
-    wsclient_query(command);
+    uint64_t limit = DEFAULT_RES_SHOW_NUM;
+    if (regex_match(command, "^(.*)\\s+limit\\s+[1-9][0-9]*;?$", REG_EXTENDED | REG_ICASE)) {
+      char*limit_buf = strstr(command, "limit");
+      limit_buf += strlen("limit");
+      if (limit_buf != NULL) {
+        if (command[strlen(command) -1] == ';') {
+          command[strlen(command) -1] = '\0';
+        }
+        int index = 0;
+        while (limit_buf[index] == ' ' && index < strlen(limit_buf)) {
+          index++;
+        }
+        if (limit_buf[index] != '\0') {
+          limit = atoll(limit_buf + index);
+        }
+      }
+    }
+    wsclient_query(command, limit);
     return;
   }
 
@@ -1470,7 +1487,7 @@ int wsclient_check(cJSON *root, int64_t st, int64_t et) {
   return 0;
 }
 
-int wsclient_print_data(int rows, TAOS_FIELD *fields, int cols, int64_t id, int precision, int* pshowed_rows) {
+int wsclient_print_data(int rows, TAOS_FIELD *fields, int cols, int64_t id, int precision, int* pshowed_rows, uint64_t limit) {
   char* response = wsclient_get_response();
   if (response == NULL) {
     return -1;
@@ -1487,9 +1504,11 @@ int wsclient_print_data(int rows, TAOS_FIELD *fields, int cols, int64_t id, int 
     width[c] = calcColWidth(fields + c, precision);
   }
   for (int i = 0; i < rows; i++) {
-    if (*pshowed_rows == DEFAULT_RES_SHOW_NUM) {
+    if (*pshowed_rows == limit) {
       printf("\n");
       printf(" Notice: The result shows only the first %d rows.\n", DEFAULT_RES_SHOW_NUM);
+      printf("         You can use the `LIMIT` clause to get fewer result to show.\n");
+      printf("           Or use '>>' to redirect the whole set of the result to a specified file.\n");
       printf("\n");
       printf("         You can use Ctrl+C to stop the underway fetching.\n");
       printf("\n");
@@ -1520,7 +1539,7 @@ int wsclient_print_data(int rows, TAOS_FIELD *fields, int cols, int64_t id, int 
   return 0;
 }
 
-void wsclient_query(char *command) {
+void wsclient_query(char *command, uint64_t limit) {
   int64_t st, et;
   st = taosGetTimestampUs();
   if (wsclient_send_sql(command, WS_QUERY, 0)) {
@@ -1617,7 +1636,7 @@ void wsclient_query(char *command) {
       continue;
     }
     total_rows += rows->valueint;
-    if (showed_rows >= DEFAULT_RES_SHOW_NUM) {
+    if (showed_rows >= limit) {
       cJSON_Delete(fetch);
       continue;
     }
@@ -1640,7 +1659,7 @@ void wsclient_query(char *command) {
       cJSON_Delete(fetch);
       return;
     }
-    if (wsclient_print_data((int)rows->valueint, fields, cols, ws_id, precision, &showed_rows)) {
+    if (wsclient_print_data((int)rows->valueint, fields, cols, ws_id, precision, &showed_rows, limit)) {
       cJSON_Delete(fetch);
       return;
     }
