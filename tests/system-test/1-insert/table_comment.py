@@ -14,7 +14,6 @@
 import random
 import string
 
-from tomlkit import comment
 from util.log import *
 from util.cases import *
 from util.sql import *
