@@ -17,6 +17,7 @@ from util.log import *
 from util.cases import *
 from util.sql import *
 import numpy as np
+import re
 
 
 class TDTestCase:
@@ -152,7 +153,7 @@ class TDTestCase:
         r = os.popen("taos -s 'select first(c1) + last(c1) from test.tb01'")
         text = r.read()
         r.close()
-        result = float(text.split("|")[1].split("\n")[2])
+        result = float(re.split('\n |\|', text)[3])
 
         tdSql.query("select first(c1) + last(c1) from tb01")
         tdSql.checkData(0, 0, result)   
@@ -160,8 +161,8 @@ class TDTestCase:
         r = os.popen("taos -s 'select first(c1) - last(c1) from test.tb01'")
         text = r.read()
         r.close()
-        result = float(text.split("|")[1].split("\n")[2])
-        tdSql.query("select first(c1) - last(c1) from tb01")
+        result = float(re.split('\n |\|', text)[3])
+        tdSql.query("select first(c1) + last(c1) from tb01")
         tdSql.checkData(0, 0, result)
 
                 
