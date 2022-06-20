@@ -196,25 +196,26 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaInfo 
   STsdbCfg   *pTsdbCfg = SMA_TSDB_CFG(pSma);
 
   if (param->qmsg[idx]) {
-    pRSmaInfo->items[idx].pRsmaInfo = pRSmaInfo;
-    pRSmaInfo->items[idx].taskInfo = qCreateStreamExecTaskInfo(param->qmsg[0], pReadHandle);
-    if (!pRSmaInfo->items[idx].taskInfo) {
+    SRSmaInfoItem *pItem = &(pRSmaInfo->items[idx]);
+    pItem->pRsmaInfo = pRSmaInfo;
+    pItem->taskInfo = qCreateStreamExecTaskInfo(param->qmsg[0], pReadHandle);
+    if (!pItem->taskInfo) {
       goto _err;
     }
-    pRSmaInfo->items[idx].triggerStatus = TASK_TRIGGER_STATUS__IN_ACTIVE;
+    pItem->triggerStatus = TASK_TRIGGER_STATUS__IN_ACTIVE;
     if (param->maxdelay[idx] < TSDB_MIN_ROLLUP_MAX_DELAY) {
       int64_t msInterval =
           convertTimeFromPrecisionToUnit(pRetention[idx + 1].freq, pTsdbCfg->precision, TIME_UNIT_MILLISECOND);
-      pRSmaInfo->items[idx].maxDelay = msInterval;
+      pItem->maxDelay = (int32_t)msInterval;
     } else {
-      pRSmaInfo->items[idx].maxDelay = param->maxdelay[idx];
+      pItem->maxDelay = (int32_t)param->maxdelay[idx];
     }
-    if (pRSmaInfo->items[idx].maxDelay > TSDB_MAX_ROLLUP_MAX_DELAY) {
-      pRSmaInfo->items[idx].maxDelay = TSDB_MAX_ROLLUP_MAX_DELAY;
+    if (pItem->maxDelay > TSDB_MAX_ROLLUP_MAX_DELAY) {
+      pItem->maxDelay = TSDB_MAX_ROLLUP_MAX_DELAY;
     }
-    pRSmaInfo->items[idx].level = (idx == 0 ? TSDB_RETENTION_L1 : TSDB_RETENTION_L2);
-    pRSmaInfo->items[idx].tmrHandle = taosTmrInit(10000, 100, 10000, "RSMA");
-    if (!pRSmaInfo->items[idx].tmrHandle) {
+    pItem->level = (idx == 0 ? TSDB_RETENTION_L1 : TSDB_RETENTION_L2);
+    pItem->tmrHandle = taosTmrInit(10000, 100, 10000, "RSMA");
+    if (!pItem->tmrHandle) {
       goto _err;
     }
   }
