@@ -1400,17 +1400,8 @@ void wsclient_parse_frame(SWSParser * parser, uint8_t * recv_buffer) {
       recv_buffer[i] = c[i] ^ ((unsigned char *) (&mask))[i % 4];
     }
   }
-  if (msg_opcode == 0x0 || msg_opcode == 0x1 || msg_opcode == 0x2) {
-    if (!msg_fin) {
-      printf("incomplete frame\n");
-    }
-  }
-  if (msg_opcode == 0xA) {
-    printf("get pong\n");
-  }
   if (msg_opcode == 0x9) {
     parser->frame = PING_FRAME;
-    printf("get ping\n");
   }
   parser->offset = pos;
   parser->payload_length = payload_length;
