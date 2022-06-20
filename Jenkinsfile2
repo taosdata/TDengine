@@ -155,6 +155,7 @@ def pre_test_mac() {
     return 1
 }
 pipeline {
+    agent none
     options { skipDefaultCheckout() }
     environment{
         WK = '/var/data/jenkins/workspace/TDinternal'
