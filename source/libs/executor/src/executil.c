@@ -235,7 +235,7 @@ int32_t getTableList(void* metaHandle, SScanPhysiNode* pScanNode, STableListInfo
         terrno = code;
         return code;
       } else {
-        qDebug("sucess to  get tableIds, size: %d, suid: %" PRIu64 "", (int)taosArrayGetSize(res), tableUid);
+        qDebug("success to  get tableIds, size: %d, suid: %" PRIu64 "", (int)taosArrayGetSize(res), tableUid);
       }
 
       for (int i = 0; i < taosArrayGetSize(res); i++) {
@@ -319,12 +319,10 @@ SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
       continue;
     }
 
-    bool foundSource = false;
     SColMatchInfo* info = NULL;
     for (int32_t j = 0; j < taosArrayGetSize(pList); ++j) {
       info = taosArrayGet(pList, j);
       if (info->targetSlotId == pNode->slotId) {
-        foundSource = true;
         break;
       }
     }
@@ -332,7 +330,6 @@ SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
     if (pNode->output) {
       (*numOfOutputCols) += 1;
     } else {
-      ASSERT(foundSource);
       info->output = false;
     }
   }
@@ -595,10 +592,10 @@ void relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray
   while (i < numOfSrcCols && j < taosArrayGetSize(pColMatchInfo)) {
     SColumnInfoData* p = taosArrayGet(pCols, i);
     SColMatchInfo*   pmInfo = taosArrayGet(pColMatchInfo, j);
-//    if (!pmInfo->output) {
-//      j++;
-//      continue;
-//    }
+    if (!pmInfo->output) {
+      j++;
+      continue;
+    }
 
     if (p->info.colId == pmInfo->colId) {
       SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, pmInfo->targetSlotId);

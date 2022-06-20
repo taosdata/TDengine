@@ -1092,14 +1092,27 @@ static bool eliminateProjOptMayBeOptimized(SLogicNode* pNode) {
     return false;
   }
 
+  SHashObj* pProjColNameHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   SNode* pProjection;
   FOREACH(pProjection, pProjectNode->pProjections) {
     SExprNode* pExprNode = (SExprNode*)pProjection;
     if (QUERY_NODE_COLUMN != nodeType(pExprNode)) {
+      taosHashCleanup(pProjColNameHash);
       return false;
+    }
+
+    char* projColumnName = ((SColumnNode*)pProjection)->colName;
+    int32_t* pExist = taosHashGet(pProjColNameHash, projColumnName, strlen(projColumnName));
+    if (NULL != pExist) {
+      taosHashCleanup(pProjColNameHash);
+      return false;
+    } else {
+      int32_t exist = 1;
+      taosHashPut(pProjColNameHash, projColumnName, strlen(projColumnName), &exist, sizeof(exist));
     }
   }
 
+  taosHashCleanup(pProjColNameHash);
   return true;
 }
 
@@ -1110,13 +1123,14 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
   SNode* pProjection = NULL;
   FOREACH(pProjection, pProjectNode->pProjections) {
     SColumnNode* projColumn = (SColumnNode*)pProjection;
+    char* projColumnName = projColumn->colName;
     SNode* pChildTarget = NULL;
     FOREACH(pChildTarget, pChild->pTargets) {
       SExprNode* childExpr = (SExprNode*)pChildTarget;
-      char* projColumnName = projColumn->colName;
       if (QUERY_NODE_COLUMN == nodeType(childExpr) && strcmp(projColumnName, ((SColumnNode*)childExpr)->colName) == 0 ||
           strcmp(projColumnName, childExpr->aliasName) == 0) {
         nodesListAppend(pNewChildTargets, nodesCloneNode(pChildTarget));
+        break;
       }
     }
   }
