@@ -1101,6 +1101,83 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
   return code;
 }
 
+static bool eliminateProjOptMayBeOptimized(SLogicNode* pNode) {
+  // TODO: enable this optimization after new mechanising that map projection and targets of project node
+  if (NULL != pNode->pParent) {
+    return false;
+  }
+
+  if (QUERY_NODE_LOGIC_PLAN_PROJECT != nodeType(pNode) || 1 != LIST_LENGTH(pNode->pChildren)) {
+    return false;
+  }
+
+  SProjectLogicNode* pProjectNode = (SProjectLogicNode*)pNode;
+  if (-1 != pProjectNode->limit || -1 != pProjectNode->slimit || -1 != pProjectNode->offset ||
+      -1 != pProjectNode->soffset) {
+    return false;
+  }
+
+  SHashObj* pProjColNameHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  SNode*    pProjection;
+  FOREACH(pProjection, pProjectNode->pProjections) {
+    SExprNode* pExprNode = (SExprNode*)pProjection;
+    if (QUERY_NODE_COLUMN != nodeType(pExprNode)) {
+      taosHashCleanup(pProjColNameHash);
+      return false;
+    }
+
+    char*    projColumnName = ((SColumnNode*)pProjection)->colName;
+    int32_t* pExist = taosHashGet(pProjColNameHash, projColumnName, strlen(projColumnName));
+    if (NULL != pExist) {
+      taosHashCleanup(pProjColNameHash);
+      return false;
+    } else {
+      int32_t exist = 1;
+      taosHashPut(pProjColNameHash, projColumnName, strlen(projColumnName), &exist, sizeof(exist));
+    }
+  }
+  taosHashCleanup(pProjColNameHash);
+
+  return true;
+}
+
+static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan,
+                                         SProjectLogicNode* pProjectNode) {
+  SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pProjectNode->node.pChildren, 0);
+  SNodeList*  pNewChildTargets = nodesMakeList();
+
+  SNode* pProjection = NULL;
+  FOREACH(pProjection, pProjectNode->pProjections) {
+    SNode* pChildTarget = NULL;
+    FOREACH(pChildTarget, pChild->pTargets) {
+      if (strcmp(((SColumnNode*)pProjection)->colName, ((SColumnNode*)pChildTarget)->colName) == 0) {
+        nodesListAppend(pNewChildTargets, nodesCloneNode(pChildTarget));
+        break;
+      }
+    }
+  }
+  nodesDestroyList(pChild->pTargets);
+  pChild->pTargets = pNewChildTargets;
+
+  int32_t code = replaceLogicNode(pLogicSubplan, (SLogicNode*)pProjectNode, pChild);
+  if (TSDB_CODE_SUCCESS == code) {
+    NODES_CLEAR_LIST(pProjectNode->node.pChildren);
+    nodesDestroyNode((SNode*)pProjectNode);
+  }
+  return code;
+}
+
+static int32_t eliminateProjOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  SProjectLogicNode* pProjectNode =
+      (SProjectLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, eliminateProjOptMayBeOptimized);
+
+  if (NULL == pProjectNode) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  return eliminateProjOptimizeImpl(pCxt, pLogicSubplan, pProjectNode);
+}
+
 // clang-format off
 static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "OptimizeScanData",  .optimizeFunc = osdOptimize},
@@ -1108,6 +1185,7 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "OrderByPrimaryKey", .optimizeFunc = opkOptimize},
   {.pName = "SmaIndex",          .optimizeFunc = smaOptimize},
   {.pName = "PartitionByTags",   .optimizeFunc = partTagsOptimize},
+  {.pName = "EliminateProject",  .optimizeFunc = eliminateProjOptimize}
 };
 // clang-format on
 
