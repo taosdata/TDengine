@@ -55,7 +55,9 @@ static void smProcessUniqueQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t num
     taosGetQitem(qall, (void **)&pMsg);
 
     dTrace("msg:%p, get from snode-unique queue", pMsg);
-    sndProcessUMsg(pMgmt->pSnode, pMsg);
+    if (sndProcessUMsg(pMgmt->pSnode, pMsg) < 0) {
+      ASSERT(0);
+    }
 
     dTrace("msg:%p, is freed", pMsg);
     rpcFreeCont(pMsg->pCont);
@@ -67,7 +69,9 @@ static void smProcessSharedQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SSnodeMgmt *pMgmt = pInfo->ahandle;
 
   dTrace("msg:%p, get from snode-shared queue", pMsg);
-  sndProcessSMsg(pMgmt->pSnode, pMsg);
+  if (sndProcessSMsg(pMgmt->pSnode, pMsg) < 0) {
+    ASSERT(0);
+  }
 
   dTrace("msg:%p, is freed", pMsg);
   rpcFreeCont(pMsg->pCont);

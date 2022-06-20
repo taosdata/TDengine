@@ -124,7 +124,8 @@ typedef struct {
   int32_t        lastErrorNo;
   tmsg_t         lastMsgType;
   SEpSet         lastEpset;
-  char           dbname[TSDB_DB_FNAME_LEN];
+  char           dbname1[TSDB_DB_FNAME_LEN];
+  char           dbname2[TSDB_DB_FNAME_LEN];
   int32_t        startFunc;
   int32_t        stopFunc;
   int32_t        paramLen;
@@ -539,27 +540,36 @@ typedef struct {
 } SMqRebOutputObj;
 
 typedef struct {
-  char           name[TSDB_STREAM_FNAME_LEN];
-  char           sourceDb[TSDB_DB_FNAME_LEN];
-  char           targetDb[TSDB_DB_FNAME_LEN];
-  char           targetSTbName[TSDB_TABLE_FNAME_LEN];
-  int64_t        targetStbUid;
-  int64_t        createTime;
-  int64_t        updateTime;
-  int64_t        uid;
-  int64_t        dbUid;
-  int32_t        version;
-  int32_t        vgNum;
-  SRWLatch       lock;
-  int8_t         status;
-  int8_t         createdBy;      // STREAM_CREATED_BY__USER or SMA
-  int32_t        fixedSinkVgId;  // 0 for shuffle
-  SVgObj         fixedSinkVg;
-  int64_t        smaId;  // 0 for unused
-  int8_t         trigger;
-  int64_t        triggerParam;
-  int64_t        watermark;
+  char name[TSDB_STREAM_FNAME_LEN];
+  // ctl
+  SRWLatch lock;
+  // create info
+  int64_t createTime;
+  int64_t updateTime;
+  int32_t version;
+  int64_t smaId;  // 0 for unused
+  // info
+  int64_t uid;
+  int8_t  status;
+  // config
+  int8_t  dropPolicy;
+  int8_t  trigger;
+  int64_t triggerParam;
+  int64_t watermark;
+  // source and target
+  int64_t sourceDbUid;
+  int64_t targetDbUid;
+  char    sourceDb[TSDB_DB_FNAME_LEN];
+  char    targetDb[TSDB_DB_FNAME_LEN];
+  char    targetSTbName[TSDB_TABLE_FNAME_LEN];
+  int64_t targetStbUid;
+  int32_t fixedSinkVgId;  // 0 for shuffle
+  // fixedSinkVg is not applicable for encode and decode
+  SVgObj fixedSinkVg;
+
+  // transformation
   char*          sql;
+  char*          ast;
   char*          physicalPlan;
   SArray*        tasks;  // SArray<SArray<SStreamTask>>
   SSchemaWrapper outputSchema;

@@ -24,7 +24,7 @@ extern "C" {
 #include "tdef.h"
 #include "tmsgcb.h"
 
-#define SYNC_INDEX_BEGIN   0
+#define SYNC_INDEX_BEGIN 0
 #define SYNC_INDEX_INVALID -1
 
 typedef uint64_t SyncNodeId;
@@ -62,6 +62,7 @@ typedef struct SSyncCfg {
 
 typedef struct SFsmCbMeta {
   SyncIndex  index;
+  SyncIndex  lastConfigIndex;
   bool       isWeak;
   int32_t    code;
   ESyncState state;
@@ -75,6 +76,7 @@ typedef struct SReConfigCbMeta {
   int32_t   code;
   SyncIndex index;
   SyncTerm  term;
+  SyncIndex lastConfigIndex;
   SyncTerm  currentTerm;
   SSyncCfg  oldCfg;
   SSyncCfg  newCfg;
@@ -105,7 +107,9 @@ typedef struct SSyncFSM {
   void (*FpReConfigCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SReConfigCbMeta cbMeta);
   void (*FpLeaderTransferCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
 
-  int32_t (*FpGetSnapshot)(struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
+
+  int32_t (*FpGetSnapshot)(struct SSyncFSM* pFsm, SSnapshot* pSnapshot, void *pReaderParam, void** ppReader);
+  int32_t (*FpGetSnapshotInfo)(struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
 
   int32_t (*FpSnapshotStartRead)(struct SSyncFSM* pFsm, void** ppReader);
   int32_t (*FpSnapshotStopRead)(struct SSyncFSM* pFsm, void* pReader);
@@ -182,6 +186,7 @@ void        syncStart(int64_t rid);
 void        syncStop(int64_t rid);
 int32_t     syncSetStandby(int64_t rid);
 ESyncState  syncGetMyRole(int64_t rid);
+bool        syncIsReady(int64_t rid);
 const char* syncGetMyRoleStr(int64_t rid);
 SyncTerm    syncGetMyTerm(int64_t rid);
 void        syncGetEpSet(int64_t rid, SEpSet* pEpSet);
@@ -190,7 +195,7 @@ int32_t     syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak);
 bool        syncEnvIsStart();
 const char* syncStr(ESyncState state);
 bool        syncIsRestoreFinish(int64_t rid);
-int32_t     syncGetSnapshotMeta(int64_t rid, struct SSnapshotMeta* sMeta);
+
 
 int32_t syncReconfig(int64_t rid, const SSyncCfg* pNewCfg);
 

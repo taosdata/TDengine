@@ -92,6 +92,8 @@ STqOffset* tqOffsetRead(STqOffsetStore* pStore, const char* subscribeKey) {
 }
 
 int32_t tqOffsetWrite(STqOffsetStore* pStore, const STqOffset* pOffset) {
+  ASSERT(pOffset->type == TMQ_OFFSET__LOG);
+  ASSERT(pOffset->version >= 0);
   return taosHashPut(pStore->pHash, pOffset->subKey, strlen(pOffset->subKey), pOffset, sizeof(STqOffset));
 }
 
@@ -129,7 +131,7 @@ int32_t tqOffsetSnapshot(STqOffsetStore* pStore) {
     tEncodeSTqOffset(&encoder, pOffset);
     // write file
     int64_t writeLen;
-    if ((writeLen = taosWriteFile(pFile, buf, totLen)) != bodyLen) {
+    if ((writeLen = taosWriteFile(pFile, buf, totLen)) != totLen) {
       ASSERT(0);
       tqError("write offset incomplete, len %d, write len %ld", bodyLen, writeLen);
       taosHashCancelIterate(pStore->pHash, pIter);

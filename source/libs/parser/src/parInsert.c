@@ -803,6 +803,7 @@ static void buildCreateTbReq(SVCreateTbReq* pTbReq, const char* tname, STag* pTa
   pTbReq->name = strdup(tname);
   pTbReq->ctb.suid = suid;
   pTbReq->ctb.pTag = (uint8_t*)pTag;
+  pTbReq->commentLen = -1;
 
   return;
 }

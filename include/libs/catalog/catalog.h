@@ -87,7 +87,7 @@ typedef struct SMetaData {
   SArray* pUdfList;     // pRes = SFuncInfo*
   SArray* pIndex;       // pRes = SIndexInfo*
   SArray* pUser;        // pRes = bool*
-  SArray* pQnodeList;   // pRes = SQueryNodeAddr*
+  SArray* pQnodeList;   // pRes = SArray<SQueryNodeLoad>*
 } SMetaData;
 
 typedef struct SCatalogCfg {
@@ -291,6 +291,8 @@ int32_t catalogUpdateUserAuthInfo(SCatalog* pCtg, SGetUserAuthRsp* pAuth);
 int32_t catalogUpdateVgEpSet(SCatalog* pCtg, const char* dbFName, int32_t vgId, SEpSet *epSet);
 
 int32_t ctgdLaunchAsyncCall(SCatalog* pCtg, SRequestConnInfo* pConn, uint64_t reqId, bool forceUpdate);
+
+int32_t catalogClearCache(void);
 
 /**
  * Destroy catalog and relase all resources

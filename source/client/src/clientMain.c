@@ -99,10 +99,10 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
 
   STscObj* pObj = taos_connect_internal(ip, user, pass, NULL, db, port, CONN_TYPE__QUERY);
   if (pObj) {
-    return (TAOS*)pObj->id;
+    return pObj->id;
   }
   
-  return (TAOS*)0;
+  return NULL;
 }
 
 void taos_close_internal(void *taos) {
@@ -111,19 +111,24 @@ void taos_close_internal(void *taos) {
   }
 
   STscObj *pTscObj = (STscObj *)taos;
-  tscDebug("0x%" PRIx64 " try to close connection, numOfReq:%d", pTscObj->id, pTscObj->numOfReqs);
+  tscDebug("0x%" PRIx64 " try to close connection, numOfReq:%d", *(int64_t*)pTscObj->id, pTscObj->numOfReqs);
 
-  taosRemoveRef(clientConnRefPool, pTscObj->id);
+  taosRemoveRef(clientConnRefPool, *(int64_t*)pTscObj->id);
 }
 
 void taos_close(TAOS *taos) {
-  STscObj* pObj = acquireTscObj((int64_t)taos);
+  if (taos == NULL) {
+    return;
+  }
+  
+  STscObj* pObj = acquireTscObj(*(int64_t*)taos);
   if (NULL == pObj) {
     return;
   }
   
   taos_close_internal(pObj);
-  releaseTscObj((int64_t)taos);
+  releaseTscObj(*(int64_t*)taos);
+  taosMemoryFree(taos);
 }
 
 
@@ -206,7 +211,12 @@ static void syncQueryFn(void *param, void *res, int32_t code) {
 }
 
 TAOS_RES *taos_query(TAOS *taos, const char *sql) {
-  STscObj* pTscObj = acquireTscObj((int64_t)taos);
+  if (NULL == taos) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return NULL;
+  }
+  
+  STscObj* pTscObj = acquireTscObj(*(int64_t*)taos);
   if (pTscObj == NULL || sql == NULL) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     return NULL;
@@ -219,13 +229,13 @@ TAOS_RES *taos_query(TAOS *taos, const char *sql) {
   taos_query_a(taos, sql, syncQueryFn, param);
   tsem_wait(&param->sem);
 
-  releaseTscObj((int64_t)taos);
+  releaseTscObj(*(int64_t*)taos);
 
   return param->pRequest;
 #else
   size_t sqlLen = strlen(sql);
   if (sqlLen > (size_t)TSDB_MAX_ALLOWED_SQL_LEN) {
-    releaseTscObj((int64_t)taos);
+    releaseTscObj(*(int64_t*)taos);
     tscError("sql string exceeds max length:%d", TSDB_MAX_ALLOWED_SQL_LEN);
     terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
     return NULL;
@@ -233,7 +243,7 @@ TAOS_RES *taos_query(TAOS *taos, const char *sql) {
 
   TAOS_RES* pRes = execQuery(pTscObj, sql, sqlLen);
 
-  releaseTscObj((int64_t)taos);
+  releaseTscObj(*(int64_t*)taos);
 
   return pRes;
 #endif
@@ -246,13 +256,14 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
 
   if (TD_RES_QUERY(res)) {
     SRequestObj *pRequest = (SRequestObj *)res;
+    if (pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT || pRequest->type == TSDB_SQL_INSERT ||
+        pRequest->code != TSDB_CODE_SUCCESS || taos_num_fields(res) == 0 || pRequest->killed) {
+      return NULL;
+    }
+
 #if SYNC_ON_TOP_OF_ASYNC
     return doAsyncFetchRows(pRequest, true, true);
 #else
-    if (pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT || pRequest->type == TSDB_SQL_INSERT ||
-        pRequest->code != TSDB_CODE_SUCCESS || taos_num_fields(res) == 0) {
-      return NULL;
-    }
     return doFetchRows(pRequest, true, true);
 #endif
 
@@ -452,15 +463,15 @@ int taos_result_precision(TAOS_RES *res) {
 }
 
 int taos_select_db(TAOS *taos, const char *db) {
-  STscObj* pObj = acquireTscObj((int64_t)taos);
+  STscObj* pObj = acquireTscObj(*(int64_t*)taos);
   if (pObj == NULL) {
-    releaseTscObj((int64_t)taos);
+    releaseTscObj(*(int64_t*)taos);
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     return TSDB_CODE_TSC_DISCONNECTED;
   }
 
   if (db == NULL || strlen(db) == 0) {
-    releaseTscObj((int64_t)taos);
+    releaseTscObj(*(int64_t*)taos);
     terrno = TSDB_CODE_TSC_INVALID_INPUT;
     return terrno;
   }
@@ -472,7 +483,7 @@ int taos_select_db(TAOS *taos, const char *db) {
   int32_t   code = taos_errno(pRequest);
 
   taos_free_result(pRequest);
-  releaseTscObj((int64_t)taos);
+  releaseTscObj(*(int64_t*)taos);
   return code;
 }
 
@@ -482,14 +493,20 @@ void taos_stop_query(TAOS_RES *res) {
   }
 
   SRequestObj *pRequest = (SRequestObj *)res;
+  pRequest->killed = true;
+  
   int32_t      numOfFields = taos_num_fields(pRequest);
-
   // It is not a query, no need to stop.
   if (numOfFields == 0) {
+    tscDebug("request %" PRIx64 " no need to be killed since not query", pRequest->requestId);
     return;
   }
 
-  schedulerFreeJob(pRequest->body.queryJob);
+  if (pRequest->body.queryJob) {
+    schedulerFreeJob(pRequest->body.queryJob, TSDB_CODE_TSC_QUERY_KILLED);
+  }
+
+  tscDebug("request %" PRIx64 " killed", pRequest->requestId);
 }
 
 bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col) {
@@ -619,7 +636,7 @@ int *taos_get_column_data_offset(TAOS_RES *res, int columnIndex) {
 int taos_validate_sql(TAOS *taos, const char *sql) { return true; }
 
 void taos_reset_current_db(TAOS *taos) {
-  STscObj* pTscObj = acquireTscObj((int64_t)taos);
+  STscObj* pTscObj = acquireTscObj(*(int64_t*)taos);
   if (pTscObj == NULL) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     return;
@@ -627,17 +644,17 @@ void taos_reset_current_db(TAOS *taos) {
 
   resetConnectDB(pTscObj);
 
-  releaseTscObj((int64_t)taos);
+  releaseTscObj(*(int64_t*)taos);
 }
 
 const char *taos_get_server_info(TAOS *taos) {
-  STscObj* pTscObj = acquireTscObj((int64_t)taos);
+  STscObj* pTscObj = acquireTscObj(*(int64_t*)taos);
   if (pTscObj == NULL) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     return NULL;
   }
 
-  releaseTscObj((int64_t)taos);
+  releaseTscObj(*(int64_t*)taos);
 
   return pTscObj->ver;
 }
@@ -664,6 +681,8 @@ static void destorySqlParseWrapper(SqlParseWrapper *pWrapper) {
 }
 
 void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
+  tscDebug("enter meta callback, code %s", tstrerror(code));
+  
   SqlParseWrapper *pWrapper = (SqlParseWrapper *)param;
   SQuery          *pQuery = pWrapper->pQuery;
   SRequestObj     *pRequest = pWrapper->pRequest;
@@ -683,7 +702,7 @@ void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
     TSWAP(pRequest->tableList, (pQuery)->pTableList);
 
     destorySqlParseWrapper(pWrapper);
-    launchAsyncQuery(pRequest, pQuery);
+    launchAsyncQuery(pRequest, pQuery, pResultMeta);
   } else {
     destorySqlParseWrapper(pWrapper);
     tscDebug("error happens, code:%d", code);
@@ -704,11 +723,11 @@ void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
 }
 
 void taos_query_a(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param) {
-  STscObj* pTscObj = acquireTscObj((int64_t)taos);
+  STscObj* pTscObj = acquireTscObj(*(int64_t*)taos);
   if (pTscObj == NULL || sql == NULL || NULL == fp) {
     terrno = TSDB_CODE_INVALID_PARA;
     if (pTscObj) {
-      releaseTscObj((int64_t)taos);
+      releaseTscObj(*(int64_t*)taos);
     } else {
       terrno = TSDB_CODE_TSC_DISCONNECTED;
     }
@@ -789,7 +808,7 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
 
   SQuery *pQuery = NULL;
 
-  SCatalogReq catalogReq = {.forceUpdate = updateMetaForce};
+  SCatalogReq catalogReq = {.forceUpdate = updateMetaForce, .qNodeRequired = qnodeRequired(pRequest)};
   code = qParseSqlSyntax(pCxt, &pQuery, &catalogReq);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
@@ -829,6 +848,9 @@ static void fetchCallback(void *pResult, void *param, int32_t code) {
   SRequestObj *pRequest = (SRequestObj *)param;
 
   SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
+
+  tscDebug("0x%" PRIx64 " enter scheduler fetch cb, code:%d - %s, reqId:0x%" PRIx64,
+             pRequest->self, code, tstrerror(code), pRequest->requestId);
 
   pResultInfo->pData = pResult;
   pResultInfo->numOfRows = 0;
@@ -926,7 +948,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
 }
 
 TAOS_STMT *taos_stmt_init(TAOS *taos) {
-  STscObj* pObj = acquireTscObj((int64_t)taos);
+  STscObj* pObj = acquireTscObj(*(int64_t*)taos);
   if (NULL == pObj) {
     tscError("invalid parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_TSC_DISCONNECTED;
@@ -935,7 +957,7 @@ TAOS_STMT *taos_stmt_init(TAOS *taos) {
 
   TAOS_STMT* pStmt = stmtInit(pObj);
   
-  releaseTscObj((int64_t)taos);
+  releaseTscObj(*(int64_t*)taos);
 
   return pStmt;
 }

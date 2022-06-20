@@ -191,13 +191,25 @@ static int32_t tSerializeSClientHbReq(SEncoder *pEncoder, const SClientHbReq *pR
   if (tEncodeSClientHbKey(pEncoder, &pReq->connKey) < 0) return -1;
 
   if (pReq->connKey.connType == CONN_TYPE__QUERY) {
+    if (tEncodeI64(pEncoder, pReq->app.appId) < 0) return -1;
+    if (tEncodeI32(pEncoder, pReq->app.pid) < 0) return -1;
+    if (tEncodeCStr(pEncoder, pReq->app.name) < 0) return -1;
+    if (tEncodeI64(pEncoder, pReq->app.startTime) < 0) return -1;
+    if (tEncodeU64(pEncoder, pReq->app.summary.numOfInsertsReq) < 0) return -1;
+    if (tEncodeU64(pEncoder, pReq->app.summary.numOfInsertRows) < 0) return -1;
+    if (tEncodeU64(pEncoder, pReq->app.summary.insertElapsedTime) < 0) return -1;
+    if (tEncodeU64(pEncoder, pReq->app.summary.insertBytes) < 0) return -1;
+    if (tEncodeU64(pEncoder, pReq->app.summary.fetchBytes) < 0) return -1;
+    if (tEncodeU64(pEncoder, pReq->app.summary.queryElapsedTime) < 0) return -1;
+    if (tEncodeU64(pEncoder, pReq->app.summary.numOfSlowQueries) < 0) return -1;
+    if (tEncodeU64(pEncoder, pReq->app.summary.totalRequests) < 0) return -1;
+    if (tEncodeU64(pEncoder, pReq->app.summary.currentRequests) < 0) return -1;
+
     int32_t queryNum = 0;
     if (pReq->query) {
       queryNum = 1;
       if (tEncodeI32(pEncoder, queryNum) < 0) return -1;
       if (tEncodeU32(pEncoder, pReq->query->connId) < 0) return -1;
-      if (tEncodeI32(pEncoder, pReq->query->pid) < 0) return -1;
-      if (tEncodeCStr(pEncoder, pReq->query->app) < 0) return -1;
 
       int32_t num = taosArrayGetSize(pReq->query->queryDesc);
       if (tEncodeI32(pEncoder, num) < 0) return -1;
@@ -209,7 +221,6 @@ static int32_t tSerializeSClientHbReq(SEncoder *pEncoder, const SClientHbReq *pR
         if (tEncodeI64(pEncoder, desc->useconds) < 0) return -1;
         if (tEncodeI64(pEncoder, desc->stime) < 0) return -1;
         if (tEncodeI64(pEncoder, desc->reqRid) < 0) return -1;
-        if (tEncodeI32(pEncoder, desc->pid) < 0) return -1;
         if (tEncodeI8(pEncoder, desc->stableQuery) < 0) return -1;
         if (tEncodeCStr(pEncoder, desc->fqdn) < 0) return -1;
         if (tEncodeI32(pEncoder, desc->subPlanNum) < 0) return -1;
@@ -243,14 +254,26 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
   if (tDecodeSClientHbKey(pDecoder, &pReq->connKey) < 0) return -1;
 
   if (pReq->connKey.connType == CONN_TYPE__QUERY) {
+    if (tDecodeI64(pDecoder, &pReq->app.appId) < 0) return -1;
+    if (tDecodeI32(pDecoder, &pReq->app.pid) < 0) return -1;
+    if (tDecodeCStrTo(pDecoder, pReq->app.name) < 0) return -1;
+    if (tDecodeI64(pDecoder, &pReq->app.startTime) < 0) return -1;
+    if (tDecodeU64(pDecoder, &pReq->app.summary.numOfInsertsReq) < 0) return -1;
+    if (tDecodeU64(pDecoder, &pReq->app.summary.numOfInsertRows) < 0) return -1;
+    if (tDecodeU64(pDecoder, &pReq->app.summary.insertElapsedTime) < 0) return -1;
+    if (tDecodeU64(pDecoder, &pReq->app.summary.insertBytes) < 0) return -1;
+    if (tDecodeU64(pDecoder, &pReq->app.summary.fetchBytes) < 0) return -1;
+    if (tDecodeU64(pDecoder, &pReq->app.summary.queryElapsedTime) < 0) return -1;
+    if (tDecodeU64(pDecoder, &pReq->app.summary.numOfSlowQueries) < 0) return -1;
+    if (tDecodeU64(pDecoder, &pReq->app.summary.totalRequests) < 0) return -1;
+    if (tDecodeU64(pDecoder, &pReq->app.summary.currentRequests) < 0) return -1;
+
     int32_t queryNum = 0;
     if (tDecodeI32(pDecoder, &queryNum) < 0) return -1;
     if (queryNum) {
       pReq->query = taosMemoryCalloc(1, sizeof(*pReq->query));
       if (NULL == pReq->query) return -1;
       if (tDecodeU32(pDecoder, &pReq->query->connId) < 0) return -1;
-      if (tDecodeI32(pDecoder, &pReq->query->pid) < 0) return -1;
-      if (tDecodeCStrTo(pDecoder, pReq->query->app) < 0) return -1;
 
       int32_t num = 0;
       if (tDecodeI32(pDecoder, &num) < 0) return -1;
@@ -265,8 +288,7 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
           if (tDecodeI64(pDecoder, &desc.useconds) < 0) return -1;
           if (tDecodeI64(pDecoder, &desc.stime) < 0) return -1;
           if (tDecodeI64(pDecoder, &desc.reqRid) < 0) return -1;
-          if (tDecodeI32(pDecoder, &desc.pid) < 0) return -1;
-          if (tDecodeI8(pDecoder, (int8_t*)&desc.stableQuery) < 0) return -1;
+          if (tDecodeI8(pDecoder, (int8_t *)&desc.stableQuery) < 0) return -1;
           if (tDecodeCStrTo(pDecoder, desc.fqdn) < 0) return -1;
           if (tDecodeI32(pDecoder, &desc.subPlanNum) < 0) return -1;
 
@@ -474,8 +496,10 @@ int32_t tSerializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pReq
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->igExists) < 0) return -1;
-  if (tEncodeFloat(&encoder, pReq->xFilesFactor) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->delay) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->delay1) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->delay2) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->watermark1) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->watermark2) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->ttl) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->numOfColumns) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->numOfTags) < 0) return -1;
@@ -500,7 +524,7 @@ int32_t tSerializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pReq
   }
 
   if (pReq->commentLen > 0) {
-    if (tEncodeBinary(&encoder, pReq->comment, pReq->commentLen) < 0) return -1;
+    if (tEncodeCStr(&encoder, pReq->comment) < 0) return -1;
   }
   if (pReq->ast1Len > 0) {
     if (tEncodeBinary(&encoder, pReq->pAst1, pReq->ast1Len) < 0) return -1;
@@ -522,8 +546,10 @@ int32_t tDeserializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pR
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->igExists) < 0) return -1;
-  if (tDecodeFloat(&decoder, &pReq->xFilesFactor) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->delay) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->delay1) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->delay2) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->watermark1) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->watermark2) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->ttl) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->numOfColumns) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->numOfTags) < 0) return -1;
@@ -563,7 +589,7 @@ int32_t tDeserializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pR
   }
 
   if (pReq->commentLen > 0) {
-    pReq->comment = taosMemoryMalloc(pReq->commentLen);
+    pReq->comment = taosMemoryMalloc(pReq->commentLen + 1);
     if (pReq->comment == NULL) return -1;
     if (tDecodeCStrTo(&decoder, pReq->comment) < 0) return -1;
   }
@@ -681,7 +707,7 @@ int32_t tDeserializeSMAlterStbReq(void *buf, int32_t bufLen, SMAlterStbReq *pReq
   if (tDecodeI32(&decoder, &pReq->ttl) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->commentLen) < 0) return -1;
   if (pReq->commentLen > 0) {
-    pReq->comment = taosMemoryMalloc(pReq->commentLen);
+    pReq->comment = taosMemoryMalloc(pReq->commentLen + 1);
     if (pReq->comment == NULL) return -1;
     if (tDecodeCStrTo(&decoder, pReq->comment) < 0) return -1;
   }
@@ -3410,7 +3436,7 @@ int32_t tSerializeSKillConnReq(void *buf, int32_t bufLen, SKillConnReq *pReq) {
   tEncoderInit(&encoder, buf, bufLen);
 
   if (tStartEncode(&encoder) < 0) return -1;
-  if (tEncodeI32(&encoder, pReq->connId) < 0) return -1;
+  if (tEncodeU32(&encoder, pReq->connId) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -3423,7 +3449,7 @@ int32_t tDeserializeSKillConnReq(void *buf, int32_t bufLen, SKillConnReq *pReq) 
   tDecoderInit(&decoder, buf, bufLen);
 
   if (tStartDecode(&decoder) < 0) return -1;
-  if (tDecodeI32(&decoder, &pReq->connId) < 0) return -1;
+  if (tDecodeU32(&decoder, &pReq->connId) < 0) return -1;
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
@@ -4348,6 +4374,10 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
   if (tEncodeI64(pCoder, pReq->ctime) < 0) return -1;
   if (tEncodeI32(pCoder, pReq->ttl) < 0) return -1;
   if (tEncodeI8(pCoder, pReq->type) < 0) return -1;
+  if (tEncodeI32(pCoder, pReq->commentLen) < 0) return -1;
+  if (pReq->commentLen > 0) {
+    if (tEncodeCStr(pCoder, pReq->comment) < 0) return -1;
+  }
 
   if (pReq->type == TSDB_CHILD_TABLE) {
     if (tEncodeI64(pCoder, pReq->ctb.suid) < 0) return -1;
@@ -4371,6 +4401,12 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
   if (tDecodeI64(pCoder, &pReq->ctime) < 0) return -1;
   if (tDecodeI32(pCoder, &pReq->ttl) < 0) return -1;
   if (tDecodeI8(pCoder, &pReq->type) < 0) return -1;
+  if (tDecodeI32(pCoder, &pReq->commentLen) < 0) return -1;
+  if (pReq->commentLen > 0) {
+    pReq->comment = taosMemoryMalloc(pReq->commentLen + 1);
+    if (pReq->comment == NULL) return -1;
+    if (tDecodeCStrTo(pCoder, pReq->comment) < 0) return -1;
+  }
 
   if (pReq->type == TSDB_CHILD_TABLE) {
     if (tDecodeI64(pCoder, &pReq->ctb.suid) < 0) return -1;
@@ -4724,8 +4760,8 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
       if (pReq->updateTTL) {
         if (tEncodeI32v(pEncoder, pReq->newTTL) < 0) return -1;
       }
-      if (tEncodeI8(pEncoder, pReq->updateComment) < 0) return -1;
-      if (pReq->updateComment) {
+      if (tEncodeI32v(pEncoder, pReq->newCommentLen) < 0) return -1;
+      if (pReq->newCommentLen > 0) {
         if (tEncodeCStr(pEncoder, pReq->newComment) < 0) return -1;
       }
       break;
@@ -4772,8 +4808,8 @@ int32_t tDecodeSVAlterTbReq(SDecoder *pDecoder, SVAlterTbReq *pReq) {
       if (pReq->updateTTL) {
         if (tDecodeI32v(pDecoder, &pReq->newTTL) < 0) return -1;
       }
-      if (tDecodeI8(pDecoder, &pReq->updateComment) < 0) return -1;
-      if (pReq->updateComment) {
+      if (tDecodeI32v(pDecoder, &pReq->newCommentLen) < 0) return -1;
+      if (pReq->newCommentLen > 0) {
         if (tDecodeCStr(pDecoder, &pReq->newComment) < 0) return -1;
       }
       break;
