@@ -500,7 +500,7 @@ static int32_t setCurrentSchema(SVnode* pVnode, STsdbReadHandle* pTsdbReadHandle
   return TSDB_CODE_SUCCESS;
 }
 
-tsdbReaderT* tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, STableListInfo* tableList, uint64_t qId,
+tsdbReaderT tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, STableListInfo* tableList, uint64_t qId,
                             uint64_t taskId) {
   STsdbReadHandle* pTsdbReadHandle = tsdbQueryTablesImpl(pVnode, pCond, qId, taskId);
   if (pTsdbReadHandle == NULL) {
@@ -508,7 +508,7 @@ tsdbReaderT* tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, STableLi
   }
 
   if (emptyQueryTimewindow(pTsdbReadHandle)) {
-    return (tsdbReaderT*)pTsdbReadHandle;
+    return (tsdbReaderT)pTsdbReadHandle;
   }
 
   // todo apply the lastkey of table check to avoid to load header file

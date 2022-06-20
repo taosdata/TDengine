@@ -412,6 +412,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
         EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       }
+
       EXPLAIN_ROW_APPEND(EXPLAIN_COLUMNS_FORMAT, pTblScanNode->scan.pScanCols->length);
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pTblScanNode->scan.node.pOutputDataBlockDesc->totalRowSize);
@@ -426,27 +427,57 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
         EXPLAIN_ROW_NEW(level + 1, "I/O: ");
 
         int32_t nodeNum = taosArrayGetSize(pResNode->pExecInfo);
-        for (int32_t i = 0; i < nodeNum; ++i) {
+        struct STableScanAnalyzeInfo info = {0};
+
+        int32_t maxIndex = 0;
+        int32_t totalRows = 0;
+        for(int32_t i = 0; i < nodeNum; ++i) {
           SExplainExecInfo      *execInfo = taosArrayGet(pResNode->pExecInfo, i);
           STableScanAnalyzeInfo *pScanInfo = (STableScanAnalyzeInfo *)execInfo->verboseInfo;
 
-          EXPLAIN_ROW_APPEND("total_blocks=%d", pScanInfo->totalBlocks);
-          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+          info.totalBlocks      += pScanInfo->totalBlocks;
+          info.loadBlocks       += pScanInfo->loadBlocks;
+          info.totalRows        += pScanInfo->totalRows;
+          info.skipBlocks       += pScanInfo->skipBlocks;
+          info.filterTime       += pScanInfo->filterTime;
+          info.loadBlockStatis  += pScanInfo->loadBlockStatis;
+          info.totalCheckedRows += pScanInfo->totalCheckedRows;
+          info.filterOutBlocks  += pScanInfo->filterOutBlocks;
 
-          EXPLAIN_ROW_APPEND("load_blocks=%d", pScanInfo->loadBlocks);
-          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-
-          EXPLAIN_ROW_APPEND("load_block_SMAs=%d", pScanInfo->loadBlockStatis);
-          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-
-          EXPLAIN_ROW_APPEND("total_rows=%" PRIu64, pScanInfo->totalRows);
-          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-
-          EXPLAIN_ROW_APPEND("check_rows=%" PRIu64, pScanInfo->totalCheckedRows);
-          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+          if (pScanInfo->totalRows > totalRows) {
+            totalRows = pScanInfo->totalRows;
+            maxIndex = i;
+          }
         }
 
+        EXPLAIN_ROW_APPEND("total_blocks=%.1f", ((double)info.totalBlocks) / nodeNum);
+        EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+
+        EXPLAIN_ROW_APPEND("load_blocks=%.1f", ((double)info.loadBlocks) / nodeNum);
+        EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+
+        EXPLAIN_ROW_APPEND("load_block_SMAs=%.1f", ((double)info.loadBlockStatis) / nodeNum);
+        EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+
+        EXPLAIN_ROW_APPEND("total_rows=%.1f", ((double)info.totalRows) / nodeNum);
+        EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+
+        EXPLAIN_ROW_APPEND("check_rows=%.1f", ((double)info.totalCheckedRows) / nodeNum);
+        EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
         EXPLAIN_ROW_END();
+
+        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+
+        //Rows out: Avg 4166.7 rows x 24 workers. Max 4187 rows (seg7) with 0.220 ms to first row, 1.738 ms to end, start offset by 1.470 ms.
+        SExplainExecInfo      *execInfo = taosArrayGet(pResNode->pExecInfo, maxIndex);
+        STableScanAnalyzeInfo *p1 = (STableScanAnalyzeInfo *)execInfo->verboseInfo;
+
+        EXPLAIN_ROW_NEW(level + 1, " ");
+        EXPLAIN_ROW_APPEND("max_row_task=%d, total_rows:%" PRId64 ", ep:%s (cost=%.3f..%.3f)", maxIndex, p1->totalRows, "tbd",
+                           execInfo->startupCost, execInfo->totalCost);
+        EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+        EXPLAIN_ROW_END();
+
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
       }
 
