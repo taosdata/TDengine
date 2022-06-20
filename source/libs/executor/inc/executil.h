@@ -123,4 +123,6 @@ SColumn   extractColumnFromColumnNode(SColumnNode* pColNode);
 int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysiNode* pTableScanNode);
 void    cleanupQueryTableDataCond(SQueryTableDataCond* pCond);
 
+int32_t convertFillType(int32_t mode);
+
 #endif  // TDENGINE_QUERYUTIL_H

@@ -686,7 +686,10 @@ SOperatorInfo* createDataBlockInfoScanOperator(void* dataReader, SReadHandle* re
 
   int32_t numOfCols = 0;
   SExprInfo* pExprInfo = createExprInfo(pBlockScanNode->pScanPseudoCols, NULL, &numOfCols);
-  initExprSupp(&pOperator->exprSupp, pExprInfo, numOfCols);
+  int32_t code = initExprSupp(&pOperator->exprSupp, pExprInfo, numOfCols);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
 
   pOperator->name      = "DataBlockDistScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN;
@@ -1869,7 +1872,10 @@ SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysi
   SExprInfo* pExprInfo = createExprInfo(pPhyNode->pScanPseudoCols, NULL, &numOfExprs);
   SArray* colList = extractColMatchInfo(pPhyNode->pScanPseudoCols, pDescNode, &num, COL_MATCH_FROM_COL_ID);
 
-  initExprSupp(&pOperator->exprSupp, pExprInfo, numOfExprs);
+  int32_t code = initExprSupp(&pOperator->exprSupp, pExprInfo, numOfExprs);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
 
   pInfo->pTableList       = pTableListInfo;
   pInfo->pColMatchInfo    = colList;
