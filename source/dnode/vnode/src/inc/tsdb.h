@@ -109,6 +109,7 @@ int32_t tGetBlockIdx(uint8_t *p, void *ph);
 #define tColDataInit() ((SColData){0})
 void    tColDataReset(SColData *pColData);
 void    tColDataClear(SColData *pColData);
+int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal);
 int32_t tColDataCmprFn(const void *p1, const void *p2);
 // SBlockData
 #define tBlockDataInit() ((SBlockData){0})
@@ -352,6 +353,7 @@ struct SColData {
   int32_t  bytes;
   uint8_t  flags;
   uint8_t *pBitMap;
+  int32_t *pOfst;
   uint32_t nData;
   uint8_t *pData;
 };
@@ -362,7 +364,7 @@ struct SBlockData {
   int64_t  *aVersion;
   TSKEY    *aTSKEY;
   int32_t   maxCol;
-  int32_t   nCol;
+  int32_t   nColData;
   SColData *aColData;
 };
 

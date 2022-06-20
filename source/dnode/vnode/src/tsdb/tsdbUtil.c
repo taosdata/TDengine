@@ -506,7 +506,7 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
     SColData *pColData;
     void     *p;
 
-    p = taosbsearch(&(SColData){.cid = pTColumn->colId}, pRow->pBlockData->aColData, pRow->pBlockData->nCol,
+    p = taosbsearch(&(SColData){.cid = pTColumn->colId}, pRow->pBlockData->aColData, pRow->pBlockData->nColData,
                     sizeof(SBlockCol), tColDataCmprFn, TD_EQ);
     if (p) {
       pColData = (SColData *)p;
@@ -705,29 +705,107 @@ int32_t tGetKEYINFO(uint8_t *p, KEYINFO *pKeyInfo) {
 // SBlockData ======================================================
 static int32_t tsdbBlockDataAppendRow0(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema) {
   int32_t code = 0;
+  int32_t nRow = pBlockData->nRow;
+  TSDBKEY key = tsdbRowKey(pRow);
+  int32_t iColumn;
+  int32_t nColumn;
+  int32_t iColData;
+  SColVal cv;
 
-  // aKey
+  ASSERT(pTSchema);
+
+  pBlockData->nRow++;
+
+  // TSDBKEY (todo)
+  pBlockData->aVersion[nRow] = key.version;
+  pBlockData->aTSKEY[nRow] = key.ts;
 
   // other cols
+  iColumn = 1;
+  nColumn = pTSchema->numOfCols;
+  iColData = 0;
+  while (iColumn < nColumn || iColData < pBlockData->nColData) {
+    STColumn *pTColumn = NULL;
+    SColData *pColData = NULL;
+
+    if (iColumn < nColumn) {
+      pTColumn = &pTSchema->columns[iColumn];
+    }
+    if (iColData < pBlockData->nColData) {
+      pColData = &pBlockData->aColData[iColData];
+    }
+
+    if (pTColumn && pColData) {
+      if (pTColumn->colId == pColData->cid) {
+        tsdbRowGetColVal(pRow, pTSchema, iColumn, &cv);
+      } else if (pTColumn->colId < pColData->cid) {
+        // add a new SColData, and append the column value cv to the SColData
+      } else {
+        // add a None to the column value
+      }
+    } else if (pTColumn) {
+      tsdbRowGetColVal(pRow, pTSchema, iColumn, &cv);
+      // add a new SColData, and append the column value cv to the SColData
+    } else {
+      iColData++;
+    }
+  }
 
   return code;
 }
 
 static int32_t tsdbBlockDataAppendRow1(SBlockData *pBlockData, TSDBROW *pRow) {
   int32_t code = 0;
+  int32_t nRow = pBlockData->nRow;
+  TSDBKEY key = tsdbRowKey(pRow);
+  int32_t iColData;
+  int32_t iColDataRow;
+  int32_t nColDataRow;
 
-  // aKey
+  pBlockData->nRow++;
+
+  // aKey (TODO)
+  pBlockData->aVersion[nRow] = key.version;
+  pBlockData->aTSKEY[nRow] = key.ts;
 
   // other cols
+  iColData = 0;
+  iColDataRow = 0;
+  nColDataRow = pRow->pBlockData->nColData;
+  while (iColData < pBlockData->nColData || iColDataRow < nColDataRow) {
+    SColData *pColData = NULL;
+    SColData *pColDataRow = NULL;
+
+    if (iColData < pBlockData->nColData) {
+      pColData = &pBlockData->aColData[iColData];
+    }
+    if (iColDataRow < nColDataRow) {
+      pColDataRow = &pRow->pBlockData->aColData[iColDataRow];
+    }
+
+    if (pColData && pColDataRow) {
+      if (pColData->cid == pColDataRow->cid) {
+        // TODO
+      } else if (pColData->cid < pColDataRow->cid) {
+        // TODO
+      } else {
+        // TODO
+      }
+    } else if (pColData) {
+      // TODO
+    } else {
+      // TODO
+    }
+  }
 
   return code;
 }
 
 int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema) {
   int32_t code = 0;
+  TSDBKEY key = tsdbRowKey(pRow);
 
   if (pRow->type == 0) {
-    ASSERT(pTSchema);
     code = tsdbBlockDataAppendRow0(pBlockData, pRow, pTSchema);
   } else if (pRow->type == 1) {
     code = tsdbBlockDataAppendRow1(pBlockData, pRow);
@@ -738,13 +816,13 @@ int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
 
 void tBlockDataReset(SBlockData *pBlockData) {
   pBlockData->nRow = 0;
-  pBlockData->nCol = 0;
+  pBlockData->nColData = 0;
 }
 
 void tBlockDataClear(SBlockData *pBlockData) {
   tsdbFree((uint8_t *)pBlockData->aVersion);
   tsdbFree((uint8_t *)pBlockData->aTSKEY);
-  for (int32_t iCol = 0; iCol < pBlockData->nCol; iCol++) {
+  for (int32_t iCol = 0; iCol < pBlockData->nColData; iCol++) {
     tsdbFree(pBlockData->aColData[iCol].pBitMap);
     tsdbFree(pBlockData->aColData[iCol].pData);
   }

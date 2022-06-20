@@ -922,7 +922,7 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, uint8_
   // other columns
   offset = 0;
   tMapDataClear(&pSubBlock->mBlockCol);
-  for (int32_t iCol = 0; iCol < pBlockData->nCol; iCol++) {
+  for (int32_t iCol = 0; iCol < pBlockData->nColData; iCol++) {
     SColData *pColData = &pBlockData->aColData[iCol];
 
     ASSERT(pColData->flags);
