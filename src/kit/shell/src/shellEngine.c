@@ -1371,7 +1371,6 @@ int wsclient_conn() {
 
 void wsclient_parse_frame(SWSParser * parser, uint8_t * recv_buffer) {
   unsigned char msg_opcode = recv_buffer[0] & 0x0F;
-  unsigned char msg_fin = (recv_buffer[0] >> 7) & 0x01;
   unsigned char msg_masked = (recv_buffer[1] >> 7) & 0x01;
   int payload_length = 0;
   int pos = 2;
