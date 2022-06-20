@@ -649,18 +649,20 @@ static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator) {
   blockDistInfo.numOfInmemRows = (int32_t)tsdbGetNumOfRowsInMemTable(pBlockScanInfo->pHandle);
 
   SSDataBlock* pBlock = pBlockScanInfo->pResBlock;
-  pBlock->info.rows = 1;
 
-  SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, 0);
+  int32_t slotId = pOperator->exprSupp.pExprInfo->base.resSchema.slotId;
+  SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, slotId);
 
   int32_t len = tSerializeBlockDistInfo(NULL, 0, &blockDistInfo);
   char*   p = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE);
   tSerializeBlockDistInfo(varDataVal(p), len, &blockDistInfo);
   varDataSetLen(p, len);
 
-  colInfoDataEnsureCapacity(pColInfo, 0, 1);
+  blockDataEnsureCapacity(pBlock, 1);
   colDataAppend(pColInfo, 0, p, false);
   taosMemoryFree(p);
+
+  pBlock->info.rows = 1;
 
   pOperator->status = OP_EXEC_DONE;
   return pBlock;
@@ -671,7 +673,8 @@ static void destroyBlockDistScanOperatorInfo(void* param, int32_t numOfOutput) {
   blockDataDestroy(pDistInfo->pResBlock);
 }
 
-SOperatorInfo* createDataBlockInfoScanOperator(void* dataReader, SReadHandle* readHandle, uint64_t uid, SExecTaskInfo* pTaskInfo) {
+SOperatorInfo* createDataBlockInfoScanOperator(void* dataReader, SReadHandle* readHandle, uint64_t uid,
+                                               SBlockDistScanPhysiNode* pBlockScanNode, SExecTaskInfo* pTaskInfo) {
   SBlockDistInfo* pInfo = taosMemoryCalloc(1, sizeof(SBlockDistInfo));
   SOperatorInfo*  pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -682,15 +685,11 @@ SOperatorInfo* createDataBlockInfoScanOperator(void* dataReader, SReadHandle* re
   pInfo->pHandle    = dataReader;
   pInfo->readHandle = *readHandle;
   pInfo->uid        = uid;
+  pInfo->pResBlock  = createResDataBlock(pBlockScanNode->node.pOutputDataBlockDesc);
 
-  pInfo->pResBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
-
-  SColumnInfoData infoData = {0};
-  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
-  infoData.info.bytes = 1024;
-
-  pInfo->pResBlock->pDataBlock = taosArrayInit(1, sizeof(SColumnInfoData));
-  taosArrayPush(pInfo->pResBlock->pDataBlock, &infoData);
+  int32_t numOfCols = 0;
+  SExprInfo* pExprInfo = createExprInfo(pBlockScanNode->pScanPseudoCols, NULL, &numOfCols);
+  initExprSupp(&pOperator->exprSupp, pExprInfo, numOfCols);
 
   pOperator->name      = "DataBlockDistScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN;
@@ -1850,6 +1849,8 @@ SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysi
   SExprInfo* pExprInfo = createExprInfo(pPhyNode->pScanPseudoCols, NULL, &numOfExprs);
   SArray* colList = extractColMatchInfo(pPhyNode->pScanPseudoCols, pDescNode, &num, COL_MATCH_FROM_COL_ID);
 
+  initExprSupp(&pOperator->exprSupp, pExprInfo, numOfExprs);
+
   pInfo->pTableList       = pTableListInfo;
   pInfo->pColMatchInfo    = colList;
   pInfo->pRes             = createResDataBlock(pDescNode);
@@ -1862,8 +1863,6 @@ SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysi
   pOperator->blocking     = false;
   pOperator->status       = OP_NOT_OPENED;
   pOperator->info         = pInfo;
-  pOperator->exprSupp.pExprInfo        = pExprInfo;
-  pOperator->exprSupp.numOfExprs   = numOfExprs;
   pOperator->pTaskInfo    = pTaskInfo;
 
   initResultSizeInfo(pOperator, 4096);

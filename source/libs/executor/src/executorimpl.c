@@ -502,9 +502,6 @@ static int32_t doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCt
       SFunctParam* pFuncParam = &pOneExpr->base.pParam[j];
       if (pFuncParam->type == FUNC_PARAM_TYPE_COLUMN) {
         int32_t slotId = pFuncParam->pCol->slotId;
-        if (slotId >= taosArrayGetSize(pBlock->pDataBlock)) {
-          slotId = taosArrayGetSize(pBlock->pDataBlock) - 1;
-        }
         pInput->pData[j] = taosArrayGet(pBlock->pDataBlock, slotId);
         pInput->totalRows = pBlock->info.rows;
         pInput->numOfRows = pBlock->info.rows;
@@ -4129,7 +4126,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       tsdbReaderT* pReader = tsdbReaderOpen(pHandle->vnode, &cond, pTableListInfo, queryId, taskId);
       cleanupQueryTableDataCond(&cond);
 
-      return createDataBlockInfoScanOperator(pReader, pHandle, cond.suid, pTaskInfo);
+      return createDataBlockInfoScanOperator(pReader, pHandle, cond.suid, pBlockNode, pTaskInfo);
     } else {
       ASSERT(0);
     }
