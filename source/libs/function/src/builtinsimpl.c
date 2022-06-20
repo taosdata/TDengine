@@ -1481,11 +1481,13 @@ int32_t minMaxCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx, int3
     if (pSBuf->assign && ((((*(double*)&pDBuf->v) < (*(double*)&pSBuf->v)) ^ isMinFunc) || !pDBuf->assign)) {
       *(double*)&pDBuf->v = *(double*)&pSBuf->v;
       replaceTupleData(&pDBuf->tuplePos, &pSBuf->tuplePos);
+      pDBuf->assign = true;
     }
   } else {
     if (pSBuf->assign && (((pDBuf->v < pSBuf->v) ^ isMinFunc) || !pDBuf->assign)) {
       pDBuf->v = pSBuf->v;
       replaceTupleData(&pDBuf->tuplePos, &pSBuf->tuplePos);
+      pDBuf->assign = true;
     }
   }
   pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
