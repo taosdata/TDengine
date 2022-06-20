@@ -52,7 +52,6 @@ typedef struct SAggrBlkCol    SAggrBlkCol;
 typedef struct SColData       SColData;
 typedef struct SBlockDataHdr  SBlockDataHdr;
 typedef struct SBlockData     SBlockData;
-typedef struct SReadH         SReadH;
 typedef struct SDelFile       SDelFile;
 typedef struct STsdbCacheFile STsdbCacheFile;
 typedef struct SHeadFile      SHeadFile;
@@ -359,13 +358,14 @@ struct SColData {
 };
 
 struct SBlockData {
-  int32_t   maxRow;
-  int32_t   nRow;
-  int64_t  *aVersion;
-  TSKEY    *aTSKEY;
-  int32_t   maxCol;
-  int32_t   nColData;
-  SColData *aColData;
+  int32_t    maxRow;
+  int32_t    nRow;
+  int64_t   *aVersion;
+  TSKEY     *aTSKEY;
+  int32_t    maxCol;
+  int32_t    nColData;
+  SColData **apColData;
+  SColData  *aColData;
 };
 
 // ================== TSDB global config

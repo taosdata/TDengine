@@ -489,11 +489,11 @@ void tsdbFidKeyRange(int32_t fid, int32_t minutes, int8_t precision, TSKEY *minK
 
 // TSDBROW ======================================================
 TSDBKEY tsdbRowKey(TSDBROW *pRow) {
-  // if (pRow->type == 0) {
-  return (TSDBKEY){.version = pRow->version, .ts = pRow->pTSRow->ts};
-  // } else {
-  // return (TSDBKEY){.version = pRow->pBlockData->aVersion[pRow->iRow], .ts = pRow->pBlockData->aTSKEY[pRow->iRow]};
-  // }
+  if (pRow->type == 0) {
+    return (TSDBKEY){.version = pRow->version, .ts = pRow->pTSRow->ts};
+  } else {
+    return (TSDBKEY){.version = pRow->pBlockData->aVersion[pRow->iRow], .ts = pRow->pBlockData->aTSKEY[pRow->iRow]};
+  }
 }
 
 void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
@@ -702,21 +702,97 @@ int32_t tGetKEYINFO(uint8_t *p, KEYINFO *pKeyInfo) {
   return n;
 }
 
-// SBlockData ======================================================
-static int32_t tsdbBlockDataAppendRow0(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema) {
+// SColData ========================================
+void tColDataReset(SColData *pColData) {
+  // TODO
+}
+
+void tColDataClear(SColData *pColData) {
+  // TODO
+}
+
+int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal) {
   int32_t code = 0;
-  int32_t nRow = pBlockData->nRow;
-  TSDBKEY key = tsdbRowKey(pRow);
-  int32_t iColumn;
-  int32_t nColumn;
-  int32_t iColData;
-  SColVal cv;
+  // TODO
+  return code;
+}
+
+int32_t tColDataCmprFn(const void *p1, const void *p2) {
+  if (((SColData *)p1)->cid < ((SColData *)p2)->cid) {
+    return -1;
+  } else if (((SColData *)p1)->cid > ((SColData *)p2)->cid) {
+    return 1;
+  }
+
+  return 0;
+}
+
+// SBlockData ======================================================
+static int32_t tBlockDataAddColData(SBlockData *pBlockData, int32_t iColData) {
+  int32_t code = 0;
+  int32_t nColData = pBlockData->nColData;
+
+  pBlockData->nColData++;
+  if (pBlockData->nColData > pBlockData->maxCol) {
+    if (pBlockData->maxCol == 0) {
+      pBlockData->maxCol = 16;
+    } else {
+      pBlockData->maxCol *= 2;
+    }
+
+    code = tsdbRealloc((uint8_t **)&pBlockData->apColData, sizeof(SColData *) * pBlockData->maxCol);
+    if (code) goto _exit;
+    code = tsdbRealloc((uint8_t **)&pBlockData->aColData, sizeof(SColData) * pBlockData->maxCol);
+    if (code) goto _exit;
+
+    for (int32_t iColData = nColData; iColData < pBlockData->maxCol; iColData++) {
+      pBlockData->aColData[iColData] = tColDataInit();
+    }
+  }
+
+  // memmove (todo)
+  // int32_t size = sizeof(SColData *) * (nColData - iColData);
+  // if (size) {
+  //   memmove();
+  // }
+
+  pBlockData->apColData[iColData] = &pBlockData->aColData[nColData];
+
+_exit:
+  return code;
+}
+
+static int32_t tBlockDataAppendRow0(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema) {
+  int32_t  code = 0;
+  int32_t  nRow = pBlockData->nRow;
+  TSDBKEY  key = tsdbRowKey(pRow);
+  int32_t  iColumn;
+  int32_t  nColumn;
+  int32_t  iColData;
+  SColVal  colVal;
+  SColVal *pColVal = &colVal;
 
   ASSERT(pTSchema);
+  ASSERT(pTSchema->version == TSDBROW_SVERSION(pRow));
 
   pBlockData->nRow++;
 
-  // TSDBKEY (todo)
+  // TSDBKEY
+  if (pBlockData->nRow > pBlockData->maxRow) {
+    if (pBlockData->maxRow == 0) {
+      pBlockData->maxRow = 1024;
+    } else {
+      pBlockData->maxRow *= 2;
+    }
+
+    ASSERT(pBlockData->maxRow >= pBlockData->nRow);
+
+    code = tsdbRealloc((uint8_t **)&pBlockData->aTSKEY, sizeof(TSKEY) * pBlockData->maxRow);
+    if (code) goto _err;
+
+    code = tsdbRealloc((uint8_t **)&pBlockData->aVersion, sizeof(int64_t) * pBlockData->maxRow);
+    if (code) goto _err;
+  }
   pBlockData->aVersion[nRow] = key.version;
   pBlockData->aTSKEY[nRow] = key.ts;
 
@@ -737,14 +813,14 @@ static int32_t tsdbBlockDataAppendRow0(SBlockData *pBlockData, TSDBROW *pRow, ST
 
     if (pTColumn && pColData) {
       if (pTColumn->colId == pColData->cid) {
-        tsdbRowGetColVal(pRow, pTSchema, iColumn, &cv);
+        // tsdbRowGetColVal(pRow, pTSchema, iColumn, &cv);
       } else if (pTColumn->colId < pColData->cid) {
         // add a new SColData, and append the column value cv to the SColData
       } else {
         // add a None to the column value
       }
     } else if (pTColumn) {
-      tsdbRowGetColVal(pRow, pTSchema, iColumn, &cv);
+      // tsdbRowGetColVal(pRow, pTSchema, iColumn, &cv);
       // add a new SColData, and append the column value cv to the SColData
     } else {
       iColData++;
@@ -752,15 +828,20 @@ static int32_t tsdbBlockDataAppendRow0(SBlockData *pBlockData, TSDBROW *pRow, ST
   }
 
   return code;
+
+_err:
+  return code;
 }
 
-static int32_t tsdbBlockDataAppendRow1(SBlockData *pBlockData, TSDBROW *pRow) {
-  int32_t code = 0;
-  int32_t nRow = pBlockData->nRow;
-  TSDBKEY key = tsdbRowKey(pRow);
-  int32_t iColData;
-  int32_t iColDataRow;
-  int32_t nColDataRow;
+static int32_t tBlockDataAppendRow1(SBlockData *pBlockData, TSDBROW *pRow) {
+  int32_t  code = 0;
+  int32_t  nRow = pBlockData->nRow;
+  TSDBKEY  key = tsdbRowKey(pRow);
+  int32_t  iColData;
+  int32_t  iColDataRow;
+  int32_t  nColDataRow;
+  SColVal  colVal;
+  SColVal *pColVal = &colVal;
 
   pBlockData->nRow++;
 
@@ -806,9 +887,9 @@ int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
   TSDBKEY key = tsdbRowKey(pRow);
 
   if (pRow->type == 0) {
-    code = tsdbBlockDataAppendRow0(pBlockData, pRow, pTSchema);
+    code = tBlockDataAppendRow0(pBlockData, pRow, pTSchema);
   } else if (pRow->type == 1) {
-    code = tsdbBlockDataAppendRow1(pBlockData, pRow);
+    code = tBlockDataAppendRow1(pBlockData, pRow);
   }
 
   return code;
@@ -826,15 +907,4 @@ void tBlockDataClear(SBlockData *pBlockData) {
     tsdbFree(pBlockData->aColData[iCol].pBitMap);
     tsdbFree(pBlockData->aColData[iCol].pData);
   }
-}
-
-// SColData ========================================
-int32_t tColDataCmprFn(const void *p1, const void *p2) {
-  if (((SColData *)p1)->cid < ((SColData *)p2)->cid) {
-    return -1;
-  } else if (((SColData *)p1)->cid > ((SColData *)p2)->cid) {
-    return 1;
-  }
-
-  return 0;
 }
