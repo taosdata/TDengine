@@ -1116,18 +1116,18 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
       char* projColumnName = projColumn->colName;
       if (QUERY_NODE_COLUMN == nodeType(childExpr) && strcmp(projColumnName, ((SColumnNode*)childExpr)->colName) == 0 ||
           strcmp(projColumnName, childExpr->aliasName) == 0) {
-        nodesListAppend(pNewChildTargets, pChildTarget);
+        nodesListAppend(pNewChildTargets, nodesCloneNode(pChildTarget));
       }
     }
   }
-
-  TSWAP(pChild->pTargets, pNewChildTargets);
+  nodesDestroyList(pChild->pTargets);
+  pChild->pTargets = pNewChildTargets;
+  
   int32_t code = replaceLogicNode(pLogicSubplan, (SLogicNode*)pProjectNode, pChild);
   if (TSDB_CODE_SUCCESS == code) {
     NODES_CLEAR_LIST(pProjectNode->node.pChildren);
     nodesDestroyNode((SNode*)pProjectNode);
   }
-  NODES_CLEAR_LIST(pNewChildTargets);
   return code;
 }
 
