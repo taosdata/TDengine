@@ -1136,7 +1136,7 @@ int taos_base64_encode(unsigned char *source, size_t sourcelen, char *target, si
 int parse_cloud_dsn() {
     if (args.cloudDsn == NULL) {
         fprintf(stderr, "Cannot read cloud service info\n");
-        return 1;
+        return -1;
     } else {
         char *start = strstr(args.cloudDsn, "http://");
         if (start != NULL) {
@@ -1152,7 +1152,7 @@ int parse_cloud_dsn() {
         char *port = strstr(args.cloudHost, ":");
         if ((port == NULL) || (port + strlen(":")) == NULL) {
             fprintf(stderr, "Invalid format in TDengine cloud dsn: %s\n", args.cloudDsn);
-            return 1;
+            return -1;
         }
         char *token = strstr(port + strlen(":"), "?token=");
         if ((token == NULL) || (token + strlen("?token=")) == NULL ||
@@ -1241,7 +1241,7 @@ int wsclient_send(char *strdata, WebSocketFrameType frame) {
     payload_offset += 8;
   } else {
     fprintf(stderr, "websocket send too large data\n");
-    return 1;
+    return -1;
   }
   data = (char *)malloc(frame_size);
   memset(data, 0, frame_size);
@@ -1274,7 +1274,7 @@ int wsclient_send(char *strdata, WebSocketFrameType frame) {
   if (i < 0) {
     fprintf(stderr, "websocket send data error, please check the server\n");
     free(data);
-    return 1;
+    return -1;
   }
   free(data);
   return 0;
@@ -1371,6 +1371,7 @@ int wsclient_conn() {
 
 void wsclient_parse_frame(SWSParser * parser, uint8_t * recv_buffer) {
   unsigned char msg_opcode = recv_buffer[0] & 0x0F;
+  unsigned char msg_fin = (recv_buffer[0] >> 7) & 0x01;
   unsigned char msg_masked = (recv_buffer[1] >> 7) & 0x01;
   int payload_length = 0;
   int pos = 2;
@@ -1399,8 +1400,17 @@ void wsclient_parse_frame(SWSParser * parser, uint8_t * recv_buffer) {
       recv_buffer[i] = c[i] ^ ((unsigned char *) (&mask))[i % 4];
     }
   }
+  if (msg_opcode == 0x0 || msg_opcode == 0x1 || msg_opcode == 0x2) {
+    if (!msg_fin) {
+      printf("incomplete frame\n");
+    }
+  }
+  if (msg_opcode == 0xA) {
+    printf("get pong\n");
+  }
   if (msg_opcode == 0x9) {
     parser->frame = PING_FRAME;
+    printf("get ping\n");
   }
   parser->offset = pos;
   parser->payload_length = payload_length;
@@ -1439,7 +1449,7 @@ int wsclient_fetch_fields(cJSON *query, TAOS_FIELD * fields, int cols) {
   cJSON *fields_lengths = cJSON_GetObjectItem(query, "fields_lengths");
   if (!cJSON_IsArray(fields_names) || !cJSON_IsArray(fields_types) || !cJSON_IsArray(fields_lengths)) {
     fprintf(stderr, "Invalid or miss 'fields_names'/'fields_types'/'fields_lengths' key in response\n");
-    return 1;
+    return -1;
   }
   for (int i = 0; i < cols; i++) {
     cJSON* field_name = cJSON_GetArrayItem(fields_names, i);
@@ -1447,7 +1457,7 @@ int wsclient_fetch_fields(cJSON *query, TAOS_FIELD * fields, int cols) {
     cJSON* field_length = cJSON_GetArrayItem(fields_lengths, i);
     if (!cJSON_IsString(field_name) || !cJSON_IsNumber(field_type) || !cJSON_IsNumber(field_length)) {
       fprintf(stderr, "Invalid or miss 'field_name'/'field_type'/'field_length' in query response");
-      return 1;
+      return -1;
     }
     strncpy(fields[i].name, field_name->valuestring, 65);
     fields[i].type = (uint8_t)field_type->valueint;
@@ -1461,11 +1471,11 @@ int wsclient_check(cJSON *root, int64_t st, int64_t et) {
   cJSON *message = cJSON_GetObjectItem(root, "message");
   if (!cJSON_IsNumber(code) || !cJSON_IsString(message)) {
     fprintf(stderr, "Invalid or miss 'code'/'message' in response\n");
-    return 1;
+    return -1;
   }
   if (code->valueint != 0) {
     fprintf(stderr, "\nDB error: %s (%.6fs)\n", message->valuestring, (et - st) / 1E6);
-    return 1;
+    return -1;
   }
   return 0;
 }
@@ -1473,13 +1483,13 @@ int wsclient_check(cJSON *root, int64_t st, int64_t et) {
 int wsclient_print_data(int rows, TAOS_FIELD *fields, int cols, int64_t id, int precision, int* pshowed_rows) {
   char* response = wsclient_get_response();
   if (response == NULL) {
-    return 1;
+    return -1;
   }
 
   if (*(int64_t *)response != id) {
     fprintf(stderr, "Mismatch id with %"PRId64" expect %"PRId64"\n", *(int64_t *)response, id);
     free(response);
-    return 1;
+    return -1;
   }
   int pos;
   int width[TSDB_MAX_COLUMNS];
