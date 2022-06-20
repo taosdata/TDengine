@@ -62,6 +62,7 @@ typedef struct SSyncCfg {
 
 typedef struct SFsmCbMeta {
   SyncIndex  index;
+  SyncIndex  lastConfigIndex;
   bool       isWeak;
   int32_t    code;
   ESyncState state;
@@ -75,6 +76,7 @@ typedef struct SReConfigCbMeta {
   int32_t   code;
   SyncIndex index;
   SyncTerm  term;
+  SyncIndex lastConfigIndex;
   SyncTerm  currentTerm;
   SSyncCfg  oldCfg;
   SSyncCfg  newCfg;
@@ -105,7 +107,9 @@ typedef struct SSyncFSM {
   void (*FpReConfigCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SReConfigCbMeta cbMeta);
   void (*FpLeaderTransferCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
 
-  int32_t (*FpGetSnapshot)(struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
+
+  int32_t (*FpGetSnapshot)(struct SSyncFSM* pFsm, SSnapshot* pSnapshot, void *pReaderParam, void** ppReader);
+  int32_t (*FpGetSnapshotInfo)(struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
 
   int32_t (*FpSnapshotStartRead)(struct SSyncFSM* pFsm, void** ppReader);
   int32_t (*FpSnapshotStopRead)(struct SSyncFSM* pFsm, void* pReader);
@@ -191,8 +195,7 @@ int32_t     syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak);
 bool        syncEnvIsStart();
 const char* syncStr(ESyncState state);
 bool        syncIsRestoreFinish(int64_t rid);
-int32_t     syncGetSnapshotMeta(int64_t rid, struct SSnapshotMeta* sMeta);
-int32_t     syncGetSnapshotMetaByIndex(int64_t rid, SyncIndex snapshotIndex, struct SSnapshotMeta* sMeta);
+
 
 int32_t syncReconfig(int64_t rid, const SSyncCfg* pNewCfg);
 

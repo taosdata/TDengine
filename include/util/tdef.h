@@ -344,14 +344,13 @@ typedef enum ELogicConditionType {
 #define TSDB_DB_SCHEMALESS_OFF          0
 #define TSDB_DEFAULT_DB_SCHEMALESS      TSDB_DB_SCHEMALESS_OFF
 
-// #define TSDB_MIN_ROLLUP_DELAY     1
-// #define TSDB_MAX_ROLLUP_DELAY     10
-// #define TSDB_DEFAULT_ROLLUP_DELAY 1
-#define TSDB_MIN_ROLLUP_FILE_FACTOR     0
-#define TSDB_MAX_ROLLUP_FILE_FACTOR     10
-#define TSDB_DEFAULT_ROLLUP_FILE_FACTOR 0.1
-#define TSDB_MIN_TABLE_TTL              0
-#define TSDB_DEFAULT_TABLE_TTL          0
+#define TSDB_MIN_ROLLUP_MAX_DELAY     1  // unit millisecond
+#define TSDB_MAX_ROLLUP_MAX_DELAY     (15 * 60 * 1000)
+#define TSDB_MIN_ROLLUP_WATERMARK     0  // unit millisecond
+#define TSDB_MAX_ROLLUP_WATERMARK     (15 * 60 * 1000)
+#define TSDB_DEFAULT_ROLLUP_WATERMARK 5000
+#define TSDB_MIN_TABLE_TTL            0
+#define TSDB_DEFAULT_TABLE_TTL        0
 
 #define TSDB_MIN_EXPLAIN_RATIO     0
 #define TSDB_MAX_EXPLAIN_RATIO     1

@@ -119,7 +119,7 @@ class TDTestCase:
         # tdLog.debug("spent %.2fs to create 1 stable and %d table, create speed is %.2f table/s... [OK]"% (spendTime,count,speedCreate))
         return
 
-    def mutiThread_create_tables(self,host,dbname,stbname,vgroups,threadNumbers,childrowcount):
+    def mutiThread_create_tables(self,host,dbname,stbname,vgroups,threadNumbers,childcount):
         buildPath = self.getBuildPath()
         config = buildPath+ "../sim/dnode1/cfg/"
         
@@ -128,7 +128,7 @@ class TDTestCase:
         tsql.execute("drop database if exists %s"%dbname)
         tsql.execute("create database %s vgroups %d"%(dbname,vgroups))
         tsql.execute("use %s" %dbname)
-        count=int(childrowcount)
+        count=int(childcount)
         threads = []
         for i in range(threadNumbers):
             tsql.execute("create stable %s%d(ts timestamp, c1 int, c2 binary(10)) tags(t1 int)"%(stbname,i))
@@ -264,19 +264,88 @@ class TDTestCase:
         speedCreate=count/spendTime
         tdLog.debug("spent %.2fs to create 1 stable and %d table, create speed is %.2f table/s... [OK]"% (spendTime,count,speedCreate))
         return
+
+    def checkData(self,dbname,stbname,stableCount,CtableCount,rowsPerSTable,):
+        tdSql.execute("use %s"%dbname)
+        tdSql.query("show stables")
+        tdSql.checkRows(stableCount)
+        tdSql.query("show tables")
+        tdSql.checkRows(CtableCount)
+        for i in range(stableCount):
+            tdSql.query("select count(*) from %s%d"%(stbname,i))
+            tdSql.checkData(0,0,rowsPerSTable)
+        return 
+     
+     
     # test case1 base 
     def test_case1(self):
+        #stableCount=threadNumbersCtb
+        parameterDict = {'vgroups':        1,    \
+                         'threadNumbersCtb': 5,  \
+                         'threadNumbersIda': 5, \
+                         'stableCount':   5,      \
+                         'tablesPerStb':    50,  \
+                         'rowsPerTable':    10,  \
+                         'dbname':    'db',    \
+                         'stbname':    'stb',   \
+                         'host':  'localhost',    \
+                         'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
+        
         tdLog.debug("-----create database and muti-thread create tables test------- ")
         #host,dbname,stbname,vgroups,threadNumbers,tcountStart,tcountStop
         #host, dbname, stbname, threadNumbers, chilCount, ts_start, childrowcount
-        self.mutiThread_create_tables(host="localhost",dbname="db",stbname="stb", vgroups=1, threadNumbers=5, childrowcount=50)
-        self.mutiThread_insert_data(host="localhost",dbname="db",stbname="stb", threadNumbers=5,chilCount=50,ts_start=self.ts,childrowcount=10)
+        self.mutiThread_create_tables(
+            host=parameterDict['host'],
+            dbname=parameterDict['dbname'],
+            stbname=parameterDict['stbname'], 
+            vgroups=parameterDict['vgroups'], 
+            threadNumbers=parameterDict['threadNumbersCtb'], 
+            childcount=parameterDict['tablesPerStb'])
 
-        return 
+        self.mutiThread_insert_data(
+            host=parameterDict['host'],
+            dbname=parameterDict['dbname'],
+            stbname=parameterDict['stbname'], 
+            threadNumbers=parameterDict['threadNumbersIda'],
+            chilCount=parameterDict['tablesPerStb'],
+            ts_start=parameterDict['startTs'],
+            childrowcount=parameterDict['rowsPerTable'])
 
+        tableCount=parameterDict['threadNumbersCtb']*parameterDict['tablesPerStb']
+        rowsPerStable=parameterDict['rowsPerTable']*parameterDict['tablesPerStb']
 
+        self.checkData(dbname=parameterDict['dbname'],stbname=parameterDict['stbname'], stableCount=parameterDict['threadNumbersCtb'],CtableCount=tableCount,rowsPerSTable=rowsPerStable)
+    
     def test_case3(self):
-        self.taosBenchCreate("127.0.0.1","no","db1", "stb1", 1, 8, 1*10)
+        #stableCount=threadNumbersCtb
+        parameterDict = {'vgroups':        1,    \
+                         'threadNumbersCtb': 8,  \
+                         'stableCount':   5,      \
+                         'tablesPerStb':    10,  \
+                         'rowsPerTable':    100,  \
+                         'dbname':    'db1',    \
+                         'stbname':    'stb1',   \
+                         'host':  'localhost',    \
+                         'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
+                         
+        self.taosBenchCreate(
+            parameterDict['host'],
+            "no",
+            parameterDict['dbname'], 
+            parameterDict['stbname'], 
+            parameterDict['vgroups'],  
+            parameterDict['threadNumbersCtb'], 
+            parameterDict['tablesPerStb'])
+        tableCount=parameterDict['threadNumbersCtb']*parameterDict['tablesPerStb']
+        rowsPerStable=parameterDict['rowsPerTable']*parameterDict['tablesPerStb']
+
+        self.checkData(
+            dbname=parameterDict['dbname'],
+            stbname=parameterDict['stbname'], 
+            stableCount=parameterDict['threadNumbersCtb'],
+            CtableCount=tableCount,
+            rowsPerSTable=rowsPerStable)
+
         # self.taosBenchCreate("test209","no","db2", "stb2", 1, 8, 1*10000)
 
         # self.taosBenchCreate("chenhaoran02","no","db1", "stb1", 1, 8, 1*10000)
@@ -319,14 +388,6 @@ class TDTestCase:
 
 
         # tdSql.execute("create qnode on dnode %s"%dnodeId)
-
-
-        # self.taosBenchCreate("test209","no","db2", "stb2", 1, 8, 1*10000)
-
-        # self.taosBenchCreate("chenhaoran02","no","db1", "stb1", 1, 8, 1*10000)
-
-        # self.taosBenchCreate("db1", "stb1", 4, 5, 100*10000)
-        # self.taosBenchCreate("db1", "stb1", 1, 5, 100*10000)
 
     # run case   
     def run(self):

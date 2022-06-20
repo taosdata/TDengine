@@ -214,6 +214,79 @@ class TDTestCase:
         for i in range(4):
             tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
             { i % 32767 }, { i % 127}, { i * 1.11111 }, { i * 1000.1111 }, { i % 2}
+    def __create_stable(self,stbname='stb',column_dict={'ts':'timestamp','col1': 'tinyint','col2': 'smallint','col3': 'int',
+                                                        'col4': 'bigint','col5': 'tinyint unsigned','col6': 'smallint unsigned','col7': 'int unsigned',
+                                                        'col8': 'bigint unsigned','col9': 'float','col10': 'double','col11': 'bool','col12': 'binary(20)','col13': 'nchar(20)'},
+                                            tag_dict={'ts_tag':'timestamp','t1': 'tinyint','t2': 'smallint','t3': 'int',
+                                                        't4': 'bigint','t5': 'tinyint unsigned','t6': 'smallint unsigned','t7': 'int unsigned',
+                                                        't8': 'bigint unsigned','t9': 'float','t10': 'double','t11': 'bool','t12': 'binary(20)','t13': 'nchar(20)'}):
+        column_sql = ''
+        tag_sql = ''
+        for k,v in column_dict.items():
+            column_sql += f"{k} {v},"
+        for k,v in tag_dict.items():
+            tag_sql += f"{k} {v},"
+        tdSql.execute(f'create table if not exists {stbname} ({column_sql[:-1]}) tags({tag_sql[:-1]})')
+
+    def __insert_data(self): 
+
+        pass
+    
+    def __hyperloglog_check_distribute(self):
+        dbname = "dbtest"
+        stbname = "stb"
+        childtable_num = 20
+        vgroups_num = 4
+        row_num = 10
+        ts = 1537146000000
+        binary_str = 'taosdata'
+        nchar_str = '涛思数据'
+        column_dict = {
+            'ts':'timestamp',
+            'col1': 'tinyint',
+            'col2': 'smallint',
+            'col3': 'int',
+            'col4': 'bigint',
+            'col5': 'tinyint unsigned',
+            'col6': 'smallint unsigned',
+            'col7': 'int unsigned',
+            'col8': 'bigint unsigned',
+            'col9': 'float',
+            'col10': 'double',
+            'col11': 'bool',
+            'col12': 'binary(20)',
+            'col13': 'nchar(20)'
+        }
+        tag_dict = {
+            'loc':'nchar(20)'
+        }
+        tdSql.execute(f"create database if not exists {dbname} vgroups {vgroups_num}")
+        tdSql.execute(f'use {dbname}')
+        self.__create_stable(stbname,column_dict,tag_dict)
+        for i in range(childtable_num):
+            tdSql.execute(f"create table {stbname}_{i} using {stbname} tags('beijing')")
+        tdSql.query('show tables')
+        vgroup_list = []
+        for i in range(len(tdSql.queryResult)):
+            vgroup_list.append(tdSql.queryResult[i][6])
+        vgroup_list_set = set(vgroup_list)
+        for i in vgroup_list_set:
+            vgroups_num = vgroup_list.count(i)
+            if vgroups_num >=2:
+                tdLog.info(f'This scene with {vgroups_num} vgroups is ok!')
+                continue
+            else:
+                tdLog.exit('This scene does not meet the requirements with {vgroups_num} vgroup!\n')
+        for i in range(row_num):
+            tdSql.execute(f"insert into stb_1 values(%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '{binary_str}%d', '{nchar_str}%d')"
+                          % (ts + i, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1))
+        for k in column_dict.keys():
+            tdSql.query(f"select hyperloglog({k}) from {stbname}")
+            tdSql.checkRows(1)
+            tdSql.query(f"select hyperloglog({k}) from {stbname} group by {k}")
+
+        tdSql.execute(f'drop database {dbname}')
+        
 
     def __insert_data(self, rows):
         now_time = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
@@ -310,6 +383,10 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step4:after wal, all check again ")
         self.all_test()
+
+        tdLog.printNoPrefix("==========step5: distribute scene check")
+        self.__hyperloglog_check_distribute()
+
 
     def stop(self):
         tdSql.close()

@@ -47,14 +47,16 @@ typedef struct SRaftCfg {
 SRaftCfg *raftCfgOpen(const char *path);
 int32_t   raftCfgClose(SRaftCfg *pRaftCfg);
 int32_t   raftCfgPersist(SRaftCfg *pRaftCfg);
+int32_t   raftCfgAddConfigIndex(SRaftCfg *pRaftCfg, SyncIndex configIndex);
 
-cJSON * syncCfg2Json(SSyncCfg *pSyncCfg);
-char *  syncCfg2Str(SSyncCfg *pSyncCfg);
+cJSON  *syncCfg2Json(SSyncCfg *pSyncCfg);
+char   *syncCfg2Str(SSyncCfg *pSyncCfg);
+char   *syncCfg2SimpleStr(SSyncCfg *pSyncCfg);
 int32_t syncCfgFromJson(const cJSON *pRoot, SSyncCfg *pSyncCfg);
 int32_t syncCfgFromStr(const char *s, SSyncCfg *pSyncCfg);
 
-cJSON * raftCfg2Json(SRaftCfg *pRaftCfg);
-char *  raftCfg2Str(SRaftCfg *pRaftCfg);
+cJSON  *raftCfg2Json(SRaftCfg *pRaftCfg);
+char   *raftCfg2Str(SRaftCfg *pRaftCfg);
 int32_t raftCfgFromJson(const cJSON *pRoot, SRaftCfg *pRaftCfg);
 int32_t raftCfgFromStr(const char *s, SRaftCfg *pRaftCfg);
 
@@ -71,6 +73,7 @@ void syncCfgPrint(SSyncCfg *pCfg);
 void syncCfgPrint2(char *s, SSyncCfg *pCfg);
 void syncCfgLog(SSyncCfg *pCfg);
 void syncCfgLog2(char *s, SSyncCfg *pCfg);
+void syncCfgLog3(char *s, SSyncCfg *pCfg);
 
 void raftCfgPrint(SRaftCfg *pCfg);
 void raftCfgPrint2(char *s, SRaftCfg *pCfg);

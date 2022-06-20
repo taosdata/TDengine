@@ -22,41 +22,52 @@ static int32_t      getExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplain
 
 static void destroyOrderOperatorInfo(void* param, int32_t numOfOutput);
 
-SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSDataBlock* pResBlock, SArray* pSortInfo,
-                                      SExprInfo* pExprInfo, int32_t numOfCols, SArray* pColMatchColInfo,
-                                      SExecTaskInfo* pTaskInfo) {
+SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortPhyNode, SExecTaskInfo* pTaskInfo) {
   SSortOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SSortOperatorInfo));
   SOperatorInfo*     pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
-  int32_t            rowSize = pResBlock->info.rowSize;
-
-  if (pInfo == NULL || pOperator == NULL || rowSize > 100 * 1024 * 1024) {
+  if (pInfo == NULL || pOperator == NULL/* || rowSize > 100 * 1024 * 1024*/) {
     goto _error;
   }
 
-  pOperator->pExpr = pExprInfo;
-  pOperator->numOfExprs = numOfCols;
-  pInfo->binfo.pCtx = createSqlFunctionCtx(pExprInfo, numOfCols, &pInfo->binfo.rowCellInfoOffset);
+  SDataBlockDescNode* pDescNode = pSortPhyNode->node.pOutputDataBlockDesc;
+
+  int32_t      numOfCols = 0;
+  SSDataBlock* pResBlock = createResDataBlock(pDescNode);
+  SExprInfo*   pExprInfo = createExprInfo(pSortPhyNode->pExprs, NULL, &numOfCols);
+
+  int32_t numOfOutputCols = 0;
+  SArray* pColMatchColInfo =
+      extractColMatchInfo(pSortPhyNode->pTargets, pDescNode, &numOfOutputCols, COL_MATCH_FROM_SLOT_ID);
+
+  pOperator->exprSupp.pCtx = createSqlFunctionCtx(pExprInfo, numOfCols, &pOperator->exprSupp.rowEntryInfoOffset);
   pInfo->binfo.pRes = pResBlock;
 
   initResultSizeInfo(pOperator, 1024);
 
-  pInfo->pSortInfo        = pSortInfo;
+  pInfo->pSortInfo        = createSortInfo(pSortPhyNode->pSortKeys);;
   pInfo->pColMatchInfo    = pColMatchColInfo;
   pOperator->name         = "SortOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_SORT;
   pOperator->blocking     = true;
   pOperator->status       = OP_NOT_OPENED;
   pOperator->info         = pInfo;
+  pOperator->exprSupp.pExprInfo        = pExprInfo;
+  pOperator->exprSupp.numOfExprs   = numOfCols;
+  pOperator->pTaskInfo    = pTaskInfo;
 
   // lazy evaluation for the following parameter since the input datablock is not known till now.
-  //  pInfo->bufPageSize  = rowSize < 1024 ? 1024 * 2 : rowSize * 2;  // there are headers, so pageSize = rowSize +
-  //  header pInfo->sortBufSize  = pInfo->bufPageSize * 16;  // TODO dynamic set the available sort buffer
+  //  pInfo->bufPageSize  = rowSize < 1024 ? 1024 * 2 : rowSize * 2;
+  //  there are headers, so pageSize = rowSize + header pInfo->sortBufSize  = pInfo->bufPageSize * 16;
+  // TODO dynamic set the available sort buffer
 
-  pOperator->pTaskInfo = pTaskInfo;
   pOperator->fpSet = createOperatorFpSet(doOpenSortOperator, doSort, NULL, NULL, destroyOrderOperatorInfo, NULL, NULL,
                                          getExplainExecInfo);
 
   int32_t code = appendDownstream(pOperator, &downstream, 1);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
   return pOperator;
 
 _error:
@@ -134,9 +145,9 @@ SSDataBlock* loadNextDataBlock(void* param) {
 void applyScalarFunction(SSDataBlock* pBlock, void* param) {
   SOperatorInfo*     pOperator = param;
   SSortOperatorInfo* pSort = pOperator->info;
-  if (pOperator->pExpr != NULL) {
+  if (pOperator->exprSupp.pExprInfo != NULL) {
     int32_t code =
-        projectApplyFunctions(pOperator->pExpr, pBlock, pBlock, pSort->binfo.pCtx, pOperator->numOfExprs, NULL);
+        projectApplyFunctions(pOperator->exprSupp.pExprInfo, pBlock, pBlock, pOperator->exprSupp.pCtx, pOperator->exprSupp.numOfExprs, NULL);
     if (code != TSDB_CODE_SUCCESS) {
       longjmp(pOperator->pTaskInfo->env, code);
     }
@@ -154,7 +165,7 @@ int32_t doOpenSortOperator(SOperatorInfo* pOperator) {
   pInfo->startTs = taosGetTimestampUs();
 
   //  pInfo->binfo.pRes is not equalled to the input datablock.
-  pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, pInfo->pColMatchInfo, SORT_SINGLESOURCE_SORT, -1, -1,
+  pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_SINGLESOURCE_SORT, -1, -1,
                                              NULL, pTaskInfo->id.str);
 
   tsortSetFetchRawDataFp(pInfo->pSortHandle, loadNextDataBlock, applyScalarFunction, pOperator);
@@ -248,7 +259,7 @@ int32_t doOpenMultiwaySortMergeOperator(SOperatorInfo* pOperator) {
 
   int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
 
-  pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, pInfo->pColMatchInfo, SORT_MULTISOURCE_MERGE,
+  pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_MULTISOURCE_MERGE,
                                              pInfo->bufPageSize, numOfBufPage, pInfo->pInputBlock, pTaskInfo->id.str);
 
   tsortSetFetchRawDataFp(pInfo->pSortHandle, loadNextDataBlock, NULL, NULL);

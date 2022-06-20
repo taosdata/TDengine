@@ -150,6 +150,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SDropTopicStmt));
     case QUERY_NODE_DROP_CGROUP_STMT:
       return makeNode(type, sizeof(SDropCGroupStmt));
+    case QUERY_NODE_ALTER_LOCAL_STMT:
+      return makeNode(type, sizeof(SAlterLocalStmt));
     case QUERY_NODE_EXPLAIN_STMT:
       return makeNode(type, sizeof(SExplainStmt));
     case QUERY_NODE_DESCRIBE_STMT:
@@ -206,11 +208,15 @@ SNode* nodesMakeNode(ENodeType type) {
     case QUERY_NODE_SHOW_APPS_STMT:
     case QUERY_NODE_SHOW_SCORES_STMT:
     case QUERY_NODE_SHOW_VARIABLE_STMT:
-    case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
-    case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
-    case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
       return makeNode(type, sizeof(SShowStmt));
+    case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
+      return makeNode(type, sizeof(SShowCreateDatabaseStmt));
+    case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
+    case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
+      return makeNode(type, sizeof(SShowCreateTableStmt));
+    case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
+      return makeNode(type, sizeof(SShowTableDistributedStmt));
     case QUERY_NODE_KILL_QUERY_STMT:
       return makeNode(type, sizeof(SKillQueryStmt));
     case QUERY_NODE_KILL_TRANSACTION_STMT:
@@ -244,6 +250,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SPartitionLogicNode));
     case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC:
       return makeNode(type, sizeof(SIndefRowsFuncLogicNode));
+    case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
+      return makeNode(type, sizeof(SInterpFuncLogicNode));
     case QUERY_NODE_LOGIC_SUBPLAN:
       return makeNode(type, sizeof(SLogicSubplan));
     case QUERY_NODE_LOGIC_PLAN:
@@ -260,6 +268,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SStreamScanPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
       return makeNode(type, sizeof(SSystemTableScanPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN:
+      return makeNode(type, sizeof(SBlockDistScanPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       return makeNode(type, sizeof(SProjectPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN:
@@ -300,6 +310,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SPartitionPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC:
       return makeNode(type, sizeof(SIndefRowsFuncPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
+      return makeNode(type, sizeof(SInterpFuncLogicNode));
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       return makeNode(type, sizeof(SDataDispatcherNode));
     case QUERY_NODE_PHYSICAL_PLAN_INSERT:
@@ -344,6 +356,7 @@ static void destroyWinodwPhysiNode(SWinodwPhysiNode* pNode) {
   nodesDestroyList(pNode->pExprs);
   nodesDestroyList(pNode->pFuncs);
   nodesDestroyNode(pNode->pTspk);
+  nodesDestroyNode(pNode->pTsEnd);
 }
 
 static void destroyScanPhysiNode(SScanPhysiNode* pNode) {
@@ -517,6 +530,7 @@ void nodesDestroyNode(SNode* pNode) {
       SCreateSubTableClause* pStmt = (SCreateSubTableClause*)pNode;
       nodesDestroyList(pStmt->pSpecificTags);
       nodesDestroyList(pStmt->pValsOfTags);
+      nodesDestroyNode((SNode*)pStmt->pOptions);
       break;
     }
     case QUERY_NODE_CREATE_MULTI_TABLE_STMT:
@@ -624,18 +638,23 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_APPS_STMT:
     case QUERY_NODE_SHOW_SCORES_STMT:
     case QUERY_NODE_SHOW_VARIABLE_STMT:
-    case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
-    case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
-    case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT: {
       SShowStmt* pStmt = (SShowStmt*)pNode;
       nodesDestroyNode(pStmt->pDbName);
-      nodesDestroyNode(pStmt->pTbNamePattern);
+      nodesDestroyNode(pStmt->pTbName);
       break;
     }
-    case QUERY_NODE_KILL_CONNECTION_STMT:   // no pointer field
-    case QUERY_NODE_KILL_QUERY_STMT:        // no pointer field
-    case QUERY_NODE_KILL_TRANSACTION_STMT:  // no pointer field
+    case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
+      taosMemoryFreeClear(((SShowCreateDatabaseStmt*)pNode)->pCfg);
+      break;
+    case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
+    case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
+      taosMemoryFreeClear(((SShowCreateTableStmt*)pNode)->pMeta);
+      break;
+    case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:  // no pointer field
+    case QUERY_NODE_KILL_CONNECTION_STMT:         // no pointer field
+    case QUERY_NODE_KILL_QUERY_STMT:              // no pointer field
+    case QUERY_NODE_KILL_TRANSACTION_STMT:        // no pointer field
       break;
     case QUERY_NODE_DELETE_STMT: {
       SDeleteStmt* pStmt = (SDeleteStmt*)pNode;
@@ -705,6 +724,7 @@ void nodesDestroyNode(SNode* pNode) {
       destroyLogicNode((SLogicNode*)pLogicNode);
       nodesDestroyList(pLogicNode->pFuncs);
       nodesDestroyNode(pLogicNode->pTspk);
+      nodesDestroyNode(pLogicNode->pTsEnd);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_FILL: {
@@ -729,7 +749,13 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC: {
       SIndefRowsFuncLogicNode* pLogicNode = (SIndefRowsFuncLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
-      nodesDestroyList(pLogicNode->pVectorFuncs);
+      nodesDestroyList(pLogicNode->pFuncs);
+      break;
+    }
+    case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC: {
+      SInterpFuncLogicNode* pLogicNode = (SInterpFuncLogicNode*)pNode;
+      destroyLogicNode((SLogicNode*)pLogicNode);
+      nodesDestroyList(pLogicNode->pFuncs);
       break;
     }
     case QUERY_NODE_LOGIC_SUBPLAN: {
@@ -748,6 +774,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN:
       destroyScanPhysiNode((SScanPhysiNode*)pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT: {
@@ -831,7 +858,14 @@ void nodesDestroyNode(SNode* pNode) {
       SIndefRowsFuncPhysiNode* pPhyNode = (SIndefRowsFuncPhysiNode*)pNode;
       destroyPhysiNode((SPhysiNode*)pPhyNode);
       nodesDestroyList(pPhyNode->pExprs);
-      nodesDestroyList(pPhyNode->pVectorFuncs);
+      nodesDestroyList(pPhyNode->pFuncs);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC: {
+      SInterpFuncPhysiNode* pPhyNode = (SInterpFuncPhysiNode*)pNode;
+      destroyPhysiNode((SPhysiNode*)pPhyNode);
+      nodesDestroyList(pPhyNode->pExprs);
+      nodesDestroyList(pPhyNode->pFuncs);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:

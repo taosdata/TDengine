@@ -261,9 +261,9 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
   relocateColumnData(pBlock, pTableScanInfo->pColMatchInfo, pCols);
 
   // currently only the tbname pseudo column
-  if (pTableScanInfo->numOfPseudoExpr > 0) {
-    addTagPseudoColumnData(&pTableScanInfo->readHandle, pTableScanInfo->pPseudoExpr, pTableScanInfo->numOfPseudoExpr,
-                           pBlock);
+  if (pTableScanInfo->pseudoSup.numOfExprs > 0) {
+    SExprSupp* pSup = &pTableScanInfo->pseudoSup;
+    addTagPseudoColumnData(&pTableScanInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pBlock);
   }
 
   int64_t st = taosGetTimestampMs();
@@ -496,18 +496,6 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
   return NULL;
 }
 
-SInterval extractIntervalInfo(const STableScanPhysiNode* pTableScanNode) {
-  SInterval interval = {
-      .interval = pTableScanNode->interval,
-      .sliding = pTableScanNode->sliding,
-      .intervalUnit = pTableScanNode->intervalUnit,
-      .slidingUnit = pTableScanNode->slidingUnit,
-      .offset = pTableScanNode->offset,
-  };
-
-  return interval;
-}
-
 static int32_t getTableScannerExecInfo(struct SOperatorInfo* pOptr, void** pOptrExplain, uint32_t* len) {
   SFileBlockLoadRecorder* pRecorder = taosMemoryCalloc(1, sizeof(SFileBlockLoadRecorder));
   STableScanInfo*         pTableScanInfo = pOptr->info;
@@ -520,7 +508,7 @@ static int32_t getTableScannerExecInfo(struct SOperatorInfo* pOptr, void** pOptr
 static void destroyTableScanOperatorInfo(void* param, int32_t numOfOutput) {
   STableScanInfo* pTableScanInfo = (STableScanInfo*)param;
   blockDataDestroy(pTableScanInfo->pResBlock);
-  clearupQueryTableDataCond(&pTableScanInfo->cond);
+  cleanupQueryTableDataCond(&pTableScanInfo->cond);
 
   tsdbCleanupReadHandle(pTableScanInfo->dataReader);
 
@@ -542,8 +530,7 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   SDataBlockDescNode* pDescNode = pTableScanNode->scan.node.pOutputDataBlockDesc;
 
   int32_t numOfCols = 0;
-  SArray* pColList =
-      extractColMatchInfo(pTableScanNode->scan.pScanCols, pDescNode, &numOfCols, pTaskInfo, COL_MATCH_FROM_COL_ID);
+  SArray* pColList = extractColMatchInfo(pTableScanNode->scan.pScanCols, pDescNode, &numOfCols, COL_MATCH_FROM_COL_ID);
 
   int32_t code = initQueryTableDataCond(&pInfo->cond, pTableScanNode);
   if (code != TSDB_CODE_SUCCESS) {
@@ -551,8 +538,9 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   }
 
   if (pTableScanNode->scan.pScanPseudoCols != NULL) {
-    pInfo->pPseudoExpr = createExprInfo(pTableScanNode->scan.pScanPseudoCols, NULL, &pInfo->numOfPseudoExpr);
-    pInfo->pPseudoCtx = createSqlFunctionCtx(pInfo->pPseudoExpr, pInfo->numOfPseudoExpr, &pInfo->rowCellInfoOffset);
+    SExprSupp* pSup = &pInfo->pseudoSup;
+    pSup->pExprInfo = createExprInfo(pTableScanNode->scan.pScanPseudoCols, NULL, &pSup->numOfExprs);
+    pSup->pCtx = createSqlFunctionCtx(pSup->pExprInfo, pSup->numOfExprs, &pSup->rowEntryInfoOffset);
   }
 
   pInfo->scanInfo = (SScanInfo){.numOfAsc = pTableScanNode->scanSeq[0], .numOfDesc = pTableScanNode->scanSeq[1]};
@@ -576,7 +564,7 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   pOperator->blocking = false;
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
-  pOperator->numOfExprs = numOfCols;
+  pOperator->exprSupp.numOfExprs = numOfCols;
   pOperator->pTaskInfo = pTaskInfo;
 
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doTableScan, NULL, NULL, destroyTableScanOperatorInfo,
@@ -719,10 +707,10 @@ static bool prepareDataScan(SStreamBlockScanInfo* pInfo) {
       int64_t              gap = pInfo->sessionSup.gap;
       int32_t              winIndex = 0;
       SResultWindowInfo*   pCurWin =
-          getSessionTimeWindow(pAggSup, tsCols[pInfo->updateResIndex], pSDB->info.groupId, gap, &winIndex);
+          getSessionTimeWindow(pAggSup, tsCols[pInfo->updateResIndex], INT64_MIN, pSDB->info.groupId, gap, &winIndex);
       win = pCurWin->win;
       pInfo->updateResIndex +=
-          updateSessionWindowInfo(pCurWin, tsCols, pSDB->info.rows, pInfo->updateResIndex, gap, NULL);
+          updateSessionWindowInfo(pCurWin, tsCols, NULL, pSDB->info.rows, pInfo->updateResIndex, gap, NULL);
     } else {
       win = getActiveTimeWindow(NULL, &dumyInfo, tsCols[pInfo->updateResIndex], &pInfo->interval,
                                 pInfo->interval.precision, NULL);
@@ -1063,8 +1051,7 @@ SOperatorInfo* createStreamScanOperatorInfo(void* pDataReader, SReadHandle* pHan
   SDataBlockDescNode* pDescNode = pScanPhyNode->node.pOutputDataBlockDesc;
 
   int32_t numOfCols = 0;
-  pInfo->pColMatchInfo =
-      extractColMatchInfo(pScanPhyNode->pScanCols, pDescNode, &numOfCols, pTaskInfo, COL_MATCH_FROM_COL_ID);
+  pInfo->pColMatchInfo = extractColMatchInfo(pScanPhyNode->pScanCols, pDescNode, &numOfCols, COL_MATCH_FROM_COL_ID);
 
   int32_t numOfOutput = taosArrayGetSize(pInfo->pColMatchInfo);
   SArray* pColIds = taosArrayInit(numOfOutput, sizeof(int16_t));
@@ -1089,7 +1076,7 @@ SOperatorInfo* createStreamScanOperatorInfo(void* pDataReader, SReadHandle* pHan
     goto _error;
   }
 
-  if (pDataReader) {
+  if (pHandle) {
     SOperatorInfo*  pTableScanDummy = createTableScanOperatorInfo(pTableScanNode, pDataReader, pHandle, pTaskInfo);
     STableScanInfo* pSTInfo = (STableScanInfo*)pTableScanDummy->info;
     if (pSTInfo->interval.interval > 0) {
@@ -1100,6 +1087,11 @@ SOperatorInfo* createStreamScanOperatorInfo(void* pDataReader, SReadHandle* pHan
     pInfo->pOperatorDumy = pTableScanDummy;
     pInfo->interval = pSTInfo->interval;
 
+    pInfo->readHandle = *pHandle;
+    ASSERT(pHandle->reader);
+    pInfo->streamBlockReader = pHandle->reader;
+    pInfo->tableUid = pScanPhyNode->uid;
+
     // set the extract column id to streamHandle
     tqReadHandleSetColIdList((STqReadHandle*)pHandle->reader, pColIds);
     SArray* tableIdList = extractTableIdList(&pTaskInfo->tableqinfoList);
@@ -1109,14 +1101,11 @@ SOperatorInfo* createStreamScanOperatorInfo(void* pDataReader, SReadHandle* pHan
       goto _error;
     }
     taosArrayDestroy(tableIdList);
-    pInfo->readHandle = *pHandle;
-    pInfo->streamBlockReader = pHandle->reader;
   }
 
   // create the pseduo columns info
   if (pTableScanNode->scan.pScanPseudoCols != NULL) {
     pInfo->pPseudoExpr = createExprInfo(pTableScanNode->scan.pScanPseudoCols, NULL, &pInfo->numOfPseudoExpr);
-    pInfo->tableUid = pScanPhyNode->uid;
   }
 
   pInfo->pRes = createResDataBlock(pDescNode);
@@ -1132,7 +1121,7 @@ SOperatorInfo* createStreamScanOperatorInfo(void* pDataReader, SReadHandle* pHan
   pOperator->blocking = false;
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
-  pOperator->numOfExprs = pInfo->pRes->info.numOfCols;
+  pOperator->exprSupp.numOfExprs = pInfo->pRes->info.numOfCols;
   pOperator->pTaskInfo = pTaskInfo;
 
   pOperator->fpSet =
@@ -1382,12 +1371,6 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
         pColInfoData = taosArrayGet(p->pDataBlock, 6);
         colDataAppend(pColInfoData, numOfRows, (char*)&vgId, false);
 
-        // table comment
-        // todo: set the correct comment
-        pColInfoData = taosArrayGet(p->pDataBlock, 8);
-        colDataAppendNULL(pColInfoData, numOfRows);
-
-        char    str[256] = {0};
         int32_t tableType = pInfo->pCur->mr.me.type;
         if (tableType == TSDB_CHILD_TABLE) {
           // create time
@@ -1404,10 +1387,24 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
           colDataAppend(pColInfoData, numOfRows, (char*)&mr.me.stbEntry.schemaRow.nCols, false);
 
           // super table name
-          STR_TO_VARSTR(str, mr.me.name);
+          STR_TO_VARSTR(n, mr.me.name);
           pColInfoData = taosArrayGet(p->pDataBlock, 4);
-          colDataAppend(pColInfoData, numOfRows, str, false);
+          colDataAppend(pColInfoData, numOfRows, n, false);
           metaReaderClear(&mr);
+
+          // table comment
+          pColInfoData = taosArrayGet(p->pDataBlock, 8);
+          if (pInfo->pCur->mr.me.ctbEntry.commentLen > 0) {
+            char comment[TSDB_TB_COMMENT_LEN + VARSTR_HEADER_SIZE] = {0};
+            STR_TO_VARSTR(comment, pInfo->pCur->mr.me.ctbEntry.comment);
+            colDataAppend(pColInfoData, numOfRows, comment, false);
+          } else if (pInfo->pCur->mr.me.ctbEntry.commentLen == 0) {
+            char comment[VARSTR_HEADER_SIZE + VARSTR_HEADER_SIZE] = {0};
+            STR_TO_VARSTR(comment, "");
+            colDataAppend(pColInfoData, numOfRows, comment, false);
+          } else {
+            colDataAppendNULL(pColInfoData, numOfRows);
+          }
 
           // uid
           pColInfoData = taosArrayGet(p->pDataBlock, 5);
@@ -1417,7 +1414,7 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
           pColInfoData = taosArrayGet(p->pDataBlock, 7);
           colDataAppend(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.ctbEntry.ttlDays, false);
 
-          STR_TO_VARSTR(str, "CHILD_TABLE");
+          STR_TO_VARSTR(n, "CHILD_TABLE");
         } else if (tableType == TSDB_NORMAL_TABLE) {
           // create time
           pColInfoData = taosArrayGet(p->pDataBlock, 2);
@@ -1431,6 +1428,20 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
           pColInfoData = taosArrayGet(p->pDataBlock, 4);
           colDataAppendNULL(pColInfoData, numOfRows);
 
+          // table comment
+          pColInfoData = taosArrayGet(p->pDataBlock, 8);
+          if (pInfo->pCur->mr.me.ntbEntry.commentLen > 0) {
+            char comment[TSDB_TB_COMMENT_LEN + VARSTR_HEADER_SIZE] = {0};
+            STR_TO_VARSTR(comment, pInfo->pCur->mr.me.ntbEntry.comment);
+            colDataAppend(pColInfoData, numOfRows, comment, false);
+          } else if (pInfo->pCur->mr.me.ntbEntry.commentLen == 0) {
+            char comment[VARSTR_HEADER_SIZE + VARSTR_HEADER_SIZE] = {0};
+            STR_TO_VARSTR(comment, "");
+            colDataAppend(pColInfoData, numOfRows, comment, false);
+          } else {
+            colDataAppendNULL(pColInfoData, numOfRows);
+          }
+
           // uid
           pColInfoData = taosArrayGet(p->pDataBlock, 5);
           colDataAppend(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.uid, false);
@@ -1439,11 +1450,11 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
           pColInfoData = taosArrayGet(p->pDataBlock, 7);
           colDataAppend(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.ntbEntry.ttlDays, false);
 
-          STR_TO_VARSTR(str, "NORMAL_TABLE");
+          STR_TO_VARSTR(n, "NORMAL_TABLE");
         }
 
         pColInfoData = taosArrayGet(p->pDataBlock, 9);
-        colDataAppend(pColInfoData, numOfRows, str, false);
+        colDataAppend(pColInfoData, numOfRows, n, false);
 
         if (++numOfRows >= pOperator->resultInfo.capacity) {
           break;
@@ -1526,8 +1537,8 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
         }
       }
 
-      setDataBlockFromFetchRsp(pInfo->pRes, &pInfo->loadInfo, pRsp->numOfRows, pRsp->data, pRsp->compLen,
-                               pOperator->numOfExprs, startTs, NULL, pInfo->scanCols);
+      extractDataBlockFromFetchRsp(pInfo->pRes, &pInfo->loadInfo, pRsp->numOfRows, pRsp->data, pRsp->compLen,
+                                   pOperator->exprSupp.numOfExprs, startTs, NULL, pInfo->scanCols);
 
       // todo log the filter info
       doFilterResult(pInfo);
@@ -1615,7 +1626,7 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScan
   SSDataBlock*        pResBlock = createResDataBlock(pDescNode);
 
   int32_t num = 0;
-  SArray* colList = extractColMatchInfo(pScanNode->pScanCols, pDescNode, &num, pTaskInfo, COL_MATCH_FROM_COL_ID);
+  SArray* colList = extractColMatchInfo(pScanNode->pScanCols, pDescNode, &num, COL_MATCH_FROM_COL_ID);
 
   pInfo->accountId = pScanPhyNode->accountId;
   pInfo->showRewrite = pScanPhyNode->showRewrite;
@@ -1642,7 +1653,7 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScan
   pOperator->blocking = false;
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
-  pOperator->numOfExprs = pResBlock->info.numOfCols;
+  pOperator->exprSupp.numOfExprs = pResBlock->info.numOfCols;
   pOperator->pTaskInfo = pTaskInfo;
 
   pOperator->fpSet =
@@ -1673,11 +1684,11 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
   int32_t count = 0;
   SArray* pa = GET_TABLEGROUP(pRuntimeEnv, 0);
 
-  int32_t functionId = getExprFunctionId(&pOperator->pExpr[0]);
+  int32_t functionId = getExprFunctionId(&pOperator->exprSupp.pExprInfo[0]);
   if (functionId == FUNCTION_TID_TAG) { // return the tags & table Id
     assert(pQueryAttr->numOfOutput == 1);
 
-    SExprInfo* pExprInfo = &pOperator->pExpr[0];
+    SExprInfo* pExprInfo = &pOperator->exprSupp.pExprInfo[0];
     int32_t rsize = pExprInfo->base.resSchema.bytes;
 
     count = 0;
@@ -1740,7 +1751,7 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
 #endif
 
   STagScanInfo* pInfo = pOperator->info;
-  SExprInfo*    pExprInfo = &pOperator->pExpr[0];
+  SExprInfo*    pExprInfo = &pOperator->exprSupp.pExprInfo[0];
   SSDataBlock*  pRes = pInfo->pRes;
 
   int32_t size = taosArrayGetSize(pInfo->pTableList->pTableList);
@@ -1758,7 +1769,7 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
     STableKeyInfo* item = taosArrayGet(pInfo->pTableList->pTableList, pInfo->curPos);
     metaGetTableEntryByUid(&mr, item->uid);
 
-    for (int32_t j = 0; j < pOperator->numOfExprs; ++j) {
+    for (int32_t j = 0; j < pOperator->exprSupp.numOfExprs; ++j) {
       SColumnInfoData* pDst = taosArrayGet(pRes->pDataBlock, pExprInfo[j].base.resSchema.slotId);
 
       // refactor later
@@ -1821,26 +1832,25 @@ SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysi
 
   SDataBlockDescNode* pDescNode = pPhyNode->node.pOutputDataBlockDesc;
 
+  int32_t    num = 0;
   int32_t    numOfExprs = 0;
   SExprInfo* pExprInfo = createExprInfo(pPhyNode->pScanPseudoCols, NULL, &numOfExprs);
-
-  int32_t num = 0;
-  SArray* colList = extractColMatchInfo(pPhyNode->pScanPseudoCols, pDescNode, &num, pTaskInfo, COL_MATCH_FROM_COL_ID);
+  SArray*    colList = extractColMatchInfo(pPhyNode->pScanPseudoCols, pDescNode, &num, COL_MATCH_FROM_COL_ID);
 
   pInfo->pTableList = pTableListInfo;
   pInfo->pColMatchInfo = colList;
   pInfo->pRes = createResDataBlock(pDescNode);
-  ;
   pInfo->readHandle = *pReadHandle;
   pInfo->curPos = 0;
   pInfo->pFilterNode = pPhyNode->node.pConditions;
+
   pOperator->name = "TagScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN;
   pOperator->blocking = false;
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
-  pOperator->pExpr = pExprInfo;
-  pOperator->numOfExprs = numOfExprs;
+  pOperator->exprSupp.pExprInfo = pExprInfo;
+  pOperator->exprSupp.numOfExprs = numOfExprs;
   pOperator->pTaskInfo = pTaskInfo;
 
   initResultSizeInfo(pOperator, 4096);
@@ -1885,7 +1895,7 @@ typedef struct STableMergeScanInfo {
   SNode*          pFilterNode;  // filter info, which is push down by optimizer
   SqlFunctionCtx* pCtx;         // which belongs to the direct upstream operator operator query context
   SResultRowInfo* pResultRowInfo;
-  int32_t*        rowCellInfoOffset;
+  int32_t*        rowEntryInfoOffset;
   SExprInfo*      pExpr;
   SSDataBlock*    pResBlock;
   SArray*         pColMatchInfo;
@@ -1894,7 +1904,7 @@ typedef struct STableMergeScanInfo {
   SExprInfo*      pPseudoExpr;
   int32_t         numOfPseudoExpr;
   SqlFunctionCtx* pPseudoCtx;
-  //  int32_t*        rowCellInfoOffset;
+  //  int32_t*        rowEntryInfoOffset;
 
   SQueryTableDataCond cond;
   int32_t             scanFlag;  // table scan flag to denote if it is a repeat/reverse/main scan
@@ -1910,8 +1920,7 @@ typedef struct STableMergeScanInfo {
 int32_t createMultipleDataReaders(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle,
                                   STableListInfo* pTableListInfo, SArray* arrayReader, uint64_t queryId,
                                   uint64_t taskId, SNode* pTagCond) {
-  int32_t code =
-      getTableList(pHandle->meta, pTableScanNode->scan.tableType, pTableScanNode->scan.uid, pTableListInfo, pTagCond);
+  int32_t code = getTableList(pHandle->meta, &pTableScanNode->scan, pTableListInfo, pTagCond);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -1938,7 +1947,7 @@ int32_t createMultipleDataReaders(STableScanPhysiNode* pTableScanNode, SReadHand
     taosArrayDestroy(subListInfo->pTableList);
     taosMemoryFree(subListInfo);
   }
-  clearupQueryTableDataCond(&cond);
+  cleanupQueryTableDataCond(&cond);
 
   return 0;
 
@@ -2135,9 +2144,8 @@ int32_t doOpenTableMergeScanOperator(SOperatorInfo* pOperator) {
 
   int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
 
-  pInfo->pSortHandle =
-      tsortCreateSortHandle(pInfo->pSortInfo, pInfo->pColMatchInfo, SORT_MULTISOURCE_MERGE, pInfo->bufPageSize,
-                            numOfBufPage, pInfo->pSortInputBlock, pTaskInfo->id.str);
+  pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_MULTISOURCE_MERGE, pInfo->bufPageSize, numOfBufPage,
+                                             pInfo->pSortInputBlock, pTaskInfo->id.str);
 
   tsortSetFetchRawDataFp(pInfo->pSortHandle, getTableDataBlock, NULL, NULL);
 
@@ -2213,7 +2221,7 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
 
 void destroyTableMergeScanOperatorInfo(void* param, int32_t numOfOutput) {
   STableMergeScanInfo* pTableScanInfo = (STableMergeScanInfo*)param;
-  clearupQueryTableDataCond(&pTableScanInfo->cond);
+  cleanupQueryTableDataCond(&pTableScanInfo->cond);
 
   for (int32_t i = 0; i < taosArrayGetSize(pTableScanInfo->dataReaders); ++i) {
     tsdbReaderT* reader = taosArrayGetP(pTableScanInfo->dataReaders, i);
@@ -2262,8 +2270,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
   SDataBlockDescNode* pDescNode = pTableScanNode->scan.node.pOutputDataBlockDesc;
 
   int32_t numOfCols = 0;
-  SArray* pColList =
-      extractColMatchInfo(pTableScanNode->scan.pScanCols, pDescNode, &numOfCols, pTaskInfo, COL_MATCH_FROM_COL_ID);
+  SArray* pColList = extractColMatchInfo(pTableScanNode->scan.pScanCols, pDescNode, &numOfCols, COL_MATCH_FROM_COL_ID);
 
   int32_t code = initQueryTableDataCond(&pInfo->cond, pTableScanNode);
   if (code != TSDB_CODE_SUCCESS) {
@@ -2272,7 +2279,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
 
   if (pTableScanNode->scan.pScanPseudoCols != NULL) {
     pInfo->pPseudoExpr = createExprInfo(pTableScanNode->scan.pScanPseudoCols, NULL, &pInfo->numOfPseudoExpr);
-    pInfo->pPseudoCtx = createSqlFunctionCtx(pInfo->pPseudoExpr, pInfo->numOfPseudoExpr, &pInfo->rowCellInfoOffset);
+    pInfo->pPseudoCtx = createSqlFunctionCtx(pInfo->pPseudoExpr, pInfo->numOfPseudoExpr, &pInfo->rowEntryInfoOffset);
   }
 
   pInfo->scanInfo = (SScanInfo){.numOfAsc = pTableScanNode->scanSeq[0], .numOfDesc = pTableScanNode->scanSeq[1]};
@@ -2318,7 +2325,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
   pOperator->blocking = false;
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
-  pOperator->numOfExprs = numOfCols;
+  pOperator->exprSupp.numOfExprs = numOfCols;
   pOperator->pTaskInfo = pTaskInfo;
   initResultSizeInfo(pOperator, 1024);
 

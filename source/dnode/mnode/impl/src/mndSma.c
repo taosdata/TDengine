@@ -530,7 +530,10 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   smaObj.dbUid = pStb->dbUid;
   smaObj.intervalUnit = pCreate->intervalUnit;
   smaObj.slidingUnit = pCreate->slidingUnit;
+#if 0
   smaObj.timezone = pCreate->timezone;
+#endif
+  smaObj.timezone = tsTimezone; // use timezone of server
   smaObj.interval = pCreate->interval;
   smaObj.offset = pCreate->offset;
   smaObj.sliding = pCreate->sliding;
@@ -609,7 +612,7 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   int32_t code = -1;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq);
   if (pTrans == NULL) goto _OVER;
-  mndTransSetDbName(pTrans, pDb->name);
+  mndTransSetDbName(pTrans, pDb->name, NULL);
   mndTransSetSerial(pTrans);
   mDebug("trans:%d, used to create sma:%s", pTrans->id, pCreate->name);
 
@@ -852,7 +855,7 @@ static int32_t mndDropSma(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SSmaObj *p
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to drop sma:%s", pTrans->id, pSma->name);
-  mndTransSetDbName(pTrans, pDb->name);
+  mndTransSetDbName(pTrans, pDb->name, NULL);
 
   if (mndSetDropSmaRedoLogs(pMnode, pTrans, pSma) != 0) goto _OVER;
   if (mndSetDropSmaVgroupRedoLogs(pMnode, pTrans, pVgroup) != 0) goto _OVER;
