@@ -43,7 +43,7 @@ static int32_t mndAddTaskToTaskSet(SArray* pArray, SStreamTask* pTask) {
 }
 
 int32_t mndConvertRsmaTask(char** pDst, int32_t* pDstLen, const char* ast, int64_t uid, int8_t triggerType,
-                           int64_t watermark, double filesFactor) {
+                           int64_t watermark) {
   SNode*      pAst = NULL;
   SQueryPlan* pPlan = NULL;
   terrno = TSDB_CODE_SUCCESS;
@@ -63,9 +63,8 @@ int32_t mndConvertRsmaTask(char** pDst, int32_t* pDstLen, const char* ast, int64
       .topicQuery = false,
       .streamQuery = true,
       .rSmaQuery = true,
-      .triggerType = STREAM_TRIGGER_AT_ONCE,
+      .triggerType = triggerType,
       .watermark = watermark,
-      /*.filesFactor = filesFactor,*/
   };
 
   if (qCreateQueryPlan(&cxt, &pPlan, NULL) < 0) {
@@ -270,7 +269,6 @@ int32_t mndAddShuffleSinkTasksToStream(SMnode* pMnode, STrans* pTrans, SStreamOb
     pTask->epSet = mndGetVgroupEpset(pMnode, pVgroup);
 
     // source
-    pTask->sourceType = TASK_SOURCE__MERGE;
     pTask->inputType = TASK_INPUT_TYPE__DATA_BLOCK;
 
     // exec
@@ -316,7 +314,6 @@ int32_t mndAddFixedSinkTaskToStream(SMnode* pMnode, STrans* pTrans, SStreamObj* 
 #endif
   pTask->epSet = mndGetVgroupEpset(pMnode, &pStream->fixedSinkVg);
   // source
-  pTask->sourceType = TASK_SOURCE__MERGE;
   pTask->inputType = TASK_INPUT_TYPE__DATA_BLOCK;
 
   // exec
@@ -427,6 +424,8 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
       SStreamTask* pTask = tNewSStreamTask(pStream->uid);
       mndAddTaskToTaskSet(taskSourceLevel, pTask);
 
+      pTask->dataScan = 1;
+
       // input
       pTask->inputType = TASK_INPUT_TYPE__SUMBIT_BLOCK;
 
@@ -469,6 +468,8 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
       }
       SStreamTask* pTask = tNewSStreamTask(pStream->uid);
       mndAddTaskToTaskSet(taskOneLevel, pTask);
+
+      pTask->dataScan = 1;
 
       // input
       pTask->inputType = TASK_INPUT_TYPE__SUMBIT_BLOCK;

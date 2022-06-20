@@ -804,7 +804,7 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
       sendRsp = true;
     }
   } else {
-    if (pTrans->stage == TRN_STAGE_REDO_ACTION && pTrans->failedTimes > 2) {
+    if (pTrans->stage == TRN_STAGE_REDO_ACTION && pTrans->failedTimes > 3) {
       if (code == 0) code = TSDB_CODE_MND_TRANS_UNKNOW_ERROR;
       sendRsp = true;
     }
@@ -1127,6 +1127,7 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
     }
 
     if (code == 0) {
+      pTrans->failedTimes = 0;
       pTrans->lastAction = action;
       pTrans->lastMsgType = 0;
       pTrans->lastErrorNo = 0;
@@ -1430,8 +1431,7 @@ void mndTransPullup(SMnode *pMnode) {
     mndReleaseTrans(pMnode, pTrans);
   }
 
-  // todo, set to SDB_WRITE_DELTA
-  sdbWriteFile(pMnode->pSdb, 0);
+  sdbWriteFile(pMnode->pSdb, SDB_WRITE_DELTA);
   taosArrayDestroy(pArray);
 }
 

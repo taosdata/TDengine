@@ -972,6 +972,11 @@ void releaseUdfFuncHandle(char* udfName) {
 }
 
 int32_t cleanUpUdfs() {
+  int8_t initialized = atomic_load_8(&gUdfdProxy.initialized);
+  if (!initialized) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   uv_mutex_lock(&gUdfdProxy.udfStubsMutex);
   int32_t i = 0;
   SArray* udfStubs = taosArrayInit(16, sizeof(SUdfcFuncStub));

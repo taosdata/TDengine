@@ -106,6 +106,9 @@ typedef struct SInterpFuncLogicNode {
   SNodeList*  pFuncs;
   STimeWindow timeRange;
   int64_t     interval;
+  EFillMode   fillMode;
+  SNode*      pFillValues;  // SNodeListNode
+  SNode*      pTimeSeries;  // SColumnNode
 } SInterpFuncLogicNode;
 
 typedef enum EModifyTableType { MODIFY_TABLE_TYPE_INSERT = 1, MODIFY_TABLE_TYPE_DELETE } EModifyTableType;
@@ -309,6 +312,9 @@ typedef struct SInterpFuncPhysiNode {
   SNodeList*  pFuncs;
   STimeWindow timeRange;
   int64_t     interval;
+  EFillMode   fillMode;
+  SNode*      pFillValues;  // SNodeListNode
+  SNode*      pTimeSeries;  // SColumnNode
 } SInterpFuncPhysiNode;
 
 typedef struct SJoinPhysiNode {

@@ -11,13 +11,20 @@
 
 # -*- coding: utf-8 -*-
 
+from collections import defaultdict
 import random
 import string
-from util.sql import tdSql
-from util.dnodes import tdDnodes
 import requests
 import time
 import socket
+
+import taos
+from util.log import *
+from util.sql import *
+from util.cases import *
+from util.dnodes import *
+from util.common import *
+
 class TDCom:
     def init(self, conn, logSql):
         tdSql.init(conn.cursor(), logSql)
@@ -169,5 +176,123 @@ class TDCom:
 
     def close(self):
         self.cursor.close()
+
+    def create_database(self,tsql, dbName='test',dropFlag=1,precision="ms", **kwargs):
+        if dropFlag == 1:
+            tsql.execute("drop database if exists %s"%(dbName))
+        '''
+        vgroups replica precision strict wal fsync comp cachelast single_stable buffer pagesize pages minrows maxrows duration keep retentions
+        '''
+        sqlString = f'create database if not exists {dbName} precision "{precision}" vgroups 4'
+        if len(kwargs) > 0:
+            dbParams = ""
+            for param, value in kwargs.items():
+                dbParams += f'{param} {value} '
+            sqlString += f'{dbParams}'
+
+        tsql.execute(sqlString)
+        tdLog.debug("complete to create database %s"%(dbName))
+        return
+
+    def create_stable(self,tsql, dbName,stbName,columnDict,tagDict):
+        colSchema = ''
+        for i in range(columnDict['int']):
+            colSchema += ', c%d int'%i
+        tagSchema = ''
+        for i in range(tagDict['int']):
+            if i > 0:
+                tagSchema += ','
+            tagSchema += 't%d int'%i
+
+        tsql.execute("create table if not exists %s.%s (ts timestamp %s) tags(%s)"%(dbName, stbName, colSchema, tagSchema))
+        tdLog.debug("complete to create %s.%s" %(dbName, stbName))
+        return
+
+    def create_ctables(self,tsql, dbName,stbName,ctbNum,tagDict):
+        tsql.execute("use %s" %dbName)        
+        tagsValues = ''
+        for i in range(tagDict['int']):
+            if i > 0:
+                tagsValues += ','
+            tagsValues += '%d'%i
+
+        pre_create = "create table"
+        sql = pre_create
+        #tdLog.debug("doing create one  stable %s and %d  child table in %s  ..." %(stbname, count ,dbname))
+        for i in range(ctbNum):
+            sql += " %s_%d using %s tags(%s)"%(stbName,i,stbName,tagsValues)
+            if (i > 0) and (i%100 == 0):
+                tsql.execute(sql)
+                sql = pre_create
+        if sql != pre_create:
+            tsql.execute(sql)
+        
+        tdLog.debug("complete to create %d child tables in %s.%s" %(ctbNum, dbName, stbName))
+        return
+
+    def insert_data(self,tsql,dbName,stbName,ctbNum,rowsPerTbl,batchNum,startTs=0):
+        tdLog.debug("start to insert data ............")
+        tsql.execute("use %s" %dbName)
+        pre_insert = "insert into "
+        sql = pre_insert
+        if startTs == 0:
+            t = time.time()
+            startTs = int(round(t * 1000))
+        #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
+        for i in range(ctbNum):
+            sql += " %s_%d values "%(stbName,i)
+            for j in range(rowsPerTbl):
+                sql += "(%d, %d, %d)"%(startTs + j, j, j)
+                if (j > 0) and ((j%batchNum == 0) or (j == rowsPerTbl - 1)):
+                    tsql.execute(sql)
+                    if j < rowsPerTbl - 1:
+                        sql = "insert into %s_%d values " %(stbName,i)
+                    else:
+                        sql = "insert into "
+        #end sql
+        if sql != pre_insert:
+            #print("insert sql:%s"%sql)
+            tsql.execute(sql)
+        tdLog.debug("insert data ............ [OK]")
+        return
+        
+    def getBuildPath(self):
+        selfPath = os.path.dirname(os.path.realpath(__file__))
+
+        if ("community" in selfPath):
+            projPath = selfPath[:selfPath.find("community")]
+        else:
+            projPath = selfPath[:selfPath.find("tests")]
+
+        for root, dirs, files in os.walk(projPath):
+            if ("taosd" in files or "taosd.exe" in files):
+                rootRealPath = os.path.dirname(os.path.realpath(root))
+                if ("packaging" not in rootRealPath):
+                    buildPath = root[:len(root) - len("/build/bin")]
+                    break
+        return buildPath        
+
+    def getClientCfgPath(self):
+        buildPath = self.getBuildPath()
+        if (buildPath == ""):
+            tdLog.exit("taosd not found!")
+        else:
+            tdLog.info("taosd found in %s" % buildPath)
+        cfgPath = buildPath + "/../sim/psim/cfg"
+        tdLog.info("cfgPath: %s" % cfgPath)
+        return cfgPath
+
+    def newcur(self,host='localhost',port=6030,user='root',password='taosdata'):
+        cfgPath = self.getClientCfgPath()
+        con=taos.connect(host=host, user=user, password=password, config=cfgPath, port=port)
+        cur=con.cursor()
+        print(cur)
+        return cur
+
+    def newTdSql(self, host='localhost',port=6030,user='root',password='taosdata'):
+        newTdSql = TDSql()
+        cur = self.newcur(host=host,port=port,user=user,password=password)
+        newTdSql.init(cur, False)
+        return newTdSql
 
 tdCom = TDCom()
