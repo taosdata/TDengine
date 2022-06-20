@@ -25,6 +25,13 @@ int32_t mndPreProcessMsg(SRpcMsg *pMsg) {
   return qWorkerPreprocessQueryMsg(pMnode->pQuery, pMsg);
 }
 
+void mndAbortPreprocessMsg(SRpcMsg *pMsg) {
+  if (TDMT_VND_QUERY != pMsg->msgType) return;
+
+  SMnode *pMnode = pMsg->info.node;
+  qWorkerAbortPreprocessQueryMsg(pMnode->pQuery, pMsg);
+}
+
 int32_t mndProcessQueryMsg(SRpcMsg *pMsg) {
   int32_t     code = -1;
   SMnode     *pMnode = pMsg->info.node;

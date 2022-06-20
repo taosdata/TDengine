@@ -877,6 +877,12 @@ static int32_t createInterpFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pCh
   if (TSDB_CODE_SUCCESS == code) {
     pInterpFunc->timeRange = pFuncLogicNode->timeRange;
     pInterpFunc->interval = pFuncLogicNode->interval;
+    pInterpFunc->fillMode = pFuncLogicNode->fillMode;
+    pInterpFunc->pFillValues = nodesCloneNode(pFuncLogicNode->pFillValues);
+    pInterpFunc->pTimeSeries = nodesCloneNode(pFuncLogicNode->pTimeSeries);
+    if (NULL == pInterpFunc->pTimeSeries || (NULL != pFuncLogicNode->pFillValues && NULL == pInterpFunc->pFillValues)) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
   }
 
   if (TSDB_CODE_SUCCESS == code) {
