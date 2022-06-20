@@ -1481,11 +1481,13 @@ int32_t minMaxCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx, int3
     if (pSBuf->assign && ((((*(double*)&pDBuf->v) < (*(double*)&pSBuf->v)) ^ isMinFunc) || !pDBuf->assign)) {
       *(double*)&pDBuf->v = *(double*)&pSBuf->v;
       replaceTupleData(&pDBuf->tuplePos, &pSBuf->tuplePos);
+      pDBuf->assign = true;
     }
   } else {
     if (pSBuf->assign && (((pDBuf->v < pSBuf->v) ^ isMinFunc) || !pDBuf->assign)) {
       pDBuf->v = pSBuf->v;
       replaceTupleData(&pDBuf->tuplePos, &pSBuf->tuplePos);
+      pDBuf->assign = true;
     }
   }
   pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
@@ -1745,10 +1747,10 @@ int32_t stddevFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   if (IS_INTEGER_TYPE(type)) {
     avg = pStddevRes->isum / ((double)pStddevRes->count);
-    pStddevRes->result = sqrt(pStddevRes->quadraticISum / ((double)pStddevRes->count) - avg * avg);
+    pStddevRes->result = sqrt(fabs(pStddevRes->quadraticISum / ((double)pStddevRes->count) - avg * avg));
   } else {
     avg = pStddevRes->dsum / ((double)pStddevRes->count);
-    pStddevRes->result = sqrt(pStddevRes->quadraticDSum / ((double)pStddevRes->count) - avg * avg);
+    pStddevRes->result = sqrt(fabs(pStddevRes->quadraticDSum / ((double)pStddevRes->count) - avg * avg));
   }
 
   return functionFinalize(pCtx, pBlock);

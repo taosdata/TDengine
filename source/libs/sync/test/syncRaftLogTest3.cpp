@@ -54,7 +54,7 @@ void init() {
   pSyncNode->pWal = pWal;
 
   pSyncNode->pFsm = (SSyncFSM*)taosMemoryMalloc(sizeof(SSyncFSM));
-  pSyncNode->pFsm->FpGetSnapshot = GetSnapshotCb;
+  pSyncNode->pFsm->FpGetSnapshotInfo = GetSnapshotCb;
 }
 
 void cleanup() {
@@ -80,7 +80,7 @@ void test1() {
 
   bool      hasSnapshot = syncNodeHasSnapshot(pSyncNode);
   SSnapshot snapshot;
-  pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
+  pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
 
   SyncIndex lastIndex = syncNodeGetLastIndex(pSyncNode);
   SyncTerm  lastTerm = syncNodeGetLastTerm(pSyncNode);
@@ -146,7 +146,7 @@ void test2() {
 
   bool      hasSnapshot = syncNodeHasSnapshot(pSyncNode);
   SSnapshot snapshot;
-  pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
+  pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
 
   SyncIndex lastIndex = syncNodeGetLastIndex(pSyncNode);
   SyncTerm  lastTerm = syncNodeGetLastTerm(pSyncNode);
@@ -203,7 +203,7 @@ void test3() {
 
   bool      hasSnapshot = syncNodeHasSnapshot(pSyncNode);
   SSnapshot snapshot;
-  pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
+  pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
 
   SyncIndex lastIndex = syncNodeGetLastIndex(pSyncNode);
   SyncTerm  lastTerm = syncNodeGetLastTerm(pSyncNode);
@@ -268,7 +268,7 @@ void test4() {
 
   bool      hasSnapshot = syncNodeHasSnapshot(pSyncNode);
   SSnapshot snapshot;
-  pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
+  pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
 
   SyncIndex lastIndex = syncNodeGetLastIndex(pSyncNode);
   SyncTerm  lastTerm = syncNodeGetLastTerm(pSyncNode);
@@ -335,7 +335,7 @@ void test5() {
 
   bool      hasSnapshot = syncNodeHasSnapshot(pSyncNode);
   SSnapshot snapshot;
-  pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
+  pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
 
   SyncIndex lastIndex = syncNodeGetLastIndex(pSyncNode);
   SyncTerm  lastTerm = syncNodeGetLastTerm(pSyncNode);
