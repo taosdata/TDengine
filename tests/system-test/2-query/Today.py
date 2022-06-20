@@ -71,7 +71,6 @@ class TDTestCase:
                         num_same += 1
                     elif i[0] < self.today_date:
                         num_down += 1
-                
                 tdSql.query(f"select today() from {tbname}")
                 tdSql.checkRows(len(values_list)*tb_num)
                 tdSql.checkData(0, 0, str(self.today_date))
