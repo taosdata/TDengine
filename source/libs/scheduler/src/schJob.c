@@ -614,7 +614,7 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
       ++pJob->taskNum;
     }
 
-    SCH_JOB_DLOG("level initialized, taskNum:%d", taskNum);
+    SCH_JOB_DLOG("level %d initialized, taskNum:%d", i, taskNum);
   }
 
   SCH_ERR_JRET(schBuildTaskRalation(pJob, planToTask));
@@ -636,8 +636,9 @@ int32_t schSetAddrsFromNodeList(SSchJob *pJob, SSchTask *pTask) {
     nodeNum = taosArrayGetSize(pJob->nodeList);
 
     for (int32_t i = 0; i < nodeNum && addNum < SCH_MAX_CANDIDATE_EP_NUM; ++i) {
-      SQueryNodeAddr *naddr = taosArrayGet(pJob->nodeList, i);
-
+      SQueryNodeLoad *nload = taosArrayGet(pJob->nodeList, i);
+      SQueryNodeAddr *naddr = &nload->addr;
+      
       if (NULL == taosArrayPush(pTask->candidateAddrs, naddr)) {
         SCH_TASK_ELOG("taosArrayPush execNode to candidate addrs failed, addNum:%d, errno:%d", addNum, errno);
         SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
@@ -651,7 +652,7 @@ int32_t schSetAddrsFromNodeList(SSchJob *pJob, SSchTask *pTask) {
 
   if (addNum <= 0) {
     SCH_TASK_ELOG("no available execNode as candidates, nodeNum:%d", nodeNum);
-    SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+    SCH_ERR_RET(TSDB_CODE_TSC_NO_EXEC_NODE);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -676,7 +677,7 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
       SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
 
-    SCH_TASK_DLOG("use execNode from plan as candidate addr, numOfEps:%d", pTask->plan->execNode.epSet.numOfEps);
+    SCH_TASK_DLOG("use execNode in plan as candidate addr, numOfEps:%d", pTask->plan->execNode.epSet.numOfEps);
 
     return TSDB_CODE_SUCCESS;
   }

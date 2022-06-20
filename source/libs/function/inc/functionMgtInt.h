@@ -51,8 +51,6 @@ extern "C" {
 
 #define FUNC_UDF_ID_START 5000
 
-extern const int funcMgtUdfNum;
-
 #ifdef __cplusplus
 }
 #endif

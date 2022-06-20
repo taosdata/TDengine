@@ -90,7 +90,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_GROUPBY_WINDOW_COEXIST:
       return "GROUP BY and WINDOW-clause can't be used together";
     case TSDB_CODE_PAR_INVALID_OPTION_UNIT:
-      return "Invalid option %s unit: %c, only m, h, d allowed";
+      return "Invalid option %s unit: %c, only %c, %c, %c allowed";
     case TSDB_CODE_PAR_INVALID_KEEP_UNIT:
       return "Invalid option keep unit: %c, only m, h, d allowed";
     case TSDB_CODE_PAR_AGG_FUNC_NESTING:
@@ -194,6 +194,10 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "%s function does not supportted in stream query";
     case TSDB_CODE_PAR_GROUP_BY_NOT_ALLOWED_FUNC:
       return "%s function does not supportted in group query";
+    case TSDB_CODE_PAR_INVALID_TABLE_OPTION:
+      return "Invalid option %s";
+    case TSDB_CODE_PAR_INVALID_INTERP_CLAUSE:
+      return "Invalid usage of RANGE clause, EVERY clause or FILL clause";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:

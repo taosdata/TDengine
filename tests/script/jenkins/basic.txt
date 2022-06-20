@@ -73,6 +73,7 @@
 ./test.sh -f tsim/stream/basic1.sim
 ./test.sh -f tsim/stream/basic2.sim
 # ./test.sh -f tsim/stream/distributeInterval0.sim
+# ./test.sh -f tsim/stream/distributesession0.sim
 # ./test.sh -f tsim/stream/session0.sim
 # ./test.sh -f tsim/stream/session1.sim
 # ./test.sh -f tsim/stream/state0.sim
@@ -132,7 +133,7 @@
 #./test.sh -f tsim/mnode/basic1.sim -m
 
 # --- sma
-./test.sh -f tsim/sma/tsmaCreateInsertData.sim
+./test.sh -f tsim/sma/tsmaCreateInsertQuery.sim
 ./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
 
 # --- valgrind

@@ -210,7 +210,7 @@ typedef struct SSchJob {
   int32_t          levelNum;
   int32_t          taskNum;
   SRequestConnInfo conn;
-  SArray          *nodeList;   // qnode/vnode list, SArray<SQueryNodeAddr>
+  SArray          *nodeList;   // qnode/vnode list, SArray<SQueryNodeLoad>
   SArray          *levels;    // starting from 0. SArray<SSchLevel>
   SNodeList       *subPlans;  // subplan pointer copied from DAG, no need to free it in scheduler
 

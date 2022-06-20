@@ -123,7 +123,7 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
   syncIndexMgrLog2("recv SyncAppendEntriesReply, before pMatchIndex:", ths->pMatchIndex);
   if (gRaftDetailLog) {
     SSnapshot snapshot;
-    ths->pFsm->FpGetSnapshot(ths->pFsm, &snapshot);
+    ths->pFsm->FpGetSnapshotInfo(ths->pFsm, &snapshot);
     sTrace("recv SyncAppendEntriesReply, before snapshot.lastApplyIndex:%ld, snapshot.lastApplyTerm:%lu",
            snapshot.lastApplyIndex, snapshot.lastApplyTerm);
   }
@@ -175,7 +175,7 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
       ASSERT(pSender != NULL);
       bool      hasSnapshot = syncNodeHasSnapshot(ths);
       SSnapshot snapshot;
-      ths->pFsm->FpGetSnapshot(ths->pFsm, &snapshot);
+      ths->pFsm->FpGetSnapshotInfo(ths->pFsm, &snapshot);
 
       // start sending snapshot first time
       // start here, stop by receiver
@@ -183,31 +183,9 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
           pMsg->privateTerm < pSender->privateTerm) {
         snapshotSenderStart(pSender);
 
-        char     host[128];
-        uint16_t port;
-        syncUtilU642Addr(pSender->pSyncNode->replicasId[pSender->replicaIndex].addr, host, sizeof(host), &port);
-
-        if (gRaftDetailLog) {
-          char* s = snapshotSender2Str(pSender);
-          sDebug(
-              "vgId:%d, sync event %s commitIndex:%ld currentTerm:%lu snapshot send to %s:%d start sender first time, "
-              "lastApplyIndex:%ld "
-              "lastApplyTerm:%lu "
-              "lastConfigIndex:%ld privateTerm:%lu "
-              "sender:%s",
-              ths->vgId, syncUtilState2String(ths->state), ths->commitIndex, ths->pRaftStore->currentTerm, host, port,
-              pSender->snapshot.lastApplyIndex, pSender->snapshot.lastApplyTerm, pSender->snapshot.lastConfigIndex,
-              pSender->privateTerm, s);
-          taosMemoryFree(s);
-        } else {
-          sDebug(
-              "vgId:%d, sync event %s commitIndex:%ld currentTerm:%lu snapshot send to %s:%d start sender first time, "
-              "lastApplyIndex:%ld "
-              "lastApplyTerm:%lu lastConfigIndex:%ld privateTerm:%lu",
-              ths->vgId, syncUtilState2String(ths->state), ths->commitIndex, ths->pRaftStore->currentTerm, host, port,
-              pSender->snapshot.lastApplyIndex, pSender->snapshot.lastApplyTerm, pSender->snapshot.lastConfigIndex,
-              pSender->privateTerm);
-        }
+        char* eventLog = snapshotSender2SimpleStr(pSender, "snapshot sender start");
+        syncNodeEventLog(ths, eventLog);
+        taosMemoryFree(eventLog);
       }
 
       SyncIndex sentryIndex = pSender->snapshot.lastApplyIndex + 1;
@@ -231,7 +209,7 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
   syncIndexMgrLog2("recv SyncAppendEntriesReply, after pMatchIndex:", ths->pMatchIndex);
   if (gRaftDetailLog) {
     SSnapshot snapshot;
-    ths->pFsm->FpGetSnapshot(ths->pFsm, &snapshot);
+    ths->pFsm->FpGetSnapshotInfo(ths->pFsm, &snapshot);
     sTrace("recv SyncAppendEntriesReply, after snapshot.lastApplyIndex:%ld, snapshot.lastApplyTerm:%lu",
            snapshot.lastApplyIndex, snapshot.lastApplyTerm);
   }

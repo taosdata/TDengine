@@ -43,7 +43,40 @@ TEST_F(ParserInitialATest, alterDatabase) {
   run("ALTER DATABASE wxy_db KEEP 2400");
 }
 
-// todo ALTER local
+TEST_F(ParserInitialATest, alterLocal) {
+  useDb("root", "test");
+
+  pair<string, string> expect;
+
+  auto clearAlterLocal = [&]() {
+    expect.first.clear();
+    expect.second.clear();
+  };
+
+  auto setAlterLocalFunc = [&](const char* pConfig, const char* pValue = nullptr) {
+    expect.first.assign(pConfig);
+    if (nullptr != pValue) {
+      expect.second.assign(pValue);
+    }
+  };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_ALTER_LOCAL_STMT);
+    ASSERT_EQ(pQuery->execMode, QUERY_EXEC_MODE_LOCAL);
+    SAlterLocalStmt* pStmt = (SAlterLocalStmt*)pQuery->pRoot;
+    ASSERT_EQ(string(pStmt->config), expect.first);
+    ASSERT_EQ(string(pStmt->value), expect.second);
+  });
+
+  setAlterLocalFunc("resetlog");
+  run("ALTER LOCAL 'resetlog'");
+  clearAlterLocal();
+
+  setAlterLocalFunc("querypolicy", "2");
+  run("ALTER LOCAL 'querypolicy' '2'");
+  clearAlterLocal();
+}
+
 // todo ALTER stable
 
 /*
@@ -88,10 +121,10 @@ TEST_F(ParserInitialATest, alterSTable) {
     int32_t len = snprintf(expect.name, sizeof(expect.name), "0.test.%s", pTbname);
     expect.name[len] = '\0';
     expect.alterType = alterType;
-    expect.ttl = ttl;
+//    expect.ttl = ttl;
     if (nullptr != pComment) {
       expect.comment = strdup(pComment);
-      expect.commentLen = strlen(pComment) + 1;
+      expect.commentLen = strlen(pComment);
     }
 
     expect.numOfFields = numOfFields;
@@ -147,9 +180,9 @@ TEST_F(ParserInitialATest, alterSTable) {
     tFreeSMAltertbReq(&req);
   });
 
-  setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_OPTIONS, 0, nullptr, 0, 0, nullptr, nullptr, 10);
-  run("ALTER TABLE st1 TTL 10");
-  clearAlterStbReq();
+//  setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_OPTIONS, 0, nullptr, 0, 0, nullptr, nullptr, 10);
+//  run("ALTER TABLE st1 TTL 10");
+//  clearAlterStbReq();
 
   setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_OPTIONS, 0, nullptr, 0, 0, nullptr, "test");
   run("ALTER TABLE st1 COMMENT 'test'");
@@ -256,7 +289,7 @@ TEST_F(ParserInitialATest, alterTable) {
       expect.newTTL = ttl;
     }
     if (nullptr != pComment) {
-      expect.updateComment = true;
+      expect.newCommentLen = strlen(pComment);
       expect.newComment = pComment;
     }
   };
@@ -295,9 +328,10 @@ TEST_F(ParserInitialATest, alterTable) {
     ASSERT_EQ(memcmp(req.pTagVal, expect.pTagVal, expect.nTagVal), 0);
     ASSERT_EQ(req.updateTTL, expect.updateTTL);
     ASSERT_EQ(req.newTTL, expect.newTTL);
-    ASSERT_EQ(req.updateComment, expect.updateComment);
     if (nullptr != expect.newComment) {
       ASSERT_EQ(std::string(req.newComment), std::string(expect.newComment));
+      ASSERT_EQ(req.newCommentLen, strlen(req.newComment));
+      ASSERT_EQ(expect.newCommentLen, strlen(expect.newComment));
     }
 
     tDecoderClear(&coder);

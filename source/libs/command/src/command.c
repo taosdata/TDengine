@@ -47,7 +47,8 @@ static SSDataBlock* buildDescResultDataBlock() {
   taosArrayPush(pBlock->pDataBlock, &infoData);
 
   infoData.info.type = TSDB_DATA_TYPE_INT;
-  infoData.info.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes;;
+  infoData.info.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
+
   taosArrayPush(pBlock->pDataBlock, &infoData);
 
   infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
@@ -63,7 +64,7 @@ static void setDescResultIntoDataBlock(SSDataBlock* pBlock, int32_t numOfRows, S
 
   // field
   SColumnInfoData* pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
-  char buf[DESCRIBE_RESULT_FIELD_LEN] = {0};
+  char             buf[DESCRIBE_RESULT_FIELD_LEN] = {0};
   for (int32_t i = 0; i < numOfRows; ++i) {
     STR_TO_VARSTR(buf, pMeta->schema[i].name);
     colDataAppend(pCol1, i, buf, false);
@@ -92,8 +93,8 @@ static void setDescResultIntoDataBlock(SSDataBlock* pBlock, int32_t numOfRows, S
 }
 
 static int32_t execDescribe(SNode* pStmt, SRetrieveTableRsp** pRsp) {
-  SDescribeStmt* pDesc = (SDescribeStmt*) pStmt;
-  int32_t numOfRows = TABLE_TOTAL_COL_NUM(pDesc->pMeta);
+  SDescribeStmt* pDesc = (SDescribeStmt*)pStmt;
+  int32_t        numOfRows = TABLE_TOTAL_COL_NUM(pDesc->pMeta);
 
   SSDataBlock* pBlock = buildDescResultDataBlock();
   setDescResultIntoDataBlock(pBlock, numOfRows, pDesc->pMeta);
@@ -120,9 +121,15 @@ static int32_t execDescribe(SNode* pStmt, SRetrieveTableRsp** pRsp) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t execResetQueryCache() {
-  return catalogClearCache();
-}
+static int32_t execResetQueryCache() { return catalogClearCache(); }
+
+static int32_t execShowCreateDatabase(SShowCreateDatabaseStmt* pStmt) { return TSDB_CODE_FAILED; }
+
+static int32_t execShowCreateTable(SShowCreateTableStmt* pStmt) { return TSDB_CODE_FAILED; }
+
+static int32_t execShowCreateSTable(SShowCreateTableStmt* pStmt) { return TSDB_CODE_FAILED; }
+
+static int32_t execAlterLocal(SAlterLocalStmt* pStmt) { return TSDB_CODE_FAILED; }
 
 int32_t qExecCommand(SNode* pStmt, SRetrieveTableRsp** pRsp) {
   switch (nodeType(pStmt)) {
@@ -130,6 +137,14 @@ int32_t qExecCommand(SNode* pStmt, SRetrieveTableRsp** pRsp) {
       return execDescribe(pStmt, pRsp);
     case QUERY_NODE_RESET_QUERY_CACHE_STMT:
       return execResetQueryCache();
+    case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
+      return execShowCreateDatabase((SShowCreateDatabaseStmt*)pStmt);
+    case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
+      return execShowCreateTable((SShowCreateTableStmt*)pStmt);
+    case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
+      return execShowCreateSTable((SShowCreateTableStmt*)pStmt);
+    case QUERY_NODE_ALTER_LOCAL_STMT:
+      return execAlterLocal((SAlterLocalStmt*)pStmt);
     default:
       break;
   }

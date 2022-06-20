@@ -22,6 +22,7 @@ extern "C" {
 
 #include "parser.h"
 #include "planner.h"
+#include "catalog.h"
 #include "query.h"
 #include "taos.h"
 #include "tcommon.h"
@@ -128,7 +129,7 @@ typedef struct STscObj {
   int8_t        connType;
   int32_t       acctId;
   uint32_t      connId;
-  uint64_t      id;         // ref ID returned by taosAddRef
+  TAOS         *id;         // ref ID returned by taosAddRef
   TdThreadMutex mutex;      // used to protect the operation on db
   int32_t       numOfReqs;  // number of sqlObj bound to this connection
   SAppInstInfo* pAppInfo;
@@ -162,6 +163,7 @@ typedef struct SReqResultInfo {
   int32_t        precision;
   bool           convertUcs4;
   int32_t        payloadLen;
+  char*          convertJson;
 } SReqResultInfo;
 
 typedef struct SRequestSendRecvBody {
@@ -242,6 +244,7 @@ static FORCE_INLINE SReqResultInfo* tmqGetNextResInfo(TAOS_RES* res, bool conver
       taosMemoryFreeClear(msg->resInfo.pCol);
       taosMemoryFreeClear(msg->resInfo.length);
       taosMemoryFreeClear(msg->resInfo.convertBuf);
+      taosMemoryFreeClear(msg->resInfo.convertJson);
     }
     setQueryResultFromRsp(&msg->resInfo, pRetrieve, convertUcs4, false);
     return &msg->resInfo;
@@ -292,7 +295,7 @@ SRequestObj* launchQuery(STscObj* pTscObj, const char* sql, int sqlLen);
 
 int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtCallback* pStmtCb);
 
-int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray** pNodeList);
+int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray* pNodeList);
 
 int32_t buildRequest(STscObj* pTscObj, const char* sql, int sqlLen, SRequestObj** pRequest);
 
@@ -317,12 +320,13 @@ void hbMgrInitMqHbRspHandle();
 
 SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void** res);
 int32_t      scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList);
-void         launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery);
+void         launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData *pResultMeta);
 int32_t      refreshMeta(STscObj* pTscObj, SRequestObj* pRequest);
 int32_t      updateQnodeList(SAppInstInfo* pInfo, SArray* pNodeList);
 void         doAsyncQuery(SRequestObj* pRequest, bool forceUpdateMeta);
 int32_t      removeMeta(STscObj* pTscObj, SArray* tbList);// todo move to clientImpl.c and become a static function
 int32_t      handleAlterTbExecRes(void* res, struct SCatalog* pCatalog);// todo move to xxx
+bool         qnodeRequired(SRequestObj* pRequest);
 
 #ifdef __cplusplus
 }

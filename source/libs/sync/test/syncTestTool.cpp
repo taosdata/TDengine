@@ -172,7 +172,7 @@ SSyncFSM* createFsm() {
   pFsm->FpRollBackCb = RollBackCb;
 
   pFsm->FpReConfigCb = ReConfigCb;
-  pFsm->FpGetSnapshot = GetSnapshotCb;
+  pFsm->FpGetSnapshotInfo = GetSnapshotCb;
   pFsm->FpRestoreFinishCb = RestoreFinishCb;
 
   pFsm->FpSnapshotStartRead = SnapshotStartRead;
