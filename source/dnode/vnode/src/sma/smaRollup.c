@@ -281,7 +281,7 @@ int32_t tdProcessRSmaCreate(SVnode *pVnode, SVCreateStbReq *pReq) {
     }
     pRSmaInfo->items[1].triggerStatus = TASK_TRIGGER_STATUS__IN_ACTIVE;
     pRSmaInfo->items[1].maxDelay = 5000;
-    pRSmaInfo->items[0].level = TSDB_RETENTION_L2;
+    pRSmaInfo->items[1].level = TSDB_RETENTION_L2;
     pRSmaInfo->items[1].tmrHandle = taosTmrInit(10000, 100, 10000, "RSMA_L2");
     if (!pRSmaInfo->items[1].tmrHandle) {
       goto _err;
@@ -451,7 +451,7 @@ static int32_t tdFetchAndSubmitRSmaResult(SRSmaInfoItem *pItem, int8_t blkType) 
   }
 
   if (taosArrayGetSize(pResult) > 0) {
-#if 0
+#if 1
     char flag[10] = {0};
     snprintf(flag, 10, "level %" PRIi8, pItem->level);
     blockDebugShowData(pResult, flag);
