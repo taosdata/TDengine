@@ -482,6 +482,13 @@ _return:
   QW_RET(code);
 }
 
+int32_t qwAbortPrerocessQuery(QW_FPARAMS_DEF) {
+  QW_ERR_RET(qwDropTask(QW_FPARAMS()));
+
+  QW_RET(TSDB_CODE_SUCCESS);
+}
+
+
 int32_t qwPrerocessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   int32_t        code = 0;
   bool           queryRsped = false;
