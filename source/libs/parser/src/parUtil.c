@@ -885,11 +885,32 @@ int32_t getTableIndexFromCache(SParseMetaCache* pMetaCache, const SName* pName, 
   return code;
 }
 
-int32_t getTableCfgFromCache(SParseMetaCache* pMetaCache, const char* pFunc, STableCfg** pOutput) {
+STableCfg* tableCfgDup(STableCfg* pCfg) {
+  STableCfg* pNew = taosMemoryMalloc(sizeof(*pNew));
+
+  memcpy(pNew, pCfg, sizeof(*pNew));
+  if (pNew->pComment) {
+    pNew->pComment = strdup(pNew->pComment);
+  }
+  if (pNew->pFuncs) {
+    pNew->pFuncs = taosArrayDup(pNew->pFuncs);
+  }
+  
+  int32_t schemaSize = (pCfg->numOfColumns + pCfg->numOfTags) * sizeof(SSchema);
+
+  SSchema* pSchema = taosMemoryMalloc(schemaSize);
+  memcpy(pSchema, pCfg->pSchemas, schemaSize);
+
+  pNew->pSchemas = pSchema;
+
+  return pNew;
+}
+
+int32_t getTableCfgFromCache(SParseMetaCache* pMetaCache, const SName* pName, STableCfg** pOutput) {
   char fullName[TSDB_TABLE_FNAME_LEN];
   tNameExtractFullName(pName, fullName);
   STableCfg* pCfg = NULL;
-  int32_t code = getMetaDataFromHash(fullName, strlen(fullName), pMetaCache->pTableIndex, (void**)&pCfg);
+  int32_t code = getMetaDataFromHash(fullName, strlen(fullName), pMetaCache->pTableCfg, (void**)&pCfg);
   if (TSDB_CODE_SUCCESS == code) {
     *pOutput = tableCfgDup(pCfg);
     if (NULL == *pOutput) {

@@ -147,11 +147,11 @@ static int32_t getTableCfg(STranslateContext* pCxt, const SName* pName, STableCf
                                .requestId = pParCxt->requestId,
                                .requestObjRefId = pParCxt->requestRid,
                                .mgmtEps = pParCxt->mgmtEpSet};
-      code = catalogGetTableCfg(pParCxt->pCatalog, &conn, pName, pCfg);
+      code = catalogRefreshGetTableCfg(pParCxt->pCatalog, &conn, pName, pCfg);
     }
   }
   if (TSDB_CODE_SUCCESS != code) {
-    parserError("catalogGetTableMeta error, code:%s, dbName:%s, tbName:%s", tstrerror(code), pName->dbname,
+    parserError("catalogRefreshGetTableCfg error, code:%s, dbName:%s, tbName:%s", tstrerror(code), pName->dbname,
                 pName->tname);
   }
   return code;
@@ -3474,13 +3474,24 @@ static int32_t buildRollupAst(STranslateContext* pCxt, SCreateTableStmt* pStmt, 
   return code;
 }
 
+static int32_t buildRollupFuncs(SNodeList* pFuncs, SArray** pArray) {
+  if (NULL == pFuncs) {
+    return TSDB_CODE_SUCCESS;
+  }
+  *pArray = taosArrayInit(LIST_LENGTH(pFuncs), TSDB_FUNC_NAME_LEN);
+  SNode* pNode;
+  FOREACH(pNode, pFuncs) {
+    taosArrayPush(*pArray, ((SFunctionNode*)pNode)->functionName);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t buildCreateStbReq(STranslateContext* pCxt, SCreateTableStmt* pStmt, SMCreateStbReq* pReq) {
   pReq->igExists = pStmt->ignoreExists;
   pReq->delay1 = pStmt->pOptions->maxDelay1;
   pReq->delay2 = pStmt->pOptions->maxDelay2;
   pReq->watermark1 = pStmt->pOptions->watermark1;
   pReq->watermark2 = pStmt->pOptions->watermark2;
-  //  pReq->ttl = pStmt->pOptions->ttl;
   columnDefNodeToField(pStmt->pCols, &pReq->pColumns);
   columnDefNodeToField(pStmt->pTags, &pReq->pTags);
   pReq->numOfColumns = LIST_LENGTH(pStmt->pCols);
@@ -3494,6 +3505,7 @@ static int32_t buildCreateStbReq(STranslateContext* pCxt, SCreateTableStmt* pStm
   } else {
     pReq->commentLen = -1;
   }
+  buildRollupFuncs(pStmt->pOptions->pRollupFuncs, &pReq->pFuncs);
 
   SName tableName;
   tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &tableName), pReq->name);
@@ -4263,7 +4275,10 @@ static int32_t translateShowCreateDatabase(STranslateContext* pCxt, SShowCreateD
 }
 
 static int32_t translateShowCreateTable(STranslateContext* pCxt, SShowCreateTableStmt* pStmt) {
-  return getTableCfg(pCxt, pStmt->dbName, pStmt->tableName, (STableCfg*)&pStmt->pCfg);
+  SName name;
+  toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
+
+  return getTableCfg(pCxt, &name, (STableCfg**)&pStmt->pCfg);
 }
 
 static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {

@@ -514,7 +514,6 @@ int32_t queryProcessGetTbIndexRsp(void *output, char *msg, int32_t msgSize) {
   return TSDB_CODE_SUCCESS;
 }
 
-
 int32_t queryProcessGetTbCfgRsp(void *output, char *msg, int32_t msgSize) {
   if (NULL == output || NULL == msg || msgSize <= 0) {
     return TSDB_CODE_TSC_INVALID_INPUT;
@@ -530,8 +529,6 @@ int32_t queryProcessGetTbCfgRsp(void *output, char *msg, int32_t msgSize) {
   
   return TSDB_CODE_SUCCESS;
 }
-
-
 
 void initQueryModuleMsgHandle() {
   queryBuildMsg[TMSG_INDEX(TDMT_VND_TABLE_META)]       = queryBuildTableMetaReqMsg;

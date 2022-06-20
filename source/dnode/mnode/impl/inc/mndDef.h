@@ -343,12 +343,17 @@ typedef struct {
   int32_t  nextColId;
   float    xFilesFactor;
   int32_t  delay;
+  int32_t  delay1;
+  int32_t  delay2;
+  int64_t  watermark1;
+  int64_t  watermark2;  
   int32_t  ttl;
   int32_t  numOfColumns;
   int32_t  numOfTags;
   int32_t  commentLen;
   int32_t  ast1Len;
   int32_t  ast2Len;
+  SArray*  pFuncs;
   SSchema* pColumns;
   SSchema* pTags;
   char*    comment;

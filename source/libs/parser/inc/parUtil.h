@@ -47,7 +47,7 @@ typedef struct SParseMetaCache {
   SHashObj* pUserAuth;     // key is SUserAuthInfo serialized string, element is bool indicating whether or not to pass
   SHashObj* pUdf;          // key is funcName, element is SFuncInfo*
   SHashObj* pTableIndex;   // key is tbFName, element is SArray<STableIndexInfo>*
-  SHashObj* pTableCfg;    // key is tbFName, element is STableMeta*
+  SHashObj* pTableCfg;     // key is tbFName, element is STableCfg*
 } SParseMetaCache;
 
 int32_t generateSyntaxErrMsg(SMsgBuf* pBuf, int32_t errCode, ...);
@@ -89,7 +89,7 @@ int32_t getUserAuthFromCache(SParseMetaCache* pMetaCache, const char* pUser, con
                              bool* pPass);
 int32_t getUdfInfoFromCache(SParseMetaCache* pMetaCache, const char* pFunc, SFuncInfo* pInfo);
 int32_t getTableIndexFromCache(SParseMetaCache* pMetaCache, const SName* pName, SArray** pIndexes);
-int32_t getTableCfgFromCache(SParseMetaCache* pMetaCache, const char* pFunc, STableCfg** pInfo);
+int32_t getTableCfgFromCache(SParseMetaCache* pMetaCache, const SName* pName, STableCfg** pOutput);
 void    destoryParseMetaCache(SParseMetaCache* pMetaCache);
 
 #ifdef __cplusplus

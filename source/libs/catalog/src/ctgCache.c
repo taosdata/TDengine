@@ -326,6 +326,7 @@ _return:
 
 int32_t ctgAcquireTbIndexFromCache(SCatalog* pCtg, char *dbFName, char* tbName, SCtgDBCache **pDb, SCtgTbCache** pTb) {
   SCtgDBCache *dbCache = NULL;
+  SCtgTbCache* pCache = NULL;
   ctgAcquireDBCache(pCtg, dbFName, &dbCache);
   if (NULL == dbCache) {
     ctgDebug("db %s not in cache", dbFName);
@@ -333,7 +334,7 @@ int32_t ctgAcquireTbIndexFromCache(SCatalog* pCtg, char *dbFName, char* tbName, 
   }
   
   int32_t sz = 0;
-  SCtgTbCache* pCache = taosHashAcquire(dbCache->tbCache, tbName, strlen(tbName));
+  pCache = taosHashAcquire(dbCache->tbCache, tbName, strlen(tbName));
   if (NULL == pCache) {
     ctgDebug("tb %s not in cache, dbFName:%s", tbName, dbFName);
     goto _return;

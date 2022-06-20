@@ -43,6 +43,7 @@ static int32_t  mndProcessDropStbReq(SRpcMsg *pReq);
 static int32_t  mndProcessTableMetaReq(SRpcMsg *pReq);
 static int32_t  mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextStb(SMnode *pMnode, void *pIter);
+static int32_t  mndProcessTableCfgReq(SRpcMsg *pReq);
 
 int32_t mndInitStb(SMnode *pMnode) {
   SSdbTable table = {
@@ -249,6 +250,7 @@ static int32_t mndStbActionDelete(SSdb *pSdb, SStbObj *pStb) {
   taosMemoryFreeClear(pStb->comment);
   taosMemoryFreeClear(pStb->pAst1);
   taosMemoryFreeClear(pStb->pAst2);
+  taosArrayDestroy(pStb->pFuncs);
   return 0;
 }
 
@@ -677,6 +679,11 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   pDst->numOfColumns = pCreate->numOfColumns;
   pDst->numOfTags = pCreate->numOfTags;
   pDst->commentLen = pCreate->commentLen;
+  pDst->delay1 = pCreate->delay1;
+  pDst->delay2 = pCreate->delay2;
+  pDst->pFuncs = pCreate->pFuncs;
+  pCreate->pFuncs = NULL;
+  
   if (pDst->commentLen > 0) {
     pDst->comment = taosMemoryCalloc(pDst->commentLen + 1, 1);
     if (pDst->comment == NULL) {
@@ -1274,6 +1281,60 @@ static int32_t mndBuildStbSchemaImp(SDbObj *pDb, SStbObj *pStb, const char *tbNa
   return 0;
 }
 
+static int32_t mndBuildStbCfgImp(SDbObj *pDb, SStbObj *pStb, const char *tbName, STableCfgRsp *pRsp) {
+  taosRLockLatch(&pStb->lock);
+
+  int32_t totalCols = pStb->numOfColumns + pStb->numOfTags;
+  pRsp->pSchemas = taosMemoryCalloc(totalCols, sizeof(SSchema));
+  if (pRsp->pSchemas == NULL) {
+    taosRUnLockLatch(&pStb->lock);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  strcpy(pRsp->dbFName, pStb->db);
+  strcpy(pRsp->tbName, tbName);
+  strcpy(pRsp->stbName, tbName);
+  pRsp->numOfTags = pStb->numOfTags;
+  pRsp->numOfColumns = pStb->numOfColumns;
+  pRsp->tableType = TSDB_SUPER_TABLE;
+  pRsp->delay1 = pStb->delay1;
+  pRsp->delay2 = pStb->delay2;
+  pRsp->watermark1 = pStb->watermark1;
+  pRsp->watermark2 = pStb->watermark2;
+  pRsp->ttl = pStb->ttl;
+  pRsp->commentLen = pStb->commentLen;
+  if (pStb->commentLen > 0) {
+    pRsp->pComment = strdup(pStb->comment);
+  }
+
+  for (int32_t i = 0; i < pStb->numOfColumns; ++i) {
+    SSchema *pSchema = &pRsp->pSchemas[i];
+    SSchema *pSrcSchema = &pStb->pColumns[i];
+    memcpy(pSchema->name, pSrcSchema->name, TSDB_COL_NAME_LEN);
+    pSchema->type = pSrcSchema->type;
+    pSchema->colId = pSrcSchema->colId;
+    pSchema->bytes = pSrcSchema->bytes;
+  }
+
+  for (int32_t i = 0; i < pStb->numOfTags; ++i) {
+    SSchema *pSchema = &pRsp->pSchemas[i + pStb->numOfColumns];
+    SSchema *pSrcSchema = &pStb->pTags[i];
+    memcpy(pSchema->name, pSrcSchema->name, TSDB_COL_NAME_LEN);
+    pSchema->type = pSrcSchema->type;
+    pSchema->colId = pSrcSchema->colId;
+    pSchema->bytes = pSrcSchema->bytes;
+  }
+
+  if (pStb->pFuncs) {
+    pRsp->pFuncs = taosArrayDup(pStb->pFuncs);
+  }
+  
+  taosRUnLockLatch(&pStb->lock);
+  return 0;
+}
+
+
 static int32_t mndBuildStbSchema(SMnode *pMnode, const char *dbFName, const char *tbName, STableMetaRsp *pRsp,
                                  int32_t *smaVer) {
   char tbFName[TSDB_TABLE_FNAME_LEN] = {0};
@@ -1301,6 +1362,32 @@ static int32_t mndBuildStbSchema(SMnode *pMnode, const char *dbFName, const char
   mndReleaseStb(pMnode, pStb);
   return code;
 }
+
+static int32_t mndBuildStbCfg(SMnode *pMnode, const char *dbFName, const char *tbName, STableCfgRsp *pRsp) {
+ char tbFName[TSDB_TABLE_FNAME_LEN] = {0};
+ snprintf(tbFName, sizeof(tbFName), "%s.%s", dbFName, tbName);
+
+ SDbObj *pDb = mndAcquireDb(pMnode, dbFName);
+ if (pDb == NULL) {
+   terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
+   return -1;
+ }
+
+ SStbObj *pStb = mndAcquireStb(pMnode, tbFName);
+ if (pStb == NULL) {
+   mndReleaseDb(pMnode, pDb);
+   terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+   return -1;
+ }
+
+ int32_t code = mndBuildStbCfgImp(pDb, pStb, tbName, pRsp);
+ 
+ mndReleaseDb(pMnode, pDb);
+ mndReleaseStb(pMnode, pStb);
+ return code;
+}
+
+
 
 static int32_t mndBuildSMAlterStbRsp(SDbObj *pDb, const SMAlterStbReq *pAlter, SStbObj *pObj, void **pCont,
                                      int32_t *pLen) {
@@ -1660,6 +1747,63 @@ _OVER:
   tFreeSTableMetaRsp(&metaRsp);
   return code;
 }
+
+static int32_t mndProcessTableCfgReq(SRpcMsg *pReq) {
+  SMnode       *pMnode = pReq->info.node;
+  int32_t       code = -1;
+  STableCfgReq  cfgReq = {0};
+  STableCfgRsp  cfgRsp = {0};
+
+  if (tDeserializeSTableCfgReq(pReq->pCont, pReq->contLen, &cfgReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+
+  if (0 == strcmp(cfgReq.dbFName, TSDB_INFORMATION_SCHEMA_DB)) {
+    mDebug("information_schema table:%s.%s, start to retrieve cfg", cfgReq.dbFName, cfgReq.tbName);
+    if (mndBuildInsTableCfg(pMnode, cfgReq.dbFName, cfgReq.tbName, &cfgRsp) != 0) {
+      goto _OVER;
+    }
+  } else if (0 == strcmp(cfgReq.dbFName, TSDB_PERFORMANCE_SCHEMA_DB)) {
+    mDebug("performance_schema table:%s.%s, start to retrieve cfg", cfgReq.dbFName, cfgReq.tbName);
+    if (mndBuildPerfsTableCfg(pMnode, cfgReq.dbFName, cfgReq.tbName, &cfgRsp) != 0) {
+      goto _OVER;
+    }
+  } else {
+    mDebug("stb:%s.%s, start to retrieve cfg", cfgReq.dbFName, cfgReq.tbName);
+    if (mndBuildStbCfg(pMnode, cfgReq.dbFName, cfgReq.tbName, &cfgRsp) != 0) {
+      goto _OVER;
+    }
+  }
+
+  int32_t rspLen = tSerializeSTableCfgRsp(NULL, 0, &cfgRsp);
+  if (rspLen < 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+
+  void *pRsp = rpcMallocCont(rspLen);
+  if (pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+
+  tSerializeSTableCfgRsp(pRsp, rspLen, &cfgRsp);
+  pReq->info.rsp = pRsp;
+  pReq->info.rspLen = rspLen;
+  code = 0;
+
+  mTrace("%s.%s, cfg is retrieved", cfgReq.dbFName, cfgReq.tbName);
+
+_OVER:
+  if (code != 0) {
+    mError("stb:%s.%s, failed to retrieve cfg since %s", cfgReq.dbFName, cfgReq.tbName, terrstr());
+  }
+
+  tFreeSTableCfgRsp(&cfgRsp);
+  return code;
+}
+
 
 int32_t mndValidateStbInfo(SMnode *pMnode, SSTableVersion *pStbVersions, int32_t numOfStbs, void **ppRsp,
                            int32_t *pRspLen) {

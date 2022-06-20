@@ -444,6 +444,7 @@ typedef struct {
   char*   comment;
   char*   pAst1;
   char*   pAst2;
+  SArray* pFuncs;
 } SMCreateStbReq;
 
 int32_t tSerializeSMCreateStbReq(void* buf, int32_t bufLen, SMCreateStbReq* pReq);
@@ -685,9 +686,12 @@ typedef struct {
   int64_t  watermark1;
   int64_t  watermark2;
   int32_t  ttl;
-  char*    pAst1;
-  char*    pAst2;
+  SArray*  pFuncs;
+  int32_t  commentLen;
+  char*    pComment;
   SSchema* pSchemas;
+  int32_t  tagsLen;
+  char*    pTags;
 } STableCfg;
 
 typedef STableCfg STableCfgRsp;
@@ -697,7 +701,7 @@ int32_t tDeserializeSTableCfgReq(void *buf, int32_t bufLen, STableCfgReq *pReq);
 
 int32_t tSerializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp);
 int32_t tDeserializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp);
-
+void tFreeSTableCfgRsp(STableCfgRsp *pRsp);
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];

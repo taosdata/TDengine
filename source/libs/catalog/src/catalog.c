@@ -1238,14 +1238,21 @@ _return:
   CTG_API_LEAVE(code);
 }
 
-int32_t catalogGetTableCfg(SCatalog* pCtg, SRequestConnInfo *pConn, const SName* pTableName, STableCfg** pCfg) {
+int32_t catalogRefreshGetTableCfg(SCatalog* pCtg, SRequestConnInfo *pConn, const SName* pTableName, STableCfg** pCfg) {
   CTG_API_ENTER();
   
   if (NULL == pCtg || NULL == pConn || NULL == pTableName || NULL == pCfg) {
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  CTG_API_LEAVE(ctgGetTbCfg(pCtg, pConn, pTableName, pCfg, NULL));
+  int32_t code = 0;
+  CTG_ERR_JRET(catalogRemoveTableMeta(pCtg, (SName*)pTableName));
+
+  CTG_ERR_JRET(ctgGetTbCfg(pCtg, pConn, (SName*)pTableName, pCfg));
+
+_return:
+
+  CTG_API_LEAVE(code);
 }
 
 int32_t catalogGetUdfInfo(SCatalog* pCtg, SRequestConnInfo *pConn, const char* funcName, SFuncInfo* pInfo) {

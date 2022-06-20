@@ -163,9 +163,8 @@ int vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg) {
   cfgRsp.tableType = mer1.me.type;
 
   if (mer1.me.type == TSDB_SUPER_TABLE) {
-    strcpy(cfgRsp.stbName, mer1.me.name);
-    schema = mer1.me.stbEntry.schemaRow;
-    schemaTag = mer1.me.stbEntry.schemaTag;
+    code = TSDB_CODE_VND_HASH_MISMATCH;
+    goto _exit;
   } else if (mer1.me.type == TSDB_CHILD_TABLE) {
     metaReaderInit(&mer2, pVnode->pMeta, 0);
     if (metaGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid) < 0) goto _exit;
@@ -173,8 +172,22 @@ int vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg) {
     strcpy(cfgRsp.stbName, mer2.me.name);
     schema = mer2.me.stbEntry.schemaRow;
     schemaTag = mer2.me.stbEntry.schemaTag;
+    cfgRsp.ttl = mer1.me.ctbEntry.ttlDays;
+    cfgRsp.commentLen = mer1.me.ctbEntry.commentLen;
+    if (mer1.me.ctbEntry.commentLen > 0) {
+      cfgRsp.pComment = strdup(mer1.me.ctbEntry.comment);
+    }
+    STag *pTag = (STag *)mer1.me.ctbEntry.pTags;
+    cfgRsp.tagsLen = pTag->len;
+    cfgRsp.pTags = taosMemoryMalloc(cfgRsp.tagsLen);
+    memcpy(cfgRsp.pTags, pTag, cfgRsp.tagsLen);
   } else if (mer1.me.type == TSDB_NORMAL_TABLE) {
     schema = mer1.me.ntbEntry.schemaRow;
+    cfgRsp.ttl = mer1.me.ntbEntry.ttlDays;
+    cfgRsp.commentLen = mer1.me.ntbEntry.commentLen;
+    if (mer1.me.ntbEntry.commentLen > 0) {
+      cfgRsp.pComment = strdup(mer1.me.ntbEntry.comment);
+    }
   } else {
     ASSERT(0);
   }
@@ -214,7 +227,7 @@ _exit:
 
   tmsgSendRsp(&rpcMsg);
 
-  taosMemoryFree(cfgRsp.pSchemas);
+  tFreeSTableCfgRsp(&cfgRsp);
   metaReaderClear(&mer2);
   metaReaderClear(&mer1);
   return TSDB_CODE_SUCCESS;
