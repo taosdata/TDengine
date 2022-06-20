@@ -192,6 +192,8 @@ int32_t twaFunction(SqlFunctionCtx *pCtx);
 int32_t twaFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock);
 
 bool getSelectivityFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+
+bool blockDistSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t blockDistFunction(SqlFunctionCtx *pCtx);
 int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 

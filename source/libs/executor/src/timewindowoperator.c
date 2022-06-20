@@ -2892,7 +2892,10 @@ static void rebuildTimeWindow(SStreamSessionAggOperatorInfo* pInfo, SArray* pWin
       SArray*                        pChWins = getWinInfos(&pChInfo->streamAggSup, groupId);
       int32_t                        chWinSize = taosArrayGetSize(pChWins);
       int32_t index = binarySearch(pChWins, chWinSize, pParentWin->win.skey, TSDB_ORDER_DESC, getSessionWindowEndkey);
-      for (int32_t k = index; k > 0 && k < chWinSize; k++) {
+      if (index < 0) {
+        index  = 0;
+      }
+      for (int32_t k = index; k < chWinSize; k++) {
         SResultWindowInfo* pcw = taosArrayGet(pChWins, k);
         if (pParentWin->win.skey <= pcw->win.skey && pcw->win.ekey <= pParentWin->win.ekey) {
           SResultRow* pChResult = NULL;
