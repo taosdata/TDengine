@@ -55,10 +55,10 @@ typedef struct SBlockData     SBlockData;
 typedef struct SReadH         SReadH;
 typedef struct SDelFile       SDelFile;
 typedef struct STsdbCacheFile STsdbCacheFile;
-typedef struct STsdbIndexFile STsdbIndexFile;
-typedef struct STsdbDataFile  STsdbDataFile;
-typedef struct STsdbLastFile  STsdbLastFile;
-typedef struct STsdbSmaFile   STsdbSmaFile;
+typedef struct SHeadFile      SHeadFile;
+typedef struct SDataFile      SDataFile;
+typedef struct SLastFile      SLastFile;
+typedef struct SSmaFile       SSmaFile;
 typedef struct SDFileSet      SDFileSet;
 typedef struct SDataFWriter   SDataFWriter;
 typedef struct SDataFReader   SDataFReader;
@@ -109,10 +109,10 @@ void    tColDataReset(SColData *pColData);
 void    tColDataClear(SColData *pColData);
 int32_t tColDataCmprFn(const void *p1, const void *p2);
 // SBlockData
-#define tsdbBlockDataCreate() ((SBlockData){0})
-void    tsdbBlockDataClear(SBlockData *pBlockData);
-int32_t tsdbBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema);
-void    tsdbBlockDataDestroy(SBlockData *pBlockData);
+#define tBlockDataInit() ((SBlockData){0})
+void    tBlockDataReset(SBlockData *pBlockData);
+void    tBlockDataClear(SBlockData *pBlockData);
+int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema);
 // SDelIdx
 int32_t tPutDelIdx(uint8_t *p, void *ph);
 int32_t tGetDelIdx(uint8_t *p, void *ph);
@@ -417,6 +417,34 @@ struct SBlockDataHdr {
   uint32_t delimiter;
   int64_t  suid;
   int64_t  uid;
+};
+
+struct SHeadFile {
+  int64_t size;
+  int64_t offset;
+  int32_t nRef;
+};
+
+struct SDataFile {
+  int64_t size;
+  int32_t nRef;
+};
+
+struct SLastFile {
+  int64_t size;
+  int32_t nRef;
+};
+
+struct SSmaFile {
+  int64_t size;
+  int32_t nRef;
+};
+
+struct SDFileSet {
+  SHeadFile *pHeadFile;
+  SDataFile *pDataFile;
+  SLastFile *pLastFile;
+  SSmaFile  *pSmaFile;
 };
 
 #ifdef __cplusplus

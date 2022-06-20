@@ -147,7 +147,7 @@ int32_t tGetMapData(uint8_t *p, SMapData *pMapData) {
     default:
       ASSERT(0);
   }
-  n += tGetBinary(p ? p + n : p, &pMapData->pData, &pMapData->nData);
+  n += tGetBinary(p + n, &pMapData->pData, &pMapData->nData);
 
   return n;
 }
@@ -697,14 +697,7 @@ static int32_t tsdbBlockDataAppendRow1(SBlockData *pBlockData, TSDBROW *pRow) {
   return code;
 }
 
-void tsdbBlockDataClear(SBlockData *pBlockData) {
-  pBlockData->nRow = 0;
-  for (int32_t iCol = 0; iCol < pBlockData->nCol; iCol++) {
-    pBlockData->aColData[iCol] = (SColData){.cid = 0, .type = 0, .bytes = 0, .flags = 0, .nData = 0};
-  }
-}
-
-int32_t tsdbBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema) {
+int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema) {
   int32_t code = 0;
 
   if (pRow->type == 0) {
@@ -716,7 +709,12 @@ int32_t tsdbBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *
   return code;
 }
 
-void tsdbBlockDataDestroy(SBlockData *pBlockData) {
+void tBlockDataReset(SBlockData *pBlockData) {
+  pBlockData->nRow = 0;
+  pBlockData->nCol = 0;
+}
+
+void tBlockDataClear(SBlockData *pBlockData) {
   tsdbFree((uint8_t *)pBlockData->aVersion);
   tsdbFree((uint8_t *)pBlockData->aTSKEY);
   for (int32_t iCol = 0; iCol < pBlockData->nCol; iCol++) {

@@ -493,7 +493,7 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, i
   SSubmitBlkIter    blkIter = {0};
   TSDBKEY           key = {.version = version};
   SMemSkipListNode *pos[SL_MAX_LEVEL];
-  TSDBROW           row = {.version = version, .pTSRow = NULL};
+  TSDBROW           row = tsdbRowFromTSRow(version, NULL);
   int32_t           nRow = 0;
 
   tInitSubmitBlkIter(pMsgIter, pBlock, &blkIter);

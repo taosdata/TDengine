@@ -19,34 +19,6 @@ static const char *tsdbFileSuffix[] = {".tombstone", ".cache", ".index", ".data"
 
 // .tombstone
 
-struct STsdbIndexFile {
-  int64_t size;
-  int64_t offset;
-  int32_t nRef;
-};
-
-struct STsdbDataFile {
-  int64_t size;
-  int32_t nRef;
-};
-
-struct STsdbLastFile {
-  int64_t size;
-  int32_t nRef;
-};
-
-struct STsdbSmaFile {
-  int64_t size;
-  int32_t nRef;
-};
-
-struct SDFileSet {
-  STsdbIndexFile *pIndexF;
-  STsdbDataFile  *pDataF;
-  STsdbLastFile  *pLastF;
-  STsdbSmaFile   *pSmaF;
-};
-
 // SDelFile ===============================================
 char *tsdbDelFileName(STsdb *pTsdb, SDelFile *pFile) {
   char   *pName = NULL;

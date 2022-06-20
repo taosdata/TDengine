@@ -441,15 +441,15 @@ _err:
   return code;
 }
 
-int32_t tsdbReadBlockIdx(SDataFReader *pReader, SMapData *pMapData, uint8_t **ppBuf) {
+int32_t tsdbReadBlockIdx(SDataFReader *pReader, SMapData *mBlockIdx, uint8_t **ppBuf) {
   int32_t  code = 0;
-  int64_t  offset = -1;  // TODO
-  int64_t  size = -1;    // TODO
+  int64_t  offset = pReader->pSet->pHeadFile->offset;
+  int64_t  size = pReader->pSet->pHeadFile->size;
   int64_t  n;
   uint32_t delimiter;
 
   // alloc
-  if (!ppBuf) ppBuf = &pMapData->pBuf;
+  if (!ppBuf) ppBuf = &mBlockIdx->pBuf;
   code = tsdbRealloc(ppBuf, size);
   if (code) goto _err;
 
@@ -479,7 +479,7 @@ int32_t tsdbReadBlockIdx(SDataFReader *pReader, SMapData *pMapData, uint8_t **pp
   n = 0;
   n += tGetU32(*ppBuf + n, &delimiter);
   ASSERT(delimiter == TSDB_FILE_DLMT);
-  n += tGetMapData(*ppBuf + n, pMapData);
+  n += tGetMapData(*ppBuf + n, mBlockIdx);
   ASSERT(n + sizeof(TSCKSUM) == size);
 
   return code;
@@ -489,7 +489,7 @@ _err:
   return code;
 }
 
-int32_t tsdbReadBlock(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *pMapData, uint8_t **ppBuf) {
+int32_t tsdbReadBlock(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *mBlockIdx, uint8_t **ppBuf) {
   int32_t  code = 0;
   int64_t  offset = pBlockIdx->offset;
   int64_t  size = pBlockIdx->size;
@@ -499,7 +499,7 @@ int32_t tsdbReadBlock(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *pMa
   tb_uid_t uid;
 
   // alloc
-  if (!ppBuf) ppBuf = &pMapData->pBuf;
+  if (!ppBuf) ppBuf = &mBlockIdx->pBuf;
   code = tsdbRealloc(ppBuf, size);
   if (code) goto _err;
 
@@ -533,7 +533,7 @@ int32_t tsdbReadBlock(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *pMa
   ASSERT(suid == pBlockIdx->suid);
   n += tGetI64(*ppBuf + n, &uid);
   ASSERT(uid == pBlockIdx->uid);
-  n += tGetMapData(*ppBuf + n, pMapData);
+  n += tGetMapData(*ppBuf + n, mBlockIdx);
   ASSERT(n + sizeof(TSCKSUM) == size);
 
   return code;
