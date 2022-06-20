@@ -791,7 +791,7 @@ join_type(A) ::= INNER.                                                         
 /************************************************ query_specification *************************************************/
 query_specification(A) ::=
   SELECT set_quantifier_opt(B) select_list(C) from_clause(D) where_clause_opt(E) 
-    partition_by_clause_opt(F) twindow_clause_opt(G) 
+    partition_by_clause_opt(F) range_opt(J) every_opt(K) fill_opt(L) twindow_clause_opt(G)
     group_by_clause_opt(H) having_clause_opt(I).                                  { 
                                                                                     A = createSelectStmt(pCxt, B, C, D);
                                                                                     A = addWhereClause(pCxt, A, E);
@@ -799,6 +799,9 @@ query_specification(A) ::=
                                                                                     A = addWindowClauseClause(pCxt, A, G);
                                                                                     A = addGroupByClause(pCxt, A, H);
                                                                                     A = addHavingClause(pCxt, A, I);
+                                                                                    A = addRangeClause(pCxt, A, J);
+                                                                                    A = addEveryClause(pCxt, A, K);
+                                                                                    A = addFillClause(pCxt, A, L);
                                                                                   }
 
 %type set_quantifier_opt                                                          { bool }
@@ -860,13 +863,19 @@ fill_mode(A) ::= NEXT.                                                          
 group_by_clause_opt(A) ::= .                                                      { A = NULL; }
 group_by_clause_opt(A) ::= GROUP BY group_by_list(B).                             { A = B; }
 
-%type group_by_list                                                             { SNodeList* }
-%destructor group_by_list                                                       { nodesDestroyList($$); }
-group_by_list(A) ::= expression(B).                                             { A = createNodeList(pCxt, createGroupingSetNode(pCxt, releaseRawExprNode(pCxt, B))); }
-group_by_list(A) ::= group_by_list(B) NK_COMMA expression(C).                   { A = addNodeToList(pCxt, B, createGroupingSetNode(pCxt, releaseRawExprNode(pCxt, C))); }
+%type group_by_list                                                               { SNodeList* }
+%destructor group_by_list                                                         { nodesDestroyList($$); }
+group_by_list(A) ::= expression(B).                                               { A = createNodeList(pCxt, createGroupingSetNode(pCxt, releaseRawExprNode(pCxt, B))); }
+group_by_list(A) ::= group_by_list(B) NK_COMMA expression(C).                     { A = addNodeToList(pCxt, B, createGroupingSetNode(pCxt, releaseRawExprNode(pCxt, C))); }
 
 having_clause_opt(A) ::= .                                                        { A = NULL; }
 having_clause_opt(A) ::= HAVING search_condition(B).                              { A = B; }
+
+range_opt(A) ::= .                                                                { A = NULL; }
+range_opt(A) ::= RANGE NK_LP expression(B) NK_COMMA expression(C) NK_RP.          { A = createInterpTimeRange(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)); }
+
+every_opt(A) ::= .                                                                { A = NULL; }
+every_opt(A) ::= EVERY NK_LP duration_literal(B) NK_RP.                           { A = releaseRawExprNode(pCxt, B); }
 
 /************************************************ query_expression ****************************************************/
 query_expression(A) ::= 

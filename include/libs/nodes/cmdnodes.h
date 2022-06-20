@@ -87,6 +87,7 @@ typedef struct SAlterDatabaseStmt {
 
 typedef struct STableOptions {
   ENodeType  type;
+  bool       commentNull;
   char       comment[TSDB_TB_COMMENT_LEN];
   SNodeList* pMaxDelay;
   int64_t    maxDelay1;
@@ -126,6 +127,7 @@ typedef struct SCreateSubTableClause {
   bool       ignoreExists;
   SNodeList* pSpecificTags;
   SNodeList* pValsOfTags;
+  STableOptions* pOptions;
 } SCreateSubTableClause;
 
 typedef struct SCreateMultiTableStmt {

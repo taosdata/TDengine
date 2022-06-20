@@ -87,7 +87,7 @@ typedef struct SMetaData {
   SArray* pUdfList;     // pRes = SFuncInfo*
   SArray* pIndex;       // pRes = SIndexInfo*
   SArray* pUser;        // pRes = bool*
-  SArray* pQnodeList;   // pRes = SQueryNodeAddr*
+  SArray* pQnodeList;   // pRes = SArray<SQueryNodeLoad>*
 } SMetaData;
 
 typedef struct SCatalogCfg {
