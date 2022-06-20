@@ -307,7 +307,10 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
         }
       }
     }
-    wsclient_query(command, limit, printMode);
+    wsclient_query(command, limit, printMode, fname);
+    if (fname != NULL) {
+      wordfree(&full_path);
+    }
     return;
   }
 
@@ -1487,7 +1490,44 @@ int wsclient_check(cJSON *root, int64_t st, int64_t et) {
   return 0;
 }
 
-int wsclient_vertical_print_data(int rows, TAOS_FIELD *fields, int cols, int64_t id, int precision, int* pshowed_rows, uint64_t limit) {
+int wsclient_dump_data(FILE * fp, int rows, TAOS_FIELD *fields, int cols, int64_t id, int precision) {
+  char* response = wsclient_get_response();
+  if (response == NULL) {
+    return -1;
+  }
+
+  if (*(int64_t *)response != id) {
+    fprintf(stderr, "Mismatch id with %"PRId64" expect %"PRId64"\n", *(int64_t *)response, id);
+    free(response);
+    return -1;
+  }
+
+  int64_t pos;
+  for (int64_t i = 0; i < rows; i++) {
+    for (int c = 0; c < cols; c++) {
+      pos = 8;
+      pos += i * fields[c].bytes;
+      for (int j = 0; j < c; j++) {
+        pos += fields[j].bytes * rows;
+      }
+      int16_t length = 0;
+      if (fields[c].type == TSDB_DATA_TYPE_NCHAR || fields[c].type == TSDB_DATA_TYPE_BINARY ||
+          fields[c].type == TSDB_DATA_TYPE_JSON) {
+        length = *(int16_t *)(response + pos);
+        pos += 2;
+      }
+      if (c > 0) {
+        fputc(',', fp);
+      }
+      dumpFieldToFile(fp, (const char *)(response + pos), fields + c, (int32_t)length, precision);
+    }
+    fputc('\n', fp);
+  }
+  free(response);
+  return 0;
+}
+
+int wsclient_vertical_print_data(int64_t rows, TAOS_FIELD *fields, int cols, int64_t id, int precision, int* pshowed_rows, uint64_t limit) {
   char* response = wsclient_get_response();
   if (response == NULL) {
     return -1;
@@ -1506,10 +1546,10 @@ int wsclient_vertical_print_data(int rows, TAOS_FIELD *fields, int cols, int64_t
       maxColNameLen = len;
     }
   }
-  int pos;
+  int64_t pos;
 
-  for (int i = 0; i < rows; i++) {
-    printf("*************************** %d.row ***************************\n", i + 1);
+  for (int64_t i = 0; i < rows; i++) {
+    printf("*************************** %"PRId64".row ***************************\n", i + 1);
     if (*pshowed_rows == limit) {
       printf("\n");
       printf(" Notice: The result shows only the first %d rows.\n", DEFAULT_RES_SHOW_NUM);
@@ -1547,7 +1587,7 @@ int wsclient_vertical_print_data(int rows, TAOS_FIELD *fields, int cols, int64_t
 }
 
 
-int wsclient_horizontal_print_data(int rows, TAOS_FIELD *fields, int* width, int cols, int64_t id, int precision, int* pshowed_rows, uint64_t limit) {
+int wsclient_horizontal_print_data(int64_t rows, TAOS_FIELD *fields, int* width, int cols, int64_t id, int precision, int* pshowed_rows, uint64_t limit) {
   char* response = wsclient_get_response();
   if (response == NULL) {
     return -1;
@@ -1558,9 +1598,9 @@ int wsclient_horizontal_print_data(int rows, TAOS_FIELD *fields, int* width, int
     free(response);
     return -1;
   }
-  int pos;
+  int64_t pos;
 
-  for (int i = 0; i < rows; i++) {
+  for (int64_t i = 0; i < rows; i++) {
     if (*pshowed_rows == limit) {
       printf("\n");
       printf(" Notice: The result shows only the first %d rows.\n", DEFAULT_RES_SHOW_NUM);
@@ -1596,7 +1636,7 @@ int wsclient_horizontal_print_data(int rows, TAOS_FIELD *fields, int* width, int
   return 0;
 }
 
-void wsclient_query(char *command, uint64_t limit, bool isVertical) {
+void wsclient_query(char *command, uint64_t limit, bool isVertical, char* fname) {
   int64_t st, et;
   st = taosGetTimestampUs();
   if (wsclient_send_sql(command, WS_QUERY, 0)) {
@@ -1653,13 +1693,37 @@ void wsclient_query(char *command, uint64_t limit, bool isVertical) {
     return;
   }
   int width[cols];
-  if (!isVertical) {
+  if (!isVertical && fname == NULL) {
     for (int i = 0; i < cols; ++i) {
       width[i] = calcColWidth(fields + i, precision);
     }
     printHeader(fields, width, cols);
   }
   cJSON_Delete(query);
+  FILE* fp;
+  if (fname != NULL) {
+    wordexp_t full_path;
+
+    if (wordexp((char *)fname, &full_path, 0) != 0) {
+      fprintf(stderr, "ERROR: invalid file name: %s\n", fname);
+      return;
+    }
+
+    fp = fopen(full_path.we_wordv[0], "w");
+    if (fp == NULL) {
+      fprintf(stderr, "ERROR: failed to open file: %s\n", full_path.we_wordv[0]);
+      wordfree(&full_path);
+      return;
+    }
+    wordfree(&full_path);
+    for (int col = 0; col < cols; col++) {
+      if (col > 0) {
+        fprintf(fp, ",");
+      }
+      fprintf(fp, "%s", fields[col].name);
+    }
+    fputc('\n', fp);
+  }
 
   while (!completed && !stop_fetch) {
     if (wsclient_send_sql(NULL, WS_FETCH, ws_id)) {
@@ -1717,19 +1781,27 @@ void wsclient_query(char *command, uint64_t limit, bool isVertical) {
       cJSON_Delete(fetch);
       return;
     }
-    if (isVertical) {
-      if (wsclient_vertical_print_data((int)rows->valueint, fields, cols, ws_id, precision, &showed_rows, limit)) {
+    if (fname != NULL) {
+      if (wsclient_dump_data(fp, rows->valueint, fields, cols, ws_id, precision)) {
+        cJSON_Delete(fetch);
+        return;
+      }
+    } else if (isVertical) {
+      if (wsclient_vertical_print_data(rows->valueint, fields, cols, ws_id, precision, &showed_rows, limit)) {
         cJSON_Delete(fetch);
         return;
       }
     } else {
-      if (wsclient_horizontal_print_data((int)rows->valueint, fields, width, cols, ws_id, precision, &showed_rows, limit)) {
+      if (wsclient_horizontal_print_data(rows->valueint, fields, width, cols, ws_id, precision, &showed_rows, limit)) {
         cJSON_Delete(fetch);
         return;
       }
     }
 
     cJSON_Delete(fetch);
+  }
+  if (fname != NULL) {
+    fclose(fp);
   }
   et = taosGetTimestampUs();
   if (stop_fetch) {
