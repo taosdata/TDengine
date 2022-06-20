@@ -1515,7 +1515,7 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
       }
     }
 
-    // persist
+    // persist cfg
     raftCfgPersist(pSyncNode->pRaftCfg);
 
     char  tmpbuf[512];
@@ -1533,7 +1533,7 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
       syncNodeBecomeFollower(pSyncNode, tmpbuf);
     }
   } else {
-    // persist
+    // persist cfg
     raftCfgPersist(pSyncNode->pRaftCfg);
 
     char  tmpbuf[512];
