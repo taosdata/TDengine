@@ -933,7 +933,7 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
     }
 
     // local buffer for cell
-    void *pBuf = tdbRealloc(NULL, pBt->pageSize);
+    SCell *pBuf = tdbRealloc(NULL, pBt->pageSize);
     if (pBuf == NULL) {
       return -1;
     }
@@ -976,7 +976,7 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
 	  pgno = 0;
 	}
 
-	memcpy(pBuf, pVal + vLen - nLeft, bytes);
+	memcpy(pBuf, ((SCell *)pVal) + vLen - nLeft, bytes);
 	memcpy(pBuf + bytes, &pgno, sizeof(pgno));
 
 	ret = tdbPageInsertCell(ofp, 0, pBuf, bytes + sizeof(pgno), 0);
@@ -1011,7 +1011,7 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
 	}
 
 	// cpy key
-	memcpy(pBuf, pKey + kLen - nLeftKey, bytes);
+	memcpy(pBuf, ((SCell *)pKey) + kLen - nLeftKey, bytes);
 
 	if (lastKeyPage) {
 	  if (lastKeyPageSpace >= vLen) {
@@ -1071,7 +1071,7 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
 	  pgno = 0;
 	}
 
-	memcpy(pBuf, pVal + vLen - nLeft, bytes);
+	memcpy(pBuf, ((SCell *)pVal) + vLen - nLeft, bytes);
 	memcpy(pBuf + bytes, &pgno, sizeof(pgno));
 
 	ret = tdbPageInsertCell(ofp, 0, pBuf, bytes + sizeof(pgno), 0);
