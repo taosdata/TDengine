@@ -1817,6 +1817,8 @@ typedef struct SVCreateTbReq {
   tb_uid_t uid;
   int64_t  ctime;
   int32_t  ttl;
+  int32_t  commentLen;
+  char*    comment;
   int8_t   type;
   union {
     struct {
@@ -1834,6 +1836,7 @@ int tDecodeSVCreateTbReq(SDecoder* pCoder, SVCreateTbReq* pReq);
 
 static FORCE_INLINE void tdDestroySVCreateTbReq(SVCreateTbReq* req) {
   taosMemoryFreeClear(req->name);
+  taosMemoryFreeClear(req->comment);
   if (req->type == TSDB_CHILD_TABLE) {
     taosMemoryFreeClear(req->ctb.pTag);
   } else if (req->type == TSDB_NORMAL_TABLE) {
@@ -1930,7 +1933,7 @@ typedef struct {
   // TSDB_ALTER_TABLE_UPDATE_OPTIONS
   int8_t  updateTTL;
   int32_t newTTL;
-  int8_t  updateComment;
+  int32_t newCommentLen;
   char*   newComment;
 } SVAlterTbReq;
 

@@ -58,23 +58,57 @@ static void *mndBuildTimerMsg(int32_t *pContLen) {
 
 static void mndPullupTrans(SMnode *pMnode) {
   int32_t contLen = 0;
-  void   *pReq = mndBuildTimerMsg(&contLen);
+  void *  pReq = mndBuildTimerMsg(&contLen);
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_TRANS_TIMER, .pCont = pReq, .contLen = contLen};
   tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
 }
 
 static void mndCalMqRebalance(SMnode *pMnode) {
   int32_t contLen = 0;
-  void   *pReq = mndBuildTimerMsg(&contLen);
+  void *  pReq = mndBuildTimerMsg(&contLen);
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_MQ_TIMER, .pCont = pReq, .contLen = contLen};
   tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
 }
 
 static void mndPullupTelem(SMnode *pMnode) {
   int32_t contLen = 0;
-  void   *pReq = mndBuildTimerMsg(&contLen);
+  void *  pReq = mndBuildTimerMsg(&contLen);
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_TELEM_TIMER, .pCont = pReq, .contLen = contLen};
   tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
+}
+
+static void mndPushTtlTime(SMnode *pMnode) {
+  SSdb   *pSdb = pMnode->pSdb;
+  SVgObj *pVgroup = NULL;
+  void   *pIter = NULL;
+
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) break;
+
+    int32_t contLen = sizeof(SMsgHead) + sizeof(int32_t);
+    SMsgHead   *pHead = rpcMallocCont(contLen);
+    if (pHead == NULL) {
+      mError("ttl time malloc err. contLen:%d", contLen);
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
+    pHead->contLen = htonl(contLen);
+    pHead->vgId = htonl(pVgroup->vgId);
+
+    int32_t t = taosGetTimestampSec();
+    *(int32_t*)(POINTER_SHIFT(pHead, sizeof(SMsgHead))) = htonl(t);
+
+    SRpcMsg rpcMsg = {.msgType = TDMT_VND_DROP_TTL_TABLE, .pCont = pHead, .contLen = contLen};
+
+    SEpSet epSet = mndGetVgroupEpset(pMnode, pVgroup);
+    int32_t code = tmsgSendReq(&epSet, &rpcMsg);
+    if(code != 0){
+      mError("ttl time seed err. code:%d", code);
+    }
+    mError("ttl time seed succ. time:%d", t);
+    sdbRelease(pSdb, pVgroup);
+  }
 }
 
 static void *mndThreadFp(void *param) {
@@ -83,6 +117,10 @@ static void *mndThreadFp(void *param) {
   setThreadName("mnode-timer");
 
   while (1) {
+    if (lastTime % (864000) == 0) {   // sleep 1 day for ttl
+      mndPushTtlTime(pMnode);
+    }
+
     lastTime++;
     taosMsleep(100);
     if (mndGetStop(pMnode)) break;
@@ -378,7 +416,7 @@ void mndStop(SMnode *pMnode) {
 }
 
 int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
-  SMnode    *pMnode = pMsg->info.node;
+  SMnode *   pMnode = pMsg->info.node;
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   int32_t    code = 0;
 
@@ -540,7 +578,7 @@ static int32_t mndCheckMsgContent(SRpcMsg *pMsg) {
 }
 
 int32_t mndProcessRpcMsg(SRpcMsg *pMsg) {
-  SMnode  *pMnode = pMsg->info.node;
+  SMnode * pMnode = pMsg->info.node;
   MndMsgFp fp = pMnode->msgFp[TMSG_INDEX(pMsg->msgType)];
   if (fp == NULL) {
     mError("msg:%p, failed to get msg handle, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
@@ -551,7 +589,8 @@ int32_t mndProcessRpcMsg(SRpcMsg *pMsg) {
   if (mndCheckMsgContent(pMsg) != 0) return -1;
   if (mndCheckMnodeState(pMsg) != 0) return -1;
 
-  mTrace("msg:%p, start to process in mnode, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
+  STraceId *trace = &pMsg->info.traceId;
+  mGTrace("msg:%p, start to process in mnode, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
   int32_t code = (*fp)(pMsg);
   mndReleaseRpcRef(pMnode);
 
@@ -592,7 +631,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
                           SMonGrantInfo *pGrantInfo) {
   if (mndAcquireRpcRef(pMnode) != 0) return -1;
 
-  SSdb   *pSdb = pMnode->pSdb;
+  SSdb *  pSdb = pMnode->pSdb;
   int64_t ms = taosGetTimestampMs();
 
   pClusterInfo->dnodes = taosArrayInit(sdbGetSize(pSdb, SDB_DNODE), sizeof(SMonDnodeDesc));
@@ -668,7 +707,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
     pGrantInfo->timeseries_used += pVgroup->numOfTimeSeries;
     tstrncpy(desc.status, "unsynced", sizeof(desc.status));
     for (int32_t i = 0; i < pVgroup->replica; ++i) {
-      SVnodeGid     *pVgid = &pVgroup->vnodeGid[i];
+      SVnodeGid *    pVgid = &pVgroup->vnodeGid[i];
       SMonVnodeDesc *pVnDesc = &desc.vnodes[i];
       pVnDesc->dnode_id = pVgid->dnodeId;
       tstrncpy(pVnDesc->vnode_role, syncStr(pVgid->role), sizeof(pVnDesc->vnode_role));
