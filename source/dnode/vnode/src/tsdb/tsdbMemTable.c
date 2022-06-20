@@ -42,7 +42,7 @@ int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable) {
   taosInitRWLatch(&pMemTable->latch);
   pMemTable->pTsdb = pTsdb;
   pMemTable->nRef = 1;
-  pMemTable->info = KEYINFO_INIT_VAL;
+  pMemTable->info = tKEYINFOInit();
   pMemTable->nRow = 0;
   pMemTable->nDel = 0;
   pMemTable->aTbData = taosArrayInit(128, sizeof(STbData *));
@@ -318,7 +318,7 @@ static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid
   }
   pTbData->suid = suid;
   pTbData->uid = uid;
-  pTbData->info = KEYINFO_INIT_VAL;
+  pTbData->info = tKEYINFOInit();
   pTbData->pHead = NULL;
   pTbData->pTail = NULL;
   pTbData->sl.seed = taosRand();

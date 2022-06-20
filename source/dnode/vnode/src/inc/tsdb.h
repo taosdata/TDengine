@@ -59,7 +59,6 @@ typedef struct STsdbIndexFile STsdbIndexFile;
 typedef struct STsdbDataFile  STsdbDataFile;
 typedef struct STsdbLastFile  STsdbLastFile;
 typedef struct STsdbSmaFile   STsdbSmaFile;
-typedef struct STsdbSmalFile  STsdbSmalFile;
 typedef struct SDFileSet      SDFileSet;
 typedef struct SDataFWriter   SDataFWriter;
 typedef struct SDataFReader   SDataFReader;
@@ -84,13 +83,11 @@ int32_t tTABLEIDCmprFn(const void *p1, const void *p2);
 // TSDBKEY
 int32_t tsdbKeyCmprFn(const void *p1, const void *p2);
 // KEYINFO
-#define KEYINFO_INIT_VAL                  \
-  ((KEYINFO){.maxKey.ts = TSKEY_MIN,      \
-             .maxKey.version = 0,         \
-             .minKey.ts = TSKEY_MAX,      \
-             .minKey.version = INT64_MAX, \
-             .minVerion = INT64_MAX,      \
-             .maxVersion = 0})
+#define tKEYINFOInit()                                   \
+  ((KEYINFO){.maxKey = {.ts = TSKEY_MIN, .version = 0},  \
+             .minKey = {.ts = TSKEY_MAX, .version = -1}, \
+             .minVerion = INT64_MAX,                     \
+             .maxKey = -1})
 int32_t tPutKEYINFO(uint8_t *p, KEYINFO *pKeyInfo);
 int32_t tGetKEYINFO(uint8_t *p, KEYINFO *pKeyInfo);
 // SColdata
@@ -99,7 +96,9 @@ int32_t tColDataCmprFn(const void *p1, const void *p2);
 int32_t tPutBlockIdx(uint8_t *p, void *ph);
 int32_t tGetBlockIdx(uint8_t *p, void *ph);
 // SBlock
-#define BLOCK_INIT_VAL ((SBlock){})
+#define tBlockInit() ((SBlock){.info = tKEYINFOInit()})
+void    tBlockReset(SBlock *pBlock);
+void    tBlockClear(SBlock *pBlock);
 int32_t tPutBlock(uint8_t *p, void *ph);
 int32_t tGetBlock(uint8_t *p, void *ph);
 int32_t tBlockCmprFn(const void *p1, const void *p2);
@@ -121,6 +120,7 @@ int32_t tGetDelData(uint8_t *p, void *ph);
 int32_t tsdbRealloc(uint8_t **ppBuf, int64_t size);
 void    tsdbFree(uint8_t *pBuf);
 // SMapData
+#define tMapDataInit() ((SMapData){0})
 void    tMapDataReset(SMapData *pMapData);
 void    tMapDataClear(SMapData *pMapData);
 int32_t tMapDataPutItem(SMapData *pMapData, void *pItem, int32_t (*tPutItemFn)(uint8_t *, void *));

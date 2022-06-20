@@ -349,7 +349,7 @@ static int32_t tsdbCommitMemoryData(SCommitter *pCommitter, SBlockIdx *pBlockIdx
                                     bool toDataOnly) {
   int32_t  code = 0;
   TSDBROW *pRow;
-  SBlock   block;  // TODO
+  SBlock   block = tBlockInit();
 
   while (true) {
     pRow = tsdbTbDataIterGet(pIter);
@@ -382,7 +382,7 @@ static int32_t tsdbCommitMemoryData(SCommitter *pCommitter, SBlockIdx *pBlockIdx
     code = tMapDataPutItem(&pCommitter->nBlock, &block, tPutBlock);
     if (code) goto _err;
 
-    block = BLOCK_INIT_VAL;
+    tBlockReset(&block);
     tsdbBlockDataClear(&pCommitter->bDataN);
   }
 
@@ -427,7 +427,7 @@ static int32_t tsdbMergeCommitImpl(SCommitter *pCommitter, SBlockIdx *pBlockIdx,
   int32_t  nRow = 0;
   int32_t  c;
   TSDBROW *pRow;
-  SBlock   block = BLOCK_INIT_VAL;
+  SBlock   block = tBlockInit();
   TSDBKEY  key1;
   TSDBKEY  key2;
 
@@ -461,7 +461,7 @@ static int32_t tsdbMergeCommitImpl(SCommitter *pCommitter, SBlockIdx *pBlockIdx,
     if (code) goto _err;
   }
 
-  block = BLOCK_INIT_VAL;
+  tBlockReset(&block);
   tsdbBlockDataClear(&pCommitter->bDataN);
 
   return code;
@@ -474,7 +474,7 @@ _err:
 static int32_t tsdbMergeCommit(SCommitter *pCommitter, SBlockIdx *pBlockIdx, STbDataIter *pIter, SBlock *pBlock) {
   int32_t    code = 0;
   TSDBROW   *pRow;
-  SBlock     block = BLOCK_INIT_VAL;
+  SBlock     block = tBlockInit();
   SBlockData bDataN;
   TSDBKEY    key;
   int32_t    c;

@@ -275,6 +275,26 @@ int32_t tGetBlockIdx(uint8_t *p, void *ph) {
 }
 
 // SBlock ======================================================
+void tBlockReset(SBlock *pBlock) {
+  pBlock->info = tKEYINFOInit();
+  pBlock->nRow = 0;
+  pBlock->last = -1;
+  pBlock->cmprAlg = -1;
+  for (int8_t iSubBlock = 0; iSubBlock < pBlock->nSubBlock; iSubBlock++) {
+    pBlock->aSubBlock[iSubBlock].offset = -1;
+    pBlock->aSubBlock[iSubBlock].ksize = -1;
+    pBlock->aSubBlock[iSubBlock].bsize = -1;
+    tMapDataReset(&pBlock->aSubBlock->mBlockCol);
+  }
+  pBlock->nSubBlock = 0;
+}
+
+void tBlockClear(SBlock *pBlock) {
+  for (int8_t iSubBlock = 0; iSubBlock < TSDB_MAX_SUBBLOCKS; iSubBlock++) {
+    tMapDataClear(&pBlock->aSubBlock->mBlockCol);
+  }
+}
+
 int32_t tPutBlock(uint8_t *p, void *ph) {
   int32_t n = 0;
   SBlock *pBlock = (SBlock *)ph;
