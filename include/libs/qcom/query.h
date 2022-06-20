@@ -47,6 +47,10 @@ typedef enum {
   TARGET_TYPE_OTHER,
 } ETargetType;
 
+#define QUERY_POLICY_VNODE  1
+#define QUERY_POLICY_HYBRID 2
+#define QUERY_POLICY_QNODE  3
+
 typedef struct STableComInfo {
   uint8_t  numOfTags;     // the number of tags in schema
   uint8_t  precision;     // the number of precision

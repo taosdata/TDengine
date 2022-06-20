@@ -176,7 +176,7 @@ static bool stbSplNeedSplit(bool streamQuery, SLogicNode* pNode) {
       return !stbSplHasGatherExecFunc(((SAggLogicNode*)pNode)->pAggFuncs) && stbSplHasMultiTbScan(streamQuery, pNode);
     case QUERY_NODE_LOGIC_PLAN_WINDOW: {
       SWindowLogicNode* pWindow = (SWindowLogicNode*)pNode;
-      if (WINDOW_TYPE_INTERVAL != pWindow->winType) {
+      if (WINDOW_TYPE_STATE == pWindow->winType || (!streamQuery && WINDOW_TYPE_SESSION == pWindow->winType) ) {
         return false;
       }
       return !stbSplHasGatherExecFunc(pWindow->pFuncs) && stbSplHasMultiTbScan(streamQuery, pNode);
@@ -254,6 +254,34 @@ static int32_t stbSplAppendWStart(SNodeList* pFuncs, int32_t* pIndex) {
     code = nodesListStrictAppend(pFuncs, (SNode*)pWStart);
   }
   *pIndex = index;
+  return code;
+}
+
+static int32_t stbSplAppendWEnd(SWindowLogicNode* pWin, int32_t* pIndex) {
+  int32_t index = 0;
+  SNode*  pFunc = NULL;
+  FOREACH(pFunc, pWin->pFuncs) {
+    if (FUNCTION_TYPE_WENDTS == ((SFunctionNode*)pFunc)->funcType) {
+      *pIndex = index;
+      return TSDB_CODE_SUCCESS;
+    }
+    ++index;
+  }
+
+  SFunctionNode* pWEnd = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
+  if (NULL == pWEnd) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  strcpy(pWEnd->functionName, "_wendts");
+  snprintf(pWEnd->node.aliasName, sizeof(pWEnd->node.aliasName), "%s.%p", pWEnd->functionName, pWEnd);
+  int32_t code = fmGetFuncInfo(pWEnd, NULL, 0);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesListStrictAppend(pWin->pFuncs, (SNode*)pWEnd);
+  }
+  *pIndex = index;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createColumnByRewriteExpr(nodesListGetNode(pWin->pFuncs, index), &pWin->node.pTargets);
+  }
   return code;
 }
 
@@ -425,8 +453,18 @@ static int32_t stbSplSplitSessionForStream(SSplitContext* pCxt, SStableSplitInfo
   SLogicNode* pPartWindow = NULL;
   int32_t     code = stbSplCreatePartWindowNode((SWindowLogicNode*)pInfo->pSplitNode, &pPartWindow);
   if (TSDB_CODE_SUCCESS == code) {
-    ((SWindowLogicNode*)pPartWindow)->windowAlgo = SESSION_ALGO_STREAM_SEMI;
-    ((SWindowLogicNode*)pInfo->pSplitNode)->windowAlgo = SESSION_ALGO_STREAM_FINAL;
+    SWindowLogicNode* pPartWin = (SWindowLogicNode*)pPartWindow;
+    SWindowLogicNode* pMergeWin = (SWindowLogicNode*)pInfo->pSplitNode;
+    pPartWin->windowAlgo = SESSION_ALGO_STREAM_SEMI;
+    pMergeWin->windowAlgo = SESSION_ALGO_STREAM_FINAL;
+    int32_t index = 0;
+    int32_t code = stbSplAppendWEnd(pPartWin, &index);
+    if (TSDB_CODE_SUCCESS == code) {
+      pMergeWin->pTsEnd = nodesCloneNode(nodesListGetNode(pPartWin->node.pTargets, index));
+      if (NULL == pMergeWin->pTsEnd) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+      }
+    }
     code = stbSplCreateExchangeNode(pCxt, pInfo->pSplitNode, pPartWindow);
   }
   if (TSDB_CODE_SUCCESS == code) {

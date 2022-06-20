@@ -3716,7 +3716,7 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
   SIndefRowsFuncPhysiNode* pPhyNode = (SIndefRowsFuncPhysiNode*)pNode;
 
   int32_t    numOfExpr = 0;
-  SExprInfo* pExprInfo = createExprInfo(pPhyNode->pVectorFuncs, NULL, &numOfExpr);
+  SExprInfo* pExprInfo = createExprInfo(pPhyNode->pFuncs, NULL, &numOfExpr);
 
   if (pPhyNode->pExprs != NULL) {
     SExprSupp* pSup1 = &pInfo->scalarSup;

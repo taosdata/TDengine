@@ -702,7 +702,7 @@ void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
     TSWAP(pRequest->tableList, (pQuery)->pTableList);
 
     destorySqlParseWrapper(pWrapper);
-    launchAsyncQuery(pRequest, pQuery);
+    launchAsyncQuery(pRequest, pQuery, pResultMeta);
   } else {
     destorySqlParseWrapper(pWrapper);
     tscDebug("error happens, code:%d", code);
@@ -808,7 +808,7 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
 
   SQuery *pQuery = NULL;
 
-  SCatalogReq catalogReq = {.forceUpdate = updateMetaForce};
+  SCatalogReq catalogReq = {.forceUpdate = updateMetaForce, .qNodeRequired = qnodeRequired(pRequest)};
   code = qParseSqlSyntax(pCxt, &pQuery, &catalogReq);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
