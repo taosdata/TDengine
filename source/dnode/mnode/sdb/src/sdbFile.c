@@ -523,7 +523,7 @@ static void sdbCloseIter(SSdbIter *pIter) {
   taosMemoryFree(pIter);
 }
 
-int32_t sdbStartRead(SSdb *pSdb, SSdbIter **ppIter) {
+int32_t sdbStartRead(SSdb *pSdb, SSdbIter **ppIter, int64_t *index, int64_t *term, int64_t *config) {
   SSdbIter *pIter = sdbCreateIter(pSdb);
   if (pIter == NULL) return -1;
 
@@ -552,6 +552,10 @@ int32_t sdbStartRead(SSdb *pSdb, SSdbIter **ppIter) {
   }
 
   *ppIter = pIter;
+  if (index != NULL) *index = commitIndex;
+  if (term != NULL) *term = commitTerm;
+  if (config != NULL) *config = commitConfig;
+
   mInfo("sdbiter:%p, is created to read snapshot, commit index:%" PRId64 " term:%" PRId64 " config:%" PRId64 " file:%s",
         pIter, commitIndex, commitTerm, commitConfig, pIter->name);
   return 0;
