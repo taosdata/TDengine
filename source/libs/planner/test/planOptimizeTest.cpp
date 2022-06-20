@@ -60,4 +60,5 @@ TEST_F(PlanOptimizeTest, eliminateProjection) {
   run("SELECT c1 FROM t1");
   run("SELECT * FROM st1");
   run("SELECT c1 FROM st1s3");
+  //run("select 1-abs(c1) from (select unique(c1) c1 from st1s3) order by 1 nulls first");
 }
