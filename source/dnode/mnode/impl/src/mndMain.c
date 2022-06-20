@@ -63,6 +63,21 @@ static void mndPullupTrans(SMnode *pMnode) {
   tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
 }
 
+static void mndTtlTimer(SMnode *pMnode) {
+  int32_t contLen = sizeof(SMsgHead) + sizeof(int32_t);
+  SMsgHead   *pHead = rpcMallocCont(contLen);
+  if (pHead == NULL) {
+    mError("ttl time malloc err. contLen:%d", contLen);
+    return;
+  }
+
+  int32_t t = taosGetTimestampSec();
+  *(int32_t*)(POINTER_SHIFT(pHead, sizeof(SMsgHead))) = htonl(t);
+
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_TTL_TIMER, .pCont = pHead, .contLen = contLen};
+  tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+}
+
 static void mndCalMqRebalance(SMnode *pMnode) {
   int32_t contLen = 0;
   void *  pReq = mndBuildTimerMsg(&contLen);
@@ -77,53 +92,19 @@ static void mndPullupTelem(SMnode *pMnode) {
   tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
 }
 
-static void mndPushTtlTime(SMnode *pMnode) {
-  SSdb   *pSdb = pMnode->pSdb;
-  SVgObj *pVgroup = NULL;
-  void   *pIter = NULL;
-
-  while (1) {
-    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
-    if (pIter == NULL) break;
-
-    int32_t contLen = sizeof(SMsgHead) + sizeof(int32_t);
-    SMsgHead   *pHead = rpcMallocCont(contLen);
-    if (pHead == NULL) {
-      mError("ttl time malloc err. contLen:%d", contLen);
-      sdbRelease(pSdb, pVgroup);
-      continue;
-    }
-    pHead->contLen = htonl(contLen);
-    pHead->vgId = htonl(pVgroup->vgId);
-
-    int32_t t = taosGetTimestampSec();
-    *(int32_t*)(POINTER_SHIFT(pHead, sizeof(SMsgHead))) = htonl(t);
-
-    SRpcMsg rpcMsg = {.msgType = TDMT_VND_DROP_TTL_TABLE, .pCont = pHead, .contLen = contLen};
-
-    SEpSet epSet = mndGetVgroupEpset(pMnode, pVgroup);
-    int32_t code = tmsgSendReq(&epSet, &rpcMsg);
-    if(code != 0){
-      mError("ttl time seed err. code:%d", code);
-    }
-    mError("ttl time seed succ. time:%d", t);
-    sdbRelease(pSdb, pVgroup);
-  }
-}
-
 static void *mndThreadFp(void *param) {
   SMnode *pMnode = param;
   int64_t lastTime = 0;
   setThreadName("mnode-timer");
 
   while (1) {
-    if (lastTime % (864000) == 0) {   // sleep 1 day for ttl
-      mndPushTtlTime(pMnode);
-    }
-
     lastTime++;
     taosMsleep(100);
     if (mndGetStop(pMnode)) break;
+
+    if (lastTime % (864000) == 1) {   // sleep 1 day for ttl
+      mndTtlTimer(pMnode);
+    }
 
     if (lastTime % (tsTransPullupInterval * 10) == 0) {
       mndPullupTrans(pMnode);

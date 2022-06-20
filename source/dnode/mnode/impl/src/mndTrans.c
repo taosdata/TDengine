@@ -21,6 +21,7 @@
 #include "mndShow.h"
 #include "mndSync.h"
 #include "mndUser.h"
+#include "mndVgroup.h"
 
 #define TRANS_VER_NUMBER   1
 #define TRANS_ARRAY_SIZE   8
@@ -56,6 +57,7 @@ static bool    mndCannotExecuteTransAction(SMnode *pMnode) { return !pMnode->dep
 
 static void    mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans);
 static int32_t mndProcessTransReq(SRpcMsg *pReq);
+static int32_t mndProcessTtl(SRpcMsg *pReq);
 static int32_t mndProcessKillTransReq(SRpcMsg *pReq);
 
 static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
@@ -72,6 +74,7 @@ int32_t mndInitTrans(SMnode *pMnode) {
       .deleteFp = (SdbDeleteFp)mndTransActionDelete,
   };
 
+  mndSetMsgHandle(pMnode, TDMT_MND_TTL_TIMER, mndProcessTtl);
   mndSetMsgHandle(pMnode, TDMT_MND_TRANS_TIMER, mndProcessTransReq);
   mndSetMsgHandle(pMnode, TDMT_MND_KILL_TRANS, mndProcessKillTransReq);
 
@@ -1343,6 +1346,34 @@ void mndTransExecute(SMnode *pMnode, STrans *pTrans) {
 
 static int32_t mndProcessTransReq(SRpcMsg *pReq) {
   mndTransPullup(pReq->info.node);
+  return 0;
+}
+
+static int32_t mndProcessTtl(SRpcMsg *pReq) {
+  SMnode *pMnode = pReq->info.node;
+  SSdb   *pSdb = pMnode->pSdb;
+  SVgObj *pVgroup = NULL;
+  void   *pIter = NULL;
+
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) break;
+
+    SMsgHead   *pHead = (SMsgHead *)(pReq->pCont);
+
+    pHead->contLen = htonl(pReq->contLen);
+    pHead->vgId = htonl(pVgroup->vgId);
+
+    SRpcMsg rpcMsg = {.msgType = TDMT_VND_DROP_TTL_TABLE, .pCont = pReq->pCont, .contLen = pReq->contLen};
+
+    SEpSet epSet = mndGetVgroupEpset(pMnode, pVgroup);
+    int32_t code = tmsgSendReq(&epSet, &rpcMsg);
+    if(code != 0){
+      mError("ttl time seed err. code:%d", code);
+    }
+    mError("ttl time seed succ");
+    sdbRelease(pSdb, pVgroup);
+  }
   return 0;
 }
 
