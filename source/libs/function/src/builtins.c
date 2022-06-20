@@ -2523,6 +2523,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .classification = FUNC_MGT_AGG_FUNC,
     .translateFunc = translateBlockDistFunc,
     .getEnvFunc   = getBlockDistFuncEnv,
+    .initFunc     = blockDistSetup,
     .processFunc  = blockDistFunction,
     .finalizeFunc = blockDistFinalize
   },

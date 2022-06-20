@@ -502,6 +502,9 @@ static int32_t doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCt
       SFunctParam* pFuncParam = &pOneExpr->base.pParam[j];
       if (pFuncParam->type == FUNC_PARAM_TYPE_COLUMN) {
         int32_t slotId = pFuncParam->pCol->slotId;
+        if (slotId >= taosArrayGetSize(pBlock->pDataBlock)) {
+          slotId = taosArrayGetSize(pBlock->pDataBlock) - 1;
+        }
         pInput->pData[j] = taosArrayGet(pBlock->pDataBlock, slotId);
         pInput->totalRows = pBlock->info.rows;
         pInput->numOfRows = pBlock->info.rows;
@@ -2812,7 +2815,8 @@ int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scan
   // todo add more information about exchange operation
   int32_t type = pOperator->operatorType;
   if (type == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE || type == QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN ||
-      type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN || type == QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN) {
+      type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN || type == QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN ||
+      type == QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN) {
     *order = TSDB_ORDER_ASC;
     *scanFlag = MAIN_SCAN;
     return TSDB_CODE_SUCCESS;
@@ -2840,7 +2844,6 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
   SAggOperatorInfo* pAggInfo = pOperator->info;
 
   SExprSupp* pSup = &pOperator->exprSupp;
-  SOptrBasicInfo* pInfo = &pAggInfo->binfo;
   SOperatorInfo*  downstream = pOperator->pDownstream[0];
 
   int64_t st = taosGetTimestampUs();
@@ -4087,6 +4090,46 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       }
 
       return createTagScanOperatorInfo(pHandle, pScanPhyNode, pTableListInfo, pTaskInfo);
+    } else if (QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN == type) {
+      SBlockDistScanPhysiNode* pBlockNode = (SBlockDistScanPhysiNode*) pPhyNode;
+      pTableListInfo->pTableList = taosArrayInit(4, sizeof(STableKeyInfo));
+
+      if (pBlockNode->tableType == TSDB_SUPER_TABLE) {
+        int32_t code = tsdbGetAllTableList(pHandle->meta, pBlockNode->uid, pTableListInfo->pTableList);
+        if (code != TSDB_CODE_SUCCESS) {
+          pTaskInfo->code = terrno;
+          return NULL;
+        }
+      } else {  // Create one table group.
+        STableKeyInfo info = {.lastKey = 0, .uid = pBlockNode->uid};
+        taosArrayPush(pTableListInfo->pTableList, &info);
+      }
+
+      SQueryTableDataCond cond = {0};
+
+      {
+        cond.order = TSDB_ORDER_ASC;
+        cond.numOfCols = 1;
+        cond.colList = taosMemoryCalloc(1, sizeof(SColumnInfo));
+        if (cond.colList == NULL) {
+          terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
+          return NULL;
+        }
+
+        cond.colList->colId = 1;
+        cond.colList->type = TSDB_DATA_TYPE_TIMESTAMP;
+        cond.colList->bytes = sizeof(TSKEY);
+
+        cond.numOfTWindows = 1;
+        cond.twindows = taosMemoryCalloc(1, sizeof(STimeWindow));
+        cond.twindows[0] = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MAX};
+        cond.suid = pBlockNode->suid;
+        cond.type = BLOCK_LOAD_OFFSET_SEQ_ORDER;
+      }
+      tsdbReaderT* pReader = tsdbReaderOpen(pHandle->vnode, &cond, pTableListInfo, queryId, taskId);
+      cleanupQueryTableDataCond(&cond);
+
+      return createDataBlockInfoScanOperator(pReader, pHandle, cond.suid, pTaskInfo);
     } else {
       ASSERT(0);
     }
@@ -4284,8 +4327,7 @@ SArray* extractColumnInfo(SNodeList* pNodeList) {
 
 tsdbReaderT doCreateDataReader(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle,
                                STableListInfo* pTableListInfo, uint64_t queryId, uint64_t taskId, SNode* pTagCond) {
-  int32_t code =
-      getTableList(pHandle->meta, &pTableScanNode->scan, pTableListInfo, pTagCond);
+  int32_t code = getTableList(pHandle->meta, &pTableScanNode->scan, pTableListInfo, pTagCond);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
