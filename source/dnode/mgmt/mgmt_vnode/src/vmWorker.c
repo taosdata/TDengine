@@ -169,10 +169,6 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
       dTrace("vgId:%d, msg:%p put into vnode-sync queue", pVnode->vgId, pMsg);
       taosWriteQitem(pVnode->pSyncQ, pMsg);
       break;
-    case MERGE_QUEUE:
-      dTrace("vgId:%d, msg:%p put into vnode-merge queue", pVnode->vgId, pMsg);
-      taosWriteQitem(pVnode->pMergeQ, pMsg);
-      break;
     case APPLY_QUEUE:
       dTrace("vgId:%d, msg:%p put into vnode-apply queue", pVnode->vgId, pMsg);
       taosWriteQitem(pVnode->pApplyQ, pMsg);
@@ -194,8 +190,6 @@ int32_t vmPutMsgToWriteQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) { return vmPutMsg
 int32_t vmPutMsgToQueryQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) { return vmPutMsgToQueue(pMgmt, pMsg, QUERY_QUEUE); }
 
 int32_t vmPutMsgToFetchQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) { return vmPutMsgToQueue(pMgmt, pMsg, FETCH_QUEUE); }
-
-int32_t vmPutMsgToMergeQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) { return vmPutMsgToQueue(pMgmt, pMsg, MERGE_QUEUE); }
 
 int32_t vmPutMsgToMgmtQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   dTrace("msg:%p, put into vnode-mgmt queue", pMsg);
@@ -241,9 +235,6 @@ int32_t vmGetQueueSize(SVnodeMgmt *pMgmt, int32_t vgId, EQueueType qtype) {
         break;
       case FETCH_QUEUE:
         size = taosQueueItemSize(pVnode->pFetchQ);
-        break;
-      case MERGE_QUEUE:
-        size = taosQueueItemSize(pVnode->pMergeQ);
         break;
       default:
         break;

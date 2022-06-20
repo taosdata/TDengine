@@ -4557,11 +4557,17 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       STimeWindowAggSupp   twSup = {
             .waterMark = pTableScanNode->watermark, .calTrigger = pTableScanNode->triggerType, .maxTs = INT64_MIN};
       tsdbReaderT pDataReader = NULL;
+
+      if (pHandle) {
+        pDataReader = doCreateDataReader(pTableScanNode, pHandle, pTableListInfo, (uint64_t)queryId, taskId, pTagCond);
+      }
+#if 0
       if (pHandle->vnode) {
         pDataReader = doCreateDataReader(pTableScanNode, pHandle, pTableListInfo, (uint64_t)queryId, taskId, pTagCond);
       } else {
         getTableList(pHandle->meta, pScanPhyNode->tableType, pScanPhyNode->uid, pTableListInfo, pTagCond);
       }
+#endif
 
       if (pDataReader == NULL && terrno != 0) {
         qDebug("%s pDataReader is NULL", GET_TASKID(pTaskInfo));
@@ -4894,8 +4900,8 @@ SArray* extractColumnInfo(SNodeList* pNodeList) {
 }
 
 SArray* extractPartitionColInfo(SNodeList* pNodeList) {
-  if(!pNodeList) {
-      return NULL;
+  if (!pNodeList) {
+    return NULL;
   }
 
   size_t  numOfCols = LIST_LENGTH(pNodeList);
