@@ -7,7 +7,8 @@ def sync_source() {
     sh '''
         hostname
         date
-        '''
+        env
+    '''
     sh '''
         cd ${WKC}
         [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
@@ -206,7 +207,6 @@ pipeline {
                         sh '''
                             date
                             pwd
-                            env
                             hostname
                         '''
                         timeout(time: 15, unit: 'MINUTES') {
