@@ -1083,6 +1083,11 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
 }
 
 static bool eliminateProjOptMayBeOptimized(SLogicNode* pNode) {
+  //TODO: enable this optimization after new mechanising that map projection and targets of project node
+  if (NULL != pNode->pParent) {
+    return false;
+  }
+  
   if (QUERY_NODE_LOGIC_PLAN_PROJECT != nodeType(pNode) || 1 != LIST_LENGTH(pNode->pChildren)) {
     return false;
   }
@@ -1122,10 +1127,9 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
 
   SNode* pProjection = NULL;
   FOREACH(pProjection, pProjectNode->pProjections) {
-    SColumnNode* projColumn = (SColumnNode*)pProjection;
     SNode* pChildTarget = NULL;
     FOREACH(pChildTarget, pChild->pTargets) {
-      if (strcmp(projColumn->colName, ((SColumnNode*)pChildTarget)->colName) == 0) {
+      if (strcmp(((SColumnNode*)pProjection)->colName, ((SColumnNode*)pChildTarget)->colName) == 0) {
         nodesListAppend(pNewChildTargets, nodesCloneNode(pChildTarget));
         break;
       }
