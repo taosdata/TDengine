@@ -32,11 +32,12 @@ extern "C" {
 #define smaTrace(...) do { if (smaDebugFlag & DEBUG_TRACE) { taosPrintLog("SMA ", DEBUG_TRACE, tsdbDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
-typedef struct SSmaEnv      SSmaEnv;
-typedef struct SSmaStat     SSmaStat;
-typedef struct SSmaStatItem SSmaStatItem;
-typedef struct SSmaKey      SSmaKey;
-typedef struct SRSmaInfo    SRSmaInfo;
+typedef struct SSmaEnv       SSmaEnv;
+typedef struct SSmaStat      SSmaStat;
+typedef struct SSmaStatItem  SSmaStatItem;
+typedef struct SSmaKey       SSmaKey;
+typedef struct SRSmaInfo     SRSmaInfo;
+typedef struct SRSmaInfoItem SRSmaInfoItem;
 
 struct SSmaEnv {
   TdThreadRwlock lock;

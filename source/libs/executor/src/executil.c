@@ -193,9 +193,9 @@ SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode) {
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData idata = {{0}};
     SSlotDescNode*  pDescNode = (SSlotDescNode*)nodesListGetNode(pNode->pSlots, i);
-    //    if (!pDescNode->output) {  // todo disable it temporarily
-    //      continue;
-    //    }
+//    if (!pDescNode->output) {  // todo disable it temporarily
+//      continue;
+//    }
 
     idata.info.type = pDescNode->dataType.type;
     idata.info.bytes = pDescNode->dataType.bytes;
@@ -235,7 +235,7 @@ int32_t getTableList(void* metaHandle, SScanPhysiNode* pScanNode, STableListInfo
         terrno = code;
         return code;
       } else {
-        qDebug("sucess to  get tableIds, size: %d, suid: %" PRIu64 "", (int)taosArrayGetSize(res), tableUid);
+        qDebug("success to  get tableIds, size: %d, suid: %" PRIu64 "", (int)taosArrayGetSize(res), tableUid);
       }
 
       for (int i = 0; i < taosArrayGetSize(res); i++) {
@@ -319,7 +319,14 @@ SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
       continue;
     }
 
-    SColMatchInfo* info = taosArrayGet(pList, pNode->slotId);
+    SColMatchInfo* info = NULL;
+    for (int32_t j = 0; j < taosArrayGetSize(pList); ++j) {
+      info = taosArrayGet(pList, j);
+      if (info->targetSlotId == pNode->slotId) {
+        break;
+      }
+    }
+
     if (pNode->output) {
       (*numOfOutputCols) += 1;
     } else {
@@ -578,14 +585,15 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
 }
 
 // NOTE: sources columns are more than the destination SSDatablock columns.
-void relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray* pCols) {
+// doFilter in table scan needs every column even its output is false
+void relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray* pCols, bool outputEveryColumn) {
   size_t numOfSrcCols = taosArrayGetSize(pCols);
 
   int32_t i = 0, j = 0;
   while (i < numOfSrcCols && j < taosArrayGetSize(pColMatchInfo)) {
     SColumnInfoData* p = taosArrayGet(pCols, i);
     SColMatchInfo*   pmInfo = taosArrayGet(pColMatchInfo, j);
-    if (!pmInfo->output) {
+    if (!outputEveryColumn && !pmInfo->output) {
       j++;
       continue;
     }
