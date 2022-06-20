@@ -496,10 +496,6 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
     vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
     pSubplan->execNodeStat.tableNum = pScanLogicNode->pVgroupList->vgroups[0].numOfTable;
   }
-  if (pCxt->pExecNodeList) {
-    SQueryNodeLoad node = {.addr = pSubplan->execNode, .load = 0};
-    taosArrayPush(pCxt->pExecNodeList, &node);
-  }
   tNameGetFullDbName(&pScanLogicNode->tableName, pSubplan->dbFName);
   pTableScan->dataRequired = pScanLogicNode->dataRequired;
   pTableScan->pDynamicScanFuncs = nodesCloneList(pScanLogicNode->pDynamicScanFuncs);
@@ -535,12 +531,9 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
   if (0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_USER_TABLES) ||
       0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED)) {
     vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
-    SQueryNodeLoad node = {.addr = pSubplan->execNode, .load = 0};
-    taosArrayPush(pCxt->pExecNodeList, &node);
-  } else {
-    SQueryNodeLoad node = {.addr = {.nodeId = MNODE_HANDLE, .epSet = pCxt->pPlanCxt->mgmtEpSet}, .load = 0};
-    taosArrayPush(pCxt->pExecNodeList, &node);
   }
+  SQueryNodeLoad node = {.addr = {.nodeId = MNODE_HANDLE, .epSet = pCxt->pPlanCxt->mgmtEpSet}, .load = 0};
+  taosArrayPush(pCxt->pExecNodeList, &node);
   pScan->mgmtEpSet = pCxt->pPlanCxt->mgmtEpSet;
   tNameGetFullDbName(&pScanLogicNode->tableName, pSubplan->dbFName);
 
@@ -1432,8 +1425,6 @@ static SSubplan* makeSubplan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogicSubpl
 static int32_t buildInsertSubplan(SPhysiPlanContext* pCxt, SVnodeModifyLogicNode* pModify, SSubplan* pSubplan) {
   pSubplan->msgType = pModify->msgType;
   pSubplan->execNode.epSet = pModify->pVgDataBlocks->vg.epSet;
-  SQueryNodeLoad node = {.addr = pSubplan->execNode, .load = 0};
-  taosArrayPush(pCxt->pExecNodeList, &node);
   return createDataInserter(pCxt, pModify->pVgDataBlocks, &pSubplan->pDataSink);
 }
 
