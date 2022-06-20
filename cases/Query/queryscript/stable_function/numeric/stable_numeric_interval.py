@@ -104,10 +104,9 @@ class TDTestQuery(TDCase):
         for i in (self.list_numeric):    
             func = tdFunction.func_stable_special(i)
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                cur1.execute('use "%s";' %self.db)                
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db) 
+                              
                 stable_where = tdWhere.stable_where()
                 
                 for i in range(2,len(stable_where[2])+1):
@@ -189,10 +188,9 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_special(i)
             func_desc = func # for desc
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                cur1.execute('use "%s";' %self.db)    
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db) 
+                
                 stable_where = tdWhere.stable_where()
                 #sql1 = 'select %s from %s group by tbname;'  % (func,self.table)
                 
@@ -414,10 +412,9 @@ class TDTestQuery(TDCase):
         for i in (self.list_numeric):  
             func = tdFunction.func_stable_special(i)
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                cur1.execute('use "%s";' %self.db)                
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db) 
+                              
                 stable_where = tdWhere.stable_where()
                 #sql1 = 'select %s from %s group by tbname order by ts;'  % (func,self.table)
                 
