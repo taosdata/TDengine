@@ -152,7 +152,7 @@ void*   streamDataBlockDecode(const void* buf, SStreamDataBlock* pInput);
 typedef struct {
   char* qmsg;
   // followings are not applicable to encoder and decoder
-  void* inputHandle;
+  // void* inputHandle;
   void* executor;
 } STaskExec;
 
@@ -240,11 +240,12 @@ struct SStreamTask {
   int8_t  inputType;
   int8_t  status;
 
-  int8_t  sourceType;
   int8_t  execType;
   int8_t  sinkType;
   int8_t  dispatchType;
   int16_t dispatchMsgType;
+
+  int8_t dataScan;
 
   // node info
   int32_t childId;

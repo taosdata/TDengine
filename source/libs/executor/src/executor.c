@@ -99,7 +99,7 @@ int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numO
 }
 
 qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, void* streamReadHandle) {
-  if (msg == NULL || streamReadHandle == NULL) {
+  if (msg == NULL) {
     return NULL;
   }
 
