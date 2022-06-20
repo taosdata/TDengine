@@ -178,6 +178,23 @@ int32_t syncSetStandby(int64_t rid) {
   return 0;
 }
 
+bool syncNodeCheckNewConfig(SSyncNode* pSyncNode, const SSyncCfg* pNewCfg) {
+  bool IamInNew = syncNodeInConfig(pSyncNode, pNewCfg);
+  if (!IamInNew) {
+    return false;
+  }
+
+  if (pNewCfg->replicaNum > pSyncNode->replicaNum + 1) {
+    return false;
+  }
+
+  if (pNewCfg->replicaNum < pSyncNode->replicaNum - 1) {
+    return false;
+  }
+
+  return true;
+}
+
 int32_t syncReconfigBuild(int64_t rid, const SSyncCfg* pNewCfg, SRpcMsg* pRpcMsg) {
   SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
@@ -185,13 +202,12 @@ int32_t syncReconfigBuild(int64_t rid, const SSyncCfg* pNewCfg, SRpcMsg* pRpcMsg
     return -1;
   }
   ASSERT(rid == pSyncNode->rid);
-
   int32_t ret = 0;
-  bool    IamInNew = syncNodeInConfig(pSyncNode, pNewCfg);
 
-  if (!IamInNew) {
+  if (!syncNodeCheckNewConfig(pSyncNode, pNewCfg)) {
     taosReleaseRef(tsNodeRefId, pSyncNode->rid);
-    terrno = TSDB_CODE_SYN_NOT_IN_NEW_CONFIG;
+    terrno = TSDB_CODE_SYN_NEW_CONFIG_ERROR;
+    sError("syncNodeCheckNewConfig error");
     return -1;
   }
 
@@ -215,12 +231,10 @@ int32_t syncReconfig(int64_t rid, const SSyncCfg* pNewCfg) {
   }
   ASSERT(rid == pSyncNode->rid);
 
-  bool IamInNew = syncNodeInConfig(pSyncNode, pNewCfg);
-
-  if (!IamInNew) {
-    sError("sync reconfig error, not in new config");
+  if (!syncNodeCheckNewConfig(pSyncNode, pNewCfg)) {
     taosReleaseRef(tsNodeRefId, pSyncNode->rid);
-    terrno = TSDB_CODE_SYN_NOT_IN_NEW_CONFIG;
+    terrno = TSDB_CODE_SYN_NEW_CONFIG_ERROR;
+    sError("syncNodeCheckNewConfig error");
     return -1;
   }
 
@@ -425,18 +439,6 @@ const char* syncGetMyRoleStr(int64_t rid) {
   return s;
 }
 
-int32_t syncGetVgId(int64_t rid) {
-  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
-  if (pSyncNode == NULL) {
-    return TAOS_SYNC_STATE_ERROR;
-  }
-  assert(rid == pSyncNode->rid);
-  int32_t vgId = pSyncNode->vgId;
-
-  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
-  return vgId;
-}
-
 SyncTerm syncGetMyTerm(int64_t rid) {
   SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
@@ -447,6 +449,18 @@ SyncTerm syncGetMyTerm(int64_t rid) {
 
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
   return term;
+}
+
+SyncGroupId syncGetVgId(int64_t rid) {
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    return TAOS_SYNC_STATE_ERROR;
+  }
+  assert(rid == pSyncNode->rid);
+  SyncGroupId vgId = pSyncNode->vgId;
+
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+  return vgId;
 }
 
 void syncGetEpSet(int64_t rid, SEpSet* pEpSet) {
@@ -589,6 +603,26 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, const SRpcMsg* pMsg, bool isWeak) 
   syncNodeEventLog(pSyncNode, eventLog);
 
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
+    if (pSyncNode->changing && pMsg->msgType != TDMT_SYNC_CONFIG_CHANGE_FINISH) {
+      ret = -1;
+      terrno = TSDB_CODE_SYN_PROPOSE_NOT_READY;
+      sError("sync propose not ready, type:%s,%d", TMSG_INFO(pMsg->msgType), pMsg->msgType);
+      goto _END;
+    }
+
+    // config change
+    if (pMsg->msgType == TDMT_SYNC_CONFIG_CHANGE) {
+      if (!syncNodeCanChange(pSyncNode)) {
+        ret = -1;
+        terrno = TSDB_CODE_SYN_RECONFIG_NOT_READY;
+        sError("sync reconfig not ready, type:%s,%d", TMSG_INFO(pMsg->msgType), pMsg->msgType);
+        goto _END;
+      }
+
+      ASSERT(!pSyncNode->changing);
+      pSyncNode->changing = true;
+    }
+
     SRespStub stub;
     stub.createTime = taosGetTimestampMs();
     stub.rpcMsg = *pMsg;
@@ -606,12 +640,16 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, const SRpcMsg* pMsg, bool isWeak) 
       sError("syncPropose pSyncNode->FpEqMsg is NULL");
     }
     syncClientRequestDestroy(pSyncMsg);
+    goto _END;
+
   } else {
     ret = -1;
     terrno = TSDB_CODE_SYN_NOT_LEADER;
     sError("syncPropose not leader, %s", syncUtilState2String(pSyncNode->state));
+    goto _END;
   }
 
+_END:
   return ret;
 }
 
@@ -824,6 +862,9 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
 
   // snapshot receivers
   pSyncNode->pNewNodeReceiver = snapshotReceiverCreate(pSyncNode, EMPTY_RAFT_ID);
+
+  // is config changing
+  pSyncNode->changing = false;
 
   // start in syncNodeStart
   // start raft
@@ -1253,20 +1294,32 @@ char* syncNode2Str(const SSyncNode* pSyncNode) {
 
 void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
   int32_t userStrLen = strlen(str);
+
+  SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
+  if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
+    pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
+  }
+  SyncIndex logLastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
+
   if (userStrLen < 256) {
     char logBuf[128 + 256];
     snprintf(logBuf, sizeof(logBuf),
-             "vgId:%d %s term:%lu commit:%ld standby:%d replica-num:%d lconfig:%ld sync event %s", pSyncNode->vgId,
-             syncUtilState2String(pSyncNode->state), pSyncNode->pRaftStore->currentTerm, pSyncNode->commitIndex,
-             pSyncNode->pRaftCfg->isStandBy, pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex, str);
+             "vgId:%d, sync %s %s, term:%lu, commit:%ld, lastlog:%ld, lastsnapshot:%ld, standby:%d, replica-num:%d, "
+             "lconfig:%ld, changing:%d",
+             pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
+             pSyncNode->commitIndex, logLastIndex, snapshot.lastApplyIndex, pSyncNode->pRaftCfg->isStandBy,
+             pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex, pSyncNode->changing);
     sDebug("%s", logBuf);
+
   } else {
     int   len = 128 + userStrLen;
     char* s = (char*)taosMemoryMalloc(len);
-    snprintf(s, len, "vgId:%d %s term:%lu commit:%ld standby:%d replica-num:%d lconfig:%ld sync event %s",
-             pSyncNode->vgId, syncUtilState2String(pSyncNode->state), pSyncNode->pRaftStore->currentTerm,
-             pSyncNode->commitIndex, pSyncNode->pRaftCfg->isStandBy, pSyncNode->replicaNum,
-             pSyncNode->pRaftCfg->lastConfigIndex, str);
+    snprintf(s, len,
+             "vgId:%d, sync %s %s, term:%lu, commit:%ld, lastlog:%ld, lastsnapshot:%ld, standby:%d, replica-num:%d, "
+             "lconfig:%ld, changing:%d",
+             pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
+             pSyncNode->commitIndex, logLastIndex, snapshot.lastApplyIndex, pSyncNode->pRaftCfg->isStandBy,
+             pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex, pSyncNode->changing);
     sDebug("%s", s);
     taosMemoryFree(s);
   }
@@ -1313,7 +1366,7 @@ bool syncNodeInConfig(SSyncNode* pSyncNode, const SSyncCfg* config) {
   return b1;
 }
 
-void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncIndex lastConfigChangeIndex, bool* isDrop) {
+void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncIndex lastConfigChangeIndex, bool* isDrop) {
   SSyncCfg oldConfig = pSyncNode->pRaftCfg->cfg;
   pSyncNode->pRaftCfg->cfg = *pNewConfig;
   pSyncNode->pRaftCfg->lastConfigIndex = lastConfigChangeIndex;
@@ -1451,7 +1504,7 @@ void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncIndex 
   raftCfgPersist(pSyncNode->pRaftCfg);
 
   if (gRaftDetailLog) {
-    syncNodeLog2("==syncNodeUpdateConfig==", pSyncNode);
+    syncNodeLog2("==syncNodeDoConfigChange==", pSyncNode);
   }
 }
 
@@ -2170,33 +2223,70 @@ int32_t syncNodeUpdateNewConfigIndex(SSyncNode* ths, SSyncCfg* pNewCfg) {
   return -1;
 }
 
-static int32_t syncNodeConfigChange(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* pEntry) {
+static int32_t syncNodeConfigChangeFinish(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* pEntry) {
+  SyncReconfigFinish* pFinish = syncReconfigFinishFromRpcMsg2(pRpcMsg);
+  ASSERT(pFinish);
+
+  if (ths->pFsm->FpReConfigCb != NULL) {
+    SReConfigCbMeta cbMeta = {0};
+    cbMeta.code = 0;
+    cbMeta.index = pEntry->index;
+    cbMeta.term = pEntry->term;
+    cbMeta.seqNum = pEntry->seqNum;
+    cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(ths, pEntry->index);
+    cbMeta.state = ths->state;
+    cbMeta.currentTerm = ths->pRaftStore->currentTerm;
+    cbMeta.isWeak = pEntry->isWeak;
+    cbMeta.flag = 0;
+
+    cbMeta.oldCfg = pFinish->oldCfg;
+    cbMeta.newCfg = pFinish->newCfg;
+    cbMeta.newCfgIndex = pFinish->newCfgIndex;
+    cbMeta.newCfgTerm = pFinish->newCfgTerm;
+    cbMeta.newCfgSeqNum = pFinish->newCfgSeqNum;
+
+    ths->pFsm->FpReConfigCb(ths->pFsm, pRpcMsg, cbMeta);
+  }
+
+  // update changing
+  ths->changing = false;
+
+  char  tmpbuf[512];
+  char* oldStr = syncCfg2SimpleStr(&(pFinish->oldCfg));
+  char* newStr = syncCfg2SimpleStr(&(pFinish->newCfg));
+  snprintf(tmpbuf, sizeof(tmpbuf), "config change finish from %d to %d, index:%ld, %s  -->  %s",
+           pFinish->oldCfg.replicaNum, pFinish->newCfg.replicaNum, pFinish->newCfgIndex, oldStr, newStr);
+  taosMemoryFree(oldStr);
+  taosMemoryFree(newStr);
+  syncNodeEventLog(ths, tmpbuf);
+
+  syncReconfigFinishDestroy(pFinish);
+
+  return 0;
+}
+
+static int32_t syncNodeConfigChange(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* pEntry,
+                                    SyncReconfigFinish* pFinish) {
+  // old config
   SSyncCfg oldSyncCfg = ths->pRaftCfg->cfg;
 
+  // new config
   SSyncCfg newSyncCfg;
   int32_t  ret = syncCfgFromStr(pRpcMsg->pCont, &newSyncCfg);
   ASSERT(ret == 0);
 
+  // persist last config index
+  raftCfgAddConfigIndex(ths->pRaftCfg, pEntry->index);
+  raftCfgPersist(ths->pRaftCfg);
+
   // update new config myIndex
   syncNodeUpdateNewConfigIndex(ths, &newSyncCfg);
 
+  bool isDrop = false;
   bool IamInNew = syncNodeInConfig(ths, &newSyncCfg);
-
-  /*
-   for (int i = 0; i < newSyncCfg.replicaNum; ++i) {
-     if (strcmp(ths->myNodeInfo.nodeFqdn, (newSyncCfg.nodeInfo)[i].nodeFqdn) == 0 &&
-         ths->myNodeInfo.nodePort == (newSyncCfg.nodeInfo)[i].nodePort) {
-       newSyncCfg.myIndex = i;
-       IamInNew = true;
-       break;
-     }
-   }
- */
-
-  bool isDrop;
-
   if (IamInNew) {
-    syncNodeUpdateConfig(ths, &newSyncCfg, pEntry->index, &isDrop);
+    // do config change
+    syncNodeDoConfigChange(ths, &newSyncCfg, pEntry->index, &isDrop);
 
     // change isStandBy to normal
     if (!isDrop) {
@@ -2214,6 +2304,7 @@ static int32_t syncNodeConfigChange(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftE
         syncNodeBecomeFollower(ths, tmpbuf);
       }
     }
+
   } else {
     char  tmpbuf[512];
     char* oldStr = syncCfg2SimpleStr(&oldSyncCfg);
@@ -2226,31 +2317,25 @@ static int32_t syncNodeConfigChange(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftE
     syncNodeBecomeFollower(ths, tmpbuf);
   }
 
-  if (gRaftDetailLog) {
-    char* sOld = syncCfg2Str(&oldSyncCfg);
-    char* sNew = syncCfg2Str(&newSyncCfg);
-    sInfo("==config change== 0x11 old:%s new:%s isDrop:%d index:%ld IamInNew:%d \n", sOld, sNew, isDrop, pEntry->index,
-          IamInNew);
-    taosMemoryFree(sOld);
-    taosMemoryFree(sNew);
-  }
+  // set pFinish
+  pFinish->oldCfg = oldSyncCfg;
+  pFinish->newCfg = newSyncCfg;
+  pFinish->newCfgIndex = pEntry->index;
+  pFinish->newCfgTerm = pEntry->term;
+  pFinish->newCfgSeqNum = pEntry->seqNum;
 
-  // always call FpReConfigCb
-  if (ths->pFsm->FpReConfigCb != NULL) {
-    SReConfigCbMeta cbMeta = {0};
-    cbMeta.code = 0;
-    cbMeta.currentTerm = ths->pRaftStore->currentTerm;
-    cbMeta.index = pEntry->index;
-    cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(ths, pEntry->index);
-    cbMeta.term = pEntry->term;
-    cbMeta.newCfg = newSyncCfg;
-    cbMeta.oldCfg = oldSyncCfg;
-    cbMeta.seqNum = pEntry->seqNum;
-    cbMeta.flag = 0x11;
-    cbMeta.isDrop = isDrop;
-    ths->pFsm->FpReConfigCb(ths->pFsm, pRpcMsg, cbMeta);
-  }
+  return 0;
+}
 
+static int32_t syncNodeProposeConfigChangeFinish(SSyncNode* ths, SyncReconfigFinish* pFinish) {
+  SRpcMsg rpcMsg;
+  syncReconfigFinish2RpcMsg(pFinish, &rpcMsg);
+
+  int32_t code = syncNodePropose(ths, &rpcMsg, false);
+  if (code != 0) {
+    sError("syncNodeProposeConfigChangeFinish error");
+    ths->changing = false;
+  }
   return 0;
 }
 
@@ -2292,9 +2377,21 @@ int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex,
 
         // config change
         if (pEntry->originalRpcType == TDMT_SYNC_CONFIG_CHANGE) {
-          raftCfgAddConfigIndex(ths->pRaftCfg, pEntry->index);
-          raftCfgPersist(ths->pRaftCfg);
-          code = syncNodeConfigChange(ths, &rpcMsg, pEntry);
+          SyncReconfigFinish* pFinish = syncReconfigFinishBuild(ths->vgId);
+          ASSERT(pFinish != NULL);
+
+          code = syncNodeConfigChange(ths, &rpcMsg, pEntry, pFinish);
+          ASSERT(code == 0);
+
+          if (ths->state == TAOS_SYNC_STATE_LEADER) {
+            syncNodeProposeConfigChangeFinish(ths, pFinish);
+          }
+          syncReconfigFinishDestroy(pFinish);
+        }
+
+        // config change finish
+        if (pEntry->originalRpcType == TDMT_SYNC_CONFIG_CHANGE_FINISH) {
+          code = syncNodeConfigChangeFinish(ths, &rpcMsg, pEntry);
           ASSERT(code == 0);
         }
 
@@ -2344,4 +2441,29 @@ SSyncSnapshotSender* syncNodeGetSnapshotSender(SSyncNode* ths, SRaftId* pDestId)
     }
   }
   return pSender;
+}
+
+bool syncNodeCanChange(SSyncNode* pSyncNode) {
+  if (pSyncNode->changing) {
+    sError("sync cannot change");
+    return false;
+  }
+
+  if ((pSyncNode->commitIndex >= SYNC_INDEX_BEGIN)) {
+    SyncIndex lastIndex = syncNodeGetLastIndex(pSyncNode);
+    if (pSyncNode->commitIndex != lastIndex) {
+      sError("sync cannot change2");
+      return false;
+    }
+  }
+
+  for (int i = 0; i < pSyncNode->peersNum; ++i) {
+    SSyncSnapshotSender* pSender = syncNodeGetSnapshotSender(pSyncNode, &(pSyncNode->peersId)[i]);
+    if (pSender->start) {
+      sError("sync cannot change3");
+      return false;
+    }
+  }
+
+  return true;
 }
