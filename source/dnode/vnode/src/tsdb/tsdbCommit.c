@@ -463,7 +463,8 @@ _err:
   return code;
 }
 
-static int32_t tsdbMergeCommit(SCommitter *pCommitter, SBlockIdx *pBlockIdx, STbDataIter *pIter, SBlock *pBlock) {
+static int32_t tsdbMergeCommit(SCommitter *pCommitter, SBlockIdx *pBlockIdx, STbDataIter *pIter, SBlock *pBlock,
+                               int8_t isLastBlock) {
   int32_t    code = 0;
   TSDBROW   *pRow;
   SBlock     block = tBlockInit();
@@ -523,12 +524,18 @@ static int32_t tsdbCommitTableData(SCommitter *pCommitter, STbData *pTbData, SBl
   STbDataIter  iter;
   STbDataIter *pIter = &iter;
   TSDBROW     *pRow;
-  SBlockIdx    blockIdx;  // TODO
+  int64_t      suid;
+  int64_t      uid;
+  SBlockIdx    blockIdx;
 
   // create iter
   if (pTbData) {
+    suid = pTbData->suid;
+    uid = pTbData->uid;
     tsdbTbDataIterOpen(pTbData, &(TSDBKEY){.ts = pCommitter->minKey, .version = 0}, 0, pIter);
   } else {
+    suid = pBlockIdx->suid;
+    uid = pBlockIdx->uid;
     pIter = NULL;
   }
 
@@ -538,23 +545,27 @@ static int32_t tsdbCommitTableData(SCommitter *pCommitter, STbData *pTbData, SBl
 
   // start ================================
   tMapDataReset(&pCommitter->oBlockMap);
-  tMapDataReset(&pCommitter->nBlockMap);
+  tBlockReset(&pCommitter->oBlock);
+  tBlockDataReset(&pCommitter->oBlockData);
   if (pBlockIdx) {
     code = tsdbReadBlock(pCommitter->pReader, pBlockIdx, &pCommitter->oBlockMap, NULL);
     if (code) goto _err;
   }
 
+  blockIdx = tBlockIdxInit(suid, uid);
+  tMapDataReset(&pCommitter->nBlockMap);
+  tBlockReset(&pCommitter->nBlock);
+  tBlockDataReset(&pCommitter->nBlockData);
+
   // impl ===============================
-  SBlock  block;
-  SBlock *pBlock = &block;
   int32_t iBlock = 0;
-  int32_t nBlockMap = pCommitter->oBlockMap.nItem;
+  int32_t nBlock = pCommitter->oBlockMap.nItem;
 
   // merge
   pRow = tsdbTbDataIterGet(pIter);
-  while (!ROW_END(pRow, pCommitter->maxKey) && iBlock < nBlockMap) {
-    tMapDataGetItemByIdx(&pCommitter->oBlockMap, iBlock, pBlock, tGetBlock);
-    code = tsdbMergeCommit(pCommitter, &blockIdx, pIter, pBlock);
+  while (!ROW_END(pRow, pCommitter->maxKey) && iBlock < nBlock) {
+    tMapDataGetItemByIdx(&pCommitter->oBlockMap, iBlock, &pCommitter->oBlock, tGetBlock);
+    code = tsdbMergeCommit(pCommitter, &blockIdx, pIter, &pCommitter->oBlock, iBlock == (nBlock - 1));
     if (code) goto _err;
 
     pRow = tsdbTbDataIterGet(pIter);
@@ -564,17 +575,17 @@ static int32_t tsdbCommitTableData(SCommitter *pCommitter, STbData *pTbData, SBl
   // mem
   pRow = tsdbTbDataIterGet(pIter);
   while (!ROW_END(pRow, pCommitter->maxKey)) {
-    code = tsdbMergeCommit(pCommitter, &blockIdx, pIter, NULL);
+    code = tsdbMergeCommit(pCommitter, &blockIdx, pIter, NULL, 0);
     if (code) goto _err;
 
     pRow = tsdbTbDataIterGet(pIter);
   }
 
   // disk
-  while (iBlock < nBlockMap) {
-    tMapDataGetItemByIdx(&pCommitter->oBlockMap, iBlock, pBlock, tGetBlock);
+  while (iBlock < nBlock) {
+    tMapDataGetItemByIdx(&pCommitter->oBlockMap, iBlock, &pCommitter->oBlock, tGetBlock);
 
-    code = tsdbMergeCommit(pCommitter, &blockIdx, NULL, pBlock);
+    code = tsdbMergeCommit(pCommitter, &blockIdx, NULL, &pCommitter->oBlock, 0);
     if (code) goto _err;
 
     iBlock++;

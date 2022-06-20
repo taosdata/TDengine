@@ -298,14 +298,40 @@ void tBlockClear(SBlock *pBlock) {
 int32_t tPutBlock(uint8_t *p, void *ph) {
   int32_t n = 0;
   SBlock *pBlock = (SBlock *)ph;
-  // TODO
+
+  n += tPutKEYINFO(p ? p + n : p, &pBlock->info);
+  n += tPutI32v(p ? p + n : p, pBlock->nRow);
+  n += tPutI8(p ? p + n : p, pBlock->last);
+  n += tPutI8(p ? p + n : p, pBlock->hasDup);
+  n += tPutI8(p ? p + n : p, pBlock->cmprAlg);
+  n += tPutI8(p ? p + n : p, pBlock->nSubBlock);
+  for (int8_t iSubBlock = 0; iSubBlock < pBlock->nSubBlock; iSubBlock++) {
+    n += tPutI64v(p ? p + n : p, pBlock->aSubBlock[iSubBlock].offset);
+    n += tPutI64v(p ? p + n : p, pBlock->aSubBlock[iSubBlock].ksize);
+    n += tPutI64v(p ? p + n : p, pBlock->aSubBlock[iSubBlock].bsize);
+    n += tPutMapData(p ? p + n : p, &pBlock->aSubBlock[iSubBlock].mBlockCol);
+  }
+
   return n;
 }
 
 int32_t tGetBlock(uint8_t *p, void *ph) {
   int32_t n = 0;
   SBlock *pBlock = (SBlock *)ph;
-  // TODO
+
+  n += tGetKEYINFO(p + n, &pBlock->info);
+  n += tGetI32v(p + n, &pBlock->nRow);
+  n += tGetI8(p + n, &pBlock->last);
+  n += tGetI8(p + n, &pBlock->hasDup);
+  n += tGetI8(p + n, &pBlock->cmprAlg);
+  n += tGetI8(p + n, &pBlock->nSubBlock);
+  for (int8_t iSubBlock = 0; iSubBlock < pBlock->nSubBlock; iSubBlock++) {
+    n += tGetI64v(p + n, &pBlock->aSubBlock[iSubBlock].offset);
+    n += tGetI64v(p + n, &pBlock->aSubBlock[iSubBlock].ksize);
+    n += tGetI64v(p + n, &pBlock->aSubBlock[iSubBlock].bsize);
+    n += tGetMapData(p + n, &pBlock->aSubBlock[iSubBlock].mBlockCol);
+  }
+
   return n;
 }
 
