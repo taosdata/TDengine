@@ -507,6 +507,26 @@ _return_value:
   return;
 }
 
+int32_t tPutTSDBRow(uint8_t *p, TSDBROW *pRow) {
+  int32_t n = 0;
+
+  n += tPutI64(p, pRow->version);
+  if (p) memcpy(p + n, pRow->pTSRow, pRow->pTSRow->len);
+  n += pRow->pTSRow->len;
+
+  return n;
+}
+
+int32_t tGetTSDBRow(uint8_t *p, TSDBROW *pRow) {
+  int32_t n = 0;
+
+  n += tGetI64(p, &pRow->version);
+  pRow->pTSRow = (STSRow *)(p + n);
+  n += pRow->pTSRow->len;
+
+  return n;
+}
+
 // delete skyline ======================================================
 static int32_t tsdbMergeSkyline(SArray *aSkyline1, SArray *aSkyline2, SArray *aSkyline) {
   int32_t  code = 0;
