@@ -333,7 +333,6 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
         SReadHandle handle = {
             .reader = pHandle->execHandle.pExecReader[i],
             .meta = pTq->pVnode->pMeta,
-            .pMsgCb = &pTq->pVnode->msgCb,
         };
         pHandle->execHandle.execCol.task[i] = qCreateStreamExecTaskInfo(pHandle->execHandle.execCol.qmsg, &handle);
         ASSERT(pHandle->execHandle.execCol.task[i]);
@@ -373,7 +372,7 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
   return 0;
 }
 
-int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen) {
+int32_t tqProcessTaskDeployReq(STQ* pTq, char* msg, int32_t msgLen) {
   SStreamTask* pTask = taosMemoryCalloc(1, sizeof(SStreamTask));
   if (pTask == NULL) {
     return -1;
@@ -404,7 +403,6 @@ int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen) {
       SReadHandle    handle = {
              .reader = pStreamReader,
              .meta = pTq->pVnode->pMeta,
-             .pMsgCb = &pTq->pVnode->msgCb,
              .vnode = pTq->pVnode,
       };
       /*pTask->exec.inputHandle = pStreamReader;*/
@@ -468,7 +466,7 @@ int32_t tqProcessStreamTrigger(STQ* pTq, SSubmitReq* pReq) {
         continue;
       }
 
-      if (streamLaunchByWrite(pTask, TD_VID(pTq->pVnode), &pTq->pVnode->msgCb) < 0) {
+      if (streamLaunchByWrite(pTask, TD_VID(pTq->pVnode)) < 0) {
         continue;
       }
     } else {
@@ -489,7 +487,7 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
   SStreamTaskRunReq* pReq = pMsg->pCont;
   int32_t            taskId = pReq->taskId;
   SStreamTask*       pTask = *(SStreamTask**)taosHashGet(pTq->pStreamTasks, &taskId, sizeof(int32_t));
-  streamTaskProcessRunReq(pTask, &pTq->pVnode->msgCb);
+  streamProcessRunReq(pTask);
   return 0;
 }
 
@@ -507,7 +505,7 @@ int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg) {
            .info = pMsg->info,
            .code = 0,
   };
-  streamProcessDispatchReq(pTask, &pTq->pVnode->msgCb, &req, &rsp);
+  streamProcessDispatchReq(pTask, &req, &rsp);
   return 0;
 }
 
@@ -515,7 +513,7 @@ int32_t tqProcessTaskRecoverReq(STQ* pTq, SRpcMsg* pMsg) {
   SStreamTaskRecoverReq* pReq = pMsg->pCont;
   int32_t                taskId = pReq->taskId;
   SStreamTask*           pTask = *(SStreamTask**)taosHashGet(pTq->pStreamTasks, &taskId, sizeof(int32_t));
-  streamProcessRecoverReq(pTask, &pTq->pVnode->msgCb, pReq, pMsg);
+  streamProcessRecoverReq(pTask, pReq, pMsg);
   return 0;
 }
 
@@ -523,7 +521,7 @@ int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg) {
   SStreamDispatchRsp* pRsp = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   int32_t             taskId = pRsp->taskId;
   SStreamTask*        pTask = *(SStreamTask**)taosHashGet(pTq->pStreamTasks, &taskId, sizeof(int32_t));
-  streamProcessDispatchRsp(pTask, &pTq->pVnode->msgCb, pRsp);
+  streamProcessDispatchRsp(pTask, pRsp);
   return 0;
 }
 
