@@ -1,6 +1,6 @@
 # 贡献指南
 
-我们感谢所有开发者提交贡献。随时关注我们，Fork 存储库，报告错误，甚至在 GitHub 上提交您的代码。但是，我们希望开发者遵循我们的指南，才能为我们更好的做出贡献。
+我们感谢所有开发者提交贡献。随时关注我们，Fork 存储库，报告错误，以及在 GitHub 上提交您的代码。但是，我们希望开发者遵循我们的指南，才能更好的做出贡献。
 
 ## 报告错误
 
@@ -31,8 +31,7 @@
 
 <p align="left">
   <img
-    src="docs/assets/contributing-cup.jpg
-    "
+    src="docs/assets/contributing-cup.jpg"
     alt=""
     width="200"
   />

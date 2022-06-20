@@ -42,8 +42,7 @@ Developers, as long as you contribute to TDengine, whether it's code contributio
 
 <p align="left">
   <img
-    src="docs/assets/contributing-cup.jpg
-    "
+    src="docs/assets/contributing-cup.jpg"
     alt=""
     width="200"
   />
