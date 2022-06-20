@@ -346,7 +346,10 @@ static int32_t vnodeProcessCreateStbReq(SVnode *pVnode, int64_t version, void *p
     goto _err;
   }
 
-  tdProcessRSmaCreate(pVnode, &req);
+  if (tdProcessRSmaCreate(pVnode, &req) < 0) {
+    pRsp->code = terrno;
+    goto _err;
+  }
 
   tDecoderClear(&coder);
   return 0;
