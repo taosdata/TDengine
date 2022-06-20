@@ -46,6 +46,7 @@ class TDTestQuery(TDCase):
 
     #basic_param
     db = "table_math_abs"
+    service_host = ""
     table_list = ['regular_table_1','stable_1_1','regular_table_2','stable_1_2','stable_2_1']
     table = str(random.sample(table_list,1)).replace("[","").replace("]","").replace("'","")
     table_null_list = ['regular_table_null','stable_1_3','stable_1_4','stable_2_2','stable_null_data_1']
