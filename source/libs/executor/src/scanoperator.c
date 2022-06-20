@@ -602,6 +602,36 @@ SOperatorInfo* createTableSeqScanOperatorInfo(void* pReadHandle, SExecTaskInfo* 
   return pOperator;
 }
 
+static int32_t doGetTableRowSize(void* pMeta, uint64_t uid) {
+  int32_t rowLen = 0;
+
+  SMetaReader mr = {0};
+  metaReaderInit(&mr, pMeta, 0);
+  metaGetTableEntryByUid(&mr, uid);
+  if (mr.me.type == TSDB_SUPER_TABLE) {
+    int32_t numOfCols = mr.me.stbEntry.schemaRow.nCols;
+    for(int32_t i = 0; i < numOfCols; ++i) {
+      rowLen += mr.me.stbEntry.schemaRow.pSchema[i].bytes;
+    }
+  } else if (mr.me.type == TSDB_CHILD_TABLE) {
+    uint64_t suid = mr.me.ctbEntry.suid;
+    metaGetTableEntryByUid(&mr, suid);
+    int32_t numOfCols = mr.me.stbEntry.schemaRow.nCols;
+
+    for(int32_t i = 0; i < numOfCols; ++i) {
+      rowLen += mr.me.stbEntry.schemaRow.pSchema[i].bytes;
+    }
+  } else if (mr.me.type == TSDB_NORMAL_TABLE) {
+    int32_t numOfCols = mr.me.ntbEntry.schemaRow.nCols;
+    for(int32_t i = 0; i < numOfCols; ++i) {
+      rowLen += mr.me.ntbEntry.schemaRow.pSchema[i].bytes;
+    }
+  }
+
+  metaReaderClear(&mr);
+  return rowLen;
+}
+
 static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator) {
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
@@ -609,41 +639,8 @@ static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator) {
 
   SBlockDistInfo* pBlockScanInfo = pOperator->info;
 
-  STableBlockDistInfo blockDistInfo = {0};
-  blockDistInfo.maxRows = INT_MIN;
-  blockDistInfo.minRows = INT_MAX;
-
-  SMetaReader mr = {0};
-  metaReaderInit(&mr, pBlockScanInfo->readHandle.meta, 0);
-  metaGetTableEntryByUid(&mr, pBlockScanInfo->uid);
-  if (mr.me.type == TSDB_SUPER_TABLE) {
-    int32_t numOfCols = mr.me.stbEntry.schemaRow.nCols;
-    int32_t rowLen = 0;
-    for(int32_t i = 0; i < numOfCols; ++i) {
-      rowLen += mr.me.stbEntry.schemaRow.pSchema[i].bytes;
-    }
-    blockDistInfo.rowSize = rowLen;
-  } else if (mr.me.type == TSDB_CHILD_TABLE) {
-    uint64_t suid = mr.me.ctbEntry.suid;
-    metaGetTableEntryByUid(&mr, suid);
-    int32_t numOfCols = mr.me.stbEntry.schemaRow.nCols;
-
-    int32_t rowLen = 0;
-    for(int32_t i = 0; i < numOfCols; ++i) {
-      rowLen += mr.me.stbEntry.schemaRow.pSchema[i].bytes;
-    }
-    blockDistInfo.rowSize = rowLen;
-
-  } else if (mr.me.type == TSDB_NORMAL_TABLE) {
-    int32_t numOfCols = mr.me.ntbEntry.schemaRow.nCols;
-    int32_t rowLen = 0;
-    for(int32_t i = 0; i < numOfCols; ++i) {
-      rowLen += mr.me.ntbEntry.schemaRow.pSchema[i].bytes;
-    }
-    blockDistInfo.rowSize = rowLen;
-  }
-
-  metaReaderClear(&mr);
+  STableBlockDistInfo blockDistInfo = {.minRows = INT_MAX, .maxRows = INT_MIN};
+  blockDistInfo.rowSize = doGetTableRowSize(pBlockScanInfo->readHandle.meta, pBlockScanInfo->uid);
 
   tsdbGetFileBlocksDistInfo(pBlockScanInfo->pHandle, &blockDistInfo);
   blockDistInfo.numOfInmemRows = (int32_t)tsdbGetNumOfRowsInMemTable(pBlockScanInfo->pHandle);
