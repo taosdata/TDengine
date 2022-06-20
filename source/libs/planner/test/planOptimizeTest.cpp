@@ -45,10 +45,17 @@ TEST_F(PlanOptimizeTest, ConditionPushDown) {
 TEST_F(PlanOptimizeTest, orderByPrimaryKey) {
   useDb("root", "test");
 
-  run("SELECT * FROM t1 ORDER BY ts");
-  run("SELECT * FROM t1 ORDER BY ts DESC");
   run("SELECT c1 FROM t1 ORDER BY ts");
+
   run("SELECT c1 FROM t1 ORDER BY ts DESC");
 
   run("SELECT COUNT(*) FROM t1 INTERVAL(10S) ORDER BY _WSTARTTS DESC");
+}
+
+TEST_F(PlanOptimizeTest, PartitionTags) {
+  useDb("root", "test");
+
+  run("SELECT c1 FROM st1 PARTITION BY tag1");
+
+  run("SELECT SUM(c1) FROM st1 GROUP BY tag1");
 }
