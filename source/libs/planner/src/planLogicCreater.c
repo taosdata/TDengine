@@ -508,10 +508,15 @@ static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
     code = rewriteExprsForSelect(pInterpFunc->pFuncs, pSelect, SQL_CLAUSE_SELECT);
   }
 
-  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pRange) {
-    // SRangeNode* pRange = (SRangeNode*)pSelect->pRange;
-    // pInterpFunc->timeRange.skey = ((SValueNode*)pRange->pStart)->datum.i;
-    // pInterpFunc->timeRange.ekey = ((SValueNode*)pRange->pEnd)->datum.i;
+  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pFill) {
+    SFillNode* pFill = (SFillNode*)pSelect->pFill;
+    pInterpFunc->timeRange = pFill->timeRange;
+    pInterpFunc->fillMode = pFill->mode;
+    pInterpFunc->pTimeSeries = nodesCloneNode(pFill->pWStartTs);
+    pInterpFunc->pFillValues = nodesCloneNode(pFill->pValues);
+    if (NULL == pInterpFunc->pTimeSeries || (NULL != pFill->pValues && NULL == pInterpFunc->pFillValues)) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
   }
 
   if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pEvery) {
