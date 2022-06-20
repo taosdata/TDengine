@@ -136,6 +136,9 @@ class TDTestCase:
         tdSql.query("select `C1` as a from `STB2` where `C1` = 1")
         tdSql.checkRows(1)
 
+        tdSql.query("show create table `STB2`")
+        tdSql.checkData(0, 1, "CREATE TABLE `STB2` (`ts` TIMESTAMP,`c1` INT,`C1` INT) TAGS (`t1` INT)")
+
         tdSql.execute("alter table `STB2` drop column `C1`")
         tdSql.query("describe tb2")
         tdSql.checkRows(2)
@@ -143,6 +146,8 @@ class TDTestCase:
         # cornor cases
         tdSql.execute("alter table `STB2` add column `数量` int")
         tdSql.execute("insert into tt3(ts, `数量`) using `STB2` tags(2) values(now + 3s, 1)")
+        tdSql.query("show create table `STB2`")
+        tdSql.checkData(0, 1, "CREATE TABLE `STB2` (`ts` TIMESTAMP,`c1` INT,`数量` INT) TAGS (`t1` INT)")
         tdSql.query("select * from tt3")
         tdSql.checkRows(1)
         tdSql.query("select ts `TS` from tt3")
@@ -151,7 +156,7 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.query("select ts as `时间戳` from tt3")
         tdSql.checkRows(1)
-        tdSql.query("select ts `时间戳` from tt3")        
+        tdSql.query("select ts `时间戳` from tt3")
         tdSql.checkRows(1)
 
     def stop(self):

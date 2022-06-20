@@ -32,6 +32,7 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.query("show create table tb")
         tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "CREATE TABLE `tb` (`ts` TIMESTAMP,`c1` INT)")
 
         tdSql.error("create table Tb(ts timestamp, c1 int)") 
         tdSql.execute("create table `TB`(ts timestamp, c1 int)")
@@ -40,6 +41,7 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.query("show create table `TB`")
         tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "CREATE TABLE `TB` (`ts` TIMESTAMP,`c1` INT)")
 
         tdSql.query("describe tb")
         tdSql.checkRows(2)
@@ -61,7 +63,7 @@ class TDTestCase:
         tdSql.query("show stables")
         tdSql.checkRows(1)
 
-        tdSql.error("create stable STb(ts timestamp, c1 int) tags(t1 int)")
+        tdSql.error("crate stable STb(ts timestamp, c1 int) tags(t1 int)")
         tdSql.error("create stable `stb`(ts timestamp, c1 int) tags(t1 int)")
         tdSql.execute("create stable `STB`(ts timestamp, c1 int) tags(t1 int)")
         tdSql.query("show stables")
@@ -88,11 +90,14 @@ class TDTestCase:
         tdSql.query("select tbname from `STB`")
         tdSql.checkRows(2)
 
-        tdSql.execute("alter table stb add column c2 int")
+        tdSql.execute("alter table stb add column c2 int")        
         tdSql.execute("alter table stb add tag t2 int")
         tdSql.execute("alter table `STB` add column c2 int")
         tdSql.execute("alter table `STB` add tag t2 int")
         tdSql.execute("alter table `TB` add column c2 int")
+
+        tdSql.query("show create table `STB`")
+        tdSql.checkData(0, 1, "CREATE TABLE `STB` (`ts` TIMESTAMP,`c1` INT,`c2` INT) TAGS (`t1` INT,`t2` INT)")
 
         # corner cases
         tdSql.execute("create table `超级表`(ts timestamp, c1 int) tags(t1 int)")
@@ -111,7 +116,9 @@ class TDTestCase:
         tdSql.query("select * from `普通表`")
         tdSql.checkRows(1)
         tdSql.query("show tables")
-        tdSql.checkRows(8)        
+        tdSql.checkRows(8)
+        tdSql.query("show create table `普通表`")
+        tdSql.checkData(0, 0, "CREATE TABLE `普通表` (`ts` TIMESTAMP,`c1` INT)")        
 
     def stop(self):
         tdSql.close()

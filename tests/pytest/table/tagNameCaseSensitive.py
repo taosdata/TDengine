@@ -34,13 +34,18 @@ class TDTestCase:
         tdSql.query("select t1, `T1` from `STB3`")
         tdSql.checkRows(2)
 
+        tdSql.query("show create table `STB3`")        
+        tdSql.checkData(0, 1, "CREATE TABLE `STB3` (`ts` TIMESTAMP,`c1` INT) TAGS (`t1` INT,`T1` INT)")
+
         tdSql.execute("alter table `STB3` drop tag `T1`")
         tdSql.query("describe `STB3`")
         tdSql.checkRows(3)
 
         # cornor case
-        tdSql.execute("create table `STB5`(ts timestamp, c1 int) tags(t1 int, `标签` int)")
+        tdSql.execute("create table `STB5`(ts timestamp, c1 int) tags(t1 int, `标签` int)")                
         tdSql.execute("insert into `测试` using `STB5` tags(1, 1) values(now, 1)")
+        tdSql.query("show create table `STB5`")        
+        tdSql.checkData(0, 1, "CREATE TABLE `STB5` (`ts` TIMESTAMP,`c1` INT) TAGS (`t1` INT,`标签` INT)")
         tdSql.query("select * from `测试`")
         tdSql.checkRows(1)
 
