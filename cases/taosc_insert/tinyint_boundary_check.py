@@ -20,38 +20,35 @@ class TestTinyintBoundary(TDCase):
 
     def tinyint_boundary_check(self):
         """
-        max: +- {self.tdCom.boundary_config["TINYINT_MAX"]}
+        [-128, 127]
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        dbname = self.tdCom.get_long_name()
         self.tdSql.execute(f'create database if not exists {dbname}')
         self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 tinyint) tags (t1 tinyint)')
-        self.tdSql.execute(f'create table if not exists {dbname}.tb1 using {dbname}.stb tags ({self.tdCom.boundary_config["TINYINT_MAX"]})')
-        self.tdSql.execute(f'create table if not exists {dbname}.tb2 using {dbname}.stb tags (-{self.tdCom.boundary_config["TINYINT_MAX"]})')
-        self.tdSql.execute(f'insert into {dbname}.tb1 values (now, -{self.tdCom.boundary_config["TINYINT_MAX"]})')
-        self.tdSql.execute(f'insert into {dbname}.tb2 values (now, {self.tdCom.boundary_config["TINYINT_MAX"]})')
-        # self.tdSql.query(f'select t1, c1 from {dbname}.tb1')
-        # self.tdSql.checkEqual(self.tdSql.query_data[0][0], self.tdCom.boundary_config["TINYINT_MAX"])
-        # self.tdSql.checkEqual(self.tdSql.query_data[0][1], -self.tdCom.boundary_config["TINYINT_MAX"])
-        # self.tdSql.query(f'select t1, c1 from {dbname}.tb2')
-        # self.tdSql.checkEqual(self.tdSql.query_data[0][0], -self.tdCom.boundary_config["TINYINT_MAX"])
-        # self.tdSql.checkEqual(self.tdSql.query_data[0][1], self.tdCom.boundary_config["TINYINT_MAX"])
-        self.tdSql.error(f'create stable if not exists {dbname}.stb_error1 (col_ts timestamp, c1 {self.tdCom.boundary_config["TINYINT_MAX"]}) tags (t1 {self.tdCom.boundary_config["TINYINT_MAX"]+1})')
-        self.tdSql.error(f'create stable if not exists {dbname}.stb_error2 (col_ts timestamp, c1 {self.tdCom.boundary_config["TINYINT_MAX"]+1}) tags (t1 {self.tdCom.boundary_config["TINYINT_MAX"]})')
-        self.tdSql.error(f'create stable if not exists {dbname}.stb_error3 (col_ts timestamp, c1 {self.tdCom.boundary_config["TINYINT_MAX"]}) tags (t1 -{self.tdCom.boundary_config["TINYINT_MAX"]+1})')
-        self.tdSql.error(f'create stable if not exists {dbname}.stb_error4 (col_ts timestamp, c1 -{self.tdCom.boundary_config["TINYINT_MAX"]+1}) tags (t1 -{self.tdCom.boundary_config["TINYINT_MAX"]})')
-        self.tdSql.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now-2h, {self.tdCom.boundary_config["TINYINT_MAX"]+1})')
-        self.tdSql.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now-2h, -{self.tdCom.boundary_config["TINYINT_MAX"]+1})')
-        self.tdSql.error(f'insert into {dbname}.tb values (now-1h, {self.tdCom.boundary_config["TINYINT_MAX"]+1})')
-        self.tdSql.error(f'insert into {dbname}.tb values (now-1h, -{self.tdCom.boundary_config["TINYINT_MAX"]+1})')
+        self.tdSql.execute(f'create table if not exists {dbname}.tb1 using {dbname}.stb tags ({self.tdCom.Boundary.TINYINT_BOUNDARY[1]})')
+        self.tdSql.execute(f'create table if not exists {dbname}.tb2 using {dbname}.stb tags ({self.tdCom.Boundary.TINYINT_BOUNDARY[0]})')
+        self.tdSql.execute(f'insert into {dbname}.tb1 values (now, {self.tdCom.Boundary.TINYINT_BOUNDARY[0]})')
+        self.tdSql.execute(f'insert into {dbname}.tb2 values (now, {self.tdCom.Boundary.TINYINT_BOUNDARY[1]})')
+        self.tdSql.query(f'select t1, c1 from {dbname}.tb1')
+        self.tdSql.checkEqual(self.tdSql.query_data[0][0], self.tdCom.Boundary.TINYINT_BOUNDARY[1])
+        self.tdSql.checkEqual(self.tdSql.query_data[0][1], self.tdCom.Boundary.TINYINT_BOUNDARY[0])
+        self.tdSql.query(f'select t1, c1 from {dbname}.tb2')
+        self.tdSql.checkEqual(self.tdSql.query_data[0][0], self.tdCom.Boundary.TINYINT_BOUNDARY[0])
+        self.tdSql.checkEqual(self.tdSql.query_data[0][1], self.tdCom.Boundary.TINYINT_BOUNDARY[1])
+        # self.tdSql.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags ({self.tdCom.Boundary.TINYINT_BOUNDARY[1]+1})')
+        # self.tdSql.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags ({self.tdCom.Boundary.TINYINT_BOUNDARY[1]-1})')
+        self.tdSql.error(f'insert into {dbname}.tb1 values (now-1h, {self.tdCom.Boundary.TINYINT_BOUNDARY[1]+1})')
+        self.tdSql.error(f'insert into {dbname}.tb2 values (now-1h, {self.tdCom.Boundary.TINYINT_BOUNDARY[0]-1})')
+
         self.tdSql.execute(f'create table if not exists {dbname}.tb3 (ts timestamp, c1 tinyint)')
-        self.tdSql.execute(f'insert into {dbname}.tb3 values (now, {self.tdCom.boundary_config["TINYINT_MAX"]})')
-        self.tdSql.execute(f'insert into {dbname}.tb3 values (now, -{self.tdCom.boundary_config["TINYINT_MAX"]})')
-        self.tdSql.query(f'select c1 from {dbname}.tb3 where c1={self.tdCom.boundary_config["TINYINT_MAX"]}')
-        self.tdSql.checkEqual(self.tdSql.query_data[0][0], self.tdCom.boundary_config["TINYINT_MAX"])
-        self.tdSql.query(f'select c1 from {dbname}.tb3 where c1=-{self.tdCom.boundary_config["TINYINT_MAX"]}')
-        self.tdSql.checkEqual(self.tdSql.query_data[0][0], -self.tdCom.boundary_config["TINYINT_MAX"])
-        self.tdSql.error(f'insert into {dbname}.tb3 values (now, {self.tdCom.boundary_config["TINYINT_MAX"]+1})')
-        self.tdSql.error(f'insert into {dbname}.tb3 values (now, -{self.tdCom.boundary_config["TINYINT_MAX"]+2})')
+        self.tdSql.execute(f'insert into {dbname}.tb3 values (now, {self.tdCom.Boundary.TINYINT_BOUNDARY[1]})')
+        self.tdSql.execute(f'insert into {dbname}.tb3 values (now, {self.tdCom.Boundary.TINYINT_BOUNDARY[0]})')
+        self.tdSql.query(f'select c1 from {dbname}.tb3 where c1={self.tdCom.Boundary.TINYINT_BOUNDARY[1]}')
+        self.tdSql.checkEqual(self.tdSql.query_data[0][0], self.tdCom.Boundary.TINYINT_BOUNDARY[1])
+        self.tdSql.query(f'select c1 from {dbname}.tb3 where c1={self.tdCom.Boundary.TINYINT_BOUNDARY[0]}')
+        self.tdSql.checkEqual(self.tdSql.query_data[0][0], self.tdCom.Boundary.TINYINT_BOUNDARY[0])
+        self.tdSql.error(f'insert into {dbname}.tb3 values (now, {self.tdCom.Boundary.TINYINT_BOUNDARY[1]+1})')
+        self.tdSql.error(f'insert into {dbname}.tb3 values (now, {self.tdCom.Boundary.TINYINT_BOUNDARY[0]-1})')
         self.tdSql.execute(f'drop database if exists {dbname}')
 
     def run(self):
@@ -62,7 +59,7 @@ class TestTinyintBoundary(TDCase):
 
     def desc(self) -> str:
         case_description = """
-            tinyint_boundary_check <jayden>: [TD-{self.tdCom.boundary_config["TINYINT_MAX"]}48] : tinyint boundary check (max {self.tdCom.boundary_config["TINYINT_MAX"]});
+            tinyint_boundary_check <jayden>: [-128, 127];
         """
         return case_description
 

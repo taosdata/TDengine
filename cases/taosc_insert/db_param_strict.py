@@ -17,32 +17,31 @@ from taostest.util.common import TDCom
 class TestStrict(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
+        self.cfg = self.tdCom.Boundary.DB_PARAM_STRICT_CONFIG
 
     def strict_check(self):
         """
         strict check
         """
-        test_param = "strict"
-        # default
-        default_value = "no_strict"
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        test_param = self.cfg["create_name"]
+        dbname = self.tdCom.get_long_name()
         self.tdSql.execute(f'create database if not exists {dbname}')
         self.tdSql.query('show databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
-        self.tdSql.checkEqual(db_field_kv_dict[test_param], default_value)
+        # default
+        self.tdSql.checkEqual(db_field_kv_dict[test_param], self.cfg["default"])
         self.tdSql.execute(f'drop database {dbname}')
-        # param_list
-        param_key_value_dict = {"no_strict": 0, "strict": 1}
-        for param, param_value in param_key_value_dict.items():
-            dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        # boundary
+        for param, param_value in self.cfg["boundary"].items():
+            dbname = self.tdCom.get_long_name()
             self.tdSql.execute(f'create database if not exists {dbname} {test_param} {param_value}')
             self.tdSql.query('show databases')
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
             self.tdSql.checkEqual(db_field_kv_dict[test_param], param)
             self.tdSql.execute(f'drop database {dbname}')
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.error(f'create database if not exists {dbname} {test_param} {param_key_value_dict["no_strict"] - 1}')
-        self.tdSql.error(f'create database if not exists {dbname} {test_param} {param_key_value_dict["strict"] + 1}')
+        dbname = self.tdCom.get_long_name()
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"]["no_strict"] - 1}')
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"]["strict"] + 1}')
 
     def run(self) -> bool:
         self.strict_check()
