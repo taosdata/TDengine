@@ -21,6 +21,31 @@ static FORCE_INLINE int32_t tdUpdateTbUidListImpl(SSma *pSma, tb_uid_t *suid, SA
 static FORCE_INLINE int32_t tdExecuteRSmaImpl(SSma *pSma, const void *pMsg, int32_t inputType, SRSmaInfoItem *rsmaItem,
                                               tb_uid_t suid, int8_t level);
 
+#define SET_RSMA_INFO_ITEM_PARAMS(__idx, __level)                                                               \
+  if (param->qmsg[__idx]) {                                                                                     \
+    pRSmaInfo->items[__idx].pRsmaInfo = pRSmaInfo;                                                              \
+    pRSmaInfo->items[__idx].taskInfo = qCreateStreamExecTaskInfo(param->qmsg[0], &handle);                      \
+    if (!pRSmaInfo->items[__idx].taskInfo) {                                                                    \
+      goto _err;                                                                                                \
+    }                                                                                                           \
+    pRSmaInfo->items[__idx].triggerStatus = TASK_TRIGGER_STATUS__IN_ACTIVE;                                     \
+    if (param->maxdelay[__idx] < 1) {                                                                           \
+      int64_t msInterval =                                                                                      \
+          convertTimeFromPrecisionToUnit(pRetention[__level].freq, pTsdbCfg->precision, TIME_UNIT_MILLISECOND); \
+      pRSmaInfo->items[__idx].maxDelay = msInterval;                                                            \
+    } else {                                                                                                    \
+      pRSmaInfo->items[__idx].maxDelay = param->maxdelay[__idx];                                                \
+    }                                                                                                           \
+    if (pRSmaInfo->items[__idx].maxDelay > TSDB_MAX_ROLLUP_MAX_DELAY) {                                         \
+      pRSmaInfo->items[__idx].maxDelay = TSDB_MAX_ROLLUP_MAX_DELAY;                                             \
+    }                                                                                                           \
+    pRSmaInfo->items[__idx].level = TSDB_RETENTION_L##__level;                                                  \
+    pRSmaInfo->items[__idx].tmrHandle = taosTmrInit(10000, 100, 10000, "RSMA");                                 \
+    if (!pRSmaInfo->items[__idx].tmrHandle) {                                                                   \
+      goto _err;                                                                                                \
+    }                                                                                                           \
+  }
+
 struct SRSmaInfoItem {
   SRSmaInfo *pRsmaInfo;
   void      *taskInfo;  // qTaskInfo_t
@@ -207,7 +232,7 @@ int32_t tdProcessRSmaCreate(SVnode *pVnode, SVCreateStbReq *pReq) {
   SMsgCb     *pMsgCb = &pVnode->msgCb;
   SRSmaParam *param = &pReq->pRSmaParam;
 
-  if ((param->qmsg1Len == 0) && (param->qmsg2Len == 0)) {
+  if ((param->qmsgLen[0] == 0) && (param->qmsgLen[1] == 0)) {
     smaWarn("vgId:%d, no qmsg1/qmsg2 for rollup stable %s %" PRIi64, SMA_VID(pSma), pReq->name, pReq->suid);
     return TSDB_CODE_SUCCESS;
   }
@@ -257,36 +282,11 @@ int32_t tdProcessRSmaCreate(SVnode *pVnode, SVCreateStbReq *pReq) {
   pRSmaInfo->pSma = pSma;
   pRSmaInfo->suid = pReq->suid;
 
-  if (param->qmsg1) {
-    pRSmaInfo->items[0].pRsmaInfo = pRSmaInfo;
-    pRSmaInfo->items[0].taskInfo = qCreateStreamExecTaskInfo(param->qmsg1, &handle);
-    if (!pRSmaInfo->items[0].taskInfo) {
-      goto _err;
-    }
-    pRSmaInfo->items[0].triggerStatus = TASK_TRIGGER_STATUS__IN_ACTIVE;
-    pRSmaInfo->items[0].maxDelay = 5000;
-    pRSmaInfo->items[0].level = TSDB_RETENTION_L1;
-    pRSmaInfo->items[0].tmrHandle = taosTmrInit(10000, 100, 10000, "RSMA_L1");
+  SRetention *pRetention = SMA_RETENTION(pSma);
+  STsdbCfg   *pTsdbCfg = SMA_TSDB_CFG(pSma);
 
-    if (!pRSmaInfo->items[0].tmrHandle) {
-      goto _err;
-    }
-  }
-
-  if (param->qmsg2) {
-    pRSmaInfo->items[1].pRsmaInfo = pRSmaInfo;
-    pRSmaInfo->items[1].taskInfo = qCreateStreamExecTaskInfo(param->qmsg2, &handle);
-    if (!pRSmaInfo->items[1].taskInfo) {
-      goto _err;
-    }
-    pRSmaInfo->items[1].triggerStatus = TASK_TRIGGER_STATUS__IN_ACTIVE;
-    pRSmaInfo->items[1].maxDelay = 5000;
-    pRSmaInfo->items[1].level = TSDB_RETENTION_L2;
-    pRSmaInfo->items[1].tmrHandle = taosTmrInit(10000, 100, 10000, "RSMA_L2");
-    if (!pRSmaInfo->items[1].tmrHandle) {
-      goto _err;
-    }
-  }
+  SET_RSMA_INFO_ITEM_PARAMS(0, 1);
+  SET_RSMA_INFO_ITEM_PARAMS(1, 2);
 
   if (taosHashPut(SMA_STAT_INFO_HASH(pStat), &pReq->suid, sizeof(tb_uid_t), &pRSmaInfo, sizeof(pRSmaInfo)) !=
       TSDB_CODE_SUCCESS) {
@@ -451,7 +451,7 @@ static int32_t tdFetchAndSubmitRSmaResult(SRSmaInfoItem *pItem, int8_t blkType) 
   }
 
   if (taosArrayGetSize(pResult) > 0) {
-#if 1
+#if 0
     char flag[10] = {0};
     snprintf(flag, 10, "level %" PRIi8, pItem->level);
     blockDebugShowData(pResult, flag);
@@ -494,7 +494,7 @@ static void rsmaTriggerByTimer(void *param, void *tmrId) {
   SRSmaInfoItem *pItem = param;
 
   if (atomic_load_8(&pItem->triggerStatus) == TASK_TRIGGER_STATUS__ACTIVE) {
-    printf("%s:%d THREAD:%" PRIi64 " status = active\n", __func__, __LINE__, taosGetSelfPthreadId());
+    smaTrace("level %" PRIi8 " status is active for tb suid:%" PRIi64, pItem->level, pItem->pRsmaInfo->suid);
     SSDataBlock dataBlock = {.info.type = STREAM_GET_ALL};
 
     atomic_store_8(&pItem->triggerStatus, TASK_TRIGGER_STATUS__IN_ACTIVE);
@@ -502,7 +502,7 @@ static void rsmaTriggerByTimer(void *param, void *tmrId) {
 
     tdFetchAndSubmitRSmaResult(pItem, STREAM_DATA_TYPE_SSDATA_BLOCK);
   } else {
-    printf("%s:%d THREAD:%" PRIi64 " status = in active\n", __func__, __LINE__, taosGetSelfPthreadId());
+    smaTrace("level %" PRIi8 " status is inactive for tb suid:%" PRIi64, pItem->level, pItem->pRsmaInfo->suid);
   }
 
   // taosTmrReset(rsmaTriggerByTimer, pItem->maxDelay, pItem, pItem->tmrHandle, &pItem->tmrId);
