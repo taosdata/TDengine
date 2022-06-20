@@ -540,10 +540,10 @@ int32_t ctgReadTbVerFromCache(SCatalog *pCtg, SName *pTableName, int32_t *sver, 
 }
 
 
-int32_t ctgReadTbTypeFromCache(SCatalog* pCtg, char* dbFName, char *tableName, int32_t *tbType) {
+int32_t ctgReadTbTypeFromCache(SCatalog* pCtg, char* dbFName, char *tbName, int32_t *tbType) {
   SCtgDBCache *dbCache = NULL;
   SCtgTbCache *tbCache = NULL;  
-  CTG_ERR_RET(ctgAcquireTbMetaFromCache(pCtg, dbFName, tableName, &dbCache, &tbCache));
+  CTG_ERR_RET(ctgAcquireTbMetaFromCache(pCtg, dbFName, tbName, &dbCache, &tbCache));
   if (NULL == tbCache) {
     ctgReleaseTbMetaToCache(pCtg, dbCache, tbCache);
     return TSDB_CODE_SUCCESS;
@@ -552,7 +552,7 @@ int32_t ctgReadTbTypeFromCache(SCatalog* pCtg, char* dbFName, char *tableName, i
   *tbType = tbCache->pMeta->tableType;
   ctgReleaseTbMetaToCache(pCtg, dbCache, tbCache);
 
-  ctgDebug("Got tb %s tbType %d from cache, dbFName:%s", tableName, *tbType, dbFName);  
+  ctgDebug("Got tb %s tbType %d from cache, dbFName:%s", tbName, *tbType, dbFName);  
   
   return TSDB_CODE_SUCCESS;
 }

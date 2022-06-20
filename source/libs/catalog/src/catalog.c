@@ -381,6 +381,23 @@ _return:
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t ctgGetTbType(SCatalog* pCtg, SRequestConnInfo *pConn, SName* pTableName, int32_t *tbType) {
+  char dbFName[TSDB_DB_FNAME_LEN];
+  tNameGetFullDbName(pTableName, dbFName);
+  CTG_ERR_RET(ctgReadTbTypeFromCache(pCtg, dbFName, pTableName->tname, tbType));
+  if (*tbType > 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  STableMeta* pMeta = NULL;
+  CTG_ERR_RET(catalogGetTableMeta(pCtg, pConn, pTableName, &pMeta));
+
+  *tbType = pMeta->tableType;
+  taosMemoryFree(pMeta);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t ctgGetTbIndex(SCatalog* pCtg, SRequestConnInfo *pConn, SName* pTableName, SArray** pRes) {
   CTG_ERR_RET(ctgReadTbIndexFromCache(pCtg, pTableName, pRes));
   if (*pRes) {
@@ -419,6 +436,20 @@ _return:
   CTG_RET(code);
 }
 
+int32_t ctgGetTbCfg(SCatalog* pCtg, SRequestConnInfo *pConn, SName* pTableName, STableCfg** pCfg) {
+  int32_t tbType = 0;
+  CTG_ERR_RET(ctgGetTbType(pCtg, pConn, pTableName, &tbType));
+
+  if (TSDB_SUPER_TABLE == tbType) {
+    CTG_ERR_RET(ctgGetTableCfgFromMnode(pCtg, pConn, pTableName, pCfg, NULL));
+  } else {
+    SVgroupInfo vgroupInfo = {0};
+    CTG_ERR_RET(catalogGetTableHashVgroup(pCtg, pConn, pTableName, &vgroupInfo));
+    CTG_ERR_RET(ctgGetTableCfgFromVnode(pCtg, pConn, pTableName, &vgroupInfo, pCfg, NULL));
+  }
+
+  CTG_RET(TSDB_CODE_SUCCESS);
+}
 
 int32_t ctgGetTbDistVgInfo(SCatalog* pCtg, SRequestConnInfo *pConn, SName* pTableName, SArray** pVgList) {
   STableMeta *tbMeta = NULL;
@@ -1205,6 +1236,16 @@ int32_t catalogGetTableIndex(SCatalog* pCtg, SRequestConnInfo *pConn, const SNam
 _return:
 
   CTG_API_LEAVE(code);
+}
+
+int32_t catalogGetTableCfg(SCatalog* pCtg, SRequestConnInfo *pConn, const SName* pTableName, STableCfg** pCfg) {
+  CTG_API_ENTER();
+  
+  if (NULL == pCtg || NULL == pConn || NULL == pTableName || NULL == pCfg) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  CTG_API_LEAVE(ctgGetTbCfg(pCtg, pConn, pTableName, pCfg, NULL));
 }
 
 int32_t catalogGetUdfInfo(SCatalog* pCtg, SRequestConnInfo *pConn, const char* funcName, SFuncInfo* pInfo) {

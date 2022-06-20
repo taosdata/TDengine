@@ -520,6 +520,7 @@ int32_t ctgDropTbIndexEnqueue(SCatalog* pCtg, SName* pName, bool syncOp);
 int32_t ctgOpDropTbIndex(SCtgCacheOperation *operation);
 int32_t ctgOpUpdateTbIndex(SCtgCacheOperation *operation);
 int32_t ctgOpClearCache(SCtgCacheOperation *operation);
+int32_t ctgReadTbTypeFromCache(SCatalog* pCtg, char* dbFName, char *tableName, int32_t *tbType);
 
 
 

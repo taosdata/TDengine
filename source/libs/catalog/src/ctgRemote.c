@@ -550,7 +550,7 @@ int32_t ctgGetUserDbAuthFromMnode(SCatalog* pCtg, SRequestConnInfo *pConn, const
 
 
 int32_t ctgGetTbMetaFromMnodeImpl(SCatalog* pCtg, SRequestConnInfo *pConn, char *dbFName, char* tbName, STableMetaOutput* out, SCtgTask* pTask) {
-  SBuildTableMetaInput bInput = {.vgId = 0, .dbFName = dbFName, .tbName = tbName};
+  SBuildTableInput bInput = {.vgId = 0, .dbFName = dbFName, .tbName = tbName};
   char *msg = NULL;
   SEpSet *pVnodeEpSet = NULL;
   int32_t msgLen = 0;
@@ -608,7 +608,7 @@ int32_t ctgGetTbMetaFromVnode(SCatalog* pCtg, SRequestConnInfo *pConn, const SNa
 
   ctgDebug("try to get table meta from vnode, vgId:%d, tbFName:%s", vgroupInfo->vgId, tbFName);
 
-  SBuildTableMetaInput bInput = {.vgId = vgroupInfo->vgId, .dbFName = dbFName, .tbName = (char *)tNameGetTableName(pTableName)};
+  SBuildTableInput bInput = {.vgId = vgroupInfo->vgId, .dbFName = dbFName, .tbName = (char *)tNameGetTableName(pTableName)};
   char *msg = NULL;
   int32_t msgLen = 0;
 
@@ -643,6 +643,85 @@ int32_t ctgGetTbMetaFromVnode(SCatalog* pCtg, SRequestConnInfo *pConn, const SNa
 
   CTG_ERR_RET(ctgProcessRspMsg(out, reqType, rpcRsp.pCont, rpcRsp.contLen, rpcRsp.code, tbFName));  
 
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t ctgGetTableCfgFromVnode(SCatalog* pCtg, SRequestConnInfo *pConn, const SName* pTableName, SVgroupInfo *vgroupInfo, STableCfg **out, SCtgTask* pTask) {
+  char *msg = NULL;
+  int32_t msgLen = 0;
+  int32_t reqType = TDMT_VND_TABLE_CFG;
+  char tbFName[TSDB_TABLE_FNAME_LEN];
+  tNameExtractFullName(pTableName, tbFName);
+  void*(*mallocFp)(int32_t) = pTask ? taosMemoryMalloc : rpcMallocCont;
+  char dbFName[TSDB_DB_FNAME_LEN];
+  tNameGetFullDbName(pTableName, dbFName);
+  SBuildTableInput bInput = {.vgId = vgroupInfo->vgId, .dbFName = dbFName, .tbName = pTableName->tname};
+
+  ctgDebug("try to get table cfg from vnode, vgId:%d, tbFName:%s", vgroupInfo->vgId, tbFName);
+
+  int32_t code = queryBuildMsg[TMSG_INDEX(reqType)](&bInput, &msg, 0, &msgLen, mallocFp);
+  if (code) {
+    ctgError("Build get tb cfg msg failed, code:%s, tbFName:%s", tstrerror(code), tbFName);
+    CTG_ERR_RET(code);
+  }
+
+  if (pTask) {
+    CTG_ERR_RET(ctgUpdateMsgCtx(&pTask->msgCtx, reqType, NULL, (char*)tbFName));
+    
+    CTG_RET(ctgAsyncSendMsg(pCtg, pConn, pTask, reqType, msg, msgLen));
+  }
+  
+  SRpcMsg rpcMsg = {
+      .msgType = reqType,
+      .pCont   = msg,
+      .contLen = msgLen,
+  };
+
+  SRpcMsg rpcRsp = {0};
+  rpcSendRecv(pConn->pTrans, &pConn->mgmtEps, &rpcMsg, &rpcRsp);
+
+  CTG_ERR_RET(ctgProcessRspMsg(out, reqType, rpcRsp.pCont, rpcRsp.contLen, rpcRsp.code, (char*)tbFName));
+  
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t ctgGetTableCfgFromMnode(SCatalog* pCtg, SRequestConnInfo *pConn, const SName* pTableName, STableCfg **out, SCtgTask* pTask) {
+  char *msg = NULL;
+  int32_t msgLen = 0;
+  int32_t reqType = TDMT_MND_TABLE_CFG;
+  char tbFName[TSDB_TABLE_FNAME_LEN];
+  tNameExtractFullName(pTableName, tbFName);
+  void*(*mallocFp)(int32_t) = pTask ? taosMemoryMalloc : rpcMallocCont;
+  char dbFName[TSDB_DB_FNAME_LEN];
+  tNameGetFullDbName(pTableName, dbFName);
+  SBuildTableInput bInput = {.vgId = 0, .dbFName = dbFName, .tbName = pTableName->tname};
+
+  ctgDebug("try to get table cfg from mnode, tbFName:%s", tbFName);
+
+  int32_t code = queryBuildMsg[TMSG_INDEX(reqType)](&bInput, &msg, 0, &msgLen, mallocFp);
+  if (code) {
+    ctgError("Build get tb cfg msg failed, code:%s, tbFName:%s", tstrerror(code), tbFName);
+    CTG_ERR_RET(code);
+  }
+
+  if (pTask) {
+    CTG_ERR_RET(ctgUpdateMsgCtx(&pTask->msgCtx, reqType, NULL, (char*)tbFName));
+    
+    CTG_RET(ctgAsyncSendMsg(pCtg, pConn, pTask, reqType, msg, msgLen));
+  }
+  
+  SRpcMsg rpcMsg = {
+      .msgType = reqType,
+      .pCont   = msg,
+      .contLen = msgLen,
+  };
+
+  SRpcMsg rpcRsp = {0};
+  rpcSendRecv(pConn->pTrans, &pConn->mgmtEps, &rpcMsg, &rpcRsp);
+
+  CTG_ERR_RET(ctgProcessRspMsg(out, reqType, rpcRsp.pCont, rpcRsp.contLen, rpcRsp.code, (char*)tbFName));
+  
   return TSDB_CODE_SUCCESS;
 }
 

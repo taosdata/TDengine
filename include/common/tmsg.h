@@ -168,7 +168,7 @@ typedef struct {
   int32_t vgId;
   char*   dbFName;
   char*   tbName;
-} SBuildTableMetaInput;
+} SBuildTableInput;
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
@@ -668,6 +668,12 @@ int32_t tSerializeSQueryTableRsp(void* buf, int32_t bufLen, SQueryTableRsp* pRsp
 int32_t tDeserializeSQueryTableRsp(void* buf, int32_t bufLen, SQueryTableRsp* pRsp);
 
 typedef struct {
+  SMsgHead header;
+  char     dbFName[TSDB_DB_FNAME_LEN];
+  char     tbName[TSDB_TABLE_NAME_LEN];
+} STableCfgReq;
+
+typedef struct {
   char     tbName[TSDB_TABLE_NAME_LEN];
   char     stbName[TSDB_TABLE_NAME_LEN];
   char     dbFName[TSDB_DB_FNAME_LEN];
@@ -683,6 +689,15 @@ typedef struct {
   char*    pAst2;
   SSchema* pSchemas;
 } STableCfg;
+
+typedef STableCfg STableCfgRsp;
+
+int32_t tSerializeSTableCfgReq(void *buf, int32_t bufLen, STableCfgReq *pReq);
+int32_t tDeserializeSTableCfgReq(void *buf, int32_t bufLen, STableCfgReq *pReq);
+
+int32_t tSerializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp);
+int32_t tDeserializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp);
+
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
