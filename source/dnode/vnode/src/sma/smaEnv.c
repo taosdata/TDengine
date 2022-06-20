@@ -208,7 +208,6 @@ int32_t tdUnLockSma(SSma *pSma) {
 int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType) {
   SSmaEnv *pEnv = NULL;
 
-  // return if already init
   switch (smaType) {
     case TSDB_SMA_TYPE_TIME_RANGE:
       if ((pEnv = (SSmaEnv *)atomic_load_ptr(&SMA_TSMA_ENV(pSma)))) {
@@ -244,3 +243,34 @@ int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType) {
 
   return TSDB_CODE_SUCCESS;
 };
+
+int32_t smaTimerInit(void **timer, int8_t *initFlag, const char *label) {
+  int8_t old;
+  while (1) {
+    old = atomic_val_compare_exchange_8(initFlag, 0, 2);
+    if (old != 2) break;
+  }
+
+  if (old == 0) {
+    *timer = taosTmrInit(10000, 100, 10000, label);
+    if (!(*timer)) {
+      atomic_store_8(initFlag, 0);
+      return -1;
+    }
+    atomic_store_8(initFlag, 1);
+  }
+  return 0;
+}
+
+void smaTimerCleanUp(void *timer, int8_t *initFlag) {
+  int8_t old;
+  while (1) {
+    old = atomic_val_compare_exchange_8(initFlag, 1, 2);
+    if (old != 2) break;
+  }
+
+  if (old == 1) {
+    taosTmrCleanUp(timer);
+    atomic_store_8(initFlag, 0);
+  }
+}

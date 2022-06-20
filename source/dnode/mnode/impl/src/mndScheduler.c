@@ -43,7 +43,7 @@ static int32_t mndAddTaskToTaskSet(SArray* pArray, SStreamTask* pTask) {
 }
 
 int32_t mndConvertRsmaTask(char** pDst, int32_t* pDstLen, const char* ast, int64_t uid, int8_t triggerType,
-                           int64_t watermark, double filesFactor) {
+                           int64_t watermark) {
   SNode*      pAst = NULL;
   SQueryPlan* pPlan = NULL;
   terrno = TSDB_CODE_SUCCESS;
