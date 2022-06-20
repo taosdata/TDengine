@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <vnode.h>
 #include "filter.h"
 #include "function.h"
 #include "functionMgt.h"
@@ -367,13 +368,14 @@ void setTbNameColData(void* pMeta, const SSDataBlock* pBlock, SColumnInfoData* p
 
 static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
   STableScanInfo* pTableScanInfo = pOperator->info;
+  SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   SSDataBlock*    pBlock = pTableScanInfo->pResBlock;
 
   int64_t st = taosGetTimestampUs();
 
   while (tsdbNextDataBlock(pTableScanInfo->dataReader)) {
-    if (isTaskKilled(pOperator->pTaskInfo)) {
-      longjmp(pOperator->pTaskInfo->env, TSDB_CODE_TSC_QUERY_CANCELLED);
+    if (isTaskKilled(pTaskInfo)) {
+      longjmp(pTaskInfo->env, TSDB_CODE_TSC_QUERY_CANCELLED);
     }
 
     // process this data block based on the probabilities
@@ -396,7 +398,7 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
       continue;
     }
 
-    uint64_t* groupId = taosHashGet(pOperator->pTaskInfo->tableqinfoList.map, &pBlock->info.uid, sizeof(int64_t));
+    uint64_t* groupId = taosHashGet(pTaskInfo->tableqinfoList.map, &pBlock->info.uid, sizeof(int64_t));
     if (groupId) {
       pBlock->info.groupId = *groupId;
     }
@@ -589,15 +591,45 @@ SOperatorInfo* createTableSeqScanOperatorInfo(void* pReadHandle, SExecTaskInfo* 
   pInfo->dataReader = pReadHandle;
   //  pInfo->prevGroupId       = -1;
 
-  pOperator->name = "TableSeqScanOperator";
+  pOperator->name         = "TableSeqScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN;
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
-  pOperator->pTaskInfo = pTaskInfo;
+  pOperator->blocking     = false;
+  pOperator->status       = OP_NOT_OPENED;
+  pOperator->info         = pInfo;
+  pOperator->pTaskInfo    = pTaskInfo;
 
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doTableScanImpl, NULL, NULL, NULL, NULL, NULL, NULL);
   return pOperator;
+}
+
+static int32_t doGetTableRowSize(void* pMeta, uint64_t uid) {
+  int32_t rowLen = 0;
+
+  SMetaReader mr = {0};
+  metaReaderInit(&mr, pMeta, 0);
+  metaGetTableEntryByUid(&mr, uid);
+  if (mr.me.type == TSDB_SUPER_TABLE) {
+    int32_t numOfCols = mr.me.stbEntry.schemaRow.nCols;
+    for(int32_t i = 0; i < numOfCols; ++i) {
+      rowLen += mr.me.stbEntry.schemaRow.pSchema[i].bytes;
+    }
+  } else if (mr.me.type == TSDB_CHILD_TABLE) {
+    uint64_t suid = mr.me.ctbEntry.suid;
+    metaGetTableEntryByUid(&mr, suid);
+    int32_t numOfCols = mr.me.stbEntry.schemaRow.nCols;
+
+    for(int32_t i = 0; i < numOfCols; ++i) {
+      rowLen += mr.me.stbEntry.schemaRow.pSchema[i].bytes;
+    }
+  } else if (mr.me.type == TSDB_NORMAL_TABLE) {
+    int32_t numOfCols = mr.me.ntbEntry.schemaRow.nCols;
+    for(int32_t i = 0; i < numOfCols; ++i) {
+      rowLen += mr.me.ntbEntry.schemaRow.pSchema[i].bytes;
+    }
+  }
+
+  metaReaderClear(&mr);
+  return rowLen;
 }
 
 static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator) {
@@ -605,27 +637,29 @@ static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator) {
     return NULL;
   }
 
-  STableScanInfo* pTableScanInfo = pOperator->info;
+  SBlockDistInfo* pBlockScanInfo = pOperator->info;
 
-  STableBlockDistInfo blockDistInfo = {0};
-  blockDistInfo.maxRows = INT_MIN;
-  blockDistInfo.minRows = INT_MAX;
+  STableBlockDistInfo blockDistInfo = {.minRows = INT_MAX, .maxRows = INT_MIN};
+  blockDistInfo.rowSize = doGetTableRowSize(pBlockScanInfo->readHandle.meta, pBlockScanInfo->uid);
 
-  tsdbGetFileBlocksDistInfo(pTableScanInfo->dataReader, &blockDistInfo);
-  blockDistInfo.numOfInmemRows = (int32_t)tsdbGetNumOfRowsInMemTable(pTableScanInfo->dataReader);
+  tsdbGetFileBlocksDistInfo(pBlockScanInfo->pHandle, &blockDistInfo);
+  blockDistInfo.numOfInmemRows = (int32_t)tsdbGetNumOfRowsInMemTable(pBlockScanInfo->pHandle);
 
-  SSDataBlock* pBlock = pTableScanInfo->pResBlock;
-  pBlock->info.rows = 1;
+  SSDataBlock* pBlock = pBlockScanInfo->pResBlock;
 
-  SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, 0);
+  int32_t slotId = pOperator->exprSupp.pExprInfo->base.resSchema.slotId;
+  SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, slotId);
 
   int32_t len = tSerializeBlockDistInfo(NULL, 0, &blockDistInfo);
   char*   p = taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE);
   tSerializeBlockDistInfo(varDataVal(p), len, &blockDistInfo);
   varDataSetLen(p, len);
 
+  blockDataEnsureCapacity(pBlock, 1);
   colDataAppend(pColInfo, 0, p, false);
   taosMemoryFree(p);
+
+  pBlock->info.rows = 1;
 
   pOperator->status = OP_EXEC_DONE;
   return pBlock;
@@ -636,7 +670,8 @@ static void destroyBlockDistScanOperatorInfo(void* param, int32_t numOfOutput) {
   blockDataDestroy(pDistInfo->pResBlock);
 }
 
-SOperatorInfo* createDataBlockInfoScanOperator(void* dataReader, SExecTaskInfo* pTaskInfo) {
+SOperatorInfo* createDataBlockInfoScanOperator(void* dataReader, SReadHandle* readHandle, uint64_t uid,
+                                               SBlockDistScanPhysiNode* pBlockScanNode, SExecTaskInfo* pTaskInfo) {
   SBlockDistInfo* pInfo = taosMemoryCalloc(1, sizeof(SBlockDistInfo));
   SOperatorInfo*  pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -644,21 +679,20 @@ SOperatorInfo* createDataBlockInfoScanOperator(void* dataReader, SExecTaskInfo* 
     goto _error;
   }
 
-  pInfo->pHandle = dataReader;
+  pInfo->pHandle    = dataReader;
+  pInfo->readHandle = *readHandle;
+  pInfo->uid        = uid;
+  pInfo->pResBlock  = createResDataBlock(pBlockScanNode->node.pOutputDataBlockDesc);
 
-  pInfo->pResBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  int32_t numOfCols = 0;
+  SExprInfo* pExprInfo = createExprInfo(pBlockScanNode->pScanPseudoCols, NULL, &numOfCols);
+  initExprSupp(&pOperator->exprSupp, pExprInfo, numOfCols);
 
-  SColumnInfoData infoData = {0};
-  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
-  infoData.info.bytes = 1024;
-
-  taosArrayPush(pInfo->pResBlock->pDataBlock, &infoData);
-
-  pOperator->name = "DataBlockInfoScanOperator";
-  //  pOperator->operatorType = OP_TableBlockInfoScan;
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
+  pOperator->name      = "DataBlockDistScanOperator";
+  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN;
+  pOperator->blocking  = false;
+  pOperator->status    = OP_NOT_OPENED;
+  pOperator->info      = pInfo;
   pOperator->pTaskInfo = pTaskInfo;
 
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doBlockInfoScan, NULL, NULL,
@@ -1837,21 +1871,23 @@ SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysi
   SExprInfo* pExprInfo = createExprInfo(pPhyNode->pScanPseudoCols, NULL, &numOfExprs);
   SArray*    colList = extractColMatchInfo(pPhyNode->pScanPseudoCols, pDescNode, &num, COL_MATCH_FROM_COL_ID);
 
-  pInfo->pTableList = pTableListInfo;
-  pInfo->pColMatchInfo = colList;
-  pInfo->pRes = createResDataBlock(pDescNode);
-  pInfo->readHandle = *pReadHandle;
-  pInfo->curPos = 0;
-  pInfo->pFilterNode = pPhyNode->node.pConditions;
+
+  initExprSupp(&pOperator->exprSupp, pExprInfo, numOfExprs);
+
+  pInfo->pTableList       = pTableListInfo;
+  pInfo->pColMatchInfo    = colList;
+  pInfo->pRes             = createResDataBlock(pDescNode);
+  pInfo->readHandle       = *pReadHandle;
+  pInfo->curPos           = 0;
+  pInfo->pFilterNode      = pPhyNode->node.pConditions;
 
   pOperator->name = "TagScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN;
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
-  pOperator->exprSupp.pExprInfo = pExprInfo;
-  pOperator->exprSupp.numOfExprs = numOfExprs;
-  pOperator->pTaskInfo = pTaskInfo;
+
+  pOperator->blocking     = false;
+  pOperator->status       = OP_NOT_OPENED;
+  pOperator->info         = pInfo;
+  pOperator->pTaskInfo    = pTaskInfo;
 
   initResultSizeInfo(pOperator, 4096);
   blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
