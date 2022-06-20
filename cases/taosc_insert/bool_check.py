@@ -20,10 +20,10 @@ class TestBool(TDCase):
 
     def bool_check(self):
         """
-            True: true/TrUe.... != 0
-            False: false/FalSe... = 0
+        True: true/TrUe.... != 0
+        False: false/FalSe... = 0
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        dbname = self.tdCom.get_long_name()
         self.tdSql.execute(f'create database if not exists {dbname}')
         self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 bool) tags (t1 bool)')
         self.tdSql.execute(f'create table if not exists {dbname}.t1 (col_ts timestamp, c1 bool)')
@@ -33,8 +33,7 @@ class TestBool(TDCase):
                 self.tdSql.execute(f'create table if not exists {dbname}.tb1 using {dbname}.stb tags ({true_value})')
                 self.tdSql.execute(f'insert into {dbname}.tb1 values (now, {true_value})')
                 self.tdSql.query(f'select t1, c1 from {dbname}.tb1')
-                # ! bug
-                # self.tdSql.checkEqual(self.tdSql.query_data[0][0], True)
+                self.tdSql.checkEqual(self.tdSql.query_data[0][0], True)
                 self.tdSql.checkEqual(self.tdSql.query_data[0][1], True)
                 self.tdSql.execute(f'insert into {dbname}.t1 values (now, {true_value})')
                 self.tdSql.query(f'select c1 from {dbname}.t1')

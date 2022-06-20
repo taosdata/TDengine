@@ -23,37 +23,33 @@ class TestFloatBoundary(TDCase):
         """
         max: +- 3.4e+38
         """
-        dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        dbname = self.tdCom.get_long_name()
         self.tdSql.execute(f'create database if not exists {dbname}')
         self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 float) tags (t1 float)')
-        self.tdSql.execute(f'create table if not exists {dbname}.tb1 using {dbname}.stb tags ({self.tdCom.boundary_config["FLOAT_MAX"]})')
-        self.tdSql.execute(f'create table if not exists {dbname}.tb2 using {dbname}.stb tags (-{self.tdCom.boundary_config["FLOAT_MAX"]})')
-        self.tdSql.execute(f'insert into {dbname}.tb1 values (now, -{self.tdCom.boundary_config["FLOAT_MAX"]})')
-        self.tdSql.execute(f'insert into {dbname}.tb2 values (now, {self.tdCom.boundary_config["FLOAT_MAX"]})')
-        # self.tdSql.query(f'select t1, c1 from {dbname}.tb1')
-        # self.tdSql.checkEqual(math.isclose(self.tdCom.boundary_config["FLOAT_MAX"], self.tdSql.query_data[0][0], rel_tol=0.01), True)
-        # self.tdSql.checkEqual(math.isclose(-self.tdCom.boundary_config["FLOAT_MAX"], self.tdSql.query_data[0][1], rel_tol=0.01), True)
-        # self.tdSql.query(f'select t1, c1 from {dbname}.tb2')
-        # self.tdSql.checkEqual(math.isclose(-self.tdCom.boundary_config["FLOAT_MAX"], self.tdSql.query_data[0][0], rel_tol=0.01), True)
-        # self.tdSql.checkEqual(math.isclose(self.tdCom.boundary_config["FLOAT_MAX"], self.tdSql.query_data[0][1], rel_tol=0.01), True)
-        self.tdSql.error(f'create stable if not exists {dbname}.stb_error1 (col_ts timestamp, c1 {self.tdCom.boundary_config["FLOAT_MAX"]}) tags (t1 {self.tdCom.boundary_config["FLOAT_MAX"]+1})')
-        self.tdSql.error(f'create stable if not exists {dbname}.stb_error2 (col_ts timestamp, c1 {self.tdCom.boundary_config["FLOAT_MAX"]+1}) tags (t1 {self.tdCom.boundary_config["FLOAT_MAX"]})')
-        self.tdSql.error(f'create stable if not exists {dbname}.stb_error3 (col_ts timestamp, c1 {self.tdCom.boundary_config["FLOAT_MAX"]}) tags (t1 -{self.tdCom.boundary_config["FLOAT_MAX"]-1})')
-        self.tdSql.error(f'create stable if not exists {dbname}.stb_error4 (col_ts timestamp, c1 -{self.tdCom.boundary_config["FLOAT_MAX"]-1}) tags (t1 -{self.tdCom.boundary_config["FLOAT_MAX"]})')
-        self.tdSql.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now-2h, {self.tdCom.boundary_config["FLOAT_MAX"]+1})')
-        self.tdSql.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now-2h, -{self.tdCom.boundary_config["FLOAT_MAX"]-1})')
-        self.tdSql.error(f'insert into {dbname}.tb values (now-1h, {self.tdCom.boundary_config["FLOAT_MAX"]+1})')
-        self.tdSql.error(f'insert into {dbname}.tb values (now-1h, -{self.tdCom.boundary_config["FLOAT_MAX"]-1})')
+        self.tdSql.execute(f'create table if not exists {dbname}.tb1 using {dbname}.stb tags ({self.tdCom.Boundary.FLOAT_BOUNDARY[1]})')
+        self.tdSql.execute(f'create table if not exists {dbname}.tb2 using {dbname}.stb tags ({self.tdCom.Boundary.FLOAT_BOUNDARY[0]})')
+        self.tdSql.execute(f'insert into {dbname}.tb1 values (now, {self.tdCom.Boundary.FLOAT_BOUNDARY[0]})')
+        self.tdSql.execute(f'insert into {dbname}.tb2 values (now, {self.tdCom.Boundary.FLOAT_BOUNDARY[1]})')
+        self.tdSql.query(f'select t1, c1 from {dbname}.tb1')
+        self.tdSql.checkEqual(math.isclose(self.tdCom.Boundary.FLOAT_BOUNDARY[1], self.tdSql.query_data[0][0], rel_tol=0.01), True)
+        self.tdSql.checkEqual(math.isclose(self.tdCom.Boundary.FLOAT_BOUNDARY[0], self.tdSql.query_data[0][1], rel_tol=0.01), True)
+        self.tdSql.query(f'select t1, c1 from {dbname}.tb2')
+        self.tdSql.checkEqual(math.isclose(self.tdCom.Boundary.FLOAT_BOUNDARY[0], self.tdSql.query_data[0][0], rel_tol=0.01), True)
+        self.tdSql.checkEqual(math.isclose(self.tdCom.Boundary.FLOAT_BOUNDARY[1], self.tdSql.query_data[0][1], rel_tol=0.01), True)
+        # self.tdSql.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags ({self.tdCom.Boundary.FLOAT_BOUNDARY[1]+1})')
+        # self.tdSql.error(f'create table if not exists {dbname}.tb using {dbname}.stb tags ({self.tdCom.Boundary.FLOAT_BOUNDARY[0]-1})')
+        # self.tdSql.error(f'insert into {dbname}.tb1 values (now-1h, {self.tdCom.Boundary.FLOAT_BOUNDARY[1]+1})')
+        # self.tdSql.error(f'insert into {dbname}.tb2 values (now-1h, {self.tdCom.Boundary.FLOAT_BOUNDARY[0]-1})')
 
         self.tdSql.execute(f'create table if not exists {dbname}.tb3 (ts timestamp, c1 float)')
-        self.tdSql.execute(f'insert into {dbname}.tb3 values (now, {self.tdCom.boundary_config["FLOAT_MAX"]})')
-        self.tdSql.execute(f'insert into {dbname}.tb3 values (now, -{self.tdCom.boundary_config["FLOAT_MAX"]})')
+        self.tdSql.execute(f'insert into {dbname}.tb3 values (now, {self.tdCom.Boundary.FLOAT_BOUNDARY[1]})')
+        self.tdSql.execute(f'insert into {dbname}.tb3 values (now, {self.tdCom.Boundary.FLOAT_BOUNDARY[0]})')
         self.tdSql.query(f'select c1 from {dbname}.tb3 where c1>0')
-        self.tdSql.checkEqual(abs(float(str(self.tdCom.boundary_config["FLOAT_MAX"]).replace("e+38",""))-float(str(self.tdSql.query_data[0][0]).replace("e+38",""))) < 0.01, True)
+        self.tdSql.checkEqual(abs(float(str(self.tdCom.Boundary.FLOAT_BOUNDARY[1]).replace("e+38",""))-float(str(self.tdSql.query_data[0][0]).replace("e+38",""))) < 0.01, True)
         self.tdSql.query(f'select c1 from {dbname}.tb3 where c1<0')
-        self.tdSql.checkEqual(abs(float(str(self.tdCom.boundary_config["FLOAT_MAX"]).replace("e+38",""))+float(str(self.tdSql.query_data[0][0]).replace("e+38",""))) < 0.01, True)
-        # self.tdSql.error(f'insert into {dbname}.tb3 values (now, {self.tdCom.boundary_config["FLOAT_MAX"]+1})')
-        # self.tdSql.error(f'insert into {dbname}.tb3 values (now, -{self.tdCom.boundary_config["FLOAT_MAX"]+1})')
+        self.tdSql.checkEqual(abs(float(str(self.tdCom.Boundary.FLOAT_BOUNDARY[1]).replace("e+38",""))+float(str(self.tdSql.query_data[0][0]).replace("e+38",""))) < 0.01, True)
+        # self.tdSql.error(f'insert into {dbname}.tb3 values (now, {{self.tdCom.Boundary.FLOAT_BOUNDARY[1]}+1})')
+        # self.tdSql.error(f'insert into {dbname}.tb3 values (now, -{{self.tdCom.Boundary.FLOAT_BOUNDARY[1]}+1})')
         self.tdSql.execute(f'drop database if exists {dbname}')
 
     def run(self):
@@ -64,7 +60,7 @@ class TestFloatBoundary(TDCase):
 
     def desc(self) -> str:
         case_description = """
-            float_boundary_check <jayden>: [TD-12748] : float boundary check (max {self.tdCom.boundary_config["FLOAT_MAX"]});
+            float_boundary_check <jayden>: [TD-12748] : float boundary check (max {self.tdCom.Boundary.FLOAT_BOUNDARY[1]});
         """
         return case_description
 
