@@ -464,6 +464,9 @@ static SNode* logicInterpFuncCopy(const SInterpFuncLogicNode* pSrc, SInterpFuncL
   CLONE_NODE_LIST_FIELD(pFuncs);
   COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
   COPY_SCALAR_FIELD(interval);
+  COPY_SCALAR_FIELD(fillMode);
+  CLONE_NODE_FIELD(pFillValues);
+  CLONE_NODE_FIELD(pTimeSeries);
   return (SNode*)pDst;
 }
 
