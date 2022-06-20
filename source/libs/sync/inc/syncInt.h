@@ -159,7 +159,8 @@ typedef struct SSyncNode {
   SSyncSnapshotSender*   senders[TSDB_MAX_REPLICA];
   SSyncSnapshotReceiver* pNewNodeReceiver;
 
-  // SSnapshotMeta sMeta;
+  // is config changing
+  bool changing;
 
 } SSyncNode;
 
@@ -198,7 +199,7 @@ char*   syncNode2Str(const SSyncNode* pSyncNode);
 void    syncNodeEventLog(const SSyncNode* pSyncNode, char* str);
 char*   syncNode2SimpleStr(const SSyncNode* pSyncNode);
 bool    syncNodeInConfig(SSyncNode* pSyncNode, const SSyncCfg* config);
-void    syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* newConfig, SyncIndex lastConfigChangeIndex, bool* isDrop);
+void    syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* newConfig, SyncIndex lastConfigChangeIndex);
 
 SSyncNode* syncNodeAcquire(int64_t rid);
 void       syncNodeRelease(SSyncNode* pNode);
@@ -238,11 +239,14 @@ int32_t syncNodeUpdateNewConfigIndex(SSyncNode* ths, SSyncCfg* pNewCfg);
 bool                 syncNodeInRaftGroup(SSyncNode* ths, SRaftId* pRaftId);
 SSyncSnapshotSender* syncNodeGetSnapshotSender(SSyncNode* ths, SRaftId* pDestId);
 
-int32_t     syncGetSnapshotMeta(int64_t rid, struct SSnapshotMeta* sMeta);
-int32_t     syncGetSnapshotMetaByIndex(int64_t rid, SyncIndex snapshotIndex, struct SSnapshotMeta* sMeta);
+int32_t syncGetSnapshotMeta(int64_t rid, struct SSnapshotMeta* sMeta);
+int32_t syncGetSnapshotMetaByIndex(int64_t rid, SyncIndex snapshotIndex, struct SSnapshotMeta* sMeta);
 
 void syncStartNormal(int64_t rid);
 void syncStartStandBy(int64_t rid);
+
+bool syncNodeCanChange(SSyncNode* pSyncNode);
+bool syncNodeCheckNewConfig(SSyncNode* pSyncNode, const SSyncCfg* pNewCfg);
 
 // for debug --------------
 void syncNodePrint(SSyncNode* pObj);
