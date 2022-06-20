@@ -161,7 +161,7 @@ int32_t  tsDiskCfgNum = 0;
 SDiskCfg tsDiskCfg[TFS_MAX_DISKS] = {0};
 
 // stream scheduler
-bool tsStreamSchedV = true;
+bool tsSchedStreamToSnode = true;
 
 /*
  * minimum scale for whole system, millisecond by default
