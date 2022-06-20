@@ -1471,13 +1471,13 @@ int wsclient_check(cJSON *root, int64_t st, int64_t et) {
 int wsclient_print_data(int rows, TAOS_FIELD *fields, int cols, int64_t id, int precision, int* pshowed_rows) {
   char* response = wsclient_get_response();
   if (response == NULL) {
-    return 0;
+    return 1;
   }
 
   if (*(int64_t *)response != id) {
     fprintf(stderr, "Mismatch id with %"PRId64" expect %"PRId64"\n", *(int64_t *)response, id);
     free(response);
-    return 0;
+    return 1;
   }
   int pos;
   int width[TSDB_MAX_COLUMNS];
@@ -1634,7 +1634,10 @@ void wsclient_query(char *command) {
         cJSON_Delete(fetch);
         return;
       }
-      wsclient_print_data((int)rows->valueint, fields, cols, ws_id, precision, &showed_rows);
+      if (wsclient_print_data((int)rows->valueint, fields, cols, ws_id, precision, &showed_rows)) {
+        cJSON_Delete(fetch);
+        return;
+      }
       cJSON_Delete(fetch);
       continue;
     }
