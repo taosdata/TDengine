@@ -1764,7 +1764,14 @@ int32_t nodesPartitionCond(SNode** pCondition, SNode** pPrimaryKeyCond, SNode** 
         *pTagIndexCond = *pCondition;
       }
       if (NULL != pTagCond) {
-        *pTagCond = *pCondition;
+        SNode* pTempCond = *pCondition;
+        if (NULL != pTagIndexCond) {
+          pTempCond = nodesCloneNode(*pCondition);
+          if (NULL == pTempCond) {
+            return TSDB_CODE_OUT_OF_MEMORY;
+          }
+        }
+        *pTagCond = pTempCond;
       }
       break;
     case COND_TYPE_TAG:
