@@ -307,7 +307,7 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
         }
       }
     }
-    wsclient_query(command, limit);
+    wsclient_query(command, limit, printMode);
     return;
   }
 
@@ -1487,7 +1487,67 @@ int wsclient_check(cJSON *root, int64_t st, int64_t et) {
   return 0;
 }
 
-int wsclient_print_data(int rows, TAOS_FIELD *fields, int cols, int64_t id, int precision, int* pshowed_rows, uint64_t limit) {
+int wsclient_vertical_print_data(int rows, TAOS_FIELD *fields, int cols, int64_t id, int precision, int* pshowed_rows, uint64_t limit) {
+  char* response = wsclient_get_response();
+  if (response == NULL) {
+    return -1;
+  }
+
+  if (*(int64_t *)response != id) {
+    fprintf(stderr, "Mismatch id with %"PRId64" expect %"PRId64"\n", *(int64_t *)response, id);
+    free(response);
+    return -1;
+  }
+
+  int maxColNameLen = 0;
+  for (int col = 0; col < cols; col++) {
+    int len = (int)strlen(fields[col].name);
+    if (len > maxColNameLen) {
+      maxColNameLen = len;
+    }
+  }
+  int pos;
+
+  for (int i = 0; i < rows; i++) {
+    printf("*************************** %d.row ***************************\n", i + 1);
+    if (*pshowed_rows == limit) {
+      printf("\n");
+      printf(" Notice: The result shows only the first %d rows.\n", DEFAULT_RES_SHOW_NUM);
+      printf("         You can use the `LIMIT` clause to get fewer result to show.\n");
+      printf("           Or use '>>' to redirect the whole set of the result to a specified file.\n");
+      printf("\n");
+      printf("         You can use Ctrl+C to stop the underway fetching.\n");
+      printf("\n");
+      free(response);
+      return 0;
+    }
+    for (int c = 0; c < cols; c++) {
+      pos = 8;
+      pos += i * fields[c].bytes;
+      for (int j = 0; j < c; j++) {
+        pos += fields[j].bytes * rows;
+      }
+      int16_t length = 0;
+      if (fields[c].type == TSDB_DATA_TYPE_NCHAR || fields[c].type == TSDB_DATA_TYPE_BINARY ||
+          fields[c].type == TSDB_DATA_TYPE_JSON) {
+        length = *(int16_t *)(response + pos);
+        pos += 2;
+      }
+      int padding = (int)(maxColNameLen - strlen(fields[c].name));
+      printf("%*.s%s: ", padding, " ", fields[c].name);
+      printField((const char *)(response + pos), fields + c, 0, (int32_t)length, precision);
+      putchar('\n');
+    }
+    putchar('\n');
+    *pshowed_rows += 1;
+  }
+
+  free(response);
+  return 0;
+}
+
+
+int wsclient_horizontal_print_data(int rows, TAOS_FIELD *fields, int* width, int cols, int64_t id, int precision, int* pshowed_rows, uint64_t limit) {
   char* response = wsclient_get_response();
   if (response == NULL) {
     return -1;
@@ -1499,10 +1559,7 @@ int wsclient_print_data(int rows, TAOS_FIELD *fields, int cols, int64_t id, int 
     return -1;
   }
   int pos;
-  int width[TSDB_MAX_COLUMNS];
-  for (int c = 0; c < cols; c++) {
-    width[c] = calcColWidth(fields + c, precision);
-  }
+
   for (int i = 0; i < rows; i++) {
     if (*pshowed_rows == limit) {
       printf("\n");
@@ -1539,7 +1596,7 @@ int wsclient_print_data(int rows, TAOS_FIELD *fields, int cols, int64_t id, int 
   return 0;
 }
 
-void wsclient_query(char *command, uint64_t limit) {
+void wsclient_query(char *command, uint64_t limit, bool isVertical) {
   int64_t st, et;
   st = taosGetTimestampUs();
   if (wsclient_send_sql(command, WS_QUERY, 0)) {
@@ -1596,11 +1653,12 @@ void wsclient_query(char *command, uint64_t limit) {
     return;
   }
   int width[cols];
-  for (int i = 0; i < cols; ++i) {
-    width[i] = calcColWidth(fields + i, precision);
+  if (!isVertical) {
+    for (int i = 0; i < cols; ++i) {
+      width[i] = calcColWidth(fields + i, precision);
+    }
+    printHeader(fields, width, cols);
   }
-  printHeader(fields, width, cols);
-
   cJSON_Delete(query);
 
   while (!completed && !stop_fetch) {
@@ -1659,10 +1717,18 @@ void wsclient_query(char *command, uint64_t limit) {
       cJSON_Delete(fetch);
       return;
     }
-    if (wsclient_print_data((int)rows->valueint, fields, cols, ws_id, precision, &showed_rows, limit)) {
-      cJSON_Delete(fetch);
-      return;
+    if (isVertical) {
+      if (wsclient_vertical_print_data((int)rows->valueint, fields, cols, ws_id, precision, &showed_rows, limit)) {
+        cJSON_Delete(fetch);
+        return;
+      }
+    } else {
+      if (wsclient_horizontal_print_data((int)rows->valueint, fields, width, cols, ws_id, precision, &showed_rows, limit)) {
+        cJSON_Delete(fetch);
+        return;
+      }
     }
+
     cJSON_Delete(fetch);
   }
   et = taosGetTimestampUs();

@@ -119,7 +119,7 @@ void shellGetGrantInfo(void* con);
 int isCommentLine(char* line);
 int wsclient_handshake();
 int wsclient_conn();
-void wsclient_query(char* command, uint64_t limit);
+void wsclient_query(char* command, uint64_t limit, bool isVertical);
 int wsclient_send_sql(char *command, WS_ACTION_TYPE type, int64_t id);
 int tcpConnect(char* host, int port);
 int parse_cloud_dsn();
