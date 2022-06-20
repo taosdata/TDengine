@@ -142,6 +142,29 @@ class TDTestCase:
         # TD-2607 first,last + where none exist condition + interval
         tdSql.query("select first(*),last(*) from test1 where ts < 23 interval(1s)")
         tdSql.checkRows(0)
+
+        # TS-1601
+        tdSql.execute("create database test")
+        tdSql.execute("use test")
+        tdSql.execute("create table tb01(ts timestamp, c1 double, c2 int)")
+        tdSql.execute("insert into tb01 values(now, 2.3987401, 20)(now + 2s, 4.58123, 11)")
+        
+        r = os.popen("taos -s 'select first(c1) + last(c1) from test.tb01'")
+        text = r.read()
+        r.close()
+        result = float(text.split("|")[1].split("\n")[2])
+
+        tdSql.query("select first(c1) + last(c1) from tb01")
+        tdSql.checkData(0, 0, result)   
+
+        r = os.popen("taos -s 'select first(c1) - last(c1) from test.tb01'")
+        text = r.read()
+        r.close()
+        result = float(text.split("|")[1].split("\n")[2])
+        tdSql.query("select first(c1) - last(c1) from tb01")
+        tdSql.checkData(0, 0, result)
+
+                
                 
     def stop(self):
         tdSql.close()
