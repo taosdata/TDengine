@@ -2563,9 +2563,6 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
 }
 
 static void firstLastTransferInfo(SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst) {
-  if (!pInput->hasResult) {
-    return;
-  }
   pOutput->bytes = pInput->bytes;
   TSKEY* tsIn = (TSKEY*)(pInput->buf + pInput->bytes);
   TSKEY* tsOut = (TSKEY*)(pOutput->buf + pInput->bytes);
@@ -2599,7 +2596,9 @@ static int32_t firstLastFunctionMergeImpl(SqlFunctionCtx* pCtx, bool isFirstQuer
 
   firstLastTransferInfo(pInputInfo, pInfo, isFirstQuery);
 
-  SET_VAL(GET_RES_INFO(pCtx), 1, 1);
+  int32_t numOfElems = pInputInfo->hasResult ? 1 : 0;
+
+  SET_VAL(GET_RES_INFO(pCtx), numOfElems, 1);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -2624,6 +2623,7 @@ int32_t firstLastFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 int32_t firstLastPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(pCtx);
   SFirstLastRes*       pRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+
   int32_t              resultBytes = getFirstLastInfoSize(pRes->bytes);
   char*                res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
 
