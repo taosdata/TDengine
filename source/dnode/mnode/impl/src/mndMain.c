@@ -550,6 +550,8 @@ static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
       pMsg->msgType != TDMT_MND_TRANS_TIMER) {
     mError("msg:%p, failed to check mnode state since %s, type:%s", pMsg, terrstr(), TMSG_INFO(pMsg->msgType));
 
+    mndAbortPreprocessMsg(pMsg);
+
     SEpSet epSet = {0};
     mndGetMnodeEpSet(pMsg->info.node, &epSet);
 
