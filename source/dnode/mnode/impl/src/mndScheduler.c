@@ -63,7 +63,7 @@ int32_t mndConvertRsmaTask(char** pDst, int32_t* pDstLen, const char* ast, int64
       .topicQuery = false,
       .streamQuery = true,
       .rSmaQuery = true,
-      .triggerType = STREAM_TRIGGER_WINDOW_CLOSE,
+      .triggerType = triggerType,
       .watermark = watermark,
       /*.filesFactor = filesFactor,*/
   };
