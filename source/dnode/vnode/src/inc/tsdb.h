@@ -159,6 +159,9 @@ int32_t tsdbKeyCmprFn(const void *p1, const void *p2);
 
 int32_t tsdbBuildDeleteSkyline(SArray *aDelData, int32_t sidx, int32_t eidx, SArray *aSkyline);
 
+// SColdata
+int32_t tColDataCmprFn(const void *p1, const void *p2);
+
 // KEYINFO
 #define KEYINFO_INIT_VAL                  \
   ((KEYINFO){.maxKey.ts = TSKEY_MIN,      \

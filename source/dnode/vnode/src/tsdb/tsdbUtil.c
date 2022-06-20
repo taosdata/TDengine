@@ -463,7 +463,7 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
     p = taosbsearch(&(SColData){.cid = pTColumn->colId}, pRow->pBlockData->aColData, pRow->pBlockData->nCol,
                     sizeof(SBlockCol), tColDataCmprFn, TD_EQ);
     if (p) {
-      pColData = (SBlockCol *)p;
+      pColData = (SColData *)p;
       ASSERT(pColData->flags);
 
       if (pColData->flags == HAS_NONE) {
