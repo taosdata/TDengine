@@ -1412,7 +1412,7 @@ char *wsclient_get_response() {
   int bytes = recv(args.socket, recv_buffer + received, 1023, 0);
   if (bytes <= 0) {
     fprintf(stderr, "websocket recv failed with bytes: %d\n", bytes);
-    return NULL;
+    exit(EXIT_FAILURE);
   }
   wsclient_parse_frame(&parser, recv_buffer);
   if (parser.frame == PING_FRAME) {
@@ -1429,9 +1429,6 @@ char *wsclient_get_response() {
     pos += bytes;
   }
   response[pos] = '\0';
-  if (NULL != strstr(response, "unexpected")) {
-    printf("motherfucker");
-  }
   return response;
 }
 
