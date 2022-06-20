@@ -70,6 +70,10 @@ int32_t vnodeSnapshotReaderOpen(SVnode *pVnode, SVSnapshotReader **ppReader, int
 int32_t vnodeSnapshotReaderClose(SVSnapshotReader *pReader);
 int32_t vnodeSnapshotRead(SVSnapshotReader *pReader, const void **ppData, uint32_t *nData);
 int32_t vnodeProcessCreateTSma(SVnode *pVnode, void *pCont, uint32_t contLen);
+int32_t vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list);
+int32_t vnodeGetCtbIdList(SVnode *pVnode, int64_t suid, SArray *list);
+void   *vnodeGetIdx(SVnode *pVnode);
+void   *vnodeGetIvtIdx(SVnode *pVnode);
 
 void vnodeProposeMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs);
 void vnodeApplyMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs);
@@ -126,11 +130,6 @@ SArray *tsdbRetrieveDataBlock(STsdbReader *pTsdbReadHandle, SArray *pColumnIdLis
 void    tsdbResetReadHandle(STsdbReader *pReader, SQueryTableDataCond *pCond, int32_t tWinIdx);
 int32_t tsdbGetFileBlocksDistInfo(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
 int64_t tsdbGetNumOfRowsInMemTable(STsdbReader *pHandle);
-
-int32_t tsdbGetAllTableList(SMeta *pMeta, uint64_t uid, SArray *list);
-int32_t tsdbGetCtbIdList(SMeta *pMeta, int64_t suid, SArray *list);
-void   *tsdbGetIdx(SMeta *pMeta);
-void   *tsdbGetIvtIdx(SMeta *pMeta);
 
 // tq
 

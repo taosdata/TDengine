@@ -13,10 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
-#include "index.h"
 #include "function.h"
 #include "functionMgt.h"
+#include "index.h"
+#include "os.h"
 #include "tdatablock.h"
 #include "thash.h"
 #include "tmsg.h"
@@ -25,45 +25,41 @@
 #include "executorimpl.h"
 #include "tcompression.h"
 
-void initResultRowInfo(SResultRowInfo *pResultRowInfo) {
-  pResultRowInfo->size       = 0;
+void initResultRowInfo(SResultRowInfo* pResultRowInfo) {
+  pResultRowInfo->size = 0;
   pResultRowInfo->cur.pageId = -1;
 }
 
-void cleanupResultRowInfo(SResultRowInfo *pResultRowInfo) {
+void cleanupResultRowInfo(SResultRowInfo* pResultRowInfo) {
   if (pResultRowInfo == NULL) {
     return;
   }
 
-  for(int32_t i = 0; i < pResultRowInfo->size; ++i) {
-//    if (pResultRowInfo->pResult[i]) {
-//      taosMemoryFreeClear(pResultRowInfo->pResult[i]->key);
-//    }
+  for (int32_t i = 0; i < pResultRowInfo->size; ++i) {
+    //    if (pResultRowInfo->pResult[i]) {
+    //      taosMemoryFreeClear(pResultRowInfo->pResult[i]->key);
+    //    }
   }
 }
 
-void closeAllResultRows(SResultRowInfo *pResultRowInfo) {
-// do nothing
+void closeAllResultRows(SResultRowInfo* pResultRowInfo) {
+  // do nothing
 }
 
-bool isResultRowClosed(SResultRow* pRow) {
-  return (pRow->closed == true);
-}
+bool isResultRowClosed(SResultRow* pRow) { return (pRow->closed == true); }
 
-void closeResultRow(SResultRow* pResultRow) {
-  pResultRow->closed = true;
-}
+void closeResultRow(SResultRow* pResultRow) { pResultRow->closed = true; }
 
 // TODO refactor: use macro
 SResultRowEntryInfo* getResultEntryInfo(const SResultRow* pRow, int32_t index, const int32_t* offset) {
   assert(index >= 0 && offset != NULL);
-  return (SResultRowEntryInfo*)((char*) pRow->pEntryInfo + offset[index]);
+  return (SResultRowEntryInfo*)((char*)pRow->pEntryInfo + offset[index]);
 }
 
 size_t getResultRowSize(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
   int32_t rowSize = (numOfOutput * sizeof(SResultRowEntryInfo)) + sizeof(SResultRow);
 
-  for(int32_t i = 0; i < numOfOutput; ++i) {
+  for (int32_t i = 0; i < numOfOutput; ++i) {
     rowSize += pCtx[i].resDataInfo.interBufSize;
   }
 
@@ -74,31 +70,29 @@ void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo) {
   assert(pGroupResInfo != NULL);
 
   taosArrayDestroy(pGroupResInfo->pRows);
-  pGroupResInfo->pRows     = NULL;
-  pGroupResInfo->index     = 0;
+  pGroupResInfo->pRows = NULL;
+  pGroupResInfo->index = 0;
 }
 
 static int32_t resultrowComparAsc(const void* p1, const void* p2) {
-  SResKeyPos* pp1 = *(SResKeyPos**) p1;
-  SResKeyPos* pp2 = *(SResKeyPos**) p2;
+  SResKeyPos* pp1 = *(SResKeyPos**)p1;
+  SResKeyPos* pp2 = *(SResKeyPos**)p2;
 
   if (pp1->groupId == pp2->groupId) {
-    int64_t pts1 = *(int64_t*) pp1->key;
-    int64_t pts2 = *(int64_t*) pp2->key;
+    int64_t pts1 = *(int64_t*)pp1->key;
+    int64_t pts2 = *(int64_t*)pp2->key;
 
     if (pts1 == pts2) {
       return 0;
     } else {
-      return pts1 < pts2? -1:1;
+      return pts1 < pts2 ? -1 : 1;
     }
   } else {
-    return pp1->groupId < pp2->groupId? -1:1;
+    return pp1->groupId < pp2->groupId ? -1 : 1;
   }
 }
 
-static int32_t resultrowComparDesc(const void* p1, const void* p2) {
-  return resultrowComparAsc(p2, p1);
-}
+static int32_t resultrowComparDesc(const void* p1, const void* p2) { return resultrowComparAsc(p2, p1); }
 
 void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, int32_t order) {
   if (pGroupResInfo->pRows != NULL) {
@@ -110,20 +104,20 @@ void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, int
   pGroupResInfo->pRows = taosArrayInit(10, POINTER_BYTES);
 
   size_t keyLen = 0;
-  while((pData = taosHashIterate(pHashmap, pData)) != NULL) {
+  while ((pData = taosHashIterate(pHashmap, pData)) != NULL) {
     void* key = taosHashGetKey(pData, &keyLen);
 
     SResKeyPos* p = taosMemoryMalloc(keyLen + sizeof(SResultRowPosition));
 
-    p->groupId = *(uint64_t*) key;
-    p->pos = *(SResultRowPosition*) pData;
+    p->groupId = *(uint64_t*)key;
+    p->pos = *(SResultRowPosition*)pData;
     memcpy(p->key, (char*)key + sizeof(uint64_t), keyLen - sizeof(uint64_t));
 
     taosArrayPush(pGroupResInfo->pRows, &p);
   }
 
   if (order == TSDB_ORDER_ASC || order == TSDB_ORDER_DESC) {
-    __compar_fn_t fn = (order == TSDB_ORDER_ASC)? resultrowComparAsc:resultrowComparDesc;
+    __compar_fn_t fn = (order == TSDB_ORDER_ASC) ? resultrowComparAsc : resultrowComparDesc;
     qsort(pGroupResInfo->pRows->pData, taosArrayGetSize(pGroupResInfo->pRows), POINTER_BYTES, fn);
   }
 
@@ -155,7 +149,7 @@ int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo) {
     return 0;
   }
 
-  return (int32_t) taosArrayGetSize(pGroupResInfo->pRows);
+  return (int32_t)taosArrayGetSize(pGroupResInfo->pRows);
 }
 
 SArray* createSortInfo(SNodeList* pNodeList) {
@@ -223,7 +217,7 @@ int32_t getTableList(void* metaHandle, SScanPhysiNode* pScanNode, STableListInfo
   if (pScanNode->tableType == TSDB_SUPER_TABLE) {
     if (pTagCond) {
       SIndexMetaArg metaArg = {
-          .metaEx = metaHandle, .idx = tsdbGetIdx(metaHandle), .ivtIdx = tsdbGetIvtIdx(metaHandle), .suid = tableUid};
+          .metaEx = metaHandle, .idx = vnodeGetIdx(metaHandle), .ivtIdx = vnodeGetIvtIdx(metaHandle), .suid = tableUid};
 
       SArray* res = taosArrayInit(8, sizeof(uint64_t));
       code = doFilterTag(pTagCond, &metaArg, res);
@@ -244,7 +238,7 @@ int32_t getTableList(void* metaHandle, SScanPhysiNode* pScanNode, STableListInfo
       }
       taosArrayDestroy(res);
     } else {
-      code = tsdbGetAllTableList(metaHandle, tableUid, pListInfo->pTableList);
+      code = vnodeGetAllTableList(metaHandle, tableUid, pListInfo->pTableList);
     }
   } else {  // Create one table group.
     STableKeyInfo info = {.lastKey = 0, .uid = tableUid};
@@ -255,7 +249,7 @@ int32_t getTableList(void* metaHandle, SScanPhysiNode* pScanNode, STableListInfo
 }
 
 SArray* extractPartitionColInfo(SNodeList* pNodeList) {
-  if(!pNodeList) {
+  if (!pNodeList) {
     return NULL;
   }
 
@@ -283,7 +277,6 @@ SArray* extractPartitionColInfo(SNodeList* pNodeList) {
 
   return pList;
 }
-
 
 SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols,
                             int32_t type) {
@@ -569,8 +562,8 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
   }
 
   for (int32_t i = 1; i < numOfOutput; ++i) {
-    (*rowEntryInfoOffset)[i] =
-        (int32_t)((*rowEntryInfoOffset)[i - 1] + sizeof(SResultRowEntryInfo) + pFuncCtx[i - 1].resDataInfo.interBufSize);
+    (*rowEntryInfoOffset)[i] = (int32_t)((*rowEntryInfoOffset)[i - 1] + sizeof(SResultRowEntryInfo) +
+                                         pFuncCtx[i - 1].resDataInfo.interBufSize);
   }
 
   setSelectValueColumnInfo(pFuncCtx, numOfOutput);

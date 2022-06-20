@@ -2375,51 +2375,6 @@ _err:
 //   return numOfRows;
 // }
 
-// void* tsdbGetIdx(SMeta* pMeta) {
-//   if (pMeta == NULL) {
-//     return NULL;
-//   }
-//   return metaGetIdx(pMeta);
-// }
-// void* tsdbGetIvtIdx(SMeta* pMeta) {
-//   if (pMeta == NULL) {
-//     return NULL;
-//   }
-//   return metaGetIvtIdx(pMeta);
-// }
-// int32_t tsdbGetAllTableList(SMeta* pMeta, uint64_t uid, SArray* list) {
-//   SMCtbCursor* pCur = metaOpenCtbCursor(pMeta, uid);
-
-//   while (1) {
-//     tb_uid_t id = metaCtbCursorNext(pCur);
-//     if (id == 0) {
-//       break;
-//     }
-
-//     STableKeyInfo info = {.lastKey = TSKEY_INITIAL_VAL, uid = id};
-//     taosArrayPush(list, &info);
-//   }
-
-//   metaCloseCtbCursor(pCur);
-//   return TSDB_CODE_SUCCESS;
-// }
-
-// int32_t tsdbGetCtbIdList(SMeta* pMeta, int64_t suid, SArray* list) {
-//   SMCtbCursor* pCur = metaOpenCtbCursor(pMeta, suid);
-
-//   while (1) {
-//     tb_uid_t id = metaCtbCursorNext(pCur);
-//     if (id == 0) {
-//       break;
-//     }
-
-//     taosArrayPush(list, &id);
-//   }
-
-//   metaCloseCtbCursor(pCur);
-//   return TSDB_CODE_SUCCESS;
-// }
-
 // static void destroyHelper(void* param) {
 //   if (param == NULL) {
 //     return;
