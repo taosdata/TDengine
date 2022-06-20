@@ -123,7 +123,7 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
   syncIndexMgrLog2("recv SyncAppendEntriesReply, before pMatchIndex:", ths->pMatchIndex);
   if (gRaftDetailLog) {
     SSnapshot snapshot;
-    ths->pFsm->FpGetSnapshot(ths->pFsm, &snapshot);
+    ths->pFsm->FpGetSnapshotInfo(ths->pFsm, &snapshot);
     sTrace("recv SyncAppendEntriesReply, before snapshot.lastApplyIndex:%ld, snapshot.lastApplyTerm:%lu",
            snapshot.lastApplyIndex, snapshot.lastApplyTerm);
   }
@@ -175,7 +175,7 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
       ASSERT(pSender != NULL);
       bool      hasSnapshot = syncNodeHasSnapshot(ths);
       SSnapshot snapshot;
-      ths->pFsm->FpGetSnapshot(ths->pFsm, &snapshot);
+      ths->pFsm->FpGetSnapshotInfo(ths->pFsm, &snapshot);
 
       // start sending snapshot first time
       // start here, stop by receiver
@@ -209,7 +209,7 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
   syncIndexMgrLog2("recv SyncAppendEntriesReply, after pMatchIndex:", ths->pMatchIndex);
   if (gRaftDetailLog) {
     SSnapshot snapshot;
-    ths->pFsm->FpGetSnapshot(ths->pFsm, &snapshot);
+    ths->pFsm->FpGetSnapshotInfo(ths->pFsm, &snapshot);
     sTrace("recv SyncAppendEntriesReply, after snapshot.lastApplyIndex:%ld, snapshot.lastApplyTerm:%lu",
            snapshot.lastApplyIndex, snapshot.lastApplyTerm);
   }

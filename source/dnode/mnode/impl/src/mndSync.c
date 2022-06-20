@@ -73,7 +73,17 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
   }
 }
 
-int32_t mndSyncGetSnapshot(struct SSyncFSM *pFsm, SSnapshot *pSnapshot) {
+int32_t mndSyncGetSnapshot(struct SSyncFSM *pFsm, SSnapshot *pSnapshot, void *pReaderParam, void **ppReader) {
+  // TODO:
+
+  // atomic operation
+  // step1. sdbGetCommitInfo
+  // step2. create ppReader with pReaderParam
+
+  return 0;
+}
+
+int32_t mndSyncGetSnapshotInfo(struct SSyncFSM *pFsm, SSnapshot *pSnapshot) {
   SMnode *pMnode = pFsm->data;
   sdbGetCommitInfo(pMnode->pSdb, &pSnapshot->lastApplyIndex, &pSnapshot->lastApplyTerm, &pSnapshot->lastConfigIndex);
   return 0;
@@ -159,6 +169,7 @@ SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
   pFsm->FpRestoreFinishCb = mndRestoreFinish;
   pFsm->FpReConfigCb = mndReConfig;
   pFsm->FpGetSnapshot = mndSyncGetSnapshot;
+  pFsm->FpGetSnapshotInfo = mndSyncGetSnapshotInfo;
   pFsm->FpSnapshotStartRead = mndSnapshotStartRead;
   pFsm->FpSnapshotStopRead = mndSnapshotStopRead;
   pFsm->FpSnapshotDoRead = mndSnapshotDoRead;

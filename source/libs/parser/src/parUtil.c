@@ -196,6 +196,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "%s function does not supportted in group query";
     case TSDB_CODE_PAR_INVALID_TABLE_OPTION:
       return "Invalid option %s";
+    case TSDB_CODE_PAR_INVALID_INTERP_CLAUSE:
+      return "Invalid usage of RANGE clause, EVERY clause or FILL clause";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:
