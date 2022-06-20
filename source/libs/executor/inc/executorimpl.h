@@ -423,6 +423,7 @@ typedef struct SStreamFinalIntervalOperatorInfo {
   SArray*            pChildren;
   SSDataBlock*       pUpdateRes;
   SPhysiNode*        pPhyNode;           // create new child
+  bool               isFinal;
 } SStreamFinalIntervalOperatorInfo;
 
 typedef struct SAggOperatorInfo {
@@ -547,14 +548,18 @@ typedef struct SStreamSessionAggOperatorInfo {
   SGroupResInfo        groupResInfo;
   int64_t              gap;             // session window gap
   int32_t              primaryTsIndex;  // primary timestamp slot id
+  int32_t              endTsIndex;      // window end timestamp slot id
   int32_t              order;           // current SSDataBlock scan order
   STimeWindowAggSupp   twAggSup;
   SSDataBlock*         pWinBlock;       // window result
   SqlFunctionCtx*      pDummyCtx;       // for combine
-  SSDataBlock*         pDelRes;
+  SSDataBlock*         pDelRes;         // delete result
+  SSDataBlock*         pUpdateRes;      // update window
   SHashObj*            pStDeleted;
   void*                pDelIterator;
   SArray*              pChildren;       // cache for children's result; final stream operator
+  SPhysiNode*          pPhyNode;           // create new child
+  bool                 isFinal;
 } SStreamSessionAggOperatorInfo;
 
 typedef struct STimeSliceOperatorInfo {
@@ -813,10 +818,10 @@ int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order);
 int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, const char* pKey, SqlFunctionCtx* pCtx, int32_t numOfOutput,
     int32_t size);
 SResultRow* getNewResultRow(SDiskbasedBuf* pResultBuf, int64_t tableGroupId, int32_t interBufSize);
-SResultWindowInfo* getSessionTimeWindow(SStreamAggSupporter* pAggSup, TSKEY ts, uint64_t groupId, int64_t gap, int32_t* pIndex);
-int32_t updateSessionWindowInfo(SResultWindowInfo* pWinInfo, TSKEY* pTs, int32_t rows, int32_t start, int64_t gap,
-    SHashObj* pStDeleted);
-
+SResultWindowInfo* getSessionTimeWindow(SStreamAggSupporter* pAggSup, TSKEY startTs,
+    TSKEY endTs, uint64_t groupId, int64_t gap, int32_t* pIndex);
+int32_t updateSessionWindowInfo(SResultWindowInfo* pWinInfo, TSKEY* pStartTs,
+    TSKEY* pEndTs, int32_t rows, int32_t start, int64_t gap, SHashObj* pStDeleted);
 bool functionNeedToExecute(SqlFunctionCtx* pCtx);
 
 int32_t compareTimeWindow(const void* p1, const void* p2, const void* param);

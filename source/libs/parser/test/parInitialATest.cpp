@@ -121,10 +121,10 @@ TEST_F(ParserInitialATest, alterSTable) {
     int32_t len = snprintf(expect.name, sizeof(expect.name), "0.test.%s", pTbname);
     expect.name[len] = '\0';
     expect.alterType = alterType;
-    expect.ttl = ttl;
+//    expect.ttl = ttl;
     if (nullptr != pComment) {
       expect.comment = strdup(pComment);
-      expect.commentLen = strlen(pComment) + 1;
+      expect.commentLen = strlen(pComment);
     }
 
     expect.numOfFields = numOfFields;
@@ -180,9 +180,9 @@ TEST_F(ParserInitialATest, alterSTable) {
     tFreeSMAltertbReq(&req);
   });
 
-  setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_OPTIONS, 0, nullptr, 0, 0, nullptr, nullptr, 10);
-  run("ALTER TABLE st1 TTL 10");
-  clearAlterStbReq();
+//  setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_OPTIONS, 0, nullptr, 0, 0, nullptr, nullptr, 10);
+//  run("ALTER TABLE st1 TTL 10");
+//  clearAlterStbReq();
 
   setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_OPTIONS, 0, nullptr, 0, 0, nullptr, "test");
   run("ALTER TABLE st1 COMMENT 'test'");
@@ -289,7 +289,7 @@ TEST_F(ParserInitialATest, alterTable) {
       expect.newTTL = ttl;
     }
     if (nullptr != pComment) {
-      expect.updateComment = true;
+      expect.newCommentLen = strlen(pComment);
       expect.newComment = pComment;
     }
   };
@@ -328,9 +328,10 @@ TEST_F(ParserInitialATest, alterTable) {
     ASSERT_EQ(memcmp(req.pTagVal, expect.pTagVal, expect.nTagVal), 0);
     ASSERT_EQ(req.updateTTL, expect.updateTTL);
     ASSERT_EQ(req.newTTL, expect.newTTL);
-    ASSERT_EQ(req.updateComment, expect.updateComment);
     if (nullptr != expect.newComment) {
       ASSERT_EQ(std::string(req.newComment), std::string(expect.newComment));
+      ASSERT_EQ(req.newCommentLen, strlen(req.newComment));
+      ASSERT_EQ(expect.newCommentLen, strlen(expect.newComment));
     }
 
     tDecoderClear(&coder);
