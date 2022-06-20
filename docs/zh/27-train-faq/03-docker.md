@@ -108,7 +108,7 @@ taos>
 也可以在宿主机使用 curl 通过 RESTful 端口访问 Docker 容器内的 TDengine server。
 
 ```
-curl -u root:taosdata -d 'show databases' 127.0.0.1:6041/rest/sql
+curl -L -u root:taosdata -d "show databases" 127.0.0.1:6041/rest/sql
 ```
 
 输出示例如下：
@@ -118,8 +118,6 @@ curl -u root:taosdata -d 'show databases' 127.0.0.1:6041/rest/sql
 ```
 
 这条命令，通过 REST API 访问 TDengine server，这时连接的是本机的 6041 端口，可见连接成功。
-
-注意，若宿主机为 Windows ，上述 curl 命令 -d 参数需要使用双引号，用单引号会引发解析错误。
 
 TDengine REST API 详情请参考[官方文档](/reference/rest-api/)。
 
@@ -150,7 +148,7 @@ docker run -d --name tdengine-taosd -p 6030-6042:6030-6042 -p 6030-6042:6030-604
 使用 curl 命令验证 RESTful 接口可以正常工作：
 
 ```bash
-curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'show databases;' 127.0.0.1:6041/rest/sql
+curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "show databases;" 127.0.0.1:6041/rest/sql
 ```
 
 输出示例如下：
