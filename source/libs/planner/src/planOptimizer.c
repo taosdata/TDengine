@@ -1057,9 +1057,9 @@ static bool partTagsOptHasCol(SNodeList* pPartKeys) {
 }
 
 static bool partTagsIsOptimizableNode(SLogicNode* pNode) {
-  return ((QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode) /*||
+  return ((QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode) ||
            (QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pNode) && NULL != ((SAggLogicNode*)pNode)->pGroupKeys &&
-            NULL != ((SAggLogicNode*)pNode)->pAggFuncs)*/) &&
+            NULL != ((SAggLogicNode*)pNode)->pAggFuncs)) &&
           1 == LIST_LENGTH(pNode->pChildren) &&
           QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(nodesListGetNode(pNode->pChildren, 0)));
 }
@@ -1217,7 +1217,7 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "ConditionPushDown", .optimizeFunc = cpdOptimize},
   {.pName = "OrderByPrimaryKey", .optimizeFunc = opkOptimize},
   {.pName = "SmaIndex",          .optimizeFunc = smaOptimize},
-  {.pName = "PartitionTags",     .optimizeFunc = partTagsOptimize},
+  // {.pName = "PartitionTags",     .optimizeFunc = partTagsOptimize},
   {.pName = "EliminateProject",  .optimizeFunc = eliminateProjOptimize}
 };
 // clang-format on
