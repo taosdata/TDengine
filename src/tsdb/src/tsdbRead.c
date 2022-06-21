@@ -986,7 +986,7 @@ static SMemRow getSMemRowInTableMem(STableCheckInfo* pCheckInfo, int32_t order, 
       return rmem;
     } else {
       pCheckInfo->chosen = CHECKINFO_CHOSEN_BOTH;
-      extraRow = rimem;
+      *extraRow = rimem;
       return rmem;
     }
   } else {
