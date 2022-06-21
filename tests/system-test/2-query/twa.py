@@ -21,33 +21,6 @@ class TDTestCase:
         self.row_nums = 100
         self.time_step = 1000
 
-
-    def check_stddev_functions(self, tbname , col_name):
-
-        stddev_sql = f"select stddev({col_name}) from {tbname};"
-
-        same_sql = f"select {col_name} from {tbname} where {col_name} is not null "
-   
-        tdSql.query(same_sql)
-        pre_data = np.array(tdSql.queryResult)[np.array(tdSql.queryResult) != None]
-        if (platform.system().lower() == 'windows' and pre_data.dtype == 'int32'):
-            pre_data = np.array(pre_data, dtype = 'int64')
-        pre_avg = np.sum(pre_data)/len(pre_data)
-
-        # Calculate variance
-        stddev_result = 0 
-        for num in tdSql.queryResult:
-            stddev_result += (num-pre_avg)*(num-pre_avg)/len(tdSql.queryResult)
-
-        stddev_result = math.sqrt(stddev_result)
-
-        tdSql.query(stddev_sql)
-        
-        if -0.0001 < tdSql.queryResult[0][0]-stddev_result < 0.0001:
-            tdLog.info(" sql:%s; row:0 col:0 data:%d , expect:%d"%(stddev_sql,tdSql.queryResult[0][0],stddev_result))
-        else:
-            tdLog.exit(" sql:%s; row:0 col:0 data:%d , expect:%d"%(stddev_sql,tdSql.queryResult[0][0],stddev_result))
-
     def prepare_datas_of_distribute(self):
         
         # prepate datas for  20 tables distributed at different vgroups
@@ -75,6 +48,16 @@ class TDTestCase:
 
         tdLog.info(" prepare data for distributed_aggregate done! ")
 
+    def twa_support_types(self):
+        tdSql.query("desc stb1 ")
+        schema_list = tdSql.queryResult
+        for col_type in schema_list:
+            if col_type[1] in ["TINYINT" ,"SMALLINT","BIGINT" ,"INT","FLOAT","DOUBLE"]:
+                tdSql.query(f" select twa({col_type[0]}) from stb1 partition by tbname ")
+            else:
+                tdSql.error(f" select twa({col_type[0]}) from stb1 partition by tbname ")
+
+
     def check_distribute_datas(self):
         # get vgroup_ids of all
         tdSql.query("show vgroups ")
@@ -84,7 +67,6 @@ class TDTestCase:
         
         for vgroup_id in vgroups:
             vnode_tables[vgroup_id[0]]=[]
-        
 
         # check sub_table of per vnode ,make sure sub_table has been distributed
         tdSql.query("show tables like 'ct%'")
@@ -157,9 +139,9 @@ class TDTestCase:
     def run(self):
         self.prepare_datas_of_distribute()
         self.check_distribute_datas()
+        self.twa_support_types()
         self.distribute_twa_query()
-
-    
+        
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
