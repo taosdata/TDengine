@@ -172,7 +172,7 @@ int32_t vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
         goto _err;
       }
     } break;
-    case TDMT_VND_STREAM_TASK_DROP: {
+    case TDMT_STREAM_TASK_DROP: {
       if (tqProcessTaskDropReq(pVnode->pTq, pMsg->pCont, pMsg->contLen) < 0) {
         goto _err;
       }

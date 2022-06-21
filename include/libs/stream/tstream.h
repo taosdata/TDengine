@@ -30,9 +30,14 @@ extern "C" {
 typedef struct SStreamTask SStreamTask;
 
 enum {
-  TASK_STATUS__IDLE = 1,
-  TASK_STATUS__EXECUTING,
-  TASK_STATUS__CLOSING,
+  TASK_STATUS__NORMAL = 0,
+  TASK_STATUS__DROPPING,
+};
+
+enum {
+  TASK_EXEC_STATUS__IDLE = 1,
+  TASK_EXEC_STATUS__EXECUTING,
+  TASK_EXEC_STATUS__CLOSING,
 };
 
 enum {
@@ -51,15 +56,11 @@ enum {
 };
 
 enum {
-  STREAM_CREATED_BY__USER = 1,
-  STREAM_CREATED_BY__SMA,
-};
-
-enum {
   STREAM_INPUT__DATA_SUBMIT = 1,
   STREAM_INPUT__DATA_BLOCK,
   STREAM_INPUT__TRIGGER,
   STREAM_INPUT__CHECKPOINT,
+  STREAM_INPUT__DROP,
 };
 
 typedef struct {
@@ -237,7 +238,9 @@ struct SStreamTask {
   int64_t streamId;
   int32_t taskId;
   int8_t  inputType;
-  int8_t  status;
+  int8_t  taskStatus;
+
+  int8_t execStatus;
 
   int8_t  execType;
   int8_t  sinkType;

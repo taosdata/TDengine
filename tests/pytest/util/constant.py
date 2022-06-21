@@ -1,0 +1,69 @@
+# -*- coding: utf-8 -*-
+
+# basic data type boundary
+TINYINT_MAX             = 127
+TINYINT_MIN             = -128
+
+TINYINT_UN_MAX          = 255
+TINYINT_UN_MIN          = 0
+
+SMALLINT_MAX            = 32767
+SMALLINT_MIN            = -32768
+
+SMALLINT_UN_MAX         = 65535
+MALLINT_UN_MIN          = 0
+
+INT_MAX                 = 2147483647
+INT_MIN                 = -2147483648
+
+INT_UN_MAX              = 4294967295
+INT_UN_MIN              = 0
+
+BIGINT_MAX              = 9223372036854775807
+BIGINT_MIN              = -9223372036854775808
+
+BIGINT_UN_MAX           = 18446744073709551615
+BIGINT_UN_MIN           = 0
+
+FLOAT_MAX               = 3.40E+38
+FLOAT_MIN               = -3.40E+38
+
+DOUBLE_MAX              = 1.7E+308
+DOUBLE_MIN              = -1.7E+308
+
+# schema boundary
+BINARY_LENGTH_MAX       = 16374
+NCAHR_LENGTH_MAX_       = 4093
+DBNAME_LENGTH_MAX_      = 64
+
+STBNAME_LENGTH_MAX      = 192
+STBNAME_LENGTH_MIN      = 1
+
+TBNAME_LENGTH_MAX       = 192
+TBNAME_LENGTH_MIN       = 1
+
+CHILD_TBNAME_LENGTH_MAX = 192
+CHILD_TBNAME_LENGTH_MIN = 1
+
+TAG_NAME_LENGTH_MAX     = 64
+TAG_NAME_LENGTH_MIN     = 1
+
+COL_NAME_LENGTH_MAX     = 64
+COL_NAME_LENGTH_MIN     = 1
+
+TAG_COUNT_MAX           = 128
+TAG_COUNT_MIN           = 1
+
+COL_COUNT_MAX           = 4096
+COL_COUNT_MIN           = 2
+
+TAG_COL_COUNT_MAX       = 4096
+TAG_COL_COUNT_MIN       = 3
+
+MNODE_SHM_SIZE_MAX      = 2147483647
+MNODE_SHM_SIZE_MIN      = 6292480
+MNODE_SHM_SIZE_DEFAULT  = 6292480
+
+VNODE_SHM_SIZE_MAX      = 2147483647
+VNODE_SHM_SIZE_MIN      = 6292480
+VNODE_SHM_SIZE_DEFAULT  = 31458304

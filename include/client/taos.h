@@ -252,6 +252,16 @@ DLL_EXPORT void           tmq_conf_set_auto_commit_cb(tmq_conf_t *conf, tmq_comm
 
 /* -------------------------TMQ MSG HANDLE INTERFACE---------------------- */
 
+enum tmq_res_t {
+  TMQ_RES_INVALID = -1,
+  TMQ_RES_DATA = 1,
+  TMQ_RES_TABLE_META = 2,
+};
+
+typedef enum tmq_res_t tmq_res_t;
+
+DLL_EXPORT tmq_res_t   tmq_get_res_type(TAOS_RES *res);
+DLL_EXPORT int32_t     tmq_get_raw_meta(TAOS_RES *res, const void **raw_meta, int32_t *raw_meta_len);
 DLL_EXPORT const char *tmq_get_topic_name(TAOS_RES *res);
 DLL_EXPORT const char *tmq_get_db_name(TAOS_RES *res);
 DLL_EXPORT int32_t     tmq_get_vgroup_id(TAOS_RES *res);

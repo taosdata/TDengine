@@ -45,9 +45,9 @@ static int32_t tqLoopExecFromQueue(STQ* pTq, STqHandle* pHandle, SStreamDataSubm
 int32_t tqExecFromInputQ(STQ* pTq, STqHandle* pHandle) {
   SMqDataBlkRsp rsp = {0};
   // 1. guard and set status executing
-  int8_t execStatus =
-      atomic_val_compare_exchange_8(&pHandle->pushHandle.execStatus, TASK_STATUS__IDLE, TASK_STATUS__EXECUTING);
-  if (execStatus == TASK_STATUS__IDLE) {
+  int8_t execStatus = atomic_val_compare_exchange_8(&pHandle->pushHandle.execStatus, TASK_EXEC_STATUS__IDLE,
+                                                    TASK_EXEC_STATUS__EXECUTING);
+  if (execStatus == TASK_EXEC_STATUS__IDLE) {
     SStreamDataSubmit* pSubmit = NULL;
     // 2. check processedVer
     // 2.1. if not missed, get msg from queue
@@ -68,18 +68,18 @@ int32_t tqExecFromInputQ(STQ* pTq, STqHandle* pHandle) {
       goto SEND_RSP;
     }
     // set exec status closing
-    atomic_store_8(&pHandle->pushHandle.execStatus, TASK_STATUS__CLOSING);
+    atomic_store_8(&pHandle->pushHandle.execStatus, TASK_EXEC_STATUS__CLOSING);
     // second run
     if (tqLoopExecFromQueue(pTq, pHandle, &pSubmit, &rsp) == 0) {
       goto SEND_RSP;
     }
     // set exec status idle
-    atomic_store_8(&pHandle->pushHandle.execStatus, TASK_STATUS__IDLE);
+    atomic_store_8(&pHandle->pushHandle.execStatus, TASK_EXEC_STATUS__IDLE);
   }
 SEND_RSP:
   // 4. if get result
   // 4.1 set exec input status blocked and exec status idle
-  atomic_store_8(&pHandle->pushHandle.execStatus, TASK_STATUS__IDLE);
+  atomic_store_8(&pHandle->pushHandle.execStatus, TASK_EXEC_STATUS__IDLE);
   // 4.2 rpc send
   rsp.rspOffset = pHandle->pushHandle.processedVer;
   /*if (tqSendPollRsp(pTq, pMsg, pReq, &rsp) < 0) {*/
@@ -150,7 +150,7 @@ int32_t tqEnqueueAll(STQ* pTq, SSubmitReq* pReq) {
       continue;
     }
     int8_t execStatus = atomic_load_8(&pHandle->pushHandle.execStatus);
-    if (execStatus == TASK_STATUS__IDLE || execStatus == TASK_STATUS__CLOSING) {
+    if (execStatus == TASK_EXEC_STATUS__IDLE || execStatus == TASK_EXEC_STATUS__CLOSING) {
       tqSendExecReq(pTq, pHandle);
     }
   }
