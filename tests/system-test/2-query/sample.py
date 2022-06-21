@@ -764,7 +764,9 @@ class TDTestCase:
         tdSql.checkCols(4)
 
         self.check_sample("select sample( c1 ,3 ),c2,c3,c4,c5 from t1 where c1 between 1 and 10" ,"select c1,c2,c3,c4,c5 from t1 where c1 between 1 and 10")
-
+        self.check_sample("select sample( c1 ,3 ),c2,c3,c4,c5 from stb1 where c1 between 1 and 10" ,"select c1,c2,c3,c4,c5 from stb1 where c1 between 1 and 10")
+        self.check_sample("select sample( c1 ,3 ),t1 from stb1 where c1 between 1 and 10" ,"select c1,t1 from stb1 where c1 between 1 and 10")
+        
         # join 
 
         tdSql.query("select sample( ct4.c1 , 1 )  from ct1, ct4 where ct4.ts=ct1.ts")
