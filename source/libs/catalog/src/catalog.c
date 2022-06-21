@@ -1121,8 +1121,19 @@ _return:
   CTG_API_LEAVE(TSDB_CODE_SUCCESS);
 }
 
-int32_t catalogGetDnodeList(SCatalog* pCatalog, SRequestConnInfo* pConn, SArray** pDnodeList) {
-  return TSDB_CODE_CTG_INVALID_INPUT;
+int32_t catalogGetDnodeList(SCatalog* pCtg, SRequestConnInfo* pConn, SArray** pDnodeList) {
+  CTG_API_ENTER();
+
+  int32_t code = 0;
+  if (NULL == pCtg || NULL == pConn || NULL == pDnodeList) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  CTG_ERR_JRET(ctgGetDnodeListFromMnode(pCtg, pConn, pDnodeList, NULL));
+
+_return:
+
+  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
 }
 
 int32_t catalogGetExpiredSTables(SCatalog* pCtg, SSTableVersion **stables, uint32_t *num) {

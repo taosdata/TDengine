@@ -75,6 +75,7 @@ int32_t mndInitDnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_CONFIG_DNODE, mndProcessConfigDnodeReq);
   mndSetMsgHandle(pMnode, TDMT_DND_CONFIG_DNODE_RSP, mndProcessConfigDnodeRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_STATUS, mndProcessStatusReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_DNODE_LIST, mndProcessDnodeListReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_CONFIGS, mndRetrieveConfigs);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_CONFIGS, mndCancelGetNextConfig);
@@ -496,6 +497,60 @@ _OVER:
   sdbFreeRaw(pRaw);
   return code;
 }
+
+static int32_t mndProcessDnodeListReq(SRpcMsg *pReq) {
+  SMnode *pMnode = pReq->info.node;
+  SSdb   *pSdb = pMnode->pSdb;
+  SDnodeObj *pObj = NULL;
+  void *pIter = NULL;
+  SDnodeListRsp rsp = {0};
+  int32_t code = -1;
+  
+  rsp.dnodeList = taosArrayInit(5, sizeof(SEpSet));
+  if (NULL == rsp.dnodeList) {
+    mError("failed to alloc epSet while process dnode list req");
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+  
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pObj);
+    if (pIter == NULL) break;
+
+    SEpSet epSet = {0};
+    epSet.numOfEps = 1;
+    tstrncpy(epSet.eps[0].fqdn, pObj->fqdn, TSDB_FQDN_LEN);
+    epSet.eps[0].port = pObj->port;
+
+    (void)taosArrayPush(rsp.dnodeList, &epSet);
+
+    sdbRelease(pSdb, pObj);
+  }
+
+  int32_t rspLen = tSerializeSDnodeListRsp(NULL, 0, &rsp);
+  void   *pRsp = rpcMallocCont(rspLen);
+  if (pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+
+  tSerializeSDnodeListRsp(pRsp, rspLen, &rsp);
+
+  pReq->info.rspLen = rspLen;
+  pReq->info.rsp = pRsp;
+  code = 0;
+
+_OVER:
+
+  if (code != 0) {
+    mError("failed to get dnode list since %s", terrstr());
+  }
+
+  tFreeSDnodeListRsp(&rsp);
+
+  return code;
+}
+
 
 static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
   SMnode         *pMnode = pReq->info.node;

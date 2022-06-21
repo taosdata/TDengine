@@ -817,6 +817,15 @@ int32_t tDeserializeSQnodeListRsp(void* buf, int32_t bufLen, SQnodeListRsp* pRsp
 void    tFreeSQnodeListRsp(SQnodeListRsp* pRsp);
 
 typedef struct {
+  SArray* dnodeList;  // SArray<SEpSet>
+} SDnodeListRsp;
+
+int32_t tSerializeSDnodeListRsp(void* buf, int32_t bufLen, SDnodeListRsp* pRsp);
+int32_t tDeserializeSDnodeListRsp(void* buf, int32_t bufLen, SDnodeListRsp* pRsp);
+void    tFreeSDnodeListRsp(SDnodeListRsp* pRsp);
+
+
+typedef struct {
   SArray* pArray;  // Array of SUseDbRsp
 } SUseDbBatchRsp;
 

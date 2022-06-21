@@ -201,6 +201,7 @@ typedef struct SCtgJob {
   int32_t           dbVgNum;
   int32_t           udfNum;
   int32_t           qnodeNum;
+  int32_t           dnodeNum;
   int32_t           dbCfgNum;
   int32_t           indexNum;
   int32_t           userNum;

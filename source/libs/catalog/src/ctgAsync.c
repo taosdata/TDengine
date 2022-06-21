@@ -353,13 +353,14 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgJob** job, uint6
   int32_t tbHashNum = (int32_t)taosArrayGetSize(pReq->pTableHash);
   int32_t udfNum = (int32_t)taosArrayGetSize(pReq->pUdf);
   int32_t qnodeNum = pReq->qNodeRequired ? 1 : 0;
+  int32_t dnodeNum = pReq->dNodeRequired ? 1 : 0;
   int32_t dbCfgNum = (int32_t)taosArrayGetSize(pReq->pDbCfg);
   int32_t indexNum = (int32_t)taosArrayGetSize(pReq->pIndex);
   int32_t userNum = (int32_t)taosArrayGetSize(pReq->pUser);
   int32_t dbInfoNum = (int32_t)taosArrayGetSize(pReq->pDbInfo);
   int32_t tbIndexNum = (int32_t)taosArrayGetSize(pReq->pTableIndex);
 
-  *taskNum = tbMetaNum + dbVgNum + udfNum + tbHashNum + qnodeNum + dbCfgNum + indexNum + userNum + dbInfoNum + tbIndexNum;
+  *taskNum = tbMetaNum + dbVgNum + udfNum + tbHashNum + qnodeNum + dnodeNum + dbCfgNum + indexNum + userNum + dbInfoNum + tbIndexNum;
   if (*taskNum <= 0) {
     ctgDebug("Empty input for job, no need to retrieve meta, reqId:0x%" PRIx64, reqId);
     return TSDB_CODE_SUCCESS;
@@ -382,6 +383,7 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgJob** job, uint6
   pJob->tbMetaNum = tbMetaNum;
   pJob->tbHashNum = tbHashNum;
   pJob->qnodeNum = qnodeNum;
+  pJob->dnodeNum = dnodeNum;
   pJob->dbVgNum = dbVgNum;
   pJob->udfNum = udfNum;
   pJob->dbCfgNum = dbCfgNum;
