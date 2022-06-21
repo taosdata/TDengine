@@ -459,6 +459,10 @@ void appendTableOptions(char* buf, int32_t* len, STableCfg* pCfg) {
     }
     *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, ")");
   }
+
+  if (pCfg->ttl > 0) {
+    *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, " TTL %d", pCfg->ttl);
+  }
 }
 
 static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, char *tbName, STableCfg* pCfg) {
@@ -481,6 +485,7 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, char *tbName,
     len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, ") TAGS (");
     appendTagFields(buf2, &len, pCfg);    
     len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, ")");
+    appendTableOptions(buf2, &len, pCfg);
   } else if (TSDB_CHILD_TABLE == pCfg->tableType) {
     len += sprintf(buf2 + VARSTR_HEADER_SIZE, "CREATE TABLE `%s` USING `%s` (", tbName, pCfg->stbName);
     appendTagNameFields(buf2, &len, pCfg);
@@ -490,13 +495,14 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, char *tbName,
       return code;
     }
     len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, ")");
+    appendTableOptions(buf2, &len, pCfg);
   } else {
     len += sprintf(buf2 + VARSTR_HEADER_SIZE, "CREATE TABLE `%s` (", tbName);
     appendColumnFields(buf2, &len, pCfg);
     len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, ")");
   }
 
-  (varDataLen(buf2)) = len;
+  varDataLen(buf2) = len;
   
   colDataAppend(pCol2, 0, buf2, false);
 

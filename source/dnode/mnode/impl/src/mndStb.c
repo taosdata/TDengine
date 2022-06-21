@@ -77,7 +77,7 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   int32_t size = sizeof(SStbObj) + (pStb->numOfColumns + pStb->numOfTags) * sizeof(SSchema) + +pStb->commentLen +
-                 pStb->ast1Len + pStb->ast2Len + STB_RESERVE_SIZE;
+                 pStb->ast1Len + pStb->ast2Len + STB_RESERVE_SIZE + taosArrayGetSize(pStb->pFuncs) * TSDB_FUNC_NAME_LEN;
   SSdbRaw *pRaw = sdbAllocRaw(SDB_STB, STB_VER_NUMBER, size);
   if (pRaw == NULL) goto _OVER;
 
@@ -101,6 +101,13 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   SDB_SET_INT32(pRaw, dataPos, pStb->commentLen, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->ast1Len, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->ast2Len, _OVER)
+
+  int32_t funcNum = taosArrayGetSize(pStb->pFuncs);
+  SDB_SET_INT32(pRaw, dataPos, funcNum, _OVER)
+  for (int32_t i = 0; i < funcNum; ++i) {
+    char* func = taosArrayGet(pStb->pFuncs, i);
+    SDB_SET_BINARY(pRaw, dataPos, func, TSDB_FUNC_NAME_LEN, _OVER)
+  }
 
   for (int32_t i = 0; i < pStb->numOfColumns; ++i) {
     SSchema *pSchema = &pStb->pColumns[i];
@@ -182,6 +189,20 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &pStb->commentLen, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pStb->ast1Len, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pStb->ast2Len, _OVER)
+
+  int32_t funcNum = 0;
+  SDB_GET_INT32(pRaw, dataPos, &funcNum, _OVER)
+  if (funcNum > 0) {
+    pStb->pFuncs = taosArrayInit(funcNum, TSDB_FUNC_NAME_LEN);
+    if (NULL == pStb->pFuncs) {
+      goto _OVER;
+    }
+    char funcName[TSDB_FUNC_NAME_LEN];
+    for (int32_t i = 0; i < funcNum; ++i) {
+      SDB_GET_BINARY(pRaw, dataPos, funcName, TSDB_FUNC_NAME_LEN, _OVER)
+      taosArrayPush(pStb->pFuncs, funcName);
+    }
+  }
 
   pStb->pColumns = taosMemoryCalloc(pStb->numOfColumns, sizeof(SSchema));
   pStb->pTags = taosMemoryCalloc(pStb->numOfTags, sizeof(SSchema));
@@ -683,8 +704,6 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   pDst->numOfColumns = pCreate->numOfColumns;
   pDst->numOfTags = pCreate->numOfTags;
   pDst->commentLen = pCreate->commentLen;
-  pDst->delay1 = pCreate->delay1;
-  pDst->delay2 = pCreate->delay2;
   pDst->pFuncs = pCreate->pFuncs;
   pCreate->pFuncs = NULL;
   
@@ -1302,10 +1321,10 @@ static int32_t mndBuildStbCfgImp(SDbObj *pDb, SStbObj *pStb, const char *tbName,
   pRsp->numOfTags = pStb->numOfTags;
   pRsp->numOfColumns = pStb->numOfColumns;
   pRsp->tableType = TSDB_SUPER_TABLE;
-  pRsp->delay1 = pStb->delay1;
-  pRsp->delay2 = pStb->delay2;
-  pRsp->watermark1 = pStb->watermark1;
-  pRsp->watermark2 = pStb->watermark2;
+  pRsp->delay1 = pStb->maxdelay[0];
+  pRsp->delay2 = pStb->maxdelay[1];
+  pRsp->watermark1 = pStb->watermark[0];
+  pRsp->watermark2 = pStb->watermark[1];
   pRsp->ttl = pStb->ttl;
   pRsp->commentLen = pStb->commentLen;
   if (pStb->commentLen > 0) {
