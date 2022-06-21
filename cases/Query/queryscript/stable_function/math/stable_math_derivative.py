@@ -96,9 +96,9 @@ class TDTestQuery(TDCase):
                 stable_where = tdWhere.stable_where()
                 n = random.randrange(0,2) 
                 func_0 = func_0.replace(",ignore_negative",",1") #ignore_negative 参数的值可以是 0 或 1，为 1 时表示忽略负值。
-                sql0 = 'select %s from %s group by tbname;'  % (func_0,self.table)
+                sql0 = "select %s from %s  where tbname in ('%s_1');"  % (func_0,self.table,self.table)
                 func = func.replace("ignore_negative","%d" %n)
-                sql1 = 'select %s from %s group by tbname;'  % (func,self.table)
+                sql1 = "select %s from %s  where tbname in ('%s_1');"  % (func,self.table,self.table)
                 
                 for i in range(2,len(stable_where[2])+1):
                     qt_where = list(combinations(stable_where[2],i))
@@ -107,30 +107,46 @@ class TDTestQuery(TDCase):
                         qt_like_match = stable_where[3]
                         qt_in_where = stable_where[4]
 
-                        sql2 = "select %s from %s where  %s %s %s group by tbname" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from %s where tbname in ('%s_1') and  %s %s %s" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,5,1,1,'%s' %sql2 ,1,5,1,1)
                         cur1.execute(sql2)
                         sql= sql + sql2
                         
                         #检查某列返回结果和value的对比,sql2用的都是ignore_negative=1
-                        sql2 = "select %s from %s where  %s %s %s group by tbname" %(func_0,self.table,qt_where,qt_like_match,qt_in_where)                        
-                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,30,1,'GE',-0)
+                        sql2 = "select %s from %s where tbname in ('%s_1') and %s %s %s ;" %(func_0,self.table,self.table,qt_where,qt_like_match,qt_in_where)                        
+                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,10,0,'GE',-0)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select * from (select %s from %s where %s %s %s group by tbname)" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select * from (select %s from %s where tbname in ('%s_1') and %s %s %s );" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,5,1,1,'%s' %sql2 ,1,5,1,1)
                         cur1.execute(sql2)
                         sql= sql + sql2
                         
-                        sql2 = "select * from (select %s from %s where %s %s %s group by tbname)" %(func_0,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,30,1,'GE',-0)
+                        sql2 = "select * from (select %s from %s where tbname in ('%s_1') and %s %s %s);" %(func_0,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,10,0,'GE',-0)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         # not support stddev/percentile in the outer query
-                        sql2 = "select %s from (select * from %s) where %s %s %s group by tbname" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from (select * from %s) where tbname in ('%s_1') and %s %s %s ;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
+                        sql= sql + sql2
+                        
+                        sql2 = "select %s from (select * from %s) where loc in ('%s_1') and %s %s %s ;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,5,1,1,'%s' %sql2 ,1,5,1,1)
+                        cur1.execute(sql2)
+                        sql= sql + sql2
+                        
+                        sql2 = "select %s from (select * from %s) where loc in ('%s_1') and %s %s %s ;" %(func_0,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,10,0,'GE',-0)
+                        cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
             except Exception as e:
@@ -173,23 +189,11 @@ class TDTestQuery(TDCase):
                         qt_in_where = stable_where[4]
 
                         sql2 = "select %s from %s where tbname in ('%s_1') and %s %s %s group by tbname;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                        cur1.execute(sql2)
-                        sql= sql + sql2
-                        
-                        sql2 = "select %s from %s where tbname in ('%s_1') and %s %s %s group by tbname;" %(func_0,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,30,1,'GE',-0)
-                        cur1.execute(sql2)
+                        self.tdSql.error(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select %s from %s where tbname in ('%s_1') and %s %s %s group by tbname);" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                        cur1.execute(sql2)
-                        sql= sql + sql2
-                        
-                        sql2 = "select * from (select %s from %s where tbname in ('%s_1') and %s %s %s group by tbname);" %(func_0,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,30,1,'GE',-0)
-                        cur1.execute(sql2)
+                        self.tdSql.error(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s) where tbname in ('%s_1') and %s %s %s group by tbname" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
@@ -222,7 +226,11 @@ class TDTestQuery(TDCase):
                 print("\n\n\n=======hanshu num = %d======right case========case1======\n\n\n" %i)
                 
                 stable_where = tdWhere.stable_where()
-                sql1 = 'select %s from %s;'  % (func,self.table)
+                n = random.randrange(0,2) 
+                func_0 = func_0.replace(",ignore_negative",",1") #ignore_negative 参数的值可以是 0 或 1，为 1 时表示忽略负值。
+                sql0 = "select %s from %s where group by tbname;"  % (func_0,self.table)
+                func = func.replace("ignore_negative","%d" %n)
+                sql1 = "select %s from %s where group by tbname;"  % (func,self.table)
                 
                 for i in range(2,len(stable_where[2])+1):
                     qt_where = list(combinations(stable_where[2],i))
@@ -231,15 +239,15 @@ class TDTestQuery(TDCase):
                         qt_like_match = stable_where[3]
                         qt_in_where = stable_where[4]
 
-                        sql2 = "select %s from %s where  %s %s %s" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from %s where  %s %s %s group by tbname" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select * from (select %s from %s where %s %s %s)" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select * from (select %s from %s where %s %s %s group by tbname)" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select %s from (select * from %s) where %s %s %s" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from (select * from %s) where %s %s %s group by tbname" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
 
@@ -284,29 +292,11 @@ class TDTestQuery(TDCase):
                         qt_in_where = stable_where[4]
 
                         sql2 = "select %s from %s where  %s %s %s group by tbname order by ts;" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                        cur1.execute(sql2)
-                        sql= sql + sql2
-                        
-                        sql2 = "select %s from %s where  %s %s %s group by tbname order by ts;" %(func_0,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,30,1,'GE',-0)
-                        cur1.execute(sql2)
-                        sql= sql + sql2
-
-                        # not support stddev/percentile in the outer query
-                        sql2 = "select %s from (select * from %s where  %s %s %s group by tbname order by ts)" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
                         
-                        # orderby column must projected in subquery
                         sql2 = "select * from (select %s from %s where  %s %s %s group by tbname order by ts);" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                        cur1.execute(sql2)
-                        sql= sql + sql2
-                        
-                        sql2 = "select * from (select %s from %s where  %s %s %s group by tbname order by ts);" %(func_0,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,30,1,'GE',-0)
-                        cur1.execute(sql2)
+                        self.tdSql.error(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s) where  %s %s %s group by tbname order by ts" %(func,self.table,qt_where,qt_like_match,qt_in_where)
@@ -336,23 +326,11 @@ class TDTestQuery(TDCase):
                         qt_in_where = stable_where[4]
 
                         sql2 = "select %s from %s where  %s %s %s group by tbname order by ts desc;" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                        cur1.execute(sql2)
-                        sql= sql + sql2
-                        
-                        sql2 = "select %s from %s where  %s %s %s group by tbname order by ts desc;" %(func_0,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,30,1,'GE',-0)
-                        cur1.execute(sql2)
+                        self.tdSql.error(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select %s from %s where  %s %s %s group by tbname order by ts desc);" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                        cur1.execute(sql2)
-                        sql= sql + sql2
-                        
-                        sql2 = "select * from (select %s from %s where  %s %s %s group by tbname order by ts desc);" %(func_0,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,30,1,'GE',-0)
-                        cur1.execute(sql2)
+                        self.tdSql.error(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s) where  %s %s %s group by tbname order by ts desc" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where)
@@ -397,9 +375,9 @@ class TDTestQuery(TDCase):
                 stable_where = tdWhere.stable_where()
                 n = random.randrange(0,2) 
                 func_0 = func_0.replace(",ignore_negative",",1") #ignore_negative 参数的值可以是 0 或 1，为 1 时表示忽略负值。
-                sql0 = "select %s from %s where tbname in ('%s_1') group by tbname;"  % (func_0,self.table,self.table)
+                sql0 = "select %s from %s where tbname in ('%s_1') ;"  % (func_0,self.table,self.table)
                 func = func.replace("ignore_negative","%d" %n)
-                sql1 = "select %s from %s where tbname in ('%s_1') group by tbname;"  % (func,self.table,self.table)
+                sql1 = "select %s from %s where tbname in ('%s_1') ;"  % (func,self.table,self.table)
                 
                 for i in range(2,len(stable_where[2])+1):
                     qt_where = list(combinations(stable_where[2],i))
@@ -408,56 +386,52 @@ class TDTestQuery(TDCase):
                         qt_like_match = stable_where[3]
                         qt_in_where = stable_where[4]
 
-                        sql2 = "select %s from %s where tbname in ('%s_1') and  %s %s %s group by tbname order by ts;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from %s where tbname in ('%s_1') and  %s %s %s order by ts;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdSql.error(sql2)
+                        sql= sql + sql2
+
+                        sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s order by ts);" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,5,1,1,'%s' %sql2 ,1,5,1,1)
                         cur1.execute(sql2)
                         sql= sql + sql2
                         
-                        sql2 = "select %s from %s where tbname in ('%s_1') and  %s %s %s group by tbname order by ts;" %(func_0,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,20,1,'GE',-0)
+                        sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s order by ts);" %(func_0,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,10,0,'GE',-0)
                         cur1.execute(sql2)
-                        sql= sql + sql2
-
-                        sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s group by tbname order by ts);" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdSql.error(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
                         
-                        sql2 = "select * from (select %s from %s where tbname in ('%s_1') and  %s %s %s group by tbname order by ts);" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                        cur1.execute(sql2)
-                        sql= sql + sql2
-                        
-                        sql2 = "select * from (select %s from %s where tbname in ('%s_1') and %s %s %s group by tbname order by ts);" %(func_0,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,20,1,'GE',-0)
-                        cur1.execute(sql2)
-                        sql= sql + sql2
-
-                        sql2 = "select %s from (select * from %s) where tbname in ('%s_1') and  %s %s %s group by tbname order by ts" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select * from (select %s from %s where tbname in ('%s_1') and  %s %s %s order by ts);" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s ) group by tbname order by ts" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdSql.error(sql2)
-                        sql= sql + sql2
-                        
-                        sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s group by tbname) order by ts" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from (select * from %s) where tbname in ('%s_1') and  %s %s %s order by ts" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s order by ts ) group by tbname order by ts" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s ) order by ts" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
                         
-                        sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s group by tbname order by ts ) group by tbname order by ts" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s) order by ts" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdSql.error(sql2)
+                        sql= sql + sql2
+
+                        sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s order by ts ) order by ts" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdSql.error(sql2)
+                        sql= sql + sql2
+                        
+                        sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s order by ts ) order by ts" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
                 
                 stable_where = tdWhere.stable_where()
                 n = random.randrange(0,2) 
                 func_0 = func_0.replace(",ignore_negative",",1") #ignore_negative 参数的值可以是 0 或 1，为 1 时表示忽略负值。
-                sql0 = "select %s from %s where tbname in ('%s_1')  group by tbname order by ts desc;"  % (func_0,self.table,self.table)
+                sql0 = "select %s from %s where tbname in ('%s_1')  order by ts desc;"  % (func_0,self.table,self.table)
                 func_desc = func_desc.replace("ignore_negative","%d" %n)
-                sql1 = "select %s from %s where tbname in ('%s_1')  group by tbname order by ts desc;"  % (func_desc,self.table,self.table)
+                sql1 = "select %s from (select * from %s where tbname in ('%s_1') order by ts desc);"  % (func_desc,self.table,self.table)
                 
                 for i in range(2,len(stable_where[2])+1):
                     qt_where = list(combinations(stable_where[2],i))
@@ -466,43 +440,43 @@ class TDTestQuery(TDCase):
                         qt_like_match = stable_where[3]
                         qt_in_where = stable_where[4]
 
-                        sql2 = "select %s from %s where tbname in ('%s_1') and  %s %s %s group by tbname order by ts desc;" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from %s where tbname in ('%s_1') and  %s %s %s order by ts desc;" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdSql.error(sql2)
+                        sql= sql + sql2
+
+                        sql2 = "select * from (select %s from %s where tbname in ('%s_1') and  %s %s %s order by ts desc)" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdSql.error(sql2)
+                        sql= sql + sql2
+
+                        sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s order by ts desc);" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,5,1,1,'%s' %sql2 ,1,5,1,1)
                         cur1.execute(sql2)
                         sql= sql + sql2
                         
-                        sql2 = "select %s from %s where tbname in ('%s_1') and  %s %s %s group by tbname order by ts desc;" %(func_0,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,20,1,'GE',-0)
+                        sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s order by ts desc);" %(func_0,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,10,0,'GE',-0)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select * from (select %s from %s where tbname in ('%s_1') and  %s %s %s group by tbname order by ts desc)" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                        cur1.execute(sql2)
-                        sql= sql + sql2
-                        
-                        sql2 = "select * from (select %s from %s where tbname in ('%s_1') and %s %s %s group by tbname order by ts desc);" %(func_0,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,20,1,'GE',-0)
-                        cur1.execute(sql2)
-                        sql= sql + sql2
-
-                        sql2 = "select %s from (select * from %s) where tbname in ('%s_1') and  %s %s %s group by tbname order by ts desc" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from (select * from %s) where tbname in ('%s_1') and  %s %s %s order by ts desc" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s ) group by tbname order by ts desc" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s ) order by ts desc" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
                         
-                        sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s group by tbname) order by ts desc" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s) order by ts desc" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s order by ts desc ) group by tbname order by ts desc" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s order by ts desc ) order by ts desc" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
                         
-                        sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s group by tbname order by ts desc ) group by tbname order by ts desc" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s order by ts desc ) order by ts desc" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
             
@@ -534,7 +508,11 @@ class TDTestQuery(TDCase):
                 print("\n\n\n=======hanshu num = %d======right case========case2======\n\n\n" %i)
 
                 stable_where = tdWhere.stable_where()
-                sql1 = 'select %s from %s;'  % (func,self.table)
+                n = random.randrange(0,2) 
+                func_0 = func_0.replace(",ignore_negative",",1") #ignore_negative 参数的值可以是 0 或 1，为 1 时表示忽略负值。
+                sql0 = "select %s from %s where  group by tbname;"  % (func_0,self.table)
+                func = func.replace("ignore_negative","%d" %n)
+                sql1 = "select %s from %s where group by tbname;"  % (func,self.table)
                 
                 for i in range(2,len(stable_where[2])+1):
                     qt_where = list(combinations(stable_where[2],i))
@@ -543,32 +521,37 @@ class TDTestQuery(TDCase):
                         qt_like_match = stable_where[3]
                         qt_in_where = stable_where[4]
 
-                        sql2 = "select %s from %s where  %s %s %s order by ts" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from %s where  %s %s %s group by tbname order by ts" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select %s from (select * from %s where  %s %s %s order by ts)" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from (select * from %s where  %s %s %s group by tbname order by ts)" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
                         
-                        sql2 = "select * from (select %s from %s where  %s %s %s order by ts)" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select * from (select %s from %s where  %s %s %s group by tbname order by ts)" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select %s from (select * from %s) where  %s %s %s order by ts" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from (select * from %s) where  %s %s %s group by tbname order by ts" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select %s from (select * from %s where  %s %s %s ) order by ts" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from (select * from %s where  %s %s %s group by tbname ) order by ts" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select %s from (select * from %s where  %s %s %s order by ts ) order by ts" %(func,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from (select * from %s where  %s %s %s group by tbname order by ts ) order by ts" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
                 
                 stable_where = tdWhere.stable_where()
                 sql1 = 'select %s from %s order by ts desc;'  % (func_desc,self.table)
+                n = random.randrange(0,2) 
+                func_0 = func_0.replace(",ignore_negative",",1") #ignore_negative 参数的值可以是 0 或 1，为 1 时表示忽略负值。
+                sql0 = "select %s from %s where tbname in ('%s_1') group by tbname;"  % (func_0,self.table,self.table)
+                func = func.replace("ignore_negative","%d" %n)
+                sql1 = "select %s from %s where tbname in ('%s_1') group by tbname;"  % (func,self.table,self.table)
                 
                 for i in range(2,len(stable_where[2])+1):
                     qt_where = list(combinations(stable_where[2],i))
@@ -577,23 +560,23 @@ class TDTestQuery(TDCase):
                         qt_like_match = stable_where[3]
                         qt_in_where = stable_where[4]
 
-                        sql2 = "select %s from %s where  %s %s %s order by ts desc" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from %s where  %s %s %s group by tbname order by ts desc" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select * from (select %s from %s where  %s %s %s order by ts desc)" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select * from (select %s from %s where  %s %s %s group by tbname order by ts desc)" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select %s from (select * from %s) where  %s %s %s order by ts desc" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from (select * from %s) where  %s %s %s group by tbname order by ts desc" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select %s from (select * from %s where  %s %s %s ) order by ts desc" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from (select * from %s where  %s %s %s group by tbname ) order by ts desc" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
 
-                        sql2 = "select %s from (select * from %s where  %s %s %s order by ts desc ) order by ts desc" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from (select * from %s where  %s %s %s group by tbname order by ts desc ) order by ts desc" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
             
@@ -639,23 +622,11 @@ class TDTestQuery(TDCase):
                         qt_in_where = stable_where[4]
 
                         sql2 = "select %s from %s where  %s %s %s group by tbname order by ts limit 1000 ;" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                        cur1.execute(sql2)
-                        sql= sql + sql2
-                        
-                        sql2 = "select %s from %s where  %s %s %s group by tbname order by ts limit 1000 ;" %(func_0,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,30,1,'GE',-0)
-                        cur1.execute(sql2)
+                        self.tdSql.error(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select %s from %s where  %s %s %s group by tbname order by ts limit 1000);" %(func,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                        cur1.execute(sql2)
-                        sql= sql + sql2
-                        
-                        sql2 = "select * from (select %s from %s where  %s %s %s group by tbname order by ts limit 1000);" %(func_0,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,30,1,'GE',-0)
-                        cur1.execute(sql2)
+                        self.tdSql.error(sql2)
                         sql= sql + sql2
                         
                         sql2 = "select %s from (select * from %s) where  %s %s %s group by tbname order by ts limit 1000;" %(func,self.table,qt_where,qt_like_match,qt_in_where)
@@ -692,9 +663,9 @@ class TDTestQuery(TDCase):
                 stable_where = tdWhere.stable_where()
                 n = random.randrange(0,2) 
                 func_0 = func_0.replace(",ignore_negative",",1") #ignore_negative 参数的值可以是 0 或 1，为 1 时表示忽略负值。
-                sql0 = "select %s from %s where tbname in ('%s_1') group by tbname;"  % (func_0,self.table,self.table)
+                sql0 = "select %s from %s where tbname in ('%s_1') ;"  % (func_0,self.table,self.table)
                 func = func.replace("ignore_negative","%d" %n)
-                sql1 = "select %s from %s where tbname in ('%s_1') group by tbname;"  % (func,self.table,self.table)
+                sql1 = "select %s from %s where tbname in ('%s_1') ;"  % (func,self.table,self.table)
                 
                 for i in range(2,len(stable_where[2])+1):
                     qt_where = list(combinations(stable_where[2],i))
@@ -703,24 +674,24 @@ class TDTestQuery(TDCase):
                         qt_like_match = stable_where[3]
                         qt_in_where = stable_where[4]
 
-                        sql2 = "select %s from %s where tbname in ('%s_1') and  %s %s %s group by tbname order by ts limit 1000;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        sql2 = "select %s from %s where tbname in ('%s_1') and  %s %s %s order by ts limit 1000;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdSql.error(sql2)
+                        sql= sql + sql2
+
+                        sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s order by ts limit 1000);" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                        self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,5,1,1,'%s' %sql2 ,1,5,1,1)
                         cur1.execute(sql2)
                         sql= sql + sql2
                         
-                        sql2 = "select %s from %s where tbname in ('%s_1') and  %s %s %s group by tbname order by ts limit 1000;" %(func_0,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,20,1,'GE',-0)
+                        sql2 = "select %s from (select * from %s where tbname in ('%s_1') and  %s %s %s order by ts limit 1000);" %(func_0,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,10,0,'GE',-0)
                         cur1.execute(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select %s from %s where tbname in ('%s_1') and %s %s %s group by tbname order by ts limit 1000);" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
-                        cur1.execute(sql2)
-                        sql= sql + sql2
-                        
-                        sql2 = "select * from (select %s from %s where tbname in ('%s_1') and %s %s %s group by tbname order by ts limit 1000);" %(func_0,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdCreateData.check_mult_rows_one_col_value('%s' %sql2 ,0,20,1,'GE',-0)
-                        cur1.execute(sql2)
+                        self.tdSql.error(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s) where tbname in ('%s_1') and %s %s %s group by tbname order by ts limit 1000;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
@@ -754,6 +725,11 @@ class TDTestQuery(TDCase):
                 
                 stable_where = tdWhere.stable_where()
                 sql1 = 'select %s from %s ;'  % (func,self.table)
+                n = random.randrange(0,2) 
+                func_0 = func_0.replace(",ignore_negative",",1") #ignore_negative 参数的值可以是 0 或 1，为 1 时表示忽略负值。
+                sql0 = "select %s from %s where tbname in ('%s_1') group by tbname;"  % (func_0,self.table,self.table)
+                func = func.replace("ignore_negative","%d" %n)
+                sql1 = "select %s from %s where tbname in ('%s_1') group by tbname;"  % (func,self.table,self.table)
                 
                 for i in range(2,len(stable_where[2])+1):
                     qt_where = list(combinations(stable_where[2],i))
