@@ -1615,6 +1615,7 @@ static bool initGroupbyInfo(const SSDataBlock *pSDataBlock, const SGroupbyExpr *
       }
     }
   }
+  pInfo->totalBytes += (int32_t)strlen(MULTI_KEY_DELIM) * pGroupbyExpr->numOfGroupCols
 
   return true;
 }
@@ -1643,6 +1644,9 @@ static void buildGroupbyKeyBuf(const SSDataBlock *pSDataBlock, SGroupbyOperatorI
       memcpy(p, val, pDataInfo->bytes);
       p += pDataInfo->bytes;
     }
+
+    memcpy(p, MULTI_KEY_DELIM, strlen(MULTI_KEY_DELIM));
+    p += strlen(MULTI_KEY_DELIM);
   }
 
   // calc keyLen and save
