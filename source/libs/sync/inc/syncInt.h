@@ -253,6 +253,7 @@ void syncNodePrint(SSyncNode* pObj);
 void syncNodePrint2(char* s, SSyncNode* pObj);
 void syncNodeLog(SSyncNode* pObj);
 void syncNodeLog2(char* s, SSyncNode* pObj);
+void syncNodeLog3(char* s, SSyncNode* pObj);
 
 #ifdef __cplusplus
 }
