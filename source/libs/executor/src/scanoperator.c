@@ -398,7 +398,7 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
       continue;
     }
 
-    uint64_t* groupId = taosHashGet(pTaskInfo->tableqinfoList.map, &pBlock->info.uid, sizeof(int64_t));
+    uint64_t* groupId = taosHashGet(pTaskInfo->tableqinfoList.tableUidToGroupIdMap, &pBlock->info.uid, sizeof(int64_t));
     if (groupId) {
       pBlock->info.groupId = *groupId;
     }
@@ -789,7 +789,7 @@ static void copyOneRow(SSDataBlock* dest, SSDataBlock* source, int32_t sourceRow
 }
 
 static uint64_t getGroupId(SOperatorInfo* pOperator, SSDataBlock* pBlock, int32_t rowId) {
-  uint64_t* groupId = taosHashGet(pOperator->pTaskInfo->tableqinfoList.map, &pBlock->info.uid, sizeof(int64_t));
+  uint64_t* groupId = taosHashGet(pOperator->pTaskInfo->tableqinfoList.tableUidToGroupIdMap, &pBlock->info.uid, sizeof(int64_t));
   if (groupId) {
     return *groupId;
   }
@@ -985,7 +985,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
         pInfo->pRes->info.groupId = groupId;
       }
 
-      uint64_t* groupIdPre = taosHashGet(pOperator->pTaskInfo->tableqinfoList.map, &uid, sizeof(int64_t));
+      uint64_t* groupIdPre = taosHashGet(pOperator->pTaskInfo->tableqinfoList.tableUidToGroupIdMap, &uid, sizeof(int64_t));
       if (groupIdPre) {
         pInfo->pRes->info.groupId = *groupIdPre;
       }
@@ -1956,18 +1956,8 @@ typedef struct STableMergeScanInfo {
 int32_t createMultipleDataReaders(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle,
                                   STableListInfo* pTableListInfo, SArray* arrayReader, uint64_t queryId,
                                   uint64_t taskId, SNode* pTagCond) {
-  int32_t code = getTableList(pHandle->meta, &pTableScanNode->scan, pTableListInfo, pTagCond);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
-  }
-
-  if (taosArrayGetSize(pTableListInfo->pTableList) == 0) {
-    qDebug("no table qualified for query, TID:0x%" PRIx64 ", QID:0x%" PRIx64, taskId, queryId);
-    goto _error;
-  }
-
   SQueryTableDataCond cond = {0};
-  code = initQueryTableDataCond(&cond, pTableScanNode);
+  int32_t code = initQueryTableDataCond(&cond, pTableScanNode);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -2145,7 +2135,7 @@ static SSDataBlock* getTableDataBlock(void* param) {
       continue;
     }
 
-    uint64_t* groupId = taosHashGet(pOperator->pTaskInfo->tableqinfoList.map, &pBlock->info.uid, sizeof(int64_t));
+    uint64_t* groupId = taosHashGet(pOperator->pTaskInfo->tableqinfoList.tableUidToGroupIdMap, &pBlock->info.uid, sizeof(int64_t));
     if (groupId) {
       pBlock->info.groupId = *groupId;
     }
