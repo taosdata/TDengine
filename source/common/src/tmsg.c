@@ -127,7 +127,7 @@ int32_t tEncodeSEpSet(SEncoder *pEncoder, const SEpSet *pEp) {
   if (tEncodeI8(pEncoder, pEp->numOfEps) < 0) return -1;
   for (int32_t i = 0; i < TSDB_MAX_REPLICA; i++) {
     if (tEncodeU16(pEncoder, pEp->eps[i].port) < 0) return -1;
-    if (tEncodeCStr(pEncoder, pEp->eps[i].fqdn) < 0) return -1;
+    if (tEncodeCStrWithLen(pEncoder, pEp->eps[i].fqdn, TSDB_FQDN_LEN) < 0) return -1;
   }
   return 0;
 }
@@ -2956,6 +2956,7 @@ int32_t tSerializeSCMCreateTopicReq(void *buf, int32_t bufLen, const SCMCreateTo
   if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->igExists) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->subType) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->withMeta) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->subDbName) < 0) return -1;
   if (TOPIC_SUB_TYPE__DB == pReq->subType) {
   } else if (TOPIC_SUB_TYPE__TABLE == pReq->subType) {
@@ -2985,6 +2986,7 @@ int32_t tDeserializeSCMCreateTopicReq(void *buf, int32_t bufLen, SCMCreateTopicR
   if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->igExists) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->subType) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->withMeta) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->subDbName) < 0) return -1;
   if (TOPIC_SUB_TYPE__DB == pReq->subType) {
   } else if (TOPIC_SUB_TYPE__TABLE == pReq->subType) {
@@ -3052,7 +3054,7 @@ int32_t tSerializeSConnectReq(void *buf, int32_t bufLen, SConnectReq *pReq) {
   if (tEncodeCStr(&encoder, pReq->app) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->db) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->user) < 0) return -1;
-  if (tEncodeCStr(&encoder, pReq->passwd) < 0) return -1;
+  if (tEncodeCStrWithLen(&encoder, pReq->passwd, TSDB_PASSWORD_LEN) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->startTime) < 0) return -1;
   tEndEncode(&encoder);
 
@@ -4261,6 +4263,35 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
     if (pReq->ast == NULL) return -1;
     if (tDecodeCStrTo(&decoder, pReq->ast) < 0) return -1;
   }
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+int32_t tSerializeSMDropStreamReq(void *buf, int32_t bufLen, const SMDropStreamReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->igNotExists) < 0) return -1;
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSMDropStreamReq(void *buf, int32_t bufLen, SMDropStreamReq *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->igNotExists) < 0) return -1;
+
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);

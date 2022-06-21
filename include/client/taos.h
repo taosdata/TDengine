@@ -187,8 +187,8 @@ DLL_EXPORT TAOS_ROW *taos_result_block(TAOS_RES *res);
 DLL_EXPORT const char *taos_get_server_info(TAOS *taos);
 DLL_EXPORT const char *taos_get_client_info();
 
-DLL_EXPORT const char *taos_errstr(TAOS_RES *tres);
-DLL_EXPORT int         taos_errno(TAOS_RES *tres);
+DLL_EXPORT const char *taos_errstr(TAOS_RES *res);
+DLL_EXPORT int         taos_errno(TAOS_RES *res);
 
 DLL_EXPORT void        taos_query_a(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param);
 DLL_EXPORT void        taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param);
@@ -252,6 +252,16 @@ DLL_EXPORT void           tmq_conf_set_auto_commit_cb(tmq_conf_t *conf, tmq_comm
 
 /* -------------------------TMQ MSG HANDLE INTERFACE---------------------- */
 
+enum tmq_res_t {
+  TMQ_RES_INVALID = -1,
+  TMQ_RES_DATA = 1,
+  TMQ_RES_TABLE_META = 2,
+};
+
+typedef enum tmq_res_t tmq_res_t;
+
+DLL_EXPORT tmq_res_t   tmq_get_res_type(TAOS_RES *res);
+DLL_EXPORT int32_t     tmq_get_raw_meta(TAOS_RES *res, const void **raw_meta, int32_t *raw_meta_len);
 DLL_EXPORT const char *tmq_get_topic_name(TAOS_RES *res);
 DLL_EXPORT const char *tmq_get_db_name(TAOS_RES *res);
 DLL_EXPORT int32_t     tmq_get_vgroup_id(TAOS_RES *res);

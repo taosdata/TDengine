@@ -336,7 +336,7 @@ static void vnodeSyncReconfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReCon
   SVnode *pVnode = pFsm->data;
 
   SRpcMsg rpcMsg = {.msgType = pMsg->msgType, .contLen = pMsg->contLen};
-  syncGetAndDelRespRpc(pVnode->sync, cbMeta.seqNum, &rpcMsg.info);
+  syncGetAndDelRespRpc(pVnode->sync, cbMeta.newCfgSeqNum, &rpcMsg.info);
   rpcMsg.info.conn.applyIndex = cbMeta.index;
 
   STraceId *trace = (STraceId *)&pMsg->info.traceId;

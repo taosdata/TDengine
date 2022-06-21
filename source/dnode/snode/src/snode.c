@@ -92,7 +92,7 @@ static int32_t sndProcessTaskDeployReq(SSnode *pNode, SRpcMsg *pMsg) {
   }
   tDecoderClear(&decoder);
 
-  pTask->status = TASK_STATUS__IDLE;
+  pTask->execStatus = TASK_EXEC_STATUS__IDLE;
 
   pTask->inputQueue = streamQueueOpen();
   pTask->outputQueue = streamQueueOpen();
@@ -205,7 +205,7 @@ int32_t sndProcessUMsg(SSnode *pSnode, SRpcMsg *pMsg) {
   switch (pMsg->msgType) {
     case TDMT_STREAM_TASK_DEPLOY:
       return sndProcessTaskDeployReq(pSnode, pMsg);
-    case TDMT_VND_STREAM_TASK_DROP:
+    case TDMT_STREAM_TASK_DROP:
       return sndProcessTaskDropReq(pSnode, pMsg);
     default:
       ASSERT(0);

@@ -534,7 +534,11 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
   }
   SQueryNodeLoad node = {.addr = {.nodeId = MNODE_HANDLE, .epSet = pCxt->pPlanCxt->mgmtEpSet}, .load = 0};
   taosArrayPush(pCxt->pExecNodeList, &node);
-  pScan->mgmtEpSet = pCxt->pPlanCxt->mgmtEpSet;
+  if (0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_DNODE_VARIABLES)) {
+    pScan->mgmtEpSet = pScanLogicNode->pVgroupList->vgroups->epSet;
+  } else {
+    pScan->mgmtEpSet = pCxt->pPlanCxt->mgmtEpSet;
+  }
   tNameGetFullDbName(&pScanLogicNode->tableName, pSubplan->dbFName);
 
   return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pScan, pPhyNode);
@@ -879,10 +883,13 @@ static int32_t createInterpFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pCh
     pInterpFunc->interval = pFuncLogicNode->interval;
     pInterpFunc->fillMode = pFuncLogicNode->fillMode;
     pInterpFunc->pFillValues = nodesCloneNode(pFuncLogicNode->pFillValues);
-    pInterpFunc->pTimeSeries = nodesCloneNode(pFuncLogicNode->pTimeSeries);
-    if (NULL == pInterpFunc->pTimeSeries || (NULL != pFuncLogicNode->pFillValues && NULL == pInterpFunc->pFillValues)) {
+    if (NULL != pFuncLogicNode->pFillValues && NULL == pInterpFunc->pFillValues) {
       code = TSDB_CODE_OUT_OF_MEMORY;
     }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setNodeSlotId(pCxt, pChildTupe->dataBlockId, -1, pFuncLogicNode->pTimeSeries, &pInterpFunc->pTimeSeries);
   }
 
   if (TSDB_CODE_SUCCESS == code) {

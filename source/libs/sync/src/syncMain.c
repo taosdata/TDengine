@@ -156,8 +156,12 @@ int32_t syncSetStandby(int64_t rid) {
 
   if (pSyncNode->state != TAOS_SYNC_STATE_FOLLOWER) {
     taosReleaseRef(tsNodeRefId, pSyncNode->rid);
-    terrno = TSDB_CODE_SYN_IS_LEADER;
-    sError("failed to set standby since it is not follower, rid:%" PRId64, rid);
+    if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
+      terrno = TSDB_CODE_SYN_IS_LEADER;
+    } else {
+      terrno = TSDB_CODE_SYN_STANDBY_NOT_READY;
+    }
+    sError("failed to set standby since it is not follower, state:%s rid:%" PRId64, syncStr(pSyncNode->state), rid);
     return -1;
   }
 
@@ -1278,6 +1282,9 @@ cJSON* syncNode2Json(const SSyncNode* pSyncNode) {
     // snapshot receivers
     cJSON* pReceivers = cJSON_CreateArray();
     cJSON_AddItemToObject(pRoot, "receiver", snapshotReceiver2Json(pSyncNode->pNewNodeReceiver));
+
+    // changing
+    cJSON_AddNumberToObject(pRoot, "changing", pSyncNode->changing);
   }
 
   cJSON* pJson = cJSON_CreateObject();
@@ -1300,26 +1307,31 @@ void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
     pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
   }
   SyncIndex logLastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
+  SyncIndex logBeginIndex = pSyncNode->pLogStore->syncLogBeginIndex(pSyncNode->pLogStore);
 
   if (userStrLen < 256) {
     char logBuf[128 + 256];
     snprintf(logBuf, sizeof(logBuf),
-             "vgId:%d, sync %s %s, term:%lu, commit:%ld, lastlog:%ld, lastsnapshot:%ld, standby:%d, replica-num:%d, "
+             "vgId:%d, sync %s %s, term:%lu, commit:%ld, beginlog:%ld, lastlog:%ld, lastsnapshot:%ld, standby:%d, "
+             "replica-num:%d, "
              "lconfig:%ld, changing:%d",
              pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
-             pSyncNode->commitIndex, logLastIndex, snapshot.lastApplyIndex, pSyncNode->pRaftCfg->isStandBy,
-             pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex, pSyncNode->changing);
+             pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex,
+             pSyncNode->pRaftCfg->isStandBy, pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex,
+             pSyncNode->changing);
     sDebug("%s", logBuf);
 
   } else {
     int   len = 128 + userStrLen;
     char* s = (char*)taosMemoryMalloc(len);
     snprintf(s, len,
-             "vgId:%d, sync %s %s, term:%lu, commit:%ld, lastlog:%ld, lastsnapshot:%ld, standby:%d, replica-num:%d, "
+             "vgId:%d, sync %s %s, term:%lu, commit:%ld, beginlog:%ld, lastlog:%ld, lastsnapshot:%ld, standby:%d, "
+             "replica-num:%d, "
              "lconfig:%ld, changing:%d",
              pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
-             pSyncNode->commitIndex, logLastIndex, snapshot.lastApplyIndex, pSyncNode->pRaftCfg->isStandBy,
-             pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex, pSyncNode->changing);
+             pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex,
+             pSyncNode->pRaftCfg->isStandBy, pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex,
+             pSyncNode->changing);
     sDebug("%s", s);
     taosMemoryFree(s);
   }
@@ -1396,7 +1408,7 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
     pSyncNode->pRaftCfg->isStandBy = 1;  // set standby
   }
 
-  // persist last config index
+  // add last config index
   raftCfgAddConfigIndex(pSyncNode->pRaftCfg, lastConfigChangeIndex);
 
   if (IamInNew) {
@@ -1823,7 +1835,11 @@ SyncIndex syncNodeSyncStartIndex(SSyncNode* pSyncNode) {
 SyncIndex syncNodeGetPreIndex(SSyncNode* pSyncNode, SyncIndex index) {
   ASSERT(index >= SYNC_INDEX_BEGIN);
   SyncIndex syncStartIndex = syncNodeSyncStartIndex(pSyncNode);
-  ASSERT(index <= syncStartIndex);
+
+  if (index > syncStartIndex) {
+    syncNodeLog3("syncNodeGetPreIndex", pSyncNode);
+    ASSERT(0);
+  }
 
   SyncIndex preIndex = index - 1;
   return preIndex;
@@ -1832,7 +1848,11 @@ SyncIndex syncNodeGetPreIndex(SSyncNode* pSyncNode, SyncIndex index) {
 SyncTerm syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index) {
   ASSERT(index >= SYNC_INDEX_BEGIN);
   SyncIndex syncStartIndex = syncNodeSyncStartIndex(pSyncNode);
-  ASSERT(index <= syncStartIndex);
+
+  if (index > syncStartIndex) {
+    syncNodeLog3("syncNodeGetPreTerm", pSyncNode);
+    ASSERT(0);
+  }
 
   if (index == SYNC_INDEX_BEGIN) {
     return 0;
@@ -1923,6 +1943,12 @@ void syncNodeLog2(char* s, SSyncNode* pObj) {
     sTraceLong("syncNodeLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
+}
+
+void syncNodeLog3(char* s, SSyncNode* pObj) {
+  char* serialized = syncNode2Str(pObj);
+  sTraceLong("syncNodeLog3 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+  taosMemoryFree(serialized);
 }
 
 // ------ local funciton ---------
@@ -2290,7 +2316,7 @@ static int32_t syncNodeConfigChangeFinish(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyn
     ths->pFsm->FpReConfigCb(ths->pFsm, pRpcMsg, cbMeta);
   }
 
-  // update changing
+  // clear changing
   ths->changing = false;
 
   char  tmpbuf[512];
@@ -2309,6 +2335,9 @@ static int32_t syncNodeConfigChangeFinish(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyn
 
 static int32_t syncNodeConfigChange(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* pEntry,
                                     SyncReconfigFinish* pFinish) {
+  // set changing
+  ths->changing = true;
+
   // old config
   SSyncCfg oldSyncCfg = ths->pRaftCfg->cfg;
 

@@ -56,8 +56,12 @@ static EDealRes doRewriteExpr(SNode** pNode, void* pContext) {
           pCol->node.resType = pToBeRewrittenExpr->resType;
           strcpy(pCol->node.aliasName, pToBeRewrittenExpr->aliasName);
           strcpy(pCol->colName, ((SExprNode*)pExpr)->aliasName);
-          if (QUERY_NODE_FUNCTION == nodeType(pExpr) && FUNCTION_TYPE_WSTARTTS == ((SFunctionNode*)pExpr)->funcType) {
-            pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+          if (QUERY_NODE_FUNCTION == nodeType(pExpr)) {
+            if (FUNCTION_TYPE_WSTARTTS == ((SFunctionNode*)pExpr)->funcType) {
+              pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+            } else if (FUNCTION_TYPE_TBNAME == ((SFunctionNode*)pExpr)->funcType) {
+              pCol->colType = COLUMN_TYPE_TBNAME;
+            }
           }
           nodesDestroyNode(*pNode);
           *pNode = (SNode*)pCol;

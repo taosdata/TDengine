@@ -695,3 +695,31 @@ void cleanupQueryTableDataCond(SQueryTableDataCond* pCond) {
   taosMemoryFree(pCond->twindows);
   taosMemoryFree(pCond->colList);
 }
+
+int32_t convertFillType(int32_t mode) {
+  int32_t type = TSDB_FILL_NONE;
+  switch (mode) {
+    case FILL_MODE_PREV:
+      type = TSDB_FILL_PREV;
+      break;
+    case FILL_MODE_NONE:
+      type = TSDB_FILL_NONE;
+      break;
+    case FILL_MODE_NULL:
+      type = TSDB_FILL_NULL;
+      break;
+    case FILL_MODE_NEXT:
+      type = TSDB_FILL_NEXT;
+      break;
+    case FILL_MODE_VALUE:
+      type = TSDB_FILL_SET_VALUE;
+      break;
+    case FILL_MODE_LINEAR:
+      type = TSDB_FILL_LINEAR;
+      break;
+    default:
+      type = TSDB_FILL_NONE;
+  }
+
+  return type;
+}
