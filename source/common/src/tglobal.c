@@ -161,7 +161,7 @@ int32_t  tsDiskCfgNum = 0;
 SDiskCfg tsDiskCfg[TFS_MAX_DISKS] = {0};
 
 // stream scheduler
-bool tsStreamSchedV = true;
+bool tsSchedStreamToSnode = true;
 
 /*
  * minimum scale for whole system, millisecond by default
@@ -185,7 +185,7 @@ char     tsCompressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPR
 bool tsStartUdfd = true;
 
 // internal
-int32_t tsTransPullupInterval = 6;
+int32_t tsTransPullupInterval = 2;
 int32_t tsMqRebalanceInterval = 2;
 
 void taosAddDataDir(int32_t index, char *v1, int32_t level, int32_t primary) {

@@ -99,12 +99,12 @@ class TDTestCase:
 
         # create cluster 
         for dnode in self.TDDnodes.dnodes[1:]:
-            # print(dnode.cfgDict)
+            # tdLog.debug(dnode.cfgDict)
             dnode_id = dnode.cfgDict["fqdn"] +  ":" +dnode.cfgDict["serverPort"]
             dnode_first_host = dnode.cfgDict["firstEp"].split(":")[0]
             dnode_first_port = dnode.cfgDict["firstEp"].split(":")[-1]
             cmd = f" taos -h {dnode_first_host} -P {dnode_first_port} -s ' create dnode \"{dnode_id} \" ' ;"
-            print(cmd)
+            tdLog.debug(cmd)
             os.system(cmd)
         
         time.sleep(2)
@@ -116,25 +116,25 @@ class TDTestCase:
             time.sleep(1)
             tdSql.query("show mnodes;")
             if tdSql.checkRows(3) :     
-                print("mnode is  three nodes")           
+                tdLog.debug("mnode is  three nodes")           
             if  tdSql.queryResult[0][2]=='leader' :
                 if  tdSql.queryResult[1][2]=='follower':
                     if  tdSql.queryResult[2][2]=='follower':
-                        print("three mnodes is ready in 10s")
+                        tdLog.debug("three mnodes is ready in 10s")
                         break
             elif tdSql.queryResult[0][2]=='follower' :
                 if  tdSql.queryResult[1][2]=='leader':
                     if  tdSql.queryResult[2][2]=='follower':
-                        print("three mnodes is ready in 10s")
+                        tdLog.debug("three mnodes is ready in 10s")
                         break      
             elif tdSql.queryResult[0][2]=='follower' :
                 if  tdSql.queryResult[1][2]=='follower':
                     if  tdSql.queryResult[2][2]=='leader':
-                        print("three mnodes is ready in 10s")
+                        tdLog.debug("three mnodes is ready in 10s")
                         break                   
             count+=1
         else:
-            print("three mnodes is not ready in 10s ")
+            tdLog.debug("three mnodes is not ready in 10s ")
             return -1
 
         tdSql.query("show mnodes;")       
@@ -152,19 +152,19 @@ class TDTestCase:
             time.sleep(1)
             tdSql.query("show mnodes;")
             if tdSql.checkRows(3) :
-                print("mnode is  three nodes")
+                tdLog.debug("mnode is  three nodes")
             if  tdSql.queryResult[0][2]=='offline' :
                 if  tdSql.queryResult[1][2]=='leader':
                     if  tdSql.queryResult[2][2]=='follower':
-                        print("stop mnodes  on dnode 2 successfully in 10s")
+                        tdLog.debug("stop mnodes  on dnode 2 successfully in 10s")
                         break
                 elif tdSql.queryResult[1][2]=='follower':
                     if  tdSql.queryResult[2][2]=='leader':
-                        print("stop mnodes  on dnode 2 successfully in 10s")
+                        tdLog.debug("stop mnodes  on dnode 2 successfully in 10s")
                         break
             count+=1
         else:
-            print("stop mnodes  on dnode 2 failed in 10s ")
+            tdLog.debug("stop mnodes  on dnode 2 failed in 10s ")
             return -1
         tdSql.error("drop mnode on dnode 1;")
 
@@ -184,15 +184,15 @@ class TDTestCase:
             time.sleep(1)
             tdSql.query("show mnodes;")
             if tdSql.checkRows(3) :
-                print("mnode is  three nodes")
+                tdLog.debug("mnode is  three nodes")
             if  tdSql.queryResult[0][2]=='leader' :
                 if  tdSql.queryResult[1][2]=='offline':
                     if  tdSql.queryResult[2][2]=='follower':
-                        print("stop mnodes  on dnode 2 successfully in 10s")
+                        tdLog.debug("stop mnodes  on dnode 2 successfully in 10s")
                         break
             count+=1
         else:
-            print("stop mnodes  on dnode 2 failed in 10s ")
+            tdLog.debug("stop mnodes  on dnode 2 failed in 10s ")
             return -1
         tdSql.error("drop mnode on dnode 2;")
 
@@ -214,15 +214,15 @@ class TDTestCase:
             time.sleep(1)
             tdSql.query("show mnodes;")
             if tdSql.checkRows(3) :
-                print("mnode is  three nodes")
+                tdLog.debug("mnode is  three nodes")
             if  tdSql.queryResult[0][2]=='leader' :
                 if  tdSql.queryResult[2][2]=='offline':
                     if  tdSql.queryResult[1][2]=='follower':
-                        print("stop mnodes  on dnode 3 successfully in 10s")
+                        tdLog.debug("stop mnodes  on dnode 3 successfully in 10s")
                         break
             count+=1
         else:
-            print("stop mnodes  on dnode 3 failed in 10s")
+            tdLog.debug("stop mnodes  on dnode 3 failed in 10s")
             return -1
         tdSql.error("drop mnode on dnode 3;")
         tdSql.query("show mnodes;")       
@@ -262,7 +262,7 @@ class TDTestCase:
         tdSql.error("create mnode on dnode 2")
 
         tdSql.query("show dnodes;")
-        print(tdSql.queryResult)
+        tdLog.debug(tdSql.queryResult)
 
         tdLog.debug("stop and follower of mnode") 
         self.TDDnodes.stoptaosd(2)
@@ -303,7 +303,7 @@ class TDTestCase:
 
 
     def run(self): 
-        # print(self.master_dnode.cfgDict)
+        # tdLog.debug(self.master_dnode.cfgDict)
         self.buildcluster(5)
         self.five_dnode_three_mnode(5)
 

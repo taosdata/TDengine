@@ -107,18 +107,19 @@ int32_t streamExec(SStreamTask* pTask, SMsgCb* pMsgCb) {
       pRes = streamExecForQall(pTask, pRes);
       if (pRes == NULL) goto FAIL;
 
-      break;
+      taosArrayDestroy(pRes);
+      atomic_store_8(&pTask->status, TASK_STATUS__IDLE);
+      return 0;
     } else if (execStatus == TASK_STATUS__CLOSING) {
       continue;
     } else if (execStatus == TASK_STATUS__EXECUTING) {
-      break;
+      ASSERT(taosArrayGetSize(pRes) == 0);
+      taosArrayDestroy(pRes);
+      return 0;
     } else {
       ASSERT(0);
     }
   }
-  if (pRes) taosArrayDestroy(pRes);
-  atomic_store_8(&pTask->status, TASK_STATUS__IDLE);
-  return 0;
 FAIL:
   if (pRes) taosArrayDestroy(pRes);
   atomic_store_8(&pTask->status, TASK_STATUS__IDLE);

@@ -387,11 +387,12 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pEx
   pInfo->pGroupCols      = pGroupColList;
   pInfo->pCondition      = pCondition;
 
-  pInfo->scalarSup.pExprInfo = pScalarExprInfo;
-  pInfo->scalarSup.numOfExprs = numOfScalarExpr;
-  pInfo->scalarSup.pCtx  = createSqlFunctionCtx(pScalarExprInfo, numOfScalarExpr, &pInfo->scalarSup.rowEntryInfoOffset);
+  int32_t code = initExprSupp(&pInfo->scalarSup, pScalarExprInfo, numOfScalarExpr);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
 
-  int32_t code = initGroupOptrInfo(&pInfo->pGroupColVals, &pInfo->groupKeyLen, &pInfo->keyBuf, pGroupColList);
+  code = initGroupOptrInfo(&pInfo->pGroupColVals, &pInfo->groupKeyLen, &pInfo->keyBuf, pGroupColList);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -586,24 +587,30 @@ static void clearPartitionOperator(SPartitionOperatorInfo* pInfo) {
   while( (ite = taosHashIterate(pInfo->pGroupSet, ite)) != NULL ) {
     taosArrayDestroy( ((SDataGroupInfo *)ite)->pPageList);
   }
-  taosHashClear(pInfo->pGroupSet);
+  taosArrayClear(pInfo->sortedGroupArray);
   clearDiskbasedBuf(pInfo->pBuf);
+}
+
+static int compareDataGroupInfo(const void* group1, const void* group2) {
+  const SDataGroupInfo* pGroupInfo1 = group1;
+  const SDataGroupInfo* pGroupInfo2 = group2;
+  return pGroupInfo1->groupId - pGroupInfo2->groupId;
 }
 
 static SSDataBlock* buildPartitionResult(SOperatorInfo* pOperator) {
   SPartitionOperatorInfo* pInfo = pOperator->info;
 
-  SDataGroupInfo* pGroupInfo = pInfo->pGroupIter;
-  if (pInfo->pGroupIter == NULL || pInfo->pageIndex >= taosArrayGetSize(pGroupInfo->pPageList)) {
+  SDataGroupInfo* pGroupInfo = (pInfo->groupIndex != -1) ? taosArrayGet(pInfo->sortedGroupArray, pInfo->groupIndex) : NULL;
+  if (pInfo->groupIndex == -1 || pInfo->pageIndex >= taosArrayGetSize(pGroupInfo->pPageList)) {
     // try next group data
-    pInfo->pGroupIter = taosHashIterate(pInfo->pGroupSet, pInfo->pGroupIter);
-    if (pInfo->pGroupIter == NULL) {
+    ++pInfo->groupIndex;
+    if (pInfo->groupIndex >= taosArrayGetSize(pInfo->sortedGroupArray)) {
       doSetOperatorCompleted(pOperator);
       clearPartitionOperator(pInfo);
       return NULL;
     }
 
-    pGroupInfo = pInfo->pGroupIter;
+    pGroupInfo = taosArrayGet(pInfo->sortedGroupArray, pInfo->groupIndex);
     pInfo->pageIndex = 0;
   }
 
@@ -657,6 +664,20 @@ static SSDataBlock* hashPartition(SOperatorInfo* pOperator) {
     doHashPartition(pOperator, pBlock);
   }
 
+  SArray* groupArray = taosArrayInit(taosHashGetSize(pInfo->pGroupSet), sizeof(SDataGroupInfo));
+  void* pGroupIter = NULL;
+  pGroupIter = taosHashIterate(pInfo->pGroupSet, NULL);
+  while (pGroupIter != NULL) {
+    SDataGroupInfo* pGroupInfo = pGroupIter;
+    taosArrayPush(groupArray, pGroupInfo);
+    pGroupIter = taosHashIterate(pInfo->pGroupSet, pGroupIter);
+  }
+
+  taosArraySort(groupArray, compareDataGroupInfo);
+  pInfo->sortedGroupArray = groupArray;
+  pInfo->groupIndex = -1;
+  taosHashClear(pInfo->pGroupSet);
+
   pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
 
   pOperator->status = OP_RES_TO_RETURN;
@@ -676,6 +697,7 @@ static void destroyPartitionOperatorInfo(void* param, int32_t numOfOutput) {
 
   taosArrayDestroy(pInfo->pGroupColVals);
   taosMemoryFree(pInfo->keyBuf);
+  taosArrayDestroy(pInfo->sortedGroupArray);
   taosHashCleanup(pInfo->pGroupSet);
   taosMemoryFree(pInfo->columnOffset);
 
@@ -697,10 +719,12 @@ SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SPartition
   pInfo->pGroupCols = extractPartitionColInfo(pPartNode->pPartitionKeys);
 
   if (pPartNode->pExprs != NULL) {
-    pInfo->scalarSup.numOfExprs = 0;
-    pInfo->scalarSup.pExprInfo = createExprInfo(pPartNode->pExprs, NULL, &pInfo->scalarSup.numOfExprs);
-    pInfo->scalarSup.pCtx = createSqlFunctionCtx(
-        pInfo->scalarSup.pExprInfo, pInfo->scalarSup.numOfExprs, &pInfo->scalarSup.rowEntryInfoOffset);
+    int32_t num = 0;
+    SExprInfo* pExprInfo1 = createExprInfo(pPartNode->pExprs, NULL, &num);
+    int32_t code = initExprSupp(&pInfo->scalarSup, pExprInfo1, num);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _error;
+    }
   }
 
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);

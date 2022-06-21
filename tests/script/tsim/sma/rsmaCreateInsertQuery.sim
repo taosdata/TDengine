@@ -5,7 +5,7 @@ sleep 50
 sql connect
 
 print =============== create database with retentions
-sql create database d0 retentions 15s:7d,1m:21d,15m:365d;
+sql create database d0 retentions 5s:7d,10s:21d,15s:365d;
 sql use d0
 
 print =============== create super table and register rsma
@@ -29,6 +29,8 @@ sql insert into ct1 values(now, 10);
 sql insert into ct1 values(now+1s, 1);
 sql insert into ct1 values(now+2s, 100);
 
+print =============== wait maxdelay 15+1 seconds for results
+sleep 16000
 
 print =============== select * from retention level 2 from memory
 sql select * from ct1;

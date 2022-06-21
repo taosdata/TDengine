@@ -482,6 +482,13 @@ _return:
   QW_RET(code);
 }
 
+int32_t qwAbortPrerocessQuery(QW_FPARAMS_DEF) {
+  QW_ERR_RET(qwDropTask(QW_FPARAMS()));
+
+  QW_RET(TSDB_CODE_SUCCESS);
+}
+
+
 int32_t qwPrerocessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   int32_t        code = 0;
   bool           queryRsped = false;
@@ -526,7 +533,7 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType, int8_t ex
   atomic_store_8(&ctx->taskType, taskType);
   atomic_store_8(&ctx->explain, explain);
 
-  /*QW_TASK_DLOGL("subplan json string, len:%d, %s", qwMsg->msgLen, qwMsg->msg);*/
+  QW_TASK_DLOGL("subplan json string, len:%d, %s", qwMsg->msgLen, qwMsg->msg);
 
   code = qStringToSubplan(qwMsg->msg, &plan);
   if (TSDB_CODE_SUCCESS != code) {

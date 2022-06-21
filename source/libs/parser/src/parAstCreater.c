@@ -700,8 +700,11 @@ SNode* addEveryClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pEvery) {
 
 SNode* addFillClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pFill) {
   CHECK_PARSER_STATUS(pCxt);
-  if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
-    ((SSelectStmt*)pStmt)->pFill = pFill;
+  if (QUERY_NODE_SELECT_STMT == nodeType(pStmt) && NULL != pFill) {
+    SFillNode* pFillClause = (SFillNode*)pFill;
+    nodesDestroyNode(pFillClause->pWStartTs);
+    pFillClause->pWStartTs = createPrimaryKeyCol(pCxt);
+    ((SSelectStmt*)pStmt)->pFill = (SNode*)pFillClause;
   }
   return pStmt;
 }
@@ -909,7 +912,7 @@ SNode* createDefaultTableOptions(SAstCreateContext* pCxt) {
   pOptions->watermark1 = TSDB_DEFAULT_ROLLUP_WATERMARK;
   pOptions->watermark2 = TSDB_DEFAULT_ROLLUP_WATERMARK;
   pOptions->ttl = TSDB_DEFAULT_TABLE_TTL;
-  pOptions->commentNull = true;    // mark null
+  pOptions->commentNull = true;  // mark null
   return (SNode*)pOptions;
 }
 
@@ -918,7 +921,7 @@ SNode* createAlterTableOptions(SAstCreateContext* pCxt) {
   STableOptions* pOptions = (STableOptions*)nodesMakeNode(QUERY_NODE_TABLE_OPTIONS);
   CHECK_OUT_OF_MEM(pOptions);
   pOptions->ttl = -1;
-  pOptions->commentNull = true;    // mark null
+  pOptions->commentNull = true;  // mark null
   return (SNode*)pOptions;
 }
 
@@ -940,9 +943,9 @@ SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType
     case TABLE_OPTION_ROLLUP:
       ((STableOptions*)pOptions)->pRollupFuncs = pVal;
       break;
-    case TABLE_OPTION_TTL:{
+    case TABLE_OPTION_TTL: {
       int64_t ttl = taosStr2Int64(((SToken*)pVal)->z, NULL, 10);
-      if (ttl > INT32_MAX){
+      if (ttl > INT32_MAX) {
         ttl = INT32_MAX;
       }
       // ttl can not be smaller than 0, because there is a limitation in sql.y (TTL NK_INTEGER)
@@ -1191,6 +1194,14 @@ SNode* createShowTableDistributedStmt(SAstCreateContext* pCxt, SNode* pRealTable
   strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
   strcpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName);
   nodesDestroyNode(pRealTable);
+  return (SNode*)pStmt;
+}
+
+SNode* createShowDnodeVariablesStmt(SAstCreateContext* pCxt, SNode* pDnodeId) {
+  CHECK_PARSER_STATUS(pCxt);
+  SShowDnodeVariablesStmt* pStmt = (SShowDnodeVariablesStmt*)nodesMakeNode(QUERY_NODE_SHOW_DNODE_VARIABLES_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  pStmt->pDnodeId = pDnodeId;
   return (SNode*)pStmt;
 }
 

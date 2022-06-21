@@ -1317,7 +1317,7 @@ int32_t tSerializeSSetStandbyReq(void* buf, int32_t bufLen, SSetStandbyReq* pReq
 int32_t tDeserializeSSetStandbyReq(void* buf, int32_t bufLen, SSetStandbyReq* pReq);
 
 typedef struct {
-  char    queryStrId[TSDB_QUERY_ID_LEN];
+  char queryStrId[TSDB_QUERY_ID_LEN];
 } SKillQueryReq;
 
 int32_t tSerializeSKillQueryReq(void* buf, int32_t bufLen, SKillQueryReq* pReq);
@@ -1776,12 +1776,10 @@ typedef struct {
 } SDDropTopicReq;
 
 typedef struct {
-  float   xFilesFactor;
-  int32_t delay;
-  int32_t qmsg1Len;
-  int32_t qmsg2Len;
-  char*   qmsg1;  // pAst1:qmsg1:SRetention1 => trigger aggr task1
-  char*   qmsg2;  // pAst2:qmsg2:SRetention2 => trigger aggr task2
+  int64_t maxdelay[2];
+  int64_t watermark[2];
+  int32_t qmsgLen[2];
+  char*   qmsg[2];  // pAst:qmsg:SRetention => trigger aggr task1/2
 } SRSmaParam;
 
 int32_t tEncodeSRSmaParam(SEncoder* pCoder, const SRSmaParam* pRSmaParam);
@@ -2283,6 +2281,9 @@ typedef struct {
   char   name[TSDB_STREAM_FNAME_LEN];
   int8_t igNotExists;
 } SMDropStreamReq;
+
+int32_t tSerializeSMDropStreamReq(void* buf, int32_t bufLen, const SMDropStreamReq* pReq);
+int32_t tDeserializeSMDropStreamReq(void* buf, int32_t bufLen, SMDropStreamReq* pReq);
 
 typedef struct {
   int8_t reserved;

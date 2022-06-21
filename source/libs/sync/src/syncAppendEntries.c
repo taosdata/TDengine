@@ -497,7 +497,7 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
   do {
     SyncIndex myLastIndex = syncNodeGetLastIndex(ths);
     SSnapshot snapshot;
-    ths->pFsm->FpGetSnapshot(ths->pFsm, &snapshot);
+    ths->pFsm->FpGetSnapshotInfo(ths->pFsm, &snapshot);
 
     bool condition0 = (pMsg->term == ths->pRaftStore->currentTerm) && (ths->state == TAOS_SYNC_STATE_FOLLOWER) &&
                       syncNodeHasSnapshot(ths);
@@ -710,7 +710,7 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
         if (pMsg->commitIndex <= ths->pLogStore->syncLogLastIndex(ths->pLogStore)) {
           // advance commit index to sanpshot first
           SSnapshot snapshot;
-          ths->pFsm->FpGetSnapshot(ths->pFsm, &snapshot);
+          ths->pFsm->FpGetSnapshotInfo(ths->pFsm, &snapshot);
           if (snapshot.lastApplyIndex >= 0 && snapshot.lastApplyIndex > ths->commitIndex) {
             SyncIndex commitBegin = ths->commitIndex;
             SyncIndex commitEnd = snapshot.lastApplyIndex;
