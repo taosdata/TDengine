@@ -285,6 +285,12 @@ typedef struct STagScanInfo {
   SNode*           pFilterNode;  // filter info,
 } STagScanInfo;
 
+typedef struct SLastrowScanInfo {
+  SSDataBlock    *pRes;
+  STableListInfo *pTableList;
+  SReadHandle     readHandle;
+} SLastrowScanInfo;
+
 typedef enum EStreamScanMode {
   STREAM_SCAN_FROM_READERHANDLE = 1,
   STREAM_SCAN_FROM_RES,
