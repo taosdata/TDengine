@@ -154,9 +154,7 @@ class TDTestCase:
         tdSql.checkData(0,1,11111.000000000)
         tdSql.checkData(0,2,1)
 
-
     def run(self):
-
         self.prepare_datas_of_distribute()
         self.check_distribute_datas()
         self.distribute_twa_query()
