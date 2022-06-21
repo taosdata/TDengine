@@ -1588,6 +1588,8 @@ static bool initGroupbyInfo(const SSDataBlock *pSDataBlock, const SGroupbyExpr *
     return true;
   }
   pInfo->pGroupbyDataInfo = taosArrayInit(pGroupbyExpr->numOfGroupCols, sizeof(SGroupbyDataInfo));
+  // head put key length (int32_t type)
+  pInfo->totalBytes = sizeof(int32_t);
 
   for (int32_t k = 0; k < pGroupbyExpr->numOfGroupCols; ++k) {
     SColIndex* pColIndex = taosArrayGet(pGroupbyExpr->columnInfo, k);
@@ -1613,7 +1615,6 @@ static bool initGroupbyInfo(const SSDataBlock *pSDataBlock, const SGroupbyExpr *
       }
     }
   }
-  pInfo->totalBytes += (int32_t)strlen(MULTI_KEY_DELIM) * pGroupbyExpr->numOfGroupCols;
 
   return true;
 }
@@ -1624,7 +1625,7 @@ static void buildGroupbyKeyBuf(const SSDataBlock *pSDataBlock, SGroupbyOperatorI
     *buf = NULL;
     return;
   }
-  *buf  = p;
+  *buf = p;
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->pGroupbyDataInfo); i++) {
     SGroupbyDataInfo *pDataInfo = taosArrayGet(pInfo->pGroupbyDataInfo, i);
 
@@ -1642,30 +1643,24 @@ static void buildGroupbyKeyBuf(const SSDataBlock *pSDataBlock, SGroupbyOperatorI
       memcpy(p, val, pDataInfo->bytes);
       p += pDataInfo->bytes;
     }
-
-    memcpy(p, MULTI_KEY_DELIM, strlen(MULTI_KEY_DELIM));
-    p += strlen(MULTI_KEY_DELIM);
   }
+
+  // calc keyLen and save
+  int32_t keyLen = (p - *buf);
+  *(int32_t *)(*buf) = keyLen;
 }
 
 static bool isGroupbyKeyEqual(void *a, void *b, void *ext) {
   SGroupbyOperatorInfo *pInfo = (SGroupbyOperatorInfo *)ext;
-  if (memcmp(a, b, pInfo->totalBytes) == 0) {
-    return true;
+  int32_t len1 = *(int32_t *)a;
+  int32_t len2 = *(int32_t *)b;
+  if (len1 != len2) {
+    return false;
   }
-  int32_t offset = 0;
-  for (int32_t i = 0; i < taosArrayGetSize(pInfo->pGroupbyDataInfo); i++) {
-    SGroupbyDataInfo *pDataInfo = taosArrayGet(pInfo->pGroupbyDataInfo, i);
+  char *a1 = (char *)a + sizeof(int32_t);
+  char *b1 = (char *)b + sizeof(int32_t);
 
-    char *k1 = (char *)a + offset;
-    char *k2 = (char *)b + offset;
-    if (getComparFunc(pDataInfo->type, 0)(k1, k2) != 0) {
-       return false;
-    }
-    offset += pDataInfo->bytes;
-    offset += (int32_t)strlen(MULTI_KEY_DELIM);
-  }
-  return true;
+  return memcmp(a1, b1, len1) == 0;
 }
 
 static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pInfo, SSDataBlock *pSDataBlock) {
