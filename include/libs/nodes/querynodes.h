@@ -65,10 +65,15 @@ typedef struct SColumnNode {
   char        tableName[TSDB_TABLE_NAME_LEN];
   char        tableAlias[TSDB_TABLE_NAME_LEN];
   char        colName[TSDB_COL_NAME_LEN];
-  SNode*      pProjectRef;
-  int16_t     dataBlockId;
-  int16_t     slotId;
+  // SNode*      pProjectRef;
+  int16_t dataBlockId;
+  int16_t slotId;
 } SColumnNode;
+
+typedef struct SColumnRefNode {
+  ENodeType type;
+  char      colName[TSDB_COL_NAME_LEN];
+} SColumnRefNode;
 
 typedef struct STargetNode {
   ENodeType type;
@@ -235,6 +240,9 @@ typedef struct SSelectStmt {
   SNode*      pWindow;
   SNodeList*  pGroupByList;  // SGroupingSetNode
   SNode*      pHaving;
+  SNode*      pRange;
+  SNode*      pEvery;
+  SNode*      pFill;
   SNodeList*  pOrderByList;  // SOrderByExprNode
   SLimitNode* pLimit;
   SLimitNode* pSlimit;
@@ -247,6 +255,9 @@ typedef struct SSelectStmt {
   bool        hasIndefiniteRowsFunc;
   bool        hasSelectFunc;
   bool        hasSelectValFunc;
+  bool        hasUniqueFunc;
+  bool        hasTailFunc;
+  bool        hasInterpFunc;
 } SSelectStmt;
 
 typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;
@@ -373,6 +384,9 @@ bool nodesIsArithmeticOp(const SOperatorNode* pOp);
 bool nodesIsComparisonOp(const SOperatorNode* pOp);
 bool nodesIsJsonOp(const SOperatorNode* pOp);
 bool nodesIsRegularOp(const SOperatorNode* pOp);
+
+bool nodesExprHasColumn(SNode* pNode);
+bool nodesExprsHasColumn(SNodeList* pList);
 
 void*   nodesGetValueFromNode(SValueNode* pNode);
 int32_t nodesSetValueNodeValue(SValueNode* pNode, void* value);

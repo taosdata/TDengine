@@ -168,14 +168,26 @@ char* syncUtilRaftId2Str(const SRaftId* p) {
 }
 
 const char* syncUtilState2String(ESyncState state) {
+  /*
+    if (state == TAOS_SYNC_STATE_FOLLOWER) {
+      return "TAOS_SYNC_STATE_FOLLOWER";
+    } else if (state == TAOS_SYNC_STATE_CANDIDATE) {
+      return "TAOS_SYNC_STATE_CANDIDATE";
+    } else if (state == TAOS_SYNC_STATE_LEADER) {
+      return "TAOS_SYNC_STATE_LEADER";
+    } else {
+      return "TAOS_SYNC_STATE_UNKNOWN";
+    }
+  */
+
   if (state == TAOS_SYNC_STATE_FOLLOWER) {
-    return "TAOS_SYNC_STATE_FOLLOWER";
+    return "follower";
   } else if (state == TAOS_SYNC_STATE_CANDIDATE) {
-    return "TAOS_SYNC_STATE_CANDIDATE";
+    return "candidate";
   } else if (state == TAOS_SYNC_STATE_LEADER) {
-    return "TAOS_SYNC_STATE_LEADER";
+    return "leader";
   } else {
-    return "TAOS_SYNC_STATE_UNKNOWN";
+    return "state_error";
   }
 }
 
@@ -249,23 +261,29 @@ bool syncUtilIsData(tmsg_t msgType) {
 #endif
 
 bool syncUtilUserPreCommit(tmsg_t msgType) {
-  if (msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_CONFIG_CHANGE && msgType != TDMT_SYNC_LEADER_TRANSFER) {
+  if (msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_CONFIG_CHANGE && msgType != TDMT_SYNC_CONFIG_CHANGE_FINISH &&
+      msgType != TDMT_SYNC_LEADER_TRANSFER) {
     return true;
   }
+
   return false;
 }
 
 bool syncUtilUserCommit(tmsg_t msgType) {
-  if (msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_CONFIG_CHANGE && msgType != TDMT_SYNC_LEADER_TRANSFER) {
+  if (msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_CONFIG_CHANGE && msgType != TDMT_SYNC_CONFIG_CHANGE_FINISH &&
+      msgType != TDMT_SYNC_LEADER_TRANSFER) {
     return true;
   }
+
   return false;
 }
 
 bool syncUtilUserRollback(tmsg_t msgType) {
-  if (msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_CONFIG_CHANGE && msgType != TDMT_SYNC_LEADER_TRANSFER) {
+  if (msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_CONFIG_CHANGE && msgType != TDMT_SYNC_CONFIG_CHANGE_FINISH &&
+      msgType != TDMT_SYNC_LEADER_TRANSFER) {
     return true;
   }
+
   return false;
 }
 

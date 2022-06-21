@@ -46,19 +46,21 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
 
   int32_t transId = sdbGetIdFromRaw(pMnode->pSdb, pRaw);
   pMgmt->errCode = cbMeta.code;
-  mDebug("trans:%d, is proposed, saved:%d code:0x%x, index:%" PRId64 " term:%" PRId64 " role:%s raw:%p", transId,
-         pMgmt->transId, cbMeta.code, cbMeta.index, cbMeta.term, syncStr(cbMeta.state), pRaw);
+  mDebug("trans:%d, is proposed, saved:%d code:0x%x, apply index:%" PRId64 " term:%" PRIu64 " config:%" PRId64
+         " role:%s raw:%p",
+         transId, pMgmt->transId, cbMeta.code, cbMeta.index, cbMeta.term, cbMeta.lastConfigIndex, syncStr(cbMeta.state),
+         pRaw);
 
   if (pMgmt->errCode == 0) {
     sdbWriteWithoutFree(pMnode->pSdb, pRaw);
-    sdbSetApplyIndex(pMnode->pSdb, cbMeta.index);
-    sdbSetApplyTerm(pMnode->pSdb, cbMeta.term);
+    sdbSetApplyInfo(pMnode->pSdb, cbMeta.index, cbMeta.term, cbMeta.lastConfigIndex);
   }
 
   if (pMgmt->transId == transId) {
     if (pMgmt->errCode != 0) {
       mError("trans:%d, failed to propose since %s", transId, tstrerror(pMgmt->errCode));
     }
+    pMgmt->transId = 0;
     tsem_post(&pMgmt->syncSem);
   } else {
     STrans *pTrans = mndAcquireTrans(pMnode, transId);
@@ -66,32 +68,30 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
       mndTransExecute(pMnode, pTrans);
       mndReleaseTrans(pMnode, pTrans);
     }
-
-    if (cbMeta.index - sdbGetApplyIndex(pMnode->pSdb) > 100) {
-      SSnapshotMeta sMeta = {0};
-      if (syncGetSnapshotMeta(pMnode->syncMgmt.sync, &sMeta) == 0) {
-        sdbSetCurConfig(pMnode->pSdb, sMeta.lastConfigIndex);
-      }
-      sdbWriteFile(pMnode->pSdb);
-    }
+#if 0
+    sdbWriteFile(pMnode->pSdb, SDB_WRITE_DELTA);
+#endif
   }
 }
 
-int32_t mndSyncGetSnapshot(struct SSyncFSM *pFsm, SSnapshot *pSnapshot) {
+int32_t mndSyncGetSnapshot(struct SSyncFSM *pFsm, SSnapshot *pSnapshot, void *pReaderParam, void **ppReader) {
+  // TODO:
+
+  // atomic operation
+  // step1. sdbGetCommitInfo
+  // step2. create ppReader with pReaderParam
+
+  return 0;
+}
+
+int32_t mndSyncGetSnapshotInfo(struct SSyncFSM *pFsm, SSnapshot *pSnapshot) {
   SMnode *pMnode = pFsm->data;
-  pSnapshot->lastApplyIndex = sdbGetCommitIndex(pMnode->pSdb);
-  pSnapshot->lastApplyTerm = sdbGetCommitTerm(pMnode->pSdb);
-  pSnapshot->lastConfigIndex = sdbGetCurConfig(pMnode->pSdb);
+  sdbGetCommitInfo(pMnode->pSdb, &pSnapshot->lastApplyIndex, &pSnapshot->lastApplyTerm, &pSnapshot->lastConfigIndex);
   return 0;
 }
 
 void mndRestoreFinish(struct SSyncFSM *pFsm) {
   SMnode *pMnode = pFsm->data;
-
-  SSnapshotMeta sMeta = {0};
-  if (syncGetSnapshotMeta(pMnode->syncMgmt.sync, &sMeta) == 0) {
-    sdbSetCurConfig(pMnode->pSdb, sMeta.lastConfigIndex);
-  }
 
   if (!pMnode->deploy) {
     mInfo("mnode sync restore finished, and will handle outstanding transactions");
@@ -122,6 +122,7 @@ void mndReConfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReConfigCbMeta cbM
     if (pMgmt->errCode != 0) {
       mError("trans:-1, failed to propose sync reconfig since %s", tstrerror(pMgmt->errCode));
     }
+    pMgmt->transId = 0;
     tsem_post(&pMgmt->syncSem);
   }
 }
@@ -169,6 +170,7 @@ SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
   pFsm->FpRestoreFinishCb = mndRestoreFinish;
   pFsm->FpReConfigCb = mndReConfig;
   pFsm->FpGetSnapshot = mndSyncGetSnapshot;
+  pFsm->FpGetSnapshotInfo = mndSyncGetSnapshotInfo;
   pFsm->FpSnapshotStartRead = mndSnapshotStartRead;
   pFsm->FpSnapshotStopRead = mndSnapshotStopRead;
   pFsm->FpSnapshotDoRead = mndSnapshotDoRead;
@@ -258,13 +260,17 @@ void mndSyncStart(SMnode *pMnode) {
   mDebug("mnode sync started, id:%" PRId64 " standby:%d", pMgmt->sync, pMgmt->standby);
 }
 
-void mndSyncStop(SMnode *pMnode) {}
+void mndSyncStop(SMnode *pMnode) {
+  if (pMnode->syncMgmt.transId != 0) {
+    pMnode->syncMgmt.transId = 0;
+    tsem_post(&pMnode->syncMgmt.syncSem);
+  }
+}
 
 bool mndIsMaster(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
 
-  ESyncState state = syncGetMyRole(pMgmt->sync);
-  if (state != TAOS_SYNC_STATE_LEADER) {
+  if (!syncIsReady(pMgmt->sync)) {
     terrno = TSDB_CODE_SYN_NOT_LEADER;
     return false;
   }

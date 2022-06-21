@@ -48,6 +48,12 @@ enum {
   SCH_FETCH_CB,
 };
 
+typedef enum {
+  SCH_OP_NULL = 0,
+  SCH_OP_EXEC,
+  SCH_OP_FETCH,
+} SCH_OP_TYPE;
+
 typedef struct SSchTrans {
   void *pTrans;
   void *pHandle;
@@ -188,10 +194,14 @@ typedef struct SSchTask {
 
 typedef struct SSchJobAttr {
   EExplainMode explainMode;
-  bool         syncSchedule;
   bool         queryJob;
   bool         needFlowCtrl;
 } SSchJobAttr;
+
+typedef struct {
+  int32_t     op;
+  bool        sync;
+} SSchOpStatus;
 
 typedef struct SSchJob {
   int64_t          refId;
@@ -200,7 +210,7 @@ typedef struct SSchJob {
   int32_t          levelNum;
   int32_t          taskNum;
   SRequestConnInfo conn;
-  SArray          *nodeList;   // qnode/vnode list, SArray<SQueryNodeAddr>
+  SArray          *nodeList;   // qnode/vnode list, SArray<SQueryNodeLoad>
   SArray          *levels;    // starting from 0. SArray<SSchLevel>
   SNodeList       *subPlans;  // subplan pointer copied from DAG, no need to free it in scheduler
 
@@ -217,8 +227,8 @@ typedef struct SSchJob {
   int8_t           status;  
   SQueryNodeAddr   resNode;
   tsem_t           rspSem;
-  int8_t           userFetch;
-  int32_t          remoteFetch;
+  SSchOpStatus     opStatus;
+  bool            *reqKilled;
   SSchTask        *fetchTask;
   int32_t          errCode;
   SRWLatch         resLock;
@@ -227,7 +237,6 @@ typedef struct SSchJob {
   int32_t          resNumOfRows;
   SSchResInfo      userRes;
   const char      *sql;
-  int32_t          userCb;
   SQueryProfileSummary summary;
 } SSchJob;
 
@@ -284,6 +293,10 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_SET_JOB_STATUS(job, st) atomic_store_8(&(job)->status, st)
 #define SCH_GET_JOB_STATUS(job) atomic_load_8(&(job)->status)
 #define SCH_GET_JOB_STATUS_STR(job) jobTaskStatusStr(SCH_GET_JOB_STATUS(job))
+
+#define SCH_JOB_IN_SYNC_OP(job) ((job)->opStatus.op && (job)->opStatus.sync)
+#define SCH_JOB_IN_ASYNC_EXEC_OP(job) (((job)->opStatus.op == SCH_OP_EXEC) && (!(job)->opStatus.sync))
+#define SCH_JOB_IN_ASYNC_FETCH_OP(job) (((job)->opStatus.op == SCH_OP_FETCH) && (!(job)->opStatus.sync))
 
 #define SCH_SET_JOB_NEED_FLOW_CTRL(_job) (_job)->attr.needFlowCtrl = true
 #define SCH_JOB_NEED_FLOW_CTRL(_job) ((_job)->attr.needFlowCtrl)
@@ -356,7 +369,7 @@ int32_t schMakeBrokenLinkVal(SSchJob *pJob, SSchTask *pTask, SRpcBrokenlinkVal *
 int32_t schAppendTaskExecNode(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr, int32_t execIdx);
 int32_t schExecStaticExplainJob(SSchedulerReq *pReq, int64_t *job, bool sync);
 int32_t schExecJobImpl(SSchedulerReq *pReq, int64_t *job, SQueryResult* pRes, bool sync);
-int32_t schChkUpdateJobStatus(SSchJob *pJob, int8_t newStatus);
+int32_t schUpdateJobStatus(SSchJob *pJob, int8_t newStatus);
 int32_t schCancelJob(SSchJob *pJob);
 int32_t schProcessOnJobDropped(SSchJob *pJob, int32_t errCode);
 uint64_t schGenTaskId(void);
@@ -368,6 +381,8 @@ int32_t schAsyncFetchRows(SSchJob *pJob);
 int32_t schUpdateTaskHandle(SSchJob *pJob, SSchTask *pTask, bool dropExecNode, void *handle, int32_t execIdx);
 int32_t schProcessOnTaskStatusRsp(SQueryNodeEpId* pEpId, SArray* pStatusList);
 void schFreeSMsgSendInfo(SMsgSendInfo *msgSendInfo);
+char* schGetOpStr(SCH_OP_TYPE type);
+int32_t schBeginOperation(SSchJob *pJob, SCH_OP_TYPE type, bool sync);
 
 
 #ifdef __cplusplus

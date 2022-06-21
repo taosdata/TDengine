@@ -124,7 +124,8 @@ typedef struct {
   int32_t        lastErrorNo;
   tmsg_t         lastMsgType;
   SEpSet         lastEpset;
-  char           dbname[TSDB_DB_FNAME_LEN];
+  char           dbname1[TSDB_DB_FNAME_LEN];
+  char           dbname2[TSDB_DB_FNAME_LEN];
   int32_t        startFunc;
   int32_t        stopFunc;
   int32_t        paramLen;
@@ -340,8 +341,8 @@ typedef struct {
   int32_t  colVer;
   int32_t  smaVer;
   int32_t  nextColId;
-  float    xFilesFactor;
-  int32_t  delay;
+  int64_t  watermark[2];
+  int64_t  maxdelay[2];
   int32_t  ttl;
   int32_t  numOfColumns;
   int32_t  numOfTags;

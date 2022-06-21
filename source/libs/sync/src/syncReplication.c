@@ -124,7 +124,7 @@ int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
   logStoreSimpleLog2("begin append entries peers LogStore:", pSyncNode->pLogStore);
   if (gRaftDetailLog) {
     SSnapshot snapshot;
-    pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
+    pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
     sTrace("begin append entries peers, snapshot.lastApplyIndex:%ld, snapshot.lastApplyTerm:%lu",
            snapshot.lastApplyIndex, snapshot.lastApplyTerm);
   }

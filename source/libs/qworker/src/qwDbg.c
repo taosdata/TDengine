@@ -44,40 +44,30 @@ int32_t qwDbgValidateStatus(QW_FPARAMS_DEF, int8_t oriStatus, int8_t newStatus, 
       break;
     case JOB_TASK_STATUS_EXECUTING:
       if (newStatus != JOB_TASK_STATUS_PARTIAL_SUCCEED && newStatus != JOB_TASK_STATUS_SUCCEED &&
-          newStatus != JOB_TASK_STATUS_FAILED && newStatus != JOB_TASK_STATUS_CANCELLING &&
-          newStatus != JOB_TASK_STATUS_CANCELLED && newStatus != JOB_TASK_STATUS_DROPPING) {
+          newStatus != JOB_TASK_STATUS_FAILED && newStatus != JOB_TASK_STATUS_DROPPING) {
         QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
       }
 
       break;
     case JOB_TASK_STATUS_PARTIAL_SUCCEED:
       if (newStatus != JOB_TASK_STATUS_EXECUTING && newStatus != JOB_TASK_STATUS_SUCCEED &&
-          newStatus != JOB_TASK_STATUS_CANCELLED && newStatus != JOB_TASK_STATUS_FAILED &&
-          newStatus != JOB_TASK_STATUS_DROPPING) {
+          newStatus != JOB_TASK_STATUS_FAILED && newStatus != JOB_TASK_STATUS_DROPPING) {
         QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
       }
 
       break;
     case JOB_TASK_STATUS_SUCCEED:
-      if (newStatus != JOB_TASK_STATUS_CANCELLED && newStatus != JOB_TASK_STATUS_DROPPING &&
-          newStatus != JOB_TASK_STATUS_FAILED) {
+      if (newStatus != JOB_TASK_STATUS_DROPPING && newStatus != JOB_TASK_STATUS_FAILED) {
         QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
       }
 
       break;
     case JOB_TASK_STATUS_FAILED:
-      if (newStatus != JOB_TASK_STATUS_CANCELLED && newStatus != JOB_TASK_STATUS_DROPPING) {
+      if (newStatus != JOB_TASK_STATUS_DROPPING) {
         QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
       }
       break;
 
-    case JOB_TASK_STATUS_CANCELLING:
-      if (newStatus != JOB_TASK_STATUS_CANCELLED) {
-        QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
-      }
-
-      break;
-    case JOB_TASK_STATUS_CANCELLED:
     case JOB_TASK_STATUS_DROPPING:
       if (newStatus != JOB_TASK_STATUS_FAILED && newStatus != JOB_TASK_STATUS_PARTIAL_SUCCEED) {
         QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);

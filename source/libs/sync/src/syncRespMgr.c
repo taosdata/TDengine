@@ -46,9 +46,11 @@ int64_t syncRespMgrAdd(SSyncRespMgr *pObj, SRespStub *pStub) {
   taosHashPut(pObj->pRespHash, &keyCode, sizeof(keyCode), pStub, sizeof(SRespStub));
 
   SSyncNode *pSyncNode = pObj->data;
-  sDebug("vgId:%d sync event currentTerm:%lu resp mgr add, msgType:%s,%d seq:%lu handle:%p ahandle:%p", pSyncNode->vgId,
-         pSyncNode->pRaftStore->currentTerm, TMSG_INFO(pStub->rpcMsg.msgType), pStub->rpcMsg.msgType, keyCode,
-         pStub->rpcMsg.info.handle, pStub->rpcMsg.info.ahandle);
+  char       eventLog[128];
+  snprintf(eventLog, sizeof(eventLog), "resp mgr add, type:%s,%d, seq:%lu, handle:%p, ahandle:%p",
+           TMSG_INFO(pStub->rpcMsg.msgType), pStub->rpcMsg.msgType, keyCode, pStub->rpcMsg.info.handle,
+           pStub->rpcMsg.info.ahandle);
+  syncNodeEventLog(pSyncNode, eventLog);
 
   taosThreadMutexUnlock(&(pObj->mutex));
   return keyCode;
@@ -71,9 +73,11 @@ int32_t syncRespMgrGet(SSyncRespMgr *pObj, uint64_t index, SRespStub *pStub) {
     memcpy(pStub, pTmp, sizeof(SRespStub));
 
     SSyncNode *pSyncNode = pObj->data;
-    sDebug("vgId:%d sync event currentTerm:%lu resp mgr get, msgType:%s,%d seq:%lu handle:%p ahandle:%p",
-           pSyncNode->vgId, pSyncNode->pRaftStore->currentTerm, TMSG_INFO(pStub->rpcMsg.msgType), pStub->rpcMsg.msgType,
-           index, pStub->rpcMsg.info.handle, pStub->rpcMsg.info.ahandle);
+    char       eventLog[128];
+    snprintf(eventLog, sizeof(eventLog), "resp mgr get, type:%s,%d, seq:%lu, handle:%p, ahandle:%p",
+             TMSG_INFO(pStub->rpcMsg.msgType), pStub->rpcMsg.msgType, index, pStub->rpcMsg.info.handle,
+             pStub->rpcMsg.info.ahandle);
+    syncNodeEventLog(pSyncNode, eventLog);
 
     taosThreadMutexUnlock(&(pObj->mutex));
     return 1;  // get one object
@@ -90,9 +94,11 @@ int32_t syncRespMgrGetAndDel(SSyncRespMgr *pObj, uint64_t index, SRespStub *pStu
     memcpy(pStub, pTmp, sizeof(SRespStub));
 
     SSyncNode *pSyncNode = pObj->data;
-    sDebug("vgId:%d sync event currentTerm:%lu resp mgr get and del, msgType:%s,%d seq:%lu handle:%p ahandle:%p",
-           pSyncNode->vgId, pSyncNode->pRaftStore->currentTerm, TMSG_INFO(pStub->rpcMsg.msgType), pStub->rpcMsg.msgType,
-           index, pStub->rpcMsg.info.handle, pStub->rpcMsg.info.ahandle);
+    char       eventLog[128];
+    snprintf(eventLog, sizeof(eventLog), "resp mgr get-and-del, type:%s,%d, seq:%lu, handle:%p, ahandle:%p",
+             TMSG_INFO(pStub->rpcMsg.msgType), pStub->rpcMsg.msgType, index, pStub->rpcMsg.info.handle,
+             pStub->rpcMsg.info.ahandle);
+    syncNodeEventLog(pSyncNode, eventLog);
 
     taosHashRemove(pObj->pRespHash, &index, sizeof(index));
     taosThreadMutexUnlock(&(pObj->mutex));

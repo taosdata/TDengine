@@ -482,6 +482,13 @@ _return:
   QW_RET(code);
 }
 
+int32_t qwAbortPrerocessQuery(QW_FPARAMS_DEF) {
+  QW_ERR_RET(qwDropTask(QW_FPARAMS()));
+
+  QW_RET(TSDB_CODE_SUCCESS);
+}
+
+
 int32_t qwPrerocessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   int32_t        code = 0;
   bool           queryRsped = false;
@@ -526,7 +533,7 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType, int8_t ex
   atomic_store_8(&ctx->taskType, taskType);
   atomic_store_8(&ctx->explain, explain);
 
-  /*QW_TASK_DLOGL("subplan json string, len:%d, %s", qwMsg->msgLen, qwMsg->msg);*/
+  QW_TASK_DLOGL("subplan json string, len:%d, %s", qwMsg->msgLen, qwMsg->msg);
 
   code = qStringToSubplan(qwMsg->msg, &plan);
   if (TSDB_CODE_SUCCESS != code) {
@@ -614,6 +621,8 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
         QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_FETCH);
 
         qwBuildAndSendFetchRsp(&qwMsg->connInfo, rsp, dataLen, code);
+        rsp = NULL;
+        
         QW_TASK_DLOG("fetch rsp send, handle:%p, code:%x - %s, dataLen:%d", qwMsg->connInfo.handle, code,
                      tstrerror(code), dataLen);
       } else {
@@ -633,7 +642,7 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
       rsp = NULL;
 
       qwMsg->connInfo = ctx->dataConnInfo;
-      qwBuildAndSendFetchRsp(&qwMsg->connInfo, rsp, 0, code);
+      qwBuildAndSendFetchRsp(&qwMsg->connInfo, NULL, 0, code);
       QW_TASK_DLOG("fetch rsp send, handle:%p, code:%x - %s, dataLen:%d", qwMsg->connInfo.handle, code, tstrerror(code),
                    0);
     }
