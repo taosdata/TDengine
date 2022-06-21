@@ -1004,7 +1004,7 @@ static void doSetupSDataBlock(SSqlRes* pRes, SSDataBlock* pBlock, void* pFilterI
     filterConverNcharColumns(pFilterInfo, pBlock->info.rows, &gotNchar);
     int8_t* p = NULL;
     //bool all = doFilterDataBlock(pFilterInfo, numOfFilterCols, pBlock->info.rows, p);
-    bool all = filterExecute(pFilterInfo, pBlock->info.rows, &p, NULL, 0);
+    bool all = filterExecute(pFilterInfo, pBlock->info.rows, &p, NULL, (int16_t)taosArrayGetSize(pBlock->pDataBlock));
     if (gotNchar) {
       filterFreeNcharColumns(pFilterInfo);
     }
@@ -4160,9 +4160,20 @@ static void tscSubqueryCompleteCallback(void* param, TAOS_RES* tres, int code) {
 }
 
 int32_t doInitSubState(SSqlObj* pSql, int32_t numOfSubqueries) {
-  assert(pSql->subState.numOfSub == 0 && pSql->pSubs == NULL && pSql->subState.states == NULL);
+  //bug fix. Above doInitSubState level, the loop invocation with the same SSqlObj will be fail.
+  //assert(pSql->subState.numOfSub == 0 && pSql->pSubs == NULL && pSql->subState.states == NULL);  
+  if(pSql->pSubs) {
+    free(pSql->pSubs);
+    pSql->pSubs = NULL;
+  }
+  
+  if(pSql->subState.states) {
+    free(pSql->subState.states);
+    pSql->subState.states = NULL;
+  }
+  
   pSql->subState.numOfSub = numOfSubqueries;
-
+  
   pSql->pSubs = calloc(pSql->subState.numOfSub, POINTER_BYTES);
   pSql->subState.states = calloc(pSql->subState.numOfSub, sizeof(int8_t));
 
@@ -4188,7 +4199,8 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
     tscAddIntoSqlList(pSql);
   }
 
-  if (taosArrayGetSize(pQueryInfo->pUpstream) > 0) {  // nest query. do execute it firstly
+  // upstream may be freed before retry
+  if (pQueryInfo->pUpstream && taosArrayGetSize(pQueryInfo->pUpstream) > 0) {  // nest query. do execute it firstly
     code = doInitSubState(pSql, (int32_t) taosArrayGetSize(pQueryInfo->pUpstream));
     if (code != TSDB_CODE_SUCCESS) {
       goto _error;

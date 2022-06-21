@@ -86,9 +86,13 @@ int32_t exprTreeValidateFunctionNode(char* msgbuf, tExprNode *pExpr) {
 }
 
 int32_t exprTreeValidateExprNode(tExprNode *pExpr) {
-  int16_t leftType = pExpr->_node.pLeft->resultType;
-  int16_t rightType = pExpr->_node.pRight->resultType;
-  int16_t resultType = leftType;
+  tExprNode *pLeft = pExpr->_node.pLeft;
+  tExprNode *pRight = pExpr->_node.pRight;
+
+  int16_t leftType = pLeft->resultType;
+  int16_t rightType = pRight->resultType;
+
+  int32_t leftTreeChecked = 0, rightTreeChecked = 0;
 
   if (pExpr->_node.optr == TSDB_BINARY_OP_ADD || pExpr->_node.optr == TSDB_BINARY_OP_SUBTRACT ||
       pExpr->_node.optr == TSDB_BINARY_OP_MULTIPLY || pExpr->_node.optr == TSDB_BINARY_OP_DIVIDE ||
@@ -99,170 +103,176 @@ int32_t exprTreeValidateExprNode(tExprNode *pExpr) {
     pExpr->resultType = TSDB_DATA_TYPE_DOUBLE;
     pExpr->resultBytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
     return TSDB_CODE_SUCCESS;
-  } else if (pExpr->_node.optr == TSDB_BINARY_OP_BITAND) {
-    if ((leftType != TSDB_DATA_TYPE_BOOL && !IS_SIGNED_NUMERIC_TYPE(leftType) && !IS_UNSIGNED_NUMERIC_TYPE(leftType)) ||
-        (rightType != TSDB_DATA_TYPE_BOOL && !IS_SIGNED_NUMERIC_TYPE(rightType) && !IS_UNSIGNED_NUMERIC_TYPE(rightType)))
-    {
-      return TSDB_CODE_TSC_INVALID_OPERATION;
-    }
-
-    uint8_t schemaType;
-    // now leftType and rightType are both numeric
-    if (pExpr->_node.pLeft->nodeType == TSQL_NODE_COL && pExpr->_node.pRight->nodeType == TSQL_NODE_COL) {
-      if (leftType != rightType) {
-        return TSDB_CODE_TSC_INVALID_OPERATION;
-      }
-    } else if (pExpr->_node.pLeft->nodeType == TSQL_NODE_COL) {
-      if (pExpr->_node.pRight->nodeType != TSQL_NODE_VALUE) {
-        return TSDB_CODE_TSC_INVALID_OPERATION;
-      } else {
-        schemaType = pExpr->_node.pLeft->pSchema->type;
-        int64_t sVal = pExpr->_node.pRight->pVal->i64;
-        uint64_t uVal = pExpr->_node.pRight->pVal->u64;
-
-        switch (schemaType) {
-        case TSDB_DATA_TYPE_BOOL:
-          if ((pExpr->_node.pRight->pVal->nType != TSDB_DATA_TYPE_BOOL) ||
-              (pExpr->_node.pRight->pVal->i64 != 0 &&
-               pExpr->_node.pRight->pVal->i64 != 1 &&
-               pExpr->_node.pRight->pVal->i64 != TSDB_DATA_BOOL_NULL))
-          {
-            return TSDB_CODE_TSC_INVALID_OPERATION;
-          }
-          break;
-        case TSDB_DATA_TYPE_TINYINT:
-          if (sVal < -128 || sVal > 127) {
-            return TSDB_CODE_TSC_INVALID_OPERATION;
-          }
-          break;
-        case TSDB_DATA_TYPE_SMALLINT:
-          if (sVal < -32768 || sVal > 32767) {
-            return TSDB_CODE_TSC_INVALID_OPERATION;
-          }
-          break;
-        case TSDB_DATA_TYPE_INT:
-          if (sVal < INT32_MIN || sVal > INT32_MAX) {
-            return TSDB_CODE_TSC_INVALID_OPERATION;
-          }
-          break;
-        case TSDB_DATA_TYPE_BIGINT:
-          if (sVal < INT64_MIN || sVal > INT64_MAX) {
-            return TSDB_CODE_TSC_INVALID_OPERATION;
-          }
-          break;
-        case TSDB_DATA_TYPE_UTINYINT:
-          if (uVal > 255) {
-            return TSDB_CODE_TSC_INVALID_OPERATION;
-          }
-          break;
-        case TSDB_DATA_TYPE_USMALLINT:
-          if (uVal > 65535) {
-            return TSDB_CODE_TSC_INVALID_OPERATION;
-          }
-          break;
-        case TSDB_DATA_TYPE_UINT:
-          if (uVal > UINT32_MAX) {
-            return TSDB_CODE_TSC_INVALID_OPERATION;
-          }
-          break;
-        case TSDB_DATA_TYPE_UBIGINT:
-          if (uVal > UINT64_MAX) {
-            return TSDB_CODE_TSC_INVALID_OPERATION;
-          }
-          break;
+  } else if (pExpr->_node.optr == TSDB_BINARY_OP_BITAND || pExpr->_node.optr == TSDB_BINARY_OP_BITOR ||
+             pExpr->_node.optr == TSDB_BINARY_OP_BITXOR || pExpr->_node.optr == TSDB_BINARY_OP_LSHIFT ||
+             pExpr->_node.optr == TSDB_BINARY_OP_RSHIFT)
+  {
+    if (!IS_NUMERIC_TYPE(leftType) || !IS_NUMERIC_TYPE(rightType)) {
+      if (pLeft->_node.pLeft) {
+        if (!IS_NUMERIC_TYPE(pLeft->_node.pLeft->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
         }
 
-        pExpr->_node.pRight->pSchema->type = schemaType;
-        pExpr->_node.pRight->pVal->nType = schemaType;
-
-        pExpr->_node.pRight->resultType = schemaType;
-        pExpr->_node.pRight->resultBytes = tDataTypes[schemaType].bytes;
-      }
-    } else {
-      if (pExpr->_node.pLeft->nodeType != TSQL_NODE_VALUE) {
-        return TSDB_CODE_TSC_INVALID_OPERATION;
-      } else {
-        schemaType = pExpr->_node.pRight->pSchema->type;
-        int64_t sVal = pExpr->_node.pLeft->pVal->i64;
-        uint64_t uVal = pExpr->_node.pLeft->pVal->u64;
-        switch (schemaType) {
-        case TSDB_DATA_TYPE_BOOL:
-          if ((pExpr->_node.pLeft->pVal->nType != TSDB_DATA_TYPE_BOOL) ||
-              (pExpr->_node.pLeft->pVal->i64 != 0 &&
-               pExpr->_node.pLeft->pVal->i64 != 1 &&
-               pExpr->_node.pLeft->pVal->i64 != TSDB_DATA_BOOL_NULL))
-          {
-            return TSDB_CODE_TSC_INVALID_OPERATION;
-          }
-          pExpr->_node.pLeft->pVal->nLen = 1;
-          break;
-        case TSDB_DATA_TYPE_TINYINT:
-          if (sVal < -128 || sVal > 127) {
-            return TSDB_CODE_TSC_INVALID_OPERATION;
-          }
-          pExpr->_node.pLeft->pVal->nLen = 1;
-          break;
-        case TSDB_DATA_TYPE_SMALLINT:
-          if (sVal < -32768 || sVal > 32767) {
-            return TSDB_CODE_TSC_INVALID_OPERATION;
-          }
-          pExpr->_node.pLeft->pVal->nLen = 2;
-          break;
-        case TSDB_DATA_TYPE_INT:
-          if (sVal < INT32_MIN || sVal > INT32_MAX) {
-            return TSDB_CODE_TSC_INVALID_OPERATION;
-          }
-          pExpr->_node.pLeft->pVal->nLen = 4;
-          break;
-        case TSDB_DATA_TYPE_BIGINT:
-          if (sVal < INT64_MIN || sVal > INT64_MAX) {
-            return TSDB_CODE_TSC_INVALID_OPERATION;
-          }
-          pExpr->_node.pLeft->pVal->nLen = 8;
-          break;
-        case TSDB_DATA_TYPE_UTINYINT:
-          if (uVal > 255) {
-            return TSDB_CODE_TSC_INVALID_OPERATION;
-          }
-          pExpr->_node.pLeft->pVal->nLen = 1;
-          break;
-        case TSDB_DATA_TYPE_USMALLINT:
-          if (uVal > 65535) {
-            return TSDB_CODE_TSC_INVALID_OPERATION;
-          }
-          pExpr->_node.pLeft->pVal->nLen = 2;
-          break;
-        case TSDB_DATA_TYPE_UINT:
-          if (uVal > UINT32_MAX) {
-            return TSDB_CODE_TSC_INVALID_OPERATION;
-          }
-          pExpr->_node.pLeft->pVal->nLen = 4;
-          break;
-        case TSDB_DATA_TYPE_UBIGINT:
-          if (uVal > UINT64_MAX) {
-            return TSDB_CODE_TSC_INVALID_OPERATION;
-          }
-          pExpr->_node.pLeft->pVal->nLen = 8;
-          break;
+        if (IS_FLOAT_TYPE(pLeft->_node.pLeft->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
         }
 
-        pExpr->_node.pLeft->pSchema->type = schemaType;
-        pExpr->_node.pLeft->pVal->nType = schemaType;
-
-        pExpr->_node.pLeft->resultType = schemaType;
-        pExpr->_node.pLeft->resultBytes = tDataTypes[schemaType].bytes;
+        leftTreeChecked++;
       }
 
-      resultType = schemaType;
+      if (pLeft->_node.pRight) {
+        if (!IS_NUMERIC_TYPE(pLeft->_node.pRight->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        if (IS_FLOAT_TYPE(pLeft->_node.pRight->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        leftTreeChecked++;
+      }
+
+      if (pRight->_node.pLeft) {
+        if (!IS_NUMERIC_TYPE(pRight->_node.pLeft->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        if (IS_FLOAT_TYPE(pRight->_node.pLeft->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        rightTreeChecked++;
+      }
+
+      if (pRight->_node.pRight) {
+        if (!IS_NUMERIC_TYPE(pRight->_node.pRight->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        if (IS_FLOAT_TYPE(pRight->_node.pRight->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        rightTreeChecked++;
+      }
+
+      if ((!IS_NUMERIC_TYPE(leftType) && leftTreeChecked == 0) || (!IS_NUMERIC_TYPE(rightType) && rightTreeChecked == 0)) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+
+      leftTreeChecked = 0;
+      rightTreeChecked = 0;
+    }
+    if (IS_FLOAT_TYPE(leftType) || IS_FLOAT_TYPE(rightType)) {
+      if (pLeft->_node.pLeft) {
+        if (!IS_NUMERIC_TYPE(pLeft->_node.pLeft->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        if (IS_FLOAT_TYPE(pLeft->_node.pLeft->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        leftTreeChecked++;
+      }
+
+      if (pLeft->_node.pRight) {
+        if (!IS_NUMERIC_TYPE(pLeft->_node.pRight->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        if (IS_FLOAT_TYPE(pLeft->_node.pRight->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        leftTreeChecked++;
+      }
+
+      if (pRight->_node.pLeft) {
+        if (!IS_NUMERIC_TYPE(pRight->_node.pLeft->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        if (IS_FLOAT_TYPE(pRight->_node.pLeft->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        rightTreeChecked++;
+      }
+
+      if (pRight->_node.pRight) {
+        if (!IS_NUMERIC_TYPE(pRight->_node.pRight->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        if (IS_FLOAT_TYPE(pRight->_node.pRight->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        rightTreeChecked++;
+      }
+
+      if ((IS_FLOAT_TYPE(leftType) && leftTreeChecked == 0) || (IS_FLOAT_TYPE(rightType) && rightTreeChecked == 0)) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
     }
 
-    if (resultType == TSDB_DATA_TYPE_BOOL) {
-      pExpr->resultType = TSDB_DATA_TYPE_BOOL;
-      pExpr->resultBytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
-    } else {
-      pExpr->resultType = resultType;
-      pExpr->resultBytes = tDataTypes[resultType].bytes;
+    // colx logic_op n bitwise_op coly
+    if (pLeft->resultType == TSDB_DATA_TYPE_DOUBLE) {
+      pLeft->resultType = TSDB_DATA_TYPE_BIGINT;
+      pLeft->resultBytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
     }
+
+    // colx bitwise_op coly logic_op n
+    if (pRight->resultType == TSDB_DATA_TYPE_DOUBLE) {
+      pRight->resultType = TSDB_DATA_TYPE_BIGINT;
+      pRight->resultBytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+    }
+
+    if (pExpr->_node.optr == TSDB_BINARY_OP_LSHIFT || pExpr->_node.optr == TSDB_BINARY_OP_RSHIFT) {
+      pExpr->resultType = pLeft->resultType;
+      pExpr->resultBytes = tDataTypes[pLeft->resultType].bytes;
+    } else {
+      pExpr->resultType = TSDB_DATA_TYPE_BIGINT;
+      pExpr->resultBytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+    }
+    return TSDB_CODE_SUCCESS;
+  } else if (pExpr->_node.optr == TSDB_BINARY_OP_BITNOT) {
+    if (!IS_NUMERIC_TYPE(leftType) || IS_FLOAT_TYPE(leftType)) {
+      if (pLeft->_node.pLeft) {
+        if (!IS_NUMERIC_TYPE(pLeft->_node.pLeft->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        if (IS_FLOAT_TYPE(pLeft->_node.pLeft->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        leftTreeChecked++;
+      }
+
+      if (pLeft->_node.pRight) {
+        if (!IS_NUMERIC_TYPE(pLeft->_node.pRight->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        if (IS_FLOAT_TYPE(pLeft->_node.pRight->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        leftTreeChecked++;
+      }
+
+      if (leftTreeChecked == 0) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+    }
+    if (leftType == TSDB_DATA_TYPE_DOUBLE) {
+      pExpr->resultType = TSDB_DATA_TYPE_BIGINT;
+    } else {
+      pExpr->resultType = leftType;
+    }
+    pExpr->resultBytes = tDataTypes[pExpr->resultType].bytes;
     return TSDB_CODE_SUCCESS;
   } else {
     return TSDB_CODE_SUCCESS;
@@ -591,8 +601,8 @@ void exprTreeExprNodeTraverse(tExprNode *pExpr, int32_t numOfRows, tExprOperandI
 
   tExprNode *pLeft = pExpr->_node.pLeft;
   tExprNode *pRight = pExpr->_node.pRight;
-  char *ltmp = NULL, *rtmp = NULL;
-  char *leftIn = NULL, *rightIn = NULL;
+  char *ltmp = NULL, *rtmp = NULL, *pl = NULL, *pr = NULL, *pt = NULL;
+  char *leftIn = NULL, *rightIn = NULL, *transl = NULL, *transr = NULL;
   int32_t leftNum = 0, rightNum = 0;
   int32_t leftType = 0, rightType = 0;
   int32_t fnOrder = TSDB_ORDER_ASC;
@@ -602,9 +612,78 @@ void exprTreeExprNodeTraverse(tExprNode *pExpr, int32_t numOfRows, tExprOperandI
     tExprOperandInfo left;
     left.data = ltmp;
     exprTreeInternalNodeTraverse(pLeft, numOfRows, &left, param, order, getSourceDataBlock);
-    
+
     leftIn = ltmp;
     leftType = left.type;
+
+    if (pExpr->_node.optr == TSDB_BINARY_OP_BITAND || pExpr->_node.optr == TSDB_BINARY_OP_BITOR ||
+        pExpr->_node.optr == TSDB_BINARY_OP_BITXOR || pExpr->_node.optr == TSDB_BINARY_OP_BITNOT ||
+        pExpr->_node.optr == TSDB_BINARY_OP_LSHIFT || pExpr->_node.optr == TSDB_BINARY_OP_RSHIFT)
+    {
+      transl = (char *)malloc(sizeof(int64_t) * left.numOfRows);
+      if (transl == NULL) {
+        return;
+      }
+
+      pl = ltmp;
+      pt = transl;
+
+      switch (left.type) {
+      case TSDB_DATA_TYPE_TINYINT:
+        for (int16_t i = 0; i < left.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((int8_t *) pl + i));
+        }
+        break;
+      case TSDB_DATA_TYPE_SMALLINT:
+        for (int16_t i = 0; i < left.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((int16_t *) pl + i));
+        }
+        break;
+      case TSDB_DATA_TYPE_INT:
+        for (int16_t i = 0; i < left.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((int32_t *) pl + i));
+        }
+        break;
+      case TSDB_DATA_TYPE_BIGINT:
+        for (int16_t i = 0; i < left.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((int64_t *) pl + i));
+        }
+        break;
+      case TSDB_DATA_TYPE_UTINYINT:
+        for (int16_t i = 0; i < left.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((uint8_t *) pl + i));
+        }
+        break;
+      case TSDB_DATA_TYPE_USMALLINT:
+        for (int16_t i = 0; i < left.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((uint16_t *) pl + i));
+        }
+        break;
+      case TSDB_DATA_TYPE_UINT:
+        for (int16_t i = 0; i < left.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((uint32_t *) pl + i));
+        }
+        break;
+      case TSDB_DATA_TYPE_UBIGINT:
+        for (int16_t i = 0; i < left.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((uint64_t *) pl + i));
+        }
+        break;
+      case TSDB_DATA_TYPE_FLOAT:
+        for (int16_t i = 0; i < left.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((float *) pl + i));
+        }
+        break;
+      case TSDB_DATA_TYPE_DOUBLE:
+        for (int16_t i = 0; i < left.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((double *) pl + i));
+        }
+        break;
+      }
+
+      leftIn = transl;
+      leftType = TSDB_DATA_TYPE_BIGINT;
+    }
     leftNum = left.numOfRows;
   } else if (pLeft->nodeType == TSQL_NODE_COL) {
     char *pInputData = getSourceDataBlock(param, pLeft->pSchema->name, pLeft->pSchema->colId);
@@ -631,9 +710,78 @@ void exprTreeExprNodeTraverse(tExprNode *pExpr, int32_t numOfRows, tExprOperandI
     tExprOperandInfo right;
     right.data = rtmp;
     exprTreeInternalNodeTraverse(pRight, numOfRows, &right, param, order, getSourceDataBlock);
-    
+
     rightIn = rtmp;
     rightType = right.type;
+
+    if (pExpr->_node.optr == TSDB_BINARY_OP_BITAND || pExpr->_node.optr == TSDB_BINARY_OP_BITOR ||
+        pExpr->_node.optr == TSDB_BINARY_OP_BITXOR || pExpr->_node.optr == TSDB_BINARY_OP_BITNOT ||
+        pExpr->_node.optr == TSDB_BINARY_OP_LSHIFT || pExpr->_node.optr == TSDB_BINARY_OP_RSHIFT)
+    {
+      transr = (char *)malloc(sizeof(int64_t) * right.numOfRows);
+      if (transr == NULL) {
+        return;
+      }
+
+      pr = rtmp;
+      pt = transr;
+
+      switch (right.type) {
+      case TSDB_DATA_TYPE_TINYINT:
+        for (int16_t i = 0; i < right.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((int8_t *) pr + i));
+        }
+        break;
+      case TSDB_DATA_TYPE_SMALLINT:
+        for (int16_t i = 0; i < right.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((int16_t *) pr + i));
+        }
+        break;
+      case TSDB_DATA_TYPE_INT:
+        for (int16_t i = 0; i < right.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((int32_t *) pr + i));
+        }
+        break;
+      case TSDB_DATA_TYPE_BIGINT:
+        for (int16_t i = 0; i < right.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((int64_t *) pr + i));
+        }
+        break;
+      case TSDB_DATA_TYPE_UTINYINT:
+        for (int16_t i = 0; i < right.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((uint8_t *) pr + i));
+        }
+        break;
+      case TSDB_DATA_TYPE_USMALLINT:
+        for (int16_t i = 0; i < right.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((uint16_t *) pr + i));
+        }
+        break;
+      case TSDB_DATA_TYPE_UINT:
+        for (int16_t i = 0; i < right.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((uint32_t *) pr + i));
+        }
+        break;
+      case TSDB_DATA_TYPE_UBIGINT:
+        for (int16_t i = 0; i < right.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((uint64_t *) pr + i));
+        }
+        break;
+      case TSDB_DATA_TYPE_FLOAT:
+        for (int16_t i = 0; i < right.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((float *) pr + i));
+        }
+        break;
+      case TSDB_DATA_TYPE_DOUBLE:
+        for (int16_t i = 0; i < right.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((double *) pr + i));
+        }
+        break;
+      }
+
+      rightIn = transr;
+      rightType = TSDB_DATA_TYPE_BIGINT;
+    }
     rightNum = right.numOfRows;
   } else if (pRight->nodeType == TSQL_NODE_COL) {
     char *pInputData = getSourceDataBlock(param, pRight->pSchema->name, pRight->pSchema->colId);
@@ -648,6 +796,9 @@ void exprTreeExprNodeTraverse(tExprNode *pExpr, int32_t numOfRows, tExprOperandI
 
     rightType = pRight->pSchema->type;
     rightNum = numOfRows;    
+  } else if (pRight->nodeType == TSQL_NODE_DUMMY) {
+    /* BITNOT */
+    rightNum = 0;
   } else {
     assert(pRight->nodeType == TSQL_NODE_VALUE);
     rightIn = (char *)&pRight->pVal->i64;
@@ -662,13 +813,19 @@ void exprTreeExprNodeTraverse(tExprNode *pExpr, int32_t numOfRows, tExprOperandI
   if(leftType == TSDB_DATA_TYPE_TIMESTAMP || rightType == TSDB_DATA_TYPE_TIMESTAMP) {
     output->type = TSDB_DATA_TYPE_BIGINT;
   } else {
-    if (pExpr->_node.optr == TSDB_BINARY_OP_BITAND) {
+    if (pExpr->_node.optr == TSDB_BINARY_OP_BITAND || pExpr->_node.optr == TSDB_BINARY_OP_BITOR ||
+        pExpr->_node.optr == TSDB_BINARY_OP_BITXOR || pExpr->_node.optr == TSDB_BINARY_OP_BITNOT ||
+        pExpr->_node.optr == TSDB_BINARY_OP_LSHIFT || pExpr->_node.optr == TSDB_BINARY_OP_RSHIFT)
+    {
       output->type = leftType; // rightType must be the same as leftType
     } else {
       output->type = TSDB_DATA_TYPE_DOUBLE;
     }
   }
   output->bytes = tDataTypes[output->type].bytes;
+
+  if (transl) tfree(transl);
+  if (transr) tfree(transr);
 
   tfree(ltmp);
   tfree(rtmp);
@@ -1276,6 +1433,7 @@ int32_t exprValidateMathNode(tExprNode *pExpr) {
 
       return TSDB_CODE_SUCCESS;
     }
+
     case TSDB_FUNC_SCALAR_ABS: {
       if (pExpr->_func.numChildren != 1) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
