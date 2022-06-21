@@ -1888,18 +1888,22 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
           int32_t srcSlot = pExprInfo->base.pParam[0].pCol->slotId;
 
           SColumnInfoData* pSrc = taosArrayGet(pBlock->pDataBlock, srcSlot);
-          SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, dstSlot);
+          SColumnInfoData* pDst = taosArrayGet(pResBlock->pDataBlock, dstSlot);
 
           char* v = colDataGetData(pSrc, i);
           colDataAppend(pDst, numOfRows, v, false);
         }
 
-        numOfRows += 1;
+        pResBlock->info.rows += 1;
         doKeepPrevRows(pSliceInfo, pBlock, i);
 
         pSliceInfo->current = taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
         if (pSliceInfo->current > pSliceInfo->win.ekey) {
           doSetOperatorCompleted(pOperator);
+          break;
+        }
+
+        if (pResBlock->info.rows >= pResBlock->info.capacity) {
           break;
         }
       } else if (ts < pSliceInfo->current) {
@@ -1908,9 +1912,11 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
           if (nextTs > pSliceInfo->current) {
             while (pSliceInfo->current < nextTs && pSliceInfo->current <= pSliceInfo->win.ekey) {
               genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pBlock, i, pResBlock);
-              numOfRows += 1;
               pSliceInfo->current =
                   taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
+              if (pResBlock->info.rows >= pResBlock->info.capacity) {
+                break;
+              }
             }
 
             if (pSliceInfo->current > pSliceInfo->win.ekey) {
@@ -1926,9 +1932,11 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
       } else {  // ts > pSliceInfo->current
         while (pSliceInfo->current < ts && pSliceInfo->current <= pSliceInfo->win.ekey) {
           genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pBlock, i, pResBlock);
-          numOfRows += 1;
           pSliceInfo->current =
               taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
+          if (pResBlock->info.rows >= pResBlock->info.capacity) {
+            break;
+          }
         }
 
         if (pSliceInfo->current > pSliceInfo->win.ekey) {
