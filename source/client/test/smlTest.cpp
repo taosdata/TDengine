@@ -1261,7 +1261,7 @@ TEST(testCase, sml_16368_Test) {
   ASSERT_EQ(taos_errno(pRes), 0);
   taos_free_result(pRes);
 }
-*/
+
 TEST(testCase, sml_dup_time_Test) {
  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
  ASSERT_NE(taos, nullptr);
@@ -1284,4 +1284,4 @@ TEST(testCase, sml_dup_time_Test) {
   ASSERT_EQ(taos_errno(pRes), 0);
   taos_free_result(pRes);
 }
-
+*/
