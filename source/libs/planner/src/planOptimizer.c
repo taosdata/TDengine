@@ -1056,49 +1056,69 @@ static bool partTagsOptHasCol(SNodeList* pPartKeys) {
   return hasCol;
 }
 
+static bool partTagsIsOptimizableNode(SLogicNode* pNode) {
+  return ((QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode) /*||
+           (QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pNode) && NULL != ((SAggLogicNode*)pNode)->pGroupKeys &&
+            NULL != ((SAggLogicNode*)pNode)->pAggFuncs)*/) &&
+          1 == LIST_LENGTH(pNode->pChildren) &&
+          QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(nodesListGetNode(pNode->pChildren, 0)));
+}
+
+static SNodeList* partTagsGetPartKeys(SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode)) {
+    return ((SPartitionLogicNode*)pNode)->pPartitionKeys;
+  } else {
+    return ((SAggLogicNode*)pNode)->pGroupKeys;
+  }
+}
+
 static bool partTagsOptMayBeOptimized(SLogicNode* pNode) {
-  if (QUERY_NODE_LOGIC_PLAN_PARTITION != nodeType(pNode) || 1 != LIST_LENGTH(pNode->pChildren) ||
-      QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(nodesListGetNode(pNode->pChildren, 0))) {
+  if (!partTagsIsOptimizableNode(pNode)) {
     return false;
   }
 
-  return !partTagsOptHasCol(((SPartitionLogicNode*)pNode)->pPartitionKeys);
+  return !partTagsOptHasCol(partTagsGetPartKeys(pNode));
 }
 
 static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
-  SPartitionLogicNode* pPart =
-      (SPartitionLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, partTagsOptMayBeOptimized);
-  if (NULL == pPart) {
+  SLogicNode* pNode = optFindPossibleNode(pLogicSubplan->pNode, partTagsOptMayBeOptimized);
+  if (NULL == pNode) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SScanLogicNode* pScan = (SScanLogicNode*)nodesListGetNode(pPart->node.pChildren, 0);
-  TSWAP(pPart->pPartitionKeys, pScan->pPartTags);
-  int32_t code = replaceLogicNode(pLogicSubplan, (SLogicNode*)pPart, (SLogicNode*)pScan);
-  if (TSDB_CODE_SUCCESS == code) {
-    NODES_CLEAR_LIST(pPart->node.pChildren);
-    nodesDestroyNode((SNode*)pPart);
+  int32_t         code = TSDB_CODE_SUCCESS;
+  SScanLogicNode* pScan = (SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0);
+  if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode)) {
+    TSWAP(((SPartitionLogicNode*)pNode)->pPartitionKeys, pScan->pPartTags);
+    int32_t code = replaceLogicNode(pLogicSubplan, pNode, (SLogicNode*)pScan);
+    if (TSDB_CODE_SUCCESS == code) {
+      NODES_CLEAR_LIST(pNode->pChildren);
+      nodesDestroyNode((SNode*)pNode);
+    }
+  } else {
+    TSWAP(((SAggLogicNode*)pNode)->pGroupKeys, pScan->pPartTags);
   }
   return code;
 }
 
 static bool eliminateProjOptMayBeOptimized(SLogicNode* pNode) {
-  //TODO: enable this optimization after new mechanising that map projection and targets of project node
+  // TODO: enable this optimization after new mechanising that map projection and targets of project node
   if (NULL != pNode->pParent) {
     return false;
   }
-  
+
   if (QUERY_NODE_LOGIC_PLAN_PROJECT != nodeType(pNode) || 1 != LIST_LENGTH(pNode->pChildren)) {
     return false;
   }
 
   SProjectLogicNode* pProjectNode = (SProjectLogicNode*)pNode;
-  if (-1 != pProjectNode->limit || -1 != pProjectNode->slimit || -1 != pProjectNode->offset  || -1 != pProjectNode->soffset) {
+  if (-1 != pProjectNode->limit || -1 != pProjectNode->slimit || -1 != pProjectNode->offset ||
+      -1 != pProjectNode->soffset) {
     return false;
   }
 
   SHashObj* pProjColNameHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
-  SNode* pProjection;
+  SNode*    pProjection;
   FOREACH(pProjection, pProjectNode->pProjections) {
     SExprNode* pExprNode = (SExprNode*)pProjection;
     if (QUERY_NODE_COLUMN != nodeType(pExprNode)) {
@@ -1106,7 +1126,7 @@ static bool eliminateProjOptMayBeOptimized(SLogicNode* pNode) {
       return false;
     }
 
-    char* projColumnName = ((SColumnNode*)pProjection)->colName;
+    char*    projColumnName = ((SColumnNode*)pProjection)->colName;
     int32_t* pExist = taosHashGet(pProjColNameHash, projColumnName, strlen(projColumnName));
     if (NULL != pExist) {
       taosHashCleanup(pProjColNameHash);
@@ -1121,9 +1141,10 @@ static bool eliminateProjOptMayBeOptimized(SLogicNode* pNode) {
   return true;
 }
 
-static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan, SProjectLogicNode* pProjectNode) {
+static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan,
+                                         SProjectLogicNode* pProjectNode) {
   SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pProjectNode->node.pChildren, 0);
-  SNodeList* pNewChildTargets = nodesMakeList();
+  SNodeList*  pNewChildTargets = nodesMakeList();
 
   SNode* pProjection = NULL;
   FOREACH(pProjection, pProjectNode->pProjections) {
@@ -1137,7 +1158,7 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
   }
   nodesDestroyList(pChild->pTargets);
   pChild->pTargets = pNewChildTargets;
-  
+
   int32_t code = replaceLogicNode(pLogicSubplan, (SLogicNode*)pProjectNode, pChild);
   if (TSDB_CODE_SUCCESS == code) {
     NODES_CLEAR_LIST(pProjectNode->node.pChildren);
@@ -1148,7 +1169,7 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
 
 static int32_t eliminateProjOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
   SProjectLogicNode* pProjectNode =
-    (SProjectLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, eliminateProjOptMayBeOptimized);
+      (SProjectLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, eliminateProjOptMayBeOptimized);
 
   if (NULL == pProjectNode) {
     return TSDB_CODE_SUCCESS;

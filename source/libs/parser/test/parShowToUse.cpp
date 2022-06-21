@@ -76,6 +76,12 @@ TEST_F(ParserShowToUseTest, showDnodes) {
   run("SHOW dnodes");
 }
 
+TEST_F(ParserShowToUseTest, showDnodeVariables) {
+  useDb("root", "test");
+
+  run("SHOW DNODE 1 VARIABLES");
+}
+
 TEST_F(ParserShowToUseTest, showFunctions) {
   useDb("root", "test");
 
@@ -83,6 +89,12 @@ TEST_F(ParserShowToUseTest, showFunctions) {
 }
 
 // todo SHOW licence
+
+TEST_F(ParserShowToUseTest, showLocalVariables) {
+  useDb("root", "test");
+
+  run("SHOW LOCAL VARIABLES");
+}
 
 TEST_F(ParserShowToUseTest, showIndexes) {
   useDb("root", "test");
@@ -157,7 +169,11 @@ TEST_F(ParserShowToUseTest, showUsers) {
   run("SHOW users");
 }
 
-// todo SHOW variables
+TEST_F(ParserShowToUseTest, showVariables) {
+  useDb("root", "test");
+
+  run("SHOW VARIABLES");
+}
 
 TEST_F(ParserShowToUseTest, showVgroups) {
   useDb("root", "test");
