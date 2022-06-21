@@ -25,7 +25,7 @@ static SyncIndex raftLogEndIndex(struct SSyncLogStore* pLogStore);
 static SyncIndex raftLogWriteIndex(struct SSyncLogStore* pLogStore);
 static bool      raftLogIsEmpty(struct SSyncLogStore* pLogStore);
 static int32_t   raftLogEntryCount(struct SSyncLogStore* pLogStore);
-static bool      raftLogInRange(struct SSyncLogStore* pLogStore, SyncIndex index);
+
 static SyncIndex raftLogLastIndex(struct SSyncLogStore* pLogStore);
 static SyncTerm  raftLogLastTerm(struct SSyncLogStore* pLogStore);
 static int32_t   raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry);
@@ -58,8 +58,6 @@ static int32_t raftLogSetBeginIndex(struct SSyncLogStore* pLogStore, SyncIndex b
   return 0;
 }
 
-int32_t raftLogResetBeginIndex(struct SSyncLogStore* pLogStore) { return 0; }
-
 static SyncIndex raftLogBeginIndex(struct SSyncLogStore* pLogStore) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
@@ -81,6 +79,7 @@ static int32_t raftLogEntryCount(struct SSyncLogStore* pLogStore) {
   return count > 0 ? count : 0;
 }
 
+#if 0
 static bool raftLogInRange(struct SSyncLogStore* pLogStore, SyncIndex index) {
   SyncIndex beginIndex = raftLogBeginIndex(pLogStore);
   SyncIndex endIndex = raftLogEndIndex(pLogStore);
@@ -90,6 +89,7 @@ static bool raftLogInRange(struct SSyncLogStore* pLogStore, SyncIndex index) {
     return false;
   }
 }
+#endif
 
 static SyncIndex raftLogLastIndex(struct SSyncLogStore* pLogStore) {
   SyncIndex          lastIndex;
@@ -171,6 +171,7 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
   return code;
 }
 
+#if 0
 static int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncRaftEntry** ppEntry) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
@@ -212,6 +213,49 @@ static int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index,
     // index not in range
     code = 0;
   }
+
+  return code;
+}
+#endif
+
+static int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncRaftEntry** ppEntry) {
+  SSyncLogStoreData* pData = pLogStore->data;
+  SWal*              pWal = pData->pWal;
+  int32_t            code;
+
+  *ppEntry = NULL;
+
+  SWalReadHandle* pWalHandle = walOpenReadHandle(pWal);
+  if (pWalHandle == NULL) {
+    return -1;
+  }
+
+  code = walReadWithHandle(pWalHandle, index);
+  if (code != 0) {
+    int32_t     err = terrno;
+    const char* errStr = tstrerror(err);
+    int32_t     linuxErr = errno;
+    const char* linuxErrMsg = strerror(errno);
+    sError("raftLogGetEntry error, err:%d %X, msg:%s, linuxErr:%d, linuxErrMsg:%s", err, err, errStr, linuxErr,
+           linuxErrMsg);
+
+    walCloseReadHandle(pWalHandle);
+    return code;
+  }
+
+  *ppEntry = syncEntryBuild(pWalHandle->pHead->head.bodyLen);
+  ASSERT(*ppEntry != NULL);
+  (*ppEntry)->msgType = TDMT_SYNC_CLIENT_REQUEST;
+  (*ppEntry)->originalRpcType = pWalHandle->pHead->head.msgType;
+  (*ppEntry)->seqNum = pWalHandle->pHead->head.syncMeta.seqNum;
+  (*ppEntry)->isWeak = pWalHandle->pHead->head.syncMeta.isWeek;
+  (*ppEntry)->term = pWalHandle->pHead->head.syncMeta.term;
+  (*ppEntry)->index = index;
+  ASSERT((*ppEntry)->dataLen == pWalHandle->pHead->head.bodyLen);
+  memcpy((*ppEntry)->data, pWalHandle->pHead->head.body, pWalHandle->pHead->head.bodyLen);
+
+  // need to hold, do not new every time!!
+  walCloseReadHandle(pWalHandle);
 
   return code;
 }
@@ -277,13 +321,14 @@ SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
   pLogStore->syncLogEndIndex = raftLogEndIndex;
   pLogStore->syncLogIsEmpty = raftLogIsEmpty;
   pLogStore->syncLogEntryCount = raftLogEntryCount;
-  pLogStore->syncLogInRange = raftLogInRange;
   pLogStore->syncLogLastIndex = raftLogLastIndex;
   pLogStore->syncLogLastTerm = raftLogLastTerm;
   pLogStore->syncLogAppendEntry = raftLogAppendEntry;
   pLogStore->syncLogGetEntry = raftLogGetEntry;
   pLogStore->syncLogTruncate = raftLogTruncate;
   pLogStore->syncLogWriteIndex = raftLogWriteIndex;
+
+  // pLogStore->syncLogInRange = raftLogInRange;
 
   return pLogStore;
 }

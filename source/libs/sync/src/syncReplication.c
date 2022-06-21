@@ -148,9 +148,10 @@ int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
 
     SSyncRaftEntry* pEntry;
     int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, nextIndex, &pEntry);
-    ASSERT(code == 0);
 
-    if (pEntry != NULL) {
+    if (code == 0) {
+      ASSERT(pEntry != NULL);
+
       pMsg = syncAppendEntriesBuild(pEntry->bytes, pSyncNode->vgId);
       ASSERT(pMsg != NULL);
 
@@ -164,9 +165,15 @@ int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
       syncEntryDestory(pEntry);
 
     } else {
-      // no entry in log
-      pMsg = syncAppendEntriesBuild(0, pSyncNode->vgId);
-      ASSERT(pMsg != NULL);
+      if (terrno == TSDB_CODE_WAL_LOG_NOT_EXIST) {
+        // no entry in log
+        pMsg = syncAppendEntriesBuild(0, pSyncNode->vgId);
+        ASSERT(pMsg != NULL);
+
+      } else {
+        syncNodeLog3("", pSyncNode);
+        ASSERT(0);
+      }
     }
 
     // prepare msg
