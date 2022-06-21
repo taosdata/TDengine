@@ -114,6 +114,7 @@ typedef struct {
   char    subKey[TSDB_SUBSCRIBE_KEY_LEN];
   int64_t consumerId;
   int32_t epoch;
+  int8_t  fetchMeta;
 
   // reader
   SWalReadHandle* pWalReader;
