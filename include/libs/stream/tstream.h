@@ -58,6 +58,7 @@ enum {
 enum {
   STREAM_INPUT__DATA_SUBMIT = 1,
   STREAM_INPUT__DATA_BLOCK,
+  STREAM_INPUT__TRIGGER,
   STREAM_INPUT__CHECKPOINT,
 };
 
@@ -85,6 +86,11 @@ typedef struct {
   int8_t type;
 } SStreamCheckpoint;
 
+typedef struct {
+  int8_t       type;
+  SSDataBlock* pBlock;
+} SStreamTrigger;
+
 enum {
   STREAM_QUEUE__SUCESS = 1,
   STREAM_QUEUE__FAILED,
@@ -97,6 +103,9 @@ typedef struct {
   void*       qItem;
   int8_t      status;
 } SStreamQueue;
+
+int32_t streamInit();
+void    streamCleanUp();
 
 SStreamQueue* streamQueueOpen();
 void          streamQueueClose(SStreamQueue* queue);
@@ -143,7 +152,6 @@ void*   streamDataBlockDecode(const void* buf, SStreamDataBlock* pInput);
 typedef struct {
   char* qmsg;
   // followings are not applicable to encoder and decoder
-  void* inputHandle;
   void* executor;
 } STaskExec;
 
@@ -220,17 +228,23 @@ enum {
   TASK_INPUT_TYPE__DATA_BLOCK,
 };
 
+enum {
+  TASK_TRIGGER_STATUS__IN_ACTIVE = 1,
+  TASK_TRIGGER_STATUS__ACTIVE,
+};
+
 struct SStreamTask {
   int64_t streamId;
   int32_t taskId;
   int8_t  inputType;
   int8_t  status;
 
-  int8_t  sourceType;
   int8_t  execType;
   int8_t  sinkType;
   int8_t  dispatchType;
   int16_t dispatchMsgType;
+
+  int8_t dataScan;
 
   // node info
   int32_t childId;
@@ -262,8 +276,16 @@ struct SStreamTask {
   SStreamQueue* inputQueue;
   SStreamQueue* outputQueue;
 
+  // trigger
+  int8_t  triggerStatus;
+  int64_t triggerParam;
+  void*   timer;
+
   // application storage
   // void* ahandle;
+
+  // msg handle
+  SMsgCb* pMsgCb;
 };
 
 SStreamTask* tNewSStreamTask(int64_t streamId);
@@ -292,6 +314,13 @@ static FORCE_INLINE int32_t streamTaskInput(SStreamTask* pTask, SStreamQueueItem
     taosWriteQitem(pTask->inputQueue->queue, pItem);
   } else if (pItem->type == STREAM_INPUT__CHECKPOINT) {
     taosWriteQitem(pTask->inputQueue->queue, pItem);
+  } else if (pItem->type == STREAM_INPUT__TRIGGER) {
+    taosWriteQitem(pTask->inputQueue->queue, pItem);
+  }
+
+  if (pItem->type != STREAM_INPUT__TRIGGER && pItem->type != STREAM_INPUT__CHECKPOINT && pTask->triggerParam != 0 &&
+      pTask->triggerStatus == TASK_TRIGGER_STATUS__IN_ACTIVE) {
+    atomic_store_8(&pTask->triggerStatus, TASK_TRIGGER_STATUS__ACTIVE);
   }
 
   // TODO: back pressure
@@ -370,14 +399,13 @@ typedef struct {
 
 int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq);
 
-int32_t streamTriggerByWrite(SStreamTask* pTask, int32_t vgId, SMsgCb* pMsgCb);
+int32_t streamLaunchByWrite(SStreamTask* pTask, int32_t vgId);
+int32_t streamSetupTrigger(SStreamTask* pTask);
 
-int32_t streamTaskRun(SStreamTask* pTask);
-
-int32_t streamTaskProcessRunReq(SStreamTask* pTask, SMsgCb* pMsgCb);
-int32_t streamProcessDispatchReq(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDispatchReq* pReq, SRpcMsg* pMsg);
-int32_t streamProcessDispatchRsp(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDispatchRsp* pRsp);
-int32_t streamProcessRecoverReq(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamTaskRecoverReq* pReq, SRpcMsg* pMsg);
+int32_t streamProcessRunReq(SStreamTask* pTask);
+int32_t streamProcessDispatchReq(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pMsg);
+int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp);
+int32_t streamProcessRecoverReq(SStreamTask* pTask, SStreamTaskRecoverReq* pReq, SRpcMsg* pMsg);
 int32_t streamProcessRecoverRsp(SStreamTask* pTask, SStreamTaskRecoverRsp* pRsp);
 
 #ifdef __cplusplus

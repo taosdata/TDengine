@@ -355,6 +355,7 @@ static SNode* logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_SCALAR_FIELD(watermark);
   COPY_SCALAR_FIELD(tsColId);
   COPY_SCALAR_FIELD(filesFactor);
+  CLONE_NODE_LIST_FIELD(pPartTags);
   return (SNode*)pDst;
 }
 
@@ -422,11 +423,12 @@ static SNode* logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* pD
   COPY_SCALAR_FIELD(slidingUnit);
   COPY_SCALAR_FIELD(sessionGap);
   CLONE_NODE_FIELD(pTspk);
+  CLONE_NODE_FIELD(pTsEnd);
   CLONE_NODE_FIELD(pStateExpr);
   COPY_SCALAR_FIELD(triggerType);
   COPY_SCALAR_FIELD(watermark);
   COPY_SCALAR_FIELD(filesFactor);
-  COPY_SCALAR_FIELD(intervalAlgo);
+  COPY_SCALAR_FIELD(windowAlgo);
   return (SNode*)pDst;
 }
 
@@ -453,7 +455,18 @@ static SNode* logicPartitionCopy(const SPartitionLogicNode* pSrc, SPartitionLogi
 
 static SNode* logicIndefRowsFuncCopy(const SIndefRowsFuncLogicNode* pSrc, SIndefRowsFuncLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
-  CLONE_NODE_LIST_FIELD(pVectorFuncs);
+  CLONE_NODE_LIST_FIELD(pFuncs);
+  return (SNode*)pDst;
+}
+
+static SNode* logicInterpFuncCopy(const SInterpFuncLogicNode* pSrc, SInterpFuncLogicNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
+  CLONE_NODE_LIST_FIELD(pFuncs);
+  COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
+  COPY_SCALAR_FIELD(interval);
+  COPY_SCALAR_FIELD(fillMode);
+  CLONE_NODE_FIELD(pFillValues);
+  CLONE_NODE_FIELD(pTimeSeries);
   return (SNode*)pDst;
 }
 
@@ -495,7 +508,7 @@ static SNode* physiTableScanCopy(const STableScanPhysiNode* pSrc, STableScanPhys
   COPY_SCALAR_FIELD(ratio);
   COPY_SCALAR_FIELD(dataRequired);
   CLONE_NODE_LIST_FIELD(pDynamicScanFuncs);
-  CLONE_NODE_LIST_FIELD(pPartitionKeys);
+  CLONE_NODE_LIST_FIELD(pPartitionTags);
   COPY_SCALAR_FIELD(interval);
   COPY_SCALAR_FIELD(offset);
   COPY_SCALAR_FIELD(sliding);
@@ -521,6 +534,7 @@ static SNode* physiWindowCopy(const SWinodwPhysiNode* pSrc, SWinodwPhysiNode* pD
   CLONE_NODE_LIST_FIELD(pExprs);
   CLONE_NODE_LIST_FIELD(pFuncs);
   CLONE_NODE_FIELD(pTspk);
+  CLONE_NODE_FIELD(pTsEnd);
   COPY_SCALAR_FIELD(triggerType);
   COPY_SCALAR_FIELD(watermark);
   COPY_SCALAR_FIELD(filesFactor);
@@ -534,6 +548,12 @@ static SNode* physiIntervalCopy(const SIntervalPhysiNode* pSrc, SIntervalPhysiNo
   COPY_SCALAR_FIELD(sliding);
   COPY_SCALAR_FIELD(intervalUnit);
   COPY_SCALAR_FIELD(slidingUnit);
+  return (SNode*)pDst;
+}
+
+static SNode* physiSessionCopy(const SSessionWinodwPhysiNode* pSrc, SSessionWinodwPhysiNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(window, physiWindowCopy);
+  COPY_SCALAR_FIELD(gap);
   return (SNode*)pDst;
 }
 
@@ -661,6 +681,8 @@ SNode* nodesCloneNode(const SNode* pNode) {
       return logicPartitionCopy((const SPartitionLogicNode*)pNode, (SPartitionLogicNode*)pDst);
     case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC:
       return logicIndefRowsFuncCopy((const SIndefRowsFuncLogicNode*)pNode, (SIndefRowsFuncLogicNode*)pDst);
+    case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
+      return logicInterpFuncCopy((const SInterpFuncLogicNode*)pNode, (SInterpFuncLogicNode*)pDst);
     case QUERY_NODE_LOGIC_SUBPLAN:
       return logicSubplanCopy((const SLogicSubplan*)pNode, (SLogicSubplan*)pDst);
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
@@ -677,6 +699,9 @@ SNode* nodesCloneNode(const SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
       return physiIntervalCopy((const SIntervalPhysiNode*)pNode, (SIntervalPhysiNode*)pDst);
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION:
+      return physiSessionCopy((const SSessionWinodwPhysiNode*)pNode, (SSessionWinodwPhysiNode*)pDst);
     default:
       break;
   }

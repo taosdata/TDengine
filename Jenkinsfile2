@@ -38,6 +38,7 @@ def pre_test(){
     sh '''
         hostname
         date
+        env
     '''
     sh '''
         cd ${WK}
@@ -82,23 +83,33 @@ def pre_test(){
         sh '''
             cd ${WKC}
             git pull >/dev/null
+            git log -5
+            echo "`date "+%Y%m%d-%H%M%S"` ${JOB_NAME}:${BRANCH_NAME}:${BUILD_ID}:${CHANGE_TARGET}" >>${WKDIR}/jenkins.log
+            echo "community log: `git log -5`" >>${WKDIR}/jenkins.log
             git fetch origin +refs/pull/${CHANGE_ID}/merge
             git checkout -qf FETCH_HEAD
             git log -5
+            echo "community log merged: `git log -5`" >>${WKDIR}/jenkins.log
             cd ${WK}
             git pull >/dev/null
             git log -5
+            echo "tdinternal log: `git log -5`" >>${WKDIR}/jenkins.log
         '''
     } else if (env.CHANGE_URL =~ /\/TDinternal\//) {
         sh '''
             cd ${WK}
             git pull >/dev/null
+            git log -5
+            echo "`date "+%Y%m%d-%H%M%S"` ${JOB_NAME}:${BRANCH_NAME}:${BUILD_ID}:${CHANGE_TARGET}" >>${WKDIR}/jenkins.log
+            echo "tdinternal log: `git log -5`" >>${WKDIR}/jenkins.log
             git fetch origin +refs/pull/${CHANGE_ID}/merge
             git checkout -qf FETCH_HEAD
             git log -5
+            echo "tdinternal log merged: `git log -5`" >>${WKDIR}/jenkins.log
             cd ${WKC}
             git pull >/dev/null
             git log -5
+            echo "community log: `git log -5`" >>${WKDIR}/jenkins.log
         '''
     } else {
         sh '''
@@ -113,6 +124,9 @@ def pre_test(){
         cd ${WKPY}
         git reset --hard
         git pull
+        git log -5
+        echo "python connector log: `git log -5`" >>${WKDIR}/jenkins.log
+        echo >>${WKDIR}/jenkins.log
     '''
     return 1
 }

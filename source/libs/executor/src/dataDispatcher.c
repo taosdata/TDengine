@@ -75,12 +75,18 @@ static bool needCompress(const SSDataBlock* pData, int32_t numOfCols) {
 // The length of bitmap is decided by number of rows of this data block, and the length of each column data is
 // recorded in the first segment, next to the struct header
 static void toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* pInput, SDataDispatchBuf* pBuf) {
-  int32_t numOfCols = LIST_LENGTH(pHandle->pSchema->pSlots);
-
+  int32_t numOfCols = 0;
+  SNode* pNode;
+  FOREACH(pNode, pHandle->pSchema->pSlots) {
+    SSlotDescNode* pSlotDesc = (SSlotDescNode*)pNode;
+    if (pSlotDesc->output) {
+      ++numOfCols;
+    }
+  }
   SDataCacheEntry* pEntry = (SDataCacheEntry*)pBuf->pData;
   pEntry->compressed = (int8_t)needCompress(pInput->pData, numOfCols);
   pEntry->numOfRows = pInput->pData->info.rows;
-  pEntry->numOfCols = pInput->pData->info.numOfCols;
+  pEntry->numOfCols = numOfCols;
   pEntry->dataLen = 0;
 
   pBuf->useSize = sizeof(SDataCacheEntry);

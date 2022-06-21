@@ -134,6 +134,7 @@ int32_t streamBuildDispatchMsg(SStreamTask* pTask, SStreamDataBlock* data, SRpcM
     int32_t sz = taosArrayGetSize(vgInfo);
     for (int32_t i = 0; i < sz; i++) {
       SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, i);
+      ASSERT(pVgInfo->vgId > 0);
       if (hashValue >= pVgInfo->hashBegin && hashValue <= pVgInfo->hashEnd) {
         vgId = pVgInfo->vgId;
         downstreamTaskId = pVgInfo->taskId;
@@ -143,7 +144,7 @@ int32_t streamBuildDispatchMsg(SStreamTask* pTask, SStreamDataBlock* data, SRpcM
     }
   }
 
-  ASSERT(vgId != 0);
+  ASSERT(vgId > 0 || vgId == SNODE_HANDLE);
   req.taskId = downstreamTaskId;
 
   qInfo("dispatch from task %d (child id %d) to down stream task %d in vnode %d", pTask->taskId, pTask->childId,
@@ -197,6 +198,8 @@ int32_t streamDispatch(SStreamTask* pTask, SMsgCb* pMsgCb) {
     return 0;
   }
   ASSERT(pBlock->type == STREAM_DATA_TYPE_SSDATA_BLOCK);
+
+  qInfo("stream continue dispatching: task %d", pTask->taskId);
 
   SRpcMsg dispatchMsg = {0};
   SEpSet* pEpSet = NULL;

@@ -56,7 +56,6 @@ SStreamTask* sndMetaGetTask(SStreamMeta* pMeta, int32_t taskId);
 int32_t      sndMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId);
 
 int32_t sndDropTaskOfStream(SStreamMeta* pMeta, int64_t streamId);
-
 int32_t sndStopTaskOfStream(SStreamMeta* pMeta, int64_t streamId);
 int32_t sndResumeTaskOfStream(SStreamMeta* pMeta, int64_t streamId);
 

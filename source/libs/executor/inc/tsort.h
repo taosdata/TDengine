@@ -63,7 +63,7 @@ typedef int32_t (*_sort_merge_compar_fn_t)(const void* p1, const void* p2, void*
  * @param type
  * @return
  */
-SSortHandle* tsortCreateSortHandle(SArray* pOrderInfo, SArray* pIndexMap, int32_t type, int32_t pageSize, int32_t numOfPages, SSDataBlock* pBlock, const char* idstr);
+SSortHandle* tsortCreateSortHandle(SArray* pOrderInfo, int32_t type, int32_t pageSize, int32_t numOfPages, SSDataBlock* pBlock, const char* idstr);
 
 /**
  *
@@ -132,12 +132,6 @@ void* tsortGetValue(STupleHandle* pVHandle, int32_t colId);
 
 /**
  *
- * @param pVHandle
- * @return
- */
-uint64_t tsortGetGroupId(STupleHandle* pVHandle);
-/**
- *
  * @param pSortHandle
  * @return
  */
@@ -150,6 +144,13 @@ SSDataBlock* tsortGetSortedDataBlock(const SSortHandle* pSortHandle);
  * @return
  */
 SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle);
+
+/**
+ * get proper sort buffer pages according to the row size
+ * @param rowSize
+ * @return
+ */
+int32_t getProperSortPageSize(size_t rowSize);
 
 #ifdef __cplusplus
 }

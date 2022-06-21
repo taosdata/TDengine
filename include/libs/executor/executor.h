@@ -38,8 +38,10 @@ typedef struct SReadHandle {
   SMsgCb* pMsgCb;
 } SReadHandle;
 
-#define STREAM_DATA_TYPE_SUBMIT_BLOCK 0x1
-#define STREAM_DATA_TYPE_SSDATA_BLOCK 0x2
+enum {
+  STREAM_DATA_TYPE_SUBMIT_BLOCK = 1,
+  STREAM_DATA_TYPE_SSDATA_BLOCK = 2,
+};
 
 typedef enum {
   OPTR_EXEC_MODEL_BATCH = 0x1,
@@ -93,7 +95,7 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
  * @return
  */
 int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, struct SSubplan* pPlan,
-                        qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, EOPTR_EXEC_MODEL model);
+                        qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, const char* sql, EOPTR_EXEC_MODEL model);
 
 /**
  *
@@ -102,7 +104,8 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
  * @param tversion
  * @return
  */
-int32_t qGetQueriedTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* tableName, int32_t* sversion, int32_t* tversion);
+int32_t qGetQueriedTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* tableName, int32_t* sversion,
+                                      int32_t* tversion);
 
 /**
  * The main task execution function, including query on both table and multiple tables,
@@ -156,17 +159,13 @@ int64_t qGetQueriedTableUid(qTaskInfo_t tinfo);
  */
 int32_t qGetQualifiedTableIdList(void* pTableList, const char* tagCond, int32_t tagCondLen, SArray* pTableIdList);
 
-/**
- * Update the table id list of a given query.
- * @param uid   child table uid
- * @param type  operation type: ADD|DROP
- * @return
- */
-int32_t qUpdateQueriedTableIdList(qTaskInfo_t tinfo, int64_t uid, int32_t type);
-
 void qProcessFetchRsp(void* parent, struct SRpcMsg* pMsg, struct SEpSet* pEpSet);
 
 int32_t qGetExplainExecInfo(qTaskInfo_t tinfo, int32_t* resNum, SExplainExecInfo** pRes);
+
+int32_t qSerializeTaskStatus(qTaskInfo_t tinfo, char** pOutput, int32_t* len);
+
+int32_t qDeserializeTaskStatus(qTaskInfo_t tinfo, const char* pInput, int32_t len);
 
 #ifdef __cplusplus
 }

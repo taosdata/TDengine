@@ -33,8 +33,6 @@ typedef enum {
   JOB_TASK_STATUS_PARTIAL_SUCCEED,
   JOB_TASK_STATUS_SUCCEED,
   JOB_TASK_STATUS_FAILED,
-  JOB_TASK_STATUS_CANCELLING,
-  JOB_TASK_STATUS_CANCELLED,
   JOB_TASK_STATUS_DROPPING,
 } EJobTaskType;
 
@@ -48,6 +46,10 @@ typedef enum {
   TARGET_TYPE_VNODE,
   TARGET_TYPE_OTHER,
 } ETargetType;
+
+#define QUERY_POLICY_VNODE  1
+#define QUERY_POLICY_HYBRID 2
+#define QUERY_POLICY_QNODE  3
 
 typedef struct STableComInfo {
   uint8_t  numOfTags;     // the number of tags in schema

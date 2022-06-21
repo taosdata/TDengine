@@ -28,27 +28,32 @@ static SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator);
 static void         destroyMergeJoinOperator(void* param, int32_t numOfOutput);
 static void         extractTimeCondition(SJoinOperatorInfo* Info, SLogicConditionNode* pLogicConditionNode);
 
-SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream, SExprInfo* pExprInfo,
-                                           int32_t numOfCols, SSDataBlock* pResBlock, SNode* pOnCondition,
-                                           SExecTaskInfo* pTaskInfo) {
+SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream, SJoinPhysiNode* pJoinNode,
+    SExecTaskInfo* pTaskInfo) {
   SJoinOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SJoinOperatorInfo));
   SOperatorInfo*     pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pOperator == NULL || pInfo == NULL) {
     goto _error;
   }
 
+  SSDataBlock*    pResBlock = createResDataBlock(pJoinNode->node.pOutputDataBlockDesc);
+
+  int32_t numOfCols = 0;
+  SExprInfo* pExprInfo = createExprInfo(pJoinNode->pTargets, NULL, &numOfCols);
+
   initResultSizeInfo(pOperator, 4096);
 
-  pInfo->pRes = pResBlock;
-  pOperator->name = "MergeJoinOperator";
+  pInfo->pRes             = pResBlock;
+  pOperator->name         = "MergeJoinOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN;
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->pExpr = pExprInfo;
-  pOperator->numOfExprs = numOfCols;
-  pOperator->info = pInfo;
-  pOperator->pTaskInfo = pTaskInfo;
+  pOperator->blocking     = false;
+  pOperator->status       = OP_NOT_OPENED;
+  pOperator->exprSupp.pExprInfo   = pExprInfo;
+  pOperator->exprSupp.numOfExprs  = numOfCols;
+  pOperator->info         = pInfo;
+  pOperator->pTaskInfo    = pTaskInfo;
 
+  SNode* pOnCondition = pJoinNode->pOnConditions;
   if (nodeType(pOnCondition) == QUERY_NODE_OPERATOR) {
     SOperatorNode* pNode = (SOperatorNode*)pOnCondition;
     setJoinColumnInfo(&pInfo->leftCol, (SColumnNode*)pNode->pLeft);
@@ -127,10 +132,10 @@ SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
     // only the timestamp match support for ordinary table
     ASSERT(pLeftCol->info.type == TSDB_DATA_TYPE_TIMESTAMP);
     if (*(int64_t*)pLeftVal == *(int64_t*)pRightVal) {
-      for (int32_t i = 0; i < pOperator->numOfExprs; ++i) {
+      for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
         SColumnInfoData* pDst = taosArrayGet(pRes->pDataBlock, i);
 
-        SExprInfo* pExprInfo = &pOperator->pExpr[i];
+        SExprInfo* pExprInfo = &pOperator->exprSupp.pExprInfo[i];
 
         int32_t blockId = pExprInfo->base.pParam[0].pCol->dataBlockId;
         int32_t slotId = pExprInfo->base.pParam[0].pCol->slotId;

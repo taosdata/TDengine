@@ -69,6 +69,7 @@ typedef struct SCatalogReq {
   SArray* pUser;          // element is SUserAuthInfo
   SArray* pTableIndex;    // element is SNAME
   bool    qNodeRequired;  // valid qnode
+  bool    dNodeRequired;  // valid dnode
   bool    forceUpdate;
 } SCatalogReq;
 
@@ -87,7 +88,8 @@ typedef struct SMetaData {
   SArray* pUdfList;     // pRes = SFuncInfo*
   SArray* pIndex;       // pRes = SIndexInfo*
   SArray* pUser;        // pRes = bool*
-  SArray* pQnodeList;   // pRes = SQueryNodeAddr*
+  SArray* pQnodeList;   // pRes = SArray<SQueryNodeLoad>*
+  SArray* pDnodeList;   // pRes = SArray<SEpSet>*
 } SMetaData;
 
 typedef struct SCatalogCfg {
@@ -268,6 +270,8 @@ int32_t catalogAsyncGetAllMeta(SCatalog* pCtg, SRequestConnInfo* pConn, uint64_t
 
 int32_t catalogGetQnodeList(SCatalog* pCatalog, SRequestConnInfo* pConn, SArray* pQnodeList);
 
+int32_t catalogGetDnodeList(SCatalog* pCatalog, SRequestConnInfo* pConn, SArray** pDnodeList);
+
 int32_t catalogGetExpiredSTables(SCatalog* pCatalog, SSTableVersion **stables, uint32_t *num);
 
 int32_t catalogGetExpiredDBs(SCatalog* pCatalog, SDbVgVersion** dbs, uint32_t* num);
@@ -291,6 +295,8 @@ int32_t catalogUpdateUserAuthInfo(SCatalog* pCtg, SGetUserAuthRsp* pAuth);
 int32_t catalogUpdateVgEpSet(SCatalog* pCtg, const char* dbFName, int32_t vgId, SEpSet *epSet);
 
 int32_t ctgdLaunchAsyncCall(SCatalog* pCtg, SRequestConnInfo* pConn, uint64_t reqId, bool forceUpdate);
+
+int32_t catalogClearCache(void);
 
 /**
  * Destroy catalog and relase all resources

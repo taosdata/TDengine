@@ -15,6 +15,7 @@
 
 #include "syncRaftLog.h"
 #include "syncRaftCfg.h"
+#include "syncRaftStore.h"
 #include "wal.h"
 
 // refactor, log[0 .. n] ==> log[m .. n]
@@ -162,9 +163,10 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
 
   walFsync(pWal, true);
 
-  sDebug("vgId:%d sync event write index:%ld, %s, isStandBy:%d, msgType:%s, originalRpcType:%s", pData->pSyncNode->vgId,
-         pEntry->index, syncUtilState2String(pData->pSyncNode->state), pData->pSyncNode->pRaftCfg->isStandBy,
-         TMSG_INFO(pEntry->msgType), TMSG_INFO(pEntry->originalRpcType));
+  char eventLog[128];
+  snprintf(eventLog, sizeof(eventLog), "write index:%ld, type:%s,%d, type2:%s,%d", pEntry->index,
+           TMSG_INFO(pEntry->msgType), pEntry->msgType, TMSG_INFO(pEntry->originalRpcType), pEntry->originalRpcType);
+  syncNodeEventLog(pData->pSyncNode, eventLog);
 
   return code;
 }
@@ -316,11 +318,14 @@ int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
            linuxErrMsg);
     ASSERT(0);
   }
-  // assert(code == 0);
 
   walFsync(pWal, true);
 
-  sDebug("sync event old write wal: %ld", pEntry->index);
+  char eventLog[128];
+  snprintf(eventLog, sizeof(eventLog), "old write index:%ld, type:%s,%d, type2:%s,%d", pEntry->index,
+           TMSG_INFO(pEntry->msgType), pEntry->msgType, TMSG_INFO(pEntry->originalRpcType), pEntry->originalRpcType);
+  syncNodeEventLog(pData->pSyncNode, eventLog);
+
   return code;
 }
 

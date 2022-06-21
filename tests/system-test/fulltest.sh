@@ -18,11 +18,11 @@ python3 ./test.py -f 0-others/fsync.py
 python3 ./test.py -f 1-insert/influxdb_line_taosc_insert.py
 python3 ./test.py -f 1-insert/opentsdb_telnet_line_taosc_insert.py
 python3 ./test.py -f 1-insert/opentsdb_json_taosc_insert.py
-# python3 ./test.py -f 1-insert/test_stmt_muti_insert_query.py
+# BUG python3 ./test.py -f 1-insert/test_stmt_muti_insert_query.py
 python3 ./test.py -f 1-insert/alter_stable.py
 python3 ./test.py -f 1-insert/alter_table.py
 python3 ./test.py -f 1-insert/insertWithMoreVgroup.py
-# python3 ./test.py -f 1-inerst/create_table_comment.py
+python3 ./test.py -f 1-insert/table_comment.py
 python3 ./test.py -f 2-query/between.py
 python3 ./test.py -f 2-query/distinct.py
 python3 ./test.py -f 2-query/varchar.py
@@ -44,6 +44,8 @@ python3 ./test.py -f 2-query/concat_ws2.py
 python3 ./test.py -f 2-query/check_tsdb.py
 python3 ./test.py -f 2-query/spread.py
 python3 ./test.py -f 2-query/hyperloglog.py
+python3 ./test.py -f 2-query/explain.py
+python3 ./test.py -f 2-query/leastsquares.py
 
 
 python3 ./test.py -f 2-query/timezone.py
@@ -80,7 +82,7 @@ python3 ./test.py -f 2-query/arccos.py
 python3 ./test.py -f 2-query/arctan.py
 python3 ./test.py -f 2-query/query_cols_tags_and_or.py
 # python3 ./test.py -f 2-query/nestedQuery.py
-# TD-15983 subquery output duplicate name column. 
+# TD-15983 subquery output duplicate name column.
 # Please Xiangyang Guo modify the following script
 # python3 ./test.py -f 2-query/nestedQuery_str.py
 
@@ -96,15 +98,26 @@ python3 ./test.py -f 2-query/stateduration.py
 python3 ./test.py -f 2-query/function_stateduration.py
 python3 ./test.py -f 2-query/statecount.py
 python3 ./test.py -f 2-query/tail.py
+python3 ./test.py -f 2-query/ttl_comment.py
+python3 ./test.py -f 2-query/distribute_agg_count.py
+python3 ./test.py -f 2-query/distribute_agg_max.py
+python3 ./test.py -f 2-query/distribute_agg_min.py
+python3 ./test.py -f 2-query/distribute_agg_sum.py
+python3 ./test.py -f 2-query/distribute_agg_spread.py
+python3 ./test.py -f 2-query/distribute_agg_apercentile.py
 
 python3 ./test.py -f 6-cluster/5dnode1mnode.py 
 python3 ./test.py -f 6-cluster/5dnode2mnode.py 
-python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py
+#python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py
+#python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py
+# BUG python3 ./test.py -f 6-cluster/5dnode3mnodeStopInsert.py 
 
 python3 ./test.py -f 7-tmq/basic5.py
 python3 ./test.py -f 7-tmq/subscribeDb.py
 python3 ./test.py -f 7-tmq/subscribeDb0.py
 python3 ./test.py -f 7-tmq/subscribeDb1.py
+python3 ./test.py -f 7-tmq/subscribeDb2.py
+python3 ./test.py -f 7-tmq/subscribeDb3.py
 python3 ./test.py -f 7-tmq/subscribeStb.py
 python3 ./test.py -f 7-tmq/subscribeStb0.py
 python3 ./test.py -f 7-tmq/subscribeStb1.py
@@ -112,3 +125,5 @@ python3 ./test.py -f 7-tmq/subscribeStb2.py
 python3 ./test.py -f 7-tmq/subscribeStb3.py
 python3 ./test.py -f 7-tmq/subscribeStb4.py
 python3 ./test.py -f 7-tmq/db.py
+python3 ./test.py -f 7-tmq/tmqError.py
+python3 ./test.py -f 7-tmq/schema.py

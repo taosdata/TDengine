@@ -250,7 +250,7 @@ The [Taos] structure is the connection manager in [libtaos] and provides two mai
 
     Column information is stored using [ColumnMeta].
 
-    ``rust
+    ```rust
     let cols = &q.column_meta;
     for col in cols {
         println!("name: {}, type: {:?} , bytes: {}", col.name, col.type_, col.bytes);

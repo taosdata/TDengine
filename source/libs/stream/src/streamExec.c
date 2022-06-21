@@ -20,15 +20,17 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) 
   void* exec = pTask->exec.executor;
 
   // set input
-  if (pTask->inputType == STREAM_INPUT__DATA_SUBMIT) {
+  SStreamQueueItem* pItem = (SStreamQueueItem*)data;
+  if (pItem->type == STREAM_INPUT__TRIGGER) {
+    SStreamTrigger* pTrigger = (SStreamTrigger*)data;
+    qSetMultiStreamInput(exec, pTrigger->pBlock, 1, STREAM_DATA_TYPE_SSDATA_BLOCK, false);
+  } else if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
     SStreamDataSubmit* pSubmit = (SStreamDataSubmit*)data;
-    ASSERT(pSubmit->type == STREAM_INPUT__DATA_SUBMIT);
-
+    ASSERT(pTask->inputType == STREAM_INPUT__DATA_SUBMIT);
     qSetStreamInput(exec, pSubmit->data, STREAM_DATA_TYPE_SUBMIT_BLOCK, false);
-  } else if (pTask->inputType == STREAM_INPUT__DATA_BLOCK) {
+  } else if (pItem->type == STREAM_INPUT__DATA_BLOCK) {
     SStreamDataBlock* pBlock = (SStreamDataBlock*)data;
-    ASSERT(pBlock->type == STREAM_INPUT__DATA_BLOCK);
-
+    ASSERT(pTask->inputType == STREAM_INPUT__DATA_BLOCK);
     SArray* blocks = pBlock->blocks;
     qSetMultiStreamInput(exec, blocks->pData, blocks->size, STREAM_DATA_TYPE_SSDATA_BLOCK, false);
   }
@@ -105,18 +107,19 @@ int32_t streamExec(SStreamTask* pTask, SMsgCb* pMsgCb) {
       pRes = streamExecForQall(pTask, pRes);
       if (pRes == NULL) goto FAIL;
 
-      break;
+      taosArrayDestroy(pRes);
+      atomic_store_8(&pTask->status, TASK_STATUS__IDLE);
+      return 0;
     } else if (execStatus == TASK_STATUS__CLOSING) {
       continue;
     } else if (execStatus == TASK_STATUS__EXECUTING) {
-      break;
+      ASSERT(taosArrayGetSize(pRes) == 0);
+      taosArrayDestroy(pRes);
+      return 0;
     } else {
       ASSERT(0);
     }
   }
-  if (pRes) taosArrayDestroy(pRes);
-  atomic_store_8(&pTask->status, TASK_STATUS__IDLE);
-  return 0;
 FAIL:
   if (pRes) taosArrayDestroy(pRes);
   atomic_store_8(&pTask->status, TASK_STATUS__IDLE);

@@ -17,123 +17,17 @@
 
 typedef struct SSmaStat SSmaStat;
 
-static const char *TSDB_SMA_DNAME[] = {
-    "",      // TSDB_SMA_TYPE_BLOCK
-    "tsma",  // TSDB_SMA_TYPE_TIME_RANGE
-    "rsma",  // TSDB_SMA_TYPE_ROLLUP
-};
-
-#define SMA_TEST_INDEX_NAME "smaTestIndexName"  // TODO: just for test
-#define SMA_TEST_INDEX_UID  2000000001          // TODO: just for test
-#define SMA_STATE_HASH_SLOT 4
-
 #define RSMA_TASK_INFO_HASH_SLOT 8
-
-typedef struct SPoolMem {
-  int64_t          size;
-  struct SPoolMem *prev;
-  struct SPoolMem *next;
-} SPoolMem;
 
 // declaration of static functions
 
-// insert data
-
-static void tdGetSmaDir(int32_t vgId, ETsdbSmaType smaType, char dirName[]);
-
-// Pool Memory
-static SPoolMem *openPool();
-static void      clearPool(SPoolMem *pPool);
-static void      closePool(SPoolMem *pPool);
-static void     *poolMalloc(void *arg, size_t size);
-static void      poolFree(void *arg, void *ptr);
+static int32_t  tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType);
+static SSmaEnv *tdNewSmaEnv(const SSma *pSma, int8_t smaType, const char *path);
+static int32_t  tdInitSmaEnv(SSma *pSma, int8_t smaType, const char *path, SSmaEnv **pEnv);
 
 // implementation
 
-static SPoolMem *openPool() {
-  SPoolMem *pPool = (SPoolMem *)taosMemoryMalloc(sizeof(*pPool));
-
-  pPool->prev = pPool->next = pPool;
-  pPool->size = 0;
-
-  return pPool;
-}
-
-static void clearPool(SPoolMem *pPool) {
-  if (!pPool) return;
-
-  SPoolMem *pMem;
-
-  do {
-    pMem = pPool->next;
-
-    if (pMem == pPool) break;
-
-    pMem->next->prev = pMem->prev;
-    pMem->prev->next = pMem->next;
-    pPool->size -= pMem->size;
-
-    taosMemoryFree(pMem);
-  } while (1);
-
-  assert(pPool->size == 0);
-}
-
-static void closePool(SPoolMem *pPool) {
-  if (pPool) {
-    clearPool(pPool);
-    taosMemoryFree(pPool);
-  }
-}
-
-static void *poolMalloc(void *arg, size_t size) {
-  void     *ptr = NULL;
-  SPoolMem *pPool = (SPoolMem *)arg;
-  SPoolMem *pMem;
-
-  pMem = (SPoolMem *)taosMemoryMalloc(sizeof(*pMem) + size);
-  if (!pMem) {
-    assert(0);
-  }
-
-  pMem->size = sizeof(*pMem) + size;
-  pMem->next = pPool->next;
-  pMem->prev = pPool;
-
-  pPool->next->prev = pMem;
-  pPool->next = pMem;
-  pPool->size += pMem->size;
-
-  ptr = (void *)(&pMem[1]);
-  return ptr;
-}
-
-static void poolFree(void *arg, void *ptr) {
-  SPoolMem *pPool = (SPoolMem *)arg;
-  SPoolMem *pMem;
-
-  pMem = &(((SPoolMem *)ptr)[-1]);
-
-  pMem->next->prev = pMem->prev;
-  pMem->prev->next = pMem->next;
-  pPool->size -= pMem->size;
-
-  taosMemoryFree(pMem);
-}
-
-int32_t tdInitSma(SSma *pSma) {
-  int32_t numOfTSma = taosArrayGetSize(metaGetSmaTbUids(SMA_META(pSma)));
-  if (numOfTSma > 0) {
-    atomic_store_16(&SMA_TSMA_NUM(pSma), (int16_t)numOfTSma);
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
-static void tdGetSmaDir(int32_t vgId, ETsdbSmaType smaType, char dirName[]) {
-  snprintf(dirName, TSDB_FILENAME_LEN, "vnode%svnode%d%s%s", TD_DIRSEP, vgId, TD_DIRSEP, TSDB_SMA_DNAME[smaType]);
-}
-
-static SSmaEnv *tdNewSmaEnv(const SSma *pSma, int8_t smaType, const char *path, SDiskID did) {
+static SSmaEnv *tdNewSmaEnv(const SSma *pSma, int8_t smaType, const char *path) {
   SSmaEnv *pEnv = NULL;
 
   pEnv = (SSmaEnv *)taosMemoryCalloc(1, sizeof(SSmaEnv));
@@ -156,18 +50,17 @@ static SSmaEnv *tdNewSmaEnv(const SSma *pSma, int8_t smaType, const char *path, 
     return NULL;
   }
 
-
   return pEnv;
 }
 
-static int32_t tdInitSmaEnv(SSma *pSma, int8_t smaType, const char *path, SDiskID did, SSmaEnv **pEnv) {
+static int32_t tdInitSmaEnv(SSma *pSma, int8_t smaType, const char *path, SSmaEnv **pEnv) {
   if (!pEnv) {
     terrno = TSDB_CODE_INVALID_PTR;
     return TSDB_CODE_FAILED;
   }
 
   if (!(*pEnv)) {
-    if (!(*pEnv = tdNewSmaEnv(pSma, smaType, path, did))) {
+    if (!(*pEnv = tdNewSmaEnv(pSma, smaType, path))) {
       return TSDB_CODE_FAILED;
     }
   }
@@ -183,15 +76,16 @@ static int32_t tdInitSmaEnv(SSma *pSma, int8_t smaType, const char *path, SDiskI
  */
 void tdDestroySmaEnv(SSmaEnv *pSmaEnv) {
   if (pSmaEnv) {
-    tdDestroySmaState(pSmaEnv->pStat, SMA_ENV_TYPE(pSmaEnv));
-    taosMemoryFreeClear(pSmaEnv->pStat);
+    pSmaEnv->pStat = tdFreeSmaState(pSmaEnv->pStat, SMA_ENV_TYPE(pSmaEnv));
     taosThreadRwlockDestroy(&(pSmaEnv->lock));
   }
 }
 
 void *tdFreeSmaEnv(SSmaEnv *pSmaEnv) {
-  tdDestroySmaEnv(pSmaEnv);
-  taosMemoryFreeClear(pSmaEnv);
+  if (pSmaEnv) {
+    tdDestroySmaEnv(pSmaEnv);
+    taosMemoryFreeClear(pSmaEnv);
+  }
   return NULL;
 }
 
@@ -239,13 +133,7 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType) {
         return TSDB_CODE_FAILED;
       }
     } else if (smaType == TSDB_SMA_TYPE_TIME_RANGE) {
-      SMA_STAT_ITEMS(*pSmaStat) =
-          taosHashInit(SMA_STATE_HASH_SLOT, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-
-      if (!SMA_STAT_ITEMS(*pSmaStat)) {
-        taosMemoryFreeClear(*pSmaStat);
-        return TSDB_CODE_FAILED;
-      }
+      // TODO
     } else {
       ASSERT(0);
     }
@@ -262,6 +150,12 @@ void *tdFreeSmaStatItem(SSmaStatItem *pSmaStatItem) {
   return NULL;
 }
 
+void* tdFreeSmaState(SSmaStat *pSmaStat, int8_t smaType) {
+  tdDestroySmaState(pSmaStat, smaType);
+  taosMemoryFreeClear(pSmaStat);
+  return NULL;
+}
+
 /**
  * @brief Release resources allocated for its member fields, not including itself.
  *
@@ -270,16 +164,10 @@ void *tdFreeSmaStatItem(SSmaStatItem *pSmaStatItem) {
  */
 int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType) {
   if (pSmaStat) {
-    // TODO: use taosHashSetFreeFp when taosHashSetFreeFp is ready.
     if (smaType == TSDB_SMA_TYPE_TIME_RANGE) {
-      void *item = taosHashIterate(SMA_STAT_ITEMS(pSmaStat), NULL);
-      while (item) {
-        SSmaStatItem *pItem = *(SSmaStatItem **)item;
-        tdFreeSmaStatItem(pItem);
-        item = taosHashIterate(SMA_STAT_ITEMS(pSmaStat), item);
-      }
-      taosHashCleanup(SMA_STAT_ITEMS(pSmaStat));
+      tdFreeSmaStatItem(&pSmaStat->tsmaStatItem);
     } else if (smaType == TSDB_SMA_TYPE_ROLLUP) {
+      // TODO: use taosHashSetFreeFp when taosHashSetFreeFp is ready.
       void *infoHash = taosHashIterate(SMA_STAT_INFO_HASH(pSmaStat), NULL);
       while (infoHash) {
         SRSmaInfo *pInfoHash = *(SRSmaInfo **)infoHash;
@@ -317,10 +205,9 @@ int32_t tdUnLockSma(SSma *pSma) {
   return 0;
 }
 
-int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType, bool onlyCheck) {
+int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType) {
   SSmaEnv *pEnv = NULL;
 
-  // return if already init
   switch (smaType) {
     case TSDB_SMA_TYPE_TIME_RANGE:
       if ((pEnv = (SSmaEnv *)atomic_load_ptr(&SMA_TSMA_ENV(pSma)))) {
@@ -344,26 +231,7 @@ int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType, bool onlyCheck) {
   if (!pEnv) {
     char rname[TSDB_FILENAME_LEN] = {0};
 
-    SDiskID did = {0};
-    if (tfsAllocDisk(SMA_TFS(pSma), TFS_PRIMARY_LEVEL, &did) < 0) {
-      tdUnLockSma(pSma);
-      return TSDB_CODE_FAILED;
-    }
-
-    if (did.level < 0 || did.id < 0) {
-      tdUnLockSma(pSma);
-      smaError("vgId:%d, init sma env failed since invalid did(%d,%d)", SMA_VID(pSma), did.level, did.id);
-      return TSDB_CODE_FAILED;
-    }
-
-    tdGetSmaDir(SMA_VID(pSma), smaType, rname);
-
-    if (tfsMkdirRecurAt(SMA_TFS(pSma), rname, did) < 0) {
-      tdUnLockSma(pSma);
-      return TSDB_CODE_FAILED;
-    }
-
-    if (tdInitSmaEnv(pSma, smaType, rname, did, &pEnv) < 0) {
+    if (tdInitSmaEnv(pSma, smaType, rname, &pEnv) < 0) {
       tdUnLockSma(pSma);
       return TSDB_CODE_FAILED;
     }
@@ -375,3 +243,34 @@ int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType, bool onlyCheck) {
 
   return TSDB_CODE_SUCCESS;
 };
+
+int32_t smaTimerInit(void **timer, int8_t *initFlag, const char *label) {
+  int8_t old;
+  while (1) {
+    old = atomic_val_compare_exchange_8(initFlag, 0, 2);
+    if (old != 2) break;
+  }
+
+  if (old == 0) {
+    *timer = taosTmrInit(10000, 100, 10000, label);
+    if (!(*timer)) {
+      atomic_store_8(initFlag, 0);
+      return -1;
+    }
+    atomic_store_8(initFlag, 1);
+  }
+  return 0;
+}
+
+void smaTimerCleanUp(void *timer, int8_t *initFlag) {
+  int8_t old;
+  while (1) {
+    old = atomic_val_compare_exchange_8(initFlag, 1, 2);
+    if (old != 2) break;
+  }
+
+  if (old == 1) {
+    taosTmrCleanUp(timer);
+    atomic_store_8(initFlag, 0);
+  }
+}

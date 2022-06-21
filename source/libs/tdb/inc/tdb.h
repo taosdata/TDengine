@@ -58,6 +58,7 @@ int32_t tdbTbcMoveToPrev(TBC *pTbc);
 int32_t tdbTbcGet(TBC *pTbc, const void **ppKey, int *pkLen, const void **ppVal, int *pvLen);
 int32_t tdbTbcDelete(TBC *pTbc);
 int32_t tdbTbcNext(TBC *pTbc, void **ppKey, int *kLen, void **ppVal, int *vLen);
+int32_t tdbTbcPrev(TBC *pTbc, void **ppKey, int *kLen, void **ppVal, int *vLen);
 int32_t tdbTbcUpsert(TBC *pTbc, const void *pKey, int nKey, const void *pData, int nData, int insert);
 
 // TXN

@@ -53,11 +53,12 @@ SSdb *sdbInit(SSdbOpt *pOption) {
   }
 
   pSdb->pWal = pOption->pWal;
-  pSdb->curVer = -1;
-  pSdb->curTerm = -1;
-  pSdb->lastCommitVer = -1;
-  pSdb->lastCommitTerm = -1;
-  pSdb->curConfig = -1;
+  pSdb->applyIndex = -1;
+  pSdb->applyTerm = -1;
+  pSdb->applyConfig = -1;
+  pSdb->commitIndex = -1;
+  pSdb->commitTerm = -1;
+  pSdb->commitConfig = -1;
   pSdb->pMnode = pOption->pMnode;
   taosThreadMutexInit(&pSdb->filelock, NULL);
   mDebug("sdb init successfully");
@@ -67,7 +68,7 @@ SSdb *sdbInit(SSdbOpt *pOption) {
 void sdbCleanup(SSdb *pSdb) {
   mDebug("start to cleanup sdb");
 
-  sdbWriteFile(pSdb);
+  sdbWriteFile(pSdb, 0);
 
   if (pSdb->currDir != NULL) {
     taosMemoryFreeClear(pSdb->currDir);
@@ -159,23 +160,24 @@ static int32_t sdbCreateDir(SSdb *pSdb) {
   return 0;
 }
 
-void sdbSetApplyIndex(SSdb *pSdb, int64_t index) { pSdb->curVer = index; }
-
-void sdbSetApplyTerm(SSdb *pSdb, int64_t term) { pSdb->curTerm = term; }
-
-void sdbSetCurConfig(SSdb *pSdb, int64_t config) {
-  if (pSdb->curConfig != config) {
-    mDebug("mnode sync config set from %" PRId64 " to %" PRId64, pSdb->curConfig, config);
-    pSdb->curConfig = config;
-  }
+void sdbSetApplyInfo(SSdb *pSdb, int64_t index, int64_t term, int64_t config) {
+#if 1
+  mTrace("mnode apply info changed from index:%" PRId64 " term:%" PRId64 " config:%" PRId64 " to index:%" PRId64
+         " term:%" PRId64 " config:%" PRId64,
+         pSdb->applyIndex, pSdb->applyTerm, pSdb->applyConfig, index, term, config);
+#endif
+  pSdb->applyIndex = index;
+  pSdb->applyTerm = term;
+  pSdb->applyConfig = config;
 }
 
-int64_t sdbGetApplyIndex(SSdb *pSdb) { return pSdb->curVer; }
-
-int64_t sdbGetApplyTerm(SSdb *pSdb) { return pSdb->curTerm; }
-
-int64_t sdbGetCommitIndex(SSdb *pSdb) { return pSdb->lastCommitVer; }
-
-int64_t sdbGetCommitTerm(SSdb *pSdb) { return pSdb->lastCommitTerm; }
-
-int64_t sdbGetCurConfig(SSdb *pSdb) { return pSdb->curConfig; }
+void sdbGetCommitInfo(SSdb *pSdb, int64_t *index, int64_t *term, int64_t *config) {
+  *index = pSdb->commitIndex;
+  *term = pSdb->commitTerm;
+  *config = pSdb->commitConfig;
+#if 0
+  mTrace("mnode current info, apply index:%" PRId64 " term:%" PRId64 " config:%" PRId64 ", commit index:%" PRId64
+         " term:%" PRId64 " config:%" PRId64,
+         pSdb->applyIndex, pSdb->applyTerm, pSdb->applyConfig, *index, *term, *config);
+#endif
+}

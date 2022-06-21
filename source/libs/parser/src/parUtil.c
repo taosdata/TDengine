@@ -90,7 +90,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_GROUPBY_WINDOW_COEXIST:
       return "GROUP BY and WINDOW-clause can't be used together";
     case TSDB_CODE_PAR_INVALID_OPTION_UNIT:
-      return "Invalid option %s unit: %c, only m, h, d allowed";
+      return "Invalid option %s unit: %c, only %c, %c, %c allowed";
     case TSDB_CODE_PAR_INVALID_KEEP_UNIT:
       return "Invalid option keep unit: %c, only m, h, d allowed";
     case TSDB_CODE_PAR_AGG_FUNC_NESTING:
@@ -185,9 +185,19 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_INVALID_REDISTRIBUTE_VG:
       return "The REDISTRIBUTE VGROUP statement only support 1 to 3 dnodes";
     case TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC:
-      return "%s function not allowed in fill query";
+      return "%s function does not supportted in fill query";
     case TSDB_CODE_PAR_INVALID_WINDOW_PC:
-      return "_WSTARTTS, _WENDTS and _WDURATION can only be used in window queries";
+      return "_WSTARTTS, _WENDTS and _WDURATION can only be used in window query";
+    case TSDB_CODE_PAR_WINDOW_NOT_ALLOWED_FUNC:
+      return "%s function does not supportted in time window query";
+    case TSDB_CODE_PAR_STREAM_NOT_ALLOWED_FUNC:
+      return "%s function does not supportted in stream query";
+    case TSDB_CODE_PAR_GROUP_BY_NOT_ALLOWED_FUNC:
+      return "%s function does not supportted in group query";
+    case TSDB_CODE_PAR_INVALID_TABLE_OPTION:
+      return "Invalid option %s";
+    case TSDB_CODE_PAR_INVALID_INTERP_CLAUSE:
+      return "Invalid usage of RANGE clause, EVERY clause or FILL clause";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:
@@ -551,6 +561,7 @@ int32_t buildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalog
   if (TSDB_CODE_SUCCESS == code) {
     code = buildTableReq(pMetaCache->pTableIndex, &pCatalogReq->pTableIndex);
   }
+  pCatalogReq->dNodeRequired = pMetaCache->dnodeRequired;
   return code;
 }
 
@@ -646,6 +657,7 @@ int32_t putMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMet
   if (TSDB_CODE_SUCCESS == code) {
     code = putTableDataToCache(pCatalogReq->pTableIndex, pMetaData->pTableIndex, &pMetaCache->pTableIndex);
   }
+  pMetaCache->pDnodes = pMetaData->pDnodeList;
   return code;
 }
 
@@ -863,6 +875,19 @@ int32_t getTableIndexFromCache(SParseMetaCache* pMetaCache, const SName* pName, 
     }
   }
   return code;
+}
+
+int32_t reserveDnodeRequiredInCache(SParseMetaCache* pMetaCache) {
+  pMetaCache->dnodeRequired = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t getDnodeListFromCache(SParseMetaCache* pMetaCache, SArray** pDnodes) {
+  *pDnodes = taosArrayDup(pMetaCache->pDnodes);
+  if (NULL == *pDnodes) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 void destoryParseMetaCache(SParseMetaCache* pMetaCache) {

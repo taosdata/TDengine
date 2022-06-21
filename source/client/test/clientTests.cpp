@@ -43,7 +43,28 @@ void showDB(TAOS* pConn) {
   }
 }
 
+void printResult(TAOS_RES* pRes) {
+  TAOS_ROW    pRow = NULL;
+  TAOS_FIELD* pFields = taos_fetch_fields(pRes);
+  int32_t     numOfFields = taos_num_fields(pRes);
+
+  int32_t n = 0;
+  char str[512] = {0};
+  while ((pRow = taos_fetch_row(pRes)) != NULL) {
+    int32_t* length = taos_fetch_lengths(pRes);
+    for(int32_t i = 0; i < numOfFields; ++i) {
+      printf("(%d):%d " , i, length[i]);
+    }
+    printf("\n");
+
+    int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
+    printf("%s\n", str);
+    memset(str, 0, sizeof(str));
+  }
+}
+
 void fetchCallback(void* param, void* res, int32_t numOfRow) {
+#if 0
   printf("numOfRow = %d \n", numOfRow);
   int         numFields = taos_num_fields(res);
   TAOS_FIELD *fields = taos_fetch_fields(res);
@@ -63,6 +84,13 @@ void fetchCallback(void* param, void* res, int32_t numOfRow) {
 //    taos_close(_taos);
 //    taos_cleanup();
   }
+#endif
+  if (numOfRow == 0) {
+    printf("completed\n");
+    return;
+  }
+
+  taos_fetch_raw_block_a(res, fetchCallback, param);
 }
 
 void queryCallback(void* param, void* res, int32_t code) {
@@ -70,7 +98,7 @@ void queryCallback(void* param, void* res, int32_t code) {
     printf("failed to execute, reason:%s\n", taos_errstr(res));
   }
   printf("start to fetch data\n");
-  taos_fetch_rows_a(res, fetchCallback, param);
+  taos_fetch_raw_block_a(res, fetchCallback, param);
 }
 
 void queryCallback1(void* param, void* res, int32_t code) {
@@ -721,48 +749,31 @@ TEST(testCase, projection_query_tables) {
 //  taos_close(pConn);
 //}
 
-//TEST(testCase, agg_query_tables) {
-//  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-//  ASSERT_NE(pConn, nullptr);
-//
-//  TAOS_RES* pRes = taos_query(pConn, "use abc1");
-//  if (taos_errno(pRes) != 0) {
-//    printf("failed to use db, reason:%s\n", taos_errstr(pRes));
-//    taos_free_result(pRes);
-//    ASSERT_TRUE(false);
-//  }
-//  taos_free_result(pRes);
-//
-//  pRes = taos_query(pConn, "show stables");
-//  if (taos_errno(pRes) != 0) {
-//    printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
-//    taos_free_result(pRes);
-//    ASSERT_TRUE(false);
-//  }
-//
-//  TAOS_ROW    pRow = NULL;
-//  TAOS_FIELD* pFields = taos_fetch_fields(pRes);
-//  int32_t     numOfFields = taos_num_fields(pRes);
-//
-//  int32_t n = 0;
-//  char str[512] = {0};
-//  while ((pRow = taos_fetch_row(pRes)) != NULL) {
-//    int32_t* length = taos_fetch_lengths(pRes);
-//    for(int32_t i = 0; i < numOfFields; ++i) {
-//      printf("(%d):%d " , i, length[i]);
-//    }
-//    printf("\n");
-//
-//    int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
-//    printf("%s\n", str);
-//    memset(str, 0, sizeof(str));
-//  }
-//
-//  taos_free_result(pRes);
-//  taos_close(pConn);
-//}
-#endif
 
+TEST(testCase, agg_query_tables) {
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(pConn, nullptr);
+
+  TAOS_RES* pRes = taos_query(pConn, "use abc1");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to use db, reason:%s\n", taos_errstr(pRes));
+    taos_free_result(pRes);
+    ASSERT_TRUE(false);
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "show table distributed st1");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
+    taos_free_result(pRes);
+    ASSERT_TRUE(false);
+  }
+
+  printResult(pRes);
+  taos_free_result(pRes);
+  taos_close(pConn);
+}
+#endif
 /*
 --- copy the following script in the shell to setup the environment ---
 
@@ -778,9 +789,9 @@ TEST(testCase, async_api_test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
-  taos_query(pConn, "use nest");
-
-  TAOS_RES* pRes = taos_query(pConn, "select NOW() from (select * from regular_table_2 where tbname in ('regular_table_2_1') and  q_bigint <= 9223372036854775807 and  q_tinyint <= 127 and    q_bool in ( true , false) ) order by ts;");
+  taos_query(pConn, "use abc1");
+#if 0
+  TAOS_RES* pRes = taos_query(pConn, "insert into tu(ts) values('2022-02-27 12:12:61')");
   if (taos_errno(pRes) != 0) {
     printf("failed, reason:%s\n", taos_errstr(pRes));
   }
@@ -802,8 +813,9 @@ TEST(testCase, async_api_test) {
     printf("%s\n", str);
     memset(str, 0, sizeof(str));
   }
+#endif
 
-  taos_query_a(pConn, "alter table test.m1 comment 'abcde' ", queryCallback, pConn);
+  taos_query_a(pConn, "select count(*) from tu", queryCallback, pConn);
   getchar();
   taos_close(pConn);
 }

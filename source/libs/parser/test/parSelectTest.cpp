@@ -161,6 +161,40 @@ TEST_F(ParserSelectTest, useDefinedFunc) {
   run("SELECT udf2(c1) FROM t1 GROUP BY c2");
 }
 
+TEST_F(ParserSelectTest, uniqueFunc) {
+  useDb("root", "test");
+
+  run("SELECT UNIQUE(c1) FROM t1");
+
+  run("SELECT UNIQUE(c2 + 10) FROM t1 WHERE c1 > 10");
+
+  run("SELECT UNIQUE(c2 + 10), ts, c2 FROM t1 WHERE c1 > 10");
+}
+
+TEST_F(ParserSelectTest, uniqueFuncSemanticCheck) {
+  useDb("root", "test");
+
+  run("SELECT UNIQUE(c1) FROM t1 INTERVAL(10S)", TSDB_CODE_PAR_WINDOW_NOT_ALLOWED_FUNC);
+
+  run("SELECT UNIQUE(c1) FROM t1 GROUP BY c2", TSDB_CODE_PAR_GROUP_BY_NOT_ALLOWED_FUNC);
+}
+
+TEST_F(ParserSelectTest, tailFunc) {
+  useDb("root", "test");
+
+  run("SELECT TAIL(c1, 10) FROM t1");
+
+  run("SELECT TAIL(c2 + 10, 10, 80) FROM t1 WHERE c1 > 10");
+}
+
+TEST_F(ParserSelectTest, tailFuncSemanticCheck) {
+  useDb("root", "test");
+
+  run("SELECT TAIL(c1, 10) FROM t1 INTERVAL(10S)", TSDB_CODE_PAR_WINDOW_NOT_ALLOWED_FUNC);
+
+  run("SELECT TAIL(c1, 10) FROM t1 GROUP BY c2", TSDB_CODE_PAR_GROUP_BY_NOT_ALLOWED_FUNC);
+}
+
 TEST_F(ParserSelectTest, groupBy) {
   useDb("root", "test");
 
@@ -220,6 +254,22 @@ TEST_F(ParserSelectTest, intervalSemanticCheck) {
       "WHERE ts > TIMESTAMP '2022-04-01 00:00:00' and ts < TIMESTAMP '2022-04-30 23:59:59' INTERVAL(10s) FILL(NULL)",
       TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC);
   run("SELECT _WSTARTTS, _WENDTS, _WDURATION, sum(c1) FROM t1", TSDB_CODE_PAR_INVALID_WINDOW_PC);
+}
+
+TEST_F(ParserSelectTest, interp) {
+  useDb("root", "test");
+
+  run("SELECT INTERP(c1) FROM t1");
+
+  run("SELECT INTERP(c1) FROM t1 RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00')");
+
+  run("SELECT INTERP(c1) FROM t1 RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') FILL(LINEAR)");
+
+  run("SELECT INTERP(c1) FROM t1 EVERY(5s)");
+
+  run("SELECT INTERP(c1) FROM t1 RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') EVERY(5s)");
+
+  run("SELECT INTERP(c1) FROM t1 RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') EVERY(5s) FILL(LINEAR)");
 }
 
 TEST_F(ParserSelectTest, subquery) {
@@ -328,6 +378,8 @@ TEST_F(ParserSelectTest, setOperator) {
   run("(SELECT * FROM t1) UNION ALL (SELECT * FROM t1)");
 
   run("SELECT c1 FROM (SELECT c1 FROM t1 UNION ALL SELECT c1 FROM t1)");
+
+  run("SELECT c1, c2 FROM t1 UNION ALL SELECT c1 as a, c2 as b FROM t1 ORDER BY c1");
 }
 
 TEST_F(ParserSelectTest, informationSchema) {

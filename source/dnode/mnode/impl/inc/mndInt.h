@@ -40,6 +40,8 @@ extern "C" {
 #define mInfo(...)  { if (mDebugFlag & DEBUG_INFO)  { taosPrintLog("MND ", DEBUG_INFO, 255, __VA_ARGS__); }}
 #define mDebug(...) { if (mDebugFlag & DEBUG_DEBUG) { taosPrintLog("MND ", DEBUG_DEBUG, mDebugFlag, __VA_ARGS__); }}
 #define mTrace(...) { if (mDebugFlag & DEBUG_TRACE) { taosPrintLog("MND ", DEBUG_TRACE, mDebugFlag, __VA_ARGS__); }}
+#define mGTrace(param, ...) do { char buf[40] = {0}; TRACE_TO_STR(trace, buf); mTrace(param ", GTID: %s", __VA_ARGS__, buf);} while(0)
+
 // clang-format on
 
 #define SYSTABLE_SCH_TABLE_NAME_LEN ((TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
@@ -54,7 +56,7 @@ typedef void (*ShowFreeIterFp)(SMnode *pMnode, void *pIter);
 typedef struct SQWorker SQHandle;
 
 typedef struct {
-  const char  *name;
+  const char * name;
   MndInitFp    initFp;
   MndCleanupFp cleanupFp;
 } SMnodeStep;
@@ -63,11 +65,12 @@ typedef struct {
   int64_t        showId;
   ShowRetrieveFp retrieveFps[TSDB_MGMT_TABLE_MAX];
   ShowFreeIterFp freeIterFps[TSDB_MGMT_TABLE_MAX];
-  SCacheObj     *cache;
+  SCacheObj *    cache;
 } SShowMgmt;
 
 typedef struct {
-  SCacheObj *cache;
+  SCacheObj *connCache;
+  SCacheObj *appCache;  
 } SProfileMgmt;
 
 typedef struct {
@@ -99,14 +102,14 @@ typedef struct SMnode {
   bool           stopped;
   bool           restored;
   bool           deploy;
-  char          *path;
+  char *         path;
   int64_t        checkTime;
-  SSdb          *pSdb;
-  SArray        *pSteps;
-  SQHandle      *pQuery;
-  SHashObj      *infosMeta;
-  SHashObj      *perfsMeta;
-  SWal          *pWal;
+  SSdb *         pSdb;
+  SArray *       pSteps;
+  SQHandle *     pQuery;
+  SHashObj *     infosMeta;
+  SHashObj *     perfsMeta;
+  SWal *         pWal;
   SShowMgmt      showMgmt;
   SProfileMgmt   profileMgmt;
   STelemMgmt     telemMgmt;
