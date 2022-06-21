@@ -50,7 +50,7 @@ int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg)
     return ret;
   }
 
-  // assert(!(pMsg->term > ths->pRaftStore->currentTerm));
+  // ASSERT(!(pMsg->term > ths->pRaftStore->currentTerm));
   //  no need this code, because if I receive reply.term, then I must have sent for that term.
   //   if (pMsg->term > ths->pRaftStore->currentTerm) {
   //     syncNodeUpdateTerm(ths, pMsg->term);
@@ -65,7 +65,7 @@ int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg)
     return ret;
   }
 
-  assert(pMsg->term == ths->pRaftStore->currentTerm);
+  ASSERT(pMsg->term == ths->pRaftStore->currentTerm);
 
   // This tallies votes even when the current state is not Candidate,
   // but they won't be looked at, so it doesn't matter.
@@ -115,7 +115,7 @@ int32_t syncNodeOnRequestVoteReplySnapshotCb(SSyncNode* ths, SyncRequestVoteRepl
     return ret;
   }
 
-  // assert(!(pMsg->term > ths->pRaftStore->currentTerm));
+  // ASSERT(!(pMsg->term > ths->pRaftStore->currentTerm));
   //  no need this code, because if I receive reply.term, then I must have sent for that term.
   //   if (pMsg->term > ths->pRaftStore->currentTerm) {
   //     syncNodeUpdateTerm(ths, pMsg->term);

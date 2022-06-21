@@ -32,7 +32,7 @@
 //    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
 //
 int32_t syncNodeRequestVotePeers(SSyncNode* pSyncNode) {
-  assert(pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE);
+  ASSERT(pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE);
 
   int32_t ret = 0;
   for (int i = 0; i < pSyncNode->peersNum; ++i) {
@@ -44,7 +44,7 @@ int32_t syncNodeRequestVotePeers(SSyncNode* pSyncNode) {
     pMsg->lastLogTerm = pSyncNode->pLogStore->getLastTerm(pSyncNode->pLogStore);
 
     ret = syncNodeRequestVote(pSyncNode, &pSyncNode->peersId[i], pMsg);
-    assert(ret == 0);
+    ASSERT(ret == 0);
     syncRequestVoteDestroy(pMsg);
   }
   return ret;
@@ -75,7 +75,7 @@ int32_t syncNodeElect(SSyncNode* pSyncNode) {
   if (pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER) {
     syncNodeFollower2Candidate(pSyncNode);
   }
-  assert(pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE);
+  ASSERT(pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE);
 
   // start election
   raftStoreNextTerm(pSyncNode->pRaftStore);
@@ -86,7 +86,7 @@ int32_t syncNodeElect(SSyncNode* pSyncNode) {
   syncNodeVoteForSelf(pSyncNode);
   if (voteGrantedMajority(pSyncNode->pVotesGranted)) {
     // only myself, to leader
-    assert(!pSyncNode->pVotesGranted->toLeader);
+    ASSERT(!pSyncNode->pVotesGranted->toLeader);
     syncNodeCandidate2Leader(pSyncNode);
     pSyncNode->pVotesGranted->toLeader = true;
     return ret;
@@ -98,7 +98,7 @@ int32_t syncNodeElect(SSyncNode* pSyncNode) {
     ret = syncNodeRequestVotePeers(pSyncNode);
   }
 
-  assert(ret == 0);
+  ASSERT(ret == 0);
   syncNodeResetElectTimer(pSyncNode);
 
   return ret;

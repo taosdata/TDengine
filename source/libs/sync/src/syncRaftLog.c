@@ -245,10 +245,10 @@ static int32_t raftLogGetLastEntry(SSyncLogStore* pLogStore, SSyncRaftEntry** pp
 //-------------------------------
 SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
   SSyncLogStore* pLogStore = taosMemoryMalloc(sizeof(SSyncLogStore));
-  assert(pLogStore != NULL);
+  ASSERT(pLogStore != NULL);
 
   pLogStore->data = taosMemoryMalloc(sizeof(SSyncLogStoreData));
-  assert(pLogStore->data != NULL);
+  ASSERT(pLogStore->data != NULL);
 
   SSyncLogStoreData* pData = pLogStore->data;
   pData->pSyncNode = pSyncNode;
@@ -301,7 +301,7 @@ int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
   SWal*              pWal = pData->pWal;
 
   SyncIndex lastIndex = logStoreLastIndex(pLogStore);
-  assert(pEntry->index == lastIndex + 1);
+  ASSERT(pEntry->index == lastIndex + 1);
 
   int          code = 0;
   SSyncLogMeta syncMeta;
@@ -347,10 +347,10 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
              linuxErrMsg);
       ASSERT(0);
     }
-    // assert(walReadWithHandle(pWalHandle, index) == 0);
+    // ASSERT(walReadWithHandle(pWalHandle, index) == 0);
 
     SSyncRaftEntry* pEntry = syncEntryBuild(pWalHandle->pHead->head.bodyLen);
-    assert(pEntry != NULL);
+    ASSERT(pEntry != NULL);
 
     pEntry->msgType = TDMT_SYNC_CLIENT_REQUEST;
     pEntry->originalRpcType = pWalHandle->pHead->head.msgType;
@@ -358,7 +358,7 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
     pEntry->isWeak = pWalHandle->pHead->head.syncMeta.isWeek;
     pEntry->term = pWalHandle->pHead->head.syncMeta.term;
     pEntry->index = index;
-    assert(pEntry->dataLen == pWalHandle->pHead->head.bodyLen);
+    ASSERT(pEntry->dataLen == pWalHandle->pHead->head.bodyLen);
     memcpy(pEntry->data, pWalHandle->pHead->head.body, pWalHandle->pHead->head.bodyLen);
 
     // need to hold, do not new every time!!
@@ -373,7 +373,7 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
 int32_t logStoreTruncate(SSyncLogStore* pLogStore, SyncIndex fromIndex) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
-  // assert(walRollback(pWal, fromIndex) == 0);
+  // ASSERT(walRollback(pWal, fromIndex) == 0);
   int32_t code = walRollback(pWal, fromIndex);
   if (code != 0) {
     int32_t     err = terrno;
@@ -407,7 +407,7 @@ SyncTerm logStoreLastTerm(SSyncLogStore* pLogStore) {
 int32_t logStoreUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
-  // assert(walCommit(pWal, index) == 0);
+  // ASSERT(walCommit(pWal, index) == 0);
   int32_t code = walCommit(pWal, index);
   if (code != 0) {
     int32_t     err = terrno;

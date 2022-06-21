@@ -49,7 +49,7 @@
 //    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
 //
 int32_t syncNodeAppendEntriesPeers(SSyncNode* pSyncNode) {
-  assert(pSyncNode->state == TAOS_SYNC_STATE_LEADER);
+  ASSERT(pSyncNode->state == TAOS_SYNC_STATE_LEADER);
 
   syncIndexMgrLog2("==syncNodeAppendEntriesPeers== pNextIndex", pSyncNode->pNextIndex);
   syncIndexMgrLog2("==syncNodeAppendEntriesPeers== pMatchIndex", pSyncNode->pMatchIndex);
@@ -68,7 +68,7 @@ int32_t syncNodeAppendEntriesPeers(SSyncNode* pSyncNode) {
     SyncTerm preLogTerm = 0;
     if (preLogIndex >= SYNC_INDEX_BEGIN) {
       SSyncRaftEntry* pPreEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, preLogIndex);
-      assert(pPreEntry != NULL);
+      ASSERT(pPreEntry != NULL);
 
       preLogTerm = pPreEntry->term;
       syncEntryDestory(pPreEntry);
@@ -81,12 +81,12 @@ int32_t syncNodeAppendEntriesPeers(SSyncNode* pSyncNode) {
     SSyncRaftEntry*    pEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, nextIndex);
     if (pEntry != NULL) {
       pMsg = syncAppendEntriesBuild(pEntry->bytes, pSyncNode->vgId);
-      assert(pMsg != NULL);
+      ASSERT(pMsg != NULL);
 
       // add pEntry into msg
       uint32_t len;
       char*    serialized = syncEntrySerialize(pEntry, &len);
-      assert(len == pEntry->bytes);
+      ASSERT(len == pEntry->bytes);
       memcpy(pMsg->data, serialized, len);
 
       taosMemoryFree(serialized);
@@ -95,10 +95,10 @@ int32_t syncNodeAppendEntriesPeers(SSyncNode* pSyncNode) {
     } else {
       // maybe overflow, send empty record
       pMsg = syncAppendEntriesBuild(0, pSyncNode->vgId);
-      assert(pMsg != NULL);
+      ASSERT(pMsg != NULL);
     }
 
-    assert(pMsg != NULL);
+    ASSERT(pMsg != NULL);
     pMsg->srcId = pSyncNode->myRaftId;
     pMsg->destId = *pDestId;
     pMsg->term = pSyncNode->pRaftStore->currentTerm;
@@ -157,7 +157,7 @@ int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
       // add pEntry into msg
       uint32_t len;
       char*    serialized = syncEntrySerialize(pEntry, &len);
-      assert(len == pEntry->bytes);
+      ASSERT(len == pEntry->bytes);
       memcpy(pMsg->data, serialized, len);
 
       taosMemoryFree(serialized);
