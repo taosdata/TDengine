@@ -2,7 +2,8 @@ from util.log import *
 from util.cases import *
 from util.sql import *
 import numpy as np
-import random 
+import random ,os ,sys
+import platform
 
 
 class TDTestCase:
@@ -18,23 +19,20 @@ class TDTestCase:
         self.ts = 1537146000000
 
 
-    def check_max_functions(self, tbname , col_name):
+    def check_avg_functions(self, tbname , col_name):
 
-        max_sql = f"select max({col_name}) from {tbname};"
+        avg_sql = f"select avg({col_name}) from {tbname};"
 
-        same_sql = f"select {col_name} from {tbname} order by {col_name} desc limit 1"
-
-        tdSql.query(max_sql)
-        max_result = tdSql.queryResult 
-
+        same_sql = f"select {col_name} from {tbname} where {col_name} is not null "
+   
         tdSql.query(same_sql)
-        same_result = tdSql.queryResult
+        pre_data = np.array(tdSql.queryResult)[np.array(tdSql.queryResult) != None]
+        if (platform.system().lower() == 'windows' and pre_data.dtype == 'int32'):
+            pre_data = np.array(pre_data, dtype = 'int64')
+        pre_avg = np.sum(pre_data)/len(pre_data)
 
-        if max_result !=same_result:
-            tdLog.exit(" max function work not as expected, sql : %s "% max_sql)
-        else:
-            tdLog.info(" max function work as expected, sql : %s "% max_sql)
-
+        tdSql.query(avg_sql)
+        tdSql.checkData(0,0,pre_avg)
 
     def prepare_datas_of_distribute(self):
         
@@ -128,7 +126,7 @@ class TDTestCase:
         if count < 2:
             tdLog.exit(" the datas of all not satisfy sub_table has been distributed ")
 
-    def check_max_distribute_diff_vnode(self,col_name):
+    def check_avg_distribute_diff_vnode(self,col_name):
     
         vgroup_ids = []
         for k ,v in self.vnode_disbutes.items():
@@ -146,22 +144,20 @@ class TDTestCase:
 
         tbname_filters = tbname_ins[:-1]
         
-        max_sql = f"select max({col_name}) from stb1 where tbname in ({tbname_filters});"
+        avg_sql = f"select avg({col_name}) from stb1 where tbname in ({tbname_filters});"
 
-        same_sql = f"select {col_name} from stb1 where tbname in ({tbname_filters}) order by {col_name} desc limit 1"
-
-        tdSql.query(max_sql)
-        max_result = tdSql.queryResult 
+        same_sql = f"select {col_name}  from stb1 where tbname in ({tbname_filters}) and {col_name} is not null "
 
         tdSql.query(same_sql)
-        same_result = tdSql.queryResult
+        pre_data = np.array(tdSql.queryResult)[np.array(tdSql.queryResult) != None]
+        if (platform.system().lower() == 'windows' and pre_data.dtype == 'int32'):
+            pre_data = np.array(pre_data, dtype = 'int64')
+        pre_avg = np.sum(pre_data)/len(pre_data)
 
-        if max_result !=same_result:
-            tdLog.exit(" max function work not as expected, sql : %s "% max_sql)
-        else:
-            tdLog.info(" max function work as expected, sql : %s "% max_sql)
+        tdSql.query(avg_sql)
+        tdSql.checkData(0,0,pre_avg)
 
-    def check_max_status(self):
+    def check_avg_status(self):
         # check max function work status 
         
         tdSql.query("show tables like 'ct%'")
@@ -180,42 +176,49 @@ class TDTestCase:
         
         for tablename in tablenames:
             for colname in colnames:
-                self.check_max_functions(tablename,colname)
+                self.check_avg_functions(tablename,colname)
 
         # check max function for different vnode 
 
         for colname in colnames:
             if colname.startswith("c"):
-                self.check_max_distribute_diff_vnode(colname)
+                self.check_avg_distribute_diff_vnode(colname)
             else:
-                # self.check_max_distribute_diff_vnode(colname) # bug for tag 
+                # self.check_avg_distribute_diff_vnode(colname) # bug for tag 
                 pass
 
         
     def distribute_agg_query(self):
         # basic filter
-        tdSql.query("select max(c1) from stb1 where c1 is null")
-        tdSql.checkRows(0)
+        tdSql.query(" select avg(c1) from stb1 ")
+        tdSql.checkData(0,0,14.086956522)
 
-        tdSql.query("select max(c1) from stb1 where t1=1")
-        tdSql.checkData(0,0,10)
+        tdSql.query(" select avg(a) from (select avg(c1) a  from stb1 partition by tbname) ")
+        tdSql.checkData(0,0,14.292307692)
 
-        tdSql.query("select max(c1+c2) from stb1 where c1 =1 ")
+        tdSql.query(" select avg(c1) from stb1 where t1=1")
+        tdSql.checkData(0,0,6.000000000)
+
+        tdSql.query("select avg(c1+c2) from stb1 where c1 =1 ")
         tdSql.checkData(0,0,11112.000000000)
 
-        tdSql.query("select max(c1) from stb1 where tbname=\"ct2\"")
-        tdSql.checkData(0,0,10)
+        tdSql.query("select avg(c1) from stb1 where tbname=\"ct2\"")
+        tdSql.checkData(0,0,6.000000000)
 
-        tdSql.query("select max(c1) from stb1 partition by tbname")
+        tdSql.query("select avg(c1) from stb1 partition by tbname")
         tdSql.checkRows(20)
 
-        tdSql.query("select max(c1) from stb1 where t1> 4  partition by tbname")
+        tdSql.query("select avg(c1) from stb1 where t1> 4  partition by tbname")
         tdSql.checkRows(15)
 
         # union all 
-        tdSql.query("select max(c1) from stb1 union all select max(c1) from stb1 ")
+        tdSql.query("select avg(c1) from stb1 union all select avg(c1) from stb1 ")
         tdSql.checkRows(2)
-        tdSql.checkData(0,0,28)
+        tdSql.checkData(0,0,14.086956522)
+
+        tdSql.query("select avg(a) from (select avg(c1) a from stb1 union all select avg(c1) a  from stb1)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0,0,14.086956522)
 
         # join 
 
@@ -231,78 +234,40 @@ class TDTestCase:
             tdSql.execute(f" insert into tb1 values({ts},{i},{i}.0)")
             tdSql.execute(f" insert into tb2 values({ts},{i},{i}.0)")
 
-        tdSql.query("select max(tb1.c1), tb2.c2 from tb1, tb2 where tb1.ts=tb2.ts")
+        tdSql.query("select avg(tb1.c1), avg(tb2.c2) from tb1, tb2 where tb1.ts=tb2.ts")
         tdSql.checkRows(1)
-        tdSql.checkData(0,0,9)
-        tdSql.checkData(0,0,9.00000)
+        tdSql.checkData(0,0,4.500000000)
+        tdSql.checkData(0,1,4.500000000)
 
         # group by 
         tdSql.execute(" use testdb ")
-        tdSql.query(" select max(c1),c1  from stb1 group by t1 ")
-        tdSql.checkRows(20)
-        tdSql.query(" select max(c1),c1  from stb1 group by c1 ")
-        tdSql.checkRows(30)
-        tdSql.query(" select max(c1),c2  from stb1 group by c2 ")
-        tdSql.checkRows(31)
-
-        # selective common cols of datas
-        tdSql.query("select max(c1),c2,c3,c5 from stb1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0,0,28)
-        tdSql.checkData(0,1,311108)
-        tdSql.checkData(0,2,3108)
-        tdSql.checkData(0,3,31.08000)
-
-        tdSql.query("select max(c1),t1,c2,t3 from stb1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0,0,28)
-        tdSql.checkData(0,1,19)
-        tdSql.checkData(0,2,311108)
-
-        tdSql.query("select max(c1),ceil(t1),pow(c2,1)+2,abs(t3) from stb1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0,0,28)
-        tdSql.checkData(0,1,19)
-        tdSql.checkData(0,2,311110.000000000)   
-        tdSql.checkData(0,3,2109)  
 
         # partition by tbname or partition by tag
-        tdSql.query("select max(c1),tbname from stb1 partition by tbname")
-        query_data = tdSql.queryResult
-        
-        for row in query_data:
-            tbname = row[1]
-            tdSql.query(" select max(c1) from %s "%tbname)
-            tdSql.checkData(0,0,row[0])
-
-        tdSql.query("select max(c1),tbname from stb1 partition by t1")
-        query_data = tdSql.queryResult
-        
-        for row in query_data:
-            tbname = row[1]
-            tdSql.query(" select max(c1) from %s "%tbname)
-            tdSql.checkData(0,0,row[0])
+        tdSql.query("select avg(c1) from stb1 partition by tbname")
+        tdSql.checkRows(20)
 
         # nest query for support max
-        tdSql.query("select abs(c2+2)+1 from (select max(c1) c2  from stb1)")
-        tdSql.checkData(0,0,31.000000000)
-        tdSql.query("select max(c1+2)+1  as c2 from (select ts ,c1 ,c2  from stb1)")
-        tdSql.checkData(0,0,31.000000000)
-        tdSql.query("select max(a+2)+1  as c2 from (select ts ,abs(c1) a ,c2  from stb1)")
-        tdSql.checkData(0,0,31.000000000)
+        tdSql.query("select avg(c2+2)+1 from (select avg(c1) c2  from stb1)")
+        tdSql.checkData(0,0,17.086956522)
+        tdSql.query("select avg(c1+2)  as c2 from (select ts ,c1 ,c2  from stb1)")
+        tdSql.checkData(0,0,16.086956522)
+        tdSql.query("select avg(a+2)  as c2 from (select ts ,abs(c1) a ,c2  from stb1)")
+        tdSql.checkData(0,0,16.086956522)
 
         # mixup with other functions
-        tdSql.query("select max(c1),count(c1),last(c2,c3) from stb1")
+        tdSql.query("select max(c1),count(c1),last(c2,c3),sum(c1+c2),avg(c1) from stb1")
         tdSql.checkData(0,0,28)
         tdSql.checkData(0,1,184)
         tdSql.checkData(0,2,-99999)
         tdSql.checkData(0,3,-999)
+        tdSql.checkData(0,4,28202310.000000000)
+        tdSql.checkData(0,5,14.086956522)
 
     def run(self):
 
         self.prepare_datas_of_distribute()
         self.check_distribute_datas()
-        self.check_max_status()
+        self.check_avg_status()
         self.distribute_agg_query()
 
     
