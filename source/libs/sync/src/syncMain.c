@@ -1307,26 +1307,31 @@ void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
     pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
   }
   SyncIndex logLastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
+  SyncIndex logBeginIndex = pSyncNode->pLogStore->syncLogBeginIndex(pSyncNode->pLogStore);
 
   if (userStrLen < 256) {
     char logBuf[128 + 256];
     snprintf(logBuf, sizeof(logBuf),
-             "vgId:%d, sync %s %s, term:%lu, commit:%ld, lastlog:%ld, lastsnapshot:%ld, standby:%d, replica-num:%d, "
+             "vgId:%d, sync %s %s, term:%lu, commit:%ld, beginlog:%ld, lastlog:%ld, lastsnapshot:%ld, standby:%d, "
+             "replica-num:%d, "
              "lconfig:%ld, changing:%d",
              pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
-             pSyncNode->commitIndex, logLastIndex, snapshot.lastApplyIndex, pSyncNode->pRaftCfg->isStandBy,
-             pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex, pSyncNode->changing);
+             pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex,
+             pSyncNode->pRaftCfg->isStandBy, pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex,
+             pSyncNode->changing);
     sDebug("%s", logBuf);
 
   } else {
     int   len = 128 + userStrLen;
     char* s = (char*)taosMemoryMalloc(len);
     snprintf(s, len,
-             "vgId:%d, sync %s %s, term:%lu, commit:%ld, lastlog:%ld, lastsnapshot:%ld, standby:%d, replica-num:%d, "
+             "vgId:%d, sync %s %s, term:%lu, commit:%ld, beginlog:%ld, lastlog:%ld, lastsnapshot:%ld, standby:%d, "
+             "replica-num:%d, "
              "lconfig:%ld, changing:%d",
              pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
-             pSyncNode->commitIndex, logLastIndex, snapshot.lastApplyIndex, pSyncNode->pRaftCfg->isStandBy,
-             pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex, pSyncNode->changing);
+             pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex,
+             pSyncNode->pRaftCfg->isStandBy, pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex,
+             pSyncNode->changing);
     sDebug("%s", s);
     taosMemoryFree(s);
   }
