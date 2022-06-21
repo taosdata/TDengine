@@ -56,14 +56,9 @@ typedef struct {
 } SIntHdr;
 #pragma pack(pop)
 
-typedef struct {
-  u8      flags;
-  SBTree *pBt;
-} SBtreeInitPageArg;
-
 static int tdbDefaultKeyCmprFn(const void *pKey1, int keyLen1, const void *pKey2, int keyLen2);
 static int tdbBtreeOpenImpl(SBTree *pBt);
-static int tdbBtreeInitPage(SPage *pPage, void *arg, int init);
+//static int tdbBtreeInitPage(SPage *pPage, void *arg, int init);
 static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const void *pVal, int vLen, SCell *pCell,
                               int *szCell, TXN *pTxn, SBTree *pBt);
 static int tdbBtreeDecodeCell(SPage *pPage, const SCell *pCell, SCellDecoder *pDecoder, TXN *pTxn, SBTree *pBt);
@@ -348,7 +343,7 @@ static int tdbBtreeOpenImpl(SBTree *pBt) {
   return 0;
 }
 
-static int tdbBtreeInitPage(SPage *pPage, void *arg, int init) {
+int tdbBtreeInitPage(SPage *pPage, void *arg, int init) {
   SBTree *pBt;
   u8      flags;
   u8      leaf;
