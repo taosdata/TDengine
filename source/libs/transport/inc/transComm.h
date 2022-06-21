@@ -183,6 +183,8 @@ typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken, ConnInPool } Co
 #define transContLenFromMsg(msgLen)  (msgLen - sizeof(STransMsgHead));
 #define transIsReq(type)             (type & 1U)
 
+#define transLabel(trans) ((STrans*)trans)->label
+
 // int  rpcAuthenticateMsg(void* pMsg, int msgLen, void* pAuth, void* pKey);
 // void rpcBuildAuthHead(void* pMsg, int msgLen, void* pAuth, void* pKey);
 //// int32_t rpcCompressRpcMsg(char* pCont, int32_t contLen);
