@@ -67,7 +67,7 @@ void snapshotSenderDestroy(SSyncSnapshotSender *pSender) {
 bool snapshotSenderIsStart(SSyncSnapshotSender *pSender) { return pSender->start; }
 
 // begin send snapshot (current term, seq begin)
-void snapshotSenderStart(SSyncSnapshotSender *pSender) {
+void snapshotSenderStart(SSyncSnapshotSender *pSender, SSnapshot snapshot, void *pReader) {
   ASSERT(!snapshotSenderIsStart(pSender));
 
   pSender->seq = SYNC_SNAPSHOT_SEQ_BEGIN;
@@ -75,8 +75,18 @@ void snapshotSenderStart(SSyncSnapshotSender *pSender) {
 
   // open snapshot reader
   ASSERT(pSender->pReader == NULL);
-  int32_t ret = pSender->pSyncNode->pFsm->FpSnapshotStartRead(pSender->pSyncNode->pFsm, &(pSender->pReader));
-  ASSERT(ret == 0);
+  pSender->pReader = pReader;
+  pSender->snapshot = snapshot;
+
+  /*
+    // open snapshot reader
+    ASSERT(pSender->pReader == NULL);
+    int32_t ret = pSender->pSyncNode->pFsm->FpSnapshotStartRead(pSender->pSyncNode->pFsm, &(pSender->pReader));
+    ASSERT(ret == 0);
+
+    // get current snapshot info
+    pSender->pSyncNode->pFsm->FpGetSnapshotInfo(pSender->pSyncNode->pFsm, &(pSender->snapshot));
+  */
 
   if (pSender->pCurrentBlock != NULL) {
     taosMemoryFree(pSender->pCurrentBlock);
@@ -84,21 +94,7 @@ void snapshotSenderStart(SSyncSnapshotSender *pSender) {
 
   pSender->blockLen = 0;
 
-  // get current snapshot info
-  pSender->pSyncNode->pFsm->FpGetSnapshotInfo(pSender->pSyncNode->pFsm, &(pSender->snapshot));
-
-  sTrace("snapshotSenderStart lastApplyIndex:%ld, lastApplyTerm:%lu, lastConfigIndex:%ld",
-         pSender->snapshot.lastApplyIndex, pSender->snapshot.lastApplyTerm, pSender->snapshot.lastConfigIndex);
-
   if (pSender->snapshot.lastConfigIndex != SYNC_INDEX_INVALID) {
-    /*
-    SSyncRaftEntry *pEntry = NULL;
-    int32_t code = pSender->pSyncNode->pLogStore->syncLogGetEntry(pSender->pSyncNode->pLogStore,
-                                                                  pSender->snapshot.lastConfigIndex, &pEntry);
-    ASSERT(code == 0);
-    ASSERT(pEntry != NULL);
-    */
-
     SSyncRaftEntry *pEntry =
         pSender->pSyncNode->pLogStore->getEntry(pSender->pSyncNode->pLogStore, pSender->snapshot.lastConfigIndex);
     ASSERT(pEntry != NULL);
