@@ -63,6 +63,8 @@ typedef struct SDataFWriter   SDataFWriter;
 typedef struct SDataFReader   SDataFReader;
 typedef struct SDelFWriter    SDelFWriter;
 typedef struct SDelFReader    SDelFReader;
+typedef struct SRowIter       SRowIter;
+typedef struct STsdbFS        STsdbFS;
 
 #define TSDB_MAX_SUBBLOCKS 8
 
@@ -78,6 +80,9 @@ TSDBKEY tsdbRowKey(TSDBROW *pRow);
 void    tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
 int32_t tPutTSDBRow(uint8_t *p, TSDBROW *pRow);
 int32_t tGetTSDBRow(uint8_t *p, TSDBROW *pRow);
+// SRowIter
+#define tRowIterInit(ROW, SCHEMA) ((SRowIter){.pRow = (ROW), .pSchema = (SCHEMA)})
+SColVal *tRowIterNext(SRowIter *pIter);
 // TABLEID
 int32_t tTABLEIDCmprFn(const void *p1, const void *p2);
 // TSDBKEY
@@ -107,11 +112,11 @@ int32_t tGetBlockIdx(uint8_t *p, void *ph);
 // SColdata
 #define tColDataInit() ((SColData){0})
 void    tColDataReset(SColData *pColData);
-void    tColDataClear(SColData *pColData);
+void    tColDataClear(void *ph);
 int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal);
 int32_t tColDataCmprFn(const void *p1, const void *p2);
 // SBlockData
-#define tBlockDataInit() ((SBlockData){0})
+int32_t tBlockDataInit(SBlockData *pBlockData);
 void    tBlockDataReset(SBlockData *pBlockData);
 void    tBlockDataClear(SBlockData *pBlockData);
 int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema);
@@ -160,14 +165,15 @@ void tsdbLastFileName(STsdb *pTsdb, SLastFile *pFile, char fname[]);
 // SSmaFile
 void tsdbSmaFileName(STsdb *pTsdb, SSmaFile *pFile, char fname[]);
 // SDelFile
-#define tsdbDelFileCreate() ((SDelFile){.info = KEYINFO_INIT_VAL, .size = 0, .offset = 0})
+#define tsdbDelFileCreate() \
+  ((SDelFile){              \
+      .maxKey = TSKEY_MIN, .minKey = TSKEY_MAX, .maxVersion = -1, .minVersion = INT64_MAX, .size = 0, .offset = 0})
 void tsdbDelFileName(STsdb *pTsdb, SDelFile *pFile, char fname[]);
 // tsdbFS.c ==============================================================================================
-typedef struct STsdbFS STsdbFS;
-int32_t                tsdbFSOpen(STsdb *pTsdb, STsdbFS **ppFS);
-int32_t                tsdbFSClose(STsdbFS *pFS);
-int32_t                tsdbFSStart(STsdbFS *pFS);
-int32_t                tsdbFSEnd(STsdbFS *pFS, int8_t rollback);
+int32_t tsdbFSOpen(STsdb *pTsdb, STsdbFS **ppFS);
+int32_t tsdbFSClose(STsdbFS *pFS);
+int32_t tsdbFSStart(STsdbFS *pFS);
+int32_t tsdbFSEnd(STsdbFS *pFS, int8_t rollback);
 // tsdbReaderWriter.c ==============================================================================================
 // SDataFWriter
 int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pSet);
@@ -200,7 +206,7 @@ int32_t tsdbReadDelIdx(SDelFReader *pReader, SMapData *pDelIdxMap, uint8_t **ppB
 
 // tsdbCache
 int32_t tsdbOpenCache(STsdb *pTsdb);
-void tsdbCloseCache(SLRUCache *pCache);
+void    tsdbCloseCache(SLRUCache *pCache);
 int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, tb_uid_t uid, STSRow *row);
 int32_t tsdbCacheGetLastrow(SLRUCache *pCache, tb_uid_t uid, STSRow **ppRow);
 int32_t tsdbCacheDeleteLastrow(SLRUCache *pCache, tb_uid_t uid);
@@ -366,14 +372,12 @@ struct SColData {
 };
 
 struct SBlockData {
-  int32_t    maxRow;
-  int32_t    nRow;
-  int64_t   *aVersion;
-  TSKEY     *aTSKEY;
-  int32_t    maxCol;
-  int32_t    nColData;
-  SColData **apColData;
-  SColData  *aColData;
+  int32_t  maxRow;
+  int32_t  nRow;
+  int64_t *aVersion;
+  TSKEY   *aTSKEY;
+  SArray  *apColData;
+  SArray  *aColData;
 };
 
 // ================== TSDB global config
@@ -414,7 +418,10 @@ struct SDelIdx {
 };
 
 struct SDelFile {
-  KEYINFO info;
+  TSKEY   minKey;
+  TSKEY   maxKey;
+  int64_t minVersion;
+  int64_t maxVersion;
   int64_t size;
   int64_t offset;
 };
@@ -463,11 +470,19 @@ struct SSmaFile {
 
 struct SDFileSet {
   SDiskID    diskId;
-  int32_t    nRef;
+  int32_t    fid;
   SHeadFile *pHeadFile;
   SDataFile *pDataFile;
   SLastFile *pLastFile;
   SSmaFile  *pSmaFile;
+  int32_t    nRef;
+};
+
+struct SRowIter {
+  TSDBROW  *pRow;
+  STSchema *pSchema;
+  SColVal   colVal;
+  int32_t   i;
 };
 
 #ifdef __cplusplus

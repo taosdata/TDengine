@@ -922,8 +922,8 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, uint8_
   // other columns
   offset = 0;
   tMapDataClear(&pSubBlock->mBlockCol);
-  for (int32_t iCol = 0; iCol < pBlockData->nColData; iCol++) {
-    SColData *pColData = &pBlockData->aColData[iCol];
+  for (int32_t iCol = 0; iCol < taosArrayGetSize(pBlockData->apColData); iCol++) {
+    SColData *pColData = (SColData *)taosArrayGetP(pBlockData->apColData, iCol);
 
     ASSERT(pColData->flags);
 
