@@ -1282,6 +1282,9 @@ cJSON* syncNode2Json(const SSyncNode* pSyncNode) {
     // snapshot receivers
     cJSON* pReceivers = cJSON_CreateArray();
     cJSON_AddItemToObject(pRoot, "receiver", snapshotReceiver2Json(pSyncNode->pNewNodeReceiver));
+
+    // changing
+    cJSON_AddNumberToObject(pRoot, "changing", pSyncNode->changing);
   }
 
   cJSON* pJson = cJSON_CreateObject();
@@ -1304,26 +1307,31 @@ void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
     pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
   }
   SyncIndex logLastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
+  SyncIndex logBeginIndex = pSyncNode->pLogStore->syncLogBeginIndex(pSyncNode->pLogStore);
 
   if (userStrLen < 256) {
     char logBuf[128 + 256];
     snprintf(logBuf, sizeof(logBuf),
-             "vgId:%d, sync %s %s, term:%lu, commit:%ld, lastlog:%ld, lastsnapshot:%ld, standby:%d, replica-num:%d, "
+             "vgId:%d, sync %s %s, term:%lu, commit:%ld, beginlog:%ld, lastlog:%ld, lastsnapshot:%ld, standby:%d, "
+             "replica-num:%d, "
              "lconfig:%ld, changing:%d",
              pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
-             pSyncNode->commitIndex, logLastIndex, snapshot.lastApplyIndex, pSyncNode->pRaftCfg->isStandBy,
-             pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex, pSyncNode->changing);
+             pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex,
+             pSyncNode->pRaftCfg->isStandBy, pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex,
+             pSyncNode->changing);
     sDebug("%s", logBuf);
 
   } else {
     int   len = 128 + userStrLen;
     char* s = (char*)taosMemoryMalloc(len);
     snprintf(s, len,
-             "vgId:%d, sync %s %s, term:%lu, commit:%ld, lastlog:%ld, lastsnapshot:%ld, standby:%d, replica-num:%d, "
+             "vgId:%d, sync %s %s, term:%lu, commit:%ld, beginlog:%ld, lastlog:%ld, lastsnapshot:%ld, standby:%d, "
+             "replica-num:%d, "
              "lconfig:%ld, changing:%d",
              pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
-             pSyncNode->commitIndex, logLastIndex, snapshot.lastApplyIndex, pSyncNode->pRaftCfg->isStandBy,
-             pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex, pSyncNode->changing);
+             pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex,
+             pSyncNode->pRaftCfg->isStandBy, pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex,
+             pSyncNode->changing);
     sDebug("%s", s);
     taosMemoryFree(s);
   }
@@ -1400,7 +1408,7 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
     pSyncNode->pRaftCfg->isStandBy = 1;  // set standby
   }
 
-  // persist last config index
+  // add last config index
   raftCfgAddConfigIndex(pSyncNode->pRaftCfg, lastConfigChangeIndex);
 
   if (IamInNew) {
@@ -1827,7 +1835,11 @@ SyncIndex syncNodeSyncStartIndex(SSyncNode* pSyncNode) {
 SyncIndex syncNodeGetPreIndex(SSyncNode* pSyncNode, SyncIndex index) {
   ASSERT(index >= SYNC_INDEX_BEGIN);
   SyncIndex syncStartIndex = syncNodeSyncStartIndex(pSyncNode);
-  ASSERT(index <= syncStartIndex);
+
+  if (index > syncStartIndex) {
+    syncNodeLog3("syncNodeGetPreIndex", pSyncNode);
+    ASSERT(0);
+  }
 
   SyncIndex preIndex = index - 1;
   return preIndex;
@@ -1836,7 +1848,11 @@ SyncIndex syncNodeGetPreIndex(SSyncNode* pSyncNode, SyncIndex index) {
 SyncTerm syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index) {
   ASSERT(index >= SYNC_INDEX_BEGIN);
   SyncIndex syncStartIndex = syncNodeSyncStartIndex(pSyncNode);
-  ASSERT(index <= syncStartIndex);
+
+  if (index > syncStartIndex) {
+    syncNodeLog3("syncNodeGetPreTerm", pSyncNode);
+    ASSERT(0);
+  }
 
   if (index == SYNC_INDEX_BEGIN) {
     return 0;
@@ -1927,6 +1943,12 @@ void syncNodeLog2(char* s, SSyncNode* pObj) {
     sTraceLong("syncNodeLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
+}
+
+void syncNodeLog3(char* s, SSyncNode* pObj) {
+  char* serialized = syncNode2Str(pObj);
+  sTraceLong("syncNodeLog3 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+  taosMemoryFree(serialized);
 }
 
 // ------ local funciton ---------
