@@ -37,7 +37,7 @@ extern "C" {
 #define mTrace(...) { if (mDebugFlag & DEBUG_TRACE) { taosPrintLog("MND ", DEBUG_TRACE, mDebugFlag, __VA_ARGS__); }}
 // clang-format on
 
-#define SDB_WRITE_DELTA 100
+#define SDB_WRITE_DELTA 20
 
 #define SDB_GET_VAL(pData, dataPos, val, pos, func, type) \
   {                                                       \
@@ -388,7 +388,7 @@ SSdbRow *sdbAllocRow(int32_t objSize);
 void    *sdbGetRowObj(SSdbRow *pRow);
 void     sdbFreeRow(SSdb *pSdb, SSdbRow *pRow, bool callFunc);
 
-int32_t sdbStartRead(SSdb *pSdb, SSdbIter **ppIter);
+int32_t sdbStartRead(SSdb *pSdb, SSdbIter **ppIter, int64_t *index, int64_t *term, int64_t *config);
 int32_t sdbStopRead(SSdb *pSdb, SSdbIter *pIter);
 int32_t sdbDoRead(SSdb *pSdb, SSdbIter *pIter, void **ppBuf, int32_t *len);
 

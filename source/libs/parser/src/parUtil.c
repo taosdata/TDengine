@@ -564,6 +564,7 @@ int32_t buildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalog
   if (TSDB_CODE_SUCCESS == code) {
     code = buildTableReq(pMetaCache->pTableCfg, &pCatalogReq->pTableCfg);
   }
+  pCatalogReq->dNodeRequired = pMetaCache->dnodeRequired;
   return code;
 }
 
@@ -662,6 +663,7 @@ int32_t putMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMet
   if (TSDB_CODE_SUCCESS == code) {
     code = putTableDataToCache(pCatalogReq->pTableCfg, pMetaData->pTableCfg, &pMetaCache->pTableCfg);
   }
+  pMetaCache->pDnodes = pMetaData->pDnodeList;
   return code;
 }
 
@@ -918,6 +920,19 @@ int32_t getTableCfgFromCache(SParseMetaCache* pMetaCache, const SName* pName, ST
     }
   }
   return code;
+}
+
+int32_t reserveDnodeRequiredInCache(SParseMetaCache* pMetaCache) {
+  pMetaCache->dnodeRequired = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t getDnodeListFromCache(SParseMetaCache* pMetaCache, SArray** pDnodes) {
+  *pDnodes = taosArrayDup(pMetaCache->pDnodes);
+  if (NULL == *pDnodes) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 void destoryParseMetaCache(SParseMetaCache* pMetaCache) {

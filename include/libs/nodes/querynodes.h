@@ -52,7 +52,7 @@ typedef struct SExprNode {
   SArray*   pAssociation;
 } SExprNode;
 
-typedef enum EColumnType { COLUMN_TYPE_COLUMN = 1, COLUMN_TYPE_TAG } EColumnType;
+typedef enum EColumnType { COLUMN_TYPE_COLUMN = 1, COLUMN_TYPE_TAG, COLUMN_TYPE_TBNAME } EColumnType;
 
 typedef struct SColumnNode {
   SExprNode   node;  // QUERY_NODE_COLUMN

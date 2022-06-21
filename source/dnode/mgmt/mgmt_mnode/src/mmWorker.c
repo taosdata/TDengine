@@ -68,6 +68,10 @@ static void mmProcessRpcMsg(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     mmSendRsp(pMsg, code);
   }
 
+  if (code == TSDB_CODE_RPC_REDIRECT) {
+    mndPostProcessQueryMsg(pMsg);
+  }
+
   dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
   rpcFreeCont(pMsg->pCont);
   taosFreeQitem(pMsg);
@@ -116,7 +120,7 @@ int32_t mmPutMsgToReadQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
 int32_t mmPutMsgToQueryQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   pMsg->info.node = pMgmt->pMnode;
-  if (mndPreProcessMsg(pMsg) != 0) {
+  if (mndPreProcessQueryMsg(pMsg) != 0) {
     dError("msg:%p, failed to pre-process in mnode since %s, type:%s", pMsg, terrstr(), TMSG_INFO(pMsg->msgType));
     return -1;
   }

@@ -119,7 +119,7 @@ static int32_t vnodeProcessAlterReplicaReq(SVnode *pVnode, SRpcMsg *pMsg) {
 }
 
 void vnodeProposeMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
-  SVnode * pVnode = pInfo->ahandle;
+  SVnode  *pVnode = pInfo->ahandle;
   int32_t  vgId = pVnode->config.vgId;
   int32_t  code = 0;
   SRpcMsg *pMsg = NULL;
@@ -174,7 +174,7 @@ void vnodeProposeMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
 }
 
 void vnodeApplyMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
-  SVnode * pVnode = pInfo->ahandle;
+  SVnode  *pVnode = pInfo->ahandle;
   int32_t  vgId = pVnode->config.vgId;
   int32_t  code = 0;
   SRpcMsg *pMsg = NULL;
@@ -211,21 +211,23 @@ int32_t vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
     SSyncNode *pSyncNode = syncNodeAcquire(pVnode->sync);
     assert(pSyncNode != NULL);
 
-    ESyncState state = syncGetMyRole(pVnode->sync);
-    SyncTerm   currentTerm = syncGetMyTerm(pVnode->sync);
-
     SMsgHead *pHead = pMsg->pCont;
+    STraceId *trace = &pMsg->info.traceId;
 
-    char  logBuf[512] = {0};
-    char *syncNodeStr = sync2SimpleStr(pVnode->sync);
-    snprintf(logBuf, sizeof(logBuf), "==vnodeProcessSyncReq== msgType:%d, syncNode: %s", pMsg->msgType, syncNodeStr);
-    static int64_t vndTick = 0;
-    STraceId *     trace = &pMsg->info.traceId;
-    if (++vndTick % 10 == 1) {
-      vGTrace("sync trace msg:%s, %s", TMSG_INFO(pMsg->msgType), syncNodeStr);
-    }
-    syncRpcMsgLog2(logBuf, pMsg);
-    taosMemoryFree(syncNodeStr);
+    do {
+      char          *syncNodeStr = sync2SimpleStr(pVnode->sync);
+      static int64_t vndTick = 0;
+      if (++vndTick % 10 == 1) {
+        vGTrace("vgId:%d, sync heartbeat msg:%s, %s", syncGetVgId(pVnode->sync), TMSG_INFO(pMsg->msgType), syncNodeStr);
+      }
+      if (gRaftDetailLog) {
+        char logBuf[512] = {0};
+        snprintf(logBuf, sizeof(logBuf), "==vnodeProcessSyncReq== msgType:%d, syncNode: %s", pMsg->msgType,
+                 syncNodeStr);
+        syncRpcMsgLog2(logBuf, pMsg);
+      }
+      taosMemoryFree(syncNodeStr);
+    } while (0);
 
     SRpcMsg *pRpcMsg = pMsg;
 
@@ -334,7 +336,7 @@ static void vnodeSyncReconfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReCon
   SVnode *pVnode = pFsm->data;
 
   SRpcMsg rpcMsg = {.msgType = pMsg->msgType, .contLen = pMsg->contLen};
-  syncGetAndDelRespRpc(pVnode->sync, cbMeta.seqNum, &rpcMsg.info);
+  syncGetAndDelRespRpc(pVnode->sync, cbMeta.newCfgSeqNum, &rpcMsg.info);
   rpcMsg.info.conn.applyIndex = cbMeta.index;
 
   STraceId *trace = (STraceId *)&pMsg->info.traceId;
@@ -348,7 +350,7 @@ static void vnodeSyncReconfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReCon
 }
 
 static void vnodeSyncCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
-  SVnode *  pVnode = pFsm->data;
+  SVnode   *pVnode = pFsm->data;
   SSnapshot snapshot = {0};
   SyncIndex beginIndex = SYNC_INDEX_INVALID;
   char      logBuf[256] = {0};

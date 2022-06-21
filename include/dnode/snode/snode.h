@@ -16,8 +16,8 @@
 #ifndef _TD_SNODE_H_
 #define _TD_SNODE_H_
 
-#include "tmsgcb.h"
 #include "tmsg.h"
+#include "tmsgcb.h"
 #include "trpc.h"
 
 #ifdef __cplusplus
@@ -68,8 +68,8 @@ int32_t sndGetLoad(SSnode *pSnode, SSnodeLoad *pLoad);
  * @param pMsg The request message
  * @param pRsp The response message
  */
-void sndProcessUMsg(SSnode *pSnode, SRpcMsg *pMsg);
-void sndProcessSMsg(SSnode *pSnode, SRpcMsg *pMsg);
+int32_t sndProcessUMsg(SSnode *pSnode, SRpcMsg *pMsg);
+int32_t sndProcessSMsg(SSnode *pSnode, SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }

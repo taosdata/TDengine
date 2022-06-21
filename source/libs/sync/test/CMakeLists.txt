@@ -49,6 +49,7 @@ add_executable(syncRaftLogTest "")
 add_executable(syncRaftLogTest2 "")
 add_executable(syncRaftLogTest3 "")
 add_executable(syncLeaderTransferTest "")
+add_executable(syncReconfigFinishTest "")
 
 
 target_sources(syncTest
@@ -254,6 +255,10 @@ target_sources(syncRaftLogTest3
 target_sources(syncLeaderTransferTest
     PRIVATE
     "syncLeaderTransferTest.cpp"
+)
+target_sources(syncReconfigFinishTest
+    PRIVATE
+    "syncReconfigFinishTest.cpp"
 )
 
 
@@ -512,6 +517,11 @@ target_include_directories(syncLeaderTransferTest
     "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
+target_include_directories(syncReconfigFinishTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
 
 
 target_link_libraries(syncTest
@@ -715,6 +725,10 @@ target_link_libraries(syncRaftLogTest3
     gtest_main
 )
 target_link_libraries(syncLeaderTransferTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncReconfigFinishTest
     sync
     gtest_main
 )

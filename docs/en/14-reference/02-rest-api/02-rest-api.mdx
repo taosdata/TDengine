@@ -21,7 +21,7 @@ The following example is in an Ubuntu environment and uses the `curl` tool to ve
 The following example lists all databases on the host h1.taosdata.com. To use it in your environment, replace `h1.taosdata.com` and `6041` (the default port) with the actual running TDengine service FQDN and port number.
 
 ```html
-curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'show databases;' h1.taosdata.com:6041/rest/sql
+curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "show databases;" h1.taosdata.com:6041/rest/sql
 ```
 
 The following return value results indicate that the verification passed.
@@ -106,13 +106,13 @@ The HTTP request's BODY is a complete SQL command, and the data table in the SQL
 Use `curl` to initiate an HTTP request with a custom authentication method, with the following syntax.
 
 ```bash
-curl -H 'Authorization: Basic <TOKEN>' -d '<SQL>' <ip>:<PORT>/rest/sql/[db_name]
+curl -L -H "Authorization: Basic <TOKEN>" -d "<SQL>" <ip>:<PORT>/rest/sql/[db_name]
 ```
 
 Or
 
 ```bash
-curl -u username:password -d '<SQL>' <ip>:<PORT>/rest/sql/[db_name]
+curl -L -u username:password -d "<SQL>" <ip>:<PORT>/rest/sql/[db_name]
 ```
 
 where `TOKEN` is the string after Base64 encoding of `{username}:{password}`, e.g. `root:taosdata` is encoded as `cm9vdDp0YW9zZGF0YQ==`.
@@ -192,7 +192,7 @@ Response body:
 - query all records from table d1001 of database demo
 
   ```bash
-  curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.d1001' 192.168.0.1:6041/rest/sql
+  curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "select * from demo.d1001" 192.168.0.1:6041/rest/sql
   ```
 
   Response body:
@@ -218,7 +218,7 @@ Response body:
 - Create database demo:
 
   ```bash
-  curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'create database demo' 192.168.0.1:6041/rest/sql
+  curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "create database demo" 192.168.0.1:6041/rest/sql
   ```
 
   Response body:
@@ -240,7 +240,7 @@ Response body:
 When the HTTP request URL uses `/rest/sqlt`, the returned result set's timestamp value will be in Unix timestamp format, for example:
 
 ```bash
-curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.d1001' 192.168.0.1:6041/rest/sqlt
+curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "select * from demo.d1001" 192.168.0.1:6041/rest/sqlt
 ```
 
 Response body:
@@ -268,7 +268,7 @@ Response body:
 When the HTTP request URL uses `/rest/sqlutc`, the timestamp of the returned result set will be expressed as a UTC format, for example:
 
 ```bash
-  curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.t1' 192.168.0.1:6041/rest/sqlutc
+  curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" -d "select * from demo.t1" 192.168.0.1:6041/rest/sqlutc
 ```
 
 Response body:

@@ -341,12 +341,8 @@ typedef struct {
   int32_t  colVer;
   int32_t  smaVer;
   int32_t  nextColId;
-  float    xFilesFactor;
-  int32_t  delay;
-  int32_t  delay1;
-  int32_t  delay2;
-  int64_t  watermark1;
-  int64_t  watermark2;  
+  int64_t  watermark[2];
+  int64_t  maxdelay[2];
   int32_t  ttl;
   int32_t  numOfColumns;
   int32_t  numOfTags;
@@ -425,7 +421,8 @@ typedef struct {
   int64_t        uid;
   int64_t        dbUid;
   int32_t        version;
-  int8_t         subType;  // column, db or stable
+  int8_t         subType;   // column, db or stable
+  int8_t         withMeta;  // TODO
   SRWLatch       lock;
   int32_t        sqlLen;
   int32_t        astLen;
@@ -492,6 +489,7 @@ typedef struct {
   int64_t   dbUid;
   int32_t   vgNum;
   int8_t    subType;
+  int8_t    withMeta;
   int64_t   stbUid;
   SHashObj* consumerHash;   // consumerId -> SMqConsumerEp
   SArray*   unassignedVgs;  // SArray<SMqVgEp*>

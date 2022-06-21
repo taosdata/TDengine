@@ -545,6 +545,8 @@ static int32_t execShowCreateSTable(SShowCreateTableStmt* pStmt, SRetrieveTableR
 
 static int32_t execAlterLocal(SAlterLocalStmt* pStmt) { return TSDB_CODE_FAILED; }
 
+static int32_t execShowLocalVariables() { return TSDB_CODE_FAILED; }
+
 int32_t qExecCommand(SNode* pStmt, SRetrieveTableRsp** pRsp) {
   switch (nodeType(pStmt)) {
     case QUERY_NODE_DESCRIBE_STMT:
@@ -559,6 +561,8 @@ int32_t qExecCommand(SNode* pStmt, SRetrieveTableRsp** pRsp) {
       return execShowCreateSTable((SShowCreateTableStmt*)pStmt, pRsp);
     case QUERY_NODE_ALTER_LOCAL_STMT:
       return execAlterLocal((SAlterLocalStmt*)pStmt);
+    case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
+      return execShowLocalVariables();
     default:
       break;
   }

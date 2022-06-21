@@ -70,6 +70,7 @@ typedef struct SCatalogReq {
   SArray* pTableIndex;    // element is SNAME
   SArray* pTableCfg;      // element is SNAME
   bool    qNodeRequired;  // valid qnode
+  bool    dNodeRequired;  // valid dnode
   bool    forceUpdate;
 } SCatalogReq;
 
@@ -90,6 +91,7 @@ typedef struct SMetaData {
   SArray* pUser;        // pRes = bool*
   SArray* pQnodeList;   // pRes = SArray<SQueryNodeLoad>*
   SArray* pTableCfg;    // pRes = STableCfg*
+  SArray* pDnodeList;   // pRes = SArray<SEpSet>*
 } SMetaData;
 
 typedef struct SCatalogCfg {
@@ -269,6 +271,8 @@ int32_t catalogGetAllMeta(SCatalog* pCatalog, SRequestConnInfo* pConn, const SCa
 int32_t catalogAsyncGetAllMeta(SCatalog* pCtg, SRequestConnInfo* pConn, uint64_t reqId, const SCatalogReq* pReq, catalogCallback fp, void* param, int64_t* jobId);
 
 int32_t catalogGetQnodeList(SCatalog* pCatalog, SRequestConnInfo* pConn, SArray* pQnodeList);
+
+int32_t catalogGetDnodeList(SCatalog* pCatalog, SRequestConnInfo* pConn, SArray** pDnodeList);
 
 int32_t catalogGetExpiredSTables(SCatalog* pCatalog, SSTableVersion **stables, uint32_t *num);
 

@@ -161,9 +161,11 @@ static int32_t sdbCreateDir(SSdb *pSdb) {
 }
 
 void sdbSetApplyInfo(SSdb *pSdb, int64_t index, int64_t term, int64_t config) {
-  mTrace("mnode apply info changed, from index:%" PRId64 " term:%" PRId64 " config:%" PRId64 ", to index:%" PRId64
+#if 1
+  mTrace("mnode apply info changed from index:%" PRId64 " term:%" PRId64 " config:%" PRId64 " to index:%" PRId64
          " term:%" PRId64 " config:%" PRId64,
          pSdb->applyIndex, pSdb->applyTerm, pSdb->applyConfig, index, term, config);
+#endif
   pSdb->applyIndex = index;
   pSdb->applyTerm = term;
   pSdb->applyConfig = config;
@@ -173,7 +175,9 @@ void sdbGetCommitInfo(SSdb *pSdb, int64_t *index, int64_t *term, int64_t *config
   *index = pSdb->commitIndex;
   *term = pSdb->commitTerm;
   *config = pSdb->commitConfig;
+#if 0
   mTrace("mnode current info, apply index:%" PRId64 " term:%" PRId64 " config:%" PRId64 ", commit index:%" PRId64
          " term:%" PRId64 " config:%" PRId64,
          pSdb->applyIndex, pSdb->applyTerm, pSdb->applyConfig, *index, *term, *config);
+#endif
 }

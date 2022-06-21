@@ -30,9 +30,14 @@ extern "C" {
 typedef struct SStreamTask SStreamTask;
 
 enum {
-  TASK_STATUS__IDLE = 1,
-  TASK_STATUS__EXECUTING,
-  TASK_STATUS__CLOSING,
+  TASK_STATUS__NORMAL = 0,
+  TASK_STATUS__DROPPING,
+};
+
+enum {
+  TASK_EXEC_STATUS__IDLE = 1,
+  TASK_EXEC_STATUS__EXECUTING,
+  TASK_EXEC_STATUS__CLOSING,
 };
 
 enum {
@@ -51,15 +56,11 @@ enum {
 };
 
 enum {
-  STREAM_CREATED_BY__USER = 1,
-  STREAM_CREATED_BY__SMA,
-};
-
-enum {
   STREAM_INPUT__DATA_SUBMIT = 1,
   STREAM_INPUT__DATA_BLOCK,
   STREAM_INPUT__TRIGGER,
   STREAM_INPUT__CHECKPOINT,
+  STREAM_INPUT__DROP,
 };
 
 typedef struct {
@@ -152,7 +153,6 @@ void*   streamDataBlockDecode(const void* buf, SStreamDataBlock* pInput);
 typedef struct {
   char* qmsg;
   // followings are not applicable to encoder and decoder
-  void* inputHandle;
   void* executor;
 } STaskExec;
 
@@ -238,13 +238,16 @@ struct SStreamTask {
   int64_t streamId;
   int32_t taskId;
   int8_t  inputType;
-  int8_t  status;
+  int8_t  taskStatus;
 
-  int8_t  sourceType;
+  int8_t execStatus;
+
   int8_t  execType;
   int8_t  sinkType;
   int8_t  dispatchType;
   int16_t dispatchMsgType;
+
+  int8_t dataScan;
 
   // node info
   int32_t childId;
@@ -399,15 +402,13 @@ typedef struct {
 
 int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq);
 
-int32_t streamLaunchByWrite(SStreamTask* pTask, int32_t vgId, SMsgCb* pMsgCb);
+int32_t streamLaunchByWrite(SStreamTask* pTask, int32_t vgId);
 int32_t streamSetupTrigger(SStreamTask* pTask);
 
-int32_t streamTaskRun(SStreamTask* pTask);
-
-int32_t streamTaskProcessRunReq(SStreamTask* pTask, SMsgCb* pMsgCb);
-int32_t streamProcessDispatchReq(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDispatchReq* pReq, SRpcMsg* pMsg);
-int32_t streamProcessDispatchRsp(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDispatchRsp* pRsp);
-int32_t streamProcessRecoverReq(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamTaskRecoverReq* pReq, SRpcMsg* pMsg);
+int32_t streamProcessRunReq(SStreamTask* pTask);
+int32_t streamProcessDispatchReq(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pMsg);
+int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp);
+int32_t streamProcessRecoverReq(SStreamTask* pTask, SStreamTaskRecoverReq* pReq, SRpcMsg* pMsg);
 int32_t streamProcessRecoverRsp(SStreamTask* pTask, SStreamTaskRecoverRsp* pRsp);
 
 #ifdef __cplusplus
