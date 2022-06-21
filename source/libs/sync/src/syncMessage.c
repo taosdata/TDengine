@@ -2228,3 +2228,132 @@ void syncLeaderTransferLog2(char* s, const SyncLeaderTransfer* pMsg) {
     taosMemoryFree(serialized);
   }
 }
+
+// ---------------------------------------------
+SyncReconfigFinish* syncReconfigFinishBuild(int32_t vgId) {
+  uint32_t            bytes = sizeof(SyncReconfigFinish);
+  SyncReconfigFinish* pMsg = taosMemoryMalloc(bytes);
+  memset(pMsg, 0, bytes);
+  pMsg->bytes = bytes;
+  pMsg->vgId = vgId;
+  pMsg->msgType = TDMT_SYNC_CONFIG_CHANGE_FINISH;
+  return pMsg;
+}
+
+void syncReconfigFinishDestroy(SyncReconfigFinish* pMsg) {
+  if (pMsg != NULL) {
+    taosMemoryFree(pMsg);
+  }
+}
+
+void syncReconfigFinishSerialize(const SyncReconfigFinish* pMsg, char* buf, uint32_t bufLen) {
+  assert(pMsg->bytes <= bufLen);
+  memcpy(buf, pMsg, pMsg->bytes);
+}
+
+void syncReconfigFinishDeserialize(const char* buf, uint32_t len, SyncReconfigFinish* pMsg) {
+  memcpy(pMsg, buf, len);
+  assert(len == pMsg->bytes);
+}
+
+char* syncReconfigFinishSerialize2(const SyncReconfigFinish* pMsg, uint32_t* len) {
+  char* buf = taosMemoryMalloc(pMsg->bytes);
+  assert(buf != NULL);
+  syncReconfigFinishSerialize(pMsg, buf, pMsg->bytes);
+  if (len != NULL) {
+    *len = pMsg->bytes;
+  }
+  return buf;
+}
+
+SyncReconfigFinish* syncReconfigFinishDeserialize2(const char* buf, uint32_t len) {
+  uint32_t            bytes = *((uint32_t*)buf);
+  SyncReconfigFinish* pMsg = taosMemoryMalloc(bytes);
+  assert(pMsg != NULL);
+  syncReconfigFinishDeserialize(buf, len, pMsg);
+  assert(len == pMsg->bytes);
+  return pMsg;
+}
+
+void syncReconfigFinish2RpcMsg(const SyncReconfigFinish* pMsg, SRpcMsg* pRpcMsg) {
+  memset(pRpcMsg, 0, sizeof(*pRpcMsg));
+  pRpcMsg->msgType = pMsg->msgType;
+  pRpcMsg->contLen = pMsg->bytes;
+  pRpcMsg->pCont = rpcMallocCont(pRpcMsg->contLen);
+  syncReconfigFinishSerialize(pMsg, pRpcMsg->pCont, pRpcMsg->contLen);
+}
+
+void syncReconfigFinishFromRpcMsg(const SRpcMsg* pRpcMsg, SyncReconfigFinish* pMsg) {
+  syncReconfigFinishDeserialize(pRpcMsg->pCont, pRpcMsg->contLen, pMsg);
+}
+
+SyncReconfigFinish* syncReconfigFinishFromRpcMsg2(const SRpcMsg* pRpcMsg) {
+  SyncReconfigFinish* pMsg = syncReconfigFinishDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
+  assert(pMsg != NULL);
+  return pMsg;
+}
+
+cJSON* syncReconfigFinish2Json(const SyncReconfigFinish* pMsg) {
+  char   u64buf[128];
+  cJSON* pRoot = cJSON_CreateObject();
+
+  if (pMsg != NULL) {
+    cJSON_AddNumberToObject(pRoot, "bytes", pMsg->bytes);
+    cJSON_AddNumberToObject(pRoot, "vgId", pMsg->vgId);
+    cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
+
+    cJSON* pOldCfg = syncCfg2Json((SSyncCfg*)(&(pMsg->oldCfg)));
+    cJSON* pNewCfg = syncCfg2Json((SSyncCfg*)(&(pMsg->newCfg)));
+    cJSON_AddItemToObject(pRoot, "oldCfg", pOldCfg);
+    cJSON_AddItemToObject(pRoot, "newCfg", pNewCfg);
+
+    snprintf(u64buf, sizeof(u64buf), "%ld", pMsg->newCfgIndex);
+    cJSON_AddStringToObject(pRoot, "newCfgIndex", u64buf);
+
+    snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->newCfgTerm);
+    cJSON_AddStringToObject(pRoot, "newCfgTerm", u64buf);
+
+    snprintf(u64buf, sizeof(u64buf), "%lu", pMsg->newCfgSeqNum);
+    cJSON_AddStringToObject(pRoot, "newCfgSeqNum", u64buf);
+  }
+
+  cJSON* pJson = cJSON_CreateObject();
+  cJSON_AddItemToObject(pJson, "SyncReconfigFinish", pRoot);
+  return pJson;
+}
+
+char* syncReconfigFinish2Str(const SyncReconfigFinish* pMsg) {
+  cJSON* pJson = syncReconfigFinish2Json(pMsg);
+  char*  serialized = cJSON_Print(pJson);
+  cJSON_Delete(pJson);
+  return serialized;
+}
+
+// for debug ----------------------
+void syncReconfigFinishPrint(const SyncReconfigFinish* pMsg) {
+  char* serialized = syncReconfigFinish2Str(pMsg);
+  printf("syncReconfigFinishPrint | len:%lu | %s \n", strlen(serialized), serialized);
+  fflush(NULL);
+  taosMemoryFree(serialized);
+}
+
+void syncReconfigFinishPrint2(char* s, const SyncReconfigFinish* pMsg) {
+  char* serialized = syncReconfigFinish2Str(pMsg);
+  printf("syncReconfigFinishPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
+  fflush(NULL);
+  taosMemoryFree(serialized);
+}
+
+void syncReconfigFinishLog(const SyncReconfigFinish* pMsg) {
+  char* serialized = syncReconfigFinish2Str(pMsg);
+  sTrace("syncReconfigFinishLog | len:%lu | %s", strlen(serialized), serialized);
+  taosMemoryFree(serialized);
+}
+
+void syncReconfigFinishLog2(char* s, const SyncReconfigFinish* pMsg) {
+  if (gRaftDetailLog) {
+    char* serialized = syncReconfigFinish2Str(pMsg);
+    sTrace("syncReconfigFinishLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+    taosMemoryFree(serialized);
+  }
+}

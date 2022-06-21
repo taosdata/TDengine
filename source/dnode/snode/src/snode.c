@@ -78,8 +78,8 @@ int32_t sndMetaRemoveTask(SStreamMeta *pMeta, int32_t taskId) {
 
 static int32_t sndProcessTaskDeployReq(SSnode *pNode, SRpcMsg *pMsg) {
   SStreamMeta *pMeta = pNode->pMeta;
-  char        *msg = pMsg->pCont;
-  int32_t      msgLen = pMsg->contLen;
+  char        *msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+  int32_t      msgLen = pMsg->contLen - sizeof(SMsgHead);
 
   SStreamTask *pTask = taosMemoryCalloc(1, sizeof(SStreamTask));
   if (pTask == NULL) {
@@ -105,23 +105,22 @@ static int32_t sndProcessTaskDeployReq(SSnode *pNode, SRpcMsg *pMsg) {
 
   ASSERT(pTask->execType != TASK_EXEC__NONE);
 
-  SReadHandle handle = {
-      .pMsgCb = &pNode->msgCb,
-  };
-
-  /*pTask->exec.inputHandle = NULL;*/
-  pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle);
+  ASSERT(pTask->dataScan == 0);
+  pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, NULL);
   ASSERT(pTask->exec.executor);
 
   streamSetupTrigger(pTask);
 
   qInfo("deploy stream: stream id %ld task id %d child id %d on snode", pTask->streamId, pTask->taskId, pTask->childId);
 
+  taosHashPut(pMeta->pHash, &pTask->taskId, sizeof(int32_t), &pTask, sizeof(void *));
+
   return 0;
 
 FAIL:
   if (pTask->inputQueue) streamQueueClose(pTask->inputQueue);
   if (pTask->outputQueue) streamQueueClose(pTask->outputQueue);
+  if (pTask) taosMemoryFree(pTask);
   return -1;
 }
 
@@ -130,7 +129,7 @@ static int32_t sndProcessTaskRunReq(SSnode *pNode, SRpcMsg *pMsg) {
   SStreamTaskRunReq *pReq = pMsg->pCont;
   int32_t            taskId = pReq->taskId;
   SStreamTask       *pTask = *(SStreamTask **)taosHashGet(pMeta->pHash, &taskId, sizeof(int32_t));
-  streamTaskProcessRunReq(pTask, &pNode->msgCb);
+  streamProcessRunReq(pTask);
   return 0;
 }
 
@@ -151,7 +150,7 @@ static int32_t sndProcessTaskDispatchReq(SSnode *pNode, SRpcMsg *pMsg) {
            .info = pMsg->info,
            .code = 0,
   };
-  streamProcessDispatchReq(pTask, &pNode->msgCb, &req, &rsp);
+  streamProcessDispatchReq(pTask, &req, &rsp);
   return 0;
 }
 
@@ -161,7 +160,7 @@ static int32_t sndProcessTaskRecoverReq(SSnode *pNode, SRpcMsg *pMsg) {
   SStreamTaskRecoverReq *pReq = pMsg->pCont;
   int32_t                taskId = pReq->taskId;
   SStreamTask           *pTask = *(SStreamTask **)taosHashGet(pMeta->pHash, &taskId, sizeof(int32_t));
-  streamProcessRecoverReq(pTask, &pNode->msgCb, pReq, pMsg);
+  streamProcessRecoverReq(pTask, pReq, pMsg);
   return 0;
 }
 
@@ -171,7 +170,7 @@ static int32_t sndProcessTaskDispatchRsp(SSnode *pNode, SRpcMsg *pMsg) {
   SStreamDispatchRsp *pRsp = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   int32_t             taskId = pRsp->taskId;
   SStreamTask        *pTask = *(SStreamTask **)taosHashGet(pMeta->pHash, &taskId, sizeof(int32_t));
-  streamProcessDispatchRsp(pTask, &pNode->msgCb, pRsp);
+  streamProcessDispatchRsp(pTask, pRsp);
   return 0;
 }
 

@@ -89,8 +89,10 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   SDB_SET_INT32(pRaw, dataPos, pStb->tagVer, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->colVer, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->nextColId, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, (int32_t)(pStb->xFilesFactor * 10000), _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pStb->delay, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pStb->maxdelay[0], _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pStb->maxdelay[1], _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pStb->watermark[0], _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pStb->watermark[1], _OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->ttl, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->numOfColumns, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->numOfTags, _OVER)
@@ -168,10 +170,10 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &pStb->tagVer, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pStb->colVer, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pStb->nextColId, _OVER)
-  int32_t xFilesFactor = 0;
-  SDB_GET_INT32(pRaw, dataPos, &xFilesFactor, _OVER)
-  pStb->xFilesFactor = xFilesFactor / 10000.0f;
-  SDB_GET_INT32(pRaw, dataPos, &pStb->delay, _OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pStb->maxdelay[0], _OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pStb->maxdelay[1], _OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pStb->watermark[0], _OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pStb->watermark[1], _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pStb->ttl, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pStb->numOfColumns, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pStb->numOfTags, _OVER)
@@ -399,18 +401,18 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   req.schemaTag.pSchema = pStb->pTags;
 
   if (req.rollup) {
-    req.pRSmaParam.xFilesFactor = pStb->xFilesFactor;
-    req.pRSmaParam.delay = pStb->delay;
+    req.pRSmaParam.maxdelay[0] = pStb->maxdelay[0];
+    req.pRSmaParam.maxdelay[1] = pStb->maxdelay[1];
     if (pStb->ast1Len > 0) {
-      if (mndConvertRsmaTask(&req.pRSmaParam.qmsg1, &req.pRSmaParam.qmsg1Len, pStb->pAst1, pStb->uid,
-                             STREAM_TRIGGER_WINDOW_CLOSE, 0, req.pRSmaParam.xFilesFactor) != TSDB_CODE_SUCCESS) {
-        return NULL;
+      if (mndConvertRsmaTask(&req.pRSmaParam.qmsg[0], &req.pRSmaParam.qmsgLen[0], pStb->pAst1, pStb->uid,
+                             STREAM_TRIGGER_WINDOW_CLOSE, req.pRSmaParam.watermark[0]) < 0) {
+        goto _err;
       }
     }
     if (pStb->ast2Len > 0) {
-      if (mndConvertRsmaTask(&req.pRSmaParam.qmsg2, &req.pRSmaParam.qmsg2Len, pStb->pAst2, pStb->uid,
-                             STREAM_TRIGGER_WINDOW_CLOSE, 0, req.pRSmaParam.xFilesFactor) != TSDB_CODE_SUCCESS) {
-        return NULL;
+      if (mndConvertRsmaTask(&req.pRSmaParam.qmsg[1], &req.pRSmaParam.qmsgLen[1], pStb->pAst2, pStb->uid,
+                             STREAM_TRIGGER_WINDOW_CLOSE, req.pRSmaParam.watermark[1]) < 0) {
+        goto _err;
       }
     }
   }
@@ -418,17 +420,15 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   int32_t ret = 0;
   tEncodeSize(tEncodeSVCreateStbReq, &req, contLen, ret);
   if (ret < 0) {
-    return NULL;
+    goto _err;
   }
 
   contLen += sizeof(SMsgHead);
 
   SMsgHead *pHead = taosMemoryMalloc(contLen);
   if (pHead == NULL) {
-    taosMemoryFreeClear(req.pRSmaParam.qmsg1);
-    taosMemoryFreeClear(req.pRSmaParam.qmsg2);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
+    goto _err;
   }
 
   pHead->contLen = htonl(contLen);
@@ -438,17 +438,19 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   tEncoderInit(&encoder, pBuf, contLen - sizeof(SMsgHead));
   if (tEncodeSVCreateStbReq(&encoder, &req) < 0) {
     taosMemoryFreeClear(pHead);
-    taosMemoryFreeClear(req.pRSmaParam.qmsg1);
-    taosMemoryFreeClear(req.pRSmaParam.qmsg2);
     tEncoderClear(&encoder);
-    return NULL;
+    goto _err;
   }
   tEncoderClear(&encoder);
 
   *pContLen = contLen;
-  taosMemoryFreeClear(req.pRSmaParam.qmsg1);
-  taosMemoryFreeClear(req.pRSmaParam.qmsg2);
+  taosMemoryFreeClear(req.pRSmaParam.qmsg[0]);
+  taosMemoryFreeClear(req.pRSmaParam.qmsg[1]);
   return pHead;
+_err:
+  taosMemoryFreeClear(req.pRSmaParam.qmsg[0]);
+  taosMemoryFreeClear(req.pRSmaParam.qmsg[1]);
+  return NULL;
 }
 
 static void *mndBuildVDropStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int32_t *pContLen) {
@@ -670,8 +672,10 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   pDst->tagVer = 1;
   pDst->colVer = 1;
   pDst->nextColId = 1;
-  // pDst->xFilesFactor = pCreate->xFilesFactor;
-  // pDst->delay = pCreate->delay;
+  pDst->maxdelay[0] = pCreate->delay1;
+  pDst->maxdelay[1] = pCreate->delay2;
+  pDst->watermark[0] = pCreate->watermark1;
+  pDst->watermark[1] = pCreate->watermark2;
   pDst->ttl = pCreate->ttl;
   pDst->numOfColumns = pCreate->numOfColumns;
   pDst->numOfTags = pCreate->numOfTags;
@@ -897,7 +901,7 @@ static int32_t mndUpdateStbCommentAndTTL(const SStbObj *pOld, SStbObj *pNew, cha
       return -1;
     }
     memcpy(pNew->comment, pComment, commentLen + 1);
-  } else if(commentLen == 0){
+  } else if (commentLen == 0) {
     pNew->commentLen = 0;
   }
 
@@ -1849,7 +1853,7 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
       char comment[TSDB_TB_COMMENT_LEN + VARSTR_HEADER_SIZE] = {0};
       STR_TO_VARSTR(comment, pStb->comment);
       colDataAppend(pColInfo, numOfRows, comment, false);
-    } else if(pStb->commentLen == 0) {
+    } else if (pStb->commentLen == 0) {
       char comment[VARSTR_HEADER_SIZE + VARSTR_HEADER_SIZE] = {0};
       STR_TO_VARSTR(comment, "");
       colDataAppend(pColInfo, numOfRows, comment, false);

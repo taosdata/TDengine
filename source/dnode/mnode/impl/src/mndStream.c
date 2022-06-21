@@ -518,7 +518,6 @@ static int32_t mndCreateStream(SMnode *pMnode, SRpcMsg *pReq, SCMCreateStreamReq
   // TODO
   streamObj.fixedSinkVgId = 0;
   streamObj.smaId = 0;
-  /*streamObj.physicalPlan = "";*/
   streamObj.trigger = pCreate->triggerType;
   streamObj.watermark = pCreate->watermark;
   streamObj.triggerParam = pCreate->maxDelay;
@@ -607,17 +606,6 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   }
 #endif
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq);
-  if (pTrans == NULL) {
-    mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
-    goto _OVER;
-  }
-
-  mndTransSetDbName(pTrans, createStreamReq.sourceDB, NULL);
-  // TODO
-  /*mndTransSetDbName(pTrans, streamObj.targetDb, NULL);*/
-  mDebug("trans:%d, used to create stream:%s", pTrans->id, createStreamReq.name);
-
   // build stream obj from request
   SStreamObj streamObj = {0};
   if (mndBuildStreamObjFromCreateReq(pMnode, &streamObj, &createStreamReq) < 0) {
@@ -625,6 +613,14 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
     goto _OVER;
   }
+
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq);
+  if (pTrans == NULL) {
+    mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
+    goto _OVER;
+  }
+  mndTransSetDbName(pTrans, createStreamReq.sourceDB, streamObj.targetDb);
+  mDebug("trans:%d, used to create stream:%s", pTrans->id, createStreamReq.name);
 
   // create stb for stream
   if (mndCreateStbForStream(pMnode, pTrans, &streamObj, pReq->info.conn.user) < 0) {
