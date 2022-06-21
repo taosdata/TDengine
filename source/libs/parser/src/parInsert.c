@@ -1081,15 +1081,6 @@ end:
   return code;
 }
 
-static int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
-  *pDst = taosMemoryMalloc(TABLE_META_SIZE(pSrc));
-  if (NULL == *pDst) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
-  }
-  memcpy(*pDst, pSrc, TABLE_META_SIZE(pSrc));
-  return TSDB_CODE_SUCCESS;
-}
-
 static int32_t storeTableMeta(SInsertParseContext* pCxt, SHashObj* pHash, SName* pTableName, const char* pName,
                               int32_t len, STableMeta* pMeta) {
   SVgroupInfo vg;

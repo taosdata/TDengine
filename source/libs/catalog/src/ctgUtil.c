@@ -33,6 +33,10 @@ char *ctgTaskTypeStr(CTG_TASK_TYPE type) {
       return "[get table meta]";
     case CTG_TASK_GET_TB_HASH:
       return "[get table hash]";
+    case CTG_TASK_GET_TB_INDEX:
+      return "[get table index]";
+    case CTG_TASK_GET_TB_CFG:
+      return "[get table cfg]";
     case CTG_TASK_GET_INDEX:
       return "[get index]";
     case CTG_TASK_GET_UDF:
@@ -96,6 +100,9 @@ void ctgFreeSMetaData(SMetaData* pData) {
   
   taosArrayDestroy(pData->pQnodeList);
   pData->pQnodeList = NULL;
+
+  taosArrayDestroy(pData->pTableCfg);
+  pData->pTableCfg = NULL;
 }
 
 void ctgFreeSCtgUserAuth(SCtgUserAuth *userCache) {
@@ -280,6 +287,13 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
       }
       break;
     }
+    case TDMT_VND_TABLE_CFG:
+    case TDMT_MND_TABLE_CFG: {
+      STableCfgRsp* pOut = (STableCfgRsp*)pCtx->out;
+      tFreeSTableCfgRsp(pOut);
+      taosMemoryFreeClear(pCtx->out);
+      break;
+    }
     case TDMT_MND_RETRIEVE_FUNC: {
       SFuncInfo* pOut = (SFuncInfo*)pCtx->out;
       taosMemoryFree(pOut->pCode);
@@ -328,14 +342,135 @@ void ctgResetTbMetaTask(SCtgTask* pTask) {
   taosMemoryFreeClear(pTask->res);
 }
 
-void ctgFreeTask(SCtgTask* pTask) {
-  ctgFreeMsgCtx(&pTask->msgCtx);
-  
+void ctgFreeTaskRes(CTG_TASK_TYPE type, void **pRes) {
+  switch (type) {
+    case CTG_TASK_GET_QNODE: {
+      taosArrayDestroy((SArray*)*pRes);
+      *pRes = NULL;
+      break;
+    }
+    case CTG_TASK_GET_TB_META: {
+      taosMemoryFreeClear(*pRes);
+      break;
+    }
+    case CTG_TASK_GET_DB_VGROUP: {
+      taosArrayDestroy((SArray*)*pRes);
+      *pRes = NULL;
+      break;
+    }
+    case CTG_TASK_GET_DB_CFG: {
+      if (*pRes) {
+        SDbCfgInfo* pInfo = (SDbCfgInfo*)*pRes;
+        taosArrayDestroy(pInfo->pRetensions);
+        taosMemoryFreeClear(*pRes);
+      }
+      break;
+    }
+    case CTG_TASK_GET_DB_INFO: {
+      taosMemoryFreeClear(*pRes);
+      break;
+    }
+    case CTG_TASK_GET_TB_HASH: {
+      taosMemoryFreeClear(*pRes);
+      break;
+    }
+    case CTG_TASK_GET_TB_INDEX: {
+      taosArrayDestroyEx(*pRes, tFreeSTableIndexInfo);
+      *pRes = NULL;
+      break;
+    }
+    case CTG_TASK_GET_INDEX: {
+      taosMemoryFreeClear(*pRes);
+      break;
+    }
+    case CTG_TASK_GET_UDF: {
+      taosMemoryFreeClear(*pRes);
+      break;
+    }
+    case CTG_TASK_GET_USER: {
+      taosMemoryFreeClear(*pRes);
+      break;
+    }
+    default:
+      qError("invalid task type %d", type);
+      break;
+  }
+}
+
+
+void ctgFreeSubTaskRes(CTG_TASK_TYPE type, void **pRes) {
+  switch (type) {
+    case CTG_TASK_GET_QNODE: {
+      taosArrayDestroy((SArray*)*pRes);
+      *pRes = NULL;
+      break;
+    }
+    case CTG_TASK_GET_TB_META: {
+      taosMemoryFreeClear(*pRes);
+      break;
+    }
+    case CTG_TASK_GET_DB_VGROUP: {
+      if (*pRes) {
+        SDBVgInfo* pInfo = (SDBVgInfo*)*pRes;
+        taosHashCleanup(pInfo->vgHash);
+        taosMemoryFreeClear(*pRes);
+      }
+      break;
+    }
+    case CTG_TASK_GET_DB_CFG: {
+      if (*pRes) {
+        SDbCfgInfo* pInfo = (SDbCfgInfo*)*pRes;
+        taosArrayDestroy(pInfo->pRetensions);
+        taosMemoryFreeClear(*pRes);
+      }
+      break;
+    }
+    case CTG_TASK_GET_DB_INFO: {
+      taosMemoryFreeClear(*pRes);
+      break;
+    }
+    case CTG_TASK_GET_TB_HASH: {
+      taosMemoryFreeClear(*pRes);
+      break;
+    }
+    case CTG_TASK_GET_TB_INDEX: {
+      taosArrayDestroyEx(*pRes, tFreeSTableIndexInfo);
+      *pRes = NULL;
+      break;
+    }
+    case CTG_TASK_GET_INDEX: {
+      taosMemoryFreeClear(*pRes);
+      break;
+    }
+    case CTG_TASK_GET_UDF: {
+      taosMemoryFreeClear(*pRes);
+      break;
+    }
+    case CTG_TASK_GET_USER: {
+      taosMemoryFreeClear(*pRes);
+      break;
+    }
+    default:
+      qError("invalid task type %d", type);
+      break;
+  }
+}
+
+
+void ctgClearSubTaskRes(SCtgSubRes *pRes) {
+  pRes->code = 0;
+
+  if (NULL == pRes->res) {
+    return;
+  }
+
+  ctgFreeSubTaskRes(pRes->type, &pRes->res);
+}
+
+void ctgFreeTaskCtx(SCtgTask* pTask) {
   switch (pTask->type) {
     case CTG_TASK_GET_QNODE: {
-      taosArrayDestroy((SArray*)pTask->res);
       taosMemoryFreeClear(pTask->taskCtx);      
-      pTask->res = NULL;
       break;
     }
     case CTG_TASK_GET_TB_META: {
@@ -346,62 +481,65 @@ void ctgFreeTask(SCtgTask* pTask) {
         pTask->msgCtx.lastOut = NULL;
       }
       taosMemoryFreeClear(pTask->taskCtx);
-      taosMemoryFreeClear(pTask->res);
       break;
     }
     case CTG_TASK_GET_DB_VGROUP: {
-      taosArrayDestroy((SArray*)pTask->res);
       taosMemoryFreeClear(pTask->taskCtx);      
-      pTask->res = NULL;
       break;
     }
     case CTG_TASK_GET_DB_CFG: {
       taosMemoryFreeClear(pTask->taskCtx);
-      if (pTask->res) {
-        SDbCfgInfo* pInfo = (SDbCfgInfo*)pTask->res;
-        taosArrayDestroy(pInfo->pRetensions);
-        taosMemoryFreeClear(pTask->res);
-      }
       break;
     }
     case CTG_TASK_GET_DB_INFO: {
       taosMemoryFreeClear(pTask->taskCtx);      
-      taosMemoryFreeClear(pTask->res);
       break;
     }
     case CTG_TASK_GET_TB_HASH: {
       SCtgTbHashCtx* taskCtx = (SCtgTbHashCtx*)pTask->taskCtx;
       taosMemoryFreeClear(taskCtx->pName);
       taosMemoryFreeClear(pTask->taskCtx);      
-      taosMemoryFreeClear(pTask->res);
       break;
     }
     case CTG_TASK_GET_TB_INDEX: {
       SCtgTbIndexCtx* taskCtx = (SCtgTbIndexCtx*)pTask->taskCtx;
       taosMemoryFreeClear(taskCtx->pName);
       taosMemoryFreeClear(pTask->taskCtx);
-      taosArrayDestroyEx(pTask->res, tFreeSTableIndexInfo);
+      break;
+    }
+    case CTG_TASK_GET_TB_CFG: {
+      SCtgTbCfgCtx* taskCtx = (SCtgTbCfgCtx*)pTask->taskCtx;
+      taosMemoryFreeClear(taskCtx->pName);
+      taosMemoryFreeClear(taskCtx->pVgInfo);
+      taosMemoryFreeClear(pTask->taskCtx);
       break;
     }
     case CTG_TASK_GET_INDEX: {
       taosMemoryFreeClear(pTask->taskCtx);
-      taosMemoryFreeClear(pTask->res);
       break;
     }
     case CTG_TASK_GET_UDF: {
       taosMemoryFreeClear(pTask->taskCtx);
-      taosMemoryFreeClear(pTask->res);
       break;
     }
     case CTG_TASK_GET_USER: {
       taosMemoryFreeClear(pTask->taskCtx);
-      taosMemoryFreeClear(pTask->res);
       break;
     }
     default:
       qError("invalid task type %d", pTask->type);
       break;
   }
+}
+
+
+void ctgFreeTask(SCtgTask* pTask) {
+  ctgFreeMsgCtx(&pTask->msgCtx);
+  ctgFreeTaskRes(pTask->type, &pTask->res);
+  ctgFreeTaskCtx(pTask);
+
+  taosArrayDestroy(pTask->pParents);
+  ctgClearSubTaskRes(&pTask->subRes);
 }
 
 void ctgFreeTasks(SArray* pArray) {

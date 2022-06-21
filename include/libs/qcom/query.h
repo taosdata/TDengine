@@ -209,6 +209,8 @@ SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* nam
 void destroyQueryExecRes(SQueryExecRes* pRes);
 int32_t dataConverToStr(char *str, int type, void *buf, int32_t bufSize, int32_t *len);
 char* parseTagDatatoJson(void* p);
+int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst);
+int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst);
 
 extern int32_t (*queryBuildMsg[TDMT_MAX])(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void*(*mallocFp)(int32_t));
 extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t msgSize);

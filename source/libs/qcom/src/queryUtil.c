@@ -373,3 +373,57 @@ end:
 }
 
 
+int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
+  if (NULL == pSrc) {
+    *pDst = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t metaSize = (pSrc->tableInfo.numOfColumns + pSrc->tableInfo.numOfTags) * sizeof(SSchema);
+  *pDst = taosMemoryMalloc(metaSize);
+  if (NULL == *pDst) {
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+  memcpy(*pDst, pSrc, metaSize);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
+  if (NULL == pSrc) {
+    *pDst = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+  
+  *pDst = taosMemoryMalloc(sizeof(*pSrc));
+  if (NULL == *pDst) {
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+  memcpy(*pDst, pSrc, sizeof(*pSrc));
+  if (pSrc->vgHash) {
+    (*pDst)->vgHash = taosHashInit(taosHashGetSize(pSrc->vgHash), taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+    if (NULL == (*pDst)->vgHash) {
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+
+    SVgroupInfo* vgInfo = NULL;
+    void *pIter = taosHashIterate(pSrc->vgHash, NULL);
+    while (pIter) {
+      vgInfo = pIter;
+      int32_t* vgId = taosHashGetKey(pIter, NULL);
+      
+      if (0 != taosHashPut((*pDst)->vgHash, vgId, sizeof(*vgId), vgInfo, sizeof(*vgInfo))) {
+        qError("taosHashPut failed, vgId:%d", vgInfo->vgId);
+        taosHashCancelIterate(pSrc->vgHash, pIter);    
+        taosHashCleanup((*pDst)->vgHash);
+        taosMemoryFreeClear(*pDst);
+        return TSDB_CODE_CTG_MEM_ERROR;
+      }
+      
+      pIter = taosHashIterate(pSrc->vgHash, pIter);
+    }
+  }
+  
+  return TSDB_CODE_SUCCESS;
+}
+
+

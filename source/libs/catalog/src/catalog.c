@@ -22,36 +22,6 @@
 
 SCatalogMgmt gCtgMgmt = {0};
 
-int32_t ctgRemoveTbMetaFromCache(SCatalog* pCtg, SName* pTableName, bool syncReq) {
-  int32_t       code = 0;
-  STableMeta*   tblMeta = NULL;
-  SCtgTbMetaCtx tbCtx = {0};
-  tbCtx.flag = CTG_FLAG_UNKNOWN_STB;
-  tbCtx.pName = pTableName;
-
-  CTG_ERR_JRET(ctgReadTbMetaFromCache(pCtg, &tbCtx, &tblMeta));
-
-  if (NULL == tblMeta) {
-    ctgDebug("table already not in cache, db:%s, tblName:%s", pTableName->dbname, pTableName->tname);
-    return TSDB_CODE_SUCCESS;
-  }
-
-  char dbFName[TSDB_DB_FNAME_LEN];
-  tNameGetFullDbName(pTableName, dbFName);
-
-  if (TSDB_SUPER_TABLE == tblMeta->tableType) {
-    CTG_ERR_JRET(ctgDropStbMetaEnqueue(pCtg, dbFName, tbCtx.tbInfo.dbId, pTableName->tname, tblMeta->suid, syncReq));
-  } else {
-    CTG_ERR_JRET(ctgDropTbMetaEnqueue(pCtg, dbFName, tbCtx.tbInfo.dbId, pTableName->tname, syncReq));
-  }
-
-_return:
-
-  taosMemoryFreeClear(tblMeta);
-
-  CTG_RET(code);
-}
-
 int32_t ctgGetDBVgInfo(SCatalog* pCtg, SRequestConnInfo *pConn, const char* dbFName, SCtgDBCache** dbCache, SDBVgInfo **pInfo) {
   int32_t code = 0;
 
@@ -210,29 +180,6 @@ _return:
   taosMemoryFreeClear(output);
 
   CTG_RET(code);
-}
-
-int32_t ctgGetTbMetaFromCache(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta) {
-  if (CTG_IS_SYS_DBNAME(ctx->pName->dbname)) {
-    CTG_FLAG_SET_SYS_DB(ctx->flag);
-  }
-
-  CTG_ERR_RET(ctgReadTbMetaFromCache(pCtg, ctx, pTableMeta));
-
-  if (*pTableMeta) {
-    if (CTG_FLAG_MATCH_STB(ctx->flag, (*pTableMeta)->tableType) &&
-        ((!CTG_FLAG_IS_FORCE_UPDATE(ctx->flag)) || (CTG_FLAG_IS_SYS_DB(ctx->flag)))) {
-      return TSDB_CODE_SUCCESS;
-    }
-
-    taosMemoryFreeClear(*pTableMeta);
-  }
-
-  if (CTG_FLAG_IS_UNKNOWN_STB(ctx->flag)) {
-    CTG_FLAG_SET_STB(ctx->flag, ctx->tbInfo.tbType);
-  }
-
-  return TSDB_CODE_SUCCESS;
 }
 
 int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta) {
