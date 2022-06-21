@@ -2290,7 +2290,7 @@ static int32_t syncNodeConfigChangeFinish(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyn
     ths->pFsm->FpReConfigCb(ths->pFsm, pRpcMsg, cbMeta);
   }
 
-  // update changing
+  // clear changing
   ths->changing = false;
 
   char  tmpbuf[512];
@@ -2309,6 +2309,9 @@ static int32_t syncNodeConfigChangeFinish(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyn
 
 static int32_t syncNodeConfigChange(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* pEntry,
                                     SyncReconfigFinish* pFinish) {
+  // set changing
+  ths->changing = true;
+
   // old config
   SSyncCfg oldSyncCfg = ths->pRaftCfg->cfg;
 
