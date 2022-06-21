@@ -1042,7 +1042,7 @@ static int32_t smaOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan)
 
 static EDealRes partTagsOptHasColImpl(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
-    if (COLUMN_TYPE_TAG != ((SColumnNode*)pNode)->colType) {
+    if (COLUMN_TYPE_TAG != ((SColumnNode*)pNode)->colType && COLUMN_TYPE_TBNAME != ((SColumnNode*)pNode)->colType) {
       *(bool*)pContext = true;
       return DEAL_RES_END;
     }
@@ -1080,6 +1080,28 @@ static bool partTagsOptMayBeOptimized(SLogicNode* pNode) {
   return !partTagsOptHasCol(partTagsGetPartKeys(pNode));
 }
 
+static EDealRes partTagsOptRebuildTbanmeImpl(SNode** pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(*pNode) && COLUMN_TYPE_TBNAME == ((SColumnNode*)*pNode)->colType) {
+    SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
+    if (NULL == pFunc) {
+      *(int32_t*)pContext = TSDB_CODE_OUT_OF_MEMORY;
+      return DEAL_RES_ERROR;
+    }
+    strcpy(pFunc->functionName, "tbname");
+    pFunc->funcType = FUNCTION_TYPE_TBNAME;
+    nodesDestroyNode(*pNode);
+    *pNode = (SNode*)pFunc;
+    return DEAL_RES_IGNORE_CHILD;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t partTagsOptRebuildTbanme(SNodeList* pPartKeys) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  nodesRewriteExprs(pPartKeys, partTagsOptRebuildTbanmeImpl, &code);
+  return code;
+}
+
 static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
   SLogicNode* pNode = optFindPossibleNode(pLogicSubplan->pNode, partTagsOptMayBeOptimized);
   if (NULL == pNode) {
@@ -1096,7 +1118,18 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
       nodesDestroyNode((SNode*)pNode);
     }
   } else {
-    TSWAP(((SAggLogicNode*)pNode)->pGroupKeys, pScan->pPartTags);
+    SNode* pGroupKey = NULL;
+    FOREACH(pGroupKey, ((SAggLogicNode*)pNode)->pGroupKeys) {
+      code = nodesListMakeStrictAppend(
+          &pScan->pPartTags, nodesCloneNode(nodesListGetNode(((SGroupingSetNode*)pGroupKey)->pParameterList, 0)));
+      if (TSDB_CODE_SUCCESS != code) {
+        break;
+      }
+    }
+    DESTORY_LIST(((SAggLogicNode*)pNode)->pGroupKeys);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = partTagsOptRebuildTbanme(pScan->pPartTags);
   }
   return code;
 }
@@ -1184,7 +1217,7 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "ConditionPushDown", .optimizeFunc = cpdOptimize},
   {.pName = "OrderByPrimaryKey", .optimizeFunc = opkOptimize},
   {.pName = "SmaIndex",          .optimizeFunc = smaOptimize},
-  {.pName = "PartitionByTags",   .optimizeFunc = partTagsOptimize},
+  {.pName = "PartitionTags",     .optimizeFunc = partTagsOptimize},
   {.pName = "EliminateProject",  .optimizeFunc = eliminateProjOptimize}
 };
 // clang-format on
