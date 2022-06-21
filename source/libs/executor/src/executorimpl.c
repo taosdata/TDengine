@@ -3916,32 +3916,44 @@ static EDealRes doTranslateGroupExpr(SNode** pNode, void* pContext) {
     }
 
     res->translate = true;
+    res->node.resType = pSColumnNode->node.resType;
 
-    if (strcmp(pSColumnNode->colName, "tbname") == 0) {
+    STagVal tagVal = {0};
+    tagVal.cid = pSColumnNode->colId;
+    const char* p = metaGetTableTagVal(&mr->me, pSColumnNode->node.resType.type, &tagVal);
+    if (p == NULL) {
+      res->node.resType.type = TSDB_DATA_TYPE_NULL;
+    }else if (pSColumnNode->node.resType.type == TSDB_DATA_TYPE_JSON) {
+      int32_t len = ((const STag*)p) -> len;
+      res->datum.p = taosMemoryCalloc(len + 1, 1);
+      memcpy(res->datum.p, p, len);
+    } else if (IS_VAR_DATA_TYPE(pSColumnNode->node.resType.type)) {
+      res->datum.p = taosMemoryCalloc(tagVal.nData + VARSTR_HEADER_SIZE + 1, 1);
+      memcpy(varDataVal(res->datum.p), tagVal.pData, tagVal.nData);
+      varDataSetLen(res->datum.p, tagVal.nData);
+    } else {
+      nodesSetValueNodeValue(res, &(tagVal.i64));
+    }
+    nodesDestroyNode(*pNode);
+    *pNode = (SNode*)res;
+  }else if (nodeType(*pNode) == QUERY_NODE_FUNCTION){
+    SFunctionNode * pFuncNode = *(SFunctionNode**)pNode;
+    if(pFuncNode->funcType == FUNCTION_TYPE_TBNAME){
+      SValueNode *res = (SValueNode *)nodesMakeNode(QUERY_NODE_VALUE);
+      if (NULL == res) {
+        return DEAL_RES_ERROR;
+      }
+
+      res->translate = true;
+      res->node.resType = pFuncNode->node.resType;
+
       int32_t len = strlen(mr->me.name);
       res->datum.p = taosMemoryCalloc(len + VARSTR_HEADER_SIZE + 1, 1);
       memcpy(varDataVal(res->datum.p), mr->me.name, len);
       varDataSetLen(res->datum.p, len);
-    } else {
-      STagVal tagVal = {0};
-      tagVal.cid = pSColumnNode->colId;
-      const char* p = metaGetTableTagVal(&mr->me, pSColumnNode->node.resType.type, &tagVal);
-      if (p == NULL) {
-        res->node.resType.type = TSDB_DATA_TYPE_NULL;
-      }else if (pSColumnNode->node.resType.type == TSDB_DATA_TYPE_JSON) {
-        int32_t len = ((const STag*)p) -> len;
-        res->datum.p = taosMemoryCalloc(len + 1, 1);
-        memcpy(res->datum.p, p, len);
-      } else if (IS_VAR_DATA_TYPE(pSColumnNode->node.resType.type)) {
-        res->datum.p = taosMemoryCalloc(tagVal.nData + VARSTR_HEADER_SIZE + 1, 1);
-        memcpy(varDataVal(res->datum.p), tagVal.pData, tagVal.nData);
-        varDataSetLen(res->datum.p, tagVal.nData);
-      } else {
-        nodesSetValueNodeValue(res, &(tagVal.i64));
-      }
+      nodesDestroyNode(*pNode);
+      *pNode = (SNode*)res;
     }
-    nodesDestroyNode(*pNode);
-    *pNode = (SNode*)res;
   }
 
   return DEAL_RES_CONTINUE;
@@ -4039,7 +4051,11 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
       } else {
         isNull[index++] = 0;
         char*       data = nodesGetValueFromNode(pValue);
-        if (IS_VAR_DATA_TYPE(pValue->node.resType.type)) {
+        if (pValue->node.resType.type == TSDB_DATA_TYPE_JSON){
+          int32_t len = ((const STag*)data) -> len;
+          memcpy(pStart, data, len);
+          pStart += len;
+        } else if (IS_VAR_DATA_TYPE(pValue->node.resType.type)) {
           memcpy(pStart, data, varDataTLen(data));
           pStart += varDataTLen(data);
         } else {
@@ -4086,7 +4102,12 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         return NULL;
       }
 
-      generateGroupIdMap(pTableListInfo, pHandle, pTableScanNode->pPartitionTags);
+      code = generateGroupIdMap(pTableListInfo, pHandle, pTableScanNode->pPartitionTags);
+      if (code) {
+        tsdbCleanupReadHandle(pDataReader);
+        pTaskInfo->code = code;
+        return NULL;
+      }
 
       SOperatorInfo*  pOperator = createTableScanOperatorInfo(pTableScanNode, pDataReader, pHandle, pTaskInfo);
       STableScanInfo* pScanInfo = pOperator->info;
@@ -4098,7 +4119,11 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       SArray* dataReaders = taosArrayInit(8, POINTER_BYTES);
       createMultipleDataReaders(pTableScanNode, pHandle, pTableListInfo, dataReaders, queryId, taskId, pTagCond);
       extractTableSchemaVersion(pHandle, pTableScanNode->scan.uid, pTaskInfo);
-      generateGroupIdMap(pTableListInfo, pHandle, pTableScanNode->pPartitionTags);
+      int32_t code = generateGroupIdMap(pTableListInfo, pHandle, pTableScanNode->pPartitionTags);
+      if(code){
+        taosArrayDestroy(dataReaders);
+        return NULL;
+      }
       SOperatorInfo*  pOperator = createTableMergeScanOperatorInfo(pTableScanNode, dataReaders, pHandle, pTaskInfo);
       STableScanInfo* pScanInfo = pOperator->info;
       pTaskInfo->cost.pRecoder = &pScanInfo->readRecorder;
@@ -4133,8 +4158,11 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         qDebug("%s pDataReader is not NULL", GET_TASKID(pTaskInfo));
       }
 
-      generateGroupIdMap(pTableListInfo, pHandle, pTableScanNode->pPartitionTags);
-
+      int32_t code = generateGroupIdMap(pTableListInfo, pHandle, pTableScanNode->pPartitionTags);
+      if (code) {
+        tsdbCleanupReadHandle(pDataReader);
+        return NULL;
+      }
       SOperatorInfo* pOperator = createStreamScanOperatorInfo(pDataReader, pHandle, pTableScanNode, pTaskInfo, &twSup);
 
       return pOperator;

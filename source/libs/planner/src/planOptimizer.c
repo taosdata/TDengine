@@ -1057,9 +1057,9 @@ static bool partTagsOptHasCol(SNodeList* pPartKeys) {
 }
 
 static bool partTagsIsOptimizableNode(SLogicNode* pNode) {
-  return ((QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode) /*||
+  return ((QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode) ||
            (QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pNode) && NULL != ((SAggLogicNode*)pNode)->pGroupKeys &&
-            NULL != ((SAggLogicNode*)pNode)->pAggFuncs)*/) &&
+            NULL != ((SAggLogicNode*)pNode)->pAggFuncs)) &&
           1 == LIST_LENGTH(pNode->pChildren) &&
           QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(nodesListGetNode(pNode->pChildren, 0)));
 }
@@ -1096,7 +1096,15 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
       nodesDestroyNode((SNode*)pNode);
     }
   } else {
-    TSWAP(((SAggLogicNode*)pNode)->pGroupKeys, pScan->pPartTags);
+    SNode* pGroupKey = NULL;
+    FOREACH(pGroupKey, ((SAggLogicNode*)pNode)->pGroupKeys) {
+      code = nodesListMakeStrictAppend(
+          &pScan->pPartTags, nodesCloneNode(nodesListGetNode(((SGroupingSetNode*)pGroupKey)->pParameterList, 0)));
+      if (TSDB_CODE_SUCCESS != code) {
+        break;
+      }
+    }
+    DESTORY_LIST(((SAggLogicNode*)pNode)->pGroupKeys);
   }
   return code;
 }
