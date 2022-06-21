@@ -144,7 +144,10 @@ taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/
 
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/table_alltype_sample.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/table_alltype_hyperloglog.py --keep --containers
+<<<<<<< HEAD
+=======
 
+>>>>>>> 7fa32305a10ffb905a847c2dc407ce8e5085f9d8
 #taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/table_alltype_unique.py --keep
 #taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/table_alltype_tail.py --keep
 #taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/table_alltype_mode.py --keep
@@ -172,4 +175,7 @@ taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numer
 #taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_stddev.py --keep --containers
 #taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_table_only_stable_groupby.py --keep --containers
 #taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_top_bottom.py --keep --containers
+<<<<<<< HEAD
+=======
 
+>>>>>>> 7fa32305a10ffb905a847c2dc407ce8e5085f9d8
