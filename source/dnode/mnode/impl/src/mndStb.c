@@ -805,7 +805,7 @@ static int32_t mndProcessTtl(SRpcMsg *pReq) {
     if(code != 0){
       mError("ttl time seed err. code:%d", code);
     }
-    mError("ttl time seed succ. time:%d", t);
+    mDebug("ttl time seed succ. time:%d", t);
     sdbRelease(pSdb, pVgroup);
   }
   return 0;

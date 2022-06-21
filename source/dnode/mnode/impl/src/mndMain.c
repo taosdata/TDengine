@@ -95,7 +95,7 @@ static void *mndThreadFp(void *param) {
     taosMsleep(100);
     if (mndGetStop(pMnode)) break;
 
-    if (lastTime % (864000) == 1) {   // sleep 1 day for ttl
+    if (lastTime % (600) == 1) {
       mndTtlTimer(pMnode);
     }
 
