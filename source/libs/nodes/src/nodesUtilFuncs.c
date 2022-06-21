@@ -207,9 +207,12 @@ SNode* nodesMakeNode(ENodeType type) {
     case QUERY_NODE_SHOW_VNODES_STMT:
     case QUERY_NODE_SHOW_APPS_STMT:
     case QUERY_NODE_SHOW_SCORES_STMT:
-    case QUERY_NODE_SHOW_VARIABLE_STMT:
+    case QUERY_NODE_SHOW_VARIABLES_STMT:
+    case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
       return makeNode(type, sizeof(SShowStmt));
+    case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:
+      return makeNode(type, sizeof(SShowDnodeVariablesStmt));
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
       return makeNode(type, sizeof(SShowCreateDatabaseStmt));
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
@@ -637,13 +640,16 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_VNODES_STMT:
     case QUERY_NODE_SHOW_APPS_STMT:
     case QUERY_NODE_SHOW_SCORES_STMT:
-    case QUERY_NODE_SHOW_VARIABLE_STMT:
+    case QUERY_NODE_SHOW_VARIABLES_STMT:
+    case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT: {
       SShowStmt* pStmt = (SShowStmt*)pNode;
       nodesDestroyNode(pStmt->pDbName);
       nodesDestroyNode(pStmt->pTbName);
       break;
     }
+    case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:  // no pointer field
+      break;
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
       taosMemoryFreeClear(((SShowCreateDatabaseStmt*)pNode)->pCfg);
       break;

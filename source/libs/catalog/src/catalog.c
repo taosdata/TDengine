@@ -1121,6 +1121,10 @@ _return:
   CTG_API_LEAVE(TSDB_CODE_SUCCESS);
 }
 
+int32_t catalogGetDnodeList(SCatalog* pCatalog, SRequestConnInfo* pConn, SArray** pDnodeList) {
+  return TSDB_CODE_CTG_INVALID_INPUT;
+}
+
 int32_t catalogGetExpiredSTables(SCatalog* pCtg, SSTableVersion **stables, uint32_t *num) {
   CTG_API_ENTER();
 
