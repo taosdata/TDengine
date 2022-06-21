@@ -432,7 +432,7 @@ int tdbPagerRestore(SPager *pPager, SBTree *pBt) {
   u8 *pageBuf = NULL;
 
   tdb_fd_t jfd = tdbOsOpen(pPager->jFileName, TDB_O_RDWR, 0755);
-  if (jfd < 0) {
+  if (jfd == NULL) {
     return 0;
   }
 
