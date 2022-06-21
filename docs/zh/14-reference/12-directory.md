@@ -26,7 +26,6 @@ TDengine 的所有可执行文件默认存放在 _/usr/local/taos/bin_ 目录下
 - _remove.sh_：卸载 TDengine 的脚本，请谨慎执行，链接到/usr/bin 目录下的**rmtaos**命令。会删除 TDengine 的安装目录/usr/local/taos，但会保留/etc/taos、/var/lib/taos、/var/log/taos
 - _taosadapter_: 提供 RESTful 服务和接受其他多种软件写入请求的服务端可执行文件
 - _tarbitrator_: 提供双节点集群部署的仲裁功能
-- _run_taosd_and_taosadapter.sh_：同时启动 taosd 和 taosAdapter 的脚本
 - _TDinsight.sh_：用于下载 TDinsight 并安装的脚本
 - _set_core.sh_：用于方便调试设置系统生成 core dump 文件的脚本
 - _taosd-dump-cfg.gdb_：用于方便调试 taosd 的 gdb 执行脚本。

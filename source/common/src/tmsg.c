@@ -2956,6 +2956,7 @@ int32_t tSerializeSCMCreateTopicReq(void *buf, int32_t bufLen, const SCMCreateTo
   if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->igExists) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->subType) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->withMeta) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->subDbName) < 0) return -1;
   if (TOPIC_SUB_TYPE__DB == pReq->subType) {
   } else if (TOPIC_SUB_TYPE__TABLE == pReq->subType) {
@@ -2985,6 +2986,7 @@ int32_t tDeserializeSCMCreateTopicReq(void *buf, int32_t bufLen, SCMCreateTopicR
   if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->igExists) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->subType) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->withMeta) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->subDbName) < 0) return -1;
   if (TOPIC_SUB_TYPE__DB == pReq->subType) {
   } else if (TOPIC_SUB_TYPE__TABLE == pReq->subType) {
