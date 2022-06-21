@@ -35,8 +35,9 @@ bool syncEnvIsStart() {
 }
 
 int32_t syncEnvStart() {
-  int32_t ret = 0;
-  taosSeedRand(taosGetTimestampSec());
+  int32_t  ret = 0;
+  uint32_t seed = (uint32_t)(taosGetTimestampNs() & 0x00000000FFFFFFFF);
+  taosSeedRand(seed);
   // gSyncEnv = doSyncEnvStart(gSyncEnv);
   gSyncEnv = doSyncEnvStart();
   assert(gSyncEnv != NULL);

@@ -887,6 +887,7 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
 
   SRequestObj *pRequest = res;
   pRequest->body.fetchFp = fp;
+  pRequest->body.param = param;
 
   SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
   if (taos_num_fields(pRequest) == 0) {
