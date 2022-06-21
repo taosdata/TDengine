@@ -250,7 +250,7 @@ class TDFunction():
         int_cloumn_state = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
         
         operator = ['LT' , 'GT' ,'GE','NE','EQ']  
-        oper = str(random.sample(operator,1)).replace("[","").replace("]","").replace("'","")        
+        oper = str(random.sample(operator,1)).replace("[","").replace("]","")#.replace("'","")        
                          
         if str(hanshu_select).replace("[","").replace("]","").replace("'","") == 'statecount':
             int_cloumn_state = int_cloumn_state.replace("oper","%s" %oper).replace(",time","")
