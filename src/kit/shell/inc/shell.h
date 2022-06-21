@@ -119,10 +119,12 @@ void shellGetGrantInfo(void* con);
 int isCommentLine(char* line);
 int wsclient_handshake();
 int wsclient_conn();
+char *wsclient_get_response();
 void wsclient_query(char* command, uint64_t limit, bool isVertical, char* fname);
 int wsclient_send_sql(char *command, WS_ACTION_TYPE type, int64_t id);
 int tcpConnect(char* host, int port);
 int parse_cloud_dsn();
+void wsclient_retry(int remain);
 
 /**************** Global variable declarations ****************/
 extern char           PROMPT_HEADER[];
@@ -137,5 +139,8 @@ extern SShellArguments args;
 extern int64_t         result;
 extern int64_t         ws_id;
 extern bool            stop_fetch;
+extern bool            stop_retry;
+extern bool            in_retry;
+extern bool            ws_conn;
 
 #endif

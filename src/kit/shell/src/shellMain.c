@@ -21,6 +21,9 @@
 pthread_t pid;
 static tsem_t cancelSem;
 bool stop_fetch = false;
+bool stop_retry = false;
+bool in_retry = false;
+bool ws_conn = false;
 int64_t ws_id = 0;
 
 void shellQueryInterruptHandler(int32_t signum, void *sigInfo, void *context) {
@@ -37,10 +40,13 @@ void *cancelHandler(void *arg) {
       taosMsleep(10);
       continue;
     }
+
     if (args.restful || args.cloud) {
-      stop_fetch = true;
-      if (wsclient_send_sql(NULL, WS_CLOSE, ws_id)) {
-        exit(EXIT_FAILURE);
+      if (in_retry) {
+        stop_retry = true;
+      } else {
+        stop_fetch = true;
+        wsclient_send_sql(NULL, WS_CLOSE, ws_id);
       }
     }
 #ifdef LINUX

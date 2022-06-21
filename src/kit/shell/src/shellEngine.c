@@ -79,6 +79,7 @@ void shellInit(SShellArguments *_args) {
     if (wsclient_conn()) {
       exit(EXIT_FAILURE);
     }
+    ws_conn = true;
   } else {
     // set options before initializing
     if (_args->timezone != NULL) {
@@ -1226,6 +1227,7 @@ int wsclient_handshake() {
   n = recv(args.socket, recv_buf, 1023, 0);
   if (NULL == strstr(recv_buf, "HTTP/1.1 101")) {
     fprintf(stderr, "web socket handshake failed: %s\n", recv_buf);
+    return -1;
   }
   return 0;
 }
@@ -1294,6 +1296,11 @@ int wsclient_send(char *strdata, WebSocketFrameType frame) {
   if (i < 0) {
     fprintf(stderr, "websocket send data error, please check the server\n");
     free(data);
+    fprintf(stderr, "try to reconnect in 5 seconds ...\n");
+    for (int j = 5; j >0; --j) {
+      taosMsleep(1000);
+    }
+    wsclient_retry(3);
     return -1;
   }
   free(data);
@@ -1334,6 +1341,9 @@ int wsclient_send_sql(char *command, WS_ACTION_TYPE type, int64_t id) {
   char *strdata = NULL;
   strdata = cJSON_Print(json);
   if (wsclient_send(strdata, TEXT_FRAME)) {
+    if (type == WS_CLOSE) {
+      return 0;
+    }
     goto OVER;
   }
   code = 0;
@@ -1347,46 +1357,72 @@ int wsclient_conn() {
   if (wsclient_send_sql(NULL, WS_CONN, 0)) {
     return -1;
   }
-  char recv_buffer[1024];
-  memset(recv_buffer, 0, 1024);
-  int bytes = recv(args.socket, recv_buffer, 1023, 0);
-  if (bytes <= 0) {
-    fprintf(stderr, "failed to receive from socket\n");
+
+  char* response = wsclient_get_response();
+  if (response == NULL) {
     return -1;
   }
 
-  char  *received_json = strstr(recv_buffer, "{");
-  cJSON *root = cJSON_Parse(received_json);
-  if (root == NULL) {
-    fprintf(stderr, "fail to parse response into json: %s\n", recv_buffer);
+  cJSON *conn = cJSON_Parse(response);
+  if (conn == NULL) {
+    fprintf(stderr, "fail to parse response into json: %s\n", response);
+    free(response);
     return -1;
   }
-
-  cJSON *code = cJSON_GetObjectItem(root, "code");
+  free(response);
+  cJSON *code = cJSON_GetObjectItem(conn, "code");
   if (!cJSON_IsNumber(code)) {
-    fprintf(stderr, "wrong code key in json: %s\n", received_json);
-    cJSON_Delete(root);
+    fprintf(stderr, "Invalid or miss 'code' key in conn response\n");
+    cJSON_Delete(conn);
     return -1;
   }
-  if (code->valueint == 0) {
-    cJSON_Delete(root);
-    if (args.cloud) {
-        fprintf(stdout, "Successfully connect to %s:%s in restful mode\n\n", args.cloudHost, args.cloudPort);
-    } else {
-        fprintf(stdout, "Successfully connect to %s:%d in restful mode\n\n", args.host, args.port);
-    }
-    return 0;
-  } else {
-    cJSON *message = cJSON_GetObjectItem(root, "message");
+  if (code->valueint != 0) {
+    cJSON *message = cJSON_GetObjectItem(conn, "message");
     if (!cJSON_IsString(message)) {
-      fprintf(stderr, "wrong message key in json: %s\n", received_json);
-      cJSON_Delete(root);
+      fprintf(stderr, "Invalid or miss 'message' in conn response\n");
+      cJSON_Delete(conn);
       return -1;
     }
-    fprintf(stderr, "failed to connection, reason: %s\n", message->valuestring);
+    fprintf(stderr, "failed to connection, reason: %s, code: %"PRId64"\n", message->valuestring, code->valueint);
+    cJSON_Delete(conn);
+    return -1;
   }
-  cJSON_Delete(root);
-  return -1;
+  if (args.cloud) {
+    fprintf(stdout, "Successfully connect to %s:%s in restful mode\n\n", args.cloudHost, args.cloudPort);
+  } else {
+    fprintf(stdout, "Successfully connect to %s:%d in restful mode\n\n", args.host, args.port);
+  }
+  cJSON_Delete(conn);
+  return 0;
+}
+
+void wsclient_retry(int remain) {
+  ws_conn = false;
+  in_retry = true;
+  if (remain == 0 || stop_retry) {
+    stop_retry = false;
+    in_retry = false;
+    return ;
+  }
+#ifdef  WINDOWS
+  closesocket(args.socket);
+#else
+  close(args.socket);
+#endif
+
+  if (args.cloud) {
+    if (tcpConnect(args.cloudHost, atoi(args.cloudPort))) {
+      return wsclient_retry(remain -1);
+    }
+  } else {
+    if (tcpConnect(args.host, args.port)) {
+      return wsclient_retry(remain -1);
+    }
+  }
+  if (wsclient_handshake()) {
+    return wsclient_retry(remain -1);
+  }
+  in_retry = false;
 }
 
 void wsclient_parse_frame(SWSParser * parser, uint8_t * recv_buffer) {
@@ -1432,7 +1468,16 @@ char *wsclient_get_response() {
   SWSParser parser;
   int bytes = recv(args.socket, recv_buffer + received, TEMP_RECV_BUF - 1, 0);
   if (bytes <= 0) {
-    fprintf(stderr, "websocket recv failed with bytes: %d\n", bytes);
+    if (bytes == 0) {
+      fprintf(stderr, "tcp connection closed\n");
+    } else {
+      fprintf(stderr, "socket receive error, reason: %s\n", strerror(errno));
+    }
+    fprintf(stderr, "try to reconnect in 5 seconds ...\n");
+    for (int i = 5; i >0; --i) {
+      taosMsleep(1000);
+    }
+    wsclient_retry(3);
     return NULL;
   }
   wsclient_parse_frame(&parser, recv_buffer);
@@ -1484,7 +1529,7 @@ int wsclient_check(cJSON *root, int64_t st, int64_t et) {
     return -1;
   }
   if (code->valueint != 0) {
-    fprintf(stderr, "\nDB error: %s (%.6fs)\n", message->valuestring, (et - st) / 1E6);
+    fprintf(stderr, "\nDB error: %s, code: %"PRId64" (%.6fs)\n", message->valuestring, code->valueint, (et - st) / 1E6);
     return -1;
   }
   return 0;
@@ -1637,6 +1682,11 @@ int wsclient_horizontal_print_data(int64_t rows, TAOS_FIELD *fields, int* width,
 }
 
 void wsclient_query(char *command, uint64_t limit, bool isVertical, char* fname) {
+  if (!ws_conn) {
+    if (wsclient_conn()) {
+      return;
+    }
+  }
   int64_t st, et;
   st = taosGetTimestampUs();
   if (wsclient_send_sql(command, WS_QUERY, 0)) {
@@ -1687,12 +1737,17 @@ void wsclient_query(char *command, uint64_t limit, bool isVertical, char* fname)
   int64_t     total_rows = 0;
   int         showed_rows = 0;
   bool completed = false;
-  TAOS_FIELD fields[cols];
+  TAOS_FIELD *fields = calloc(cols, sizeof(TAOS_FIELD));
+  if (fields == NULL) {
+    fprintf(stderr, "memory allocation failed\n");
+    return;
+  }
   if (wsclient_fetch_fields(query, fields, cols)) {
+    free(fields);
     cJSON_Delete(query);
     return;
   }
-  int width[cols];
+  int width[TSDB_MAX_COLUMNS];
   if (!isVertical && fname == NULL) {
     for (int i = 0; i < cols; ++i) {
       width[i] = calcColWidth(fields + i, precision);
@@ -1705,12 +1760,14 @@ void wsclient_query(char *command, uint64_t limit, bool isVertical, char* fname)
     wordexp_t full_path;
 
     if (wordexp((char *)fname, &full_path, 0) != 0) {
+      free(fields);
       fprintf(stderr, "ERROR: invalid file name: %s\n", fname);
       return;
     }
 
     fp = fopen(full_path.we_wordv[0], "w");
     if (fp == NULL) {
+      free(fields);
       fprintf(stderr, "ERROR: failed to open file: %s\n", full_path.we_wordv[0]);
       wordfree(&full_path);
       return;
@@ -1727,21 +1784,25 @@ void wsclient_query(char *command, uint64_t limit, bool isVertical, char* fname)
 
   while (!completed && !stop_fetch) {
     if (wsclient_send_sql(NULL, WS_FETCH, ws_id)) {
+      free(fields);
       return;
     }
     char *fetch_buffer = wsclient_get_response();
     if (fetch_buffer == NULL) {
+      free(fields);
       return;
     }
     cJSON *fetch = cJSON_Parse(fetch_buffer);
     if (fetch == NULL) {
       fprintf(stderr, "failed to parse response into json: %s\n", fetch_buffer);
       free(fetch_buffer);
+      free(fields);
       return;
     }
     free(fetch_buffer);
     if (wsclient_check(fetch, st, et)) {
       cJSON_Delete(fetch);
+      free(fields);
       return;
     }
     cJSON *completedObj = cJSON_GetObjectItem(fetch, "completed");
@@ -1750,6 +1811,7 @@ void wsclient_query(char *command, uint64_t limit, bool isVertical, char* fname)
     if (!cJSON_IsBool(completedObj) || !cJSON_IsNumber(rows)) {
       fprintf(stderr, "Invalid or miss 'completed'/'rows' in fetch response\n");
       cJSON_Delete(fetch);
+      free(fields);
       return;
     }
     if (completedObj->valueint) {
@@ -1766,6 +1828,7 @@ void wsclient_query(char *command, uint64_t limit, bool isVertical, char* fname)
     if (!cJSON_IsArray(lengths)) {
         fprintf(stderr, "Invalid or miss 'lengths' in fetch response\n");
         cJSON_Delete(fetch);
+        free(fields);
         return;
     }
     for (int i = 0; i < cols; i++) {
@@ -1773,31 +1836,35 @@ void wsclient_query(char *command, uint64_t limit, bool isVertical, char* fname)
         if (!cJSON_IsNumber(length)) {
             fprintf(stderr, "Invalid or miss 'lengths' key in fetch response\n");
             cJSON_Delete(fetch);
+            free(fields);
             return;
         }
         fields[i].bytes = (int16_t)(length->valueint);
     }
     if (wsclient_send_sql(NULL, WS_FETCH_BLOCK, ws_id)) {
       cJSON_Delete(fetch);
+      free(fields);
       return;
     }
     if (fname != NULL) {
       if (wsclient_dump_data(fp, rows->valueint, fields, cols, ws_id, precision)) {
         cJSON_Delete(fetch);
+        free(fields);
         return;
       }
     } else if (isVertical) {
       if (wsclient_vertical_print_data(rows->valueint, fields, cols, ws_id, precision, &showed_rows, limit)) {
         cJSON_Delete(fetch);
+        free(fields);
         return;
       }
     } else {
       if (wsclient_horizontal_print_data(rows->valueint, fields, width, cols, ws_id, precision, &showed_rows, limit)) {
         cJSON_Delete(fetch);
+        free(fields);
         return;
       }
     }
-
     cJSON_Delete(fetch);
   }
   if (fname != NULL) {
@@ -1810,4 +1877,6 @@ void wsclient_query(char *command, uint64_t limit, bool isVertical, char* fname)
   } else {
     printf("Query OK, %" PRId64 " row(s) in set (%.6fs)\n\n", total_rows, (et - st) / 1E6);
   }
+  wsclient_send_sql(NULL, WS_CLOSE, ws_id);
+  free(fields);
 }
