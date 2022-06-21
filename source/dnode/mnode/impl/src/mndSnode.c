@@ -408,6 +408,7 @@ static int32_t mndProcessDropSnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  // check deletable
   code = mndDropSnode(pMnode, pReq, pObj);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
