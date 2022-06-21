@@ -5,3 +5,7 @@ TDengine
 .vscode
 /conf
 /docs
+cobertura.xml
+lcov.info
+tarpaulin-report.html
+tarpaulin-report.json

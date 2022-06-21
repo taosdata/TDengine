@@ -54,7 +54,7 @@ fn obj() {
     let v = vec![&("a", 0) as _, &("b", 0.0) as _];
     insert_named(&v);
 
-    dbg!(v);
-    // let v = vec![&10 as &dyn IntoField, &0.0 as &dyn IntoField];
-    // dbg!(v);
+    for e in v {
+        dbg!(e.name());
+    }
 }

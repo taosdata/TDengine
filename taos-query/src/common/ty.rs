@@ -206,12 +206,13 @@ impl Ty {
         matches!(self, Ty::Null)
     }
 
-    /// Var type which is one of [Ty::VarChar], [Ty::VarBinary] or [Ty::NChar].
+    /// Var type which is one of [Ty::VarChar], [Ty::VarBinary], [Ty::NChar] or [Ty::Json].
     pub const fn is_var_type(&self) -> bool {
         use Ty::*;
-        matches!(self, VarChar | VarBinary | NChar)
+        matches!(self, VarChar | VarBinary | NChar | Json)
     }
 
+    /// Is one of boolean/integers/float/double/decimal
     pub const fn is_primitive(&self) -> bool {
         use Ty::*;
         matches!(
@@ -230,7 +231,7 @@ impl Ty {
         )
     }
 
-    /// Fixed length if the type is primitive.
+    /// Get fixed length if the type is primitive.
     pub const fn fixed_length(&self) -> usize {
         use Ty::*;
         match self {

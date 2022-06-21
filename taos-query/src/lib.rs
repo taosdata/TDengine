@@ -1,5 +1,7 @@
 //! This is the common query traits/types for TDengine connectors.
 //!
+#![cfg_attr(nightly, feature(const_slice_from_raw_parts))]
+#![cfg_attr(nightly, feature(const_slice_index))]
 
 use futures::stream::TryStreamExt;
 use itertools::Itertools;
@@ -14,6 +16,7 @@ pub mod helpers;
 mod insert;
 
 mod iter;
+pub(crate) mod util;
 
 pub use iter::*;
 

@@ -1,5 +1,7 @@
 use std::fmt::{Debug, Display};
 
+use crate::util::{Inlinable, InlinableRead, InlinableWrite};
+
 use super::ty::Ty;
 
 /// A `Field` represents the name and data type of one column or tag.
@@ -18,6 +20,22 @@ pub struct Field {
     name: String,
     ty: Ty,
     bytes: u32,
+}
+
+impl Inlinable for Field {
+    fn write_inlined<W: std::io::Write>(&self, mut wtr: W) -> std::io::Result<usize> {
+        let mut l = wtr.write_u8(self.ty as u8)?;
+        l += wtr.write_u32(self.bytes)?;
+        l += wtr.write_inlined_str::<2>(&self.name)?;
+        Ok(l)
+    }
+
+    fn read_inlined<R: std::io::Read>(mut reader: R) -> std::io::Result<Self> {
+        let ty = Ty::from(reader.read_u8()?);
+        let bytes = reader.read_u32()?;
+        let name = reader.read_inlined_str::<2>()?;
+        Ok(Self { name, ty, bytes })
+    }
 }
 
 impl Field {
