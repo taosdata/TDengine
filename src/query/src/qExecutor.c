@@ -4315,14 +4315,15 @@ void setParamForStableStddevByColData(SQueryRuntimeEnv* pRuntimeEnv, SQLFunction
     // find colid in dataBlock
     int32_t bytes, offset = 0;
     char*   val = NULL;
+    char* prevData = pInfo->prevData + sizeof(int32_t); // head is key length (int32_t type)
     for (int32_t idx = 0; idx < taosArrayGetSize(pInfo->pGroupbyDataInfo); idx++) {
       SGroupbyDataInfo *pDataInfo = taosArrayGet(pInfo->pGroupbyDataInfo, idx);
       if (pDataInfo->index == pExpr1->colInfo.colId) {
         bytes = pDataInfo->bytes;
-        val   = pInfo->prevData + offset;
+        val   = prevData + offset;
         break;
       }
-      offset += pDataInfo->bytes;
+      offset += pDataInfo->bytes + strlen(MULTI_KEY_DELIM); // multi value split by MULTI_KEY_DELIM
     }
     if (val == NULL) { continue; }
 
