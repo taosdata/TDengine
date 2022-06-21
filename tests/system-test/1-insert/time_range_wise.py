@@ -2,11 +2,11 @@ import datetime
 
 from dataclasses import dataclass
 from typing import List, Any, Tuple
-from tests.pytest.util.sql import TDSql
 from util.log import *
 from util.sql import *
 from util.cases import *
 from util.dnodes import *
+from util.constant import *
 
 PRIMARY_COL = "ts"
 
@@ -21,10 +21,11 @@ TINT_UN_COL = "c_tint_un"
 SINT_UN_COL = "c_sint_un"
 BINT_UN_COL = "c_bint_un"
 INT_UN_COL = "c_int_un"
+BINARY_COL = "c_binary"
+NCHAR_COL = "c_nchar"
+TS_COL = "c_ts"
 
-BINARY_COL = "c8"
-NCHAR_COL = "c9"
-TS_COL = "c10"
+
 
 NUM_COL = [INT_COL, BINT_COL, SINT_COL, TINT_COL, FLOAT_COL, DOUBLE_COL, ]
 CHAR_COL = [BINARY_COL, NCHAR_COL, ]
@@ -53,10 +54,26 @@ class DataSet:
     binary_data : List[str]     = None
     nchar_data  : List[str]     = None
 
+    def __post_init__(self):
+        self.ts_data        = []
+        self.int_data       = []
+        self.bint_data      = []
+        self.sint_data      = []
+        self.tint_data      = []
+        self.int_un_data    = []
+        self.bint_un_data   = []
+        self.sint_un_data   = []
+        self.tint_un_data   = []
+        self.float_data     = []
+        self.double_data    = []
+        self.bool_data      = []
+        self.binary_data    = []
+        self.nchar_data     = []
+
 
 @dataclass
 class SMAschema:
-    creation    : str           = "create"
+    creation    : str           = "CREATE"
     index_name  : str           = "sma_index_1"
     index_flag  : str           = "SMA INDEX"
     operator    : str           = "ON"
@@ -67,6 +84,53 @@ class SMAschema:
     interval    : Tuple[str]    = None
     sliding     : str           = None
     other       : Any           = None
+    drop        : str           = "DROP"
+    drop_flag   : str           = "INDEX"
+
+    def __post_init__(self):
+        if isinstance(self.other, dict):
+            for k,v in self.other.items():
+
+                if k.lower() == "index_name" and isinstance(v, str) and not self.index_name:
+                    self.index_name = v
+                    del self.other[k]
+
+                if k.lower() == "index_flag" and isinstance(v, str) and not self.index_flag:
+                    self.index_flag = v
+                    del self.other[k]
+
+                if k.lower() == "operator" and isinstance(v, str) and not self.operator:
+                    self.operator = v
+                    del self.other[k]
+
+                if k.lower() == "tbname" and isinstance(v, str) and not self.tbname:
+                    self.tbname = v
+                    del self.other[k]
+
+                if k.lower() == "watermark" and isinstance(v, str) and not self.watermark:
+                    self.watermark = v
+                    del self.other[k]
+
+                if k.lower() == "maxdelay" and isinstance(v, str) and not self.maxdelay:
+                    self.maxdelay = v
+                    del self.other[k]
+
+                if k.lower() == "functions" and isinstance(v, tuple) and not self.func:
+                    self.func = v
+                    del self.other[k]
+
+                if k.lower() == "interval" and isinstance(v, tuple) and not self.interval:
+                    self.interval = v
+                    del self.other[k]
+
+                if k.lower() == "sliding" and isinstance(v, str) and not self.sliding:
+                    self.sliding = v
+                    del self.other[k]
+
+                if k.lower() == "drop_flag" and isinstance(v, str) and not self.drop_flag:
+                    self.drop_flag = v
+                    del self.other[k]
+
 
 class TDTestCase:
 
@@ -98,6 +162,17 @@ class TDTestCase:
             sql += f" watermark {sma.watermark}"
         if sma.maxdelay:
             sql += f" maxdelay {sma.maxdelay}"
+        if isinstance(sma.other, dict):
+            for k,v in sma.other.items():
+                if isinstance(v,tuple) or isinstance(v, list):
+                    sql += f" {k} ({' '.join(v)})"
+                else:
+                    sql += f" {k} {v}"
+        if isinstance(sma.other, tuple) or isinstance(sma.other, list):
+            sql += " ".join(sma.other)
+        if isinstance(sma.other, int) or isinstance(sma.other, float) or isinstance(sma.other, str):
+            sql += sma.other
+
         return sql
 
     def sma_create_check(self, sma:SMAschema):
@@ -129,13 +204,8 @@ class TDTestCase:
             tdSql.error(self.__create_sma_index(sma))
 
 
-
-
-
-
     def all_test(self):
-        self.test_create_databases()
-        self.test_create_stb()
+        pass
 
     def __create_tb(self):
         tdLog.printNoPrefix("==========step: create table")
@@ -145,7 +215,7 @@ class TDTestCase:
                 {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp,
                 {TINT_UN_COL} tinyint unsigned, {SINT_UN_COL} smallint unsigned,
                 {INT_UN_COL} int unsigned, {BINT_UN_COL} bigint unsigned
-            ) tags (t1 int)
+            ) tags (tag1 int)
             '''
         create_ntb_sql = f'''create table t1(
                 ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
@@ -163,21 +233,6 @@ class TDTestCase:
 
     def __data_set(self, rows):
         data_set = DataSet()
-        # neg_data_set = DataSet()
-        data_set.ts_data = []
-        data_set.int_data = []
-        data_set.bint_data = []
-        data_set.sint_data = []
-        data_set.tint_data = []
-        data_set.int_un_data = []
-        data_set.bint_un_data = []
-        data_set.sint_un_data = []
-        data_set.tint_un_data = []
-        data_set.float_data = []
-        data_set.double_data = []
-        data_set.bool_data = []
-        data_set.binary_data = []
-        data_set.nchar_data = []
 
         for i in range(rows):
             data_set.ts_data.append(NOW + 1 * (rows - i))
@@ -248,11 +303,11 @@ class TDTestCase:
 
     def run(self):
         sma1 = SMAschema(func=("min(c1)","max(c2)"))
-        sql1 = self.create_sma_index(sma1)
+        sql1 = self.__create_sma_index(sma1)
         print("================")
         print(sql1)
         # a = DataSet()
-        return
+        # return
         self.rows = 10
 
         tdLog.printNoPrefix("==========step0:all check")
@@ -262,7 +317,7 @@ class TDTestCase:
         tdSql.prepare()
         self.__create_tb()
         self.__insert_data()
-        # return
+        return
 
         tdLog.printNoPrefix("==========step2:create table in rollup database")
         tdSql.execute("create database db3 retentions 1s:4m,2s:8m,3s:12m")

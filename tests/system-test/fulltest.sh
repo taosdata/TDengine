@@ -35,6 +35,7 @@ python3 ./test.py -f 2-query/lower.py
 python3 ./test.py -f 2-query/join.py
 python3 ./test.py -f 2-query/join2.py
 python3 ./test.py -f 2-query/cast.py
+python3 ./test.py -f 2-query/substr.py
 python3 ./test.py -f 2-query/union.py
 python3 ./test.py -f 2-query/union1.py
 python3 ./test.py -f 2-query/concat.py
@@ -99,11 +100,11 @@ python3 ./test.py -f 2-query/function_stateduration.py
 python3 ./test.py -f 2-query/statecount.py
 python3 ./test.py -f 2-query/tail.py
 
-python3 ./test.py -f 6-cluster/5dnode1mnode.py 
-python3 ./test.py -f 6-cluster/5dnode2mnode.py 
+python3 ./test.py -f 6-cluster/5dnode1mnode.py
+python3 ./test.py -f 6-cluster/5dnode2mnode.py
 #python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py
 python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py
-# BUG python3 ./test.py -f 6-cluster/5dnode3mnodeStopInsert.py 
+# BUG python3 ./test.py -f 6-cluster/5dnode3mnodeStopInsert.py
 
 python3 ./test.py -f 7-tmq/basic5.py
 python3 ./test.py -f 7-tmq/subscribeDb.py
