@@ -245,6 +245,27 @@ class TDTestCase:
         tdSql.query(" select max(c1),c2  from stb1 group by c2 ")
         tdSql.checkRows(31)
 
+        # selective common cols of datas
+        tdSql.query("select max(c1),c2,c3,c5 from stb1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0,0,28)
+        tdSql.checkData(0,1,311108)
+        tdSql.checkData(0,2,3108)
+        tdSql.checkData(0,3,31.08000)
+
+        tdSql.query("select max(c1),t1,c2,t3 from stb1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0,0,28)
+        tdSql.checkData(0,1,19)
+        tdSql.checkData(0,2,311108)
+
+        tdSql.query("select max(c1),ceil(t1),pow(c2,1)+2,abs(t3) from stb1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0,0,28)
+        tdSql.checkData(0,1,19)
+        tdSql.checkData(0,2,311110.000000000)   
+        tdSql.checkData(0,3,2109)  
+
         # partition by tbname or partition by tag
         tdSql.query("select max(c1),tbname from stb1 partition by tbname")
         query_data = tdSql.queryResult

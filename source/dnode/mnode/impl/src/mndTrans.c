@@ -21,10 +21,9 @@
 #include "mndShow.h"
 #include "mndSync.h"
 #include "mndUser.h"
-#include "mndVgroup.h"
 
-#define TRANS_VER_NUMBER   1
-#define TRANS_ARRAY_SIZE   8
+#define TRANS_VER_NUMBER 1
+#define TRANS_ARRAY_SIZE 8
 #define TRANS_RESERVE_SIZE 64
 
 static SSdbRaw *mndTransActionEncode(STrans *pTrans);
@@ -74,7 +73,6 @@ int32_t mndInitTrans(SMnode *pMnode) {
       .deleteFp = (SdbDeleteFp)mndTransActionDelete,
   };
 
-  mndSetMsgHandle(pMnode, TDMT_MND_TTL_TIMER, mndProcessTtl);
   mndSetMsgHandle(pMnode, TDMT_MND_TRANS_TIMER, mndProcessTransReq);
   mndSetMsgHandle(pMnode, TDMT_MND_KILL_TRANS, mndProcessKillTransReq);
 
@@ -807,7 +805,7 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
       sendRsp = true;
     }
   } else {
-    if (pTrans->stage == TRN_STAGE_REDO_ACTION && pTrans->failedTimes > 2) {
+    if (pTrans->stage == TRN_STAGE_REDO_ACTION && pTrans->failedTimes > 3) {
       if (code == 0) code = TSDB_CODE_MND_TRANS_UNKNOW_ERROR;
       sendRsp = true;
     }
@@ -899,7 +897,7 @@ static void mndTransResetActions(SMnode *pMnode, STrans *pTrans, SArray *pArray)
     pAction->rawWritten = 0;
     pAction->msgSent = 0;
     pAction->msgReceived = 0;
-    if (pAction->errCode == TSDB_CODE_RPC_REDIRECT || pAction->errCode == TSDB_CODE_SYN_NOT_IN_NEW_CONFIG ||
+    if (pAction->errCode == TSDB_CODE_RPC_REDIRECT || pAction->errCode == TSDB_CODE_SYN_NEW_CONFIG_ERROR ||
         pAction->errCode == TSDB_CODE_SYN_INTERNAL_ERROR || pAction->errCode == TSDB_CODE_SYN_NOT_LEADER) {
       pAction->epSet.inUse = (pAction->epSet.inUse + 1) % pAction->epSet.numOfEps;
       mDebug("trans:%d, %s:%d execute status is reset and set epset inuse:%d", pTrans->id, mndTransStr(pAction->stage),
@@ -1130,6 +1128,7 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
     }
 
     if (code == 0) {
+      pTrans->failedTimes = 0;
       pTrans->lastAction = action;
       pTrans->lastMsgType = 0;
       pTrans->lastErrorNo = 0;
@@ -1349,34 +1348,6 @@ static int32_t mndProcessTransReq(SRpcMsg *pReq) {
   return 0;
 }
 
-static int32_t mndProcessTtl(SRpcMsg *pReq) {
-  SMnode *pMnode = pReq->info.node;
-  SSdb   *pSdb = pMnode->pSdb;
-  SVgObj *pVgroup = NULL;
-  void   *pIter = NULL;
-
-  while (1) {
-    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
-    if (pIter == NULL) break;
-
-    SMsgHead   *pHead = (SMsgHead *)(pReq->pCont);
-
-    pHead->contLen = htonl(pReq->contLen);
-    pHead->vgId = htonl(pVgroup->vgId);
-
-    SRpcMsg rpcMsg = {.msgType = TDMT_VND_DROP_TTL_TABLE, .pCont = pReq->pCont, .contLen = pReq->contLen};
-
-    SEpSet epSet = mndGetVgroupEpset(pMnode, pVgroup);
-    int32_t code = tmsgSendReq(&epSet, &rpcMsg);
-    if(code != 0){
-      mError("ttl time seed err. code:%d", code);
-    }
-    mError("ttl time seed succ");
-    sdbRelease(pSdb, pVgroup);
-  }
-  return 0;
-}
-
 int32_t mndKillTrans(SMnode *pMnode, STrans *pTrans) {
   SArray *pArray = NULL;
   if (pTrans->stage == TRN_STAGE_REDO_ACTION) {
@@ -1461,8 +1432,7 @@ void mndTransPullup(SMnode *pMnode) {
     mndReleaseTrans(pMnode, pTrans);
   }
 
-  // todo, set to SDB_WRITE_DELTA
-  sdbWriteFile(pMnode->pSdb, 0);
+  sdbWriteFile(pMnode->pSdb, SDB_WRITE_DELTA);
   taosArrayDestroy(pArray);
 }
 

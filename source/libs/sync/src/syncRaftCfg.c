@@ -53,7 +53,12 @@ int32_t raftCfgPersist(SRaftCfg *pRaftCfg) {
 
   char buf[CONFIG_FILE_LEN] = {0};
   memset(buf, 0, sizeof(buf));
-  ASSERT(strlen(s) + 1 <= CONFIG_FILE_LEN);
+
+  if (strlen(s) + 1 > CONFIG_FILE_LEN) {
+    sError("too long config str:%s", s);
+    ASSERT(0);
+  }
+
   snprintf(buf, sizeof(buf), "%s", s);
   int64_t ret = taosWriteFile(pRaftCfg->pFile, buf, sizeof(buf));
   assert(ret == sizeof(buf));

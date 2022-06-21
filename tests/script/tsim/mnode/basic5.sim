@@ -148,7 +148,7 @@ endi
 
 print =============== step6: stop mnode1 
 system sh/exec.sh -n dnode1 -s stop -x SIGKILL
-sql_error drop mnode on dnode 1
+# sql_error drop mnode on dnode 1
 
 $x = 0
 step61: 

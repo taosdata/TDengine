@@ -27,7 +27,7 @@ extern "C" {
 #include "syncInt.h"
 #include "taosdef.h"
 
-#define CONFIG_FILE_LEN 1024
+#define CONFIG_FILE_LEN 2048
 
 #define MAX_CONFIG_INDEX_COUNT 512
 
