@@ -141,8 +141,8 @@ static int32_t doCopyToSDataBlock(SExecTaskInfo* taskInfo, SSDataBlock* pBlock, 
                                   SqlFunctionCtx* pCtx, int32_t numOfExprs);
 
 static void initCtxOutputBuffer(SqlFunctionCtx* pCtx, int32_t size);
-static void doSetTableGroupOutputBuf(SOperatorInfo* pOperator, SAggOperatorInfo* pAggInfo, int32_t numOfOutput, uint64_t groupId);
-
+static void doSetTableGroupOutputBuf(SOperatorInfo* pOperator, SAggOperatorInfo* pAggInfo, int32_t numOfOutput,
+                                     uint64_t groupId);
 
 // setup the output buffer for each operator
 static bool hasNull(SColumn* pColumn, SColumnDataAgg* pStatis) {
@@ -1230,8 +1230,9 @@ void initResultRow(SResultRow* pResultRow) {
  *           offset[0]                                  offset[1]                                   offset[2]
  */
 // TODO refactor: some function move away
-void setFunctionResultOutput(SOperatorInfo *pOperator, SOptrBasicInfo *pInfo, SAggSupporter* pSup, int32_t stage, int32_t numOfExprs) {
-  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+void setFunctionResultOutput(SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, SAggSupporter* pSup, int32_t stage,
+                             int32_t numOfExprs) {
+  SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   SqlFunctionCtx* pCtx = pOperator->exprSupp.pCtx;
   int32_t*        rowEntryInfoOffset = pOperator->exprSupp.rowEntryInfoOffset;
 
@@ -1380,9 +1381,10 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowR
   }
 }
 
-void doSetTableGroupOutputBuf(SOperatorInfo* pOperator, SAggOperatorInfo* pAggInfo, int32_t numOfOutput, uint64_t groupId) {
+void doSetTableGroupOutputBuf(SOperatorInfo* pOperator, SAggOperatorInfo* pAggInfo, int32_t numOfOutput,
+                              uint64_t groupId) {
   // for simple group by query without interval, all the tables belong to one group result.
-  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   SResultRowInfo* pResultRowInfo = &pAggInfo->binfo.resultRowInfo;
   SqlFunctionCtx* pCtx = pOperator->exprSupp.pCtx;
   int32_t*        rowEntryInfoOffset = pOperator->exprSupp.rowEntryInfoOffset;
@@ -2040,8 +2042,8 @@ static int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInf
 }
 
 int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadInfo, int32_t numOfRows, char* pData,
-                                 int32_t compLen, int32_t numOfOutput, int64_t startTs, uint64_t* total,
-                                 SArray* pColList) {
+                                     int32_t compLen, int32_t numOfOutput, int64_t startTs, uint64_t* total,
+                                     SArray* pColList) {
   if (pColList == NULL) {  // data from other sources
     blockCompressDecode(pRes, numOfOutput, numOfRows, pData);
     pRes->info.rows = numOfRows;
@@ -2084,7 +2086,7 @@ int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLo
 
     // data from mnode
     pRes->info.rows = numOfRows;
-    relocateColumnData(pRes, pColList, pBlock->pDataBlock);
+    relocateColumnData(pRes, pColList, pBlock->pDataBlock, false);
     taosArrayDestroy(pBlock->pDataBlock);
     taosMemoryFree(pBlock);
     //    blockDataDestroy(pBlock);
@@ -2165,8 +2167,9 @@ static SSDataBlock* concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SEx
       }
 
       SRetrieveTableRsp* pTableRsp = pDataInfo->pRsp;
-      code = extractDataBlockFromFetchRsp(pExchangeInfo->pResult, pLoadInfo, pTableRsp->numOfRows, pTableRsp->data,
-                                      pTableRsp->compLen, pTableRsp->numOfCols, startTs, &pDataInfo->totalRows, NULL);
+      code =
+          extractDataBlockFromFetchRsp(pExchangeInfo->pResult, pLoadInfo, pTableRsp->numOfRows, pTableRsp->data,
+                                       pTableRsp->compLen, pTableRsp->numOfCols, startTs, &pDataInfo->totalRows, NULL);
       if (code != 0) {
         taosMemoryFreeClear(pDataInfo->pRsp);
         goto _error;
@@ -2281,7 +2284,7 @@ static SSDataBlock* seqLoadRemoteData(SOperatorInfo* pOperator) {
     SRetrieveTableRsp* pTableRsp = pDataInfo->pRsp;
     int32_t            code =
         extractDataBlockFromFetchRsp(pExchangeInfo->pResult, pLoadInfo, pTableRsp->numOfRows, pTableRsp->data,
-                                 pTableRsp->compLen, pTableRsp->numOfCols, startTs, &pDataInfo->totalRows, NULL);
+                                     pTableRsp->compLen, pTableRsp->numOfCols, startTs, &pDataInfo->totalRows, NULL);
 
     if (pRsp->completed == 1) {
       qDebug("%s fetch msg rsp from vgId:%d, taskId:0x%" PRIx64 " numOfRows:%d, rowsOfSource:%" PRIu64
@@ -2673,8 +2676,8 @@ static SSDataBlock* doSortedMerge(SOperatorInfo* pOperator) {
   }
 
   int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
-  pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_MULTISOURCE_MERGE, pInfo->bufPageSize,
-                                             numOfBufPage, pInfo->binfo.pRes, "GET_TASKID(pTaskInfo)");
+  pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_MULTISOURCE_MERGE, pInfo->bufPageSize, numOfBufPage,
+                                             pInfo->binfo.pRes, "GET_TASKID(pTaskInfo)");
 
   tsortSetFetchRawDataFp(pInfo->pSortHandle, loadNextDataBlock, NULL, NULL);
 
@@ -3131,7 +3134,7 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
   SProjectOperatorInfo* pProjectInfo = pOperator->info;
   SOptrBasicInfo*       pInfo = &pProjectInfo->binfo;
 
-  SExprSupp* pSup = &pOperator->exprSupp;
+  SExprSupp*   pSup = &pOperator->exprSupp;
   SSDataBlock* pRes = pInfo->pRes;
   blockDataCleanup(pRes);
 
@@ -3404,8 +3407,8 @@ void cleanupAggSup(SAggSupporter* pAggSup) {
   destroyDiskbasedBuf(pAggSup->pResultBuf);
 }
 
-int32_t initAggInfo(SExprSupp* pSup, SAggSupporter* pAggSup, SExprInfo* pExprInfo, int32_t numOfCols,
-                    size_t keyBufSize, const char* pkey) {
+int32_t initAggInfo(SExprSupp* pSup, SAggSupporter* pAggSup, SExprInfo* pExprInfo, int32_t numOfCols, size_t keyBufSize,
+                    const char* pkey) {
   int32_t code = initExprSupp(pSup, pExprInfo, numOfCols);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -3470,12 +3473,12 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo*
     goto _error;
   }
 
-  pInfo->groupId       = INT32_MIN;
-  pOperator->name      = "TableAggregate";
+  pInfo->groupId = INT32_MIN;
+  pOperator->name = "TableAggregate";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_HASH_AGG;
-  pOperator->blocking  = true;
-  pOperator->status    = OP_NOT_OPENED;
-  pOperator->info      = pInfo;
+  pOperator->blocking = true;
+  pOperator->status = OP_NOT_OPENED;
+  pOperator->info = pInfo;
   pOperator->pTaskInfo = pTaskInfo;
 
   pOperator->fpSet = createOperatorFpSet(doOpenAggregateOptr, getAggregateResult, NULL, NULL, destroyAggOperatorInfo,
@@ -3591,25 +3594,26 @@ static SArray* setRowTsColumnOutputInfo(SqlFunctionCtx* pCtx, int32_t numOfCols)
   return pList;
 }
 
-SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* pProjPhyNode, SExecTaskInfo* pTaskInfo) {
+SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* pProjPhyNode,
+                                         SExecTaskInfo* pTaskInfo) {
   SProjectOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SProjectOperatorInfo));
   SOperatorInfo*        pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
     goto _error;
   }
 
-  int32_t numOfCols = 0;
+  int32_t    numOfCols = 0;
   SExprInfo* pExprInfo = createExprInfo(pProjPhyNode->pProjections, NULL, &numOfCols);
 
   SSDataBlock* pResBlock = createResDataBlock(pProjPhyNode->node.pOutputDataBlockDesc);
   SLimit       limit = {.limit = pProjPhyNode->limit, .offset = pProjPhyNode->offset};
   SLimit       slimit = {.limit = pProjPhyNode->slimit, .offset = pProjPhyNode->soffset};
 
-  pInfo->limit       = limit;
-  pInfo->slimit      = slimit;
-  pInfo->curOffset   = limit.offset;
-  pInfo->curSOffset  = slimit.offset;
-  pInfo->binfo.pRes  = pResBlock;
+  pInfo->limit = limit;
+  pInfo->slimit = slimit;
+  pInfo->curOffset = limit.offset;
+  pInfo->curSOffset = slimit.offset;
+  pInfo->binfo.pRes = pResBlock;
   pInfo->pFilterNode = pProjPhyNode->node.pConditions;
 
   int32_t numOfRows = 4096;
@@ -3627,12 +3631,12 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
   setFunctionResultOutput(pOperator, &pInfo->binfo, &pInfo->aggSup, MAIN_SCAN, numOfCols);
 
   pInfo->pPseudoColInfo = setRowTsColumnOutputInfo(pOperator->exprSupp.pCtx, numOfCols);
-  pOperator->name       = "ProjectOperator";
+  pOperator->name = "ProjectOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_PROJECT;
-  pOperator->blocking   = false;
-  pOperator->status     = OP_NOT_OPENED;
-  pOperator->info       = pInfo;
-  pOperator->pTaskInfo  = pTaskInfo;
+  pOperator->blocking = false;
+  pOperator->status = OP_NOT_OPENED;
+  pOperator->info = pInfo;
+  pOperator->pTaskInfo = pTaskInfo;
 
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doProjectOperation, NULL, NULL,
                                          destroyProjectOperatorInfo, NULL, NULL, NULL);
@@ -3652,7 +3656,7 @@ _error:
 static SSDataBlock* doApplyIndefinitFunction(SOperatorInfo* pOperator) {
   SIndefOperatorInfo* pIndefInfo = pOperator->info;
   SOptrBasicInfo*     pInfo = &pIndefInfo->binfo;
-  SExprSupp* pSup = &pOperator->exprSupp;
+  SExprSupp*          pSup = &pOperator->exprSupp;
 
   SSDataBlock* pRes = pInfo->pRes;
   blockDataCleanup(pRes);
@@ -3690,7 +3694,7 @@ static SSDataBlock* doApplyIndefinitFunction(SOperatorInfo* pOperator) {
     SExprSupp* pScalarSup = &pIndefInfo->scalarSup;
     if (pScalarSup->pExprInfo != NULL) {
       code = projectApplyFunctions(pScalarSup->pExprInfo, pBlock, pBlock, pScalarSup->pCtx, pScalarSup->numOfExprs,
-          pIndefInfo->pPseudoColInfo);
+                                   pIndefInfo->pPseudoColInfo);
       if (code != TSDB_CODE_SUCCESS) {
         longjmp(pTaskInfo->env, code);
       }
@@ -3699,8 +3703,8 @@ static SSDataBlock* doApplyIndefinitFunction(SOperatorInfo* pOperator) {
     setInputDataBlock(pOperator, pSup->pCtx, pBlock, order, scanFlag, false);
     blockDataEnsureCapacity(pInfo->pRes, pInfo->pRes->info.rows + pBlock->info.rows);
 
-    code = projectApplyFunctions(pOperator->exprSupp.pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pOperator->exprSupp.numOfExprs,
-                                 pIndefInfo->pPseudoColInfo);
+    code = projectApplyFunctions(pOperator->exprSupp.pExprInfo, pInfo->pRes, pBlock, pSup->pCtx,
+                                 pOperator->exprSupp.numOfExprs, pIndefInfo->pPseudoColInfo);
     if (code != TSDB_CODE_SUCCESS) {
       longjmp(pTaskInfo->env, code);
     }
@@ -3760,13 +3764,13 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
   pInfo->binfo.pRes       = pResBlock;
   pInfo->pPseudoColInfo   = setRowTsColumnOutputInfo(pSup->pCtx, numOfExpr);
 
-  pOperator->name         = "IndefinitOperator";
+  pOperator->name = "IndefinitOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_PROJECT;
   pOperator->blocking     = false;
   pOperator->status       = OP_NOT_OPENED;
   pOperator->info         = pInfo;
   pOperator->exprSupp.numOfExprs = numOfExpr;
-  pOperator->pTaskInfo    = pTaskInfo;
+  pOperator->pTaskInfo = pTaskInfo;
 
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doApplyIndefinitFunction, NULL, NULL,
                                          destroyIndefinitOperatorInfo, NULL, NULL, NULL);
@@ -3813,11 +3817,11 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
     goto _error;
   }
 
-  int32_t num = 0;
-  SSDataBlock*    pResBlock = createResDataBlock(pPhyFillNode->node.pOutputDataBlockDesc);
-  SExprInfo* pExprInfo = createExprInfo(pPhyFillNode->pTargets, NULL, &num);
-  SInterval* pInterval = &((SIntervalAggOperatorInfo*)downstream->info)->interval;
-  int32_t    type = convertFillType(pPhyFillNode->mode);
+  int32_t      num = 0;
+  SSDataBlock* pResBlock = createResDataBlock(pPhyFillNode->node.pOutputDataBlockDesc);
+  SExprInfo*   pExprInfo = createExprInfo(pPhyFillNode->pTargets, NULL, &num);
+  SInterval*   pInterval = &((SIntervalAggOperatorInfo*)downstream->info)->interval;
+  int32_t      type = convertFillType(pPhyFillNode->mode);
 
   SResultInfo* pResultInfo = &pOperator->resultInfo;
   initResultSizeInfo(pOperator, 4096);
@@ -3828,11 +3832,11 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
     goto _error;
   }
 
-  pInfo->pRes             = pResBlock;
+  pInfo->pRes = pResBlock;
   pInfo->multigroupResult = multigroupResult;
-  pOperator->name         = "FillOperator";
-  pOperator->blocking     = false;
-  pOperator->status       = OP_NOT_OPENED;
+  pOperator->name = "FillOperator";
+  pOperator->blocking = false;
+  pOperator->status = OP_NOT_OPENED;
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_FILL;
   pOperator->exprSupp.pExprInfo   = pExprInfo;
   pOperator->exprSupp.numOfExprs  = num;
@@ -4034,12 +4038,21 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       SScanPhysiNode*      pScanPhyNode = (SScanPhysiNode*)pPhyNode;  // simple child table.
       STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pPhyNode;
       STimeWindowAggSupp   twSup = {
-            .waterMark = pTableScanNode->watermark, .calTrigger = pTableScanNode->triggerType, .maxTs = INT64_MIN};
+            .waterMark = pTableScanNode->watermark,
+            .calTrigger = pTableScanNode->triggerType,
+            .maxTs = INT64_MIN,
+      };
       tsdbReaderT pDataReader = NULL;
-      if (pHandle->vnode) {
-        pDataReader = doCreateDataReader(pTableScanNode, pHandle, pTableListInfo, (uint64_t)queryId, taskId, pTagCond);
-      } else {
-        getTableList(pHandle->meta, pScanPhyNode, pTableListInfo, pTagCond);
+
+      if (pHandle) {
+        if (pHandle->vnode) {
+          // for stram
+          pDataReader =
+              doCreateDataReader(pTableScanNode, pHandle, pTableListInfo, (uint64_t)queryId, taskId, pTagCond);
+        } else {
+          // for tq
+          getTableList(pHandle->meta, pScanPhyNode, pTableListInfo, pTagCond);
+        }
       }
 
       if (pDataReader == NULL && terrno != 0) {
@@ -4298,7 +4311,7 @@ SArray* extractColumnInfo(SNodeList* pNodeList) {
       SColumn     c = {0};
       c.slotId = pNode->slotId;
       c.colId = pNode->slotId;
-      c.type  = pValNode->node.type;
+      c.type = pValNode->node.type;
       c.bytes = pValNode->node.resType.bytes;
       c.scale = pValNode->node.resType.scale;
       c.precision = pValNode->node.resType.precision;
@@ -4401,7 +4414,7 @@ int32_t decodeOperator(SOperatorInfo* ops, const char* result, int32_t length) {
     ASSERT(length == *(int32_t*)result);
 
     const char* data = result + sizeof(int32_t);
-    code = ops->fpSet.decodeResultRow(ops, (char*) data);
+    code = ops->fpSet.decodeResultRow(ops, (char*)data);
     if (code != TDB_CODE_SUCCESS) {
       return code;
     }

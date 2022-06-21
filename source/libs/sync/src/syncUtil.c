@@ -261,23 +261,29 @@ bool syncUtilIsData(tmsg_t msgType) {
 #endif
 
 bool syncUtilUserPreCommit(tmsg_t msgType) {
-  if (msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_CONFIG_CHANGE && msgType != TDMT_SYNC_LEADER_TRANSFER) {
+  if (msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_CONFIG_CHANGE && msgType != TDMT_SYNC_CONFIG_CHANGE_FINISH &&
+      msgType != TDMT_SYNC_LEADER_TRANSFER) {
     return true;
   }
+
   return false;
 }
 
 bool syncUtilUserCommit(tmsg_t msgType) {
-  if (msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_CONFIG_CHANGE && msgType != TDMT_SYNC_LEADER_TRANSFER) {
+  if (msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_CONFIG_CHANGE && msgType != TDMT_SYNC_CONFIG_CHANGE_FINISH &&
+      msgType != TDMT_SYNC_LEADER_TRANSFER) {
     return true;
   }
+
   return false;
 }
 
 bool syncUtilUserRollback(tmsg_t msgType) {
-  if (msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_CONFIG_CHANGE && msgType != TDMT_SYNC_LEADER_TRANSFER) {
+  if (msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_CONFIG_CHANGE && msgType != TDMT_SYNC_CONFIG_CHANGE_FINISH &&
+      msgType != TDMT_SYNC_LEADER_TRANSFER) {
     return true;
   }
+
   return false;
 }
 

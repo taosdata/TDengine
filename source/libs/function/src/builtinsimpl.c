@@ -67,8 +67,7 @@ typedef struct STopBotResItem {
 
 typedef struct STopBotRes {
   int32_t         maxSize;
-  int16_t         type;  // store the original input type, used in merge function
-  int32_t         numOfItems;
+  int16_t         type;
   STopBotResItem* pItems;
 } STopBotRes;
 
@@ -2563,9 +2562,6 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
 }
 
 static void firstLastTransferInfo(SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst) {
-  if (!pInput->hasResult) {
-    return;
-  }
   pOutput->bytes = pInput->bytes;
   TSKEY* tsIn = (TSKEY*)(pInput->buf + pInput->bytes);
   TSKEY* tsOut = (TSKEY*)(pOutput->buf + pInput->bytes);
@@ -2599,7 +2595,9 @@ static int32_t firstLastFunctionMergeImpl(SqlFunctionCtx* pCtx, bool isFirstQuer
 
   firstLastTransferInfo(pInputInfo, pInfo, isFirstQuery);
 
-  SET_VAL(GET_RES_INFO(pCtx), 1, 1);
+  int32_t numOfElems = pInputInfo->hasResult ? 1 : 0;
+
+  SET_VAL(GET_RES_INFO(pCtx), numOfElems, 1);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -2624,6 +2622,7 @@ int32_t firstLastFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 int32_t firstLastPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(pCtx);
   SFirstLastRes*       pRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+
   int32_t              resultBytes = getFirstLastInfoSize(pRes->bytes);
   char*                res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
 
@@ -2872,12 +2871,6 @@ bool getTopBotFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   return true;
 }
 
-bool getTopBotMergeFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
-  // intermediate result is binary and length contains VAR header size
-  pEnv->calcMemSize = pFunc->node.resType.bytes;
-  return true;
-}
-
 bool topBotFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
   if (!functionSetup(pCtx, pResInfo)) {
     return false;
@@ -2952,50 +2945,6 @@ int32_t bottomFunction(SqlFunctionCtx* pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void topBotTransferInfo(SqlFunctionCtx* pCtx, STopBotRes* pInput, bool isTopQuery) {
-  for (int32_t i = 0; i < pInput->numOfItems; i++) {
-    addResult(pCtx, &pInput->pItems[i], pInput->type, isTopQuery);
-  }
-}
-
-int32_t topFunctionMerge(SqlFunctionCtx* pCtx) {
-  SResultRowEntryInfo*  pEntryInfo = GET_RES_INFO(pCtx);
-  SInputColumnInfoData* pInput = &pCtx->input;
-  SColumnInfoData*      pCol = pInput->pData[0];
-  ASSERT(pCol->info.type == TSDB_DATA_TYPE_BINARY);
-
-  int32_t     start = pInput->startRowIndex;
-  char*       data = colDataGetData(pCol, start);
-  STopBotRes* pInputInfo = (STopBotRes*)varDataVal(data);
-  STopBotRes* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-
-  pInfo->maxSize = pInputInfo->maxSize;
-  pInfo->type = pInputInfo->type;
-  topBotTransferInfo(pCtx, pInputInfo, true);
-  SET_VAL(GET_RES_INFO(pCtx), pEntryInfo->numOfRes, pEntryInfo->numOfRes);
-
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t bottomFunctionMerge(SqlFunctionCtx* pCtx) {
-  SResultRowEntryInfo*  pEntryInfo = GET_RES_INFO(pCtx);
-  SInputColumnInfoData* pInput = &pCtx->input;
-  SColumnInfoData*      pCol = pInput->pData[0];
-  ASSERT(pCol->info.type == TSDB_DATA_TYPE_BINARY);
-
-  int32_t     start = pInput->startRowIndex;
-  char*       data = colDataGetData(pCol, start);
-  STopBotRes* pInputInfo = (STopBotRes*)varDataVal(data);
-  STopBotRes* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-
-  pInfo->maxSize = pInputInfo->maxSize;
-  pInfo->type = pInputInfo->type;
-  topBotTransferInfo(pCtx, pInputInfo, false);
-  SET_VAL(GET_RES_INFO(pCtx), pEntryInfo->numOfRes, pEntryInfo->numOfRes);
-
-  return TSDB_CODE_SUCCESS;
-}
-
 static int32_t topBotResComparFn(const void* p1, const void* p2, const void* param) {
   uint16_t type = *(uint16_t*)param;
 
@@ -3044,8 +2993,6 @@ void doAddIntoResult(SqlFunctionCtx* pCtx, void* pData, int32_t rowIndex, SSData
 
     // allocate the buffer and keep the data of this row into the new allocated buffer
     pEntryInfo->numOfRes++;
-    // accumulate number of items for each vgroup, this info is needed for merge
-    pRes->numOfItems++;
     taosheapsort((void*)pItems, sizeof(STopBotResItem), pEntryInfo->numOfRes, (const void*)&type, topBotResComparFn,
                  !isTopQuery);
   } else {  // replace the minimum value in the result
@@ -3144,7 +3091,7 @@ void copyTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pS
   releaseBufPage(pCtx->pBuf, pPage);
 }
 
-int32_t topBotFinalizeImpl(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, bool isMerge) {
+int32_t topBotFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(pCtx);
   STopBotRes*          pRes = GET_ROWCELL_INTERBUF(pEntryInfo);
 
@@ -3164,37 +3111,11 @@ int32_t topBotFinalizeImpl(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, bool isMer
       colDataAppend(pCol, currentRow, (const char*)&pItem->v.i, false);
     }
 
-    if (!isMerge) {
-      setSelectivityValue(pCtx, pBlock, &pRes->pItems[i].tuplePos, currentRow);
-    }
+    setSelectivityValue(pCtx, pBlock, &pRes->pItems[i].tuplePos, currentRow);
     currentRow += 1;
   }
 
   return pEntryInfo->numOfRes;
-}
-
-int32_t topBotFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) { return topBotFinalizeImpl(pCtx, pBlock, false); }
-
-int32_t topBotMergeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
-  return topBotFinalizeImpl(pCtx, pBlock, true);
-}
-
-int32_t topBotPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
-  SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(pCtx);
-  STopBotRes*          pRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-  int32_t              resultBytes = getTopBotInfoSize(pRes->maxSize);
-  char*                res = taosMemoryCalloc(resultBytes + VARSTR_HEADER_SIZE, sizeof(char));
-
-  memcpy(varDataVal(res), pRes, resultBytes);
-  varDataSetLen(res, resultBytes);
-
-  int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
-  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
-
-  colDataAppend(pCol, pBlock->info.rows, res, false);
-
-  taosMemoryFree(res);
-  return 1;
 }
 
 void addResult(SqlFunctionCtx* pCtx, STopBotResItem* pSourceItem, int16_t type, bool isTopQuery) {
@@ -3211,8 +3132,6 @@ void addResult(SqlFunctionCtx* pCtx, STopBotResItem* pSourceItem, int16_t type, 
     pItem->tuplePos.pageId = -1;
     replaceTupleData(&pItem->tuplePos, &pSourceItem->tuplePos);
     pEntryInfo->numOfRes++;
-    // accumulate number of items for each vgroup, this info is needed for merge
-    pRes->numOfItems++;
     taosheapsort((void*)pItems, sizeof(STopBotResItem), pEntryInfo->numOfRes, (const void*)&type, topBotResComparFn,
                  !isTopQuery);
   } else {  // replace the minimum value in the result

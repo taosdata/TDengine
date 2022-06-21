@@ -506,7 +506,8 @@ typedef struct SPartitionOperatorInfo {
   SDiskbasedBuf* pBuf;          // query result buffer based on blocked-wised disk file
   int32_t        rowCapacity;   // maximum number of rows for each buffer page
   int32_t*       columnOffset;  // start position for each column data
-  void*          pGroupIter;  // group iterator
+  SArray*        sortedGroupArray;   // SDataGroupInfo sorted by group id
+  int32_t        groupIndex;  // group index
   int32_t        pageIndex;   // page index of current group
   SSDataBlock*   pUpdateRes;
   SExprSupp      scalarSup;

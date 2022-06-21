@@ -4273,39 +4273,34 @@ void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
 }
 
 int32_t tEncodeSRSmaParam(SEncoder *pCoder, const SRSmaParam *pRSmaParam) {
-  if (tEncodeFloat(pCoder, pRSmaParam->xFilesFactor) < 0) return -1;
-  if (tEncodeI32v(pCoder, pRSmaParam->delay) < 0) return -1;
-  if (tEncodeI32v(pCoder, pRSmaParam->qmsg1Len) < 0) return -1;
-  if (tEncodeI32v(pCoder, pRSmaParam->qmsg2Len) < 0) return -1;
-  if (pRSmaParam->qmsg1Len > 0) {
-    if (tEncodeBinary(pCoder, pRSmaParam->qmsg1, (uint64_t)pRSmaParam->qmsg1Len) < 0)  // qmsg1Len contains len of '\0'
-      return -1;
-  }
-  if (pRSmaParam->qmsg2Len > 0) {
-    if (tEncodeBinary(pCoder, pRSmaParam->qmsg2, (uint64_t)pRSmaParam->qmsg2Len) < 0)  // qmsg2Len contains len of '\0'
-      return -1;
+  for (int32_t i = 0; i < 2; ++i) {
+    if (tEncodeI64v(pCoder, pRSmaParam->maxdelay[i]) < 0) return -1;
+    if (tEncodeI64v(pCoder, pRSmaParam->watermark[i]) < 0) return -1;
+    if (tEncodeI32v(pCoder, pRSmaParam->qmsgLen[i]) < 0) return -1;
+    if (pRSmaParam->qmsgLen[i] > 0) {
+      if (tEncodeBinary(pCoder, pRSmaParam->qmsg[i], (uint64_t)pRSmaParam->qmsgLen[i]) <
+          0)  // qmsgLen contains len of '\0'
+        return -1;
+    }
   }
 
   return 0;
 }
 
 int32_t tDecodeSRSmaParam(SDecoder *pCoder, SRSmaParam *pRSmaParam) {
-  if (tDecodeFloat(pCoder, &pRSmaParam->xFilesFactor) < 0) return -1;
-  if (tDecodeI32v(pCoder, &pRSmaParam->delay) < 0) return -1;
-  if (tDecodeI32v(pCoder, &pRSmaParam->qmsg1Len) < 0) return -1;
-  if (tDecodeI32v(pCoder, &pRSmaParam->qmsg2Len) < 0) return -1;
-  if (pRSmaParam->qmsg1Len > 0) {
-    uint64_t len;
-    if (tDecodeBinaryAlloc(pCoder, (void **)&pRSmaParam->qmsg1, &len) < 0) return -1;  // qmsg1Len contains len of '\0'
-  } else {
-    pRSmaParam->qmsg1 = NULL;
+  for (int32_t i = 0; i < 2; ++i) {
+    if (tDecodeI64v(pCoder, &pRSmaParam->maxdelay[i]) < 0) return -1;
+    if (tDecodeI64v(pCoder, &pRSmaParam->watermark[i]) < 0) return -1;
+    if (tDecodeI32v(pCoder, &pRSmaParam->qmsgLen[i]) < 0) return -1;
+    if (pRSmaParam->qmsgLen[i] > 0) {
+      uint64_t len;
+      if (tDecodeBinaryAlloc(pCoder, (void **)&pRSmaParam->qmsg[i], &len) < 0)
+        return -1;  // qmsgLen contains len of '\0'
+    } else {
+      pRSmaParam->qmsg[i] = NULL;
+    }
   }
-  if (pRSmaParam->qmsg2Len > 0) {
-    uint64_t len;
-    if (tDecodeBinaryAlloc(pCoder, (void **)&pRSmaParam->qmsg2, &len) < 0) return -1;  // qmsg2Len contains len of '\0'
-  } else {
-    pRSmaParam->qmsg2 = NULL;
-  }
+
   return 0;
 }
 
