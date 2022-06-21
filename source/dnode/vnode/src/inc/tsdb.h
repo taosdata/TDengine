@@ -81,7 +81,7 @@ void    tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVa
 int32_t tPutTSDBRow(uint8_t *p, TSDBROW *pRow);
 int32_t tGetTSDBRow(uint8_t *p, TSDBROW *pRow);
 // SRowIter
-#define tRowIterInit(ROW, SCHEMA) ((SRowIter){.pRow = (ROW), .pSchema = (SCHEMA)})
+void     tRowIterInit(SRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema);
 SColVal *tRowIterNext(SRowIter *pIter);
 // TABLEID
 int32_t tTABLEIDCmprFn(const void *p1, const void *p2);
@@ -114,6 +114,7 @@ int32_t tGetBlockIdx(uint8_t *p, void *ph);
 void    tColDataReset(SColData *pColData);
 void    tColDataClear(void *ph);
 int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal);
+void    tColDataGetValue(SColData *pColData, int32_t iRow, SColVal *pColVal);
 int32_t tColDataCmprFn(const void *p1, const void *p2);
 // SBlockData
 int32_t tBlockDataInit(SBlockData *pBlockData);
@@ -449,22 +450,26 @@ struct SBlockDataHdr {
 };
 
 struct SHeadFile {
+  int64_t commitID;
   int64_t size;
   int64_t offset;
   int32_t nRef;
 };
 
 struct SDataFile {
+  int64_t commitID;
   int64_t size;
   int32_t nRef;
 };
 
 struct SLastFile {
+  int64_t commitID;
   int64_t size;
   int32_t nRef;
 };
 
 struct SSmaFile {
+  int64_t commitID;
   int64_t size;
   int32_t nRef;
 };
@@ -481,7 +486,7 @@ struct SDFileSet {
 
 struct SRowIter {
   TSDBROW  *pRow;
-  STSchema *pSchema;
+  STSchema *pTSchema;
   SColVal   colVal;
   int32_t   i;
 };

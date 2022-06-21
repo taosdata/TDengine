@@ -583,6 +583,43 @@ int32_t tGetTSDBRow(uint8_t *p, TSDBROW *pRow) {
   return n;
 }
 
+// SRowIter ======================================================
+void tRowIterInit(SRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema) {
+  pIter->pRow = pRow;
+  if (pRow->type == 0) {
+    ASSERT(pTSchema);
+    pIter->pTSchema = pTSchema;
+    pIter->i = 1;
+  } else if (pRow->type == 1) {
+    pIter->pTSchema = NULL;
+    pIter->i = 0;
+  } else {
+    ASSERT(0);
+  }
+}
+
+SColVal *tRowIterNext(SRowIter *pIter) {
+  if (pIter->pRow->type == 0) {
+    if (pIter->i < pIter->pTSchema->numOfCols) {
+      tsdbRowGetColVal(pIter->pRow, pIter->pTSchema, pIter->i, &pIter->colVal);
+      pIter->i++;
+
+      return &pIter->colVal;
+    }
+  } else {
+    if (pIter->i < taosArrayGetSize(pIter->pRow->pBlockData->apColData)) {
+      SColData *pColData = (SColData *)taosArrayGetP(pIter->pRow->pBlockData->apColData, pIter->i);
+
+      tColDataGetValue(pColData, pIter->pRow->iRow, &pIter->colVal);
+      pIter->i++;
+
+      return &pIter->colVal;
+    }
+  }
+
+  return NULL;
+}
+
 // delete skyline ======================================================
 static int32_t tsdbMergeSkyline(SArray *aSkyline1, SArray *aSkyline2, SArray *aSkyline) {
   int32_t  code = 0;
@@ -731,6 +768,10 @@ int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal) {
   return code;
 }
 
+void tColDataGetValue(SColData *pColData, int32_t iRow, SColVal *pColVal) {
+  // TODO
+}
+
 int32_t tColDataCmprFn(const void *p1, const void *p2) {
   if (((SColData *)p1)->cid < ((SColData *)p2)->cid) {
     return -1;
@@ -834,14 +875,16 @@ int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
   pBlockData->aVersion[nRow] = key.version;
   pBlockData->aTSKEY[nRow] = key.ts;
 
-// OTHER
-#if 0
-  int32_t  iColData = 0;
-  int32_t  nColData = taosArrayGetSize(pBlockData->apColData);
-  SRowIter ri = tRowIterInit(pRow, pTSchema);
+  // OTHER
+  int32_t   iColData = 0;
+  int32_t   nColData = taosArrayGetSize(pBlockData->apColData);
+  SRowIter  ri;
+  SColData *pColData;
+  SColVal  *pColVal;
 
-  SColData *pColData = iColData < nColData ? (SColData *)taosArrayGetP(pBlockData->apColData, iColData) : NULL;
-  SColVal  *pColVal = tRowIterNext(&ri);
+  tRowIterInit(&ri, pRow, pTSchema);
+  pColData = iColData < nColData ? (SColData *)taosArrayGetP(pBlockData->apColData, iColData) : NULL;
+  pColVal = tRowIterNext(&ri);
   while (true) {
     if (pColData && pColVal) {
       if (pColData->cid == pColVal->cid) {
@@ -861,7 +904,6 @@ int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
       // add a new SColData and append value
     }
   }
-#endif
 
   return code;
 
