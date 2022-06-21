@@ -2005,9 +2005,9 @@ static int32_t checkFill(STranslateContext* pCxt, SFillNode* pFill, SValueNode* 
   if (TIME_IS_VAR_DURATION(pInterval->unit)) {
     int64_t f = 1;
     if (pInterval->unit == 'n') {
-      f = 30L * MILLISECOND_PER_DAY;
+      f = 30LL * MILLISECOND_PER_DAY;
     } else if (pInterval->unit == 'y') {
-      f = 365L * MILLISECOND_PER_DAY;
+      f = 365LL * MILLISECOND_PER_DAY;
     }
     intervalRange = pInterval->datum.i * f;
   } else {
@@ -2666,7 +2666,7 @@ static int64_t getUnitPerMinute(uint8_t precision) {
     case TSDB_TIME_PRECISION_MILLI:
       return MILLISECOND_PER_MINUTE;
     case TSDB_TIME_PRECISION_MICRO:
-      return MILLISECOND_PER_MINUTE * 1000L;
+      return MILLISECOND_PER_MINUTE * 1000LL;
     case TSDB_TIME_PRECISION_NANO:
       return NANOSECOND_PER_MINUTE;
     default:

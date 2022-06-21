@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "tencode.h"
 
-#if __STDC_VERSION__ >= 201112L
+#if __STDC_VERSION__ >= 201112LL
 static_assert(sizeof(float) == sizeof(uint32_t), "sizeof(float) must equal to sizeof(uint32_t)");
 static_assert(sizeof(double) == sizeof(uint64_t), "sizeof(double) must equal to sizeof(uint64_t)");
 #endif

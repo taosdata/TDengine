@@ -21,7 +21,7 @@ typedef union Un4B {
   uint32_t ui;
   float    f;
 } Un4B;
-#if __STDC_VERSION__ >= 201112L
+#if __STDC_VERSION__ >= 201112LL
 static_assert(sizeof(Un4B) == sizeof(uint32_t), "sizeof(Un4B) must equal to sizeof(uint32_t)");
 static_assert(sizeof(Un4B) == sizeof(float), "sizeof(Un4B) must equal to sizeof(float)");
 #endif
@@ -30,7 +30,7 @@ typedef union Un8B {
   uint64_t ull;
   double   d;
 } Un8B;
-#if __STDC_VERSION__ >= 201112L
+#if __STDC_VERSION__ >= 201112LL
 static_assert(sizeof(Un8B) == sizeof(uint64_t), "sizeof(Un8B) must equal to sizeof(uint64_t)");
 static_assert(sizeof(Un8B) == sizeof(double), "sizeof(Un8B) must equal to sizeof(double)");
 #endif
