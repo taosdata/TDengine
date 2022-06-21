@@ -19,6 +19,7 @@
 #include "tmsg.h"
 #include "trpc.h"
 #include "tsched.h"
+#include "cJSON.h"
 
 #define VALIDNUMOFCOLS(x) ((x) >= TSDB_MIN_COLUMNS && (x) <= TSDB_MAX_COLUMNS)
 #define VALIDNUMOFTAGS(x) ((x) >= 0 && (x) <= TSDB_MAX_TAGS)
@@ -295,6 +296,80 @@ int32_t dataConverToStr(char *str, int type, void *buf, int32_t bufSize, int32_t
   *len = n;
 
   return TSDB_CODE_SUCCESS;
+}
+
+char* parseTagDatatoJson(void* p) {
+  char*  string = NULL;
+  cJSON* json = cJSON_CreateObject();
+  if (json == NULL) {
+    goto end;
+  }
+
+  SArray* pTagVals = NULL;
+  if (tTagToValArray((const STag*)p, &pTagVals) != 0) {
+    goto end;
+  }
+
+  int16_t nCols = taosArrayGetSize(pTagVals);
+  char    tagJsonKey[256] = {0};
+  for (int j = 0; j < nCols; ++j) {
+    STagVal* pTagVal = (STagVal*)taosArrayGet(pTagVals, j);
+    // json key  encode by binary
+    memset(tagJsonKey, 0, sizeof(tagJsonKey));
+    memcpy(tagJsonKey, pTagVal->pKey, strlen(pTagVal->pKey));
+    // json value
+    char type = pTagVal->type;
+    if (type == TSDB_DATA_TYPE_NULL) {
+      cJSON* value = cJSON_CreateNull();
+      if (value == NULL) {
+        goto end;
+      }
+      cJSON_AddItemToObject(json, tagJsonKey, value);
+    } else if (type == TSDB_DATA_TYPE_NCHAR) {
+      cJSON* value = NULL;
+      if (pTagVal->nData > 0) {
+        char*   tagJsonValue = taosMemoryCalloc(pTagVal->nData, 1);
+        int32_t length = taosUcs4ToMbs((TdUcs4*)pTagVal->pData, pTagVal->nData, tagJsonValue);
+        if (length < 0) {
+          qError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
+                   pTagVal->pData);
+          taosMemoryFree(tagJsonValue);
+          goto end;
+        }
+        value = cJSON_CreateString(tagJsonValue);
+        taosMemoryFree(tagJsonValue);
+        if (value == NULL) {
+          goto end;
+        }
+      } else if (pTagVal->nData == 0) {
+        value = cJSON_CreateString("");
+      } else {
+        ASSERT(0);
+      }
+
+      cJSON_AddItemToObject(json, tagJsonKey, value);
+    } else if (type == TSDB_DATA_TYPE_DOUBLE) {
+      double jsonVd = *(double*)(&pTagVal->i64);
+      cJSON* value = cJSON_CreateNumber(jsonVd);
+      if (value == NULL) {
+        goto end;
+      }
+      cJSON_AddItemToObject(json, tagJsonKey, value);
+    } else if (type == TSDB_DATA_TYPE_BOOL) {
+      char   jsonVd = *(char*)(&pTagVal->i64);
+      cJSON* value = cJSON_CreateBool(jsonVd);
+      if (value == NULL) {
+        goto end;
+      }
+      cJSON_AddItemToObject(json, tagJsonKey, value);
+    } else {
+      ASSERT(0);
+    }
+  }
+  string = cJSON_PrintUnformatted(json);
+end:
+  cJSON_Delete(json);
+  return string;
 }
 
 

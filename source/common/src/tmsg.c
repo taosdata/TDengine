@@ -1918,7 +1918,7 @@ int32_t tDeserializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) 
   }
 
   if (tDecodeI32(&decoder, &pRsp->tagsLen) < 0) return -1;
-  if (tDecodeBinaryAlloc(&decoder, &pRsp->pTags, NULL) < 0) return -1;
+  if (tDecodeBinaryAlloc(&decoder, (void**)&pRsp->pTags, NULL) < 0) return -1;
 
   tEndDecode(&decoder);
 

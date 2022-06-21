@@ -332,6 +332,15 @@ void appendTagFields(char* buf, int32_t* len, STableCfg* pCfg) {
   }
 }
 
+
+void appendTagNameFields(char* buf, int32_t* len, STableCfg* pCfg) {
+  for (int32_t i = 0; i < pCfg->numOfTags; ++i) {
+    SSchema* pSchema = pCfg->pSchemas + pCfg->numOfColumns + i;
+    *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s`%s`", ((i > 0) ? ", " : ""), pSchema->name);
+  }
+}
+
+
 int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
   SArray *pTagVals = NULL;
   STag *pTag = (STag*)pCfg->pTags;
@@ -340,6 +349,7 @@ int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
     char *pJson = parseTagDatatoJson(pTag);
     if (pJson) {
       *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s", pJson);
+      taosMemoryFree(pJson);
     }
 
     return TSDB_CODE_SUCCESS;
@@ -350,15 +360,40 @@ int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
     return code;
   }
 
-  int16_t nCols = taosArrayGetSize(pTagVals);
+  int16_t valueNum = taosArrayGetSize(pTagVals);
   int32_t num = 0;
-  for (int i = 0; i < nCols; i++) {
-    STagVal *pTagVal = (STagVal *)taosArrayGet(pTagVals, i);
-    char     type = pTagVal->type;
-    int32_t  tlen = 0;
+  int32_t j = 0;
+  for (int32_t i = 0; i < pCfg->numOfTags; ++i) {
+    SSchema* pSchema = pCfg->pSchemas + pCfg->numOfColumns + i;
+    if (i > 0) {
+      *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, ", ");
+    }
+    
+    if (j >= valueNum) {
+      *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "NULL");
+      continue;
+    }
+    
+    STagVal *pTagVal = (STagVal *)taosArrayGet(pTagVals, j);
+    if (pSchema->colId > pTagVal->cid) {
+      qError("tag value and column mismatch, schemaId:%d, valId:%d", pSchema->colId, pTagVal->cid);
+      taosArrayDestroy(pTagVals);
+      return TSDB_CODE_APP_ERROR;
+    } else if (pSchema->colId == pTagVal->cid) {
+      char     type = pTagVal->type;
+      int32_t  tlen = 0;
 
-    dataConverToStr(buf + VARSTR_HEADER_SIZE + *len, type, pTagVal->pData, pTagVal->nData, &tlen);
-    *len += tlen;
+      if (IS_VAR_DATA_TYPE(type)) {
+        dataConverToStr(buf + VARSTR_HEADER_SIZE + *len, type, pTagVal->pData, pTagVal->nData, &tlen);
+      } else {
+        dataConverToStr(buf + VARSTR_HEADER_SIZE + *len, type, &pTagVal->i64, tDataTypes[type].bytes, &tlen);
+      }
+      *len += tlen;
+      j++;
+    } else {
+      *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "NULL");
+    }
+    
 
     /*
     if (type == TSDB_DATA_TYPE_BINARY) {
@@ -389,6 +424,9 @@ int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
     */
   }
 
+  taosArrayDestroy(pTagVals);
+
+  return TSDB_CODE_SUCCESS;  
 }
 
 void appendTableOptions(char* buf, int32_t* len, STableCfg* pCfg) {
@@ -444,7 +482,9 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, char *tbName,
     appendTagFields(buf2, &len, pCfg);    
     len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, ")");
   } else if (TSDB_CHILD_TABLE == pCfg->tableType) {
-    len += sprintf(buf2 + VARSTR_HEADER_SIZE, "CREATE TABLE `%s` USING `%s` TAGS (", tbName, pCfg->stbName);
+    len += sprintf(buf2 + VARSTR_HEADER_SIZE, "CREATE TABLE `%s` USING `%s` (", tbName, pCfg->stbName);
+    appendTagNameFields(buf2, &len, pCfg);
+    len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, ") TAGS (");
     code = appendTagValues(buf2, &len, pCfg);
     if (code) {
       return code;
