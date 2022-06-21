@@ -2086,7 +2086,7 @@ int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLo
 
     // data from mnode
     pRes->info.rows = numOfRows;
-    relocateColumnData(pRes, pColList, pBlock->pDataBlock);
+    relocateColumnData(pRes, pColList, pBlock->pDataBlock, false);
     taosArrayDestroy(pBlock->pDataBlock);
     taosMemoryFree(pBlock);
     //    blockDataDestroy(pBlock);
@@ -4052,14 +4052,19 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       SScanPhysiNode*      pScanPhyNode = (SScanPhysiNode*)pPhyNode;  // simple child table.
       STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pPhyNode;
       STimeWindowAggSupp   twSup = {
-            .waterMark = pTableScanNode->watermark, .calTrigger = pTableScanNode->triggerType, .maxTs = INT64_MIN};
+            .waterMark = pTableScanNode->watermark,
+            .calTrigger = pTableScanNode->triggerType,
+            .maxTs = INT64_MIN,
+      };
       tsdbReaderT pDataReader = NULL;
 
       if (pHandle) {
         if (pHandle->vnode) {
+          // for stram
           pDataReader =
               doCreateDataReader(pTableScanNode, pHandle, pTableListInfo, (uint64_t)queryId, taskId, pTagCond);
         } else {
+          // for tq
           getTableList(pHandle->meta, pScanPhyNode, pTableListInfo, pTagCond);
         }
       }

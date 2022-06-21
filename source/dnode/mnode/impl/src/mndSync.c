@@ -68,8 +68,9 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
       mndTransExecute(pMnode, pTrans);
       mndReleaseTrans(pMnode, pTrans);
     }
-
+#if 0
     sdbWriteFile(pMnode->pSdb, SDB_WRITE_DELTA);
+#endif
   }
 }
 

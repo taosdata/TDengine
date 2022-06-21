@@ -6,18 +6,17 @@ system sh/exec.sh -n dnode1 -s start
 sleep 50
 sql connect
 
-sql create dnode $hostname2 port 7200
+sql create snode on dnode 1
 
-system sh/exec.sh -n dnode2 -s start
-
-sql create database test  vgroups 4;
+sql create database test  vgroups 1;
+sql create database target vgroups 1;
 sql use test;
 sql create stable st(ts timestamp, a int, b int , c int, d double) tags(ta int,tb int,tc int);
 sql create table ts1 using st tags(1,1,1);
 sql create table ts2 using st tags(2,2,2);
 sql create table ts3 using st tags(3,2,2);
 sql create table ts4 using st tags(4,2,2);
-sql create stream stream_t1 trigger at_once into streamtST1 as select  _wstartts, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from st interval(10s);
+sql create stream stream_t1 trigger at_once into target.streamtST1 as select  _wstartts, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from st interval(10s);
 
 sleep 1000
 
@@ -59,7 +58,7 @@ sql insert into ts3 values(1648791243006,4,2,3,3.1) (1648791213001,1,52,13,1.0) 
 
 $loop_count = 0
 loop1:
-sql select * from streamtST1;
+sql select * from target.streamtST1;
 
 sleep 300
 $loop_count = $loop_count + 1
@@ -172,40 +171,3 @@ if $data35 != 3 then
 endi
 
 sql select  _wstartts, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5, avg(d) from st interval(10s);
-
-
-sql create database test1  vgroups 1;
-sql use test1;
-sql create stable st(ts timestamp, a int, b int , c int) tags(ta int,tb int,tc int);
-sql create table ts1 using st tags(1,1,1);
-sql create table ts2 using st tags(2,2,2);
-sql create stream stream_t2 trigger at_once  into streamtST1 as select  _wstartts, count(*) c1, count(a) c2 , sum(a) c3 ,  max(b)  c5, min(c) c6 from st interval(10s) ;
-
-sql insert into ts1 values(1648791211000,1,2,3);
-sql insert into ts1 values(1648791222001,2,2,3);
-sql insert into ts2 values(1648791211000,1,2,3);
-sql insert into ts2 values(1648791222001,2,2,3);
-
-$loop_count = 0
-loop2:
-sql select * from streamtST1;
-
-sleep 300
-$loop_count = $loop_count + 1
-if $loop_count == 10 then
-  return -1
-endi
-
-# row 0
-if $data01 != 2 then
-  print =====data01=$data01
-  goto loop2
-endi
-
-#rows 1
-if $data11 != 2 then
-  print =====data11=$data11
-  goto loop2
-endi
-
-system sh/stop_dnodes.sh
