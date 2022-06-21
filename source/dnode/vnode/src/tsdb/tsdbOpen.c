@@ -73,6 +73,10 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
     goto _err;
   }
 
+  if (tsdbOpenCache(pTsdb) < 0) {
+    goto _err;
+  }
+
   tsdbDebug("vgId:%d, tsdb is opened for %s, days:%d, keep:%d,%d,%d", TD_VID(pVnode), pTsdb->path, pTsdb->keepCfg.days,
             pTsdb->keepCfg.keep0, pTsdb->keepCfg.keep1, pTsdb->keepCfg.keep2);
 
@@ -91,6 +95,7 @@ int tsdbClose(STsdb **pTsdb) {
     tsdbFSClose((*pTsdb)->fs);
     // tsdbFreeFS((*pTsdb)->fs);
     taosMemoryFreeClear(*pTsdb);
+    tsdbCloseCache((*pTsdb)->lruCache);
   }
   return 0;
 }

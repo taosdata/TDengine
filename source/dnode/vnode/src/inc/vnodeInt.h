@@ -36,6 +36,7 @@
 #include "tmallocator.h"
 #include "tmsgcb.h"
 #include "tskiplist.h"
+#include "tlrucache.h"
 #include "tstream.h"
 #include "ttime.h"
 #include "ttimer.h"

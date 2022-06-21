@@ -198,6 +198,13 @@ int32_t tsdbDelFReaderClose(SDelFReader *pReader);
 int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SMapData *pDelDataMap, uint8_t **ppBuf);
 int32_t tsdbReadDelIdx(SDelFReader *pReader, SMapData *pDelIdxMap, uint8_t **ppBuf);
 
+// tsdbCache
+int32_t tsdbOpenCache(STsdb *pTsdb);
+void tsdbCloseCache(SLRUCache *pCache);
+int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, tb_uid_t uid, STSRow *row);
+int32_t tsdbCacheGetLastrow(SLRUCache *pCache, tb_uid_t uid, STSRow **ppRow);
+int32_t tsdbCacheDeleteLastrow(SLRUCache *pCache, tb_uid_t uid);
+
 // structs =======================
 typedef struct {
   int   minFid;
@@ -218,6 +225,7 @@ struct STsdb {
   SMemTable    *imem;
   SRtn          rtn;
   STsdbFS      *fs;
+  SLRUCache    *lruCache;
 };
 
 struct STable {

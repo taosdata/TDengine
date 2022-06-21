@@ -143,6 +143,7 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
   SMemTable *pMemTable = pTsdb->mem;
   STbData   *pTbData = NULL;
   SVBufPool *pPool = pTsdb->pVnode->inUse;
+  TSDBKEY    lastKey = {.version = version, .ts = eKey};
 
   // check if table exists (todo)
 
@@ -172,6 +173,10 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
   // update the state of pMemTable and other (todo)
 
   pMemTable->nDel++;
+
+  if (tsdbKeyCmprFn(&lastKey, &pTbData->info.maxKey) >= 0) {
+    tsdbCacheDeleteLastrow(pTsdb->lruCache, pTbData->uid);
+  }
 
   tsdbError("vgId:%d, delete data from table suid:%" PRId64 " uid:%" PRId64 " skey:%" PRId64 " eKey:%" PRId64
             " since %s",
@@ -496,6 +501,7 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, i
   SMemSkipListNode *pos[SL_MAX_LEVEL];
   TSDBROW           row = tsdbRowFromTSRow(version, NULL);
   int32_t           nRow = 0;
+  STSRow           *pLastRow = NULL;
 
   tInitSubmitBlkIter(pMsgIter, pBlock, &blkIter);
 
@@ -517,6 +523,8 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, i
     pMemTable->info.minKey = key;
   }
 
+  pLastRow = row.pTSRow;
+
   // forward put rest data
   row.pTSRow = tGetSubmitBlkNext(&blkIter);
   if (row.pTSRow) {
@@ -532,12 +540,18 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, i
         goto _err;
       }
 
+      pLastRow = row.pTSRow;
+
       row.pTSRow = tGetSubmitBlkNext(&blkIter);
     } while (row.pTSRow);
   }
 
   if (tsdbKeyCmprFn(&key, &pTbData->info.maxKey) > 0) {
     pTbData->info.maxKey = key;
+
+    if (pLastRow) {
+      tsdbCacheInsertLastrow(pMemTable->pTsdb->lruCache, pTbData->uid, pLastRow);
+    }
   }
 
   if (tsdbKeyCmprFn(&key, &pMemTable->info.maxKey) > 0) {
