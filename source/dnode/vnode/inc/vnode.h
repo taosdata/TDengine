@@ -116,7 +116,7 @@ typedef void *tsdbReaderT;
 #define BLOCK_LOAD_TABLE_SEQ_ORDER  2
 #define BLOCK_LOAD_TABLE_RR_ORDER   3
 
-tsdbReaderT *tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, STableListInfo *tableInfoGroup, uint64_t qId,
+tsdbReaderT  tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, STableListInfo *tableInfoGroup, uint64_t qId,
                             uint64_t taskId);
 tsdbReaderT  tsdbQueryCacheLast(SVnode *pVnode, SQueryTableDataCond *pCond, STableListInfo *groupList, uint64_t qId,
                                 void *pMemRef);
@@ -210,12 +210,16 @@ struct SMetaEntry {
     struct {
       int64_t  ctime;
       int32_t  ttlDays;
+      int32_t  commentLen;
+      char    *comment;
       tb_uid_t suid;
       uint8_t *pTags;
     } ctbEntry;
     struct {
       int64_t        ctime;
       int32_t        ttlDays;
+      int32_t        commentLen;
+      char          *comment;
       int32_t        ncid;  // next column id
       SSchemaWrapper schemaRow;
     } ntbEntry;

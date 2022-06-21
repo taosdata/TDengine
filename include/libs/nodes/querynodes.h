@@ -240,6 +240,9 @@ typedef struct SSelectStmt {
   SNode*      pWindow;
   SNodeList*  pGroupByList;  // SGroupingSetNode
   SNode*      pHaving;
+  SNode*      pRange;
+  SNode*      pEvery;
+  SNode*      pFill;
   SNodeList*  pOrderByList;  // SOrderByExprNode
   SLimitNode* pLimit;
   SLimitNode* pSlimit;
@@ -254,6 +257,7 @@ typedef struct SSelectStmt {
   bool        hasSelectValFunc;
   bool        hasUniqueFunc;
   bool        hasTailFunc;
+  bool        hasInterpFunc;
 } SSelectStmt;
 
 typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;

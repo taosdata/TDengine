@@ -39,7 +39,8 @@ typedef enum EScanType {
   SCAN_TYPE_TABLE,
   SCAN_TYPE_SYSTEM_TABLE,
   SCAN_TYPE_STREAM,
-  SCAN_TYPE_TABLE_MERGE
+  SCAN_TYPE_TABLE_MERGE,
+  SCAN_TYPE_BLOCK_INFO
 } EScanType;
 
 typedef struct SScanLogicNode {
@@ -98,8 +99,18 @@ typedef struct SProjectLogicNode {
 
 typedef struct SIndefRowsFuncLogicNode {
   SLogicNode node;
-  SNodeList* pVectorFuncs;
+  SNodeList* pFuncs;
 } SIndefRowsFuncLogicNode;
+
+typedef struct SInterpFuncLogicNode {
+  SLogicNode  node;
+  SNodeList*  pFuncs;
+  STimeWindow timeRange;
+  int64_t     interval;
+  EFillMode   fillMode;
+  SNode*      pFillValues;  // SNodeListNode
+  SNode*      pTimeSeries;  // SColumnNode
+} SInterpFuncLogicNode;
 
 typedef enum EModifyTableType { MODIFY_TABLE_TYPE_INSERT = 1, MODIFY_TABLE_TYPE_DELETE } EModifyTableType;
 
@@ -154,6 +165,7 @@ typedef struct SWindowLogicNode {
   int8_t           slidingUnit;
   int64_t          sessionGap;
   SNode*           pTspk;
+  SNode*           pTsEnd;
   SNode*           pStateExpr;
   int8_t           triggerType;
   int64_t          watermark;
@@ -248,6 +260,7 @@ typedef struct SScanPhysiNode {
 } SScanPhysiNode;
 
 typedef SScanPhysiNode STagScanPhysiNode;
+typedef SScanPhysiNode SBlockDistScanPhysiNode;
 
 typedef struct SSystemTableScanPhysiNode {
   SScanPhysiNode scan;
@@ -291,8 +304,19 @@ typedef struct SProjectPhysiNode {
 typedef struct SIndefRowsFuncPhysiNode {
   SPhysiNode node;
   SNodeList* pExprs;
-  SNodeList* pVectorFuncs;
+  SNodeList* pFuncs;
 } SIndefRowsFuncPhysiNode;
+
+typedef struct SInterpFuncPhysiNode {
+  SPhysiNode  node;
+  SNodeList*  pExprs;
+  SNodeList*  pFuncs;
+  STimeWindow timeRange;
+  int64_t     interval;
+  EFillMode   fillMode;
+  SNode*      pFillValues;  // SNodeListNode
+  SNode*      pTimeSeries;  // SColumnNode
+} SInterpFuncPhysiNode;
 
 typedef struct SJoinPhysiNode {
   SPhysiNode node;
@@ -336,7 +360,8 @@ typedef struct SWinodwPhysiNode {
   SPhysiNode node;
   SNodeList* pExprs;  // these are expression list of parameter expression of function
   SNodeList* pFuncs;
-  SNode*     pTspk;  // timestamp primary key
+  SNode*     pTspk;   // timestamp primary key
+  SNode*     pTsEnd;  // window end timestamp
   int8_t     triggerType;
   int64_t    watermark;
   double     filesFactor;

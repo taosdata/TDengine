@@ -109,6 +109,7 @@ SNode* createIntervalWindowNode(SAstCreateContext* pCxt, SNode* pInterval, SNode
                                 SNode* pFill);
 SNode* createFillNode(SAstCreateContext* pCxt, EFillMode mode, SNode* pValues);
 SNode* createGroupingSetNode(SAstCreateContext* pCxt, SNode* pNode);
+SNode* createInterpTimeRange(SAstCreateContext* pCxt, SNode* pStart, SNode* pEnd);
 
 SNode* addWhereClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pWhere);
 SNode* addPartitionByClause(SAstCreateContext* pCxt, SNode* pStmt, SNodeList* pPartitionByList);
@@ -118,6 +119,9 @@ SNode* addHavingClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pHaving);
 SNode* addOrderByClause(SAstCreateContext* pCxt, SNode* pStmt, SNodeList* pOrderByList);
 SNode* addSlimitClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pSlimit);
 SNode* addLimitClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pLimit);
+SNode* addRangeClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pRange);
+SNode* addEveryClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pEvery);
+SNode* addFillClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pFill);
 SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pProjectionList, SNode* pTable);
 SNode* createSetOperator(SAstCreateContext* pCxt, ESetOperatorType type, SNode* pLeft, SNode* pRight);
 
@@ -151,9 +155,13 @@ SNode* createAlterTableRenameCol(SAstCreateContext* pCxt, SNode* pRealTable, int
                                  SToken* pNewColName);
 SNode* createAlterTableSetTag(SAstCreateContext* pCxt, SNode* pRealTable, SToken* pTagName, SNode* pVal);
 SNode* createUseDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName);
-SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pDbName, SNode* pTbNamePattern);
+SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type);
+SNode* createShowStmtWithCond(SAstCreateContext* pCxt, ENodeType type, SNode* pDbName, SNode* pTbName,
+                              EOperatorType tableCondType);
 SNode* createShowCreateDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName);
 SNode* createShowCreateTableStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable);
+SNode* createShowTableDistributedStmt(SAstCreateContext* pCxt, SNode* pRealTable);
+SNode* createShowDnodeVariablesStmt(SAstCreateContext* pCxt, SNode* pDnodeId);
 SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const SToken* pPassword);
 SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, int8_t alterType, const SToken* pVal);
 SNode* createDropUserStmt(SAstCreateContext* pCxt, SToken* pUserName);

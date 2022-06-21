@@ -15,6 +15,8 @@
 
 #include "sma.h"
 
+// functions for external invocation
+
 // TODO: Who is responsible for resource allocate and release?
 int32_t tdProcessTSmaInsert(SSma* pSma, int64_t indexUid, const char* msg) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -44,6 +46,9 @@ int32_t smaGetTSmaDays(SVnodeCfg* pCfg, void* pCont, uint32_t contLen, int32_t* 
   smaDebug("vgId:%d, get tsma days %d", pCfg->vgId, *days);
   return code;
 }
+
+
+// functions for internal invocation
 
 #if 0
 

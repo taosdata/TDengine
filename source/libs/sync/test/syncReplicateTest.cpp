@@ -32,9 +32,9 @@ void cleanup() { walCleanUp(); }
 
 void CommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
   SyncIndex beginIndex = SYNC_INDEX_INVALID;
-  if (pFsm->FpGetSnapshot != NULL) {
+  if (pFsm->FpGetSnapshotInfo != NULL) {
     SSnapshot snapshot;
-    pFsm->FpGetSnapshot(pFsm, &snapshot);
+    pFsm->FpGetSnapshotInfo(pFsm, &snapshot);
     beginIndex = snapshot.lastApplyIndex;
   }
 
@@ -75,7 +75,7 @@ SSyncFSM* createFsm() {
   pFsm->FpCommitCb = CommitCb;
   pFsm->FpPreCommitCb = PreCommitCb;
   pFsm->FpRollBackCb = RollBackCb;
-  pFsm->FpGetSnapshot = GetSnapshotCb;
+  pFsm->FpGetSnapshotInfo = GetSnapshotCb;
   return pFsm;
 }
 

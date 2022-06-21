@@ -91,7 +91,7 @@ static EDealRes doNameExpr(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static int32_t rewriteExprForSelect(SNodeList* pExprs, SSelectStmt* pSelect, ESqlClause clause) {
+static int32_t rewriteExprsForSelect(SNodeList* pExprs, SSelectStmt* pSelect, ESqlClause clause) {
   nodesWalkExprs(pExprs, doNameExpr, NULL);
   SRewriteExprCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pExprs = pExprs};
   nodesRewriteSelectStmt(pSelect, clause, doRewriteExpr, &cxt);
@@ -156,7 +156,11 @@ static EScanType getScanType(SLogicPlanContext* pCxt, SNodeList* pScanPseudoCols
 
   if (NULL == pScanCols) {
     // select count(*) from t
-    return NULL == pScanPseudoCols ? SCAN_TYPE_TABLE : SCAN_TYPE_TAG;
+    return NULL == pScanPseudoCols
+               ? SCAN_TYPE_TABLE
+               : ((FUNCTION_TYPE_BLOCK_DIST_INFO == ((SFunctionNode*)nodesListGetNode(pScanPseudoCols, 0))->funcType)
+                      ? SCAN_TYPE_BLOCK_INFO
+                      : SCAN_TYPE_TAG);
   }
 
   if (TSDB_SYSTEM_TABLE == tableType) {
@@ -262,7 +266,7 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 
   // rewrite the expression in subsequent clauses
   if (TSDB_CODE_SUCCESS == code) {
-    code = rewriteExprForSelect(pScan->pScanPseudoCols, pSelect, SQL_CLAUSE_FROM);
+    code = rewriteExprsForSelect(pScan->pScanPseudoCols, pSelect, SQL_CLAUSE_FROM);
   }
 
   pScan->scanType = getScanType(pCxt, pScan->pScanPseudoCols, pScan->pScanCols, pScan->tableType);
@@ -421,7 +425,7 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
 
   // rewrite the expression in subsequent clauses
   if (TSDB_CODE_SUCCESS == code) {
-    code = rewriteExprForSelect(pAgg->pGroupKeys, pSelect, SQL_CLAUSE_GROUP_BY);
+    code = rewriteExprsForSelect(pAgg->pGroupKeys, pSelect, SQL_CLAUSE_GROUP_BY);
   }
 
   if (TSDB_CODE_SUCCESS == code && pSelect->hasAggFuncs) {
@@ -430,7 +434,7 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
 
   // rewrite the expression in subsequent clauses
   if (TSDB_CODE_SUCCESS == code) {
-    code = rewriteExprForSelect(pAgg->pAggFuncs, pSelect, SQL_CLAUSE_GROUP_BY);
+    code = rewriteExprsForSelect(pAgg->pAggFuncs, pSelect, SQL_CLAUSE_GROUP_BY);
   }
 
   if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pHaving) {
@@ -469,20 +473,65 @@ static int32_t createIndefRowsFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  int32_t code = nodesCollectFuncs(pSelect, SQL_CLAUSE_SELECT, fmIsVectorFunc, &pIdfRowsFunc->pVectorFuncs);
+  // indefinite rows functions and _select_values functions
+  int32_t code = nodesCollectFuncs(pSelect, SQL_CLAUSE_SELECT, fmIsVectorFunc, &pIdfRowsFunc->pFuncs);
   if (TSDB_CODE_SUCCESS == code) {
-    code = rewriteExprForSelect(pIdfRowsFunc->pVectorFuncs, pSelect, SQL_CLAUSE_SELECT);
+    code = rewriteExprsForSelect(pIdfRowsFunc->pFuncs, pSelect, SQL_CLAUSE_SELECT);
   }
 
   // set the output
   if (TSDB_CODE_SUCCESS == code) {
-    code = createColumnByRewriteExprs(pIdfRowsFunc->pVectorFuncs, &pIdfRowsFunc->node.pTargets);
+    code = createColumnByRewriteExprs(pIdfRowsFunc->pFuncs, &pIdfRowsFunc->node.pTargets);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
     *pLogicNode = (SLogicNode*)pIdfRowsFunc;
   } else {
     nodesDestroyNode((SNode*)pIdfRowsFunc);
+  }
+
+  return code;
+}
+
+static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
+  if (!pSelect->hasInterpFunc) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SInterpFuncLogicNode* pInterpFunc = (SInterpFuncLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_INTERP_FUNC);
+  if (NULL == pInterpFunc) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  int32_t code = nodesCollectFuncs(pSelect, SQL_CLAUSE_SELECT, fmIsInterpFunc, &pInterpFunc->pFuncs);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = rewriteExprsForSelect(pInterpFunc->pFuncs, pSelect, SQL_CLAUSE_SELECT);
+  }
+
+  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pFill) {
+    SFillNode* pFill = (SFillNode*)pSelect->pFill;
+    pInterpFunc->timeRange = pFill->timeRange;
+    pInterpFunc->fillMode = pFill->mode;
+    pInterpFunc->pTimeSeries = nodesCloneNode(pFill->pWStartTs);
+    pInterpFunc->pFillValues = nodesCloneNode(pFill->pValues);
+    if (NULL == pInterpFunc->pTimeSeries || (NULL != pFill->pValues && NULL == pInterpFunc->pFillValues)) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pEvery) {
+    pInterpFunc->interval = ((SValueNode*)pSelect->pEvery)->datum.i;
+  }
+
+  // set the output
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createColumnByRewriteExprs(pInterpFunc->pFuncs, &pInterpFunc->node.pTargets);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pLogicNode = (SLogicNode*)pInterpFunc;
+  } else {
+    nodesDestroyNode((SNode*)pInterpFunc);
   }
 
   return code;
@@ -502,7 +551,7 @@ static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStm
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = rewriteExprForSelect(pWindow->pFuncs, pSelect, SQL_CLAUSE_WINDOW);
+    code = rewriteExprsForSelect(pWindow->pFuncs, pSelect, SQL_CLAUSE_WINDOW);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -555,6 +604,7 @@ static int32_t createWindowLogicNodeBySession(SLogicPlanContext* pCxt, SSessionW
     nodesDestroyNode((SNode*)pWindow);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  pWindow->pTsEnd = nodesCloneNode((SNode*)pSession->pCol);
 
   return createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
 }
@@ -773,7 +823,7 @@ static int32_t createDistinctLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSe
 
   // rewrite the expression in subsequent clauses
   if (TSDB_CODE_SUCCESS == code) {
-    code = rewriteExprForSelect(pAgg->pGroupKeys, pSelect, SQL_CLAUSE_DISTINCT);
+    code = rewriteExprsForSelect(pAgg->pGroupKeys, pSelect, SQL_CLAUSE_DISTINCT);
   }
 
   // set the output
@@ -807,6 +857,9 @@ static int32_t createSelectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSele
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = createSelectRootLogicNode(pCxt, pSelect, createIndefRowsFuncLogicNode, &pRoot);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createSelectRootLogicNode(pCxt, pSelect, createInterpFuncLogicNode, &pRoot);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = createSelectRootLogicNode(pCxt, pSelect, createDistinctLogicNode, &pRoot);

@@ -419,63 +419,12 @@ static int32_t translateTopBot(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateTopBotImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isPartial) {
-  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
-
-  if (isPartial) {
-    if (2 != numOfParams) {
-      return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
-    }
-
-    uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
-    uint8_t para2Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
-    if (!IS_NUMERIC_TYPE(para1Type) || !IS_INTEGER_TYPE(para2Type)) {
-      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
-    }
-
-    // param1
-    SNode* pParamNode1 = nodesListGetNode(pFunc->pParameterList, 1);
-    if (nodeType(pParamNode1) != QUERY_NODE_VALUE) {
-      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
-    }
-
-    SValueNode* pValue = (SValueNode*)pParamNode1;
-    if (pValue->node.resType.type != TSDB_DATA_TYPE_BIGINT) {
-      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
-    }
-
-    if (pValue->datum.i < 1 || pValue->datum.i > 100) {
-      return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
-    }
-
-    pValue->notReserved = true;
-
-    // set result type
-    pFunc->node.resType =
-        (SDataType){.bytes = getTopBotInfoSize(pValue->datum.i) + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
-  } else {
-    if (1 != numOfParams) {
-      return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
-    }
-
-    uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
-    if (TSDB_DATA_TYPE_BINARY != para1Type) {
-      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
-    }
-
-    // Do nothing. We can only access output of partial functions as input,
-    // so original input type cannot be obtained, resType will be set same
-    // as original function input type after merge function created.
+int32_t topBotCreateMergePara(SNodeList* pRawParameters, SNode* pPartialRes, SNodeList** pParameters) {
+  int32_t code = nodesListMakeAppend(pParameters, pPartialRes);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesListStrictAppend(*pParameters, nodesCloneNode(nodesListGetNode(pRawParameters, 1)));
   }
   return TSDB_CODE_SUCCESS;
-}
-
-static int32_t translateTopBotPartial(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  return translateTopBotImpl(pFunc, pErrBuf, len, true);
-}
-
-static int32_t translateTopBotMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  return translateTopBotImpl(pFunc, pErrBuf, len, false);
 }
 
 static int32_t translateSpread(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
@@ -1508,6 +1457,11 @@ static int32_t translateBlockDistFunc(SFunctionNode* pFunc, char* pErrBuf, int32
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateBlockDistInfoFunc(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  pFunc->node.resType = (SDataType){.bytes = 128, .type = TSDB_DATA_TYPE_VARCHAR};
+  return TSDB_CODE_SUCCESS;
+}
+
 static bool getBlockDistFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
   pEnv->calcMemSize = sizeof(STableBlockDistInfo);
   return true;
@@ -1722,30 +1676,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = topFunction,
     .finalizeFunc = topBotFinalize,
     .combineFunc  = topCombine,
-    .pPartialFunc = "_top_partial",
-    .pMergeFunc   = "_top_merge"
-  },
-  {
-    .name = "_top_partial",
-    .type = FUNCTION_TYPE_TOP_PARTIAL,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC,
-    .translateFunc = translateTopBotPartial,
-    .getEnvFunc   = getTopBotFuncEnv,
-    .initFunc     = topBotFunctionSetup,
-    .processFunc  = topFunction,
-    .finalizeFunc = topBotPartialFinalize,
-    .combineFunc  = topCombine,
-  },
-  {
-    .name = "_top_merge",
-    .type = FUNCTION_TYPE_TOP_MERGE,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC,
-    .translateFunc = translateTopBotMerge,
-    .getEnvFunc   = getTopBotMergeFuncEnv,
-    .initFunc     = functionSetup,
-    .processFunc  = topFunctionMerge,
-    .finalizeFunc = topBotMergeFinalize,
-    .combineFunc  = topCombine,
+    .pPartialFunc = "top",
+    .pMergeFunc   = "top",
+    .createMergeParaFuc = topBotCreateMergePara
   },
   {
     .name = "bottom",
@@ -1757,30 +1690,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = bottomFunction,
     .finalizeFunc = topBotFinalize,
     .combineFunc  = bottomCombine,
-    .pPartialFunc = "_bottom_partial",
-    .pMergeFunc   = "_bottom_merge"
-  },
-  {
-    .name = "_bottom_partial",
-    .type = FUNCTION_TYPE_BOTTOM_PARTIAL,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC,
-    .translateFunc = translateTopBotPartial,
-    .getEnvFunc   = getTopBotFuncEnv,
-    .initFunc     = topBotFunctionSetup,
-    .processFunc  = bottomFunction,
-    .finalizeFunc = topBotPartialFinalize,
-    .combineFunc  = bottomCombine,
-  },
-  {
-    .name = "_bottom_merge",
-    .type = FUNCTION_TYPE_BOTTOM_MERGE,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC,
-    .translateFunc = translateTopBotMerge,
-    .getEnvFunc   = getTopBotMergeFuncEnv,
-    .initFunc     = functionSetup,
-    .processFunc  = bottomFunctionMerge,
-    .finalizeFunc = topBotMergeFinalize,
-    .combineFunc  = bottomCombine,
+    .pPartialFunc = "bottom",
+    .pMergeFunc   = "bottom",
+    .createMergeParaFuc = topBotCreateMergePara
   },
   {
     .name = "spread",
@@ -1867,7 +1779,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "interp",
     .type = FUNCTION_TYPE_INTERP,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_INTERVAL_INTERPO_FUNC,
+    .classification = FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_INTERVAL_INTERPO_FUNC,
     .translateFunc = translateFirstLast,
     .getEnvFunc    = getSelectivityFuncEnv,
     .initFunc      = functionSetup,
@@ -2510,7 +2422,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getSelectivityFuncEnv,  // todo remove this function later.
     .initFunc     = functionSetup,
     .processFunc  = NULL,
-    .finalizeFunc = NULL
+    .finalizeFunc = NULL,
+    .pPartialFunc = "_select_value",
+    .pMergeFunc   = "_select_value"
   },
   {
     .name = "_block_dist",
@@ -2518,8 +2432,15 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .classification = FUNC_MGT_AGG_FUNC,
     .translateFunc = translateBlockDistFunc,
     .getEnvFunc   = getBlockDistFuncEnv,
+    .initFunc     = blockDistSetup,
     .processFunc  = blockDistFunction,
     .finalizeFunc = blockDistFinalize
+  },
+  {
+    .name = "_block_dist_info",
+    .type = FUNCTION_TYPE_BLOCK_DIST_INFO,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC,
+    .translateFunc = translateBlockDistInfoFunc,
   }
 };
 // clang-format on

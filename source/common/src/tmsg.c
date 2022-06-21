@@ -524,7 +524,7 @@ int32_t tSerializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pReq
   }
 
   if (pReq->commentLen > 0) {
-    if (tEncodeBinary(&encoder, pReq->comment, pReq->commentLen) < 0) return -1;
+    if (tEncodeCStr(&encoder, pReq->comment) < 0) return -1;
   }
   if (pReq->ast1Len > 0) {
     if (tEncodeBinary(&encoder, pReq->pAst1, pReq->ast1Len) < 0) return -1;
@@ -589,7 +589,7 @@ int32_t tDeserializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pR
   }
 
   if (pReq->commentLen > 0) {
-    pReq->comment = taosMemoryMalloc(pReq->commentLen);
+    pReq->comment = taosMemoryMalloc(pReq->commentLen + 1);
     if (pReq->comment == NULL) return -1;
     if (tDecodeCStrTo(&decoder, pReq->comment) < 0) return -1;
   }
@@ -707,7 +707,7 @@ int32_t tDeserializeSMAlterStbReq(void *buf, int32_t bufLen, SMAlterStbReq *pReq
   if (tDecodeI32(&decoder, &pReq->ttl) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->commentLen) < 0) return -1;
   if (pReq->commentLen > 0) {
-    pReq->comment = taosMemoryMalloc(pReq->commentLen);
+    pReq->comment = taosMemoryMalloc(pReq->commentLen + 1);
     if (pReq->comment == NULL) return -1;
     if (tDecodeCStrTo(&decoder, pReq->comment) < 0) return -1;
   }
@@ -2956,6 +2956,7 @@ int32_t tSerializeSCMCreateTopicReq(void *buf, int32_t bufLen, const SCMCreateTo
   if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->igExists) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->subType) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->withMeta) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->subDbName) < 0) return -1;
   if (TOPIC_SUB_TYPE__DB == pReq->subType) {
   } else if (TOPIC_SUB_TYPE__TABLE == pReq->subType) {
@@ -2985,6 +2986,7 @@ int32_t tDeserializeSCMCreateTopicReq(void *buf, int32_t bufLen, SCMCreateTopicR
   if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->igExists) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->subType) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->withMeta) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->subDbName) < 0) return -1;
   if (TOPIC_SUB_TYPE__DB == pReq->subType) {
   } else if (TOPIC_SUB_TYPE__TABLE == pReq->subType) {
@@ -4267,45 +4269,69 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
   return 0;
 }
 
+int32_t tSerializeSMDropStreamReq(void *buf, int32_t bufLen, const SMDropStreamReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->igNotExists) < 0) return -1;
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSMDropStreamReq(void *buf, int32_t bufLen, SMDropStreamReq *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->igNotExists) < 0) return -1;
+
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
 void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
   taosMemoryFreeClear(pReq->sql);
   taosMemoryFreeClear(pReq->ast);
 }
 
 int32_t tEncodeSRSmaParam(SEncoder *pCoder, const SRSmaParam *pRSmaParam) {
-  if (tEncodeFloat(pCoder, pRSmaParam->xFilesFactor) < 0) return -1;
-  if (tEncodeI32v(pCoder, pRSmaParam->delay) < 0) return -1;
-  if (tEncodeI32v(pCoder, pRSmaParam->qmsg1Len) < 0) return -1;
-  if (tEncodeI32v(pCoder, pRSmaParam->qmsg2Len) < 0) return -1;
-  if (pRSmaParam->qmsg1Len > 0) {
-    if (tEncodeBinary(pCoder, pRSmaParam->qmsg1, (uint64_t)pRSmaParam->qmsg1Len) < 0)  // qmsg1Len contains len of '\0'
-      return -1;
-  }
-  if (pRSmaParam->qmsg2Len > 0) {
-    if (tEncodeBinary(pCoder, pRSmaParam->qmsg2, (uint64_t)pRSmaParam->qmsg2Len) < 0)  // qmsg2Len contains len of '\0'
-      return -1;
+  for (int32_t i = 0; i < 2; ++i) {
+    if (tEncodeI64v(pCoder, pRSmaParam->maxdelay[i]) < 0) return -1;
+    if (tEncodeI64v(pCoder, pRSmaParam->watermark[i]) < 0) return -1;
+    if (tEncodeI32v(pCoder, pRSmaParam->qmsgLen[i]) < 0) return -1;
+    if (pRSmaParam->qmsgLen[i] > 0) {
+      if (tEncodeBinary(pCoder, pRSmaParam->qmsg[i], (uint64_t)pRSmaParam->qmsgLen[i]) <
+          0)  // qmsgLen contains len of '\0'
+        return -1;
+    }
   }
 
   return 0;
 }
 
 int32_t tDecodeSRSmaParam(SDecoder *pCoder, SRSmaParam *pRSmaParam) {
-  if (tDecodeFloat(pCoder, &pRSmaParam->xFilesFactor) < 0) return -1;
-  if (tDecodeI32v(pCoder, &pRSmaParam->delay) < 0) return -1;
-  if (tDecodeI32v(pCoder, &pRSmaParam->qmsg1Len) < 0) return -1;
-  if (tDecodeI32v(pCoder, &pRSmaParam->qmsg2Len) < 0) return -1;
-  if (pRSmaParam->qmsg1Len > 0) {
-    uint64_t len;
-    if (tDecodeBinaryAlloc(pCoder, (void **)&pRSmaParam->qmsg1, &len) < 0) return -1;  // qmsg1Len contains len of '\0'
-  } else {
-    pRSmaParam->qmsg1 = NULL;
+  for (int32_t i = 0; i < 2; ++i) {
+    if (tDecodeI64v(pCoder, &pRSmaParam->maxdelay[i]) < 0) return -1;
+    if (tDecodeI64v(pCoder, &pRSmaParam->watermark[i]) < 0) return -1;
+    if (tDecodeI32v(pCoder, &pRSmaParam->qmsgLen[i]) < 0) return -1;
+    if (pRSmaParam->qmsgLen[i] > 0) {
+      uint64_t len;
+      if (tDecodeBinaryAlloc(pCoder, (void **)&pRSmaParam->qmsg[i], &len) < 0)
+        return -1;  // qmsgLen contains len of '\0'
+    } else {
+      pRSmaParam->qmsg[i] = NULL;
+    }
   }
-  if (pRSmaParam->qmsg2Len > 0) {
-    uint64_t len;
-    if (tDecodeBinaryAlloc(pCoder, (void **)&pRSmaParam->qmsg2, &len) < 0) return -1;  // qmsg2Len contains len of '\0'
-  } else {
-    pRSmaParam->qmsg2 = NULL;
-  }
+
   return 0;
 }
 
@@ -4374,6 +4400,10 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
   if (tEncodeI64(pCoder, pReq->ctime) < 0) return -1;
   if (tEncodeI32(pCoder, pReq->ttl) < 0) return -1;
   if (tEncodeI8(pCoder, pReq->type) < 0) return -1;
+  if (tEncodeI32(pCoder, pReq->commentLen) < 0) return -1;
+  if (pReq->commentLen > 0) {
+    if (tEncodeCStr(pCoder, pReq->comment) < 0) return -1;
+  }
 
   if (pReq->type == TSDB_CHILD_TABLE) {
     if (tEncodeI64(pCoder, pReq->ctb.suid) < 0) return -1;
@@ -4397,6 +4427,12 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
   if (tDecodeI64(pCoder, &pReq->ctime) < 0) return -1;
   if (tDecodeI32(pCoder, &pReq->ttl) < 0) return -1;
   if (tDecodeI8(pCoder, &pReq->type) < 0) return -1;
+  if (tDecodeI32(pCoder, &pReq->commentLen) < 0) return -1;
+  if (pReq->commentLen > 0) {
+    pReq->comment = taosMemoryMalloc(pReq->commentLen + 1);
+    if (pReq->comment == NULL) return -1;
+    if (tDecodeCStrTo(pCoder, pReq->comment) < 0) return -1;
+  }
 
   if (pReq->type == TSDB_CHILD_TABLE) {
     if (tDecodeI64(pCoder, &pReq->ctb.suid) < 0) return -1;
@@ -4750,8 +4786,8 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
       if (pReq->updateTTL) {
         if (tEncodeI32v(pEncoder, pReq->newTTL) < 0) return -1;
       }
-      if (tEncodeI8(pEncoder, pReq->updateComment) < 0) return -1;
-      if (pReq->updateComment) {
+      if (tEncodeI32v(pEncoder, pReq->newCommentLen) < 0) return -1;
+      if (pReq->newCommentLen > 0) {
         if (tEncodeCStr(pEncoder, pReq->newComment) < 0) return -1;
       }
       break;
@@ -4798,8 +4834,8 @@ int32_t tDecodeSVAlterTbReq(SDecoder *pDecoder, SVAlterTbReq *pReq) {
       if (pReq->updateTTL) {
         if (tDecodeI32v(pDecoder, &pReq->newTTL) < 0) return -1;
       }
-      if (tDecodeI8(pDecoder, &pReq->updateComment) < 0) return -1;
-      if (pReq->updateComment) {
+      if (tDecodeI32v(pDecoder, &pReq->newCommentLen) < 0) return -1;
+      if (pReq->newCommentLen > 0) {
         if (tDecodeCStr(pDecoder, &pReq->newComment) < 0) return -1;
       }
       break;

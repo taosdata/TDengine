@@ -18,11 +18,16 @@
 #include "mndMnode.h"
 #include "qworker.h"
 
-int32_t mndPreProcessMsg(SRpcMsg *pMsg) {
+int32_t mndPreProcessQueryMsg(SRpcMsg *pMsg) {
   if (TDMT_VND_QUERY != pMsg->msgType) return 0;
-
   SMnode *pMnode = pMsg->info.node;
   return qWorkerPreprocessQueryMsg(pMnode->pQuery, pMsg);
+}
+
+void mndPostProcessQueryMsg(SRpcMsg *pMsg) {
+  if (TDMT_VND_QUERY != pMsg->msgType) return;
+  SMnode *pMnode = pMsg->info.node;
+  qWorkerAbortPreprocessQueryMsg(pMnode->pQuery, pMsg);
 }
 
 int32_t mndProcessQueryMsg(SRpcMsg *pMsg) {

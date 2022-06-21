@@ -87,6 +87,7 @@ int             metaAlterSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* p
 int             metaDropSTable(SMeta* pMeta, int64_t verison, SVDropStbReq* pReq);
 int             metaCreateTable(SMeta* pMeta, int64_t version, SVCreateTbReq* pReq);
 int             metaDropTable(SMeta* pMeta, int64_t version, SVDropTbReq* pReq, SArray* tbUids);
+int             metaTtlDropTable(SMeta* pMeta, int64_t ttl, SArray* tbUids);
 int             metaAlterTable(SMeta* pMeta, int64_t version, SVAlterTbReq* pReq, STableMetaRsp* pMetaRsp);
 SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, bool isinline);
 STSchema*       metaGetTbTSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver);
@@ -105,27 +106,28 @@ int32_t         metaSnapshotReaderClose(SMetaSnapshotReader* pReader);
 int32_t         metaSnapshotRead(SMetaSnapshotReader* pReader, void** ppData, uint32_t* nData);
 void*           metaGetIdx(SMeta* pMeta);
 void*           metaGetIvtIdx(SMeta* pMeta);
+int             metaTtlSmaller(SMeta* pMeta, uint64_t time, SArray* uidList);
 
 int32_t metaCreateTSma(SMeta* pMeta, int64_t version, SSmaCfg* pCfg);
 int32_t metaDropTSma(SMeta* pMeta, int64_t indexUid);
 
 // tsdb
-int          tsdbOpen(SVnode* pVnode, STsdb** ppTsdb, const char* dir, STsdbKeepCfg* pKeepCfg);
-int          tsdbClose(STsdb** pTsdb);
-int32_t      tsdbBegin(STsdb* pTsdb);
-int32_t      tsdbCommit(STsdb* pTsdb);
-int          tsdbScanAndConvertSubmitMsg(STsdb* pTsdb, SSubmitReq* pMsg);
-int          tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq* pMsg, SSubmitRsp* pRsp);
-int32_t      tsdbInsertTableData(STsdb* pTsdb, int64_t version, SSubmitMsgIter* pMsgIter, SSubmitBlk* pBlock,
-                                 SSubmitBlkRsp* pRsp);
-int32_t      tsdbDeleteTableData(STsdb* pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
-tsdbReaderT* tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, STableListInfo* tableList, uint64_t qId,
-                            uint64_t taskId);
-tsdbReaderT  tsdbQueryCacheLastT(STsdb* tsdb, SQueryTableDataCond* pCond, STableListInfo* tableList, uint64_t qId,
-                                 void* pMemRef);
-int32_t      tsdbSnapshotReaderOpen(STsdb* pTsdb, STsdbSnapshotReader** ppReader, int64_t sver, int64_t ever);
-int32_t      tsdbSnapshotReaderClose(STsdbSnapshotReader* pReader);
-int32_t      tsdbSnapshotRead(STsdbSnapshotReader* pReader, void** ppData, uint32_t* nData);
+int         tsdbOpen(SVnode* pVnode, STsdb** ppTsdb, const char* dir, STsdbKeepCfg* pKeepCfg);
+int         tsdbClose(STsdb** pTsdb);
+int32_t     tsdbBegin(STsdb* pTsdb);
+int32_t     tsdbCommit(STsdb* pTsdb);
+int         tsdbScanAndConvertSubmitMsg(STsdb* pTsdb, SSubmitReq* pMsg);
+int         tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq* pMsg, SSubmitRsp* pRsp);
+int32_t     tsdbInsertTableData(STsdb* pTsdb, int64_t version, SSubmitMsgIter* pMsgIter, SSubmitBlk* pBlock,
+                                SSubmitBlkRsp* pRsp);
+int32_t     tsdbDeleteTableData(STsdb* pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
+tsdbReaderT tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, STableListInfo* tableList, uint64_t qId,
+                           uint64_t taskId);
+tsdbReaderT tsdbQueryCacheLastT(STsdb* tsdb, SQueryTableDataCond* pCond, STableListInfo* tableList, uint64_t qId,
+                                void* pMemRef);
+int32_t     tsdbSnapshotReaderOpen(STsdb* pTsdb, STsdbSnapshotReader** ppReader, int64_t sver, int64_t ever);
+int32_t     tsdbSnapshotReaderClose(STsdbSnapshotReader* pReader);
+int32_t     tsdbSnapshotRead(STsdbSnapshotReader* pReader, void** ppData, uint32_t* nData);
 
 // tq
 int     tqInit();
@@ -139,7 +141,7 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessVgDeleteReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessOffsetCommitReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId);
-int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen);
+int32_t tqProcessTaskDeployReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessTaskDropReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessStreamTrigger(STQ* pTq, SSubmitReq* data);
 int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg);
@@ -260,7 +262,7 @@ struct SSma {
 
 #define SMA_CFG(s)        (&(s)->pVnode->config)
 #define SMA_TSDB_CFG(s)   (&(s)->pVnode->config.tsdbCfg)
-#define SMA_RETENTION(s)  ((SRetention *)&(s)->pVnode->config.tsdbCfg.retentions)
+#define SMA_RETENTION(s)  ((SRetention*)&(s)->pVnode->config.tsdbCfg.retentions)
 #define SMA_LOCKED(s)     ((s)->locked)
 #define SMA_META(s)       ((s)->pVnode->pMeta)
 #define SMA_VID(s)        TD_VID((s)->pVnode)

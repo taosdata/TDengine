@@ -459,32 +459,35 @@ static void vgroupInfoToNodeAddr(const SVgroupInfo* vg, SQueryNodeAddr* pNodeAdd
   pNodeAddr->epSet = vg->epSet;
 }
 
-static int32_t createTagScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SScanLogicNode* pScanLogicNode,
-                                      SPhysiNode** pPhyNode) {
-  STagScanPhysiNode* pTagScan =
-      (STagScanPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pScanLogicNode, QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN);
-  if (NULL == pTagScan) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
-  SQueryNodeLoad node = {.addr = pSubplan->execNode, .load = 0};
-  taosArrayPush(pCxt->pExecNodeList, &node);
-  return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pTagScan, pPhyNode);
-}
-
 static ENodeType getScanOperatorType(EScanType scanType) {
   switch (scanType) {
+    case SCAN_TYPE_TAG:
+      return QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN;
     case SCAN_TYPE_TABLE:
       return QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
     case SCAN_TYPE_STREAM:
       return QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN;
     case SCAN_TYPE_TABLE_MERGE:
-      // return QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
       return QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN;
+    case SCAN_TYPE_BLOCK_INFO:
+      return QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN;
     default:
       break;
   }
   return QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
+}
+
+static int32_t createSimpleScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SScanLogicNode* pScanLogicNode,
+                                         SPhysiNode** pPhyNode) {
+  SScanPhysiNode* pScan =
+      (SScanPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pScanLogicNode, getScanOperatorType(pScanLogicNode->scanType));
+  if (NULL == pScan) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
+  SQueryNodeLoad node = {.addr = pSubplan->execNode, .load = 0};
+  taosArrayPush(pCxt->pExecNodeList, &node);
+  return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, pScan, pPhyNode);
 }
 
 static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SScanLogicNode* pScanLogicNode,
@@ -501,10 +504,6 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
   if (pScanLogicNode->pVgroupList) {
     vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
     pSubplan->execNodeStat.tableNum = pScanLogicNode->pVgroupList->vgroups[0].numOfTable;
-  }
-  if (pCxt->pExecNodeList) {
-    SQueryNodeLoad node = {.addr = pSubplan->execNode, .load = 0};
-    taosArrayPush(pCxt->pExecNodeList, &node);
   }
   tNameGetFullDbName(&pScanLogicNode->tableName, pSubplan->dbFName);
   pTableScan->dataRequired = pScanLogicNode->dataRequired;
@@ -541,13 +540,14 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
   if (0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_USER_TABLES) ||
       0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED)) {
     vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
-    SQueryNodeLoad node = {.addr = pSubplan->execNode, .load = 0};
-    taosArrayPush(pCxt->pExecNodeList, &node);
-  } else {
-    SQueryNodeLoad node = {.addr = {.nodeId = MNODE_HANDLE, .epSet = pCxt->pPlanCxt->mgmtEpSet}, .load = 0};
-    taosArrayPush(pCxt->pExecNodeList, &node);
   }
-  pScan->mgmtEpSet = pCxt->pPlanCxt->mgmtEpSet;
+  SQueryNodeLoad node = {.addr = {.nodeId = MNODE_HANDLE, .epSet = pCxt->pPlanCxt->mgmtEpSet}, .load = 0};
+  taosArrayPush(pCxt->pExecNodeList, &node);
+  if (0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_DNODE_VARIABLES)) {
+    pScan->mgmtEpSet = pScanLogicNode->pVgroupList->vgroups->epSet;
+  } else {
+    pScan->mgmtEpSet = pCxt->pPlanCxt->mgmtEpSet;
+  }
   tNameGetFullDbName(&pScanLogicNode->tableName, pSubplan->dbFName);
 
   return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pScan, pPhyNode);
@@ -567,7 +567,8 @@ static int32_t createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, 
                                    SPhysiNode** pPhyNode) {
   switch (pScanLogicNode->scanType) {
     case SCAN_TYPE_TAG:
-      return createTagScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
+    case SCAN_TYPE_BLOCK_INFO:
+      return createSimpleScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
     case SCAN_TYPE_TABLE:
       return createTableScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
     case SCAN_TYPE_SYSTEM_TABLE:
@@ -830,8 +831,8 @@ static int32_t createIndefRowsFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* 
   }
 
   SNodeList* pPrecalcExprs = NULL;
-  SNodeList* pVectorFuncs = NULL;
-  int32_t    code = rewritePrecalcExprs(pCxt, pFuncLogicNode->pVectorFuncs, &pPrecalcExprs, &pVectorFuncs);
+  SNodeList* pFuncs = NULL;
+  int32_t    code = rewritePrecalcExprs(pCxt, pFuncLogicNode->pFuncs, &pPrecalcExprs, &pFuncs);
 
   SDataBlockDescNode* pChildTupe = (((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc);
   // push down expression to pOutputDataBlockDesc of child node
@@ -842,10 +843,10 @@ static int32_t createIndefRowsFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* 
     }
   }
 
-  if (TSDB_CODE_SUCCESS == code && NULL != pVectorFuncs) {
-    code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pVectorFuncs, &pIdfRowsFunc->pVectorFuncs);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pFuncs, &pIdfRowsFunc->pFuncs);
     if (TSDB_CODE_SUCCESS == code) {
-      code = addDataBlockSlots(pCxt, pIdfRowsFunc->pVectorFuncs, pIdfRowsFunc->node.pOutputDataBlockDesc);
+      code = addDataBlockSlots(pCxt, pIdfRowsFunc->pFuncs, pIdfRowsFunc->node.pOutputDataBlockDesc);
     }
   }
 
@@ -853,6 +854,57 @@ static int32_t createIndefRowsFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* 
     *pPhyNode = (SPhysiNode*)pIdfRowsFunc;
   } else {
     nodesDestroyNode((SNode*)pIdfRowsFunc);
+  }
+
+  return code;
+}
+
+static int32_t createInterpFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
+                                         SInterpFuncLogicNode* pFuncLogicNode, SPhysiNode** pPhyNode) {
+  SInterpFuncPhysiNode* pInterpFunc =
+      (SInterpFuncPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pFuncLogicNode, QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC);
+  if (NULL == pInterpFunc) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  SNodeList* pPrecalcExprs = NULL;
+  SNodeList* pFuncs = NULL;
+  int32_t    code = rewritePrecalcExprs(pCxt, pFuncLogicNode->pFuncs, &pPrecalcExprs, &pFuncs);
+
+  SDataBlockDescNode* pChildTupe = (((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc);
+  // push down expression to pOutputDataBlockDesc of child node
+  if (TSDB_CODE_SUCCESS == code && NULL != pPrecalcExprs) {
+    code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pPrecalcExprs, &pInterpFunc->pExprs);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = pushdownDataBlockSlots(pCxt, pInterpFunc->pExprs, pChildTupe);
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pFuncs, &pInterpFunc->pFuncs);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = addDataBlockSlots(pCxt, pInterpFunc->pFuncs, pInterpFunc->node.pOutputDataBlockDesc);
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    pInterpFunc->timeRange = pFuncLogicNode->timeRange;
+    pInterpFunc->interval = pFuncLogicNode->interval;
+    pInterpFunc->fillMode = pFuncLogicNode->fillMode;
+    pInterpFunc->pFillValues = nodesCloneNode(pFuncLogicNode->pFillValues);
+    if (NULL != pFuncLogicNode->pFillValues && NULL == pInterpFunc->pFillValues) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setNodeSlotId(pCxt, pChildTupe->dataBlockId, -1, pFuncLogicNode->pTimeSeries, &pInterpFunc->pTimeSeries);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pPhyNode = (SPhysiNode*)pInterpFunc;
+  } else {
+    nodesDestroyNode((SNode*)pInterpFunc);
   }
 
   return code;
@@ -965,6 +1017,9 @@ static int32_t createWindowPhysiNodeFinalize(SPhysiPlanContext* pCxt, SNodeList*
 
   if (TSDB_CODE_SUCCESS == code) {
     code = setNodeSlotId(pCxt, pChildTupe->dataBlockId, -1, pWindowLogicNode->pTspk, &pWindow->pTspk);
+  }
+  if (TSDB_CODE_SUCCESS == code && pWindowLogicNode->pTsEnd) {
+    code = setNodeSlotId(pCxt, pChildTupe->dataBlockId, -1, pWindowLogicNode->pTsEnd, &pWindow->pTsEnd);
   }
 
   if (TSDB_CODE_SUCCESS == code && NULL != pFuncs) {
@@ -1300,6 +1355,8 @@ static int32_t doCreatePhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode
       return createFillPhysiNode(pCxt, pChildren, (SFillLogicNode*)pLogicNode, pPhyNode);
     case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC:
       return createIndefRowsFuncPhysiNode(pCxt, pChildren, (SIndefRowsFuncLogicNode*)pLogicNode, pPhyNode);
+    case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
+      return createInterpFuncPhysiNode(pCxt, pChildren, (SInterpFuncLogicNode*)pLogicNode, pPhyNode);
     case QUERY_NODE_LOGIC_PLAN_MERGE:
       return createMergePhysiNode(pCxt, (SMergeLogicNode*)pLogicNode, pPhyNode);
     default:
@@ -1390,8 +1447,6 @@ static SSubplan* makeSubplan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogicSubpl
 static int32_t buildInsertSubplan(SPhysiPlanContext* pCxt, SVnodeModifyLogicNode* pModify, SSubplan* pSubplan) {
   pSubplan->msgType = pModify->msgType;
   pSubplan->execNode.epSet = pModify->pVgDataBlocks->vg.epSet;
-  SQueryNodeLoad node = {.addr = pSubplan->execNode, .load = 0};
-  taosArrayPush(pCxt->pExecNodeList, &node);
   return createDataInserter(pCxt, pModify->pVgDataBlocks, &pSubplan->pDataSink);
 }
 

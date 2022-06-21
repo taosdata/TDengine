@@ -282,7 +282,6 @@ typedef struct STagScanInfo {
   int32_t          curPos;
   SReadHandle      readHandle;
   STableListInfo  *pTableList;
-  SNode*           pFilterNode;  // filter info,
 } STagScanInfo;
 
 typedef enum EStreamScanMode {
@@ -369,6 +368,8 @@ typedef struct SSysTableScanInfo {
 typedef struct SBlockDistInfo {
   SSDataBlock* pResBlock;
   void*        pHandle;
+  SReadHandle  readHandle;
+  uint64_t     uid;        // table uid
 } SBlockDistInfo;
 
 // todo remove this
@@ -423,6 +424,7 @@ typedef struct SStreamFinalIntervalOperatorInfo {
   SArray*            pChildren;
   SSDataBlock*       pUpdateRes;
   SPhysiNode*        pPhyNode;           // create new child
+  bool               isFinal;
 } SStreamFinalIntervalOperatorInfo;
 
 typedef struct SAggOperatorInfo {
@@ -503,7 +505,8 @@ typedef struct SPartitionOperatorInfo {
   SDiskbasedBuf* pBuf;          // query result buffer based on blocked-wised disk file
   int32_t        rowCapacity;   // maximum number of rows for each buffer page
   int32_t*       columnOffset;  // start position for each column data
-  void*          pGroupIter;  // group iterator
+  SArray*        sortedGroupArray;   // SDataGroupInfo sorted by group id
+  int32_t        groupIndex;  // group index
   int32_t        pageIndex;   // page index of current group
   SSDataBlock*   pUpdateRes;
   SExprSupp      scalarSup;
@@ -547,24 +550,29 @@ typedef struct SStreamSessionAggOperatorInfo {
   SGroupResInfo        groupResInfo;
   int64_t              gap;             // session window gap
   int32_t              primaryTsIndex;  // primary timestamp slot id
+  int32_t              endTsIndex;      // window end timestamp slot id
   int32_t              order;           // current SSDataBlock scan order
   STimeWindowAggSupp   twAggSup;
   SSDataBlock*         pWinBlock;       // window result
   SqlFunctionCtx*      pDummyCtx;       // for combine
-  SSDataBlock*         pDelRes;
+  SSDataBlock*         pDelRes;         // delete result
+  SSDataBlock*         pUpdateRes;      // update window
   SHashObj*            pStDeleted;
   void*                pDelIterator;
   SArray*              pChildren;       // cache for children's result; final stream operator
+  SPhysiNode*          pPhyNode;           // create new child
+  bool                 isFinal;
 } SStreamSessionAggOperatorInfo;
 
 typedef struct STimeSliceOperatorInfo {
-  SOptrBasicInfo binfo;
+  SSDataBlock*   pRes;
   STimeWindow    win;
   SInterval      interval;
   int64_t        current;
   SArray*        pPrevRow;      // SArray<SGroupValue>
-  SArray*        pCols;         // SArray<SColumn>
   int32_t        fillType;      // fill type
+  SColumn        tsCol;         // primary timestamp column
+  SExprSupp      scalarSup;     // scalar calculation
   struct SFillColInfo*  pFillColInfo;  // fill column info
 } STimeSliceOperatorInfo;
 
@@ -662,7 +670,7 @@ int32_t appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t 
 
 void    initBasicInfo(SOptrBasicInfo* pInfo, SSDataBlock* pBlock);
 void    cleanupBasicInfo(SOptrBasicInfo* pInfo);
-void    initExprSupp(SExprSupp* pSup, SExprInfo* pExprInfo, int32_t numOfExpr);
+int32_t initExprSupp(SExprSupp* pSup, SExprInfo* pExprInfo, int32_t numOfExpr);
 void    cleanupExprSup(SExprSupp* pSup);
 int32_t initAggInfo(SExprSupp *pSup, SAggSupporter* pAggSup, SExprInfo* pExprInfo, int32_t numOfCols, size_t keyBufSize,
                     const char* pkey);
@@ -735,7 +743,8 @@ SOperatorInfo* createSessionAggOperatorInfo(SOperatorInfo* downstream, SExprInfo
 SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                        SSDataBlock* pResultBlock, SArray* pGroupColList, SNode* pCondition,
                                        SExprInfo* pScalarExprInfo, int32_t numOfScalarExpr, SExecTaskInfo* pTaskInfo);
-SOperatorInfo* createDataBlockInfoScanOperator(void* dataReader, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createDataBlockInfoScanOperator(void* dataReader, SReadHandle* readHandle, uint64_t uid, SBlockDistScanPhysiNode* pBlockScanNode,
+                                               SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createStreamScanOperatorInfo(void* pDataReader, SReadHandle* pHandle,
     STableScanPhysiNode* pTableScanNode, SExecTaskInfo* pTaskInfo, STimeWindowAggSupp* pTwSup);
@@ -748,8 +757,8 @@ SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SExprInf
 
 SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SPartitionPhysiNode* pPartNode, SExecTaskInfo* pTaskInfo);
 
-SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
-                                           SSDataBlock* pResultBlock, const SNodeListNode* pValNode, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pNode, /*SExprInfo* pExprInfo, int32_t numOfCols,
+                                           SSDataBlock* pResultBlock, const SNodeListNode* pValNode, */SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream, SJoinPhysiNode* pJoinNode,
                                            SExecTaskInfo* pTaskInfo);
@@ -813,10 +822,10 @@ int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order);
 int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, const char* pKey, SqlFunctionCtx* pCtx, int32_t numOfOutput,
     int32_t size);
 SResultRow* getNewResultRow(SDiskbasedBuf* pResultBuf, int64_t tableGroupId, int32_t interBufSize);
-SResultWindowInfo* getSessionTimeWindow(SStreamAggSupporter* pAggSup, TSKEY ts, uint64_t groupId, int64_t gap, int32_t* pIndex);
-int32_t updateSessionWindowInfo(SResultWindowInfo* pWinInfo, TSKEY* pTs, int32_t rows, int32_t start, int64_t gap,
-    SHashObj* pStDeleted);
-
+SResultWindowInfo* getSessionTimeWindow(SStreamAggSupporter* pAggSup, TSKEY startTs,
+    TSKEY endTs, uint64_t groupId, int64_t gap, int32_t* pIndex);
+int32_t updateSessionWindowInfo(SResultWindowInfo* pWinInfo, TSKEY* pStartTs,
+    TSKEY* pEndTs, int32_t rows, int32_t start, int64_t gap, SHashObj* pStDeleted);
 bool functionNeedToExecute(SqlFunctionCtx* pCtx);
 
 int32_t compareTimeWindow(const void* p1, const void* p2, const void* param);
@@ -826,7 +835,7 @@ int32_t finalizeResultRowIntoResultDataBlock(SDiskbasedBuf* pBuf, SResultRowPosi
 
 int32_t createMultipleDataReaders(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle,
                                   STableListInfo* pTableListInfo, SArray* arrayReader, uint64_t queryId,
-                                  uint64_t taskId, SNode* pTagCond);
+                                  uint64_t taskId);
 SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SArray* dataReaders,
                                                 SReadHandle* readHandle, SExecTaskInfo* pTaskInfo);
 

@@ -1317,7 +1317,7 @@ int32_t tSerializeSSetStandbyReq(void* buf, int32_t bufLen, SSetStandbyReq* pReq
 int32_t tDeserializeSSetStandbyReq(void* buf, int32_t bufLen, SSetStandbyReq* pReq);
 
 typedef struct {
-  char    queryStrId[TSDB_QUERY_ID_LEN];
+  char queryStrId[TSDB_QUERY_ID_LEN];
 } SKillQueryReq;
 
 int32_t tSerializeSKillQueryReq(void* buf, int32_t bufLen, SKillQueryReq* pReq);
@@ -1560,6 +1560,7 @@ typedef struct {
   char   name[TSDB_TOPIC_FNAME_LEN];  // accout.topic
   int8_t igExists;
   int8_t subType;
+  int8_t withMeta;
   char*  sql;
   char   subDbName[TSDB_DB_FNAME_LEN];
   union {
@@ -1776,12 +1777,10 @@ typedef struct {
 } SDDropTopicReq;
 
 typedef struct {
-  float   xFilesFactor;
-  int32_t delay;
-  int32_t qmsg1Len;
-  int32_t qmsg2Len;
-  char*   qmsg1;  // pAst1:qmsg1:SRetention1 => trigger aggr task1
-  char*   qmsg2;  // pAst2:qmsg2:SRetention2 => trigger aggr task2
+  int64_t maxdelay[2];
+  int64_t watermark[2];
+  int32_t qmsgLen[2];
+  char*   qmsg[2];  // pAst:qmsg:SRetention => trigger aggr task1/2
 } SRSmaParam;
 
 int32_t tEncodeSRSmaParam(SEncoder* pCoder, const SRSmaParam* pRSmaParam);
@@ -1817,6 +1816,8 @@ typedef struct SVCreateTbReq {
   tb_uid_t uid;
   int64_t  ctime;
   int32_t  ttl;
+  int32_t  commentLen;
+  char*    comment;
   int8_t   type;
   union {
     struct {
@@ -1834,6 +1835,7 @@ int tDecodeSVCreateTbReq(SDecoder* pCoder, SVCreateTbReq* pReq);
 
 static FORCE_INLINE void tdDestroySVCreateTbReq(SVCreateTbReq* req) {
   taosMemoryFreeClear(req->name);
+  taosMemoryFreeClear(req->comment);
   if (req->type == TSDB_CHILD_TABLE) {
     taosMemoryFreeClear(req->ctb.pTag);
   } else if (req->type == TSDB_NORMAL_TABLE) {
@@ -1930,7 +1932,7 @@ typedef struct {
   // TSDB_ALTER_TABLE_UPDATE_OPTIONS
   int8_t  updateTTL;
   int32_t newTTL;
-  int8_t  updateComment;
+  int32_t newCommentLen;
   char*   newComment;
 } SVAlterTbReq;
 
@@ -2281,6 +2283,9 @@ typedef struct {
   int8_t igNotExists;
 } SMDropStreamReq;
 
+int32_t tSerializeSMDropStreamReq(void* buf, int32_t bufLen, const SMDropStreamReq* pReq);
+int32_t tDeserializeSMDropStreamReq(void* buf, int32_t bufLen, SMDropStreamReq* pReq);
+
 typedef struct {
   int8_t reserved;
 } SMDropStreamRsp;
@@ -2302,6 +2307,7 @@ typedef struct {
   int64_t newConsumerId;
   char    subKey[TSDB_SUBSCRIBE_KEY_LEN];
   int8_t  subType;
+  int8_t  withMeta;
   char*   qmsg;
   int64_t suid;
 } SMqRebVgReq;
@@ -2314,6 +2320,7 @@ static FORCE_INLINE int32_t tEncodeSMqRebVgReq(void** buf, const SMqRebVgReq* pR
   tlen += taosEncodeFixedI64(buf, pReq->newConsumerId);
   tlen += taosEncodeString(buf, pReq->subKey);
   tlen += taosEncodeFixedI8(buf, pReq->subType);
+  tlen += taosEncodeFixedI8(buf, pReq->withMeta);
   if (pReq->subType == TOPIC_SUB_TYPE__COLUMN) {
     tlen += taosEncodeString(buf, pReq->qmsg);
   } else if (pReq->subType == TOPIC_SUB_TYPE__TABLE) {
@@ -2329,6 +2336,7 @@ static FORCE_INLINE void* tDecodeSMqRebVgReq(const void* buf, SMqRebVgReq* pReq)
   buf = taosDecodeFixedI64(buf, &pReq->newConsumerId);
   buf = taosDecodeStringTo(buf, pReq->subKey);
   buf = taosDecodeFixedI8(buf, &pReq->subType);
+  buf = taosDecodeFixedI8(buf, &pReq->withMeta);
   if (pReq->subType == TOPIC_SUB_TYPE__COLUMN) {
     buf = taosDecodeString(buf, &pReq->qmsg);
   } else if (pReq->subType == TOPIC_SUB_TYPE__TABLE) {
@@ -2671,6 +2679,34 @@ static FORCE_INLINE void* tDecodeSMqSubTopicEp(void* buf, SMqSubTopicEp* pTopicE
 static FORCE_INLINE void tDeleteSMqSubTopicEp(SMqSubTopicEp* pSubTopicEp) {
   // taosMemoryFree(pSubTopicEp->schema.pSchema);
   taosArrayDestroy(pSubTopicEp->vgs);
+}
+
+typedef struct {
+  SMqRspHead head;
+  int64_t    reqOffset;
+  int64_t    rspOffset;
+  int16_t    resMsgType;
+  int32_t    metaRspLen;
+  void*      metaRsp;
+} SMqMetaRsp;
+
+static FORCE_INLINE int32_t tEncodeSMqMetaRsp(void** buf, const SMqMetaRsp* pRsp) {
+  int32_t tlen = 0;
+  tlen += taosEncodeFixedI64(buf, pRsp->reqOffset);
+  tlen += taosEncodeFixedI64(buf, pRsp->rspOffset);
+  tlen += taosEncodeFixedI16(buf, pRsp->resMsgType);
+  tlen += taosEncodeFixedI32(buf, pRsp->metaRspLen);
+  tlen += taosEncodeBinary(buf, pRsp->metaRsp, pRsp->metaRspLen);
+  return tlen;
+}
+
+static FORCE_INLINE void* tDecodeSMqMetaRsp(const void* buf, SMqMetaRsp* pRsp) {
+  buf = taosDecodeFixedI64(buf, &pRsp->reqOffset);
+  buf = taosDecodeFixedI64(buf, &pRsp->rspOffset);
+  buf = taosDecodeFixedI16(buf, &pRsp->resMsgType);
+  buf = taosDecodeFixedI32(buf, &pRsp->metaRspLen);
+  buf = taosDecodeBinary(buf, &pRsp->metaRsp, pRsp->metaRspLen);
+  return (void*)buf;
 }
 
 typedef struct {

@@ -24,6 +24,8 @@ extern "C" {
 #include "tdef.h"
 #include "tmsgcb.h"
 
+extern bool gRaftDetailLog;
+
 #define SYNC_INDEX_BEGIN 0
 #define SYNC_INDEX_INVALID -1
 
@@ -61,28 +63,35 @@ typedef struct SSyncCfg {
 } SSyncCfg;
 
 typedef struct SFsmCbMeta {
-  SyncIndex  index;
-  SyncIndex  lastConfigIndex;
-  bool       isWeak;
   int32_t    code;
-  ESyncState state;
-  uint64_t   seqNum;
+  SyncIndex  index;
   SyncTerm   term;
+  uint64_t   seqNum;
+  SyncIndex  lastConfigIndex;
+  ESyncState state;
   SyncTerm   currentTerm;
+  bool       isWeak;
   uint64_t   flag;
 } SFsmCbMeta;
 
 typedef struct SReConfigCbMeta {
-  int32_t   code;
-  SyncIndex index;
-  SyncTerm  term;
-  SyncIndex lastConfigIndex;
-  SyncTerm  currentTerm;
+  int32_t    code;
+  SyncIndex  index;
+  SyncTerm   term;
+  uint64_t   seqNum;
+  SyncIndex  lastConfigIndex;
+  ESyncState state;
+  SyncTerm   currentTerm;
+  bool       isWeak;
+  uint64_t   flag;
+
+  // config info
   SSyncCfg  oldCfg;
   SSyncCfg  newCfg;
-  bool      isDrop;
-  uint64_t  flag;
-  uint64_t  seqNum;
+  SyncIndex newCfgIndex;
+  SyncTerm  newCfgTerm;
+  uint64_t  newCfgSeqNum;
+
 } SReConfigCbMeta;
 
 typedef struct SSnapshot {
@@ -107,7 +116,8 @@ typedef struct SSyncFSM {
   void (*FpReConfigCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SReConfigCbMeta cbMeta);
   void (*FpLeaderTransferCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
 
-  int32_t (*FpGetSnapshot)(struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
+  int32_t (*FpGetSnapshot)(struct SSyncFSM* pFsm, SSnapshot* pSnapshot, void* pReaderParam, void** ppReader);
+  int32_t (*FpGetSnapshotInfo)(struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
 
   int32_t (*FpSnapshotStartRead)(struct SSyncFSM* pFsm, void** ppReader);
   int32_t (*FpSnapshotStopRead)(struct SSyncFSM* pFsm, void* pReader);
@@ -187,14 +197,12 @@ ESyncState  syncGetMyRole(int64_t rid);
 bool        syncIsReady(int64_t rid);
 const char* syncGetMyRoleStr(int64_t rid);
 SyncTerm    syncGetMyTerm(int64_t rid);
+SyncGroupId syncGetVgId(int64_t rid);
 void        syncGetEpSet(int64_t rid, SEpSet* pEpSet);
-int32_t     syncGetVgId(int64_t rid);
 int32_t     syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak);
 bool        syncEnvIsStart();
 const char* syncStr(ESyncState state);
 bool        syncIsRestoreFinish(int64_t rid);
-int32_t     syncGetSnapshotMeta(int64_t rid, struct SSnapshotMeta* sMeta);
-int32_t     syncGetSnapshotMetaByIndex(int64_t rid, SyncIndex snapshotIndex, struct SSnapshotMeta* sMeta);
 
 int32_t syncReconfig(int64_t rid, const SSyncCfg* pNewCfg);
 

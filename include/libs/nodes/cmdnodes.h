@@ -87,6 +87,7 @@ typedef struct SAlterDatabaseStmt {
 
 typedef struct STableOptions {
   ENodeType  type;
+  bool       commentNull;
   char       comment[TSDB_TB_COMMENT_LEN];
   SNodeList* pMaxDelay;
   int64_t    maxDelay1;
@@ -118,14 +119,15 @@ typedef struct SCreateTableStmt {
 } SCreateTableStmt;
 
 typedef struct SCreateSubTableClause {
-  ENodeType  type;
-  char       dbName[TSDB_DB_NAME_LEN];
-  char       tableName[TSDB_TABLE_NAME_LEN];
-  char       useDbName[TSDB_DB_NAME_LEN];
-  char       useTableName[TSDB_TABLE_NAME_LEN];
-  bool       ignoreExists;
-  SNodeList* pSpecificTags;
-  SNodeList* pValsOfTags;
+  ENodeType      type;
+  char           dbName[TSDB_DB_NAME_LEN];
+  char           tableName[TSDB_TABLE_NAME_LEN];
+  char           useDbName[TSDB_DB_NAME_LEN];
+  char           useTableName[TSDB_TABLE_NAME_LEN];
+  bool           ignoreExists;
+  SNodeList*     pSpecificTags;
+  SNodeList*     pValsOfTags;
+  STableOptions* pOptions;
 } SCreateSubTableClause;
 
 typedef struct SCreateMultiTableStmt {
@@ -203,9 +205,10 @@ typedef struct SAlterDnodeStmt {
 } SAlterDnodeStmt;
 
 typedef struct SShowStmt {
-  ENodeType type;
-  SNode*    pDbName;         // SValueNode
-  SNode*    pTbNamePattern;  // SValueNode
+  ENodeType     type;
+  SNode*        pDbName;  // SValueNode
+  SNode*        pTbName;  // SValueNode
+  EOperatorType tableCondType;
 } SShowStmt;
 
 typedef struct SShowCreateDatabaseStmt {
@@ -220,6 +223,17 @@ typedef struct SShowCreateTableStmt {
   char        tableName[TSDB_TABLE_NAME_LEN];
   STableMeta* pMeta;
 } SShowCreateTableStmt;
+
+typedef struct SShowTableDistributedStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      tableName[TSDB_TABLE_NAME_LEN];
+} SShowTableDistributedStmt;
+
+typedef struct SShowDnodeVariablesStmt {
+  ENodeType type;
+  SNode*    pDnodeId;
+} SShowDnodeVariablesStmt;
 
 typedef enum EIndexType { INDEX_TYPE_SMA = 1, INDEX_TYPE_FULLTEXT } EIndexType;
 

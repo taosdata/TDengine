@@ -2274,7 +2274,7 @@ static int32_t smlInsertData(SSmlHandle *info) {
   //  info->affectedRows = taos_affected_rows(info->pRequest);
   //  return info->pRequest->code;
 
-  launchAsyncQuery(info->pRequest, info->pQuery);
+  launchAsyncQuery(info->pRequest, info->pQuery, NULL);
   return TSDB_CODE_SUCCESS;
 }
 
