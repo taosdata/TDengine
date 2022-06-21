@@ -28,7 +28,7 @@ bool TestServer::Start() {
   taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
   taosThreadCreate(&threadId, &thAttr, serverLoop, NULL);
   taosThreadAttrDestroy(&thAttr);
-  taosMsleep(2100);
+  taosMsleep(3100);
   return true;
 }
 
