@@ -1270,7 +1270,8 @@ static int32_t getAllIntervalWindow(SHashObj* pHashMap, SArray* resWins) {
 }
 
 bool isCloseWindow(STimeWindow *pWin, STimeWindowAggSupp* pSup) {
-  return pWin->ekey < pSup->maxTs - pSup->waterMark;
+  ASSERT(pSup->maxTs == INT64_MIN || pSup->maxTs > 0);
+  return pSup->maxTs != INT64_MIN && pWin->ekey < pSup->maxTs - pSup->waterMark;
 }
 
 static int32_t closeIntervalWindow(SHashObj* pHashMap, STimeWindowAggSupp* pSup, SInterval* pInterval,
@@ -2141,7 +2142,9 @@ void compactFunctions(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx, int3
 static void rebuildIntervalWindow(SStreamFinalIntervalOperatorInfo* pInfo, SExprSupp* pSup, SArray* pWinArray, int32_t groupId,
                                   int32_t numOfOutput, SExecTaskInfo* pTaskInfo) {
   int32_t size = taosArrayGetSize(pWinArray);
-  ASSERT(pInfo->pChildren);
+  if (!pInfo->pChildren) {
+    return;
+  }
   for (int32_t i = 0; i < size; i++) {
     STimeWindow* pParentWin = taosArrayGet(pWinArray, i);
     SResultRow*  pCurResult = NULL;
@@ -2339,6 +2342,7 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
       SStreamFinalIntervalOperatorInfo* pChInfo = pChildOp->info;
       setInputDataBlock(pChildOp, pChildOp->exprSupp.pCtx, pBlock, pChInfo->order, MAIN_SCAN, true);
       doHashInterval(pChildOp, pBlock, pBlock->info.groupId, NULL);
+      pChInfo->twAggSup.maxTs = TMAX(pChInfo->twAggSup.maxTs, pBlock->info.window.ekey);
     }
     maxTs = TMAX(maxTs, pBlock->info.window.ekey);
   }
@@ -2406,7 +2410,7 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
   pInfo->pChildren = NULL;
   if (numOfChild > 0) {
-    pInfo->pChildren = taosArrayInit(numOfChild, sizeof(SOperatorInfo));
+    pInfo->pChildren = taosArrayInit(numOfChild, sizeof(void *));
     for (int32_t i = 0; i < numOfChild; i++) {
       SOperatorInfo* pChildOp = createStreamFinalIntervalOperatorInfo(NULL, pPhyNode, pTaskInfo, 0);
       if (pChildOp) {
