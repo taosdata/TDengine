@@ -1615,7 +1615,7 @@ static bool initGroupbyInfo(const SSDataBlock *pSDataBlock, const SGroupbyExpr *
       }
     }
   }
-  pInfo->totalBytes += (int32_t)strlen(MULTI_KEY_DELIM) * pGroupbyExpr->numOfGroupCols
+  pInfo->totalBytes += (int32_t)strlen(MULTI_KEY_DELIM) * pGroupbyExpr->numOfGroupCols;
 
   return true;
 }
