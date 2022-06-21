@@ -154,10 +154,10 @@ int32_t syncSetStandby(int64_t rid) {
     return -1;
   }
 
-  if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
+  if (pSyncNode->state != TAOS_SYNC_STATE_FOLLOWER) {
     taosReleaseRef(tsNodeRefId, pSyncNode->rid);
     terrno = TSDB_CODE_SYN_IS_LEADER;
-    sError("failed to set standby since it is leader, rid:%" PRId64, rid);
+    sError("failed to set standby since it is not follower, rid:%" PRId64, rid);
     return -1;
   }
 
