@@ -22,7 +22,7 @@ sql create stream stream1 trigger window_close into streamt as select  _wstartts
 
 sql insert into tu1 values(now, 1);
 
-sleep 300
+sleep 500
 sql select * from streamt;
 if $rows != 0 then
   print ======$rows
