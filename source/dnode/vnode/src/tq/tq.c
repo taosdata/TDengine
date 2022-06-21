@@ -384,7 +384,7 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, char* msg, int32_t msgLen) {
   }
   tDecoderClear(&decoder);
 
-  pTask->status = TASK_STATUS__IDLE;
+  pTask->execStatus = TASK_EXEC_STATUS__IDLE;
 
   pTask->inputQueue = streamQueueOpen();
   pTask->outputQueue = streamQueueOpen();
@@ -459,6 +459,9 @@ int32_t tqProcessStreamTrigger(STQ* pTq, SSubmitReq* pReq) {
     pIter = taosHashIterate(pTq->pStreamTasks, pIter);
     if (pIter == NULL) break;
     SStreamTask* pTask = *(SStreamTask**)pIter;
+    if (atomic_load_8(&pTask->taskStatus) == TASK_STATUS__DROPPING) {
+      continue;
+    }
     if (pTask->inputType != STREAM_INPUT__DATA_SUBMIT) continue;
 
     if (!failed) {
@@ -487,6 +490,9 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
   SStreamTaskRunReq* pReq = pMsg->pCont;
   int32_t            taskId = pReq->taskId;
   SStreamTask*       pTask = *(SStreamTask**)taosHashGet(pTq->pStreamTasks, &taskId, sizeof(int32_t));
+  if (atomic_load_8(&pTask->taskStatus) == TASK_STATUS__NORMAL) {
+    return 0;
+  }
   streamProcessRunReq(pTask);
   return 0;
 }
@@ -501,9 +507,12 @@ int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg) {
   tDecodeStreamDispatchReq(&decoder, &req);
   int32_t      taskId = req.taskId;
   SStreamTask* pTask = *(SStreamTask**)taosHashGet(pTq->pStreamTasks, &taskId, sizeof(int32_t));
-  SRpcMsg      rsp = {
-           .info = pMsg->info,
-           .code = 0,
+  if (atomic_load_8(&pTask->taskStatus) == TASK_STATUS__NORMAL) {
+    return 0;
+  }
+  SRpcMsg rsp = {
+      .info = pMsg->info,
+      .code = 0,
   };
   streamProcessDispatchReq(pTask, &req, &rsp);
   return 0;
@@ -513,6 +522,9 @@ int32_t tqProcessTaskRecoverReq(STQ* pTq, SRpcMsg* pMsg) {
   SStreamTaskRecoverReq* pReq = pMsg->pCont;
   int32_t                taskId = pReq->taskId;
   SStreamTask*           pTask = *(SStreamTask**)taosHashGet(pTq->pStreamTasks, &taskId, sizeof(int32_t));
+  if (atomic_load_8(&pTask->taskStatus) == TASK_STATUS__NORMAL) {
+    return 0;
+  }
   streamProcessRecoverReq(pTask, pReq, pMsg);
   return 0;
 }
@@ -521,6 +533,9 @@ int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg) {
   SStreamDispatchRsp* pRsp = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   int32_t             taskId = pRsp->taskId;
   SStreamTask*        pTask = *(SStreamTask**)taosHashGet(pTq->pStreamTasks, &taskId, sizeof(int32_t));
+  if (atomic_load_8(&pTask->taskStatus) == TASK_STATUS__NORMAL) {
+    return 0;
+  }
   streamProcessDispatchRsp(pTask, pRsp);
   return 0;
 }
@@ -529,16 +544,32 @@ int32_t tqProcessTaskRecoverRsp(STQ* pTq, SRpcMsg* pMsg) {
   SStreamTaskRecoverRsp* pRsp = pMsg->pCont;
   int32_t                taskId = pRsp->taskId;
   SStreamTask*           pTask = *(SStreamTask**)taosHashGet(pTq->pStreamTasks, &taskId, sizeof(int32_t));
+  if (atomic_load_8(&pTask->taskStatus) == TASK_STATUS__NORMAL) {
+    return 0;
+  }
   streamProcessRecoverRsp(pTask, pRsp);
   return 0;
 }
 
 int32_t tqProcessTaskDropReq(STQ* pTq, char* msg, int32_t msgLen) {
   SVDropStreamTaskReq* pReq = (SVDropStreamTaskReq*)msg;
+
+  SStreamTask* pTask = *(SStreamTask**)taosHashGet(pTq->pStreamTasks, &pReq->taskId, sizeof(int32_t));
+  atomic_store_8(&pTask->taskStatus, TASK_STATUS__DROPPING);
+  // todo
+  // clear queue
+  // push drop req into queue
+  // launch exec to free memory
+  // remove from hash
+  return 0;
+
+#if 0
   int32_t              code = taosHashRemove(pTq->pStreamTasks, &pReq->taskId, sizeof(int32_t));
+  // set status dropping
   ASSERT(code == 0);
   if (code == 0) {
     // sendrsp
   }
   return code;
+#endif
 }
