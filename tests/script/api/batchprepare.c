@@ -353,13 +353,13 @@ void taosMemoryFree(const void *ptr) {
 static int64_t taosGetTimestampMs() {
   struct timeval systemTime;
   taosGetTimeOfDay(&systemTime);
-  return (int64_t)systemTime.tv_sec * 1000L + (int64_t)systemTime.tv_usec/1000;
+  return (int64_t)systemTime.tv_sec * 1000LL + (int64_t)systemTime.tv_usec/1000;
 }
 
 static int64_t taosGetTimestampUs() {
   struct timeval systemTime;
   taosGetTimeOfDay(&systemTime);
-  return (int64_t)systemTime.tv_sec * 1000000L + (int64_t)systemTime.tv_usec;
+  return (int64_t)systemTime.tv_sec * 1000000LL + (int64_t)systemTime.tv_usec;
 }
 
 bool colExists(TAOS_MULTI_BIND* pBind, int32_t dataType) {
