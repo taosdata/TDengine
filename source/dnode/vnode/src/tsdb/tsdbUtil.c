@@ -445,7 +445,10 @@ int32_t tGetDelData(uint8_t *p, void *ph) {
 int32_t tPutDelFileHdr(uint8_t *p, SDelFile *pDelFile) {
   int32_t n = 0;
 
-  n += tPutKEYINFO(p ? p + n : p, &pDelFile->info);
+  n += tPutI64(p ? p + n : p, pDelFile->minKey);
+  n += tPutI64(p ? p + n : p, pDelFile->maxKey);
+  n += tPutI64v(p ? p + n : p, pDelFile->minVersion);
+  n += tPutI64v(p ? p + n : p, pDelFile->maxVersion);
   n += tPutI64v(p ? p + n : p, pDelFile->size);
   n += tPutI64v(p ? p + n : p, pDelFile->offset);
 
@@ -455,7 +458,10 @@ int32_t tPutDelFileHdr(uint8_t *p, SDelFile *pDelFile) {
 int32_t tGetDelFileHdr(uint8_t *p, SDelFile *pDelFile) {
   int32_t n = 0;
 
-  n += tGetKEYINFO(p + n, &pDelFile->info);
+  n += tGetI64(p + n, &pDelFile->minKey);
+  n += tGetI64(p + n, &pDelFile->maxKey);
+  n += tGetI64v(p + n, &pDelFile->minVersion);
+  n += tGetI64v(p + n, &pDelFile->maxVersion);
   n += tGetI64v(p + n, &pDelFile->size);
   n += tGetI64v(p + n, &pDelFile->offset);
 
@@ -500,14 +506,18 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
   STColumn *pTColumn = &pTSchema->columns[iCol];
   SValue    value;
 
+  ASSERT(iCol > 0);
+
   if (pRow->type == 0) {
     // get from row (todo);
   } else if (pRow->type == 1) {
     SColData *pColData;
-    void     *p;
+    void     *p = NULL;
 
-    p = taosbsearch(&(SColData){.cid = pTColumn->colId}, pRow->pBlockData->aColData, pRow->pBlockData->nColData,
-                    sizeof(SBlockCol), tColDataCmprFn, TD_EQ);
+    // TODO
+    ASSERT(0);
+    // p = taosbsearch(&(SColData){.cid = pTColumn->colId}, pRow->pBlockData->apColData, pRow->pBlockData->nColData,
+    //                 sizeof(SBlockCol), tColDataCmprFn, TD_EQ);
     if (p) {
       pColData = (SColData *)p;
       ASSERT(pColData->flags);
@@ -707,8 +717,12 @@ void tColDataReset(SColData *pColData) {
   // TODO
 }
 
-void tColDataClear(SColData *pColData) {
-  // TODO
+void tColDataClear(void *ph) {
+  SColData *pColData = (SColData *)ph;
+
+  tsdbFree(pColData->pBitMap);
+  tsdbFree((uint8_t *)pColData->pOfst);
+  tsdbFree(pColData->pData);
 }
 
 int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal) {
@@ -730,50 +744,77 @@ int32_t tColDataCmprFn(const void *p1, const void *p2) {
 // SBlockData ======================================================
 static int32_t tBlockDataAddColData(SBlockData *pBlockData, int32_t iColData) {
   int32_t code = 0;
-  int32_t nColData = pBlockData->nColData;
+  // int32_t nColData = pBlockData->nColData;
 
-  pBlockData->nColData++;
-  if (pBlockData->nColData > pBlockData->maxCol) {
-    if (pBlockData->maxCol == 0) {
-      pBlockData->maxCol = 16;
-    } else {
-      pBlockData->maxCol *= 2;
-    }
+  // pBlockData->nColData++;
+  // if (pBlockData->nColData > pBlockData->maxCol) {
+  //   if (pBlockData->maxCol == 0) {
+  //     pBlockData->maxCol = 16;
+  //   } else {
+  //     pBlockData->maxCol *= 2;
+  //   }
 
-    code = tsdbRealloc((uint8_t **)&pBlockData->apColData, sizeof(SColData *) * pBlockData->maxCol);
-    if (code) goto _exit;
-    code = tsdbRealloc((uint8_t **)&pBlockData->aColData, sizeof(SColData) * pBlockData->maxCol);
-    if (code) goto _exit;
+  //   code = tsdbRealloc((uint8_t **)&pBlockData->apColData, sizeof(SColData *) * pBlockData->maxCol);
+  //   if (code) goto _exit;
+  //   code = tsdbRealloc((uint8_t **)&pBlockData->aColData, sizeof(SColData) * pBlockData->maxCol);
+  //   if (code) goto _exit;
 
-    for (int32_t iColData = nColData; iColData < pBlockData->maxCol; iColData++) {
-      pBlockData->aColData[iColData] = tColDataInit();
-    }
-  }
-
-  // memmove (todo)
-  // int32_t size = sizeof(SColData *) * (nColData - iColData);
-  // if (size) {
-  //   memmove();
+  //   for (int32_t iColData = nColData; iColData < pBlockData->maxCol; iColData++) {
+  //     pBlockData->aColData[iColData] = tColDataInit();
+  //   }
   // }
 
-  pBlockData->apColData[iColData] = &pBlockData->aColData[nColData];
+  // // memmove (todo)
+  // // int32_t size = sizeof(SColData *) * (nColData - iColData);
+  // // if (size) {
+  // //   memmove();
+  // // }
+
+  // pBlockData->apColData[iColData] = &pBlockData->aColData[nColData];
 
 _exit:
   return code;
 }
 
-static int32_t tBlockDataAppendRow0(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema) {
-  int32_t  code = 0;
-  int32_t  nRow = pBlockData->nRow;
-  TSDBKEY  key = tsdbRowKey(pRow);
-  int32_t  iColumn;
-  int32_t  nColumn;
-  int32_t  iColData;
-  SColVal  colVal;
-  SColVal *pColVal = &colVal;
+int32_t tBlockDataInit(SBlockData *pBlockData) {
+  int32_t code = 0;
 
-  ASSERT(pTSchema);
-  ASSERT(pTSchema->version == TSDBROW_SVERSION(pRow));
+  *pBlockData = (SBlockData){0};
+  pBlockData->apColData = taosArrayInit(0, sizeof(SColData *));
+  if (pBlockData->apColData == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+  pBlockData->aColData = taosArrayInit(0, sizeof(SColData));
+  if (pBlockData->aColData == NULL) {
+    taosArrayDestroy(pBlockData->apColData);
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+_exit:
+  return code;
+}
+
+void tBlockDataReset(SBlockData *pBlockData) {
+  pBlockData->nRow = 0;
+  taosArrayClear(pBlockData->apColData);
+}
+
+void tBlockDataClear(SBlockData *pBlockData) {
+  tsdbFree((uint8_t *)pBlockData->aVersion);
+  tsdbFree((uint8_t *)pBlockData->aTSKEY);
+  taosArrayDestroy(pBlockData->apColData);
+  taosArrayDestroyEx(pBlockData->aColData, tColDataClear);
+}
+
+static int32_t tBlockDataAppendRow0(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema);
+static int32_t tBlockDataAppendRow1(SBlockData *pBlockData, TSDBROW *pRow);
+
+int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema) {
+  int32_t code = 0;
+  int32_t nRow = pBlockData->nRow;
+  TSDBKEY key = tsdbRowKey(pRow);
 
   pBlockData->nRow++;
 
@@ -785,126 +826,45 @@ static int32_t tBlockDataAppendRow0(SBlockData *pBlockData, TSDBROW *pRow, STSch
       pBlockData->maxRow *= 2;
     }
 
-    ASSERT(pBlockData->maxRow >= pBlockData->nRow);
-
-    code = tsdbRealloc((uint8_t **)&pBlockData->aTSKEY, sizeof(TSKEY) * pBlockData->maxRow);
-    if (code) goto _err;
-
     code = tsdbRealloc((uint8_t **)&pBlockData->aVersion, sizeof(int64_t) * pBlockData->maxRow);
+    if (code) goto _err;
+    code = tsdbRealloc((uint8_t **)&pBlockData->aTSKEY, sizeof(TSKEY) * pBlockData->maxRow);
     if (code) goto _err;
   }
   pBlockData->aVersion[nRow] = key.version;
   pBlockData->aTSKEY[nRow] = key.ts;
 
-  // other cols
-  iColumn = 1;
-  nColumn = pTSchema->numOfCols;
-  iColData = 0;
-  while (iColumn < nColumn || iColData < pBlockData->nColData) {
-    STColumn *pTColumn = NULL;
-    SColData *pColData = NULL;
+// OTHER
+#if 0
+  int32_t  iColData = 0;
+  int32_t  nColData = taosArrayGetSize(pBlockData->apColData);
+  SRowIter ri = tRowIterInit(pRow, pTSchema);
 
-    if (iColumn < nColumn) {
-      pTColumn = &pTSchema->columns[iColumn];
-    }
-    if (iColData < pBlockData->nColData) {
-      pColData = &pBlockData->aColData[iColData];
-    }
-
-    if (pTColumn && pColData) {
-      if (pTColumn->colId == pColData->cid) {
-        // tsdbRowGetColVal(pRow, pTSchema, iColumn, &cv);
-      } else if (pTColumn->colId < pColData->cid) {
-        // add a new SColData, and append the column value cv to the SColData
+  SColData *pColData = iColData < nColData ? (SColData *)taosArrayGetP(pBlockData->apColData, iColData) : NULL;
+  SColVal  *pColVal = tRowIterNext(&ri);
+  while (true) {
+    if (pColData && pColVal) {
+      if (pColData->cid == pColVal->cid) {
+        // append SColVal to SColData
+        pColVal = tRowIterNext(&ri);
+        iColData++;
+        pColData = iColData < nColData ? (SColData *)taosArrayGetP(pBlockData->apColData, iColData) : NULL;
+      } else if (pColData->cid < pColVal->cid) {
+        // append a NONE
+        iColData++;
       } else {
-        // add a None to the column value
+        // add a new SColData
       }
-    } else if (pTColumn) {
-      // tsdbRowGetColVal(pRow, pTSchema, iColumn, &cv);
-      // add a new SColData, and append the column value cv to the SColData
+    } else if (pColData) {
+      // add a NONE
     } else {
-      iColData++;
+      // add a new SColData and append value
     }
   }
+#endif
 
   return code;
 
 _err:
   return code;
-}
-
-static int32_t tBlockDataAppendRow1(SBlockData *pBlockData, TSDBROW *pRow) {
-  int32_t  code = 0;
-  int32_t  nRow = pBlockData->nRow;
-  TSDBKEY  key = tsdbRowKey(pRow);
-  int32_t  iColData;
-  int32_t  iColDataRow;
-  int32_t  nColDataRow;
-  SColVal  colVal;
-  SColVal *pColVal = &colVal;
-
-  pBlockData->nRow++;
-
-  // aKey (TODO)
-  pBlockData->aVersion[nRow] = key.version;
-  pBlockData->aTSKEY[nRow] = key.ts;
-
-  // other cols
-  iColData = 0;
-  iColDataRow = 0;
-  nColDataRow = pRow->pBlockData->nColData;
-  while (iColData < pBlockData->nColData || iColDataRow < nColDataRow) {
-    SColData *pColData = NULL;
-    SColData *pColDataRow = NULL;
-
-    if (iColData < pBlockData->nColData) {
-      pColData = &pBlockData->aColData[iColData];
-    }
-    if (iColDataRow < nColDataRow) {
-      pColDataRow = &pRow->pBlockData->aColData[iColDataRow];
-    }
-
-    if (pColData && pColDataRow) {
-      if (pColData->cid == pColDataRow->cid) {
-        // TODO
-      } else if (pColData->cid < pColDataRow->cid) {
-        // TODO
-      } else {
-        // TODO
-      }
-    } else if (pColData) {
-      // TODO
-    } else {
-      // TODO
-    }
-  }
-
-  return code;
-}
-
-int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema) {
-  int32_t code = 0;
-  TSDBKEY key = tsdbRowKey(pRow);
-
-  if (pRow->type == 0) {
-    code = tBlockDataAppendRow0(pBlockData, pRow, pTSchema);
-  } else if (pRow->type == 1) {
-    code = tBlockDataAppendRow1(pBlockData, pRow);
-  }
-
-  return code;
-}
-
-void tBlockDataReset(SBlockData *pBlockData) {
-  pBlockData->nRow = 0;
-  pBlockData->nColData = 0;
-}
-
-void tBlockDataClear(SBlockData *pBlockData) {
-  tsdbFree((uint8_t *)pBlockData->aVersion);
-  tsdbFree((uint8_t *)pBlockData->aTSKEY);
-  for (int32_t iCol = 0; iCol < pBlockData->nColData; iCol++) {
-    tsdbFree(pBlockData->aColData[iCol].pBitMap);
-    tsdbFree(pBlockData->aColData[iCol].pData);
-  }
 }

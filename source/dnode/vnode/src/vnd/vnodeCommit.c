@@ -311,9 +311,9 @@ static int vnodeDecodeState(const SJson *pJson, void *pObj) {
 
   int32_t code;
   tjsonGetNumberValue(pJson, "commit version", pState->committed, code);
-  if(code < 0) return -1;
+  if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "applied version", pState->applied, code);
-  if(code < 0) return -1;
+  if (code < 0) return -1;
 
   return 0;
 }
