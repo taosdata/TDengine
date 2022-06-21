@@ -172,8 +172,9 @@ void tsdbDelFileName(STsdb *pTsdb, SDelFile *pFile, char fname[]);
 // tsdbFS.c ==============================================================================================
 int32_t tsdbFSOpen(STsdb *pTsdb, STsdbFS **ppFS);
 int32_t tsdbFSClose(STsdbFS *pFS);
-int32_t tsdbFSStart(STsdbFS *pFS);
-int32_t tsdbFSEnd(STsdbFS *pFS, int8_t rollback);
+int32_t tsdbFSBegin(STsdbFS *pFS);
+int32_t tsdbFSCommit(STsdbFS *pFS);
+int32_t tsdbFSRollback(STsdbFS *pFS);
 // tsdbReaderWriter.c ==============================================================================================
 // SDataFWriter
 int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pSet);
