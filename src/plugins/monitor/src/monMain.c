@@ -719,10 +719,9 @@ static int32_t monBuildMnodesTotalSql(char *sql) {
 
 static int32_t monGetVgroupsTotalStats(char *dbName, int32_t *totalVgroups,
                                            int32_t *totalVgroupsAlive) {
-  int  bufLen = TSDB_DB_NAME_LEN + 16;
-  char subsql[bufLen];
+  char subsql[TSDB_DB_NAME_LEN + 16];
   memset(subsql, 0, sizeof(subsql));
-  snprintf(subsql, bufLen - 1, "show `%s`.vgroups", dbName);
+  snprintf(subsql, sizeof(subsql) - 1, "show `%s`.vgroups", dbName);
   TAOS_RES *result = taos_query(tsMonitor.conn, subsql);
   int32_t code = taos_errno(result);
   if (code != TSDB_CODE_SUCCESS) {
