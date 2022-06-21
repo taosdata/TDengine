@@ -52,7 +52,7 @@ class TDTestCase:
         tdSql.checkRows(0)
         tdSql.query("show create database `Db`")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 1, "CREATE DATABASE `Db` REPLICA 1 QUORUM 1 DAYS 10 KEEP 3650 CACHE 16 BLOCKS 6 MINROWS 100 MAXROWS 4096 WAL 2 FSYNC 1000 COMP 2 CACHELAST 0 PRECISION 'ms' UPDATE 0")
+        tdSql.checkData(0, 1, "CREATE DATABASE `Db` REPLICA 1 QUORUM 1 DAYS 10 KEEP 3650 CACHE 16 BLOCKS 6 MINROWS 100 MAXROWS 4096 WAL 2 FSYNC 1000 COMP 2 CACHELAST 1 PRECISION 'ms' UPDATE 0")
 
 
         tdSql.execute("drop database db")

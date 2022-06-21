@@ -118,7 +118,7 @@ class TDTestCase:
         tdSql.query("show tables")
         tdSql.checkRows(8)
         tdSql.query("show create table `普通表`")
-        tdSql.checkData(0, 0, "CREATE TABLE `普通表` (`ts` TIMESTAMP,`c1` INT)")        
+        tdSql.checkData(0, 1, "CREATE TABLE `普通表` (`ts` TIMESTAMP,`c1` INT)")
 
     def stop(self):
         tdSql.close()
