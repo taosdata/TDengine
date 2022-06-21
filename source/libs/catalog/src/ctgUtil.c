@@ -379,6 +379,14 @@ void ctgFreeTaskRes(CTG_TASK_TYPE type, void **pRes) {
       *pRes = NULL;
       break;
     }
+    case CTG_TASK_GET_TB_CFG: {
+      if (*pRes) {
+        STableCfg* pInfo = (STableCfg*)*pRes;
+        tFreeSTableCfgRsp(pInfo);
+        taosMemoryFreeClear(*pRes);
+      }
+      break;
+    }
     case CTG_TASK_GET_INDEX: {
       taosMemoryFreeClear(*pRes);
       break;
@@ -436,6 +444,14 @@ void ctgFreeSubTaskRes(CTG_TASK_TYPE type, void **pRes) {
     case CTG_TASK_GET_TB_INDEX: {
       taosArrayDestroyEx(*pRes, tFreeSTableIndexInfo);
       *pRes = NULL;
+      break;
+    }
+    case CTG_TASK_GET_TB_CFG: {
+      if (*pRes) {
+        STableCfg* pInfo = (STableCfg*)*pRes;
+        tFreeSTableCfgRsp(pInfo);
+        taosMemoryFreeClear(*pRes);
+      }
       break;
     }
     case CTG_TASK_GET_INDEX: {

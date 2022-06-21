@@ -639,7 +639,9 @@ int32_t ctgGetTbMetaFromVnode(SCatalog* pCtg, SRequestConnInfo *pConn, const SNa
   sprintf(tbFName, "%s.%s", dbFName, pTableName->tname);
   void*(*mallocFp)(int32_t) = pTask ? taosMemoryMalloc : rpcMallocCont;
 
-  ctgDebug("try to get table meta from vnode, vgId:%d, tbFName:%s", vgroupInfo->vgId, tbFName);
+  SEp* pEp = &vgroupInfo->epSet.eps[vgroupInfo->epSet.inUse];
+  ctgDebug("try to get table meta from vnode, vgId:%d, ep num:%d, ep %s:%d, tbFName:%s", 
+           vgroupInfo->vgId, vgroupInfo->epSet.numOfEps, pEp->fqdn, pEp->port, tbFName);
 
   SBuildTableInput bInput = {.vgId = vgroupInfo->vgId, .dbFName = dbFName, .tbName = (char *)tNameGetTableName(pTableName)};
   char *msg = NULL;
@@ -690,7 +692,9 @@ int32_t ctgGetTableCfgFromVnode(SCatalog* pCtg, SRequestConnInfo *pConn, const S
   tNameGetFullDbName(pTableName, dbFName);
   SBuildTableInput bInput = {.vgId = vgroupInfo->vgId, .dbFName = dbFName, .tbName = (char*)pTableName->tname};
 
-  ctgDebug("try to get table cfg from vnode, vgId:%d, tbFName:%s", vgroupInfo->vgId, tbFName);
+  SEp* pEp = &vgroupInfo->epSet.eps[vgroupInfo->epSet.inUse];
+  ctgDebug("try to get table cfg from vnode, vgId:%d, ep num:%d, ep %s:%d, tbFName:%s", 
+           vgroupInfo->vgId, vgroupInfo->epSet.numOfEps, pEp->fqdn, pEp->port, tbFName);
 
   int32_t code = queryBuildMsg[TMSG_INDEX(reqType)](&bInput, &msg, 0, &msgLen, mallocFp);
   if (code) {
@@ -700,8 +704,12 @@ int32_t ctgGetTableCfgFromVnode(SCatalog* pCtg, SRequestConnInfo *pConn, const S
 
   if (pTask) {
     CTG_ERR_RET(ctgUpdateMsgCtx(&pTask->msgCtx, reqType, NULL, (char*)tbFName));
-    
-    CTG_RET(ctgAsyncSendMsg(pCtg, pConn, pTask, reqType, msg, msgLen));
+
+    SRequestConnInfo vConn = {.pTrans = pConn->pTrans, 
+                             .requestId = pConn->requestId,
+                             .requestObjRefId = pConn->requestObjRefId,
+                             .mgmtEps = vgroupInfo->epSet};    
+    CTG_RET(ctgAsyncSendMsg(pCtg, &vConn, pTask, reqType, msg, msgLen));
   }
   
   SRpcMsg rpcMsg = {
@@ -711,7 +719,7 @@ int32_t ctgGetTableCfgFromVnode(SCatalog* pCtg, SRequestConnInfo *pConn, const S
   };
 
   SRpcMsg rpcRsp = {0};
-  rpcSendRecv(pConn->pTrans, &pConn->mgmtEps, &rpcMsg, &rpcRsp);
+  rpcSendRecv(pConn->pTrans, &vgroupInfo->epSet, &rpcMsg, &rpcRsp);
 
   CTG_ERR_RET(ctgProcessRspMsg(out, reqType, rpcRsp.pCont, rpcRsp.contLen, rpcRsp.code, (char*)tbFName));
   

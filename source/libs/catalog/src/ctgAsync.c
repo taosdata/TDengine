@@ -744,7 +744,7 @@ int32_t ctgHandleTaskEnd(SCtgTask* pTask, int32_t rspCode) {
 
 _return:
 
-  qDebug("QID:0x%" PRIx64 " user callback with rsp %s", pJob->queryId, tstrerror(code));
+  qDebug("QID:0x%" PRIx64 " ctg call user callback with rsp %s", pJob->queryId, tstrerror(code));
 
   (*pJob->userFp)(&pJob->jobRes, pJob->userParam, code);
 
