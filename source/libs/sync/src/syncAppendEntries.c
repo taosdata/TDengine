@@ -99,19 +99,25 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
   if (pMsg->term > ths->pRaftStore->currentTerm) {
     syncNodeUpdateTerm(ths, pMsg->term);
   }
-  assert(pMsg->term <= ths->pRaftStore->currentTerm);
+  ASSERT(pMsg->term <= ths->pRaftStore->currentTerm);
 
   // reset elect timer
   if (pMsg->term == ths->pRaftStore->currentTerm) {
     ths->leaderCache = pMsg->srcId;
     syncNodeResetElectTimer(ths);
   }
-  assert(pMsg->dataLen >= 0);
+  ASSERT(pMsg->dataLen >= 0);
 
   SyncTerm localPreLogTerm = 0;
   if (pMsg->prevLogIndex >= SYNC_INDEX_BEGIN && pMsg->prevLogIndex <= ths->pLogStore->getLastIndex(ths->pLogStore)) {
     SSyncRaftEntry* pEntry = ths->pLogStore->getEntry(ths->pLogStore, pMsg->prevLogIndex);
-    assert(pEntry != NULL);
+    if (pEntry == NULL) {
+      char logBuf[128];
+      snprintf(logBuf, sizeof(logBuf), "getEntry error, index:%ld, since %s", pMsg->prevLogIndex, terrstr());
+      syncNodeErrorLog(ths, logBuf);
+      return -1;
+    }
+
     localPreLogTerm = pEntry->term;
     syncEntryDestory(pEntry);
   }
@@ -160,7 +166,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
   // accept request
   if (pMsg->term == ths->pRaftStore->currentTerm && ths->state == TAOS_SYNC_STATE_FOLLOWER && logOK) {
     // preIndex = -1, or has preIndex entry in local log
-    assert(pMsg->prevLogIndex <= ths->pLogStore->getLastIndex(ths->pLogStore));
+    ASSERT(pMsg->prevLogIndex <= ths->pLogStore->getLastIndex(ths->pLogStore));
 
     // has extra entries (> preIndex) in local log
     bool hasExtraEntries = pMsg->prevLogIndex < ths->pLogStore->getLastIndex(ths->pLogStore);
@@ -179,13 +185,21 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
 
       SyncIndex       extraIndex = pMsg->prevLogIndex + 1;
       SSyncRaftEntry* pExtraEntry = ths->pLogStore->getEntry(ths->pLogStore, extraIndex);
-      assert(pExtraEntry != NULL);
+      if (pExtraEntry == NULL) {
+        char logBuf[128];
+        snprintf(logBuf, sizeof(logBuf), "getEntry error2, index:%ld, since %s", extraIndex, terrstr());
+        syncNodeErrorLog(ths, logBuf);
+        return -1;
+      }
 
       SSyncRaftEntry* pAppendEntry = syncEntryDeserialize(pMsg->data, pMsg->dataLen);
-      assert(pAppendEntry != NULL);
+      if (pAppendEntry == NULL) {
+        syncNodeErrorLog(ths, "syncEntryDeserialize pAppendEntry error");
+        return -1;
+      }
 
       // log not match, conflict
-      assert(extraIndex == pAppendEntry->index);
+      ASSERT(extraIndex == pAppendEntry->index);
       if (pExtraEntry->term != pAppendEntry->term) {
         conflict = true;
       }
@@ -201,7 +215,12 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
         for (SyncIndex index = delEnd; index >= delBegin; --index) {
           if (ths->pFsm->FpRollBackCb != NULL) {
             SSyncRaftEntry* pRollBackEntry = ths->pLogStore->getEntry(ths->pLogStore, index);
-            assert(pRollBackEntry != NULL);
+            if (pRollBackEntry == NULL) {
+              char logBuf[128];
+              snprintf(logBuf, sizeof(logBuf), "getEntry error3, index:%ld, since %s", index, terrstr());
+              syncNodeErrorLog(ths, logBuf);
+              return -1;
+            }
 
             // if (pRollBackEntry->msgType != TDMT_SYNC_NOOP) {
             if (syncUtilUserRollback(pRollBackEntry->msgType)) {
@@ -257,7 +276,10 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
 
     } else if (!hasExtraEntries && hasAppendEntries) {
       SSyncRaftEntry* pAppendEntry = syncEntryDeserialize(pMsg->data, pMsg->dataLen);
-      assert(pAppendEntry != NULL);
+      if (pAppendEntry == NULL) {
+        syncNodeErrorLog(ths, "syncEntryDeserialize pAppendEntry2 error");
+        return -1;
+      }
 
       // append new entries
       ths->pLogStore->appendEntry(ths->pLogStore, pAppendEntry);
@@ -287,7 +309,8 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
       // do nothing
 
     } else {
-      assert(0);
+      syncNodeLog3("", ths);
+      ASSERT(0);
     }
 
     SyncAppendEntriesReply* pReply = syncAppendEntriesReplyBuild(ths->vgId);

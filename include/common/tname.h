@@ -63,6 +63,8 @@ int32_t tNameSetAcctId(SName* dst, int32_t acctId);
 
 bool tNameDBNameEqual(SName* left, SName* right);
 
+bool tNameTbNameEqual(SName* left, SName* right);
+
 typedef struct {
   // input
   SArray*     tags;           // element is SSmlKv

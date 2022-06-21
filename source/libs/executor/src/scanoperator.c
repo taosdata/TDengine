@@ -903,7 +903,6 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
   // NOTE: this operator does never check if current status is done or not
   SExecTaskInfo*        pTaskInfo = pOperator->pTaskInfo;
   SStreamBlockScanInfo* pInfo = pOperator->info;
-  int32_t               rows = 0;
 
   pTaskInfo->code = pOperator->fpSet._openFn(pOperator);
   if (pTaskInfo->code != TSDB_CODE_SUCCESS || pOperator->status == OP_EXEC_DONE) {
@@ -1023,9 +1022,6 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
         pTaskInfo->code = terrno;
         return NULL;
       }
-
-      rows = pBlockInfo->rows;
-
       // currently only the tbname pseudo column
       if (pInfo->numOfPseudoExpr > 0) {
         addTagPseudoColumnData(&pInfo->readHandle, pInfo->pPseudoExpr, pInfo->numOfPseudoExpr, pInfo->pRes);
@@ -1033,14 +1029,16 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
 
       doFilter(pInfo->pCondition, pInfo->pRes);
       blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
-      break;
+      if (pBlockInfo->rows > 0) {
+        break;
+      }
     }
 
     // record the scan action.
     pInfo->numOfExec++;
     pOperator->resultInfo.totalRows += pBlockInfo->rows;
 
-    if (rows == 0) {
+    if (pBlockInfo->rows == 0) {
       pOperator->status = OP_EXEC_DONE;
     } else if (pInfo->pUpdateInfo) {
       pInfo->tsArrayIndex = 0;
@@ -1056,7 +1054,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
       }
     }
 
-    return (rows == 0) ? NULL : pInfo->pRes;
+    return (pBlockInfo->rows == 0) ? NULL : pInfo->pRes;
   }
 }
 
