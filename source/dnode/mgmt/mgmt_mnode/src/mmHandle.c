@@ -73,6 +73,7 @@ int32_t mmProcessGetLoadsReq(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 }
 
 int32_t mmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
+  const STraceId  *trace = &pMsg->info.traceId;
   SDCreateMnodeReq createReq = {0};
   if (tDeserializeSDCreateMnodeReq(pMsg->pCont, pMsg->contLen, &createReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -81,7 +82,7 @@ int32_t mmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
 
   if (createReq.replica != 1) {
     terrno = TSDB_CODE_INVALID_OPTION;
-    dError("failed to create mnode since %s", terrstr());
+    dGError("failed to create mnode since %s", terrstr());
     return -1;
   }
 
@@ -91,7 +92,7 @@ int32_t mmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
   mgmt.path = pInput->path;
   mgmt.name = pInput->name;
   if (mmWriteFile(&mgmt, &createReq.replicas[0], deployed) != 0) {
-    dError("failed to write mnode file since %s", terrstr());
+    dGError("failed to write mnode file since %s", terrstr());
     return -1;
   }
 
@@ -99,7 +100,8 @@ int32_t mmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
 }
 
 int32_t mmProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
-  SDDropMnodeReq dropReq = {0};
+  const STraceId *trace = &pMsg->info.traceId;
+  SDDropMnodeReq  dropReq = {0};
   if (tDeserializeSCreateDropMQSBNodeReq(pMsg->pCont, pMsg->contLen, &dropReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
@@ -107,7 +109,7 @@ int32_t mmProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
 
   if (pInput->pData->dnodeId != 0 && dropReq.dnodeId != pInput->pData->dnodeId) {
     terrno = TSDB_CODE_INVALID_OPTION;
-    dError("failed to drop mnode since %s", terrstr());
+    dGError("failed to drop mnode since %s", terrstr());
     return -1;
   }
 
@@ -117,7 +119,7 @@ int32_t mmProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
   mgmt.path = pInput->path;
   mgmt.name = pInput->name;
   if (mmWriteFile(&mgmt, NULL, deployed) != 0) {
-    dError("failed to write mnode file since %s", terrstr());
+    dGError("failed to write mnode file since %s", terrstr());
     return -1;
   }
 
