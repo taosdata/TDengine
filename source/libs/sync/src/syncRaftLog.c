@@ -143,7 +143,10 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
   SWal*              pWal = pData->pWal;
 
   SyncIndex writeIndex = raftLogWriteIndex(pLogStore);
-  ASSERT(pEntry->index == writeIndex);
+  if (pEntry->index != writeIndex) {
+    sError("raftLogAppendEntry error, pEntry->index:%ld update to writeIndex:%ld", pEntry->index, writeIndex);
+    pEntry->index = writeIndex;
+  }
 
   int          code = 0;
   SSyncLogMeta syncMeta;

@@ -2160,7 +2160,7 @@ static int32_t syncNodeEqNoop(SSyncNode* ths) {
   int32_t ret = 0;
   ASSERT(ths->state == TAOS_SYNC_STATE_LEADER);
 
-  SyncIndex       index = ths->pLogStore->getLastIndex(ths->pLogStore) + 1;
+  SyncIndex       index = ths->pLogStore->syncLogWriteIndex(ths->pLogStore);
   SyncTerm        term = ths->pRaftStore->currentTerm;
   SSyncRaftEntry* pEntry = syncEntryBuildNoop(term, index, ths->vgId);
   ASSERT(pEntry != NULL);
@@ -2188,7 +2188,7 @@ static int32_t syncNodeEqNoop(SSyncNode* ths) {
 static int32_t syncNodeAppendNoop(SSyncNode* ths) {
   int32_t ret = 0;
 
-  SyncIndex       index = ths->pLogStore->getLastIndex(ths->pLogStore) + 1;
+  SyncIndex       index = ths->pLogStore->syncLogWriteIndex(ths->pLogStore);
   SyncTerm        term = ths->pRaftStore->currentTerm;
   SSyncRaftEntry* pEntry = syncEntryBuildNoop(term, index, ths->vgId);
   ASSERT(pEntry != NULL);
