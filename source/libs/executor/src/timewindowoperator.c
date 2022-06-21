@@ -2360,9 +2360,6 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
     }
   }
   // semi interval operator does not catch result
-  if (!IS_FINAL_OP(pInfo)) {
-    pInfo->twAggSup.calTrigger = STREAM_TRIGGER_AT_ONCE;
-  }
   pInfo->pUpdateRes = createResDataBlock(pPhyNode->pOutputDataBlockDesc);
   pInfo->pUpdateRes->info.type = STREAM_REPROCESS;
   blockDataEnsureCapacity(pInfo->pUpdateRes, 128);
@@ -2374,6 +2371,10 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   } else {
     pInfo->isFinal = false;
     pOperator->name = "StreamSemiIntervalOperator";
+  }
+
+  if (!IS_FINAL_OP(pInfo)) {
+    pInfo->twAggSup.calTrigger = STREAM_TRIGGER_AT_ONCE;
   }
 
   pOperator->operatorType = pPhyNode->type;
