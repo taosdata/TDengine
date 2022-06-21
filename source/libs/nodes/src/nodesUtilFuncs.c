@@ -1121,6 +1121,7 @@ void* nodesGetValueFromNode(SValueNode* pNode) {
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
+    case TSDB_DATA_TYPE_JSON:
       return (void*)pNode->datum.p;
     default:
       break;
@@ -1182,6 +1183,7 @@ int32_t nodesSetValueNodeValue(SValueNode* pNode, void* value) {
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
+    case TSDB_DATA_TYPE_JSON:
       pNode->datum.p = (char*)value;
       break;
     default:

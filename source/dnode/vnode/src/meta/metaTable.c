@@ -976,7 +976,9 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
   SDecoder       dc = {0};
 
   // get super table
-  tdbTbGet(pMeta->pUidIdx, &pCtbEntry->ctbEntry.suid, sizeof(tb_uid_t), &pData, &nData);
+  if(tdbTbGet(pMeta->pUidIdx, &pCtbEntry->ctbEntry.suid, sizeof(tb_uid_t), &pData, &nData) != 0){
+    return -1;
+  }
   tbDbKey.uid = pCtbEntry->ctbEntry.suid;
   tbDbKey.version = *(int64_t *)pData;
   tdbTbGet(pMeta->pTbDb, &tbDbKey, sizeof(tbDbKey), &pData, &nData);
