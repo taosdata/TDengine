@@ -1126,7 +1126,7 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
         break;
       }
     }
-    DESTORY_LIST(((SAggLogicNode*)pNode)->pGroupKeys);
+    NODES_DESTORY_LIST(((SAggLogicNode*)pNode)->pGroupKeys);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = partTagsOptRebuildTbanme(pScan->pPartTags);

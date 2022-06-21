@@ -227,7 +227,7 @@ static int32_t calcConstGroupBy(SCalcConstContext* pCxt, SSelectStmt* pSelect) {
         }
       }
     }
-    DESTORY_LIST(pSelect->pGroupByList);
+    NODES_DESTORY_LIST(pSelect->pGroupByList);
   }
   return code;
 }
