@@ -1651,7 +1651,6 @@ static void buildGroupbyKeyBuf(const SSDataBlock *pSDataBlock, SGroupbyOperatorI
 }
 
 static bool isGroupbyKeyEqual(void *a, void *b, void *ext) {
-  SGroupbyOperatorInfo *pInfo = (SGroupbyOperatorInfo *)ext;
   int32_t len1 = *(int32_t *)a;
   int32_t len2 = *(int32_t *)b;
   if (len1 != len2) {
