@@ -127,7 +127,7 @@ int32_t tEncodeSEpSet(SEncoder *pEncoder, const SEpSet *pEp) {
   if (tEncodeI8(pEncoder, pEp->numOfEps) < 0) return -1;
   for (int32_t i = 0; i < TSDB_MAX_REPLICA; i++) {
     if (tEncodeU16(pEncoder, pEp->eps[i].port) < 0) return -1;
-    if (tEncodeCStr(pEncoder, pEp->eps[i].fqdn) < 0) return -1;
+    if (tEncodeCStrWithLen(pEncoder, pEp->eps[i].fqdn, TSDB_FQDN_LEN) < 0) return -1;
   }
   return 0;
 }
@@ -3054,7 +3054,7 @@ int32_t tSerializeSConnectReq(void *buf, int32_t bufLen, SConnectReq *pReq) {
   if (tEncodeCStr(&encoder, pReq->app) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->db) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->user) < 0) return -1;
-  if (tEncodeCStr(&encoder, pReq->passwd) < 0) return -1;
+  if (tEncodeCStrWithLen(&encoder, pReq->passwd, TSDB_PASSWORD_LEN) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->startTime) < 0) return -1;
   tEndEncode(&encoder);
 

@@ -67,7 +67,7 @@ int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* p
     return ret;
   }
 
-  assert(pMsg->term == ths->pRaftStore->currentTerm);
+  ASSERT(pMsg->term == ths->pRaftStore->currentTerm);
 
   if (pMsg->success) {
     // nextIndex'  = [nextIndex  EXCEPT ![i][j] = m.mmatchIndex + 1]
