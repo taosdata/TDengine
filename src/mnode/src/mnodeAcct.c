@@ -215,7 +215,7 @@ static int32_t mnodeCreateRootAcct() {
   taosEncryptPass((uint8_t *)TSDB_DEFAULT_PASS, strlen(TSDB_DEFAULT_PASS), pAcct->pass);
   pAcct->cfg = (SAcctCfg){
     .maxUsers           = 128,
-    .maxDbs             = 128,
+    .maxDbs             = INT16_MAX,
     .maxTimeSeries      = INT32_MAX,
     .maxConnections     = 1024,
     .maxStreams         = 1000,
