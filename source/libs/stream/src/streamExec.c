@@ -82,12 +82,17 @@ static SArray* streamExecForQall(SStreamTask* pTask, SArray* pRes) {
         return NULL;
       }
 
-      if (pTask->inputType == STREAM_INPUT__DATA_SUBMIT) {
-        streamDataSubmitRefDec((SStreamDataSubmit*)data);
+      if (((SStreamQueueItem*)data)->type == STREAM_INPUT__TRIGGER) {
+        blockDataDestroy(((SStreamTrigger*)data)->pBlock);
         taosFreeQitem(data);
       } else {
-        taosArrayDestroyEx(((SStreamDataBlock*)data)->blocks, (FDelete)tDeleteSSDataBlock);
-        taosFreeQitem(data);
+        if (pTask->inputType == STREAM_INPUT__DATA_SUBMIT) {
+          streamDataSubmitRefDec((SStreamDataSubmit*)data);
+          taosFreeQitem(data);
+        } else {
+          taosArrayDestroyEx(((SStreamDataBlock*)data)->blocks, (FDelete)tDeleteSSDataBlock);
+          taosFreeQitem(data);
+        }
       }
       streamQueueProcessSuccess(pTask->inputQueue);
       return taosArrayInit(0, sizeof(SSDataBlock));

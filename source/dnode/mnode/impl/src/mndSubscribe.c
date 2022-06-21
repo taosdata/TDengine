@@ -96,6 +96,7 @@ static SMqSubscribeObj *mndCreateSub(SMnode *pMnode, const SMqTopicObj *pTopic, 
   pSub->dbUid = pTopic->dbUid;
   pSub->stbUid = pTopic->stbUid;
   pSub->subType = pTopic->subType;
+  pSub->withMeta = pTopic->withMeta;
 
   ASSERT(pSub->unassignedVgs->size == 0);
   ASSERT(taosHashGetSize(pSub->consumerHash) == 0);
@@ -120,6 +121,7 @@ static int32_t mndBuildSubChangeReq(void **pBuf, int32_t *pLen, const SMqSubscri
   req.vgId = pRebVg->pVgEp->vgId;
   req.qmsg = pRebVg->pVgEp->qmsg;
   req.subType = pSub->subType;
+  req.withMeta = pSub->withMeta;
   req.suid = pSub->stbUid;
   strncpy(req.subKey, pSub->key, TSDB_SUBSCRIBE_KEY_LEN);
 
