@@ -52,6 +52,7 @@ echo wal            0             >> %TAOS_CFG%
 echo asyncLog       0             >> %TAOS_CFG%
 echo locale         en_US.UTF-8   >> %TAOS_CFG%
 echo enableCoreFile 1             >> %TAOS_CFG%
+echo charset        cp65001       >> %TAOS_CFG%
 
 set "FILE_NAME=testSuite.sim"
 if "%1" == "-f" set "FILE_NAME=%2"

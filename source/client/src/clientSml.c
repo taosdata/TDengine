@@ -2389,17 +2389,19 @@ static int32_t isSchemalessDb(STscObj *taos, SRequestObj *request) {
 static void smlInsertCallback(void *param, void *res, int32_t code) {
   SRequestObj *pRequest = (SRequestObj *)res;
   SSmlHandle  *info = (SSmlHandle *)param;
+  int32_t rows = taos_affected_rows(pRequest);
 
   uDebug("SML:0x%" PRIx64 " result. code:%d, msg:%s", info->id, pRequest->code, pRequest->msgBuf);
   // lock
+  taosThreadSpinLock(&info->params->lock);
+  info->params->request->body.resInfo.numOfRows += rows;
   if (code != TSDB_CODE_SUCCESS) {
-    taosThreadSpinLock(&info->params->lock);
     info->params->request->code = code;
-    taosThreadSpinUnlock(&info->params->lock);
   }
+  taosThreadSpinUnlock(&info->params->lock);
   // unlock
 
-  printf("SML:0x%" PRIx64 " insert finished, code: %d, total: %d\n", info->id, code, info->affectedRows);
+  uDebug("SML:0x%" PRIx64 " insert finished, code: %d, rows: %d, total: %d", info->id, code, rows, info->affectedRows);
   Params *pParam = info->params;
   bool    isLast = info->isLast;
   info->cost.endTime = taosGetTimestampUs();

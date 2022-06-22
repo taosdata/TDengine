@@ -425,3 +425,70 @@ static int tdbPagerWritePageToDB(SPager *pPager, SPage *pPage) {
 
   return 0;
 }
+
+int tdbPagerRestore(SPager *pPager, SBTree *pBt) {
+  int ret = 0;
+  SPgno journalSize = 0;
+  u8 *pageBuf = NULL;
+
+  tdb_fd_t jfd = tdbOsOpen(pPager->jFileName, TDB_O_RDWR, 0755);
+  if (jfd == NULL) {
+    return 0;
+  }
+
+  ret = tdbGetFileSize(jfd, pPager->pageSize, &journalSize);
+  if (ret < 0) {
+    return -1;
+  }
+
+  pageBuf = tdbOsCalloc(1, pPager->pageSize);
+  if (pageBuf == NULL) {
+    return -1;
+  }
+
+  TXN txn;
+  tdbTxnOpen(&txn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, 0);
+  SBtreeInitPageArg iArg;
+  iArg.pBt = pBt;
+  iArg.flags = 0;
+
+  for (int pgIndex = 0; pgIndex < journalSize; ++pgIndex) {
+    // read pgno & the page from journal
+    SPgno pgno;
+    SPage *pPage;
+
+    int ret = tdbOsRead(jfd, &pgno, sizeof(pgno));
+    if (ret < 0) {
+      return -1;
+    }
+
+    ret = tdbOsRead(jfd, pageBuf, pPager->pageSize);
+    if (ret < 0) {
+      return -1;
+    }
+
+    ret = tdbPagerFetchPage(pPager, &pgno, &pPage, tdbBtreeInitPage, &iArg, &txn);
+    if (ret < 0) {
+      return -1;
+    }
+
+    // write the page to db
+    ret = tdbPagerWritePageToDB(pPager, pPage);
+    if (ret < 0) {
+      return -1;
+    }
+
+    tdbPCacheRelease(pPager->pCache, pPage, &txn);
+  }
+
+  tdbOsFSync(pPager->fd);
+
+  tdbTxnClose(&txn);
+
+  tdbOsFree(pageBuf);
+
+  tdbOsClose(jfd);
+  tdbOsRemove(pPager->jFileName);
+
+  return 0;
+}

@@ -22,8 +22,8 @@
 #include "mndSync.h"
 #include "mndUser.h"
 
-#define TRANS_VER_NUMBER   1
-#define TRANS_ARRAY_SIZE   8
+#define TRANS_VER_NUMBER 1
+#define TRANS_ARRAY_SIZE 8
 #define TRANS_RESERVE_SIZE 64
 
 static SSdbRaw *mndTransActionEncode(STrans *pTrans);
@@ -804,7 +804,7 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
       sendRsp = true;
     }
   } else {
-    if (pTrans->stage == TRN_STAGE_REDO_ACTION && pTrans->failedTimes > 2) {
+    if (pTrans->stage == TRN_STAGE_REDO_ACTION && pTrans->failedTimes > 3) {
       if (code == 0) code = TSDB_CODE_MND_TRANS_UNKNOW_ERROR;
       sendRsp = true;
     }
@@ -896,7 +896,7 @@ static void mndTransResetActions(SMnode *pMnode, STrans *pTrans, SArray *pArray)
     pAction->rawWritten = 0;
     pAction->msgSent = 0;
     pAction->msgReceived = 0;
-    if (pAction->errCode == TSDB_CODE_RPC_REDIRECT || pAction->errCode == TSDB_CODE_SYN_NOT_IN_NEW_CONFIG ||
+    if (pAction->errCode == TSDB_CODE_RPC_REDIRECT || pAction->errCode == TSDB_CODE_SYN_NEW_CONFIG_ERROR ||
         pAction->errCode == TSDB_CODE_SYN_INTERNAL_ERROR || pAction->errCode == TSDB_CODE_SYN_NOT_LEADER) {
       pAction->epSet.inUse = (pAction->epSet.inUse + 1) % pAction->epSet.numOfEps;
       mDebug("trans:%d, %s:%d execute status is reset and set epset inuse:%d", pTrans->id, mndTransStr(pAction->stage),
@@ -1127,6 +1127,7 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
     }
 
     if (code == 0) {
+      pTrans->failedTimes = 0;
       pTrans->lastAction = action;
       pTrans->lastMsgType = 0;
       pTrans->lastErrorNo = 0;
@@ -1430,8 +1431,7 @@ void mndTransPullup(SMnode *pMnode) {
     mndReleaseTrans(pMnode, pTrans);
   }
 
-  // todo, set to SDB_WRITE_DELTA
-  sdbWriteFile(pMnode->pSdb, 0);
+  sdbWriteFile(pMnode->pSdb, SDB_WRITE_DELTA);
   taosArrayDestroy(pArray);
 }
 

@@ -25,19 +25,21 @@ int32_t init_env() {
     return -1;
   }
 
-  TAOS_RES* pRes = taos_query(pConn, "create database if not exists abc1 vgroups 2");
+  TAOS_RES* pRes = taos_query(pConn, "create database if not exists abc1 vgroups 1");
   if (taos_errno(pRes) != 0) {
     printf("error in create db, reason:%s\n", taos_errstr(pRes));
     return -1;
   }
   taos_free_result(pRes);
 
+#if 0
   pRes = taos_query(pConn, "create database if not exists abc2 vgroups 20");
   if (taos_errno(pRes) != 0) {
     printf("error in create db, reason:%s\n", taos_errstr(pRes));
     return -1;
   }
   taos_free_result(pRes);
+#endif
 
   pRes = taos_query(pConn, "use abc1");
   if (taos_errno(pRes) != 0) {
@@ -90,7 +92,8 @@ int32_t create_stream() {
   /*pRes = tmq_create_stream(pConn, "stream1", "out1", sql);*/
   pRes = taos_query(
       pConn,
-      "create stream stream1 trigger at_once into abc1.outstb as select _wstartts, sum(k) from st1 interval(10m) ");
+      "create stream stream1 trigger window_close watermark 10s into outstb as select _wstartts, sum(k) from st1 "
+      "interval(10s) ");
   if (taos_errno(pRes) != 0) {
     printf("failed to create stream stream1, reason:%s\n", taos_errstr(pRes));
     return -1;

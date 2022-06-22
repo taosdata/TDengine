@@ -34,6 +34,7 @@ add_executable(syncWriteTest "")
 add_executable(syncReplicateTest "")
 add_executable(syncRefTest "")
 add_executable(syncLogStoreCheck "")
+add_executable(syncLogStoreCheck2 "")
 add_executable(syncRaftCfgTest "")
 add_executable(syncRespMgrTest "")
 add_executable(syncSnapshotTest "")
@@ -49,6 +50,7 @@ add_executable(syncRaftLogTest "")
 add_executable(syncRaftLogTest2 "")
 add_executable(syncRaftLogTest3 "")
 add_executable(syncLeaderTransferTest "")
+add_executable(syncReconfigFinishTest "")
 
 
 target_sources(syncTest
@@ -195,6 +197,10 @@ target_sources(syncLogStoreCheck
     PRIVATE
     "syncLogStoreCheck.cpp"
 )
+target_sources(syncLogStoreCheck2
+    PRIVATE
+    "syncLogStoreCheck2.cpp"
+)
 target_sources(syncRaftCfgTest
     PRIVATE
     "syncRaftCfgTest.cpp"
@@ -254,6 +260,10 @@ target_sources(syncRaftLogTest3
 target_sources(syncLeaderTransferTest
     PRIVATE
     "syncLeaderTransferTest.cpp"
+)
+target_sources(syncReconfigFinishTest
+    PRIVATE
+    "syncReconfigFinishTest.cpp"
 )
 
 
@@ -437,6 +447,11 @@ target_include_directories(syncLogStoreCheck
     "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
+target_include_directories(syncLogStoreCheck2
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
 target_include_directories(syncRaftCfgTest
     PUBLIC
     "${TD_SOURCE_DIR}/include/libs/sync"
@@ -508,6 +523,11 @@ target_include_directories(syncRaftLogTest3
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncLeaderTransferTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncReconfigFinishTest
     PUBLIC
     "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
@@ -658,6 +678,10 @@ target_link_libraries(syncLogStoreCheck
     sync
     gtest_main
 )
+target_link_libraries(syncLogStoreCheck2
+    sync
+    gtest_main
+)
 target_link_libraries(syncRaftCfgTest
     sync
     gtest_main
@@ -715,6 +739,10 @@ target_link_libraries(syncRaftLogTest3
     gtest_main
 )
 target_link_libraries(syncLeaderTransferTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncReconfigFinishTest
     sync
     gtest_main
 )

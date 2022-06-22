@@ -54,9 +54,10 @@ int32_t mndInitStream(SMnode *pMnode) {
   };
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_STREAM, mndProcessCreateStreamReq);
-  mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_DEPLOY_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_STREAM, mndProcessDropStreamReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_DROP_STREAM_RSP, mndTransProcessRsp);
+
+  mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_DEPLOY_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_DROP_RSP, mndTransProcessRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_STREAMS, mndRetrieveStream);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_STREAMS, mndCancelGetNextStream);
@@ -477,7 +478,7 @@ static int32_t mndPersistTaskDropReq(STrans *pTrans, SStreamTask *pTask) {
   memcpy(&action.epSet, &pTask->epSet, sizeof(SEpSet));
   action.pCont = pReq;
   action.contLen = sizeof(SVDropStreamTaskReq);
-  action.msgType = TDMT_VND_STREAM_TASK_DROP;
+  action.msgType = TDMT_STREAM_TASK_DROP;
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
     taosMemoryFree(pReq);
     return -1;
@@ -518,7 +519,6 @@ static int32_t mndCreateStream(SMnode *pMnode, SRpcMsg *pReq, SCMCreateStreamReq
   // TODO
   streamObj.fixedSinkVgId = 0;
   streamObj.smaId = 0;
-  /*streamObj.physicalPlan = "";*/
   streamObj.trigger = pCreate->triggerType;
   streamObj.watermark = pCreate->watermark;
   streamObj.triggerParam = pCreate->maxDelay;
@@ -607,17 +607,6 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   }
 #endif
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq);
-  if (pTrans == NULL) {
-    mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
-    goto _OVER;
-  }
-
-  mndTransSetDbName(pTrans, createStreamReq.sourceDB, NULL);
-  // TODO
-  /*mndTransSetDbName(pTrans, streamObj.targetDb, NULL);*/
-  mDebug("trans:%d, used to create stream:%s", pTrans->id, createStreamReq.name);
-
   // build stream obj from request
   SStreamObj streamObj = {0};
   if (mndBuildStreamObjFromCreateReq(pMnode, &streamObj, &createStreamReq) < 0) {
@@ -625,6 +614,14 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
     goto _OVER;
   }
+
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq);
+  if (pTrans == NULL) {
+    mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
+    goto _OVER;
+  }
+  mndTransSetDbName(pTrans, createStreamReq.sourceDB, streamObj.targetDb);
+  mDebug("trans:%d, used to create stream:%s", pTrans->id, createStreamReq.name);
 
   // create stb for stream
   if (mndCreateStbForStream(pMnode, pTrans, &streamObj, pReq->info.conn.user) < 0) {
@@ -674,20 +671,24 @@ _OVER:
 
 static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
-  int32_t     code = -1;
   SStreamObj *pStream = NULL;
   /*SDbObj     *pDb = NULL;*/
   /*SUserObj   *pUser = NULL;*/
 
-  SMDropStreamReq dropReq = *(SMDropStreamReq *)pReq->pCont;
+  SMDropStreamReq dropReq = {0};
+  if (tDeserializeSMDropStreamReq(pReq->pCont, pReq->contLen, &dropReq) < 0) {
+    ASSERT(0);
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
 
   pStream = mndAcquireStream(pMnode, dropReq.name);
 
   if (pStream == NULL) {
     if (dropReq.igNotExists) {
       mDebug("stream:%s, not exist, ignore not exist is set", dropReq.name);
-      code = 0;
-      goto DROP_STREAM_OVER;
+      sdbRelease(pMnode->pSdb, pStream);
+      return -1;
     } else {
       terrno = TSDB_CODE_MND_STREAM_NOT_EXIST;
       return -1;
@@ -705,14 +706,16 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq);
   if (pTrans == NULL) {
     mError("stream:%s, failed to drop since %s", dropReq.name, terrstr());
-    return code;
+    sdbRelease(pMnode->pSdb, pStream);
+    return -1;
   }
   mDebug("trans:%d, used to drop stream:%s", pTrans->id, dropReq.name);
 
   // drop all tasks
   if (mndDropStreamTasks(pMnode, pTrans, pStream) < 0) {
     mError("stream:%s, failed to drop task since %s", dropReq.name, terrstr());
-    return code;
+    sdbRelease(pMnode->pSdb, pStream);
+    return -1;
   }
 
   // drop stream
@@ -721,8 +724,16 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     return -1;
   }
 
-DROP_STREAM_OVER:
-  return code;
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
+    mError("trans:%d, failed to prepare drop stream trans since %s", pTrans->id, terrstr());
+    sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  sdbRelease(pMnode->pSdb, pStream);
+
+  return TSDB_CODE_ACTION_IN_PROGRESS;
 }
 
 int32_t mndDropStreamByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
