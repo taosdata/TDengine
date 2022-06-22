@@ -3722,7 +3722,7 @@ static void doMergeIntervalAggImpl(SOperatorInfo* pOperatorInfo, SResultRowInfo*
   win.ekey =
       taosTimeAdd(win.skey, iaInfo->interval.interval, iaInfo->interval.intervalUnit, iaInfo->interval.precision) - 1;
 
-  // TODO: remove the hash table usage (groupid + winkey => result row position)
+  // TODO: remove the hash table (groupid + winkey => result row position)
   int32_t ret = setTimeWindowOutputBuf(pResultRowInfo, &win, (scanFlag == MAIN_SCAN), &pResult, tableGroupId,
                                        pSup->pCtx, numOfOutput, pSup->rowEntryInfoOffset, &iaInfo->aggSup, pTaskInfo);
   if (ret != TSDB_CODE_SUCCESS || pResult == NULL) {
@@ -3748,9 +3748,10 @@ static void doMergeIntervalAggImpl(SOperatorInfo* pOperatorInfo, SResultRowInfo*
 
       currTs = tsCols[currPos];
       currWin.skey = currTs;
-      currWin.ekey = taosTimeAdd(currWin.skey, iaInfo->interval.interval, iaInfo->interval.intervalUnit,
-                                 iaInfo->interval.precision) -
-                     1;
+      currWin.ekey = taosTimeAdd(currWin.skey,
+                                 iaInfo->interval.interval,
+                                 iaInfo->interval.intervalUnit,
+                                 iaInfo->interval.precision) - 1;
       startPos = currPos;
       ret = setTimeWindowOutputBuf(pResultRowInfo, &currWin, (scanFlag == MAIN_SCAN), &pResult, tableGroupId,
                                    pSup->pCtx, numOfOutput, pSup->rowEntryInfoOffset, &iaInfo->aggSup, pTaskInfo);
@@ -3790,6 +3791,7 @@ static SSDataBlock* doMergeIntervalAgg(SOperatorInfo* pOperator) {
       } else {
         pBlock = miaInfo->prefetchedBlock;
         miaInfo->groupId = pBlock->info.groupId;
+        miaInfo->prefetchedBlock = NULL;
       }
 
       if (pBlock == NULL) {
