@@ -110,7 +110,7 @@ int32_t getJsonValueLen(const char* data) {
     dataLen = DOUBLE_BYTES + CHAR_BYTES;
   } else if (*data == TSDB_DATA_TYPE_BOOL) {
     dataLen = CHAR_BYTES + CHAR_BYTES;
-  } else if (*data & TD_TAG_JSON) {  // json string
+  } else if (tTagIsJson(data)) {  // json string
     dataLen = ((STag*)(data))->len;
   } else {
     ASSERT(0);
