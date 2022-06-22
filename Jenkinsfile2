@@ -105,14 +105,9 @@ def sync_source() {
             '''
             sh '''
                 cd ${WKC}
-                if [ ! -d src/connector/python/.github ]; then
-                    rm -rf src/connector/python/* || :
-                    rm -rf src/connector/python/.* || :
-                    git clone --depth 1 https://github.com/taosdata/taos-connector-python src/connector/python || echo "failed to clone python connector"
-                else
-                    cd src/connector/python || echo "src/connector/python not exist"
-                    git pull || :
-                fi
+                rm -rf src/connector/python
+                mkdir -p src/connector/python
+                git clone --depth 1 https://github.com/taosdata/taos-connector-python src/connector/python || echo "failed to clone python connector"
             '''
         } else if (env.CHANGE_URL =~ /\/TDinternal\//) {
             sh '''
@@ -124,14 +119,9 @@ def sync_source() {
             '''
             sh '''
                 cd ${WKC}
-                if [ ! -d community/src/connector/python/.github ]; then
-                    rm -rf community/src/connector/python/* || :
-                    rm -rf community/src/connector/python/.* || :
-                    git clone --depth 1 https://github.com/taosdata/taos-connector-python community/src/connector/python || echo "failed to clone python connector"
-                else
-                    cd community/src/connector/python || echo "community/src/connector/python not exist"
-                    git pull || :
-                fi
+                rm -rf src/connector/python
+                mkdir -p src/connector/python
+                git clone --depth 1 https://github.com/taosdata/taos-connector-python src/connector/python || echo "failed to clone python connector"
             '''
         } else {
             sh '''
@@ -154,6 +144,7 @@ def pre_test() {
         go env -w GO111MODULE=on
         cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true > /dev/null
         make -j8 >/dev/null
+        make install
     '''
     return 1
 }
