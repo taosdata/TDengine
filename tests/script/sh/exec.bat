@@ -30,9 +30,28 @@ rem echo CFG_DIR:    %CFG_DIR%
 set TAOS_CFG=%CFG_DIR%taos.cfg
 rem echo TAOS_CFG:   %TAOS_CFG%
 
+set LOG_DIR=%NODE_DIR%log\
+rem echo LOG_DIR:    %LOG_DIR%
+
+set TAOS_LOG=%LOG_DIR%taosdlog.0
+rem echo TAOS_LOG:   %TAOS_LOG%
+
 if %EXEC_OPTON% == start (
+  rm -rf %TAOS_LOG%
   echo start %TAOSD% -c %CFG_DIR%
   start %TAOSD% -c %CFG_DIR%
+  set /a check_num=0
+:check_online
+  sleep 1
+  set /a check_num=check_num+1
+  if "%check_num%" == "11" (
+    echo check online out time.
+    goto :finish
+  )
+  echo check taosd online
+  tail -n +0 %TAOS_LOG% | grep -q "TDengine initialized successfully"  || goto :check_online
+  echo finish
+  goto :finish
 )
 
 if %EXEC_OPTON% == stop (
@@ -44,5 +63,8 @@ if %EXEC_OPTON% == stop (
   ) do (
     rem echo taskkill /IM %%A 
     taskkill /IM %%A > NUL 2>&1
+    goto :finish
   ) 
 )
+
+:finish

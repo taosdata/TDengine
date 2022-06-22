@@ -75,7 +75,7 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
 }
 
 int32_t mndSyncGetSnapshot(struct SSyncFSM *pFsm, SSnapshot *pSnapshot, void *pReaderParam, void **ppReader) {
-  mInfo("start to read snapshot from sdb in atomic way");
+  mDebug("start to read snapshot from sdb in atomic way");
   SMnode *pMnode = pFsm->data;
   return sdbStartRead(pMnode->pSdb, (SSdbIter **)ppReader, &pSnapshot->lastApplyIndex, &pSnapshot->lastApplyTerm,
                       &pSnapshot->lastConfigIndex);
@@ -96,7 +96,7 @@ void mndRestoreFinish(struct SSyncFSM *pFsm) {
     mndTransPullup(pMnode);
     mndSetRestore(pMnode, true);
   } else {
-    mInfo("mnode sync restore finished, and will set ready after first deploy");
+    mInfo("mnode sync restore finished");
   }
 }
 
@@ -118,13 +118,13 @@ void mndReConfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReConfigCbMeta cbM
 }
 
 int32_t mndSnapshotStartRead(struct SSyncFSM *pFsm, void **ppReader) {
-  mInfo("start to read snapshot from sdb");
+  mDebug("start to read snapshot from sdb");
   SMnode *pMnode = pFsm->data;
   return sdbStartRead(pMnode->pSdb, (SSdbIter **)ppReader, NULL, NULL, NULL);
 }
 
 int32_t mndSnapshotStopRead(struct SSyncFSM *pFsm, void *pReader) {
-  mInfo("stop to read snapshot from sdb");
+  mDebug("stop to read snapshot from sdb");
   SMnode *pMnode = pFsm->data;
   return sdbStopRead(pMnode->pSdb, pReader);
 }

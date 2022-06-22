@@ -124,11 +124,12 @@ static void *mndThreadFp(void *param) {
   setThreadName("mnode-timer");
 
   while (1) {
-    if (lastTime % 864000 == 0) {
+    lastTime++;
+    
+    if (lastTime % (864000) == 0) {   // sleep 1 day for ttl
       mndPushTtlTime(pMnode);
     }
 
-    lastTime++;
     taosMsleep(100);
     if (mndGetStop(pMnode)) break;
 

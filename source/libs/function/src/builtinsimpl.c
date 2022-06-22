@@ -1866,9 +1866,8 @@ int32_t leastSQRFunction(SqlFunctionCtx* pCtx) {
         }
         numOfElem++;
         LEASTSQR_CAL(param, x, plist, i, pInfo->stepVal);
-
-        break;
       }
+      break;
     }
     case TSDB_DATA_TYPE_SMALLINT: {
       int16_t* plist = (int16_t*)pCol->pData;
@@ -1893,7 +1892,6 @@ int32_t leastSQRFunction(SqlFunctionCtx* pCtx) {
         numOfElem++;
         LEASTSQR_CAL(param, x, plist, i, pInfo->stepVal);
       }
-
       break;
     }
 

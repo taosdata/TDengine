@@ -52,7 +52,7 @@ int32_t syncNodeOnRequestVoteCb(SSyncNode* ths, SyncRequestVote* pMsg) {
   if (pMsg->term > ths->pRaftStore->currentTerm) {
     syncNodeUpdateTerm(ths, pMsg->term);
   }
-  assert(pMsg->term <= ths->pRaftStore->currentTerm);
+  ASSERT(pMsg->term <= ths->pRaftStore->currentTerm);
 
   bool logOK = (pMsg->lastLogTerm > ths->pLogStore->getLastTerm(ths->pLogStore)) ||
                ((pMsg->lastLogTerm == ths->pLogStore->getLastTerm(ths->pLogStore)) &&

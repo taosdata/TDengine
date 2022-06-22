@@ -240,6 +240,15 @@ bool tNameDBNameEqual(SName* left, SName* right) {
   return (0 == strcmp(left->dbname, right->dbname));
 }
 
+bool tNameTbNameEqual(SName* left, SName* right) {
+  bool equal = tNameDBNameEqual(left, right);
+  if (equal) {
+    return (0 == strcmp(left->tname, right->tname));
+  }
+
+  return equal;
+}
+
 int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
   assert(dst != NULL && str != NULL && strlen(str) > 0);
 

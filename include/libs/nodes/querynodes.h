@@ -258,6 +258,7 @@ typedef struct SSelectStmt {
   bool        hasUniqueFunc;
   bool        hasTailFunc;
   bool        hasInterpFunc;
+  bool        hasLastRowFunc;
 } SSelectStmt;
 
 typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;

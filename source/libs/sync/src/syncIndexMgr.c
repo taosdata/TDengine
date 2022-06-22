@@ -20,7 +20,7 @@
 
 SSyncIndexMgr *syncIndexMgrCreate(SSyncNode *pSyncNode) {
   SSyncIndexMgr *pSyncIndexMgr = taosMemoryMalloc(sizeof(SSyncIndexMgr));
-  assert(pSyncIndexMgr != NULL);
+  ASSERT(pSyncIndexMgr != NULL);
   memset(pSyncIndexMgr, 0, sizeof(SSyncIndexMgr));
 
   pSyncIndexMgr->replicas = &(pSyncNode->replicasId);
@@ -63,7 +63,7 @@ void syncIndexMgrSetIndex(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId, 
   }
 
   // maybe config change
-  // assert(0);
+  // ASSERT(0);
 
   char     host[128];
   uint16_t port;
@@ -169,7 +169,7 @@ void syncIndexMgrSetTerm(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId, S
   }
 
   // maybe config change
-  // assert(0);
+  // ASSERT(0);
   char     host[128];
   uint16_t port;
   syncUtilU642Addr(pRaftId->addr, host, sizeof(host), &port);
@@ -183,5 +183,5 @@ SyncTerm syncIndexMgrGetTerm(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftI
       return term;
     }
   }
-  assert(0);
+  ASSERT(0);
 }

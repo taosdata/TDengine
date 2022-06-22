@@ -934,7 +934,7 @@ static int32_t unionSplitSubplan(SSplitContext* pCxt, SLogicSubplan* pUnionSubpl
   }
   if (TSDB_CODE_SUCCESS == code) {
     nodesDestroyList(pSubplanChildren);
-    DESTORY_LIST(pSplitNode->pChildren);
+    NODES_DESTORY_LIST(pSplitNode->pChildren);
   }
   return code;
 }
