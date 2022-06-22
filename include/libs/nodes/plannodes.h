@@ -417,6 +417,8 @@ typedef struct SSortPhysiNode {
   SNodeList* pTargets;
 } SSortPhysiNode;
 
+typedef SSortPhysiNode SGroupSortPhysiNode;
+
 typedef struct SPartitionPhysiNode {
   SPhysiNode node;
   SNodeList* pExprs;  // these are expression list of partition_by_clause
