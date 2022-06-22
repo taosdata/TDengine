@@ -37,7 +37,7 @@ extern bool tsSchedStreamToSnode;
 
 static int32_t mndAddTaskToTaskSet(SArray* pArray, SStreamTask* pTask) {
   int32_t childId = taosArrayGetSize(pArray);
-  pTask->childId = childId;
+  pTask->selfChildId = childId;
   taosArrayPush(pArray, &pTask);
   return 0;
 }
@@ -270,6 +270,8 @@ int32_t mndAddShuffleSinkTasksToStream(SMnode* pMnode, STrans* pTrans, SStreamOb
     pTask->nodeId = pVgroup->vgId;
     pTask->epSet = mndGetVgroupEpset(pMnode, pVgroup);
 
+    pTask->isDataScan = 0;
+
     // source
     pTask->inputType = TASK_INPUT_TYPE__DATA_BLOCK;
 
@@ -306,6 +308,8 @@ int32_t mndAddFixedSinkTaskToStream(SMnode* pMnode, STrans* pTrans, SStreamObj* 
   }
   mndAddTaskToTaskSet(tasks, pTask);
 
+  ASSERT(pStream->fixedSinkVg.vgId == pStream->fixedSinkVgId);
+
   pTask->nodeId = pStream->fixedSinkVgId;
 #if 0
   SVgObj* pVgroup = mndAcquireVgroup(pMnode, pStream->fixedSinkVgId);
@@ -315,6 +319,9 @@ int32_t mndAddFixedSinkTaskToStream(SMnode* pMnode, STrans* pTrans, SStreamObj* 
   pTask->epSet = mndGetVgroupEpset(pMnode, pVgroup);
 #endif
   pTask->epSet = mndGetVgroupEpset(pMnode, &pStream->fixedSinkVg);
+
+  pTask->isDataScan = 0;
+
   // source
   pTask->inputType = TASK_INPUT_TYPE__DATA_BLOCK;
 
@@ -384,6 +391,11 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
 
       pInnerTask = tNewSStreamTask(pStream->uid);
       mndAddTaskToTaskSet(taskInnerLevel, pInnerTask);
+
+      pInnerTask->isDataScan = 0;
+
+      pInnerTask->childEpInfo = taosArrayInit(0, sizeof(void*));
+
       // input
       pInnerTask->inputType = TASK_INPUT_TYPE__DATA_BLOCK;
 
@@ -446,7 +458,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
       SStreamTask* pTask = tNewSStreamTask(pStream->uid);
       mndAddTaskToTaskSet(taskSourceLevel, pTask);
 
-      pTask->dataScan = 1;
+      pTask->isDataScan = 1;
 
       // input
       pTask->inputType = TASK_INPUT_TYPE__SUMBIT_BLOCK;
@@ -467,6 +479,20 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
         qDestroyQueryPlan(pPlan);
         return -1;
       }
+
+      SStreamChildEpInfo* pEpInfo = taosMemoryMalloc(sizeof(SStreamChildEpInfo));
+      if (pEpInfo == NULL) {
+        ASSERT(0);
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        sdbRelease(pSdb, pVgroup);
+        qDestroyQueryPlan(pPlan);
+        return -1;
+      }
+      pEpInfo->childId = pTask->selfChildId;
+      pEpInfo->epSet = pTask->epSet;
+      pEpInfo->nodeId = pTask->nodeId;
+      pEpInfo->taskId = pTask->taskId;
+      taosArrayPush(pInnerTask->childEpInfo, &pEpInfo);
     }
   }
 
@@ -491,7 +517,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
       SStreamTask* pTask = tNewSStreamTask(pStream->uid);
       mndAddTaskToTaskSet(taskOneLevel, pTask);
 
-      pTask->dataScan = 1;
+      pTask->isDataScan = 1;
 
       // input
       pTask->inputType = TASK_INPUT_TYPE__SUMBIT_BLOCK;
