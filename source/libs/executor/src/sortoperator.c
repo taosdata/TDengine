@@ -120,6 +120,8 @@ SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, i
   }
 
   if (p->info.rows > 0) {
+    blockDataEnsureCapacity(pDataBlock, capacity);
+
     // todo extract function to handle this
     int32_t numOfCols = taosArrayGetSize(pColMatchInfo);
     for (int32_t i = 0; i < numOfCols; ++i) {
@@ -132,7 +134,6 @@ SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, i
     }
 
     pDataBlock->info.rows = p->info.rows;
-    pDataBlock->info.capacity = p->info.rows;
   }
 
   blockDataDestroy(p);
@@ -258,6 +259,7 @@ typedef struct SGroupSortOperatorInfo {
 SSDataBlock* getGroupSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity,
                                      SArray* pColMatchInfo, SGroupSortOperatorInfo* pInfo) {
   blockDataCleanup(pDataBlock);
+  blockDataEnsureCapacity(pDataBlock, capacity);
 
   SSDataBlock* p = tsortGetSortedDataBlock(pHandle);
   if (p == NULL) {
@@ -571,7 +573,8 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
     }
   }
 
-  if (p->info.rows > 0) {
+  if (p->info.rows > 0) {// todo extract method
+    blockDataEnsureCapacity(pDataBlock, p->info.rows);
     int32_t numOfCols = taosArrayGetSize(pColMatchInfo);
     for (int32_t i = 0; i < numOfCols; ++i) {
       SColMatchInfo* pmInfo = taosArrayGet(pColMatchInfo, i);
@@ -583,7 +586,6 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
     }
 
     pDataBlock->info.rows = p->info.rows;
-    pDataBlock->info.capacity = p->info.rows;
     pDataBlock->info.groupId = pInfo->groupId;
   }
 

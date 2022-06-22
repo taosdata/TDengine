@@ -1081,7 +1081,6 @@ int32_t udfAggProcess(struct SqlFunctionCtx *pCtx) {
   int32_t start = pInput->startRowIndex;
   int32_t numOfRows = pInput->numOfRows;
 
-
   SSDataBlock* pTempBlock = createDataBlock();
   pTempBlock->info.rows = pInput->totalRows;
   pTempBlock->info.uid = pInput->uid;
