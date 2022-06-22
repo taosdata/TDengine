@@ -46,7 +46,7 @@ class TDTestQuery(TDCase):
         return case_description
 
     #basic_param
-    db = "stable_concat"
+    db = "stable_concat_2"
     service_host = "ceph01"
     table_list = ['stable_1','stable_2',]
     table = str(random.sample(table_list,1)).replace("[","").replace("]","").replace("'","")

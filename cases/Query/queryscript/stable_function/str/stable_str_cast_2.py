@@ -46,7 +46,7 @@ class TDTestQuery(TDCase):
         return case_description
 
     #basic_param
-    db = "stable_cast"
+    db = "stable_cast_2"
     service_host = "ceph01"
     table_list = ['stable_1','stable_2',]
     table = str(random.sample(table_list,1)).replace("[","").replace("]","").replace("'","")
@@ -858,26 +858,26 @@ class TDTestQuery(TDCase):
         
         self.data_create(self.db)
           
-        startTime1 = time.time()
-        self.right_case_1_groupby()
-        self.right_case_1_tbname()
-        self.right_case_1() #保留
-        endTime1 = time.time()       
-        print("total time1 %d s" % (endTime1 - startTime1))
+        # startTime1 = time.time()
+        # self.right_case_1_groupby()
+        # self.right_case_1_tbname()
+        # self.right_case_1() #保留
+        # endTime1 = time.time()       
+        # print("total time1 %d s" % (endTime1 - startTime1))
     
-        # startTime2 = time.time()
-        # self.right_case_2_groupby()
-        # self.right_case_2_tbname()
-        # #self.right_case_2() #已经和入到right_case_2_tbname中
-        # endTime2 = time.time()       
-        # print("total time2 %d s" % (endTime2 - startTime2))
+        startTime2 = time.time()
+        self.right_case_2_groupby()
+        self.right_case_2_tbname()
+        #self.right_case_2() #已经和入到right_case_2_tbname中
+        endTime2 = time.time()       
+        print("total time2 %d s" % (endTime2 - startTime2))
         
-        # startTime3 = time.time()
-        # self.right_case_3_groupby()
-        # self.right_case_3_tbname()
-        # #self.right_case_3()#已经和入到right_case_3_tbname中 
-        # endTime3 = time.time()
-        # print("total time3 %ds" % (endTime3 - startTime3))      
+        startTime3 = time.time()
+        self.right_case_3_groupby()
+        self.right_case_3_tbname()
+        #self.right_case_3()#已经和入到right_case_3_tbname中 
+        endTime3 = time.time()
+        print("total time3 %ds" % (endTime3 - startTime3))      
 
         endTime = time.time()
         self.rm_sql()

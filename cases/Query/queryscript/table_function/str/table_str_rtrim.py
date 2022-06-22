@@ -93,7 +93,7 @@ class TDTestQuery(TDCase):
         sql = 'Count the number of sqls'         
                            
         # 1: support str function [hanshu = ['RTRIM']
-        for i in (4,):
+        for i in (5,):
             func = tdFunction.func_stable_str(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
@@ -139,7 +139,7 @@ class TDTestQuery(TDCase):
         sql = 'Count the number of sqls'         
                            
         # 1: support str function [hanshu = ['RTRIM']
-        for i in (4,):
+        for i in (5,):
             func = tdFunction.func_stable_str(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
@@ -203,7 +203,7 @@ class TDTestQuery(TDCase):
         sql = 'Count the number of sqls'         
                            
         # 1: support str function [hanshu = ['RTRIM']
-        for i in (4,):
+        for i in (5,):
             func = tdFunction.func_stable_str(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
@@ -258,7 +258,7 @@ class TDTestQuery(TDCase):
         sql = 'Count the number of sqls'       
 
         # 1: support str function [hanshu = ['RTRIM']
-        for i in (4,):
+        for i in (5,):
             func = tdFunction.func_stable_str(i)
             func_desc = func # for desc
             try:
@@ -348,7 +348,7 @@ class TDTestQuery(TDCase):
         sql = 'Count the number of sqls'       
 
         # 1: support str function [hanshu = ['RTRIM']
-        for i in (4,):
+        for i in (5,):
             func = tdFunction.func_stable_str(i)
             func_desc = func # for desc
             try:
@@ -517,7 +517,7 @@ class TDTestQuery(TDCase):
         sql = 'Count the number of sqls'       
 
         # 1: support str function [hanshu = ['RTRIM']
-        for i in (4,):
+        for i in (5,):
             func = tdFunction.func_stable_str(i)
             func_desc = func # for desc
             try:
@@ -641,7 +641,7 @@ class TDTestQuery(TDCase):
         sql = 'Count the number of sqls'
                    
         # 1: support str function [hanshu = ['RTRIM']
-        for i in (4,):
+        for i in (5,):
             func = tdFunction.func_stable_str(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
@@ -689,7 +689,7 @@ class TDTestQuery(TDCase):
         sql = 'Count the number of sqls'
                    
         # 1: support str function [hanshu = ['RTRIM']
-        for i in (4,):
+        for i in (5,):
             func = tdFunction.func_stable_str(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
@@ -751,7 +751,7 @@ class TDTestQuery(TDCase):
         sql = 'Count the number of sqls'
                    
         # 1: support str function [hanshu = ['RTRIM']
-        for i in (4,):
+        for i in (5,):
             func = tdFunction.func_stable_str(i)
             try:
                 self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
@@ -815,12 +815,12 @@ class TDTestQuery(TDCase):
         endTime1 = time.time()       
         print("total time1 %d s" % (endTime1 - startTime1))
     
-        startTime2 = time.time()
-        self.right_case_2_groupby()
-        self.right_case_2_tbname()
-        self.right_case_2()
-        endTime2 = time.time()       
-        print("total time2 %d s" % (endTime2 - startTime2))
+        # startTime2 = time.time()
+        # self.right_case_2_groupby()
+        # self.right_case_2_tbname()
+        # self.right_case_2()
+        # endTime2 = time.time()       
+        # print("total time2 %d s" % (endTime2 - startTime2))
         
         startTime3 = time.time()
         self.right_case_3_groupby()
