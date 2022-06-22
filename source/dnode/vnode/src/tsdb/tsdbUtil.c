@@ -509,58 +509,24 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
   ASSERT(iCol > 0);
 
   if (pRow->type == 0) {
-    // get from row (todo);
+    tTSRowGetVal(pRow->pTSRow, pTSchema, iCol, pColVal);
   } else if (pRow->type == 1) {
-    SColData *pColData;
+    SColData *pColData = &(SColData){.cid = pTColumn->colId};
     void     *p = NULL;
 
-    // TODO
-    ASSERT(0);
-    // p = taosbsearch(&(SColData){.cid = pTColumn->colId}, pRow->pBlockData->aColDataP, pRow->pBlockData->nColData,
-    //                 sizeof(SBlockCol), tColDataCmprFn, TD_EQ);
+    p = taosArraySearch(pRow->pBlockData->aColDataP, &pColData, tColDataPCmprFn, TD_EQ);
     if (p) {
-      pColData = (SColData *)p;
-      ASSERT(pColData->flag);
+      pColData = *(SColData **)p;
 
-      if (pColData->flag == HAS_NONE) {
-        goto _return_none;
-      } else if (pColData->flag == HAS_NULL) {
-        goto _return_null;
-      } else {
-        uint8_t v = GET_BIT2(pColData->pBitMap, pRow->iRow);
-        if (v == 0) {
-          goto _return_none;
-        } else if (v == 1) {
-          goto _return_null;
-        } else {
-          int32_t offset;
-          if (IS_VAR_DATA_TYPE(pTColumn->type)) {
-            // offset = ; (todo)
-            ASSERT(0);
-          } else {
-            offset = tDataTypes[pTColumn->type].bytes * pRow->iRow;
-          }
-          tGetValue(pColData->pData + offset, &value, pTColumn->type);
-        }
-      }
+      ASSERT(pColData->type == pTColumn->type);
+
+      tColDataGetValue(pColData, pRow->iRow, pColVal);
     } else {
-      goto _return_none;
+      *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
     }
   } else {
     ASSERT(0);
   }
-
-_return_none:
-  *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
-  return;
-
-_return_null:
-  *pColVal = COL_VAL_NULL(pTColumn->colId, pTColumn->type);
-  return;
-
-_return_value:
-  *pColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, value);
-  return;
 }
 
 int32_t tPutTSDBRow(uint8_t *p, TSDBROW *pRow) {
@@ -880,10 +846,13 @@ _exit:
   return code;
 }
 
-int32_t tColDataCmprFn(const void *p1, const void *p2) {
-  if (((SColData *)p1)->cid < ((SColData *)p2)->cid) {
+int32_t tColDataPCmprFn(const void *p1, const void *p2) {
+  SColData *pColData1 = *(SColData **)p1;
+  SColData *pColData2 = *(SColData **)p2;
+
+  if (pColData1->cid < pColData2->cid) {
     return -1;
-  } else if (((SColData *)p1)->cid > ((SColData *)p2)->cid) {
+  } else if (pColData1->cid > pColData2->cid) {
     return 1;
   }
 

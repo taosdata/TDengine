@@ -339,9 +339,9 @@ int32_t tdSetBitmapValTypeN(void *pBitmap, int16_t nEle, TDRowValT valType, int8
 }
 
 bool tdIsBitmapBlkNorm(const void *pBitmap, int32_t numOfBits, int8_t bitmapMode) {
-  int32_t nBytes = (bitmapMode == 0 ? numOfBits / TD_VTYPE_PARTS : numOfBits / TD_VTYPE_PARTS_I);
-  uint8_t vTypeByte = tdVTypeByte[bitmapMode][TD_VTYPE_NORM];
-  uint8_t *qBitmap = (uint8_t*)pBitmap;
+  int32_t  nBytes = (bitmapMode == 0 ? numOfBits / TD_VTYPE_PARTS : numOfBits / TD_VTYPE_PARTS_I);
+  uint8_t  vTypeByte = tdVTypeByte[bitmapMode][TD_VTYPE_NORM];
+  uint8_t *qBitmap = (uint8_t *)pBitmap;
   for (int i = 0; i < nBytes; ++i) {
     if (*qBitmap != vTypeByte) {
       return false;
@@ -1855,4 +1855,37 @@ void tdSTSRowIterReset(STSRowIter *pIter, STSRow *pRow) {
 void tdSTSRowIterInit(STSRowIter *pIter, STSchema *pSchema) {
   pIter->pSchema = pSchema;
   pIter->maxColId = pSchema->columns[pSchema->numOfCols - 1].colId;
+}
+
+void tTSRowGetVal(STSRow *pRow, STSchema *pTSchema, int16_t iCol, SColVal *pColVal) {
+  STColumn *pTColumn = &pTSchema->columns[iCol];
+  SCellVal  cv;
+  SValue    value;
+
+  ASSERT(iCol > 0);
+
+  if (TD_IS_TP_ROW(pRow)) {
+    tdSTpRowGetVal(pRow, pTColumn->colId, pTColumn->type, pTSchema->flen, pTColumn->offset, iCol - 1, &cv);
+  } else if (TD_IS_KV_ROW(pRow)) {
+    ASSERT(iCol > 0);
+    SKvRowIdx *pColIdx = tdKvRowColIdxAt(pRow, iCol - 1);
+    tdSKvRowGetVal(pRow, pTColumn->colId, pColIdx->offset, iCol - 1, &cv);
+  } else {
+    ASSERT(0);
+  }
+
+  if (tdValTypeIsNone(cv.valType)) {
+    *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
+  } else if (tdValTypeIsNull(cv.valType)) {
+    *pColVal = COL_VAL_NULL(pTColumn->colId, pTColumn->type);
+  } else {
+    if (IS_VAR_DATA_TYPE(pTColumn->type)) {
+      value.nData = varDataLen(cv.val);
+      value.pData = varDataVal(cv.val);
+    } else {
+      tGetValue(cv.val, &value, pTColumn->type);
+    }
+
+    *pColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, value);
+  }
 }
