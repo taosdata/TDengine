@@ -50,6 +50,10 @@ void streamCleanUp() {
 void streamTriggerByTimer(void* param, void* tmrId) {
   SStreamTask* pTask = (void*)param;
 
+  if (atomic_load_8(&pTask->taskStatus) == TASK_STATUS__DROPPING) {
+    return;
+  }
+
   if (atomic_load_8(&pTask->triggerStatus) == TASK_TRIGGER_STATUS__ACTIVE) {
     SStreamTrigger* trigger = taosAllocateQitem(sizeof(SStreamTrigger), DEF_QITEM);
     if (trigger == NULL) return;
@@ -82,8 +86,8 @@ int32_t streamSetupTrigger(SStreamTask* pTask) {
 }
 
 int32_t streamLaunchByWrite(SStreamTask* pTask, int32_t vgId) {
-  int8_t execStatus = atomic_load_8(&pTask->status);
-  if (execStatus == TASK_STATUS__IDLE || execStatus == TASK_STATUS__CLOSING) {
+  int8_t execStatus = atomic_load_8(&pTask->execStatus);
+  if (execStatus == TASK_EXEC_STATUS__IDLE || execStatus == TASK_EXEC_STATUS__CLOSING) {
     SStreamTaskRunReq* pRunReq = rpcMallocCont(sizeof(SStreamTaskRunReq));
     if (pRunReq == NULL) return -1;
 
@@ -188,6 +192,7 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp) {
 
 int32_t streamProcessRunReq(SStreamTask* pTask) {
   streamExec(pTask, pTask->pMsgCb);
+
   if (pTask->dispatchType != TASK_DISPATCH__NONE) {
     streamDispatch(pTask, pTask->pMsgCb);
   }

@@ -26,13 +26,21 @@ extern "C" {
 #endif
 
 // clang-format off
-#define vFatal(...) do { if (vDebugFlag & DEBUG_FATAL) { taosPrintLog("VND FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
-#define vError(...) do { if (vDebugFlag & DEBUG_ERROR) { taosPrintLog("VND ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}     while(0)
-#define vWarn(...)  do { if (vDebugFlag & DEBUG_WARN)  { taosPrintLog("VND WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}       while(0)
-#define vInfo(...)  do { if (vDebugFlag & DEBUG_INFO)  { taosPrintLog("VND ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
-#define vDebug(...) do { if (vDebugFlag & DEBUG_DEBUG) { taosPrintLog("VND ", DEBUG_DEBUG, vDebugFlag, __VA_ARGS__); }}    while(0)
-#define vTrace(...) do { if (vDebugFlag & DEBUG_TRACE) { taosPrintLog("VND ", DEBUG_TRACE, vDebugFlag, __VA_ARGS__); }}    while(0)
-#define vGTrace(param, ...) do { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vTrace(param " GTID: %s", __VA_ARGS__, buf);}      while(0)//#define vDye(...)   do
+
+#define vFatal(...) { if (vDebugFlag & DEBUG_FATAL) { taosPrintLog("VND FATAL ", DEBUG_FATAL, 255,        __VA_ARGS__); }}
+#define vError(...) { if (vDebugFlag & DEBUG_ERROR) { taosPrintLog("VND ERROR ", DEBUG_ERROR, 255,        __VA_ARGS__); }}
+#define vWarn(...)  { if (vDebugFlag & DEBUG_WARN)  { taosPrintLog("VND WARN ",  DEBUG_WARN, 255,         __VA_ARGS__); }}
+#define vInfo(...)  { if (vDebugFlag & DEBUG_INFO)  { taosPrintLog("VND ",       DEBUG_INFO, 255,         __VA_ARGS__); }}
+#define vDebug(...) { if (vDebugFlag & DEBUG_DEBUG) { taosPrintLog("VND ",       DEBUG_DEBUG, vDebugFlag, __VA_ARGS__); }}
+#define vTrace(...) { if (vDebugFlag & DEBUG_TRACE) { taosPrintLog("VND ",       DEBUG_TRACE, vDebugFlag, __VA_ARGS__); }}
+
+#define vGFatal(param, ...) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vFatal(param ", gtid:%s", __VA_ARGS__, buf);}
+#define vGError(param, ...) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vError(param ", gtid:%s", __VA_ARGS__, buf);}
+#define vGWarn(param, ...)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vWarn (param ", gtid:%s", __VA_ARGS__, buf);}
+#define vGInfo(param, ...)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vInfo (param ", gtid:%s", __VA_ARGS__, buf);}
+#define vGDebug(param, ...) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vDebug(param ", gtid:%s", __VA_ARGS__, buf);}
+#define vGTrace(param, ...) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vTrace(param ", gtid:%s", __VA_ARGS__, buf);}
+
 // clang-format on
 
 // vnodeCfg.c
@@ -71,6 +79,7 @@ void    vnodeBufPoolReset(SVBufPool* pPool);
 int32_t vnodeQueryOpen(SVnode* pVnode);
 void    vnodeQueryClose(SVnode* pVnode);
 int32_t vnodeGetTableMeta(SVnode* pVnode, SRpcMsg* pMsg);
+int     vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg);
 
 // vnodeCommit.c
 int32_t vnodeBegin(SVnode* pVnode);

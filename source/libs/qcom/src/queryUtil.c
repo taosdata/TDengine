@@ -19,6 +19,7 @@
 #include "tmsg.h"
 #include "trpc.h"
 #include "tsched.h"
+#include "cJSON.h"
 
 #define VALIDNUMOFCOLS(x) ((x) >= TSDB_MIN_COLUMNS && (x) <= TSDB_MAX_COLUMNS)
 #define VALIDNUMOFTAGS(x) ((x) >= 0 && (x) <= TSDB_MAX_TAGS)
@@ -220,3 +221,209 @@ void destroyQueryExecRes(SQueryExecRes* pRes) {
       qError("invalid exec result for request type %d", pRes->msgType);
   }
 }
+
+int32_t dataConverToStr(char *str, int type, void *buf, int32_t bufSize, int32_t *len) {
+  int32_t n = 0;
+
+  switch (type) {
+    case TSDB_DATA_TYPE_NULL:
+      n = sprintf(str, "null");
+      break;
+
+    case TSDB_DATA_TYPE_BOOL:
+      n = sprintf(str, (*(int8_t*)buf) ? "true" : "false");
+      break;
+
+    case TSDB_DATA_TYPE_TINYINT:
+      n = sprintf(str, "%d", *(int8_t*)buf);
+      break;
+
+    case TSDB_DATA_TYPE_SMALLINT:
+      n = sprintf(str, "%d", *(int16_t*)buf);
+      break;
+
+    case TSDB_DATA_TYPE_INT:
+      n = sprintf(str, "%d", *(int32_t*)buf);
+      break;
+
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      n = sprintf(str, "%" PRId64, *(int64_t*)buf);
+      break;
+
+    case TSDB_DATA_TYPE_FLOAT:
+      n = sprintf(str, "%e", GET_FLOAT_VAL(buf));
+      break;
+
+    case TSDB_DATA_TYPE_DOUBLE:
+      n = sprintf(str, "%e", GET_DOUBLE_VAL(buf));
+      break;
+
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR:
+      if (bufSize < 0) {
+//        tscError("invalid buf size");
+        return TSDB_CODE_TSC_INVALID_VALUE;
+      }
+
+      *str = '"';
+      memcpy(str + 1, buf, bufSize);
+      *(str + bufSize + 1) = '"';
+      n = bufSize + 2;
+      break;
+
+    case TSDB_DATA_TYPE_UTINYINT:
+      n = sprintf(str, "%d", *(uint8_t*)buf);
+      break;
+
+    case TSDB_DATA_TYPE_USMALLINT:
+      n = sprintf(str, "%d", *(uint16_t*)buf);
+      break;
+
+    case TSDB_DATA_TYPE_UINT:
+      n = sprintf(str, "%u", *(uint32_t*)buf);
+      break;
+
+    case TSDB_DATA_TYPE_UBIGINT:
+      n = sprintf(str, "%" PRIu64, *(uint64_t*)buf);
+      break;
+
+    default:
+//      tscError("unsupported type:%d", type);
+      return TSDB_CODE_TSC_INVALID_VALUE;
+  }
+
+  *len = n;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+char* parseTagDatatoJson(void* p) {
+  char*  string = NULL;
+  cJSON* json = cJSON_CreateObject();
+  if (json == NULL) {
+    goto end;
+  }
+
+  SArray* pTagVals = NULL;
+  if (tTagToValArray((const STag*)p, &pTagVals) != 0) {
+    goto end;
+  }
+
+  int16_t nCols = taosArrayGetSize(pTagVals);
+  char    tagJsonKey[256] = {0};
+  for (int j = 0; j < nCols; ++j) {
+    STagVal* pTagVal = (STagVal*)taosArrayGet(pTagVals, j);
+    // json key  encode by binary
+    memset(tagJsonKey, 0, sizeof(tagJsonKey));
+    memcpy(tagJsonKey, pTagVal->pKey, strlen(pTagVal->pKey));
+    // json value
+    char type = pTagVal->type;
+    if (type == TSDB_DATA_TYPE_NULL) {
+      cJSON* value = cJSON_CreateNull();
+      if (value == NULL) {
+        goto end;
+      }
+      cJSON_AddItemToObject(json, tagJsonKey, value);
+    } else if (type == TSDB_DATA_TYPE_NCHAR) {
+      cJSON* value = NULL;
+      if (pTagVal->nData > 0) {
+        char*   tagJsonValue = taosMemoryCalloc(pTagVal->nData, 1);
+        int32_t length = taosUcs4ToMbs((TdUcs4*)pTagVal->pData, pTagVal->nData, tagJsonValue);
+        if (length < 0) {
+          qError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
+                   pTagVal->pData);
+          taosMemoryFree(tagJsonValue);
+          goto end;
+        }
+        value = cJSON_CreateString(tagJsonValue);
+        taosMemoryFree(tagJsonValue);
+        if (value == NULL) {
+          goto end;
+        }
+      } else if (pTagVal->nData == 0) {
+        value = cJSON_CreateString("");
+      } else {
+        ASSERT(0);
+      }
+
+      cJSON_AddItemToObject(json, tagJsonKey, value);
+    } else if (type == TSDB_DATA_TYPE_DOUBLE) {
+      double jsonVd = *(double*)(&pTagVal->i64);
+      cJSON* value = cJSON_CreateNumber(jsonVd);
+      if (value == NULL) {
+        goto end;
+      }
+      cJSON_AddItemToObject(json, tagJsonKey, value);
+    } else if (type == TSDB_DATA_TYPE_BOOL) {
+      char   jsonVd = *(char*)(&pTagVal->i64);
+      cJSON* value = cJSON_CreateBool(jsonVd);
+      if (value == NULL) {
+        goto end;
+      }
+      cJSON_AddItemToObject(json, tagJsonKey, value);
+    } else {
+      ASSERT(0);
+    }
+  }
+  string = cJSON_PrintUnformatted(json);
+end:
+  cJSON_Delete(json);
+  return string;
+}
+
+
+int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
+  if (NULL == pSrc) {
+    *pDst = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t metaSize = (pSrc->tableInfo.numOfColumns + pSrc->tableInfo.numOfTags) * sizeof(SSchema);
+  *pDst = taosMemoryMalloc(metaSize);
+  if (NULL == *pDst) {
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+  memcpy(*pDst, pSrc, metaSize);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
+  if (NULL == pSrc) {
+    *pDst = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+  
+  *pDst = taosMemoryMalloc(sizeof(*pSrc));
+  if (NULL == *pDst) {
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+  memcpy(*pDst, pSrc, sizeof(*pSrc));
+  if (pSrc->vgHash) {
+    (*pDst)->vgHash = taosHashInit(taosHashGetSize(pSrc->vgHash), taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+    if (NULL == (*pDst)->vgHash) {
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+
+    SVgroupInfo* vgInfo = NULL;
+    void *pIter = taosHashIterate(pSrc->vgHash, NULL);
+    while (pIter) {
+      vgInfo = pIter;
+      int32_t* vgId = taosHashGetKey(pIter, NULL);
+      
+      if (0 != taosHashPut((*pDst)->vgHash, vgId, sizeof(*vgId), vgInfo, sizeof(*vgInfo))) {
+        qError("taosHashPut failed, vgId:%d", vgInfo->vgId);
+        taosHashCancelIterate(pSrc->vgHash, pIter);    
+        taosHashCleanup((*pDst)->vgHash);
+        taosMemoryFreeClear(*pDst);
+        return TSDB_CODE_CTG_MEM_ERROR;
+      }
+      
+      pIter = taosHashIterate(pSrc->vgHash, pIter);
+    }
+  }
+  
+  return TSDB_CODE_SUCCESS;
+}
+
+
