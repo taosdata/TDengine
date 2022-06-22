@@ -7,6 +7,7 @@ from util.sql import *
 from util.cases import *
 from util.dnodes import *
 from util.constant import *
+from ...pytest.util.sql import *
 
 PRIMARY_COL = "ts"
 
@@ -25,8 +26,6 @@ BINARY_COL = "c_binary"
 NCHAR_COL = "c_nchar"
 TS_COL = "c_ts"
 
-
-
 NUM_COL = [INT_COL, BINT_COL, SINT_COL, TINT_COL, FLOAT_COL, DOUBLE_COL, ]
 CHAR_COL = [BINARY_COL, NCHAR_COL, ]
 BOOLEAN_COL = [BOOL_COL, ]
@@ -35,6 +34,12 @@ TS_TYPE_COL = [TS_COL, ]
 # insert data args：
 TIME_STEP = 10000
 NOW = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
+
+# init db/table
+DBNAME  = "db"
+STBNAME = "stb1"
+CTBNAME = "ct1"
+NTBNAME = "nt1"
 
 
 @dataclass
@@ -73,19 +78,20 @@ class DataSet:
 
 @dataclass
 class SMAschema:
-    creation    : str           = "CREATE"
-    index_name  : str           = "sma_index_1"
-    index_flag  : str           = "SMA INDEX"
-    operator    : str           = "ON"
-    tbname      : str           = None
-    watermark   : str           = None
-    maxdelay    : str           = None
-    func        : Tuple[str]    = None
-    interval    : Tuple[str]    = None
-    sliding     : str           = None
-    other       : Any           = None
-    drop        : str           = "DROP"
-    drop_flag   : str           = "INDEX"
+    creation            : str           = "CREATE"
+    index_name          : str           = "sma_index_1"
+    index_flag          : str           = "SMA INDEX"
+    operator            : str           = "ON"
+    tbname              : str           = None
+    watermark           : str           = "5s"
+    max_delay           : str           = "6m"
+    func                : Tuple[str]    = None
+    interval            : Tuple[str]    = ("6m", "10s")
+    sliding             : str           = "6m"
+    other               : Any           = None
+    drop                : str           = "DROP"
+    drop_flag           : str           = "INDEX"
+    querySmaOptimize    : int           = 1
 
     def __post_init__(self):
         if isinstance(self.other, dict):
@@ -111,8 +117,8 @@ class SMAschema:
                     self.watermark = v
                     del self.other[k]
 
-                if k.lower() == "maxdelay" and isinstance(v, str) and not self.maxdelay:
-                    self.maxdelay = v
+                if k.lower() == "max_delay" and isinstance(v, str) and not self.max_delay:
+                    self.max_delay = v
                     del self.other[k]
 
                 if k.lower() == "functions" and isinstance(v, tuple) and not self.func:
@@ -133,6 +139,7 @@ class SMAschema:
 
 
 class TDTestCase:
+    updatecfgDict = {"querySmaOptimize": 1}
 
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
@@ -160,8 +167,8 @@ class TDTestCase:
             sql += f" sliding({sma.sliding})"
         if sma.watermark:
             sql += f" watermark {sma.watermark}"
-        if sma.maxdelay:
-            sql += f" maxdelay {sma.maxdelay}"
+        if sma.max_delay:
+            sql += f" max_delay {sma.max_delay}"
         if isinstance(sma.other, dict):
             for k,v in sma.other.items():
                 if isinstance(v,tuple) or isinstance(v, list):
@@ -171,26 +178,36 @@ class TDTestCase:
         if isinstance(sma.other, tuple) or isinstance(sma.other, list):
             sql += " ".join(sma.other)
         if isinstance(sma.other, int) or isinstance(sma.other, float) or isinstance(sma.other, str):
-            sql += sma.other
+            sql += f" {sma.other}"
 
         return sql
 
+    def __check_sma_func(self, func:tuple):
+        sma_func_support = ["min", "max","avg"]
+        if not isinstance(func, str) or not isinstance(func, tuple) or not isinstance(func, list):
+            return False
+        if isinstance(func, str) :
+            if func.split("(")[0] not in sma_func_support:
+                return False
+
+
     def sma_create_check(self, sma:SMAschema):
+        if  self.updatecfgDict["querySmaOptimize"] == 0:
+            tdSql.error(self.__create_sma_index(sma))
         tdSql.query("show stables")
         stb_in_list = False
         for row in tdSql.queryResult:
             if sma.tbname == row[0]:
                 stb_in_list = True
-                break
         if not stb_in_list:
             tdSql.error(self.__create_sma_index(sma))
-        if not sma.creation:
+        if not sma.creation or not isinstance(sma.creation, str) or sma.creation.upper() != "CREATE":
             tdSql.error(self.__create_sma_index(sma))
-        if not sma.index_flag:
+        if not sma.index_flag or not isinstance(sma.index_flag, str) or  sma.index_flag.upper() != "SMA INDEX" :
             tdSql.error(self.__create_sma_index(sma))
-        if not sma.index_name:
+        if not sma.index_name or not isinstance(sma.index_name, str):
             tdSql.error(self.__create_sma_index(sma))
-        if not sma.operator:
+        if not sma.operator or not isinstance(sma.operator, str) or sma.operator.upper() != "ON":
             tdSql.error(self.__create_sma_index(sma))
         if not sma.tbname:
             tdSql.error(self.__create_sma_index(sma))
@@ -203,13 +220,36 @@ class TDTestCase:
         if sma.other:
             tdSql.error(self.__create_sma_index(sma))
 
+    @property
+    def __create_sma_sql(self):
+        err_sqls = []
+        cur_sqls = []
+        # err_set
+        # case 1: required fields check
+        err_sqls.append( SMAschema(creation="", tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
+        err_sqls.append( SMAschema(index_name="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
+        err_sqls.append( SMAschema(index_flag="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
+        err_sqls.append( SMAschema(operator="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
+        err_sqls.append( SMAschema(tbname="", func=(f"min({INT_COL})",f"max({INT_COL})") ) )
+        err_sqls.append( SMAschema(func="",tbname=STBNAME ) )
+        err_sqls.append( SMAschema(interval="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
+        err_sqls.append( SMAschema(sliding="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
+
+        return err_sqls, cur_sqls
+
+    def test_create_sma(self):
+        err_sqls , cur_sqls = self.__create_sma_sql
+        for err_sql in err_sqls:
+            self.sma_create_check(err_sql)
 
     def all_test(self):
+        self.test_create_sma()
+
         pass
 
     def __create_tb(self):
         tdLog.printNoPrefix("==========step: create table")
-        create_stb_sql = f'''create table stb1(
+        create_stb_sql = f'''create table {STBNAME}(
                 ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
                 {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
                 {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp,
@@ -217,7 +257,7 @@ class TDTestCase:
                 {INT_UN_COL} int unsigned, {BINT_UN_COL} bigint unsigned
             ) tags (tag1 int)
             '''
-        create_ntb_sql = f'''create table t1(
+        create_ntb_sql = f'''create table {NTBNAME}(
                 ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
                 {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
                 {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp,
@@ -253,6 +293,7 @@ class TDTestCase:
         return data_set
 
     def __insert_data(self):
+        tdLog.printNoPrefix("==========step: start inser data into tables now.....")
         data = self.__data_set(rows=self.rows)
 
         # now_time = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
@@ -278,7 +319,7 @@ class TDTestCase:
             tdSql.execute(
                 f"insert into ct4 values ( {NOW - i * int(TIME_STEP * 0.8) }, {row_data} )")
             tdSql.execute(
-                f"insert into t1 values ( {NOW - i * int(TIME_STEP * 1.2)}, {row_data} )")
+                f"insert into {NTBNAME} values ( {NOW - i * int(TIME_STEP * 1.2)}, {row_data} )")
 
         tdSql.execute(
             f"insert into ct2 values ( {NOW + int(TIME_STEP * 0.6)}, {null_data} )")
@@ -295,28 +336,23 @@ class TDTestCase:
             f"insert into ct4 values ( {NOW - self.rows * int(TIME_STEP * 0.39)}, {null_data} )")
 
         tdSql.execute(
-            f"insert into t1 values ( {NOW + int(TIME_STEP * 1.2)}, {null_data} )")
+            f"insert into {NTBNAME} values ( {NOW + int(TIME_STEP * 1.2)}, {null_data} )")
         tdSql.execute(
-            f"insert into t1 values ( {NOW - (self.rows + 1) * int(TIME_STEP * 1.2)}, {null_data} )")
+            f"insert into {NTBNAME} values ( {NOW - (self.rows + 1) * int(TIME_STEP * 1.2)}, {null_data} )")
         tdSql.execute(
-            f"insert into t1 values ( {NOW - self.rows * int(TIME_STEP * 0.59)}, {null_data} )")
+            f"insert into {NTBNAME} values ( {NOW - self.rows * int(TIME_STEP * 0.59)}, {null_data} )")
 
     def run(self):
-        sma1 = SMAschema(func=("min(c1)","max(c2)"))
-        sql1 = self.__create_sma_index(sma1)
-        print("================")
-        print(sql1)
-        # a = DataSet()
-        # return
         self.rows = 10
 
         tdLog.printNoPrefix("==========step0:all check")
-        # self.all_test()
 
         tdLog.printNoPrefix("==========step1:create table in normal database")
         tdSql.prepare()
         self.__create_tb()
         self.__insert_data()
+        self.all_test()
+
         return
 
         tdLog.printNoPrefix("==========step2:create table in rollup database")
