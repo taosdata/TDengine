@@ -2323,7 +2323,11 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
   size_t tableListSize = taosArrayGetSize(pInfo->tableListInfo->pTableList);
   if (!pInfo->hasGroupId) {
     pInfo->hasGroupId = true;
-
+    
+    if (tableListSize == 0) {
+      doSetOperatorCompleted(pOperator);
+      return NULL;
+    }
     pInfo->tableStartIndex = 0;
     pInfo->groupId = ((STableKeyInfo*)taosArrayGet(pInfo->tableListInfo->pTableList, pInfo->tableStartIndex))->groupId;
     startGroupTableMergeScan(pOperator);
