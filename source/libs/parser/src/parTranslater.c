@@ -2466,7 +2466,13 @@ static int32_t replaceOrderByAlias(STranslateContext* pCxt, SNodeList* pProjecti
   return pCxt->errCode;
 }
 
-static int32_t translateSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
+static int32_t translateSelectWithoutFrom(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  pCxt->pCurrSelectStmt = pSelect;
+  pCxt->currClause = SQL_CLAUSE_SELECT;
+  return translateExprList(pCxt, pSelect->pProjectionList);
+}
+
+static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->pCurrSelectStmt = pSelect;
   int32_t code = translateFrom(pCxt, pSelect->pFromTable);
   if (TSDB_CODE_SUCCESS == code) {
@@ -2513,6 +2519,14 @@ static int32_t translateSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
     code = replaceOrderByAlias(pCxt, pSelect->pProjectionList, pSelect->pOrderByList);
   }
   return code;
+}
+
+static int32_t translateSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (NULL == pSelect->pFromTable) {
+    return translateSelectWithoutFrom(pCxt, pSelect);
+  } else {
+    return translateSelectFrom(pCxt, pSelect);
+  }
 }
 
 static SNode* createSetOperProject(const char* pTableAlias, SNode* pNode) {

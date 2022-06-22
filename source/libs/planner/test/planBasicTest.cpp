@@ -95,3 +95,9 @@ TEST_F(PlanBasicTest, lastRowFunc) {
 
   run("SELECT LAST_ROW(c1) FROM st1");
 }
+
+TEST_F(PlanBasicTest, withoutFrom) {
+  useDb("root", "test");
+
+  run("SELECT 1");
+}

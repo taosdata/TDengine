@@ -917,8 +917,16 @@ static int32_t createProjectPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChild
   pProject->slimit = pProjectLogicNode->slimit;
   pProject->soffset = pProjectLogicNode->soffset;
 
-  int32_t code = setListSlotId(pCxt, ((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc->dataBlockId,
-                               -1, pProjectLogicNode->pProjections, &pProject->pProjections);
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (0 == LIST_LENGTH(pChildren)) {
+    pProject->pProjections = nodesCloneList(pProjectLogicNode->pProjections);
+    if (NULL == pProject->pProjections) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+  } else {
+    code = setListSlotId(pCxt, ((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc->dataBlockId, -1,
+                         pProjectLogicNode->pProjections, &pProject->pProjections);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = addDataBlockSlotsForProject(pCxt, pProjectLogicNode->stmtName, pProject->pProjections,
                                        pProject->node.pOutputDataBlockDesc);

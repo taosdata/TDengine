@@ -901,7 +901,12 @@ static int32_t createDistinctLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSe
   return code;
 }
 
-static int32_t createSelectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
+static int32_t createSelectWithoutFromLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
+                                                SLogicNode** pLogicNode) {
+  return createProjectLogicNode(pCxt, pSelect, pLogicNode);
+}
+
+static int32_t createSelectFromLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   SLogicNode* pRoot = NULL;
   int32_t     code = createLogicNodeByTable(pCxt, pSelect, pSelect->pFromTable, &pRoot);
   if (TSDB_CODE_SUCCESS == code) {
@@ -939,6 +944,14 @@ static int32_t createSelectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSele
   }
 
   return code;
+}
+
+static int32_t createSelectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
+  if (NULL == pSelect->pFromTable) {
+    return createSelectWithoutFromLogicNode(pCxt, pSelect, pLogicNode);
+  } else {
+    return createSelectFromLogicNode(pCxt, pSelect, pLogicNode);
+  }
 }
 
 static int32_t createSetOpRootLogicNode(SLogicPlanContext* pCxt, SSetOperator* pSetOperator, FCreateSetOpLogicNode func,

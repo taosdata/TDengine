@@ -1799,7 +1799,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "last_row",
     .type = FUNCTION_TYPE_LAST_ROW,
-    .classification = FUNC_MGT_MULTI_RES_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC,
     .translateFunc = translateLastRow,
     .getEnvFunc   = getMinmaxFuncEnv,
     .initFunc     = minmaxFunctionSetup,
