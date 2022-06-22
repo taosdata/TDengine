@@ -207,9 +207,12 @@ SNode* nodesMakeNode(ENodeType type) {
     case QUERY_NODE_SHOW_VNODES_STMT:
     case QUERY_NODE_SHOW_APPS_STMT:
     case QUERY_NODE_SHOW_SCORES_STMT:
-    case QUERY_NODE_SHOW_VARIABLE_STMT:
+    case QUERY_NODE_SHOW_VARIABLES_STMT:
+    case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
       return makeNode(type, sizeof(SShowStmt));
+    case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:
+      return makeNode(type, sizeof(SShowDnodeVariablesStmt));
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
       return makeNode(type, sizeof(SShowCreateDatabaseStmt));
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
@@ -270,6 +273,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SSystemTableScanPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN:
       return makeNode(type, sizeof(SBlockDistScanPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN:
+      return makeNode(type, sizeof(SLastRowScanPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       return makeNode(type, sizeof(SProjectPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN:
@@ -284,8 +289,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SSortPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
       return makeNode(type, sizeof(SIntervalPhysiNode));
-    case QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL:
-      return makeNode(type, sizeof(SMergeIntervalPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:
+      return makeNode(type, sizeof(SMergeAlignedIntervalPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
       return makeNode(type, sizeof(SStreamIntervalPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
@@ -637,19 +642,22 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_VNODES_STMT:
     case QUERY_NODE_SHOW_APPS_STMT:
     case QUERY_NODE_SHOW_SCORES_STMT:
-    case QUERY_NODE_SHOW_VARIABLE_STMT:
+    case QUERY_NODE_SHOW_VARIABLES_STMT:
+    case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT: {
       SShowStmt* pStmt = (SShowStmt*)pNode;
       nodesDestroyNode(pStmt->pDbName);
       nodesDestroyNode(pStmt->pTbName);
       break;
     }
+    case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:  // no pointer field
+      break;
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
       taosMemoryFreeClear(((SShowCreateDatabaseStmt*)pNode)->pCfg);
       break;
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
-      taosMemoryFreeClear(((SShowCreateTableStmt*)pNode)->pMeta);
+      taosMemoryFreeClear(((SShowCreateTableStmt*)pNode)->pCfg);
       break;
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:  // no pointer field
     case QUERY_NODE_KILL_CONNECTION_STMT:         // no pointer field
@@ -775,6 +783,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN:
       destroyScanPhysiNode((SScanPhysiNode*)pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT: {
@@ -819,7 +828,7 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
-    case QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:

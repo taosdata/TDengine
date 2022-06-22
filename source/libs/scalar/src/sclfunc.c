@@ -1415,11 +1415,19 @@ int32_t roundFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
 }
 
 int32_t lowerFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+#ifdef WINDOWS
+  return doCaseConvFunction(pInput, inputNum, pOutput, towlower);
+#else
   return doCaseConvFunction(pInput, inputNum, pOutput, tolower);
+#endif
 }
 
 int32_t upperFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+#ifdef WINDOWS
+  return doCaseConvFunction(pInput, inputNum, pOutput, towupper);
+#else
   return doCaseConvFunction(pInput, inputNum, pOutput, toupper);
+#endif
 }
 
 int32_t ltrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {

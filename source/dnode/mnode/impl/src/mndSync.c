@@ -75,12 +75,10 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
 }
 
 int32_t mndSyncGetSnapshot(struct SSyncFSM *pFsm, SSnapshot *pSnapshot, void *pReaderParam, void **ppReader) {
-  // TODO:
-
-  // atomic operation
-  // step1. sdbGetCommitInfo
-  // step2. create ppReader with pReaderParam
-
+  mDebug("start to read snapshot from sdb in atomic way");
+  SMnode *pMnode = pFsm->data;
+  return sdbStartRead(pMnode->pSdb, (SSdbIter **)ppReader, &pSnapshot->lastApplyIndex, &pSnapshot->lastApplyTerm,
+                      &pSnapshot->lastConfigIndex);
   return 0;
 }
 
@@ -98,21 +96,13 @@ void mndRestoreFinish(struct SSyncFSM *pFsm) {
     mndTransPullup(pMnode);
     mndSetRestore(pMnode, true);
   } else {
-    mInfo("mnode sync restore finished, and will set ready after first deploy");
+    mInfo("mnode sync restore finished");
   }
 }
 
 void mndReConfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReConfigCbMeta cbMeta) {
   SMnode    *pMnode = pFsm->data;
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
-
-#if 0
-// send response
-  SRpcMsg rpcMsg = {.msgType = pMsg->msgType, .contLen = pMsg->contLen, .conn.applyIndex = cbMeta.index};
-  rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
-  memcpy(rpcMsg.pCont, pMsg->pCont, pMsg->contLen);
-  syncGetAndDelRespRpc(pMnode->syncMgmt.sync, cbMeta.seqNum, &rpcMsg.info);
-#endif
 
   pMgmt->errCode = cbMeta.code;
   mInfo("trans:-1, sync reconfig is proposed, saved:%d code:0x%x, index:%" PRId64 " term:%" PRId64, pMgmt->transId,
@@ -128,13 +118,13 @@ void mndReConfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReConfigCbMeta cbM
 }
 
 int32_t mndSnapshotStartRead(struct SSyncFSM *pFsm, void **ppReader) {
-  mInfo("start to read snapshot from sdb");
+  mDebug("start to read snapshot from sdb");
   SMnode *pMnode = pFsm->data;
-  return sdbStartRead(pMnode->pSdb, (SSdbIter **)ppReader);
+  return sdbStartRead(pMnode->pSdb, (SSdbIter **)ppReader, NULL, NULL, NULL);
 }
 
 int32_t mndSnapshotStopRead(struct SSyncFSM *pFsm, void *pReader) {
-  mInfo("stop to read snapshot from sdb");
+  mDebug("stop to read snapshot from sdb");
   SMnode *pMnode = pFsm->data;
   return sdbStopRead(pMnode->pSdb, pReader);
 }

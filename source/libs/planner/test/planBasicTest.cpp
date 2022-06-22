@@ -83,3 +83,21 @@ TEST_F(PlanBasicTest, interpFunc) {
 
   run("SELECT INTERP(c1) FROM t1 RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') EVERY(5s) FILL(LINEAR)");
 }
+
+TEST_F(PlanBasicTest, lastRowFunc) {
+  useDb("root", "test");
+
+  run("SELECT LAST_ROW(c1) FROM t1");
+
+  run("SELECT LAST_ROW(*) FROM t1");
+
+  run("SELECT LAST_ROW(c1, c2) FROM t1");
+
+  run("SELECT LAST_ROW(c1) FROM st1");
+}
+
+TEST_F(PlanBasicTest, withoutFrom) {
+  useDb("root", "test");
+
+  run("SELECT 1");
+}

@@ -432,11 +432,11 @@ static const char *mndTransStr(ETrnStage stage) {
 }
 
 static void mndTransTestStartFunc(SMnode *pMnode, void *param, int32_t paramLen) {
-  mInfo("test trans start, param:%s, len:%d", (char *)param, paramLen);
+  mDebug("test trans start, param:%s, len:%d", (char *)param, paramLen);
 }
 
 static void mndTransTestStopFunc(SMnode *pMnode, void *param, int32_t paramLen) {
-  mInfo("test trans stop, param:%s, len:%d", (char *)param, paramLen);
+  mDebug("test trans stop, param:%s, len:%d", (char *)param, paramLen);
 }
 
 static TransCbFp mndTransGetCbFp(ETrnFunc ftype) {

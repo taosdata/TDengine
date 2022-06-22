@@ -59,6 +59,12 @@ typedef struct STuplePos {
   int32_t offset;
 } STuplePos;
 
+typedef struct SMinmaxResInfo {
+  bool      assign;  // assign the first value or not
+  int64_t   v;
+  STuplePos tuplePos;
+} SMinmaxResInfo;
+
 typedef struct STopBotResItem {
   SVariant  v;
   uint64_t  uid;  // it is a table uid, used to extract tag data during building of the final result for the tag data
@@ -148,6 +154,12 @@ typedef struct SElapsedInfo {
   int64_t timeUnit;
 } SElapsedInfo;
 
+typedef struct STwaInfo {
+  double      dOutput;
+  SPoint1     p;
+  STimeWindow win;
+} STwaInfo;
+
 typedef struct SHistoFuncBin {
   double  lower;
   double  upper;
@@ -195,13 +207,13 @@ typedef struct SMavgInfo {
 } SMavgInfo;
 
 typedef struct SSampleInfo {
-  int32_t  samples;
-  int32_t  totalPoints;
-  int32_t  numSampled;
-  uint8_t  colType;
-  int16_t  colBytes;
-  char*    data;
-  int64_t* timestamp;
+  int32_t     samples;
+  int32_t     totalPoints;
+  int32_t     numSampled;
+  uint8_t     colType;
+  int16_t     colBytes;
+  char*       data;
+  STuplePos*  tuplePos;
 } SSampleInfo;
 
 typedef struct STailItem {
@@ -233,6 +245,22 @@ typedef struct SUniqueInfo {
   SHashObj* pHash;
   char      pItems[];
 } SUniqueInfo;
+
+typedef struct SDerivInfo {
+  double  prevValue;       // previous value
+  TSKEY   prevTs;          // previous timestamp
+  bool    ignoreNegative;  // ignore the negative value
+  int64_t tsWindow;        // time window for derivative
+  bool    valueSet;        // the value has been set already
+} SDerivInfo;
+
+typedef struct SRateInfo {
+  double  firstValue;
+  TSKEY   firstKey;
+  double  lastValue;
+  TSKEY   lastKey;
+  int8_t  hasResult;  // flag to denote has value
+} SRateInfo;
 
 #define SET_VAL(_info, numOfElem, res) \
   do {                                 \
@@ -926,12 +954,6 @@ int32_t avgPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 EFuncDataRequired statisDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow) {
   return FUNC_DATA_REQUIRED_STATIS_LOAD;
 }
-
-typedef struct SMinmaxResInfo {
-  bool      assign;  // assign the first value or not
-  int64_t   v;
-  STuplePos tuplePos;
-} SMinmaxResInfo;
 
 bool minmaxFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
   if (!functionSetup(pCtx, pResultInfo)) {
@@ -1846,9 +1868,8 @@ int32_t leastSQRFunction(SqlFunctionCtx* pCtx) {
         }
         numOfElem++;
         LEASTSQR_CAL(param, x, plist, i, pInfo->stepVal);
-
-        break;
       }
+      break;
     }
     case TSDB_DATA_TYPE_SMALLINT: {
       int16_t* plist = (int16_t*)pCol->pData;
@@ -1873,7 +1894,6 @@ int32_t leastSQRFunction(SqlFunctionCtx* pCtx) {
         numOfElem++;
         LEASTSQR_CAL(param, x, plist, i, pInfo->stepVal);
       }
-
       break;
     }
 
@@ -4354,7 +4374,7 @@ bool getSampleFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   SColumnNode* pCol = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
   SValueNode*  pVal = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
   int32_t      numOfSamples = pVal->datum.i;
-  pEnv->calcMemSize = sizeof(SSampleInfo) + numOfSamples * (pCol->node.resType.bytes + sizeof(int64_t));
+  pEnv->calcMemSize = sizeof(SSampleInfo) + numOfSamples * (pCol->node.resType.bytes + sizeof(STuplePos));
   return true;
 }
 
@@ -4375,25 +4395,30 @@ bool sampleFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo)
     return false;
   }
   pInfo->data = (char*)pInfo + sizeof(SSampleInfo);
-  pInfo->timestamp = (int64_t*)((char*)pInfo + sizeof(SSampleInfo) + pInfo->samples * pInfo->colBytes);
+  pInfo->tuplePos = (STuplePos*)((char*)pInfo + sizeof(SSampleInfo) + pInfo->samples * pInfo->colBytes);
 
   return true;
 }
 
-static void sampleAssignResult(SSampleInfo* pInfo, char* data, TSKEY ts, int32_t index) {
+static void sampleAssignResult(SSampleInfo* pInfo, char* data, int32_t index) {
   assignVal(pInfo->data + index * pInfo->colBytes, data, pInfo->colBytes, pInfo->colType);
-  *(pInfo->timestamp + index) = ts;
 }
 
-static void doReservoirSample(SSampleInfo* pInfo, char* data, TSKEY ts, int32_t index) {
+static void doReservoirSample(SqlFunctionCtx* pCtx, SSampleInfo* pInfo, char* data, int32_t index) {
   pInfo->totalPoints++;
   if (pInfo->numSampled < pInfo->samples) {
-    sampleAssignResult(pInfo, data, ts, pInfo->numSampled);
+    sampleAssignResult(pInfo, data, pInfo->numSampled);
+    if (pCtx->subsidiaries.num > 0) {
+      saveTupleData(pCtx, index, pCtx->pSrcBlock, pInfo->tuplePos + pInfo->numSampled * sizeof(STuplePos));
+    }
     pInfo->numSampled++;
   } else {
     int32_t j = taosRand() % (pInfo->totalPoints);
     if (j < pInfo->samples) {
-      sampleAssignResult(pInfo, data, ts, j);
+      sampleAssignResult(pInfo, data, j);
+      if (pCtx->subsidiaries.num > 0) {
+        copyTupleData(pCtx, index, pCtx->pSrcBlock, pInfo->tuplePos + j * sizeof(STuplePos));
+      }
     }
   }
 }
@@ -4404,11 +4429,6 @@ int32_t sampleFunction(SqlFunctionCtx* pCtx) {
 
   SInputColumnInfoData* pInput = &pCtx->input;
 
-  TSKEY* tsList = NULL;
-  if (pInput->pPTS != NULL) {
-    tsList = (int64_t*)pInput->pPTS->pData;
-  }
-
   SColumnInfoData* pInputCol = pInput->pData[0];
   for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
     if (colDataIsNull_s(pInputCol, i)) {
@@ -4416,7 +4436,7 @@ int32_t sampleFunction(SqlFunctionCtx* pCtx) {
     }
 
     char* data = colDataGetData(pInputCol, i);
-    doReservoirSample(pInfo, data, /*tsList[i]*/ 0, i);
+    doReservoirSample(pCtx, pInfo, data, i);
   }
 
   SET_VAL(pResInfo, pInfo->numSampled, pInfo->numSampled);
@@ -4435,6 +4455,7 @@ int32_t sampleFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t currentRow = pBlock->info.rows;
   for (int32_t i = 0; i < pInfo->numSampled; ++i) {
     colDataAppend(pCol, currentRow + i, pInfo->data + i * pInfo->colBytes, false);
+    setSelectivityValue(pCtx, pBlock, pInfo->tuplePos + i * sizeof(STuplePos), currentRow + i);
   }
 
   return pInfo->numSampled;
@@ -4669,12 +4690,6 @@ int32_t uniqueFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   return pResInfo->numOfRes;
 }
-
-typedef struct STwaInfo {
-  double      dOutput;
-  SPoint1     p;
-  STimeWindow win;
-} STwaInfo;
 
 bool getTwaFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   pEnv->calcMemSize = sizeof(STwaInfo);
@@ -5124,14 +5139,6 @@ int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   return TSDB_CODE_SUCCESS;
 }
 
-typedef struct SDerivInfo {
-  double  prevValue;       // previous value
-  TSKEY   prevTs;          // previous timestamp
-  bool    ignoreNegative;  // ignore the negative value
-  int64_t tsWindow;        // time window for derivative
-  bool    valueSet;        // the value has been set already
-} SDerivInfo;
-
 bool getDerivativeFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   pEnv->calcMemSize = sizeof(SDerivInfo);
   return true;
@@ -5224,6 +5231,117 @@ int32_t derivativeFunction(SqlFunctionCtx* pCtx) {
   }
 
   return numOfElems;
+}
+
+bool getIrateFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(SRateInfo);
+  return true;
+}
+
+bool irateFuncSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
+  if (!functionSetup(pCtx, pResInfo)) {
+    return false;  // not initialized since it has been initialized
+  }
+
+  SRateInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  pInfo->firstKey   = INT64_MIN;
+  pInfo->lastKey    = INT64_MIN;
+  pInfo->firstValue = (double)INT64_MIN;
+  pInfo->lastValue  = (double)INT64_MIN;
+
+  pInfo->hasResult  = 0;
+  return true;
+}
+
+int32_t irateFunction(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SRateInfo*          pRateInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*      pInputCol = pInput->pData[0];
+
+  SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
+
+  TSKEY*  tsList = (int64_t*)pInput->pPTS->pData;
+
+  int32_t numOfElems = 0;
+  int32_t type = pInputCol->info.type;
+
+  for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
+    if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+      continue;
+    }
+
+    numOfElems++;
+
+    char* data = colDataGetData(pInputCol, i);
+    double  v = 0;
+    GET_TYPED_DATA(v, double, type, data);
+
+    if (INT64_MIN == pRateInfo->lastKey) {
+      pRateInfo->lastValue = v;
+      pRateInfo->lastKey   = tsList[i];
+      continue;
+    }
+
+    if (tsList[i] > pRateInfo->lastKey) {
+      if ((INT64_MIN == pRateInfo->firstKey) || pRateInfo->lastKey > pRateInfo->firstKey) {
+        pRateInfo->firstValue = pRateInfo->lastValue;
+        pRateInfo->firstKey = pRateInfo->lastKey;
+      }
+
+      pRateInfo->lastValue = v;
+      pRateInfo->lastKey   = tsList[i];
+
+      continue;
+    }
+
+    if ((INT64_MIN == pRateInfo->firstKey) || tsList[i] > pRateInfo->firstKey) {
+      pRateInfo->firstValue = v;
+      pRateInfo->firstKey = tsList[i];
+    }
+
+  }
+
+  SET_VAL(pResInfo, numOfElems, 1);
+  return TSDB_CODE_SUCCESS;
+}
+
+static double doCalcRate(const SRateInfo* pRateInfo, double tickPerSec) {
+  if ((INT64_MIN == pRateInfo->lastKey) || (INT64_MIN == pRateInfo->firstKey) ||
+      (pRateInfo->firstKey >= pRateInfo->lastKey)) {
+    return 0.0;
+  }
+
+  double diff = 0;
+  // If the previous value of the last is greater than the last value, only keep the last point instead of the delta
+  // value between two values.
+  diff = pRateInfo->lastValue;
+  if (diff >= pRateInfo->firstValue) {
+    diff -= pRateInfo->firstValue;
+  }
+
+  int64_t duration = pRateInfo->lastKey - pRateInfo->firstKey;
+  if (duration == 0) {
+    return 0;
+  }
+
+  return (duration > 0)? ((double)diff) / (duration/tickPerSec):0.0;
+}
+
+int32_t irateFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  pResInfo->isNullRes = (pResInfo->numOfRes == 0) ? 1 : 0;
+
+  SRateInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  double result = doCalcRate(pInfo, 1000);
+  colDataAppend(pCol, pBlock->info.rows, (const char*)&result, pResInfo->isNullRes);
+
+  return pResInfo->numOfRes;
 }
 
 int32_t interpFunction(SqlFunctionCtx* pCtx) {

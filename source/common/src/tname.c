@@ -240,6 +240,15 @@ bool tNameDBNameEqual(SName* left, SName* right) {
   return (0 == strcmp(left->dbname, right->dbname));
 }
 
+bool tNameTbNameEqual(SName* left, SName* right) {
+  bool equal = tNameDBNameEqual(left, right);
+  if (equal) {
+    return (0 == strcmp(left->tname, right->tname));
+  }
+
+  return equal;
+}
+
 int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
   assert(dst != NULL && str != NULL && strlen(str) > 0);
 
@@ -312,8 +321,10 @@ void buildChildTableName(RandTableName* rName) {
   taosStringBuilderAppendStringLen(&sb, rName->sTableName, rName->sTableNameLen);
   taosArraySort(rName->tags, compareKv);
   for (int j = 0; j < taosArrayGetSize(rName->tags); ++j) {
+    taosStringBuilderAppendChar(&sb, ',');
     SSmlKv* tagKv = taosArrayGetP(rName->tags, j);
     taosStringBuilderAppendStringLen(&sb, tagKv->key, tagKv->keyLen);
+    taosStringBuilderAppendChar(&sb, '=');
     if (IS_VAR_DATA_TYPE(tagKv->type)) {
       taosStringBuilderAppendStringLen(&sb, tagKv->value, tagKv->length);
     } else {
@@ -326,9 +337,14 @@ void buildChildTableName(RandTableName* rName) {
   tMD5Init(&context);
   tMD5Update(&context, (uint8_t*)keyJoined, (uint32_t)len);
   tMD5Final(&context);
-  uint64_t digest1 = *(uint64_t*)(context.digest);
-  uint64_t digest2 = *(uint64_t*)(context.digest + 8);
-  snprintf(rName->childTableName, TSDB_TABLE_NAME_LEN, "t_%016" PRIx64 "%016" PRIx64, digest1, digest2);
+
+  char temp[8] = {0};
+  rName->childTableName[0] = 't';
+  rName->childTableName[1] = '_';
+  for(int i = 0; i < 16; i++){
+    sprintf(temp, "%02x", context.digest[i]);
+    strcat(rName->childTableName, temp);
+  }
   taosStringBuilderDestroy(&sb);
-  rName->uid = digest1;
+  rName->uid = *(uint64_t*)(context.digest);
 }

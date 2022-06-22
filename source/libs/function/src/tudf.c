@@ -467,7 +467,7 @@ int32_t getUdfdPipeName(char* pipeName, int32_t size) {
     dnodeId[0] = '1';
   }
 #ifdef _WIN32
-  snprintf(pipeName, size, "%s%s", UDF_LISTEN_PIPE_NAME_PREFIX, dnodeId);
+  snprintf(pipeName, size, "%s.%x.%s", UDF_LISTEN_PIPE_NAME_PREFIX,MurmurHash3_32(tsDataDir, strlen(tsDataDir)), dnodeId);
 #else
   snprintf(pipeName, size, "%s/%s%s", tsDataDir, UDF_LISTEN_PIPE_NAME_PREFIX, dnodeId);
 #endif

@@ -624,8 +624,7 @@ class TDTestCase:
             tdLog.info(" sample data is in datas groups ,successed sql is :  %s" % sample_query )
         else:
             tdLog.exit(" sample data is not in datas groups ,failed sql is :  %s" % sample_query )
-
-
+        
     def basic_sample_query(self):
         tdSql.execute(" drop database if exists db ")
         tdSql.execute(" create database if not exists db duration 300 ")
@@ -760,6 +759,14 @@ class TDTestCase:
 
         self.check_sample("select sample( c1 ,3 )  from t1 where c1 between 1 and 10" ,"select c1  from t1 where c1 between 1 and 10")
 
+        tdSql.query("select sample(c1,2) ,c2,c3 ,c5 from stb1")
+        tdSql.checkRows(2)
+        tdSql.checkCols(4)
+
+        self.check_sample("select sample( c1 ,3 ),c2,c3,c4,c5 from t1 where c1 between 1 and 10" ,"select c1,c2,c3,c4,c5 from t1 where c1 between 1 and 10")
+        self.check_sample("select sample( c1 ,3 ),c2,c3,c4,c5 from stb1 where c1 between 1 and 10" ,"select c1,c2,c3,c4,c5 from stb1 where c1 between 1 and 10")
+        self.check_sample("select sample( c1 ,3 ),t1 from stb1 where c1 between 1 and 10" ,"select c1,t1 from stb1 where c1 between 1 and 10")
+        
         # join 
 
         tdSql.query("select sample( ct4.c1 , 1 )  from ct1, ct4 where ct4.ts=ct1.ts")
@@ -772,8 +779,8 @@ class TDTestCase:
         self.check_sample("select sample(c1,2) from stb1 partition by tbname" , "select c1 from stb1 partition by tbname")
 
         # nest query 
-        # tdSql.query("select sample(c1,2) from (select c1 from t1); ")
-        # tdSql.checkRows(2)
+        tdSql.query("select sample(c1,2) from (select c1 from t1); ")
+        tdSql.checkRows(2)
 
         # union all 
         tdSql.query("select sample(c1,2) from t1 union all select sample(c1,3) from t1")
