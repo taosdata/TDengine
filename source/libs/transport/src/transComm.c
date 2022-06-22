@@ -455,7 +455,7 @@ void transPrintEpSet(SEpSet* pEpSet) {
     return;
   }
   char buf[512] = {0};
-  int  len = snprintf(buf, sizeof(buf), "epset { ");
+  int  len = snprintf(buf, sizeof(buf), "epset:{ ");
   for (int i = 0; i < pEpSet->numOfEps; i++) {
     if (i == pEpSet->numOfEps - 1) {
       len += snprintf(buf + len, sizeof(buf) - len, "%d. %s:%d ", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);

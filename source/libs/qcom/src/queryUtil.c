@@ -19,7 +19,7 @@
 #include "tmsg.h"
 #include "trpc.h"
 #include "tsched.h"
-
+// clang-format off
 #define VALIDNUMOFCOLS(x) ((x) >= TSDB_MIN_COLUMNS && (x) <= TSDB_MAX_COLUMNS)
 #define VALIDNUMOFTAGS(x) ((x) >= 0 && (x) <= TSDB_MAX_TAGS)
 
@@ -146,13 +146,15 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
   }
 
   memcpy(pMsg, pInfo->msgInfo.pData, pInfo->msgInfo.len);
-  SRpcMsg rpcMsg = {.msgType = pInfo->msgType,
-                    .pCont = pMsg,
-                    .contLen = pInfo->msgInfo.len,
-                    .info.ahandle = (void*)pInfo,
-                    .info.handle = pInfo->msgInfo.handle,
-                    .info.persistHandle = persistHandle,
-                    .code = 0};
+  SRpcMsg rpcMsg = {
+    .msgType = pInfo->msgType,
+    .pCont = pMsg,
+    .contLen = pInfo->msgInfo.len,
+    .info.ahandle = (void*)pInfo,
+    .info.handle = pInfo->msgInfo.handle,
+    .info.persistHandle = persistHandle, 
+    .code = 0
+  };
   assert(pInfo->fp != NULL);
   TRACE_SET_ROOTID(&rpcMsg.info.traceId, pInfo->requestId);
   rpcSendRequestWithCtx(pTransporter, epSet, &rpcMsg, pTransporterId, rpcCtx);
@@ -220,3 +222,4 @@ void destroyQueryExecRes(SQueryExecRes* pRes) {
       qError("invalid exec result for request type %d", pRes->msgType);
   }
 }
+// clang-format on

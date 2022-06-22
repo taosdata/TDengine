@@ -238,6 +238,32 @@ int         transSendAsync(SAsyncPool* pool, queue* mq);
       }                                                       \
     }                                                         \
   } while (0)
+
+#define ASYNC_CHECK_HANDLE(exh1, refId)                                                                               \
+  do {                                                                                                                \
+    if (refId > 0) {                                                                                                  \
+      tTrace("handle step1");                                                                                         \
+      SExHandle* exh2 = transAcquireExHandle(refMgt, refId);                                                          \
+      if (exh2 == NULL || refId != exh2->refId) {                                                                     \
+        tTrace("handle %p except, may already freed, ignore msg, ref1: %" PRIu64 ", ref2 : %" PRIu64 "", exh1,        \
+               exh2 ? exh2->refId : 0, refId);                                                                        \
+        goto _return1;                                                                                                \
+      }                                                                                                               \
+    } else if (refId == 0) {                                                                                          \
+      tTrace("handle step2");                                                                                         \
+      SExHandle* exh2 = transAcquireExHandle(refMgt, refId);                                                          \
+      if (exh2 == NULL || refId != exh2->refId) {                                                                     \
+        tTrace("handle %p except, may already freed, ignore msg, ref1: %" PRIu64 ", ref2 : %" PRIu64 "", exh1, refId, \
+               exh2 ? exh2->refId : 0);                                                                               \
+        goto _return1;                                                                                                \
+      } else {                                                                                                        \
+        refId = exh1->refId;                                                                                          \
+      }                                                                                                               \
+    } else if (refId < 0) {                                                                                           \
+      tTrace("handle step3");                                                                                         \
+      goto _return2;                                                                                                  \
+    }                                                                                                                 \
+  } while (0)
 int  transInitBuffer(SConnBuffer* buf);
 int  transClearBuffer(SConnBuffer* buf);
 int  transDestroyBuffer(SConnBuffer* buf);
