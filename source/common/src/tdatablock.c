@@ -302,50 +302,20 @@ int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* p
   ASSERT(pBlockInfo->capacity >= numOfRows);
 
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
-//    if (pColumnInfoData->capacity < numOfRows) {
-//      char* p = taosMemoryRealloc(pColumnInfoData->varmeta.offset, sizeof(int32_t) * numOfRows);
-//      if (p == NULL) {
-//        return TSDB_CODE_OUT_OF_MEMORY;
-//      }
-//
-//      memset(p, 0, sizeof(int32_t));
-//      pColumnInfoData->capacity = numOfRows;
-//      pColumnInfoData->varmeta.offset = (int32_t*)p;
-//    }
-
     memcpy(pColumnInfoData->varmeta.offset, pSource->varmeta.offset, sizeof(int32_t) * numOfRows);
-//    if (pColumnInfoData->varmeta.allocLen < pSource->varmeta.length) {
-//      char* tmp = taosMemoryRealloc(pColumnInfoData->pData, pSource->varmeta.length);
-//      if (tmp == NULL) {
-//        return TSDB_CODE_OUT_OF_MEMORY;
-//      }
-//
-//      pColumnInfoData->pData = tmp;
-//      pColumnInfoData->varmeta.allocLen = pSource->varmeta.length;
-//    }
+    if (pColumnInfoData->varmeta.allocLen < pSource->varmeta.length) {
+      char* tmp = taosMemoryRealloc(pColumnInfoData->pData, pSource->varmeta.length);
+      if (tmp == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
 
-    memcpy(pColumnInfoData->pData, pSource->pData, pSource->varmeta.length);
+      pColumnInfoData->pData = tmp;
+      pColumnInfoData->varmeta.allocLen = pSource->varmeta.length;
+    }
+
     pColumnInfoData->varmeta.length = pSource->varmeta.length;
+    memcpy(pColumnInfoData->pData, pSource->pData, pSource->varmeta.length);
   } else {
-//    if (pColumnInfoData->capacity < numOfRows) {
-//      char* tmp = taosMemoryRealloc(pColumnInfoData->nullbitmap, BitmapLen(numOfRows));
-//      if (tmp == NULL) {
-//        return TSDB_CODE_OUT_OF_MEMORY;
-//      }
-//
-//      memset(tmp, 0, BitmapLen(numOfRows));
-//      pColumnInfoData->nullbitmap = tmp;
-//
-//      int32_t newSize = numOfRows * pColumnInfoData->info.bytes;
-//      tmp = taosMemoryRealloc(pColumnInfoData->pData, newSize);
-//      if (tmp == NULL) {
-//        return TSDB_CODE_OUT_OF_MEMORY;
-//      }
-//
-//      pColumnInfoData->pData = tmp;
-//      pColumnInfoData->capacity = numOfRows;
-//    }
-
     memcpy(pColumnInfoData->nullbitmap, pSource->nullbitmap, BitmapLen(numOfRows));
     memcpy(pColumnInfoData->pData, pSource->pData, pSource->info.bytes * numOfRows);
   }
@@ -1874,8 +1844,6 @@ void blockCompressEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen
 }
 
 const char* blockCompressDecode(SSDataBlock* pBlock, int32_t numOfCols, int32_t numOfRows, const char* pData) {
-  blockDataEnsureCapacity(pBlock, numOfRows);
-
   const char* pStart = pData;
 
   int32_t dataLen = *(int32_t*)pStart;
@@ -1883,11 +1851,6 @@ const char* blockCompressDecode(SSDataBlock* pBlock, int32_t numOfCols, int32_t 
 
   pBlock->info.groupId = *(uint64_t*)pStart;
   pStart += sizeof(uint64_t);
-
-  if (pBlock->pDataBlock == NULL) {
-    pBlock->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
-    taosArraySetSize(pBlock->pDataBlock, numOfCols);
-  }
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
@@ -1919,22 +1882,16 @@ const char* blockCompressDecode(SSDataBlock* pBlock, int32_t numOfCols, int32_t 
       memcpy(pColInfoData->varmeta.offset, pStart, sizeof(int32_t) * numOfRows);
       pStart += sizeof(int32_t) * numOfRows;
 
-      if (colLen[i] > 0) {
+      if (colLen[i] > 0 && pColInfoData->pData == NULL) {
         taosMemoryFreeClear(pColInfoData->pData);
         pColInfoData->pData = taosMemoryMalloc(colLen[i]);
       }
     } else {
-      if (pColInfoData->nullbitmap == NULL) {
-        pColInfoData->nullbitmap = taosMemoryCalloc(1, BitmapLen(numOfRows));
-      }
       memcpy(pColInfoData->nullbitmap, pStart, BitmapLen(numOfRows));
       pStart += BitmapLen(numOfRows);
     }
 
     if (colLen[i] > 0) {
-      if (pColInfoData->pData == NULL) {
-        pColInfoData->pData = taosMemoryCalloc(1, colLen[i]);
-      }
       memcpy(pColInfoData->pData, pStart, colLen[i]);
     }
 

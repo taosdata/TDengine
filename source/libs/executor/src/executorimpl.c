@@ -2075,14 +2075,13 @@ int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLo
     blockCompressDecode(pBlock, numOfCols, numOfRows, pStart);
     blockDataEnsureCapacity(pRes, numOfRows);
 
-    relocateColumnData(pRes, pColList, pBlock->pDataBlock, false);
-
     // data from mnode
     pRes->info.rows = numOfRows;
+    relocateColumnData(pRes, pColList, pBlock->pDataBlock, false);
 
-    taosArrayDestroy(pBlock->pDataBlock);
-    taosMemoryFree(pBlock);
-    //    blockDataDestroy(pBlock);
+//    taosArrayDestroy(pBlock->pDataBlock);
+//    taosMemoryFree(pBlock);
+    blockDataDestroy(pBlock);
   }
 
   // todo move this to time window aggregator, since the primary timestamp may not be known by exchange operator.

@@ -1366,7 +1366,6 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
       }
 
       blockDataCleanup(pInfo->pRes);
-
       int32_t numOfRows = 0;
 
       const char* db = NULL;
@@ -1558,7 +1557,7 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
 
       if (pRsp->numOfRows == 0 || pRsp->completed) {
         pOperator->status = OP_EXEC_DONE;
-        qDebug("%s load meta data from mnode completed, rowsOfSource:%d, totalRows:%" PRIu64 " ", GET_TASKID(pTaskInfo),
+        qDebug("%s load meta data from mnode completed, rowsOfSource:%d, totalRows:%" PRIu64, GET_TASKID(pTaskInfo),
                pRsp->numOfRows, pInfo->loadInfo.totalRows);
 
         if (pRsp->numOfRows == 0) {
