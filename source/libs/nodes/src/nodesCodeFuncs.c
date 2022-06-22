@@ -220,6 +220,8 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiSystemTableScan";
     case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN:
       return "PhysiBlockDistScan";
+    case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN:
+      return "PhysiLastRowScan";
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       return "PhysiProject";
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN:
@@ -4105,6 +4107,7 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return logicPlanToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN:
       return physiTagScanNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
@@ -4245,6 +4248,7 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToLogicPlan(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN:
       return jsonToPhysiTagScanNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:

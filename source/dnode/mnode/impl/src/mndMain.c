@@ -59,8 +59,10 @@ static void *mndBuildTimerMsg(int32_t *pContLen) {
 static void mndPullupTrans(SMnode *pMnode) {
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
-  SRpcMsg rpcMsg = {.msgType = TDMT_MND_TRANS_TIMER, .pCont = pReq, .contLen = contLen};
-  tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+  if (pReq != NULL) {
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_TRANS_TIMER, .pCont = pReq, .contLen = contLen};
+    tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+  }
 }
 
 static void mndTtlTimer(SMnode *pMnode) {
@@ -73,15 +75,19 @@ static void mndTtlTimer(SMnode *pMnode) {
 static void mndCalMqRebalance(SMnode *pMnode) {
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
-  SRpcMsg rpcMsg = {.msgType = TDMT_MND_MQ_TIMER, .pCont = pReq, .contLen = contLen};
-  tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
+  if (pReq != NULL) {
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_MQ_TIMER, .pCont = pReq, .contLen = contLen};
+    tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
+  }
 }
 
 static void mndPullupTelem(SMnode *pMnode) {
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
-  SRpcMsg rpcMsg = {.msgType = TDMT_MND_TELEM_TIMER, .pCont = pReq, .contLen = contLen};
-  tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
+  if (pReq != NULL) {
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_TELEM_TIMER, .pCont = pReq, .contLen = contLen};
+    tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
+  }
 }
 
 static void *mndThreadFp(void *param) {
@@ -94,7 +100,7 @@ static void *mndThreadFp(void *param) {
     taosMsleep(100);
     if (mndGetStop(pMnode)) break;
 
-    if (lastTime % (600) == 1) {
+    if (lastTime % 600 == 1) {
       mndTtlTimer(pMnode);
     }
 
@@ -522,23 +528,25 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
 static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
   if (!IsReq(pMsg)) return 0;
   if (mndAcquireRpcRef(pMsg->info.node) == 0) return 0;
+  if (pMsg->msgType == TDMT_MND_MQ_TIMER || pMsg->msgType == TDMT_MND_TELEM_TIMER ||
+      pMsg->msgType == TDMT_MND_TRANS_TIMER || TDMT_MND_TTL_TIMER) {
+    return -1;
+  }
 
-  if (pMsg->msgType != TDMT_MND_MQ_TIMER && pMsg->msgType != TDMT_MND_TELEM_TIMER &&
-      pMsg->msgType != TDMT_MND_TRANS_TIMER && pMsg->msgType != TDMT_MND_TTL_TIMER) {
-    mError("msg:%p, failed to check mnode state since %s, type:%s", pMsg, terrstr(), TMSG_INFO(pMsg->msgType));
+  const STraceId *trace = &pMsg->info.traceId;
+  mError("msg:%p, failed to check mnode state since %s, type:%s", pMsg, terrstr(), TMSG_INFO(pMsg->msgType));
 
-    SEpSet epSet = {0};
-    mndGetMnodeEpSet(pMsg->info.node, &epSet);
+  SEpSet epSet = {0};
+  mndGetMnodeEpSet(pMsg->info.node, &epSet);
 
-    int32_t contLen = tSerializeSEpSet(NULL, 0, &epSet);
-    pMsg->info.rsp = rpcMallocCont(contLen);
-    if (pMsg->info.rsp != NULL) {
-      tSerializeSEpSet(pMsg->info.rsp, contLen, &epSet);
-      pMsg->info.rspLen = contLen;
-      terrno = TSDB_CODE_RPC_REDIRECT;
-    } else {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-    }
+  int32_t contLen = tSerializeSEpSet(NULL, 0, &epSet);
+  pMsg->info.rsp = rpcMallocCont(contLen);
+  if (pMsg->info.rsp != NULL) {
+    tSerializeSEpSet(pMsg->info.rsp, contLen, &epSet);
+    pMsg->info.rspLen = contLen;
+    terrno = TSDB_CODE_RPC_REDIRECT;
+  } else {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
   }
 
   return -1;
@@ -548,17 +556,20 @@ static int32_t mndCheckMsgContent(SRpcMsg *pMsg) {
   if (!IsReq(pMsg)) return 0;
   if (pMsg->contLen != 0 && pMsg->pCont != NULL) return 0;
 
-  mError("msg:%p, failed to check msg, cont:%p contLen:%d, app:%p type:%s", pMsg, pMsg->pCont, pMsg->contLen,
+  const STraceId *trace = &pMsg->info.traceId;
+  mGError("msg:%p, failed to check msg, cont:%p contLen:%d, app:%p type:%s", pMsg, pMsg->pCont, pMsg->contLen,
          pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
   terrno = TSDB_CODE_INVALID_MSG_LEN;
   return -1;
 }
 
 int32_t mndProcessRpcMsg(SRpcMsg *pMsg) {
-  SMnode  *pMnode = pMsg->info.node;
+  SMnode         *pMnode = pMsg->info.node;
+  const STraceId *trace = &pMsg->info.traceId;
+
   MndMsgFp fp = pMnode->msgFp[TMSG_INDEX(pMsg->msgType)];
   if (fp == NULL) {
-    mError("msg:%p, failed to get msg handle, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
+    mGError("msg:%p, failed to get msg handle, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
     terrno = TSDB_CODE_MSG_NOT_PROCESSED;
     return -1;
   }
@@ -566,18 +577,17 @@ int32_t mndProcessRpcMsg(SRpcMsg *pMsg) {
   if (mndCheckMsgContent(pMsg) != 0) return -1;
   if (mndCheckMnodeState(pMsg) != 0) return -1;
 
-  STraceId *trace = &pMsg->info.traceId;
   mGTrace("msg:%p, start to process in mnode, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
   int32_t code = (*fp)(pMsg);
   mndReleaseRpcRef(pMnode);
 
   if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
-    mTrace("msg:%p, won't response immediately since in progress", pMsg);
+    mGTrace("msg:%p, won't response immediately since in progress", pMsg);
   } else if (code == 0) {
-    mTrace("msg:%p, successfully processed", pMsg);
+    mGTrace("msg:%p, successfully processed", pMsg);
   } else {
-    mError("msg:%p, failed to process since %s, app:%p type:%s", pMsg, terrstr(), pMsg->info.ahandle,
-           TMSG_INFO(pMsg->msgType));
+    mGError("msg:%p, failed to process since %s, app:%p type:%s", pMsg, terrstr(), pMsg->info.ahandle,
+            TMSG_INFO(pMsg->msgType));
   }
 
   return code;
@@ -593,7 +603,6 @@ void mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp) {
 // Note: uid 0 is reserved
 int64_t mndGenerateUid(char *name, int32_t len) {
   int32_t hashval = MurmurHash3_32(name, len);
-
   do {
     int64_t us = taosGetTimestampUs();
     int64_t x = (us & 0x000000FFFFFFFFFF) << 24;

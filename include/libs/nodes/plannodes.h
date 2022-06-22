@@ -40,7 +40,8 @@ typedef enum EScanType {
   SCAN_TYPE_SYSTEM_TABLE,
   SCAN_TYPE_STREAM,
   SCAN_TYPE_TABLE_MERGE,
-  SCAN_TYPE_BLOCK_INFO
+  SCAN_TYPE_BLOCK_INFO,
+  SCAN_TYPE_LAST_ROW
 } EScanType;
 
 typedef struct SScanLogicNode {
@@ -260,6 +261,7 @@ typedef struct SScanPhysiNode {
 
 typedef SScanPhysiNode STagScanPhysiNode;
 typedef SScanPhysiNode SBlockDistScanPhysiNode;
+typedef SScanPhysiNode SLastRowScanPhysiNode;
 
 typedef struct SSystemTableScanPhysiNode {
   SScanPhysiNode scan;

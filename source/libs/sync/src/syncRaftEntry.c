@@ -19,7 +19,7 @@
 SSyncRaftEntry* syncEntryBuild(uint32_t dataLen) {
   uint32_t        bytes = sizeof(SSyncRaftEntry) + dataLen;
   SSyncRaftEntry* pEntry = taosMemoryMalloc(bytes);
-  assert(pEntry != NULL);
+  ASSERT(pEntry != NULL);
   memset(pEntry, 0, bytes);
   pEntry->bytes = bytes;
   pEntry->dataLen = dataLen;
@@ -29,14 +29,14 @@ SSyncRaftEntry* syncEntryBuild(uint32_t dataLen) {
 // step 4. SyncClientRequest => SSyncRaftEntry, add term, index
 SSyncRaftEntry* syncEntryBuild2(SyncClientRequest* pMsg, SyncTerm term, SyncIndex index) {
   SSyncRaftEntry* pEntry = syncEntryBuild3(pMsg, term, index);
-  assert(pEntry != NULL);
+  ASSERT(pEntry != NULL);
 
   return pEntry;
 }
 
 SSyncRaftEntry* syncEntryBuild3(SyncClientRequest* pMsg, SyncTerm term, SyncIndex index) {
   SSyncRaftEntry* pEntry = syncEntryBuild(pMsg->dataLen);
-  assert(pEntry != NULL);
+  ASSERT(pEntry != NULL);
 
   pEntry->msgType = pMsg->msgType;
   pEntry->originalRpcType = pMsg->originalRpcType;
@@ -63,7 +63,7 @@ SSyncRaftEntry* syncEntryBuildNoop(SyncTerm term, SyncIndex index, int32_t vgId)
   memcpy(rpcMsg.pCont, &head, sizeof(head));
 
   SSyncRaftEntry* pEntry = syncEntryBuild(rpcMsg.contLen);
-  assert(pEntry != NULL);
+  ASSERT(pEntry != NULL);
 
   pEntry->msgType = TDMT_SYNC_CLIENT_REQUEST;
   pEntry->originalRpcType = TDMT_SYNC_NOOP;
@@ -72,7 +72,7 @@ SSyncRaftEntry* syncEntryBuildNoop(SyncTerm term, SyncIndex index, int32_t vgId)
   pEntry->term = term;
   pEntry->index = index;
 
-  assert(pEntry->dataLen == rpcMsg.contLen);
+  ASSERT(pEntry->dataLen == rpcMsg.contLen);
   memcpy(pEntry->data, rpcMsg.pCont, rpcMsg.contLen);
   rpcFreeCont(rpcMsg.pCont);
 
@@ -88,7 +88,7 @@ void syncEntryDestory(SSyncRaftEntry* pEntry) {
 // step 5. SSyncRaftEntry => bin, to raft log
 char* syncEntrySerialize(const SSyncRaftEntry* pEntry, uint32_t* len) {
   char* buf = taosMemoryMalloc(pEntry->bytes);
-  assert(buf != NULL);
+  ASSERT(buf != NULL);
   memcpy(buf, pEntry, pEntry->bytes);
   if (len != NULL) {
     *len = pEntry->bytes;
@@ -100,9 +100,9 @@ char* syncEntrySerialize(const SSyncRaftEntry* pEntry, uint32_t* len) {
 SSyncRaftEntry* syncEntryDeserialize(const char* buf, uint32_t len) {
   uint32_t        bytes = *((uint32_t*)buf);
   SSyncRaftEntry* pEntry = taosMemoryMalloc(bytes);
-  assert(pEntry != NULL);
+  ASSERT(pEntry != NULL);
   memcpy(pEntry, buf, len);
-  assert(len == pEntry->bytes);
+  ASSERT(len == pEntry->bytes);
   return pEntry;
 }
 

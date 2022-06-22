@@ -234,6 +234,7 @@ typedef struct SColMatchInfo {
   int32_t colId;
   int32_t targetSlotId;
   bool    output;
+  bool    reserved;
   int32_t matchType;     // determinate the source according to col id or slot id
 } SColMatchInfo;
 
@@ -253,7 +254,6 @@ typedef struct STableScanInfo {
 
   SFileBlockLoadRecorder readRecorder;
   int64_t         numOfRows;
-//  int32_t         prevGroupId;  // previous table group id
   SScanInfo       scanInfo;
   int32_t         scanTimes;
   SNode*          pFilterNode;  // filter info, which is push down by optimizer

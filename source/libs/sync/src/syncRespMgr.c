@@ -22,7 +22,7 @@ SSyncRespMgr *syncRespMgrCreate(void *data, int64_t ttl) {
 
   pObj->pRespHash =
       taosHashInit(sizeof(uint64_t), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
-  assert(pObj->pRespHash != NULL);
+  ASSERT(pObj->pRespHash != NULL);
   pObj->ttl = ttl;
   pObj->data = data;
   pObj->seqNum = 0;
