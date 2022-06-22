@@ -12,7 +12,7 @@
 ## ---- db
 ./test.sh -f tsim/db/create_all_options.sim
 ./test.sh -f tsim/db/alter_option.sim
-#./test.sh -f tsim/db/alter_replica_13.sim
+./test.sh -f tsim/db/alter_replica_13.sim
 #./test.sh -f tsim/db/alter_replica_31.sim
 ./test.sh -f tsim/db/basic1.sim
 ./test.sh -f tsim/db/basic2.sim
@@ -31,8 +31,8 @@
 #./test.sh -f tsim/dnode/drop_dnode_has_vnode_replica3.sim
 #./test.sh -f tsim/dnode/drop_dnode_has_multi_vnode_replica1.sim
 #./test.sh -f tsim/dnode/drop_dnode_has_multi_vnode_replica3.sim
-#./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v1_follower.sim
-#./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v1_follower.sim
+#./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v1_leader.sim
+./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v1_follower.sim
 
 # ---- insert
 ./test.sh -f tsim/insert/basic0.sim
