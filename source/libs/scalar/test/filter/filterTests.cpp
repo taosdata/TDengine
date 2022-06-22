@@ -921,7 +921,7 @@ TEST(opTest, smallint_column_or_double_value) {
   ASSERT_EQ(code, 0);
 
   SColumnDataAgg stat = {0};
-  SFilterColumnParam param = { taosArrayGetSize(src->pDataBlock), src->pDataBlock };
+  SFilterColumnParam param = { (int32_t)taosArrayGetSize(src->pDataBlock), src->pDataBlock };
   code = filterSetDataFromSlotId(filter, &param);
   ASSERT_EQ(code, 0);
 
@@ -965,7 +965,7 @@ TEST(opTest, binary_column_is_true) {
   ASSERT_EQ(code, 0);
 
   SColumnDataAgg stat = {0};
-  SFilterColumnParam param = { taosArrayGetSize(src->pDataBlock), src->pDataBlock };
+  SFilterColumnParam param = { (int32_t)taosArrayGetSize(src->pDataBlock), src->pDataBlock };
   code = filterSetDataFromSlotId(filter, &param);
   ASSERT_EQ(code, 0);
 
@@ -1036,7 +1036,7 @@ TEST(filterModelogicTest, diff_columns_and_or_and) {
   ASSERT_EQ(code, 0);
 
   SColumnDataAgg stat = {0};
-  SFilterColumnParam param = { taosArrayGetSize(src->pDataBlock), src->pDataBlock };
+  SFilterColumnParam param = { (int32_t)taosArrayGetSize(src->pDataBlock), src->pDataBlock };
   code = filterSetDataFromSlotId(filter, &param);
   ASSERT_EQ(code, 0);
 
@@ -1105,7 +1105,7 @@ TEST(filterModelogicTest, same_column_and_or_and) {
   ASSERT_EQ(code, 0);
 
   SColumnDataAgg stat = {0};
-  SFilterColumnParam param = { taosArrayGetSize(src->pDataBlock), src->pDataBlock };
+  SFilterColumnParam param = { (int32_t)taosArrayGetSize(src->pDataBlock), src->pDataBlock };
   code = filterSetDataFromSlotId(filter, &param);
   ASSERT_EQ(code, 0);
 
@@ -1174,7 +1174,7 @@ TEST(filterModelogicTest, diff_columns_or_and_or) {
   ASSERT_EQ(code, 0);
 
   SColumnDataAgg stat = {0};
-  SFilterColumnParam param = { taosArrayGetSize(src->pDataBlock), src->pDataBlock };
+  SFilterColumnParam param = { (int32_t) taosArrayGetSize(src->pDataBlock), src->pDataBlock };
   code = filterSetDataFromSlotId(filter, &param);
   ASSERT_EQ(code, 0);
 
@@ -1243,7 +1243,7 @@ TEST(filterModelogicTest, same_column_or_and_or) {
   ASSERT_EQ(code, 0);
 
   SColumnDataAgg stat = {0};
-  SFilterColumnParam param = { taosArrayGetSize(src->pDataBlock), src->pDataBlock };
+  SFilterColumnParam param = { (int32_t)taosArrayGetSize(src->pDataBlock), src->pDataBlock };
   code = filterSetDataFromSlotId(filter, &param);
   ASSERT_EQ(code, 0);
 
@@ -1314,7 +1314,7 @@ TEST(scalarModelogicTest, diff_columns_or_and_or) {
   ASSERT_EQ(code, 0);
 
   SColumnDataAgg stat = {0};
-  SFilterColumnParam param = { taosArrayGetSize(src->pDataBlock), src->pDataBlock };
+  SFilterColumnParam param = { (int32_t)taosArrayGetSize(src->pDataBlock), src->pDataBlock };
   code = filterSetDataFromSlotId(filter, &param);
   ASSERT_EQ(code, 0);
 
