@@ -498,11 +498,11 @@ class TDTestCase:
         tdSql.query("select dataint,jtag,tbname from jsons1 union all select dataint,jtag,tbname from jsons2")
         tdSql.checkRows(13)
 
-        # #show create table
-        # tdSql.query("show create table jsons1")
-        # tdSql.checkData(0, 1, 'CREATE TABLE `jsons1` (`ts` TIMESTAMP,`dataint` INT,`databool` BOOL,`datastr` NCHAR(50),`datastrbin` BINARY(150)) TAGS (`jtag` JSON)')
-        #
-        # #test aggregate function:count/avg/twa/irate/sum/stddev/leastsquares
+        #show create table
+        tdSql.query("show create table jsons1")
+        tdSql.checkData(0, 1, 'CREATE STABLE `jsons1` (`ts` TIMESTAMP, `dataint` INT, `databool` BOOL, `datastr` NCHAR(50), `datastrbin` VARCHAR(150)) TAGS (`jtag` JSON) WATERMARK 5000a, 5000a')
+
+        #test aggregate function:count/avg/twa/irate/sum/stddev/leastsquares
         tdSql.query("select count(*) from jsons1 where jtag is not null")
         tdSql.checkData(0, 0, 10)
         tdSql.query("select avg(dataint) from jsons1 where jtag is not null")
