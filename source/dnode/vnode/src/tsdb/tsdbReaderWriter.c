@@ -925,21 +925,21 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, uint8_
   for (int32_t iCol = 0; iCol < taosArrayGetSize(pBlockData->aColDataP); iCol++) {
     SColData *pColData = (SColData *)taosArrayGetP(pBlockData->aColDataP, iCol);
 
-    ASSERT(pColData->flags);
+    ASSERT(pColData->flag);
 
-    if (pColData->flags == HAS_NONE) continue;
+    if (pColData->flag == HAS_NONE) continue;
 
     bCol.cid = pColData->cid;
     bCol.type = pColData->type;
-    bCol.flag = pColData->flags;
+    bCol.flag = pColData->flag;
 
-    if (pColData->flags != HAS_NULL) {
+    if (pColData->flag != HAS_NULL) {
       cksm = 0;
       bCol.offset = offset;
       bCol.size = 0;
 
       // bitmap
-      if (pColData->flags != HAS_VALUE) {
+      if (pColData->flag != HAS_VALUE) {
         // TODO: optimize bitmap part
         n = taosWriteFile(pFileFD, pColData->pBitMap, BIT2_SIZE(pBlockData->nRow));
         if (n < 0) {

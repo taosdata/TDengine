@@ -520,11 +520,11 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
     //                 sizeof(SBlockCol), tColDataCmprFn, TD_EQ);
     if (p) {
       pColData = (SColData *)p;
-      ASSERT(pColData->flags);
+      ASSERT(pColData->flag);
 
-      if (pColData->flags == HAS_NONE) {
+      if (pColData->flag == HAS_NONE) {
         goto _return_none;
-      } else if (pColData->flags == HAS_NULL) {
+      } else if (pColData->flag == HAS_NULL) {
         goto _return_null;
       } else {
         uint8_t v = GET_BIT2(pColData->pBitMap, pRow->iRow);
@@ -551,15 +551,15 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
   }
 
 _return_none:
-  *pColVal = COL_VAL_NONE(pTColumn->colId);
+  *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
   return;
 
 _return_null:
-  *pColVal = COL_VAL_NULL(pTColumn->colId);
+  *pColVal = COL_VAL_NULL(pTColumn->colId, pTColumn->type);
   return;
 
 _return_value:
-  *pColVal = COL_VAL_VALUE(pTColumn->colId, value);
+  *pColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, value);
   return;
 }
 
@@ -753,7 +753,9 @@ int32_t tGetKEYINFO(uint8_t *p, KEYINFO *pKeyInfo) {
 void tColDataReset(SColData *pColData, int16_t cid, int8_t type) {
   pColData->cid = cid;
   pColData->type = type;
-  pColData->flags = 0;
+  pColData->nVal = 0;
+  pColData->flag = 0;
+  pColData->offsetValid = 0;
   pColData->nData = 0;
 }
 
@@ -761,23 +763,121 @@ void tColDataClear(void *ph) {
   SColData *pColData = (SColData *)ph;
 
   tsdbFree(pColData->pBitMap);
-  tsdbFree((uint8_t *)pColData->pOfst);
+  tsdbFree((uint8_t *)pColData->aOffset);
   tsdbFree(pColData->pData);
 }
 
 int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal) {
   int32_t code = 0;
+  int64_t size;
+  SValue  value = {0};
+  SValue *pValue = &value;
 
+  ASSERT(pColVal->cid == pColData->cid);
+  ASSERT(pColVal->type == pColData->type);
+
+  // realloc bitmap
+  size = BIT2_SIZE(pColData->nVal + 1);
+  code = tsdbRealloc(&pColData->pBitMap, size);
+  if (code) goto _exit;
+
+  // put value
   if (pColVal->isNone) {
+    pColData->flag |= HAS_NONE;
+    SET_BIT2(pColData->pBitMap, pColData->nVal, 0);
+    if (IS_VAR_DATA_TYPE(pColData->type)) pValue = NULL;
   } else if (pColVal->isNull) {
+    pColData->flag |= HAS_NULL;
+    SET_BIT2(pColData->pBitMap, pColData->nVal, 1);
+    if (IS_VAR_DATA_TYPE(pColData->type)) pValue = NULL;
   } else {
+    pColData->flag |= HAS_VALUE;
+    SET_BIT2(pColData->pBitMap, pColData->nVal, 2);
+    pValue = &pColVal->value;
   }
 
+  if (pValue) {
+    code = tsdbRealloc(&pColData->pData, pColData->nData + tPutValue(NULL, &pColVal->value, pColVal->type));
+    if (code) goto _exit;
+
+    pColData->nData += tPutValue(pColData->pData + pColData->nData, &pColVal->value, pColVal->type);
+  }
+
+  pColData->nVal++;
+  pColData->offsetValid = 0;
+
+_exit:
   return code;
 }
 
-void tColDataGetValue(SColData *pColData, int32_t iRow, SColVal *pColVal) {
-  // TODO
+static int32_t tColDataUpdateOffset(SColData *pColData) {
+  int32_t code = 0;
+  SValue  value;
+
+  ASSERT(pColData->nVal > 0);
+  ASSERT(pColData->flag);
+
+  if (IS_VAR_DATA_TYPE(pColData->type) && (pColData->flag & HAS_VALUE)) {
+    code = tsdbRealloc((uint8_t **)&pColData->aOffset, sizeof(int32_t) * pColData->nVal);
+    if (code) goto _exit;
+
+    int32_t offset = 0;
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      uint8_t v = GET_BIT2(pColData->pBitMap, iVal);
+      if (v == 0 || v == 1) {
+        pColData->aOffset[iVal] = -1;
+      } else {
+        pColData->aOffset[iVal] = offset;
+        offset += tGetValue(pColData->pData + offset, &value, pColData->type);
+      }
+    }
+
+    ASSERT(offset == pColData->nData);
+    pColData->offsetValid = 1;
+  }
+
+_exit:
+  return code;
+}
+
+int32_t tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal) {
+  int32_t code = 0;
+
+  ASSERT(iVal < pColData->nVal);
+  ASSERT(pColData->flag);
+
+  if (pColData->flag == HAS_NONE) {
+    *pColVal = COL_VAL_NONE(pColData->cid, pColData->type);
+    goto _exit;
+  } else if (pColData->flag == HAS_NULL) {
+    *pColVal = COL_VAL_NULL(pColData->cid, pColData->type);
+    goto _exit;
+  } else if (pColData->flag != HAS_VALUE) {
+    uint8_t v = GET_BIT2(pColData->pBitMap, iVal);
+    if (v == 0) {
+      *pColVal = COL_VAL_NONE(pColData->cid, pColData->type);
+      goto _exit;
+    } else if (v == 1) {
+      *pColVal = COL_VAL_NULL(pColData->cid, pColData->type);
+      goto _exit;
+    }
+  }
+
+  // get value
+  SValue value;
+  if (IS_VAR_DATA_TYPE(pColData->type)) {
+    if (!pColData->offsetValid) {
+      code = tColDataUpdateOffset(pColData);
+      if (code) goto _exit;
+    }
+    tGetValue(pColData->pData + pColData->aOffset[iVal], &value, pColData->type);
+  } else {
+    tGetValue(pColData->pData + tDataTypes[pColData->type].bytes * iVal, &value, pColData->type);
+  }
+  *pColVal = COL_VAL_VALUE(pColData->cid, pColData->type, value);
+
+_exit:
+  return code;
 }
 
 int32_t tColDataCmprFn(const void *p1, const void *p2) {
@@ -839,7 +939,7 @@ static SColData *tBlockDataAddBlockCol(SBlockData *pBlockData, int32_t iColData,
 
   // append NONE
   for (int32_t i = 0; i < pBlockData->nRow; i++) {
-    if (tColDataAppendValue(pColData, &COL_VAL_NONE(cid)) != 0) return NULL;
+    if (tColDataAppendValue(pColData, &COL_VAL_NONE(cid, type)) != 0) return NULL;
   }
 
   return pColData;
@@ -876,7 +976,7 @@ int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
 
       pColVal = tRowIterNext(pIter);
     } else if (pColVal->cid > pColData->cid) {
-      code = tColDataAppendValue(pColData, &(COL_VAL_NONE(pColData->cid)));
+      code = tColDataAppendValue(pColData, &(COL_VAL_NONE(pColData->cid, pColData->type)));
       if (code) goto _err;
     } else {
       pColData = tBlockDataAddBlockCol(pBlockData, iColData, pColVal->cid, pColVal->type);
@@ -897,7 +997,7 @@ int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
   }
 
   while (pColData) {
-    code = tColDataAppendValue(pColData, &COL_VAL_NONE(pColData->cid));
+    code = tColDataAppendValue(pColData, &COL_VAL_NONE(pColData->cid, pColData->type));
     if (code) goto _err;
 
     pColData = ((++iColData) < taosArrayGetSize(pBlockData->aColDataP))

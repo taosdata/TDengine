@@ -633,15 +633,15 @@ void tTSRowGet(STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal
   }
 
 _return_none:
-  *pColVal = COL_VAL_NONE(pTColumn->colId);
+  *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
   return;
 
 _return_null:
-  *pColVal = COL_VAL_NULL(pTColumn->colId);
+  *pColVal = COL_VAL_NULL(pTColumn->colId, pTColumn->type);
   return;
 
 _return_value:
-  *pColVal = COL_VAL_VALUE(pTColumn->colId, value);
+  *pColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, value);
   return;
 }
 

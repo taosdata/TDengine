@@ -114,7 +114,7 @@ int32_t tGetBlockIdx(uint8_t *p, void *ph);
 void    tColDataReset(SColData *pColData, int16_t cid, int8_t type);
 void    tColDataClear(void *ph);
 int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal);
-void    tColDataGetValue(SColData *pColData, int32_t iRow, SColVal *pColVal);
+int32_t tColDataGetValue(SColData *pColData, int32_t iRow, SColVal *pColVal);
 int32_t tColDataCmprFn(const void *p1, const void *p2);
 // SBlockData
 int32_t tBlockDataInit(SBlockData *pBlockData);
@@ -365,10 +365,12 @@ struct SAggrBlkCol {
 struct SColData {
   int16_t  cid;
   int8_t   type;
-  uint8_t  flags;
+  int8_t   offsetValid;
+  int32_t  nVal;
+  uint8_t  flag;
   uint8_t *pBitMap;
-  int32_t *pOfst;
-  uint32_t nData;
+  int32_t *aOffset;
+  int32_t  nData;
   uint8_t *pData;
 };
 

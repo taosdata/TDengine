@@ -55,9 +55,9 @@ int32_t tGetValue(uint8_t *p, SValue *pValue, int8_t type);
 int     tValueCmprFn(const SValue *pValue1, const SValue *pValue2, int8_t type);
 
 // STSRow2
-#define COL_VAL_NONE(CID)     ((SColVal){.cid = (CID), .isNone = 1})
-#define COL_VAL_NULL(CID)     ((SColVal){.cid = (CID), .isNull = 1})
-#define COL_VAL_VALUE(CID, V) ((SColVal){.cid = (CID), .value = (V)})
+#define COL_VAL_NONE(CID, TYPE)     ((SColVal){.cid = (CID), .type = (TYPE), .isNone = 1})
+#define COL_VAL_NULL(CID, TYPE)     ((SColVal){.cid = (CID), .type = (TYPE), .isNull = 1})
+#define COL_VAL_VALUE(CID, TYPE, V) ((SColVal){.cid = (CID), .type = (TYPE), .value = (V)})
 
 int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, STSRow2 **ppRow);
 int32_t tTSRowClone(const STSRow2 *pRow, STSRow2 **ppRow);
