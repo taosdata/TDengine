@@ -1268,7 +1268,8 @@ int32_t blockDataAppendColInfo(SSDataBlock* pBlock, SColumnInfoData* pColInfoDat
     return terrno;
   }
 
-  ASSERT(pColInfoData->info.type != 0);
+  // todo disable it temporarily
+//  ASSERT(pColInfoData->info.type != 0);
   if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
     pBlock->info.hasVarCol = true;
   }
