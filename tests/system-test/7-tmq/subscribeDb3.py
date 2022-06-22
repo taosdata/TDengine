@@ -54,15 +54,38 @@ class TDTestCase:
         tdSql.query("create database if not exists %s vgroups 1"%(cdbName))
         tdSql.query("drop table if exists %s.consumeinfo "%(cdbName))
         tdSql.query("drop table if exists %s.consumeresult "%(cdbName))
+        tdSql.query("drop table if exists %s.notifyinfo "%(cdbName))        
 
         tdSql.query("create table %s.consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)"%cdbName)
         tdSql.query("create table %s.consumeresult (ts timestamp, consumerid int, consummsgcnt bigint, consumrowcnt bigint, checkresult int)"%cdbName)
+        tdSql.query("create table %s.notifyinfo (ts timestamp, cmdid int, consumerid int)"%cdbName)
 
     def insertConsumerInfo(self,consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifmanualcommit,cdbName='cdb'):    
         sql = "insert into %s.consumeinfo values "%cdbName
         sql += "(now, %d, '%s', '%s', %d, %d, %d)"%(consumerId, topicList, keyList, expectrowcnt, ifcheckdata, ifmanualcommit)
         tdLog.info("consume info sql: %s"%sql)
         tdSql.query(sql)
+
+    def getStartConsumeNotifyFromTmqsim(self,cdbName='cdb'):
+        while 1:
+            tdSql.query("select * from %s.notifyinfo"%cdbName)
+            #tdLog.info("row: %d, %l64d, %l64d"%(tdSql.getData(0, 1),tdSql.getData(0, 2),tdSql.getData(0, 3))
+            if (tdSql.getRows() == 1) and (tdSql.getData(0, 1) == 0):
+                break
+            else:
+                time.sleep(0.1)
+        return
+        
+    def getStartCommitNotifyFromTmqsim(self,cdbName='cdb'):
+        while 1:
+            tdSql.query("select * from %s.notifyinfo"%cdbName)
+            #tdLog.info("row: %d, %l64d, %l64d"%(tdSql.getData(0, 1),tdSql.getData(0, 2),tdSql.getData(0, 3))
+            if tdSql.getRows() == 2 :
+                print(tdSql.getData(0, 1), tdSql.getData(1, 1))
+                if tdSql.getData(1, 1) == 1:
+                    break
+            time.sleep(0.1)
+        return
 
     def selectConsumeResult(self,expectRows,cdbName='cdb'):
         resultList=[]
@@ -72,7 +95,7 @@ class TDTestCase:
             if tdSql.getRows() == expectRows:
                 break
             else:
-                time.sleep(5)        
+                time.sleep(1)        
 
         for i in range(expectRows):
             tdLog.info ("ts: %s, consume id: %d, consume msgs: %d, consume rows: %d"%(tdSql.getData(i , 0), tdSql.getData(i , 1), tdSql.getData(i , 2), tdSql.getData(i , 3)))
@@ -207,7 +230,9 @@ class TDTestCase:
         showRow   = 1
         self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
 
-        time.sleep(2)
+        tdLog.info("wait the notify info of start consume")
+        self.getStartConsumeNotifyFromTmqsim()
+
         tdLog.info("pkill consume processor")
         if (platform.system().lower() == 'windows'):
             os.system("TASKKILL /F /IM tmq_sim.exe")
@@ -282,14 +307,17 @@ class TDTestCase:
         showRow   = 1
         self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
 
-        time.sleep(6)
+        # time.sleep(6)        
+        tdLog.info("start to wait commit notify")
+        self.getStartCommitNotifyFromTmqsim()
+
         tdLog.info("pkill consume processor")
         if (platform.system().lower() == 'windows'):
             os.system("TASKKILL /F /IM tmq_sim.exe")
         else:
             os.system('pkill tmq_sim')
-        expectRows = 0
-        resultList = self.selectConsumeResult(expectRows)
+        # expectRows = 0
+        # resultList = self.selectConsumeResult(expectRows)
 
         # wait for data ready
         prepareEnvThread.join()        

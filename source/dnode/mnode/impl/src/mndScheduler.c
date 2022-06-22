@@ -496,6 +496,9 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
       // input
       pTask->inputType = TASK_INPUT_TYPE__SUMBIT_BLOCK;
 
+      // trigger
+      pTask->triggerParam = pStream->triggerParam;
+
       // sink or dispatch
       if (hasExtraSink) {
         mndAddDispatcherToInnerTask(pMnode, pTrans, pStream, pTask);

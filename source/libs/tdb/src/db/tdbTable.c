@@ -61,6 +61,11 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
     return -1;
   }
 
+  ret = tdbPagerRestore(pPager, pTb->pBt);
+  if (ret < 0) {
+    return -1;
+  }
+
   *ppTb = pTb;
   return 0;
 }

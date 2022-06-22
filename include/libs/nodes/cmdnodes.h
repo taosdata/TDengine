@@ -28,6 +28,15 @@ extern "C" {
 #define DESCRIBE_RESULT_TYPE_LEN  (20 + VARSTR_HEADER_SIZE)
 #define DESCRIBE_RESULT_NOTE_LEN  (8 + VARSTR_HEADER_SIZE)
 
+#define SHOW_CREATE_DB_RESULT_COLS      2
+#define SHOW_CREATE_DB_RESULT_FIELD1_LEN (TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE)
+#define SHOW_CREATE_DB_RESULT_FIELD2_LEN (TSDB_MAX_BINARY_LEN + VARSTR_HEADER_SIZE)
+
+#define SHOW_CREATE_TB_RESULT_COLS      2
+#define SHOW_CREATE_TB_RESULT_FIELD1_LEN (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE)
+#define SHOW_CREATE_TB_RESULT_FIELD2_LEN (TSDB_MAX_BINARY_LEN + VARSTR_HEADER_SIZE)
+
+
 #define PRIVILEGE_TYPE_MASK(n) (1 << n)
 
 #define PRIVILEGE_TYPE_ALL   PRIVILEGE_TYPE_MASK(0)
@@ -119,14 +128,14 @@ typedef struct SCreateTableStmt {
 } SCreateTableStmt;
 
 typedef struct SCreateSubTableClause {
-  ENodeType  type;
-  char       dbName[TSDB_DB_NAME_LEN];
-  char       tableName[TSDB_TABLE_NAME_LEN];
-  char       useDbName[TSDB_DB_NAME_LEN];
-  char       useTableName[TSDB_TABLE_NAME_LEN];
-  bool       ignoreExists;
-  SNodeList* pSpecificTags;
-  SNodeList* pValsOfTags;
+  ENodeType      type;
+  char           dbName[TSDB_DB_NAME_LEN];
+  char           tableName[TSDB_TABLE_NAME_LEN];
+  char           useDbName[TSDB_DB_NAME_LEN];
+  char           useTableName[TSDB_TABLE_NAME_LEN];
+  bool           ignoreExists;
+  SNodeList*     pSpecificTags;
+  SNodeList*     pValsOfTags;
   STableOptions* pOptions;
 } SCreateSubTableClause;
 
@@ -221,7 +230,7 @@ typedef struct SShowCreateTableStmt {
   ENodeType   type;
   char        dbName[TSDB_DB_NAME_LEN];
   char        tableName[TSDB_TABLE_NAME_LEN];
-  STableMeta* pMeta;
+  void*       pCfg; // STableCfg
 } SShowCreateTableStmt;
 
 typedef struct SShowTableDistributedStmt {
@@ -229,6 +238,11 @@ typedef struct SShowTableDistributedStmt {
   char      dbName[TSDB_DB_NAME_LEN];
   char      tableName[TSDB_TABLE_NAME_LEN];
 } SShowTableDistributedStmt;
+
+typedef struct SShowDnodeVariablesStmt {
+  ENodeType type;
+  SNode*    pDnodeId;
+} SShowDnodeVariablesStmt;
 
 typedef enum EIndexType { INDEX_TYPE_SMA = 1, INDEX_TYPE_FULLTEXT } EIndexType;
 

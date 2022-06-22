@@ -158,6 +158,13 @@ int tdbBtreeUpsert(SBTree *pBt, const void *pKey, int nKey, const void *pData, i
 int tdbBtreeGet(SBTree *pBt, const void *pKey, int kLen, void **ppVal, int *vLen);
 int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkLen, void **ppVal, int *vLen);
 
+typedef struct {
+  u8      flags;
+  SBTree *pBt;
+} SBtreeInitPageArg;
+
+int tdbBtreeInitPage(SPage *pPage, void *arg, int init);
+
 // SBTC
 int tdbBtcOpen(SBTC *pBtc, SBTree *pBt, TXN *pTxn);
 int tdbBtcClose(SBTC *pBtc);
@@ -185,6 +192,7 @@ int  tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initP
                        TXN *pTxn);
 void tdbPagerReturnPage(SPager *pPager, SPage *pPage, TXN *pTxn);
 int  tdbPagerAllocPage(SPager *pPager, SPgno *ppgno);
+int tdbPagerRestore(SPager *pPager, SBTree *pBt);
 
 // tdbPCache.c ====================================
 #define TDB_PCACHE_PAGE    \

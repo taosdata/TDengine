@@ -172,7 +172,7 @@ int32_t vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
         goto _err;
       }
     } break;
-    case TDMT_VND_STREAM_TASK_DROP: {
+    case TDMT_STREAM_TASK_DROP: {
       if (tqProcessTaskDropReq(pVnode->pTq, pMsg->pCont, pMsg->contLen) < 0) {
         goto _err;
       }
@@ -255,6 +255,8 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return qWorkerProcessHbMsg(pVnode, pVnode->pQuery, pMsg, 0);
     case TDMT_VND_TABLE_META:
       return vnodeGetTableMeta(pVnode, pMsg);
+    case TDMT_VND_TABLE_CFG:
+      return vnodeGetTableCfg(pVnode, pMsg);
     case TDMT_VND_CONSUME:
       return tqProcessPollReq(pVnode->pTq, pMsg, pInfo->workerId);
     case TDMT_STREAM_TASK_RUN:

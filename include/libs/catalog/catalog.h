@@ -68,7 +68,9 @@ typedef struct SCatalogReq {
   SArray* pIndex;         // element is index name
   SArray* pUser;          // element is SUserAuthInfo
   SArray* pTableIndex;    // element is SNAME
+  SArray* pTableCfg;      // element is SNAME
   bool    qNodeRequired;  // valid qnode
+  bool    dNodeRequired;  // valid dnode
   bool    forceUpdate;
 } SCatalogReq;
 
@@ -88,6 +90,8 @@ typedef struct SMetaData {
   SArray* pIndex;       // pRes = SIndexInfo*
   SArray* pUser;        // pRes = bool*
   SArray* pQnodeList;   // pRes = SArray<SQueryNodeLoad>*
+  SArray* pTableCfg;    // pRes = STableCfg*
+  SArray* pDnodeList;   // pRes = SArray<SEpSet>*
 } SMetaData;
 
 typedef struct SCatalogCfg {
@@ -268,6 +272,8 @@ int32_t catalogAsyncGetAllMeta(SCatalog* pCtg, SRequestConnInfo* pConn, uint64_t
 
 int32_t catalogGetQnodeList(SCatalog* pCatalog, SRequestConnInfo* pConn, SArray* pQnodeList);
 
+int32_t catalogGetDnodeList(SCatalog* pCatalog, SRequestConnInfo* pConn, SArray** pDnodeList);
+
 int32_t catalogGetExpiredSTables(SCatalog* pCatalog, SSTableVersion **stables, uint32_t *num);
 
 int32_t catalogGetExpiredDBs(SCatalog* pCatalog, SDbVgVersion** dbs, uint32_t* num);
@@ -279,6 +285,8 @@ int32_t catalogGetDBCfg(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbF
 int32_t catalogGetIndexMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const char* indexName, SIndexInfo* pInfo);
 
 int32_t catalogGetTableIndex(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SArray** pRes);
+
+int32_t catalogRefreshGetTableCfg(SCatalog* pCtg, SRequestConnInfo *pConn, const SName* pTableName, STableCfg** pCfg);
 
 int32_t catalogUpdateTableIndex(SCatalog* pCtg, STableIndexRsp *pRsp);
 

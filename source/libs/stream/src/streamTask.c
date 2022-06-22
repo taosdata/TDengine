@@ -23,7 +23,7 @@ SStreamTask* tNewSStreamTask(int64_t streamId) {
   }
   pTask->taskId = tGenIdPI32();
   pTask->streamId = streamId;
-  pTask->status = TASK_STATUS__IDLE;
+  pTask->execStatus = TASK_EXEC_STATUS__IDLE;
   pTask->inputStatus = TASK_INPUT_STATUS__NORMAL;
   pTask->outputStatus = TASK_OUTPUT_STATUS__NORMAL;
 
@@ -35,7 +35,8 @@ int32_t tEncodeSStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   if (tEncodeI64(pEncoder, pTask->streamId) < 0) return -1;
   if (tEncodeI32(pEncoder, pTask->taskId) < 0) return -1;
   if (tEncodeI8(pEncoder, pTask->inputType) < 0) return -1;
-  if (tEncodeI8(pEncoder, pTask->status) < 0) return -1;
+  if (tEncodeI8(pEncoder, pTask->taskStatus) < 0) return -1;
+  if (tEncodeI8(pEncoder, pTask->execStatus) < 0) return -1;
   if (tEncodeI8(pEncoder, pTask->execType) < 0) return -1;
   if (tEncodeI8(pEncoder, pTask->sinkType) < 0) return -1;
   if (tEncodeI8(pEncoder, pTask->dispatchType) < 0) return -1;
@@ -83,7 +84,8 @@ int32_t tDecodeSStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   if (tDecodeI64(pDecoder, &pTask->streamId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pTask->taskId) < 0) return -1;
   if (tDecodeI8(pDecoder, &pTask->inputType) < 0) return -1;
-  if (tDecodeI8(pDecoder, &pTask->status) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pTask->taskStatus) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pTask->execStatus) < 0) return -1;
   if (tDecodeI8(pDecoder, &pTask->execType) < 0) return -1;
   if (tDecodeI8(pDecoder, &pTask->sinkType) < 0) return -1;
   if (tDecodeI8(pDecoder, &pTask->dispatchType) < 0) return -1;
