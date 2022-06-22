@@ -978,6 +978,21 @@ static int32_t translateDerivative(SFunctionNode* pFunc, char* pErrBuf, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateIrate(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+
+  if (!IS_NUMERIC_TYPE(colType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateFirstLast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // first(col_list) will be rewritten as first(col)
   if (1 != LIST_LENGTH(pFunc->pParameterList)) {
@@ -1795,6 +1810,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = derivativeFuncSetup,
     .processFunc  = derivativeFunction,
     .finalizeFunc = functionFinalize
+  },
+  {
+    .name = "irate",
+    .type = FUNCTION_TYPE_IRATE,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC,
+    .translateFunc = translateIrate,
+    .getEnvFunc   = getIrateFuncEnv,
+    .initFunc     = irateFuncSetup,
+    .processFunc  = irateFunction,
+    .finalizeFunc = irateFinalize
   },
   {
     .name = "last_row",
