@@ -18,6 +18,10 @@
 static int32_t transSCliInst = 0;
 static int32_t refMgt = 0;
 
+typedef struct SExHandleWrap {
+  void*   exhandle;
+  int64_t refId;
+} SExHandleWrap;
 typedef struct SCliConn {
   T_REF_DECLARE()
   uv_connect_t connReq;
@@ -338,9 +342,11 @@ void cliHandleResp(SCliConn* conn) {
     exh->pThrd = pThrd;
     exh->refId = transAddExHandle(refMgt, exh);
 
-    transMsg.info.handle = exh;
-    transMsg.info.refId = exh->refId;
+    SExHandleWrap* wrap = taosMemoryCalloc(1, sizeof(SExHandleWrap));
+    wrap->exhandle = exh;
+    wrap->refId = exh->refId;
     conn->refId = exh->refId;
+    transMsg.info.handle = wrap;
     tDebug("%s conn %p ref by app", CONN_GET_INST_LABEL(conn), conn);
   }
 
@@ -1007,6 +1013,8 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
     pMsg->sent = 0;
     tTrace("try to send req to next node");
     pMsg->st = taosGetTimestampUs();
+
+    taosMemoryFree(pResp->info.handle);
     pCtx->retryCount += 1;
     if (pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
       if (pCtx->retryCount < pEpSet->numOfEps * 3) {
