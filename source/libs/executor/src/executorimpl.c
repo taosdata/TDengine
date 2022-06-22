@@ -2050,7 +2050,6 @@ int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLo
     blockDataCleanup(pRes);
     blockDataEnsureCapacity(pRes, numOfRows);
     blockCompressDecode(pRes, numOfOutput, numOfRows, pData);
-    pRes->info.rows = numOfRows;
   } else {  // extract data according to pColList
     ASSERT(numOfOutput == taosArrayGetSize(pColList));
     char* pStart = pData;
@@ -2080,9 +2079,6 @@ int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLo
     // data from mnode
     pRes->info.rows = numOfRows;
     relocateColumnData(pRes, pColList, pBlock->pDataBlock, false);
-
-//    taosArrayDestroy(pBlock->pDataBlock);
-//    taosMemoryFree(pBlock);
     blockDataDestroy(pBlock);
   }
 
