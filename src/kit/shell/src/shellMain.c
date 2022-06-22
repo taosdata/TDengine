@@ -174,7 +174,10 @@ int main(int argc, char* argv[]) {
   taosSetSignal(SIGHUP, shellQueryInterruptHandler);
   taosSetSignal(SIGABRT, shellQueryInterruptHandler);
   if (args.restful || args.cloud) {
-    taosSetSignal(SIGPIPE, shellRestfulSendInterruptHandler);
+#ifdef  WINDOWS
+#else
+      taosSetSignal(SIGPIPE, shellRestfulSendInterruptHandler);
+#endif
   }
 
   /* Get grant information */
