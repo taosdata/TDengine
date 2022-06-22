@@ -65,7 +65,7 @@ int main(int argc, char** argv) {
   SSyncLogStore* pLog = logStoreCreate(pSyncNode);
   assert(pLog != NULL);
 
-  logStorePrint2((char*)"==syncLogStoreCheck==", pLog);
+  logStoreSimplePrint2((char*)"==syncLogStoreCheck2==", pLog);
 
   walClose(pWal);
   logStoreDestory(pLog);
