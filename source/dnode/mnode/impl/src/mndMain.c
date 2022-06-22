@@ -100,7 +100,7 @@ static void *mndThreadFp(void *param) {
     taosMsleep(100);
     if (mndGetStop(pMnode)) break;
 
-    if (lastTime % 600 == 1) {
+    if (lastTime % (tsTransPullupInterval * 10) == 1) {
       mndTtlTimer(pMnode);
     }
 
