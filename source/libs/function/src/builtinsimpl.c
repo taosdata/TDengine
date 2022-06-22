@@ -5298,7 +5298,6 @@ int32_t irateFunction(SqlFunctionCtx* pCtx) {
     if ((INT64_MIN == pRateInfo->firstKey) || tsList[i] > pRateInfo->firstKey) {
       pRateInfo->firstValue = v;
       pRateInfo->firstKey = tsList[i];
-      break;
     }
 
   }
