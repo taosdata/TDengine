@@ -162,7 +162,7 @@ class TDTestCase:
         text = r.read()
         r.close()
         result = float(re.split('\n |\|', text)[3])
-        tdSql.query("select first(c1) + last(c1) from tb01")
+        tdSql.query("select first(c1) - last(c1) from tb01")
         tdSql.checkData(0, 0, result)
 
                 
