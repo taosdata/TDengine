@@ -299,7 +299,9 @@ int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* p
     return numOfRows;
   }
 
-  ASSERT(pBlockInfo->capacity >= numOfRows);
+  if (pBlockInfo != NULL) {
+    ASSERT(pBlockInfo->capacity >= numOfRows);
+  }
 
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     memcpy(pColumnInfoData->varmeta.offset, pSource->varmeta.offset, sizeof(int32_t) * numOfRows);

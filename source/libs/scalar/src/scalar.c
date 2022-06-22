@@ -982,7 +982,8 @@ int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst) {
       sclError("no valid res in hash, node:%p, type:%d", pNode, nodeType(pNode));
       SCL_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
     }
-    
+
+    colInfoDataEnsureCapacity(pDst->columnData, res->numOfRows);
     colDataAssign(pDst->columnData, res->columnData, res->numOfRows, NULL);
     pDst->numOfRows = res->numOfRows;
     taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES);
