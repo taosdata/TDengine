@@ -2212,15 +2212,17 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
   STableMergeScanInfo* pInfo = pOperator->info;
   SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
 
-  size_t  tableListSize = taosArrayGetSize(pInfo->tableListInfo->pTableList);
-  int32_t i = pInfo->tableStartIndex + 1;
-  for (; i < tableListSize; ++i) {
-    STableKeyInfo* tableKeyInfo = taosArrayGet(pInfo->tableListInfo->pTableList, i);
-    if (tableKeyInfo->groupId != pInfo->groupId) {
-      break;
+  {
+    size_t  tableListSize = taosArrayGetSize(pInfo->tableListInfo->pTableList);
+    int32_t i = pInfo->tableStartIndex + 1;
+    for (; i < tableListSize; ++i) {
+      STableKeyInfo* tableKeyInfo = taosArrayGet(pInfo->tableListInfo->pTableList, i);
+      if (tableKeyInfo->groupId != pInfo->groupId) {
+        break;
+      }
     }
+    pInfo->tableEndIndex = i - 1;
   }
-  pInfo->tableEndIndex = i - 1;
 
   int32_t tableStartIdx = pInfo->tableStartIndex;
   int32_t tableEndIdx = pInfo->tableEndIndex;
