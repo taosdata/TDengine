@@ -28,7 +28,7 @@ typedef struct SArray*       SIDList;
 typedef struct SPageInfo     SPageInfo;
 typedef struct SDiskbasedBuf SDiskbasedBuf;
 
-#define DEFAULT_INTERN_BUF_PAGE_SIZE (1024L)  // in bytes
+#define DEFAULT_INTERN_BUF_PAGE_SIZE (1024LL)  // in bytes
 
 typedef struct SFilePage {
   int32_t num;

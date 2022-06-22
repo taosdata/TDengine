@@ -234,6 +234,7 @@ typedef struct SColMatchInfo {
   int32_t colId;
   int32_t targetSlotId;
   bool    output;
+  bool    reserved;
   int32_t matchType;     // determinate the source according to col id or slot id
 } SColMatchInfo;
 
@@ -253,7 +254,6 @@ typedef struct STableScanInfo {
 
   SFileBlockLoadRecorder readRecorder;
   int64_t         numOfRows;
-//  int32_t         prevGroupId;  // previous table group id
   SScanInfo       scanInfo;
   int32_t         scanTimes;
   SNode*          pFilterNode;  // filter info, which is push down by optimizer
@@ -730,6 +730,10 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* 
                                           STimeWindowAggSupp *pTwAggSupp, SExecTaskInfo* pTaskInfo, bool isStream);
 
 SOperatorInfo* createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
+                                          SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
+                                          SExecTaskInfo* pTaskInfo);
+
+SOperatorInfo* createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                           SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
                                           SExecTaskInfo* pTaskInfo);
 

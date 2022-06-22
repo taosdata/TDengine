@@ -390,4 +390,10 @@ TEST_F(ParserSelectTest, informationSchema) {
   run("SELECT * FROM information_schema.user_databases WHERE name = 'information_schema'");
 }
 
+TEST_F(ParserSelectTest, withoutFrom) {
+  useDb("root", "test");
+
+  run("SELECT 1");
+}
+
 }  // namespace ParserTest

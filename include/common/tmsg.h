@@ -168,7 +168,7 @@ typedef struct {
   int32_t vgId;
   char*   dbFName;
   char*   tbName;
-} SBuildTableMetaInput;
+} SBuildTableInput;
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
@@ -444,6 +444,7 @@ typedef struct {
   char*   comment;
   char*   pAst1;
   char*   pAst2;
+  SArray* pFuncs;
 } SMCreateStbReq;
 
 int32_t tSerializeSMCreateStbReq(void* buf, int32_t bufLen, SMCreateStbReq* pReq);
@@ -666,6 +667,41 @@ typedef struct {
 int32_t tSerializeSQueryTableRsp(void* buf, int32_t bufLen, SQueryTableRsp* pRsp);
 
 int32_t tDeserializeSQueryTableRsp(void* buf, int32_t bufLen, SQueryTableRsp* pRsp);
+
+typedef struct {
+  SMsgHead header;
+  char     dbFName[TSDB_DB_FNAME_LEN];
+  char     tbName[TSDB_TABLE_NAME_LEN];
+} STableCfgReq;
+
+typedef struct {
+  char     tbName[TSDB_TABLE_NAME_LEN];
+  char     stbName[TSDB_TABLE_NAME_LEN];
+  char     dbFName[TSDB_DB_FNAME_LEN];
+  int32_t  numOfTags;
+  int32_t  numOfColumns;
+  int8_t   tableType;
+  int64_t  delay1;
+  int64_t  delay2;
+  int64_t  watermark1;
+  int64_t  watermark2;
+  int32_t  ttl;
+  SArray*  pFuncs;
+  int32_t  commentLen;
+  char*    pComment;
+  SSchema* pSchemas;
+  int32_t  tagsLen;
+  char*    pTags;
+} STableCfg;
+
+typedef STableCfg STableCfgRsp;
+
+int32_t tSerializeSTableCfgReq(void *buf, int32_t bufLen, STableCfgReq *pReq);
+int32_t tDeserializeSTableCfgReq(void *buf, int32_t bufLen, STableCfgReq *pReq);
+
+int32_t tSerializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp);
+int32_t tDeserializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp);
+void tFreeSTableCfgRsp(STableCfgRsp *pRsp);
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];

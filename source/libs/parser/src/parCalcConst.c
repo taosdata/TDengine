@@ -227,12 +227,16 @@ static int32_t calcConstGroupBy(SCalcConstContext* pCxt, SSelectStmt* pSelect) {
         }
       }
     }
-    DESTORY_LIST(pSelect->pGroupByList);
+    NODES_DESTORY_LIST(pSelect->pGroupByList);
   }
   return code;
 }
 
-static int32_t calcConstSelect(SCalcConstContext* pCxt, SSelectStmt* pSelect, bool subquery) {
+static int32_t calcConstSelectWithoutFrom(SCalcConstContext* pCxt, SSelectStmt* pSelect, bool subquery) {
+  return calcConstProjections(pCxt, pSelect, subquery);
+}
+
+static int32_t calcConstSelectFrom(SCalcConstContext* pCxt, SSelectStmt* pSelect, bool subquery) {
   int32_t code = calcConstFromTable(pCxt, pSelect->pFromTable);
   if (TSDB_CODE_SUCCESS == code) {
     code = calcConstProjections(pCxt, pSelect, subquery);
@@ -256,6 +260,14 @@ static int32_t calcConstSelect(SCalcConstContext* pCxt, SSelectStmt* pSelect, bo
     code = calcConstList(pSelect->pOrderByList);
   }
   return code;
+}
+
+static int32_t calcConstSelect(SCalcConstContext* pCxt, SSelectStmt* pSelect, bool subquery) {
+  if (NULL == pSelect->pFromTable) {
+    return calcConstSelectWithoutFrom(pCxt, pSelect, subquery);
+  } else {
+    return calcConstSelectFrom(pCxt, pSelect, subquery);
+  }
 }
 
 static int32_t calcConstDelete(SCalcConstContext* pCxt, SDeleteStmt* pDelete) {
