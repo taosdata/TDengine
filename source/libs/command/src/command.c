@@ -114,22 +114,12 @@ static int32_t execResetQueryCache() { return catalogClearCache(); }
 
 
 static SSDataBlock* buildCreateDBResultDataBlock() {
-  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
-  pBlock->info.numOfCols = SHOW_CREATE_DB_RESULT_COLS;
-  pBlock->info.hasVarCol = true;
+  SSDataBlock* pBlock = createDataBlock();
+  SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_DB_RESULT_COLS, 1);
+  blockDataAppendColInfo(pBlock, &infoData);
 
-  pBlock->pDataBlock = taosArrayInit(pBlock->info.numOfCols, sizeof(SColumnInfoData));
-
-  SColumnInfoData infoData = {0};
-  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
-  infoData.info.bytes = SHOW_CREATE_DB_RESULT_FIELD1_LEN;
-
-  taosArrayPush(pBlock->pDataBlock, &infoData);
-
-  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
-  infoData.info.bytes = SHOW_CREATE_DB_RESULT_FIELD2_LEN;
-  taosArrayPush(pBlock->pDataBlock, &infoData);
-
+  infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_DB_RESULT_FIELD2_LEN, 2);
+  blockDataAppendColInfo(pBlock, &infoData);
   return pBlock;
 }
 
@@ -271,21 +261,13 @@ static int32_t execShowCreateDatabase(SShowCreateDatabaseStmt* pStmt, SRetrieveT
 }
 
 static SSDataBlock* buildCreateTbResultDataBlock() {
-  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
-  pBlock->info.numOfCols = SHOW_CREATE_TB_RESULT_COLS;
-  pBlock->info.hasVarCol = true;
+  SSDataBlock* pBlock = createDataBlock();
 
-  pBlock->pDataBlock = taosArrayInit(pBlock->info.numOfCols, sizeof(SColumnInfoData));
+  SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_TB_RESULT_FIELD1_LEN, 1);
+  blockDataAppendColInfo(pBlock, &infoData);
 
-  SColumnInfoData infoData = {0};
-  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
-  infoData.info.bytes = SHOW_CREATE_TB_RESULT_FIELD1_LEN;
-
-  taosArrayPush(pBlock->pDataBlock, &infoData);
-
-  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
-  infoData.info.bytes = SHOW_CREATE_TB_RESULT_FIELD2_LEN;
-  taosArrayPush(pBlock->pDataBlock, &infoData);
+  infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_TB_RESULT_FIELD2_LEN, 2);
+  blockDataAppendColInfo(pBlock, &infoData);
 
   return pBlock;
 }
