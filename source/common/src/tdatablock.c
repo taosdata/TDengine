@@ -1201,7 +1201,7 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData) {
   pBlock->info.rows = 0;
   pBlock->info.capacity = 0;
 
-  size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+  size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
     SColumnInfoData  colInfo = {.hasNull = true, .info = p->info};
