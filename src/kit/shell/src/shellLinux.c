@@ -416,6 +416,9 @@ int32_t shellReadCommand(TAOS *con, char *command) {
 }
 
 void *shellLoopQuery(void *arg) {
+  if (args.restful || args.cloud) {
+    pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
+  }
   if (indicator) {
     get_old_terminal_mode(&oldtio);
     indicator = 0;
@@ -633,9 +636,6 @@ int tcpConnect(char* host, int port) {
         fprintf(stderr, "failed to create socket\n");
         return -1;
     }
-    struct timeval tv;
-    tv.tv_sec = 10;
-    setsockopt(args.socket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
     int retConn = connect(args.socket, (struct sockaddr *)&serv_addr, sizeof(struct sockaddr));
     if (retConn < 0) {
         fprintf(stderr, "failed to connect\n");

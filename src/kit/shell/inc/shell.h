@@ -86,6 +86,13 @@ typedef struct SShellArguments {
   char* cloudHost;
   char* cloudPort;
   char* cloudToken;
+  int64_t fetched_rows;
+  bool    fetch_complete;
+  bool ws_connected;
+  int64_t id;
+  int64_t st;
+  char * response_buffer;
+  TAOS_FIELD *fields;
 } SShellArguments;
 
 typedef enum WS_ACTION_TYPE_S {
@@ -119,12 +126,12 @@ void shellGetGrantInfo(void* con);
 int isCommentLine(char* line);
 int wsclient_handshake();
 int wsclient_conn();
-char *wsclient_get_response();
+void *wsclient_get_response();
 void wsclient_query(char* command, uint64_t limit, bool isVertical, char* fname);
-int wsclient_send_sql(char *command, WS_ACTION_TYPE type, int64_t id);
+int wsclient_send_sql(char *command, WS_ACTION_TYPE type);
 int tcpConnect(char* host, int port);
 int parse_cloud_dsn();
-void wsclient_retry(int remain);
+void wsclient_retry();
 
 /**************** Global variable declarations ****************/
 extern char           PROMPT_HEADER[];
@@ -137,10 +144,5 @@ extern int get_old_terminal_mode(struct termios* tio);
 extern void            reset_terminal_mode();
 extern SShellArguments args;
 extern int64_t         result;
-extern int64_t         ws_id;
-extern bool            stop_fetch;
-extern bool            stop_retry;
-extern bool            in_retry;
-extern bool            ws_conn;
 
 #endif

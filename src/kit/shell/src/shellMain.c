@@ -20,11 +20,6 @@
 
 pthread_t pid;
 static tsem_t cancelSem;
-bool stop_fetch = false;
-bool stop_retry = false;
-bool in_retry = false;
-bool ws_conn = false;
-int64_t ws_id = 0;
 
 void shellQueryInterruptHandler(int32_t signum, void *sigInfo, void *context) {
   tsem_post(&cancelSem);
@@ -42,22 +37,20 @@ void *cancelHandler(void *arg) {
     }
 
     if (args.restful || args.cloud) {
-      if (in_retry) {
-        stop_retry = true;
-      } else {
-        stop_fetch = true;
-        wsclient_send_sql(NULL, WS_CLOSE, ws_id);
-      }
-    }
+      pthread_cancel(pid);
+      tfree(args.response_buffer);
+      tfree(args.fields);
+    } else {
 #ifdef LINUX
-    int64_t rid = atomic_val_compare_exchange_64(&result, result, 0);
-    SSqlObj* pSql = taosAcquireRef(tscObjRef, rid);
-    taos_stop_query(pSql);
-    taosReleaseRef(tscObjRef, rid);
+      int64_t rid = atomic_val_compare_exchange_64(&result, result, 0);
+      SSqlObj* pSql = taosAcquireRef(tscObjRef, rid);
+      taos_stop_query(pSql);
+      taosReleaseRef(tscObjRef, rid);
 #else
-    printf("\nReceive ctrl+c or other signal, quit shell.\n");
-    exit(0);
+      printf("\nReceive ctrl+c or other signal, quit shell.\n");
+      exit(0);
 #endif
+    }
   }
   return NULL;
 }
@@ -107,6 +100,11 @@ SShellArguments args = {.host = NULL,
   .cloudHost = NULL,
   .cloudPort = NULL,
   .cloudToken = NULL,
+  .fetched_rows = 0,
+  .st = 0,
+  .ws_connected = false,
+  .fetch_complete = false,
+  .fields = NULL,
   };
 
 /*
@@ -186,5 +184,12 @@ int main(int argc, char* argv[]) {
   while (1) {
     pthread_create(&pid, NULL, shellLoopQuery, args.con);
     pthread_join(pid, NULL);
+    if (args.fetched_rows > 0) {
+      if (!args.fetch_complete) {
+        int64_t et = taosGetTimestampUs();
+        printf("Query interrupted, %" PRId64 " row(s) in set (%.6fs)\n\n", args.fetched_rows, (et - args.st) / 1E6);
+        args.fetched_rows = 0;
+      }
+    }
   }
 }
