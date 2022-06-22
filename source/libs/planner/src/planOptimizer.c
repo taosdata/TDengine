@@ -79,7 +79,8 @@ static SLogicNode* optFindPossibleNode(SLogicNode* pNode, FMayBeOptimized func) 
 
 EDealRes osdHaveNormalColImpl(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
-    *((bool*)pContext) = (COLUMN_TYPE_TAG != ((SColumnNode*)pNode)->colType);
+    // *((bool*)pContext) = (COLUMN_TYPE_TAG != ((SColumnNode*)pNode)->colType);
+    *((bool*)pContext) = true;
     return *((bool*)pContext) ? DEAL_RES_END : DEAL_RES_IGNORE_CHILD;
   }
   return DEAL_RES_CONTINUE;
@@ -96,11 +97,6 @@ static bool osdMayBeOptimized(SLogicNode* pNode) {
     return false;
   }
   if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pNode)) {
-    return false;
-  }
-  // todo: release after function splitting
-  if (TSDB_SUPER_TABLE == ((SScanLogicNode*)pNode)->tableType &&
-      SCAN_TYPE_STREAM != ((SScanLogicNode*)pNode)->scanType) {
     return false;
   }
   if (NULL == pNode->pParent || (QUERY_NODE_LOGIC_PLAN_WINDOW != nodeType(pNode->pParent) &&
@@ -293,16 +289,22 @@ static int32_t cpdCondAppend(SNode** pCond, SNode** pAdditionalCond) {
   return code;
 }
 
-static int32_t cpdCalcTimeRange(SScanLogicNode* pScan, SNode** pPrimaryKeyCond, SNode** pOtherCond) {
-  bool    isStrict = false;
-  int32_t code = filterGetTimeRange(*pPrimaryKeyCond, &pScan->scanRange, &isStrict);
-  if (TSDB_CODE_SUCCESS == code) {
-    if (isStrict) {
-      nodesDestroyNode(*pPrimaryKeyCond);
-    } else {
-      code = cpdCondAppend(pOtherCond, pPrimaryKeyCond);
+static int32_t cpdCalcTimeRange(SOptimizeContext* pCxt, SScanLogicNode* pScan, SNode** pPrimaryKeyCond,
+                                SNode** pOtherCond) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (pCxt->pPlanCxt->topicQuery || pCxt->pPlanCxt->streamQuery) {
+    code = cpdCondAppend(pOtherCond, pPrimaryKeyCond);
+  } else {
+    bool isStrict = false;
+    code = filterGetTimeRange(*pPrimaryKeyCond, &pScan->scanRange, &isStrict);
+    if (TSDB_CODE_SUCCESS == code) {
+      if (isStrict) {
+        nodesDestroyNode(*pPrimaryKeyCond);
+      } else {
+        code = cpdCondAppend(pOtherCond, pPrimaryKeyCond);
+      }
+      *pPrimaryKeyCond = NULL;
     }
-    *pPrimaryKeyCond = NULL;
   }
   return code;
 }
@@ -344,7 +346,7 @@ static int32_t cpdOptimizeScanCondition(SOptimizeContext* pCxt, SScanLogicNode* 
   SNode*  pOtherCond = NULL;
   int32_t code = nodesPartitionCond(&pScan->node.pConditions, &pPrimaryKeyCond, &pTagCond, &pOtherCond);
   if (TSDB_CODE_SUCCESS == code && NULL != pPrimaryKeyCond) {
-    code = cpdCalcTimeRange(pScan, &pPrimaryKeyCond, &pOtherCond);
+    code = cpdCalcTimeRange(pCxt, pScan, &pPrimaryKeyCond, &pOtherCond);
   }
   if (TSDB_CODE_SUCCESS == code && NULL != pTagCond) {
     code = cpdApplyTagIndex(pScan, &pTagCond, &pOtherCond);
@@ -769,7 +771,7 @@ static bool smaOptMayBeOptimized(SLogicNode* pNode) {
   }
 
   SScanLogicNode* pScan = (SScanLogicNode*)pNode;
-  if (0 == pScan->interval || NULL == pScan->pSmaIndexes || NULL != pScan->node.pConditions) {
+  if (NULL == pScan->pSmaIndexes || NULL != pScan->node.pConditions) {
     return false;
   }
 
@@ -1042,7 +1044,7 @@ static int32_t smaOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan)
 
 static EDealRes partTagsOptHasColImpl(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
-    if (COLUMN_TYPE_TAG != ((SColumnNode*)pNode)->colType) {
+    if (COLUMN_TYPE_TAG != ((SColumnNode*)pNode)->colType && COLUMN_TYPE_TBNAME != ((SColumnNode*)pNode)->colType) {
       *(bool*)pContext = true;
       return DEAL_RES_END;
     }
@@ -1057,9 +1059,9 @@ static bool partTagsOptHasCol(SNodeList* pPartKeys) {
 }
 
 static bool partTagsIsOptimizableNode(SLogicNode* pNode) {
-  return ((QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode) /*||
+  return ((QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode) ||
            (QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pNode) && NULL != ((SAggLogicNode*)pNode)->pGroupKeys &&
-            NULL != ((SAggLogicNode*)pNode)->pAggFuncs)*/) &&
+            NULL != ((SAggLogicNode*)pNode)->pAggFuncs)) &&
           1 == LIST_LENGTH(pNode->pChildren) &&
           QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(nodesListGetNode(pNode->pChildren, 0)));
 }
@@ -1080,6 +1082,28 @@ static bool partTagsOptMayBeOptimized(SLogicNode* pNode) {
   return !partTagsOptHasCol(partTagsGetPartKeys(pNode));
 }
 
+static EDealRes partTagsOptRebuildTbanmeImpl(SNode** pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(*pNode) && COLUMN_TYPE_TBNAME == ((SColumnNode*)*pNode)->colType) {
+    SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
+    if (NULL == pFunc) {
+      *(int32_t*)pContext = TSDB_CODE_OUT_OF_MEMORY;
+      return DEAL_RES_ERROR;
+    }
+    strcpy(pFunc->functionName, "tbname");
+    pFunc->funcType = FUNCTION_TYPE_TBNAME;
+    nodesDestroyNode(*pNode);
+    *pNode = (SNode*)pFunc;
+    return DEAL_RES_IGNORE_CHILD;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t partTagsOptRebuildTbanme(SNodeList* pPartKeys) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  nodesRewriteExprs(pPartKeys, partTagsOptRebuildTbanmeImpl, &code);
+  return code;
+}
+
 static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
   SLogicNode* pNode = optFindPossibleNode(pLogicSubplan->pNode, partTagsOptMayBeOptimized);
   if (NULL == pNode) {
@@ -1096,7 +1120,18 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
       nodesDestroyNode((SNode*)pNode);
     }
   } else {
-    TSWAP(((SAggLogicNode*)pNode)->pGroupKeys, pScan->pPartTags);
+    SNode* pGroupKey = NULL;
+    FOREACH(pGroupKey, ((SAggLogicNode*)pNode)->pGroupKeys) {
+      code = nodesListMakeStrictAppend(
+          &pScan->pPartTags, nodesCloneNode(nodesListGetNode(((SGroupingSetNode*)pGroupKey)->pParameterList, 0)));
+      if (TSDB_CODE_SUCCESS != code) {
+        break;
+      }
+    }
+    NODES_DESTORY_LIST(((SAggLogicNode*)pNode)->pGroupKeys);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = partTagsOptRebuildTbanme(pScan->pPartTags);
   }
   return code;
 }
@@ -1184,7 +1219,7 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "ConditionPushDown", .optimizeFunc = cpdOptimize},
   {.pName = "OrderByPrimaryKey", .optimizeFunc = opkOptimize},
   {.pName = "SmaIndex",          .optimizeFunc = smaOptimize},
-  {.pName = "PartitionByTags",   .optimizeFunc = partTagsOptimize},
+  // {.pName = "PartitionTags",     .optimizeFunc = partTagsOptimize},
   {.pName = "EliminateProject",  .optimizeFunc = eliminateProjOptimize}
 };
 // clang-format on

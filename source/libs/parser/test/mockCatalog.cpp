@@ -261,6 +261,11 @@ int32_t __catalogGetDnodeList(SCatalog* pCatalog, SRequestConnInfo* pConn, SArra
   return g_mockCatalogService->catalogGetDnodeList(pDnodeList);
 }
 
+int32_t __catalogRefreshGetTableCfg(SCatalog* pCtg, SRequestConnInfo *pConn, const SName* pTableName, STableCfg** pCfg) {
+  *pCfg = (STableCfg*)taosMemoryCalloc(1, sizeof(STableCfg));
+  return 0;
+}
+
 void initMetaDataEnv() {
   g_mockCatalogService.reset(new MockCatalogService());
 
@@ -279,6 +284,7 @@ void initMetaDataEnv() {
   stub.set(catalogRemoveTableMeta, __catalogRemoveTableMeta);
   stub.set(catalogGetTableIndex, __catalogGetTableIndex);
   stub.set(catalogGetDnodeList, __catalogGetDnodeList);
+  stub.set(catalogRefreshGetTableCfg, __catalogRefreshGetTableCfg);
   // {
   //   AddrAny any("libcatalog.so");
   //   std::map<std::string,void*> result;

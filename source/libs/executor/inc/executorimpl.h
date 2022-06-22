@@ -234,6 +234,7 @@ typedef struct SColMatchInfo {
   int32_t colId;
   int32_t targetSlotId;
   bool    output;
+  bool    reserved;
   int32_t matchType;     // determinate the source according to col id or slot id
 } SColMatchInfo;
 
@@ -253,7 +254,6 @@ typedef struct STableScanInfo {
 
   SFileBlockLoadRecorder readRecorder;
   int64_t         numOfRows;
-//  int32_t         prevGroupId;  // previous table group id
   SScanInfo       scanInfo;
   int32_t         scanTimes;
   SNode*          pFilterNode;  // filter info, which is push down by optimizer
@@ -733,6 +733,10 @@ SOperatorInfo* createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SExprI
                                           SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
                                           SExecTaskInfo* pTaskInfo);
 
+SOperatorInfo* createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
+                                          SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
+                                          SExecTaskInfo* pTaskInfo);
+
 SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream,
     SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, int32_t numOfChild);
 SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
@@ -834,13 +838,18 @@ int32_t finalizeResultRowIntoResultDataBlock(SDiskbasedBuf* pBuf, SResultRowPosi
                                        SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, int32_t numOfExprs, const int32_t* rowCellOffset,
                                        SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
 
-int32_t createMultipleDataReaders(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle,
+int32_t createScanTableListInfo(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle,
+                                STableListInfo* pTableListInfo, uint64_t queryId, uint64_t taskId,
+                                SNode* pTagCond);
+int32_t doCreateMultipleDataReaders(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle,
                                   STableListInfo* pTableListInfo, SArray* arrayReader, uint64_t queryId,
-                                  uint64_t taskId, SNode* pTagCond);
+                                  uint64_t taskId);
 SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SArray* dataReaders,
                                                 SReadHandle* readHandle, SExecTaskInfo* pTaskInfo);
 
 void copyUpdateDataBlock(SSDataBlock* pDest, SSDataBlock* pSource, int32_t tsColIndex);
+
+int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle, SArray* groupKey);
 
 #ifdef __cplusplus
 }

@@ -190,6 +190,7 @@ bool fmIsForbidWindowFunc(int32_t funcId);
 bool fmIsForbidGroupByFunc(int32_t funcId);
 bool fmIsIntervalInterpoFunc(int32_t funcId);
 bool fmIsInterpFunc(int32_t funcId);
+bool fmIsLastRowFunc(int32_t funcId);
 
 int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMergeFunc);
 

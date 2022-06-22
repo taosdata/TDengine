@@ -370,7 +370,7 @@ TEST_F(ParserInitialCTest, createStable) {
     expect.delay2 = delay2;
     expect.watermark1 = watermark1;
     expect.watermark2 = watermark2;
-//    expect.ttl = ttl;
+    //    expect.ttl = ttl;
     if (nullptr != pComment) {
       expect.comment = strdup(pComment);
       expect.commentLen = strlen(pComment);
@@ -414,7 +414,7 @@ TEST_F(ParserInitialCTest, createStable) {
     ASSERT_EQ(req.ttl, expect.ttl);
     ASSERT_EQ(req.numOfColumns, expect.numOfColumns);
     ASSERT_EQ(req.numOfTags, expect.numOfTags);
-//    ASSERT_EQ(req.commentLen, expect.commentLen);
+    //    ASSERT_EQ(req.commentLen, expect.commentLen);
     ASSERT_EQ(req.ast1Len, expect.ast1Len);
     ASSERT_EQ(req.ast2Len, expect.ast2Len);
 
@@ -621,10 +621,11 @@ TEST_F(ParserInitialCTest, createTopic) {
   auto clearCreateTopicReq = [&]() { memset(&expect, 0, sizeof(SCMCreateTopicReq)); };
 
   auto setCreateTopicReqFunc = [&](const char* pTopicName, int8_t igExists, const char* pSql, const char* pAst,
-                                   const char* pDbName = nullptr, const char* pTbname = nullptr) {
+                                   const char* pDbName = nullptr, const char* pTbname = nullptr, int8_t withMeta = 0) {
     snprintf(expect.name, sizeof(expect.name), "0.%s", pTopicName);
     expect.igExists = igExists;
     expect.sql = (char*)pSql;
+    expect.withMeta = withMeta;
     if (nullptr != pTbname) {
       expect.subType = TOPIC_SUB_TYPE__TABLE;
       snprintf(expect.subStbName, sizeof(expect.subStbName), "0.%s.%s", pDbName, pTbname);
@@ -647,6 +648,7 @@ TEST_F(ParserInitialCTest, createTopic) {
     ASSERT_EQ(req.igExists, expect.igExists);
     ASSERT_EQ(req.subType, expect.subType);
     ASSERT_EQ(std::string(req.sql), std::string(expect.sql));
+    ASSERT_EQ(req.withMeta, expect.withMeta);
     switch (expect.subType) {
       case TOPIC_SUB_TYPE__DB:
         ASSERT_EQ(std::string(req.subDbName), std::string(expect.subDbName));
@@ -675,15 +677,55 @@ TEST_F(ParserInitialCTest, createTopic) {
   run("CREATE TOPIC tp1 AS DATABASE test");
   clearCreateTopicReq();
 
+  setCreateTopicReqFunc("tp1", 0, "create topic tp1 with meta as database test", nullptr, "test", nullptr, 1);
+  run("CREATE TOPIC tp1 WITH META AS DATABASE test");
+  clearCreateTopicReq();
+
   setCreateTopicReqFunc("tp1", 1, "create topic if not exists tp1 as stable st1", nullptr, "test", "st1");
   run("CREATE TOPIC IF NOT EXISTS tp1 AS STABLE st1");
+  clearCreateTopicReq();
+
+  setCreateTopicReqFunc("tp1", 1, "create topic if not exists tp1 with meta as stable st1", nullptr, "test", "st1", 1);
+  run("CREATE TOPIC IF NOT EXISTS tp1 WITH META AS STABLE st1");
   clearCreateTopicReq();
 }
 
 TEST_F(ParserInitialCTest, createUser) {
   useDb("root", "test");
 
+  SCreateUserReq expect = {0};
+
+  auto clearCreateUserReq = [&]() { memset(&expect, 0, sizeof(SCreateUserReq)); };
+
+  auto setCreateUserReq = [&](const char* pUser, const char* pPass, int8_t sysInfo = 1) {
+    strcpy(expect.user, pUser);
+    strcpy(expect.pass, pPass);
+    expect.createType = 0;
+    expect.superUser = 0;
+    expect.sysInfo = sysInfo;
+    expect.enable = 1;
+  };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_USER_STMT);
+    SCreateUserReq req = {0};
+    ASSERT_TRUE(TSDB_CODE_SUCCESS == tDeserializeSCreateUserReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+
+    ASSERT_EQ(req.createType, expect.createType);
+    ASSERT_EQ(req.superUser, expect.superUser);
+    ASSERT_EQ(req.sysInfo, expect.sysInfo);
+    ASSERT_EQ(req.enable, expect.enable);
+    ASSERT_EQ(std::string(req.user), std::string(expect.user));
+    ASSERT_EQ(std::string(req.pass), std::string(expect.pass));
+  });
+
+  setCreateUserReq("wxy", "123456");
   run("CREATE USER wxy PASS '123456'");
+  clearCreateUserReq();
+
+  setCreateUserReq("wxy1", "a123456", 1);
+  run("CREATE USER wxy1 PASS 'a123456' SYSINFO 1");
+  clearCreateUserReq();
 }
 
 }  // namespace ParserTest

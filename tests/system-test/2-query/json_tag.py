@@ -518,7 +518,7 @@ class TDTestCase:
         tdSql.query("select avg(dataint) from jsons1 where jtag is not null")
         tdSql.checkData(0, 0, 5.3)
         #tdSql.error("select twa(dataint) from jsons1 where jtag is not null")
-        tdSql.error("select irate(dataint) from jsons1 where jtag is not null")
+        tdSql.query("select irate(dataint) from jsons1 where jtag is not null")
         #tdSql.query("select sum(dataint) from jsons1 where jtag->'tag1' is not null")
         #tdSql.checkData(0, 0, 49)
         tdSql.query("select stddev(dataint) from jsons1 where jtag->'tag1'>1")

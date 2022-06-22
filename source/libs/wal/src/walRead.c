@@ -100,7 +100,6 @@ static int32_t walReadChangeFile(SWalReadHandle *pRead, int64_t fileFirstVer) {
   TdFilePtr pLogTFile = taosOpenFile(fnameStr, TD_FILE_READ);
   if (pLogTFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    terrno = TSDB_CODE_WAL_INVALID_VER;
     wError("cannot open file %s, since %s", fnameStr, terrstr());
     return -1;
   }
