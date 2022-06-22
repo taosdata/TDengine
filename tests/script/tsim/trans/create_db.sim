@@ -96,50 +96,53 @@ sql_error create database d1 vgroups 2;
 print =============== kill dnode2
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
 
-print =============== create database
-sql show transactions
-if $rows != 0 then
-  return -1
-endi
+system_content printf %OS%
+if $system_content != Windows_NT then
+  print =============== create database
+  sql show transactions
+  if $rows != 0 then
+    return -1
+  endi
 
-sql_error create database d2 vgroups 2;
+  sql_error create database d2 vgroups 2;
 
-print =============== show transactions
-sql show transactions
-if $rows != 1 then
-  return -1
-endi
+  print =============== show transactions
+  sql show transactions
+  if $rows != 1 then
+    return -1
+  endi
 
-if $data[0][0] != 8 then
-  return -1
-endi
+  if $data[0][0] != 8 then
+    return -1
+  endi
 
-if $data[0][2] != redoAction then
-  return -1
-endi
+  if $data[0][2] != redoAction then
+    return -1
+  endi
 
-if $data[0][3] != d2 then
-  return -1
-endi
+  if $data[0][3] != d2 then
+    return -1
+  endi
 
-sql show databases ;
-if $rows != 4 then
-  return -1
-endi
-print d2 ==> $data(d2)[19]
-if $data(d2)[19] != creating then
-  return -1
-endi
+  sql show databases ;
+  if $rows != 4 then
+    return -1
+  endi
+  print d2 ==> $data(d2)[19]
+  if $data(d2)[19] != creating then
+    return -1
+  endi
 
-sql_error create database d2 vgroups 2;
+  sql_error create database d2 vgroups 2;
 
-print =============== kill transaction
-sql kill transaction 8;
-sleep 2000
+  print =============== kill transaction
+  sql kill transaction 8;
+  sleep 2000
 
-sql show transactions
-if $rows != 0 then
-  return -1
+  sql show transactions
+  if $rows != 0 then
+    return -1
+  endi
 endi
 
 print =============== start dnode2
@@ -153,25 +156,25 @@ step3:
 	  print ====> dnode not ready!
 		return -1
 	endi
-sql show dnodes
-print ===> $data00 $data01 $data02 $data03 $data04 $data05
-print ===> $data10 $data11 $data12 $data13 $data14 $data15
-if $rows != 2 then
-  return -1
-endi
-if $data(1)[4] != ready then
-  goto step3
-endi
-if $data(2)[4] != ready then
-  goto step3
-endi
+  sql show dnodes
+  print ===> $data00 $data01 $data02 $data03 $data04 $data05
+  print ===> $data10 $data11 $data12 $data13 $data14 $data15
+  if $rows != 2 then
+    return -1
+  endi
+  if $data(1)[4] != ready then
+    goto step3
+  endi
+  if $data(2)[4] != ready then
+    goto step3
+  endi
 
 sql show transactions
 if $rows != 0 then
   return -1
 endi
 
-sql drop database d2;
+sql drop database if exists d2;
 
 sql show transactions
 if $rows != 0 then

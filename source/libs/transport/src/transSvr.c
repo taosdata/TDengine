@@ -284,12 +284,12 @@ static void uvHandleReq(SSvrConn* pConn) {
   if (pConn->status == ConnNormal && pHead->noResp == 0) {
     transRefSrvHandle(pConn);
 
-    tGTrace("conn %p %s received from %s:%d, local info: %s:%d, msg size: %d", pConn, TMSG_INFO(transMsg.msgType),
-            taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port), taosInetNtoa(pConn->localAddr.sin_addr),
-            ntohs(pConn->localAddr.sin_port), transMsg.contLen);
-  } else {
-    tGTrace("conn %p %s received from %s:%d, local info: %s:%d, msg size: %d, resp:%d, code: %d", pConn,
+    tGTrace("%s conn %p %s received from %s:%d, local info: %s:%d, msg size: %d", transLabel(pConn), pConn,
             TMSG_INFO(transMsg.msgType), taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port),
+            taosInetNtoa(pConn->localAddr.sin_addr), ntohs(pConn->localAddr.sin_port), transMsg.contLen);
+  } else {
+    tGTrace("%s conn %p %s received from %s:%d, local info: %s:%d, msg size: %d, resp:%d, code: %d", transLabel(pConn),
+            pConn, TMSG_INFO(transMsg.msgType), taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port),
             taosInetNtoa(pConn->localAddr.sin_addr), ntohs(pConn->localAddr.sin_port), transMsg.contLen, pHead->noResp,
             transMsg.code);
     // no ref here
@@ -304,7 +304,8 @@ static void uvHandleReq(SSvrConn* pConn) {
   transMsg.info.refId = pConn->refId;
   transMsg.info.traceId = pHead->traceId;
 
-  tGTrace("handle %p conn: %p translated to app, refId: %" PRIu64 "", transMsg.info.handle, pConn, pConn->refId);
+  tGTrace("%s handle %p conn: %p translated to app, refId: %" PRIu64 "", transLabel(pConn), transMsg.info.handle, pConn,
+          pConn->refId);
   assert(transMsg.info.handle != NULL);
 
   if (pHead->noResp == 1) {
@@ -330,12 +331,12 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
   SConnBuffer* pBuf = &conn->readBuf;
   if (nread > 0) {
     pBuf->len += nread;
-    tTrace("conn %p total read: %d, current read: %d", conn, pBuf->len, (int)nread);
+    tTrace("%s conn %p total read: %d, current read: %d", transLabel(conn->pTransInst), conn, pBuf->len, (int)nread);
     if (transReadComplete(pBuf)) {
-      tTrace("conn %p alread read complete packet", conn);
+      tTrace("%s conn %p alread read complete packet", transLabel(conn->pTransInst), conn);
       uvHandleReq(conn);
     } else {
-      tTrace("conn %p read partial packet, continue to read", conn);
+      tTrace("%s conn %p read partial packet, continue to read", transLabel(conn->pTransInst), conn);
     }
     return;
   }
@@ -343,12 +344,12 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
     return;
   }
 
-  tError("conn %p read error: %s", conn, uv_err_name(nread));
+  tError("%s conn %p read error: %s", transLabel(conn->pTransInst), conn, uv_err_name(nread));
   if (nread < 0) {
     conn->broken = true;
     if (conn->status == ConnAcquire) {
       if (conn->regArg.init) {
-        tTrace("conn %p broken, notify server app", conn);
+        tTrace("%s conn %p broken, notify server app", transLabel(conn->pTransInst), conn);
         STrans* pTransInst = conn->pTransInst;
         (*pTransInst->cfp)(pTransInst->parent, &(conn->regArg.msg), NULL);
         memset(&conn->regArg, 0, sizeof(conn->regArg));
@@ -457,9 +458,9 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
   int32_t len = transMsgLenFromCont(pMsg->contLen);
 
   STraceId* trace = &pMsg->info.traceId;
-  tGTrace("conn %p %s is sent to %s:%d, local info: %s:%d, msglen:%d", pConn, TMSG_INFO(pHead->msgType),
-          taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port), taosInetNtoa(pConn->localAddr.sin_addr),
-          ntohs(pConn->localAddr.sin_port), len);
+  tGTrace("%s conn %p %s is sent to %s:%d, local info: %s:%d, msglen:%d", transLabel(pConn->pTransInst), pConn,
+          TMSG_INFO(pHead->msgType), taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port),
+          taosInetNtoa(pConn->localAddr.sin_addr), ntohs(pConn->localAddr.sin_port), len);
   pHead->msgLen = htonl(len);
 
   wb->base = msg;
@@ -801,7 +802,7 @@ static SSvrConn* createConn(void* hThrd) {
 
   pConn->refId = exh->refId;
   transRefSrvHandle(pConn);
-  tTrace("handle %p, conn %p created, refId: %" PRId64 "", exh, pConn, pConn->refId);
+  tTrace("%s handle %p, conn %p created, refId: %" PRId64 "", transLabel(pThrd->pTransInst), exh, pConn, pConn->refId);
   return pConn;
 }
 
@@ -848,7 +849,7 @@ static void uvDestroyConn(uv_handle_t* handle) {
   transReleaseExHandle(refMgt, conn->refId);
   transRemoveExHandle(refMgt, conn->refId);
 
-  tDebug("conn %p destroy", conn);
+  tDebug("%s conn %p destroy", transLabel(thrd->pTransInst), conn);
   // uv_timer_stop(&conn->pTimer);
   transQueueDestroy(&conn->srvMsgs);
 
@@ -977,18 +978,18 @@ void uvHandleRelease(SSvrMsg* msg, SWorkThrdObj* thrd) {
     uvStartSendRespInternal(msg);
     return;
   } else if (conn->status == ConnRelease || conn->status == ConnNormal) {
-    tDebug("conn %p already released, ignore release-msg", conn);
+    tDebug("%s conn %p already released, ignore release-msg", transLabel(thrd->pTransInst), conn);
   }
   destroySmsg(msg);
 }
 void uvHandleResp(SSvrMsg* msg, SWorkThrdObj* thrd) {
   // send msg to client
-  tDebug("conn %p start to send resp (2/2)", msg->pConn);
+  tDebug("%s conn %p start to send resp (2/2)", transLabel(thrd->pTransInst), msg->pConn);
   uvStartSendResp(msg);
 }
 void uvHandleRegister(SSvrMsg* msg, SWorkThrdObj* thrd) {
   SSvrConn* conn = msg->pConn;
-  tDebug("conn %p register brokenlink callback", conn);
+  tDebug("%s conn %p register brokenlink callback", transLabel(thrd->pTransInst), conn);
   if (conn->status == ConnAcquire) {
     if (!transQueuePush(&conn->srvMsgs, msg)) {
       return;
@@ -1094,7 +1095,7 @@ void transReleaseSrvHandle(void* handle) {
   m->msg = tmsg;
   m->type = Release;
 
-  tTrace("conn %p start to release", exh->handle);
+  tTrace("%s conn %p start to release", transLabel(pThrd->pTransInst), exh->handle);
   transSendAsync(pThrd->asyncPool, &m->q);
   transReleaseExHandle(refMgt, refId);
   return;
@@ -1152,7 +1153,7 @@ void transRegisterMsg(const STransMsg* msg) {
   m->msg = tmsg;
   m->type = Register;
 
-  tTrace("conn %p start to register brokenlink callback", exh->handle);
+  tTrace("%s conn %p start to register brokenlink callback", transLabel(pThrd->pTransInst), exh->handle);
   transSendAsync(pThrd->asyncPool, &m->q);
   transReleaseExHandle(refMgt, refId);
   return;

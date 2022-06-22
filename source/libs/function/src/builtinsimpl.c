@@ -195,13 +195,13 @@ typedef struct SMavgInfo {
 } SMavgInfo;
 
 typedef struct SSampleInfo {
-  int32_t  samples;
-  int32_t  totalPoints;
-  int32_t  numSampled;
-  uint8_t  colType;
-  int16_t  colBytes;
-  char*    data;
-  int64_t* timestamp;
+  int32_t     samples;
+  int32_t     totalPoints;
+  int32_t     numSampled;
+  uint8_t     colType;
+  int16_t     colBytes;
+  char*       data;
+  STuplePos*  tuplePos;
 } SSampleInfo;
 
 typedef struct STailItem {
@@ -1844,9 +1844,8 @@ int32_t leastSQRFunction(SqlFunctionCtx* pCtx) {
         }
         numOfElem++;
         LEASTSQR_CAL(param, x, plist, i, pInfo->stepVal);
-
-        break;
       }
+      break;
     }
     case TSDB_DATA_TYPE_SMALLINT: {
       int16_t* plist = (int16_t*)pCol->pData;
@@ -1871,7 +1870,6 @@ int32_t leastSQRFunction(SqlFunctionCtx* pCtx) {
         numOfElem++;
         LEASTSQR_CAL(param, x, plist, i, pInfo->stepVal);
       }
-
       break;
     }
 
@@ -4350,7 +4348,7 @@ bool getSampleFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   SColumnNode* pCol = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
   SValueNode*  pVal = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
   int32_t      numOfSamples = pVal->datum.i;
-  pEnv->calcMemSize = sizeof(SSampleInfo) + numOfSamples * (pCol->node.resType.bytes + sizeof(int64_t));
+  pEnv->calcMemSize = sizeof(SSampleInfo) + numOfSamples * (pCol->node.resType.bytes + sizeof(STuplePos));
   return true;
 }
 
@@ -4371,25 +4369,30 @@ bool sampleFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo)
     return false;
   }
   pInfo->data = (char*)pInfo + sizeof(SSampleInfo);
-  pInfo->timestamp = (int64_t*)((char*)pInfo + sizeof(SSampleInfo) + pInfo->samples * pInfo->colBytes);
+  pInfo->tuplePos = (STuplePos*)((char*)pInfo + sizeof(SSampleInfo) + pInfo->samples * pInfo->colBytes);
 
   return true;
 }
 
-static void sampleAssignResult(SSampleInfo* pInfo, char* data, TSKEY ts, int32_t index) {
+static void sampleAssignResult(SSampleInfo* pInfo, char* data, int32_t index) {
   assignVal(pInfo->data + index * pInfo->colBytes, data, pInfo->colBytes, pInfo->colType);
-  *(pInfo->timestamp + index) = ts;
 }
 
-static void doReservoirSample(SSampleInfo* pInfo, char* data, TSKEY ts, int32_t index) {
+static void doReservoirSample(SqlFunctionCtx* pCtx, SSampleInfo* pInfo, char* data, int32_t index) {
   pInfo->totalPoints++;
   if (pInfo->numSampled < pInfo->samples) {
-    sampleAssignResult(pInfo, data, ts, pInfo->numSampled);
+    sampleAssignResult(pInfo, data, pInfo->numSampled);
+    if (pCtx->subsidiaries.num > 0) {
+      saveTupleData(pCtx, index, pCtx->pSrcBlock, pInfo->tuplePos + pInfo->numSampled * sizeof(STuplePos));
+    }
     pInfo->numSampled++;
   } else {
     int32_t j = taosRand() % (pInfo->totalPoints);
     if (j < pInfo->samples) {
-      sampleAssignResult(pInfo, data, ts, j);
+      sampleAssignResult(pInfo, data, j);
+      if (pCtx->subsidiaries.num > 0) {
+        copyTupleData(pCtx, index, pCtx->pSrcBlock, pInfo->tuplePos + j * sizeof(STuplePos));
+      }
     }
   }
 }
@@ -4400,11 +4403,6 @@ int32_t sampleFunction(SqlFunctionCtx* pCtx) {
 
   SInputColumnInfoData* pInput = &pCtx->input;
 
-  TSKEY* tsList = NULL;
-  if (pInput->pPTS != NULL) {
-    tsList = (int64_t*)pInput->pPTS->pData;
-  }
-
   SColumnInfoData* pInputCol = pInput->pData[0];
   for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
     if (colDataIsNull_s(pInputCol, i)) {
@@ -4412,7 +4410,7 @@ int32_t sampleFunction(SqlFunctionCtx* pCtx) {
     }
 
     char* data = colDataGetData(pInputCol, i);
-    doReservoirSample(pInfo, data, /*tsList[i]*/ 0, i);
+    doReservoirSample(pCtx, pInfo, data, i);
   }
 
   SET_VAL(pResInfo, pInfo->numSampled, pInfo->numSampled);
@@ -4431,6 +4429,7 @@ int32_t sampleFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t currentRow = pBlock->info.rows;
   for (int32_t i = 0; i < pInfo->numSampled; ++i) {
     colDataAppend(pCol, currentRow + i, pInfo->data + i * pInfo->colBytes, false);
+    setSelectivityValue(pCtx, pBlock, pInfo->tuplePos + i * sizeof(STuplePos), currentRow + i);
   }
 
   return pInfo->numSampled;

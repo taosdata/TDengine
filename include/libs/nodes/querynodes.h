@@ -52,7 +52,7 @@ typedef struct SExprNode {
   SArray*   pAssociation;
 } SExprNode;
 
-typedef enum EColumnType { COLUMN_TYPE_COLUMN = 1, COLUMN_TYPE_TAG } EColumnType;
+typedef enum EColumnType { COLUMN_TYPE_COLUMN = 1, COLUMN_TYPE_TAG, COLUMN_TYPE_TBNAME } EColumnType;
 
 typedef struct SColumnNode {
   SExprNode   node;  // QUERY_NODE_COLUMN
@@ -258,6 +258,7 @@ typedef struct SSelectStmt {
   bool        hasUniqueFunc;
   bool        hasTailFunc;
   bool        hasInterpFunc;
+  bool        hasLastRowFunc;
 } SSelectStmt;
 
 typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;

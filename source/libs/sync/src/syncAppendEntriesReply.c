@@ -67,7 +67,7 @@ int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* p
     return ret;
   }
 
-  assert(pMsg->term == ths->pRaftStore->currentTerm);
+  ASSERT(pMsg->term == ths->pRaftStore->currentTerm);
 
   if (pMsg->success) {
     // nextIndex'  = [nextIndex  EXCEPT ![i][j] = m.mmatchIndex + 1]
@@ -173,20 +173,43 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
       // get sender
       SSyncSnapshotSender* pSender = syncNodeGetSnapshotSender(ths, &(pMsg->srcId));
       ASSERT(pSender != NULL);
-      bool      hasSnapshot = syncNodeHasSnapshot(ths);
-      SSnapshot snapshot;
-      ths->pFsm->FpGetSnapshotInfo(ths->pFsm, &snapshot);
 
-      // start sending snapshot first time
-      // start here, stop by receiver
-      if (hasSnapshot && nextIndex <= snapshot.lastApplyIndex + 1 && !snapshotSenderIsStart(pSender) &&
-          pMsg->privateTerm < pSender->privateTerm) {
-        snapshotSenderStart(pSender);
+      SSnapshot snapshot;
+      void*     pReader = NULL;
+      ths->pFsm->FpGetSnapshot(ths->pFsm, &snapshot, NULL, &pReader);
+      if (snapshot.lastApplyIndex >= SYNC_INDEX_BEGIN && nextIndex <= snapshot.lastApplyIndex + 1 &&
+          !snapshotSenderIsStart(pSender) && pMsg->privateTerm < pSender->privateTerm) {
+        // has snapshot
+        ASSERT(pReader != NULL);
+        snapshotSenderStart(pSender, snapshot, pReader);
 
         char* eventLog = snapshotSender2SimpleStr(pSender, "snapshot sender start");
         syncNodeEventLog(ths, eventLog);
         taosMemoryFree(eventLog);
+
+      } else {
+        // no snapshot
+        if (pReader != NULL) {
+          ths->pFsm->FpSnapshotStopRead(ths->pFsm, pReader);
+        }
       }
+
+      /*
+            bool      hasSnapshot = syncNodeHasSnapshot(ths);
+            SSnapshot snapshot;
+            ths->pFsm->FpGetSnapshotInfo(ths->pFsm, &snapshot);
+
+            // start sending snapshot first time
+            // start here, stop by receiver
+            if (hasSnapshot && nextIndex <= snapshot.lastApplyIndex + 1 && !snapshotSenderIsStart(pSender) &&
+                pMsg->privateTerm < pSender->privateTerm) {
+              snapshotSenderStart(pSender);
+
+              char* eventLog = snapshotSender2SimpleStr(pSender, "snapshot sender start");
+              syncNodeEventLog(ths, eventLog);
+              taosMemoryFree(eventLog);
+            }
+      */
 
       SyncIndex sentryIndex = pSender->snapshot.lastApplyIndex + 1;
 
@@ -207,12 +230,6 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
 
   syncIndexMgrLog2("recv SyncAppendEntriesReply, after pNextIndex:", ths->pNextIndex);
   syncIndexMgrLog2("recv SyncAppendEntriesReply, after pMatchIndex:", ths->pMatchIndex);
-  if (gRaftDetailLog) {
-    SSnapshot snapshot;
-    ths->pFsm->FpGetSnapshotInfo(ths->pFsm, &snapshot);
-    sTrace("recv SyncAppendEntriesReply, after snapshot.lastApplyIndex:%ld, snapshot.lastApplyTerm:%lu",
-           snapshot.lastApplyIndex, snapshot.lastApplyTerm);
-  }
 
   return ret;
 }

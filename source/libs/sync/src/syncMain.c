@@ -75,7 +75,7 @@ int32_t syncInit() {
 
 void syncCleanUp() {
   int32_t ret = syncEnvStop();
-  assert(ret == 0);
+  ASSERT(ret == 0);
 
   if (tsNodeRefId != -1) {
     taosCloseRef(tsNodeRefId);
@@ -85,7 +85,7 @@ void syncCleanUp() {
 
 int64_t syncOpen(const SSyncInfo* pSyncInfo) {
   SSyncNode* pSyncNode = syncNodeOpen(pSyncInfo);
-  assert(pSyncNode != NULL);
+  ASSERT(pSyncNode != NULL);
 
   if (gRaftDetailLog) {
     syncNodeLog2("syncNodeOpen open success", pSyncNode);
@@ -318,7 +318,7 @@ bool syncCanLeaderTransfer(int64_t rid) {
   if (pSyncNode == NULL) {
     return false;
   }
-  assert(rid == pSyncNode->rid);
+  ASSERT(rid == pSyncNode->rid);
 
   if (pSyncNode->replicaNum == 1) {
     taosReleaseRef(tsNodeRefId, pSyncNode->rid);
@@ -355,7 +355,7 @@ ESyncState syncGetMyRole(int64_t rid) {
   if (pSyncNode == NULL) {
     return TAOS_SYNC_STATE_ERROR;
   }
-  assert(rid == pSyncNode->rid);
+  ASSERT(rid == pSyncNode->rid);
   ESyncState state = pSyncNode->state;
 
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
@@ -367,7 +367,7 @@ bool syncIsReady(int64_t rid) {
   if (pSyncNode == NULL) {
     return false;
   }
-  assert(rid == pSyncNode->rid);
+  ASSERT(rid == pSyncNode->rid);
   bool b = (pSyncNode->state == TAOS_SYNC_STATE_LEADER) && pSyncNode->restoreFinish;
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
   return b;
@@ -378,7 +378,7 @@ bool syncIsRestoreFinish(int64_t rid) {
   if (pSyncNode == NULL) {
     return false;
   }
-  assert(rid == pSyncNode->rid);
+  ASSERT(rid == pSyncNode->rid);
   bool b = pSyncNode->restoreFinish;
 
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
@@ -390,7 +390,7 @@ int32_t syncGetSnapshotMeta(int64_t rid, struct SSnapshotMeta* sMeta) {
   if (pSyncNode == NULL) {
     return -1;
   }
-  assert(rid == pSyncNode->rid);
+  ASSERT(rid == pSyncNode->rid);
   sMeta->lastConfigIndex = pSyncNode->pRaftCfg->lastConfigIndex;
 
   sTrace("vgId:%d, get snapshot meta, lastConfigIndex:%" PRId64, pSyncNode->vgId, pSyncNode->pRaftCfg->lastConfigIndex);
@@ -404,7 +404,7 @@ int32_t syncGetSnapshotMetaByIndex(int64_t rid, SyncIndex snapshotIndex, struct 
   if (pSyncNode == NULL) {
     return -1;
   }
-  assert(rid == pSyncNode->rid);
+  ASSERT(rid == pSyncNode->rid);
 
   ASSERT(pSyncNode->pRaftCfg->configIndexCount >= 1);
   SyncIndex lastIndex = (pSyncNode->pRaftCfg->configIndexArr)[0];
@@ -448,7 +448,7 @@ SyncTerm syncGetMyTerm(int64_t rid) {
   if (pSyncNode == NULL) {
     return TAOS_SYNC_STATE_ERROR;
   }
-  assert(rid == pSyncNode->rid);
+  ASSERT(rid == pSyncNode->rid);
   SyncTerm term = pSyncNode->pRaftStore->currentTerm;
 
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
@@ -460,7 +460,7 @@ SyncGroupId syncGetVgId(int64_t rid) {
   if (pSyncNode == NULL) {
     return TAOS_SYNC_STATE_ERROR;
   }
-  assert(rid == pSyncNode->rid);
+  ASSERT(rid == pSyncNode->rid);
   SyncGroupId vgId = pSyncNode->vgId;
 
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
@@ -473,7 +473,7 @@ void syncGetEpSet(int64_t rid, SEpSet* pEpSet) {
     memset(pEpSet, 0, sizeof(*pEpSet));
     return;
   }
-  assert(rid == pSyncNode->rid);
+  ASSERT(rid == pSyncNode->rid);
   pEpSet->numOfEps = 0;
   for (int i = 0; i < pSyncNode->pRaftCfg->cfg.replicaNum; ++i) {
     snprintf(pEpSet->eps[i].fqdn, sizeof(pEpSet->eps[i].fqdn), "%s", (pSyncNode->pRaftCfg->cfg.nodeInfo)[i].nodeFqdn);
@@ -494,7 +494,7 @@ int32_t syncGetRespRpc(int64_t rid, uint64_t index, SRpcMsg* msg) {
   if (pSyncNode == NULL) {
     return TAOS_SYNC_STATE_ERROR;
   }
-  assert(rid == pSyncNode->rid);
+  ASSERT(rid == pSyncNode->rid);
 
   SRespStub stub;
   int32_t   ret = syncRespMgrGet(pSyncNode->pSyncRespMgr, index, &stub);
@@ -511,7 +511,7 @@ int32_t syncGetAndDelRespRpc(int64_t rid, uint64_t index, SRpcHandleInfo* pInfo)
   if (pSyncNode == NULL) {
     return TAOS_SYNC_STATE_ERROR;
   }
-  assert(rid == pSyncNode->rid);
+  ASSERT(rid == pSyncNode->rid);
 
   SRespStub stub;
   int32_t   ret = syncRespMgrGetAndDel(pSyncNode->pSyncRespMgr, index, &stub);
@@ -530,7 +530,7 @@ void syncSetMsgCb(int64_t rid, const SMsgCb* msgcb) {
     sTrace("syncSetQ get pSyncNode is NULL, rid:%ld", rid);
     return;
   }
-  assert(rid == pSyncNode->rid);
+  ASSERT(rid == pSyncNode->rid);
   pSyncNode->msgcb = msgcb;
 
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
@@ -542,7 +542,7 @@ char* sync2SimpleStr(int64_t rid) {
     sTrace("syncSetRpc get pSyncNode is NULL, rid:%ld", rid);
     return NULL;
   }
-  assert(rid == pSyncNode->rid);
+  ASSERT(rid == pSyncNode->rid);
   char* s = syncNode2SimpleStr(pSyncNode);
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
 
@@ -554,7 +554,7 @@ void setPingTimerMS(int64_t rid, int32_t pingTimerMS) {
   if (pSyncNode == NULL) {
     return;
   }
-  assert(rid == pSyncNode->rid);
+  ASSERT(rid == pSyncNode->rid);
   pSyncNode->pingBaseLine = pingTimerMS;
   pSyncNode->pingTimerMS = pingTimerMS;
 
@@ -566,7 +566,7 @@ void setElectTimerMS(int64_t rid, int32_t electTimerMS) {
   if (pSyncNode == NULL) {
     return;
   }
-  assert(rid == pSyncNode->rid);
+  ASSERT(rid == pSyncNode->rid);
   pSyncNode->electBaseLine = electTimerMS;
 
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
@@ -577,7 +577,7 @@ void setHeartbeatTimerMS(int64_t rid, int32_t hbTimerMS) {
   if (pSyncNode == NULL) {
     return;
   }
-  assert(rid == pSyncNode->rid);
+  ASSERT(rid == pSyncNode->rid);
   pSyncNode->hbBaseLine = hbTimerMS;
   pSyncNode->heartbeatTimerMS = hbTimerMS;
 
@@ -592,7 +592,7 @@ int32_t syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     return -1;
   }
-  assert(rid == pSyncNode->rid);
+  ASSERT(rid == pSyncNode->rid);
   ret = syncNodePropose(pSyncNode, pMsg, isWeak);
 
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
@@ -662,7 +662,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
   SSyncInfo* pSyncInfo = (SSyncInfo*)pOldSyncInfo;
 
   SSyncNode* pSyncNode = (SSyncNode*)taosMemoryMalloc(sizeof(SSyncNode));
-  assert(pSyncNode != NULL);
+  ASSERT(pSyncNode != NULL);
   memset(pSyncNode, 0, sizeof(SSyncNode));
 
   int32_t ret = 0;
@@ -682,12 +682,12 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
     meta.snapshotEnable = pSyncInfo->snapshotEnable;
     meta.lastConfigIndex = SYNC_INDEX_INVALID;
     ret = raftCfgCreateFile((SSyncCfg*)&(pSyncInfo->syncCfg), meta, pSyncNode->configPath);
-    assert(ret == 0);
+    ASSERT(ret == 0);
 
   } else {
     // update syncCfg by raft_config.json
     pSyncNode->pRaftCfg = raftCfgOpen(pSyncNode->configPath);
-    assert(pSyncNode->pRaftCfg != NULL);
+    ASSERT(pSyncNode->pRaftCfg != NULL);
     pSyncInfo->syncCfg = pSyncNode->pRaftCfg->cfg;
 
     if (gRaftDetailLog) {
@@ -712,7 +712,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
 
   // init raft config
   pSyncNode->pRaftCfg = raftCfgOpen(pSyncNode->configPath);
-  assert(pSyncNode->pRaftCfg != NULL);
+  ASSERT(pSyncNode->pRaftCfg != NULL);
 
   // init internal
   pSyncNode->myNodeInfo = pSyncNode->pRaftCfg->cfg.nodeInfo[pSyncNode->pRaftCfg->cfg.myIndex];
@@ -771,23 +771,23 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
   // init TLA+ server vars
   pSyncNode->state = TAOS_SYNC_STATE_FOLLOWER;
   pSyncNode->pRaftStore = raftStoreOpen(pSyncNode->raftStorePath);
-  assert(pSyncNode->pRaftStore != NULL);
+  ASSERT(pSyncNode->pRaftStore != NULL);
 
   // init TLA+ candidate vars
   pSyncNode->pVotesGranted = voteGrantedCreate(pSyncNode);
-  assert(pSyncNode->pVotesGranted != NULL);
+  ASSERT(pSyncNode->pVotesGranted != NULL);
   pSyncNode->pVotesRespond = votesRespondCreate(pSyncNode);
-  assert(pSyncNode->pVotesRespond != NULL);
+  ASSERT(pSyncNode->pVotesRespond != NULL);
 
   // init TLA+ leader vars
   pSyncNode->pNextIndex = syncIndexMgrCreate(pSyncNode);
-  assert(pSyncNode->pNextIndex != NULL);
+  ASSERT(pSyncNode->pNextIndex != NULL);
   pSyncNode->pMatchIndex = syncIndexMgrCreate(pSyncNode);
-  assert(pSyncNode->pMatchIndex != NULL);
+  ASSERT(pSyncNode->pMatchIndex != NULL);
 
   // init TLA+ log vars
   pSyncNode->pLogStore = logStoreCreate(pSyncNode);
-  assert(pSyncNode->pLogStore != NULL);
+  ASSERT(pSyncNode->pLogStore != NULL);
   pSyncNode->commitIndex = SYNC_INDEX_INVALID;
 
   // timer ms init
@@ -845,7 +845,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
 
   // tools
   pSyncNode->pSyncRespMgr = syncRespMgrCreate(pSyncNode, 0);
-  assert(pSyncNode->pSyncRespMgr != NULL);
+  ASSERT(pSyncNode->pSyncRespMgr != NULL);
 
   // restore state
   pSyncNode->restoreFinish = false;
@@ -893,7 +893,7 @@ void syncNodeStart(SSyncNode* pSyncNode) {
 
   // int32_t ret = 0;
   // ret = syncNodeStartPingTimer(pSyncNode);
-  // assert(ret == 0);
+  // ASSERT(ret == 0);
 
   if (gRaftDetailLog) {
     syncNodeLog2("==state change become leader immediately==", pSyncNode);
@@ -915,10 +915,10 @@ void syncNodeClose(SSyncNode* pSyncNode) {
   syncNodeEventLog(pSyncNode, "sync close");
 
   int32_t ret;
-  assert(pSyncNode != NULL);
+  ASSERT(pSyncNode != NULL);
 
   ret = raftStoreClose(pSyncNode->pRaftStore);
-  assert(ret == 0);
+  ASSERT(ret == 0);
 
   syncRespMgrDestroy(pSyncNode->pSyncRespMgr);
   voteGrantedDestroy(pSyncNode->pVotesGranted);
@@ -980,7 +980,7 @@ int32_t syncNodePingSelf(SSyncNode* pSyncNode) {
   int32_t   ret = 0;
   SyncPing* pMsg = syncPingBuild3(&pSyncNode->myRaftId, &pSyncNode->myRaftId, pSyncNode->vgId);
   ret = syncNodePing(pSyncNode, &pMsg->destId, pMsg);
-  assert(ret == 0);
+  ASSERT(ret == 0);
 
   syncPingDestroy(pMsg);
   return ret;
@@ -992,7 +992,7 @@ int32_t syncNodePingPeers(SSyncNode* pSyncNode) {
     SRaftId*  destId = &(pSyncNode->peersId[i]);
     SyncPing* pMsg = syncPingBuild3(&pSyncNode->myRaftId, destId, pSyncNode->vgId);
     ret = syncNodePing(pSyncNode, destId, pMsg);
-    assert(ret == 0);
+    ASSERT(ret == 0);
     syncPingDestroy(pMsg);
   }
   return ret;
@@ -1004,7 +1004,7 @@ int32_t syncNodePingAll(SSyncNode* pSyncNode) {
     SRaftId*  destId = &(pSyncNode->replicasId[i]);
     SyncPing* pMsg = syncPingBuild3(&pSyncNode->myRaftId, destId, pSyncNode->vgId);
     ret = syncNodePing(pSyncNode, destId, pMsg);
-    assert(ret == 0);
+    ASSERT(ret == 0);
     syncPingDestroy(pMsg);
   }
   return ret;
@@ -1282,6 +1282,9 @@ cJSON* syncNode2Json(const SSyncNode* pSyncNode) {
     // snapshot receivers
     cJSON* pReceivers = cJSON_CreateArray();
     cJSON_AddItemToObject(pRoot, "receiver", snapshotReceiver2Json(pSyncNode->pNewNodeReceiver));
+
+    // changing
+    cJSON_AddNumberToObject(pRoot, "changing", pSyncNode->changing);
   }
 
   cJSON* pJson = cJSON_CreateObject();
@@ -1304,27 +1307,86 @@ void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
     pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
   }
   SyncIndex logLastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
+  SyncIndex logBeginIndex = pSyncNode->pLogStore->syncLogBeginIndex(pSyncNode->pLogStore);
 
   if (userStrLen < 256) {
     char logBuf[128 + 256];
-    snprintf(logBuf, sizeof(logBuf),
-             "vgId:%d, sync %s %s, term:%lu, commit:%ld, lastlog:%ld, lastsnapshot:%ld, standby:%d, replica-num:%d, "
-             "lconfig:%ld, changing:%d",
-             pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
-             pSyncNode->commitIndex, logLastIndex, snapshot.lastApplyIndex, pSyncNode->pRaftCfg->isStandBy,
-             pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex, pSyncNode->changing);
+    if (pSyncNode != NULL && pSyncNode->pRaftCfg != NULL && pSyncNode->pRaftStore != NULL) {
+      snprintf(logBuf, sizeof(logBuf),
+               "vgId:%d, sync %s %s, term:%lu, commit:%ld, beginlog:%ld, lastlog:%ld, lastsnapshot:%ld, standby:%d, "
+               "replica-num:%d, "
+               "lconfig:%ld, changing:%d",
+               pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
+               pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex,
+               pSyncNode->pRaftCfg->isStandBy, pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex,
+               pSyncNode->changing);
+    } else {
+      snprintf(logBuf, sizeof(logBuf), "%s", str);
+    }
     sDebug("%s", logBuf);
 
   } else {
     int   len = 128 + userStrLen;
     char* s = (char*)taosMemoryMalloc(len);
-    snprintf(s, len,
-             "vgId:%d, sync %s %s, term:%lu, commit:%ld, lastlog:%ld, lastsnapshot:%ld, standby:%d, replica-num:%d, "
-             "lconfig:%ld, changing:%d",
-             pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
-             pSyncNode->commitIndex, logLastIndex, snapshot.lastApplyIndex, pSyncNode->pRaftCfg->isStandBy,
-             pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex, pSyncNode->changing);
+    if (pSyncNode != NULL && pSyncNode->pRaftCfg != NULL && pSyncNode->pRaftStore != NULL) {
+      snprintf(s, len,
+               "vgId:%d, sync %s %s, term:%lu, commit:%ld, beginlog:%ld, lastlog:%ld, lastsnapshot:%ld, standby:%d, "
+               "replica-num:%d, "
+               "lconfig:%ld, changing:%d",
+               pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
+               pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex,
+               pSyncNode->pRaftCfg->isStandBy, pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex,
+               pSyncNode->changing);
+    } else {
+      snprintf(s, len, "%s", str);
+    }
     sDebug("%s", s);
+    taosMemoryFree(s);
+  }
+}
+
+void syncNodeErrorLog(const SSyncNode* pSyncNode, char* str) {
+  int32_t userStrLen = strlen(str);
+
+  SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
+  if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
+    pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
+  }
+  SyncIndex logLastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
+  SyncIndex logBeginIndex = pSyncNode->pLogStore->syncLogBeginIndex(pSyncNode->pLogStore);
+
+  if (userStrLen < 256) {
+    char logBuf[128 + 256];
+    if (pSyncNode != NULL && pSyncNode->pRaftCfg != NULL && pSyncNode->pRaftStore != NULL) {
+      snprintf(logBuf, sizeof(logBuf),
+               "vgId:%d, sync %s %s, term:%lu, commit:%ld, beginlog:%ld, lastlog:%ld, lastsnapshot:%ld, standby:%d, "
+               "replica-num:%d, "
+               "lconfig:%ld, changing:%d",
+               pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
+               pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex,
+               pSyncNode->pRaftCfg->isStandBy, pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex,
+               pSyncNode->changing);
+    } else {
+      snprintf(logBuf, sizeof(logBuf), "%s", str);
+    }
+    sError("%s", logBuf);
+
+  } else {
+    int   len = 128 + userStrLen;
+    char* s = (char*)taosMemoryMalloc(len);
+    if (pSyncNode != NULL && pSyncNode->pRaftCfg != NULL && pSyncNode->pRaftStore != NULL) {
+      snprintf(s, len,
+               "vgId:%d, sync %s %s, term:%lu, commit:%ld, beginlog:%ld, lastlog:%ld, lastsnapshot:%ld, standby:%d, "
+               "replica-num:%d, "
+               "lconfig:%ld, changing:%d",
+               pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
+               pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex,
+               pSyncNode->pRaftCfg->isStandBy, pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex,
+               pSyncNode->changing);
+    } else {
+      snprintf(s, len, "%s", str);
+    }
+    sError("%s", s);
     taosMemoryFree(s);
   }
 }
@@ -1400,7 +1462,7 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
     pSyncNode->pRaftCfg->isStandBy = 1;  // set standby
   }
 
-  // persist last config index
+  // add last config index
   raftCfgAddConfigIndex(pSyncNode->pRaftCfg, lastConfigChangeIndex);
 
   if (IamInNew) {
@@ -1694,8 +1756,8 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
 }
 
 void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
-  assert(pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE);
-  assert(voteGrantedMajority(pSyncNode->pVotesGranted));
+  ASSERT(pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE);
+  ASSERT(voteGrantedMajority(pSyncNode->pVotesGranted));
   syncNodeBecomeLeader(pSyncNode, "candidate to leader");
 
   syncNodeLog2("==state change syncNodeCandidate2Leader==", pSyncNode);
@@ -1707,21 +1769,21 @@ void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
 }
 
 void syncNodeFollower2Candidate(SSyncNode* pSyncNode) {
-  assert(pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER);
+  ASSERT(pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER);
   pSyncNode->state = TAOS_SYNC_STATE_CANDIDATE;
 
   syncNodeLog2("==state change syncNodeFollower2Candidate==", pSyncNode);
 }
 
 void syncNodeLeader2Follower(SSyncNode* pSyncNode) {
-  assert(pSyncNode->state == TAOS_SYNC_STATE_LEADER);
+  ASSERT(pSyncNode->state == TAOS_SYNC_STATE_LEADER);
   syncNodeBecomeFollower(pSyncNode, "leader to follower");
 
   syncNodeLog2("==state change syncNodeLeader2Follower==", pSyncNode);
 }
 
 void syncNodeCandidate2Follower(SSyncNode* pSyncNode) {
-  assert(pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE);
+  ASSERT(pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE);
   syncNodeBecomeFollower(pSyncNode, "candidate to follower");
 
   syncNodeLog2("==state change syncNodeCandidate2Follower==", pSyncNode);
@@ -1732,8 +1794,8 @@ void syncNodeCandidate2Follower(SSyncNode* pSyncNode) {
 // just called by syncNodeVoteForSelf
 // need assert
 void syncNodeVoteForTerm(SSyncNode* pSyncNode, SyncTerm term, SRaftId* pRaftId) {
-  assert(term == pSyncNode->pRaftStore->currentTerm);
-  assert(!raftStoreHasVoted(pSyncNode->pRaftStore));
+  ASSERT(term == pSyncNode->pRaftStore->currentTerm);
+  ASSERT(!raftStoreHasVoted(pSyncNode->pRaftStore));
 
   raftStoreVote(pSyncNode->pRaftStore, pRaftId);
 }
@@ -1756,7 +1818,7 @@ void syncNodeVoteForSelf(SSyncNode* pSyncNode) {
 // snapshot --------------
 bool syncNodeHasSnapshot(SSyncNode* pSyncNode) {
   bool      ret = false;
-  SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
+  SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0, .lastConfigIndex = -1};
   if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
     pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
     if (snapshot.lastApplyIndex >= SYNC_INDEX_BEGIN) {
@@ -1766,6 +1828,7 @@ bool syncNodeHasSnapshot(SSyncNode* pSyncNode) {
   return ret;
 }
 
+#if 0
 bool syncNodeIsIndexInSnapshot(SSyncNode* pSyncNode, SyncIndex index) {
   ASSERT(syncNodeHasSnapshot(pSyncNode));
   ASSERT(pSyncNode->pFsm->FpGetSnapshotInfo != NULL);
@@ -1776,6 +1839,7 @@ bool syncNodeIsIndexInSnapshot(SSyncNode* pSyncNode, SyncIndex index) {
   bool b = (index <= snapshot.lastApplyIndex);
   return b;
 }
+#endif
 
 SyncIndex syncNodeGetLastIndex(SSyncNode* pSyncNode) {
   SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
@@ -1792,7 +1856,7 @@ SyncTerm syncNodeGetLastTerm(SSyncNode* pSyncNode) {
   SyncTerm lastTerm = 0;
   if (syncNodeHasSnapshot(pSyncNode)) {
     // has snapshot
-    SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
+    SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0, .lastConfigIndex = -1};
     if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
       pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
     }
@@ -1826,8 +1890,12 @@ SyncIndex syncNodeSyncStartIndex(SSyncNode* pSyncNode) {
 
 SyncIndex syncNodeGetPreIndex(SSyncNode* pSyncNode, SyncIndex index) {
   ASSERT(index >= SYNC_INDEX_BEGIN);
+
   SyncIndex syncStartIndex = syncNodeSyncStartIndex(pSyncNode);
-  ASSERT(index <= syncStartIndex);
+  if (index > syncStartIndex) {
+    syncNodeLog3("syncNodeGetPreIndex", pSyncNode);
+    ASSERT(0);
+  }
 
   SyncIndex preIndex = index - 1;
   return preIndex;
@@ -1835,8 +1903,51 @@ SyncIndex syncNodeGetPreIndex(SSyncNode* pSyncNode, SyncIndex index) {
 
 SyncTerm syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index) {
   ASSERT(index >= SYNC_INDEX_BEGIN);
+
   SyncIndex syncStartIndex = syncNodeSyncStartIndex(pSyncNode);
-  ASSERT(index <= syncStartIndex);
+  if (index > syncStartIndex) {
+    syncNodeLog3("syncNodeGetPreTerm", pSyncNode);
+    ASSERT(0);
+  }
+
+  if (index == SYNC_INDEX_BEGIN) {
+    return 0;
+  }
+
+  SyncTerm        preTerm = 0;
+  SyncIndex       preIndex = index - 1;
+  SSyncRaftEntry* pPreEntry = NULL;
+  int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, preIndex, &pPreEntry);
+  if (code == 0) {
+    ASSERT(pPreEntry != NULL);
+    preTerm = pPreEntry->term;
+    taosMemoryFree(pPreEntry);
+    return preTerm;
+  } else {
+    if (terrno == TSDB_CODE_WAL_LOG_NOT_EXIST) {
+      SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0, .lastConfigIndex = -1};
+      if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
+        pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
+        if (snapshot.lastApplyIndex == preIndex) {
+          return snapshot.lastApplyTerm;
+        }
+      }
+    }
+  }
+
+  ASSERT(0);
+  return -1;
+}
+
+#if 0
+SyncTerm syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index) {
+  ASSERT(index >= SYNC_INDEX_BEGIN);
+
+  SyncIndex syncStartIndex = syncNodeSyncStartIndex(pSyncNode);
+  if (index > syncStartIndex) {
+    syncNodeLog3("syncNodeGetPreTerm", pSyncNode);
+    ASSERT(0);
+  }
 
   if (index == SYNC_INDEX_BEGIN) {
     return 0;
@@ -1845,7 +1956,7 @@ SyncTerm syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index) {
   SyncTerm preTerm = 0;
   if (syncNodeHasSnapshot(pSyncNode)) {
     // has snapshot
-    SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
+    SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0, .lastConfigIndex = -1};
     if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
       pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
     }
@@ -1892,6 +2003,7 @@ SyncTerm syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index) {
 
   return preTerm;
 }
+#endif
 
 // get pre index and term of "index"
 int32_t syncNodeGetPreIndexTerm(SSyncNode* pSyncNode, SyncIndex index, SyncIndex* pPreIndex, SyncTerm* pPreTerm) {
@@ -1927,6 +2039,12 @@ void syncNodeLog2(char* s, SSyncNode* pObj) {
     sTraceLong("syncNodeLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
+}
+
+void syncNodeLog3(char* s, SSyncNode* pObj) {
+  char* serialized = syncNode2Str(pObj);
+  sTraceLong("syncNodeLog3 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+  taosMemoryFree(serialized);
 }
 
 // ------ local funciton ---------
@@ -2040,17 +2158,17 @@ static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
 
 static int32_t syncNodeEqNoop(SSyncNode* ths) {
   int32_t ret = 0;
-  assert(ths->state == TAOS_SYNC_STATE_LEADER);
+  ASSERT(ths->state == TAOS_SYNC_STATE_LEADER);
 
-  SyncIndex       index = ths->pLogStore->getLastIndex(ths->pLogStore) + 1;
+  SyncIndex       index = ths->pLogStore->syncLogWriteIndex(ths->pLogStore);
   SyncTerm        term = ths->pRaftStore->currentTerm;
   SSyncRaftEntry* pEntry = syncEntryBuildNoop(term, index, ths->vgId);
-  assert(pEntry != NULL);
+  ASSERT(pEntry != NULL);
 
   uint32_t           entryLen;
   char*              serialized = syncEntrySerialize(pEntry, &entryLen);
   SyncClientRequest* pSyncMsg = syncClientRequestBuild(entryLen);
-  assert(pSyncMsg->dataLen == entryLen);
+  ASSERT(pSyncMsg->dataLen == entryLen);
   memcpy(pSyncMsg->data, serialized, entryLen);
 
   SRpcMsg rpcMsg = {0};
@@ -2070,10 +2188,10 @@ static int32_t syncNodeEqNoop(SSyncNode* ths) {
 static int32_t syncNodeAppendNoop(SSyncNode* ths) {
   int32_t ret = 0;
 
-  SyncIndex       index = ths->pLogStore->getLastIndex(ths->pLogStore) + 1;
+  SyncIndex       index = ths->pLogStore->syncLogWriteIndex(ths->pLogStore);
   SyncTerm        term = ths->pRaftStore->currentTerm;
   SSyncRaftEntry* pEntry = syncEntryBuildNoop(term, index, ths->vgId);
-  assert(pEntry != NULL);
+  ASSERT(pEntry != NULL);
 
   if (ths->state == TAOS_SYNC_STATE_LEADER) {
     // ths->pLogStore->appendEntry(ths->pLogStore, pEntry);
@@ -2136,7 +2254,7 @@ int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg) {
   SyncIndex       index = ths->pLogStore->syncLogWriteIndex(ths->pLogStore);
   SyncTerm        term = ths->pRaftStore->currentTerm;
   SSyncRaftEntry* pEntry = syncEntryBuild2((SyncClientRequest*)pMsg, term, index);
-  assert(pEntry != NULL);
+  ASSERT(pEntry != NULL);
 
   if (ths->state == TAOS_SYNC_STATE_LEADER) {
     // ths->pLogStore->appendEntry(ths->pLogStore, pEntry);

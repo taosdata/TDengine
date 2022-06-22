@@ -39,13 +39,26 @@ void simLogSql(char *sql, bool useSharp) {
 
 char *simParseArbitratorName(char *varName) {
   static char hostName[140];
+#ifdef WINDOWS
+  taosGetFqdn(hostName);
+  sprintf(&hostName[strlen(hostName)], ":%d", 8000);
+#else
   sprintf(hostName, "%s:%d", "localhost", 8000);
+#endif
   return hostName;
 }
 
 char *simParseHostName(char *varName) {
   static char hostName[140];
+#ifdef WINDOWS
+  hostName[0] = '\"';
+  taosGetFqdn(&hostName[1]);
+  int strEndIndex = strlen(hostName);
+  hostName[strEndIndex] = '\"';
+  hostName[strEndIndex + 1] = '\0';
+#else
   sprintf(hostName, "%s", "localhost");
+#endif
   return hostName;
 }
 
@@ -399,7 +412,8 @@ bool simExecuteSystemCmd(SScript *script, char *option) {
   sprintf(buf, "cd %s; ", simScriptDir);
   simVisuallizeOption(script, option, buf + strlen(buf));
 #else
-  sprintf(buf, "%s%s", simScriptDir, option);
+  sprintf(buf, "%s", simScriptDir);
+  simVisuallizeOption(script, option, buf + strlen(buf));
   simReplaceStr(buf, ".sh", ".bat");
 #endif
 

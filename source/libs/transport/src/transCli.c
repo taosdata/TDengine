@@ -479,7 +479,6 @@ static SCliConn* getConnFromPool(void* pool, char* ip, uint32_t port) {
   if (QUEUE_IS_EMPTY(&plist->conn)) {
     return NULL;
   }
-
   queue*    h = QUEUE_HEAD(&plist->conn);
   SCliConn* conn = QUEUE_DATA(h, SCliConn, conn);
   conn->status = ConnNormal;
@@ -492,7 +491,7 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   SCliThrdObj* thrd = conn->hostThrd;
   CONN_HANDLE_THREAD_QUIT(thrd);
 
-  STrans* pTransInst = ((SCliThrdObj*)conn->hostThrd)->pTransInst;
+  STrans* pTransInst = thrd->pTransInst;
   conn->expireTime = taosGetTimestampMs() + CONN_PERSIST_TIME(pTransInst->idleTime);
   transQueueClear(&conn->cliMsgs);
   transCtxCleanup(&conn->ctx);
@@ -505,7 +504,7 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   SConnList* plist = taosHashGet((SHashObj*)pool, key, strlen(key));
   // list already create before
   assert(plist != NULL);
-  // QUEUE_INIT(&conn->conn);
+  QUEUE_INIT(&conn->conn);
   QUEUE_PUSH(&plist->conn, &conn->conn);
   assert(!QUEUE_IS_EMPTY(&plist->conn));
 }
@@ -568,7 +567,6 @@ static SCliConn* cliCreateConn(SCliThrdObj* pThrd) {
 static void cliDestroyConn(SCliConn* conn, bool clear) {
   tTrace("%s conn %p remove from conn pool", CONN_GET_INST_LABEL(conn), conn);
   QUEUE_REMOVE(&conn->conn);
-  // QUEUE_INIT(&conn->conn);
   if (clear) {
     uv_close((uv_handle_t*)conn->stream, cliDestroy);
   }
@@ -784,11 +782,11 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd) {
 
     int ret = transSetConnOption((uv_tcp_t*)conn->stream);
     if (ret) {
-      tError("%s conn %p failed to set conn option, errmsg %s", pTransInst->label, conn, uv_err_name(ret));
+      tError("%s conn %p failed to set conn option, errmsg %s", transLabel(pTransInst), conn, uv_err_name(ret));
     }
     int fd = taosCreateSocketWithTimeOutOpt(TRANS_CONN_TIMEOUT);
     if (fd == -1) {
-      tTrace("%s conn %p failed to create socket", pTransInst->label, conn);
+      tTrace("%s conn %p failed to create socket", transLabel(pTransInst), conn);
       cliHandleExcept(conn);
       return;
     }
@@ -1118,7 +1116,7 @@ void transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STra
   SCliThrdObj* thrd = ((SCliObj*)pTransInst->tcphandle)->pThreadObj[idx];
 
   STraceId* trace = &pReq->info.traceId;
-  tGTrace("%s send request at thread:%08" PRId64 ", dst: %s:%d, app:%p", pTransInst->label, thrd->pid,
+  tGTrace("%s send request at thread:%08" PRId64 ", dst: %s:%d, app:%p", transLabel(pTransInst), thrd->pid,
           EPSET_GET_INUSE_IP(&pCtx->epSet), EPSET_GET_INUSE_PORT(&pCtx->epSet), pReq->info.ahandle);
   ASSERT(transSendAsync(thrd->asyncPool, &(cliMsg->q)) == 0);
 }
@@ -1151,7 +1149,7 @@ void transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransM
   SCliThrdObj* thrd = ((SCliObj*)pTransInst->tcphandle)->pThreadObj[idx];
 
   STraceId* trace = &pReq->info.traceId;
-  tGTrace("%s send request at thread:%08" PRId64 ", dst: %s:%d, app:%p", pTransInst->label, thrd->pid,
+  tGTrace("%s send request at thread:%08" PRId64 ", dst: %s:%d, app:%p", transLabel(pTransInst), thrd->pid,
           EPSET_GET_INUSE_IP(&pCtx->epSet), EPSET_GET_INUSE_PORT(&pCtx->epSet), pReq->info.ahandle);
 
   transSendAsync(thrd->asyncPool, &(cliMsg->q));

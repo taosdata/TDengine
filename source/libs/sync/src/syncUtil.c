@@ -86,7 +86,7 @@ void syncUtilraftId2EpSet(const SRaftId* raftId, SEpSet* pEpSet) {
 
 void syncUtilnodeInfo2raftId(const SNodeInfo* pNodeInfo, SyncGroupId vgId, SRaftId* raftId) {
   uint32_t ipv4 = taosGetIpv4FromFqdn(pNodeInfo->nodeFqdn);
-  assert(ipv4 != 0xFFFFFFFF);
+  ASSERT(ipv4 != 0xFFFFFFFF);
   char ipbuf[128] = {0};
   tinet_ntoa(ipbuf, ipv4);
   raftId->addr = syncUtilAddr2U64(ipbuf, pNodeInfo->nodePort);
@@ -124,7 +124,7 @@ void syncUtilbufCopyDeep(const SSyncBuffer* src, SSyncBuffer* dest) {
 int32_t syncUtilRand(int32_t max) { return taosRand() % max; }
 
 int32_t syncUtilElectRandomMS(int32_t min, int32_t max) {
-  assert(min > 0 && max > 0 && max >= min);
+  ASSERT(min > 0 && max > 0 && max >= min);
   return min + syncUtilRand(max - min);
 }
 
@@ -201,7 +201,7 @@ bool syncUtilCanPrint(char c) {
 
 char* syncUtilprintBin(char* ptr, uint32_t len) {
   char* s = taosMemoryMalloc(len + 1);
-  assert(s != NULL);
+  ASSERT(s != NULL);
   memset(s, 0, len + 1);
   memcpy(s, ptr, len);
 
@@ -216,7 +216,7 @@ char* syncUtilprintBin(char* ptr, uint32_t len) {
 char* syncUtilprintBin2(char* ptr, uint32_t len) {
   uint32_t len2 = len * 4 + 1;
   char*    s = taosMemoryMalloc(len2);
-  assert(s != NULL);
+  ASSERT(s != NULL);
   memset(s, 0, len2);
 
   char* p = s;
