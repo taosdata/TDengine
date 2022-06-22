@@ -1880,9 +1880,6 @@ const char* blockCompressDecode(SSDataBlock* pBlock, int32_t numOfCols, int32_t 
 
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
     if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-//      pColInfoData->varmeta.length = colLen[i];
-//      pColInfoData->varmeta.allocLen = colLen[i];
-
       memcpy(pColInfoData->varmeta.offset, pStart, sizeof(int32_t) * numOfRows);
       pStart += sizeof(int32_t) * numOfRows;
 

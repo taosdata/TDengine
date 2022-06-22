@@ -1450,8 +1450,8 @@ void setSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, const STuple
   int32_t pageId = pTuplePos->pageId;
   int32_t offset = pTuplePos->offset;
 
-  int32_t numOfCols = taosArrayGetSize(pCtx->pSrcBlock->pDataBlock);
   if (pTuplePos->pageId != -1) {
+    int32_t numOfCols = taosArrayGetSize(pCtx->pSrcBlock->pDataBlock);
     SFilePage* pPage = getBufPage(pCtx->pBuf, pageId);
 
     bool* nullList = (bool*)((char*)pPage + offset);
