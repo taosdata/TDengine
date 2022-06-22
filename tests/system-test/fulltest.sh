@@ -131,3 +131,4 @@ python3 ./test.py -f 7-tmq/subscribeStb4.py
 python3 ./test.py -f 7-tmq/db.py
 python3 ./test.py -f 7-tmq/tmqError.py
 python3 ./test.py -f 7-tmq/schema.py
+python3 ./test.py -f 7-tmq/stbFilter.py
