@@ -46,6 +46,7 @@ typedef enum EStreamType {
   STREAM_INVALID,
   STREAM_GET_ALL,
   STREAM_DELETE,
+  STREAM_RETRIEVE,
 } EStreamType;
 
 typedef struct {

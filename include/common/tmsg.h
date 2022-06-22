@@ -1205,6 +1205,13 @@ typedef struct {
   char*   data;
 } STagData;
 
+typedef struct {
+  int32_t useless;  // useless
+} SShowVariablesReq;
+
+int32_t tSerializeSShowVariablesReq(void* buf, int32_t bufLen, SShowVariablesReq* pReq);
+int32_t tDeserializeSShowVariablesReq(void* buf, int32_t bufLen, SShowVariablesReq* pReq);
+
 /*
  * sql: show tables like '%a_%'
  * payload is the query condition, e.g., '%a_%'

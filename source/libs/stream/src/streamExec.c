@@ -13,8 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "executor.h"
-#include "tstream.h"
+#include "streamInc.h"
 
 static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) {
   void* exec = pTask->exec.executor;
@@ -46,9 +45,17 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) 
       ASSERT(false);
     }
     if (output == NULL) break;
+
+    if (output->info.type == STREAM_RETRIEVE) {
+      if (streamBroadcastToChildren(pTask, output) < 0) {
+        // TODO
+      }
+      continue;
+    }
+
     // TODO: do we need free memory?
     SSDataBlock* outputCopy = createOneDataBlock(output, true);
-    outputCopy->info.childId = pTask->childId;
+    outputCopy->info.childId = pTask->selfChildId;
     taosArrayPush(pRes, outputCopy);
   }
   return 0;

@@ -195,6 +195,7 @@ struct SVnodeCfg {
 typedef struct {
   TSKEY    lastKey;
   uint64_t uid;
+  uint64_t groupId;
 } STableKeyInfo;
 
 struct SMetaEntry {
