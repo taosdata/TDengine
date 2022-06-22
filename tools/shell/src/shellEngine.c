@@ -524,6 +524,16 @@ bool shellIsLimitQuery(const char *sql) {
   return false;
 }
 
+bool shellIsShowQuery(const char *sql) {
+  //todo refactor
+  if (taosStrCaseStr(sql, "show ") != NULL) {
+    return true;
+  }
+
+  return false;
+}
+
+
 int32_t shellVerticalPrintResult(TAOS_RES *tres, const char *sql) {
   TAOS_ROW row = taos_fetch_row(tres);
   if (row == NULL) {
@@ -686,7 +696,7 @@ int32_t shellHorizontalPrintResult(TAOS_RES *tres, const char *sql) {
 
   uint64_t resShowMaxNum = UINT64_MAX;
 
-  if (shell.args.commands == NULL && shell.args.file[0] == 0 && !shellIsLimitQuery(sql)) {
+  if (shell.args.commands == NULL && shell.args.file[0] == 0 && !shellIsLimitQuery(sql) && !shellIsShowQuery(sql)) {
     resShowMaxNum = SHELL_DEFAULT_RES_SHOW_NUM;
   }
 
