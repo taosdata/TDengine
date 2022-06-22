@@ -175,7 +175,7 @@ static void cliReleaseUnfinishedMsg(SCliConn* conn) {
 #define CONN_SHOULD_RELEASE(conn, head)                                                                            \
   do {                                                                                                             \
     if ((head)->release == 1 && (head->msgLen) == sizeof(*head)) {                                                 \
-      int connStatus = conn->status; \
+      int      connStatus = conn->status;                                                                          \
       uint64_t ahandle = head->ahandle;                                                                            \
       CONN_GET_MSGCTX_BY_AHANDLE(conn, ahandle);                                                                   \
       conn->status = ConnRelease;                                                                                  \
@@ -188,8 +188,8 @@ static void cliReleaseUnfinishedMsg(SCliConn* conn) {
       destroyCmsg(pMsg);                                                                                           \
       cliReleaseUnfinishedMsg(conn);                                                                               \
       if (connStatus != ConnInPool) {                                                                              \
-      	addConnToPool(((SCliThrdObj*)conn->hostThrd)->pool, conn);                                                   \
-      } \
+        addConnToPool(((SCliThrdObj*)conn->hostThrd)->pool, conn);                                                 \
+      }                                                                                                            \
       return;                                                                                                      \
     }                                                                                                              \
   } while (0)
@@ -453,7 +453,7 @@ void* destroyConnPool(void* pool) {
   while (connList != NULL) {
     while (!QUEUE_IS_EMPTY(&connList->conn)) {
       queue* h = QUEUE_HEAD(&connList->conn);
-      //QUEUE_REMOVE(h);
+      // QUEUE_REMOVE(h);
       SCliConn* c = QUEUE_DATA(h, SCliConn, conn);
       cliDestroyConn(c, true);
     }
@@ -466,7 +466,7 @@ void* destroyConnPool(void* pool) {
 static SCliConn* getConnFromPool(void* pool, char* ip, uint32_t port) {
   char key[128] = {0};
   CONN_CONSTRUCT_HASH_KEY(key, ip, port);
-  
+
   SHashObj*  pPool = pool;
   SConnList* plist = taosHashGet(pPool, key, strlen(key));
   if (plist == NULL) {
@@ -480,14 +480,12 @@ static SCliConn* getConnFromPool(void* pool, char* ip, uint32_t port) {
     return NULL;
   }
 
-  queue* h = QUEUE_HEAD(&plist->conn);
-  //QUEUE_REMOVE(h);
+  queue*    h = QUEUE_HEAD(&plist->conn);
   SCliConn* conn = QUEUE_DATA(h, SCliConn, conn);
   conn->status = ConnNormal;
   QUEUE_REMOVE(&conn->conn);
-  tTrace("conn %p conn key: %s: ",conn, key);
+  QUEUE_INIT(&conn->conn);
   assert(h == &conn->conn);
-  //QUEUE_INIT(&conn->conn);
   return conn;
 }
 static void addConnToPool(void* pool, SCliConn* conn) {
@@ -507,8 +505,7 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   SConnList* plist = taosHashGet((SHashObj*)pool, key, strlen(key));
   // list already create before
   assert(plist != NULL);
-  tTrace("conn %p conn key: %s: ", conn, key);
-  //QUEUE_INIT(&conn->conn); 
+  // QUEUE_INIT(&conn->conn);
   QUEUE_PUSH(&plist->conn, &conn->conn);
   assert(!QUEUE_IS_EMPTY(&plist->conn));
 }
@@ -571,7 +568,7 @@ static SCliConn* cliCreateConn(SCliThrdObj* pThrd) {
 static void cliDestroyConn(SCliConn* conn, bool clear) {
   tTrace("%s conn %p remove from conn pool", CONN_GET_INST_LABEL(conn), conn);
   QUEUE_REMOVE(&conn->conn);
-  //QUEUE_INIT(&conn->conn);
+  // QUEUE_INIT(&conn->conn);
   if (clear) {
     uv_close((uv_handle_t*)conn->stream, cliDestroy);
   }
@@ -1016,7 +1013,7 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
                pCtx->retryCount + 1, TRANS_RETRY_COUNT_LIMIT);
       }
       if (pConn->status != ConnInPool) {
-      	addConnToPool(pThrd->pool, pConn);
+        addConnToPool(pThrd->pool, pConn);
       }
 
       STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));
