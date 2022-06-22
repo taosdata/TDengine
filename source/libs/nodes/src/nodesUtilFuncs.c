@@ -1357,6 +1357,17 @@ bool nodesIsRegularOp(const SOperatorNode* pOp) {
   return false;
 }
 
+bool nodesIsBitwiseOp(const SOperatorNode* pOp) {
+  switch (pOp->opType) {
+    case OP_TYPE_BIT_AND:
+    case OP_TYPE_BIT_OR:
+      return true;
+    default:
+      break;
+  }
+  return false;
+}
+
 typedef struct SCollectColumnsCxt {
   int32_t         errCode;
   const char*     pTableAlias;
