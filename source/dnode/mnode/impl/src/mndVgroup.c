@@ -1553,10 +1553,11 @@ static int32_t mndSetBalanceVgroupInfoToTrans(SMnode *pMnode, STrans *pTrans, SD
 static int32_t mndBalanceVgroupBetweenDnode(SMnode *pMnode, STrans *pTrans, SDnodeObj *pSrc, SDnodeObj *pDst) {
   void   *pIter = NULL;
   int32_t code = -1;
+  SSdb   *pSdb = pMnode->pSdb;
 
   while (1) {
     SVgObj *pVgroup = NULL;
-    pIter = sdbFetch(pMnode->pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
 
     bool existInSrc = false;
@@ -1568,13 +1569,15 @@ static int32_t mndBalanceVgroupBetweenDnode(SMnode *pMnode, STrans *pTrans, SDno
     }
 
     if (!existInSrc || existInDst) {
-      sdbRelease(pMnode->pSdb, pVgroup);
+      sdbRelease(pSdb, pVgroup);
+      continue;
     }
 
     SDbObj *pDb = mndAcquireDb(pMnode, pVgroup->dbName);
     code = mndSetBalanceVgroupInfoToTrans(pMnode, pTrans, pDb, pVgroup, pSrc, pDst);
     mndReleaseDb(pMnode, pDb);
-    sdbRelease(pMnode->pSdb, pVgroup);
+    sdbRelease(pSdb, pVgroup);
+    sdbCancelFetch(pSdb, pIter);
     break;
   }
 
@@ -1593,15 +1596,25 @@ static int32_t mndBalanceVgroup(SMnode *pMnode, SRpcMsg *pReq, SArray *pArray) {
 
   while (1) {
     taosArraySort(pArray, (__compar_fn_t)mndCompareDnodeVnodes);
-    SDnodeObj *pSrc = taosArrayGet(pArray, 0);
-    SDnodeObj *pDst = taosArrayGet(pArray, taosArrayGetSize(pArray) - 1);
+    for (int32_t i = 0; i < taosArrayGetSize(pArray); ++i) {
+      SDnodeObj *pDnode = taosArrayGet(pArray, i);
+      mDebug("dnode:%d, equivalent vnodes:%d support:%d, score:%f", pDnode->id, pDnode->numOfVnodes,
+             pDnode->numOfSupportVnodes, (float)pDnode->numOfVnodes / pDnode->numOfSupportVnodes);
+    }
+
+    SDnodeObj *pSrc = taosArrayGet(pArray, taosArrayGetSize(pArray) - 1);
+    SDnodeObj *pDst = taosArrayGet(pArray, 0);
 
     float srcScore = (float)(pSrc->numOfVnodes - 1) / pSrc->numOfSupportVnodes;
     float dstScore = (float)(pDst->numOfVnodes + 1) / pDst->numOfSupportVnodes;
-    if (srcScore + 0.0001 < dstScore) {
-      mDebug("trans:%d, balance vgroup from dnode:%d to dnode:%d", pTrans->id, pSrc->id, pDst->id);
+    mDebug("trans:%d, after balance, src dnode:%d score:%f, dst dnode:%d score:%f", pTrans->id, pSrc->id, srcScore,
+           pDst->id, dstScore);
+
+    if (srcScore > dstScore - 0.000001) {
       code = mndBalanceVgroupBetweenDnode(pMnode, pTrans, pSrc, pDst);
       if (code == 0) {
+        pSrc->numOfVnodes--;
+        pDst->numOfVnodes++;
         numOfVgroups++;
         continue;
       } else {
@@ -1635,7 +1648,13 @@ static int32_t mndProcessBalanceVgroupMsg(SRpcMsg *pReq) {
   void   *pIter = NULL;
   int64_t curMs = taosGetTimestampMs();
 
-  mDebug("start to balance vgroup");
+  SBalanceVgroupReq req = {0};
+  if (tDeserializeSBalanceVgroupReq(pReq->pCont, pReq->contLen, &req) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+
+  mInfo("start to balance vgroup");
 
   if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_BALANCE_VGROUP) != 0) goto _OVER;
 
