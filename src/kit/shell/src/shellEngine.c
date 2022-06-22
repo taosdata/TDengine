@@ -1480,7 +1480,6 @@ void* wsclient_get_response() {
     if (wsclient_send("pong", PONG_FRAME)) {
       return NULL;
     }
-    return wsclient_get_response();
   }
   args.response_buffer = calloc(1, parser.payload_length + 1);
   int pos = bytes - parser.offset;
