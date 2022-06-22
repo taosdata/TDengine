@@ -537,7 +537,7 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   // taosSsleep(20);
 
   SDataBlockDescNode* pDescNode = pTableScanNode->scan.node.pOutputDataBlockDesc;
-  int32_t numOfCols = 0;
+  int32_t             numOfCols = 0;
   SArray* pColList = extractColMatchInfo(pTableScanNode->scan.pScanCols, pDescNode, &numOfCols, COL_MATCH_FROM_COL_ID);
 
   int32_t code = initQueryTableDataCond(&pInfo->cond, pTableScanNode);
@@ -916,6 +916,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
   }
 
   size_t total = taosArrayGetSize(pInfo->pBlockLists);
+  // TODO: refactor
   if (pInfo->blockType == STREAM_DATA_TYPE_SSDATA_BLOCK) {
     if (pInfo->validBlockIndex >= total) {
       /*doClearBufferedBlocks(pInfo);*/
@@ -1969,8 +1970,7 @@ int32_t compareTableKeyInfoByGid(const void* p1, const void* p2) {
 }
 
 int32_t createScanTableListInfo(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle,
-                                STableListInfo* pTableListInfo, uint64_t queryId, uint64_t taskId,
-                                SNode* pTagCond) {
+                                STableListInfo* pTableListInfo, uint64_t queryId, uint64_t taskId, SNode* pTagCond) {
   int32_t code = getTableList(pHandle->meta, &pTableScanNode->scan, pTableListInfo, pTagCond);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -1990,11 +1990,10 @@ int32_t createScanTableListInfo(STableScanPhysiNode* pTableScanNode, SReadHandle
 }
 
 int32_t doCreateMultipleDataReaders(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle,
-                                  STableListInfo* pTableListInfo, SArray* arrayReader, uint64_t queryId,
-                                  uint64_t taskId) {
-
+                                    STableListInfo* pTableListInfo, SArray* arrayReader, uint64_t queryId,
+                                    uint64_t taskId) {
   SQueryTableDataCond cond = {0};
-  int32_t code = initQueryTableDataCond(&cond, pTableScanNode);
+  int32_t             code = initQueryTableDataCond(&cond, pTableScanNode);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
