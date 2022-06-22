@@ -1912,9 +1912,10 @@ typedef struct STableMergeScanInfo {
   int32_t         tableStartIndex;
   int32_t         tableEndIndex;
   bool            hasGroupId;
+  uint64_t        groupId;
 
-  SArray*         dataReaders;  // array of tsdbReaderT*
-  SReadHandle     readHandle;
+  SArray*     dataReaders;  // array of tsdbReaderT*
+  SReadHandle readHandle;
 
   int32_t  bufPageSize;
   uint32_t sortBufSize;  // max buffer size for in-memory sort
@@ -2211,6 +2212,16 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
   STableMergeScanInfo* pInfo = pOperator->info;
   SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
 
+  size_t  tableListSize = taosArrayGetSize(pInfo->tableListInfo->pTableList);
+  int32_t i = pInfo->tableStartIndex + 1;
+  for (; i < tableListSize; ++i) {
+    STableKeyInfo* tableKeyInfo = taosArrayGet(pInfo->tableListInfo->pTableList, i);
+    if (tableKeyInfo->groupId != pInfo->groupId) {
+      break;
+    }
+  }
+  pInfo->tableEndIndex = i - 1;
+
   int32_t tableStartIdx = pInfo->tableStartIndex;
   int32_t tableEndIdx = pInfo->tableEndIndex;
 
@@ -2307,27 +2318,40 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
   if (code != TSDB_CODE_SUCCESS) {
     longjmp(pTaskInfo->env, code);
   }
+  size_t tableListSize = taosArrayGetSize(pInfo->tableListInfo->pTableList);
   if (!pInfo->hasGroupId) {
     pInfo->hasGroupId = true;
+
     pInfo->tableStartIndex = 0;
-    pInfo->tableEndIndex = taosArrayGetSize(pInfo->tableListInfo->pTableList) - 1;
+    pInfo->groupId = ((STableKeyInfo*)taosArrayGet(pInfo->tableListInfo->pTableList, pInfo->tableStartIndex))->groupId;
     startGroupTableMergeScan(pOperator);
   }
-  SSDataBlock* pBlock = getSortedTableMergeScanBlockData(pInfo->pSortHandle, pOperator->resultInfo.capacity, pOperator);
-
-  if (pBlock != NULL) {
-    pOperator->resultInfo.totalRows += pBlock->info.rows;
-  } else {
-    stopGroupTableMergeScan(pOperator);
-    doSetOperatorCompleted(pOperator);
+  SSDataBlock* pBlock = NULL;
+  while (pInfo->tableStartIndex < tableListSize) {
+    pBlock = getSortedTableMergeScanBlockData(pInfo->pSortHandle, pOperator->resultInfo.capacity, pOperator);
+    if (pBlock != NULL) {
+      pBlock->info.groupId = pInfo->groupId;
+      pOperator->resultInfo.totalRows += pBlock->info.rows;
+      return pBlock;
+    } else {
+      stopGroupTableMergeScan(pOperator);
+      if (pInfo->tableEndIndex >= tableListSize - 1) {
+        doSetOperatorCompleted(pOperator);
+        break;
+      }
+      pInfo->tableStartIndex = pInfo->tableEndIndex + 1;
+      pInfo->groupId =
+          ((STableKeyInfo*)taosArrayGet(pInfo->tableListInfo->pTableList, pInfo->tableStartIndex))->groupId;
+      startGroupTableMergeScan(pOperator);
+    }
   }
+
   return pBlock;
 }
 
 void destroyTableMergeScanOperatorInfo(void* param, int32_t numOfOutput) {
   STableMergeScanInfo* pTableScanInfo = (STableMergeScanInfo*)param;
   cleanupQueryTableDataCond(&pTableScanInfo->cond);
-
 
   if (pTableScanInfo->pColMatchInfo != NULL) {
     taosArrayDestroy(pTableScanInfo->pColMatchInfo);
@@ -2417,8 +2441,8 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
   initResultSizeInfo(pOperator, 1024);
 
   pOperator->fpSet =
-      createOperatorFpSet(operatorDummyOpenFn, doTableMergeScan, NULL, NULL, destroyTableMergeScanOperatorInfo,
-                          NULL, NULL, getTableMergeScanExplainExecInfo);
+      createOperatorFpSet(operatorDummyOpenFn, doTableMergeScan, NULL, NULL, destroyTableMergeScanOperatorInfo, NULL,
+                          NULL, getTableMergeScanExplainExecInfo);
   pOperator->cost.openCost = 0;
   return pOperator;
 
