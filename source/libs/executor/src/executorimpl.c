@@ -3964,39 +3964,6 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
     return TDB_CODE_SUCCESS;
   }
 
-//  SSDataBlock data = {0};
-//  data.info.numOfCols = 3;
-//  data.info.rows = rowNum;
-//  data.pDataBlock = taosArrayInit(3, sizeof(SColumnInfoData));
-//  for (int32_t i = 0; i < 2; ++i) {
-//    SColumnInfoData idata = {{0}};
-//    idata.info.type  = TSDB_DATA_TYPE_NULL;
-//    idata.info.bytes = 10;
-//    idata.info.colId = i + 1;
-//
-//    int32_t size = idata.info.bytes * rowNum;
-//    idata.pData = (char *)taosMemoryCalloc(1, size);
-//    taosArrayPush(res->pDataBlock, &idata);
-//  }
-//
-//  SArray* pBlockList = taosArrayInit(4, POINTER_BYTES);
-//  taosArrayPush(pBlockList, &src);
-//
-//  SColumnInfoData* pResColData = taosArrayGet(pResult->pDataBlock, outputSlotId);
-//  SColumnInfoData  idata = {.info = pResColData->info, .hasNull = true};
-//
-//  SScalarParam dest = {.columnData = &idata};
-//  int32_t      code = scalarCalculate(group, pBlockList, &dest);
-//  if (code != TSDB_CODE_SUCCESS) {
-//    taosArrayDestroy(pBlockList);
-//    return code;
-//  }
-//
-//
-//  numOfRows = dest.numOfRows;
-//  taosArrayDestroy(pBlockList);
-
-
   pTableListInfo->map = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   if (pTableListInfo->map == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -4018,6 +3985,7 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  int32_t groupNum = 0;
   for (int32_t i = 0; i < taosArrayGetSize(pTableListInfo->pTableList); i++) {
     STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
     SMetaReader    mr = {0};
@@ -4038,6 +4006,7 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
       if (TSDB_CODE_SUCCESS == code) {
         REPLACE_NODE(pNew);
       } else {
+        taosMemoryFree(keyBuf);
         nodesClearList(groupNew);
         return code;
       }
@@ -4066,17 +4035,67 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
     }
 
     int32_t   len = (int32_t)(pStart - (char*)keyBuf);
-    uint64_t* groupId = taosHashGet(pTableListInfo->map, keyBuf, len);
-    if (groupId) {
-      taosHashPut(pTableListInfo->map, &(info->uid), sizeof(uint64_t), groupId, sizeof(uint64_t));
-    } else {
-      uint64_t tmpId = calcGroupId(keyBuf, len);
-      taosHashPut(pTableListInfo->map, &(info->uid), sizeof(uint64_t), &tmpId, sizeof(uint64_t));
-    }
+    uint64_t groupId = calcGroupId(keyBuf, len);
+    taosHashPut(pTableListInfo->map, &(info->uid), sizeof(uint64_t), &groupId, sizeof(uint64_t));
+    groupNum++;
+
     nodesClearList(groupNew);
     metaReaderClear(&mr);
   }
   taosMemoryFree(keyBuf);
+
+  if(pTableListInfo->needSortTableByGroupId){
+    pTableListInfo->pGroupList = taosArrayInit(groupNum, POINTER_BYTES);
+    SArray *sortSupport = taosArrayInit(groupNum, sizeof(uint64_t));
+    if(pTableListInfo->pGroupList == NULL || sortSupport == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+    for (int32_t i = 0; i < taosArrayGetSize(pTableListInfo->pTableList); i++) {
+      STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
+      uint64_t* groupId = taosHashGet(pTableListInfo->map, &info->uid, sizeof(uint64_t));
+
+      int32_t index = taosArraySearchIdx(sortSupport, groupId, compareUint64Val, TD_EQ);
+      if (index == -1){
+        void *p = taosArraySearch(sortSupport, groupId, compareUint64Val, TD_GT);
+        SArray *tGroup = taosArrayInit(8, sizeof(uint64_t));
+        if(tGroup == NULL) {
+          taosArrayDestroy(sortSupport);
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+        if(p == NULL){
+          if(taosArrayPush(sortSupport, groupId) != NULL){
+            qError("taos push support array error");
+            taosArrayDestroy(sortSupport);
+            return TSDB_CODE_QRY_APP_ERROR;
+          }
+          if(taosArrayPush(pTableListInfo->pGroupList, &tGroup) != NULL){
+            qError("taos push group array error");
+            taosArrayDestroy(sortSupport);
+            return TSDB_CODE_QRY_APP_ERROR;
+          }
+        }else{
+          int32_t pos = TARRAY_ELEM_IDX(sortSupport, p);
+          if(taosArrayInsert(sortSupport, pos, groupId) == NULL){
+            qError("taos insert support array error");
+            taosArrayDestroy(sortSupport);
+            return TSDB_CODE_QRY_APP_ERROR;
+          }
+          if(taosArrayInsert(pTableListInfo->pGroupList, pos, &tGroup) == NULL){
+            qError("taos insert group array error");
+            taosArrayDestroy(sortSupport);
+            return TSDB_CODE_QRY_APP_ERROR;
+          }
+        }
+      }else{
+        SArray* tGroup = (SArray*)taosArrayGetP(pTableListInfo->pGroupList, index);
+        if(taosArrayPush(tGroup, &info->uid) == NULL){
+          qError("taos push uid array error");
+          return TSDB_CODE_QRY_APP_ERROR;
+        }
+      }
+
+    }
+    taosArrayDestroy(sortSupport);
+  }
+
   return TDB_CODE_SUCCESS;
 }
 
