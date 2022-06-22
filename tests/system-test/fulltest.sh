@@ -108,8 +108,8 @@ python3 ./test.py -f 2-query/distribute_agg_apercentile.py
 
 python3 ./test.py -f 6-cluster/5dnode1mnode.py 
 python3 ./test.py -f 6-cluster/5dnode2mnode.py 
-#python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py
-#python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py
+python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py -N 5
+# python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py -N 5
 # BUG python3 ./test.py -f 6-cluster/5dnode3mnodeStopInsert.py 
 
 python3 ./test.py -f 7-tmq/basic5.py
