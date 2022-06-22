@@ -1017,6 +1017,11 @@ int32_t mndSetMoveVgroupInfoToTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb,
   if (mndAddDropVnodeAction(pMnode, pTrans, pDb, &newVg, &del, true) != 0) return -1;
   if (mndAddAlterVnodeConfirmAction(pMnode, pTrans, pDb, &newVg) != 0) return -1;
 
+  SSdbRaw *pRaw = mndVgroupActionEncode(&newVg);
+  if (pRaw == NULL || mndTransAppendCommitlog(pTrans, pRaw) != 0) return -1;
+  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  pRaw = NULL;
+
   mInfo("vgId:%d, vgroup info after move, replica:%d", newVg.vgId, newVg.replica);
   for (int32_t i = 0; i < newVg.replica; ++i) {
     mInfo("vgId:%d, vnode:%d dnode:%d", newVg.vgId, i, newVg.vnodeGid[i].dnodeId);
@@ -1025,6 +1030,7 @@ int32_t mndSetMoveVgroupInfoToTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb,
 }
 
 int32_t mndSetMoveVgroupsInfoToTrans(SMnode *pMnode, STrans *pTrans, int32_t delDnodeId) {
+  int32_t code = 0;
   SArray *pArray = mndBuildDnodesArray(pMnode, delDnodeId);
   if (pArray == NULL) return -1;
 
@@ -1042,18 +1048,24 @@ int32_t mndSetMoveVgroupsInfoToTrans(SMnode *pMnode, STrans *pTrans, int32_t del
       }
     }
 
+    code = 0;
     if (vnIndex != -1) {
       mInfo("vgId:%d, vnode:%d will be removed from dnode:%d", pVgroup->vgId, vnIndex, delDnodeId);
       SDbObj *pDb = mndAcquireDb(pMnode, pVgroup->dbName);
-      mndSetMoveVgroupInfoToTrans(pMnode, pTrans, pDb, pVgroup, vnIndex, pArray);
+      code = mndSetMoveVgroupInfoToTrans(pMnode, pTrans, pDb, pVgroup, vnIndex, pArray);
       mndReleaseDb(pMnode, pDb);
     }
 
     sdbRelease(pMnode->pSdb, pVgroup);
+
+    if (code != 0) {
+      sdbCancelFetch(pMnode->pSdb, pIter);
+      break;
+    }
   }
 
   taosArrayDestroy(pArray);
-  return 0;
+  return code;
 }
 
 static int32_t mndAddIncVgroupReplicaToTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup,

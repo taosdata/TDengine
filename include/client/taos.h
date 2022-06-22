@@ -187,8 +187,8 @@ DLL_EXPORT TAOS_ROW *taos_result_block(TAOS_RES *res);
 DLL_EXPORT const char *taos_get_server_info(TAOS *taos);
 DLL_EXPORT const char *taos_get_client_info();
 
-DLL_EXPORT const char *taos_errstr(TAOS_RES *tres);
-DLL_EXPORT int         taos_errno(TAOS_RES *tres);
+DLL_EXPORT const char *taos_errstr(TAOS_RES *res);
+DLL_EXPORT int         taos_errno(TAOS_RES *res);
 
 DLL_EXPORT void        taos_query_a(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param);
 DLL_EXPORT void        taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param);

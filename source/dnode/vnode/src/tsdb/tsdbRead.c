@@ -1066,11 +1066,11 @@ static int32_t getFileIdFromKey(TSKEY key, int32_t daysPerFile, int32_t precisio
   }
 
   int64_t fid = (int64_t)(key / (daysPerFile * tsTickPerMin[precision]));  // set the starting fileId
-  if (fid < 0L && llabs(fid) > INT32_MAX) {                                // data value overflow for INT32
+  if (fid < 0LL && llabs(fid) > INT32_MAX) {                                // data value overflow for INT32
     fid = INT32_MIN;
   }
 
-  if (fid > 0L && fid > INT32_MAX) {
+  if (fid > 0LL && fid > INT32_MAX) {
     fid = INT32_MAX;
   }
 

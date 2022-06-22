@@ -75,7 +75,7 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
     if (agree) {
       // term
       SSyncRaftEntry* pEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, index);
-      assert(pEntry != NULL);
+      ASSERT(pEntry != NULL);
 
       // cannot commit, even if quorum agree. need check term!
       if (pEntry->term == pSyncNode->pRaftStore->currentTerm) {

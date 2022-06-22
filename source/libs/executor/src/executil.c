@@ -300,7 +300,7 @@ SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
 
     SColMatchInfo c = {0};
     c.output = true;
-    c.colId = pColNode->colId;
+    c.colId  = pColNode->colId;
     c.srcSlotId = pColNode->slotId;
     c.matchType = type;
     c.targetSlotId = pNode->slotId;
