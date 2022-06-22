@@ -1856,6 +1856,11 @@ const char* blockCompressDecode(SSDataBlock* pBlock, int32_t numOfCols, int32_t 
   pBlock->info.groupId = *(uint64_t*)pStart;
   pStart += sizeof(uint64_t);
 
+  if (pBlock->pDataBlock == NULL) {
+    pBlock->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
+    taosArraySetSize(pBlock->pDataBlock, numOfCols);
+  }
+
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
     pColInfoData->info.type = *(int16_t*)pStart;
