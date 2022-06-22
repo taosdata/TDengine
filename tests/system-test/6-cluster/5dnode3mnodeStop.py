@@ -278,7 +278,6 @@ class TDTestCase:
         self.check3mnode()
 
     def run(self): 
-        tdLog.debug("123")
         self.five_dnode_three_mnode(5)
  
     def stop(self):
