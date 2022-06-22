@@ -23,6 +23,9 @@
 #include "twal.h"
 #include "walInt.h"
 
+
+
+
 static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, char *name, int64_t fileId);
 
 int32_t walRenew(void *handle) {
