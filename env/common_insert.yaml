@@ -23,6 +23,7 @@ settings:
         logDir: /var/log/taos
         defaultJSONStrType: "nchar"
         debugFlag: 135
+        asyncLog: 0
 
   - name: taosAdapter
     fqdn: [ceph01]
