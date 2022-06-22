@@ -1897,8 +1897,9 @@ const char* blockCompressDecode(SSDataBlock* pBlock, int32_t numOfCols, int32_t 
 
         pColInfoData->pData = tmp;
         pColInfoData->varmeta.allocLen = colLen[i];
-        pColInfoData->varmeta.length = colLen[i];
       }
+
+      pColInfoData->varmeta.length = colLen[i];
     } else {
       memcpy(pColInfoData->nullbitmap, pStart, BitmapLen(numOfRows));
       pStart += BitmapLen(numOfRows);
