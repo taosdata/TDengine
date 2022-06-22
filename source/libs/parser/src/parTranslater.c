@@ -665,6 +665,10 @@ static EDealRes translateColumnUseAlias(STranslateContext* pCxt, SColumnNode** p
 }
 
 static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
+  if (NULL != pCxt->pCurrSelectStmt && NULL == pCxt->pCurrSelectStmt->pFromTable) {
+    return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_COLUMN, (*pCol)->colName);
+  }
+
   // count(*)/first(*)/last(*) and so on
   if (0 == strcmp((*pCol)->colName, "*")) {
     return DEAL_RES_CONTINUE;
