@@ -684,6 +684,7 @@ static void doInterpUnclosedTimeWindow(SOperatorInfo* pOperatorInfo, int32_t num
 }
 
 void printDataBlock(SSDataBlock* pBlock, const char* flag) {
+  if (pBlock == NULL) return;
   SArray* blocks = taosArrayInit(1, sizeof(SSDataBlock));
   taosArrayPush(blocks, pBlock);
   blockDebugShowData(blocks, flag);
@@ -1262,7 +1263,7 @@ static int32_t getAllIntervalWindow(SHashObj* pHashMap, SArray* resWins) {
   return TSDB_CODE_SUCCESS;
 }
 
-bool isCloseWindow(STimeWindow *pWin, STimeWindowAggSupp* pSup) {
+bool isCloseWindow(STimeWindow* pWin, STimeWindowAggSupp* pSup) {
   ASSERT(pSup->maxTs == INT64_MIN || pSup->maxTs > 0);
   return pSup->maxTs != INT64_MIN && pWin->ekey < pSup->maxTs - pSup->waterMark;
 }
@@ -2402,7 +2403,7 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
   pInfo->pChildren = NULL;
   if (numOfChild > 0) {
-    pInfo->pChildren = taosArrayInit(numOfChild, sizeof(void *));
+    pInfo->pChildren = taosArrayInit(numOfChild, sizeof(void*));
     for (int32_t i = 0; i < numOfChild; i++) {
       SOperatorInfo* pChildOp = createStreamFinalIntervalOperatorInfo(NULL, pPhyNode, pTaskInfo, 0);
       if (pChildOp) {
@@ -3027,12 +3028,14 @@ static SSDataBlock* doStreamSessionAgg(SOperatorInfo* pOperator) {
   } else if (pOperator->status == OP_RES_TO_RETURN) {
     doBuildDeleteDataBlock(pInfo->pStDeleted, pInfo->pDelRes, &pInfo->pDelIterator);
     if (pInfo->pDelRes->info.rows > 0) {
+      /*printDataBlock(pInfo->pDelRes, "session del");*/
       return pInfo->pDelRes;
     }
     doBuildResultDatablock(pOperator, pBInfo, &pInfo->groupResInfo, pInfo->streamAggSup.pResultBuf);
     if (pBInfo->pRes->info.rows == 0 || !hasDataInGroupInfo(&pInfo->groupResInfo)) {
       doSetOperatorCompleted(pOperator);
     }
+    /*printDataBlock(pBInfo->pRes, "session insert");*/
     return pBInfo->pRes->info.rows == 0 ? NULL : pBInfo->pRes;
   }
 
@@ -3100,9 +3103,11 @@ static SSDataBlock* doStreamSessionAgg(SOperatorInfo* pOperator) {
   blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
   doBuildDeleteDataBlock(pInfo->pStDeleted, pInfo->pDelRes, &pInfo->pDelIterator);
   if (pInfo->pDelRes->info.rows > 0) {
+    /*printDataBlock(pInfo->pDelRes, "session del");*/
     return pInfo->pDelRes;
   }
   doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->streamAggSup.pResultBuf);
+  /*printDataBlock(pBInfo->pRes, "session insert");*/
   return pBInfo->pRes->info.rows == 0 ? NULL : pBInfo->pRes;
 }
 
