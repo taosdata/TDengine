@@ -1886,6 +1886,5 @@ RECV:
   et = taosGetTimestampUs();
   printf("Query OK, %" PRId64 " row(s) in set (%.6fs)\n\n", args.fetched_rows, (et - args.st) / 1E6);
   args.fetched_rows = 0;
-  wsclient_send_sql(NULL, WS_CLOSE);
   tfree(args.fields);
 }
