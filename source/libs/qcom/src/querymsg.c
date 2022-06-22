@@ -131,8 +131,15 @@ int32_t queryBuildDnodeListMsg(void *input, char **msg, int32_t msgSize, int32_t
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
 
-  *msg = NULL;
-  *msgLen = 0;
+  SDnodeListReq dnodeListReq = {0};
+  dnodeListReq.rowNum = -1;
+
+  int32_t bufLen = tSerializeSDnodeListReq(NULL, 0, &dnodeListReq);
+  void   *pBuf = (*mallcFp)(bufLen);
+  tSerializeSDnodeListReq(pBuf, bufLen, &dnodeListReq);
+
+  *msg = pBuf;
+  *msgLen = bufLen;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -440,7 +447,7 @@ int32_t queryProcessQnodeListRsp(void *output, char *msg, int32_t msgSize) {
   return code;
 }
 
-int32_t queryProcessQnodeListRsp(void *output, char *msg, int32_t msgSize) {
+int32_t queryProcessDnodeListRsp(void *output, char *msg, int32_t msgSize) {
   SDnodeListRsp out = {0};
   int32_t       code = 0;
 
@@ -449,7 +456,6 @@ int32_t queryProcessQnodeListRsp(void *output, char *msg, int32_t msgSize) {
     return code;
   }
 
-  out.dnodeList = (SArray *)output;
   if (tDeserializeSDnodeListRsp(msg, msgSize, &out) != 0) {
     qError("invalid dnode list rsp msg, msgSize:%d", msgSize);
     code = TSDB_CODE_INVALID_MSG;

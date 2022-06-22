@@ -2194,6 +2194,32 @@ int32_t tDeserializeSQnodeListReq(void *buf, int32_t bufLen, SQnodeListReq *pReq
   return 0;
 }
 
+int32_t tSerializeSDnodeListReq(void *buf, int32_t bufLen, SDnodeListReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->rowNum) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSDnodeListReq(void *buf, int32_t bufLen, SDnodeListReq *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->rowNum) < 0) return -1;
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+
 int32_t tSerializeSQnodeListRsp(void *buf, int32_t bufLen, SQnodeListRsp *pRsp) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);

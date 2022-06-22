@@ -46,6 +46,7 @@ static SSdbRow *mndDnodeActionDecode(SSdbRaw *pRaw);
 static int32_t  mndDnodeActionInsert(SSdb *pSdb, SDnodeObj *pDnode);
 static int32_t  mndDnodeActionDelete(SSdb *pSdb, SDnodeObj *pDnode);
 static int32_t  mndDnodeActionUpdate(SSdb *pSdb, SDnodeObj *pOld, SDnodeObj *pNew);
+static int32_t  mndProcessDnodeListReq(SRpcMsg *pReq);
 
 static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq);
@@ -734,28 +735,28 @@ static int32_t mndRetrieveConfigs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
   int32_t totalRows = 0;
   int32_t numOfRows = 0;
   char   *cfgOpts[TSDB_CONFIG_NUMBER] = {0};
-  char    cfgVals[TSDB_CONFIG_NUMBER][TSDB_CONIIG_VALUE_LEN + 1] = {0};
+  char    cfgVals[TSDB_CONFIG_NUMBER][TSDB_CONFIG_VALUE_LEN + 1] = {0};
   char   *pWrite = NULL;
   int32_t cols = 0;
 
   cfgOpts[totalRows] = "statusInterval";
-  snprintf(cfgVals[totalRows], TSDB_CONIIG_VALUE_LEN, "%d", tsStatusInterval);
+  snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%d", tsStatusInterval);
   totalRows++;
 
   cfgOpts[totalRows] = "timezone";
-  snprintf(cfgVals[totalRows], TSDB_CONIIG_VALUE_LEN, "%s", tsTimezoneStr);
+  snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%s", tsTimezoneStr);
   totalRows++;
 
   cfgOpts[totalRows] = "locale";
-  snprintf(cfgVals[totalRows], TSDB_CONIIG_VALUE_LEN, "%s", tsLocale);
+  snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%s", tsLocale);
   totalRows++;
 
   cfgOpts[totalRows] = "charset";
-  snprintf(cfgVals[totalRows], TSDB_CONIIG_VALUE_LEN, "%s", tsCharset);
+  snprintf(cfgVals[totalRows], TSDB_CONFIG_VALUE_LEN, "%s", tsCharset);
   totalRows++;
 
   char buf[TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE] = {0};
-  char bufVal[TSDB_CONIIG_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
+  char bufVal[TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
 
   for (int32_t i = 0; i < totalRows; i++) {
     cols = 0;
@@ -764,7 +765,7 @@ static int32_t mndRetrieveConfigs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)buf, false);
 
-    STR_WITH_MAXSIZE_TO_VARSTR(bufVal, cfgVals[i], TSDB_CONIIG_VALUE_LEN);
+    STR_WITH_MAXSIZE_TO_VARSTR(bufVal, cfgVals[i], TSDB_CONFIG_VALUE_LEN);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)bufVal, false);
 

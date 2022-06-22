@@ -834,6 +834,14 @@ typedef struct {
 int32_t tSerializeSQnodeListReq(void* buf, int32_t bufLen, SQnodeListReq* pReq);
 int32_t tDeserializeSQnodeListReq(void* buf, int32_t bufLen, SQnodeListReq* pReq);
 
+typedef struct {
+  int32_t rowNum;
+} SDnodeListReq;
+
+int32_t tSerializeSDnodeListReq(void* buf, int32_t bufLen, SDnodeListReq* pReq);
+int32_t tDeserializeSDnodeListReq(void* buf, int32_t bufLen, SDnodeListReq* pReq);
+
+
 typedef struct SQueryNodeAddr {
   int32_t nodeId;  // vgId or qnodeId
   SEpSet  epSet;

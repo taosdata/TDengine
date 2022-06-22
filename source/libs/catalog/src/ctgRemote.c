@@ -40,6 +40,21 @@ int32_t ctgProcessRspMsg(void* out, int32_t reqType, char* msg, int32_t msgSize,
       qDebug("Got qnode list from mnode, listNum:%d", (int32_t)taosArrayGetSize(out));
       break;
     }
+    case TDMT_MND_DNODE_LIST: {
+      if (TSDB_CODE_SUCCESS != rspCode) {
+        qError("error rsp for dnode list, error:%s", tstrerror(rspCode));
+        CTG_ERR_RET(rspCode);
+      }
+      
+      code = queryProcessMsgRsp[TMSG_INDEX(reqType)](out, msg, msgSize);
+      if (code) {
+        qError("Process dnode list rsp failed, error:%s", tstrerror(rspCode));
+        CTG_ERR_RET(code);
+      }
+      
+      qDebug("Got dnode list from mnode, listNum:%d", (int32_t)taosArrayGetSize(*(SArray**)out));
+      break;
+    }
     case TDMT_MND_USE_DB: {
       if (TSDB_CODE_SUCCESS != rspCode) {
         qError("error rsp for use db, error:%s, dbFName:%s", tstrerror(rspCode), target);
@@ -361,11 +376,7 @@ int32_t ctgGetDnodeListFromMnode(SCatalog* pCtg, SRequestConnInfo *pConn, SArray
   }
 
   if (pTask) {
-    void* pOut = taosArrayInit(4, sizeof(SQueryNodeLoad));
-    if (NULL == pOut) {
-      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
-    }
-    CTG_ERR_RET(ctgUpdateMsgCtx(&pTask->msgCtx, reqType, pOut, NULL));
+    CTG_ERR_RET(ctgUpdateMsgCtx(&pTask->msgCtx, reqType, NULL, NULL));
     CTG_RET(ctgAsyncSendMsg(pCtg, pConn, pTask, reqType, msg, msgLen));
   }
   
