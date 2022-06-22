@@ -523,7 +523,8 @@ int32_t doOpenMultiwaySortMergeOperator(SOperatorInfo* pOperator) {
                                              pInfo->pInputBlock, pTaskInfo->id.str);
 
   tsortSetFetchRawDataFp(pInfo->pSortHandle, loadNextDataBlock, NULL, NULL);
-
+  tsortSetCompareGroupId(pInfo->pSortHandle, true);
+  
   for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
     SSortSource* ps = taosMemoryCalloc(1, sizeof(SSortSource));
     ps->param = pOperator->pDownstream[i];
