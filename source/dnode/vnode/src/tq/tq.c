@@ -426,6 +426,7 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, char* msg, int32_t msgLen) {
     ASSERT(0);
   }
   tDecoderClear(&decoder);
+  ASSERT(pTask->isDataScan == 0 || pTask->isDataScan == 1);
 
   pTask->execStatus = TASK_EXEC_STATUS__IDLE;
 
@@ -505,7 +506,7 @@ int32_t tqProcessStreamTrigger(STQ* pTq, SSubmitReq* pReq) {
     if (atomic_load_8(&pTask->taskStatus) == TASK_STATUS__DROPPING) {
       continue;
     }
-    if (pTask->inputType != STREAM_INPUT__DATA_SUBMIT) continue;
+    if (!pTask->isDataScan) continue;
 
     if (!failed) {
       if (streamTaskInput(pTask, (SStreamQueueItem*)pSubmit) < 0) {
