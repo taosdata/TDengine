@@ -164,7 +164,7 @@ int32_t tsdbRealloc(uint8_t **ppBuf, int64_t size) {
 
   if (bsize >= size) goto _exit;
 
-  if (bsize == 0) bsize = 16;
+  if (bsize == 0) bsize = 64;
   while (bsize < size) {
     bsize *= 2;
   }
@@ -516,7 +516,7 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
 
     // TODO
     ASSERT(0);
-    // p = taosbsearch(&(SColData){.cid = pTColumn->colId}, pRow->pBlockData->apColData, pRow->pBlockData->nColData,
+    // p = taosbsearch(&(SColData){.cid = pTColumn->colId}, pRow->pBlockData->aColDataP, pRow->pBlockData->nColData,
     //                 sizeof(SBlockCol), tColDataCmprFn, TD_EQ);
     if (p) {
       pColData = (SColData *)p;
@@ -607,8 +607,8 @@ SColVal *tRowIterNext(SRowIter *pIter) {
       return &pIter->colVal;
     }
   } else {
-    if (pIter->i < taosArrayGetSize(pIter->pRow->pBlockData->apColData)) {
-      SColData *pColData = (SColData *)taosArrayGetP(pIter->pRow->pBlockData->apColData, pIter->i);
+    if (pIter->i < taosArrayGetSize(pIter->pRow->pBlockData->aColDataP)) {
+      SColData *pColData = (SColData *)taosArrayGetP(pIter->pRow->pBlockData->aColDataP, pIter->i);
 
       tColDataGetValue(pColData, pIter->pRow->iRow, &pIter->colVal);
       pIter->i++;
@@ -750,8 +750,11 @@ int32_t tGetKEYINFO(uint8_t *p, KEYINFO *pKeyInfo) {
 }
 
 // SColData ========================================
-void tColDataReset(SColData *pColData) {
-  // TODO
+void tColDataReset(SColData *pColData, int16_t cid, int8_t type) {
+  pColData->cid = cid;
+  pColData->type = type;
+  pColData->flags = 0;
+  pColData->nData = 0;
 }
 
 void tColDataClear(void *ph) {
@@ -764,7 +767,12 @@ void tColDataClear(void *ph) {
 
 int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal) {
   int32_t code = 0;
-  // TODO
+
+  if (pColVal->isNone) {
+  } else if (pColVal->isNull) {
+  } else {
+  }
+
   return code;
 }
 
@@ -783,52 +791,20 @@ int32_t tColDataCmprFn(const void *p1, const void *p2) {
 }
 
 // SBlockData ======================================================
-static int32_t tBlockDataAddColData(SBlockData *pBlockData, int32_t iColData) {
-  int32_t code = 0;
-  // int32_t nColData = pBlockData->nColData;
-
-  // pBlockData->nColData++;
-  // if (pBlockData->nColData > pBlockData->maxCol) {
-  //   if (pBlockData->maxCol == 0) {
-  //     pBlockData->maxCol = 16;
-  //   } else {
-  //     pBlockData->maxCol *= 2;
-  //   }
-
-  //   code = tsdbRealloc((uint8_t **)&pBlockData->apColData, sizeof(SColData *) * pBlockData->maxCol);
-  //   if (code) goto _exit;
-  //   code = tsdbRealloc((uint8_t **)&pBlockData->aColData, sizeof(SColData) * pBlockData->maxCol);
-  //   if (code) goto _exit;
-
-  //   for (int32_t iColData = nColData; iColData < pBlockData->maxCol; iColData++) {
-  //     pBlockData->aColData[iColData] = tColDataInit();
-  //   }
-  // }
-
-  // // memmove (todo)
-  // // int32_t size = sizeof(SColData *) * (nColData - iColData);
-  // // if (size) {
-  // //   memmove();
-  // // }
-
-  // pBlockData->apColData[iColData] = &pBlockData->aColData[nColData];
-
-_exit:
-  return code;
-}
-
 int32_t tBlockDataInit(SBlockData *pBlockData) {
   int32_t code = 0;
 
-  *pBlockData = (SBlockData){0};
-  pBlockData->apColData = taosArrayInit(0, sizeof(SColData *));
-  if (pBlockData->apColData == NULL) {
+  pBlockData->nRow = 0;
+  pBlockData->aVersion = NULL;
+  pBlockData->aTSKEY = NULL;
+  pBlockData->aColDataP = taosArrayInit(0, sizeof(SColData *));
+  if (pBlockData->aColDataP == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
   pBlockData->aColData = taosArrayInit(0, sizeof(SColData));
   if (pBlockData->aColData == NULL) {
-    taosArrayDestroy(pBlockData->apColData);
+    taosArrayDestroy(pBlockData->aColDataP);
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
@@ -839,72 +815,111 @@ _exit:
 
 void tBlockDataReset(SBlockData *pBlockData) {
   pBlockData->nRow = 0;
-  taosArrayClear(pBlockData->apColData);
+  taosArrayClear(pBlockData->aColDataP);
 }
 
 void tBlockDataClear(SBlockData *pBlockData) {
   tsdbFree((uint8_t *)pBlockData->aVersion);
   tsdbFree((uint8_t *)pBlockData->aTSKEY);
-  taosArrayDestroy(pBlockData->apColData);
+  taosArrayDestroy(pBlockData->aColDataP);
   taosArrayDestroyEx(pBlockData->aColData, tColDataClear);
 }
 
-static int32_t tBlockDataAppendRow0(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema);
-static int32_t tBlockDataAppendRow1(SBlockData *pBlockData, TSDBROW *pRow);
+static SColData *tBlockDataAddBlockCol(SBlockData *pBlockData, int32_t iColData, int16_t cid, int8_t type) {
+  SColData *pColData = NULL;
+  int32_t   idx = taosArrayGetSize(pBlockData->aColDataP);
+
+  if (idx >= taosArrayGetSize(pBlockData->aColData)) {
+    if (taosArrayPush(pBlockData->aColData, &((SColData){0})) == NULL) return NULL;
+  }
+  pColData = (SColData *)taosArrayGet(pBlockData->aColData, idx);
+  tColDataReset(pColData, cid, type);
+
+  if (taosArrayInsert(pBlockData->aColDataP, iColData, &pColData) == NULL) return NULL;
+
+  // append NONE
+  for (int32_t i = 0; i < pBlockData->nRow; i++) {
+    if (tColDataAppendValue(pColData, &COL_VAL_NONE(cid)) != 0) return NULL;
+  }
+
+  return pColData;
+}
 
 int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema) {
   int32_t code = 0;
-  int32_t nRow = pBlockData->nRow;
   TSDBKEY key = tsdbRowKey(pRow);
 
-  pBlockData->nRow++;
-
   // TSDBKEY
-  if (pBlockData->nRow > pBlockData->maxRow) {
-    if (pBlockData->maxRow == 0) {
-      pBlockData->maxRow = 1024;
-    } else {
-      pBlockData->maxRow *= 2;
-    }
-
-    code = tsdbRealloc((uint8_t **)&pBlockData->aVersion, sizeof(int64_t) * pBlockData->maxRow);
-    if (code) goto _err;
-    code = tsdbRealloc((uint8_t **)&pBlockData->aTSKEY, sizeof(TSKEY) * pBlockData->maxRow);
-    if (code) goto _err;
-  }
-  pBlockData->aVersion[nRow] = key.version;
-  pBlockData->aTSKEY[nRow] = key.ts;
+  code = tsdbRealloc((uint8_t **)&pBlockData->aVersion, sizeof(int64_t) * (pBlockData->nRow + 1));
+  if (code) goto _err;
+  code = tsdbRealloc((uint8_t **)&pBlockData->aTSKEY, sizeof(TSKEY) * (pBlockData->nRow + 1));
+  if (code) goto _err;
+  pBlockData->aVersion[pBlockData->nRow] = key.version;
+  pBlockData->aTSKEY[pBlockData->nRow] = key.ts;
 
   // OTHER
   int32_t   iColData = 0;
-  int32_t   nColData = taosArrayGetSize(pBlockData->apColData);
-  SRowIter  ri;
+  SRowIter *pIter = &((SRowIter){0});
   SColData *pColData;
   SColVal  *pColVal;
 
-  tRowIterInit(&ri, pRow, pTSchema);
-  pColData = iColData < nColData ? (SColData *)taosArrayGetP(pBlockData->apColData, iColData) : NULL;
-  pColVal = tRowIterNext(&ri);
-  while (true) {
-    if (pColData && pColVal) {
-      if (pColData->cid == pColVal->cid) {
-        // append SColVal to SColData
-        pColVal = tRowIterNext(&ri);
-        iColData++;
-        pColData = iColData < nColData ? (SColData *)taosArrayGetP(pBlockData->apColData, iColData) : NULL;
-      } else if (pColData->cid < pColVal->cid) {
-        // append a NONE
-        iColData++;
-      } else {
-        // add a new SColData
-      }
-    } else if (pColData) {
-      // add a NONE
+  tRowIterInit(pIter, pRow, pTSchema);
+  pColVal = tRowIterNext(pIter);
+  pColData = (iColData < taosArrayGetSize(pBlockData->aColDataP))
+                 ? (SColData *)taosArrayGetP(pBlockData->aColDataP, iColData)
+                 : NULL;
+
+  while (pColVal && pColData) {
+    if (pColVal->cid == pColData->cid) {
+      code = tColDataAppendValue(pColData, pColVal);
+      if (code) goto _err;
+
+      pColVal = tRowIterNext(pIter);
+    } else if (pColVal->cid > pColData->cid) {
+      code = tColDataAppendValue(pColData, &(COL_VAL_NONE(pColData->cid)));
+      if (code) goto _err;
     } else {
-      // add a new SColData and append value
+      pColData = tBlockDataAddBlockCol(pBlockData, iColData, pColVal->cid, pColVal->type);
+      if (pColData == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _err;
+      }
+
+      code = tColDataAppendValue(pColData, pColVal);
+      if (code) goto _err;
+
+      pColVal = tRowIterNext(pIter);
     }
+
+    pColData = ((++iColData) < taosArrayGetSize(pBlockData->aColDataP))
+                   ? (SColData *)taosArrayGetP(pBlockData->aColDataP, iColData)
+                   : NULL;
   }
 
+  while (pColData) {
+    code = tColDataAppendValue(pColData, &COL_VAL_NONE(pColData->cid));
+    if (code) goto _err;
+
+    pColData = ((++iColData) < taosArrayGetSize(pBlockData->aColDataP))
+                   ? (SColData *)taosArrayGetP(pBlockData->aColDataP, iColData)
+                   : NULL;
+  }
+
+  while (pColVal) {
+    pColData = tBlockDataAddBlockCol(pBlockData, iColData, pColVal->cid, pColVal->type);
+    if (pColData == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _err;
+    }
+
+    code = tColDataAppendValue(pColData, pColVal);
+    if (code) goto _err;
+
+    iColData++;
+    pColVal = tRowIterNext(pIter);
+  }
+
+  pBlockData->nRow++;
   return code;
 
 _err:

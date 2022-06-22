@@ -147,6 +147,7 @@ struct SValue {
 
 struct SColVal {
   int16_t cid;
+  int8_t  type;
   int8_t  isNone;
   int8_t  isNull;
   SValue  value;

@@ -41,7 +41,6 @@ typedef struct SDelIdx        SDelIdx;
 typedef struct STbData        STbData;
 typedef struct SMemTable      SMemTable;
 typedef struct STbDataIter    STbDataIter;
-typedef struct SMergeInfo     SMergeInfo;
 typedef struct STable         STable;
 typedef struct SMapData       SMapData;
 typedef struct SBlockSMA      SBlockSMA;
@@ -71,6 +70,7 @@ typedef struct STsdbFS        STsdbFS;
 #define HAS_NONE  ((int8_t)0x1)
 #define HAS_NULL  ((int8_t)0x2)
 #define HAS_VALUE ((int8_t)0x4)
+
 // tsdbUtil.c ==============================================================================================
 // TSDBROW
 #define TSDBROW_SVERSION(ROW)                 TD_ROW_SVER((ROW)->pTSRow)
@@ -111,7 +111,7 @@ int32_t tPutBlockIdx(uint8_t *p, void *ph);
 int32_t tGetBlockIdx(uint8_t *p, void *ph);
 // SColdata
 #define tColDataInit() ((SColData){0})
-void    tColDataReset(SColData *pColData);
+void    tColDataReset(SColData *pColData, int16_t cid, int8_t type);
 void    tColDataClear(void *ph);
 int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal);
 void    tColDataGetValue(SColData *pColData, int32_t iRow, SColVal *pColVal);
@@ -365,7 +365,6 @@ struct SAggrBlkCol {
 struct SColData {
   int16_t  cid;
   int8_t   type;
-  int32_t  bytes;
   uint8_t  flags;
   uint8_t *pBitMap;
   int32_t *pOfst;
@@ -374,12 +373,11 @@ struct SColData {
 };
 
 struct SBlockData {
-  int32_t  maxRow;
   int32_t  nRow;
   int64_t *aVersion;
   TSKEY   *aTSKEY;
-  SArray  *apColData;
-  SArray  *aColData;
+  SArray  *aColDataP;  // SArray<SColData *>
+  SArray  *aColData;   // SArray<SColData>
 };
 
 // ================== TSDB global config
