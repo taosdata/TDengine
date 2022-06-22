@@ -584,7 +584,7 @@ void setHeartbeatTimerMS(int64_t rid, int32_t hbTimerMS) {
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
 }
 
-int32_t syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
+int32_t syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak) {
   int32_t ret = 0;
 
   SSyncNode* pSyncNode = taosAcquireRef(tsNodeRefId, rid);

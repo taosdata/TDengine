@@ -242,7 +242,10 @@ static int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index,
     sError("raftLogGetEntry error, err:%d %X, msg:%s, linuxErr:%d, linuxErrMsg:%s", err, err, errStr, linuxErr,
            linuxErrMsg);
 
+    int32_t saveErr = terrno;
     walCloseReadHandle(pWalHandle);
+    terrno = saveErr;
+
     return code;
   }
 
@@ -257,8 +260,9 @@ static int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index,
   ASSERT((*ppEntry)->dataLen == pWalHandle->pHead->head.bodyLen);
   memcpy((*ppEntry)->data, pWalHandle->pHead->head.body, pWalHandle->pHead->head.bodyLen);
 
-  // need to hold, do not new every time!!
+  int32_t saveErr = terrno;
   walCloseReadHandle(pWalHandle);
+  terrno = saveErr;
 
   return code;
 }
@@ -409,8 +413,10 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
     ASSERT(pEntry->dataLen == pWalHandle->pHead->head.bodyLen);
     memcpy(pEntry->data, pWalHandle->pHead->head.body, pWalHandle->pHead->head.bodyLen);
 
-    // need to hold, do not new every time!!
+    int32_t saveErr = terrno;
     walCloseReadHandle(pWalHandle);
+    terrno = saveErr;
+
     return pEntry;
 
   } else {
