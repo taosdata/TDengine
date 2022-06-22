@@ -37,7 +37,7 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw);
 static int32_t  mndStbActionInsert(SSdb *pSdb, SStbObj *pStb);
 static int32_t  mndStbActionDelete(SSdb *pSdb, SStbObj *pStb);
 static int32_t  mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew);
-static int32_t  mndProcessTtl(SRpcMsg *pReq);
+static int32_t  mndProcessTtlTimer(SRpcMsg *pReq);
 static int32_t  mndProcessCreateStbReq(SRpcMsg *pReq);
 static int32_t  mndProcessAlterStbReq(SRpcMsg *pReq);
 static int32_t  mndProcessDropStbReq(SRpcMsg *pReq);
@@ -63,8 +63,7 @@ int32_t mndInitStb(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_VND_ALTER_STB_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_DROP_STB_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_TABLE_META, mndProcessTableMetaReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_TTL_TIMER, mndProcessTtl);
-
+  mndSetMsgHandle(pMnode, TDMT_MND_TTL_TIMER, mndProcessTtlTimer);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_STB, mndRetrieveStb);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_STB, mndCancelGetNextStb);
@@ -775,7 +774,7 @@ int32_t mndAddStbToTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *p
   return 0;
 }
 
-static int32_t mndProcessTtl(SRpcMsg *pReq) {
+static int32_t mndProcessTtlTimer(SRpcMsg *pReq) {
   SMnode *pMnode = pReq->info.node;
   SSdb   *pSdb = pMnode->pSdb;
   SVgObj *pVgroup = NULL;
@@ -785,10 +784,10 @@ static int32_t mndProcessTtl(SRpcMsg *pReq) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
 
-    int32_t contLen = sizeof(SMsgHead) + sizeof(int32_t);
-    SMsgHead   *pHead = rpcMallocCont(contLen);
+    int32_t   contLen = sizeof(SMsgHead) + sizeof(int32_t);
+    SMsgHead *pHead = rpcMallocCont(contLen);
     if (pHead == NULL) {
-      mError("ttl time malloc err. contLen:%d", contLen);
+      sdbCancelFetch(pSdb, pVgroup);
       sdbRelease(pSdb, pVgroup);
       continue;
     }
@@ -796,18 +795,19 @@ static int32_t mndProcessTtl(SRpcMsg *pReq) {
     pHead->vgId = htonl(pVgroup->vgId);
 
     int32_t t = taosGetTimestampSec();
-    *(int32_t*)(POINTER_SHIFT(pHead, sizeof(SMsgHead))) = htonl(t);
+    *(int32_t *)((char *)pHead + sizeof(SMsgHead)) = htonl(t);
 
     SRpcMsg rpcMsg = {.msgType = TDMT_VND_DROP_TTL_TABLE, .pCont = pHead, .contLen = contLen};
-
-    SEpSet epSet = mndGetVgroupEpset(pMnode, pVgroup);
+    SEpSet  epSet = mndGetVgroupEpset(pMnode, pVgroup);
     int32_t code = tmsgSendReq(&epSet, &rpcMsg);
-    if(code != 0){
-      mError("ttl time seed err. code:%d", code);
+    if (code != 0) {
+      mError("failed to send ttl time seed, code:0x%x", code);
+    } else {
+      mDebug("send ttl time seed success, time:%d", t);
     }
-    mDebug("ttl time seed succ. time:%d", t);
     sdbRelease(pSdb, pVgroup);
   }
+
   return 0;
 }
 

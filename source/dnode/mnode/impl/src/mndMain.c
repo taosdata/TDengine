@@ -67,7 +67,6 @@ static void mndTtlTimer(SMnode *pMnode) {
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_TTL_TIMER, .pCont = pReq, .contLen = contLen};
-
   tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
 }
 
@@ -525,7 +524,7 @@ static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
   if (mndAcquireRpcRef(pMsg->info.node) == 0) return 0;
 
   if (pMsg->msgType != TDMT_MND_MQ_TIMER && pMsg->msgType != TDMT_MND_TELEM_TIMER &&
-      pMsg->msgType != TDMT_MND_TRANS_TIMER) {
+      pMsg->msgType != TDMT_MND_TRANS_TIMER && pMsg->msgType != TDMT_MND_TTL_TIMER) {
     mError("msg:%p, failed to check mnode state since %s, type:%s", pMsg, terrstr(), TMSG_INFO(pMsg->msgType));
 
     SEpSet epSet = {0};
