@@ -733,6 +733,10 @@ SOperatorInfo* createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SExprI
                                           SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
                                           SExecTaskInfo* pTaskInfo);
 
+SOperatorInfo* createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
+                                          SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
+                                          SExecTaskInfo* pTaskInfo);
+
 SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream,
     SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, int32_t numOfChild);
 SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
