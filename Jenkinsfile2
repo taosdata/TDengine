@@ -144,6 +144,7 @@ def pre_test() {
         go env -w GO111MODULE=on
         cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true > /dev/null
         make -j8 >/dev/null
+        make install
     '''
     return 1
 }
