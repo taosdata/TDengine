@@ -146,7 +146,7 @@ static int32_t doAddNewExternalMemSource(SDiskbasedBuf *pBuf, SArray* pAllSource
   int32_t rowSize = blockDataGetSerialRowSize(pSource->src.pBlock);
 
   // The value of numOfRows must be greater than 0, which is guaranteed by the previous memory allocation
-  int32_t numOfRows = (getBufPageSize(pBuf) - blockDataGetSerialMetaSize(pBlock->info.numOfCols))/rowSize;
+  int32_t numOfRows = (getBufPageSize(pBuf) - blockDataGetSerialMetaSize(taosArrayGetSize(pBlock->pDataBlock)))/rowSize;
   ASSERT(numOfRows > 0);
   return blockDataEnsureCapacity(pSource->src.pBlock, numOfRows);
 }
@@ -177,7 +177,7 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
       return terrno;
     }
 
-    int32_t size = blockDataGetSize(p) + sizeof(int32_t)  + p->info.numOfCols * sizeof(int32_t);
+    int32_t size = blockDataGetSize(p) + sizeof(int32_t)  + taosArrayGetSize(p->pDataBlock) * sizeof(int32_t);
     assert(size <= getBufPageSize(pHandle->pBuf));
 
     blockDataToBuf(pPage, p);
@@ -251,7 +251,7 @@ static int32_t sortComparInit(SMsortComparParam* cmpParam, SArray* pSources, int
 }
 
 static void appendOneRowToDataBlock(SSDataBlock *pBlock, const SSDataBlock* pSource, int32_t* rowIndex) {
-  for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
+  for (int32_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); ++i) {
     SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, i);
 
     SColumnInfoData* pSrcColInfo = taosArrayGet(pSource->pDataBlock, i);
@@ -498,7 +498,7 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
           return terrno;
         }
 
-        int32_t size = blockDataGetSize(pDataBlock) + sizeof(int32_t) + pDataBlock->info.numOfCols * sizeof(int32_t);
+        int32_t size = blockDataGetSize(pDataBlock) + sizeof(int32_t) + taosArrayGetSize(pDataBlock->pDataBlock) * sizeof(int32_t);
         assert(size <= getBufPageSize(pHandle->pBuf));
 
         blockDataToBuf(pPage, pDataBlock);

@@ -29,7 +29,7 @@ static int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataBlkRsp* pRs
 
   // TODO enable compress
   int32_t actualLen = 0;
-  blockCompressEncode(pBlock, pRetrieve->data, &actualLen, pBlock->info.numOfCols, false);
+  blockCompressEncode(pBlock, pRetrieve->data, &actualLen, taosArrayGetSize(pBlock->pDataBlock), false);
   actualLen += sizeof(SRetrieveTableRsp);
   ASSERT(actualLen <= dataStrLen);
   taosArrayPush(pRsp->blockDataLen, &actualLen);
@@ -74,7 +74,6 @@ int32_t tqDataExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataBlkR
       if (pDataBlock == NULL) break;
 
       ASSERT(pDataBlock->info.rows != 0);
-      ASSERT(pDataBlock->info.numOfCols != 0);
 
       tqAddBlockDataToRsp(pDataBlock, pRsp);
       if (pRsp->withTbName) {
@@ -88,8 +87,7 @@ int32_t tqDataExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataBlkR
     tqReadHandleSetMsg(pReader, pReq, 0);
     while (tqNextDataBlock(pReader)) {
       SSDataBlock block = {0};
-      if (tqRetrieveDataBlock(&block.pDataBlock, pReader, &block.info.groupId, &block.info.uid, &block.info.rows,
-                              &block.info.numOfCols) < 0) {
+      if (tqRetrieveDataBlock(&block, pReader, &block.info.groupId, &block.info.uid, &block.info.rows) < 0) {
         if (terrno == TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND) continue;
         ASSERT(0);
       }
@@ -106,8 +104,7 @@ int32_t tqDataExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataBlkR
     tqReadHandleSetMsg(pReader, pReq, 0);
     while (tqNextDataBlockFilterOut(pReader, pExec->execDb.pFilterOutTbUid)) {
       SSDataBlock block = {0};
-      if (tqRetrieveDataBlock(&block.pDataBlock, pReader, &block.info.groupId, &block.info.uid, &block.info.rows,
-                              &block.info.numOfCols) < 0) {
+      if (tqRetrieveDataBlock(&block, pReader, &block.info.groupId, &block.info.uid, &block.info.rows) < 0) {
         if (terrno == TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND) continue;
         ASSERT(0);
       }

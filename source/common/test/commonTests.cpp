@@ -88,26 +88,15 @@ TEST(testCase, toInteger_test) {
 }
 
 TEST(testCase, Datablock_test) {
-  SSDataBlock* b = static_cast<SSDataBlock*>(taosMemoryCalloc(1, sizeof(SSDataBlock)));
-  b->info.numOfCols = 2;
-  b->pDataBlock = taosArrayInit(4, sizeof(SColumnInfoData));
+  SSDataBlock* b = createDataBlock();
 
-  SColumnInfoData infoData = {0};
-  infoData.info.bytes = 4;
-  infoData.info.type = TSDB_DATA_TYPE_INT;
-  infoData.info.colId = 1;
-
-  infoData.pData = (char*)taosMemoryCalloc(40, infoData.info.bytes);
-  infoData.nullbitmap = (char*)taosMemoryCalloc(1, sizeof(char) * (40 / 8));
+  SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_INT, 4, 1);
   taosArrayPush(b->pDataBlock, &infoData);
+  blockDataAppendColInfo(b, &infoData);
 
-  SColumnInfoData infoData1 = {0};
-  infoData1.info.bytes = 40;
-  infoData1.info.type = TSDB_DATA_TYPE_BINARY;
-  infoData1.info.colId = 2;
-
-  infoData1.varmeta.offset = (int32_t*)taosMemoryCalloc(40, sizeof(uint32_t));
-  taosArrayPush(b->pDataBlock, &infoData1);
+  SColumnInfoData infoData1 = createColumnInfoData(TSDB_DATA_TYPE_BINARY, 40, 2);
+  blockDataAppendColInfo(b, &infoData1);
+  blockDataEnsureCapacity(b, 40);
 
   char* str = "the value of: %d";
   char  buf[128] = {0};
@@ -222,28 +211,17 @@ TEST(testCase, non_var_dataBlock_split_test) {
 #endif
 
 TEST(testCase, var_dataBlock_split_test) {
-  SSDataBlock* b = static_cast<SSDataBlock*>(taosMemoryCalloc(1, sizeof(SSDataBlock)));
-  b->info.numOfCols = 2;
-  b->pDataBlock = taosArrayInit(4, sizeof(SColumnInfoData));
-
   int32_t numOfRows = 1000000;
 
-  SColumnInfoData infoData = {0};
-  infoData.info.bytes = 4;
-  infoData.info.type = TSDB_DATA_TYPE_INT;
-  infoData.info.colId = 1;
+  SSDataBlock* b = createDataBlock();
 
-  infoData.pData = (char*)taosMemoryCalloc(numOfRows, infoData.info.bytes);
-  infoData.nullbitmap = (char*)taosMemoryCalloc(1, sizeof(char) * (numOfRows / 8));
-  taosArrayPush(b->pDataBlock, &infoData);
+  SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_INT, 4, 1);
+  blockDataAppendColInfo(b, &infoData);
 
-  SColumnInfoData infoData1 = {0};
-  infoData1.info.bytes = 40;
-  infoData1.info.type = TSDB_DATA_TYPE_BINARY;
-  infoData1.info.colId = 2;
+  SColumnInfoData infoData1 = createColumnInfoData(TSDB_DATA_TYPE_BINARY, 40, 2);
+  blockDataAppendColInfo(b, &infoData1);
 
-  infoData1.varmeta.offset = (int32_t*)taosMemoryCalloc(numOfRows, sizeof(uint32_t));
-  taosArrayPush(b->pDataBlock, &infoData1);
+  blockDataEnsureCapacity(b, numOfRows);
 
   char buf[41] = {0};
   char buf1[100] = {0};

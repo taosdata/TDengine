@@ -123,8 +123,8 @@ bool tqNextDataBlockFilterOut(STqReadHandle* pHandle, SHashObj* filterOutUids) {
   return false;
 }
 
-int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* pGroupId, uint64_t* pUid,
-                            int32_t* pNumOfRows, int16_t* pNumOfCols) {
+int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReadHandle* pHandle, uint64_t* pGroupId, uint64_t* pUid,
+                            int32_t* pNumOfRows) {
   *pUid = 0;
 
   // TODO set to real sversion
@@ -161,33 +161,19 @@ int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* p
   int32_t colNumNeed = taosArrayGetSize(pHandle->pColIdList);
 
   if (colNumNeed == 0) {
-    *ppCols = taosArrayInit(pSchemaWrapper->nCols, sizeof(SColumnInfoData));
-    if (*ppCols == NULL) {
-      return -1;
-    }
-
     int32_t colMeta = 0;
     while (colMeta < pSchemaWrapper->nCols) {
       SSchema*        pColSchema = &pSchemaWrapper->pSchema[colMeta];
-      SColumnInfoData colInfo = {0};
-      colInfo.info.bytes = pColSchema->bytes;
-      colInfo.info.colId = pColSchema->colId;
-      colInfo.info.type = pColSchema->type;
-
-      if (colInfoDataEnsureCapacity(&colInfo, 0, *pNumOfRows) < 0) {
+      SColumnInfoData colInfo = createColumnInfoData(pColSchema->type, pColSchema->bytes, pColSchema->colId);
+      int32_t code = blockDataAppendColInfo(pBlock, &colInfo);
+      if (code != TSDB_CODE_SUCCESS) {
         goto FAIL;
       }
-      taosArrayPush(*ppCols, &colInfo);
       colMeta++;
     }
   } else {
     if (colNumNeed > pSchemaWrapper->nCols) {
       colNumNeed = pSchemaWrapper->nCols;
-    }
-
-    *ppCols = taosArrayInit(colNumNeed, sizeof(SColumnInfoData));
-    if (*ppCols == NULL) {
-      return -1;
     }
 
     int32_t colMeta = 0;
@@ -201,23 +187,22 @@ int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* p
       } else if (colIdSchema > colIdNeed) {
         colNeed++;
       } else {
-        SColumnInfoData colInfo = {0};
-        colInfo.info.bytes = pColSchema->bytes;
-        colInfo.info.colId = pColSchema->colId;
-        colInfo.info.type = pColSchema->type;
-
-        if (colInfoDataEnsureCapacity(&colInfo, 0, *pNumOfRows) < 0) {
+        SColumnInfoData colInfo = createColumnInfoData(pColSchema->type, pColSchema->bytes, pColSchema->colId);
+        int32_t code = blockDataAppendColInfo(pBlock, &colInfo);
+        if (code != TSDB_CODE_SUCCESS) {
           goto FAIL;
         }
-        taosArrayPush(*ppCols, &colInfo);
         colMeta++;
         colNeed++;
       }
     }
   }
 
-  int32_t colActual = taosArrayGetSize(*ppCols);
-  *pNumOfCols = colActual;
+  if (blockDataEnsureCapacity(pBlock, *pNumOfRows) < 0) {
+    goto FAIL;
+  }
+
+  int32_t colActual = blockDataGetNumOfCols(pBlock);
 
   // TODO in stream shuffle case, fetch groupId
   *pGroupId = 0;
@@ -234,7 +219,7 @@ int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* p
     tdSTSRowIterReset(&iter, row);
     // get all wanted col of that block
     for (int32_t i = 0; i < colActual; i++) {
-      SColumnInfoData* pColData = taosArrayGet(*ppCols, i);
+      SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
       SCellVal         sVal = {0};
       if (!tdSTSRowIterNext(&iter, pColData->info.colId, pColData->info.type, &sVal)) {
         break;
@@ -246,8 +231,9 @@ int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* p
     curRow++;
   }
   return 0;
-FAIL:
-  if (*ppCols) taosArrayDestroy(*ppCols);
+
+FAIL: // todo refactor here
+//  if (*ppCols) taosArrayDestroy(*ppCols);
   return -1;
 }
 

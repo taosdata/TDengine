@@ -84,30 +84,25 @@ void scltInitLogFile() {
 
 void scltAppendReservedSlot(SArray *pBlockList, int16_t *dataBlockId, int16_t *slotId, bool newBlock, int32_t rows, SColumnInfo *colInfo) {
  if (newBlock) {
-   SSDataBlock *res = (SSDataBlock *)taosMemoryCalloc(1, sizeof(SSDataBlock));
-   res->info.numOfCols = 1;
-   res->info.rows = rows;
-   res->pDataBlock = taosArrayInit(1, sizeof(SColumnInfoData));
+   SSDataBlock *res = createDataBlock();
+
    SColumnInfoData idata = {0};
    idata.info  = *colInfo;
-
-   taosArrayPush(res->pDataBlock, &idata);
-   taosArrayPush(pBlockList, &res);
+   blockDataAppendColInfo(res, &idata);
 
    blockDataEnsureCapacity(res, rows);
+   res->info.rows = rows;
+
+   taosArrayPush(pBlockList, &res);
 
    *dataBlockId = taosArrayGetSize(pBlockList) - 1;
    res->info.blockId = *dataBlockId;
    *slotId = 0;
  } else {
    SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(pBlockList);
-   res->info.numOfCols++;
    SColumnInfoData idata = {0};
    idata.info  = *colInfo;
-
-   colInfoDataEnsureCapacity(&idata, 0, rows);
-
-   taosArrayPush(res->pDataBlock, &idata);
+   blockDataAppendColInfo(res, &idata);
 
    *dataBlockId = taosArrayGetSize(pBlockList) - 1;
    *slotId = taosArrayGetSize(res->pDataBlock) - 1;
@@ -144,29 +139,18 @@ void scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
  }
 
  if (NULL == *block) {
-   SSDataBlock *res = (SSDataBlock *)taosMemoryCalloc(1, sizeof(SSDataBlock));
-   res->info.numOfCols = 3;
+   SSDataBlock *res = createDataBlock();
    res->info.rows = rowNum;
-   res->pDataBlock = taosArrayInit(3, sizeof(SColumnInfoData));
    for (int32_t i = 0; i < 2; ++i) {
-     SColumnInfoData idata = {{0}};
-     idata.info.type  = TSDB_DATA_TYPE_NULL;
-     idata.info.bytes = 10;
-     idata.info.colId = i + 1;
-
+     SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_NULL, 10, i + 1);
      int32_t size = idata.info.bytes * rowNum;
-     idata.pData = (char *)taosMemoryCalloc(1, size);
-     taosArrayPush(res->pDataBlock, &idata);
+     blockDataAppendColInfo(res, &idata);
    }
 
-   SColumnInfoData idata = {{0}};
-   idata.info.type  = dataType;
-   idata.info.bytes = dataBytes;
-   idata.info.colId = 3;
-   int32_t size = idata.info.bytes * rowNum;
-   idata.pData = (char *)taosMemoryCalloc(1, size);
-   colInfoDataEnsureCapacity(&idata, 0, rowNum);
-   taosArrayPush(res->pDataBlock, &idata);
+   SColumnInfoData idata = createColumnInfoData(dataType, dataBytes, 3);
+   blockDataAppendColInfo(res, &idata);
+   blockDataEnsureCapacity(res, rowNum);
+
    SColumnInfoData *pColumn = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
    for (int32_t i = 0; i < rowNum; ++i) {
      colDataAppend(pColumn, i, (const char *)value, false);
@@ -185,17 +169,11 @@ void scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
    SSDataBlock *res = *block;
 
    int32_t idx = taosArrayGetSize(res->pDataBlock);
-   SColumnInfoData idata = {{0}};
-   idata.info.type  = dataType;
-   idata.info.bytes = dataBytes;
-   idata.info.colId = 1 + idx;
-   int32_t size = idata.info.bytes * rowNum;
-   idata.pData = (char *)taosMemoryCalloc(1, size);
-   taosArrayPush(res->pDataBlock, &idata);
-   res->info.numOfCols++;
-   SColumnInfoData *pColumn = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
+   SColumnInfoData idata = createColumnInfoData(dataType, dataBytes, 1 + idx);
+   blockDataAppendColInfo(res, &idata);
+   blockDataEnsureCapacity(res, rowNum);
 
-   colInfoDataEnsureCapacity(pColumn, 0, rowNum);
+   SColumnInfoData *pColumn = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
 
    for (int32_t i = 0; i < rowNum; ++i) {
      colDataAppend(pColumn, i, (const char *)value, false);
@@ -2033,7 +2011,7 @@ void scltMakeDataBlock(SScalarParam **pInput, int32_t type, void *pVal, int32_t 
  input->numOfRows = num;
 
  input->columnData->info = createColumnInfo(0, type, bytes);
- colInfoDataEnsureCapacity(input->columnData, 0, num);
+ colInfoDataEnsureCapacity(input->columnData, num);
 
  if (setVal) {
    for (int32_t i = 0; i < num; ++i) {

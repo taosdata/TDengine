@@ -628,11 +628,6 @@ typedef struct {
   uint8_t scale;
 } SColumnInfo;
 
-typedef struct {
-  int64_t uid;
-  TSKEY   key;  // last accessed ts, for subscription
-} STableIdInfo;
-
 typedef struct STimeWindow {
   TSKEY skey;
   TSKEY ekey;

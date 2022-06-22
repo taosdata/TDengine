@@ -74,10 +74,12 @@ static int32_t streamAddBlockToDispatchMsg(const SSDataBlock* pBlock, SStreamDis
   pRetrieve->completed = 1;
   pRetrieve->streamBlockType = pBlock->info.type;
   pRetrieve->numOfRows = htonl(pBlock->info.rows);
-  pRetrieve->numOfCols = htonl(pBlock->info.numOfCols);
+
+  int32_t numOfCols = (int32_t) taosArrayGetSize(pBlock->pDataBlock);
+  pRetrieve->numOfCols = htonl(numOfCols);
 
   int32_t actualLen = 0;
-  blockCompressEncode(pBlock, pRetrieve->data, &actualLen, pBlock->info.numOfCols, false);
+  blockCompressEncode(pBlock, pRetrieve->data, &actualLen, numOfCols, false);
   actualLen += sizeof(SRetrieveTableRsp);
   ASSERT(actualLen <= dataStrLen);
   taosArrayPush(pReq->dataLen, &actualLen);

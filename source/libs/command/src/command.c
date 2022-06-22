@@ -30,31 +30,19 @@ static int32_t getSchemaBytes(const SSchema* pSchema) {
 }
 
 static SSDataBlock* buildDescResultDataBlock() {
-  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
-  pBlock->info.numOfCols = DESCRIBE_RESULT_COLS;
-  pBlock->info.hasVarCol = true;
+  SSDataBlock* pBlock = createDataBlock();
 
-  pBlock->pDataBlock = taosArrayInit(4, sizeof(SColumnInfoData));
+  SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, DESCRIBE_RESULT_FIELD_LEN, 1);
+  blockDataAppendColInfo(pBlock, &infoData);
 
-  SColumnInfoData infoData = {0};
-  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
-  infoData.info.bytes = DESCRIBE_RESULT_FIELD_LEN;
+  infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, DESCRIBE_RESULT_TYPE_LEN, 2);
+  blockDataAppendColInfo(pBlock, &infoData);
 
-  taosArrayPush(pBlock->pDataBlock, &infoData);
+  infoData = createColumnInfoData(TSDB_DATA_TYPE_INT, tDataTypes[TSDB_DATA_TYPE_INT].bytes, 3);
+  blockDataAppendColInfo(pBlock, &infoData);
 
-  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
-  infoData.info.bytes = DESCRIBE_RESULT_TYPE_LEN;
-  taosArrayPush(pBlock->pDataBlock, &infoData);
-
-  infoData.info.type = TSDB_DATA_TYPE_INT;
-  infoData.info.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
-
-  taosArrayPush(pBlock->pDataBlock, &infoData);
-
-  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
-  infoData.info.bytes = DESCRIBE_RESULT_NOTE_LEN;
-  taosArrayPush(pBlock->pDataBlock, &infoData);
-
+  infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, DESCRIBE_RESULT_NOTE_LEN, 4);
+  blockDataAppendColInfo(pBlock, &infoData);
   return pBlock;
 }
 

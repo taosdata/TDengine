@@ -435,7 +435,7 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
     SSDataBlock *pDataBlock = (SSDataBlock *)taosMemoryCalloc(1, sizeof(SSDataBlock));
     EXPECT_NE(pDataBlock, nullptr);
     pDataBlock->pBlockAgg = NULL;
-    pDataBlock->info.numOfCols = tSmaNumOfCols;
+    taosArrayGetSize(pDataBlock->pDataBlock) = tSmaNumOfCols;
     pDataBlock->info.rows = tSmaNumOfRows;
     pDataBlock->info.groupId = tSmaGroupId + g;
 
