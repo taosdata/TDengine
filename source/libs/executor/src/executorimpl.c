@@ -4099,7 +4099,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
           return NULL;
         }
       } else {  // Create one table group.
-        STableKeyInfo info = {.lastKey = 0, .uid = pBlockNode->uid};
+        STableKeyInfo info = {.lastKey = 0, .uid = pBlockNode->uid, .groupId = 0};
         taosArrayPush(pTableListInfo->pTableList, &info);
       }
 
