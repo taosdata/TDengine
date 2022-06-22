@@ -263,6 +263,7 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, in
     pColumnInfoData->varmeta.length = len + oldLen;
   } else {
     if (finalNumOfRows > *capacity) {
+      ASSERT(finalNumOfRows*pColumnInfoData->info.bytes);
       char* tmp = taosMemoryRealloc(pColumnInfoData->pData, finalNumOfRows * pColumnInfoData->info.bytes);
       if (tmp == NULL) {
         return TSDB_CODE_VND_OUT_OF_MEMORY;
@@ -1126,6 +1127,7 @@ void blockDataCleanup(SSDataBlock* pDataBlock) {
 }
 
 int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, size_t existRows, uint32_t numOfRows) {
+  ASSERT(numOfRows);
   if (0 == numOfRows || numOfRows <= existRows) {
     return TSDB_CODE_SUCCESS;
   }
@@ -1178,6 +1180,8 @@ void colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows) {
 
 int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows) {
   int32_t code = 0;
+  ASSERT(numOfRows > 0);
+
   if (numOfRows == 0) {
     return TSDB_CODE_SUCCESS;
   }

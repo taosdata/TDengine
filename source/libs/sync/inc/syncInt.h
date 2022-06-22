@@ -197,6 +197,7 @@ int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, S
 cJSON*  syncNode2Json(const SSyncNode* pSyncNode);
 char*   syncNode2Str(const SSyncNode* pSyncNode);
 void    syncNodeEventLog(const SSyncNode* pSyncNode, char* str);
+void    syncNodeErrorLog(const SSyncNode* pSyncNode, char* str);
 char*   syncNode2SimpleStr(const SSyncNode* pSyncNode);
 bool    syncNodeInConfig(SSyncNode* pSyncNode, const SSyncCfg* config);
 void    syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* newConfig, SyncIndex lastConfigChangeIndex);

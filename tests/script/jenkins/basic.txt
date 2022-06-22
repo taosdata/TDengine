@@ -23,6 +23,11 @@
 # ---- dnode
 ./test.sh -f tsim/dnode/create_dnode.sim
 ./test.sh -f tsim/dnode/drop_dnode_has_mnode.sim
+./test.sh -f tsim/dnode/drop_dnode_has_qnode_snode.sim
+./test.sh -f tsim/dnode/drop_dnode_has_vnode_replica1.sim
+#./test.sh -f tsim/dnode/drop_dnode_has_vnode_replica3.sim
+#./test.sh -f tsim/dnode/drop_dnode_has_multi_vnode_replica1.sim
+#./test.sh -f tsim/dnode/drop_dnode_has_multi_vnode_replica3.sim
 
 # ---- insert
 ./test.sh -f tsim/insert/basic0.sim
@@ -75,7 +80,7 @@
 ./test.sh -f tsim/stream/distributeInterval0.sim
 # ./test.sh -f tsim/stream/distributesession0.sim
 # ./test.sh -f tsim/stream/session0.sim
-# ./test.sh -f tsim/stream/session1.sim
+./test.sh -f tsim/stream/session1.sim
 # ./test.sh -f tsim/stream/state0.sim
 ./test.sh -f tsim/stream/triggerInterval0.sim
 # ./test.sh -f tsim/stream/triggerSession0.sim

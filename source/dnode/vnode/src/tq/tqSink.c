@@ -16,7 +16,7 @@
 #include "tq.h"
 
 SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, bool createTb, int64_t suid,
-                                   const char* stbFullName, int32_t vgId) {
+                            const char* stbFullName, int32_t vgId) {
   SSubmitReq* ret = NULL;
   SArray*     tagArray = taosArrayInit(1, sizeof(STagVal));
   if (!tagArray) {
@@ -80,11 +80,10 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
   ret->length = sizeof(SSubmitReq);
   ret->numOfBlocks = htonl(sz);
 
-  void* submitBlk = POINTER_SHIFT(ret, sizeof(SSubmitReq));
+  SSubmitBlk* blkHead = POINTER_SHIFT(ret, sizeof(SSubmitReq));
   for (int32_t i = 0; i < sz; i++) {
     SSDataBlock* pDataBlock = taosArrayGet(pBlocks, i);
 
-    SSubmitBlk* blkHead = submitBlk;
     blkHead->numOfRows = htons(pDataBlock->info.rows);
     blkHead->sversion = htonl(pTSchema->version);
     // TODO
@@ -93,11 +92,10 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
     blkHead->uid = 0;
 
     int32_t rows = pDataBlock->info.rows;
-    /*int32_t maxLen = TD_ROW_MAX_BYTES_FROM_SCHEMA(pTSchema);*/
-    /*blkHead->dataLen = htonl(rows * maxLen);*/
-    blkHead->dataLen = 0;
 
-    void* blockData = POINTER_SHIFT(submitBlk, sizeof(SSubmitBlk));
+    int32_t dataLen = 0;
+
+    void* blkSchema = POINTER_SHIFT(blkHead, sizeof(SSubmitBlk));
 
     int32_t schemaLen = 0;
     if (createTb) {
@@ -135,7 +133,7 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
       }
 
       SEncoder encoder = {0};
-      tEncoderInit(&encoder, blockData, schemaLen);
+      tEncoderInit(&encoder, blkSchema, schemaLen);
       code = tEncodeSVCreateTbReq(&encoder, &createTbReq);
       tEncoderClear(&encoder);
       tdDestroySVCreateTbReq(&createTbReq);
@@ -148,7 +146,7 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
     }
     blkHead->schemaLen = htonl(schemaLen);
 
-    STSRow* rowData = POINTER_SHIFT(blockData, schemaLen);
+    STSRow* rowData = POINTER_SHIFT(blkSchema, schemaLen);
 
     for (int32_t j = 0; j < rows; j++) {
       SRowBuilder rb = {0};
@@ -168,14 +166,12 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
       }
       int32_t rowLen = TD_ROW_LEN(rowData);
       rowData = POINTER_SHIFT(rowData, rowLen);
-      blkHead->dataLen += rowLen;
+      dataLen += rowLen;
     }
-    int32_t dataLen = blkHead->dataLen;
     blkHead->dataLen = htonl(dataLen);
 
     ret->length += sizeof(SSubmitBlk) + schemaLen + dataLen;
-    blkHead = POINTER_SHIFT(blkHead, schemaLen + dataLen);
-    /*submitBlk = blkHead;*/
+    blkHead = POINTER_SHIFT(blkHead, sizeof(SSubmitBlk) + schemaLen + dataLen);
   }
 
   ret->length = htonl(ret->length);
