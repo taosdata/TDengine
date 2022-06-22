@@ -274,8 +274,8 @@ Details of the metrics are as follows.
 This section contains the current information and status of the cluster, the alert information is also here (from left to right, top to bottom).
 
 - **First EP**: the `firstEp` setting in the current TDengine cluster.
-- **Version**: TDengine server version (master mnode).
-- **Master Uptime**: The time elapsed since the current Master MNode was elected as Master.
+- **Version**: TDengine server version (leader mnode).
+- **Leader Uptime**: The time elapsed since the current Leader MNode was elected as Leader.
 - **Expire Time** - Enterprise version expiration time.
 - **Used Measuring Points** - The number of measuring points used by the Enterprise Edition.
 - **Databases** - The number of databases.
@@ -333,7 +333,7 @@ Data node resource usage display with repeated multiple rows for the variable `$
 2. **Has MNodes?**: whether the current dnode is a mnode.
 3. **CPU Cores**: the number of CPU cores.
 4. **VNodes Number**: the number of VNodes in the current dnode.
-5. **VNodes Masters**: the number of vnodes in the master role.
+5. **VNodes Masters**: the number of vnodes in the leader role.
 6. **Current CPU Usage of taosd**: CPU usage rate of taosd processes.
 7. **Current Memory Usage of taosd**: memory usage of taosd processes.
 8. **Disk Used**: The total disk usage percentage of the taosd data directory.

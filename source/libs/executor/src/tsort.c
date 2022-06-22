@@ -86,6 +86,7 @@ SSortHandle* tsortCreateSortHandle(SArray* pSortInfo, int32_t type, int32_t page
 
   pSortHandle->pOrderedSource     = taosArrayInit(4, POINTER_BYTES);
   pSortHandle->cmpParam.orderInfo = pSortInfo;
+  pSortHandle->cmpParam.cmpGroupId = false;
 
   tsortSetComparFp(pSortHandle, msortComparFn);
 
@@ -373,6 +374,12 @@ int32_t msortComparFn(const void *pLeft, const void *pRight, void *param) {
 
   SSDataBlock* pLeftBlock = pLeftSource->src.pBlock;
   SSDataBlock* pRightBlock = pRightSource->src.pBlock;
+
+  if (pParam->cmpGroupId) {
+    if (pLeftBlock->info.groupId != pRightBlock->info.groupId) {
+      return pLeftBlock->info.groupId < pRightBlock->info.groupId ? -1 : 1;
+    }
+  }
 
   for(int32_t i = 0; i < pInfo->size; ++i) {
     SBlockOrderInfo* pOrder = TARRAY_GET_ELEM(pInfo, i);
@@ -677,6 +684,11 @@ int32_t tsortSetFetchRawDataFp(SSortHandle* pHandle, _sort_fetch_block_fn_t fetc
 
 int32_t tsortSetComparFp(SSortHandle* pHandle, _sort_merge_compar_fn_t fp) {
   pHandle->comparFn = fp;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tsortSetCompareGroupId(SSortHandle* pHandle, bool compareGroupId) {
+  pHandle->cmpParam.cmpGroupId = compareGroupId;
   return TSDB_CODE_SUCCESS;
 }
 

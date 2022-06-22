@@ -19,6 +19,7 @@
 #include "mndMnode.h"
 #include "mndQnode.h"
 #include "mndShow.h"
+#include "mndSnode.h"
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
@@ -370,7 +371,8 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   SMnodeObj *pObj = mndAcquireMnode(pMnode, pDnode->id);
   if (pObj != NULL) {
     if (pObj->state != statusReq.mload.syncState) {
-      mInfo("dnode:%d, mnode syncstate from %s to %s", pObj->id, syncStr(pObj->state), syncStr(statusReq.mload.syncState));
+      mInfo("dnode:%d, mnode syncstate from %s to %s", pObj->id, syncStr(pObj->state),
+            syncStr(statusReq.mload.syncState));
       pObj->state = statusReq.mload.syncState;
       pObj->stateStartTime = taosGetTimestampMs();
     }
@@ -508,7 +510,7 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mDebug("dnode:%s:%d, start to create", createReq.fqdn, createReq.port);
+  mInfo("dnode:%s:%d, start to create", createReq.fqdn, createReq.port);
 
   if (createReq.fqdn[0] == 0 || createReq.port <= 0 || createReq.port > UINT16_MAX) {
     terrno = TSDB_CODE_MND_INVALID_DNODE_EP;
@@ -538,7 +540,8 @@ _OVER:
   return code;
 }
 
-static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SMnodeObj *pMObj, int32_t numOfVnodes) {
+static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SMnodeObj *pMObj, SQnodeObj *pQObj,
+                            SSnodeObj *pSObj, int32_t numOfVnodes) {
   int32_t  code = -1;
   SSdbRaw *pRaw = NULL;
   STrans  *pTrans = NULL;
@@ -546,7 +549,7 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SM
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq);
   if (pTrans == NULL) goto _OVER;
   mndTransSetSerial(pTrans);
-  mDebug("trans:%d, used to drop dnode:%d", pTrans->id, pDnode->id);
+  mInfo("trans:%d, used to drop dnode:%d", pTrans->id, pDnode->id);
 
   pRaw = mndDnodeActionEncode(pDnode);
   if (pRaw == NULL || mndTransAppendRedolog(pTrans, pRaw) != 0) goto _OVER;
@@ -559,11 +562,22 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SM
   pRaw = NULL;
 
   if (pMObj != NULL) {
-    mDebug("trans:%d, mnode on dnode:%d will be dropped", pTrans->id, pDnode->id);
+    mInfo("trans:%d, mnode on dnode:%d will be dropped", pTrans->id, pDnode->id);
     if (mndSetDropMnodeInfoToTrans(pMnode, pTrans, pMObj) != 0) goto _OVER;
   }
+
+  if (pQObj != NULL) {
+    mInfo("trans:%d, qnode on dnode:%d will be dropped", pTrans->id, pDnode->id);
+    if (mndSetDropQnodeInfoToTrans(pMnode, pTrans, pQObj) != 0) goto _OVER;
+  }
+
+  if (pSObj != NULL) {
+    mInfo("trans:%d, snode on dnode:%d will be dropped", pTrans->id, pDnode->id);
+    if (mndSetDropSnodeInfoToTrans(pMnode, pTrans, pSObj) != 0) goto _OVER;
+  }
+
   if (numOfVnodes > 0) {
-    mDebug("trans:%d, %d vnodes on dnode:%d will be dropped", pTrans->id, numOfVnodes, pDnode->id);
+    mInfo("trans:%d, %d vnodes on dnode:%d will be dropped", pTrans->id, numOfVnodes, pDnode->id);
     if (mndSetMoveVgroupsInfoToTrans(pMnode, pTrans, pDnode->id) != 0) goto _OVER;
   }
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
@@ -581,6 +595,8 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
   int32_t        code = -1;
   SDnodeObj     *pDnode = NULL;
   SMnodeObj     *pMObj = NULL;
+  SQnodeObj     *pQObj = NULL;
+  SSnodeObj     *pSObj = NULL;
   SMDropMnodeReq dropReq = {0};
 
   if (tDeserializeSCreateDropMQSBNodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
@@ -588,7 +604,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mDebug("dnode:%d, start to drop", dropReq.dnodeId);
+  mInfo("dnode:%d, start to drop", dropReq.dnodeId);
 
   if (dropReq.dnodeId <= 0) {
     terrno = TSDB_CODE_MND_INVALID_DNODE_ID;
@@ -601,6 +617,8 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  pQObj = mndAcquireQnode(pMnode, dropReq.dnodeId);
+  pSObj = mndAcquireSnode(pMnode, dropReq.dnodeId);
   pMObj = mndAcquireMnode(pMnode, dropReq.dnodeId);
   if (pMObj != NULL) {
     if (sdbGetSize(pMnode->pSdb, SDB_MNODE) <= 1) {
@@ -627,7 +645,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  code = mndDropDnode(pMnode, pReq, pDnode, pMObj, numOfVnodes);
+  code = mndDropDnode(pMnode, pReq, pDnode, pMObj, pQObj, pSObj, numOfVnodes);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 _OVER:
@@ -637,6 +655,8 @@ _OVER:
 
   mndReleaseDnode(pMnode, pDnode);
   mndReleaseMnode(pMnode, pMObj);
+  mndReleaseQnode(pMnode, pQObj);
+  mndReleaseSnode(pMnode, pSObj);
   return code;
 }
 

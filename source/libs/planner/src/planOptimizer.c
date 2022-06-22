@@ -293,16 +293,22 @@ static int32_t cpdCondAppend(SNode** pCond, SNode** pAdditionalCond) {
   return code;
 }
 
-static int32_t cpdCalcTimeRange(SScanLogicNode* pScan, SNode** pPrimaryKeyCond, SNode** pOtherCond) {
-  bool    isStrict = false;
-  int32_t code = filterGetTimeRange(*pPrimaryKeyCond, &pScan->scanRange, &isStrict);
-  if (TSDB_CODE_SUCCESS == code) {
-    if (isStrict) {
-      nodesDestroyNode(*pPrimaryKeyCond);
-    } else {
-      code = cpdCondAppend(pOtherCond, pPrimaryKeyCond);
+static int32_t cpdCalcTimeRange(SOptimizeContext* pCxt, SScanLogicNode* pScan, SNode** pPrimaryKeyCond,
+                                SNode** pOtherCond) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (pCxt->pPlanCxt->topicQuery || pCxt->pPlanCxt->streamQuery) {
+    code = cpdCondAppend(pOtherCond, pPrimaryKeyCond);
+  } else {
+    bool isStrict = false;
+    code = filterGetTimeRange(*pPrimaryKeyCond, &pScan->scanRange, &isStrict);
+    if (TSDB_CODE_SUCCESS == code) {
+      if (isStrict) {
+        nodesDestroyNode(*pPrimaryKeyCond);
+      } else {
+        code = cpdCondAppend(pOtherCond, pPrimaryKeyCond);
+      }
+      *pPrimaryKeyCond = NULL;
     }
-    *pPrimaryKeyCond = NULL;
   }
   return code;
 }
@@ -344,7 +350,7 @@ static int32_t cpdOptimizeScanCondition(SOptimizeContext* pCxt, SScanLogicNode* 
   SNode*  pOtherCond = NULL;
   int32_t code = nodesPartitionCond(&pScan->node.pConditions, &pPrimaryKeyCond, &pTagCond, &pOtherCond);
   if (TSDB_CODE_SUCCESS == code && NULL != pPrimaryKeyCond) {
-    code = cpdCalcTimeRange(pScan, &pPrimaryKeyCond, &pOtherCond);
+    code = cpdCalcTimeRange(pCxt, pScan, &pPrimaryKeyCond, &pOtherCond);
   }
   if (TSDB_CODE_SUCCESS == code && NULL != pTagCond) {
     code = cpdApplyTagIndex(pScan, &pTagCond, &pOtherCond);
@@ -1126,7 +1132,7 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
         break;
       }
     }
-    DESTORY_LIST(((SAggLogicNode*)pNode)->pGroupKeys);
+    NODES_DESTORY_LIST(((SAggLogicNode*)pNode)->pGroupKeys);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = partTagsOptRebuildTbanme(pScan->pPartTags);

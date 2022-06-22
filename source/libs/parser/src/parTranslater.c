@@ -689,6 +689,10 @@ static EDealRes translateColumnUseAlias(STranslateContext* pCxt, SColumnNode** p
 }
 
 static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
+  if (NULL != pCxt->pCurrSelectStmt && NULL == pCxt->pCurrSelectStmt->pFromTable) {
+    return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_COLUMN, (*pCol)->colName);
+  }
+
   // count(*)/first(*)/last(*) and so on
   if (0 == strcmp((*pCol)->colName, "*")) {
     return DEAL_RES_CONTINUE;
@@ -1200,6 +1204,7 @@ static void setFuncClassification(SSelectStmt* pSelect, SFunctionNode* pFunc) {
     pSelect->hasUniqueFunc = pSelect->hasUniqueFunc ? true : (FUNCTION_TYPE_UNIQUE == pFunc->funcType);
     pSelect->hasTailFunc = pSelect->hasTailFunc ? true : (FUNCTION_TYPE_TAIL == pFunc->funcType);
     pSelect->hasInterpFunc = pSelect->hasInterpFunc ? true : (FUNCTION_TYPE_INTERP == pFunc->funcType);
+    pSelect->hasLastRowFunc = pSelect->hasLastRowFunc ? true : (FUNCTION_TYPE_LAST_ROW == pFunc->funcType);
   }
 }
 
@@ -2489,7 +2494,13 @@ static int32_t replaceOrderByAlias(STranslateContext* pCxt, SNodeList* pProjecti
   return pCxt->errCode;
 }
 
-static int32_t translateSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
+static int32_t translateSelectWithoutFrom(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  pCxt->pCurrSelectStmt = pSelect;
+  pCxt->currClause = SQL_CLAUSE_SELECT;
+  return translateExprList(pCxt, pSelect->pProjectionList);
+}
+
+static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->pCurrSelectStmt = pSelect;
   int32_t code = translateFrom(pCxt, pSelect->pFromTable);
   if (TSDB_CODE_SUCCESS == code) {
@@ -2536,6 +2547,14 @@ static int32_t translateSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
     code = replaceOrderByAlias(pCxt, pSelect->pProjectionList, pSelect->pOrderByList);
   }
   return code;
+}
+
+static int32_t translateSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (NULL == pSelect->pFromTable) {
+    return translateSelectWithoutFrom(pCxt, pSelect);
+  } else {
+    return translateSelectFrom(pCxt, pSelect);
+  }
 }
 
 static SNode* createSetOperProject(const char* pTableAlias, SNode* pNode) {
