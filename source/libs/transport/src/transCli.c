@@ -476,10 +476,9 @@ static SCliConn* getConnFromPool(void* pool, char* ip, uint32_t port) {
   if (QUEUE_IS_EMPTY(&plist->conn)) {
     return NULL;
   }
-  queue* h = QUEUE_HEAD(&plist->conn);
-  // //QUEUE_REMOVE(h);
+  queue*    h = QUEUE_HEAD(&plist->conn);
   SCliConn* conn = QUEUE_DATA(h, SCliConn, conn);
-  // conn->status = ConnNormal;
+  conn->status = ConnNormal;
   QUEUE_REMOVE(&conn->conn);
   QUEUE_INIT(&conn->conn);
   return conn;
