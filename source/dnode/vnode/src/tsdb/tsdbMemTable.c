@@ -42,7 +42,10 @@ int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable) {
   taosInitRWLatch(&pMemTable->latch);
   pMemTable->pTsdb = pTsdb;
   pMemTable->nRef = 1;
-  pMemTable->info = tKEYINFOInit();
+  pMemTable->minKey = TSKEY_MAX;
+  pMemTable->maxKey = TSKEY_MIN;
+  pMemTable->minVersion = VERSION_MAX;
+  pMemTable->maxVersion = VERSION_MIN;
   pMemTable->nRow = 0;
   pMemTable->nDel = 0;
   pMemTable->aTbData = taosArrayInit(128, sizeof(STbData *));
@@ -174,7 +177,7 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
 
   pMemTable->nDel++;
 
-  if (tsdbKeyCmprFn(&lastKey, &pTbData->info.maxKey) >= 0) {
+  if (tsdbKeyCmprFn(&lastKey, &pTbData->maxKey) >= 0) {
     tsdbCacheDeleteLastrow(pTsdb->lruCache, pTbData->uid);
   }
 
@@ -324,7 +327,10 @@ static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid
   }
   pTbData->suid = suid;
   pTbData->uid = uid;
-  pTbData->info = tKEYINFOInit();
+  pTbData->minKey = TSKEY_MAX;
+  pTbData->maxKey = TSKEY_MIN;
+  pTbData->minVersion = VERSION_MAX;
+  pTbData->maxVersion = VERSION_MIN;
   pTbData->pHead = NULL;
   pTbData->pTail = NULL;
   pTbData->sl.seed = taosRand();
@@ -515,13 +521,8 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, i
     goto _err;
   }
 
-  if (tsdbKeyCmprFn(&key, &pTbData->info.minKey) < 0) {
-    pTbData->info.minKey = key;
-  }
-
-  if (tsdbKeyCmprFn(&key, &pMemTable->info.minKey) < 0) {
-    pMemTable->info.minKey = key;
-  }
+  if (pTbData->minKey > key.ts) pTbData->minKey = key.ts;
+  if (pMemTable->minKey > key.ts) pMemTable->minKey = key.ts;
 
   pLastRow = row.pTSRow;
 
@@ -546,21 +547,18 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, i
     } while (row.pTSRow);
   }
 
-  if (tsdbKeyCmprFn(&key, &pTbData->info.maxKey) > 0) {
-    pTbData->info.maxKey = key;
+  if (key.ts > pTbData->maxKey) {
+    pTbData->maxKey = key.ts;
 
     if (pLastRow) {
       tsdbCacheInsertLastrow(pMemTable->pTsdb->lruCache, pTbData->uid, pLastRow);
     }
   }
+  if (key.ts > pMemTable->maxKey) pMemTable->maxKey = key.ts;
+  if (pTbData->minVersion > version) pTbData->minVersion = version;
+  if (pTbData->maxVersion < version) pTbData->maxVersion = version;
+  pMemTable->nRow += nRow;
 
-  if (tsdbKeyCmprFn(&key, &pMemTable->info.maxKey) > 0) {
-    pMemTable->info.maxKey = key;
-  }
-  if (pTbData->info.minVerion > version) pTbData->info.minVerion = version;
-  if (pTbData->info.maxVersion < version) pTbData->info.maxVersion = version;
-
-  pMemTable->nRef++;
   pRsp->numOfRows = nRow;
   pRsp->affectedRows = nRow;
 

@@ -71,6 +71,9 @@ typedef struct STsdbFS        STsdbFS;
 #define HAS_NULL  ((int8_t)0x2)
 #define HAS_VALUE ((int8_t)0x4)
 
+#define VERSION_MIN 0
+#define VERSION_MAX INT64_MAX
+
 // tsdbUtil.c ==============================================================================================
 // TSDBROW
 #define TSDBROW_SVERSION(ROW)                 TD_ROW_SVER((ROW)->pTSRow)
@@ -277,7 +280,10 @@ struct SDelDataInfo {
 struct STbData {
   tb_uid_t     suid;
   tb_uid_t     uid;
-  KEYINFO      info;
+  TSKEY        minKey;
+  TSKEY        maxKey;
+  int64_t      minVersion;
+  int64_t      maxVersion;
   SDelData    *pHead;
   SDelData    *pTail;
   SMemSkipList sl;
@@ -287,7 +293,10 @@ struct SMemTable {
   SRWLatch latch;
   STsdb   *pTsdb;
   int32_t  nRef;
-  KEYINFO  info;
+  TSKEY    minKey;
+  TSKEY    maxKey;
+  int64_t  minVersion;
+  int64_t  maxVersion;
   int64_t  nRow;
   int64_t  nDel;
   SArray  *aTbData;  // SArray<STbData*>

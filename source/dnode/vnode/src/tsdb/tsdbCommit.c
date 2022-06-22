@@ -830,6 +830,7 @@ static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitter *pCommitter) {
 
   memset(pCommitter, 0, sizeof(*pCommitter));
   ASSERT(pTsdb->mem && pTsdb->imem == NULL);
+
   // lock();
   pTsdb->imem = pTsdb->mem;
   pTsdb->mem = NULL;
@@ -841,7 +842,48 @@ static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitter *pCommitter) {
   pCommitter->minRow = pTsdb->pVnode->config.tsdbCfg.minRows;
   pCommitter->maxRow = pTsdb->pVnode->config.tsdbCfg.maxRows;
 
+  code = tsdbFSBegin(pTsdb->fs);
+  if (code) goto _err;
+
   return code;
+
+_err:
+  tsdbError("vgId:%d tsdb start commit failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  return code;
+}
+
+static int32_t tsdbCommitDataStart(SCommitter *pCommitter) {
+  int32_t code = 0;
+
+  pCommitter->pReader = NULL;
+  pCommitter->oBlockIdxMap = tMapDataInit();
+  pCommitter->oBlockMap = tMapDataInit();
+  pCommitter->oBlock = tBlockInit();
+  pCommitter->pWriter = NULL;
+  pCommitter->nBlockIdxMap = tMapDataInit();
+  pCommitter->nBlockMap = tMapDataInit();
+  pCommitter->nBlock = tBlockInit();
+  code = tBlockDataInit(&pCommitter->oBlockData);
+  if (code) goto _exit;
+  code = tBlockDataInit(&pCommitter->nBlockData);
+  if (code) {
+    tBlockDataClear(&pCommitter->oBlockData);
+    goto _exit;
+  }
+
+_exit:
+  return code;
+}
+
+static void tsdbCommitDataEnd(SCommitter *pCommitter) {
+  tMapDataClear(&pCommitter->oBlockIdxMap);
+  tMapDataClear(&pCommitter->oBlockMap);
+  tBlockClear(&pCommitter->oBlock);
+  tBlockDataClear(&pCommitter->oBlockData);
+  tMapDataClear(&pCommitter->nBlockIdxMap);
+  tMapDataClear(&pCommitter->nBlockMap);
+  tBlockClear(&pCommitter->nBlock);
+  tBlockDataClear(&pCommitter->nBlockData);
 }
 
 static int32_t tsdbCommitData(SCommitter *pCommitter) {
@@ -852,8 +894,12 @@ static int32_t tsdbCommitData(SCommitter *pCommitter) {
   // check
   if (pMemTable->nRow == 0) goto _exit;
 
-  // loop
-  pCommitter->nextKey = pMemTable->info.minKey.ts;
+  // start ====================
+  code = tsdbCommitDataStart(pCommitter);
+  if (code) return code;
+
+  // impl ====================
+  pCommitter->nextKey = pMemTable->minKey;
   while (pCommitter->nextKey < TSKEY_MAX) {
     pCommitter->commitFid = tsdbKeyFid(pCommitter->nextKey, pCommitter->minutes, pCommitter->precision);
     tsdbFidKeyRange(pCommitter->commitFid, pCommitter->minutes, pCommitter->precision, &pCommitter->minKey,
@@ -862,11 +908,15 @@ static int32_t tsdbCommitData(SCommitter *pCommitter) {
     if (code) goto _err;
   }
 
+  // end ====================
+  tsdbCommitDataEnd(pCommitter);
+
 _exit:
   tsdbDebug("vgId:%d commit data done, nRow:%" PRId64, TD_VID(pTsdb->pVnode), pMemTable->nRow);
   return code;
 
 _err:
+  tsdbCommitDataEnd(pCommitter);
   tsdbError("vgId:%d commit data failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
   return code;
 }

@@ -19,7 +19,7 @@ static const char *tsdbFileSuffix[] = {".del", ".cache", ".head", ".data", ".las
 
 // SHeadFile ===============================================
 void tsdbHeadFileName(STsdb *pTsdb, SHeadFile *pFile, char fname[]) {
-  // TODO
+  // snprintf(fname, TSDB_FILENAME_LEN - 1, "%s/v%df%dver%18d.head", );
 }
 
 // SDataFile ===============================================
