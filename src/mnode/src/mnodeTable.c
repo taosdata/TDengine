@@ -3548,7 +3548,7 @@ static int32_t mnodeRetrieveStreamTables(SShowObj *pShow, char *data, int32_t ro
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pTable->sql, pShow->bytes[cols]);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pTable->sql, pShow->bytes[cols]);    
     cols++;
 
     numOfRows++;
@@ -3583,13 +3583,13 @@ static int32_t mnodeCompactSuperTables() {
     };
 
     //mInfo("compact super %" PRIu64, pTable->uid);
-
+    
     sdbInsertCompactRow(&row);
   }
 
   mInfo("end to compact super table...");
 
-  return 0;
+  return 0; 
 }
 
 static int32_t mnodeCompactChildTables() {
@@ -3609,13 +3609,13 @@ static int32_t mnodeCompactChildTables() {
     };
 
     //mInfo("compact child %" PRIu64 ":%d", pTable->uid, pTable->tid);
-
+    
     sdbInsertCompactRow(&row);
   }
 
   mInfo("end to compact child table...");
 
-  return 0;
+  return 0; 
 }
 
 int32_t mnodeCompactTables() {
