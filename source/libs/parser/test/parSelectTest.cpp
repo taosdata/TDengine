@@ -58,6 +58,8 @@ TEST_F(ParserSelectTest, expression) {
   run("SELECT ts > 0, c1 < 20 and c2 = 'qaz' FROM t1");
 
   run("SELECT ts > 0, c1 between 10 and 20 and c2 = 'qaz' FROM t1");
+
+  run("SELECT c1 | 10, c2 & 20, c4 | c5 FROM t1");
 }
 
 TEST_F(ParserSelectTest, condition) {
