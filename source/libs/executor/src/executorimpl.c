@@ -609,7 +609,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
       }
 
       int32_t startOffset = createNewColModel ? 0 : pResult->info.rows;
-      colInfoDataEnsureCapacity(pResColData, startOffset, pResult->info.capacity);
+      ASSERT(pResult->info.capacity > 0);
       colDataMergeCol(pResColData, startOffset, &pResult->info.capacity, &idata, dest.numOfRows);
 
       numOfRows = dest.numOfRows;
@@ -649,7 +649,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
         }
 
         int32_t startOffset = createNewColModel ? 0 : pResult->info.rows;
-        colInfoDataEnsureCapacity(pResColData, startOffset, pResult->info.capacity);
+        ASSERT(pResult->info.capacity > 0);
         colDataMergeCol(pResColData, startOffset, &pResult->info.capacity, &idata, dest.numOfRows);
 
         numOfRows = dest.numOfRows;
@@ -1340,9 +1340,9 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowR
   }
 
   if (rowRes != NULL) {
+    int32_t totalRows = pBlock->info.rows;
     SSDataBlock* px = createOneDataBlock(pBlock, true);
 
-    int32_t totalRows = pBlock->info.rows;
     for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
       SColumnInfoData* pSrc = taosArrayGet(px->pDataBlock, i);
       SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);

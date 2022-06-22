@@ -224,7 +224,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
         pBlock->pBlockAgg = taosMemoryCalloc(numOfCols, POINTER_BYTES);
       }
 
-      for (int32_t i = 0; i < numOfCols; ++i) {
+      for (int32_t i = 0; i < taosArrayGetSize(pTableScanInfo->pColMatchInfo); ++i) {
         SColMatchInfo* pColMatchInfo = taosArrayGet(pTableScanInfo->pColMatchInfo, i);
         if (!pColMatchInfo->output) {
           continue;
@@ -384,7 +384,14 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
       continue;
     }
 
-    tsdbRetrieveDataBlockInfo(pTableScanInfo->dataReader, &pBlock->info);
+    blockDataCleanup(pBlock);
+
+    SDataBlockInfo binfo = pBlock->info;
+    tsdbRetrieveDataBlockInfo(pTableScanInfo->dataReader, &binfo);
+
+    binfo.capacity = binfo.rows;
+    blockDataEnsureCapacity(pBlock, binfo.rows);
+    pBlock->info = binfo;
 
     uint32_t status = 0;
     int32_t  code = loadDataBlock(pOperator, pTableScanInfo, pBlock, &status);
@@ -530,7 +537,6 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   // taosSsleep(20);
 
   SDataBlockDescNode* pDescNode = pTableScanNode->scan.node.pOutputDataBlockDesc;
-
   int32_t numOfCols = 0;
   SArray* pColList = extractColMatchInfo(pTableScanNode->scan.pScanCols, pDescNode, &numOfCols, COL_MATCH_FROM_COL_ID);
 
