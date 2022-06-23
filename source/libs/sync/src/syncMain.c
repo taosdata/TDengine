@@ -345,7 +345,7 @@ bool syncCanLeaderTransfer(int64_t rid) {
   return matchOK;
 }
 
-int32_t syncForwardToPeer(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
+int32_t syncForwardToPeer(int64_t rid, SRpcMsg* pMsg, bool isWeak) {
   int32_t ret = syncPropose(rid, pMsg, isWeak);
   return ret;
 }
@@ -1889,6 +1889,16 @@ SyncIndex syncNodeSyncStartIndex(SSyncNode* pSyncNode) {
 }
 
 SyncIndex syncNodeGetPreIndex(SSyncNode* pSyncNode, SyncIndex index) {
+  SyncIndex preIndex = index - 1;
+  if (preIndex < SYNC_INDEX_INVALID) {
+    preIndex = SYNC_INDEX_INVALID;
+  }
+
+  return preIndex;
+}
+
+/*
+SyncIndex syncNodeGetPreIndex(SSyncNode* pSyncNode, SyncIndex index) {
   ASSERT(index >= SYNC_INDEX_BEGIN);
 
   SyncIndex syncStartIndex = syncNodeSyncStartIndex(pSyncNode);
@@ -1900,7 +1910,42 @@ SyncIndex syncNodeGetPreIndex(SSyncNode* pSyncNode, SyncIndex index) {
   SyncIndex preIndex = index - 1;
   return preIndex;
 }
+*/
 
+SyncTerm syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index) {
+  if (index < SYNC_INDEX_BEGIN) {
+    return SYNC_TERM_INVALID;
+  }
+
+  if (index == SYNC_INDEX_BEGIN) {
+    return 0;
+  }
+
+  SyncTerm        preTerm = 0;
+  SyncIndex       preIndex = index - 1;
+  SSyncRaftEntry* pPreEntry = NULL;
+  int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, preIndex, &pPreEntry);
+  if (code == 0) {
+    ASSERT(pPreEntry != NULL);
+    preTerm = pPreEntry->term;
+    taosMemoryFree(pPreEntry);
+    return preTerm;
+  } else {
+    if (terrno == TSDB_CODE_WAL_LOG_NOT_EXIST) {
+      SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0, .lastConfigIndex = -1};
+      if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
+        pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
+        if (snapshot.lastApplyIndex == preIndex) {
+          return snapshot.lastApplyTerm;
+        }
+      }
+    }
+  }
+
+  return SYNC_TERM_INVALID;
+}
+
+#if 0
 SyncTerm syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index) {
   ASSERT(index >= SYNC_INDEX_BEGIN);
 
@@ -1938,6 +1983,7 @@ SyncTerm syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index) {
   ASSERT(0);
   return -1;
 }
+#endif
 
 #if 0
 SyncTerm syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index) {
