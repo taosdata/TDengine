@@ -30,22 +30,45 @@ SStreamTask* tNewSStreamTask(int64_t streamId) {
   return pTask;
 }
 
+int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo) {
+  if (tEncodeI32(pEncoder, pInfo->taskId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pInfo->nodeId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pInfo->childId) < 0) return -1;
+  if (tEncodeSEpSet(pEncoder, &pInfo->epSet) < 0) return -1;
+  return 0;
+}
+
+int32_t tDecodeStreamEpInfo(SDecoder* pDecoder, SStreamChildEpInfo* pInfo) {
+  if (tDecodeI32(pDecoder, &pInfo->taskId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pInfo->nodeId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pInfo->childId) < 0) return -1;
+  if (tDecodeSEpSet(pDecoder, &pInfo->epSet) < 0) return -1;
+  return 0;
+}
+
 int32_t tEncodeSStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   /*if (tStartEncode(pEncoder) < 0) return -1;*/
   if (tEncodeI64(pEncoder, pTask->streamId) < 0) return -1;
   if (tEncodeI32(pEncoder, pTask->taskId) < 0) return -1;
-  if (tEncodeI8(pEncoder, pTask->inputType) < 0) return -1;
-  if (tEncodeI8(pEncoder, pTask->taskStatus) < 0) return -1;
-  if (tEncodeI8(pEncoder, pTask->execStatus) < 0) return -1;
+  if (tEncodeI8(pEncoder, pTask->isDataScan) < 0) return -1;
   if (tEncodeI8(pEncoder, pTask->execType) < 0) return -1;
   if (tEncodeI8(pEncoder, pTask->sinkType) < 0) return -1;
   if (tEncodeI8(pEncoder, pTask->dispatchType) < 0) return -1;
   if (tEncodeI16(pEncoder, pTask->dispatchMsgType) < 0) return -1;
-  if (tEncodeI8(pEncoder, pTask->dataScan) < 0) return -1;
 
-  if (tEncodeI32(pEncoder, pTask->childId) < 0) return -1;
+  if (tEncodeI8(pEncoder, pTask->taskStatus) < 0) return -1;
+  if (tEncodeI8(pEncoder, pTask->execStatus) < 0) return -1;
+
+  if (tEncodeI32(pEncoder, pTask->selfChildId) < 0) return -1;
   if (tEncodeI32(pEncoder, pTask->nodeId) < 0) return -1;
   if (tEncodeSEpSet(pEncoder, &pTask->epSet) < 0) return -1;
+
+  int32_t epSz = taosArrayGetSize(pTask->childEpInfo);
+  if (tEncodeI32(pEncoder, epSz) < 0) return -1;
+  for (int32_t i = 0; i < epSz; i++) {
+    SStreamChildEpInfo* pInfo = taosArrayGetP(pTask->childEpInfo, i);
+    if (tEncodeStreamEpInfo(pEncoder, pInfo) < 0) return -1;
+  }
 
   if (pTask->execType != TASK_EXEC__NONE) {
     if (tEncodeCStr(pEncoder, pTask->exec.qmsg) < 0) return -1;
@@ -83,18 +106,28 @@ int32_t tDecodeSStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   /*if (tStartDecode(pDecoder) < 0) return -1;*/
   if (tDecodeI64(pDecoder, &pTask->streamId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pTask->taskId) < 0) return -1;
-  if (tDecodeI8(pDecoder, &pTask->inputType) < 0) return -1;
-  if (tDecodeI8(pDecoder, &pTask->taskStatus) < 0) return -1;
-  if (tDecodeI8(pDecoder, &pTask->execStatus) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pTask->isDataScan) < 0) return -1;
   if (tDecodeI8(pDecoder, &pTask->execType) < 0) return -1;
   if (tDecodeI8(pDecoder, &pTask->sinkType) < 0) return -1;
   if (tDecodeI8(pDecoder, &pTask->dispatchType) < 0) return -1;
   if (tDecodeI16(pDecoder, &pTask->dispatchMsgType) < 0) return -1;
-  if (tDecodeI8(pDecoder, &pTask->dataScan) < 0) return -1;
 
-  if (tDecodeI32(pDecoder, &pTask->childId) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pTask->taskStatus) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pTask->execStatus) < 0) return -1;
+
+  if (tDecodeI32(pDecoder, &pTask->selfChildId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pTask->nodeId) < 0) return -1;
   if (tDecodeSEpSet(pDecoder, &pTask->epSet) < 0) return -1;
+
+  int32_t epSz;
+  if (tDecodeI32(pDecoder, &epSz) < 0) return -1;
+  pTask->childEpInfo = taosArrayInit(epSz, sizeof(void*));
+  for (int32_t i = 0; i < epSz; i++) {
+    SStreamChildEpInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamChildEpInfo));
+    if (pInfo == NULL) return -1;
+    if (tDecodeStreamEpInfo(pDecoder, pInfo) < 0) return -1;
+    taosArrayPush(pTask->childEpInfo, &pInfo);
+  }
 
   if (pTask->execType != TASK_EXEC__NONE) {
     if (tDecodeCStrAlloc(pDecoder, &pTask->exec.qmsg) < 0) return -1;
