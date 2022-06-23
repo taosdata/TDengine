@@ -491,6 +491,8 @@ static int32_t jsonToTableMeta(const SJson* pJson, void* pObj) {
 static const char* jkLogicPlanTargets = "Targets";
 static const char* jkLogicPlanConditions = "Conditions";
 static const char* jkLogicPlanChildren = "Children";
+static const char* jkLogicPlanLimit = "Limit";
+static const char* jkLogicPlanSlimit = "SLimit";
 
 static int32_t logicPlanNodeToJson(const void* pObj, SJson* pJson) {
   const SLogicNode* pNode = (const SLogicNode*)pObj;
@@ -501,6 +503,12 @@ static int32_t logicPlanNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkLogicPlanChildren, pNode->pChildren);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkLogicPlanLimit, nodeToJson, pNode->pLimit);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkLogicPlanSlimit, nodeToJson, pNode->pSlimit);
   }
 
   return code;
@@ -515,6 +523,12 @@ static int32_t jsonToLogicPlanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkLogicPlanChildren, &pNode->pChildren);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkLogicPlanLimit, &pNode->pLimit);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkLogicPlanSlimit, &pNode->pSlimit);
   }
 
   return code;
@@ -581,10 +595,6 @@ static int32_t jsonToLogicScanNode(const SJson* pJson, void* pObj) {
 }
 
 static const char* jkProjectLogicPlanProjections = "Projections";
-static const char* jkProjectLogicPlanLimit = "Limit";
-static const char* jkProjectLogicPlanOffset = "Offset";
-static const char* jkProjectLogicPlanSlimit = "SLimit";
-static const char* jkProjectLogicPlanSoffset = "SOffset";
 
 static int32_t logicProjectNodeToJson(const void* pObj, SJson* pJson) {
   const SProjectLogicNode* pNode = (const SProjectLogicNode*)pObj;
@@ -592,18 +602,6 @@ static int32_t logicProjectNodeToJson(const void* pObj, SJson* pJson) {
   int32_t code = logicPlanNodeToJson(pObj, pJson);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkProjectLogicPlanProjections, pNode->pProjections);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkProjectLogicPlanLimit, pNode->limit);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkProjectLogicPlanOffset, pNode->offset);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkProjectLogicPlanSlimit, pNode->slimit);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkProjectLogicPlanSoffset, pNode->soffset);
   }
 
   return code;
@@ -615,18 +613,6 @@ static int32_t jsonToLogicProjectNode(const SJson* pJson, void* pObj) {
   int32_t code = jsonToLogicPlanNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkProjectLogicPlanProjections, &pNode->pProjections);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetBigIntValue(pJson, jkProjectLogicPlanLimit, &pNode->limit);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetBigIntValue(pJson, jkProjectLogicPlanOffset, &pNode->offset);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetBigIntValue(pJson, jkProjectLogicPlanSlimit, &pNode->slimit);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetBigIntValue(pJson, jkProjectLogicPlanSoffset, &pNode->soffset);
   }
 
   return code;
@@ -1283,6 +1269,8 @@ static int32_t logicJoinNodeToJson(const void* pObj, SJson* pJson) {
 static const char* jkPhysiPlanOutputDataBlockDesc = "OutputDataBlockDesc";
 static const char* jkPhysiPlanConditions = "Conditions";
 static const char* jkPhysiPlanChildren = "Children";
+static const char* jkPhysiPlanLimit = "Limit";
+static const char* jkPhysiPlanSlimit = "SLimit";
 
 static int32_t physicPlanNodeToJson(const void* pObj, SJson* pJson) {
   const SPhysiNode* pNode = (const SPhysiNode*)pObj;
@@ -1293,6 +1281,12 @@ static int32_t physicPlanNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkPhysiPlanChildren, pNode->pChildren);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkPhysiPlanLimit, nodeToJson, pNode->pLimit);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkPhysiPlanSlimit, nodeToJson, pNode->pSlimit);
   }
 
   return code;
@@ -1307,6 +1301,12 @@ static int32_t jsonToPhysicPlanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkPhysiPlanChildren, &pNode->pChildren);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkPhysiPlanLimit, &pNode->pLimit);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkPhysiPlanSlimit, &pNode->pSlimit);
   }
 
   return code;
@@ -1590,10 +1590,6 @@ static int32_t jsonToPhysiSysTableScanNode(const SJson* pJson, void* pObj) {
 }
 
 static const char* jkProjectPhysiPlanProjections = "Projections";
-static const char* jkProjectPhysiPlanLimit = "Limit";
-static const char* jkProjectPhysiPlanOffset = "Offset";
-static const char* jkProjectPhysiPlanSlimit = "SLimit";
-static const char* jkProjectPhysiPlanSoffset = "SOffset";
 
 static int32_t physiProjectNodeToJson(const void* pObj, SJson* pJson) {
   const SProjectPhysiNode* pNode = (const SProjectPhysiNode*)pObj;
@@ -1601,18 +1597,6 @@ static int32_t physiProjectNodeToJson(const void* pObj, SJson* pJson) {
   int32_t code = physicPlanNodeToJson(pObj, pJson);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkProjectPhysiPlanProjections, pNode->pProjections);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkProjectPhysiPlanLimit, pNode->limit);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkProjectPhysiPlanOffset, pNode->offset);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkProjectPhysiPlanSlimit, pNode->slimit);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkProjectPhysiPlanSoffset, pNode->soffset);
   }
 
   return code;
@@ -1624,18 +1608,6 @@ static int32_t jsonToPhysiProjectNode(const SJson* pJson, void* pObj) {
   int32_t code = jsonToPhysicPlanNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkProjectPhysiPlanProjections, &pNode->pProjections);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetBigIntValue(pJson, jkProjectPhysiPlanLimit, &pNode->limit);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetBigIntValue(pJson, jkProjectPhysiPlanOffset, &pNode->offset);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetBigIntValue(pJson, jkProjectPhysiPlanSlimit, &pNode->slimit);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetBigIntValue(pJson, jkProjectPhysiPlanSoffset, &pNode->soffset);
   }
 
   return code;
@@ -3158,6 +3130,31 @@ static int32_t jsonToOrderByExprNode(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkLimitLimit = "Limit";
+static const char* jkLimitOffset = "Offset";
+
+static int32_t limitNodeToJson(const void* pObj, SJson* pJson) {
+  const SLimitNode* pNode = (const SLimitNode*)pObj;
+
+  int32_t code = tjsonAddIntegerToObject(pJson, jkLimitLimit, pNode->limit);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkLimitOffset, pNode->offset);
+  }
+
+  return code;
+}
+
+static int32_t jsonToLimitNode(const SJson* pJson, void* pObj) {
+  SLimitNode* pNode = (SLimitNode*)pObj;
+
+  int32_t code = tjsonGetBigIntValue(pJson, jkLimitLimit, &pNode->limit);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBigIntValue(pJson, jkLimitOffset, &pNode->offset);
+  }
+
+  return code;
+}
+
 static const char* jkStateWindowCol = "StateWindowCol";
 static const char* jkStateWindowExpr = "StateWindowExpr";
 
@@ -4024,7 +4021,7 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_ORDER_BY_EXPR:
       return orderByExprNodeToJson(pObj, pJson);
     case QUERY_NODE_LIMIT:
-      break;
+      return limitNodeToJson(pObj, pJson);
     case QUERY_NODE_STATE_WINDOW:
       return stateWindowNodeToJson(pObj, pJson);
     case QUERY_NODE_SESSION_WINDOW:
@@ -4184,6 +4181,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToTempTableNode(pJson, pObj);
     case QUERY_NODE_ORDER_BY_EXPR:
       return jsonToOrderByExprNode(pJson, pObj);
+    case QUERY_NODE_LIMIT:
+      return jsonToLimitNode(pJson, pObj);
     case QUERY_NODE_STATE_WINDOW:
       return jsonToStateWindowNode(pJson, pObj);
     case QUERY_NODE_SESSION_WINDOW:

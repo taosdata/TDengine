@@ -696,12 +696,12 @@ typedef struct {
 
 typedef STableCfg STableCfgRsp;
 
-int32_t tSerializeSTableCfgReq(void *buf, int32_t bufLen, STableCfgReq *pReq);
-int32_t tDeserializeSTableCfgReq(void *buf, int32_t bufLen, STableCfgReq *pReq);
+int32_t tSerializeSTableCfgReq(void* buf, int32_t bufLen, STableCfgReq* pReq);
+int32_t tDeserializeSTableCfgReq(void* buf, int32_t bufLen, STableCfgReq* pReq);
 
-int32_t tSerializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp);
-int32_t tDeserializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp);
-void tFreeSTableCfgRsp(STableCfgRsp *pRsp);
+int32_t tSerializeSTableCfgRsp(void* buf, int32_t bufLen, STableCfgRsp* pRsp);
+int32_t tDeserializeSTableCfgRsp(void* buf, int32_t bufLen, STableCfgRsp* pRsp);
+void    tFreeSTableCfgRsp(STableCfgRsp* pRsp);
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
@@ -2443,6 +2443,8 @@ typedef struct {
   int64_t interval;
   int64_t offset;
   int64_t sliding;
+  int64_t maxDelay;
+  int64_t watermark;
   int32_t exprLen;        // strlen + 1
   int32_t tagsFilterLen;  // strlen + 1
   int32_t sqlLen;         // strlen + 1

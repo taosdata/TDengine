@@ -1317,8 +1317,8 @@ SNode* createCreateIndexStmt(SAstCreateContext* pCxt, EIndexType type, bool igno
   return (SNode*)pStmt;
 }
 
-SNode* createIndexOption(SAstCreateContext* pCxt, SNodeList* pFuncs, SNode* pInterval, SNode* pOffset,
-                         SNode* pSliding) {
+SNode* createIndexOption(SAstCreateContext* pCxt, SNodeList* pFuncs, SNode* pInterval, SNode* pOffset, SNode* pSliding,
+                         SNode* pStreamOptions) {
   CHECK_PARSER_STATUS(pCxt);
   SIndexOptions* pOptions = (SIndexOptions*)nodesMakeNode(QUERY_NODE_INDEX_OPTIONS);
   CHECK_OUT_OF_MEM(pOptions);
@@ -1326,6 +1326,7 @@ SNode* createIndexOption(SAstCreateContext* pCxt, SNodeList* pFuncs, SNode* pInt
   pOptions->pInterval = pInterval;
   pOptions->pOffset = pOffset;
   pOptions->pSliding = pSliding;
+  pOptions->pStreamOptions = pStreamOptions;
   return (SNode*)pOptions;
 }
 

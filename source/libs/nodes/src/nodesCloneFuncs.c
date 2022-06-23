@@ -319,6 +319,8 @@ static int32_t logicNodeCopy(const SLogicNode* pSrc, SLogicNode* pDst) {
   CLONE_NODE_LIST_FIELD(pChildren);
   COPY_SCALAR_FIELD(optimizedFlag);
   COPY_SCALAR_FIELD(precision);
+  CLONE_NODE_FIELD(pLimit);
+  CLONE_NODE_FIELD(pSlimit);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -371,10 +373,6 @@ static int32_t logicProjectCopy(const SProjectLogicNode* pSrc, SProjectLogicNode
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   CLONE_NODE_LIST_FIELD(pProjections);
   COPY_CHAR_ARRAY_FIELD(stmtName);
-  COPY_SCALAR_FIELD(limit);
-  COPY_SCALAR_FIELD(offset);
-  COPY_SCALAR_FIELD(slimit);
-  COPY_SCALAR_FIELD(soffset);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -619,95 +617,137 @@ SNode* nodesCloneNode(const SNode* pNode) {
   switch (nodeType(pNode)) {
     case QUERY_NODE_COLUMN:
       code = columnNodeCopy((const SColumnNode*)pNode, (SColumnNode*)pDst);
+      break;
     case QUERY_NODE_VALUE:
       code = valueNodeCopy((const SValueNode*)pNode, (SValueNode*)pDst);
+      break;
     case QUERY_NODE_OPERATOR:
       code = operatorNodeCopy((const SOperatorNode*)pNode, (SOperatorNode*)pDst);
+      break;
     case QUERY_NODE_LOGIC_CONDITION:
       code = logicConditionNodeCopy((const SLogicConditionNode*)pNode, (SLogicConditionNode*)pDst);
+      break;
     case QUERY_NODE_FUNCTION:
       code = functionNodeCopy((const SFunctionNode*)pNode, (SFunctionNode*)pDst);
+      break;
     case QUERY_NODE_REAL_TABLE:
       code = realTableNodeCopy((const SRealTableNode*)pNode, (SRealTableNode*)pDst);
+      break;
     case QUERY_NODE_TEMP_TABLE:
       code = tempTableNodeCopy((const STempTableNode*)pNode, (STempTableNode*)pDst);
+      break;
     case QUERY_NODE_JOIN_TABLE:
       code = joinTableNodeCopy((const SJoinTableNode*)pNode, (SJoinTableNode*)pDst);
+      break;
     case QUERY_NODE_GROUPING_SET:
       code = groupingSetNodeCopy((const SGroupingSetNode*)pNode, (SGroupingSetNode*)pDst);
+      break;
     case QUERY_NODE_ORDER_BY_EXPR:
       code = orderByExprNodeCopy((const SOrderByExprNode*)pNode, (SOrderByExprNode*)pDst);
+      break;
     case QUERY_NODE_LIMIT:
       code = limitNodeCopy((const SLimitNode*)pNode, (SLimitNode*)pDst);
+      break;
     case QUERY_NODE_STATE_WINDOW:
       code = stateWindowNodeCopy((const SStateWindowNode*)pNode, (SStateWindowNode*)pDst);
+      break;
     case QUERY_NODE_SESSION_WINDOW:
       code = sessionWindowNodeCopy((const SSessionWindowNode*)pNode, (SSessionWindowNode*)pDst);
+      break;
     case QUERY_NODE_INTERVAL_WINDOW:
       code = intervalWindowNodeCopy((const SIntervalWindowNode*)pNode, (SIntervalWindowNode*)pDst);
+      break;
     case QUERY_NODE_NODE_LIST:
       code = nodeListNodeCopy((const SNodeListNode*)pNode, (SNodeListNode*)pDst);
+      break;
     case QUERY_NODE_FILL:
       code = fillNodeCopy((const SFillNode*)pNode, (SFillNode*)pDst);
+      break;
     case QUERY_NODE_TARGET:
       code = targetNodeCopy((const STargetNode*)pNode, (STargetNode*)pDst);
+      break;
     case QUERY_NODE_DATABLOCK_DESC:
       code = dataBlockDescCopy((const SDataBlockDescNode*)pNode, (SDataBlockDescNode*)pDst);
+      break;
     case QUERY_NODE_SLOT_DESC:
       code = slotDescCopy((const SSlotDescNode*)pNode, (SSlotDescNode*)pDst);
+      break;
     case QUERY_NODE_DOWNSTREAM_SOURCE:
       code = downstreamSourceCopy((const SDownstreamSourceNode*)pNode, (SDownstreamSourceNode*)pDst);
+      break;
     case QUERY_NODE_LEFT_VALUE:
       code = TSDB_CODE_SUCCESS;
+      break;
     case QUERY_NODE_SELECT_STMT:
       code = selectStmtCopy((const SSelectStmt*)pNode, (SSelectStmt*)pDst);
+      break;
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       code = logicScanCopy((const SScanLogicNode*)pNode, (SScanLogicNode*)pDst);
+      break;
     case QUERY_NODE_LOGIC_PLAN_JOIN:
       code = logicJoinCopy((const SJoinLogicNode*)pNode, (SJoinLogicNode*)pDst);
+      break;
     case QUERY_NODE_LOGIC_PLAN_AGG:
       code = logicAggCopy((const SAggLogicNode*)pNode, (SAggLogicNode*)pDst);
+      break;
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
       code = logicProjectCopy((const SProjectLogicNode*)pNode, (SProjectLogicNode*)pDst);
+      break;
     case QUERY_NODE_LOGIC_PLAN_VNODE_MODIFY:
       code = logicVnodeModifCopy((const SVnodeModifyLogicNode*)pNode, (SVnodeModifyLogicNode*)pDst);
+      break;
     case QUERY_NODE_LOGIC_PLAN_EXCHANGE:
       code = logicExchangeCopy((const SExchangeLogicNode*)pNode, (SExchangeLogicNode*)pDst);
+      break;
     case QUERY_NODE_LOGIC_PLAN_MERGE:
       code = logicMergeCopy((const SMergeLogicNode*)pNode, (SMergeLogicNode*)pDst);
+      break;
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
       code = logicWindowCopy((const SWindowLogicNode*)pNode, (SWindowLogicNode*)pDst);
+      break;
     case QUERY_NODE_LOGIC_PLAN_FILL:
       code = logicFillCopy((const SFillLogicNode*)pNode, (SFillLogicNode*)pDst);
+      break;
     case QUERY_NODE_LOGIC_PLAN_SORT:
       code = logicSortCopy((const SSortLogicNode*)pNode, (SSortLogicNode*)pDst);
+      break;
     case QUERY_NODE_LOGIC_PLAN_PARTITION:
       code = logicPartitionCopy((const SPartitionLogicNode*)pNode, (SPartitionLogicNode*)pDst);
+      break;
     case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC:
       code = logicIndefRowsFuncCopy((const SIndefRowsFuncLogicNode*)pNode, (SIndefRowsFuncLogicNode*)pDst);
+      break;
     case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
       code = logicInterpFuncCopy((const SInterpFuncLogicNode*)pNode, (SInterpFuncLogicNode*)pDst);
+      break;
     case QUERY_NODE_LOGIC_SUBPLAN:
       code = logicSubplanCopy((const SLogicSubplan*)pNode, (SLogicSubplan*)pDst);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
       code = physiTagScanCopy((const STagScanPhysiNode*)pNode, (STagScanPhysiNode*)pDst);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
       code = physiTableScanCopy((const STableScanPhysiNode*)pNode, (STableScanPhysiNode*)pDst);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
       code = physiSysTableScanCopy((const SSystemTableScanPhysiNode*)pNode, (SSystemTableScanPhysiNode*)pDst);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
       code = physiIntervalCopy((const SIntervalPhysiNode*)pNode, (SIntervalPhysiNode*)pDst);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION:
       code = physiSessionCopy((const SSessionWinodwPhysiNode*)pNode, (SSessionWinodwPhysiNode*)pDst);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       code = physiPartitionCopy((const SPartitionPhysiNode*)pNode, (SPartitionPhysiNode*)pDst);
+      break;
     default:
       break;
   }

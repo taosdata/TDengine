@@ -377,6 +377,11 @@ static int32_t collectMetaKeyFromShowTopics(SCollectMetaKeyCxt* pCxt, SShowStmt*
                                  pCxt->pMetaCache);
 }
 
+static int32_t collectMetaKeyFromShowConsumers(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_PERFORMANCE_SCHEMA_DB, TSDB_PERFS_TABLE_CONSUMERS,
+                                 pCxt->pMetaCache);
+}
+
 static int32_t collectMetaKeyFromShowConnections(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_PERFORMANCE_SCHEMA_DB, TSDB_PERFS_TABLE_CONNECTIONS,
                                  pCxt->pMetaCache);
@@ -453,6 +458,11 @@ static int32_t collectMetaKeyFromShowBlockDist(SCollectMetaKeyCxt* pCxt, SShowTa
   return code;
 }
 
+static int32_t collectMetaKeyFromShowSubscriptions(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_PERFORMANCE_SCHEMA_DB, TSDB_PERFS_TABLE_SUBSCRIPTIONS,
+                                 pCxt->pMetaCache);
+}
+
 static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
   pCxt->pStmt = pStmt;
   switch (nodeType(pStmt)) {
@@ -514,6 +524,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromShowVgroups(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_TOPICS_STMT:
       return collectMetaKeyFromShowTopics(pCxt, (SShowStmt*)pStmt);
+    case QUERY_NODE_SHOW_CONSUMERS_STMT:
+      return collectMetaKeyFromShowConsumers(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_CONNECTIONS_STMT:
       return collectMetaKeyFromShowConnections(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_QUERIES_STMT:
@@ -535,6 +547,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromDelete(pCxt, (SDeleteStmt*)pStmt);
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
       return collectMetaKeyFromShowBlockDist(pCxt, (SShowTableDistributedStmt*)pStmt);
+    case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
+      return collectMetaKeyFromShowSubscriptions(pCxt, (SShowStmt*)pStmt);
     default:
       break;
   }

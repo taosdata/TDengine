@@ -348,6 +348,9 @@ static SPhysiNode* makePhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode
     return NULL;
   }
 
+  pPhysiNode->pLimit = pLogicNode->pLimit;
+  pPhysiNode->pSlimit = pLogicNode->pSlimit;
+
   int32_t code = createDataBlockDesc(pCxt, pLogicNode->pTargets, &pPhysiNode->pOutputDataBlockDesc);
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pPhysiNode);
@@ -911,11 +914,6 @@ static int32_t createProjectPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChild
   if (NULL == pProject) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-
-  pProject->limit = pProjectLogicNode->limit;
-  pProject->offset = pProjectLogicNode->offset;
-  pProject->slimit = pProjectLogicNode->slimit;
-  pProject->soffset = pProjectLogicNode->soffset;
 
   int32_t code = TSDB_CODE_SUCCESS;
   if (0 == LIST_LENGTH(pChildren)) {
