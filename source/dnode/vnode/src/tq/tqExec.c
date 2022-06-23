@@ -75,7 +75,7 @@ int32_t tqScanSnapshot(STQ* pTq, const STqExecHandle* pExec, SMqDataBlkRsp* pRsp
     if (pDataBlock == NULL) break;
 
     ASSERT(pDataBlock->info.rows != 0);
-    ASSERT(pDataBlock->info.numOfCols != 0);
+    ASSERT(taosArrayGetSize(pDataBlock->pDataBlock) != 0);
 
     tqAddBlockDataToRsp(pDataBlock, pRsp);
     pRsp->blockNum++;
