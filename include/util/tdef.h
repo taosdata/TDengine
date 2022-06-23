@@ -134,7 +134,7 @@ typedef enum EOperatorType {
   OP_TYPE_MINUS,
   OP_TYPE_ASSIGN,
 
-  // bit operator
+  // bitwise operator
   OP_TYPE_BIT_AND,
   OP_TYPE_BIT_OR,
 
@@ -443,8 +443,8 @@ enum {
 #define VNODE_HANDLE   -3
 #define BNODE_HANDLE   -4
 
-#define TSDB_CONFIG_OPTION_LEN 16
-#define TSDB_CONIIG_VALUE_LEN  48
+#define TSDB_CONFIG_OPTION_LEN 32
+#define TSDB_CONFIG_VALUE_LEN  64
 #define TSDB_CONFIG_NUMBER     8
 
 #define QUERY_ID_SIZE      20

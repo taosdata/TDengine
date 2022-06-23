@@ -166,10 +166,13 @@ class MockCatalogServiceImpl {
   }
 
   int32_t catalogGetDnodeList(SArray** pDnodes) const {
-    *pDnodes = taosArrayInit(dnode_.size(), sizeof(SEpSet));
+    SMetaRes res = {0};
+    res.pRes = taosArrayInit(dnode_.size(), sizeof(SEpSet));
     for (const auto& dnode : dnode_) {
-      taosArrayPush(*pDnodes, &dnode.second);
+      taosArrayPush((SArray*)res.pRes, &dnode.second);
     }
+    *pDnodes = taosArrayInit(1, sizeof(SMetaRes));
+    taosArrayPush(*pDnodes, &res);
     return TSDB_CODE_SUCCESS;
   }
 

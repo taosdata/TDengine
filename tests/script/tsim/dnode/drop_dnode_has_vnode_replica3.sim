@@ -28,7 +28,7 @@ step1:
 sql show dnodes
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
-if $rows != 3 then
+if $rows != 5 then
   return -1
 endi
 if $data(1)[4] != ready then
@@ -71,6 +71,13 @@ endi
 if $data(2)[7] != 4 then
   return -1
 endi
+
+system sh/exec.sh -n dnode4 -s stop -x SIGINT
+system sh/exec.sh -n dnode3 -s stop -x SIGINT
+
+
+return
+
 
 print =============== step4: drop dnode 2
 system sh/exec.sh -n dnode5 -s start

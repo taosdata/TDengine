@@ -36,6 +36,10 @@ extern "C" {
 #define SHOW_CREATE_TB_RESULT_FIELD1_LEN (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_CREATE_TB_RESULT_FIELD2_LEN (TSDB_MAX_BINARY_LEN + VARSTR_HEADER_SIZE)
 
+#define SHOW_LOCAL_VARIABLES_RESULT_COLS      2
+#define SHOW_LOCAL_VARIABLES_RESULT_FIELD1_LEN (TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE)
+#define SHOW_LOCAL_VARIABLES_RESULT_FIELD2_LEN (TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE)
+
 
 #define PRIVILEGE_TYPE_MASK(n) (1 << n)
 
@@ -179,13 +183,16 @@ typedef struct SCreateUserStmt {
   ENodeType type;
   char      useName[TSDB_USER_LEN];
   char      password[TSDB_USET_PASSWORD_LEN];
+  int8_t    sysinfo;
 } SCreateUserStmt;
 
 typedef struct SAlterUserStmt {
   ENodeType type;
   char      useName[TSDB_USER_LEN];
-  char      password[TSDB_USET_PASSWORD_LEN];
   int8_t    alterType;
+  char      password[TSDB_USET_PASSWORD_LEN];
+  int8_t    enable;
+  int8_t    sysinfo;
 } SAlterUserStmt;
 
 typedef struct SDropUserStmt {
@@ -268,7 +275,6 @@ typedef struct SDropIndexStmt {
   ENodeType type;
   bool      ignoreNotExists;
   char      indexName[TSDB_INDEX_NAME_LEN];
-  char      tableName[TSDB_TABLE_NAME_LEN];
 } SDropIndexStmt;
 
 typedef struct SCreateComponentNodeStmt {
@@ -287,6 +293,7 @@ typedef struct SCreateTopicStmt {
   char      subDbName[TSDB_DB_NAME_LEN];
   char      subSTbName[TSDB_TABLE_NAME_LEN];
   bool      ignoreExists;
+  bool      withMeta;
   SNode*    pQuery;
 } SCreateTopicStmt;
 

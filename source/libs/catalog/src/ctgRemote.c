@@ -40,6 +40,21 @@ int32_t ctgProcessRspMsg(void* out, int32_t reqType, char* msg, int32_t msgSize,
       qDebug("Got qnode list from mnode, listNum:%d", (int32_t)taosArrayGetSize(out));
       break;
     }
+    case TDMT_MND_DNODE_LIST: {
+      if (TSDB_CODE_SUCCESS != rspCode) {
+        qError("error rsp for dnode list, error:%s", tstrerror(rspCode));
+        CTG_ERR_RET(rspCode);
+      }
+      
+      code = queryProcessMsgRsp[TMSG_INDEX(reqType)](out, msg, msgSize);
+      if (code) {
+        qError("Process dnode list rsp failed, error:%s", tstrerror(rspCode));
+        CTG_ERR_RET(code);
+      }
+      
+      qDebug("Got dnode list from mnode, listNum:%d", (int32_t)taosArrayGetSize(*(SArray**)out));
+      break;
+    }
     case TDMT_MND_USE_DB: {
       if (TSDB_CODE_SUCCESS != rspCode) {
         qError("error rsp for use db, error:%s, dbFName:%s", tstrerror(rspCode), target);
@@ -309,9 +324,6 @@ _return:
   CTG_RET(code);
 }
 
-
-
-
 int32_t ctgGetQnodeListFromMnode(SCatalog* pCtg, SRequestConnInfo *pConn, SArray *out, SCtgTask* pTask) {
   char *msg = NULL;
   int32_t msgLen = 0;
@@ -332,6 +344,39 @@ int32_t ctgGetQnodeListFromMnode(SCatalog* pCtg, SRequestConnInfo *pConn, SArray
       CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
     CTG_ERR_RET(ctgUpdateMsgCtx(&pTask->msgCtx, reqType, pOut, NULL));
+    CTG_RET(ctgAsyncSendMsg(pCtg, pConn, pTask, reqType, msg, msgLen));
+  }
+  
+  SRpcMsg rpcMsg = {
+      .msgType = reqType,
+      .pCont   = msg,
+      .contLen = msgLen,
+  };
+
+  SRpcMsg rpcRsp = {0};
+  rpcSendRecv(pConn->pTrans, &pConn->mgmtEps, &rpcMsg, &rpcRsp);
+
+  CTG_ERR_RET(ctgProcessRspMsg(out, reqType, rpcRsp.pCont, rpcRsp.contLen, rpcRsp.code, NULL));
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t ctgGetDnodeListFromMnode(SCatalog* pCtg, SRequestConnInfo *pConn, SArray **out, SCtgTask* pTask) {
+  char *msg = NULL;
+  int32_t msgLen = 0;
+  int32_t reqType = TDMT_MND_DNODE_LIST;
+  void*(*mallocFp)(int32_t) = pTask ? taosMemoryMalloc : rpcMallocCont;
+
+  ctgDebug("try to get dnode list from mnode, mgmtEpInUse:%d", pConn->mgmtEps.inUse);
+
+  int32_t code = queryBuildMsg[TMSG_INDEX(reqType)](NULL, &msg, 0, &msgLen, mallocFp);
+  if (code) {
+    ctgError("Build dnode list msg failed, error:%s", tstrerror(code));
+    CTG_ERR_RET(code);
+  }
+
+  if (pTask) {
+    CTG_ERR_RET(ctgUpdateMsgCtx(&pTask->msgCtx, reqType, NULL, NULL));
     CTG_RET(ctgAsyncSendMsg(pCtg, pConn, pTask, reqType, msg, msgLen));
   }
   

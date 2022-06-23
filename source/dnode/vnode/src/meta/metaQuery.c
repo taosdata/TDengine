@@ -219,11 +219,9 @@ _err:
 }
 
 int metaTtlSmaller(SMeta *pMeta, uint64_t ttl, SArray *uidList){
-  metaRLock(pMeta);
   TBC *    pCur;
   int ret = tdbTbcOpen(pMeta->pTtlIdx, &pCur, NULL);
   if (ret < 0) {
-    metaULock(pMeta);
     return ret;
   }
 
@@ -249,6 +247,7 @@ int metaTtlSmaller(SMeta *pMeta, uint64_t ttl, SArray *uidList){
   tdbTbcClose(pCur);
 
   tdbFree(pKey);
+
   return 0;
 }
 
@@ -613,9 +612,6 @@ const void *metaGetTableTagVal(SMetaEntry *pEntry, int16_t type, STagVal *val) {
   ASSERT(pEntry->type == TSDB_CHILD_TABLE);
   STag *tag = (STag *)pEntry->ctbEntry.pTags;
   if (type == TSDB_DATA_TYPE_JSON) {
-    if (tag->nTag == 0) {
-      return NULL;
-    }
     return tag;
   }
   bool find = tTagGet(tag, val);

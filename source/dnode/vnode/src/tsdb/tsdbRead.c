@@ -2845,7 +2845,7 @@ int32_t tsdbGetAllTableList(SMeta* pMeta, uint64_t uid, SArray* list) {
       break;
     }
 
-    STableKeyInfo info = {.lastKey = TSKEY_INITIAL_VAL, uid = id};
+    STableKeyInfo info = {.lastKey = TSKEY_INITIAL_VAL, uid = id, .groupId = 0};
     taosArrayPush(list, &info);
   }
 

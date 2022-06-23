@@ -28,6 +28,7 @@ sys.path.append("../pytest")
 from util.log import *
 from util.dnodes import *
 from util.cases import *
+from util.cluster import *
 
 import taos
 
@@ -58,10 +59,11 @@ if __name__ == "__main__":
     logSql = True
     stop = 0
     restart = False
+    dnodeNums = 1
     updateCfgDict = {}
     execCmd = ""
-    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:', [
-        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'killv', 'execCmd'])
+    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:N:', [
+        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'killv', 'execCmd','dnodeNums'])
     for key, value in opts:
         if key in ['-h', '--help']:
             tdLog.printNoPrefix(
@@ -77,6 +79,8 @@ if __name__ == "__main__":
             tdLog.printNoPrefix('-d update cfg dict, base64 json str')
             tdLog.printNoPrefix('-k not kill valgrind processer')
             tdLog.printNoPrefix('-e eval str to run')
+            tdLog.printNoPrefix('-N create dnodes numbers clusters')
+
             sys.exit(0)
 
         if key in ['-r', '--restart']: 
@@ -125,6 +129,9 @@ if __name__ == "__main__":
             except:
                 print('updateCfgDict convert fail.')
                 sys.exit(0)
+
+        if key in ['-N', '--dnodeNums']:
+            dnodeNums = value
 
     if not execCmd == "":
         tdDnodes.init(deployPath)
@@ -232,11 +239,36 @@ if __name__ == "__main__":
                     updateCfgDict = ucase.updatecfgDict
             except:
                 pass
-        tdDnodes.deploy(1,updateCfgDict)
-        tdDnodes.start(1)
-
-        tdCases.logSql(logSql)
-
+        if dnodeNums == 1 :
+            tdDnodes.deploy(1,updateCfgDict)
+            tdDnodes.start(1)
+            tdCases.logSql(logSql)
+        else :
+            print("start cluster and  dnodes number")
+            
+            dnodeslist = cluster.configure_cluster(dnodes_nums=dnodeNums,independent=True)
+            tdDnodes = ClusterDnodes(dnodeslist)
+            tdDnodes.init(deployPath, masterIp)
+            tdDnodes.setTestCluster(testCluster)
+            tdDnodes.setValgrind(valgrind)
+            tdDnodes.stopAll()
+            for dnode in tdDnodes.dnodes:
+                tdDnodes.deploy(dnode.index,{})
+            for dnode in tdDnodes.dnodes:
+                tdDnodes.starttaosd(dnode.index)
+            tdCases.logSql(logSql)
+            conn = taos.connect(
+                host,
+                config=tdDnodes.getSimCfgPath())
+            print(tdDnodes.getSimCfgPath(),host)
+            cluster.create_dnode(conn)
+            try:
+                if cluster.check_dnode(conn) :
+                    print("check dnode ready")
+            except Exception as r:
+                print(r)
+            
+            
         if testCluster:
             tdLog.info("Procedures for testing cluster")
             if fileName == "all":
@@ -248,10 +280,12 @@ if __name__ == "__main__":
             conn = taos.connect(
                 host,
                 config=tdDnodes.getSimCfgPath())
+                
             if fileName == "all":
                 tdCases.runAllLinux(conn)
             else:
                 tdCases.runOneLinux(conn, fileName)
+            
         if restart:
             if fileName == "all":
                 tdLog.info("not need to query ")

@@ -56,6 +56,7 @@ static bool    mndCannotExecuteTransAction(SMnode *pMnode) { return !pMnode->dep
 
 static void    mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans);
 static int32_t mndProcessTransReq(SRpcMsg *pReq);
+static int32_t mndProcessTtl(SRpcMsg *pReq);
 static int32_t mndProcessKillTransReq(SRpcMsg *pReq);
 
 static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
