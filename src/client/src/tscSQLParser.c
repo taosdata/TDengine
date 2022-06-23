@@ -8011,7 +8011,9 @@ int32_t validateColumnName(char* name) {
     return validateColumnName(token.z);
   } else if (token.type == TK_ID) {
     stringProcess(name, token.n);
-    return TSDB_CODE_SUCCESS;
+    if (strlen(name) == 0) {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
   } else {
     if (isNumber(&token)) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
