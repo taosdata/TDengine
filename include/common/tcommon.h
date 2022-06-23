@@ -50,7 +50,7 @@ typedef enum EStreamType {
 } EStreamType;
 
 typedef struct {
-  SArray   *pGroupList;
+  SArray*   pGroupList;
   SArray*   pTableList;
   SHashObj* map;  // speedup acquire the tableQueryInfo by table uid
   bool      needSortTableByGroupId;
