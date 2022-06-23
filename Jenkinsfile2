@@ -161,6 +161,153 @@ def pre_test_mac() {
     '''
     return 1
 }
+def pre_test_win(){
+    bat '''
+        hostname
+        ipconfig
+        set
+        date /t
+        time /t
+        taskkill /f /t /im python.exe
+        taskkill /f /t /im bash.exe
+        taskkill /f /t /im taosd.exe
+        rd /s /Q %WIN_INTERNAL_ROOT%\\debug || echo "no debug folder"
+        echo "clean environment done"
+        exit 0
+    '''
+    bat '''
+        cd %WIN_INTERNAL_ROOT%
+        git reset --hard
+    '''
+    bat '''
+        cd %WIN_COMMUNITY_ROOT%
+        git reset --hard
+    '''
+    script {
+        if (env.CHANGE_TARGET == 'master') {
+            bat '''
+                cd %WIN_INTERNAL_ROOT%
+                git checkout master
+            '''
+            bat '''
+                cd %WIN_COMMUNITY_ROOT%
+                git checkout master
+            '''
+        } else if (env.CHANGE_TARGET == '2.0') {
+            bat '''
+                cd %WIN_INTERNAL_ROOT%
+                git checkout 2.0
+            '''
+            bat '''
+                cd %WIN_COMMUNITY_ROOT%
+                git checkout 2.0
+            '''
+        } else if (env.CHANGE_TARGET == '2.4') {
+            bat '''
+                cd %WIN_INTERNAL_ROOT%
+                git checkout 2.4
+            '''
+            bat '''
+                cd %WIN_COMMUNITY_ROOT%
+                git checkout 2.4
+            '''
+        } else if (env.CHANGE_TARGET == '2.6') {
+            bat '''
+                cd %WIN_INTERNAL_ROOT%
+                git checkout 2.6
+            '''
+            bat '''
+                cd %WIN_COMMUNITY_ROOT%
+                git checkout 2.6
+            '''
+        } else {
+            bat '''
+                cd %WIN_INTERNAL_ROOT%
+                git checkout develop
+            '''
+            bat '''
+                cd %WIN_COMMUNITY_ROOT%
+                git checkout develop
+            '''
+        }
+    }
+    bat '''
+        cd %WIN_INTERNAL_ROOT%
+        git pull
+    '''
+    bat '''
+        cd %WIN_COMMUNITY_ROOT%
+        git remote prune origin
+        git pull
+    '''
+    bat '''
+        cd %WIN_INTERNAL_ROOT%
+        git branch
+        git log -5
+    '''
+    bat '''
+        cd %WIN_COMMUNITY_ROOT%
+        git branch
+        git log -5
+    '''
+    script {
+        if (env.CHANGE_URL =~ /\/TDengine\//) {
+            bat '''
+                echo "match /TDengine/ repository"
+                cd %WIN_COMMUNITY_ROOT%
+                git fetch origin +refs/pull/%CHANGE_ID%/merge
+                git checkout -qf FETCH_HEAD
+                git log -5
+            '''
+        } else if (env.CHANGE_URL =~ /\/TDinternal\//) {
+            bat '''
+                echo "match /TDinternal/ repository"
+                cd %WIN_INTERNAL_ROOT%
+                git fetch origin +refs/pull/%CHANGE_ID%/merge
+                git checkout -qf FETCH_HEAD
+                git log -5
+            '''
+        } else {
+            bat '''
+                echo "unmatched reposiotry %CHANGE_URL%"
+            '''
+        }
+    }
+    bat '''
+        cd %WIN_COMMUNITY_ROOT%
+        git submodule update --init --recursive
+    '''
+    /*bat '''
+        cd %WIN_CONNECTOR_ROOT%
+        git branch
+        git reset --hard
+        git pull
+    '''
+    bat '''
+        cd %WIN_CONNECTOR_ROOT%
+        git log -5
+    '''*/
+}
+def pre_test_build_win() {
+    bat '''
+        echo "building ..."
+        time /t
+        cd %WIN_INTERNAL_ROOT%
+        mkdir debug
+        cd debug
+        time /t
+        call "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat" x64
+        set CL=/MP8
+        echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> cmake"
+        time /t
+        cmake .. -G "NMake Makefiles JOM" || exit 7
+        echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> jom -j 6"
+        time /t
+        jom -j 6 || exit 8
+        time /t
+    '''
+    return 1
+}
 pipeline {
     agent none
     options { skipDefaultCheckout() }
@@ -204,6 +351,21 @@ pipeline {
                                     date
                                 '''
                             }
+                        }
+                    }
+                }
+                stage('build win') {
+                    agent {label " windows10_05 || windows10_06 "}
+                    environment{
+                        WIN_INTERNAL_ROOT="C:\\workspace\\${env.EXECUTOR_NUMBER}\\TDinternal"
+                        WIN_COMMUNITY_ROOT="C:\\workspace\\${env.EXECUTOR_NUMBER}\\TDinternal\\community"
+                        WIN_SYSTEM_TEST_ROOT="C:\\workspace\\${env.EXECUTOR_NUMBER}\\TDinternal\\community\\tests\\system-test"
+                        WIN_CONNECTOR_ROOT="C:\\workspace\\${env.EXECUTOR_NUMBER}\\taos-connector-python"
+                    }
+                    steps {
+                        timeout(time: 200, unit: 'MINUTES') {
+                            pre_test_win()
+                            pre_test_build_win()
                         }
                     }
                 }
