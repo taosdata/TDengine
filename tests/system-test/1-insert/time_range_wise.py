@@ -7,8 +7,6 @@ from util.sql import *
 from util.cases import *
 from util.dnodes import *
 from util.constant import *
-# from ...pytest.util.sql import *
-# from ...pytest.util.constant import *
 
 PRIMARY_COL = "ts"
 
@@ -144,12 +142,16 @@ class SMAschema:
                     del self.other[k]
 
 
+from ...pytest.util.sql import *
+from ...pytest.util.constant import *
+
 class TDTestCase:
     updatecfgDict = {"querySmaOptimize": 1}
 
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor(), False)
+        self.precision = "ms"
 
     """
         create sma index :
@@ -210,14 +212,43 @@ class TDTestCase:
                     return False
         return True
 
-    def __check_sma_watermark_max_dealy(self, arg):
+    def __check_sma_watermark(self, arg):
         if not isinstance(arg, str):
             return False
         if arg[-1] not in SMA_WATMARK_MAXDELAY_INIT:
             return False
+        if len(arg) == 1:
+            return False
+        if not arg[:-1].isdecimal():
+            return False
+        if tdSql.get_times(arg) > WATERMARK_MAX:
+            return False
+        if tdSql.get_times(arg) < WATERMARK_MIN:
+            return False
+
+        return True
+
+    def __check_sma_max_delay(self, arg):
+        self.__check_sma_watermark(arg)
+        if tdSql.get_times(arg) < MAX_DELAY_MIN:
+            return False
+
+        return True
+
+    def __check_sliding(self, arg):
+        if not isinstance(arg, str):
+            return False
+        if arg[-1] not in TAOS_TIME_INIT:
+            return False
+        if len(arg) == 1:
+            return False
+        if not arg[:-1].isdecimal():
+            return False
 
 
-
+    def __check_interval(self, arg):
+        if not isinstance(arg, tuple):
+            return False
 
     def __sma_create_check(self, sma:SMAschema):
         if  self.updatecfgDict["querySmaOptimize"] == 0:
@@ -245,9 +276,9 @@ class TDTestCase:
             return False
         if not sma.sliding :
             return False
-        if not sma.watermark:
+        if not sma.watermark or not self.__check_sma_watermark(sma.watermark):
             return False
-        if not sma.max_delay:
+        if not sma.max_delay or not self.__check_sma_max_delay(sma.max_delay):
             return False
         if sma.other:
             return False
@@ -263,22 +294,24 @@ class TDTestCase:
         cur_sqls = []
         # err_set
         # # case 1: required fields check
-        err_sqls.append( SMAschema(creation="", tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
-        err_sqls.append( SMAschema(index_name="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
-        err_sqls.append( SMAschema(index_flag="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
-        err_sqls.append( SMAschema(operator="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
-        err_sqls.append( SMAschema(tbname="", func=(f"min({INT_COL})",f"max({INT_COL})") ) )
-        err_sqls.append( SMAschema(func="",tbname=STBNAME ) )
-        err_sqls.append( SMAschema(interval="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
-        err_sqls.append( SMAschema(sliding="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
-        err_sqls.append( SMAschema(max_delay="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
+        # err_sqls.append( SMAschema(creation="", tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
+        # err_sqls.append( SMAschema(index_name="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
+        # err_sqls.append( SMAschema(index_flag="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
+        # err_sqls.append( SMAschema(operator="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
+        # err_sqls.append( SMAschema(tbname="", func=(f"min({INT_COL})",f"max({INT_COL})") ) )
+        # err_sqls.append( SMAschema(func="",tbname=STBNAME ) )
+        # err_sqls.append( SMAschema(interval="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
+        # err_sqls.append( SMAschema(sliding="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
+        # err_sqls.append( SMAschema(max_delay="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
         err_sqls.append( SMAschema(watermark="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
 
         return err_sqls, cur_sqls
 
+
     def test_create_sma(self):
         err_sqls , cur_sqls = self.__create_sma_sql
         for err_sql in err_sqls:
+            print(type(err_sql.watermark))
             self.sma_create_check(err_sql)
 
     def all_test(self):

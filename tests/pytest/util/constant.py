@@ -25,6 +25,9 @@ TAOS_BIN_TYPE   = [
     "MEDIUMBLOB", "BLOB", # add in 3.x
 ]
 
+TAOS_TIME_INIT = ["b", "u", "a", "s", "m", "h", "d", "w", "n", "y"]
+TAOS_PRECISION = ["ms", "us", "ns"]
+
 # basic data type boundary
 TINYINT_MAX             = 127
 TINYINT_MIN             = -128
@@ -108,7 +111,13 @@ TIME_Y = 365 * TIME_D
 
 
 
+
 # streams and related agg-function
 SMA_INDEX_FUNCTIONS = ["MIN", "MAX"]
 ROLLUP_FUNCTIONS = ["AVG", "SUM", "MIN", "MAX", "LAST", "FIRST"]
 SMA_WATMARK_MAXDELAY_INIT = ['a', "s", "m"]
+WATERMARK_MAX = 900000
+WATERMARK_MIN = 0
+
+MAX_DELAY_MAX = 900000
+MAX_DELAY_MIN = 1

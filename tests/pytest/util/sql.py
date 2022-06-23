@@ -21,6 +21,7 @@ import psutil
 import shutil
 import pandas as pd
 from util.log import *
+from util.constant import *
 
 def _parse_datetime(timestr):
     try:
@@ -300,6 +301,41 @@ class TDSql:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             args = (caller.filename, caller.lineno, self.sql, elm, expect_elm)
             tdLog.exit("%s(%d) failed: sql:%s, elm:%s == expect_elm:%s" % args)
+
+    def get_times(self, time_str, precision="ms"):
+        caller = inspect.getframeinfo(inspect.stack()[1][0])
+        if time_str[-1] not in TAOS_TIME_INIT:
+            tdLog.exit(f"{caller.filename}({caller.lineno}) failed: {time_str} not a standard taos time init")
+        if precision not in TAOS_PRECISION:
+            tdLog.exit(f"{caller.filename}({caller.lineno}) failed: {precision} not a standard taos time precision")
+
+        if time_str[-1] == TAOS_TIME_INIT[0]:
+            times =  int(time_str[:-1]) * TIME_NS
+        if time_str[-1] == TAOS_TIME_INIT[1]:
+            times =  int(time_str[:-1]) * TIME_US
+        if time_str[-1] == TAOS_TIME_INIT[2]:
+            times =  int(time_str[:-1]) * TIME_MS
+        if time_str[-1] == TAOS_TIME_INIT[3]:
+            times =  int(time_str[:-1]) * TIME_S
+        if time_str[-1] == TAOS_TIME_INIT[4]:
+            times =  int(time_str[:-1]) * TIME_M
+        if time_str[-1] == TAOS_TIME_INIT[5]:
+            times =  int(time_str[:-1]) * TIME_H
+        if time_str[-1] == TAOS_TIME_INIT[6]:
+            times =  int(time_str[:-1]) * TIME_D
+        if time_str[-1] == TAOS_TIME_INIT[7]:
+            times =  int(time_str[:-1]) * TIME_W
+        if time_str[-1] == TAOS_TIME_INIT[8]:
+            times =  int(time_str[:-1]) * TIME_N
+        if time_str[-1] == TAOS_TIME_INIT[9]:
+            times =  int(time_str[:-1]) * TIME_Y
+
+        if precision == "ms":
+            return int(times)
+        elif precision == "us":
+            return int(times*1000)
+        elif precision == "ns":
+            return int(times*1000*1000)
 
     def taosdStatus(self, state):
         tdLog.sleep(5)
