@@ -282,7 +282,6 @@ typedef struct STagScanInfo {
   int32_t          curPos;
   SReadHandle      readHandle;
   STableListInfo  *pTableList;
-  SNode*           pFilterNode;  // filter info,
 } STagScanInfo;
 
 typedef enum EStreamScanMode {
