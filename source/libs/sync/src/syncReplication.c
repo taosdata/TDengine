@@ -49,7 +49,7 @@
 //    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
 //
 int32_t syncNodeAppendEntriesPeers(SSyncNode* pSyncNode) {
-  assert(pSyncNode->state == TAOS_SYNC_STATE_LEADER);
+  ASSERT(pSyncNode->state == TAOS_SYNC_STATE_LEADER);
 
   syncIndexMgrLog2("==syncNodeAppendEntriesPeers== pNextIndex", pSyncNode->pNextIndex);
   syncIndexMgrLog2("==syncNodeAppendEntriesPeers== pMatchIndex", pSyncNode->pMatchIndex);
@@ -68,7 +68,7 @@ int32_t syncNodeAppendEntriesPeers(SSyncNode* pSyncNode) {
     SyncTerm preLogTerm = 0;
     if (preLogIndex >= SYNC_INDEX_BEGIN) {
       SSyncRaftEntry* pPreEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, preLogIndex);
-      assert(pPreEntry != NULL);
+      ASSERT(pPreEntry != NULL);
 
       preLogTerm = pPreEntry->term;
       syncEntryDestory(pPreEntry);
@@ -81,12 +81,12 @@ int32_t syncNodeAppendEntriesPeers(SSyncNode* pSyncNode) {
     SSyncRaftEntry*    pEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, nextIndex);
     if (pEntry != NULL) {
       pMsg = syncAppendEntriesBuild(pEntry->bytes, pSyncNode->vgId);
-      assert(pMsg != NULL);
+      ASSERT(pMsg != NULL);
 
       // add pEntry into msg
       uint32_t len;
       char*    serialized = syncEntrySerialize(pEntry, &len);
-      assert(len == pEntry->bytes);
+      ASSERT(len == pEntry->bytes);
       memcpy(pMsg->data, serialized, len);
 
       taosMemoryFree(serialized);
@@ -95,10 +95,10 @@ int32_t syncNodeAppendEntriesPeers(SSyncNode* pSyncNode) {
     } else {
       // maybe overflow, send empty record
       pMsg = syncAppendEntriesBuild(0, pSyncNode->vgId);
-      assert(pMsg != NULL);
+      ASSERT(pMsg != NULL);
     }
 
-    assert(pMsg != NULL);
+    ASSERT(pMsg != NULL);
     pMsg->srcId = pSyncNode->myRaftId;
     pMsg->destId = *pDestId;
     pMsg->term = pSyncNode->pRaftStore->currentTerm;
@@ -124,7 +124,7 @@ int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
   logStoreSimpleLog2("begin append entries peers LogStore:", pSyncNode->pLogStore);
   if (gRaftDetailLog) {
     SSnapshot snapshot;
-    pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, &snapshot);
+    pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
     sTrace("begin append entries peers, snapshot.lastApplyIndex:%ld, snapshot.lastApplyTerm:%lu",
            snapshot.lastApplyIndex, snapshot.lastApplyTerm);
   }
@@ -139,6 +139,15 @@ int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
     // pre index, pre term
     SyncIndex preLogIndex = syncNodeGetPreIndex(pSyncNode, nextIndex);
     SyncTerm  preLogTerm = syncNodeGetPreTerm(pSyncNode, nextIndex);
+    if (preLogTerm == SYNC_TERM_INVALID) {
+      SyncIndex newNextIndex = syncNodeGetLastIndex(pSyncNode) + 1;
+      syncIndexMgrSetIndex(pSyncNode->pNextIndex, pDestId, newNextIndex);
+      syncIndexMgrSetIndex(pSyncNode->pMatchIndex, pDestId, SYNC_INDEX_INVALID);
+      sError("vgId:%d sync get pre term error, nextIndex:%ld, update next-index:%ld, match-index:%d, raftid:%ld",
+             pSyncNode->vgId, nextIndex, newNextIndex, SYNC_INDEX_INVALID, pDestId->addr);
+
+      return -1;
+    }
 
     // batch optimized
     // SyncIndex lastIndex = syncUtilMinIndex(pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore), nextIndex);
@@ -148,25 +157,32 @@ int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
 
     SSyncRaftEntry* pEntry;
     int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, nextIndex, &pEntry);
-    ASSERT(code == 0);
 
-    if (pEntry != NULL) {
+    if (code == 0) {
+      ASSERT(pEntry != NULL);
+
       pMsg = syncAppendEntriesBuild(pEntry->bytes, pSyncNode->vgId);
       ASSERT(pMsg != NULL);
 
       // add pEntry into msg
       uint32_t len;
       char*    serialized = syncEntrySerialize(pEntry, &len);
-      assert(len == pEntry->bytes);
+      ASSERT(len == pEntry->bytes);
       memcpy(pMsg->data, serialized, len);
 
       taosMemoryFree(serialized);
       syncEntryDestory(pEntry);
 
     } else {
-      // no entry in log
-      pMsg = syncAppendEntriesBuild(0, pSyncNode->vgId);
-      ASSERT(pMsg != NULL);
+      if (terrno == TSDB_CODE_WAL_LOG_NOT_EXIST) {
+        // no entry in log
+        pMsg = syncAppendEntriesBuild(0, pSyncNode->vgId);
+        ASSERT(pMsg != NULL);
+
+      } else {
+        syncNodeLog3("", pSyncNode);
+        ASSERT(0);
+      }
     }
 
     // prepare msg

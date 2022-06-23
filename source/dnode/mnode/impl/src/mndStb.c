@@ -37,12 +37,14 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw);
 static int32_t  mndStbActionInsert(SSdb *pSdb, SStbObj *pStb);
 static int32_t  mndStbActionDelete(SSdb *pSdb, SStbObj *pStb);
 static int32_t  mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew);
+static int32_t  mndProcessTtlTimer(SRpcMsg *pReq);
 static int32_t  mndProcessCreateStbReq(SRpcMsg *pReq);
 static int32_t  mndProcessAlterStbReq(SRpcMsg *pReq);
 static int32_t  mndProcessDropStbReq(SRpcMsg *pReq);
 static int32_t  mndProcessTableMetaReq(SRpcMsg *pReq);
 static int32_t  mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextStb(SMnode *pMnode, void *pIter);
+static int32_t  mndProcessTableCfgReq(SRpcMsg *pReq);
 
 int32_t mndInitStb(SMnode *pMnode) {
   SSdbTable table = {
@@ -62,6 +64,8 @@ int32_t mndInitStb(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_VND_ALTER_STB_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_DROP_STB_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_TABLE_META, mndProcessTableMetaReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_TTL_TIMER, mndProcessTtlTimer);
+  mndSetMsgHandle(pMnode, TDMT_MND_TABLE_CFG, mndProcessTableCfgReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_STB, mndRetrieveStb);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_STB, mndCancelGetNextStb);
@@ -75,7 +79,7 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   int32_t size = sizeof(SStbObj) + (pStb->numOfColumns + pStb->numOfTags) * sizeof(SSchema) + +pStb->commentLen +
-                 pStb->ast1Len + pStb->ast2Len + STB_RESERVE_SIZE;
+                 pStb->ast1Len + pStb->ast2Len + STB_RESERVE_SIZE + taosArrayGetSize(pStb->pFuncs) * TSDB_FUNC_NAME_LEN;
   SSdbRaw *pRaw = sdbAllocRaw(SDB_STB, STB_VER_NUMBER, size);
   if (pRaw == NULL) goto _OVER;
 
@@ -89,14 +93,23 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   SDB_SET_INT32(pRaw, dataPos, pStb->tagVer, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->colVer, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->nextColId, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, (int32_t)(pStb->xFilesFactor * 10000), _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pStb->delay, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pStb->maxdelay[0], _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pStb->maxdelay[1], _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pStb->watermark[0], _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pStb->watermark[1], _OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->ttl, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->numOfColumns, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->numOfTags, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->commentLen, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->ast1Len, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->ast2Len, _OVER)
+
+  int32_t funcNum = taosArrayGetSize(pStb->pFuncs);
+  SDB_SET_INT32(pRaw, dataPos, funcNum, _OVER)
+  for (int32_t i = 0; i < funcNum; ++i) {
+    char* func = taosArrayGet(pStb->pFuncs, i);
+    SDB_SET_BINARY(pRaw, dataPos, func, TSDB_FUNC_NAME_LEN, _OVER)
+  }
 
   for (int32_t i = 0; i < pStb->numOfColumns; ++i) {
     SSchema *pSchema = &pStb->pColumns[i];
@@ -117,7 +130,7 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   }
 
   if (pStb->commentLen > 0) {
-    SDB_SET_BINARY(pRaw, dataPos, pStb->comment, pStb->commentLen, _OVER)
+    SDB_SET_BINARY(pRaw, dataPos, pStb->comment, pStb->commentLen + 1, _OVER)
   }
   if (pStb->ast1Len > 0) {
     SDB_SET_BINARY(pRaw, dataPos, pStb->pAst1, pStb->ast1Len, _OVER)
@@ -168,16 +181,30 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &pStb->tagVer, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pStb->colVer, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pStb->nextColId, _OVER)
-  int32_t xFilesFactor = 0;
-  SDB_GET_INT32(pRaw, dataPos, &xFilesFactor, _OVER)
-  pStb->xFilesFactor = xFilesFactor / 10000.0f;
-  SDB_GET_INT32(pRaw, dataPos, &pStb->delay, _OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pStb->maxdelay[0], _OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pStb->maxdelay[1], _OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pStb->watermark[0], _OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pStb->watermark[1], _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pStb->ttl, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pStb->numOfColumns, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pStb->numOfTags, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pStb->commentLen, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pStb->ast1Len, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pStb->ast2Len, _OVER)
+
+  int32_t funcNum = 0;
+  SDB_GET_INT32(pRaw, dataPos, &funcNum, _OVER)
+  if (funcNum > 0) {
+    pStb->pFuncs = taosArrayInit(funcNum, TSDB_FUNC_NAME_LEN);
+    if (NULL == pStb->pFuncs) {
+      goto _OVER;
+    }
+    char funcName[TSDB_FUNC_NAME_LEN];
+    for (int32_t i = 0; i < funcNum; ++i) {
+      SDB_GET_BINARY(pRaw, dataPos, funcName, TSDB_FUNC_NAME_LEN, _OVER)
+      taosArrayPush(pStb->pFuncs, funcName);
+    }
+  }
 
   pStb->pColumns = taosMemoryCalloc(pStb->numOfColumns, sizeof(SSchema));
   pStb->pTags = taosMemoryCalloc(pStb->numOfTags, sizeof(SSchema));
@@ -204,9 +231,9 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
   }
 
   if (pStb->commentLen > 0) {
-    pStb->comment = taosMemoryCalloc(pStb->commentLen, 1);
+    pStb->comment = taosMemoryCalloc(pStb->commentLen + 1, 1);
     if (pStb->comment == NULL) goto _OVER;
-    SDB_GET_BINARY(pRaw, dataPos, pStb->comment, pStb->commentLen, _OVER)
+    SDB_GET_BINARY(pRaw, dataPos, pStb->comment, pStb->commentLen + 1, _OVER)
   }
   if (pStb->ast1Len > 0) {
     pStb->pAst1 = taosMemoryCalloc(pStb->ast1Len, 1);
@@ -248,6 +275,7 @@ static int32_t mndStbActionDelete(SSdb *pSdb, SStbObj *pStb) {
   taosMemoryFreeClear(pStb->comment);
   taosMemoryFreeClear(pStb->pAst1);
   taosMemoryFreeClear(pStb->pAst2);
+  taosArrayDestroy(pStb->pFuncs);
   return 0;
 }
 
@@ -280,8 +308,8 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
     }
   }
 
-  if (pOld->commentLen < pNew->commentLen) {
-    void *comment = taosMemoryMalloc(pNew->commentLen);
+  if (pOld->commentLen < pNew->commentLen && pNew->commentLen > 0) {
+    void *comment = taosMemoryMalloc(pNew->commentLen + 1);
     if (comment != NULL) {
       taosMemoryFree(pOld->comment);
       pOld->comment = comment;
@@ -291,6 +319,7 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
       taosWUnLockLatch(&pOld->lock);
     }
   }
+  pOld->commentLen = pNew->commentLen;
 
   if (pOld->ast1Len < pNew->ast1Len) {
     void *pAst1 = taosMemoryMalloc(pNew->ast1Len);
@@ -330,8 +359,8 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
     pOld->numOfTags = pNew->numOfTags;
     memcpy(pOld->pTags, pNew->pTags, pOld->numOfTags * sizeof(SSchema));
   }
-  if (pNew->commentLen != 0) {
-    memcpy(pOld->comment, pNew->comment, pNew->commentLen);
+  if (pNew->commentLen > 0) {
+    memcpy(pOld->comment, pNew->comment, pNew->commentLen + 1);
   }
   if (pNew->ast1Len != 0) {
     memcpy(pOld->pAst1, pNew->pAst1, pNew->ast1Len);
@@ -398,18 +427,18 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   req.schemaTag.pSchema = pStb->pTags;
 
   if (req.rollup) {
-    req.pRSmaParam.xFilesFactor = pStb->xFilesFactor;
-    req.pRSmaParam.delay = pStb->delay;
+    req.pRSmaParam.maxdelay[0] = pStb->maxdelay[0];
+    req.pRSmaParam.maxdelay[1] = pStb->maxdelay[1];
     if (pStb->ast1Len > 0) {
-      if (mndConvertRsmaTask(&req.pRSmaParam.qmsg1, &req.pRSmaParam.qmsg1Len, pStb->pAst1, pStb->uid,
-                             STREAM_TRIGGER_AT_ONCE, 0, req.pRSmaParam.xFilesFactor) != TSDB_CODE_SUCCESS) {
-        return NULL;
+      if (mndConvertRsmaTask(&req.pRSmaParam.qmsg[0], &req.pRSmaParam.qmsgLen[0], pStb->pAst1, pStb->uid,
+                             STREAM_TRIGGER_WINDOW_CLOSE, req.pRSmaParam.watermark[0]) < 0) {
+        goto _err;
       }
     }
     if (pStb->ast2Len > 0) {
-      if (mndConvertRsmaTask(&req.pRSmaParam.qmsg2, &req.pRSmaParam.qmsg2Len, pStb->pAst2, pStb->uid,
-                             STREAM_TRIGGER_AT_ONCE, 0, req.pRSmaParam.xFilesFactor) != TSDB_CODE_SUCCESS) {
-        return NULL;
+      if (mndConvertRsmaTask(&req.pRSmaParam.qmsg[1], &req.pRSmaParam.qmsgLen[1], pStb->pAst2, pStb->uid,
+                             STREAM_TRIGGER_WINDOW_CLOSE, req.pRSmaParam.watermark[1]) < 0) {
+        goto _err;
       }
     }
   }
@@ -417,17 +446,15 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   int32_t ret = 0;
   tEncodeSize(tEncodeSVCreateStbReq, &req, contLen, ret);
   if (ret < 0) {
-    return NULL;
+    goto _err;
   }
 
   contLen += sizeof(SMsgHead);
 
   SMsgHead *pHead = taosMemoryMalloc(contLen);
   if (pHead == NULL) {
-    taosMemoryFreeClear(req.pRSmaParam.qmsg1);
-    taosMemoryFreeClear(req.pRSmaParam.qmsg2);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
+    goto _err;
   }
 
   pHead->contLen = htonl(contLen);
@@ -437,17 +464,19 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   tEncoderInit(&encoder, pBuf, contLen - sizeof(SMsgHead));
   if (tEncodeSVCreateStbReq(&encoder, &req) < 0) {
     taosMemoryFreeClear(pHead);
-    taosMemoryFreeClear(req.pRSmaParam.qmsg1);
-    taosMemoryFreeClear(req.pRSmaParam.qmsg2);
     tEncoderClear(&encoder);
-    return NULL;
+    goto _err;
   }
   tEncoderClear(&encoder);
 
   *pContLen = contLen;
-  taosMemoryFreeClear(req.pRSmaParam.qmsg1);
-  taosMemoryFreeClear(req.pRSmaParam.qmsg2);
+  taosMemoryFreeClear(req.pRSmaParam.qmsg[0]);
+  taosMemoryFreeClear(req.pRSmaParam.qmsg[1]);
   return pHead;
+_err:
+  taosMemoryFreeClear(req.pRSmaParam.qmsg[0]);
+  taosMemoryFreeClear(req.pRSmaParam.qmsg[1]);
+  return NULL;
 }
 
 static void *mndBuildVDropStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int32_t *pContLen) {
@@ -669,19 +698,24 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   pDst->tagVer = 1;
   pDst->colVer = 1;
   pDst->nextColId = 1;
-  pDst->xFilesFactor = pCreate->xFilesFactor;
-  pDst->delay = pCreate->delay;
+  pDst->maxdelay[0] = pCreate->delay1;
+  pDst->maxdelay[1] = pCreate->delay2;
+  pDst->watermark[0] = pCreate->watermark1;
+  pDst->watermark[1] = pCreate->watermark2;
   pDst->ttl = pCreate->ttl;
   pDst->numOfColumns = pCreate->numOfColumns;
   pDst->numOfTags = pCreate->numOfTags;
   pDst->commentLen = pCreate->commentLen;
+  pDst->pFuncs = pCreate->pFuncs;
+  pCreate->pFuncs = NULL;
+  
   if (pDst->commentLen > 0) {
-    pDst->comment = taosMemoryCalloc(pDst->commentLen, 1);
+    pDst->comment = taosMemoryCalloc(pDst->commentLen + 1, 1);
     if (pDst->comment == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
-    memcpy(pDst->comment, pCreate->comment, pDst->commentLen);
+    memcpy(pDst->comment, pCreate->comment, pDst->commentLen + 1);
   }
 
   pDst->ast1Len = pCreate->ast1Len;
@@ -767,6 +801,43 @@ int32_t mndAddStbToTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *p
   return 0;
 }
 
+static int32_t mndProcessTtlTimer(SRpcMsg *pReq) {
+  SMnode *pMnode = pReq->info.node;
+  SSdb   *pSdb = pMnode->pSdb;
+  SVgObj *pVgroup = NULL;
+  void   *pIter = NULL;
+
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) break;
+
+    int32_t   contLen = sizeof(SMsgHead) + sizeof(int32_t);
+    SMsgHead *pHead = rpcMallocCont(contLen);
+    if (pHead == NULL) {
+      sdbCancelFetch(pSdb, pVgroup);
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
+    pHead->contLen = htonl(contLen);
+    pHead->vgId = htonl(pVgroup->vgId);
+
+    int32_t t = taosGetTimestampSec();
+    *(int32_t *)((char *)pHead + sizeof(SMsgHead)) = htonl(t);
+
+    SRpcMsg rpcMsg = {.msgType = TDMT_VND_DROP_TTL_TABLE, .pCont = pHead, .contLen = contLen};
+    SEpSet  epSet = mndGetVgroupEpset(pMnode, pVgroup);
+    int32_t code = tmsgSendReq(&epSet, &rpcMsg);
+    if (code != 0) {
+      mError("failed to send ttl time seed, code:0x%x", code);
+    } else {
+      mDebug("send ttl time seed success, time:%d", t);
+    }
+    sdbRelease(pSdb, pVgroup);
+  }
+
+  return 0;
+}
+
 static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
   SMnode        *pMnode = pReq->info.node;
   int32_t        code = -1;
@@ -835,7 +906,7 @@ _OVER:
 }
 
 static int32_t mndCheckAlterStbReq(SMAlterStbReq *pAlter) {
-  if (pAlter->commentLen != 0 || pAlter->ttl != 0) return 0;
+  if (pAlter->commentLen >= 0 || pAlter->ttl != 0) return 0;
 
   if (pAlter->numOfFields < 1 || pAlter->numOfFields != (int32_t)taosArrayGetSize(pAlter->pFields)) {
     terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
@@ -890,13 +961,16 @@ static int32_t mndUpdateStbCommentAndTTL(const SStbObj *pOld, SStbObj *pNew, cha
                                          int32_t ttl) {
   if (commentLen > 0) {
     pNew->commentLen = commentLen;
-    pNew->comment = taosMemoryCalloc(1, commentLen);
+    pNew->comment = taosMemoryCalloc(1, commentLen + 1);
     if (pNew->comment == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
-    memcpy(pNew->comment, pComment, commentLen);
+    memcpy(pNew->comment, pComment, commentLen + 1);
+  } else if (commentLen == 0) {
+    pNew->commentLen = 0;
   }
+
   if (ttl >= 0) {
     pNew->ttl = ttl;
   }
@@ -1206,7 +1280,6 @@ static int32_t mndSetAlterStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
       sdbRelease(pSdb, pVgroup);
       return -1;
     }
-
     STransAction action = {0};
     action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
     action.pCont = pReq;
@@ -1270,6 +1343,60 @@ static int32_t mndBuildStbSchemaImp(SDbObj *pDb, SStbObj *pStb, const char *tbNa
   return 0;
 }
 
+static int32_t mndBuildStbCfgImp(SDbObj *pDb, SStbObj *pStb, const char *tbName, STableCfgRsp *pRsp) {
+  taosRLockLatch(&pStb->lock);
+
+  int32_t totalCols = pStb->numOfColumns + pStb->numOfTags;
+  pRsp->pSchemas = taosMemoryCalloc(totalCols, sizeof(SSchema));
+  if (pRsp->pSchemas == NULL) {
+    taosRUnLockLatch(&pStb->lock);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  strcpy(pRsp->dbFName, pStb->db);
+  strcpy(pRsp->tbName, tbName);
+  strcpy(pRsp->stbName, tbName);
+  pRsp->numOfTags = pStb->numOfTags;
+  pRsp->numOfColumns = pStb->numOfColumns;
+  pRsp->tableType = TSDB_SUPER_TABLE;
+  pRsp->delay1 = pStb->maxdelay[0];
+  pRsp->delay2 = pStb->maxdelay[1];
+  pRsp->watermark1 = pStb->watermark[0];
+  pRsp->watermark2 = pStb->watermark[1];
+  pRsp->ttl = pStb->ttl;
+  pRsp->commentLen = pStb->commentLen;
+  if (pStb->commentLen > 0) {
+    pRsp->pComment = strdup(pStb->comment);
+  }
+
+  for (int32_t i = 0; i < pStb->numOfColumns; ++i) {
+    SSchema *pSchema = &pRsp->pSchemas[i];
+    SSchema *pSrcSchema = &pStb->pColumns[i];
+    memcpy(pSchema->name, pSrcSchema->name, TSDB_COL_NAME_LEN);
+    pSchema->type = pSrcSchema->type;
+    pSchema->colId = pSrcSchema->colId;
+    pSchema->bytes = pSrcSchema->bytes;
+  }
+
+  for (int32_t i = 0; i < pStb->numOfTags; ++i) {
+    SSchema *pSchema = &pRsp->pSchemas[i + pStb->numOfColumns];
+    SSchema *pSrcSchema = &pStb->pTags[i];
+    memcpy(pSchema->name, pSrcSchema->name, TSDB_COL_NAME_LEN);
+    pSchema->type = pSrcSchema->type;
+    pSchema->colId = pSrcSchema->colId;
+    pSchema->bytes = pSrcSchema->bytes;
+  }
+
+  if (pStb->pFuncs) {
+    pRsp->pFuncs = taosArrayDup(pStb->pFuncs);
+  }
+  
+  taosRUnLockLatch(&pStb->lock);
+  return 0;
+}
+
+
 static int32_t mndBuildStbSchema(SMnode *pMnode, const char *dbFName, const char *tbName, STableMetaRsp *pRsp,
                                  int32_t *smaVer) {
   char tbFName[TSDB_TABLE_FNAME_LEN] = {0};
@@ -1297,6 +1424,32 @@ static int32_t mndBuildStbSchema(SMnode *pMnode, const char *dbFName, const char
   mndReleaseStb(pMnode, pStb);
   return code;
 }
+
+static int32_t mndBuildStbCfg(SMnode *pMnode, const char *dbFName, const char *tbName, STableCfgRsp *pRsp) {
+ char tbFName[TSDB_TABLE_FNAME_LEN] = {0};
+ snprintf(tbFName, sizeof(tbFName), "%s.%s", dbFName, tbName);
+
+ SDbObj *pDb = mndAcquireDb(pMnode, dbFName);
+ if (pDb == NULL) {
+   terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
+   return -1;
+ }
+
+ SStbObj *pStb = mndAcquireStb(pMnode, tbFName);
+ if (pStb == NULL) {
+   mndReleaseDb(pMnode, pDb);
+   terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+   return -1;
+ }
+
+ int32_t code = mndBuildStbCfgImp(pDb, pStb, tbName, pRsp);
+ 
+ mndReleaseDb(pMnode, pDb);
+ mndReleaseStb(pMnode, pStb);
+ return code;
+}
+
+
 
 static int32_t mndBuildSMAlterStbRsp(SDbObj *pDb, const SMAlterStbReq *pAlter, SStbObj *pObj, void **pCont,
                                      int32_t *pLen) {
@@ -1657,6 +1810,63 @@ _OVER:
   return code;
 }
 
+static int32_t mndProcessTableCfgReq(SRpcMsg *pReq) {
+  SMnode       *pMnode = pReq->info.node;
+  int32_t       code = -1;
+  STableCfgReq  cfgReq = {0};
+  STableCfgRsp  cfgRsp = {0};
+
+  if (tDeserializeSTableCfgReq(pReq->pCont, pReq->contLen, &cfgReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+
+  if (0 == strcmp(cfgReq.dbFName, TSDB_INFORMATION_SCHEMA_DB)) {
+    mDebug("information_schema table:%s.%s, start to retrieve cfg", cfgReq.dbFName, cfgReq.tbName);
+    if (mndBuildInsTableCfg(pMnode, cfgReq.dbFName, cfgReq.tbName, &cfgRsp) != 0) {
+      goto _OVER;
+    }
+  } else if (0 == strcmp(cfgReq.dbFName, TSDB_PERFORMANCE_SCHEMA_DB)) {
+    mDebug("performance_schema table:%s.%s, start to retrieve cfg", cfgReq.dbFName, cfgReq.tbName);
+    if (mndBuildPerfsTableCfg(pMnode, cfgReq.dbFName, cfgReq.tbName, &cfgRsp) != 0) {
+      goto _OVER;
+    }
+  } else {
+    mDebug("stb:%s.%s, start to retrieve cfg", cfgReq.dbFName, cfgReq.tbName);
+    if (mndBuildStbCfg(pMnode, cfgReq.dbFName, cfgReq.tbName, &cfgRsp) != 0) {
+      goto _OVER;
+    }
+  }
+
+  int32_t rspLen = tSerializeSTableCfgRsp(NULL, 0, &cfgRsp);
+  if (rspLen < 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+
+  void *pRsp = rpcMallocCont(rspLen);
+  if (pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+
+  tSerializeSTableCfgRsp(pRsp, rspLen, &cfgRsp);
+  pReq->info.rsp = pRsp;
+  pReq->info.rspLen = rspLen;
+  code = 0;
+
+  mTrace("%s.%s, cfg is retrieved", cfgReq.dbFName, cfgReq.tbName);
+
+_OVER:
+  if (code != 0) {
+    mError("stb:%s.%s, failed to retrieve cfg since %s", cfgReq.dbFName, cfgReq.tbName, terrstr());
+  }
+
+  tFreeSTableCfgRsp(&cfgRsp);
+  return code;
+}
+
+
 int32_t mndValidateStbInfo(SMnode *pMnode, SSTableVersion *pStbVersions, int32_t numOfStbs, void **ppRsp,
                            int32_t *pRspLen) {
   SSTbHbRsp hbRsp = {0};
@@ -1841,17 +2051,17 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&pStb->updateTime, false);  // number of tables
 
-    char *p = taosMemoryCalloc(1, pStb->commentLen + 1 + VARSTR_HEADER_SIZE);  // check malloc failures
-    if (p != NULL) {
-      if (pStb->commentLen != 0) {
-        STR_TO_VARSTR(p, pStb->comment);
-      } else {
-        STR_TO_VARSTR(p, "");
-      }
-
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-      colDataAppend(pColInfo, numOfRows, (const char *)p, false);
-      taosMemoryFree(p);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+    if (pStb->commentLen > 0) {
+      char comment[TSDB_TB_COMMENT_LEN + VARSTR_HEADER_SIZE] = {0};
+      STR_TO_VARSTR(comment, pStb->comment);
+      colDataAppend(pColInfo, numOfRows, comment, false);
+    } else if (pStb->commentLen == 0) {
+      char comment[VARSTR_HEADER_SIZE + VARSTR_HEADER_SIZE] = {0};
+      STR_TO_VARSTR(comment, "");
+      colDataAppend(pColInfo, numOfRows, comment, false);
+    } else {
+      colDataAppendNULL(pColInfo, numOfRows);
     }
 
     numOfRows++;

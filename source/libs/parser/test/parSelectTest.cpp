@@ -58,6 +58,8 @@ TEST_F(ParserSelectTest, expression) {
   run("SELECT ts > 0, c1 < 20 and c2 = 'qaz' FROM t1");
 
   run("SELECT ts > 0, c1 between 10 and 20 and c2 = 'qaz' FROM t1");
+
+  run("SELECT c1 | 10, c2 & 20, c4 | c5 FROM t1");
 }
 
 TEST_F(ParserSelectTest, condition) {
@@ -256,6 +258,22 @@ TEST_F(ParserSelectTest, intervalSemanticCheck) {
   run("SELECT _WSTARTTS, _WENDTS, _WDURATION, sum(c1) FROM t1", TSDB_CODE_PAR_INVALID_WINDOW_PC);
 }
 
+TEST_F(ParserSelectTest, interp) {
+  useDb("root", "test");
+
+  run("SELECT INTERP(c1) FROM t1");
+
+  run("SELECT INTERP(c1) FROM t1 RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00')");
+
+  run("SELECT INTERP(c1) FROM t1 RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') FILL(LINEAR)");
+
+  run("SELECT INTERP(c1) FROM t1 EVERY(5s)");
+
+  run("SELECT INTERP(c1) FROM t1 RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') EVERY(5s)");
+
+  run("SELECT INTERP(c1) FROM t1 RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') EVERY(5s) FILL(LINEAR)");
+}
+
 TEST_F(ParserSelectTest, subquery) {
   useDb("root", "test");
 
@@ -370,6 +388,12 @@ TEST_F(ParserSelectTest, informationSchema) {
   useDb("root", "test");
 
   run("SELECT * FROM information_schema.user_databases WHERE name = 'information_schema'");
+}
+
+TEST_F(ParserSelectTest, withoutFrom) {
+  useDb("root", "test");
+
+  run("SELECT 1");
 }
 
 }  // namespace ParserTest

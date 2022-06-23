@@ -71,7 +71,8 @@ SEpSet getEpSet_s(SCorEpSet* pEpSet);
 #define colDataGetData(p1_, r_) \
   ((IS_VAR_DATA_TYPE((p1_)->info.type)) ? colDataGetVarData(p1_, r_) : colDataGetNumData(p1_, r_))
 
-#define IS_JSON_NULL(type, data) ((type) == TSDB_DATA_TYPE_JSON && *(data) == TSDB_DATA_TYPE_NULL)
+#define IS_JSON_NULL(type, data) ((type) == TSDB_DATA_TYPE_JSON && \
+                                  (*(data) == TSDB_DATA_TYPE_NULL || tTagIsJsonNull(data)))
 
 static FORCE_INLINE bool colDataIsNull_s(const SColumnInfoData* pColumnInfoData, uint32_t row) {
   if (!pColumnInfoData->hasNull) {

@@ -25,7 +25,7 @@ static SyncIndex raftLogEndIndex(struct SSyncLogStore* pLogStore);
 static SyncIndex raftLogWriteIndex(struct SSyncLogStore* pLogStore);
 static bool      raftLogIsEmpty(struct SSyncLogStore* pLogStore);
 static int32_t   raftLogEntryCount(struct SSyncLogStore* pLogStore);
-static bool      raftLogInRange(struct SSyncLogStore* pLogStore, SyncIndex index);
+
 static SyncIndex raftLogLastIndex(struct SSyncLogStore* pLogStore);
 static SyncTerm  raftLogLastTerm(struct SSyncLogStore* pLogStore);
 static int32_t   raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry);
@@ -58,8 +58,6 @@ static int32_t raftLogSetBeginIndex(struct SSyncLogStore* pLogStore, SyncIndex b
   return 0;
 }
 
-int32_t raftLogResetBeginIndex(struct SSyncLogStore* pLogStore) { return 0; }
-
 static SyncIndex raftLogBeginIndex(struct SSyncLogStore* pLogStore) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
@@ -81,6 +79,7 @@ static int32_t raftLogEntryCount(struct SSyncLogStore* pLogStore) {
   return count > 0 ? count : 0;
 }
 
+#if 0
 static bool raftLogInRange(struct SSyncLogStore* pLogStore, SyncIndex index) {
   SyncIndex beginIndex = raftLogBeginIndex(pLogStore);
   SyncIndex endIndex = raftLogEndIndex(pLogStore);
@@ -90,6 +89,7 @@ static bool raftLogInRange(struct SSyncLogStore* pLogStore, SyncIndex index) {
     return false;
   }
 }
+#endif
 
 static SyncIndex raftLogLastIndex(struct SSyncLogStore* pLogStore) {
   SyncIndex          lastIndex;
@@ -143,7 +143,11 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
   SWal*              pWal = pData->pWal;
 
   SyncIndex writeIndex = raftLogWriteIndex(pLogStore);
-  ASSERT(pEntry->index == writeIndex);
+  if (pEntry->index != writeIndex) {
+    sError("vgId:%d wal write index error, entry-index:%ld update to %ld", pData->pSyncNode->vgId, pEntry->index,
+           writeIndex);
+    pEntry->index = writeIndex;
+  }
 
   int          code = 0;
   SSyncLogMeta syncMeta;
@@ -154,25 +158,24 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
   if (code != 0) {
     int32_t     err = terrno;
     const char* errStr = tstrerror(err);
-    int32_t     linuxErr = errno;
-    const char* linuxErrMsg = strerror(errno);
-    sError("raftLogAppendEntry error, err:%d %X, msg:%s, linuxErr:%d, linuxErrMsg:%s", err, err, errStr, linuxErr,
-           linuxErrMsg);
+    int32_t     sysErr = errno;
+    const char* sysErrStr = strerror(errno);
+    sError("vgId:%d wal write error, index:%ld, err:%d %X, msg:%s, syserr:%d, sysmsg:%s", pData->pSyncNode->vgId,
+           pEntry->index, err, err, errStr, sysErr, sysErrStr);
     ASSERT(0);
   }
 
   walFsync(pWal, true);
 
-  sDebug(
-      "vgId:%d, sync event %s commitIndex:%ld currentTerm:%lu write index:%ld, isStandBy:%d, msgType:%s,%d, "
-      "originalRpcType:%s,%d",
-      pData->pSyncNode->vgId, syncUtilState2String(pData->pSyncNode->state), pData->pSyncNode->commitIndex,
-      pData->pSyncNode->pRaftStore->currentTerm, pEntry->index, pData->pSyncNode->pRaftCfg->isStandBy,
-      TMSG_INFO(pEntry->msgType), pEntry->msgType, TMSG_INFO(pEntry->originalRpcType), pEntry->originalRpcType);
+  char eventLog[128];
+  snprintf(eventLog, sizeof(eventLog), "write index:%ld, type:%s,%d, type2:%s,%d", pEntry->index,
+           TMSG_INFO(pEntry->msgType), pEntry->msgType, TMSG_INFO(pEntry->originalRpcType), pEntry->originalRpcType);
+  syncNodeEventLog(pData->pSyncNode, eventLog);
 
   return code;
 }
 
+#if 0
 static int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncRaftEntry** ppEntry) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
@@ -217,6 +220,53 @@ static int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index,
 
   return code;
 }
+#endif
+
+static int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncRaftEntry** ppEntry) {
+  SSyncLogStoreData* pData = pLogStore->data;
+  SWal*              pWal = pData->pWal;
+  int32_t            code;
+
+  *ppEntry = NULL;
+
+  SWalReadHandle* pWalHandle = walOpenReadHandle(pWal);
+  if (pWalHandle == NULL) {
+    return -1;
+  }
+
+  code = walReadWithHandle(pWalHandle, index);
+  if (code != 0) {
+    int32_t     err = terrno;
+    const char* errStr = tstrerror(err);
+    int32_t     sysErr = errno;
+    const char* sysErrStr = strerror(errno);
+    sError("vgId:%d wal read error, index:%ld, err:%d %X, msg:%s, syserr:%d, sysmsg:%s", pData->pSyncNode->vgId, index,
+           err, err, errStr, sysErr, sysErrStr);
+
+    int32_t saveErr = terrno;
+    walCloseReadHandle(pWalHandle);
+    terrno = saveErr;
+
+    return code;
+  }
+
+  *ppEntry = syncEntryBuild(pWalHandle->pHead->head.bodyLen);
+  ASSERT(*ppEntry != NULL);
+  (*ppEntry)->msgType = TDMT_SYNC_CLIENT_REQUEST;
+  (*ppEntry)->originalRpcType = pWalHandle->pHead->head.msgType;
+  (*ppEntry)->seqNum = pWalHandle->pHead->head.syncMeta.seqNum;
+  (*ppEntry)->isWeak = pWalHandle->pHead->head.syncMeta.isWeek;
+  (*ppEntry)->term = pWalHandle->pHead->head.syncMeta.term;
+  (*ppEntry)->index = index;
+  ASSERT((*ppEntry)->dataLen == pWalHandle->pHead->head.bodyLen);
+  memcpy((*ppEntry)->data, pWalHandle->pHead->head.body, pWalHandle->pHead->head.bodyLen);
+
+  int32_t saveErr = terrno;
+  walCloseReadHandle(pWalHandle);
+  terrno = saveErr;
+
+  return code;
+}
 
 static int32_t raftLogTruncate(struct SSyncLogStore* pLogStore, SyncIndex fromIndex) {
   SSyncLogStoreData* pData = pLogStore->data;
@@ -225,10 +275,11 @@ static int32_t raftLogTruncate(struct SSyncLogStore* pLogStore, SyncIndex fromIn
   if (code != 0) {
     int32_t     err = terrno;
     const char* errStr = tstrerror(err);
-    int32_t     linuxErr = errno;
-    const char* linuxErrMsg = strerror(errno);
-    sError("raftLogTruncate error, err:%d %X, msg:%s, linuxErr:%d, linuxErrMsg:%s", err, err, errStr, linuxErr,
-           linuxErrMsg);
+    int32_t     sysErr = errno;
+    const char* sysErrStr = strerror(errno);
+    sError("vgId:%d wal truncate error, from-index:%ld, err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
+           pData->pSyncNode->vgId, fromIndex, err, err, errStr, sysErr, sysErrStr);
+
     ASSERT(0);
   }
   return code;
@@ -247,10 +298,10 @@ static int32_t raftLogGetLastEntry(SSyncLogStore* pLogStore, SSyncRaftEntry** pp
 //-------------------------------
 SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
   SSyncLogStore* pLogStore = taosMemoryMalloc(sizeof(SSyncLogStore));
-  assert(pLogStore != NULL);
+  ASSERT(pLogStore != NULL);
 
   pLogStore->data = taosMemoryMalloc(sizeof(SSyncLogStoreData));
-  assert(pLogStore->data != NULL);
+  ASSERT(pLogStore->data != NULL);
 
   SSyncLogStoreData* pData = pLogStore->data;
   pData->pSyncNode = pSyncNode;
@@ -279,13 +330,14 @@ SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
   pLogStore->syncLogEndIndex = raftLogEndIndex;
   pLogStore->syncLogIsEmpty = raftLogIsEmpty;
   pLogStore->syncLogEntryCount = raftLogEntryCount;
-  pLogStore->syncLogInRange = raftLogInRange;
   pLogStore->syncLogLastIndex = raftLogLastIndex;
   pLogStore->syncLogLastTerm = raftLogLastTerm;
   pLogStore->syncLogAppendEntry = raftLogAppendEntry;
   pLogStore->syncLogGetEntry = raftLogGetEntry;
   pLogStore->syncLogTruncate = raftLogTruncate;
   pLogStore->syncLogWriteIndex = raftLogWriteIndex;
+
+  // pLogStore->syncLogInRange = raftLogInRange;
 
   return pLogStore;
 }
@@ -303,7 +355,7 @@ int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
   SWal*              pWal = pData->pWal;
 
   SyncIndex lastIndex = logStoreLastIndex(pLogStore);
-  assert(pEntry->index == lastIndex + 1);
+  ASSERT(pEntry->index == lastIndex + 1);
 
   int          code = 0;
   SSyncLogMeta syncMeta;
@@ -314,22 +366,20 @@ int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
   if (code != 0) {
     int32_t     err = terrno;
     const char* errStr = tstrerror(err);
-    int32_t     linuxErr = errno;
-    const char* linuxErrMsg = strerror(errno);
-    sError("walWriteWithSyncInfo error, err:%d %X, msg:%s, linuxErr:%d, linuxErrMsg:%s", err, err, errStr, linuxErr,
-           linuxErrMsg);
+    int32_t     sysErr = errno;
+    const char* sysErrStr = strerror(errno);
+    sError("vgId:%d wal write error, index:%ld, err:%d %X, msg:%s, syserr:%d, sysmsg:%s", pData->pSyncNode->vgId,
+           pEntry->index, err, err, errStr, sysErr, sysErrStr);
+
     ASSERT(0);
   }
-  // assert(code == 0);
 
   walFsync(pWal, true);
 
-  sDebug(
-      "vgId:%d, sync event %s commitIndex:%ld currentTerm:%lu old write index:%ld, isStandBy:%d, msgType:%s,%d, "
-      "originalRpcType:%s,%d",
-      pData->pSyncNode->vgId, syncUtilState2String(pData->pSyncNode->state), pData->pSyncNode->commitIndex,
-      pData->pSyncNode->pRaftStore->currentTerm, pEntry->index, pData->pSyncNode->pRaftCfg->isStandBy,
-      TMSG_INFO(pEntry->msgType), pEntry->msgType, TMSG_INFO(pEntry->originalRpcType), pEntry->originalRpcType);
+  char eventLog[128];
+  snprintf(eventLog, sizeof(eventLog), "old write index:%ld, type:%s,%d, type2:%s,%d", pEntry->index,
+           TMSG_INFO(pEntry->msgType), pEntry->msgType, TMSG_INFO(pEntry->originalRpcType), pEntry->originalRpcType);
+  syncNodeEventLog(pData->pSyncNode, eventLog);
 
   return code;
 }
@@ -346,16 +396,17 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
     if (code != 0) {
       int32_t     err = terrno;
       const char* errStr = tstrerror(err);
-      int32_t     linuxErr = errno;
-      const char* linuxErrMsg = strerror(errno);
-      sError("walReadWithHandle error, err:%d %X, msg:%s, linuxErr:%d, linuxErrMsg:%s", err, err, errStr, linuxErr,
-             linuxErrMsg);
+      int32_t     sysErr = errno;
+      const char* sysErrStr = strerror(errno);
+      sError("vgId:%d wal read error, index:%ld, err:%d %X, msg:%s, syserr:%d, sysmsg:%s", pData->pSyncNode->vgId,
+             index, err, err, errStr, sysErr, sysErrStr);
+
       ASSERT(0);
     }
-    // assert(walReadWithHandle(pWalHandle, index) == 0);
+    // ASSERT(walReadWithHandle(pWalHandle, index) == 0);
 
     SSyncRaftEntry* pEntry = syncEntryBuild(pWalHandle->pHead->head.bodyLen);
-    assert(pEntry != NULL);
+    ASSERT(pEntry != NULL);
 
     pEntry->msgType = TDMT_SYNC_CLIENT_REQUEST;
     pEntry->originalRpcType = pWalHandle->pHead->head.msgType;
@@ -363,11 +414,13 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
     pEntry->isWeak = pWalHandle->pHead->head.syncMeta.isWeek;
     pEntry->term = pWalHandle->pHead->head.syncMeta.term;
     pEntry->index = index;
-    assert(pEntry->dataLen == pWalHandle->pHead->head.bodyLen);
+    ASSERT(pEntry->dataLen == pWalHandle->pHead->head.bodyLen);
     memcpy(pEntry->data, pWalHandle->pHead->head.body, pWalHandle->pHead->head.bodyLen);
 
-    // need to hold, do not new every time!!
+    int32_t saveErr = terrno;
     walCloseReadHandle(pWalHandle);
+    terrno = saveErr;
+
     return pEntry;
 
   } else {
@@ -378,15 +431,16 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
 int32_t logStoreTruncate(SSyncLogStore* pLogStore, SyncIndex fromIndex) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
-  // assert(walRollback(pWal, fromIndex) == 0);
+  // ASSERT(walRollback(pWal, fromIndex) == 0);
   int32_t code = walRollback(pWal, fromIndex);
   if (code != 0) {
     int32_t     err = terrno;
     const char* errStr = tstrerror(err);
-    int32_t     linuxErr = errno;
-    const char* linuxErrMsg = strerror(errno);
-    sError("walRollback error, err:%d %X, msg:%s, linuxErr:%d, linuxErrMsg:%s", err, err, errStr, linuxErr,
-           linuxErrMsg);
+    int32_t     sysErr = errno;
+    const char* sysErrStr = strerror(errno);
+    sError("vgId:%d wal truncate error, from-index:%ld, err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
+           pData->pSyncNode->vgId, fromIndex, err, err, errStr, sysErr, sysErrStr);
+
     ASSERT(0);
   }
   return 0;
@@ -412,14 +466,16 @@ SyncTerm logStoreLastTerm(SSyncLogStore* pLogStore) {
 int32_t logStoreUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
-  // assert(walCommit(pWal, index) == 0);
+  // ASSERT(walCommit(pWal, index) == 0);
   int32_t code = walCommit(pWal, index);
   if (code != 0) {
     int32_t     err = terrno;
     const char* errStr = tstrerror(err);
-    int32_t     linuxErr = errno;
-    const char* linuxErrMsg = strerror(errno);
-    sError("walCommit error, err:%d %X, msg:%s, linuxErr:%d, linuxErrMsg:%s", err, err, errStr, linuxErr, linuxErrMsg);
+    int32_t     sysErr = errno;
+    const char* sysErrStr = strerror(errno);
+    sError("vgId:%d wal update commit index error, index:%ld, err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
+           pData->pSyncNode->vgId, index, err, err, errStr, sysErr, sysErrStr);
+
     ASSERT(0);
   }
   return 0;

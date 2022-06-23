@@ -24,42 +24,47 @@ SRaftCfg *raftCfgOpen(const char *path) {
   snprintf(pCfg->path, sizeof(pCfg->path), "%s", path);
 
   pCfg->pFile = taosOpenFile(pCfg->path, TD_FILE_READ | TD_FILE_WRITE);
-  assert(pCfg->pFile != NULL);
+  ASSERT(pCfg->pFile != NULL);
 
   taosLSeekFile(pCfg->pFile, 0, SEEK_SET);
 
   char buf[1024] = {0};
   int  len = taosReadFile(pCfg->pFile, buf, sizeof(buf));
-  assert(len > 0);
+  ASSERT(len > 0);
 
   int32_t ret = raftCfgFromStr(buf, pCfg);
-  assert(ret == 0);
+  ASSERT(ret == 0);
 
   return pCfg;
 }
 
 int32_t raftCfgClose(SRaftCfg *pRaftCfg) {
   int64_t ret = taosCloseFile(&(pRaftCfg->pFile));
-  assert(ret == 0);
+  ASSERT(ret == 0);
   taosMemoryFree(pRaftCfg);
   return 0;
 }
 
 int32_t raftCfgPersist(SRaftCfg *pRaftCfg) {
-  assert(pRaftCfg != NULL);
+  ASSERT(pRaftCfg != NULL);
 
   char *s = raftCfg2Str(pRaftCfg);
   taosLSeekFile(pRaftCfg->pFile, 0, SEEK_SET);
 
   char buf[CONFIG_FILE_LEN] = {0};
   memset(buf, 0, sizeof(buf));
-  ASSERT(strlen(s) + 1 <= CONFIG_FILE_LEN);
+
+  if (strlen(s) + 1 > CONFIG_FILE_LEN) {
+    sError("too long config str:%s", s);
+    ASSERT(0);
+  }
+
   snprintf(buf, sizeof(buf), "%s", s);
   int64_t ret = taosWriteFile(pRaftCfg->pFile, buf, sizeof(buf));
-  assert(ret == sizeof(buf));
+  ASSERT(ret == sizeof(buf));
 
   // int64_t ret = taosWriteFile(pRaftCfg->pFile, s, strlen(s) + 1);
-  // assert(ret == strlen(s) + 1);
+  // ASSERT(ret == strlen(s) + 1);
 
   taosMemoryFree(s);
   taosFsyncFile(pRaftCfg->pFile);
@@ -101,33 +106,56 @@ char *syncCfg2Str(SSyncCfg *pSyncCfg) {
   return serialized;
 }
 
+char *syncCfg2SimpleStr(SSyncCfg *pSyncCfg) {
+  int32_t len = 512;
+  char   *s = taosMemoryMalloc(len);
+  memset(s, 0, len);
+
+  snprintf(s, len, "{replica-num:%d, my-index:%d, ", pSyncCfg->replicaNum, pSyncCfg->myIndex);
+  char *p = s + strlen(s);
+  for (int i = 0; i < pSyncCfg->replicaNum; ++i) {
+    /*
+    if (p + 128 + 32 > s + len) {
+      break;
+    }
+    */
+    char buf[128 + 32];
+    snprintf(buf, sizeof(buf), "%s:%d, ", pSyncCfg->nodeInfo[i].nodeFqdn, pSyncCfg->nodeInfo[i].nodePort);
+    strncpy(p, buf, sizeof(buf));
+    p = s + strlen(s);
+  }
+  strcpy(p - 2, "}");
+
+  return s;
+}
+
 int32_t syncCfgFromJson(const cJSON *pRoot, SSyncCfg *pSyncCfg) {
   memset(pSyncCfg, 0, sizeof(SSyncCfg));
   // cJSON *pJson = cJSON_GetObjectItem(pRoot, "SSyncCfg");
   const cJSON *pJson = pRoot;
 
   cJSON *pReplicaNum = cJSON_GetObjectItem(pJson, "replicaNum");
-  assert(cJSON_IsNumber(pReplicaNum));
+  ASSERT(cJSON_IsNumber(pReplicaNum));
   pSyncCfg->replicaNum = cJSON_GetNumberValue(pReplicaNum);
 
   cJSON *pMyIndex = cJSON_GetObjectItem(pJson, "myIndex");
-  assert(cJSON_IsNumber(pMyIndex));
+  ASSERT(cJSON_IsNumber(pMyIndex));
   pSyncCfg->myIndex = cJSON_GetNumberValue(pMyIndex);
 
   cJSON *pNodeInfoArr = cJSON_GetObjectItem(pJson, "nodeInfo");
   int    arraySize = cJSON_GetArraySize(pNodeInfoArr);
-  assert(arraySize == pSyncCfg->replicaNum);
+  ASSERT(arraySize == pSyncCfg->replicaNum);
 
   for (int i = 0; i < arraySize; ++i) {
     cJSON *pNodeInfo = cJSON_GetArrayItem(pNodeInfoArr, i);
-    assert(pNodeInfo != NULL);
+    ASSERT(pNodeInfo != NULL);
 
     cJSON *pNodePort = cJSON_GetObjectItem(pNodeInfo, "nodePort");
-    assert(cJSON_IsNumber(pNodePort));
+    ASSERT(cJSON_IsNumber(pNodePort));
     ((pSyncCfg->nodeInfo)[i]).nodePort = cJSON_GetNumberValue(pNodePort);
 
     cJSON *pNodeFqdn = cJSON_GetObjectItem(pNodeInfo, "nodeFqdn");
-    assert(cJSON_IsString(pNodeFqdn));
+    ASSERT(cJSON_IsString(pNodeFqdn));
     snprintf(((pSyncCfg->nodeInfo)[i]).nodeFqdn, sizeof(((pSyncCfg->nodeInfo)[i]).nodeFqdn), "%s",
              pNodeFqdn->valuestring);
   }
@@ -137,10 +165,10 @@ int32_t syncCfgFromJson(const cJSON *pRoot, SSyncCfg *pSyncCfg) {
 
 int32_t syncCfgFromStr(const char *s, SSyncCfg *pSyncCfg) {
   cJSON *pRoot = cJSON_Parse(s);
-  assert(pRoot != NULL);
+  ASSERT(pRoot != NULL);
 
   int32_t ret = syncCfgFromJson(pRoot, pSyncCfg);
-  assert(ret == 0);
+  ASSERT(ret == 0);
 
   cJSON_Delete(pRoot);
   return 0;
@@ -179,10 +207,10 @@ char *raftCfg2Str(SRaftCfg *pRaftCfg) {
 }
 
 int32_t raftCfgCreateFile(SSyncCfg *pCfg, SRaftCfgMeta meta, const char *path) {
-  assert(pCfg != NULL);
+  ASSERT(pCfg != NULL);
 
   TdFilePtr pFile = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE);
-  assert(pFile != NULL);
+  ASSERT(pFile != NULL);
 
   SRaftCfg raftCfg;
   raftCfg.cfg = *pCfg;
@@ -199,10 +227,10 @@ int32_t raftCfgCreateFile(SSyncCfg *pCfg, SRaftCfgMeta meta, const char *path) {
   ASSERT(strlen(s) + 1 <= CONFIG_FILE_LEN);
   snprintf(buf, sizeof(buf), "%s", s);
   int64_t ret = taosWriteFile(pFile, buf, sizeof(buf));
-  assert(ret == sizeof(buf));
+  ASSERT(ret == sizeof(buf));
 
   // int64_t ret = taosWriteFile(pFile, s, strlen(s) + 1);
-  // assert(ret == strlen(s) + 1);
+  // ASSERT(ret == strlen(s) + 1);
 
   taosMemoryFree(s);
   taosCloseFile(&pFile);
@@ -227,15 +255,15 @@ int32_t raftCfgFromJson(const cJSON *pRoot, SRaftCfg *pRaftCfg) {
 
   cJSON *pIndexArr = cJSON_GetObjectItem(pJson, "configIndexArr");
   int    arraySize = cJSON_GetArraySize(pIndexArr);
-  assert(arraySize == pRaftCfg->configIndexCount);
+  ASSERT(arraySize == pRaftCfg->configIndexCount);
 
   memset(pRaftCfg->configIndexArr, 0, sizeof(pRaftCfg->configIndexArr));
   for (int i = 0; i < arraySize; ++i) {
     cJSON *pIndexObj = cJSON_GetArrayItem(pIndexArr, i);
-    assert(pIndexObj != NULL);
+    ASSERT(pIndexObj != NULL);
 
     cJSON *pIndex = cJSON_GetObjectItem(pIndexObj, "index");
-    assert(cJSON_IsString(pIndex));
+    ASSERT(cJSON_IsString(pIndex));
     (pRaftCfg->configIndexArr)[i] = atoll(pIndex->valuestring);
   }
 
@@ -248,10 +276,10 @@ int32_t raftCfgFromJson(const cJSON *pRoot, SRaftCfg *pRaftCfg) {
 
 int32_t raftCfgFromStr(const char *s, SRaftCfg *pRaftCfg) {
   cJSON *pRoot = cJSON_Parse(s);
-  assert(pRoot != NULL);
+  ASSERT(pRoot != NULL);
 
   int32_t ret = raftCfgFromJson(pRoot, pRaftCfg);
-  assert(ret == 0);
+  ASSERT(ret == 0);
 
   cJSON_Delete(pRoot);
   return 0;
@@ -281,6 +309,12 @@ void syncCfgLog(SSyncCfg *pCfg) {
 void syncCfgLog2(char *s, SSyncCfg *pCfg) {
   char *serialized = syncCfg2Str(pCfg);
   sTrace("syncCfgLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
+  taosMemoryFree(serialized);
+}
+
+void syncCfgLog3(char *s, SSyncCfg *pCfg) {
+  char *serialized = syncCfg2SimpleStr(pCfg);
+  sTrace("syncCfgLog3 | len:%lu | %s | %s", strlen(serialized), s, serialized);
   taosMemoryFree(serialized);
 }
 

@@ -67,7 +67,7 @@ typedef struct SResultRowEntryInfo {
   bool     initialized:1;     // output buffer has been initialized
   bool     complete:1;        // query has completed
   uint8_t  isNullRes:6;       // the result is null
-  uint8_t  numOfRes;          // num of output result in current buffer
+  uint16_t numOfRes;          // num of output result in current buffer
 } SResultRowEntryInfo;
 
 // determine the real data need to calculated the result
@@ -158,10 +158,10 @@ typedef struct tExprNode {
   int32_t nodeType;
   union {
     struct {// function node
-      char              functionName[FUNCTIONS_NAME_MAX_LENGTH];  // todo refactor
-      int32_t           functionId;
-      int32_t           num;
-      struct SFunctionNode    *pFunctNode;
+      char     functionName[FUNCTIONS_NAME_MAX_LENGTH];  // todo refactor
+      int32_t  functionId;
+      int32_t  num;
+      struct SFunctionNode  *pFunctNode;
     } _function;
 
     struct {

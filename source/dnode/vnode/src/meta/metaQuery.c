@@ -95,7 +95,7 @@ tb_uid_t metaGetTableEntryUidByName(SMeta *pMeta, const char *name) {
 
   metaULock(pMeta);
 
-  return 0;
+  return uid;
 }
 
 int metaReadNext(SMetaReader *pReader) {
@@ -216,6 +216,39 @@ _err:
   metaULock(pMeta);
   tdbFree(pData);
   return NULL;
+}
+
+int metaTtlSmaller(SMeta *pMeta, uint64_t ttl, SArray *uidList){
+  TBC *    pCur;
+  int ret = tdbTbcOpen(pMeta->pTtlIdx, &pCur, NULL);
+  if (ret < 0) {
+    return ret;
+  }
+
+  STtlIdxKey ttlKey = {0};
+  ttlKey.dtime = ttl;
+  ttlKey.uid = INT64_MAX;
+  int c = 0;
+  tdbTbcMoveTo(pCur, &ttlKey, sizeof(ttlKey), &c);
+  if (c < 0) {
+    tdbTbcMoveToPrev(pCur);
+  }
+
+  void *pKey = NULL;
+  int kLen = 0;
+  while(1){
+    ret = tdbTbcPrev(pCur, &pKey, &kLen, NULL, NULL);
+    if (ret < 0) {
+      break;
+    }
+    ttlKey = *(STtlIdxKey*)pKey;
+    taosArrayPush(uidList, &ttlKey.uid);
+  }
+  tdbTbcClose(pCur);
+
+  tdbFree(pKey);
+
+  return 0;
 }
 
 struct SMCtbCursor {
@@ -579,9 +612,6 @@ const void *metaGetTableTagVal(SMetaEntry *pEntry, int16_t type, STagVal *val) {
   ASSERT(pEntry->type == TSDB_CHILD_TABLE);
   STag *tag = (STag *)pEntry->ctbEntry.pTags;
   if (type == TSDB_DATA_TYPE_JSON) {
-    if (tag->nTag == 0) {
-      return NULL;
-    }
     return tag;
   }
   bool find = tTagGet(tag, val);

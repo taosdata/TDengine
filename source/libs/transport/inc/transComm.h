@@ -26,6 +26,7 @@ extern "C" {
 #include "transLog.h"
 #include "transportInt.h"
 #include "trpc.h"
+#include "ttrace.h"
 #include "tutil.h"
 
 typedef void* queue[2];
@@ -140,6 +141,7 @@ typedef struct {
   char spi : 2;
 
   char     user[TSDB_UNI_LEN];
+  STraceId traceId;
   uint64_t ahandle;  // ahandle assigned by client
   uint32_t code;     // del later
   uint32_t msgType;
@@ -180,6 +182,8 @@ typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken, ConnInPool } Co
 #define transMsgLenFromCont(contLen) (contLen + sizeof(STransMsgHead))
 #define transContLenFromMsg(msgLen)  (msgLen - sizeof(STransMsgHead));
 #define transIsReq(type)             (type & 1U)
+
+#define transLabel(trans) ((STrans*)trans)->label
 
 // int  rpcAuthenticateMsg(void* pMsg, int msgLen, void* pAuth, void* pKey);
 // void rpcBuildAuthHead(void* pMsg, int msgLen, void* pAuth, void* pKey);

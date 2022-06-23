@@ -40,13 +40,16 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     SStreamBlockScanInfo* pInfo = pOperator->info;
     pInfo->assignBlockUid = assignUid;
 
-    // the block type can not be changed in the streamscan operators
+    // no need to check
+#if 0
     if (pInfo->blockType == 0) {
       pInfo->blockType = type;
     } else if (pInfo->blockType != type) {
       ASSERT(0);
       return TSDB_CODE_QRY_APP_ERROR;
     }
+#endif
+    pInfo->blockType = type;
 
     if (type == STREAM_DATA_TYPE_SUBMIT_BLOCK) {
       if (tqReadHandleSetMsg(pInfo->streamBlockReader, input, 0) < 0) {
@@ -64,12 +67,23 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
         taosArrayAddAll(p->pDataBlock, pDataBlock->pDataBlock);
         taosArrayPush(pInfo->pBlockLists, &p);
       }
+    } else if (type == STREAM_DATA_TYPE_FROM_SNAPSHOT) {
+      // do nothing
+      ASSERT(pInfo->blockType == STREAM_DATA_TYPE_FROM_SNAPSHOT);
     } else {
       ASSERT(0);
     }
 
     return TSDB_CODE_SUCCESS;
   }
+}
+
+int32_t qStreamScanSnapshot(qTaskInfo_t tinfo) {
+  if (tinfo == NULL) {
+    return TSDB_CODE_QRY_APP_ERROR;
+  }
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  return doSetStreamBlock(pTaskInfo->pRoot, NULL, 0, STREAM_DATA_TYPE_FROM_SNAPSHOT, 0, NULL);
 }
 
 int32_t qSetStreamInput(qTaskInfo_t tinfo, const void* input, int32_t type, bool assignUid) {
@@ -99,17 +113,9 @@ int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numO
 }
 
 qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, void* streamReadHandle) {
-  if (msg == NULL || streamReadHandle == NULL) {
+  if (msg == NULL) {
     return NULL;
   }
-
-  // print those info into log
-#if 0
-  pMsg->sId = pMsg->sId;
-  pMsg->queryId = pMsg->queryId;
-  pMsg->taskId = pMsg->taskId;
-  pMsg->contentLen = pMsg->contentLen;
-#endif
 
   /*qDebugL("stream task string %s", (const char*)msg);*/
 

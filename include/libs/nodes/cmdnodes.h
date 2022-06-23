@@ -28,6 +28,19 @@ extern "C" {
 #define DESCRIBE_RESULT_TYPE_LEN  (20 + VARSTR_HEADER_SIZE)
 #define DESCRIBE_RESULT_NOTE_LEN  (8 + VARSTR_HEADER_SIZE)
 
+#define SHOW_CREATE_DB_RESULT_COLS      2
+#define SHOW_CREATE_DB_RESULT_FIELD1_LEN (TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE)
+#define SHOW_CREATE_DB_RESULT_FIELD2_LEN (TSDB_MAX_BINARY_LEN + VARSTR_HEADER_SIZE)
+
+#define SHOW_CREATE_TB_RESULT_COLS      2
+#define SHOW_CREATE_TB_RESULT_FIELD1_LEN (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE)
+#define SHOW_CREATE_TB_RESULT_FIELD2_LEN (TSDB_MAX_BINARY_LEN + VARSTR_HEADER_SIZE)
+
+#define SHOW_LOCAL_VARIABLES_RESULT_COLS      2
+#define SHOW_LOCAL_VARIABLES_RESULT_FIELD1_LEN (TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE)
+#define SHOW_LOCAL_VARIABLES_RESULT_FIELD2_LEN (TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE)
+
+
 #define PRIVILEGE_TYPE_MASK(n) (1 << n)
 
 #define PRIVILEGE_TYPE_ALL   PRIVILEGE_TYPE_MASK(0)
@@ -87,9 +100,14 @@ typedef struct SAlterDatabaseStmt {
 
 typedef struct STableOptions {
   ENodeType  type;
+  bool       commentNull;
   char       comment[TSDB_TB_COMMENT_LEN];
-  double     filesFactor;
-  int32_t    delay;
+  SNodeList* pMaxDelay;
+  int64_t    maxDelay1;
+  int64_t    maxDelay2;
+  SNodeList* pWatermark;
+  int64_t    watermark1;
+  int64_t    watermark2;
   SNodeList* pRollupFuncs;
   int32_t    ttl;
   SNodeList* pSma;
@@ -114,14 +132,15 @@ typedef struct SCreateTableStmt {
 } SCreateTableStmt;
 
 typedef struct SCreateSubTableClause {
-  ENodeType  type;
-  char       dbName[TSDB_DB_NAME_LEN];
-  char       tableName[TSDB_TABLE_NAME_LEN];
-  char       useDbName[TSDB_DB_NAME_LEN];
-  char       useTableName[TSDB_TABLE_NAME_LEN];
-  bool       ignoreExists;
-  SNodeList* pSpecificTags;
-  SNodeList* pValsOfTags;
+  ENodeType      type;
+  char           dbName[TSDB_DB_NAME_LEN];
+  char           tableName[TSDB_TABLE_NAME_LEN];
+  char           useDbName[TSDB_DB_NAME_LEN];
+  char           useTableName[TSDB_TABLE_NAME_LEN];
+  bool           ignoreExists;
+  SNodeList*     pSpecificTags;
+  SNodeList*     pValsOfTags;
+  STableOptions* pOptions;
 } SCreateSubTableClause;
 
 typedef struct SCreateMultiTableStmt {
@@ -164,13 +183,16 @@ typedef struct SCreateUserStmt {
   ENodeType type;
   char      useName[TSDB_USER_LEN];
   char      password[TSDB_USET_PASSWORD_LEN];
+  int8_t    sysinfo;
 } SCreateUserStmt;
 
 typedef struct SAlterUserStmt {
   ENodeType type;
   char      useName[TSDB_USER_LEN];
-  char      password[TSDB_USET_PASSWORD_LEN];
   int8_t    alterType;
+  char      password[TSDB_USET_PASSWORD_LEN];
+  int8_t    enable;
+  int8_t    sysinfo;
 } SAlterUserStmt;
 
 typedef struct SDropUserStmt {
@@ -199,16 +221,35 @@ typedef struct SAlterDnodeStmt {
 } SAlterDnodeStmt;
 
 typedef struct SShowStmt {
-  ENodeType type;
-  SNode*    pDbName;         // SValueNode
-  SNode*    pTbNamePattern;  // SValueNode
+  ENodeType     type;
+  SNode*        pDbName;  // SValueNode
+  SNode*        pTbName;  // SValueNode
+  EOperatorType tableCondType;
 } SShowStmt;
 
-typedef struct SShowCreatStmt {
+typedef struct SShowCreateDatabaseStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  void*     pCfg;  // SDbCfgInfo
+} SShowCreateDatabaseStmt;
+
+typedef struct SShowCreateTableStmt {
+  ENodeType   type;
+  char        dbName[TSDB_DB_NAME_LEN];
+  char        tableName[TSDB_TABLE_NAME_LEN];
+  void*       pCfg; // STableCfg
+} SShowCreateTableStmt;
+
+typedef struct SShowTableDistributedStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];
   char      tableName[TSDB_TABLE_NAME_LEN];
-} SShowCreatStmt;
+} SShowTableDistributedStmt;
+
+typedef struct SShowDnodeVariablesStmt {
+  ENodeType type;
+  SNode*    pDnodeId;
+} SShowDnodeVariablesStmt;
 
 typedef enum EIndexType { INDEX_TYPE_SMA = 1, INDEX_TYPE_FULLTEXT } EIndexType;
 
@@ -234,7 +275,6 @@ typedef struct SDropIndexStmt {
   ENodeType type;
   bool      ignoreNotExists;
   char      indexName[TSDB_INDEX_NAME_LEN];
-  char      tableName[TSDB_TABLE_NAME_LEN];
 } SDropIndexStmt;
 
 typedef struct SCreateComponentNodeStmt {
@@ -253,6 +293,7 @@ typedef struct SCreateTopicStmt {
   char      subDbName[TSDB_DB_NAME_LEN];
   char      subSTbName[TSDB_TABLE_NAME_LEN];
   bool      ignoreExists;
+  bool      withMeta;
   SNode*    pQuery;
 } SCreateTopicStmt;
 

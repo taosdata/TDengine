@@ -257,7 +257,7 @@ static int32_t checkAuth(SInsertParseContext* pCxt, char* pDbFname, bool* pPass)
   if (pBasicCtx->async) {
     return getUserAuthFromCache(pCxt->pMetaCache, pBasicCtx->pUser, pDbFname, AUTH_TYPE_WRITE, pPass);
   }
-  SRequestConnInfo conn = {.pTrans = pBasicCtx->pTransporter, 
+  SRequestConnInfo conn = {.pTrans = pBasicCtx->pTransporter,
                            .requestId = pBasicCtx->requestId,
                            .requestObjRefId = pBasicCtx->requestRid,
                            .mgmtEps = pBasicCtx->mgmtEpSet};
@@ -270,11 +270,11 @@ static int32_t getTableSchema(SInsertParseContext* pCxt, SName* pTbName, bool is
   if (pBasicCtx->async) {
     return getTableMetaFromCache(pCxt->pMetaCache, pTbName, pTableMeta);
   }
-  SRequestConnInfo conn = {.pTrans = pBasicCtx->pTransporter, 
+  SRequestConnInfo conn = {.pTrans = pBasicCtx->pTransporter,
                            .requestId = pBasicCtx->requestId,
                            .requestObjRefId = pBasicCtx->requestRid,
                            .mgmtEps = pBasicCtx->mgmtEpSet};
-  
+
   if (isStb) {
     return catalogGetSTableMeta(pBasicCtx->pCatalog, &conn, pTbName, pTableMeta);
   }
@@ -286,7 +286,7 @@ static int32_t getTableVgroup(SInsertParseContext* pCxt, SName* pTbName, SVgroup
   if (pBasicCtx->async) {
     return getTableVgroupFromCache(pCxt->pMetaCache, pTbName, pVg);
   }
-  SRequestConnInfo conn = {.pTrans = pBasicCtx->pTransporter, 
+  SRequestConnInfo conn = {.pTrans = pBasicCtx->pTransporter,
                            .requestId = pBasicCtx->requestId,
                            .requestObjRefId = pBasicCtx->requestRid,
                            .mgmtEps = pBasicCtx->mgmtEpSet};
@@ -322,7 +322,7 @@ static int32_t getDBCfg(SInsertParseContext* pCxt, const char* pDbFName, SDbCfgI
   if (pBasicCtx->async) {
     CHECK_CODE(getDbCfgFromCache(pCxt->pMetaCache, pDbFName, pInfo));
   } else {
-    SRequestConnInfo conn = {.pTrans = pBasicCtx->pTransporter, 
+    SRequestConnInfo conn = {.pTrans = pBasicCtx->pTransporter,
                              .requestId = pBasicCtx->requestId,
                              .requestObjRefId = pBasicCtx->requestRid,
                              .mgmtEps = pBasicCtx->mgmtEpSet};
@@ -803,6 +803,7 @@ static void buildCreateTbReq(SVCreateTbReq* pTbReq, const char* tname, STag* pTa
   pTbReq->name = strdup(tname);
   pTbReq->ctb.suid = suid;
   pTbReq->ctb.pTag = (uint8_t*)pTag;
+  pTbReq->commentLen = -1;
 
   return;
 }
@@ -1080,15 +1081,6 @@ end:
   return code;
 }
 
-static int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
-  *pDst = taosMemoryMalloc(TABLE_META_SIZE(pSrc));
-  if (NULL == *pDst) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
-  }
-  memcpy(*pDst, pSrc, TABLE_META_SIZE(pSrc));
-  return TSDB_CODE_SUCCESS;
-}
-
 static int32_t storeTableMeta(SInsertParseContext* pCxt, SHashObj* pHash, SName* pTableName, const char* pName,
                               int32_t len, STableMeta* pMeta) {
   SVgroupInfo vg;
@@ -1314,15 +1306,6 @@ static void destroyInsertParseContext(SInsertParseContext* pCxt) {
   destroyBlockArrayList(pCxt->pVgDataBlocks);
 }
 
-static int32_t checkSchemalessDb(SInsertParseContext* pCxt, char* pDbName) {
-//  SDbCfgInfo pInfo = {0};
-//  char       fullName[TSDB_TABLE_FNAME_LEN];
-//  snprintf(fullName, sizeof(fullName), "%d.%s", pCxt->pComCxt->acctId, pDbName);
-//  CHECK_CODE(getDBCfg(pCxt, fullName, &pInfo));
-//  return pInfo.schemaless ? TSDB_CODE_SML_INVALID_DB_CONF : TSDB_CODE_SUCCESS;
-  return TSDB_CODE_SUCCESS;
-}
-
 //   tb_name
 //       [USING stb_name [(tag1_name, ...)] TAGS (tag1_value, ...)]
 //       [(field1_name, ...)]
@@ -1375,8 +1358,6 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
 
     SName name;
     CHECK_CODE(createSName(&name, &tbnameToken, pCxt->pComCxt->acctId, pCxt->pComCxt->db, &pCxt->msg));
-
-    CHECK_CODE(checkSchemalessDb(pCxt, name.dbname));
 
     tNameExtractFullName(&name, tbFName);
     CHECK_CODE(taosHashPut(pCxt->pTableNameHashObj, tbFName, strlen(tbFName), &name, sizeof(SName)));

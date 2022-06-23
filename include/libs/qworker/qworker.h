@@ -32,7 +32,7 @@ enum {
 };
 
 typedef struct SDeleteRes {
-  uint64_t uid;
+  uint64_t suid;
   SArray*  uidList;
   int64_t  skey;
   int64_t  ekey;
@@ -63,6 +63,8 @@ typedef struct {
 } SQWorkerStat;
 
 int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, SQWorkerCfg *cfg, void **qWorkerMgmt, const SMsgCb *pMsgCb);
+
+int32_t qWorkerAbortPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg);
 
 int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg);
 

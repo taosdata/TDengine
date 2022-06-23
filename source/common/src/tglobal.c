@@ -161,7 +161,7 @@ int32_t  tsDiskCfgNum = 0;
 SDiskCfg tsDiskCfg[TFS_MAX_DISKS] = {0};
 
 // stream scheduler
-bool tsStreamSchedV = true;
+bool tsSchedStreamToSnode = true;
 
 /*
  * minimum scale for whole system, millisecond by default
@@ -185,8 +185,11 @@ char     tsCompressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPR
 bool tsStartUdfd = true;
 
 // internal
-int32_t tsTransPullupInterval = 6;
+int32_t tsTransPullupInterval = 2;
 int32_t tsMqRebalanceInterval = 2;
+int32_t tsTtlUnit = 86400;
+int32_t tsTtlPushInterval = 60;
+
 
 void taosAddDataDir(int32_t index, char *v1, int32_t level, int32_t primary) {
   tstrncpy(tsDiskCfg[index].dir, v1, TSDB_FILENAME_LEN);
@@ -467,6 +470,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   if (cfgAddInt32(pCfg, "transPullupInterval", tsTransPullupInterval, 1, 10000, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "mqRebalanceInterval", tsMqRebalanceInterval, 1, 10000, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "ttlUnit", tsTtlUnit, 1, 86400*365, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "ttlPushInterval", tsTtlPushInterval, 1, 10000, 1) != 0) return -1;
 
   if (cfgAddBool(pCfg, "udf", tsStartUdfd, 0) != 0) return -1;
   return 0;
@@ -619,6 +624,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   tsTransPullupInterval = cfgGetItem(pCfg, "transPullupInterval")->i32;
   tsMqRebalanceInterval = cfgGetItem(pCfg, "mqRebalanceInterval")->i32;
+  tsTtlUnit = cfgGetItem(pCfg, "ttlUnit")->i32;
+  tsTtlPushInterval = cfgGetItem(pCfg, "ttlPushInterval")->i32;
 
   tsStartUdfd = cfgGetItem(pCfg, "udf")->bval;
 
@@ -631,7 +638,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
                       const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc) {
-  osDefaultInit();
+  if (tsCfg == NULL) osDefaultInit();
 
   SConfig *pCfg = cfgInit();
   if (pCfg == NULL) return -1;

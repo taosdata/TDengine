@@ -52,7 +52,7 @@ typedef struct SExprNode {
   SArray*   pAssociation;
 } SExprNode;
 
-typedef enum EColumnType { COLUMN_TYPE_COLUMN = 1, COLUMN_TYPE_TAG } EColumnType;
+typedef enum EColumnType { COLUMN_TYPE_COLUMN = 1, COLUMN_TYPE_TAG, COLUMN_TYPE_TBNAME } EColumnType;
 
 typedef struct SColumnNode {
   SExprNode   node;  // QUERY_NODE_COLUMN
@@ -240,6 +240,9 @@ typedef struct SSelectStmt {
   SNode*      pWindow;
   SNodeList*  pGroupByList;  // SGroupingSetNode
   SNode*      pHaving;
+  SNode*      pRange;
+  SNode*      pEvery;
+  SNode*      pFill;
   SNodeList*  pOrderByList;  // SOrderByExprNode
   SLimitNode* pLimit;
   SLimitNode* pSlimit;
@@ -254,6 +257,8 @@ typedef struct SSelectStmt {
   bool        hasSelectValFunc;
   bool        hasUniqueFunc;
   bool        hasTailFunc;
+  bool        hasInterpFunc;
+  bool        hasLastRowFunc;
 } SSelectStmt;
 
 typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;
@@ -283,11 +288,11 @@ typedef enum ESqlClause {
 } ESqlClause;
 
 typedef struct SDeleteStmt {
-  ENodeType   type;           // QUERY_NODE_DELETE_STMT
-  SNode*      pFromTable;     // FROM clause
-  SNode*      pWhere;         // WHERE clause
-  SNode*      pCountFunc;     // count the number of rows affected
-  SNode*      pTagIndexCond;  // pWhere divided into pTagIndexCond and timeRange
+  ENodeType   type;        // QUERY_NODE_DELETE_STMT
+  SNode*      pFromTable;  // FROM clause
+  SNode*      pWhere;      // WHERE clause
+  SNode*      pCountFunc;  // count the number of rows affected
+  SNode*      pTagCond;    // pWhere divided into pTagCond and timeRange
   STimeWindow timeRange;
   uint8_t     precision;
   bool        deleteZeroRows;
@@ -380,6 +385,7 @@ bool nodesIsArithmeticOp(const SOperatorNode* pOp);
 bool nodesIsComparisonOp(const SOperatorNode* pOp);
 bool nodesIsJsonOp(const SOperatorNode* pOp);
 bool nodesIsRegularOp(const SOperatorNode* pOp);
+bool nodesIsBitwiseOp(const SOperatorNode* pOp);
 
 bool nodesExprHasColumn(SNode* pNode);
 bool nodesExprsHasColumn(SNodeList* pList);
@@ -391,7 +397,8 @@ void    nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal);
 
 char*   nodesGetFillModeString(EFillMode mode);
 int32_t nodesMergeConds(SNode** pDst, SNodeList** pSrc);
-int32_t nodesPartitionCond(SNode** pCondition, SNode** pPrimaryKeyCond, SNode** pTagCond, SNode** pOtherCond);
+int32_t nodesPartitionCond(SNode** pCondition, SNode** pPrimaryKeyCond, SNode** pTagIndexCond, SNode** pTagCond,
+                           SNode** pOtherCond);
 
 #ifdef __cplusplus
 }

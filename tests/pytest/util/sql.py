@@ -61,7 +61,7 @@ class TDSql:
         self.cursor.execute(s)
         s = 'use db'
         self.cursor.execute(s)
-        time.sleep(2)	
+        time.sleep(2)
 
     def error(self, sql):
         expectErrNotOccured = True
@@ -249,7 +249,7 @@ class TDSql:
             raise Exception(repr(e))
         return self.queryResult
 
-        
+
     def executeTimes(self, sql, times):
         for i in range(times):
             try:

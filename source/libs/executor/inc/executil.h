@@ -106,21 +106,24 @@ int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo);
 
 SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode);
 
-int32_t getTableList(void* metaHandle, SScanPhysiNode* pScanNode, STableListInfo* pListInfo, SNode* pTagCond);
+EDealRes doTranslateTagExpr(SNode** pNode, void* pContext);
+int32_t getTableList(void* metaHandle, SScanPhysiNode* pScanNode, STableListInfo* pListInfo);
 SArray* createSortInfo(SNodeList* pNodeList);
 SArray* extractPartitionColInfo(SNodeList* pNodeList);
 SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols, int32_t type);
 
 SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* numOfExprs);
 
-SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, int32_t** rowCellInfoOffset);
-void    relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray* pCols);
+SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, int32_t** rowEntryInfoOffset);
+void    relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray* pCols, bool outputEveryColumn);
 void    initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQueryWindow);
 
 SInterval extractIntervalInfo(const STableScanPhysiNode* pTableScanNode);
 SColumn   extractColumnFromColumnNode(SColumnNode* pColNode);
 
 int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysiNode* pTableScanNode);
-void cleanupQueryTableDataCond(SQueryTableDataCond* pCond);
+void    cleanupQueryTableDataCond(SQueryTableDataCond* pCond);
+
+int32_t convertFillType(int32_t mode);
 
 #endif  // TDENGINE_QUERYUTIL_H

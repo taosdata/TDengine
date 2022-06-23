@@ -54,7 +54,7 @@ void init() {
   pSyncNode->pWal = pWal;
 
   pSyncNode->pFsm = (SSyncFSM*)taosMemoryMalloc(sizeof(SSyncFSM));
-  pSyncNode->pFsm->FpGetSnapshot = GetSnapshotCb;
+  pSyncNode->pFsm->FpGetSnapshotInfo = GetSnapshotCb;
 }
 
 void cleanup() {
@@ -69,6 +69,7 @@ void test1() {
   init();
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
+  pSyncNode->pLogStore = pLogStore;
   logStoreLog2((char*)"\n\n\ntest1 ----- ", pLogStore);
 
   if (gAssert) {
@@ -88,6 +89,7 @@ void test1() {
   init();
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
+  pSyncNode->pLogStore = pLogStore;
   logStoreLog2((char*)"\n\n\ntest1 restart ----- ", pLogStore);
 
   if (gAssert) {
@@ -110,6 +112,7 @@ void test2() {
   init();
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
+  pSyncNode->pLogStore = pLogStore;
   pLogStore->syncLogSetBeginIndex(pLogStore, 5);
   logStoreLog2((char*)"\n\n\ntest2 ----- ", pLogStore);
 
@@ -130,6 +133,7 @@ void test2() {
   init();
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
+  pSyncNode->pLogStore = pLogStore;
   logStoreLog2((char*)"\n\n\ntest2 restart ----- ", pLogStore);
 
   if (gAssert) {
@@ -152,6 +156,7 @@ void test3() {
   init();
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
+  pSyncNode->pLogStore = pLogStore;
   logStoreLog2((char*)"\n\n\ntest3 ----- ", pLogStore);
 
   if (gAssert) {
@@ -198,6 +203,7 @@ void test3() {
   init();
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
+  pSyncNode->pLogStore = pLogStore;
   logStoreLog2((char*)"\n\n\ntest3 restart ----- ", pLogStore);
 
   if (gAssert) {
@@ -220,6 +226,7 @@ void test4() {
   init();
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
+  pSyncNode->pLogStore = pLogStore;
   logStoreLog2((char*)"\n\n\ntest4 ----- ", pLogStore);
   pLogStore->syncLogSetBeginIndex(pLogStore, 5);
 
@@ -257,6 +264,7 @@ void test4() {
   init();
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
+  pSyncNode->pLogStore = pLogStore;
   logStoreLog2((char*)"\n\n\ntest4 restart ----- ", pLogStore);
 
   if (gAssert) {
@@ -279,6 +287,7 @@ void test5() {
   init();
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
+  pSyncNode->pLogStore = pLogStore;
   logStoreLog2((char*)"\n\n\ntest5 ----- ", pLogStore);
   pLogStore->syncLogSetBeginIndex(pLogStore, 5);
 
@@ -329,6 +338,7 @@ void test5() {
   init();
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
+  pSyncNode->pLogStore = pLogStore;
   logStoreLog2((char*)"\n\n\ntest5 restart ----- ", pLogStore);
 
   if (gAssert) {
@@ -351,6 +361,7 @@ void test6() {
   init();
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
+  pSyncNode->pLogStore = pLogStore;
   logStoreLog2((char*)"\n\n\ntest6 ----- ", pLogStore);
   pLogStore->syncLogSetBeginIndex(pLogStore, 5);
 
@@ -401,6 +412,7 @@ void test6() {
   init();
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
+  pSyncNode->pLogStore = pLogStore;
   logStoreLog2((char*)"\n\n\ntest6 restart ----- ", pLogStore);
 
   if (gAssert) {

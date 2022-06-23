@@ -39,7 +39,9 @@ typedef enum EScanType {
   SCAN_TYPE_TABLE,
   SCAN_TYPE_SYSTEM_TABLE,
   SCAN_TYPE_STREAM,
-  SCAN_TYPE_TABLE_MERGE
+  SCAN_TYPE_TABLE_MERGE,
+  SCAN_TYPE_BLOCK_INFO,
+  SCAN_TYPE_LAST_ROW
 } EScanType;
 
 typedef struct SScanLogicNode {
@@ -64,6 +66,7 @@ typedef struct SScanLogicNode {
   int8_t        intervalUnit;
   int8_t        slidingUnit;
   SNode*        pTagCond;
+  SNode*        pTagIndexCond;
   int8_t        triggerType;
   int64_t       watermark;
   int16_t       tsColId;
@@ -97,8 +100,18 @@ typedef struct SProjectLogicNode {
 
 typedef struct SIndefRowsFuncLogicNode {
   SLogicNode node;
-  SNodeList* pVectorFuncs;
+  SNodeList* pFuncs;
 } SIndefRowsFuncLogicNode;
+
+typedef struct SInterpFuncLogicNode {
+  SLogicNode  node;
+  SNodeList*  pFuncs;
+  STimeWindow timeRange;
+  int64_t     interval;
+  EFillMode   fillMode;
+  SNode*      pFillValues;  // SNodeListNode
+  SNode*      pTimeSeries;  // SColumnNode
+} SInterpFuncLogicNode;
 
 typedef enum EModifyTableType { MODIFY_TABLE_TYPE_INSERT = 1, MODIFY_TABLE_TYPE_DELETE } EModifyTableType;
 
@@ -143,21 +156,22 @@ typedef enum EWindowAlgorithm {
 } EWindowAlgorithm;
 
 typedef struct SWindowLogicNode {
-  SLogicNode         node;
-  EWindowType        winType;
-  SNodeList*         pFuncs;
-  int64_t            interval;
-  int64_t            offset;
-  int64_t            sliding;
-  int8_t             intervalUnit;
-  int8_t             slidingUnit;
-  int64_t            sessionGap;
-  SNode*             pTspk;
-  SNode*             pStateExpr;
-  int8_t             triggerType;
-  int64_t            watermark;
-  double             filesFactor;
-  EWindowAlgorithm   windowAlgo;
+  SLogicNode       node;
+  EWindowType      winType;
+  SNodeList*       pFuncs;
+  int64_t          interval;
+  int64_t          offset;
+  int64_t          sliding;
+  int8_t           intervalUnit;
+  int8_t           slidingUnit;
+  int64_t          sessionGap;
+  SNode*           pTspk;
+  SNode*           pTsEnd;
+  SNode*           pStateExpr;
+  int8_t           triggerType;
+  int64_t          watermark;
+  double           filesFactor;
+  EWindowAlgorithm windowAlgo;
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
@@ -247,6 +261,8 @@ typedef struct SScanPhysiNode {
 } SScanPhysiNode;
 
 typedef SScanPhysiNode STagScanPhysiNode;
+typedef SScanPhysiNode SBlockDistScanPhysiNode;
+typedef SScanPhysiNode SLastRowScanPhysiNode;
 
 typedef struct SSystemTableScanPhysiNode {
   SScanPhysiNode scan;
@@ -290,8 +306,19 @@ typedef struct SProjectPhysiNode {
 typedef struct SIndefRowsFuncPhysiNode {
   SPhysiNode node;
   SNodeList* pExprs;
-  SNodeList* pVectorFuncs;
+  SNodeList* pFuncs;
 } SIndefRowsFuncPhysiNode;
+
+typedef struct SInterpFuncPhysiNode {
+  SPhysiNode  node;
+  SNodeList*  pExprs;
+  SNodeList*  pFuncs;
+  STimeWindow timeRange;
+  int64_t     interval;
+  EFillMode   fillMode;
+  SNode*      pFillValues;  // SNodeListNode
+  SNode*      pTimeSeries;  // SColumnNode
+} SInterpFuncPhysiNode;
 
 typedef struct SJoinPhysiNode {
   SPhysiNode node;
@@ -335,7 +362,8 @@ typedef struct SWinodwPhysiNode {
   SPhysiNode node;
   SNodeList* pExprs;  // these are expression list of parameter expression of function
   SNodeList* pFuncs;
-  SNode*     pTspk;  // timestamp primary key
+  SNode*     pTspk;   // timestamp primary key
+  SNode*     pTsEnd;  // window end timestamp
   int8_t     triggerType;
   int64_t    watermark;
   double     filesFactor;
@@ -350,7 +378,8 @@ typedef struct SIntervalPhysiNode {
   int8_t           slidingUnit;
 } SIntervalPhysiNode;
 
-typedef SIntervalPhysiNode SMergeIntervalPhysiNode;
+typedef SIntervalPhysiNode  SMergeIntervalPhysiNode;
+typedef SIntervalPhysiNode SMergeAlignedIntervalPhysiNode;
 typedef SIntervalPhysiNode SStreamIntervalPhysiNode;
 typedef SIntervalPhysiNode SStreamFinalIntervalPhysiNode;
 typedef SIntervalPhysiNode SStreamSemiIntervalPhysiNode;
@@ -391,6 +420,8 @@ typedef struct SSortPhysiNode {
   SNodeList* pSortKeys;  // element is SOrderByExprNode, and SOrderByExprNode::pExpr is SColumnNode
   SNodeList* pTargets;
 } SSortPhysiNode;
+
+typedef SSortPhysiNode SGroupSortPhysiNode;
 
 typedef struct SPartitionPhysiNode {
   SPhysiNode node;
@@ -438,6 +469,7 @@ typedef struct SSubplan {
   SPhysiNode*    pNode;         // physical plan of current subplan
   SDataSinkNode* pDataSink;     // data of the subplan flow into the datasink
   SNode*         pTagCond;
+  SNode*         pTagIndexCond;
 } SSubplan;
 
 typedef enum EExplainMode { EXPLAIN_MODE_DISABLE = 1, EXPLAIN_MODE_STATIC, EXPLAIN_MODE_ANALYZE } EExplainMode;

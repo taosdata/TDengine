@@ -500,7 +500,7 @@ static int32_t setCurrentSchema(SVnode* pVnode, STsdbReadHandle* pTsdbReadHandle
   return TSDB_CODE_SUCCESS;
 }
 
-tsdbReaderT* tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, STableListInfo* tableList, uint64_t qId,
+tsdbReaderT tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, STableListInfo* tableList, uint64_t qId,
                             uint64_t taskId) {
   STsdbReadHandle* pTsdbReadHandle = tsdbQueryTablesImpl(pVnode, pCond, qId, taskId);
   if (pTsdbReadHandle == NULL) {
@@ -508,7 +508,7 @@ tsdbReaderT* tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, STableLi
   }
 
   if (emptyQueryTimewindow(pTsdbReadHandle)) {
-    return (tsdbReaderT*)pTsdbReadHandle;
+    return (tsdbReaderT)pTsdbReadHandle;
   }
 
   // todo apply the lastkey of table check to avoid to load header file
@@ -1066,11 +1066,11 @@ static int32_t getFileIdFromKey(TSKEY key, int32_t daysPerFile, int32_t precisio
   }
 
   int64_t fid = (int64_t)(key / (daysPerFile * tsTickPerMin[precision]));  // set the starting fileId
-  if (fid < 0L && llabs(fid) > INT32_MAX) {                                // data value overflow for INT32
+  if (fid < 0LL && llabs(fid) > INT32_MAX) {                                // data value overflow for INT32
     fid = INT32_MIN;
   }
 
-  if (fid > 0L && fid > INT32_MAX) {
+  if (fid > 0LL && fid > INT32_MAX) {
     fid = INT32_MAX;
   }
 
@@ -2845,7 +2845,7 @@ int32_t tsdbGetAllTableList(SMeta* pMeta, uint64_t uid, SArray* list) {
       break;
     }
 
-    STableKeyInfo info = {.lastKey = TSKEY_INITIAL_VAL, uid = id};
+    STableKeyInfo info = {.lastKey = TSKEY_INITIAL_VAL, uid = id, .groupId = 0};
     taosArrayPush(list, &info);
   }
 
