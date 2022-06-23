@@ -416,7 +416,7 @@ int32_t syncGetSnapshotMetaByIndex(int64_t rid, SyncIndex snapshotIndex, struct 
     }
   }
   sMeta->lastConfigIndex = lastIndex;
-  sTrace("vgId:%d, get snapshot meta by index:%" PRId64 " lastConfigIndex:%" PRId64, pSyncNode->vgId, snapshotIndex,
+  sTrace("vgId:%d, get snapshot meta by index:%" PRId64 " lcindex:%" PRId64, pSyncNode->vgId, snapshotIndex,
          sMeta->lastConfigIndex);
 
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
@@ -433,8 +433,9 @@ SyncIndex syncNodeGetSnapshotConfigIndex(SSyncNode* pSyncNode, SyncIndex snapsho
       lastIndex = (pSyncNode->pRaftCfg->configIndexArr)[i];
     }
   }
+  sTrace("vgId:%d, sync get snapshot last config index, index:%ld lcindex:%ld", pSyncNode->vgId, snapshotLastApplyIndex,
+         lastIndex);
 
-  sTrace("sync syncNodeGetSnapshotConfigIndex index:%ld lastConfigIndex:%ld", snapshotLastApplyIndex, lastIndex);
   return lastIndex;
 }
 
@@ -1310,6 +1311,10 @@ void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
   SyncIndex logBeginIndex = pSyncNode->pLogStore->syncLogBeginIndex(pSyncNode->pLogStore);
 
   char* pCfgStr = syncCfg2SimpleStr(&(pSyncNode->pRaftCfg->cfg));
+  char* printStr = "";
+  if (pCfgStr != NULL) {
+    printStr = pCfgStr;
+  }
 
   if (userStrLen < 256) {
     char logBuf[256 + 256];
@@ -1321,7 +1326,7 @@ void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
                pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
                pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex,
                pSyncNode->pRaftCfg->isStandBy, pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex,
-               pSyncNode->changing, pCfgStr);
+               pSyncNode->changing, printStr);
     } else {
       snprintf(logBuf, sizeof(logBuf), "%s", str);
     }
@@ -1338,7 +1343,7 @@ void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
                pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
                pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex,
                pSyncNode->pRaftCfg->isStandBy, pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex,
-               pSyncNode->changing, pCfgStr);
+               pSyncNode->changing, printStr);
     } else {
       snprintf(s, len, "%s", str);
     }
@@ -1957,16 +1962,20 @@ SyncTerm syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index) {
     taosMemoryFree(pPreEntry);
     return preTerm;
   } else {
-    if (terrno == TSDB_CODE_WAL_LOG_NOT_EXIST) {
-      SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0, .lastConfigIndex = -1};
-      if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
-        pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
-        if (snapshot.lastApplyIndex == preIndex) {
-          return snapshot.lastApplyTerm;
-        }
+    SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0, .lastConfigIndex = -1};
+    if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
+      pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
+      if (snapshot.lastApplyIndex == preIndex) {
+        return snapshot.lastApplyTerm;
       }
     }
   }
+
+  do {
+    char logBuf[128];
+    snprintf(logBuf, sizeof(logBuf), "sync node get pre term error, index:%ld", index);
+    syncNodeErrorLog(pSyncNode, logBuf);
+  } while (0);
 
   return SYNC_TERM_INVALID;
 }
