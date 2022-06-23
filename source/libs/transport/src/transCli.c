@@ -300,17 +300,9 @@ void cliHandleResp(SCliConn* conn) {
 
   if (CONN_NO_PERSIST_BY_APP(conn)) {
     pMsg = transQueuePop(&conn->cliMsgs);
-    pCtx = pMsg ? pMsg->ctx : NULL;
-    if (pMsg == NULL && !CONN_NO_PERSIST_BY_APP(conn)) {
-      transMsg.info.ahandle = transCtxDumpVal(&conn->ctx, transMsg.msgType);
-      if (transMsg.info.ahandle == NULL) {
-        transMsg.info.ahandle = transCtxDumpBrokenlinkVal(&conn->ctx, (int32_t*)&(transMsg.msgType));
-      }
-      tDebug("%s conn %p construct ahandle %p, persist: 0", CONN_GET_INST_LABEL(conn), conn, transMsg.info.ahandle);
-    } else {
-      transMsg.info.ahandle = pCtx ? pCtx->ahandle : NULL;
-      tDebug("%s conn %p get ahandle %p, persist: 0", CONN_GET_INST_LABEL(conn), conn, transMsg.info.ahandle);
-    }
+    pCtx = pMsg->ctx;
+    transMsg.info.ahandle = pCtx->ahandle;
+    tDebug("%s conn %p get ahandle %p, persist: 0", CONN_GET_INST_LABEL(conn), conn, transMsg.info.ahandle);
   } else {
     uint64_t ahandle = (uint64_t)pHead->ahandle;
     CONN_GET_MSGCTX_BY_AHANDLE(conn, ahandle);
