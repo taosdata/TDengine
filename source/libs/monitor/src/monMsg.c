@@ -102,6 +102,9 @@ int32_t tEncodeSMonClusterInfo(SEncoder *encoder, const SMonClusterInfo *pInfo) 
   if (tEncodeCStr(encoder, pInfo->version) < 0) return -1;
   if (tEncodeFloat(encoder, pInfo->master_uptime) < 0) return -1;
   if (tEncodeI32(encoder, pInfo->monitor_interval) < 0) return -1;
+  if (tEncodeI32(encoder, pInfo->dbs_total) < 0) return -1;
+  if (tEncodeI32(encoder, pInfo->stbs_total) < 0) return -1;
+  if (tEncodeI64(encoder, pInfo->tbs_total) < 0) return -1;
   if (tEncodeI32(encoder, pInfo->vgroups_total) < 0) return -1;
   if (tEncodeI32(encoder, pInfo->vgroups_alive) < 0) return -1;
   if (tEncodeI32(encoder, pInfo->vnodes_total) < 0) return -1;
@@ -130,6 +133,9 @@ int32_t tDecodeSMonClusterInfo(SDecoder *decoder, SMonClusterInfo *pInfo) {
   if (tDecodeCStrTo(decoder, pInfo->version) < 0) return -1;
   if (tDecodeFloat(decoder, &pInfo->master_uptime) < 0) return -1;
   if (tDecodeI32(decoder, &pInfo->monitor_interval) < 0) return -1;
+  if (tDecodeI32(decoder, &pInfo->dbs_total) < 0) return -1;
+  if (tDecodeI32(decoder, &pInfo->stbs_total) < 0) return -1;
+  if (tDecodeI64(decoder, &pInfo->tbs_total) < 0) return -1;
   if (tDecodeI32(decoder, &pInfo->vgroups_total) < 0) return -1;
   if (tDecodeI32(decoder, &pInfo->vgroups_alive) < 0) return -1;
   if (tDecodeI32(decoder, &pInfo->vnodes_total) < 0) return -1;
