@@ -233,12 +233,12 @@ if $rows != 4 then
 endi
 
 sql show dnode 1 variables;
-if $rows != 116 then
+if $rows <= 0 then
   return -1
 endi
 
 sql show local variables;
-if $rows != 50 then
+if $rows <= 0 then
   return -1
 endi
 

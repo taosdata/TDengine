@@ -290,6 +290,8 @@ int32_t getTableList(void* metaHandle, SScanPhysiNode* pScanNode, STableListInfo
 
   uint64_t tableUid = pScanNode->uid;
 
+  pListInfo->suid = pScanNode->suid;
+  
   SNode* pTagCond = (SNode*)pListInfo->pTagCond;
   SNode* pTagIndexCond = (SNode*)pListInfo->pTagIndexCond;
   if (pScanNode->tableType == TSDB_SUPER_TABLE) {

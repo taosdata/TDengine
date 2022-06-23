@@ -925,7 +925,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
     SSDataBlock* pBlock = taosArrayGetP(pInfo->pBlockLists, current);
     blockDataUpdateTsWindow(pBlock, 0);
     return pBlock;
-  } else {
+  } else if (pInfo->blockType == STREAM_DATA_TYPE_SUBMIT_BLOCK) {
     if (pInfo->scanMode == STREAM_SCAN_FROM_RES) {
       blockDataDestroy(pInfo->pUpdateRes);
       pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
@@ -1060,6 +1060,15 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
     }
 
     return (pBlockInfo->rows == 0) ? NULL : pInfo->pRes;
+  } else if (pInfo->blockType == STREAM_DATA_TYPE_FROM_SNAPSHOT) {
+    SSDataBlock* pResult = doTableScan(pInfo->pOperatorDumy);
+    if (pResult) {
+      return pResult->info.rows > 0 ? pResult : NULL;
+    }
+    return NULL;
+  } else {
+    ASSERT(0);
+    return NULL;
   }
 }
 

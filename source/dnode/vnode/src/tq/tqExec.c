@@ -60,6 +60,30 @@ static int32_t tqAddTbNameToRsp(const STQ* pTq, const STqExecHandle* pExec, SMqD
   return 0;
 }
 
+int32_t tqScanSnapshot(STQ* pTq, const STqExecHandle* pExec, SMqDataBlkRsp* pRsp, int32_t workerId) {
+  ASSERT(pExec->subType == TOPIC_SUB_TYPE__COLUMN);
+  qTaskInfo_t task = pExec->execCol.task[workerId];
+  if (qStreamScanSnapshot(task) < 0) {
+    ASSERT(0);
+  }
+  while (1) {
+    SSDataBlock* pDataBlock = NULL;
+    uint64_t     ts = 0;
+    if (qExecTask(task, &pDataBlock, &ts) < 0) {
+      ASSERT(0);
+    }
+    if (pDataBlock == NULL) break;
+
+    ASSERT(pDataBlock->info.rows != 0);
+    ASSERT(pDataBlock->info.numOfCols != 0);
+
+    tqAddBlockDataToRsp(pDataBlock, pRsp);
+    pRsp->blockNum++;
+  }
+
+  return 0;
+}
+
 int32_t tqDataExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataBlkRsp* pRsp, int32_t workerId) {
   if (pExec->subType == TOPIC_SUB_TYPE__COLUMN) {
     qTaskInfo_t task = pExec->execCol.task[workerId];
