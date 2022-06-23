@@ -40,7 +40,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     SStreamBlockScanInfo* pInfo = pOperator->info;
     pInfo->assignBlockUid = assignUid;
 
-    // the block type can not be changed in the streamscan operators
+    // no need to check
 #if 0
     if (pInfo->blockType == 0) {
       pInfo->blockType = type;
@@ -49,10 +49,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
       return TSDB_CODE_QRY_APP_ERROR;
     }
 #endif
-    // rollup sma, the same qTaskInfo is used to insert data by SubmitReq and fetch result by SSDataBlock
-    if (pInfo->blockType != type) { 
-      pInfo->blockType = type;
-    }
+    pInfo->blockType = type;
 
     if (type == STREAM_DATA_TYPE_SUBMIT_BLOCK) {
       if (tqReadHandleSetMsg(pInfo->streamBlockReader, input, 0) < 0) {

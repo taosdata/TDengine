@@ -1656,10 +1656,9 @@ static SSDataBlock* doSessionWindowAgg(SOperatorInfo* pOperator) {
     doBuildResultDatablock(pOperator, pBInfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
     if (pBInfo->pRes->info.rows == 0 || !hasDataInGroupInfo(&pInfo->groupResInfo)) {
       doSetOperatorCompleted(pOperator);
-      return NULL;
     }
 
-    return pBInfo->pRes;
+    return pBInfo->pRes->info.rows > 0 ? pBInfo->pRes : NULL;
   }
 
   int64_t st = taosGetTimestampUs();

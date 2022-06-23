@@ -393,15 +393,11 @@ void shellPrintNChar(const char *str, int32_t length, int32_t width) {
       break;
     }
     int w = 0;
-#ifdef WINDOWS
-    w = bytes;
-#else
     if(*(str + pos) == '\t' || *(str + pos) == '\n' || *(str + pos) == '\r'){
       w = bytes;
     }else{
       w = taosWcharWidth(wc);
     }
-#endif
     pos += bytes;
 
     if (w <= 0) {

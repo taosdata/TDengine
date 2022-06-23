@@ -239,17 +239,14 @@ typedef struct {
 struct SStreamTask {
   int64_t streamId;
   int32_t taskId;
-  int8_t  inputType;
-  int8_t  taskStatus;
-
-  int8_t execStatus;
-
+  int8_t  isDataScan;
   int8_t  execType;
   int8_t  sinkType;
   int8_t  dispatchType;
   int16_t dispatchMsgType;
 
-  int8_t isDataScan;
+  int8_t taskStatus;
+  int8_t execStatus;
 
   // node info
   int32_t selfChildId;

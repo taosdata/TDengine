@@ -613,9 +613,6 @@ const void *metaGetTableTagVal(SMetaEntry *pEntry, int16_t type, STagVal *val) {
   ASSERT(pEntry->type == TSDB_CHILD_TABLE);
   STag *tag = (STag *)pEntry->ctbEntry.pTags;
   if (type == TSDB_DATA_TYPE_JSON) {
-    if (tag->nTag == 0) {
-      return NULL;
-    }
     return tag;
   }
   bool find = tTagGet(tag, val);
