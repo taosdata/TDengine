@@ -1109,6 +1109,9 @@ static int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo *
     return TSDB_CODE_SUCCESS;
   }
 
+  // todo temp disable it
+//  ASSERT(pColumn->info.bytes != 0);
+
   int32_t existedRows = pBlockInfo->rows;
 
   if (IS_VAR_DATA_TYPE(pColumn->info.type)) {

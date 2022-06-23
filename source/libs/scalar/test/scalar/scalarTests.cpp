@@ -86,15 +86,17 @@ void scltAppendReservedSlot(SArray *pBlockList, int16_t *dataBlockId, int16_t *s
  if (newBlock) {
    SSDataBlock *res = createDataBlock();
 
-   SColumnInfoData idata = {0};
-   idata.info  = *colInfo;
+   SColumnInfoData idata = {.info = *colInfo};
+   colInfoDataEnsureCapacity(&idata, rows);
+
    blockDataAppendColInfo(res, &idata);
 
-   blockDataEnsureCapacity(res, rows);
+   res->info.capacity = rows;
    res->info.rows = rows;
+   SColumnInfoData* p = static_cast<SColumnInfoData *>(taosArrayGet(res->pDataBlock, 0));
+   ASSERT(p->pData != NULL && p->nullbitmap != NULL);
 
    taosArrayPush(pBlockList, &res);
-
    *dataBlockId = taosArrayGetSize(pBlockList) - 1;
    res->info.blockId = *dataBlockId;
    *slotId = 0;
@@ -102,6 +104,7 @@ void scltAppendReservedSlot(SArray *pBlockList, int16_t *dataBlockId, int16_t *s
    SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(pBlockList);
    SColumnInfoData idata = {0};
    idata.info  = *colInfo;
+   colInfoDataEnsureCapacity(&idata, rows);
    blockDataAppendColInfo(res, &idata);
 
    *dataBlockId = taosArrayGetSize(pBlockList) - 1;
@@ -140,17 +143,18 @@ void scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
 
  if (NULL == *block) {
    SSDataBlock *res = createDataBlock();
-   res->info.rows = rowNum;
    for (int32_t i = 0; i < 2; ++i) {
-     SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_NULL, 10, i + 1);
-     int32_t size = idata.info.bytes * rowNum;
+     SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_INT, 10, i + 1);
+     colInfoDataEnsureCapacity(&idata, rowNum);
      blockDataAppendColInfo(res, &idata);
    }
 
    SColumnInfoData idata = createColumnInfoData(dataType, dataBytes, 3);
+   colInfoDataEnsureCapacity(&idata, rowNum);
    blockDataAppendColInfo(res, &idata);
-   blockDataEnsureCapacity(res, rowNum);
+   res->info.capacity = rowNum;
 
+   res->info.rows = rowNum;
    SColumnInfoData *pColumn = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
    for (int32_t i = 0; i < rowNum; ++i) {
      colDataAppend(pColumn, i, (const char *)value, false);
@@ -170,8 +174,10 @@ void scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
 
    int32_t idx = taosArrayGetSize(res->pDataBlock);
    SColumnInfoData idata = createColumnInfoData(dataType, dataBytes, 1 + idx);
+   colInfoDataEnsureCapacity(&idata, rowNum);
+
+   res->info.capacity = rowNum;
    blockDataAppendColInfo(res, &idata);
-   blockDataEnsureCapacity(res, rowNum);
 
    SColumnInfoData *pColumn = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
 
@@ -1507,6 +1513,7 @@ TEST(columnTest, bigint_column_multi_binary_column) {
 
  SArray *blockList = taosArrayInit(1, POINTER_BYTES);
  taosArrayPush(blockList, &src);
+
  SColumnInfo colInfo = createColumnInfo(1, TSDB_DATA_TYPE_DOUBLE, sizeof(double));
  int16_t dataBlockId = 0, slotId = 0;
  scltAppendReservedSlot(blockList, &dataBlockId, &slotId, false, rowNum, &colInfo);
