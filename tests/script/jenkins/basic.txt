@@ -109,6 +109,7 @@
 ./test.sh -f tsim/tmq/basic4Of2Cons.sim
 ./test.sh -f tsim/tmq/basic2Of2ConsOverlap.sim
 ./test.sh -f tsim/tmq/topic.sim
+./test.sh -f tsim/tmq/snapshot.sim
 
 # --- stable
 ./test.sh -f tsim/stable/disk.sim
