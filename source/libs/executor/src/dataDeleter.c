@@ -86,7 +86,7 @@ static void toDataCacheEntry(SDataDeleterHandle* pHandle, const SInputData* pInp
   SColumnInfoData* pColRes = (SColumnInfoData*)taosArrayGet(pInput->pData->pDataBlock, 0);
 
   SDeleterRes* pRes = (SDeleterRes*)pEntry->data;
-  pRes->uid = pHandle->pDeleter->tableId;
+  pRes->suid = pHandle->pParam->suid;
   pRes->uidList = pHandle->pParam->pUidList;
   pRes->skey = pHandle->pDeleter->deleteTimeRange.skey;
   pRes->ekey = pHandle->pDeleter->deleteTimeRange.ekey;

@@ -375,6 +375,7 @@ int metaTtlDropTable(SMeta *pMeta, int64_t ttl, SArray *tbUids) {
   metaWLock(pMeta);
   int ret = metaTtlSmaller(pMeta, ttl, tbUids);
   if(ret != 0){
+    metaULock(pMeta);
     return ret;
   }
   for (int i = 0; i < taosArrayGetSize(tbUids); ++i) {

@@ -509,7 +509,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
       SStreamTask* pTask = tNewSStreamTask(pStream->uid);
       mndAddTaskToTaskSet(taskOneLevel, pTask);
 
-      // input
+      // source
       pTask->isDataScan = 1;
 
       // trigger

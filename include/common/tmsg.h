@@ -696,12 +696,12 @@ typedef struct {
 
 typedef STableCfg STableCfgRsp;
 
-int32_t tSerializeSTableCfgReq(void *buf, int32_t bufLen, STableCfgReq *pReq);
-int32_t tDeserializeSTableCfgReq(void *buf, int32_t bufLen, STableCfgReq *pReq);
+int32_t tSerializeSTableCfgReq(void* buf, int32_t bufLen, STableCfgReq* pReq);
+int32_t tDeserializeSTableCfgReq(void* buf, int32_t bufLen, STableCfgReq* pReq);
 
-int32_t tSerializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp);
-int32_t tDeserializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp);
-void tFreeSTableCfgRsp(STableCfgRsp *pRsp);
+int32_t tSerializeSTableCfgRsp(void* buf, int32_t bufLen, STableCfgRsp* pRsp);
+int32_t tDeserializeSTableCfgRsp(void* buf, int32_t bufLen, STableCfgRsp* pRsp);
+void    tFreeSTableCfgRsp(STableCfgRsp* pRsp);
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
@@ -2669,6 +2669,7 @@ typedef struct {
   SMsgHead head;
   char     subKey[TSDB_SUBSCRIBE_KEY_LEN];
   int8_t   withTbName;
+  int8_t   useSnapshot;
   int32_t  epoch;
   uint64_t reqId;
   int64_t  consumerId;
