@@ -162,7 +162,9 @@ taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltyp
 #taostest --use=common_insert.yaml --case=Query/queryscript/table_function/alltype/table_alltype_mode.py --keep --containers
 
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_interval.py --keep --containers
-taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_csum.py --keep --containers
+#new:taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_csum.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/split/stable_numeric_csum_1.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/split/stable_numeric_csum_2.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_floor_ceil_round.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_mavg.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/stable_numeric_state.py --keep --containers
