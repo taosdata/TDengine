@@ -9,6 +9,7 @@ TAOS_DATA_TYPE  = [
     "TIMESTAMP",
     # "MEDIUMBLOB", "BLOB", # add in 3.x
     # "DECIMAL", "NUMERIC", # add in 3.x
+    "JSON", # only for tag
 ]
 
 TAOS_NUM_TYPE   = [
