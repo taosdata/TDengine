@@ -126,6 +126,25 @@ int32_t queryBuildQnodeListMsg(void *input, char **msg, int32_t msgSize, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t queryBuildDnodeListMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void*(*mallcFp)(int32_t)) {
+  if (NULL == msg || NULL == msgLen) {
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  SDnodeListReq dnodeListReq = {0};
+  dnodeListReq.rowNum = -1;
+
+  int32_t bufLen = tSerializeSDnodeListReq(NULL, 0, &dnodeListReq);
+  void   *pBuf = (*mallcFp)(bufLen);
+  tSerializeSDnodeListReq(pBuf, bufLen, &dnodeListReq);
+
+  *msg = pBuf;
+  *msgLen = bufLen;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t queryBuildGetDBCfgMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void*(*mallcFp)(int32_t)) {
   if (NULL == msg || NULL == msgLen) {
     return TSDB_CODE_TSC_INVALID_INPUT;
@@ -428,6 +447,27 @@ int32_t queryProcessQnodeListRsp(void *output, char *msg, int32_t msgSize) {
   return code;
 }
 
+int32_t queryProcessDnodeListRsp(void *output, char *msg, int32_t msgSize) {
+  SDnodeListRsp out = {0};
+  int32_t       code = 0;
+
+  if (NULL == output || NULL == msg || msgSize <= 0) {
+    code = TSDB_CODE_TSC_INVALID_INPUT;
+    return code;
+  }
+
+  if (tDeserializeSDnodeListRsp(msg, msgSize, &out) != 0) {
+    qError("invalid dnode list rsp msg, msgSize:%d", msgSize);
+    code = TSDB_CODE_INVALID_MSG;
+    return code;
+  }
+
+  *(SArray**)output = out.dnodeList;
+
+  return code;
+}
+
+
 int32_t queryProcessGetDbCfgRsp(void *output, char *msg, int32_t msgSize) {
   SDbCfgRsp out = {0};
 
@@ -535,6 +575,7 @@ void initQueryModuleMsgHandle() {
   queryBuildMsg[TMSG_INDEX(TDMT_MND_TABLE_META)]       = queryBuildTableMetaReqMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_USE_DB)]           = queryBuildUseDbMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_QNODE_LIST)]       = queryBuildQnodeListMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_MND_DNODE_LIST)]       = queryBuildDnodeListMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_DB_CFG)]       = queryBuildGetDBCfgMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_INDEX)]        = queryBuildGetIndexMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_RETRIEVE_FUNC)]    = queryBuildRetrieveFuncMsg;
@@ -547,6 +588,7 @@ void initQueryModuleMsgHandle() {
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_TABLE_META)]      = queryProcessTableMetaRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_USE_DB)]          = queryProcessUseDBRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_QNODE_LIST)]      = queryProcessQnodeListRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_DNODE_LIST)]      = queryProcessDnodeListRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_DB_CFG)]      = queryProcessGetDbCfgRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_INDEX)]       = queryProcessGetIndexRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_RETRIEVE_FUNC)]   = queryProcessRetrieveFuncRsp;

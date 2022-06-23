@@ -696,12 +696,12 @@ typedef struct {
 
 typedef STableCfg STableCfgRsp;
 
-int32_t tSerializeSTableCfgReq(void *buf, int32_t bufLen, STableCfgReq *pReq);
-int32_t tDeserializeSTableCfgReq(void *buf, int32_t bufLen, STableCfgReq *pReq);
+int32_t tSerializeSTableCfgReq(void* buf, int32_t bufLen, STableCfgReq* pReq);
+int32_t tDeserializeSTableCfgReq(void* buf, int32_t bufLen, STableCfgReq* pReq);
 
-int32_t tSerializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp);
-int32_t tDeserializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp);
-void tFreeSTableCfgRsp(STableCfgRsp *pRsp);
+int32_t tSerializeSTableCfgRsp(void* buf, int32_t bufLen, STableCfgRsp* pRsp);
+int32_t tDeserializeSTableCfgRsp(void* buf, int32_t bufLen, STableCfgRsp* pRsp);
+void    tFreeSTableCfgRsp(STableCfgRsp* pRsp);
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
@@ -834,6 +834,14 @@ typedef struct {
 int32_t tSerializeSQnodeListReq(void* buf, int32_t bufLen, SQnodeListReq* pReq);
 int32_t tDeserializeSQnodeListReq(void* buf, int32_t bufLen, SQnodeListReq* pReq);
 
+typedef struct {
+  int32_t rowNum;
+} SDnodeListReq;
+
+int32_t tSerializeSDnodeListReq(void* buf, int32_t bufLen, SDnodeListReq* pReq);
+int32_t tDeserializeSDnodeListReq(void* buf, int32_t bufLen, SDnodeListReq* pReq);
+
+
 typedef struct SQueryNodeAddr {
   int32_t nodeId;  // vgId or qnodeId
   SEpSet  epSet;
@@ -851,6 +859,15 @@ typedef struct {
 int32_t tSerializeSQnodeListRsp(void* buf, int32_t bufLen, SQnodeListRsp* pRsp);
 int32_t tDeserializeSQnodeListRsp(void* buf, int32_t bufLen, SQnodeListRsp* pRsp);
 void    tFreeSQnodeListRsp(SQnodeListRsp* pRsp);
+
+typedef struct {
+  SArray* dnodeList;  // SArray<SEpSet>
+} SDnodeListRsp;
+
+int32_t tSerializeSDnodeListRsp(void* buf, int32_t bufLen, SDnodeListRsp* pRsp);
+int32_t tDeserializeSDnodeListRsp(void* buf, int32_t bufLen, SDnodeListRsp* pRsp);
+void    tFreeSDnodeListRsp(SDnodeListRsp* pRsp);
+
 
 typedef struct {
   SArray* pArray;  // Array of SUseDbRsp
@@ -2652,6 +2669,7 @@ typedef struct {
   SMsgHead head;
   char     subKey[TSDB_SUBSCRIBE_KEY_LEN];
   int8_t   withTbName;
+  int8_t   useSnapshot;
   int32_t  epoch;
   uint64_t reqId;
   int64_t  consumerId;

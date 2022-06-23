@@ -270,10 +270,8 @@ int32_t mndAddShuffleSinkTasksToStream(SMnode* pMnode, STrans* pTrans, SStreamOb
     pTask->nodeId = pVgroup->vgId;
     pTask->epSet = mndGetVgroupEpset(pMnode, pVgroup);
 
-    pTask->isDataScan = 0;
-
     // source
-    pTask->inputType = TASK_INPUT_TYPE__DATA_BLOCK;
+    pTask->isDataScan = 0;
 
     // exec
     pTask->execType = TASK_EXEC__NONE;
@@ -320,10 +318,8 @@ int32_t mndAddFixedSinkTaskToStream(SMnode* pMnode, STrans* pTrans, SStreamObj* 
 #endif
   pTask->epSet = mndGetVgroupEpset(pMnode, &pStream->fixedSinkVg);
 
-  pTask->isDataScan = 0;
-
   // source
-  pTask->inputType = TASK_INPUT_TYPE__DATA_BLOCK;
+  pTask->isDataScan = 0;
 
   // exec
   pTask->execType = TASK_EXEC__NONE;
@@ -392,12 +388,10 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
       pInnerTask = tNewSStreamTask(pStream->uid);
       mndAddTaskToTaskSet(taskInnerLevel, pInnerTask);
 
-      pInnerTask->isDataScan = 0;
-
       pInnerTask->childEpInfo = taosArrayInit(0, sizeof(void*));
 
-      // input
-      pInnerTask->inputType = TASK_INPUT_TYPE__DATA_BLOCK;
+      // source
+      pInnerTask->isDataScan = 0;
 
       // trigger
       pInnerTask->triggerParam = pStream->triggerParam;
@@ -458,10 +452,8 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
       SStreamTask* pTask = tNewSStreamTask(pStream->uid);
       mndAddTaskToTaskSet(taskSourceLevel, pTask);
 
+      // source
       pTask->isDataScan = 1;
-
-      // input
-      pTask->inputType = TASK_INPUT_TYPE__SUMBIT_BLOCK;
 
       // add fixed vg dispatch
       pTask->sinkType = TASK_SINK__NONE;
@@ -517,10 +509,8 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
       SStreamTask* pTask = tNewSStreamTask(pStream->uid);
       mndAddTaskToTaskSet(taskOneLevel, pTask);
 
+      // source
       pTask->isDataScan = 1;
-
-      // input
-      pTask->inputType = TASK_INPUT_TYPE__SUMBIT_BLOCK;
 
       // trigger
       pTask->triggerParam = pStream->triggerParam;

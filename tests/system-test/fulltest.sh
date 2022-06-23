@@ -132,3 +132,5 @@ python3 ./test.py -f 7-tmq/db.py
 python3 ./test.py -f 7-tmq/tmqError.py
 python3 ./test.py -f 7-tmq/schema.py
 python3 ./test.py -f 7-tmq/stbFilter.py
+python3 ./test.py -f 7-tmq/tmqCheckData.py
+python3 ./test.py -f 7-tmq/tmqUdf.py
