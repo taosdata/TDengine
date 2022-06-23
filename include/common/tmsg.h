@@ -629,11 +629,6 @@ typedef struct {
   uint8_t scale;
 } SColumnInfo;
 
-typedef struct {
-  int64_t uid;
-  TSKEY   key;  // last accessed ts, for subscription
-} STableIdInfo;
-
 typedef struct STimeWindow {
   TSKEY skey;
   TSKEY ekey;
@@ -696,12 +691,12 @@ typedef struct {
 
 typedef STableCfg STableCfgRsp;
 
-int32_t tSerializeSTableCfgReq(void *buf, int32_t bufLen, STableCfgReq *pReq);
-int32_t tDeserializeSTableCfgReq(void *buf, int32_t bufLen, STableCfgReq *pReq);
+int32_t tSerializeSTableCfgReq(void* buf, int32_t bufLen, STableCfgReq* pReq);
+int32_t tDeserializeSTableCfgReq(void* buf, int32_t bufLen, STableCfgReq* pReq);
 
-int32_t tSerializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp);
-int32_t tDeserializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp);
-void tFreeSTableCfgRsp(STableCfgRsp *pRsp);
+int32_t tSerializeSTableCfgRsp(void* buf, int32_t bufLen, STableCfgRsp* pRsp);
+int32_t tDeserializeSTableCfgRsp(void* buf, int32_t bufLen, STableCfgRsp* pRsp);
+void    tFreeSTableCfgRsp(STableCfgRsp* pRsp);
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
@@ -1346,10 +1341,18 @@ typedef struct {
   int32_t dnodeId;
   char    config[TSDB_DNODE_CONFIG_LEN];
   char    value[TSDB_DNODE_VALUE_LEN];
-} SMCfgDnodeReq, SDCfgDnodeReq;
+} SMCfgDnodeReq;
 
 int32_t tSerializeSMCfgDnodeReq(void* buf, int32_t bufLen, SMCfgDnodeReq* pReq);
 int32_t tDeserializeSMCfgDnodeReq(void* buf, int32_t bufLen, SMCfgDnodeReq* pReq);
+
+typedef struct {
+  char config[TSDB_DNODE_CONFIG_LEN];
+  char value[TSDB_DNODE_VALUE_LEN];
+} SDCfgDnodeReq;
+
+int32_t tSerializeSDCfgDnodeReq(void* buf, int32_t bufLen, SDCfgDnodeReq* pReq);
+int32_t tDeserializeSDCfgDnodeReq(void* buf, int32_t bufLen, SDCfgDnodeReq* pReq);
 
 typedef struct {
   int32_t dnodeId;
@@ -2669,6 +2672,7 @@ typedef struct {
   SMsgHead head;
   char     subKey[TSDB_SUBSCRIBE_KEY_LEN];
   int8_t   withTbName;
+  int8_t   useSnapshot;
   int32_t  epoch;
   uint64_t reqId;
   int64_t  consumerId;

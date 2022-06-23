@@ -632,6 +632,8 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
   tstrncpy(pClusterInfo->version, version, sizeof(pClusterInfo->version));
   pClusterInfo->monitor_interval = tsMonitorInterval;
   pClusterInfo->connections_total = mndGetNumOfConnections(pMnode);
+  pClusterInfo->dbs_total = sdbGetSize(pSdb, SDB_DB);
+  pClusterInfo->stbs_total = sdbGetSize(pSdb, SDB_STB);
 
   void *pIter = NULL;
   while (1) {
@@ -681,6 +683,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
     if (pIter == NULL) break;
 
     pClusterInfo->vgroups_total++;
+    pClusterInfo->tbs_total += pVgroup->numOfTables;
 
     SMonVgroupDesc desc = {0};
     desc.vgroup_id = pVgroup->vgId;

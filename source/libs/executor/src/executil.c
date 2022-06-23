@@ -183,34 +183,24 @@ SArray* createSortInfo(SNodeList* pNodeList) {
 SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode) {
   int32_t numOfCols = LIST_LENGTH(pNode->pSlots);
 
-  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
-  pBlock->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
+  SSDataBlock* pBlock = createDataBlock();
 
   pBlock->info.blockId = pNode->dataBlockId;
-  pBlock->info.rowSize = pNode->totalRowSize;  // todo ??
   pBlock->info.type = STREAM_INVALID;
 
   for (int32_t i = 0; i < numOfCols; ++i) {
-    SColumnInfoData idata = {{0}};
     SSlotDescNode*  pDescNode = (SSlotDescNode*)nodesListGetNode(pNode->pSlots, i);
 //    if (!pDescNode->output) {  // todo disable it temporarily
 //      continue;
 //    }
 
-    idata.info.type = pDescNode->dataType.type;
-    idata.info.bytes = pDescNode->dataType.bytes;
+    SColumnInfoData idata = createColumnInfoData(pDescNode->dataType.type, pDescNode->dataType.bytes, pDescNode->slotId);
     idata.info.scale = pDescNode->dataType.scale;
-    idata.info.slotId = pDescNode->slotId;
     idata.info.precision = pDescNode->dataType.precision;
 
-    if (IS_VAR_DATA_TYPE(idata.info.type)) {
-      pBlock->info.hasVarCol = true;
-    }
-
-    taosArrayPush(pBlock->pDataBlock, &idata);
+    blockDataAppendColInfo(pBlock, &idata);
   }
 
-  pBlock->info.numOfCols = taosArrayGetSize(pBlock->pDataBlock);
   return pBlock;
 }
 
@@ -301,6 +291,8 @@ int32_t getTableList(void* metaHandle, SScanPhysiNode* pScanNode, STableListInfo
 
   uint64_t tableUid = pScanNode->uid;
 
+  pListInfo->suid = pScanNode->suid;
+  
   SNode* pTagCond = (SNode*)pListInfo->pTagCond;
   SNode* pTagIndexCond = (SNode*)pListInfo->pTagIndexCond;
   if (pScanNode->tableType == TSDB_SUPER_TABLE) {
@@ -702,7 +694,7 @@ void relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray
 
     if (p->info.colId == pmInfo->colId) {
       SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, pmInfo->targetSlotId);
-      colDataAssign(pDst, p, pBlock->info.rows);
+      colDataAssign(pDst, p, pBlock->info.rows, &pBlock->info);
       i++;
       j++;
     } else if (p->info.colId < pmInfo->colId) {

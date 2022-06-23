@@ -201,6 +201,9 @@ static void monGenClusterJson(SMonInfo *pMonitor) {
   tjsonAddStringToObject(pJson, "version", pInfo->version);
   tjsonAddDoubleToObject(pJson, "master_uptime", pInfo->master_uptime);
   tjsonAddDoubleToObject(pJson, "monitor_interval", pInfo->monitor_interval);
+  tjsonAddDoubleToObject(pJson, "dbs_total", pInfo->dbs_total);
+  tjsonAddDoubleToObject(pJson, "tbs_total", pInfo->tbs_total);
+  tjsonAddDoubleToObject(pJson, "stbs_total", pInfo->stbs_total);
   tjsonAddDoubleToObject(pJson, "vgroups_total", pInfo->vgroups_total);
   tjsonAddDoubleToObject(pJson, "vgroups_alive", pInfo->vgroups_alive);
   tjsonAddDoubleToObject(pJson, "vnodes_total", pInfo->vnodes_total);

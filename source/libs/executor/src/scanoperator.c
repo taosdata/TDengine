@@ -203,7 +203,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
     pCost->skipBlocks += 1;
 
     // clear all data in pBlock that are set when handing the previous block
-    for (int32_t i = 0; i < pBlockInfo->numOfCols; ++i) {
+    for (int32_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); ++i) {
       SColumnInfoData* pcol = taosArrayGet(pBlock->pDataBlock, i);
       pcol->pData = NULL;
     }
@@ -217,7 +217,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
     tsdbRetrieveDataBlockStatisInfo(pTableScanInfo->dataReader, &pColAgg, &allColumnsHaveAgg);
 
     if (allColumnsHaveAgg == true) {
-      int32_t numOfCols = pBlock->info.numOfCols;
+      int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
 
       // todo create this buffer during creating operator
       if (pBlock->pBlockAgg == NULL) {
@@ -316,7 +316,7 @@ void addTagPseudoColumnData(SReadHandle* pHandle, SExprInfo* pPseudoExpr, int32_
 
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, dstSlotId);
 
-    colInfoDataEnsureCapacity(pColInfoData, 0, pBlock->info.rows);
+    colInfoDataEnsureCapacity(pColInfoData, pBlock->info.rows);
     colInfoDataCleanup(pColInfoData, pBlock->info.rows);
 
     int32_t functionId = pExpr->pExpr->_function.functionId;
@@ -337,7 +337,8 @@ void addTagPseudoColumnData(SReadHandle* pHandle, SExprInfo* pPseudoExpr, int32_
       }
 
       for (int32_t i = 0; i < pBlock->info.rows; ++i) {
-        colDataAppend(pColInfoData, i, data, (data == NULL) || (pColInfoData->info.type == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(data)));
+        colDataAppend(pColInfoData, i, data,
+                      (data == NULL) || (pColInfoData->info.type == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(data)));
       }
 
       if (data && (pColInfoData->info.type != TSDB_DATA_TYPE_JSON) && p != NULL &&
@@ -354,10 +355,8 @@ void setTbNameColData(void* pMeta, const SSDataBlock* pBlock, SColumnInfoData* p
   struct SScalarFuncExecFuncs fpSet = {0};
   fmGetScalarFuncExecFuncs(functionId, &fpSet);
 
-  SColumnInfoData infoData = {0};
-  infoData.info.type = TSDB_DATA_TYPE_BIGINT;
-  infoData.info.bytes = sizeof(uint64_t);
-  colInfoDataEnsureCapacity(&infoData, 0, 1);
+  SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, sizeof(uint64_t), 1);
+  colInfoDataEnsureCapacity(&infoData, 1);
 
   colDataAppendInt64(&infoData, 0, (int64_t*)&pBlock->info.uid);
   SScalarParam srcParam = {.numOfRows = pBlock->info.rows, .param = pMeta, .columnData = &infoData};
@@ -819,7 +818,7 @@ static bool prepareDataScan(SStreamBlockScanInfo* pInfo) {
   if (!needRead) {
     return false;
   }
-  STableScanInfo* pTableScanInfo = pInfo->pOperatorDumy->info;
+  STableScanInfo* pTableScanInfo = pInfo->pSnapshotReadOp->info;
   pTableScanInfo->cond.twindows[0] = win;
   pTableScanInfo->curTWinIdx = 0;
   tsdbResetReadHandle(pTableScanInfo->dataReader, &pTableScanInfo->cond, 0);
@@ -828,7 +827,7 @@ static bool prepareDataScan(SStreamBlockScanInfo* pInfo) {
 }
 
 static void copyOneRow(SSDataBlock* dest, SSDataBlock* source, int32_t sourceRowId) {
-  for (int32_t j = 0; j < source->info.numOfCols; j++) {
+  for (int32_t j = 0; j < taosArrayGetSize(source->pDataBlock); j++) {
     SColumnInfoData* pDestCol = (SColumnInfoData*)taosArrayGet(dest->pDataBlock, j);
     SColumnInfoData* pSourceCol = (SColumnInfoData*)taosArrayGet(source->pDataBlock, j);
     if (colDataIsNull_s(pSourceCol, sourceRowId)) {
@@ -864,11 +863,11 @@ static uint64_t getGroupId(SOperatorInfo* pOperator, SSDataBlock* pBlock, int32_
 static SSDataBlock* doDataScan(SStreamBlockScanInfo* pInfo) {
   while (1) {
     SSDataBlock* pResult = NULL;
-    pResult = doTableScan(pInfo->pOperatorDumy);
+    pResult = doTableScan(pInfo->pSnapshotReadOp);
     if (pResult == NULL) {
       if (prepareDataScan(pInfo)) {
         // scan next window data
-        pResult = doTableScan(pInfo->pOperatorDumy);
+        pResult = doTableScan(pInfo->pSnapshotReadOp);
       }
     }
     if (!pResult) {
@@ -900,14 +899,13 @@ static void setUpdateData(SStreamBlockScanInfo* pInfo, SSDataBlock* pBlock, SSDa
     SColumnInfoData* pCol = (SColumnInfoData*)taosArrayGet(pUpdateBlock->pDataBlock, pInfo->primaryTsIndex);
     ASSERT(pCol->info.type == TSDB_DATA_TYPE_TIMESTAMP);
     blockDataEnsureCapacity(pUpdateBlock, size);
-    ASSERT(pBlock->info.numOfCols == pUpdateBlock->info.numOfCols);
 
     int32_t rowId = *(int32_t*)taosArrayGet(pInfo->tsArray, pInfo->tsArrayIndex);
-    pInfo->groupId = getGroupId(pInfo->pOperatorDumy, pBlock, rowId);
+    pInfo->groupId = getGroupId(pInfo->pSnapshotReadOp, pBlock, rowId);
     int32_t i = 0;
     for (; i < size; i++) {
       rowId = *(int32_t*)taosArrayGet(pInfo->tsArray, i + pInfo->tsArrayIndex);
-      uint64_t id = getGroupId(pInfo->pOperatorDumy, pBlock, rowId);
+      uint64_t id = getGroupId(pInfo->pSnapshotReadOp, pBlock, rowId);
       if (pInfo->groupId != id) {
         break;
       }
@@ -971,7 +969,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
     SSDataBlock* pBlock = taosArrayGetP(pInfo->pBlockLists, current);
     blockDataUpdateTsWindow(pBlock, 0);
     return pBlock;
-  } else {
+  } else if (pInfo->blockType == STREAM_DATA_TYPE_SUBMIT_BLOCK) {
     if (pInfo->scanMode == STREAM_SCAN_FROM_RES) {
       blockDataDestroy(pInfo->pUpdateRes);
       pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
@@ -1011,13 +1009,13 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
     blockDataCleanup(pInfo->pRes);
 
     while (tqNextDataBlock(pInfo->streamBlockReader)) {
-      SArray*  pCols = NULL;
+      SSDataBlock block = {0};
       uint64_t groupId = 0;
       uint64_t uid = 0;
       int32_t  numOfRows = 0;
-      int16_t  outputCol = 0;
 
-      int32_t code = tqRetrieveDataBlock(&pCols, pInfo->streamBlockReader, &groupId, &uid, &numOfRows, &outputCol);
+      // todo refactor
+      int32_t code = tqRetrieveDataBlock(&block, pInfo->streamBlockReader, &groupId, &uid, &numOfRows);
 
       if (code != TSDB_CODE_SUCCESS || numOfRows == 0) {
         pTaskInfo->code = code;
@@ -1028,6 +1026,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
       pInfo->pRes->info.rows = numOfRows;
       pInfo->pRes->info.uid = uid;
       pInfo->pRes->info.type = STREAM_NORMAL;
+      pInfo->pRes->info.capacity = numOfRows;
 
       // for generating rollup SMA result, each time is an independent time serie.
       // TODO temporarily used, when the statement of "partition by tbname" is ready, remove this
@@ -1042,6 +1041,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
         pInfo->pRes->info.groupId = *groupIdPre;
       }
 
+      // todo extract method
       for (int32_t i = 0; i < taosArrayGetSize(pInfo->pColMatchInfo); ++i) {
         SColMatchInfo* pColMatchInfo = taosArrayGet(pInfo->pColMatchInfo, i);
         if (!pColMatchInfo->output) {
@@ -1049,8 +1049,8 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
         }
 
         bool colExists = false;
-        for (int32_t j = 0; j < taosArrayGetSize(pCols); ++j) {
-          SColumnInfoData* pResCol = taosArrayGet(pCols, j);
+        for (int32_t j = 0; j < blockDataGetNumOfCols(&block); ++j) {
+          SColumnInfoData* pResCol = bdGetColumnInfoData(&block, j);
           if (pResCol->info.colId == pColMatchInfo->colId) {
             taosArraySet(pInfo->pRes->pDataBlock, pColMatchInfo->targetSlotId, pResCol);
             colExists = true;
@@ -1061,7 +1061,6 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
         // the required column does not exists in submit block, let's set it to be all null value
         if (!colExists) {
           SColumnInfoData* pDst = taosArrayGet(pInfo->pRes->pDataBlock, pColMatchInfo->targetSlotId);
-          colInfoDataEnsureCapacity(pDst, 0, pBlockInfo->rows);
           colDataAppendNNULL(pDst, 0, pBlockInfo->rows);
         }
       }
@@ -1105,6 +1104,15 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
     }
 
     return (pBlockInfo->rows == 0) ? NULL : pInfo->pRes;
+  } else if (pInfo->blockType == STREAM_DATA_TYPE_FROM_SNAPSHOT) {
+    SSDataBlock* pResult = doTableScan(pInfo->pSnapshotReadOp);
+    if (pResult) {
+      return pResult->info.rows > 0 ? pResult : NULL;
+    }
+    return NULL;
+  } else {
+    ASSERT(0);
+    return NULL;
   }
 }
 
@@ -1169,7 +1177,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle,
     } else {
       pInfo->pUpdateInfo = NULL;
     }
-    pInfo->pOperatorDumy = pTableScanDummy;
+    pInfo->pSnapshotReadOp = pTableScanDummy;
     pInfo->interval = pSTInfo->interval;
 
     pInfo->readHandle = *pHandle;
@@ -1205,7 +1213,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle,
   pOperator->blocking = false;
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
-  pOperator->exprSupp.numOfExprs = pInfo->pRes->info.numOfCols;
+  pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pRes->pDataBlock);
   pOperator->pTaskInfo = pTaskInfo;
 
   pOperator->fpSet =
@@ -1333,7 +1341,7 @@ static SSDataBlock* doFilterResult(SSysTableScanInfo* pInfo) {
     SColumnInfoData* pSrc = taosArrayGet(pInfo->pRes->pDataBlock, i);
 
     if (keep) {
-      colDataAssign(pDest, pSrc, pInfo->pRes->info.rows);
+      colDataAssign(pDest, pSrc, pInfo->pRes->info.rows, &px->info);
       numOfRow = pInfo->pRes->info.rows;
     } else if (NULL != rowRes) {
       numOfRow = 0;
@@ -1363,8 +1371,6 @@ static SSDataBlock* doFilterResult(SSysTableScanInfo* pInfo) {
 }
 
 static SSDataBlock* buildSysTableMetaBlock() {
-  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
-
   size_t               size = 0;
   const SSysTableMeta* pMeta = NULL;
   getInfosDbMeta(&pMeta, &size);
@@ -1377,18 +1383,11 @@ static SSDataBlock* buildSysTableMetaBlock() {
     }
   }
 
-  pBlock->pDataBlock = taosArrayInit(pBlock->info.numOfCols, sizeof(SColumnInfoData));
-
+  SSDataBlock* pBlock = createDataBlock();
   for (int32_t i = 0; i < pMeta[index].colNum; ++i) {
-    SColumnInfoData colInfoData = {0};
-    colInfoData.info.colId = i + 1;
-    colInfoData.info.type = pMeta[index].schema[i].type;
-    colInfoData.info.bytes = pMeta[index].schema[i].bytes;
-    taosArrayPush(pBlock->pDataBlock, &colInfoData);
+    SColumnInfoData colInfoData = createColumnInfoData(pMeta[index].schema[i].type, pMeta[index].schema[i].bytes, i + 1);
+    blockDataAppendColInfo(pBlock, &colInfoData);
   }
-
-  pBlock->info.numOfCols = pMeta[index].colNum;
-  pBlock->info.hasVarCol = true;
 
   return pBlock;
 }
@@ -1420,7 +1419,6 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
       }
 
       blockDataCleanup(pInfo->pRes);
-
       int32_t numOfRows = 0;
 
       const char* db = NULL;
@@ -1590,7 +1588,8 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
         return NULL;
       }
 
-      int32_t msgType = (strcasecmp(name, TSDB_INS_TABLE_DNODE_VARIABLES) == 0) ? TDMT_DND_SYSTABLE_RETRIEVE : TDMT_MND_SYSTABLE_RETRIEVE;
+      int32_t msgType = (strcasecmp(name, TSDB_INS_TABLE_DNODE_VARIABLES) == 0) ? TDMT_DND_SYSTABLE_RETRIEVE
+                                                                                : TDMT_MND_SYSTABLE_RETRIEVE;
 
       pMsgSendInfo->param = pOperator;
       pMsgSendInfo->msgInfo.pData = buf1;
@@ -1615,7 +1614,7 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
 
       if (pRsp->numOfRows == 0 || pRsp->completed) {
         pOperator->status = OP_EXEC_DONE;
-        qDebug("%s load meta data from mnode completed, rowsOfSource:%d, totalRows:%" PRIu64 " ", GET_TASKID(pTaskInfo),
+        qDebug("%s load meta data from mnode completed, rowsOfSource:%d, totalRows:%" PRIu64, GET_TASKID(pTaskInfo),
                pRsp->numOfRows, pInfo->loadInfo.totalRows);
 
         if (pRsp->numOfRows == 0) {
@@ -1742,7 +1741,7 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScan
   pOperator->blocking = false;
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
-  pOperator->exprSupp.numOfExprs = pResBlock->info.numOfCols;
+  pOperator->exprSupp.numOfExprs = taosArrayGetSize(pResBlock->pDataBlock);
   pOperator->pTaskInfo = pTaskInfo;
 
   pOperator->fpSet =
@@ -1876,7 +1875,8 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
         } else {
           data = (char*)p;
         }
-        colDataAppend(pDst, count, data, (data == NULL) || (pDst->info.type == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(data)));
+        colDataAppend(pDst, count, data,
+                      (data == NULL) || (pDst->info.type == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(data)));
 
         if (pDst->info.type != TSDB_DATA_TYPE_JSON && p != NULL && IS_VAR_DATA_TYPE(((const STagVal*)p)->type) &&
             data != NULL) {
@@ -2025,6 +2025,7 @@ int32_t createScanTableListInfo(STableScanPhysiNode* pTableScanNode, SReadHandle
   return TSDB_CODE_SUCCESS;
 }
 
+// todo refactor
 static int32_t loadDataBlockFromOneTable(SOperatorInfo* pOperator, STableMergeScanInfo* pTableScanInfo,
                                          int32_t readerIdx, SSDataBlock* pBlock, uint32_t* status) {
   SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
@@ -2055,7 +2056,7 @@ static int32_t loadDataBlockFromOneTable(SOperatorInfo* pOperator, STableMergeSc
     pCost->skipBlocks += 1;
 
     // clear all data in pBlock that are set when handing the previous block
-    for (int32_t i = 0; i < pBlockInfo->numOfCols; ++i) {
+    for (int32_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); ++i) {
       SColumnInfoData* pcol = taosArrayGet(pBlock->pDataBlock, i);
       pcol->pData = NULL;
     }
@@ -2070,7 +2071,7 @@ static int32_t loadDataBlockFromOneTable(SOperatorInfo* pOperator, STableMergeSc
     tsdbRetrieveDataBlockStatisInfo(reader, &pColAgg, &allColumnsHaveAgg);
 
     if (allColumnsHaveAgg == true) {
-      int32_t numOfCols = pBlock->info.numOfCols;
+      int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
 
       // todo create this buffer during creating operator
       if (pBlock->pBlockAgg == NULL) {
@@ -2165,7 +2166,13 @@ static SSDataBlock* getTableDataBlock(void* param) {
       continue;
     }
 
-    tsdbRetrieveDataBlockInfo(reader, &pBlock->info);
+    blockDataCleanup(pBlock);
+    SDataBlockInfo binfo = pBlock->info;
+    tsdbRetrieveDataBlockInfo(reader, &binfo);
+
+    binfo.capacity = binfo.rows;
+    blockDataEnsureCapacity(pBlock, binfo.capacity);
+    pBlock->info = binfo;
 
     uint32_t status = 0;
     int32_t  code = loadDataBlockFromOneTable(pOperator, pTableScanInfo, readerIdx, pBlock, &status);
