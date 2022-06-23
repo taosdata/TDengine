@@ -86,7 +86,8 @@ void scltAppendReservedSlot(SArray *pBlockList, int16_t *dataBlockId, int16_t *s
  if (newBlock) {
    SSDataBlock *res = createDataBlock();
 
-   SColumnInfoData idata = {.info = *colInfo};
+   SColumnInfoData idata = {0};
+   idata.info = *colInfo;
    colInfoDataEnsureCapacity(&idata, rows);
 
    blockDataAppendColInfo(res, &idata);
@@ -263,9 +264,6 @@ void scltMakeTargetNode(SNode **pNode, int16_t dataBlockId, int16_t slotId, SNod
 
  *pNode = (SNode *)onode;
 }
-
-
-
 }
 
 TEST(constantTest, bigint_add_bigint) {
