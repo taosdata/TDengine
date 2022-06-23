@@ -80,7 +80,6 @@ static SArray* streamExecForQall(SStreamTask* pTask, SArray* pRes) {
       }
       qRes->type = STREAM_INPUT__DATA_BLOCK;
       qRes->blocks = pRes;
-      /*qRes->sourceVg = pTask->nodeId;*/
       if (streamTaskOutput(pTask, qRes) < 0) {
         streamQueueProcessFail(pTask->inputQueue);
         taosArrayDestroy(pRes);

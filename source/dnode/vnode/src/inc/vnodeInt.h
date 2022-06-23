@@ -247,7 +247,6 @@ struct SVnode {
 
 struct STbUidStore {
   tb_uid_t  suid;
-  tb_uid_t  uid;  // TODO: just for debugging, remove when uid provided in SSDataBlock
   SArray*   tbUids;
   SHashObj* uidHash;
 };

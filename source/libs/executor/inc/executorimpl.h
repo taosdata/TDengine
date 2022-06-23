@@ -340,7 +340,7 @@ typedef struct SStreamBlockScanInfo {
   SReadHandle     readHandle;
   uint64_t        tableUid;         // queried super table uid
   EStreamScanMode scanMode;
-  SOperatorInfo* pOperatorDumy;
+  SOperatorInfo* pSnapshotReadOp;
   SInterval      interval;     // if the upstream is an interval operator, the interval info is also kept here.
   SArray*        childIds;
   SessionWindowSupporter sessionSup;
