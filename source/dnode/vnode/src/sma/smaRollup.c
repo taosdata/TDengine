@@ -708,5 +708,5 @@ static void tdRSmaPersistTrigger(void *param, void *tmrId) {
             taosGetSelfPthreadId());
   }
 
-  taosTmrReset(tdRSmaPersistTrigger, 5000, pRSmaStat, pRSmaStat->tmrHandle, &pRSmaStat->tmrId);
+  taosTmrReset(tdRSmaPersistTrigger, 3600000, pRSmaStat, pRSmaStat->tmrHandle, &pRSmaStat->tmrId);
 }

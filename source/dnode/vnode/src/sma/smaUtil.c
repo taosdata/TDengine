@@ -30,16 +30,18 @@ static int32_t tdEncodeTFInfo(void **buf, STFInfo *pInfo) {
   int32_t tlen = 0;
 
   tlen += taosEncodeFixedU32(buf, pInfo->magic);
+  tlen += taosEncodeFixedU32(buf, pInfo->ftype);
   tlen += taosEncodeFixedU32(buf, pInfo->fver);
-  tlen += taosEncodeFixedU64(buf, pInfo->size);
+  tlen += taosEncodeFixedU64(buf, pInfo->fsize);
 
   return tlen;
 }
 
 static void *tdDecodeTFInfo(void *buf, STFInfo *pInfo) {
   buf = taosDecodeFixedU32(buf, &(pInfo->magic));
+  buf = taosDecodeFixedU32(buf, &(pInfo->ftype));
   buf = taosDecodeFixedU32(buf, &(pInfo->fver));
-  buf = taosDecodeFixedU64(buf, &(pInfo->size));
+  buf = taosDecodeFixedU64(buf, &(pInfo->fsize));
   return buf;
 }
 
@@ -134,7 +136,7 @@ int64_t tdAppendTFile(STFile *pTFile, void *buf, int64_t nbyte, int64_t *offset)
     return -1;
   }
 
-  ASSERT(pTFile->info.size == toffset);
+  ASSERT(pTFile->info.fsize == toffset);
 
   if (offset) {
     *offset = toffset;
@@ -144,7 +146,7 @@ int64_t tdAppendTFile(STFile *pTFile, void *buf, int64_t nbyte, int64_t *offset)
     return -1;
   }
 
-  pTFile->info.size += nbyte;
+  pTFile->info.fsize += nbyte;
 
   return nbyte;
 }
@@ -193,7 +195,7 @@ int32_t tdInitTFile(STFile *pTFile, STfs *pTfs, const char *fname) {
 }
 
 int32_t tdCreateTFile(STFile *pTFile, STfs *pTfs, bool updateHeader, int8_t fType) {
-  ASSERT(pTFile->info.size == 0 && pTFile->info.magic == TD_FILE_INIT_MAGIC);
+  ASSERT(pTFile->info.fsize == 0 && pTFile->info.magic == TD_FILE_INIT_MAGIC);
 
   pTFile->pFile = taosOpenFile(TD_FILE_FULL_NAME(pTFile), TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pTFile->pFile == NULL) {
@@ -221,7 +223,7 @@ int32_t tdCreateTFile(STFile *pTFile, STfs *pTfs, bool updateHeader, int8_t fTyp
     return 0;
   }
 
-  pTFile->info.size += TD_FILE_HEAD_SIZE;
+  pTFile->info.fsize += TD_FILE_HEAD_SIZE;
   pTFile->info.fver = 0;
 
   if (tdUpdateTFileHeader(pTFile) < 0) {
