@@ -390,6 +390,10 @@ SSDataBlock* doGroupSort(SOperatorInfo* pOperator) {
     pInfo->hasGroupId = true;
 
     pInfo->prefetchedSortInput = pOperator->pDownstream[0]->fpSet.getNextFn(pOperator->pDownstream[0]);
+    if (pInfo->prefetchedSortInput == NULL) {
+      doSetOperatorCompleted(pOperator);
+      return NULL;
+    }
     pInfo->currGroupId = pInfo->prefetchedSortInput->info.groupId;
     pInfo->childOpStatus = CHILD_OP_NEW_GROUP;
     beginSortGroup(pOperator);
