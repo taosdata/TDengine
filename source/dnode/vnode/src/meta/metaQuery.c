@@ -264,8 +264,8 @@ struct SMCtbCursor {
 SMCtbCursor *metaOpenCtbCursor(SMeta *pMeta, tb_uid_t uid) {
   SMCtbCursor *pCtbCur = NULL;
   SCtbIdxKey   ctbIdxKey;
-  int          ret;
-  int          c;
+  int          ret = 0;
+  int          c = 0;
 
   pCtbCur = (SMCtbCursor *)taosMemoryCalloc(1, sizeof(*pCtbCur));
   if (pCtbCur == NULL) {

@@ -54,6 +54,7 @@ struct tmq_conf_t {
   int8_t   autoCommit;
   int8_t   resetOffset;
   int8_t   withTbName;
+  int8_t   useSnapshot;
   uint16_t port;
   int32_t  autoCommitInterval;
   char*    ip;
@@ -69,6 +70,7 @@ struct tmq_t {
   char           groupId[TSDB_CGROUP_LEN];
   char           clientId[256];
   int8_t         withTbName;
+  int8_t         useSnapshot;
   int8_t         autoCommit;
   int32_t        autoCommitInterval;
   int32_t        resetOffsetCfg;
@@ -276,6 +278,18 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
       return TMQ_CONF_OK;
     } else if (strcmp(value, "false") == 0) {
       conf->withTbName = false;
+      return TMQ_CONF_OK;
+    } else {
+      return TMQ_CONF_INVALID;
+    }
+  }
+
+  if (strcmp(key, "experiment.use.snapshot") == 0) {
+    if (strcmp(value, "true") == 0) {
+      conf->useSnapshot = true;
+      return TMQ_CONF_OK;
+    } else if (strcmp(value, "false") == 0) {
+      conf->useSnapshot = false;
       return TMQ_CONF_OK;
     } else {
       return TMQ_CONF_INVALID;
@@ -953,6 +967,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   strcpy(pTmq->clientId, conf->clientId);
   strcpy(pTmq->groupId, conf->groupId);
   pTmq->withTbName = conf->withTbName;
+  pTmq->useSnapshot = conf->useSnapshot;
   pTmq->autoCommit = conf->autoCommit;
   pTmq->autoCommitInterval = conf->autoCommitInterval;
   pTmq->commitCb = conf->commitCb;
@@ -1533,6 +1548,8 @@ SMqPollReq* tmqBuildConsumeReqImpl(tmq_t* tmq, int64_t timeout, SMqClientTopic* 
   pReq->epoch = tmq->epoch;
   pReq->currentOffset = reqOffset;
   pReq->reqId = generateRequestId();
+
+  pReq->useSnapshot = tmq->useSnapshot;
 
   pReq->head.vgId = htonl(pVg->vgId);
   pReq->head.contLen = htonl(sizeof(SMqPollReq));

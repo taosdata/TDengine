@@ -271,7 +271,7 @@ int32_t qwGetDeleteResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen
   SDeleterRes* pDelRes = (SDeleterRes*)output.pData;
   
   rsp.affectedRows = pDelRes->affectedRows;
-  pRes->uid = pDelRes->uid;
+  pRes->suid = pDelRes->suid;
   pRes->uidList = pDelRes->uidList;
   pRes->skey = pDelRes->skey;
   pRes->ekey = pDelRes->ekey;

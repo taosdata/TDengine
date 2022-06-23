@@ -36,11 +36,13 @@ typedef struct SReadHandle {
   void*   vnode;
   void*   mnd;
   SMsgCb* pMsgCb;
+  int8_t  initTsdbReader;
 } SReadHandle;
 
 enum {
   STREAM_DATA_TYPE_SUBMIT_BLOCK = 1,
   STREAM_DATA_TYPE_SSDATA_BLOCK = 2,
+  STREAM_DATA_TYPE_FROM_SNAPSHOT = 3,
 };
 
 typedef enum {
@@ -55,6 +57,13 @@ typedef enum {
  * @return
  */
 qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, void* streamReadHandle);
+
+/**
+ * Switch the stream scan to snapshot mode
+ * @param tinfo
+ * @return
+ */
+int32_t qStreamScanSnapshot(qTaskInfo_t tinfo);
 
 /**
  * Set the input data block for the stream scan.

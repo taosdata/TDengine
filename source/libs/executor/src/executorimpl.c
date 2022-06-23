@@ -4028,16 +4028,17 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       tsdbReaderT pDataReader = NULL;
 
       if (pHandle) {
-        if (pHandle->vnode) {
-          // for stram
+        if (pHandle->initTsdbReader) {
+          // for stream
+          ASSERT(pHandle->vnode);
           pDataReader =
               doCreateDataReader(pTableScanNode, pHandle, pTableListInfo, (uint64_t)queryId, taskId);
         } else {
           // for tq
+          ASSERT(pHandle->meta);
           getTableList(pHandle->meta, pScanPhyNode, pTableListInfo);
         }
       }
-
       if (pDataReader == NULL && terrno != 0) {
         qDebug("%s pDataReader is NULL", GET_TASKID(pTaskInfo));
         // return NULL;
@@ -4451,6 +4452,7 @@ int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, qTaskInfo_t* pT
         return TSDB_CODE_OUT_OF_MEMORY;
       }
       int32_t tbNum = taosArrayGetSize(pTask->tableqinfoList.pTableList);
+      pDeleterParam->suid = pTask->tableqinfoList.suid;
       pDeleterParam->pUidList = taosArrayInit(tbNum, sizeof(uint64_t));
       if (NULL == pDeleterParam->pUidList) {
         taosMemoryFree(pDeleterParam);
