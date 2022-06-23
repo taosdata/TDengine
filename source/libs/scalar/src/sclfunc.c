@@ -172,11 +172,15 @@ static int32_t doScalarFunctionUnique2(SScalarParam *pInput, int32_t inputNum, S
   double *out = (double *)pOutputData->pData;
   double result;
 
+  bool hasNullType = (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) ||
+                      IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[1])));
+
   int32_t numOfRows = TMAX(pInput[0].numOfRows, pInput[1].numOfRows);
   if (pInput[0].numOfRows == pInput[1].numOfRows) {
     for (int32_t i = 0; i < numOfRows; ++i) {
       if (colDataIsNull_s(pInputData[0], i) ||
-          colDataIsNull_s(pInputData[1], i)) {
+          colDataIsNull_s(pInputData[1], i) ||
+          hasNullType) {
         colDataAppendNULL(pOutputData, i);
         continue;
       }
@@ -188,7 +192,7 @@ static int32_t doScalarFunctionUnique2(SScalarParam *pInput, int32_t inputNum, S
       }
     }
   } else if (pInput[0].numOfRows == 1) { //left operand is constant
-    if (colDataIsNull_s(pInputData[0], 0)) {
+    if (colDataIsNull_s(pInputData[0], 0) || hasNullType) {
       colDataAppendNNULL(pOutputData, 0, pInput[1].numOfRows);
     } else {
       for (int32_t i = 0; i < numOfRows; ++i) {
@@ -207,7 +211,7 @@ static int32_t doScalarFunctionUnique2(SScalarParam *pInput, int32_t inputNum, S
       }
     }
   } else if (pInput[1].numOfRows == 1) {
-    if (colDataIsNull_s(pInputData[1], 0)) {
+    if (colDataIsNull_s(pInputData[1], 0) || hasNullType) {
       colDataAppendNNULL(pOutputData, 0, pInput[0].numOfRows);
     } else {
       for (int32_t i = 0; i < numOfRows; ++i) {
