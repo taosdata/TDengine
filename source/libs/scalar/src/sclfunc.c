@@ -134,9 +134,6 @@ int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
 
 static int32_t doScalarFunctionUnique(SScalarParam *pInput, int32_t inputNum, SScalarParam* pOutput, _double_fn valFn) {
   int32_t type = GET_PARAM_TYPE(pInput);
-  if (inputNum != 1 || (!IS_NUMERIC_TYPE(type) && !IS_NULL_TYPE(type))) {
-    return TSDB_CODE_FAILED;
-  }
 
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
@@ -163,10 +160,6 @@ static int32_t doScalarFunctionUnique(SScalarParam *pInput, int32_t inputNum, SS
 }
 
 static int32_t doScalarFunctionUnique2(SScalarParam *pInput, int32_t inputNum, SScalarParam* pOutput, _double_fn_2 valFn) {
-  if (inputNum != 2 || !IS_NUMERIC_TYPE(GET_PARAM_TYPE(&pInput[0])) || !IS_NUMERIC_TYPE(GET_PARAM_TYPE(&pInput[1]))) {
-    return TSDB_CODE_FAILED;
-  }
-
   SColumnInfoData *pInputData[2];
   SColumnInfoData *pOutputData = pOutput->columnData;
   _getDoubleValue_fn_t getValueFn[2];
@@ -240,9 +233,6 @@ static int32_t doScalarFunctionUnique2(SScalarParam *pInput, int32_t inputNum, S
 
 static int32_t doScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam* pOutput, _float_fn f1, _double_fn d1) {
   int32_t type = GET_PARAM_TYPE(pInput);
-  if (inputNum != 1 || !IS_NUMERIC_TYPE(type)) {
-    return TSDB_CODE_FAILED;
-  }
 
   SColumnInfoData *pInputData  = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
@@ -272,6 +262,13 @@ static int32_t doScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
           continue;
         }
         out[i] = d1(in[i]);
+      }
+      break;
+    }
+
+    case TSDB_DATA_TYPE_NULL: {
+      for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+        colDataAppendNULL(pOutputData, i);
       }
       break;
     }
