@@ -15,29 +15,48 @@
 
 #include "tsdb.h"
 
-static const char *tsdbFileSuffix[] = {".del", ".cache", ".head", ".data", ".last", ".sma", ""};
+void tsdbDataFileName(STsdb *pTsdb, SDFileSet *pDFileSet, int8_t ftype, char fname[]) {
+  STfs *pTfs = pTsdb->pVnode->pTfs;
+
+  switch (ftype) {
+    case TSDB_HEAD_FILE:
+      snprintf(fname, TSDB_FILENAME_LEN - 1, "%s%s%s%sv%df%dver%" PRId64 "%s", tfsGetDiskPath(pTfs, pDFileSet->diskId),
+               TD_DIRSEP, pTsdb->path, TD_DIRSEP, TD_VID(pTsdb->pVnode), pDFileSet->fid, pDFileSet->fHead.commitID,
+               ".head");
+      break;
+    case TSDB_DATA_FILE:
+      snprintf(fname, TSDB_FILENAME_LEN - 1, "%s%s%s%sv%df%dver%" PRId64 "%s", tfsGetDiskPath(pTfs, pDFileSet->diskId),
+               TD_DIRSEP, pTsdb->path, TD_DIRSEP, TD_VID(pTsdb->pVnode), pDFileSet->fid, pDFileSet->fData.commitID,
+               ".data");
+      break;
+    case TSDB_LAST_FILE:
+      snprintf(fname, TSDB_FILENAME_LEN - 1, "%s%s%s%sv%df%dver%" PRId64 "%s", tfsGetDiskPath(pTfs, pDFileSet->diskId),
+               TD_DIRSEP, pTsdb->path, TD_DIRSEP, TD_VID(pTsdb->pVnode), pDFileSet->fid, pDFileSet->fLast.commitID,
+               ".last");
+      break;
+    case TSDB_SMA_FILE:
+      snprintf(fname, TSDB_FILENAME_LEN - 1, "%s%s%s%sv%df%dver%" PRId64 "%s", tfsGetDiskPath(pTfs, pDFileSet->diskId),
+               TD_DIRSEP, pTsdb->path, TD_DIRSEP, TD_VID(pTsdb->pVnode), pDFileSet->fid, pDFileSet->fSma.commitID,
+               ".sma");
+      break;
+    default:
+      ASSERT(0);
+      break;
+  }
+}
 
 // SHeadFile ===============================================
-void tsdbHeadFileName(STsdb *pTsdb, SHeadFile *pFile, char fname[]) {
-  // snprintf(fname, TSDB_FILENAME_LEN - 1, "%s/v%df%dver%18d.head", );
-}
 
 // SDataFile ===============================================
-void tsdbDataFileName(STsdb *pTsdb, SDataFile *pFile, char fname[]) {
-  // TODO
-}
 
 // SLastFile ===============================================
-void tsdbLastFileName(STsdb *pTsdb, SLastFile *pFile, char fname[]) {
-  // TODO
-}
 
 // SSmaFile ===============================================
-void tsdbSmaFileName(STsdb *pTsdb, SSmaFile *pFile, char fname[]) {
-  // TODO
-}
 
 // SDelFile ===============================================
 void tsdbDelFileName(STsdb *pTsdb, SDelFile *pFile, char fname[]) {
-  // snprintf(fname, TSDB_FILENAME_LEN, "", pTsdb->path);
+  STfs *pTfs = pTsdb->pVnode->pTfs;
+
+  snprintf(fname, TSDB_FILENAME_LEN - 1, "%s%s%s%sv%dver%" PRId64 "%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, pTsdb->path,
+           TD_DIRSEP, TD_VID(pTsdb->pVnode), pFile->commitID, ".del");
 }

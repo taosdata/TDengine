@@ -175,6 +175,8 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
 
   // update the state of pMemTable and other (todo)
 
+  pMemTable->minVersion = TMIN(pMemTable->minVersion, version);
+  pMemTable->maxVersion = TMAX(pMemTable->maxVersion, version);
   pMemTable->nDel++;
 
   if (tsdbKeyCmprFn(&lastKey, &pTbData->maxKey) >= 0) {
@@ -521,7 +523,7 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, i
     goto _err;
   }
 
-  if (pTbData->minKey > key.ts) pTbData->minKey = key.ts;
+  pTbData->minKey = TMIN(pTbData->minKey, key.ts);
 
   pLastRow = row.pTSRow;
 
@@ -553,14 +555,14 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, i
       tsdbCacheInsertLastrow(pMemTable->pTsdb->lruCache, pTbData->uid, pLastRow);
     }
   }
-  if (pTbData->minVersion > version) pTbData->minVersion = version;
-  if (pTbData->maxVersion < version) pTbData->maxVersion = version;
+  pTbData->minVersion = TMIN(pTbData->minVersion, version);
+  pTbData->maxVersion = TMAX(pTbData->maxVersion, version);
 
   // SMemTable
-  if (pMemTable->minKey > pTbData->minKey) pMemTable->minKey = pTbData->minKey;
-  if (pMemTable->maxKey < pTbData->maxKey) pMemTable->maxKey = pTbData->maxKey;
-  if (pMemTable->minVersion > pTbData->minVersion) pMemTable->minVersion = pTbData->minVersion;
-  if (pMemTable->maxVersion < pTbData->maxVersion) pMemTable->maxVersion = pTbData->maxVersion;
+  pMemTable->minKey = TMIN(pMemTable->minKey, pTbData->minKey);
+  pMemTable->maxKey = TMAX(pMemTable->maxKey, pTbData->maxKey);
+  pMemTable->minVersion = TMIN(pMemTable->minVersion, pTbData->minVersion);
+  pMemTable->maxVersion = TMAX(pMemTable->maxVersion, pTbData->maxVersion);
   pMemTable->nRow += nRow;
 
   pRsp->numOfRows = nRow;

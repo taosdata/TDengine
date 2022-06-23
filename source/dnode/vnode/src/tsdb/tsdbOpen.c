@@ -41,7 +41,7 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
   int    slen = 0;
 
   *ppTsdb = NULL;
-  slen = strlen(tfsGetPrimaryPath(pVnode->pTfs)) + strlen(pVnode->path) + strlen(dir) + 3;
+  slen = strlen(pVnode->path) + strlen(dir) + 2;
 
   // create handle
   pTsdb = (STsdb *)taosMemoryCalloc(1, sizeof(*pTsdb) + slen);
@@ -50,10 +50,8 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
     return -1;
   }
 
-  ASSERT(strlen(dir) < TSDB_DATA_DIR_LEN);
-  memcpy(pTsdb->dir, dir, strlen(dir));
   pTsdb->path = (char *)&pTsdb[1];
-  sprintf(pTsdb->path, "%s%s%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path, TD_DIRSEP, dir);
+  sprintf(pTsdb->path, "%s%s%s", pVnode->path, TD_DIRSEP, dir);
   taosRealPath(pTsdb->path, NULL, slen);
   pTsdb->pVnode = pVnode;
   pTsdb->repoLocked = false;
@@ -65,8 +63,8 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
   }
   // pTsdb->fs = tsdbNewFS(REPO_KEEP_CFG(pTsdb));
 
-  // create dir (TODO: use tfsMkdir)
-  taosMkDir(pTsdb->path);
+  // create dir
+  tfsMkdir(pVnode->pTfs, pTsdb->path);
 
   // open tsdb
   if (tsdbFSOpen(pTsdb, &pTsdb->fs) < 0) {

@@ -15,7 +15,6 @@
 
 #include "tsdb.h"
 
-#define TSDB_FHDR_SIZE 512
 #define TSDB_FILE_DLMT ((uint32_t)0xF00AFA0F)
 
 // SDelFWriter ====================================================
@@ -443,8 +442,8 @@ _err:
 
 int32_t tsdbReadBlockIdx(SDataFReader *pReader, SMapData *mBlockIdx, uint8_t **ppBuf) {
   int32_t  code = 0;
-  int64_t  offset = pReader->pSet->pHeadFile->offset;
-  int64_t  size = pReader->pSet->pHeadFile->size;
+  int64_t  offset = pReader->pSet->fHead.offset;
+  int64_t  size = pReader->pSet->fHead.size - offset;
   int64_t  n;
   uint32_t delimiter;
 
@@ -629,10 +628,10 @@ int32_t tsdbUpdateDFileSetHeader(SDataFWriter *pWriter, uint8_t **ppBuf) {
   int64_t    size = TSDB_FHDR_SIZE;
   int64_t    n;
   uint8_t   *pBuf = NULL;
-  SHeadFile *pHeadFile = pWriter->pSet->pHeadFile;
-  SDataFile *pDataFile = pWriter->pSet->pDataFile;
-  SLastFile *pLastFile = pWriter->pSet->pLastFile;
-  SSmaFile  *pSmaFile = pWriter->pSet->pSmaFile;
+  SHeadFile *pHeadFile = &pWriter->pSet->fHead;
+  SDataFile *pDataFile = &pWriter->pSet->fData;
+  SLastFile *pLastFile = &pWriter->pSet->fLast;
+  SSmaFile  *pSmaFile = &pWriter->pSet->fSma;
 
   // alloc
   if (!ppBuf) ppBuf = &pBuf;
@@ -724,7 +723,7 @@ _err:
 int32_t tsdbWriteBlockIdx(SDataFWriter *pWriter, SMapData *mBlockIdx, uint8_t **ppBuf) {
   int32_t    code = 0;
   int64_t    size = 0;
-  SHeadFile *pHeadFile = pWriter->pSet->pHeadFile;
+  SHeadFile *pHeadFile = &pWriter->pSet->fHead;
   int64_t    n = 0;
   uint8_t   *pBuf = NULL;
 
@@ -766,7 +765,7 @@ _err:
 
 int32_t tsdbWriteBlock(SDataFWriter *pWriter, SMapData *mBlock, uint8_t **ppBuf, SBlockIdx *pBlockIdx) {
   int32_t    code = 0;
-  SHeadFile *pHeadFile = pWriter->pSet->pHeadFile;
+  SHeadFile *pHeadFile = &pWriter->pSet->fHead;
   uint8_t   *pBuf = NULL;
   int64_t    size;
   int64_t    n;

@@ -67,6 +67,7 @@ typedef struct STsdbFS        STsdbFS;
 typedef struct SRowMerger     SRowMerger;
 
 #define TSDB_MAX_SUBBLOCKS 8
+#define TSDB_FHDR_SIZE     512
 
 #define HAS_NONE  ((int8_t)0x1)
 #define HAS_NULL  ((int8_t)0x2)
@@ -165,15 +166,8 @@ void     tsdbTbDataIterOpen(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, S
 TSDBROW *tsdbTbDataIterGet(STbDataIter *pIter);
 bool     tsdbTbDataIterNext(STbDataIter *pIter);
 // tsdbFile.c ==============================================================================================
-// SDataFSet
-// SHeadFile
-void tsdbHeadFileName(STsdb *pTsdb, SHeadFile *pFile, char fname[]);
-// SDataFile
-void tsdbDataFileName(STsdb *pTsdb, SDataFile *pFile, char fname[]);
-// SLastFile
-void tsdbLastFileName(STsdb *pTsdb, SLastFile *pFile, char fname[]);
-// SSmaFile
-void tsdbSmaFileName(STsdb *pTsdb, SSmaFile *pFile, char fname[]);
+enum { TSDB_HEAD_FILE = 0, TSDB_DATA_FILE, TSDB_LAST_FILE, TSDB_SMA_FILE };
+void tsdbDataFileName(STsdb *pTsdb, SDFileSet *pDFileSet, int8_t ftype, char fname[]);
 // SDelFile
 #define tsdbDelFileCreate() \
   ((SDelFile){              \
@@ -230,12 +224,10 @@ typedef struct {
   TSKEY minKey;
 } SRtn;
 
-#define TSDB_DATA_DIR_LEN 6  // adapt accordingly
 struct STsdb {
   char         *path;
   SVnode       *pVnode;
   TdThreadMutex mutex;
-  char          dir[TSDB_DATA_DIR_LEN];
   bool          repoLocked;
   STsdbKeepCfg  keepCfg;
   SMemTable    *mem;
@@ -487,16 +479,12 @@ struct SSmaFile {
 };
 
 struct SDFileSet {
-  SDiskID    diskId;
-  int32_t    fid;
-  SHeadFile *pHeadFile;
-  SDataFile *pDataFile;
-  SLastFile *pLastFile;
-  SSmaFile  *pSmaFile;
-  // SHeadFile headFile;
-  // SDataFile dataFile;
-  // SLastFile lastFile;
-  // SSmaFile  smaFile;
+  SDiskID   diskId;
+  int32_t   fid;
+  SHeadFile fHead;
+  SDataFile fData;
+  SLastFile fLast;
+  SSmaFile  fSma;
 };
 
 struct SRowIter {
