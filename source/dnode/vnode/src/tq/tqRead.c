@@ -42,6 +42,25 @@ int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalHead*
       code = 0;
       goto END;
     } else {
+      if (pHandle->fetchMeta) {
+        SWalReadHead* pHead = &((*ppHeadWithCkSum)->head);
+        if (pHead->msgType == TDMT_VND_CREATE_STB || pHead->msgType == TDMT_VND_ALTER_STB ||
+            pHead->msgType == TDMT_VND_DROP_STB || pHead->msgType == TDMT_VND_CREATE_TABLE ||
+            pHead->msgType == TDMT_VND_ALTER_TABLE || pHead->msgType == TDMT_VND_DROP_TABLE ||
+            pHead->msgType == TDMT_VND_DROP_TTL_TABLE) {
+          code = walFetchBody(pHandle->pWalReader, ppHeadWithCkSum);
+
+          if (code < 0) {
+            ASSERT(0);
+            *fetchOffset = offset;
+            code = -1;
+            goto END;
+          }
+          *fetchOffset = offset;
+          code = 0;
+          goto END;
+        }
+      }
       code = walSkipFetchBody(pHandle->pWalReader, *ppHeadWithCkSum);
       if (code < 0) {
         ASSERT(0);
@@ -326,8 +345,8 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
   while (1) {
     pIter = taosHashIterate(pTq->pStreamTasks, pIter);
     if (pIter == NULL) break;
-    SStreamTask* pTask = (SStreamTask*)pIter;
-    if (pTask->inputType == STREAM_INPUT__DATA_SUBMIT) {
+    SStreamTask* pTask = *(SStreamTask**)pIter;
+    if (pTask->isDataScan) {
       int32_t code = qUpdateQualifiedTableId(pTask->exec.executor, tbUidList, isAdd);
       ASSERT(code == 0);
     }

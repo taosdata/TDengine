@@ -166,10 +166,13 @@ class MockCatalogServiceImpl {
   }
 
   int32_t catalogGetDnodeList(SArray** pDnodes) const {
-    *pDnodes = taosArrayInit(dnode_.size(), sizeof(SEpSet));
+    SMetaRes res = {0};
+    res.pRes = taosArrayInit(dnode_.size(), sizeof(SEpSet));
     for (const auto& dnode : dnode_) {
-      taosArrayPush(*pDnodes, &dnode.second);
+      taosArrayPush((SArray*)res.pRes, &dnode.second);
     }
+    *pDnodes = taosArrayInit(1, sizeof(SMetaRes));
+    taosArrayPush(*pDnodes, &res);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -198,6 +201,9 @@ class MockCatalogServiceImpl {
     }
     if (TSDB_CODE_SUCCESS == code && pCatalogReq->dNodeRequired) {
       code = catalogGetDnodeList(&pMetaData->pDnodeList);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = getAllTableCfg(pCatalogReq->pTableCfg, &pMetaData->pTableCfg);
     }
     return code;
   }
@@ -540,6 +546,20 @@ class MockCatalogServiceImpl {
         SMetaRes res = {0};
         res.code = catalogGetTableIndex((const SName*)taosArrayGet(pTableIndex, i), (SArray**)(&res.pRes));
         taosArrayPush(*pTableIndexData, &res);
+      }
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t getAllTableCfg(SArray* pTableCfgReq, SArray** pTableCfgData) const {
+    if (NULL != pTableCfgReq) {
+      int32_t ntables = taosArrayGetSize(pTableCfgReq);
+      *pTableCfgData = taosArrayInit(ntables, sizeof(SMetaRes));
+      for (int32_t i = 0; i < ntables; ++i) {
+        SMetaRes res = {0};
+        res.pRes = taosMemoryCalloc(1, sizeof(STableCfg));
+        res.code = TSDB_CODE_SUCCESS;
+        taosArrayPush(*pTableCfgData, &res);
       }
     }
     return TSDB_CODE_SUCCESS;

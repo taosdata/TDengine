@@ -34,6 +34,7 @@ enum {
 enum {
   TMQ_MSG_TYPE__DUMMY = 0,
   TMQ_MSG_TYPE__POLL_RSP,
+  TMQ_MSG_TYPE__POLL_META_RSP,
   TMQ_MSG_TYPE__EP_RSP,
   TMQ_MSG_TYPE__END_RSP,
 };
@@ -44,6 +45,8 @@ typedef enum EStreamType {
   STREAM_REPROCESS,
   STREAM_INVALID,
   STREAM_GET_ALL,
+  STREAM_DELETE,
+  STREAM_RETRIEVE,
 } EStreamType;
 
 typedef struct {
@@ -51,6 +54,8 @@ typedef struct {
   SArray*   pTableList;
   SHashObj* map;  // speedup acquire the tableQueryInfo by table uid
   bool      needSortTableByGroupId;
+  void*     pTagCond;
+  void*     pTagIndexCond;
 } STableListInfo;
 
 typedef struct SColumnDataAgg {

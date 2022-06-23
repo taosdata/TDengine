@@ -40,7 +40,8 @@ typedef enum EScanType {
   SCAN_TYPE_SYSTEM_TABLE,
   SCAN_TYPE_STREAM,
   SCAN_TYPE_TABLE_MERGE,
-  SCAN_TYPE_BLOCK_INFO
+  SCAN_TYPE_BLOCK_INFO,
+  SCAN_TYPE_LAST_ROW
 } EScanType;
 
 typedef struct SScanLogicNode {
@@ -65,6 +66,7 @@ typedef struct SScanLogicNode {
   int8_t        intervalUnit;
   int8_t        slidingUnit;
   SNode*        pTagCond;
+  SNode*        pTagIndexCond;
   int8_t        triggerType;
   int64_t       watermark;
   int16_t       tsColId;
@@ -260,6 +262,7 @@ typedef struct SScanPhysiNode {
 
 typedef SScanPhysiNode STagScanPhysiNode;
 typedef SScanPhysiNode SBlockDistScanPhysiNode;
+typedef SScanPhysiNode SLastRowScanPhysiNode;
 
 typedef struct SSystemTableScanPhysiNode {
   SScanPhysiNode scan;
@@ -375,7 +378,8 @@ typedef struct SIntervalPhysiNode {
   int8_t           slidingUnit;
 } SIntervalPhysiNode;
 
-typedef SIntervalPhysiNode SMergeIntervalPhysiNode;
+typedef SIntervalPhysiNode  SMergeIntervalPhysiNode;
+typedef SIntervalPhysiNode SMergeAlignedIntervalPhysiNode;
 typedef SIntervalPhysiNode SStreamIntervalPhysiNode;
 typedef SIntervalPhysiNode SStreamFinalIntervalPhysiNode;
 typedef SIntervalPhysiNode SStreamSemiIntervalPhysiNode;
@@ -416,6 +420,8 @@ typedef struct SSortPhysiNode {
   SNodeList* pSortKeys;  // element is SOrderByExprNode, and SOrderByExprNode::pExpr is SColumnNode
   SNodeList* pTargets;
 } SSortPhysiNode;
+
+typedef SSortPhysiNode SGroupSortPhysiNode;
 
 typedef struct SPartitionPhysiNode {
   SPhysiNode node;
@@ -463,6 +469,7 @@ typedef struct SSubplan {
   SPhysiNode*    pNode;         // physical plan of current subplan
   SDataSinkNode* pDataSink;     // data of the subplan flow into the datasink
   SNode*         pTagCond;
+  SNode*         pTagIndexCond;
 } SSubplan;
 
 typedef enum EExplainMode { EXPLAIN_MODE_DISABLE = 1, EXPLAIN_MODE_STATIC, EXPLAIN_MODE_ANALYZE } EExplainMode;

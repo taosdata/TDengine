@@ -50,6 +50,7 @@ typedef struct SMsortComparParam {
   void        **pSources;
   int32_t       numOfSources;
   SArray       *orderInfo;   // SArray<SBlockOrderInfo>
+  bool          cmpGroupId;
 } SMsortComparParam;
 
 typedef struct SSortHandle SSortHandle;
@@ -98,6 +99,11 @@ int32_t tsortSetFetchRawDataFp(SSortHandle* pHandle, _sort_fetch_block_fn_t fetc
  * @return
  */
 int32_t tsortSetComparFp(SSortHandle* pHandle, _sort_merge_compar_fn_t fp);
+
+/**
+ *
+ */
+int32_t tsortSetCompareGroupId(SSortHandle* pHandle, bool compareGroupId);
 
 /**
  *

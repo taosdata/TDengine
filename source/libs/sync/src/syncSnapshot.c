@@ -67,51 +67,63 @@ void snapshotSenderDestroy(SSyncSnapshotSender *pSender) {
 bool snapshotSenderIsStart(SSyncSnapshotSender *pSender) { return pSender->start; }
 
 // begin send snapshot (current term, seq begin)
-void snapshotSenderStart(SSyncSnapshotSender *pSender) {
+void snapshotSenderStart(SSyncSnapshotSender *pSender, SSnapshot snapshot, void *pReader) {
   ASSERT(!snapshotSenderIsStart(pSender));
 
   pSender->seq = SYNC_SNAPSHOT_SEQ_BEGIN;
   pSender->ack = SYNC_SNAPSHOT_SEQ_INVALID;
 
-  // open snapshot reader
+  // init snapshot and reader
   ASSERT(pSender->pReader == NULL);
-  int32_t ret = pSender->pSyncNode->pFsm->FpSnapshotStartRead(pSender->pSyncNode->pFsm, &(pSender->pReader));
-  ASSERT(ret == 0);
+  pSender->pReader = pReader;
+  pSender->snapshot = snapshot;
 
   if (pSender->pCurrentBlock != NULL) {
     taosMemoryFree(pSender->pCurrentBlock);
   }
-
   pSender->blockLen = 0;
 
-  // get current snapshot info
-  pSender->pSyncNode->pFsm->FpGetSnapshotInfo(pSender->pSyncNode->pFsm, &(pSender->snapshot));
-
-  sTrace("snapshotSenderStart lastApplyIndex:%ld, lastApplyTerm:%lu, lastConfigIndex:%ld",
-         pSender->snapshot.lastApplyIndex, pSender->snapshot.lastApplyTerm, pSender->snapshot.lastConfigIndex);
-
   if (pSender->snapshot.lastConfigIndex != SYNC_INDEX_INVALID) {
-    /*
+    int32_t         code = 0;
     SSyncRaftEntry *pEntry = NULL;
-    int32_t code = pSender->pSyncNode->pLogStore->syncLogGetEntry(pSender->pSyncNode->pLogStore,
-                                                                  pSender->snapshot.lastConfigIndex, &pEntry);
-    ASSERT(code == 0);
-    ASSERT(pEntry != NULL);
-    */
+    code = pSender->pSyncNode->pLogStore->syncLogGetEntry(pSender->pSyncNode->pLogStore,
+                                                          pSender->snapshot.lastConfigIndex, &pEntry);
 
-    SSyncRaftEntry *pEntry =
-        pSender->pSyncNode->pLogStore->getEntry(pSender->pSyncNode->pLogStore, pSender->snapshot.lastConfigIndex);
-    ASSERT(pEntry != NULL);
+    bool getLastConfig = false;
+    if (code == 0) {
+      ASSERT(pEntry != NULL);
 
-    SRpcMsg rpcMsg;
-    syncEntry2OriginalRpc(pEntry, &rpcMsg);
-    SSyncCfg lastConfig;
-    int32_t  ret = syncCfgFromStr(rpcMsg.pCont, &lastConfig);
-    ASSERT(ret == 0);
-    pSender->lastConfig = lastConfig;
+      SRpcMsg rpcMsg;
+      syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
-    rpcFreeCont(rpcMsg.pCont);
-    syncEntryDestory(pEntry);
+      SSyncCfg lastConfig;
+      int32_t  ret = syncCfgFromStr(rpcMsg.pCont, &lastConfig);
+      ASSERT(ret == 0);
+      pSender->lastConfig = lastConfig;
+      getLastConfig = true;
+
+      rpcFreeCont(rpcMsg.pCont);
+      syncEntryDestory(pEntry);
+    } else {
+      if (pSender->snapshot.lastConfigIndex == pSender->pSyncNode->pRaftCfg->lastConfigIndex) {
+        sTrace("vgId:%d sync sender get cfg from local", pSender->pSyncNode->vgId);
+        pSender->lastConfig = pSender->pSyncNode->pRaftCfg->cfg;
+        getLastConfig = true;
+      }
+    }
+
+    if (!getLastConfig) {
+      char logBuf[128];
+      snprintf(logBuf, sizeof(logBuf), "snapshot sender update lcindex from %ld to -1",
+               pSender->snapshot.lastConfigIndex);
+      pSender->snapshot.lastConfigIndex = -1;
+
+      char *eventLog = snapshotSender2SimpleStr(pSender, logBuf);
+      syncNodeEventLog(pSender->pSyncNode, eventLog);
+      taosMemoryFree(eventLog);
+
+      memset(&(pSender->lastConfig), 0, sizeof(SSyncCfg));
+    }
 
   } else {
     memset(&(pSender->lastConfig), 0, sizeof(SSyncCfg));
@@ -529,6 +541,10 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
         ASSERT(writeCode == 0);
 
         pSyncNode->pFsm->FpSnapshotStopWrite(pSyncNode->pFsm, pReceiver->pWriter, true);
+        if (pReceiver->snapshot.lastApplyIndex > pReceiver->pSyncNode->commitIndex) {
+          pReceiver->pSyncNode->commitIndex = pReceiver->snapshot.lastApplyIndex;
+        }
+
         pSyncNode->pLogStore->syncLogSetBeginIndex(pSyncNode->pLogStore, pMsg->lastIndex + 1);
 
         // maybe update lastconfig
@@ -548,7 +564,7 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
         pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
 
         do {
-          char *eventLog = snapshotReceiver2SimpleStr(pReceiver, "snapshot receiver finish");
+          char *eventLog = snapshotReceiver2SimpleStr(pReceiver, "snapshot receiver finish, apply snapshot");
           syncNodeEventLog(pSyncNode, eventLog);
           taosMemoryFree(eventLog);
         } while (0);
@@ -559,7 +575,7 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
         needRsp = true;
 
         do {
-          char *eventLog = snapshotReceiver2SimpleStr(pReceiver, "snapshot receiver end");
+          char *eventLog = snapshotReceiver2SimpleStr(pReceiver, "snapshot receiver stop");
           syncNodeEventLog(pSyncNode, eventLog);
           taosMemoryFree(eventLog);
         } while (0);

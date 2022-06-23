@@ -244,10 +244,10 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   }
 
   SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
+  pRequest->code = code;
 
   if (pRequest->code != TSDB_CODE_SUCCESS) {
     pResultInfo->numOfRows = 0;
-    pRequest->code = code;
     tscError("0x%" PRIx64 " fetch results failed, code:%s, reqId:0x%" PRIx64, pRequest->self, tstrerror(code),
              pRequest->requestId);
   } else {
@@ -256,7 +256,7 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
              pRequest->requestId);
   }
 
-  pRequest->body.queryFp(pRequest->body.param, pRequest, 0);
+  pRequest->body.queryFp(pRequest->body.param, pRequest, code);
   //  pRequest->body.fetchFp(pRequest->body.param, pRequest, pResultInfo->numOfRows);
 }
 
@@ -1444,80 +1444,6 @@ static int32_t doPrepareResPtr(SReqResultInfo* pResInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
-static char* parseTagDatatoJson(void* p) {
-  char*  string = NULL;
-  cJSON* json = cJSON_CreateObject();
-  if (json == NULL) {
-    goto end;
-  }
-
-  SArray* pTagVals = NULL;
-  if (tTagToValArray((const STag*)p, &pTagVals) != 0) {
-    goto end;
-  }
-
-  int16_t nCols = taosArrayGetSize(pTagVals);
-  char    tagJsonKey[256] = {0};
-  for (int j = 0; j < nCols; ++j) {
-    STagVal* pTagVal = (STagVal*)taosArrayGet(pTagVals, j);
-    // json key  encode by binary
-    memset(tagJsonKey, 0, sizeof(tagJsonKey));
-    memcpy(tagJsonKey, pTagVal->pKey, strlen(pTagVal->pKey));
-    // json value
-    char type = pTagVal->type;
-    if (type == TSDB_DATA_TYPE_NULL) {
-      cJSON* value = cJSON_CreateNull();
-      if (value == NULL) {
-        goto end;
-      }
-      cJSON_AddItemToObject(json, tagJsonKey, value);
-    } else if (type == TSDB_DATA_TYPE_NCHAR) {
-      cJSON* value = NULL;
-      if (pTagVal->nData > 0) {
-        char*   tagJsonValue = taosMemoryCalloc(pTagVal->nData, 1);
-        int32_t length = taosUcs4ToMbs((TdUcs4*)pTagVal->pData, pTagVal->nData, tagJsonValue);
-        if (length < 0) {
-          tscError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
-                   pTagVal->pData);
-          taosMemoryFree(tagJsonValue);
-          goto end;
-        }
-        value = cJSON_CreateString(tagJsonValue);
-        taosMemoryFree(tagJsonValue);
-        if (value == NULL) {
-          goto end;
-        }
-      } else if (pTagVal->nData == 0) {
-        value = cJSON_CreateString("");
-      } else {
-        ASSERT(0);
-      }
-
-      cJSON_AddItemToObject(json, tagJsonKey, value);
-    } else if (type == TSDB_DATA_TYPE_DOUBLE) {
-      double jsonVd = *(double*)(&pTagVal->i64);
-      cJSON* value = cJSON_CreateNumber(jsonVd);
-      if (value == NULL) {
-        goto end;
-      }
-      cJSON_AddItemToObject(json, tagJsonKey, value);
-    } else if (type == TSDB_DATA_TYPE_BOOL) {
-      char   jsonVd = *(char*)(&pTagVal->i64);
-      cJSON* value = cJSON_CreateBool(jsonVd);
-      if (value == NULL) {
-        goto end;
-      }
-      cJSON_AddItemToObject(json, tagJsonKey, value);
-    } else {
-      ASSERT(0);
-    }
-  }
-  string = cJSON_PrintUnformatted(json);
-end:
-  cJSON_Delete(json);
-  return string;
-}
-
 static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t numOfRows, int32_t numOfCols, int32_t* colLength) {
   for (int32_t i = 0; i < numOfCols; ++i) {
     int32_t type = pResultInfo->fields[i].type;
@@ -1581,7 +1507,7 @@ static int32_t estimateJsonLen(SReqResultInfo* pResultInfo, int32_t numOfCols, i
         char*   jsonInnerData = data + CHAR_BYTES;
         if (jsonInnerType == TSDB_DATA_TYPE_NULL) {
           len += (VARSTR_HEADER_SIZE + strlen(TSDB_DATA_NULL_STR_L));
-        } else if (jsonInnerType & TD_TAG_JSON) {
+        } else if (tTagIsJson(data)) {
           len += (VARSTR_HEADER_SIZE + ((const STag*)(data))->len);
         } else if (jsonInnerType == TSDB_DATA_TYPE_NCHAR) {  // value -> "value"
           len += varDataTLen(jsonInnerData) + CHAR_BYTES * 2;
@@ -1665,7 +1591,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
         if (jsonInnerType == TSDB_DATA_TYPE_NULL) {
           sprintf(varDataVal(dst), "%s", TSDB_DATA_NULL_STR_L);
           varDataSetLen(dst, strlen(varDataVal(dst)));
-        } else if (jsonInnerType & TD_TAG_JSON) {
+        } else if (tTagIsJson(data)) {
           char* jsonString = parseTagDatatoJson(data);
           STR_TO_VARSTR(dst, jsonString);
           taosMemoryFree(jsonString);

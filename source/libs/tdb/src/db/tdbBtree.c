@@ -56,14 +56,9 @@ typedef struct {
 } SIntHdr;
 #pragma pack(pop)
 
-typedef struct {
-  u8      flags;
-  SBTree *pBt;
-} SBtreeInitPageArg;
-
 static int tdbDefaultKeyCmprFn(const void *pKey1, int keyLen1, const void *pKey2, int keyLen2);
 static int tdbBtreeOpenImpl(SBTree *pBt);
-static int tdbBtreeInitPage(SPage *pPage, void *arg, int init);
+//static int tdbBtreeInitPage(SPage *pPage, void *arg, int init);
 static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const void *pVal, int vLen, SCell *pCell,
                               int *szCell, TXN *pTxn, SBTree *pBt);
 static int tdbBtreeDecodeCell(SPage *pPage, const SCell *pCell, SCellDecoder *pDecoder, TXN *pTxn, SBTree *pBt);
@@ -348,7 +343,7 @@ static int tdbBtreeOpenImpl(SBTree *pBt) {
   return 0;
 }
 
-static int tdbBtreeInitPage(SPage *pPage, void *arg, int init) {
+int tdbBtreeInitPage(SPage *pPage, void *arg, int init) {
   SBTree *pBt;
   u8      flags;
   u8      leaf;
@@ -862,20 +857,20 @@ static int tdbBtreeBalance(SBTC *pBtc) {
 }
 // TDB_BTREE_BALANCE
 
-static int tdbFetchOvflPage(SPager *pPager, SPgno *pPgno, SPage **ppOfp, TXN *pTxn, SBTree *pBt) {
+static int tdbFetchOvflPage(SPgno *pPgno, SPage **ppOfp, TXN *pTxn, SBTree *pBt) {
   int ret = 0;
 
   *pPgno = 0;
   SBtreeInitPageArg iArg;
   iArg.pBt = pBt;
   iArg.flags = TDB_FLAG_ADD(0, TDB_BTREE_OVFL);
-  ret = tdbPagerFetchPage(pPager, pPgno, ppOfp, tdbBtreeInitPage, &iArg, pTxn);
+  ret = tdbPagerFetchPage(pBt->pPager, pPgno, ppOfp, tdbBtreeInitPage, &iArg, pTxn);
   if (ret < 0) {
     return -1;
   }
 
   // mark dirty
-  ret = tdbPagerWrite(pPager, *ppOfp);
+  ret = tdbPagerWrite(pBt->pPager, *ppOfp);
   if (ret < 0) {
     ASSERT(0);
     return -1;
@@ -884,13 +879,13 @@ static int tdbFetchOvflPage(SPager *pPager, SPgno *pPgno, SPage **ppOfp, TXN *pT
   return ret;
 }
 
-static int tdbLoadOvflPage(SPager *pPager, SPgno *pPgno, SPage **ppOfp, TXN *pTxn, SBTree *pBt) {
+static int tdbLoadOvflPage(SPgno *pPgno, SPage **ppOfp, TXN *pTxn, SBTree *pBt) {
   int ret = 0;
 
   SBtreeInitPageArg iArg;
   iArg.pBt = pBt;
   iArg.flags = TDB_FLAG_ADD(0, TDB_BTREE_OVFL);
-  ret = tdbPagerFetchPage(pPager, pPgno, ppOfp, tdbBtreeInitPage, &iArg, pTxn);
+  ret = tdbPagerFetchPage(pBt->pPager, pPgno, ppOfp, tdbBtreeInitPage, &iArg, pTxn);
   if (ret < 0) {
     return -1;
   }
@@ -927,7 +922,7 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
     SPgno pgno = 0;
     SPage *ofp, *nextOfp;
 
-    ret = tdbFetchOvflPage(pPage->pPager, &pgno, &ofp, pTxn, pBt);
+    ret = tdbFetchOvflPage(&pgno, &ofp, pTxn, pBt);
     if (ret < 0) {
       return -1;
     }
@@ -967,7 +962,7 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
 	// fetch next ofp if not last page
 	if (!lastPage) {
 	  // fetch a new ofp and make it dirty
-	  ret = tdbFetchOvflPage(pPage->pPager, &pgno, &nextOfp, pTxn, pBt);
+	  ret = tdbFetchOvflPage(&pgno, &nextOfp, pTxn, pBt);
 	  if (ret < 0) {
 	    tdbFree(pBuf);
 	    return -1;
@@ -1024,14 +1019,14 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
 	    nLeft -= lastKeyPageSpace;
 
 	    // fetch next ofp, a new ofp and make it dirty
-	    ret = tdbFetchOvflPage(pPage->pPager, &pgno, &nextOfp, pTxn, pBt);
+	    ret = tdbFetchOvflPage(&pgno, &nextOfp, pTxn, pBt);
 	    if (ret < 0) {
 	      return -1;
 	    }
 	  }
 	} else {
 	  // fetch next ofp, a new ofp and make it dirty
-	  ret = tdbFetchOvflPage(pPage->pPager, &pgno, &nextOfp, pTxn, pBt);
+	  ret = tdbFetchOvflPage(&pgno, &nextOfp, pTxn, pBt);
 	  if (ret < 0) {
 	    return -1;
 	  }
@@ -1062,7 +1057,7 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
 	// fetch next ofp if not last page
 	if (!lastPage) {
 	  // fetch a new ofp and make it dirty
-	  ret = tdbFetchOvflPage(pPage->pPager, &pgno, &nextOfp, pTxn, pBt);
+	  ret = tdbFetchOvflPage(&pgno, &nextOfp, pTxn, pBt);
 	  if (ret < 0) {
 	    tdbFree(pBuf);
 	    return -1;
@@ -1203,7 +1198,7 @@ static int tdbBtreeDecodePayload(SPage *pPage, const SCell *pCell, int nHeader, 
 
       // unpack left val data from ovpages
       while (pgno != 0)  {
-	ret = tdbLoadOvflPage(pPage->pPager, &pgno, &ofp, pTxn, pBt);
+	ret = tdbLoadOvflPage(&pgno, &ofp, pTxn, pBt);
 	if (ret < 0) {
 	  return -1;
 	}
@@ -1240,7 +1235,7 @@ static int tdbBtreeDecodePayload(SPage *pPage, const SCell *pCell, int nHeader, 
       int lastKeyPageSpace = 0;
       // load left key & val to ovpages
       while (pgno != 0) {
-	ret = tdbLoadOvflPage(pPage->pPager, &pgno, &ofp, pTxn, pBt);
+	ret = tdbLoadOvflPage(&pgno, &ofp, pTxn, pBt);
 	if (ret < 0) {
 	  return -1;
 	}
@@ -1285,7 +1280,7 @@ static int tdbBtreeDecodePayload(SPage *pPage, const SCell *pCell, int nHeader, 
       }
 
       while (nLeft > 0) {
-	ret = tdbLoadOvflPage(pPage->pPager, &pgno, &ofp, pTxn, pBt);
+	ret = tdbLoadOvflPage(&pgno, &ofp, pTxn, pBt);
 	if (ret < 0) {
 	  return -1;
 	}
@@ -1416,7 +1411,7 @@ static int tdbBtreeCellSize(const SPage *pPage, SCell *pCell, int dropOfp, TXN *
       int bytes;
 
       while (pgno != 0) {
-	ret = tdbLoadOvflPage(pPage->pPager, &pgno, &ofp, pTxn, pBt);
+	ret = tdbLoadOvflPage(&pgno, &ofp, pTxn, pBt);
 	if (ret < 0) {
 	  return -1;
 	}
@@ -2028,7 +2023,7 @@ int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst) {
       // check if key <= current position
       if (idx < nCells) {
         pCell = tdbPageGetCell(pPage, idx);
-        tdbBtreeDecodeCell(pPage, pCell, &cd, pBtc->pTxn, pBtc->pBt);
+        tdbBtreeDecodeCell(pPage, pCell, &cd);
         c = pBt->kcmpr(pKey, kLen, cd.pKey, cd.kLen);
         if (c > 0) break;
       }

@@ -68,6 +68,7 @@ typedef struct SCatalogReq {
   SArray* pIndex;         // element is index name
   SArray* pUser;          // element is SUserAuthInfo
   SArray* pTableIndex;    // element is SNAME
+  SArray* pTableCfg;      // element is SNAME
   bool    qNodeRequired;  // valid qnode
   bool    dNodeRequired;  // valid dnode
   bool    forceUpdate;
@@ -89,6 +90,7 @@ typedef struct SMetaData {
   SArray* pIndex;       // pRes = SIndexInfo*
   SArray* pUser;        // pRes = bool*
   SArray* pQnodeList;   // pRes = SArray<SQueryNodeLoad>*
+  SArray* pTableCfg;    // pRes = STableCfg*
   SArray* pDnodeList;   // pRes = SArray<SEpSet>*
 } SMetaData;
 
@@ -283,6 +285,8 @@ int32_t catalogGetDBCfg(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbF
 int32_t catalogGetIndexMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const char* indexName, SIndexInfo* pInfo);
 
 int32_t catalogGetTableIndex(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SArray** pRes);
+
+int32_t catalogRefreshGetTableCfg(SCatalog* pCtg, SRequestConnInfo *pConn, const SName* pTableName, STableCfg** pCfg);
 
 int32_t catalogUpdateTableIndex(SCatalog* pCtg, STableIndexRsp *pRsp);
 
