@@ -761,11 +761,6 @@ void taosCleanupCfg() {
 
 void taosCfgDynamicOptions(const char *option, const char *value) {
   if (strncasecmp(option, "debugFlag", 9) == 0) {
-    if (value != NULL) {
-      if (strlen(option) > 10) {
-        value = option + 10;
-      }
-    }
     int32_t flag = atoi(value);
     taosSetAllDebugFlag(flag);
   }

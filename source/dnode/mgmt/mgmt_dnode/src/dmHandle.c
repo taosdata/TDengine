@@ -124,7 +124,7 @@ int32_t dmProcessGrantRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
 int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SDCfgDnodeReq cfgReq = {0};
-  if (tDeserializeSMCfgDnodeReq(pMsg->pCont, pMsg->contLen, &cfgReq) != 0) {
+  if (tDeserializeSDCfgDnodeReq(pMsg->pCont, pMsg->contLen, &cfgReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
