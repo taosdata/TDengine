@@ -280,6 +280,27 @@ static void monGenVgroupJson(SMonInfo *pMonitor) {
   }
 }
 
+static void monGenStbJson(SMonInfo *pMonitor) {
+  SMonStbInfo *pInfo = &pMonitor->mmInfo.stb;
+  if (pMonitor->mmInfo.cluster.first_ep_dnode_id == 0) return;
+
+  SJson *pJson = tjsonAddArrayToObject(pMonitor->pJson, "stb_infos");
+  if (pJson == NULL) return;
+
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->stbs); ++i) {
+    SJson *pStbJson = tjsonCreateObject();
+    if (pStbJson == NULL) continue;
+    if (tjsonAddItemToArray(pJson, pStbJson) != 0) {
+      tjsonDelete(pStbJson);
+      continue;
+    }
+
+    SMonStbDesc *pStbDesc = taosArrayGet(pInfo->stbs, i);
+    tjsonAddStringToObject(pStbJson, "stb_name", pStbDesc->stb_name);
+    tjsonAddStringToObject(pStbJson, "database_name", pStbDesc->database_name);
+  }
+}
+
 static void monGenGrantJson(SMonInfo *pMonitor) {
   SMonGrantInfo *pInfo = &pMonitor->mmInfo.grant;
   if (pMonitor->mmInfo.cluster.first_ep_dnode_id == 0) return;
@@ -527,6 +548,7 @@ void monSendReport() {
   monGenBasicJson(pMonitor);
   monGenClusterJson(pMonitor);
   monGenVgroupJson(pMonitor);
+  monGenStbJson(pMonitor);
   monGenGrantJson(pMonitor);
   monGenDnodeJson(pMonitor);
   monGenDiskJson(pMonitor);
