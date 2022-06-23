@@ -1,0 +1,65 @@
+###################################################################
+#           Copyright (c) 2016 by TAOS Technologies, Inc.
+#                     All rights reserved.
+#
+#  This file is proprietary and confidential to TAOS Technologies.
+#  No part of this file may be reproduced, stored, transmitted,
+#  disclosed or used in any form or by any means other than as
+#  expressly provided by the written permission from Jianhui Tao
+#
+###################################################################
+
+# -*- coding: utf-8 -*-
+from Query.queryscript.table_function.str.table_str_rtrim import *
+
+class TDTestQuery(TDTestQuery):
+    def init(self):
+        super(TDTestQuery, self).init()
+        self.tdCreateData = TDCreateData(self.tdSql, self.logger)
+
+    def tags(self) :
+	
+        return ""
+
+    def author(self) -> str:
+
+        return "Guo Xiangyang"
+
+    def desc(self) -> str:
+        case_description = '''
+        case1:# support binary and nchar type\ support str function [hanshu = ['RTRIM']
+        case2:
+        '''
+        return case_description
+                 
+    def run(self):
+        startTime = time.time() 
+        
+        self.data_create(self.db)
+         
+        startTime1 = time.time()
+        self.right_case_1_groupby()
+        self.right_case_1_tbname()
+        self.right_case_1()
+        endTime1 = time.time()       
+        print("total time1 %d s" % (endTime1 - startTime1))
+    
+        # startTime2 = time.time()
+        # self.right_case_2_groupby()
+        # self.right_case_2_tbname()
+        # self.right_case_2()
+        # endTime2 = time.time()       
+        # print("total time2 %d s" % (endTime2 - startTime2))
+        
+        startTime3 = time.time()
+        self.right_case_3_groupby()
+        self.right_case_3_tbname()
+        self.right_case_3()
+        endTime3 = time.time()
+        print("total time3 %ds" % (endTime3 - startTime3))     
+
+        endTime = time.time()
+        self.rm_sql()
+        print("total time %ds" % (endTime - startTime))
+
+
