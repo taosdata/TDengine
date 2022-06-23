@@ -2005,6 +2005,7 @@ _error:
   return code;
 }
 
+// todo refactor or  remove it
 static int32_t loadDataBlockFromOneTable(SOperatorInfo* pOperator, STableMergeScanInfo* pTableScanInfo,
                                          int32_t readerIdx, SSDataBlock* pBlock, uint32_t* status) {
   SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
@@ -2145,7 +2146,13 @@ static SSDataBlock* getTableDataBlock(void* param) {
       continue;
     }
 
-    tsdbRetrieveDataBlockInfo(reader, &pBlock->info);
+    blockDataCleanup(pBlock);
+    SDataBlockInfo binfo = pBlock->info;
+    tsdbRetrieveDataBlockInfo(reader, &binfo);
+
+    binfo.capacity = binfo.rows;
+    blockDataEnsureCapacity(pBlock, binfo.capacity);
+    pBlock->info = binfo;
 
     uint32_t status = 0;
     int32_t  code = loadDataBlockFromOneTable(pOperator, pTableScanInfo, readerIdx, pBlock, &status);
