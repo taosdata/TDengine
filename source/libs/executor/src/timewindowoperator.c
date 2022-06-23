@@ -4117,6 +4117,8 @@ SOperatorInfo* createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SExprI
     goto _error;
   }
 
+  miaInfo->groupIntervalHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), true, HASH_NO_LOCK);
+
   SIntervalAggOperatorInfo* iaInfo = &miaInfo->intervalAggOperatorInfo;
 
   iaInfo->win = pTaskInfo->window;
