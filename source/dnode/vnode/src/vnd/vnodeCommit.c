@@ -40,6 +40,7 @@ int vnodeBegin(SVnode *pVnode) {
 
   /* pthread_mutex_unlock(); */
 
+  pVnode->state.commitID++;
   // begin meta
   if (metaBegin(pVnode->pMeta) < 0) {
     vError("vgId:%d, failed to begin meta since %s", TD_VID(pVnode), tstrerror(terrno));
@@ -210,7 +211,8 @@ int vnodeCommit(SVnode *pVnode) {
   SVnodeInfo info = {0};
   char       dir[TSDB_FILENAME_LEN];
 
-  vInfo("vgId:%d, start to commit, version: %" PRId64, TD_VID(pVnode), pVnode->state.applied);
+  vInfo("vgId:%d, start to commit, commit ID:%" PRId64 " version:%" PRId64, TD_VID(pVnode), pVnode->state.commitID,
+        pVnode->state.applied);
 
   pVnode->onCommit = pVnode->inUse;
   pVnode->inUse = NULL;
@@ -278,7 +280,7 @@ static int vnodeCommitImpl(void *arg) {
 
   // metaCommit(pVnode->pMeta);
   tqCommit(pVnode->pTq);
-  tsdbCommit(pVnode->pTsdb);
+  // tsdbCommit(pVnode->pTsdb, );
 
   // vnodeBufPoolRecycle(pVnode);
   tsem_post(&(pVnode->canCommit));
@@ -302,6 +304,7 @@ static int vnodeEncodeState(const void *pObj, SJson *pJson) {
 
   if (tjsonAddIntegerToObject(pJson, "commit version", pState->committed) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "applied version", pState->applied) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "commit ID", pState->commitID) < 0) return -1;
 
   return 0;
 }
@@ -313,6 +316,8 @@ static int vnodeDecodeState(const SJson *pJson, void *pObj) {
   tjsonGetNumberValue(pJson, "commit version", pState->committed, code);
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "applied version", pState->applied, code);
+  if (code < 0) return -1;
+  tjsonGetNumberValue(pJson, "commit ID", pState->commitID, code);
   if (code < 0) return -1;
 
   return 0;

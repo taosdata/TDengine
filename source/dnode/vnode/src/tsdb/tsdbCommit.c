@@ -18,6 +18,7 @@
 typedef struct {
   STsdb *pTsdb;
   /* commit data */
+  int64_t commitID;
   int32_t minutes;
   int8_t  precision;
   int32_t minRow;
@@ -837,6 +838,7 @@ static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitter *pCommitter) {
   // unlock();
 
   pCommitter->pTsdb = pTsdb;
+  pCommitter->commitID = pTsdb->pVnode->state.commitID;
   pCommitter->minutes = pTsdb->keepCfg.days;
   pCommitter->precision = pTsdb->keepCfg.precision;
   pCommitter->minRow = pTsdb->pVnode->config.tsdbCfg.minRows;
