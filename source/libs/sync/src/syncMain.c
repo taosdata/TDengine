@@ -1455,6 +1455,17 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
     isAdd = false;
   }
 
+  // log begin config change
+  do {
+    char  eventLog[256];
+    char* pOldCfgStr = syncCfg2SimpleStr(&oldConfig);
+    char* pNewCfgStr = syncCfg2SimpleStr(pNewConfig);
+    snprintf(eventLog, sizeof(eventLog), "begin do config change, from %s to %s", pOldCfgStr, pNewCfgStr);
+    syncNodeEventLog(pSyncNode, eventLog);
+    taosMemoryFree(pOldCfgStr);
+    taosMemoryFree(pNewCfgStr);
+  } while (0);
+
   if (IamInNew) {
     pSyncNode->pRaftCfg->isStandBy = 0;  // change isStandBy to normal
   }
@@ -1613,6 +1624,17 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
   }
 
 _END:
+
+  // log end config change
+  do {
+    char  eventLog[256];
+    char* pOldCfgStr = syncCfg2SimpleStr(&oldConfig);
+    char* pNewCfgStr = syncCfg2SimpleStr(pNewConfig);
+    snprintf(eventLog, sizeof(eventLog), "end do config change, from %s to %s", pOldCfgStr, pNewCfgStr);
+    syncNodeEventLog(pSyncNode, eventLog);
+    taosMemoryFree(pOldCfgStr);
+    taosMemoryFree(pNewCfgStr);
+  } while (0);
   return;
 }
 
