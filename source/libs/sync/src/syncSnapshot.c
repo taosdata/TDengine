@@ -113,8 +113,16 @@ void snapshotSenderStart(SSyncSnapshotSender *pSender, SSnapshot snapshot, void 
     }
 
     if (!getLastConfig) {
-      syncNodeLog3("", pSender->pSyncNode);
-      ASSERT(0);
+      char logBuf[128];
+      snprintf(logBuf, sizeof(logBuf), "snapshot sender update lcindex from %ld to -1",
+               pSender->snapshot.lastConfigIndex);
+      pSender->snapshot.lastConfigIndex = -1;
+
+      char *eventLog = snapshotSender2SimpleStr(pSender, logBuf);
+      syncNodeEventLog(pSender->pSyncNode, eventLog);
+      taosMemoryFree(eventLog);
+
+      memset(&(pSender->lastConfig), 0, sizeof(SSyncCfg));
     }
 
   } else {

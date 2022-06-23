@@ -219,11 +219,9 @@ _err:
 }
 
 int metaTtlSmaller(SMeta *pMeta, uint64_t ttl, SArray *uidList){
-  metaRLock(pMeta);
   TBC *    pCur;
   int ret = tdbTbcOpen(pMeta->pTtlIdx, &pCur, NULL);
   if (ret < 0) {
-    metaULock(pMeta);
     return ret;
   }
 
@@ -249,6 +247,7 @@ int metaTtlSmaller(SMeta *pMeta, uint64_t ttl, SArray *uidList){
   tdbTbcClose(pCur);
 
   tdbFree(pKey);
+
   return 0;
 }
 
