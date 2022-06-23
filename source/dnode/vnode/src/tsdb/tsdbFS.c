@@ -15,18 +15,10 @@
 
 #include "tsdb.h"
 
-typedef struct {
+struct STsdbFSState {
   SDelFile *pDelFile;
   SArray   *aDFileSet;  // SArray<aDFileSet>
   SDelFile  delFile;
-} STsdbFSState;
-
-struct STsdbFS {
-  STsdb         *pTsdb;
-  TdThreadRwlock lock;
-  int8_t         inTxn;
-  STsdbFSState  *cState;
-  STsdbFSState  *nState;
 };
 
 // =================================================================================================
@@ -373,8 +365,8 @@ static int32_t tsdbFSApplyDiskChange(STsdbFS *pFS, STsdbFSState *pFrom, STsdbFSS
 
   // SDFileSet
   while (iFrom < nFrom && iTo < nTo) {
-    pDFileSetFrom = (SDFileSet *)taosArrayGetP(pFrom->aDFileSet, iFrom);
-    pDFileSetTo = (SDFileSet *)taosArrayGetP(pTo->aDFileSet, iTo);
+    pDFileSetFrom = (SDFileSet *)taosArrayGet(pFrom->aDFileSet, iFrom);
+    pDFileSetTo = (SDFileSet *)taosArrayGet(pTo->aDFileSet, iTo);
 
     if (pDFileSetFrom->fid == pDFileSetTo->fid) {
       code = tsdbApplyDFileSetChange(pFS, pDFileSetFrom, pDFileSetTo);
@@ -393,7 +385,7 @@ static int32_t tsdbFSApplyDiskChange(STsdbFS *pFS, STsdbFSState *pFrom, STsdbFSS
   }
 
   while (iFrom < nFrom) {
-    pDFileSetFrom = (SDFileSet *)taosArrayGetP(pFrom->aDFileSet, iFrom);
+    pDFileSetFrom = (SDFileSet *)taosArrayGet(pFrom->aDFileSet, iFrom);
     code = tsdbApplyDFileSetChange(pFS, pDFileSetFrom, NULL);
     if (code) goto _err;
 
@@ -613,6 +605,16 @@ _err:
   return code;
 }
 
+static int32_t tDFileSetCmprFn(const void *p1, const void *p2) {
+  if (((SDFileSet *)p1)->fid < ((SDFileSet *)p2)->fid) {
+    return -1;
+  } else if (((SDFileSet *)p1)->fid > ((SDFileSet *)p2)->fid) {
+    return 1;
+  }
+
+  return 0;
+}
+
 // EXPOSED APIS ====================================================================================
 int32_t tsdbFSOpen(STsdb *pTsdb, STsdbFS **ppFS) {
   int32_t code = 0;
@@ -654,12 +656,17 @@ int32_t tsdbFSBegin(STsdbFS *pFS) {
 
   ASSERT(!pFS->inTxn);
 
-  pFS->inTxn = 1;
+  // SDelFile
+  pFS->nState->pDelFile = NULL;
+  if (pFS->cState->pDelFile) {
+    pFS->nState->delFile = pFS->cState->delFile;
+    pFS->nState->pDelFile = &pFS->nState->delFile;
+  }
 
-  pFS->nState->pDelFile = pFS->cState->pDelFile;
+  // SArray<aDFileSet>
   taosArrayClear(pFS->nState->aDFileSet);
-  for (int32_t iDFileSet = 0; iDFileSet < taosArrayGetSize(pFS->cState->aDFileSet); iDFileSet++) {
-    SDFileSet *pDFileSet = (SDFileSet *)taosArrayGetP(pFS->cState->aDFileSet, iDFileSet);
+  for (int32_t iSet = 0; iSet < taosArrayGetSize(pFS->cState->aDFileSet); iSet++) {
+    SDFileSet *pDFileSet = (SDFileSet *)taosArrayGet(pFS->cState->aDFileSet, iSet);
 
     if (taosArrayPush(pFS->nState->aDFileSet, &pDFileSet) == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
@@ -667,6 +674,7 @@ int32_t tsdbFSBegin(STsdbFS *pFS) {
     }
   }
 
+  pFS->inTxn = 1;
   return code;
 
 _err:
@@ -712,4 +720,43 @@ int32_t tsdbFSRollback(STsdbFS *pFS) {
 _err:
   tsdbError("vgId:%d tsdb fs rollback failed since %s", TD_VID(pFS->pTsdb->pVnode), tstrerror(code));
   return code;
+}
+
+int32_t tsdbFSStateUpsertDelFile(STsdbFSState *pState, SDelFile *pDelFile) {
+  int32_t code = 0;
+  pState->delFile = *pDelFile;
+  pState->pDelFile = &pState->delFile;
+  return code;
+}
+
+int32_t tsdbFSStateUpsertDFileSet(STsdbFSState *pState, SDFileSet *pSet) {
+  int32_t code = 0;
+  int32_t idx = taosArraySearchIdx(pState->aDFileSet, pSet, tDFileSetCmprFn, TD_GE);
+
+  if (idx < 0) {
+    if (taosArrayPush(pState->aDFileSet, pSet) == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+  } else {
+    SDFileSet *tDFileSet = (SDFileSet *)taosArrayGet(pState->aDFileSet, idx);
+    int32_t    c = tDFileSetCmprFn(pSet, tDFileSet);
+    if (c == 0) {
+      taosArraySet(pState->aDFileSet, idx, pSet);
+    } else {
+      if (taosArrayInsert(pState->aDFileSet, idx, pSet) == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _exit;
+      }
+    }
+  }
+
+_exit:
+  return code;
+}
+
+SDelFile *tsdbFSStateGetDelFile(STsdbFSState *pState) { return pState->pDelFile; }
+
+SDFileSet *tsdbFSStateGetDFileSet(STsdbFSState *pState, int32_t fid) {
+  return (SDFileSet *)taosArraySearch(pState->aDFileSet, &(SDFileSet){.fid = fid}, tDFileSetCmprFn, TD_EQ);
 }

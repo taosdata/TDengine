@@ -649,8 +649,8 @@ _err:
 static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
   int32_t    code = 0;
   STsdb     *pTsdb = pCommitter->pTsdb;
-  SDFileSet *pRSet = NULL;  // TODO
-  SDFileSet *pWSet = NULL;  // TODO
+  SDFileSet *pRSet = NULL;
+  SDFileSet *pWSet = NULL;
 
   // memory
   pCommitter->nextKey = TSKEY_MAX;
@@ -660,6 +660,7 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
   tMapDataReset(&pCommitter->oBlockMap);
   tBlockReset(&pCommitter->oBlock);
   tBlockDataReset(&pCommitter->oBlockData);
+  pRSet = tsdbFSStateGetDFileSet(pTsdb->fs->nState, pCommitter->commitFid);
   if (pRSet) {
     code = tsdbDataFReaderOpen(&pCommitter->pReader, pTsdb, pRSet);
     if (code) goto _err;
@@ -673,6 +674,22 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
   tMapDataReset(&pCommitter->nBlockMap);
   tBlockReset(&pCommitter->nBlock);
   tBlockDataReset(&pCommitter->nBlockData);
+  if (pRSet) {
+    pWSet = &(SDFileSet){.diskId = pRSet->diskId,
+                         .fid = pCommitter->commitFid,
+                         .fHead = {.commitID = pCommitter->commitID, .offset = 0, .size = 0},
+                         .fData = pRSet->fData,
+                         .fLast = {.commitID = pCommitter->commitID, .size = 0},
+                         .fSma = pRSet->fSma};
+  } else {
+    SDiskID did = {.level = 0, .id = 0};  // TODO: alloc a new one
+    pWSet = &(SDFileSet){.diskId = did,
+                         .fid = pCommitter->commitFid,
+                         .fHead = {.commitID = pCommitter->commitID, .offset = 0, .size = 0},
+                         .fData = {.commitID = pCommitter->commitID, .size = 0},
+                         .fLast = {.commitID = pCommitter->commitID, .size = 0},
+                         .fSma = {.commitID = pCommitter->commitID, .size = 0}};
+  }
   code = tsdbDataFWriterOpen(&pCommitter->pWriter, pTsdb, pWSet);
   if (code) goto _err;
 

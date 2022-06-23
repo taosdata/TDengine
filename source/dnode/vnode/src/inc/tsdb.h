@@ -65,6 +65,7 @@ typedef struct SDelFReader    SDelFReader;
 typedef struct SRowIter       SRowIter;
 typedef struct STsdbFS        STsdbFS;
 typedef struct SRowMerger     SRowMerger;
+typedef struct STsdbFSState   STsdbFSState;
 
 #define TSDB_MAX_SUBBLOCKS 8
 #define TSDB_FHDR_SIZE     512
@@ -146,6 +147,8 @@ void    tMapDataReset(SMapData *pMapData);
 void    tMapDataClear(SMapData *pMapData);
 int32_t tMapDataPutItem(SMapData *pMapData, void *pItem, int32_t (*tPutItemFn)(uint8_t *, void *));
 int32_t tMapDataGetItemByIdx(SMapData *pMapData, int32_t idx, void *pItem, int32_t (*tGetItemFn)(uint8_t *, void *));
+int32_t tMapDataSearch(SMapData *pMapData, void *pSearchItem, int32_t (*tGetItemFn)(uint8_t *, void *),
+                       int32_t (*tItemCmprFn)(const void *, const void *), void *pItem);
 int32_t tPutMapData(uint8_t *p, SMapData *pMapData);
 int32_t tGetMapData(uint8_t *p, SMapData *pMapData);
 // other
@@ -166,8 +169,8 @@ void     tsdbTbDataIterOpen(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, S
 TSDBROW *tsdbTbDataIterGet(STbDataIter *pIter);
 bool     tsdbTbDataIterNext(STbDataIter *pIter);
 // tsdbFile.c ==============================================================================================
-enum { TSDB_HEAD_FILE = 0, TSDB_DATA_FILE, TSDB_LAST_FILE, TSDB_SMA_FILE };
-void tsdbDataFileName(STsdb *pTsdb, SDFileSet *pDFileSet, int8_t ftype, char fname[]);
+typedef enum { TSDB_HEAD_FILE = 0, TSDB_DATA_FILE, TSDB_LAST_FILE, TSDB_SMA_FILE } EDataFileT;
+void tsdbDataFileName(STsdb *pTsdb, SDFileSet *pDFileSet, EDataFileT ftype, char fname[]);
 // SDelFile
 #define tsdbDelFileCreate() \
   ((SDelFile){              \
@@ -179,6 +182,11 @@ int32_t tsdbFSClose(STsdbFS *pFS);
 int32_t tsdbFSBegin(STsdbFS *pFS);
 int32_t tsdbFSCommit(STsdbFS *pFS);
 int32_t tsdbFSRollback(STsdbFS *pFS);
+
+int32_t    tsdbFSStateUpsertDelFile(STsdbFSState *pState, SDelFile *pDelFile);
+int32_t    tsdbFSStateUpsertDFileSet(STsdbFSState *pState, SDFileSet *pSet);
+SDelFile  *tsdbFSStateGetDelFile(STsdbFSState *pState);
+SDFileSet *tsdbFSStateGetDFileSet(STsdbFSState *pState, int32_t fid);
 // tsdbReaderWriter.c ==============================================================================================
 // SDataFWriter
 int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pSet);
@@ -497,6 +505,14 @@ struct SRowMerger {
   STSchema *pTSchema;
   int64_t   version;
   SArray   *pArray;  // SArray<SColVal>
+};
+
+struct STsdbFS {
+  STsdb         *pTsdb;
+  TdThreadRwlock lock;
+  int8_t         inTxn;
+  STsdbFSState  *cState;
+  STsdbFSState  *nState;
 };
 
 #ifdef __cplusplus

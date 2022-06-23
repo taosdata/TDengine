@@ -15,7 +15,7 @@
 
 #include "tsdb.h"
 
-void tsdbDataFileName(STsdb *pTsdb, SDFileSet *pDFileSet, int8_t ftype, char fname[]) {
+void tsdbDataFileName(STsdb *pTsdb, SDFileSet *pDFileSet, EDataFileT ftype, char fname[]) {
   STfs *pTfs = pTsdb->pVnode->pTfs;
 
   switch (ftype) {

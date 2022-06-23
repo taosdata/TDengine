@@ -70,6 +70,34 @@ static int32_t tMapDataGetOffset(SMapData *pMapData, int32_t idx) {
       ASSERT(0);
   }
 }
+int32_t tMapDataSearch(SMapData *pMapData, void *pSearchItem, int32_t (*tGetItemFn)(uint8_t *, void *),
+                       int32_t (*tItemCmprFn)(const void *, const void *), void *pItem) {
+  int32_t code = 0;
+  int32_t lidx = 0;
+  int32_t ridx = pMapData->nItem - 1;
+  int32_t midx;
+  int32_t c;
+
+  while (lidx <= ridx) {
+    midx = (lidx + ridx) / 2;
+
+    tMapDataGetItemByIdx(pMapData, midx, pItem, tGetItemFn);
+
+    c = tItemCmprFn(pSearchItem, pItem);
+    if (c == 0) {
+      goto _exit;
+    } else if (c < 0) {
+      ridx = midx - 1;
+    } else {
+      lidx = midx + 1;
+    }
+  }
+
+  code = TSDB_CODE_NOT_FOUND;
+
+_exit:
+  return code;
+}
 
 int32_t tMapDataGetItemByIdx(SMapData *pMapData, int32_t idx, void *pItem, int32_t (*tGetItemFn)(uint8_t *, void *)) {
   int32_t code = 0;

@@ -405,8 +405,58 @@ struct SDataFReader {
 };
 
 int32_t tsdbDataFReaderOpen(SDataFReader **ppReader, STsdb *pTsdb, SDFileSet *pSet) {
-  int32_t code = 0;
-  // TODO
+  int32_t       code = 0;
+  SDataFReader *pReader;
+  char          fname[TSDB_FILENAME_LEN];
+
+  // alloc
+  pReader = (SDataFReader *)taosMemoryCalloc(1, sizeof(*pReader));
+  if (pReader == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+  pReader->pTsdb = pTsdb;
+  pReader->pSet = pSet;
+
+  // open impl
+  // head
+  tsdbDataFileName(pTsdb, pSet, TSDB_HEAD_FILE, fname);
+  pReader->pHeadFD = taosOpenFile(fname, TD_FILE_READ);
+  if (pReader->pHeadFD == NULL) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  // data
+  tsdbDataFileName(pTsdb, pSet, TSDB_DATA_FILE, fname);
+  pReader->pDataFD = taosOpenFile(fname, TD_FILE_READ);
+  if (pReader->pDataFD == NULL) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  // last
+  tsdbDataFileName(pTsdb, pSet, TSDB_LAST_FILE, fname);
+  pReader->pLastFD = taosOpenFile(fname, TD_FILE_READ);
+  if (pReader->pLastFD == NULL) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  // sma
+  tsdbDataFileName(pTsdb, pSet, TSDB_SMA_FILE, fname);
+  pReader->pSmaFD = taosOpenFile(fname, TD_FILE_READ);
+  if (pReader->pSmaFD == NULL) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  *ppReader = pReader;
+  return code;
+
+_err:
+  tsdbError("vgId:%d tsdb data file reader open failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  *ppReader = NULL;
   return code;
 }
 
@@ -566,8 +616,139 @@ struct SDataFWriter {
 };
 
 int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pSet) {
-  int32_t code = 0;
-  // TODO
+  int32_t       code = 0;
+  int32_t       flag;
+  int64_t       n;
+  SDataFWriter *pWriter = NULL;
+  char          fname[TSDB_FILENAME_LEN];
+  char          hdr[TSDB_FHDR_SIZE] = {0};
+
+  // alloc
+  pWriter = taosMemoryCalloc(1, sizeof(*pWriter));
+  if (pWriter == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+  pWriter->pTsdb = pTsdb;
+  pWriter->pSet = pSet;
+
+  // create the directory if not there
+
+  // head
+  flag = TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC;
+  tsdbDataFileName(pTsdb, pSet, TSDB_HEAD_FILE, fname);
+  pWriter->pHeadFD = taosOpenFile(fname, flag);
+  if (pWriter->pHeadFD == NULL) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  n = taosWriteFile(pWriter->pHeadFD, hdr, TSDB_FHDR_SIZE);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  ASSERT(n == TSDB_FHDR_SIZE);
+
+  pSet->fHead.size += TSDB_FHDR_SIZE;
+
+  // data
+  if (pSet->fData.size == 0) {
+    flag = TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC;
+  } else {
+    flag = TD_FILE_WRITE;
+  }
+  tsdbDataFileName(pTsdb, pSet, TSDB_DATA_FILE, fname);
+  pWriter->pDataFD = taosOpenFile(fname, flag);
+  if (pWriter->pDataFD == NULL) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+  if (pSet->fData.size == 0) {
+    n = taosWriteFile(pWriter->pDataFD, hdr, TSDB_FHDR_SIZE);
+    if (n < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto _err;
+    }
+
+    pSet->fData.size += TSDB_FHDR_SIZE;
+  } else {
+    n = taosLSeekFile(pWriter->pDataFD, 0, SEEK_END);
+    if (n < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto _err;
+    }
+
+    ASSERT(n == pSet->fData.size);
+  }
+
+  // last
+  if (pSet->fLast.size == 0) {
+    flag = TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC;
+  } else {
+    flag = TD_FILE_WRITE;
+  }
+  tsdbDataFileName(pTsdb, pSet, TSDB_LAST_FILE, fname);
+  pWriter->pLastFD = taosOpenFile(fname, flag);
+  if (pWriter->pLastFD == NULL) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+  if (pSet->fLast.size == 0) {
+    n = taosWriteFile(pWriter->pLastFD, hdr, TSDB_FHDR_SIZE);
+    if (n < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto _err;
+    }
+
+    pSet->fLast.size += TSDB_FHDR_SIZE;
+  } else {
+    n = taosLSeekFile(pWriter->pLastFD, 0, SEEK_END);
+    if (n < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto _err;
+    }
+
+    ASSERT(n == pSet->fLast.size);
+  }
+
+  // sma
+  if (pSet->fSma.size == 0) {
+    flag = TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC;
+  } else {
+    flag = TD_FILE_WRITE;
+  }
+  tsdbDataFileName(pTsdb, pSet, TSDB_SMA_FILE, fname);
+  pWriter->pSmaFD = taosOpenFile(fname, flag);
+  if (pWriter->pSmaFD == NULL) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+  if (pSet->fSma.size == 0) {
+    n = taosWriteFile(pWriter->pSmaFD, hdr, TSDB_FHDR_SIZE);
+    if (n < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto _err;
+    }
+
+    pSet->fSma.size += TSDB_FHDR_SIZE;
+  } else {
+    n = taosLSeekFile(pWriter->pSmaFD, 0, SEEK_END);
+    if (n < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto _err;
+    }
+
+    ASSERT(n == pSet->fSma.size);
+  }
+
+  *ppWriter = pWriter;
+  return code;
+
+_err:
+  tsdbError("vgId:%d tsdb data file writer open failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  *ppWriter = NULL;
   return code;
 }
 
