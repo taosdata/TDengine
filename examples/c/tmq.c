@@ -26,6 +26,14 @@ static void msg_process(TAOS_RES* msg) {
   printf("topic: %s\n", tmq_get_topic_name(msg));
   printf("db: %s\n", tmq_get_db_name(msg));
   printf("vg: %d\n", tmq_get_vgroup_id(msg));
+  if (tmq_get_res_type(msg) == TMQ_RES_TABLE_META) {
+    void*   meta;
+    int32_t metaLen;
+    tmq_get_raw_meta(msg, &meta, &metaLen);
+
+    printf("meta, len is %d\n", metaLen);
+    return;
+  }
   while (1) {
     TAOS_ROW row = taos_fetch_row(msg);
     if (row == NULL) break;
@@ -76,19 +84,41 @@ int32_t init_env() {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create table if not exists ct1 using st1 tags(2000)");
+  pRes = taos_query(pConn, "insert into ct0 values(now, 1, 2, 'a')");
   if (taos_errno(pRes) != 0) {
-    printf("failed to create child table tu2, reason:%s\n", taos_errstr(pRes));
+    printf("failed to insert into ct0, reason:%s\n", taos_errstr(pRes));
     return -1;
   }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "create table if not exists ct1 using st1 tags(2000)");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create child table ct1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "insert into ct1 values(now, 3, 4, 'b')");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to insert into ct1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
 
   pRes = taos_query(pConn, "create table if not exists ct3 using st1 tags(3000)");
   if (taos_errno(pRes) != 0) {
-    printf("failed to create child table tu3, reason:%s\n", taos_errstr(pRes));
+    printf("failed to create child table ct3, reason:%s\n", taos_errstr(pRes));
     return -1;
   }
-
   taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "insert into ct3 values(now, 5, 6, 'c')");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to insert into ct3, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
   return 0;
 }
 
@@ -107,8 +137,8 @@ int32_t create_topic() {
   }
   taos_free_result(pRes);
 
-  /*pRes = taos_query(pConn, "create topic topic_ctb_column as database abc1");*/
-  pRes = taos_query(pConn, "create topic topic_ctb_column as select ts, c1, c2, c3 from st1");
+  pRes = taos_query(pConn, "create topic topic_ctb_column with meta as database abc1");
+  /*pRes = taos_query(pConn, "create topic topic_ctb_column as select ts, c1, c2, c3 from st1");*/
   if (taos_errno(pRes) != 0) {
     printf("failed to create topic topic_ctb_column, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -168,6 +198,9 @@ tmq_t* build_consumer() {
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
   tmq_conf_set(conf, "msg.with.table.name", "true");
   tmq_conf_set(conf, "enable.auto.commit", "true");
+
+  tmq_conf_set(conf, "experiment.use.snapshot", "false");
+
   tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
   tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);
   assert(tmq);
