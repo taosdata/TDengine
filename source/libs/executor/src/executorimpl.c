@@ -4465,6 +4465,7 @@ int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, qTaskInfo_t* pT
         return TSDB_CODE_OUT_OF_MEMORY;
       }
       int32_t tbNum = taosArrayGetSize(pTask->tableqinfoList.pTableList);
+      pDeleterParam->suid = pTask->tableqinfoList.suid;
       pDeleterParam->pUidList = taosArrayInit(tbNum, sizeof(uint64_t));
       if (NULL == pDeleterParam->pUidList) {
         taosMemoryFree(pDeleterParam);
