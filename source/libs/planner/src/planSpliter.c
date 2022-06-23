@@ -166,6 +166,31 @@ static bool stbSplHasMultiTbScan(bool streamQuery, SLogicNode* pNode) {
   return (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild) && stbSplIsMultiTbScan(streamQuery, (SScanLogicNode*)pChild));
 }
 
+static bool stbSplNeedSplitWindow(bool streamQuery, SLogicNode* pNode) {
+  SWindowLogicNode* pWindow = (SWindowLogicNode*)pNode;
+  if (WINDOW_TYPE_INTERVAL == pWindow->winType) {
+    return !stbSplHasGatherExecFunc(pWindow->pFuncs) && stbSplHasMultiTbScan(streamQuery, pNode);
+  }
+
+  if (WINDOW_TYPE_SESSION == pWindow->winType) {
+    if (!streamQuery) {
+      return stbSplHasMultiTbScan(streamQuery, pNode);
+    } else {
+      return !stbSplHasGatherExecFunc(pWindow->pFuncs) && stbSplHasMultiTbScan(streamQuery, pNode);
+    }
+  }
+  
+  if (WINDOW_TYPE_STATE == pWindow->winType) {
+    if (!streamQuery) {
+      return stbSplHasMultiTbScan(streamQuery, pNode);
+    } else {
+      return false;
+    }
+  }
+
+  return false;
+}
+
 static bool stbSplNeedSplit(bool streamQuery, SLogicNode* pNode) {
   switch (nodeType(pNode)) {
     case QUERY_NODE_LOGIC_PLAN_SCAN:
@@ -174,25 +199,8 @@ static bool stbSplNeedSplit(bool streamQuery, SLogicNode* pNode) {
       return !(((SJoinLogicNode*)pNode)->isSingleTableJoin);
     case QUERY_NODE_LOGIC_PLAN_AGG:
       return !stbSplHasGatherExecFunc(((SAggLogicNode*)pNode)->pAggFuncs) && stbSplHasMultiTbScan(streamQuery, pNode);
-    case QUERY_NODE_LOGIC_PLAN_WINDOW: {
-      SWindowLogicNode* pWindow = (SWindowLogicNode*)pNode;
-      if (WINDOW_TYPE_INTERVAL == pWindow->winType) {
-        return !stbSplHasGatherExecFunc(pWindow->pFuncs) && stbSplHasMultiTbScan(streamQuery, pNode);
-      if (WINDOW_TYPE_STATE == pWindow->winType) {
-        if (!streamQuery) {
-          return stbSplHasMultiTbScan(streamQuery, pNode);
-        } else {
-          return false;
-        }
-      }
-      if (WINDOW_TYPE_SESSION == pWindow->winType) {
-        if (!streamQuery) {
-          return stbSplHasMultiTbScan(streamQuery, pNode);
-        } else {
-          return !stbSplHasGatherExecFunc(pWindow->pFuncs) && stbSplHasMultiTbScan(streamQuery, pNode);
-        }
-      }
-    }
+    case QUERY_NODE_LOGIC_PLAN_WINDOW:
+      return stbSplNeedSplitWindow(streamQuery, pNode);
     case QUERY_NODE_LOGIC_PLAN_SORT:
       return stbSplHasMultiTbScan(streamQuery, pNode);
     default:
