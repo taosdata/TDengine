@@ -103,6 +103,14 @@ typedef enum WS_ACTION_TYPE_S {
   WS_CLOSE,
 } WS_ACTION_TYPE;
 
+typedef struct {
+  char *version;
+  char *code;
+  char *desc;
+  char *body;
+  int bodySize;
+} HttpResponse;
+
 /**************** Function declarations ****************/
 extern void shellParseArgument(int argc, char* argv[], SShellArguments* arguments);
 extern void  shellInit(SShellArguments* args);

@@ -1189,13 +1189,95 @@ int parse_cloud_dsn() {
     return 0;
 }
 
+void releaseHttpResponse(HttpResponse *httpResponse) {
+  if (httpResponse == NULL) {
+    return;
+  }
+  tfree(httpResponse->version);
+  tfree(httpResponse->code);
+  tfree(httpResponse->desc);
+  tfree(httpResponse->body);
+  free(httpResponse);
+  httpResponse = NULL;
+}
+
+HttpResponse *parseHttpResponse(char *response) {
+  HttpResponse *_httpResponseTemp = (HttpResponse *) malloc(sizeof(HttpResponse));
+  memset(_httpResponseTemp, 0, sizeof(HttpResponse));
+  HttpResponse *_httpResponse = (HttpResponse *) malloc(sizeof(HttpResponse));
+  memset(_httpResponse, 0, sizeof(HttpResponse));
+
+  char *_start = response;
+  for (; *_start && *_start != '\r'; _start++) {
+    if (_httpResponseTemp->version == NULL) {
+      _httpResponseTemp->version = _start;
+    }
+
+    if (*_start == ' ') {
+      if (_httpResponseTemp->code == NULL) {
+        _httpResponseTemp->code = _start + 1;
+        *_start = '\0';
+      } else if (_httpResponseTemp->desc == NULL) {
+        _httpResponseTemp->desc = _start + 1;
+        *_start = '\0';
+      }
+    }
+  }
+  *_start = '\0';
+  _start++;
+
+  _start++;
+  char *_line = _start;
+  while (*_line != '\r' && *_line != '\0') {
+    char *_key;
+    char *_value;
+    while (*(_start++) != ':');
+    *(_start - 1) = '\0';
+    _key = _line;
+    _value = _start + 1;
+    while(_start++, *_start != '\0' && *_start != '\r');
+    *_start = '\0';
+    _start++;
+
+    _start++;
+    _line = _start;
+
+    if (!strcasecmp(_key, "Content-Length")) {
+      _httpResponseTemp->bodySize = atoi(_value);
+    }
+  }
+
+  if (*_line == '\r') {
+    _line += 2;
+    _httpResponseTemp->body = _line;
+  }
+
+  if (_httpResponseTemp->version != NULL) {
+    _httpResponse->version = strdup(_httpResponseTemp->version);
+  }
+  if (_httpResponseTemp->code != NULL) {
+    _httpResponse->code = strdup(_httpResponseTemp->code);
+  }
+  if (_httpResponseTemp->desc != NULL) {
+    _httpResponse->desc = strdup(_httpResponseTemp->desc);
+  }
+  if (_httpResponseTemp->body != NULL) {
+    _httpResponse->body = strdup(_httpResponseTemp->body);
+  }
+  _httpResponse->bodySize = _httpResponseTemp->bodySize;
+
+  free(_httpResponseTemp);
+  _httpResponseTemp = NULL;
+
+  return _httpResponse;
+}
+
 int wsclient_handshake() {
-  char          request_header[1024];
-  char          recv_buf[1024];
+  int code = -1;
+  char          request_header[TEMP_RECV_BUF];
+  char          recv_buf[TEMP_RECV_BUF];
   unsigned char key_nonce[16];
   char          websocket_key[256];
-  memset(request_header, 0, 1024);
-  memset(recv_buf, 0, 1024);
   srand(time(NULL));
   int i;
   for (i = 0; i < 16; i++) {
@@ -1203,33 +1285,46 @@ int wsclient_handshake() {
   }
   taos_base64_encode(key_nonce, 16, websocket_key, 256);
   if (args.cloud) {
-        snprintf(request_header, 1024,
+        snprintf(request_header, TEMP_RECV_BUF,
                  "GET /rest/ws?token=%s HTTP/1.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nHost: "
                  "%s:%s\r\nSec-WebSocket-Key: "
                  "%s\r\nSec-WebSocket-Version: 13\r\n\r\n",
                 args.cloudToken, args.cloudHost, args.cloudPort, websocket_key);
   } else {
-    snprintf(request_header, 1024,
+    snprintf(request_header, TEMP_RECV_BUF,
              "GET /rest/ws HTTP/1.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nHost: %s:%d\r\nSec-WebSocket-Key: "
              "%s\r\nSec-WebSocket-Version: 13\r\n\r\n",
              args.host, args.port, websocket_key);
   }
 
-  ssize_t n = send(args.socket, request_header, strlen(request_header), 0);
+  int n = send(args.socket, request_header, strlen(request_header), 0);
   if (n <= 0) {
 #ifdef WINDOWS
       fprintf(stderr, "send failed with error: %d\n", WSAGetLastError());
 #else
-      fprintf(stderr, "web socket handshake error\n");
+      fprintf(stderr, "websocket handshake error\n");
 #endif
-    return -1;
+    return code;
   }
-  n = recv(args.socket, recv_buf, 1023, 0);
-  if (NULL == strstr(recv_buf, "HTTP/1.1 101")) {
-    fprintf(stderr, "web socket handshake failed: %s\n", recv_buf);
-    return -1;
+  n = recv(args.socket, recv_buf, TEMP_RECV_BUF - 1, 0);
+  if (n <= 0) {
+    fprintf(stderr, "websocket handshake socket error\n");
+    return code;
   }
-  return 0;
+  HttpResponse * response = parseHttpResponse(recv_buf);
+  if (atoi(response->code) != 101) {
+    fprintf(stderr, "websocket handshake failed, reason: %s, code: %s\n", response->desc, response->code);
+    int received_body = strlen(response->body);
+    while (received_body < response->bodySize) {
+      memset(recv_buf, 0, TEMP_RECV_BUF);
+      received_body += recv(args.socket, recv_buf, TEMP_RECV_BUF - 1, 0);
+    }
+    goto OVER;
+  }
+  code = 0;
+OVER:
+  releaseHttpResponse(response);
+  return code;
 }
 
 int wsclient_send(char *strdata, WebSocketFrameType frame) {
