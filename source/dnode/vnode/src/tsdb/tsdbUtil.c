@@ -637,14 +637,16 @@ int32_t tRowMerge(SRowMerger *pMerger, TSDBROW *pRow) {
 
   for (int32_t iCol = 1; iCol < pMerger->pTSchema->numOfCols; iCol++) {
     tsdbRowGetColVal(pRow, pMerger->pTSchema, iCol, pColVal);
-    if (pColVal->isNone) continue;
-
-    // SColVal *tColVal = (SColVal *)taosArrayGet(pMerger->pArray, iCol);
 
     if (key.version > pMerger->version) {
-      // forward merge (todo)
+      if (!pColVal->isNone) {
+        taosArraySet(pMerger->pArray, iCol, pColVal);
+      }
     } else if (key.version < pMerger->version) {
-      // backward merge (todo)
+      SColVal *tColVal = (SColVal *)taosArrayGet(pMerger->pArray, iCol);
+      if (tColVal->isNone && !pColVal->isNone) {
+        taosArraySet(pMerger->pArray, iCol, pColVal);
+      }
     } else {
       ASSERT(0);
     }
