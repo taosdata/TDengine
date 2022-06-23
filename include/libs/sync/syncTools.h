@@ -43,7 +43,7 @@ void setElectTimerMS(int64_t rid, int32_t electTimerMS);
 void setHeartbeatTimerMS(int64_t rid, int32_t hbTimerMS);
 
 // for compatibility, the same as syncPropose
-int32_t syncForwardToPeer(int64_t rid, const SRpcMsg* pMsg, bool isWeak);
+int32_t syncForwardToPeer(int64_t rid, SRpcMsg* pMsg, bool isWeak);
 
 // utils
 const char* syncUtilState2String(ESyncState state);
@@ -468,7 +468,7 @@ typedef struct SyncLeaderTransfer {
    SRaftId  destId;
    */
   SNodeInfo newNodeInfo;
-  SRaftId newLeaderId;
+  SRaftId   newLeaderId;
 } SyncLeaderTransfer;
 
 SyncLeaderTransfer* syncLeaderTransferBuild(int32_t vgId);
@@ -489,17 +489,16 @@ void syncLeaderTransferPrint2(char* s, const SyncLeaderTransfer* pMsg);
 void syncLeaderTransferLog(const SyncLeaderTransfer* pMsg);
 void syncLeaderTransferLog2(char* s, const SyncLeaderTransfer* pMsg);
 
-
 // ---------------------------------------------
 typedef struct SyncReconfigFinish {
-  uint32_t bytes;
-  int32_t  vgId;
-  uint32_t msgType;
-  SSyncCfg oldCfg;
-  SSyncCfg newCfg;
+  uint32_t  bytes;
+  int32_t   vgId;
+  uint32_t  msgType;
+  SSyncCfg  oldCfg;
+  SSyncCfg  newCfg;
   SyncIndex newCfgIndex;
-  SyncTerm newCfgTerm;
-  uint64_t newCfgSeqNum;
+  SyncTerm  newCfgTerm;
+  uint64_t  newCfgSeqNum;
 
 } SyncReconfigFinish;
 
@@ -520,8 +519,6 @@ void syncReconfigFinishPrint(const SyncReconfigFinish* pMsg);
 void syncReconfigFinishPrint2(char* s, const SyncReconfigFinish* pMsg);
 void syncReconfigFinishLog(const SyncReconfigFinish* pMsg);
 void syncReconfigFinishLog2(char* s, const SyncReconfigFinish* pMsg);
-
-
 
 // on message ----------------------
 int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg);

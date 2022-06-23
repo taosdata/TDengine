@@ -23,6 +23,8 @@ char *ctgTaskTypeStr(CTG_TASK_TYPE type) {
   switch (type) {
     case CTG_TASK_GET_QNODE:
       return "[get qnode list]";
+    case CTG_TASK_GET_DNODE:
+      return "[get dnode list]";
     case CTG_TASK_GET_DB_VGROUP:
       return "[get db vgroup]";
     case CTG_TASK_GET_DB_CFG:
@@ -349,6 +351,11 @@ void ctgFreeTaskRes(CTG_TASK_TYPE type, void **pRes) {
       *pRes = NULL;
       break;
     }
+    case CTG_TASK_GET_DNODE: {
+      taosArrayDestroy((SArray*)*pRes);
+      *pRes = NULL;
+      break;
+    }
     case CTG_TASK_GET_TB_META: {
       taosMemoryFreeClear(*pRes);
       break;
@@ -409,6 +416,11 @@ void ctgFreeTaskRes(CTG_TASK_TYPE type, void **pRes) {
 void ctgFreeSubTaskRes(CTG_TASK_TYPE type, void **pRes) {
   switch (type) {
     case CTG_TASK_GET_QNODE: {
+      taosArrayDestroy((SArray*)*pRes);
+      *pRes = NULL;
+      break;
+    }
+    case CTG_TASK_GET_DNODE: {
       taosArrayDestroy((SArray*)*pRes);
       *pRes = NULL;
       break;

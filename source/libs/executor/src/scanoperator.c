@@ -337,7 +337,7 @@ void addTagPseudoColumnData(SReadHandle* pHandle, SExprInfo* pPseudoExpr, int32_
       }
 
       for (int32_t i = 0; i < pBlock->info.rows; ++i) {
-        colDataAppend(pColInfoData, i, data, (data == NULL));
+        colDataAppend(pColInfoData, i, data, (data == NULL) || (pColInfoData->info.type == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(data)));
       }
 
       if (data && (pColInfoData->info.type != TSDB_DATA_TYPE_JSON) && p != NULL &&
@@ -928,7 +928,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
     SSDataBlock* pBlock = taosArrayGetP(pInfo->pBlockLists, current);
     blockDataUpdateTsWindow(pBlock, 0);
     return pBlock;
-  } else {
+  } else if (pInfo->blockType == STREAM_DATA_TYPE_SUBMIT_BLOCK) {
     if (pInfo->scanMode == STREAM_SCAN_FROM_RES) {
       blockDataDestroy(pInfo->pUpdateRes);
       pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
@@ -1062,6 +1062,15 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
     }
 
     return (pBlockInfo->rows == 0) ? NULL : pInfo->pRes;
+  } else if (pInfo->blockType == STREAM_DATA_TYPE_FROM_SNAPSHOT) {
+    SSDataBlock* pResult = doTableScan(pInfo->pOperatorDumy);
+    if (pResult) {
+      return pResult->info.rows > 0 ? pResult : NULL;
+    }
+    return NULL;
+  } else {
+    ASSERT(0);
+    return NULL;
   }
 }
 
@@ -1548,11 +1557,14 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
         return NULL;
       }
 
+      int32_t msgType = (strcasecmp(name, TSDB_INS_TABLE_DNODE_VARIABLES) == 0) ? TDMT_DND_SYSTABLE_RETRIEVE : TDMT_MND_SYSTABLE_RETRIEVE;
+
       pMsgSendInfo->param = pOperator;
       pMsgSendInfo->msgInfo.pData = buf1;
       pMsgSendInfo->msgInfo.len = contLen;
-      pMsgSendInfo->msgType = TDMT_MND_SYSTABLE_RETRIEVE;
+      pMsgSendInfo->msgType = msgType;
       pMsgSendInfo->fp = loadSysTableCallback;
+      pMsgSendInfo->requestId = pTaskInfo->id.queryId;
 
       int64_t transporterId = 0;
       int32_t code =
@@ -1587,6 +1599,8 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
       taosMemoryFree(pRsp);
       if (pInfo->pRes->info.rows > 0) {
         return pInfo->pRes;
+      } else if (pOperator->status == OP_EXEC_DONE) {
+        return NULL;
       }
     }
   }
@@ -1829,7 +1843,7 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
         } else {
           data = (char*)p;
         }
-        colDataAppend(pDst, count, data, (data == NULL));
+        colDataAppend(pDst, count, data, (data == NULL) || (pDst->info.type == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(data)));
 
         if (pDst->info.type != TSDB_DATA_TYPE_JSON && p != NULL && IS_VAR_DATA_TYPE(((const STagVal*)p)->type) &&
             data != NULL) {
@@ -1852,9 +1866,7 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
   }
 
   pRes->info.rows = count;
-  doFilter(pInfo->pFilterNode, pRes);
-
-  pOperator->resultInfo.totalRows += pRes->info.rows;
+  pOperator->resultInfo.totalRows += count;
 
   return (pRes->info.rows == 0) ? NULL : pInfo->pRes;
 }
@@ -1884,13 +1896,11 @@ SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysi
     goto _error;
   }
 
-  pInfo->pTableList = pTableListInfo;
-  pInfo->pColMatchInfo = colList;
-  pInfo->pRes = createResDataBlock(pDescNode);
-  pInfo->readHandle = *pReadHandle;
-  pInfo->curPos = 0;
-  pInfo->pFilterNode = pPhyNode->node.pConditions;
-
+  pInfo->pTableList       = pTableListInfo;
+  pInfo->pColMatchInfo    = colList;
+  pInfo->pRes             = createResDataBlock(pDescNode);
+  pInfo->readHandle       = *pReadHandle;
+  pInfo->curPos           = 0;
   pOperator->name = "TagScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN;
 
@@ -1972,8 +1982,8 @@ int32_t compareTableKeyInfoByGid(const void* p1, const void* p2) {
 }
 
 int32_t createScanTableListInfo(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle,
-                                STableListInfo* pTableListInfo, uint64_t queryId, uint64_t taskId, SNode* pTagCond) {
-  int32_t code = getTableList(pHandle->meta, &pTableScanNode->scan, pTableListInfo, pTagCond);
+                                STableListInfo* pTableListInfo, uint64_t queryId, uint64_t taskId) {
+  int32_t code = getTableList(pHandle->meta, &pTableScanNode->scan, pTableListInfo);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }

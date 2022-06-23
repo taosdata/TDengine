@@ -138,3 +138,16 @@ int32_t smaClose(SSma *pSma) {
   }
   return 0;
 }
+
+/**
+ * @brief rsma env restore
+ * 
+ * @param pSma 
+ * @return int32_t 
+ */
+int32_t smaRestore(SSma *pSma) {
+  if (!pSma) return 0;
+  // iterate all stables to restore the rsma env
+  
+  return TSDB_CODE_SUCCESS;
+}
