@@ -139,6 +139,15 @@ int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
     // pre index, pre term
     SyncIndex preLogIndex = syncNodeGetPreIndex(pSyncNode, nextIndex);
     SyncTerm  preLogTerm = syncNodeGetPreTerm(pSyncNode, nextIndex);
+    if (preLogTerm == SYNC_TERM_INVALID) {
+      SyncIndex newNextIndex = syncNodeGetLastIndex(pSyncNode) + 1;
+      syncIndexMgrSetIndex(pSyncNode->pNextIndex, pDestId, newNextIndex);
+      syncIndexMgrSetIndex(pSyncNode->pMatchIndex, pDestId, SYNC_INDEX_INVALID);
+      sError("vgId:%d sync get pre term error, nextIndex:%ld, update next-index:%ld, match-index:%d, raftid:%ld",
+             pSyncNode->vgId, nextIndex, newNextIndex, SYNC_INDEX_INVALID, pDestId->addr);
+
+      return -1;
+    }
 
     // batch optimized
     // SyncIndex lastIndex = syncUtilMinIndex(pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore), nextIndex);
