@@ -522,7 +522,6 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, i
   }
 
   if (pTbData->minKey > key.ts) pTbData->minKey = key.ts;
-  if (pMemTable->minKey > key.ts) pMemTable->minKey = key.ts;
 
   pLastRow = row.pTSRow;
 
@@ -554,9 +553,14 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, i
       tsdbCacheInsertLastrow(pMemTable->pTsdb->lruCache, pTbData->uid, pLastRow);
     }
   }
-  if (key.ts > pMemTable->maxKey) pMemTable->maxKey = key.ts;
   if (pTbData->minVersion > version) pTbData->minVersion = version;
   if (pTbData->maxVersion < version) pTbData->maxVersion = version;
+
+  // SMemTable
+  if (pMemTable->minKey > pTbData->minKey) pMemTable->minKey = pTbData->minKey;
+  if (pMemTable->maxKey < pTbData->maxKey) pMemTable->maxKey = pTbData->maxKey;
+  if (pMemTable->minVersion > pTbData->minVersion) pMemTable->minVersion = pTbData->minVersion;
+  if (pMemTable->maxVersion < pTbData->maxVersion) pMemTable->maxVersion = pTbData->maxVersion;
   pMemTable->nRow += nRow;
 
   pRsp->numOfRows = nRow;

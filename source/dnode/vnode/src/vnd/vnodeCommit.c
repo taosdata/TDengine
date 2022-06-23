@@ -48,24 +48,19 @@ int vnodeBegin(SVnode *pVnode) {
   }
 
   // begin tsdb
-  if (pVnode->pSma) {
-    if (tsdbBegin(VND_RSMA0(pVnode)) < 0) {
-      vError("vgId:%d, failed to begin rsma0 since %s", TD_VID(pVnode), tstrerror(terrno));
-      return -1;
-    }
+  if (tsdbBegin(pVnode->pTsdb) < 0) {
+    vError("vgId:%d, failed to begin tsdb since %s", TD_VID(pVnode), tstrerror(terrno));
+    return -1;
+  }
 
-    if (tsdbBegin(VND_RSMA1(pVnode)) < 0) {
+  if (pVnode->pSma) {
+    if (VND_RSMA1(pVnode) && tsdbBegin(VND_RSMA1(pVnode)) < 0) {
       vError("vgId:%d, failed to begin rsma1 since %s", TD_VID(pVnode), tstrerror(terrno));
       return -1;
     }
 
-    if (tsdbBegin(VND_RSMA2(pVnode)) < 0) {
+    if (VND_RSMA2(pVnode) && tsdbBegin(VND_RSMA2(pVnode)) < 0) {
       vError("vgId:%d, failed to begin rsma2 since %s", TD_VID(pVnode), tstrerror(terrno));
-      return -1;
-    }
-  } else {
-    if (tsdbBegin(pVnode->pTsdb) < 0) {
-      vError("vgId:%d, failed to begin tsdb since %s", TD_VID(pVnode), tstrerror(terrno));
       return -1;
     }
   }

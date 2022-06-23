@@ -47,6 +47,7 @@ int32_t tMapDataPutItem(SMapData *pMapData, void *pItem, int32_t (*tPutItemFn)(u
   if (code) goto _err;
 
   // put
+  ASSERT(pMapData->flag == TSDB_OFFSET_I32);
   ((int32_t *)pMapData->pOfst)[nItem] = offset;
   tPutItemFn(pMapData->pData + offset, pItem);
 
@@ -54,31 +55,31 @@ _err:
   return code;
 }
 
+static int32_t tMapDataGetOffset(SMapData *pMapData, int32_t idx) {
+  switch (pMapData->flag) {
+    case TSDB_OFFSET_I8:
+      return ((int8_t *)pMapData->pOfst)[idx];
+      break;
+    case TSDB_OFFSET_I16:
+      return ((int16_t *)pMapData->pOfst)[idx];
+      break;
+    case TSDB_OFFSET_I32:
+      return ((int32_t *)pMapData->pOfst)[idx];
+      break;
+    default:
+      ASSERT(0);
+  }
+}
+
 int32_t tMapDataGetItemByIdx(SMapData *pMapData, int32_t idx, void *pItem, int32_t (*tGetItemFn)(uint8_t *, void *)) {
   int32_t code = 0;
-  int32_t offset;
 
   if (idx < 0 || idx >= pMapData->nItem) {
     code = TSDB_CODE_NOT_FOUND;
     goto _exit;
   }
 
-  switch (pMapData->flag) {
-    case TSDB_OFFSET_I8:
-      offset = ((int8_t *)pMapData->pOfst)[idx];
-      break;
-    case TSDB_OFFSET_I16:
-      offset = ((int16_t *)pMapData->pOfst)[idx];
-      break;
-    case TSDB_OFFSET_I32:
-      offset = ((int32_t *)pMapData->pOfst)[idx];
-      break;
-
-    default:
-      ASSERT(0);
-  }
-
-  tGetItemFn(pMapData->pData + offset, pItem);
+  tGetItemFn(pMapData->pData + tMapDataGetOffset(pMapData, idx), pItem);
 
 _exit:
   return code;
@@ -91,7 +92,7 @@ int32_t tPutMapData(uint8_t *p, SMapData *pMapData) {
   ASSERT(pMapData->flag == TSDB_OFFSET_I32);
   ASSERT(pMapData->nItem > 0);
 
-  maxOffset = ((int32_t *)pMapData->pOfst)[pMapData->nItem - 1];
+  maxOffset = tMapDataGetOffset(pMapData, pMapData->nItem - 1);
 
   n += tPutI32v(p ? p + n : p, pMapData->nItem);
   if (maxOffset <= INT8_MAX) {
