@@ -400,8 +400,7 @@ static void metaBuildTtlIdxKey(STtlIdxKey *ttlKey, const SMetaEntry *pME){
 
   if (ttlDays <= 0) return;
 
-  ttlKey->dtime = ctime / 1000 + ttlDays * 24 * 60 * 60;
-//  ttlKey->dtime = ctime / 1000 + ttlDays;
+  ttlKey->dtime = ctime / 1000 + ttlDays * tsTtlUnit;
   ttlKey->uid = pME->uid;
 }
 

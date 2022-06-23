@@ -104,8 +104,6 @@ extern "C" {
 #include "osTimezone.h"
 #include "osEnv.h"
 
-void osDefaultInit();
-
 #ifdef __cplusplus
 }
 #endif

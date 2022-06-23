@@ -1310,11 +1310,11 @@ TEST(columnTest, json_column_logic_op) {
  printf("--------------------json string--0 {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
 
  key = "k2";
- bool eRes1[len+len1] = {false, false, true, true, false, false, false, true, false, true, false, true, true};
+ bool eRes1[len+len1] = {false, false, false, false, false, false, false, true, false, true, false, true, true};
  for(int i = 0; i < len; i++){
    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes1[i], op[i], false);
  }
- bool eRes_1[len0] = {true, true, false, false, false, false};
+ bool eRes_1[len0] = {false, false, false, false, false, false};
  for(int i = 0; i < len0; i++){
    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes_1[i], op[i], true);
  }
@@ -1346,11 +1346,11 @@ TEST(columnTest, json_column_logic_op) {
  printf("--------------------json bool--1 {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
 
  key = "k4";
- bool eRes3[len+len1] = {false, false, true, true, false, true, false, true, true, false, false, false, false};
+ bool eRes3[len+len1] = {false, false, false, false, false, false, false, true, true, false, false, false, false};
  for(int i = 0; i < len; i++){
    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes3[i], op[i], false);
  }
- bool eRes_3[len0] = {false, true, false, false, false, true};
+ bool eRes_3[len0] = {false, false, false, false, false, false};
  for(int i = 0; i < len0; i++){
    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes_3[i], op[i], true);
  }
@@ -1419,11 +1419,11 @@ TEST(columnTest, json_column_logic_op) {
  printf("--------------------json bool--  0 {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
 
  key = "k8";
- bool eRes7[len+len1] = {false, false, true, true, false, false, false, true, false, false, false, false, false};
+ bool eRes7[len+len1] = {false, false, false, false, false, false, false, true, false, false, false, false, false};
  for(int i = 0; i < len; i++){
    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes7[i], op[i], false);
  }
- bool eRes_7[len0] = {true, true, false, false, false, false};
+ bool eRes_7[len0] = {false, false, false, false, false, false};
  for(int i = 0; i < len0; i++) {
    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes_7[i], op[i], true);
  }
@@ -1438,11 +1438,11 @@ TEST(columnTest, json_column_logic_op) {
  printf("--------------------json string--  6.6hello {1, 8, 2, 2, 3, 0, 0, 0, 0}-------------------\n");
 
  key = "k9";
- bool eRes8[len+len1] = {true, false, false, false, false, true, false, true, true, false, true, false, true};
+ bool eRes8[len+len1] = {false, false, false, false, false, false, false, true, true, false, true, false, true};
  for(int i = 0; i < len; i++){
    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes8[i], op[i], false);
  }
- bool eRes_8[len0] = {false, true, true, true, false, true};
+ bool eRes_8[len0] = {false, false, false, false, false, false};
  for(int i = 0; i < len0; i++) {
    makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes_8[i], op[i], true);
  }
