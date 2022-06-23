@@ -219,6 +219,15 @@ int32_t syncNodeReplicate(SSyncNode* pSyncNode) {
 int32_t syncNodeAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncAppendEntries* pMsg) {
   int32_t ret = 0;
 
+  do {
+    char     host[128];
+    uint16_t port;
+    syncUtilU642Addr(destRaftId->addr, host, sizeof(host), &port);
+    sDebug("vgId:%d, send append-entries to %s:%d, term:%lu, pre-index:%ld, pre-term:%lu, pterm:%lu, commit:%ld",
+           pSyncNode->vgId, host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->privateTerm,
+           pMsg->commitIndex);
+  } while (0);
+
   SRpcMsg rpcMsg;
   syncAppendEntries2RpcMsg(pMsg, &rpcMsg);
   syncNodeSendMsgById(destRaftId, pSyncNode, &rpcMsg);

@@ -502,6 +502,7 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
     }
   } while (0);
 
+#if 0
   // fake match
   //
   // condition1:
@@ -535,7 +536,10 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
     bool condition = condition1 || condition2 || condition3 || condition4;
 
     if (condition) {
-      syncNodeEventLog(ths, "recv sync-append-entries, fake match");
+      char logBuf[128];
+      snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries, fake match, pre-index:%ld, pre-term:%lu",
+               pMsg->prevLogIndex, pMsg->prevLogTerm);
+      syncNodeEventLog(ths, logBuf);
 
       // prepare response msg
       SyncAppendEntriesReply* pReply = syncAppendEntriesReplyBuild(ths->vgId);
@@ -555,6 +559,7 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
       return ret;
     }
   } while (0);
+#endif
 
   // fake match2
   //
@@ -569,7 +574,10 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
     bool condition = (pMsg->term == ths->pRaftStore->currentTerm) && (ths->state == TAOS_SYNC_STATE_FOLLOWER) &&
                      (pMsg->prevLogIndex <= ths->commitIndex);
     if (condition) {
-      syncNodeEventLog(ths, "recv sync-append-entries, fake match2");
+      char logBuf[128];
+      snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries, fake match2, pre-index:%ld, pre-term:%lu",
+               pMsg->prevLogIndex, pMsg->prevLogTerm);
+      syncNodeEventLog(ths, logBuf);
 
       SyncIndex matchIndex = ths->commitIndex;
       bool      hasAppendEntries = pMsg->dataLen > 0;
@@ -597,6 +605,7 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
         code = syncNodePreCommit(ths, pAppendEntry);
         ASSERT(code == 0);
 
+        // update match index
         matchIndex = pMsg->prevLogIndex + 1;
 
         syncEntryDestory(pAppendEntry);
@@ -642,7 +651,10 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
     bool condition = condition1 || condition2;
 
     if (condition) {
-      syncNodeEventLog(ths, "recv sync-append-entries, not match");
+      char logBuf[128];
+      snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries, not match, pre-index:%ld, pre-term:%lu",
+               pMsg->prevLogIndex, pMsg->prevLogTerm);
+      syncNodeEventLog(ths, logBuf);
 
       // prepare response msg
       SyncAppendEntriesReply* pReply = syncAppendEntriesReplyBuild(ths->vgId);
@@ -681,7 +693,10 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
       // has entries in SyncAppendEntries msg
       bool hasAppendEntries = pMsg->dataLen > 0;
 
-      syncNodeEventLog(ths, "recv sync-append-entries, match");
+      char logBuf[128];
+      snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries, match, pre-index:%ld, pre-term:%lu",
+               pMsg->prevLogIndex, pMsg->prevLogTerm);
+      syncNodeEventLog(ths, logBuf);
 
       if (hasExtraEntries) {
         // make log same, rollback deleted entries
