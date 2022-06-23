@@ -1268,7 +1268,7 @@ static bool validateMinuteRange(int8_t hour, int8_t minute, char sign) {
 }
 
 static bool validateTimestampDigits(const SValueNode* pVal) {
-  if (IS_INTEGER_TYPE(pVal->node.resType.type)) {
+  if (!IS_INTEGER_TYPE(pVal->node.resType.type)) {
     return false;
   }
 

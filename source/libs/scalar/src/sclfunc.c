@@ -856,10 +856,13 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
 int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int32_t type = GET_PARAM_TYPE(pInput);
 
+  bool tzPresent = (inputNum == 2) ? true : false;
   char* tz;
   int32_t tzLen;
-  tz = varDataVal(pInput[1].columnData->pData);
-  tzLen = varDataLen(pInput[1].columnData->pData);
+  if (tzPresent) {
+    tz = varDataVal(pInput[1].columnData->pData);
+    tzLen = varDataLen(pInput[1].columnData->pData);
+  }
 
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
     if (colDataIsNull_s(pInput[0].columnData, i)) {
