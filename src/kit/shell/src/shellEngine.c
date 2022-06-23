@@ -1571,12 +1571,12 @@ void wsclient_query(char *command) {
   int64_t     total_rows = 0;
   int         showed_rows = 0;
   bool completed = false;
-  TAOS_FIELD fields[cols];
+  TAOS_FIELD fields[TSDB_MAX_COLUMNS];
   if (wsclient_fetch_fields(query, fields, cols)) {
     cJSON_Delete(query);
     return;
   }
-  int width[cols];
+  int width[TSDB_MAX_COLUMNS];
   for (int i = 0; i < cols; ++i) {
     width[i] = calcColWidth(fields + i, precision);
   }
