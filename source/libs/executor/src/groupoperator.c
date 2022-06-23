@@ -387,11 +387,12 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pEx
   pInfo->pGroupCols      = pGroupColList;
   pInfo->pCondition      = pCondition;
 
-  pInfo->scalarSup.pExprInfo = pScalarExprInfo;
-  pInfo->scalarSup.numOfExprs = numOfScalarExpr;
-  pInfo->scalarSup.pCtx  = createSqlFunctionCtx(pScalarExprInfo, numOfScalarExpr, &pInfo->scalarSup.rowEntryInfoOffset);
+  int32_t code = initExprSupp(&pInfo->scalarSup, pScalarExprInfo, numOfScalarExpr);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
 
-  int32_t code = initGroupOptrInfo(&pInfo->pGroupColVals, &pInfo->groupKeyLen, &pInfo->keyBuf, pGroupColList);
+  code = initGroupOptrInfo(&pInfo->pGroupColVals, &pInfo->groupKeyLen, &pInfo->keyBuf, pGroupColList);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -558,8 +559,8 @@ uint64_t calcGroupId(char* pData, int32_t len) {
 }
 
 int32_t* setupColumnOffset(const SSDataBlock* pBlock, int32_t rowCapacity) {
-  size_t numOfCols = pBlock->info.numOfCols;
-  int32_t* offset = taosMemoryCalloc(pBlock->info.numOfCols, sizeof(int32_t));
+  size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+  int32_t* offset = taosMemoryCalloc(numOfCols, sizeof(int32_t));
 
   offset[0] = sizeof(int32_t) + sizeof(uint64_t);  // the number of rows in current page, ref to SSDataBlock paged serialization format
 
@@ -718,10 +719,12 @@ SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SPartition
   pInfo->pGroupCols = extractPartitionColInfo(pPartNode->pPartitionKeys);
 
   if (pPartNode->pExprs != NULL) {
-    pInfo->scalarSup.numOfExprs = 0;
-    pInfo->scalarSup.pExprInfo = createExprInfo(pPartNode->pExprs, NULL, &pInfo->scalarSup.numOfExprs);
-    pInfo->scalarSup.pCtx = createSqlFunctionCtx(
-        pInfo->scalarSup.pExprInfo, pInfo->scalarSup.numOfExprs, &pInfo->scalarSup.rowEntryInfoOffset);
+    int32_t num = 0;
+    SExprInfo* pExprInfo1 = createExprInfo(pPartNode->pExprs, NULL, &num);
+    int32_t code = initExprSupp(&pInfo->scalarSup, pExprInfo1, num);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _error;
+    }
   }
 
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);

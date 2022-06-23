@@ -437,6 +437,15 @@ static int32_t createScanPhysiNodeFinalize(SPhysiPlanContext* pCxt, SSubplan* pS
   }
 
   if (TSDB_CODE_SUCCESS == code) {
+    if (NULL != pScanLogicNode->pTagIndexCond) {
+      pSubplan->pTagIndexCond = nodesCloneNode(pScanLogicNode->pTagIndexCond);
+      if (NULL == pSubplan->pTagIndexCond) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+      }
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
     *pPhyNode = (SPhysiNode*)pScanPhysiNode;
   } else {
     nodesDestroyNode((SNode*)pScanPhysiNode);
@@ -462,6 +471,8 @@ static ENodeType getScanOperatorType(EScanType scanType) {
       return QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN;
     case SCAN_TYPE_BLOCK_INFO:
       return QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN;
+    case SCAN_TYPE_LAST_ROW:
+      return QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN;
     default:
       break;
   }
@@ -534,7 +545,11 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
   }
   SQueryNodeLoad node = {.addr = {.nodeId = MNODE_HANDLE, .epSet = pCxt->pPlanCxt->mgmtEpSet}, .load = 0};
   taosArrayPush(pCxt->pExecNodeList, &node);
-  pScan->mgmtEpSet = pCxt->pPlanCxt->mgmtEpSet;
+  if (0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_DNODE_VARIABLES)) {
+    pScan->mgmtEpSet = pScanLogicNode->pVgroupList->vgroups->epSet;
+  } else {
+    pScan->mgmtEpSet = pCxt->pPlanCxt->mgmtEpSet;
+  }
   tNameGetFullDbName(&pScanLogicNode->tableName, pSubplan->dbFName);
 
   return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pScan, pPhyNode);
@@ -555,6 +570,7 @@ static int32_t createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, 
   switch (pScanLogicNode->scanType) {
     case SCAN_TYPE_TAG:
     case SCAN_TYPE_BLOCK_INFO:
+    case SCAN_TYPE_LAST_ROW:
       return createSimpleScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
     case SCAN_TYPE_TABLE:
       return createTableScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
@@ -728,7 +744,7 @@ static int32_t rewritePrecalcExprs(SPhysiPlanContext* pCxt, SNodeList* pList, SN
   SRewritePrecalcExprsCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pPrecalcExprs = *pPrecalcExprs};
   nodesRewriteExprs(*pRewrittenList, doRewritePrecalcExprs, &cxt);
   if (0 == LIST_LENGTH(cxt.pPrecalcExprs) || TSDB_CODE_SUCCESS != cxt.errCode) {
-    DESTORY_LIST(*pPrecalcExprs);
+    NODES_DESTORY_LIST(*pPrecalcExprs);
   }
   return cxt.errCode;
 }
@@ -879,10 +895,13 @@ static int32_t createInterpFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pCh
     pInterpFunc->interval = pFuncLogicNode->interval;
     pInterpFunc->fillMode = pFuncLogicNode->fillMode;
     pInterpFunc->pFillValues = nodesCloneNode(pFuncLogicNode->pFillValues);
-    pInterpFunc->pTimeSeries = nodesCloneNode(pFuncLogicNode->pTimeSeries);
-    if (NULL == pInterpFunc->pTimeSeries || (NULL != pFuncLogicNode->pFillValues && NULL == pInterpFunc->pFillValues)) {
+    if (NULL != pFuncLogicNode->pFillValues && NULL == pInterpFunc->pFillValues) {
       code = TSDB_CODE_OUT_OF_MEMORY;
     }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setNodeSlotId(pCxt, pChildTupe->dataBlockId, -1, pFuncLogicNode->pTimeSeries, &pInterpFunc->pTimeSeries);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -907,8 +926,16 @@ static int32_t createProjectPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChild
   pProject->slimit = pProjectLogicNode->slimit;
   pProject->soffset = pProjectLogicNode->soffset;
 
-  int32_t code = setListSlotId(pCxt, ((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc->dataBlockId,
-                               -1, pProjectLogicNode->pProjections, &pProject->pProjections);
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (0 == LIST_LENGTH(pChildren)) {
+    pProject->pProjections = nodesCloneList(pProjectLogicNode->pProjections);
+    if (NULL == pProject->pProjections) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+  } else {
+    code = setListSlotId(pCxt, ((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc->dataBlockId, -1,
+                         pProjectLogicNode->pProjections, &pProject->pProjections);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = addDataBlockSlotsForProject(pCxt, pProjectLogicNode->stmtName, pProject->pProjections,
                                        pProject->node.pOutputDataBlockDesc);
@@ -1031,7 +1058,7 @@ static ENodeType getIntervalOperatorType(EWindowAlgorithm windowAlgo) {
     case INTERVAL_ALGO_HASH:
       return QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL;
     case INTERVAL_ALGO_MERGE:
-      return QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL;
+      return QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL;
     case INTERVAL_ALGO_STREAM_FINAL:
       return QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL;
     case INTERVAL_ALGO_STREAM_SEMI:

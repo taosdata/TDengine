@@ -39,6 +39,7 @@ extern "C" {
 #define vGWarn(param, ...)  do { if (vDebugFlag & DEBUG_WARN)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vWarn(param ", gtid:%s", __VA_ARGS__, buf);}} while(0)
 #define vGInfo(param, ...)  do { if (vDebugFlag & DEBUG_INFO)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vInfo(param ", gtid:%s", __VA_ARGS__, buf);}} while(0)
 #define vGDebug(param, ...) do { if (vDebugFlag & DEBUG_DEBUG) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vDebug(param ", gtid:%s", __VA_ARGS__, buf);}}    while(0)
+
 // clang-format on
 
 // vnodeCfg.c
@@ -77,6 +78,7 @@ void    vnodeBufPoolReset(SVBufPool* pPool);
 int32_t vnodeQueryOpen(SVnode* pVnode);
 void    vnodeQueryClose(SVnode* pVnode);
 int32_t vnodeGetTableMeta(SVnode* pVnode, SRpcMsg* pMsg);
+int     vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg);
 
 // vnodeCommit.c
 int32_t vnodeBegin(SVnode* pVnode);

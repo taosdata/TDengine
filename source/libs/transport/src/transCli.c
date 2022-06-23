@@ -457,7 +457,7 @@ void* destroyConnPool(void* pool) {
   while (connList != NULL) {
     while (!QUEUE_IS_EMPTY(&connList->conn)) {
       queue* h = QUEUE_HEAD(&connList->conn);
-      QUEUE_REMOVE(h);
+      // QUEUE_REMOVE(h);
       SCliConn* c = QUEUE_DATA(h, SCliConn, conn);
       cliDestroyConn(c, true);
     }
@@ -488,6 +488,7 @@ static SCliConn* getConnFromPool(void* pool, char* ip, uint32_t port) {
   conn->status = ConnNormal;
   QUEUE_REMOVE(&conn->conn);
   QUEUE_INIT(&conn->conn);
+  assert(h == &conn->conn);
   return conn;
 }
 static void allocConnRef(SCliConn* conn, bool update) {
@@ -585,7 +586,6 @@ static SCliConn* cliCreateConn(SCliThrd* pThrd) {
 }
 static void cliDestroyConn(SCliConn* conn, bool clear) {
   tTrace("%s conn %p remove from conn pool", CONN_GET_INST_LABEL(conn), conn);
-
   QUEUE_REMOVE(&conn->conn);
   QUEUE_INIT(&conn->conn);
   transRemoveExHandle(refMgt, conn->refId);
@@ -991,7 +991,7 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
   /*
    * upper layer handle retry if code equal TSDB_CODE_RPC_NETWORK_UNAVAIL
    */
-  if (CONN_NO_PERSIST_BY_APP(pConn)) {
+  if (CONN_NO_PERSIST_BY_APP(pConn) && pThrd->quit == false) {
     tmsg_t msgType = pCtx->msgType;
     if ((pTransInst->retry != NULL && pEpSet->numOfEps > 1 && (pTransInst->retry(pResp->code))) ||
         (pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || pResp->code == TSDB_CODE_APP_NOT_READY ||
@@ -1004,7 +1004,6 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
       if (pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
         if (pCtx->retryCount < pEpSet->numOfEps * 3) {
           pEpSet->inUse = (++pEpSet->inUse) % pEpSet->numOfEps;
-
           STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));
           arg->param1 = pMsg;
           arg->param2 = pThrd;
@@ -1015,35 +1014,34 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
 
           transUnrefCliHandle(pConn);
           return -1;
-        }
-      } else if (pCtx->retryCount < TRANS_RETRY_COUNT_LIMIT) {
-        if (pResp->contLen == 0) {
-          pEpSet->inUse = (++pEpSet->inUse) % pEpSet->numOfEps;
-          transPrintEpSet(&pCtx->epSet);
-          tTrace("%s use local epset, inUse: %d, retry count:%d, limit: %d", pTransInst->label, pEpSet->inUse,
-                 pCtx->retryCount + 1, TRANS_RETRY_COUNT_LIMIT);
-        } else {
-          SEpSet epSet = {0};
-          tDeserializeSEpSet(pResp->pCont, pResp->contLen, &epSet);
-          pCtx->epSet = epSet;
+        } else if (pCtx->retryCount < TRANS_RETRY_COUNT_LIMIT) {
+          if (pResp->contLen == 0) {
+            pEpSet->inUse = (++pEpSet->inUse) % pEpSet->numOfEps;
+            transPrintEpSet(&pCtx->epSet);
+            tTrace("%s use local epset, inUse: %d, retry count:%d, limit: %d", pTransInst->label, pEpSet->inUse,
+                   pCtx->retryCount + 1, TRANS_RETRY_COUNT_LIMIT);
+          } else {
+            SEpSet epSet = {0};
+            tDeserializeSEpSet(pResp->pCont, pResp->contLen, &epSet);
+            pCtx->epSet = epSet;
 
-          transPrintEpSet(&pCtx->epSet);
-          tTrace("%s use remote epset, inUse: %d, retry count:%d, limit: %d", pTransInst->label, pEpSet->inUse,
-                 pCtx->retryCount + 1, TRANS_RETRY_COUNT_LIMIT);
-        }
-        if (pConn->status != ConnInPool) {
-          addConnToPool(pThrd->pool, pConn);
-        }
+            transPrintEpSet(&pCtx->epSet);
+            tTrace("%s use remote epset, inUse: %d, retry count:%d, limit: %d", pTransInst->label, pEpSet->inUse,
+                   pCtx->retryCount + 1, TRANS_RETRY_COUNT_LIMIT);
+          }
+          if (pConn->status != ConnInPool) {
+            addConnToPool(pThrd->pool, pConn);
+          }
 
-        STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));
-        arg->param1 = pMsg;
-        arg->param2 = pThrd;
-        transDQSched(pThrd->delayQueue, doDelayTask, arg, TRANS_RETRY_INTERVAL);
-        return -1;
+          STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));
+          arg->param1 = pMsg;
+          arg->param2 = pThrd;
+          transDQSched(pThrd->delayQueue, doDelayTask, arg, TRANS_RETRY_INTERVAL);
+          return -1;
+        }
       }
     }
   }
-
   STraceId* trace = &pResp->info.traceId;
   if (pCtx->pSem != NULL) {
     tGTrace("%s conn %p(sync) handle resp", CONN_GET_INST_LABEL(pConn), pConn);

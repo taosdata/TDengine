@@ -100,7 +100,6 @@ static int32_t walReadChangeFile(SWalReadHandle *pRead, int64_t fileFirstVer) {
   TdFilePtr pLogTFile = taosOpenFile(fnameStr, TD_FILE_READ);
   if (pLogTFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    terrno = TSDB_CODE_WAL_INVALID_VER;
     wError("cannot open file %s, since %s", fnameStr, terrstr());
     return -1;
   }
@@ -259,6 +258,12 @@ int32_t walReadWithHandle_s(SWalReadHandle *pRead, int64_t ver, SWalReadHead **p
 
 int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
   int64_t code;
+
+  if (pRead->pWal->vers.firstVer == -1) {
+    terrno = TSDB_CODE_WAL_LOG_NOT_EXIST;
+    return -1;
+  }
+
   // TODO: check wal life
   if (pRead->curVersion != ver) {
     if (walReadSeekVer(pRead, ver) < 0) {
