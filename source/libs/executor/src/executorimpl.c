@@ -4041,16 +4041,17 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       tsdbReaderT pDataReader = NULL;
 
       if (pHandle) {
-        if (pHandle->vnode) {
-          // for stram
+        if (pHandle->initTsdbReader) {
+          // for stream
+          ASSERT(pHandle->vnode);
           pDataReader =
               doCreateDataReader(pTableScanNode, pHandle, pTableListInfo, (uint64_t)queryId, taskId);
         } else {
           // for tq
+          ASSERT(pHandle->meta);
           getTableList(pHandle->meta, pScanPhyNode, pTableListInfo);
         }
       }
-
       if (pDataReader == NULL && terrno != 0) {
         qDebug("%s pDataReader is NULL", GET_TASKID(pTaskInfo));
         // return NULL;
