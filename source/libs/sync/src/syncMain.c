@@ -416,7 +416,7 @@ int32_t syncGetSnapshotMetaByIndex(int64_t rid, SyncIndex snapshotIndex, struct 
     }
   }
   sMeta->lastConfigIndex = lastIndex;
-  sTrace("vgId:%d, get snapshot meta by index:%" PRId64 " lastConfigIndex:%" PRId64, pSyncNode->vgId, snapshotIndex,
+  sTrace("vgId:%d, get snapshot meta by index:%" PRId64 " lcindex:%" PRId64, pSyncNode->vgId, snapshotIndex,
          sMeta->lastConfigIndex);
 
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
@@ -433,8 +433,9 @@ SyncIndex syncNodeGetSnapshotConfigIndex(SSyncNode* pSyncNode, SyncIndex snapsho
       lastIndex = (pSyncNode->pRaftCfg->configIndexArr)[i];
     }
   }
+  sTrace("vgId:%d, sync get snapshot last config index, index:%ld lcindex:%ld", pSyncNode->vgId, snapshotLastApplyIndex,
+         lastIndex);
 
-  sTrace("sync syncNodeGetSnapshotConfigIndex index:%ld lastConfigIndex:%ld", snapshotLastApplyIndex, lastIndex);
   return lastIndex;
 }
 

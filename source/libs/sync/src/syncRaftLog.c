@@ -46,13 +46,13 @@ static SyncIndex       logStoreGetCommitIndex(SSyncLogStore* pLogStore);
 
 // refactor, log[0 .. n] ==> log[m .. n]
 static int32_t raftLogSetBeginIndex(struct SSyncLogStore* pLogStore, SyncIndex beginIndex) {
-  sTrace("raftLogSetBeginIndex beginIndex:%ld", beginIndex);
-
   // if beginIndex == 0, donot need call this funciton
   ASSERT(beginIndex > 0);
 
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
+  sTrace("vgId:%d, reset wal begin index:%ld", pData->pSyncNode->vgId, beginIndex);
+
   pData->beginIndex = beginIndex;
   walRestoreFromSnapshot(pWal, beginIndex - 1);
   return 0;
@@ -160,8 +160,12 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
     const char* errStr = tstrerror(err);
     int32_t     sysErr = errno;
     const char* sysErrStr = strerror(errno);
-    sError("vgId:%d wal write error, index:%ld, err:%d %X, msg:%s, syserr:%d, sysmsg:%s", pData->pSyncNode->vgId,
-           pEntry->index, err, err, errStr, sysErr, sysErrStr);
+
+    char logBuf[128];
+    snprintf(logBuf, sizeof(logBuf), "wal write error, index:%ld, err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
+             pEntry->index, err, err, errStr, sysErr, sysErrStr);
+    syncNodeErrorLog(pData->pSyncNode, logBuf);
+
     ASSERT(0);
   }
 
@@ -240,8 +244,17 @@ static int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index,
     const char* errStr = tstrerror(err);
     int32_t     sysErr = errno;
     const char* sysErrStr = strerror(errno);
-    sError("vgId:%d wal read error, index:%ld, err:%d %X, msg:%s, syserr:%d, sysmsg:%s", pData->pSyncNode->vgId, index,
-           err, err, errStr, sysErr, sysErrStr);
+
+    do {
+      char logBuf[128];
+      snprintf(logBuf, sizeof(logBuf), "wal read error, index:%ld, err:%d %X, msg:%s, syserr:%d, sysmsg:%s", index, err,
+               err, errStr, sysErr, sysErrStr);
+      if (terrno == TSDB_CODE_WAL_LOG_NOT_EXIST) {
+        syncNodeEventLog(pData->pSyncNode, logBuf);
+      } else {
+        syncNodeErrorLog(pData->pSyncNode, logBuf);
+      }
+    } while (0);
 
     int32_t saveErr = terrno;
     walCloseReadHandle(pWalHandle);
@@ -368,8 +381,11 @@ int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
     const char* errStr = tstrerror(err);
     int32_t     sysErr = errno;
     const char* sysErrStr = strerror(errno);
-    sError("vgId:%d wal write error, index:%ld, err:%d %X, msg:%s, syserr:%d, sysmsg:%s", pData->pSyncNode->vgId,
-           pEntry->index, err, err, errStr, sysErr, sysErrStr);
+
+    char logBuf[128];
+    snprintf(logBuf, sizeof(logBuf), "wal write error, index:%ld, err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
+             pEntry->index, err, err, errStr, sysErr, sysErrStr);
+    syncNodeErrorLog(pData->pSyncNode, logBuf);
 
     ASSERT(0);
   }
@@ -398,12 +414,20 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
       const char* errStr = tstrerror(err);
       int32_t     sysErr = errno;
       const char* sysErrStr = strerror(errno);
-      sError("vgId:%d wal read error, index:%ld, err:%d %X, msg:%s, syserr:%d, sysmsg:%s", pData->pSyncNode->vgId,
-             index, err, err, errStr, sysErr, sysErrStr);
+
+      do {
+        char logBuf[128];
+        snprintf(logBuf, sizeof(logBuf), "wal read error, index:%ld, err:%d %X, msg:%s, syserr:%d, sysmsg:%s", index,
+                 err, err, errStr, sysErr, sysErrStr);
+        if (terrno == TSDB_CODE_WAL_LOG_NOT_EXIST) {
+          syncNodeEventLog(pData->pSyncNode, logBuf);
+        } else {
+          syncNodeErrorLog(pData->pSyncNode, logBuf);
+        }
+      } while (0);
 
       ASSERT(0);
     }
-    // ASSERT(walReadWithHandle(pWalHandle, index) == 0);
 
     SSyncRaftEntry* pEntry = syncEntryBuild(pWalHandle->pHead->head.bodyLen);
     ASSERT(pEntry != NULL);
