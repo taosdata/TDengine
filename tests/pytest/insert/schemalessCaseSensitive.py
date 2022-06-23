@@ -81,6 +81,7 @@ class TDTestCase:
             "meters.current 1648432611249 10.3 location=California.SanFrancisco groupid=2",
             "meters.Current 1648432611250 12.6 location=California.SanFrancisco groupid=2",
             "meters.Current 1648432611249 10.8 Location=California.LosAngeles groupid=3",
+            "meters.Current 1648432611249 10.8 Location=California.LosAngeles location=California.SanFrancisco groupid=3",
             "Meters.current 1648432611250 11.3 location=California.LosAngeles Groupid=3",
             "电表 1648432611250 11.3 位置=California.LosAngeles Groupid=3"
         ]
@@ -90,7 +91,7 @@ class TDTestCase:
         tdSql.checkRows(4)
 
         tdSql.query("show tables")
-        tdSql.checkRows(5)
+        tdSql.checkRows(6)
 
         tdSql.query("describe `meters.Current`")
         tdSql.checkRows(5)        
@@ -118,6 +119,7 @@ class TDTestCase:
             {"metric": "meters.voltage", "timestamp": 1648432611249, "value": 219, "tags": {"Location": "California.LosAngeles", "groupid": 1}},
             {"metric": "meters.Current", "timestamp": 1648432611250, "value": 12.6, "tags": {"location": "California.SanFrancisco", "groupid": 2}},
             {"metric": "meters.voltage", "timestamp": 1648432611250, "value": 221, "tags": {"location": "California.LosAngeles", "groupid": 1}},
+            {"metric": "meters.voltage", "timestamp": 1648432611250, "value": 221, "tags": {"location": "California.LosAngeles", "Location": "California.SanFrancisco", "groupid": 2}},
             {"metric": "电压", "timestamp": 1648432611250, "value": 221, "tags": {"位置": "California.LosAngeles", "groupid": 1}}
         ]
 
@@ -126,7 +128,7 @@ class TDTestCase:
         tdSql.checkRows(4)
 
         tdSql.query("show tables")
-        tdSql.checkRows(5)
+        tdSql.checkRows(6)
 
         tdSql.query("describe `meters.Current`")
         tdSql.checkRows(4)
