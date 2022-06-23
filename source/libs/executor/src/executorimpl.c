@@ -3872,8 +3872,7 @@ static SExecTaskInfo* createExecTaskInfo(uint64_t queryId, uint64_t taskId, EOPT
 }
 
 static tsdbReaderT doCreateDataReader(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle,
-                                      STableListInfo* pTableListInfo, uint64_t queryId, uint64_t taskId,
-                                      SNode* pTagCond);
+                                      STableListInfo* pTableListInfo, uint64_t queryId, uint64_t taskId);
 
 static SArray* extractColumnInfo(SNodeList* pNodeList);
 
@@ -3987,7 +3986,7 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
 }
 
 SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle,
-                                  uint64_t queryId, uint64_t taskId, STableListInfo* pTableListInfo, SNode* pTagCond) {
+                                  uint64_t queryId, uint64_t taskId, STableListInfo* pTableListInfo) {
   int32_t type = nodeType(pPhyNode);
 
   if (pPhyNode->pChildren == NULL || LIST_LENGTH(pPhyNode->pChildren) == 0) {
@@ -3995,7 +3994,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pPhyNode;
 
       tsdbReaderT pDataReader =
-          doCreateDataReader(pTableScanNode, pHandle, pTableListInfo, (uint64_t)queryId, taskId, pTagCond);
+          doCreateDataReader(pTableScanNode, pHandle, pTableListInfo, (uint64_t)queryId, taskId);
       if (pDataReader == NULL && terrno != 0) {
         pTaskInfo->code = terrno;
         return NULL;
@@ -4023,7 +4022,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       return pOperator;
     } else if (QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == type) {
       STableMergeScanPhysiNode* pTableScanNode = (STableMergeScanPhysiNode*)pPhyNode;
-      createScanTableListInfo(pTableScanNode, pHandle, pTableListInfo, queryId, taskId, pTagCond);
+      createScanTableListInfo(pTableScanNode, pHandle, pTableListInfo, queryId, taskId);
       extractTableSchemaVersion(pHandle, pTableScanNode->scan.uid, pTaskInfo);
       SOperatorInfo*  pOperator = createTableMergeScanOperatorInfo(pTableScanNode, pTableListInfo, pHandle, pTaskInfo, queryId, taskId);
       STableScanInfo* pScanInfo = pOperator->info;
@@ -4042,16 +4041,17 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       tsdbReaderT pDataReader = NULL;
 
       if (pHandle) {
-        if (pHandle->vnode) {
-          // for stram
+        if (pHandle->initTsdbReader) {
+          // for stream
+          ASSERT(pHandle->vnode);
           pDataReader =
-              doCreateDataReader(pTableScanNode, pHandle, pTableListInfo, (uint64_t)queryId, taskId, pTagCond);
+              doCreateDataReader(pTableScanNode, pHandle, pTableListInfo, (uint64_t)queryId, taskId);
         } else {
           // for tq
-          getTableList(pHandle->meta, pScanPhyNode, pTableListInfo, pTagCond);
+          ASSERT(pHandle->meta);
+          getTableList(pHandle->meta, pScanPhyNode, pTableListInfo);
         }
       }
-
       if (pDataReader == NULL && terrno != 0) {
         qDebug("%s pDataReader is NULL", GET_TASKID(pTaskInfo));
         // return NULL;
@@ -4076,7 +4076,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     } else if (QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN == type) {
       STagScanPhysiNode* pScanPhyNode = (STagScanPhysiNode*)pPhyNode;
 
-      int32_t code = getTableList(pHandle->meta, pScanPhyNode, pTableListInfo, pScanPhyNode->node.pConditions);
+      int32_t code = getTableList(pHandle->meta, pScanPhyNode, pTableListInfo);
       if (code != TSDB_CODE_SUCCESS) {
         pTaskInfo->code = terrno;
         return NULL;
@@ -4134,7 +4134,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
   SOperatorInfo** ops = taosMemoryCalloc(size, POINTER_BYTES);
   for (int32_t i = 0; i < size; ++i) {
     SPhysiNode* pChildNode = (SPhysiNode*)nodesListGetNode(pPhyNode->pChildren, i);
-    ops[i] = createOperatorTree(pChildNode, pTaskInfo, pHandle, queryId, taskId, pTableListInfo, pTagCond);
+    ops[i] = createOperatorTree(pChildNode, pTaskInfo, pHandle, queryId, taskId, pTableListInfo);
     if (ops[i] == NULL) {
       return NULL;
     }
@@ -4338,8 +4338,8 @@ SArray* extractColumnInfo(SNodeList* pNodeList) {
 }
 
 tsdbReaderT doCreateDataReader(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle,
-                               STableListInfo* pTableListInfo, uint64_t queryId, uint64_t taskId, SNode* pTagCond) {
-  int32_t code = getTableList(pHandle->meta, &pTableScanNode->scan, pTableListInfo, pTagCond);
+                               STableListInfo* pTableListInfo, uint64_t queryId, uint64_t taskId) {
+  int32_t code = getTableList(pHandle->meta, &pTableScanNode->scan, pTableListInfo);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -4465,6 +4465,7 @@ int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, qTaskInfo_t* pT
         return TSDB_CODE_OUT_OF_MEMORY;
       }
       int32_t tbNum = taosArrayGetSize(pTask->tableqinfoList.pTableList);
+      pDeleterParam->suid = pTask->tableqinfoList.suid;
       pDeleterParam->pUidList = taosArrayInit(tbNum, sizeof(uint64_t));
       if (NULL == pDeleterParam->pUidList) {
         taosMemoryFree(pDeleterParam);
@@ -4497,8 +4498,10 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
   }
 
   (*pTaskInfo)->sql = sql;
+  (*pTaskInfo)->tableqinfoList.pTagCond = pPlan->pTagCond;
+  (*pTaskInfo)->tableqinfoList.pTagIndexCond = pPlan->pTagIndexCond;
   (*pTaskInfo)->pRoot = createOperatorTree(pPlan->pNode, *pTaskInfo, pHandle, queryId, taskId,
-                                           &(*pTaskInfo)->tableqinfoList, pPlan->pTagCond);
+                                           &(*pTaskInfo)->tableqinfoList);
   if (NULL == (*pTaskInfo)->pRoot) {
     code = (*pTaskInfo)->code;
     goto _complete;

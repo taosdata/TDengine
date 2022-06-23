@@ -65,6 +65,13 @@ static void mndPullupTrans(SMnode *pMnode) {
   }
 }
 
+static void mndTtlTimer(SMnode *pMnode) {
+  int32_t contLen = 0;
+  void   *pReq = mndBuildTimerMsg(&contLen);
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_TTL_TIMER, .pCont = pReq, .contLen = contLen};
+  tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+}
+
 static void mndCalMqRebalance(SMnode *pMnode) {
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
@@ -83,41 +90,6 @@ static void mndPullupTelem(SMnode *pMnode) {
   }
 }
 
-static void mndPushTtlTime(SMnode *pMnode) {
-  SSdb   *pSdb = pMnode->pSdb;
-  SVgObj *pVgroup = NULL;
-  void   *pIter = NULL;
-
-  while (1) {
-    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
-    if (pIter == NULL) break;
-
-    int32_t   contLen = sizeof(SMsgHead) + sizeof(int32_t);
-    SMsgHead *pHead = rpcMallocCont(contLen);
-    if (pHead == NULL) {
-      sdbCancelFetch(pSdb, pIter);
-      sdbRelease(pSdb, pVgroup);
-      continue;
-    }
-
-    pHead->contLen = htonl(contLen);
-    pHead->vgId = htonl(pVgroup->vgId);
-
-    int32_t t = taosGetTimestampSec();
-    *(int32_t *)(POINTER_SHIFT(pHead, sizeof(SMsgHead))) = htonl(t);
-
-    SRpcMsg rpcMsg = {.msgType = TDMT_VND_DROP_TTL_TABLE, .pCont = pHead, .contLen = contLen};
-    SEpSet  epSet = mndGetVgroupEpset(pMnode, pVgroup);
-    int32_t code = tmsgSendReq(&epSet, &rpcMsg);
-    if (code != 0) {
-      mError("failed to send ttl time seed msg, code:0x%x", code);
-    } else {
-      mInfo("send ttl time seed msg, time:%d", t);
-    }
-    sdbRelease(pSdb, pVgroup);
-  }
-}
-
 static void *mndThreadFp(void *param) {
   SMnode *pMnode = param;
   int64_t lastTime = 0;
@@ -125,13 +97,12 @@ static void *mndThreadFp(void *param) {
 
   while (1) {
     lastTime++;
-    
-    if (lastTime % (864000) == 0) {   // sleep 1 day for ttl
-      mndPushTtlTime(pMnode);
-    }
-
     taosMsleep(100);
     if (mndGetStop(pMnode)) break;
+
+    if (lastTime % (tsTransPullupInterval * 10) == 1) {
+      mndTtlTimer(pMnode);
+    }
 
     if (lastTime % (tsTransPullupInterval * 10) == 0) {
       mndPullupTrans(pMnode);
@@ -558,12 +529,12 @@ static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
   if (!IsReq(pMsg)) return 0;
   if (mndAcquireRpcRef(pMsg->info.node) == 0) return 0;
   if (pMsg->msgType == TDMT_MND_MQ_TIMER || pMsg->msgType == TDMT_MND_TELEM_TIMER ||
-      pMsg->msgType == TDMT_MND_TRANS_TIMER) {
+      pMsg->msgType == TDMT_MND_TRANS_TIMER || TDMT_MND_TTL_TIMER) {
     return -1;
   }
 
   const STraceId *trace = &pMsg->info.traceId;
-  mGError("msg:%p, failed to check mnode state since %s, type:%s", pMsg, terrstr(), TMSG_INFO(pMsg->msgType));
+  mError("msg:%p, failed to check mnode state since %s, type:%s", pMsg, terrstr(), TMSG_INFO(pMsg->msgType));
 
   SEpSet epSet = {0};
   mndGetMnodeEpSet(pMsg->info.node, &epSet);
@@ -584,7 +555,7 @@ static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
 static int32_t mndCheckMsgContent(SRpcMsg *pMsg) {
   if (!IsReq(pMsg)) return 0;
   if (pMsg->contLen != 0 && pMsg->pCont != NULL) return 0;
-
+  
   const STraceId *trace = &pMsg->info.traceId;
   mGError("msg:%p, failed to check msg, cont:%p contLen:%d, app:%p type:%s", pMsg, pMsg->pCont, pMsg->contLen,
          pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
