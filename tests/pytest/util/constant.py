@@ -1,5 +1,29 @@
 # -*- coding: utf-8 -*-
 
+# basic type
+TAOS_DATA_TYPE  = [
+    "INT", "BIGINT", "SMALLINT", "TINYINT", "INT UNSIGNED", "BIGINT UNSIGNED", "SMALLINT UNSIGNED", "TINYINT UNSIGNED",
+    "FLOAT", "DOUBLE",
+    "BOOL",
+    "BINARY", "NCHAR", "VARCHAR",
+    "TIMESTAMP",
+    # "MEDIUMBLOB", "BLOB", # add in 3.x
+    # "DECIMAL", "NUMERIC", # add in 3.x
+]
+
+TAOS_NUM_TYPE   = [
+    "INT", "BIGINT", "SMALLINT", "TINYINT", "INT UNSIGNED", "BIGINT UNSIGNED", "SMALLINT UNSIGNED", "TINYINT UNSIGNED", "FLOAT", "DOUBLE",
+    # "DECIMAL", "NUMERIC", # add in 3.x
+]
+TAOS_CHAR_TYPE  = [
+    "BINARY", "NCHAR", "VARCHAR",
+]
+TAOS_BOOL_TYPE  = ["BOOL",]
+TAOS_TS_TYPE    = ["TIMESTAMP",]
+TAOS_BIN_TYPE   = [
+    "MEDIUMBLOB", "BLOB", # add in 3.x
+]
+
 # basic data type boundary
 TINYINT_MAX             = 127
 TINYINT_MIN             = -128
