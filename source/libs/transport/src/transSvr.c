@@ -133,7 +133,7 @@ static SSvrConn* createConn(void* hThrd);
 static void      destroyConn(SSvrConn* conn, bool clear /*clear handle or not*/);
 static void      destroyConnRegArg(SSvrConn* conn);
 
-static int reallocConnRefHandle(SSvrConn* conn);
+static int reallocConnRef(SSvrConn* conn);
 
 static void uvHandleQuit(SSvrMsg* msg, SWorkThrdObj* thrd);
 static void uvHandleRelease(SSvrMsg* msg, SWorkThrdObj* thrd);
@@ -176,7 +176,7 @@ static bool addHandleToAcceptloop(void* arg);
       srvMsg->msg = tmsg;                                                             \
       srvMsg->type = Release;                                                         \
       srvMsg->pConn = conn;                                                           \
-      reallocConnRefHandle(conn);                                                     \
+      reallocConnRef(conn);                                                           \
       if (!transQueuePush(&conn->srvMsgs, srvMsg)) {                                  \
         return;                                                                       \
       }                                                                               \
@@ -353,7 +353,7 @@ void uvOnSendCb(uv_write_t* req, int status) {
       // if (msg->type == Release && conn->status != ConnNormal) {
       //  conn->status = ConnNormal;
       //  transUnrefSrvHandle(conn);
-      //  reallocConnRefHandle(conn);
+      //  reallocConnRef(conn);
       //  destroySmsg(msg);
       //  transQueueClear(&conn->srvMsgs);
       //  return;
@@ -800,7 +800,7 @@ static void destroyConnRegArg(SSvrConn* conn) {
     conn->regArg.init = 0;
   }
 }
-static int reallocConnRefHandle(SSvrConn* conn) {
+static int reallocConnRef(SSvrConn* conn) {
   transReleaseExHandle(refMgt, conn->refId);
   transRemoveExHandle(refMgt, conn->refId);
   // avoid app continue to send msg on invalid handle
@@ -945,7 +945,7 @@ void uvHandleQuit(SSvrMsg* msg, SWorkThrdObj* thrd) {
 void uvHandleRelease(SSvrMsg* msg, SWorkThrdObj* thrd) {
   SSvrConn* conn = msg->pConn;
   if (conn->status == ConnAcquire) {
-    reallocConnRefHandle(conn);
+    reallocConnRef(conn);
     if (!transQueuePush(&conn->srvMsgs, msg)) {
       return;
     }
