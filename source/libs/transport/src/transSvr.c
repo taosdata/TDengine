@@ -1029,8 +1029,6 @@ void transCloseServer(void* arg) {
 
   int ref = atomic_sub_fetch_32(&tranSSvrInst, 1);
   if (ref == 0) {
-    // TdThreadOnce tmpInit = PTHREAD_ONCE_INIT;
-    // memcpy(&transModuleInit, &tmpInit, sizeof(TdThreadOnce));
     transCloseExHandleMgt(refMgt);
   }
 }

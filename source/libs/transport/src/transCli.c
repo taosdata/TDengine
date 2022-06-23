@@ -712,7 +712,14 @@ static void cliHandleQuit(SCliMsg* pMsg, SCliThrd* pThrd) {
   // uv_stop(pThrd->loop);
 }
 static void cliHandleRelease(SCliMsg* pMsg, SCliThrd* pThrd) {
-  SCliConn* conn = pMsg->msg.info.handle;
+  int64_t    refId = (int64_t)(pMsg->msg.info.handle);
+  SExHandle* exh = transAcquireExHandle(refMgt, refId);
+  if (exh == NULL) {
+    tDebug("%" PRid64 " already release", refId);
+    return NULL;
+  }
+
+  SCliConn* conn = exh->handle;
   tDebug("%s conn %p start to release to inst", CONN_GET_INST_LABEL(conn), conn);
 
   if (T_REF_VAL_GET(conn) == 2) {
@@ -721,14 +728,10 @@ static void cliHandleRelease(SCliMsg* pMsg, SCliThrd* pThrd) {
       return;
     }
     cliSend(conn);
-  } else {
-    // conn already broken down
-    transUnrefCliHandle(conn);
   }
 }
 static void cliHandleUpdate(SCliMsg* pMsg, SCliThrd* pThrd) {
   STransConnCtx* pCtx = pMsg->ctx;
-
   pThrd->cvtAddr = pCtx->cvtAddr;
   destroyCmsg(pMsg);
 }
@@ -772,9 +775,7 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
   STrans*        pTransInst = pThrd->pTransInst;
 
   cliMayCvtFqdnToIp(&pCtx->epSet, &pThrd->cvtAddr);
-
   transPrintEpSet(&pCtx->epSet);
-
   SCliConn* conn = cliGetConn(pMsg, pThrd);
   if (conn != NULL) {
     transCtxMerge(&conn->ctx, &pCtx->appCtx);
@@ -1112,7 +1113,6 @@ void transReleaseCliHandle(void* handle) {
   if (pThrd == NULL) {
     return;
   }
-
   STransMsg tmsg = {.info.handle = handle};
   SCliMsg*  cmsg = taosMemoryCalloc(1, sizeof(SCliMsg));
   cmsg->msg = tmsg;
@@ -1162,7 +1162,6 @@ void transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransM
     transFreeMsg(pReq->pCont);
     return;
   }
-
   tsem_t* sem = taosMemoryCalloc(1, sizeof(tsem_t));
   tsem_init(sem, 0, 0);
 
