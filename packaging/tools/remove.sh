@@ -91,7 +91,6 @@ function clean_bin() {
   ${csudo}rm -f ${bin_link_dir}/${uninstallScript} || :
   ${csudo}rm -f ${bin_link_dir}/tarbitrator || :
   ${csudo}rm -f ${bin_link_dir}/set_core || :
-  ${csudo}rm -f ${bin_link_dir}/run_taosd_and_taosadapter.sh || :
   ${csudo}rm -f ${bin_link_dir}/TDinsight.sh || :
 }
 
