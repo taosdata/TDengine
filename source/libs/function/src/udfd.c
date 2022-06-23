@@ -613,7 +613,9 @@ int32_t udfdOpenClientRpc() {
 }
 
 int32_t udfdCloseClientRpc() {
+  fnInfo("udfd begin closing rpc");
   rpcClose(global.clientRpc);
+  fnInfo("udfd finish closing rpc");
   return 0;
 }
 
@@ -937,7 +939,6 @@ int main(int argc, char *argv[]) {
   uv_thread_create(&mnodeConnectThread, udfdConnectMnodeThreadFunc, NULL);
 
   udfdRun();
-
   removeListeningPipe();
   uv_thread_join(&mnodeConnectThread);
   udfdCloseClientRpc();

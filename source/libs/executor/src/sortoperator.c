@@ -460,7 +460,7 @@ SOperatorInfo* createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSort
   pInfo->pColMatchInfo = pColMatchColInfo;
   pOperator->name = "GroupSortOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT;
-  pOperator->blocking = true;
+  pOperator->blocking = false;
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
   pOperator->exprSupp.pExprInfo = pExprInfo;
