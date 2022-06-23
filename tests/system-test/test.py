@@ -59,7 +59,7 @@ if __name__ == "__main__":
     logSql = True
     stop = 0
     restart = False
-    dnodeNums = 5
+    dnodeNums = 1
     mnodeNums = 0
     updateCfgDict = {}
     execCmd = ""
