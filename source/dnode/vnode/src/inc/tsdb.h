@@ -133,6 +133,7 @@ void    tBlockDataReset(SBlockData *pBlockData);
 void    tBlockDataClear(SBlockData *pBlockData);
 int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema);
 // SDelIdx
+int32_t tCmprDelIdx(void const *lhs, void const *rhs);
 int32_t tPutDelIdx(uint8_t *p, void *ph);
 int32_t tGetDelIdx(uint8_t *p, void *ph);
 // SDelData
@@ -221,7 +222,7 @@ int32_t tsdbReadDelIdx(SDelFReader *pReader, SMapData *pDelIdxMap, uint8_t **ppB
 int32_t tsdbOpenCache(STsdb *pTsdb);
 void    tsdbCloseCache(SLRUCache *pCache);
 int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, tb_uid_t uid, STSRow *row);
-int32_t tsdbCacheGetLastrow(SLRUCache *pCache, tb_uid_t uid, STSRow **ppRow);
+int32_t tsdbCacheGetLastrow(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, STSRow **ppRow);
 int32_t tsdbCacheDeleteLastrow(SLRUCache *pCache, tb_uid_t uid);
 
 // structs =======================
