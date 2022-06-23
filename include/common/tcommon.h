@@ -54,6 +54,7 @@ typedef struct {
   SHashObj* map;  // speedup acquire the tableQueryInfo by table uid
   void*     pTagCond;
   void*     pTagIndexCond;
+  uint64_t  suid;
 } STableListInfo;
 
 typedef struct SColumnDataAgg {
