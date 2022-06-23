@@ -15,7 +15,6 @@
 
 #include "filter.h"
 #include "functionMgt.h"
-#include "index.h"
 #include "planInt.h"
 #include "ttime.h"
 
@@ -79,7 +78,8 @@ static SLogicNode* optFindPossibleNode(SLogicNode* pNode, FMayBeOptimized func) 
 
 EDealRes osdHaveNormalColImpl(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
-    *((bool*)pContext) = (COLUMN_TYPE_TAG != ((SColumnNode*)pNode)->colType);
+    // *((bool*)pContext) = (COLUMN_TYPE_TAG != ((SColumnNode*)pNode)->colType);
+    *((bool*)pContext) = true;
     return *((bool*)pContext) ? DEAL_RES_END : DEAL_RES_IGNORE_CHILD;
   }
   return DEAL_RES_CONTINUE;
@@ -96,11 +96,6 @@ static bool osdMayBeOptimized(SLogicNode* pNode) {
     return false;
   }
   if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pNode)) {
-    return false;
-  }
-  // todo: release after function splitting
-  if (TSDB_SUPER_TABLE == ((SScanLogicNode*)pNode)->tableType &&
-      SCAN_TYPE_STREAM != ((SScanLogicNode*)pNode)->scanType) {
     return false;
   }
   if (NULL == pNode->pParent || (QUERY_NODE_LOGIC_PLAN_WINDOW != nodeType(pNode->pParent) &&
@@ -313,32 +308,6 @@ static int32_t cpdCalcTimeRange(SOptimizeContext* pCxt, SScanLogicNode* pScan, S
   return code;
 }
 
-static int32_t cpdApplyTagIndex(SScanLogicNode* pScan, SNode** pTagCond, SNode** pOtherCond) {
-  int32_t       code = TSDB_CODE_SUCCESS;
-  SIdxFltStatus idxStatus = idxGetFltStatus(*pTagCond);
-  switch (idxStatus) {
-    case SFLT_NOT_INDEX:
-      code = cpdCondAppend(pOtherCond, pTagCond);
-      break;
-    case SFLT_COARSE_INDEX:
-      pScan->pTagCond = nodesCloneNode(*pTagCond);
-      if (NULL == pScan->pTagCond) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        break;
-      }
-      code = cpdCondAppend(pOtherCond, pTagCond);
-      break;
-    case SFLT_ACCURATE_INDEX:
-      pScan->pTagCond = *pTagCond;
-      *pTagCond = NULL;
-      break;
-    default:
-      code = TSDB_CODE_FAILED;
-      break;
-  }
-  return code;
-}
-
 static int32_t cpdOptimizeScanCondition(SOptimizeContext* pCxt, SScanLogicNode* pScan) {
   if (NULL == pScan->node.pConditions || OPTIMIZE_FLAG_TEST_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_CPD) ||
       TSDB_SYSTEM_TABLE == pScan->tableType) {
@@ -346,14 +315,11 @@ static int32_t cpdOptimizeScanCondition(SOptimizeContext* pCxt, SScanLogicNode* 
   }
 
   SNode*  pPrimaryKeyCond = NULL;
-  SNode*  pTagCond = NULL;
   SNode*  pOtherCond = NULL;
-  int32_t code = nodesPartitionCond(&pScan->node.pConditions, &pPrimaryKeyCond, &pTagCond, &pOtherCond);
+  int32_t code = nodesPartitionCond(&pScan->node.pConditions, &pPrimaryKeyCond, &pScan->pTagIndexCond, &pScan->pTagCond,
+                                    &pOtherCond);
   if (TSDB_CODE_SUCCESS == code && NULL != pPrimaryKeyCond) {
     code = cpdCalcTimeRange(pCxt, pScan, &pPrimaryKeyCond, &pOtherCond);
-  }
-  if (TSDB_CODE_SUCCESS == code && NULL != pTagCond) {
-    code = cpdApplyTagIndex(pScan, &pTagCond, &pOtherCond);
   }
   if (TSDB_CODE_SUCCESS == code) {
     pScan->node.pConditions = pOtherCond;
@@ -775,7 +741,7 @@ static bool smaOptMayBeOptimized(SLogicNode* pNode) {
   }
 
   SScanLogicNode* pScan = (SScanLogicNode*)pNode;
-  if (0 == pScan->interval || NULL == pScan->pSmaIndexes || NULL != pScan->node.pConditions) {
+  if (NULL == pScan->pSmaIndexes || NULL != pScan->node.pConditions) {
     return false;
   }
 

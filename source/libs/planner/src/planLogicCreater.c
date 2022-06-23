@@ -1160,8 +1160,8 @@ static int32_t createDeleteScanLogicNode(SLogicPlanContext* pCxt, SDeleteStmt* p
     }
   }
 
-  if (TSDB_CODE_SUCCESS == code && NULL != pDelete->pTagIndexCond) {
-    pScan->pTagCond = nodesCloneNode(pDelete->pTagIndexCond);
+  if (TSDB_CODE_SUCCESS == code && NULL != pDelete->pTagCond) {
+    pScan->pTagCond = nodesCloneNode(pDelete->pTagCond);
     if (NULL == pScan->pTagCond) {
       code = TSDB_CODE_OUT_OF_MEMORY;
     }

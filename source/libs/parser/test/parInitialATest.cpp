@@ -121,7 +121,7 @@ TEST_F(ParserInitialATest, alterSTable) {
     int32_t len = snprintf(expect.name, sizeof(expect.name), "0.test.%s", pTbname);
     expect.name[len] = '\0';
     expect.alterType = alterType;
-//    expect.ttl = ttl;
+    //    expect.ttl = ttl;
     if (nullptr != pComment) {
       expect.comment = strdup(pComment);
       expect.commentLen = strlen(pComment);
@@ -180,9 +180,9 @@ TEST_F(ParserInitialATest, alterSTable) {
     tFreeSMAltertbReq(&req);
   });
 
-//  setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_OPTIONS, 0, nullptr, 0, 0, nullptr, nullptr, 10);
-//  run("ALTER TABLE st1 TTL 10");
-//  clearAlterStbReq();
+  //  setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_OPTIONS, 0, nullptr, 0, 0, nullptr, nullptr, 10);
+  //  run("ALTER TABLE st1 TTL 10");
+  //  clearAlterStbReq();
 
   setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_OPTIONS, 0, nullptr, 0, 0, nullptr, "test");
   run("ALTER TABLE st1 COMMENT 'test'");
@@ -381,9 +381,48 @@ TEST_F(ParserInitialATest, alterTableSemanticCheck) {
 TEST_F(ParserInitialATest, alterUser) {
   useDb("root", "test");
 
-  run("ALTER user wxy PASS '123456'");
+  SAlterUserReq expect = {0};
 
-  run("ALTER user wxy privilege 'write'");
+  auto clearAlterUserReq = [&]() { memset(&expect, 0, sizeof(SAlterUserReq)); };
+
+  auto setAlterUserReq = [&](const char* pUser, int8_t alterType, const char* pPass = nullptr, int8_t sysInfo = 0,
+                             int8_t enable = 0) {
+    strcpy(expect.user, pUser);
+    expect.alterType = alterType;
+    expect.superUser = 0;
+    expect.sysInfo = sysInfo;
+    expect.enable = enable;
+    if (nullptr != pPass) {
+      strcpy(expect.pass, pPass);
+    }
+    strcpy(expect.dbname, "test");
+  };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_ALTER_USER_STMT);
+    SAlterUserReq req = {0};
+    ASSERT_TRUE(TSDB_CODE_SUCCESS == tDeserializeSAlterUserReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+
+    ASSERT_EQ(req.alterType, expect.alterType);
+    ASSERT_EQ(req.superUser, expect.superUser);
+    ASSERT_EQ(req.sysInfo, expect.sysInfo);
+    ASSERT_EQ(req.enable, expect.enable);
+    ASSERT_EQ(std::string(req.user), std::string(expect.user));
+    ASSERT_EQ(std::string(req.pass), std::string(expect.pass));
+    ASSERT_EQ(std::string(req.dbname), std::string(expect.dbname));
+  });
+
+  setAlterUserReq("wxy", TSDB_ALTER_USER_PASSWD, "123456");
+  run("ALTER USER wxy PASS '123456'");
+  clearAlterUserReq();
+
+  setAlterUserReq("wxy", TSDB_ALTER_USER_ENABLE, nullptr, 0, 1);
+  run("ALTER USER wxy ENABLE 1");
+  clearAlterUserReq();
+
+  setAlterUserReq("wxy", TSDB_ALTER_USER_SYSINFO, nullptr, 1);
+  run("ALTER USER wxy SYSINFO 1");
+  clearAlterUserReq();
 }
 
 TEST_F(ParserInitialATest, balanceVgroup) {

@@ -24,6 +24,8 @@
 #include "taos.h"
 #include "taoserror.h"
 #include "tlog.h"
+#include "taosdef.h"
+#include "types.h"
 
 #define GREEN     "\033[1;32m"
 #define NC        "\033[0m"
@@ -49,6 +51,7 @@ typedef struct {
   // char     autoCommit[8];         // true, false
   // char     autoOffsetRest[16];    // none, earliest, latest
 
+  TdFilePtr pConsumeRowsFile;
   int32_t ifCheckData;
   int64_t expectMsgCnt;
 
@@ -129,7 +132,6 @@ void initLogFile() {
   char tmpString[128];
 
   sprintf(filename, "%s/../log/tmqlog_%s.txt", configDir, getCurrentTimeString(tmpString));
-  // sprintf(filename, "%s/../log/tmqlog.txt", configDir);
 #ifdef WINDOWS
   for (int i = 2; i < sizeof(filename); i++) {
     if (filename[i] == ':') filename[i] = '-';
@@ -296,35 +298,165 @@ int32_t saveConsumeContentToTbl(SThreadInfo* pInfo, char* buf) {
   return 0;
 }
 
+static char *shellFormatTimestamp(char *buf, int64_t val, int32_t precision) {
+  //if (shell.args.is_raw_time) {
+  //  sprintf(buf, "%" PRId64, val);
+  //  return buf;
+  //}
+
+  time_t  tt;
+  int32_t ms = 0;
+  if (precision == TSDB_TIME_PRECISION_NANO) {
+    tt = (time_t)(val / 1000000000);
+    ms = val % 1000000000;
+  } else if (precision == TSDB_TIME_PRECISION_MICRO) {
+    tt = (time_t)(val / 1000000);
+    ms = val % 1000000;
+  } else {
+    tt = (time_t)(val / 1000);
+    ms = val % 1000;
+  }
+
+  /*
+    comment out as it make testcases like select_with_tags.sim fail.
+    but in windows, this may cause the call to localtime crash if tt < 0,
+    need to find a better solution.
+    if (tt < 0) {
+      tt = 0;
+    }
+  */
+
+#ifdef WINDOWS
+  if (tt < 0) tt = 0;
+#endif
+  if (tt <= 0 && ms < 0) {
+    tt--;
+    if (precision == TSDB_TIME_PRECISION_NANO) {
+      ms += 1000000000;
+    } else if (precision == TSDB_TIME_PRECISION_MICRO) {
+      ms += 1000000;
+    } else {
+      ms += 1000;
+    }
+  }
+
+  struct tm *ptm = taosLocalTime(&tt, NULL);
+  size_t     pos = strftime(buf, 35, "%Y-%m-%d %H:%M:%S", ptm);
+
+  if (precision == TSDB_TIME_PRECISION_NANO) {
+    sprintf(buf + pos, ".%09d", ms);
+  } else if (precision == TSDB_TIME_PRECISION_MICRO) {
+    sprintf(buf + pos, ".%06d", ms);
+  } else {
+    sprintf(buf + pos, ".%03d", ms);
+  }
+
+  return buf;
+}
+
+static void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, int32_t length, int32_t precision) {
+  if (val == NULL) {
+    taosFprintfFile(pFile, "%s", TSDB_DATA_NULL_STR);
+    return;
+  }
+
+  int  n;
+  char buf[TSDB_MAX_BYTES_PER_ROW];
+  switch (field->type) {
+    case TSDB_DATA_TYPE_BOOL:
+      taosFprintfFile(pFile, "%d", ((((int32_t)(*((char *)val))) == 1) ? 1 : 0));
+      break;
+    case TSDB_DATA_TYPE_TINYINT:
+      taosFprintfFile(pFile, "%d", *((int8_t *)val));
+      break;
+    case TSDB_DATA_TYPE_UTINYINT:
+      taosFprintfFile(pFile, "%u", *((uint8_t *)val));
+      break;
+    case TSDB_DATA_TYPE_SMALLINT:
+      taosFprintfFile(pFile, "%d", *((int16_t *)val));
+      break;
+    case TSDB_DATA_TYPE_USMALLINT:
+      taosFprintfFile(pFile, "%u", *((uint16_t *)val));
+      break;
+    case TSDB_DATA_TYPE_INT:
+      taosFprintfFile(pFile, "%d", *((int32_t *)val));
+      break;
+    case TSDB_DATA_TYPE_UINT:
+      taosFprintfFile(pFile, "%u", *((uint32_t *)val));
+      break;
+    case TSDB_DATA_TYPE_BIGINT:
+      taosFprintfFile(pFile, "%" PRId64, *((int64_t *)val));
+      break;
+    case TSDB_DATA_TYPE_UBIGINT:
+      taosFprintfFile(pFile, "%" PRIu64, *((uint64_t *)val));
+      break;
+    case TSDB_DATA_TYPE_FLOAT:
+      taosFprintfFile(pFile, "%.5f", GET_FLOAT_VAL(val));
+      break;
+    case TSDB_DATA_TYPE_DOUBLE:
+      n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9f", length, GET_DOUBLE_VAL(val));
+      if (n > TMAX(25, length)) {
+        taosFprintfFile(pFile, "%*.15e", length, GET_DOUBLE_VAL(val));
+      } else {
+        taosFprintfFile(pFile, "%s", buf);
+      }
+      break;
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_JSON:
+      memcpy(buf, val, length);
+      buf[length] = 0;
+      taosFprintfFile(pFile, "\'%s\'", buf);
+      break;
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      shellFormatTimestamp(buf, *(int64_t *)val, precision);
+      taosFprintfFile(pFile, "'%s'", buf);
+      break;
+    default:
+      break;
+  }
+}
+
+static void dumpToFileForCheck(TdFilePtr pFile, TAOS_ROW row, TAOS_FIELD* fields, int32_t* length, int32_t num_fields, int32_t precision) {
+  for (int32_t i = 0; i < num_fields; i++) {
+    if (i > 0) {
+      taosFprintfFile(pFile, "\n");
+    }
+    shellDumpFieldToFile(pFile, (const char *)row[i], fields + i, length[i], precision);
+  }
+  taosFprintfFile(pFile, "\n");
+}
+
 static int32_t msg_process(TAOS_RES* msg, SThreadInfo* pInfo, int32_t msgIndex) {
   char    buf[1024];
   int32_t totalRows = 0;
 
   // printf("topic: %s\n", tmq_get_topic_name(msg));
   int32_t vgroupId = tmq_get_vgroup_id(msg);
+  const char*   dbName = tmq_get_db_name(msg);
 
-  taosFprintfFile(g_fp, "msg index:%" PRId64 ", consumerId: %d\n", msgIndex, pInfo->consumerId);
-  // taosFprintfFile(g_fp, "topic: %s, vgroupId: %d, tableName: %s\n", tmq_get_topic_name(msg), vgroupId,
-  // tmq_get_table_name(msg));
-  taosFprintfFile(g_fp, "topic: %s, vgroupId: %d\n", tmq_get_topic_name(msg), vgroupId);
+  taosFprintfFile(g_fp, "consumerId: %d, msg index:%" PRId64 "\n", pInfo->consumerId, msgIndex);
+  taosFprintfFile(g_fp, "dbName: %s, topic: %s, vgroupId: %d\n", dbName != NULL ? dbName : "invalid table", tmq_get_topic_name(msg), vgroupId);
 
   while (1) {
     TAOS_ROW row = taos_fetch_row(msg);
 
     if (row == NULL) break;
 
-    TAOS_FIELD* fields = taos_fetch_fields(msg);
+    TAOS_FIELD* fields      = taos_fetch_fields(msg);
     int32_t     numOfFields = taos_field_count(msg);
+	int32_t*    length      = taos_fetch_lengths(msg);
+	int32_t     precision   = taos_result_precision(msg);
+    const char* tbName      = tmq_get_table_name(msg);
 
+	dumpToFileForCheck(pInfo->pConsumeRowsFile, row, fields, length, numOfFields, precision);
     taos_print_row(buf, row, fields, numOfFields);
-
-    const char* tbName = tmq_get_table_name(msg);
 
     if (0 != g_stConfInfo.showRowFlag) {
       taosFprintfFile(g_fp, "tbname:%s, rows[%d]: %s\n", (tbName != NULL ? tbName : "null table"), totalRows, buf);
-      if (0 != g_stConfInfo.saveRowFlag) {
-        saveConsumeContentToTbl(pInfo, buf);
-      }
+      //if (0 != g_stConfInfo.saveRowFlag) {
+      //  saveConsumeContentToTbl(pInfo, buf);
+      //}
     }
 
     totalRows++;
@@ -463,6 +595,18 @@ void loop_consume(SThreadInfo* pInfo) {
                   pInfo->consumerId);
 
   pInfo->ts = taosGetTimestampMs();
+  
+  if (pInfo->ifCheckData) {
+  	char filename[256] = {0};
+    char tmpString[128];
+	//sprintf(filename, "%s/../log/consumerid_%d_%s.txt", configDir, pInfo->consumerId, getCurrentTimeString(tmpString));
+	sprintf(filename, "%s/../log/consumerid_%d.txt", configDir, pInfo->consumerId);
+    pInfo->pConsumeRowsFile = taosOpenFile(filename, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
+    if (pInfo->pConsumeRowsFile == NULL) {
+      taosFprintfFile(g_fp, "%s create file fail for save rows content\n", getCurrentTimeString(tmpString));
+      return;
+    }
+  }
 
   while (running) {
     TAOS_RES* tmqMsg = tmq_consumer_poll(pInfo->tmq, g_stConfInfo.consumeDelay * 1000);

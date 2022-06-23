@@ -106,7 +106,8 @@ int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo);
 
 SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode);
 
-int32_t getTableList(void* metaHandle, SScanPhysiNode* pScanNode, STableListInfo* pListInfo, SNode* pTagCond);
+EDealRes doTranslateTagExpr(SNode** pNode, void* pContext);
+int32_t getTableList(void* metaHandle, SScanPhysiNode* pScanNode, STableListInfo* pListInfo);
 SArray* createSortInfo(SNodeList* pNodeList);
 SArray* extractPartitionColInfo(SNodeList* pNodeList);
 SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols, int32_t type);

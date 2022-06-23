@@ -46,11 +46,14 @@ typedef enum EStreamType {
   STREAM_INVALID,
   STREAM_GET_ALL,
   STREAM_DELETE,
+  STREAM_RETRIEVE,
 } EStreamType;
 
 typedef struct {
   SArray*   pTableList;
   SHashObj* map;  // speedup acquire the tableQueryInfo by table uid
+  void*     pTagCond;
+  void*     pTagIndexCond;
 } STableListInfo;
 
 typedef struct SColumnDataAgg {
