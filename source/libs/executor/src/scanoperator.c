@@ -337,7 +337,8 @@ void addTagPseudoColumnData(SReadHandle* pHandle, SExprInfo* pPseudoExpr, int32_
       }
 
       for (int32_t i = 0; i < pBlock->info.rows; ++i) {
-        colDataAppend(pColInfoData, i, data, (data == NULL) || (pColInfoData->info.type == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(data)));
+        colDataAppend(pColInfoData, i, data,
+                      (data == NULL) || (pColInfoData->info.type == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(data)));
       }
 
       if (data && (pColInfoData->info.type != TSDB_DATA_TYPE_JSON) && p != NULL &&
@@ -774,7 +775,7 @@ static bool prepareDataScan(SStreamBlockScanInfo* pInfo) {
   if (!needRead) {
     return false;
   }
-  STableScanInfo* pTableScanInfo = pInfo->pOperatorDumy->info;
+  STableScanInfo* pTableScanInfo = pInfo->pSnapshotReadOp->info;
   pTableScanInfo->cond.twindows[0] = win;
   pTableScanInfo->curTWinIdx = 0;
   tsdbResetReadHandle(pTableScanInfo->dataReader, &pTableScanInfo->cond, 0);
@@ -819,11 +820,11 @@ static uint64_t getGroupId(SOperatorInfo* pOperator, SSDataBlock* pBlock, int32_
 static SSDataBlock* doDataScan(SStreamBlockScanInfo* pInfo) {
   while (1) {
     SSDataBlock* pResult = NULL;
-    pResult = doTableScan(pInfo->pOperatorDumy);
+    pResult = doTableScan(pInfo->pSnapshotReadOp);
     if (pResult == NULL) {
       if (prepareDataScan(pInfo)) {
         // scan next window data
-        pResult = doTableScan(pInfo->pOperatorDumy);
+        pResult = doTableScan(pInfo->pSnapshotReadOp);
       }
     }
     if (!pResult) {
@@ -857,11 +858,11 @@ static void setUpdateData(SStreamBlockScanInfo* pInfo, SSDataBlock* pBlock, SSDa
     blockDataEnsureCapacity(pUpdateBlock, size);
 
     int32_t rowId = *(int32_t*)taosArrayGet(pInfo->tsArray, pInfo->tsArrayIndex);
-    pInfo->groupId = getGroupId(pInfo->pOperatorDumy, pBlock, rowId);
+    pInfo->groupId = getGroupId(pInfo->pSnapshotReadOp, pBlock, rowId);
     int32_t i = 0;
     for (; i < size; i++) {
       rowId = *(int32_t*)taosArrayGet(pInfo->tsArray, i + pInfo->tsArrayIndex);
-      uint64_t id = getGroupId(pInfo->pOperatorDumy, pBlock, rowId);
+      uint64_t id = getGroupId(pInfo->pSnapshotReadOp, pBlock, rowId);
       if (pInfo->groupId != id) {
         break;
       }
@@ -1061,7 +1062,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
 
     return (pBlockInfo->rows == 0) ? NULL : pInfo->pRes;
   } else if (pInfo->blockType == STREAM_DATA_TYPE_FROM_SNAPSHOT) {
-    SSDataBlock* pResult = doTableScan(pInfo->pOperatorDumy);
+    SSDataBlock* pResult = doTableScan(pInfo->pSnapshotReadOp);
     if (pResult) {
       return pResult->info.rows > 0 ? pResult : NULL;
     }
@@ -1133,7 +1134,7 @@ SOperatorInfo* createStreamScanOperatorInfo(void* pDataReader, SReadHandle* pHan
     } else {
       pInfo->pUpdateInfo = NULL;
     }
-    pInfo->pOperatorDumy = pTableScanDummy;
+    pInfo->pSnapshotReadOp = pTableScanDummy;
     pInfo->interval = pSTInfo->interval;
 
     pInfo->readHandle = *pHandle;
@@ -1545,7 +1546,8 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
         return NULL;
       }
 
-      int32_t msgType = (strcasecmp(name, TSDB_INS_TABLE_DNODE_VARIABLES) == 0) ? TDMT_DND_SYSTABLE_RETRIEVE : TDMT_MND_SYSTABLE_RETRIEVE;
+      int32_t msgType = (strcasecmp(name, TSDB_INS_TABLE_DNODE_VARIABLES) == 0) ? TDMT_DND_SYSTABLE_RETRIEVE
+                                                                                : TDMT_MND_SYSTABLE_RETRIEVE;
 
       pMsgSendInfo->param = pOperator;
       pMsgSendInfo->msgInfo.pData = buf1;
@@ -1831,7 +1833,8 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
         } else {
           data = (char*)p;
         }
-        colDataAppend(pDst, count, data, (data == NULL) || (pDst->info.type == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(data)));
+        colDataAppend(pDst, count, data,
+                      (data == NULL) || (pDst->info.type == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(data)));
 
         if (pDst->info.type != TSDB_DATA_TYPE_JSON && p != NULL && IS_VAR_DATA_TYPE(((const STagVal*)p)->type) &&
             data != NULL) {
@@ -1884,11 +1887,11 @@ SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysi
     goto _error;
   }
 
-  pInfo->pTableList       = pTableListInfo;
-  pInfo->pColMatchInfo    = colList;
-  pInfo->pRes             = createResDataBlock(pDescNode);
-  pInfo->readHandle       = *pReadHandle;
-  pInfo->curPos           = 0;
+  pInfo->pTableList = pTableListInfo;
+  pInfo->pColMatchInfo = colList;
+  pInfo->pRes = createResDataBlock(pDescNode);
+  pInfo->readHandle = *pReadHandle;
+  pInfo->curPos = 0;
   pOperator->name = "TagScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN;
 
