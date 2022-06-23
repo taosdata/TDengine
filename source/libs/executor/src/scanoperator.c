@@ -969,6 +969,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
       uint64_t uid = 0;
       int32_t  numOfRows = 0;
 
+      // todo refactor
       int32_t code = tqRetrieveDataBlock(&block, pInfo->streamBlockReader, &groupId, &uid, &numOfRows);
 
       if (code != TSDB_CODE_SUCCESS || numOfRows == 0) {
@@ -976,12 +977,11 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
         return NULL;
       }
 
-      blockDataEnsureCapacity(pInfo->pRes, numOfRows);
-
       pInfo->pRes->info.groupId = groupId;
       pInfo->pRes->info.rows = numOfRows;
       pInfo->pRes->info.uid = uid;
       pInfo->pRes->info.type = STREAM_NORMAL;
+      pInfo->pRes->info.capacity = numOfRows;
 
       // for generating rollup SMA result, each time is an independent time serie.
       // TODO temporarily used, when the statement of "partition by tbname" is ready, remove this
