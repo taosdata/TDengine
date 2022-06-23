@@ -1656,10 +1656,9 @@ static SSDataBlock* doSessionWindowAgg(SOperatorInfo* pOperator) {
     doBuildResultDatablock(pOperator, pBInfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
     if (pBInfo->pRes->info.rows == 0 || !hasDataInGroupInfo(&pInfo->groupResInfo)) {
       doSetOperatorCompleted(pOperator);
-      return NULL;
     }
 
-    return pBInfo->pRes;
+    return pBInfo->pRes->info.rows > 0 ? pBInfo->pRes : NULL;
   }
 
   int64_t st = taosGetTimestampUs();
@@ -2239,7 +2238,8 @@ static void clearUpdateDataBlock(SSDataBlock* pBlock) {
 }
 
 void copyUpdateDataBlock(SSDataBlock* pDest, SSDataBlock* pSource, int32_t tsColIndex) {
-  ASSERT(pDest->info.capacity >= pSource->info.rows);
+  // ASSERT(pDest->info.capacity >= pSource->info.rows);
+  blockDataEnsureCapacity(pDest, pSource->info.rows);
   clearUpdateDataBlock(pDest);
   SColumnInfoData* pDestCol = taosArrayGet(pDest->pDataBlock, 0);
   SColumnInfoData* pSourceCol = taosArrayGet(pSource->pDataBlock, tsColIndex);

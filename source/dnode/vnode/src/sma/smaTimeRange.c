@@ -129,7 +129,7 @@ int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg) {
 
   SSmaEnv      *pEnv = SMA_TSMA_ENV(pSma);
   SSmaStat     *pStat = NULL;
-  SSmaStatItem *pItem = NULL;
+  STSmaStat    *pItem = NULL;
 
   if (!pEnv || !(pStat = SMA_ENV_STAT(pEnv))) {
     terrno = TSDB_CODE_TSMA_INVALID_STAT;
@@ -137,7 +137,7 @@ int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg) {
   }
 
   tdRefSmaStat(pSma, pStat);
-  pItem = &pStat->tsmaStatItem;
+  pItem = &pStat->tsmaStat;
 
   ASSERT(pItem);
 

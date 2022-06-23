@@ -375,6 +375,7 @@ int metaTtlDropTable(SMeta *pMeta, int64_t ttl, SArray *tbUids) {
   metaWLock(pMeta);
   int ret = metaTtlSmaller(pMeta, ttl, tbUids);
   if(ret != 0){
+    metaULock(pMeta);
     return ret;
   }
   for (int i = 0; i < taosArrayGetSize(tbUids); ++i) {
@@ -400,8 +401,7 @@ static void metaBuildTtlIdxKey(STtlIdxKey *ttlKey, const SMetaEntry *pME){
 
   if (ttlDays <= 0) return;
 
-  ttlKey->dtime = ctime / 1000 + ttlDays * 24 * 60 * 60;
-//  ttlKey->dtime = ctime / 1000 + ttlDays;
+  ttlKey->dtime = ctime / 1000 + ttlDays * tsTtlUnit;
   ttlKey->uid = pME->uid;
 }
 

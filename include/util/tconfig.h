@@ -104,6 +104,8 @@ int32_t cfgAddTimezone(SConfig *pCfg, const char *name, const char *defaultVal);
 const char *cfgStypeStr(ECfgSrcType type);
 const char *cfgDtypeStr(ECfgDataType type);
 
+void cfgDumpItemValue(SConfigItem *pItem, char* buf, int32_t bufSize, int32_t* pLen);
+
 void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump);
 
 int32_t cfgGetApollUrl(const char **envCmd, const char *envFile, char* apolloUrl);

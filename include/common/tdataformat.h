@@ -70,6 +70,8 @@ int32_t tGetTSRow(uint8_t *p, STSRow2 *pRow);
 // STag
 int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag);
 void    tTagFree(STag *pTag);
+bool    tTagIsJson(const void *pTag);
+bool    tTagIsJsonNull(void *tagVal);
 bool    tTagGet(const STag *pTag, STagVal *pTagVal);
 char   *tTagValToData(const STagVal *pTagVal, bool isJson);
 int32_t tEncodeTag(SEncoder *pEncoder, const STag *pTag);
