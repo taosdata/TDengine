@@ -607,12 +607,12 @@ int32_t tsdbReadBlockSMA(SDataFReader *pReader, SBlockSMA *pBlkSMA) {
 
 // SDataFWriter ====================================================
 struct SDataFWriter {
-  STsdb     *pTsdb;
-  SDFileSet *pSet;
-  TdFilePtr  pHeadFD;
-  TdFilePtr  pDataFD;
-  TdFilePtr  pLastFD;
-  TdFilePtr  pSmaFD;
+  STsdb    *pTsdb;
+  SDFileSet wSet;
+  TdFilePtr pHeadFD;
+  TdFilePtr pDataFD;
+  TdFilePtr pLastFD;
+  TdFilePtr pSmaFD;
 };
 
 int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pSet) {
@@ -630,9 +630,8 @@ int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pS
     goto _err;
   }
   pWriter->pTsdb = pTsdb;
-  pWriter->pSet = pSet;
-
-  // create the directory if not there
+  pWriter->wSet = *pSet;
+  pSet = &pWriter->wSet;
 
   // head
   flag = TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC;
@@ -809,10 +808,10 @@ int32_t tsdbUpdateDFileSetHeader(SDataFWriter *pWriter, uint8_t **ppBuf) {
   int64_t    size = TSDB_FHDR_SIZE;
   int64_t    n;
   uint8_t   *pBuf = NULL;
-  SHeadFile *pHeadFile = &pWriter->pSet->fHead;
-  SDataFile *pDataFile = &pWriter->pSet->fData;
-  SLastFile *pLastFile = &pWriter->pSet->fLast;
-  SSmaFile  *pSmaFile = &pWriter->pSet->fSma;
+  SHeadFile *pHeadFile = &pWriter->wSet.fHead;
+  SDataFile *pDataFile = &pWriter->wSet.fData;
+  SLastFile *pLastFile = &pWriter->wSet.fLast;
+  SSmaFile  *pSmaFile = &pWriter->wSet.fSma;
 
   // alloc
   if (!ppBuf) ppBuf = &pBuf;
@@ -904,7 +903,7 @@ _err:
 int32_t tsdbWriteBlockIdx(SDataFWriter *pWriter, SMapData *mBlockIdx, uint8_t **ppBuf) {
   int32_t    code = 0;
   int64_t    size = 0;
-  SHeadFile *pHeadFile = &pWriter->pSet->fHead;
+  SHeadFile *pHeadFile = &pWriter->wSet.fHead;
   int64_t    n = 0;
   uint8_t   *pBuf = NULL;
 
@@ -946,7 +945,7 @@ _err:
 
 int32_t tsdbWriteBlock(SDataFWriter *pWriter, SMapData *mBlock, uint8_t **ppBuf, SBlockIdx *pBlockIdx) {
   int32_t    code = 0;
-  SHeadFile *pHeadFile = &pWriter->pSet->fHead;
+  SHeadFile *pHeadFile = &pWriter->wSet.fHead;
   uint8_t   *pBuf = NULL;
   int64_t    size;
   int64_t    n;

@@ -277,13 +277,25 @@ static FORCE_INLINE int32_t tGetTSDBKEY(uint8_t *p, TSDBKEY *pKey) {
 }
 
 // SBlockIdx ======================================================
+void tBlockIdxReset(SBlockIdx *pBlockIdx) {
+  pBlockIdx->minKey = TSKEY_MAX;
+  pBlockIdx->maxKey = TSKEY_MIN;
+  pBlockIdx->minVersion = VERSION_MAX;
+  pBlockIdx->maxVersion = VERSION_MIN;
+  pBlockIdx->offset = -1;
+  pBlockIdx->size = -1;
+}
+
 int32_t tPutBlockIdx(uint8_t *p, void *ph) {
   int32_t    n = 0;
   SBlockIdx *pBlockIdx = (SBlockIdx *)ph;
 
   n += tPutI64(p ? p + n : p, pBlockIdx->suid);
   n += tPutI64(p ? p + n : p, pBlockIdx->uid);
-  n += tPutKEYINFO(p ? p + n : p, &pBlockIdx->info);
+  n += tPutI64(p ? p + n : p, pBlockIdx->minKey);
+  n += tPutI64(p ? p + n : p, pBlockIdx->maxKey);
+  n += tPutI64v(p ? p + n : p, pBlockIdx->minVersion);
+  n += tPutI64v(p ? p + n : p, pBlockIdx->maxVersion);
   n += tPutI64v(p ? p + n : p, pBlockIdx->offset);
   n += tPutI64v(p ? p + n : p, pBlockIdx->size);
 
@@ -296,7 +308,10 @@ int32_t tGetBlockIdx(uint8_t *p, void *ph) {
 
   n += tGetI64(p + n, &pBlockIdx->suid);
   n += tGetI64(p + n, &pBlockIdx->uid);
-  n += tGetKEYINFO(p + n, &pBlockIdx->info);
+  n += tGetI64(p + n, &pBlockIdx->minKey);
+  n += tGetI64(p + n, &pBlockIdx->maxKey);
+  n += tGetI64v(p + n, &pBlockIdx->minVersion);
+  n += tGetI64v(p + n, &pBlockIdx->maxVersion);
   n += tGetI64v(p + n, &pBlockIdx->offset);
   n += tGetI64v(p + n, &pBlockIdx->size);
 
@@ -305,7 +320,10 @@ int32_t tGetBlockIdx(uint8_t *p, void *ph) {
 
 // SBlock ======================================================
 void tBlockReset(SBlock *pBlock) {
-  pBlock->info = tKEYINFOInit();
+  pBlock->minKey = TSDBKEY_MAX;
+  pBlock->maxKey = TSDBKEY_MIN;
+  pBlock->minVersion = VERSION_MAX;
+  pBlock->maxVersion = VERSION_MIN;
   pBlock->nRow = 0;
   pBlock->last = -1;
   pBlock->cmprAlg = -1;
@@ -328,7 +346,10 @@ int32_t tPutBlock(uint8_t *p, void *ph) {
   int32_t n = 0;
   SBlock *pBlock = (SBlock *)ph;
 
-  n += tPutKEYINFO(p ? p + n : p, &pBlock->info);
+  n += tPutTSDBKEY(p ? p + n : p, &pBlock->minKey);
+  n += tPutTSDBKEY(p ? p + n : p, &pBlock->maxKey);
+  n += tPutI64v(p ? p + n : p, pBlock->minVersion);
+  n += tPutI64v(p ? p + n : p, pBlock->maxVersion);
   n += tPutI32v(p ? p + n : p, pBlock->nRow);
   n += tPutI8(p ? p + n : p, pBlock->last);
   n += tPutI8(p ? p + n : p, pBlock->hasDup);
@@ -348,7 +369,10 @@ int32_t tGetBlock(uint8_t *p, void *ph) {
   int32_t n = 0;
   SBlock *pBlock = (SBlock *)ph;
 
-  n += tGetKEYINFO(p + n, &pBlock->info);
+  n += tGetTSDBKEY(p + n, &pBlock->minKey);
+  n += tGetTSDBKEY(p + n, &pBlock->maxKey);
+  n += tGetI64v(p + n, &pBlock->minVersion);
+  n += tGetI64v(p + n, &pBlock->maxVersion);
   n += tGetI32v(p + n, &pBlock->nRow);
   n += tGetI8(p + n, &pBlock->last);
   n += tGetI8(p + n, &pBlock->hasDup);
@@ -369,9 +393,9 @@ int32_t tBlockCmprFn(const void *p1, const void *p2) {
   SBlock *pBlock1 = (SBlock *)p1;
   SBlock *pBlock2 = (SBlock *)p2;
 
-  if (tsdbKeyCmprFn(&pBlock1->info.maxKey, &pBlock2->info.minKey) < 0) {
+  if (tsdbKeyCmprFn(&pBlock1->maxKey, &pBlock2->minKey) < 0) {
     return -1;
-  } else if (tsdbKeyCmprFn(&pBlock1->info.minKey, &pBlock2->info.maxKey) > 0) {
+  } else if (tsdbKeyCmprFn(&pBlock1->minKey, &pBlock2->maxKey) > 0) {
     return 1;
   }
 

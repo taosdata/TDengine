@@ -77,6 +77,9 @@ typedef struct STsdbFSState   STsdbFSState;
 #define VERSION_MIN 0
 #define VERSION_MAX INT64_MAX
 
+#define TSDBKEY_MIN ((TSDBKEY){.ts = TSKEY_MIN, .version = VERSION_MIN})
+#define TSDBKEY_MAX ((TSDBKEY){.ts = TSKEY_MAX, .version = VERSION_MAX})
+
 // tsdbUtil.c ==============================================================================================
 // TSDBROW
 #define TSDBROW_SVERSION(ROW)                 TD_ROW_SVER((ROW)->pTSRow)
@@ -110,14 +113,15 @@ int32_t tGetKEYINFO(uint8_t *p, KEYINFO *pKeyInfo);
 int32_t tPutBlockCol(uint8_t *p, void *ph);
 int32_t tGetBlockCol(uint8_t *p, void *ph);
 // SBlock
-#define tBlockInit() ((SBlock){.info = tKEYINFOInit()})
+#define tBlockInit() ((SBlock){0})
 void    tBlockReset(SBlock *pBlock);
 void    tBlockClear(SBlock *pBlock);
 int32_t tPutBlock(uint8_t *p, void *ph);
 int32_t tGetBlock(uint8_t *p, void *ph);
 int32_t tBlockCmprFn(const void *p1, const void *p2);
 // SBlockIdx
-#define tBlockIdxInit(SUID, UID) ((SBlockIdx){.suid = (SUID), .uid = (UID), .info = tKEYINFOInit()})
+// #define tBlockIdxInit(SUID, UID) ((SBlockIdx){.suid = (SUID), .uid = (UID), .info = tKEYINFOInit()})
+void    tBlockIdxReset(SBlockIdx *pBlockIdx);
 int32_t tPutBlockIdx(uint8_t *p, void *ph);
 int32_t tGetBlockIdx(uint8_t *p, void *ph);
 // SColdata
@@ -328,7 +332,10 @@ struct TSDBROW {
 struct SBlockIdx {
   int64_t suid;
   int64_t uid;
-  KEYINFO info;
+  TSKEY   minKey;
+  TSKEY   maxKey;
+  int64_t minVersion;
+  int64_t maxVersion;
   int64_t offset;
   int64_t size;
 };
@@ -358,7 +365,10 @@ typedef struct {
 } SSubBlock;
 
 struct SBlock {
-  KEYINFO   info;
+  TSDBKEY   minKey;
+  TSDBKEY   maxKey;
+  int64_t   minVersion;
+  int64_t   maxVersion;
   int32_t   nRow;
   int8_t    last;
   int8_t    hasDup;
