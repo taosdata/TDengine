@@ -120,7 +120,7 @@ int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
     }
 
     default: {
-      colDataAssign(pOutputData, pInputData, pInput->numOfRows);
+      colDataAssign(pOutputData, pInputData, pInput->numOfRows, NULL);
     }
   }
 
@@ -273,7 +273,7 @@ static int32_t doScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
     }
 
     default: {
-      colDataAssign(pOutputData, pInputData, pInput->numOfRows);
+      colDataAssign(pOutputData, pInputData, pInput->numOfRows, NULL);
     }
   }
 

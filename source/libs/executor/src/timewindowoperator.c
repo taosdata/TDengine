@@ -1814,7 +1814,7 @@ static int32_t initPrevRowsKeeper(STimeSliceOperatorInfo* pInfo, SSDataBlock* pB
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  int32_t numOfCols = pBlock->info.numOfCols;
+  int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, i);
 
@@ -2231,9 +2231,6 @@ static void clearStreamIntervalOperator(SStreamFinalIntervalOperatorInfo* pInfo)
 }
 
 static void clearUpdateDataBlock(SSDataBlock* pBlock) {
-  if (pBlock->info.rows <= 0) {
-    return;
-  }
   blockDataCleanup(pBlock);
 }
 
@@ -2243,12 +2240,14 @@ void copyUpdateDataBlock(SSDataBlock* pDest, SSDataBlock* pSource, int32_t tsCol
   clearUpdateDataBlock(pDest);
   SColumnInfoData* pDestCol = taosArrayGet(pDest->pDataBlock, 0);
   SColumnInfoData* pSourceCol = taosArrayGet(pSource->pDataBlock, tsColIndex);
+
   // copy timestamp column
-  colDataAssign(pDestCol, pSourceCol, pSource->info.rows);
-  for (int32_t i = 1; i < pDest->info.numOfCols; i++) {
+  colDataAssign(pDestCol, pSourceCol, pSource->info.rows, &pDest->info);
+  for (int32_t i = 1; i < taosArrayGetSize(pDest->pDataBlock); i++) {
     SColumnInfoData* pCol = taosArrayGet(pDest->pDataBlock, i);
     colDataAppendNNULL(pCol, 0, pSource->info.rows);
   }
+
   pDest->info.rows = pSource->info.rows;
   pDest->info.groupId = pSource->info.groupId;
   pDest->info.type = pSource->info.type;
@@ -2918,7 +2917,7 @@ void doBuildDeleteDataBlock(SHashObj* pStDeleted, SSDataBlock* pBlock, void** It
   while (((*Ite) = taosHashIterate(pStDeleted, *Ite)) != NULL) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, 0);
     colDataAppend(pColInfoData, pBlock->info.rows, *Ite, false);
-    for (int32_t i = 1; i < pBlock->info.numOfCols; i++) {
+    for (int32_t i = 1; i < taosArrayGetSize(pBlock->pDataBlock); i++) {
       pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
       colDataAppendNULL(pColInfoData, pBlock->info.rows);
     }

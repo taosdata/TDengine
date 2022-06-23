@@ -1449,11 +1449,13 @@ void setNullSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t 
 void setSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, const STuplePos* pTuplePos, int32_t rowIndex) {
   int32_t pageId = pTuplePos->pageId;
   int32_t offset = pTuplePos->offset;
+
   if (pTuplePos->pageId != -1) {
+    int32_t numOfCols = taosArrayGetSize(pCtx->pSrcBlock->pDataBlock);
     SFilePage* pPage = getBufPage(pCtx->pBuf, pageId);
 
     bool* nullList = (bool*)((char*)pPage + offset);
-    char* pStart = (char*)(nullList + pCtx->pSrcBlock->info.numOfCols * sizeof(bool));
+    char* pStart = (char*)(nullList + numOfCols * sizeof(bool));
 
     // todo set the offset value to optimize the performance.
     for (int32_t j = 0; j < pCtx->subsidiaries.num; ++j) {
@@ -3038,7 +3040,7 @@ void doAddIntoResult(SqlFunctionCtx* pCtx, void* pData, int32_t rowIndex, SSData
 void saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock, STuplePos* pPos) {
   SFilePage* pPage = NULL;
 
-  int32_t completeRowSize = pSrcBlock->info.rowSize + pSrcBlock->info.numOfCols * sizeof(bool);
+  int32_t completeRowSize = pSrcBlock->info.rowSize + (int32_t) taosArrayGetSize(pSrcBlock->pDataBlock) * sizeof(bool);
 
   if (pCtx->curBufPage == -1) {
     pPage = getNewBufPage(pCtx->pBuf, 0, &pCtx->curBufPage);
@@ -3056,8 +3058,8 @@ void saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pS
   // keep the current row data, extract method
   int32_t offset = 0;
   bool*   nullList = (bool*)((char*)pPage + pPage->num);
-  char*   pStart = (char*)(nullList + sizeof(bool) * pSrcBlock->info.numOfCols);
-  for (int32_t i = 0; i < pSrcBlock->info.numOfCols; ++i) {
+  char*   pStart = (char*)(nullList + sizeof(bool) * (int32_t) taosArrayGetSize(pSrcBlock->pDataBlock));
+  for (int32_t i = 0; i < (int32_t) taosArrayGetSize(pSrcBlock->pDataBlock); ++i) {
     SColumnInfoData* pCol = taosArrayGet(pSrcBlock->pDataBlock, i);
     bool             isNull = colDataIsNull_s(pCol, rowIndex);
     if (isNull) {
@@ -3086,11 +3088,13 @@ void saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pS
 void copyTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock, STuplePos* pPos) {
   SFilePage* pPage = getBufPage(pCtx->pBuf, pPos->pageId);
 
+  int32_t numOfCols = taosArrayGetSize(pSrcBlock->pDataBlock);
+
   bool* nullList = (bool*)((char*)pPage + pPos->offset);
-  char* pStart = (char*)(nullList + pSrcBlock->info.numOfCols * sizeof(bool));
+  char* pStart = (char*)(nullList + numOfCols * sizeof(bool));
 
   int32_t offset = 0;
-  for (int32_t i = 0; i < pSrcBlock->info.numOfCols; ++i) {
+  for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pCol = taosArrayGet(pSrcBlock->pDataBlock, i);
     if ((nullList[i] = colDataIsNull_s(pCol, rowIndex)) == true) {
       offset += pCol->info.bytes;
