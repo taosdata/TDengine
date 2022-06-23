@@ -1,4 +1,4 @@
-/* * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+/** Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
@@ -54,7 +54,7 @@ typedef struct SCliMsg {
   int      sent;  //(0: no send, 1: alread sent)
 } SCliMsg;
 
-typedef struct SCliThrdObj {
+typedef struct SCliThrd {
   TdThread    thread;  // tid
   int64_t     pid;     // pid
   uv_loop_t*  loop;
@@ -72,13 +72,13 @@ typedef struct SCliThrdObj {
   SCvtAddr cvtAddr;
 
   bool quit;
-} SCliThrdObj;
+} SCliThrd;
 
 typedef struct SCliObj {
-  char          label[TSDB_LABEL_LEN];
-  int32_t       index;
-  int           numOfThreads;
-  SCliThrdObj** pThreadObj;
+  char       label[TSDB_LABEL_LEN];
+  int32_t    index;
+  int        numOfThreads;
+  SCliThrd** pThreadObj;
 } SCliObj;
 
 typedef struct SConnList {
@@ -106,7 +106,7 @@ static void cliAsyncCb(uv_async_t* handle);
 
 static int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg);
 
-static SCliConn* cliCreateConn(SCliThrdObj* thrd);
+static SCliConn* cliCreateConn(SCliThrd* thrd);
 static void      cliDestroyConn(SCliConn* pConn, bool clear /*clear tcp handle or not*/);
 static void      cliDestroy(uv_handle_t* handle);
 static void      cliSend(SCliConn* pConn);
@@ -122,14 +122,14 @@ static void cliHandleResp(SCliConn* conn);
 static void cliHandleExcept(SCliConn* conn);
 
 // handle req from app
-static void cliHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd);
-static void cliHandleQuit(SCliMsg* pMsg, SCliThrdObj* pThrd);
-static void cliHandleRelease(SCliMsg* pMsg, SCliThrdObj* pThrd);
-static void cliHandleUpdate(SCliMsg* pMsg, SCliThrdObj* pThrd);
-static void (*cliAsyncHandle[])(SCliMsg* pMsg, SCliThrdObj* pThrd) = {cliHandleReq, cliHandleQuit, cliHandleRelease,
-                                                                      NULL, cliHandleUpdate};
+static void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd);
+static void cliHandleQuit(SCliMsg* pMsg, SCliThrd* pThrd);
+static void cliHandleRelease(SCliMsg* pMsg, SCliThrd* pThrd);
+static void cliHandleUpdate(SCliMsg* pMsg, SCliThrd* pThrd);
+static void (*cliAsyncHandle[])(SCliMsg* pMsg, SCliThrd* pThrd) = {cliHandleReq, cliHandleQuit, cliHandleRelease, NULL,
+                                                                   cliHandleUpdate};
 
-static void cliSendQuit(SCliThrdObj* thrd);
+static void cliSendQuit(SCliThrd* thrd);
 static void destroyUserdata(STransMsg* userdata);
 
 static int cliRBChoseIdx(STrans* pTransInst);
@@ -137,8 +137,8 @@ static int cliRBChoseIdx(STrans* pTransInst);
 static void destroyCmsg(SCliMsg* cmsg);
 static void transDestroyConnCtx(STransConnCtx* ctx);
 // thread obj
-static SCliThrdObj* createThrdObj();
-static void         destroyThrdObj(SCliThrdObj* pThrd);
+static SCliThrd* createThrdObj();
+static void      destroyThrdObj(SCliThrd* pThrd);
 
 static void cliWalkCb(uv_handle_t* handle, void* arg);
 
@@ -174,12 +174,12 @@ static void cliReleaseUnfinishedMsg(SCliConn* conn) {
       idx = -1;                                       \
     } else {                                          \
       ASYNC_CHECK_HANDLE((exh), refId);               \
-      pThrd = (SCliThrdObj*)(exh)->pThrd;             \
+      pThrd = (SCliThrd*)(exh)->pThrd;                \
     }                                                 \
   } while (0)
 #define CONN_PERSIST_TIME(para)    (para * 1000 * 10)
 #define CONN_GET_HOST_THREAD(conn) (conn ? ((SCliConn*)conn)->hostThrd : NULL)
-#define CONN_GET_INST_LABEL(conn)  (((STrans*)(((SCliThrdObj*)(conn)->hostThrd)->pTransInst))->label)
+#define CONN_GET_INST_LABEL(conn)  (((STrans*)(((SCliThrd*)(conn)->hostThrd)->pTransInst))->label)
 #define CONN_SHOULD_RELEASE(conn, head)                                                                            \
   do {                                                                                                             \
     if ((head)->release == 1 && (head->msgLen) == sizeof(*head)) {                                                 \
@@ -195,7 +195,7 @@ static void cliReleaseUnfinishedMsg(SCliConn* conn) {
       destroyCmsg(pMsg);                                                                                           \
       cliReleaseUnfinishedMsg(conn);                                                                               \
       if (status != ConnInPool) {                                                                                  \
-        addConnToPool(((SCliThrdObj*)conn->hostThrd)->pool, conn);                                                 \
+        addConnToPool(((SCliThrd*)conn->hostThrd)->pool, conn);                                                    \
       }                                                                                                            \
       transRemoveExHandle(refMgt, conn->refId);                                                                    \
       return;                                                                                                      \
@@ -279,8 +279,8 @@ _RETURN:
   return false;
 }
 void cliHandleResp(SCliConn* conn) {
-  SCliThrdObj* pThrd = conn->hostThrd;
-  STrans*      pTransInst = pThrd->pTransInst;
+  SCliThrd* pThrd = conn->hostThrd;
+  STrans*   pTransInst = pThrd->pTransInst;
 
   STransMsgHead* pHead = (STransMsgHead*)(conn->readBuf.buf);
   pHead->code = htonl(pHead->code);
@@ -379,9 +379,9 @@ void cliHandleExcept(SCliConn* pConn) {
       return;
     }
   }
-  SCliThrdObj* pThrd = pConn->hostThrd;
-  STrans*      pTransInst = pThrd->pTransInst;
-  bool         once = false;
+  SCliThrd* pThrd = pConn->hostThrd;
+  STrans*   pTransInst = pThrd->pTransInst;
+  bool      once = false;
   do {
     SCliMsg* pMsg = transQueuePop(&pConn->cliMsgs);
     if (pMsg == NULL && once) {
@@ -424,9 +424,9 @@ void cliHandleExcept(SCliConn* pConn) {
 }
 
 void cliTimeoutCb(uv_timer_t* handle) {
-  SCliThrdObj* pThrd = handle->data;
-  STrans*      pTransInst = pThrd->pTransInst;
-  int64_t      currentTime = pThrd->nextTimeout;
+  SCliThrd* pThrd = handle->data;
+  STrans*   pTransInst = pThrd->pTransInst;
+  int64_t   currentTime = pThrd->nextTimeout;
   tTrace("%s conn timeout, try to remove expire conn from conn pool", pTransInst->label);
 
   SConnList* p = taosHashIterate((SHashObj*)pThrd->pool, NULL);
@@ -501,7 +501,7 @@ static void allocConnRef(SCliConn* conn, bool update) {
   conn->refId = exh->refId;
 }
 static void addConnToPool(void* pool, SCliConn* conn) {
-  SCliThrdObj* thrd = conn->hostThrd;
+  SCliThrd* thrd = conn->hostThrd;
   CONN_HANDLE_THREAD_QUIT(thrd);
 
   allocConnRef(conn, true);
@@ -562,7 +562,7 @@ static void cliRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
   }
 }
 
-static SCliConn* cliCreateConn(SCliThrdObj* pThrd) {
+static SCliConn* cliCreateConn(SCliThrd* pThrd) {
   SCliConn* conn = taosMemoryCalloc(1, sizeof(SCliConn));
   // read/write stream handle
   conn->stream = (uv_stream_t*)taosMemoryMalloc(sizeof(uv_tcp_t));
@@ -615,7 +615,7 @@ static bool cliHandleNoResp(SCliConn* conn) {
     }
     if (res == true) {
       if (cliMaySendCachedMsg(conn) == false) {
-        SCliThrdObj* thrd = conn->hostThrd;
+        SCliThrd* thrd = conn->hostThrd;
         addConnToPool(thrd->pool, conn);
       }
     }
@@ -651,8 +651,8 @@ void cliSend(SCliConn* pConn) {
 
   STransConnCtx* pCtx = pCliMsg->ctx;
 
-  SCliThrdObj* pThrd = pConn->hostThrd;
-  STrans*      pTransInst = pThrd->pTransInst;
+  SCliThrd* pThrd = pConn->hostThrd;
+  STrans*   pTransInst = pThrd->pTransInst;
 
   STransMsg* pMsg = (STransMsg*)(&pCliMsg->msg);
   if (pMsg->pCont == 0) {
@@ -709,7 +709,7 @@ void cliConnCb(uv_connect_t* req, int status) {
   cliSend(pConn);
 }
 
-static void cliHandleQuit(SCliMsg* pMsg, SCliThrdObj* pThrd) {
+static void cliHandleQuit(SCliMsg* pMsg, SCliThrd* pThrd) {
   tDebug("cli work thread %p start to quit", pThrd);
   destroyCmsg(pMsg);
   destroyConnPool(pThrd->pool);
@@ -720,7 +720,7 @@ static void cliHandleQuit(SCliMsg* pMsg, SCliThrdObj* pThrd) {
 
   // uv_stop(pThrd->loop);
 }
-static void cliHandleRelease(SCliMsg* pMsg, SCliThrdObj* pThrd) {
+static void cliHandleRelease(SCliMsg* pMsg, SCliThrd* pThrd) {
   SCliConn* conn = pMsg->msg.info.handle;
   tDebug("%s conn %p start to release to inst", CONN_GET_INST_LABEL(conn), conn);
 
@@ -735,39 +735,30 @@ static void cliHandleRelease(SCliMsg* pMsg, SCliThrdObj* pThrd) {
     transUnrefCliHandle(conn);
   }
 }
-static void cliHandleUpdate(SCliMsg* pMsg, SCliThrdObj* pThrd) {
+static void cliHandleUpdate(SCliMsg* pMsg, SCliThrd* pThrd) {
   STransConnCtx* pCtx = pMsg->ctx;
 
   pThrd->cvtAddr = pCtx->cvtAddr;
   destroyCmsg(pMsg);
 }
 
-SCliConn* cliGetConn(SCliMsg* pMsg, SCliThrdObj* pThrd) {
+SCliConn* cliGetConn(SCliMsg* pMsg, SCliThrd* pThrd) {
   SCliConn* conn = NULL;
-  // SExHandleWrap* exWrap = &pMsg->msg.info.handle;
-  // if (exWrap != NULL) {
-  //}
-
-  // SExHandle* exh = transAcquireExHandle(refMgt, exWrap->refId);
-  // if (exh == NULL) {
-  //  if (pInfo->refId != 0) {
-  //    tTrace("%s conn %p ignore msg", CONN_GET_INST_LABEL(conn), conn);
-  //    assert(0);
-  //    return NULL;
-  //  }
-  //} else {
-  //  transReleaseExHandle(refMgt, pInfo->refId);
-  //  return exh->handle;
-  //}
+  int64_t   refId = (int64_t)(pMsg->msg.info.handle);
+  if (refId != 0) {
+    SExHandle* exh = transAcquireExHandle(refMgt, refId);
+    if (exh == NULL) {
+      assert(0);
+    } else {
+      conn = exh->handle;
+      transReleaseExHandle(refMgt, refId);
+    }
+    return conn;
+  };
 
   STransConnCtx* pCtx = pMsg->ctx;
   conn = getConnFromPool(pThrd->pool, EPSET_GET_INUSE_IP(&pCtx->epSet), EPSET_GET_INUSE_PORT(&pCtx->epSet));
   if (conn != NULL) {
-    SExHandle* exh = taosMemoryCalloc(1, sizeof(SExHandle));
-    exh->handle = conn;
-    exh->pThrd = pThrd;
-    exh->refId = transAddExHandle(refMgt, exh);
-    conn->refId = exh->refId;
     tTrace("%s conn %p get from conn pool", CONN_GET_INST_LABEL(conn), conn);
   } else {
     tTrace("%s not found conn in conn pool %p", ((STrans*)pThrd->pTransInst)->label, pThrd->pool);
@@ -785,7 +776,7 @@ void cliMayCvtFqdnToIp(SEpSet* pEpSet, SCvtAddr* pCvtAddr) {
     }
   }
 }
-void cliHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd) {
+void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
   STransConnCtx* pCtx = pMsg->ctx;
   STrans*        pTransInst = pThrd->pTransInst;
 
@@ -833,9 +824,9 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd) {
   }
 }
 static void cliAsyncCb(uv_async_t* handle) {
-  SAsyncItem*  item = handle->data;
-  SCliThrdObj* pThrd = item->pThrd;
-  SCliMsg*     pMsg = NULL;
+  SAsyncItem* item = handle->data;
+  SCliThrd*   pThrd = item->pThrd;
+  SCliMsg*    pMsg = NULL;
 
   // batch process to avoid to lock/unlock frequently
   queue wq;
@@ -861,7 +852,7 @@ static void cliAsyncCb(uv_async_t* handle) {
 }
 
 static void* cliWorkThread(void* arg) {
-  SCliThrdObj* pThrd = (SCliThrdObj*)arg;
+  SCliThrd* pThrd = (SCliThrd*)arg;
   pThrd->pid = taosGetSelfPthreadId();
   setThreadName("trans-cli-work");
   uv_run(pThrd->loop, UV_RUN_DEFAULT);
@@ -874,10 +865,10 @@ void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   STrans* pTransInst = shandle;
   memcpy(cli->label, label, strlen(label));
   cli->numOfThreads = numOfThreads;
-  cli->pThreadObj = (SCliThrdObj**)taosMemoryCalloc(cli->numOfThreads, sizeof(SCliThrdObj*));
+  cli->pThreadObj = (SCliThrd**)taosMemoryCalloc(cli->numOfThreads, sizeof(SCliThrd*));
 
   for (int i = 0; i < cli->numOfThreads; i++) {
-    SCliThrdObj* pThrd = createThrdObj();
+    SCliThrd* pThrd = createThrdObj();
     pThrd->nextTimeout = taosGetTimestampMs() + CONN_PERSIST_TIME(pTransInst->idleTime);
     pThrd->pTransInst = shandle;
 
@@ -911,8 +902,8 @@ static void destroyCmsg(SCliMsg* pMsg) {
   taosMemoryFree(pMsg);
 }
 
-static SCliThrdObj* createThrdObj() {
-  SCliThrdObj* pThrd = (SCliThrdObj*)taosMemoryCalloc(1, sizeof(SCliThrdObj));
+static SCliThrd* createThrdObj() {
+  SCliThrd* pThrd = (SCliThrd*)taosMemoryCalloc(1, sizeof(SCliThrd));
 
   QUEUE_INIT(&pThrd->msg);
   taosThreadMutexInit(&pThrd->msgMtx, NULL);
@@ -930,7 +921,7 @@ static SCliThrdObj* createThrdObj() {
   pThrd->quit = false;
   return pThrd;
 }
-static void destroyThrdObj(SCliThrdObj* pThrd) {
+static void destroyThrdObj(SCliThrd* pThrd) {
   if (pThrd == NULL) {
     return;
   }
@@ -951,7 +942,7 @@ static void transDestroyConnCtx(STransConnCtx* ctx) {
   taosMemoryFree(ctx);
 }
 
-void cliSendQuit(SCliThrdObj* thrd) {
+void cliSendQuit(SCliThrd* thrd) {
   // cli can stop gracefully
   SCliMsg* msg = taosMemoryCalloc(1, sizeof(SCliMsg));
   msg->type = Quit;
@@ -973,15 +964,16 @@ int cliRBChoseIdx(STrans* pTransInst) {
 static void doDelayTask(void* param) {
   STaskArg* arg = param;
 
-  SCliMsg*     pMsg = arg->param1;
-  SCliThrdObj* pThrd = arg->param2;
+  SCliMsg*  pMsg = arg->param1;
+  SCliThrd* pThrd = arg->param2;
   cliHandleReq(pMsg, pThrd);
 
   taosMemoryFree(arg);
 }
+
 int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
-  SCliThrdObj* pThrd = pConn->hostThrd;
-  STrans*      pTransInst = pThrd->pTransInst;
+  SCliThrd* pThrd = pConn->hostThrd;
+  STrans*   pTransInst = pThrd->pTransInst;
 
   if (pMsg == NULL || pMsg->ctx == NULL) {
     tTrace("%s conn %p handle resp", pTransInst->label, pConn);
@@ -995,57 +987,60 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
   if (pCtx->retryCount == 0) {
     pCtx->origEpSet = pCtx->epSet;
   }
+
   /*
    * upper layer handle retry if code equal TSDB_CODE_RPC_NETWORK_UNAVAIL
    */
-  tmsg_t msgType = pCtx->msgType;
-  if ((pTransInst->retry != NULL && pEpSet->numOfEps > 1 && (pTransInst->retry(pResp->code))) ||
-      (pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || pResp->code == TSDB_CODE_APP_NOT_READY ||
-       pResp->code == TSDB_CODE_NODE_NOT_DEPLOYED || pResp->code == TSDB_CODE_SYN_NOT_LEADER)) {
-    pMsg->sent = 0;
-    tTrace("try to send req to next node");
-    pMsg->st = taosGetTimestampUs();
+  if (CONN_NO_PERSIST_BY_APP(pConn)) {
+    tmsg_t msgType = pCtx->msgType;
+    if ((pTransInst->retry != NULL && pEpSet->numOfEps > 1 && (pTransInst->retry(pResp->code))) ||
+        (pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || pResp->code == TSDB_CODE_APP_NOT_READY ||
+         pResp->code == TSDB_CODE_NODE_NOT_DEPLOYED || pResp->code == TSDB_CODE_SYN_NOT_LEADER)) {
+      pMsg->sent = 0;
+      tTrace("try to send req to next node");
+      pMsg->st = taosGetTimestampUs();
 
-    pCtx->retryCount += 1;
-    if (pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
-      if (pCtx->retryCount < pEpSet->numOfEps * 3) {
-        pEpSet->inUse = (++pEpSet->inUse) % pEpSet->numOfEps;
+      pCtx->retryCount += 1;
+      if (pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+        if (pCtx->retryCount < pEpSet->numOfEps * 3) {
+          pEpSet->inUse = (++pEpSet->inUse) % pEpSet->numOfEps;
+
+          STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));
+          arg->param1 = pMsg;
+          arg->param2 = pThrd;
+          transDQSched(pThrd->delayQueue, doDelayTask, arg, TRANS_RETRY_INTERVAL);
+          transPrintEpSet(pEpSet);
+          tTrace("%s use local epset, inUse: %d, retry count:%d, limit: %d", pTransInst->label, pEpSet->inUse,
+                 pCtx->retryCount + 1, pEpSet->numOfEps * 3);
+
+          transUnrefCliHandle(pConn);
+          return -1;
+        }
+      } else if (pCtx->retryCount < TRANS_RETRY_COUNT_LIMIT) {
+        if (pResp->contLen == 0) {
+          pEpSet->inUse = (++pEpSet->inUse) % pEpSet->numOfEps;
+          transPrintEpSet(&pCtx->epSet);
+          tTrace("%s use local epset, inUse: %d, retry count:%d, limit: %d", pTransInst->label, pEpSet->inUse,
+                 pCtx->retryCount + 1, TRANS_RETRY_COUNT_LIMIT);
+        } else {
+          SEpSet epSet = {0};
+          tDeserializeSEpSet(pResp->pCont, pResp->contLen, &epSet);
+          pCtx->epSet = epSet;
+
+          transPrintEpSet(&pCtx->epSet);
+          tTrace("%s use remote epset, inUse: %d, retry count:%d, limit: %d", pTransInst->label, pEpSet->inUse,
+                 pCtx->retryCount + 1, TRANS_RETRY_COUNT_LIMIT);
+        }
+        if (pConn->status != ConnInPool) {
+          addConnToPool(pThrd->pool, pConn);
+        }
 
         STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));
         arg->param1 = pMsg;
         arg->param2 = pThrd;
         transDQSched(pThrd->delayQueue, doDelayTask, arg, TRANS_RETRY_INTERVAL);
-        transPrintEpSet(pEpSet);
-        tTrace("%s use local epset, inUse: %d, retry count:%d, limit: %d", pTransInst->label, pEpSet->inUse,
-               pCtx->retryCount + 1, pEpSet->numOfEps * 3);
-
-        transUnrefCliHandle(pConn);
         return -1;
       }
-    } else if (pCtx->retryCount < TRANS_RETRY_COUNT_LIMIT) {
-      if (pResp->contLen == 0) {
-        pEpSet->inUse = (++pEpSet->inUse) % pEpSet->numOfEps;
-        transPrintEpSet(&pCtx->epSet);
-        tTrace("%s use local epset, inUse: %d, retry count:%d, limit: %d", pTransInst->label, pEpSet->inUse,
-               pCtx->retryCount + 1, TRANS_RETRY_COUNT_LIMIT);
-      } else {
-        SEpSet epSet = {0};
-        tDeserializeSEpSet(pResp->pCont, pResp->contLen, &epSet);
-        pCtx->epSet = epSet;
-
-        transPrintEpSet(&pCtx->epSet);
-        tTrace("%s use remote epset, inUse: %d, retry count:%d, limit: %d", pTransInst->label, pEpSet->inUse,
-               pCtx->retryCount + 1, TRANS_RETRY_COUNT_LIMIT);
-      }
-      if (pConn->status != ConnInPool) {
-        addConnToPool(pThrd->pool, pConn);
-      }
-
-      STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));
-      arg->param1 = pMsg;
-      arg->param2 = pThrd;
-      transDQSched(pThrd->delayQueue, doDelayTask, arg, TRANS_RETRY_INTERVAL);
-      return -1;
     }
   }
 
@@ -1101,9 +1096,9 @@ void transUnrefCliHandle(void* handle) {
     cliDestroyConn((SCliConn*)handle, true);
   }
 }
-SCliThrdObj* transGetWorkThrdFromHandle(int64_t handle) {
-  SCliThrdObj* pThrd = NULL;
-  SExHandle*   exh = transAcquireExHandle(refMgt, handle);
+SCliThrd* transGetWorkThrdFromHandle(int64_t handle) {
+  SCliThrd*  pThrd = NULL;
+  SExHandle* exh = transAcquireExHandle(refMgt, handle);
   if (exh == NULL) {
     return NULL;
   }
@@ -1111,17 +1106,16 @@ SCliThrdObj* transGetWorkThrdFromHandle(int64_t handle) {
   transReleaseExHandle(refMgt, handle);
   return pThrd;
 }
-SCliThrdObj* transGetWorkThrd(STrans* trans, int64_t handle) {
-  int idx = -1;
+SCliThrd* transGetWorkThrd(STrans* trans, int64_t handle) {
   if (handle == 0) {
-    idx = cliRBChoseIdx(trans);
+    int idx = cliRBChoseIdx(trans);
     return ((SCliObj*)trans->tcphandle)->pThreadObj[idx];
   }
   return transGetWorkThrdFromHandle(handle);
 }
 void transReleaseCliHandle(void* handle) {
-  int          idx = -1;
-  SCliThrdObj* pThrd = transGetWorkThrdFromHandle((int64_t)handle);
+  int       idx = -1;
+  SCliThrd* pThrd = transGetWorkThrdFromHandle((int64_t)handle);
   if (pThrd == NULL) {
     return;
   }
@@ -1136,8 +1130,8 @@ void transReleaseCliHandle(void* handle) {
 }
 
 void transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* ctx) {
-  STrans*      pTransInst = (STrans*)shandle;
-  SCliThrdObj* pThrd = transGetWorkThrd(pTransInst, (int64_t)pReq->info.handle);
+  STrans*   pTransInst = (STrans*)shandle;
+  SCliThrd* pThrd = transGetWorkThrd(pTransInst, (int64_t)pReq->info.handle);
   if (pThrd == NULL) {
     transFreeMsg(pReq->pCont);
     return;
@@ -1169,8 +1163,8 @@ void transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STra
 }
 
 void transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp) {
-  STrans*      pTransInst = (STrans*)shandle;
-  SCliThrdObj* pThrd = transGetWorkThrd(pTransInst, (int64_t)pReq->info.handle);
+  STrans*   pTransInst = (STrans*)shandle;
+  SCliThrd* pThrd = transGetWorkThrd(pTransInst, (int64_t)pReq->info.handle);
   if (pThrd == NULL) {
     transFreeMsg(pReq->pCont);
     return;
@@ -1224,7 +1218,7 @@ void transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn) {
     cliMsg->ctx = pCtx;
     cliMsg->type = Update;
 
-    SCliThrdObj* thrd = ((SCliObj*)pTransInst->tcphandle)->pThreadObj[i];
+    SCliThrd* thrd = ((SCliObj*)pTransInst->tcphandle)->pThreadObj[i];
     tDebug("%s update epset at thread:%08" PRId64 "", pTransInst->label, thrd->pid);
 
     transSendAsync(thrd->asyncPool, &(cliMsg->q));
