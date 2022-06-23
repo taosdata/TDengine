@@ -524,10 +524,9 @@ static int32_t execAlterLocal(SAlterLocalStmt* pStmt) { return TSDB_CODE_FAILED;
 
 static SSDataBlock* buildLocalVariablesResultDataBlock() {
   SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
-  pBlock->info.numOfCols = SHOW_LOCAL_VARIABLES_RESULT_COLS;
   pBlock->info.hasVarCol = true;
 
-  pBlock->pDataBlock = taosArrayInit(pBlock->info.numOfCols, sizeof(SColumnInfoData));
+  pBlock->pDataBlock = taosArrayInit(SHOW_LOCAL_VARIABLES_RESULT_COLS, sizeof(SColumnInfoData));
 
   SColumnInfoData infoData = {0};
   infoData.info.type = TSDB_DATA_TYPE_VARCHAR;

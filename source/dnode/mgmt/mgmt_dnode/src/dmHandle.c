@@ -203,7 +203,6 @@ SSDataBlock* dmBuildVariablesBlock(void) {
     taosArrayPush(pBlock->pDataBlock, &colInfoData);
   }
 
-  pBlock->info.numOfCols = pMeta[index].colNum;
   pBlock->info.hasVarCol = true;
 
   return pBlock;
@@ -262,8 +261,9 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   dmAppendVariablesToBlock(pBlock, pMgmt->pData->dnodeId);
 
-  size = sizeof(SRetrieveMetaTableRsp) + sizeof(int32_t) + sizeof(SSysTableSchema) * pBlock->info.numOfCols +
-         blockDataGetSize(pBlock) + blockDataGetSerialMetaSize(pBlock->info.numOfCols);
+  size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+  size = sizeof(SRetrieveMetaTableRsp) + sizeof(int32_t) + sizeof(SSysTableSchema) * numOfCols +
+         blockDataGetSize(pBlock) + blockDataGetSerialMetaSize(numOfCols);
 
   SRetrieveMetaTableRsp *pRsp = rpcMallocCont(size);
   if (pRsp == NULL) {
@@ -274,10 +274,10 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   char    *pStart = pRsp->data;
-  *(int32_t *)pStart = htonl(pBlock->info.numOfCols);
+  *(int32_t *)pStart = htonl(numOfCols);
   pStart += sizeof(int32_t);  // number of columns
 
-  for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
+  for (int32_t i = 0; i < numOfCols; ++i) {
     SSysTableSchema *pSchema = (SSysTableSchema *)pStart;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, i);
     
@@ -289,7 +289,7 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   int32_t len = 0;
-  blockCompressEncode(pBlock, pStart, &len, pBlock->info.numOfCols, false);
+  blockCompressEncode(pBlock, pStart, &len, numOfCols, false);
 
   pRsp->numOfRows = htonl(pBlock->info.rows);
   pRsp->precision = TSDB_TIME_PRECISION_MILLI;  // millisecond time precision
