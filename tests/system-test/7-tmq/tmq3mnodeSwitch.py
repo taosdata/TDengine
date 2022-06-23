@@ -13,7 +13,6 @@ from util.cases import *
 from util.dnodes import *
 from util.common import *
 from util.cluster import *
-from test import tdDnodes
 
 sys.path.append("./7-tmq")
 from tmqCommon import *
@@ -165,7 +164,7 @@ class TDTestCase:
             else:
                 break
         return 
-
+        
     def tmqCase1(self):
         tdLog.printNoPrefix("======== test case 1: ")
         paraDict = {'dbName':     'db1',
@@ -237,7 +236,7 @@ class TDTestCase:
         self.check3mnode1off()
         
         tdLog.info("switch end and wait insert data end ................") 
-        pThread.join()
+        pThread.join()        
 
         tdLog.info("check the consume result") 
         tdSql.query(queryString)        
