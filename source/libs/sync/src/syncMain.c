@@ -1309,40 +1309,44 @@ void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
   SyncIndex logLastIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
   SyncIndex logBeginIndex = pSyncNode->pLogStore->syncLogBeginIndex(pSyncNode->pLogStore);
 
+  char* pCfgStr = syncCfg2SimpleStr(&(pSyncNode->pRaftCfg->cfg));
+
   if (userStrLen < 256) {
-    char logBuf[128 + 256];
+    char logBuf[256 + 256];
     if (pSyncNode != NULL && pSyncNode->pRaftCfg != NULL && pSyncNode->pRaftStore != NULL) {
       snprintf(logBuf, sizeof(logBuf),
                "vgId:%d, sync %s %s, term:%lu, commit:%ld, beginlog:%ld, lastlog:%ld, lastsnapshot:%ld, standby:%d, "
                "replica-num:%d, "
-               "lconfig:%ld, changing:%d",
+               "lconfig:%ld, changing:%d, %s",
                pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
                pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex,
                pSyncNode->pRaftCfg->isStandBy, pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex,
-               pSyncNode->changing);
+               pSyncNode->changing, pCfgStr);
     } else {
       snprintf(logBuf, sizeof(logBuf), "%s", str);
     }
     sDebug("%s", logBuf);
 
   } else {
-    int   len = 128 + userStrLen;
+    int   len = 256 + userStrLen;
     char* s = (char*)taosMemoryMalloc(len);
     if (pSyncNode != NULL && pSyncNode->pRaftCfg != NULL && pSyncNode->pRaftStore != NULL) {
       snprintf(s, len,
                "vgId:%d, sync %s %s, term:%lu, commit:%ld, beginlog:%ld, lastlog:%ld, lastsnapshot:%ld, standby:%d, "
                "replica-num:%d, "
-               "lconfig:%ld, changing:%d",
+               "lconfig:%ld, changing:%d, %s",
                pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
                pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex,
                pSyncNode->pRaftCfg->isStandBy, pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex,
-               pSyncNode->changing);
+               pSyncNode->changing, pCfgStr);
     } else {
       snprintf(s, len, "%s", str);
     }
     sDebug("%s", s);
     taosMemoryFree(s);
   }
+
+  taosMemoryFree(pCfgStr);
 }
 
 void syncNodeErrorLog(const SSyncNode* pSyncNode, char* str) {
