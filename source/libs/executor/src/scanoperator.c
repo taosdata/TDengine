@@ -1548,11 +1548,14 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
         return NULL;
       }
 
+      int32_t msgType = (strcasecmp(name, TSDB_INS_TABLE_DNODE_VARIABLES) == 0) ? TDMT_DND_SYSTABLE_RETRIEVE : TDMT_MND_SYSTABLE_RETRIEVE;
+
       pMsgSendInfo->param = pOperator;
       pMsgSendInfo->msgInfo.pData = buf1;
       pMsgSendInfo->msgInfo.len = contLen;
-      pMsgSendInfo->msgType = TDMT_MND_SYSTABLE_RETRIEVE;
+      pMsgSendInfo->msgType = msgType;
       pMsgSendInfo->fp = loadSysTableCallback;
+      pMsgSendInfo->requestId = pTaskInfo->id.queryId;
 
       int64_t transporterId = 0;
       int32_t code =
@@ -1587,6 +1590,8 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
       taosMemoryFree(pRsp);
       if (pInfo->pRes->info.rows > 0) {
         return pInfo->pRes;
+      } else if (pOperator->status == OP_EXEC_DONE) {
+        return NULL;
       }
     }
   }
