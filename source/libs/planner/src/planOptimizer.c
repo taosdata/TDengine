@@ -78,7 +78,8 @@ static SLogicNode* optFindPossibleNode(SLogicNode* pNode, FMayBeOptimized func) 
 
 EDealRes osdHaveNormalColImpl(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
-    *((bool*)pContext) = (COLUMN_TYPE_TAG != ((SColumnNode*)pNode)->colType);
+    // *((bool*)pContext) = (COLUMN_TYPE_TAG != ((SColumnNode*)pNode)->colType);
+    *((bool*)pContext) = true;
     return *((bool*)pContext) ? DEAL_RES_END : DEAL_RES_IGNORE_CHILD;
   }
   return DEAL_RES_CONTINUE;
@@ -95,11 +96,6 @@ static bool osdMayBeOptimized(SLogicNode* pNode) {
     return false;
   }
   if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pNode)) {
-    return false;
-  }
-  // todo: release after function splitting
-  if (TSDB_SUPER_TABLE == ((SScanLogicNode*)pNode)->tableType &&
-      SCAN_TYPE_STREAM != ((SScanLogicNode*)pNode)->scanType) {
     return false;
   }
   if (NULL == pNode->pParent || (QUERY_NODE_LOGIC_PLAN_WINDOW != nodeType(pNode->pParent) &&
@@ -745,7 +741,7 @@ static bool smaOptMayBeOptimized(SLogicNode* pNode) {
   }
 
   SScanLogicNode* pScan = (SScanLogicNode*)pNode;
-  if (0 == pScan->interval || NULL == pScan->pSmaIndexes || NULL != pScan->node.pConditions) {
+  if (NULL == pScan->pSmaIndexes || NULL != pScan->node.pConditions) {
     return false;
   }
 

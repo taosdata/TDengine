@@ -3967,14 +3967,16 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
         }
       }
     }
-
     int32_t   len = (int32_t)(pStart - (char*)keyBuf);
-    uint64_t* groupId = taosHashGet(pTableListInfo->map, keyBuf, len);
-    if (groupId) {
-      taosHashPut(pTableListInfo->map, &(info->uid), sizeof(uint64_t), groupId, sizeof(uint64_t));
-    } else {
+
+    uint64_t* pGroupId = taosHashGet(pTableListInfo->map, keyBuf, len);
+
+    if (!pGroupId) {
       uint64_t tmpId = calcGroupId(keyBuf, len);
+      info->groupId = tmpId;
       taosHashPut(pTableListInfo->map, &(info->uid), sizeof(uint64_t), &tmpId, sizeof(uint64_t));
+    } else {
+      info->groupId = *pGroupId;
     }
 
     metaReaderClear(&mr);
@@ -4020,14 +4022,9 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       return pOperator;
     } else if (QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == type) {
       STableMergeScanPhysiNode* pTableScanNode = (STableMergeScanPhysiNode*)pPhyNode;
-
-      SArray* dataReaders = taosArrayInit(8, POINTER_BYTES);
-      createMultipleDataReaders(pTableScanNode, pHandle, pTableListInfo, dataReaders, queryId, taskId);
+      createScanTableListInfo(pTableScanNode, pHandle, pTableListInfo, queryId, taskId, pTagCond);
       extractTableSchemaVersion(pHandle, pTableScanNode->scan.uid, pTaskInfo);
-      SArray* groupKeys = extractPartitionColInfo(pTableScanNode->pPartitionTags);
-      generateGroupIdMap(pTableListInfo, pHandle, groupKeys);  // todo for json
-      taosArrayDestroy(groupKeys);
-      SOperatorInfo*  pOperator = createTableMergeScanOperatorInfo(pTableScanNode, dataReaders, pHandle, pTaskInfo);
+      SOperatorInfo*  pOperator = createTableMergeScanOperatorInfo(pTableScanNode, pTableListInfo, pHandle, pTaskInfo, queryId, taskId);
       STableScanInfo* pScanInfo = pOperator->info;
       pTaskInfo->cost.pRecoder = &pScanInfo->readRecorder;
       return pOperator;
@@ -4096,7 +4093,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
           return NULL;
         }
       } else {  // Create one table group.
-        STableKeyInfo info = {.lastKey = 0, .uid = pBlockNode->uid};
+        STableKeyInfo info = {.lastKey = 0, .uid = pBlockNode->uid, .groupId = 0};
         taosArrayPush(pTableListInfo->pTableList, &info);
       }
 
@@ -4227,6 +4224,8 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     pOptr = createStreamFinalIntervalOperatorInfo(ops[0], pPhyNode, pTaskInfo, children);
   } else if (QUERY_NODE_PHYSICAL_PLAN_SORT == type) {
     pOptr = createSortOperatorInfo(ops[0], (SSortPhysiNode*)pPhyNode, pTaskInfo);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT == type) {
+    pOptr = createGroupSortOperatorInfo(ops[0], (SGroupSortPhysiNode*)pPhyNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE == type) {
     SMergePhysiNode* pMergePhyNode = (SMergePhysiNode*)pPhyNode;
 

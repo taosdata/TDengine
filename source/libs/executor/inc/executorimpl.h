@@ -837,13 +837,17 @@ int32_t finalizeResultRowIntoResultDataBlock(SDiskbasedBuf* pBuf, SResultRowPosi
                                        SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, int32_t numOfExprs, const int32_t* rowCellOffset,
                                        SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
 
-int32_t createMultipleDataReaders(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle,
-                                  STableListInfo* pTableListInfo, SArray* arrayReader, uint64_t queryId,
-                                  uint64_t taskId);
-SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SArray* dataReaders,
-                                                SReadHandle* readHandle, SExecTaskInfo* pTaskInfo);
+int32_t createScanTableListInfo(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle,
+                                STableListInfo* pTableListInfo, uint64_t queryId, uint64_t taskId,
+                                SNode* pTagCond);
+SOperatorInfo* createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSortPhysiNode* pSortPhyNode,
+                                           SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, STableListInfo *pTableListInfo,
+                                                SReadHandle* readHandle, SExecTaskInfo* pTaskInfo, uint64_t queryId, uint64_t taskId);
 
 void copyUpdateDataBlock(SSDataBlock* pDest, SSDataBlock* pSource, int32_t tsColIndex);
+
+int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle, SArray* groupKey);
 
 #ifdef __cplusplus
 }
