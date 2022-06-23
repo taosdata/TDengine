@@ -939,8 +939,8 @@ int main(int argc, char *argv[]) {
   uv_thread_create(&mnodeConnectThread, udfdConnectMnodeThreadFunc, NULL);
 
   udfdRun();
+  
   removeListeningPipe();
-  uv_thread_join(&mnodeConnectThread);
   udfdCloseClientRpc();
 
   return 0;
