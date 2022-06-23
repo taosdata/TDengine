@@ -130,7 +130,7 @@ int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
 
 static int32_t doScalarFunctionUnique(SScalarParam *pInput, int32_t inputNum, SScalarParam* pOutput, _double_fn valFn) {
   int32_t type = GET_PARAM_TYPE(pInput);
-  if (inputNum != 1 || !IS_NUMERIC_TYPE(type)) {
+  if (inputNum != 1 || (!IS_NUMERIC_TYPE(type) && !IS_NULL_TYPE(type))) {
     return TSDB_CODE_FAILED;
   }
 
@@ -142,7 +142,7 @@ static int32_t doScalarFunctionUnique(SScalarParam *pInput, int32_t inputNum, SS
   double *out = (double *)pOutputData->pData;
 
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
-    if (colDataIsNull_s(pInputData, i)) {
+    if (colDataIsNull_s(pInputData, i) || IS_NULL_TYPE(type)) {
       colDataAppendNULL(pOutputData, i);
       continue;
     }
