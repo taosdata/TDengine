@@ -144,7 +144,8 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
 
   SyncIndex writeIndex = raftLogWriteIndex(pLogStore);
   if (pEntry->index != writeIndex) {
-    sError("raftLogAppendEntry error, pEntry->index:%ld update to writeIndex:%ld", pEntry->index, writeIndex);
+    sError("vgId:%d wal write index error, entry-index:%ld update to %ld", pData->pSyncNode->vgId, pEntry->index,
+           writeIndex);
     pEntry->index = writeIndex;
   }
 
@@ -157,10 +158,10 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
   if (code != 0) {
     int32_t     err = terrno;
     const char* errStr = tstrerror(err);
-    int32_t     linuxErr = errno;
-    const char* linuxErrMsg = strerror(errno);
-    sError("raftLogAppendEntry error, err:%d %X, msg:%s, linuxErr:%d, linuxErrMsg:%s", err, err, errStr, linuxErr,
-           linuxErrMsg);
+    int32_t     sysErr = errno;
+    const char* sysErrStr = strerror(errno);
+    sError("vgId:%d wal write error, index:%ld, err:%d %X, msg:%s, syserr:%d, sysmsg:%s", pData->pSyncNode->vgId,
+           pEntry->index, err, err, errStr, sysErr, sysErrStr);
     ASSERT(0);
   }
 
@@ -237,10 +238,10 @@ static int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index,
   if (code != 0) {
     int32_t     err = terrno;
     const char* errStr = tstrerror(err);
-    int32_t     linuxErr = errno;
-    const char* linuxErrMsg = strerror(errno);
-    sError("raftLogGetEntry error, err:%d %X, msg:%s, linuxErr:%d, linuxErrMsg:%s", err, err, errStr, linuxErr,
-           linuxErrMsg);
+    int32_t     sysErr = errno;
+    const char* sysErrStr = strerror(errno);
+    sError("vgId:%d wal read error, index:%ld, err:%d %X, msg:%s, syserr:%d, sysmsg:%s", pData->pSyncNode->vgId, index,
+           err, err, errStr, sysErr, sysErrStr);
 
     int32_t saveErr = terrno;
     walCloseReadHandle(pWalHandle);
@@ -274,10 +275,11 @@ static int32_t raftLogTruncate(struct SSyncLogStore* pLogStore, SyncIndex fromIn
   if (code != 0) {
     int32_t     err = terrno;
     const char* errStr = tstrerror(err);
-    int32_t     linuxErr = errno;
-    const char* linuxErrMsg = strerror(errno);
-    sError("raftLogTruncate error, err:%d %X, msg:%s, linuxErr:%d, linuxErrMsg:%s", err, err, errStr, linuxErr,
-           linuxErrMsg);
+    int32_t     sysErr = errno;
+    const char* sysErrStr = strerror(errno);
+    sError("vgId:%d wal truncate error, from-index:%ld, err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
+           pData->pSyncNode->vgId, fromIndex, err, err, errStr, sysErr, sysErrStr);
+
     ASSERT(0);
   }
   return code;
@@ -364,10 +366,11 @@ int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
   if (code != 0) {
     int32_t     err = terrno;
     const char* errStr = tstrerror(err);
-    int32_t     linuxErr = errno;
-    const char* linuxErrMsg = strerror(errno);
-    sError("walWriteWithSyncInfo error, err:%d %X, msg:%s, linuxErr:%d, linuxErrMsg:%s", err, err, errStr, linuxErr,
-           linuxErrMsg);
+    int32_t     sysErr = errno;
+    const char* sysErrStr = strerror(errno);
+    sError("vgId:%d wal write error, index:%ld, err:%d %X, msg:%s, syserr:%d, sysmsg:%s", pData->pSyncNode->vgId,
+           pEntry->index, err, err, errStr, sysErr, sysErrStr);
+
     ASSERT(0);
   }
 
@@ -393,10 +396,11 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
     if (code != 0) {
       int32_t     err = terrno;
       const char* errStr = tstrerror(err);
-      int32_t     linuxErr = errno;
-      const char* linuxErrMsg = strerror(errno);
-      sError("walReadWithHandle error, err:%d %X, msg:%s, linuxErr:%d, linuxErrMsg:%s", err, err, errStr, linuxErr,
-             linuxErrMsg);
+      int32_t     sysErr = errno;
+      const char* sysErrStr = strerror(errno);
+      sError("vgId:%d wal read error, index:%ld, err:%d %X, msg:%s, syserr:%d, sysmsg:%s", pData->pSyncNode->vgId,
+             index, err, err, errStr, sysErr, sysErrStr);
+
       ASSERT(0);
     }
     // ASSERT(walReadWithHandle(pWalHandle, index) == 0);
@@ -432,10 +436,11 @@ int32_t logStoreTruncate(SSyncLogStore* pLogStore, SyncIndex fromIndex) {
   if (code != 0) {
     int32_t     err = terrno;
     const char* errStr = tstrerror(err);
-    int32_t     linuxErr = errno;
-    const char* linuxErrMsg = strerror(errno);
-    sError("walRollback error, err:%d %X, msg:%s, linuxErr:%d, linuxErrMsg:%s", err, err, errStr, linuxErr,
-           linuxErrMsg);
+    int32_t     sysErr = errno;
+    const char* sysErrStr = strerror(errno);
+    sError("vgId:%d wal truncate error, from-index:%ld, err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
+           pData->pSyncNode->vgId, fromIndex, err, err, errStr, sysErr, sysErrStr);
+
     ASSERT(0);
   }
   return 0;
@@ -466,9 +471,11 @@ int32_t logStoreUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index) {
   if (code != 0) {
     int32_t     err = terrno;
     const char* errStr = tstrerror(err);
-    int32_t     linuxErr = errno;
-    const char* linuxErrMsg = strerror(errno);
-    sError("walCommit error, err:%d %X, msg:%s, linuxErr:%d, linuxErrMsg:%s", err, err, errStr, linuxErr, linuxErrMsg);
+    int32_t     sysErr = errno;
+    const char* sysErrStr = strerror(errno);
+    sError("vgId:%d wal update commit index error, index:%ld, err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
+           pData->pSyncNode->vgId, index, err, err, errStr, sysErr, sysErrStr);
+
     ASSERT(0);
   }
   return 0;
