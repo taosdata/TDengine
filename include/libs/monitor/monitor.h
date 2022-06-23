@@ -109,6 +109,9 @@ typedef struct {
   char    version[MON_VER_LEN];
   float   master_uptime;     // day
   int32_t monitor_interval;  // sec
+  int32_t dbs_total;
+  int32_t stbs_total;
+  int64_t tbs_total;
   int32_t vgroups_total;
   int32_t vgroups_alive;
   int32_t vnodes_total;
