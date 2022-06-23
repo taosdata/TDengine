@@ -983,17 +983,18 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
     if (pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
       if (pCtx->retryCount < pEpSet->numOfEps * 3) {
         pEpSet->inUse = (++pEpSet->inUse) % pEpSet->numOfEps;
+        if (pThrd->quit == false) {
+          STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));
+          arg->param1 = pMsg;
+          arg->param2 = pThrd;
+          transDQSched(pThrd->delayQueue, doDelayTask, arg, TRANS_RETRY_INTERVAL);
+          transPrintEpSet(pEpSet);
+          tTrace("%s use local epset, inUse: %d, retry count:%d, limit: %d", pTransInst->label, pEpSet->inUse,
+                 pCtx->retryCount + 1, pEpSet->numOfEps * 3);
 
-        STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));
-        arg->param1 = pMsg;
-        arg->param2 = pThrd;
-        transDQSched(pThrd->delayQueue, doDelayTask, arg, TRANS_RETRY_INTERVAL);
-        transPrintEpSet(pEpSet);
-        tTrace("%s use local epset, inUse: %d, retry count:%d, limit: %d", pTransInst->label, pEpSet->inUse,
-               pCtx->retryCount + 1, pEpSet->numOfEps * 3);
-
-        transUnrefCliHandle(pConn);
-        return -1;
+          transUnrefCliHandle(pConn);
+          return -1;
+        }
       }
     } else if (pCtx->retryCount < TRANS_RETRY_COUNT_LIMIT) {
       if (pResp->contLen == 0) {
@@ -1010,15 +1011,16 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
         tTrace("%s use remote epset, inUse: %d, retry count:%d, limit: %d", pTransInst->label, pEpSet->inUse,
                pCtx->retryCount + 1, TRANS_RETRY_COUNT_LIMIT);
       }
-      if (pConn->status != ConnInPool) {
-        addConnToPool(pThrd->pool, pConn);
+      if (pThrd->quit == false) {
+        if (pConn->status != ConnInPool) {
+          addConnToPool(pThrd->pool, pConn);
+        }
+        STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));
+        arg->param1 = pMsg;
+        arg->param2 = pThrd;
+        transDQSched(pThrd->delayQueue, doDelayTask, arg, TRANS_RETRY_INTERVAL);
+        return -1;
       }
-
-      STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));
-      arg->param1 = pMsg;
-      arg->param2 = pThrd;
-      transDQSched(pThrd->delayQueue, doDelayTask, arg, TRANS_RETRY_INTERVAL);
-      return -1;
     }
   }
 
