@@ -172,7 +172,7 @@ static int32_t streamAddBlockToDispatchMsg(const SSDataBlock* pBlock, SStreamDis
   pRetrieve->streamBlockType = pBlock->info.type;
   pRetrieve->numOfRows = htonl(pBlock->info.rows);
 
-  int32_t numOfCols = (int32_t) taosArrayGetSize(pBlock->pDataBlock);
+  int32_t numOfCols = (int32_t)taosArrayGetSize(pBlock->pDataBlock);
   pRetrieve->numOfCols = htonl(numOfCols);
 
   int32_t actualLen = 0;
@@ -185,7 +185,7 @@ static int32_t streamAddBlockToDispatchMsg(const SSDataBlock* pBlock, SStreamDis
   return 0;
 }
 
-int32_t streamBuildDispatchMsg(SStreamTask* pTask, SStreamDataBlock* data, SRpcMsg* pMsg, SEpSet** ppEpSet) {
+int32_t streamBuildDispatchMsg(SStreamTask* pTask, const SStreamDataBlock* data, SRpcMsg* pMsg, SEpSet** ppEpSet) {
   void*   buf = NULL;
   int32_t code = -1;
   int32_t blockNum = taosArrayGetSize(data->blocks);
@@ -307,6 +307,8 @@ int32_t streamDispatch(SStreamTask* pTask, SMsgCb* pMsgCb) {
     atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);
     return -1;
   }
+  taosArrayDestroyEx(pBlock->blocks, (FDelete)tDeleteSSDataBlock);
+  taosFreeQitem(pBlock);
 
   tmsgSendReq(pEpSet, &dispatchMsg);
   return 0;
