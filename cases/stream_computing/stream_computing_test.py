@@ -24,11 +24,13 @@ class TestVgroups(TDCase):
         self._remote: Remote = Remote(self.logger)
         self.case_name = None
         self.tbname = None
-        self.date_time = self.tdCom.genTs()[0]
+        self.precision = "ms"
+        self.offset = 1000
+        self.date_time = self.tdCom.genTs(precision=self.precision)[0]
         self.tdCom.stream_latency_log = self.run_log_dir + "/latency.log"
         self.tdCom.drop_all_streams()
         self.tdCom.drop_all_db()
-        self.tdCom.createDb(vgroups=10)
+        self.tdCom.createDb(vgroups=10, precision=self.precision)
         self.range_count = 20
         self.des_table_suffix = "_output"
         self.stream_suffix = "_stream"
@@ -37,6 +39,16 @@ class TestVgroups(TDCase):
         # ! now() timezone() to_iso8601(1)
         self.downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", "apercentile(c6, 50)", "avg(c7)", "count(c8)", "leastsquares(c1, 1, 2)", "spread(c1)", 
         "stddev(c2)", "hyperloglog(c11)", "timediff(1, 0, 1h)", "timetruncate(_wstartts, 1m)", "to_iso8601(1)", 'to_unixtimestamp("1970-01-01T08:00:00+08:00")']
+
+    def set_precision_offset(self):
+        if self.precision == "ms":
+            self.offset = 1000
+        elif self.precision == "us":
+            self.offset = 1000000
+        elif self.precision == "ns":
+            self.offset = 1000000000
+        else:
+            pass
 
     def data_filter(self):
         self.case_name = sys._getframe().f_code.co_name
@@ -568,127 +580,184 @@ class TestVgroups(TDCase):
             self.tdCom.check_stream('select start, `min(c1)`, `max(c2)`, `sum(c1)`, `first(c1)`, `last(c1)`, `apercentile(c1, 50)` from output_trigger_max_delay_ctb;', 'select _wstartts AS start, min(c1), max(c2), sum(c1), first(c1), last(c1), apercentile(c1, 50) from trigger_max_delay_ct1 state_window(c1);', 4)
             self.tdCom.check_stream('select start, `min(c1)`, `max(c2)`, `sum(c1)`, `first(c1)`, `last(c1)`, `apercentile(c1, 50)` from output_trigger_max_delay_tb;', 'select _wstartts AS start, min(c1), max(c2), sum(c1), first(c1), last(c1), apercentile(c1, 50) from trigger_max_delay_tb state_window(c1);', 4)
 
+    def cal_watermark_window_close_endts(self, start_ts, interval, watermark, precision="ms"):
+        """cal endts for close window
 
-    def watermark_window_close_order(self):
+        :param start_ts: [start timestamp: self.date_time]
+        :type start_ts: [epoch time]
+        :param interval: [second level]
+        :type interval: [s]
+        :param watermark: [second level and > interval]
+        :type watermark: [s]
+        :param precision: [default "ms" and only support "ms" now]
+        :type precision: str, optional
+        """
+        if precision == "ms":
+            print(start_ts)
+            print(int(start_ts/1000)*1000 + (interval - (int(start_ts/1000))%interval)*1000 + watermark*1000)
+            return int(start_ts/1000)*1000 + (interval - (int(start_ts/1000))%interval)*1000 + watermark*1000
+        else:
+            # TODO
+            return
+
+    def watermark_window_close_interval_order(self):
         self.case_name = sys._getframe().f_code.co_name
         dataDict = {
             "stb_name" : f"{self.case_name}_stb",
             "ctb_name" : f"{self.case_name}_ct1",
             "tb_name" : f"{self.case_name}_tb1",
-            "interval" : 10,
-            "watermark": "17s",
-            "start_ts": 1655903478508
+            "interval" : random.randint(10, 15),
+            "watermark": random.randint(15, 20),
+            "iteration": 3,
+            # "start_ts": 1655903478508
         }
-        self.date_time = dataDict["start_ts"]
+        # self.date_time = dataDict["start_ts"]
+        stb_name = dataDict["stb_name"]
+        ctb_name = dataDict["ctb_name"]
+        tb_name = dataDict["tb_name"]
+        stb_stream_des_table = f'{stb_name}{self.des_table_suffix}'
+        ctb_stream_des_table = f'{ctb_name}{self.des_table_suffix}'
+        tb_stream_des_table = f'{tb_name}{self.des_table_suffix}'
+
         # create stb/ctb/tb
-        self.tdCom.create_stable(stbname=dataDict["stb_name"])
-        self.tdCom.create_ctable(stbname=dataDict["stb_name"], ctbname=dataDict["ctb_name"])
-        self.tdCom.create_table(tbname=dataDict["tb_name"])
+        self.tdCom.create_stable(stbname=stb_name)
+        self.tdCom.create_ctable(stbname=stb_name, ctbname=ctb_name)
+        self.tdCom.create_table(tbname=tb_name)
 
         self.tdCom.write_latency(self.case_name)
         output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.downsampling_function_list)))
         source_select_str = ','.join(self.downsampling_function_list)
         # create stb/ctb/tb stream
-        self.tdCom.create_stream(stream_name=f'{dataDict["stb_name"]}{self.stream_suffix}', des_table=f'{dataDict["stb_name"]}{self.des_table_suffix}', source_sql=f'select _wstartts AS start, {source_select_str}  from {dataDict["stb_name"]} interval({dataDict["interval"]}s)', trigger_mode="window_close", watermark=dataDict["watermark"])
-        self.tdCom.create_stream(stream_name=f'{dataDict["ctb_name"]}{self.stream_suffix}', des_table=f'{dataDict["ctb_name"]}{self.des_table_suffix}', source_sql=f'select _wstartts AS start, {source_select_str}  from {dataDict["ctb_name"]} interval({dataDict["interval"]}s)', trigger_mode="window_close", watermark=dataDict["watermark"])
-        self.tdCom.create_stream(stream_name=f'{dataDict["tb_name"]}{self.stream_suffix}', des_table=f'{dataDict["tb_name"]}{self.des_table_suffix}', source_sql=f'select _wstartts AS start, {source_select_str}  from {dataDict["tb_name"]} interval({dataDict["interval"]}s)', trigger_mode="window_close", watermark=dataDict["watermark"])
+        self.tdCom.create_stream(stream_name=f'{stb_name}{self.stream_suffix}', des_table=stb_stream_des_table, source_sql=f'select _wstartts AS start, {source_select_str}  from {stb_name} interval({dataDict["interval"]}s)', trigger_mode="window_close", watermark=f'{dataDict["watermark"]}s')
+        self.tdCom.create_stream(stream_name=f'{ctb_name}{self.stream_suffix}', des_table=ctb_stream_des_table, source_sql=f'select _wstartts AS start, {source_select_str}  from {ctb_name} interval({dataDict["interval"]}s)', trigger_mode="window_close", watermark=f'{dataDict["watermark"]}s')
+        self.tdCom.create_stream(stream_name=f'{tb_name}{self.stream_suffix}', des_table=tb_stream_des_table, source_sql=f'select _wstartts AS start, {source_select_str}  from {tb_name} interval({dataDict["interval"]}s)', trigger_mode="window_close", watermark=f'{dataDict["watermark"]}s')
 
-        # insert data
-        self.tdCom.insert_rows(tbname=dataDict["ctb_name"], ts_value=self.date_time)
-        self.tdCom.insert_rows(tbname=dataDict["tb_name"], ts_value=self.date_time)
-        for tbname in [dataDict["stb_name"], dataDict["ctb_name"], dataDict["tb_name"]]:
-            self.tdSql.query(f'select _wstartts AS start, {source_select_str}  from {tbname} interval({dataDict["interval"]}s)')
-            self.tdSql.checkEqual(self.tdSql.query_row, 1)
-        for tbname in [f'{dataDict["stb_name"]}{self.des_table_suffix}', f'{dataDict["ctb_name"]}{self.des_table_suffix}', f'{dataDict["tb_name"]}{self.des_table_suffix}']:
-            self.tdSql.query(f'select start, {output_select_str} from {tbname}')
-            self.tdSql.checkEqual(self.tdSql.query_row, 0)
+        for i in range(dataDict['iteration']):
+            if i == 0:
+                window_close_ts = self.cal_watermark_window_close_endts(self.date_time, dataDict['interval'], dataDict['watermark'])
+            else:
+                self.date_time = window_close_ts + self.offset
+                window_close_ts += dataDict['interval']*self.offset
+            for num in range(int(window_close_ts/self.offset-self.date_time/self.offset)):
+                self.tdCom.insert_rows(tbname=dataDict["ctb_name"], ts_value=self.date_time+num*self.offset)
+                self.tdCom.insert_rows(tbname=dataDict["tb_name"], ts_value=self.date_time+num*self.offset)
+                for tbname in [stb_stream_des_table, ctb_stream_des_table, tb_stream_des_table]:
+                    self.tdSql.query(f'select start, {output_select_str} from {tbname}')
+                    self.tdSql.checkEqual(self.tdSql.query_row, i)
+            
+            self.tdCom.insert_rows(tbname=dataDict["ctb_name"], ts_value=window_close_ts-1)
+            self.tdCom.insert_rows(tbname=dataDict["tb_name"], ts_value=window_close_ts-1)
+            for tbname in [stb_stream_des_table, ctb_stream_des_table, tb_stream_des_table]:
+                self.tdSql.query(f'select start, {output_select_str} from {tbname}')
+                self.tdSql.checkEqual(self.tdSql.query_row, i)
 
-        self.tdCom.insert_rows(tbname=dataDict["ctb_name"], ts_value=f'{self.date_time}+{dataDict["interval"]+1}s')
-        self.tdCom.insert_rows(tbname=dataDict["tb_name"], ts_value=f'{self.date_time}+{dataDict["interval"]+1}s')
-        for tbname in [dataDict["stb_name"], dataDict["ctb_name"], dataDict["tb_name"]]:
-            self.tdSql.query(f'select _wstartts AS start, {source_select_str}  from {tbname} interval({dataDict["interval"]}s)')
-            self.tdSql.checkEqual(self.tdSql.query_row, 2)
-        for tbname in [f'{dataDict["stb_name"]}{self.des_table_suffix}', f'{dataDict["ctb_name"]}{self.des_table_suffix}', f'{dataDict["tb_name"]}{self.des_table_suffix}']:
-            self.tdSql.query(f'select start, {output_select_str} from {tbname}')
-            self.tdSql.checkEqual(self.tdSql.query_row, 0)
+            self.tdCom.insert_rows(tbname=dataDict["ctb_name"], ts_value=window_close_ts)
+            self.tdCom.insert_rows(tbname=dataDict["tb_name"], ts_value=window_close_ts)
+            # for tbname in [stb_stream_des_table, ctb_stream_des_table, tb_stream_des_table]:
+            for tbname in [stb_name, ctb_name, tb_name]:
+                self.tdCom.check_stream(f'select start, {output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstartts AS start, {source_select_str}  from {tbname} interval({dataDict["interval"]}s) limit {i+1}', i+1)
+
+        # window_close_ts = self.cal_watermark_window_close_endts(self.date_time, dataDict['interval'], dataDict['watermark'])
+
+        # for num in range(int(window_close_ts/1000-self.date_time/1000)):
+        #     self.tdCom.insert_rows(tbname=dataDict["ctb_name"], ts_value=self.date_time+num*1000)
+        #     self.tdCom.insert_rows(tbname=dataDict["tb_name"], ts_value=self.date_time+num*1000)
+        #     for tbname in [stb_stream_des_table, ctb_stream_des_table, tb_stream_des_table]:
+        #         self.tdSql.query(f'select start, {output_select_str} from {tbname}')
+        #         self.tdSql.checkEqual(self.tdSql.query_row, 0)
         
-        self.tdCom.insert_rows(tbname=dataDict["ctb_name"], ts_value=f'{self.date_time}+{dataDict["interval"]+7}s')
-        self.tdCom.insert_rows(tbname=dataDict["tb_name"], ts_value=f'{self.date_time}+{dataDict["interval"]+7}s')
-        for tbname in [dataDict["stb_name"], dataDict["ctb_name"], dataDict["tb_name"]]:
-            self.tdSql.query(f'select _wstartts AS start, {source_select_str}  from {tbname} interval({dataDict["interval"]}s)')
-            self.tdSql.checkEqual(self.tdSql.query_row, 3)
-        for tbname in [f'{dataDict["stb_name"]}{self.des_table_suffix}', f'{dataDict["ctb_name"]}{self.des_table_suffix}', f'{dataDict["tb_name"]}{self.des_table_suffix}']:
-            self.tdSql.query(f'select start, {output_select_str} from {tbname}')
-            self.tdSql.checkEqual(self.tdSql.query_row, 0)
-        self.tdCom.insert_rows(tbname=dataDict["ctb_name"], ts_value=f'{self.date_time}+{dataDict["interval"]+8}s')
-        self.tdCom.insert_rows(tbname=dataDict["tb_name"], ts_value=f'{self.date_time}+{dataDict["interval"]+8}s')
-        for tbname in [dataDict["stb_name"], dataDict["ctb_name"], dataDict["tb_name"]]:
-            self.tdSql.query(f'select _wstartts AS start, {source_select_str}  from {tbname} interval({dataDict["interval"]}s)')
-            self.tdSql.checkEqual(self.tdSql.query_row, 3)
-        for tbname in [f'{dataDict["stb_name"]}{self.des_table_suffix}', f'{dataDict["ctb_name"]}{self.des_table_suffix}', f'{dataDict["tb_name"]}{self.des_table_suffix}']:
-            self.tdSql.query(f'select start, {output_select_str} from {tbname}')
-            self.tdSql.checkEqual(self.tdSql.query_row, 0)
-        self.tdCom.insert_rows(tbname=dataDict["ctb_name"], ts_value=f'{self.date_time}+{dataDict["interval"]+10}s')
-        self.tdCom.insert_rows(tbname=dataDict["tb_name"], ts_value=f'{self.date_time}+{dataDict["interval"]+10}s')
-        for tbname in [dataDict["stb_name"], dataDict["ctb_name"], dataDict["tb_name"]]:
-            self.tdSql.query(f'select _wstartts AS start, {source_select_str}  from {tbname} interval({dataDict["interval"]}s)')
-            self.tdSql.checkEqual(self.tdSql.query_row, 3)
-        for tbname in [f'{dataDict["stb_name"]}{self.des_table_suffix}', f'{dataDict["ctb_name"]}{self.des_table_suffix}', f'{dataDict["tb_name"]}{self.des_table_suffix}']:
-            self.tdSql.query(f'select start, {output_select_str} from {tbname}')
-            self.tdSql.checkEqual(self.tdSql.query_row, 1)
-        # # insert data
-        # count = 1
-        # step_count = 1
-        # for i in range(1, self.range_count):
-        #     if i % 2 == 0:
-        #         step_count += i
-        #         for j in range(count, step_count):
-        #             self.tdCom.insert_rows(tbname=dataDict["ctb_name"] ,ts_value=f'{self.date_time}+{j}s')
-        #             self.tdCom.insert_rows(tbname=dataDict["tb_name"] ,ts_value=f'{self.date_time}+{j}s')
-        #         count += i
-        #     else:
-        #         step_count += 1
-        #         for i in range(2):
-        #             self.tdCom.insert_rows(tbname=dataDict["ctb_name"] ,ts_value=f'{self.date_time}+{count}s')
-        #             self.tdCom.insert_rows(tbname=dataDict["tb_name"] ,ts_value=f'{self.date_time}+{count}s')
-        #         count += 1
-        #     # check result
-        #     self.tdCom.check_stream(f'select {dataDict["des_select_elm"]} from {dataDict["stb_name"]}{self.des_table_suffix} where {dataDict["filter_sql"]};', f'select {dataDict["des_select_elm"]} from {dataDict["stb_name"]} where {dataDict["filter_sql"]};', count-1)
-        #     self.tdCom.check_stream(f'select {dataDict["des_select_elm"]} from {dataDict["ctb_name"]}{self.des_table_suffix} where {dataDict["filter_sql"]};', f'select {dataDict["des_select_elm"]} from {dataDict["ctb_name"]} where {dataDict["filter_sql"]};', count-1)
-        #     self.tdCom.check_stream(f'select {dataDict["des_select_elm"]} from {dataDict["tb_name"]}{self.des_table_suffix} where {dataDict["filter_sql"]};', f'select {dataDict["des_select_elm"]} from {dataDict["tb_name"]} where {dataDict["filter_sql"]};', count-1)
+        # self.tdCom.insert_rows(tbname=dataDict["ctb_name"], ts_value=window_close_ts-1)
+        # self.tdCom.insert_rows(tbname=dataDict["tb_name"], ts_value=window_close_ts-1)
+        # for tbname in [stb_stream_des_table, ctb_stream_des_table, tb_stream_des_table]:
+        #     self.tdSql.query(f'select start, {output_select_str} from {tbname}')
+        #     self.tdSql.checkEqual(self.tdSql.query_row, 0)
+
+        # self.tdCom.insert_rows(tbname=dataDict["ctb_name"], ts_value=window_close_ts)
+        # self.tdCom.insert_rows(tbname=dataDict["tb_name"], ts_value=window_close_ts)
+        # # for tbname in [stb_stream_des_table, ctb_stream_des_table, tb_stream_des_table]:
+        # for tbname in [stb_name, ctb_name, tb_name]:
+        #     self.tdCom.check_stream(f'select start, {output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstartts AS start, {source_select_str}  from {tbname} interval({dataDict["interval"]}s) limit 1', 1)
+
+        # self.date_time = window_close_ts + 1000
+        # window_close_ts += dataDict['interval']*1000
+        # for num in range(int(window_close_ts/1000-self.date_time/1000)):
+        #     self.tdCom.insert_rows(tbname=dataDict["ctb_name"], ts_value=self.date_time+num*1000)
+        #     self.tdCom.insert_rows(tbname=dataDict["tb_name"], ts_value=self.date_time+num*1000)
+        #     for tbname in [stb_stream_des_table, ctb_stream_des_table, tb_stream_des_table]:
+        #         self.tdSql.query(f'select start, {output_select_str} from {tbname}')
+        #         self.tdSql.checkEqual(self.tdSql.query_row, 1)
+        # self.tdCom.insert_rows(tbname=dataDict["ctb_name"], ts_value=window_close_ts-1)
+        # self.tdCom.insert_rows(tbname=dataDict["tb_name"], ts_value=window_close_ts-1)
+        # for tbname in [stb_stream_des_table, ctb_stream_des_table, tb_stream_des_table]:
+        #     self.tdSql.query(f'select start, {output_select_str} from {tbname}')
+        #     self.tdSql.checkEqual(self.tdSql.query_row, 1)
+        # self.tdCom.insert_rows(tbname=dataDict["ctb_name"], ts_value=window_close_ts)
+        # self.tdCom.insert_rows(tbname=dataDict["tb_name"], ts_value=window_close_ts)
+        # for tbname in [stb_name, ctb_name, tb_name]:
+        #     self.tdCom.check_stream(f'select start, {output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstartts AS start, {source_select_str}  from {tbname} interval({dataDict["interval"]}s) limit 2', 2)
+        
+        
+        # self.tdCom.insert_rows(tbname=dataDict["ctb_name"], ts_value=window_close_ts)
+        # self.tdCom.insert_rows(tbname=dataDict["tb_name"], ts_value=window_close_ts)
+
+    def watermark_window_close_session_order(self):
+        self.case_name = sys._getframe().f_code.co_name
+        dataDict = {
+            "stb_name" : f"{self.case_name}_stb",
+            "ctb_name" : f"{self.case_name}_ct1",
+            "tb_name" : f"{self.case_name}_tb1",
+            "session" : 10,
+            "watermark": 17,
+            "iteration": 2,
+            "start_ts": 1655903478508
+        }
+        self.date_time = dataDict["start_ts"]
+        stb_name = dataDict["stb_name"]
+        ctb_name = dataDict["ctb_name"]
+        tb_name = dataDict["tb_name"]
+        stb_stream_des_table = f'{stb_name}{self.des_table_suffix}'
+        ctb_stream_des_table = f'{ctb_name}{self.des_table_suffix}'
+        tb_stream_des_table = f'{tb_name}{self.des_table_suffix}'
+
+        # create stb/ctb/tb
+        self.tdCom.create_stable(stbname=stb_name)
+        self.tdCom.create_ctable(stbname=stb_name, ctbname=ctb_name)
+        self.tdCom.create_table(tbname=tb_name)
+
+        self.tdCom.write_latency(self.case_name)
+        output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.downsampling_function_list)))
+        source_select_str = ','.join(self.downsampling_function_list)
+        # create stb/ctb/tb stream
+        self.tdCom.create_stream(stream_name=f'{stb_name}{self.stream_suffix}', des_table=stb_stream_des_table, source_sql=f'select _wstartts AS start, {source_select_str}  from {stb_name} interval({dataDict["interval"]}s)', trigger_mode="window_close", watermark=f'{dataDict["watermark"]}s')
+        self.tdCom.create_stream(stream_name=f'{ctb_name}{self.stream_suffix}', des_table=ctb_stream_des_table, source_sql=f'select _wstartts AS start, {source_select_str}  from {ctb_name} interval({dataDict["interval"]}s)', trigger_mode="window_close", watermark=f'{dataDict["watermark"]}s')
+        self.tdCom.create_stream(stream_name=f'{tb_name}{self.stream_suffix}', des_table=tb_stream_des_table, source_sql=f'select _wstartts AS start, {source_select_str}  from {tb_name} interval({dataDict["interval"]}s)', trigger_mode="window_close", watermark=f'{dataDict["watermark"]}s')
+
+        for i in range(dataDict['iteration']):
+            if i == 0:
+                window_close_ts = self.cal_watermark_window_close_endts(self.date_time, dataDict['interval'], dataDict['watermark'])
+            else:
+                self.date_time = window_close_ts + self.offset
+                window_close_ts += dataDict['interval']*self.offset
+            for num in range(int(window_close_ts/self.offset-self.date_time/self.offset)):
+                self.tdCom.insert_rows(tbname=dataDict["ctb_name"], ts_value=self.date_time+num*self.offset)
+                self.tdCom.insert_rows(tbname=dataDict["tb_name"], ts_value=self.date_time+num*self.offset)
+                for tbname in [stb_stream_des_table, ctb_stream_des_table, tb_stream_des_table]:
+                    self.tdSql.query(f'select start, {output_select_str} from {tbname}')
+                    self.tdSql.checkEqual(self.tdSql.query_row, i)
+            
+            self.tdCom.insert_rows(tbname=dataDict["ctb_name"], ts_value=window_close_ts-1)
+            self.tdCom.insert_rows(tbname=dataDict["tb_name"], ts_value=window_close_ts-1)
+            for tbname in [stb_stream_des_table, ctb_stream_des_table, tb_stream_des_table]:
+                self.tdSql.query(f'select start, {output_select_str} from {tbname}')
+                self.tdSql.checkEqual(self.tdSql.query_row, i)
+
+            self.tdCom.insert_rows(tbname=dataDict["ctb_name"], ts_value=window_close_ts)
+            self.tdCom.insert_rows(tbname=dataDict["tb_name"], ts_value=window_close_ts)
+            # for tbname in [stb_stream_des_table, ctb_stream_des_table, tb_stream_des_table]:
+            for tbname in [stb_name, ctb_name, tb_name]:
+                self.tdCom.check_stream(f'select start, {output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstartts AS start, {source_select_str}  from {tbname} interval({dataDict["interval"]}s) limit {i+1}', i+1)
 
 
-        # self.tdSql.execute('create table if not exists downsampling_stb (ts timestamp, c1 int, c2 double, c3 varchar(100), c4 bool) tags (t1 int, t2 double, t3 varchar(100), t4 bool);')
-        # self.tdSql.execute('create table downsampling_ct1 using downsampling_stb tags(10, 10.1, "Beijing", True);')
-        # # self.tdSql.execute(f'create table ownsampling_ct2 using downsampling_stb tags(20, 20.2, "TIANJIN", False);')
-        # # self.tdSql.execute(f'create table ownsampling_ct3 using downsampling_stb tags(30, 30.3, "HeBei", False);')
-        # self.tdSql.execute('create table if not exists downsampling_tb (ts timestamp, c1 int, c2 double, c3 varchar(100), c4 bool);')
-        # # ! TD-16571 histogram
-        # # ! TD-16570 last_row(c1)
-        # # ! now() timezone() to_iso8601(1)
-        # function_list = ["min(c1)", "max(c2)", "sum(c1)", "first(c1)", "last(c1)", "apercentile(c1, 50)", "avg(c1)", "count(c1)", "leastsquares(c1, 1, 2)", "spread(c1)", "stddev(c2)", "hyperloglog(c3)", 
-        #    "timediff(1, 0, 1h)", "timetruncate(_wstartts, 1m)", "to_iso8601(1)", 'to_unixtimestamp("1970-01-01T08:00:00+08:00")']
-        # # function_list = ['to_unixtimestamp("1970-01-01T08:00:00+08:00")']
-        # # function_list = ["to_iso8601(1)"]
-        # # function_list = ["min(c1)", "max(c2)", "sum(c1)", "first(c1)", "last(c1)", "apercentile(c1, 50)", "last_row(c1)", "avg(c1)", "count(c1)", "leastsquares(c1, 1, 2)", "spread(c1)", "stddev(c2)", "hyperloglog(c3)", 
-        # #     'histogram(c1, "user_input", "[1, 3, 5, 7]", 0)', "now()", "timediff(1, 0, 1h)", "timetruncate(_wstartts, 1m)", "timezone()", "today()", "to_iso8601(1)",  'to_unixtimestamp("1970-01-01T08:00:00+08:00")']
-        # output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.downsampling_function_list)))
-        # source_select_str = ','.join(self.downsampling_function_list)
-        # self.write_latency(self.case_name)
-        # # stb
-        # self.tdSql.execute(f'create stream stb_downsampling_stream trigger at_once into output_downsampling_stb as select _wstartts AS start, {source_select_str} from downsampling_stb interval(10m);')
-        # # ctb
-        # self.tdSql.execute(f'create stream ctb_downsampling_stream trigger at_once into output_downsampling_ctb as select _wstartts AS start, {source_select_str} from downsampling_ct1 interval(10m);')
-        # # tb
-        # self.tdSql.execute(f'create stream tb_downsampling_stream trigger at_once into output_downsampling_tb as select _wstartts AS start, {source_select_str} from downsampling_tb interval(10m);')
-        # for tbname in ["downsampling_ct1", "downsampling_tb"]:
-        #     self.tdSql.execute(f'insert into {tbname} values (1653547828591, 100, 100.1, "Beijing", True);')
-        #     self.tdSql.execute(f'insert into {tbname} values (1653547828591+1s, -100, -100.1, "Tianjin", False);')
-        #     self.tdSql.execute(f'insert into {tbname} values (1653547828591+2s, 50, 50.3, "HeBei", False);')
-
-        # self.check_stream(f'select start, {output_select_str} from output_downsampling_stb;', f'select _wstartts AS start, {source_select_str} from downsampling_stb interval(10m);', 1)
-        # self.check_stream(f'select start, {output_select_str} from output_downsampling_ctb;', f'select _wstartts AS start, {source_select_str} from downsampling_ct1 interval(10m);', 1)
-        # self.check_stream(f'select start, {output_select_str} from output_downsampling_tb;', f'select _wstartts AS start, {source_select_str} from downsampling_tb interval(10m);', 1)
 
     def run(self) -> bool:
         # self.downsampling()
@@ -703,7 +772,9 @@ class TestVgroups(TDCase):
         # # self.disorder_data()
         # self.trigger_window_close()
         # self.trigger_max_delay()
-        self.watermark_window_close_order()
+        # self.cal_watermark_window_close_endts(1655903478508, 20, 27)
+        # self.watermark_window_close_interval_order()
+        self.watermark_window_close_session_order()
 
     def cleanup(self):
         pass
