@@ -226,7 +226,6 @@ int64_t tsdbGetNumOfRowsInMemTable(tsdbReaderT* pHandle) {
 
 static SArray* createCheckInfoFromTableGroup(STsdbReadHandle* pTsdbReadHandle, SArray* pTableList) {
   size_t tableSize = taosArrayGetSize(pTableList);
-  assert(tableSize >= 1);
 
   // allocate buffer in order to load data blocks from file
   SArray* pTableCheckInfo = taosArrayInit(tableSize, sizeof(STableCheckInfo));
@@ -510,6 +509,9 @@ int32_t tsdbSetTableList(tsdbReaderT reader, SArray* tableList){
 
 tsdbReaderT tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* tableList, uint64_t qId,
                             uint64_t taskId) {
+  if(taosArrayGetSize(tableList) == 0){
+    return NULL;
+  }
   STsdbReadHandle* pTsdbReadHandle = tsdbQueryTablesImpl(pVnode, pCond, qId, taskId);
   if (pTsdbReadHandle == NULL) {
     return NULL;

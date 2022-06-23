@@ -412,6 +412,13 @@ class TDTestCase:
         tdSql.checkColNameList(res, cname_list)
         #
         # test group by & order by  json tag
+        tdSql.query("select ts,jtag->'tag1' from jsons1 partition by jtag->'tag1' order by jtag->'tag1' desc")
+        tdSql.checkRows(11)
+        tdSql.checkData(0, 1, '"femail"')
+        tdSql.checkData(2, 1, '"收到货"')
+        tdSql.checkData(7, 1, "false")
+
+
         # tdSql.error("select count(*) from jsons1 group by jtag")
         # tdSql.error("select count(*) from jsons1 partition by jtag")
         # tdSql.error("select count(*) from jsons1 group by jtag order by jtag")
