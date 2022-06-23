@@ -67,12 +67,23 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
         taosArrayAddAll(p->pDataBlock, pDataBlock->pDataBlock);
         taosArrayPush(pInfo->pBlockLists, &p);
       }
+    } else if (type == STREAM_DATA_TYPE_FROM_SNAPSHOT) {
+      // do nothing
+      ASSERT(pInfo->blockType == STREAM_DATA_TYPE_FROM_SNAPSHOT);
     } else {
       ASSERT(0);
     }
 
     return TSDB_CODE_SUCCESS;
   }
+}
+
+int32_t qStreamScanSnapshot(qTaskInfo_t tinfo) {
+  if (tinfo == NULL) {
+    return TSDB_CODE_QRY_APP_ERROR;
+  }
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  return doSetStreamBlock(pTaskInfo->pRoot, NULL, 0, STREAM_DATA_TYPE_FROM_SNAPSHOT, 0, NULL);
 }
 
 int32_t qSetStreamInput(qTaskInfo_t tinfo, const void* input, int32_t type, bool assignUid) {
@@ -105,14 +116,6 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, void* streamReadHandle) {
   if (msg == NULL) {
     return NULL;
   }
-
-  // print those info into log
-#if 0
-  pMsg->sId = pMsg->sId;
-  pMsg->queryId = pMsg->queryId;
-  pMsg->taskId = pMsg->taskId;
-  pMsg->contentLen = pMsg->contentLen;
-#endif
 
   /*qDebugL("stream task string %s", (const char*)msg);*/
 
