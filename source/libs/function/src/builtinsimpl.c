@@ -561,7 +561,7 @@ int32_t sumFunction(SqlFunctionCtx* pCtx) {
 
   // check for overflow
   if (IS_FLOAT_TYPE(type) && (isinf(pSumRes->dsum) || isnan(pSumRes->dsum))) {
-    GET_RES_INFO(pCtx)->isNullRes = 1;
+    numOfElem = 0;
   }
 
 _sum_over:
@@ -927,7 +927,7 @@ int32_t avgFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   // check for overflow
   if (isinf(pAvgRes->result) || isnan(pAvgRes->result)) {
-    GET_RES_INFO(pCtx)->isNullRes = 1;
+    GET_RES_INFO(pCtx)->numOfRes = 0;
   }
 
   return functionFinalize(pCtx, pBlock);
@@ -1774,6 +1774,11 @@ int32_t stddevFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   } else {
     avg = pStddevRes->dsum / ((double)pStddevRes->count);
     pStddevRes->result = sqrt(fabs(pStddevRes->quadraticDSum / ((double)pStddevRes->count) - avg * avg));
+  }
+
+  // check for overflow
+  if (isinf(pStddevRes->result) || isnan(pStddevRes->result)) {
+    GET_RES_INFO(pCtx)->numOfRes = 0;
   }
 
   return functionFinalize(pCtx, pBlock);
