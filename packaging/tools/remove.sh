@@ -81,7 +81,6 @@ function clean_bin() {
   ${csudo}rm -f ${bin_link_dir}/${uninstallScript} || :
   ${csudo}rm -f ${bin_link_dir}/tarbitrator || :
   ${csudo}rm -f ${bin_link_dir}/set_core || :
-  ${csudo}rm -f ${bin_link_dir}/run_${serverName}_and_${adapterName}.sh || :
   ${csudo}rm -f ${bin_link_dir}/TDinsight.sh || :
 }
 

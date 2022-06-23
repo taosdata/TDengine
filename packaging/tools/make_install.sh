@@ -178,7 +178,6 @@ function install_bin() {
   if [ "$osType" != "Darwin" ]; then
     ${csudo}rm -f ${bin_link_dir}/perfMonitor || :
     ${csudo}rm -f ${bin_link_dir}/set_core || :
-    ${csudo}rm -f ${bin_link_dir}/run_${serverName}_and_${adapterName}.sh || :
     ${csudo}rm -f ${bin_link_dir}/${uninstallScript} || :
 
     ${csudo}cp -r ${binary_dir}/build/bin/${clientName} ${install_main_dir}/bin || :
@@ -192,7 +191,6 @@ function install_bin() {
     ${csudo}cp -r ${script_dir}/taosd-dump-cfg.gdb ${install_main_dir}/bin
     ${csudo}cp -r ${script_dir}/remove.sh ${install_main_dir}/bin
     ${csudo}cp -r ${script_dir}/set_core.sh ${install_main_dir}/bin
-    ${csudo}cp -r ${script_dir}/run_${serverName}_and_${adapterName}.sh ${install_main_dir}/bin
     ${csudo}cp -r ${script_dir}/startPre.sh ${install_main_dir}/bin
 
     ${csudo}chmod 0555 ${install_main_dir}/bin/*
@@ -204,7 +202,6 @@ function install_bin() {
     [ -x ${install_main_dir}/bin/${demoName} ] && ${csudo}ln -s ${install_main_dir}/bin/${demoName} ${bin_link_dir}/${demoName} || :
     [ -x ${install_main_dir}/bin/perfMonitor ] && ${csudo}ln -s ${install_main_dir}/bin/perfMonitor ${bin_link_dir}/perfMonitor || :
     [ -x ${install_main_dir}/set_core.sh ] && ${csudo}ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
-    [ -x ${install_main_dir}/run_${serverName}_and_${adapterName}.sh ] && ${csudo}ln -s ${install_main_dir}/bin/run_${serverName}_and_${adapterName}.sh ${bin_link_dir}/run_${serverName}_and_${adapterName}.sh || :
     [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript} || :
   else
 
