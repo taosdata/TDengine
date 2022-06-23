@@ -249,6 +249,8 @@ int metaTtlSmaller(SMeta *pMeta, uint64_t ttl, SArray *uidList){
   tdbTbcClose(pCur);
 
   tdbFree(pKey);
+  metaULock(pMeta);
+
   return 0;
 }
 
