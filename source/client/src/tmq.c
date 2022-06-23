@@ -1871,7 +1871,7 @@ const char* tmq_get_table_name(TAOS_RES* res) {
   return NULL;
 }
 
-int32_t tmq_get_raw_meta(TAOS_RES* res, const void** raw_meta, int32_t* raw_meta_len) {
+int32_t tmq_get_raw_meta(TAOS_RES* res, void** raw_meta, int32_t* raw_meta_len) {
   if (TD_RES_TMQ_META(res)) {
     SMqMetaRspObj* pMetaRspObj = (SMqMetaRspObj*)res;
     *raw_meta = pMetaRspObj->metaRsp.metaRsp;
