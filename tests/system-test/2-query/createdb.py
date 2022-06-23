@@ -70,21 +70,41 @@ class TDTestCase:
         create_stb_sql = f"create table {STBNAME}({cols}) tags ({tags})"
         create_ntb_sql = f"create table {NTBNAME}({cols})"
 
-        # tdSql.execute(create_stb_sql)
+        tdSql.execute(create_stb_sql)
 
-        # tag_row = ""
-        # for i in range(128):
-        #     if tag_row:
-        #         tag_row += f", {i}"
+        tag_row = ""
+        for i in range(128):
+            if tag_row:
+                tag_row += f", {i}"
 
-        # for i in range(4):
-        #     tag_row = f"{i+1}"
-        #     for j in range(127):
-        #         tag_row += f", {i+1}"
-        #     tdSql.execute(f'create table ct{i+1} using stb1 tags ( {tag_row} )')
+        for i in range(4):
+            tag_row = f"{i+1}"
+            for j in range(127):
+                tag_row += f", {i+1}"
+            tdSql.execute(f'create table ct{i+1} using stb1 tags ( {tag_row} )')
 
-        # return
+        return
         tdSql.execute(create_ntb_sql)
+
+    def query_data(self):
+        cols = f"{PRIMARY_COL} "
+        tags = f"tag_0 "
+
+        for i in range(4095):
+            cols += f", col_{i} "
+
+        for i in range(127):
+            tags += f", tag_{i+1} "
+        tdSql.query(f'select {cols} from stb1')
+        tdSql.checkRows(self.rows)
+        tdSql.query(f'select {cols} from ct1')
+        tdSql.checkRows(self.rows)
+        tdSql.query(f'select {cols} from ct2')
+        tdSql.checkRows(0)
+        tdSql.query(f'select {tags} from ct1')
+        tdSql.checkRows(1)
+        tdSql.query(f'select {tags} from stb1')
+        tdSql.checkRows(4)
 
 
     def __data_set(self, rows):
@@ -128,17 +148,19 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step2:insert data")
         self.rows = 10
-        # self.__insert_data(self.rows)
+        self.__insert_data(self.rows)
 
         tdLog.printNoPrefix("==========step3:all check")
+        self.query_data()
         # self.all_test()
 
-        # tdDnodes.stop(1)
-        # tdDnodes.start(1)
+        tdDnodes.stop(1)
+        tdDnodes.start(1)
 
-        # tdSql.execute("use db")
+        tdSql.execute("use db")
 
         tdLog.printNoPrefix("==========step4:after wal, all check again ")
+        self.query_data()
         # self.all_test()
 
     def stop(self):
