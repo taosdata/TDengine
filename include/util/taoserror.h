@@ -470,6 +470,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_CTG_DB_DROPPED                TAOS_DEF_ERROR_CODE(0, 0x2405)
 #define TSDB_CODE_CTG_OUT_OF_SERVICE            TAOS_DEF_ERROR_CODE(0, 0x2406)
 #define TSDB_CODE_CTG_VG_META_MISMATCH          TAOS_DEF_ERROR_CODE(0, 0x2407)
+#define TSDB_CODE_CTG_EXIT                      TAOS_DEF_ERROR_CODE(0, 0x2408)
 
 //scheduler&qworker
 #define TSDB_CODE_SCH_STATUS_ERROR              TAOS_DEF_ERROR_CODE(0, 0x2501)

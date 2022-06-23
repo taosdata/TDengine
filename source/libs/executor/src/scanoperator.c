@@ -1523,11 +1523,13 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
       int64_t startTs = taosGetTimestampUs();
       strncpy(pInfo->req.tb, tNameGetTableName(&pInfo->name), tListLen(pInfo->req.tb));
 
+/*
       if (pInfo->showRewrite) {
         char dbName[TSDB_DB_NAME_LEN] = {0};
         getDBNameFromCondition(pInfo->pCondition, dbName);
         sprintf(pInfo->req.db, "%d.%s", pInfo->accountId, dbName);
       }
+*/
 
       int32_t contLen = tSerializeSRetrieveTableReq(NULL, 0, &pInfo->req);
       char*   buf1 = taosMemoryCalloc(1, contLen);

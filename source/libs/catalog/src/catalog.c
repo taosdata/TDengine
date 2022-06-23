@@ -1255,7 +1255,7 @@ int32_t catalogClearCache(void) {
     CTG_API_LEAVE(TSDB_CODE_SUCCESS);
   }
 
-  int32_t code = ctgClearCacheEnqueue(NULL, true);
+  int32_t code = ctgClearCacheEnqueue(NULL, false, true);
 
   qInfo("clear catalog cache end, code: %s", tstrerror(code));
   
@@ -1272,32 +1272,14 @@ void catalogDestroy(void) {
 
   atomic_store_8((int8_t*)&gCtgMgmt.exit, true);
 
+  ctgClearCacheEnqueue(NULL, true, true);
+
   if (tsem_post(&gCtgMgmt.queue.reqSem)) {
     qError("tsem_post failed, error:%s", tstrerror(TAOS_SYSTEM_ERROR(errno)));
   }
 
-  while (CTG_IS_LOCKED(&gCtgMgmt.lock)) {
-    taosUsleep(1);
-  }
-
-  CTG_LOCK(CTG_WRITE, &gCtgMgmt.lock);
-
-  SCatalog* pCtg = NULL;
-  void*     pIter = taosHashIterate(gCtgMgmt.pCluster, NULL);
-  while (pIter) {
-    pCtg = *(SCatalog**)pIter;
-
-    if (pCtg) {
-      catalogFreeHandle(pCtg);
-    }
-
-    pIter = taosHashIterate(gCtgMgmt.pCluster, pIter);
-  }
-
   taosHashCleanup(gCtgMgmt.pCluster);
   gCtgMgmt.pCluster = NULL;
-
-  if (CTG_IS_LOCKED(&gCtgMgmt.lock) == TD_RWLATCH_WRITE_FLAG_COPY) CTG_UNLOCK(CTG_WRITE, &gCtgMgmt.lock);
 
   qInfo("catalog destroyed");
 }

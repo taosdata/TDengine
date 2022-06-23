@@ -48,6 +48,10 @@ char *ctgTaskTypeStr(CTG_TASK_TYPE type) {
   }
 }
 
+void ctgFreeQNode(SCtgQNode *node) {
+  //TODO
+}
+
 void ctgFreeSTableIndex(void *info) {
   if (NULL == info) {
     return;

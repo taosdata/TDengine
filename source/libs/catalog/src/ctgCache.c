@@ -659,6 +659,12 @@ int32_t ctgEnqueue(SCatalog* pCtg, SCtgCacheOperation *operation) {
   node->op = operation;
 
   CTG_LOCK(CTG_WRITE, &gCtgMgmt.queue.qlock);
+  if (gCtgMgmt.queue.lockQ) {
+    ctgFreeQNode(node);
+    CTG_UNLOCK(CTG_WRITE, &gCtgMgmt.queue.qlock);
+    CTG_RET(TSDB_CODE_CTG_EXIT);
+  }
+  gCtgMgmt.queue.lockQ = operation->lockQ;
   gCtgMgmt.queue.tail->next = node;
   gCtgMgmt.queue.tail = node;
   CTG_UNLOCK(CTG_WRITE, &gCtgMgmt.queue.qlock);
@@ -996,11 +1002,12 @@ _return:
 }
 
 
-int32_t ctgClearCacheEnqueue(SCatalog* pCtg, bool syncOp) {
+int32_t ctgClearCacheEnqueue(SCatalog* pCtg, bool lockQ, bool syncOp) {
   int32_t code = 0;
   SCtgCacheOperation *op = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
   op->opId = CTG_OP_CLEAR_CACHE;
   op->syncOp = syncOp;
+  op->lockQ = lockQ;
   
   SCtgClearCacheMsg *msg = taosMemoryMalloc(sizeof(SCtgClearCacheMsg));
   if (NULL == msg) {
@@ -1520,6 +1527,24 @@ _return:
   CTG_RET(code);
 }
 
+void ctgClearAllCtgInstance(void) {
+  SCatalog* pCtg = NULL;
+
+  void* pIter = taosHashIterate(gCtgMgmt.pCluster, NULL);
+  while (pIter) {
+    pCtg = *(SCatalog**)pIter;
+
+    if (pCtg) {
+      catalogFreeHandle(pCtg);
+    }
+
+    pIter = taosHashIterate(gCtgMgmt.pCluster, pIter);
+  }
+
+  taosHashClear(gCtgMgmt.pCluster);
+}
+
+
 int32_t ctgOpUpdateVgroup(SCtgCacheOperation *operation) {
   int32_t code = 0;
   SCtgUpdateVgMsg *msg = operation->data;
@@ -1942,29 +1967,13 @@ int32_t ctgOpClearCache(SCtgCacheOperation *operation) {
     goto _return;
   }
   
-  void* pIter = taosHashIterate(gCtgMgmt.pCluster, NULL);
-  while (pIter) {
-    pCtg = *(SCatalog**)pIter;
-
-    if (pCtg) {
-      catalogFreeHandle(pCtg);
-    }
-
-    pIter = taosHashIterate(gCtgMgmt.pCluster, pIter);
-  }
-
-  taosHashClear(gCtgMgmt.pCluster);
+  ctgClearAllCtgInstance();
 
 _return:
  
   taosMemoryFreeClear(msg);
   
   CTG_RET(code);
-}
-
-
-void ctgUpdateThreadUnexpectedStopped(void) {
-  if (!atomic_load_8((int8_t*)&gCtgMgmt.exit) && CTG_IS_LOCKED(&gCtgMgmt.lock) > 0) CTG_UNLOCK(CTG_READ, &gCtgMgmt.lock);
 }
 
 void ctgCleanupCacheQueue(void) {
@@ -2002,22 +2011,15 @@ void ctgCleanupCacheQueue(void) {
 
 void* ctgUpdateThreadFunc(void* param) {
   setThreadName("catalog");
-#ifdef WINDOWS
-  if (taosCheckCurrentInDll()) {
-    atexit(ctgUpdateThreadUnexpectedStopped);
-  }
-#endif
+
   qInfo("catalog update thread started");
 
-  CTG_LOCK(CTG_READ, &gCtgMgmt.lock);
-  
   while (true) {
     if (tsem_wait(&gCtgMgmt.queue.reqSem)) {
       qError("ctg tsem_wait failed, error:%s", tstrerror(TAOS_SYSTEM_ERROR(errno)));
     }
     
     if (atomic_load_8((int8_t*)&gCtgMgmt.exit)) {
-      CTG_UNLOCK(CTG_READ, &gCtgMgmt.lock);
       ctgCleanupCacheQueue();
       break;
     }
