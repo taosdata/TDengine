@@ -36,9 +36,6 @@ int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
   SColumnInfoData *pOutputData = pOutput->columnData;
 
   int32_t type = GET_PARAM_TYPE(pInput);
-  if (!IS_NUMERIC_TYPE(type)) {
-    return TSDB_CODE_FAILED;
-  }
 
   switch (type) {
     case TSDB_DATA_TYPE_FLOAT: {
@@ -115,6 +112,13 @@ int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
           continue;
         }
         out[i] = (in[i] >= 0)? in[i] : -in[i];
+      }
+      break;
+    }
+
+    case TSDB_DATA_TYPE_NULL: {
+      for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+        colDataAppendNULL(pOutputData, i);
       }
       break;
     }
