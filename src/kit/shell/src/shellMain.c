@@ -38,6 +38,17 @@ void *cancelHandler(void *arg) {
 
     if (args.restful || args.cloud) {
       pthread_cancel(pid);
+      close(args.socket);
+      if (args.restful && tcpConnect(args.host, args.port)) {
+        exit(EXIT_FAILURE);
+      }
+      if (args.cloud && tcpConnect(args.cloudHost, atoi(args.cloudPort))) {
+        exit(EXIT_FAILURE);
+      }
+      if (wsclient_handshake()) {
+        exit(EXIT_FAILURE);
+      }
+      args.ws_connected = false;
       tfree(args.response_buffer);
       tfree(args.fields);
     } else {
@@ -164,7 +175,6 @@ int main(int argc, char* argv[]) {
     printf("failed to create cancel semphore\n");
     exit(EXIT_FAILURE);
   }
-
   pthread_t spid;
   pthread_create(&spid, NULL, cancelHandler, NULL);
 

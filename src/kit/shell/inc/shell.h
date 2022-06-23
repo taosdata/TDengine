@@ -133,7 +133,7 @@ int shellDumpResult(TAOS_RES* con, char* fname, int* error_no, bool printMode);
 void shellGetGrantInfo(void* con);
 int isCommentLine(char* line);
 int wsclient_handshake();
-int wsclient_conn();
+int wsclient_conn(bool printMsg);
 void *wsclient_get_response();
 void wsclient_query(char* command, uint64_t limit, bool isVertical, char* fname);
 int wsclient_send_sql(char *command, WS_ACTION_TYPE type);

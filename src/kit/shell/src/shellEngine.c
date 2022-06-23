@@ -76,10 +76,9 @@ void shellInit(SShellArguments *_args) {
     if (wsclient_handshake()) {
       exit(EXIT_FAILURE);
     }
-    if (wsclient_conn()) {
+    if (wsclient_conn(1)) {
       exit(EXIT_FAILURE);
     }
-    args.ws_connected = true;
   } else {
     // set options before initializing
     if (_args->timezone != NULL) {
@@ -1448,7 +1447,7 @@ OVER:
   return code;
 }
 
-int wsclient_conn() {
+int wsclient_conn(bool printMsg) {
   if (wsclient_send_sql(NULL, WS_CONN)) {
     return -1;
   }
@@ -1479,12 +1478,15 @@ int wsclient_conn() {
     cJSON_Delete(conn);
     return -1;
   }
-  if (args.cloud) {
-    fprintf(stdout, "Successfully connect to %s:%s in restful mode\n\n", args.cloudHost, args.cloudPort);
-  } else {
-    fprintf(stdout, "Successfully connect to %s:%d in restful mode\n\n", args.host, args.port);
+  if (printMsg) {
+    if (args.cloud) {
+      fprintf(stdout, "Successfully connect to %s:%s in restful mode\n\n", args.cloudHost, args.cloudPort);
+    } else {
+      fprintf(stdout, "Successfully connect to %s:%d in restful mode\n\n", args.host, args.port);
+    }
   }
   cJSON_Delete(conn);
+  args.ws_connected = true;
   return 0;
 }
 
@@ -1508,10 +1510,9 @@ void wsclient_retry() {
   if (wsclient_handshake()) {
     return wsclient_retry();
   }
-  if (wsclient_conn()) {
+  if (wsclient_conn(0)) {
     return wsclient_retry();
   }
-  args.ws_connected = true;
   pthread_exit(NULL);
 }
 
@@ -1785,17 +1786,15 @@ int wsclient_horizontal_print_data(int64_t rows, int* width, int cols, int preci
 
 void wsclient_query(char *command, uint64_t limit, bool isVertical, char* fname) {
   if (!args.ws_connected) {
-    if (wsclient_conn()) {
+    if (wsclient_conn(0)) {
       return;
     }
-    args.ws_connected = true;
   }
   int64_t et;
   args.st = taosGetTimestampUs();
   if (wsclient_send_sql(command, WS_QUERY)) {
     return;
   }
-RECV:
   wsclient_get_response();
   cJSON* query = cJSON_Parse(args.response_buffer);
   if (query == NULL) {
@@ -1808,16 +1807,6 @@ RECV:
   if (wsclient_check(query, et)) {
     cJSON_Delete(query);
     return;
-  }
-  cJSON *action = cJSON_GetObjectItem(query, "action");
-  if (!cJSON_IsString(action)) {
-    fprintf(stderr, "Invalid or miss 'action' in query response");
-    cJSON_Delete(query);
-    return;
-  }
-  if (0 != strcasecmp(action->valuestring, "query")) {
-    cJSON_Delete(query);
-    goto RECV;
   }
 
   cJSON *is_update = cJSON_GetObjectItem(query, "is_update");
@@ -1927,52 +1916,49 @@ RECV:
       completed = true;
       continue;
     }
-    args.fetched_rows += rows->valueint;
-    if (showed_rows >= limit) {
-      cJSON_Delete(fetch);
-      continue;
-    }
-
-    if (!cJSON_IsArray(lengths)) {
+    if (showed_rows < limit) {
+      if (!cJSON_IsArray(lengths)) {
         fprintf(stderr, "Invalid or miss 'lengths' in fetch response\n");
         cJSON_Delete(fetch);
         tfree(args.fields);
         return;
-    }
-    for (int i = 0; i < cols; i++) {
+      }
+      for (int i = 0; i < cols; i++) {
         cJSON* length = cJSON_GetArrayItem(lengths, i);
         if (!cJSON_IsNumber(length)) {
-            fprintf(stderr, "Invalid or miss 'lengths' key in fetch response\n");
-            cJSON_Delete(fetch);
-            tfree(args.fields);
-            return;
+          fprintf(stderr, "Invalid or miss 'lengths' key in fetch response\n");
+          cJSON_Delete(fetch);
+          tfree(args.fields);
+          return;
         }
         args.fields[i].bytes = (int16_t)(length->valueint);
-    }
-    if (wsclient_send_sql(NULL, WS_FETCH_BLOCK)) {
-      cJSON_Delete(fetch);
-      tfree(args.fields);
-      return;
-    }
-    if (fname != NULL) {
-      if (wsclient_dump_data(fp, rows->valueint, cols, precision)) {
+      }
+      if (wsclient_send_sql(NULL, WS_FETCH_BLOCK)) {
         cJSON_Delete(fetch);
         tfree(args.fields);
         return;
       }
-    } else if (isVertical) {
-      if (wsclient_vertical_print_data(rows->valueint, cols, precision, &showed_rows, limit)) {
-        cJSON_Delete(fetch);
-        tfree(args.fields);
-        return;
-      }
-    } else {
-      if (wsclient_horizontal_print_data(rows->valueint, width, cols, precision, &showed_rows, limit)) {
-        cJSON_Delete(fetch);
-        tfree(args.fields);
-        return;
+      if (fname != NULL) {
+        if (wsclient_dump_data(fp, rows->valueint, cols, precision)) {
+          cJSON_Delete(fetch);
+          tfree(args.fields);
+          return;
+        }
+      } else if (isVertical) {
+        if (wsclient_vertical_print_data(rows->valueint, cols, precision, &showed_rows, limit)) {
+          cJSON_Delete(fetch);
+          tfree(args.fields);
+          return;
+        }
+      } else {
+        if (wsclient_horizontal_print_data(rows->valueint, width, cols, precision, &showed_rows, limit)) {
+          cJSON_Delete(fetch);
+          tfree(args.fields);
+          return;
+        }
       }
     }
+    args.fetched_rows += rows->valueint;
     cJSON_Delete(fetch);
   }
   if (fname != NULL) {

@@ -448,7 +448,7 @@ void *shellLoopQuery(void *arg) {
     }
     reset_terminal_mode();
   } while (shellRunCommand(con, command) == 0);
-  
+
   tfree(command);
   exitShell();
 
