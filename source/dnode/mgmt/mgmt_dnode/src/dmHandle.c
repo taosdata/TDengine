@@ -123,8 +123,15 @@ int32_t dmProcessGrantRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 }
 
 int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  dError("config req is received, but not supported yet");
-  return TSDB_CODE_OPS_NOT_SUPPORT;
+  SDCfgDnodeReq cfgReq = {0};
+  if (tDeserializeSMCfgDnodeReq(pMsg->pCont, pMsg->contLen, &cfgReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  dInfo("start to config, option:%s, value:%s", cfgReq.config, cfgReq.value);
+  taosCfgDynamicOptions(cfgReq.config, cfgReq.value);
+  return 0;
 }
 
 static void dmGetServerRunStatus(SDnodeMgmt *pMgmt, SServerStatusRsp *pStatus) {
