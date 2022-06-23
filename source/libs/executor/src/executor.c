@@ -68,8 +68,6 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
 
         taosArrayClear(p->pDataBlock);
         taosArrayAddAll(p->pDataBlock, pDataBlock->pDataBlock);
-        printf("size------------->%ld,  %ld, %p,  \n", taosArrayGetSize(pDataBlock->pDataBlock), taosArrayGetSize(pDataBlock->pDataBlock) * pDataBlock->pDataBlock->elemSize,
-            pDataBlock->pDataBlock);
         taosArrayPush(pInfo->pBlockLists, &p);
       }
     } else {
