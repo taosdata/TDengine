@@ -24,13 +24,12 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) 
     SStreamTrigger* pTrigger = (SStreamTrigger*)data;
     qSetMultiStreamInput(exec, pTrigger->pBlock, 1, STREAM_DATA_TYPE_SSDATA_BLOCK, false);
   } else if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
+    ASSERT(pTask->isDataScan);
     SStreamDataSubmit* pSubmit = (SStreamDataSubmit*)data;
-    ASSERT(pTask->inputType == STREAM_INPUT__DATA_SUBMIT);
     qSetStreamInput(exec, pSubmit->data, STREAM_DATA_TYPE_SUBMIT_BLOCK, false);
   } else if (pItem->type == STREAM_INPUT__DATA_BLOCK) {
     SStreamDataBlock* pBlock = (SStreamDataBlock*)data;
-    ASSERT(pTask->inputType == STREAM_INPUT__DATA_BLOCK);
-    SArray* blocks = pBlock->blocks;
+    SArray*           blocks = pBlock->blocks;
     qSetMultiStreamInput(exec, blocks->pData, blocks->size, STREAM_DATA_TYPE_SSDATA_BLOCK, false);
   } else if (pItem->type == STREAM_INPUT__DROP) {
     // TODO exec drop
@@ -89,17 +88,17 @@ static SArray* streamExecForQall(SStreamTask* pTask, SArray* pRes) {
         return NULL;
       }
 
-      if (((SStreamQueueItem*)data)->type == STREAM_INPUT__TRIGGER) {
+      int8_t type = ((SStreamQueueItem*)data)->type;
+      if (type == STREAM_INPUT__TRIGGER) {
         blockDataDestroy(((SStreamTrigger*)data)->pBlock);
         taosFreeQitem(data);
-      } else {
-        if (pTask->inputType == STREAM_INPUT__DATA_SUBMIT) {
-          streamDataSubmitRefDec((SStreamDataSubmit*)data);
-          taosFreeQitem(data);
-        } else {
-          taosArrayDestroyEx(((SStreamDataBlock*)data)->blocks, (FDelete)tDeleteSSDataBlock);
-          taosFreeQitem(data);
-        }
+      } else if (type == STREAM_INPUT__DATA_BLOCK) {
+        taosArrayDestroyEx(((SStreamDataBlock*)data)->blocks, (FDelete)tDeleteSSDataBlock);
+        taosFreeQitem(data);
+      } else if (type == STREAM_INPUT__DATA_SUBMIT) {
+        ASSERT(pTask->isDataScan);
+        streamDataSubmitRefDec((SStreamDataSubmit*)data);
+        taosFreeQitem(data);
       }
       streamQueueProcessSuccess(pTask->inputQueue);
       return taosArrayInit(0, sizeof(SSDataBlock));

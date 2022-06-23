@@ -427,10 +427,17 @@ int32_t getGroupSortExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplain, u
   return TSDB_CODE_SUCCESS;
 }
 
-// TODO:
-SOperatorInfo* createGroupSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortPhyNode,
+void destroyGroupSortOperatorInfo(void* param, int32_t numOfOutput) {
+  SGroupSortOperatorInfo* pInfo = (SGroupSortOperatorInfo*)param;
+  pInfo->binfo.pRes = blockDataDestroy(pInfo->binfo.pRes);
+
+  taosArrayDestroy(pInfo->pSortInfo);
+  taosArrayDestroy(pInfo->pColMatchInfo);
+}
+
+SOperatorInfo* createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSortPhysiNode* pSortPhyNode,
                                            SExecTaskInfo* pTaskInfo) {
-  SSortOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SSortOperatorInfo));
+  SGroupSortOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SGroupSortOperatorInfo));
   SOperatorInfo*     pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL /* || rowSize > 100 * 1024 * 1024*/) {
     goto _error;
@@ -455,8 +462,7 @@ SOperatorInfo* createGroupSortOperatorInfo(SOperatorInfo* downstream, SSortPhysi
   ;
   pInfo->pColMatchInfo = pColMatchColInfo;
   pOperator->name = "GroupSortOperator";
-  // TODO
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_SORT;
+  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT;
   pOperator->blocking = true;
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
@@ -464,7 +470,7 @@ SOperatorInfo* createGroupSortOperatorInfo(SOperatorInfo* downstream, SSortPhysi
   pOperator->exprSupp.numOfExprs = numOfCols;
   pOperator->pTaskInfo = pTaskInfo;
 
-  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doGroupSort, NULL, NULL, destroyOrderOperatorInfo, NULL,
+  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doGroupSort, NULL, NULL, destroyGroupSortOperatorInfo, NULL,
                                          NULL, getGroupSortExplainExecInfo);
 
   int32_t code = appendDownstream(pOperator, &downstream, 1);
@@ -480,18 +486,6 @@ _error:
   taosMemoryFree(pOperator);
   return NULL;
 }
-
-void destroyGroupSortOperatorInfo(void* param, int32_t numOfOutput) {
-  SGroupSortOperatorInfo* pInfo = (SGroupSortOperatorInfo*)param;
-  pInfo->binfo.pRes = blockDataDestroy(pInfo->binfo.pRes);
-
-  taosArrayDestroy(pInfo->pSortInfo);
-  taosArrayDestroy(pInfo->pColMatchInfo);
-}
-
-// TODO: sort group
-// TODO: msortCompare compare group id in multiway merge sort.
-// TODO: table merge scan, group first, then for each group, multiple readers
 
 //=====================================================================================
 // Multiway Sort Merge operator
