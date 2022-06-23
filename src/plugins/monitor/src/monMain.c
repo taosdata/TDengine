@@ -719,13 +719,13 @@ static int32_t monBuildMnodesTotalSql(char *sql) {
 
 static int32_t monGetVgroupsTotalStats(char *dbName, int32_t *totalVgroups,
                                            int32_t *totalVgroupsAlive) {
-  char subsql[TSDB_DB_NAME_LEN + 14];
+  char subsql[TSDB_DB_NAME_LEN + 16];
   memset(subsql, 0, sizeof(subsql));
-  snprintf(subsql, TSDB_DB_NAME_LEN + 13, "show %s.vgroups", dbName);
+  snprintf(subsql, sizeof(subsql) - 1, "show `%s`.vgroups", dbName);
   TAOS_RES *result = taos_query(tsMonitor.conn, subsql);
   int32_t code = taos_errno(result);
   if (code != TSDB_CODE_SUCCESS) {
-    monError("failed to execute cmd: show %s.vgroups, reason:%s", dbName, tstrerror(code));
+    monError("failed to execute cmd: show `%s`.vgroups, reason:%s", dbName, tstrerror(code));
   }
 
   TAOS_ROW    row;
@@ -1110,11 +1110,11 @@ static uint32_t monBuildVgroupsInfoSql(char *sql, char *dbName) {
   int64_t ts = taosGetTimestampUs();
 
   memset(sql, 0, SQL_LENGTH + 1);
-  snprintf(sql, SQL_LENGTH, "show %s.vgroups", dbName);
+  snprintf(sql, SQL_LENGTH, "show `%s`.vgroups", dbName);
   TAOS_RES *result = taos_query(tsMonitor.conn, sql);
   int32_t code = taos_errno(result);
   if (code != TSDB_CODE_SUCCESS) {
-    monError("failed to execute cmd: show %s.vgroups, reason:%s", dbName, tstrerror(code));
+    monError("failed to execute cmd: show `%s`.vgroups, reason:%s", dbName, tstrerror(code));
   }
 
   TAOS_ROW    row;
