@@ -631,7 +631,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
                       const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc) {
-  osDefaultInit();
+  if (tsCfg == NULL) osDefaultInit();
 
   SConfig *pCfg = cfgInit();
   if (pCfg == NULL) return -1;
