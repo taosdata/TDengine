@@ -575,8 +575,8 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
                      (pMsg->prevLogIndex <= ths->commitIndex);
     if (condition) {
       char logBuf[128];
-      snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries, fake match2, pre-index:%ld, pre-term:%lu",
-               pMsg->prevLogIndex, pMsg->prevLogTerm);
+      snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries, fake match2, pre-index:%ld, pre-term:%lu, datalen:%d",
+               pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen);
       syncNodeEventLog(ths, logBuf);
 
       SyncIndex matchIndex = ths->commitIndex;
@@ -652,8 +652,8 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
 
     if (condition) {
       char logBuf[128];
-      snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries, not match, pre-index:%ld, pre-term:%lu",
-               pMsg->prevLogIndex, pMsg->prevLogTerm);
+      snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries, not match, pre-index:%ld, pre-term:%lu, datalen:%d",
+               pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen);
       syncNodeEventLog(ths, logBuf);
 
       // prepare response msg
@@ -694,8 +694,8 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
       bool hasAppendEntries = pMsg->dataLen > 0;
 
       char logBuf[128];
-      snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries, match, pre-index:%ld, pre-term:%lu",
-               pMsg->prevLogIndex, pMsg->prevLogTerm);
+      snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries, match, pre-index:%ld, pre-term:%lu, datalen:%d",
+               pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen);
       syncNodeEventLog(ths, logBuf);
 
       if (hasExtraEntries) {
