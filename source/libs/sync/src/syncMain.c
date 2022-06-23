@@ -1962,16 +1962,20 @@ SyncTerm syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index) {
     taosMemoryFree(pPreEntry);
     return preTerm;
   } else {
-    if (terrno == TSDB_CODE_WAL_LOG_NOT_EXIST) {
-      SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0, .lastConfigIndex = -1};
-      if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
-        pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
-        if (snapshot.lastApplyIndex == preIndex) {
-          return snapshot.lastApplyTerm;
-        }
+    SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0, .lastConfigIndex = -1};
+    if (pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
+      pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
+      if (snapshot.lastApplyIndex == preIndex) {
+        return snapshot.lastApplyTerm;
       }
     }
   }
+
+  do {
+    char logBuf[128];
+    snprintf(logBuf, sizeof(logBuf), "sync node get pre term error, index:%ld", index);
+    syncNodeErrorLog(pSyncNode, logBuf);
+  } while (0);
 
   return SYNC_TERM_INVALID;
 }

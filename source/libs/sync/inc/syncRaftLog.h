@@ -32,7 +32,7 @@ typedef struct SSyncLogStoreData {
   SSyncNode*      pSyncNode;
   SWal*           pWal;
   SWalReadHandle* pWalHandle;
-  SyncIndex       beginIndex;  // valid begin index, default 0, may be set beginIndex > 0
+  // SyncIndex       beginIndex;  // valid begin index, default 0, may be set beginIndex > 0
 } SSyncLogStoreData;
 
 SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode);
