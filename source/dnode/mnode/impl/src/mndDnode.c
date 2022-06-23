@@ -648,30 +648,30 @@ _OVER:
 }
 
 static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
-  SMnode        *pMnode = pReq->info.node;
-  int32_t        code = -1;
-  SDnodeObj     *pDnode = NULL;
-  SMnodeObj     *pMObj = NULL;
-  SQnodeObj     *pQObj = NULL;
-  SSnodeObj     *pSObj = NULL;
-  SMDropMnodeReq dropReq = {0};
+  SMnode       *pMnode = pReq->info.node;
+  int32_t       code = -1;
+  SDnodeObj    *pDnode = NULL;
+  SMnodeObj    *pMObj = NULL;
+  SQnodeObj    *pQObj = NULL;
+  SSnodeObj    *pSObj = NULL;
+  SDropDnodeReq dropReq = {0};
 
-  if (tDeserializeSCreateDropMQSBNodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
+  if (tDeserializeSDropDnodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
 
-  mInfo("dnode:%d, start to drop", dropReq.dnodeId);
-
-  if (dropReq.dnodeId <= 0) {
-    terrno = TSDB_CODE_MND_INVALID_DNODE_ID;
-    goto _OVER;
-  }
+  mInfo("dnode:%d, start to drop, ep:%s:%d", dropReq.dnodeId, dropReq.fqdn, dropReq.port);
 
   pDnode = mndAcquireDnode(pMnode, dropReq.dnodeId);
   if (pDnode == NULL) {
-    terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
-    goto _OVER;
+    char ep[TSDB_EP_LEN + 1] = {0};
+    snprintf(ep, sizeof(ep), dropReq.fqdn, dropReq.port);
+    pDnode = mndAcquireDnodeByEp(pMnode, ep);
+    if (pDnode == NULL) {
+      terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
+      goto _OVER;
+    }
   }
 
   pQObj = mndAcquireQnode(pMnode, dropReq.dnodeId);
@@ -726,6 +726,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     return -1;
   }
 
+  mInfo("dnode:%d, start to config, option:%s, value:%s", cfgReq.dnodeId, cfgReq.config, cfgReq.value);
   SDnodeObj *pDnode = mndAcquireDnode(pMnode, cfgReq.dnodeId);
   if (pDnode == NULL) {
     mError("dnode:%d, failed to config since %s ", cfgReq.dnodeId, terrstr());
@@ -742,7 +743,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   tSerializeSMCfgDnodeReq(pBuf, bufLen, &cfgReq);
 
   mDebug("dnode:%d, send config req to dnode, app:%p", cfgReq.dnodeId, pReq->info.ahandle);
-  SRpcMsg rpcMsg = {.msgType = TDMT_DND_CONFIG_DNODE, .pCont = pBuf, .contLen = bufLen, .info = pReq->info};
+  SRpcMsg rpcMsg = {.msgType = TDMT_DND_CONFIG_DNODE, .pCont = pBuf, .contLen = bufLen};
   return tmsgSendReq(&epSet, &rpcMsg);
 }
 
