@@ -34,7 +34,7 @@ extern "C" {
 #define ELECT_TIMER_MS_MIN   1300
 #define ELECT_TIMER_MS_MAX   (ELECT_TIMER_MS_MIN * 2)
 #define ELECT_TIMER_MS_RANGE (ELECT_TIMER_MS_MAX - ELECT_TIMER_MS_MIN)
-#define HEARTBEAT_TIMER_MS   1000
+#define HEARTBEAT_TIMER_MS   900
 
 #define EMPTY_RAFT_ID ((SRaftId){.addr = 0, .vgId = 0})
 
