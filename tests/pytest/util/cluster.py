@@ -50,12 +50,10 @@ class ConfigureyCluster:
             dnode.addExtraCfg("fqdn", f"{hostname}")
             dnode.addExtraCfg("serverPort", f"{self.startPort + (num-1)*self.portStep}")
             dnode.addExtraCfg("secondEp", f"{hostname}:{startPort_sec}")
-            print(num,self.mnodeNums)
 
             # configure  dnoe of independent mnodes
             if num <= self.mnodeNums and self.mnodeNums != 0 :
                 dnode.addExtraCfg("supportVnodes", 0)
-                print("-----------------88888123131231320999999")
             # print(dnode)
             self.dnodes.append(dnode)
         return self.dnodes
