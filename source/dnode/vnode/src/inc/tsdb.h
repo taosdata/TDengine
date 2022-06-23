@@ -64,6 +64,7 @@ typedef struct SDelFWriter    SDelFWriter;
 typedef struct SDelFReader    SDelFReader;
 typedef struct SRowIter       SRowIter;
 typedef struct STsdbFS        STsdbFS;
+typedef struct SRowMerger     SRowMerger;
 
 #define TSDB_MAX_SUBBLOCKS 8
 
@@ -86,6 +87,11 @@ int32_t tGetTSDBRow(uint8_t *p, TSDBROW *pRow);
 // SRowIter
 void     tRowIterInit(SRowIter *pIter, TSDBROW *pRow, STSchema *pTSchema);
 SColVal *tRowIterNext(SRowIter *pIter);
+// SRowMerger
+int32_t tRowMergerInit(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema);
+void    tRowMergerClear(SRowMerger *pMerger);
+int32_t tRowMerge(SRowMerger *pMerger, TSDBROW *pRow);
+int32_t tRowMergerGetRow(SRowMerger *pMerger, STSRow **ppRow);
 // TABLEID
 int32_t tTABLEIDCmprFn(const void *p1, const void *p2);
 // TSDBKEY
@@ -429,6 +435,7 @@ struct SDelIdx {
 };
 
 struct SDelFile {
+  int64_t commitID;
   TSKEY   minKey;
   TSKEY   maxKey;
   int64_t minVersion;
@@ -462,25 +469,21 @@ struct SHeadFile {
   int64_t commitID;
   int64_t size;
   int64_t offset;
-  int32_t nRef;
 };
 
 struct SDataFile {
   int64_t commitID;
   int64_t size;
-  int32_t nRef;
 };
 
 struct SLastFile {
   int64_t commitID;
   int64_t size;
-  int32_t nRef;
 };
 
 struct SSmaFile {
   int64_t commitID;
   int64_t size;
-  int32_t nRef;
 };
 
 struct SDFileSet {
@@ -490,7 +493,10 @@ struct SDFileSet {
   SDataFile *pDataFile;
   SLastFile *pLastFile;
   SSmaFile  *pSmaFile;
-  int32_t    nRef;
+  // SHeadFile headFile;
+  // SDataFile dataFile;
+  // SLastFile lastFile;
+  // SSmaFile  smaFile;
 };
 
 struct SRowIter {
@@ -498,6 +504,11 @@ struct SRowIter {
   STSchema *pTSchema;
   SColVal   colVal;
   int32_t   i;
+};
+struct SRowMerger {
+  STSchema *pTSchema;
+  int64_t   version;
+  SArray   *pArray;  // SArray<SColVal>
 };
 
 #ifdef __cplusplus

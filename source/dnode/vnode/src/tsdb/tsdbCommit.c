@@ -896,7 +896,7 @@ static int32_t tsdbCommitData(SCommitter *pCommitter) {
 
   // start ====================
   code = tsdbCommitDataStart(pCommitter);
-  if (code) return code;
+  if (code) goto _err;
 
   // impl ====================
   pCommitter->nextKey = pMemTable->minKey;

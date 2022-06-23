@@ -586,6 +586,83 @@ SColVal *tRowIterNext(SRowIter *pIter) {
   return NULL;
 }
 
+// SRowMerger ======================================================
+int32_t tRowMergerInit(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema) {
+  int32_t   code = 0;
+  TSDBKEY   key = tsdbRowKey(pRow);
+  SColVal  *pColVal = &(SColVal){0};
+  STColumn *pTColumn;
+
+  pMerger->pTSchema = pTSchema;
+  pMerger->version = key.version;
+
+  pMerger->pArray = taosArrayInit(pTSchema->numOfCols, sizeof(SColVal));
+  if (pMerger->pArray == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  // ts
+  pTColumn = &pTSchema->columns[0];
+
+  ASSERT(pTColumn->type == TSDB_DATA_TYPE_TIMESTAMP);
+
+  *pColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, (SValue){.ts = key.ts});
+  if (taosArrayPush(pMerger->pArray, pColVal) == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  // other
+  for (int16_t iCol = 1; iCol < pTSchema->numOfCols; iCol++) {
+    tsdbRowGetColVal(pRow, pTSchema, iCol, pColVal);
+    if (taosArrayPush(pMerger->pArray, pColVal) == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+  }
+
+_exit:
+  return code;
+}
+
+void tRowMergerClear(SRowMerger *pMerger) { taosArrayDestroy(pMerger->pArray); }
+
+int32_t tRowMerge(SRowMerger *pMerger, TSDBROW *pRow) {
+  int32_t  code = 0;
+  TSDBKEY  key = tsdbRowKey(pRow);
+  SColVal *pColVal = &(SColVal){0};
+
+  ASSERT(((SColVal *)pMerger->pArray->pData)->value.ts == key.ts);
+
+  for (int32_t iCol = 1; iCol < pMerger->pTSchema->numOfCols; iCol++) {
+    tsdbRowGetColVal(pRow, pMerger->pTSchema, iCol, pColVal);
+    if (pColVal->isNone) continue;
+
+    // SColVal *tColVal = (SColVal *)taosArrayGet(pMerger->pArray, iCol);
+
+    if (key.version > pMerger->version) {
+      // forward merge (todo)
+    } else if (key.version < pMerger->version) {
+      // backward merge (todo)
+    } else {
+      ASSERT(0);
+    }
+  }
+
+  pMerger->version = key.version;
+
+_exit:
+  return code;
+}
+
+int32_t tRowMergerGetRow(SRowMerger *pMerger, STSRow **ppRow) {
+  int32_t code = 0;
+  // TODO
+  ASSERT(0);
+  return code;
+}
+
 // delete skyline ======================================================
 static int32_t tsdbMergeSkyline(SArray *aSkyline1, SArray *aSkyline2, SArray *aSkyline) {
   int32_t  code = 0;
