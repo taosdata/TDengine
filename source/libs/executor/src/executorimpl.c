@@ -1340,7 +1340,7 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowR
   }
 
   if (rowRes != NULL) {
-    int32_t totalRows = pBlock->info.rows;
+    int32_t      totalRows = pBlock->info.rows;
     SSDataBlock* px = createOneDataBlock(pBlock, true);
 
     for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
@@ -3968,7 +3968,7 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
         }
       }
     }
-    int32_t   len = (int32_t)(pStart - (char*)keyBuf);
+    int32_t len = (int32_t)(pStart - (char*)keyBuf);
 
     uint64_t* pGroupId = taosHashGet(pTableListInfo->map, keyBuf, len);
 
@@ -4047,12 +4047,14 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       tsdbReaderT pDataReader = NULL;
 
       if (pHandle) {
-        if (pHandle->vnode) {
-          // for stram
+        if (pHandle->initTsdbReader) {
+          // for stream
+          ASSERT(pHandle->vnode);
           pDataReader =
               doCreateDataReader(pTableScanNode, pHandle, pTableListInfo, (uint64_t)queryId, taskId, pTagCond);
         } else {
           // for tq
+          ASSERT(pHandle->meta);
           getTableList(pHandle->meta, pScanPhyNode, pTableListInfo, pTagCond);
         }
       }
@@ -4502,13 +4504,9 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
   (*pTaskInfo)->sql = sql;
   (*pTaskInfo)->pRoot = createOperatorTree(pPlan->pNode, *pTaskInfo, pHandle, queryId, taskId,
                                            &(*pTaskInfo)->tableqinfoList, pPlan->pTagCond);
+
   if (NULL == (*pTaskInfo)->pRoot) {
     code = (*pTaskInfo)->code;
-    goto _complete;
-  }
-
-  if ((*pTaskInfo)->pRoot == NULL) {
-    code = TSDB_CODE_QRY_OUT_OF_MEMORY;
     goto _complete;
   }
 

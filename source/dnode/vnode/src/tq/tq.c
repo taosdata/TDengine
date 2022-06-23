@@ -227,18 +227,15 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
     consumerEpoch = atomic_val_compare_exchange_32(&pHandle->epoch, consumerEpoch, reqEpoch);
   }
 
-  SWalHead* pHeadWithCkSum = taosMemoryMalloc(sizeof(SWalHead) + 2048);
-  if (pHeadWithCkSum == NULL) {
-    return -1;
-  }
-
-  walSetReaderCapacity(pHandle->pWalReader, 2048);
-
   SMqDataBlkRsp rsp = {0};
   rsp.reqOffset = pReq->currentOffset;
 
   rsp.blockData = taosArrayInit(0, sizeof(void*));
   rsp.blockDataLen = taosArrayInit(0, sizeof(int32_t));
+
+  if (rsp.blockData == NULL || rsp.blockDataLen == NULL) {
+    return -1;
+  }
 
   rsp.withTbName = pReq->withTbName;
   if (rsp.withTbName) {
@@ -252,6 +249,28 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
     rsp.withTag = false;
     rsp.blockSchema = taosArrayInit(0, sizeof(void*));
   }
+
+#if 1
+  if (pReq->useSnapshot) {
+    int64_t lastVer = walGetCommittedVer(pTq->pWal);
+    if (rsp.reqOffset < lastVer) {
+      tqScanSnapshot(pTq, &pHandle->execHandle, &rsp, workerId);
+
+      if (rsp.blockNum != 0) {
+        rsp.withTbName = false;
+        rsp.rspOffset = lastVer;
+        goto SEND_RSP;
+      }
+    }
+  }
+#endif
+
+  SWalHead* pHeadWithCkSum = taosMemoryMalloc(sizeof(SWalHead) + 2048);
+  if (pHeadWithCkSum == NULL) {
+    return -1;
+  }
+
+  walSetReaderCapacity(pHandle->pWalReader, 2048);
 
   while (1) {
     consumerEpoch = atomic_load_32(&pHandle->epoch);
@@ -292,6 +311,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
       metaRsp.metaRsp = pHead->body;
       if (tqSendMetaPollRsp(pTq, pMsg, pReq, &metaRsp) < 0) {
         code = -1;
+        goto OVER;
       }
       code = 0;
       goto OVER;
@@ -308,6 +328,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
 
   taosMemoryFree(pHeadWithCkSum);
 
+SEND_RSP:
   ASSERT(taosArrayGetSize(rsp.blockData) == rsp.blockNum);
   ASSERT(taosArrayGetSize(rsp.blockDataLen) == rsp.blockNum);
   if (rsp.withSchema) {
@@ -376,6 +397,8 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
         SReadHandle handle = {
             .reader = pHandle->execHandle.pExecReader[i],
             .meta = pTq->pVnode->pMeta,
+            .vnode = pTq->pVnode,
+            .initTsdbReader = 1,
         };
         pHandle->execHandle.execCol.task[i] = qCreateStreamExecTaskInfo(pHandle->execHandle.execCol.qmsg, &handle);
         ASSERT(pHandle->execHandle.execCol.task[i]);
@@ -448,6 +471,7 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, char* msg, int32_t msgLen) {
              .reader = pStreamReader,
              .meta = pTq->pVnode->pMeta,
              .vnode = pTq->pVnode,
+             .initTsdbReader = 1,
       };
       /*pTask->exec.inputHandle = pStreamReader;*/
       pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle);
