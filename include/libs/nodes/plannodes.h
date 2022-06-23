@@ -66,6 +66,7 @@ typedef struct SScanLogicNode {
   int8_t        intervalUnit;
   int8_t        slidingUnit;
   SNode*        pTagCond;
+  SNode*        pTagIndexCond;
   int8_t        triggerType;
   int64_t       watermark;
   int16_t       tsColId;
@@ -468,6 +469,7 @@ typedef struct SSubplan {
   SPhysiNode*    pNode;         // physical plan of current subplan
   SDataSinkNode* pDataSink;     // data of the subplan flow into the datasink
   SNode*         pTagCond;
+  SNode*         pTagIndexCond;
 } SSubplan;
 
 typedef enum EExplainMode { EXPLAIN_MODE_DISABLE = 1, EXPLAIN_MODE_STATIC, EXPLAIN_MODE_ANALYZE } EExplainMode;
