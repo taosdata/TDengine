@@ -233,7 +233,7 @@ if $rows != 4 then
 endi
 
 sql show dnode 1 variables;
-if $rows != 114 then
+if $rows != 116 then
   return -1
 endi
 
