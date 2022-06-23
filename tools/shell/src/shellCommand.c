@@ -416,6 +416,9 @@ char taosGetConsoleChar() {
     bufIndex = 0;
   }
   if (mbStrLen == 0){
+    if (buf[bufIndex] == '\r') {
+      bufIndex++;
+    }
     mbStrLen = WideCharToMultiByte(CP_UTF8, 0, &buf[bufIndex], 1, mbStr, sizeof(mbStr), NULL, NULL);
     mbStrIndex = 0;
     bufIndex++;
@@ -485,7 +488,6 @@ int32_t shellReadCommand(char *command) {
           shellBackspaceChar(&cmd);
           break;
         case '\n':
-          break;
         case '\r':
         #ifdef WINDOWS 
         #else
