@@ -13,9 +13,6 @@
 from Query.queryscript.table_function.str.table_str_rtrim import *
 
 class TDTestQuery(TDTestQuery):
-    def init(self):
-        super(TDTestQuery, self).init()
-        self.tdCreateData = TDCreateData(self.tdSql, self.logger)
 
     def tags(self) :
 	
