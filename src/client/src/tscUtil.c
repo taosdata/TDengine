@@ -1418,7 +1418,7 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
     };
 
     SUdfInfo* pUdfInfo = NULL;
-
+    
     size_t size = tscNumOfExprs(px);
     for (int32_t j = 0; j < size; ++j) {
       SExprInfo* pExprInfo = tscExprGet(px, j);
@@ -1429,7 +1429,7 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
           pSql->res.code = tscInvalidOperationMsg(pSql->cmd.payload, "only one udf allowed", NULL);
           return;
         }
-
+        
         pUdfInfo = taosArrayGet(px->pUdfInfo, -1 * functionId - 1);
         int32_t code = initUdfInfo(pUdfInfo);
         if (code != TSDB_CODE_SUCCESS) {
@@ -1537,7 +1537,7 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
 
     px->pQInfo->runtimeEnv.udfIsCopy = true;
     px->pQInfo->runtimeEnv.pUdfInfo = pUdfInfo;
-
+    
     tfree(schema);
 
     // set the pRuntimeEnv for pSourceOperator
@@ -2702,9 +2702,11 @@ int32_t tscExprTopBottomIndex(SQueryInfo* pQueryInfo){
     SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
     if (pExpr == NULL)
       continue;
-    if (pExpr->base.functionId == TSDB_FUNC_TOP || pExpr->base.functionId == TSDB_FUNC_BOTTOM ||
-        pExpr->base.functionId == TSDB_FUNC_SAMPLE || pExpr->base.functionId == TSDB_FUNC_UNIQUE ||
-        pExpr->base.functionId == TSDB_FUNC_TAIL) {
+    if (pExpr->base.functionId == TSDB_FUNC_TOP 
+      || pExpr->base.functionId == TSDB_FUNC_BOTTOM 
+      || pExpr->base.functionId == TSDB_FUNC_SAMPLE 
+      || pExpr->base.functionId == TSDB_FUNC_UNIQUE 
+      || pExpr->base.functionId == TSDB_FUNC_TAIL) {
       return i;
     }
   }
@@ -4195,20 +4197,20 @@ static void tscSubqueryCompleteCallback(void* param, TAOS_RES* tres, int code) {
 }
 
 int32_t doInitSubState(SSqlObj* pSql, int32_t numOfSubqueries) {
-  // bug fix. Above doInitSubState level, the loop invocation with the same SSqlObj will be fail.
-  // assert(pSql->subState.numOfSub == 0 && pSql->pSubs == NULL && pSql->subState.states == NULL);
+  //bug fix. Above doInitSubState level, the loop invocation with the same SSqlObj will be fail.
+  //assert(pSql->subState.numOfSub == 0 && pSql->pSubs == NULL && pSql->subState.states == NULL);  
   if(pSql->pSubs) {
     free(pSql->pSubs);
     pSql->pSubs = NULL;
   }
-
+  
   if(pSql->subState.states) {
     free(pSql->subState.states);
     pSql->subState.states = NULL;
   }
-
+  
   pSql->subState.numOfSub = numOfSubqueries;
-
+  
   pSql->pSubs = calloc(pSql->subState.numOfSub, POINTER_BYTES);
   pSql->subState.states = calloc(pSql->subState.numOfSub, sizeof(int8_t));
 
@@ -4234,7 +4236,7 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
       (*pSql->fp)(pSql->param, pSql, 0);
     }
     return ;
-  }
+  } 
 
   if (pSql->cmd.command == TSDB_SQL_SELECT) {
     tscAddIntoSqlList(pSql);

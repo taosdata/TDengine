@@ -136,7 +136,7 @@ void shellInit(SShellArguments *_args) {
       exit(EXIT_SUCCESS);
     }
 #endif
-
+  
   return;
 }
 
@@ -1515,7 +1515,7 @@ int wsclient_print_data(int rows, TAOS_FIELD *fields, int cols, int64_t id, int 
     if (*pshowed_rows == DEFAULT_RES_SHOW_NUM) {
       free(recv_buffer);
       return 0;
-    }
+    } 
     for (int c = 0; c < cols; c++) {
       pos = start;
       pos += i * fields[c].bytes;
