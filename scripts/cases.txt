@@ -100,9 +100,7 @@ taostest --use=common_insert.yaml --case=taosc_insert/uint_boundary_check.py --k
 taostest --use=common_insert.yaml --case=taosc_insert/usmallint_boundary_check.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/utinyint_boundary_check.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/stable_str_rtrim.py --keep --containers
-taostest --use=common_insert.yaml --case=Query/queryscript/table_function/str/table_str_concat.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/time/table_time_today.py --keep --containers
-taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/math/stable_math_pow_log.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/table_function/math/table_math_sin_cos_tan.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/split/stable_numeric_csum_1.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/numeric/split/stable_numeric_csum_2.py --keep --containers
