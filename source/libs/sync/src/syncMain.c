@@ -1311,6 +1311,10 @@ void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
   SyncIndex logBeginIndex = pSyncNode->pLogStore->syncLogBeginIndex(pSyncNode->pLogStore);
 
   char* pCfgStr = syncCfg2SimpleStr(&(pSyncNode->pRaftCfg->cfg));
+  char* printStr = "";
+  if (pCfgStr != NULL) {
+    printStr = pCfgStr;
+  }
 
   if (userStrLen < 256) {
     char logBuf[256 + 256];
@@ -1322,7 +1326,7 @@ void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
                pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
                pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex,
                pSyncNode->pRaftCfg->isStandBy, pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex,
-               pSyncNode->changing, pCfgStr);
+               pSyncNode->changing, printStr);
     } else {
       snprintf(logBuf, sizeof(logBuf), "%s", str);
     }
@@ -1339,7 +1343,7 @@ void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
                pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
                pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex,
                pSyncNode->pRaftCfg->isStandBy, pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex,
-               pSyncNode->changing, pCfgStr);
+               pSyncNode->changing, printStr);
     } else {
       snprintf(s, len, "%s", str);
     }

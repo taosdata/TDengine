@@ -16,7 +16,6 @@
 #include "syncRaftLog.h"
 #include "syncRaftCfg.h"
 #include "syncRaftStore.h"
-#include "wal.h"
 
 // refactor, log[0 .. n] ==> log[m .. n]
 static int32_t   raftLogSetBeginIndex(struct SSyncLogStore* pLogStore, SyncIndex beginIndex);
@@ -233,7 +232,8 @@ static int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index,
 
   *ppEntry = NULL;
 
-  SWalReadHandle* pWalHandle = walOpenReadHandle(pWal);
+  // SWalReadHandle* pWalHandle = walOpenReadHandle(pWal);
+  SWalReadHandle* pWalHandle = pData->pWalHandle;
   if (pWalHandle == NULL) {
     return -1;
   }
@@ -256,9 +256,11 @@ static int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index,
       }
     } while (0);
 
-    int32_t saveErr = terrno;
-    walCloseReadHandle(pWalHandle);
-    terrno = saveErr;
+    /*
+        int32_t saveErr = terrno;
+        walCloseReadHandle(pWalHandle);
+        terrno = saveErr;
+    */
 
     return code;
   }
@@ -274,9 +276,11 @@ static int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index,
   ASSERT((*ppEntry)->dataLen == pWalHandle->pHead->head.bodyLen);
   memcpy((*ppEntry)->data, pWalHandle->pHead->head.body, pWalHandle->pHead->head.bodyLen);
 
-  int32_t saveErr = terrno;
-  walCloseReadHandle(pWalHandle);
-  terrno = saveErr;
+  /*
+    int32_t saveErr = terrno;
+    walCloseReadHandle(pWalHandle);
+    terrno = saveErr;
+  */
 
   return code;
 }
@@ -319,6 +323,10 @@ SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
   SSyncLogStoreData* pData = pLogStore->data;
   pData->pSyncNode = pSyncNode;
   pData->pWal = pSyncNode->pWal;
+  ASSERT(pData->pWal != NULL);
+
+  pData->pWalHandle = walOpenReadHandle(pData->pWal);
+  ASSERT(pData->pWalHandle != NULL);
 
   SyncIndex firstVer = walGetFirstVer(pData->pWal);
   SyncIndex lastVer = walGetLastVer(pData->pWal);
@@ -357,6 +365,11 @@ SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
 
 void logStoreDestory(SSyncLogStore* pLogStore) {
   if (pLogStore != NULL) {
+    SSyncLogStoreData* pData = pLogStore->data;
+    if (pData->pWalHandle != NULL) {
+      walCloseReadHandle(pData->pWalHandle);
+    }
+
     taosMemoryFree(pLogStore->data);
     taosMemoryFree(pLogStore);
   }
@@ -405,7 +418,8 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
   SWal*              pWal = pData->pWal;
 
   if (index >= SYNC_INDEX_BEGIN && index <= logStoreLastIndex(pLogStore)) {
-    SWalReadHandle* pWalHandle = walOpenReadHandle(pWal);
+    // SWalReadHandle* pWalHandle = walOpenReadHandle(pWal);
+    SWalReadHandle* pWalHandle = pData->pWalHandle;
     ASSERT(pWalHandle != NULL);
 
     int32_t code = walReadWithHandle(pWalHandle, index);
@@ -441,9 +455,11 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
     ASSERT(pEntry->dataLen == pWalHandle->pHead->head.bodyLen);
     memcpy(pEntry->data, pWalHandle->pHead->head.body, pWalHandle->pHead->head.bodyLen);
 
-    int32_t saveErr = terrno;
-    walCloseReadHandle(pWalHandle);
-    terrno = saveErr;
+    /*
+        int32_t saveErr = terrno;
+        walCloseReadHandle(pWalHandle);
+        terrno = saveErr;
+    */
 
     return pEntry;
 
