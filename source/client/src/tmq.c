@@ -1160,8 +1160,6 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
 
   // handle meta rsp
   int8_t rspType = ((SMqRspHead*)pMsg->pData)->mqMsgType;
-  if (rspType == TMQ_MSG_TYPE__POLL_META_RSP) {
-  }
 
   SMqPollRspWrapper* pRspWrapper = taosAllocateQitem(sizeof(SMqPollRspWrapper), DEF_QITEM);
   if (pRspWrapper == NULL) {
@@ -1174,19 +1172,19 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
   pRspWrapper->vgHandle = pVg;
   pRspWrapper->topicHandle = pTopic;
 
-  memcpy(&pRspWrapper->dataRsp, pMsg->pData, sizeof(SMqRspHead));
-
   if (rspType == TMQ_MSG_TYPE__POLL_RSP) {
+    memcpy(&pRspWrapper->dataRsp, pMsg->pData, sizeof(SMqRspHead));
     tDecodeSMqDataBlkRsp(POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), &pRspWrapper->dataRsp);
   } else {
     ASSERT(rspType == TMQ_MSG_TYPE__POLL_META_RSP);
+    memcpy(&pRspWrapper->metaRsp, pMsg->pData, sizeof(SMqRspHead));
     tDecodeSMqMetaRsp(POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), &pRspWrapper->metaRsp);
   }
 
   taosMemoryFree(pMsg->pData);
 
-  tscDebug("consumer %ld recv poll: vg %d, req offset %ld, rsp offset %ld", tmq->consumerId, pVg->vgId,
-           pRspWrapper->dataRsp.reqOffset, pRspWrapper->dataRsp.rspOffset);
+  tscDebug("consumer %ld recv poll: vg %d, req offset %ld, rsp offset %ld, type %d", tmq->consumerId, pVg->vgId,
+           pRspWrapper->dataRsp.reqOffset, pRspWrapper->dataRsp.rspOffset, rspType);
 
   taosWriteQitem(tmq->mqueue, pRspWrapper);
   tsem_post(&tmq->rspSem);
@@ -1558,7 +1556,7 @@ SMqPollReq* tmqBuildConsumeReqImpl(tmq_t* tmq, int64_t timeout, SMqClientTopic* 
 
 SMqMetaRspObj* tmqBuildMetaRspFromWrapper(SMqPollRspWrapper* pWrapper) {
   SMqMetaRspObj* pRspObj = taosMemoryCalloc(1, sizeof(SMqMetaRspObj));
-  pRspObj->resType = RES_TYPE__TMQ;
+  pRspObj->resType = RES_TYPE__TMQ_META;
   tstrncpy(pRspObj->topic, pWrapper->topicHandle->topicName, TSDB_TOPIC_FNAME_LEN);
   tstrncpy(pRspObj->db, pWrapper->topicHandle->db, TSDB_DB_FNAME_LEN);
   pRspObj->vgId = pWrapper->vgHandle->vgId;
@@ -1676,7 +1674,7 @@ int32_t tmqHandleNoPollRsp(tmq_t* tmq, SMqRspWrapper* rspWrapper, bool* pReset) 
   return 0;
 }
 
-SMqRspObj* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
+void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
   while (1) {
     SMqRspWrapper* rspWrapper = NULL;
     taosGetQitem(tmq->qall, (void**)&rspWrapper);
@@ -1716,18 +1714,18 @@ SMqRspObj* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
     } else if (rspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_META_RSP) {
       SMqPollRspWrapper* pollRspWrapper = (SMqPollRspWrapper*)rspWrapper;
       int32_t            consumerEpoch = atomic_load_32(&tmq->epoch);
-      if (pollRspWrapper->dataRsp.head.epoch == consumerEpoch) {
+      if (pollRspWrapper->metaRsp.head.epoch == consumerEpoch) {
         SMqClientVg* pVg = pollRspWrapper->vgHandle;
         /*printf("vg %d offset %ld up to %ld\n", pVg->vgId, pVg->currentOffset, rspMsg->msg.rspOffset);*/
-        pVg->currentOffset = pollRspWrapper->dataRsp.rspOffset;
+        pVg->currentOffset = pollRspWrapper->metaRsp.rspOffset;
         atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
         // build rsp
-        SMqRspObj* pRsp = tmqBuildRspFromWrapper(pollRspWrapper);
+        SMqMetaRspObj* pRsp = tmqBuildMetaRspFromWrapper(pollRspWrapper);
         taosFreeQitem(pollRspWrapper);
         return pRsp;
       } else {
         tscDebug("msg discard since epoch mismatch: msg epoch %d, consumer epoch %d\n",
-                 pollRspWrapper->dataRsp.head.epoch, consumerEpoch);
+                 pollRspWrapper->metaRsp.head.epoch, consumerEpoch);
         taosFreeQitem(pollRspWrapper);
       }
     } else {
@@ -1744,8 +1742,8 @@ SMqRspObj* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
 }
 
 TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
-  SMqRspObj* rspObj;
-  int64_t    startTime = taosGetTimestampMs();
+  void*   rspObj;
+  int64_t startTime = taosGetTimestampMs();
 
 #if 0
   tmqHandleAllDelayedTask(tmq);
@@ -1873,7 +1871,7 @@ const char* tmq_get_table_name(TAOS_RES* res) {
   return NULL;
 }
 
-int32_t tmq_get_raw_meta(TAOS_RES* res, const void** raw_meta, int32_t* raw_meta_len) {
+int32_t tmq_get_raw_meta(TAOS_RES* res, void** raw_meta, int32_t* raw_meta_len) {
   if (TD_RES_TMQ_META(res)) {
     SMqMetaRspObj* pMetaRspObj = (SMqMetaRspObj*)res;
     *raw_meta = pMetaRspObj->metaRsp.metaRsp;
