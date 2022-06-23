@@ -110,11 +110,11 @@ python3 ./test.py -f 2-query/distribute_agg_avg.py
 python3 ./test.py -f 2-query/distribute_agg_stddev.py
 python3 ./test.py -f 2-query/twa.py
 
-python3 ./test.py -f 6-cluster/5dnode1mnode.py
-python3 ./test.py -f 6-cluster/5dnode2mnode.py
-#python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py
-#python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py
-# BUG python3 ./test.py -f 6-cluster/5dnode3mnodeStopInsert.py
+python3 ./test.py -f 6-cluster/5dnode1mnode.py 
+python3 ./test.py -f 6-cluster/5dnode2mnode.py 
+python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py -N 5
+# python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py -N 5
+# BUG python3 ./test.py -f 6-cluster/5dnode3mnodeStopInsert.py 
 
 python3 ./test.py -f 7-tmq/basic5.py
 python3 ./test.py -f 7-tmq/subscribeDb.py
@@ -132,3 +132,4 @@ python3 ./test.py -f 7-tmq/db.py
 python3 ./test.py -f 7-tmq/tmqError.py
 python3 ./test.py -f 7-tmq/schema.py
 python3 ./test.py -f 7-tmq/stbFilter.py
+python3 ./test.py -f 7-tmq/tmqCheckData.py
