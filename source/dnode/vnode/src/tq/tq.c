@@ -306,7 +306,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
              pHead->msgType == TDMT_VND_DROP_STB || pHead->msgType == TDMT_VND_CREATE_TABLE ||
              pHead->msgType == TDMT_VND_ALTER_TABLE || pHead->msgType == TDMT_VND_DROP_TABLE ||
              pHead->msgType == TDMT_VND_DROP_TTL_TABLE);
-      // return
+      tqInfo("fetch meta msg, ver: %ld, type: %d", pHead->version, pHead->msgType);
       SMqMetaRsp metaRsp = {0};
       metaRsp.reqOffset = pReq->currentOffset;
       metaRsp.rspOffset = fetchOffset;
