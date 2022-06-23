@@ -23,6 +23,7 @@
 #include "sclvector.h"
 #include "tcompare.h"
 #include "tdatablock.h"
+#include "tdataformat.h"
 #include "ttypes.h"
 #include "ttime.h"
 
@@ -506,6 +507,16 @@ bool convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_t t
     }
   }
 
+  // if types can not comparable
+  if((IS_NUMERIC_TYPE(typeLeft) && !IS_NUMERIC_TYPE(typeRight)) ||
+     (IS_NUMERIC_TYPE(typeRight) && !IS_NUMERIC_TYPE(typeLeft)) ||
+     (IS_VAR_DATA_TYPE(typeLeft) && !IS_VAR_DATA_TYPE(typeRight)) ||
+     (IS_VAR_DATA_TYPE(typeRight) && !IS_VAR_DATA_TYPE(typeLeft)) ||
+     ((typeLeft == TSDB_DATA_TYPE_BOOL) && (typeRight != TSDB_DATA_TYPE_BOOL)) ||
+     ((typeRight == TSDB_DATA_TYPE_BOOL) && (typeLeft != TSDB_DATA_TYPE_BOOL)))
+    return false;
+
+
   if(typeLeft == TSDB_DATA_TYPE_NULL || typeRight == TSDB_DATA_TYPE_NULL){
     *isNull = true;
     return true;
@@ -519,24 +530,28 @@ bool convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_t t
 
   *fp = filterGetCompFunc(type, optr);
 
-  if(IS_NUMERIC_TYPE(type) || IS_FLOAT_TYPE(type)){
+  if(IS_NUMERIC_TYPE(type)){
     if(typeLeft == TSDB_DATA_TYPE_NCHAR) {
-      convertNcharToDouble(*pLeftData, pLeftOut);
-      *pLeftData = pLeftOut;
+      ASSERT(0);
+//      convertNcharToDouble(*pLeftData, pLeftOut);
+//      *pLeftData = pLeftOut;
     } else if(typeLeft == TSDB_DATA_TYPE_BINARY) {
-      convertBinaryToDouble(*pLeftData, pLeftOut);
-      *pLeftData = pLeftOut;
+      ASSERT(0);
+//      convertBinaryToDouble(*pLeftData, pLeftOut);
+//      *pLeftData = pLeftOut;
     } else if(typeLeft != type) {
       convertNumberToNumber(*pLeftData, pLeftOut, typeLeft, type);
       *pLeftData = pLeftOut;
     }
 
     if(typeRight == TSDB_DATA_TYPE_NCHAR) {
-      convertNcharToDouble(*pRightData, pRightOut);
-      *pRightData = pRightOut;
+      ASSERT(0);
+//      convertNcharToDouble(*pRightData, pRightOut);
+//      *pRightData = pRightOut;
     } else if(typeRight == TSDB_DATA_TYPE_BINARY) {
-      convertBinaryToDouble(*pRightData, pRightOut);
-      *pRightData = pRightOut;
+      ASSERT(0);
+//      convertBinaryToDouble(*pRightData, pRightOut);
+//      *pRightData = pRightOut;
     } else if(typeRight != type) {
       convertNumberToNumber(*pRightData, pRightOut, typeRight, type);
       *pRightData = pRightOut;
@@ -1693,6 +1708,13 @@ void vectorIsTrue(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut,
 
 STagVal getJsonValue(char *json, char *key, bool *isExist) {
   STagVal val = {.pKey = key};
+  if (tTagIsJson((const STag *)json) == false){
+    if(isExist){
+      *isExist = false;
+    }
+    return val;
+  }
+
   bool find = tTagGet(((const STag *)json), &val);  // json value is null and not exist is different
   if(isExist){
     *isExist = find;

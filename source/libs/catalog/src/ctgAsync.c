@@ -168,6 +168,21 @@ int32_t ctgInitGetQnodeTask(SCtgJob *pJob, int32_t taskIdx, void* param) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t ctgInitGetDnodeTask(SCtgJob *pJob, int32_t taskIdx, void* param) {
+  SCtgTask task = {0};
+
+  task.type = CTG_TASK_GET_DNODE;
+  task.taskId = taskIdx;
+  task.pJob = pJob;
+  task.taskCtx = NULL;
+
+  taosArrayPush(pJob->pTasks, &task);
+
+  qDebug("QID:0x%" PRIx64 " the %d task type %s initialized", pJob->queryId, taskIdx, ctgTaskTypeStr(task.type));
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t ctgInitGetIndexTask(SCtgJob *pJob, int32_t taskIdx, void* param) {
   char *name = (char*)param;
   SCtgTask task = {0};
@@ -405,6 +420,7 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgJob** job, uint6
   int32_t tbHashNum = (int32_t)taosArrayGetSize(pReq->pTableHash);
   int32_t udfNum = (int32_t)taosArrayGetSize(pReq->pUdf);
   int32_t qnodeNum = pReq->qNodeRequired ? 1 : 0;
+  int32_t dnodeNum = pReq->dNodeRequired ? 1 : 0;
   int32_t dbCfgNum = (int32_t)taosArrayGetSize(pReq->pDbCfg);
   int32_t indexNum = (int32_t)taosArrayGetSize(pReq->pIndex);
   int32_t userNum = (int32_t)taosArrayGetSize(pReq->pUser);
@@ -412,7 +428,7 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgJob** job, uint6
   int32_t tbIndexNum = (int32_t)taosArrayGetSize(pReq->pTableIndex);
   int32_t tbCfgNum = (int32_t)taosArrayGetSize(pReq->pTableCfg);
 
-  *taskNum = tbMetaNum + dbVgNum + udfNum + tbHashNum + qnodeNum + dbCfgNum + indexNum + userNum + dbInfoNum + tbIndexNum + tbCfgNum;
+  *taskNum = tbMetaNum + dbVgNum + udfNum + tbHashNum + qnodeNum + dnodeNum + dbCfgNum + indexNum + userNum + dbInfoNum + tbIndexNum + tbCfgNum;
   if (*taskNum <= 0) {
     ctgDebug("Empty input for job, no need to retrieve meta, reqId:0x%" PRIx64, reqId);
     return TSDB_CODE_SUCCESS;
@@ -435,6 +451,7 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgJob** job, uint6
   pJob->tbMetaNum = tbMetaNum;
   pJob->tbHashNum = tbHashNum;
   pJob->qnodeNum = qnodeNum;
+  pJob->dnodeNum = dnodeNum;
   pJob->dbVgNum = dbVgNum;
   pJob->udfNum = udfNum;
   pJob->dbCfgNum = dbCfgNum;
@@ -507,6 +524,10 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgJob** job, uint6
 
   if (qnodeNum) {
     CTG_ERR_JRET(ctgInitTask(pJob, CTG_TASK_GET_QNODE, NULL, NULL));
+  }
+
+  if (dnodeNum) {
+    CTG_ERR_JRET(ctgInitTask(pJob, CTG_TASK_GET_DNODE, NULL, NULL));
   }
 
   pJob->refId = taosAddRef(gCtgMgmt.jobPool, pJob);
@@ -630,6 +651,22 @@ int32_t ctgDumpQnodeRes(SCtgTask* pTask) {
 
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t ctgDumpDnodeRes(SCtgTask* pTask) {
+  SCtgJob* pJob = pTask->pJob;
+  if (NULL == pJob->jobRes.pDnodeList) {
+    pJob->jobRes.pDnodeList = taosArrayInit(1, sizeof(SMetaRes));
+    if (NULL == pJob->jobRes.pDnodeList) {
+      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    }
+  }
+
+  SMetaRes res = {.code = pTask->code, .pRes = pTask->res};
+  taosArrayPush(pJob->jobRes.pDnodeList, &res);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 
 int32_t ctgDumpDbCfgRes(SCtgTask* pTask) {
   SCtgJob* pJob = pTask->pJob;
@@ -1036,6 +1073,19 @@ _return:
   CTG_RET(code);
 }
 
+int32_t ctgHandleGetDnodeRsp(SCtgTask* pTask, int32_t reqType, const SDataBuf *pMsg, int32_t rspCode) {
+  int32_t code = 0;
+  CTG_ERR_JRET(ctgProcessRspMsg(&pTask->msgCtx.out, reqType, pMsg->pData, pMsg->len, rspCode, pTask->msgCtx.target));
+
+  TSWAP(pTask->res, pTask->msgCtx.out);
+  
+_return:
+
+  ctgHandleTaskEnd(pTask, code);
+
+  CTG_RET(code);
+}
+
 int32_t ctgHandleGetIndexRsp(SCtgTask* pTask, int32_t reqType, const SDataBuf *pMsg, int32_t rspCode) {
   int32_t code = 0;
   CTG_ERR_JRET(ctgProcessRspMsg(pTask->msgCtx.out, reqType, pMsg->pData, pMsg->len, rspCode, pTask->msgCtx.target));
@@ -1311,6 +1361,15 @@ int32_t ctgLaunchGetQnodeTask(SCtgTask *pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t ctgLaunchGetDnodeTask(SCtgTask *pTask) {
+  SCatalog* pCtg = pTask->pJob->pCtg; 
+  SRequestConnInfo* pConn = &pTask->pJob->conn;
+
+  CTG_ERR_RET(ctgGetDnodeListFromMnode(pCtg, pConn, NULL, pTask));
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t ctgLaunchGetDbCfgTask(SCtgTask *pTask) {
   SCatalog* pCtg = pTask->pJob->pCtg; 
   SRequestConnInfo* pConn = &pTask->pJob->conn;
@@ -1462,6 +1521,7 @@ int32_t ctgCloneDbVg(SCtgTask* pTask, void** pRes) {
 
 SCtgAsyncFps gCtgAsyncFps[] = {
   {ctgInitGetQnodeTask,   ctgLaunchGetQnodeTask,   ctgHandleGetQnodeRsp,   ctgDumpQnodeRes,   NULL,               NULL},
+  {ctgInitGetDnodeTask,   ctgLaunchGetDnodeTask,   ctgHandleGetDnodeRsp,   ctgDumpDnodeRes,   NULL,               NULL},
   {ctgInitGetDbVgTask,    ctgLaunchGetDbVgTask,    ctgHandleGetDbVgRsp,    ctgDumpDbVgRes,    ctgCompDbVgTasks,   ctgCloneDbVg},
   {ctgInitGetDbCfgTask,   ctgLaunchGetDbCfgTask,   ctgHandleGetDbCfgRsp,   ctgDumpDbCfgRes,   NULL,               NULL},
   {ctgInitGetDbInfoTask,  ctgLaunchGetDbInfoTask,  ctgHandleGetDbInfoRsp,  ctgDumpDbInfoRes,  NULL,               NULL},

@@ -252,6 +252,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
 
 #if 1
   if (pReq->useSnapshot) {
+    tqInfo("retrieve using snapshot");
     int64_t lastVer = walGetCommittedVer(pTq->pWal);
     if (rsp.reqOffset < lastVer) {
       tqScanSnapshot(pTq, &pHandle->execHandle, &rsp, workerId);
@@ -259,6 +260,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
       if (rsp.blockNum != 0) {
         rsp.withTbName = false;
         rsp.rspOffset = lastVer;
+        tqInfo("direct send by snapshot rsp offset %ld", lastVer);
         goto SEND_RSP;
       }
     }

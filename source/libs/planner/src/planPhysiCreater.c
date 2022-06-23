@@ -437,6 +437,15 @@ static int32_t createScanPhysiNodeFinalize(SPhysiPlanContext* pCxt, SSubplan* pS
   }
 
   if (TSDB_CODE_SUCCESS == code) {
+    if (NULL != pScanLogicNode->pTagIndexCond) {
+      pSubplan->pTagIndexCond = nodesCloneNode(pScanLogicNode->pTagIndexCond);
+      if (NULL == pSubplan->pTagIndexCond) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+      }
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
     *pPhyNode = (SPhysiNode*)pScanPhysiNode;
   } else {
     nodesDestroyNode((SNode*)pScanPhysiNode);

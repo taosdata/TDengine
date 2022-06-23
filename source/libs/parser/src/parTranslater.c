@@ -2013,7 +2013,7 @@ static int32_t getFillTimeRange(STranslateContext* pCxt, SNode* pWhere, STimeWin
   }
 
   SNode* pPrimaryKeyCond = NULL;
-  nodesPartitionCond(&pCond, &pPrimaryKeyCond, NULL, NULL);
+  nodesPartitionCond(&pCond, &pPrimaryKeyCond, NULL, NULL, NULL);
 
   int32_t code = TSDB_CODE_SUCCESS;
   if (NULL != pPrimaryKeyCond) {
@@ -2160,9 +2160,6 @@ static EDealRes checkStateExpr(SNode* pNode, void* pContext) {
     }
     if (COLUMN_TYPE_TAG == pCol->colType) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_STATE_WIN_COL);
-    }
-    if (TSDB_SUPER_TABLE == pCol->tableType) {
-      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_STATE_WIN_TABLE);
     }
   }
   return DEAL_RES_CONTINUE;
@@ -2685,7 +2682,7 @@ static int32_t partitionDeleteWhere(STranslateContext* pCxt, SDeleteStmt* pDelet
 
   SNode*  pPrimaryKeyCond = NULL;
   SNode*  pOtherCond = NULL;
-  int32_t code = nodesPartitionCond(&pDelete->pWhere, &pPrimaryKeyCond, &pDelete->pTagIndexCond, &pOtherCond);
+  int32_t code = nodesPartitionCond(&pDelete->pWhere, &pPrimaryKeyCond, NULL, &pDelete->pTagCond, &pOtherCond);
   if (TSDB_CODE_SUCCESS == code && NULL != pOtherCond) {
     code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DELETE_WHERE);
   }
@@ -4614,6 +4611,25 @@ static int32_t extractShowCreateTableResultSchema(int32_t* numOfCols, SSchema** 
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t extractShowLocalVariablesResultSchema(int32_t* numOfCols, SSchema** pSchema) {
+  *numOfCols = 2;
+  *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
+  if (NULL == (*pSchema)) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  (*pSchema)[0].type = TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[0].bytes = TSDB_CONFIG_OPTION_LEN;
+  strcpy((*pSchema)[0].name, "name");
+
+  (*pSchema)[1].type = TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[1].bytes = TSDB_CONFIG_VALUE_LEN;
+  strcpy((*pSchema)[1].name, "value");
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema) {
   if (NULL == pRoot) {
     return TSDB_CODE_SUCCESS;
@@ -4632,6 +4648,8 @@ int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pS
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
       return extractShowCreateTableResultSchema(numOfCols, pSchema);
+    case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
+      return extractShowLocalVariablesResultSchema(numOfCols, pSchema);
     default:
       break;
   }
@@ -5948,12 +5966,12 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
+    case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
       pQuery->execMode = QUERY_EXEC_MODE_LOCAL;
       pQuery->haveResultSet = true;
       break;
     case QUERY_NODE_RESET_QUERY_CACHE_STMT:
     case QUERY_NODE_ALTER_LOCAL_STMT:
-    case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
       pQuery->execMode = QUERY_EXEC_MODE_LOCAL;
       break;
     default:

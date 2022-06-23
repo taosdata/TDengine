@@ -176,6 +176,8 @@ if $rows != 1 then
   return -1
 endi
 
+return
+
 print =============== step33: move follower1
 print redistribute vgroup 2 dnode $leaderVnode dnode $follower1 dnode 5 
 sql redistribute vgroup 2 dnode $leaderVnode dnode $follower1 dnode 5 
