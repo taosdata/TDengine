@@ -363,7 +363,7 @@ pipeline {
                         WIN_CONNECTOR_ROOT="C:\\workspace\\${env.EXECUTOR_NUMBER}\\taos-connector-python"
                     }
                     steps {
-                        timeout(time: 200, unit: 'MINUTES') {
+                        timeout(time: 20, unit: 'MINUTES') {
                             pre_test_win()
                             pre_test_build_win()
                         }
