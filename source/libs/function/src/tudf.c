@@ -763,6 +763,7 @@ void freeUdfInterBuf(SUdfInterBuf *buf) {
 
 int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlock) {
   udfBlock->numOfRows = block->info.rows;
+  udfBlock->numOfCols = taosArrayGetSize(block->pDataBlock);
   udfBlock->udfCols = taosMemoryCalloc(taosArrayGetSize(block->pDataBlock), sizeof(SUdfColumn*));
   for (int32_t i = 0; i < udfBlock->numOfCols; ++i) {
     udfBlock->udfCols[i] = taosMemoryCalloc(1, sizeof(SUdfColumn));
