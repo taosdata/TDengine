@@ -31,6 +31,8 @@ TEST_F(PlanOrderByTest, basic) {
   run("SELECT c1 AS a FROM t1 ORDER BY a");
 
   run("SELECT c1 + 10 AS a FROM t1 ORDER BY a");
+
+  run("SELECT 1 FROM t1 ORDER BY c1");
 }
 
 TEST_F(PlanOrderByTest, expr) {

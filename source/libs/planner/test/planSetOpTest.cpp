@@ -54,6 +54,14 @@ TEST_F(PlanSetOpTest, unionAllWithOrderBy) {
   run("SELECT c1, c2 FROM t1 WHERE c1 > 10 UNION ALL SELECT c1, c2 FROM t1 WHERE c1 > 20 ORDER BY 1");
 }
 
+TEST_F(PlanSetOpTest, unionAllWithLimit) {
+  useDb("root", "test");
+
+  run("SELECT c1, c2 FROM t1 WHERE c1 > 10 UNION ALL SELECT c1, c2 FROM t1 WHERE c1 > 20 LIMIT 10, 20");
+
+  run("SELECT c1, c2 FROM t1 WHERE c1 > 10 UNION ALL SELECT c1, c2 FROM t1 WHERE c1 > 20 ORDER BY 1 LIMIT 10, 20");
+}
+
 TEST_F(PlanSetOpTest, union) {
   useDb("root", "test");
 
@@ -63,6 +71,14 @@ TEST_F(PlanSetOpTest, union) {
   run("SELECT c1, c2 FROM t1 WHERE c1 > 10 "
       "UNION SELECT c1, c2 FROM t1 WHERE c1 > 20 "
       "UNION SELECT c1, c2 FROM t1 WHERE c1 > 30");
+}
+
+TEST_F(PlanSetOpTest, unionWithLimit) {
+  useDb("root", "test");
+
+  run("SELECT c1, c2 FROM t1 WHERE c1 > 10 UNION SELECT c1, c2 FROM t1 WHERE c1 > 20 LIMIT 10, 20");
+
+  run("SELECT c1, c2 FROM t1 WHERE c1 > 10 UNION SELECT c1, c2 FROM t1 WHERE c1 > 20 ORDER BY 1 LIMIT 10, 20");
 }
 
 TEST_F(PlanSetOpTest, unionContainJoin) {

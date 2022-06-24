@@ -210,6 +210,7 @@ SNode* nodesMakeNode(ENodeType type) {
     case QUERY_NODE_SHOW_VARIABLES_STMT:
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
+    case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
       return makeNode(type, sizeof(SShowStmt));
     case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:
       return makeNode(type, sizeof(SShowDnodeVariablesStmt));
@@ -371,6 +372,8 @@ static void destroyScanPhysiNode(SScanPhysiNode* pNode) {
 
 static void destroyDataSinkNode(SDataSinkNode* pNode) { nodesDestroyNode((SNode*)pNode->pInputDataBlockDesc); }
 
+static void destroyExprNode(SExprNode* pExpr) { taosArrayDestroy(pExpr->pAssociation); }
+
 void nodesDestroyNode(SNode* pNode) {
   if (NULL == pNode) {
     return;
@@ -378,9 +381,11 @@ void nodesDestroyNode(SNode* pNode) {
 
   switch (nodeType(pNode)) {
     case QUERY_NODE_COLUMN:  // pProjectRef is weak reference, no need to release
+      destroyExprNode((SExprNode*)pNode);
       break;
     case QUERY_NODE_VALUE: {
       SValueNode* pValue = (SValueNode*)pNode;
+      destroyExprNode((SExprNode*)pNode);
       taosMemoryFreeClear(pValue->literal);
       if (IS_VAR_DATA_TYPE(pValue->node.resType.type)) {
         taosMemoryFreeClear(pValue->datum.p);
@@ -389,14 +394,17 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_OPERATOR: {
       SOperatorNode* pOp = (SOperatorNode*)pNode;
+      destroyExprNode((SExprNode*)pNode);
       nodesDestroyNode(pOp->pLeft);
       nodesDestroyNode(pOp->pRight);
       break;
     }
     case QUERY_NODE_LOGIC_CONDITION:
+      destroyExprNode((SExprNode*)pNode);
       nodesDestroyList(((SLogicConditionNode*)pNode)->pParameterList);
       break;
     case QUERY_NODE_FUNCTION:
+      destroyExprNode((SExprNode*)pNode);
       nodesDestroyList(((SFunctionNode*)pNode)->pParameterList);
       break;
     case QUERY_NODE_REAL_TABLE: {
@@ -644,7 +652,8 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_SCORES_STMT:
     case QUERY_NODE_SHOW_VARIABLES_STMT:
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
-    case QUERY_NODE_SHOW_TRANSACTIONS_STMT: {
+    case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
+    case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT: {
       SShowStmt* pStmt = (SShowStmt*)pNode;
       nodesDestroyNode(pStmt->pDbName);
       nodesDestroyNode(pStmt->pTbName);
@@ -831,6 +840,7 @@ void nodesDestroyNode(SNode* pNode) {
       destroyPhysiNode((SPhysiNode*)pPhyNode);
       nodesDestroyList(pPhyNode->pExprs);
       nodesDestroyList(pPhyNode->pSortKeys);
+      nodesDestroyList(pPhyNode->pTargets);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
@@ -1089,6 +1099,16 @@ SNode* nodesListGetNode(SNodeList* pList, int32_t index) {
   FOREACH(node, pList) {
     if (0 == index--) {
       return node;
+    }
+  }
+  return NULL;
+}
+
+SListCell* nodesListGetCell(SNodeList* pList, int32_t index) {
+  SNode* node;
+  FOREACH(node, pList) {
+    if (0 == index--) {
+      return cell;
     }
   }
   return NULL;

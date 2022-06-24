@@ -37,13 +37,6 @@ TEST_F(PlanBasicTest, whereClause) {
   run("SELECT * FROM t1 WHERE ts > TIMESTAMP '2022-04-01 00:00:00' and ts < TIMESTAMP '2022-04-30 23:59:59'");
 }
 
-TEST_F(PlanBasicTest, joinClause) {
-  useDb("root", "test");
-
-  run("SELECT t1.c1, t2.c2 FROM st1s1 t1, st1s2 t2 WHERE t1.ts = t2.ts");
-  run("SELECT t1.c1, t2.c2 FROM st1s1 t1 JOIN st1s2 t2 ON t1.ts = t2.ts");
-}
-
 TEST_F(PlanBasicTest, func) {
   useDb("root", "test");
 

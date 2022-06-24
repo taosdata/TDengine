@@ -144,15 +144,17 @@ TEST_F(ParserSelectTest, IndefiniteRowsFunc) {
 TEST_F(ParserSelectTest, IndefiniteRowsFuncSemanticCheck) {
   useDb("root", "test");
 
-  run("SELECT DIFF(c1), c2 FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC, PARSER_STAGE_TRANSLATE);
+  run("SELECT DIFF(c1), c2 FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
 
-  run("SELECT DIFF(c1), tbname FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC, PARSER_STAGE_TRANSLATE);
+  run("SELECT DIFF(c1), tbname FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
 
-  run("SELECT DIFF(c1), count(*) FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC, PARSER_STAGE_TRANSLATE);
+  run("SELECT DIFF(c1), count(*) FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
 
-  run("SELECT DIFF(c1), CSUM(c1) FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC, PARSER_STAGE_TRANSLATE);
+  run("SELECT DIFF(c1), CSUM(c1) FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
 
-  // run("SELECT DIFF(c1) FROM t1 INTERVAL(10s)");
+  run("SELECT CSUM(c3) FROM t1 STATE_WINDOW(c1)", TSDB_CODE_PAR_WINDOW_NOT_ALLOWED_FUNC);
+
+  run("SELECT DIFF(c1) FROM t1 INTERVAL(10s)", TSDB_CODE_PAR_WINDOW_NOT_ALLOWED_FUNC);
 }
 
 TEST_F(ParserSelectTest, useDefinedFunc) {
@@ -382,6 +384,12 @@ TEST_F(ParserSelectTest, setOperator) {
   run("SELECT c1 FROM (SELECT c1 FROM t1 UNION ALL SELECT c1 FROM t1)");
 
   run("SELECT c1, c2 FROM t1 UNION ALL SELECT c1 as a, c2 as b FROM t1 ORDER BY c1");
+}
+
+TEST_F(ParserSelectTest, setOperatorSemanticCheck) {
+  useDb("root", "test");
+
+  run("SELECT c1, c2 FROM t1 UNION ALL SELECT c1, c2 FROM t1 ORDER BY ts", TSDB_CODE_PAR_INVALID_COLUMN);
 }
 
 TEST_F(ParserSelectTest, informationSchema) {
