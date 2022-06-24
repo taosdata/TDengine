@@ -573,7 +573,7 @@ class TDTestQuery(TDCase):
                         
                         sql2 = "select ts,%s from (select * from %s) where loc in ('%s_1') and  %s %s %s order by ts" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         #self.tdCreateData.dataequal('%s' %sql3 ,1,2,'%s' %sql2 ,1,2)
-                        self.tdCreateData.data2in1('%s' %sql1 ,1,100,1,2,'%s' %sql2 ,1,int('%d' %(n-1)),1,2)
+                        #self.tdCreateData.data2in1('%s' %sql1 ,1,100,1,2,'%s' %sql2 ,1,int('%d' %(n-1)),1,2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
@@ -629,7 +629,7 @@ class TDTestQuery(TDCase):
                         
                         sql2 = "select ts,%s from (select * from %s) where loc in ('%s_1') and  %s %s %s order by ts desc" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         #self.tdCreateData.dataequal('%s' %sql3 ,1,2,'%s' %sql2 ,1,2)
-                        self.tdCreateData.data2in1('%s' %sql1_desc ,1,100,1,2,'%s' %sql2 ,1,int('%d' %(n-1)),1,2)
+                        #self.tdCreateData.data2in1('%s' %sql1_desc ,1,100,1,2,'%s' %sql2 ,1,int('%d' %(n-1)),1,2)
                         cur1.execute(sql2)
                         self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
