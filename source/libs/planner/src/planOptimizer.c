@@ -1189,7 +1189,7 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "ConditionPushDown", .optimizeFunc = cpdOptimize},
   {.pName = "OrderByPrimaryKey", .optimizeFunc = opkOptimize},
   {.pName = "SmaIndex",          .optimizeFunc = smaOptimize},
-  // {.pName = "PartitionTags",     .optimizeFunc = partTagsOptimize},
+  {.pName = "PartitionTags",     .optimizeFunc = partTagsOptimize},
   {.pName = "EliminateProject",  .optimizeFunc = eliminateProjOptimize}
 };
 // clang-format on

@@ -510,10 +510,11 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
   if(pInfo->currentGroupId == -1){
     pInfo->currentGroupId++;
     if (pInfo->currentGroupId >= taosArrayGetSize(pTaskInfo->tableqinfoList.pGroupList)) {
-      doSetOperatorCompleted(pOperator);
+      setTaskStatus(pTaskInfo, TASK_COMPLETED);
       return NULL;
     }
     SArray *tableList = taosArrayGetP(pTaskInfo->tableqinfoList.pGroupList, pInfo->currentGroupId);
+    tsdbCleanupReadHandle(pInfo->dataReader);
     tsdbReaderT* pReader = tsdbReaderOpen(pInfo->readHandle.vnode, &pInfo->cond, tableList, pInfo->queryId, pInfo->taskId);
     pInfo->dataReader = pReader;
   }
@@ -525,7 +526,7 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
 
   pInfo->currentGroupId++;
   if (pInfo->currentGroupId >= taosArrayGetSize(pTaskInfo->tableqinfoList.pGroupList)) {
-    doSetOperatorCompleted(pOperator);
+    setTaskStatus(pTaskInfo, TASK_COMPLETED);
     return NULL;
   }
 
@@ -541,7 +542,7 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
     return result;
   }
 
-  doSetOperatorCompleted(pOperator);
+  setTaskStatus(pTaskInfo, TASK_COMPLETED);
   return NULL;
 }
 
@@ -821,8 +822,9 @@ static bool prepareDataScan(SStreamBlockScanInfo* pInfo) {
   STableScanInfo* pTableScanInfo = pInfo->pSnapshotReadOp->info;
   pTableScanInfo->cond.twindows[0] = win;
   pTableScanInfo->curTWinIdx = 0;
-  tsdbResetReadHandle(pTableScanInfo->dataReader, &pTableScanInfo->cond, 0);
+//  tsdbResetReadHandle(pTableScanInfo->dataReader, &pTableScanInfo->cond, 0);
   pTableScanInfo->scanTimes = 0;
+  pTableScanInfo->currentGroupId = -1;
   return true;
 }
 
