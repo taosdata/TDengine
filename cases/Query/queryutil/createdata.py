@@ -20,6 +20,9 @@ import numpy as np
 import pandas as pd
 import time, datetime
 from taostest import TDCase
+import subprocess
+import os
+import taos
 
 class TDCreateData():
     def __init__(self, tdSql, logger):
@@ -484,6 +487,35 @@ class TDCreateData():
         pass
 
 
+    def explain_sql(self,sql):   
+        #执行sql解析    
+        sql = "explain " + sql 
+        self.tdSql.query(sql) 
+        
+    def taos_f(self,service_host,testcasePath,testcaseFilename):   
+        #执行taos_f 导入解析            
+        #taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+        #taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
+        # service_host = "ceph01"
+        # testcasePath = os.path.split(__file__)[0]
+        # testcaseFilename = os.path.split(__file__)[-1]
+        # taos_cmd1 = "taos -h %s -f %s/%s.sql" % (service_host,testcasePath,testcaseFilename)
+        # _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
+        service_host = "ceph01"
+        taos_cmd1 = "taos -h %s -f %s/%s.sql" % (service_host,testcasePath,testcaseFilename)
+        _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
+        print("sqlname :============= %s/%s.sql"% (testcasePath,testcaseFilename))
+
+    def case_sql_subprocess_execute(self,service_host,db):
+        service_host = "ceph01"
+        conn1 = taos.connect(host="%s" %service_host, user="root", password="taosdata", config="/etc/taos/")
+        cur1 = conn1.cursor()        
+        cur1.execute('use %s;' %db)
+        sql = 'select * from regular_table_1 limit 5;'
+        cur1.execute(sql)
+
+        return(conn1,cur1)  
+             
     def result_0(self,sql):
         self.logger.info(sql) 
         self.tdSql.query(sql)
@@ -497,7 +529,7 @@ class TDCreateData():
             for j1 in range(col1):
                 list1.append(self.tdSql.getData(i1,j1))
         
-        self.tdSql.execute("reset query cache;")
+        #self.tdSql.execute("reset query cache;") #TD=16766
         self.sql2 = sql2  
         list2 =[]
         self.tdSql.query(sql2)
@@ -513,9 +545,12 @@ class TDCreateData():
         elif abs(float(str(list1).replace("]","").replace("[","").replace("e+","")) - float(str(list2).replace("]","").replace("[","").replace("e+",""))) <= 0.0001:
             #print(("=====list_abs+e+===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             self.logger.info(("===list_abs+e+===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
+        elif str(list1).replace("]","").replace("[","") == str(list2).replace("]","").replace("[",""):
+            #result is NAN -NAN
+            self.logger.info(("===list_nan===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
         else:
-            print(("=====list_error===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             self.logger.info(("sql1:'%s' result != sql2:'%s' result") %(sql1,sql2))
+            print(("=====list_error===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             return self.tdSql.checkEqual(list1,list2)
 
     def dataequal_hyperloglog(self, sql1,row1,col1, sql2,row2,col2):
@@ -527,7 +562,7 @@ class TDCreateData():
             for j1 in range(col1):
                 list1.append(self.tdSql.getData(i1,j1))
         
-        self.tdSql.execute("reset query cache;")
+        #self.tdSql.execute("reset query cache;") #TD=16766
         self.sql2 = sql2  
         list2 =[]
         self.tdSql.query(sql2)
@@ -542,8 +577,8 @@ class TDCreateData():
             print(("=====list_abs_hyperlog===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             self.logger.info(("===list_abs_hyperlog===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
         else:
-            print(("=====list_error_hyperlog===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             self.logger.info(("sql1:'%s' hyperlog result != sql2:'%s' result") %(sql1,sql2))
+            print(("=====list_error_hyperlog===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             return self.tdSql.checkEqual(list1,list2)
          
     def data_matrix_equal(self, sql1,row1_s,row1_e,col1_s,col1_e, sql2,row2_s,row2_e,col2_s,col2_e):
@@ -562,7 +597,7 @@ class TDCreateData():
                 list1.append(self.tdSql.getData(i1,j1))
             #print("=====list1-------list1---=%s" %set(list1))
         
-        self.tdSql.execute("reset query cache;")
+        #self.tdSql.execute("reset query cache;") #TD=16766
         self.sql2 = sql2  
         list2 =[]
         self.tdSql.query(sql2)
@@ -596,8 +631,8 @@ class TDCreateData():
             print(("=====matrix_abs===sql1.list1:'%s',sql2.list2:'%s'") %(float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None","")),float(str(list2).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None",""))))
             self.logger.info(("===matrix_abs======sql1:'%s' matrix_result = sql2:'%s' matrix_result") %(sql1,sql2))
         else:
-            print(("=====matrix_error===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             self.logger.info(("sql1:'%s' matrix_result != sql2:'%s' matrix_result") %(sql1,sql2))
+            print(("=====matrix_error===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             return self.tdSql.checkEqual(list1,list2)
                           
     def data2in1(self, sql1,row1_s,row1_e,col1_s,col1_e, sql2,row2_s,row2_e,col2_s,col2_e):
@@ -613,7 +648,7 @@ class TDCreateData():
                 list1.append(self.tdSql.getData(i1,j1))
         #print("-----list1-------list1---=%s" %list1) 
 
-        self.tdSql.execute("reset query cache;")
+        #self.tdSql.execute("reset query cache;") #TD=16766
         self.sql2 = sql2  
         list2 =[]
         self.tdSql.query(sql2)

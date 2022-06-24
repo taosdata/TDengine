@@ -47,6 +47,7 @@ class TDTestQuery(TDCase):
 
     #basic_param
     db = "stable_time"
+    service_host = ""
     table_list = ['stable_1','stable_2',]
     table = str(random.sample(table_list,1)).replace("[","").replace("]","").replace("'","")
     table_null_list = ['stable_null_data','stable_null_childtable']
@@ -56,19 +57,24 @@ class TDTestQuery(TDCase):
     #通过第三方的numpy的校验的数量
     np_check_num = 10;
 
-    def case_common(self):
+    # def case_common(self):
+    #     #os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))    
+    #     os.system("touch %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
+    #     self.tdCreateData.dropandcreateDB_random("%s" % self.db, 1) 
+
+    #     conn1 = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos/")
+    #     cur1 = conn1.cursor()        
+    #     cur1.execute('use "%s";' %self.db)
+    #     sql = 'select * from stable_1 limit 5;'
+    #     cur1.execute(sql)
+
+    #     return(conn1,cur1)  
+
+    def data_create(self,db):
         #os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))    
         os.system("touch %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
-        self.tdCreateData.dropandcreateDB_random("%s" % self.db, 1) 
-
-        conn1 = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos/")
-        cur1 = conn1.cursor()        
-        cur1.execute('use "%s";' %self.db)
-        sql = 'select * from stable_1 limit 5;'
-        cur1.execute(sql)
-
-        return(conn1,cur1)  
-
+        self.tdCreateData.dropandcreateDB_random("%s" % db, 1)  
+  
     def np_check(self,sql1,sql2):  
         #和sys time去对比
         sys_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
@@ -87,7 +93,7 @@ class TDTestQuery(TDCase):
                  
     def right_case_1_groupby(self):
         print("\n==========================right case 1_groupby==========================\n")
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]
         sql = 'Count the number of sqls'         
@@ -96,10 +102,8 @@ class TDTestQuery(TDCase):
         for i in (1,):
             func = tdFunction.func_stable_time(i)
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                cur1.execute('use "%s";' %self.db)                
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)             
 
                 print("\n\n\n=======hanshu num = %d======right case 1_groupby=======case1======\n\n\n" %i)
                 
@@ -135,7 +139,7 @@ class TDTestQuery(TDCase):
 
     def right_case_1_tbname(self):
         print("\n==========================right case 1_tbname==========================\n")
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]
         sql = 'Count the number of sqls'         
@@ -144,10 +148,8 @@ class TDTestQuery(TDCase):
         for i in (1,):
             func = tdFunction.func_stable_time(i)
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                cur1.execute('use "%s";' %self.db)                
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)               
 
                 print("\n\n\n=======hanshu num = %d======right case_tbname========case1======\n\n\n" %i)
                 
@@ -199,7 +201,7 @@ class TDTestQuery(TDCase):
 
     def right_case_1(self):
         print("\n==========================right case 1==========================\n")
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]
         sql = 'Count the number of sqls'         
@@ -208,10 +210,8 @@ class TDTestQuery(TDCase):
         for i in (1,):
             func = tdFunction.func_stable_time(i)
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                cur1.execute('use "%s";' %self.db)                
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)                
 
                 print("\n\n\n=======hanshu num = %d======right case========case1======\n\n\n" %i)
                 
@@ -253,7 +253,7 @@ class TDTestQuery(TDCase):
 
     def right_case_2_groupby(self):
         print("\n==========================right case 2_groupby==========================\n")
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]        
         sql = 'Count the number of sqls'       
@@ -263,10 +263,8 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_time(i)
             func_desc = func # for desc
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                cur1.execute('use "%s";' %self.db)                
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)               
 
                 print("\n\n\n=======hanshu num = %d======right case========case2_groupby======\n\n\n" %i)
 
@@ -345,7 +343,7 @@ class TDTestQuery(TDCase):
         
     def right_case_2_tbname(self):
         print("\n==========================right case 2_tbname==========================\n")
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]        
         sql = 'Count the number of sqls'       
@@ -355,10 +353,8 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_time(i)
             func_desc = func # for desc
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                cur1.execute('use "%s";' %self.db)                
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)               
 
                 print("\n\n\n=======hanshu num = %d======right case_tbname========case2======\n\n\n" %i)
 
@@ -508,7 +504,7 @@ class TDTestQuery(TDCase):
 
     def right_case_2(self):
         print("\n==========================right case 2==========================\n")
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]        
         sql = 'Count the number of sqls'       
@@ -518,10 +514,8 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_time(i)
             func_desc = func # for desc
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                cur1.execute('use "%s";' %self.db)                
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)               
 
                 print("\n\n\n=======hanshu num = %d======right case========case2======\n\n\n" %i)
 
@@ -622,7 +616,7 @@ class TDTestQuery(TDCase):
                                                
     def right_case_3_groupby(self):
         print("\n==========================right case 3_groupby==========================\n")
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]       
         sql = 'Count the number of sqls'
@@ -631,10 +625,8 @@ class TDTestQuery(TDCase):
         for i in (1,):
             func = tdFunction.func_stable_time(i)
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                cur1.execute('use "%s";' %self.db)                
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)               
 
                 print("\n\n\n=======hanshu num = %d======right case========case3======\n\n\n" %i)
                 
@@ -671,7 +663,7 @@ class TDTestQuery(TDCase):
   
     def right_case_3_tbname(self):
         print("\n==========================right case 3_tbname==========================\n")
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]       
         sql = 'Count the number of sqls'
@@ -680,10 +672,8 @@ class TDTestQuery(TDCase):
         for i in (1,):
             func = tdFunction.func_stable_time(i)
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                cur1.execute('use "%s";' %self.db)                
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)               
 
                 print("\n\n\n=======hanshu num = %d======right case_tbname========case3======\n\n\n" %i)
                 
@@ -735,7 +725,7 @@ class TDTestQuery(TDCase):
 
     def right_case_3(self):
         print("\n==========================right case 3==========================\n")
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]       
         sql = 'Count the number of sqls'
@@ -744,10 +734,8 @@ class TDTestQuery(TDCase):
         for i in (1,):
             func = tdFunction.func_stable_time(i)
             try:
-                taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                cur1.execute('use "%s";' %self.db)                
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)              
 
                 print("\n\n\n=======hanshu num = %d======right case========case3======\n\n\n" %i)
                 
@@ -796,6 +784,8 @@ class TDTestQuery(TDCase):
     def run(self):
         startTime = time.time() 
         
+        self.data_create(self.db)
+          
         startTime1 = time.time()
         self.right_case_1_groupby()
         self.right_case_1_tbname()

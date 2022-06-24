@@ -22,6 +22,7 @@ from itertools import product
 from itertools import combinations
 import subprocess
 import numpy as np
+import threading
 
 from taostest import TDCase
 
@@ -57,19 +58,19 @@ class TDTestQuery(TDCase):
     #通过第三方的numpy的校验的数量
     np_check_num = 6;
 
-    def case_common(self):
-        #os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))    
-        os.system("touch %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
-        self.tdCreateData.dropandcreateDB_random_concat("%s" % self.db, 1) 
+    # def case_common(self):
+    #     #os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))    
+    #     os.system("touch %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
+    #     self.tdCreateData.dropandcreateDB_random_concat("%s" % self.db, 1) 
 
-        # conn1 = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos/")
-        conn1 = taos.connect(host="%s" %self.service_host, user="root", password="taosdata", config="/etc/taos/")
-        cur1 = conn1.cursor()        
-        cur1.execute('use %s;' %self.db)
-        sql = 'select * from regular_table_1 limit 5;'
-        cur1.execute(sql)
+    #     # conn1 = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos/")
+    #     conn1 = taos.connect(host="%s" %self.service_host, user="root", password="taosdata", config="/etc/taos/")
+    #     cur1 = conn1.cursor()        
+    #     cur1.execute('use %s;' %self.db)
+    #     sql = 'select * from regular_table_1 limit 5;'
+    #     cur1.execute(sql)
 
-        return(conn1,cur1)  
+    #     return(conn1,cur1)  
 
     def np_check(self,sql1,sql2):  
         #通过第三方的字符串拼接去校验，如果是NULL，会报错 
@@ -82,29 +83,27 @@ class TDTestQuery(TDCase):
                 value = value + self.tdSql.getData(j,i)
             self.tdCreateData.check_one_row_one_col_str_value('%s' %sql2 , j ,0,'CONCAT','%s' %value) 
 
-    def explain_sql(self,sql):   
-        #执行sql解析    
-        sql = "explain " + sql 
-        self.tdSql.query(sql)
+    
+    def data_create(self,db):
+        #os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))   
+        os.system("touch %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
+        self.tdCreateData.dropandcreateDB_random_concat("%s" % db, 1)  
      
-    def right_case_1_groupby(self):
+    def right_case_1_groupby(self,lock):         
+        #lock.acquire() 
         print("\n==========================right case 1_groupby==========================\n")
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]
-        sql = 'Count the number of sqls'         
+        sql = 'Count the number of sqls'       
                            
         # 1: support str function [hanshu = ['CONCAT']
         for i in (8,9,):
+            #lock.acquire() 
             func = tdFunction.func_stable_str(i)
             try:
-                # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                time.sleep(1)
-                taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                # cur1.execute('use "%s";' %self.db)                 
-                cur1.execute('use %s;' %self.db)                 
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)            
 
                 print("\n\n\n=======hanshu num = %d======right case 1_groupby=======case1======\n\n\n" %i)
                 
@@ -131,31 +130,31 @@ class TDTestQuery(TDCase):
                         sql= sql + sql2
 
             except Exception as e:
-                raise e   
+                raise e  
+            
+            #lock.release() 
 
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num1 = sql.count('where')
         print("sqlnum1 %d" % num1) 
+        
 
-    def right_case_1_tbname(self):
+    def right_case_1_tbname(self,lock):        
+        #lock.acquire() 
         print("\n==========================right case 1_tbname==========================\n")
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]
         sql = 'Count the number of sqls'         
                            
         # 1: support str function [hanshu = ['CONCAT']
         for i in (8,9,):
+            #lock.acquire() 
             func = tdFunction.func_stable_str(i)
             try:
-                # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                time.sleep(1)
-                taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                # cur1.execute('use "%s";' %self.db)                 
-                cur1.execute('use %s;' %self.db)                  
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)                 
 
                 print("\n\n\n=======hanshu num = %d======right case_tbname========case1======\n\n\n" %i)
                 
@@ -168,6 +167,7 @@ class TDTestQuery(TDCase):
                         qt_where = str(qt_where).replace("(","").replace(")","").replace("'","").replace("\"","").replace(",","")
                         qt_like_match = stable_where[3]
                         qt_in_where = stable_where[4]
+                        
 
                         sql2 = "select %s from %s where tbname in ('%s') and %s %s %s group by tbname;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
@@ -181,35 +181,44 @@ class TDTestQuery(TDCase):
                         self.tdSql.error(sql2)
                         sql= sql + sql2
 
+                        lock.acquire()
+                         
                         sql2 = "select %s from %s where tbname in ('%s') and %s %s %s; " %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         self.np_check(sql1,sql2)
                         cur1.execute(sql2) 
-                        self.explain_sql(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
                         
                         sql2 = "select * from (select %s from %s where tbname in ('%s') and %s %s %s );" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         self.np_check(sql1,sql2)
                         cur1.execute(sql2) 
-                        self.explain_sql(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
+                        lock.release()
+                        
                         sql2 = "select %s from (select * from %s) where tbname in ('%s') and %s %s %s; " %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
                         
+                        
             except Exception as e:
-                raise e   
+                raise e  
+             
+            #lock.release()
 
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num1 = sql.count('where')
         print("sqlnum1_tbname %d" % num1)
+        #lock.release()
 
-    def right_case_1(self):
+    def right_case_1(self,lock):        
+        #lock.acquire() 
         print("\n==========================right case 1==========================\n")
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]
         sql = 'Count the number of sqls'         
@@ -218,13 +227,8 @@ class TDTestQuery(TDCase):
         for i in (8,9,):
             func = tdFunction.func_stable_str(i)
             try:
-                # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                time.sleep(1)
-                taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                # cur1.execute('use "%s";' %self.db)                 
-                cur1.execute('use %s;' %self.db)                  
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)                 
 
                 print("\n\n\n=======hanshu num = %d======right case========case1======\n\n\n" %i)
                 
@@ -237,39 +241,44 @@ class TDTestQuery(TDCase):
                         qt_where = str(qt_where).replace("(","").replace(")","").replace("'","").replace("\"","").replace(",","")
                         qt_like_match = stable_where[3]
                         qt_in_where = stable_where[4]
+                        
+                        lock.acquire() 
 
                         sql2 = "select %s from %s where  %s %s %s;" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         self.np_check(sql1,sql2)
                         cur1.execute(sql2) 
-                        self.explain_sql(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select %s from %s where %s %s %s);" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         self.np_check(sql1,sql2)
                         cur1.execute(sql2) 
-                        self.explain_sql(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s) where %s %s %s;" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         self.np_check(sql1,sql2)
                         cur1.execute(sql2) 
-                        self.explain_sql(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
+                        
+                        lock.release()
 
             except Exception as e:
                 raise e   
+                                   
 
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num1 = sql.count('where')
         print("sqlnum1_right %d" % num1) 
                 
-    def right_case_2_groupby(self):
+    def right_case_2_groupby(self,lock):      
         print("\n==========================right case 2_groupby==========================\n")
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]        
         sql = 'Count the number of sqls'       
@@ -279,13 +288,8 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_str(i)
             func_desc = func # for desc
             try:
-                # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                time.sleep(1)
-                taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                # cur1.execute('use "%s";' %self.db)                 
-                cur1.execute('use %s;' %self.db)                  
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)                
 
                 print("\n\n\n=======hanshu num = %d======right case========case2_groupby======\n\n\n" %i)
 
@@ -362,9 +366,9 @@ class TDTestQuery(TDCase):
         num2 = sql.count('where')
         print("sqlnum2 %d" % num2) 
         
-    def right_case_2_tbname(self):
+    def right_case_2_tbname(self,lock):                 
         print("\n==========================right case 2_tbname==========================\n")
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]        
         sql = 'Count the number of sqls'       
@@ -374,13 +378,8 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_str(i)
             func_desc = func # for desc
             try:
-                # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                time.sleep(1)
-                taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                # cur1.execute('use "%s";' %self.db)                 
-                cur1.execute('use %s;' %self.db)                  
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)                
 
                 print("\n\n\n=======hanshu num = %d======right case_tbname========case2======\n\n\n" %i)
 
@@ -425,19 +424,21 @@ class TDTestQuery(TDCase):
                         sql2 = "select %s from (select * from %s where tbname in ('%s') and  %s %s %s group by tbname order by ts ) group by tbname order by ts;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
+                        
+                        lock.acquire()
 
                         sql2 = "select %s from %s where tbname in ('%s') and  %s %s %s order by ts;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         self.np_check(sql1,sql2)
                         cur1.execute(sql2) 
-                        self.explain_sql(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
                             
                         sql2 = "select %s from (select * from %s where tbname in ('%s') and  %s %s %s order by ts);" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         self.np_check(sql1,sql2)
                         cur1.execute(sql2) 
-                        self.explain_sql(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
                             
                         sql2 = "select %s from (select * from %s) where tbname in ('%s') and  %s %s %s order by ts;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
@@ -448,15 +449,42 @@ class TDTestQuery(TDCase):
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         self.np_check(sql1,sql2)
                         cur1.execute(sql2) 
-                        self.explain_sql(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s where tbname in ('%s') and  %s %s %s order by ts ) order by ts;" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         self.np_check(sql1,sql2)
                         cur1.execute(sql2) 
-                        self.explain_sql(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
+                        
+                        lock.release()
+                                  
+            except Exception as e:
+                raise e    
+
+        # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
+        
+        num2 = sql.count('where')
+        print("sqlnum2_tbname %d" % num2)  
+        
+    def right_case_2_tbname_2(self,lock):                 
+        print("\n==========================right case 2_tbname_2==========================\n")
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
+        conn1 = case_common[0]
+        cur1 = case_common[1]        
+        sql = 'Count the number of sqls'       
+
+        # 1: support str function [hanshu = ['CONCAT']
+        for i in (8,9,):
+            func = tdFunction.func_stable_str(i)
+            func_desc = func # for desc
+            try:
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)                
+
+                print("\n\n\n=======hanshu num = %d======right case_tbname========case2_2======\n\n\n" %i) 
                                         
                 stable_where = tdWhere.regular_where()
                 sql1 = "select %s from %s where tbname in ('%s') order by ts desc;"  % (func_desc,self.table,self.table)
@@ -496,37 +524,41 @@ class TDTestQuery(TDCase):
                         self.tdSql.error(sql2)
                         sql= sql + sql2
 
+                        sql2 = "select %s from (select * from %s) where tbname in ('%s') and  %s %s %s order by ts desc;" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
+                        self.tdSql.error(sql2)
+                        sql= sql + sql2
+                        
+                        lock.acquire()
+
                         sql2 = "select %s from %s where tbname in ('%s') and  %s %s %s order by ts desc;" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         self.np_check(sql1,sql2)
                         cur1.execute(sql2) 
-                        self.explain_sql(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select %s from %s where tbname in ('%s') and  %s %s %s order by ts desc);" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         self.np_check(sql1,sql2)
                         cur1.execute(sql2) 
-                        self.explain_sql(sql2)
-                        sql= sql + sql2
-
-                        sql2 = "select %s from (select * from %s) where tbname in ('%s') and  %s %s %s order by ts desc;" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
-                        self.tdSql.error(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s where tbname in ('%s') and  %s %s %s ) order by ts desc;" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         self.np_check(sql1,sql2)
                         cur1.execute(sql2) 
-                        self.explain_sql(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
                         
                         sql2 = "select %s from (select * from %s where tbname in ('%s') and  %s %s %s order by ts desc ) order by ts desc;" %(func_desc,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         self.np_check(sql1,sql2)
                         cur1.execute(sql2) 
-                        self.explain_sql(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
+                        
+                        lock.release()
                                   
             except Exception as e:
                 raise e    
@@ -534,11 +566,12 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num2 = sql.count('where')
-        print("sqlnum2_tbname %d" % num2) 
+        print("sqlnum2_tbname_2 %d" % num2)  
+                
 
-    def right_case_2(self):
+    def right_case_2(self,lock):   
         print("\n==========================right case 2==========================\n")
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]        
         sql = 'Count the number of sqls'       
@@ -548,12 +581,7 @@ class TDTestQuery(TDCase):
             func = tdFunction.func_stable_str(i)
             func_desc = func # for desc
             try:
-                # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                time.sleep(1)
-                taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                # cur1.execute('use "%s";' %self.db)                 
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)                 
 
                 print("\n\n\n=======hanshu num = %d======right case========case2======\n\n\n" %i)
@@ -567,48 +595,78 @@ class TDTestQuery(TDCase):
                         qt_where = str(qt_where).replace("(","").replace(")","").replace("'","").replace("\"","").replace(",","")
                         qt_like_match = stable_where[3]
                         qt_in_where = stable_where[4]
+                                                   
+                        lock.acquire() 
 
                         sql2 = "select %s from %s where  %s %s %s order by ts;" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         self.np_check(sql1,sql2)
                         cur1.execute(sql2) 
-                        self.explain_sql(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s where  %s %s %s order by ts);" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         self.np_check(sql1,sql2)
                         cur1.execute(sql2) 
-                        self.explain_sql(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
                        
                         sql2 = "select * from (select %s from %s where  %s %s %s order by ts);" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         self.np_check(sql1,sql2)
                         cur1.execute(sql2) 
-                        self.explain_sql(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s) where  %s %s %s order by ts;" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         self.np_check(sql1,sql2)
                         cur1.execute(sql2) 
-                        self.explain_sql(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s where  %s %s %s ) order by ts;" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         self.np_check(sql1,sql2)
                         cur1.execute(sql2) 
-                        self.explain_sql(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s where  %s %s %s order by ts ) order by ts;" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         self.np_check(sql1,sql2)
                         cur1.execute(sql2) 
-                        self.explain_sql(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
+                        
+                        lock.release()
+            
+
+            except Exception as e:
+                raise e    
+
+        # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
+        
+        num2 = sql.count('where')
+        print("sqlnum2_right %d" % num2)          
+
+    def right_case_2_2(self,lock):      
+        print("\n==========================right case 2_2==========================\n")
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
+        conn1 = case_common[0]
+        cur1 = case_common[1]        
+        sql = 'Count the number of sqls'       
+
+        # 1: support str function [hanshu = ['CONCAT']
+        for i in (8,9,):
+            func = tdFunction.func_stable_str(i)
+            func_desc = func # for desc
+            try:
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)                 
+
+                print("\n\n\n=======hanshu num = %d======right case========case2_2======\n\n\n" %i)     
                 
                 stable_where = tdWhere.regular_where()
                 sql1 = 'select %s from %s order by ts desc;'  % (func_desc,self.table)
@@ -619,41 +677,45 @@ class TDTestQuery(TDCase):
                         qt_where = str(qt_where).replace("(","").replace(")","").replace("'","").replace("\"","").replace(",","")
                         qt_like_match = stable_where[3]
                         qt_in_where = stable_where[4]
+                        
+                        lock.acquire() 
 
                         sql2 = "select %s from %s where  %s %s %s order by ts desc;" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         self.np_check(sql1,sql2)
                         cur1.execute(sql2) 
-                        self.explain_sql(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select %s from %s where  %s %s %s order by ts desc);" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         self.np_check(sql1,sql2)
                         cur1.execute(sql2) 
-                        self.explain_sql(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s) where  %s %s %s order by ts desc;" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         self.np_check(sql1,sql2)
                         cur1.execute(sql2) 
-                        self.explain_sql(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s where  %s %s %s ) order by ts desc;" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         self.np_check(sql1,sql2)
                         cur1.execute(sql2) 
-                        self.explain_sql(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select %s from (select * from %s where  %s %s %s order by ts desc ) order by ts desc;" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         self.np_check(sql1,sql2)
                         cur1.execute(sql2) 
-                        self.explain_sql(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
+                        
+                        lock.release()
             
 
             except Exception as e:
@@ -662,12 +724,11 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num2 = sql.count('where')
-        print("sqlnum2_right %d" % num2) 
-        
+        print("sqlnum2_right_2 %d" % num2)          
                                
-    def right_case_3_groupby(self):
+    def right_case_3_groupby(self,lock):       
         print("\n==========================right case 3_groupby==========================\n")
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]       
         sql = 'Count the number of sqls'
@@ -676,13 +737,8 @@ class TDTestQuery(TDCase):
         for i in (8,9,):
             func = tdFunction.func_stable_str(i)
             try:
-                # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                time.sleep(1)
-                taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                # cur1.execute('use "%s";' %self.db)                 
-                cur1.execute('use %s;' %self.db)                  
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
+                cur1.execute('use %s;' %self.db)                 
 
                 print("\n\n\n=======hanshu num = %d======right case========case3======\n\n\n" %i)
                 
@@ -715,12 +771,12 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num3 = sql.count('where')
-        print("sqlnum3 %d" % num3) 
+        print("sqlnum3 %d" % num3)  
  
  
-    def right_case_3_tbname(self):
+    def right_case_3_tbname(self,lock):     
         print("\n==========================right case 3_tbname==========================\n")
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]       
         sql = 'Count the number of sqls'
@@ -729,12 +785,7 @@ class TDTestQuery(TDCase):
         for i in (8,9,):
             func = tdFunction.func_stable_str(i)
             try:
-                # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                time.sleep(1)
-                taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                # cur1.execute('use "%s";' %self.db)                 
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)                   
 
                 print("\n\n\n=======hanshu num = %d======right case_tbname========case3======\n\n\n" %i)
@@ -760,20 +811,24 @@ class TDTestQuery(TDCase):
                         sql2 = "select %s from (select * from %s) where tbname in ('%s') and %s %s %s group by tbname order by ts limit 1000" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
                         sql= sql + sql2
+                                                   
+                        lock.acquire() 
 
                         sql2 = "select %s from %s where tbname in ('%s') and  %s %s %s order by ts limit 1000" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         self.np_check(sql1,sql2)
                         cur1.execute(sql2) 
-                        self.explain_sql(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select %s from %s where tbname in ('%s') and %s %s %s order by ts limit 1000)" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         self.np_check(sql1,sql2)
                         cur1.execute(sql2) 
-                        self.explain_sql(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
+                        
+                        lock.release()
 
                         sql2 = "select %s from (select * from %s) where tbname in ('%s') and %s %s %s order by ts limit 1000" %(func,self.table,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdSql.error(sql2)
@@ -785,11 +840,12 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num3 = sql.count('where')
-        print("sqlnum3_tbname %d" % num3)         
+        print("sqlnum3_tbname %d" % num3) 
+                 
 
-    def right_case_3(self):
+    def right_case_3(self,lock):  
         print("\n==========================right case 3==========================\n")
-        case_common = self.case_common()
+        case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]       
         sql = 'Count the number of sqls'
@@ -798,12 +854,7 @@ class TDTestQuery(TDCase):
         for i in (8,9,):
             func = tdFunction.func_stable_str(i)
             try:
-                # taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
-                time.sleep(1)
-                taos_cmd1 = "taos -h %s -f %s/%s.sql" % (self.service_host,self.testcasePath,self.testcaseFilename)
-                _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-                print(conn1)
-                # cur1.execute('use "%s";' %self.db)                 
+                self.tdCreateData.taos_f(self.service_host,self.testcasePath,self.testcaseFilename)                  
                 cur1.execute('use %s;' %self.db)                  
 
                 print("\n\n\n=======hanshu num = %d======right case========case3======\n\n\n" %i)
@@ -817,27 +868,31 @@ class TDTestQuery(TDCase):
                         qt_where = str(qt_where).replace("(","").replace(")","").replace("'","").replace("\"","").replace(",","")
                         qt_like_match = stable_where[3]
                         qt_in_where = stable_where[4]
+                                                     
+                        lock.acquire() 
 
                         sql2 = "select %s from %s where  %s %s %s order by ts limit 1000" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         self.np_check(sql1,sql2)
                         cur1.execute(sql2) 
-                        self.explain_sql(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
 
                         sql2 = "select * from (select %s from %s where  %s %s %s order by ts limit 1000)" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         self.np_check(sql1,sql2)
                         cur1.execute(sql2) 
-                        self.explain_sql(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
                         
                         sql2 = "select %s from (select * from %s) where  %s %s %s order by ts limit 1000" %(func,self.table,qt_where,qt_like_match,qt_in_where)
                         self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                         self.np_check(sql1,sql2)
                         cur1.execute(sql2) 
-                        self.explain_sql(sql2)
+                        self.tdCreateData.explain_sql(sql2)
                         sql= sql + sql2
+                                                
+                        lock.release()
             
             except Exception as e:
                 raise e           
@@ -846,38 +901,110 @@ class TDTestQuery(TDCase):
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
         num3 = sql.count('where')
-        print("sqlnum3_right %d" % num3) 
+        print("sqlnum3_right %d" % num3)  
 
     def rm_sql(self):
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))  
  
                  
     def run(self):
+        # startTime = time.time() 
+        
+        # self.data_create(self.db)
+         
+        # startTime1 = time.time()
+        # self.right_case_1_groupby()
+        # self.right_case_1_tbname()
+        # self.right_case_1()
+        # endTime1 = time.time()       
+        # print("total time1 %d s" % (endTime1 - startTime1))
+    
+        # startTime2 = time.time()
+        # self.right_case_2_groupby()
+        # self.right_case_2_tbname()
+        # self.right_case_2()
+        # endTime2 = time.time()       
+        # print("total time2 %d s" % (endTime2 - startTime2))
+        
+        # startTime3 = time.time()
+        # self.right_case_3_groupby()
+        # self.right_case_3_tbname()
+        # self.right_case_3()
+        # endTime3 = time.time()
+        # print("total time3 %ds" % (endTime3 - startTime3))     
+
+        # endTime = time.time()
+        # self.rm_sql()
+        # print("total time %ds" % (endTime - startTime))
+        
+        lock = threading.Lock()
+        
         startTime = time.time() 
         
-        startTime1 = time.time()
-        self.right_case_1_groupby()
-        self.right_case_1_tbname()
-        self.right_case_1()
-        endTime1 = time.time()       
-        print("total time1 %d s" % (endTime1 - startTime1))
-    
-        startTime2 = time.time()
-        self.right_case_2_groupby()
-        self.right_case_2_tbname()
-        self.right_case_2()
-        endTime2 = time.time()       
-        print("total time2 %d s" % (endTime2 - startTime2))
+        self.data_create(self.db)
         
-        startTime3 = time.time()
-        self.right_case_3_groupby()
-        self.right_case_3_tbname()
-        self.right_case_3()
-        endTime3 = time.time()
-        print("total time3 %ds" % (endTime3 - startTime3))     
+        t11 = threading.Thread(target=self.right_case_1, args=(lock,))
+        t11.start()       
+        t12 = threading.Thread(target=self.right_case_1_tbname, args=(lock,))
+        t12.start()        
+        t13 = threading.Thread(target=self.right_case_1_groupby, args=(lock,))
+        t13.start()
 
+        t21 = threading.Thread(target=self.right_case_2, args=(lock,))
+        t21.start()   
+        t21_2 = threading.Thread(target=self.right_case_2_2, args=(lock,))
+        t21_2.start()    
+        t22 = threading.Thread(target=self.right_case_2_tbname, args=(lock,))
+        t22.start() 
+        t22_2 = threading.Thread(target=self.right_case_2_tbname_2, args=(lock,))
+        t22_2.start()        
+        t23 = threading.Thread(target=self.right_case_2_groupby, args=(lock,))
+        t23.start()  
+        # t23_2 = threading.Thread(target=self.right_case_2_groupby_2, args=(lock,))
+        # t23_2.start()       
+
+        t31 = threading.Thread(target=self.right_case_3, args=(lock,))
+        t31.start()       
+        t32 = threading.Thread(target=self.right_case_3_tbname, args=(lock,))
+        t32.start()        
+        t33 = threading.Thread(target=self.right_case_3_groupby, args=(lock,))
+        t33.start()
+                
+        t11.join()
+        t12.join()
+        t13.join()
+        t21.join()
+        t21_2.join()
+        t22.join()
+        t22_2.join()
+        t23.join()
+        #t23_2.join()
+        t31.join()
+        t32.join()
+        t33.join()
+        
         endTime = time.time()
         self.rm_sql()
         print("total time %ds" % (endTime - startTime))
+        
+        # lock = threading.Lock()       
+        # self.data_create(self.db)
 
+        # t11 = threading.Thread(target=self.right_case_1, args=(lock,))
+        # #t11.setDaemon(True)
+        # t11.start()   
+        # #t11.is_alive() 
+        # t12 = threading.Thread(target=self.right_case_1_tbname, args=(lock,))
+        # #t12.setDaemon(True)
+        # t12.start() 
+        # #t12.is_alive()       
+        # t13 = threading.Thread(target=self.right_case_1_groupby, args=(lock,))
+        # #t13.setDaemon(True)
+        # t13.start()
+        # #t13.is_alive()
 
+        # t11.join() 
+        # t12.join()
+        # t13.join()
+        
+ 

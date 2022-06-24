@@ -250,7 +250,7 @@ class TDFunction():
         int_cloumn_state = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
         
         operator = ['LT' , 'GT' ,'GE','NE','EQ']  
-        oper = str(random.sample(operator,1)).replace("[","").replace("]","").replace("'","")        
+        oper = str(random.sample(operator,1)).replace("[","").replace("]","")#.replace("'","")        
                          
         if str(hanshu_select).replace("[","").replace("]","").replace("'","") == 'statecount':
             int_cloumn_state = int_cloumn_state.replace("oper","%s" %oper).replace(",time","")
@@ -265,6 +265,7 @@ class TDFunction():
         hanshu = ['HYPERLOGLOG']             
         column = ['(ts)','(_C0)','(_c0)','(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_binary)','(q_nchar)','(q_double)','(q_bool)','(q_ts)',
         '(q_bigint_null)','(q_smallint_null)','(q_tinyint_null)','(q_int_null)','(q_float_null)','(q_binary_null)','(q_nchar_null)','(q_double_null)','(q_bool_null)','(q_ts_null)'] 
+        column = ['(ts)','(_C0)','(_c0)','(_rowts)','(q_bigint)','(q_smallint)','(q_tinyint)','(q_int)','(q_float)','(q_binary)','(q_nchar)','(q_double)','(q_bool)','(q_ts)']
      
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         all_cloumn_hyperloglog = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
