@@ -109,6 +109,7 @@ python3 ./test.py -f 2-query/distribute_agg_apercentile.py
 python3 ./test.py -f 2-query/distribute_agg_avg.py
 python3 ./test.py -f 2-query/distribute_agg_stddev.py
 python3 ./test.py -f 2-query/twa.py
+python3 ./test.py -f 2-query/irate.py
 
 python3 ./test.py -f 2-query/function_null.py
 
