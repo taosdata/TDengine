@@ -363,7 +363,7 @@ pipeline {
                             echo "${linux_node_ip}:${linux_node_pass}"
                         }
                         catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                            timeout(time: 40, unit: 'MINUTES'){
+                            timeout(time: 120, unit: 'MINUTES'){
                                 pre_test()
                                 script {
                                     sh '''

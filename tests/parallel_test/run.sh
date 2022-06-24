@@ -281,6 +281,9 @@ function run_thread() {
             cat $case_log_file
             echo "====================================================="
             echo -e "\e[34m log file: $case_log_file \e[0m"
+            if [ ! -z "${web_server}" ]; then
+                echo "${web_server}/$test_log_dir/${case_file}.txt"
+            fi
             if [ ! -z "$corefile" ]; then
                 echo -e "\e[34m corefiles: $corefile \e[0m"
                 local build_dir=$log_dir/build_${hosts[index]}
