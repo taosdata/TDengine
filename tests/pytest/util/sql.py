@@ -118,8 +118,7 @@ class TDSql:
             col_name_list = []
             col_type_list = []
             self.cursor.execute(sql)
-            self.queryCols = self.cursor.description
-            for query_col in self.queryCols:
+            for query_col in self.cursor.description:
                 col_name_list.append(query_col[0])
                 col_type_list.append(query_col[1])
         except Exception as e:

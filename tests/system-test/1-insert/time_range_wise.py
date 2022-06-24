@@ -96,6 +96,10 @@ class SMAschema:
     drop                : str           = "DROP"
     drop_flag           : str           = "INDEX"
     querySmaOptimize    : int           = 1
+    show                : str           = "SHOW"
+    show_msg            : str           = "INDEXES"
+    show_oper           : str           = "FROM"
+    dbname              : str           = None
 
     def __post_init__(self):
         if isinstance(self.other, dict):
@@ -141,9 +145,21 @@ class SMAschema:
                     self.drop_flag = v
                     del self.other[k]
 
+                if k.lower() == "show_msg" and isinstance(v, str) and not self.show_msg:
+                    self.show_msg = v
+                    del self.other[k]
 
-# from ...pytest.util.sql import *
-# from ...pytest.util.constant import *
+                if k.lower() == "dbname" and isinstance(v, str) and not self.dbname:
+                    self.dbname = v
+                    del self.other[k]
+
+                if k.lower() == "show_oper" and isinstance(v, str) and not self.show_oper:
+                    self.show_oper = v
+                    del self.other[k]
+
+
+from ...pytest.util.sql import *
+from ...pytest.util.constant import *
 
 class TDTestCase:
     updatecfgDict = {"querySmaOptimize": 1}
@@ -152,6 +168,7 @@ class TDTestCase:
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor(), False)
         self.precision = "ms"
+        self.sma_count = 0
 
     """
         create sma index :
@@ -193,6 +210,17 @@ class TDTestCase:
             sql += f" {sma.other}"
 
         return sql
+
+    def __get_sma_func_col(self, func):
+        cols = []
+        if isinstance(func, str):
+            cols.append( func.split("(")[-1].split(")")[0] )
+        elif isinstance(func, tuple) or isinstance(func, list):
+            for func_col in func:
+                cols.append(func_col.split("(")[-1].split(")")[0])
+        else:
+            cols = []
+        return cols
 
     def __check_sma_func(self, func:tuple):
         if not isinstance(func, str) and not isinstance(func, tuple) and not isinstance(func, list):
@@ -291,6 +319,8 @@ class TDTestCase:
         if  self.updatecfgDict["querySmaOptimize"] == 0:
             return False
         tdSql.query("show stables")
+        if not sma.tbname:
+            return False
         stb_in_list = False
         for row in tdSql.queryResult:
             if sma.tbname == row[0]:
@@ -305,10 +335,18 @@ class TDTestCase:
             return False
         if not sma.operator or not isinstance(sma.operator, str) or sma.operator.upper() != "ON":
             return False
-        if not sma.tbname:
-            return False
+
         if not sma.func or not self.__check_sma_func(sma.func):
             return False
+        tdSql.query(f"desc {sma.tbname}")
+        _col_list = []
+        for col_row in  tdSql.queryResult:
+            _col_list.append(col_row[0])
+        _sma_func_cols = self.__get_sma_func_col(sma.func)
+        for  _sma_func_col in _sma_func_cols:
+            if _sma_func_col not in _col_list:
+                return False
+
         if not sma.sliding or not self.__check_sma_sliding(sma.sliding):
             return False
         interval, _ =  self.__get_interval_offset(sma.interval)
@@ -324,7 +362,55 @@ class TDTestCase:
         return True
 
     def sma_create_check(self, sma:SMAschema):
-        tdSql.query(self.__create_sma_index(sma)) if self.__sma_create_check(sma) else  tdSql.error(self.__create_sma_index(sma))
+        if self.__sma_create_check(sma):
+            tdSql.query(self.__create_sma_index(sma))
+            self.sma_count += 1
+        else:
+            tdSql.error(self.__create_sma_index(sma))
+
+    def __drop_sma_index(self, sma:SMAschema):
+        sql = f"{sma.drop} {sma.drop_flag} {sma.index_name}"
+        return sql
+
+    def __sma_drop_check(self, sma:SMAschema):
+        if not sma.drop:
+            return False
+        if not sma.drop_flag:
+            return False
+        if not sma.index_name:
+            return False
+
+        return True
+
+    def sma_drop_check(self, sma:SMAschema):
+        if self.__sma_drop_check(sma):
+            tdSql.query(self.__drop_sma_index(sma))
+            self.sma_count -= 1
+        else:
+            tdSql.error(self.__drop_sma_index(sma))
+
+    def __show_sma_index(self, sma:SMAschema):
+        sql = f"{sma.show} {sma.show_msg} {sma.show_oper} {sma.tbname}"
+        return sql
+
+    def __sma_show_check(self, sma:SMAschema):
+        if not sma.show:
+            return False
+        if not sma.show_msg:
+            return False
+        if not sma.show_oper:
+            return False
+        if not sma.tbname:
+            return False
+
+        return True
+
+    def sma_show_check(self, sma:SMAschema):
+        if self.__sma_show_check(sma):
+            tdSql.query(self.__show_sma_index(sma))
+            tdSql.checkRows(self.sma_count)
+        else:
+            tdSql.error(self.__show_sma_index(sma))
 
     @property
     def __create_sma_sql(self):
@@ -337,8 +423,8 @@ class TDTestCase:
         # err_sqls.append( SMAschema(index_flag="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
         # err_sqls.append( SMAschema(operator="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
         # err_sqls.append( SMAschema(tbname="", func=(f"min({INT_COL})",f"max({INT_COL})") ) )
-        # err_sqls.append( SMAschema(func="",tbname=STBNAME ) )
-        err_sqls.append( SMAschema(interval=("6m"),tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
+        err_sqls.append( SMAschema(func=("",),tbname=STBNAME ) )
+        # err_sqls.append( SMAschema(interval=(""),tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
         # err_sqls.append( SMAschema(sliding="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
         # err_sqls.append( SMAschema(max_delay="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
         # err_sqls.append( SMAschema(watermark="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
