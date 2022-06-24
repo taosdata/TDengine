@@ -623,7 +623,7 @@ const char *taos_get_server_info(TAOS *taos) {
 
   releaseTscObj(*(int64_t *)taos);
 
-  return pTscObj->ver;
+  return pTscObj->sDetailVer;
 }
 
 typedef struct SqlParseWrapper {
@@ -766,7 +766,7 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
                            .requestObjRefId = pCxt->requestRid,
                            .mgmtEps = pCxt->mgmtEpSet};
 
-  code = catalogAsyncGetAllMeta(pCxt->pCatalog, &conn, pRequest->requestId, &catalogReq, retrieveMetaCallback, pWrapper,
+  code = catalogAsyncGetAllMeta(pCxt->pCatalog, &conn, &catalogReq, retrieveMetaCallback, pWrapper,
                                 &pRequest->body.queryJob);
   if (code == TSDB_CODE_SUCCESS) {
     return;
@@ -934,7 +934,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
 
   conn.mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
 
-  code = catalogAsyncGetAllMeta(pCtg, &conn, pRequest->requestId, &catalogReq, syncCatalogFn, &param, NULL);
+  code = catalogAsyncGetAllMeta(pCtg, &conn, &catalogReq, syncCatalogFn, &param, NULL);
   if (code) {
     goto _return;
   }

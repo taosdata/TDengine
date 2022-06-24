@@ -71,6 +71,7 @@ static void      mndCancelGetNextQuery(SMnode *pMnode, void *pIter);
 static void      mndFreeApp(SAppObj *pApp);
 static int32_t   mndRetrieveApps(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void      mndCancelGetNextApp(SMnode *pMnode, void *pIter);
+static int32_t   mndProcessSvrVerReq(SRpcMsg *pReq);
 
 int32_t mndInitProfile(SMnode *pMnode) {
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
@@ -95,6 +96,7 @@ int32_t mndInitProfile(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_CONNECT, mndProcessConnectReq);
   mndSetMsgHandle(pMnode, TDMT_MND_KILL_QUERY, mndProcessKillQueryReq);
   mndSetMsgHandle(pMnode, TDMT_MND_KILL_CONN, mndProcessKillConnReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_SERVER_VERSION, mndProcessSvrVerReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_CONNS, mndRetrieveConns);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_CONNS, mndCancelGetNextConn);
@@ -269,8 +271,9 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   connectRsp.connId = pConn->id;
   connectRsp.connType = connReq.connType;
   connectRsp.dnodeNum = mndGetDnodeSize(pMnode);
-
-  snprintf(connectRsp.sVersion, sizeof(connectRsp.sVersion), "ver:%s\nbuild:%s\ngitinfo:%s", version, buildinfo,
+  
+  strcpy(connectRsp.sVer, version);
+  snprintf(connectRsp.sDetailVer, sizeof(connectRsp.sDetailVer), "ver:%s\nbuild:%s\ngitinfo:%s", version, buildinfo,
            gitinfo);
   mndGetMnodeEpSet(pMnode, &connectRsp.epSet);
 
@@ -467,6 +470,27 @@ static int32_t mndUpdateAppInfo(SMnode *pMnode, SClientHbReq *pHbReq, SRpcConnIn
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t mndGetOnlineDnodeNum(SMnode *pMnode, int32_t *num) {
+  SSdb      *pSdb = pMnode->pSdb;
+  SDnodeObj *pDnode = NULL;
+  int64_t    curMs = taosGetTimestampMs();
+  void      *pIter = NULL;
+  
+  while (true) {
+    pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
+    if (pIter == NULL) break;
+    
+    bool online = mndIsDnodeOnline(pDnode, curMs);
+    if (online) {
+      (*num)++;
+    }
+    
+    sdbRelease(pSdb, pDnode);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHbReq *pHbReq,
                                         SClientHbBatchRsp *pBatchRsp) {
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
@@ -510,7 +534,7 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
 
     rspBasic->connId = pConn->id;
     rspBasic->totalDnodes = mndGetDnodeSize(pMnode);
-    rspBasic->onlineDnodes = 1;  // TODO
+    mndGetOnlineDnodeNum(pMnode, &rspBasic->onlineDnodes);
     mndGetMnodeEpSet(pMnode, &rspBasic->epSet);
 
     mndCreateQnodeList(pMnode, &rspBasic->pQnodeList, -1);
@@ -700,6 +724,28 @@ static int32_t mndProcessKillConnReq(SRpcMsg *pReq) {
     return TSDB_CODE_SUCCESS;
   }
 }
+
+static int32_t mndProcessSvrVerReq(SRpcMsg *pReq) {
+  int32_t code = -1;
+  SServerVerRsp rsp = {0};
+  strcpy(rsp.ver, version);
+  
+  int32_t contLen = tSerializeSServerVerRsp(NULL, 0, &rsp);
+  if (contLen < 0) goto _over;
+  void *pRsp = rpcMallocCont(contLen);
+  if (pRsp == NULL) goto _over;
+  tSerializeSServerVerRsp(pRsp, contLen, &rsp);
+
+  pReq->info.rspLen = contLen;
+  pReq->info.rsp = pRsp;
+
+  code = 0;
+
+_over:
+
+  return code;
+}
+
 
 static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode   *pMnode = pReq->info.node;

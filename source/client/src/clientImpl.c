@@ -178,7 +178,9 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
                        .pStmtCb = pStmtCb,
                        .pUser = pTscObj->user,
                        .schemalessType = pTscObj->schemalessType,
-                       .isSuperUser = (0 == strcmp(pTscObj->user, TSDB_DEFAULT_USER))};
+                       .isSuperUser = (0 == strcmp(pTscObj->user, TSDB_DEFAULT_USER)),
+                       .svrVer = pTscObj->sVer,
+                       .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes)};
 
   cxt.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
   int32_t code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &cxt.pCatalog);

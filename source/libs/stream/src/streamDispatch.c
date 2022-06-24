@@ -70,20 +70,21 @@ int32_t tEncodeStreamRetrieveReq(SEncoder* pEncoder, const SStreamRetrieveReq* p
   if (tEncodeI32(pEncoder, pReq->dstTaskId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->srcNodeId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->srcTaskId) < 0) return -1;
-  if (tEncodeBinary(pEncoder, (const uint8_t*)&pReq->pRetrieve, pReq->retrieveLen) < 0) return -1;
+  if (tEncodeBinary(pEncoder, (const uint8_t*)pReq->pRetrieve, pReq->retrieveLen) < 0) return -1;
   tEndEncode(pEncoder);
   return pEncoder->pos;
 }
 
 int32_t tDecodeStreamRetrieveReq(SDecoder* pDecoder, SStreamRetrieveReq* pReq) {
-  int32_t tlen = 0;
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI64(pDecoder, &pReq->streamId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->dstNodeId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->dstTaskId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->srcNodeId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->srcTaskId) < 0) return -1;
-  if (tDecodeBinary(pDecoder, (uint8_t**)&pReq->pRetrieve, &pReq->retrieveLen) < 0) return -1;
+  uint64_t len = 0;
+  if (tDecodeBinaryAlloc(pDecoder, (void**)&pReq->pRetrieve, &len) < 0) return -1;
+  pReq->retrieveLen = len;
   tEndDecode(pDecoder);
   return 0;
 }
