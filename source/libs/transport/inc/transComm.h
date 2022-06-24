@@ -120,14 +120,15 @@ typedef struct SCvtAddr {
 } SCvtAddr;
 
 typedef struct {
-  SEpSet  epSet;  // ip list provided by app
-  SEpSet  origEpSet;
-  void*   ahandle;   // handle provided by app
-  tmsg_t  msgType;   // message type
-  int8_t  connType;  // connection type cli/srv
-  int64_t rid;       // refId returned by taosAddRef
+  SEpSet epSet;  // ip list provided by app
+  SEpSet origEpSet;
+  void*  ahandle;   // handle provided by app
+  tmsg_t msgType;   // message type
+  int8_t connType;  // connection type cli/srv
 
-  int8_t     retryCount;
+  int8_t retryCnt;
+  int8_t retryLimit;
+  // bool       setMaxRetry;
   STransCtx  appCtx;  //
   STransMsg* pRsp;    // for synchronous API
   tsem_t*    pSem;    // for synchronous API
@@ -381,7 +382,7 @@ void transDQDestroy(SDelayQueue* queue);
 
 int transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs);
 
-void transPrintEpSet(SEpSet* pEpSet);
+// void transPrintEpSet(SEpSet* pEpSet);
 bool transEpSetIsEqual(SEpSet* a, SEpSet* b);
 /*
  * init global func

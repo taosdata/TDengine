@@ -1039,7 +1039,6 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
         }
       } else {
         addConnToPool(pThrd->pool, pConn);
-
         cliUpdateRetryLimit(&pCtx->retryLimit, TRANS_RETRY_COUNT_LIMIT, TRANS_RETRY_COUNT_LIMIT);
         if (pCtx->retryCnt < pCtx->retryLimit) {
           if (pResp->contLen == 0) {
@@ -1047,6 +1046,7 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
           } else {
             tDeserializeSEpSet(pResp->pCont, pResp->contLen, &pCtx->epSet);
           }
+          transFreeMsg(pResp->pCont);
           cliSchedMsgToNextNode(pMsg, pThrd);
           return -1;
         }
