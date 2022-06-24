@@ -541,13 +541,11 @@ _err:
 }
 
 int32_t tsdbReadBlock(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *mBlock, uint8_t **ppBuf) {
-  int32_t  code = 0;
-  int64_t  offset = pBlockIdx->offset;
-  int64_t  size = pBlockIdx->size;
-  int64_t  n;
-  uint32_t delimiter;
-  int64_t  suid;
-  int64_t  uid;
+  int32_t       code = 0;
+  int64_t       offset = pBlockIdx->offset;
+  int64_t       size = pBlockIdx->size;
+  int64_t       n;
+  SBlockDataHdr hdr;
 
   // alloc
   if (!ppBuf) ppBuf = &mBlock->pBuf;
@@ -577,13 +575,12 @@ int32_t tsdbReadBlock(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *mBl
   }
 
   // decode
-  n = 0;
-  n += tGetU32(*ppBuf + n, &delimiter);
-  ASSERT(delimiter == TSDB_FILE_DLMT);
-  n += tGetI64(*ppBuf + n, &suid);
-  ASSERT(suid == pBlockIdx->suid);
-  n += tGetI64(*ppBuf + n, &uid);
-  ASSERT(uid == pBlockIdx->uid);
+  hdr = *(SBlockDataHdr *)(*ppBuf);
+  ASSERT(hdr.delimiter == TSDB_FILE_DLMT);
+  ASSERT(hdr.suid == pBlockIdx->suid);
+  ASSERT(hdr.uid == pBlockIdx->uid);
+
+  n = sizeof(hdr);
   n += tGetMapData(*ppBuf + n, mBlock);
   ASSERT(n + sizeof(TSCKSUM) == size);
 

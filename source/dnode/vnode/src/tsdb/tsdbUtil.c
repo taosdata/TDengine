@@ -27,9 +27,12 @@ void tMapDataReset(SMapData *pMapData) {
 }
 
 void tMapDataClear(SMapData *pMapData) {
-  tsdbFree(pMapData->pOfst);
-  tsdbFree(pMapData->pData);
-  tsdbFree(pMapData->pBuf);
+  if (pMapData->pBuf) {
+    tsdbFree(pMapData->pBuf);
+  } else {
+    tsdbFree(pMapData->pOfst);
+    tsdbFree(pMapData->pData);
+  }
 }
 
 int32_t tMapDataPutItem(SMapData *pMapData, void *pItem, int32_t (*tPutItemFn)(uint8_t *, void *)) {
