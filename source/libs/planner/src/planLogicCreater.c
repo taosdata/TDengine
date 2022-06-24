@@ -780,8 +780,8 @@ static int32_t createProjectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  pProject->node.pLimit = (SNode*)pSelect->pLimit;
-  pProject->node.pSlimit = (SNode*)pSelect->pSlimit;
+  TSWAP(pProject->node.pLimit, pSelect->pLimit);
+  TSWAP(pProject->node.pSlimit, pSelect->pSlimit);
 
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -940,7 +940,7 @@ static int32_t createSetOpSortLogicNode(SLogicPlanContext* pCxt, SSetOperator* p
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  pSort->node.pLimit = pSetOperator->pLimit;
+  TSWAP(pSort->node.pLimit, pSetOperator->pLimit);
 
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -973,7 +973,7 @@ static int32_t createSetOpProjectLogicNode(SLogicPlanContext* pCxt, SSetOperator
   }
 
   if (NULL == pSetOperator->pOrderByList) {
-    pProject->node.pLimit = pSetOperator->pLimit;
+    TSWAP(pProject->node.pLimit, pSetOperator->pLimit);
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1004,7 +1004,7 @@ static int32_t createSetOpAggLogicNode(SLogicPlanContext* pCxt, SSetOperator* pS
   }
 
   if (NULL == pSetOperator->pOrderByList) {
-    pAgg->node.pLimit = pSetOperator->pLimit;
+    TSWAP(pAgg->node.pSlimit, pSetOperator->pLimit);
   }
 
   int32_t code = TSDB_CODE_SUCCESS;

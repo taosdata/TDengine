@@ -1840,10 +1840,7 @@ static int32_t createMultiResFuncsFromStar(STranslateContext* pCxt, SFunctionNod
     code = createMultiResFuncs(pSrcFunc, pExprs, pOutput);
   }
 
-  if (TSDB_CODE_SUCCESS != code) {
-    nodesDestroyList(pExprs);
-  }
-
+  nodesDestroyList(pExprs);
   return code;
 }
 

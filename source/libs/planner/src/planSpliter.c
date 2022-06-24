@@ -179,7 +179,7 @@ static bool stbSplNeedSplitWindow(bool streamQuery, SLogicNode* pNode) {
       return !stbSplHasGatherExecFunc(pWindow->pFuncs) && stbSplHasMultiTbScan(streamQuery, pNode);
     }
   }
-  
+
   if (WINDOW_TYPE_STATE == pWindow->winType) {
     if (!streamQuery) {
       return stbSplHasMultiTbScan(streamQuery, pNode);
@@ -374,7 +374,7 @@ static int32_t stbSplCreateMergeNode(SSplitContext* pCxt, SLogicSubplan* pSubpla
 
   int32_t code = TSDB_CODE_SUCCESS;
   pMerge->pInputs = nodesCloneList(pPartChild->pTargets);
-  // NULL == pSubplan means 'merge node' replaces 'split node'.
+  // NULL != pSubplan means 'merge node' replaces 'split node'.
   if (NULL == pSubplan) {
     pMerge->node.pTargets = nodesCloneList(pPartChild->pTargets);
   } else {
@@ -389,6 +389,9 @@ static int32_t stbSplCreateMergeNode(SSplitContext* pCxt, SLogicSubplan* pSubpla
     } else {
       code = replaceLogicNode(pSubplan, pSplitNode, (SLogicNode*)pMerge);
     }
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != pSubplan) {
+    nodesDestroyNode((SNode*)pSplitNode);
   }
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pMerge);
@@ -512,7 +515,7 @@ static int32_t stbSplSplitSessionOrStateForBatch(SSplitContext* pCxt, SStableSpl
   SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pWindow->pChildren, 0);
 
   SNodeList* pMergeKeys = NULL;
-  int32_t code = stbSplCreateMergeKeysByPrimaryKey(((SWindowLogicNode*)pWindow)->pTspk, &pMergeKeys);
+  int32_t    code = stbSplCreateMergeKeysByPrimaryKey(((SWindowLogicNode*)pWindow)->pTspk, &pMergeKeys);
 
   if (TSDB_CODE_SUCCESS == code) {
     code = stbSplCreateMergeNode(pCxt, pInfo->pSubplan, pChild, pMergeKeys, (SLogicNode*)pChild);
