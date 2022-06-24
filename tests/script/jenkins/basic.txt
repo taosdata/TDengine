@@ -5,8 +5,7 @@
 ./test.sh -f tsim/user/basic.sim
 ./test.sh -f tsim/user/password.sim
 ./test.sh -f tsim/user/privilege_db.sim
-#./test.sh -f tsim/user/privilege_enable.sim
-#./test.sh -f tsim/user/privilege_sysinfo.sim
+./test.sh -f tsim/user/privilege_sysinfo.sim
 
 ## ---- db
 ./test.sh -f tsim/db/create_all_options.sim
@@ -133,7 +132,7 @@
 ./test.sh -f tsim/stable/tag_filter.sim
 
 # --- for multi process mode
-./test.sh -f tsim/user/basic1.sim -m
+./test.sh -f tsim/user/basic.sim -m
 ./test.sh -f tsim/db/basic3.sim -m
 ./test.sh -f tsim/db/error1.sim -m
 ./test.sh -f tsim/insert/backquote.sim -m
