@@ -198,6 +198,10 @@ int32_t mndInitSync(SMnode *pMnode) {
     return -1;
   }
 
+  // decrease election timer
+  setElectTimerMS(pMgmt->sync, 600);
+  setHeartbeatTimerMS(pMgmt->sync, 300);
+
   mDebug("mnode-sync is opened, id:%" PRId64, pMgmt->sync);
   return 0;
 }
