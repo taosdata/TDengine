@@ -107,26 +107,30 @@ char *syncCfg2Str(SSyncCfg *pSyncCfg) {
 }
 
 char *syncCfg2SimpleStr(SSyncCfg *pSyncCfg) {
-  int32_t len = 512;
-  char   *s = taosMemoryMalloc(len);
-  memset(s, 0, len);
+  if (pSyncCfg != NULL) {
+    int32_t len = 512;
+    char   *s = taosMemoryMalloc(len);
+    memset(s, 0, len);
 
-  snprintf(s, len, "{replica-num:%d, my-index:%d, ", pSyncCfg->replicaNum, pSyncCfg->myIndex);
-  char *p = s + strlen(s);
-  for (int i = 0; i < pSyncCfg->replicaNum; ++i) {
-    /*
-    if (p + 128 + 32 > s + len) {
-      break;
+    snprintf(s, len, "{replica-num:%d, my-index:%d, ", pSyncCfg->replicaNum, pSyncCfg->myIndex);
+    char *p = s + strlen(s);
+    for (int i = 0; i < pSyncCfg->replicaNum; ++i) {
+      /*
+      if (p + 128 + 32 > s + len) {
+        break;
+      }
+      */
+      char buf[128 + 32];
+      snprintf(buf, sizeof(buf), "%s:%d, ", pSyncCfg->nodeInfo[i].nodeFqdn, pSyncCfg->nodeInfo[i].nodePort);
+      strncpy(p, buf, sizeof(buf));
+      p = s + strlen(s);
     }
-    */
-    char buf[128 + 32];
-    snprintf(buf, sizeof(buf), "%s:%d, ", pSyncCfg->nodeInfo[i].nodeFqdn, pSyncCfg->nodeInfo[i].nodePort);
-    strncpy(p, buf, sizeof(buf));
-    p = s + strlen(s);
-  }
-  strcpy(p - 2, "}");
+    strcpy(p - 2, "}");
 
-  return s;
+    return s;
+  }
+
+  return NULL;
 }
 
 int32_t syncCfgFromJson(const cJSON *pRoot, SSyncCfg *pSyncCfg) {

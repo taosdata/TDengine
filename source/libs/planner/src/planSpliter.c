@@ -1040,6 +1040,7 @@ static int32_t unAllSplCreateExchangeNode(SSplitContext* pCxt, SLogicSubplan* pS
   if (NULL == pExchange->node.pTargets) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  TSWAP(pExchange->node.pLimit, pProject->node.pLimit);
 
   pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
 

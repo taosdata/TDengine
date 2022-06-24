@@ -629,11 +629,6 @@ typedef struct {
   uint8_t scale;
 } SColumnInfo;
 
-typedef struct {
-  int64_t uid;
-  TSKEY   key;  // last accessed ts, for subscription
-} STableIdInfo;
-
 typedef struct STimeWindow {
   TSKEY skey;
   TSKEY ekey;
@@ -1346,10 +1341,18 @@ typedef struct {
   int32_t dnodeId;
   char    config[TSDB_DNODE_CONFIG_LEN];
   char    value[TSDB_DNODE_VALUE_LEN];
-} SMCfgDnodeReq, SDCfgDnodeReq;
+} SMCfgDnodeReq;
 
 int32_t tSerializeSMCfgDnodeReq(void* buf, int32_t bufLen, SMCfgDnodeReq* pReq);
 int32_t tDeserializeSMCfgDnodeReq(void* buf, int32_t bufLen, SMCfgDnodeReq* pReq);
+
+typedef struct {
+  char config[TSDB_DNODE_CONFIG_LEN];
+  char value[TSDB_DNODE_VALUE_LEN];
+} SDCfgDnodeReq;
+
+int32_t tSerializeSDCfgDnodeReq(void* buf, int32_t bufLen, SDCfgDnodeReq* pReq);
+int32_t tDeserializeSDCfgDnodeReq(void* buf, int32_t bufLen, SDCfgDnodeReq* pReq);
 
 typedef struct {
   int32_t dnodeId;
@@ -2460,6 +2463,8 @@ typedef struct {
   int64_t interval;
   int64_t offset;
   int64_t sliding;
+  int64_t maxDelay;
+  int64_t watermark;
   int32_t exprLen;        // strlen + 1
   int32_t tagsFilterLen;  // strlen + 1
   int32_t sqlLen;         // strlen + 1

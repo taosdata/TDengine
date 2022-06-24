@@ -252,15 +252,17 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
 
 #if 1
   if (pReq->useSnapshot) {
-    tqInfo("retrieve using snapshot");
+    // TODO set ver into snapshot
     int64_t lastVer = walGetCommittedVer(pTq->pWal);
     if (rsp.reqOffset < lastVer) {
+      tqInfo("retrieve using snapshot req offset %ld last ver %ld", rsp.reqOffset, lastVer);
       tqScanSnapshot(pTq, &pHandle->execHandle, &rsp, workerId);
 
       if (rsp.blockNum != 0) {
         rsp.withTbName = false;
         rsp.rspOffset = lastVer;
-        tqInfo("direct send by snapshot rsp offset %ld", lastVer);
+        tqInfo("direct send by snapshot req offset %ld rsp offset %ld", rsp.reqOffset, rsp.rspOffset);
+        fetchOffset = lastVer;
         goto SEND_RSP;
       }
     }
@@ -304,7 +306,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
              pHead->msgType == TDMT_VND_DROP_STB || pHead->msgType == TDMT_VND_CREATE_TABLE ||
              pHead->msgType == TDMT_VND_ALTER_TABLE || pHead->msgType == TDMT_VND_DROP_TABLE ||
              pHead->msgType == TDMT_VND_DROP_TTL_TABLE);
-      // return
+      tqInfo("fetch meta msg, ver: %ld, type: %d", pHead->version, pHead->msgType);
       SMqMetaRsp metaRsp = {0};
       metaRsp.reqOffset = pReq->currentOffset;
       metaRsp.rspOffset = fetchOffset;
@@ -387,6 +389,7 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
     pHandle->epoch = -1;
 
     pHandle->execHandle.subType = req.subType;
+    pHandle->fetchMeta = req.withMeta;
 
     pHandle->pWalReader = walOpenReadHandle(pTq->pVnode->pWal);
     for (int32_t i = 0; i < 5; i++) {

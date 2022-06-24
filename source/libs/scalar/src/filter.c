@@ -3821,7 +3821,7 @@ bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, int8_t** p, SColumnData
     SScalarParam output = {0};
 
     SDataType type = {.type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
-    output.columnData = createColumnInfoData(&type, pSrc->info.rows);
+    output.columnData = sclCreateColumnInfoData(&type, pSrc->info.rows);
 
     SArray *pList = taosArrayInit(1, POINTER_BYTES);
     taosArrayPush(pList, &pSrc);

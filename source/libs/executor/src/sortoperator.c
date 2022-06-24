@@ -80,7 +80,7 @@ _error:
 }
 
 void appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle) {
-  for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
+  for (int32_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); ++i) {
     SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, i);
     bool             isNull = tsortIsNullVal(pTupleHandle, i);
     if (isNull) {
@@ -120,6 +120,9 @@ SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, i
   }
 
   if (p->info.rows > 0) {
+    blockDataEnsureCapacity(pDataBlock, capacity);
+
+    // todo extract function to handle this
     int32_t numOfCols = taosArrayGetSize(pColMatchInfo);
     for (int32_t i = 0; i < numOfCols; ++i) {
       SColMatchInfo* pmInfo = taosArrayGet(pColMatchInfo, i);
@@ -127,11 +130,10 @@ SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, i
 
       SColumnInfoData* pSrc = taosArrayGet(p->pDataBlock, pmInfo->srcSlotId);
       SColumnInfoData* pDst = taosArrayGet(pDataBlock->pDataBlock, pmInfo->targetSlotId);
-      colDataAssign(pDst, pSrc, p->info.rows);
+      colDataAssign(pDst, pSrc, p->info.rows, &pDataBlock->info);
     }
 
     pDataBlock->info.rows = p->info.rows;
-    pDataBlock->info.capacity = p->info.rows;
   }
 
   blockDataDestroy(p);
@@ -257,6 +259,7 @@ typedef struct SGroupSortOperatorInfo {
 SSDataBlock* getGroupSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity,
                                      SArray* pColMatchInfo, SGroupSortOperatorInfo* pInfo) {
   blockDataCleanup(pDataBlock);
+  blockDataEnsureCapacity(pDataBlock, capacity);
 
   SSDataBlock* p = tsortGetSortedDataBlock(pHandle);
   if (p == NULL) {
@@ -285,7 +288,7 @@ SSDataBlock* getGroupSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlo
 
       SColumnInfoData* pSrc = taosArrayGet(p->pDataBlock, pmInfo->srcSlotId);
       SColumnInfoData* pDst = taosArrayGet(pDataBlock->pDataBlock, pmInfo->targetSlotId);
-      colDataAssign(pDst, pSrc, p->info.rows);
+      colDataAssign(pDst, pSrc, p->info.rows, &pDataBlock->info);
     }
 
     pDataBlock->info.rows = p->info.rows;
@@ -464,7 +467,7 @@ SOperatorInfo* createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSort
   pInfo->pColMatchInfo = pColMatchColInfo;
   pOperator->name = "GroupSortOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT;
-  pOperator->blocking = true;
+  pOperator->blocking = false;
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
   pOperator->exprSupp.pExprInfo = pExprInfo;
@@ -568,7 +571,8 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
     }
   }
 
-  if (p->info.rows > 0) {
+  if (p->info.rows > 0) {// todo extract method
+    blockDataEnsureCapacity(pDataBlock, p->info.rows);
     int32_t numOfCols = taosArrayGetSize(pColMatchInfo);
     for (int32_t i = 0; i < numOfCols; ++i) {
       SColMatchInfo* pmInfo = taosArrayGet(pColMatchInfo, i);
@@ -576,11 +580,10 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
 
       SColumnInfoData* pSrc = taosArrayGet(p->pDataBlock, pmInfo->srcSlotId);
       SColumnInfoData* pDst = taosArrayGet(pDataBlock->pDataBlock, pmInfo->targetSlotId);
-      colDataAssign(pDst, pSrc, p->info.rows);
+      colDataAssign(pDst, pSrc, p->info.rows, &pDataBlock->info);
     }
 
     pDataBlock->info.rows = p->info.rows;
-    pDataBlock->info.capacity = p->info.rows;
     pDataBlock->info.groupId = pInfo->groupId;
   }
 
