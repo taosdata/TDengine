@@ -520,7 +520,17 @@ static int32_t execShowCreateSTable(SShowCreateTableStmt* pStmt, SRetrieveTableR
   return execShowCreateTable(pStmt, pRsp);
 }
 
-static int32_t execAlterLocal(SAlterLocalStmt* pStmt) { return TSDB_CODE_FAILED; }
+static int32_t execAlterLocal(SAlterLocalStmt* pStmt) { 
+  if (cfgSetItem(tsCfg, pStmt->config, pStmt->value, CFG_STYPE_ALTER_CMD)) {
+    return terrno; 
+  }
+
+  if (taosSetCfg(tsCfg, pStmt->config)) {
+    return terrno; 
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
 
 static SSDataBlock* buildLocalVariablesResultDataBlock() {
   SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
