@@ -4389,7 +4389,7 @@ tsdbReaderT doCreateDataReader(STableScanPhysiNode* pTableScanNode, SReadHandle*
     goto _error;
   }
 
-  tsdbReaderT pReader = tsdbReaderOpen(pHandle->vnode, &cond, pTableListInfo, queryId, taskId);
+  tsdbReaderT pReader = tsdbReaderOpen(pHandle->vnode, &cond, pTableListInfo->pTableList, queryId, taskId);
   cleanupQueryTableDataCond(&cond);
 
   return pReader;
