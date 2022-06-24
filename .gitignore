@@ -6,6 +6,7 @@ cmake-build-debug/
 cmake-build-release/
 cscope.out
 cscope.files
+tags
 .DS_Store
 debug/
 release/
