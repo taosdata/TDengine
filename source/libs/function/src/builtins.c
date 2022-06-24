@@ -2518,7 +2518,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getGroupKeyFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = groupKeyFunction,
-    .finalizeFunc = functionFinalize,
+    .finalizeFunc = groupKeyFinalize,
   },
 };
 // clang-format on

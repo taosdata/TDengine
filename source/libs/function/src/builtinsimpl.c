@@ -262,6 +262,12 @@ typedef struct SRateInfo {
   int8_t  hasResult;  // flag to denote has value
 } SRateInfo;
 
+typedef struct SGroupKeyInfo{
+  bool  hasResult;
+  char  data[];
+} SGroupKeyInfo;
+
+
 #define SET_VAL(_info, numOfElem, res) \
   do {                                 \
     if ((numOfElem) <= 0) {            \
@@ -2404,7 +2410,7 @@ bool getSelectivityFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
 
 bool getGroupKeyFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   SColumnNode* pNode = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
-  pEnv->calcMemSize = pNode->node.resType.bytes;
+  pEnv->calcMemSize = sizeof(SGroupKeyInfo) + pNode->node.resType.bytes;
   return true;
 }
 
@@ -5357,7 +5363,7 @@ int32_t irateFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
 int32_t groupKeyFunction(SqlFunctionCtx* pCtx) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
-  char* buf = GET_ROWCELL_INTERBUF(pResInfo);
+  SGroupKeyInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*   pInputCol = pInput->pData[0];
@@ -5366,15 +5372,30 @@ int32_t groupKeyFunction(SqlFunctionCtx* pCtx) {
 
   int32_t startIndex = pInput->startRowIndex;
   if (colDataIsNull_s(pInputCol, startIndex)) {
-    pResInfo->numOfRes = 0;
-    return TSDB_CODE_SUCCESS;
+    pInfo->hasResult = false;
+    goto _group_key_over;
   }
 
+  pInfo->hasResult = true;
   char* data = colDataGetData(pInputCol, startIndex);
-  memcpy(buf, data, bytes);
-  SET_VAL(pResInfo, 1, 1);
+  memcpy(pInfo->data, data, bytes);
 
+_group_key_over:
+
+  SET_VAL(pResInfo, 1, 1);
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t groupKeyFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+
+  SGroupKeyInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  colDataAppend(pCol, pBlock->info.rows, pInfo->data, pInfo->hasResult ? false : true);
+
+  return pResInfo->numOfRes;
 }
 
 int32_t interpFunction(SqlFunctionCtx* pCtx) {
