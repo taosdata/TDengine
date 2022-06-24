@@ -1110,6 +1110,7 @@ cJSON* wsclient_fetch(bool fetch_block) {
    pthread_join(rpid, NULL);
    if (wsclient.status != TCP_CONNECTED && wsclient.status != WS_CONNECTED) {
      fprintf(stderr, "websocket receive failed, reason: %s\n", wsclient_strerror(wsclient.status));
+     cJSON_Delete(fetch);
      return NULL;
    }
 
