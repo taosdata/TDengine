@@ -980,7 +980,7 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
     tTrace("try to send req to next node");
     pMsg->st = taosGetTimestampUs();
     pCtx->retryCount += 1;
-    if (pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+    if (pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL && pCtx->setMaxRetry == false) {
       if (pCtx->retryCount < pEpSet->numOfEps * 3) {
         pEpSet->inUse = (++pEpSet->inUse) % pEpSet->numOfEps;
         if (pThrd->quit == false) {
@@ -997,6 +997,7 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
         }
       }
     } else if (pCtx->retryCount < TRANS_RETRY_COUNT_LIMIT) {
+      pCtx->setMaxRetry = true;
       if (pResp->contLen == 0) {
         pEpSet->inUse = (++pEpSet->inUse) % pEpSet->numOfEps;
         transPrintEpSet(&pCtx->epSet);
@@ -1012,8 +1013,10 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
                pCtx->retryCount + 1, TRANS_RETRY_COUNT_LIMIT);
       }
       if (pThrd->quit == false) {
-        if (pConn->status != ConnInPool) {
+        if (pConn->status != ConnInPool && pResp->code != TSDB_CODE_RPC_NETWORK_UNAVAIL) {
           addConnToPool(pThrd->pool, pConn);
+        } else {
+          transUnrefCliHandle(pConn);
         }
         STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));
         arg->param1 = pMsg;
