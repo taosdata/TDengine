@@ -370,6 +370,15 @@ bool syncIsReady(int64_t rid) {
   ASSERT(rid == pSyncNode->rid);
   bool b = (pSyncNode->state == TAOS_SYNC_STATE_LEADER) && pSyncNode->restoreFinish;
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+
+  // if false, set error code
+  if (false == b) {
+    if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
+      terrno = TSDB_CODE_SYN_NOT_LEADER;
+    } else {
+      terrno = TSDB_CODE_APP_NOT_READY;
+    }
+  }
   return b;
 }
 

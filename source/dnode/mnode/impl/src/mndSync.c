@@ -261,7 +261,8 @@ bool mndIsMaster(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
 
   if (!syncIsReady(pMgmt->sync)) {
-    terrno = TSDB_CODE_SYN_NOT_LEADER;
+    // get terrno from syncIsReady
+    // terrno = TSDB_CODE_SYN_NOT_LEADER;
     return false;
   }
 
