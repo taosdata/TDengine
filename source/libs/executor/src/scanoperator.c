@@ -1022,6 +1022,8 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
         }
       }
 
+      taosArrayDestroy(block.pDataBlock);
+
       if (pInfo->pRes->pDataBlock == NULL) {
         // TODO add log
         pOperator->status = OP_EXEC_DONE;
