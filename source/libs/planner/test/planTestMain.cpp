@@ -16,9 +16,11 @@
 #include <string>
 
 #include <gtest/gtest.h>
+
 #include "functionMgt.h"
 #include "getopt.h"
 #include "mockCatalog.h"
+#include "parser.h"
 #include "planTestUtil.h"
 
 class PlannerEnv : public testing::Environment {
@@ -30,7 +32,12 @@ class PlannerEnv : public testing::Environment {
     initLog(TD_TMP_DIR_PATH "td");
   }
 
-  virtual void TearDown() { destroyMetaDataEnv(); }
+  virtual void TearDown() {
+    destroyMetaDataEnv();
+    qCleanupKeywordsTable();
+    fmFuncMgtDestroy();
+    taosCloseLog();
+  }
 
   PlannerEnv() {}
   virtual ~PlannerEnv() {}

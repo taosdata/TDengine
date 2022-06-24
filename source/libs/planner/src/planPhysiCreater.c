@@ -1197,6 +1197,9 @@ static int32_t createSortPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
     nodesDestroyNode((SNode*)pSort);
   }
 
+  nodesDestroyList(pPrecalcExprs);
+  nodesDestroyList(pSortKeys);
+
   return code;
 }
 
