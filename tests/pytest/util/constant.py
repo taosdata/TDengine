@@ -27,6 +27,8 @@ TAOS_BIN_TYPE   = [
 
 TAOS_TIME_INIT = ["b", "u", "a", "s", "m", "h", "d", "w", "n", "y"]
 TAOS_PRECISION = ["ms", "us", "ns"]
+PRECISION_DEFAULT = "ms"
+PRECISION = PRECISION_DEFAULT
 
 # basic data type boundary
 TINYINT_MAX             = 127
@@ -110,6 +112,8 @@ TIME_N = 30 * TIME_D
 TIME_Y = 365 * TIME_D
 
 
+# session parameters
+INTERVAL_MIN = 1 * TIME_MS if PRECISION == PRECISION_DEFAULT else 1 * TIME_US
 
 
 # streams and related agg-function

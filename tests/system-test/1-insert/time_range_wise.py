@@ -142,8 +142,8 @@ class SMAschema:
                     del self.other[k]
 
 
-from ...pytest.util.sql import *
-from ...pytest.util.constant import *
+# from ...pytest.util.sql import *
+# from ...pytest.util.constant import *
 
 class TDTestCase:
     updatecfgDict = {"querySmaOptimize": 1}
@@ -170,7 +170,11 @@ class TDTestCase:
         if sma.func:
             sql += f" function({', '.join(sma.func)})"
         if sma.interval:
-            sql += f" interval({', '.join(sma.interval)})"
+            interval, offset = self.__get_interval_offset(sma.interval)
+            if offset:
+                sql += f" interval({interval}, {offset})"
+            else:
+                sql += f" interval({interval})"
         if sma.sliding:
             sql += f" sliding({sma.sliding})"
         if sma.watermark:
@@ -213,6 +217,8 @@ class TDTestCase:
         return True
 
     def __check_sma_watermark(self, arg):
+        if not arg:
+            return False
         if not isinstance(arg, str):
             return False
         if arg[-1] not in SMA_WATMARK_MAXDELAY_INIT:
@@ -229,13 +235,14 @@ class TDTestCase:
         return True
 
     def __check_sma_max_delay(self, arg):
-        self.__check_sma_watermark(arg)
+        if not self.__check_sma_watermark(arg):
+            return False
         if tdSql.get_times(arg) < MAX_DELAY_MIN:
             return False
 
         return True
 
-    def __check_sliding(self, arg):
+    def __check_sma_sliding(self, arg):
         if not isinstance(arg, str):
             return False
         if arg[-1] not in TAOS_TIME_INIT:
@@ -245,10 +252,40 @@ class TDTestCase:
         if not arg[:-1].isdecimal():
             return False
 
+        return True
 
-    def __check_interval(self, arg):
-        if not isinstance(arg, tuple):
+    def __get_interval_offset(self, args):
+        if isinstance(args, str):
+            interval, offset = args, None
+        elif isinstance(args,tuple) or isinstance(args, list):
+            if len(args) == 1:
+                interval, offset = args[0], None
+            elif len(args) == 2:
+                interval, offset = args
+            else:
+                interval, offset = False, False
+        else:
+            interval, offset = False, False
+
+        return interval, offset
+
+    def __check_sma_interval(self, args):
+        if not isinstance(args, tuple) and not isinstance(args,str):
             return False
+        interval, offset =  self.__get_interval_offset(args)
+        if not interval:
+            return False
+        if not self.__check_sma_sliding(interval):
+            return False
+        if tdSql.get_times(interval) < INTERVAL_MIN:
+            return False
+        if offset:
+            if not self.__check_sma_sliding(offset):
+                return False
+            if tdSql.get_times(interval) <= tdSql.get_times(offset) :
+                return False
+
+        return True
 
     def __sma_create_check(self, sma:SMAschema):
         if  self.updatecfgDict["querySmaOptimize"] == 0:
@@ -272,9 +309,10 @@ class TDTestCase:
             return False
         if not sma.func or not self.__check_sma_func(sma.func):
             return False
-        if not sma.interval:
+        if not sma.sliding or not self.__check_sma_sliding(sma.sliding):
             return False
-        if not sma.sliding :
+        interval, _ =  self.__get_interval_offset(sma.interval)
+        if not sma.interval or not self.__check_sma_interval(sma.interval) or tdSql.get_times(interval) < tdSql.get_times(sma.sliding):
             return False
         if not sma.watermark or not self.__check_sma_watermark(sma.watermark):
             return False
@@ -300,10 +338,10 @@ class TDTestCase:
         # err_sqls.append( SMAschema(operator="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
         # err_sqls.append( SMAschema(tbname="", func=(f"min({INT_COL})",f"max({INT_COL})") ) )
         # err_sqls.append( SMAschema(func="",tbname=STBNAME ) )
-        # err_sqls.append( SMAschema(interval="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
+        err_sqls.append( SMAschema(interval=("6m"),tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
         # err_sqls.append( SMAschema(sliding="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
         # err_sqls.append( SMAschema(max_delay="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
-        err_sqls.append( SMAschema(watermark="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
+        # err_sqls.append( SMAschema(watermark="",tbname=STBNAME, func=(f"min({INT_COL})",f"max({INT_COL})") ) )
 
         return err_sqls, cur_sqls
 
@@ -311,7 +349,6 @@ class TDTestCase:
     def test_create_sma(self):
         err_sqls , cur_sqls = self.__create_sma_sql
         for err_sql in err_sqls:
-            print(type(err_sql.watermark))
             self.sma_create_check(err_sql)
 
     def all_test(self):
