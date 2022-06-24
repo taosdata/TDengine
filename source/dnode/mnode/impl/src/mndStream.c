@@ -321,6 +321,10 @@ FAIL:
 }
 
 int32_t mndPersistTaskDeployReq(STrans *pTrans, const SStreamTask *pTask) {
+  ASSERT(pTask->isDataScan == 0 || pTask->isDataScan == 1);
+  if (pTask->isDataScan == 0 && pTask->sinkType == TASK_SINK__NONE) {
+    ASSERT(taosArrayGetSize(pTask->childEpInfo) != 0);
+  }
   SEncoder encoder;
   tEncoderInit(&encoder, NULL, 0);
   tEncodeSStreamTask(&encoder, pTask);

@@ -1519,6 +1519,16 @@ static bool getBlockDistFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv
   return true;
 }
 
+static int32_t translateGroupKey(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
+  pFunc->node.resType = ((SExprNode*)pPara)->resType;
+  return TSDB_CODE_SUCCESS;
+}
+
 // clang-format off
 const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
@@ -2506,12 +2516,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   },
   {
     .name = "_group_key",
-    .type = FUNCTION_TYPE_BLOCK_DIST_INFO,
+    .type = FUNCTION_TYPE_GROUP_KEY,
     .classification = FUNC_MGT_AGG_FUNC,
-    .translateFunc = translateGroupKeyFunc,
+    .translateFunc = translateGroupKey,
+    .getEnvFunc   = getGroupKeyFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = groupKeyFunction,
+    .finalizeFunc = groupKeyFinalize,
     .pPartialFunc = "_group_key",
     .pMergeFunc   = "_group_key"
-  }
+  },
 };
 // clang-format on
 

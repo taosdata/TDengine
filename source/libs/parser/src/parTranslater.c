@@ -4662,7 +4662,7 @@ static int32_t extractShowCreateTableResultSchema(int32_t* numOfCols, SSchema** 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t extractShowLocalVariablesResultSchema(int32_t* numOfCols, SSchema** pSchema) {
+static int32_t extractShowVariablesResultSchema(int32_t* numOfCols, SSchema** pSchema) {
   *numOfCols = 2;
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
   if (NULL == (*pSchema)) {
@@ -4699,7 +4699,8 @@ int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pS
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
       return extractShowCreateTableResultSchema(numOfCols, pSchema);
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
-      return extractShowLocalVariablesResultSchema(numOfCols, pSchema);
+    case QUERY_NODE_SHOW_VARIABLES_STMT:
+      return extractShowVariablesResultSchema(numOfCols, pSchema);
     default:
       break;
   }
@@ -5930,7 +5931,6 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_CLUSTER_STMT:
     case QUERY_NODE_SHOW_TOPICS_STMT:
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
-    case QUERY_NODE_SHOW_VARIABLES_STMT:
     case QUERY_NODE_SHOW_APPS_STMT:
     case QUERY_NODE_SHOW_CONSUMERS_STMT:
     case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
@@ -6032,6 +6032,14 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_ALTER_LOCAL_STMT:
       pQuery->execMode = QUERY_EXEC_MODE_LOCAL;
       break;
+    case QUERY_NODE_SHOW_VARIABLES_STMT:
+      pQuery->haveResultSet = true;
+      pQuery->execMode = QUERY_EXEC_MODE_RPC;
+      if (NULL != pCxt->pCmdMsg) {
+        TSWAP(pQuery->pCmdMsg, pCxt->pCmdMsg);
+        pQuery->msgType = pQuery->pCmdMsg->msgType;
+      }
+      break;      
     default:
       pQuery->execMode = QUERY_EXEC_MODE_RPC;
       if (NULL != pCxt->pCmdMsg) {

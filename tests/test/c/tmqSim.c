@@ -93,8 +93,6 @@ static SConfInfo g_stConfInfo;
 TdFilePtr        g_fp = NULL;
 static int       running = 1;
 
-int8_t useSnapshot = 0;
-
 // char* g_pRowValue = NULL;
 // TdFilePtr g_fp = NULL;
 
@@ -126,11 +124,23 @@ char* getCurrentTimeString(char* timeString) {
   return timeString;
 }
 
+static void tmqStop(int signum, void *info, void *ctx) { 
+  running = 0;
+  char tmpString[128];
+  taosFprintfFile(g_fp, "%s tmqStop() receive stop signal[%d]\n", getCurrentTimeString(tmpString), signum);	
+}
+
+static void tmqSetSignalHandle() {
+  taosSetSignal(SIGINT, tmqStop);
+}
+
 void initLogFile() {
   char filename[256];
   char tmpString[128];
 
-  sprintf(filename, "%s/../log/tmqlog_%s.txt", configDir, getCurrentTimeString(tmpString));
+  pid_t process_id = getpid();
+
+  sprintf(filename, "%s/../log/tmqlog-%d-%s.txt", configDir, process_id, getCurrentTimeString(tmpString));
 #ifdef WINDOWS
   for (int i = 2; i < sizeof(filename); i++) {
     if (filename[i] == ':') filename[i] = '-';
@@ -205,7 +215,7 @@ void parseArgument(int32_t argc, char* argv[]) {
     } else if (strcmp(argv[i], "-y") == 0) {
       g_stConfInfo.consumeDelay = atol(argv[++i]);
     } else if (strcmp(argv[i], "-e") == 0) {
-      useSnapshot = (int8_t)atol(argv[++i]);
+      g_stConfInfo.useSnapshot = atol(argv[++i]);
     } else {
       pError("%s unknow para: %s %s", GREEN, argv[++i], NC);
       exit(-1);
@@ -519,7 +529,9 @@ static void    tmq_commit_cb_print(tmq_t* tmq, int32_t code, void* param) {
     g_once_commit_flag = 1;
     notifyMainScript((SThreadInfo*)param, (int32_t)NOTIFY_CMD_START_COMMIT);
   }
-  taosFprintfFile(g_fp, "tmq_commit_cb_print() be called\n");
+  
+  char tmpString[128];
+  taosFprintfFile(g_fp, "%s tmq_commit_cb_print() be called\n", getCurrentTimeString(tmpString));
 }
 
 void build_consumer(SThreadInfo* pInfo) {
@@ -552,7 +564,7 @@ void build_consumer(SThreadInfo* pInfo) {
   // tmq_conf_set(conf, "auto.offset.reset", "earliest");
   // tmq_conf_set(conf, "auto.offset.reset", "latest");
   //
-  if (useSnapshot) {
+  if (g_stConfInfo.useSnapshot) {
     tmq_conf_set(conf, "experiment.use.snapshot", "true");
   }
 
@@ -651,6 +663,10 @@ void loop_consume(SThreadInfo* pInfo) {
     }
   }
 
+  if (0 == running) {
+    taosFprintfFile(g_fp, "receive stop signal and not continue consume\n");
+  }
+
   pInfo->consumeMsgCnt = totalMsgs;
   pInfo->consumeRowCnt = totalRows;
 
@@ -680,7 +696,7 @@ void* consumeThreadFunc(void* param) {
   int32_t err = tmq_subscribe(pInfo->tmq, pInfo->topicList);
   if (err != 0) {
     pError("tmq_subscribe() fail, reason: %s\n", tmq_err2str(err));
-	taosFprintfFile(g_fp, "tmq_subscribe()! reason: %s\n", tmq_err2str(err));
+	taosFprintfFile(g_fp, "tmq_subscribe() fail! reason: %s\n", tmq_err2str(err));
     assert(0);
     return NULL;
   }
@@ -828,6 +844,8 @@ int main(int32_t argc, char* argv[]) {
   parseArgument(argc, argv);
   getConsumeInfo();
   saveConfigToLogFile();
+
+  tmqSetSignalHandle();
 
   TdThreadAttr thattr;
   taosThreadAttrInit(&thattr);

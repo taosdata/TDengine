@@ -455,6 +455,9 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, char* msg, int32_t msgLen) {
   }
   tDecoderClear(&decoder);
   ASSERT(pTask->isDataScan == 0 || pTask->isDataScan == 1);
+  if (pTask->isDataScan == 0 && pTask->sinkType == TASK_SINK__NONE) {
+    ASSERT(taosArrayGetSize(pTask->childEpInfo) != 0);
+  }
 
   pTask->execStatus = TASK_EXEC_STATUS__IDLE;
 
