@@ -197,22 +197,22 @@ print $switch_loop_cnt
 
 if $switch_loop_cnt == 1 then
   sql show vgroups
-  $dnodeId = $data[1][3]
+  $dnodeId = $data[0][3]
   $dnodeId = dnode . $dnodeId
   goto switch_leader_to_offine_loop
 elif $switch_loop_cnt == 2 then
   sql show vgroups
-  $dnodeId = $data[2][3]
+  $dnodeId = $data[0][3]
   $dnodeId = dnode . $dnodeId
   goto switch_leader_to_offine_loop
 elif $switch_loop_cnt == 3 then
   sql show vgroups
-  $dnodeId = $data[3][3]
+  $dnodeId = $data[0][3]
   $dnodeId = dnode . $dnodeId
   goto switch_leader_to_offine_loop
 elif $switch_loop_cnt == 4 then
   sql show vgroups
-  $dnodeId = $data[4][3]  
+  $dnodeId = $data[0][3]  
   $dnodeId = dnode . $dnodeId
   goto switch_leader_to_offine_loop
 else

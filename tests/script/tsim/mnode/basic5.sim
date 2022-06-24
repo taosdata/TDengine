@@ -233,7 +233,6 @@ if $data(1)[3] != dropping then
 endi
 
 print =============== step9: start mnode1 and wait it dropped
-sleep 3000
 system sh/exec.sh -n dnode1 -s start
 
 $x = 0

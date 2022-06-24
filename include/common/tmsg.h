@@ -510,7 +510,8 @@ typedef struct {
   int8_t   superUser;
   int8_t   connType;
   SEpSet   epSet;
-  char     sVersion[128];
+  char     sVer[TSDB_VERSION_LEN];
+  char     sDetailVer[128];
 } SConnectRsp;
 
 int32_t tSerializeSConnectRsp(void* buf, int32_t bufLen, SConnectRsp* pRsp);
@@ -835,6 +836,20 @@ typedef struct {
 
 int32_t tSerializeSDnodeListReq(void* buf, int32_t bufLen, SDnodeListReq* pReq);
 int32_t tDeserializeSDnodeListReq(void* buf, int32_t bufLen, SDnodeListReq* pReq);
+
+typedef struct {
+  int32_t useless;  // useless
+} SServerVerReq;
+
+int32_t tSerializeSServerVerReq(void* buf, int32_t bufLen, SServerVerReq* pReq);
+int32_t tDeserializeSServerVerReq(void* buf, int32_t bufLen, SServerVerReq* pReq);
+
+typedef struct {
+  char ver[TSDB_VERSION_LEN];
+} SServerVerRsp;
+
+int32_t tSerializeSServerVerRsp(void* buf, int32_t bufLen, SServerVerRsp* pRsp);
+int32_t tDeserializeSServerVerRsp(void* buf, int32_t bufLen, SServerVerRsp* pRsp);
 
 
 typedef struct SQueryNodeAddr {
@@ -1229,6 +1244,21 @@ typedef struct {
 int32_t tSerializeSShowVariablesReq(void* buf, int32_t bufLen, SShowVariablesReq* pReq);
 int32_t tDeserializeSShowVariablesReq(void* buf, int32_t bufLen, SShowVariablesReq* pReq);
 
+typedef struct {
+  char  name[TSDB_CONFIG_OPTION_LEN + 1];
+  char  value[TSDB_CONFIG_VALUE_LEN + 1];
+} SVariablesInfo;
+
+typedef struct {
+  SArray *variables;  //SArray<SVariablesInfo>
+} SShowVariablesRsp;
+
+int32_t tSerializeSShowVariablesRsp(void* buf, int32_t bufLen, SShowVariablesRsp* pReq);
+int32_t tDeserializeSShowVariablesRsp(void* buf, int32_t bufLen, SShowVariablesRsp* pReq);
+
+void tFreeSShowVariablesRsp(SShowVariablesRsp* pRsp);
+
+
 /*
  * sql: show tables like '%a_%'
  * payload is the query condition, e.g., '%a_%'
@@ -1341,10 +1371,18 @@ typedef struct {
   int32_t dnodeId;
   char    config[TSDB_DNODE_CONFIG_LEN];
   char    value[TSDB_DNODE_VALUE_LEN];
-} SMCfgDnodeReq, SDCfgDnodeReq;
+} SMCfgDnodeReq;
 
 int32_t tSerializeSMCfgDnodeReq(void* buf, int32_t bufLen, SMCfgDnodeReq* pReq);
 int32_t tDeserializeSMCfgDnodeReq(void* buf, int32_t bufLen, SMCfgDnodeReq* pReq);
+
+typedef struct {
+  char config[TSDB_DNODE_CONFIG_LEN];
+  char value[TSDB_DNODE_VALUE_LEN];
+} SDCfgDnodeReq;
+
+int32_t tSerializeSDCfgDnodeReq(void* buf, int32_t bufLen, SDCfgDnodeReq* pReq);
+int32_t tDeserializeSDCfgDnodeReq(void* buf, int32_t bufLen, SDCfgDnodeReq* pReq);
 
 typedef struct {
   int32_t dnodeId;
@@ -2455,6 +2493,8 @@ typedef struct {
   int64_t interval;
   int64_t offset;
   int64_t sliding;
+  int64_t maxDelay;
+  int64_t watermark;
   int32_t exprLen;        // strlen + 1
   int32_t tagsFilterLen;  // strlen + 1
   int32_t sqlLen;         // strlen + 1

@@ -66,6 +66,7 @@ int32_t tqScanSnapshot(STQ* pTq, const STqExecHandle* pExec, SMqDataBlkRsp* pRsp
   if (qStreamScanSnapshot(task) < 0) {
     ASSERT(0);
   }
+  // set version
   while (1) {
     SSDataBlock* pDataBlock = NULL;
     uint64_t     ts = 0;

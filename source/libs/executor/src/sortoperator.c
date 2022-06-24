@@ -390,6 +390,10 @@ SSDataBlock* doGroupSort(SOperatorInfo* pOperator) {
     pInfo->hasGroupId = true;
 
     pInfo->prefetchedSortInput = pOperator->pDownstream[0]->fpSet.getNextFn(pOperator->pDownstream[0]);
+    if (pInfo->prefetchedSortInput == NULL) {
+      doSetOperatorCompleted(pOperator);
+      return NULL;
+    }
     pInfo->currGroupId = pInfo->prefetchedSortInput->info.groupId;
     pInfo->childOpStatus = CHILD_OP_NEW_GROUP;
     beginSortGroup(pOperator);
@@ -463,7 +467,7 @@ SOperatorInfo* createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSort
   pInfo->pColMatchInfo = pColMatchColInfo;
   pOperator->name = "GroupSortOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT;
-  pOperator->blocking = true;
+  pOperator->blocking = false;
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
   pOperator->exprSupp.pExprInfo = pExprInfo;

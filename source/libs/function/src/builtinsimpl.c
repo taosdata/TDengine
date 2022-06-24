@@ -262,6 +262,12 @@ typedef struct SRateInfo {
   int8_t  hasResult;  // flag to denote has value
 } SRateInfo;
 
+typedef struct SGroupKeyInfo{
+  bool  hasResult;
+  char  data[];
+} SGroupKeyInfo;
+
+
 #define SET_VAL(_info, numOfElem, res) \
   do {                                 \
     if ((numOfElem) <= 0) {            \
@@ -561,7 +567,7 @@ int32_t sumFunction(SqlFunctionCtx* pCtx) {
 
   // check for overflow
   if (IS_FLOAT_TYPE(type) && (isinf(pSumRes->dsum) || isnan(pSumRes->dsum))) {
-    GET_RES_INFO(pCtx)->isNullRes = 1;
+    numOfElem = 0;
   }
 
 _sum_over:
@@ -927,7 +933,7 @@ int32_t avgFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   // check for overflow
   if (isinf(pAvgRes->result) || isnan(pAvgRes->result)) {
-    GET_RES_INFO(pCtx)->isNullRes = 1;
+    GET_RES_INFO(pCtx)->numOfRes = 0;
   }
 
   return functionFinalize(pCtx, pBlock);
@@ -1776,6 +1782,11 @@ int32_t stddevFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     pStddevRes->result = sqrt(fabs(pStddevRes->quadraticDSum / ((double)pStddevRes->count) - avg * avg));
   }
 
+  // check for overflow
+  if (isinf(pStddevRes->result) || isnan(pStddevRes->result)) {
+    GET_RES_INFO(pCtx)->numOfRes = 0;
+  }
+
   return functionFinalize(pCtx, pBlock);
 }
 
@@ -2394,6 +2405,12 @@ bool getFirstLastFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
 bool getSelectivityFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   SColumnNode* pNode = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
   pEnv->calcMemSize = pNode->node.resType.bytes;
+  return true;
+}
+
+bool getGroupKeyFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+  SColumnNode* pNode = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
+  pEnv->calcMemSize = sizeof(SGroupKeyInfo) + pNode->node.resType.bytes;
   return true;
 }
 
@@ -5340,6 +5357,43 @@ int32_t irateFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SRateInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   double result = doCalcRate(pInfo, 1000);
   colDataAppend(pCol, pBlock->info.rows, (const char*)&result, pResInfo->isNullRes);
+
+  return pResInfo->numOfRes;
+}
+
+int32_t groupKeyFunction(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SGroupKeyInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*   pInputCol = pInput->pData[0];
+
+  int32_t bytes = pInputCol->info.bytes;
+
+  int32_t startIndex = pInput->startRowIndex;
+  if (colDataIsNull_s(pInputCol, startIndex)) {
+    pInfo->hasResult = false;
+    goto _group_key_over;
+  }
+
+  pInfo->hasResult = true;
+  char* data = colDataGetData(pInputCol, startIndex);
+  memcpy(pInfo->data, data, bytes);
+
+_group_key_over:
+
+  SET_VAL(pResInfo, 1, 1);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t groupKeyFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+
+  SGroupKeyInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  colDataAppend(pCol, pBlock->info.rows, pInfo->data, pInfo->hasResult ? false : true);
 
   return pResInfo->numOfRes;
 }

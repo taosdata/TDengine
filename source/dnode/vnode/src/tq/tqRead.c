@@ -146,11 +146,11 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReadHandle* pHandle, uint64_
                             int32_t* pNumOfRows) {
   *pUid = 0;
 
-  // TODO set to real sversion
-  /*int32_t sversion = 1;*/
+  // TODO: cache multiple schema
   int32_t sversion = htonl(pHandle->pBlock->sversion);
   if (pHandle->cachedSchemaSuid == 0 || pHandle->cachedSchemaVer != sversion ||
       pHandle->cachedSchemaSuid != pHandle->msgIter.suid) {
+    if (pHandle->pSchema) taosMemoryFree(pHandle->pSchema);
     pHandle->pSchema = metaGetTbTSchema(pHandle->pVnodeMeta, pHandle->msgIter.uid, sversion);
     if (pHandle->pSchema == NULL) {
       tqWarn("cannot found tsschema for table: uid: %ld (suid: %ld), version %d, possibly dropped table",
@@ -160,7 +160,7 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReadHandle* pHandle, uint64_
       return -1;
     }
 
-    // this interface use suid instead of uid
+    if (pHandle->pSchemaWrapper) tDeleteSSchemaWrapper(pHandle->pSchemaWrapper);
     pHandle->pSchemaWrapper = metaGetTableSchema(pHandle->pVnodeMeta, pHandle->msgIter.uid, sversion, true);
     if (pHandle->pSchemaWrapper == NULL) {
       tqWarn("cannot found schema wrapper for table: suid: %ld, version %d, possibly dropped table",
@@ -184,7 +184,7 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReadHandle* pHandle, uint64_
     while (colMeta < pSchemaWrapper->nCols) {
       SSchema*        pColSchema = &pSchemaWrapper->pSchema[colMeta];
       SColumnInfoData colInfo = createColumnInfoData(pColSchema->type, pColSchema->bytes, pColSchema->colId);
-      int32_t code = blockDataAppendColInfo(pBlock, &colInfo);
+      int32_t         code = blockDataAppendColInfo(pBlock, &colInfo);
       if (code != TSDB_CODE_SUCCESS) {
         goto FAIL;
       }
@@ -207,7 +207,7 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReadHandle* pHandle, uint64_
         colNeed++;
       } else {
         SColumnInfoData colInfo = createColumnInfoData(pColSchema->type, pColSchema->bytes, pColSchema->colId);
-        int32_t code = blockDataAppendColInfo(pBlock, &colInfo);
+        int32_t         code = blockDataAppendColInfo(pBlock, &colInfo);
         if (code != TSDB_CODE_SUCCESS) {
           goto FAIL;
         }
@@ -243,7 +243,7 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReadHandle* pHandle, uint64_
       if (!tdSTSRowIterNext(&iter, pColData->info.colId, pColData->info.type, &sVal)) {
         break;
       }
-      if (colDataAppend(pColData, curRow, sVal.val, sVal.valType == TD_VTYPE_NULL) < 0) {
+      if (colDataAppend(pColData, curRow, sVal.val, sVal.valType != TD_VTYPE_NORM) < 0) {
         goto FAIL;
       }
     }
@@ -251,8 +251,8 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReadHandle* pHandle, uint64_
   }
   return 0;
 
-FAIL: // todo refactor here
-//  if (*ppCols) taosArrayDestroy(*ppCols);
+FAIL:  // todo refactor here
+       //  if (*ppCols) taosArrayDestroy(*ppCols);
   return -1;
 }
 

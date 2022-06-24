@@ -517,8 +517,9 @@ static int32_t createColumnsByTable(STranslateContext* pCxt, const STableNode* p
       if (NULL == pCol) {
         return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_OUT_OF_MEMORY);
       }
-      setColumnInfoByExpr(pTable, (SExprNode*)pNode, &pCol);
       nodesListAppend(pList, (SNode*)pCol);
+      SListCell* pCell = nodesListGetCell(pList, LIST_LENGTH(pList) - 1);
+      setColumnInfoByExpr(pTable, (SExprNode*)pNode, (SColumnNode**)&pCell->pNode);
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -707,7 +708,11 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
       res = translateColumnUseAlias(pCxt, pCol, &found);
     }
     if (DEAL_RES_ERROR != res && !found) {
-      res = translateColumnWithoutPrefix(pCxt, pCol);
+      if (NULL != pCxt->pCurrSetOperator) {
+        res = generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_COLUMN, (*pCol)->colName);
+      } else {
+        res = translateColumnWithoutPrefix(pCxt, pCol);
+      }
     }
   }
   return res;
@@ -2656,6 +2661,13 @@ static int32_t translateSetOperOrderBy(STranslateContext* pCxt, SSetOperator* pS
   return code;
 }
 
+static int32_t checkSetOperLimit(STranslateContext* pCxt, SLimitNode* pLimit) {
+  if ((NULL != pLimit && pLimit->offset < 0)) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OFFSET_LESS_ZERO);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateSetOperator(STranslateContext* pCxt, SSetOperator* pSetOperator) {
   int32_t code = translateQuery(pCxt, pSetOperator->pLeft);
   if (TSDB_CODE_SUCCESS == code) {
@@ -2670,6 +2682,9 @@ static int32_t translateSetOperator(STranslateContext* pCxt, SSetOperator* pSetO
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateSetOperOrderBy(pCxt, pSetOperator);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkSetOperLimit(pCxt, (SLimitNode*)pSetOperator->pLimit);
   }
   return code;
 }
@@ -3566,9 +3581,7 @@ static int32_t buildRollupFuncs(SNodeList* pFuncs, SArray** pArray) {
   }
   *pArray = taosArrayInit(LIST_LENGTH(pFuncs), TSDB_FUNC_NAME_LEN);
   SNode* pNode;
-  FOREACH(pNode, pFuncs) {
-    taosArrayPush(*pArray, ((SFunctionNode*)pNode)->functionName);
-  }
+  FOREACH(pNode, pFuncs) { taosArrayPush(*pArray, ((SFunctionNode*)pNode)->functionName); }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3867,6 +3880,11 @@ static int32_t buildCreateSmaReq(STranslateContext* pCxt, SCreateIndexStmt* pStm
       (NULL != pStmt->pOptions->pSliding ? ((SValueNode*)pStmt->pOptions->pSliding)->datum.i : pReq->interval);
   pReq->slidingUnit =
       (NULL != pStmt->pOptions->pSliding ? ((SValueNode*)pStmt->pOptions->pSliding)->unit : pReq->intervalUnit);
+  if (NULL != pStmt->pOptions->pStreamOptions) {
+    SStreamOptions* pStreamOpt = (SStreamOptions*)pStmt->pOptions->pStreamOptions;
+    pReq->maxDelay = (NULL != pStreamOpt->pDelay ? ((SValueNode*)pStreamOpt->pDelay)->datum.i : 0);
+    pReq->watermark = (NULL != pStreamOpt->pWatermark ? ((SValueNode*)pStreamOpt->pWatermark)->datum.i : 0);
+  }
 
   int32_t code = getSmaIndexDstVgId(pCxt, pStmt->tableName, &pReq->dstVgId);
   if (TSDB_CODE_SUCCESS == code) {
@@ -3886,6 +3904,18 @@ static int32_t translateCreateSmaIndex(STranslateContext* pCxt, SCreateIndexStmt
       (NULL != pStmt->pOptions->pSliding &&
        DEAL_RES_ERROR == translateValue(pCxt, (SValueNode*)pStmt->pOptions->pSliding))) {
     return pCxt->errCode;
+  }
+
+  if (NULL != pStmt->pOptions->pStreamOptions) {
+    SStreamOptions* pStreamOpt = (SStreamOptions*)pStmt->pOptions->pStreamOptions;
+    if (NULL != pStreamOpt->pWatermark &&
+        (DEAL_RES_ERROR == translateValue(pCxt, (SValueNode*)pStreamOpt->pWatermark))) {
+      return pCxt->errCode;
+    }
+
+    if (NULL != pStreamOpt->pDelay && (DEAL_RES_ERROR == translateValue(pCxt, (SValueNode*)pStreamOpt->pDelay))) {
+      return pCxt->errCode;
+    }
   }
 
   SMCreateSmaReq createSmaReq = {0};
@@ -4611,7 +4641,7 @@ static int32_t extractShowCreateTableResultSchema(int32_t* numOfCols, SSchema** 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t extractShowLocalVariablesResultSchema(int32_t* numOfCols, SSchema** pSchema) {
+static int32_t extractShowVariablesResultSchema(int32_t* numOfCols, SSchema** pSchema) {
   *numOfCols = 2;
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
   if (NULL == (*pSchema)) {
@@ -4628,7 +4658,6 @@ static int32_t extractShowLocalVariablesResultSchema(int32_t* numOfCols, SSchema
 
   return TSDB_CODE_SUCCESS;
 }
-
 
 int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema) {
   if (NULL == pRoot) {
@@ -4649,7 +4678,8 @@ int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pS
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
       return extractShowCreateTableResultSchema(numOfCols, pSchema);
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
-      return extractShowLocalVariablesResultSchema(numOfCols, pSchema);
+    case QUERY_NODE_SHOW_VARIABLES_STMT:
+      return extractShowVariablesResultSchema(numOfCols, pSchema);
     default:
       break;
   }
@@ -4683,6 +4713,8 @@ static const char* getSysDbName(ENodeType type) {
     case QUERY_NODE_SHOW_STREAMS_STMT:
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
     case QUERY_NODE_SHOW_APPS_STMT:
+    case QUERY_NODE_SHOW_CONSUMERS_STMT:
+    case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
       return TSDB_PERFORMANCE_SCHEMA_DB;
     default:
       break;
@@ -4738,6 +4770,10 @@ static const char* getSysTableName(ENodeType type) {
       return TSDB_PERFS_TABLE_APPS;
     case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:
       return TSDB_INS_TABLE_DNODE_VARIABLES;
+    case QUERY_NODE_SHOW_CONSUMERS_STMT:
+      return TSDB_PERFS_TABLE_CONSUMERS;
+    case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
+      return TSDB_PERFS_TABLE_SUBSCRIPTIONS;
     default:
       break;
   }
@@ -5874,8 +5910,9 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_CLUSTER_STMT:
     case QUERY_NODE_SHOW_TOPICS_STMT:
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
-    case QUERY_NODE_SHOW_VARIABLES_STMT:
     case QUERY_NODE_SHOW_APPS_STMT:
+    case QUERY_NODE_SHOW_CONSUMERS_STMT:
+    case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
       code = rewriteShow(pCxt, pQuery);
       break;
     case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:
@@ -5974,6 +6011,14 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_ALTER_LOCAL_STMT:
       pQuery->execMode = QUERY_EXEC_MODE_LOCAL;
       break;
+    case QUERY_NODE_SHOW_VARIABLES_STMT:
+      pQuery->haveResultSet = true;
+      pQuery->execMode = QUERY_EXEC_MODE_RPC;
+      if (NULL != pCxt->pCmdMsg) {
+        TSWAP(pQuery->pCmdMsg, pCxt->pCmdMsg);
+        pQuery->msgType = pQuery->pCmdMsg->msgType;
+      }
+      break;      
     default:
       pQuery->execMode = QUERY_EXEC_MODE_RPC;
       if (NULL != pCxt->pCmdMsg) {

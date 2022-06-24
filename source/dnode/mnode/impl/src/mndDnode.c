@@ -48,6 +48,7 @@ static int32_t  mndDnodeActionInsert(SSdb *pSdb, SDnodeObj *pDnode);
 static int32_t  mndDnodeActionDelete(SSdb *pSdb, SDnodeObj *pDnode);
 static int32_t  mndDnodeActionUpdate(SSdb *pSdb, SDnodeObj *pOld, SDnodeObj *pNew);
 static int32_t  mndProcessDnodeListReq(SRpcMsg *pReq);
+static int32_t  mndProcessShowVariablesReq(SRpcMsg *pReq);
 
 static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq);
@@ -78,6 +79,7 @@ int32_t mndInitDnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_DND_CONFIG_DNODE_RSP, mndProcessConfigDnodeRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_STATUS, mndProcessStatusReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DNODE_LIST, mndProcessDnodeListReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_SHOW_VARIABLES, mndProcessShowVariablesReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_CONFIGS, mndRetrieveConfigs);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_CONFIGS, mndCancelGetNextConfig);
@@ -502,20 +504,20 @@ _OVER:
 }
 
 static int32_t mndProcessDnodeListReq(SRpcMsg *pReq) {
-  SMnode *pMnode = pReq->info.node;
-  SSdb   *pSdb = pMnode->pSdb;
-  SDnodeObj *pObj = NULL;
-  void *pIter = NULL;
+  SMnode       *pMnode = pReq->info.node;
+  SSdb         *pSdb = pMnode->pSdb;
+  SDnodeObj    *pObj = NULL;
+  void         *pIter = NULL;
   SDnodeListRsp rsp = {0};
-  int32_t code = -1;
-  
+  int32_t       code = -1;
+
   rsp.dnodeList = taosArrayInit(5, sizeof(SEpSet));
   if (NULL == rsp.dnodeList) {
     mError("failed to alloc epSet while process dnode list req");
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _OVER;
   }
-  
+
   while (1) {
     pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pObj);
     if (pIter == NULL) break;
@@ -550,6 +552,59 @@ _OVER:
   }
 
   tFreeSDnodeListRsp(&rsp);
+
+  return code;
+}
+
+static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
+  SShowVariablesRsp rsp = {0};
+  int32_t       code = -1;
+
+  rsp.variables = taosArrayInit(4, sizeof(SVariablesInfo));
+  if (NULL == rsp.variables) {
+    mError("failed to alloc SVariablesInfo array while process show variables req");
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+
+  SVariablesInfo info = {0};
+
+  strcpy(info.name, "statusInterval");
+  snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%d", tsStatusInterval);
+  taosArrayPush(rsp.variables, &info);
+
+  strcpy(info.name, "timezone");
+  snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsTimezoneStr);
+  taosArrayPush(rsp.variables, &info);
+  
+  strcpy(info.name, "locale");
+  snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsLocale);
+  taosArrayPush(rsp.variables, &info);
+
+  strcpy(info.name, "charset");
+  snprintf(info.value, TSDB_CONFIG_VALUE_LEN, "%s", tsCharset);
+  taosArrayPush(rsp.variables, &info);
+
+  int32_t rspLen = tSerializeSShowVariablesRsp(NULL, 0, &rsp);
+  void   *pRsp = rpcMallocCont(rspLen);
+  if (pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+
+  tSerializeSShowVariablesRsp(pRsp, rspLen, &rsp);
+
+  pReq->info.rspLen = rspLen;
+  pReq->info.rsp = pRsp;
+  code = 0;
+
+_OVER:
+
+  if (code != 0) {
+    mError("failed to get show variables info since %s", terrstr());
+  }
+
+  tFreeSShowVariablesRsp(&rsp);
 
   return code;
 }
@@ -732,15 +787,37 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     mError("dnode:%d, failed to config since %s ", cfgReq.dnodeId, terrstr());
     return -1;
   }
-
   SEpSet epSet = mndGetDnodeEpset(pDnode);
   mndReleaseDnode(pMnode, pDnode);
 
-  int32_t bufLen = tSerializeSMCfgDnodeReq(NULL, 0, &cfgReq);
+  SDCfgDnodeReq dcfgReq = {0};
+  if (strncasecmp(cfgReq.config, "debugFlag", 9) == 0) {
+    const char *value = cfgReq.value;
+    int32_t     flag = atoi(value);
+    if (flag <= 0) {
+      flag = atoi(cfgReq.config + 10);
+    }
+    if (flag <= 0 || flag > 255) {
+      mError("dnode:%d, failed to config debugFlag since value:%d", cfgReq.dnodeId, flag);
+      terrno = TSDB_CODE_INVALID_CFG;
+      return -1;
+    }
+
+    strcpy(dcfgReq.config, "debugFlag");
+    snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
+  } else if (strcasecmp(cfgReq.config, "resetlog") == 0) {
+    strcpy(dcfgReq.config, "resetlog");
+  } else {
+    terrno = TSDB_CODE_INVALID_CFG;
+    mError("dnode:%d, failed to config since %s", cfgReq.dnodeId, terrstr());
+    return -1;
+  }
+
+  int32_t bufLen = tSerializeSDCfgDnodeReq(NULL, 0, &dcfgReq);
   void   *pBuf = rpcMallocCont(bufLen);
 
   if (pBuf == NULL) return -1;
-  tSerializeSMCfgDnodeReq(pBuf, bufLen, &cfgReq);
+  tSerializeSDCfgDnodeReq(pBuf, bufLen, &dcfgReq);
 
   mDebug("dnode:%d, send config req to dnode, app:%p", cfgReq.dnodeId, pReq->info.ahandle);
   SRpcMsg rpcMsg = {.msgType = TDMT_DND_CONFIG_DNODE, .pCont = pBuf, .contLen = bufLen};

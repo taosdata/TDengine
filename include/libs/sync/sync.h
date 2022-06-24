@@ -157,13 +157,13 @@ typedef struct SSyncLogStore {
   SyncIndex (*getCommitIndex)(struct SSyncLogStore* pLogStore);
 
   // refactor, log[0 .. n] ==> log[m .. n]
-  int32_t (*syncLogSetBeginIndex)(struct SSyncLogStore* pLogStore, SyncIndex beginIndex);
-  int32_t (*syncLogResetBeginIndex)(struct SSyncLogStore* pLogStore);
+  // int32_t (*syncLogSetBeginIndex)(struct SSyncLogStore* pLogStore, SyncIndex beginIndex);
+
   SyncIndex (*syncLogBeginIndex)(struct SSyncLogStore* pLogStore);
   SyncIndex (*syncLogEndIndex)(struct SSyncLogStore* pLogStore);
   bool (*syncLogIsEmpty)(struct SSyncLogStore* pLogStore);
   int32_t (*syncLogEntryCount)(struct SSyncLogStore* pLogStore);
-  // bool (*syncLogInRange)(struct SSyncLogStore* pLogStore, SyncIndex index);
+  int32_t (*syncLogRestoreFromSnapshot)(struct SSyncLogStore* pLogStore, SyncIndex index);
 
   SyncIndex (*syncLogWriteIndex)(struct SSyncLogStore* pLogStore);
   SyncIndex (*syncLogLastIndex)(struct SSyncLogStore* pLogStore);
@@ -200,6 +200,7 @@ const char* syncGetMyRoleStr(int64_t rid);
 SyncTerm    syncGetMyTerm(int64_t rid);
 SyncGroupId syncGetVgId(int64_t rid);
 void        syncGetEpSet(int64_t rid, SEpSet* pEpSet);
+void        syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet);
 int32_t     syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak);
 bool        syncEnvIsStart();
 const char* syncStr(ESyncState state);
