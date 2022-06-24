@@ -34,9 +34,9 @@ class EMQXTest(TDCase):
 
     def run(self):
         self.remote.cmd(self.target_host, "docker run -d --name emqxtest --network host  -v /opt/emqx/data:/opt/emqx/data -v /opt/emqx/log:/opt/emqx/log emqx/emqx:latest")
-        time.sleep(10)
+        time.sleep(15)
         self.copy_files(["mock.js", "package.json"])
-        self.remote.cmd(self.target_host, ["cd /tmp/emqxtest", "npm install", "node mock.js"])
+        self.remote.cmd(self.target_host, ["cd /tmp/emqxtest", "npm install", "node --unhandled-rejections=strict  mock.js"])
         time.sleep(1)
         self.tdSql.query("select count(*) from test.sensor_data")
         self.tdSql.checkData(0, 0, 10)
