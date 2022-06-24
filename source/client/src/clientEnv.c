@@ -85,7 +85,8 @@ void closeTransporter(STscObj *pTscObj) {
 }
 
 static bool clientRpcRfp(int32_t code) {
-  if (code == TSDB_CODE_RPC_REDIRECT) {
+  if (code == TSDB_CODE_RPC_REDIRECT || code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_NODE_NOT_DEPLOYED ||
+      code == TSDB_CODE_SYN_NOT_LEADER) {
     return true;
   } else {
     return false;
