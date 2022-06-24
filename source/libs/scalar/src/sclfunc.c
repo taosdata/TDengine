@@ -730,6 +730,60 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
     char *input = colDataGetData(pInput[0].columnData, i);
 
     switch(outputType) {
+      case TSDB_DATA_TYPE_TINYINT: {
+        if (inputType == TSDB_DATA_TYPE_BINARY) {
+          *(int8_t *)output = taosStr2Int8(varDataVal(input), NULL, 10);
+        } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
+          char *newBuf = taosMemoryCalloc(1, inputLen);
+          int32_t len  = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), newBuf);
+          if (len < 0) {
+            taosMemoryFree(newBuf);
+            return TSDB_CODE_FAILED;
+          }
+          newBuf[len] = 0;
+          *(int8_t *)output = taosStr2Int8(newBuf, NULL, 10);
+          taosMemoryFree(newBuf);
+        } else {
+          GET_TYPED_DATA(*(int8_t *)output, int8_t, inputType, input);
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_SMALLINT: {
+        if (inputType == TSDB_DATA_TYPE_BINARY) {
+          *(int16_t *)output = taosStr2Int16(varDataVal(input), NULL, 10);
+        } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
+          char *newBuf = taosMemoryCalloc(1, inputLen);
+          int32_t len  = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), newBuf);
+          if (len < 0) {
+            taosMemoryFree(newBuf);
+            return TSDB_CODE_FAILED;
+          }
+          newBuf[len] = 0;
+          *(int16_t *)output = taosStr2Int16(newBuf, NULL, 10);
+          taosMemoryFree(newBuf);
+        } else {
+          GET_TYPED_DATA(*(int16_t *)output, int16_t, inputType, input);
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_INT: {
+        if (inputType == TSDB_DATA_TYPE_BINARY) {
+          *(int32_t *)output = taosStr2Int32(varDataVal(input), NULL, 10);
+        } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
+          char *newBuf = taosMemoryCalloc(1, inputLen);
+          int32_t len  = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), newBuf);
+          if (len < 0) {
+            taosMemoryFree(newBuf);
+            return TSDB_CODE_FAILED;
+          }
+          newBuf[len] = 0;
+          *(int32_t *)output = taosStr2Int32(newBuf, NULL, 10);
+          taosMemoryFree(newBuf);
+        } else {
+          GET_TYPED_DATA(*(int32_t *)output, int32_t, inputType, input);
+        }
+        break;
+      }
       case TSDB_DATA_TYPE_BIGINT: {
         if (inputType == TSDB_DATA_TYPE_BINARY) {
           *(int64_t *)output = taosStr2Int64(varDataVal(input), NULL, 10);
@@ -745,6 +799,60 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           taosMemoryFree(newBuf);
         } else {
           GET_TYPED_DATA(*(int64_t *)output, int64_t, inputType, input);
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_UTINYINT: {
+        if (inputType == TSDB_DATA_TYPE_BINARY) {
+          *(uint8_t *)output = taosStr2UInt8(varDataVal(input), NULL, 10);
+        } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
+          char *newBuf = taosMemoryCalloc(1, inputLen);
+          int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), newBuf);
+          if (len < 0) {
+            taosMemoryFree(newBuf);
+            return TSDB_CODE_FAILED;
+          }
+          newBuf[len] = 0;
+          *(uint8_t *)output = taosStr2UInt8(newBuf, NULL, 10);
+          taosMemoryFree(newBuf);
+        } else {
+          GET_TYPED_DATA(*(uint8_t *)output, uint8_t, inputType, input);
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_USMALLINT: {
+        if (inputType == TSDB_DATA_TYPE_BINARY) {
+          *(uint16_t *)output = taosStr2UInt16(varDataVal(input), NULL, 10);
+        } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
+          char *newBuf = taosMemoryCalloc(1, inputLen);
+          int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), newBuf);
+          if (len < 0) {
+            taosMemoryFree(newBuf);
+            return TSDB_CODE_FAILED;
+          }
+          newBuf[len] = 0;
+          *(uint16_t *)output = taosStr2UInt16(newBuf, NULL, 10);
+          taosMemoryFree(newBuf);
+        } else {
+          GET_TYPED_DATA(*(uint16_t *)output, uint16_t, inputType, input);
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_UINT: {
+        if (inputType == TSDB_DATA_TYPE_BINARY) {
+          *(uint32_t *)output = taosStr2UInt32(varDataVal(input), NULL, 10);
+        } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
+          char *newBuf = taosMemoryCalloc(1, inputLen);
+          int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), newBuf);
+          if (len < 0) {
+            taosMemoryFree(newBuf);
+            return TSDB_CODE_FAILED;
+          }
+          newBuf[len] = 0;
+          *(uint32_t *)output = taosStr2UInt32(newBuf, NULL, 10);
+          taosMemoryFree(newBuf);
+        } else {
+          GET_TYPED_DATA(*(uint32_t *)output, uint32_t, inputType, input);
         }
         break;
       }
