@@ -540,7 +540,7 @@ static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
   mError("msg:%p, failed to check mnode state since %s, type:%s, numOfMnodes:%d inUse:%d", pMsg, terrstr(),
          TMSG_INFO(pMsg->msgType), epSet.numOfEps, epSet.inUse);
   for (int32_t i = 0; i < epSet.numOfEps; ++i) {
-    mTrace("mnode index:%d, ep:%s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
+    mInfo("mnode index:%d, ep:%s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
   }
 
   int32_t contLen = tSerializeSEpSet(NULL, 0, &epSet);
