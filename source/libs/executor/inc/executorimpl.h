@@ -336,11 +336,10 @@ typedef struct SStreamBlockScanInfo {
   int32_t         numOfPseudoExpr;
 
   int32_t         primaryTsIndex;    // primary time stamp slot id
-  void*           pDataReader;
   SReadHandle     readHandle;
   uint64_t        tableUid;         // queried super table uid
   EStreamScanMode scanMode;
-  SOperatorInfo* pOperatorDumy;
+  SOperatorInfo* pSnapshotReadOp;
   SInterval      interval;     // if the upstream is an interval operator, the interval info is also kept here.
   SArray*        childIds;
   SessionWindowSupporter sessionSup;

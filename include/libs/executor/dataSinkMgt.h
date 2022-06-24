@@ -33,7 +33,7 @@ struct SDataSink;
 struct SSDataBlock;
 
 typedef struct SDeleterRes {
-  uint64_t uid;
+  uint64_t suid;
   SArray*  uidList;
   int64_t  skey;
   int64_t  ekey;
@@ -41,7 +41,8 @@ typedef struct SDeleterRes {
 } SDeleterRes;
 
 typedef struct SDeleterParam {
-  SArray* pUidList;
+  uint64_t suid;
+  SArray*  pUidList;
 } SDeleterParam;
 
 typedef struct SDataSinkStat {

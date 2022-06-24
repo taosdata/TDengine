@@ -928,7 +928,12 @@ int32_t reserveDnodeRequiredInCache(SParseMetaCache* pMetaCache) {
 }
 
 int32_t getDnodeListFromCache(SParseMetaCache* pMetaCache, SArray** pDnodes) {
-  *pDnodes = taosArrayDup(pMetaCache->pDnodes);
+  SMetaRes* pRes = taosArrayGet(pMetaCache->pDnodes, 0);
+  if (pRes->code) {
+    return pRes->code;
+  }
+  
+  *pDnodes = taosArrayDup((SArray*)pRes->pRes);
   if (NULL == *pDnodes) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }

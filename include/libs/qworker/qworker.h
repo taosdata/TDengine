@@ -32,7 +32,7 @@ enum {
 };
 
 typedef struct SDeleteRes {
-  uint64_t uid;
+  uint64_t suid;
   SArray*  uidList;
   int64_t  skey;
   int64_t  ekey;

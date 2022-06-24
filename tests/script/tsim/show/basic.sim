@@ -99,7 +99,7 @@ if $rows != 1 then
 endi
 #sql select * from information_schema.`streams`
 sql select * from information_schema.user_tables
-if $rows != 30 then
+if $rows != 31 then
   return -1
 endi
 #sql select * from information_schema.user_table_distributed
@@ -197,7 +197,7 @@ if $rows != 1 then
 endi
 #sql select * from performance_schema.`streams`
 sql select * from information_schema.user_tables
-if $rows != 30 then
+if $rows != 31 then
   return -1
 endi
 #sql select * from information_schema.user_table_distributed
@@ -226,6 +226,21 @@ if $rows != 1 then
 endi
 
 sql_error show create stable t0;
+
+sql show variables;
+if $rows != 4 then
+  return -1
+endi
+
+sql show dnode 1 variables;
+if $rows <= 0 then
+  return -1
+endi
+
+sql show local variables;
+if $rows <= 0 then
+  return -1
+endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode2 -s stop -x SIGINT

@@ -18,6 +18,7 @@
 #include "tdatablock.h"
 #include "tglobal.h"
 
+extern SConfig *tsCfg;
 static int32_t getSchemaBytes(const SSchema* pSchema) {
   switch (pSchema->type) {
     case TSDB_DATA_TYPE_BINARY:
@@ -31,31 +32,19 @@ static int32_t getSchemaBytes(const SSchema* pSchema) {
 }
 
 static SSDataBlock* buildDescResultDataBlock() {
-  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
-  pBlock->info.numOfCols = DESCRIBE_RESULT_COLS;
-  pBlock->info.hasVarCol = true;
+  SSDataBlock* pBlock = createDataBlock();
 
-  pBlock->pDataBlock = taosArrayInit(4, sizeof(SColumnInfoData));
+  SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, DESCRIBE_RESULT_FIELD_LEN, 1);
+  blockDataAppendColInfo(pBlock, &infoData);
 
-  SColumnInfoData infoData = {0};
-  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
-  infoData.info.bytes = DESCRIBE_RESULT_FIELD_LEN;
+  infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, DESCRIBE_RESULT_TYPE_LEN, 2);
+  blockDataAppendColInfo(pBlock, &infoData);
 
-  taosArrayPush(pBlock->pDataBlock, &infoData);
+  infoData = createColumnInfoData(TSDB_DATA_TYPE_INT, tDataTypes[TSDB_DATA_TYPE_INT].bytes, 3);
+  blockDataAppendColInfo(pBlock, &infoData);
 
-  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
-  infoData.info.bytes = DESCRIBE_RESULT_TYPE_LEN;
-  taosArrayPush(pBlock->pDataBlock, &infoData);
-
-  infoData.info.type = TSDB_DATA_TYPE_INT;
-  infoData.info.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
-
-  taosArrayPush(pBlock->pDataBlock, &infoData);
-
-  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
-  infoData.info.bytes = DESCRIBE_RESULT_NOTE_LEN;
-  taosArrayPush(pBlock->pDataBlock, &infoData);
-
+  infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, DESCRIBE_RESULT_NOTE_LEN, 4);
+  blockDataAppendColInfo(pBlock, &infoData);
   return pBlock;
 }
 
@@ -126,22 +115,12 @@ static int32_t execResetQueryCache() { return catalogClearCache(); }
 
 
 static SSDataBlock* buildCreateDBResultDataBlock() {
-  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
-  pBlock->info.numOfCols = SHOW_CREATE_DB_RESULT_COLS;
-  pBlock->info.hasVarCol = true;
+  SSDataBlock* pBlock = createDataBlock();
+  SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_DB_RESULT_COLS, 1);
+  blockDataAppendColInfo(pBlock, &infoData);
 
-  pBlock->pDataBlock = taosArrayInit(pBlock->info.numOfCols, sizeof(SColumnInfoData));
-
-  SColumnInfoData infoData = {0};
-  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
-  infoData.info.bytes = SHOW_CREATE_DB_RESULT_FIELD1_LEN;
-
-  taosArrayPush(pBlock->pDataBlock, &infoData);
-
-  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
-  infoData.info.bytes = SHOW_CREATE_DB_RESULT_FIELD2_LEN;
-  taosArrayPush(pBlock->pDataBlock, &infoData);
-
+  infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_DB_RESULT_FIELD2_LEN, 2);
+  blockDataAppendColInfo(pBlock, &infoData);
   return pBlock;
 }
 
@@ -283,21 +262,13 @@ static int32_t execShowCreateDatabase(SShowCreateDatabaseStmt* pStmt, SRetrieveT
 }
 
 static SSDataBlock* buildCreateTbResultDataBlock() {
-  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
-  pBlock->info.numOfCols = SHOW_CREATE_TB_RESULT_COLS;
-  pBlock->info.hasVarCol = true;
+  SSDataBlock* pBlock = createDataBlock();
 
-  pBlock->pDataBlock = taosArrayInit(pBlock->info.numOfCols, sizeof(SColumnInfoData));
+  SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_TB_RESULT_FIELD1_LEN, 1);
+  blockDataAppendColInfo(pBlock, &infoData);
 
-  SColumnInfoData infoData = {0};
-  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
-  infoData.info.bytes = SHOW_CREATE_TB_RESULT_FIELD1_LEN;
-
-  taosArrayPush(pBlock->pDataBlock, &infoData);
-
-  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
-  infoData.info.bytes = SHOW_CREATE_TB_RESULT_FIELD2_LEN;
-  taosArrayPush(pBlock->pDataBlock, &infoData);
+  infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_TB_RESULT_FIELD2_LEN, 2);
+  blockDataAppendColInfo(pBlock, &infoData);
 
   return pBlock;
 }
@@ -551,7 +522,84 @@ static int32_t execShowCreateSTable(SShowCreateTableStmt* pStmt, SRetrieveTableR
 
 static int32_t execAlterLocal(SAlterLocalStmt* pStmt) { return TSDB_CODE_FAILED; }
 
-static int32_t execShowLocalVariables() { return TSDB_CODE_FAILED; }
+static SSDataBlock* buildLocalVariablesResultDataBlock() {
+  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  pBlock->info.hasVarCol = true;
+
+  pBlock->pDataBlock = taosArrayInit(SHOW_LOCAL_VARIABLES_RESULT_COLS, sizeof(SColumnInfoData));
+
+  SColumnInfoData infoData = {0};
+  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
+  infoData.info.bytes = SHOW_LOCAL_VARIABLES_RESULT_FIELD1_LEN;
+
+  taosArrayPush(pBlock->pDataBlock, &infoData);
+
+  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
+  infoData.info.bytes = SHOW_LOCAL_VARIABLES_RESULT_FIELD2_LEN;
+  taosArrayPush(pBlock->pDataBlock, &infoData);
+
+  return pBlock;
+}
+
+
+int32_t setLocalVariablesResultIntoDataBlock(SSDataBlock* pBlock) {
+  int32_t numOfCfg = taosArrayGetSize(tsCfg->array);
+  int32_t numOfRows = 0;
+  blockDataEnsureCapacity(pBlock, numOfCfg);
+
+  for (int32_t i = 0, c = 0; i < numOfCfg; ++i, c = 0) {
+    SConfigItem *pItem = taosArrayGet(tsCfg->array, i);
+
+    char name[TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(name, pItem->name, TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE);
+    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
+    colDataAppend(pColInfo, i, name, false);
+    
+    char value[TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
+    int32_t valueLen = 0;
+    cfgDumpItemValue(pItem, &value[VARSTR_HEADER_SIZE], TSDB_CONFIG_VALUE_LEN, &valueLen);
+    varDataSetLen(value, valueLen);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
+    colDataAppend(pColInfo, i, value, false);
+
+    numOfRows++;
+  }
+
+
+  pBlock->info.rows = numOfRows;
+  
+  return TSDB_CODE_SUCCESS;
+}
+
+
+static int32_t execShowLocalVariables(SRetrieveTableRsp** pRsp) {
+  SSDataBlock* pBlock = buildLocalVariablesResultDataBlock();
+  int32_t code = setLocalVariablesResultIntoDataBlock(pBlock);
+  if (code) {
+    return code;
+  }
+
+  size_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
+  *pRsp = taosMemoryCalloc(1, rspSize);
+  if (NULL == *pRsp) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  (*pRsp)->useconds = 0;
+  (*pRsp)->completed = 1;
+  (*pRsp)->precision = 0;
+  (*pRsp)->compressed = 0;
+  (*pRsp)->compLen = 0;
+  (*pRsp)->numOfRows = htonl(pBlock->info.rows);
+  (*pRsp)->numOfCols = htonl(SHOW_LOCAL_VARIABLES_RESULT_COLS);
+
+  int32_t len = 0;
+  blockCompressEncode(pBlock, (*pRsp)->data, &len, SHOW_LOCAL_VARIABLES_RESULT_COLS, false);
+  ASSERT(len == rspSize - sizeof(SRetrieveTableRsp));
+
+  blockDataDestroy(pBlock);
+  return TSDB_CODE_SUCCESS;
+}
 
 int32_t qExecCommand(SNode* pStmt, SRetrieveTableRsp** pRsp) {
   switch (nodeType(pStmt)) {
@@ -568,7 +616,7 @@ int32_t qExecCommand(SNode* pStmt, SRetrieveTableRsp** pRsp) {
     case QUERY_NODE_ALTER_LOCAL_STMT:
       return execAlterLocal((SAlterLocalStmt*)pStmt);
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
-      return execShowLocalVariables();
+      return execShowLocalVariables(pRsp);
     default:
       break;
   }

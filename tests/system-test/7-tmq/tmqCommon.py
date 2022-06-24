@@ -204,6 +204,35 @@ class TMQCom:
         tdLog.debug("insert data ............ [OK]")
         return
 
+    def insert_data_2(self,tsql,dbName,ctbPrefix,ctbNum,rowsPerTbl,batchNum,startTs):
+        tdLog.debug("start to insert data ............")
+        tsql.execute("use %s" %dbName)
+        pre_insert = "insert into "
+        sql = pre_insert
+
+        t = time.time()
+        startTs = int(round(t * 1000))
+        #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
+        for i in range(ctbNum):
+            sql += " %s%d values "%(ctbPrefix,i)
+            for j in range(rowsPerTbl):
+                if (j % 2 == 0):
+                    sql += "(%d, %d, %d, 'tmqrow_%d', now) "%(startTs + j, j, j, j)
+                else:
+                    sql += "(%d, %d, %d, 'tmqrow_%d', now) "%(startTs + j, j, -j, j)
+                if (j > 0) and ((j%batchNum == 0) or (j == rowsPerTbl - 1)):
+                    tsql.execute(sql)
+                    if j < rowsPerTbl - 1:
+                        sql = "insert into %s%d values " %(ctbPrefix,i)
+                    else:
+                        sql = "insert into "
+        #end sql
+        if sql != pre_insert:
+            #print("insert sql:%s"%sql)
+            tsql.execute(sql)
+        tdLog.debug("insert data ............ [OK]")
+        return
+
     def insert_data_interlaceByMultiTbl(self,tsql,dbName,ctbPrefix,ctbNum,rowsPerTbl,batchNum,startTs=0):
         tdLog.debug("start to insert data ............")
         tsql.execute("use %s" %dbName)
@@ -288,6 +317,17 @@ class TMQCom:
 
     def asyncCreateDbStbCtbInsertData(self, paraDict):
         pThread = threading.Thread(target=self.threadFunction, kwargs=paraDict)
+        pThread.start()
+        return pThread
+
+    def threadFunctionForInsert(self, **paraDict):
+        # create new connector for new tdSql instance in my thread
+        newTdSql = tdCom.newTdSql()
+        self.insert_data_2(newTdSql,paraDict["dbName"],paraDict["ctbPrefix"],paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"],paraDict["startTs"])
+        return
+
+    def asyncInsertData(self, paraDict):
+        pThread = threading.Thread(target=self.threadFunctionForInsert, kwargs=paraDict)
         pThread.start()
         return pThread
 

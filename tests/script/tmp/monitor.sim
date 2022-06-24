@@ -12,6 +12,8 @@ sql connect
 print =============== show dnodes
 sleep 2000
 sql create database db vgroups 2;
+sql use db;
+sql create table db.stb (ts timestamp, c1 int, c2 binary(4)) tags(t1 int, t2 binary(16)) comment "abd";
 sleep 2000
 
 print =============== create drop qnode 1

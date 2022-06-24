@@ -17,8 +17,9 @@ VALGRIND=0
 SIGNAL=SIGINT
 SHOW_MSG=0
 SHOW_ROW=0
+EXP_USE_SNAPSHOT=0
 
-while getopts "d:s:v:y:x:g:r:w:" arg
+while getopts "d:s:v:y:x:g:r:w:e:" arg
 do
   case $arg in
     d)
@@ -44,6 +45,9 @@ do
       ;;
     w)
       CDB_NAME=$OPTARG
+      ;;
+    e)
+      EXP_USE_SNAPSHOT=$OPTARG
       ;;
     ?)
       echo "unkown argument"
@@ -91,8 +95,8 @@ if [ "$EXEC_OPTON" = "start" ]; then
     echo nohup valgrind --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes --log-file=${LOG_DIR}/valgrind-tmq_sim.log $PROGRAM -c $CFG_DIR -y $POLL_DELAY -d $DB_NAME -g $SHOW_MSG -r $SHOW_ROW > /dev/null 2>&1 &
     nohup valgrind --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes --log-file=${LOG_DIR}/valgrind-tmq_sim.log $PROGRAM -c $CFG_DIR -y $POLL_DELAY -d $DB_NAME -g $SHOW_MSG -r $SHOW_ROW > /dev/null 2>&1 &
   else
-    echo  "nohup $PROGRAM -c $CFG_DIR -y $POLL_DELAY -d $DB_NAME -g $SHOW_MSG -r $SHOW_ROW -w $CDB_NAME > /dev/null 2>&1 &"
-    nohup $PROGRAM -c $CFG_DIR -y $POLL_DELAY -d $DB_NAME -g $SHOW_MSG -r $SHOW_ROW -w $CDB_NAME > /dev/null 2>&1 &
+    echo  "nohup $PROGRAM -c $CFG_DIR -y $POLL_DELAY -d $DB_NAME -g $SHOW_MSG -r $SHOW_ROW -w $CDB_NAME -e $EXP_USE_SNAPSHOT > /dev/null 2>&1 &"
+    nohup $PROGRAM -c $CFG_DIR -y $POLL_DELAY -d $DB_NAME -g $SHOW_MSG -r $SHOW_ROW -w $CDB_NAME -e $EXP_USE_SNAPSHOT > /dev/null 2>&1 &
   fi
 else
   PID=`ps -ef|grep tmq_sim | grep -v grep | awk '{print $2}'`

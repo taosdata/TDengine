@@ -44,6 +44,7 @@ STqOffsetStore* tqOffsetOpen(STQ* pTq) {
   }
   char*     fname = buildFileName(pStore->pTq->path);
   TdFilePtr pFile = taosOpenFile(fname, TD_FILE_READ);
+  taosMemoryFree(fname);
   if (pFile != NULL) {
     STqOffsetHead head = {0};
     int64_t       code;
@@ -77,7 +78,6 @@ STqOffsetStore* tqOffsetOpen(STQ* pTq) {
     }
 
     taosCloseFile(&pFile);
-    taosMemoryFree(fname);
   }
   return pStore;
 }
@@ -102,6 +102,7 @@ int32_t tqOffsetSnapshot(STqOffsetStore* pStore) {
   // TODO file name should be with a version
   char*     fname = buildFileName(pStore->pTq->path);
   TdFilePtr pFile = taosOpenFile(fname, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
+  taosMemoryFree(fname);
   if (pFile == NULL) {
     ASSERT(0);
     return -1;
@@ -140,6 +141,5 @@ int32_t tqOffsetSnapshot(STqOffsetStore* pStore) {
   }
   // close and rename file
   taosCloseFile(&pFile);
-  taosMemoryFree(fname);
   return 0;
 }
