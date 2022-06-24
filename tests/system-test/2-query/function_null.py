@@ -92,11 +92,16 @@ class TDTestCase:
 
             scalar_sql_1 = f"select {function_name}(c1)/0 from t1 group by c1 order by c1"
             scalar_sql_2 = f"select {function_name}(c1/0) from t1 group by c1 order by c1"
+            scalar_sql_3 = f"select {function_name}(NULL) from t1 group by c1 order by c1"
             tdSql.query(scalar_sql_1)
             tdSql.checkRows(10)
             tdSql.checkData(0,0,None)
             tdSql.checkData(9,0,None)
             tdSql.query(scalar_sql_2)
+            tdSql.checkRows(10)
+            tdSql.checkData(0,0,None)
+            tdSql.checkData(9,0,None)
+            tdSql.query(scalar_sql_3)
             tdSql.checkRows(10)
             tdSql.checkData(0,0,None)
             tdSql.checkData(9,0,None)
@@ -107,6 +112,9 @@ class TDTestCase:
 
         # sin
         tdSql.query(" select sin(c1/0) from t1 group by c1 order by c1")
+        tdSql.checkData(9,0,None)
+
+        tdSql.query(" select sin(NULL) from t1 group by c1 order by c1")
         tdSql.checkData(9,0,None)
 
         tdSql.query(" select sin(0.00) from t1 group by c1 order by c1")
@@ -122,6 +130,9 @@ class TDTestCase:
         tdSql.query(" select cos(c1/0) from t1 group by c1 order by c1")
         tdSql.checkData(9,0,None)
 
+        tdSql.query(" select cos(NULL) from t1 group by c1 order by c1")
+        tdSql.checkData(9,0,None)
+
         tdSql.query(" select cos(0.00) from t1 group by c1 order by c1")
         tdSql.checkData(9,0,1.000000000)
 
@@ -135,6 +146,9 @@ class TDTestCase:
         tdSql.query(" select tan(c1/0) from t1 group by c1 order by c1")
         tdSql.checkData(9,0,None)
 
+        tdSql.query(" select tan(NULL) from t1 group by c1 order by c1")
+        tdSql.checkData(9,0,None)
+
         tdSql.query(" select tan(0.00) from t1 group by c1 order by c1")
         tdSql.checkData(9,0,0.000000000)
 
@@ -145,6 +159,9 @@ class TDTestCase:
 
         # atan              
         tdSql.query(" select atan(c1/0) from t1 group by c1 order by c1")
+        tdSql.checkData(9,0,None)
+
+        tdSql.query(" select atan(NULL) from t1 group by c1 order by c1")
         tdSql.checkData(9,0,None)
 
         tdSql.query(" select atan(0.00) from t1 group by c1 order by c1")
@@ -160,6 +177,9 @@ class TDTestCase:
         tdSql.query(" select asin(c1/0) from t1 group by c1 order by c1")
         tdSql.checkData(9,0,None)
 
+        tdSql.query(" select asin(NULL) from t1 group by c1 order by c1")
+        tdSql.checkData(9,0,None)
+
         tdSql.query(" select asin(0.00) from t1 group by c1 order by c1")
         tdSql.checkData(9,0,0.000000000)
 
@@ -171,6 +191,9 @@ class TDTestCase:
         # acos
 
         tdSql.query(" select acos(c1/0) from t1 group by c1 order by c1")
+        tdSql.checkData(9,0,None)
+
+        tdSql.query(" select acos(NULL) from t1 group by c1 order by c1")
         tdSql.checkData(9,0,None)
 
         tdSql.query(" select acos(0.00) from t1 group by c1 order by c1")
@@ -188,6 +211,9 @@ class TDTestCase:
         tdSql.query(" select log(-10) from t1 group by c1 order by c1")
         tdSql.checkData(9,0,None)
 
+        tdSql.query(" select log(NULL ,2) from t1 group by c1 order by c1")
+        tdSql.checkData(9,0,None)
+
         tdSql.query(" select log(c1)/0 from t1 group by c1 order by c1")
         tdSql.checkData(9,0,None)
 
@@ -199,6 +225,9 @@ class TDTestCase:
         tdSql.checkData(9,0,None)
 
         tdSql.query(" select pow(c1,2)/0 from t1 group by c1 order by c1")
+        tdSql.checkData(9,0,None)
+
+        tdSql.query(" select pow(NULL,2) from t1 group by c1 order by c1")
         tdSql.checkData(9,0,None)
 
         tdSql.query(f" select pow(c1/0 ,1 ) from t1 group by c1 order by c1")
