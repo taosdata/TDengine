@@ -440,6 +440,25 @@ int32_t tGetBlockCol(uint8_t *p, void *ph) {
 }
 
 // SDelIdx ======================================================
+int32_t tCmprDelIdx(void const *lhs, void const *rhs) {
+  SDelIdx *lDelIdx = *(SDelIdx **)lhs;
+  SDelIdx *rDelIdx = *(SDelIdx **)rhs;
+
+  if (lDelIdx->suid < lDelIdx->suid) {
+    return -1;
+  } else if (lDelIdx->suid > lDelIdx->suid) {
+    return 1;
+  }
+
+  if (lDelIdx->uid < lDelIdx->uid) {
+    return -1;
+  } else if (lDelIdx->uid > lDelIdx->uid) {
+    return 1;
+  }
+
+  return 0;
+}
+
 int32_t tPutDelIdx(uint8_t *p, void *ph) {
   SDelIdx *pDelIdx = (SDelIdx *)ph;
   int32_t  n = 0;
