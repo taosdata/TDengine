@@ -606,8 +606,7 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     case TSDB_SQL_DROP_TABLE:
     case TSDB_SQL_DROP_USER:
     case TSDB_SQL_DROP_ACCT:
-    case TSDB_SQL_DROP_DNODE:
-    case TSDB_SQL_DROP_DB: {
+    case TSDB_SQL_DROP_DNODE: {
       const char* msg2 = "invalid name";
       const char* msg3 = "param name too long";
 
@@ -626,14 +625,7 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         }
       }
 
-      if (pInfo->type == TSDB_SQL_DROP_DB) {
-        assert(taosArrayGetSize(pInfo->pMiscInfo->a) == 1);
-        code = tNameSetDbName(&pTableMetaInfo->name, getAccountId(pSql), pzName);
-        if (code != TSDB_CODE_SUCCESS) {
-          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
-        }
-
-      } else if (pInfo->type == TSDB_SQL_DROP_TABLE) {
+      if (pInfo->type == TSDB_SQL_DROP_TABLE) {
         assert(taosArrayGetSize(pInfo->pMiscInfo->a) == 1);
 
         code = tscSetTableFullName(&pTableMetaInfo->name, &sTblToken, pSql, dbIncluded);
@@ -656,11 +648,12 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       break;
     }
 
+    case TSDB_SQL_DROP_DB:
     case TSDB_SQL_USE_DB: {
       const char* msg = "invalid db name";
       SStrToken* pToken = taosArrayGet(pInfo->pMiscInfo->a, 0);
 
-      if (tscValidateName(pToken, false, NULL) != TSDB_CODE_SUCCESS) {
+      if (tscValidateName(pToken, true, NULL) != TSDB_CODE_SUCCESS) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg);
       }
 
@@ -707,7 +700,7 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       char buf[TSDB_DB_NAME_LEN] = {0};
       SStrToken token = taosTokenDup(&pCreateDB->dbname, buf, tListLen(buf));
 
-      if (tscValidateName(&token, false, NULL) != TSDB_CODE_SUCCESS) {
+      if (tscValidateName(&token, true, NULL) != TSDB_CODE_SUCCESS) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
 
@@ -820,7 +813,7 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
       SStrToken* pToken = taosArrayGet(pInfo->pMiscInfo->a, 0);
 
-      if (tscValidateName(pToken, false, NULL) != TSDB_CODE_SUCCESS) {
+      if (tscValidateName(pToken, true, NULL) != TSDB_CODE_SUCCESS) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
 
@@ -1576,7 +1569,7 @@ static bool validateTableColumnInfo(SArray* pFieldList, SSqlCmd* pCmd) {
     }
 
     // field name must be unique
-    if (has(pFieldList, i + 1, pField->name) == true) {
+    if (has(pFieldList, i, pField->name) == true) {
       invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
       return false;
     }
@@ -1635,7 +1628,7 @@ static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pC
       return false;
     }
 
-    if (has(pTagsList, i + 1, p->name) == true) {
+    if (has(pTagsList, i, p->name) == true) {
       invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
       return false;
     }
@@ -1664,8 +1657,8 @@ static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pC
   // field name must be unique
   for (int32_t i = 0; i < numOfTags; ++i) {
     TAOS_FIELD* p = taosArrayGet(pTagsList, i);
-
-    if (has(pFieldList, 0, p->name) == true) {
+    size_t      numOfCols = taosArrayGetSize(pFieldList);
+    if (has(pFieldList, numOfCols, p->name) == true) {
       invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
       return false;
     }
@@ -1747,7 +1740,7 @@ int32_t validateOneTag(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
   SSchema* pSchema = tscGetTableSchema(pTableMeta);
 
   for (int32_t i = 0; i < numOfTags + numOfCols; ++i) {
-    if (strncasecmp(pTagField->name, pSchema[i].name, sizeof(pTagField->name) - 1) == 0) {
+    if (strncmp(pTagField->name, pSchema[i].name, sizeof(pTagField->name) - 1) == 0) {
       //return tscErrorMsgWithCode(TSDB_CODE_TSC_DUP_COL_NAMES, tscGetErrorMsgPayload(pCmd), pTagField->name, NULL);
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), "duplicated column names");
     }
@@ -1811,9 +1804,8 @@ int32_t validateOneColumn(SSqlCmd* pCmd, TAOS_FIELD* pColField) {
 }
 
 /* is contained in pFieldList or not */
-static bool has(SArray* pFieldList, int32_t startIdx, const char* name) {
-  size_t numOfCols = taosArrayGetSize(pFieldList);
-  for (int32_t j = startIdx; j < numOfCols; ++j) {
+static bool has(SArray* pFieldList, int32_t endIdx, const char* name) {
+  for (int32_t j = 0; j < endIdx; ++j) {
     TAOS_FIELD* field = taosArrayGet(pFieldList, j);
     if (strncmp(name, field->name, sizeof(field->name) - 1) == 0) return true;
   }
@@ -2214,10 +2206,6 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
        hasDistinct = (pItem->distinct == true);
        distIdx     =  hasDistinct ? i : -1;
     }
-    if(pItem->aliasName != NULL && validateColumnName(pItem->aliasName) != TSDB_CODE_SUCCESS){
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg11);
-    }
-
     if(pItem->aliasName != NULL && strcasecmp(pItem->aliasName, DEFAULT_PRIMARY_TIMESTAMP_COL_NAME) == 0){
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg11);
     }
@@ -3600,7 +3588,7 @@ int32_t setShowInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       if (pDbPrefixToken->n <= 0) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
       }
-      if (tscValidateName(pDbPrefixToken, false, NULL) != TSDB_CODE_SUCCESS) {
+      if (tscValidateName(pDbPrefixToken, true, NULL) != TSDB_CODE_SUCCESS) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
 
@@ -6043,13 +6031,13 @@ static int32_t getQueryTimeRange(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr
   if (*pExpr == NULL) {
     return ret;
   }
-  
+
   //multiple tables's query time range mixed together
-  
+
   tExprNode* p = NULL;
   void *filter = NULL;
 
-  SArray* colList = taosArrayInit(10, sizeof(SColIndex));  
+  SArray* colList = taosArrayInit(10, sizeof(SColIndex));
   ret = exprTreeFromSqlExpr(pCmd, &p, *pExpr, pQueryInfo, colList, NULL);
   taosArrayDestroy(&colList);
 
@@ -7563,7 +7551,9 @@ int32_t validateColumnName(char* name) {
     return validateColumnName(token.z);
   } else if (token.type == TK_ID) {
     stringProcess(name, token.n);
-    return TSDB_CODE_SUCCESS;
+    if (strlen(name) == 0) {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
   } else {
     if (isNumber(&token)) {
       return TSDB_CODE_TSC_INVALID_OPERATION;

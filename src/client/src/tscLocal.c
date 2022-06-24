@@ -533,8 +533,8 @@ static int32_t tscGetDBInfo(SCreateBuilder *builder, char *result) {
     memset(buf, 0, sizeof(buf));
     int32_t* lengths = taos_fetch_lengths(pSql);
     int32_t ret = tscGetNthFieldResult(row, fields, lengths, 0, buf);
-    if (0 == ret && STR_NOCASE_EQUAL(buf, strlen(buf), builder->buf, strlen(builder->buf))) {
-      snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "CREATE DATABASE %s", buf);
+    if (0 == ret && 0 == strcmp(buf, builder->buf)) {
+      snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "CREATE DATABASE `%s`", buf);
       for (int i = 1; i < num_fields; i++) {
         for (int j = 0; showColumns[j][0] != NULL; j++) {
           if (STR_NOCASE_EQUAL(fields[i].name, strlen(fields[i].name), showColumns[j][0], strlen(showColumns[j][0]))) {
