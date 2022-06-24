@@ -3,14 +3,13 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
 sql connect
 
-print =============== show users
+print =============== create db
 sql create database d1 vgroups 1;
-sql create database d2 vgroups 1;
-sql create database d3 vgroups 1;
-sql show databases
-if $rows != 5 then 
-  return -1
-endi
+
+print =============== create users
+sql create user u1 pass 'taosdata'
+sql alter user u1 enable 0
+
 
 print =============== create users
 sql create user user1 PASS 'taosdata'

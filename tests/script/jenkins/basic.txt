@@ -2,12 +2,11 @@
 #======================b1-start===============
 
 # ---- user
-./test.sh -f tsim/user/basic1.sim
-./test.sh -f tsim/user/pass_alter.sim
-./test.sh -f tsim/user/pass_len.sim
-./test.sh -f tsim/user/user_len.sim
-./test.sh -f tsim/user/privilege1.sim
-./test.sh -f tsim/user/privilege2.sim
+./test.sh -f tsim/user/basic.sim
+./test.sh -f tsim/user/password.sim
+./test.sh -f tsim/user/privilege_db.sim
+#./test.sh -f tsim/user/privilege_enable.sim
+#./test.sh -f tsim/user/privilege_sysinfo.sim
 
 ## ---- db
 ./test.sh -f tsim/db/create_all_options.sim
