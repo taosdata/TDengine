@@ -120,6 +120,19 @@ class TDTestCase:
         tdSql.query("show create table `普通表`")
         tdSql.checkData(0, 1, "CREATE TABLE `普通表` (`ts` TIMESTAMP,`c1` INT)")
 
+        tdSql.error("create table `` (ts timestamp, c1 int)")
+        tdSql.execute("create table ` ` (ts timestamp, c1 int)")
+        tdSql.error("create table ` ` (ts timestamp, c1 int)")
+
+        ts = 1656040651000
+        tdSql.execute("insert into ` ` values(%d, 1)" % ts)
+        tdSql.query("select * from ` `")
+        tdSql.checkRows(1)
+        tdSql.execute("delete from ` `")
+        tdSql.checkAffectedRows(1)
+        tdSql.query("select * from ` `")
+        tdSql.checkRows(0)
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
