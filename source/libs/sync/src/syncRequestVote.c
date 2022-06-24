@@ -102,7 +102,7 @@ int32_t syncNodeOnRequestVoteSnapshotCb(SSyncNode* ths, SyncRequestVote* pMsg) {
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId)) && !ths->pRaftCfg->isStandBy) {
     do {
-      char     logBuf[128];
+      char     logBuf[256];
       char     host[64];
       uint16_t port;
       syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
@@ -142,7 +142,7 @@ int32_t syncNodeOnRequestVoteSnapshotCb(SSyncNode* ths, SyncRequestVote* pMsg) {
 
   // trace log
   do {
-    char     logBuf[128];
+    char     logBuf[256];
     char     host[64];
     uint16_t port;
     syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
