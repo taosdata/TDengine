@@ -457,13 +457,13 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
     }
   }
 
+  if (TSDB_CODE_SUCCESS == code && pSelect->hasAggFuncs) {
+    code = nodesCollectFuncs(pSelect, SQL_CLAUSE_GROUP_BY, fmIsAggFunc, &pAgg->pAggFuncs);
+  }
+
   // rewrite the expression in subsequent clauses
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteExprsForSelect(pAgg->pGroupKeys, pSelect, SQL_CLAUSE_GROUP_BY);
-  }
-
-  if (TSDB_CODE_SUCCESS == code && pSelect->hasAggFuncs) {
-    code = nodesCollectFuncs(pSelect, SQL_CLAUSE_GROUP_BY, fmIsAggFunc, &pAgg->pAggFuncs);
   }
 
   // rewrite the expression in subsequent clauses

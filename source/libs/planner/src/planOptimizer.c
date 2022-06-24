@@ -1075,6 +1075,16 @@ static int32_t partTagsOptRebuildTbanme(SNodeList* pPartKeys) {
   return code;
 }
 
+static int32_t partTagOptRewriteGroupKey(SAggLogicNode* pAgg, SScanLogicNode* pScan) {
+  // SNode* pNode = NULL;
+  // FOREACH(pNode, pScan->pPartTags) {
+  //   if (QUERY_NODE_COLUMN != nodeType(pNode)) {
+  //     createColumnByRewriteExpr(pNode, );
+  //   }
+  // }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
   SLogicNode* pNode = optFindPossibleNode(pLogicSubplan->pNode, partTagsOptMayBeOptimized);
   if (NULL == pNode) {
@@ -1100,6 +1110,9 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
       }
     }
     NODES_DESTORY_LIST(((SAggLogicNode*)pNode)->pGroupKeys);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = partTagOptRewriteGroupKey((SAggLogicNode*)pNode, pScan);
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = partTagsOptRebuildTbanme(pScan->pPartTags);
@@ -1189,7 +1202,7 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "ConditionPushDown", .optimizeFunc = cpdOptimize},
   {.pName = "OrderByPrimaryKey", .optimizeFunc = opkOptimize},
   {.pName = "SmaIndex",          .optimizeFunc = smaOptimize},
-  // {.pName = "PartitionTags",     .optimizeFunc = partTagsOptimize},
+  {.pName = "PartitionTags",     .optimizeFunc = partTagsOptimize},
   {.pName = "EliminateProject",  .optimizeFunc = eliminateProjOptimize}
 };
 // clang-format on

@@ -390,9 +390,6 @@ static int32_t stbSplCreateMergeNode(SSplitContext* pCxt, SLogicSubplan* pSubpla
       code = replaceLogicNode(pSubplan, pSplitNode, (SLogicNode*)pMerge);
     }
   }
-  if (TSDB_CODE_SUCCESS == code && NULL != pSubplan) {
-    nodesDestroyNode((SNode*)pSplitNode);
-  }
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pMerge);
   }
@@ -564,6 +561,8 @@ static int32_t stbSplSplitState(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
 static SNodeList* stbSplGetPartKeys(SLogicNode* pNode) {
   if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
     return ((SScanLogicNode*)pNode)->pPartTags;
+  } else if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode)) {
+    return ((SPartitionLogicNode*)pNode)->pPartitionKeys;
   } else {
     return NULL;
   }
@@ -574,14 +573,15 @@ static bool stbSplIsPartTbanme(SNodeList* pPartKeys) {
     return false;
   }
   SNode* pPartKey = nodesListGetNode(pPartKeys, 0);
-  return QUERY_NODE_FUNCTION == nodeType(pPartKey) && FUNCTION_TYPE_TBNAME == ((SFunctionNode*)pPartKey)->funcType;
+  return (QUERY_NODE_FUNCTION == nodeType(pPartKey) && FUNCTION_TYPE_TBNAME == ((SFunctionNode*)pPartKey)->funcType) ||
+         (QUERY_NODE_COLUMN == nodeType(pPartKey) && COLUMN_TYPE_TBNAME == ((SColumnNode*)pPartKey)->colType);
 }
 
-static bool stbSplIsMultiTableWinodw(SWindowLogicNode* pWindow) {
+static bool stbSplIsPartTableWinodw(SWindowLogicNode* pWindow) {
   return stbSplIsPartTbanme(stbSplGetPartKeys((SLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0)));
 }
 
-static int32_t stbSplSplitWindowForMergeTable(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
+static int32_t stbSplSplitWindowForCrossTable(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
   switch (((SWindowLogicNode*)pInfo->pSplitNode)->winType) {
     case WINDOW_TYPE_INTERVAL:
       return stbSplSplitInterval(pCxt, pInfo);
@@ -595,7 +595,7 @@ static int32_t stbSplSplitWindowForMergeTable(SSplitContext* pCxt, SStableSplitI
   return TSDB_CODE_PLAN_INTERNAL_ERROR;
 }
 
-static int32_t stbSplSplitWindowForMultiTable(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
+static int32_t stbSplSplitWindowForPartTable(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
   if (pCxt->pPlanCxt->streamQuery) {
     SPLIT_FLAG_SET_MASK(pInfo->pSubplan->splitFlag, SPLIT_FLAG_STABLE_SPLIT);
     return TSDB_CODE_SUCCESS;
@@ -616,10 +616,10 @@ static int32_t stbSplSplitWindowForMultiTable(SSplitContext* pCxt, SStableSplitI
 }
 
 static int32_t stbSplSplitWindowNode(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
-  if (stbSplIsMultiTableWinodw((SWindowLogicNode*)pInfo->pSplitNode)) {
-    return stbSplSplitWindowForMultiTable(pCxt, pInfo);
+  if (stbSplIsPartTableWinodw((SWindowLogicNode*)pInfo->pSplitNode)) {
+    return stbSplSplitWindowForPartTable(pCxt, pInfo);
   } else {
-    return stbSplSplitWindowForMergeTable(pCxt, pInfo);
+    return stbSplSplitWindowForCrossTable(pCxt, pInfo);
   }
 }
 
