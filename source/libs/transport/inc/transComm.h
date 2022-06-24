@@ -125,6 +125,7 @@ typedef struct {
   STransMsg* pRsp;    // for synchronous API
   tsem_t*    pSem;    // for synchronous API
   SCvtAddr   cvtAddr;
+  bool       setMaxRetry;
 
   int hThrdIdx;
 } STransConnCtx;
