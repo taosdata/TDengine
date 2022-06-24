@@ -555,6 +555,10 @@ static int32_t execAlterLocal(SAlterLocalStmt* pStmt) {
     return terrno; 
   }
 
+  if (taosSetCfg(tsCfg, pStmt->config)) {
+    return terrno; 
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 

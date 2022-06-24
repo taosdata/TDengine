@@ -237,6 +237,10 @@ static SAppInstInfo* getAppInfo(SRequestObj* pRequest) { return pRequest->pTscOb
 
 void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   SRetrieveTableRsp* pRsp = NULL;
+  if (pRequest->validateOnly) {
+    pRequest->body.queryFp(pRequest->body.param, pRequest, 0);
+    return;
+  }
 
   int32_t code = qExecCommand(pQuery->pRoot, &pRsp);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
@@ -261,6 +265,11 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
 }
 
 int32_t asyncExecDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
+  if (pRequest->validateOnly) {
+    pRequest->body.queryFp(pRequest->body.param, pRequest, 0);
+    return TSDB_CODE_SUCCESS;
+  }
+
   // drop table if exists not_exists_table
   if (NULL == pQuery->pCmdMsg) {
     pRequest->body.queryFp(pRequest->body.param, pRequest, 0);
@@ -276,8 +285,11 @@ int32_t asyncExecDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
   SMsgSendInfo* pSendMsg = buildMsgInfoImpl(pRequest);
 
   int64_t transporterId = 0;
-  asyncSendMsgToServer(pAppInfo->pTransporter, &pMsgInfo->epSet, &transporterId, pSendMsg);
-  return TSDB_CODE_SUCCESS;
+  int32_t code = asyncSendMsgToServer(pAppInfo->pTransporter, &pMsgInfo->epSet, &transporterId, pSendMsg);
+  if (code) {
+    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
+  }
+  return code;
 }
 
 int compareQueryNodeLoad(const void* elem1, const void* elem2) {
@@ -851,15 +863,19 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQue
 
   switch (pQuery->execMode) {
     case QUERY_EXEC_MODE_LOCAL:
-      code = execLocalCmd(pRequest, pQuery);
+      if (!pRequest->validateOnly) {
+        code = execLocalCmd(pRequest, pQuery);
+      }
       break;
     case QUERY_EXEC_MODE_RPC:
-      code = execDdlQuery(pRequest, pQuery);
+      if (!pRequest->validateOnly) {
+        code = execDdlQuery(pRequest, pQuery);
+      }
       break;
     case QUERY_EXEC_MODE_SCHEDULE: {
       SArray* pMnodeList = taosArrayInit(4, sizeof(SQueryNodeLoad));
       code = getPlan(pRequest, pQuery, &pRequest->body.pDag, pMnodeList);
-      if (TSDB_CODE_SUCCESS == code) {
+      if (TSDB_CODE_SUCCESS == code && !pRequest->validateOnly) {
         SArray* pNodeList = NULL;
         buildSyncExecNodeList(pRequest, &pNodeList, pMnodeList);
         
@@ -894,7 +910,7 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQue
   return pRequest;
 }
 
-SRequestObj* launchQuery(STscObj* pTscObj, const char* sql, int sqlLen) {
+SRequestObj* launchQuery(STscObj* pTscObj, const char* sql, int sqlLen, bool validateOnly) {
   SRequestObj* pRequest = NULL;
   SQuery*      pQuery = NULL;
 
@@ -903,6 +919,8 @@ SRequestObj* launchQuery(STscObj* pTscObj, const char* sql, int sqlLen) {
     terrno = code;
     return NULL;
   }
+
+  pRequest->validateOnly = validateOnly;
 
   code = parseSql(pRequest, false, &pQuery, NULL);
   if (code != TSDB_CODE_SUCCESS) {
@@ -945,7 +963,7 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData *pResultM
                  pRequest->requestId);
       }
 
-      if (TSDB_CODE_SUCCESS == code) {
+      if (TSDB_CODE_SUCCESS == code && !pRequest->validateOnly) {
         SArray* pNodeList = NULL;
         buildAsyncExecNodeList(pRequest, &pNodeList, pMnodeList, pResultMeta);
         
@@ -962,7 +980,7 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData *pResultM
         code = schedulerAsyncExecJob(&req, &pRequest->body.queryJob);
         taosArrayDestroy(pNodeList);
       } else {
-        tscError("0x%" PRIx64 " failed to create query plan, code:%s 0x%" PRIx64, pRequest->self, tstrerror(code),
+        tscDebug("0x%" PRIx64 " plan not executed, code:%s 0x%" PRIx64, pRequest->self, tstrerror(code),
                  pRequest->requestId);
         pRequest->body.queryFp(pRequest->body.param, pRequest, code);
       }
@@ -1045,14 +1063,14 @@ int32_t removeMeta(STscObj* pTscObj, SArray* tbList) {
   return TSDB_CODE_SUCCESS;
 }
 
-SRequestObj* execQuery(STscObj* pTscObj, const char* sql, int sqlLen) {
+SRequestObj* execQuery(STscObj* pTscObj, const char* sql, int sqlLen, bool validateOnly) {
   SRequestObj* pRequest = NULL;
   int32_t      retryNum = 0;
   int32_t      code = 0;
 
   do {
     destroyRequest(pRequest);
-    pRequest = launchQuery(pTscObj, sql, sqlLen);
+    pRequest = launchQuery(pTscObj, sql, sqlLen, validateOnly);
     if (pRequest == NULL || TSDB_CODE_SUCCESS == pRequest->code || !NEED_CLIENT_HANDLE_ERROR(pRequest->code)) {
       break;
     }
@@ -1819,3 +1837,251 @@ _OVER:
   }
   return code;
 }
+
+int32_t appendTbToReq(SArray* pList, int32_t pos1, int32_t len1, int32_t pos2, int32_t len2, const char* str, int32_t acctId, char* db) {
+  SName name;
+ 
+  if (len1 <= 0) {
+    return -1;
+  }
+
+  const char *dbName = db;
+  const char *tbName = NULL;
+  int32_t dbLen = 0;
+  int32_t tbLen = 0;
+  if (len2 > 0) {
+    dbName = str + pos1;
+    dbLen = len1;
+    tbName = str + pos2;
+    tbLen = len2;
+  } else {
+    dbLen = strlen(db);
+    tbName = str + pos1;
+    tbLen = len1;
+  }
+  
+  if (tNameSetDbName(&name, acctId, dbName, dbLen)) {
+    return -1;
+  }
+
+  if (tNameAddTbName(&name, tbName, tbLen)) {
+    return -1;
+  }
+
+  taosArrayPush(pList, &name);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t transferTableNameList(const char* tbList, int32_t acctId, char* dbName, SArray** pReq) {
+  *pReq = taosArrayInit(10, sizeof(SName));
+  if (NULL == *pReq) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
+  }
+  
+  bool inEscape = false;
+  int32_t code = 0;
+  
+  int32_t vIdx = 0;
+  int32_t vPos[2];
+  int32_t vLen[2];
+
+  memset(vPos, -1, sizeof(vPos));
+  memset(vLen, 0, sizeof(vLen));
+  
+  for (int32_t i = 0; ; ++i) {
+    if (0 == *(tbList + i)) {
+      if (vPos[vIdx] >= 0 && vLen[vIdx] <= 0) {
+        vLen[vIdx] = i - vPos[vIdx];
+      }
+
+      code = appendTbToReq(*pReq, vPos[0], vLen[0], vPos[1], vLen[1], tbList, acctId, dbName);
+      if (code) {
+        goto _return;
+      }
+
+      break;
+    }
+    
+    if ('`' == *(tbList + i)) {
+      inEscape = !inEscape;
+      if (!inEscape) {
+        if (vPos[vIdx] >= 0) {
+          vLen[vIdx] = i - vPos[vIdx];
+        } else {
+          goto _return;
+        }
+      }
+
+      continue;
+    }
+
+    if (inEscape) {
+      if (vPos[vIdx] < 0) {
+        vPos[vIdx] = i;
+      }
+      continue;
+    }
+
+    if ('.' == *(tbList + i)) {
+      if (vPos[vIdx] < 0) {
+        goto _return;
+      }
+      if (vLen[vIdx] <= 0) {
+        vLen[vIdx] = i - vPos[vIdx];
+      }
+      vIdx++;
+      if (vIdx >= 2) {
+        goto _return;
+      }
+      continue;
+    }
+
+    if (',' == *(tbList + i)) {
+      if (vPos[vIdx] < 0) {
+        goto _return;
+      }
+      if (vLen[vIdx] <= 0) {
+        vLen[vIdx] = i - vPos[vIdx];
+      }
+
+      code = appendTbToReq(*pReq, vPos[0], vLen[0], vPos[1], vLen[1], tbList, acctId, dbName);
+      if (code) {
+        goto _return;
+      }
+      
+      memset(vPos, -1, sizeof(vPos));
+      memset(vLen, 0, sizeof(vLen));
+      vIdx = 0;
+      continue;
+    }
+
+    if (' ' == *(tbList + i) || '\r' == *(tbList + i) || '\t' == *(tbList + i) || '\n' == *(tbList + i)) {
+      if (vPos[vIdx] >= 0 && vLen[vIdx] <= 0) {
+        vLen[vIdx] = i - vPos[vIdx];
+      }
+      continue;
+    }
+
+    if (('a' <= *(tbList + i) && 'z' >= *(tbList + i)) || 
+        ('A' <= *(tbList + i) && 'Z' >= *(tbList + i)) ||
+        ('0' <= *(tbList + i) && '9' >= *(tbList + i))) {
+      if (vLen[vIdx] > 0) {
+        goto _return;
+      }
+      if (vPos[vIdx] < 0) {
+        vPos[vIdx] = i;
+      }
+      continue;
+    }
+
+    goto _return;
+  }
+
+  return TSDB_CODE_SUCCESS;
+
+_return:
+
+  terrno = TSDB_CODE_TSC_INVALID_OPERATION;
+
+  taosArrayDestroy(*pReq);
+  *pReq = NULL;
+  
+  return terrno;
+}
+
+void syncCatalogFn(SMetaData* pResult, void* param, int32_t code) {
+  SSyncQueryParam *pParam = param;
+  pParam->pRequest->code = code;
+
+  tsem_post(&pParam->sem);
+}
+
+
+void syncQueryFn(void *param, void *res, int32_t code) {
+  SSyncQueryParam *pParam = param;
+  pParam->pRequest = res;
+  pParam->pRequest->code = code;
+
+  tsem_post(&pParam->sem);
+}
+
+void taosAsyncQueryImpl(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param, bool validateOnly) {
+  STscObj *pTscObj = acquireTscObj(*(int64_t *)taos);
+  if (pTscObj == NULL || sql == NULL || NULL == fp) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    if (pTscObj) {
+      releaseTscObj(*(int64_t *)taos);
+    } else {
+      terrno = TSDB_CODE_TSC_DISCONNECTED;
+    }
+    fp(param, NULL, terrno);
+    return;
+  }
+
+  size_t sqlLen = strlen(sql);
+  if (sqlLen > (size_t)TSDB_MAX_ALLOWED_SQL_LEN) {
+    tscError("sql string exceeds max length:%d", TSDB_MAX_ALLOWED_SQL_LEN);
+    terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
+
+    fp(param, NULL, terrno);
+    return;
+  }
+
+  SRequestObj *pRequest = NULL;
+  int32_t      code = buildRequest(pTscObj, sql, sqlLen, &pRequest);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    fp(param, NULL, terrno);
+    return;
+  }
+
+  pRequest->validateOnly = validateOnly;
+  pRequest->body.queryFp = fp;
+  pRequest->body.param = param;
+  doAsyncQuery(pRequest, false);
+}
+
+
+TAOS_RES *taosQueryImpl(TAOS *taos, const char *sql, bool validateOnly) {
+  if (NULL == taos) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return NULL;
+  }
+
+  STscObj *pTscObj = acquireTscObj(*(int64_t *)taos);
+  if (pTscObj == NULL || sql == NULL) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return NULL;
+  }
+
+#if SYNC_ON_TOP_OF_ASYNC
+  SSyncQueryParam *param = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
+  tsem_init(&param->sem, 0, 0);
+
+  taosAsyncQueryImpl(taos, sql, syncQueryFn, param, validateOnly);
+  tsem_wait(&param->sem);
+
+  releaseTscObj(*(int64_t *)taos);
+
+  return param->pRequest;
+#else
+  size_t sqlLen = strlen(sql);
+  if (sqlLen > (size_t)TSDB_MAX_ALLOWED_SQL_LEN) {
+    releaseTscObj(*(int64_t *)taos);
+    tscError("sql string exceeds max length:%d", TSDB_MAX_ALLOWED_SQL_LEN);
+    terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
+    return NULL;
+  }
+
+  TAOS_RES *pRes = execQuery(pTscObj, sql, sqlLen, validateOnly);
+
+  releaseTscObj(*(int64_t *)taos);
+
+  return pRes;
+#endif
+}
+
+
+
