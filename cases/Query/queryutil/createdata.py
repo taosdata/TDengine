@@ -549,8 +549,8 @@ class TDCreateData():
             #result is NAN -NAN
             self.logger.info(("===list_nan===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
         else:
-            print(("=====list_error===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             self.logger.info(("sql1:'%s' result != sql2:'%s' result") %(sql1,sql2))
+            print(("=====list_error===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             return self.tdSql.checkEqual(list1,list2)
 
     def dataequal_hyperloglog(self, sql1,row1,col1, sql2,row2,col2):
@@ -577,8 +577,8 @@ class TDCreateData():
             print(("=====list_abs_hyperlog===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             self.logger.info(("===list_abs_hyperlog===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
         else:
-            print(("=====list_error_hyperlog===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             self.logger.info(("sql1:'%s' hyperlog result != sql2:'%s' result") %(sql1,sql2))
+            print(("=====list_error_hyperlog===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             return self.tdSql.checkEqual(list1,list2)
          
     def data_matrix_equal(self, sql1,row1_s,row1_e,col1_s,col1_e, sql2,row2_s,row2_e,col2_s,col2_e):
@@ -631,8 +631,8 @@ class TDCreateData():
             print(("=====matrix_abs===sql1.list1:'%s',sql2.list2:'%s'") %(float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None","")),float(str(list2).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None",""))))
             self.logger.info(("===matrix_abs======sql1:'%s' matrix_result = sql2:'%s' matrix_result") %(sql1,sql2))
         else:
-            print(("=====matrix_error===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             self.logger.info(("sql1:'%s' matrix_result != sql2:'%s' matrix_result") %(sql1,sql2))
+            print(("=====matrix_error===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             return self.tdSql.checkEqual(list1,list2)
                           
     def data2in1(self, sql1,row1_s,row1_e,col1_s,col1_e, sql2,row2_s,row2_e,col2_s,col2_e):
