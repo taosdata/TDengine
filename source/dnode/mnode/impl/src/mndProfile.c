@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndProfile.h"
+#include "mndAuth.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
@@ -215,36 +216,42 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   SConnObj       *pConn = NULL;
   int32_t         code = -1;
   SConnectReq     connReq = {0};
-  char            ip[30] = {0};
+  char            ip[24] = {0};
   const STraceId *trace = &pReq->info.traceId;
 
   if (tDeserializeSConnectReq(pReq->pCont, pReq->contLen, &connReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
-    goto CONN_OVER;
+    goto _OVER;
   }
 
   taosIp2String(pReq->info.conn.clientIp, ip);
 
   pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
   if (pUser == NULL) {
-    mGError("user:%s, failed to login while acquire user since %s", pReq->info.conn.user, terrstr());
-    goto CONN_OVER;
+    mGError("user:%s, failed to login from %s while acquire user since %s", pReq->info.conn.user, ip, terrstr());
+    goto _OVER;
   }
-  if (0 != strncmp(connReq.passwd, pUser->pass, TSDB_PASSWORD_LEN)) {
-    mGError("user:%s, failed to auth while acquire user, input:%s", pReq->info.conn.user, connReq.passwd);
+
+  if (strncmp(connReq.passwd, pUser->pass, TSDB_PASSWORD_LEN - 1) != 0) {
+    mGError("user:%s, failed to login from %s since invalid pass, input:%s", pReq->info.conn.user, ip, connReq.passwd);
     code = TSDB_CODE_RPC_AUTH_FAILURE;
-    goto CONN_OVER;
+    goto _OVER;
+  }
+
+  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_CONNECT) != 0) {
+    mGError("user:%s, failed to login from %s since %s", pReq->info.conn.user, ip, terrstr());
+    goto _OVER;
   }
 
   if (connReq.db[0]) {
-    char db[TSDB_DB_FNAME_LEN];
+    char db[TSDB_DB_FNAME_LEN] = {0};
     snprintf(db, TSDB_DB_FNAME_LEN, "%d%s%s", pUser->acctId, TS_PATH_DELIMITER, connReq.db);
     pDb = mndAcquireDb(pMnode, db);
     if (pDb == NULL) {
       terrno = TSDB_CODE_MND_INVALID_DB;
       mGError("user:%s, failed to login from %s while use db:%s since %s", pReq->info.conn.user, ip, connReq.db,
               terrstr());
-      goto CONN_OVER;
+      goto _OVER;
     }
   }
 
@@ -252,7 +259,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
                         pReq->info.conn.clientPort, connReq.pid, connReq.app, connReq.startTime);
   if (pConn == NULL) {
     mGError("user:%s, failed to login from %s while create connection since %s", pReq->info.conn.user, ip, terrstr());
-    goto CONN_OVER;
+    goto _OVER;
   }
 
   SConnectRsp connectRsp = {0};
@@ -268,9 +275,9 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   mndGetMnodeEpSet(pMnode, &connectRsp.epSet);
 
   int32_t contLen = tSerializeSConnectRsp(NULL, 0, &connectRsp);
-  if (contLen < 0) goto CONN_OVER;
+  if (contLen < 0) goto _OVER;
   void *pRsp = rpcMallocCont(contLen);
-  if (pRsp == NULL) goto CONN_OVER;
+  if (pRsp == NULL) goto _OVER;
   tSerializeSConnectRsp(pRsp, contLen, &connectRsp);
 
   pReq->info.rspLen = contLen;
@@ -280,7 +287,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
 
   code = 0;
 
-CONN_OVER:
+_OVER:
 
   mndReleaseUser(pMnode, pUser);
   mndReleaseDb(pMnode, pDb);

@@ -93,8 +93,13 @@ int32_t mndCheckOperAuth(SMnode *pMnode, const char *user, EOperType operType) {
     goto _OVER;
   }
 
-  terrno = TSDB_CODE_MND_NO_RIGHTS;
-  code = -1;
+  switch (operType) {
+    case MND_OPER_CONNECT:
+      break;
+    default:
+      terrno = TSDB_CODE_MND_NO_RIGHTS;
+      code = -1;
+  }
 
 _OVER:
   mndReleaseUser(pMnode, pUser);
