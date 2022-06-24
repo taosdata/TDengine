@@ -222,7 +222,7 @@ typedef struct {
 
 typedef struct {
   char      user[TSDB_USER_LEN];
-  char      pass[TSDB_PASSWORD_LEN];
+  char      pass[TSDB_PASSWORD_LEN + 1];
   char      acct[TSDB_USER_LEN];
   int64_t   createdTime;
   int64_t   updateTime;
