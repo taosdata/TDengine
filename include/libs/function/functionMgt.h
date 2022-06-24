@@ -123,6 +123,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_SELECT_VALUE,
   FUNCTION_TYPE_BLOCK_DIST,       // block distribution aggregate function
   FUNCTION_TYPE_BLOCK_DIST_INFO,  // block distribution pseudo column function
+  FUNCTION_TYPE_TO_COLUMN,
 
   // distributed splitting functions
   FUNCTION_TYPE_APERCENTILE_PARTIAL = 4000,
@@ -190,6 +191,7 @@ bool fmIsForbidWindowFunc(int32_t funcId);
 bool fmIsForbidGroupByFunc(int32_t funcId);
 bool fmIsIntervalInterpoFunc(int32_t funcId);
 bool fmIsInterpFunc(int32_t funcId);
+bool fmIsLastRowFunc(int32_t funcId);
 
 int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMergeFunc);
 

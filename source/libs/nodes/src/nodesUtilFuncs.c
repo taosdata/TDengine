@@ -210,6 +210,7 @@ SNode* nodesMakeNode(ENodeType type) {
     case QUERY_NODE_SHOW_VARIABLES_STMT:
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
+    case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
       return makeNode(type, sizeof(SShowStmt));
     case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:
       return makeNode(type, sizeof(SShowDnodeVariablesStmt));
@@ -273,6 +274,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SSystemTableScanPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN:
       return makeNode(type, sizeof(SBlockDistScanPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN:
+      return makeNode(type, sizeof(SLastRowScanPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       return makeNode(type, sizeof(SProjectPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN:
@@ -369,6 +372,8 @@ static void destroyScanPhysiNode(SScanPhysiNode* pNode) {
 
 static void destroyDataSinkNode(SDataSinkNode* pNode) { nodesDestroyNode((SNode*)pNode->pInputDataBlockDesc); }
 
+static void destroyExprNode(SExprNode* pExpr) { taosArrayDestroy(pExpr->pAssociation); }
+
 void nodesDestroyNode(SNode* pNode) {
   if (NULL == pNode) {
     return;
@@ -376,9 +381,11 @@ void nodesDestroyNode(SNode* pNode) {
 
   switch (nodeType(pNode)) {
     case QUERY_NODE_COLUMN:  // pProjectRef is weak reference, no need to release
+      destroyExprNode((SExprNode*)pNode);
       break;
     case QUERY_NODE_VALUE: {
       SValueNode* pValue = (SValueNode*)pNode;
+      destroyExprNode((SExprNode*)pNode);
       taosMemoryFreeClear(pValue->literal);
       if (IS_VAR_DATA_TYPE(pValue->node.resType.type)) {
         taosMemoryFreeClear(pValue->datum.p);
@@ -387,14 +394,17 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_OPERATOR: {
       SOperatorNode* pOp = (SOperatorNode*)pNode;
+      destroyExprNode((SExprNode*)pNode);
       nodesDestroyNode(pOp->pLeft);
       nodesDestroyNode(pOp->pRight);
       break;
     }
     case QUERY_NODE_LOGIC_CONDITION:
+      destroyExprNode((SExprNode*)pNode);
       nodesDestroyList(((SLogicConditionNode*)pNode)->pParameterList);
       break;
     case QUERY_NODE_FUNCTION:
+      destroyExprNode((SExprNode*)pNode);
       nodesDestroyList(((SFunctionNode*)pNode)->pParameterList);
       break;
     case QUERY_NODE_REAL_TABLE: {
@@ -642,7 +652,8 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_SCORES_STMT:
     case QUERY_NODE_SHOW_VARIABLES_STMT:
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
-    case QUERY_NODE_SHOW_TRANSACTIONS_STMT: {
+    case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
+    case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT: {
       SShowStmt* pStmt = (SShowStmt*)pNode;
       nodesDestroyNode(pStmt->pDbName);
       nodesDestroyNode(pStmt->pTbName);
@@ -667,7 +678,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pStmt->pFromTable);
       nodesDestroyNode(pStmt->pWhere);
       nodesDestroyNode(pStmt->pCountFunc);
-      nodesDestroyNode(pStmt->pTagIndexCond);
+      nodesDestroyNode(pStmt->pTagCond);
       break;
     }
     case QUERY_NODE_QUERY: {
@@ -686,7 +697,13 @@ void nodesDestroyNode(SNode* pNode) {
       SScanLogicNode* pLogicNode = (SScanLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
       nodesDestroyList(pLogicNode->pScanCols);
+      nodesDestroyList(pLogicNode->pScanPseudoCols);
       taosMemoryFreeClear(pLogicNode->pVgroupList);
+      nodesDestroyList(pLogicNode->pDynamicScanFuncs);
+      nodesDestroyNode(pLogicNode->pTagCond);
+      nodesDestroyNode(pLogicNode->pTagIndexCond);
+      taosArrayDestroy(pLogicNode->pSmaIndexes);
+      nodesDestroyList(pLogicNode->pPartTags);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_JOIN: {
@@ -781,6 +798,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN:
       destroyScanPhysiNode((SScanPhysiNode*)pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT: {
@@ -822,6 +840,7 @@ void nodesDestroyNode(SNode* pNode) {
       destroyPhysiNode((SPhysiNode*)pPhyNode);
       nodesDestroyList(pPhyNode->pExprs);
       nodesDestroyList(pPhyNode->pSortKeys);
+      nodesDestroyList(pPhyNode->pTargets);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
@@ -894,6 +913,8 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pSubplan->pChildren);
       nodesDestroyNode((SNode*)pSubplan->pNode);
       nodesDestroyNode((SNode*)pSubplan->pDataSink);
+      nodesDestroyNode((SNode*)pSubplan->pTagCond);
+      nodesDestroyNode((SNode*)pSubplan->pTagIndexCond);
       nodesClearList(pSubplan->pParents);
       break;
     }
@@ -1083,6 +1104,16 @@ SNode* nodesListGetNode(SNodeList* pList, int32_t index) {
   return NULL;
 }
 
+SListCell* nodesListGetCell(SNodeList* pList, int32_t index) {
+  SNode* node;
+  FOREACH(node, pList) {
+    if (0 == index--) {
+      return cell;
+    }
+  }
+  return NULL;
+}
+
 void nodesDestroyList(SNodeList* pList) {
   if (NULL == pList) {
     return;
@@ -1127,6 +1158,7 @@ void* nodesGetValueFromNode(SValueNode* pNode) {
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
+    case TSDB_DATA_TYPE_JSON:
       return (void*)pNode->datum.p;
     default:
       break;
@@ -1347,6 +1379,17 @@ bool nodesIsRegularOp(const SOperatorNode* pOp) {
     case OP_TYPE_NOT_LIKE:
     case OP_TYPE_MATCH:
     case OP_TYPE_NMATCH:
+      return true;
+    default:
+      break;
+  }
+  return false;
+}
+
+bool nodesIsBitwiseOp(const SOperatorNode* pOp) {
+  switch (pOp->opType) {
+    case OP_TYPE_BIT_AND:
+    case OP_TYPE_BIT_OR:
       return true;
     default:
       break;
@@ -1645,6 +1688,7 @@ int32_t nodesMergeConds(SNode** pDst, SNodeList** pSrc) {
 typedef struct SClassifyConditionCxt {
   bool hasPrimaryKey;
   bool hasTagIndexCol;
+  bool hasTagCol;
   bool hasOtherCol;
 } SClassifyConditionCxt;
 
@@ -1656,6 +1700,9 @@ static EDealRes classifyConditionImpl(SNode* pNode, void* pContext) {
       pCxt->hasPrimaryKey = true;
     } else if (pCol->hasIndex) {
       pCxt->hasTagIndexCol = true;
+      pCxt->hasTagCol = true;
+    } else if (COLUMN_TYPE_TAG == pCol->colType) {
+      pCxt->hasTagCol = true;
     } else {
       pCxt->hasOtherCol = true;
     }
@@ -1664,23 +1711,31 @@ static EDealRes classifyConditionImpl(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-typedef enum EConditionType { COND_TYPE_PRIMARY_KEY = 1, COND_TYPE_TAG_INDEX, COND_TYPE_NORMAL } EConditionType;
+typedef enum EConditionType {
+  COND_TYPE_PRIMARY_KEY = 1,
+  COND_TYPE_TAG_INDEX,
+  COND_TYPE_TAG,
+  COND_TYPE_NORMAL
+} EConditionType;
 
 static EConditionType classifyCondition(SNode* pNode) {
   SClassifyConditionCxt cxt = {.hasPrimaryKey = false, .hasTagIndexCol = false, .hasOtherCol = false};
   nodesWalkExpr(pNode, classifyConditionImpl, &cxt);
   return cxt.hasOtherCol ? COND_TYPE_NORMAL
-                         : (cxt.hasPrimaryKey && cxt.hasTagIndexCol
+                         : (cxt.hasPrimaryKey && cxt.hasTagCol
                                 ? COND_TYPE_NORMAL
-                                : (cxt.hasPrimaryKey ? COND_TYPE_PRIMARY_KEY : COND_TYPE_TAG_INDEX));
+                                : (cxt.hasPrimaryKey ? COND_TYPE_PRIMARY_KEY
+                                                     : (cxt.hasTagIndexCol ? COND_TYPE_TAG_INDEX : COND_TYPE_TAG)));
 }
 
-static int32_t partitionLogicCond(SNode** pCondition, SNode** pPrimaryKeyCond, SNode** pTagCond, SNode** pOtherCond) {
+static int32_t partitionLogicCond(SNode** pCondition, SNode** pPrimaryKeyCond, SNode** pTagIndexCond, SNode** pTagCond,
+                                  SNode** pOtherCond) {
   SLogicConditionNode* pLogicCond = (SLogicConditionNode*)(*pCondition);
 
   int32_t code = TSDB_CODE_SUCCESS;
 
   SNodeList* pPrimaryKeyConds = NULL;
+  SNodeList* pTagIndexConds = NULL;
   SNodeList* pTagConds = NULL;
   SNodeList* pOtherConds = NULL;
   SNode*     pCond = NULL;
@@ -1692,6 +1747,14 @@ static int32_t partitionLogicCond(SNode** pCondition, SNode** pPrimaryKeyCond, S
         }
         break;
       case COND_TYPE_TAG_INDEX:
+        if (NULL != pTagIndexCond) {
+          code = nodesListMakeAppend(&pTagIndexConds, nodesCloneNode(pCond));
+        }
+        if (NULL != pTagCond) {
+          code = nodesListMakeAppend(&pTagConds, nodesCloneNode(pCond));
+        }
+        break;
+      case COND_TYPE_TAG:
         if (NULL != pTagCond) {
           code = nodesListMakeAppend(&pTagConds, nodesCloneNode(pCond));
         }
@@ -1709,10 +1772,14 @@ static int32_t partitionLogicCond(SNode** pCondition, SNode** pPrimaryKeyCond, S
   }
 
   SNode* pTempPrimaryKeyCond = NULL;
+  SNode* pTempTagIndexCond = NULL;
   SNode* pTempTagCond = NULL;
   SNode* pTempOtherCond = NULL;
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesMergeConds(&pTempPrimaryKeyCond, &pPrimaryKeyConds);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesMergeConds(&pTempTagIndexCond, &pTagIndexConds);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesMergeConds(&pTempTagCond, &pTagConds);
@@ -1725,6 +1792,9 @@ static int32_t partitionLogicCond(SNode** pCondition, SNode** pPrimaryKeyCond, S
     if (NULL != pPrimaryKeyCond) {
       *pPrimaryKeyCond = pTempPrimaryKeyCond;
     }
+    if (NULL != pTagIndexCond) {
+      *pTagIndexCond = pTempTagIndexCond;
+    }
     if (NULL != pTagCond) {
       *pTagCond = pTempTagCond;
     }
@@ -1735,9 +1805,11 @@ static int32_t partitionLogicCond(SNode** pCondition, SNode** pPrimaryKeyCond, S
     *pCondition = NULL;
   } else {
     nodesDestroyList(pPrimaryKeyConds);
+    nodesDestroyList(pTagIndexConds);
     nodesDestroyList(pTagConds);
     nodesDestroyList(pOtherConds);
     nodesDestroyNode(pTempPrimaryKeyCond);
+    nodesDestroyNode(pTempTagIndexCond);
     nodesDestroyNode(pTempTagCond);
     nodesDestroyNode(pTempOtherCond);
   }
@@ -1745,10 +1817,11 @@ static int32_t partitionLogicCond(SNode** pCondition, SNode** pPrimaryKeyCond, S
   return code;
 }
 
-int32_t nodesPartitionCond(SNode** pCondition, SNode** pPrimaryKeyCond, SNode** pTagCond, SNode** pOtherCond) {
+int32_t nodesPartitionCond(SNode** pCondition, SNode** pPrimaryKeyCond, SNode** pTagIndexCond, SNode** pTagCond,
+                           SNode** pOtherCond) {
   if (QUERY_NODE_LOGIC_CONDITION == nodeType(*pCondition) &&
       LOGIC_COND_TYPE_AND == ((SLogicConditionNode*)*pCondition)->condType) {
-    return partitionLogicCond(pCondition, pPrimaryKeyCond, pTagCond, pOtherCond);
+    return partitionLogicCond(pCondition, pPrimaryKeyCond, pTagIndexCond, pTagCond, pOtherCond);
   }
 
   switch (classifyCondition(*pCondition)) {
@@ -1758,6 +1831,21 @@ int32_t nodesPartitionCond(SNode** pCondition, SNode** pPrimaryKeyCond, SNode** 
       }
       break;
     case COND_TYPE_TAG_INDEX:
+      if (NULL != pTagIndexCond) {
+        *pTagIndexCond = *pCondition;
+      }
+      if (NULL != pTagCond) {
+        SNode* pTempCond = *pCondition;
+        if (NULL != pTagIndexCond) {
+          pTempCond = nodesCloneNode(*pCondition);
+          if (NULL == pTempCond) {
+            return TSDB_CODE_OUT_OF_MEMORY;
+          }
+        }
+        *pTagCond = pTempCond;
+      }
+      break;
+    case COND_TYPE_TAG:
       if (NULL != pTagCond) {
         *pTagCond = *pCondition;
       }

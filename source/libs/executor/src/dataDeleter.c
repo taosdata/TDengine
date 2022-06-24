@@ -75,7 +75,7 @@ static void toDataCacheEntry(SDataDeleterHandle* pHandle, const SInputData* pInp
   SDataCacheEntry* pEntry = (SDataCacheEntry*)pBuf->pData;
   pEntry->compressed = 0;
   pEntry->numOfRows = pInput->pData->info.rows;
-  pEntry->numOfCols = pInput->pData->info.numOfCols;
+  pEntry->numOfCols = taosArrayGetSize(pInput->pData->pDataBlock);
   pEntry->dataLen = sizeof(SDeleterRes);
 
   ASSERT(1 == pEntry->numOfRows);
@@ -86,7 +86,7 @@ static void toDataCacheEntry(SDataDeleterHandle* pHandle, const SInputData* pInp
   SColumnInfoData* pColRes = (SColumnInfoData*)taosArrayGet(pInput->pData->pDataBlock, 0);
 
   SDeleterRes* pRes = (SDeleterRes*)pEntry->data;
-  pRes->uid = pHandle->pDeleter->tableId;
+  pRes->suid = pHandle->pParam->suid;
   pRes->uidList = pHandle->pParam->pUidList;
   pRes->skey = pHandle->pDeleter->deleteTimeRange.skey;
   pRes->ekey = pHandle->pDeleter->deleteTimeRange.ekey;

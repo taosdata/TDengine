@@ -44,7 +44,7 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
       createTbReq.ctb.suid = suid;
 
       STagVal tagVal = {
-          .cid = pDataBlock->info.numOfCols + 1,
+          .cid = taosArrayGetSize(pDataBlock->pDataBlock) + 1,
           .type = TSDB_DATA_TYPE_UBIGINT,
           .i64 = (int64_t)pDataBlock->info.groupId,
       };
@@ -92,9 +92,8 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
     blkHead->uid = 0;
 
     int32_t rows = pDataBlock->info.rows;
-    /*int32_t maxLen = TD_ROW_MAX_BYTES_FROM_SCHEMA(pTSchema);*/
-    /*blkHead->dataLen = htonl(rows * maxLen);*/
-    blkHead->dataLen = 0;
+
+    int32_t dataLen = 0;
 
     void* blkSchema = POINTER_SHIFT(blkHead, sizeof(SSubmitBlk));
 
@@ -108,7 +107,7 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
       createTbReq.ctb.suid = suid;
 
       STagVal tagVal = {
-          .cid = pDataBlock->info.numOfCols + 1,
+          .cid = taosArrayGetSize(pDataBlock->pDataBlock) + 1,
           .type = TSDB_DATA_TYPE_UBIGINT,
           .i64 = (int64_t)pDataBlock->info.groupId,
       };
@@ -167,9 +166,8 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
       }
       int32_t rowLen = TD_ROW_LEN(rowData);
       rowData = POINTER_SHIFT(rowData, rowLen);
-      blkHead->dataLen += rowLen;
+      dataLen += rowLen;
     }
-    int32_t dataLen = blkHead->dataLen;
     blkHead->dataLen = htonl(dataLen);
 
     ret->length += sizeof(SSubmitBlk) + schemaLen + dataLen;

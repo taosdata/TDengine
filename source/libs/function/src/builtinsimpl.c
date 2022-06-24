@@ -59,6 +59,12 @@ typedef struct STuplePos {
   int32_t offset;
 } STuplePos;
 
+typedef struct SMinmaxResInfo {
+  bool      assign;  // assign the first value or not
+  int64_t   v;
+  STuplePos tuplePos;
+} SMinmaxResInfo;
+
 typedef struct STopBotResItem {
   SVariant  v;
   uint64_t  uid;  // it is a table uid, used to extract tag data during building of the final result for the tag data
@@ -148,6 +154,12 @@ typedef struct SElapsedInfo {
   int64_t timeUnit;
 } SElapsedInfo;
 
+typedef struct STwaInfo {
+  double      dOutput;
+  SPoint1     p;
+  STimeWindow win;
+} STwaInfo;
+
 typedef struct SHistoFuncBin {
   double  lower;
   double  upper;
@@ -233,6 +245,22 @@ typedef struct SUniqueInfo {
   SHashObj* pHash;
   char      pItems[];
 } SUniqueInfo;
+
+typedef struct SDerivInfo {
+  double  prevValue;       // previous value
+  TSKEY   prevTs;          // previous timestamp
+  bool    ignoreNegative;  // ignore the negative value
+  int64_t tsWindow;        // time window for derivative
+  bool    valueSet;        // the value has been set already
+} SDerivInfo;
+
+typedef struct SRateInfo {
+  double  firstValue;
+  TSKEY   firstKey;
+  double  lastValue;
+  TSKEY   lastKey;
+  int8_t  hasResult;  // flag to denote has value
+} SRateInfo;
 
 #define SET_VAL(_info, numOfElem, res) \
   do {                                 \
@@ -533,7 +561,7 @@ int32_t sumFunction(SqlFunctionCtx* pCtx) {
 
   // check for overflow
   if (IS_FLOAT_TYPE(type) && (isinf(pSumRes->dsum) || isnan(pSumRes->dsum))) {
-    GET_RES_INFO(pCtx)->isNullRes = 1;
+    numOfElem = 0;
   }
 
 _sum_over:
@@ -899,7 +927,7 @@ int32_t avgFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   // check for overflow
   if (isinf(pAvgRes->result) || isnan(pAvgRes->result)) {
-    GET_RES_INFO(pCtx)->isNullRes = 1;
+    GET_RES_INFO(pCtx)->numOfRes = 0;
   }
 
   return functionFinalize(pCtx, pBlock);
@@ -926,12 +954,6 @@ int32_t avgPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 EFuncDataRequired statisDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow) {
   return FUNC_DATA_REQUIRED_STATIS_LOAD;
 }
-
-typedef struct SMinmaxResInfo {
-  bool      assign;  // assign the first value or not
-  int64_t   v;
-  STuplePos tuplePos;
-} SMinmaxResInfo;
 
 bool minmaxFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
   if (!functionSetup(pCtx, pResultInfo)) {
@@ -1427,11 +1449,13 @@ void setNullSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t 
 void setSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, const STuplePos* pTuplePos, int32_t rowIndex) {
   int32_t pageId = pTuplePos->pageId;
   int32_t offset = pTuplePos->offset;
+
   if (pTuplePos->pageId != -1) {
+    int32_t numOfCols = taosArrayGetSize(pCtx->pSrcBlock->pDataBlock);
     SFilePage* pPage = getBufPage(pCtx->pBuf, pageId);
 
     bool* nullList = (bool*)((char*)pPage + offset);
-    char* pStart = (char*)(nullList + pCtx->pSrcBlock->info.numOfCols * sizeof(bool));
+    char* pStart = (char*)(nullList + numOfCols * sizeof(bool));
 
     // todo set the offset value to optimize the performance.
     for (int32_t j = 0; j < pCtx->subsidiaries.num; ++j) {
@@ -1750,6 +1774,11 @@ int32_t stddevFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   } else {
     avg = pStddevRes->dsum / ((double)pStddevRes->count);
     pStddevRes->result = sqrt(fabs(pStddevRes->quadraticDSum / ((double)pStddevRes->count) - avg * avg));
+  }
+
+  // check for overflow
+  if (isinf(pStddevRes->result) || isnan(pStddevRes->result)) {
+    GET_RES_INFO(pCtx)->numOfRes = 0;
   }
 
   return functionFinalize(pCtx, pBlock);
@@ -3016,7 +3045,7 @@ void doAddIntoResult(SqlFunctionCtx* pCtx, void* pData, int32_t rowIndex, SSData
 void saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock, STuplePos* pPos) {
   SFilePage* pPage = NULL;
 
-  int32_t completeRowSize = pSrcBlock->info.rowSize + pSrcBlock->info.numOfCols * sizeof(bool);
+  int32_t completeRowSize = pSrcBlock->info.rowSize + (int32_t) taosArrayGetSize(pSrcBlock->pDataBlock) * sizeof(bool);
 
   if (pCtx->curBufPage == -1) {
     pPage = getNewBufPage(pCtx->pBuf, 0, &pCtx->curBufPage);
@@ -3034,8 +3063,8 @@ void saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pS
   // keep the current row data, extract method
   int32_t offset = 0;
   bool*   nullList = (bool*)((char*)pPage + pPage->num);
-  char*   pStart = (char*)(nullList + sizeof(bool) * pSrcBlock->info.numOfCols);
-  for (int32_t i = 0; i < pSrcBlock->info.numOfCols; ++i) {
+  char*   pStart = (char*)(nullList + sizeof(bool) * (int32_t) taosArrayGetSize(pSrcBlock->pDataBlock));
+  for (int32_t i = 0; i < (int32_t) taosArrayGetSize(pSrcBlock->pDataBlock); ++i) {
     SColumnInfoData* pCol = taosArrayGet(pSrcBlock->pDataBlock, i);
     bool             isNull = colDataIsNull_s(pCol, rowIndex);
     if (isNull) {
@@ -3064,11 +3093,13 @@ void saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pS
 void copyTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock, STuplePos* pPos) {
   SFilePage* pPage = getBufPage(pCtx->pBuf, pPos->pageId);
 
+  int32_t numOfCols = taosArrayGetSize(pSrcBlock->pDataBlock);
+
   bool* nullList = (bool*)((char*)pPage + pPos->offset);
-  char* pStart = (char*)(nullList + pSrcBlock->info.numOfCols * sizeof(bool));
+  char* pStart = (char*)(nullList + numOfCols * sizeof(bool));
 
   int32_t offset = 0;
-  for (int32_t i = 0; i < pSrcBlock->info.numOfCols; ++i) {
+  for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pCol = taosArrayGet(pSrcBlock->pDataBlock, i);
     if ((nullList[i] = colDataIsNull_s(pCol, rowIndex)) == true) {
       offset += pCol->info.bytes;
@@ -4665,12 +4696,6 @@ int32_t uniqueFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   return pResInfo->numOfRes;
 }
 
-typedef struct STwaInfo {
-  double      dOutput;
-  SPoint1     p;
-  STimeWindow win;
-} STwaInfo;
-
 bool getTwaFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   pEnv->calcMemSize = sizeof(STwaInfo);
   return true;
@@ -5119,14 +5144,6 @@ int32_t blockDistFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   return TSDB_CODE_SUCCESS;
 }
 
-typedef struct SDerivInfo {
-  double  prevValue;       // previous value
-  TSKEY   prevTs;          // previous timestamp
-  bool    ignoreNegative;  // ignore the negative value
-  int64_t tsWindow;        // time window for derivative
-  bool    valueSet;        // the value has been set already
-} SDerivInfo;
-
 bool getDerivativeFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   pEnv->calcMemSize = sizeof(SDerivInfo);
   return true;
@@ -5219,6 +5236,117 @@ int32_t derivativeFunction(SqlFunctionCtx* pCtx) {
   }
 
   return numOfElems;
+}
+
+bool getIrateFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(SRateInfo);
+  return true;
+}
+
+bool irateFuncSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
+  if (!functionSetup(pCtx, pResInfo)) {
+    return false;  // not initialized since it has been initialized
+  }
+
+  SRateInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  pInfo->firstKey   = INT64_MIN;
+  pInfo->lastKey    = INT64_MIN;
+  pInfo->firstValue = (double)INT64_MIN;
+  pInfo->lastValue  = (double)INT64_MIN;
+
+  pInfo->hasResult  = 0;
+  return true;
+}
+
+int32_t irateFunction(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SRateInfo*          pRateInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*      pInputCol = pInput->pData[0];
+
+  SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
+
+  TSKEY*  tsList = (int64_t*)pInput->pPTS->pData;
+
+  int32_t numOfElems = 0;
+  int32_t type = pInputCol->info.type;
+
+  for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
+    if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+      continue;
+    }
+
+    numOfElems++;
+
+    char* data = colDataGetData(pInputCol, i);
+    double  v = 0;
+    GET_TYPED_DATA(v, double, type, data);
+
+    if (INT64_MIN == pRateInfo->lastKey) {
+      pRateInfo->lastValue = v;
+      pRateInfo->lastKey   = tsList[i];
+      continue;
+    }
+
+    if (tsList[i] > pRateInfo->lastKey) {
+      if ((INT64_MIN == pRateInfo->firstKey) || pRateInfo->lastKey > pRateInfo->firstKey) {
+        pRateInfo->firstValue = pRateInfo->lastValue;
+        pRateInfo->firstKey = pRateInfo->lastKey;
+      }
+
+      pRateInfo->lastValue = v;
+      pRateInfo->lastKey   = tsList[i];
+
+      continue;
+    }
+
+    if ((INT64_MIN == pRateInfo->firstKey) || tsList[i] > pRateInfo->firstKey) {
+      pRateInfo->firstValue = v;
+      pRateInfo->firstKey = tsList[i];
+    }
+
+  }
+
+  SET_VAL(pResInfo, numOfElems, 1);
+  return TSDB_CODE_SUCCESS;
+}
+
+static double doCalcRate(const SRateInfo* pRateInfo, double tickPerSec) {
+  if ((INT64_MIN == pRateInfo->lastKey) || (INT64_MIN == pRateInfo->firstKey) ||
+      (pRateInfo->firstKey >= pRateInfo->lastKey)) {
+    return 0.0;
+  }
+
+  double diff = 0;
+  // If the previous value of the last is greater than the last value, only keep the last point instead of the delta
+  // value between two values.
+  diff = pRateInfo->lastValue;
+  if (diff >= pRateInfo->firstValue) {
+    diff -= pRateInfo->firstValue;
+  }
+
+  int64_t duration = pRateInfo->lastKey - pRateInfo->firstKey;
+  if (duration == 0) {
+    return 0;
+  }
+
+  return (duration > 0)? ((double)diff) / (duration/tickPerSec):0.0;
+}
+
+int32_t irateFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  pResInfo->isNullRes = (pResInfo->numOfRes == 0) ? 1 : 0;
+
+  SRateInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  double result = doCalcRate(pInfo, 1000);
+  colDataAppend(pCol, pBlock->info.rows, (const char*)&result, pResInfo->isNullRes);
+
+  return pResInfo->numOfRes;
 }
 
 int32_t interpFunction(SqlFunctionCtx* pCtx) {

@@ -59,10 +59,10 @@ extern "C" {
   for (SListCell* cell = (NULL != (list) ? (list)->pHead : NULL); \
        (NULL != cell ? (node = &(cell->pNode), true) : (node = NULL, false)); cell = cell->pNext)
 
-#define DESTORY_LIST(list)    \
-  do {                        \
-    nodesDestroyList((list)); \
-    (list) = NULL;            \
+#define NODES_DESTORY_LIST(list) \
+  do {                           \
+    nodesDestroyList((list));    \
+    (list) = NULL;               \
   } while (0)
 
 #define NODES_CLEAR_LIST(list) \
@@ -188,6 +188,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_CREATE_STABLE_STMT,
   QUERY_NODE_SHOW_TRANSACTIONS_STMT,
   QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT,
+  QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT,
   QUERY_NODE_KILL_CONNECTION_STMT,
   QUERY_NODE_KILL_QUERY_STMT,
   QUERY_NODE_KILL_TRANSACTION_STMT,
@@ -219,12 +220,14 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN,
   QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN,
   QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN,
+  QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN,
   QUERY_NODE_PHYSICAL_PLAN_PROJECT,
   QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN,
   QUERY_NODE_PHYSICAL_PLAN_HASH_AGG,
   QUERY_NODE_PHYSICAL_PLAN_EXCHANGE,
   QUERY_NODE_PHYSICAL_PLAN_MERGE,
   QUERY_NODE_PHYSICAL_PLAN_SORT,
+  QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT,
   QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL,
   QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL,
   QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL,
@@ -282,6 +285,7 @@ int32_t    nodesListPushFront(SNodeList* pList, SNode* pNode);
 SListCell* nodesListErase(SNodeList* pList, SListCell* pCell);
 void       nodesListInsertList(SNodeList* pTarget, SListCell* pPos, SNodeList* pSrc);
 SNode*     nodesListGetNode(SNodeList* pList, int32_t index);
+SListCell* nodesListGetCell(SNodeList* pList, int32_t index);
 void       nodesDestroyList(SNodeList* pList);
 // Only clear the linked list structure, without releasing the elements inside
 void nodesClearList(SNodeList* pList);

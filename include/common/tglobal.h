@@ -137,6 +137,8 @@ extern bool tsSmlDataFormat;
 // internal
 extern int32_t tsTransPullupInterval;
 extern int32_t tsMqRebalanceInterval;
+extern int32_t tsTtlUnit;
+extern int32_t tsTtlPushInterval;
 
 #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 
@@ -149,6 +151,7 @@ void    taosCfgDynamicOptions(const char *option, const char *value);
 void    taosAddDataDir(int32_t index, char *v1, int32_t level, int32_t primary);
 
 struct SConfig *taosGetCfg();
+int32_t taosSetCfg(SConfig *pCfg, char* name);
 
 #ifdef __cplusplus
 }
