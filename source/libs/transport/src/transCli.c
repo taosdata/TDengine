@@ -1013,8 +1013,8 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
                pCtx->retryCount + 1, TRANS_RETRY_COUNT_LIMIT);
       }
       if (pThrd->quit == false) {
-        if (pConn->status != ConnInPool && pResp->code != TSDB_CODE_RPC_NETWORK_UNAVAIL) {
-          addConnToPool(pThrd->pool, pConn);
+        if (pResp->code != TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+          if (pConn->status != ConnInPool) addConnToPool(pThrd->pool, pConn);
         } else {
           transUnrefCliHandle(pConn);
         }
