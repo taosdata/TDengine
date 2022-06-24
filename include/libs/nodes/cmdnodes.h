@@ -28,18 +28,17 @@ extern "C" {
 #define DESCRIBE_RESULT_TYPE_LEN  (20 + VARSTR_HEADER_SIZE)
 #define DESCRIBE_RESULT_NOTE_LEN  (8 + VARSTR_HEADER_SIZE)
 
-#define SHOW_CREATE_DB_RESULT_COLS      2
+#define SHOW_CREATE_DB_RESULT_COLS       2
 #define SHOW_CREATE_DB_RESULT_FIELD1_LEN (TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_CREATE_DB_RESULT_FIELD2_LEN (TSDB_MAX_BINARY_LEN + VARSTR_HEADER_SIZE)
 
-#define SHOW_CREATE_TB_RESULT_COLS      2
+#define SHOW_CREATE_TB_RESULT_COLS       2
 #define SHOW_CREATE_TB_RESULT_FIELD1_LEN (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_CREATE_TB_RESULT_FIELD2_LEN (TSDB_MAX_BINARY_LEN + VARSTR_HEADER_SIZE)
 
-#define SHOW_LOCAL_VARIABLES_RESULT_COLS      2
+#define SHOW_LOCAL_VARIABLES_RESULT_COLS       2
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD1_LEN (TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD2_LEN (TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE)
-
 
 #define PRIVILEGE_TYPE_MASK(n) (1 << n)
 
@@ -234,10 +233,10 @@ typedef struct SShowCreateDatabaseStmt {
 } SShowCreateDatabaseStmt;
 
 typedef struct SShowCreateTableStmt {
-  ENodeType   type;
-  char        dbName[TSDB_DB_NAME_LEN];
-  char        tableName[TSDB_TABLE_NAME_LEN];
-  void*       pCfg; // STableCfg
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      tableName[TSDB_TABLE_NAME_LEN];
+  void*     pCfg;  // STableCfg
 } SShowCreateTableStmt;
 
 typedef struct SShowTableDistributedStmt {
@@ -259,6 +258,7 @@ typedef struct SIndexOptions {
   SNode*     pInterval;
   SNode*     pOffset;
   SNode*     pSliding;
+  SNode*     pStreamOptions;
 } SIndexOptions;
 
 typedef struct SCreateIndexStmt {

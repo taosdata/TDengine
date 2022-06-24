@@ -40,15 +40,8 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     SStreamBlockScanInfo* pInfo = pOperator->info;
     pInfo->assignBlockUid = assignUid;
 
-    // no need to check
-#if 0
-    if (pInfo->blockType == 0) {
-      pInfo->blockType = type;
-    } else if (pInfo->blockType != type) {
-      ASSERT(0);
-      return TSDB_CODE_QRY_APP_ERROR;
-    }
-#endif
+    // TODO: if a block was set but not consumed,
+    // prevent setting a different type of block
     pInfo->blockType = type;
 
     if (type == STREAM_DATA_TYPE_SUBMIT_BLOCK) {
