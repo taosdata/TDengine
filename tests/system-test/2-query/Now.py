@@ -3,14 +3,55 @@ from util.dnodes import *
 from util.log import *
 from util.sql import *
 from util.cases import *
-
+from util.sqlset import *
 
 class TDTestCase:
 
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
+        self.setsql = TDSetSql()
+        # name of normal table
+        self.ntbname = 'ntb'    
+        # name of stable
+        self.stbname = 'stb'    
+        # structure of column
+        self.column_dict = {    
+            'ts':'timestamp',
+            'c1':'int',
+            'c2':'float',
+            'c3':'double'
+        }
+        # structure of tag
+        self.tag_dict = {       
+            't0':'int'
+        }
+        # number of child tables
+        self.tbnum = 2       
+        # values of tag,the number of values should equal to tbnum
+        self.tag_values = [     
+            f'10',
+            f'100'
+        ]
+        self.values_list = [
+            f'now,10,99.99,11.111111',
+            f'today(),100,11.111,22.222222'
+        ]
+        self.time_unit = ['b','u','a','s','m','h','d','w']
 
+
+    def now_check_ntb(self):
+        tdSql.prepare()
+        tdSql.execute(self.setsql.set_create_normaltable_sql(self.ntbname,self.column_dict))
+        for value in self.values_list:
+            tdSql.execute(
+                f'insert into {self.ntbname} values({value})')
+        
+
+
+        pass
+    def now_check_stb(self):
+        pass
     def run(self):  # sourcery skip: extract-duplicate-method
         # for func now() , today(), timezone()
         tdSql.prepare()
