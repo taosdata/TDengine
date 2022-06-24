@@ -91,7 +91,7 @@ if $data(5)[4] != ready then
   goto step2
 endi
 
-print =============== step31: move follower
+print =============== step3: create database
 $leaderExist = 0
 $leaderVnode = 0
 $follower1 = 0
@@ -144,7 +144,7 @@ if $rows != 1 then
   return -1
 endi
 
-print =============== step32: move leader
+print =============== step40: move leader
 print redistribute vgroup 2 dnode $follower1 dnode $follower2 dnode 5 
 sql redistribute vgroup 2 dnode $follower1 dnode $follower2 dnode 5 
 sql show d1.vgroups
@@ -155,9 +155,7 @@ if $rows != 1 then
   return -1
 endi
 
-return 
-
-print =============== step33: move follower1
+print =============== step41: 
 print redistribute vgroup 2 dnode $leaderVnode dnode $follower2 dnode 5 
 sql redistribute vgroup 2 dnode $leaderVnode dnode $follower2 dnode 5 
 sql show d1.vgroups
@@ -168,7 +166,7 @@ if $rows != 1 then
   return -1
 endi
 
-print =============== step34: move follower2
+print =============== step42: 
 print redistribute vgroup 2 dnode $follower1 dnode 5 dnode $leaderVnode
 sql redistribute vgroup 2 dnode $follower1 dnode 5 dnode $leaderVnode
 sql show d1.vgroups
@@ -179,7 +177,18 @@ if $rows != 1 then
   return -1
 endi
 
-print =============== step35: move leader
+print =============== step43:
+print redistribute vgroup 2 dnode $follower1 dnode $follower2 dnode $leaderVnode
+sql redistribute vgroup 2 dnode $follower1 dnode $follower2 dnode $leaderVnode
+sql show d1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+
+sql show d1.tables
+if $rows != 1 then
+  return -1
+endi
+
+print =============== step44:
 print redistribute vgroup 2 dnode $follower2 dnode 5 dnode $follower1
 sql redistribute vgroup 2 dnode $follower2 dnode 5 dnode $follower1
 sql show d1.vgroups
@@ -190,7 +199,7 @@ if $rows != 1 then
   return -1
 endi
 
-print =============== step36: move follower1
+print =============== step45:
 print redistribute vgroup 2 dnode $leaderVnode dnode $follower2 dnode 5 
 sql redistribute vgroup 2 dnode $leaderVnode dnode $follower2 dnode 5 
 sql show d1.vgroups
@@ -201,7 +210,7 @@ if $rows != 1 then
   return -1
 endi
 
-print =============== step37: move follower2
+print =============== step46: 
 print redistribute vgroup 2 dnode $leaderVnode dnode $follower1 dnode 5 
 sql redistribute vgroup 2 dnode $leaderVnode dnode $follower1 dnode 5 
 sql show d1.vgroups
@@ -212,7 +221,7 @@ if $rows != 1 then
   return -1
 endi
 
-print =============== step38: move leader
+print =============== step47: 
 print redistribute vgroup 2 dnode $follower1 dnode 5 dnode $follower2
 sql redistribute vgroup 2 dnode $follower1 dnode 5 dnode $follower2
 sql show d1.vgroups
@@ -223,7 +232,18 @@ if $rows != 1 then
   return -1
 endi
 
-print =============== step39: move follower1
+print =============== step48: 
+print redistribute vgroup 2 dnode $leaderVnode dnode 5 dnode $follower2
+sql redistribute vgroup 2 dnode $leaderVnode dnode 5 dnode $follower2
+sql show d1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+
+sql show d1.tables
+if $rows != 1 then
+  return -1
+endi
+
+print =============== step49: 
 print redistribute vgroup 2 dnode $leaderVnode dnode 5 dnode $follower2
 sql redistribute vgroup 2 dnode $leaderVnode dnode 5 dnode $follower2
 sql show d1.vgroups

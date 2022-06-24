@@ -1118,8 +1118,7 @@ static bool eliminateProjOptMayBeOptimized(SLogicNode* pNode) {
   }
 
   SProjectLogicNode* pProjectNode = (SProjectLogicNode*)pNode;
-  if (-1 != pProjectNode->limit || -1 != pProjectNode->slimit || -1 != pProjectNode->offset ||
-      -1 != pProjectNode->soffset) {
+  if (NULL != pProjectNode->node.pLimit || NULL != pProjectNode->node.pSlimit) {
     return false;
   }
 
