@@ -197,7 +197,6 @@ static void cliReleaseUnfinishedMsg(SCliConn* conn) {
       if (status != ConnInPool) {                                                                                  \
         addConnToPool(((SCliThrd*)conn->hostThrd)->pool, conn);                                                    \
       }                                                                                                            \
-      transRemoveExHandle(refMgt, conn->refId);                                                                    \
       return;                                                                                                      \
     }                                                                                                              \
   } while (0)
