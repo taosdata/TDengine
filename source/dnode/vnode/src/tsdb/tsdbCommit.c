@@ -735,12 +735,19 @@ static int32_t tsdbCommitMemoryData(SCommitter *pCommitter, STbData *pTbData) {
     code = tBlockDataAppendRow(pBlockData, pRow, NULL);
     if (code) goto _err;
 
+    pBlock->minVersion = TMIN(pBlock->minVersion, tsdbRowKey(pRow).version);
+    pBlock->maxVersion = TMAX(pBlock->maxVersion, tsdbRowKey(pRow).version);
+
     tsdbTbDataIterNext(pIter);
     pRow = tsdbTbDataIterGet(pIter);
 
     if (pBlockData->nRow >= pCommitter->maxRow * 4 / 5) {
       // write the block and do something
     }
+  }
+
+  if (pBlockData->nRow > 0) {
+    // write the block to file
   }
 
 _exit:

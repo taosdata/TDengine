@@ -518,6 +518,12 @@ struct SRowMerger {
   SArray   *pArray;  // SArray<SColVal>
 };
 
+struct STsdbFSState {
+  SDelFile *pDelFile;
+  SArray   *aDFileSet;  // SArray<aDFileSet>
+  SDelFile  delFile;
+};
+
 struct STsdbFS {
   STsdb         *pTsdb;
   TdThreadRwlock lock;

@@ -15,12 +15,6 @@
 
 #include "tsdb.h"
 
-struct STsdbFSState {
-  SDelFile *pDelFile;
-  SArray   *aDFileSet;  // SArray<aDFileSet>
-  SDelFile  delFile;
-};
-
 // =================================================================================================
 static int32_t tsdbDelFileToJson(const void *pObj, SJson *pJson) {
   int32_t   code = 0;
