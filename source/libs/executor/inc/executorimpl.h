@@ -336,7 +336,6 @@ typedef struct SStreamBlockScanInfo {
   int32_t         numOfPseudoExpr;
 
   int32_t         primaryTsIndex;    // primary time stamp slot id
-  void*           pDataReader;
   SReadHandle     readHandle;
   uint64_t        tableUid;         // queried super table uid
   EStreamScanMode scanMode;

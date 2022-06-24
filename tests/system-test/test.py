@@ -60,10 +60,11 @@ if __name__ == "__main__":
     stop = 0
     restart = False
     dnodeNums = 1
+    mnodeNums = 0
     updateCfgDict = {}
     execCmd = ""
-    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:N:', [
-        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'killv', 'execCmd','dnodeNums'])
+    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:N:M:', [
+        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'killv', 'execCmd','dnodeNums','mnodeNums'])
     for key, value in opts:
         if key in ['-h', '--help']:
             tdLog.printNoPrefix(
@@ -79,7 +80,8 @@ if __name__ == "__main__":
             tdLog.printNoPrefix('-d update cfg dict, base64 json str')
             tdLog.printNoPrefix('-k not kill valgrind processer')
             tdLog.printNoPrefix('-e eval str to run')
-            tdLog.printNoPrefix('-N create dnodes numbers clusters')
+            tdLog.printNoPrefix('-N create dnodes numbers in clusters')
+            tdLog.printNoPrefix('-M create mnode numbers in clusters')
 
             sys.exit(0)
 
@@ -132,6 +134,9 @@ if __name__ == "__main__":
 
         if key in ['-N', '--dnodeNums']:
             dnodeNums = value
+
+        if key in ['-M', '--mnodeNums']:
+            mnodeNums = value
 
     if not execCmd == "":
         tdDnodes.init(deployPath)
@@ -244,9 +249,8 @@ if __name__ == "__main__":
             tdDnodes.start(1)
             tdCases.logSql(logSql)
         else :
-            print("start cluster and  dnodes number")
-            
-            dnodeslist = cluster.configure_cluster(dnodes_nums=dnodeNums,independent=True)
+            tdLog.debug("create an cluster  with %s nodes and make %s dnode as independent mnode"%(dnodeNums,mnodeNums))
+            dnodeslist = cluster.configure_cluster(dnodeNums=dnodeNums,mnodeNums=mnodeNums)
             tdDnodes = ClusterDnodes(dnodeslist)
             tdDnodes.init(deployPath, masterIp)
             tdDnodes.setTestCluster(testCluster)

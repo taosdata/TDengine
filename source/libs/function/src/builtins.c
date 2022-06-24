@@ -79,7 +79,8 @@ static int32_t translateIn2NumOutDou(SFunctionNode* pFunc, char* pErrBuf, int32_
 
   uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
   uint8_t para2Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
-  if (!IS_NUMERIC_TYPE(para1Type) || !IS_NUMERIC_TYPE(para2Type)) {
+  if ((!IS_NUMERIC_TYPE(para1Type) && !IS_NULL_TYPE(para1Type)) ||
+      (!IS_NUMERIC_TYPE(para2Type) && !IS_NULL_TYPE(para2Type))) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
@@ -109,13 +110,13 @@ static int32_t translateLogarithm(SFunctionNode* pFunc, char* pErrBuf, int32_t l
   }
 
   uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
-  if (!IS_NUMERIC_TYPE(para1Type)) {
+  if (!IS_NUMERIC_TYPE(para1Type) && !IS_NULL_TYPE(para1Type)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
   if (2 == numOfParams) {
     uint8_t para2Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
-    if (!IS_NUMERIC_TYPE(para2Type)) {
+    if (!IS_NUMERIC_TYPE(para2Type) && !IS_NULL_TYPE(para2Type)) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
   }
@@ -1267,6 +1268,29 @@ static bool validateMinuteRange(int8_t hour, int8_t minute, char sign) {
   return false;
 }
 
+static bool validateTimestampDigits(const SValueNode* pVal) {
+  if (!IS_INTEGER_TYPE(pVal->node.resType.type)) {
+    return false;
+  }
+
+  int64_t tsVal = pVal->datum.i;
+  char fraction[20] = {0};
+  NUM_TO_STRING(pVal->node.resType.type, &tsVal, sizeof(fraction), fraction);
+  int32_t tsDigits = (int32_t)strlen(fraction);
+
+  if (tsDigits > TSDB_TIME_PRECISION_SEC_DIGITS) {
+    if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS ||
+        tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS ||
+        tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 static bool validateTimezoneFormat(const SValueNode* pVal) {
   if (TSDB_DATA_TYPE_BINARY != pVal->node.resType.type) {
     return false;
@@ -1377,6 +1401,15 @@ static int32_t translateToIso8601(SFunctionNode* pFunc, char* pErrBuf, int32_t l
   uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
   if (!IS_INTEGER_TYPE(paraType) && TSDB_DATA_TYPE_TIMESTAMP != paraType) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  if (QUERY_NODE_VALUE == nodeType(nodesListGetNode(pFunc->pParameterList, 0))) {
+    SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 0);
+
+    if (!validateTimestampDigits(pValue)) {
+      pFunc->node.resType = (SDataType){.bytes = 0, .type = TSDB_DATA_TYPE_BINARY};
+      return TSDB_CODE_SUCCESS;
+    }
   }
 
   // param1

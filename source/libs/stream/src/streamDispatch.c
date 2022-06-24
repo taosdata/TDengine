@@ -96,16 +96,17 @@ int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock)
   pRetrieve = taosMemoryCalloc(1, dataStrLen);
   if (pRetrieve == NULL) return -1;
 
+  int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
   pRetrieve->useconds = 0;
   pRetrieve->precision = TSDB_DEFAULT_PRECISION;
   pRetrieve->compressed = 0;
   pRetrieve->completed = 1;
   pRetrieve->streamBlockType = pBlock->info.type;
   pRetrieve->numOfRows = htonl(pBlock->info.rows);
-  pRetrieve->numOfCols = htonl(pBlock->info.numOfCols);
+  pRetrieve->numOfCols = htonl(numOfCols);
 
   int32_t actualLen = 0;
-  blockCompressEncode(pBlock, pRetrieve->data, &actualLen, pBlock->info.numOfCols, false);
+  blockCompressEncode(pBlock, pRetrieve->data, &actualLen, numOfCols, false);
 
   SStreamRetrieveReq req = {
       .streamId = pTask->streamId,
@@ -170,10 +171,12 @@ static int32_t streamAddBlockToDispatchMsg(const SSDataBlock* pBlock, SStreamDis
   pRetrieve->completed = 1;
   pRetrieve->streamBlockType = pBlock->info.type;
   pRetrieve->numOfRows = htonl(pBlock->info.rows);
-  pRetrieve->numOfCols = htonl(pBlock->info.numOfCols);
+
+  int32_t numOfCols = (int32_t)taosArrayGetSize(pBlock->pDataBlock);
+  pRetrieve->numOfCols = htonl(numOfCols);
 
   int32_t actualLen = 0;
-  blockCompressEncode(pBlock, pRetrieve->data, &actualLen, pBlock->info.numOfCols, false);
+  blockCompressEncode(pBlock, pRetrieve->data, &actualLen, numOfCols, false);
   actualLen += sizeof(SRetrieveTableRsp);
   ASSERT(actualLen <= dataStrLen);
   taosArrayPush(pReq->dataLen, &actualLen);
@@ -182,7 +185,7 @@ static int32_t streamAddBlockToDispatchMsg(const SSDataBlock* pBlock, SStreamDis
   return 0;
 }
 
-int32_t streamBuildDispatchMsg(SStreamTask* pTask, SStreamDataBlock* data, SRpcMsg* pMsg, SEpSet** ppEpSet) {
+int32_t streamBuildDispatchMsg(SStreamTask* pTask, const SStreamDataBlock* data, SRpcMsg* pMsg, SEpSet** ppEpSet) {
   void*   buf = NULL;
   int32_t code = -1;
   int32_t blockNum = taosArrayGetSize(data->blocks);
@@ -304,6 +307,8 @@ int32_t streamDispatch(SStreamTask* pTask, SMsgCb* pMsgCb) {
     atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);
     return -1;
   }
+  taosArrayDestroyEx(pBlock->blocks, (FDelete)tDeleteSSDataBlock);
+  taosFreeQitem(pBlock);
 
   tmsgSendReq(pEpSet, &dispatchMsg);
   return 0;

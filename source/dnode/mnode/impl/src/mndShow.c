@@ -236,7 +236,6 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   int32_t      numOfCols = pShow->pMeta->numOfColumns;
   SSDataBlock *pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
   pBlock->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
-  pBlock->info.numOfCols = numOfCols;
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData idata = {0};
@@ -271,7 +270,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   }
 
   size = sizeof(SRetrieveMetaTableRsp) + sizeof(int32_t) + sizeof(SSysTableSchema) * pShow->pMeta->numOfColumns +
-         blockDataGetSize(pBlock) + blockDataGetSerialMetaSize(pBlock->info.numOfCols);
+         blockDataGetSize(pBlock) + blockDataGetSerialMetaSize(taosArrayGetSize(pBlock->pDataBlock));
 
   SRetrieveMetaTableRsp *pRsp = rpcMallocCont(size);
   if (pRsp == NULL) {

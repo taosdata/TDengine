@@ -214,6 +214,20 @@ int32_t tNameSetDbName(SName* dst, int32_t acct, const char* dbName, size_t name
   return 0;
 }
 
+int32_t tNameAddTbName(SName* dst, const char* tbName, size_t nameLen) {
+  assert(dst != NULL && tbName != NULL && nameLen > 0);
+
+  // too long account id or too long db name
+  if (nameLen >= tListLen(dst->tname) || nameLen <= 0) {
+    return -1;
+  }
+
+  dst->type = TSDB_TABLE_NAME_T;
+  tstrncpy(dst->tname, tbName, nameLen + 1);
+  return 0;
+}
+
+
 int32_t tNameSetAcctId(SName* dst, int32_t acctId) {
   assert(dst != NULL);
   dst->acctId = acctId;
