@@ -14,7 +14,6 @@
  */
 
 #include "sma.h"
-#include "tstream.h"
 
 typedef enum { TD_QTASK_TMP_FILE = 0, TD_QTASK_CUR_FILE } TD_QTASK_FILE_T;
 static const char *tdQTaskInfoFname[] = {"qtaskinfo.t", "qtaskinfo"};
@@ -31,13 +30,13 @@ static void    tdRSmaPersistTrigger(void *param, void *tmrId);
 struct SRSmaInfoItem {
   SRSmaInfo *pRsmaInfo;
   void      *taskInfo;  // qTaskInfo_t
-  void      *tmrHandle;
   tmr_h      tmrId;
   int8_t     level;
   int8_t     tmrInitFlag;
-  int8_t     triggerStatus;  // TASK_TRIGGER_STATUS__IN_ACTIVE/TASK_TRIGGER_STATUS__ACTIVE
+  int8_t     triggerStatus;
   int32_t    maxDelay;
 };
+
 struct SRSmaInfo {
   STSchema     *pTSchema;
   SSma         *pSma;
@@ -45,11 +44,14 @@ struct SRSmaInfo {
   SRSmaInfoItem items[TSDB_RETENTION_L2];
 };
 
-static FORCE_INLINE void tdFreeTaskHandle(qTaskInfo_t *taskHandle) {
+static FORCE_INLINE void tdFreeTaskHandle(qTaskInfo_t *taskHandle, int32_t level) {
   // Note: free/kill may in RC
   qTaskInfo_t otaskHandle = atomic_load_ptr(taskHandle);
   if (otaskHandle && atomic_val_compare_exchange_ptr(taskHandle, otaskHandle, NULL)) {
+    smaDebug("%s:%d free qTaskInfo_t %p of level %d", __func__, __LINE__, otaskHandle, level);
     qDestroyTask(otaskHandle);
+  } else {
+    smaDebug("%s:%d not free qTaskInfo_t %p of level %d", __func__, __LINE__, otaskHandle, level);
   }
 }
 
@@ -58,14 +60,18 @@ void *tdFreeRSmaInfo(SRSmaInfo *pInfo) {
     for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
       SRSmaInfoItem *pItem = &pInfo->items[i];
       if (pItem->taskInfo) {
-        tdFreeTaskHandle(pItem->taskInfo);
-      }
-      if (pItem->tmrHandle) {
-        taosTmrCleanUp(pItem->tmrHandle);
+        smaDebug("%s:%d stop fetch-timer %p level %d", __func__, __LINE__, pItem->tmrId, i + 1);
+        atomic_store_8(&pItem->triggerStatus, TASK_TRIGGER_STAT_CANCELLED);
+        taosTmrStopA(&pItem->tmrId);
+        tdFreeTaskHandle(&pItem->taskInfo, i + 1);
+      } else {
+        smaDebug("%s:%d no need to destroy rsma info level %d since empty taskInfo", __func__, __LINE__, i + 1);
       }
     }
     taosMemoryFree(pInfo->pTSchema);
     taosMemoryFree(pInfo);
+  } else {
+    smaDebug("%s:%d no need to destroy rsma info since empty", __func__, __LINE__);
   }
 
   return NULL;
@@ -199,7 +205,7 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaInfo 
     if (!pItem->taskInfo) {
       goto _err;
     }
-    pItem->triggerStatus = TASK_TRIGGER_STATUS__IN_ACTIVE;
+    pItem->triggerStatus = TASK_TRIGGER_STAT_INACTIVE;
     if (param->maxdelay[idx] < TSDB_MIN_ROLLUP_MAX_DELAY) {
       int64_t msInterval =
           convertTimeFromPrecisionToUnit(pRetention[idx + 1].freq, pTsdbCfg->precision, TIME_UNIT_MILLISECOND);
@@ -211,10 +217,6 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaInfo 
       pItem->maxDelay = TSDB_MAX_ROLLUP_MAX_DELAY;
     }
     pItem->level = (idx == 0 ? TSDB_RETENTION_L1 : TSDB_RETENTION_L2);
-    pItem->tmrHandle = taosTmrInit(10000, 100, 10000, "RSMA");
-    if (!pItem->tmrHandle) {
-      goto _err;
-    }
   }
   return TSDB_CODE_SUCCESS;
 _err:
@@ -301,6 +303,12 @@ int32_t tdProcessRSmaCreate(SVnode *pVnode, SVCreateStbReq *pReq) {
     goto _err;
   } else {
     smaDebug("vgId:%d, register rsma info succeed for suid:%" PRIi64, SMA_VID(pSma), pReq->suid);
+  }
+
+  // start the persist timer
+  if (atomic_load_8(&SMA_RSMA_TMR_STAT(pStat)) == TASK_TRIGGER_STAT_INIT) {
+    atomic_store_8(&SMA_RSMA_TMR_STAT(pStat), TASK_TRIGGER_STAT_ACTIVE);
+    taosTmrStart(tdRSmaPersistTrigger, 5000, pStat, SMA_RSMA_TMR_HANDLE(pStat));
   }
 
   return TSDB_CODE_SUCCESS;
@@ -432,6 +440,16 @@ static int32_t tdFetchSubmitReqSuids(SSubmitReq *pMsg, STbUidStore *pStore) {
   return 0;
 }
 
+static void tdDestroySDataBlockArray(SArray *pArray) {
+#if 0
+  for (int32_t i = 0; i < taosArrayGetSize(pArray); ++i) {
+    SSDataBlock *pDataBlock = taosArrayGet(pArray, i);
+    blockDestroyInner(pDataBlock);
+  }
+#endif
+  taosArrayDestroy(pArray);
+}
+
 static int32_t tdFetchAndSubmitRSmaResult(SRSmaInfoItem *pItem, int8_t blkType) {
   SArray    *pResult = NULL;
   SRSmaInfo *pRSmaInfo = pItem->pRsmaInfo;
@@ -466,6 +484,7 @@ static int32_t tdFetchAndSubmitRSmaResult(SRSmaInfoItem *pItem, int8_t blkType) 
 #endif
     STsdb      *sinkTsdb = (pItem->level == TSDB_RETENTION_L1 ? pSma->pRSmaTsdb1 : pSma->pRSmaTsdb2);
     SSubmitReq *pReq = NULL;
+    // TODO: the schema update should be handled
     if (buildSubmitReqFromDataBlock(&pReq, pResult, pRSmaInfo->pTSchema, SMA_VID(pSma), pRSmaInfo->suid) < 0) {
       goto _err;
     }
@@ -477,17 +496,13 @@ static int32_t tdFetchAndSubmitRSmaResult(SRSmaInfoItem *pItem, int8_t blkType) 
 
     taosMemoryFreeClear(pReq);
   } else {
-    smaDebug("vgId:%d, no rsma % " PRIi8 " data generated since %s", SMA_VID(pSma), pItem->level, tstrerror(terrno));
+    smaDebug("vgId:%d, no rsma %" PRIi8 " data generated since %s", SMA_VID(pSma), pItem->level, tstrerror(terrno));
   }
 
-  if (blkType == STREAM_DATA_TYPE_SUBMIT_BLOCK) {
-    atomic_store_8(&pItem->triggerStatus, TASK_TRIGGER_STATUS__ACTIVE);
-  }
-
-  taosArrayDestroy(pResult);
+  tdDestroySDataBlockArray(pResult);
   return TSDB_CODE_SUCCESS;
 _err:
-  taosArrayDestroy(pResult);
+  tdDestroySDataBlockArray(pResult);
   return TSDB_CODE_FAILED;
 }
 
@@ -500,18 +515,18 @@ _err:
 static void tdRSmaFetchTrigger(void *param, void *tmrId) {
   SRSmaInfoItem *pItem = param;
 
-  if (atomic_load_8(&pItem->triggerStatus) == TASK_TRIGGER_STATUS__ACTIVE) {
-    smaWarn("%s:%d THREAD:%" PRIi64 " level %" PRIi8 " status is active for tb suid:%" PRIi64, __func__, __LINE__,
-            taosGetSelfPthreadId(), pItem->level, pItem->pRsmaInfo->suid);
+  if (atomic_load_8(&pItem->triggerStatus) == TASK_TRIGGER_STAT_ACTIVE) {
+    smaDebug("%s:%d level %" PRIi8 " status is active for table suid:%" PRIi64, __func__, __LINE__, pItem->level,
+             pItem->pRsmaInfo->suid);
     SSDataBlock dataBlock = {.info.type = STREAM_GET_ALL};
 
-    atomic_store_8(&pItem->triggerStatus, TASK_TRIGGER_STATUS__IN_ACTIVE);
+    atomic_store_8(&pItem->triggerStatus, TASK_TRIGGER_STAT_INACTIVE);
     qSetStreamInput(pItem->taskInfo, &dataBlock, STREAM_DATA_TYPE_SSDATA_BLOCK, false);
 
     tdFetchAndSubmitRSmaResult(pItem, STREAM_DATA_TYPE_SSDATA_BLOCK);
   } else {
-    smaWarn("%s:%d THREAD:%" PRIi64 " level %" PRIi8 " status is inactive for tb suid:%" PRIi64, __func__, __LINE__,
-            taosGetSelfPthreadId(), pItem->level, pItem->pRsmaInfo->suid);
+    smaDebug("%s:%d level %" PRIi8 " status is inactive for table suid:%" PRIi64, __func__, __LINE__, pItem->level,
+             pItem->pRsmaInfo->suid);
   }
 
   // taosTmrReset(tdRSmaFetchTrigger, pItem->maxDelay, pItem, pItem->tmrHandle, &pItem->tmrId);
@@ -533,14 +548,17 @@ static FORCE_INLINE int32_t tdExecuteRSmaImpl(SSma *pSma, const void *pMsg, int3
   }
 
   tdFetchAndSubmitRSmaResult(pItem, STREAM_DATA_TYPE_SUBMIT_BLOCK);
-  atomic_store_8(&pItem->triggerStatus, TASK_TRIGGER_STATUS__ACTIVE);
-  smaWarn("%s:%d THREAD:%" PRIi64 " process rsma insert", __func__, __LINE__, taosGetSelfPthreadId());
+  atomic_store_8(&pItem->triggerStatus, TASK_TRIGGER_STAT_ACTIVE);
+  smaDebug("%s:%d process rsma insert", __func__, __LINE__);
 
   SSmaEnv   *pEnv = SMA_RSMA_ENV(pSma);
   SRSmaStat *pStat = SMA_RSMA_STAT(pEnv->pStat);
 
-  taosTmrStart(tdRSmaPersistTrigger, 5000, pStat, pStat->tmrHandle);
-  taosTmrReset(tdRSmaFetchTrigger, pItem->maxDelay, pItem, pItem->tmrHandle, &pItem->tmrId);
+  if (pStat->tmrHandle) {
+    taosTmrReset(tdRSmaFetchTrigger, pItem->maxDelay, pItem, pStat->tmrHandle, &pItem->tmrId);
+  } else {
+    ASSERT(0);
+  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -608,7 +626,7 @@ int32_t tdProcessRSmaSubmit(SSma *pSma, void *pMsg, int32_t inputType) {
   return TSDB_CODE_SUCCESS;
 }
 
-void tdRSmaQTaskGetFName(int32_t vid, int8_t ftype, char* outputName) {
+void tdRSmaQTaskGetFName(int32_t vid, int8_t ftype, char *outputName) {
   tdGetVndFileName(vid, "rsma", tdQTaskInfoFname[ftype], outputName);
 }
 
@@ -635,12 +653,20 @@ static void *tdRSmaPersistExec(void *param) {
     SRSmaInfo *pRSmaInfo = *(SRSmaInfo **)infoHash;
     char      *pOutput = NULL;
     int32_t    len = 0;
+#if 0
+    smaDebug("table %" PRIi64 " sleep 15s start ...", pRSmaInfo->items[0].pRsmaInfo->suid);
+    for (int32_t i = 15; i > 0; --i) {
+      taosSsleep(1);
+      smaDebug("table %" PRIi64 " countdown %d", pRSmaInfo->items[0].pRsmaInfo->suid, i);
+    }
+    smaDebug("table %" PRIi64 " sleep 15s end ...", pRSmaInfo->items[0].pRsmaInfo->suid);
+#endif
+
     if (qSerializeTaskStatus(pRSmaInfo->items[0].taskInfo, &pOutput, &len) < 0) {
-      smaError("serialize rsma task for table %" PRIi64 " failed since %s", pRSmaInfo->items[0].pRsmaInfo->suid,
+      smaError("table %" PRIi64 " serialize rsma task failed since %s", pRSmaInfo->items[0].pRsmaInfo->suid,
                terrstr(terrno));
     } else {
-      smaWarn("serialize rsma task for table %" PRIi64 " success and len is %d", pRSmaInfo->items[0].pRsmaInfo->suid,
-              len);
+      smaDebug("table %" PRIi64 " serialize rsma task success with len %d", pRSmaInfo->items[0].pRsmaInfo->suid, len);
     }
     tdAppendTFile(&tFile, &len, sizeof(len), &toffset);
     tdAppendTFile(&tFile, pOutput, len, &toffset);
@@ -656,7 +682,7 @@ _end:
     tdRemoveTFile(&tFile);
     return NULL;
   }
-  
+
   tdCloseTFile(&tFile);
 
   char newFName[TSDB_FILENAME_LEN];
@@ -665,27 +691,28 @@ _end:
   strncpy(pos, tdQTaskInfoFname[TD_QTASK_CUR_FILE], TSDB_FILENAME_LEN - POINTER_DISTANCE(pos, newFName));
   taosRenameFile(TD_FILE_FULL_NAME(&tFile), newFName);
 
-  atomic_store_8(&pRSmaStat->tmrStat, TASK_TRIGGER_STATUS__ACTIVE);
+  atomic_store_8(&pRSmaStat->tmrStat, TASK_TRIGGER_STAT_ACTIVE);
   return NULL;
 _err:
-  atomic_store_8(&pRSmaStat->tmrStat, TASK_TRIGGER_STATUS__ACTIVE);
+  atomic_store_8(&pRSmaStat->tmrStat, TASK_TRIGGER_STAT_ACTIVE);
   // remove the .tmp file
   return NULL;
 }
 
 static void tdRSmaPersistTask(SRSmaStat *pRSmaStat) {
-  smaWarn("%s:%d entry ", __func__, __LINE__);
-  TdThread     threadId;
+  smaDebug("%s:%d entry ", __func__, __LINE__);
   TdThreadAttr thAttr;
   taosThreadAttrInit(&thAttr);
   taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_DETACHED);
 
-  if (taosThreadCreate(&threadId, &thAttr, tdRSmaPersistExec, pRSmaStat) != 0) {
+  if (taosThreadCreate(&pRSmaStat->persistThread, &thAttr, tdRSmaPersistExec, pRSmaStat) != 0) {
     smaError("failed to create thread to persist rsma qTaskInfo since %s", strerror(errno));
+  } else {
+    smaDebug("persist thread is created");
   }
 
   taosThreadAttrDestroy(&thAttr);
-  smaWarn("%s:%d end ", __func__, __LINE__);
+  smaDebug("%s:%d end ", __func__, __LINE__);
 }
 
 /**
@@ -696,17 +723,29 @@ static void tdRSmaPersistTask(SRSmaStat *pRSmaStat) {
  */
 static void tdRSmaPersistTrigger(void *param, void *tmrId) {
   SRSmaStat *pRSmaStat = param;
+  int8_t     tmrStat = atomic_load_8(&pRSmaStat->tmrStat);
 
-  if (atomic_load_8(&pRSmaStat->tmrStat) == TASK_TRIGGER_STATUS__ACTIVE) {
-    smaWarn("%s:%d THREAD:%" PRIi64 " rsma persistence start since active", __func__, __LINE__, taosGetSelfPthreadId());
-    atomic_store_8(&pRSmaStat->tmrStat, TASK_TRIGGER_STATUS__IN_ACTIVE);
-
-    // execution
-    tdRSmaPersistTask(pRSmaStat);
-  } else {
-    smaWarn("%s:%d THREAD:%" PRIi64 " rsma persistence not start since inactive", __func__, __LINE__,
-            taosGetSelfPthreadId());
+  switch (tmrStat) {
+    case TASK_TRIGGER_STAT_ACTIVE: {
+      smaDebug("%s:%d rsma persistence start since active", __func__, __LINE__);
+      if (atomic_load_8(&pRSmaStat->tmrStat) != TASK_TRIGGER_STAT_CANCELLED) {
+        atomic_store_8(&pRSmaStat->tmrStat, TASK_TRIGGER_STAT_INACTIVE);
+        tdRSmaPersistTask(pRSmaStat);
+        taosTmrReset(tdRSmaPersistTrigger, 5000, pRSmaStat, pRSmaStat->tmrHandle, &pRSmaStat->tmrId);
+      }
+    } break;
+    case TASK_TRIGGER_STAT_CANCELLED: {
+      smaDebug("%s:%d rsma persistence not start since cancelled", __func__, __LINE__);
+    } break;
+    case TASK_TRIGGER_STAT_INACTIVE: {
+      smaDebug("%s:%d rsma persistence not start since inactive", __func__, __LINE__);
+      taosTmrReset(tdRSmaPersistTrigger, 5000, pRSmaStat, pRSmaStat->tmrHandle, &pRSmaStat->tmrId);
+    } break;
+    case TASK_TRIGGER_STAT_INIT: {
+      smaDebug("%s:%d rsma persistence not start since init", __func__, __LINE__);
+    } break;
+    default: {
+      smaWarn("%s:%d rsma persistence stat %" PRIi8 " is unknown", __func__, __LINE__, tmrStat);
+    } break;
   }
-
-  taosTmrReset(tdRSmaPersistTrigger, 3600000, pRSmaStat, pRSmaStat->tmrHandle, &pRSmaStat->tmrId);
 }

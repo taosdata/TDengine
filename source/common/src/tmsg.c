@@ -3576,7 +3576,7 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
 
   if (tDecodeI8(&decoder, &pReq->isTsma) < 0) return -1;
   if (pReq->isTsma) {
-    if (tDecodeBinaryAlloc(&decoder, &pReq->pTsma, NULL) < 0) return -1;
+    if (tDecodeBinary(&decoder, (uint8_t**)&pReq->pTsma, NULL) < 0) return -1;
   }
 
   tEndDecode(&decoder);
@@ -4627,8 +4627,8 @@ int32_t tDecodeSRSmaParam(SDecoder *pCoder, SRSmaParam *pRSmaParam) {
     if (tDecodeI64v(pCoder, &pRSmaParam->watermark[i]) < 0) return -1;
     if (tDecodeI32v(pCoder, &pRSmaParam->qmsgLen[i]) < 0) return -1;
     if (pRSmaParam->qmsgLen[i] > 0) {
-      uint64_t len;
-      if (tDecodeBinaryAlloc(pCoder, (void **)&pRSmaParam->qmsg[i], &len) < 0)
+      tDecoderMalloc(pCoder, pRSmaParam->qmsgLen[i]);
+      if (tDecodeBinary(pCoder, (uint8_t **)&pRSmaParam->qmsg[i], NULL) < 0)
         return -1;  // qmsgLen contains len of '\0'
     } else {
       pRSmaParam->qmsg[i] = NULL;

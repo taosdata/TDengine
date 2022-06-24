@@ -15,6 +15,8 @@
 
 #include "sma.h"
 
+// smaFileUtil ================
+
 #define TD_FILE_HEAD_SIZE 512
 
 #define TD_FILE_STATE_OK  0
@@ -236,3 +238,6 @@ int32_t tdCreateTFile(STFile *pTFile, STfs *pTfs, bool updateHeader, int8_t fTyp
 }
 
 int32_t tdRemoveTFile(STFile *pTFile) { return tfsRemoveFile(TD_FILE_F(pTFile)); }
+
+// smaXXXUtil ================
+// ...

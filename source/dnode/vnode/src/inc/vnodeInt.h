@@ -40,6 +40,7 @@
 #include "ttime.h"
 #include "ttimer.h"
 #include "wal.h"
+#include "tthread.h"
 
 #include "vnode.h"
 
