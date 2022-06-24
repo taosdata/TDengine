@@ -183,12 +183,15 @@ static int32_t calcConstProject(SNode* pProject, SNode** pNew) {
     int32_t size = taosArrayGetSize(pAssociation);
     for (int32_t i = 0; i < size; ++i) {
       SNode** pCol = taosArrayGetP(pAssociation, i);
+      nodesDestroyNode(*pCol);
       *pCol = nodesCloneNode(*pNew);
       if (NULL == *pCol) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        break;
       }
     }
   }
+  taosArrayDestroy(pAssociation);
   return code;
 }
 

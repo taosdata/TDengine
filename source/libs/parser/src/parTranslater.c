@@ -517,8 +517,9 @@ static int32_t createColumnsByTable(STranslateContext* pCxt, const STableNode* p
       if (NULL == pCol) {
         return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_OUT_OF_MEMORY);
       }
-      setColumnInfoByExpr(pTable, (SExprNode*)pNode, &pCol);
       nodesListAppend(pList, (SNode*)pCol);
+      SListCell* pCell = nodesListGetCell(pList, LIST_LENGTH(pList) - 1);
+      setColumnInfoByExpr(pTable, (SExprNode*)pNode, (SColumnNode**)&pCell->pNode);
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -4657,7 +4658,6 @@ static int32_t extractShowLocalVariablesResultSchema(int32_t* numOfCols, SSchema
 
   return TSDB_CODE_SUCCESS;
 }
-
 
 int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema) {
   if (NULL == pRoot) {
