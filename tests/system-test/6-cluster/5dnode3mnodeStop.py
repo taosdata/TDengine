@@ -159,13 +159,10 @@ class TDTestCase:
         tdSql.query("show mnodes;")       
         tdSql.checkRows(3) 
         tdSql.checkData(0,1,'%s:6030'%self.host)
-        tdSql.checkData(0,2,'leader')
         tdSql.checkData(0,3,'ready')
         tdSql.checkData(1,1,'%s:6130'%self.host)
-        tdSql.checkData(1,2,'offline')
         tdSql.checkData(1,3,'ready')
         tdSql.checkData(2,1,'%s:6230'%self.host)
-        tdSql.checkData(2,2,'follower')
         tdSql.checkData(2,3,'ready')
 
     def check3mnode3off(self):
@@ -265,13 +262,6 @@ class TDTestCase:
         while stopcount <= 2:
             for i in range(dnodenumber):
                 tdDnodes[i].stoptaosd()
-                # if i == 1 :
-                #     self.check3mnode2off()
-                # elif i == 2 :
-                #     self.check3mnode3off()
-                # elif i == 0:
-                #     self.check3mnode1off()
-
                 tdDnodes[i].starttaosd()
                 # self.check3mnode()
             stopcount+=1

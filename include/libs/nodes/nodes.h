@@ -188,6 +188,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_CREATE_STABLE_STMT,
   QUERY_NODE_SHOW_TRANSACTIONS_STMT,
   QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT,
+  QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT,
   QUERY_NODE_KILL_CONNECTION_STMT,
   QUERY_NODE_KILL_QUERY_STMT,
   QUERY_NODE_KILL_TRANSACTION_STMT,
@@ -284,6 +285,7 @@ int32_t    nodesListPushFront(SNodeList* pList, SNode* pNode);
 SListCell* nodesListErase(SNodeList* pList, SListCell* pCell);
 void       nodesListInsertList(SNodeList* pTarget, SListCell* pPos, SNodeList* pSrc);
 SNode*     nodesListGetNode(SNodeList* pList, int32_t index);
+SListCell* nodesListGetCell(SNodeList* pList, int32_t index);
 void       nodesDestroyList(SNodeList* pList);
 // Only clear the linked list structure, without releasing the elements inside
 void nodesClearList(SNodeList* pList);

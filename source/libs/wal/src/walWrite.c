@@ -150,6 +150,7 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   ASSERT(code == 0);
   if (code != 0) {
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
+    ASSERT(0);
     return -1;
   }
   if (head.head.version != ver) {
