@@ -1,1 +1,1 @@
-taostest --use=hivemq.yaml --case=thirdparty/hivemq/hivemq.py,thirdparty/emqx/emqx.py
+taostest --use=hivemq.yaml --case=thirdparty/hivemq/hivemq.py --case=thirdparty/emqx/emqx.py
