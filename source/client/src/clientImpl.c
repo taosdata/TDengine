@@ -955,7 +955,8 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
                           .pAstRoot = pQuery->pRoot,
                           .showRewrite = pQuery->showRewrite,
                           .pMsg = pRequest->msgBuf,
-                          .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE};
+                          .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
+                          .pUser = pRequest->pTscObj->user};
 
       SAppInstInfo* pAppInfo = getAppInfo(pRequest);
       code = qCreateQueryPlan(&cxt, &pRequest->body.pDag, pMnodeList);
