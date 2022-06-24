@@ -71,6 +71,7 @@ typedef struct SCatalogReq {
   SArray* pTableCfg;      // element is SNAME
   bool    qNodeRequired;  // valid qnode
   bool    dNodeRequired;  // valid dnode
+  bool    svrVerRequired;
   bool    forceUpdate;
 } SCatalogReq;
 
@@ -80,18 +81,19 @@ typedef struct SMetaRes {
 } SMetaRes;
 
 typedef struct SMetaData {
-  SArray* pDbVgroup;    // pRes = SArray<SVgroupInfo>*
-  SArray* pDbCfg;       // pRes = SDbCfgInfo*
-  SArray* pDbInfo;      // pRes = SDbInfo*
-  SArray* pTableMeta;   // pRes = STableMeta*
-  SArray* pTableHash;   // pRes = SVgroupInfo*
-  SArray* pTableIndex;  // pRes = SArray<STableIndexInfo>*
-  SArray* pUdfList;     // pRes = SFuncInfo*
-  SArray* pIndex;       // pRes = SIndexInfo*
-  SArray* pUser;        // pRes = bool*
-  SArray* pQnodeList;   // pRes = SArray<SQueryNodeLoad>*
-  SArray* pTableCfg;    // pRes = STableCfg*
-  SArray* pDnodeList;   // pRes = SArray<SEpSet>*
+  SArray*   pDbVgroup;    // pRes = SArray<SVgroupInfo>*
+  SArray*   pDbCfg;       // pRes = SDbCfgInfo*
+  SArray*   pDbInfo;      // pRes = SDbInfo*
+  SArray*   pTableMeta;   // pRes = STableMeta*
+  SArray*   pTableHash;   // pRes = SVgroupInfo*
+  SArray*   pTableIndex;  // pRes = SArray<STableIndexInfo>*
+  SArray*   pUdfList;     // pRes = SFuncInfo*
+  SArray*   pIndex;       // pRes = SIndexInfo*
+  SArray*   pUser;        // pRes = bool*
+  SArray*   pQnodeList;   // pRes = SArray<SQueryNodeLoad>*
+  SArray*   pTableCfg;    // pRes = STableCfg*
+  SArray*   pDnodeList;   // pRes = SArray<SEpSet>*
+  SMetaRes* pSvrVer;      // pRes = char*
 } SMetaData;
 
 typedef struct SCatalogCfg {
@@ -260,7 +262,7 @@ int32_t catalogGetTableHashVgroup(SCatalog* pCatalog, SRequestConnInfo* pConn, c
  */
 int32_t catalogGetAllMeta(SCatalog* pCatalog, SRequestConnInfo* pConn, const SCatalogReq* pReq, SMetaData* pRsp);
 
-int32_t catalogAsyncGetAllMeta(SCatalog* pCtg, SRequestConnInfo* pConn, uint64_t reqId, const SCatalogReq* pReq, catalogCallback fp, void* param, int64_t* jobId);
+int32_t catalogAsyncGetAllMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SCatalogReq* pReq, catalogCallback fp, void* param, int64_t* jobId);
 
 int32_t catalogGetQnodeList(SCatalog* pCatalog, SRequestConnInfo* pConn, SArray* pQnodeList);
 
@@ -289,6 +291,8 @@ int32_t catalogChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user
 int32_t catalogUpdateUserAuthInfo(SCatalog* pCtg, SGetUserAuthRsp* pAuth);
 
 int32_t catalogUpdateVgEpSet(SCatalog* pCtg, const char* dbFName, int32_t vgId, SEpSet *epSet);
+
+int32_t catalogGetServerVersion(SCatalog* pCtg, SRequestConnInfo *pConn, char** pVersion);
 
 int32_t ctgdLaunchAsyncCall(SCatalog* pCtg, SRequestConnInfo* pConn, uint64_t reqId, bool forceUpdate);
 

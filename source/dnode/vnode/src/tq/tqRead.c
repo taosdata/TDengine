@@ -146,8 +146,7 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReadHandle* pHandle, uint64_
                             int32_t* pNumOfRows) {
   *pUid = 0;
 
-  // TODO set to real sversion
-  /*int32_t sversion = 1;*/
+  // TODO: cache multiple schema
   int32_t sversion = htonl(pHandle->pBlock->sversion);
   if (pHandle->cachedSchemaSuid == 0 || pHandle->cachedSchemaVer != sversion ||
       pHandle->cachedSchemaSuid != pHandle->msgIter.suid) {
@@ -161,7 +160,6 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReadHandle* pHandle, uint64_
       return -1;
     }
 
-    // this interface use suid instead of uid
     if (pHandle->pSchemaWrapper) tDeleteSSchemaWrapper(pHandle->pSchemaWrapper);
     pHandle->pSchemaWrapper = metaGetTableSchema(pHandle->pVnodeMeta, pHandle->msgIter.uid, sversion, true);
     if (pHandle->pSchemaWrapper == NULL) {

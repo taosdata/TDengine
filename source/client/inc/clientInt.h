@@ -54,6 +54,11 @@ enum {
   RES_TYPE__TMQ_META,
 };
 
+#define SHOW_VARIABLES_RESULT_COLS      2
+#define SHOW_VARIABLES_RESULT_FIELD1_LEN (TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE)
+#define SHOW_VARIABLES_RESULT_FIELD2_LEN (TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE)
+
+
 #define TD_RES_QUERY(res)    (*(int8_t*)res == RES_TYPE__QUERY)
 #define TD_RES_TMQ(res)      (*(int8_t*)res == RES_TYPE__TMQ)
 #define TD_RES_TMQ_META(res) (*(int8_t*)res == RES_TYPE__TMQ_META)
@@ -104,6 +109,8 @@ typedef struct SHeartBeatInfo {
 struct SAppInstInfo {
   int64_t            numOfConns;
   SCorEpSet          mgmtEp;
+  int32_t            totalDnodes;
+  int32_t            onlineDnodes;
   TdThreadMutex      qnodeMutex;
   SArray*            pQnodeList;
   SAppClusterSummary summary;
@@ -127,7 +134,8 @@ typedef struct STscObj {
   char          user[TSDB_USER_LEN];
   char          pass[TSDB_PASSWORD_LEN];
   char          db[TSDB_DB_FNAME_LEN];
-  char          ver[128];
+  char          sVer[TSDB_VERSION_LEN];
+  char          sDetailVer[128];
   int8_t        connType;
   int32_t       acctId;
   uint32_t      connId;

@@ -15,7 +15,7 @@ from util.sql import tdSql
 
 class TDSetSql:
     def init(self, conn, logSql):
-        tdSql.init(conn.cursor(), logSql)
+        
         self.stbname = 'stb'
 
     def set_create_normaltable_sql(self, ntbname='ntb', 

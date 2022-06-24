@@ -161,6 +161,9 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
             
         updateEpSet_s(&pTscObj->pAppInfo->mgmtEp, &pRsp->query->epSet);
       }
+      
+      pTscObj->pAppInfo->totalDnodes = pRsp->query->totalDnodes;
+      pTscObj->pAppInfo->onlineDnodes = pRsp->query->onlineDnodes;
       pTscObj->connId = pRsp->query->connId;
 
       if (pRsp->query->killRid) {

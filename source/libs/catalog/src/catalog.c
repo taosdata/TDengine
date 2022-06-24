@@ -1034,7 +1034,7 @@ _return:
   CTG_API_LEAVE(code);
 }
 
-int32_t catalogAsyncGetAllMeta(SCatalog* pCtg, SRequestConnInfo *pConn, uint64_t reqId, const SCatalogReq* pReq, catalogCallback fp, void* param, int64_t* jobId) {
+int32_t catalogAsyncGetAllMeta(SCatalog* pCtg, SRequestConnInfo *pConn, const SCatalogReq* pReq, catalogCallback fp, void* param, int64_t* jobId) {
   CTG_API_ENTER();
 
   if (NULL == pCtg || NULL == pConn || NULL == pReq || NULL == fp || NULL == param) {
@@ -1043,7 +1043,7 @@ int32_t catalogAsyncGetAllMeta(SCatalog* pCtg, SRequestConnInfo *pConn, uint64_t
 
   int32_t code = 0, taskNum = 0;
   SCtgJob *pJob = NULL;
-  CTG_ERR_JRET(ctgInitJob(pCtg, pConn, &pJob, reqId, pReq, fp, param, &taskNum));
+  CTG_ERR_JRET(ctgInitJob(pCtg, pConn, &pJob, pReq, fp, param, &taskNum));
   if (taskNum <= 0) {
     SMetaData* pMetaData = taosMemoryCalloc(1, sizeof(SMetaData));
     fp(pMetaData, param, TSDB_CODE_SUCCESS);
@@ -1229,6 +1229,22 @@ _return:
 
   CTG_API_LEAVE(code);
 }
+
+int32_t catalogGetServerVersion(SCatalog* pCtg, SRequestConnInfo *pConn, char** pVersion) {
+  CTG_API_ENTER();
+  
+  if (NULL == pCtg || NULL == pConn || NULL == pVersion) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  int32_t code = 0;
+  CTG_ERR_JRET(ctgGetSvrVerFromMnode(pCtg, pConn, pVersion, NULL));
+  
+_return:
+
+  CTG_API_LEAVE(code);
+}
+
 
 int32_t catalogUpdateUserAuthInfo(SCatalog* pCtg, SGetUserAuthRsp* pAuth) {
   CTG_API_ENTER();

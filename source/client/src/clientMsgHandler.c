@@ -82,7 +82,8 @@ int32_t processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
 
   pTscObj->connId = connectRsp.connId;
   pTscObj->acctId = connectRsp.acctId;
-  tstrncpy(pTscObj->ver, connectRsp.sVersion, tListLen(pTscObj->ver));
+  tstrncpy(pTscObj->sVer, connectRsp.sVer, tListLen(pTscObj->sVer));
+  tstrncpy(pTscObj->sDetailVer, connectRsp.sDetailVer, tListLen(pTscObj->sDetailVer));
 
   // update the appInstInfo
   pTscObj->pAppInfo->clusterId = connectRsp.clusterId;
@@ -287,6 +288,103 @@ int32_t processAlterStbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   return code;
 }
 
+static int32_t buildShowVariablesBlock(SArray* pVars, SSDataBlock** block) {
+  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  pBlock->info.hasVarCol = true;
+
+  pBlock->pDataBlock = taosArrayInit(SHOW_VARIABLES_RESULT_COLS, sizeof(SColumnInfoData));
+
+  SColumnInfoData infoData = {0};
+  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
+  infoData.info.bytes = SHOW_VARIABLES_RESULT_FIELD1_LEN;
+
+  taosArrayPush(pBlock->pDataBlock, &infoData);
+
+  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
+  infoData.info.bytes = SHOW_VARIABLES_RESULT_FIELD2_LEN;
+  taosArrayPush(pBlock->pDataBlock, &infoData);
+
+  int32_t numOfCfg = taosArrayGetSize(pVars);
+  blockDataEnsureCapacity(pBlock, numOfCfg);
+
+  for (int32_t i = 0, c = 0; i < numOfCfg; ++i, c = 0) {
+    SVariablesInfo *pInfo = taosArrayGet(pVars, i);
+
+    char name[TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(name, pInfo->name, TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE);
+    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
+    colDataAppend(pColInfo, i, name, false);
+    
+    char value[TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(value, pInfo->value, TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
+    colDataAppend(pColInfo, i, value, false);
+  }
+
+  pBlock->info.rows = numOfCfg;
+
+  *block = pBlock;
+  
+  return TSDB_CODE_SUCCESS;
+}
+
+
+static int32_t buildShowVariablesRsp(SArray* pVars, SRetrieveTableRsp** pRsp) {
+  SSDataBlock* pBlock = NULL;
+  int32_t code = buildShowVariablesBlock(pVars, &pBlock);
+  if (code) {
+    return code;
+  }
+
+  size_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
+  *pRsp = taosMemoryCalloc(1, rspSize);
+  if (NULL == *pRsp) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  (*pRsp)->useconds = 0;
+  (*pRsp)->completed = 1;
+  (*pRsp)->precision = 0;
+  (*pRsp)->compressed = 0;
+  (*pRsp)->compLen = 0;
+  (*pRsp)->numOfRows = htonl(pBlock->info.rows);
+  (*pRsp)->numOfCols = htonl(SHOW_VARIABLES_RESULT_COLS);
+
+  int32_t len = 0;
+  blockCompressEncode(pBlock, (*pRsp)->data, &len, SHOW_VARIABLES_RESULT_COLS, false);
+  ASSERT(len == rspSize - sizeof(SRetrieveTableRsp));
+
+  blockDataDestroy(pBlock);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t processShowVariablesRsp(void* param, const SDataBuf* pMsg, int32_t code) {
+  SRequestObj* pRequest = param;
+  if (code != TSDB_CODE_SUCCESS) {
+    setErrno(pRequest, code);
+  } else {
+    SShowVariablesRsp rsp = {0};
+    SRetrieveTableRsp* pRes = NULL;
+    code = tDeserializeSShowVariablesRsp(pMsg->pData, pMsg->len, &rsp);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = buildShowVariablesRsp(rsp.variables, &pRes);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = setQueryResultFromRsp(&pRequest->body.resInfo, pRes, false, false);
+    }
+    
+    tFreeSShowVariablesRsp(&rsp);
+  }
+
+  if (pRequest->body.queryFp != NULL) {
+    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
+  } else {
+    tsem_post(&pRequest->body.rspSem);
+  }
+  return code;
+}
+
+
 __async_send_cb_fn_t getMsgRspHandle(int32_t msgType) {
   switch (msgType) {
     case TDMT_MND_CONNECT:
@@ -301,6 +399,8 @@ __async_send_cb_fn_t getMsgRspHandle(int32_t msgType) {
       return processDropDbRsp;
     case TDMT_MND_ALTER_STB:
       return processAlterStbRsp;
+    case TDMT_MND_SHOW_VARIABLES:
+      return processShowVariablesRsp;
     default:
       return genericRspCallback;
   }
