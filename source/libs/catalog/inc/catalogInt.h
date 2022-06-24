@@ -383,7 +383,7 @@ typedef struct SCtgCacheOperation {
   void    *data;
   bool     syncOp;
   tsem_t   rspSem;  
-  bool     lockQ;
+  bool     stopQueue;
 } SCtgCacheOperation;
 
 typedef struct SCtgQNode {
@@ -393,7 +393,7 @@ typedef struct SCtgQNode {
 
 typedef struct SCtgQueue {
   SRWLatch              qlock;
-  bool                  lockQ;
+  bool                  stopQueue;
   SCtgQNode            *head;
   SCtgQNode            *tail;
   tsem_t                reqSem;  
@@ -559,7 +559,7 @@ int32_t ctgUpdateTbMetaEnqueue(SCatalog* pCtg, STableMetaOutput *output, bool sy
 int32_t ctgUpdateUserEnqueue(SCatalog* pCtg, SGetUserAuthRsp *pAuth, bool syncReq);
 int32_t ctgUpdateVgEpsetEnqueue(SCatalog* pCtg, char *dbFName, int32_t vgId, SEpSet* pEpSet);
 int32_t ctgUpdateTbIndexEnqueue(SCatalog* pCtg, STableIndex **pIndex, bool syncOp);
-int32_t ctgClearCacheEnqueue(SCatalog* pCtg, bool lockQ, bool syncOp);
+int32_t ctgClearCacheEnqueue(SCatalog* pCtg, bool stopQueue, bool syncOp);
 int32_t ctgMetaRentInit(SCtgRentMgmt *mgmt, uint32_t rentSec, int8_t type);
 int32_t ctgMetaRentAdd(SCtgRentMgmt *mgmt, void *meta, int64_t id, int32_t size);
 int32_t ctgMetaRentGet(SCtgRentMgmt *mgmt, void **res, uint32_t *num, int32_t size);
@@ -598,12 +598,13 @@ int32_t ctgLaunchJob(SCtgJob *pJob);
 int32_t ctgMakeAsyncRes(SCtgJob *pJob);
 int32_t ctgLaunchSubTask(SCtgTask *pTask, CTG_TASK_TYPE type, ctgSubTaskCbFp fp, void* param);
 int32_t ctgGetTbCfgCb(SCtgTask *pTask);
+void    ctgFreeHandle(SCatalog* pCatalog);
 
 int32_t ctgCloneVgInfo(SDBVgInfo *src, SDBVgInfo **dst);
 int32_t ctgCloneMetaOutput(STableMetaOutput *output, STableMetaOutput **pOutput);
 int32_t ctgGenerateVgList(SCatalog *pCtg, SHashObj *vgHash, SArray** pList);
 void    ctgFreeJob(void* job);
-void    ctgFreeHandle(SCatalog* pCtg);
+void    ctgFreeHandleImpl(SCatalog* pCtg);
 void    ctgFreeVgInfo(SDBVgInfo *vgInfo);
 int32_t ctgGetVgInfoFromHashValue(SCatalog *pCtg, SDBVgInfo *dbInfo, const SName *pTableName, SVgroupInfo *pVgroup);
 void    ctgResetTbMetaTask(SCtgTask* pTask);

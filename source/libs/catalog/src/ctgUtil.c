@@ -196,7 +196,7 @@ void ctgFreeDbCache(SCtgDBCache *dbCache) {
 }
 
 
-void ctgFreeHandle(SCatalog* pCtg) {
+void ctgFreeHandleImpl(SCatalog* pCtg) {
   ctgFreeMetaRent(&pCtg->dbRent);
   ctgFreeMetaRent(&pCtg->stbRent);
   
@@ -233,6 +233,27 @@ void ctgFreeHandle(SCatalog* pCtg) {
 
   taosMemoryFree(pCtg);
 }
+
+
+void ctgFreeHandle(SCatalog* pCtg) {
+  if (NULL == pCtg) {
+    return;
+  }
+
+  if (taosHashRemove(gCtgMgmt.pCluster, &pCtg->clusterId, sizeof(pCtg->clusterId))) {
+    ctgWarn("taosHashRemove from cluster failed, may already be freed, clusterId:0x%" PRIx64, pCtg->clusterId);
+    return;
+  }
+
+  CTG_CACHE_STAT_DEC(clusterNum, 1);
+
+  uint64_t clusterId = pCtg->clusterId;
+
+  ctgFreeHandleImpl(pCtg);
+
+  ctgInfo("handle freed, culsterId:0x%" PRIx64, clusterId);
+}
+
 
 
 void ctgFreeSUseDbOutput(SUseDbOutput* pOutput) {

@@ -659,12 +659,12 @@ int32_t ctgEnqueue(SCatalog* pCtg, SCtgCacheOperation *operation) {
   node->op = operation;
 
   CTG_LOCK(CTG_WRITE, &gCtgMgmt.queue.qlock);
-  if (gCtgMgmt.queue.lockQ) {
+  if (gCtgMgmt.queue.stopQueue) {
     ctgFreeQNode(node);
     CTG_UNLOCK(CTG_WRITE, &gCtgMgmt.queue.qlock);
     CTG_RET(TSDB_CODE_CTG_EXIT);
   }
-  gCtgMgmt.queue.lockQ = operation->lockQ;
+  gCtgMgmt.queue.stopQueue = operation->stopQueue;
   gCtgMgmt.queue.tail->next = node;
   gCtgMgmt.queue.tail = node;
   CTG_UNLOCK(CTG_WRITE, &gCtgMgmt.queue.qlock);
@@ -1002,12 +1002,12 @@ _return:
 }
 
 
-int32_t ctgClearCacheEnqueue(SCatalog* pCtg, bool lockQ, bool syncOp) {
+int32_t ctgClearCacheEnqueue(SCatalog* pCtg, bool stopQueue, bool syncOp) {
   int32_t code = 0;
   SCtgCacheOperation *op = taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
   op->opId = CTG_OP_CLEAR_CACHE;
   op->syncOp = syncOp;
-  op->lockQ = lockQ;
+  op->stopQueue = stopQueue;
   
   SCtgClearCacheMsg *msg = taosMemoryMalloc(sizeof(SCtgClearCacheMsg));
   if (NULL == msg) {

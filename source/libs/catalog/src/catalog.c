@@ -548,9 +548,11 @@ int32_t catalogGetHandle(uint64_t clusterId, SCatalog** catalogHandle) {
     CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
+  CTG_API_ENTER();
+
   if (NULL == gCtgMgmt.pCluster) {
     qError("catalog cluster cache are not ready, clusterId:0x%" PRIx64, clusterId);
-    CTG_ERR_RET(TSDB_CODE_CTG_NOT_READY);
+    CTG_API_LEAVE(TSDB_CODE_CTG_NOT_READY);
   }
 
   int32_t   code = 0;
@@ -562,13 +564,13 @@ int32_t catalogGetHandle(uint64_t clusterId, SCatalog** catalogHandle) {
     if (ctg && (*ctg)) {
       *catalogHandle = *ctg;
       qDebug("got catalog handle from cache, clusterId:0x%" PRIx64 ", CTG:%p", clusterId, *ctg);
-      return TSDB_CODE_SUCCESS;
+      CTG_API_LEAVE(TSDB_CODE_SUCCESS);
     }
 
     clusterCtg = taosMemoryCalloc(1, sizeof(SCatalog));
     if (NULL == clusterCtg) {
       qError("calloc %d failed", (int32_t)sizeof(SCatalog));
-      CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
+      CTG_API_LEAVE(TSDB_CODE_CTG_MEM_ERROR);
     }
 
     clusterCtg->clusterId = clusterId;
@@ -586,7 +588,7 @@ int32_t catalogGetHandle(uint64_t clusterId, SCatalog** catalogHandle) {
     code = taosHashPut(gCtgMgmt.pCluster, &clusterId, sizeof(clusterId), &clusterCtg, POINTER_BYTES);
     if (code) {
       if (HASH_NODE_EXIST(code)) {
-        ctgFreeHandle(clusterCtg);
+        ctgFreeHandleImpl(clusterCtg);
         continue;
       }
 
@@ -603,32 +605,13 @@ int32_t catalogGetHandle(uint64_t clusterId, SCatalog** catalogHandle) {
 
   CTG_CACHE_STAT_INC(clusterNum, 1);
 
-  return TSDB_CODE_SUCCESS;
+  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
 
 _return:
 
-  ctgFreeHandle(clusterCtg);
+  ctgFreeHandleImpl(clusterCtg);
 
-  CTG_RET(code);
-}
-
-void catalogFreeHandle(SCatalog* pCtg) {
-  if (NULL == pCtg) {
-    return;
-  }
-
-  if (taosHashRemove(gCtgMgmt.pCluster, &pCtg->clusterId, sizeof(pCtg->clusterId))) {
-    ctgWarn("taosHashRemove from cluster failed, may already be freed, clusterId:0x%" PRIx64, pCtg->clusterId);
-    return;
-  }
-
-  CTG_CACHE_STAT_DEC(clusterNum, 1);
-
-  uint64_t clusterId = pCtg->clusterId;
-
-  ctgFreeHandle(pCtg);
-
-  ctgInfo("handle freed, culsterId:0x%" PRIx64, clusterId);
+  CTG_API_LEAVE(code);
 }
 
 int32_t catalogGetDBVgVersion(SCatalog* pCtg, const char* dbFName, int32_t* version, int64_t* dbId, int32_t* tableNum) {
@@ -1284,10 +1267,6 @@ void catalogDestroy(void) {
   atomic_store_8((int8_t*)&gCtgMgmt.exit, true);
 
   ctgClearCacheEnqueue(NULL, true, true);
-
-  if (tsem_post(&gCtgMgmt.queue.reqSem)) {
-    qError("tsem_post failed, error:%s", tstrerror(TAOS_SYSTEM_ERROR(errno)));
-  }
 
   taosHashCleanup(gCtgMgmt.pCluster);
   gCtgMgmt.pCluster = NULL;
