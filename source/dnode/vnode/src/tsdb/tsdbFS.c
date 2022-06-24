@@ -16,158 +16,69 @@
 #include "tsdb.h"
 
 // =================================================================================================
-static int32_t tsdbDelFileToJson(const void *pObj, SJson *pJson) {
-  int32_t   code = 0;
-  SDelFile *pDelFile = (SDelFile *)pObj;
+static int32_t tPutFSState(uint8_t *p, STsdbFSState *pState) {
+  int32_t  n = 0;
+  int8_t   hasDel = pState->pDelFile ? 1 : 0;
+  uint32_t nDFileSet = taosArrayGetSize(pState->aDFileSet);
 
-  if (tjsonAddIntegerToObject(pJson, "minKey", pDelFile->minKey) < 0) goto _err;
-  if (tjsonAddIntegerToObject(pJson, "maxKey", pDelFile->maxKey) < 0) goto _err;
-  if (tjsonAddIntegerToObject(pJson, "minVer", pDelFile->minVersion) < 0) goto _err;
-  if (tjsonAddIntegerToObject(pJson, "maxVer", pDelFile->maxVersion) < 0) goto _err;
-
-  return code;
-
-_err:
-  code = TSDB_CODE_OUT_OF_MEMORY;
-  return code;
-}
-
-static int32_t tsdbHeadFileToJson(const void *pObj, SJson *pJson) {
-  int32_t    code = 0;
-  SHeadFile *pHeadFile = (SHeadFile *)pObj;
-
-  if (tjsonAddIntegerToObject(pJson, "size", pHeadFile->size) < 0) goto _err;
-  if (tjsonAddIntegerToObject(pJson, "offset", pHeadFile->offset) < 0) goto _err;
-
-  return code;
-
-_err:
-  code = TSDB_CODE_OUT_OF_MEMORY;
-  return code;
-}
-
-static int32_t tsdbDataFileToJson(const void *pObj, SJson *pJson) {
-  int32_t    code = 0;
-  SDataFile *pDataFile = (SDataFile *)pObj;
-
-  if (tjsonAddIntegerToObject(pJson, "size", pDataFile->size) < 0) goto _err;
-
-  return code;
-
-_err:
-  code = TSDB_CODE_OUT_OF_MEMORY;
-  return code;
-}
-
-static int32_t tsdbLastFileToJson(const void *pObj, SJson *pJson) {
-  int32_t    code = 0;
-  SLastFile *pLastFile = (SLastFile *)pObj;
-
-  if (tjsonAddIntegerToObject(pJson, "size", pLastFile->size) < 0) goto _err;
-
-  return code;
-
-_err:
-  code = TSDB_CODE_OUT_OF_MEMORY;
-  return code;
-}
-
-static int32_t tsdbSmaFileToJson(const void *pObj, SJson *pJson) {
-  int32_t   code = 0;
-  SSmaFile *pSmaFile = (SSmaFile *)pObj;
-
-  if (tjsonAddIntegerToObject(pJson, "size", pSmaFile->size) < 0) goto _err;
-
-  return code;
-
-_err:
-  code = TSDB_CODE_OUT_OF_MEMORY;
-  return code;
-}
-
-static int32_t tsdbDFileSetToJson(const void *pObj, SJson *pJson) {
-  int32_t    code = 0;
-  SDFileSet *pDFileSet = (SDFileSet *)pObj;
-
-  if (tjsonAddIntegerToObject(pJson, "level", pDFileSet->diskId.level) < 0) goto _err;
-  if (tjsonAddIntegerToObject(pJson, "id", pDFileSet->diskId.id) < 0) goto _err;
-  if (tjsonAddIntegerToObject(pJson, "fid", pDFileSet->fid) < 0) goto _err;
-  // if (tjsonAddObject(pJson, "head", tsdbHeadFileToJson, pDFileSet->pHeadFile) < 0) goto _err;
-  // if (tjsonAddObject(pJson, "data", tsdbDataFileToJson, pDFileSet->pDataFile) < 0) goto _err;
-  // if (tjsonAddObject(pJson, "last", tsdbLastFileToJson, pDFileSet->pLastFile) < 0) goto _err;
-  // if (tjsonAddObject(pJson, "sma", tsdbSmaFileToJson, pDFileSet->pSmaFile) < 0) goto _err;
-
-  return code;
-
-_err:
-  code = TSDB_CODE_OUT_OF_MEMORY;
-  return code;
-}
-
-static int32_t tsdbFSStateToJsonStr(STsdbFSState *pState, char **ppData) {
-  int32_t code = 0;
-  SJson  *pJson = NULL;
-
-  pJson = tjsonCreateObject();
-  if (pJson == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
+  // SDelFile
+  n += tPutI8(p ? p + n : p, hasDel);
+  if (hasDel) {
+    n += tPutDelFile(p ? p + n : p, pState->pDelFile);
   }
 
-  if (tjsonAddObject(pJson, "DelFile", tsdbDelFileToJson, pState->pDelFile) < 0) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
+  // SArray<SDFileSet>
+  n += tPutU32v(p ? p + n : p, nDFileSet);
+  for (uint32_t iDFileSet = 0; iDFileSet < nDFileSet; iDFileSet++) {
+    n += tPutDFileSet(p ? p + n : p, (SDFileSet *)taosArrayGet(pState->aDFileSet, iDFileSet));
   }
 
-  if (tjsonAddTArray(pJson, "DFileSet", tsdbDFileSetToJson, pState->aDFileSet) < 0) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
-  }
-
-  *ppData = tjsonToString(pJson);
-  if (*ppData == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
-  }
-
-  tjsonDelete(pJson);
-
-  return code;
-
-_err:
-  return code;
+  return n;
 }
 
-static int32_t tsdbJsonStrToFSState(char *pData, STsdbFSState *pState) {
-  int32_t code = 0;
-  SJson  *pJson = NULL;
+static int32_t tGetFSState(uint8_t *p, STsdbFSState *pState) {
+  int32_t    n = 0;
+  int8_t     hasDel;
+  uint32_t   nDFileSet;
+  SDFileSet *pSet = &(SDFileSet){0};
 
-  pJson = tjsonParse(pData);
-  if (pJson == NULL) goto _err;
+  // SDelFile
+  n += tGetI8(p + n, &hasDel);
+  if (hasDel) {
+    pState->pDelFile = &pState->delFile;
+    n += tGetDelFile(p + n, pState->pDelFile);
+  } else {
+    pState->pDelFile = NULL;
+  }
 
-  // if (tjsonToObject(pJson, "DelFile", tsdbJsonToDelFile, &pState->pDelFile) < 0) goto _err;
-  // if (tjsonToTArray(pJson, "DFIleSet", tsdbJsonToDFileSet, ) < 0) goto _err;
-  ASSERT(0);
+  // SArray<SDFileSet>
+  taosArrayClear(pState->aDFileSet);
+  n += tGetU32v(p + n, &nDFileSet);
+  for (uint32_t iDFileSet = 0; iDFileSet < nDFileSet; iDFileSet++) {
+    n += tGetDFileSet(p + n, pSet);
+    taosArrayPush(pState->aDFileSet, pSet);
+  }
 
-  tjsonDelete(pJson);
-
-  return code;
-
-_err:
-  code = TSDB_CODE_OUT_OF_MEMORY;
-  return code;
+  return n;
 }
 
-static int32_t tsdbCreateEmptyCurrent(const char *fname, STsdbFSState *pState) {
+static int32_t tsdbGnrtCurrent(const char *fname, STsdbFSState *pState) {
   int32_t   code = 0;
   int64_t   n;
   int64_t   size;
-  char     *pData = NULL;
+  uint8_t  *pData;
   TdFilePtr pFD = NULL;
 
-  // to json str
-  code = tsdbFSStateToJsonStr(pState, &pData);
-  if (code) goto _err;
+  // to binary
+  size = tPutFSState(NULL, pState) + sizeof(TSCKSUM);
+  pData = taosMemoryMalloc(size);
+  if (pData == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+  n = tPutFSState(pData, pState);
+  ASSERT(n + sizeof(TSCKSUM) == size);
+  taosCalcChecksumAppend(0, pData, size);
 
   // create and write
   pFD = taosOpenFile(fname, TD_FILE_WRITE | TD_FILE_CREATE);
@@ -176,7 +87,6 @@ static int32_t tsdbCreateEmptyCurrent(const char *fname, STsdbFSState *pState) {
     goto _err;
   }
 
-  size = strlen(pData);
   n = taosWriteFile(pFD, pData, size);
   if (n < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
@@ -194,60 +104,7 @@ static int32_t tsdbCreateEmptyCurrent(const char *fname, STsdbFSState *pState) {
   return code;
 
 _err:
-  tsdbError("create empry current failed since %s", tstrerror(code));
-  if (pData) taosMemoryFree(pData);
-  return code;
-}
-
-static int32_t tsdbSaveCurrentState(STsdbFS *pFS, STsdbFSState *pState) {
-  int32_t   code = 0;
-  int64_t   n;
-  int64_t   size;
-  char      tfname[TSDB_FILENAME_LEN];
-  char      fname[TSDB_FILENAME_LEN];
-  char     *pData = NULL;
-  TdFilePtr pFD = NULL;
-
-  snprintf(tfname, TSDB_FILENAME_LEN - 1, "%s/CURRENT.t", pFS->pTsdb->path);
-  snprintf(fname, TSDB_FILENAME_LEN - 1, "%s/CURRENT", pFS->pTsdb->path);
-
-  // encode
-  code = tsdbFSStateToJsonStr(pState, &pData);
-  if (code) goto _err;
-
-  // create and write tfname
-  pFD = taosOpenFile(tfname, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
-  if (pFD == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  size = strlen(pData);
-  n = taosWriteFile(pFD, pData, size);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  if (taosFsyncFile(pFD) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  taosCloseFile(&pFD);
-
-  // rename
-  code = taosRenameFile(tfname, fname);
-  if (code) {
-    code = TAOS_SYSTEM_ERROR(code);
-    goto _err;
-  }
-
-  if (pData) taosMemoryFree(pData);
-  return code;
-
-_err:
-  tsdbError("vgId:%d tsdb save current state failed since %s", TD_VID(pFS->pTsdb->pVnode), tstrerror(code));
+  tsdbError("tsdb gnrt current failed since %s", tstrerror(code));
   if (pData) taosMemoryFree(pData);
   return code;
 }
@@ -257,7 +114,7 @@ static int32_t tsdbLoadCurrentState(STsdbFS *pFS, STsdbFSState *pState) {
   int64_t   size;
   int64_t   n;
   char      fname[TSDB_FILENAME_LEN];
-  char     *pData = NULL;
+  uint8_t  *pData = NULL;
   TdFilePtr pFD;
 
   snprintf(fname, TSDB_FILENAME_LEN - 1, "%s%s%s%sCURRENT", tfsGetPrimaryPath(pFS->pTsdb->pVnode->pTfs), TD_DIRSEP,
@@ -265,7 +122,7 @@ static int32_t tsdbLoadCurrentState(STsdbFS *pFS, STsdbFSState *pState) {
 
   if (!taosCheckExistFile(fname)) {
     // create an empry CURRENT file if not exists
-    code = tsdbCreateEmptyCurrent(fname, pState);
+    code = tsdbGnrtCurrent(fname, pState);
     if (code) goto _err;
   } else {
     // open the file and load
@@ -280,12 +137,11 @@ static int32_t tsdbLoadCurrentState(STsdbFS *pFS, STsdbFSState *pState) {
       goto _err;
     }
 
-    pData = taosMemoryMalloc(size + 1);
+    pData = taosMemoryMalloc(size);
     if (pData == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _err;
     }
-    pData[size] = '\0';
 
     n = taosReadFile(pFD, pData, size);
     if (n < 0) {
@@ -293,11 +149,15 @@ static int32_t tsdbLoadCurrentState(STsdbFS *pFS, STsdbFSState *pState) {
       goto _err;
     }
 
+    if (!taosCheckChecksumWhole(pData, size)) {
+      code = TSDB_CODE_FILE_CORRUPTED;
+      goto _err;
+    }
+
     taosCloseFile(&pFD);
 
     // decode
-    code = tsdbJsonStrToFSState(pData, pState);
-    if (code) goto _err;
+    tGetFSState(pData, pState);
   }
 
   if (pData) taosMemoryFree(pData);
@@ -679,14 +539,28 @@ _err:
 int32_t tsdbFSCommit(STsdbFS *pFS) {
   int32_t       code = 0;
   STsdbFSState *pState = pFS->nState;
+  char          tfname[TSDB_FILENAME_LEN];
+  char          fname[TSDB_FILENAME_LEN];
 
   // need lock (todo)
   pFS->nState = pFS->cState;
   pFS->cState = pState;
 
-  // save
-  code = tsdbSaveCurrentState(pFS, pFS->cState);
+  snprintf(tfname, TSDB_FILENAME_LEN - 1, "%s%s%s%sCURRENT.t", tfsGetPrimaryPath(pFS->pTsdb->pVnode->pTfs), TD_DIRSEP,
+           pFS->pTsdb->path, TD_DIRSEP);
+  snprintf(fname, TSDB_FILENAME_LEN - 1, "%s%s%s%sCURRENT", tfsGetPrimaryPath(pFS->pTsdb->pVnode->pTfs), TD_DIRSEP,
+           pFS->pTsdb->path, TD_DIRSEP);
+
+  // gnrt CURRENT.t
+  code = tsdbGnrtCurrent(tfname, pFS->cState);
   if (code) goto _err;
+
+  // rename
+  code = taosRenameFile(tfname, fname);
+  if (code) {
+    code = TAOS_SYSTEM_ERROR(code);
+    goto _err;
+  }
 
   // apply commit on disk
   code = tsdbFSApplyDiskChange(pFS, pFS->nState, pFS->cState);

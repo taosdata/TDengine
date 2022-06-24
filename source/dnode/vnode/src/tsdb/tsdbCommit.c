@@ -816,6 +816,50 @@ _err:
   return code;
 }
 
+static int32_t tsdbMergeMemDisk(SCommitter *pCommitter, STbData *pTbData, SBlockIdx *oBlockIdx) {
+  int32_t      code = 0;
+  STbDataIter *pIter = &(STbDataIter){0};
+  TSDBROW     *pRow;
+
+  // create iter
+  tsdbTbDataIterOpen(pTbData, &(TSDBKEY){.ts = pCommitter->minKey, .version = VERSION_MIN}, 0, pIter);
+  pRow == tsdbTbDataIterGet(pIter);
+  if (pRow == NULL || TSDBROW_TS(pRow) > pCommitter->maxKey) {
+    return tsdbCommitDiskData(pCommitter, oBlockIdx);
+  }
+
+  // read
+  code = tsdbReadBlock(pCommitter->pReader, oBlockIdx, &pCommitter->oBlockMap, NULL);
+  if (code) goto _err;
+
+  // loop to merge
+  SBlockData *pBlockData = &pCommitter->nBlockData;
+  int32_t     iBlock = 0;
+  int32_t     nBlock = pCommitter->oBlockMap.nItem;
+
+  tBlockDataReset(pBlockData);
+  while (true) {
+    if ((pRow == NULL || TSDBROW_TS(pRow) > pCommitter->maxKey) && iBlock >= nBlock) break;
+  }
+
+  while (iBlock < nBlock) {
+    /* code */
+  }
+
+  //
+  while (pRow && TSDBROW_TS(pRow) <= pCommitter->maxKey) {
+    /* code */
+  }
+
+_exit:
+  if (pRow) pCommitter->nextKey = TMIN(pCommitter->nextKey, TSDBROW_TS(pRow));
+  return code;
+
+_err:
+  tsdbError("vgId:%d tsdb merge mem disk data failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
+  return code;
+}
+
 static int32_t tsdbCommitFileDataImpl(SCommitter *pCommitter) {
   int32_t    code = 0;
   int32_t    c;
@@ -843,8 +887,8 @@ static int32_t tsdbCommitFileDataImpl(SCommitter *pCommitter) {
 
     if (c == 0) {
       // merge commit
-      // code = tsdbMergeCommit(pCommitter, pTbData, pBlockIdx);
-      // if (code) goto _err;
+      code = tsdbMergeMemDisk(pCommitter, pTbData, pBlockIdx);
+      if (code) goto _err;
 
       iTbData++;
       iBlockIdx++;
@@ -1026,14 +1070,14 @@ _exit:
 }
 
 static void tsdbCommitDataEnd(SCommitter *pCommitter) {
-  tMapDataClear(&pCommitter->oBlockIdxMap);
-  tMapDataClear(&pCommitter->oBlockMap);
-  tBlockClear(&pCommitter->oBlock);
-  tBlockDataClear(&pCommitter->oBlockData);
-  tMapDataClear(&pCommitter->nBlockIdxMap);
-  tMapDataClear(&pCommitter->nBlockMap);
-  tBlockClear(&pCommitter->nBlock);
-  tBlockDataClear(&pCommitter->nBlockData);
+  // tMapDataClear(&pCommitter->oBlockIdxMap);
+  // tMapDataClear(&pCommitter->oBlockMap);
+  // tBlockClear(&pCommitter->oBlock);
+  // tBlockDataClear(&pCommitter->oBlockData);
+  // tMapDataClear(&pCommitter->nBlockIdxMap);
+  // tMapDataClear(&pCommitter->nBlockMap);
+  // tBlockClear(&pCommitter->nBlock);
+  // tBlockDataClear(&pCommitter->nBlockData);
 }
 
 static int32_t tsdbCommitData(SCommitter *pCommitter) {
@@ -1114,7 +1158,23 @@ static int32_t tsdbCommitCache(SCommitter *pCommitter) {
 }
 
 static int32_t tsdbEndCommit(SCommitter *pCommitter, int32_t eno) {
-  int32_t code = 0;
-  // TODO
+  int32_t    code = 0;
+  STsdb     *pTsdb = pCommitter->pTsdb;
+  SMemTable *pMemTable = pTsdb->imem;
+
+  if (eno == 0) {
+    code = tsdbFSCommit(pTsdb->fs);
+  } else {
+    code = tsdbFSRollback(pTsdb->fs);
+  }
+
+  tsdbMemTableDestroy(pMemTable);
+  pTsdb->imem = NULL;
+
+  tsdbInfo("vgId:%d tsdb end commit", TD_VID(pTsdb->pVnode));
+  return code;
+
+_err:
+  tsdbError("vgId:%d tsdb end commit failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
   return code;
 }

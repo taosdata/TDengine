@@ -164,8 +164,6 @@ int32_t tGetMapData(uint8_t *p, SMapData *pMapData);
 int32_t tsdbKeyFid(TSKEY key, int32_t minutes, int8_t precision);
 void    tsdbFidKeyRange(int32_t fid, int32_t minutes, int8_t precision, TSKEY *minKey, TSKEY *maxKey);
 int32_t tsdbBuildDeleteSkyline(SArray *aDelData, int32_t sidx, int32_t eidx, SArray *aSkyline);
-int32_t tPutDelFileHdr(uint8_t *p, SDelFile *pDelFile);
-int32_t tGetDelFileHdr(uint8_t *p, SDelFile *pDelFile);
 // tsdbMemTable ==============================================================================================
 // SMemTable
 int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable);
@@ -181,10 +179,11 @@ bool     tsdbTbDataIterNext(STbDataIter *pIter);
 typedef enum { TSDB_HEAD_FILE = 0, TSDB_DATA_FILE, TSDB_LAST_FILE, TSDB_SMA_FILE } EDataFileT;
 void    tsdbDataFileName(STsdb *pTsdb, SDFileSet *pDFileSet, EDataFileT ftype, char fname[]);
 int32_t tPutDataFileHdr(uint8_t *p, SDFileSet *pSet, EDataFileT ftype);
+int32_t tPutDelFile(uint8_t *p, SDelFile *pDelFile);
+int32_t tGetDelFile(uint8_t *p, SDelFile *pDelFile);
+int32_t tPutDFileSet(uint8_t *p, SDFileSet *pSet);
+int32_t tGetDFileSet(uint8_t *p, SDFileSet *pSet);
 // SDelFile
-#define tsdbDelFileCreate() \
-  ((SDelFile){              \
-      .maxKey = TSKEY_MIN, .minKey = TSKEY_MAX, .maxVersion = -1, .minVersion = INT64_MAX, .size = 0, .offset = 0})
 void tsdbDelFileName(STsdb *pTsdb, SDelFile *pFile, char fname[]);
 // tsdbFS.c ==============================================================================================
 int32_t tsdbFSOpen(STsdb *pTsdb, STsdbFS **ppFS);

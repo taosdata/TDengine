@@ -187,7 +187,7 @@ int32_t tsdbUpdateDelFileHdr(SDelFWriter *pWriter, uint8_t **ppBuf) {
 
   // build
   memset(*ppBuf, 0, size);
-  n = tPutDelFileHdr(*ppBuf, pWriter->pFile);
+  n = tPutDelFile(*ppBuf, pWriter->pFile);
   taosCalcChecksumAppend(0, *ppBuf, size);
 
   ASSERT(n <= size - sizeof(TSCKSUM));

@@ -518,32 +518,6 @@ int32_t tGetDelData(uint8_t *p, void *ph) {
   return n;
 }
 
-int32_t tPutDelFileHdr(uint8_t *p, SDelFile *pDelFile) {
-  int32_t n = 0;
-
-  n += tPutI64(p ? p + n : p, pDelFile->minKey);
-  n += tPutI64(p ? p + n : p, pDelFile->maxKey);
-  n += tPutI64v(p ? p + n : p, pDelFile->minVersion);
-  n += tPutI64v(p ? p + n : p, pDelFile->maxVersion);
-  n += tPutI64v(p ? p + n : p, pDelFile->size);
-  n += tPutI64v(p ? p + n : p, pDelFile->offset);
-
-  return n;
-}
-
-int32_t tGetDelFileHdr(uint8_t *p, SDelFile *pDelFile) {
-  int32_t n = 0;
-
-  n += tGetI64(p + n, &pDelFile->minKey);
-  n += tGetI64(p + n, &pDelFile->maxKey);
-  n += tGetI64v(p + n, &pDelFile->minVersion);
-  n += tGetI64v(p + n, &pDelFile->maxVersion);
-  n += tGetI64v(p + n, &pDelFile->size);
-  n += tGetI64v(p + n, &pDelFile->offset);
-
-  return n;
-}
-
 int32_t tsdbKeyFid(TSKEY key, int32_t minutes, int8_t precision) {
   if (key < 0) {
     return (int)((key + 1) / tsTickPerMin[precision] / minutes - 1);
