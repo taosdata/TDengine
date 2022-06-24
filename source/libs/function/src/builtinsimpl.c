@@ -2402,6 +2402,12 @@ bool getSelectivityFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   return true;
 }
 
+bool getGroupKeyFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+  SColumnNode* pNode = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
+  pEnv->calcMemSize = pNode->node.resType.bytes;
+  return true;
+}
+
 static FORCE_INLINE TSKEY getRowPTs(SColumnInfoData* pTsColInfo, int32_t rowIndex) {
   if (pTsColInfo == NULL) {
     return 0;
@@ -5347,6 +5353,28 @@ int32_t irateFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   colDataAppend(pCol, pBlock->info.rows, (const char*)&result, pResInfo->isNullRes);
 
   return pResInfo->numOfRes;
+}
+
+int32_t groupKeyFunction(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  char* buf = GET_ROWCELL_INTERBUF(pResInfo);
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*   pInputCol = pInput->pData[0];
+
+  int32_t bytes = pInputCol->info.bytes;
+
+  int32_t startIndex = pInput->startRowIndex;
+  if (colDataIsNull_s(pInputCol, startIndex)) {
+    pResInfo->numOfRes = 0;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  char* data = colDataGetData(pInputCol, startIndex);
+  memcpy(buf, data, bytes);
+  SET_VAL(pResInfo, 1, 1);
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t interpFunction(SqlFunctionCtx* pCtx) {
