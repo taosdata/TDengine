@@ -953,7 +953,6 @@ int cliRBChoseIdx(STrans* pTransInst) {
 }
 static void doDelayTask(void* param) {
   STaskArg* arg = param;
-
   SCliMsg*  pMsg = arg->param1;
   SCliThrd* pThrd = arg->param2;
   cliHandleReq(pMsg, pThrd);
@@ -977,13 +976,11 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
   if (pCtx->retryCount == 0) {
     pCtx->origEpSet = pCtx->epSet;
   }
+
   /*
-   * upper layer handle retry if code equal TSDB_CODE_RPC_NETWORK_UNAVAIL
-   */
-  /*
-   * no retry
-   *  1. query conn 2. rpc thread already receive quit msg
-   *
+   *  no retry
+   *  1. query conn
+   *  2. rpc thread already receive quit msg
    */
   if (CONN_NO_PERSIST_BY_APP(pConn) && pThrd->quit == false) {
     tmsg_t msgType = pCtx->msgType;
