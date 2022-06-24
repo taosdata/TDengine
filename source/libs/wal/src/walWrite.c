@@ -179,6 +179,10 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   }
   ((SWalFileInfo *)taosArrayGetLast(pWal->fileInfoSet))->lastVer = ver - 1;
   ((SWalFileInfo *)taosArrayGetLast(pWal->fileInfoSet))->fileSize = entry.offset;
+  if (((SWalFileInfo *)taosArrayGetLast(pWal->fileInfoSet))->lastVer < ver - 1) {
+    ASSERT(((SWalFileInfo *)taosArrayGetLast(pWal->fileInfoSet))->fileSize == 0);
+    ((SWalFileInfo *)taosArrayGetLast(pWal->fileInfoSet))->firstVer = -1;
+  }
   taosCloseFile(&pIdxTFile);
   taosCloseFile(&pLogTFile);
 
@@ -396,8 +400,12 @@ int64_t walWriteWithSyncInfo(SWal *pWal, int64_t index, tmsg_t msgType, SSyncLog
   }
 
   // set status
+  if (pWal->vers.firstVer == -1) pWal->vers.firstVer = index;
   pWal->vers.lastVer = index;
   pWal->totSize += sizeof(SWalHead) + bodyLen;
+  if (walGetCurFileInfo(pWal)->firstVer == -1) {
+    walGetCurFileInfo(pWal)->firstVer = index;
+  }
   walGetCurFileInfo(pWal)->lastVer = index;
   walGetCurFileInfo(pWal)->fileSize += sizeof(SWalHead) + bodyLen;
 
