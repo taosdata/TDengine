@@ -76,6 +76,7 @@ typedef enum {
   CTG_TASK_GET_INDEX,
   CTG_TASK_GET_UDF,
   CTG_TASK_GET_USER,
+  CTG_TASK_GET_SVR_VER,
 } CTG_TASK_TYPE;
 
 typedef enum {
@@ -224,6 +225,7 @@ typedef struct SCtgJob {
   int32_t           dbInfoNum;
   int32_t           tbIndexNum;
   int32_t           tbCfgNum;
+  int32_t           svrVerNum;
 } SCtgJob;
 
 typedef struct SCtgMsgCtx {
@@ -578,8 +580,9 @@ int32_t ctgGetTbMetaFromMnode(SCatalog* pCtg, SRequestConnInfo *pConn, const SNa
 int32_t ctgGetTbMetaFromVnode(SCatalog* pCtg, SRequestConnInfo *pConn, const SName* pTableName, SVgroupInfo *vgroupInfo, STableMetaOutput* out, SCtgTask* pTask);
 int32_t ctgGetTableCfgFromVnode(SCatalog* pCtg, SRequestConnInfo *pConn, const SName* pTableName, SVgroupInfo *vgroupInfo, STableCfg **out, SCtgTask* pTask);
 int32_t ctgGetTableCfgFromMnode(SCatalog* pCtg, SRequestConnInfo *pConn, const SName* pTableName, STableCfg **out, SCtgTask* pTask);
+int32_t ctgGetSvrVerFromMnode(SCatalog* pCtg, SRequestConnInfo *pConn, char **out, SCtgTask* pTask);
 
-int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgJob** job, uint64_t reqId, const SCatalogReq* pReq, catalogCallback fp, void* param, int32_t* taskNum);
+int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgJob** job, const SCatalogReq* pReq, catalogCallback fp, void* param, int32_t* taskNum);
 int32_t ctgLaunchJob(SCtgJob *pJob);
 int32_t ctgMakeAsyncRes(SCtgJob *pJob);
 int32_t ctgLaunchSubTask(SCtgTask *pTask, CTG_TASK_TYPE type, ctgSubTaskCbFp fp, void* param);
