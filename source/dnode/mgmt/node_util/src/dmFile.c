@@ -136,7 +136,7 @@ TdFilePtr dmCheckRunning(const char *dataDir) {
     taosMsleep(1000);
     retryTimes++;
     dError("failed to lock file:%s since %s, retryTimes:%d", filepath, terrstr(), retryTimes);
-  } while (retryTimes < 6);
+  } while (retryTimes < 12);
 
   if (ret < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
