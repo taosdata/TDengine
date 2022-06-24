@@ -137,6 +137,8 @@ extern bool tsSmlDataFormat;
 // internal
 extern int32_t tsTransPullupInterval;
 extern int32_t tsMqRebalanceInterval;
+extern int32_t tsTtlUnit;
+extern int32_t tsTtlPushInterval;
 
 #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 

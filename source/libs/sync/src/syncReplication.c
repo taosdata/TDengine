@@ -139,6 +139,15 @@ int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode) {
     // pre index, pre term
     SyncIndex preLogIndex = syncNodeGetPreIndex(pSyncNode, nextIndex);
     SyncTerm  preLogTerm = syncNodeGetPreTerm(pSyncNode, nextIndex);
+    if (preLogTerm == SYNC_TERM_INVALID) {
+      SyncIndex newNextIndex = syncNodeGetLastIndex(pSyncNode) + 1;
+      syncIndexMgrSetIndex(pSyncNode->pNextIndex, pDestId, newNextIndex);
+      syncIndexMgrSetIndex(pSyncNode->pMatchIndex, pDestId, SYNC_INDEX_INVALID);
+      sError("vgId:%d sync get pre term error, nextIndex:%ld, update next-index:%ld, match-index:%d, raftid:%ld",
+             pSyncNode->vgId, nextIndex, newNextIndex, SYNC_INDEX_INVALID, pDestId->addr);
+
+      return -1;
+    }
 
     // batch optimized
     // SyncIndex lastIndex = syncUtilMinIndex(pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore), nextIndex);
@@ -209,6 +218,17 @@ int32_t syncNodeReplicate(SSyncNode* pSyncNode) {
 
 int32_t syncNodeAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncAppendEntries* pMsg) {
   int32_t ret = 0;
+
+  do {
+    char     host[128];
+    uint16_t port;
+    syncUtilU642Addr(destRaftId->addr, host, sizeof(host), &port);
+    sDebug(
+        "vgId:%d, send sync-append-entries to %s:%d, term:%lu, pre-index:%ld, pre-term:%lu, pterm:%lu, commit:%ld, "
+        "datalen:%d",
+        pSyncNode->vgId, host, port, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->privateTerm,
+        pMsg->commitIndex, pMsg->dataLen);
+  } while (0);
 
   SRpcMsg rpcMsg;
   syncAppendEntries2RpcMsg(pMsg, &rpcMsg);

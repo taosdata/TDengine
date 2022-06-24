@@ -447,7 +447,7 @@ static int32_t mndUpdateAppInfo(SMnode *pMnode, SClientHbReq *pHbReq, SRpcConnIn
       mError("failed to create new app %" PRIx64 " since %s", pReq->appId, terrstr());
       return -1;
     } else {
-      mDebug("a new app %" PRIx64 "created", pReq->appId);
+      mDebug("a new app %" PRIx64 " is created", pReq->appId);
       mndReleaseApp(pMnode, pApp);
       return TSDB_CODE_SUCCESS;
     }

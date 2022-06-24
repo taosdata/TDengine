@@ -120,7 +120,7 @@ int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
     }
 
     default: {
-      colDataAssign(pOutputData, pInputData, pInput->numOfRows);
+      colDataAssign(pOutputData, pInputData, pInput->numOfRows, NULL);
     }
   }
 
@@ -273,7 +273,7 @@ static int32_t doScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
     }
 
     default: {
-      colDataAssign(pOutputData, pInputData, pInput->numOfRows);
+      colDataAssign(pOutputData, pInputData, pInput->numOfRows, NULL);
     }
   }
 
@@ -856,10 +856,13 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
 int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int32_t type = GET_PARAM_TYPE(pInput);
 
+  bool tzPresent = (inputNum == 2) ? true : false;
   char* tz;
   int32_t tzLen;
-  tz = varDataVal(pInput[1].columnData->pData);
-  tzLen = varDataLen(pInput[1].columnData->pData);
+  if (tzPresent) {
+    tz = varDataVal(pInput[1].columnData->pData);
+    tzLen = varDataLen(pInput[1].columnData->pData);
+  }
 
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
     if (colDataIsNull_s(pInput[0].columnData, i)) {
@@ -1415,11 +1418,19 @@ int32_t roundFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
 }
 
 int32_t lowerFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+#ifdef WINDOWS
+  return doCaseConvFunction(pInput, inputNum, pOutput, towlower);
+#else
   return doCaseConvFunction(pInput, inputNum, pOutput, tolower);
+#endif
 }
 
 int32_t upperFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+#ifdef WINDOWS
+  return doCaseConvFunction(pInput, inputNum, pOutput, towupper);
+#else
   return doCaseConvFunction(pInput, inputNum, pOutput, toupper);
+#endif
 }
 
 int32_t ltrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {

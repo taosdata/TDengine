@@ -1525,7 +1525,7 @@ static int32_t estimateJsonLen(SReqResultInfo* pResultInfo, int32_t numOfCols, i
         char*   jsonInnerData = data + CHAR_BYTES;
         if (jsonInnerType == TSDB_DATA_TYPE_NULL) {
           len += (VARSTR_HEADER_SIZE + strlen(TSDB_DATA_NULL_STR_L));
-        } else if (jsonInnerType & TD_TAG_JSON) {
+        } else if (tTagIsJson(data)) {
           len += (VARSTR_HEADER_SIZE + ((const STag*)(data))->len);
         } else if (jsonInnerType == TSDB_DATA_TYPE_NCHAR) {  // value -> "value"
           len += varDataTLen(jsonInnerData) + CHAR_BYTES * 2;
@@ -1610,7 +1610,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
         if (jsonInnerType == TSDB_DATA_TYPE_NULL) {
           sprintf(varDataVal(dst), "%s", TSDB_DATA_NULL_STR_L);
           varDataSetLen(dst, strlen(varDataVal(dst)));
-        } else if (jsonInnerType & TD_TAG_JSON) {
+        } else if (tTagIsJson(data)) {
           char* jsonString = parseTagDatatoJson(data);
           STR_TO_VARSTR(dst, jsonString);
           taosMemoryFree(jsonString);

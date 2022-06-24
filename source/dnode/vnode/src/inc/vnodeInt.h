@@ -149,6 +149,8 @@ int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRecoverReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRecoverRsp(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessTaskRetrieveRsp(STQ* pTq, SRpcMsg* pMsg);
 
 SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pSchema, bool createTb, int64_t suid,
                             const char* stbFullName, int32_t vgId);
@@ -245,7 +247,6 @@ struct SVnode {
 
 struct STbUidStore {
   tb_uid_t  suid;
-  tb_uid_t  uid;  // TODO: just for debugging, remove when uid provided in SSDataBlock
   SArray*   tbUids;
   SHashObj* uidHash;
 };

@@ -242,6 +242,8 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
       pResultInfo->current += 1;
       return pResultInfo->row;
     }
+  } else if (TD_RES_TMQ_META(res)) {
+    return NULL;
   } else {
     // assert to avoid un-initialization error
     ASSERT(0);

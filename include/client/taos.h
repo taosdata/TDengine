@@ -260,7 +260,7 @@ enum tmq_res_t {
 typedef enum tmq_res_t tmq_res_t;
 
 DLL_EXPORT tmq_res_t   tmq_get_res_type(TAOS_RES *res);
-DLL_EXPORT int32_t     tmq_get_raw_meta(TAOS_RES *res, const void **raw_meta, int32_t *raw_meta_len);
+DLL_EXPORT int32_t     tmq_get_raw_meta(TAOS_RES *res, void **raw_meta, int32_t *raw_meta_len);
 DLL_EXPORT const char *tmq_get_topic_name(TAOS_RES *res);
 DLL_EXPORT const char *tmq_get_db_name(TAOS_RES *res);
 DLL_EXPORT int32_t     tmq_get_vgroup_id(TAOS_RES *res);

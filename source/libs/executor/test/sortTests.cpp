@@ -62,25 +62,21 @@ SSDataBlock* getSingleColDummyBlock(void* param) {
     return NULL;
   }
 
-  SSDataBlock* pBlock = static_cast<SSDataBlock*>(taosMemoryCalloc(1, sizeof(SSDataBlock)));
-  pBlock->pDataBlock = taosArrayInit(4, sizeof(SColumnInfoData));
+  SSDataBlock* pBlock = createDataBlock();
 
   SColumnInfoData colInfo = {0};
   colInfo.info.type = pInfo->type;
   if (pInfo->type == TSDB_DATA_TYPE_NCHAR){
     colInfo.info.bytes = TSDB_NCHAR_SIZE * VARCOUNT + VARSTR_HEADER_SIZE;
-    colInfo.varmeta.offset = static_cast<int32_t *>(taosMemoryCalloc(pInfo->pageRows, sizeof(int32_t)));
   } else if(pInfo->type == TSDB_DATA_TYPE_BINARY) {
     colInfo.info.bytes = VARCOUNT + VARSTR_HEADER_SIZE;
-    colInfo.varmeta.offset = static_cast<int32_t *>(taosMemoryCalloc(pInfo->pageRows, sizeof(int32_t)));
   } else{
     colInfo.info.bytes = tDataTypes[pInfo->type].bytes;
-    colInfo.pData = static_cast<char*>(taosMemoryCalloc(pInfo->pageRows, colInfo.info.bytes));
-    colInfo.nullbitmap = static_cast<char*>(taosMemoryCalloc(1, (pInfo->pageRows + 7) / 8));
   }
   colInfo.info.colId = 1;
 
-  taosArrayPush(pBlock->pDataBlock, &colInfo);
+  blockDataAppendColInfo(pBlock, &colInfo);
+  blockDataEnsureCapacity(pBlock, pInfo->pageRows);
 
   for (int32_t i = 0; i < pInfo->pageRows; ++i) {
     SColumnInfoData* pColInfo = static_cast<SColumnInfoData*>(TARRAY_GET_ELEM(pBlock->pDataBlock, 0));
@@ -128,7 +124,6 @@ SSDataBlock* getSingleColDummyBlock(void* param) {
   }
 
   pBlock->info.rows = pInfo->pageRows;
-  pBlock->info.numOfCols = 1;
   return pBlock;
 }
 
@@ -354,15 +349,10 @@ TEST(testCase, ordered_merge_sort_Test) {
   SArray* orderInfo = taosArrayInit(1, sizeof(SBlockOrderInfo));
   taosArrayPush(orderInfo, &oi);
 
-  SSDataBlock* pBlock = static_cast<SSDataBlock*>(taosMemoryCalloc(1, sizeof(SSDataBlock)));
-  pBlock->pDataBlock = taosArrayInit(1, sizeof(SColumnInfoData));
-  pBlock->info.numOfCols = 1;
-  for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
-    SColumnInfoData colInfo = {0};
-    colInfo.info.type = TSDB_DATA_TYPE_INT;
-    colInfo.info.bytes = sizeof(int32_t);
-    colInfo.info.colId = 1;
-    taosArrayPush(pBlock->pDataBlock, &colInfo);
+  SSDataBlock* pBlock = createDataBlock();
+  for (int32_t i = 0; i < 1; ++i) {
+    SColumnInfoData colInfo = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+    blockDataAppendColInfo(pBlock, &colInfo);
   }
 
   SSortHandle* phandle = tsortCreateSortHandle(orderInfo, SORT_MULTISOURCE_MERGE, 1024, 5, pBlock,"test_abc");
