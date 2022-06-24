@@ -614,7 +614,7 @@ int64_t mndGenerateUid(char *name, int32_t len) {
 }
 
 int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
-                          SMonGrantInfo *pGrantInfo) {
+                          SMonStbInfo *pStbInfo, SMonGrantInfo *pGrantInfo) {
   if (mndAcquireRpcRef(pMnode) != 0) return -1;
 
   SSdb   *pSdb = pMnode->pSdb;
@@ -623,7 +623,9 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
   pClusterInfo->dnodes = taosArrayInit(sdbGetSize(pSdb, SDB_DNODE), sizeof(SMonDnodeDesc));
   pClusterInfo->mnodes = taosArrayInit(sdbGetSize(pSdb, SDB_MNODE), sizeof(SMonMnodeDesc));
   pVgroupInfo->vgroups = taosArrayInit(sdbGetSize(pSdb, SDB_VGROUP), sizeof(SMonVgroupDesc));
-  if (pClusterInfo->dnodes == NULL || pClusterInfo->mnodes == NULL || pVgroupInfo->vgroups == NULL) {
+  pStbInfo->stbs = taosArrayInit(sdbGetSize(pSdb, SDB_STB), sizeof(SMonStbDesc));
+  if (pClusterInfo->dnodes == NULL || pClusterInfo->mnodes == NULL || pVgroupInfo->vgroups == NULL ||
+      pStbInfo->stbs == NULL) {
     mndReleaseRpcRef(pMnode);
     return -1;
   }
@@ -712,6 +714,27 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
 
     taosArrayPush(pVgroupInfo->vgroups, &desc);
     sdbRelease(pSdb, pVgroup);
+  }
+
+  // stb info
+  pIter = NULL;
+  while (1) {
+    SStbObj *pStb = NULL;
+    pIter = sdbFetch(pSdb, SDB_STB, pIter, (void **)&pStb);
+    if (pIter == NULL) break;
+
+     SMonStbDesc desc = {0};
+
+    SName name1 = {0};
+    tNameFromString(&name1, pStb->db, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    tNameGetDbName(&name1, desc.database_name);
+
+    SName name2 = {0};
+    tNameFromString(&name2, pStb->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    tstrncpy(desc.stb_name, tNameGetTableName(&name2), TSDB_TABLE_NAME_LEN);
+
+    taosArrayPush(pStbInfo->stbs, &desc);
+    sdbRelease(pSdb, pStb);
   }
 
   // grant info

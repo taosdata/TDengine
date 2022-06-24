@@ -1012,9 +1012,9 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
 
     while (tqNextDataBlock(pInfo->streamBlockReader)) {
       SSDataBlock block = {0};
-      uint64_t groupId = 0;
-      uint64_t uid = 0;
-      int32_t  numOfRows = 0;
+      uint64_t    groupId = 0;
+      uint64_t    uid = 0;
+      int32_t     numOfRows = 0;
 
       // todo refactor
       int32_t code = tqRetrieveDataBlock(&block, pInfo->streamBlockReader, &groupId, &uid, &numOfRows);
@@ -1067,6 +1067,9 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
         }
       }
 
+      // TODO refactor @liao
+      taosArrayDestroy(block.pDataBlock);
+
       if (pInfo->pRes->pDataBlock == NULL) {
         // TODO add log
         pOperator->status = OP_EXEC_DONE;
@@ -1106,12 +1109,11 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
     }
 
     return (pBlockInfo->rows == 0) ? NULL : pInfo->pRes;
+
   } else if (pInfo->blockType == STREAM_DATA_TYPE_FROM_SNAPSHOT) {
     SSDataBlock* pResult = doTableScan(pInfo->pSnapshotReadOp);
-    if (pResult) {
-      return pResult->info.rows > 0 ? pResult : NULL;
-    }
-    return NULL;
+    return pResult && pResult->info.rows > 0 ? pResult : NULL;
+
   } else {
     ASSERT(0);
     return NULL;
@@ -1387,7 +1389,8 @@ static SSDataBlock* buildSysTableMetaBlock() {
 
   SSDataBlock* pBlock = createDataBlock();
   for (int32_t i = 0; i < pMeta[index].colNum; ++i) {
-    SColumnInfoData colInfoData = createColumnInfoData(pMeta[index].schema[i].type, pMeta[index].schema[i].bytes, i + 1);
+    SColumnInfoData colInfoData =
+        createColumnInfoData(pMeta[index].schema[i].type, pMeta[index].schema[i].bytes, i + 1);
     blockDataAppendColInfo(pBlock, &colInfoData);
   }
 

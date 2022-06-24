@@ -71,8 +71,8 @@ SEpSet getEpSet_s(SCorEpSet* pEpSet);
 #define colDataGetData(p1_, r_) \
   ((IS_VAR_DATA_TYPE((p1_)->info.type)) ? colDataGetVarData(p1_, r_) : colDataGetNumData(p1_, r_))
 
-#define IS_JSON_NULL(type, data) ((type) == TSDB_DATA_TYPE_JSON && \
-                                  (*(data) == TSDB_DATA_TYPE_NULL || tTagIsJsonNull(data)))
+#define IS_JSON_NULL(type, data) \
+  ((type) == TSDB_DATA_TYPE_JSON && (*(data) == TSDB_DATA_TYPE_NULL || tTagIsJsonNull(data)))
 
 static FORCE_INLINE bool colDataIsNull_s(const SColumnInfoData* pColumnInfoData, uint32_t row) {
   if (!pColumnInfoData->hasNull) {
@@ -186,7 +186,8 @@ int32_t getJsonValueLen(const char* data);
 int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, bool isNull);
 int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, uint32_t* capacity,
                         const SColumnInfoData* pSource, uint32_t numOfRow2);
-int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* pSource, int32_t numOfRows, const SDataBlockInfo* pBlockInfo);
+int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* pSource, int32_t numOfRows,
+                      const SDataBlockInfo* pBlockInfo);
 int32_t blockDataUpdateTsWindow(SSDataBlock* pDataBlock, int32_t tsColumnIndex);
 
 int32_t colDataGetLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRows);
@@ -222,6 +223,7 @@ size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize);
 
 int32_t blockDataTrimFirstNRows(SSDataBlock* pBlock, size_t n);
 
+int32_t      assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src);
 SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData);
 SSDataBlock* createDataBlock();
 int32_t      blockDataAppendColInfo(SSDataBlock* pBlock, SColumnInfoData* pColInfoData);
