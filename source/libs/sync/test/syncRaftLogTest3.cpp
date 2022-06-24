@@ -312,7 +312,8 @@ void test5() {
   pSyncNode->pLogStore = pLogStore;
   logStoreLog2((char*)"\n\n\ntest5 ----- ", pLogStore);
 
-  pSyncNode->pLogStore->syncLogSetBeginIndex(pSyncNode->pLogStore, 6);
+  //pSyncNode->pLogStore->syncLogSetBeginIndex(pSyncNode->pLogStore, 6);
+  pLogStore->syncLogRestoreFromSnapshot(pSyncNode->pLogStore, 5);
   for (int i = 6; i <= 10; ++i) {
     int32_t         dataLen = 10;
     SSyncRaftEntry* pEntry = syncEntryBuild(dataLen);
@@ -372,6 +373,7 @@ void test5() {
 int main(int argc, char** argv) {
   tsAsyncLog = 0;
   sDebugFlag = DEBUG_TRACE + DEBUG_INFO + DEBUG_SCREEN + DEBUG_FILE;
+  gRaftDetailLog = true;
 
   if (argc == 2) {
     gAssert = atoi(argv[1]);

@@ -54,6 +54,11 @@ enum {
   RES_TYPE__TMQ_META,
 };
 
+#define SHOW_VARIABLES_RESULT_COLS      2
+#define SHOW_VARIABLES_RESULT_FIELD1_LEN (TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE)
+#define SHOW_VARIABLES_RESULT_FIELD2_LEN (TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE)
+
+
 #define TD_RES_QUERY(res)    (*(int8_t*)res == RES_TYPE__QUERY)
 #define TD_RES_TMQ(res)      (*(int8_t*)res == RES_TYPE__TMQ)
 #define TD_RES_TMQ_META(res) (*(int8_t*)res == RES_TYPE__TMQ_META)
@@ -104,6 +109,8 @@ typedef struct SHeartBeatInfo {
 struct SAppInstInfo {
   int64_t            numOfConns;
   SCorEpSet          mgmtEp;
+  int32_t            totalDnodes;
+  int32_t            onlineDnodes;
   TdThreadMutex      qnodeMutex;
   SArray*            pQnodeList;
   SAppClusterSummary summary;
@@ -127,7 +134,8 @@ typedef struct STscObj {
   char          user[TSDB_USER_LEN];
   char          pass[TSDB_PASSWORD_LEN];
   char          db[TSDB_DB_FNAME_LEN];
-  char          ver[128];
+  char          sVer[TSDB_VERSION_LEN];
+  char          sDetailVer[128];
   int8_t        connType;
   int32_t       acctId;
   uint32_t      connId;
@@ -215,6 +223,7 @@ typedef struct SRequestObj {
   SQueryExecMetric     metric;
   SRequestSendRecvBody body;
   bool                 stableQuery;
+  bool                 validateOnly;
 
   bool     killed;
   uint32_t prevCode;  // previous error code: todo refactor, add update flag for catalog
@@ -235,7 +244,12 @@ int32_t      setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveT
                                    bool freeAfterUse);
 void         setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols);
 void         doFreeReqResultInfo(SReqResultInfo* pResInfo);
-SRequestObj* execQuery(STscObj* pTscObj, const char* sql, int sqlLen);
+int32_t      transferTableNameList(const char* tbList, int32_t acctId, char* dbName, SArray** pReq);
+void         syncCatalogFn(SMetaData* pResult, void* param, int32_t code);
+
+SRequestObj* execQuery(STscObj* pTscObj, const char* sql, int sqlLen, bool validateOnly);
+TAOS_RES *taosQueryImpl(TAOS *taos, const char *sql, bool validateOnly);
+void      taosAsyncQueryImpl(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param, bool validateOnly);
 
 static FORCE_INLINE SReqResultInfo* tmqGetCurResInfo(TAOS_RES* res) {
   SMqRspObj* msg = (SMqRspObj*)res;
@@ -301,7 +315,7 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet);
 STscObj* taos_connect_internal(const char* ip, const char* user, const char* pass, const char* auth, const char* db,
                                uint16_t port, int connType);
 
-SRequestObj* launchQuery(STscObj* pTscObj, const char* sql, int sqlLen);
+SRequestObj* launchQuery(STscObj* pTscObj, const char* sql, int sqlLen, bool validateOnly);
 
 int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtCallback* pStmtCb);
 

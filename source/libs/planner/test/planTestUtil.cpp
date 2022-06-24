@@ -102,12 +102,15 @@ class PlannerTestBaseImpl {
     try {
       SQuery* pQuery = nullptr;
       doParseSql(sql, &pQuery);
+      unique_ptr<SQuery, void (*)(SQuery*)> query(pQuery, qDestroyQuery);
 
       SPlanContext cxt = {0};
       setPlanContext(pQuery, &cxt);
 
       SLogicSubplan* pLogicSubplan = nullptr;
       doCreateLogicPlan(&cxt, &pLogicSubplan);
+      unique_ptr<SLogicSubplan, void (*)(SLogicSubplan*)> logicSubplan(pLogicSubplan,
+                                                                       (void (*)(SLogicSubplan*))nodesDestroyNode);
 
       doOptimizeLogicPlan(&cxt, pLogicSubplan);
 
@@ -115,9 +118,12 @@ class PlannerTestBaseImpl {
 
       SQueryLogicPlan* pLogicPlan = nullptr;
       doScaleOutLogicPlan(&cxt, pLogicSubplan, &pLogicPlan);
+      unique_ptr<SQueryLogicPlan, void (*)(SQueryLogicPlan*)> logicPlan(pLogicPlan,
+                                                                        (void (*)(SQueryLogicPlan*))nodesDestroyNode);
 
       SQueryPlan* pPlan = nullptr;
       doCreatePhysiPlan(&cxt, pLogicPlan, &pPlan);
+      unique_ptr<SQueryPlan, void (*)(SQueryPlan*)> plan(pPlan, (void (*)(SQueryPlan*))nodesDestroyNode);
 
       dump(g_dumpModule);
     } catch (...) {
@@ -345,8 +351,9 @@ class PlannerTestBaseImpl {
   }
 
   void doCreatePhysiPlan(SPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryPlan** pPlan) {
-    SArray* pExecNodeList = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SQueryNodeAddr));
-    DO_WITH_THROW(createPhysiPlan, pCxt, pLogicPlan, pPlan, pExecNodeList);
+    unique_ptr<SArray, void (*)(SArray*)> execNodeList((SArray*)taosArrayInit(TARRAY_MIN_SIZE, sizeof(SQueryNodeAddr)),
+                                                       (void (*)(SArray*))taosArrayDestroy);
+    DO_WITH_THROW(createPhysiPlan, pCxt, pLogicPlan, pPlan, execNodeList.get());
     res_.physiPlan_ = toString((SNode*)(*pPlan));
     SNode* pNode;
     FOREACH(pNode, (*pPlan)->pSubplans) {

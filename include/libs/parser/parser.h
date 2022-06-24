@@ -51,6 +51,8 @@ typedef struct SParseContext {
   bool             isSuperUser;
   bool             async;
   int8_t           schemalessType;
+  const char*      svrVer;
+  bool             nodeOffline;
 } SParseContext;
 
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);

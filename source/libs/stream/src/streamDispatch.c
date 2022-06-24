@@ -70,20 +70,21 @@ int32_t tEncodeStreamRetrieveReq(SEncoder* pEncoder, const SStreamRetrieveReq* p
   if (tEncodeI32(pEncoder, pReq->dstTaskId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->srcNodeId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->srcTaskId) < 0) return -1;
-  if (tEncodeBinary(pEncoder, (const uint8_t*)&pReq->pRetrieve, pReq->retrieveLen) < 0) return -1;
+  if (tEncodeBinary(pEncoder, (const uint8_t*)pReq->pRetrieve, pReq->retrieveLen) < 0) return -1;
   tEndEncode(pEncoder);
   return pEncoder->pos;
 }
 
 int32_t tDecodeStreamRetrieveReq(SDecoder* pDecoder, SStreamRetrieveReq* pReq) {
-  int32_t tlen = 0;
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI64(pDecoder, &pReq->streamId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->dstNodeId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->dstTaskId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->srcNodeId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->srcTaskId) < 0) return -1;
-  if (tDecodeBinary(pDecoder, (uint8_t**)&pReq->pRetrieve, &pReq->retrieveLen) < 0) return -1;
+  uint64_t len = 0;
+  if (tDecodeBinaryAlloc(pDecoder, (void**)&pReq->pRetrieve, &len) < 0) return -1;
+  pReq->retrieveLen = len;
   tEndDecode(pDecoder);
   return 0;
 }
@@ -172,7 +173,7 @@ static int32_t streamAddBlockToDispatchMsg(const SSDataBlock* pBlock, SStreamDis
   pRetrieve->streamBlockType = pBlock->info.type;
   pRetrieve->numOfRows = htonl(pBlock->info.rows);
 
-  int32_t numOfCols = (int32_t) taosArrayGetSize(pBlock->pDataBlock);
+  int32_t numOfCols = (int32_t)taosArrayGetSize(pBlock->pDataBlock);
   pRetrieve->numOfCols = htonl(numOfCols);
 
   int32_t actualLen = 0;
@@ -185,7 +186,7 @@ static int32_t streamAddBlockToDispatchMsg(const SSDataBlock* pBlock, SStreamDis
   return 0;
 }
 
-int32_t streamBuildDispatchMsg(SStreamTask* pTask, SStreamDataBlock* data, SRpcMsg* pMsg, SEpSet** ppEpSet) {
+int32_t streamBuildDispatchMsg(SStreamTask* pTask, const SStreamDataBlock* data, SRpcMsg* pMsg, SEpSet** ppEpSet) {
   void*   buf = NULL;
   int32_t code = -1;
   int32_t blockNum = taosArrayGetSize(data->blocks);
@@ -307,6 +308,8 @@ int32_t streamDispatch(SStreamTask* pTask, SMsgCb* pMsgCb) {
     atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);
     return -1;
   }
+  taosArrayDestroyEx(pBlock->blocks, (FDelete)tDeleteSSDataBlock);
+  taosFreeQitem(pBlock);
 
   tmsgSendReq(pEpSet, &dispatchMsg);
   return 0;

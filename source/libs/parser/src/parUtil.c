@@ -897,7 +897,7 @@ STableCfg* tableCfgDup(STableCfg* pCfg) {
   if (pNew->pFuncs) {
     pNew->pFuncs = taosArrayDup(pNew->pFuncs);
   }
-  
+
   int32_t schemaSize = (pCfg->numOfColumns + pCfg->numOfTags) * sizeof(SSchema);
 
   SSchema* pSchema = taosMemoryMalloc(schemaSize);
@@ -912,7 +912,7 @@ int32_t getTableCfgFromCache(SParseMetaCache* pMetaCache, const SName* pName, ST
   char fullName[TSDB_TABLE_FNAME_LEN];
   tNameExtractFullName(pName, fullName);
   STableCfg* pCfg = NULL;
-  int32_t code = getMetaDataFromHash(fullName, strlen(fullName), pMetaCache->pTableCfg, (void**)&pCfg);
+  int32_t    code = getMetaDataFromHash(fullName, strlen(fullName), pMetaCache->pTableCfg, (void**)&pCfg);
   if (TSDB_CODE_SUCCESS == code) {
     *pOutput = tableCfgDup(pCfg);
     if (NULL == *pOutput) {
@@ -929,10 +929,10 @@ int32_t reserveDnodeRequiredInCache(SParseMetaCache* pMetaCache) {
 
 int32_t getDnodeListFromCache(SParseMetaCache* pMetaCache, SArray** pDnodes) {
   SMetaRes* pRes = taosArrayGet(pMetaCache->pDnodes, 0);
-  if (pRes->code) {
+  if (TSDB_CODE_SUCCESS != pRes->code) {
     return pRes->code;
   }
-  
+
   *pDnodes = taosArrayDup((SArray*)pRes->pRes);
   if (NULL == *pDnodes) {
     return TSDB_CODE_OUT_OF_MEMORY;
