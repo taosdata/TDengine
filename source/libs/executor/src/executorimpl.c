@@ -4365,6 +4365,26 @@ _error:
   return NULL;
 }
 
+static int32_t extractTbscanInStreamOpTree(SOperatorInfo* pOperator, STableScanInfo** ppInfo) {
+  if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+    if (pOperator->numOfDownstream == 0) {
+      qError("failed to find stream scan operator");
+      return TSDB_CODE_QRY_APP_ERROR;
+    }
+
+    if (pOperator->numOfDownstream > 1) {
+      qError("join not supported for stream block scan");
+      return TSDB_CODE_QRY_APP_ERROR;
+    }
+    return extractTbscanInStreamOpTree(pOperator->pDownstream[0], ppInfo);
+  } else {
+    SStreamBlockScanInfo* pInfo = pOperator->info;
+    ASSERT(pInfo->pSnapshotReadOp->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
+    *ppInfo = pInfo->pSnapshotReadOp->info;
+    return 0;
+  }
+}
+
 int32_t extractTableScanNode(SPhysiNode* pNode, STableScanPhysiNode** ppNode) {
   if (pNode->pChildren == NULL || LIST_LENGTH(pNode->pChildren) == 0) {
     if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == pNode->type) {
@@ -4387,37 +4407,27 @@ int32_t extractTableScanNode(SPhysiNode* pNode, STableScanPhysiNode** ppNode) {
   return -1;
 }
 
-int32_t doRebuildReader(SOperatorInfo* pOperator, SSubplan* plan, SReadHandle* pHandle) {
-  if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
-    if (pOperator->numOfDownstream == 0) {
-      qError("failed to find stream scan operator");
-      return TSDB_CODE_QRY_APP_ERROR;
-    }
-
-    if (pOperator->numOfDownstream > 1) {
-      qError("join not supported for stream block scan");
-      return TSDB_CODE_QRY_APP_ERROR;
-    }
-    return doRebuildReader(pOperator->pDownstream[0], plan, pHandle);
-  } else {
-    SStreamBlockScanInfo* pInfo = pOperator->info;
-    ASSERT(pInfo->pSnapshotReadOp->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
-    STableScanInfo* pTableScanInfo = pInfo->pSnapshotReadOp->info;
-
-    tsdbCleanupReadHandle(pTableScanInfo->dataReader);
-    STableScanPhysiNode* pNode = NULL;
-    if (extractTableScanNode(plan->pNode, &pNode) < 0) {
-      ASSERT(0);
-    }
-
-    STableListInfo info = {0};
-    pTableScanInfo->dataReader = doCreateDataReader(pNode, pHandle, &info, 0, 0);
-    if (pTableScanInfo->dataReader == NULL) {
-      ASSERT(0);
-      qError("failed to create data reader");
-      return TSDB_CODE_QRY_APP_ERROR;
-    }
+int32_t rebuildReader(SOperatorInfo* pOperator, SSubplan* plan, SReadHandle* pHandle, int64_t uid, int64_t ts) {
+  STableScanInfo* pTableScanInfo = NULL;
+  if (extractTbscanInStreamOpTree(pOperator, &pTableScanInfo) < 0) {
+    return -1;
   }
+
+  STableScanPhysiNode* pNode = NULL;
+  if (extractTableScanNode(plan->pNode, &pNode) < 0) {
+    ASSERT(0);
+  }
+
+  tsdbCleanupReadHandle(pTableScanInfo->dataReader);
+
+  STableListInfo info = {0};
+  pTableScanInfo->dataReader = doCreateDataReader(pNode, pHandle, &info, 0, 0);
+  if (pTableScanInfo->dataReader == NULL) {
+    ASSERT(0);
+    qError("failed to create data reader");
+    return TSDB_CODE_QRY_APP_ERROR;
+  }
+  // TODO: set uid and ts to data reader
   return 0;
 }
 
