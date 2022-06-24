@@ -63,7 +63,6 @@ int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq) {
 }
 
 int32_t tEncodeStreamRetrieveReq(SEncoder* pEncoder, const SStreamRetrieveReq* pReq) {
-  //
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->dstNodeId) < 0) return -1;
@@ -84,7 +83,7 @@ int32_t tDecodeStreamRetrieveReq(SDecoder* pDecoder, SStreamRetrieveReq* pReq) {
   if (tDecodeI32(pDecoder, &pReq->srcTaskId) < 0) return -1;
   uint64_t len = 0;
   if (tDecodeBinaryAlloc(pDecoder, (void**)&pReq->pRetrieve, &len) < 0) return -1;
-  pReq->retrieveLen = len;
+  pReq->retrieveLen = (int32_t)len;
   tEndDecode(pDecoder);
   return 0;
 }
