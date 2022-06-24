@@ -19,9 +19,9 @@
 #include "tnettest.h"
 
 pthread_t pid;
+pthread_t rpid;
 static tsem_t cancelSem;
-bool stop_fetch = false;
-int64_t ws_id = 0;
+WebSocketClient wsclient;
 
 void shellQueryInterruptHandler(int32_t signum, void *sigInfo, void *context) {
   tsem_post(&cancelSem);
@@ -29,20 +29,74 @@ void shellQueryInterruptHandler(int32_t signum, void *sigInfo, void *context) {
 
 void shellRestfulSendInterruptHandler(int32_t signum, void *sigInfo, void *context) {}
 
+void* recvHandler(void *arg) {
+START:
+ pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
+ uint8_t recv_buffer[TEMP_RECV_BUF]= {0};
+ int   received = 0;
+ SWSParser parser;
+ int bytes = recv(args.socket, recv_buffer + received, TEMP_RECV_BUF - 1, 0);
+ if (bytes == 0) {
+   wsclient.status = DISCONNECTED;
+   return NULL;
+ }
+ if (bytes < 0) {
+   wsclient.status = RECV_ERROR;
+   return NULL;
+ }
+ wsclient_parse_frame(&parser, recv_buffer);
+ if (parser.frame == PING_FRAME) {
+   if (wsclient_send("pong", PONG_FRAME)) {
+     wsclient.status = SEND_ERROR;
+     return NULL;
+   }
+   if (bytes > 2) {
+     int i;
+     for (i = 0; i < bytes - 2; ++i) {
+       recv_buffer[i] = recv_buffer[i + 2];
+     }
+     recv_buffer[i] = '\0';
+     wsclient_parse_frame(&parser, recv_buffer);
+   } else {
+     goto START;
+   }
+ }
+ tfree(args.response_buffer);
+ args.response_buffer = calloc(1, parser.payload_length + 1);
+ int pos = bytes - parser.offset;
+ memcpy(args.response_buffer, recv_buffer + parser.offset, pos);
+ while (pos < parser.payload_length) {
+   bytes = recv(args.socket, args.response_buffer + pos, parser.payload_length - pos, 0);
+   if (bytes == 0) {
+     wsclient.status = DISCONNECTED;
+     return NULL;
+   }
+   if (bytes < 0) {
+     wsclient.status = RECV_ERROR;
+     return NULL;
+   }
+   pos += bytes;
+ }
+ args.response_buffer[pos] = '\0';
+ return NULL;
+}
+
 void *cancelHandler(void *arg) {
   setThreadName("cancelHandler");
 
-  while(1) {
-    if (tsem_wait(&cancelSem) != 0) {
-      taosMsleep(10);
-      continue;
-    }
-    if (args.restful || args.cloud) {
-      stop_fetch = true;
-      if (wsclient_send_sql(NULL, WS_CLOSE, ws_id)) {
-        exit(EXIT_FAILURE);
-      }
-    }
+ while(1) {
+   if (tsem_wait(&cancelSem) != 0) {
+     taosMsleep(10);
+     continue;
+   }
+
+   if (args.restful || args.cloud) {
+     wsclient.status = CANCELED;
+     pthread_cancel(rpid);
+     close(args.socket);
+     tfree(args.response_buffer);
+     tfree(args.fields);
+   } else {
 #ifdef LINUX
     int64_t rid = atomic_val_compare_exchange_64(&result, result, 0);
     SSqlObj* pSql = taosAcquireRef(tscObjRef, rid);
@@ -52,8 +106,9 @@ void *cancelHandler(void *arg) {
     printf("\nReceive ctrl+c or other signal, quit shell.\n");
     exit(0);
 #endif
-  }
-  return NULL;
+   }
+ }
+ return NULL;
 }
 
 int checkVersion() {
@@ -101,6 +156,8 @@ SShellArguments args = {.host = NULL,
   .cloudHost = NULL,
   .cloudPort = NULL,
   .cloudToken = NULL,
+  .fields = NULL,
+  .st = 0,
   };
 
 /*

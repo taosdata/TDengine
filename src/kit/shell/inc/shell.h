@@ -21,6 +21,7 @@
 #include <winsock2.h>
 #pragma comment(lib,"ws2_32.lib")
 #endif
+#include "cJSON.h"
 #include "stdbool.h"
 #include "taos.h"
 #include "taosdef.h"
@@ -86,6 +87,10 @@ typedef struct SShellArguments {
   char* cloudHost;
   char* cloudPort;
   char* cloudToken;
+  int64_t id;
+  int64_t st;
+  char * response_buffer;
+  TAOS_FIELD *fields;
 } SShellArguments;
 
 typedef enum WS_ACTION_TYPE_S {
@@ -96,6 +101,27 @@ typedef enum WS_ACTION_TYPE_S {
   WS_CLOSE,
 } WS_ACTION_TYPE;
 
+typedef enum {
+ CANCELED,
+ DISCONNECTED,
+ TCP_CONNECTED,
+ WS_CONNECTED,
+ RECV_ERROR,
+ SEND_ERROR,
+} WS_STATUS;
+
+typedef struct {
+ char *version;
+ char *code;
+ char *desc;
+ char *body;
+ int bodySize;
+} HttpResponse;
+
+typedef struct {
+ WS_STATUS status;
+} WebSocketClient;
+
 /**************** Function declarations ****************/
 extern void shellParseArgument(int argc, char* argv[], SShellArguments* arguments);
 extern void  shellInit(SShellArguments* args);
@@ -105,6 +131,8 @@ extern int regex_match(const char* s, const char* reg, int cflags);
 int32_t shellReadCommand(TAOS* con, char command[]);
 int32_t shellRunCommand(TAOS* con, char* command);
 void shellRunCommandOnServer(TAOS* con, char command[]);
+void shellRunCommandOnWebsocket(char command[]);
+int wsclient_check(cJSON *root);
 void read_history();
 void write_history();
 void source_file(TAOS* con, char* fptr);
@@ -115,14 +143,18 @@ void shellCheck(TAOS* con, SShellArguments* args);
 void cleanup_handler(void* arg);
 void exitShell();
 int shellDumpResult(TAOS_RES* con, char* fname, int* error_no, bool printMode);
+int wsclientDumpResult(cJSON* query, char *fname, int *error_no, bool vertical, uint64_t limit);
+void* recvHandler(void *arg);
 void shellGetGrantInfo(void* con);
 int isCommentLine(char* line);
-int wsclient_handshake();
+int wsclient_handshake(bool printMsg);
 int wsclient_conn();
-void wsclient_query(char* command);
-int wsclient_send_sql(char *command, WS_ACTION_TYPE type, int64_t id);
+cJSON* wsclient_query(char* command);
+int wsclient_send_sql(char *command, WS_ACTION_TYPE type);
 int tcpConnect(char* host, int port);
 int parse_cloud_dsn();
+void wsclient_parse_frame(SWSParser * parser, uint8_t * recv_buffer);
+int wsclient_send(char *strdata, WebSocketFrameType frame);
 
 /**************** Global variable declarations ****************/
 extern char           PROMPT_HEADER[];
@@ -135,7 +167,6 @@ extern int get_old_terminal_mode(struct termios* tio);
 extern void            reset_terminal_mode();
 extern SShellArguments args;
 extern int64_t         result;
-extern int64_t         ws_id;
-extern bool            stop_fetch;
-
+extern WebSocketClient wsclient;
+extern pthread_t       rpid;
 #endif

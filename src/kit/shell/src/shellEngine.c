@@ -26,7 +26,6 @@
 #include "taoserror.h"
 #include "tglobal.h"
 #include "tsclient.h"
-#include "cJSON.h"
 
 #include <regex.h>
 
@@ -73,9 +72,10 @@ void shellInit(SShellArguments *_args) {
   }
 
   if (_args->restful || _args->cloud) {
-    if (wsclient_handshake()) {
+    if (wsclient_handshake(1)) {
       exit(EXIT_FAILURE);
     }
+    wsclient.status = TCP_CONNECTED;
     if (wsclient_conn()) {
       exit(EXIT_FAILURE);
     }
@@ -149,6 +149,20 @@ static bool isEmptyCommand(const char* cmd) {
   return true;
 }
 
+static char* wsclient_strerror(WS_STATUS status) {
+ switch (status) {
+   case CANCELED:
+     return "terminated";
+   case DISCONNECTED:
+     return "disconnected";
+   case RECV_ERROR:
+     return "recv error";
+   case SEND_ERROR:
+     return "send error";
+   default:
+     return "success";
+ }
+}
 
 static int32_t shellRunSingleCommand(TAOS *con, char *command) {
   /* If command is empty just return */
@@ -197,8 +211,11 @@ static int32_t shellRunSingleCommand(TAOS *con, char *command) {
     source_file(con, c_ptr);
     return 0;
   }
-
-  shellRunCommandOnServer(con, command);
+  if (args.restful || args.cloud) {
+    shellRunCommandOnWebsocket(command);
+  } else {
+    shellRunCommandOnServer(con, command);
+  }
   return 0;
 }
 
@@ -257,6 +274,118 @@ void freeResultWithRid(int64_t rid) {
   }
 }
 
+void shellRunCommandOnWebsocket(char command[]) {
+ int64_t et;
+ wordexp_t full_path;
+ char *    sptr = NULL;
+ char *    cptr = NULL;
+ char *    fname = NULL;
+ bool      printMode = false;
+ if ((sptr = tstrstr(command, ">>", true)) != NULL) {
+   cptr = tstrstr(command, ";", true);
+   if (cptr != NULL) {
+     *cptr = '\0';
+   }
+
+   if (wordexp(sptr + 2, &full_path, 0) != 0) {
+     fprintf(stderr, "ERROR: invalid filename: %s\n", sptr + 2);
+     return;
+   }
+   *sptr = '\0';
+   fname = full_path.we_wordv[0];
+ }
+
+ if ((sptr = tstrstr(command, "\\G", true)) != NULL) {
+   cptr = tstrstr(command, ";", true);
+   if (cptr != NULL) {
+     *cptr = '\0';
+   }
+
+   *sptr = '\0';
+   printMode = true;  // When output to a file, the switch does not work.
+ }
+
+ uint64_t limit = DEFAULT_RES_SHOW_NUM;
+ if (regex_match(command, "^(.*)\\s+limit\\s+[1-9][0-9]*;?$", REG_EXTENDED | REG_ICASE)) {
+   char*limit_buf = strstr(command, "limit");
+   limit_buf += strlen("limit");
+   if (limit_buf != NULL) {
+     if (command[strlen(command) -1] == ';') {
+       command[strlen(command) -1] = '\0';
+     }
+     int index = 0;
+     while (limit_buf[index] == ' ' && index < strlen(limit_buf)) {
+       index++;
+     }
+     if (limit_buf[index] != '\0') {
+       limit = atoll(limit_buf + index);
+     }
+   }
+ }
+
+ args.st = taosGetTimestampUs();
+
+ cJSON* query = wsclient_query(command);
+
+ if (query == NULL || wsclient_check(query)) {
+   cJSON_Delete(query);
+   return;
+ }
+
+ if (regex_match(command, "^\\s*use\\s+[a-zA-Z0-9_]+\\s*;\\s*$", REG_EXTENDED | REG_ICASE)) {
+   fprintf(stdout, "Database changed.\n\n");
+   fflush(stdout);
+   cJSON_Delete(query);
+   return;
+ }
+
+ cJSON *is_update = cJSON_GetObjectItem(query, "is_update");
+ cJSON *fields_count = cJSON_GetObjectItem(query, "fields_count");
+ cJSON *precisionObj = cJSON_GetObjectItem(query, "precision");
+ cJSON *id = cJSON_GetObjectItem(query, "id");
+ if (!cJSON_IsBool(is_update) ||
+     !cJSON_IsNumber(fields_count) ||
+     !cJSON_IsNumber(precisionObj) ||
+     !cJSON_IsNumber(id)) {
+   fprintf(stderr, "Invalid or miss 'is_update'/'fields_count'/'precision'/'id' in query response.\n");
+   cJSON_Delete(query);
+   return;
+ }
+ args.id = id->valueint;
+
+ if (is_update->valueint) {
+   cJSON *affected_rows = cJSON_GetObjectItem(query, "affected_rows");
+   if (cJSON_IsNumber(affected_rows)) {
+     et = taosGetTimestampUs();
+     printf("Update OK, %d row(s) in set (%.6fs)\n\n", (int)affected_rows->valueint, (et - args.st) / 1E6);
+   } else {
+     fprintf(stderr, "Invalid or miss 'affected_rows' key in response\n");
+   }
+   cJSON_Delete(query);
+   return;
+ }
+
+ int error_no = 0;
+
+ int numOfRows = wsclientDumpResult(query, fname, &error_no, printMode, limit);
+ if (numOfRows < 0) {
+   cJSON_Delete(query);
+   return;
+ }
+ et = taosGetTimestampUs();
+ if (error_no == 0) {
+   printf("Query OK, %d row(s) in set (%.6fs)\n", numOfRows, (et - args.st) / 1E6);
+ } else {
+   printf("Query interrupted, %d row(s) in set (%.6fs)\n", numOfRows, (et - args.st) / 1E6);
+ }
+
+ printf("\n");
+ if (fname != NULL) {
+   wordfree(&full_path);
+ }
+ cJSON_Delete(query);
+}
+
 void shellRunCommandOnServer(TAOS *con, char command[]) {
   int64_t   st, et;
   wordexp_t full_path;
@@ -289,12 +418,7 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
     printMode = true;  // When output to a file, the switch does not work.
   }
 
-  if (args.restful || args.cloud) {
-    wsclient_query(command);
-    return;
-  }
-
-  st = taosGetTimestampUs();
+ st = taosGetTimestampUs();
 
   TAOS_RES* pSql = taos_query_h(con, command, &result);
   if (taos_errno(pSql)) {
@@ -934,6 +1058,357 @@ static int horizontalPrintResult(TAOS_RES* tres) {
   return numOfRows;
 }
 
+cJSON* wsclient_fetch(bool fetch_block) {
+ if (wsclient_send_sql(NULL, WS_FETCH)) {
+   return NULL;
+ }
+ pthread_create(&rpid, NULL, recvHandler, NULL);
+ pthread_join(rpid, NULL);
+ if (wsclient.status != TCP_CONNECTED && wsclient.status != WS_CONNECTED) {
+   fprintf(stderr, "websocket receive failed, reason: %s\n", wsclient_strerror(wsclient.status));
+   return NULL;
+ }
+ cJSON *fetch = cJSON_Parse(args.response_buffer);
+ if (fetch == NULL) {
+   fprintf(stderr, "failed to parse response into json: %s\n", args.response_buffer);
+   return NULL;
+ }
+ tfree(args.response_buffer);
+ if (wsclient_check(fetch)) {
+   cJSON_Delete(fetch);
+   return NULL;
+ }
+ cJSON* rowsObj = cJSON_GetObjectItem(fetch, "rows");
+ cJSON *completedObj = cJSON_GetObjectItem(fetch, "completed");
+ if (!cJSON_IsBool(completedObj) || !cJSON_IsNumber(rowsObj)) {
+   fprintf(stderr, "Invalid or miss 'completed'/'rows' in fetch response\n");
+   cJSON_Delete(fetch);
+   return NULL;
+ }
+ if (completedObj->valueint || !fetch_block) {
+   return fetch;
+ } else {
+   cJSON* lengths = cJSON_GetObjectItem(fetch, "lengths");
+   if (!cJSON_IsArray(lengths)) {
+     fprintf(stderr, "Invalid or miss 'lengths' key in fetch response\n");
+     cJSON_Delete(fetch);
+     return NULL;
+   }
+   cJSON* current_child = lengths->child;
+   int index = 0;
+   while (current_child != NULL) {
+     args.fields[index].bytes = (int16_t)current_child->valueint;
+     current_child = current_child->next;
+     index++;
+   }
+
+   if (wsclient_send_sql(NULL, WS_FETCH_BLOCK)) {
+     cJSON_Delete(fetch);
+     return NULL;
+   }
+   pthread_create(&rpid, NULL, recvHandler, NULL);
+   pthread_join(rpid, NULL);
+   if (wsclient.status != TCP_CONNECTED && wsclient.status != WS_CONNECTED) {
+     fprintf(stderr, "websocket receive failed, reason: %s\n", wsclient_strerror(wsclient.status));
+     return NULL;
+   }
+
+   if (*(int64_t *)args.response_buffer != args.id) {
+     fprintf(stderr, "Mismatch id with %"PRId64" expect %"PRId64"\n", *(int64_t *)args.response_buffer, args.id);
+     cJSON_Delete(fetch);
+     return NULL;
+   }
+   return fetch;
+ }
+}
+
+int wsclient_fetch_fields(cJSON *query, TAOS_FIELD * fields, int cols) {
+ cJSON *fields_names = cJSON_GetObjectItem(query, "fields_names");
+ cJSON *fields_types = cJSON_GetObjectItem(query, "fields_types");
+ cJSON *fields_lengths = cJSON_GetObjectItem(query, "fields_lengths");
+ if (!cJSON_IsArray(fields_names) || !cJSON_IsArray(fields_types) || !cJSON_IsArray(fields_lengths)) {
+   fprintf(stderr, "Invalid or miss 'fields_names'/'fields_types'/'fields_lengths' key in response\n");
+   return -1;
+ }
+ for (int i = 0; i < cols; i++) {
+   cJSON* field_name = cJSON_GetArrayItem(fields_names, i);
+   cJSON* field_type = cJSON_GetArrayItem(fields_types, i);
+   cJSON* field_length = cJSON_GetArrayItem(fields_lengths, i);
+   if (!cJSON_IsString(field_name) || !cJSON_IsNumber(field_type) || !cJSON_IsNumber(field_length)) {
+     fprintf(stderr, "Invalid or miss 'field_name'/'field_type'/'field_length' in query response");
+     return -1;
+   }
+   strncpy(fields[i].name, field_name->valuestring, TSDB_COL_NAME_LEN);
+   fields[i].type = (uint8_t)field_type->valueint;
+   fields[i].bytes = (int16_t)field_length->valueint;
+ }
+ return 0;
+}
+
+int wsHorizontalPrintRes(cJSON* query, uint64_t limit) {
+ bool fetch_block = true;
+
+ int num_fields = (int)cJSON_GetObjectItem(query, "fields_count")->valueint;
+ args.fields = calloc(num_fields, sizeof(TAOS_FIELD));
+ if (wsclient_fetch_fields(query, args.fields, num_fields)) {
+   return 0;
+ }
+ cJSON* precisionObj = cJSON_GetObjectItem(query, "precision");
+ if (!cJSON_IsNumber(precisionObj)) {
+   fprintf(stderr, "Invalid or miss precision key in query response\n");
+   return 0;
+ }
+ int precision = (int)precisionObj->valueint;
+
+ cJSON * fetch = wsclient_fetch(fetch_block);
+ if (fetch == NULL) {
+   return 0;
+ }
+
+ int width[TSDB_MAX_COLUMNS];
+ for (int col = 0; col < num_fields; col++) {
+   width[col] = calcColWidth(args.fields + col, precision);
+ }
+
+ printHeader(args.fields, width, num_fields);
+
+ int numOfRows = 0;
+ int showMore = 1;
+ int64_t rows;
+ int64_t pos;
+
+ do {
+   cJSON* rowsObj = cJSON_GetObjectItem(fetch, "rows");
+   cJSON *completedObj = cJSON_GetObjectItem(fetch, "completed");
+   rows = rowsObj->valueint;
+   if (completedObj->valueint) {
+     break;
+   }
+
+   if (numOfRows < limit) {
+     for (int64_t i = 0; i < rows; i++) {
+       if (numOfRows >= limit) {
+         numOfRows = numOfRows - limit + rows;
+         fetch_block = false;
+         break;
+       }
+       for (int j = 0; j < num_fields; ++j) {
+         pos = 8;
+         pos += i * args.fields[j].bytes;
+         for (int k = 0; k < j; ++k) {
+           pos += args.fields[k].bytes * rows;
+         }
+         putchar(' ');
+         int16_t length = 0;
+         if (args.fields[j].type == TSDB_DATA_TYPE_NCHAR || args.fields[j].type == TSDB_DATA_TYPE_BINARY ||
+             args.fields[j].type == TSDB_DATA_TYPE_JSON) {
+           length = *(int16_t *)(args.response_buffer + pos);
+           pos += 2;
+         }
+         printField((const char *)(args.response_buffer + pos), args.fields + j, width[j], (int32_t)length, precision);
+         putchar(' ');
+         putchar('|');
+       }
+       putchar('\n');
+       numOfRows += 1;
+     }
+   } else if (showMore) {
+     printf("\n");
+     printf(" Notice: The result shows only the first %d rows.\n", DEFAULT_RES_SHOW_NUM);
+     printf("         You can use the `LIMIT` clause to get fewer result to show.\n");
+     printf("           Or use '>>' to redirect the whole set of the result to a specified file.\n");
+     printf("\n");
+     printf("         You can use Ctrl+C to stop the underway fetching.\n");
+     printf("\n");
+     showMore = 0;
+   } else {
+     numOfRows += rows;
+   }
+   cJSON_Delete(fetch);
+   fetch = wsclient_fetch(fetch_block);
+ } while (fetch != NULL);
+
+ cJSON_Delete(fetch);
+ return numOfRows;
+}
+
+int wsVericalPrintRes(cJSON* query, uint64_t limit) {
+ bool fetch_block = true;
+
+ int num_fields = (int)cJSON_GetObjectItem(query, "fields_count")->valueint;
+ args.fields = calloc(num_fields, sizeof(TAOS_FIELD));
+ if (wsclient_fetch_fields(query, args.fields, num_fields)) {
+   return 0;
+ }
+ cJSON* precisionObj = cJSON_GetObjectItem(query, "precision");
+ if (!cJSON_IsNumber(precisionObj)) {
+   fprintf(stderr, "Invalid or miss precision key in query response\n");
+   return 0;
+ }
+ int precision = (int)precisionObj->valueint;
+
+ cJSON* fetch = wsclient_fetch(fetch_block);
+ if (fetch == NULL) {
+   return 0;
+ }
+
+ int maxColNameLen = 0;
+ for (int col = 0; col < num_fields; col++) {
+   int len = (int)strlen(args.fields[col].name);
+   if (len > maxColNameLen) {
+     maxColNameLen = len;
+   }
+ }
+
+ int numOfRows = 0;
+ int showMore = 1;
+ int64_t rows;
+ int64_t pos;
+
+ do {
+   rows = cJSON_GetObjectItem(fetch, "rows")->valueint;
+   cJSON *completedObj = cJSON_GetObjectItem(fetch, "completed");
+   if (completedObj->valueint) {
+     break;
+   }
+   if (numOfRows < limit) {
+     for (int i = 0; i < rows; ++i) {
+       if (numOfRows > limit) {
+         fetch_block = false;
+         break;
+       }
+       printf("*************************** %d.row ***************************\n", numOfRows + 1);
+       for (int j = 0; j < num_fields; ++j) {
+         pos = 8;
+         pos += i * args.fields[j].bytes;
+         for (int k = 0; k < j; ++k) {
+           pos += args.fields[k].bytes * rows;
+         }
+         int16_t length = 0;
+         if (args.fields[j].type == TSDB_DATA_TYPE_NCHAR || args.fields[j].type == TSDB_DATA_TYPE_BINARY ||
+             args.fields[j].type == TSDB_DATA_TYPE_JSON) {
+           length = *(int16_t *)(args.response_buffer + pos);
+           pos += 2;
+         }
+         int padding = (int)(maxColNameLen - strlen(args.fields[j].name));
+         printf("%*.s%s: ", padding, " ", args.fields[j].name);
+         printField((const char *)(args.response_buffer + pos), args.fields + j, 0, (int32_t)length, precision);
+         putchar('\n');
+       }
+       putchar('\n');
+       numOfRows ++;
+     }
+   } else if (showMore) {
+     printf("\n");
+     printf(" Notice: The result shows only the first %d rows.\n", DEFAULT_RES_SHOW_NUM);
+     printf("         You can use the `LIMIT` clause to get fewer result to show.\n");
+     printf("           Or use '>>' to redirect the whole set of the result to a specified file.\n");
+     printf("\n");
+     printf("         You can use Ctrl+C to stop the underway fetching.\n");
+     printf("\n");
+     showMore = 0;
+   } else {
+     numOfRows += rows;
+   }
+   cJSON_Delete(fetch);
+   fetch = wsclient_fetch(fetch_block);
+ } while (fetch != NULL);
+ cJSON_Delete(fetch);
+ return numOfRows;
+}
+
+int wsDumpResultToFile(char* fname, cJSON* query, uint64_t limit) {
+ wordexp_t full_path;
+
+ if (wordexp((char *)fname, &full_path, 0) != 0) {
+   fprintf(stderr, "ERROR: invalid file name: %s\n", fname);
+   return -1;
+ }
+
+ FILE* fp = fopen(full_path.we_wordv[0], "w");
+ if (fp == NULL) {
+   fprintf(stderr, "ERROR: failed to open file: %s\n", full_path.we_wordv[0]);
+   wordfree(&full_path);
+   return -1;
+ }
+
+ wordfree(&full_path);
+
+ int num_fields = (int)cJSON_GetObjectItem(query, "fields_count")->valueint;
+ args.fields = calloc(num_fields, sizeof(TAOS_FIELD));
+ if (wsclient_fetch_fields(query, args.fields, num_fields)) {
+   return 0;
+ }
+ cJSON* precisionObj = cJSON_GetObjectItem(query, "precision");
+ if (!cJSON_IsNumber(precisionObj)) {
+   fprintf(stderr, "Invalid or miss precision key in query response\n");
+   return 0;
+ }
+ int precision = (int)precisionObj->valueint;
+
+ cJSON* fetch = wsclient_fetch(true);
+ if (fetch == NULL) {
+   return 0;
+ }
+
+ for (int i = 0; i < num_fields; ++i) {
+   if (i > 0) {
+     fprintf(fp, ",");
+   }
+   fprintf(fp, "%s", args.fields[i].name);
+ }
+ fputc('\n', fp);
+
+ int numOfRows = 0;
+ int64_t rows;
+ int64_t pos;
+
+ do {
+   rows = cJSON_GetObjectItem(fetch, "rows")->valueint;
+   cJSON *completedObj = cJSON_GetObjectItem(fetch, "completed");
+   if (completedObj->valueint) {
+     break;
+   }
+   for (int i = 0; i < rows; ++i) {
+     for (int j = 0; j < num_fields; ++j) {
+       pos = 8;
+       pos += i * args.fields[j].bytes;
+       for (int k = 0; k < j; ++k) {
+         pos += args.fields[k].bytes * rows;
+       }
+       int16_t length = 0;
+       if (args.fields[j].type == TSDB_DATA_TYPE_NCHAR || args.fields[j].type == TSDB_DATA_TYPE_BINARY ||
+           args.fields[j].type == TSDB_DATA_TYPE_JSON) {
+         length = *(int16_t *)(args.response_buffer + pos);
+         pos += 2;
+       }
+       if (j > 0) {
+         fputc(',', fp);
+       }
+       dumpFieldToFile(fp, (const char *)(args.response_buffer + pos), args.fields + j, (int32_t)length, precision);
+     }
+     fputc('\n', fp);
+   }
+   fetch = wsclient_fetch(fetch);
+ } while (fetch != NULL);
+
+ fclose(fp);
+ cJSON_Delete(fetch);
+ return numOfRows;
+}
+
+int wsclientDumpResult(cJSON* query, char *fname, int *error_no, bool vertical, uint64_t limit) {
+ int numOfRows = 0;
+ if (fname != NULL) {
+   numOfRows = wsDumpResultToFile(fname, query, limit);
+ } else if (vertical) {
+   numOfRows = wsVericalPrintRes(query, limit);
+ } else {
+   numOfRows = wsHorizontalPrintRes(query, limit);
+ }
+ tfree(args.fields);
+ return numOfRows;
+}
 
 int shellDumpResult(TAOS_RES *tres, char *fname, int *error_no, bool vertical) {
   int numOfRows = 0;
@@ -1168,46 +1643,164 @@ int parse_cloud_dsn() {
     return 0;
 }
 
-int wsclient_handshake() {
-  char          request_header[1024];
-  char          recv_buf[1024];
-  unsigned char key_nonce[16];
-  char          websocket_key[256];
-  memset(request_header, 0, 1024);
-  memset(recv_buf, 0, 1024);
-  srand(time(NULL));
-  int i;
-  for (i = 0; i < 16; i++) {
-    key_nonce[i] = rand() & 0xff;
-  }
-  taos_base64_encode(key_nonce, 16, websocket_key, 256);
-  if (args.cloud) {
-        snprintf(request_header, 1024,
-                 "GET /rest/ws?token=%s HTTP/1.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nHost: "
-                 "%s:%s\r\nSec-WebSocket-Key: "
-                 "%s\r\nSec-WebSocket-Version: 13\r\n\r\n",
-                args.cloudToken, args.cloudHost, args.cloudPort, websocket_key);
-  } else {
-    snprintf(request_header, 1024,
-             "GET /rest/ws HTTP/1.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nHost: %s:%d\r\nSec-WebSocket-Key: "
-             "%s\r\nSec-WebSocket-Version: 13\r\n\r\n",
-             args.host, args.port, websocket_key);
-  }
+void releaseHttpResponse(HttpResponse *httpResponse) {
+ if (httpResponse == NULL) {
+   return;
+ }
+ tfree(httpResponse->version);
+ tfree(httpResponse->code);
+ tfree(httpResponse->desc);
+ tfree(httpResponse->body);
+ free(httpResponse);
+ httpResponse = NULL;
+}
 
-  ssize_t n = send(args.socket, request_header, strlen(request_header), 0);
-  if (n <= 0) {
+HttpResponse *parseHttpResponse(char *response) {
+ HttpResponse *_httpResponseTemp = (HttpResponse *) malloc(sizeof(HttpResponse));
+ memset(_httpResponseTemp, 0, sizeof(HttpResponse));
+ HttpResponse *_httpResponse = (HttpResponse *) malloc(sizeof(HttpResponse));
+ memset(_httpResponse, 0, sizeof(HttpResponse));
+
+ char *_start = response;
+ for (; *_start && *_start != '\r'; _start++) {
+   if (_httpResponseTemp->version == NULL) {
+     _httpResponseTemp->version = _start;
+   }
+
+   if (*_start == ' ') {
+     if (_httpResponseTemp->code == NULL) {
+       _httpResponseTemp->code = _start + 1;
+       *_start = '\0';
+     } else if (_httpResponseTemp->desc == NULL) {
+       _httpResponseTemp->desc = _start + 1;
+       *_start = '\0';
+     }
+   }
+ }
+ *_start = '\0';
+ _start++;
+
+ _start++;
+ char *_line = _start;
+ while (*_line != '\r' && *_line != '\0') {
+   char *_key;
+   char *_value;
+   while (*(_start++) != ':');
+   *(_start - 1) = '\0';
+   _key = _line;
+   _value = _start + 1;
+   while(_start++, *_start != '\0' && *_start != '\r');
+   *_start = '\0';
+   _start++;
+
+   _start++;
+   _line = _start;
+
+   if (!strcasecmp(_key, "Content-Length")) {
+     _httpResponseTemp->bodySize = atoi(_value);
+   }
+ }
+
+ if (*_line == '\r') {
+   _line += 2;
+   _httpResponseTemp->body = _line;
+ }
+
+ if (_httpResponseTemp->version != NULL) {
+   _httpResponse->version = strdup(_httpResponseTemp->version);
+ }
+ if (_httpResponseTemp->code != NULL) {
+   _httpResponse->code = strdup(_httpResponseTemp->code);
+ }
+ if (_httpResponseTemp->desc != NULL) {
+   _httpResponse->desc = strdup(_httpResponseTemp->desc);
+ }
+ if (_httpResponseTemp->body != NULL) {
+   _httpResponse->body = strdup(_httpResponseTemp->body);
+ }
+ _httpResponse->bodySize = _httpResponseTemp->bodySize;
+
+ free(_httpResponseTemp);
+ _httpResponseTemp = NULL;
+
+ return _httpResponse;
+}
+
+int wsclient_handshake(bool printMsg) {
+ int code = -1;
+ char          request_header[TEMP_RECV_BUF];
+ char          recv_buf[TEMP_RECV_BUF];
+ unsigned char key_nonce[16];
+ char          websocket_key[256];
+ srand(time(NULL));
+ int i;
+ for (i = 0; i < 16; i++) {
+   key_nonce[i] = rand() & 0xff;
+ }
+ taos_base64_encode(key_nonce, 16, websocket_key, 256);
+ if (args.cloud) {
+   snprintf(request_header, TEMP_RECV_BUF,
+            "GET /rest/ws?token=%s HTTP/1.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nHost: "
+            "%s:%s\r\nSec-WebSocket-Key: "
+            "%s\r\nSec-WebSocket-Version: 13\r\n\r\n",
+            args.cloudToken, args.cloudHost, args.cloudPort, websocket_key);
+ } else {
+   snprintf(request_header, TEMP_RECV_BUF,
+            "GET /rest/ws HTTP/1.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nHost: %s:%d\r\nSec-WebSocket-Key: "
+            "%s\r\nSec-WebSocket-Version: 13\r\n\r\n",
+            args.host, args.port, websocket_key);
+ }
+
+ int n = send(args.socket, request_header, strlen(request_header), 0);
+ if (n <= 0) {
 #ifdef WINDOWS
-      fprintf(stderr, "send failed with error: %d\n", WSAGetLastError());
+   fprintf(stderr, "send failed with error: %d\n", WSAGetLastError());
 #else
-      fprintf(stderr, "web socket handshake error\n");
+   fprintf(stderr, "websocket handshake error\n");
 #endif
-    return -1;
-  }
-  n = recv(args.socket, recv_buf, 1023, 0);
-  if (NULL == strstr(recv_buf, "HTTP/1.1 101")) {
-    fprintf(stderr, "web socket handshake failed: %s\n", recv_buf);
-  }
-  return 0;
+   return code;
+ }
+ n = recv(args.socket, recv_buf, TEMP_RECV_BUF - 1, 0);
+ if (n <= 0) {
+   fprintf(stderr, "websocket handshake socket error\n");
+   return code;
+ }
+ HttpResponse * response = parseHttpResponse(recv_buf);
+ if (atoi(response->code) != 101) {
+   fprintf(stderr, "websocket handshake failed, reason: %s, code: %s\n", response->desc, response->code);
+   int received_body = strlen(response->body);
+   while (received_body < response->bodySize) {
+     memset(recv_buf, 0, TEMP_RECV_BUF);
+     received_body += recv(args.socket, recv_buf, TEMP_RECV_BUF - 1, 0);
+   }
+   goto OVER;
+ }
+ code = 0;
+ if (printMsg) {
+   if (args.cloud) {
+     fprintf(stdout, "Successfully connect to %s:%s in restful mode\n\n", args.cloudHost, args.cloudPort);
+   } else {
+     fprintf(stdout, "Successfully connect to %s:%d in restful mode\n\n", args.host, args.port);
+   }
+ }
+OVER:
+ releaseHttpResponse(response);
+ return code;
+}
+
+int wsclient_reconnect() {
+ if (args.restful && tcpConnect(args.host, args.port)) {
+   return -1;
+ }
+ if (args.cloud && tcpConnect(args.cloudHost, atoi(args.cloudPort))) {
+   return -1;
+ }
+ if (wsclient_handshake(0)) {
+   close(args.socket);
+   return -1;
+ }
+ wsclient.status = TCP_CONNECTED;
+ return 0;
 }
 
 int wsclient_send(char *strdata, WebSocketFrameType frame) {
@@ -1272,7 +1865,7 @@ int wsclient_send(char *strdata, WebSocketFrameType frame) {
     sent += i;
   }
   if (i < 0) {
-    fprintf(stderr, "websocket send data error, please check the server\n");
+    wsclient.status = SEND_ERROR;
     free(data);
     return -1;
   }
@@ -1280,93 +1873,77 @@ int wsclient_send(char *strdata, WebSocketFrameType frame) {
   return 0;
 }
 
-int wsclient_send_sql(char *command, WS_ACTION_TYPE type, int64_t id) {
-  int code = 1;
-  cJSON *json = cJSON_CreateObject();
-  cJSON *_args = cJSON_CreateObject();
-  cJSON_AddNumberToObject(_args, "req_id", 1);
-  switch (type) {
-    case WS_CONN:
-      cJSON_AddStringToObject(json, "action", "conn");
-      cJSON_AddStringToObject(_args, "user", args.user);
-      cJSON_AddStringToObject(_args, "password", args.password);
-      cJSON_AddStringToObject(_args, "db", args.database);
+int wsclient_send_sql(char *command, WS_ACTION_TYPE type) {
+ int code = 1;
+ cJSON *json = cJSON_CreateObject();
+ cJSON *_args = cJSON_CreateObject();
+ cJSON_AddNumberToObject(_args, "req_id", 1);
+ switch (type) {
+   case WS_CONN:
+     cJSON_AddStringToObject(json, "action", "conn");
+     cJSON_AddStringToObject(_args, "user", args.user);
+     cJSON_AddStringToObject(_args, "password", args.password);
+     cJSON_AddStringToObject(_args, "db", args.database);
 
-      break;
-    case WS_QUERY:
-      cJSON_AddStringToObject(json, "action", "query");
-      cJSON_AddStringToObject(_args, "sql", command);
-      break;
-    case WS_FETCH:
-      cJSON_AddStringToObject(json, "action", "fetch");
-      cJSON_AddNumberToObject(_args, "id", id);
-      break;
-    case WS_FETCH_BLOCK:
-      cJSON_AddStringToObject(json, "action", "fetch_block");
-      cJSON_AddNumberToObject(_args, "id", id);
-      break;
-    case WS_CLOSE:
-      cJSON_AddStringToObject(json, "action", "close");
-      cJSON_AddNumberToObject(_args, "id", id);
-      break;
-  }
-  cJSON_AddItemToObject(json, "args", _args);
-  char *strdata = NULL;
-  strdata = cJSON_Print(json);
-  if (wsclient_send(strdata, TEXT_FRAME)) {
-    goto OVER;
-  }
-  code = 0;
+     break;
+   case WS_QUERY:
+     cJSON_AddStringToObject(json, "action", "query");
+     cJSON_AddStringToObject(_args, "sql", command);
+     break;
+   case WS_FETCH:
+     cJSON_AddStringToObject(json, "action", "fetch");
+     cJSON_AddNumberToObject(_args, "id", args.id);
+     break;
+   case WS_FETCH_BLOCK:
+     cJSON_AddStringToObject(json, "action", "fetch_block");
+     cJSON_AddNumberToObject(_args, "id", args.id);
+     break;
+   case WS_CLOSE:
+     cJSON_AddStringToObject(json, "action", "close");
+     cJSON_AddNumberToObject(_args, "id", args.id);
+     break;
+ }
+ cJSON_AddItemToObject(json, "args", _args);
+ char *strdata = NULL;
+ strdata = cJSON_Print(json);
+ if (wsclient_send(strdata, TEXT_FRAME)) {
+   if (type == WS_CLOSE) {
+     return 0;
+   }
+   goto OVER;
+ }
+ code = 0;
 OVER:
-  free(strdata);
-  cJSON_Delete(json);
-  return code;
+ free(strdata);
+ cJSON_Delete(json);
+ return code;
 }
 
 int wsclient_conn() {
-  if (wsclient_send_sql(NULL, WS_CONN, 0)) {
-    return -1;
-  }
-  char recv_buffer[1024];
-  memset(recv_buffer, 0, 1024);
-  int bytes = recv(args.socket, recv_buffer, 1023, 0);
-  if (bytes <= 0) {
-    fprintf(stderr, "failed to receive from socket\n");
-    return -1;
-  }
+ if (wsclient_send_sql(NULL, WS_CONN)) {
+   return -1;
+ }
+ pthread_create(&rpid, NULL, recvHandler, NULL);
+ pthread_join(rpid, NULL);
+ if (wsclient.status != TCP_CONNECTED && wsclient.status != WS_CONNECTED) {
+   fprintf(stderr, "websocket receive failed, reason: %s\n", wsclient_strerror(wsclient.status));
+   return -1;
+ }
 
-  char  *received_json = strstr(recv_buffer, "{");
-  cJSON *root = cJSON_Parse(received_json);
-  if (root == NULL) {
-    fprintf(stderr, "fail to parse response into json: %s\n", recv_buffer);
-    return -1;
-  }
-
-  cJSON *code = cJSON_GetObjectItem(root, "code");
-  if (!cJSON_IsNumber(code)) {
-    fprintf(stderr, "wrong code key in json: %s\n", received_json);
-    cJSON_Delete(root);
-    return -1;
-  }
-  if (code->valueint == 0) {
-    cJSON_Delete(root);
-    if (args.cloud) {
-        fprintf(stdout, "Successfully connect to %s:%s in restful mode\n\n", args.cloudHost, args.cloudPort);
-    } else {
-        fprintf(stdout, "Successfully connect to %s:%d in restful mode\n\n", args.host, args.port);
-    }
-    return 0;
-  } else {
-    cJSON *message = cJSON_GetObjectItem(root, "message");
-    if (!cJSON_IsString(message)) {
-      fprintf(stderr, "wrong message key in json: %s\n", received_json);
-      cJSON_Delete(root);
-      return -1;
-    }
-    fprintf(stderr, "failed to connection, reason: %s\n", message->valuestring);
-  }
-  cJSON_Delete(root);
-  return -1;
+ cJSON *conn = cJSON_Parse(args.response_buffer);
+ if (conn == NULL) {
+   fprintf(stderr, "fail to parse response into json: %s\n", args.response_buffer);
+   tfree(args.response_buffer);
+   return -1;
+ }
+ tfree(args.response_buffer);
+ if (wsclient_check(conn)) {
+   cJSON_Delete(conn);
+   return -1;
+ }
+ cJSON_Delete(conn);
+ wsclient.status = WS_CONNECTED;
+ return 0;
 }
 
 void wsclient_parse_frame(SWSParser * parser, uint8_t * recv_buffer) {
@@ -1406,249 +1983,41 @@ void wsclient_parse_frame(SWSParser * parser, uint8_t * recv_buffer) {
   parser->payload_length = payload_length;
 }
 
-char *wsclient_get_response() {
-  uint8_t recv_buffer[TEMP_RECV_BUF]= {0};
-  int   received = 0;
-  SWSParser parser;
-  int bytes = recv(args.socket, recv_buffer + received, TEMP_RECV_BUF - 1, 0);
-  if (bytes <= 0) {
-    fprintf(stderr, "websocket recv failed with bytes: %d\n", bytes);
-    return NULL;
-  }
-  wsclient_parse_frame(&parser, recv_buffer);
-  if (parser.frame == PING_FRAME) {
-    if (wsclient_send("pong", PONG_FRAME)) {
-      return NULL;
-    }
-    return wsclient_get_response();
-  }
-  char* response = calloc(1, parser.payload_length + 1);
-  int pos = bytes - parser.offset;
-  memcpy(response, recv_buffer + parser.offset, pos);
-  while (pos < parser.payload_length) {
-    bytes = recv(args.socket, response + pos, parser.payload_length - pos, 0);
-    pos += bytes;
-  }
-  response[pos] = '\0';
-  return response;
+int wsclient_check(cJSON *root) {
+ int64_t et = taosGetTimestampUs();
+ cJSON *code = cJSON_GetObjectItem(root, "code");
+ cJSON *message = cJSON_GetObjectItem(root, "message");
+ if (!cJSON_IsNumber(code) || !cJSON_IsString(message)) {
+   fprintf(stderr, "Invalid or miss 'code'/'message' in response\n");
+   return -1;
+ }
+ if (code->valueint != 0) {
+   fprintf(stderr, "\nDB error: %s, code: %"PRId64" (%.6fs)\n", message->valuestring, code->valueint, (et - args.st) / 1E6);
+   return -1;
+ }
+ return 0;
 }
 
-int wsclient_fetch_fields(cJSON *query, TAOS_FIELD * fields, int cols) {
-  cJSON *fields_names = cJSON_GetObjectItem(query, "fields_names");
-  cJSON *fields_types = cJSON_GetObjectItem(query, "fields_types");
-  cJSON *fields_lengths = cJSON_GetObjectItem(query, "fields_lengths");
-  if (!cJSON_IsArray(fields_names) || !cJSON_IsArray(fields_types) || !cJSON_IsArray(fields_lengths)) {
-    fprintf(stderr, "Invalid or miss 'fields_names'/'fields_types'/'fields_lengths' key in response\n");
-    return -1;
-  }
-  for (int i = 0; i < cols; i++) {
-    cJSON* field_name = cJSON_GetArrayItem(fields_names, i);
-    cJSON* field_type = cJSON_GetArrayItem(fields_types, i);
-    cJSON* field_length = cJSON_GetArrayItem(fields_lengths, i);
-    if (!cJSON_IsString(field_name) || !cJSON_IsNumber(field_type) || !cJSON_IsNumber(field_length)) {
-      fprintf(stderr, "Invalid or miss 'field_name'/'field_type'/'field_length' in query response");
-      return -1;
-    }
-    strncpy(fields[i].name, field_name->valuestring, 65);
-    fields[i].type = (uint8_t)field_type->valueint;
-    fields[i].bytes = (int16_t)field_length->valueint;
-  }
-  return 0;
-}
+cJSON* wsclient_query(char *command) {
+ if (wsclient.status != WS_CONNECTED) {
+   if (wsclient.status != TCP_CONNECTED) {
+     if (wsclient_reconnect()) {
+       return NULL;
+     }
+   }
+   if (wsclient_conn()) {
+     return NULL;
+   }
+ }
 
-int wsclient_check(cJSON *root, int64_t st, int64_t et) {
-  cJSON *code = cJSON_GetObjectItem(root, "code");
-  cJSON *message = cJSON_GetObjectItem(root, "message");
-  if (!cJSON_IsNumber(code) || !cJSON_IsString(message)) {
-    fprintf(stderr, "Invalid or miss 'code'/'message' in response\n");
-    return -1;
-  }
-  if (code->valueint != 0) {
-    fprintf(stderr, "\nDB error: %s (%.6fs)\n", message->valuestring, (et - st) / 1E6);
-    return -1;
-  }
-  return 0;
-}
-
-int wsclient_print_data(int rows, TAOS_FIELD *fields, int cols, int64_t id, int precision, int* pshowed_rows) {
-  char* response = wsclient_get_response();
-  if (response == NULL) {
-    return -1;
-  }
-
-  if (*(int64_t *)response != id) {
-    fprintf(stderr, "Mismatch id with %"PRId64" expect %"PRId64"\n", *(int64_t *)response, id);
-    free(response);
-    return -1;
-  }
-  int pos;
-  int width[TSDB_MAX_COLUMNS];
-  for (int c = 0; c < cols; c++) {
-    width[c] = calcColWidth(fields + c, precision);
-  }
-  for (int i = 0; i < rows; i++) {
-    if (*pshowed_rows == DEFAULT_RES_SHOW_NUM) {
-      printf("\n");
-      printf(" Notice: The result shows only the first %d rows.\n", DEFAULT_RES_SHOW_NUM);
-      printf("\n");
-      printf("         You can use Ctrl+C to stop the underway fetching.\n");
-      printf("\n");
-      free(response);
-      return 0;
-    }
-    for (int c = 0; c < cols; c++) {
-      pos = 8;
-      pos += i * fields[c].bytes;
-      for (int j = 0; j < c; j++) {
-        pos += fields[j].bytes * rows;
-      }
-      putchar(' ');
-      int16_t length = 0;
-      if (fields[c].type == TSDB_DATA_TYPE_NCHAR || fields[c].type == TSDB_DATA_TYPE_BINARY ||
-          fields[c].type == TSDB_DATA_TYPE_JSON) {
-        length = *(int16_t *)(response + pos);
-        pos += 2;
-      }
-      printField((const char *)(response + pos), fields + c, width[c], (int32_t)length, precision);
-      putchar(' ');
-      putchar('|');
-    }
-    putchar('\n');
-    *pshowed_rows += 1;
-  }
-  free(response);
-  return 0;
-}
-
-void wsclient_query(char *command) {
-  int64_t st, et;
-  st = taosGetTimestampUs();
-  if (wsclient_send_sql(command, WS_QUERY, 0)) {
-    return;
-  }
-  char *query_buffer = wsclient_get_response();
-  if (query_buffer == NULL) {
-    return;
-  }
-  cJSON* query = cJSON_Parse(query_buffer);
-  if (query == NULL) {
-    fprintf(stderr, "Failed to parse response into json: %s\n", query_buffer);
-    free(query_buffer);
-    return;
-  }
-  free(query_buffer);
-  et = taosGetTimestampUs();
-  if (wsclient_check(query, st, et)) {
-    cJSON_Delete(query);
-    return;
-  }
-  cJSON *is_update = cJSON_GetObjectItem(query, "is_update");
-  cJSON *fields_count = cJSON_GetObjectItem(query, "fields_count");
-  cJSON *precisionObj = cJSON_GetObjectItem(query, "precision");
-  cJSON *id = cJSON_GetObjectItem(query, "id");
-  if (!cJSON_IsBool(is_update) ||
-      !cJSON_IsNumber(fields_count) ||
-      !cJSON_IsNumber(precisionObj) ||
-      !cJSON_IsNumber(id)) {
-    fprintf(stderr, "Invalid or miss 'is_update'/'fields_count'/'precision'/'id' in query response\n");
-    cJSON_Delete(query);
-    return;
-  }
-  if (is_update->valueint) {
-    cJSON *affected_rows = cJSON_GetObjectItem(query, "affected_rows");
-    if (cJSON_IsNumber(affected_rows)) {
-      et = taosGetTimestampUs();
-      printf("Update OK, %d row(s) in set (%.6fs)\n\n", (int)affected_rows->valueint, (et - st) / 1E6);
-    } else {
-      fprintf(stderr, "Invalid or miss 'affected_rows' key in response\n");
-    }
-    cJSON_Delete(query);
-    return;
-  }
-  ws_id = id->valueint;
-  int         cols = (int)fields_count->valueint;
-  int         precision = (int)precisionObj->valueint;
-  int64_t     total_rows = 0;
-  int         showed_rows = 0;
-  bool completed = false;
-  TAOS_FIELD fields[TSDB_MAX_COLUMNS];
-  if (wsclient_fetch_fields(query, fields, cols)) {
-    cJSON_Delete(query);
-    return;
-  }
-  int width[TSDB_MAX_COLUMNS];
-  for (int i = 0; i < cols; ++i) {
-    width[i] = calcColWidth(fields + i, precision);
-  }
-  printHeader(fields, width, cols);
-
-  cJSON_Delete(query);
-
-  while (!completed && !stop_fetch) {
-    if (wsclient_send_sql(NULL, WS_FETCH, ws_id)) {
-      return;
-    }
-    char *fetch_buffer = wsclient_get_response();
-    if (fetch_buffer == NULL) {
-      return;
-    }
-    cJSON *fetch = cJSON_Parse(fetch_buffer);
-    if (fetch == NULL) {
-      fprintf(stderr, "failed to parse response into json: %s\n", fetch_buffer);
-      free(fetch_buffer);
-      return;
-    }
-    free(fetch_buffer);
-    if (wsclient_check(fetch, st, et)) {
-      cJSON_Delete(fetch);
-      return;
-    }
-    cJSON *completedObj = cJSON_GetObjectItem(fetch, "completed");
-    cJSON *rows = cJSON_GetObjectItem(fetch, "rows");
-    cJSON *lengths = cJSON_GetObjectItem(fetch, "lengths");
-    if (!cJSON_IsBool(completedObj) || !cJSON_IsNumber(rows)) {
-      fprintf(stderr, "Invalid or miss 'completed'/'rows' in fetch response\n");
-      cJSON_Delete(fetch);
-      return;
-    }
-    if (completedObj->valueint) {
-      cJSON_Delete(fetch);
-      completed = true;
-      continue;
-    }
-    total_rows += rows->valueint;
-    if (!cJSON_IsArray(lengths)) {
-      fprintf(stderr, "Invalid or miss 'lengths' in fetch response\n");
-      cJSON_Delete(fetch);
-      return;
-    }
-    for (int i = 0; i < cols; i++) {
-      cJSON* length = cJSON_GetArrayItem(lengths, i);
-      if (!cJSON_IsNumber(length)) {
-        fprintf(stderr, "Invalid or miss 'lengths' key in fetch response\n");
-        cJSON_Delete(fetch);
-        return;
-      }
-      fields[i].bytes = (int16_t)(length->valueint);
-    }
-    if (showed_rows < DEFAULT_RES_SHOW_NUM) {
-      if (wsclient_send_sql(NULL, WS_FETCH_BLOCK, ws_id)) {
-        cJSON_Delete(fetch);
-        return;
-      }
-      if (wsclient_print_data((int)rows->valueint, fields, cols, ws_id, precision, &showed_rows)) {
-        cJSON_Delete(fetch);
-        return;
-      }
-      cJSON_Delete(fetch);
-      continue;
-    }
-  }
-  et = taosGetTimestampUs();
-  if (stop_fetch) {
-    printf("Query interrupted, %" PRId64 " row(s) in set (%.6fs)\n\n", total_rows, (et - st) / 1E6);
-    stop_fetch = false;
-  } else {
-    printf("Query OK, %" PRId64 " row(s) in set (%.6fs)\n\n", total_rows, (et - st) / 1E6);
-  }
+ if (wsclient_send_sql(command, WS_QUERY)) {
+   return NULL;
+ }
+ pthread_create(&rpid, NULL, recvHandler, NULL);
+ pthread_join(rpid, NULL);
+ if (wsclient.status != TCP_CONNECTED && wsclient.status != WS_CONNECTED) {
+   fprintf(stderr, "websocket receive failed, reason: %s\n", wsclient_strerror(wsclient.status));
+   return NULL;
+ }
+ return cJSON_Parse(args.response_buffer);
 }
