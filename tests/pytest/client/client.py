@@ -50,7 +50,7 @@ class TDTestCase:
 
         ret = tdSql.query('show mnodes')
         tdSql.checkRows(1)
-        tdSql.checkData(0, 2, "master")
+        tdSql.checkData(0, 2, "leader")
 
         role_time = tdSql.getData(0, 3)
         create_time = tdSql.getData(0, 4)
@@ -73,7 +73,7 @@ class TDTestCase:
         ret = tdSql.query('show vnodes "{}"'.format(dnodeEndpoint))
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 2)
-        tdSql.checkData(0, 1, "master")
+        tdSql.checkData(0, 1, "leader")
         
         cmd = "taos -h 127.0.0.1 -s 'show databases'"        
         r = os.popen(cmd)
