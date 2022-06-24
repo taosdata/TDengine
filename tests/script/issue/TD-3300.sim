@@ -76,10 +76,10 @@ endi
 if $data06 != 2 then
 	return -1
 endi
-if $data05 != master then
+if $data05 != leader then
 	return -1
 endi
-if $data07 != slave then
+if $data07 != follower then
 	return -1
 endi
 
@@ -125,10 +125,10 @@ endi
 if $data06 != 2 then
 	goto step4
 endi
-if $data05 != master then
+if $data05 != leader then
 	goto step4
 endi
-if $data07 != slave then
+if $data07 != follower then
 	goto step4
 endi
 
@@ -189,7 +189,7 @@ endi
 if $data05 != offline then
 	goto step5
 endi
-if $data07 != master then
+if $data07 != leader then
 	goto step5
 endi
 
@@ -251,10 +251,10 @@ endi
 if $data06 != 2 then
 	goto step6
 endi
-if $data05 != slave then
+if $data05 != follower then
 	goto step6
 endi
-if $data07 != master then
+if $data07 != leader then
 	goto step6
 endi
 
@@ -337,7 +337,7 @@ endi
 if $data06 != 2 then
 	goto step7
 endi
-if $data05 != master then
+if $data05 != leader then
 	goto step7
 endi
 if $data07 != offline then
@@ -422,10 +422,10 @@ endi
 if $data06 != 2 then
 	goto step8
 endi
-if $data05 != master then
+if $data05 != leader then
 	goto step8
 endi
-if $data07 != slave then
+if $data07 != follower then
 	goto step8
 endi
 
@@ -521,7 +521,7 @@ endi
 if $data05 != offline then
 	goto step7
 endi
-if $data07 != master then
+if $data07 != leader then
 	goto step7
 endi
 

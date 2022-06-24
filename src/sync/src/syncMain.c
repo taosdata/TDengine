@@ -68,8 +68,8 @@ char* syncRole[] = {
   "offline",
   "unsynced",
   "syncing",
-  "slave",
-  "master"
+  "follower",
+  "leader"
 };
 
 char *syncStatus[] = {
