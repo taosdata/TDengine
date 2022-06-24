@@ -271,19 +271,19 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t 
 #define qDebug(...)                                                                     \
   do {                                                                                  \
     if (qDebugFlag & DEBUG_DEBUG) {                                                     \
-      taosPrintLog("QRY ", DEBUG_DEBUG, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
+      taosPrintLog("QRY ", DEBUG_DEBUG, qDebugFlag, __VA_ARGS__);                       \
     }                                                                                   \
   } while (0)
 #define qTrace(...)                                                                     \
   do {                                                                                  \
     if (qDebugFlag & DEBUG_TRACE) {                                                     \
-      taosPrintLog("QRY ", DEBUG_TRACE, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
+      taosPrintLog("QRY ", DEBUG_TRACE, qDebugFlag, __VA_ARGS__);                       \
     }                                                                                   \
   } while (0)
 #define qDebugL(...)                                                                           \
   do {                                                                                         \
     if (qDebugFlag & DEBUG_DEBUG) {                                                            \
-      taosPrintLongString("QRY ", DEBUG_DEBUG, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
+      taosPrintLongString("QRY ", DEBUG_DEBUG, qDebugFlag, __VA_ARGS__);                       \
     }                                                                                          \
   } while (0)
 

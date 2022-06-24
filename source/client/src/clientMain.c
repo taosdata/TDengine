@@ -81,12 +81,6 @@ void taos_cleanup(void) {
   taosCloseLog();
 }
 
-setConfRet taos_set_config(const char *config) {
-  // TODO
-  setConfRet ret = {SET_CONF_RET_SUCC, {0}};
-  return ret;
-}
-
 TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
   tscDebug("try to connect to %s:%u, user:%s db:%s", ip, port, user, db);
   if (user == NULL) {
@@ -205,51 +199,9 @@ TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
   return pResInfo->userFields;
 }
 
-static void syncQueryFn(void *param, void *res, int32_t code) {
-  SSyncQueryParam *pParam = param;
-  pParam->pRequest = res;
-  pParam->pRequest->code = code;
-
-  tsem_post(&pParam->sem);
-}
 
 TAOS_RES *taos_query(TAOS *taos, const char *sql) {
-  if (NULL == taos) {
-    terrno = TSDB_CODE_TSC_DISCONNECTED;
-    return NULL;
-  }
-
-  STscObj *pTscObj = acquireTscObj(*(int64_t *)taos);
-  if (pTscObj == NULL || sql == NULL) {
-    terrno = TSDB_CODE_TSC_DISCONNECTED;
-    return NULL;
-  }
-
-#if SYNC_ON_TOP_OF_ASYNC
-  SSyncQueryParam *param = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
-  tsem_init(&param->sem, 0, 0);
-
-  taos_query_a(taos, sql, syncQueryFn, param);
-  tsem_wait(&param->sem);
-
-  releaseTscObj(*(int64_t *)taos);
-
-  return param->pRequest;
-#else
-  size_t sqlLen = strlen(sql);
-  if (sqlLen > (size_t)TSDB_MAX_ALLOWED_SQL_LEN) {
-    releaseTscObj(*(int64_t *)taos);
-    tscError("sql string exceeds max length:%d", TSDB_MAX_ALLOWED_SQL_LEN);
-    terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
-    return NULL;
-  }
-
-  TAOS_RES *pRes = execQuery(pTscObj, sql, sqlLen);
-
-  releaseTscObj(*(int64_t *)taos);
-
-  return pRes;
-#endif
+  return taosQueryImpl(taos, sql, false);
 }
 
 TAOS_ROW taos_fetch_row(TAOS_RES *res) {
@@ -641,7 +593,14 @@ int *taos_get_column_data_offset(TAOS_RES *res, int columnIndex) {
   return pResInfo->pCol[columnIndex].offset;
 }
 
-int taos_validate_sql(TAOS *taos, const char *sql) { return true; }
+int taos_validate_sql(TAOS *taos, const char *sql) { 
+  TAOS_RES* pObj = taosQueryImpl(taos, sql, true);
+
+  int code = taos_errno(pObj);
+  
+  taos_free_result(pObj);
+  return code;
+}
 
 void taos_reset_current_db(TAOS *taos) {
   STscObj *pTscObj = acquireTscObj(*(int64_t *)taos);
@@ -731,38 +690,7 @@ void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
 }
 
 void taos_query_a(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param) {
-  STscObj *pTscObj = acquireTscObj(*(int64_t *)taos);
-  if (pTscObj == NULL || sql == NULL || NULL == fp) {
-    terrno = TSDB_CODE_INVALID_PARA;
-    if (pTscObj) {
-      releaseTscObj(*(int64_t *)taos);
-    } else {
-      terrno = TSDB_CODE_TSC_DISCONNECTED;
-    }
-    fp(param, NULL, terrno);
-    return;
-  }
-
-  size_t sqlLen = strlen(sql);
-  if (sqlLen > (size_t)TSDB_MAX_ALLOWED_SQL_LEN) {
-    tscError("sql string exceeds max length:%d", TSDB_MAX_ALLOWED_SQL_LEN);
-    terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
-
-    fp(param, NULL, terrno);
-    return;
-  }
-
-  SRequestObj *pRequest = NULL;
-  int32_t      code = buildRequest(pTscObj, sql, sqlLen, &pRequest);
-  if (code != TSDB_CODE_SUCCESS) {
-    terrno = code;
-    fp(param, NULL, terrno);
-    return;
-  }
-
-  pRequest->body.queryFp = fp;
-  pRequest->body.param = param;
-  doAsyncQuery(pRequest, false);
+  taosAsyncQueryImpl(taos, sql, fp, param, false);
 }
 
 int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt) {
@@ -955,9 +883,74 @@ void taos_unsubscribe(TAOS_SUB *tsub, int keepProgress) {
 }
 
 int taos_load_table_info(TAOS *taos, const char *tableNameList) {
-  // TODO
-  return -1;
+  const int32_t MAX_TABLE_NAME_LENGTH = 12 * 1024 * 1024;  // 12MB list
+  int32_t code = 0;
+  SRequestObj *pRequest = NULL;
+  SCatalogReq catalogReq = {0};
+  
+  if (NULL == tableNameList) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t length = (int32_t)strlen(tableNameList);
+  if (0 == length) {
+    return TSDB_CODE_SUCCESS;
+  } else if (length > MAX_TABLE_NAME_LENGTH) {
+    tscError("tableNameList too long, length:%d, maximum allowed:%d", length, MAX_TABLE_NAME_LENGTH);
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
+  STscObj *pTscObj = acquireTscObj(*(int64_t *)taos);
+  if (pTscObj == NULL) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return terrno;
+  }
+
+  code = transferTableNameList(tableNameList, pTscObj->acctId, pTscObj->db, &catalogReq.pTableMeta);
+  if (code) {
+    goto _return;
+  }
+
+  SCatalog* pCtg = NULL;
+  code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCtg);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _return;
+  }
+
+  char* sql = "taos_load_table_info";
+  code = buildRequest(pTscObj, sql, strlen(sql), &pRequest);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    goto _return;
+  }
+  
+  SSyncQueryParam param = {0};
+  tsem_init(&param.sem, 0, 0);
+  param.pRequest = pRequest;
+
+  SRequestConnInfo conn = {.pTrans = pTscObj->pAppInfo->pTransporter,
+                           .requestId = pRequest->requestId,
+                           .requestObjRefId = pRequest->self};
+
+  conn.mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+
+  code = catalogAsyncGetAllMeta(pCtg, &conn, pRequest->requestId, &catalogReq, syncCatalogFn, &param, NULL);
+  if (code) {
+    goto _return;
+  }
+
+  tsem_wait(&param.sem);
+
+_return:
+
+  taosArrayDestroy(catalogReq.pTableMeta);
+  destroyRequest(pRequest);
+
+  releaseTscObj(*(int64_t *)taos);
+
+  return code;
 }
+
 
 TAOS_STMT *taos_stmt_init(TAOS *taos) {
   STscObj *pObj = acquireTscObj(*(int64_t *)taos);
