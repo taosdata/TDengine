@@ -175,17 +175,23 @@ static int32_t calcConstProject(SNode* pProject, SNode** pNew) {
     }
   }
 
+  char aliasName[TSDB_COL_NAME_LEN] = {0};
+  strcpy(aliasName, ((SExprNode*)pProject)->aliasName);
   int32_t code = scalarCalculateConstants(pProject, pNew);
   if (TSDB_CODE_SUCCESS == code && QUERY_NODE_VALUE == nodeType(*pNew) && NULL != pAssociation) {
+    strcpy(((SExprNode*)*pNew)->aliasName, aliasName);
     int32_t size = taosArrayGetSize(pAssociation);
     for (int32_t i = 0; i < size; ++i) {
       SNode** pCol = taosArrayGetP(pAssociation, i);
+      nodesDestroyNode(*pCol);
       *pCol = nodesCloneNode(*pNew);
       if (NULL == *pCol) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        break;
       }
     }
   }
+  taosArrayDestroy(pAssociation);
   return code;
 }
 
@@ -194,6 +200,19 @@ static bool isUselessCol(bool hasSelectValFunc, SExprNode* pProj) {
     return false;
   }
   return NULL == ((SExprNode*)pProj)->pAssociation;
+}
+
+static SNode* createConstantValue() {
+  SValueNode* pVal = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  if (NULL == pVal) {
+    return NULL;
+  }
+  pVal->node.resType.type = TSDB_DATA_TYPE_INT;
+  pVal->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
+  const int32_t val = 1;
+  nodesSetValueNodeValue(pVal, (void*)&val);
+  pVal->translate = true;
+  return (SNode*)pVal;
 }
 
 static int32_t calcConstProjections(SCalcConstContext* pCxt, SSelectStmt* pSelect, bool subquery) {
@@ -211,6 +230,9 @@ static int32_t calcConstProjections(SCalcConstContext* pCxt, SSelectStmt* pSelec
       return code;
     }
     WHERE_NEXT;
+  }
+  if (0 == LIST_LENGTH(pSelect->pProjectionList)) {
+    return nodesListStrictAppend(pSelect->pProjectionList, createConstantValue());
   }
   return TSDB_CODE_SUCCESS;
 }

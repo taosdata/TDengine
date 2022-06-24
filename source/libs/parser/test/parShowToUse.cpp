@@ -25,6 +25,15 @@ class ParserShowToUseTest : public ParserDdlTest {};
 // todo SHOW apps
 // todo SHOW connections
 
+TEST_F(ParserShowToUseTest, showConsumers) {
+  useDb("root", "test");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_SELECT_STMT); });
+
+  run("SHOW CONSUMERS");
+}
+
 TEST_F(ParserShowToUseTest, showCreateDatabase) {
   useDb("root", "test");
 
@@ -141,6 +150,15 @@ TEST_F(ParserShowToUseTest, showStreams) {
   useDb("root", "test");
 
   run("SHOW streams");
+}
+
+TEST_F(ParserShowToUseTest, showSubscriptions) {
+  useDb("root", "test");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_SELECT_STMT); });
+
+  run("SHOW SUBSCRIPTIONS");
 }
 
 TEST_F(ParserShowToUseTest, showTransactions) {
