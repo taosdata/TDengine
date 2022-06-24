@@ -45,6 +45,38 @@ void tsdbDataFileName(STsdb *pTsdb, SDFileSet *pDFileSet, EDataFileT ftype, char
   }
 }
 
+int32_t tPutDataFileHdr(uint8_t *p, SDFileSet *pSet, EDataFileT ftype) {
+  int32_t n = 0;
+
+  switch (ftype) {
+    case TSDB_HEAD_FILE: {
+      SHeadFile *pHeadFile = &pSet->fHead;
+      n += tPutI64(p + n, pHeadFile->commitID);
+      n += tPutI64(p + n, pHeadFile->size);
+      n += tPutI64(p + n, pHeadFile->offset);
+    } break;
+    case TSDB_DATA_FILE: {
+      SDataFile *pDataFile = &pSet->fData;
+      n += tPutI64(p + n, pDataFile->commitID);
+      n += tPutI64(p + n, pDataFile->size);
+    } break;
+    case TSDB_LAST_FILE: {
+      SLastFile *pLastFile = &pSet->fLast;
+      n += tPutI64(p + n, pLastFile->commitID);
+      n += tPutI64(p + n, pLastFile->size);
+    } break;
+    case TSDB_SMA_FILE: {
+      SSmaFile *pSmaFile = &pSet->fSma;
+      n += tPutI64(p + n, pSmaFile->commitID);
+      n += tPutI64(p + n, pSmaFile->size);
+    } break;
+    default:
+      ASSERT(0);
+  }
+
+  return n;
+}
+
 // SHeadFile ===============================================
 
 // SDataFile ===============================================

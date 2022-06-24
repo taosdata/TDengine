@@ -16,9 +16,9 @@
 #include "tsdb.h"
 
 int32_t tsdbOpenCache(STsdb *pTsdb) {
-  int32_t code = 0;
+  int32_t    code = 0;
   SLRUCache *pCache = NULL;
-  size_t cfgCapacity = 1024 * 1024; // TODO: get cfg from tsdb config
+  size_t     cfgCapacity = 1024 * 1024;  // TODO: get cfg from tsdb config
 
   pCache = taosLRUCacheInit(cfgCapacity, -1, .5);
   if (pCache == NULL) {
@@ -44,35 +44,33 @@ void tsdbCloseCache(SLRUCache *pCache) {
 static void getTableCacheKey(tb_uid_t uid, const char *cacheType, char *key, int *len) {
   int keyLen = 0;
 
-  snprintf(key, 30, "%"PRIi64 "%s", uid, cacheType);
+  snprintf(key, 30, "%" PRIi64 "%s", uid, cacheType);
   *len = strlen(key);
 }
 
-static void deleteTableCacheLastrow(const void *key, size_t keyLen, void *value) {
-  taosMemoryFree(value);
-}
+static void deleteTableCacheLastrow(const void *key, size_t keyLen, void *value) { taosMemoryFree(value); }
 
 int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, tb_uid_t uid, STSRow *row) {
   int32_t code = 0;
   STSRow *cacheRow = NULL;
-  char key[32] = {0};
-  int keyLen = 0;
+  char    key[32] = {0};
+  int     keyLen = 0;
 
   getTableCacheKey(uid, "lr", key, &keyLen);
   LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
   if (h) {
-    cacheRow = (STSRow *) taosLRUCacheValue(pCache, h);
+    cacheRow = (STSRow *)taosLRUCacheValue(pCache, h);
     if (row->ts >= cacheRow->ts) {
       if (row->ts > cacheRow->ts) {
-	tdRowCpy(cacheRow, row);
+        tdRowCpy(cacheRow, row);
       }
     }
   } else {
     cacheRow = tdRowDup(row);
 
     _taos_lru_deleter_t deleter = deleteTableCacheLastrow;
-    LRUStatus status = taosLRUCacheInsert(pCache, key, keyLen, cacheRow, TD_ROW_LEN(cacheRow),
-					  deleter, NULL, TAOS_LRU_PRIORITY_LOW);
+    LRUStatus           status =
+        taosLRUCacheInsert(pCache, key, keyLen, cacheRow, TD_ROW_LEN(cacheRow), deleter, NULL, TAOS_LRU_PRIORITY_LOW);
     if (status != TAOS_LRU_STATUS_OK) {
       code = -1;
     }
@@ -87,7 +85,7 @@ static tb_uid_t getTableSuidByUid(tb_uid_t uid, STsdb *pTsdb) {
   SMetaReader mr = {0};
   metaReaderInit(&mr, pTsdb->pVnode->pMeta, 0);
   if (metaGetTableEntryByUid(&mr, uid) < 0) {
-    metaReaderClear(&mr); // table not esist
+    metaReaderClear(&mr);  // table not esist
     return 0;
   }
 
@@ -116,9 +114,9 @@ static int32_t getMemLastRow(SMemTable *mem, tb_uid_t suid, tb_uid_t uid, STSRow
       tsdbTbDataIterCreate(pMem, NULL, 1, &iter);
 
       if (iter != NULL) {
-	TSDBROW *row = tsdbTbDataIterGet(iter);
+        TSDBROW *row = tsdbTbDataIterGet(iter);
 
-	tsdbTbDataIterDestroy(iter);
+        tsdbTbDataIterDestroy(iter);
       }
     }
   } else {
@@ -153,7 +151,7 @@ _err:
 }
 
 static int32_t getTableDelDataFromTbData(STbData *pTbData, SArray *aDelData) {
-  int32_t code = 0;
+  int32_t   code = 0;
   SDelData *pDelData = pTbData ? pTbData->pHead : NULL;
 
   for (; pDelData; pDelData = pDelData->pNext) {
@@ -163,7 +161,8 @@ static int32_t getTableDelDataFromTbData(STbData *pTbData, SArray *aDelData) {
   return code;
 }
 
-static int32_t getTableDelData(STbData *pMem, STbData *pIMem, SDelFReader *pDelReader, SDelIdx *pDelIdx, SArray *aDelData) {
+static int32_t getTableDelData(STbData *pMem, STbData *pIMem, SDelFReader *pDelReader, SDelIdx *pDelIdx,
+                               SArray *aDelData) {
   int32_t code = 0;
 
   if (pMem) {
@@ -185,7 +184,8 @@ _err:
   return code;
 }
 
-static int32_t getTableDelSkyline(STbData *pMem, STbData *pIMem, SDelFReader *pDelReader, SDelIdx *pDelIdx, SArray *aSkyline) {
+static int32_t getTableDelSkyline(STbData *pMem, STbData *pIMem, SDelFReader *pDelReader, SDelIdx *pDelIdx,
+                                  SArray *aSkyline) {
   int32_t code = 0;
 
   SArray *aDelData = taosArrayInit(32, sizeof(SDelData));
@@ -219,10 +219,8 @@ _err:
   return code;
 }
 
-static int32_t mergeLastRowFileSet(STbDataIter *iter, STbDataIter *iiter, SDFileSet *pFileSet,
-				   SArray *pSkyline,
-				   STsdb *pTsdb,
-				   STSRow **pLastRow) {
+static int32_t mergeLastRowFileSet(STbDataIter *iter, STbDataIter *iiter, SDFileSet *pFileSet, SArray *pSkyline,
+                                   STsdb *pTsdb, STSRow **pLastRow) {
   int32_t code = 0;
 
   TSDBROW *pMemRow = NULL;
@@ -247,7 +245,7 @@ static int32_t mergeLastRowFileSet(STbDataIter *iter, STbDataIter *iiter, SDFile
 
   SBlockData *pBlockData;
 
-  tsdbDataFReaderClose(pDataFReader);
+  tsdbDataFReaderClose(&pDataFReader);
 
 _err:
   return code;
@@ -258,10 +256,10 @@ static int32_t mergeLastRow(tb_uid_t uid, STsdb *pTsdb, STSRow **ppRow) {
 
   tb_uid_t suid = getTableSuidByUid(uid, pTsdb);
 
-  STbData *pMem = NULL;
-  STbData *pIMem = NULL;
-  STbDataIter iter;              // mem buffer skip list iterator
-  STbDataIter iiter;             // imem buffer skip list iterator
+  STbData    *pMem = NULL;
+  STbData    *pIMem = NULL;
+  STbDataIter iter;   // mem buffer skip list iterator
+  STbDataIter iiter;  // imem buffer skip list iterator
 
   if (pTsdb->mem) {
     tsdbGetTbDataFromMemTable(pTsdb->mem, suid, uid, &pMem);
@@ -280,7 +278,7 @@ static int32_t mergeLastRow(tb_uid_t uid, STsdb *pTsdb, STSRow **ppRow) {
   *ppRow = NULL;
 
   SDelFReader *pDelFReader;
-  //code = tsdbDelFReaderOpen(&pDelFReader, pTsdb->fs->cState->pDelFile, pTsdb, NULL);
+  // code = tsdbDelFReaderOpen(&pDelFReader, pTsdb->fs->cState->pDelFile, pTsdb, NULL);
   if (code) goto _err;
 
   SDelIdx delIdx;
@@ -297,18 +295,18 @@ static int32_t mergeLastRow(tb_uid_t uid, STsdb *pTsdb, STSRow **ppRow) {
   tsdbFSIterOpen(pTsdb->fs, TSDB_FS_ITER_BACKWARD, &fsiter);
   do {
   */
-    SDFileSet *pFileSet = NULL;
-    //pFileSet = tsdbFSIterGet(fsiter);
-    
-    code = mergeLastRowFileSet(&iter, &iiter, pFileSet, pSkyline, pTsdb, ppRow);
-    if (code < 0) {
-      goto _err;
-    }
+  SDFileSet *pFileSet = NULL;
+  // pFileSet = tsdbFSIterGet(fsiter);
 
-    if (*ppRow != NULL) {
-      //break;
-    }
-  /*    
+  code = mergeLastRowFileSet(&iter, &iiter, pFileSet, pSkyline, pTsdb, ppRow);
+  if (code < 0) {
+    goto _err;
+  }
+
+  if (*ppRow != NULL) {
+    // break;
+  }
+  /*
   } while (fsHasNext = tsdbFSIterNext(fsiter))
   */
 
@@ -323,13 +321,13 @@ _err:
 
 int32_t tsdbCacheGetLastrow(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, STSRow **ppRow) {
   int32_t code = 0;
-  char key[32] = {0};
-  int keyLen = 0;
+  char    key[32] = {0};
+  int     keyLen = 0;
 
   getTableCacheKey(uid, "lr", key, &keyLen);
   LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
   if (h) {
-    *ppRow = (STSRow *) taosLRUCacheValue(pCache, h);
+    *ppRow = (STSRow *)taosLRUCacheValue(pCache, h);
   } else {
     STSRow *pRow = NULL;
     code = mergeLastRow(uid, pTsdb, &pRow);
@@ -344,14 +342,14 @@ int32_t tsdbCacheGetLastrow(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, STSRo
 
 int32_t tsdbCacheDeleteLastrow(SLRUCache *pCache, tb_uid_t uid) {
   int32_t code = 0;
-  char key[32] = {0};
-  int keyLen = 0;
+  char    key[32] = {0};
+  int     keyLen = 0;
 
   getTableCacheKey(uid, "lr", key, &keyLen);
   LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
   if (h) {
     taosLRUCacheRelease(pCache, h, true);
-    //void taosLRUCacheErase(SLRUCache * cache, const void *key, size_t keyLen);
+    // void taosLRUCacheErase(SLRUCache * cache, const void *key, size_t keyLen);
   }
 
   return code;

@@ -82,10 +82,12 @@ typedef struct STsdbFSState   STsdbFSState;
 
 // tsdbUtil.c ==============================================================================================
 // TSDBROW
+#define TSDBROW_TS(ROW)                       (((ROW)->type == 0) ? (ROW)->pTSRow->ts : (ROW)->pBlockData->aTSKEY[(ROW)->iRow])
+#define TSDBROW_VERSION(ROW)                  (((ROW)->type == 0) ? (ROW)->version : (ROW)->pBlockData->aVersion[(ROW)->iRow])
 #define TSDBROW_SVERSION(ROW)                 TD_ROW_SVER((ROW)->pTSRow)
+#define TSDBROW_KEY(ROW)                      ((TSDBKEY){.version = TSDBROW_VERSION(ROW), .ts = TSDBROW_TS(ROW)})
 #define tsdbRowFromTSRow(VERSION, TSROW)      ((TSDBROW){.type = 0, .version = (VERSION), .pTSRow = (TSROW)});
-#define tsdbRowFromBlockData(BLOCKDATA, IROW) ((TSDBROW){.type = 1, .pBlockData = (BLOCKDATA), .pTSRow = (IROW)});
-TSDBKEY tsdbRowKey(TSDBROW *pRow);
+#define tsdbRowFromBlockData(BLOCKDATA, IROW) ((TSDBROW){.type = 1, .pBlockData = (BLOCKDATA), .iRow = (IROW)});
 void    tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
 int32_t tPutTSDBRow(uint8_t *p, TSDBROW *pRow);
 int32_t tGetTSDBRow(uint8_t *p, TSDBROW *pRow);
@@ -132,6 +134,8 @@ int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal);
 int32_t tColDataGetValue(SColData *pColData, int32_t iRow, SColVal *pColVal);
 int32_t tColDataPCmprFn(const void *p1, const void *p2);
 // SBlockData
+#define tBlockDataFirstRow(PBLOCKDATA) tsdbRowFromBlockData(PBLOCKDATA, 0)
+#define tBlockDataLastRow(PBLOCKDATA)  tsdbRowFromBlockData(PBLOCKDATA, (PBLOCKDATA)->nRow - 1)
 int32_t tBlockDataInit(SBlockData *pBlockData);
 void    tBlockDataReset(SBlockData *pBlockData);
 void    tBlockDataClear(SBlockData *pBlockData);
@@ -175,7 +179,8 @@ TSDBROW *tsdbTbDataIterGet(STbDataIter *pIter);
 bool     tsdbTbDataIterNext(STbDataIter *pIter);
 // tsdbFile.c ==============================================================================================
 typedef enum { TSDB_HEAD_FILE = 0, TSDB_DATA_FILE, TSDB_LAST_FILE, TSDB_SMA_FILE } EDataFileT;
-void tsdbDataFileName(STsdb *pTsdb, SDFileSet *pDFileSet, EDataFileT ftype, char fname[]);
+void    tsdbDataFileName(STsdb *pTsdb, SDFileSet *pDFileSet, EDataFileT ftype, char fname[]);
+int32_t tPutDataFileHdr(uint8_t *p, SDFileSet *pSet, EDataFileT ftype);
 // SDelFile
 #define tsdbDelFileCreate() \
   ((SDelFile){              \
@@ -195,16 +200,18 @@ SDFileSet *tsdbFSStateGetDFileSet(STsdbFSState *pState, int32_t fid);
 // tsdbReaderWriter.c ==============================================================================================
 // SDataFWriter
 int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pSet);
-int32_t tsdbDataFWriterClose(SDataFWriter *pWriter, int8_t sync);
+int32_t tsdbDataFWriterClose(SDataFWriter **ppWriter, int8_t sync);
 int32_t tsdbUpdateDFileSetHeader(SDataFWriter *pWriter, uint8_t **ppBuf);
 int32_t tsdbWriteBlockIdx(SDataFWriter *pWriter, SMapData *pMapData, uint8_t **ppBuf);
 int32_t tsdbWriteBlock(SDataFWriter *pWriter, SMapData *pMapData, uint8_t **ppBuf, SBlockIdx *pBlockIdx);
 int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, uint8_t **ppBuf1, uint8_t **ppBuf2,
                            SBlockIdx *pBlockIdx, SBlock *pBlock);
 int32_t tsdbWriteBlockSMA(SDataFWriter *pWriter, SBlockSMA *pBlockSMA, int64_t *rOffset, int64_t *rSize);
+
+SDFileSet *tsdbDataFWriterGetWSet(SDataFWriter *pWriter);
 // SDataFReader
 int32_t tsdbDataFReaderOpen(SDataFReader **ppReader, STsdb *pTsdb, SDFileSet *pSet);
-int32_t tsdbDataFReaderClose(SDataFReader *pReader);
+int32_t tsdbDataFReaderClose(SDataFReader **ppReader);
 int32_t tsdbReadBlockIdx(SDataFReader *pReader, SMapData *pMapData, uint8_t **ppBuf);
 int32_t tsdbReadBlock(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *pMapData, uint8_t **ppBuf);
 int32_t tsdbReadBlockData(SDataFReader *pReader, SBlockIdx *pBlockIdx, SBlock *pBlock, SBlockData *pBlockData,
@@ -470,11 +477,13 @@ struct SBlockSMA {
   SColSMA *aColSMA;
 };
 
+#pragma pack(push, 1)
 struct SBlockDataHdr {
   uint32_t delimiter;
   int64_t  suid;
   int64_t  uid;
 };
+#pragma pack(pop)
 
 struct SHeadFile {
   int64_t commitID;

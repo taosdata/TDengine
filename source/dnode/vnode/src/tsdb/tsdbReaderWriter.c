@@ -460,33 +460,35 @@ _err:
   return code;
 }
 
-int32_t tsdbDataFReaderClose(SDataFReader *pReader) {
+int32_t tsdbDataFReaderClose(SDataFReader **ppReader) {
   int32_t code = 0;
 
-  if (taosCloseFile(&pReader->pHeadFD) < 0) {
+  if (taosCloseFile(&(*ppReader)->pHeadFD) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
 
-  if (taosCloseFile(&pReader->pDataFD) < 0) {
+  if (taosCloseFile(&(*ppReader)->pDataFD) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
 
-  if (taosCloseFile(&pReader->pLastFD) < 0) {
+  if (taosCloseFile(&(*ppReader)->pLastFD) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
 
-  if (taosCloseFile(&pReader->pSmaFD) < 0) {
+  if (taosCloseFile(&(*ppReader)->pSmaFD) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
 
+  taosMemoryFree(*ppReader);
+  *ppReader = NULL;
   return code;
 
 _err:
-  tsdbError("vgId:%d data file reader close failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d data file reader close failed since %s", TD_VID((*ppReader)->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -614,6 +616,8 @@ struct SDataFWriter {
   TdFilePtr pLastFD;
   TdFilePtr pSmaFD;
 };
+
+SDFileSet *tsdbDataFWriterGetWSet(SDataFWriter *pWriter) { return &pWriter->wSet; }
 
 int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pSet) {
   int32_t       code = 0;
@@ -751,55 +755,58 @@ _err:
   return code;
 }
 
-int32_t tsdbDataFWriterClose(SDataFWriter *pWriter, int8_t sync) {
+int32_t tsdbDataFWriterClose(SDataFWriter **ppWriter, int8_t sync) {
   int32_t code = 0;
+  STsdb  *pTsdb = (*ppWriter)->pTsdb;
 
   if (sync) {
-    if (taosFsyncFile(pWriter->pHeadFD) < 0) {
+    if (taosFsyncFile((*ppWriter)->pHeadFD) < 0) {
       code = TAOS_SYSTEM_ERROR(errno);
       goto _err;
     }
 
-    if (taosFsyncFile(pWriter->pDataFD) < 0) {
+    if (taosFsyncFile((*ppWriter)->pDataFD) < 0) {
       code = TAOS_SYSTEM_ERROR(errno);
       goto _err;
     }
 
-    if (taosFsyncFile(pWriter->pLastFD) < 0) {
+    if (taosFsyncFile((*ppWriter)->pLastFD) < 0) {
       code = TAOS_SYSTEM_ERROR(errno);
       goto _err;
     }
 
-    if (taosFsyncFile(pWriter->pSmaFD) < 0) {
+    if (taosFsyncFile((*ppWriter)->pSmaFD) < 0) {
       code = TAOS_SYSTEM_ERROR(errno);
       goto _err;
     }
   }
 
-  if (taosCloseFile(&pWriter->pHeadFD) < 0) {
+  if (taosCloseFile(&(*ppWriter)->pHeadFD) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
 
-  if (taosCloseFile(&pWriter->pDataFD) < 0) {
+  if (taosCloseFile(&(*ppWriter)->pDataFD) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
 
-  if (taosCloseFile(&pWriter->pLastFD) < 0) {
+  if (taosCloseFile(&(*ppWriter)->pLastFD) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
 
-  if (taosCloseFile(&pWriter->pSmaFD) < 0) {
+  if (taosCloseFile(&(*ppWriter)->pSmaFD) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
 
+  taosMemoryFree(*ppWriter);
+  *ppWriter = NULL;
   return code;
 
 _err:
-  tsdbError("vgId:%d data file writer close failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d data file writer close failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -821,7 +828,7 @@ int32_t tsdbUpdateDFileSetHeader(SDataFWriter *pWriter, uint8_t **ppBuf) {
   // head ==============
   // build
   memset(*ppBuf, 0, size);
-  // tPutHeadFileHdr(*ppBuf, pHeadFile);
+  tPutDataFileHdr(*ppBuf, &pWriter->wSet, TSDB_HEAD_FILE);
   taosCalcChecksumAppend(0, *ppBuf, size);
 
   // seek
@@ -839,7 +846,7 @@ int32_t tsdbUpdateDFileSetHeader(SDataFWriter *pWriter, uint8_t **ppBuf) {
 
   // data ==============
   memset(*ppBuf, 0, size);
-  // tPutDataFileHdr(*ppBuf, pDataFile);
+  tPutDataFileHdr(*ppBuf, &pWriter->wSet, TSDB_DATA_FILE);
   taosCalcChecksumAppend(0, *ppBuf, size);
 
   // seek
@@ -857,7 +864,7 @@ int32_t tsdbUpdateDFileSetHeader(SDataFWriter *pWriter, uint8_t **ppBuf) {
 
   // last ==============
   memset(*ppBuf, 0, size);
-  // tPutLastFileHdr(*ppBuf, pLastFile);
+  tPutDataFileHdr(*ppBuf, &pWriter->wSet, TSDB_LAST_FILE);
   taosCalcChecksumAppend(0, *ppBuf, size);
 
   // seek
@@ -875,7 +882,7 @@ int32_t tsdbUpdateDFileSetHeader(SDataFWriter *pWriter, uint8_t **ppBuf) {
 
   // sma ==============
   memset(*ppBuf, 0, size);
-  // tPutSmaFileHdr(*ppBuf, pSmaFile);
+  tPutDataFileHdr(*ppBuf, &pWriter->wSet, TSDB_SMA_FILE);
   taosCalcChecksumAppend(0, *ppBuf, size);
 
   // seek
@@ -902,12 +909,13 @@ _err:
 
 int32_t tsdbWriteBlockIdx(SDataFWriter *pWriter, SMapData *mBlockIdx, uint8_t **ppBuf) {
   int32_t    code = 0;
-  int64_t    size = 0;
+  int64_t    size;
   SHeadFile *pHeadFile = &pWriter->wSet.fHead;
-  int64_t    n = 0;
+  int64_t    n;
   uint8_t   *pBuf = NULL;
 
   // prepare
+  size = 0;
   size += tPutU32(NULL, TSDB_FILE_DLMT);
   size = size + tPutMapData(NULL, mBlockIdx) + sizeof(TSCKSUM);
 
@@ -917,6 +925,7 @@ int32_t tsdbWriteBlockIdx(SDataFWriter *pWriter, SMapData *mBlockIdx, uint8_t **
   if (code) goto _err;
 
   // build
+  n = 0;
   n += tPutU32(*ppBuf + n, TSDB_FILE_DLMT);
   n += tPutMapData(*ppBuf, mBlockIdx);
   taosCalcChecksumAppend(0, *ppBuf, size);
@@ -944,20 +953,17 @@ _err:
 }
 
 int32_t tsdbWriteBlock(SDataFWriter *pWriter, SMapData *mBlock, uint8_t **ppBuf, SBlockIdx *pBlockIdx) {
-  int32_t    code = 0;
-  SHeadFile *pHeadFile = &pWriter->wSet.fHead;
-  uint8_t   *pBuf = NULL;
-  int64_t    size;
-  int64_t    n;
+  int32_t       code = 0;
+  SHeadFile    *pHeadFile = &pWriter->wSet.fHead;
+  SBlockDataHdr hdr = {.delimiter = TSDB_FILE_DLMT, .suid = pBlockIdx->suid, .uid = pBlockIdx->uid};
+  uint8_t      *pBuf = NULL;
+  int64_t       size;
+  int64_t       n;
 
   ASSERT(mBlock->nItem > 0);
 
   // prepare
-  size = 0;
-  size += tPutU32(NULL, TSDB_FILE_DLMT);
-  size += tPutI64(NULL, pBlockIdx->suid);
-  size += tPutI64(NULL, pBlockIdx->uid);
-  size = size + tPutMapData(NULL, mBlock) + sizeof(TSCKSUM);
+  size = sizeof(SBlockDataHdr) + tPutMapData(NULL, mBlock) + sizeof(TSCKSUM);
 
   // alloc
   if (!ppBuf) ppBuf = &pBuf;
@@ -966,9 +972,8 @@ int32_t tsdbWriteBlock(SDataFWriter *pWriter, SMapData *mBlock, uint8_t **ppBuf,
 
   // build
   n = 0;
-  n += tPutU32(*ppBuf + n, TSDB_FILE_DLMT);
-  n += tPutI64(*ppBuf + n, pBlockIdx->suid);
-  n += tPutI64(*ppBuf + n, pBlockIdx->uid);
+  *(SBlockDataHdr *)(*ppBuf) = hdr;
+  n += sizeof(hdr);
   n += tPutMapData(*ppBuf + n, mBlock);
   taosCalcChecksumAppend(0, *ppBuf, size);
 
@@ -1001,17 +1006,25 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, uint8_
                            SBlockIdx *pBlockIdx, SBlock *pBlock) {
   int32_t       code = 0;
   SSubBlock    *pSubBlock = &pBlock->aSubBlock[pBlock->nSubBlock++];
-  SBlockCol     bCol;
+  SBlockCol    *pBlockCol = &(SBlockCol){0};
   int64_t       size;
   int64_t       n;
-  TdFilePtr     pFileFD = pWriter->pDataFD;  // TODO
+  TdFilePtr     pFileFD = pBlock->last ? pWriter->pLastFD : pWriter->pDataFD;
   SBlockDataHdr hdr = {.delimiter = TSDB_FILE_DLMT, .suid = pBlockIdx->suid, .uid = pBlockIdx->uid};
   TSCKSUM       cksm;
   uint8_t      *p;
   int64_t       offset;
+  uint8_t      *pBuf1 = NULL;
+  uint8_t      *pBuf2 = NULL;
 
-  pSubBlock->offset = 0;  // TODO: set as file offset
+  if (!ppBuf1) ppBuf1 = &pBuf1;
+  if (!ppBuf2) ppBuf2 = &pBuf2;
 
+  if (pBlock->last) {
+    pSubBlock->offset = pWriter->wSet.fLast.size;
+  } else {
+    pSubBlock->offset = pWriter->wSet.fData.size;
+  }
   pSubBlock->bsize = 0;
 
   // HDR
@@ -1100,7 +1113,7 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, uint8_
 
   // other columns
   offset = 0;
-  tMapDataClear(&pSubBlock->mBlockCol);
+  tMapDataReset(&pSubBlock->mBlockCol);
   for (int32_t iCol = 0; iCol < taosArrayGetSize(pBlockData->aColDataP); iCol++) {
     SColData *pColData = (SColData *)taosArrayGetP(pBlockData->aColDataP, iCol);
 
@@ -1108,18 +1121,18 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, uint8_
 
     if (pColData->flag == HAS_NONE) continue;
 
-    bCol.cid = pColData->cid;
-    bCol.type = pColData->type;
-    bCol.flag = pColData->flag;
+    pBlockCol->cid = pColData->cid;
+    pBlockCol->type = pColData->type;
+    pBlockCol->flag = pColData->flag;
 
     if (pColData->flag != HAS_NULL) {
       cksm = 0;
-      bCol.offset = offset;
-      bCol.size = 0;
+      pBlockCol->offset = offset;
+      pBlockCol->size = 0;
 
       // bitmap
       if (pColData->flag != HAS_VALUE) {
-        // TODO: optimize bitmap part
+        // optimize bitmap storage (todo)
         n = taosWriteFile(pFileFD, pColData->pBitMap, BIT2_SIZE(pBlockData->nRow));
         if (n < 0) {
           code = TAOS_SYSTEM_ERROR(errno);
@@ -1127,7 +1140,7 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, uint8_
         }
 
         cksm = taosCalcChecksum(cksm, pColData->pBitMap, n);
-        bCol.size += n;
+        pBlockCol->size += n;
       }
 
       // data
@@ -1138,7 +1151,7 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, uint8_
           code = TAOS_SYSTEM_ERROR(errno);
           goto _err;
         }
-        bCol.size += n;
+        pBlockCol->size += n;
 
         // checksum
         cksm = taosCalcChecksum(cksm, pColData->pData, pColData->nData);
@@ -1147,7 +1160,7 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, uint8_
           code = TAOS_SYSTEM_ERROR(errno);
           goto _err;
         }
-        bCol.size += n;
+        pBlockCol->size += n;
       } else {
         size = pColData->nData + COMP_OVERFLOW_BYTES + sizeof(TSCKSUM);
 
@@ -1160,8 +1173,8 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, uint8_
         }
 
         // data
-        n = tDataTypes->compFunc(pColData->pData, pColData->nData, pBlockData->nRow, *ppBuf1, size, pBlock->cmprAlg,
-                                 *ppBuf2, size);
+        n = tDataTypes[pColData->type].compFunc(pColData->pData, pColData->nData, pBlockData->nRow, *ppBuf1, size,
+                                                pBlock->cmprAlg, *ppBuf2, size);
         if (n <= 0) {
           code = TSDB_CODE_COMPRESS_ERROR;
           goto _err;
@@ -1171,29 +1184,40 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, uint8_
         n += sizeof(TSCKSUM);
         ASSERT(n <= size);
         taosCalcChecksumAppend(cksm, *ppBuf1, n);
-        bCol.size += n;
 
         // write
-        n = taosWriteFile(pFileFD, *ppBuf1, bCol.size);
+        n = taosWriteFile(pFileFD, *ppBuf1, n);
         if (n < 0) {
           code = TAOS_SYSTEM_ERROR(errno);
           goto _err;
         }
+
+        pBlockCol->size += n;
       }
 
       // state
-      offset += bCol.size;
-      pSubBlock->bsize += bCol.size;
+      offset += pBlockCol->size;
+      pSubBlock->bsize += pBlockCol->size;
     }
 
-    code = tMapDataPutItem(&pSubBlock->mBlockCol, &bCol, tPutBlockCol);
+    code = tMapDataPutItem(&pSubBlock->mBlockCol, pBlockCol, tPutBlockCol);
     if (code) goto _err;
   }
 
+  if (pBlock->last) {
+    pWriter->wSet.fLast.size += pSubBlock->bsize;
+  } else {
+    pWriter->wSet.fData.size += pSubBlock->bsize;
+  }
+
+  tsdbFree(pBuf1);
+  tsdbFree(pBuf2);
   return code;
 
 _err:
   tsdbError("vgId:%d write block data failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
+  tsdbFree(pBuf1);
+  tsdbFree(pBuf2);
   return code;
 }
 

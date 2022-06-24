@@ -326,6 +326,7 @@ void tBlockReset(SBlock *pBlock) {
   pBlock->maxVersion = VERSION_MIN;
   pBlock->nRow = 0;
   pBlock->last = -1;
+  pBlock->hasDup = 0;
   pBlock->cmprAlg = -1;
   for (int8_t iSubBlock = 0; iSubBlock < pBlock->nSubBlock; iSubBlock++) {
     pBlock->aSubBlock[iSubBlock].offset = -1;
@@ -566,14 +567,6 @@ void tsdbFidKeyRange(int32_t fid, int32_t minutes, int8_t precision, TSKEY *minK
 // }
 
 // TSDBROW ======================================================
-TSDBKEY tsdbRowKey(TSDBROW *pRow) {
-  if (pRow->type == 0) {
-    return (TSDBKEY){.version = pRow->version, .ts = pRow->pTSRow->ts};
-  } else {
-    return (TSDBKEY){.version = pRow->pBlockData->aVersion[pRow->iRow], .ts = pRow->pBlockData->aTSKEY[pRow->iRow]};
-  }
-}
-
 void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
   STColumn *pTColumn = &pTSchema->columns[iCol];
   SValue    value;
@@ -661,7 +654,7 @@ SColVal *tRowIterNext(SRowIter *pIter) {
 // SRowMerger ======================================================
 int32_t tRowMergerInit(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema) {
   int32_t   code = 0;
-  TSDBKEY   key = tsdbRowKey(pRow);
+  TSDBKEY   key = TSDBROW_KEY(pRow);
   SColVal  *pColVal = &(SColVal){0};
   STColumn *pTColumn;
 
@@ -702,7 +695,7 @@ void tRowMergerClear(SRowMerger *pMerger) { taosArrayDestroy(pMerger->pArray); }
 
 int32_t tRowMerge(SRowMerger *pMerger, TSDBROW *pRow) {
   int32_t  code = 0;
-  TSDBKEY  key = tsdbRowKey(pRow);
+  TSDBKEY  key = TSDBROW_KEY(pRow);
   SColVal *pColVal = &(SColVal){0};
 
   ASSERT(((SColVal *)pMerger->pArray->pData)->value.ts == key.ts);
@@ -1067,15 +1060,14 @@ static SColData *tBlockDataAddBlockCol(SBlockData *pBlockData, int32_t iColData,
 
 int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema) {
   int32_t code = 0;
-  TSDBKEY key = tsdbRowKey(pRow);
 
   // TSDBKEY
   code = tsdbRealloc((uint8_t **)&pBlockData->aVersion, sizeof(int64_t) * (pBlockData->nRow + 1));
   if (code) goto _err;
   code = tsdbRealloc((uint8_t **)&pBlockData->aTSKEY, sizeof(TSKEY) * (pBlockData->nRow + 1));
   if (code) goto _err;
-  pBlockData->aVersion[pBlockData->nRow] = key.version;
-  pBlockData->aTSKEY[pBlockData->nRow] = key.ts;
+  pBlockData->aVersion[pBlockData->nRow] = TSDBROW_VERSION(pRow);
+  pBlockData->aTSKEY[pBlockData->nRow] = TSDBROW_TS(pRow);
 
   // OTHER
   int32_t   iColData = 0;
