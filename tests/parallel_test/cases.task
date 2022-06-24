@@ -757,6 +757,7 @@
 3,,pytest,python3 test.py -f dbmgmt/dbNameCaseSensitive.py
 3,,pytest,python3 test.py -f insert/schemalessCaseSensitive.py
 3,,pytest,python3 test.py -f table/columnNameCaseSensitive.py
+3,,pytest,python3 test.py -f table/columnNameValidation.py
 3,,pytest,python3 test.py -f table/tagNameCaseSensitive.py
 3,,pytest,python3 test.py -f table/tbNameCaseSensitive.py
 3,,develop-test,python3 ./test.py -f 2-query/ts_hidden_column.py 
