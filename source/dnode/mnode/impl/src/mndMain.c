@@ -529,24 +529,33 @@ static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
   if (!IsReq(pMsg)) return 0;
   if (mndAcquireRpcRef(pMsg->info.node) == 0) return 0;
   if (pMsg->msgType == TDMT_MND_MQ_TIMER || pMsg->msgType == TDMT_MND_TELEM_TIMER ||
-      pMsg->msgType == TDMT_MND_TRANS_TIMER || TDMT_MND_TTL_TIMER) {
+      pMsg->msgType == TDMT_MND_TRANS_TIMER || pMsg->msgType == TDMT_MND_TTL_TIMER) {
     return -1;
   }
-
-  const STraceId *trace = &pMsg->info.traceId;
-  mError("msg:%p, failed to check mnode state since %s, type:%s", pMsg, terrstr(), TMSG_INFO(pMsg->msgType));
 
   SEpSet epSet = {0};
   mndGetMnodeEpSet(pMsg->info.node, &epSet);
 
-  int32_t contLen = tSerializeSEpSet(NULL, 0, &epSet);
-  pMsg->info.rsp = rpcMallocCont(contLen);
-  if (pMsg->info.rsp != NULL) {
-    tSerializeSEpSet(pMsg->info.rsp, contLen, &epSet);
-    pMsg->info.rspLen = contLen;
-    terrno = TSDB_CODE_RPC_REDIRECT;
+  const STraceId *trace = &pMsg->info.traceId;
+  mError("msg:%p, failed to check mnode state since %s, type:%s, numOfMnodes:%d inUse:%d", pMsg, terrstr(),
+         TMSG_INFO(pMsg->msgType), epSet.numOfEps, epSet.inUse);
+
+  if (epSet.numOfEps > 0) {
+    for (int32_t i = 0; i < epSet.numOfEps; ++i) {
+      mInfo("mnode index:%d, ep:%s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
+    }
+
+    int32_t contLen = tSerializeSEpSet(NULL, 0, &epSet);
+    pMsg->info.rsp = rpcMallocCont(contLen);
+    if (pMsg->info.rsp != NULL) {
+      tSerializeSEpSet(pMsg->info.rsp, contLen, &epSet);
+      pMsg->info.rspLen = contLen;
+      terrno = TSDB_CODE_RPC_REDIRECT;
+    } else {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+    }
   } else {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_APP_NOT_READY;
   }
 
   return -1;
