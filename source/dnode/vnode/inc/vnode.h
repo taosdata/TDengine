@@ -149,8 +149,8 @@ int32_t tqReadHandleRemoveTbUidList(STqReadHandle *pHandle, const SArray *tbUidL
 int32_t tqReadHandleSetMsg(STqReadHandle *pHandle, SSubmitReq *pMsg, int64_t ver);
 bool    tqNextDataBlock(STqReadHandle *pHandle);
 bool    tqNextDataBlockFilterOut(STqReadHandle *pHandle, SHashObj *filterOutUids);
-int32_t tqRetrieveDataBlock(SArray **ppCols, STqReadHandle *pHandle, uint64_t *pGroupId, uint64_t *pUid,
-                            int32_t *pNumOfRows, int16_t *pNumOfCols);
+int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReadHandle *pHandle, uint64_t *pGroupId, uint64_t *pUid,
+                            int32_t *pNumOfRows);
 
 // sma
 int32_t smaGetTSmaDays(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);
@@ -195,6 +195,7 @@ struct SVnodeCfg {
 typedef struct {
   TSKEY    lastKey;
   uint64_t uid;
+  uint64_t groupId;
 } STableKeyInfo;
 
 struct SMetaEntry {

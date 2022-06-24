@@ -26,8 +26,9 @@ extern "C" {
 
 extern bool gRaftDetailLog;
 
-#define SYNC_INDEX_BEGIN 0
+#define SYNC_INDEX_BEGIN   0
 #define SYNC_INDEX_INVALID -1
+#define SYNC_TERM_INVALID  0xFFFFFFFFFFFFFFFF
 
 typedef uint64_t SyncNodeId;
 typedef int32_t  SyncGroupId;
@@ -156,13 +157,13 @@ typedef struct SSyncLogStore {
   SyncIndex (*getCommitIndex)(struct SSyncLogStore* pLogStore);
 
   // refactor, log[0 .. n] ==> log[m .. n]
-  int32_t (*syncLogSetBeginIndex)(struct SSyncLogStore* pLogStore, SyncIndex beginIndex);
-  int32_t (*syncLogResetBeginIndex)(struct SSyncLogStore* pLogStore);
+  // int32_t (*syncLogSetBeginIndex)(struct SSyncLogStore* pLogStore, SyncIndex beginIndex);
+
   SyncIndex (*syncLogBeginIndex)(struct SSyncLogStore* pLogStore);
   SyncIndex (*syncLogEndIndex)(struct SSyncLogStore* pLogStore);
   bool (*syncLogIsEmpty)(struct SSyncLogStore* pLogStore);
   int32_t (*syncLogEntryCount)(struct SSyncLogStore* pLogStore);
-  // bool (*syncLogInRange)(struct SSyncLogStore* pLogStore, SyncIndex index);
+  int32_t (*syncLogRestoreFromSnapshot)(struct SSyncLogStore* pLogStore, SyncIndex index);
 
   SyncIndex (*syncLogWriteIndex)(struct SSyncLogStore* pLogStore);
   SyncIndex (*syncLogLastIndex)(struct SSyncLogStore* pLogStore);
@@ -199,7 +200,7 @@ const char* syncGetMyRoleStr(int64_t rid);
 SyncTerm    syncGetMyTerm(int64_t rid);
 SyncGroupId syncGetVgId(int64_t rid);
 void        syncGetEpSet(int64_t rid, SEpSet* pEpSet);
-int32_t     syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak);
+int32_t     syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak);
 bool        syncEnvIsStart();
 const char* syncStr(ESyncState state);
 bool        syncIsRestoreFinish(int64_t rid);

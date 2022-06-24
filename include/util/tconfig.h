@@ -33,7 +33,8 @@ typedef enum {
   CFG_STYPE_ENV_CMD,
   CFG_STYPE_APOLLO_URL,
   CFG_STYPE_ARG_LIST,
-  CFG_STYPE_TAOS_OPTIONS
+  CFG_STYPE_TAOS_OPTIONS,
+  CFG_STYPE_ALTER_CMD,
 } ECfgSrcType;
 
 typedef enum {
@@ -103,6 +104,8 @@ int32_t cfgAddTimezone(SConfig *pCfg, const char *name, const char *defaultVal);
 
 const char *cfgStypeStr(ECfgSrcType type);
 const char *cfgDtypeStr(ECfgDataType type);
+
+void cfgDumpItemValue(SConfigItem *pItem, char* buf, int32_t bufSize, int32_t* pLen);
 
 void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump);
 

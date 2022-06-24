@@ -73,10 +73,12 @@ void mndStop(SMnode *pMnode);
  * @param pMnode The mnode object.
  * @param pCluster
  * @param pVgroup
+ * @param pStbInfo
  * @param pGrant
  * @return int32_t 0 for success, -1 for failure.
  */
-int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pCluster, SMonVgroupInfo *pVgroup, SMonGrantInfo *pGrant);
+int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
+                          SMonStbInfo *pStbInfo, SMonGrantInfo *pGrantInfo);
 
 /**
  * @brief Get mnode loads for status msg.

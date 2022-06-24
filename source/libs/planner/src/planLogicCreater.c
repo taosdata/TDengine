@@ -19,6 +19,7 @@
 
 typedef struct SLogicPlanContext {
   SPlanContext* pPlanCxt;
+  SLogicNode*   pCurrRoot;
 } SLogicPlanContext;
 
 typedef int32_t (*FCreateLogicNode)(SLogicPlanContext*, void*, SLogicNode**);
@@ -140,6 +141,7 @@ static int32_t createRootLogicNode(SLogicPlanContext* pCxt, void* pStmt, uint8_t
   if (TSDB_CODE_SUCCESS == code && NULL != pNode) {
     pNode->precision = precision;
     code = pushLogicNode(pCxt, pRoot, pNode);
+    pCxt->pCurrRoot = pNode;
   }
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pNode);
@@ -152,10 +154,14 @@ static int32_t createSelectRootLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
   return createRootLogicNode(pCxt, pSelect, pSelect->precision, (FCreateLogicNode)func, pRoot);
 }
 
-static EScanType getScanType(SLogicPlanContext* pCxt, SNodeList* pScanPseudoCols, SNodeList* pScanCols,
-                             int8_t tableType) {
+static EScanType getScanType(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SNodeList* pScanPseudoCols,
+                             SNodeList* pScanCols, int8_t tableType) {
   if (pCxt->pPlanCxt->topicQuery || pCxt->pPlanCxt->streamQuery) {
     return SCAN_TYPE_STREAM;
+  }
+
+  if (pSelect->hasLastRowFunc) {
+    return SCAN_TYPE_LAST_ROW;
   }
 
   if (NULL == pScanCols) {
@@ -273,7 +279,7 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     code = rewriteExprsForSelect(pScan->pScanPseudoCols, pSelect, SQL_CLAUSE_FROM);
   }
 
-  pScan->scanType = getScanType(pCxt, pScan->pScanPseudoCols, pScan->pScanCols, pScan->tableType);
+  pScan->scanType = getScanType(pCxt, pSelect, pScan->pScanPseudoCols, pScan->pScanCols, pScan->tableType);
 
   if (TSDB_CODE_SUCCESS == code) {
     code = addPrimaryKeyCol(pScan->tableId, &pScan->pScanCols);
@@ -293,6 +299,29 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     nodesDestroyNode((SNode*)pScan);
   }
 
+  return code;
+}
+
+static int32_t createColumnByLastRow(SNodeList* pFuncs, SNodeList** pOutput) {
+  int32_t    code = TSDB_CODE_SUCCESS;
+  SNodeList* pCols = NULL;
+  SNode*     pFunc = NULL;
+  FOREACH(pFunc, pFuncs) {
+    SFunctionNode* pLastRow = (SFunctionNode*)pFunc;
+    SColumnNode*   pCol = (SColumnNode*)nodesListGetNode(pLastRow->pParameterList, 0);
+    snprintf(pCol->colName, sizeof(pCol->colName), "%s", pLastRow->node.aliasName);
+    snprintf(pCol->node.aliasName, sizeof(pCol->colName), "%s", pLastRow->node.aliasName);
+    NODES_CLEAR_LIST(pLastRow->pParameterList);
+    code = nodesListMakeStrictAppend(&pCols, (SNode*)pCol);
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    *pOutput = pCols;
+  } else {
+    nodesDestroyList(pCols);
+  }
   return code;
 }
 
@@ -390,6 +419,7 @@ static int32_t createLogicNodeByTable(SLogicPlanContext* pCxt, SSelectStmt* pSel
     }
     pNode->precision = pSelect->precision;
     *pLogicNode = pNode;
+    pCxt->pCurrRoot = pNode;
   }
   return code;
 }
@@ -671,6 +701,10 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   }
 
   int32_t code = nodesCollectColumns(pSelect, SQL_CLAUSE_WINDOW, NULL, COLLECT_COL_TYPE_ALL, &pFill->node.pTargets);
+  if (TSDB_CODE_SUCCESS == code && NULL == pFill->node.pTargets) {
+    code = nodesListMakeStrictAppend(&pFill->node.pTargets,
+                                     nodesCloneNode(nodesListGetNode(pCxt->pCurrRoot->pTargets, 0)));
+  }
 
   pFill->mode = pFillNode->mode;
   pFill->timeRange = pFillNode->timeRange;
@@ -700,6 +734,10 @@ static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   }
 
   int32_t code = nodesCollectColumns(pSelect, SQL_CLAUSE_ORDER_BY, NULL, COLLECT_COL_TYPE_ALL, &pSort->node.pTargets);
+  if (TSDB_CODE_SUCCESS == code && NULL == pSort->node.pTargets) {
+    code = nodesListMakeStrictAppend(&pSort->node.pTargets,
+                                     nodesCloneNode(nodesListGetNode(pCxt->pCurrRoot->pTargets, 0)));
+  }
 
   if (TSDB_CODE_SUCCESS == code) {
     pSort->pSortKeys = nodesCloneList(pSelect->pOrderByList);
@@ -742,21 +780,8 @@ static int32_t createProjectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  if (NULL != pSelect->pLimit) {
-    pProject->limit = pSelect->pLimit->limit;
-    pProject->offset = pSelect->pLimit->offset;
-  } else {
-    pProject->limit = -1;
-    pProject->offset = -1;
-  }
-
-  if (NULL != pSelect->pSlimit) {
-    pProject->slimit = ((SLimitNode*)pSelect->pSlimit)->limit;
-    pProject->soffset = ((SLimitNode*)pSelect->pSlimit)->offset;
-  } else {
-    pProject->slimit = -1;
-    pProject->soffset = -1;
-  }
+  pProject->node.pLimit = (SNode*)pSelect->pLimit;
+  pProject->node.pSlimit = (SNode*)pSelect->pSlimit;
 
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -791,6 +816,9 @@ static int32_t createPartitionLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pS
 
   int32_t code =
       nodesCollectColumns(pSelect, SQL_CLAUSE_PARTITION_BY, NULL, COLLECT_COL_TYPE_ALL, &pPartition->node.pTargets);
+  if (TSDB_CODE_SUCCESS == code && NULL == pPartition->node.pTargets) {
+    code = nodesListMakeStrictAppend(&pPartition->node.pTargets, nodesListGetNode(pCxt->pCurrRoot->pTargets, 0));
+  }
 
   if (TSDB_CODE_SUCCESS == code) {
     pPartition->pPartitionKeys = nodesCloneList(pSelect->pPartitionByList);
@@ -844,7 +872,12 @@ static int32_t createDistinctLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSe
   return code;
 }
 
-static int32_t createSelectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
+static int32_t createSelectWithoutFromLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
+                                                SLogicNode** pLogicNode) {
+  return createProjectLogicNode(pCxt, pSelect, pLogicNode);
+}
+
+static int32_t createSelectFromLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   SLogicNode* pRoot = NULL;
   int32_t     code = createLogicNodeByTable(pCxt, pSelect, pSelect->pFromTable, &pRoot);
   if (TSDB_CODE_SUCCESS == code) {
@@ -884,6 +917,14 @@ static int32_t createSelectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSele
   return code;
 }
 
+static int32_t createSelectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
+  if (NULL == pSelect->pFromTable) {
+    return createSelectWithoutFromLogicNode(pCxt, pSelect, pLogicNode);
+  } else {
+    return createSelectFromLogicNode(pCxt, pSelect, pLogicNode);
+  }
+}
+
 static int32_t createSetOpRootLogicNode(SLogicPlanContext* pCxt, SSetOperator* pSetOperator, FCreateSetOpLogicNode func,
                                         SLogicNode** pRoot) {
   return createRootLogicNode(pCxt, pSetOperator, pSetOperator->precision, (FCreateLogicNode)func, pRoot);
@@ -898,6 +939,8 @@ static int32_t createSetOpSortLogicNode(SLogicPlanContext* pCxt, SSetOperator* p
   if (NULL == pSort) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+
+  pSort->node.pLimit = pSetOperator->pLimit;
 
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -929,12 +972,8 @@ static int32_t createSetOpProjectLogicNode(SLogicPlanContext* pCxt, SSetOperator
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  if (NULL != pSetOperator->pLimit) {
-    pProject->limit = ((SLimitNode*)pSetOperator->pLimit)->limit;
-    pProject->offset = ((SLimitNode*)pSetOperator->pLimit)->offset;
-  } else {
-    pProject->limit = -1;
-    pProject->offset = -1;
+  if (NULL == pSetOperator->pOrderByList) {
+    pProject->node.pLimit = pSetOperator->pLimit;
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -962,6 +1001,10 @@ static int32_t createSetOpAggLogicNode(SLogicPlanContext* pCxt, SSetOperator* pS
   SAggLogicNode* pAgg = (SAggLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_AGG);
   if (NULL == pAgg) {
     return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  if (NULL == pSetOperator->pOrderByList) {
+    pAgg->node.pLimit = pSetOperator->pLimit;
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1090,8 +1133,8 @@ static int32_t createDeleteScanLogicNode(SLogicPlanContext* pCxt, SDeleteStmt* p
     }
   }
 
-  if (TSDB_CODE_SUCCESS == code && NULL != pDelete->pTagIndexCond) {
-    pScan->pTagCond = nodesCloneNode(pDelete->pTagIndexCond);
+  if (TSDB_CODE_SUCCESS == code && NULL != pDelete->pTagCond) {
+    pScan->pTagCond = nodesCloneNode(pDelete->pTagCond);
     if (NULL == pScan->pTagCond) {
       code = TSDB_CODE_OUT_OF_MEMORY;
     }

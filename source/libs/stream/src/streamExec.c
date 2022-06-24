@@ -13,8 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "executor.h"
-#include "tstream.h"
+#include "streamInc.h"
 
 static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) {
   void* exec = pTask->exec.executor;
@@ -25,13 +24,12 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) 
     SStreamTrigger* pTrigger = (SStreamTrigger*)data;
     qSetMultiStreamInput(exec, pTrigger->pBlock, 1, STREAM_DATA_TYPE_SSDATA_BLOCK, false);
   } else if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
+    ASSERT(pTask->isDataScan);
     SStreamDataSubmit* pSubmit = (SStreamDataSubmit*)data;
-    ASSERT(pTask->inputType == STREAM_INPUT__DATA_SUBMIT);
     qSetStreamInput(exec, pSubmit->data, STREAM_DATA_TYPE_SUBMIT_BLOCK, false);
   } else if (pItem->type == STREAM_INPUT__DATA_BLOCK) {
     SStreamDataBlock* pBlock = (SStreamDataBlock*)data;
-    ASSERT(pTask->inputType == STREAM_INPUT__DATA_BLOCK);
-    SArray* blocks = pBlock->blocks;
+    SArray*           blocks = pBlock->blocks;
     qSetMultiStreamInput(exec, blocks->pData, blocks->size, STREAM_DATA_TYPE_SSDATA_BLOCK, false);
   } else if (pItem->type == STREAM_INPUT__DROP) {
     // TODO exec drop
@@ -46,10 +44,22 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) 
       ASSERT(false);
     }
     if (output == NULL) break;
+
+    if (output->info.type == STREAM_RETRIEVE) {
+      if (streamBroadcastToChildren(pTask, output) < 0) {
+        // TODO
+      }
+      continue;
+    }
+
     // TODO: do we need free memory?
-    SSDataBlock* outputCopy = createOneDataBlock(output, true);
-    outputCopy->info.childId = pTask->childId;
-    taosArrayPush(pRes, outputCopy);
+    SSDataBlock block = {0};
+    assignOneDataBlock(&block, output);
+    block.info.childId = pTask->selfChildId;
+    taosArrayPush(pRes, &block);
+    /*SSDataBlock* outputCopy = createOneDataBlock(output, true);*/
+    /*outputCopy->info.childId = pTask->selfChildId;*/
+    /*taosArrayPush(pRes, outputCopy);*/
   }
   return 0;
 }
@@ -62,6 +72,7 @@ static SArray* streamExecForQall(SStreamTask* pTask, SArray* pRes) {
     streamTaskExecImpl(pTask, data, pRes);
 
     if (pTask->taskStatus == TASK_STATUS__DROPPING) {
+      taosArrayDestroyEx(pRes, (FDelete)tDeleteSSDataBlock);
       return NULL;
     }
 
@@ -74,28 +85,27 @@ static SArray* streamExecForQall(SStreamTask* pTask, SArray* pRes) {
       }
       qRes->type = STREAM_INPUT__DATA_BLOCK;
       qRes->blocks = pRes;
-      /*qRes->sourceVg = pTask->nodeId;*/
       if (streamTaskOutput(pTask, qRes) < 0) {
         streamQueueProcessFail(pTask->inputQueue);
-        taosArrayDestroy(pRes);
+        taosArrayDestroyEx(pRes, (FDelete)tDeleteSSDataBlock);
         taosFreeQitem(qRes);
         return NULL;
       }
-
-      if (((SStreamQueueItem*)data)->type == STREAM_INPUT__TRIGGER) {
-        blockDataDestroy(((SStreamTrigger*)data)->pBlock);
-        taosFreeQitem(data);
-      } else {
-        if (pTask->inputType == STREAM_INPUT__DATA_SUBMIT) {
-          streamDataSubmitRefDec((SStreamDataSubmit*)data);
-          taosFreeQitem(data);
-        } else {
-          taosArrayDestroyEx(((SStreamDataBlock*)data)->blocks, (FDelete)tDeleteSSDataBlock);
-          taosFreeQitem(data);
-        }
-      }
       streamQueueProcessSuccess(pTask->inputQueue);
-      return taosArrayInit(0, sizeof(SSDataBlock));
+      pRes = taosArrayInit(0, sizeof(SSDataBlock));
+    }
+
+    int8_t type = ((SStreamQueueItem*)data)->type;
+    if (type == STREAM_INPUT__TRIGGER) {
+      blockDataDestroy(((SStreamTrigger*)data)->pBlock);
+      taosFreeQitem(data);
+    } else if (type == STREAM_INPUT__DATA_BLOCK) {
+      taosArrayDestroyEx(((SStreamDataBlock*)data)->blocks, (FDelete)tDeleteSSDataBlock);
+      taosFreeQitem(data);
+    } else if (type == STREAM_INPUT__DATA_SUBMIT) {
+      ASSERT(pTask->isDataScan);
+      streamDataSubmitRefDec((SStreamDataSubmit*)data);
+      taosFreeQitem(data);
     }
   }
   return pRes;
@@ -120,14 +130,14 @@ int32_t streamExec(SStreamTask* pTask, SMsgCb* pMsgCb) {
       pRes = streamExecForQall(pTask, pRes);
       if (pRes == NULL) goto FAIL;
 
-      taosArrayDestroy(pRes);
+      taosArrayDestroyEx(pRes, (FDelete)tDeleteSSDataBlock);
       atomic_store_8(&pTask->execStatus, TASK_EXEC_STATUS__IDLE);
       return 0;
     } else if (execStatus == TASK_EXEC_STATUS__CLOSING) {
       continue;
     } else if (execStatus == TASK_EXEC_STATUS__EXECUTING) {
       ASSERT(taosArrayGetSize(pRes) == 0);
-      taosArrayDestroy(pRes);
+      taosArrayDestroyEx(pRes, (FDelete)tDeleteSSDataBlock);
       return 0;
     } else {
       ASSERT(0);

@@ -113,8 +113,16 @@ void snapshotSenderStart(SSyncSnapshotSender *pSender, SSnapshot snapshot, void 
     }
 
     if (!getLastConfig) {
-      syncNodeLog3("", pSender->pSyncNode);
-      ASSERT(0);
+      char logBuf[128];
+      snprintf(logBuf, sizeof(logBuf), "snapshot sender update lcindex from %ld to -1",
+               pSender->snapshot.lastConfigIndex);
+      pSender->snapshot.lastConfigIndex = -1;
+
+      char *eventLog = snapshotSender2SimpleStr(pSender, logBuf);
+      syncNodeEventLog(pSender->pSyncNode, eventLog);
+      taosMemoryFree(eventLog);
+
+      memset(&(pSender->lastConfig), 0, sizeof(SSyncCfg));
     }
 
   } else {
@@ -533,7 +541,12 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
         ASSERT(writeCode == 0);
 
         pSyncNode->pFsm->FpSnapshotStopWrite(pSyncNode->pFsm, pReceiver->pWriter, true);
-        pSyncNode->pLogStore->syncLogSetBeginIndex(pSyncNode->pLogStore, pMsg->lastIndex + 1);
+        if (pReceiver->snapshot.lastApplyIndex > pReceiver->pSyncNode->commitIndex) {
+          pReceiver->pSyncNode->commitIndex = pReceiver->snapshot.lastApplyIndex;
+        }
+
+        // pSyncNode->pLogStore->syncLogSetBeginIndex(pSyncNode->pLogStore, pMsg->lastIndex + 1);
+        pSyncNode->pLogStore->syncLogRestoreFromSnapshot(pSyncNode->pLogStore, pMsg->lastIndex);
 
         // maybe update lastconfig
         if (pMsg->lastConfigIndex >= SYNC_INDEX_BEGIN) {
@@ -552,7 +565,7 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
         pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
 
         do {
-          char *eventLog = snapshotReceiver2SimpleStr(pReceiver, "snapshot receiver finish");
+          char *eventLog = snapshotReceiver2SimpleStr(pReceiver, "snapshot receiver finish, apply snapshot");
           syncNodeEventLog(pSyncNode, eventLog);
           taosMemoryFree(eventLog);
         } while (0);
@@ -563,7 +576,7 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
         needRsp = true;
 
         do {
-          char *eventLog = snapshotReceiver2SimpleStr(pReceiver, "snapshot receiver end");
+          char *eventLog = snapshotReceiver2SimpleStr(pReceiver, "snapshot receiver stop");
           syncNodeEventLog(pSyncNode, eventLog);
           taosMemoryFree(eventLog);
         } while (0);

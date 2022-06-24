@@ -15,7 +15,6 @@
 
 #include "filter.h"
 #include "functionMgt.h"
-#include "index.h"
 #include "planInt.h"
 #include "ttime.h"
 
@@ -79,7 +78,8 @@ static SLogicNode* optFindPossibleNode(SLogicNode* pNode, FMayBeOptimized func) 
 
 EDealRes osdHaveNormalColImpl(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
-    *((bool*)pContext) = (COLUMN_TYPE_TAG != ((SColumnNode*)pNode)->colType);
+    // *((bool*)pContext) = (COLUMN_TYPE_TAG != ((SColumnNode*)pNode)->colType);
+    *((bool*)pContext) = true;
     return *((bool*)pContext) ? DEAL_RES_END : DEAL_RES_IGNORE_CHILD;
   }
   return DEAL_RES_CONTINUE;
@@ -96,11 +96,6 @@ static bool osdMayBeOptimized(SLogicNode* pNode) {
     return false;
   }
   if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pNode)) {
-    return false;
-  }
-  // todo: release after function splitting
-  if (TSDB_SUPER_TABLE == ((SScanLogicNode*)pNode)->tableType &&
-      SCAN_TYPE_STREAM != ((SScanLogicNode*)pNode)->scanType) {
     return false;
   }
   if (NULL == pNode->pParent || (QUERY_NODE_LOGIC_PLAN_WINDOW != nodeType(pNode->pParent) &&
@@ -293,42 +288,22 @@ static int32_t cpdCondAppend(SNode** pCond, SNode** pAdditionalCond) {
   return code;
 }
 
-static int32_t cpdCalcTimeRange(SScanLogicNode* pScan, SNode** pPrimaryKeyCond, SNode** pOtherCond) {
-  bool    isStrict = false;
-  int32_t code = filterGetTimeRange(*pPrimaryKeyCond, &pScan->scanRange, &isStrict);
-  if (TSDB_CODE_SUCCESS == code) {
-    if (isStrict) {
-      nodesDestroyNode(*pPrimaryKeyCond);
-    } else {
-      code = cpdCondAppend(pOtherCond, pPrimaryKeyCond);
-    }
-    *pPrimaryKeyCond = NULL;
-  }
-  return code;
-}
-
-static int32_t cpdApplyTagIndex(SScanLogicNode* pScan, SNode** pTagCond, SNode** pOtherCond) {
-  int32_t       code = TSDB_CODE_SUCCESS;
-  SIdxFltStatus idxStatus = idxGetFltStatus(*pTagCond);
-  switch (idxStatus) {
-    case SFLT_NOT_INDEX:
-      code = cpdCondAppend(pOtherCond, pTagCond);
-      break;
-    case SFLT_COARSE_INDEX:
-      pScan->pTagCond = nodesCloneNode(*pTagCond);
-      if (NULL == pScan->pTagCond) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        break;
+static int32_t cpdCalcTimeRange(SOptimizeContext* pCxt, SScanLogicNode* pScan, SNode** pPrimaryKeyCond,
+                                SNode** pOtherCond) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (pCxt->pPlanCxt->topicQuery || pCxt->pPlanCxt->streamQuery) {
+    code = cpdCondAppend(pOtherCond, pPrimaryKeyCond);
+  } else {
+    bool isStrict = false;
+    code = filterGetTimeRange(*pPrimaryKeyCond, &pScan->scanRange, &isStrict);
+    if (TSDB_CODE_SUCCESS == code) {
+      if (isStrict) {
+        nodesDestroyNode(*pPrimaryKeyCond);
+      } else {
+        code = cpdCondAppend(pOtherCond, pPrimaryKeyCond);
       }
-      code = cpdCondAppend(pOtherCond, pTagCond);
-      break;
-    case SFLT_ACCURATE_INDEX:
-      pScan->pTagCond = *pTagCond;
-      *pTagCond = NULL;
-      break;
-    default:
-      code = TSDB_CODE_FAILED;
-      break;
+      *pPrimaryKeyCond = NULL;
+    }
   }
   return code;
 }
@@ -340,14 +315,11 @@ static int32_t cpdOptimizeScanCondition(SOptimizeContext* pCxt, SScanLogicNode* 
   }
 
   SNode*  pPrimaryKeyCond = NULL;
-  SNode*  pTagCond = NULL;
   SNode*  pOtherCond = NULL;
-  int32_t code = nodesPartitionCond(&pScan->node.pConditions, &pPrimaryKeyCond, &pTagCond, &pOtherCond);
+  int32_t code = nodesPartitionCond(&pScan->node.pConditions, &pPrimaryKeyCond, &pScan->pTagIndexCond, &pScan->pTagCond,
+                                    &pOtherCond);
   if (TSDB_CODE_SUCCESS == code && NULL != pPrimaryKeyCond) {
-    code = cpdCalcTimeRange(pScan, &pPrimaryKeyCond, &pOtherCond);
-  }
-  if (TSDB_CODE_SUCCESS == code && NULL != pTagCond) {
-    code = cpdApplyTagIndex(pScan, &pTagCond, &pOtherCond);
+    code = cpdCalcTimeRange(pCxt, pScan, &pPrimaryKeyCond, &pOtherCond);
   }
   if (TSDB_CODE_SUCCESS == code) {
     pScan->node.pConditions = pOtherCond;
@@ -769,7 +741,7 @@ static bool smaOptMayBeOptimized(SLogicNode* pNode) {
   }
 
   SScanLogicNode* pScan = (SScanLogicNode*)pNode;
-  if (0 == pScan->interval || NULL == pScan->pSmaIndexes || NULL != pScan->node.pConditions) {
+  if (NULL == pScan->pSmaIndexes || NULL != pScan->node.pConditions) {
     return false;
   }
 
@@ -1126,7 +1098,7 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
         break;
       }
     }
-    DESTORY_LIST(((SAggLogicNode*)pNode)->pGroupKeys);
+    NODES_DESTORY_LIST(((SAggLogicNode*)pNode)->pGroupKeys);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = partTagsOptRebuildTbanme(pScan->pPartTags);
@@ -1145,8 +1117,7 @@ static bool eliminateProjOptMayBeOptimized(SLogicNode* pNode) {
   }
 
   SProjectLogicNode* pProjectNode = (SProjectLogicNode*)pNode;
-  if (-1 != pProjectNode->limit || -1 != pProjectNode->slimit || -1 != pProjectNode->offset ||
-      -1 != pProjectNode->soffset) {
+  if (NULL != pProjectNode->node.pLimit || NULL != pProjectNode->node.pSlimit) {
     return false;
   }
 

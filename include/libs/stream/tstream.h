@@ -77,7 +77,7 @@ typedef struct {
 typedef struct {
   int8_t type;
 
-  int32_t sourceVg;
+  int32_t srcVgId;
   int64_t sourceVer;
 
   SArray* blocks;  // SArray<SSDataBlock*>
@@ -144,11 +144,6 @@ SStreamDataSubmit* streamDataSubmitNew(SSubmitReq* pReq);
 void streamDataSubmitRefDec(SStreamDataSubmit* pDataSubmit);
 
 SStreamDataSubmit* streamSubmitRefClone(SStreamDataSubmit* pSubmit);
-
-#if 0
-int32_t streamDataBlockEncode(void** buf, const SStreamDataBlock* pOutput);
-void*   streamDataBlockDecode(const void* buf, SStreamDataBlock* pInput);
-#endif
 
 typedef struct {
   char* qmsg;
@@ -234,25 +229,32 @@ enum {
   TASK_TRIGGER_STATUS__ACTIVE,
 };
 
+typedef struct {
+  int32_t nodeId;
+  int32_t childId;
+  int32_t taskId;
+  SEpSet  epSet;
+} SStreamChildEpInfo;
+
 struct SStreamTask {
   int64_t streamId;
   int32_t taskId;
-  int8_t  inputType;
-  int8_t  taskStatus;
-
-  int8_t execStatus;
-
+  int8_t  isDataScan;
   int8_t  execType;
   int8_t  sinkType;
   int8_t  dispatchType;
   int16_t dispatchMsgType;
 
-  int8_t dataScan;
+  int8_t taskStatus;
+  int8_t execStatus;
 
   // node info
-  int32_t childId;
+  int32_t selfChildId;
   int32_t nodeId;
   SEpSet  epSet;
+
+  // children info
+  SArray* childEpInfo;  // SArray<SStreamChildEpInfo*>
 
   // exec
   STaskExec exec;
@@ -290,6 +292,9 @@ struct SStreamTask {
   // msg handle
   SMsgCb* pMsgCb;
 };
+
+int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo);
+int32_t tDecodeStreamEpInfo(SDecoder* pDecoder, SStreamChildEpInfo* pInfo);
 
 SStreamTask* tNewSStreamTask(int64_t streamId);
 int32_t      tEncodeSStreamTask(SEncoder* pEncoder, const SStreamTask* pTask);
@@ -339,10 +344,12 @@ static FORCE_INLINE int32_t streamTaskOutput(SStreamTask* pTask, SStreamDataBloc
   if (pTask->sinkType == TASK_SINK__TABLE) {
     ASSERT(pTask->dispatchType == TASK_DISPATCH__NONE);
     pTask->tbSink.tbSinkFunc(pTask, pTask->tbSink.vnode, 0, pBlock->blocks);
+    taosArrayDestroyEx(pBlock->blocks, (FDelete)tDeleteSSDataBlock);
     taosFreeQitem(pBlock);
   } else if (pTask->sinkType == TASK_SINK__SMA) {
     ASSERT(pTask->dispatchType == TASK_DISPATCH__NONE);
     pTask->smaSink.smaSink(pTask->smaSink.vnode, pTask->smaSink.smaId, pBlock->blocks);
+    taosArrayDestroyEx(pBlock->blocks, (FDelete)tDeleteSSDataBlock);
     taosFreeQitem(pBlock);
   } else {
     ASSERT(pTask->dispatchType != TASK_DISPATCH__NONE);
@@ -369,9 +376,9 @@ typedef struct {
 typedef struct {
   int64_t streamId;
   int32_t taskId;
-  int32_t sourceTaskId;
-  int32_t sourceVg;
-  int32_t sourceChildId;
+  int32_t dataSrcVgId;
+  int32_t upstreamTaskId;
+  int32_t upstreamChildId;
   int32_t upstreamNodeId;
 #if 0
   int64_t sourceVer;
@@ -388,6 +395,23 @@ typedef struct {
 } SStreamDispatchRsp;
 
 typedef struct {
+  int64_t            streamId;
+  int32_t            srcTaskId;
+  int32_t            srcNodeId;
+  int32_t            dstTaskId;
+  int32_t            dstNodeId;
+  int32_t            retrieveLen;
+  SRetrieveTableRsp* pRetrieve;
+} SStreamRetrieveReq;
+
+typedef struct {
+  int64_t streamId;
+  int32_t childId;
+  int32_t rspFromTaskId;
+  int32_t rspToTaskId;
+} SStreamRetrieveRsp;
+
+typedef struct {
   int64_t streamId;
   int32_t taskId;
   int32_t sourceTaskId;
@@ -401,6 +425,7 @@ typedef struct {
 } SStreamTaskRecoverRsp;
 
 int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq);
+int32_t tDecodeStreamRetrieveReq(SDecoder* pDecoder, SStreamRetrieveReq* pReq);
 
 int32_t streamLaunchByWrite(SStreamTask* pTask, int32_t vgId);
 int32_t streamSetupTrigger(SStreamTask* pTask);
@@ -410,6 +435,9 @@ int32_t streamProcessDispatchReq(SStreamTask* pTask, SStreamDispatchReq* pReq, S
 int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp);
 int32_t streamProcessRecoverReq(SStreamTask* pTask, SStreamTaskRecoverReq* pReq, SRpcMsg* pMsg);
 int32_t streamProcessRecoverRsp(SStreamTask* pTask, SStreamTaskRecoverRsp* pRsp);
+
+int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pMsg);
+int32_t streamProcessRetrieveRsp(SStreamTask* pTask, SStreamRetrieveRsp* pRsp);
 
 #ifdef __cplusplus
 }
