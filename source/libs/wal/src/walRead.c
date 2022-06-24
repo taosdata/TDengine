@@ -272,14 +272,23 @@ int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
     }
   }
 
+  if (ver > pRead->pWal->vers.lastVer || ver < pRead->pWal->vers.firstVer) {
+    wError("invalid version: % " PRId64 ", first ver %ld, last ver %ld", ver, pRead->pWal->vers.firstVer,
+           pRead->pWal->vers.lastVer);
+    terrno = TSDB_CODE_WAL_LOG_NOT_EXIST;
+    return -1;
+  }
+
   ASSERT(taosValidFile(pRead->pReadLogTFile) == true);
 
   code = taosReadFile(pRead->pReadLogTFile, pRead->pHead, sizeof(SWalHead));
   if (code != sizeof(SWalHead)) {
     if (code < 0)
       terrno = TAOS_SYSTEM_ERROR(errno);
-    else
+    else {
       terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
+      ASSERT(0);
+    }
     return -1;
   }
 
@@ -304,8 +313,10 @@ int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
       pRead->pHead->head.bodyLen) {
     if (code < 0)
       terrno = TAOS_SYSTEM_ERROR(errno);
-    else
+    else {
       terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
+      ASSERT(0);
+    }
     return -1;
   }
 

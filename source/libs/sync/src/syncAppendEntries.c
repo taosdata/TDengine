@@ -420,44 +420,26 @@ static int32_t syncNodePreCommit(SSyncNode* ths, SSyncRaftEntry* pEntry) {
 // prevLogIndex == -1
 static bool syncNodeOnAppendEntriesLogOK(SSyncNode* pSyncNode, SyncAppendEntries* pMsg) {
   if (pMsg->prevLogIndex == SYNC_INDEX_INVALID) {
-    if (gRaftDetailLog) {
-      sTrace("syncNodeOnAppendEntriesLogOK true, pMsg->prevLogIndex:%ld", pMsg->prevLogIndex);
-    }
     return true;
   }
 
   SyncIndex myLastIndex = syncNodeGetLastIndex(pSyncNode);
   if (pMsg->prevLogIndex > myLastIndex) {
-    if (gRaftDetailLog) {
-      sTrace("syncNodeOnAppendEntriesLogOK false, pMsg->prevLogIndex:%ld, myLastIndex:%ld", pMsg->prevLogIndex,
-             myLastIndex);
-    }
+    sDebug("vgId:%d sync log not ok, preindex:%ld", pSyncNode->vgId, pMsg->prevLogIndex);
     return false;
   }
 
   SyncTerm myPreLogTerm = syncNodeGetPreTerm(pSyncNode, pMsg->prevLogIndex + 1);
   if (myPreLogTerm == SYNC_TERM_INVALID) {
-    sError("vgId:%d sync get pre term error, preindex:%ld", pSyncNode->vgId, pMsg->prevLogIndex);
+    sDebug("vgId:%d sync log not ok2, preindex:%ld", pSyncNode->vgId, pMsg->prevLogIndex);
     return false;
   }
 
   if (pMsg->prevLogIndex <= myLastIndex && pMsg->prevLogTerm == myPreLogTerm) {
-    if (gRaftDetailLog) {
-      sTrace(
-          "syncNodeOnAppendEntriesLogOK true, pMsg->prevLogIndex:%ld, myLastIndex:%ld, pMsg->prevLogTerm:%lu, "
-          "myPreLogTerm:%lu",
-          pMsg->prevLogIndex, myLastIndex, pMsg->prevLogTerm, myPreLogTerm);
-    }
     return true;
   }
 
-  if (gRaftDetailLog) {
-    sTrace(
-        "syncNodeOnAppendEntriesLogOK false, pMsg->prevLogIndex:%ld, myLastIndex:%ld, pMsg->prevLogTerm:%lu, "
-        "myPreLogTerm:%lu",
-        pMsg->prevLogIndex, myLastIndex, pMsg->prevLogTerm, myPreLogTerm);
-  }
-
+  sDebug("vgId:%d sync log not ok3, preindex:%ld", pSyncNode->vgId, pMsg->prevLogIndex);
   return false;
 }
 
@@ -466,14 +448,11 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
   int32_t code = 0;
 
   // print log
-  char logBuf[128] = {0};
-  snprintf(logBuf, sizeof(logBuf), "recv SyncAppendEntries, vgId:%d, term:%lu", ths->vgId,
-           ths->pRaftStore->currentTerm);
-  syncAppendEntriesLog2(logBuf, pMsg);
+  syncAppendEntriesLog2("==syncNodeOnAppendEntriesSnapshotCb==", pMsg);
 
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId)) && !ths->pRaftCfg->isStandBy) {
-    sInfo("recv SyncAppendEntries maybe replica already dropped");
+    syncNodeEventLog(ths, "recv sync-append-entries, maybe replica already dropped");
     return ret;
   }
 
@@ -497,7 +476,7 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
   do {
     bool condition = pMsg->term == ths->pRaftStore->currentTerm && ths->state == TAOS_SYNC_STATE_CANDIDATE;
     if (condition) {
-      sTrace("recv SyncAppendEntries, candidate to follower");
+      syncNodeEventLog(ths, "recv sync-append-entries, candidate to follower");
 
       syncNodeBecomeFollower(ths, "from candidate by append entries");
       // do not reply?
@@ -505,6 +484,7 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
     }
   } while (0);
 
+#if 0
   // fake match
   //
   // condition1:
@@ -530,7 +510,7 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
     bool condition0 = (pMsg->term == ths->pRaftStore->currentTerm) && (ths->state == TAOS_SYNC_STATE_FOLLOWER) &&
                       syncNodeHasSnapshot(ths);
     bool condition1 =
-        condition0 && (ths->pLogStore->syncLogEntryCount(ths->pLogStore) == 0) && (pMsg->prevLogIndex > myLastIndex);
+        condition0 && (ths->pLogStore->syncLogEntryCount(ths->pLogStore) == 0) && (pMsg->prevLogIndex > myLastIndex);   // donot use syncLogEntryCount!!! use isEmpty
     bool condition2 = condition0 && (ths->pLogStore->syncLogLastIndex(ths->pLogStore) <= snapshot.lastApplyIndex) &&
                       (pMsg->prevLogIndex > myLastIndex);
     bool condition3 = condition0 && (pMsg->prevLogIndex < snapshot.lastApplyIndex);
@@ -538,11 +518,10 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
     bool condition = condition1 || condition2 || condition3 || condition4;
 
     if (condition) {
-      sTrace(
-          "recv SyncAppendEntries, fake match, myLastIndex:%ld, syncLogBeginIndex:%ld, syncLogEndIndex:%ld, "
-          "condition1:%d, condition2:%d, condition3:%d, condition4:%d",
-          myLastIndex, ths->pLogStore->syncLogBeginIndex(ths->pLogStore),
-          ths->pLogStore->syncLogEndIndex(ths->pLogStore), condition1, condition2, condition3, condition4);
+      char logBuf[128];
+      snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries, fake match, pre-index:%ld, pre-term:%lu",
+               pMsg->prevLogIndex, pMsg->prevLogTerm);
+      syncNodeEventLog(ths, logBuf);
 
       // prepare response msg
       SyncAppendEntriesReply* pReply = syncAppendEntriesReplyBuild(ths->vgId);
@@ -562,6 +541,7 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
       return ret;
     }
   } while (0);
+#endif
 
   // fake match2
   //
@@ -576,8 +556,13 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
     bool condition = (pMsg->term == ths->pRaftStore->currentTerm) && (ths->state == TAOS_SYNC_STATE_FOLLOWER) &&
                      (pMsg->prevLogIndex <= ths->commitIndex);
     if (condition) {
-      sTrace("recv SyncAppendEntries, fake match2, msg-prevLogIndex:%ld, my-commitIndex:%ld", pMsg->prevLogIndex,
-             ths->commitIndex);
+      do {
+        char logBuf[128];
+        snprintf(logBuf, sizeof(logBuf),
+                 "recv sync-append-entries, fake match2, pre-index:%ld, pre-term:%lu, datalen:%d", pMsg->prevLogIndex,
+                 pMsg->prevLogTerm, pMsg->dataLen);
+        syncNodeEventLog(ths, logBuf);
+      } while (0);
 
       SyncIndex matchIndex = ths->commitIndex;
       bool      hasAppendEntries = pMsg->dataLen > 0;
@@ -605,6 +590,7 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
         code = syncNodePreCommit(ths, pAppendEntry);
         ASSERT(code == 0);
 
+        // update match index
         matchIndex = pMsg->prevLogIndex + 1;
 
         syncEntryDestory(pAppendEntry);
@@ -650,11 +636,10 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
     bool condition = condition1 || condition2;
 
     if (condition) {
-      sTrace(
-          "recv SyncAppendEntries, not match, syncLogBeginIndex:%ld, syncLogEndIndex:%ld, condition1:%d, "
-          "condition2:%d, logOK:%d",
-          ths->pLogStore->syncLogBeginIndex(ths->pLogStore), ths->pLogStore->syncLogEndIndex(ths->pLogStore),
-          condition1, condition2, logOK);
+      char logBuf[128];
+      snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries, not match, pre-index:%ld, pre-term:%lu, datalen:%d",
+               pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen);
+      syncNodeEventLog(ths, logBuf);
 
       // prepare response msg
       SyncAppendEntriesReply* pReply = syncAppendEntriesReplyBuild(ths->vgId);
@@ -693,8 +678,10 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
       // has entries in SyncAppendEntries msg
       bool hasAppendEntries = pMsg->dataLen > 0;
 
-      sTrace("recv SyncAppendEntries, match, myLastIndex:%ld, hasExtraEntries:%d, hasAppendEntries:%d", myLastIndex,
-             hasExtraEntries, hasAppendEntries);
+      char logBuf[128];
+      snprintf(logBuf, sizeof(logBuf), "recv sync-append-entries, match, pre-index:%ld, pre-term:%lu, datalen:%d",
+               pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen);
+      syncNodeEventLog(ths, logBuf);
 
       if (hasExtraEntries) {
         // make log same, rollback deleted entries

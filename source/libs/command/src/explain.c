@@ -1190,17 +1190,12 @@ int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
     QRY_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
   }
 
-  SSDataBlock *pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
-  SColumnInfoData infoData = {0};
-  infoData.info.type  = TSDB_DATA_TYPE_VARCHAR;
-  infoData.info.bytes = TSDB_EXPLAIN_RESULT_ROW_SIZE;
-
-  pBlock->pDataBlock = taosArrayInit(1, sizeof(SColumnInfoData));
-  taosArrayPush(pBlock->pDataBlock, &infoData);
+  SSDataBlock *pBlock = createDataBlock();
+  SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, TSDB_EXPLAIN_RESULT_ROW_SIZE, 1);
+  blockDataAppendColInfo(pBlock, &infoData);
+  blockDataEnsureCapacity(pBlock, rowNum);
 
   SColumnInfoData* pInfoData = taosArrayGet(pBlock->pDataBlock, 0);
-  pInfoData->hasNull = false;
-  colInfoDataEnsureCapacity(pInfoData, 0, rowNum);
 
   char buf[1024] = {0};
   for (int32_t i = 0; i < rowNum; ++i) {
@@ -1210,9 +1205,7 @@ int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
     colDataAppend(pInfoData, i, buf, false);
   }
 
-  pBlock->info.numOfCols = 1;
   pBlock->info.rows = rowNum;
-  pBlock->info.hasVarCol = true;
 
   int32_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
 
@@ -1226,7 +1219,7 @@ int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
   rsp->numOfRows = htonl(rowNum);
 
   int32_t len = 0;
-  blockCompressEncode(pBlock, rsp->data, &len, pBlock->info.numOfCols, 0);
+  blockCompressEncode(pBlock, rsp->data, &len, taosArrayGetSize(pBlock->pDataBlock), 0);
   ASSERT(len == rspSize - sizeof(SRetrieveTableRsp));
 
   rsp->compLen = htonl(len);
