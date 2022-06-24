@@ -3888,6 +3888,65 @@ int32_t extractTableSchemaVersion(SReadHandle* pHandle, uint64_t uid, SExecTaskI
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t sortTableGroup(STableListInfo* pTableListInfo, int32_t groupNum){
+  taosArrayClear(pTableListInfo->pGroupList);
+  SArray *sortSupport = taosArrayInit(groupNum, sizeof(uint64_t));
+  if(sortSupport == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  for (int32_t i = 0; i < taosArrayGetSize(pTableListInfo->pTableList); i++) {
+    STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
+    uint64_t* groupId = taosHashGet(pTableListInfo->map, &info->uid, sizeof(uint64_t));
+
+    int32_t index = taosArraySearchIdx(sortSupport, groupId, compareUint64Val, TD_EQ);
+    if (index == -1){
+      void *p = taosArraySearch(sortSupport, groupId, compareUint64Val, TD_GT);
+      SArray *tGroup = taosArrayInit(8, sizeof(STableKeyInfo));
+      if(tGroup == NULL) {
+        taosArrayDestroy(sortSupport);
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      if(taosArrayPush(tGroup, info) == NULL){
+        qError("taos push info array error");
+        taosArrayDestroy(sortSupport);
+        return TSDB_CODE_QRY_APP_ERROR;
+      }
+      if(p == NULL){
+        if(taosArrayPush(sortSupport, groupId) != NULL){
+          qError("taos push support array error");
+          taosArrayDestroy(sortSupport);
+          return TSDB_CODE_QRY_APP_ERROR;
+        }
+        if(taosArrayPush(pTableListInfo->pGroupList, &tGroup) != NULL){
+          qError("taos push group array error");
+          taosArrayDestroy(sortSupport);
+          return TSDB_CODE_QRY_APP_ERROR;
+        }
+      }else{
+        int32_t pos = TARRAY_ELEM_IDX(sortSupport, p);
+        if(taosArrayInsert(sortSupport, pos, groupId) == NULL){
+          qError("taos insert support array error");
+          taosArrayDestroy(sortSupport);
+          return TSDB_CODE_QRY_APP_ERROR;
+        }
+        if(taosArrayInsert(pTableListInfo->pGroupList, pos, &tGroup) == NULL){
+          qError("taos insert group array error");
+          taosArrayDestroy(sortSupport);
+          return TSDB_CODE_QRY_APP_ERROR;
+        }
+      }
+    }else{
+      SArray* tGroup = (SArray*)taosArrayGetP(pTableListInfo->pGroupList, index);
+      if(taosArrayPush(tGroup, info) == NULL){
+        qError("taos push uid array error");
+        taosArrayDestroy(sortSupport);
+        return TSDB_CODE_QRY_APP_ERROR;
+      }
+    }
+
+  }
+  taosArrayDestroy(sortSupport);
+  return TDB_CODE_SUCCESS;
+}
+
 int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle, SNodeList* group) {
   if (group == NULL) {
     return TDB_CODE_SUCCESS;
@@ -3950,7 +4009,7 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
         isNull[index++] = 0;
         char*       data = nodesGetValueFromNode(pValue);
         if (pValue->node.resType.type == TSDB_DATA_TYPE_JSON){
-          int32_t len = ((const STag*)data) -> len;
+          int32_t len = getJsonValueLen(data);
           memcpy(pStart, data, len);
           pStart += len;
         } else if (IS_VAR_DATA_TYPE(pValue->node.resType.type)) {
@@ -3973,59 +4032,7 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
   taosMemoryFree(keyBuf);
 
   if(pTableListInfo->needSortTableByGroupId){
-    taosArrayClear(pTableListInfo->pGroupList);
-    SArray *sortSupport = taosArrayInit(groupNum, sizeof(uint64_t));
-    if(sortSupport == NULL) return TSDB_CODE_OUT_OF_MEMORY;
-    for (int32_t i = 0; i < taosArrayGetSize(pTableListInfo->pTableList); i++) {
-      STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
-      uint64_t* groupId = taosHashGet(pTableListInfo->map, &info->uid, sizeof(uint64_t));
-
-      int32_t index = taosArraySearchIdx(sortSupport, groupId, compareUint64Val, TD_EQ);
-      if (index == -1){
-        void *p = taosArraySearch(sortSupport, groupId, compareUint64Val, TD_GT);
-        SArray *tGroup = taosArrayInit(8, sizeof(STableKeyInfo));
-        if(tGroup == NULL) {
-          taosArrayDestroy(sortSupport);
-          return TSDB_CODE_OUT_OF_MEMORY;
-        }
-        if(taosArrayPush(tGroup, info) == NULL){
-          qError("taos push info array error");
-          return TSDB_CODE_QRY_APP_ERROR;
-        }
-        if(p == NULL){
-          if(taosArrayPush(sortSupport, groupId) != NULL){
-            qError("taos push support array error");
-            taosArrayDestroy(sortSupport);
-            return TSDB_CODE_QRY_APP_ERROR;
-          }
-          if(taosArrayPush(pTableListInfo->pGroupList, &tGroup) != NULL){
-            qError("taos push group array error");
-            taosArrayDestroy(sortSupport);
-            return TSDB_CODE_QRY_APP_ERROR;
-          }
-        }else{
-          int32_t pos = TARRAY_ELEM_IDX(sortSupport, p);
-          if(taosArrayInsert(sortSupport, pos, groupId) == NULL){
-            qError("taos insert support array error");
-            taosArrayDestroy(sortSupport);
-            return TSDB_CODE_QRY_APP_ERROR;
-          }
-          if(taosArrayInsert(pTableListInfo->pGroupList, pos, &tGroup) == NULL){
-            qError("taos insert group array error");
-            taosArrayDestroy(sortSupport);
-            return TSDB_CODE_QRY_APP_ERROR;
-          }
-        }
-      }else{
-        SArray* tGroup = (SArray*)taosArrayGetP(pTableListInfo->pGroupList, index);
-        if(taosArrayPush(tGroup, info) == NULL){
-          qError("taos push uid array error");
-          return TSDB_CODE_QRY_APP_ERROR;
-        }
-      }
-
-    }
-    taosArrayDestroy(sortSupport);
+    return sortTableGroup(pTableListInfo, groupNum);
   }
 
   return TDB_CODE_SUCCESS;
@@ -4057,7 +4064,6 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
 
     } else if (QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == type) {
       STableMergeScanPhysiNode* pTableScanNode = (STableMergeScanPhysiNode*)pPhyNode;
-      pTableListInfo->needSortTableByGroupId = true;
       int32_t code = createScanTableListInfo(pTableScanNode, pHandle, pTableListInfo, queryId, taskId);
       if(code){
         return NULL;
