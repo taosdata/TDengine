@@ -253,6 +253,11 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   int32_t    size = 0;
   int32_t    rowsRead = 0;
 
+  if (strcmp(pMsg->info.conn.user, TSDB_DEFAULT_USER) != 0) {
+    terrno = TSDB_CODE_MND_NO_RIGHTS;
+    return -1;
+  }
+
   SRetrieveTableReq retrieveReq = {0};
   if (tDeserializeSRetrieveTableReq(pMsg->pCont, pMsg->contLen, &retrieveReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;

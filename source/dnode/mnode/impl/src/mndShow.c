@@ -231,8 +231,10 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   }
 
   mDebug("show:0x%" PRIx64 ", start retrieve data, type:%d", pShow->id, pShow->type);
-
-  // if (mndCheckShowPrivilege(pMnode, pReq->info.conn.user, pShow->type) != 0) return -1;
+  if (mndCheckShowPrivilege(pMnode, retrieveReq.user, pShow->type, retrieveReq.db) != 0) {
+    return -1;
+  }
+  memcpy(pReq->info.conn.user, retrieveReq.user, TSDB_USER_LEN);
 
   int32_t      numOfCols = pShow->pMeta->numOfColumns;
   SSDataBlock *pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
