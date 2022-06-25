@@ -442,7 +442,7 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
       syncPingReplyDestroy(pSyncMsg);
     } else if (pMsg->msgType == TDMT_SYNC_CLIENT_REQUEST) {
       SyncClientRequest *pSyncMsg = syncClientRequestFromRpcMsg2(pMsg);
-      code = syncNodeOnClientRequestCb(pSyncNode, pSyncMsg);
+      code = syncNodeOnClientRequestCb(pSyncNode, pSyncMsg, NULL);
       syncClientRequestDestroy(pSyncMsg);
     } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE) {
       SyncRequestVote *pSyncMsg = syncRequestVoteFromRpcMsg2(pMsg);
@@ -491,7 +491,7 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
       syncPingReplyDestroy(pSyncMsg);
     } else if (pMsg->msgType == TDMT_SYNC_CLIENT_REQUEST) {
       SyncClientRequest *pSyncMsg = syncClientRequestFromRpcMsg2(pMsg);
-      code = syncNodeOnClientRequestCb(pSyncNode, pSyncMsg);
+      code = syncNodeOnClientRequestCb(pSyncNode, pSyncMsg, NULL);
       syncClientRequestDestroy(pSyncMsg);
     } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE) {
       SyncRequestVote *pSyncMsg = syncRequestVoteFromRpcMsg2(pMsg);
@@ -555,10 +555,10 @@ static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
 static int32_t mndCheckMsgContent(SRpcMsg *pMsg) {
   if (!IsReq(pMsg)) return 0;
   if (pMsg->contLen != 0 && pMsg->pCont != NULL) return 0;
-  
+
   const STraceId *trace = &pMsg->info.traceId;
   mGError("msg:%p, failed to check msg, cont:%p contLen:%d, app:%p type:%s", pMsg, pMsg->pCont, pMsg->contLen,
-         pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
+          pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
   terrno = TSDB_CODE_INVALID_MSG_LEN;
   return -1;
 }
@@ -723,7 +723,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
     pIter = sdbFetch(pSdb, SDB_STB, pIter, (void **)&pStb);
     if (pIter == NULL) break;
 
-     SMonStbDesc desc = {0};
+    SMonStbDesc desc = {0};
 
     SName name1 = {0};
     tNameFromString(&name1, pStb->db, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);

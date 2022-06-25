@@ -281,7 +281,7 @@ static void *syncIOConsumerFunc(void *param) {
         if (io->FpOnSyncClientRequest != NULL) {
           SyncClientRequest *pSyncMsg = syncClientRequestFromRpcMsg2(pRpcMsg);
           ASSERT(pSyncMsg != NULL);
-          io->FpOnSyncClientRequest(io->pSyncNode, pSyncMsg);
+          io->FpOnSyncClientRequest(io->pSyncNode, pSyncMsg, NULL);
           syncClientRequestDestroy(pSyncMsg);
         }
 

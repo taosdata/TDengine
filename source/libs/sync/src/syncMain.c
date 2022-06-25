@@ -50,7 +50,7 @@ static int32_t syncNodeAppendNoop(SSyncNode* ths);
 // process message ----
 int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg);
 int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg);
-int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg);
+int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg, SyncIndex* pRetIndex);
 
 // life cycle
 static void syncFreeNode(void* param);
@@ -627,7 +627,7 @@ int32_t syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak) {
   return ret;
 }
 
-int32_t syncNodePropose(SSyncNode* pSyncNode, const SRpcMsg* pMsg, bool isWeak) {
+int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
   int32_t ret = 0;
 
   char eventLog[128];
@@ -664,13 +664,34 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, const SRpcMsg* pMsg, bool isWeak) 
     SRpcMsg            rpcMsg;
     syncClientRequest2RpcMsg(pSyncMsg, &rpcMsg);
 
-    if (pSyncNode->FpEqMsg != NULL && (*pSyncNode->FpEqMsg)(pSyncNode->msgcb, &rpcMsg) == 0) {
-      ret = 0;
+    // optimized one replica
+    if (syncNodeIsOptimizedOneReplica(pSyncNode, pMsg)) {
+      SyncIndex retIndex;
+      int32_t   code = syncNodeOnClientRequestCb(pSyncNode, pSyncMsg, &retIndex);
+      if (code == 0) {
+        pMsg->info.conn.applyIndex = retIndex;
+        rpcFreeCont(rpcMsg.pCont);
+        syncRespMgrDel(pSyncNode->pSyncRespMgr, seqNum);
+        ret = 1;
+        sDebug("vgId:%d optimized index:%ld success, msgtype:%s,%d", pSyncNode->vgId, retIndex,
+               TMSG_INFO(pMsg->msgType), pMsg->msgType);
+      } else {
+        ret = -1;
+        terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+        sError("vgId:%d optimized index:%ld error, msgtype:%s,%d", pSyncNode->vgId, retIndex, TMSG_INFO(pMsg->msgType),
+               pMsg->msgType);
+      }
+
     } else {
-      ret = -1;
-      terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
-      sError("syncPropose pSyncNode->FpEqMsg is NULL");
+      if (pSyncNode->FpEqMsg != NULL && (*pSyncNode->FpEqMsg)(pSyncNode->msgcb, &rpcMsg) == 0) {
+        ret = 0;
+      } else {
+        ret = -1;
+        terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+        sError("enqueue msg error, FpEqMsg is NULL");
+      }
     }
+
     syncClientRequestDestroy(pSyncMsg);
     goto _END;
 
@@ -2377,7 +2398,7 @@ int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg) {
 //     /\ UNCHANGED <<messages, serverVars, candidateVars,
 //                    leaderVars, commitIndex>>
 //
-int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg) {
+int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg, SyncIndex* pRetIndex) {
   int32_t ret = 0;
   syncClientRequestLog2("==syncNodeOnClientRequestCb==", pMsg);
 
@@ -2434,6 +2455,14 @@ int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg) {
       }
     }
     rpcFreeCont(rpcMsg.pCont);
+  }
+
+  if (pRetIndex != NULL) {
+    if (ret == 0 && pEntry != NULL) {
+      *pRetIndex = pEntry->index;
+    } else {
+      *pRetIndex = SYNC_INDEX_INVALID;
+    }
   }
 
   syncEntryDestory(pEntry);
@@ -2600,6 +2629,10 @@ static int32_t syncNodeProposeConfigChangeFinish(SSyncNode* ths, SyncReconfigFin
   return 0;
 }
 
+bool syncNodeIsOptimizedOneReplica(SSyncNode* ths, SRpcMsg* pMsg) {
+  return (ths->replicaNum == 1 && syncUtilUserCommit(pMsg->msgType) && ths->vgId != 1);
+}
+
 int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex, uint64_t flag) {
   int32_t    code = 0;
   ESyncState state = flag;
@@ -2621,7 +2654,13 @@ int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex,
         syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
         // user commit
-        if (ths->pFsm->FpCommitCb != NULL && syncUtilUserCommit(pEntry->originalRpcType)) {
+        bool internalExecute = (ths->pFsm->FpCommitCb != NULL) && syncUtilUserCommit(pEntry->originalRpcType);
+        if (ths->replicaNum == 1) {
+          internalExecute = syncNodeIsOptimizedOneReplica(ths, &rpcMsg) && !(ths->restoreFinish);
+        }
+
+        // execute fsm in apply thread, or execute outside syncPropose
+        if (internalExecute) {
           SFsmCbMeta cbMeta = {0};
           cbMeta.index = pEntry->index;
           cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(ths, cbMeta.index);
