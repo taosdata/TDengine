@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "mndPrivilege.h"
 #include "mndUser.h"
+#include "mndDb.h"
 
 int32_t mndInitPrivilege(SMnode *pMnode) { return 0; }
 
@@ -133,15 +134,7 @@ int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, EOperType operType
     if (pUser->sysInfo) goto _OVER;
   }
 
-  if (operType == MND_OPER_ALTER_DB) {
-    if (strcmp(pUser->user, pDb->createUser) == 0 && pUser->sysInfo) goto _OVER;
-  }
-
-  if (operType == MND_OPER_DROP_DB) {
-    if (strcmp(pUser->user, pDb->createUser) == 0 && pUser->sysInfo) goto _OVER;
-  }
-
-  if (operType == MND_OPER_COMPACT_DB) {
+  if (operType == MND_OPER_ALTER_DB || operType == MND_OPER_DROP_DB || operType == MND_OPER_COMPACT_DB) {
     if (strcmp(pUser->user, pDb->createUser) == 0 && pUser->sysInfo) goto _OVER;
   }
 
@@ -166,5 +159,14 @@ int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, EOperType operType
 
 _OVER:
   mndReleaseUser(pMnode, pUser);
+  return code;
+}
+
+int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, EOperType operType, const char *name) {
+  SDbObj *pDb = mndAcquireDb(pMnode, name);
+  if (pDb == NULL) return -1;
+
+  int32_t code = mndCheckDbPrivilege(pMnode, user, operType, pDb);
+  mndReleaseDb(pMnode, pDb);
   return code;
 }

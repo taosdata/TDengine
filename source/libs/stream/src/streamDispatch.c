@@ -115,6 +115,7 @@ int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock)
       .srcNodeId = pTask->nodeId,
       .srcTaskId = pTask->taskId,
       .pRetrieve = pRetrieve,
+      .retrieveLen = dataStrLen,
   };
 
   int32_t sz = taosArrayGetSize(pTask->childEpInfo);
@@ -146,7 +147,7 @@ int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock)
         .code = 0,
         .msgType = TDMT_STREAM_RETRIEVE,
         .pCont = buf,
-        .contLen = len,
+        .contLen = sizeof(SMsgHead) + len,
     };
 
     if (tmsgSendReq(&pEpInfo->epSet, &rpcMsg) < 0) {

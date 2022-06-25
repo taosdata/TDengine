@@ -45,11 +45,16 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) 
       ASSERT(false);
     }
     if (output == NULL) {
-      if (pItem->type == STREAM_INPUT__DATA_RETRIEVE && !hasData) {
-        SSDataBlock block = {0};
-        block.info.type = STREAM_PUSH_DATA;
-        block.info.childId = pTask->selfChildId;
-        taosArrayPush(pRes, &block);
+      if (pItem->type == STREAM_INPUT__DATA_RETRIEVE) {
+        //SSDataBlock block = {0};
+        //block.info.type = STREAM_PUSH_EMPTY;
+        //block.info.childId = pTask->selfChildId;
+        SStreamDataBlock* pRetrieveBlock = (SStreamDataBlock*)data;
+        ASSERT(taosArrayGetSize(pRetrieveBlock->blocks) == 1);
+        SSDataBlock* pBlock = createOneDataBlock(taosArrayGet(pRetrieveBlock->blocks, 0), true);
+        pBlock->info.type = STREAM_PUSH_EMPTY;
+        pBlock->info.childId = pTask->selfChildId;
+        taosArrayPush(pRes, pBlock);
       }
       break;
     }
@@ -109,7 +114,7 @@ static SArray* streamExecForQall(SStreamTask* pTask, SArray* pRes) {
     if (type == STREAM_INPUT__TRIGGER) {
       blockDataDestroy(((SStreamTrigger*)data)->pBlock);
       taosFreeQitem(data);
-    } else if (type == STREAM_INPUT__DATA_BLOCK) {
+    } else if (type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__DATA_RETRIEVE) {
       taosArrayDestroyEx(((SStreamDataBlock*)data)->blocks, (FDelete)tDeleteSSDataBlock);
       taosFreeQitem(data);
     } else if (type == STREAM_INPUT__DATA_SUBMIT) {
