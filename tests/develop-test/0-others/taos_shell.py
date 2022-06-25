@@ -84,8 +84,8 @@ class TDTestCase:
         cmd = "%s -n 100 -t 100 -y" %taosBenchmark
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
-        self.checkresult("select * from test.meters", "Query OK, 10000 row(s) in set")
-        self.checkresult("select * from test.meters","Notice: The result shows only the first 100 rows")
+        self.checkresult("select * from test.meters limit 17", "Query OK, 17 row(s) in set")
+        self.checkresult("select * from test.meters limit 2222", "Query OK, 2222 row(s) in set")
 
     def stop(self):
         tdSql.close()
