@@ -558,7 +558,11 @@ _OVER:
 
 static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   SShowVariablesRsp rsp = {0};
-  int32_t       code = -1;
+  int32_t           code = -1;
+
+  if (mndCheckOperPrivilege(pReq->info.node, pReq->info.conn.user, MND_OPER_SHOW_VARIBALES) != 0) {
+    goto _OVER;
+  }
 
   rsp.variables = taosArrayInit(4, sizeof(SVariablesInfo));
   if (NULL == rsp.variables) {
