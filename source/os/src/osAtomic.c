@@ -314,7 +314,7 @@ int64_t atomic_load_64(int64_t volatile *ptr) {
 #endif
 }
 
-int64_t atomic_load_u64(uint64_t volatile* ptr) {
+uint64_t atomic_load_u64(uint64_t volatile* ptr) {
 #ifdef WINDOWS
   return (*(uint64_t volatile*)(ptr));
 #elif defined(_TD_NINGSI_60)

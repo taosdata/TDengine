@@ -179,7 +179,7 @@ static void tdDestroyRSmaStat(SRSmaStat *pStat) {
       taosTmrCleanUp(RSMA_TMR_HANDLE(pStat));
     }
     // cancel persist thread
-    TdThread tid = atomic_load_u64(&pStat->persistThread);
+    TdThread tid = (TdThread)atomic_load_u64(&pStat->persistThread);
     if (tid > 0) {
       int32_t tCode = 0;
       if ((tCode = taosThreadCancel(tid)) != 0) {
