@@ -1355,6 +1355,25 @@ static EDealRes rewriteColToSelectValFunc(STranslateContext* pCxt, SNode** pNode
   return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR;
 }
 
+static EDealRes rewriteExprToGroupKeyFunc(STranslateContext* pCxt, SNode** pNode) {
+  SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
+  if (NULL == pFunc) {
+    pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+    return DEAL_RES_ERROR;
+  }
+
+  strcpy(pFunc->functionName, "_group_key");
+  strcpy(pFunc->node.aliasName, ((SExprNode*)*pNode)->aliasName);
+  pCxt->errCode = nodesListMakeAppend(&pFunc->pParameterList, *pNode);
+  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+    *pNode = (SNode*)pFunc;
+    pCxt->errCode = fmGetFuncInfo(pFunc, pCxt->msgBuf.buf, pCxt->msgBuf.len);
+  }
+  pCxt->pCurrSelectStmt->hasAggFuncs = true;
+
+  return (TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
+}
+
 static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   SCheckExprForGroupByCxt* pCxt = (SCheckExprForGroupByCxt*)pContext;
   if (!nodesIsExprNode(*pNode) || isAliasColumn(*pNode)) {
@@ -1371,10 +1390,10 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   if (isAggFunc(*pNode) && !isDistinctOrderBy(pCxt->pTranslateCxt)) {
     return DEAL_RES_IGNORE_CHILD;
   }
-  SNode* pGroupNode;
+  SNode* pGroupNode = NULL;
   FOREACH(pGroupNode, getGroupByList(pCxt->pTranslateCxt)) {
     if (nodesEqualNode(getGroupByNode(pGroupNode), *pNode)) {
-      return DEAL_RES_IGNORE_CHILD;
+      return rewriteExprToGroupKeyFunc(pCxt->pTranslateCxt, pNode);
     }
   }
   if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
@@ -1432,6 +1451,25 @@ static int32_t rewriteColsToSelectValFunc(STranslateContext* pCxt, SSelectStmt* 
   return pCxt->errCode;
 }
 
+static EDealRes rewriteExprsToGroupKeyFuncImpl(SNode** pNode, void* pContext) {
+  STranslateContext* pCxt = pContext;
+  SNode*             pPartKey = NULL;
+  FOREACH(pPartKey, pCxt->pCurrSelectStmt->pPartitionByList) {
+    if (nodesEqualNode(pPartKey, *pNode)) {
+      return rewriteExprToGroupKeyFunc(pCxt, pNode);
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t rewriteExprsToGroupKeyFunc(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  nodesRewriteExprs(pSelect->pProjectionList, rewriteExprsToGroupKeyFuncImpl, pCxt);
+  if (TSDB_CODE_SUCCESS == pCxt->errCode && !pSelect->isDistinct) {
+    nodesRewriteExprs(pSelect->pOrderByList, rewriteExprsToGroupKeyFuncImpl, pCxt);
+  }
+  return pCxt->errCode;
+}
+
 typedef struct CheckAggColCoexistCxt {
   STranslateContext* pTranslateCxt;
   bool               existAggFunc;
@@ -1455,6 +1493,12 @@ static EDealRes doCheckAggColCoexist(SNode* pNode, void* pContext) {
   if (isIndefiniteRowsFunc(pNode)) {
     pCxt->existIndefiniteRowsFunc = true;
     return DEAL_RES_IGNORE_CHILD;
+  }
+  SNode* pPartKey = NULL;
+  FOREACH(pPartKey, pCxt->pTranslateCxt->pCurrSelectStmt->pPartitionByList) {
+    if (nodesEqualNode(pPartKey, pNode)) {
+      return DEAL_RES_IGNORE_CHILD;
+    }
   }
   if (isScanPseudoColumnFunc(pNode) || QUERY_NODE_COLUMN == nodeType(pNode)) {
     pCxt->existCol = true;
@@ -1484,6 +1528,9 @@ static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect)
   }
   if (cxt.existIndefiniteRowsFunc && cxt.existCol) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
+  }
+  if (cxt.existAggFunc && NULL != pSelect->pPartitionByList) {
+    return rewriteExprsToGroupKeyFunc(pCxt, pSelect);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -1840,10 +1887,7 @@ static int32_t createMultiResFuncsFromStar(STranslateContext* pCxt, SFunctionNod
     code = createMultiResFuncs(pSrcFunc, pExprs, pOutput);
   }
 
-  if (TSDB_CODE_SUCCESS != code) {
-    nodesDestroyList(pExprs);
-  }
-
+  nodesDestroyList(pExprs);
   return code;
 }
 
@@ -2463,8 +2507,24 @@ static SNode* createOrderByExpr(STranslateContext* pCxt) {
   return (SNode*)pOrder;
 }
 
-// from: select tail(expr, k, f) from t where_clause partition_by_clause order_by_clause ...
-// to: select expr from t where_clause order by _rowts desc limit k offset f
+/* case 1:
+ * in:  select tail(expr, k, f) from t where_clause
+ * out: select expr from t where_clause order by _rowts desc limit k offset f
+ *
+ * case 2:
+ * in:  select tail(expr, k, f) from t where_clause partition_by_clause
+ * out: select expr from t where_clause partition_by_clause sort by _rowts desc limit k offset f
+ *
+ * case 3:
+ * in:  select tail(expr, k, f) from t where_clause order_by_clause limit_clause
+ * out: select expr from (
+ *        select expr from t where_clause order by _rowts desc limit k offset f
+ *      ) order_by_clause limit_clause
+ *
+ * case 4:
+ * in:  select tail(expr, k, f) from t where_clause partition_by_clause limit_clause
+ * out:
+ */
 static int32_t rewriteTailStmt(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (!pSelect->hasTailFunc) {
     return TSDB_CODE_SUCCESS;
@@ -6018,7 +6078,7 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
         TSWAP(pQuery->pCmdMsg, pCxt->pCmdMsg);
         pQuery->msgType = pQuery->pCmdMsg->msgType;
       }
-      break;      
+      break;
     default:
       pQuery->execMode = QUERY_EXEC_MODE_RPC;
       if (NULL != pCxt->pCmdMsg) {

@@ -682,7 +682,7 @@ static EOrder opkGetPrimaryKeyOrder(SSortLogicNode* pSort) {
 static SNode* opkRewriteDownNode(SSortLogicNode* pSort) {
   SNode* pDownNode = nodesListGetNode(pSort->node.pChildren, 0);
   // todo
-  pSort->node.pChildren = NULL;
+  NODES_CLEAR_LIST(pSort->node.pChildren);
   return pDownNode;
 }
 

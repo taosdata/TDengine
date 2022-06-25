@@ -57,9 +57,15 @@ TEST_F(PlanOptimizeTest, orderByPrimaryKey) {
 TEST_F(PlanOptimizeTest, PartitionTags) {
   useDb("root", "test");
 
-  run("SELECT c1 FROM st1 PARTITION BY tag1");
+  run("SELECT c1, tag1 FROM st1 PARTITION BY tag1");
 
-  run("SELECT SUM(c1) FROM st1 GROUP BY tag1");
+  run("SELECT SUM(c1), tag1 FROM st1 PARTITION BY tag1");
+
+  run("SELECT SUM(c1), tag1 + 10 FROM st1 PARTITION BY tag1 + 10");
+
+  run("SELECT SUM(c1), tag1 FROM st1 GROUP BY tag1");
+
+  run("SELECT SUM(c1), tag1 + 10 FROM st1 GROUP BY tag1 + 10");
 }
 
 TEST_F(PlanOptimizeTest, eliminateProjection) {
