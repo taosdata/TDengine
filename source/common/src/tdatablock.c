@@ -1164,7 +1164,7 @@ int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, uint32_t numOfRows) 
 
 int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows) {
   int32_t code = 0;
-  //ASSERT(numOfRows > 0);
+  // ASSERT(numOfRows > 0);
 
   if (numOfRows == 0) {
     return TSDB_CODE_SUCCESS;
@@ -1657,12 +1657,13 @@ void blockDebugShowData(const SArray* dataBlocks, const char* flag) {
 char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) {
   int32_t size = 2048;
   *pDataBuf = taosMemoryCalloc(size, 1);
-  char* dumpBuf = *pDataBuf;
-  char pBuf[128] = {0};
+  char*   dumpBuf = *pDataBuf;
+  char    pBuf[128] = {0};
   int32_t colNum = taosArrayGetSize(pDataBlock->pDataBlock);
   int32_t rows = pDataBlock->info.rows;
   int32_t len = 0;
-  len += snprintf(dumpBuf + len, size - len, "\n%s |block type %d |child id %d|\n", flag, (int32_t)pDataBlock->info.type, pDataBlock->info.childId);
+  len += snprintf(dumpBuf + len, size - len, "\n%s |block type %d |child id %d|\n", flag,
+                  (int32_t)pDataBlock->info.type, pDataBlock->info.childId);
   for (int32_t j = 0; j < rows; j++) {
     len += snprintf(dumpBuf + len, size - len, "%s |", flag);
     for (int32_t k = 0; k < colNum; k++) {

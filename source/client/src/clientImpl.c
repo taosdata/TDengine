@@ -617,12 +617,12 @@ int32_t scheduleAsyncQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNod
                            .requestId = pRequest->requestId,
                            .requestObjRefId = pRequest->self};
   SSchedulerReq    req = {.pConn = &conn,
-                       .pNodeList = pNodeList,
-                       .pDag = pDag,
-                       .sql = pRequest->sqlstr,
-                       .startTs = pRequest->metric.start,
-                       .fp = schdExecCallback,
-                       .cbParam = &res};
+                          .pNodeList = pNodeList,
+                          .pDag = pDag,
+                          .sql = pRequest->sqlstr,
+                          .startTs = pRequest->metric.start,
+                          .fp = schdExecCallback,
+                          .cbParam = &res};
 
   int32_t code = schedulerAsyncExecJob(&req, &pRequest->body.queryJob);
 
@@ -669,13 +669,13 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
                            .requestId = pRequest->requestId,
                            .requestObjRefId = pRequest->self};
   SSchedulerReq    req = {.pConn = &conn,
-                       .pNodeList = pNodeList,
-                       .pDag = pDag,
-                       .sql = pRequest->sqlstr,
-                       .startTs = pRequest->metric.start,
-                       .fp = NULL,
-                       .cbParam = NULL,
-                       .reqKilled = &pRequest->killed};
+                          .pNodeList = pNodeList,
+                          .pDag = pDag,
+                          .sql = pRequest->sqlstr,
+                          .startTs = pRequest->metric.start,
+                          .fp = NULL,
+                          .cbParam = NULL,
+                          .reqKilled = &pRequest->killed};
 
   int32_t code = schedulerExecJob(&req, &pRequest->body.queryJob, &res);
   pRequest->body.resInfo.execRes = res.res;
