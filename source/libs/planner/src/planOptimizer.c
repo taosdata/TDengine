@@ -1107,6 +1107,26 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
   return code;
 }
 
+//=====================================================================================================================
+// eliminate project optimization
+static bool eliminateProjOptCheckProjColumnNames(SProjectLogicNode* pProjectNode) {
+  SHashObj* pProjColNameHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  SNode*    pProjection;
+  FOREACH(pProjection, pProjectNode->pProjections) {
+    char*    projColumnName = ((SColumnNode*)pProjection)->colName;
+    int32_t* pExist = taosHashGet(pProjColNameHash, projColumnName, strlen(projColumnName));
+    if (NULL != pExist) {
+      taosHashCleanup(pProjColNameHash);
+      return false;
+    } else {
+      int32_t exist = 1;
+      taosHashPut(pProjColNameHash, projColumnName, strlen(projColumnName), &exist, sizeof(exist));
+    }
+  }
+  taosHashCleanup(pProjColNameHash);
+  return true;
+}
+
 static bool eliminateProjOptMayBeOptimized(SLogicNode* pNode) {
   // TODO: enable this optimization after new mechanising that map projection and targets of project node
   if (NULL != pNode->pParent) {
@@ -1122,28 +1142,15 @@ static bool eliminateProjOptMayBeOptimized(SLogicNode* pNode) {
     return false;
   }
 
-  SHashObj* pProjColNameHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   SNode*    pProjection;
   FOREACH(pProjection, pProjectNode->pProjections) {
     SExprNode* pExprNode = (SExprNode*)pProjection;
     if (QUERY_NODE_COLUMN != nodeType(pExprNode)) {
-      taosHashCleanup(pProjColNameHash);
       return false;
-    }
-
-    char*    projColumnName = ((SColumnNode*)pProjection)->colName;
-    int32_t* pExist = taosHashGet(pProjColNameHash, projColumnName, strlen(projColumnName));
-    if (NULL != pExist) {
-      taosHashCleanup(pProjColNameHash);
-      return false;
-    } else {
-      int32_t exist = 1;
-      taosHashPut(pProjColNameHash, projColumnName, strlen(projColumnName), &exist, sizeof(exist));
     }
   }
-  taosHashCleanup(pProjColNameHash);
 
-  return true;
+  return eliminateProjOptCheckProjColumnNames(pProjectNode);
 }
 
 static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan,
@@ -1183,14 +1190,59 @@ static int32_t eliminateProjOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLog
   return eliminateProjOptimizeImpl(pCxt, pLogicSubplan, pProjectNode);
 }
 
+//=====================================================================================================================
+// eliminate Set Operator optimization
+
+static bool eliminateSetOpMayBeOptimized(SLogicNode* pNode) {
+  SLogicNode* pParent = pNode->pParent;
+  if (NULL == pParent ||
+      QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pParent)  && QUERY_NODE_LOGIC_PLAN_PROJECT != nodeType(pParent) ||
+      LIST_LENGTH(pParent->pChildren) < 2) {
+    return false;
+  }
+  if (nodeType(pNode) != nodeType(pNode->pParent) ||
+      LIST_LENGTH(pNode->pChildren) < 2)  {
+    return false;
+  }
+  return true;
+}
+
+static int32_t eliminateSetOpOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan, SLogicNode* pSetOpNode) {
+  SNode* pSibling;
+  FOREACH(pSibling, pSetOpNode->pParent->pChildren) {
+    if (nodesEqualNode(pSibling, (SNode*)pSetOpNode)) {
+      SNode* pChild;
+      FOREACH(pChild, pSetOpNode->pChildren) {
+          ((SLogicNode*)pChild)->pParent = pSetOpNode->pParent;
+      }
+      nodesListInsertList(pSetOpNode->pParent->pChildren, cell, pSetOpNode->pChildren);
+      pSetOpNode->pChildren = NULL;
+      ERASE_NODE(pSetOpNode->pParent->pChildren);
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  return TSDB_CODE_PLAN_INTERNAL_ERROR;
+}
+
+static int32_t eliminateSetOpOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  SLogicNode* pSetOpNode = optFindPossibleNode(pLogicSubplan->pNode, eliminateSetOpMayBeOptimized);
+  if (NULL == pSetOpNode) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  return eliminateSetOpOptimizeImpl(pCxt, pLogicSubplan, pSetOpNode);
+}
+
 // clang-format off
 static const SOptimizeRule optimizeRuleSet[] = {
-  {.pName = "OptimizeScanData",  .optimizeFunc = osdOptimize},
-  {.pName = "ConditionPushDown", .optimizeFunc = cpdOptimize},
-  {.pName = "OrderByPrimaryKey", .optimizeFunc = opkOptimize},
-  {.pName = "SmaIndex",          .optimizeFunc = smaOptimize},
-  {.pName = "PartitionTags",     .optimizeFunc = partTagsOptimize},
-  {.pName = "EliminateProject",  .optimizeFunc = eliminateProjOptimize}
+  {.pName = "OptimizeScanData",           .optimizeFunc = osdOptimize},
+  {.pName = "ConditionPushDown",          .optimizeFunc = cpdOptimize},
+  {.pName = "OrderByPrimaryKey",          .optimizeFunc = opkOptimize},
+  {.pName = "SmaIndex",                   .optimizeFunc = smaOptimize},
+  {.pName = "PartitionTags",              .optimizeFunc = partTagsOptimize},
+  {.pName = "EliminateProject",           .optimizeFunc = eliminateProjOptimize},
+  {.pName = "EliminateSetOperator",       .optimizeFunc = eliminateSetOpOptimize}
 };
 // clang-format on
 
