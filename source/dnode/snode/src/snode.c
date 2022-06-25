@@ -257,7 +257,7 @@ int32_t sndProcessSMsg(SSnode *pSnode, SRpcMsg *pMsg) {
     case TDMT_STREAM_TASK_RECOVER_RSP:
       return sndProcessTaskRecoverRsp(pSnode, pMsg);
     case TDMT_STREAM_RETRIEVE_RSP:
-      return sndProcessTaskRecoverRsp(pSnode, pMsg);
+      return sndProcessTaskRetrieveRsp(pSnode, pMsg);
     default:
       ASSERT(0);
   }

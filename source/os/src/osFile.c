@@ -671,7 +671,7 @@ void taosFprintfFile(TdFilePtr pFile, const char *format, ...) {
   fflush(pFile->fp);
 }
 
-bool taosValidFile(TdFilePtr pFile) { return pFile != NULL; }
+bool taosValidFile(TdFilePtr pFile) { return pFile != NULL && pFile->fd > 0; }
 
 int32_t taosUmaskFile(int32_t maskVal) {
 #ifdef WINDOWS
