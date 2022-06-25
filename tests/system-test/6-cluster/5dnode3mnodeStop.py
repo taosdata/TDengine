@@ -253,11 +253,7 @@ class TDTestCase:
         # fisr add three mnodes;
         tdLog.info("fisr add three mnodes and check mnode status")
         tdSql.execute("create mnode on dnode 2")
-<<<<<<< HEAD
         clusterComCheck.checkMnodeStatus(2)
-=======
-        time.sleep(10)
->>>>>>> e571567ec2ae0c7668ccf1b8aaaf949fc84bb44c
         tdSql.execute("create mnode on dnode 3")
         clusterComCheck.checkMnodeStatus(3)
 
