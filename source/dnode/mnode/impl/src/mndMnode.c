@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndMnode.h"
-#include "mndAuth.h"
+#include "mndPrivilege.h"
 #include "mndDnode.h"
 #include "mndShow.h"
 #include "mndSync.h"
@@ -389,7 +389,7 @@ static int32_t mndProcessCreateMnodeReq(SRpcMsg *pReq) {
   }
 
   mDebug("mnode:%d, start to create", createReq.dnodeId);
-  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_CREATE_MNODE) != 0) {
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_MNODE) != 0) {
     goto _OVER;
   }
 
@@ -594,7 +594,7 @@ static int32_t mndProcessDropMnodeReq(SRpcMsg *pReq) {
   }
 
   mDebug("mnode:%d, start to drop", dropReq.dnodeId);
-  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_DROP_MNODE) != 0) {
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_MNODE) != 0) {
     goto _OVER;
   }
 

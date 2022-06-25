@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndDnode.h"
-#include "mndAuth.h"
+#include "mndPrivilege.h"
 #include "mndMnode.h"
 #include "mndQnode.h"
 #include "mndShow.h"
@@ -621,7 +621,7 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
   }
 
   mInfo("dnode:%s:%d, start to create", createReq.fqdn, createReq.port);
-  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DNODE) != 0) {
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DNODE) != 0) {
     goto _OVER;
   }
 
@@ -715,7 +715,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
   }
 
   mInfo("dnode:%d, start to drop, ep:%s:%d", dropReq.dnodeId, dropReq.fqdn, dropReq.port);
-  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_DROP_MNODE) != 0) {
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_MNODE) != 0) {
     goto _OVER;
   }
 
@@ -779,7 +779,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   }
 
   mInfo("dnode:%d, start to config, option:%s, value:%s", cfgReq.dnodeId, cfgReq.config, cfgReq.value);
-  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_CONFIG_DNODE) != 0) {
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONFIG_DNODE) != 0) {
     return -1;
   }
 

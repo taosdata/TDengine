@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndProfile.h"
-#include "mndAuth.h"
+#include "mndPrivilege.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
@@ -227,6 +227,10 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   }
 
   taosIp2String(pReq->info.conn.clientIp, ip);
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONNECT) != 0) {
+    mGError("user:%s, failed to login from %s since %s", pReq->info.conn.user, ip, terrstr());
+    goto _OVER;
+  }
 
   pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
   if (pUser == NULL) {
@@ -237,11 +241,6 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   if (strncmp(connReq.passwd, pUser->pass, TSDB_PASSWORD_LEN - 1) != 0) {
     mGError("user:%s, failed to login from %s since invalid pass, input:%s", pReq->info.conn.user, ip, connReq.passwd);
     code = TSDB_CODE_RPC_AUTH_FAILURE;
-    goto _OVER;
-  }
-
-  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_CONNECT) != 0) {
-    mGError("user:%s, failed to login from %s since %s", pReq->info.conn.user, ip, terrstr());
     goto _OVER;
   }
 
@@ -271,7 +270,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   connectRsp.connId = pConn->id;
   connectRsp.connType = connReq.connType;
   connectRsp.dnodeNum = mndGetDnodeSize(pMnode);
-  
+
   strcpy(connectRsp.sVer, version);
   snprintf(connectRsp.sDetailVer, sizeof(connectRsp.sDetailVer), "ver:%s\nbuild:%s\ngitinfo:%s", version, buildinfo,
            gitinfo);
@@ -475,16 +474,16 @@ static int32_t mndGetOnlineDnodeNum(SMnode *pMnode, int32_t *num) {
   SDnodeObj *pDnode = NULL;
   int64_t    curMs = taosGetTimestampMs();
   void      *pIter = NULL;
-  
+
   while (true) {
     pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
     if (pIter == NULL) break;
-    
+
     bool online = mndIsDnodeOnline(pDnode, curMs);
     if (online) {
       (*num)++;
     }
-    
+
     sdbRelease(pSdb, pDnode);
   }
 
@@ -652,15 +651,6 @@ static int32_t mndProcessKillQueryReq(SRpcMsg *pReq) {
   SMnode       *pMnode = pReq->info.node;
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
-  SUserObj *pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
-  if (pUser == NULL) return 0;
-  if (!pUser->superUser) {
-    mndReleaseUser(pMnode, pUser);
-    terrno = TSDB_CODE_MND_NO_RIGHTS;
-    return -1;
-  }
-  mndReleaseUser(pMnode, pUser);
-
   SKillQueryReq killReq = {0};
   if (tDeserializeSKillQueryReq(pReq->pCont, pReq->contLen, &killReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -668,6 +658,10 @@ static int32_t mndProcessKillQueryReq(SRpcMsg *pReq) {
   }
 
   mInfo("kill query msg is received, queryId:%s", killReq.queryStrId);
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_KILL_QUERY) != 0) {
+    return -1;
+  }
+
   int32_t  connId = 0;
   uint64_t queryId = 0;
   char    *p = strchr(killReq.queryStrId, ':');
@@ -697,18 +691,13 @@ static int32_t mndProcessKillConnReq(SRpcMsg *pReq) {
   SMnode       *pMnode = pReq->info.node;
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
-  SUserObj *pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
-  if (pUser == NULL) return 0;
-  if (!pUser->superUser) {
-    mndReleaseUser(pMnode, pUser);
-    terrno = TSDB_CODE_MND_NO_RIGHTS;
-    return -1;
-  }
-  mndReleaseUser(pMnode, pUser);
-
   SKillConnReq killReq = {0};
   if (tDeserializeSKillConnReq(pReq->pCont, pReq->contLen, &killReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_KILL_CONN) != 0) {
     return -1;
   }
 
@@ -726,10 +715,10 @@ static int32_t mndProcessKillConnReq(SRpcMsg *pReq) {
 }
 
 static int32_t mndProcessSvrVerReq(SRpcMsg *pReq) {
-  int32_t code = -1;
+  int32_t       code = -1;
   SServerVerRsp rsp = {0};
   strcpy(rsp.ver, version);
-  
+
   int32_t contLen = tSerializeSServerVerRsp(NULL, 0, &rsp);
   if (contLen < 0) goto _over;
   void *pRsp = rpcMallocCont(contLen);
@@ -745,7 +734,6 @@ _over:
 
   return code;
 }
-
 
 static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode   *pMnode = pReq->info.node;
