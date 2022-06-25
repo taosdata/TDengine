@@ -52,6 +52,7 @@ extern "C" {
 #endif
 #else
 
+#include <malloc.h>
 #include <time.h>
 #ifndef TD_USE_WINSOCK
 #include <winsock2.h>

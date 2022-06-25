@@ -26,6 +26,7 @@
 typedef struct SBlockKeyTuple {
   TSKEY skey;
   void* payloadAddr;
+  int16_t index;
 } SBlockKeyTuple;
 
 typedef struct SBlockKeyInfo {
@@ -36,9 +37,18 @@ typedef struct SBlockKeyInfo {
 static int32_t rowDataCompar(const void* lhs, const void* rhs) {
   TSKEY left = *(TSKEY*)lhs;
   TSKEY right = *(TSKEY*)rhs;
-
   if (left == right) {
     return 0;
+  } else {
+    return left > right ? 1 : -1;
+  }
+}
+
+static int32_t rowDataComparStable(const void* lhs, const void* rhs) {
+  TSKEY left = *(TSKEY*)lhs;
+  TSKEY right = *(TSKEY*)rhs;
+  if (left == right) {
+    return ((SBlockKeyTuple*)lhs)->index - ((SBlockKeyTuple*)rhs)->index;
   } else {
     return left > right ? 1 : -1;
   }
@@ -343,6 +353,7 @@ int sortRemoveDataBlockDupRows(STableDataBlocks* dataBuf, SBlockKeyInfo* pBlkKey
   while (n < nRows) {
     pBlkKeyTuple->skey = TD_ROW_KEY((STSRow*)pBlockData);
     pBlkKeyTuple->payloadAddr = pBlockData;
+    pBlkKeyTuple->index = n;
 
     // next loop
     pBlockData += extendedRowSize;
@@ -354,7 +365,7 @@ int sortRemoveDataBlockDupRows(STableDataBlocks* dataBuf, SBlockKeyInfo* pBlkKey
     pBlkKeyTuple = pBlkKeyInfo->pKeyTuple;
 
     // todo. qsort is unstable, if timestamp is same, should get the last one
-    qsort(pBlkKeyTuple, nRows, sizeof(SBlockKeyTuple), rowDataCompar);
+    qsort(pBlkKeyTuple, nRows, sizeof(SBlockKeyTuple), rowDataComparStable);
 
     pBlkKeyTuple = pBlkKeyInfo->pKeyTuple;
     int32_t i = 0;

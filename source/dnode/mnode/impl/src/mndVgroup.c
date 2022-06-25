@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndVgroup.h"
-#include "mndAuth.h"
+#include "mndPrivilege.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
@@ -1212,8 +1212,9 @@ static int32_t mndProcessRedistributeVgroupMsg(SRpcMsg *pReq) {
   }
 
   mInfo("vgId:%d, start to redistribute vgroup to dnode %d:%d:%d", req.vgId, req.dnodeId1, req.dnodeId2, req.dnodeId3);
-
-  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_REDISTRIBUTE_VGROUP) != 0) goto _OVER;
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_REDISTRIBUTE_VGROUP) != 0) {
+    goto _OVER;
+  }
 
   pVgroup = mndAcquireVgroup(pMnode, req.vgId);
   if (pVgroup == NULL) goto _OVER;
@@ -1506,14 +1507,15 @@ static int32_t mndProcessSplitVgroupMsg(SRpcMsg *pReq) {
   SDbObj *pDb = NULL;
 
   mDebug("vgId:%d, start to split", vgId);
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_SPLIT_VGROUP) != 0) {
+    goto _OVER;
+  }
 
   pVgroup = mndAcquireVgroup(pMnode, vgId);
   if (pVgroup == NULL) goto _OVER;
 
   pDb = mndAcquireDb(pMnode, pVgroup->dbName);
   if (pDb == NULL) goto _OVER;
-
-  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_SPLIT_VGROUP) != 0) goto _OVER;
 
   code = mndSplitVgroup(pMnode, pReq, pDb, pVgroup);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
@@ -1655,8 +1657,9 @@ static int32_t mndProcessBalanceVgroupMsg(SRpcMsg *pReq) {
   }
 
   mInfo("start to balance vgroup");
-
-  if (mndCheckOperAuth(pMnode, pReq->info.conn.user, MND_OPER_BALANCE_VGROUP) != 0) goto _OVER;
+  if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_BALANCE_VGROUP) != 0) {
+    goto _OVER;
+  }
 
   while (1) {
     SDnodeObj *pDnode = NULL;

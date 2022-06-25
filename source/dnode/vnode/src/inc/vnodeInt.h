@@ -121,7 +121,7 @@ int         tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq* pMsg, SSub
 int32_t     tsdbInsertTableData(STsdb* pTsdb, int64_t version, SSubmitMsgIter* pMsgIter, SSubmitBlk* pBlock,
                                 SSubmitBlkRsp* pRsp);
 int32_t     tsdbDeleteTableData(STsdb* pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
-tsdbReaderT tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, STableListInfo* tableList, uint64_t qId,
+tsdbReaderT tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* tableList, uint64_t qId,
                            uint64_t taskId);
 tsdbReaderT tsdbQueryCacheLastT(STsdb* tsdb, SQueryTableDataCond* pCond, STableListInfo* tableList, uint64_t qId,
                                 void* pMemRef);
@@ -247,7 +247,6 @@ struct SVnode {
 
 struct STbUidStore {
   tb_uid_t  suid;
-  tb_uid_t  uid;  // TODO: just for debugging, remove when uid provided in SSDataBlock
   SArray*   tbUids;
   SHashObj* uidHash;
 };

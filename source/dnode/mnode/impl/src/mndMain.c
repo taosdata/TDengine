@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndAcct.h"
-#include "mndAuth.h"
+#include "mndPrivilege.h"
 #include "mndBnode.h"
 #include "mndCluster.h"
 #include "mndConsumer.h"
@@ -100,7 +100,7 @@ static void *mndThreadFp(void *param) {
     taosMsleep(100);
     if (mndGetStop(pMnode)) break;
 
-    if (lastTime % (tsTransPullupInterval * 10) == 1) {
+    if (lastTime % (tsTtlPushInterval * 10) == 1) {
       mndTtlTimer(pMnode);
     }
 
@@ -239,7 +239,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   if (mndAllocStep(pMnode, "mnode-dnode", mndInitDnode, mndCleanupDnode) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-user", mndInitUser, mndCleanupUser) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-grant", mndInitGrant, mndCleanupGrant) != 0) return -1;
-  if (mndAllocStep(pMnode, "mnode-auth", mndInitAuth, mndCleanupAuth) != 0) return -1;
+  if (mndAllocStep(pMnode, "mnode-privilege", mndInitPrivilege, mndCleanupPrivilege) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-acct", mndInitAcct, mndCleanupAcct) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-stream", mndInitStream, mndCleanupStream) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-topic", mndInitTopic, mndCleanupTopic) != 0) return -1;
@@ -529,24 +529,33 @@ static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
   if (!IsReq(pMsg)) return 0;
   if (mndAcquireRpcRef(pMsg->info.node) == 0) return 0;
   if (pMsg->msgType == TDMT_MND_MQ_TIMER || pMsg->msgType == TDMT_MND_TELEM_TIMER ||
-      pMsg->msgType == TDMT_MND_TRANS_TIMER || TDMT_MND_TTL_TIMER) {
+      pMsg->msgType == TDMT_MND_TRANS_TIMER || pMsg->msgType == TDMT_MND_TTL_TIMER) {
     return -1;
   }
-
-  const STraceId *trace = &pMsg->info.traceId;
-  mError("msg:%p, failed to check mnode state since %s, type:%s", pMsg, terrstr(), TMSG_INFO(pMsg->msgType));
 
   SEpSet epSet = {0};
   mndGetMnodeEpSet(pMsg->info.node, &epSet);
 
-  int32_t contLen = tSerializeSEpSet(NULL, 0, &epSet);
-  pMsg->info.rsp = rpcMallocCont(contLen);
-  if (pMsg->info.rsp != NULL) {
-    tSerializeSEpSet(pMsg->info.rsp, contLen, &epSet);
-    pMsg->info.rspLen = contLen;
-    terrno = TSDB_CODE_RPC_REDIRECT;
+  const STraceId *trace = &pMsg->info.traceId;
+  mError("msg:%p, failed to check mnode state since %s, type:%s, numOfMnodes:%d inUse:%d", pMsg, terrstr(),
+         TMSG_INFO(pMsg->msgType), epSet.numOfEps, epSet.inUse);
+
+  if (epSet.numOfEps > 0) {
+    for (int32_t i = 0; i < epSet.numOfEps; ++i) {
+      mInfo("mnode index:%d, ep:%s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
+    }
+
+    int32_t contLen = tSerializeSEpSet(NULL, 0, &epSet);
+    pMsg->info.rsp = rpcMallocCont(contLen);
+    if (pMsg->info.rsp != NULL) {
+      tSerializeSEpSet(pMsg->info.rsp, contLen, &epSet);
+      pMsg->info.rspLen = contLen;
+      terrno = TSDB_CODE_RPC_REDIRECT;
+    } else {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+    }
   } else {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_APP_NOT_READY;
   }
 
   return -1;
@@ -555,10 +564,10 @@ static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
 static int32_t mndCheckMsgContent(SRpcMsg *pMsg) {
   if (!IsReq(pMsg)) return 0;
   if (pMsg->contLen != 0 && pMsg->pCont != NULL) return 0;
-  
+
   const STraceId *trace = &pMsg->info.traceId;
   mGError("msg:%p, failed to check msg, cont:%p contLen:%d, app:%p type:%s", pMsg, pMsg->pCont, pMsg->contLen,
-         pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
+          pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
   terrno = TSDB_CODE_INVALID_MSG_LEN;
   return -1;
 }
@@ -614,7 +623,7 @@ int64_t mndGenerateUid(char *name, int32_t len) {
 }
 
 int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
-                          SMonGrantInfo *pGrantInfo) {
+                          SMonStbInfo *pStbInfo, SMonGrantInfo *pGrantInfo) {
   if (mndAcquireRpcRef(pMnode) != 0) return -1;
 
   SSdb   *pSdb = pMnode->pSdb;
@@ -623,7 +632,9 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
   pClusterInfo->dnodes = taosArrayInit(sdbGetSize(pSdb, SDB_DNODE), sizeof(SMonDnodeDesc));
   pClusterInfo->mnodes = taosArrayInit(sdbGetSize(pSdb, SDB_MNODE), sizeof(SMonMnodeDesc));
   pVgroupInfo->vgroups = taosArrayInit(sdbGetSize(pSdb, SDB_VGROUP), sizeof(SMonVgroupDesc));
-  if (pClusterInfo->dnodes == NULL || pClusterInfo->mnodes == NULL || pVgroupInfo->vgroups == NULL) {
+  pStbInfo->stbs = taosArrayInit(sdbGetSize(pSdb, SDB_STB), sizeof(SMonStbDesc));
+  if (pClusterInfo->dnodes == NULL || pClusterInfo->mnodes == NULL || pVgroupInfo->vgroups == NULL ||
+      pStbInfo->stbs == NULL) {
     mndReleaseRpcRef(pMnode);
     return -1;
   }
@@ -632,6 +643,8 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
   tstrncpy(pClusterInfo->version, version, sizeof(pClusterInfo->version));
   pClusterInfo->monitor_interval = tsMonitorInterval;
   pClusterInfo->connections_total = mndGetNumOfConnections(pMnode);
+  pClusterInfo->dbs_total = sdbGetSize(pSdb, SDB_DB);
+  pClusterInfo->stbs_total = sdbGetSize(pSdb, SDB_STB);
 
   void *pIter = NULL;
   while (1) {
@@ -681,6 +694,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
     if (pIter == NULL) break;
 
     pClusterInfo->vgroups_total++;
+    pClusterInfo->tbs_total += pVgroup->numOfTables;
 
     SMonVgroupDesc desc = {0};
     desc.vgroup_id = pVgroup->vgId;
@@ -709,6 +723,27 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
 
     taosArrayPush(pVgroupInfo->vgroups, &desc);
     sdbRelease(pSdb, pVgroup);
+  }
+
+  // stb info
+  pIter = NULL;
+  while (1) {
+    SStbObj *pStb = NULL;
+    pIter = sdbFetch(pSdb, SDB_STB, pIter, (void **)&pStb);
+    if (pIter == NULL) break;
+
+    SMonStbDesc desc = {0};
+
+    SName name1 = {0};
+    tNameFromString(&name1, pStb->db, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    tNameGetDbName(&name1, desc.database_name);
+
+    SName name2 = {0};
+    tNameFromString(&name2, pStb->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+    tstrncpy(desc.stb_name, tNameGetTableName(&name2), TSDB_TABLE_NAME_LEN);
+
+    taosArrayPush(pStbInfo->stbs, &desc);
+    sdbRelease(pSdb, pStb);
   }
 
   // grant info

@@ -183,34 +183,24 @@ SArray* createSortInfo(SNodeList* pNodeList) {
 SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode) {
   int32_t numOfCols = LIST_LENGTH(pNode->pSlots);
 
-  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
-  pBlock->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
+  SSDataBlock* pBlock = createDataBlock();
 
   pBlock->info.blockId = pNode->dataBlockId;
-  pBlock->info.rowSize = pNode->totalRowSize;  // todo ??
   pBlock->info.type = STREAM_INVALID;
 
   for (int32_t i = 0; i < numOfCols; ++i) {
-    SColumnInfoData idata = {{0}};
     SSlotDescNode*  pDescNode = (SSlotDescNode*)nodesListGetNode(pNode->pSlots, i);
 //    if (!pDescNode->output) {  // todo disable it temporarily
 //      continue;
 //    }
 
-    idata.info.type = pDescNode->dataType.type;
-    idata.info.bytes = pDescNode->dataType.bytes;
+    SColumnInfoData idata = createColumnInfoData(pDescNode->dataType.type, pDescNode->dataType.bytes, pDescNode->slotId);
     idata.info.scale = pDescNode->dataType.scale;
-    idata.info.slotId = pDescNode->slotId;
     idata.info.precision = pDescNode->dataType.precision;
 
-    if (IS_VAR_DATA_TYPE(idata.info.type)) {
-      pBlock->info.hasVarCol = true;
-    }
-
-    taosArrayPush(pBlock->pDataBlock, &idata);
+    blockDataAppendColInfo(pBlock, &idata);
   }
 
-  pBlock->info.numOfCols = taosArrayGetSize(pBlock->pDataBlock);
   return pBlock;
 }
 
@@ -297,6 +287,7 @@ static bool isTableOk(STableKeyInfo* info, SNode *pTagCond, SMeta *metaHandle){
 int32_t getTableList(void* metaHandle, SScanPhysiNode* pScanNode, STableListInfo* pListInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   pListInfo->pTableList = taosArrayInit(8, sizeof(STableKeyInfo));
+  if(pListInfo->pTableList == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
   uint64_t tableUid = pScanNode->uid;
 
@@ -324,7 +315,7 @@ int32_t getTableList(void* metaHandle, SScanPhysiNode* pScanNode, STableListInfo
       }
 
       for (int i = 0; i < taosArrayGetSize(res); i++) {
-        STableKeyInfo info = {.lastKey = TSKEY_INITIAL_VAL, .uid = *(uint64_t*)taosArrayGet(res, i), .groupId = 0};
+        STableKeyInfo info = {.lastKey = TSKEY_INITIAL_VAL, .uid = *(uint64_t*)taosArrayGet(res, i)};
         taosArrayPush(pListInfo->pTableList, &info);
       }
       taosArrayDestroy(res);
@@ -345,9 +336,14 @@ int32_t getTableList(void* metaHandle, SScanPhysiNode* pScanNode, STableListInfo
       }
     }
   }else {  // Create one table group.
-    STableKeyInfo info = {.lastKey = 0, .uid = tableUid, .groupId = 0};
+    STableKeyInfo info = {.lastKey = 0, .uid = tableUid};
     taosArrayPush(pListInfo->pTableList, &info);
   }
+  pListInfo->pGroupList = taosArrayInit(4, POINTER_BYTES);
+  if(pListInfo->pGroupList == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+
+  //put into list as default group, remove it if grouping sorting is required later
+  taosArrayPush(pListInfo->pGroupList, &pListInfo->pTableList);
 
   return code;
 }
@@ -698,7 +694,7 @@ void relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray
 
     if (p->info.colId == pmInfo->colId) {
       SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, pmInfo->targetSlotId);
-      colDataAssign(pDst, p, pBlock->info.rows);
+      colDataAssign(pDst, p, pBlock->info.rows, &pBlock->info);
       i++;
       j++;
     } else if (p->info.colId < pmInfo->colId) {

@@ -63,27 +63,27 @@ int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq) {
 }
 
 int32_t tEncodeStreamRetrieveReq(SEncoder* pEncoder, const SStreamRetrieveReq* pReq) {
-  //
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->dstNodeId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->dstTaskId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->srcNodeId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->srcTaskId) < 0) return -1;
-  if (tEncodeBinary(pEncoder, (const uint8_t*)&pReq->pRetrieve, pReq->retrieveLen) < 0) return -1;
+  if (tEncodeBinary(pEncoder, (const uint8_t*)pReq->pRetrieve, pReq->retrieveLen) < 0) return -1;
   tEndEncode(pEncoder);
   return pEncoder->pos;
 }
 
 int32_t tDecodeStreamRetrieveReq(SDecoder* pDecoder, SStreamRetrieveReq* pReq) {
-  int32_t tlen = 0;
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI64(pDecoder, &pReq->streamId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->dstNodeId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->dstTaskId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->srcNodeId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->srcTaskId) < 0) return -1;
-  if (tDecodeBinary(pDecoder, (uint8_t**)&pReq->pRetrieve, &pReq->retrieveLen) < 0) return -1;
+  uint64_t len = 0;
+  if (tDecodeBinaryAlloc(pDecoder, (void**)&pReq->pRetrieve, &len) < 0) return -1;
+  pReq->retrieveLen = (int32_t)len;
   tEndDecode(pDecoder);
   return 0;
 }
@@ -96,16 +96,19 @@ int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock)
   pRetrieve = taosMemoryCalloc(1, dataStrLen);
   if (pRetrieve == NULL) return -1;
 
+  int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
   pRetrieve->useconds = 0;
   pRetrieve->precision = TSDB_DEFAULT_PRECISION;
   pRetrieve->compressed = 0;
   pRetrieve->completed = 1;
   pRetrieve->streamBlockType = pBlock->info.type;
   pRetrieve->numOfRows = htonl(pBlock->info.rows);
-  pRetrieve->numOfCols = htonl(pBlock->info.numOfCols);
+  pRetrieve->numOfCols = htonl(numOfCols);
+  pRetrieve->skey = htobe64(pBlock->info.window.skey);
+  pRetrieve->ekey = htobe64(pBlock->info.window.ekey);
 
   int32_t actualLen = 0;
-  blockCompressEncode(pBlock, pRetrieve->data, &actualLen, pBlock->info.numOfCols, false);
+  blockCompressEncode(pBlock, pRetrieve->data, &actualLen, numOfCols, false);
 
   SStreamRetrieveReq req = {
       .streamId = pTask->streamId,
@@ -170,10 +173,14 @@ static int32_t streamAddBlockToDispatchMsg(const SSDataBlock* pBlock, SStreamDis
   pRetrieve->completed = 1;
   pRetrieve->streamBlockType = pBlock->info.type;
   pRetrieve->numOfRows = htonl(pBlock->info.rows);
-  pRetrieve->numOfCols = htonl(pBlock->info.numOfCols);
+  pRetrieve->skey = htobe64(pBlock->info.window.skey);
+  pRetrieve->ekey = htobe64(pBlock->info.window.ekey);
+
+  int32_t numOfCols = (int32_t)taosArrayGetSize(pBlock->pDataBlock);
+  pRetrieve->numOfCols = htonl(numOfCols);
 
   int32_t actualLen = 0;
-  blockCompressEncode(pBlock, pRetrieve->data, &actualLen, pBlock->info.numOfCols, false);
+  blockCompressEncode(pBlock, pRetrieve->data, &actualLen, numOfCols, false);
   actualLen += sizeof(SRetrieveTableRsp);
   ASSERT(actualLen <= dataStrLen);
   taosArrayPush(pReq->dataLen, &actualLen);
@@ -182,7 +189,7 @@ static int32_t streamAddBlockToDispatchMsg(const SSDataBlock* pBlock, SStreamDis
   return 0;
 }
 
-int32_t streamBuildDispatchMsg(SStreamTask* pTask, SStreamDataBlock* data, SRpcMsg* pMsg, SEpSet** ppEpSet) {
+int32_t streamBuildDispatchMsg(SStreamTask* pTask, const SStreamDataBlock* data, SRpcMsg* pMsg, SEpSet** ppEpSet) {
   void*   buf = NULL;
   int32_t code = -1;
   int32_t blockNum = taosArrayGetSize(data->blocks);
@@ -304,6 +311,8 @@ int32_t streamDispatch(SStreamTask* pTask, SMsgCb* pMsgCb) {
     atomic_store_8(&pTask->outputStatus, TASK_OUTPUT_STATUS__NORMAL);
     return -1;
   }
+  taosArrayDestroyEx(pBlock->blocks, (FDelete)tDeleteSSDataBlock);
+  taosFreeQitem(pBlock);
 
   tmsgSendReq(pEpSet, &dispatchMsg);
   return 0;

@@ -27,11 +27,14 @@ int32_t streamDispatchReqToData(const SStreamDispatchReq* pReq, SStreamDataBlock
   ASSERT(pReq->blockNum == taosArrayGetSize(pReq->dataLen));
 
   for (int32_t i = 0; i < blockNum; i++) {
-    int32_t            len = *(int32_t*)taosArrayGet(pReq->dataLen, i);
+    /*int32_t            len = *(int32_t*)taosArrayGet(pReq->dataLen, i);*/
     SRetrieveTableRsp* pRetrieve = taosArrayGetP(pReq->data, i);
     SSDataBlock*       pDataBlock = taosArrayGet(pArray, i);
     blockCompressDecode(pDataBlock, htonl(pRetrieve->numOfCols), htonl(pRetrieve->numOfRows), pRetrieve->data);
     // TODO: refactor
+    pDataBlock->info.window.skey = be64toh(pRetrieve->skey);
+    pDataBlock->info.window.ekey = be64toh(pRetrieve->ekey);
+
     pDataBlock->info.type = pRetrieve->streamBlockType;
     pDataBlock->info.childId = pReq->upstreamChildId;
   }
@@ -46,8 +49,14 @@ int32_t streamRetrieveReqToData(const SStreamRetrieveReq* pReq, SStreamDataBlock
   }
   taosArraySetSize(pArray, 1);
   SRetrieveTableRsp* pRetrieve = pReq->pRetrieve;
-  SSDataBlock*       pBlock = taosArrayGet(pArray, 0);
-  blockCompressDecode(pBlock, htonl(pRetrieve->numOfCols), htonl(pRetrieve->numOfRows), pRetrieve->data);
+  SSDataBlock*       pDataBlock = taosArrayGet(pArray, 0);
+  blockCompressDecode(pDataBlock, htonl(pRetrieve->numOfCols), htonl(pRetrieve->numOfRows), pRetrieve->data);
+  // TODO: refactor
+  pDataBlock->info.window.skey = be64toh(pRetrieve->skey);
+  pDataBlock->info.window.ekey = be64toh(pRetrieve->ekey);
+
+  pDataBlock->info.type = pRetrieve->streamBlockType;
+
   pData->blocks = pArray;
   return 0;
 }

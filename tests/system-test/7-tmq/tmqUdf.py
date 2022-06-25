@@ -113,7 +113,7 @@ class TDTestCase:
         tmqCom.insert_data_1(tdSql,paraDict["dbName"],paraDict["ctbPrefix"],paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"],paraDict["startTs"])
         
         tdLog.info("create topics from stb with filter")
-        queryString = "select ts, c1,udf1(c1),c2,udf1(c2) from %s.%s where c1 %% 7 == 0" %(paraDict['dbName'], paraDict['stbName'])
+        queryString = "select ts,c1,udf1(c1),c2,udf1(c2) from %s.%s where c1 %% 7 == 0" %(paraDict['dbName'], paraDict['stbName'])
         sqlString = "create topic %s as %s" %(topicNameList[0], queryString)
         tdLog.info("create topic sql: %s"%sqlString)
         tdSql.execute(sqlString)

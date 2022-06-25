@@ -559,8 +559,8 @@ uint64_t calcGroupId(char* pData, int32_t len) {
 }
 
 int32_t* setupColumnOffset(const SSDataBlock* pBlock, int32_t rowCapacity) {
-  size_t numOfCols = pBlock->info.numOfCols;
-  int32_t* offset = taosMemoryCalloc(pBlock->info.numOfCols, sizeof(int32_t));
+  size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+  int32_t* offset = taosMemoryCalloc(numOfCols, sizeof(int32_t));
 
   offset[0] = sizeof(int32_t) + sizeof(uint64_t);  // the number of rows in current page, ref to SSDataBlock paged serialization format
 

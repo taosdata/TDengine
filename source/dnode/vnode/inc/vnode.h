@@ -116,7 +116,8 @@ typedef void *tsdbReaderT;
 #define BLOCK_LOAD_TABLE_SEQ_ORDER  2
 #define BLOCK_LOAD_TABLE_RR_ORDER   3
 
-tsdbReaderT  tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, STableListInfo *tableInfoGroup, uint64_t qId,
+int32_t      tsdbSetTableList(tsdbReaderT reader, SArray* tableList);
+tsdbReaderT  tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, SArray *tableList, uint64_t qId,
                             uint64_t taskId);
 tsdbReaderT  tsdbQueryCacheLast(SVnode *pVnode, SQueryTableDataCond *pCond, STableListInfo *groupList, uint64_t qId,
                                 void *pMemRef);
@@ -149,8 +150,8 @@ int32_t tqReadHandleRemoveTbUidList(STqReadHandle *pHandle, const SArray *tbUidL
 int32_t tqReadHandleSetMsg(STqReadHandle *pHandle, SSubmitReq *pMsg, int64_t ver);
 bool    tqNextDataBlock(STqReadHandle *pHandle);
 bool    tqNextDataBlockFilterOut(STqReadHandle *pHandle, SHashObj *filterOutUids);
-int32_t tqRetrieveDataBlock(SArray **ppCols, STqReadHandle *pHandle, uint64_t *pGroupId, uint64_t *pUid,
-                            int32_t *pNumOfRows, int16_t *pNumOfCols);
+int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReadHandle *pHandle, uint64_t *pGroupId, uint64_t *pUid,
+                            int32_t *pNumOfRows);
 
 // sma
 int32_t smaGetTSmaDays(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);
@@ -195,7 +196,6 @@ struct SVnodeCfg {
 typedef struct {
   TSKEY    lastKey;
   uint64_t uid;
-  uint64_t groupId;
 } STableKeyInfo;
 
 struct SMetaEntry {

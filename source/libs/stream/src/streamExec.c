@@ -53,9 +53,13 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) 
     }
 
     // TODO: do we need free memory?
-    SSDataBlock* outputCopy = createOneDataBlock(output, true);
-    outputCopy->info.childId = pTask->selfChildId;
-    taosArrayPush(pRes, outputCopy);
+    SSDataBlock block = {0};
+    assignOneDataBlock(&block, output);
+    block.info.childId = pTask->selfChildId;
+    taosArrayPush(pRes, &block);
+    /*SSDataBlock* outputCopy = createOneDataBlock(output, true);*/
+    /*outputCopy->info.childId = pTask->selfChildId;*/
+    /*taosArrayPush(pRes, outputCopy);*/
   }
   return 0;
 }
@@ -68,6 +72,7 @@ static SArray* streamExecForQall(SStreamTask* pTask, SArray* pRes) {
     streamTaskExecImpl(pTask, data, pRes);
 
     if (pTask->taskStatus == TASK_STATUS__DROPPING) {
+      taosArrayDestroyEx(pRes, (FDelete)tDeleteSSDataBlock);
       return NULL;
     }
 
@@ -82,25 +87,25 @@ static SArray* streamExecForQall(SStreamTask* pTask, SArray* pRes) {
       qRes->blocks = pRes;
       if (streamTaskOutput(pTask, qRes) < 0) {
         streamQueueProcessFail(pTask->inputQueue);
-        taosArrayDestroy(pRes);
+        taosArrayDestroyEx(pRes, (FDelete)tDeleteSSDataBlock);
         taosFreeQitem(qRes);
         return NULL;
       }
-
-      int8_t type = ((SStreamQueueItem*)data)->type;
-      if (type == STREAM_INPUT__TRIGGER) {
-        blockDataDestroy(((SStreamTrigger*)data)->pBlock);
-        taosFreeQitem(data);
-      } else if (type == STREAM_INPUT__DATA_BLOCK) {
-        taosArrayDestroyEx(((SStreamDataBlock*)data)->blocks, (FDelete)tDeleteSSDataBlock);
-        taosFreeQitem(data);
-      } else if (type == STREAM_INPUT__DATA_SUBMIT) {
-        ASSERT(pTask->isDataScan);
-        streamDataSubmitRefDec((SStreamDataSubmit*)data);
-        taosFreeQitem(data);
-      }
       streamQueueProcessSuccess(pTask->inputQueue);
-      return taosArrayInit(0, sizeof(SSDataBlock));
+      pRes = taosArrayInit(0, sizeof(SSDataBlock));
+    }
+
+    int8_t type = ((SStreamQueueItem*)data)->type;
+    if (type == STREAM_INPUT__TRIGGER) {
+      blockDataDestroy(((SStreamTrigger*)data)->pBlock);
+      taosFreeQitem(data);
+    } else if (type == STREAM_INPUT__DATA_BLOCK) {
+      taosArrayDestroyEx(((SStreamDataBlock*)data)->blocks, (FDelete)tDeleteSSDataBlock);
+      taosFreeQitem(data);
+    } else if (type == STREAM_INPUT__DATA_SUBMIT) {
+      ASSERT(pTask->isDataScan);
+      streamDataSubmitRefDec((SStreamDataSubmit*)data);
+      taosFreeQitem(data);
     }
   }
   return pRes;
@@ -125,14 +130,14 @@ int32_t streamExec(SStreamTask* pTask, SMsgCb* pMsgCb) {
       pRes = streamExecForQall(pTask, pRes);
       if (pRes == NULL) goto FAIL;
 
-      taosArrayDestroy(pRes);
+      taosArrayDestroyEx(pRes, (FDelete)tDeleteSSDataBlock);
       atomic_store_8(&pTask->execStatus, TASK_EXEC_STATUS__IDLE);
       return 0;
     } else if (execStatus == TASK_EXEC_STATUS__CLOSING) {
       continue;
     } else if (execStatus == TASK_EXEC_STATUS__EXECUTING) {
       ASSERT(taosArrayGetSize(pRes) == 0);
-      taosArrayDestroy(pRes);
+      taosArrayDestroyEx(pRes, (FDelete)tDeleteSSDataBlock);
       return 0;
     } else {
       ASSERT(0);

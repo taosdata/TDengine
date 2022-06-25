@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "mndShow.h"
 #include "systable.h"
-#include "mndAuth.h"
+#include "mndPrivilege.h"
 
 #define SHOW_STEP_SIZE 100
 
@@ -122,6 +122,7 @@ static SShowObj *mndCreateShowObj(SMnode *pMnode, SRetrieveTableReq *pReq) {
   int32_t size = sizeof(SShowObj);
 
   SShowObj showObj = {0};
+
   showObj.id = showId;
   showObj.pMnode = pMnode;
   showObj.type = convertToRetrieveType(pReq->tb, tListLen(pReq->tb));
@@ -231,12 +232,11 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
 
   mDebug("show:0x%" PRIx64 ", start retrieve data, type:%d", pShow->id, pShow->type);
 
-  // if (mndCheckShowAuth(pMnode, pReq->info.conn.user, pShow->type) != 0) return -1;
+  // if (mndCheckShowPrivilege(pMnode, pReq->info.conn.user, pShow->type) != 0) return -1;
 
   int32_t      numOfCols = pShow->pMeta->numOfColumns;
   SSDataBlock *pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
   pBlock->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
-  pBlock->info.numOfCols = numOfCols;
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData idata = {0};
@@ -271,7 +271,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   }
 
   size = sizeof(SRetrieveMetaTableRsp) + sizeof(int32_t) + sizeof(SSysTableSchema) * pShow->pMeta->numOfColumns +
-         blockDataGetSize(pBlock) + blockDataGetSerialMetaSize(pBlock->info.numOfCols);
+         blockDataGetSize(pBlock) + blockDataGetSerialMetaSize(taosArrayGetSize(pBlock->pDataBlock));
 
   SRetrieveMetaTableRsp *pRsp = rpcMallocCont(size);
   if (pRsp == NULL) {

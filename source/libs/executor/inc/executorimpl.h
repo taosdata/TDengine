@@ -273,6 +273,10 @@ typedef struct STableScanInfo {
 
   SSampleExecInfo sample;       // sample execution info
   int32_t         curTWinIdx;
+
+  int32_t         currentGroupId;
+  uint64_t        queryId;
+  uint64_t        taskId;
 } STableScanInfo;
 
 typedef struct STagScanInfo {
@@ -336,11 +340,10 @@ typedef struct SStreamBlockScanInfo {
   int32_t         numOfPseudoExpr;
 
   int32_t         primaryTsIndex;    // primary time stamp slot id
-  void*           pDataReader;
   SReadHandle     readHandle;
   uint64_t        tableUid;         // queried super table uid
   EStreamScanMode scanMode;
-  SOperatorInfo* pOperatorDumy;
+  SOperatorInfo* pSnapshotReadOp;
   SInterval      interval;     // if the upstream is an interval operator, the interval info is also kept here.
   SArray*        childIds;
   SessionWindowSupporter sessionSup;
@@ -355,6 +358,7 @@ typedef struct SSysTableScanInfo {
   tsem_t                 ready;
   SReadHandle            readHandle;
   int32_t                accountId;
+  const char*            pUser;
   bool                   showRewrite;
   SNode*                 pCondition;  // db_name filter condition, to discard data that are not in current database
   SMTbCursor*            pCur;        // cursor for iterate the local table meta store.
@@ -707,10 +711,10 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
 
 SOperatorInfo* createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNode, SExecTaskInfo* pTaskInfo);
 
-SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, tsdbReaderT pDataReader, SReadHandle* pHandle, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle, SExecTaskInfo* pTaskInfo, uint64_t queryId, uint64_t taskId);
 SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysiNode* pPhyNode,
                                          STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo);
-SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNode *pScanPhyNode, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNode *pScanPhyNode, const char* pUser, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock, SExprInfo* pScalarExprInfo,
                                            int32_t numOfScalarExpr, SExecTaskInfo* pTaskInfo);
@@ -750,8 +754,8 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pEx
 SOperatorInfo* createDataBlockInfoScanOperator(void* dataReader, SReadHandle* readHandle, uint64_t uid, SBlockDistScanPhysiNode* pBlockScanNode,
                                                SExecTaskInfo* pTaskInfo);
 
-SOperatorInfo* createStreamScanOperatorInfo(void* pDataReader, SReadHandle* pHandle,
-    STableScanPhysiNode* pTableScanNode, SExecTaskInfo* pTaskInfo, STimeWindowAggSupp* pTwSup);
+SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle,
+    STableScanPhysiNode* pTableScanNode, SExecTaskInfo* pTaskInfo, STimeWindowAggSupp* pTwSup, uint64_t queryId, uint64_t taskId);
 
 SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFillNode, bool multigroupResult,
                                       SExecTaskInfo* pTaskInfo);
@@ -846,7 +850,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
 
 void copyUpdateDataBlock(SSDataBlock* pDest, SSDataBlock* pSource, int32_t tsColIndex);
 
-int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle, SArray* groupKey);
+int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle, SNodeList* groupKey);
 
 #ifdef __cplusplus
 }

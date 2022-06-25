@@ -144,15 +144,17 @@ TEST_F(ParserSelectTest, IndefiniteRowsFunc) {
 TEST_F(ParserSelectTest, IndefiniteRowsFuncSemanticCheck) {
   useDb("root", "test");
 
-  run("SELECT DIFF(c1), c2 FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC, PARSER_STAGE_TRANSLATE);
+  run("SELECT DIFF(c1), c2 FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
 
-  run("SELECT DIFF(c1), tbname FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC, PARSER_STAGE_TRANSLATE);
+  run("SELECT DIFF(c1), tbname FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
 
-  run("SELECT DIFF(c1), count(*) FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC, PARSER_STAGE_TRANSLATE);
+  run("SELECT DIFF(c1), count(*) FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
 
-  run("SELECT DIFF(c1), CSUM(c1) FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC, PARSER_STAGE_TRANSLATE);
+  run("SELECT DIFF(c1), CSUM(c1) FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
 
-  // run("SELECT DIFF(c1) FROM t1 INTERVAL(10s)");
+  run("SELECT CSUM(c3) FROM t1 STATE_WINDOW(c1)", TSDB_CODE_PAR_WINDOW_NOT_ALLOWED_FUNC);
+
+  run("SELECT DIFF(c1) FROM t1 INTERVAL(10s)", TSDB_CODE_PAR_WINDOW_NOT_ALLOWED_FUNC);
 }
 
 TEST_F(ParserSelectTest, useDefinedFunc) {
@@ -197,6 +199,20 @@ TEST_F(ParserSelectTest, tailFuncSemanticCheck) {
   run("SELECT TAIL(c1, 10) FROM t1 GROUP BY c2", TSDB_CODE_PAR_GROUP_BY_NOT_ALLOWED_FUNC);
 }
 
+TEST_F(ParserSelectTest, partitionBy) {
+  useDb("root", "test");
+
+  run("SELECT c1, c2 FROM t1 PARTITION BY c2");
+
+  run("SELECT SUM(c1), c2 FROM t1 PARTITION BY c2");
+}
+
+TEST_F(ParserSelectTest, partitionBySemanticCheck) {
+  useDb("root", "test");
+
+  run("SELECT SUM(c1), c2, c3 FROM t1 PARTITION BY c2", TSDB_CODE_PAR_NOT_SINGLE_GROUP);
+}
+
 TEST_F(ParserSelectTest, groupBy) {
   useDb("root", "test");
 
@@ -209,6 +225,15 @@ TEST_F(ParserSelectTest, groupBy) {
   run("SELECT COUNT(*), c1, c2 + 10, c1 + c2 cnt FROM t1 WHERE c1 > 0 GROUP BY c2, c1");
 
   run("SELECT COUNT(*), c1 + 10, c2 cnt FROM t1 WHERE c1 > 0 GROUP BY c1 + 10, c2");
+}
+
+TEST_F(ParserSelectTest, groupBySemanticCheck) {
+  useDb("root", "test");
+
+  run("SELECT COUNT(*) cnt, c1 FROM t1 WHERE c1 > 0", TSDB_CODE_PAR_NOT_SINGLE_GROUP);
+  run("SELECT COUNT(*) cnt, c2 FROM t1 WHERE c1 > 0 GROUP BY c1", TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION);
+  run("SELECT COUNT(*) cnt, c2 FROM t1 WHERE c1 > 0 PARTITION BY c2 GROUP BY c1",
+      TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION);
 }
 
 TEST_F(ParserSelectTest, orderBy) {
@@ -382,6 +407,12 @@ TEST_F(ParserSelectTest, setOperator) {
   run("SELECT c1 FROM (SELECT c1 FROM t1 UNION ALL SELECT c1 FROM t1)");
 
   run("SELECT c1, c2 FROM t1 UNION ALL SELECT c1 as a, c2 as b FROM t1 ORDER BY c1");
+}
+
+TEST_F(ParserSelectTest, setOperatorSemanticCheck) {
+  useDb("root", "test");
+
+  run("SELECT c1, c2 FROM t1 UNION ALL SELECT c1, c2 FROM t1 ORDER BY ts", TSDB_CODE_PAR_INVALID_COLUMN);
 }
 
 TEST_F(ParserSelectTest, informationSchema) {

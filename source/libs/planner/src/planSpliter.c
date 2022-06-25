@@ -179,7 +179,7 @@ static bool stbSplNeedSplitWindow(bool streamQuery, SLogicNode* pNode) {
       return !stbSplHasGatherExecFunc(pWindow->pFuncs) && stbSplHasMultiTbScan(streamQuery, pNode);
     }
   }
-  
+
   if (WINDOW_TYPE_STATE == pWindow->winType) {
     if (!streamQuery) {
       return stbSplHasMultiTbScan(streamQuery, pNode);
@@ -374,7 +374,7 @@ static int32_t stbSplCreateMergeNode(SSplitContext* pCxt, SLogicSubplan* pSubpla
 
   int32_t code = TSDB_CODE_SUCCESS;
   pMerge->pInputs = nodesCloneList(pPartChild->pTargets);
-  // NULL == pSubplan means 'merge node' replaces 'split node'.
+  // NULL != pSubplan means 'merge node' replaces 'split node'.
   if (NULL == pSubplan) {
     pMerge->node.pTargets = nodesCloneList(pPartChild->pTargets);
   } else {
@@ -512,7 +512,7 @@ static int32_t stbSplSplitSessionOrStateForBatch(SSplitContext* pCxt, SStableSpl
   SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pWindow->pChildren, 0);
 
   SNodeList* pMergeKeys = NULL;
-  int32_t code = stbSplCreateMergeKeysByPrimaryKey(((SWindowLogicNode*)pWindow)->pTspk, &pMergeKeys);
+  int32_t    code = stbSplCreateMergeKeysByPrimaryKey(((SWindowLogicNode*)pWindow)->pTspk, &pMergeKeys);
 
   if (TSDB_CODE_SUCCESS == code) {
     code = stbSplCreateMergeNode(pCxt, pInfo->pSubplan, pChild, pMergeKeys, (SLogicNode*)pChild);
@@ -561,6 +561,8 @@ static int32_t stbSplSplitState(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
 static SNodeList* stbSplGetPartKeys(SLogicNode* pNode) {
   if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
     return ((SScanLogicNode*)pNode)->pPartTags;
+  } else if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode)) {
+    return ((SPartitionLogicNode*)pNode)->pPartitionKeys;
   } else {
     return NULL;
   }
@@ -571,14 +573,15 @@ static bool stbSplIsPartTbanme(SNodeList* pPartKeys) {
     return false;
   }
   SNode* pPartKey = nodesListGetNode(pPartKeys, 0);
-  return QUERY_NODE_FUNCTION == nodeType(pPartKey) && FUNCTION_TYPE_TBNAME == ((SFunctionNode*)pPartKey)->funcType;
+  return (QUERY_NODE_FUNCTION == nodeType(pPartKey) && FUNCTION_TYPE_TBNAME == ((SFunctionNode*)pPartKey)->funcType) ||
+         (QUERY_NODE_COLUMN == nodeType(pPartKey) && COLUMN_TYPE_TBNAME == ((SColumnNode*)pPartKey)->colType);
 }
 
-static bool stbSplIsMultiTableWinodw(SWindowLogicNode* pWindow) {
+static bool stbSplIsPartTableWinodw(SWindowLogicNode* pWindow) {
   return stbSplIsPartTbanme(stbSplGetPartKeys((SLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0)));
 }
 
-static int32_t stbSplSplitWindowForMergeTable(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
+static int32_t stbSplSplitWindowForCrossTable(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
   switch (((SWindowLogicNode*)pInfo->pSplitNode)->winType) {
     case WINDOW_TYPE_INTERVAL:
       return stbSplSplitInterval(pCxt, pInfo);
@@ -592,7 +595,7 @@ static int32_t stbSplSplitWindowForMergeTable(SSplitContext* pCxt, SStableSplitI
   return TSDB_CODE_PLAN_INTERNAL_ERROR;
 }
 
-static int32_t stbSplSplitWindowForMultiTable(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
+static int32_t stbSplSplitWindowForPartTable(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
   if (pCxt->pPlanCxt->streamQuery) {
     SPLIT_FLAG_SET_MASK(pInfo->pSubplan->splitFlag, SPLIT_FLAG_STABLE_SPLIT);
     return TSDB_CODE_SUCCESS;
@@ -613,10 +616,10 @@ static int32_t stbSplSplitWindowForMultiTable(SSplitContext* pCxt, SStableSplitI
 }
 
 static int32_t stbSplSplitWindowNode(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
-  if (stbSplIsMultiTableWinodw((SWindowLogicNode*)pInfo->pSplitNode)) {
-    return stbSplSplitWindowForMultiTable(pCxt, pInfo);
+  if (stbSplIsPartTableWinodw((SWindowLogicNode*)pInfo->pSplitNode)) {
+    return stbSplSplitWindowForPartTable(pCxt, pInfo);
   } else {
-    return stbSplSplitWindowForMergeTable(pCxt, pInfo);
+    return stbSplSplitWindowForCrossTable(pCxt, pInfo);
   }
 }
 
@@ -1040,6 +1043,7 @@ static int32_t unAllSplCreateExchangeNode(SSplitContext* pCxt, SLogicSubplan* pS
   if (NULL == pExchange->node.pTargets) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  TSWAP(pExchange->node.pLimit, pProject->node.pLimit);
 
   pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
 

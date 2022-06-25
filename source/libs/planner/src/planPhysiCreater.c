@@ -348,6 +348,9 @@ static SPhysiNode* makePhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode
     return NULL;
   }
 
+  TSWAP(pPhysiNode->pLimit, pLogicNode->pLimit);
+  TSWAP(pPhysiNode->pSlimit, pLogicNode->pSlimit);
+
   int32_t code = createDataBlockDesc(pCxt, pLogicNode->pTargets, &pPhysiNode->pOutputDataBlockDesc);
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pPhysiNode);
@@ -859,6 +862,9 @@ static int32_t createIndefRowsFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* 
     nodesDestroyNode((SNode*)pIdfRowsFunc);
   }
 
+  nodesDestroyList(pPrecalcExprs);
+  nodesDestroyList(pFuncs);
+
   return code;
 }
 
@@ -910,6 +916,9 @@ static int32_t createInterpFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pCh
     nodesDestroyNode((SNode*)pInterpFunc);
   }
 
+  nodesDestroyList(pPrecalcExprs);
+  nodesDestroyList(pFuncs);
+
   return code;
 }
 
@@ -920,11 +929,6 @@ static int32_t createProjectPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChild
   if (NULL == pProject) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-
-  pProject->limit = pProjectLogicNode->limit;
-  pProject->offset = pProjectLogicNode->offset;
-  pProject->slimit = pProjectLogicNode->slimit;
-  pProject->soffset = pProjectLogicNode->soffset;
 
   int32_t code = TSDB_CODE_SUCCESS;
   if (0 == LIST_LENGTH(pChildren)) {
@@ -1049,6 +1053,9 @@ static int32_t createWindowPhysiNodeFinalize(SPhysiPlanContext* pCxt, SNodeList*
   } else {
     nodesDestroyNode((SNode*)pWindow);
   }
+
+  nodesDestroyList(pPrecalcExprs);
+  nodesDestroyList(pFuncs);
 
   return code;
 }
@@ -1199,6 +1206,9 @@ static int32_t createSortPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
     nodesDestroyNode((SNode*)pSort);
   }
 
+  nodesDestroyList(pPrecalcExprs);
+  nodesDestroyList(pSortKeys);
+
   return code;
 }
 
@@ -1239,6 +1249,9 @@ static int32_t createPartitionPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChi
   } else {
     nodesDestroyNode((SNode*)pPart);
   }
+
+  nodesDestroyList(pPrecalcExprs);
+  nodesDestroyList(pPartitionKeys);
 
   return code;
 }
@@ -1452,6 +1465,9 @@ static SSubplan* makeSubplan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogicSubpl
   pSubplan->id = pLogicSubplan->id;
   pSubplan->subplanType = pLogicSubplan->subplanType;
   pSubplan->level = pLogicSubplan->level;
+  if (NULL != pCxt->pPlanCxt->pUser) {
+    strcpy(pSubplan->user, pCxt->pPlanCxt->pUser);
+  }
   return pSubplan;
 }
 
