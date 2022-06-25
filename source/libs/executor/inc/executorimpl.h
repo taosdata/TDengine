@@ -358,6 +358,7 @@ typedef struct SSysTableScanInfo {
   tsem_t                 ready;
   SReadHandle            readHandle;
   int32_t                accountId;
+  const char*            pUser;
   bool                   showRewrite;
   SNode*                 pCondition;  // db_name filter condition, to discard data that are not in current database
   SMTbCursor*            pCur;        // cursor for iterate the local table meta store.
@@ -713,7 +714,7 @@ SOperatorInfo* createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode
 SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle, SExecTaskInfo* pTaskInfo, uint64_t queryId, uint64_t taskId);
 SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysiNode* pPhyNode,
                                          STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo);
-SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNode *pScanPhyNode, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNode *pScanPhyNode, const char* pUser, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock, SExprInfo* pScalarExprInfo,
                                            int32_t numOfScalarExpr, SExecTaskInfo* pTaskInfo);
