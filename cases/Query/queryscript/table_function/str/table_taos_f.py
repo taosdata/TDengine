@@ -63,7 +63,7 @@ class TDTestQuery(TDCase):
         self.tdCreateData.dropandcreateDB_random("%s" % db, 1) 
     
     def taos_f(self):
-        print("\n==========================right case 1_groupby==========================\n")
+        self.logger.info("\n==========================right case 1_groupby==========================\n")
         case_common = self.tdCreateData.case_sql_subprocess_execute(self.service_host,self.db)
         conn1 = case_common[0]
         cur1 = case_common[1]
@@ -76,7 +76,7 @@ class TDTestQuery(TDCase):
                 cur1.execute('use %s;' %self.db)                    
 
                 sql1 = 'select %s from %s group by tbname;'  % (func,self.table)
-                print(sql1)
+                self.logger.info(sql1)
 
             except Exception as e:
                 raise e   
@@ -92,11 +92,11 @@ class TDTestQuery(TDCase):
         self.data_create(self.db)
         
         for i in range(30):
-            print("===%d=="%i)  
+            self.logger.info("===%d=="%i)  
             self.taos_f() 
        
         endTime = time.time()
         self.rm_sql()
-        print("total time %ds" % (endTime - startTime))
+        self.logger.info("total time %ds" % (endTime - startTime))
 
 

@@ -23,11 +23,15 @@ from taostest import TDCase
 import subprocess
 import os
 import taos
+from taostest.util.remote import Remote
 
 class TDCreateData():
     def __init__(self, tdSql, logger):
         self.tdSql =  tdSql
         self.logger = logger
+        
+        self._remote: Remote = Remote(self.logger)
+        self._remote._logger.info("********")
 
     def desc(self) -> str:
         case_description = '''
@@ -504,7 +508,7 @@ class TDCreateData():
         service_host = "ceph01"
         taos_cmd1 = "taos -h %s -f %s/%s.sql" % (service_host,testcasePath,testcaseFilename)
         _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-        print("sqlname :============= %s/%s.sql"% (testcasePath,testcaseFilename))
+        self.logger.info("sqlname :============= %s/%s.sql"% (testcasePath,testcaseFilename))
 
     def case_sql_subprocess_execute(self,service_host,db):
         service_host = "ceph01"
@@ -540,17 +544,17 @@ class TDCreateData():
         if  (list1 == list2) and len(list2)>0:
             self.logger.info(("===list=_===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
         elif abs(float(str(list1).replace("]","").replace("[","")) - float(str(list2).replace("]","").replace("[",""))) <= 0.5:
-            #print(("=====list_abs===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            #self.logger.info(("=====list_abs===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             self.logger.info(("===list_abs===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
         elif abs(float(str(list1).replace("]","").replace("[","").replace("e+","")) - float(str(list2).replace("]","").replace("[","").replace("e+",""))) <= 0.0001:
-            #print(("=====list_abs+e+===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            #self.logger.info(("=====list_abs+e+===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             self.logger.info(("===list_abs+e+===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
         elif str(list1).replace("]","").replace("[","") == str(list2).replace("]","").replace("[",""):
             #result is NAN -NAN
             self.logger.info(("===list_nan===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
         else:
             self.logger.info(("sql1:'%s' result != sql2:'%s' result") %(sql1,sql2))
-            print(("=====list_error===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            self.logger.info(("=====list_error===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             return self.tdSql.checkEqual(list1,list2)
 
     def dataequal_hyperloglog(self, sql1,row1,col1, sql2,row2,col2):
@@ -571,14 +575,14 @@ class TDCreateData():
                 list2.append(self.tdSql.getData(i2,j2))
        
         if  (list1 == list2) and len(list2)>0:
-            print(("=====list_hyperlog===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            self.logger.info(("=====list_hyperlog===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             self.logger.info(("===list=_hyperlog===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
         elif abs(float(str(list1).replace("]","").replace("[","")) - float(str(list2).replace("]","").replace("[",""))) < 10:
-            print(("=====list_abs_hyperlog===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            self.logger.info(("=====list_abs_hyperlog===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             self.logger.info(("===list_abs_hyperlog===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
         else:
             self.logger.info(("sql1:'%s' hyperlog result != sql2:'%s' result") %(sql1,sql2))
-            print(("=====list_error_hyperlog===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            self.logger.info(("=====list_error_hyperlog===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             return self.tdSql.checkEqual(list1,list2)
          
     def data_matrix_equal(self, sql1,row1_s,row1_e,col1_s,col1_e, sql2,row2_s,row2_e,col2_s,col2_e):
@@ -590,49 +594,49 @@ class TDCreateData():
         list1 =[]
         self.tdSql.query(sql1)
         for i1 in range(row1_s-1,row1_e):
-            #print("iiii=%d"%i1)
+            #self.logger.info("iiii=%d"%i1)
             for j1 in range(col1_s-1,col1_e):
-                #print("jjjj=%d"%j1)
-                #print("data=%s" %(self.tdSql.getData(i1,j1)))
+                #self.logger.info("jjjj=%d"%j1)
+                #self.logger.info("data=%s" %(self.tdSql.getData(i1,j1)))
                 list1.append(self.tdSql.getData(i1,j1))
-            #print("=====list1-------list1---=%s" %set(list1))
+            #self.logger.info("=====list1-------list1---=%s" %set(list1))
         
         #self.tdSql.execute("reset query cache;") #TD=16766
         self.sql2 = sql2  
         list2 =[]
         self.tdSql.query(sql2)
         for i2 in range(row2_s-1,row2_e):
-            #print("iiii222=%d"%i2)
+            #self.logger.info("iiii222=%d"%i2)
             for j2 in range(col2_s-1,col2_e):
-                #print("jjjj222=%d"%j2)
-                #print("data=%s" %(self.tdSql.getData(i2,j2)))
+                #self.logger.info("jjjj222=%d"%j2)
+                #self.logger.info("data=%s" %(self.tdSql.getData(i2,j2)))
                 list2.append(self.tdSql.getData(i2,j2))
-            #print("=====list2-------list2---=%s" %set(list2)) 
+            #self.logger.info("=====list2-------list2---=%s" %set(list2)) 
        
         if  (list1 == list2) and len(list2)>0:
-            # print(("=====matrix===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            # self.logger.info(("=====matrix===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             self.logger.info(("===matrix===sql1:'%s' matrix_result = sql2:'%s' matrix_result") %(sql1,sql2))
         elif (set(list2)).issubset(set(list1)):
             # 解决不同子表排列结果乱序
-            # print(("=====list_issubset==matrix2in1-true===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            # self.logger.info(("=====list_issubset==matrix2in1-true===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             self.logger.info(("===matrix_issubset===sql1:'%s' matrix_set_result = sql2:'%s' matrix_set_result") %(sql1,sql2))
         #elif abs(float(str(list1).replace("]","").replace("[","").replace("e+","")) - float(str(list2).replace("]","").replace("[","").replace("e+",""))) <= 0.0001:
         elif abs(float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace("e+","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None","")) - float(str(list2).replace("datetime.datetime","").replace("]","").replace("[","").replace("e+","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None",""))) <= 0.0001:
-            print(("=====matrix_abs+e+===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
-            print(("=====matrix_abs+e+replace_after===sql1.list1:'%s',sql2.list2:'%s'") %(float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace("e+","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None","")),float(str(list2).replace("datetime.datetime","").replace("]","").replace("[","").replace("e+","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None",""))))
+            self.logger.info(("=====matrix_abs+e+===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            self.logger.info(("=====matrix_abs+e+replace_after===sql1.list1:'%s',sql2.list2:'%s'") %(float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace("e+","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None","")),float(str(list2).replace("datetime.datetime","").replace("]","").replace("[","").replace("e+","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None",""))))
             self.logger.info(("===matrix_abs+e+===sql1:'%s' matrix_result = sql2:'%s' matrix_result") %(sql1,sql2))
         elif abs(float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None","")) - float(str(list2).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None",""))) <= 0.1:
             #{datetime.datetime(2021, 8, 27, 1, 46, 40), -441.46841430664057}replace
-            print(("=====matrix_abs+replace===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
-            print(("=====matrix_abs+replace_after===sql1.list1:'%s',sql2.list2:'%s'") %(float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None","")),float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None",""))))
+            self.logger.info(("=====matrix_abs+replace===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            self.logger.info(("=====matrix_abs+replace_after===sql1.list1:'%s',sql2.list2:'%s'") %(float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None","")),float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None",""))))
             self.logger.info(("===matrix_abs+replace===sql1:'%s' matrix_result = sql2:'%s' matrix_result") %(sql1,sql2))
         elif abs(float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None","")) - float(str(list2).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None",""))) <= 0.5:
-            print(("=====matrix_abs===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
-            print(("=====matrix_abs===sql1.list1:'%s',sql2.list2:'%s'") %(float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None","")),float(str(list2).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None",""))))
+            self.logger.info(("=====matrix_abs===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            self.logger.info(("=====matrix_abs===sql1.list1:'%s',sql2.list2:'%s'") %(float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None","")),float(str(list2).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None",""))))
             self.logger.info(("===matrix_abs======sql1:'%s' matrix_result = sql2:'%s' matrix_result") %(sql1,sql2))
         else:
             self.logger.info(("sql1:'%s' matrix_result != sql2:'%s' matrix_result") %(sql1,sql2))
-            print(("=====matrix_error===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            self.logger.info(("=====matrix_error===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             return self.tdSql.checkEqual(list1,list2)
                           
     def data2in1(self, sql1,row1_s,row1_e,col1_s,col1_e, sql2,row2_s,row2_e,col2_s,col2_e):
@@ -646,7 +650,7 @@ class TDCreateData():
         for i1 in range(row1_s-1,row1_e):
             for j1 in range(col1_s-1,col1_e):
                 list1.append(self.tdSql.getData(i1,j1))
-        #print("-----list1-------list1---=%s" %list1) 
+        #self.logger.info("-----list1-------list1---=%s" %list1) 
 
         #self.tdSql.execute("reset query cache;") #TD=16766
         self.sql2 = sql2  
@@ -655,19 +659,19 @@ class TDCreateData():
         for i2 in range(row2_s-1,row2_e):
             for j2 in range(col2_s-1,col2_e):                
                 list2.append(self.tdSql.getData(i2,j2))
-        #print("-----list2-------list2---=%s" %list2)                
+        #self.logger.info("-----list2-------list2---=%s" %list2)                
         
         if len(list2) == 0 :
-            print(("=====data2in1-0===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))           
+            self.logger.info(("=====data2in1-0===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))           
             self.result_0(sql2)
         #测试是否 set(list2) 中的每一个元素都在 set(list1) 中 's <= t ' == ' s.issubset(t)'   ' s.issuperset(t) ' == ' s >= t '
         elif (set(list2)).issubset(set(list1)) :
-            #print(("=====data2in1-true===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            #self.logger.info(("=====data2in1-true===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             self.logger.info(("===data2in1-true===sql1:'%s' result include sql2:'%s' result") %(sql1,sql2))
         else:
-            print(("=====data2in1-false===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
-            print(("\n\n\n=====data2in1-list1-list2===sql1.list2 in list1:'%s'") %(set(list1)-set(list2)))
-            print(("\n\n\n=====data2in1-list2-list1===sql2.list2 not in list1:'%s'") %(set(list2)-set(list1)))
+            self.logger.info(("=====data2in1-false===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            self.logger.info(("\n\n\n=====data2in1-list1-list2===sql1.list2 in list1:'%s'") %(set(list1)-set(list2)))
+            self.logger.info(("\n\n\n=====data2in1-list2-list1===sql2.list2 not in list1:'%s'") %(set(list2)-set(list1)))
             self.logger.info(("sql1:'%s' result not include sql2:'%s' row:'%s' col'%s' result '%s'") %(sql1,sql2,i2,j2,self.tdSql.getData(i2,j2)))
             #return self.tdSql.checkEqual(list1,self.tdSql.getData(i2,j2))
             return self.tdSql.checkEqual(list1,list2)
@@ -756,7 +760,7 @@ class TDCreateData():
         self.value = value
         
         for i in range(row1, row2):
-            print("===row: %d col: %d=====data_d=%f"%(i,col,self.tdSql.getData(i, col)))
+            self.logger.info("===row: %d col: %d=====data_d=%f"%(i,col,self.tdSql.getData(i, col)))
             self.check_one_row_one_col_value(sql, i , col, oper, value)
                                             
 
@@ -837,7 +841,7 @@ class TDCreateData():
         self.value = value
         
         for i in range(row1, row2):
-            print("===row: %d col: %d=====data_s=%s"%(i,col,self.tdSql.getData(i, col)))
+            self.logger.info("===row: %d col: %d=====data_s=%s"%(i,col,self.tdSql.getData(i, col)))
             self.check_one_row_one_col_str_value(sql, i , col, oper, value)
 
 
@@ -852,11 +856,11 @@ class TDCreateData():
         data = self.tdSql.getData(row, col)
                    
         if oper == "TIME":
-            #print(data,value)
-            print(pd.to_datetime(data) , pd.to_datetime(value))
+            #self.logger.info(data,value)
+            self.logger.info(pd.to_datetime(data) , pd.to_datetime(value))
             chazhi = pd.to_datetime(data) - pd.to_datetime(value)
-            # print(chazhi)
-            # print(chazhi.total_seconds())
+            # self.logger.info(chazhi)
+            # self.logger.info(chazhi.total_seconds())
             
             if pd.to_datetime(data) == pd.to_datetime(value):  
                 self.logger.debug(f"TIME（时间对比=）checkEqual success, elm={data} expect_elm={value}")                 
@@ -872,10 +876,10 @@ class TDCreateData():
                     self._set_error_msg(f"TIME（时间对比）checkEqual error, elm={data} expect_elm={value}")
                     return False    
         elif oper == "SYS_TIME":
-            print(data,value)
-            print(pd.to_datetime(data) , pd.to_datetime(value))
+            self.logger.info(data,value)
+            self.logger.info(pd.to_datetime(data) , pd.to_datetime(value))
             chazhi = pd.to_datetime(data) - pd.to_datetime(value)
-            print(chazhi)
+            self.logger.info(chazhi)
             
             if pd.to_datetime(data) == pd.to_datetime(value):  
                 self.logger.debug(f"SYS_TIME（时间对比=）checkEqual success, elm={data} expect_elm={value}")                 
@@ -892,11 +896,11 @@ class TDCreateData():
                     return False  
                                 
         elif oper == "TODAY":
-            #print(data,value)
-            print(pd.to_datetime(data) , pd.to_datetime(value))
+            #self.logger.info(data,value)
+            self.logger.info(pd.to_datetime(data) , pd.to_datetime(value))
             chazhi = pd.to_datetime(data) - pd.to_datetime(value)
-            # print(chazhi)
-            # print(chazhi.total_seconds())
+            # self.logger.info(chazhi)
+            # self.logger.info(chazhi.total_seconds())
             
             if pd.to_datetime(data) == pd.to_datetime(value):  
                 self.logger.debug(f"TODAY（时间对比=）checkEqual success, elm={data} expect_elm={value}")                 
@@ -912,9 +916,9 @@ class TDCreateData():
                     self._set_error_msg(f"TODAY（时间对比）checkEqual error, elm={data} expect_elm={value}")
                     return False    
         elif oper == "SYS_TODAY":
-            print(pd.to_datetime(data) , pd.to_datetime(value))
+            self.logger.info(pd.to_datetime(data) , pd.to_datetime(value))
             chazhi = pd.to_datetime(data) - pd.to_datetime(value)
-            print(chazhi,abs(float(chazhi.total_seconds())))
+            self.logger.info(chazhi,abs(float(chazhi.total_seconds())))
             
             if pd.to_datetime(data) == pd.to_datetime(value):  
                 self.logger.debug(f"SYS_TODAY（时间对比=）checkEqual success, elm={data} expect_elm={value}")                 
@@ -931,7 +935,7 @@ class TDCreateData():
                     return False   
                   
         elif oper == "TIMEZONE":
-            #print(data,value)            
+            #self.logger.info(data,value)            
             if data == value:  
                 self.logger.debug(f"TIMEZONE（时间对比=）checkEqual success, elm={data} expect_elm={value}")                 
                 return True 
@@ -942,7 +946,7 @@ class TDCreateData():
                     self._set_error_msg(f"TIMEZONE（时间对比）checkEqual error, elm={data} expect_elm={value}")
                     return False    
         elif oper == "SYS_TIMEZONE":
-            print(data,value)            
+            self.logger.info(data,value)            
             if str(data).split()[0] == str(value):  
                 self.logger.debug(f"SYS_TIMEZONE（时间对比=）checkEqual success, elm={data} expect_elm={value}")                 
                 return True 
@@ -955,13 +959,13 @@ class TDCreateData():
                   
         elif oper == "TO_ISO8601":
             #处理data格式，只保留+之前的，eg：2022-03-30T15:11:36.432+0800 保留2022-03-30T15:11:36.432
-            print(data,value)
+            self.logger.info(data,value)
             data = str(data).split("+")[0]
             value = str(value).split("+")[0]
             chazhi =(datetime.datetime.strptime(data, "%Y-%m-%dT%H:%M:%S.%f") - datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%S.%f")).total_seconds()            
-            print(datetime.datetime.strptime(data, "%Y-%m-%dT%H:%M:%S.%f"))
-            print(datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%S.%f"))
-            print(chazhi,float(chazhi))
+            self.logger.info(datetime.datetime.strptime(data, "%Y-%m-%dT%H:%M:%S.%f"))
+            self.logger.info(datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%S.%f"))
+            self.logger.info(chazhi,float(chazhi))
             
             if str(data).split(".")[0] == str(value).split(".")[0]:  
                 self.logger.debug(f"TO_ISO8601（时间对比=.）checkEqual success, elm={data} expect_elm={value}")                 
@@ -976,7 +980,7 @@ class TDCreateData():
                     self._set_error_msg(f"TO_ISO8601（时间对比）checkEqual error, elm={data} expect_elm={value}")
                     return False    
         elif oper == "SYS_TO_ISO8601":
-            print(data,value)
+            self.logger.info(data,value)
             data = str(data).split("+")[0]
             value = str(value).split("+")[0]
             chazhi =(datetime.datetime.strptime(data, "%Y-%m-%dT%H:%M:%S.%f") - datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%S.%f")).total_seconds()                                    
@@ -993,7 +997,7 @@ class TDCreateData():
                   
         elif oper == "TO_UNIXTIMESTAMP":
             #处理data格式，只保留+之前的，eg：2022-03-30T15:11:36.432+0800 保留2022-03-30T15:11:36.432
-            print(data,value)
+            self.logger.info(data,value)
             data = str(data).split("+")[0]
             value = str(value).split("+")[0]
             if data == value:  
@@ -1006,7 +1010,7 @@ class TDCreateData():
                     self._set_error_msg(f"TO_UNIXTIMESTAMP（时间对比）checkEqual error, elm={data} expect_elm={value}")
                     return False    
         elif oper == "SYS_TO_UNIXTIMESTAMP":
-            print(data,value)
+            self.logger.info(data,value)
             data = str(data).split("+")[0]
             value = str(value).split("+")[0]                                    
             #有的机器有8个小时时差，因此增加8个小时28800s
@@ -1032,5 +1036,5 @@ class TDCreateData():
         self.value = value
         
         for i in range(row1, row2):
-            print("===row: %d col: %d=====data_s=%s"%(i,col,self.tdSql.getData(i, col)))
+            self.logger.info("===row: %d col: %d=====data_s=%s"%(i,col,self.tdSql.getData(i, col)))
             self.check_one_row_one_col_time_value(sql, i , col, oper, value)

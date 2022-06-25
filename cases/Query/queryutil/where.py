@@ -36,7 +36,7 @@ class TDWhere():
     #basic_param
     updatecfgDict={'maxSQLLength':1048576}
     NUM = random.randint(1, 30)
-    print(NUM)   
+    self.logger.info(NUM)   
 
     def column_tag(self):
         int_column = ['(q_int)','(q_bigint)','(q_smallint)','(q_tinyint)','(q_float)','(q_double)','(q_int_null)','(q_bigint_null)','(q_smallint_null)','(q_tinyint_null)','(q_float_null)','(q_double_null)']
