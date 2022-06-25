@@ -11,7 +11,6 @@ import java.util.concurrent.LinkedBlockingDeque;
 
 // ANCHOR: WriteTask
 class WriteTask {
-    // How many records will trigger writing before queue
     final static int maxBatchSize = 500;
     //
     final static int taskQueueCapacity = 1000;
@@ -36,7 +35,7 @@ class WriteTask {
     }
 
     private static Connection getConnection() throws SQLException {
-        String jdbcUrl = "jdbc:TAOS-RS://localhost:6041?user=root&password=taosdata";
+        String jdbcUrl = "jdbc:TAOS://localhost:6030?user=root&password=taosdata";
         return DriverManager.getConnection(jdbcUrl);
     }
 
