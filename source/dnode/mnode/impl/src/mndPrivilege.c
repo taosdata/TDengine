@@ -14,64 +14,13 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "mndAuth.h"
+#include "mndPrivilege.h"
 #include "mndUser.h"
+#include "mndDb.h"
 
-static int32_t mndProcessAuthReq(SRpcMsg *pReq);
+int32_t mndInitPrivilege(SMnode *pMnode) { return 0; }
 
-int32_t mndInitAuth(SMnode *pMnode) {
-  mndSetMsgHandle(pMnode, TDMT_MND_AUTH, mndProcessAuthReq);
-  return 0;
-}
-
-void mndCleanupAuth(SMnode *pMnode) {}
-
-static int32_t mndRetriveAuth(SMnode *pMnode, SAuthRsp *pRsp) {
-  SUserObj *pUser = mndAcquireUser(pMnode, pRsp->user);
-  if (pUser == NULL) {
-    *pRsp->secret = 0;
-    mError("user:%s, failed to auth user since %s", pRsp->user, terrstr());
-    return -1;
-  }
-
-  pRsp->spi = 1;
-  pRsp->encrypt = 0;
-  *pRsp->ckey = 0;
-
-  memcpy(pRsp->secret, pUser->pass, TSDB_PASSWORD_LEN);
-  mndReleaseUser(pMnode, pUser);
-
-  mDebug("user:%s, auth info is returned", pRsp->user);
-  return 0;
-}
-
-static int32_t mndProcessAuthReq(SRpcMsg *pReq) {
-  SAuthReq authReq = {0};
-  if (tDeserializeSAuthReq(pReq->pCont, pReq->contLen, &authReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
-  }
-
-  SAuthReq authRsp = {0};
-  memcpy(authRsp.user, authReq.user, TSDB_USER_LEN);
-
-  int32_t code = mndRetriveAuth(pReq->info.node, &authRsp);
-  mTrace("user:%s, auth req received, spi:%d encrypt:%d ruser:%s", pReq->info.conn.user, authRsp.spi, authRsp.encrypt,
-         authRsp.user);
-
-  int32_t contLen = tSerializeSAuthReq(NULL, 0, &authRsp);
-  void   *pRsp = rpcMallocCont(contLen);
-  if (pRsp == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  tSerializeSAuthReq(pRsp, contLen, &authRsp);
-
-  pReq->info.rsp = pRsp;
-  pReq->info.rspLen = contLen;
-  return code;
-}
+void mndCleanupPrivilege(SMnode *pMnode) {}
 
 int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, EOperType operType) {
   int32_t   code = 0;
@@ -185,15 +134,7 @@ int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, EOperType operType
     if (pUser->sysInfo) goto _OVER;
   }
 
-  if (operType == MND_OPER_ALTER_DB) {
-    if (strcmp(pUser->user, pDb->createUser) == 0 && pUser->sysInfo) goto _OVER;
-  }
-
-  if (operType == MND_OPER_DROP_DB) {
-    if (strcmp(pUser->user, pDb->createUser) == 0 && pUser->sysInfo) goto _OVER;
-  }
-
-  if (operType == MND_OPER_COMPACT_DB) {
+  if (operType == MND_OPER_ALTER_DB || operType == MND_OPER_DROP_DB || operType == MND_OPER_COMPACT_DB) {
     if (strcmp(pUser->user, pDb->createUser) == 0 && pUser->sysInfo) goto _OVER;
   }
 
@@ -218,5 +159,14 @@ int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, EOperType operType
 
 _OVER:
   mndReleaseUser(pMnode, pUser);
+  return code;
+}
+
+int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, EOperType operType, const char *name) {
+  SDbObj *pDb = mndAcquireDb(pMnode, name);
+  if (pDb == NULL) return -1;
+
+  int32_t code = mndCheckDbPrivilege(pMnode, user, operType, pDb);
+  mndReleaseDb(pMnode, pDb);
   return code;
 }

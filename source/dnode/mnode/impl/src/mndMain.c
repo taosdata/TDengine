@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndAcct.h"
-#include "mndAuth.h"
+#include "mndPrivilege.h"
 #include "mndBnode.h"
 #include "mndCluster.h"
 #include "mndConsumer.h"
@@ -100,7 +100,7 @@ static void *mndThreadFp(void *param) {
     taosMsleep(100);
     if (mndGetStop(pMnode)) break;
 
-    if (lastTime % (tsTransPullupInterval * 10) == 1) {
+    if (lastTime % (tsTtlPushInterval * 10) == 1) {
       mndTtlTimer(pMnode);
     }
 
@@ -239,7 +239,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   if (mndAllocStep(pMnode, "mnode-dnode", mndInitDnode, mndCleanupDnode) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-user", mndInitUser, mndCleanupUser) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-grant", mndInitGrant, mndCleanupGrant) != 0) return -1;
-  if (mndAllocStep(pMnode, "mnode-auth", mndInitAuth, mndCleanupAuth) != 0) return -1;
+  if (mndAllocStep(pMnode, "mnode-privilege", mndInitPrivilege, mndCleanupPrivilege) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-acct", mndInitAcct, mndCleanupAcct) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-stream", mndInitStream, mndCleanupStream) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-topic", mndInitTopic, mndCleanupTopic) != 0) return -1;

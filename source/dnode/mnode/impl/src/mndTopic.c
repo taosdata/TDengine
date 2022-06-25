@@ -14,7 +14,7 @@
  */
 
 #include "mndTopic.h"
-#include "mndAuth.h"
+#include "mndPrivilege.h"
 #include "mndConsumer.h"
 #include "mndDb.h"
 #include "mndDnode.h"
@@ -480,11 +480,6 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
-    goto _OVER;
-  }
-
-  code = mndCreateTopic(pMnode, pReq, &createTopicReq, pDb);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 _OVER:
@@ -571,6 +566,10 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   }
 #endif
 
+  if (mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, pTopic->db) != 0) {
+    return -1;
+  }
+
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq);
   mndTransSetDbName(pTrans, pTopic->db, NULL);
   if (pTrans == NULL) {
@@ -579,7 +578,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   }
 
   mDebug("trans:%d, used to drop topic:%s", pTrans->id, pTopic->name);
-
+  
   if (mndDropOffsetByTopic(pMnode, pTrans, dropReq.name) < 0) {
     ASSERT(0);
     return -1;

@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MND_AUTH_H_
-#define _TD_MND_AUTH_H_
+#ifndef _TD_MND_PRIVILEGE_H
+#define _TD_MND_PRIVILEGE_H
 
 #include "mndInt.h"
 
@@ -59,11 +59,12 @@ typedef enum {
   MND_OPER_READ_DB,
 } EOperType;
 
-int32_t mndInitAuth(SMnode *pMnode);
-void    mndCleanupAuth(SMnode *pMnode);
+int32_t mndInitPrivilege(SMnode *pMnode);
+void    mndCleanupPrivilege(SMnode *pMnode);
 
 int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, EOperType operType);
 int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, EOperType operType, SDbObj *pDb);
+int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, EOperType operType, const char *name);
 int32_t mndCheckShowPrivilege(SMnode *pMnode, const char *user, int32_t showType);
 int32_t mndCheckAlterUserPrivilege(SUserObj *pOperUser, SUserObj *pUser, SAlterUserReq *pAlter);
 
@@ -71,4 +72,4 @@ int32_t mndCheckAlterUserPrivilege(SUserObj *pOperUser, SUserObj *pUser, SAlterU
 }
 #endif
 
-#endif /*_TD_MND_AUTH_H_*/
+#endif /*_TD_MND_PRIVILEGE_H*/

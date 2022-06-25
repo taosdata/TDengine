@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndSnode.h"
-#include "mndAuth.h"
+#include "mndPrivilege.h"
 #include "mndDnode.h"
 #include "mndShow.h"
 #include "mndTrans.h"

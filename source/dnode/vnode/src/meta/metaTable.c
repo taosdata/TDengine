@@ -381,6 +381,7 @@ int metaTtlDropTable(SMeta *pMeta, int64_t ttl, SArray *tbUids) {
   for (int i = 0; i < taosArrayGetSize(tbUids); ++i) {
     tb_uid_t *uid = (tb_uid_t *)taosArrayGet(tbUids, i);
     metaDropTableByUid(pMeta, *uid, NULL);
+    metaDebug("ttl drop table:%"PRId64, *uid);
   }
   metaULock(pMeta);
   return 0;
@@ -443,7 +444,6 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type) {
     // drop schema.db (todo)
   }
 
-  metaError("ttl drop table:%s", e.name);
   tDecoderClear(&dc);
   tdbFree(pData);
 
@@ -976,7 +976,9 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
   SDecoder       dc = {0};
 
   // get super table
-  tdbTbGet(pMeta->pUidIdx, &pCtbEntry->ctbEntry.suid, sizeof(tb_uid_t), &pData, &nData);
+  if(tdbTbGet(pMeta->pUidIdx, &pCtbEntry->ctbEntry.suid, sizeof(tb_uid_t), &pData, &nData) != 0){
+    return -1;
+  }
   tbDbKey.uid = pCtbEntry->ctbEntry.suid;
   tbDbKey.version = *(int64_t *)pData;
   tdbTbGet(pMeta->pTbDb, &tbDbKey, sizeof(tbDbKey), &pData, &nData);

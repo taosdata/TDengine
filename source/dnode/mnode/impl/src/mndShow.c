@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "mndShow.h"
 #include "systable.h"
-#include "mndAuth.h"
+#include "mndPrivilege.h"
 
 #define SHOW_STEP_SIZE 100
 

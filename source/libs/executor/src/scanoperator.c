@@ -418,7 +418,7 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
   return NULL;
 }
 
-static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
+static SSDataBlock* doTableScanGroup(SOperatorInfo* pOperator) {
   STableScanInfo* pTableScanInfo = pOperator->info;
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
 
@@ -500,6 +500,48 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
     }
   }
 
+  return NULL;
+}
+
+static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
+  STableScanInfo* pInfo = pOperator->info;
+  SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
+
+  if(pInfo->currentGroupId == -1){
+    pInfo->currentGroupId++;
+    if (pInfo->currentGroupId >= taosArrayGetSize(pTaskInfo->tableqinfoList.pGroupList)) {
+      setTaskStatus(pTaskInfo, TASK_COMPLETED);
+      return NULL;
+    }
+    SArray *tableList = taosArrayGetP(pTaskInfo->tableqinfoList.pGroupList, pInfo->currentGroupId);
+    tsdbCleanupReadHandle(pInfo->dataReader);
+    tsdbReaderT* pReader = tsdbReaderOpen(pInfo->readHandle.vnode, &pInfo->cond, tableList, pInfo->queryId, pInfo->taskId);
+    pInfo->dataReader = pReader;
+  }
+
+  SSDataBlock* result = doTableScanGroup(pOperator);
+  if(result){
+    return result;
+  }
+
+  pInfo->currentGroupId++;
+  if (pInfo->currentGroupId >= taosArrayGetSize(pTaskInfo->tableqinfoList.pGroupList)) {
+    setTaskStatus(pTaskInfo, TASK_COMPLETED);
+    return NULL;
+  }
+
+  SArray *tableList = taosArrayGetP(pTaskInfo->tableqinfoList.pGroupList, pInfo->currentGroupId);
+  tsdbSetTableList(pInfo->dataReader, tableList);
+
+  tsdbResetReadHandle(pInfo->dataReader, &pInfo->cond, 0);
+  pInfo->curTWinIdx = 0;
+  pInfo->scanTimes = 0;
+
+  result = doTableScanGroup(pOperator);
+  if(result){
+    return result;
+  }
+
   setTaskStatus(pTaskInfo, TASK_COMPLETED);
   return NULL;
 }
@@ -525,8 +567,8 @@ static void destroyTableScanOperatorInfo(void* param, int32_t numOfOutput) {
   }
 }
 
-SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, tsdbReaderT pDataReader,
-                                           SReadHandle* readHandle, SExecTaskInfo* pTaskInfo) {
+SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHandle* readHandle,
+                                           SExecTaskInfo* pTaskInfo, uint64_t queryId, uint64_t taskId) {
   STableScanInfo* pInfo = taosMemoryCalloc(1, sizeof(STableScanInfo));
   SOperatorInfo*  pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -561,10 +603,12 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   pInfo->dataBlockLoadFlag = pTableScanNode->dataRequired;
   pInfo->pResBlock = createResDataBlock(pDescNode);
   pInfo->pFilterNode = pTableScanNode->scan.node.pConditions;
-  pInfo->dataReader = pDataReader;
   pInfo->scanFlag = MAIN_SCAN;
   pInfo->pColMatchInfo = pColList;
   pInfo->curTWinIdx = 0;
+  pInfo->queryId = queryId;
+  pInfo->taskId = taskId;
+  pInfo->currentGroupId = -1;
 
   pOperator->name = "TableScanOperator";  // for debug purpose
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
@@ -778,8 +822,9 @@ static bool prepareDataScan(SStreamBlockScanInfo* pInfo) {
   STableScanInfo* pTableScanInfo = pInfo->pSnapshotReadOp->info;
   pTableScanInfo->cond.twindows[0] = win;
   pTableScanInfo->curTWinIdx = 0;
-  tsdbResetReadHandle(pTableScanInfo->dataReader, &pTableScanInfo->cond, 0);
+//  tsdbResetReadHandle(pTableScanInfo->dataReader, &pTableScanInfo->cond, 0);
   pTableScanInfo->scanTimes = 0;
+  pTableScanInfo->currentGroupId = -1;
   return true;
 }
 
@@ -1087,9 +1132,9 @@ static SArray* extractTableIdList(const STableListInfo* pTableGroupInfo) {
   return tableIdList;
 }
 
-SOperatorInfo* createStreamScanOperatorInfo(void* pDataReader, SReadHandle* pHandle,
+SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle,
                                             STableScanPhysiNode* pTableScanNode, SExecTaskInfo* pTaskInfo,
-                                            STimeWindowAggSupp* pTwSup) {
+                                            STimeWindowAggSupp* pTwSup, uint64_t queryId, uint64_t taskId) {
   SStreamBlockScanInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamBlockScanInfo));
   SOperatorInfo*        pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
 
@@ -1129,7 +1174,7 @@ SOperatorInfo* createStreamScanOperatorInfo(void* pDataReader, SReadHandle* pHan
   }
 
   if (pHandle) {
-    SOperatorInfo*  pTableScanDummy = createTableScanOperatorInfo(pTableScanNode, pDataReader, pHandle, pTaskInfo);
+    SOperatorInfo*  pTableScanDummy = createTableScanOperatorInfo(pTableScanNode, pHandle, pTaskInfo, queryId, taskId);
     STableScanInfo* pSTInfo = (STableScanInfo*)pTableScanDummy->info;
     if (pSTInfo->interval.interval > 0) {
       pInfo->pUpdateInfo = updateInfoInitP(&pSTInfo->interval, pTwSup->waterMark);
@@ -1889,11 +1934,12 @@ SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysi
     goto _error;
   }
 
-  pInfo->pTableList = pTableListInfo;
-  pInfo->pColMatchInfo = colList;
-  pInfo->pRes = createResDataBlock(pDescNode);
-  pInfo->readHandle = *pReadHandle;
-  pInfo->curPos = 0;
+  pInfo->pTableList       = pTableListInfo;
+  pInfo->pColMatchInfo    = colList;
+  pInfo->pRes             = createResDataBlock(pDescNode);
+  pInfo->readHandle       = *pReadHandle;
+  pInfo->curPos           = 0;
+
   pOperator->name = "TagScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN;
 
@@ -1919,10 +1965,7 @@ _error:
 
 typedef struct STableMergeScanInfo {
   STableListInfo* tableListInfo;
-  int32_t         tableStartIndex;
-  int32_t         tableEndIndex;
-  bool            hasGroupId;
-  uint64_t        groupId;
+  int32_t         currentGroupId;
 
   SArray*     dataReaders;  // array of tsdbReaderT*
   SReadHandle readHandle;
@@ -1968,12 +2011,6 @@ typedef struct STableMergeScanInfo {
   SSampleExecInfo sample;  // sample execution info
 } STableMergeScanInfo;
 
-int32_t compareTableKeyInfoByGid(const void* p1, const void* p2) {
-  const STableKeyInfo* info1 = p1;
-  const STableKeyInfo* info2 = p2;
-  return info1->groupId - info2->groupId;
-}
-
 int32_t createScanTableListInfo(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle,
                                 STableListInfo* pTableListInfo, uint64_t queryId, uint64_t taskId) {
   int32_t code = getTableList(pHandle->meta, &pTableScanNode->scan, pTableListInfo);
@@ -1985,55 +2022,9 @@ int32_t createScanTableListInfo(STableScanPhysiNode* pTableScanNode, SReadHandle
     qDebug("no table qualified for query, TID:0x%" PRIx64 ", QID:0x%" PRIx64, taskId, queryId);
     return TSDB_CODE_SUCCESS;
   }
-  SArray* groupKeys = extractPartitionColInfo(pTableScanNode->pPartitionTags);
-  generateGroupIdMap(pTableListInfo, pHandle, groupKeys);  // todo for json
-  if (groupKeys) {
-    taosArraySort(pTableListInfo->pTableList, compareTableKeyInfoByGid);
-  }
-  taosArrayDestroy(groupKeys);
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t doCreateMultipleDataReaders(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle,
-                                    STableListInfo* pTableListInfo, SArray* arrayReader, uint64_t queryId,
-                                    uint64_t taskId) {
-  SQueryTableDataCond cond = {0};
-  int32_t             code = initQueryTableDataCond(&cond, pTableScanNode);
+  code = generateGroupIdMap(pTableListInfo, pHandle, pTableScanNode->pPartitionTags);
   if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
-  }
-  for (int32_t i = 0; i < taosArrayGetSize(pTableListInfo->pTableList); ++i) {
-    STableListInfo* subListInfo = taosMemoryCalloc(1, sizeof(subListInfo));
-    subListInfo->pTableList = taosArrayInit(1, sizeof(STableKeyInfo));
-    taosArrayPush(subListInfo->pTableList, taosArrayGet(pTableListInfo->pTableList, i));
-
-    tsdbReaderT* pReader = tsdbReaderOpen(pHandle->vnode, &cond, subListInfo, queryId, taskId);
-    taosArrayPush(arrayReader, &pReader);
-
-    taosArrayDestroy(subListInfo->pTableList);
-    taosMemoryFree(subListInfo);
-  }
-  cleanupQueryTableDataCond(&cond);
-
-  return TSDB_CODE_SUCCESS;
-
-_error:
-  return code;
-}
-
-int32_t createMultipleDataReaders(SQueryTableDataCond* pQueryCond, SReadHandle* pHandle, STableListInfo* pTableListInfo,
-                                  int32_t tableStartIdx, int32_t tableEndIdx, SArray* arrayReader, uint64_t queryId,
-                                  uint64_t taskId) {
-  for (int32_t i = tableStartIdx; i <= tableEndIdx; ++i) {
-    STableListInfo* subListInfo = taosMemoryCalloc(1, sizeof(subListInfo));
-    subListInfo->pTableList = taosArrayInit(1, sizeof(STableKeyInfo));
-    taosArrayPush(subListInfo->pTableList, taosArrayGet(pTableListInfo->pTableList, i));
-
-    tsdbReaderT* pReader = tsdbReaderOpen(pHandle->vnode, pQueryCond, subListInfo, queryId, taskId);
-    taosArrayPush(arrayReader, &pReader);
-
-    taosArrayDestroy(subListInfo->pTableList);
-    taosMemoryFree(subListInfo);
+    return code;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -2225,32 +2216,34 @@ SArray* generateSortByTsInfo(int32_t order) {
   return pList;
 }
 
+static int32_t createMultipleDataReaders(SQueryTableDataCond* pQueryCond, SReadHandle* pHandle, SArray* tableList, SArray* arrayReader, uint64_t queryId,
+                                  uint64_t taskId) {
+  for (int32_t i = 0; i < taosArrayGetSize(tableList); ++i) {
+    SArray* tmp = taosArrayInit(1, sizeof(STableKeyInfo));
+    taosArrayPush(tmp, taosArrayGet(tableList, i));
+
+    tsdbReaderT* pReader = tsdbReaderOpen(pHandle->vnode, pQueryCond, tmp, queryId, taskId);
+    taosArrayPush(arrayReader, &pReader);
+
+    taosArrayDestroy(tmp);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
   STableMergeScanInfo* pInfo = pOperator->info;
   SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
 
-  {
-    size_t  tableListSize = taosArrayGetSize(pInfo->tableListInfo->pTableList);
-    int32_t i = pInfo->tableStartIndex + 1;
-    for (; i < tableListSize; ++i) {
-      STableKeyInfo* tableKeyInfo = taosArrayGet(pInfo->tableListInfo->pTableList, i);
-      if (tableKeyInfo->groupId != pInfo->groupId) {
-        break;
-      }
-    }
-    pInfo->tableEndIndex = i - 1;
-  }
+  SArray* tableList = taosArrayGetP(pInfo->tableListInfo->pGroupList, pInfo->currentGroupId);
 
-  int32_t tableStartIdx = pInfo->tableStartIndex;
-  int32_t tableEndIdx = pInfo->tableEndIndex;
-
-  STableListInfo* tableListInfo = pInfo->tableListInfo;
-  createMultipleDataReaders(&pInfo->cond, &pInfo->readHandle, tableListInfo, tableStartIdx, tableEndIdx,
+  createMultipleDataReaders(&pInfo->cond, &pInfo->readHandle, tableList,
                             pInfo->dataReaders, pInfo->queryId, pInfo->taskId);
 
   // todo the total available buffer should be determined by total capacity of buffer of this task.
   // the additional one is reserved for merge result
-  pInfo->sortBufSize = pInfo->bufPageSize * (tableEndIdx - tableStartIdx + 1 + 1);
+  int32_t tableLen = taosArrayGetSize(tableList);
+  pInfo->sortBufSize = pInfo->bufPageSize * ((tableLen==0?1:tableLen) + 1);
   int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
   pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, SORT_MULTISOURCE_MERGE, pInfo->bufPageSize, numOfBufPage,
                                              pInfo->pSortInputBlock, pTaskInfo->id.str);
@@ -2337,37 +2330,42 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
   if (code != TSDB_CODE_SUCCESS) {
     longjmp(pTaskInfo->env, code);
   }
-  size_t tableListSize = taosArrayGetSize(pInfo->tableListInfo->pTableList);
-  if (!pInfo->hasGroupId) {
-    pInfo->hasGroupId = true;
 
-    if (tableListSize == 0) {
+  if (pInfo->currentGroupId == -1) {
+    pInfo->currentGroupId++;
+    if (pInfo->currentGroupId >= taosArrayGetSize(pInfo->tableListInfo->pGroupList)) {
       doSetOperatorCompleted(pOperator);
       return NULL;
     }
-    pInfo->tableStartIndex = 0;
-    pInfo->groupId = ((STableKeyInfo*)taosArrayGet(pInfo->tableListInfo->pTableList, pInfo->tableStartIndex))->groupId;
     startGroupTableMergeScan(pOperator);
   }
-  SSDataBlock* pBlock = NULL;
-  while (pInfo->tableStartIndex < tableListSize) {
-    pBlock = getSortedTableMergeScanBlockData(pInfo->pSortHandle, pOperator->resultInfo.capacity, pOperator);
-    if (pBlock != NULL) {
-      pBlock->info.groupId = pInfo->groupId;
-      pOperator->resultInfo.totalRows += pBlock->info.rows;
-      return pBlock;
-    } else {
-      stopGroupTableMergeScan(pOperator);
-      if (pInfo->tableEndIndex >= tableListSize - 1) {
-        doSetOperatorCompleted(pOperator);
-        break;
-      }
-      pInfo->tableStartIndex = pInfo->tableEndIndex + 1;
-      pInfo->groupId =
-          ((STableKeyInfo*)taosArrayGet(pInfo->tableListInfo->pTableList, pInfo->tableStartIndex))->groupId;
-      startGroupTableMergeScan(pOperator);
-    }
+  SSDataBlock* pBlock = getSortedTableMergeScanBlockData(pInfo->pSortHandle, pOperator->resultInfo.capacity, pOperator);
+  if (pBlock != NULL) {
+    uint64_t* groupId = taosHashGet(pInfo->tableListInfo->map, &(pBlock->info.uid), sizeof(uint64_t));
+    if(groupId) pBlock->info.groupId = *groupId;
+
+    pOperator->resultInfo.totalRows += pBlock->info.rows;
+    return pBlock;
   }
+
+  stopGroupTableMergeScan(pOperator);
+  pInfo->currentGroupId++;
+  if (pInfo->currentGroupId >= taosArrayGetSize(pInfo->tableListInfo->pGroupList)) {
+    doSetOperatorCompleted(pOperator);
+    return NULL;
+  }
+  startGroupTableMergeScan(pOperator);
+
+  pBlock = getSortedTableMergeScanBlockData(pInfo->pSortHandle, pOperator->resultInfo.capacity, pOperator);
+  if (pBlock != NULL) {
+    uint64_t* groupId = taosHashGet(pInfo->tableListInfo->map, &(pBlock->info.uid), sizeof(uint64_t));
+    if(groupId) pBlock->info.groupId = *groupId;
+
+    pOperator->resultInfo.totalRows += pBlock->info.rows;
+    return pBlock;
+  }
+
+  doSetOperatorCompleted(pOperator);
 
   return pBlock;
 }
@@ -2445,6 +2443,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
   pInfo->dataReaders = taosArrayInit(64, POINTER_BYTES);
   pInfo->queryId = queryId;
   pInfo->taskId = taskId;
+  pInfo->currentGroupId = -1;
 
   pInfo->sortSourceParams = taosArrayInit(64, sizeof(STableMergeScanSortSourceParam));
 
