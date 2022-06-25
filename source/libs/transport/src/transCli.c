@@ -758,13 +758,16 @@ static void cliHandleUpdate(SCliMsg* pMsg, SCliThrd* pThrd) {
   destroyCmsg(pMsg);
 }
 
-SCliConn* cliGetConn(SCliMsg* pMsg, SCliThrd* pThrd) {
+SCliConn* cliGetConn(SCliMsg* pMsg, SCliThrd* pThrd, bool* ignore) {
   SCliConn* conn = NULL;
   int64_t   refId = (int64_t)(pMsg->msg.info.handle);
   if (refId != 0) {
     SExHandle* exh = transAcquireExHandle(refMgt, refId);
     if (exh == NULL) {
-      assert(0);
+      *ignore = true;
+      destroyCmsg(pMsg);
+      return NULL;
+      // assert(0);
     } else {
       conn = exh->handle;
       transReleaseExHandle(refMgt, refId);
@@ -799,7 +802,11 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
   cliMayCvtFqdnToIp(&pCtx->epSet, &pThrd->cvtAddr);
 
   // transPrintEpSet(&pCtx->epSet);
-  SCliConn* conn = cliGetConn(pMsg, pThrd);
+  bool      ignore = false;
+  SCliConn* conn = cliGetConn(pMsg, pThrd, &ignore);
+  if (ignore == true) {
+    return;
+  }
   if (conn != NULL) {
     transCtxMerge(&conn->ctx, &pCtx->appCtx);
     transQueuePush(&conn->cliMsgs, pMsg);

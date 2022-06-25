@@ -422,7 +422,8 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
       transUnrefSrvHandle(pConn);
     } else {
       pHead->msgType = pMsg->msgType;
-      if (pHead->msgType == 0) pHead->msgType = pConn->inType + 1;
+      if (pHead->msgType == 0 && transMsgLenFromCont(pMsg->contLen) == sizeof(STransMsgHead))
+        pHead->msgType = pConn->inType + 1;
     }
   }
 
