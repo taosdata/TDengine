@@ -109,11 +109,15 @@ int32_t tqReadHandleSetMsg(STqReadHandle* pReadHandle, SSubmitReq* pMsg, int64_t
 }
 
 bool tqNextDataBlock(STqReadHandle* pHandle) {
+  if (pHandle->pMsg == NULL) return false;
   while (1) {
     if (tGetSubmitMsgNext(&pHandle->msgIter, &pHandle->pBlock) < 0) {
       return false;
     }
-    if (pHandle->pBlock == NULL) return false;
+    if (pHandle->pBlock == NULL) {
+      pHandle->pMsg = NULL;
+      return false;
+    }
 
     if (pHandle->tbIdHash == NULL) {
       return true;
